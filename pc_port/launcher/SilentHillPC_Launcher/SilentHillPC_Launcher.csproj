@@ -91,6 +91,7 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="RarExtractor.cs" />
+    <Compile Include="SevenZipExtractor.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <!-- Embed the real pc_port/config.cfg so the launcher can regenerate a
          missing config.cfg with the full detailed template; the link keeps
@@ -107,6 +108,14 @@
          dependency on the DLL being copied next to wherever the launcher runs. -->
     <EmbeddedResource Include="UnRAR.dll">
       <LogicalName>SilentHillPC_Launcher.UnRAR.dll</LogicalName>
+    </EmbeddedResource>
+    <!-- Standalone 7-Zip console tool (LGPL, (C) Igor Pavlov). Embedded in the exe
+         so SevenZipExtractor can materialize it to a temp path and run it as a
+         separate process to unpack .zip/.7z texture packs (every compression
+         method, unlike miniz/.NET Store+Deflate). Its license ships as
+         LICENSE-7zip.txt beside the launcher. -->
+    <EmbeddedResource Include="7za.exe">
+      <LogicalName>SilentHillPC_Launcher.7za.exe</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -139,6 +148,11 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="favicon.ico" />
+    <!-- 7-Zip's LGPL/BSD notice, shipped beside the launcher (redistribution of
+         7za.exe must reproduce this). -->
+    <Content Include="LICENSE-7zip.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

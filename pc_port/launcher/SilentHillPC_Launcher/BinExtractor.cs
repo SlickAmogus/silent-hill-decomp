@@ -484,10 +484,11 @@ namespace SilentHillPC_Launcher
 
                 if (convertTimToPng && e.Type == "TIM")
                 {
-                    string png = Path.Combine(Path.GetDirectoryName(outPath),
-                                              Path.GetFileNameWithoutExtension(outPath) + ".png");
+                    // Multi-CLUT TIMs (monsters/chara) emit one PNG per palette row
+                    // (FOO.TIM.pNN.png); single-palette TIMs emit one FOO.png.
                     string err;
-                    if (TimConverter.ConvertFileToPng(outPath, png, out err))
+                    var pngs = TimConverter.ConvertFileToPngSet(outPath, out err);
+                    if (pngs.Count > 0)
                     {
                         res.Textures++;
                         if (deleteTimAfterConvert)

@@ -525,18 +525,19 @@ namespace SilentHillPC_Launcher
                 if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
                 if (ofd.ShowDialog(this) != DialogResult.OK) return;
 
-                int ok = 0;
+                int ok = 0, pngs = 0;
                 var failures = new System.Collections.Generic.List<string>();
                 foreach (var tim in ofd.FileNames)
                 {
-                    string png = Path.Combine(Path.GetDirectoryName(tim),
-                                              Path.GetFileNameWithoutExtension(tim) + ".png");
                     string err;
-                    if (TimConverter.ConvertFileToPng(tim, png, out err)) ok++;
+                    var written = TimConverter.ConvertFileToPngSet(tim, out err);
+                    if (written.Count > 0) { ok++; pngs += written.Count; }
                     else failures.Add(Path.GetFileName(tim) + ": " + err);
                 }
 
-                string msg = "Converted " + ok + " of " + ofd.FileNames.Length + " file(s) to PNG.";
+                string msg = "Converted " + ok + " of " + ofd.FileNames.Length + " file(s) to "
+                             + pngs + " PNG(s).\n(Multi-palette textures emit one PNG per palette row, "
+                             + "e.g. DOB.TIM.p00.png … — edit the row for the body region you want.)";
                 if (failures.Count > 0) msg += "\n\nFailed:\n - " + string.Join("\n - ", failures.Take(8));
                 MessageBox.Show(this, msg, "TIM → PNG", MessageBoxButtons.OK,
                     failures.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
@@ -600,6 +601,13 @@ namespace SilentHillPC_Launcher
                 "    Click \"Extract BIN…\", pick your Silent Hill .bin, and tick",
                 "    \"Convert textures to PNG\". You get the disc's folder tree with every",
                 "    texture as a .png — for example the title screen is  TIM\\TITLE_E.png.",
+                "",
+                "    MONSTERS & CHARACTERS use ONE texture sheet with SEVERAL palettes —",
+                "    the head, body and limbs are drawn with different palettes over the",
+                "    same pixels. Those TIMs extract to one PNG PER PALETTE, named",
+                "    DOB.TIM.p00.png, DOB.TIM.p01.png, …  (a single flat texture stays a",
+                "    plain DOB.png). Edit the palette-row PNG for the region you want to",
+                "    change; you can ship just the rows you edited.",
                 "",
                 "2.  Edit the ones you want.",
                 "    Replace a .png with your own art, keeping the SAME name and folder.",

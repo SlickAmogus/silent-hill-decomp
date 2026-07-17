@@ -13,8 +13,15 @@ namespace SilentHillPC_Launcher
     /// including the codebase's alpha rule — a whole 16-bit halfword of 0x0000 is
     /// transparent, every other value is fully opaque, and the STP bit is ignored
     /// (it governs blend mode, not visibility). So a PNG this produces matches what
-    /// the game draws for that texture. Paletted TIMs decode with CLUT row 0
-    /// (chunk TIMs carry palette-variant rows; row 0 is the engine default).
+    /// the game draws for that texture.
+    ///
+    /// MULTI-PALETTE TIMs: a paletted TIM carries ONE 4-/8-bit index sheet plus N
+    /// CLUT ROWS (palette variants). A model draws different regions — a monster's
+    /// head vs its body — through DIFFERENT rows over the same texels, so a single
+    /// row-0 PNG can only ever recolour one region. This converter can decode any
+    /// row, and <see cref="ConvertFileToPngSet"/> emits one PNG per row named to
+    /// match the game's per-row loose-override probe ("NAME.TIM.pNN.png", see
+    /// src/main/fsqueue_3.c). Single-row / 16bpp TIMs stay a single "NAME.png".
     /// </summary>
     public static class TimConverter
     {
@@ -23,12 +30,21 @@ namespace SilentHillPC_Launcher
             return Path.GetExtension(path).Equals(".tim", StringComparison.OrdinalIgnoreCase);
         }
 
-        /// <summary>Decode a TIM blob to a 32bpp ARGB Bitmap. Returns null (with error) on failure.</summary>
+        /// <summary>Decode a TIM blob (CLUT row 0) to a 32bpp ARGB Bitmap.</summary>
         public static Bitmap DecodeToBitmap(byte[] data, out string error)
+        {
+            int rows;
+            return DecodeToBitmap(data, 0, out rows, out error);
+        }
+
+        /// <summary>Decode a TIM blob at <paramref name="clutRow"/> to a 32bpp ARGB
+        /// Bitmap; <paramref name="clutRows"/> reports the TIM's total CLUT row count
+        /// (1 for 16/24bpp). Returns null (with error) on failure.</summary>
+        public static Bitmap DecodeToBitmap(byte[] data, int clutRow, out int clutRows, out string error)
         {
             byte[] rgba;
             int w, h;
-            if (!DecodeToRgba(data, out rgba, out w, out h, out error))
+            if (!DecodeToRgba(data, clutRow, out rgba, out w, out h, out clutRows, out error))
                 return null;
 
             var bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb);
@@ -65,10 +81,35 @@ namespace SilentHillPC_Launcher
             outp[o + 3] = (cx == 0) ? (byte)0 : (byte)255;
         }
 
+        /// <summary>Number of CLUT rows (palette variants) in a paletted TIM; 1 for
+        /// 16/24bpp or an unparseable header.</summary>
+        public static int ClutRowCount(byte[] data)
+        {
+            if (data == null || data.Length < 20) return 1;
+            if (data[0] != 0x10 || data[1] != 0 || data[2] != 0 || data[3] != 0) return 1;
+            uint flags = (uint)data[4] | ((uint)data[5] << 8) | ((uint)data[6] << 16) | ((uint)data[7] << 24);
+            bool hasClut = ((flags >> 3) & 1) != 0;
+            if (!hasClut) return 1;
+            int p = 8;
+            if (p + 12 > data.Length) return 1;
+            int clutH = data[p + 10] | (data[p + 11] << 8);
+            return clutH > 0 ? clutH : 1;
+        }
+
         /// <summary>TIM -> RGBA8 (R,G,B,A byte order), CLUT row 0. Mirrors parse_tim_to_rgba.</summary>
         public static bool DecodeToRgba(byte[] data, out byte[] rgba, out int outW, out int outH, out string error)
         {
-            rgba = null; outW = 0; outH = 0; error = null;
+            int rows;
+            return DecodeToRgba(data, 0, out rgba, out outW, out outH, out rows, out error);
+        }
+
+        /// <summary>TIM -> RGBA8 (R,G,B,A byte order) using CLUT row
+        /// <paramref name="clutRow"/> (clamped to row 0 if out of range). Mirrors
+        /// parse_tim_to_rgba's clutRow handling. <paramref name="clutRows"/> reports
+        /// the TIM's total CLUT row count.</summary>
+        public static bool DecodeToRgba(byte[] data, int clutRow, out byte[] rgba, out int outW, out int outH, out int clutRows, out string error)
+        {
+            rgba = null; outW = 0; outH = 0; clutRows = 1; error = null;
             int size = data.Length;
             if (size < 12) { error = "file too small to be a TIM"; return false; }
             if (data[0] != 0x10 || data[1] != 0 || data[2] != 0 || data[3] != 0) { error = "not a TIM (bad magic)"; return false; }
@@ -80,16 +121,19 @@ namespace SilentHillPC_Launcher
             switch (bppCode) { case 0: srcBpp = 4; break; case 1: srcBpp = 8; break; case 2: srcBpp = 16; break; case 3: srcBpp = 24; break; default: error = "unsupported bit depth"; return false; }
 
             int p = 8;
-            int clutOff = -1, clutW = 0;
+            int clutOff = -1, clutW = 0, clutH = 0;
             if (hasClut)
             {
                 if (p + 12 > size) { error = "CLUT block truncated"; return false; }
                 uint blockLen = (uint)data[p] | ((uint)data[p + 1] << 8) | ((uint)data[p + 2] << 16) | ((uint)data[p + 3] << 24);
                 clutW = data[p + 8] | (data[p + 9] << 8);
+                clutH = data[p + 10] | (data[p + 11] << 8);
                 clutOff = p + 12;
                 if (blockLen < 12 || p + (long)blockLen > size) { error = "CLUT block overruns file"; return false; }
                 p += (int)blockLen;
             }
+            clutRows = (clutH > 0) ? clutH : 1;
+            if (clutRow < 0 || clutRow >= clutRows) clutRow = 0; // clamp, like the game
 
             if (p + 12 > size) { error = "pixel block truncated"; return false; }
             int pixCellW = data[p + 8] | (data[p + 9] << 8);
@@ -111,6 +155,7 @@ namespace SilentHillPC_Launcher
             if (srcBpp == 4 || srcBpp == 8)
             {
                 if (clutOff < 0) { error = "paletted TIM without a CLUT"; return false; }
+                int rowClutBase = clutOff + clutRow * clutW * 2; // start of the selected palette row
                 int rowBytes = pixCellW * 2;
                 for (int y = 0; y < pixH; y++)
                 {
@@ -130,7 +175,7 @@ namespace SilentHillPC_Launcher
                             else idx = data[row + x];
                         }
                         if (idx >= clutW) idx = 0;
-                        int ce = clutOff + idx * 2;
+                        int ce = rowClutBase + idx * 2;
                         ushort cx = (ce + 1 < size) ? (ushort)(data[ce] | (data[ce + 1] << 8)) : (ushort)0;
                         Bgr555ToRgba(cx, outp, (y * pixW + x) * 4);
                     }
@@ -169,7 +214,9 @@ namespace SilentHillPC_Launcher
             rgba = outp; outW = pixW; outH = pixH; return true;
         }
 
-        /// <summary>Convert one .TIM file to a .png. Returns false (with error) on failure.</summary>
+        /// <summary>Convert one .TIM file to a single .png (CLUT row 0). Kept for the
+        /// single-image path; multi-palette TIMs should use
+        /// <see cref="ConvertFileToPngSet"/>. Returns false (with error) on failure.</summary>
         public static bool ConvertFileToPng(string timPath, string pngPath, out string error)
         {
             error = null;
@@ -186,18 +233,69 @@ namespace SilentHillPC_Launcher
             catch (Exception ex) { error = ex.Message; return false; }
         }
 
+        /// <summary>
+        /// Convert one .TIM to a PNG set beside it. A single-row / 16bpp TIM becomes
+        /// one "STEM.png" (e.g. DOB.png). A multi-CLUT TIM becomes one PNG per palette
+        /// row, "FULLNAME.pNN.png" (e.g. DOB.TIM.p00.png … DOB.TIM.p05.png) — the exact
+        /// names the game probes for per-row loose overrides, so a modder edits the
+        /// palette region they want and drops the files into gamedata/load/&lt;FOLDER&gt;/.
+        /// Returns the files written (empty with <paramref name="error"/> on failure).
+        /// </summary>
+        public static List<string> ConvertFileToPngSet(string timPath, out string error)
+        {
+            error = null;
+            var written = new List<string>();
+            try
+            {
+                byte[] data = File.ReadAllBytes(timPath);
+                int rows = ClutRowCount(data);
+                string dir = Path.GetDirectoryName(timPath);
+                if (string.IsNullOrEmpty(dir)) dir = ".";
+
+                if (rows <= 1)
+                {
+                    string png = Path.Combine(dir, Path.GetFileNameWithoutExtension(timPath) + ".png");
+                    using (var bmp = DecodeToBitmap(data, out error))
+                    {
+                        if (bmp == null) return written;
+                        bmp.Save(png, ImageFormat.Png);
+                    }
+                    written.Add(png);
+                    return written;
+                }
+
+                string full = Path.GetFileName(timPath); // e.g. DOB.TIM
+                int pad = (rows > 100) ? 3 : 2;
+                for (int r = 0; r < rows; r++)
+                {
+                    string png = Path.Combine(dir, full + ".p" + r.ToString("D" + pad) + ".png");
+                    int rc;
+                    using (var bmp = DecodeToBitmap(data, r, out rc, out error))
+                    {
+                        if (bmp == null) { written.Clear(); return written; }
+                        bmp.Save(png, ImageFormat.Png);
+                    }
+                    written.Add(png);
+                }
+                return written;
+            }
+            catch (Exception ex) { error = ex.Message; written.Clear(); return written; }
+        }
+
         public class BulkResult
         {
-            public int Converted;
+            public int Converted;    // .TIM files successfully converted (any number of PNGs each)
             public int Failed;
             public int Deleted;
+            public int PngsWritten;  // total PNG files emitted (multi-palette TIMs emit several)
             public readonly List<string> Failures = new List<string>();
         }
 
         /// <summary>
-        /// Recursively convert every *.TIM under <paramref name="folder"/> to a same-named
-        /// .png in place (FOO.TIM -> FOO.png). When <paramref name="deleteOriginals"/> is set,
-        /// each successfully converted .TIM is deleted.
+        /// Recursively convert every *.TIM under <paramref name="folder"/> to a PNG set
+        /// in place (single "FOO.png", or per-palette "FOO.TIM.pNN.png" for multi-CLUT
+        /// TIMs). When <paramref name="deleteOriginals"/> is set, each successfully
+        /// converted .TIM is deleted.
         /// </summary>
         public static BulkResult BulkConvert(string folder, bool deleteOriginals, Action<int, int, string> report)
         {
@@ -211,12 +309,12 @@ namespace SilentHillPC_Launcher
                 string tim = tims[i];
                 if (report != null) report(i, tims.Count, Path.GetFileName(tim));
 
-                string png = Path.Combine(Path.GetDirectoryName(tim),
-                                          Path.GetFileNameWithoutExtension(tim) + ".png");
                 string err;
-                if (ConvertFileToPng(tim, png, out err))
+                var written = ConvertFileToPngSet(tim, out err);
+                if (written.Count > 0)
                 {
                     res.Converted++;
+                    res.PngsWritten += written.Count;
                     if (deleteOriginals)
                     {
                         try { File.Delete(tim); res.Deleted++; } catch { }

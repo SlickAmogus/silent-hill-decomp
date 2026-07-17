@@ -19,9 +19,15 @@ namespace SilentHillPC_Launcher
         public bool       Enabled;     // Library: deploy?  TextureMods: active?
         public string     DisplayName;
         public string     Description;
-        public string     LibraryPath; // current on-disk path (folder / .zip / .rar; may be *.disabled)
-        public bool       IsArchive;   // texture mod backed by a .zip or .rar (vs a loose folder)
-        public bool       IsRar;       // .rar: materialized by the launcher to <rar>.extracted/
+        public string     LibraryPath; // current on-disk path (folder / .zip / .rar / .7z; may be *.disabled)
+        public bool       IsArchive;   // texture mod backed by a .zip/.rar/.7z (vs a loose folder)
+        public bool       IsRar;       // .rar: extracted via UnRAR.dll
+        public bool       IsSevenZip;  // .7z: extracted via 7za.exe
+
+        /// <summary>Every texture archive (.zip/.rar/.7z) is now materialized by the
+        /// launcher to a sibling &lt;name&gt;.extracted/ folder that the game reads as a
+        /// loose folder — so enable/disable toggles that folder, not the archive.</summary>
+        public bool IsExtractedArchive { get { return IsArchive; } }
 
         public string Label { get { return string.IsNullOrEmpty(DisplayName) ? Name : DisplayName; } }
 
@@ -31,8 +37,11 @@ namespace SilentHillPC_Launcher
             {
                 switch (Type)
                 {
-                    case ModType.Texturemods: return IsRar ? "Texture pack (.rar)"
-                                                   : IsArchive ? "Texture pack (.zip)" : "Texture pack (folder)";
+                    case ModType.Texturemods:
+                        return IsRar      ? "Texture pack (.rar)"
+                             : IsSevenZip ? "Texture pack (.7z)"
+                             : IsArchive  ? "Texture pack (.zip)"
+                                          : "Texture pack (folder)";
                     case ModType.Load:        return "Load folder";
                     case ModType.Fmv:         return "FMV";
                     default:                  return "Unrecognized";
@@ -63,11 +72,14 @@ namespace SilentHillPC_Launcher
 
     /// <summary>
     /// Manages mods across two homes, both additive (nothing touches the disc image):
-    ///  - TEXTURE mods live in gamedata/texturemods/ and are managed in place as a
-    ///    loose folder or a .zip. The game reads both directly (tex_pack.c, miniz) —
-    ///    nothing is extracted. "Enable"/"disable" just renames the entry to/from a
-    ///    trailing ".disabled" suffix, which the game skips (Name_IsDisabled).
-    ///    .rar is unsupported (listed read-only so the user converts it).
+    ///  - TEXTURE mods live in gamedata/texturemods/ as a loose folder or an archive
+    ///    (.zip/.rar/.7z). Every archive is EXTRACTED to a sibling &lt;name&gt;.extracted/
+    ///    folder that the game reads as a loose folder (.rar via UnRAR.dll, .zip/.7z
+    ///    via 7za.exe — 7-Zip decodes every compression method, unlike the in-place
+    ///    miniz reader which only did Store/Deflate). "Enable"/"disable" renames that
+    ///    folder to/from a ".disabled" suffix, which the game skips (Name_IsDisabled).
+    ///    A loose folder is toggled the same way. (The game still reads a hand-dropped
+    ///    .zip in place if no .extracted sibling exists — a launcher-free fallback.)
     ///  - LOAD / FMV mods live in the mods/ library and deploy into gamedata/load
     ///    and gamedata/FMV on Apply, tracked by a manifest for clean removal.
     /// Load order (list order, index 0 = highest priority): texture packs via
@@ -108,6 +120,17 @@ namespace SilentHillPC_Launcher
             return Path.GetExtension(StripDisabled(p)).Equals(".zip", StringComparison.OrdinalIgnoreCase);
         }
 
+        public static bool IsSevenZip(string p)
+        {
+            return Path.GetExtension(StripDisabled(p)).Equals(".7z", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>Any texture archive the launcher materializes to a folder.</summary>
+        private static bool IsArchiveFile(string p)
+        {
+            return IsZip(p) || IsRar(p) || IsSevenZip(p);
+        }
+
         private static bool IsDisabled(string p) { return p.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase); }
 
         private static string StripDisabled(string p)
@@ -115,10 +138,21 @@ namespace SilentHillPC_Launcher
             return IsDisabled(p) ? p.Substring(0, p.Length - ".disabled".Length) : p;
         }
 
-        /// <summary>The folder a .rar is extracted into (the game reads it as a loose folder mod).
-        /// <paramref name="rarPath"/> may be the enabled or *.disabled rar path.</summary>
-        private static string RarActiveFolder(string rarPath)   { return StripDisabled(rarPath) + ".extracted"; }
-        private static string RarDisabledFolder(string rarPath) { return RarActiveFolder(rarPath) + ".disabled"; }
+        /// <summary>The folder an archive (.zip/.rar/.7z) is extracted into (the game
+        /// reads it as a loose folder mod). <paramref name="archivePath"/> may be the
+        /// enabled or *.disabled archive path.</summary>
+        private static string ArchiveActiveFolder(string archivePath)   { return StripDisabled(archivePath) + ".extracted"; }
+        private static string ArchiveDisabledFolder(string archivePath) { return ArchiveActiveFolder(archivePath) + ".disabled"; }
+
+        /// <summary>Extract a texture archive to <paramref name="dest"/>, dispatching by
+        /// extension: .rar → UnRAR.dll, .zip/.7z → 7za.exe. Returns success.</summary>
+        private static bool ExtractArchive(string archivePath, string dest, Action<int, int, string> report)
+        {
+            // Extract the literal file on disk (a legacy "<name>.disabled" archive
+            // keeps that suffix); the extension under any .disabled picks the tool.
+            if (IsRar(archivePath)) return RarExtractor.Extract(archivePath, dest, report);
+            return SevenZipExtractor.Extract(archivePath, dest, report); // .zip and .7z
+        }
 
         private static IEnumerable<string> SafeFiles(string dir)
         {
@@ -128,7 +162,7 @@ namespace SilentHillPC_Launcher
 
         // --- scan / state -----------------------------------------------------
 
-        public bool AnyPending() { return PendingLibraryZips().Length > 0 || PendingRars().Length > 0; }
+        public bool AnyPending() { return PendingLibraryZips().Length > 0 || PendingArchives().Length > 0; }
 
         private string[] PendingLibraryZips()
         {
@@ -138,29 +172,32 @@ namespace SilentHillPC_Launcher
                             .ToArray();
         }
 
-        /// <summary>.rar packs in texturemods/ not yet materialized to an <c>.extracted</c> folder
-        /// (enabled or disabled). These get extracted so the game can read them as folder mods.</summary>
-        private string[] PendingRars()
+        /// <summary>Texture archives (.zip/.rar/.7z) in texturemods/ not yet materialized
+        /// to an <c>.extracted</c> folder (enabled or disabled). These get extracted so
+        /// the game can read them as folder mods. Skips already-disabled archive files.</summary>
+        private string[] PendingArchives()
         {
             if (!Directory.Exists(TexturemodsDir)) return new string[0];
-            return Directory.GetFiles(TexturemodsDir, "*.rar", SearchOption.TopDirectoryOnly)
-                            .Where(r => !Directory.Exists(RarActiveFolder(r)) &&
-                                        !Directory.Exists(RarDisabledFolder(r)))
+            return Directory.GetFiles(TexturemodsDir, "*", SearchOption.TopDirectoryOnly)
+                            .Where(a => IsArchiveFile(a) && !IsDisabled(a))
+                            .Where(a => !Directory.Exists(ArchiveActiveFolder(a)) &&
+                                        !Directory.Exists(ArchiveDisabledFolder(a)))
                             .ToArray();
         }
 
-        /// <summary>Extract pending library .zip mods (load/FMV) and .rar texture packs, with progress.</summary>
+        /// <summary>Extract pending library .zip mods (load/FMV) and .zip/.rar/.7z texture
+        /// packs, with progress.</summary>
         public void Prepare(Action<int, int, string> report)
         {
             Directory.CreateDirectory(ModsDir);
             foreach (var zip in PendingLibraryZips())
                 ExtractZip(zip, Path.Combine(ModsDir, Path.GetFileNameWithoutExtension(zip)), report);
-            foreach (var rar in PendingRars())
+            foreach (var arc in PendingArchives())
             {
-                string dest = RarActiveFolder(rar);
+                string dest = ArchiveActiveFolder(arc);
                 try
                 {
-                    if (!RarExtractor.Extract(rar, dest, report) && Directory.Exists(dest))
+                    if (!ExtractArchive(arc, dest, report) && Directory.Exists(dest))
                         Directory.Delete(dest, true); // partial/failed → drop it so it retries next open
                 }
                 catch { }
@@ -198,14 +235,14 @@ namespace SilentHillPC_Launcher
             var list = new List<ModEntry>();
             if (!Directory.Exists(TexturemodsDir)) return list;
 
-            // .zip packs read in place; .rar packs are materialized to <rar>.extracted/.
+            // Every archive (.zip/.rar/.7z) is materialized to <name>.extracted/ and
+            // read by the game as a loose folder; "active" = that folder exists.
             foreach (var f in Directory.GetFiles(TexturemodsDir))
             {
-                string name = Path.GetFileName(StripDisabled(f));
-                if (IsZip(f))
-                    list.Add(MakeTexture(name, f, true, false, !IsDisabled(f), saved));
-                else if (IsRar(f))
-                    list.Add(MakeTexture(name, f, true, true, Directory.Exists(RarActiveFolder(f)), saved));
+                if (!IsArchiveFile(f)) continue;
+                string name   = Path.GetFileName(StripDisabled(f));
+                bool   active = Directory.Exists(ArchiveActiveFolder(f));
+                list.Add(MakeTexture(name, f, true, IsRar(f), IsSevenZip(f), active, saved));
             }
 
             // Loose top-level folders (each its own pack). Skip a legacy *.extracted
@@ -220,12 +257,12 @@ namespace SilentHillPC_Launcher
                 if (enabled.EndsWith(".extracted", StringComparison.OrdinalIgnoreCase) &&
                     archiveBases.Contains(enabled.Substring(0, enabled.Length - ".extracted".Length)))
                     continue;
-                list.Add(MakeTexture(enabled, d, false, false, !IsDisabled(dname), saved));
+                list.Add(MakeTexture(enabled, d, false, false, false, !IsDisabled(dname), saved));
             }
             return list;
         }
 
-        private static ModEntry MakeTexture(string name, string path, bool isArchive, bool isRar,
+        private static ModEntry MakeTexture(string name, string path, bool isArchive, bool isRar, bool isSevenZip,
                                             bool enabled, Dictionary<string, ModStateDto> saved)
         {
             var e = new ModEntry
@@ -236,6 +273,7 @@ namespace SilentHillPC_Launcher
                 LibraryPath = path,
                 IsArchive   = isArchive,
                 IsRar       = isRar,
+                IsSevenZip  = isSevenZip,
                 Enabled     = enabled
             };
             ModStateDto s;
@@ -326,13 +364,13 @@ namespace SilentHillPC_Launcher
             return ModType.Unknown;
         }
 
-        /// <summary>Detect a dropped path's type, peeking inside .zip archives. .rar can't be
-        /// peeked (solid/RAR5) so it's assumed a texture pack, like the old DuckStation flow.</summary>
+        /// <summary>Detect a dropped path's type, peeking inside .zip archives. .rar and
+        /// .7z aren't peeked here so they're assumed a texture pack (the common case).</summary>
         private static ModType DetectDroppedType(string path)
         {
             if (Directory.Exists(path)) return DetectType(path);
             string ext = Path.GetExtension(path).ToLowerInvariant();
-            if (ext == ".rar") return ModType.Texturemods;
+            if (ext == ".rar" || ext == ".7z") return ModType.Texturemods;
             if (ext == ".zip")
             {
                 try
@@ -380,7 +418,7 @@ namespace SilentHillPC_Launcher
 
         public enum ImportResult { Added, Skipped }
 
-        /// <summary>Route a dropped folder/.zip/.rar to texturemods/ (texture) or mods/ (load/FMV).</summary>
+        /// <summary>Route a dropped folder/.zip/.rar/.7z to texturemods/ (texture) or mods/ (load/FMV).</summary>
         public ImportResult Import(string path, Action<int, int, string> report)
         {
             try
@@ -398,7 +436,7 @@ namespace SilentHillPC_Launcher
                     }
                     else
                     {
-                        // A .zip (read in place) or .rar (Prepare() extracts it after) — copy it in.
+                        // An archive (.zip/.rar/.7z) — copy it in; Prepare() extracts it after.
                         string dest = Path.Combine(TexturemodsDir, Path.GetFileName(path));
                         if (report != null) report(0, 0, "Copying " + Path.GetFileName(path));
                         if (!File.Exists(dest)) File.Copy(path, dest);
@@ -440,20 +478,21 @@ namespace SilentHillPC_Launcher
             }
         }
 
-        /// <summary>Activate a texture pack so the game loads it. Folder/.zip: drop the .disabled
-        /// suffix (in place). .rar: make its <c>.extracted</c> folder active, extracting on first use.</summary>
+        /// <summary>Activate a texture pack so the game loads it. Archive (.zip/.rar/.7z):
+        /// make its <c>.extracted</c> folder active, extracting on first use. Loose folder:
+        /// drop the .disabled suffix.</summary>
         public bool EnableTexture(ModEntry m, Action<int, int, string> report)
         {
             try
             {
-                if (m.IsRar)
+                if (m.IsExtractedArchive)
                 {
-                    string active = RarActiveFolder(m.LibraryPath);
-                    string off    = RarDisabledFolder(m.LibraryPath);
+                    string active = ArchiveActiveFolder(m.LibraryPath);
+                    string off    = ArchiveDisabledFolder(m.LibraryPath);
                     if (!Directory.Exists(active))
                     {
                         if (Directory.Exists(off)) Directory.Move(off, active);
-                        else if (!RarExtractor.Extract(StripDisabled(m.LibraryPath), active, report))
+                        else if (!ExtractArchive(m.LibraryPath, active, report))
                         {
                             if (Directory.Exists(active)) { try { Directory.Delete(active, true); } catch { } }
                             return false;
@@ -466,7 +505,7 @@ namespace SilentHillPC_Launcher
                 if (IsDisabled(m.LibraryPath))
                 {
                     string on = StripDisabled(m.LibraryPath);
-                    MovePath(m.LibraryPath, on, !m.IsArchive);
+                    MovePath(m.LibraryPath, on, true); // loose folder
                     m.LibraryPath = on;
                 }
                 m.Enabled = true;
@@ -475,16 +514,17 @@ namespace SilentHillPC_Launcher
             catch { return false; }
         }
 
-        /// <summary>Deactivate a texture pack so the game skips it. Folder/.zip: rename .disabled.
-        /// .rar: rename its <c>.extracted</c> folder .disabled (kept, so re-enable needn't re-extract).</summary>
+        /// <summary>Deactivate a texture pack so the game skips it. Archive (.zip/.rar/.7z):
+        /// rename its <c>.extracted</c> folder .disabled (kept, so re-enable needn't
+        /// re-extract). Loose folder: rename the folder .disabled.</summary>
         public void DisableTexture(ModEntry m)
         {
             try
             {
-                if (m.IsRar)
+                if (m.IsExtractedArchive)
                 {
-                    string active = RarActiveFolder(m.LibraryPath);
-                    string off    = RarDisabledFolder(m.LibraryPath);
+                    string active = ArchiveActiveFolder(m.LibraryPath);
+                    string off    = ArchiveDisabledFolder(m.LibraryPath);
                     if (Directory.Exists(active))
                     {
                         if (Directory.Exists(off)) Directory.Delete(active, true);
@@ -497,7 +537,7 @@ namespace SilentHillPC_Launcher
                 if (!IsDisabled(m.LibraryPath))
                 {
                     string offp = m.LibraryPath + ".disabled";
-                    MovePath(m.LibraryPath, offp, !m.IsArchive);
+                    MovePath(m.LibraryPath, offp, true); // loose folder
                     m.LibraryPath = offp;
                 }
                 m.Enabled = false;
@@ -505,8 +545,8 @@ namespace SilentHillPC_Launcher
             catch { }
         }
 
-        /// <summary>Delete a texture mod entirely: the folder/.zip/.rar (enabled or disabled)
-        /// plus, for a .rar, its extracted folder (active or disabled).</summary>
+        /// <summary>Delete a texture mod entirely: the folder/.zip/.rar/.7z (enabled or
+        /// disabled) plus, for an archive, its extracted folder (active or disabled).</summary>
         public void DeleteTexture(ModEntry m)
         {
             try
@@ -517,7 +557,7 @@ namespace SilentHillPC_Launcher
                     if (m.IsArchive) { if (File.Exists(p)) File.Delete(p); }
                     else             { if (Directory.Exists(p)) Directory.Delete(p, true); }
                 }
-                if (m.IsRar)
+                if (m.IsExtractedArchive)
                 {
                     foreach (var f in new[] { enabled + ".extracted", enabled + ".extracted.disabled" })
                         if (Directory.Exists(f)) Directory.Delete(f, true);
@@ -543,15 +583,16 @@ namespace SilentHillPC_Launcher
         /// <summary>Is this texture pack currently active on disk (game will load it)?</summary>
         private static bool IsTextureActive(ModEntry m)
         {
-            if (m.IsRar) return Directory.Exists(RarActiveFolder(m.LibraryPath));
+            if (m.IsExtractedArchive) return Directory.Exists(ArchiveActiveFolder(m.LibraryPath));
             return !IsDisabled(m.LibraryPath);
         }
 
-        /// <summary>Top-level texturemods name the game indexes for an active pack (loadorder.txt).
-        /// A .rar is read via its extracted folder; a .zip/folder is read under its own name.</summary>
+        /// <summary>Top-level texturemods name the game indexes for an active pack
+        /// (loadorder.txt). An archive is read via its extracted folder
+        /// (&lt;name&gt;.extracted); a loose folder is read under its own name.</summary>
         private static string TexturePackFolderName(ModEntry m)
         {
-            return m.IsRar ? m.Name + ".extracted" : m.Name;
+            return m.IsExtractedArchive ? m.Name + ".extracted" : m.Name;
         }
 
         // --- apply ------------------------------------------------------------
