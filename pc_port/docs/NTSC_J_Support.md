@@ -72,7 +72,7 @@ Menus, options, inventory item names + descriptions, save/load UI. The JP
 retail game shipped these in English too (English UI images + FONT16). The
 ~20 US-only message lines fall back to English.
 
-## Test checklist (needs a user run)
+## Test checklist (completed — NTSC-J confirmed working in-game)
 
 1. Launcher: Region dropdown shows "NTSC-J (Japan)", Play enabled; or set
    `region = jap` in config.cfg with several bins present.

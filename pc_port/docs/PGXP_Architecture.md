@@ -1,6 +1,9 @@
-# PGXP Complete Rewrite — Shadow-Memory Model (DuckStation-faithful)
+# PGXP Architecture — Shadow-Memory Model (DuckStation-faithful) + Near-Plane Clipping
 
-**Status:** PLANNED. Self-contained spec — execute from a fresh context.
+**Status:** IMPLEMENTED. This documents the PGXP architecture the code now
+implements — the shadow-memory model (§1–§8) plus near-plane clipping (§9). The
+step list in §5 records the build order and doubles as a map of where each piece
+lives; read §1 and §6 before touching any of it.
 **Goal:** Replace the entire home-grown PGXP matching (address map + per-prim parked
 set + (x,y) ring + closest-(x,y) + slot-index + weld) with one deterministic
 shadow-memory model, faithful to DuckStation. Result: characters and environment
@@ -201,3 +204,88 @@ gap remains; chase it to the un-instrumented copy site.
 PGXP on: environment intricate scenes (church/pews/crucifix) crisp, no gaps/flicker;
 Harry full-PGXP has NO flat collapse, NO seams, NO wobble, looks like clean affine
 with stable sub-pixel positions. PGXP off byte-identical to affine. No new crashes.
+
+---
+
+## 9. Near-plane clipping (PgxpNearClipEmit)
+
+*(Was `PGXP_NearClip_Design.md`, folded in 2026-07-17. Implemented 2026-07-06.)*
+
+### Symptom
+
+With PGXP on, geometry very close to the camera warps/smears like affine mapping
+(hallway corner and locker close-ups in first person). Normal viewing distance is
+perspective-correct; the warp appears only as the camera approaches within ~a
+character radius of the surface.
+
+### Root cause
+
+`GTE_RotTransPers` (pc_port/PsyCross/src/gte/PsyX_GTE.cpp ~316):
+
+- In-front vertices (`SZ3 > 0`) get a full-precision float projection and a
+  positive W → perspective path. This already covers the "close but in front"
+  case (the old Lm_E saturation bug was fixed earlier).
+- Vertices **at/behind the near plane** (`SZ3 == 0`) have *no valid projection*
+  — the code stores `W = 0`, and `GetPreciseVertex` (PsyX_GPU.cpp ~190) sends
+  them down the affine path.
+
+A polygon that *straddles* the camera plane (wall/floor plane continuing past the
+eye — guaranteed when the FPS camera leans into a corner) therefore renders with
+MIXED per-vertex modes: some perspective (ppw>0), some affine (ppw=0). The
+interpolation across the poly is inconsistent → the affine-looking smear.
+
+This is not a regression: PSX hardware has the same failure (no near clipping;
+SH1 works around it by dynamically subdividing map geometry near the camera,
+tuned for cameras that never got this close). PGXP just makes the rest of the
+frame clean enough that the near-warp stands out, and FPS mode creates camera
+positions the original game never produced.
+
+### Why per-vertex tricks cannot fix it
+
+A vertex behind the eye has no meaningful screen position or 1/W; any value
+assigned to it produces some wrong interpolation. The only correct treatment is
+to CLIP the primitive against a near plane and generate new vertices at the
+intersection — what every real 3D pipeline does before the divide.
+
+### Approach
+
+Clip at prim-assembly time in the GL backend (PsyX_GPU.cpp), in view space, using
+the view-space FIFO (`VsEntry`: GTE RTPS MAC1/2/3 = view-space x,y,z, address-keyed
++ value-validated). Sutherland–Hodgman against `z = NEAR` in view space, interpolate
+per-vertex UV/RGB/view-pos along each crossing edge, fan-triangulate, re-project the
+new vertices with the PGXP path's formula (`sx = OFX + vsx * (H / vsz)` etc.), and
+feed the triangles through the normal vertex-emission path (same OT bucket, same
+texture/blend state) so painter's-order and semi-transparency are unaffected.
+
+### As-built deltas (decided at implementation)
+
+- View-space validity marker rides `GrVertex.ny` (unread by every shader): a
+  behind-the-eye vertex legitimately has `vsz <= 0`, so "has a vs entry" can't be
+  inferred from the position itself.
+- Eligibility requires only the view-space entries (not the PGXP shadow): kept
+  in-front vertices reuse their GTE-precise projection when present (`ppw > 0`,
+  bit-identical to the unclipped case so shared edges with neighbouring unclipped
+  polys can't crack) and are re-projected from view space otherwise.
+- The whole-poly affine drop in MakeVertexTriangle/Quad spares clip-eligible polys
+  (it would destroy the in-front vertices' precise data before the clipper runs);
+  vs fill was moved above the PGXP block to enable the test.
+- Clipping runs per emitted triangle (post-TriangulateQuad) via `PgxpNearClipEmit`
+  at all 8 3D-poly sites; a quad grows to at most 12 verts, guarded against
+  vertex-buffer overflow. **Quad diagonals can't crack**: both triangles hold
+  bit-identical copies of the shared verts, so the lerp yields identical clip verts.
+- Re-projected verts **skip the `g_PgxpEdgeMax` clamp**: with a true W the GPU
+  clips far-off-screen positions exactly in homogeneous space; clamping would drag
+  the vertex and distort the visible part.
+- NEAR default 16.0 GTE units (flat, not `C2_H/16`): an invisible cut right at the
+  eye. Tunable via console `pgxpnearz`; toggle `pgxpnearclip` (default ON with
+  PGXP). OFF path byte-identical.
+- Fully-behind polys (all `vsz < NEAR`) are left untouched, not dropped — the
+  GTE/game culls them anyway, and matching today's behavior keeps the change minimal.
+- The view-space FIFO gate is `(g_PsyX_UsePerPixelFlashlight || g_PsxUsePgxp)` in
+  PsyX_GTE.cpp `PGXP_StoreAddr` + `GTE_RotTransPers` + `Shadow_Copy`.
+- `[PGXP] cov` log line gained `clip=N` (polys clipped in the 60-frame window).
+
+### Console knobs
+
+`pgxpnearclip 0/1` (default ON with PGXP), `pgxpnearz <units>` (NEAR, default 16.0).
+OFF path byte-identical.

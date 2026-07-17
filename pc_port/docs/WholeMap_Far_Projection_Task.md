@@ -159,7 +159,7 @@ during the map2_s00 load and had to be power-cycled.
 
 Read alongside memories `[[project_interior_room_islands]]` (whole-map draw-path
 history + the four lifted gates), `[[project_pgxp_implementation]]` (float GTE
-infra), and `pc_port/docs/PGXP_NearClip_Design.md` (prior art for a gated
+infra), and `pc_port/docs/PGXP_Architecture.md` §9 (prior art for a gated
 projection change).
 
 ## IMPLEMENTATION (2026-07-12)

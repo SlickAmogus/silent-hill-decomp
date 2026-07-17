@@ -2,7 +2,16 @@
 
 A deep-dive into Silent Hill's collision system for the decomp deobfuscation work. Notes on architecture, the still-unnamed pieces, and suggested renames.
 
-> **Note:** Everything described here is original PSX game code from the upstream decomp. The PC port adds nothing to the collision *logic* — it just adds 64-bit-offset reformat shims and a few NULL-guards because the PSX file format embeds 32-bit relative offsets that have to be widened. The structural analysis below applies to the original disc binary as decompiled into [src/bodyprog/collision.c](https://github.com/Vatuu/silent-hill-decomp/blob/master/src/bodyprog/collision.c). The naming suggestions are decomp-team work, not PC-port-specific.
+> **Note:** Everything described here is original PSX game code from the upstream decomp. The PC port adds nothing to the collision *logic* — it just adds 64-bit-offset reformat shims and a few NULL-guards because the PSX file format embeds 32-bit relative offsets that have to be widened. The structural analysis below applies to the original disc binary as decompiled into `src/bodyprog/collision/` (the former monolithic `collision.c`, since split upstream into `chara.c` / `collision.c` / `los.c` / `ray.c` / `trigger.c`). The naming suggestions are decomp-team work, not PC-port-specific.
+
+> **Update note:** since this was written, upstream split the monolithic
+> `collision.c` into `src/bodyprog/collision/{chara,collision,los,ray,trigger}.c`
+> and named several functions: `Collision_Get` → `Collision_SurfaceGet`,
+> `func_8006AD44` → `Collision_CharaCollisionHandle`, `func_80070400` →
+> `Collision_CharaCollisionSet`, and the trigger-zone system → `CollisionTrigger`
+> (see [`trigger_zones.md`](./trigger_zones.md)). File paths below are updated to
+> the split layout; inline line numbers are approximate and may have drifted, and
+> some remaining `func_8006xxxx` raw names may since have been named.
 
 ## The two collision worlds
 
@@ -25,7 +34,7 @@ Game (player/NPC update)
         │
         │  posX, posZ
         ▼
-Collision_Get(coll, posX, posZ)              <-- bodyprog/collision.c:183
+Collision_SurfaceGet(surface, posX, posZ)              <-- collision/collision.c:212
         │
         ▼
   func_800426E4(posX, posZ)                  <-- bodyprog/gfx/bodyprog_80040B74.c:934
@@ -44,7 +53,7 @@ Collision_Get(coll, posX, posZ)              <-- bodyprog/collision.c:183
 Collision_QueryInit(state, &pos, &collQuery, …)
         │  memsets state, populates query.position/rotation
         ▼
-func_8006AD44(state, ipdCollData)            <-- bodyprog/collision.c:950
+Collision_CharaCollisionHandle(state, ipdCollData)            <-- collision/collision.c:1096
         │
         ├── func_8006B004  (compute grid bbox in cells)
         │   sets state.field_A0.s_0.field_0..3 = (startX, startZ, spanX, spanZ)
@@ -69,7 +78,7 @@ func_8006AD44(state, ipdCollData)            <-- bodyprog/collision.c:950
             // post-pass: ground height + secondary collisions
                 │
                 ▼
-        Collision_Get fills out `coll`:
+        Collision_SurfaceGet fills out `coll`:
           coll->groundHeight_0
           coll->field_4 / field_6  (slope angles?)
           coll->field_8            (probe quality count)
@@ -107,7 +116,7 @@ struct s_IpdCollisionData {            //  308 bytes
 };
 ```
 
-All seven `ptr_*` fields are stored on disc as **byte offsets relative to the start of the `s_IpdCollisionData`**. They get fixed up in place by [`IpdCollData_FixOffsets`](https://github.com/Vatuu/silent-hill-decomp/blob/master/src/bodyprog/collision.c#L150) (called from `IpdHeader_FixOffsets`) the first time a chunk loads:
+All seven `ptr_*` fields are stored on disc as **byte offsets relative to the start of the `s_IpdCollisionData`**. They get fixed up in place by [`IpdCollData_FixOffsets`](https://github.com/Vatuu/silent-hill-decomp/blob/master/src/bodyprog/collision/collision.c) (called from `IpdHeader_FixOffsets`) the first time a chunk loads:
 
 ```c
 collData->ptr_C  = (u8*)collData->ptr_C  + (uintptr_t)collData;
@@ -135,7 +144,7 @@ struct s_IpdCollisionData_10 {     // 12 bytes
 };
 ```
 
-The bit fields are interpreted by [`func_8006B1C8`](https://github.com/Vatuu/silent-hill-decomp/blob/master/src/bodyprog/collision.c#L1124) and [`func_8006B318`](https://github.com/Vatuu/silent-hill-decomp/blob/master/src/bodyprog/collision.c#L1171). Material code `12` is recognized in two places (also `1` is "step"), suggesting they're surface-type IDs the original toolchain emitted from the level editor.
+The bit fields are interpreted by [`func_8006B1C8`](https://github.com/Vatuu/silent-hill-decomp/blob/master/src/bodyprog/collision/collision.c#L1286) and [`func_8006B318`](https://github.com/Vatuu/silent-hill-decomp/blob/master/src/bodyprog/collision/collision.c#L1335). Material code `12` is recognized in two places (also `1` is "step"), suggesting they're surface-type IDs the original toolchain emitted from the level editor.
 
 `s_IpdCollisionData_14` — wall/edge elements (10 bytes):
 
@@ -227,7 +236,7 @@ bool               isExterior_588;
 
 `ipdActive_15C[4]` is the LRU set — only 4 chunks fit in PSX RAM at once. As the player walks, [`Map_PlaceIpdAtCell`](https://github.com/Vatuu/silent-hill-decomp/blob/master/include/bodyprog/bodyprog.h#L2798) queues file reads into the chunk slots. `func_800426E4` walks this 4-element array linearly to find the chunk whose `cellX/cellZ` matches the query position.
 
-The exterior/interior split (`isExterior_588`) at the bottom of `func_800426E4` matters: if the query position is *outside* the loaded grid in an exterior level (street, alley), it falls back to `&g_Map.collisionData_0` (a default chunk that holds open-air collision). In an interior, an out-of-range query returns NULL and the caller treats it as "void" — `Collision_Get` substitutes `groundHeight = Q12(8.0f)` (deep below floor), which causes characters to fall.
+The exterior/interior split (`isExterior_588`) at the bottom of `func_800426E4` matters: if the query position is *outside* the loaded grid in an exterior level (street, alley), it falls back to `&g_Map.collisionData_0` (a default chunk that holds open-air collision). In an interior, an out-of-range query returns NULL and the caller treats it as "void" — `Collision_SurfaceGet` substitutes `groundHeight = Q12(8.0f)` (deep below floor), which causes characters to fall.
 
 This is also why the active chunk count went from 4 → bigger when porting to PC: 4 was a tight memory budget, not a structural constraint.
 
@@ -250,10 +259,10 @@ struct _Keyframe {
 };
 ```
 
-The mapping is established in [`func_80070400`](https://github.com/Vatuu/silent-hill-decomp/blob/master/src/bodyprog/collision.c#L3997):
+The mapping is established in [`Collision_CharaCollisionSet`](https://github.com/Vatuu/silent-hill-decomp/blob/master/src/bodyprog/collision/chara.c#L61) (formerly `func_80070400`):
 
 ```c
-void func_80070400(s_SubCharacter* chara, s_Keyframe* k0, s_Keyframe* k1) {
+void Collision_CharaCollisionSet(s_SubCharacter* chara, s_Keyframe* k0, s_Keyframe* k1) {
     q19_12 alpha    = ANIM_STATUS_IS_ACTIVE(chara->model.anim.status)
                       ? Q12_FRACT(chara->model.anim.time)
                       : chara->model.anim.alpha;
@@ -280,13 +289,13 @@ Each NPC keeps a hand-authored array of `s_Keyframe`s in shared rodata, keyed of
 
 ```c
 case ANIM_STATUS(CreeperAnim_AttackToWalkForward, false):
-    func_80070400(creeper, &sharedData_800E0FC8_1_s02, &sharedData_800E0F78_1_s02[0]);
+    Collision_CharaCollisionSet(creeper, &sharedData_800E0FC8_1_s02, &sharedData_800E0F78_1_s02[0]);
     break;
 
 case ANIM_STATUS(CreeperAnim_AttackToWalkForward, true):
     keyframeIdx0 = FP_FROM(creeper->model.anim.time, Q12_SHIFT);
     keyframeIdx1 = keyframeIdx0 + 1;
-    func_80070400(creeper, &sharedData_800E0F78_1_s02[keyframeIdx0],
+    Collision_CharaCollisionSet(creeper, &sharedData_800E0F78_1_s02[keyframeIdx0],
                            &sharedData_800E0F78_1_s02[keyframeIdx1]);
     break;
 ```
@@ -296,7 +305,7 @@ So the typical pattern per NPC is:
 - One **scalar** `s_Keyframe` per anim *blend* state (`(anim, false)`) — pose at start of anim.
 - One **array** of `s_Keyframe`s per anim *playback* state (`(anim, true)`) — sampled by floor(time) and ceil(time), interpolated by fract(time).
 
-Each NPC's `Update` function has a giant `switch (anim.status)` that picks which array to call `func_80070400` with. This is hand-authored data — *not* derived from the bone animation file. Your knife's blade hitbox shrinks back into the body at the swing's end because someone tuned that keyframe data by hand.
+Each NPC's `Update` function has a giant `switch (anim.status)` that picks which array to call `Collision_CharaCollisionSet` with. This is hand-authored data — *not* derived from the bone animation file. Your knife's blade hitbox shrinks back into the body at the swing's end because someone tuned that keyframe data by hand.
 
 The "active" anim path uses `time` (not `keyframeIdx`) as the source — `time` advances continuously while `keyframeIdx = floor(time)`, so the lerp gives sub-frame-smooth collision motion even at low keyframe counts.
 
@@ -308,7 +317,7 @@ The "active" anim path uses `time` (not `keyframeIdx`) as the source — `time` 
 |---|---|---|
 | `field_0_8` | `bumpedWall` | set if the query produced any displacement against a wall (so the response code knows to apply pushback) |
 | `field_0_9` | `bumpedFloor` | set if the query found a floor/ceiling penetration |
-| `field_0_10` | `runGroundProbe` | tells `func_8006AD44` to also call the post-pass `func_8006C838` (ground-height computation, used by `Collision_Get` but not by basic wall-detect queries) |
+| `field_0_10` | `runGroundProbe` | tells `Collision_CharaCollisionHandle` to also call the post-pass `func_8006C838` (ground-height computation, used by `Collision_SurfaceGet` but not by basic wall-detect queries) |
 
 `field_2` is the **16-bit "wall enabled" mask** consulted by `func_8006B318` — see the wall-flag dispatch in `s_IpdCollisionData_14` above. Each `_14` element has 4 bits of "category" (`(field_0_14 << 2) | field_2_14`), used as the index. `Collision_FlagsSet(0xFFFF)` enables every category; runtime systems (trigger zones, cutscene scripts) flip individual bits to disable specific walls.
 
@@ -317,20 +326,20 @@ The "active" anim path uses `time` (not `keyframeIdx`) as the source — `time` 
 The high-level flow for "character wants to move from A to B, is there a wall in the way":
 
 ```
-Collision_WallDetect(collResult, offset, chara)              <-- collision.c:256
+Collision_WallDetect(collResult, offset, chara)              <-- collision/collision.c:270
     │  saves SP, swaps to scratch
     ▼
-Collision_CharaCollisionSetup(collResult, offset, chara)     <-- collision.c:459
+Collision_CharaCollisionSetup(collResult, offset, chara)     <-- collision/collision.c:474
     │  builds collQuery from chara->position, chara->field_C8 (animated bbox),
     │     chara->field_E1_0 (chara state — 0=ignore, 1=player, 3=alive enemy, …)
     │  calls func_800426E4 to fetch the chunk's IpdCollisionData
     │  calls func_800425D8 to fetch ALL active chunks' coll-data ptrs
     │     (so the query can spill across cell boundaries)
     │  calls Collision_ActiveCharactersGet for chara-vs-chara
-    │  → func_8006A4A8: walks every collData, calls func_8006AD44 on each
+    │  → func_8006A4A8: walks every collData, calls Collision_CharaCollisionHandle on each
     │
     ▼
-Collision_WallResponse(collResult, offset, chara, response)  <-- collision.c:267
+Collision_WallResponse(collResult, offset, chara, response)  <-- collision/collision.c:281
     │  classifies result.field_14 → CollisionType (Wall, Step, None)
     │  for walls, does a 9-direction radial probe (POINT_COUNT=9, ANGLE_STEP)
     │     to find the slide vector
@@ -350,11 +359,17 @@ The `370` not `360` produces overlapping probe directions. Whether this was inte
 
 ## Naming suggestions for the next deobfuscation pass
 
+> This is the original proposal; upstream has since named some of these — and
+> chose different names than suggested here. Landed so far: `func_800426E4` is
+> unchanged, `Collision_Get` → `Collision_SurfaceGet`, `func_8006AD44` →
+> `Collision_CharaCollisionHandle`, `func_8006B318` unchanged, `func_80070400` →
+> `Collision_CharaCollisionSet`. The rest below are still unnamed.
+
 | Current | Suggested | Notes |
 |---|---|---|
 | `s_IpdCollisionData::field_8_16` | `wallElementCount` | The split point between `ptr_14[]` (walls) and `ptr_18[]` (floors). Indices `[0..field_8_16)` in `ptr_28[]` index `ptr_14`; `[field_8_16..]` index `ptr_18`. |
 | `s_IpdCollisionData::field_8_8` | `floorElementCount` | (corresponding count for ptr_18) |
-| `s_IpdCollisionData::field_30` | `queryGen` | "Query generation counter," bumped per Collision_Get call |
+| `s_IpdCollisionData::field_30` | `queryGen` | "Query generation counter," bumped per Collision_SurfaceGet call |
 | `s_IpdCollisionData::field_34[256]` | `visitedStamps` | Per-element last-visit `queryGen` |
 | `s_IpdCollisionData::field_1C` | `subCellSize` | World-units per sub-cell (geometry units, Q23.8) |
 | `s_IpdCollisionData::field_1E / field_1F` | `subCellsX / subCellsZ` | Grid dimensions |
@@ -400,7 +415,7 @@ The `370` not `360` produces overlapping probe directions. Whether this was inte
 │  │     run AI control func                                             │
 │  │     advance anim time                                               │
 │  │     case (anim.status):                                             │
-│  │       func_80070400(npc, &keyframe[idx0], &keyframe[idx1])          │
+│  │       Collision_CharaCollisionSet(npc, &keyframe[idx0], &keyframe[idx1])          │
 │  │            ⇣  writes npc.field_C8 / D4 / D8                          │
 │  │       (the character's hitbox and collision body shapes,            │
 │  │        interpolated for THIS frame)                                  │
@@ -418,7 +433,7 @@ The `370` not `360` produces overlapping probe directions. Whether this was inte
 │  │         returns &chunk.collisionData                                  │
 │  │       ↓                                                              │
 │  │       func_8006A4A8(…all 4 chunks' collData…)                        │
-│  │         for each: func_8006AD44 → grid traversal → result            │
+│  │         for each: Collision_CharaCollisionHandle → grid traversal → result            │
 │  │       ↓                                                              │
 │  │     Collision_WallResponse → classifies + 9-radial probe             │
 │  │     applies result.offset_0 to npc.position                          │
@@ -433,7 +448,7 @@ The `370` not `360` produces overlapping probe directions. Whether this was inte
 │  │                                                                       │
 │  ┌── Ground tick                                                        │
 │  │   For each character:                                                │
-│  │     Collision_Get(&coll, npc.posX, npc.posZ)                         │
+│  │     Collision_SurfaceGet(&coll, npc.posX, npc.posZ)                         │
 │  │       sets coll.groundHeight_0 (lerp Y to it)                        │
 │  └──                                                                    │
 └──────────────────────────────────────────────────────────────────────┘
@@ -443,7 +458,7 @@ The big takeaway: the **same `func_800426E4` machinery** services every collisio
 
 ## The "void" pattern
 
-`Collision_Get` ([collision.c:183](https://github.com/Vatuu/silent-hill-decomp/blob/master/src/bodyprog/collision.c#L183)) returns a "void" result when the chunk isn't loaded:
+`Collision_SurfaceGet` (formerly `Collision_Get`, [collision/collision.c:212](https://github.com/Vatuu/silent-hill-decomp/blob/master/src/bodyprog/collision/collision.c#L212)) returns a "void" result when the chunk isn't loaded:
 
 ```c
 if (ipdCollData == NULL) {
@@ -461,7 +476,7 @@ That `Q12(8.0f)` is a sentinel "infinite drop." Game systems that read `groundHe
 
 - **`s_IpdCollisionData_14::field_4`** (s16). Read in `func_8006B318` but assigned somewhere between `field_2_0` and the vertex offsets. Likely a height/Y value for the wall — check by extracting a known-tall vs known-short wall from a level.
 
-- **Bit-field 12** in `s_IpdCollisionData_10::field_6_0` is special-cased twice (`temp_a0->field_6_0 == 12` at lines 1204 and 1219 of collision.c) — described as adjusting `field_12.vy / field_18.vy` by `-Q12(1.0f)` if `field_4` is set. Looks like "step / low wall — push character down 1 world-unit on contact" but the exact semantics need confirmation.
+- **Bit-field 12** in `s_IpdCollisionData_10::field_6_0` is special-cased twice (`temp_a0->field_6_0 == 12` at lines ~1204 and ~1219 of collision/collision.c) — described as adjusting `field_12.vy / field_18.vy` by `-Q12(1.0f)` if `field_4` is set. Looks like "step / low wall — push character down 1 world-unit on contact" but the exact semantics need confirmation.
 
 - **`s_CollisionState::field_A0` union** has `s_0` and `s_1` variants — only `s_0` is referenced in the ground-collision path. `s_1` (with `q7_8 field_0/2`, `s16 field_4`, `u8 field_6`) is presumably the ray-trace variant — confirmed by checking which functions write to `s_1.*` vs `s_0.*` (likely `Ray_TraceRun` family).
 
@@ -473,4 +488,4 @@ That `Q12(8.0f)` is a sentinel "infinite drop." Game systems that read `groundHe
 
 - **`s_IpdCollisionData_18::field_0_12 : 3`** — 3 bits inside the floor-element flags, unread by anything in this TU. Possibly slope category (flat / shallow / medium / steep) but never tested in the decomp'd code; might only matter for some unimplemented gameplay path.
 
-- **Per-chara `field_C8` vs `field_D4` purpose split**. Both are written by `func_80070400`. `field_D4.radius_0` is clearly the body cylinder used for chara-vs-chara checks. `field_C8.field_0..6` are described as "top/bottom abs height" — they're probably the *vertical* part of the AABB while the cylinder handles XZ. If true, walking-under-low-ceilings detection (like crouching under a beam) would consult `field_C8`. No clear evidence in this TU; would need to grep how `field_C8.field_0/2` are read by combat/move code.
+- **Per-chara `field_C8` vs `field_D4` purpose split**. Both are written by `Collision_CharaCollisionSet`. `field_D4.radius_0` is clearly the body cylinder used for chara-vs-chara checks. `field_C8.field_0..6` are described as "top/bottom abs height" — they're probably the *vertical* part of the AABB while the cylinder handles XZ. If true, walking-under-low-ceilings detection (like crouching under a beam) would consult `field_C8`. No clear evidence in this TU; would need to grep how `field_C8.field_0/2` are read by combat/move code.

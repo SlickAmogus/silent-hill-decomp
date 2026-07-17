@@ -355,8 +355,8 @@ All three are real bugs in our tree, in the TPS/OTS free-aim gun path:
 - **Firing-pose shadow glitch** (per-pixel shadows): PsyCross flashlight
   shadow FIFO entries value-validated like PGXP (`PsyX_GPU.cpp`) — CPU-built
   quads (muzzle flash) no longer inherit stale arm/gun view-space verts.
-- **PGXP near-camera warp**: root-caused; fix = GL near-plane clipping, design
-  in `PGXP_NearClip_Design.md` (not yet implemented).
+- **PGXP near-camera warp**: root-caused; fix = GL near-plane clipping
+  (`PgxpNearClipEmit`), documented in `PGXP_Architecture.md` §9.
 
 ## BGM reverb + ADSR batch (2026-07-06, commit `4a37582ca` + PsyCross `12a5ab5`)
 

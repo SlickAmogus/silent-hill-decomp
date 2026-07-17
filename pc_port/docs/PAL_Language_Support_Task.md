@@ -1,6 +1,6 @@
 # PAL Support: Fonts/Text, Languages, Launcher — Status & Reference
 
-Status: **IMPLEMENTED 2026-07-08 — awaiting in-game PAL testing.**
+Status: **IMPLEMENTED 2026-07-08 — tested and confirmed in-game.**
 Read alongside memory `[[project_pal_eur_support]]`.
 Implemented across commits: `52582ca4b` (launcher/config), `33b74e812`
 (decrypt tool), `270574235` (FMV), `f5dff3a48` (fonts), `f97055547`

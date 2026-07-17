@@ -1,6 +1,6 @@
 # Missing Ambient SFX (Rain / Water) — Task Spec
 
-Status: **AUDIT COMPLETE 2026-07-09 — fixes landed, awaiting in-game test.**
+Status: **AUDIT COMPLETE 2026-07-09 — fixes landed. Water ambient + sewer drip CONFIRMED FIXED 2026-07-16 (PsyCross `3f6fcca` fabsf fix). Other findings below awaiting in-game test.**
 23-map multi-agent sweep + byte-level verification done; see "Findings" below.
 Prepared 2026-07-09.
 Read alongside memories `[[project_water_ambient_sfx]]` (the two mechanisms, corrected
