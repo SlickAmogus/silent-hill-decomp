@@ -266,7 +266,14 @@ extern GsDOBJ2 D_800C3E08;
 /** Used to organize the items displaying in the inventory.
  * 7 is the max number of visible items.
  */
+#ifdef SH_PC_PORT
+// [10] absorbs the PSX BSS-aliased slots [7]=g_Inventory_EquippedItemIdx and
+// [8]/[9]=__pad_bss_800C3E38 so out-of-bounds indices stay in-bounds under ASan.
+// See the definition + alias macro in item_screens_3.c.
+extern s32 D_800C3E18[10]; // 0x800C3E18
+#else
 extern s32 D_800C3E18[7]; // 0x800C3E18
+#endif
 
 /** This value is based on the index of the equipped item.
  * If the player has nothing equipped, set to `NO_VALUE`.

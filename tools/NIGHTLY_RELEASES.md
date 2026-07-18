@@ -31,6 +31,10 @@ After a clean local build (`cmake --build build`):
 
 The script:
 - Hashes `SilentHillPC.exe` + every file in `build/maps/` + `build/config.cfg`
+- Packages shipped runtime assets from `pc_port/assets/` (mirrors the game
+  folder layout, e.g. `assets/gamedata/decal.png` ships as
+  `gamedata/decal.png`) — BOTH modes; drop new custom assets there, never
+  hand-place them in the build folder (the build copies them post-build)
 - Pulls the previous release's `version.json` from the nightly repo
 - Diffs hashes; if nothing changed, exits without creating a release
 - Computes the next version: `YYYY.MM.DD.N` (N = next counter for today)
@@ -39,6 +43,45 @@ The script:
 - Generates a new `version.json` that points unchanged files at their
   previous release's URL, changed files at the new release's URL
 - Uploads `version.json` as the release manifest
+
+## Cross-platform (Linux + macOS) builds
+
+The Windows binary is built locally; the Linux and macOS binaries are built by
+GitHub Actions (`.github/workflows/build-linux.yml`, `build-macos.yml`) because
+they can't be produced on Windows. CI only **builds** them — you remain the only
+publisher. Each push to `pc-port` uploads a 90-day artifact (`SHPC-linux-x64`,
+`SHPC-macos-arm64`).
+
+They're attached **by default** — no flag needed:
+
+```powershell
+.\tools\release-nightly.ps1
+.\tools\release-nightly.ps1 -SkipCrossPlatform   # Windows-only release
+```
+
+This downloads the newest successful CI artifacts and attaches them to the same
+release as standalone archives (`SHPC-linux-x64.tar.gz`, `SHPC-macos-arm64.zip`).
+They are deliberately **left out of `version.json`** — the Windows launcher only
+knows how to hash/replace Windows files, so Linux/macOS users grab those archives
+by hand, or via the launcher's Build Settings "Download archives for" checkboxes
+(they don't auto-update through the normal Windows update flow).
+
+**If CI for this exact commit hasn't finished yet:** instead of silently
+attaching a stale build from an older commit, the script detects the
+in-progress/queued run and asks, per platform:
+- **[W] Wait** — polls the run (`gh run watch`) until it finishes, then attaches it
+- **[V] View** — prints the run's current status/URL and lets you re-check
+- **[S] Skip** — attaches the newest already-successful build anyway (from an
+  earlier commit); re-run the release once CI catches up for a matching build
+
+Running with `-NoPause` or `-DryRun` skips the prompt and always falls back to
+the newest successful build non-interactively (unattended use).
+
+Notes:
+- Linux/macOS binaries dynamically link system SDL2/OpenAL (not bundled); each
+  artifact ships a `README-{linux,macos}.txt` listing the runtime deps.
+- The macOS arm64 binary is unsigned — Gatekeeper warns; users clear quarantine
+  with `xattr -dr com.apple.quarantine SilentHillPC`.
 
 ## How the launcher consumes it
 

@@ -320,3 +320,11 @@ u8 g_WorldObjectPos0[256] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
+
+/* Sewer room-17 dripping-water SOURCE position. Zero-stubbed -> source sat at the
+   world origin -> player always outside the falloff range -> the drip was muted
+   every frame. Source comment value VECTOR3(23,0,20) = Q12 s32 (94208,0,81920).
+   Maintained here directly (NOT regenerated -- regen drops shared symbols). */
+u8 D_800DBD10[12] = {
+    0x00, 0x70, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x01, 0x00
+};

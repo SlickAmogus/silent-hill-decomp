@@ -5,7 +5,8 @@
 
 void DbgOverlay_Update(void);
 void DbgOverlay_Render(void);
-void DbgOverlay_PushLine(const char* line); /* callable from SH_DBG_ECHO via g_ShOverlayPushLine */
+void DbgOverlay_PushLine(const char* line);  /* console buffer only (SH_LOG/SH_WARN via g_ShOverlayPushLine) */
+void DbgOverlay_ToastLine(const char* line); /* + top-left toast when hidden (SH_DBG_ECHO via g_ShOverlayToastLine) */
 
 /* Snapshot of collState fields at the player's func_8006A4A8 collision pass,
  * filled by collision.c when the visualizer (') is on, shown in the overlay's

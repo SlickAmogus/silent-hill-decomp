@@ -1,5 +1,5 @@
 asm/
-assets/
+/assets/
 build/
 rom/
 linkers/
@@ -36,6 +36,10 @@ pc_port/build_gen/*
 # FMV tools
 pc_port/tools/mdec_test.exe
 pc_port/tools/mdec_test_str.exe
+# FMV rips (jpsxdec output) — large, regenerable from the disc, never commit
+pc_port/tools/*.avi
+# Extractor / runtime debug logs dumped into tools/
+pc_port/tools/*.log
 maperrs.txt
 maprenames.txt
 

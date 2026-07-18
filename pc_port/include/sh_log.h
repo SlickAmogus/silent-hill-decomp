@@ -6,10 +6,15 @@
 
 #include <stdio.h>
 
+/* Formatting buffer for the on-screen console lines. Large enough to hold a full
+ * wide-window row; the overlay wraps anything longer onto extra rows, so this
+ * only needs to be >= the widest single line the console can show at once. */
+#define SH_LOG_LINE_MAX 256
+
 #define SH_LOG(fmt, ...) do { \
     printf("[SH] " fmt "\n", ##__VA_ARGS__); \
     if (g_ShOverlayPushLine) { \
-        char _sh_log_buf[64]; \
+        char _sh_log_buf[SH_LOG_LINE_MAX]; \
         snprintf(_sh_log_buf, sizeof(_sh_log_buf), "[SH] " fmt, ##__VA_ARGS__); \
         g_ShOverlayPushLine(_sh_log_buf); \
     } \
@@ -17,7 +22,7 @@
 #define SH_WARN(fmt, ...) do { \
     printf("[SH WARN] " fmt "\n", ##__VA_ARGS__); \
     if (g_ShOverlayPushLine) { \
-        char _sh_warn_buf[64]; \
+        char _sh_warn_buf[SH_LOG_LINE_MAX]; \
         snprintf(_sh_warn_buf, sizeof(_sh_warn_buf), "[SH WARN] " fmt, ##__VA_ARGS__); \
         g_ShOverlayPushLine(_sh_warn_buf); \
     } \
@@ -35,7 +40,8 @@ extern "C" {
 #endif
 extern FILE* g_ShDebugLog;
 extern int   g_ShDebugEchoStdout;              /* set by main_pc.c after PcConfig_Load */
-extern void (*g_ShOverlayPushLine)(const char*); /* NULL, or DbgOverlay_PushLine when show_console>=2 */
+extern void (*g_ShOverlayPushLine)(const char*);  /* NULL, or DbgOverlay_PushLine  (console buffer only) */
+extern void (*g_ShOverlayToastLine)(const char*); /* NULL, or DbgOverlay_ToastLine (buffer + top-left toast) */
 void SH_DebugLogInit(void);
 #ifdef __cplusplus
 }
@@ -70,10 +76,10 @@ void SH_DebugLogInit(void);
         printf(fmt "\n", ##__VA_ARGS__); \
         fflush(stdout); \
     } \
-    if (g_ShOverlayPushLine) { \
-        char _sh_echo_buf[64]; \
+    if (g_ShOverlayToastLine) { \
+        char _sh_echo_buf[SH_LOG_LINE_MAX]; \
         snprintf(_sh_echo_buf, sizeof(_sh_echo_buf), fmt, ##__VA_ARGS__); \
-        g_ShOverlayPushLine(_sh_echo_buf); \
+        g_ShOverlayToastLine(_sh_echo_buf); \
     } \
 } while (0)
 

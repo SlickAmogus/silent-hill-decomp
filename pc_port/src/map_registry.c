@@ -14,18 +14,6 @@ s_MapOverlayHdr* g_pMapOverlayHeader = NULL;
  * renderer to special-case specific areas. */
 e_MapIdx g_CurrentMapIdx = MapIdx_MAP0_S00;
 
-/* Single-cell interior boss arenas: open rooms whose neighbor cells are
- * different rooms, so the PC's widened +-2/+-1 interior draw window renders
- * those distant rooms across the open arena. Draw exact-cell (PSX behavior)
- * for these instead. The arena's own geometry is in the player's cell and the
- * frustum cull still handles its edge triangles, so this does NOT reintroduce
- * the widescreen side-void (a separate, already-fixed system). */
-int MapRegistry_IsExactCellArena(void)
-{
-    return g_CurrentMapIdx == MapIdx_MAP1_S05 || /* Midwich school - otherworld (school boss) */
-           g_CurrentMapIdx == MapIdx_MAP7_S03;   /* Nowhere - final boss arena */
-}
-
 /* The fully-compiled map0_s00 header (renamed via -DSH_MAP_NAME=map0_s00). */
 extern s_MapOverlayHdr g_MapOverlayHeader_map0_s00;
 
@@ -92,49 +80,49 @@ static const char* const MAP_NAMES[] = {
 /* Human-readable map descriptions (kept in sync with config.cfg's comment list).
  * Used by the in-game map-cycle debug keys. */
 static const char* const MAP_DESCRIPTIONS[] = {
-    [MapIdx_MAP0_S00] = "Old Silent Hill - streets (start area)",
-    [MapIdx_MAP0_S01] = "Old Silent Hill - streets (Cybil encounter)",
-    [MapIdx_MAP0_S02] = "Old Silent Hill - streets (alley)",
-    [MapIdx_MAP1_S00] = "Midwich Elementary - exterior",
-    [MapIdx_MAP1_S01] = "Midwich Elementary - 1F",
-    [MapIdx_MAP1_S02] = "Midwich Elementary - 2F",
-    [MapIdx_MAP1_S03] = "Midwich Elementary - 3F",
-    [MapIdx_MAP1_S04] = "Midwich Elementary - courtyard",
-    [MapIdx_MAP1_S05] = "Midwich Elementary - otherworld",
-    [MapIdx_MAP1_S06] = "Midwich Elementary - exterior (after)",
-    [MapIdx_MAP2_S00] = "Old Silent Hill - streets (after school)",
-    [MapIdx_MAP2_S01] = "Old Silent Hill - sewers",
-    [MapIdx_MAP2_S02] = "Old Silent Hill - streets (shopping district)",
-    [MapIdx_MAP2_S03] = "Old Silent Hill - streets (residential)",
-    [MapIdx_MAP2_S04] = "Old Silent Hill - Balkan Church",
-    [MapIdx_MAP3_S00] = "Alchemilla Hospital - 1F",
-    [MapIdx_MAP3_S01] = "Alchemilla Hospital - 2F/3F",
-    [MapIdx_MAP3_S02] = "Alchemilla Hospital - otherworld 1F",
-    [MapIdx_MAP3_S03] = "Alchemilla Hospital - otherworld 2F",
-    [MapIdx_MAP3_S04] = "Alchemilla Hospital - otherworld 3F",
-    [MapIdx_MAP3_S05] = "Alchemilla Hospital - otherworld basement",
-    [MapIdx_MAP3_S06] = "Alchemilla Hospital - 1F (Lisa)",
-    [MapIdx_MAP4_S00] = "Central Silent Hill - streets",
-    [MapIdx_MAP4_S01] = "Central Silent Hill - antique shop",
-    [MapIdx_MAP4_S02] = "Central Silent Hill - otherworld streets",
-    [MapIdx_MAP4_S03] = "Central Silent Hill - otherworld (sewers)",
-    [MapIdx_MAP4_S04] = "Central Silent Hill - otherworld (apartment)",
-    [MapIdx_MAP4_S05] = "Central Silent Hill - otherworld",
-    [MapIdx_MAP4_S06] = "Central Silent Hill - streets (return)",
-    [MapIdx_MAP5_S00] = "Nowhere - otherworld streets",
-    [MapIdx_MAP5_S01] = "Resort area - streets",
-    [MapIdx_MAP5_S02] = "Resort area - Annie's Bar",
-    [MapIdx_MAP5_S03] = "Resort area - lighthouse",
-    [MapIdx_MAP6_S00] = "Resort area - otherworld streets",
-    [MapIdx_MAP6_S01] = "Resort area - resort building",
-    [MapIdx_MAP6_S02] = "Resort area - otherworld",
-    [MapIdx_MAP6_S03] = "Nowhere - void",
-    [MapIdx_MAP6_S04] = "Nowhere - otherworld (Alessa)",
-    [MapIdx_MAP6_S05] = "Nowhere - otherworld",
-    [MapIdx_MAP7_S00] = "Nowhere - final",
-    [MapIdx_MAP7_S01] = "Nowhere - final (2)",
-    [MapIdx_MAP7_S02] = "Nowhere - final (3)",
-    [MapIdx_MAP7_S03] = "Nowhere - ending",
+    [MapIdx_MAP0_S00] = "Old Silent Hill - intro sequence",
+    [MapIdx_MAP0_S01] = "Old Silent Hill - cafe",
+    [MapIdx_MAP0_S02] = "Old Silent Hill - bonus unlockable areas",
+    [MapIdx_MAP1_S00] = "School - 1F, courtyard, basement",
+    [MapIdx_MAP1_S01] = "School - 2F",
+    [MapIdx_MAP1_S02] = "School Otherworld - 1F and courtyard",
+    [MapIdx_MAP1_S03] = "School Otherworld - 2F and roof",
+    [MapIdx_MAP1_S04] = "Unused",
+    [MapIdx_MAP1_S05] = "School - boss fight (Split Head)",
+    [MapIdx_MAP1_S06] = "School - 1F and basement after the boss",
+    [MapIdx_MAP2_S00] = "Old Silent Hill - streets",
+    [MapIdx_MAP2_S01] = "Church",
+    [MapIdx_MAP2_S02] = "Central Silent Hill - streets",
+    [MapIdx_MAP2_S03] = "Unused",
+    [MapIdx_MAP2_S04] = "Police station (Central Silent Hill)",
+    [MapIdx_MAP3_S00] = "Hospital - until Kaufmann meeting",
+    [MapIdx_MAP3_S01] = "Hospital - 1F and basement after Kaufmann",
+    [MapIdx_MAP3_S02] = "Hospital - antique shop cutscene",
+    [MapIdx_MAP3_S03] = "Hospital Otherworld - 3F and 2F",
+    [MapIdx_MAP3_S04] = "Hospital Otherworld - 1F",
+    [MapIdx_MAP3_S05] = "Hospital Otherworld - basement",
+    [MapIdx_MAP3_S06] = "Hospital - 1F after Otherworld",
+    [MapIdx_MAP4_S00] = "Unused",
+    [MapIdx_MAP4_S01] = "Green Lion Antiques (normal + Otherworld)",
+    [MapIdx_MAP4_S02] = "Central Silent Hill Otherworld - streets",
+    [MapIdx_MAP4_S03] = "Mall and boss fight",
+    [MapIdx_MAP4_S04] = "Hospital - 1F (Lisa cutscene)",
+    [MapIdx_MAP4_S05] = "Central SH Otherworld - Floatstinger boss",
+    [MapIdx_MAP4_S06] = "Unused",
+    [MapIdx_MAP5_S00] = "Sewers - lower and upper levels",
+    [MapIdx_MAP5_S01] = "Resort Area",
+    [MapIdx_MAP5_S02] = "Annie's Bar and Indian Runner (Resort Area)",
+    [MapIdx_MAP5_S03] = "Norman's Motel (Resort Area)",
+    [MapIdx_MAP6_S00] = "Resort Area Otherworld",
+    [MapIdx_MAP6_S01] = "Boat at Lakeside Pier",
+    [MapIdx_MAP6_S02] = "Lakeside Pier and Lighthouse",
+    [MapIdx_MAP6_S03] = "Sewer to Lakeside Amusement Park",
+    [MapIdx_MAP6_S04] = "Amusement Park - Cybil boss, Alessa kidnapping",
+    [MapIdx_MAP6_S05] = "Unused",
+    [MapIdx_MAP7_S00] = "Nowhere - hospital 1F, Lisa cutscene",
+    [MapIdx_MAP7_S01] = "Nowhere",
+    [MapIdx_MAP7_S02] = "Nowhere - Alessa vs. Dahlia cutscene",
+    [MapIdx_MAP7_S03] = "Nowhere - final boss",
 };
 
 /* Stub map headers - one per overlay.
@@ -243,7 +231,21 @@ void MapRegistry_Load(e_MapIdx id)
         g_pMapOverlayHeader = &g_StubHeaders[id];
     }
 
-    SH_DBG_ECHO("[MapRegistry] Active map: %s (overlay %d, mapType %d)",
+    /* Global chara pool: fill charaUpdateFuncs slots this map left NULL from
+     * chara_global.dll (fresh DLL header copy per LoadLibrary, so this runs
+     * on every load; NULL-only, so native per-map AI variants win). */
+    {
+        extern void Pc_CharaGlobal_Backfill(void);
+        extern void Pc_NpcDebugSpawnClearAll(void);
+        Pc_CharaGlobal_Backfill();
+        /* NPCs are wiped on map load; debug-spawn slot flags go with them. */
+        Pc_NpcDebugSpawnClearAll();
+    }
+
+    /* SH_LOG (not SH_DBG_ECHO): a per-map-load diagnostic belongs in the debug
+     * log/console, not the top-left system-message toast that shows while the
+     * console is hidden. */
+    SH_LOG("[MapRegistry] Active map: %s (overlay %d, mapType %d)",
         MapRegistry_GetName(id), id,
         (int)(g_pMapOverlayHeader->mapInfo - MAP_INFOS));
 }

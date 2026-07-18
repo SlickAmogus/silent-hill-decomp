@@ -114,6 +114,9 @@ typedef enum _GameRegion
 {
     Region_USA = 0,
     Region_EUR = 1, /** PAL (SLES-01514). */
+    Region_JPN = 2, /** NTSC-J (SLPM-86192). Rev 1/Rev 2 (JAP1/JAP2) discs share
+                     *  the file table + overlay link base; the first print
+                     *  (JAP0) differs and is detected but not yet supported. */
 } e_GameRegion;
 
 extern e_GameRegion g_GameRegion;
@@ -121,8 +124,26 @@ extern e_GameRegion g_GameRegion;
 /** @brief Populate g_FileTable and g_FileXaLoc for the detected disc region.
  * g_FileTable keeps the US-canonical shape/indices so every FILE_* enum
  * reference resolves unchanged; for EUR the actual disc sectors are filled in
- * by matching each US file to its same-named EUR entry. */
+ * by matching each US file to its same-named EUR entry. Also applies the
+ * config `language` redirects (VIN map overlays -> VIN2..VIN5, TIPS letter). */
 void Fs_InitFileTableForRegion(e_GameRegion region);
+
+/** @brief Locate an EUR-only file (no US-canonical slot, e.g. VIN/ITEM_GER.BIN)
+ * in the compiled EUR table. `name8` = bare name, no extension. Returns 1 on hit. */
+int Fs_EurFileLookup(const char* name8, s32 pathIdx, s32 type, u32* outSector, u32* outBlocks);
+
+/** @brief Fan-disc support: overwrite g_FileTable sectors/sizes (and the audio +
+ * XA offset tables) from the mounted disc's OWN file table, matched by name. A
+ * USA fan re-translation can rebuild the CD, shifting every sector; reading the
+ * disc's table is the only way to know the true layout. `disc` points at the raw
+ * 12-byte file-table entries read out of the disc executable, `count` = how many.
+ * No-op (returns 0) when the disc matches the baked vanilla table. */
+s32 Fs_RemapFromDiscTable(const s_FileInfo* disc, s32 count);
+
+/** @brief (Re)bind the VIN map-overlay + TIPS entries to the configured
+ * language's EUR files. Idempotent — the title-screen options menu re-runs
+ * it when the language changes. No-op outside Region_EUR. */
+void Fs_ApplyLanguageRedirects(void);
 #endif
 
 /** @brief Decrypts an encrypted overlay.

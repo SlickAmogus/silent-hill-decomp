@@ -141,4 +141,8 @@ All three sites now use `Q8(-4.0f)` on PC (= −1024 units, placing the item abo
 - `NULL_TERM_SYMBOLS` — for `LOADABLE_INVENTORY_ITEMS`, scans for the null terminator instead of trusting the sym-file size.
 - `SKIP_SYMBOL_FOR_MAP` — prevents duplicate definitions for maps that already define a symbol in their C source.
 - Files marked `MANUALLY MAINTAINED` in their header are never overwritten.
-- Run with: `python3 pc_port/tools/extract_map_data.py` from the repo root.
+
+> ⚠️ **Do not bulk-regenerate.** A blind full run of the extractor drops any
+> hand-added symbols that aren't described in the sym files — several extracted
+> tables have been hand-appended since. To add or fix one symbol, hand-append its
+> entry (or extract that single symbol) rather than re-running the whole tool.

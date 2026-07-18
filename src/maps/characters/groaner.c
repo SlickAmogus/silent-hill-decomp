@@ -359,7 +359,7 @@ void sharedFunc_800E384C_2_s00(s_SubCharacter* groaner)
     if (groanerProps.flags.val16[0] & GroanerFlag_5)
     {
         static int s_wakeLogTick = 0;
-        s32 _dist = Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - groaner->position.vx,
+        s32 _dist = Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - groaner->position.vx,
                                         g_SysWork.playerWork.player.position.vz - groaner->position.vz);
         if (_dist < Q12(8.0f) && ++s_wakeLogTick >= 60)
         {
@@ -378,7 +378,7 @@ void sharedFunc_800E384C_2_s00(s_SubCharacter* groaner)
     }
 #endif
 
-    if (func_80070360(groaner, Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - groaner->position.vx,
+    if (func_80070360(groaner, Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - groaner->position.vx,
             g_SysWork.playerWork.player.position.vz - groaner->position.vz), UNK_VAL) != 0 ||
         func_8006FD90(groaner, 1, sharedData_800EEE3C_2_s00[getIndex()].field_0, sharedData_800EEE3C_2_s00[getIndex()].field_4))
     {
@@ -523,7 +523,7 @@ void sharedFunc_800E3E94_2_s00(s_SubCharacter* groaner)
         groanerProps.flags.val16[0] |= GroanerFlag_8;
     }
 
-    distToPlayer = Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - groaner->position.vx,
+    distToPlayer = Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - groaner->position.vx,
                                        g_SysWork.playerWork.player.position.vz - groaner->position.vz);
     distToPlayerMax = Rng_GenerateInt(Q12(4.0f), Q12(8.0f) - 1);
     temp_s6 = Los_NpcToPlayerHitCheck(groaner, &g_SysWork.playerWork.player);
@@ -923,7 +923,7 @@ void sharedFunc_800E4E84_2_s00(s_SubCharacter* groaner)
         }
     }
 
-    distToPlayer = Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - groaner->position.vx,
+    distToPlayer = Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - groaner->position.vx,
                                        g_SysWork.playerWork.player.position.vz - groaner->position.vz);
     if (distToPlayer > Q12(3.5f))
     {

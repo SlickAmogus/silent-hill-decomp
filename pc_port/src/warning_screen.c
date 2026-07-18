@@ -15,6 +15,7 @@
 #include "game.h"
 #include <psyq/libetc.h>
 #include <psyq/libapi.h>
+#include <SDL_scancode.h>
 #include "main/fsqueue.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
@@ -23,6 +24,28 @@
 #include "pc_config.h"
 
 extern void PsyX_EndScene(void); /* forward decl — defined in PsyX_main.cpp */
+extern const unsigned char* g_sdlKeyboardState;
+extern int PsyX_Pad_SkipButtonHeld(void);
+
+/* QOL: any confirm/start key or gamepad A/Start skips the warning. Read raw SDL
+ * directly — the controller mapping isn't wired up this early in boot, so the game's
+ * button flags are all 0 here. Warn_SwapAndDraw pumps SDL events via VSync/PsyX_EndScene,
+ * so this state is refreshed every frame. */
+static int Warn_SkipPressed(void)
+{
+    if (g_sdlKeyboardState != NULL &&
+        (g_sdlKeyboardState[SDL_SCANCODE_RETURN]   ||
+         g_sdlKeyboardState[SDL_SCANCODE_KP_ENTER] ||
+         g_sdlKeyboardState[SDL_SCANCODE_RETURN2]  ||
+         g_sdlKeyboardState[SDL_SCANCODE_SPACE]    ||
+         g_sdlKeyboardState[SDL_SCANCODE_C]        ||
+         g_sdlKeyboardState[SDL_SCANCODE_V]))
+    {
+        return 1;
+    }
+
+    return PsyX_Pad_SkipButtonHeld();
+}
 
 /* TIM lives at VRAM tpage row 0 columns 13/14/15, CLUT at (768, 480). */
 static s_FsImageDesc s_WarnImg = {
@@ -209,31 +232,49 @@ void Pc_PlayWarningScreen(void)
      * doubles the loop durations below. */
     g_IntervalVBlanks = 1;
 
-    /* Fade-in: ~0.5s at 60fps. fade goes 255 → -1 in steps of 8 → 32
-     * iterations × ~16ms ≈ 0.5s. */
+    /* `skipped` tracks an early exit (boot-skip key) from the fade-in or hold so the
+     * fade-out below CONTINUES darkening from the current brightness instead of
+     * snapping the image back to full-bright and fading THAT out — which looked like
+     * the warning "playing a second time" when a held skip key caught the fade-in. */
+    s32 skipped = 0;
+
+    /* Fade-in: ~0.5s at 60fps. fade goes 255 → 0 (image appears). */
     fade = 255;
     while (fade >= 0)
     {
         Warn_DrawFadeTile(fade);
         Warn_DrawImage();
         Warn_SwapAndDraw();
+        if (Warn_SkipPressed())
+        {
+            skipped = 1;
+            break;
+        }
         fade -= 8;
     }
 
-
-    /* Hold the fully-faded-in image — 180 frames at 60fps ≈ 3 seconds. */
-    for (holdFrame = 0; holdFrame < 180; holdFrame++)
+    /* Hold the fully-faded-in image — only if the fade-in completed (no skip). */
+    if (!skipped)
     {
-        Warn_DrawImage();
-        Warn_SwapAndDraw();
+        fade = 0; /* fully visible */
+        for (holdFrame = 0; holdFrame < 180; holdFrame++)
+        {
+            Warn_DrawImage();
+            Warn_SwapAndDraw();
+            if (Warn_SkipPressed())
+            {
+                break;
+            }
+        }
+    }
+    if (fade < 0)
+    {
+        fade = 0;
     }
 
-
-    /* Fade-out: ~0.5s at 60fps. fade climbs 0 → 248 in steps of 8 → 32
-     * iterations, matching the fade-in cadence in reverse. Subtractive
-     * blend dims the image to solid black; the next boot screen's own
-     * fade-in then takes over from black. */
-    fade = 0;
+    /* Fade-out to solid black, CONTINUING from the current fade level (so an early
+     * skip darkens smoothly from where it was rather than re-showing the full image).
+     * The next boot screen fades in from black. */
     while (fade < 255)
     {
         Warn_DrawFadeTile(fade);
@@ -257,5 +298,18 @@ void Pc_PlayWarningScreen(void)
             Warn_DrawImage();
             Warn_SwapAndDraw();
         }
+        /* Warn_SwapAndDraw swaps the display BEFORE drawing this frame's OT, so the
+         * last black OT built in the loop above isn't actually presented before we
+         * return. The next screen (Konami) then runs Screen_Init, which double-swaps
+         * with no draw — exposing the stale, partially-faded warning still in the GL
+         * window ("the warning fades back in then out"). Build one more solid-black
+         * frame and present it explicitly so a genuinely black frame reaches the
+         * displayed buffer + GL window before Screen_Init runs. */
+        Warn_DrawFadeTile(255);
+        Warn_DrawImage();
+        VSync(SyncMode_Wait);
+        GsSwapDispBuff();
+        GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
+        PsyX_EndScene();
     }
 }

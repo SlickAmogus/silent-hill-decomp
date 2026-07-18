@@ -335,10 +335,20 @@ void func_800D1A58(void) // 0x800D1A58
         case 8:
             func_800D17F8(8, 0);
 
+#ifdef SH_PC_PORT
+            /* Stick integration was per RENDERED frame — the plate cursor flew
+             * 8x faster at 240fps. Scale the deflection by dt (30fps norm). */
+            D_800D6BD0 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftX << 14) / 75);
+#else
             D_800D6BD0 += (g_Controller0->sticks_24.sticks_0.leftX << 14) / 75;
+#endif
             D_800D6BD0  = CLAMP_RANGE(D_800D6BD0, Q12(-100.0f), Q12(100.0f));
 
+#ifdef SH_PC_PORT
+            D_800D6BD4 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftY << 14) / 75);
+#else
             D_800D6BD4 += (g_Controller0->sticks_24.sticks_0.leftY << 14) / 75;
+#endif
             D_800D6BD4  = CLAMP_RANGE(D_800D6BD4, Q12(-100.0f), Q12(100.0f));
 
             Game_TimerUpdate();
@@ -414,7 +424,12 @@ void func_800D1A58(void) // 0x800D1A58
         case 9:
             func_800D17F8(D_800D8144, D_800D6BD8);
 
+#ifdef SH_PC_PORT
+            /* Plate slide: 0x40 per rendered frame, 30fps-authored. */
+            D_800D6BD8 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, 0x40);
+#else
             D_800D6BD8 += 0x40;
+#endif
             if (D_800D6BD8 >= Q12(1.2f))
             {
                 if (Savegame_EventFlagGet(EventFlag_MapMark_713))
@@ -444,10 +459,19 @@ void func_800D1A58(void) // 0x800D1A58
         case 12:
             func_800D17F8(8, 0);
 
+#ifdef SH_PC_PORT
+            /* dt-scaled like case 8. */
+            D_800D6BD0 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftX << 14) / 75);
+#else
             D_800D6BD0 += (g_Controller0->sticks_24.sticks_0.leftX << 14) / 75;
+#endif
             D_800D6BD0  = CLAMP_RANGE(D_800D6BD0, Q12(-100.0f), Q12(100.0f));
 
+#ifdef SH_PC_PORT
+            D_800D6BD4 += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (g_Controller0->sticks_24.sticks_0.leftY << 14) / 75);
+#else
             D_800D6BD4 += (g_Controller0->sticks_24.sticks_0.leftY << 14) / 75;
+#endif
             D_800D6BD4  = CLAMP_RANGE(D_800D6BD4, Q12(-100.0f), Q12(100.0f));
 
             Game_TimerUpdate();
@@ -527,7 +551,11 @@ void func_800D1A58(void) // 0x800D1A58
         case 13:
             func_800D17F8(D_800D8144, D_800D6BD8);
 
+#ifdef SH_PC_PORT
+            D_800D6BD8 -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, 0x40);
+#else
             D_800D6BD8 -= 0x40;
+#endif
             if (D_800D6BD8 <= Q12(-0.2f))
             {
                 D_800D8140[D_800D8144] = 8;

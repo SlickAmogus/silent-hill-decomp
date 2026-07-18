@@ -8,6 +8,10 @@
 #include "maps/shared.h"
 #include "maps/particle.h"
 
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
+
 // TODO: Find why removing these includes causes mismatch.
 #if defined(MAP0_S00)
 #include "maps/map0/map0_s00.h" // TODO: Move particle-related decls to particle.h
@@ -25,6 +29,42 @@
 #include "maps/map3/map3_s01.h"
 #elif defined(MAP5_S01)
 #include "maps/map5/map5_s01.h"
+#endif
+
+#ifdef SH_PC_PORT
+#include "main/fileinfo.h" /* g_GameRegion */
+
+/* PAL reslices BG_ETC.TIM (US 128x256 -> 256x128, bottom half placed to the
+ * right): US texels with v >= 128 — the dust/ember sprite band these
+ * particles sample at v=240..255 — moved to (u+128, v-128). Fix a page-12
+ * FT4's UVs in place after they are set (u saturates: the u=128 right edge
+ * becomes 255, losing under one texel). */
+static void Pc_BgEtcSpriteBandUvFix(POLY_FT4* poly)
+{
+    if (g_GameRegion != Region_EUR || poly->v0 < 128)
+    {
+        return;
+    }
+
+    poly->u0 = (poly->u0 > 127) ? 255 : (poly->u0 + 128);
+    poly->u1 = (poly->u1 > 127) ? 255 : (poly->u1 + 128);
+    poly->u2 = (poly->u2 > 127) ? 255 : (poly->u2 + 128);
+    poly->u3 = (poly->u3 > 127) ? 255 : (poly->u3 + 128);
+    poly->v0 -= 128;
+    poly->v1 -= 128;
+    poly->v2 -= 128;
+    poly->v3 -= 128;
+}
+
+/* On PSX `sharedData_800DD58C_0_s00` IS `g_ParticlesAddedCount[1]` — one object,
+ * two names (0x800DD588 + 4 == 0x800DD58C in map0_s00's address space; every
+ * rain overlay's sym table shows the same 4-byte overlap, e.g. map1_s03
+ * 0x800DF398/0x800DF39C). The PC build split them into two separate objects, so
+ * the rain-particle count written by the weather machine never reached the
+ * rain-sound ramp target and `SD_Call(Sfx_Unk1360)` in `Particle_SoundUpdate`
+ * was unreachable: rain visuals played with no rain sound on map0_s00/map1_s02/
+ * map1_s03/map4_s02. Restore the alias. */
+#define sharedData_800DD58C_0_s00 (g_ParticlesAddedCount[1])
 #endif
 
 // Particle-related functions.
@@ -1941,6 +1981,10 @@ void func_800CD8E8(s32 arg0, s32 arg1, s_800E330C* arg2) // 0x800CD8E8
         }
     }
 
+#ifdef SH_PC_PORT
+    Pc_BgEtcSpriteBandUvFix(poly);
+#endif
+
     if (Game_FlashlightIsOn())
     {
         temp_v0 = func_80055D78(g_SysWork.playerWork.player.position.vx + arg2->field_0.vx,
@@ -2054,7 +2098,16 @@ void func_800CD8E8(s32 arg0, s32 arg1, s_800E330C* arg2) // 0x800CD8E8
 
 void func_800CE02C(s32 arg0, s32 arg1, s_800E34FC* pos, s32 mapId) // 0x800CE02C
 {
+#ifdef SH_PC_PORT
+    /* gte_ldv0 loads two 32-bit words (vx|vy and vz|pad), so it reads bytes
+     * 4-7. SVECTOR3 is only 6 bytes -> the second word overreads 2 bytes past
+     * the local. Harmless on PSX/Win (lands on adjacent stack), but on Linux a
+     * tightly-packed stack makes it a real out-of-bounds read (ASan abort).
+     * Use the 8-byte SVECTOR (with pad) like every other gte_ldv0 var here. */
+    SVECTOR   posQ8;
+#else
     SVECTOR3  posQ8;
+#endif
     POLY_FT4* poly;
     s32       depth;
     s32       depthDiv16;
@@ -2181,6 +2234,10 @@ void func_800CE02C(s32 arg0, s32 arg1, s_800E34FC* pos, s32 mapId) // 0x800CE02C
                 }
         }
     }
+
+#ifdef SH_PC_PORT
+    Pc_BgEtcSpriteBandUvFix(poly);
+#endif
 
     poly->b0 = poly->g0 = poly->r0 = 0x80;
 
@@ -2423,7 +2480,14 @@ void Particle_SnowDraw(s_Particle* part)
     VECTOR3     partCorners[2];
 #endif
 
+#ifdef SH_PC_PORT
+    /* See func_800CE02C: gte_ldv0 reads 8 bytes (vz|pad word), so this GTE
+     * input vector must be the 8-byte SVECTOR, not the 6-byte SVECTOR3, or it
+     * overreads the stack (Linux/ASan abort in Particle_SnowDraw). */
+    SVECTOR     particlePosQ8;
+#else
     SVECTOR3    particlePosQ8;
+#endif
     s32         zScreenStart;
 
     u8          primColorG;
@@ -2857,6 +2921,13 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
 #endif
 
                 setUV4(poly, 10, 112, 10, 128, 13, 112, 13, 128);
+#ifdef SH_PC_PORT
+                /* See the twin site below: keep rain off the PAL font row. */
+                if (g_GameRegion == Region_EUR)
+                {
+                    poly->v1 = poly->v3 = 127;
+                }
+#endif
 
                 if (!(depth > 63 && depth < 256))
                 {
@@ -3099,6 +3170,14 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
         setPolyFT4(poly);
         setSemiTrans(poly, 1);
         setUV4(poly, 10, 112, 10, 128, 13, 112, 13, 128);
+#ifdef SH_PC_PORT
+        /* v=128 is the PAL FONT16 top row — clamp the bottom edge so rain
+         * streaks can't rasterize a glyph sliver (texels 112..127 unmoved). */
+        if (g_GameRegion == Region_EUR)
+        {
+            poly->v1 = poly->v3 = 127;
+        }
+#endif
         setRGB0(poly, colorComp, colorComp, colorComp + 0x18);
 
         poly->tpage = 44;
@@ -4018,6 +4097,22 @@ void Particle_SoundUpdate(void)
         case MapIdx_MAP1_S03:
         case MapIdx_MAP4_S02:
             unkValDiv4 = sharedData_800E32CC_0_s00 >> 2; // `sharedData_800E32CC_0_s00 / 4`
+
+#ifdef SH_PC_PORT
+            /* TEMP [RAIN] probe (remove when the silent-rain report closes):
+             * ramp = current sound ramp, target = weather-machine intensity,
+             * atten = what Sd_SfxAttributesUpdate gets (0=full, 255=silent). */
+            {
+                static int s_rainLogCd = 0;
+                if ((s_rainLogCd++ % 120) == 0)
+                {
+                    SH_DBG("[RAIN] ramp=%d target=%d playing=%d vol=%d atten=%d",
+                           (int)sharedData_800E32CC_0_s00, (int)sharedData_800DD58C_0_s00,
+                           (int)g_SysWork.field_234B_0, (int)unkValDiv4,
+                           (int)(u8)(254 - (int)unkValDiv4));
+                }
+            }
+#endif
 
             if ((sharedData_800E32CC_0_s00 - sharedData_800DD58C_0_s00) > 15)
             {

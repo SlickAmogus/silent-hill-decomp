@@ -1,6 +1,8 @@
 #ifndef _BODYPROG_GAMEBOOT_CHARA_INIT_H
 #define _BODYPROG_GAMEBOOT_CHARA_INIT_H
 
+void GameBoot_NpcClear(void);
+
 void GameBoot_NpcInit(void);
 
 /** Crucial for getting in-game.

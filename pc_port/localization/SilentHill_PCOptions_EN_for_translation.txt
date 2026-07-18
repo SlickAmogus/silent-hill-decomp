@@ -1,0 +1,279 @@
+================================================================================
+ SILENT HILL — PC OPTIONS MENU  (English, for translation)
+================================================================================
+ These are the PC port's own Options menu (graphics / system / controls /
+ camera). Same format as the main script file: fill in each PT: line.
+
+ * Leave technical terms, acronyms and numbers AS-IS (do not translate):
+     PGXP, CRT, VSync, FMV, OTS, TPS, FOV, FPS, ACES, Reinhard, Filmic,
+     2x / 4x / 8x, 30 / 60 / 120 / 240, PSX_Retro.
+ * Translate the descriptive words: On/Off, Windowed/Fullscreen/Borderless,
+   Scanlines, Vignette, Film Grain, Sharpen, Cinematic, Classic, Modern,
+   Shadows, Both, External, In Game, etc.
+ * `_` in a label is a space — write your translation with normal spaces.
+ * Keep translations SHORT: the menu draws the label on the left and the value
+   on the right of one line, so very long words get clipped. Aim for roughly
+   the English length.
+================================================================================
+
+
+################################################################################
+##  OPTION ROWS
+################################################################################
+
+[PCOPT.Resolution]
+EN: Resolution
+PT: 
+
+[PCOPT.Window_Mode]
+EN: Window Mode
+PT: 
+
+[PCOPT.VSync]
+EN: VSync
+PT: 
+
+[PCOPT.Texture_Filter]
+EN: Texture Filter
+PT: 
+
+[PCOPT.PGXP]
+EN: PGXP
+PT: 
+
+[PCOPT.Antialiasing]
+EN: Antialiasing
+PT: 
+
+[PCOPT.Post_Process]
+EN: Post Process
+PT: 
+
+[PCOPT.Tone_Mapping]
+EN: Tone Mapping
+PT: 
+
+[PCOPT.Next_Page]
+EN: Next Page
+PT: 
+
+[PCOPT.Back]
+EN: Back
+PT: 
+
+[PCOPT.Flashlight]
+EN: Flashlight
+PT: 
+
+[PCOPT.Beam_Intensity]
+EN: Beam Intensity
+PT: 
+
+[PCOPT.Beam_Size]
+EN: Beam Size
+PT: 
+
+[PCOPT.Disable_Culling]
+EN: Disable Culling
+PT: 
+
+[PCOPT.Preload_Chunks]
+EN: Preload Chunks
+PT: 
+
+[PCOPT.FPS_Limit]
+EN: FPS Limit
+PT: 
+
+[PCOPT.FMV_Movie_Vol]
+EN: FMV Movie Vol
+PT: 
+
+[PCOPT.Prev_Page]
+EN: Prev Page
+PT: 
+
+[PCOPT.Mouse_Sensitivity]
+EN: Mouse Sensitivity
+PT: 
+
+[PCOPT.Pad_Sensitivity]
+EN: Pad Sensitivity
+PT: 
+
+[PCOPT.First_Person_FOV]
+EN: First Person FOV
+PT: 
+
+[PCOPT.Third_Person_FOV]
+EN: Third Person FOV
+PT: 
+
+[PCOPT.Invert_Mouse_Y]
+EN: Invert Mouse Y
+PT: 
+
+[PCOPT.Invert_Pad_Y]
+EN: Invert Pad Y
+PT: 
+
+[PCOPT.Map]
+EN: Map
+PT: 
+
+[PCOPT.Crosshair]
+EN: Crosshair
+PT: 
+
+[PCOPT.Aim_Assist]
+EN: Aim Assist
+PT: 
+
+[PCOPT.Aim_Zoom]
+EN: Aim Zoom
+PT: 
+
+[PCOPT.OTS_Aim_In_TPS]
+EN: OTS Aim In TPS
+PT: 
+
+[PCOPT.Camera_Collision]
+EN: Camera Collision
+PT: 
+
+[PCOPT.On]
+EN: On
+PT: 
+
+
+################################################################################
+##  OPTION VALUES  (shown on the right; some are technical — keep as-is)
+################################################################################
+
+[PCOPT_VAL.Windowed]
+EN: Windowed
+PT: 
+
+[PCOPT_VAL.Fullscreen]
+EN: Fullscreen
+PT: 
+
+[PCOPT_VAL.Borderless]
+EN: Borderless
+PT: 
+
+[PCOPT_VAL.Off]
+EN: Off
+PT: 
+
+[PCOPT_VAL.On]
+EN: On
+PT: 
+
+[PCOPT_VAL.Dither]
+EN: Dither
+PT: 
+
+[PCOPT_VAL.Bilinear]
+EN: Bilinear
+PT: 
+
+[PCOPT_VAL.2x]
+EN: 2x
+PT: 
+
+[PCOPT_VAL.4x]
+EN: 4x
+PT: 
+
+[PCOPT_VAL.8x]
+EN: 8x
+PT: 
+
+[PCOPT_VAL.CRT]
+EN: CRT
+PT: 
+
+[PCOPT_VAL.Scanlines]
+EN: Scanlines
+PT: 
+
+[PCOPT_VAL.Vignette]
+EN: Vignette
+PT: 
+
+[PCOPT_VAL.Color_Grade]
+EN: Color Grade
+PT: 
+
+[PCOPT_VAL.Film_Grain]
+EN: Film Grain
+PT: 
+
+[PCOPT_VAL.Sharpen]
+EN: Sharpen
+PT: 
+
+[PCOPT_VAL.PSX_Retro]
+EN: PSX Retro
+PT: 
+
+[PCOPT_VAL.Cinematic]
+EN: Cinematic
+PT: 
+
+[PCOPT_VAL.Reinhard]
+EN: Reinhard
+PT: 
+
+[PCOPT_VAL.ACES]
+EN: ACES
+PT: 
+
+[PCOPT_VAL.Filmic]
+EN: Filmic
+PT: 
+
+[PCOPT_VAL.External]
+EN: External
+PT: 
+
+[PCOPT_VAL.In_Game]
+EN: In Game
+PT: 
+
+[PCOPT_VAL.Both]
+EN: Both
+PT: 
+
+[PCOPT_VAL.30]
+EN: 30
+PT: 
+
+[PCOPT_VAL.60]
+EN: 60
+PT: 
+
+[PCOPT_VAL.120]
+EN: 120
+PT: 
+
+[PCOPT_VAL.240]
+EN: 240
+PT: 
+
+[PCOPT_VAL.Classic]
+EN: Classic
+PT: 
+
+[PCOPT_VAL.C_+_Shadows]
+EN: C + Shadows
+PT: 
+
+[PCOPT_VAL.Modern]
+EN: Modern
+PT: 
+
+[PCOPT_VAL.M_+_Shadows]
+EN: M + Shadows
+PT: 

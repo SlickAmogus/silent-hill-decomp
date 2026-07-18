@@ -26,6 +26,17 @@
  * (without it the 320-wide map renders pillarboxed with garbage bars). */
 void PaperMap_ReuploadTimToVram_PC(void);
 extern int g_PcMapScreenActive;
+
+/* Set when Event_DisplayMapMsgWithAudio drops an out-of-range voice cmd, so
+ * the subtitle voice-wait in Gfx_MapMsg_Draw knows no voice is coming for the
+ * page and can render immediately instead of waiting out the 1s fail-open. */
+int g_PcMapMsgVoiceDropped = 0;
+
+/* Set by Gfx_MapMsg_Draw when the Finish it just returned is a spurious PC
+ * re-display of the SAME line that already completed on the previous scene
+ * step (resume-not-restart; see map_msg_display.c). Event_DisplayMapMsgWithAudio
+ * skips the voice fire + shared-index bump for it, matching PSX. */
+int g_PcMapMsgReDisplaySetup = 0;
 #endif
 
 /** @brief EVENT AND INTERACTION HELPERS
@@ -599,15 +610,46 @@ void Event_DisplayMapMsgWithAudio(s32 mapMsgIdx, u8* audioIdx, const u16* audioC
          * page-finishes than authored, so the audio index overruns into
          * neighboring tables (valid-looking 0x1xxx cmds = wrong scene's
          * lines) and then into non-voice data. Range-guard the cmd so the
-         * overrun turns into silence instead of playing garbage. */
+         * overrun turns into silence instead of playing garbage.
+         *
+         * When the cmd is dropped, tell the subtitle voice-wait
+         * (Gfx_MapMsg_Draw) that no voice is coming for this page, so the
+         * text renders immediately instead of eating the 1s fail-open
+         * delay — a dropped line already desynced the audio; delaying its
+         * subtitle a further second on top just compounds it. */
+        /* Resume-not-restart: a setup-Finish that is a spurious PC re-display
+         * of the line that JUST completed on the previous scene step (same msg
+         * index, e.g. map6_s04 case7->case9 both showing msg47) fired an EXTRA
+         * voice on PC — PSX resumes that display and fires nothing. Skip the
+         * SD_Call AND the index bump so the shared voice index stays in lockstep
+         * with PSX (otherwise every later line plays the next clip one beat
+         * early — the Flauros "scream" ~7.8s ahead). The subtitle text was
+         * already set up by Gfx_MapMsg_Draw; only the audio is suppressed. */
+        if (g_PcMapMsgReDisplaySetup)
+        {
+            g_PcMapMsgReDisplaySetup = 0;
+        }
+        else
         {
             u16 _cmd = audioCmds[*audioIdx];
             if (_cmd >= 0x1000 && _cmd < 0x1700)
             {
+                g_PcMapMsgVoiceDropped = 0;
                 SD_Call(_cmd);
             }
+            else
+            {
+                static int s_dropLogN = 0;
+                g_PcMapMsgVoiceDropped = 1;
+                if (s_dropLogN < 20)
+                {
+                    SH_DBG("[MSGVOICE] dropped out-of-range voice cmd 0x%04X at audioIdx=%d (msg %d) — table overrun?",
+                           _cmd, (int)*audioIdx, (int)mapMsgIdx);
+                    s_dropLogN++;
+                }
+            }
+            *audioIdx += 1;
         }
-        *audioIdx += 1;
 #else
         SD_Call(audioCmds[*audioIdx]);
         *audioIdx += 1;
@@ -1072,6 +1114,23 @@ void Event_ItemTake(e_InvItemId itemId, s32 itemCount, e_EventFlag eventFlagIdx,
 
     s32 i            = itemId;
     s32 mapMsgIdxCpy = mapMsgIdx;
+
+#ifdef SH_PC_PORT
+    /* Randomizer: rewrite this world pickup into a healing item, a weapon the
+     * player lacks, or ammo for a gun they carry. Keyed on eventFlagIdx (which
+     * uniquely identifies the pickup) and cached, because this function is a
+     * state machine re-entered every frame -- the item must not change between
+     * the frame that spins up its model and the frame that grants it. No-op
+     * unless a randomizer run is live. */
+    {
+        extern void Pc_Rando_RemapItemTake(s32* itemId, s32* itemCount, s32 eventFlagIdx, s32* mapMsgIdx);
+        s32 _id = itemId, _cnt = itemCount, _msg = mapMsgIdxCpy;
+        Pc_Rando_RemapItemTake(&_id, &_cnt, eventFlagIdx, &_msg);
+        itemId       = (e_InvItemId)_id;
+        itemCount    = _cnt;
+        mapMsgIdxCpy = _msg;
+    }
+#endif
 
     if (!(g_SysWork.sysFlags & SysFlag_5))
     {

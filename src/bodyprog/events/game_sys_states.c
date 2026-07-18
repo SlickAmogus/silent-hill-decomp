@@ -169,8 +169,16 @@ void GameState_InGame_Update(void) // 0x80038BD4
         /* On PSX, events run at a different timing cadence where g_DeltaTime=0
          * during EventCallFunc is compensated by how often events fire.
          * On PC, this causes cutscene timers to never advance. Use the raw
-         * delta time so timer-based cutscene steps can progress. */
-        g_DeltaTime = g_DeltaTimeRaw;
+         * delta time so timer-based cutscene steps can progress.
+         *
+         * EXCEPT SysState_ReadMessage: examining a memo (or anything in the
+         * environment) pauses the world on PSX (see the note in
+         * SysState_ReadMessage_Update). That handler only UNFREEZES -- restoring
+         * g_DeltaTime -- when no enemy is alive, and otherwise relies on
+         * g_DeltaTime already being 0 to keep monsters frozen while an enemy lives.
+         * The blanket raw override broke that, so monsters kept moving during a
+         * memo. Hand ReadMessage 0 like PSX and let its own handler decide. */
+        g_DeltaTime = (g_SysWork.sysState == SysState_ReadMessage) ? Q12(0.0f) : g_DeltaTimeRaw;
 #else
         g_DeltaTime = Q12(0.0f);
 #endif
@@ -214,6 +222,9 @@ void GameState_InGame_Update(void) // 0x80038BD4
     }
 
     Screen_CutsceneCameraStateUpdate();
+#ifdef SH_PC_PORT
+    { extern void Pc_CrosshairDraw(void); Pc_CrosshairDraw(); }
+#endif
     Bgm_TrackUpdate(false);
     Demo_DemoRandSeedRestore();
     Demo_DemoRandSeedRestore();
@@ -393,6 +404,10 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
     }
     else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.map)
     {
+        /* NOTE: holding g_PsxPresentLastFrame here to mask the map-open black
+         * flash was reverted — it leaked the held gameplay frame into the
+         * VRAM/sky feedback, ghosting in the sky + pillarbox bars after the map
+         * closed. The brief black flash is the lesser evil. */
         SysWork_StateSetNext(SysState_MapScreen);
         g_SysWork.isMgsStringSet = false;
     }
@@ -886,6 +901,16 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     }
 
 #ifdef SH_PC_PORT
+    /* Randomizer: a door it rewrote sends the player to a map this one has no
+     * arrival record for (the record for map X is authored inside whichever map
+     * has a real door into X, not inside the source). Swap in the harvested one.
+     * Must land before the backup below, which is what actually gets consumed.
+     * No-op for vanilla doors and when the mode is off. */
+    {
+        extern void Pc_Rando_ArrivalOverride(s_MapPoint2d* arrival, const s_EventData* evt);
+        Pc_Rando_ArrivalOverride(&D_800BCDB0, g_MapEventData);
+    }
+
     /* D_800BCDB0 gets zeroed somewhere between here and AreaLoad_Update-
      * PlayerPosition (PSX path runs synchronously, PC's GameBoot_MapLoad
      * trips through extra subsystems that clear it). Save a backup here
@@ -1322,7 +1347,22 @@ void SysState_GameOver_Update(void) // 0x8003A52C
         case 3:
             Gfx_StringSetPosition(SCREEN_POSITION_X(32.5f), SCREEN_POSITION_Y(43.5f));
             Gfx_StringDraw("\aGAME_OVER", DEFAULT_MAP_MESSAGE_LENGTH);
+#ifdef SH_PC_PORT
+            /* field_28 counts RENDERED frames against a 30fps-authored hold
+             * (240 frames = 8s): 1s at 240fps, 16s at the 15fps floor. Count
+             * 30fps-equivalent frames from dt with a fractional carry. */
+            {
+                static q19_12 s_holdAccum;
+                s32 holdStep;
+
+                s_holdAccum += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(1.0f));
+                holdStep     = FP_FROM(s_holdAccum, Q12_SHIFT);
+                s_holdAccum -= FP_TO(holdStep, Q12_SHIFT);
+                g_SysWork.field_28 += holdStep;
+            }
+#else
             g_SysWork.field_28++;
+#endif
 
             if ((g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |
                                                   g_GameWorkPtr->config.controllerConfig.cancel)) ||
@@ -1358,7 +1398,20 @@ void SysState_GameOver_Update(void) // 0x8003A52C
             break;
 
         case 7:
+#ifdef SH_PC_PORT
+            /* Death-tip hold: 480 30fps frames = 16s authored (see case 3). */
+            {
+                static q19_12 s_tipAccum;
+                s32 tipStep;
+
+                s_tipAccum += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(1.0f));
+                tipStep     = FP_FROM(s_tipAccum, Q12_SHIFT);
+                s_tipAccum -= FP_TO(tipStep, Q12_SHIFT);
+                g_SysWork.field_28 += tipStep;
+            }
+#else
             g_SysWork.field_28++;
+#endif
             Screen_BackgroundImgDraw(&g_DeathTipImg);
 
             if (!(g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |

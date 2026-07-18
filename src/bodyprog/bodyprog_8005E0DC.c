@@ -16,8 +16,15 @@
 #include "main/rng.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
+/* Cap for the ADDITIVE blood layer color (spray/cloud). func_80055A90's fog-tint
+ * is unclamped; in high-fog maps it goes near-white and the additive pass blows
+ * the sprite's soft edge to white. Capping it keeps dark-scene red intact (dim
+ * tint is already below this) while killing the white fringe. Tunable. */
+#define BLOOD_ADD_MAX 0x80
 #include <string.h>
 #include "sh_log.h"
+/* Fades the additive blood layers toward black with world fog (bodyprog_80055028.c). */
+extern int Pc_BloodFogKeep(s32 z);
 #endif
 
 s_800C42E8     D_800C42E8[24];
@@ -511,19 +518,6 @@ void func_8005E89C(void) // 0x8005E89C
 
     poly = (POLY_FT4*)GsOUT_PACKET_P;
 
-#ifdef SH_PC_PORT
-    /* Per-case scan inside func_8005E89C dispatch loop. We confirmed via
-     * MainLoop checkpoints that corruption first appears AFTER this
-     * function runs, so the writer is one of these cases. The phase
-     * tag includes the case number so we can pinpoint the writer. */
-    extern void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName);
-    extern s32 g_ActiveBufferIdx;
-#define PARTICLE_CASE_SCAN(label) \
-    Pc_OtSentinelScan(&g_OrderingTable0[g_ActiveBufferIdx], "5E89C-" label, "OT0")
-#else
-#define PARTICLE_CASE_SCAN(label) ((void)0)
-#endif
-
     for (i = 0; i < g_MapOverlayHdr.unkTable1Count_50; i++)
     {
         switch (g_MapOverlayHdr.unkTable1_4C[i].field_A)
@@ -533,18 +527,15 @@ void func_8005E89C(void) // 0x8005E89C
 
             case 1:
                 func_80060044(&poly, i);
-                PARTICLE_CASE_SCAN("case1-80060044");
                 break;
 
             case 2:
                 func_800611C0(&poly, i);
-                PARTICLE_CASE_SCAN("case2-800611C0");
                 break;
 
             case 3:
             case 4:
                 func_80062708(&poly, i);
-                PARTICLE_CASE_SCAN("case3or4-80062708");
                 break;
 
             case 15:
@@ -553,46 +544,38 @@ void func_8005E89C(void) // 0x8005E89C
             case 18:
             case 19:
                 func_80063A50(&poly, i);
-                PARTICLE_CASE_SCAN("case15to19-80063A50");
                 break;
 
             case 20:
             case 21:
             case 22:
                 func_80064334(&poly, i);
-                PARTICLE_CASE_SCAN("case20to22-80064334");
                 break;
 
             case 8:
             case 10:
                 g_MapOverlayHdr.func_64(&poly, i);
-                PARTICLE_CASE_SCAN("case8or10-func_64");
                 break;
 
             case 9:
             case 11:
                 g_MapOverlayHdr.func_68(&poly, i);
-                PARTICLE_CASE_SCAN("case9or11-func_68");
                 break;
 
             case 7:
                 g_MapOverlayHdr.func_70(&poly, i);
-                PARTICLE_CASE_SCAN("case7-func_70");
                 break;
 
             case 5:
                 g_MapOverlayHdr.func_78(&poly, i);
-                PARTICLE_CASE_SCAN("case5-func_78");
                 break;
 
             case 13:
                 g_MapOverlayHdr.func_80(i);
-                PARTICLE_CASE_SCAN("case13-func_80");
                 break;
 
             case 14:
                 g_MapOverlayHdr.func_84(&poly, i);
-                PARTICLE_CASE_SCAN("case14-func_84");
                 break;
 
             case 23:
@@ -600,12 +583,10 @@ void func_8005E89C(void) // 0x8005E89C
             case 25:
             case 26:
                 g_MapOverlayHdr.func_8C(&poly, i);
-                PARTICLE_CASE_SCAN("case23to26-func_8C");
                 break;
 
             case 27:
                 g_MapOverlayHdr.func_98(&poly, i);
-                PARTICLE_CASE_SCAN("case27-func_98");
                 break;
 
             case 28:
@@ -636,7 +617,11 @@ void func_8005E89C(void) // 0x8005E89C
 
     GsOUT_PACKET_P = (PACKET*)poly;
 
-#ifndef SH_PC_PORT
+    /* Blood-splat recycle restored on PC: frees splat slots whose owning
+     * unkTable1_4C entry went inactive (field_A==0). Layout-safe on 64-bit
+     * (s_MapHdr_field_4C is STATIC_ASSERT 20, s_MapOverlayHdr is 4172) and the
+     * field_0 != NO_VALUE guard prevents any OOB index of unkTable1_4C. Without
+     * this, splats leak/persist on PC. */
     for (i = 0; i < g_MapOverlayHdr.bloodSplatCount; i++)
     {
         if (g_MapOverlayHdr.bloodSplats[i].field_0 != NO_VALUE &&
@@ -645,7 +630,6 @@ void func_8005E89C(void) // 0x8005E89C
             g_MapOverlayHdr.bloodSplats[i].field_0 = NO_VALUE;
         }
     }
-#endif
 
     if (D_800C4414 & (1 << 5))
     {
@@ -1394,6 +1378,27 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             (*poly)->tpage          = 43;
             (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
             (*poly + 3)->tpage      = 43;
+            /* Cap the ADDITIVE layer color (poly[0]/poly[3]). func_80055A90's
+             * fog-tint is unclamped, so in high-fog maps (e.g. map4_s05) it goes
+             * near-white; additive (GL_ONE,GL_ONE) over the texture's soft alpha
+             * edge — where the subtractive layer is already transparent — then
+             * blows that fringe to WHITE (the "white blood edges"). Dark scenes
+             * have a dim tint already below the cap, so red-over-dark is untouched. */
+            {
+                int _c;
+                int _keep = Pc_BloodFogKeep(ptr->field_140);
+                POLY_FT4* _add[2]; _add[0] = *poly; _add[1] = *poly + 3;
+                for (_c = 0; _c < 2; _c++) {
+                    if (_add[_c]->r0 > BLOOD_ADD_MAX) _add[_c]->r0 = BLOOD_ADD_MAX;
+                    if (_add[_c]->g0 > BLOOD_ADD_MAX) _add[_c]->g0 = BLOOD_ADD_MAX;
+                    if (_add[_c]->b0 > BLOOD_ADD_MAX) _add[_c]->b0 = BLOOD_ADD_MAX;
+                    /* fade the additive layer with world fog so distant blood stops
+                     * over-adding red and disappears into the fog like the world. */
+                    _add[_c]->r0 = (_add[_c]->r0 * _keep) >> 8;
+                    _add[_c]->g0 = (_add[_c]->g0 * _keep) >> 8;
+                    _add[_c]->b0 = (_add[_c]->b0 * _keep) >> 8;
+                }
+            }
             {
                 s32 _bucketS = (ptr->field_140 - g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_3) >> 3;
                 if (_bucketS < 0) _bucketS = 0;
@@ -2185,6 +2190,21 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                 *(u16*)&(*poly + 1)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
                 (*poly + 1)->b0         = ptr->field_130.b;
 
+                /* Cap the ADDITIVE layer color (poly[0]) so a bright per-map
+                 * fog-tint can't blow the soft edge to white (see BLOOD_ADD_MAX). */
+                if ((*poly)->r0 > BLOOD_ADD_MAX) (*poly)->r0 = BLOOD_ADD_MAX;
+                if ((*poly)->g0 > BLOOD_ADD_MAX) (*poly)->g0 = BLOOD_ADD_MAX;
+                if ((*poly)->b0 > BLOOD_ADD_MAX) (*poly)->b0 = BLOOD_ADD_MAX;
+
+                /* fade the additive layer with world fog (see Pc_BloodFogKeep) so distant
+                 * cloud blood disappears into the fog instead of staying vivid. */
+                {
+                    int _keep = Pc_BloodFogKeep(ptr->field_20C);
+                    (*poly)->r0 = ((*poly)->r0 * _keep) >> 8;
+                    (*poly)->g0 = ((*poly)->g0 * _keep) >> 8;
+                    (*poly)->b0 = ((*poly)->b0 * _keep) >> 8;
+                }
+
                 {
                     s32 _bucketC = (ptr->field_20C + var_s7) >> 3;
                     if (_bucketC < 0) _bucketC = 0;
@@ -2595,6 +2615,16 @@ bool func_80063A50(POLY_FT4** poly, s32 idx) // 0x80063A50
          * rendering, not a crash). `addPrimFast` only sets `len`; we
          * never set `code`. Explicitly install POLY_FT4 (0x2C). */
         setPolyFT4(*poly);
+        /* setPolyFT4 writes the OPAQUE code 0x2C, clobbering the 0x2E
+         * (POLY_FT4 | ABE) the r0 writes above installed for this
+         * semi-transparent muzzle particle. Restore the ABE bit: PSX draws it
+         * blended, and — more importantly here — an opaque prim right at the
+         * muzzle next to the close flashlight is a CASTER in the shadow depth
+         * pass (opaque-only), throwing its quad silhouette on the wall for the
+         * frame it lives = the "shadow flash when firing" (func_80064334's
+         * type-20 flash is already semi-trans/excluded; this type-15 one was
+         * the straggler). */
+        setSemiTrans(*poly, true);
         /* Defensive bucket clamp — same defense applied at all other
          * particle emit sites in this file. Without it, an OOB bucket
          * index from a corrupted field_1BC writes prim data INTO the

@@ -1838,6 +1838,53 @@ void func_800D3694(s_SubCharacter* twinfeeler, s_AnmHeader* anmHdr, GsCOORDINATE
     twinfeeler->collision.shapeOffsets.box.vx = Q12_MULT_PRECISE(twinfeeler->position.vx - Q8_TO_Q12(ptr->field_28.vx), temp_s0);
     twinfeeler->collision.shapeOffsets.box.vz = Q12_MULT_PRECISE(twinfeeler->position.vz - Q8_TO_Q12(ptr->field_28.vz), temp_s0);
     twinfeeler->collision.cylinder.field_2   = Q12(0.05f);
+
+#ifdef SH_PC_PORT
+    /* [WORM] vulnerability-window probe: in the unmodified game the worm dies
+     * from ANY hit while surfaced (health>0 just above: health==1 when out,
+     * NO_VALUE underground). This only LOGS — it does not change that. Record
+     * each surface window (real-time + frame length, and whether a shot landed)
+     * so we can tell genuine difficulty (a reasonable window, just missed) from a
+     * PC bug (window too short from high-fps frame-counted timing). Also dumps
+     * the hit target: box.top (head height), the tiny 0.05 hit radius, head XZ. */
+    {
+        s32 _idx = Chara_NpcIdxGet(twinfeeler);
+        static s32    s_prevHp[NPC_COUNT_MAX];
+        static s32    s_frames[NPC_COUNT_MAX];
+        static q19_12 s_time[NPC_COUNT_MAX];
+        static s32    s_inited = 0;
+        if (!s_inited) { s32 _k; s_inited = 1; for (_k = 0; _k < NPC_COUNT_MAX; _k++) s_prevHp[_k] = NO_VALUE; }
+        if (_idx >= 0 && _idx < NPC_COUNT_MAX)
+        {
+            s32 _prev = s_prevHp[_idx];
+            s32 _cur  = twinfeeler->health;
+            if (_cur > Q12(0.0f) && _prev <= Q12(0.0f))
+            {
+                s_frames[_idx] = 0;
+                s_time[_idx]   = 0;
+                SH_DBG("[WORM] idx=%d SURFACED headXZ=(%d,%d) boxTop=%d hitR=%d isTarget=%d",
+                       (int)_idx,
+                       (int)((twinfeeler->position.vx + twinfeeler->collision.shapeOffsets.box.vx) >> 12),
+                       (int)((twinfeeler->position.vz + twinfeeler->collision.shapeOffsets.box.vz) >> 12),
+                       (int)twinfeeler->collision.box.top, (int)twinfeeler->collision.cylinder.field_2,
+                       (int)(Chara_NpcIdxGet(twinfeeler) == g_SysWork.targetNpcIdx));
+            }
+            if (_cur > Q12(0.0f))
+            {
+                s_frames[_idx]++;
+                s_time[_idx] += g_DeltaTimeRaw;
+            }
+            if (_cur <= Q12(0.0f) && _prev > Q12(0.0f))
+            {
+                SH_DBG("[WORM] idx=%d %s window=%d frames (%dms)",
+                       (int)_idx,
+                       (_cur == Q12(0.0f)) ? "KILLED (hit landed)" : "submerged — MISSED",
+                       (int)s_frames[_idx], (int)((s_time[_idx] * 1000) >> 12));
+            }
+            s_prevHp[_idx] = _cur;
+        }
+    }
+#endif
 }
 
 void func_800D3AE0(s_SubCharacter* chara, s32 soundIdx)

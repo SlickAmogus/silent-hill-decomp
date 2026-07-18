@@ -2,9 +2,9 @@
 #include "inline_no_dmpsx.h"
 #ifdef SH_PC_PORT
 #include "pc_config.h"
-/* PsyCross runtime PAR (cca5660). main_pc.c sets this from
- * g_PcConfig.pixelAspectMode at startup; the cull-bound math here
- * must use the same value PsyCross uses for its Hor+ ortho. */
+/* PsyCross runtime horizontal PAR. main_pc.c bakes this to 15/14 (320x224 -> 4:3)
+ * at startup; the cull-bound math here must use the same value PsyCross uses for
+ * its Hor+ ortho. */
 extern float g_PsxPixelAspect;
 #endif
 

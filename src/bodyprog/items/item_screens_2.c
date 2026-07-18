@@ -14,6 +14,11 @@
 #include "bodyprog/player.h"
 #include "bodyprog/math/math.h"
 
+#ifdef SH_PC_PORT
+#include "pc_inventory_mouse.h"
+#include "pc_mouse_cursor.h"
+#endif
+
 static const s32 pad_rodata_80025EAC = 0;
 
 bool g_Inventory_IsUpClicked;
@@ -406,6 +411,10 @@ void GameState_ItemScreens_Update(void) // 0x8004C9B0
     if (g_GameWork.gameStateSteps[1] < 21)
     {
         Gfx_Inventory_ScrollArrowsDraw(&g_Inventory_SelectionId);
+
+#ifdef SH_PC_PORT
+        Pc_MouseCursor_Draw();
+#endif
     }
 
     if (g_GameWork.gameStateSteps[1] >= 23)
@@ -564,6 +573,11 @@ void Inventory_Logic(void) // 0x8004D518
     s32 cmdCountMax = 0;
     s32 temp;
     s32 curItemIdx;
+
+#ifdef SH_PC_PORT
+    /* Must run before the directional flags are derived from g_Controller0. */
+    Pc_Inventory_MouseUpdate();
+#endif
 
     Inventory_DirectionalInputSet();
 

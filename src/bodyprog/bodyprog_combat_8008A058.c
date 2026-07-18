@@ -10,6 +10,7 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
+#include "bodyprog/screen/screen_fade.h"
 #include "bodyprog/item_screens.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/sound/sound_system.h"
@@ -131,6 +132,21 @@ s32 func_8008A0E4(s32 arg0, s32 weaponAttack, s_SubCharacter* chara, VECTOR3* po
     {
         return NO_VALUE;
     }
+
+#ifdef SH_PC_PORT
+    /* No hits land while the room is still fading in after a load. The world
+     * updates during that reveal with the player already at his arrival point but
+     * with no control; an enemy placed near the entrance would otherwise strike a
+     * helpless, just-teleported Harry, and the knockback can shove him out of
+     * bounds (very visible in first person). g_Screen_FadeStatus masks to
+     * FadeInStart/FadeInSteps only during that post-load reveal -- never in normal
+     * gameplay (which rests at None) and never for a text box -- so this suppresses
+     * exactly the transition window and nothing else. */
+    if ((g_Screen_FadeStatus & 0x7) >= ScreenFadeState_FadeInStart)
+    {
+        return NO_VALUE;
+    }
+#endif
 
     if (chara == &g_SysWork.playerWork.player)
     {
@@ -651,6 +667,30 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
 
             j_584:
                 sp48 = Q12_MULT_PRECISE(var_s2, Rng_RandQ12());
+
+#ifdef SH_PC_PORT
+                /* Free-aim (alt cameras): the PSX accuracy model scatters every
+                 * shot a random angle off the aim direction (distance/state
+                 * driven). Under auto-aim that read as game feel; under a
+                 * crosshair it reads as "bullets don't go where I aim" — worst
+                 * in first person, which has no aim assist. Cap the deviation
+                 * for the PLAYER's shots in alt cameras only: handgun/rifle
+                 * near-exact, shotgun keeps a fixed modest pellet cone.
+                 * Classic camera is untouched. */
+                {
+                    extern int g_DebugThirdPersonCam;
+                    if (g_DebugThirdPersonCam && chara == &g_SysWork.playerWork.player)
+                    {
+                        s32 cap = (WEAPON_ATTACK_ID_GET(sp14) == EquippedWeaponId_Shotgun)
+                                      ? Q12_ANGLE(4.0f)
+                                      : Q12_ANGLE(0.5f);
+                        if (sp48 > cap)
+                        {
+                            sp48 = cap;
+                        }
+                    }
+                }
+#endif
             }
 
             var_s6 = Q12_MULT(sp4C, sp10 - 2);
@@ -685,7 +725,18 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                         func_800892A4(5);
                     }
 
+#ifdef SH_PC_PORT
+                    /* Player gun bullets only: inflate the enemy collision
+                     * cylinder (func_8006EE0C) to the full visible body so any
+                     * body shot lands + blood spawns where aimed. Scoped tightly
+                     * to this one trace so enemy attacks / LOS keep the original
+                     * tight hitbox. */
+                    { extern s32 g_PcBulletHitActive; g_PcBulletHitActive = (chara == &g_SysWork.playerWork.player); }
+#endif
                     temp = Ray_CharaTraceQuery(&D_800C4728, &chara->field_44.field_18, &chara->field_44.field_48[0], chara);
+#ifdef SH_PC_PORT
+                    { extern s32 g_PcBulletHitActive; g_PcBulletHitActive = 0; }
+#endif
                     ptr  = D_800C4728.character;
 #ifdef SH_PC_PORT
                     if (chara == &g_SysWork.playerWork.player) {
@@ -693,6 +744,16 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                         s_SubCharacter* tn = (tIdx >= 0) ? &g_SysWork.npcs[tIdx] : NULL;
                         s32 reqYaw = tn ? Q12_FRACT(ratan2(tn->position.vx - chara->field_44.field_18.vx,
                                                            tn->position.vz - chara->field_44.field_18.vz) + Q12_ANGLE(360.0f)) : -1;
+                    }
+
+                    /* Bullet-hole decal: the player's bullet trace ended on
+                     * world geometry (hit with no character) — target is the
+                     * clipped world-space impact point, field_48[0] the
+                     * bullet direction (pc_decals.c). */
+                    if (temp && D_800C4728.character == NULL && chara == &g_SysWork.playerWork.player)
+                    {
+                        extern void Pc_DecalAddBulletImpact(const VECTOR3* pos, const VECTOR3* dir, const VECTOR3* origin);
+                        Pc_DecalAddBulletImpact(&D_800C4728.target, &chara->field_44.field_48[0], &chara->field_44.field_18);
                     }
 #endif
 
@@ -741,6 +802,26 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
             if (temp_s1 == 1)
             {
                 sp58 = 0;
+#ifdef SH_PC_PORT
+                /* Blade-weapon damage scaler. PSX added (sp28 - i)/(var_a0*4)
+                 * EVERY overlap frame, where sp28 is the current anim time and
+                 * `i` the previous frame's swept position, so each term is the
+                 * per-frame sweep (∝ g_DeltaTime). The PC once-per-swing guard
+                 * (func_8008B714) applies just ONE frame, so the dt-sized term
+                 * left player blades doing almost no damage at high fps. The PSX
+                 * sum telescopes to the FULL window length: Σ(sp28-i) = sp2C -
+                 * var_s0_2, so the fps-independent single-hit value is
+                 * (sp2C - var_s0_2)/(var_a0*4) == Q12(0.25), INDEPENDENT of where
+                 * in the swing the hit lands. (Using the partial sp28-var_s0_2
+                 * here made a hit that landed at window-open — e.g. the 1st of the
+                 * knife's two slashes — deal ~0 while the 2nd, landing later, hit.)
+                 * Player only — enemy attack balance is left as-is. */
+                if (chara == &g_SysWork.playerWork.player)
+                {
+                    sp5C = (var_s0_2 < sp2C) ? (sp2C - var_s0_2) / (var_a0 * 4) : 0;
+                }
+                else
+#endif
                 if (i < sp28)
                 {
                     sp5C = (sp28 - i) / (var_a0 * 4);
@@ -1525,11 +1606,23 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
      * above but PSX applied base damage unconditionally. At 30fps the
      * active-hitbox window is only a couple frames so that read as a
      * single hit; on PC the window spans the whole swing, so this
-     * re-applies damage AND the hurt SFX (e.g. PuppetNurse_DamageHandle
-     * plays it every frame damage>0) dozens of times — enemies die in one
-     * swing and the hit sound machine-guns. Skip re-application once this
-     * target is already marked hit this swing. Chainsaw/RockDrill are
-     * intentionally continuous-damage weapons and stay exempt. */
+     * re-applies damage AND knockback every frame for dozens of frames.
+     *
+     * This bites in BOTH directions:
+     *   - player -> enemy: enemies die in one swing and the hurt SFX
+     *     (e.g. PuppetNurse_DamageHandle, played every frame damage>0)
+     *     machine-guns.
+     *   - enemy -> player: Harry loses health every frame the enemy's
+     *     hitbox overlaps him (the player damage handler subtracts and
+     *     clears damage.amount per frame), so a single enemy swing does
+     *     ~Nframes x damage and N x knockback at high fps. For the player
+     *     target sp10 == NO_VALUE (-1), so (sp14 & sp10) == sp14 is a
+     *     valid "already hit this swing" test and sp14 |= sp10 latches it.
+     *
+     * Skip re-application once this target is already marked hit this
+     * swing, for either direction. Chainsaw/RockDrill are intentionally
+     * continuous-damage weapons (player-only) and stay exempt; enemies
+     * never wield them so the player-damage path is always gated. */
     {
         int _continuous =
             weaponAttack == WEAPON_ATTACK(EquippedWeaponId_Chainsaw,  AttackInputType_Tap)      ||
@@ -1538,12 +1631,37 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
             weaponAttack == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap)       ||
             weaponAttack == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Hold)      ||
             weaponAttack == WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Multitap);
-        if (target != &g_SysWork.playerWork.player && (sp14 & sp10) && !_continuous)
+        /* Ranged guns fire their ENTIRE pellet spread in a single frame: in
+         * func_8008A3E0 the outer sweep cap sp38 == 1, so after the first call
+         * field_4 (sp40) exhausts and no further pellets emit. The shotgun's
+         * inner loop fires charaId (>1) pellets that frame, each a SEPARATE
+         * func_8008B714 hit on the same target — they must all count, unlike a
+         * melee hitbox re-applying across frames. The one-hit-per-swing guard
+         * wrongly zeroed pellets 2..N, cutting shotgun damage to ~1/pelletCount
+         * (Split Head needed 20-30 shots to open its mouth instead of ~5). It's
+         * fps-independent (one-frame burst), so exempting the guns is faithful;
+         * single-pellet guns (handgun/rifle, charaId==1) are unaffected. */
+        int _rangedGun =
+            weaponAttack == WEAPON_ATTACK(EquippedWeaponId_Handgun,      AttackInputType_Tap) ||
+            weaponAttack == WEAPON_ATTACK(EquippedWeaponId_HuntingRifle, AttackInputType_Tap) ||
+            weaponAttack == WEAPON_ATTACK(EquippedWeaponId_Shotgun,      AttackInputType_Tap) ||
+            weaponAttack == WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap);
+        if ((sp14 & sp10) && !_continuous && !_rangedGun)
         {
             damageAmount = Q12(0.0f);
             var_s7       = 0;
         }
     }
+#endif
+
+#ifdef SH_PC_PORT
+    /* [MELEEDMG] diagnostic: player melee hit on an enemy. base = table damage
+     * (D_800AD4C8[weaponAttack].field_4); dmg = after the one-hit-per-swing guard.
+     * base>0 with dmg==0 and alreadyHit=1 means the per-swing bitmask zeroed it. */
+    if (target != &g_SysWork.playerWork.player && (u8)weaponAttack < 30u)
+        SH_DBG("[MELEEDMG] wa=%d base=%d dmg=%d sp14=0x%X sp10=0x%X alreadyHit=%d chara=%d\n",
+               weaponAttack, (int)var_s0, (int)damageAmount, (unsigned)sp14, (unsigned)sp10,
+               (int)((sp14 & sp10) != 0), target->model.charaId);
 #endif
 
     if (damageAmount != Q12(0.0f))

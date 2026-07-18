@@ -140,7 +140,18 @@ void Map_RoomBgmInit_CondFalse(void)
                 break;
         }
 
+#ifdef SH_PC_PORT
+        /* On PSX this scalar IS (&sharedData_800EB748_6_s04)[2] (0x800EB74A ==
+         * 0x800EB748 + 2 in map6_s04; 0x800CCC8A/0x800CCC88 in map6_s05) — the
+         * water layer's cap inside the limits table Bgm_Update reads below. The
+         * PC extraction split them into separate objects, so the fade landed in
+         * a dead array and the table byte stayed frozen at 0x80: the room-3
+         * water layer played at constant full volume with no distance fade.
+         * Write through the table so the fade reaches Bgm_Update. */
+        (&sharedData_800EB748_6_s04)[2] = dist;
+#else
         sharedData_800EB74A_6_s04 = dist;
+#endif
     }
 
     Bgm_Update(bgmFlags, fadeSpeed, dataPtr);

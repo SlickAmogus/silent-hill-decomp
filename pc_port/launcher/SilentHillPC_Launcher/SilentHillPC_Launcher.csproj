@@ -15,6 +15,8 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <!-- 64-bit process so the embedded x64 UnRAR.dll (RarExtractor) loads. -->
+    <Prefer32Bit>false</Prefer32Bit>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -25,6 +27,8 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <!-- 64-bit process so the embedded x64 UnRAR.dll (RarExtractor) loads. -->
+    <Prefer32Bit>false</Prefer32Bit>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
@@ -34,6 +38,9 @@
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>favicon.ico</ApplicationIcon>
+    <!-- Ship a real manifest (asInvoker, supported-OS, stable identity) to lower
+         antivirus false-positive heuristics. See docs/Launcher_Antivirus_Notes.md. -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -44,6 +51,8 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Deployment" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Windows.Forms" />
@@ -58,11 +67,32 @@
       <DependentUpon>Form1.cs</DependentUpon>
     </Compile>
     <Compile Include="ConfigManager.cs" />
+    <Compile Include="DiscProbe.cs" />
+    <Compile Include="BinExtractor.cs" />
+    <Compile Include="TimConverter.cs" />
+    <Compile Include="ClutComposer.cs" />
     <Compile Include="ControlsForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="UpdateChecker.cs" />
+    <Compile Include="LauncherSettings.cs" />
+    <Compile Include="ChangelogViewer.cs" />
+    <Compile Include="BuildSettingsForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="RepoSettingsForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ModManager.cs" />
+    <Compile Include="ModManagerForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ProgressDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="RarExtractor.cs" />
+    <Compile Include="SevenZipExtractor.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <!-- Embed the real pc_port/config.cfg so the launcher can regenerate a
          missing config.cfg with the full detailed template; the link keeps
@@ -73,6 +103,20 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
+    </EmbeddedResource>
+    <!-- Vendored unrar built as an x64 DLL (RAR4/RAR5/solid). Embedded in the exe
+         so RarExtractor can materialize it to a temp path and LoadLibrary it — no
+         dependency on the DLL being copied next to wherever the launcher runs. -->
+    <EmbeddedResource Include="UnRAR.dll">
+      <LogicalName>SilentHillPC_Launcher.UnRAR.dll</LogicalName>
+    </EmbeddedResource>
+    <!-- Standalone 7-Zip console tool (LGPL, (C) Igor Pavlov). Embedded in the exe
+         so SevenZipExtractor can materialize it to a temp path and run it as a
+         separate process to unpack .zip/.7z texture packs (every compression
+         method, unlike miniz/.NET Store+Deflate). Its license ships as
+         LICENSE-7zip.txt beside the launcher. -->
+    <EmbeddedResource Include="7za.exe">
+      <LogicalName>SilentHillPC_Launcher.7za.exe</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -96,12 +140,20 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="app.manifest" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\launcher.png" />
+    <None Include="Resources\manager.png" />
+    <None Include="Resources\manager_clicked.png" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="favicon.ico" />
+    <!-- 7-Zip's LGPL/BSD notice, shipped beside the launcher (redistribution of
+         7za.exe must reproduce this). -->
+    <Content Include="LICENSE-7zip.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

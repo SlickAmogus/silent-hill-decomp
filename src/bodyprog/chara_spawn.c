@@ -15,6 +15,10 @@
 #include "bodyprog/sound/sound_system.h"
 #include "main/fsqueue.h"
 
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
+
 bool Chara_Load(s32 modelIdx, s8 charaId, GsCOORDINATE2* boneCoords, s8 forceFree,
                 s_LmHeader* lmHdr, s_FsImageDesc* tex) // 0x80088C7C
 {
@@ -97,6 +101,15 @@ s32 Chara_Spawn(e_CharaId charaId, s32 spawnFlags, q19_12 posX, q19_12 posZ, q3_
 
         bzero(&g_SysWork.npcs[i], sizeof(s_SubCharacter));
 
+#ifdef SH_PC_PORT
+        /* A native spawn reuses this slot: it has a real spawn-table
+         * identity again, so savegame bookkeeping applies. */
+        {
+            extern u8 g_PcNpcDebugSpawned[NPC_COUNT_MAX];
+            g_PcNpcDebugSpawned[i] = 0;
+        }
+#endif
+
         g_SysWork.npcs[i].model.charaId = charaId;
         g_SysWork.npcs[i].field_40 = activeSpawnFlags;
 
@@ -144,6 +157,17 @@ void Chara_SpawnFlagsSet(e_CharaId charaId, s32 spawnIdx, s32 spawnFlags) // 0x8
 {
     s_SpawnInfo* spawnInfo;
 
+#ifdef SH_PC_PORT
+    /* charaSpawnInfos has 2 group rows; anim slot idx 3 (latent vanilla OOB
+     * into cameraPaths) and global-pool idxs (4+charaId) must not write. */
+    if ((g_CharaAnimDataIdxs[charaId] - 1) > 1)
+    {
+        SH_DBG("[POOL] Chara_SpawnFlagsSet: chara %d animIdx %d has no spawn-table row — skipped",
+               charaId, g_CharaAnimDataIdxs[charaId]);
+        return;
+    }
+#endif
+
     spawnInfo        = &g_MapOverlayHdr.charaSpawnInfos[g_CharaAnimDataIdxs[charaId] - 1][spawnIdx];
     spawnInfo->flags = spawnFlags;
 }
@@ -152,6 +176,15 @@ void Chara_SpawnPositionSet(e_CharaId charaId, s32 spawnIdx, q19_12 posX, q19_12
 {
     s_SpawnInfo* spawnInfo0;
     s_SpawnInfo* spawnInfo1;
+
+#ifdef SH_PC_PORT
+    if ((g_CharaAnimDataIdxs[charaId] - 1) > 1)
+    {
+        SH_DBG("[POOL] Chara_SpawnPositionSet: chara %d animIdx %d has no spawn-table row — skipped",
+               charaId, g_CharaAnimDataIdxs[charaId]);
+        return;
+    }
+#endif
 
     spawnInfo0            = &g_MapOverlayHdr.charaSpawnInfos[g_CharaAnimDataIdxs[charaId] - 1][spawnIdx];
     spawnInfo0->positionX = posX;

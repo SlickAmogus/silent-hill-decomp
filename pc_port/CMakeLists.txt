@@ -4,6 +4,12 @@ project(SilentHillPC C CXX)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+# Build everything position-independent. On Linux the map overlays are .so
+# shared objects that link the static psycross_static archive; linking a
+# static (non-PIC) archive into a shared object fails, so force PIC globally.
+# Harmless on Windows/MinGW (PE code is already position-independent).
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
 # =============================================================================
 # Options
 # =============================================================================
@@ -151,6 +157,9 @@ file(GLOB_RECURSE PC_PORT_SOURCES
 # =============================================================================
 # Exclude map overlay stub since we now compile map0_s00 which provides g_MapOverlayHeader
 list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "map_overlay_stub\\.c$")
+# PC PORT: drop the combat_target.c aiming shim; the real decompiled func_8005CD38
+# (src/bodyprog/bodyprog_combat_8005BF38.c) now provides target selection.
+list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "combat_target\\.c$")
 
 # Windows: compile the .rc so the exe carries an application icon (Explorer,
 # taskbar, title bar). windres resolves the ICON path relative to the .rc dir.
@@ -192,6 +201,16 @@ if(MINGW)
     # External-console mode calls AllocConsole() at runtime (see main_pc.c).
     target_link_options(SilentHillPC PRIVATE "-Wl,--subsystem,windows" "-Wl,-emainCRTStartup")
 endif()
+
+# Shipped runtime assets: pc_port/assets/ mirrors the game folder layout
+# (assets/gamedata/decal.png -> <build>/gamedata/decal.png), so a fresh build
+# folder runs with them. release-nightly.ps1 and the CI stage steps package the
+# same directory — add new custom assets there, never to the build folder.
+add_custom_command(TARGET SilentHillPC POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/assets" "$<TARGET_FILE_DIR:SilentHillPC>"
+    COMMENT "Copying shipped runtime assets (pc_port/assets/)"
+)
 
 # Game-specific defines (only on our target, NOT PsyCross)
 target_compile_definitions(SilentHillPC PRIVATE
@@ -247,6 +266,11 @@ target_include_directories(SilentHillPC PRIVATE
     "${PSYCROSS_DIR}/include/psx"
     "${PSYCROSS_DIR}/include"
 )
+# OpenAL headers (xa_player.c uses AL directly). Set by build.sh on macOS to
+# point at Homebrew openal-soft; unset on the Windows/MSYS2 build (no-op).
+if(OPENAL_INCLUDE_DIR)
+    target_include_directories(SilentHillPC PRIVATE "${OPENAL_INCLUDE_DIR}")
+endif()
 
 # =============================================================================
 # libjpeg (for FMV playback - MJPG decoding)
@@ -262,11 +286,48 @@ target_link_libraries(SilentHillPC PRIVATE
     psycross_static
 )
 
+# On Linux/ELF the map overlay .so files no longer link their own copy of
+# PsyCross (see maps/CMakeLists.txt) — they import the entire PsyCross runtime
+# from this executable at dlopen so there is a single, initialized instance of
+# its singleton state (glad GL table, GTE registers, vertex/split buffers).
+# A static archive only contributes the object files the exe itself references,
+# so a PsyCross function a map calls but the exe never does would be missing
+# from the dynamic symbol table. Force the WHOLE archive in so -rdynamic
+# (ENABLE_EXPORTS) exports the complete public PsyCross API to dlopen'd maps.
+if(UNIX AND NOT APPLE)
+    target_link_options(SilentHillPC PRIVATE
+        "LINKER:--whole-archive"
+        "$<TARGET_FILE:psycross_static>"
+        "LINKER:--no-whole-archive"
+    )
+endif()
+
 if(SDL2_FOUND)
     target_link_libraries(SilentHillPC PRIVATE SDL2::SDL2)
+    # The code includes <SDL2/SDL.h>, which needs the dir CONTAINING SDL2/ on
+    # the search path. On Linux/Windows the SDL2 include dir is .../include
+    # (so SDL2/ resolves). Homebrew's SDL2Config points it at .../include/SDL2
+    # (the subdir itself), so only <SDL.h> would resolve — add the parent so
+    # the SDL2/ prefix works there too. Harmless on Linux/Windows.
+    get_target_property(_sdl2_incs SDL2::SDL2 INTERFACE_INCLUDE_DIRECTORIES)
+    if(_sdl2_incs)
+        foreach(_d IN LISTS _sdl2_incs)
+            if(_d MATCHES "/SDL2$")
+                get_filename_component(_parent "${_d}" DIRECTORY)
+                target_include_directories(SilentHillPC PRIVATE "${_parent}")
+            endif()
+        endforeach()
+    endif()
 elseif(SDL2_LIBRARIES)
     target_link_libraries(SilentHillPC PRIVATE ${SDL2_LIBRARIES})
     target_include_directories(SilentHillPC PRIVATE ${SDL2_INCLUDE_DIRS})
+    # Same <SDL2/SDL.h> prefix fix for the pkg-config path.
+    foreach(_d IN LISTS SDL2_INCLUDE_DIRS)
+        if(_d MATCHES "/SDL2$")
+            get_filename_component(_parent "${_d}" DIRECTORY)
+            target_include_directories(SilentHillPC PRIVATE "${_parent}")
+        endif()
+    endforeach()
 endif()
 
 if(JPEG_LIBRARY)
@@ -308,6 +369,38 @@ else()
         -Wno-discarded-qualifiers
         -Wno-builtin-declaration-mismatch
     )
+    if(APPLE)
+        # AppleClang is stricter than GCC on the WIP decomp's implicit decls and
+        # qualifier/conversion mismatches; demote these to warnings on macOS.
+        target_compile_options(SilentHillPC PRIVATE
+            -Wno-implicit-function-declaration
+            -Wno-ignored-qualifiers
+            -Wno-int-conversion
+            -Wno-return-mismatch
+        )
+    endif()
+    # GCC 14 promoted several long-standing C warnings to hard errors by
+    # default (implicit function/int declarations, int<->pointer conversions,
+    # missing parameter types). The WIP decomp deliberately relies on these
+    # being warnings (as they are on the MinGW GCC 13 the Windows build uses),
+    # so demote them back to warnings. C-only to avoid cc1plus noise on .cpp.
+    #
+    # Gated to GCC >= 14: -Wdeclaration-missing-parameter-type and
+    # -Wreturn-mismatch were introduced in GCC 14, and GCC errors out hard on
+    # -Wno-error=<unknown-warning> (unlike a plain -Wno-<unknown>, which it
+    # silently defers). On the MinGW GCC 13 the Windows build uses these two
+    # names don't exist, so an unconditional block fails every C TU. On GCC 13
+    # the warnings here are not errors anyway, so the block is a no-op there.
+    if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 14)
+        target_compile_options(SilentHillPC PRIVATE
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=implicit-function-declaration>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=implicit-int>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=int-conversion>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=incompatible-pointer-types>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=declaration-missing-parameter-type>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=return-mismatch>
+        )
+    endif()
 endif()
 
 # =============================================================================

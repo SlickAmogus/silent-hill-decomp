@@ -108,7 +108,7 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
 
     angleDeltaToPlayer = Math_AngleNormalizeSigned(Math_AngleBetweenPositionsGet(larvalStalker->position, g_SysWork.playerWork.player.position) -
                                        larvalStalker->rotation.vy);
-    distToTarget       = Math_Vector2MagCalc(larvalStalkerProps.targetPositionX - larvalStalker->position.vx,
+    distToTarget       = Math_Vector2MagCalcSafeQ6(larvalStalkerProps.targetPositionX - larvalStalker->position.vx,
                                              larvalStalkerProps.targetPositionZ - larvalStalker->position.vz);
 
     larvalStalker->rotation.vy = Math_AngleNormalizeSigned(larvalStalker->rotation.vy);
@@ -135,7 +135,7 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
         distStep = Q12(1.5f);
     }
 
-    if (Math_Vector2MagCalc(g_SysWork.playerWork.player.position.vx - larvalStalker->position.vx,
+    if (Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - larvalStalker->position.vx,
                             g_SysWork.playerWork.player.position.vz - larvalStalker->position.vz) < ((baseDistMax * 2) + distStep))
     {
         larvalStalkerProps.targetPositionX = g_SysWork.playerWork.player.position.vx;

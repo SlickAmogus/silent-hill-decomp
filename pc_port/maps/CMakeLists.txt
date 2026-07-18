@@ -75,46 +75,148 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
         -include "${CMAKE_SOURCE_DIR}/include/map_dll_fixups.h"
     )
 
-    # Link against the main executable's import library.
-    # Map DLL functions call back into game code (g_SysWork, etc.),
-    # so they need the exe's exported symbols to resolve at load time.
-    target_link_libraries(${MAP_NAME} PRIVATE SilentHillPC psycross_static)
+    # Same warning suppressions as the main exe (../CMakeLists.txt). The decomp
+    # has many un-finalized signatures (e.g. q3_12* vs q19_12*, void(*)() vs
+    # typed fn ptrs); GCC 14 promotes -Wincompatible-pointer-types and friends
+    # to hard errors by default, which breaks the map DLL build even though the
+    # exe (which carries these flags) compiles the same sources fine. Without
+    # this, no map except the built-in map0_s00 builds, so the first map
+    # transition crashes on a NULL overlay header. No-op on GCC 13 (warnings).
+    if(NOT MSVC)
+        target_compile_options(${MAP_NAME} PRIVATE
+            -Wno-incompatible-pointer-types
+            -Wno-discarded-qualifiers
+            -Wno-builtin-declaration-mismatch
+            -Wno-int-to-pointer-cast
+            -Wno-pointer-to-int-cast
+            -Wno-sign-compare
+            -Wno-missing-braces
+            -Wno-unused-variable
+            -Wno-unused-function
+        )
+    endif()
 
-    # Map DLLs pull PsyCross symbols from BOTH the static psycross_static
-    # archive AND the exe's import lib (which re-exports PsyCross via the
-    # exe's --export-all-symbols). Pre-USE_PGXP=1 the linker silently
-    # picked one copy; turning PGXP on emitted PGXP_GetIndex (and pulled
-    # in extra libgpu/libapi symbols by reference) which triggered hard
-    # multiple-definition errors. Allow the linker to pick whichever copy
-    # comes first — both are byte-identical since they came from the same
-    # static archive originally. Long-term cleanup: drop psycross_static
-    # from this link and rely solely on the exe's import lib. */
-    target_link_options(${MAP_NAME} PRIVATE
-        "LINKER:--allow-multiple-definition"
-        # WINDOWS_EXPORT_ALL_SYMBOLS (set below) is *supposed* to emit a
-        # generated .def listing every global, but on this CMake/MinGW
-        # combo it silently does nothing for the map DLLs — the resulting
-        # build.ninja link rule has neither `--export-all-symbols` nor a
-        # generated def file, and DllLoader_GetSymbol fails with
-        # "GetProcAddress error 127" looking up g_MapOverlayHeader_<name>
-        # at runtime. Falling back to the global ld flag bypasses CMake's
-        # auto-export machinery and exports every TU-global in the DLL.
-        # Same flag the main exe uses; identical behavior to the old
-        # working state. */
-        "LINKER:--export-all-symbols"
-    )
+    # GCC 14 promoted these C warnings to default errors; the Linux map-DLL
+    # build (GCC 14) needs them demoted like the exe (pc_port/CMakeLists.txt).
+    # GCC 13 (Windows/MinGW) errors on -Wno-error=<unknown-flag>, and two of
+    # these are GCC-14-only, so gate the block on GCC >= 14 (no-op on the
+    # Windows toolchain — the -Wno- forms above already silence them there).
+    if(CMAKE_C_COMPILER_ID STREQUAL "GNU" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 14)
+        target_compile_options(${MAP_NAME} PRIVATE
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=implicit-function-declaration>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=implicit-int>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=int-conversion>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=incompatible-pointer-types>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=declaration-missing-parameter-type>
+            $<$<COMPILE_LANGUAGE:C>:-Wno-error=return-mismatch>
+        )
+    endif()
 
-    # Export the g_MapOverlayHeader_<name> symbol from the DLL.
-    # WINDOWS_EXPORT_ALL_SYMBOLS would auto-generate a .def file on
-    # MinGW/MSVC in theory; in practice we use --export-all-symbols
-    # above (see comment) since the auto-def path silently no-ops here.
+    if(WIN32)
+        # Link against the main executable's import library.
+        # Map DLL functions call back into game code (g_SysWork, etc.),
+        # so they need the exe's exported symbols to resolve at load time.
+        target_link_libraries(${MAP_NAME} PRIVATE SilentHillPC psycross_static)
+
+        # Map DLLs pull PsyCross symbols from BOTH the static psycross_static
+        # archive AND the exe's import lib (which re-exports PsyCross via the
+        # exe's --export-all-symbols). Pre-USE_PGXP=1 the linker silently
+        # picked one copy; turning PGXP on emitted PGXP_GetIndex (and pulled
+        # in extra libgpu/libapi symbols by reference) which triggered hard
+        # multiple-definition errors. Allow the linker to pick whichever copy
+        # comes first — both are byte-identical since they came from the same
+        # static archive originally. Long-term cleanup: drop psycross_static
+        # from this link and rely solely on the exe's import lib. */
+        target_link_options(${MAP_NAME} PRIVATE
+            "LINKER:--allow-multiple-definition"
+            # WINDOWS_EXPORT_ALL_SYMBOLS (set below) is *supposed* to emit a
+            # generated .def listing every global, but on this CMake/MinGW
+            # combo it silently does nothing for the map DLLs — the resulting
+            # build.ninja link rule has neither `--export-all-symbols` nor a
+            # generated def file, and DllLoader_GetSymbol fails with
+            # "GetProcAddress error 127" looking up g_MapOverlayHeader_<name>
+            # at runtime. Falling back to the global ld flag bypasses CMake's
+            # auto-export machinery and exports every TU-global in the DLL.
+            # Same flag the main exe uses; identical behavior to the old
+            # working state. */
+            "LINKER:--export-all-symbols"
+        )
+    else()
+        # Linux/macOS: a shared object cannot link against an executable, so
+        # we do NOT link SilentHillPC here. Game-code symbols (g_SysWork, the
+        # decompiled functions, etc.) are left undefined in the .so and
+        # resolved at dlopen() time from the main executable, which is built
+        # with ENABLE_EXPORTS (adds -rdynamic so its symbols populate the
+        # global dynamic symbol table). ELF shared objects export all global
+        # symbols by default, so g_MapOverlayHeader_<name> is visible to dlsym
+        # without extra flags.
+        # Build ordering only (the exe must exist to dlopen the map); there is
+        # no link-time dependency on the executable.
+        add_dependencies(${MAP_NAME} SilentHillPC)
+        if(APPLE)
+            # ld64 (unlike GNU ld) errors on undefined symbols at link time.
+            # Game-code symbols are resolved from the main exe at dlopen, so
+            # allow them to stay undefined in the dylib. (macOS two-level
+            # namespaces already bind each dylib's OWN defined symbols locally,
+            # so the ELF interposition problem handled below does not arise.)
+            # PsyCross is linked statically here (built PIC) because macOS is
+            # untested for the shared-instance arrangement used on Linux below.
+            target_link_libraries(${MAP_NAME} PRIVATE psycross_static)
+            target_link_options(${MAP_NAME} PRIVATE "-Wl,-undefined,dynamic_lookup")
+        else()
+            # Linux/ELF: do NOT statically link psycross_static into the map .so.
+            #
+            # PsyCross holds singleton runtime state — the glad GL function
+            # pointer table, the GTE register bank (gteRegs), the split/vertex
+            # buffers (g_splitIndex, g_vertexIndex), activeDrawEnv/DispEnv and
+            # drawsync_callback. That state is initialized ONCE, in the copy of
+            # PsyCross linked into the main exe (which loads GL, populates glad,
+            # etc.). If each map .so links its OWN psycross_static copy, the .so
+            # gets a SECOND, uninitialized instance of all that state; combined
+            # with -Bsymbolic (below) the map's PsyCross calls bind to that dead
+            # local copy. Map code that drives rendering itself then operates on
+            # a NULL glad table and a desynced GTE/vertex bank — e.g.
+            # MapEvent_MapItemTake -> DrawSync -> GL via NULL pointer (segfault
+            # when picking up cafe items), and map-emitted geometry transformed
+            # through the wrong gteRegs (the persistent additive screen-garbage).
+            # Leaving PsyCross undefined here makes every PsyCross symbol resolve
+            # at dlopen to the exe's single, initialized instance. (The exe links
+            # psycross_static with --whole-archive so -rdynamic exports the full
+            # public PsyCross API — see ../CMakeLists.txt.)
+            #
+            # -Bsymbolic: bind THIS .so's own global definitions to its local
+            # copies instead of letting them be interposed by the main exe.
+            # map0_s00 is compiled INTO the exe, and -rdynamic publishes its
+            # globals (MAP_EVENTS, MAP_POINTS, the per-map func_800D* code,
+            # extracted-data tables) into the global dynamic scope. Every other
+            # map defines those SAME names; under ELF's default global-scope
+            # binding, map0_s01.so's `MAP_EVENTS` (and its overlay header's
+            # .mapEvents pointer) resolve to map0_s00's copy at dlopen — so the
+            # cafe (map0_s01) iterated the ALLEY's event table and re-fired its
+            # TriggerType_None "load cafe overlay" event every frame, reloading
+            # forever. Windows PE binds per-module, so this only bites ELF.
+            # -Bsymbolic restores per-module binding for symbols the .so
+            # defines; undefined symbols (game state AND PsyCross) are
+            # unaffected and still import from the exe. dlsym of
+            # g_MapOverlayHeader_<name> still works.
+            target_link_options(${MAP_NAME} PRIVATE "-Wl,-Bsymbolic")
+        endif()
+    endif()
+
     set_target_properties(${MAP_NAME} PROPERTIES
         PREFIX ""                        # No "lib" prefix
-        OUTPUT_NAME "${MAP_NAME}"        # maps/map0_s01.dll
+        OUTPUT_NAME "${MAP_NAME}"        # maps/map0_s01.dll | maps/map0_s01.so
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/maps"
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/maps"
-        WINDOWS_EXPORT_ALL_SYMBOLS ON
     )
+    if(WIN32)
+        # Export the g_MapOverlayHeader_<name> symbol from the DLL.
+        # WINDOWS_EXPORT_ALL_SYMBOLS would auto-generate a .def file on
+        # MinGW/MSVC in theory; in practice we use --export-all-symbols
+        # above (see comment) since the auto-def path silently no-ops here.
+        # (No-op on ELF, where shared objects export globals by default.)
+        set_target_properties(${MAP_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    endif()
 
     message(STATUS "Map ${MAP_NAME}: DLL target created")
 endfunction()
@@ -137,6 +239,12 @@ endfunction()
 # Maps re-enabled: map3_s01, map3_s03, map3_s04, map3_s05.
 #
 # All 42 maps now build as DLLs.
+
+# Global chara pool pseudo-map (docs/Global_Chara_Pool.md): every portable
+# monster's AI compiled with NO map define (generic variants). Loaded once at
+# boot by pc_chara_pool.c with its own handle; never routed through
+# MapOverlay_Load.
+add_map_overlay(chara_global CHARA_GLOBAL)
 
 add_map_overlay(map0_s01 MAP0_S01)
 add_map_overlay(map0_s02 MAP0_S02)

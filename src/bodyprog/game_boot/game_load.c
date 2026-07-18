@@ -225,6 +225,16 @@ void GameBoot_GameStartup(void) // 0x80034964
         case 6:
             if (Fs_QueueGetLength() == 0)
             {
+#ifdef SH_PC_PORT
+                /* Global chara pool: the map's own 3 chara groups just
+                 * finished loading (case 5), queue is idle — load/refresh
+                 * every other chara's assets PC-side so any monster can
+                 * spawn here. Native registrations above always win. */
+                {
+                    extern void Pc_CharaPool_OnMapLoad(void);
+                    Pc_CharaPool_OnMapLoad();
+                }
+#endif
                 g_GameWork.gameStateSteps[0]++;
             }
             break;

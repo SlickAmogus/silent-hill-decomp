@@ -10,18 +10,32 @@
  *   MAP <name>           - new-game warp to a map (mirrors title.c auto-start)
  *   GIVE <thing>         - HANDGUN / RIFLE / SHOTGUN / AMMO / HEALTH
  *   NOCLIP               - toggle walking through walls (player only)
+ *   GOD [0|1]            - toggle/set Harry damage immunity
  *   FMV                  - list all FMV names (numbered)
  *   FMV <name|number>    - play an FMV (fades out, plays, fades back in)
  *   FMV INTROn / ENDn    - alias for the nth intro (C*) / ending (Z*) movie
+ *   LOGA / LOGB          - stamp an incremental A#/B# position mark
+ *                          (Harry + camera pos/angles) into SilentHill.log;
+ *                          LOGA RESET / LOGB RESET restarts the counter
  */
 #include "game.h"
 #include "bodyprog/bodyprog.h"
+#include "bodyprog/game_boot/game_boot.h"
+#include "bodyprog/game_boot/fs_chara_anim.h" /* g_CharaModelAnimsData (spawn anim-ready gate) */
+#include "bodyprog/events/player_pos_update.h"
+#include "bodyprog/chara/chara.h"
+#include "bodyprog/collision/collision.h"
+#include "bodyprog/math/math.h"
 #include "bodyprog/items.h"
 #include "bodyprog/savegame.h"
+#include "bodyprog/item_screens.h" /* GameEndingFlag_Ufo (HyperBlaster give-unlock) */
 #include "bodyprog/screen/screen_fade.h"
+#include "bodyprog/sound/sound_system.h" /* AMBSFX sweep: s_VabInfo / Sd_PlaySfx */
+#include "bodyprog/sound/sfx_id_enum.h"
 #include "sh_log.h"
 #include "map_registry.h"
 #include "dbg_overlay.h"
+#include "pc_config.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -41,7 +55,9 @@ extern int g_DebugNoWallCollision;
 
 static void cprintf(const char* fmt, ...)
 {
-    char line[64];
+    /* The overlay wraps anything wider than the window, so this only needs to be
+     * big enough to hold a full wide-window line before wrapping. */
+    char line[256];
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(line, sizeof(line), fmt, ap);
@@ -66,13 +82,13 @@ static void cmd_map(const char* arg)
     int i, count = MapRegistry_Count();
 
     if (!arg[0]) {
-        char line[64];
+        char line[256];
         int  used = 0;
         line[0] = '\0';
         for (i = 0; i < count; i++) {
             const char* nm = MapRegistry_GetName(i);
             if (!nm) continue;
-            if (used + (int)strlen(nm) + 1 >= 60) {
+            if (used + (int)strlen(nm) + 1 >= 200) {
                 DbgOverlay_PushLine(line);
                 line[0] = '\0';
                 used    = 0;
@@ -97,24 +113,17 @@ static void cmd_map(const char* arg)
             return;
         }
 
-        /* New-game warp — same recipe as title.c's config-map auto-start. */
-        cprintf("Warping to %s...", lower);
-        GameBoot_SavegameInitialize(mapId, 0); /* Normal difficulty */
-        GameBoot_PlayerInit();
-        g_SysWork.processFlags = ProcessFlag_NewGame;
-        GameBoot_MapLoad(g_SavegamePtr->mapIdx);
-        GameFs_StreamBinLoad();
-        Fs_QueueWaitForEmpty();
-        /* re-apply console-set flags wiped by GameBoot_SavegameInitialize's bzero,
-         * so "setending in the menu, then map to the ending" works. */
-        Pc_ConsoleApplyPendingFlags();
-        Chara_PositionSet(&g_MapOverlayHdr.mapPoints[0]);
-        g_SysWork.counters_1C[0]     = 0;
-        g_SysWork.counters_1C[1]     = 0;
-        g_GameWork.gameStateSteps[0] = 0;
-        g_GameWork.gameStateSteps[1] = 0;
-        g_GameWork.gameStateSteps[2] = 0;
-        SysWork_StateSetNext(SysState_Gameplay);
+        /* Don't warp mid-session — just set the map config value so the next New Game
+         * starts on this map (same effect as the 4/5 debug keys). */
+        strncpy(g_PcConfig.mapName, lower, sizeof(g_PcConfig.mapName) - 1);
+        g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
+        {
+            const char* desc = MapRegistry_GetDescription((e_MapIdx)mapId);
+            if (desc && desc[0])
+                cprintf("map config set to %s - %s (loads on New Game)", lower, desc);
+            else
+                cprintf("map config set to %s (loads on New Game)", lower);
+        }
     }
 }
 
@@ -206,6 +215,7 @@ static void cmd_give(const char* arg)
         give_item(InvItemId_RifleShells, 60);
         give_item(InvItemId_ShotgunShells, 60);
         give_item(InvItemId_GasolineTank, 5); /* chainsaw / drill fuel */
+        g_SavegamePtr->clearGameEndings |= GameEndingFlag_Ufo; /* unlock HyperBlaster fire gate */
         cprintf("Given all weapons + ammo + gas");
         return;
     }
@@ -215,7 +225,15 @@ static void cmd_give(const char* arg)
             if (GIVE_ITEMS[k].id == InvItemId_Handgun)           give_item(InvItemId_HandgunBullets, 15);
             else if (GIVE_ITEMS[k].id == InvItemId_HuntingRifle) give_item(InvItemId_RifleShells, 30);
             else if (GIVE_ITEMS[k].id == InvItemId_Shotgun)      give_item(InvItemId_ShotgunShells, 30);
-            else if (GIVE_ITEMS[k].id == InvItemId_HyperBlaster) give_item(InvItemId_HandgunBullets, 30);
+            else if (GIVE_ITEMS[k].id == InvItemId_HyperBlaster) {
+                give_item(InvItemId_HandgunBullets, 30);
+                /* The HyperBlaster's aim/fire is hard-gated by
+                 * Inventory_HyperBlasterFunctionalTest: without the UFO-ending
+                 * unlock (or a Konami gun controller on port 2) it force-disables
+                 * aiming, so a console-given blaster can't fire at all. Grant the
+                 * unlock so it actually works. */
+                g_SavegamePtr->clearGameEndings |= GameEndingFlag_Ufo;
+            }
             cprintf("Given %s", GIVE_ITEMS[k].name);
             return;
         }
@@ -345,9 +363,20 @@ static const char* const HELP_LINES[] = {
     " setending <e>  bad | bad+ | good | good+",
     " setflag <n> 0|1  set any event flag",
     " kill           kill Harry (death animation)",
+    " killall        kill all nearby enemies",
+    " spawn list     list monsters loaded in this map",
+    " spawn <name>   spawn a monster in front of Harry",
     " noclip         walk through walls (floor stays on)",
+    " god [0|1]      toggle/set damage immunity for Harry",
+    " invaspect 0|1  inventory item proportions: PSX | square",
+    " invscale <pct> inventory item vertical scale (def 125)",
+    " invcary <n>    carousel item Y offset (+down)",
+    " inveqy <n>     equipped item Y offset (+down)",
+    " invdim <pct>   off-center carousel dim strength",
     " fmv            list movies (numbered)",
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
+    " kf [n]         keyframe inspector: set/show frame (K key)",
+    " loga / logb    log Harry+camera pos/angles to SilentHill.log",
     "Quick Save: F6   Quick Load: F8 (work outside console)",
 };
 
@@ -371,20 +400,33 @@ static const char* const HELP_GIVE_PAGE2[] = {
     " camera chemical bloodpack",
 };
 
+/* Up-shift (psx-units) for bottom-anchored message boxes. Was 35 to lift subtitles
+ * out of the 3D-world vertical-FOV bottom crop, but the UI now draws at full vertical
+ * ortho (g_PsxUIOrthoPass) so no compensation is needed — default 0. Console MSGSHIFT
+ * (read by text_draw.c) stays for fine-tuning. */
+int g_PsxMsgVShift = 0;
+
+/* Cutscene letterbox bar Y (centered coords): bars span +/-Outer (screen edge) to
+ * +/-Inner. Tunable via console BARY while the interlaced-buffer mapping is dialed in.
+ * Read by cutscene_border.c. */
+int g_PsxBarOuter = 112;
+int g_PsxBarInner = 96;
+
 static const char* const DEBUG_PAGE1[] = {
     "Debug keys (page 1/2) - cheats & tools:",
     " Esc     warm reset to the title screen",
     " 0       noclip toggle (walk through walls)",
     " 4 / 5   map config prev / next (loads on New Game)",
-    " 6       spawn Grey Child in front of Harry",
+    " 6       kill nearby enemies",
     " 7       invincibility toggle",
     " 8       +15 handgun bullets",
     " 9       no-target toggle (enemies ignore Harry)",
     " -       give Hunting Rifle + 30 shells",
     " =       give Shotgun + 30 shells",
     " '       collision visualizer panel",
+    " K       keyframe inspector; , . scrub (hold = faster)",
     " [ / ]   drop A/B position markers into the log",
-    " ~       tap: console open/close, hold: command input",
+    " ~       console open/close (game pauses; PgUp/PgDn scroll)",
     "type DEBUG 2 for the camera keys",
 };
 
@@ -505,6 +547,344 @@ static void cmd_fmv(const char* arg)
 }
 
 /* line is the uppercase console input ('_' typed via the - key). */
+/* Debug monster spawner. A map only keeps 3 enemy types resident at once (its
+ * charaGroupIds); Chara_Spawn assumes the model+anim+update-func are already
+ * loaded and does NOT load them, so spawning an off-map type gives an entity
+ * the radio pings but the draw path skips (registeredCharaModels[id]==NULL) —
+ * the classic "radio plays, monster invisible" bug. So SPAWN only offers types
+ * actually loaded for the current map (SPAWN LIST), guaranteeing visibility.
+ *
+ * `state` is the initial model.stateStep (== s_SpawnInfo.flags the room spawner
+ * uses): the enemy's spawn/active AI entry state. Defaults per category below;
+ * overridable via `SPAWN <name> <state>` when a monster wakes in a weird pose. */
+typedef struct { const char* name; u8 charaId; u8 state; } s_SpawnCharaEntry;
+static const s_SpawnCharaEntry SPAWN_CHARAS[] = {
+    { "AIRSCREAMER",     Chara_AirScreamer,     12 },
+    { "NIGHTFLUTTER",    Chara_NightFlutter,    12 },
+    { "GROANER",         Chara_Groaner,          3 }, /* Groaner_Init: st=3->Control_1 (active); any other st = stuck lying down (never re-checks) */
+    { "WORMHEAD",        Chara_Wormhead,         5 },
+    { "LARVALSTALKER",   Chara_LarvalStalker,    5 },
+    { "STALKER",         Chara_Stalker,          3 }, /* Stalker_Update: st=3->Control_4 (active); st=5->Control_1 = unposed/invisible */
+    { "GREYCHILD",       Chara_GreyChild,        3 }, /* also Stalker_Update (see STALKER) */
+    { "MUMBLER",         Chara_Mumbler,         17 },
+    { "HANGEDSCRATCHER", Chara_HangedScratcher,  7 },
+    { "CREEPER",         Chara_Creeper,          5 },
+    { "ROMPER",          Chara_Romper,           3 }, /* Romper_Init activates unconditionally; 3 matches native map spawn data */
+    { "CHICKEN",         Chara_Chicken,          5 },
+    { "SPLITHEAD",       Chara_SplitHead,        5 },
+    { "FLOATSTINGER",    Chara_Floatstinger,    12 },
+    { "PUPPETNURSE",     Chara_PuppetNurse,     17 },
+    { "BETANURSE",       Chara_DummyNurse,      17 }, /* TEST/PRS2.ILM beta nurse via the pool's DummyNurse retarget; runs the real PuppetNurse AI. In hospital maps the native DUMMY stub wins the slot (invisible) — test elsewhere. */
+    { "PUPPETDOCTOR",    Chara_PuppetDoctor,    17 },
+    { "DUMMYDOCTOR",     Chara_DummyDoctor,     17 },
+    { "TWINFEELER",      Chara_Twinfeeler,       3 },
+    { "BLOODSUCKER",     Chara_Bloodsucker,     17 },
+    { "INCUBUS",         Chara_Incubus,          3 },
+    { "UNKNOWN23",       Chara_Unknown23,        3 },
+    { "MONSTERCYBIL",    Chara_MonsterCybil,     3 },
+    { "LOCKERDEADBODY",  Chara_LockerDeadBody,   3 },
+    { "CYBIL",           Chara_Cybil,            3 },
+    { "ENDINGCYBIL",     Chara_EndingCybil,      3 },
+    { "CHERYL",          Chara_Cheryl,           1 },
+    { "CAT",             Chara_Cat,              3 },
+    { "DAHLIA",          Chara_Dahlia,           3 },
+    { "ENDINGDAHLIA",    Chara_EndingDahlia,     3 },
+    { "LISA",            Chara_Lisa,             3 },
+    { "BLOODYLISA",      Chara_BloodyLisa,       3 },
+    { "ALESSA",          Chara_Alessa,           3 },
+    { "GHOSTCHILDALESSA",Chara_GhostChildAlessa, 3 },
+    { "INCUBATOR",       Chara_Incubator,        3 },
+    { "BLOODYINCUBATOR", Chara_BloodyIncubator,  3 },
+    { "KAUFMANN",        Chara_Kaufmann,         3 },
+    { "ENDINGKAUFMANN",  Chara_EndingKaufmann,   3 },
+    { "FLAUROS",         Chara_Flauros,          3 },
+    { "LITTLEINCUBUS",   Chara_LittleIncubus,    3 },
+    { "GHOSTDOCTOR",     Chara_GhostDoctor,      3 },
+    { "PARASITE",        Chara_Parasite,         3 },
+};
+
+static const char* spawn_chara_name(s32 charaId)
+{
+    int i;
+    for (i = 0; i < (int)(sizeof(SPAWN_CHARAS) / sizeof(SPAWN_CHARAS[0])); i++) {
+        if (SPAWN_CHARAS[i].charaId == charaId)
+            return SPAWN_CHARAS[i].name;
+    }
+    return NULL;
+}
+
+/* A model is drawable only once its file finished streaming; bones need the
+ * anim slot. Both gate visibility, so require both before offering a spawn. */
+static int spawn_chara_model_ready(s32 charaId)
+{
+    s_CharaModel* m = g_WorldGfxWork.registeredCharaModels[charaId];
+    return m != NULL && m->isLoaded;
+}
+static int spawn_chara_anim_ready(s32 charaId)
+{
+    /* idx alone can be stale (vanilla never invalidates it; a failed pool
+     * load resets it, but belt-and-braces: the slot must actually hold a
+     * live ANM header or the spawn renders unposed/invisible). */
+    s8 idx = g_CharaAnimDataIdxs[charaId];
+    return idx != (s8)NO_VALUE &&
+           g_CharaModelAnimsData[idx].activeAnmHdr != NULL;
+}
+
+static void cmd_spawn(const char* arg)
+{
+    char nm[32];
+    int  k;
+    const char* rest;
+    int  stateOverride;
+    int  i;
+    const s_SpawnCharaEntry* pick;
+    s_SubCharacter* hr;
+    s32  yaw, sn, cs, npcIdx;
+    q19_12 dist, posX, posZ;
+    s_CollisionSurface surf;
+    u32  state;
+
+    /* Global chara pool: repair mid-map evictions (cutscene Chara_Load with
+     * CHARA_FORCE_FREE_ALL NULLs native registrations) before gating. */
+    {
+        extern void Pc_CharaPool_Refresh(void);
+        Pc_CharaPool_Refresh();
+    }
+
+    if (arg[0] == '\0' || strcmp(arg, "LIST") == 0) {
+        extern int Pc_CharaPool_IsPoolModel(int charaId);
+        int any = 0;
+        cprintf("spawnable here:");
+        for (i = 0; i < (int)(sizeof(SPAWN_CHARAS) / sizeof(SPAWN_CHARAS[0])); i++) {
+            s32 id = SPAWN_CHARAS[i].charaId;
+            if (!spawn_chara_model_ready(id))
+                continue;
+            {
+                int anim = spawn_chara_anim_ready(id);
+                int ai   = g_MapOverlayHdr.charaUpdateFuncs[id] != NULL;
+                cprintf(" %s%s%s%s", SPAWN_CHARAS[i].name,
+                        Pc_CharaPool_IsPoolModel(id) ? " [pool]" : "",
+                        anim ? "" : " [no-anim]", ai ? "" : " [no-ai]");
+                any = 1;
+            }
+        }
+        if (!any)
+            cprintf(" (none)");
+        return;
+    }
+
+    /* Split "<NAME> [state]". */
+    for (k = 0; arg[k] && arg[k] != ' ' && k < (int)sizeof(nm) - 1; k++)
+        nm[k] = arg[k];
+    nm[k] = '\0';
+    rest = arg[k] ? arg + k + 1 : arg + k;
+    while (*rest == ' ') rest++;
+    stateOverride = (*rest) ? atoi(rest) : -1;
+
+    pick = NULL;
+    for (i = 0; i < (int)(sizeof(SPAWN_CHARAS) / sizeof(SPAWN_CHARAS[0])); i++) {
+        if (strcmp(nm, SPAWN_CHARAS[i].name) == 0) {
+            pick = &SPAWN_CHARAS[i];
+            break;
+        }
+    }
+    if (pick == NULL) {
+        cprintf("unknown: %s (try 'spawn list')", nm);
+        return;
+    }
+    if (!spawn_chara_model_ready(pick->charaId) || !spawn_chara_anim_ready(pick->charaId)) {
+        cprintf("%s not loaded in this map", nm);
+        cprintf("use 'spawn list' to see loaded types");
+        return;
+    }
+
+    /* Find a free NPC slot (mirrors Chara_Spawn's slot fill, minus the
+     * concurrent cap / dedup so a debug spawn always fires when a slot exists). */
+    npcIdx = -1;
+    for (i = 0; i < NPC_COUNT_MAX; i++) {
+        if (g_SysWork.npcs[i].model.charaId == Chara_None) {
+            npcIdx = i;
+            break;
+        }
+    }
+    if (npcIdx < 0) {
+        cprintf("no free NPC slot (max %d) - killall first", NPC_COUNT_MAX);
+        return;
+    }
+
+    hr   = &g_SysWork.playerWork.player;
+    yaw  = hr->rotation.vy;
+    sn   = Math_Sin(yaw);
+    cs   = Math_Cos(yaw);
+    dist = Q12(4.0f); /* a few units in front of Harry (clear of his own radius) */
+    posX = hr->position.vx + (s32)(((s64)dist * sn) >> 12);
+    posZ = hr->position.vz + (s32)(((s64)dist * cs) >> 12);
+
+    state = (stateOverride >= 0) ? (u32)stateOverride : pick->state;
+
+    memset(&g_SysWork.npcs[npcIdx], 0, sizeof(s_SubCharacter));
+    g_SysWork.npcs[npcIdx].model.charaId      = pick->charaId;
+    g_SysWork.npcs[npcIdx].model.controlState = 0;
+    g_SysWork.npcs[npcIdx].model.stateStep    = (u8)state;
+    g_SysWork.npcs[npcIdx].field_40           = (s8)npcIdx;
+    g_SysWork.npcs[npcIdx].position.vx        = posX;
+    g_SysWork.npcs[npcIdx].position.vz        = posZ;
+    Collision_SurfaceGet(&surf, posX, posZ);
+    g_SysWork.npcs[npcIdx].position.vy        = surf.groundHeight;
+    g_SysWork.npcs[npcIdx].rotation.vy        = (s16)((yaw + 0x800) & 0xFFF); /* face Harry (180deg) */
+    g_SysWork.npcs[npcIdx].model.anim.flags  |= AnimFlag_Visible;
+    SET_FLAG(&g_SysWork.npcFlags, npcIdx);
+    /* Match Game_NpcRoomInitSpawn: mark the spawn slot in field_228C too, so the
+     * despawn/dedup bookkeeping (CLEAR_FLAG on npc->field_40) stays consistent. */
+    SET_FLAG(g_SysWork.field_228C, npcIdx);
+    /* No savegame identity: killing this spawn must not dead-flag the native
+     * spawn row that happens to share field_40's value (npc_main.c guard). */
+    {
+        extern unsigned char g_PcNpcDebugSpawned[];
+        g_PcNpcDebugSpawned[npcIdx] = 1;
+    }
+
+    if (g_MapOverlayHdr.charaUpdateFuncs[pick->charaId] != NULL)
+        cprintf("spawned %s (state %d)", nm, (int)state);
+    else
+        cprintf("spawned %s (state %d, no AI in this map)", nm, (int)state);
+    /* Full diagnostic so an "invisible spawn" report is decisive: player vs spawn
+     * world pos (incl. collision groundHeight), and the three visibility gates
+     * (model streamed, anim slot, per-map AI update fn). */
+    SH_DBG("[SPAWN] %s id=%d npc[%d] st=%u player=(%d,%d,%d) spawn=(%d,%d,%d) model=%d animIdx=%d updFn=%d",
+           nm, (int)pick->charaId, (int)npcIdx, state,
+           FP_FROM(hr->position.vx, Q12_SHIFT), FP_FROM(hr->position.vy, Q12_SHIFT), FP_FROM(hr->position.vz, Q12_SHIFT),
+           FP_FROM(posX, Q12_SHIFT), FP_FROM(surf.groundHeight, Q12_SHIFT), FP_FROM(posZ, Q12_SHIFT),
+           spawn_chara_model_ready(pick->charaId), (int)g_CharaAnimDataIdxs[pick->charaId],
+           g_MapOverlayHdr.charaUpdateFuncs[pick->charaId] != NULL);
+}
+
+/* TEMP diagnostic (sewer-drip hunt): play samples from the currently-resident
+ * ambient VAB (SPU slot 2). Must be run while IN the map whose ambient bank you
+ * want to hear (e.g. the sewers). Slot-2 SFX ids each map to a (program, note) of
+ * that bank via g_Vab_InfoTable, so sweeping them plays every ambient sample.
+ *   AMBSFX          - play the NEXT slot-2 ambient id, print its id/prog/tone/note
+ *   AMBSFX <n>      - play a specific id (n>=1280) or index (n<1280 -> +1280)
+ *   AMBSFX PROG <p> - restart the sweep at the first id of program p
+ *   AMBSFX STOP     - stop all SFX (silence a stuck loop) */
+static void cmd_ambsfx(const char* arg)
+{
+    extern s_VabInfo g_Vab_InfoTable[];
+    extern u8        Sd_PlaySfx(u16 sfxId, s8 balance, u8 vol);
+    extern void      SD_Call(u32 cmd);
+
+    static s16 s_id       = -1;
+    static s16 s_sweepProg = -1; /* sticky program filter: PROG <n> sets it, bare AMBSFX keeps it */
+    s16        id;
+    u16        vp;
+
+    if (strcmp(arg, "STOP") == 0) {
+        SD_Call(16); /* Sd_AllSfxStop + Sd_LastSfxStop */
+        cprintf("ambsfx: stopped");
+        return;
+    }
+
+    /* ALL <p> — key EVERY slot-2 id of program p at once, so a multi-pitch drip
+     * bank plays layered (what the sewer ambience actually sounds like). */
+    if (strncmp(arg, "ALL", 3) == 0) {
+        int p = atoi(arg + 3);
+        int n = 0;
+        for (id = (s16)Sfx_Base; id < (s16)(Sfx_Base + 420); id++) {
+            vp = g_Vab_InfoTable[id - Sfx_Base].vab_progIdx_2;
+            if ((vp >> 8) == 2 && (int)(vp & 0xFF) == p) {
+                Sd_PlaySfx((u16)id, 0, 0);
+                n++;
+            }
+        }
+        cprintf("ambsfx: keyed %d ids of prog %d", n, p);
+        SH_DBG("[DRIPSWEEP] ALL prog=%d keyed=%d", p, n);
+        return;
+    }
+
+    if (arg[0] >= '0' && arg[0] <= '9') {
+        id = (s16)atoi(arg);
+        if (id < Sfx_Base) id = (s16)(id + Sfx_Base);
+    } else {
+        /* PROG <n> arms a STICKY program filter so a following bare AMBSFX walks
+         * only program n, one id at a time (PROG -1 clears it back to all progs).
+         * Previously the filter was local and lost on the next call, so stepping
+         * wandered straight out of the program you asked for. */
+        if (strncmp(arg, "PROG", 4) == 0) { s_sweepProg = (s16)atoi(arg + 4); s_id = -1; }
+        id = (s_id < 0) ? (s16)Sfx_Base : (s16)(s_id + 1);
+        while (id < (s16)(Sfx_Base + 420)) {
+            vp = g_Vab_InfoTable[id - Sfx_Base].vab_progIdx_2;
+            if ((vp >> 8) == 2 && (s_sweepProg < 0 || (int)(vp & 0xFF) == s_sweepProg))
+                break;
+            id++;
+        }
+        if (id >= (s16)(Sfx_Base + 420)) { s_id = -1; cprintf("ambsfx: end of prog %d (wrapped)", s_sweepProg); return; }
+    }
+
+    s_id = id;
+    vp   = g_Vab_InfoTable[id - Sfx_Base].vab_progIdx_2;
+    Sd_PlaySfx((u16)id, 0, 0);
+    cprintf("ambsfx id=%d slot=%d prog=%d tone=%d note=%d", id, vp >> 8, vp & 0xFF,
+            g_Vab_InfoTable[id - Sfx_Base].audioVabIdx,
+            g_Vab_InfoTable[id - Sfx_Base].noteIdx_4);
+    SH_DBG("[DRIPSWEEP] AMBSFX id=%d slot=%d prog=%d tone=%d note=%d", id, vp >> 8, vp & 0xFF,
+           g_Vab_InfoTable[id - Sfx_Base].audioVabIdx,
+           g_Vab_InfoTable[id - Sfx_Base].noteIdx_4);
+}
+
+/* Reinstates the old [ / ] A-B position markers (dropped in 712cd8d2c when those
+ * keys were repurposed for effect intensity) as LOGA / LOGB console commands.
+ * Counters are per-session so successive marks read A1, A2, ... in the log. The
+ * union of the two removed loggers: A/B counters from the [ ]/dbg_overlay markers
+ * plus camera pitch/yaw/lookAt/fov from the old 4/5 camera-position logger. */
+static void cmd_logmark(char letter, const char* arg)
+{
+    static int s_markA = 0, s_markB = 0;
+    extern e_MapIdx g_CurrentMapIdx;
+
+    int* count = (letter == 'A') ? &s_markA : &s_markB;
+    s_SubCharacter* hr = &g_SysWork.playerWork.player;
+    VECTOR3 hpos = hr->position;
+    VECTOR3 cpos = vcWork.cam_pos;
+    VECTOR3 look = vcWork.watch_tgt_pos;
+    int idx;
+
+    if (strcmp(arg, "RESET") == 0) {
+        *count = 0;
+        cprintf("log%c: counter reset", letter);
+        return;
+    }
+
+    /* SH_DBG is a no-op while the log is closed (enable_debug_log=0), which would
+     * silently drop the only durable copy of the mark. Warn instead of misleading. */
+    if (!g_ShDebugLog)
+        cprintf("log%c: WARNING enable_debug_log=0 - console only, not in SilentHill.log", letter);
+
+    idx = ++(*count);
+
+    SH_DBG("======== MARK-%c%d ========", letter, idx);
+    SH_DBG("  Map    : %s", MapRegistry_GetName(g_CurrentMapIdx));
+    SH_DBG("  Harry  : (%.3f, %.3f, %.3f)  raw(%d, %d, %d)  yaw=%d",
+           hpos.vx / 4096.0f, hpos.vy / 4096.0f, hpos.vz / 4096.0f,
+           (int)hpos.vx, (int)hpos.vy, (int)hpos.vz, (int)hr->rotation.vy);
+    SH_DBG("  Camera : (%.3f, %.3f, %.3f)  raw(%d, %d, %d)",
+           cpos.vx / 4096.0f, cpos.vy / 4096.0f, cpos.vz / 4096.0f,
+           (int)cpos.vx, (int)cpos.vy, (int)cpos.vz);
+    SH_DBG("  LookAt : (%.3f, %.3f, %.3f)  raw(%d, %d, %d)",
+           look.vx / 4096.0f, look.vy / 4096.0f, look.vz / 4096.0f,
+           (int)look.vx, (int)look.vy, (int)look.vz);
+    SH_DBG("  CamAng : pitch=%d yaw=%d roll=%d  fov=%d",
+           (int)vcWork.cam_mat_ang.vx, (int)vcWork.cam_mat_ang.vy,
+           (int)vcWork.cam_mat_ang.vz, (int)vcWork.geom_screen_dist);
+    SH_DBG("========================");
+
+    cprintf("%c%d H(%.1f,%.1f,%.1f) yaw=%d", letter, idx,
+            hpos.vx / 4096.0f, hpos.vy / 4096.0f, hpos.vz / 4096.0f,
+            (int)hr->rotation.vy);
+    cprintf("   C(%.1f,%.1f,%.1f) pitch=%d yaw=%d",
+            cpos.vx / 4096.0f, cpos.vy / 4096.0f, cpos.vz / 4096.0f,
+            (int)vcWork.cam_mat_ang.vx, (int)vcWork.cam_mat_ang.vy);
+}
+
 void Pc_ConsoleExec(const char* line)
 {
     char cmd[48];
@@ -545,6 +925,12 @@ void Pc_ConsoleExec(const char* line)
             push_lines(DEBUG_PAGE2, (int)(sizeof(DEBUG_PAGE2) / sizeof(DEBUG_PAGE2[0])));
         else
             push_lines(DEBUG_PAGE1, (int)(sizeof(DEBUG_PAGE1) / sizeof(DEBUG_PAGE1[0])));
+    } else if (strcmp(cmd, "AMBSFX") == 0) {
+        cmd_ambsfx(arg);
+    } else if (strcmp(cmd, "LOGA") == 0) {
+        cmd_logmark('A', arg);
+    } else if (strcmp(cmd, "LOGB") == 0) {
+        cmd_logmark('B', arg);
     } else if (strcmp(cmd, "MAP") == 0) {
         cmd_map(arg);
     } else if (strcmp(cmd, "GIVE") == 0) {
@@ -552,9 +938,154 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "KILL") == 0) {
         g_SysWork.playerWork.player.health = -Q12(1.0f);
         cprintf("killed Harry");
+    } else if (strcmp(cmd, "KILLALL") == 0) {
+        s_SubCharacter* hr   = &g_SysWork.playerWork.player;
+        int             killed = 0;
+        int             i;
+        for (i = 0; i < NPC_COUNT_MAX; i++) {
+            s_SubCharacter* npc = &g_SysWork.npcs[i];
+            if (npc->model.charaId == Chara_None || npc->model.charaId == Chara_Harry ||
+                npc->health <= Q12(0.0f)) {
+                continue;
+            }
+            if (ABS(npc->position.vx - hr->position.vx) > Q12(50.0f) ||
+                ABS(npc->position.vz - hr->position.vz) > Q12(50.0f)) {
+                continue;
+            }
+            npc->damage.amount = Q12(99999.0f);
+            killed++;
+        }
+        cprintf("killed %d nearby enemies", killed);
+    } else if (strcmp(cmd, "SPAWN") == 0) {
+        cmd_spawn(arg);
+    } else if (strcmp(cmd, "UNLIMITED") == 0) {
+        extern int g_PcUnlimitedEnemies;
+        if (arg[0] == '1') g_PcUnlimitedEnemies = 1;
+        else if (arg[0] == '0') g_PcUnlimitedEnemies = 0;
+        else g_PcUnlimitedEnemies = !g_PcUnlimitedEnemies;
+        cprintf("unlimited enemies %s (cap now %d)", g_PcUnlimitedEnemies ? "ON" : "OFF", NPC_COUNT_MAX);
     } else if (strcmp(cmd, "NOCLIP") == 0) {
         g_DebugNoWallCollision = !g_DebugNoWallCollision;
         cprintf("noclip %s", g_DebugNoWallCollision ? "ON" : "OFF");
+    } else if (strcmp(cmd, "GOD") == 0) {
+        extern int g_PcGodMode;
+        if (arg[0] == '1') g_PcGodMode = 1;
+        else if (arg[0] == '0') g_PcGodMode = 0;
+        else g_PcGodMode = !g_PcGodMode;
+        cprintf("god mode %s (no damage + health held full; same as debug key 7)", g_PcGodMode ? "ON" : "OFF");
+    } else if (strcmp(cmd, "INVASPECT") == 0) {
+        extern int g_PcInvAspectSquare;
+        if (arg[0] == '1') g_PcInvAspectSquare = 1;
+        else if (arg[0] == '0') g_PcInvAspectSquare = 0;
+        else g_PcInvAspectSquare = !g_PcInvAspectSquare;
+        cprintf("inventory item aspect: %s", g_PcInvAspectSquare ? "SQUARE (true proportions)" : "PSX-faithful");
+    } else if (strcmp(cmd, "INVSCALE") == 0) {
+        extern int g_PcInvAspectPct;
+        int v = atoi(arg);
+        if (v >= 50 && v <= 200) g_PcInvAspectPct = v;
+        cprintf("inventory item vertical scale: %d%% of square", g_PcInvAspectPct);
+    } else if (strcmp(cmd, "INVCARY") == 0) {
+        /* the console minus key types '_', so accept a leading '_' as '-'. */
+        extern int g_PcInvCarouselYOff;
+        if (arg[0]) g_PcInvCarouselYOff = (arg[0] == '_') ? -atoi(arg + 1) : atoi(arg);
+        cprintf("carousel item Y offset: %d (+ down)", g_PcInvCarouselYOff);
+    } else if (strcmp(cmd, "INVEQY") == 0) {
+        extern int g_PcInvEquipYOff;
+        if (arg[0]) g_PcInvEquipYOff = (arg[0] == '_') ? -atoi(arg + 1) : atoi(arg);
+        cprintf("equipped item Y offset: %d (+ down)", g_PcInvEquipYOff);
+    } else if (strcmp(cmd, "INVDIM") == 0) {
+        extern int g_PcInvDimStrength;
+        int v = atoi(arg);
+        if (v >= 0 && v <= 100) g_PcInvDimStrength = v;
+        cprintf("off-center carousel dim: %d%%", g_PcInvDimStrength);
+    } else if (strcmp(cmd, "OBST") == 0) {
+        extern int g_PcObstacleCollision;
+        if (arg[0]) g_PcObstacleCollision = atoi(arg) ? 1 : 0;
+        cprintf("round-obstacle (ptr_18) collision: %s", g_PcObstacleCollision ? "ON" : "OFF (sprint-through)");
+    } else if (strcmp(cmd, "COLLSCOPE") == 0) {
+        extern int g_PcChunkCollisionLocalScope;
+        if (arg[0]) g_PcChunkCollisionLocalScope = atoi(arg) ? 1 : 0;
+        cprintf("preload collision local-cell scope: %s", g_PcChunkCollisionLocalScope ? "ON (vanilla window)" : "OFF (all chunks)");
+    } else if (strcmp(cmd, "ALPHA") == 0) {
+        extern int g_PcSlopeAlphaFix;
+        if (arg[0]) g_PcSlopeAlphaFix = atoi(arg) ? 1 : 0;
+        cprintf("slope-alpha invisible-wall fix: %s", g_PcSlopeAlphaFix ? "ON (capped)" : "OFF (original)");
+    } else if (strcmp(cmd, "VFOV") == 0) {
+        extern float g_PsxWorldVScale;
+        if (arg[0]) g_PsxWorldVScale = (float)atof(arg);
+        cprintf("world vertical FOV scale: %.3f (1.0=off; ~0.872 matches DuckStation)", g_PsxWorldVScale);
+    } else if (strcmp(cmd, "HFOV") == 0) {
+        /* 3D-world horizontal scale (Hor+ only). 1.0 = current behaviour; >1 = wider
+         * models, <1 = narrower. Pure tuning/preference knob, default neutral. */
+        extern float g_PsxWorldHScale;
+        if (arg[0]) g_PsxWorldHScale = (float)atof(arg);
+        cprintf("world horizontal scale: %.3f (1.0=off; >1 wider models, <1 narrower)", g_PsxWorldHScale);
+    } else if (strcmp(cmd, "VSHIFT") == 0) {
+        extern float g_PsxWorldVShift;
+        if (arg[0]) g_PsxWorldVShift = (float)atof(arg);
+        cprintf("world vertical view shift: %.1f psx-units (+ = view up; 0=off)", g_PsxWorldVShift);
+    } else if (strcmp(cmd, "MSGSHIFT") == 0) {
+        extern int g_PsxMsgVShift;
+        if (arg[0]) g_PsxMsgVShift = atoi(arg);
+        cprintf("message box up-shift: %d psx-units (compensates the VFOV bottom crop)", g_PsxMsgVShift);
+    } else if (strcmp(cmd, "BARY") == 0) {
+        extern int g_PsxBarOuter, g_PsxBarInner;
+        if (arg[0]) { g_PsxBarOuter = atoi(arg); g_PsxBarInner = g_PsxBarOuter - 16; }
+        cprintf("letterbox bar Y: outer=%d inner=%d (raise until bars hit the screen edges)", g_PsxBarOuter, g_PsxBarInner);
+    } else if (strcmp(cmd, "FOGSTR") == 0) {
+        /* World fog density multiplier. The PSX layered a 2nd semi-transparent fog
+         * poly the PC port drops, so the single-pass shader fog reads thinner ("filter"
+         * look); >1.0 deepens it toward the oppressive PSX wall. 1.0 = native (default).
+         * Live-tune vs DuckStation, then we can bake a value as the default. */
+        extern float g_PsyX_FogStrength;
+        if (arg[0]) g_PsyX_FogStrength = (float)atof(arg);
+        cprintf("world fog strength: %.2f (1.0=native PC fog; >1 deepens toward PSX)", g_PsyX_FogStrength);
+    } else if (strcmp(cmd, "WELD") == 0) {
+        extern float g_pgxpWeldPx;
+        if (arg[0]) g_pgxpWeldPx = (float)atof(arg);
+        cprintf("PGXP seam weld radius: %.2f px (0=off)", g_pgxpWeldPx);
+    } else if (strcmp(cmd, "WELDW") == 0) {
+        extern float g_pgxpWeldWRatio;
+        if (arg[0]) g_pgxpWeldWRatio = (float)atof(arg);
+        cprintf("PGXP weld depth ratio: %.3f", g_pgxpWeldWRatio);
+    } else if (strcmp(cmd, "PGXPEDGE") == 0) {
+        extern float g_PgxpEdgeMax;
+        if (arg[0]) g_PgxpEdgeMax = (float)atof(arg);
+        cprintf("PGXP off-screen position clamp: %.0f psx-units (higher = less edge warp)", g_PgxpEdgeMax);
+    } else if (strcmp(cmd, "PGXPDEPTH") == 0) {
+        extern int g_PgxpUseUnquantizedDepth;
+        if (arg[0] == '1') g_PgxpUseUnquantizedDepth = 1;
+        else if (arg[0] == '0') g_PgxpUseUnquantizedDepth = 0;
+        else g_PgxpUseUnquantizedDepth = !g_PgxpUseUnquantizedDepth;
+        cprintf("PGXP unquantized-depth W (distance-seam fix): %s", g_PgxpUseUnquantizedDepth ? "ON" : "OFF");
+    } else if (strcmp(cmd, "PGXPNEARCLIP") == 0) {
+        extern int g_PsxPgxpNearClip;
+        if (arg[0] == '1') g_PsxPgxpNearClip = 1;
+        else if (arg[0] == '0') g_PsxPgxpNearClip = 0;
+        else g_PsxPgxpNearClip = !g_PsxPgxpNearClip;
+        cprintf("PGXP near-plane clipping (close-camera warp fix): %s", g_PsxPgxpNearClip ? "ON" : "OFF");
+    } else if (strcmp(cmd, "PGXPNEARZ") == 0) {
+        /* Clipper divides by this and uses it as the clip verts' W — keep >= 1. */
+        extern float g_PgxpNearZ;
+        if (arg[0]) { g_PgxpNearZ = (float)atof(arg); if (g_PgxpNearZ < 1.0f) g_PgxpNearZ = 1.0f; }
+        cprintf("PGXP near-clip plane depth: %.1f gte-units", g_PgxpNearZ);
+    } else if (strcmp(cmd, "PGXPFARW") == 0) {
+        /* Beyond this view depth (SZ units, 256 = 1 world unit) perspective
+         * interpolation fades to affine — kills the distant grazing-angle
+         * texture shimmer with PGXP on. 0 = pure PGXP at any distance. */
+        extern float g_PgxpFarWClamp;
+        if (arg[0]) { g_PgxpFarWClamp = (float)atof(arg); if (g_PgxpFarWClamp < 0.0f) g_PgxpFarWClamp = 0.0f; }
+        cprintf("PGXP far-W clamp (affine beyond ~%.0fu): %.0f sz (0=off)",
+                g_PgxpFarWClamp / 256.0f, g_PgxpFarWClamp);
+    } else if (strcmp(cmd, "ADD") == 0) {
+        /* Debug-isolate the additive (BM_ADD) render layer to diagnose the map7_s03
+         * pre/during/post-fight fire-and-lightning. 0 = drop all additive splits
+         * (does the fire/lightning vanish? -> it's additive geometry), 1 = normal,
+         * 2 = additive drawn depth-tested (does the under-floor lightning get
+         * occluded by the floor? -> the bug is the disabled depth test). */
+        extern int g_PsxDbgAddMode;
+        if (arg[0]) g_PsxDbgAddMode = atoi(arg);
+        cprintf("additive layer: mode %d (0=skip, 1=normal, 2=depth-tested)", g_PsxDbgAddMode);
     } else if (strcmp(cmd, "FMV") == 0) {
         cmd_fmv(arg);
     } else if (strcmp(cmd, "PGXP") == 0) {
@@ -562,7 +1093,52 @@ void Pc_ConsoleExec(const char* line)
         if (arg[0] == '1') g_PsxUsePgxp = 1;
         else if (arg[0] == '0') g_PsxUsePgxp = 0;
         else g_PsxUsePgxp = !g_PsxUsePgxp; /* bare "pgxp" toggles */
+        g_PcConfig.usePgxp = g_PsxUsePgxp ? 1 : 0;
+        PcConfig_SaveKeyValue("use_pgxp", g_PsxUsePgxp ? "1" : "0");
         cprintf("PGXP %s (perspective-correct, WIP)", g_PsxUsePgxp ? "ON" : "OFF");
+    } else if (strcmp(cmd, "FLMODE") == 0) {
+        /* flmode 0..3 | classic | classicshadows | modern | modernshadows */
+        int mode = g_PcConfig.flashlightMode;
+        if (arg[0] >= '0' && arg[0] <= '3' && arg[1] == '\0') mode = arg[0] - '0';
+        else if (strcmp(arg, "CLASSIC") == 0) mode = 0;
+        else if (strcmp(arg, "CLASSICSHADOWS") == 0) mode = 1;
+        else if (strcmp(arg, "MODERN") == 0) mode = 2;
+        else if (strcmp(arg, "MODERNSHADOWS") == 0) mode = 3;
+        else if (arg[0] != '\0') { cprintf("usage: flmode <0-3|classic|classicshadows|modern|modernshadows>"); return; }
+        Pc_FlashlightModeApply(mode, 1);
+        cprintf("Flashlight: %s", Pc_FlashlightModeLabel(g_PcConfig.flashlightMode));
+    } else if (strcmp(cmd, "SHADOWS") == 0) {
+        /* Toggles shadows WITHIN the current flashlight mode. Classic + Shadows
+         * without shadows is just Classic, so 1<->0 and 3<->2. */
+        int on;
+        int mode = g_PcConfig.flashlightMode;
+        if (arg[0] == '1') on = 1;
+        else if (arg[0] == '0') on = 0;
+        else on = !(mode == 1 || mode == 3); /* bare "shadows" toggles */
+        if (mode == 0 || mode == 1) mode = on ? 1 : 0;
+        else                        mode = on ? 3 : 2;
+        Pc_FlashlightModeApply(mode, 1);
+        cprintf("Flashlight: %s", Pc_FlashlightModeLabel(g_PcConfig.flashlightMode));
+    } else if (strcmp(cmd, "SHADOWBIAS") == 0) {
+        extern float g_PsyX_FlashlightShadowBias;
+        if (arg[0] != '\0') g_PsyX_FlashlightShadowBias = (float)atof(arg);
+        cprintf("shadow bias = %.5f", g_PsyX_FlashlightShadowBias);
+    } else if (strcmp(cmd, "SHADOWSTRENGTH") == 0) {
+        extern float g_PsyX_FlashlightShadowStrength;
+        if (arg[0] != '\0') g_PsyX_FlashlightShadowStrength = (float)atof(arg);
+        cprintf("shadow strength = %.3f (1=full/default, lower=softer)", g_PsyX_FlashlightShadowStrength);
+    } else if (strcmp(cmd, "SHADOWFADE") == 0) {
+        extern float g_PsyX_FlashlightShadowFadeDist;
+        if (arg[0] != '\0') g_PsyX_FlashlightShadowFadeDist = (float)atof(arg);
+        cprintf("shadow contact-fade = %.1f (0=off; >0 = view units behind occluder)", g_PsyX_FlashlightShadowFadeDist);
+    } else if (strcmp(cmd, "SHADOWNORMAL") == 0) {
+        extern float g_PsyX_FlashlightShadowNormalOffset;
+        if (arg[0] != '\0') g_PsyX_FlashlightShadowNormalOffset = (float)atof(arg);
+        cprintf("shadow normal-offset = %.5f (0=off)", g_PsyX_FlashlightShadowNormalOffset);
+    } else if (strcmp(cmd, "SHADOWFPSDROP") == 0) {
+        extern float g_PsyX_FlashlightShadowFpsDrop;
+        if (arg[0] != '\0') g_PsyX_FlashlightShadowFpsDrop = (float)atof(arg);
+        cprintf("FPS shadow-light drop = %.1f", g_PsyX_FlashlightShadowFpsDrop);
     } else if (strcmp(cmd, "FLASHLIGHT") == 0 || strcmp(cmd, "FL") == 0 ||
                strcmp(cmd, "WORLDLIGHT") == 0 || strcmp(cmd, "WL") == 0) {
         extern int g_PcFlashlightColorActive, g_PcWorldLightColorActive;
@@ -608,7 +1184,183 @@ void Pc_ConsoleExec(const char* line)
         extern int  PsyX_SPUAL_GetAdsrEnabled(void);
         int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !PsyX_SPUAL_GetAdsrEnabled();
         PsyX_SPUAL_SetAdsrEnabled(on);
-        cprintf("ADSR envelope %s (looping-SFX ring-out, WIP)", on ? "ON" : "OFF");
+        cprintf("ADSR envelope %s (default on; config key adsr)", on ? "ON" : "OFF");
+    } else if (strcmp(cmd, "AUDIOOUT") == 0) {
+        /* Speaker layout. Applies LIVE via alcResetDeviceSOFT (mix format
+         * renegotiated, sources keep playing) and persists to config.cfg.
+         * No-arg reports the achieved layout — trust that over the request:
+         * a 5.1 ask on a stereo endpoint silently degrades. */
+        extern int PsyX_SPUAL_ApplyOutputMode(int mode);
+        extern int PsyX_SPUAL_GetOutputMode(void);
+        extern int PsyX_SPUAL_GetSurroundActive(void);
+        static const char* const kSpkUp[] = { "AUTO", "STEREO", "QUAD", "51", "71", "HRTF" };
+        static const char* const kSpk[]   = { "auto", "stereo", "quad", "51", "71", "hrtf" };
+        static const char* const kSpkUi[] = { "auto", "stereo", "quad", "5.1", "7.1", "hrtf" };
+        if (arg[0] != '\0') {
+            int mode = -1, k;
+            for (k = 0; k < 6; k++) {
+                if (strcmp(arg, kSpkUp[k]) == 0)
+                    mode = k;
+            }
+            /* No bare-digit aliases: "5" would read as 5.1 but mean HRTF. */
+            if (mode < 0) {
+                cprintf("usage: AUDIOOUT auto|stereo|quad|51|71|hrtf");
+            } else {
+                int live = PsyX_SPUAL_ApplyOutputMode(mode);
+                g_PcConfig.audioOutput = mode;
+                PcConfig_SaveKeyValue("audio_output", kSpk[mode]);
+                if (!live)
+                    cprintf("saved; this OpenAL build can't switch live - restart the game");
+            }
+        }
+        cprintf("speaker layout: %s active (requested %s)%s", kSpkUi[PsyX_SPUAL_GetOutputMode()],
+                kSpkUi[g_PcConfig.audioOutput],
+                PsyX_SPUAL_GetSurroundActive() ? " [surround routing ON]" : "");
+    } else if (strcmp(cmd, "FOV") == 0) {
+        /* First-person FOV (degrees, horizontal on the 4:3 frame). Same value
+         * as the launcher slider / PC options row; persists to config.cfg.
+         * `fov default` restores the game's native projection (71.1 = H 224). */
+        if (arg[0] != '\0') {
+            float v;
+            if (strcmp(arg, "DEFAULT") == 0 || strcmp(arg, "default") == 0)
+                v = 71.1f;
+            else
+                v = (float)atof(arg);
+            if (v < 55.0f)  v = 55.0f;
+            if (v > 110.0f) v = 110.0f;
+            g_PcConfig.fpsFov = v;
+            {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%.1f", v);
+                PcConfig_SaveKeyValue("fps_fov", buf);
+            }
+        }
+        cprintf("first-person FOV %.1f deg (71.1 = original; applies in FPS gameplay only)",
+                g_PcConfig.fpsFov);
+    } else if (strcmp(cmd, "TPSFOV") == 0) {
+        /* Thirdperson / Over-the-Shoulder FOV. Same value as the launcher slider;
+         * persists to config.cfg. The Classic cameras are never affected. */
+        if (arg[0] != '\0') {
+            float v;
+            if (strcmp(arg, "DEFAULT") == 0 || strcmp(arg, "default") == 0)
+                v = 71.1f;
+            else
+                v = (float)atof(arg);
+            if (v < 55.0f)  v = 55.0f;
+            if (v > 110.0f) v = 110.0f;
+            g_PcConfig.tpsFov = v;
+            {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%.1f", v);
+                PcConfig_SaveKeyValue("tps_fov", buf);
+            }
+        }
+        cprintf("thirdperson FOV %.1f deg (71.1 = the game's own FOV; applies in TPS/OTS gameplay only)",
+                g_PcConfig.tpsFov);
+    } else if (strcmp(cmd, "TPSAIMZOOM") == 0) {
+        /* How far the TPS/OTS camera dollies in while aiming, 0-200% of the zoom
+         * range. 100 (default) = the old full zoom, 200 = a deeper 2x zoom, 0 =
+         * no zoom (what the old tps_aim_zoom = 0 checkbox did). */
+        if (arg[0] != '\0') {
+            float v = (float)atof(arg);
+            if (v < 0.0f)   v = 0.0f;
+            if (v > 200.0f) v = 200.0f;
+            g_PcConfig.tpsAimZoom = v;
+            {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%.0f", v);
+                PcConfig_SaveKeyValue("tps_aim_zoom_amount", buf);
+            }
+        }
+        cprintf("TPS/OTS aim zoom %.0f%% (100 = original full zoom, 200 = 2x zoom, 0 = none)",
+                g_PcConfig.tpsAimZoom);
+    } else if (strcmp(cmd, "TPSOTSAIM") == 0) {
+        int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !g_PcConfig.tpsOtsAim;
+        g_PcConfig.tpsOtsAim = on;
+        PcConfig_SaveKeyValue("tps_ots_aim", on ? "1" : "0");
+        cprintf("OTS aiming in thirdperson %s (default on; camera eases over the shoulder while aiming)",
+                on ? "ON" : "OFF");
+    } else if (strcmp(cmd, "CAMCOLLIDE") == 0) {
+        int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !g_PcConfig.tpsCameraCollision;
+        g_PcConfig.tpsCameraCollision = on;
+        PcConfig_SaveKeyValue("tps_camera_collision", on ? "1" : "0");
+        cprintf("thirdperson camera collision %s (off = the camera may pass through walls)",
+                on ? "ON" : "OFF");
+    } else if (strcmp(cmd, "REVSCALE") == 0) {
+        extern void  PsyX_SPUAL_SetReverbDepthScale(float scale);
+        extern float PsyX_SPUAL_GetReverbDepthScale(void);
+        if (arg[0] != '\0') {
+            float s = (float)atof(arg);
+            if (s < 0.0f) s = 0.0f;
+            if (s > 8.0f) s = 8.0f;
+            PsyX_SPUAL_SetReverbDepthScale(s);
+        }
+        cprintf("reverb depth->wet scale %.2f (persist via config reverb_scale)",
+                PsyX_SPUAL_GetReverbDepthScale());
+    } else if (strcmp(cmd, "KF") == 0 || strcmp(cmd, "KEYFRAME") == 0) {
+        extern int g_DebugAnimKfView;
+        extern int g_DebugAnimKf;
+        extern int g_DebugAnimKfMax;
+        int maxKf = g_DebugAnimKfMax > 0 ? g_DebugAnimKfMax - 1 : 0;
+        if (arg[0] != '\0') {
+            int v = atoi(arg);
+            if (v < 0) v = 0;
+            g_DebugAnimKf     = v;
+            g_DebugAnimKfView = 1; /* setting a frame implies viewing it */
+            cprintf("keyframe %d (max %d) - K toggles, , . step", g_DebugAnimKf, maxKf);
+        } else {
+            cprintf("keyframe %d / %d (view %s)", g_DebugAnimKf, maxKf,
+                    g_DebugAnimKfView ? "ON" : "OFF");
+        }
+    } else if (strcmp(cmd, "FLINTENSITY") == 0 || strcmp(cmd, "FLINT") == 0) {
+        extern float g_PsyX_FlashlightIntensity, g_PsyX_FlashlightIntensityFps;
+        extern int   g_PcFpsCam;
+        /* Tune the active set: FPS mode has its own flashlight brightness. */
+        float* pv = g_PcFpsCam ? &g_PsyX_FlashlightIntensityFps : &g_PsyX_FlashlightIntensity;
+        const char* pkey = g_PcFpsCam ? "flashlight_intensity_fps" : "flashlight_intensity";
+        if (arg[0] != '\0') {
+            char buf[16];
+            float v = (float)atof(arg);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 3.0f) v = 3.0f;
+            *pv = v;
+            snprintf(buf, sizeof(buf), "%.2f", v);
+            PcConfig_SaveKeyValue(pkey, buf);
+        }
+        cprintf("flashlight intensity%s: %.2f (0..3)", g_PcFpsCam ? " (fps)" : "", *pv);
+    } else if (strcmp(cmd, "POSTINTENSITY") == 0 || strcmp(cmd, "POSTINT") == 0) {
+        extern float g_cfg_postProcessIntensity;
+        if (arg[0] != '\0') {
+            char buf[16];
+            float v = (float)atof(arg);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 1.0f) v = 1.0f;
+            g_cfg_postProcessIntensity = v;
+            snprintf(buf, sizeof(buf), "%.2f", v);
+            PcConfig_SaveKeyValue("post_process_intensity", buf);
+        }
+        cprintf("post-process intensity: %.2f (0..1)", g_cfg_postProcessIntensity);
+    } else if (strcmp(cmd, "TMINTENSITY") == 0 || strcmp(cmd, "TMINT") == 0) {
+        extern float g_cfg_tonemapIntensity;
+        if (arg[0] != '\0') {
+            char buf[16];
+            float v = (float)atof(arg);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 1.0f) v = 1.0f;
+            g_cfg_tonemapIntensity = v;
+            snprintf(buf, sizeof(buf), "%.2f", v);
+            PcConfig_SaveKeyValue("tonemap_intensity", buf);
+        }
+        cprintf("tonemap intensity: %.2f (0..1)", g_cfg_tonemapIntensity);
+    } else if (strcmp(cmd, "XAVOLUME") == 0 || strcmp(cmd, "XAVOL") == 0) {
+        extern float g_PcXaVolume;
+        if (arg[0] != '\0') {
+            float pct = (float)atof(arg);
+            if (pct < 0.0f)   pct = 0.0f;
+            if (pct > 100.0f) pct = 100.0f;
+            PcConfig_ApplyXaVolume(pct / 100.0f);
+        }
+        cprintf("xa (fmv/voice) volume: %.0f%% (0..100)", g_PcXaVolume * 100.0f);
     } else {
         DbgOverlay_PushLine("Command not found!");
     }

@@ -5,6 +5,7 @@
 #include "psx_memory.h"
 #include "pc_config.h"
 #include "map_registry.h"
+#include "lang_text.h" /* menu translations + width for recentred entries */
 #endif
 
 #include <psyq/libetc.h>
@@ -64,17 +65,6 @@ s8* D_800BCDE0;
 void GameState_MainMenu_Update(void) // 0x8003AB28
 {
 #ifdef SH_PC_PORT
-    {
-        static s32 prevStep = -1, prevMenuState = -1;
-        if (g_GameWork.gameStateSteps[0] != prevStep || g_MainMenuState != prevMenuState) {
-            printf("[SH] MainMenu: step=%d mainMenuState=%d\n",
-                g_GameWork.gameStateSteps[0], g_MainMenuState);
-            fflush(stdout);
-            prevStep = g_GameWork.gameStateSteps[0];
-            prevMenuState = g_MainMenuState;
-        }
-    }
-
     /* The old "auto-start" block that lived here ran the entire boot pipeline
      * (savegame init, map DLL load, STREAM.BIN load, FS wait, memcard disable)
      * on the first menu frame for any non-map0_s00 config — but never switched
@@ -142,15 +132,6 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             g_MainMenuState++;
 
         case MenuState_Main:
-#ifdef SH_PC_PORT
-            {
-                static int mainOnce = 0;
-                if (!mainOnce) {
-                    printf("[SH] MainMenu: MenuState_Main (first entry)\n"); fflush(stdout);
-                    mainOnce = 1;
-                }
-            }
-#endif
             if (playInGameDemo)
             {
                 GameBoot_GameStartup();
@@ -219,6 +200,30 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
             // Wrap selection.
             g_MainMenu_SelectedEntry %= MainMenuEntry_Count;
+
+#ifdef SH_PC_PORT
+            /* Mouse: hover a visible row to select it, left-click to confirm. */
+            {
+                extern int Pc_MouseCursor_MenuRowHover(int, int, int, unsigned int, int*);
+                extern int Pc_MouseCursor_Moved(void);
+                int mcClicked = 0;
+                int mcRow     = Pc_MouseCursor_MenuRowHover(184, 20, MainMenuEntry_Count,
+                                                            g_MainMenu_VisibleEntryFlags, &mcClicked);
+                if (mcRow >= 0)
+                {
+                    if (mcClicked)
+                    {
+                        g_MainMenu_SelectedEntry = mcRow;
+                        g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+                    }
+                    else if (Pc_MouseCursor_Moved() && (s32)g_MainMenu_SelectedEntry != mcRow)
+                    {
+                        g_MainMenu_SelectedEntry = mcRow;
+                        SD_Call(Sfx_MenuMove);
+                    }
+                }
+            }
+#endif
 
             if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
             {
@@ -298,6 +303,36 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 }
             }
 
+#ifdef SH_PC_PORT
+            /* Mouse: hover EASY/NORMAL/HARD to select, left-click to confirm.
+             * Injected before the input handling below so a click behaves like a
+             * real Cross press (rows at y = 204 + i*20; see MainMenu_DifficultyTextDraw). */
+            {
+                extern int Pc_MouseCursor_MenuRowHover(int, int, int, unsigned int, int*);
+                extern int Pc_MouseCursor_Moved(void);
+                extern int Pc_MouseCursor_RightClicked(void);
+                int mcClicked = 0;
+                int mcRow     = Pc_MouseCursor_MenuRowHover(204, 20, 3, ~0u, &mcClicked);
+                if (mcRow >= 0)
+                {
+                    if (mcClicked)
+                    {
+                        newGameSelectedDifficultyIdx = mcRow;
+                        g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+                    }
+                    else if (Pc_MouseCursor_Moved() && newGameSelectedDifficultyIdx != mcRow)
+                    {
+                        newGameSelectedDifficultyIdx = mcRow;
+                        SD_Call(Sfx_MenuMove);
+                    }
+                }
+                if (Pc_MouseCursor_RightClicked())
+                {
+                    g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;
+                }
+            }
+#endif
+
             if (g_Controller0->pulsedBtnFlags & (ControllerFlag_LStickUp | ControllerFlag_LStickDown) ||
                 g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |
                                                  g_GameWorkPtr->config.controllerConfig.cancel))
@@ -346,6 +381,14 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                     int mapId = MapRegistry_FindByName(g_PcConfig.mapName);
                     if (mapId < 0) mapId = 0;
                     GameBoot_SavegameInitialize(mapId, newGameSelectedDifficultyIdx - 1);
+
+                    /* Randomizer: start the run here, after the savegame wipe and
+                     * before GameBoot_MapLoad, so its per-map hook sees a live run
+                     * on the very first area. No-op unless the mode is enabled. */
+                    {
+                        extern void Pc_Rando_OnNewGame(void);
+                        Pc_Rando_OnNewGame();
+                    }
                 }
 #else
                 GameBoot_SavegameInitialize(0, newGameSelectedDifficultyIdx - 1);
@@ -383,13 +426,6 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
         case MenuState_LoadGame:
         case MenuState_NewGameStart:
-#ifdef SH_PC_PORT
-            {
-                static int fadeWaitCount = 0;
-                if (fadeWaitCount++ % 60 == 0)
-                    ;
-            }
-#endif
             if (ScreenFade_IsFinished())
             {
                 Screen_Refresh(SCREEN_WIDTH, 0);
@@ -461,10 +497,16 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
         if (g_MainMenuState < 3)
         {
             MainMenu_MainTextDraw();
+#ifdef SH_PC_PORT
+            { extern void Pc_MouseCursor_Draw(void); Pc_MouseCursor_Draw(); }
+#endif
             return;
         }
 
         MainMenu_DifficultyTextDraw(newGameSelectedDifficultyIdx);
+#ifdef SH_PC_PORT
+        { extern void Pc_MouseCursor_Draw(void); Pc_MouseCursor_Draw(); }
+#endif
         return;
     }
     else
@@ -521,7 +563,19 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
             continue;
         }
 
+#ifdef SH_PC_PORT
+        /* Translated entries have different widths — recentre from the
+         * actual string ('[' is 6px wide); untranslated keeps the constant. */
+        {
+            const char* tr   = Pc_LangMenuText(MAIN_MENU_ENTRY_STRINGS[i]);
+            s32         offX = (tr == MAIN_MENU_ENTRY_STRINGS[i])
+                                   ? STR_OFFSETS_X[i]
+                                   : ((Pc_LangMenuTextWidth(tr) + 6) >> 1);
+            Gfx_StringSetPosition(COLUMN_POS_X - offX, COLUMN_POS_Y + (i * STR_OFFSET_Y));
+        }
+#else
         Gfx_StringSetPosition(COLUMN_POS_X - STR_OFFSETS_X[i], COLUMN_POS_Y + (i * STR_OFFSET_Y));
+#endif
         Gfx_StringSetColor(StringColorId_White);
 
         if (i == g_MainMenu_SelectedEntry)
@@ -563,7 +617,17 @@ static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
     // Draw selection strings.
     for (i = 0; i < DIFFICULTY_MENU_SELECTION_COUNT; i++)
     {
+#ifdef SH_PC_PORT
+        {
+            const char* tr   = Pc_LangMenuText(DIFFICULTY_MENU_ENTRY_STRINGS[i]);
+            s32         offX = (tr == DIFFICULTY_MENU_ENTRY_STRINGS[i])
+                                   ? STR_OFFSETS_X[i]
+                                   : ((Pc_LangMenuTextWidth(tr) + 6) >> 1);
+            Gfx_StringSetPosition(COLUMN_POS_X - offX, COLUMN_POS_Y + (i * STR_OFFSET_Y));
+        }
+#else
         Gfx_StringSetPosition(COLUMN_POS_X - STR_OFFSETS_X[i], COLUMN_POS_Y + (i * STR_OFFSET_Y));
+#endif
         Gfx_StringSetColor(StringColorId_White);
 
         if (i == idx)
@@ -586,6 +650,62 @@ static void MainMenu_DifficultyTextDraw(s32 idx) // 0x8003B678
     }
 }
 
+#ifdef SH_PC_PORT
+#include "main/fileinfo.h"                    /* g_GameRegion */
+#include "bodyprog/screen/background_draw.h"  /* g_Screen_BackgroundImgGamma */
+
+/* PAL title compose, mirroring the retail SLES draw (decrypted EUR bodyprog
+ * 0x8003B0D0): the PAL TITLE_E.TIM is only a 4bpp 320x96 logo+copyright
+ * block, drawn as SPRT strips over the black clear with the shared fog on
+ * top — there is no full-screen title picture on the PAL disc. Strip layout
+ * is retail-exact (logo rows 0..79 at y=-120 in two 256+64 strips, split at
+ * the tpage boundary); the copyright band (rows 80..95) sits 32 lines above
+ * the bottom edge like retail (their 512-line space put it at y=224, our
+ * 448-line display puts it at y=192). Loaded at (896,0) via the EUR
+ * g_TitleImg desc patch in font_region.c. */
+static void Pc_TitleLogoDrawEur(void)
+{
+    extern s32 g_Pc2dBackgroundActive;
+
+    static const struct { s16 x, y; u8 u, v, tpageCol; s16 w, h; } STRIPS[4] = {
+        { -160, -120, 0, 0,  14, 256, 80 }, /* logo left */
+        {   96, -120, 0, 0,  15,  64, 80 }, /* logo right */
+        { -160,  192, 0, 80, 14, 256, 16 }, /* copyright left */
+        {   96,  192, 0, 80, 15,  64, 16 }, /* copyright right */
+    };
+
+    GsOT*     ot     = (GsOT*)&g_OtTags1[g_ActiveBufferIdx + 1][0];
+    PACKET*   packet = GsOUT_PACKET_P;
+    s32       i;
+
+    g_Pc2dBackgroundActive = 2; /* keep the black clear (no fog-color override) */
+
+    for (i = 0; i < 4; i++)
+    {
+        SPRT*     sprt = (SPRT*)packet;
+        DR_TPAGE* tPage;
+
+        addPrimFast(ot, sprt, 4);
+        setRGBC0(sprt, g_Screen_BackgroundImgGamma, g_Screen_BackgroundImgGamma,
+                 g_Screen_BackgroundImgGamma, PRIM_RECT | RECT_TEXTURE);
+        setWH(sprt, STRIPS[i].w, STRIPS[i].h);
+        setXY0Fast(sprt, STRIPS[i].x, STRIPS[i].y);
+        *((u32*)&sprt->u0) = STRIPS[i].u + (STRIPS[i].v << 8) +
+                             (getClut(g_TitleImg.clutX, g_TitleImg.clutY) << 16);
+
+        packet += sizeof(SPRT);
+        tPage   = (DR_TPAGE*)packet;
+        setDrawTPage(tPage, 0, 1, getTPage(0, 0, STRIPS[i].tpageCol << 6, 0));
+        AddPrim(ot, tPage);
+        packet += sizeof(DR_TPAGE);
+    }
+
+    GsOUT_PACKET_P              = packet;
+    g_SysWork.bgmStatusFlags   |= BgmStatusFlag_Pause;
+    g_Screen_BackgroundImgGamma = Q8(0.5f);
+}
+#endif
+
 static void MainMenu_BackgroundDraw(void) // 0x8003B758
 {
     if (g_SysWork.sysState == SysState_Gameplay)
@@ -594,6 +714,13 @@ static void MainMenu_BackgroundDraw(void) // 0x8003B758
         func_8003BCF4();
     }
 
+#ifdef SH_PC_PORT
+    if (g_GameRegion == Region_EUR)
+    {
+        Pc_TitleLogoDrawEur();
+    }
+    else
+#endif
     Screen_BackgroundImgDraw(&g_TitleImg);
     MainMenu_FogUpdate();
 }

@@ -333,6 +333,17 @@ s32 vcExecCamera(void) // 0x80080FBC
     cur_rd_area_size = vcWork.cur_near_road.road_p->area_size_type;
     cur_cam_mv_type  = vcRetCurCamMvType(&vcWork);
 
+#ifdef SH_PC_PORT
+    /* Pure signal: the view camera is a fixed-angle shot this frame. Consumed by
+     * MainLoop (game_main.c), which corrects the FIX_ANG top-clip vs PSX by shifting
+     * the GTE projection center down by g_PsxWorldVShift — all gating (camera style,
+     * cutscene, sys state) lives there. Chase/settle/door/self-view cameras unset it. */
+    {
+        extern int g_PsxFixedCamActive;
+        g_PsxFixedCamActive = (cur_cam_mv_type == VC_MV_FIX_ANG);
+    }
+#endif
+
     far_watch_rate     = vcRetFarWatchRate(CHECK_FLAG(vcWork.flags, VC_PRS_F_VIEW_F, !g_GameWorkConst->config.extraViewCtrl), cur_cam_mv_type, &vcWork);
     self_view_eff_rate = vcRetSelfViewEffectRate(cur_cam_mv_type, far_watch_rate, &vcWork);
 

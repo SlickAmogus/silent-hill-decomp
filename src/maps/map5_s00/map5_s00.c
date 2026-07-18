@@ -10,6 +10,9 @@
 #include "bodyprog/player.h"
 #include "main/rng.h"
 #include "maps/map5/map5_s00.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 #include "maps/particle.h"
 #include "maps/characters/player.h"
 
@@ -397,6 +400,32 @@ void func_800D6790(void) // 0x800D6790
     }
 
     Bgm_Update(bgmFlags, Q12(0.25f), &D_800DA570);
+
+#ifdef SH_PC_PORT
+    /* [SH_DRIPROOM] temp: log the per-room BGM-layer request, the layer caps, and
+       the resulting channel volumes. Fires on room change AND ~once per second so
+       we catch the STEADY-STATE (fully ramped) volumes, not just the instant of the
+       room change — needed to tell whether the sewer drip is a BGM layer stuck at 0
+       (a cap/data issue) or simply isn't a BGM layer at all (an SFX that never
+       plays). Remove once the drip is fixed. */
+    {
+        static s32 s_lastDripRoom = -1;
+        static s32 s_dripTick     = 0;
+        s32        room           = g_SavegamePtr->mapRoomIdx;
+        if (room != s_lastDripRoom || --s_dripTick <= 0)
+        {
+            s_lastDripRoom = room;
+            s_dripTick     = 60;
+            SH_DBG("[SH_DRIPROOM] room=%d flags=0x%02x f354=%d caps=%d,%d,%d,%d,%d,%d,%d,%d vols=%d,%d,%d,%d,%d,%d",
+                   room, (u32)bgmFlags, Savegame_EventFlagGet(EventFlag_354) ? 1 : 0,
+                   D_800DA570.limits[0], D_800DA570.limits[1], D_800DA570.limits[2], D_800DA570.limits[3],
+                   D_800DA570.limits[4], D_800DA570.limits[5], D_800DA570.limits[6], D_800DA570.limits[7],
+                   (s32)g_SysWork.bgmLayerVolumes[0], (s32)g_SysWork.bgmLayerVolumes[1],
+                   (s32)g_SysWork.bgmLayerVolumes[2], (s32)g_SysWork.bgmLayerVolumes[3],
+                   (s32)g_SysWork.bgmLayerVolumes[4], (s32)g_SysWork.bgmLayerVolumes[5]);
+        }
+    }
+#endif
 }
 
 void GameBoot_LoadScreen_StageString(void) {}

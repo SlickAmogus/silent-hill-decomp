@@ -1595,12 +1595,25 @@ s_800F3D48_0* func_800D88E8(s_800F3D48* arg0) // 0x800D88E8
         if (field8Value != 2 && g_DeltaTime != Q12(0.0f))
         {
             arg0->ptr_0           = &curPtr[1];
+#ifdef SH_PC_PORT
+            /* Node dwell is authored in PSX 30fps frames but was counted down
+             * once per RENDERED frame — the boss attack pattern ran 8x fast at
+             * 240fps and 2x slow at the 15fps floor. Hold the dwell as Q12
+             * seconds (frames/30) and consume g_DeltaTime instead. Only this
+             * function and the func_800D905C init (= 0) touch this field. */
+            arg0->field_4.field_0 = (curPtr[1].field_0 * Q12(1.0f)) / 30;
+#else
             arg0->field_4.field_0 = curPtr[1].field_0;
+#endif
         }
     }
     else
     {
+#ifdef SH_PC_PORT
+        arg0->field_4.field_0 -= g_DeltaTime;
+#else
         arg0->field_4.field_0--;
+#endif
     }
 
     return next;
@@ -1643,6 +1656,15 @@ void func_800D8954(s_800F3D48* arg0, s_800F3D48_0_0* arg1) // 0x800D8954
     {
         return;
     }
+#ifdef SH_PC_PORT
+    /* RotTransPers returns 0 for a vertex on the camera plane; the 0x20000 clip
+     * flag doesn't catch depth==0. PSX MIPS div-by-0 is benign, x86 traps
+     * (C0000094 at +0x10A72). Skip the degenerate particle like the clip case. */
+    if (temp_s1 == 0)
+    {
+        return;
+    }
+#endif
 
     temp_v0 = ReadGeomScreen();
     temp_t0 = arg0->field_4.field_14;
@@ -2011,7 +2033,19 @@ void func_800D947C(void) // 0x800D947C
     s32         i;
     s_800F3D58* ptr0;
 
+#ifdef SH_PC_PORT
+    /* FS_BUFFER_27 is overrun and stomped by the ending's DMS/TIM streams (the
+     * 64-bit pool struct is larger, and the cutscene file loads alias up into
+     * it), leaving wild ptr_0/field_48 -> func_800D88E8 deref AV at +0xEAB5 when
+     * the ceremony music starts. Use the same dedicated static the sibling
+     * func_800D952C uses; the two are mutually exclusive ending variants, so
+     * sharing the backing is safe. Also restores the ceremony particles the
+     * SH_F3D48_ENTRY_CORRUPT guard had to drop (flame UV cycling / missing
+     * floors / misplaced Harry+Cybil run textures / results-screen meshes). */
+    D_800F3D48 = &D_800F2448;
+#else
     D_800F3D48 = (s_800F3D48*)FS_BUFFER_27;
+#endif
     D_800F2438 = 80;
 
     ptr0 = &D_800F3D58;
@@ -2093,6 +2127,17 @@ s_800F3D48_0* func_800D95D4(s_800F3D48* arg0) // 0x800D95D4
     {
         arg0->field_4.field_4 = 0;
         arg0->field_4.field_6 = 0;
+#ifdef SH_PC_PORT
+        /* Loop-end sentinel: func_800D88E8 returns ptr_0->next_4, a SCRIPT-NODE
+         * pointer, not a sprite-def. PSX read its 4-byte next_4 (offset 4), so
+         * the sprite drawer's tpage/clut at offsets 8/10 hit the node's small
+         * field_8 enum -> degenerate/invisible. On 64-bit next_4 is 8 bytes at
+         * offset 8, so tpage/clut read the low 32 bits of the relocated pointer
+         * -> garbage VRAM page -> ghost textures in the falling fire. The entry
+         * is being deactivated this frame anyway; skip the bogus final draw
+         * (func_800D917C gates field_48 on a non-NULL resolver result). */
+        return NULL;
+#endif
     }
 
     arg0->field_4.field_28.vx = Q12_MULT_FLOAT_PRECISE(arg0->field_4.field_28.vx, 0.8f);
@@ -2116,6 +2161,12 @@ s_800F3D48_0* func_800D9740(s_800F3D48* arg0) // 0x800D9740
     {
         arg0->field_4.field_4 = 0;
         arg0->field_4.field_6 = 0;
+#ifdef SH_PC_PORT
+        /* See func_800D95D4: on the loop-end sentinel func_800D88E8 returns a
+         * script-node pointer whose 64-bit next_4 (offset 8) is misread as the
+         * sprite tpage/clut (offsets 8/10) -> ghost textures. Skip the draw. */
+        return NULL;
+#endif
     }
 
     return ptr;
@@ -2453,7 +2504,13 @@ s32 func_800DA1F4(VECTOR3* arg0, VECTOR3* arg1, q19_12 arg2, s32 arg3, s32 arg4)
     {
         case 0:
             temp_s0 = (arg3 - arg2) >> 3;
+#ifdef SH_PC_PORT
+            /* arg3==arg2 -> temp_s0==0 -> 0x7FFF/0 traps on x86 (benign on PSX
+             * MIPS). Zero range = no random spread; fall back to base distance. */
+            temp_a0 = (temp_s0 == 0) ? 0 : Rng_Rand16() / ((0x7FFF / temp_s0) + 1);
+#else
             temp_a0 = Rng_Rand16() / ((0x7FFF / temp_s0) + 1);
+#endif
             temp_a0 = temp_a0 * 8;
             dist = arg2 + temp_a0;
             var_fp  = (Q12(10.0f) - temp_a0) / 320;
@@ -2469,9 +2526,17 @@ s32 func_800DA1F4(VECTOR3* arg0, VECTOR3* arg1, q19_12 arg2, s32 arg3, s32 arg4)
             break;
 
         case 1:
+#ifdef SH_PC_PORT
+            temp_a0 = (arg2 == 0) ? 0 : Rng_Rand16() / (0x7FFF / arg2 + 1);
+#else
             temp_a0 = Rng_Rand16() / (0x7FFF / arg2 + 1);
+#endif
             sinAngle = temp_a0 - (arg2 / 2);
+#ifdef SH_PC_PORT
+            temp_a0 = (arg3 == 0) ? 0 : Rng_Rand16() / (0x7FFF / arg3 + 1);
+#else
             temp_a0 = Rng_Rand16() / (0x7FFF / arg3 + 1);
+#endif
 
             arg1->vx = (sinAngle + arg0->vx) - ptr->vx;
             arg1->vy = arg0->vy - ptr->vy;
@@ -2820,6 +2885,14 @@ void func_800DADE0(s_func_800DAD54* arg0, s_800F3D48_0_0* arg1) // 0x800DADE0
     {
         return;
     }
+#ifdef SH_PC_PORT
+    /* Same RotTransPers depth==0 div-by-0 guard as func_800D8954; the clip flag
+     * (bit 17) doesn't catch an on-camera-plane vertex. x86 traps (C0000094). */
+    if (temp_s1 == 0)
+    {
+        return;
+    }
+#endif
 
     temp_v0 = ReadGeomScreen();
     temp_t0 = arg0->field_8;
@@ -4266,8 +4339,29 @@ void func_800DD6CC(void) // 0x800DD6CC
     ot              = g_OrderingTable0[activeBufferIdx].org;
 
     Vw_WorldScreenMatrixAtPositionGet(&D_800F48A8.mat_8, posX, Q12(0.0f), posZ);
-    func_800DC544(ot);
-    func_800D917C();
+#ifdef SH_PC_PORT
+    /* Boss fire + lightning FX pools (D_800F3DAC via func_800DC544, D_800F3D48
+     * via func_800D917C). This is the boss-CHARACTER draw path, reached from two
+     * callers: incubus.c func_800DF074 (Good+ Incubus fight, already gated on the
+     * boss being ARMED — field_EC bit 2 — and not in a pose state) and
+     * unknown23.c func_800E0914 (UNGATED). Pre-fight the pools hold
+     * stale/uninitialized entries that render at default positions, so the
+     * fire/lightning textures appeared under and around the map before the fight.
+     *
+     * The original gate here was D_800F4820 alone, but that flag is only set
+     * inside the cutscene/ending step-machines and is 0 throughout the Good+
+     * gameplay fight, so it wrongly suppressed the armed Incubus's own attack FX
+     * (boss looked inert — spawns projectiles into the pools, nothing drew them).
+     * The armed Incubus caller now sets g_PcBossFxArmedDraw so its legitimate
+     * in-fight FX draw regardless of D_800F4820, while the ungated unknown23 path
+     * (and any pre-spawn stale entries) stays gated on D_800F4820. */
+    extern int g_PcBossFxArmedDraw;
+    if (D_800F4820 != 0 || g_PcBossFxArmedDraw)
+#endif
+    {
+        func_800DC544(ot);
+        func_800D917C();
+    }
 }
 
 void func_800DD738(const VECTOR3* pos0, const VECTOR3* pos1, q19_12 rotZ, q19_12 timer) // 0x800DD738

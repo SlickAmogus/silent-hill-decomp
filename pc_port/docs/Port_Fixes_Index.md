@@ -295,3 +295,1042 @@ Beyond timing (§6), cutscenes hit a cluster of 64-bit / merge issues:
 > Already covered above and also cutscene-relevant: `CAT_ANIM_INFOS` zero-stub
 > (§2) and the `Anim_BoneInit` / `playbackFunc` NULL guards (§1) — both of which
 > turned out to be masking the duplicated-array bug above.
+
+## Positional-SFX / world-object zero-stub batch (2026-07-06 audio audit)
+
+Seven map-overlay symbols with real disc data were still `u8[256]={0}` exe
+stubs (which shadow map-DLL data under `--export-all-symbols`). All are now
+real extracted data (`extract_map_data.py` EXTRA_SYMBOLS + hand-appended to the
+tracked `*_extracted_data.c`):
+
+- `D_800ED938` (map2_s02) street SFX position — played from world origin
+- `D_800D2530` (map3_s00) / `D_800D26F8` (map3_s06) door SFX positions
+- `D_800D4CE4` (map3_s01) hospital generator hum position — origin was outside
+  the Q12(16) falloff, so the generator loop was **silent**
+- `D_800CB364` (map3_s04) stinger SFX position
+- `D_800DAAD0` / `D_800DAAE4` (map5_s00) sewer pickup `s_Pose`s — pickup
+  objects rendered at the world origin
+
+Found by the new census tool `pc_port/tools/audit_map_sound_data.py` (scans all
+maps for sound-adjacent `D_8*` symbols, classifies extracted / zero-stub /
+missing, and diffs against the disc overlay bytes).
+
+## HyperBlaster free-aim fix (2026-07-15, commit `7c939d88b`)
+
+Adapted from SlickAmogus PR #36 (unmergeable — the fork branch diverged
+~4700 commits from a far-back base; the three fixes were extracted and
+re-applied against our current tree, keeping our newer wall-time refire FSM).
+All three are real bugs in our tree, in the TPS/OTS free-aim gun path:
+
+- **Invisible upper body while aiming**: `Pc_AimHoldKf` pinned the aim pose at
+  the shared kf 591, but the HyperBlaster's WEP53 block only spans kf 568-579
+  (`D_80028B94[132..149]`), so the torso posed from out-of-range keyframe data
+  and collapsed. Now holds 574 (`player_control.c`).
+- **Fire lockout / no full-auto**: the free-aim FSM treated it as a semi-auto
+  magazine gun. Its clip count is 0 and never refills, so `fireEdge && ammo>0`
+  locked firing out and the reload branch could latch. HyperBlaster is PSX
+  full-auto with no ammo/reload — now fires while held once per recoil cycle
+  (`isHyperBlaster ? (fireHeld && s_refireT <= 0) : (fireEdge && ammo > 0)`),
+  reload skipped (`!isHyperBlaster`). Kept our wall-time `s_refireT`; did NOT
+  regress to the PR's frame-based `s_refireCd`.
+- **OOB anim-info copy on equip**: the equip path copies a fixed 20 entries but
+  the HyperBlaster block is the last one and only 18 long, reading 2 past
+  `D_80028B94`. Bounded behind `SH_PC_PORT` via a new `D_80028B94_COUNT`
+  (`bodyprog_data_80028B94.c`).
+
+## Controls / free-aim batch (2026-07-06, commit `003cd4cec` + PsyCross `90f0d9e`)
+
+- **altcam_button_sprint** (new config, default 0): alt cameras walk by
+  default, sprint only on the bound Run control (`player_control.c`, both the
+  TPS/OTS/FPS path and 2D-control-under-alt-cam path). Launcher checkbox +
+  sensitivity sliders second-column rework (`ControlsForm.cs`).
+- **Double-fire / zoom-exit on trigger mash** (alt modes):
+  `Pc_FreeAimGunUpperBody` refire cooldown wall-time 0.2s + 50ms release
+  debounce (was 4 rendered frames); FSM gate + TPS zoom now also hold on the
+  raw aim input so 1-frame `isAiming` blips can't drop to the PSX gun path
+  (extra ungated shot) or pop the zoom.
+- **Free-aim accuracy**: PSX random shot deviation capped for player shots in
+  alt cameras (`bodyprog_combat_8008A058.c`; handgun/rifle ~exact, shotgun
+  fixed 4° cone). Classic camera keeps the original accuracy model.
+- **Firing-pose shadow glitch** (per-pixel shadows): PsyCross flashlight
+  shadow FIFO entries value-validated like PGXP (`PsyX_GPU.cpp`) — CPU-built
+  quads (muzzle flash) no longer inherit stale arm/gun view-space verts.
+- **PGXP near-camera warp**: root-caused; fix = GL near-plane clipping
+  (`PgxpNearClipEmit`), documented in `PGXP_Architecture.md` §9.
+
+## BGM reverb + ADSR batch (2026-07-06, commit `4a37582ca` + PsyCross `12a5ab5`)
+
+User side-by-side vs PSX: layer fade-ins/outs abrupt, echo/reverb character
+missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
+
+- **`SpuSetReverbModeParam` was unimplemented** — but SH1 drives reverb
+  through it constantly: per-track wet depth on every BGM bank load
+  (`g_Sd_ReverbDepths[35]`, sd_call.c VabLoad), and a per-tick 0→target depth
+  RAMP on sequence (re)start (`replay_reverb_set`, the "fades in with an
+  echo"). Depth now maps to the OpenAL aux-slot gain (live). `revscale`
+  console + `reverb_scale` config calibrate the mapping (default 2.0).
+- **ADSR envelopes default ON** (`adsr` config key, default 1; console
+  toggle). The deadlock + key-status hangs that justified default-off are
+  fixed; envelopes are required for the music's instrument fades.
+
+## FPS-camera polish + FIX_ANG framing rework (2026-07-06, commits `696fdde61`, `1cb6b4bdb` + PsyCross `8c34600`)
+
+- **Melee-swing mesh flash in first person** (`02280a0cc`; hide attempt
+  `696fdde61` REVERTED `79b685a51`): swings lean Harry's head (and the
+  eye riding it) through his own torso/shoulder/arm models. Final fix is
+  the arm-clearance camera dolly in `Pc_TpsCamera_Apply`: while a melee
+  `weaponAttack` is active, the eye dollies back along the view axis by
+  how much the nearest forearm/hand bone crowds it (proximity-driven, so
+  it self-times per weapon anim; wall-clamped by ray trace). The interim
+  torso/shoulder hide was reverted once the dolly landed — the body
+  stays visible through swings; only the head-only FPS hide remains.
+- **Faded letterbox band at top of screen** (`1cb6b4bdb` + PsyCross
+  `8c34600`): the FIX_ANG `g_PsxWorldVShift` framing band-aid (843b3a58c)
+  shifted the ortho window up, revealing rows above the 224-line frame
+  that screen-space overlay prims never cover — a faded band toggling
+  with FIX_ANG camera zones, in every camera style (an interim alt-cam
+  gate `a42e02d0a` only masked it for FPS/TPS/OTS). Rework: MainLoop
+  (game_main.c) applies the shift at the GTE projection center
+  (`SetGeomOffset(0, vshift)`) during classic-camera gameplay only —
+  same visible world window, full overlay coverage, no band. Asserted
+  every frame in every state so item screens/menus keep the clean (0,0)
+  baseline. `vshift` console command still live-tunes the amount.
+- **Eclipse-door key-insert grey flash** (`e05613a3f`):
+  `Screen_BackgroundImgTransition` (the ~1s dissolve between DOOR_*.TIM
+  lock states) was the only fullscreen-2D-background draw path not
+  pinging `g_Pc2dBackgroundActive`; mid-fade the 300ms `bg2dHeld` hold
+  expired → fog-grey clear (dithered = black specks) leaked through the
+  semi-trans fade quads and Hor+ re-engaged. Rule: EVERY fullscreen 2D
+  background draw path must ping the counter.
+
+## Interior flat-texture regression (2026-07-06, revert `cec9ef496`)
+
+- **"Texture corruption" in interiors (school most often)** — most wall/
+  door materials rendering FLAT with a few textured survivors — was the
+  Jul 1 `Lm_UntextureVramCollisions` flattener (`0fa6cbb10`) over-firing:
+  it untextured BOTH materials of any keep-set pair sharing a CLUT
+  column, every frame (the school's SC2FT1 legitimately sits at clut
+  column (0,0)). It had been shipped for the map3_s02 Alessa rainbow,
+  later proven to be a cutscene P_TAG overlay bug (fix still pending).
+  Reverted; the Jun 29 stolen-page untexture (`g_PcInteriorMatSync`,
+  the real rainbow guard) is kept. Reported MSAA-8x correlation was a
+  red herring.
+
+## Alt-camera melee parity (2026-07-06, commit `86578da27`)
+
+- **Multi-tap combos impossible in TPS/OTS/FPS**: the combo click queue
+  counted only pad action-mask edges; alt cameras read fire via SDL
+  (mouse), so it stayed empty. `g_PcAltFireHeld` publish feeds it now.
+- **Every click dispatched the wide swipe** (combo window only opens
+  from tap-class swings): the shim now mirrors the PSX shift-register
+  semantics on a wall clock — hold >= 130ms = swipe (`IsAttacking`),
+  completed shorter click = tap pulse (`IsShooting`, dispatch on
+  release, like classic).
+- **Katana lunge missing in alt cameras**: the aim shim forced
+  `lowerBodyState = Aim` every frame, stomping the swing's `Attack`
+  lower-body state that carries the attack root motion; no longer
+  overwritten mid-swing (also stops movement fighting active swings).
+
+## Custom textures: hi-res PNG/TIM overrides render for real (2026-07-08)
+
+- The hi-res override registry (`hires_override.c`) existed but nothing
+  consulted it at draw time, so registered overrides never rendered.
+  PsyCross (`7ffe8b9`, port of PsyCross PR #5) now routes every textured
+  prim through `HiresOverride_LookupByTpageClut` and binds the override
+  via the existing `TF_32_BIT_RGBA` path, with a `u_texOffset` uniform so
+  surfaces wider than one tpage sample the right region per prim.
+- PNG input: `HiresOverride_RegisterFromTim` sniffs the PNG magic and
+  decodes via vendored `stb_image.h` (v2.30, byte-identical to upstream,
+  PNG-only/memory-only). PNG carries true 8-bit alpha: 0 = hole (shader
+  discards < 0.5), ~128 = STP-style blend on semi-trans prims, 255 =
+  opaque. TIMs keep 1-bit colour-0 transparency.
+- Discovery (`fsqueue_3.c`): with `allow_loose_files = 1`, a loose
+  `gamedata/load/<FOLDER>/<NAME>.png` (e.g. `1ST/KONAMI2.TIM.png`)
+  always registers as an override (never a byte-replace) regardless of
+  size; the disc file still loads so the engine picks the native VRAM
+  rect, then `PostLoadTim` registers the PNG against it. Any resolution
+  works — native UVs map 0..1 over the original, so uniform upscales
+  (2x/4x/8x) just work.
+- Salvaged by hand from unmergeable PR #38 (its branch diffs the whole
+  tree as added; merging would clobber current work — reference only).
+  v1 limitation: tpage/clut-keyed overrides fit single-tpage assets
+  (items, HUD, sprites, character textures); packed world/interior
+  atlases need the per-material residency rework.
+- Loose/hires diagnostics moved from stderr to SH_DBG so they land in
+  SilentHill.log. Byte-identical with `allow_loose_files = 0` (weak
+  stub, zero registrations, override state stays 0).
+
+## VRAM residency: expanded chunk-texture pool (2026-07-08)
+
+- The 10-slot VRAM chunk-texture pool is the root of the recurring interior
+  flat/rainbow class and the open exterior APU cross-area rainbow. With
+  `resident_textures = 1` (default) the pool grows by 128 full + 48 half
+  VIRTUAL slots (`terrain.h PC_TEXPOOL_*`): each is backed by a persistent
+  per-slot GL texture instead of a VRAM page, keyed by a synthetic prim CLUT
+  with bit 15 set (encoding in `hires_override.h`), delivered per prim
+  through the Phase-0 override path. `PostLoadTim` skips the VRAM upload for
+  virtual slots and decodes the TIM (or a loose PNG/TIM replacement — custom
+  WORLD textures now work) into the slot texture.
+- Interiors texture EVERY loaded chunk (whole map resident); the PC
+  keep-4-nearest + page-steal loop and both `g_PcInteriorMatSync` shims are
+  bypassed (kept only for `resident_textures = 0`). Exteriors keep the
+  vanilla distance loop; the expanded capacity alone removes slot collisions.
+- `SPUM602F` (map4_s03 Twinfeeler) is pinned to physical slots: map code
+  StoreImages its CLUT row and derives palette-animation rows from its
+  imageDesc, which requires a real VRAM CLUT (`Pc_MaterialNeedsVramSlot`).
+- Missing-TIM materials swap back to a physical slot so the PSX degraded
+  look (stale page) is preserved; `[POOLTEX]` log lines cover registration,
+  loose replacement, and pool-exhaustion sizing.
+- PsyCross 2nd commit: the FT4 clutY>511 garbage-prim guard exempts prims
+  the override table claims (bit-15 keys); lookup fast path requires the low
+  6 clut bits clear so garbage cluts still reject 63/64.
+- Full design + survey findings: docs/Texture_Residency_And_Custom_Textures_Task.md §10.
+
+## DuckStation texture-pack support (2026-07-08)
+
+- Drop existing DuckStation texture packs into `gamedata/texturemods/` —
+  loose folders (e.g. a `replacements/` dir) or whole `.zip` archives — and
+  with `texture_packs = 1` (default) they apply automatically. Matching is by
+  content hash exactly like DuckStation: `texupload-P4-<srcHash>-<palHash>-
+  <WxH>-<ox>-<oy>-<wxh>-P<min>-<max>.png` where srcHash = XXH3-64 of the VRAM
+  upload payload (our TIM pixel block) and palHash = XXH3-64 of the CLUT
+  (including DuckStation's partial-range quirk: the FIRST max-min+1 entries).
+  P4/P8/STP4/STP8/C16/STC16 names supported.
+- At `PostLoadTim`, every TIM upload is hashed; matching sub-rect PNGs are
+  composited over a nearest-upscaled base at the pack's scale (mirroring
+  DuckStation's compositor), then registered as a per-slot GL texture
+  (virtual pool slots = world/interior textures) or a rect-keyed override
+  (VRAM TIMs: items, HUD, charas, 2D backgrounds). Loose `gamedata/load/`
+  replacements keep working unchanged and take priority over packs.
+- `pc_port/src/tex_pack.c`; vendored `xxhash.h` (v0.8.3, BSD) +
+  `miniz` (3.0.2, MIT) for hashing and zip reading. `[TEXPACK]` log lines
+  cover indexing and per-upload composition. Validated against a real 12k-
+  file pack (index parity with ground truth; end-to-end compose test with
+  loose + zip + partial-palette entries).
+- Loose folders and `.zip` archives are both read IN PLACE (miniz) — nothing is
+  extracted to disk by the GAME. `.rar` has no in-place path (solid/RAR5 make
+  random access impractical) so the GAME never touches rar; instead the launcher's
+  Mod Manager extracts a `.rar` to `<rar>.extracted/`, which the game then reads as
+  an ordinary loose folder (see below). The standard DuckStation layout —
+  `<GAMEID>/replacements/...` with a `config.yaml` — works as-is at any nesting
+  depth (scan is recursive; names matched by basename). A `texturemods` entry
+  (folder or `.zip`) renamed `<name>.disabled` is skipped (`Name_IsDisabled`);
+  this is how the Mod Manager toggles a pack off. `texpage-*` entries
+  (page-mode dumps) are unsupported and counted in the log.
+
+## Texture-pack load order (2026-07-11)
+
+- `gamedata/texturemods/loadorder.txt` (one top-level pack folder per line,
+  HIGHEST priority first) ranks packs when two replace the SAME sub-rect of the
+  same source texture. `tex_pack.c` reads it in `Scan_Once`, tags each
+  `PackEntry` with a `priority` (from the file) + insertion `seq`, and the
+  compositor's `qsort` is now a TOTAL order `(srcHash, priority, seq)` so the
+  higher-priority pack blits LAST (wins). Absent file = every priority 0 =
+  deterministic insertion order (was qsort-by-srcHash alone = undefined order
+  for same-hash entries). No change when `texture_packs=0` (zero entries).
+- Written by the launcher's Mod Manager (see below); different sub-rects still
+  composite/augment as before — order only decides same-sub-rect conflicts.
+
+## Bullet-decal depth split (2026-07-11)
+
+- `pc_port/src/pc_decals.c`: decals were painting over objects standing in FRONT
+  of the wall they sit on. Root: the world is painter's OT-ordered by default
+  (GL depth test only under `pgxpZBuffer`), and decals are added to the world OT
+  AFTER the walls, so a decal needs a NEARER bucket just to be visible over its
+  host — but the single `DECAL_SZ_BIAS=96` pulled the bucket 3 buckets nearer,
+  over-drawing any foreground geometry within ~3 buckets. Fix: split the one
+  bias into two — `DECAL_SZ_BIAS=96` stays for the per-vertex GL depth (the
+  pgxpZBuffer path still needs a full 64-SZ quantum + margin vs the wall's
+  quantized depth), and `DECAL_BUCKET_BIAS=32` is the painter's OT bucket bias =
+  exactly ONE bucket nearer (minimum to draw over the coplanar wall). Lever if
+  decals ever vanish on steeply-angled walls: raise `DECAL_BUCKET_BIAS` toward
+  48-64 (visibility-vs-overdraw tradeoff; 32 is the aggressive end).
+
+## Launcher Mod Manager (2026-07-11)
+
+- Replaces the launcher's Level dropdown with a `manager.png` button (Form1)
+  that opens `ModManagerForm`. Two homes (both additive — nothing touches the
+  disc image): TEXTURE mods in `gamedata/texturemods/`, managed IN PLACE; LOAD /
+  FMV mods in a self-owned `mods/` library, deployed on Apply.
+- **Texture mods** = a loose folder, a `.zip`, or a `.rar` in
+  `gamedata/texturemods/`. Folder/`.zip` are read in place by the game; the
+  checkbox enable/disable renames the entry to/from a trailing `.disabled`. A
+  `.rar` is extracted by the launcher (see rar note) to `<rar>.extracted/`, which
+  the game reads as a loose folder; enable/disable renames THAT folder
+  (`<rar>.extracted` ↔ `.disabled`, kept so re-enable needn't re-extract), the rar
+  file itself stays put (the game ignores `.rar`). Delete removes the mod (rar +
+  its extracted folder), prompted. Active packs' names are written to
+  `gamedata/texturemods/loadorder.txt`, highest first (a rar contributes
+  `<rar>.extracted`).
+- **RAR extraction** (`RarExtractor.cs`): the vendored unrar built as an x64
+  `UnRAR.dll` is EMBEDDED in the launcher exe (`<EmbeddedResource>`), materialized
+  to `%TEMP%\SilentHillPC_Launcher\UnRAR.dll` and `LoadLibrary`'d on first use — so
+  extraction never depends on the DLL sitting next to wherever the launcher runs
+  (the failure mode of the earlier "ship it beside the exe" attempt: `IsAvailable`
+  returned false → nothing extracted). The launcher is forced 64-bit
+  (`<Prefer32Bit>false`) so the x64 DLL loads. P/Invoke of the standard UnRAR C
+  API; struct layouts mirror unrar's `dll.hpp` (`#pragma pack(1)`); validated
+  end-to-end (open + extract a real nested `.rar`). Rars auto-extract on manager
+  open / drop under the progress dialog (`ModManager.Prepare` /
+  `PendingRars`).
+- **Load / FMV mods** live in `mods/`: load-folder mods (a `load/` or
+  disc-structured tree) → merged into `gamedata/load/` (forces
+  `allow_loose_files=1`); FMV mods (`.avi`) → flattened into `gamedata/FMV/`.
+  Deployed via a `mods/deployed.txt` manifest (deploy = copy, undeploy = delete
+  tracked files); higher priority copied last so it overwrites. A `.zip` dropped
+  as a load/FMV mod auto-extracts into the library once.
+- Drag-and-drop onto the window auto-detects type and routes it (texture →
+  `texturemods/`, load/FMV → `mods/`). Right-click a mod for a friendly display
+  name + notes (stored in `mods/modmanager.json`, DataContract JSON; the folder /
+  `.zip` name stays the identity). The Form1 button swaps to `manager_clicked.png`
+  while pressed. Logic in `ModManager.cs`, UI in `ModManagerForm.cs`,
+  progress in `ProgressDialog.cs`.
+
+## PAL (SLES-01514) fonts + languages + FMV batch (2026-07-08, commits `52582ca4b`..`f97055547`)
+
+- **Region-aware FONT16** (`f5dff3a48`): PAL's 21x6 glyph grid lives at VRAM
+  (768,128) tpage 12, CLUT (816,255) — all values from the decrypted EUR
+  BODYPROG (`pc_port/tools/decrypt_eur_overlay.py`, `33b74e812`; the disc
+  "scrambling" is the game's own `Fs_DecryptOverlay` LCG). New
+  `pc_port/src/font_region.c` layout table + `Font_MapChar()` accent scheme
+  (retail-exact: Latin-1 at byte-0x8B, combining marks 114/119 for
+  uppercase); text_draw.c's three draw sites compute UV/tpage/clut from
+  `g_FontLayout` — USA output bit-identical (originals under `#else`).
+  Co-tenant patches: BG_ETC reslice (IMAGE_ETC desc u=32,v=64 on EUR),
+  FLAME → tpage 13 (832,0), particle dust/ember UV remap + rain v-clamp.
+  FONT16 requeued at `GameFs_TitleGfxLoad` + per map load (Konami logo/
+  BG_ETC stomp the font home during boot; retail SLES reloads it too).
+- **Languages de/fr/es/it** (`f97055547`): config `language` redirects the 45
+  VIN map overlays (name char 6 digit → VIN2-5) and 15 TIPS_E TIMs (letter
+  char 5 → G/R/S/T) inside `Fs_InitFileTableForRegion`;
+  `pc_port/src/lang_text.c` parses `ITEM_<lang>.BIN` (195 pairs, base
+  0x800C8B68) through the s_ItemName/s_ItemDesc chokepoints and extracts +
+  translates each map's message table from the loaded overlay (PAL `{X}`
+  dialect → US `~X`, EUR link base 0x800CB370, universal index-3 join + 7
+  probe-verified page-split joins). Also fixes a live PAL bug: the map-anim
+  header patch in player_control.c now rebases EUR-linked overlay pointers
+  (-0x1DF8).
+- **FMV on PAL** (`270574235`): fmv_player opens the resolved disc
+  (`PcPort_GetGameDiscPath`) and takes base sectors from the region-remapped
+  `g_FileTable` (new `PcPort_FileTableStartSector`); all 30 movies verified
+  byte-identical across discs (+0x1E88 sector shift only).
+- **Launcher** (`52582ca4b`): any `gamedata/*.bin`, ISO-serial region probe
+  (`DiscProbe.cs`), disc label in UI, Language dropdown; game-side
+  `g_PcConfig.language`. Full status/reference:
+  `pc_port/docs/PAL_Language_Support_Task.md`.
+
+## Ambient SFX batch — severed-alias class + silent positions (2026-07-09)
+
+23-map multi-agent audit of missing rain/water ambience (spec + full findings:
+`pc_port/docs/Ambient_SFX_Task.md`). Discovered a NEW bug class beyond
+zero-stubs: **severed PSX aliases** — two symbol names that shared one address
+on PSX (sym tables show them 2–4 bytes apart, one inside the other's extent)
+became separate PC objects, so writes through one name never reach reads
+through the other. Invisible to zero-stub audits because both halves hold
+"real" data.
+
+- **Rain sound restored** (`bbcae1642`): `sharedData_800DD58C_0_s00` IS
+  `g_ParticlesAddedCount[1]` on PSX; split on PC, so the rain-particle count
+  never reached `Particle_SoundUpdate`'s ramp and `SD_Call(Sfx_Unk1360)` was
+  unreachable — rain visuals, no rain sound, on map0_s00 / map1_s02 (otherworld
+  school courtyard) / map1_s03 (roof) / map4_s02. Fixed with an SH_PC_PORT
+  macro alias in `particle.c`. Same commit: map5_s03 defined
+  `g_ParticlesAddedCount` as a scalar while `particle.c` zeroes `[1]` — real
+  4-byte OOB write, now `s32[2]`.
+- **map6_s04/s05 water fade** (`eb9d3f484`): `sharedData_800EB74A_6_s04` is
+  byte `[2]` of the `sharedData_800EB748_6_s04` limits table on PSX; split on
+  PC, so the fountain-room water layer played at constant full volume (frozen
+  0x80 cap). SH_PC_PORT write-through into the table.
+- **Courtyard ghost rooms / interior exact-cell draw** (`3b96cdc03`,
+  2026-07-10): retail interior maps are isolated room islands (one per 40u
+  cell, 16-28u dead gaps, zero cross-cell geometry; verified against US-disc
+  IPDs) and retail drew ONLY the player's exact cell. The PC ±2/±1 interior
+  window + 4-nearest pcInDrawSet drew neighbor islands floating over open
+  areas (otherworld courtyard SUFFFE showed SU00FE/SUFFFF mesh-ceiling
+  corridors). Interiors now draw exact-cell; removes pcInDrawSet and
+  MapRegistry_IsExactCellArena. Widescreen needs no window: everything
+  visible from a room lives in that room's chunk.
+- **whole_map_exteriors draw path** (`286157766`, 2026-07-10): the flag only
+  textured chunks; the visible square was set by per-poly far culls
+  (min(fog.farDistance, ~61u OT cap)), baked subcell PVS (viewer ≤ ±3.2
+  cells), and s16 view-Z wrap at 128u — fogstr never affected geometry. In
+  whole-map mode the caps lift, wrapped depths bucket into the last OT slot,
+  and previously fog-bounded OT inserts gain SH_CLAMP_OT_DEPTH.
+- **Rain-path div-by-zero crash** (`800ac4ab1`, follow-up 2026-07-09): the
+  restored rain path crashed 0xC0000094 one frame after `Sd_PlaySfx(1360)` —
+  `Sfx_WithFalloffAndPitchPlay`'s `AttenuationCalc` divides by `falloff`, and
+  the rain call in `particle.c` is the game's only `falloff=Q12(0.0f)` site.
+  MIPS div-by-zero doesn't trap (quotient -1, which retail relied on); the
+  guard returns -1 so rain volume matches PSX. Confirmed via objdump:
+  exe+0xECA5A = the `idivl` in `AttenuationCalc`. Lesson: newly-reachable
+  retail code was never covered by the Jun-11 div-zero sweep — re-audit
+  divisions whenever a dead path is resurrected.
+- **Elevator chime + pickup poses** (`b2e4adecf`): hospital elevator arrival
+  ding (`sharedData_800CB094_3_s01`) silent on map3_s01/s03/s04/s05 — the exe
+  stub hardcodes map7_s01's position ~170+ units away (attenuates to exactly
+  0); per-overlay VECTOR3s appended. Plus map3_s01 elevator-stop clunk pos,
+  map1_s03 valve-grip SVECTOR, and six map5_s00 sewer pickup poses (items at
+  world origin).
+- **Negative results that matter**: map5_s00 (main sewers) water data verified
+  byte-exact — remaining silence reports need runtime `[SH_BGM]` probes, not
+  data. map2_s01 is the CHURCH, not "Old SH sewers" (spec corrected); its
+  pre-Dahlia silence is authentic. Shared Sd_* chain verified healthy
+  end-to-end. Still open: map3_s05 vine-fire loop constant volume
+  (`D_800DD190` = `sharedData_800D8568_1_s05+0x10`, another severed alias).
+
+## NTSC-J (SLPM-86192 Rev 1/2) support (2026-07-10, commits `4af7db1c7` + `1ac340612`)
+
+Full reference: `pc_port/docs/NTSC_J_Support.md`.
+
+- **Region plumbing** (`4af7db1c7`): `Region_JPN` + SLPM/SLPS/SIPS serial
+  probe (with first-print exe-t_size guard); `s_FileTable_JAP` from the
+  in-tree JAP1 table — verified index-aligned with USA (2074 entries), so it
+  memcpys straight in; JAP XA bases (US+5); audio sector remap generalized to
+  every non-USA region; JAP overlay pointer rebase (link base `0x800CBBD0`,
+  disc-verified); per-region disc buckets with auto priority USA>PAL>NTSC-J;
+  `region = jap`; launcher NTSC-J playable (2026.7.10.1). TIM sweep ground
+  truth: 996/996 shapes identical to US, only TIPS_E*/MEMO_INR differ in
+  content (Japanese images, same names — zero code).
+- **Japanese story text** (`1ac340612`): JP overlays carry SJIS messages with
+  the SAME `~` code grammar as US → verbatim extraction at the JAP base;
+  explicit US→JAP index tables for the 14 maps the US localization
+  split/added lines in (`lang_jpn_msgmap.inc`, DP skeleton alignment);
+  embedded public-domain Shinonome JIS X 0208 font replaces the BIOS kanji
+  ROM (`pc_kanji.c`, `kanji_font.inc`, `tools/make_kanji_font.py`); on-demand
+  12×16 4bpp atlas cells in the framebuffer margin strips (rows 16..31 /
+  480..495 — retail JP's own band); SJIS branches in both string drawers +
+  width calc. Latent EUR fix: `MSG_COUNT_MAX` 96→176 (MAP7_S02 has 159
+  messages; the replaced pointer array under-covered 3 maps on PAL).
+- **NTSC-J title + school Mumblers + 2D right-edge line** (`38bc60ea8`,
+  `9c90980d3`): JP title = load TIM/TITLE.TIM at the GameFs_TitleGfx
+  chokepoint (retail JP title code is instruction-identical to US — verified
+  by decrypted-overlay structural diff); JP school maps (map1_s00..s03 +
+  map6_s04) swap Grey Child->Mumbler models per map load (disc-verified
+  spawn-group bytes); Screen_BackgroundImgDraw tiles clamped to the image's
+  content extent — the PC-only -1 shift (f6354a417) dragged one foreign VRAM
+  texel into the last visible column = full-height tinted line on 2D screens
+  in all regions. Also flashlight mode labels shortened + page-2 value column
+  204 so they fit the 320px clip.
+- **PAL black item previews FIXED** (`534b12d6b`): the PAL discs' item packs
+  (IT_00x/UNQxx TMDs) are NOT byte-identical to US — every textured prim's
+  clut word is baked for the EUR retail palette homes (896..944, 480..495;
+  retail moved them because PAL's 256-line framebuffers cover the US homes).
+  Our port uploaded item palettes at the US homes, so PAL prims sampled empty
+  palettes → black previews (center "discolored" via the carousel dim). Fix:
+  Font_ApplyRegionPatches retargets the five item texture descs to the EUR
+  homes (byte-verified against the decrypted EUR BODYPROG desc cluster). All
+  item diagnostic probes removed. Lesson recorded: re-verify inherited
+  "byte-identical" claims by hash — a wrong one steered this hunt for days.
+
+## Mouse cursor — puzzles + clickable main menu (2026-07-13, commit `153fc7fc8`)
+
+QoL feature, not a fix (config `mouse_cursor`, default on; inert while the
+TPS/OTS/FPS camera captures the pointer). Game-code touch points:
+
+- **`Gfx_CursorDraw`** (`bodyprog_800881B8.c`): SH_PC_PORT hook — the shared
+  chokepoint every free-cursor puzzle (piano, plate, door panels, map pan)
+  draws through. Hands `pc_mouse_cursor.c` the puzzle's current cursor position
+  (framebuffer centre-origin px) and left/right click into enter/cancel on
+  `g_Controller0`, so all puzzles gain mouse control with no per-puzzle code.
+  Cursor control is an **absolute servo** (commit `18a49bc42`): the injector
+  deflects the left stick proportional to the error between the puzzle's own
+  cursor and the framebuffer point the mouse is over. The earlier delta-velocity
+  injection lost range to the stick's ±127 clamp and the height scaling — at
+  sensitivity 1 a full mouse sweep only covered ~62% of the puzzle's cursor
+  range (e.g. piano X∈[-89,85]/Y∈[-71,84]px, moved by `leftX*16384/75`), so the
+  cursor stopped ~2/3 down. The servo is closed-loop on the puzzle's own cursor,
+  so it converges on exactly where the mouse points regardless of framebuffer
+  height, stick scale, or the clamp; it engages on a mouse move and releases on
+  arrival so an idle mouse leaves a real pad's stick alone.
+- **`GameState_MainMenu_Update`** (`events/title.c`): hover selects / click
+  confirms on the entry list and difficulty rows (hit-tests the authored row
+  bands: y=184+i*20 and y=204+i*20); draws the pointer after the text. The
+  pointer sprite is the game's own 32x32 arrow from BG_ETC.TIM (UV(0,64),
+  CLUT (192,0), tpage 12) — resident at the menu in every region/boot path.
+- **`MainLoop`** (`sys/game_main.c`): per-frame `Pc_MouseCursor_FrameUpdate`
+  after the controller is built, before the state update reads it.
+
+Window→viewport mapping comes from PsyCross `PsyX_MapWindowToViewport`
+(submodule commit `63334e0`).
+
+Extended to every menu screen in `87fdb4fad` (options main/extra/PC pages,
+brightness, controller config, load/save incl. the Yes/No prompt): each
+screen hit-tests its own authored row layout and injects the controller
+bits its stock input code reads, so step/clamp/SFX/state logic is
+untouched. Two invariants to preserve: (1) the controller-config Actions
+pane must NEVER receive injected button bits — `ConfigUpdate` binds any
+clicked button to the hovered action; (2) hover-select snaps
+(`Prev = Selected`, no highlight-timer reset) so the click that follows
+isn't swallowed by the `LINE_CURSOR_TIMER_MAX` input gate.
+
+## Global chara/asset pool — spawn any monster in any map (2026-07-13, commits `b34fd5702`, `512762429`, `bfc5ad965`, review fixes `c0fd6785c`)
+
+Config `global_chara_pool` (default 1); design doc `docs/Global_Chara_Pool.md`.
+Vanilla loads only ~3 monster types per map (charaGroupIds); the pool keeps
+EVERY chara's ILM/ANM resident PC-side (malloc'd, loaded once via the vanilla
+FS queue at map-load case 6), gives each a dedicated anim slot (4+charaId in
+the PC-grown `g_CharaModelAnimsData`) through the explicit-buffer
+`Fs_CharaAnimDataAlloc` path map7_s03's boss rush already used, and routes
+textures to persistent virtual GL slots 256+charaId (synthetic clutY>=512
+desc; no VRAM bytes; CLUT rows >=16 spill to slot+64k for the 48-row PRS TIM).
+`chara_global.dll` — a pseudo-map compiling every portable monster's AI with
+no map define — backfills NULL `charaUpdateFuncs` slots per map load.
+Native maps always win every registry (NULL/stale-only refresh), so native
+gameplay is untouched; `global_chara_pool=0` is byte-identical to before.
+
+- **Files**: `pc_port/src/pc_chara_pool.c(+h)`, `src/maps/chara_global/*`,
+  hooks in `game_load.c` case 6 + `map_registry.c` + `main_pc.c`,
+  hires_override slot-space growth (256→512, chara range persists reset).
+- **Guards landed with it**: `Chara_SpawnFlagsSet/PositionSet` skip rows >1
+  (pool idxs + latent vanilla slot-3 OOB into cameraPaths); console spawns
+  are flagged (`g_PcNpcDebugSpawned`) so killing one no longer corrupts the
+  savegame's native spawn-row alive-bits (`Savegame_EnemyStateUpdate` guard).
+- **Excluded from AI backfill (map-bound)**: Twinfeeler, Incubus, Unknown23,
+  LockerDeadBody, Chicken (no AI on disc), cutscene actors — they spawn as
+  posed statues, tagged `[no-ai]`/`[pool]` in `SPAWN LIST`.
+- **Known limitation**: foreign monsters play wrong/silent SFX (per-map
+  ambient VAB program collisions); fix = extra PC VAB slot, deferred.
+
+## Fan-translation support — disc-authoritative text on modified discs (2026-07-13, commits `db055e972` + `eaf93dce7`)
+
+Fan patches (probe-verified against the Spanish fandub, USA + PAL variants)
+edit the retail discs **in place** — ISO layout unchanged, file-table sectors
+stay valid. The XA voice dub (~49k sectors in HILL.), repainted FONT16 accent
+glyphs, TIMs (TIPS, map screens, memcard prompts, UFO) and VABs all stream
+from the disc already; **text was the only thing the port compiles in**.
+
+- **Disc selection**: config `disc_image` (exact filename in `gamedata/`)
+  beats the region auto-pick — how a `-patched.bin` gets chosen next to the
+  vanilla image. Launcher Disc dropdown writes it; `DiscProbe` flags
+  `[modified]` when BODYPROG's first sector hash differs from retail (the
+  overlay is LCG-XOR'd, so any in-place edit scrambles that sector).
+- **Disc-authoritative USA text** (`lang_text.c`): on USA discs,
+  `FanTextInit` reads + `Fs_DecryptOverlay`s BODYPROG off the disc and
+  adopts its kerning table (0x80025D6C; the fandub repaints the glyphs for
+  bytes `; < = > W X ' -` into full-width `á é í ó ú ñ ¿ ¡`) and its `INVENTORY_ITEM_NAMES` /
+  `g_ItemDescriptions` pointer arrays (0x800ADB60/0x800ADE6C) when they
+  differ from the compiled originals; `Pc_LangPatchMapMessages` grew a USA
+  branch (link base 0x800C9578, identity indices, verbatim copies — fan text
+  is already US markup dialect, pure ASCII). A **matching decompile means
+  compiled text == vanilla disc text**, so vanilla discs compare equal and
+  are a guaranteed no-op; per-map self-detection, no config gate. After the
+  adversarial review, the USA branch reads the overlay itself off the disc
+  image (`ReadDiscFile`) instead of consuming `g_OvlDynamic` — no
+  `Fs_QueueWaitForEmpty` on USA (vanilla load timing untouched, no
+  stale-buffer risk from the queue-drain timeout valve), NUL-validated
+  string walk, malloc checks + pool caps, and the modified-vs-vanilla
+  compare bounded to the 15 shared `map_msg_common.h` entries every
+  compiled table starts with (the compiled arrays carry no count, so
+  deeper indexing could run past a shorter table).
+- **Menus**: the port renders menus from compiled strings a disc patch can't
+  reach — `language = es` (etc.) now unlocks the existing `lang_menu.c`
+  translations on fan-USA discs, and the title-options Language row shows
+  there too.
+- **PAL fandub needs zero engine changes**: it only edits the Spanish assets
+  (VIN4 overlays, ITEM_SPN.BIN, TIPS_S) with identical structure/encoding —
+  the whole thing rides the existing `language = es` pipeline.
+
+## Randomizer gamemode (2026-07-14)
+
+Config `randomizer` (default 0); design doc `docs/Randomizer_Mode.md`. New Game
+always opens in map2_s04; every door is rerolled into locked / another area /
+another room in this map / a miniboss / (1%) the final boss; each area gets 1-5
+pooled monsters and rerolled item pickups; after 10 areas the run ends at the
+map7_s03 boss with a score-picked ending. `randomizer = 0` changes nothing.
+
+Rests on three facts about the engine, all verified against the map data:
+
+1. **A door is just an `s_EventData` row** (`sysState` = LoadOverlay/LoadRoom).
+   Randomizing doors = rewriting rows. On a LoadRoom row the `mapIdx` field is a
+   **BGM track**, not a map.
+2. **A door's arrival mapPoint lives in the SOURCE map but holds DESTINATION-space
+   coordinates** (`D_800BCDB0 = mapPoints[eventParam]` is read *before*
+   `GameBoot_MapLoad`). So a teleport into map X must reuse a record that some
+   other map authored for its real door into X — `tools/gen_rando_data.py` harvests
+   them (`RANDO_ARRIVALS`). No hand-placed coordinates anywhere.
+3. **A locked door is a SECOND row on the same doorway** selecting the shared
+   `MapEvent_DoorLocked`/`DoorJammed` — which exist at `mapEventFuncs[0]/[1]` in
+   only **25 of 43 maps** (`RANDO_DOORFN_MASK`). Hence the mode appends its own
+   handler so locking works uniformly.
+
+- **Files**: `pc_port/src/pc_rando.c`, `include/pc_rando.h`,
+  generated `include/pc_rando_data.h`, `tools/gen_rando_data.py`.
+- **No map-DLL data is ever written**: the mode installs its own copy of
+  `s_MapOverlayHdr` (the same swap `lang_text.c` uses) and rewrites the event /
+  event-func / message / spawn tables inside the copy. It runs at the **tail of
+  `GameBoot_MapLoad`, after the language patch**, and copies from whatever header
+  is live — so it inherits translations instead of clobbering them.
+- **Gotchas paid for during implementation**:
+  - `TriggerType_None` is **never a door**. The miniboss post-death exits are
+    `TriggerType_None` + LoadOverlay rows; treating one as a door strips its
+    `requiredEventFlag` and teleports the player out of the arena on arrival.
+  - map1_s05 / map4_s05 have exactly **one** spawn row and it **is** the boss —
+    clearing native spawns there deletes the boss.
+  - Monster placement must wait for the first gameplay frame (collision data), but
+    `GameBoot_InGameInit` spawns before then, so native rows are cleared at load.
+  - `ovlEnemyStates[mapIdx]` + `field_228C` persist across visits; both must be
+    reset or a re-entered area is empty. Pickup event flags likewise retire a
+    trigger for good — the mode learns which flags are pickups (any flag
+    `Event_ItemTake` is called with) and clears them on re-entry.
+  - The one degenerate arrival record in the game (map4_s05 -> map2_s02 is a (0,0)
+    placeholder; vanilla repositions via the death cutscene) is filtered by the
+    generator — teleporting to it drops Harry at the world origin.
+
+## PGXP reached everything except the item models (2026-07-14, commit `6a9cb2c05` + PsyCross `638dc9e`)
+
+**Symptom**: `use_pgxp` had no effect on the inventory carousel or the world item
+pickup. Those models rendered affine (wobbling/swimming textures) whether PGXP was
+on or off, while the rest of the scene responded to the setting normally.
+
+**Root cause — a broken link in the shadow-propagation chain, not a disable.** PGXP
+is address-keyed (`PsyX_GPU.cpp`): a vertex is precise only if a shadow entry exists
+at the *prim field address* the GPU reads. Coverage is built by propagation along the
+data path:
+
+```
+GTE store (gte_stsxy*)      -> Shadow_Store(destAddr, ...)
+drawer copy (poly->xN = ..) -> Shadow_Copy(&poly->xN, &src)
+GPU draw   (MakeVertex)     -> GetPreciseVertex(primFieldAddr, ...)
+```
+
+Both of the first two hops were missing on the item path:
+
+1. The item models are the **only** users of `GsSortObject4J`
+   (`item_screens_cam.c`), whose TMD drawers (`GsTMDfast*` in
+   `pc_port/src/stubs/libgs_stub.c`) project via the PsyCross wrappers
+   `RotTransPers`/`RotTransPers3`/`RotTransPers4`. Those wrappers use PsyCross's own
+   `gte_stsxy*` macros (`psx/inline_c.h`), which — unlike the game's `gte_stsxy3c`
+   in `pc_port/include` — **never call `PGXP_StoreAddr`**. Nothing was recorded.
+2. The drawers then copy each projected word from a **stack temporary** into the prim
+   field with a plain C store, so even a recorded shadow would not have followed the
+   copy.
+
+Result: `GetPreciseVertex` missed at every item vertex, returned `ppw = 0`, and the
+vertex cleanly degraded to affine. Structurally off, regardless of the setting.
+
+**Fix** (both halves gated on `g_PsxUsePgxp`; off = byte-identical):
+
+- PsyCross `src/psx/libgte.c`: `RotTransPers`/`3`/`4` now `PGXP_StoreAddr` the
+  addresses they write. `slot` = position in the 3-deep SXY FIFO at store time
+  (2 = newest). The quad path captures v0..v2 **before** its follow-up RTPS, which
+  otherwise shifts v0 out of the FIFO beyond recovery.
+- `pc_port/src/stubs/libgs_stub.c`: new `TMD_PGXP3`/`TMD_PGXP4` macros call
+  `Shadow_Copy` after each prim-field write — the item-path twin of `SH_PGXP_PROP3/4`
+  in `bodyprog_80055028.c`. Applied at all 17 emit sites (9 triangle, 8 quad).
+
+**Preserved**: the see-through fix is independent and untouched — `ITEM_PRECISE_SZ`
+still feeds true per-vertex SZ via `PsyX_SetNextPrimSzExact`, and the
+`PsyX_ForceItemDepthBegin/End` bracket in `game_main.c` still forces per-pixel depth
+around the item-only OT0 draw.
+
+**Side effect, deliberate**: `water.c` passes its prim fields *directly* as the
+`RotTransPers4` output addresses, so water quads now also become PGXP-tracked when
+PGXP is on (previously affine). This is the intended behaviour of the setting, but it
+is a visible change to water with `use_pgxp = 1` and is worth an A/B.
+
+## Alt cameras stand down for scripted scenes; optional TPS/OTS camera collision (2026-07-14, commit `ff77c3d85`)
+
+**Symptom**: small in-engine scenes — Harry's sewer ladder descent above all — were
+played from the follow/eye camera instead of the scripted shot, which ruined them.
+The FPS camera in particular should only be live during actual gameplay.
+
+**Root cause**: `Pc_TpsCamera_Apply` (the one function that applies TPS/OTS/FPS) only
+bailed on the two LETTERBOX markers, `SysFlag_CutsceneActive` and
+`cutsceneBorderState`. The small scenes raise neither — `map5_s00.c:685` is a plain
+`Player_ControlFreeze()` + `Event_CameraPositionSet()` under `SysState_EventCallback`
+and touches neither symbol. So the alt camera happily overrode the scripted camera.
+
+**The guard, and why it looks the way it does.** `Pc_ScriptOwnsScene()` = a letterboxed
+cinematic, OR the script driving **both** the camera and Harry. Two adversarial review
+rounds killed the obvious single-term versions, each with a concrete break:
+
+| Candidate term | What it breaks |
+|---|---|
+| `VC_USER_CAM_F` / `VC_USER_WATCH_F` alone | **No alt camera for the entire final boss fight.** `map7_s03`'s `Map_WorldObjectsUpdate → func_800E14DC` re-raises these *every frame* of the Incubus fight while the player has full control. Same class: `map6_s04` (Cybil), `map6_s02` (ladder), `map1_s03` / `map2_s01` region cams. The flags mean "somebody called `vcUserCamTarget` this frame" — not "a scene is playing". |
+| `g_Player_DisableControl` alone | **Camera pops to classic on every memo and every item pickup.** `Event_ItemTake` freezes at `EventState_Initialize`, several frames *before* `Gfx_PickupItemAnimate` sets `BgmStatusFlag_Pause`, so the world block still runs in that window. `SysState_ReadMessage_Update` freezes every frame and never sets Pause. The flag means "the engine is driving Harry", which ordinary interactions do too. |
+
+Together they are true exactly for the scripted scenes. `SysState_ReadMessage` is
+excluded outright — examining a memo is never a scene (`control_style.c` already makes
+the same carve-out). Note that standing down does **not** freeze the view:
+`vcMoveAndSetCamera` has already placed the game's own camera that frame, so skipping
+our override simply lets it through.
+
+**Bonus fix**: the `fps_fov` block used to sit *after* the early-return inside
+`Pc_TpsCamera_Apply`, so a stand-down skipped the restore and left the FPS FOV clamped
+onto the scripted shot for the whole scene. It is now `Pc_FpsFov_Update()`, called on
+both exits.
+
+### `tps_camera_collision` (default 1)
+
+Launcher Controls checkbox ("Allow thirdperson camera collision") + in-game Controls
+options row + config key. Off = the TPS/OTS **render** eye keeps its full orbit
+distance and is allowed to pass through geometry.
+
+**The trap**: `g_TpsCamPos` is not just the render eye — it is the **free-aim ray
+origin** (`player_control.c` `Ray_CharaTraceQuery`, and `Pc_AimAssistFind`'s cone
+apex). The level trace is **double-sided** (`ray.c`: the surface test is a pure
+straddle test, and the `gte_nclip` backface reject only runs for `useCylinder`), so an
+origin sitting behind a wall hits that wall *first* and flips the shot ~180° back into
+it — Harry would fire backwards whenever he backed into a corner.
+
+So the pull-in still runs with collision off, and the aim origin is slid **along the
+view line** by the pull distance. It is *not* set to the pulled-in point: that point
+lies on `pivot → eye`, which is ~11° off the view axis (`tpLookAt.vy` is anchored to
+Harry's chest, not the eye) and is measured from an un-shifted pivot, so it also
+cancels part of the OTS shoulder offset. A ray from there is *parallel* to the line
+the reticle draws — a constant miss at every range. Projecting the displacement onto
+`g_TpsCamFwd` keeps origin and reticle collinear.
+
+With collision on, the slide is skipped and the default path is byte-identical.
+
+## Thirdperson FOV + aim-zoom sliders, OTS aiming in TPS (2026-07-14, commits `29f0633c8` + `5169c9ea6`)
+
+Three launcher options (Controls dialog) with matching console commands. The in-game
+rows landed a commit later on a new 4th options page — see the section after this one.
+
+### `tps_fov` — default **71.1**, and why it is not 67.4
+
+Thirdperson/OTS field of view, mirroring `fps_fov`. `Pc_FpsFov_Update` became
+`Pc_CameraFov_Update` and now serves both cameras; Classic always keeps the game's
+own projection.
+
+**The default is load-bearing.** The GTE projection distance the game uses in
+gameplay is `vcWork.geom_screen_dist`, which `vcExecCamera` writes via
+`SetGeomScreen` every frame and which equals `g_GameWork.gsScreenHeight`. Gameplay
+runs **progressive** (`Screen_Init(SCREEN_WIDTH, false)`), so that height is
+`FRAMEBUFFER_HEIGHT_PROGRESSIVE` = **224**, not 240. On the 320-wide frame, H = 224
+is a true horizontal FOV of `2*atan(160/224)` = **71.1°**.
+
+`SetGeomScreen(h)` is only a genuine no-op when `h` equals the value the game already
+set. 71.1° maps to `round(160/tan(35.55°))` = exactly **224**, so the default changes
+nothing. Had this shipped with 67.4 (→ H = 240) every Thirdperson/OTS player's FOV
+would have silently narrowed.
+
+> **`fps_fov` had the same off-by-16 — fixed in `870d52a8f`.** Its shipped 67.4 default
+> mapped to H = 240 while the game's real gameplay H is 224, so "default" first-person
+> was slightly *narrower* than the game's true FOV, and its code comment claiming 67.4
+> was "the game's native FOV / byte-identical" was simply wrong. Now 71.1 everywhere:
+> the config default, `config.cfg`, the `FOV` console command (value + `default`
+> keyword + its message), and the launcher (load, reset, `ClampFov`'s parse fallback,
+> tooltip). 67.4/240 is the *interlaced* height — never propagate it to a new camera.
+
+### `tps_aim_zoom_amount` — default 100 (0..200), replaces the on/off checkbox
+
+Scales the aim dolly along a 0..200% range whose full-scale (200%) pulls **twice** as
+far in as the old zoom: `TP_DIST_AIM_MAX = 2*TP_DIST_AIM - TP_DIST`, and `aimDist =
+TP_DIST - ((TP_DIST - TP_DIST_AIM_MAX) * pct) / 200`. At **100% (the default)** it lands
+on exactly `TP_DIST_AIM` (the original zoom — so existing configs saved at 100 are
+unchanged), at 200% on `TP_DIST_AIM_MAX` (a new, deeper 2x pull), at 0% on exactly
+`TP_DIST` (no zoom). The 0..200 scale was chosen over an earlier 0..100 (50=old) exactly
+so a config already carrying `tps_aim_zoom_amount = 100` keeps its original feel instead
+of jumping to the deepest zoom. The legacy `tps_aim_zoom` bool key is still parsed (→ 0
+or 100) so an existing config migrates instead of reverting to the default; `ConfigManager`
+appends new keys at EOF and the game parses last-assignment-wins, so the new key always
+beats a lingering legacy line. Launcher slider + `ClampAimZoom` cap at 200.
+
+### `tps_ots_aim` — default 1
+
+Raising the gun in Thirdperson eases the camera into the Over-the-Shoulder framing
+and back out when lowered; the shoulder-swap bind works there too. Implemented by
+giving TPS a *resting* offset of 0 in the existing OTS block:
+
+```c
+restOff   = (style == Ots) ? OTS_OFFSET : 0;
+targetOff = (isAiming ? OTS_OFFSET_AIM : restOff) * g_OtsSide;
+```
+
+The block is entered **every frame** in that mode — not only while aiming —
+specifically so `s_otsOff` can ease *both* ways instead of snapping in from a frozen
+value. With the option off, TPS never enters the block, so `s_otsOff` is neither
+updated nor applied: byte-identical to before.
+
+### Console
+
+`TPSFOV <deg|default>`, `TPSAIMZOOM <0-100>`, `TPSOTSAIM [0|1]`, `CAMCOLLIDE [0|1]` —
+all persist through `PcConfig_SaveKeyValue`.
+
+### Why no in-game options rows
+
+The PC options pages draw at `LINE_BASE_Y` 56 with `LINE_OFFSET_Y` 16 on a 240-line
+screen, so a page holds ~11 rows. `PCOPT_C` (Controls) was already at capacity — the
+`Camera_Collision` row added in the previous commit pushed `Back` to y = 248, off the
+bottom edge, and has been reverted. Any further Controls rows need a 4th page.
+
+## Cutscene timing overhaul — lossless clock + audio catch-up (2026-07-16, commit `983de8432`)
+
+Root-cause batch for the widespread "subtitles at the wrong time / cutscene drifts
+out of sync with the dialog" reports. A multi-agent audit of the timing stack
+(core clock, DMS timeline, subtitles, XA voice, anim driver) produced 13
+adversarially-verified findings; the fixes:
+
+- **Lossless game clock.** The per-frame vCount pipeline lost real time at three
+  truncation sites (`GsGetVcount` int cast → `GsClearVcount` epoch reset →
+  `Q12_MULT` floor). The loss repeats every frame, so the whole game clock ran
+  slow vs the wall-clock XA voices in proportion to fps: ~0.4% @60, ~3.3% @120,
+  ~6.25% @240, ~27% uncapped (and stopped entirely above ~5.2kfps) — 6–11+
+  seconds of scene/subtitle lag over a 3-minute cutscene. dt now derives from one
+  cumulative Q12 clock (`GsGetCumulativeQ12`, fixed epoch); total error is
+  bounded < 1/4096 s forever at any fps. Re-applies the *principle* of the
+  reverted `edfe66887` — that revert's "map6_s04-only" premise is contradicted by
+  the current reports, and it was evaluated under the since-fixed PAL-50Hz vblank
+  bug with the genuinely-regressive cap-skip also active. Differences: single
+  clock source, no carry statics, catch-up bounded by the PSX step (below).
+  [`game_main.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/sys/game_main.c) ·
+  [`libgs_stub.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/pc_port/src/stubs/libgs_stub.c)
+- **Cutscene audio catch-up.** The 30fps cap + 15fps floor permanently discarded
+  wall time on every slow frame (each load hitch pushed the scene further behind
+  the still-playing voices; steady sub-30fps ran the whole scene in slow motion
+  vs audio). During cutscenes the discarded time accrues to a bounded (2s) debt
+  repaid by later fast frames — every frame's dt stays ≤ the PSX 30fps step
+  (136 Q12), so DMS/anim stepping never sees a larger step than original
+  hardware (the regression mode that killed the old cap-skip `18e35f202`).
+  Also unifies `g_DeltaTimeRaw = g_DeltaTime` during cutscenes: subtitles /
+  message timers / event waits ran on the raw clock, up to 2× the capped
+  DMS/anim clock below 30fps; on PSX these were one variable.
+- **ANIM-STUCK detectors on the anim clock.** The (A)/(B)/(C) bypass timers in
+  `player.c` accumulated `g_DeltaTimeRaw` while the anims they watch advance on
+  `g_DeltaTime` — below 30fps the detector ran up to 2× fast relative to the
+  anim and could force-skip scene content. Now accumulate `g_DeltaTime`.
+- **Dropped-voice subtitle release.** A page whose voice cmd is range-guarded
+  away (table-overrun protection in `Event_DisplayMapMsgWithAudio`) waited out a
+  1s fail-open before its text rendered. The drop now sets
+  `g_PcMapMsgVoiceDropped` and the subtitle releases immediately; a `[MSGVOICE]`
+  log marks each drop (diagnosis lead for the audioCmds-overrun class — six maps
+  carry PC pad rows; a per-table length fix remains open).
+- **map7_s03 boss motion dwell.** Projectile script nodes counted down once per
+  *rendered* frame (8× fast at 240fps, 2× slow at the 15fps floor); dwell is now
+  Q12 seconds consuming `g_DeltaTime` (`func_800D88E8`).
+- **fps_cap 31–59 honored.** Integer division (`60/fps`) silently turned those
+  caps into 60fps; non-divisors of 60 now route through the SDL high-precision
+  limiter.
+
+Audit notes (verified non-bugs, do not re-investigate): DMS keyframe
+interpolation is stateless (`dms.c` — a large step cannot smear across a camera
+cut); `Anim_PlaybackOnce` clamps to `endKeyframeIdx` (equality waits are safe at
+any fps); the typewriter's static glyph accumulator leak is ≤ 1 glyph; the MIN
+double-eval of `GsGetVcount` loses no time (later sample is consumed).
+
+## Trigger sweep + voice pacing follow-up (2026-07-16, commits `714f8caae`, `eeb1dadda`)
+
+Completion of the timing overhaul's open items (map-wide multi-agent sweep, 61
+findings adversarially verified; full voice-cmd table inventory):
+
+- **PSX end-of-voice rhythm restored.** PSX ended a voice via the vblank
+  watchdog at `audioLength+32` (~0.53s past the audio) — the authored
+  inter-line pacing. OpenAL drain signaled instantly, so each line advanced
+  ~0.5s early and long dialogs compressed. Drain now holds the finished signal
+  until the watchdog moment; explicit stops still signal immediately.
+  [`xa_player.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/pc_port/src/xa_player.c)
+- **XA freezes with the console** (`XaPlayer_SetPauseHold`), and the sector
+  math derives from the parsed subheader (all 726 USA voice clips verified
+  stereo 37800 by reading the disc — the old hardcode was benign on USA but
+  wrong for other discs).
+- **KeyOfWoodman pickup freeze root** (`player_control.c`): the PC `field_38`
+  overlay re-patch sat inside the `mapAnimIdx`-changed guard; a (re)load with
+  an unchanged anim idx left `field_38` on map0_s00's linked table whose
+  missing rows made scripted poses no-ops (state 59's `0x12C` row exists only
+  in the map's own overlay table — verified by parsing `MAP2_S00.BIN`). The
+  patch now re-derives on every load.
+- **Frame-counted cutscene pacing dt-scaled** (8x fast at 240fps): map2_s00
+  cafe-exit/sketchbook map zooms + marking fades; map1_s06 boiler slide;
+  map3_s03 plates-door cursor/slides; hospital elevator cursor (shared hdr);
+  map5_s01 safe dial; GAME OVER + death-tip holds; map1_s03 locker swings.
+- **Voice-table hardening**: the severed alias `Map_MessageWithAudio` got the
+  range guard + dropped-voice release + `[MSGVOICE]` log; map6_s02's exe-stub
+  voice index now resets at scene start (PSX zeroed it as overlay BSS). The
+  table inventory confirmed every other table ends in authored zero tails or
+  lives in per-load DLL data — no per-table lengths needed; the six pads stay.
+- **Verified non-bugs** (do not re-fix): generic `AwaitAnimEnd`-style `==1`
+  polls are safe on PC (range-form `Player_AnimPlaybackStateGet` +
+  self-linking one-shot map anims); NPC one-shot waits have no relink race —
+  the c4c8d5369 class was player-lower-body-driver specific.
+- **Known-cosmetic remainders** (verified minor, not fixed): map6_s04 carousel
+  ramp/FX grid decays, map6_s03 corpse bob, map4_s03 theater blink, map5_s00
+  sewer-scare pacing, map7_s03 FX grids; plus unverified-minor map7 close-up
+  fades. All are per-frame FX pacing with clamps (no freezes possible).
+
+## Characters darker than PSX — double fog on character prims (2026-07-16, commit `c3ed32011`)
+
+User report (cafe-intro side-by-side vs DuckStation): characters render darker
+relative to the environment than PSX. Measured off the captures: character-only
+deficit ≈ ×0.90 = worldTint/boostedColor, world geometry + subtitles at exact
+parity (the "vertical squish" half of the report measured as no difference).
+
+Root: character/lit-model prims were fogged **twice** on PC. The CPU flat-light
+dispatch (`func_8005A21C` → `func_8005A42C/A478/A838`) fed the fog-attenuated
+alpha into the GTE depth-cue (the PSX mechanism — fade toward the black far
+color, with the map-gain boost via negative-IR0 extrapolation: tint 121 →
+boosted 133 in the cafe), and the prim builder *also* attached per-vertex fog
+bytes (`PC_SCREEN_Z_TO_FOG`) that the PsyCross shader blends toward the fog
+color — the PC mechanism that replaced CPU vertex fog for the *world*
+(`VTXCOL_LDDP(dp)` → `gte_lddp(0)`). The shader bytes were added while
+characters still rendered unfogged (the old `isFogEnabled=0` wrap around
+Harry's draw); when that wrap was root-fixed, the compensation became a
+double-application — characters darkened by both fades in every foggy scene
+while the world stayed correct.
+
+Fix: the PC character light dispatch uses the no-fog alpha, keeping only the
+`field_20` light boost in the dpcs; the shader owns all character fog with the
+same curve as world geometry. Verified faithful along the way: PsyX GTE `lddp`
+(signed IR0) and DPCS negative-IR0 extrapolation, `lm_reformat` byte-0xB
+bitfields, character model routing (`fB0=1` → lit drawer). `[LIGHTCMP2]`
+probe (world_draw.c) remains until user confirm, then strip.
+
+## Puppet Nurse crash after the Stone of Time puzzle — stale field_124 (2026-07-16, commit `9ad4f5455`)
+
+User report: crash after doing a puzzle in Nowhere (map7_s01). Access
+violation reading `0x2c0` in `PuppetNurse_AnimUpdate` (inside map7_s01.dll,
+which `#include`s puppet_nurse.c via characters.c), right after a native
+Puppet Nurse spawns.
+
+Trigger: the Stone of Time pickup sets `EventFlag_M7S01_PickupStoneOfTime`,
+so map7_s01's npcSpawnEvent `func_800DEDA4` calls
+`Chara_SpawnFlagsSet(16, 3, SpawnFlag_0|1|3|4)` = 27 → spawn slot 3 fires a
+nurse with `stateStep = 27` → `charStatIdx = 3`, `modelVariantIdx = 3`.
+
+Fault (from disassembling map7_s01.dll + the exe): line
+`(&animInfoBase[status])->playbackFunc(...)` with
+`animInfoBase = field_124->animInfo_24 == NULL`, `status = 22` →
+`22 * sizeof(s_AnimInfo)=0x20 = 0x2c0`. `field_124` is a valid **non-NULL**
+pointer whose `+0x28` reads 0 — a **stale** value in the recycled npc slot
+that does not point at `sharedData_800D5710_3_s03` (whose `animInfo_24` is
+always populated by `PuppetNurseData_Init`). The data plumbing is fine: the
+map DLL correctly PE-imports the exe's live, initialized instance array
+(hospital nurses use the identical import; verified `objdump -p`), and
+`__fu12` auto-import references — not copies — the exe's `.bss`.
+
+The existing PC guard forced `PuppetNurse_Init` only on
+`controlState==0 || field_124==NULL`, so a stale non-NULL `field_124`
+slipped through → Init skipped → the stale pointer's null `animInfo_24`
+dereferenced. Fix: harden the guard (nurse + doctor) to also re-Init when
+`field_124->animInfo_24 == NULL` (short-circuits after the NULL check).
+Re-Init restores `field_124 = &sharedData[charStatIdx]` from the intact
+`model.stateStep`, so the nurse animates correctly.
+
+LESSON: a re-Init guard keyed only on `ptr == NULL` misses **stale non-NULL**
+pointers in reused npc/object slots. When a "was this initialized?" guard
+must survive slot recycling, test a field the initializer always populates
+(here `animInfo_24`), not just the top-level pointer.
+[`puppet_nurse.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/maps/characters/puppet_nurse.c#L342)
+
+## map6_s04 Flauros cutscene desync — unpad the subtitle page-advance gate (2026-07-16, commit `d9a34e548`)
+
+The Alessa/Harry/Flauros amusement-park cutscene (`func_800E3EF4`, AMUSE2.DMS;
+Harry shoved back, "Damn!" = msg 48) drifts progressively out of sync —
+dialogue and subtitles fall seconds behind the on-screen action, worst by
+"Damn!". Root-caused by a multi-agent trace of build `60e049203` (includes all
+prior timing fixes) + the user's `alesssa.log`; two adversarial verifiers
+confirmed.
+
+Root: the `714f8caae` end-of-voice pad (holds the XA "finished" signal ~490 ms
+past real audio drain) leaks into the PC-only subtitle page-advance gate. A
+voiced page auto-advances only when `mapMsgTimer==0 && !pcVoiceHold`, and
+`pcVoiceHold = VoiceDialog && Sd_AudioStreamingCheck()==1`, which stays 1
+through the pad. So each voiced page held `max(authored ~J timer, voiceLen +
+490 ms)` instead of `max(authored, voiceLen)`. The scene's authored `~J` page
+timers were tuned to slightly exceed the voice content (msg42 monologue:
+authored 12.0 s vs voice 10.6 s), so the pad flips the winning term on
+essentially every page → +~490 ms per voiced line accumulating across the
+serialized dialogue track, while the DMS animation runs at true wall-clock
+(`983de8432`, correct). On PSX this path had **no** voice gate at all
+(`pcVoiceHold`/`D_800BCD74` are entirely `#ifdef SH_PC_PORT`); pages advanced
+on the `~J` timer alone. Log proof: every voice `playedMs = expMs + ~490 ms`,
+voices strictly serialized (no overlap — refutes the pile-up theory).
+
+`983de8432` (lossless clock) is the **enabler not the regressor** — it made
+the animation wall-clock-correct, unmasking the pad's lag; kept. Typewriter
+(`377fff821`) benign. No reverted regression touched.
+
+Fix (surgical): `Xa_IsVoiceAudioDraining()` (xa_player.c) — true only while the
+voice is actually producing audio (mirrors `XaPlayer_Update`'s true-drain test
+but excludes the `s_xaPadEndMs` tail). `pcVoiceHold` (map_msg_display.c) now
+gates on that instead of the padded flag, so voiced pages advance at real
+audio drain — authored `~J` pacing restored, dialogue re-aligned to the
+animation. The pad + guard stay intact for their other consumers (the step-43
+inter-DMS load barrier, BGM transitions, console-freeze pause, PAL/JP sector
+math). `pcVoiceHold` still prevents PC's instant next-line SD_Call from cutting
+a live voice (the PR#17 anti-overlap fix). Under `SH_PC_PORT`; 30fps PSX build
+byte-identical. Helps every voiced cutscene.
+
+LESSON: a global "voice finished" pad meant to replicate a PSX watchdog must
+not feed a gate that another authored timer already covers — it double-counts.
+Scope such pads to the ONE consumer that needs them.
+
+## map6_s04 Flauros cutscene voice desync — resume-not-restart voice index (2026-07-17, commit `554559f69`)
+
+Long-standing (since the port began): the amusement-park Flauros cutscene
+(`func_800E3EF4`) is badly out of sync — "as soon as Flauros appears you hear
+Alessa scream 5-10s before she should on screen, then the whole scene is out of
+sync." Root-caused by a multi-agent trace + 2 adversarial verifiers against the
+voice table and the log.
+
+Root: a shared monotonic voice index over-runs by +1 — the `fea838462` map7_s00
+class. `func_800E3EF4` displays msg47 at BOTH case7 and case9, sharing one index
+(`D_800ED5AC`) into the 34-entry table `D_800EBA64`. Case7 runs the message
+alongside a cutscene timer with `autoAdvance` (frames 24→39 = 1.5s); the step
+advances to whichever finishes first. **PSX**: CD-load latency keeps the display
+from completing before the timer hits 39, so case9 RESUMES it (`isMgsStringSet`
+stays true) and fires no new voice. **PC**: the voice loads instantly, msg47
+completes in ~1.1-1.4s (< 1.5s), so `isMgsStringSet` goes false and case9
+RESTARTS fresh — the setup path returns `MapMsgState_Finish` and fires an EXTRA
+`SD_Call` + index bump. The +1 shifts every later line to the next clip, so the
+373ms scream/gasp (`D_800EBA64[6]`) fires at case9 (~7.8s before its case17
+Flauros beat), then the whole scene is shifted. Log confirms: strict in-order
+walk `537..554` then a lone `[MSGVOICE]` drop of `0x0000` at `audioIdx=34` = one
+extra Finish (35 fired vs 34 authored).
+
+Fix (shared, PSX-faithful): suppress the voice fire + index bump for a
+setup-Finish that is a same-index RE-DISPLAY of the just-completed line
+(`map_msg_display.c` flags it via `msgIdx == mapMsgIdx` in the setup branch;
+`Event_DisplayMapMsgWithAudio` skips fire+increment when flagged). Reproduces
+PSX's resume-not-restart single-fire, keeping the index in lockstep. The flag is
+0 for page-advance Finishes (multi-page lines always fire) and genuine first
+displays. `SH_PC_PORT`-only; 30fps PSX byte-identical. Generalizes to map7_s00
+(its `fea838462` pad becomes redundant but harmless). The `d9a34e548` pcVoiceHold
+unpad is KEPT — it targets the separate ~490ms inter-line pad accumulation and is
+orthogonal.
+
+LESSON: msg-index selects the SUBTITLE TEXT but a separate shared monotonic index
+selects the VOICE CLIP; anything that changes the page-Finish COUNT (instant PC
+voice load winning a message-vs-timer race, an extra typewriter break, a re-
+display) walks the voice index off its lines. When PC timing flips a msg-vs-timer
+race the game authored around CD latency, restore the PSX resolution, don't just
+pad the table (padding only absorbs a tail drop, never a mid-scene shift).
+
+## map7_s00 Lisa cutscene — no-op the spurious restart of a multi-page chain (2026-07-17, commit `8a5cfd53c`)
+
+The Lisa death scene (`func_800D0B64`) reported: "halfway through, Harry says
+'It's a temporary thing' twice, then the audio runs out before the subtitles."
+Same case7/case9 re-display class as Flauros above, but the MULTI-PAGE variant.
+
+The scene shows the `msg30->34` CHAIN (only msg34 carries `~E`; 30 "Harry help
+me", 31 "so scared", 32 "It's only a temporary thing", 33 "shock", 34 "don't
+fret") at BOTH case7 `DisplayMapMsg(30)` and case9 `DisplayMapMsg(30)`, sharing
+`g_Cutscene_MapMsgAudioIdx` into the 23-entry `g_Cutscene_MapMsgAudioCmds` (idx
+0-22, then a `0x0000` terminator + the `fea838462` pad). PSX: CD latency keeps
+case7's chain mid-flight when the step advances, so case9 RESUMES it (no re-show,
+no new voice). PC's instant load COMPLETES the whole chain at case7, so case9
+RESTARTS it — every page's subtitle re-shows ("temporary thing" a second time)
+and pages 2..N re-fire their voices, walking the audio index past idx 22 into the
+`0x0000` pad, so the tail lines (msg35..37) fall silent.
+
+`554559f69`'s voice-only suppression only covered the chain's FIRST re-display
+page, so the continuation pages still leaked. FIX (`map_msg_display.c`, top of
+`Gfx_MapMsg_Draw`): a re-display (`msgIdx == mapMsgIdx && !isMgsStringSet`) whose
+just-completed display was MULTI-PAGE (`g_MapMsg_CurrentIdx != msgIdx`) returns
+`MapMsgState_SelectEntry0` immediately — a full no-op that just advances the scene
+step, matching the PSX resume (no subtitle re-show, no voice, no index bump).
+Cutscene-gated (`SysFlag_CutsceneActive || cutsceneBorderState`) so ordinary
+memo/item re-examination is untouched. `SH_PC_PORT`-only; 30fps PSX byte-identical.
+
+DISCRIMINATOR: `g_MapMsg_CurrentIdx` (last displayed page) vs `msgIdx` (chain
+start) differ only for a multi-page chain, so SINGLE-page re-displays (map6_s04
+Flauros msg47, `CurrentIdx == msgIdx`) fall through to `554559f69`'s lighter
+voice-only path and keep their proven step timing. That matters: Flauros's case9
+has `autoAdvance=false`, so its message-completion duration gates when
+`Chara_Load(Flauros)` fires — an instant no-op there would shift the Flauros model
+~1.7s early. Lisa's case9 timing is decoupled (the DMS animation runs off
+`g_Cutscene_Timer` every frame at the bottom of the scene function), so the no-op
+is safe. LESSON: the case7/case9 resume idiom has two shapes — single-page
+(voice-only suppress) and multi-page chain (no-op the whole restart); tell them
+apart by `g_MapMsg_CurrentIdx` vs `msgIdx`.

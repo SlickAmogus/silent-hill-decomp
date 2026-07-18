@@ -15,6 +15,7 @@
 
 #ifdef SH_PC_PORT
 #include <SDL_timer.h>
+#include "sh_log.h"
 #endif
 
 // ========================================
@@ -41,7 +42,21 @@ s8             g_MapMsg_SelectCancelIdx;
 
 s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
 {
+#ifdef SH_PC_PORT
+    /* MSG_TIMER_MAX is the auto-advance timer's upper clamp. The original
+     * `Q12(524288.0f) - 1` computes `(s32)(524288.0f * 4096)` = `(s32)(2^31)`,
+     * a float->int overflow. PSX/MIPS (cvt.w.s) SATURATES that to 0x7FFFFFFF,
+     * so the sentinel was a valid "effectively unbounded" max. x86 (cvttss2si)
+     * returns INT_MIN (0x80000000) for the same conversion, and the resulting
+     * overflow-UB macro makes `timer > MSG_TIMER_MAX` evaluate TRUE for normal
+     * small timer values — so the per-frame clamp pins mapMsgTimer to INT_MAX
+     * on its first decrement. A timer-only subtitle (`~J0(n)`, e.g. map0's
+     * "Footsteps?"/"Cheryl...") then never counts down to 0 and the cutscene
+     * freezes (with its looped SFX). Use the intended literal sentinel. */
+    #define MSG_TIMER_MAX   0x7FFFFFFF
+#else
     #define MSG_TIMER_MAX   (Q12(524288.0f) - 1)
+#endif
     #define FINISH_CUTSCENE 0xFF
     #define FINISH_MAP_MSG  0xFF
 
@@ -68,6 +83,46 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
     g_SysWork.playerWork.player.properties.player.gasWeaponPowerTimer = Q12(0.0f);
     func_8004C564(g_SysWork.playerCombat.weaponAttack, WEAPON_ATTACK(EquippedWeaponId_RockDrill, AttackInputType_Tap));
 
+#ifdef SH_PC_PORT
+    /* A setup-Finish for the SAME msg index that was just active (msgIdx still
+     * equals mapMsgIdx while isMgsStringSet re-enters false via a prior
+     * completion) is a spurious PC RE-DISPLAY of a line that already fired its
+     * voice — e.g. map6_s04 func_800E3EF4 shows msg47 at BOTH case7 and case9.
+     * On PSX, CD-load latency keeps the first display from completing before
+     * its paired cutscene timer advances the step, so case9 RESUMES
+     * (isMgsStringSet stays true) and fires no new voice. PC loads instantly,
+     * so the first display completes, isMgsStringSet goes false, and case9
+     * RESTARTS fresh — firing an EXTRA voice that walks the shared voice index
+     * (D_800ED5AC) +1, so every later line plays the next table clip one beat
+     * early (the Flauros "scream" ~7.8s ahead of its on-screen beat, then the
+     * whole scene shifted). Flag this re-setup so Event_DisplayMapMsgWithAudio
+     * suppresses the duplicate voice fire + index bump, matching PSX. */
+    int _reSetupSameMsg = (msgIdx == mapMsgIdx);
+
+    /* MULTI-PAGE variant of the same re-display (map7_s00 Lisa func_800D0B64):
+     * a message CHAIN (msg30->34, only 34 carries ~E) is shown at two
+     * consecutive steps — case7 DisplayMapMsg(30) then case9 DisplayMapMsg(30).
+     * On PSX CD latency keeps case7's chain in progress when the step advances,
+     * so case9 RESUMES it. PC's instant load completes the whole chain at case7,
+     * so case9 RESTARTS it: every page's subtitle re-shows ("It's only a
+     * temporary thing" a second time) and pages 2..N re-fire their voices,
+     * walking the shared audio index PAST the real table so the tail lines
+     * (msg35..37) fall silent ("audio runs out before the subtitles"). The
+     * voice-only suppression above only covers the chain's FIRST page. Make the
+     * spurious restart a full no-op that just advances the step, matching the
+     * PSX resume. g_MapMsg_CurrentIdx still holds the completed chain's LAST
+     * page while msgIdx holds its START, so they differ only for a multi-page
+     * chain — single-page re-displays (map6_s04 Flauros msg47, CurrentIdx==
+     * msgIdx) keep the lighter voice-only path and their proven step timing.
+     * Cutscene-gated so ordinary memo/item re-examination is untouched. */
+    if (_reSetupSameMsg && !g_SysWork.isMgsStringSet && g_MapMsg_CurrentIdx != msgIdx &&
+        ((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
+         g_SysWork.cutsceneBorderState != CutsceneBorderState_None))
+    {
+        return MapMsgState_SelectEntry0;
+    }
+#endif
+
     if (msgIdx != mapMsgIdx)
     {
         g_SysWork.isMgsStringSet = false;
@@ -76,6 +131,12 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
     switch (g_SysWork.isMgsStringSet)
     {
         case false:
+#ifdef SH_PC_PORT
+            {
+                extern int g_PcMapMsgVoiceDropped;
+                g_PcMapMsgVoiceDropped = 0;
+            }
+#endif
             g_SysWork.mapMsgTimer            = NO_VALUE;
             g_MapMsg_Select.maxIdx           = NO_VALUE;
             g_MapMsg_Select.selectedEntryIdx = 0;
@@ -109,6 +170,9 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
 
             D_800BCD74 = 1;
             g_SysWork.isMgsStringSet++;
+#ifdef SH_PC_PORT
+            { extern int g_PcMapMsgReDisplaySetup; g_PcMapMsgReDisplaySetup = _reSetupSameMsg; }
+#endif
             return MapMsgState_Finish;
 
         case true:
@@ -126,29 +190,59 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                  * case a page has no voice cmd (zero-stub table remnant)
                  * so a missing line degrades to silence, not a hang. */
                 {
+                    extern int g_PcMapMsgVoiceDropped;
                     static Uint32 s_voiceWaitStartMs = 0;
+                    u8 xaState = Sd_AudioStreamingCheck();
 
-                    if (Sd_AudioStreamingCheck() == 4)
+                    if (xaState == 4)
                     {
                         D_800BCD74         = 0;
                         s_voiceWaitStartMs = 0;
                         break;
                     }
 
+                    /* Event_DisplayMapMsgWithAudio dropped this page's voice
+                     * cmd (out-of-range = table overrun turned to silence):
+                     * no voice is coming, render the text NOW instead of
+                     * burning the 1s fail-open below. */
+                    if (D_800BCD74 != 0 && g_PcMapMsgVoiceDropped)
+                    {
+                        D_800BCD74             = 0;
+                        s_voiceWaitStartMs     = 0;
+                        g_PcMapMsgVoiceDropped = 0;
+                    }
+
                     if (D_800BCD74 != 0)
                     {
-                        if (s_voiceWaitStartMs == 0)
+                        /* Release the subtitle the instant the voice is actually
+                         * streaming (state 1 = xaAudioIdx active) and fall through
+                         * to render, so the text appears IN SYNC with the spoken
+                         * line. The original release watched only for the 'ready'
+                         * state 4; on PC the XA stream jumps loading(2)->playing(1)
+                         * without dwelling on 4, so it always hit the 1s fail-open
+                         * below -> "voice plays, subtitle appears ~1s later". The
+                         * fail-open still covers pages whose voice never starts. */
+                        if (xaState == 1)
                         {
-                            s_voiceWaitStartMs = SDL_GetTicks();
+                            D_800BCD74         = 0;
+                            s_voiceWaitStartMs = 0;
+                            /* no break: render this frame, synced with the voice */
                         }
-
-                        if ((SDL_GetTicks() - s_voiceWaitStartMs) < 1000)
+                        else
                         {
-                            break;
-                        }
+                            if (s_voiceWaitStartMs == 0)
+                            {
+                                s_voiceWaitStartMs = SDL_GetTicks();
+                            }
 
-                        D_800BCD74         = 0;
-                        s_voiceWaitStartMs = 0;
+                            if ((SDL_GetTicks() - s_voiceWaitStartMs) < 1000)
+                            {
+                                break;
+                            }
+
+                            D_800BCD74         = 0;
+                            s_voiceWaitStartMs = 0;
+                        }
                     }
                 }
 #else
@@ -174,7 +268,28 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
             Gfx_StringSetPosition(40, 160);
 #endif
 
+#ifdef SH_PC_PORT
+            /* The typewriter advanced msgDisplayInc glyphs PER FRAME, so at
+             * uncapped fps the text completed far faster than the 30fps original.
+             * Each page then reached MapMsgState_Finish early and queued the next
+             * voice line (Event_DisplayMapMsgWithAudio) before the current one
+             * ended, backing up the XA voice pool and pushing subtitles
+             * progressively later in long cutscenes (they ended up appearing only
+             * after their spoken line had finished — worse the longer the scene).
+             * Advance at the fps-independent original rate: msgDisplayInc glyphs
+             * per 30fps frame = msgDisplayInc*30 glyphs/sec, with a fractional
+             * carry. g_DeltaTimeRaw is Q12 seconds-per-frame. */
+            {
+                static q19_12 s_glyphAccum = 0;
+                s32 stepGlyphs;
+                s_glyphAccum    += Q12_MULT(Q12(msgDisplayInc * 30), g_DeltaTimeRaw);
+                stepGlyphs       = s_glyphAccum >> 12;
+                s_glyphAccum    -= stepGlyphs << 12;
+                msgDisplayLength += stepGlyphs;
+            }
+#else
             msgDisplayLength += msgDisplayInc;
+#endif
             msgDisplayLength  = CLAMP(msgDisplayLength, 0, MAP_MESSAGE_DISPLAY_ALL_LENGTH);
 
             if (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer > 0)
@@ -183,6 +298,29 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                 g_SysWork.mapMsgTimer  = CLAMP(g_SysWork.mapMsgTimer, Q12(0.0f), MSG_TIMER_MAX);
             }
 
+#ifdef SH_PC_PORT
+            /* Hold the page's AUTO (timer) advance while this line's voice is
+             * still producing audio, so the next page's SD_Call can't cut it
+             * off. PSX serialised voices via long CD load latency; PC loads
+             * instantly, so without this an early text timer overlaps voices
+             * (the bug the voice-wait was meant to fix). Manual skip (input) is
+             * NOT gated.
+             *
+             * Gate on Xa_IsVoiceAudioDraining() (real audio still playing), NOT
+             * Sd_AudioStreamingCheck()==1: the latter stays 1 through the ~490ms
+             * end-of-voice pad (xa_player.c s_xaPadEndMs), which PSX has no
+             * equivalent to in this path — PSX advanced pages on the authored
+             * ~J page timer alone. Gating page-advance on the padded flag added
+             * a redundant ~0.5s per line that accumulated across a voiced
+             * cutscene (the map6_s04 Flauros/Damn! desync: dialogue + subtitles
+             * fell seconds behind the wall-clock animation). Real-drain gating
+             * restores the authored pacing while still preventing PC's instant
+             * next-line SD_Call from cutting a live voice. */
+            extern int Xa_IsVoiceAudioDraining(void);
+            const int pcVoiceHold =
+                (g_SysWork.bgmStatusFlags & BgmStatusFlag_VoiceDialog) &&
+                Xa_IsVoiceAudioDraining();
+#endif
             temp_s1 = stateMachineIdx0;
             if (temp_s1 == NO_VALUE)
             {
@@ -197,7 +335,11 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                     if (g_MapMsg_Select.maxIdx == temp)
                     {
                         if (!((g_MapMsg_AudioLoadBlock & (1 << 0)) || !hasInput) ||
-                            (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer == 0))
+                            (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer == 0
+#ifdef SH_PC_PORT
+                             && !pcVoiceHold
+#endif
+                            ))
                         {
                             stateMachineIdx1 = FINISH_MAP_MSG;
 
@@ -246,7 +388,11 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                     }
                 }
                 else if ((!(g_MapMsg_AudioLoadBlock & (1 << 0)) && hasInput && g_MapMsg_Select.maxIdx != 0) ||
-                         (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer == 0))
+                         (g_MapMsg_AudioLoadBlock != 0 && g_SysWork.mapMsgTimer == 0
+#ifdef SH_PC_PORT
+                          && !pcVoiceHold
+#endif
+                         ))
                 {
                     if (g_MapMsg_Select.maxIdx != NO_VALUE)
                     {
@@ -292,6 +438,12 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                     }
 
                     D_800BCD74 = 1;
+#ifdef SH_PC_PORT
+                    /* Page-advance Finish (a genuine next page of a multi-page
+                     * message) — NEVER a spurious re-display, so its voice must
+                     * always fire; clear the re-setup suppression flag. */
+                    { extern int g_PcMapMsgReDisplaySetup; g_PcMapMsgReDisplaySetup = 0; }
+#endif
                     return MapMsgState_Finish;
                 }
             }

@@ -33,6 +33,16 @@
 
 #define VAB_BUFFER_LIMIT 0xC800u
 
+#ifdef SH_PC_PORT
+/* Emitter-azimuth side-channel, armed in Vc_StereoBalanceGet (vc_util.c) by
+ * the positional-SFX wrappers on this same call chain. Every key-on/update
+ * entry below claims-and-clears it so no unrelated sound inherits an angle. */
+extern s32  g_Pc_SfxAzimuth, g_Pc_SfxAzimuthValid;
+extern void PsyX_SPUAL_SetNextKeyOnAzimuth(int azimuthQ12);
+extern void PsyX_SPUAL_ClearNextKeyOnAzimuth(void);
+extern void PsyX_SPUAL_SetVoiceAzimuth(int voiceIdx, int azimuthQ12);
+#endif
+
 // ========================================
 // STATIC VARIABLES
 // ========================================
@@ -411,6 +421,20 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
      * ending's stuck Cybil-grunt / boss-attack loops) can be identified by id
      * and given an explicit Sd_SfxStop on PC (no SPU voice-stealing here). */
     SH_DBG("[SFX] Sd_PlaySfx: sfxId=%d (Sfx_Base+%d) vol=%d", sfxId, sfxId - Sfx_Base, vol);
+
+    /* Hand the emitter azimuth (latched by Vc_StereoBalanceGet on this same
+     * call chain) to PsyCross for the voice about to key on. Claim-and-clear
+     * unconditionally so a sound played with no positional source (UI beeps,
+     * SD_Call band 5/6) never inherits a stale angle. */
+    if (g_Pc_SfxAzimuthValid)
+    {
+        PsyX_SPUAL_SetNextKeyOnAzimuth(g_Pc_SfxAzimuth);
+    }
+    else
+    {
+        PsyX_SPUAL_ClearNextKeyOnAzimuth();
+    }
+    g_Pc_SfxAzimuthValid = 0;
 #endif
 
     audioIdx = sfxId - Sfx_Base;
@@ -488,6 +512,13 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
         return g_Sd_VabPlayingInfo.audioVabIdx;
     }
 
+#ifdef SH_PC_PORT
+    /* Key-on failed (no free voice / bad VAB) — no start-address write ever
+     * claimed the armed azimuth; disarm it so a later sound can't inherit
+     * it (PsyCross also TTL-expires orphans as a backstop). */
+    PsyX_SPUAL_ClearNextKeyOnAzimuth();
+#endif
+
     return NO_VALUE;
 }
 
@@ -499,6 +530,16 @@ void Sd_SfxAttributesUpdate(u16 sfxId, q0_7 balance, u8 vol, s8 pitch) // 0x8004
     s16          convertedVol;
     s32          voiceIdx;
     s32          i;
+#ifdef SH_PC_PORT
+    /* Claim the azimuth latch into locals AT ENTRY so every early return
+     * (sfx not playing, voiceIdx < 0) still consumes it — a leaked latch
+     * would mistag the next unrelated sound. The radio-restart paths re-arm
+     * the global before delegating to Sd_PlaySfx. */
+    s32 pcAzimuth      = g_Pc_SfxAzimuth;
+    s32 pcAzimuthValid = g_Pc_SfxAzimuthValid;
+
+    g_Pc_SfxAzimuthValid = 0;
+#endif
 
     if (sfxId == Sfx_Base)
     {
@@ -523,6 +564,7 @@ void Sd_SfxAttributesUpdate(u16 sfxId, q0_7 balance, u8 vol, s8 pitch) // 0x8004
          * npc_main.c never fires. Detect the stopped state here and restart the
          * voice so the radio static is audible. */
         if (!SpuGetKeyStatus(attr.voice)) {
+            if (pcAzimuthValid) { g_Pc_SfxAzimuth = pcAzimuth; g_Pc_SfxAzimuthValid = 1; }
             Sd_PlaySfx(sfxId, 0, 0);
             return;
         }
@@ -534,6 +576,7 @@ void Sd_SfxAttributesUpdate(u16 sfxId, q0_7 balance, u8 vol, s8 pitch) // 0x8004
         attr.voice = 1 << 23;
 #ifdef SH_PC_PORT
         if (!SpuGetKeyStatus(attr.voice)) {
+            if (pcAzimuthValid) { g_Pc_SfxAzimuth = pcAzimuth; g_Pc_SfxAzimuthValid = 1; }
             Sd_PlaySfx(sfxId, 0, 0);
             return;
         }
@@ -621,6 +664,14 @@ void Sd_SfxAttributesUpdate(u16 sfxId, q0_7 balance, u8 vol, s8 pitch) // 0x8004
         if (sfxId == Sfx_RadioInterferenceLoop || sfxId == Sfx_RadioStaticLoop) {
         }
     }
+
+    /* Live positional update (radio proximity, looped ambience): hand the
+     * azimuth claimed at entry to the voice before the volume write below
+     * repositions it. */
+    if (pcAzimuthValid)
+    {
+        PsyX_SPUAL_SetVoiceAzimuth(voiceIdx, pcAzimuth);
+    }
 #endif
 
     SpuSetVoiceAttr(&attr);
@@ -637,6 +688,21 @@ void func_80046620(u16 sfxId, q0_7 balance, u8 vol, s8 pitch) // 0x80046620
     {
         return;
     }
+
+#ifdef SH_PC_PORT
+    /* Same claim as Sd_PlaySfx: this is the third key-on entry (footsteps,
+     * melee via func_8005DD44) — without it every movement sound left the
+     * azimuth latch armed for the next unrelated sound to inherit. */
+    if (g_Pc_SfxAzimuthValid)
+    {
+        PsyX_SPUAL_SetNextKeyOnAzimuth(g_Pc_SfxAzimuth);
+    }
+    else
+    {
+        PsyX_SPUAL_ClearNextKeyOnAzimuth();
+    }
+    g_Pc_SfxAzimuthValid = 0;
+#endif
 
     audioIdx                      = sfxId - Sfx_Base;
     g_Sd_VabPlayingInfo.typeIdx = g_Vab_InfoTable[audioIdx].vab_progIdx_2 >> 8;
@@ -878,6 +944,17 @@ void Sd_BgmLayerVolumeSet(u8 layerIdx, u8 vol) // 0x80046C54
 
             if (var1 == layerIdx)
             {
+#ifdef SH_PC_PORT
+                if (g_Sd_AudioWork.field_E == 796) {
+                    /* Log only when a layer's written volume changes, so a full
+                     * multi-room sewer walk stays compact (per-layer last-value). */
+                    static s16 sewerLastVol[8] = { -1,-1,-1,-1,-1,-1,-1,-1 };
+                    if (layerIdx < 8 && sewerLastVol[layerIdx] != volCpy) {
+                        sewerLastVol[layerIdx] = volCpy;
+                        SH_DBG("[SH_BGM] LayerVolSet sewer: layer=%d -> ch=%d vol=%d", layerIdx, i, volCpy);
+                    }
+                }
+#endif
                 SdSetMidiVol(0, i, volCpy);
             }
         }
@@ -1365,6 +1442,14 @@ void Sd_VabLoad(void) // 0x80047B80
             cmd                = g_Sd_TaskPool[0];
             g_Sd_VabTargetLoad = &g_AudioData[cmd - 160];
             g_Sd_AudioType     = g_Sd_VabTargetLoad->typeIdx_0;
+
+#ifdef SH_PC_PORT
+            if (cmd >= 170 && cmd <= 204) {
+                SH_DBG("[SH_AMB] Sd_VabLoad ambient cmd=%d type=%d dedup=%d",
+                       cmd, g_Sd_AudioType,
+                       (int)(g_Sd_AudioType != 0 && g_Sd_AudioWork.lastVabAudioLoadedIdx_8[g_Sd_AudioType - 1] == cmd));
+            }
+#endif
 
             // If audio being loaded isn't BASE.VAB or KDT file.
             if (g_Sd_AudioType != 0)

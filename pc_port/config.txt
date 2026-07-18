@@ -37,47 +37,47 @@ preload_chunks = 1
 # other maps load geometry (IPD chunks, fog, ambient) but use stub headers.
 #
 # Available maps:
-#   map0_s00  Old Silent Hill - streets (start area)
-#   map0_s01  Old Silent Hill - streets (Cybil encounter)
-#   map0_s02  Old Silent Hill - streets (alley)
-#   map1_s00  Midwich Elementary - exterior
-#   map1_s01  Midwich Elementary - 1F
-#   map1_s02  Midwich Elementary - 2F
-#   map1_s03  Midwich Elementary - 3F
-#   map1_s04  Midwich Elementary - courtyard
-#   map1_s05  Midwich Elementary - otherworld
-#   map1_s06  Midwich Elementary - exterior (after)
-#   map2_s00  Old Silent Hill - streets (after school)
-#   map2_s01  Old Silent Hill - sewers
-#   map2_s02  Old Silent Hill - streets (shopping district)
-#   map2_s03  Old Silent Hill - streets (residential)
-#   map2_s04  Old Silent Hill - Balkan Church
-#   map3_s00  Alchemilla Hospital - 1F
-#   map3_s01  Alchemilla Hospital - 2F/3F
-#   map3_s02  Alchemilla Hospital - otherworld 1F
-#   map3_s03  Alchemilla Hospital - otherworld 2F
-#   map3_s04  Alchemilla Hospital - otherworld 3F
-#   map3_s05  Alchemilla Hospital - otherworld basement
-#   map3_s06  Alchemilla Hospital - 1F (Lisa)
-#   map4_s00  Central Silent Hill - streets
-#   map4_s01  Central Silent Hill - antique shop
-#   map4_s02  Central Silent Hill - otherworld streets
-#   map4_s03  Central Silent Hill - otherworld (sewers)
-#   map4_s04  Central Silent Hill - otherworld (apartment)
-#   map4_s05  Central Silent Hill - otherworld
-#   map4_s06  Central Silent Hill - streets (return)
-#   map5_s00  Nowhere - otherworld streets
-#   map5_s01  Resort area - streets
-#   map5_s02  Resort area - Annie's Bar
-#   map5_s03  Resort area - lighthouse
-#   map6_s00  Resort area - otherworld streets
-#   map6_s01  Resort area - resort building
-#   map6_s02  Resort area - otherworld
-#   map6_s03  Nowhere - void
-#   map6_s04  Nowhere - otherworld (Alessa)
-#   map6_s05  Nowhere - otherworld
-#   map7_s00  Nowhere - final
-#   map7_s01  Nowhere - final (2)
-#   map7_s02  Nowhere - final (3)
-#   map7_s03  Nowhere - ending
+#   map0_s00  Old Silent Hill - intro sequence
+#   map0_s01  Old Silent Hill - cafe
+#   map0_s02  Old Silent Hill - bonus unlockable areas
+#   map1_s00  School - 1F, courtyard, basement
+#   map1_s01  School - 2F
+#   map1_s02  School Otherworld - 1F and courtyard
+#   map1_s03  School Otherworld - 2F and roof
+#   map1_s04  Unused
+#   map1_s05  School - boss fight (Split Head)
+#   map1_s06  School - 1F and basement after the boss
+#   map2_s00  Old Silent Hill - streets
+#   map2_s01  Church
+#   map2_s02  Central Silent Hill - streets
+#   map2_s03  Unused
+#   map2_s04  Police station (Central Silent Hill)
+#   map3_s00  Hospital - until Kaufmann meeting
+#   map3_s01  Hospital - 1F and basement after Kaufmann
+#   map3_s02  Hospital - antique shop cutscene
+#   map3_s03  Hospital Otherworld - 3F and 2F
+#   map3_s04  Hospital Otherworld - 1F
+#   map3_s05  Hospital Otherworld - basement
+#   map3_s06  Hospital - 1F after Otherworld
+#   map4_s00  Unused
+#   map4_s01  Green Lion Antiques (normal + Otherworld)
+#   map4_s02  Central Silent Hill Otherworld - streets
+#   map4_s03  Mall and boss fight
+#   map4_s04  Hospital - 1F (Lisa cutscene)
+#   map4_s05  Central SH Otherworld - Floatstinger boss
+#   map4_s06  Unused
+#   map5_s00  Sewers - lower and upper levels
+#   map5_s01  Resort Area
+#   map5_s02  Annie's Bar and Indian Runner (Resort Area)
+#   map5_s03  Norman's Motel (Resort Area)
+#   map6_s00  Resort Area Otherworld
+#   map6_s01  Boat at Lakeside Pier
+#   map6_s02  Lakeside Pier and Lighthouse
+#   map6_s03  Sewer to Lakeside Amusement Park
+#   map6_s04  Amusement Park - Cybil boss, Alessa kidnapping
+#   map6_s05  Unused
+#   map7_s00  Nowhere - hospital 1F, Lisa cutscene
+#   map7_s01  Nowhere
+#   map7_s02  Nowhere - Alessa vs. Dahlia cutscene
+#   map7_s03  Nowhere - final boss
 map = map0_s00

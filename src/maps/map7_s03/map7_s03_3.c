@@ -342,6 +342,30 @@ void func_800E1854(void) // 0x800E1854
     VECTOR3 sp20;
     q19_12  var_v0;
 
+#ifdef SH_PC_PORT
+    /* [BOSSFX2] pre-spawn fire/lightning diagnostic. Load the arena, let the
+     * wrong fire/lightning show, exit. Tells us: the FX mode (f0; -1/NO_VALUE =
+     * idle), the lightning-spline draw gate (spl0/spl1 pos/f12/f14 — func_800E24A0
+     * only draws when ALL three are nonzero), and the fire/mesh/world-object gates
+     * (D_800F4820 fire pool, D_800F4830 mesh, D_800F4811/18/19/1A WorldGfx). If f0
+     * != -1 the FX state is in/stomped into an active mode; if a spline's three
+     * fields are nonzero it's drawing; a set gate means that effect is drawing.
+     * TEMP — strip once diagnosed. */
+    {
+        static int _bfx2 = 0;
+        if ((_bfx2++ % 30) == 0) {
+            s_800F4B40_1C* _s0 = &D_800F4B40.field_1C[0];
+            s_800F4B40_1C* _s1 = &D_800F4B40.field_1C[1];
+            SH_DBG("[BOSSFX2] f0=%d f4=%d | spl0 pos=%d f12=%d f14=%d | spl1 pos=%d f12=%d f14=%d | fire4820=%d mesh4830=%d wo4811=%d 4818=%d 4819=%d 481A=%d",
+                   (int)D_800F4B40.field_0, (int)D_800F4B40.field_4,
+                   (int)_s0->pos_10, (int)_s0->field_12, (int)_s0->field_14,
+                   (int)_s1->pos_10, (int)_s1->field_12, (int)_s1->field_14,
+                   (int)D_800F4820, (int)D_800F4830, (int)D_800F4811,
+                   (int)D_800F4818, (int)D_800F4819, (int)D_800F481A);
+        }
+    }
+#endif
+
     switch (D_800F4B40.field_0)
     {
         case NO_VALUE:
@@ -1025,6 +1049,16 @@ void func_800E3390(void) // 0x800E3390
             D_800F4819 = 0;
             D_800F481A = 0;
             D_800F481B = 0;
+#ifdef SH_PC_PORT
+            /* The Good+ ending must never inherit boss-fight FX state. If a
+             * confrontation left the boss-FX gates set (D_800F4820 = lightning
+             * grid / fire pool; D_800F4B40.field_0 = force-field mesh / arcs),
+             * the .func_44 hook keeps drawing them through the ending at stale
+             * positions. Clear them here as a backstop in addition to the
+             * per-confrontation exit clears. */
+            D_800F4820         = 0;
+            D_800F4B40.field_0 = NO_VALUE;
+#endif
 
             Anim_CharaTypeAnimInfoClear();
             WorldGfx_CharaLmBufferAssign(CHARA_FORCE_FREE_ALL);
@@ -1665,11 +1699,32 @@ void func_800E4714(void) // 0x800E4714
             Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(92.0f), Q12(112.0f), true, false);
 
             temp_v0 = Player_AnimPlaybackStateGet();
+#ifdef SH_PC_PORT
+            /* Bottle-smash freeze fix. The bottle-raise (player state 153) is a
+             * one-shot anim; this step waits for its End (==1) before firing the
+             * smash (state 131). At high fps the player driver links Harry to the
+             * looping cutscene idle (animIdx 46) the SAME frame the raise ends, so
+             * the one-shot's End edge is missed and the poll returns -1 (loop)
+             * forever — the smash then only fires when the (C) anim-stuck bypass
+             * force-returns 1 at its 10s threshold ("Alessa's face, bottle about
+             * to smash" hangs ~10s). -1 (PlaybackLoop/Invalid) reliably means the
+             * raise has finished and reverted to the idle loop, so treat it as
+             * done too. Firing 131 touches no sysStateSteps (step0 3->4 is driven
+             * solely by msg 24 completing), so this cannot desync later steps, and
+             * -1 can only occur AFTER the raise's one-shot ends, so it cannot fire
+             * the smash early. */
+            if ((temp_v0 == 1 || temp_v0 == -1) && D_800EDA08 == 0)
+            {
+                Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.playerWork.player, 131, false);
+                D_800EDA08 = 1;
+            }
+#else
             if (temp_v0 == 1 && D_800EDA08 == 0)
             {
                 Event_CharaAnimCmdExecute(CharaAnimCmd_SetState, &g_SysWork.playerWork.player, 131, false);
                 D_800EDA08 = temp_v0;
             }
+#endif
             break;
 
         case 4:
@@ -2093,6 +2148,26 @@ void func_800E514C(void) // 0x800E514C
 
         case 31:
             Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(281.0f), Q12(320.0f), true, false);
+#ifdef SH_PC_PORT
+            /* Bottle breaks ON IMPACT (PSX behavior). The bottle (g_WorldObject_Bin,
+             * a DMS-driven world object) reaches the Incubator's head when the
+             * timer hits 320, but the original step order only spawns the shatter
+             * at case 33 — AFTER this step waits out the full ~8s XA 606 scream —
+             * so on PC the intact bottle hovered at her head for several seconds.
+             * Spawn the shatter and hide the intact bottle the instant it impacts,
+             * animate it each frame, and still hold this step for the scream (so
+             * later beats don't start early / the scream isn't cut). The case 33
+             * spawn is guarded below so it doesn't double-fire. */
+            if (g_Cutscene_Timer >= Q12(320.0f) && g_Cutscene_UpdateBin)
+            {
+                func_800D7144(&g_WorldObject_Bin.position);
+                g_Cutscene_UpdateBin = false;
+            }
+            if (!g_Cutscene_UpdateBin)
+            {
+                func_800D70EC();
+            }
+#endif
             if (Sd_AudioStreamingCheck() != 1)
             {
                 SysWork_StateStepIncrement(0);
@@ -2120,7 +2195,14 @@ void func_800E514C(void) // 0x800E514C
             SysWork_StateStepIncrement(0);
 
         case 33:
-            func_800D7144(&g_WorldObject_Bin.position);
+#ifdef SH_PC_PORT
+            /* The bottle now shatters on impact in case 31 (g_Cutscene_UpdateBin
+             * cleared there); only spawn here if that didn't happen (e.g. the
+             * scream ended before the bottle reached her head). Prevents a
+             * double shatter. */
+            if (g_Cutscene_UpdateBin)
+#endif
+                func_800D7144(&g_WorldObject_Bin.position);
             func_800E1788(9);
             SysWork_StateStepIncrement(0);
 
@@ -2700,6 +2782,14 @@ void func_800E62CC(void) // 0x800E62CC
             g_Cutscene_UpdateKau = false;
 
             Sd_SfxStop(Sfx_Unk1688);
+
+            /* Clear the boss-FX visibility gate on confrontation exit, mirroring
+             * the sibling confrontations (func_800E787C:default, func_800E86BC,
+             * func_800E8D20 all do this). This one omitted it, so the lightning
+             * grid + fire pool (drawn every frame by .func_44 while D_800F4820 !=
+             * 0) kept rendering through the following Good+ ending at stale
+             * positions -- the "flame/lightning under and around the map". */
+            D_800F4820 = 0;
 
             D_800F4805++;
             break;

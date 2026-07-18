@@ -21,6 +21,85 @@
 #ifdef SH_PC_PORT
 #include "dbg_overlay.h"
 extern int g_CollVisEnabled; /* Collision visualizer toggle (dbg_overlay.c, ' key) */
+
+/* [WALLSTOP] (#42 v2): the [WALL-HIT] probe logged proximity to wall faces, but
+ * the actual movement block can come from THREE paths, and the deciding element
+ * (field_34/38 swept clamp or field_44 angle block) is often set by a DIFFERENT
+ * subcell than state.point holds when the pass ends. Stash the real blocking
+ * element AT each block site, then log it once per pass for Harry. kind:
+ * 1=swept wall, 2=static wall, 3=ROUND OBSTACLE (ptr_18, no split face -> invisible
+ * to the [WALL-HIT] probe and the visualizer; prime invisible-wall suspect). */
+struct s_WallStopDbg { int active, kind; s32 sub, ax, az, bx, bz, rad, dist, frac;
+                       s32 fullx, fullz, cellw, cellh, offx, offz; };
+static struct s_WallStopDbg g_WallStopDbg;
+/* `state` is in scope at every call site (the 3 block fns all take s_CollisionState*).
+ * fullx/z = the UN-truncated s32 chunk-local offset (positionFrom - chunk origin);
+ * offx/z = the s16 DVECTOR_XZ that the collision actually used. fullx!=offx => the
+ * s16 offset WRAPPED (long-chunk overflow). cellw/h = chunk extent (s32). */
+#define WALLSTOP_SET(k, s, _ax, _az, _bx, _bz, _r, _d, _f) do { \
+    const s_IpdCollisionData* _cd = state->point.ipdCollisionData; \
+    g_WallStopDbg.active = 1; g_WallStopDbg.kind = (k); g_WallStopDbg.sub = (s); \
+    g_WallStopDbg.ax = (_ax); g_WallStopDbg.az = (_az); g_WallStopDbg.bx = (_bx); \
+    g_WallStopDbg.bz = (_bz); g_WallStopDbg.rad = (_r); g_WallStopDbg.dist = (_d); \
+    g_WallStopDbg.frac = (_f); \
+    g_WallStopDbg.offx = state->charaPositionFrom.offset.vx; \
+    g_WallStopDbg.offz = state->charaPositionFrom.offset.vz; \
+    g_WallStopDbg.fullx = _cd ? (state->charaState.positionFromX - _cd->positionX) : 0; \
+    g_WallStopDbg.fullz = _cd ? (state->charaState.positionFromZ - _cd->positionZ) : 0; \
+    g_WallStopDbg.cellw = _cd ? ((s32)_cd->subcellSize * _cd->subcellCountX) : 0; \
+    g_WallStopDbg.cellh = _cd ? ((s32)_cd->subcellSize * _cd->subcellCountZ) : 0; \
+    } while (0)
+
+/* Draw the round obstacle (ptr_18) that actually blocked Harry as a RED box in
+ * the collision visualizer — at its world position in WHATEVER chunk it lives in
+ * (the cached cyan cylinders only cover Harry's current cell, so the swept-caught
+ * one in an adjacent cell was invisible). World Q12 = (origin + offset) << 4. */
+extern int g_CollVisEnabled;
+extern void CollVis_CaptureHitCylinder(s32 cx, s32 cy, s32 cz, s32 r);
+#define WALLSTOP_VIS_OBST() do { \
+    const s_IpdCollisionData* _vcd = state->point.ipdCollisionData; \
+    if (g_CollVisEnabled && _vcd) { \
+        CollVis_CaptureHitCylinder((_vcd->positionX + state->point.field_6.vx) << 4, \
+                                   (s32)state->point.field_6.vy << 4, \
+                                   (_vcd->positionZ + state->point.field_6.vz) << 4, \
+                                   state->point.field_C.field_0 << 4); \
+    } } while (0)
+
+/* ptr_18 round obstacles (street poles/hydrants/streetlights — point colliders
+ * with no rendered model). Their solid collision was disabled (default 0) while
+ * diagnosing the #42 invisible-wall sprint-smack, but that root cause turned out
+ * to be the over-eager raycast (fixed in 8210970b8), NOT these obstacles —
+ * func_8006C45C below only blocks when Harry's CURRENT position is within the
+ * radius sum, so it can't stop him "from far". With it off Harry walked straight
+ * through poles and onto hydrants, so it defaults back ON. Console `OBST 0/1`
+ * keeps the A/B toggle. 1 = solid blocking on; 0 = sprint-through. */
+int g_PcObstacleCollision = 1;
+
+/* [WALLEDGE] latched diagnostic: the player wall-EDGE reaction (Collision_WallResponse
+ * classifies CollisionType_Wall from ground-height drops, NOT a movement clamp -> never
+ * logs a WALLSTOP). Captured when it fires for Harry, with g_TickCount, so the panel can
+ * show it seconds after a delayed mark. gH/bound = the deciding ground heights; if gH
+ * spuriously dips below bound on flat ground, that's the random invisible-wall bump. */
+struct s_WallEdgeDbg { int active; s32 gH, bound, wallCount, harryY, tick; };
+struct s_WallEdgeDbg g_WallEdgeDbg;
+
+/* Invisible-wall ROOT FIX (#42, "ran into a wall" at full speed, nothing nearby):
+ * Collision_OffsetAlphaGet scales movement by the slope factor (distance / hypot
+ * of horizontal move + ground rise to the NEXT position). At sprint the next
+ * position is far, so Ipd_GroundHeightGet extrapolates the cell's tilt out a long
+ * way and can return a HUGE fake rise -> alpha -> ~0 -> Harry's whole step is
+ * zeroed on flat ground. No wall-clamp, no wall-edge, nothing touching him: exactly
+ * the reported bug, and worse the faster he runs. 1 = cap the slope factor so a
+ * non-walkable (near-vertical) "slope" can't zero movement; console `ALPHA 0/1`. */
+int g_PcSlopeAlphaFix = 1;
+
+/* Live diagnostics for the invisible-wall fixes (shown on the collision panel) so
+ * we can tell at a glance whether they're firing: g_LastOffsetAlphaQ12 = the RAW
+ * slope factor this frame (Q12; 4096=1.0=no slowdown, low=slope choke);
+ * g_SlopeAlphaCapCount bumps each time the <0.8 cap kicks in. */
+q3_12 g_LastOffsetAlphaQ12 = Q12(1.0f);
+int   g_SlopeAlphaCapCount = 0;
+int   g_PhantomRejectCount = 0; /* bumped by the phantom-floor reject in player_control.c */
 #endif
 
 // Note - Will: I added a bunch of poorly written comments among the code
@@ -281,6 +360,20 @@ s32 Collision_WallResponse(s_CollisionResult* collResult, const VECTOR3* moveOff
                 }
             }
 
+#ifdef SH_PC_PORT
+            /* [WALLEDGE]: latch the wall-edge classification for the player so the
+             * panel can show it after a delayed mark. wallCount>=threshold here ==
+             * the actual "ran into a wall" reaction. */
+            if (chara == &g_SysWork.playerWork && collType == CollisionType_Wall)
+            {
+                g_WallEdgeDbg.active    = 1;
+                g_WallEdgeDbg.gH        = (s32)collResult->surface.groundHeight;
+                g_WallEdgeDbg.bound     = (s32)wallHeightBound;
+                g_WallEdgeDbg.wallCount = wallCount;
+                g_WallEdgeDbg.harryY    = (s32)chara->position.vy;
+                g_WallEdgeDbg.tick      = g_TickCount;
+            }
+#endif
             switch (collType)
             {
                 case CollisionType_Wall:
@@ -393,6 +486,19 @@ bool Collision_CharaCollisionSetup(s_CollisionResult* collResult, const VECTOR3*
 
     if (Ipd_CollisionDataGet(chara->position.vx, chara->position.vz) == NULL)
     {
+#ifdef SH_PC_PORT
+        /* PC streams IPD collision chunks on a camera-centred window, so a fast
+         * NPC crossing a chunk boundary can hit a frame with no chunk loaded
+         * under it. The PSX default floor Q12(8.0) then yanks it down until the
+         * chunk reloads — the "sewer creeper falls through the floor and
+         * reappears" symptom. Hold the NPC at its current height through the gap.
+         * Harry keeps the original default (off-map / death-pit behaviour). */
+        if (chara->model.charaId != Chara_Harry)
+        {
+            Collision_DefaultResultSet(collResult, Q12(0.0f), Q12(0.0f), Q12(0.0f), chara->position.vy);
+            return true;
+        }
+#endif
         Collision_DefaultResultSet(collResult, Q12(0.0f), Q12(0.0f), Q12(0.0f), Q12(8.0f));
         return true;
     }
@@ -603,6 +709,9 @@ bool func_8006A4A8(s_CollisionResult* collResult, VECTOR3* moveOffset, const s_C
         }
 
         // Run through collision data.
+#ifdef SH_PC_PORT
+        g_WallStopDbg.active = 0;
+#endif
         for (curCollData = collDataPtrs; curCollData < &collDataPtrs[collDataIdx]; curCollData++)
         {
             Collision_CharaCollisionHandle(&state, *curCollData);
@@ -688,6 +797,39 @@ bool func_8006A4A8(s_CollisionResult* collResult, VECTOR3* moveOffset, const s_C
                 {
                     g_CollStateDbg.hold = 30; /* ~0.5s at 60fps */
                 }
+            }
+        }
+
+        /* [WALLSTOP] read: a block actually clamped Harry's move this pass
+         * (g_WallStopDbg set by one of the three block sites). Player-gated via
+         * cylinder-near-Harry + throttled. Captures the REAL stop the [WALL-HIT]
+         * proximity probe misses — especially kind=3 (round obstacle, otherwise
+         * invisible). kind 1/2=wall: a/b = split-face XZ endpoints, dist = perp
+         * distance, rad = body radius, frac = swept crossing (Q12, kind 1).
+         * kind 3=obstacle: a = obstacle XZ, b = (obstY, obstRadius), rad = body+obst
+         * reach, dist = center distance, frac = swept crossing. */
+        {
+            s32 _wpdx = cylinder->position.vx - g_SysWork.playerWork.player.position.vx;
+            s32 _wpdz = cylinder->position.vz - g_SysWork.playerWork.player.position.vz;
+            static s32 s_lastStopLog = -1000;
+            if (g_WallStopDbg.active && (g_TickCount - s_lastStopLog) > 8 &&
+                ABS(_wpdx) < Q12(4.0f) && ABS(_wpdz) < Q12(4.0f))
+            {
+                s_lastStopLog = g_TickCount;
+                SH_DBG("[WALLSTOP] kind=%d sub=%d a=(%d,%d) b=(%d,%d) rad=%d dist=%d frac=%d sweepDist=%d spd=%d world=(%d,%d) head=%d",
+                       g_WallStopDbg.kind, g_WallStopDbg.sub,
+                       g_WallStopDbg.ax, g_WallStopDbg.az, g_WallStopDbg.bx, g_WallStopDbg.bz,
+                       g_WallStopDbg.rad, g_WallStopDbg.dist, g_WallStopDbg.frac,
+                       (int)state.charaState.distance,
+                       (int)g_SysWork.playerWork.player.moveSpeed,
+                       (int)g_SysWork.playerWork.player.position.vx, (int)g_SysWork.playerWork.player.position.vz,
+                       (int)g_SysWork.playerWork.player.rotation.vy);
+                SH_DBG("[WALLSTOP]   off=(%d,%d) full=(%d,%d) wrap=%d cellWH=(%d,%d) fall=%d hp=%d",
+                       g_WallStopDbg.offx, g_WallStopDbg.offz, g_WallStopDbg.fullx, g_WallStopDbg.fullz,
+                       (g_WallStopDbg.fullx != g_WallStopDbg.offx) || (g_WallStopDbg.fullz != g_WallStopDbg.offz),
+                       g_WallStopDbg.cellw, g_WallStopDbg.cellh,
+                       (int)g_SysWork.playerWork.player.fallSpeed,
+                       (int)g_SysWork.playerWork.player.health);
             }
         }
 
@@ -1577,6 +1719,11 @@ void func_8006BB50(s_CollisionState* state, s32 arg1) // 0x8006BB50
 
     temp2 = state->charaState.radius - state->point.field_20.radiusCollDiffDist;
     func_8006BCC4(&state->field_44, &state->point.ipdCollisionData->subcellCheckIdx[state->point.subcellIdx], arg1, charaCollDistX, charaCollDistZ, temp2);
+#ifdef SH_PC_PORT
+    WALLSTOP_SET(2, state->point.subcellIdx, state->point.splitVertex0.vx, state->point.splitVertex0.vz,
+                 state->point.splitVertex1.vx, state->point.splitVertex1.vz,
+                 state->charaState.radius, state->point.field_20.radiusCollDiffDist, arg1);
+#endif
 }
 
 q23_8 func_8006BC34(s_CollisionState* state)
@@ -1780,6 +1927,10 @@ void func_8006BF88(s_CollisionState* state, const SVECTOR3* splitVert) // 0x8006
         state->field_3C = temp2 - splitVert->vx;
         temp3               = state->charaPositionFrom.offset.vz + Q12_MULT(state->charaState.offset.vz, temp_v0);
         state->field_3E = temp3 - splitVert->vz;
+#ifdef SH_PC_PORT
+        WALLSTOP_SET(1, state->point.subcellIdx, splitVert->vx, splitVert->vz, splitVert->vy, 0,
+                     state->charaState.radius, state->point.field_20.radiusCollDiffDist, temp_v0);
+#endif
     }
 }
 
@@ -1974,6 +2125,18 @@ void func_8006C45C(s_CollisionState* state) // 0x8006C45C
         state->groundHeight = state->point.field_6.vy;
     }
 
+#ifdef SH_PC_PORT
+    /* Draw this near obstacle in the visualizer (red) whether or not it blocks,
+     * so you can still SEE the ptr_18 colliders even with collision disabled.
+     * Then skip the SOLID response (ground-height capture above is kept) so a
+     * sprinting Harry stops bumping the invisible ones. */
+    WALLSTOP_VIS_OBST();
+    if (!g_PcObstacleCollision)
+    {
+        return;
+    }
+#endif
+
     if (!state->isCharaMoving && !state->field_0_9 || dist < state->point.field_C.field_0)
     {
         return;
@@ -2020,6 +2183,10 @@ void func_8006C45C(s_CollisionState* state) // 0x8006C45C
         state->field_3C = temp - state->point.field_6.vx;
         temp2               = state->charaPositionFrom.offset.vz + Q12_MULT(state->charaState.offset.vz, var_s2);
         state->field_3E = temp2 - state->point.field_6.vz;
+#ifdef SH_PC_PORT
+        WALLSTOP_SET(3, state->point.subcellIdx, state->point.field_6.vx, state->point.field_6.vz,
+                     state->point.field_6.vy, state->point.field_C.field_0, distMax, dist, var_s2);
+#endif
     }
 }
 
@@ -2033,6 +2200,11 @@ void func_8006C794(s_CollisionState* state, s32 arg1, s32 dist) // 0x8006C794
                       state->charaPositionFrom.offset.vx - state->point.field_6.vx,
                       state->charaPositionFrom.offset.vz - state->point.field_6.vz,
                       (state->charaState.radius + state->point.field_C.field_0) - dist);
+#ifdef SH_PC_PORT
+        WALLSTOP_SET(5, state->point.subcellIdx, state->point.field_6.vx, state->point.field_6.vz,
+                     state->point.field_6.vy, state->point.field_C.field_0,
+                     state->charaState.radius + state->point.field_C.field_0, dist, arg1);
+#endif
     }
 }
 
@@ -2145,6 +2317,10 @@ q3_12 Collision_OffsetAlphaGet(s_CollisionState* state) // 0x8006CB90
 {
     q23_8 groundHeight;
 
+#ifdef SH_PC_PORT
+    g_LastOffsetAlphaQ12 = Q12(1.0f); /* default: the early-return (no-slope) cases */
+#endif
+
     if (state->slopedGroundHeight == Q8(30.0f))
     {
         return Q12(1.0f);
@@ -2159,6 +2335,7 @@ q3_12 Collision_OffsetAlphaGet(s_CollisionState* state) // 0x8006CB90
 
     {
         q19_12 mag = Math_Vector2MagCalc(state->charaState.distance, groundHeight - state->charaState.bottomPos);
+        q3_12  alpha;
 #ifdef SH_PC_PORT
         /* Lighthouse-stair crash (progression SilentHill(3/4).log, 0xC0000094):
          * a degenerate slope (distance==0 && groundHeight==bottomPos) makes the
@@ -2169,7 +2346,25 @@ q3_12 Collision_OffsetAlphaGet(s_CollisionState* state) // 0x8006CB90
             return Q12(1.0f);
         }
 #endif
-        return Q12_DIV(state->charaState.distance, mag);
+        alpha = Q12_DIV(state->charaState.distance, mag);
+#ifdef SH_PC_PORT
+        g_LastOffsetAlphaQ12 = alpha; /* raw slope factor this frame (panel diag) */
+        /* Invisible-wall ROOT FIX: alpha = cos(slope). Real SH ground is gentle —
+         * the bug-spots are ~5.7deg floors (alpha ~0.99) that Ipd_GroundHeightGet
+         * mis-extrapolates into a near-vertical fake rise -> tiny alpha -> movement
+         * scaled toward zero == "ran into a wall" on a flat/gently-sloped floor.
+         * Cut at 0.8 (~37deg): anything steeper than a walkable slope is either a
+         * spurious read or a real wall (which blocks via the separate clamp/wall-
+         * edge paths, not this slope factor) -> treat as flat. 0.5 was too low: at
+         * WALK speed the same fake rise lands ~0.5 and slipped through as a hard
+         * slowdown (user A1/A2 floor-spots, not top-speed). Real slopes stay >0.85. */
+        if (g_PcSlopeAlphaFix && alpha < Q12(0.8f))
+        {
+            g_SlopeAlphaCapCount++;
+            return Q12(1.0f);
+        }
+#endif
+        return alpha;
     }
 }
 
@@ -2241,6 +2436,10 @@ void func_8006CC9C(s_CollisionState* state) // 0x8006CC9C
         {
             temp3 = state->field_A0.s_1.field_4 - temp_s4;
             func_8006BCC4(&state->field_44, state->field_A0.s_1.field_8, 2, deltaX, deltaZ, temp3);
+#ifdef SH_PC_PORT
+            WALLSTOP_SET(4, -1, state->charaPositionFrom.field_0, state->charaPositionTo.field_0,
+                         0, 0, state->field_A0.s_1.field_4, temp_s4, 0);
+#endif
         }
     }
     else if (state->isCharaMoving && state->field_44.field_0.field_0 == 0 && func_8006C1B8(1, temp_v0, state))
@@ -2259,6 +2458,10 @@ void func_8006CC9C(s_CollisionState* state) // 0x8006CC9C
         state->field_3A = Q12_TO_Q4(state->charaState.distance * temp_v0);
         state->field_3C = temp + temp4;
         state->field_3E = temp2 + tarCharaBottom;
+#ifdef SH_PC_PORT
+        WALLSTOP_SET(4, -1, state->charaPositionFrom.field_0, state->charaPositionTo.field_0,
+                     0, 0, state->field_A0.s_1.field_4, temp_s4, temp_v0);
+#endif
     }
 }
 

@@ -1916,11 +1916,11 @@ void func_800DB748(s_SubCharacter* monsterCybil) // 0x800DB748
     }
     else if (shortestAngle > Q12_ANGLE(0.0f))
     {
-        monsterCybil->rotation.vy += Q12_ANGLE(11.3f);
+        monsterCybil->rotation.vy += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(11.3f));
     }
     else
     {
-        monsterCybil->rotation.vy -= Q12_ANGLE(11.3f);
+        monsterCybil->rotation.vy -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(11.3f));
     }
 }
 
@@ -2147,14 +2147,14 @@ void func_800DBE5C(s_SubCharacter* monsterCybil)
     }
     else if (angle > Q12_ANGLE(0.0f))
     {
-        monsterCybil->rotation.vy += Q12_ANGLE(5.625f);
+        monsterCybil->rotation.vy += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(5.625f));
     }
     else
     {
-        monsterCybil->rotation.vy -= Q12_ANGLE(5.625f);
+        monsterCybil->rotation.vy -= TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(5.625f));
     }
 
-    monsterCybil->rotation.vy += (Rng_Rand16() % Q12_ANGLE(11.25f)) - Q12_ANGLE(5.625f);
+    monsterCybil->rotation.vy += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (Rng_Rand16() % Q12_ANGLE(11.25f)) - Q12_ANGLE(5.625f));
 
     monsterCybilProps.field_10C += g_DeltaTime;
     if (monsterCybilProps.field_10C > Q12(5.0f))

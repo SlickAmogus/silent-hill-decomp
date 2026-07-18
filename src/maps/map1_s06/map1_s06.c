@@ -344,7 +344,21 @@ void func_800D5DD8(void) // 0x800D5DD8
             break;
 
         case 9:
+#ifdef SH_PC_PORT
+            /* 1 step per rendered frame over 122 30fps-authored frames (~4s);
+             * dt-scale with a carry and clamp so the == advance still lands. */
+            {
+                static q19_12 s_slideAccum;
+                s32 slideStep;
+
+                s_slideAccum += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(1.0f));
+                slideStep     = FP_FROM(s_slideAccum, Q12_SHIFT);
+                s_slideAccum -= FP_TO(slideStep, Q12_SHIFT);
+                D_800D778D    = MIN(D_800D778D + slideStep, 122);
+            }
+#else
             D_800D778D++;
+#endif
 
             func_800D5D6C(D_800D778D);
 
@@ -363,7 +377,20 @@ void func_800D5DD8(void) // 0x800D5DD8
             func_800D5D6C(122);
             func_80068E0C(2, 1, 926, D_800D778F, 122, 120, Q12(0.5f));
 
+#ifdef SH_PC_PORT
+            /* Marking fade: 1 alpha step per rendered frame -> 30 steps/sec. */
+            {
+                static q19_12 s_fadeAccum;
+                s32 fadeStep;
+
+                s_fadeAccum += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(1.0f));
+                fadeStep     = FP_FROM(s_fadeAccum, Q12_SHIFT);
+                s_fadeAccum -= FP_TO(fadeStep, Q12_SHIFT);
+                D_800D778F  += fadeStep;
+            }
+#else
             D_800D778F++;
+#endif
             if (D_800D778F >= 0x80)
             {
                 D_800D778F = 0x80;

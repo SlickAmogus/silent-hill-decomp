@@ -18,6 +18,13 @@
 
 #define LINE_CURSOR_TIMER_MAX 8
 #ifdef SH_PC_PORT
+#include <stdio.h>
+#include <string.h>
+#include "sh_log.h"
+#include "pc_config.h"
+#include "pc_mouse_cursor.h"
+#include "map_registry.h"
+#include "lang_text.h" /* PAL Language row (title-screen options) */
 #define LAYER_24   PSX_OT_OFS(24)
 #define LAYER_40   PSX_OT_OFS(40)
 #define LAYER_36   PSX_OT_OFS(36)
@@ -49,6 +56,595 @@ static s32 g_ExtraOptionsMenu_BulletMultMax;
 // ========================================
 // MAIN AND EXTRA OPTION SCREEN
 // ========================================
+
+#ifdef SH_PC_PORT
+/* ============================================================================
+ *  PC OPTIONS MENU  (repurposes the "Screen Position" main-menu entry)
+ *
+ *  Two pages mirroring the launcher. Each setting row cycles its config value
+ *  with Left/Right, writes the config key and echoes to the console; realtime
+ *  rows also push their live render global so the change is immediate, while
+ *  restart-only rows print a "takes effect next launch" notice. Action rows
+ *  (Next/Prev page, Back) activate with Confirm; Cancel always backs out to the
+ *  main options menu (like every other submenu). Modeled on Extra Options. */
+
+/* Live render globals mirrored for realtime settings (defined in PsyCross /
+ * main_pc.c — the same ones main_pc.c seeds from g_PcConfig at boot). */
+extern int g_cfg_psxDither;
+extern int g_cfg_bilinearFiltering;
+extern int g_PsxUsePgxp;
+extern int g_cfg_postProcess;
+extern int g_cfg_tonemap;
+extern int g_PsyX_UsePerPixelFlashlight;
+extern int g_PsyX_UseFlashlightShadows;
+
+/* PsyCross live-apply helpers for the window-level settings (resolution, window
+ * mode, vsync) so they take effect immediately instead of next launch. */
+extern void PsyX_ApplyWindowState(int width, int height, int fullscreen);
+extern void PsyX_ApplyVsync(int vsync);
+
+/* Per-pixel flashlight beam live floats (PsyCross); mirrored by the sliders. */
+extern float g_PsyX_FlashlightIntensity;
+extern float g_PsyX_FlashlightSize;
+
+/* FMV movie (SDL PCM) live volume, 0..1; mirrored by the FMV Movie slider.
+ * The Sound menu's Voice slider drives g_PcXaVolume separately. */
+extern float g_PcFmvVolume;
+
+s32 g_PcOptionsMenu_SelectedEntry     = 0;
+s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
+static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls, 3 = Camera */
+
+/* Mouse hover moves the selection WITHOUT resetting g_Options_SelectionHighlightTimer:
+ * a reset re-arms the LINE_CURSOR_TIMER_MAX gate, which then swallows the click that
+ * follows the hover a fraction of a second later. But the underline's endpoints are
+ * statics inside the highlight draws, recomputed ONLY when that timer is 0 — so the
+ * bullet followed the mouse while the underline stayed where the keyboard left it.
+ *
+ * This asks the next highlight draw to recompute its endpoints once. Prev == Selected
+ * at that point, so from == to and the underline snaps to the row instead of sliding —
+ * which is the right behaviour for a pointer that is already there. */
+s32 g_PcOptions_HighlightSnap = 0;
+
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK };
+
+/* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
+ * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
+ * 240-line screen. Starting at 40 reclaims that row for every page. Everything that
+ * is positioned per-row moves with it: the two string draws, the mouse hit-test in
+ * Options_PcOptionsMenu_Control, and — in the centred quad space the highlight and
+ * bullets are authored in — HIGHLIGHT_OFFSET_Y and the bullet quad Y's. */
+#define PCOPT_LINE_BASE_Y 40
+
+typedef struct {
+    const char*        name;     /* row label (underscores render as spaces) */
+    int*               field;    /* &g_PcConfig.X (NULL for resolution + actions) */
+    const char*        key;      /* config.cfg key (NULL for actions) */
+    const int*         vals;     /* allowed values, in cycle order */
+    int                nVals;
+    const char* const* labels;   /* value labels parallel to vals (NULL = numeric) */
+    int*               live;     /* single live global to mirror (NULL = none) */
+    int                realtime; /* 1 = applies now, 0 = needs restart */
+    int                kind;     /* PCK_* */
+    float*             ffield;   /* PCK_SLIDER: config float this row adjusts */
+    float*             flive;    /* PCK_SLIDER: live global to mirror (NULL = none) */
+    float              fmin;     /* PCK_SLIDER value range + step */
+    float              fmax;
+    float              fstep;
+} s_PcOpt;
+
+static const int VAL_WIN[]   = { 0, 1, 2 };
+static const int VAL_VSYNC[] = { 0, 1 };
+static const int VAL_FILT[]  = { 0, 1, 2 };
+static const int VAL_ONOFF[] = { 0, 1 };
+static const int VAL_AA[]    = { 0, 2, 4, 8 };
+static const int VAL_POST[]  = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
+static const int VAL_TONE[]  = { 0, 1, 2, 3 };
+static const int VAL_CON[]   = { 0, 1, 2, 3 };
+static const int VAL_FPS[]   = { 0, 30, 60, 120, 240 };
+static const int VAL_FLMODE[] = { 0, 1, 2, 3 };
+
+static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
+static const char* const LBL_VSYNC[] = { "Off", "On" };
+static const char* const LBL_FILT[]  = { "Off", "Dither", "Bilinear" };
+static const char* const LBL_ONOFF[] = { "Off", "On" };
+static const char* const LBL_AA[]    = { "Off", "2x", "4x", "8x" };
+static const char* const LBL_POST[]  = { "Off", "CRT", "Scanlines", "Vignette", "Color_Grade", "Film_Grain", "Sharpen", "PSX_Retro", "Cinematic" };
+static const char* const LBL_TONE[]  = { "Off", "Reinhard", "ACES", "Filmic" };
+static const char* const LBL_CON[]   = { "Off", "External", "In_Game", "Both" };
+static const char* const LBL_FPS[]   = { "Off", "30", "60", "120", "240" };
+/* Short enough to fit the value column at every language/width ("Modern_Shadows" clipped). */
+static const char* const LBL_FLMODE[] = { "Classic", "C_+_Shadows", "Modern", "M_+_Shadows" };
+
+static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
+static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
+#define PC_RES_COUNT ((int)(sizeof(RES_W) / sizeof(RES_W[0])))
+
+static const s_PcOpt PCOPT_G[] = {
+    { "Resolution",     NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RES    },
+    { "Window_Mode",    &g_PcConfig.fullscreen,         "fullscreen",           VAL_WIN,   3, LBL_WIN,   NULL,                          1, PCK_WINMODE },
+    { "VSync",          &g_PcConfig.vsync,              "vsync",                VAL_VSYNC, 2, LBL_VSYNC, NULL,                          1, PCK_VSYNC   },
+    { "Texture_Filter", &g_PcConfig.psxDither,          "psx_dither",           VAL_FILT,  3, LBL_FILT,  NULL,                          1, PCK_FILTER },
+    { "PGXP",           &g_PcConfig.usePgxp,            "use_pgxp",             VAL_ONOFF, 2, LBL_ONOFF, &g_PsxUsePgxp,                 1, PCK_INT    },
+    { "Antialiasing",   &g_PcConfig.msaaSamples,        "msaa",                 VAL_AA,    4, LBL_AA,    NULL,                          0, PCK_INT    },
+    { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
+    { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
+    { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
+    { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
+};
+
+static const s_PcOpt PCOPT_S[] = {
+    /* One row for the whole flashlight look: Classic (PSX per-vertex),
+     * Classic_Shadows (per-pixel, PSX-calibrated + shadows), Modern (stylized
+     * per-pixel spotlight), Modern_Shadows. PCK_FLMODE routes the change
+     * through Pc_FlashlightModeApply, which derives the per-pixel/style/shadow
+     * globals and the per-style beam defaults. */
+    { "Flashlight",       &g_PcConfig.flashlightMode,     "flashlight_mode",      VAL_FLMODE, 4, LBL_FLMODE, NULL,                        1, PCK_FLMODE },
+    { "Beam_Intensity",   NULL, "flashlight_intensity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightIntensity, &g_PsyX_FlashlightIntensity, 0.0f, 3.0f, 0.1f },
+    { "Beam_Size",        NULL, "flashlight_size",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightSize,      &g_PsyX_FlashlightSize,      0.0f, 3.0f, 0.1f },
+    { "Disable_Culling",  &g_PcConfig.disableCulling, "disable_culling",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+    { "Preload_Chunks",   &g_PcConfig.preloadChunks,  "preload_chunks",   VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
+    { "FPS_Limit",        &g_PcConfig.fpsCap,         "fps_cap",          VAL_FPS,   5, LBL_FPS,   NULL, 1, PCK_INT  },
+    { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
+    { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Next_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_NEXT },
+    { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
+};
+
+/* Page 3 (Controls): the 2D screen-relative control toggle + look sensitivities,
+ * plus the aim/look toggles and the New-Game start Map row (moved off page 2 to
+ * make room for this page's Prev/Next/Back action trio). */
+static const s_PcOpt PCOPT_C[] = {
+    { "2D_Controls",       &g_PcConfig.control2d,        "control_2d",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "2D_Snap",           &g_PcConfig.control2dSnap,    "control_2d_snap",        VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Mouse_Sensitivity", NULL, "mouse_sensitivity",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.mouseSensitivity,      NULL, 0.1f, 4.0f, 0.1f },
+    { "Pad_Sensitivity",   NULL, "controller_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.controllerSensitivity, NULL, 0.1f, 4.0f, 0.1f },
+    { "First_Person_FOV",  NULL, "fps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fpsFov,                NULL, 55.0f, 110.0f, 1.0f },
+    { "Third_Person_FOV",  NULL, "tps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsFov,                NULL, 55.0f, 110.0f, 1.0f },
+    { "Invert_Mouse_Y",    &g_PcConfig.invertMouseY,      "invert_mouse_y",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Map",               NULL,                          "map",                    NULL,      0, NULL,      NULL, 1, PCK_MAP  },
+    { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
+    { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },
+};
+
+/* Page 4 (Camera): the aiming + alternate-camera options. A page fits ~12 lines
+ * (PCOPT_LINE_BASE_Y 40 + 16/row on a 240-line screen). Aim options (Crosshair,
+ * Aim Assist, Aim Zoom) group here; Third_Person_FOV lives with First_Person_FOV
+ * on the Controls page. */
+static const s_PcOpt PCOPT_T[] = {
+    { "Crosshair",         &g_PcConfig.crosshair,          "crosshair",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Aim_Assist",        &g_PcConfig.aimAssist,          "aim_assist",            VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Aim_Zoom",          NULL, "tps_aim_zoom_amount",    NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsAimZoom,  NULL, 0.0f, 100.0f, 5.0f },
+    { "OTS_Aim_In_TPS",    &g_PcConfig.tpsOtsAim,          "tps_ots_aim",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Camera_Collision",  &g_PcConfig.tpsCameraCollision, "tps_camera_collision",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Prev_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Back",              NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_BACK },
+};
+
+static void Options_PcOptionsMenu_EntryStringsDraw(void);
+static void Options_PcOptionsMenu_ConfigDraw(void);
+static void Options_PcOptionsMenu_SelectionHighlightDraw(void);
+
+/* ---- Mouse support: hover selects, click acts, wheel adjusts values ----
+ * Injections write the same controller bits the stock input code reads, so
+ * every screen keeps its own step/clamp/SFX/state logic. */
+
+static void PcMouse_InjectEnter(void)
+{
+    g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+}
+
+static void PcMouse_InjectCancel(void)
+{
+    g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;
+}
+
+/* A value-cycle step: toggle rows read clickedBtnFlags, sliders/volumes read
+ * pulsedBtnFlags — set both, like a fresh physical press does. */
+static void PcMouse_InjectDir(int dir)
+{
+    u32 flag = (dir > 0) ? ControllerFlag_LStickRight : ControllerFlag_LStickLeft;
+
+    g_Controller0->clickedBtnFlags |= flag;
+    g_Controller0->pulsedBtnFlags  |= flag;
+}
+
+static const s_PcOpt* PcOpt_Page(int* count)
+{
+    if (g_PcOptionsMenu_Page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
+    if (g_PcOptionsMenu_Page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
+    if (g_PcOptionsMenu_Page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
+    *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0]));
+    return PCOPT_T;
+}
+
+static int PcOpt_ValIndex(const s_PcOpt* e)
+{
+    /* Prefer the live render global when the row mirrors one: it's the ground
+     * truth, so the menu reflects toggles made via hotkeys/console (F1 PGXP,
+     * F2 post-process, etc.) rather than a stale g_PcConfig copy. */
+    int i, v = (e->live) ? *e->live : *e->field;
+    for (i = 0; i < e->nVals; i++)
+        if (e->vals[i] == v) return i;
+    return 0;
+}
+
+static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
+{
+    if (e->kind == PCK_RES) {
+        snprintf(buf, bufsz, "%dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
+        return buf;
+    }
+    if (e->kind == PCK_SLIDER) {
+        snprintf(buf, bufsz, "%.2f", e->ffield ? *e->ffield : 0.0f);
+        return buf;
+    }
+    if (e->kind == PCK_MAP) {
+        return g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
+    }
+    if (e->field == NULL)
+        return "";
+    {
+        int idx = PcOpt_ValIndex(e);
+        if (e->labels) return e->labels[idx];
+        snprintf(buf, bufsz, "%d", e->vals[idx]);
+        return buf;
+    }
+}
+
+static void PcOpt_Adjust(const s_PcOpt* e, int dir)
+{
+    char buf[24];
+    char vbuf[24];
+
+    if (e->kind == PCK_RES) {
+        int i, idx = 0;
+        for (i = 0; i < PC_RES_COUNT; i++)
+            if (RES_W[i] == g_PcConfig.windowWidth && RES_H[i] == g_PcConfig.windowHeight) { idx = i; break; }
+        idx = (idx + dir + PC_RES_COUNT) % PC_RES_COUNT;
+        g_PcConfig.windowWidth  = RES_W[idx];
+        g_PcConfig.windowHeight = RES_H[idx];
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowWidth);  PcConfig_SaveKeyValue("width", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.windowHeight); PcConfig_SaveKeyValue("height", buf);
+        PsyX_ApplyWindowState(g_PcConfig.windowWidth, g_PcConfig.windowHeight, g_PcConfig.fullscreen);
+        SH_DBG_ECHO("Resolution: %dx%d", g_PcConfig.windowWidth, g_PcConfig.windowHeight);
+        return;
+    }
+    if (e->kind == PCK_SLIDER) {
+        float v = (e->ffield ? *e->ffield : 0.0f) + (float)dir * e->fstep;
+        if (v < e->fmin) v = e->fmin;
+        if (v > e->fmax) v = e->fmax;
+        if (e->ffield) *e->ffield = v;
+        if (e->flive)  *e->flive  = v;
+        if (e->key) { char fb[16]; snprintf(fb, sizeof(fb), "%.3f", v); PcConfig_SaveKeyValue(e->key, fb); }
+        SH_DBG_ECHO("%s: %.2f", e->name, v);
+        return;
+    }
+    if (e->kind == PCK_MAP) {
+        /* Cycle the New-Game start map (same effect as the console MAP command
+         * and the 4/5 debug keys): set g_PcConfig.mapName; the map loads on the
+         * next New Game. MAP_NAMES is dense 0..Count-1 in story order. */
+        int cnt = MapRegistry_Count();
+        int idx = MapRegistry_FindByName(g_PcConfig.mapName);
+        const char* nm;
+        if (idx < 0) idx = 0;
+        idx = (idx + dir + cnt) % cnt;
+        nm  = MapRegistry_GetName((e_MapIdx)idx);
+        strncpy(g_PcConfig.mapName, nm, sizeof(g_PcConfig.mapName) - 1);
+        g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
+        PcConfig_SaveMapName(nm);
+        {
+            const char* desc = MapRegistry_GetDescription((e_MapIdx)idx);
+            SH_DBG_ECHO("Map: %s (%s)", nm, (desc && desc[0]) ? desc : nm);
+        }
+        return;
+    }
+    if (e->field == NULL)
+        return;
+
+    {
+        int idx = (PcOpt_ValIndex(e) + dir + e->nVals) % e->nVals;
+        *e->field = e->vals[idx];
+        snprintf(buf, sizeof(buf), "%d", *e->field);
+        if (e->key) PcConfig_SaveKeyValue(e->key, buf);
+
+        if (e->kind == PCK_FILTER) {
+            switch (*e->field) {
+            case 1:  g_cfg_psxDither = 1; g_cfg_bilinearFiltering = 0; break;
+            case 2:  g_cfg_psxDither = 0; g_cfg_bilinearFiltering = 1; break;
+            default: g_cfg_psxDither = 0; g_cfg_bilinearFiltering = 0; break;
+            }
+        } else if (e->kind == PCK_WINMODE) {
+            PsyX_ApplyWindowState(g_PcConfig.windowWidth, g_PcConfig.windowHeight, g_PcConfig.fullscreen);
+        } else if (e->kind == PCK_VSYNC) {
+            PsyX_ApplyVsync(g_PcConfig.vsync);
+        } else if (e->kind == PCK_FLMODE) {
+            Pc_FlashlightModeApply(*e->field, 1);
+        } else if (e->live) {
+            *e->live = *e->field;
+        }
+
+        SH_DBG_ECHO("%s: %s", e->name, PcOpt_ValueLabel(e, vbuf, sizeof(vbuf)));
+        if (!e->realtime)
+            SH_DBG_ECHO("This setting will take effect the next time the game is started.");
+    }
+}
+
+void Options_PcOptionsMenu_Control(void)
+{
+    int            count;
+    const s_PcOpt* tbl = PcOpt_Page(&count);
+
+    Options_PcOptionsMenu_EntryStringsDraw();
+    Options_PcOptionsMenu_ConfigDraw();
+    Options_PcOptionsMenu_SelectionHighlightDraw();
+    Options_Menu_VignetteDraw();
+    Screen_BackgroundImgDraw(&g_ItemInspectionImg);
+    Pc_MouseCursor_Draw();
+
+    if (g_GameWork.gameStateSteps[0] != OptionsMenuState_PcOptions)
+        return;
+
+    if ((LINE_CURSOR_TIMER_MAX - 1) < g_Options_SelectionHighlightTimer)
+        g_Options_SelectionHighlightTimer = LINE_CURSOR_TIMER_MAX;
+    else
+        g_Options_SelectionHighlightTimer++;
+
+    if (g_Options_SelectionHighlightTimer == LINE_CURSOR_TIMER_MAX)
+    {
+        const s_PcOpt* sel;
+
+        if (g_PcOptionsMenu_SelectedEntry >= count)
+            g_PcOptionsMenu_SelectedEntry = 0;
+        g_PcOptionsMenu_PrevSelectedEntry = g_PcOptionsMenu_SelectedEntry;
+
+        /* Mouse: hover selects (snapping, so the click that follows isn't
+         * swallowed by the highlight timer), click activates action rows /
+         * cycles value rows, wheel steps the hovered value, right-click backs
+         * out (via the cancel handler below). */
+        {
+            int mx, my;
+
+            if (Pc_MouseCursor_UiPos(&mx, &my))
+            {
+                int row = -1, i;
+
+                for (i = 0; i < count; i++) {
+                    int top = PCOPT_LINE_BASE_Y + (i * 16) - 3;
+                    if (my >= top && my < top + 16) { row = i; break; }
+                }
+
+                if (row >= 0 && Pc_MouseCursor_Moved() && row != g_PcOptionsMenu_SelectedEntry) {
+                    g_PcOptionsMenu_SelectedEntry     = row;
+                    g_PcOptionsMenu_PrevSelectedEntry = row;
+                    g_PcOptions_HighlightSnap         = 1;
+                    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                }
+                if (row >= 0 && row == g_PcOptionsMenu_SelectedEntry) {
+                    int wheel = Pc_MouseCursor_WheelStep();
+
+                    if (tbl[row].kind >= PCK_NEXT) {
+                        if (Pc_MouseCursor_LeftClicked())
+                            PcMouse_InjectEnter();
+                    } else if (Pc_MouseCursor_LeftClicked()) {
+                        PcMouse_InjectDir(1);
+                    } else if (wheel != 0) {
+                        PcMouse_InjectDir(wheel);
+                    }
+                }
+                if (Pc_MouseCursor_RightClicked())
+                    PcMouse_InjectCancel();
+            }
+        }
+
+        if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp) {
+            Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+            g_PcOptionsMenu_SelectedEntry = ((g_PcOptionsMenu_SelectedEntry - 1) + count) % count;
+            g_Options_SelectionHighlightTimer = 0;
+        }
+        if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickDown) {
+            Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+            g_PcOptionsMenu_SelectedEntry = (g_PcOptionsMenu_SelectedEntry + 1) % count;
+            g_Options_SelectionHighlightTimer = 0;
+        }
+
+        /* L1 / R1 (LB / RB) jump to the previous / next PC-options page (wraps).
+         * clickedBtnFlags is the per-frame rising edge; keyboard L1=A / R1=D map to
+         * the same PSX bits, so this works on keyboard too. */
+        if (g_Controller0->clickedBtnFlags & ControllerFlag_R1) {
+            Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+            g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 1) & 3; /* 4 pages */
+            g_PcOptionsMenu_SelectedEntry     = 0;
+            g_Options_SelectionHighlightTimer = 0;
+        }
+        if (g_Controller0->clickedBtnFlags & ControllerFlag_L1) {
+            Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+            g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 3) & 3; /* -1 mod 4 */
+            g_PcOptionsMenu_SelectedEntry     = 0;
+            g_Options_SelectionHighlightTimer = 0;
+        }
+
+        sel = &tbl[g_PcOptionsMenu_SelectedEntry];
+
+        /* Every value row (INT/RES/FILTER/WINMODE/VSYNC/SLIDER) adjusts on
+         * left/right; only the action rows (NEXT/PREV/BACK) are excluded. */
+        if (sel->kind < PCK_NEXT) {
+            if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickRight) {
+                Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                PcOpt_Adjust(sel, +1);
+            }
+            if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft) {
+                Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                PcOpt_Adjust(sel, -1);
+            }
+        }
+
+        if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter) {
+            if (sel->kind == PCK_NEXT) {
+                Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                g_PcOptionsMenu_Page++; /* Graphics -> System -> Controls -> Camera */
+                g_PcOptionsMenu_SelectedEntry = 0;
+                g_Options_SelectionHighlightTimer = 0;
+            } else if (sel->kind == PCK_PREV) {
+                Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                g_PcOptionsMenu_Page--; /* Camera -> Controls -> System -> Graphics */
+                g_PcOptionsMenu_SelectedEntry = 0;
+                g_Options_SelectionHighlightTimer = 0;
+            } else if (sel->kind == PCK_BACK) {
+                Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
+                ScreenFade_Start(true, false, false);
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_LeavePcOptions;
+                g_SysWork.counters_1C[1]     = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
+                return;
+            }
+        }
+    }
+
+    if ((g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel) &&
+        g_GameWork.gameStateSteps[0] != OptionsMenuState_LeavePcOptions)
+    {
+        Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
+        ScreenFade_Start(true, false, false);
+        g_GameWork.gameStateSteps[0] = OptionsMenuState_LeavePcOptions;
+        g_SysWork.counters_1C[1]     = 0;
+        g_GameWork.gameStateSteps[1] = 0;
+        g_GameWork.gameStateSteps[2] = 0;
+    }
+}
+
+static void Options_PcOptionsMenu_EntryStringsDraw(void)
+{
+    #define LINE_BASE_X   64
+    #define LINE_BASE_Y   PCOPT_LINE_BASE_Y
+    #define LINE_OFFSET_Y 16
+
+    int            count, i;
+    const s_PcOpt* tbl = PcOpt_Page(&count);
+    DVECTOR        strPos  = { 100, 20 };
+    const char*    HEADING = "PC_Options";
+
+    Gfx_StringSetColor(StringColorId_White);
+    Gfx_StringSetPosition(strPos.vx, strPos.vy);
+    Gfx_Strings2dLayerIdxSet(8);
+    Gfx_StringDraw(HEADING, DEFAULT_MAP_MESSAGE_LENGTH);
+
+    for (i = 0; i < count; i++) {
+        Gfx_StringSetPosition(LINE_BASE_X, LINE_BASE_Y + (i * LINE_OFFSET_Y));
+        Gfx_Strings2dLayerIdxSet(8);
+        Gfx_StringDraw(tbl[i].name, DEFAULT_MAP_MESSAGE_LENGTH);
+    }
+    Gfx_StringsReset2dLayerIdx();
+
+    #undef LINE_BASE_X
+    #undef LINE_BASE_Y
+    #undef LINE_OFFSET_Y
+}
+
+static void Options_PcOptionsMenu_ConfigDraw(void)
+{
+    #define LINE_BASE_X   64
+    #define LINE_BASE_Y   PCOPT_LINE_BASE_Y
+    #define LINE_OFFSET_Y 16
+
+    int            count, i;
+    const s_PcOpt* tbl = PcOpt_Page(&count);
+    char           buf[24];
+    /* System's and Controls'/Camera's labels run long ("Disable Culling",
+     * "Mouse Sensitivity", "Camera Collision"), so push their value column right
+     * to clear them — but no further: System's widest value ("C_+_Shadows",
+     * 109px) must still end before the 320px clip (its labels end by ~196, so
+     * 204 clears both ways). Controls and Camera hold only short values (numbers
+     * and On/Off), so they can afford 240. */
+    int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : (g_PcOptionsMenu_Page == 1) ? 204 : 240;
+
+    Gfx_StringSetColor(StringColorId_White);
+    for (i = 0; i < count; i++) {
+        const char* v = PcOpt_ValueLabel(&tbl[i], buf, sizeof(buf));
+        if (v && v[0]) {
+            Gfx_StringSetPosition(valX, LINE_BASE_Y + (i * LINE_OFFSET_Y));
+            Gfx_Strings2dLayerIdxSet(8);
+            Gfx_StringDraw(v, DEFAULT_MAP_MESSAGE_LENGTH);
+        }
+    }
+
+    Gfx_StringsReset2dLayerIdx();
+
+    #undef LINE_BASE_X
+    #undef LINE_BASE_Y
+    #undef LINE_OFFSET_Y
+}
+
+static void Options_PcOptionsMenu_SelectionHighlightDraw(void)
+{
+    #define LINE_OFFSET_Y      16
+    #define HIGHLIGHT_OFFSET_X -121
+    /* 58 + 16: the rows moved up one line (PCOPT_LINE_BASE_Y 56 -> 40), and this
+     * space measures DOWN from the row, so it grows by the same 16. */
+    #define HIGHLIGHT_OFFSET_Y 74
+    #define HILITE_WIDTH       196
+
+    int            count, i, j;
+    s16            interpAlpha;
+    s_Line2d       highlightLine;
+    s_Quad2d       bulletQuads[2];
+    DVECTOR*       quadVerts;
+    static DVECTOR selectionHighlightFrom;
+    static DVECTOR selectionHighlightTo;
+
+    /* Bullet quads, likewise lifted 16 to follow PCOPT_LINE_BASE_Y. */
+    const DVECTOR BULLET_QUAD_VERTS_FRONT[] = { { -120, -71 }, { -120, -59 }, { -108, -71 }, { -108, -59 } };
+    const DVECTOR BULLET_QUAD_VERTS_BACK[]  = { { -121, -72 }, { -121, -58 }, { -107, -72 }, { -107, -58 } };
+
+    const s_PcOpt* tbl = PcOpt_Page(&count);
+    (void)tbl;
+
+    if (g_Options_SelectionHighlightTimer == 0 || g_PcOptions_HighlightSnap) {
+        g_PcOptions_HighlightSnap = 0;
+        selectionHighlightFrom.vx = HILITE_WIDTH + (65536 + HIGHLIGHT_OFFSET_X);
+        selectionHighlightFrom.vy = ((u16)g_PcOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
+        selectionHighlightTo.vx   = HILITE_WIDTH + (65536 + HIGHLIGHT_OFFSET_X);
+        selectionHighlightTo.vy   = ((u16)g_PcOptionsMenu_SelectedEntry * LINE_OFFSET_Y) - HIGHLIGHT_OFFSET_Y;
+    }
+
+    interpAlpha = Math_Sin(g_Options_SelectionHighlightTimer << 7);
+
+    highlightLine.vertex0.vx = HIGHLIGHT_OFFSET_X;
+    highlightLine.vertex1.vx = selectionHighlightFrom.vx +
+                               FP_FROM((selectionHighlightTo.vx - selectionHighlightFrom.vx) * interpAlpha, Q12_SHIFT);
+    highlightLine.vertex1.vy = selectionHighlightFrom.vy +
+                               FP_FROM((selectionHighlightTo.vy - selectionHighlightFrom.vy) * interpAlpha, Q12_SHIFT) +
+                               LINE_OFFSET_Y;
+    highlightLine.vertex0.vy = highlightLine.vertex1.vy;
+    Options_Selection_HighlightDraw(&highlightLine, true, false);
+
+    for (i = 0; i < count; i++) {
+        int line = i;
+        quadVerts = (DVECTOR*)&bulletQuads;
+        for (j = 0; j < RECT_VERT_COUNT; j++) {
+            quadVerts[j].vx                   = BULLET_QUAD_VERTS_FRONT[j].vx;
+            quadVerts[j].vy                   = BULLET_QUAD_VERTS_FRONT[j].vy + (line * LINE_OFFSET_Y);
+            quadVerts[j + sizeof(DVECTOR)].vx = BULLET_QUAD_VERTS_BACK[j].vx;
+            quadVerts[j + sizeof(DVECTOR)].vy = BULLET_QUAD_VERTS_BACK[j].vy + (line * LINE_OFFSET_Y);
+        }
+        if (i == g_PcOptionsMenu_SelectedEntry) {
+            Options_Selection_BulletPointDraw(&bulletQuads[0], false, false);
+            Options_Selection_BulletPointDraw(&bulletQuads[1], true,  false);
+        } else {
+            Options_Selection_BulletPointDraw(&bulletQuads[0], false, true);
+            Options_Selection_BulletPointDraw(&bulletQuads[1], true,  true);
+        }
+    }
+
+    #undef LINE_OFFSET_Y
+    #undef HIGHLIGHT_OFFSET_X
+    #undef HIGHLIGHT_OFFSET_Y
+    #undef HILITE_WIDTH
+}
+#endif /* SH_PC_PORT */
 
 void GameState_Options_Update(void) // 0x801E2D44
 {
@@ -241,6 +837,34 @@ void GameState_Options_Update(void) // 0x801E2D44
                 ScreenFade_Start(false, true, false);
             }
             break;
+
+#ifdef SH_PC_PORT
+        case OptionsMenuState_EnterPcOptions:
+            if (ScreenFade_IsFinished())
+            {
+                g_PcOptionsMenu_Page              = 0;
+                g_PcOptionsMenu_SelectedEntry     = 0;
+                g_PcOptionsMenu_PrevSelectedEntry = 0;
+                g_Options_SelectionHighlightTimer = 0;
+                ScreenFade_Start(false, true, false);
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_PcOptions;
+                g_SysWork.counters_1C[1]     = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
+            }
+            break;
+
+        case OptionsMenuState_LeavePcOptions:
+            if (ScreenFade_IsFinished())
+            {
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_EnterMainOptions;
+                g_SysWork.counters_1C[1]     = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
+                ScreenFade_Start(false, true, false);
+            }
+            break;
+#endif
     }
 
     // Handle menu state.
@@ -253,6 +877,9 @@ void GameState_Options_Update(void) // 0x801E2D44
         case OptionsMenuState_EnterBrightness:
         case OptionsMenuState_EnterController:
         case OptionsMenuState_EnterExtraOptions:
+#ifdef SH_PC_PORT
+        case OptionsMenuState_EnterPcOptions:
+#endif
             Options_MainOptionsMenu_Control();
             break;
 
@@ -260,6 +887,13 @@ void GameState_Options_Update(void) // 0x801E2D44
         case OptionsMenuState_LeaveExtraOptions:
             Options_ExtraOptionsMenu_Control();
             break;
+
+#ifdef SH_PC_PORT
+        case OptionsMenuState_PcOptions:
+        case OptionsMenuState_LeavePcOptions:
+            Options_PcOptionsMenu_Control();
+            break;
+#endif
     }
 }
 
@@ -270,6 +904,9 @@ void Options_ExtraOptionsMenu_Control(void) // 0x801E318C
     Options_ExtraOptionsMenu_SelectionHighlightDraw();
     Options_Menu_VignetteDraw();
     Screen_BackgroundImgDraw(&g_ItemInspectionImg);
+#ifdef SH_PC_PORT
+    Pc_MouseCursor_Draw();
+#endif
 
     if (g_GameWork.gameStateSteps[0] != OptionsMenuState_ExtraOptions)
     {
@@ -289,6 +926,46 @@ void Options_ExtraOptionsMenu_Control(void) // 0x801E318C
     if (g_Options_SelectionHighlightTimer == LINE_CURSOR_TIMER_MAX)
     {
         g_ExtraOptionsMenu_PrevSelectedEntry = g_ExtraOptionsMenu_SelectedEntry;
+
+#ifdef SH_PC_PORT
+        /* Mouse: hover selects (snapping), click / wheel cycles the value
+         * (every row here is a value row), right-click backs out via the
+         * cancel handler at the bottom. Rows start at y=64 on this screen. */
+        {
+            int mx, my;
+
+            if (Pc_MouseCursor_UiPos(&mx, &my))
+            {
+                s32 row = -1;
+                s32 i;
+
+                for (i = 0; i < g_ExtraOptionsMenu_EntryCount; i++)
+                {
+                    s32 top = 64 + (i * 16) - 3;
+                    if (my >= top && my < top + 16) { row = i; break; }
+                }
+
+                if (row >= 0 && Pc_MouseCursor_Moved() && row != g_ExtraOptionsMenu_SelectedEntry)
+                {
+                    g_ExtraOptionsMenu_SelectedEntry     = row;
+                    g_ExtraOptionsMenu_PrevSelectedEntry = row;
+                    g_PcOptions_HighlightSnap            = 1;
+                    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                }
+                if (row >= 0 && row == g_ExtraOptionsMenu_SelectedEntry)
+                {
+                    int wheel = Pc_MouseCursor_WheelStep();
+
+                    if (Pc_MouseCursor_LeftClicked())
+                        PcMouse_InjectDir(1);
+                    else if (wheel != 0)
+                        PcMouse_InjectDir(wheel);
+                }
+                if (Pc_MouseCursor_RightClicked())
+                    PcMouse_InjectCancel();
+            }
+        }
+#endif
 
         // Leave to gameplay (if options menu was accessed with `Option` input action).
         if (g_GameWork.gameStatePrev == GameState_InGame &&
@@ -489,6 +1166,10 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
     Screen_BackgroundImgDraw(&g_ItemInspectionImg);
     Options_MainOptionsMenu_BgmVolumeBarDraw();
     Options_MainOptionsMenu_SfxVolumeBarDraw();
+#ifdef SH_PC_PORT
+    Options_MainOptionsMenu_FmvVolumeBarDraw();
+    Pc_MouseCursor_Draw();
+#endif
 
     if (g_GameWork.gameStateSteps[0] != OptionsMenuState_MainOptions)
     {
@@ -511,6 +1192,84 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
     }
 
     g_MainOptionsMenu_PrevSelectedEntry = g_MainOptionsMenu_SelectedEntry;
+
+#ifdef SH_PC_PORT
+    /* Mouse: hover selects (snapping past the highlight timer so the follow-up
+     * click isn't swallowed), click enters the submenu rows / cycles the value
+     * rows, click-drag on a volume bar walks the volume to the pointed notch
+     * (one stock step per frame, so the game's clamp + SFX stay in charge),
+     * wheel steps the hovered value, right-click = cancel. */
+    {
+        int mx, my;
+
+        if (Pc_MouseCursor_UiPos(&mx, &my))
+        {
+            s32 row = -1;
+            s32 i;
+
+            for (i = 0; i < MainOptionsMenuEntry_Count; i++)
+            {
+                s32 top = 56 + (i * 16) - 3;
+                if (my >= top && my < top + 16) { row = i; break; }
+            }
+
+            if (row >= 0 && Pc_MouseCursor_Moved() && row != g_MainOptionsMenu_SelectedEntry)
+            {
+                g_MainOptionsMenu_SelectedEntry     = row;
+                g_MainOptionsMenu_PrevSelectedEntry = row;
+                g_PcOptions_HighlightSnap           = 1;
+                Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+            }
+
+            if (row >= 0 && row == g_MainOptionsMenu_SelectedEntry)
+            {
+                int wheel = Pc_MouseCursor_WheelStep();
+
+                if (row <= MainOptionsMenuEntry_ScreenPosition)
+                {
+                    /* Exit / Brightness / Controller / PC Options. */
+                    if (Pc_MouseCursor_LeftClicked())
+                        PcMouse_InjectEnter();
+                }
+                else if (row >= MainOptionsMenuEntry_BgmVolume)
+                {
+                    /* Volume bars: notches at authored x 184 + n*6, n = 0..15;
+                     * just left of the bar drags the volume to zero. */
+                    if (Pc_MouseCursor_LeftHeld() && mx >= 174)
+                    {
+                        extern float g_PcXaVolume;
+                        s32 curVol =
+                            (row == MainOptionsMenuEntry_BgmVolume) ? g_GameWork.config.volumeBgm :
+                            (row == MainOptionsMenuEntry_SfxVolume) ? g_GameWork.config.volumeSe  :
+                            CLAMP((s32)((g_PcXaVolume * (float)OPT_SOUND_VOLUME_MAX) + 0.5f), 0, OPT_SOUND_VOLUME_MAX);
+                        s32 lit = (mx < 184) ? 0 : CLAMP(((mx - 184) / 6) + 1, 1, 16);
+
+                        if (lit > curVol / 8)
+                            PcMouse_InjectDir(1);
+                        else if (lit < curVol / 8)
+                            PcMouse_InjectDir(-1);
+                    }
+                    else if (wheel != 0)
+                    {
+                        PcMouse_InjectDir(wheel);
+                    }
+                }
+                else if (Pc_MouseCursor_LeftClicked())
+                {
+                    /* Vibration / Auto Load (Language) / Sound toggles. */
+                    PcMouse_InjectDir(1);
+                }
+                else if (wheel != 0)
+                {
+                    PcMouse_InjectDir(wheel);
+                }
+            }
+
+            if (Pc_MouseCursor_RightClicked())
+                PcMouse_InjectCancel();
+        }
+    }
+#endif
 
     // Leave to gameplay (if options menu was accessed with `Option` input action).
     if (g_GameWork.gameStatePrev == GameState_InGame &&
@@ -581,7 +1340,11 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
 
                 ScreenFade_Start(true, false, false);
+#ifdef SH_PC_PORT
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_EnterPcOptions;
+#else
                 g_GameWork.gameStateSteps[0] = OptionsMenuState_EnterScreenPos;
+#endif
                 g_SysWork.counters_1C[1]              = 0;
                 g_GameWork.gameStateSteps[1] = 0;
                 g_GameWork.gameStateSteps[2] = 0;
@@ -618,6 +1381,24 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
             break;
 
         case MainOptionsMenuEntry_AutoLoad:
+#ifdef SH_PC_PORT
+            /* PAL: this row is Language when the menu was entered from the
+             * title screen (retail SLES had a front-end Language option). */
+            if (Pc_LangMenuRowActive())
+            {
+                if (g_Controller0->clickedBtnFlags & ControllerFlag_LStickRight)
+                {
+                    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                    Pc_LangSetLanguage((g_PcConfig.language + 1) % 5);
+                }
+                else if (g_Controller0->clickedBtnFlags & ControllerFlag_LStickLeft)
+                {
+                    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                    Pc_LangSetLanguage((g_PcConfig.language + 4) % 5);
+                }
+                break;
+            }
+#endif
             if (g_Controller0->clickedBtnFlags & (ControllerFlag_LStickRight | ControllerFlag_LStickLeft))
             {
                 Sd_PlaySfx(Sfx_MenuMove, 0, 64);
@@ -700,6 +1481,51 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
             g_GameWork.config.volumeSe = vol;
             break;
 
+#ifdef SH_PC_PORT
+        case MainOptionsMenuEntry_FmvVolume:
+        {
+            /* PC-only: XA cutscene-voice stream volume ("Voice"). Mirrors the
+             * BGM/SE slider feel (16 notches, step 8 over 0..128) but drives
+             * g_PcXaVolume in [0,1] and persists `xa_volume`. FMV movie audio is
+             * a separate slider (FMV Movie Vol on the PC Options page). */
+            extern float g_PcXaVolume;
+            extern void  PcConfig_ApplyXaVolume(float norm);
+
+            s32 fvol = (s32)((g_PcXaVolume * (float)OPT_SOUND_VOLUME_MAX) + 0.5f);
+            s32 oldFvol;
+
+            fvol    = CLAMP(fvol, 0, OPT_SOUND_VOLUME_MAX);
+            oldFvol = fvol;
+
+            if ((fvol < OPT_SOUND_VOLUME_MAX && (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickRight)) ||
+                (fvol > 0                    && (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft)))
+            {
+                SD_Call(Sfx_MenuMove);
+            }
+            if ((fvol == OPT_SOUND_VOLUME_MAX && (g_Controller0->clickedBtnFlags & ControllerFlag_LStickRight)) ||
+                (fvol == 0                    && (g_Controller0->clickedBtnFlags & ControllerFlag_LStickLeft)))
+            {
+                SD_Call(Sfx_MenuError);
+            }
+
+            if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickRight)
+            {
+                fvol += SOUND_VOL_STEP;
+            }
+            if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft)
+            {
+                fvol -= SOUND_VOL_STEP;
+            }
+            fvol = CLAMP(fvol, 0, OPT_SOUND_VOLUME_MAX);
+
+            if (fvol != oldFvol)
+            {
+                PcConfig_ApplyXaVolume((float)fvol / (float)OPT_SOUND_VOLUME_MAX);
+            }
+            break;
+        }
+#endif
+
         default:
             break;
     }
@@ -739,15 +1565,25 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
 
 void Options_MainOptionsMenu_BgmVolumeBarDraw(void) // 0x801E3F68
 {
-    Options_MainOptionsMenu_VolumeBarDraw(false, g_GameWork.config.volumeBgm);
+    Options_MainOptionsMenu_VolumeBarDraw(0, g_GameWork.config.volumeBgm);
 }
 
 void Options_MainOptionsMenu_SfxVolumeBarDraw(void) // 0x801E3F90
 {
-    Options_MainOptionsMenu_VolumeBarDraw(true, g_GameWork.config.volumeSe);
+    Options_MainOptionsMenu_VolumeBarDraw(1, g_GameWork.config.volumeSe);
 }
 
-void Options_MainOptionsMenu_VolumeBarDraw(bool isSfx, u8 vol) // 0x801E3FB8
+#ifdef SH_PC_PORT
+void Options_MainOptionsMenu_FmvVolumeBarDraw(void)
+{
+    extern float g_PcXaVolume;
+    s32 fvol = (s32)((g_PcXaVolume * (float)OPT_SOUND_VOLUME_MAX) + 0.5f);
+    fvol = CLAMP(fvol, 0, OPT_SOUND_VOLUME_MAX);
+    Options_MainOptionsMenu_VolumeBarDraw(2, (u8)fvol);
+}
+#endif
+
+void Options_MainOptionsMenu_VolumeBarDraw(s32 row, u8 vol) // 0x801E3FB8
 {
     #define STR_OFFSET_Y 16
     #define NOTCH_SIZE_X 5
@@ -805,10 +1641,10 @@ void Options_MainOptionsMenu_VolumeBarDraw(bool isSfx, u8 vol) // 0x801E3FB8
             x0       = (x0Offset + (i * 6)) & 0xFFFF;
             yOffset  = j + 56;
 
-            setXY0Fast(poly, x0,                           (isSfx * STR_OFFSET_Y) + yOffset);
-            setXY1Fast(poly, x0,                           (isSfx * STR_OFFSET_Y) - (j + offset));
-            setXY2Fast(poly, (xOffset - j) + NOTCH_SIZE_X, (isSfx * STR_OFFSET_Y) + yOffset);
-            setXY3Fast(poly, (xOffset - j) + NOTCH_SIZE_X, (isSfx * STR_OFFSET_Y) - (j + offset));
+            setXY0Fast(poly, x0,                           (row * STR_OFFSET_Y) + yOffset);
+            setXY1Fast(poly, x0,                           (row * STR_OFFSET_Y) - (j + offset));
+            setXY2Fast(poly, (xOffset - j) + NOTCH_SIZE_X, (row * STR_OFFSET_Y) + yOffset);
+            setXY3Fast(poly, (xOffset - j) + NOTCH_SIZE_X, (row * STR_OFFSET_Y) - (j + offset));
             addPrim((u8*)ot->org + LAYER_24, poly);
             GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
         }
@@ -897,13 +1733,28 @@ void Options_MainOptionsMenu_EntryStringsDraw(void) // 0x801E42EC
         "Exit",
         "Brightness_Level",
         "Controller_Config",
+#ifdef SH_PC_PORT
+        "PC_Options",
+#else
         "Screen_Position",
+#endif
         "Vibration",
         "Auto_Load",
         "Sound",
         "BGM_Volume",
         "SE_Volume"
+#ifdef SH_PC_PORT
+        ,
+        "Voice"
+#endif
     };
+
+#ifdef SH_PC_PORT
+    if (Pc_LangMenuRowActive())
+    {
+        ENTRY_STRS[MainOptionsMenuEntry_AutoLoad] = "Language";
+    }
+#endif
 
     // @unused Likely an older implementation for active highlight selection position reference setup found in `Options_MainOptionsMenu_SelectionHighlightDraw`.
     if (g_Options_SelectionHighlightTimer == 0)
@@ -977,8 +1828,15 @@ void Options_ExtraOptionsMenu_SelectionHighlightDraw(void) // 0x801E4450
     };
 
     // Set active selection highlight position references.
+#ifdef SH_PC_PORT
+    if (g_Options_SelectionHighlightTimer == 0 || g_PcOptions_HighlightSnap)
+#else
     if (g_Options_SelectionHighlightTimer == 0)
+#endif
     {
+#ifdef SH_PC_PORT
+        g_PcOptions_HighlightSnap = 0;
+#endif
         selectionHighlightFrom.vx = SELECTION_HIGHLIGHT_WIDTHS[g_ExtraOptionsMenu_PrevSelectedEntry] + (65536 + HIGHLIGHT_OFFSET_X); // TODO
         selectionHighlightFrom.vy = ((u16)g_ExtraOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y)      - HIGHLIGHT_OFFSET_Y;
         selectionHighlightTo.vx   = SELECTION_HIGHLIGHT_WIDTHS[g_ExtraOptionsMenu_SelectedEntry]     + (65536 + HIGHLIGHT_OFFSET_X); // TODO
@@ -1051,6 +1909,9 @@ void Options_MainOptionsMenu_SelectionHighlightDraw(void) // 0x801E472C
 
     const u8 SELECTION_HIGHLIGHT_WIDTHS[] = {
         59, 169, 174, 156, 104, 112, 75, 129, 112
+#ifdef SH_PC_PORT
+        , 75 /* Voice */
+#endif
     };
 
     // 12x12 quad.
@@ -1070,8 +1931,15 @@ void Options_MainOptionsMenu_SelectionHighlightDraw(void) // 0x801E472C
     };
 
     // Set active selection highlight position references.
+#ifdef SH_PC_PORT
+    if (g_Options_SelectionHighlightTimer == 0 || g_PcOptions_HighlightSnap)
+#else
     if (g_Options_SelectionHighlightTimer == 0)
+#endif
     {
+#ifdef SH_PC_PORT
+        g_PcOptions_HighlightSnap = 0;
+#endif
         selectionHighlightFrom.vx = SELECTION_HIGHLIGHT_WIDTHS[g_MainOptionsMenu_PrevSelectedEntry] + (65536 + HIGHLIGHT_OFFSET_X); // TODO
         selectionHighlightFrom.vy = ((u16)g_MainOptionsMenu_PrevSelectedEntry * LINE_OFFSET_Y)      - HIGHLIGHT_OFFSET_Y;
         selectionHighlightTo.vx   = SELECTION_HIGHLIGHT_WIDTHS[g_MainOptionsMenu_SelectedEntry]     + (65536 + HIGHLIGHT_OFFSET_X); // TODO
@@ -1350,6 +2218,11 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
         { { 131, 62 }, { 123, 54 }, { 123, 70 } },
         { { 12,  78 }, { 20,  70 }, { 20,  86 } },
         { { 131, 78 }, { 123, 70 }, { 123, 86 } }
+#ifdef SH_PC_PORT
+        ,
+        { { 12,  94 }, { 20,  86 }, { 20,  102 } }, /* PC: FMV/voice left  */
+        { { 131, 94 }, { 123, 86 }, { 123, 102 } }  /* PC: FMV/voice right */
+#endif
     };
 
     const s_Triangle2d BACK_ARROWS[] = {
@@ -1363,6 +2236,11 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
         { { 132, 62 }, { 122, 52 }, { 122, 72 } },
         { { 11,  78 }, { 21,  68 }, { 21,  88 } },
         { { 132, 78 }, { 122, 68 }, { 122, 88 } }
+#ifdef SH_PC_PORT
+        ,
+        { { 11,  94 }, { 21,  84 }, { 21,  104 } }, /* PC: FMV/voice left  */
+        { { 132, 94 }, { 122, 84 }, { 122, 104 } }  /* PC: FMV/voice right */
+#endif
     };
 
     const char* CONFIG_STRS[] =
@@ -1380,8 +2258,43 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
     Gfx_StringSetColor(StringColorId_White);
 
     // Draw left/right arrows for subset of options.
-    if (g_MainOptionsMenu_SelectedEntry >= 4 && g_MainOptionsMenu_SelectedEntry < 9)
+    if (g_MainOptionsMenu_SelectedEntry >= 4 && g_MainOptionsMenu_SelectedEntry < MainOptionsMenuEntry_Count)
     {
+#ifdef SH_PC_PORT
+        /* The Language row's value names are far wider than the On/Off the
+         * arrow tables were sized for — pull its arrows outward so they
+         * flank every language name instead of overlapping it. */
+        s32 langDx = (g_MainOptionsMenu_SelectedEntry == MainOptionsMenuEntry_AutoLoad &&
+                      Pc_LangMenuRowActive()) ? 26 : 0;
+
+        #define ARROW_DRAW_DX(tris, idx, dx, flashing)              \
+        {                                                           \
+            s_Triangle2d shifted = (tris)[idx];                     \
+            shifted.vertex0.vx  += (dx);                            \
+            shifted.vertex1.vx  += (dx);                            \
+            shifted.vertex2.vx  += (dx);                            \
+            Options_Selection_ArrowDraw(&shifted, flashing, false); \
+        }
+
+        // Draw flashing left/right arrows.
+        for (i = 0; i < 2; i++)
+        {
+            ARROW_DRAW_DX(FRONT_ARROWS, ((g_MainOptionsMenu_SelectedEntry - 4) * 2) + i,
+                          (i == 0) ? -langDx : langDx, true);
+        }
+
+        // Draw border to highlight flashing left/right arrow corresponding to direction of UI navigation.
+        if (g_Controller0->heldBtnFlags & ControllerFlag_LStickLeft)
+        {
+            ARROW_DRAW_DX(BACK_ARROWS, (g_MainOptionsMenu_SelectedEntry - 4) << 1, -langDx, false);
+        }
+        if (g_Controller0->heldBtnFlags & ControllerFlag_LStickRight)
+        {
+            ARROW_DRAW_DX(BACK_ARROWS, ((g_MainOptionsMenu_SelectedEntry - 4) << 1) + 1, langDx, false);
+        }
+
+        #undef ARROW_DRAW_DX
+#else
         // Draw flashing left/right arrows.
         for (i = 0; i < 2; i++)
         {
@@ -1397,6 +2310,7 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
         {
             Options_Selection_ArrowDraw(&BACK_ARROWS[((g_MainOptionsMenu_SelectedEntry - 4) << 1) + 1], false, false);
         }
+#endif
     }
 
     for (i = 0; i < 3; i++)
@@ -1412,6 +2326,19 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
                 break;
 
             case 1:
+#ifdef SH_PC_PORT
+                if (Pc_LangMenuRowActive())
+                {
+                    /* Names in the retail PAL option-menu order (= config
+                     * language index). X nudged per word length like On/Off. */
+                    static const char* const LANG_STRS[5]  = { "English", "German", "French", "Spanish", "Italian" };
+                    static const u8          LANG_STR_X[5] = { 198, 204, 204, 198, 198 };
+
+                    Gfx_StringSetPosition(LANG_STR_X[g_PcConfig.language], 136);
+                    Gfx_StringDraw(LANG_STRS[g_PcConfig.language], 10);
+                    break;
+                }
+#endif
                 strPosX = !g_GameWork.config.autoLoad ? 214 : 216;
                 Gfx_StringSetPosition(strPosX, 136);
 
@@ -1768,6 +2695,35 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
             break;
 
         case BrightnessMenuState_2:
+#ifdef SH_PC_PORT
+            /* Mouse: click the left/right arrows (authored boxes around the
+             * triangles at center-origin x 7..17 / 55..65, y 74..94) or use
+             * the wheel to adjust; right-click leaves (cancel). Left-click
+             * elsewhere is dead space so the screen isn't exited by accident. */
+            {
+                int mx, my;
+
+                if (Pc_MouseCursor_UiPos(&mx, &my))
+                {
+                    int wheel = Pc_MouseCursor_WheelStep();
+
+                    if (Pc_MouseCursor_LeftClicked() && my >= 182 && my < 210)
+                    {
+                        if (mx >= 163 && mx < 181)
+                            PcMouse_InjectDir(-1);
+                        else if (mx >= 211 && mx < 229)
+                            PcMouse_InjectDir(1);
+                    }
+                    else if (wheel != 0)
+                    {
+                        PcMouse_InjectDir(wheel);
+                    }
+
+                    if (Pc_MouseCursor_RightClicked())
+                        PcMouse_InjectCancel();
+                }
+            }
+#endif
             // Set config.
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft)
             {
@@ -1837,6 +2793,9 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
     Options_BrightnessMenu_LinesDraw(g_GameWork.config.brightness);
     Options_BrightnessMenu_ArrowsDraw();
     Options_BrightnessMenu_ConfigDraw();
+#ifdef SH_PC_PORT
+    Pc_MouseCursor_Draw();
+#endif
 }
 
 void Options_BrightnessMenu_ConfigDraw(void) // 0x801E6238
@@ -2137,6 +3096,74 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
     s32                                     boundActionIdx = NO_VALUE;
     e_InputAction                           actionIdx;
     static s_ControllerMenu_SelectedEntries selectedEntries;
+
+#ifdef SH_PC_PORT
+    /* Mouse: hover selects in both panes; click confirms ONLY in the presets
+     * pane (EXIT applies enter, TYPE rows apply the preset). In the actions
+     * pane hover-select is all we do — while that state is live,
+     * Options_ControllerMenu_ConfigUpdate BINDS any clicked button to the
+     * hovered action, so injected enter/cancel bits would rebind instead of
+     * confirm. Rebinding stays a keyboard/pad press, as retail intends. */
+    {
+        int mx, my;
+        s32 st = g_GameWork.gameStateSteps[1];
+
+        if ((st == ControllerMenuState_Exit  || st == ControllerMenuState_Type1 ||
+             st == ControllerMenuState_Type2 || st == ControllerMenuState_Type3 ||
+             st == ControllerMenuState_Actions) &&
+            Pc_MouseCursor_UiPos(&mx, &my))
+        {
+            if (mx < 92) /* presets pane: rows at y = 22 + i*20 */
+            {
+                s32 row = -1, i;
+
+                for (i = 0; i < ControllerMenuState_Count; i++)
+                {
+                    s32 top = 22 + (i * 20) - 3;
+                    if (my >= top && my < top + 20) { row = i; break; }
+                }
+                if (row >= 0)
+                {
+                    if (Pc_MouseCursor_Moved() && st != row)
+                    {
+                        g_GameWork.gameStateSteps[1] = row;
+                        g_GameWork.gameStateSteps[2] = 0;
+                        SD_Call(Sfx_MenuMove);
+                    }
+                    if (Pc_MouseCursor_LeftClicked() && st == row)
+                        PcMouse_InjectEnter();
+                    if (Pc_MouseCursor_RightClicked() && st == row && st != ControllerMenuState_Exit)
+                        PcMouse_InjectCancel();
+                }
+            }
+            else /* actions pane: rows at y = 22, pitch 12, extra gap after SKIP */
+            {
+                s32 row = -1, i, y = 22;
+
+                for (i = 0; i < InputAction_Count; i++)
+                {
+                    if (my >= y - 2 && my < y + 10) { row = i; break; }
+                    y += 12 + ((i == 2) ? 12 : 0);
+                }
+                if (row >= 0 && Pc_MouseCursor_Moved())
+                {
+                    if (st != ControllerMenuState_Actions)
+                    {
+                        selectedEntries.preset       = st;
+                        g_GameWork.gameStateSteps[1] = ControllerMenuState_Actions;
+                        g_GameWork.gameStateSteps[2] = 0;
+                    }
+                    if (selectedEntries.action != (e_InputAction)row)
+                    {
+                        selectedEntries.action = (e_InputAction)row;
+                        SD_Call(Sfx_MenuMove);
+                    }
+                }
+            }
+        }
+        Pc_MouseCursor_Draw();
+    }
+#endif
 
     // Handle controller config menu state.
     switch (g_GameWork.gameStateSteps[1])

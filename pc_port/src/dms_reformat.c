@@ -93,6 +93,24 @@ static void DmsHeap_Free(s_DmsHeader* h)
 }
 #endif
 
+/* Per-source-buffer heap headers. g_DmsHeapHeader above is only the most-recently
+ * reformatted one; keying by the source FS buffer lets each concurrently-live
+ * cutscene/phase keep its own heap copy. Each copy survives its FS buffer being
+ * overwritten by later file loads — the church cutscene (map2_s01) streams its
+ * ER_* textures into the DMS buffer mid-scene, which clobbered the in-place
+ * header and crashed Dms_CharacterFindIdxByName reading a -1 `characters` ptr. */
+#define DMS_HEAP_SLOTS 4
+static struct { void* src; s_DmsHeader* hdr; } s_dmsHeap[DMS_HEAP_SLOTS];
+
+s_DmsHeader* Dms_HeapHeaderForBuffer(void* buf)
+{
+    int i;
+    if (!buf) return NULL;
+    for (i = 0; i < DMS_HEAP_SLOTS; i++)
+        if (s_dmsHeap[i].src == buf) return s_dmsHeap[i].hdr;
+    return NULL;
+}
+
 static inline u32 rd32(const u8* p) { return p[0] | (p[1] << 8) | (p[2] << 16) | ((u32)p[3] << 24); }
 static inline s16 rd16s(const u8* p) { return (s16)(p[0] | (p[1] << 8)); }
 
@@ -235,15 +253,31 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
      * Also write it into the FS buffer for backwards compatibility,
      * but DMS functions will use g_DmsHeapHeader via the redirect in dms.c.
      */
+    {
+        /* Store the heap copy keyed by this source FS buffer, reusing its slot if
+         * it was reformatted before (the FS buffer addresses are fixed), so other
+         * live DMS headers (other phases) are not freed out from under them. */
+        int slot = -1, i;
+        for (i = 0; i < DMS_HEAP_SLOTS; i++)
+            if (s_dmsHeap[i].src == (void*)dmsHdr) { slot = i; break; }
+        if (slot < 0)
+            for (i = 0; i < DMS_HEAP_SLOTS; i++)
+                if (s_dmsHeap[i].src == NULL) { slot = i; break; }
+        if (slot < 0) slot = 0;
 #ifdef SH_XBOX_PORT
-    /* Deep-free the PRIOR cutscene's header (frees all nested arrays), not a
-     * shallow free() that would leak them. */
-    DmsHeap_Free(g_DmsHeapHeader);
-    g_DmsHeapHeader = NULL;
+        /* Deep-free the evicted slot: a shallow free() leaks its segments,
+         * characters array and every entry's holdRanges/keyframes. PC never
+         * notices; on the Xbox's 64MB that accumulation exhausts the heap and
+         * the next unguarded calloc returns NULL -> memcpy(NULL) (the observed
+         * cafe-cutscene crash). */
+        DmsHeap_Free(s_dmsHeap[slot].hdr);
 #else
-    if (g_DmsHeapHeader) free(g_DmsHeapHeader);
+        if (s_dmsHeap[slot].hdr) free(s_dmsHeap[slot].hdr);
 #endif
-    g_DmsHeapHeader = (s_DmsHeader*)calloc(1, sizeof(s_DmsHeader));
+        s_dmsHeap[slot].src = (void*)dmsHdr;
+        s_dmsHeap[slot].hdr = (s_DmsHeader*)calloc(1, sizeof(s_DmsHeader));
+        g_DmsHeapHeader = s_dmsHeap[slot].hdr;   /* also keep as the latest (fallback) */
+    }
 
 #ifdef SH_XBOX_PORT
     if (!g_DmsHeapHeader)

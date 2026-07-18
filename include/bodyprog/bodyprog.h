@@ -655,6 +655,9 @@ extern char D_80028544[16];
 extern const RECT D_80028A20;
 
 extern const s_AnimInfo D_80028B94[];
+#ifdef SH_PC_PORT
+extern const s32 D_80028B94_COUNT;
+#endif
 
 extern const s_800C44F0 D_800294F4[];
 
@@ -890,9 +893,20 @@ extern const char* INV_ITEM_NAMES[];
 
 extern const char* g_ItemDescriptions[];
 
+#ifdef SH_PC_PORT
+// func_80045534 walks these image-descriptor lists by pointer increment until a
+// clutY == NO_VALUE sentinel. In the ROM D_800A90A4..D_800A90F4 are one
+// contiguous block, but the decomp split them into separate globals, so ASan's
+// inter-global redzones trip the walk (alley AirScreamer effect). Back them with
+// a single array and alias the two list heads to their elements.
+extern s_FsImageDesc D_800A90A4_block[];
+#define D_800A90A4 D_800A90A4_block[0]
+#define D_800A90B4 D_800A90A4_block[2]
+#else
 extern s_FsImageDesc D_800A90A4;
 
 extern s_FsImageDesc D_800A90B4;
+#endif
 
 extern s_SubCharacter D_800BA00C; // Often passed to `Los_NpcToPlayerHitCheck`, might not be full `s_SubCharacter`?
 

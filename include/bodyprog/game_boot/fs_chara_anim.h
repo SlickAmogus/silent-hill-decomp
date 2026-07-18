@@ -24,6 +24,20 @@ typedef struct _CharaAnimData
 STATIC_ASSERT_SIZEOF(s_CharaAnimData, 24);
 #endif
 
+#ifdef SH_PC_PORT
+/* Global chara pool (pc_chara_pool.c): every charaId gets a dedicated anim
+ * slot appended after the 4 vanilla group slots, fed through the vanilla
+ * Fs_CharaAnimDataAlloc explicit-buffer path. Vanilla code only ever walks
+ * slots 0..3 (bump chain, overlap sweep, Fs_CharaAnimBoneInfoUpdate), so the
+ * pool slots are invisible to it; consumers index via g_CharaAnimDataIdxs
+ * and work for any idx. Chara_SpawnFlagsSet/PositionSet derive a spawn-table
+ * ROW from idx-1 and are guarded against pool idxs (rows > 1). */
+#define PC_CHARA_ANIM_SLOT(charaId) (CHARA_GROUP_COUNT + (charaId))
+#define CHARA_ANIM_DATA_COUNT       (CHARA_GROUP_COUNT + Chara_Count)
+#else
+#define CHARA_ANIM_DATA_COUNT       CHARA_GROUP_COUNT
+#endif
+
 /** @brief Animation data for loaded character models.
  * NOTE (PC port): the Jun 2026 merge briefly had this same PSX array under
  * two names — upstream `g_CharaModelAnimsData` (read by `Chara_BonesInit`)
@@ -31,7 +45,7 @@ STATIC_ASSERT_SIZEOF(s_CharaAnimData, 24);
  * (e.g. the school cat) read all-NULL anim headers from the never-written
  * copy and rendered with zeroed bones (invisible) / crashed at scene end.
  * There must be exactly ONE definition of this array. */
-extern s_CharaAnimData g_CharaModelAnimsData[CHARA_GROUP_COUNT];
+extern s_CharaAnimData g_CharaModelAnimsData[CHARA_ANIM_DATA_COUNT];
 
 /** @brief Checks if the raw file streaming memory allocations of two character animation data slots overlap.
  *

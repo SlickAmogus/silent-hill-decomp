@@ -47,10 +47,10 @@ u8 D_800CB2A0[256] = {0};
 u8 D_800CB2B4[256] = {0};
 u8 D_800CB2DC[256] = {0};
 u8 D_800CB304[256] = {0};
-u8 D_800CB364[256] = {0};
+/* D_800CB364 (map3_s04 stinger SFX position) now real data in map3_s04_extracted_data.c */
 u8 D_800CB3A4[256] = {0};
-u8 D_800CB69C[256] = {0};
-u8 D_800CB6AC[256] = {0};
+/* D_800CB69C: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* D_800CB6AC: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 /* D_800CC424 now defined with real values in pc_port/src/harry_m6s04_extra_anim_infos.c
  * (s_AnimInfo[8], Harry's map6_s04 Cybil-boss anim overrides; seed+Init because
  * s_AnimInfo holds function pointers). */
@@ -66,7 +66,6 @@ char D_800CC4C4[] = "HERO";
 char D_800CC4CC[] = "LIGHT";
 char D_800CC4D4[] = "L_INT";
 char D_800CC4DC[] = "MSB";
-u8 D_800CCF5C[256] = {0};
 u8 D_800CD038[256] = {0};
 u8 D_800CD768[256] = {0};
 u8 D_800CD768_tbl[256] = {0};
@@ -76,16 +75,19 @@ u8 D_800CD774[256] = {0};
 u8 D_800CF280[256] = {0};
 u8 D_800D177C[256] = {0};
 u8 D_800D1FBC[256] = {0};
-u8 D_800D1FC0[256] = {0};
-u8 D_800D1FD0[256] = {0};
+/* D_800D1FC0 (RECT[2]) / D_800D1FD0 (RECT) moved to map3_s02_extracted_data.c
+ * with real ROM values — as zero stubs they were a degenerate (0,0) cutscene
+ * draw-clip (SetDrawArea) => nothing renders in that OT scope (mirror of the
+ * map4_s04 rainbow-corruption fix). D_800D1FE0 (DVECTOR, SetDrawOffset) stays a
+ * stub: PC SetDrawOffset is a render-neutral no-op, so its value is unused. */
 u8 D_800D1FE0[256] = {0};
 u8 D_800D1FEC[256] = {0};
-u8 D_800D2530[256] = {0};
+/* D_800D2530 (map3_s00 door SFX position) now real data in map3_s00_extracted_data.c */
 u8 D_800D253C[256] = {0};
 u8 D_800D2550[256] = {0};
 u8 D_800D2560[256] = {0};
 u8 D_800D256C[256] = {0};
-u8 D_800D26F8[256] = {0};
+/* D_800D26F8 (map3_s06 door SFX position) now real data in map3_s06_extracted_data.c */
 u8 D_800D2718[256] = {0};
 u8 D_800D2728[256] = {0};
 u8 D_800D2734[256] = {0};
@@ -95,15 +97,15 @@ u8 D_800D2738[256] = {0};
 u8 D_800D3154[256] = {0};
 u8 D_800D31D8[256] = {0};
 u8 D_800D31DC[256] = {0};
-u8 D_800D3710[256] = {0};
-u8 D_800D3720[256] = {0};
-u8 D_800D3730[256] = {0};
+/* D_800D3710/3720/3730 now provided with real values by
+ * build_gen/extracted_data/map4_s04_extracted_data.c (cutscene SetDrawArea/
+ * SetDrawOffset rects — zero stubs gave a degenerate clip = rainbow corruption). */
 u8 D_800D37C1[256] = {0};
 u8 D_800D3B70[256] = {0};
 u8 D_800D3B78[256] = {0};
 u8 D_800D3C40[256] = {0};
 u8 D_800D3C44[256] = {0};
-u8 D_800D3C4C[256] = {0};
+/* D_800D3C4C: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 D_800D3C84[256] = {0};
 u8 D_800D3C88[256] = {0};
 u8 D_800D3C8C[256] = {0};
@@ -117,7 +119,7 @@ u8 D_800D4070[256] = {0};
 u8 D_800D4074[256] = {0};
 u8 D_800D4100[256] = {0};
 u8 D_800D410C[256] = {0};
-u8 D_800D4114[256] = {0};
+/* D_800D4114: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 D_800D416C[256] = {0};
 u8 D_800D416D[256] = {0};
 u8 D_800D416E[256] = {0};
@@ -125,7 +127,7 @@ u8 D_800D4174[256] = {0};
 u8 D_800D41B0[256] = {0};
 u8 D_800D41B4[256] = {0};
 u8 D_800D4362[256] = {0};
-u8 D_800D4CE4[256] = {0};
+/* D_800D4CE4 (map3_s01 generator hum position) now real data in map3_s01_extracted_data.c */
 u8 D_800D4E08[256] = {0};
 u8 D_800D4E09[256] = {0};
 u8 D_800D4E0C[256] = {0};
@@ -142,7 +144,7 @@ u8 D_800D5354[256] = {0};
 u8 D_800D5364[256] = {0};
 u8 D_800D5370[256] = {0};
 u8 D_800D5374[256] = {0};
-u8 D_800D53A4[256] = {0};
+u8 D_800D53A4[512] = {0};  /* s_WorldObjectPose[7] = 7*72 = 504 on 64-bit > 256 (cutscene audit) */
 u8 D_800D587C[256] = {0};
 u8 D_800D5A20[256] = {0};
 u8 D_800D5A30[256] = {0};
@@ -206,7 +208,6 @@ u8 D_800D86FC[256] = {0};
 u8 D_800D86FE[256] = {0};
 u8 D_800D8734[256] = {0};
 u8 D_800D94F4[256] = {0};
-u8 D_800DA154[256] = {0};
 u8 D_800DA6CC[256] = {0};
 u8 D_800DA6DC[256] = {0};
 u8 D_800DA6E8[256] = {0};
@@ -214,8 +215,8 @@ u8 D_800DA6EC[256] = {0};
 /* D_800DAA58 (twinfeeler dust/dirt color ramp, s32[256]) now defined with real
  * binary-extracted values in map4_s03_extracted_data.c. The exe zero-stub here
  * would shadow the DLL copy under --export-all-symbols (= black dust grid). */
-u8 D_800DAAD0[256] = {0};
-u8 D_800DAAE4[256] = {0};
+/* D_800DAAD0 / D_800DAAE4 (map5_s00 sewer pickup poses) now real data in
+ * map5_s00_extracted_data.c */
 u8 D_800DAAF8[256] = {0};
 u8 D_800DAB0C[256] = {0};
 u8 D_800DAB20[256] = {0};
@@ -296,7 +297,10 @@ u8 D_800DF564[256] = {0};
 u8 D_800DF568[256] = {0};
 u8 D_800DF56C[256] = {0};
 u8 D_800DF570[256] = {0};
-u8 D_800DF580[256] = {0};
+/* Twinfeeler/larva working buffer: walked as s_800DF580[16] (~216 B/elem on
+ * 32-bit, larger on 64-bit). A 256-byte stub over-reads past the 2nd element
+ * and ASan-aborts on the boss. 16*256 covers 16 elements on any arch. */
+u8 D_800DF580[16 * 256] = {0};
 u8 D_800DFAB8[256] = {0};
 u8 D_800DFAC2[256] = {0};
 /* D_800DFAC4 (alley camera warp flag), D_800DFAC8 (voice cmd table) now
@@ -339,7 +343,7 @@ u8 D_800DFEF0[256] = {0};
 u8 D_800DFEF2[256] = {0};
 u8 D_800DFEF4[256] = {0};
 u8 D_800DFEF5[256] = {0};
-u8 D_800E0300[256] = {0};
+u8 D_800E0300[640] = {0};  /* s_800E0300[16] > 256 on 64-bit (cutscene audit) */
 u8 D_800E0440[256] = {0};
 u8 D_800E04A0[256] = {0};
 u8 D_800E05A8[256] = {0};
@@ -367,14 +371,13 @@ u8 D_800E1670[256] = {0};
 u8 D_800E1671[256] = {0};
 u8 D_800E1678[256] = {0};
 u8 D_800E16A8[256] = {0};
-u8 D_800E1EDC[256] = {0};
+/* D_800E1EDC moved to map1_s02_extracted_data.c with real ROM values — as a
+ * zero stub Harry's three opening-monologue voice lines played silent (SD_Call(0)
+ * no-op). Same class as the 32 voice tables fixed 2026-06-11. */
 u8 D_800E1EE2[256] = {0};
 u8 D_800E1EE4[256] = {0};
 u8 D_800E1EE8[256] = {0};
 u8 D_800E1F74[256] = {0};
-u8 D_800E1F7C[256] = {0};
-u8 D_800E1F88[256] = {0};
-u8 D_800E1FC4[256] = {0};
 u8 D_800E1FD0[256] = {0};
 u8 D_800E1FD4[256] = {0};
 u8 D_800E1FD8[256] = {0};
@@ -435,14 +438,14 @@ u8 D_800EA492[256] = {0};
 u8 D_800EA494[256] = {0};
 u8 D_800EA4A9[256] = {0};
 u8 D_800EA4AC[256] = {0};
-u8 D_800EAF20[256] = {0};
+/* D_800EAF20: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 D_800EB008[256] = {0};
 u8 D_800EB00C[256] = {0};
-u8 D_800EB320[256] = {0};
-u8 D_800EB324[256] = {0};
-u8 D_800EB328[256] = {0};
-u8 D_800EB330[256] = {0};
-u8 D_800EB338[256] = {0};
+/* D_800EB320: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* D_800EB324: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* D_800EB328: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* D_800EB330: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* D_800EB338: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 D_800EB694[256] = {0};
 u8 D_800EB6A4[256] = {0};
 u8 D_800EB6B0[256] = {0};
@@ -470,9 +473,9 @@ u8 D_800EBB70[256] = {0};
 u8 D_800EBB7C[256] = {0};
 u8 D_800EBB94[256] = {0};
 u8 D_800EBC14[256] = {0};
-u8 D_800EC8C8[256] = {0};
-u8 D_800EC8FC[256] = {0};
-u8 D_800ECA50[256] = {0};
+/* D_800EC8C8 (incubus SFX volumes), D_800EC8FC (incubus keyframe->SFX map),
+ * D_800ECA50 (unknown23 lightning-cage color LUT) are now real ROM data in
+ * build_gen/extracted_data/map7_s03_extracted_data.c (extract_map_data.py). */
 /* map7_s03 ending cutscene character texture descriptors (s_FsImageDesc, 8B).
  * Zero-stubbed -> all 3 chara slots loaded textures to VRAM (0,0), colliding
  * with each other and the pole geometry that samples (0,0): wrong/swapping NPC
@@ -487,8 +490,10 @@ u8 D_800ED228[8] = { 0x00, 30, 0x00, 0x00, 0xC0, 0x02, 0xF0, 0x01 }; /* tPage[0,
  * characters. Real values are runtime FS buffer pointers; set in main_pc.c
  * (Map7S03_CutsceneDmsPtrsInit) since PSX_ADDR is g_PsxRam-relative. */
 void* D_800ED230[2] = { 0, 0 };
-u8 D_800ED244[256] = {0};
-u8 D_800ED250[256] = {0};
+/* D_800ED244 / D_800ED250 (boss force-field grid anchor + lightning-burst
+ * position, extern VECTOR3) were zero-stubs here -> effects anchored at world
+ * origin (flame/lightning "under and around the map"). Now real ROM data in
+ * build_gen/extracted_data/map7_s03_extracted_data.c (+ EXTRA_SYMBOLS). */
 u8 D_800ED543[256] = {0};
 u8 D_800ED560[256] = {0};
 u8 D_800ED570[256] = {0};
@@ -507,18 +512,21 @@ u8 D_800ED5F0[256] = {0};
 u8 D_800ED73C[256] = {0};
 u8 D_800ED840[256] = {0};
 u8 D_800ED841[256] = {0};
-u8 D_800ED848[256] = {0};
+/* D_800ED848 moved to src/maps/map6_s04/map6_s04_2.c as a real `s_800ED848[16]`
+ * — the u8[256] stub was ~2KB too small for the 64-bit struct, so the effect
+ * pool overran it and truncated a callback pointer (EXECUTING 0x7ffa crash). */
 u8 D_800ED8AC[256] = {0};
 u8 D_800ED8E8[256] = {0};
-u8 D_800ED938[256] = {0};
+/* D_800ED938 (map2_s02 street SFX position) now real data in map2_s02_extracted_data.c */
 u8 D_800ED980[256] = {0};
 u8 D_800ED9B8[256] = {0};
-u8 D_800EDA00[256] = {0};
+s32 D_800EDA00 = 0; /* little_incubus.h scalar accumulator; was u8[256] */
 u8 D_800EDA04[256] = {0};
 u8 D_800EDA08[256] = {0};
 u8 D_800EDA0C[256] = {0};
 u8 D_800EFC7C[256] = {0};
-u8 D_800EFC80[256] = {0};
+/* D_800EFC80 (map5_s01 per-room BGM layer flags) now defined with real disc data
+ * in build_gen/extracted_data/map5_s01_extracted_data.c — stub removed. */
 u8 D_800F0040[256] = {0};
 u8 D_800F0044[256] = {0};
 u8 D_800F0178[256] = {0};
@@ -579,7 +587,7 @@ u8 D_800F3D98[256] = {0};
 u8 D_800F3DAC[256] = {0};
 u8 D_800F3DB0[256] = {0};
 u8 D_800F3DB4[256] = {0};
-u8 D_800F3DB8[256] = {0};
+s32 D_800F3DB8 = 0; /* q19_12 unknown23 lightning-effect timer (unknown23.h); was u8[256] */
 u8 D_800F3DF0[256] = {0};
 u8 D_800F3E00[256] = {0};
 u8 D_800F3E0C[256] = {0};
@@ -689,9 +697,8 @@ u8 StCdIntrFlag[256] = {0};
  * which definition wins per call site — undefined behavior that may
  * have been silently corrupting the memcard path even when it
  * appeared to work. Using PsyCross's real ones now. */
-/* fst_max[]/fst_min[] removed: dead stub arrays (nothing references them) that
- * collided with PsyCross's real fst_max()/fst_min() GTE helpers. MinGW
- * --export-all-symbols silently tolerated the duplicate; lld (Xbox) rejects it. */
+u8 fst_max[256] = {0};
+u8 fst_min[256] = {0};
 u8 g_ActiveBufferIdx[256] = {0};
 /* g_Ai_AirScreamer_ControlFuncs now defined in src/maps/characters/air_screamer.c */
 u8 g_Ai_MonsterCybil_ExtraModel[256] = {0};
@@ -707,7 +714,14 @@ u8 g_Cutscene_CameraPositionTarget[256] = {0};
  * locally in build_gen/extracted_data/<map>_extracted_data.c with correct
  * binary-extracted values. A zero stub here would be exported by the EXE
  * and silently override every DLL's own initialized copy via refptr. */
-u8 g_CommonWorldObjects[256] = {0};
+/* g_CommonWorldObjects: runtime working storage written by Map_WorldObjectsInit
+ * (g_CommonWorldObjects[0..5], 6 entries, on every map0_s01/s02/map2_s01/s04
+ * load). s_WorldObjectModel grew from 28 bytes (PSX) to ~48 on 64-bit (two
+ * 8-byte pointers in s_ModelInfo); 6*48 = 288 > the old u8[256] stub, so
+ * WorldObject_ModelNameSet on element [5] wrote ~25 bytes past the stub, stomping
+ * the adjacent global. Size for the max declared array (8) at the 64-bit element
+ * size, with headroom. No code uses ARRAY_SIZE(g_CommonWorldObjects). */
+u8 g_CommonWorldObjects[512] = {0};
 u8 g_CutsceneCameraLookAtTarget[256] = {0};
 u8 g_CutsceneCameraPositionTarget[256] = {0};
 u8 g_CutscenePosition[256] = {0};
@@ -814,8 +828,8 @@ u8 g_Particles[16384] = {0};  // s_Particle[450] = 450*32 = 14400 bytes (max cou
 u8 g_PianoCursorX[256] = {0};
 u8 g_PianoCursorY[256] = {0};
 u8 g_PianoKeyCounter[256] = {0};
-u8 g_PianoKeySequence[256] = {0};
-u8 g_PianoKeys[256] = {0};
+/* g_PianoKeySequence: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* g_PianoKeys: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 /* Binary-extracted MAP3_S03.BIN @0x800D57E0. */
 s32 g_PuppetNurseHurtSfxIdxs[4] = { 3, 3, 4, 5 };
 /* Puppet nurse anim-status pick tables, binary-extracted from MAP3_S03.BIN
@@ -843,8 +857,8 @@ u8 g_Screen_FadeStatus[256] = {0};
  * (from binary). Was zero-stub which broke alley camera warps. */
 u8 g_WorldEnvWork[1024] = {0};  // s_WorldEnvWork ~340 bytes on 64-bit
 u8 g_WorldGfxWork[24576] = {0};    // s_WorldGfxWork = 18960 bytes on 64-bit (11708 on PSX)
-u8 g_WorldObject0[256] = {0};
-u8 g_WorldObject1[256] = {0};
+u8 g_WorldObject0[512] = {0};  /* map7_s00 uses s_WorldObjectModel[6] = 6*48 = 288 on 64-bit > 256 (rotated Nowhere elevator door) */
+u8 g_WorldObject1[512] = {0};  /* s_WorldObjectPlacement[6] = 6*64 = 384 on 64-bit > 256 (cutscene audit) */
 u8 g_WorldObject2[256] = {0};
 u8 g_WorldObject3[256] = {0};
 u8 g_WorldObject4[256] = {0};
@@ -857,18 +871,18 @@ u8 g_WorldObjectA[256] = {0};
 u8 g_WorldObject_IronPipe[256] = {0};
 u8 g_WorldObject_RockDrill[256] = {0};
 u8 g_WorldObject_Chainsaw[256] = {0};
-u8 g_WorldObjectAPos[256] = {0};
+/* g_WorldObjectAPos: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 g_WorldObjectB[256] = {0};
 u8 g_WorldObjectC[256] = {0};
 u8 g_WorldObjectD[256] = {0};
 u8 g_WorldObjectPos0[256] = {0};
-u8 g_WorldObjectPose_HealthDrink0[256] = {0};
-u8 g_WorldObjectPose_HealthDrink1[256] = {0};
+/* g_WorldObjectPose_HealthDrink0: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* g_WorldObjectPose_HealthDrink1: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 g_WorldObjectPose_SavePad[256] = {0};
 u8 g_WorldObjectPose_SavePad0[256] = {0};
 u8 g_WorldObjectPose_SavePad1[256] = {0};
 u8 g_WorldObjectPose_SavePad2[256] = {0};
-u8 g_WorldObjectPose_ShotgunShells[256] = {0};
+/* g_WorldObjectPose_ShotgunShells: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 g_WorldObjectPose_Winr[256] = {0};
 u8 g_WorldObjectSavepad[256] = {0};
 u8 g_WorldObject_06LBag[256] = {0};
@@ -877,7 +891,7 @@ u8 g_WorldObject_Ana[256] = {0};
 u8 g_WorldObject_Ank[256] = {0};
 u8 g_WorldObject_BDoor1[256] = {0};
 u8 g_WorldObject_Baby[256] = {0};
-u8 g_WorldObject_Beans[256] = {0};
+u8 g_WorldObject_Beans[2048] = {0};  /* s_WorldObjectPose[16] = 16*72 = 1152 on 64-bit > 256 (cutscene audit) */
 u8 g_WorldObject_Bed3[256] = {0};
 u8 g_WorldObject_Bin[256] = {0};
 u8 g_WorldObject_Blood0[256] = {0};
@@ -893,8 +907,8 @@ u8 g_WorldObject_Daly[256] = {0};
 u8 g_WorldObject_Diary[256] = {0};
 u8 g_WorldObject_Door[256] = {0};
 u8 g_WorldObject_Door9[256] = {0};
-u8 g_WorldObject_Dor[256] = {0};
-u8 g_WorldObject_Dr[256] = {0};
+u8 g_WorldObject_Dor[512] = {0};  /* s_WorldObjectPose[4] = 4*72 = 288 on 64-bit > 256 (cutscene audit) */
+u8 g_WorldObject_Dr[512] = {0};  /* s_WorldObjectPlacement[6] = 6*64 = 384 on 64-bit > 256 (cutscene audit) */
 u8 g_WorldObject_DrClose[256] = {0};
 u8 g_WorldObject_DrOpen1[256] = {0};
 u8 g_WorldObject_DrOpen2[256] = {0};
@@ -906,7 +920,7 @@ u8 g_WorldObject_FirstAidKit[256] = {0};
 u8 g_WorldObject_Futa[256] = {0};
 u8 g_WorldObject_Gas[256] = {0};
 u8 g_WorldObject_Gofu[256] = {0};
-u8 g_WorldObject_GofuA[256] = {0};
+u8 g_WorldObject_GofuA[512] = {0};  /* s_WorldObjectPose[5] = 5*72 = 360 on 64-bit > 256 (cutscene audit) */
 u8 g_WorldObject_Gofu_B[256] = {0};
 u8 g_WorldObject_HealthDrink[256] = {0};
 u8 g_WorldObject_Item[256] = {0};
@@ -1225,45 +1239,45 @@ const u8 g_AsRodataPsxRaw[0xD78] = {
     0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x99, 0x09
 };
-u8 sharedData_800CB088_3_s01[256] = {0};
+/* sharedData_800CB088_3_s01: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 sharedData_800CB0A0_3_s01[256] = {0};
-u8 sharedData_800CFB14_0_s02[256] = {0};
-u8 sharedData_800CFB1C_0_s02[256] = {0};
-u8 sharedData_800CFB24_0_s02[256] = {0};
-u8 sharedData_800CFB2C_0_s02[256] = {0};
-u8 sharedData_800CFB34_0_s02[256] = {0};
-u8 sharedData_800CFB3C_0_s02[256] = {0};
-u8 sharedData_800CFB44_0_s02[256] = {0};
-u8 sharedData_800CFB4C_0_s02[256] = {0};
-u8 sharedData_800CFB54_0_s02[256] = {0};
+/* sharedData_800CFB14_0_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800CFB1C_0_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800CFB24_0_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800CFB2C_0_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800CFB34_0_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800CFB3C_0_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800CFB44_0_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800CFB4C_0_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800CFB54_0_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 sharedData_800D16E0_2_s01[256] = {0};
 u8 sharedData_800D16E4_2_s01[256] = {0};
-u8 sharedData_800D1D14_3_s02[256] = {0};
-u8 sharedData_800D1D1C_3_s02[256] = {0};
-u8 sharedData_800D21E8_3_s00[256] = {0};
-u8 sharedData_800D2F18_7_s00[256] = {0};
-u8 sharedData_800D2F20_7_s00[256] = {0};
-u8 sharedData_800D2F28_7_s00[256] = {0};
-u8 sharedData_800D2F74_7_s00[256] = {0};
-u8 sharedData_800D2F7C_7_s00[256] = {0};
-u8 sharedData_800D2F84_7_s00[256] = {0};
-u8 sharedData_800D3150_3_s02[256] = {0};
+/* sharedData_800D1D14_3_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800D1D1C_3_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800D21E8_3_s00: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800D2F18_7_s00: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800D2F20_7_s00: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800D2F28_7_s00: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800D2F74_7_s00: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800D2F7C_7_s00: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800D2F84_7_s00: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800D3150_3_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 s32 sharedData_800D32A0_0_s02 = 0;
-u8 sharedData_800D4CD4_3_s01[256] = {0};
+/* sharedData_800D4CD4_3_s01: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 sharedData_800D4D0C_3_s01[256] = {0};
 u8 sharedData_800D4D10_3_s01[256] = {0};
 u8 sharedData_800D4D14_3_s01[256] = {0};
 u8 sharedData_800D4D18_3_s01[256] = {0};
 /* sharedData_800D5710_3_s03 -> pc_port/src/puppet_nurse_data.c (s_800D5710[4]) */
-u8 sharedData_800D5880_1_s05[256] = {0};
+/* sharedData_800D5880_1_s05: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 sharedData_800D5884_1_s05[256] = {0};
 u8 sharedData_800D5A8C_1_s05[256] = {0};
 /* sharedData_800D5A8C_3_s03 -> pc_port/src/puppet_nurse_data.c (s_D_800D5A8C[3]) */
-u8 sharedData_800D5A90_1_s05[256] = {0};
+/* sharedData_800D5A90_1_s05: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 sharedData_800D5AAE_1_s05[256] = {0};
 u8 sharedData_800D5AAF_1_s05[256] = {0};
-u8 sharedData_800D5AB0_1_s05[256] = {0};
-u8 sharedData_800D5BE0_1_s05[256] = {0};
+/* sharedData_800D5AB0_1_s05: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800D5BE0_1_s05: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 sharedData_800D5CF4_3_s00[256] = {0};
 u8 sharedData_800D5CF8_1_s05[256] = {0};
 u8 sharedData_800D5D08_1_s05[256] = {0};
@@ -1309,7 +1323,9 @@ u8 sharedData_800DD58C_0_s00[256] = {0};
 u8 sharedData_800DD5A0_0_s00[256] = {0};
 u8 sharedData_800DD5A4_0_s00[256] = {0};
 u8 sharedData_800DD5A6_0_s00[256] = {0};
-u8 sharedData_800DD870_0_s01[16] = { 0x00,0x12,0x00,0x00, 0x00,0x12,0x00,0x00, 0x00,0x12,0x00,0x00, 0x00,0x00,0x00,0x00 }; /* REAL air-screamer scale VECTOR ~1.125x (field_E8_0==3); was a zero stub -> air screamer collapsed/vanished in that state (pc-port bc853a181) */
+/* sharedData_800DD870_0_s01: KEPT as stub -- map0_s01 (Chara_AirScreamer) references it but has no extracted copy; unshadowing the rest is safe */
+u8 sharedData_800DD870_0_s01[16] = { 0x00,0x12,0x00,0x00, 0x00,0x12,0x00,0x00, 0x00,0x12,0x00,0x00, 0x00,0x00,0x00,0x00 }; /* REAL air-screamer scale VECTOR ~1.125x (field_E8_0==3); was a zero stub shadowing all maps -> air screamer collapsed in that state */
+/* sharedData_800DD880_0_s01: KEPT as stub -- map0_s01 (Chara_AirScreamer) references it but has no extracted copy; unshadowing the rest is safe */
 u8 sharedData_800DD880_0_s01[16] = { 0x00,0x0E,0x00,0x00, 0x00,0x0E,0x00,0x00, 0x00,0x0E,0x00,0x00, 0x00,0x00,0x00,0x00 }; /* REAL air-screamer scale VECTOR ~0.875x (AirScreamerFlag_12) */
 /* sharedData_800DDBA8_0_s00 now provided with real data by stalker_rodata.inc */
 /* sharedData_800DDBBC_0_s00 now provided with real data by stalker_rodata.inc */
@@ -1334,7 +1350,7 @@ u8 sharedData_800DE200_0_s01[256] = {0};
 u8 sharedData_800DE210_0_s01[256] = {0};
 u8 sharedData_800DE220_0_s01[256] = {0};
 u8 sharedData_800DE230_0_s01[256] = {0};
-u8 sharedData_800DE28C_5_s00[256] = {0};
+s32 sharedData_800DE28C_5_s00 = 0; /* q19_12 scratch (hanged_scratcher.h); was u8[256] */
 /* sharedData_800DE2C4_0_s00 now provided with real data by stalker_rodata.inc */
 /* sharedData_800DE2D8_0_s00 now provided with real data by stalker_rodata.inc */
 /* sharedData_800DE2EC_0_s00 now provided with real data by stalker_rodata.inc */
@@ -1387,13 +1403,21 @@ u8 sharedData_800E0CBA_0_s00[256] = {0};
 /* sharedData_800E1194_1_s02 now provided with real data by creeper_rodata.inc */
 /* sharedData_800E11A8_1_s02 now provided with real data by creeper_rodata.inc */
 /* sharedData_800E11BC_1_s02 now provided with real data by creeper_rodata.inc */
-u8 sharedData_800E1208_1_s02[256] = {0};
-u8 sharedData_800E1210_1_s02[256] = {0};
-u8 sharedData_800E1570_7_s01[256] = {0};
-u8 sharedData_800E1574_7_s01[256] = {0};
-u8 sharedData_800E1578_7_s01[256] = {0};
+/* sharedData_800E1208_1_s02: real data lives in the map DLL's extracted_data; the exe zero-stub was shadowing it (--export-all-symbols import binding) -> wrong school BGM mix */
+/* sharedData_800E1210_1_s02: real data lives in the map DLL's extracted_data; the exe zero-stub was shadowing it (--export-all-symbols import binding) -> wrong school BGM mix */
+/* sharedData_800E1570_7_s01: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800E1574_7_s01: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800E1578_7_s01: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 sharedData_800E1694_7_s01[256] = {0};
-u8 sharedData_800E21D0_0_s01[256] = {0};
+/* sharedData_800E21D0_0_s01: AirScreamer per-instance control struct
+ * (s_sharedData_800E21D0_0_s01), a runtime BSS working buffer imported by the
+ * map0_s01 overlay. PSX size is 0x160 (352 B); the 64-bit struct is 0x170
+ * (368 B) because anmHdr_4/coords_8 expand 4->8 B. The old [256] stub was too
+ * small and AirScreamer_Update wrote past it (ASan abort in the alley). Kept as
+ * a sized stub here (not a separate typed file) so it stays defined without a
+ * CMake reconfigure -- a new source file isn't seen until the GLOB re-runs,
+ * which left the overlay's import unresolved in non-reconfigured builds. */
+u8 sharedData_800E21D0_0_s01[512] = {0};
 u8 sharedData_800E2330_0_s01[256] = {0};
 u8 sharedData_800E2350_0_s01[256] = {0};
 u8 sharedData_800E2370_0_s01[256] = {0};
@@ -1415,57 +1439,60 @@ u8 sharedData_800E39BC_0_s00[256] = {0};
 u8 sharedData_800E39D8_0_s00[256] = {0};
 u8 sharedData_800E39E0_0_s00[256] = {0};
 u8 sharedData_800E39E2_0_s00[256] = {0};
-u8 sharedData_800E39E4_0_s00[256] = {0};
-u8 sharedData_800E39E8_0_s00[256] = {0};
-u8 sharedData_800E39EC_0_s00[256] = {0};
-u8 sharedData_800E3A0C_0_s00[256] = {0};
-u8 sharedData_800E3A18_0_s00[256] = {0};
-u8 sharedData_800E3A1C_0_s00[256] = {0};
-u8 sharedData_800E3A20_0_s00[256] = {0};
-u8 sharedData_800E3A24_0_s00[256] = {0};
-u8 sharedData_800E3A28_0_s00[256] = {0};
-u8 sharedData_800E3A2C_0_s00[256] = {0};
+/* Stalker runtime scratch — typed to match shared.h (q19_12 is s32) instead of
+ * generic u8[256] stubs. Zero-init is correct: Stalker_Update / Ai_Stalker write
+ * these before reading. Ring-buffer extents are from PSX symbol spacing. */
+s32 sharedData_800E39E4_0_s00 = 0;
+s32 sharedData_800E39E8_0_s00 = 0;
+s32 sharedData_800E39EC_0_s00[8] = {0};
+u16 sharedData_800E3A0C_0_s00[6] = {0};
+s32 sharedData_800E3A18_0_s00 = 0;
+s32 sharedData_800E3A1C_0_s00 = 0;
+s32 sharedData_800E3A20_0_s00 = 0;
+s32 sharedData_800E3A24_0_s00 = 0;
+s32 sharedData_800E3A28_0_s00 = 0;
+s32 sharedData_800E3A2C_0_s00 = 0;
 u8 sharedData_800E57CC_1_s02[256] = {0};
-u8 sharedData_800EB738_6_s04[256] = {0};
-u8 sharedData_800EB740_6_s04[256] = {0};
-u8 sharedData_800EB748_6_s04[256] = {0};
-u8 sharedData_800EB74A_6_s04[256] = {0};
-u8 sharedData_800EB750_6_s04[256] = {0};
-u8 sharedData_800EC950_2_s02[256] = {0};
+/* sharedData_800EB738_6_s04: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800EB740_6_s04: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800EB748_6_s04: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800EB74A_6_s04: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800EB750_6_s04: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800EC950_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 sharedData_800ECA4C_2_s02[256] = {0};
 u8 sharedData_800ECACC_2_s02[256] = {0};
-u8 sharedData_800ECB22_2_s02[256] = {0};
-u8 sharedData_800ECBC2_2_s02[256] = {0};
+/* sharedData_800ECB22_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ECBC2_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 sharedData_800ECBD0_2_s02[256] = {0};
-u8 sharedData_800ECC44_2_s02[256] = {0};
-u8 sharedData_800ECC58_2_s02[256] = {0};
-u8 sharedData_800ECCBC_2_s02[256] = {0};
-u8 sharedData_800ECCD0_2_s02[256] = {0};
-u8 sharedData_800ECD34_2_s02[256] = {0};
-u8 sharedData_800ECD48_2_s02[256] = {0};
-u8 sharedData_800ECE24_2_s02[256] = {0};
-u8 sharedData_800ECF00_2_s02[256] = {0};
-u8 sharedData_800ECF64_2_s02[256] = {0};
-u8 sharedData_800ED018_2_s02[256] = {0};
-u8 sharedData_800ED1D0_2_s02[256] = {0};
-u8 sharedData_800ED2C0_2_s02[256] = {0};
-u8 sharedData_800ED2D4_2_s02[256] = {0};
-u8 sharedData_800ED314_2_s02[256] = {0};
-u8 sharedData_800ED418_4_s02[256] = {0};
-u8 sharedData_800ED420_4_s02[256] = {0};
-u8 sharedData_800ED424_4_s02[256] = {0};
-u8 sharedData_800ED42C_4_s02[256] = {0};
-u8 sharedData_800ED430_2_s02[256] = {0};
-u8 sharedData_800ED43C_2_s02[256] = {0};
-u8 sharedData_800ED458_4_s02[256] = {0};
-u8 sharedData_800EEAC4_2_s00[256] = {0};
+/* sharedData_800ECC44_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ECC58_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ECCBC_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ECCD0_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ECD34_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ECD48_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ECE24_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ECF00_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ECF64_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ED018_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ED1D0_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ED2C0_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ED2D4_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ED314_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ED418_4_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ED420_4_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ED424_4_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ED42C_4_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ED430_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ED43C_2_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800ED458_4_s02: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800EEAC4_2_s00: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 /* sharedData_800EEE14..800EFCDC (Chara_Groaner AI dispatch + keyframe data)
  * are now provided by pc_port/src/groaner_rodata.c, populated with real
  * values extracted from disc_extract/VIN/MAP2_S00.BIN. */
-u8 sharedData_800EFCFC_6_s00[256] = {0};
+/* sharedData_800EFCFC_6_s00: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 u8 sharedData_800EFD04_6_s00[256] = {0};
-u8 sharedData_800EFD08_6_s00[256] = {0};
-u8 sharedData_800EFD34_6_s00[256] = {0};
+/* sharedData_800EFD08_6_s00: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
+/* sharedData_800EFD34_6_s00: UNSHADOW-TRIAL (real data in map DLL extracted_data) */
 /* sharedData_800EFF48..800F04C0 also provided by groaner_rodata.c. */
 /* sharedData_800F06D4_2_s00 is the s_BgmLayerLimits array passed to
  * Bgm_Update from Map_RoomBgmInit_2_s00.h. The first 8 bytes are layer

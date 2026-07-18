@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include "sh_log.h"
 #include "pc_config.h"
+#ifdef SH_PC_PORT
+#include "main/fileinfo.h" /* g_GameRegion — PAL BG_ETC material-UV relocation */
+#endif
 #endif
 
 #include <psyq/libetc.h>
@@ -70,6 +73,28 @@ void func_8003BED0(void) // 0x8003BED0
     {
         return;
     }
+
+#ifdef SH_PC_PORT
+    /* PAL reslices BG_ETC.TIM (US 128x256 -> 256x128, bottom half placed to
+     * the right): the material band at US atlas v=192 lives at cells (32,64)
+     * on PAL (SLES desc 0x800A9ABC). CLUT home (192,0) is unchanged. */
+    IMAGE_ETC.u = (g_GameRegion == Region_EUR) ? 32 : 0;
+    IMAGE_ETC.v = (g_GameRegion == Region_EUR) ? 64 : 192;
+
+    /* PAL relocates the TIM00 common-item CLUT to the bottom-right VRAM margin
+     * (928,480) — the same retarget font_region.c applies to
+     * g_FirstAidKitItemTextureImg, which is the desc GameFs_Tim00TIMLoad uploads
+     * the TIM00 palette with. This world-prop material binding hardcodes the US
+     * home (176,0); without matching the retarget, every common-item world prop
+     * (DRINK/AIDKIT/BULLET) samples an empty palette on EUR and renders
+     * invisible — while the pickup/inventory previews (which use the retargeted
+     * desc directly) look fine. Not needed for JAP/US (CLUT stays at 176,0). */
+    if (g_GameRegion == Region_EUR)
+    {
+        IMAGE_TIM.clutX = 928;
+        IMAGE_TIM.clutY = 480;
+    }
+#endif
 
     LmHeader_FixOffsets(&g_WorldGfxWork.itemLmHdr);
     Lm_MaterialFsImageApply1(&g_WorldGfxWork.itemLmHdr, "TIM00", &IMAGE_TIM, 1);
@@ -180,6 +205,12 @@ void Ipd_PlayerChunkInit(s_MapOverlayHdr* mapHdr, s32 playerPosX, s32 playerPosZ
     s32        activeIpdCount;
     u8         flags;
     s_MapInfo* mapInfo;
+
+#ifdef SH_PC_PORT
+    /* Clear the whole-town parked-cell registry before this map's placements
+     * (Map_PlaceIpdAtCell below + event-driven ones) record into it. */
+    { extern void Pc_ParkedCellsReset(void); Pc_ParkedCellsReset(); }
+#endif
 
     g_WorldGfxWork.mapInfo = mapHdr->mapInfo;
 
@@ -450,6 +481,11 @@ void Gfx_InGameDraw(bool arg0) // 0x8003C878
 #endif
 
     Ipd_ChunkCheckDraw(&g_OrderingTable0[g_ActiveBufferIdx], arg0);
+#ifdef SH_PC_PORT
+    /* Bullet-hole decals ride the world OT here so GsWSMATRIX matches the
+     * chunk geometry they sit on (pc_decals.c). */
+    { extern void Pc_DecalsDraw(GsOT* ot); Pc_DecalsDraw(&g_OrderingTable0[g_ActiveBufferIdx]); }
+#endif
     Gfx_2dEffectsDraw();
 }
 
@@ -1411,7 +1447,16 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
     // Something to do with items held by player.
     if (charaId == Chara_Harry)
     {
+#ifdef SH_PC_PORT
+        /* Harry's held item/weapon is a separate model from his skeleton (drawn
+         * further below), so it needs its own no-cast flag — otherwise his gun/
+         * pipe/flashlight throws a flashlight shadow even though his body doesn't. */
+        { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 1; }
+#endif
         WorldGfx_HeldItemDraw();
+#ifdef SH_PC_PORT
+        { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 0; }
+#endif
     }
 
     ret = func_8003DD74(charaId, arg4);
@@ -1431,9 +1476,59 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
     if (g_WorldGfxWork.registeredCharaModels[charaId] == NULL) {
         return;
     }
+    { extern int g_PcFpsCam, g_PcHideHarryFpsBody, g_PcFpsSwingHeadShow;
+      /* Hide Harry's head only during interactive FPS gameplay. Cutscenes (a
+       * GameState_InGame substate, flagged by sysFlags/border) and load screens
+       * (separate GameStates) use scripted cameras that frame him normally, so
+       * keep his head there — a headless Harry in those looks wrong.
+       *
+       * SysState_Gameplay gate: on room entry the state passes through
+       * event/load substates that DRAW the world with the game's own
+       * (non-FPS) camera zooming toward Harry before control is handed over.
+       * The FPS eye override (Pc_TpsCamera_Apply) only runs in the Gameplay
+       * state, so only there is the view actually through Harry's eyes. Gating
+       * on Gameplay keeps his head until the player is in full control at the
+       * FPS spot — no more headless Harry during the room-entry camera zoom.
+       *
+       * g_PcFpsSwingHeadShow: while the melee arm-clearance dolly has pulled
+       * the camera back behind the head, draw the head — the pulled swing
+       * reads as a brief third-person beat instead of a headless body. */
+      /* _atEye: the SysState_Gameplay gate flips before the game's room-entry
+       * camera ease finishes, so the view can still be GLIDING toward the eye
+       * with the head already hidden (headless Harry drifting into frame on
+       * every room load). Only hide once the view has actually arrived. */
+      int _atEye = 0;
+      { VECTOR3 _vp;
+        VECTOR3 _hp;
+        vwGetViewPosition(&_vp);
+        /* Compare against the live HEAD BONE, not g_PcFpsEyePos: the eye
+         * global is written only while the FPS override runs and holds the
+         * PREVIOUS room's value during the entry glide — often within
+         * tolerance of the new spawn, so the head hid anyway. The bone is
+         * always current. */
+        vcMakeHeroHeadPos(&_hp);
+        _atEye = (ABS(_vp.vx - _hp.vx) < Q12(0.55f) &&
+                  ABS(_vp.vy - _hp.vy) < Q12(0.55f) &&
+                  ABS(_vp.vz - _hp.vz) < Q12(0.55f)); }
+      g_PcHideHarryFpsBody = (g_PcFpsCam && charaId == Chara_Harry
+          && !g_PcFpsSwingHeadShow
+          && _atEye
+          && g_GameWork.gameState == GameState_InGame
+          && g_SysWork.sysState == SysState_Gameplay
+          && !(g_SysWork.sysFlags & SysFlag_CutsceneActive)
+          && g_SysWork.cutsceneBorderState == CutsceneBorderState_None); }
+    /* Harry doesn't cast a flashlight shadow — his own body between the light and
+     * the scene looked odd. Flag his skeleton verts as non-casters for the depth
+     * pre-pass (monsters still cast). Set here (build time) so the GTE captures it
+     * per-vertex; cleared right after. */
+    { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = (charaId == Chara_Harry) ? 1 : 0; }
 #endif
     func_80045534(&g_WorldGfxWork.registeredCharaModels[charaId]->skeleton, &g_OrderingTable0[g_ActiveBufferIdx], arg2,
                   boneCoords, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6), ret, CHARA_FILE_INFOS[charaId].field_8);
+#ifdef SH_PC_PORT
+    { extern int g_PcHideHarryFpsBody; g_PcHideHarryFpsBody = 0; }
+    { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 0; }
+#endif
 
     if (timer != Q12(0.0f))
     {

@@ -11,6 +11,20 @@
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include <PsyX/PsyX_public.h>
+/* Inventory item-preview aspect: 0 = PSX-faithful (raw 4:3-display look,
+ * vertically squished in interlaced 448), 1 = square (true proportions, default).
+ * Toggled by `invaspect`. g_PcInvAspectPct fine-tunes the vertical scale as a
+ * percent of the geometric square factor (100 = exactly square); `invscale`. */
+int g_PcInvAspectSquare = 1;
+int g_PcInvAspectPct    = 125;
+/* Slight Y placement match vs Duckstation (view-Y units; + = down). Carousel a
+ * touch down, equipped weapon up. Tunable: invcary / inveqy. */
+int g_PcInvCarouselYOff = 50;
+int g_PcInvEquipYOff    = -50;
+/* Off-center carousel dimming: PER-SLOT darken %. The carousel curves in Z, one
+ * "slot" per Math_Sin step; darken by this % times the slot distance from center
+ * (slot 1 = 30%, slot 2 = 60%, ...). 0 = no dim. Tunable: invdim. */
+int g_PcInvDimStrength  = 30;
 #endif
 
 GsCOORD2PARAM D_800C3928;
@@ -149,21 +163,38 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
 #ifdef SH_PC_PORT
     /* Silently skip degenerate cases that would crash on x86-64.
      * scale.vx==0 was the unequip-anim divide-by-zero (item_screens_3.c:2812)
-     * that used to kill the process with SIGFPE. */
-    if (arg1->coord2 == NULL) return;
-    if (g_Items_Transforms[displayItemIdx].scale.vx == 0) return;
-    if (arg1->tmd == NULL) return;
-    /* tmd non-NULL but MALFORMED: a valid loadableItemIdx (< nobj) can still
-     * resolve to a garbage TMD object when the inventory holds an item not in
-     * this map's item TMD (hit on the gas tank with give-all-weapons). Absurd
-     * vert/prim counts or NULL data pointers make GsSortObject4J over-read ->
-     * wild GTE vertex read -> AV crash. Skip the draw instead of crashing. */
+     * that used to kill the process with SIGFPE. [ITEMPICK] names the skip
+     * reason — every one of these renders as "item model invisible". */
     {
-        struct TMD_STRUCT* _t = (struct TMD_STRUCT*)arg1->tmd;
-        int _bad = (_t->vertop == NULL || _t->primtop == NULL ||
-                    _t->vern == 0 || _t->vern > 0x2000 ||
-                    _t->primn == 0 || _t->primn > 0x2000);
-        if (_bad) {
+        static int s_itemSkipLog = 0;
+        const char* skip = NULL;
+        if (arg1->coord2 == NULL) skip = "coord2 NULL";
+        else if (g_Items_Transforms[displayItemIdx].scale.vx == 0) skip = "scale 0";
+        else if (arg1->tmd == NULL) skip = "tmd NULL";
+        else
+        {
+            /* tmd non-NULL but MALFORMED: a valid loadableItemIdx (< nobj) can
+             * still resolve to a garbage TMD object when the inventory holds an
+             * item not in this map's item TMD (hit on the gas tank with
+             * give-all-weapons). Absurd vert/prim counts or NULL data pointers
+             * make GsSortObject4J over-read -> wild GTE vertex read -> AV
+             * crash. Skip the draw instead of crashing. */
+            struct TMD_STRUCT* _t = (struct TMD_STRUCT*)arg1->tmd;
+            if (_t->vertop == NULL || _t->primtop == NULL ||
+                _t->vern == 0 || _t->vern > 0x2000 ||
+                _t->primn == 0 || _t->primn > 0x2000)
+            {
+                skip = "tmd malformed";
+            }
+        }
+        if (skip != NULL)
+        {
+            if (s_itemSkipLog < 32)
+            {
+                SH_DBG("[ITEMPICK] draw SKIPPED: slot=%d reason=%s (arg2=%d)",
+                       (int)displayItemIdx, skip, (int)arg2);
+                s_itemSkipLog++;
+            }
             return;
         }
     }
@@ -201,29 +232,93 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
          * same proportions they had on the original 4:3 display.
          * The 2D background is unaffected — it goes through a separate path.
          *
-         * Skip entirely when the inventory screen is pillarboxed: PsyCross
-         * then renders the 4:3 ortho into a centered 4:3 viewport, so there
-         * is NO horizontal stretch to undo — applying it here would squish
-         * the item preview. The inventory is a 2D screen (g_PcHorPlusEnabled
-         * forced to 0 by game_main.c), so pillarbox is active whenever
-         * g_PcMenuPillarbox is set. */
+         * Apply ONLY when the item is genuinely stretched — i.e. a 4:3 ortho
+         * is mapped to a wider viewport with NO compensation (PsyX_render.cpp
+         * GR_SetOffscreenState):
+         *   - anamorphic stretch mode (g_PcWidescreenMode == 2), or
+         *   - a 2D/UI screen (g_PcHorPlusEnabled == 0) with menu pillarbox OFF.
+         * In Hor+ mode (HorPlusEnabled + mode 1 — the world item-pickup "take"
+         * screen, which stays 16:9) PsyCross WIDENS the ortho instead, so square
+         * pixels already give correct proportions; correcting here over-narrowed
+         * the model and read as a vertically-stretched item. When pillarboxed the
+         * viewport is a centered 4:3, so there is likewise no stretch to undo.
+         * (The inventory carousel runs with g_PcHorPlusEnabled=0 + pillarbox, so
+         * its behaviour is unchanged.) */
         extern int g_PcHorPlusEnabled;
         extern int g_PcMenuPillarbox;
-        int _pillarboxed = (!g_PcHorPlusEnabled && g_PcMenuPillarbox);
+        extern int g_PcWidescreenMode;
+        int _stretched = (g_PcHorPlusEnabled && g_PcWidescreenMode == 2) ||
+                         (!g_PcHorPlusEnabled && !g_PcMenuPillarbox);
         int _sw, _sh;
         PsyX_GetScreenSize(&_sw, &_sh);
         float _dispAspect = (float)_sw / (float)_sh;
         float _psxAspect = 320.0f / 240.0f;
-        if (!_pillarboxed && _dispAspect > _psxAspect) {
+        if (_stretched && _dispAspect > _psxAspect) {
             float _corr = _psxAspect / _dispAspect;
             int _j;
             for (_j = 0; _j < 3; _j++)
                 localToScreenMat.m[0][_j] = (s16)((float)localToScreenMat.m[0][_j] * _corr);
             localToScreenMat.t[0] = (s32)((float)localToScreenMat.t[0] * _corr);
         }
+
+        /* Square mode (toggle `invaspect 1`): item models project symmetrically
+         * into the gsScreenW x gsScreenH framebuffer, which is then shown at 4:3,
+         * so a square model comes out at aspect (4/3)/(gsW/gsH) — ~1.87x too wide
+         * in interlaced 448. Scale the Y size axis by that factor (x invscale%)
+         * to restore true (square-pixel) proportions. Independent of window/
+         * pillarbox since the horizontal path already normalizes to a 4:3 display. */
+        if (g_PcInvAspectSquare && g_GameWork.gsScreenWidth > 0) {
+            /* Scale only the size rows (m[1]) — NOT the Y translation (t[1]):
+             * the model must get taller IN PLACE. Scaling t[1] also moved
+             * off-center items (the equipped weapon, placed high) further up. */
+            float _fY = (4.0f / 3.0f) * ((float)g_GameWork.gsScreenHeight / (float)g_GameWork.gsScreenWidth)
+                        * ((float)g_PcInvAspectPct / 100.0f);
+            int _j;
+            for (_j = 0; _j < 3; _j++)
+                localToScreenMat.m[1][_j] = (s16)((float)localToScreenMat.m[1][_j] * _fY);
+        }
+
+        /* Slight Y placement match vs Duckstation: carousel items (idx < 7) a
+         * touch down, equipped weapon (idx 7) a touch up. Translation only. */
+        if (displayItemIdx == 7)
+            localToScreenMat.t[1] += g_PcInvEquipYOff;
+        else if (displayItemIdx < 7)
+            localToScreenMat.t[1] += g_PcInvCarouselYOff;
     }
 #endif
     GsSetLsMatrix(&localToScreenMat);
+
+#ifdef SH_PC_PORT
+    /* Off-center carousel dimming (the PSX depth-cue the no-light TMD render
+     * path drops). The carousel curves in Z: the centered item sits at
+     * t[2]=Q8(-4) (nearest), side items further back. Darken the whole model in
+     * proportion to how far past center it sits, up to g_PcInvDimStrength% at a
+     * full Q8(1.0) of extra depth. Equipped (idx 7) and any non-carousel index
+     * stay full bright. g_PcItemDimNum (256 = full) is read by the GsTMDfast*
+     * renderers in libgs_stub.c; reset after the draw so nothing else dims. */
+    {
+        extern int g_PcItemDimNum;
+        extern int g_PcItemPreciseDepth;
+        g_PcItemDimNum = 256;
+        /* Fine per-prim depth for the item. Safe whenever OT0 holds the item
+         * ALONE: the inventory menu (world not drawn) and the world pickup
+         * take-screen (arg2==2), which now pauses the world render so only the
+         * model draws (Gfx_PickupItemAnimate sets BgmStatusFlag_Pause). Pairs
+         * with the force-item-depth bracket in game_main.c. See libgs_stub.c
+         * g_PcItemPreciseDepth. */
+        g_PcItemPreciseDepth = (g_GameWork.gameState == GameState_InventoryScreen) || (arg2 == 2);
+        if (displayItemIdx < 7 && g_PcInvDimStrength > 0) {
+            /* depth past center = t[2]+Q8(4) = |Math_Sin(slot*256)| (Q12):
+             * slot1~1567, slot2~2896, slot3~3784. Quantize to slot distance and
+             * darken g_PcInvDimStrength% per slot. */
+            s32 _depth = g_Items_Coords[displayItemIdx].coord.t[2] + Q8(4.0f);
+            s32 _slot  = (_depth < 800) ? 0 : (_depth < 2200) ? 1 : (_depth < 3300) ? 2 : 3;
+            s32 _dim   = _slot * g_PcInvDimStrength;
+            if (_dim > 100) _dim = 100;
+            g_PcItemDimNum = 256 - (256 * _dim) / 100;
+        }
+    }
+#endif
 
     if (arg2 == 2)
     {
@@ -235,6 +330,10 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
     {
         GsSortObject4J(arg1, &g_OrderingTable0[g_ActiveBufferIdx], 1, (u32*)PSX_SCRATCH);
     }
+
+#ifdef SH_PC_PORT
+    { extern int g_PcItemDimNum; g_PcItemDimNum = 256; extern int g_PcItemPreciseDepth; g_PcItemPreciseDepth = 0; }
+#endif
 }
 
 /** Removing this causes the models of items to appear farther from the camera.

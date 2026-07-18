@@ -322,6 +322,20 @@ bool Event_CollideFacingCheck(s_MapPoint2d* mapPoint) // 0x800378D4
     static s32 D_800A9A24 = 0;
     static s32 D_800A9A28 = 0;
 
+#ifdef SH_PC_PORT
+    /* First person puts the camera at Harry's head, so the vanilla 0.8m
+     * facing-interaction reach reads as "press your face into the door".
+     * Extend reach in FPS only; every other camera keeps PSX-exact 0.8m.
+     * The 30-degree facing cone below is unchanged, so this can't grab
+     * triggers off to the side — just a longer arm. */
+    extern int g_PcFpsCam;
+    {
+        const q19_12 reach = g_PcFpsCam ? Q12(2.8f) : Q12(0.8f);
+#else
+    {
+        const q19_12 reach = Q12(0.8f);
+#endif
+
     if (g_TickCount > D_800A9A20)
     {
         rotY       = g_SysWork.playerWork.player.rotation.vy;
@@ -331,20 +345,21 @@ bool Event_CollideFacingCheck(s_MapPoint2d* mapPoint) // 0x800378D4
     }
 
     deltaX = mapPoint->positionX - D_800A9A24;
-    if (ABS(deltaX) > Q12(0.8f))
+    if (ABS(deltaX) > reach)
     {
         return false;
     }
 
     deltaZ = mapPoint->positionZ - D_800A9A28;
-    if (ABS(deltaZ) > Q12(0.8f))
+    if (ABS(deltaZ) > reach)
     {
         return false;
     }
 
-    if ((SQUARE(deltaX) + SQUARE(deltaZ)) > SQUARE(Q12(0.8f)))
+    if ((SQUARE(deltaX) + SQUARE(deltaZ)) > SQUARE(reach))
     {
         return false;
+    }
     }
 
     deltaRotY = g_SysWork.playerWork.player.rotation.vy - ratan2(deltaX, deltaZ);

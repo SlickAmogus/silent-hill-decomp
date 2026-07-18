@@ -10,6 +10,7 @@
 #include "main/fsqueue.h"
 #include "sh_log.h"
 #include "pc_config.h"
+#include "pc_rando.h"
 
 #include <SDL.h>
 
@@ -32,6 +33,10 @@ void Pc_QuickSaveLoadUpdate(void)
         scLoad   = SDL_GetScancodeFromName(g_PcConfig.keyQuickLoad);
         resolved = 1;
     }
+
+    /* A randomizer run cannot be saved or reloaded. */
+    if (Pc_Rando_Active())
+        return;
 
     keys = SDL_GetKeyboardState(NULL);
     if (keys == NULL)

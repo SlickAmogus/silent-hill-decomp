@@ -22,10 +22,28 @@
 
 #ifdef SH_PC_PORT
 static s32 Camera_Distance2dGet(const VECTOR3* pos);
+extern int g_DebugAnimKfView;
+extern int g_DebugViewNpcSlot;
+void Pc_KeyframeViewerPoseNpc(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
 #endif
 
 void Savegame_EnemyStateUpdate(s_SubCharacter* chara) // 0x80037DC4
 {
+#ifdef SH_PC_PORT
+    /* Console/pool spawns reuse field_40 as their npc slot index, which here
+     * would permanently dead-flag an UNRELATED native spawn row of the
+     * current map in the savegame. Debug spawns carry no savegame identity. */
+    {
+        extern u8 g_PcNpcDebugSpawned[NPC_COUNT_MAX];
+        s32       slot = chara - g_SysWork.npcs;
+
+        if (slot >= 0 && slot < NPC_COUNT_MAX && g_PcNpcDebugSpawned[slot])
+        {
+            return;
+        }
+    }
+#endif
+
     if (g_SavegamePtr->gameDifficulty <= GameDifficulty_Normal || Rng_RandQ12() >= Q12_ANGLE(108.0f))
     {
         g_SavegamePtr->ovlEnemyStates[g_SavegamePtr->mapIdx] &= ~(1 << chara->field_40);
@@ -58,6 +76,15 @@ void func_80037E78(s_SubCharacter* chara) // 0x80037E78
             cond = D_800AD4C8[idx].field_10 == 3;
             func_800914C4(cond, func_8009146C(cond) + 1);
         }
+
+#ifdef SH_PC_PORT
+        /* Randomizer score. CharaFlag_Dead latches right below, so this runs
+         * exactly once per corpse. No-op unless a run is live. */
+        {
+            extern void Pc_Rando_OnEnemyKilled(void);
+            Pc_Rando_OnEnemyKilled();
+        }
+#endif
 
         chara->flags |= CharaFlag_Dead;
     }
@@ -123,11 +150,28 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
     s32 _closestZ     = 0;
     s8  _closestFlags = 0;
     int _shouldTickLog = (++_spawnTickCounter % 300 == 0); /* ~5s @60fps */
+
+    /* Unlimited-enemies mode: override the map's per-room concurrent cap so
+     * natural spawns can fill every npcs[] slot (the console SPAWN command
+     * already bypasses the cap). Applied every frame AFTER the map's room-init
+     * sets/increments npcFlagsId. Off = the map's original balance stands. */
+    {
+        extern int g_PcUnlimitedEnemies;
+        if (g_PcUnlimitedEnemies)
+            g_SysWork.npcFlagsId = NPC_COUNT_MAX;
+    }
 #endif
 
     for (i = 0; i < 32 && g_VBlanks < 4; i++, curCharaSpawn++)
     {
+#ifdef SH_PC_PORT
+        /* npcFlagsId can now reach 32 (NPC_COUNT_MAX); (1 << 32) is UB, so
+         * saturate the "all slots occupied" mask to full when it does. */
+        if ((u32)g_SysWork.npcFlags ==
+            (g_SysWork.npcFlagsId >= 32 ? 0xFFFFFFFFu : ((1u << g_SysWork.npcFlagsId) - 1u)))
+#else
         if (g_SysWork.npcFlags == ((1 << g_SysWork.npcFlagsId) - 1)) // TODO: Macro for this check?
+#endif
         {
 #ifdef SH_PC_PORT
             /* Hit the concurrent-NPC cap. Throttled log so we know if
@@ -277,6 +321,16 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
             }
 
             bzero(&g_SysWork.npcs[npcIdx], sizeof(s_SubCharacter));
+
+#ifdef SH_PC_PORT
+            /* Native spawn reuses this slot: a stale debug-spawn flag here
+             * would make Savegame_EnemyStateUpdate skip THIS enemy's
+             * kill-record write (permadeath bit) for the whole map session. */
+            {
+                extern u8 g_PcNpcDebugSpawned[NPC_COUNT_MAX];
+                g_PcNpcDebugSpawned[npcIdx] = 0;
+            }
+#endif
 
             if (curCharaSpawn->charaId > Chara_None)
             {
@@ -524,6 +578,14 @@ void Game_NpcUpdate(void) // 0x80038354
                     npc->model.charaId = Chara_None;
                     SysWork_NpcFlagClear(k);
                     CLEAR_FLAG(g_SysWork.field_228C, npc->field_40);
+#ifdef SH_PC_PORT
+                    /* Slot freed: drop any debug-spawn flag with it (its own
+                     * Savegame_EnemyStateUpdate already ran at kill time). */
+                    {
+                        extern u8 g_PcNpcDebugSpawned[NPC_COUNT_MAX];
+                        g_PcNpcDebugSpawned[k] = 0;
+                    }
+#endif
                     continue;
                 }
 
@@ -618,6 +680,23 @@ void Game_NpcUpdate(void) // 0x80038354
                         _noUpdateFnLogged |= (1u << (npc->model.charaId & 31));
                     }
                     if (animLoaded && (npc->model.anim.flags & AnimFlag_Visible)) {
+                        s_AnmHeader*   statueHdr = g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr;
+                        GsCOORDINATE2* statueBc  = g_CharaModelAnimsData[animDataInfoIdx].boneCoords;
+
+                        /* Statue pose: an AI update func normally poses the
+                         * skeleton AND writes the NPC's world transform into
+                         * the root coord — without it the model renders at
+                         * the world origin (invisible in practice). Pose
+                         * keyframe 0 and place the root every frame (same
+                         * recipe as the cutscene actors' update funcs). */
+                        if (statueHdr != NULL) {
+                            Anim_BoneUpdate(statueHdr, statueBc, 0, 0, Q12(0.0f));
+                            Math_RotMatrixZxyNegGte(&npc->rotation, &statueBc->coord);
+                            statueBc->coord.t[0] = Q12_TO_Q8(npc->position.vx);
+                            statueBc->coord.t[1] = Q12_TO_Q8(npc->position.vy);
+                            statueBc->coord.t[2] = Q12_TO_Q8(npc->position.vz);
+                            statueBc->flg = 0;
+                        }
                         func_8003DA9C(npc->model.charaId,
                                       g_CharaModelAnimsData[animDataInfoIdx].boneCoords,
                                       1, npc->timer_C6,
@@ -702,11 +781,24 @@ void Game_NpcUpdate(void) // 0x80038354
                 continue;
             }
 #endif
-            g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId](npc, g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr, boneCoords);
+#ifdef SH_PC_PORT
+            if (g_DebugAnimKfView && g_DebugViewNpcSlot == k)
+            {
+                /* Keyframe viewer is inspecting this NPC: pose it from the
+                 * inspector (freeze/loop) instead of running its AI + per-frame
+                 * housekeeping, so it holds still for inspection. The draw below
+                 * still renders the posed skeleton. */
+                Pc_KeyframeViewerPoseNpc(g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr, boneCoords);
+            }
+            else
+#endif
+            {
+                g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId](npc, g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr, boneCoords);
 
-            Collision_FlagsUpdate();
-            func_80037E78(npc);
-            func_8008A3AC(npc);
+                Collision_FlagsUpdate();
+                func_80037E78(npc);
+                func_8008A3AC(npc);
+            }
 
             if (npc->model.anim.flags & AnimFlag_Visible)
             {

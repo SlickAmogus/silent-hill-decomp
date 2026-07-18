@@ -115,6 +115,7 @@ TARGETS = {
     "D_800DA570":                       ("u8",  1),  # map5_s00 limits
     "D_800DA578":                       ("u16", 2),  # map5_s00 room flags
     "D_800EFC74":                       ("u8",  1),  # map5_s01 limits
+    "D_800EFC80":                       ("u16", 2),  # map5_s01 per-room BGM layer flags
     "D_800DBCDC":                       ("u8",  1),  # map6_s03 limits
     # Per-map fallback room-index grid read by Map_RoomIdxGet (shared header).
     # Maps room positions to room indices for BGM room flags, ambience, etc.
@@ -168,6 +169,7 @@ TARGETS = {
     "D_800ED7B4":                       ("u16", 2),  # map7_s03 voices
     "D_800ED88C":                       ("u16", 2),  # map7_s03 voices
     "D_800ED898":                       ("u16", 2),  # map7_s03 voices
+    "D_800E1EDC":                       ("u16", 2),  # map1_s02 opening monologue voices (VA via EXTRA_SYMBOLS)
     "D_800ED9B4":                       ("u16", 2),  # map7_s03 voices
     "D_800F0038":                       ("u16", 2),  # map6_s00 voices
     # INCLUDE_RODATA symbols that are no-op on PC -> zero-stubs (same class as
@@ -227,6 +229,13 @@ TARGETS = {
     "D_800E9D8E":                       ("u8",  1),  # map7_s02
     "D_800E9E1C":                       ("u8",  5),  # map7_s02 keypad puzzle solution
     "D_800EC770":                       ("u16", 20), # map7_s03 boss hit-SFX descriptors (s_800EC770[5])
+    # map7_s03 incubus/unknown23 boss ROM tables (contiguous between
+    # INCUBUS_ANIM_INFOS @0x800EC808 and UNKKOWN_23_ANIM_INFOS @0x800ECE50).
+    # All three were u8[256]={0} zero-stubs: incubus played NO SFX, the unknown23
+    # lightning-cage rendered black AND read OOB (s32[] indexed by u8 over 256 B).
+    "D_800EC8C8":                       ("u16", 2),  # incubus SFX volume table (s_SfxVolume[13])
+    "D_800EC8FC":                       ("u8",  1),  # incubus keyframe->SFX index map (u8[340])
+    "D_800ECA50":                       ("s32", 4),  # unknown23 lightning-cage color LUT (s32[256])
     "D_800DB210":                       ("s32", 4),  # map4_s03 twinfeeler bounding box
     "D_800DAA58":                       ("s32", 4),  # map4_s03 twinfeeler dust/dirt color ramp
     "D_800DB1D8":                       ("s16", 2),  # map4_s03 twinfeeler bone scale per stateStep
@@ -296,6 +305,8 @@ MAP_ROOM_IDXS_SIZE = {
 EXTRA_SYMBOLS = {
     "map1_s00": [("D_800DCC4C", 0x800DCC4C, 8), ("D_800DCC54", 0x800DCC54, 84)],
     "map1_s01": [("D_800DC9FC", 0x800DC9FC, 8), ("D_800DCA04", 0x800DCA04, 84)],
+    "map1_s02": [("D_800E1EDC", 0x800E1EDC, 6)],  # opening monologue voices (3x u16); zero stub -> Harry's first 3 lines play silent (type set in TARGETS)
+    "map1_s03": [("D_800E1F74", 0x800E1F74, 8)],  # roof drainage-valve hand-grip SVECTOR{9,4,28}; exe zero-stub skewed the crank-angle tracker gating the Sfx_Unk1465 pour loop
     "map1_s04": [("D_800CCF54", 0x800CCF54, 8)],
     "map1_s05": [("D_800D5C3C", 0x800D5C3C, 8)],
     "map1_s06": [("D_800D71E8", 0x800D71E8, 8),
@@ -307,9 +318,20 @@ EXTRA_SYMBOLS = {
     # where the progression should spawn dogs). (D_800F1CA8 idx->state map is
     # already auto-extracted.)
     "map2_s00": [("D_800F1CAC", 0x800F1CAC, 1152)],
+    "map2_s02": [("D_800ED938", 0x800ED938, 12)],  # street SFX pos (VECTOR3); zero stub = played from world origin
     "map5_s00": [("D_800DA570", 0x800DA570, 8), ("D_800DA578", 0x800DA578, 44),
-                 ("D_800CB0CC", 0x800CB0CC, 12)],
+                 ("D_800CB0CC", 0x800CB0CC, 12),
+                 # sewer pickup poses (s_Pose); zero stubs = shotgun-shells /
+                 # companion pickup objects rendered at the world origin
+                 ("D_800DAAD0", 0x800DAAD0, 20),
+                 ("D_800DAAE4", 0x800DAAE4, 20),
+                 # six more pickup poses, same class (handgun bullets / rifle
+                 # shells / first-aid / health drinks at the world origin)
+                 ("D_800DAAF8", 0x800DAAF8, 20), ("D_800DAB0C", 0x800DAB0C, 20),
+                 ("D_800DAB20", 0x800DAB20, 20), ("D_800DAB34", 0x800DAB34, 20),
+                 ("D_800DAB48", 0x800DAB48, 20), ("D_800DAB5C", 0x800DAB5C, 20)],
     "map5_s01": [("D_800EFC74", 0x800EFC74, 8),
+                 ("D_800EFC80", 0x800EFC80, 24),  # per-room BGM layer flags (12 rooms); was a silent zero-stub
                  ("D_800F0158", 0x800F0158, 24),
                  ("D_800F0170", 0x800F0170, 4),
                  ("D_800F0174", 0x800F0174, 24)],
@@ -318,14 +340,28 @@ EXTRA_SYMBOLS = {
     # known symbol (same-cluster D_* table where adjacent, else the next
     # sym-file symbol). Over-extraction copies inert ROM bytes — the scenes
     # index only as many entries as they have dialogue pages.
-    "map3_s00": [("D_800D24F0", 0x800D24F0, 76)],
+    "map3_s00": [("D_800D24F0", 0x800D24F0, 76),
+                 ("D_800D2530", 0x800D2530, 12)],  # door SFX pos (VECTOR3); zero stub = played from world origin
+    # sharedData_800CB094_3_s01 = elevator arrival thud/ding (Sfx_Unk1501) emit
+    # pos (VECTOR3, per-overlay VA/value); the exe cross-map stub hardcodes
+    # map7_s01's position ~169 units away -> attenuated to 0 = silent arrival.
+    "map3_s01": [("D_800D4CE4", 0x800D4CE4, 12),  # generator hum pos (VECTOR3); zero stub = hum at origin, outside falloff = silent
+                 ("sharedData_800CB0A0_3_s01", 0x800CB0A0, 12),  # elevator-stop clunk pos (VECTOR3); exe zero-stub = played from origin = silent
+                 ("sharedData_800CB094_3_s01", 0x800CB094, 12)],
+    "map3_s02": [("D_800D1FC0", 0x800D1FC0, 16),  # RECT[2] cutscene SetDrawArea — zero stub = degenerate (0,0) clip (mirror of map4_s04 rainbow corruption)
+                 ("D_800D1FD0", 0x800D1FD0, 8)],   # RECT cutscene SetDrawArea (end-of-OT restore)
     "map3_s03": [("D_800D6B40", 0x800D6B40, 16),
                  ("D_800D6B50", 0x800D6B50, 4),
-                 ("D_800D6B54", 0x800D6B54, 4)],
+                 ("D_800D6B54", 0x800D6B54, 4),
+                 ("sharedData_800CB094_3_s01", 0x800CB310, 12)],  # elevator arrival pos (see map3_s01 note)
     "map3_s04": [("D_800D599C", 0x800D599C, 64),
-                 ("D_800CB370", 0x800CB370, 12)],
-    "map3_s05": [("D_800DAC70", 0x800DAC70, 8)],
-    "map3_s06": [("D_800D26D0", 0x800D26D0, 52)],
+                 ("D_800CB370", 0x800CB370, 12),
+                 ("D_800CB364", 0x800CB364, 12),  # stinger SFX pos (VECTOR3); zero stub = played from world origin
+                 ("sharedData_800CB094_3_s01", 0x800CB2B4, 12)],  # elevator arrival pos (see map3_s01 note)
+    "map3_s05": [("D_800DAC70", 0x800DAC70, 8),
+                 ("sharedData_800CB094_3_s01", 0x800CB4FC, 12)],  # elevator arrival pos (see map3_s01 note)
+    "map3_s06": [("D_800D26D0", 0x800D26D0, 52),
+                 ("D_800D26F8", 0x800D26F8, 12)],  # door SFX pos (VECTOR3); zero stub = played from world origin
     # map4_s03: TV-bank static/sigil effect rodata (func_800D7548/func_800D88C8).
     # Tiles exactly: 7C8+0xC=7D4, +0x10=7E4, +0x90=874, +0x24=898; 924+8=92C.
     "map4_s03": [("D_800CA788", 0x800CA788, 8),
@@ -371,7 +407,10 @@ EXTRA_SYMBOLS = {
                  # of TV1's CLUT[0]=0x8000 black.
                  ("D_800DB91C", 0x800DB91C, 8),
                  ("D_800DB924", 0x800DB924, 8)],    # sign position SVECTOR3 (+frame ctr)
-    "map4_s04": [("D_800D3734", 0x800D3734, 68),
+    "map4_s04": [("D_800D3710", 0x800D3710, 16),  # RECT[2] cutscene SetDrawArea — zero stub = degenerate (0,0) clip = rainbow corruption over HERO/LISA/bed VRAM
+                 ("D_800D3720", 0x800D3720, 8),   # RECT cutscene SetDrawArea
+                 ("D_800D3730", 0x800D3730, 4),   # DVECTOR cutscene SetDrawOffset
+                 ("D_800D3734", 0x800D3734, 68),
                  ("D_800D3778", 0x800D3778, 64)],
     # map4_s05: D_800D7D74 (pre-existing) + the Floatstinger boss rodata
     # cluster. Sizes tile exactly: 780C+0x3C=7848, 7848+0x10=7858 (runtime
@@ -396,12 +435,19 @@ EXTRA_SYMBOLS = {
     # otherworld instead of the real-time sweep (otherworld.log).
     "map6_s00": [("D_800F0038", 0x800F0038, 8),
                  ("D_800F0084", 0x800F0084, 0x484)],
-    "map6_s01": [("D_800D4108", 0x800D4108, 32)],
+    "map6_s01": [("D_800D4108", 0x800D4108, 32),
+                 # ENBAN disc-effect particle base velocities (DVECTOR[5], 20 B).
+                 # Zero-stubbed -> no spread/animation on the spinning disc.
+                 ("D_800D4114", 0x800D4114, 20)],
     "map6_s02": [("D_800D3C2C", 0x800D3C2C, 30),  # u16[15] threshold table (D_800D3C8C < D_800D3C2C[i]); zero -> compare always false
                  ("D_800D3B40", 0x800D3B40, 4),
                  ("D_800D3B6C", 0x800D3B6C, 272),
                  ("D_800CAB90", 0x800CAB90, 8),
-                 ("D_800CAB98", 0x800CAB98, 8)],
+                 ("D_800CAB98", 0x800CAB98, 8),
+                 # 2D overlay sprite UV/pos table s_800D3C4C[8] (8 B/elem: s16 x,y
+                 # + u8 w[2],h[2]). POLY_FT4 quads are built entirely from these;
+                 # zero -> quad at (0,0), 0 size, 0 UVs -> invisible/degenerate sprite.
+                 ("D_800D3C4C", 0x800D3C4C, 64)],
     "map6_s04": [("D_800EBA34", 0x800EBA34, 48),
                  ("D_800EBA64", 0x800EBA64, 72),    # was 210 — over-grab swallowed the carousel-horse tables
                  ("D_800EBAAC", 0x800EBAAC, 40),    # s32[10] carousel horse X offsets
@@ -421,7 +467,26 @@ EXTRA_SYMBOLS = {
                  ("D_800EA836", 0x800EA836, 2),
                  ("D_800EA856", 0x800EA856, 2),
                  ("D_800EA894", 0x800EA894, 2),
-                 ("D_800EA896", 0x800EA896, 2)],
+                 ("D_800EA896", 0x800EA896, 2),
+                 # Force-field grid (func_800DF6C4): without these the 27x18 G4
+                 # grid collapses to (0,0,0) / all-black -> the invisible force
+                 # field in the park + when Cybil is thrown back in Nowhere.
+                 # EB008/EB00C between EAF20 and EB320 are unreferenced stub
+                 # artifacts, so the color ramp spans the full 0x400 to EB320.
+                 ("D_800EAF20", 0x800EAF20, 1024), # per-vertex color ramp s32[]; func_800DF670 indexes [0,100]
+                 ("D_800EB320", 0x800EB320, 4),    # cell X spacing (s32); zero -> x collapses
+                 ("D_800EB324", 0x800EB324, 4),    # cell Y spacing (s32); zero -> y collapses
+                 ("D_800EB328", 0x800EB328, 8),    # world-transform rotation (SVECTOR, Q3.12)
+                 ("D_800EB330", 0x800EB330, 8),    # world-transform rotation (SVECTOR, Q3.12)
+                 # Sand/quicksand distortion grid color ramp (func_800E0878),
+                 # indexed by field_5D (u8) -> 256 s32 entries; spans exactly to
+                 # the BGM limit table at 0x800EB738. Zero -> flat black overlay.
+                 ("D_800EB338", 0x800EB338, 1024),
+                 ("D_800EBB5A", 0x800EBB5A, 2),    # boss auto-camera angle threshold (s16); zero -> wrong boss framing
+                 # Dahlia-burn / Flauros lightning+spark spawn tables. Zero ->
+                 # all 6 spark idx==0 are skipped: no lightning when Dahlia burns.
+                 ("D_800CB6AC", 0x800CB6AC, 96),   # s_800CB6AC[6] (4x s32 field_0/4/8/C)
+                 ("D_800CB69C", 0x800CB69C, 16)],  # s_800CB69C (SVECTOR field_0 + 2x s32)
     "map7_s00": [("D_800D31C4", 0x800D31C4, 12),
                  ("D_800CB61C", 0x800CB61C, 8)],
     "map7_s01": [("D_800CC984", 0x800CC984, 12),
@@ -455,7 +520,15 @@ EXTRA_SYMBOLS = {
                  ("D_800E9D8E", 0x800E9D8E, 2),
                  ("D_800E9DE8", 0x800E9DE8, 52),
                  ("D_800E9E1C", 0x800E9E1C, 5)],  # u8[5] keypad puzzle solution (vs D_800EA4AC input -> EventFlag_488)
-    "map7_s03": [("D_800EC770", 0x800EC770, 40),  # s_800EC770[5] boss hit-SFX descriptors (sfxId/vol/interval); field_4=0 -> /0 crash + grunt SFX spam
+    "map7_s03": [("D_800ED244", 0x800ED244, 12),  # boss force-field grid anchor (VECTOR3); zero-stub -> flame anchored at world origin (under/around the map)
+                 ("D_800ED250", 0x800ED250, 12),  # boss lightning-burst position (VECTOR3); zero-stub -> lightning at world origin
+                 ("D_800EC770", 0x800EC770, 40),  # s_800EC770[5] boss hit-SFX descriptors (sfxId/vol/interval); field_4=0 -> /0 crash + grunt SFX spam
+                 # incubus/unknown23 boss tables (tile exactly INCUBUS_ANIM_INFOS
+                 # end 0x800EC8C8 -> UNKKOWN_23_ANIM_INFOS 0x800ECE50):
+                 ("D_800EC8C8", 0x800EC8C8, 52),    # s_SfxVolume[13] incubus SFX volumes
+                 ("D_800EC8FC", 0x800EC8FC, 340),   # u8[340] incubus keyframe->SFX map
+                 ("D_800ECA50", 0x800ECA50, 1024),  # s32[256] unknown23 lightning-cage color LUT
+                 ("D_800ED744", 0x800ED744, 36),    # final-boss s32[9] threshold/timing table (was in the tracked extracted file but missing from config -> add so regen is reproducible)
                  ("D_800ED768", 0x800ED768, 20),
                  ("D_800ED77C", 0x800ED77C, 56),
                  ("D_800ED7B4", 0x800ED7B4, 216),
@@ -1179,14 +1252,46 @@ def generate_c(map_name, found, bin_filename):
 
 # ---------- main ----------
 
-def main():
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+USAGE = """usage: extract_map_data.py <map_name [map_name ...]> | all
 
+Regenerate build_gen/extracted_data/ for the named map(s), or 'all' for every map.
+A target MUST be given explicitly. The output is git-tracked and can drift from this
+tool's config, so a blind full regen can DROP symbols and break the build (see the
+project_extracted_data_regen_gotcha note). Prefer one map at a time and review the diff.
+
+  extract_map_data.py map6_s04
+  extract_map_data.py map6_s01 map6_s02 map6_s04
+  extract_map_data.py all
+"""
+
+
+def main():
+    import sys
+
+    args = sys.argv[1:]
+    if not args:
+        print(USAGE)
+        sys.exit(2)
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     sym_files = sorted(SYM_DIR.glob("sym.map*.txt"))
-    print(f"Found {len(sym_files)} sym files in {SYM_DIR}")
+
+    if len(args) == 1 and args[0] == "all":
+        selected = sym_files
+        print(f"Regenerating ALL {len(selected)} maps (explicit 'all').")
+    else:
+        wanted = set(args)
+        by_name = {map_name_from_sym(sf.name): sf for sf in sym_files}
+        missing = [m for m in sorted(wanted) if m not in by_name]
+        if missing:
+            print(f"ERROR: no sym file for: {', '.join(missing)}")
+            print(f"  (known maps: {', '.join(sorted(by_name))})")
+            sys.exit(2)
+        selected = [by_name[m] for m in sorted(wanted)]
+        print(f"Regenerating {len(selected)} map(s): {', '.join(sorted(wanted))}")
 
     total_extracted = 0
-    for sf in sym_files:
+    for sf in selected:
         map_name = map_name_from_sym(sf.name)
         bin_path = bin_path_for_map(map_name)
         bin_fname = bin_path.name
@@ -1215,7 +1320,7 @@ def main():
         total_extracted += len(found)
         print(f"  [{map_name}] {len(found):2d} syms -> {out_path.name}")
 
-    print(f"\nDone: extracted {total_extracted} symbols across all maps.")
+    print(f"\nDone: extracted {total_extracted} symbols.")
     print(f"Output: {OUT_DIR}")
 
 if __name__ == "__main__":

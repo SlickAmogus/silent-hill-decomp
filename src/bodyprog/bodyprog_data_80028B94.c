@@ -192,4 +192,11 @@ const s_AnimInfo D_80028B94[] = {
 /* 149 */ { Anim_PlaybackOnce, ANIM_STATUS(36, true),  false, ANIM_STATUS(36, true), { Q12(20.0f)  }, 574, 579 }
 };
 
+#ifdef SH_PC_PORT
+/* Element count for the PC-side bounds check in the weapon-equip copy
+ * (player_control.c): the HyperBlaster block is the last one and only 18
+ * entries long, so the fixed 20-entry copy read 2 entries past this array. */
+const s32 D_80028B94_COUNT = (s32)(sizeof(D_80028B94) / sizeof(D_80028B94[0]));
+#endif
+
 static const int pad = 0;

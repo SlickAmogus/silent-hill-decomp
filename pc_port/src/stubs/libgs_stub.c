@@ -179,10 +179,36 @@ void GsInit3D(void)
     }
 }
 
+static unsigned long long gs_cum_epoch = 0;
+
 void GsInitVcount(void)
 {
     gs_vcount_start = Gs_PerfCounter();
+    gs_cum_epoch = gs_vcount_start;
     gs_vcount_active = 1;
+}
+
+/* Cumulative wall clock in Q12 seconds since GsInitVcount, from its own fixed
+ * epoch (GsClearVcount does not touch it). MainLoop derives the frame dt as
+ * cum(now) - cum(prev): the only rounding is one floor at each read, so the
+ * total time handed to the game over ANY number of frames stays within 1 Q12
+ * unit of true elapsed time. The per-frame GsGetVcount/GsClearVcount pair
+ * loses its fractional h-blank + sub-Q12 remainder EVERY frame (epoch reset
+ * to "now"), which at high fps compounds into the whole game clock running
+ * slow vs the wall-clock XA voices (3.3% at 120fps, 6.25% at 240fps — the
+ * cutscene/subtitle desync). */
+long long GsGetCumulativeQ12(void)
+{
+    unsigned long long now;
+    unsigned long long freq;
+
+    if (!gs_vcount_active)
+    {
+        return 0;
+    }
+    now  = Gs_PerfCounter();
+    freq = Gs_PerfFreq();
+    return (long long)(((now - gs_cum_epoch) * 4096ull) / freq);
 }
 
 int GsGetVcount(void)
@@ -207,9 +233,9 @@ void GsSwapDispBuff(void)
     GsDrawOt_ResetFrameCount();
 
     /* Sync background color from GsDRAWENV (game modifies this global).
-     * Do NOT sync clip or ofs — the game's clip.h=224 override is a PSX
-     * interlace optimization (one field at a time). On PC we render the
-     * full 448-line space with ofs at center. */
+     * Do NOT sync clip or ofs here — the interlaced-field correction is applied
+     * per-draw in PsyCross GR_SetOffscreenState (gated on the 3D-world HorPlus flag)
+     * so it does not touch 2D screens (title/menus). */
     gs_draw_env[gs_active_buff].isbg = GsDRAWENV.isbg;
     gs_draw_env[gs_active_buff].r0 = GsDRAWENV.r0;
     gs_draw_env[gs_active_buff].g0 = GsDRAWENV.g0;
@@ -363,6 +389,58 @@ struct TMD_STRUCT* GsGetTMDObject(u_long *base, int index)
  
 /* Clamp s32 to u8 */
 static inline unsigned char clamp8(int v) { return (unsigned char)(v < 0 ? 0 : (v > 255 ? 255 : v)); }
+
+/* Per-item brightness modulation for the inventory carousel depth-cue dimming
+ * (set by func_8004BD74; 256 = full). The SH item TMDs are no-light, so the
+ * depth fade the PSX applied is dropped here — re-apply it as a flat color
+ * scale. 256 default = no-op for every other GsSortObject4J caller. */
+int g_PcItemDimNum = 256;
+#define ITEMDIM(c) clamp8(((int)(c) * g_PcItemDimNum) >> 8)
+
+/* Inventory see-through fix. Set only while the inventory menu is open (where
+ * OT0 holds the item model alone — the world isn't drawn), it forwards each
+ * item polygon's true depth `p` UNQUANTIZED so the GL depth test separates the
+ * model's own front/back faces (e.g. a radio antenna showing through the body).
+ * NormalClip/NormalColorCol run after RotTransPers and clobber the GTE SZ FIFO,
+ * so addPrim's auto-captured depth would otherwise be lighting garbage. Off
+ * (every non-inventory GsSortObject4J caller) = byte-identical. */
+int g_PcItemPreciseDepth = 0;
+extern void PsyX_SetNextPrimSzExact(unsigned short, unsigned short, unsigned short, unsigned short);
+/* Raw per-vertex view-space SZ captured by RotTransPers3/4 (libgte.c) right after
+ * the transform, BEFORE these drawers' NormalClip/NormalColorCol clobber the GTE SZ
+ * FIFO. Mirrors C2_SZ0..3, so ApplyGtePerVertexDepth's per-poly indexing lines up. */
+extern unsigned short g_PsyX_RtpSz[4];
+/* Feed the item face's TRUE unquantized per-vertex depth into the depth system so the
+ * GL depth test can separate overlapping faces (radio antenna vs body) that share one
+ * coarse OT bucket. The `pz` arg — the drawer's gte_stdp depth cue — is perspective-
+ * divided + clamped and too coarse to separate them, so it's intentionally ignored. */
+#define ITEM_PRECISE_SZ(pz) do { \
+    (void)(pz); \
+    if (g_PcItemPreciseDepth) { \
+        PsyX_SetNextPrimSzExact(g_PsyX_RtpSz[0], g_PsyX_RtpSz[1], g_PsyX_RtpSz[2], g_PsyX_RtpSz[3]); \
+    } } while (0)
+
+/* PGXP shadow propagation, the item-path twin of SH_PGXP_PROP3/4 in
+ * bodyprog_80055028.c. RotTransPers* shadow-stores each projected vertex at the
+ * address it wrote — here a stack temporary — and the drawers below then copy that
+ * word into the prim field. Without following the copy, the draw side finds no
+ * shadow at the prim address and the vertex silently degrades to affine, which is
+ * why the inventory carousel and the world pickup were the one model PGXP never
+ * reached regardless of use_pgxp. Off = untouched legacy path. */
+extern int g_PsxUsePgxp;
+#define TMD_PGXP3(pl, a0, a1, a2) do { \
+    if (g_PsxUsePgxp) { \
+        Shadow_Copy(&(pl)->x0, &(a0)); \
+        Shadow_Copy(&(pl)->x1, &(a1)); \
+        Shadow_Copy(&(pl)->x2, &(a2)); \
+    } } while (0)
+#define TMD_PGXP4(pl, a0, a1, a2, a3) do { \
+    if (g_PsxUsePgxp) { \
+        Shadow_Copy(&(pl)->x0, &(a0)); \
+        Shadow_Copy(&(pl)->x1, &(a1)); \
+        Shadow_Copy(&(pl)->x2, &(a2)); \
+        Shadow_Copy(&(pl)->x3, &(a3)); \
+    } } while (0)
  
 /* Flat-shaded triangle — lit + fog */
 void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
@@ -393,8 +471,9 @@ void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         poly = (POLY_F3*)GsOUT_PACKET_P;
         setPolyF3(poly);
         setRGB0(poly, col_out.r, col_out.g, col_out.b);
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        addPrim(&ot->org[otz], poly);
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
+        TMD_PGXP3(poly, sxy0, sxy1, sxy2);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F3);
     }
 }
@@ -431,8 +510,9 @@ void GsTMDfastG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         setRGB0(poly, c0.r, c0.g, c0.b);
         setRGB1(poly, c1.r, c1.g, c1.b);
         setRGB2(poly, c2.r, c2.g, c2.b);
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        addPrim(&ot->org[otz], poly);
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
+        TMD_PGXP3(poly, sxy0, sxy1, sxy2);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G3);
     }
 }
@@ -467,9 +547,10 @@ void GsTMDfastF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         poly = (POLY_F4*)GsOUT_PACKET_P;
         setPolyF4(poly);
         setRGB0(poly, col_out.r, col_out.g, col_out.b);
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
-        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        addPrim(&ot->org[otz], poly);
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1;
+        *(int*)&poly->x2 = sxy2; *(int*)&poly->x3 = sxy3;
+        TMD_PGXP4(poly, sxy0, sxy1, sxy2, sxy3);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
     }
 }
@@ -509,9 +590,10 @@ void GsTMDfastG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
         setRGB2(poly, c2.r, c2.g, c2.b);
         /* v3 gets c2 color (PSX convention for quads) */
         setRGB3(poly, c2.r, c2.g, c2.b);
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
-        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        addPrim(&ot->org[otz], poly);
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1;
+        *(int*)&poly->x2 = sxy2; *(int*)&poly->x3 = sxy3;
+        TMD_PGXP4(poly, sxy0, sxy1, sxy2, sxy3);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G4);
     }
 }
@@ -550,8 +632,9 @@ void GsTMDfastTF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        addPrim(&ot->org[otz], poly);
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
+        TMD_PGXP3(poly, sxy0, sxy1, sxy2);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_FT3);
     }
 }
@@ -591,8 +674,9 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
         setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        addPrim(&ot->org[otz], poly);
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
+        TMD_PGXP3(poly, sxy0, sxy1, sxy2);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT3);
     }
 }
@@ -632,9 +716,10 @@ void GsTMDfastTF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
                      prim->tu2, prim->tv2, prim->tu3, prim->tv3);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
-        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        addPrim(&ot->org[otz], poly);
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1;
+        *(int*)&poly->x2 = sxy2; *(int*)&poly->x3 = sxy3;
+        TMD_PGXP4(poly, sxy0, sxy1, sxy2, sxy3);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_FT4);
     }
 }
@@ -677,9 +762,10 @@ void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
                      prim->tu2, prim->tv2, prim->tu3, prim->tv3);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
-        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        addPrim(&ot->org[otz], poly);
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1;
+        *(int*)&poly->x2 = sxy2; *(int*)&poly->x3 = sxy3;
+        TMD_PGXP4(poly, sxy0, sxy1, sxy2, sxy3);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT4);
     }
 }
@@ -707,13 +793,14 @@ void GsTMDfastNF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
  
         poly = (POLY_F3*)GsOUT_PACKET_P;
         setPolyF3(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        addPrim(&ot->org[otz], poly);
+        setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
+        TMD_PGXP3(poly, sxy0, sxy1, sxy2);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F3);
     }
 }
- 
+
 /* No-light gouraud tri */
 void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
 {
@@ -721,7 +808,44 @@ void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
     SVECTOR   *vtx  = (SVECTOR*)vp;
     int i;
     (void)pk; (void)scratch;
- 
+
+    /* SH item TMDs store their (rare) untextured triangles as TMD_P_G3 —
+     * one base colour followed by three interleaved (normal_idx, vertex_idx)
+     * pairs (ilen=4, 20 bytes), the same (n,v)-pair convention the textured
+     * path uses (TMD_P_NTG3_SH) — NOT the standard 3-colour NG3 layout
+     * (ilen=5, 24 bytes). GsSortObject4J routes mode 0x30 here as "no-light
+     * gouraud tri"; the only model with such prims is the gasoline-tank
+     * inventory model (object 27 of every IT_00x.TMD pack — its 6 grey
+     * detail faces). Read as standard NG3 the vertex indices land 6 bytes
+     * too late, yielding wild indices (up to ~1545 vs vern 111) → flung
+     * "spike" triangles and an AV in RotTransPers3 while the carousel draws.
+     * Detect the SH layout by ilen and read the indices from the right place. */
+    if (((u8*)op)[1] == 4) {
+        TMD_P_G3 *gp = (TMD_P_G3*)op;
+        for (i = 0; i < n; i++, gp++) {
+            long sxy0, sxy1, sxy2, p, flg, otz, nclip;
+            POLY_F3 *poly;
+
+            RotTransPers3(&vtx[gp->v0], &vtx[gp->v1], &vtx[gp->v2],
+                          &sxy0, &sxy1, &sxy2, &p, &flg);
+            nclip = NormalClip(sxy0, sxy1, sxy2);
+            if (nclip <= 0) continue;
+
+            otz = p >> shift;
+            if (otz <= 0) continue;
+            if (otz >= (1 << ot->length)) otz = (1 << ot->length) - 1;
+
+            poly = (POLY_F3*)GsOUT_PACKET_P;
+            setPolyF3(poly);
+            setRGB0(poly, ITEMDIM(gp->r0), ITEMDIM(gp->g0), ITEMDIM(gp->b0));
+            *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
+            TMD_PGXP3(poly, sxy0, sxy1, sxy2);
+            ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
+            GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F3);
+        }
+        return;
+    }
+
     for (i = 0; i < n; i++, prim++) {
         long sxy0, sxy1, sxy2, p, flg, otz, nclip;
         POLY_G3 *poly;
@@ -737,15 +861,16 @@ void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
  
         poly = (POLY_G3*)GsOUT_PACKET_P;
         setPolyG3(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
-        setRGB1(poly, prim->r1, prim->g1, prim->b1);
-        setRGB2(poly, prim->r2, prim->g2, prim->b2);
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        addPrim(&ot->org[otz], poly);
+        setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
+        setRGB1(poly, ITEMDIM(prim->r1), ITEMDIM(prim->g1), ITEMDIM(prim->b1));
+        setRGB2(poly, ITEMDIM(prim->r2), ITEMDIM(prim->g2), ITEMDIM(prim->b2));
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
+        TMD_PGXP3(poly, sxy0, sxy1, sxy2);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G3);
     }
 }
- 
+
 /* No-light flat quad */
 void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
 {
@@ -770,14 +895,15 @@ void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
  
         poly = (POLY_F4*)GsOUT_PACKET_P;
         setPolyF4(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
-        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        addPrim(&ot->org[otz], poly);
+        setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1;
+        *(int*)&poly->x2 = sxy2; *(int*)&poly->x3 = sxy3;
+        TMD_PGXP4(poly, sxy0, sxy1, sxy2, sxy3);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
     }
 }
- 
+
 /* No-light gouraud quad */
 void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
 {
@@ -802,13 +928,14 @@ void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
  
         poly = (POLY_G4*)GsOUT_PACKET_P;
         setPolyG4(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
-        setRGB1(poly, prim->r1, prim->g1, prim->b1);
-        setRGB2(poly, prim->r2, prim->g2, prim->b2);
-        setRGB3(poly, prim->r3, prim->g3, prim->b3);
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
-        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        addPrim(&ot->org[otz], poly);
+        setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
+        setRGB1(poly, ITEMDIM(prim->r1), ITEMDIM(prim->g1), ITEMDIM(prim->b1));
+        setRGB2(poly, ITEMDIM(prim->r2), ITEMDIM(prim->g2), ITEMDIM(prim->b2));
+        setRGB3(poly, ITEMDIM(prim->r3), ITEMDIM(prim->g3), ITEMDIM(prim->b3));
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1;
+        *(int*)&poly->x2 = sxy2; *(int*)&poly->x3 = sxy3;
+        TMD_PGXP4(poly, sxy0, sxy1, sxy2, sxy3);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_G4);
     }
 
@@ -840,12 +967,13 @@ void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
 
         poly = (POLY_FT3*)GsOUT_PACKET_P;
         setPolyFT3(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
+        setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        addPrim(&ot->org[otz], poly);
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
+        TMD_PGXP3(poly, sxy0, sxy1, sxy2);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_FT3);
     }
 }
@@ -928,15 +1056,16 @@ void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
         poly = (POLY_GT3*)GsOUT_PACKET_P;
         setPolyGT3(poly);
         /* No per-vertex colours in data; use neutral 0x80 (= 100% modulation). */
-        setRGB0(poly, 0x80, 0x80, 0x80);
-        setRGB1(poly, 0x80, 0x80, 0x80);
-        setRGB2(poly, 0x80, 0x80, 0x80);
+        setRGB0(poly, ITEMDIM(0x80), ITEMDIM(0x80), ITEMDIM(0x80));
+        setRGB1(poly, ITEMDIM(0x80), ITEMDIM(0x80), ITEMDIM(0x80));
+        setRGB2(poly, ITEMDIM(0x80), ITEMDIM(0x80), ITEMDIM(0x80));
         poly->p1 = 0; poly->p2 = 0;
         setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1; *(long*)&poly->x2 = sxy2;
-        addPrim(&ot->org[otz], poly);
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
+        TMD_PGXP3(poly, sxy0, sxy1, sxy2);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT3);
     }
 }
@@ -966,14 +1095,15 @@ void GsTMDfastNTF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
 
         poly = (POLY_FT4*)GsOUT_PACKET_P;
         setPolyFT4(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
+        setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         setUV4(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1,
                      prim->tu2, prim->tv2, prim->tu3, prim->tv3);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
-        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        addPrim(&ot->org[otz], poly);
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1;
+        *(int*)&poly->x2 = sxy2; *(int*)&poly->x3 = sxy3;
+        TMD_PGXP4(poly, sxy0, sxy1, sxy2, sxy3);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_FT4);
     }
 }
@@ -1003,18 +1133,19 @@ void GsTMDfastNTG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
 
         poly = (POLY_GT4*)GsOUT_PACKET_P;
         setPolyGT4(poly);
-        setRGB0(poly, prim->r0, prim->g0, prim->b0);
-        setRGB1(poly, prim->r1, prim->g1, prim->b1);
-        setRGB2(poly, prim->r2, prim->g2, prim->b2);
-        setRGB3(poly, prim->r3, prim->g3, prim->b3);
+        setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
+        setRGB1(poly, ITEMDIM(prim->r1), ITEMDIM(prim->g1), ITEMDIM(prim->b1));
+        setRGB2(poly, ITEMDIM(prim->r2), ITEMDIM(prim->g2), ITEMDIM(prim->b2));
+        setRGB3(poly, ITEMDIM(prim->r3), ITEMDIM(prim->g3), ITEMDIM(prim->b3));
         poly->p1 = 0; poly->p2 = 0; poly->p3 = 0; /* zero fog bytes */
         setUV4(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1,
                      prim->tu2, prim->tv2, prim->tu3, prim->tv3);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;
-        *(long*)&poly->x0 = sxy0; *(long*)&poly->x1 = sxy1;
-        *(long*)&poly->x2 = sxy2; *(long*)&poly->x3 = sxy3;
-        addPrim(&ot->org[otz], poly);
+        *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1;
+        *(int*)&poly->x2 = sxy2; *(int*)&poly->x3 = sxy3;
+        TMD_PGXP4(poly, sxy0, sxy1, sxy2, sxy3);
+        ITEM_PRECISE_SZ(p); addPrim(&ot->org[otz], poly);
         GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_GT4);
     }
 }
@@ -1452,6 +1583,7 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
         pp = next;
         primn -= batch;
     }
+
 }
 
 /* Bounds for the OT0 sanitizer (game_main.c) so it knows the OT1 storage
@@ -1494,8 +1626,8 @@ void GsSortOt(GsOT *src, GsOT *dst)
      * (health drink, keys, etc.) rendered invisible: the TMD got sorted
      * into OT1 but OT1 was orphaned.
      *
-     * Bounds export for the OT0 sanitizer (game_main.c Pc_OtSentinelScan
-     * and the inline OT0 walker pre-GsDrawOt): src->org and src->tag
+     * Bounds export for the OT0 sanitizer (the inline OT0 walker in
+     * game_main.c pre-GsDrawOt): src->org and src->tag
      * point into OT1's backing storage (FS_BUFFER_1 / PSX_ADDR space),
      * which is outside the packet-buffer + OT0-array windows the
      * sanitizer recognises. Export the OT1 range so the sanitizer can

@@ -53,11 +53,23 @@ GsDOBJ2 g_Items_ItemsModelData[9]; // 0x800C3D78
 
 GsDOBJ2 D_800C3E08;
 
+#ifdef SH_PC_PORT
+// PSX BSS aliasing: on retail D_800C3E18[7] overlaps g_Inventory_EquippedItemIdx
+// (0x800C3E34) and [8]/[9] overlap __pad_bss_800C3E38, and the code relies on
+// that overlap (e.g. Gfx_Items_Draw writes [7] then reads the named symbol).
+// Back all three with one array so the intentional out-of-bounds indices stay
+// in-bounds under ASan, and alias the named symbol to the same slot to keep the
+// overlap. The in-bounds [0..6] accesses are unchanged.
+s32 D_800C3E18[10]; // 0x800C3E18
+#define g_Inventory_EquippedItemIdx D_800C3E18[7]
+s32 __pad_bss_800C3E38[2];
+#else
 s32 D_800C3E18[7]; // 0x800C3E18
 
 s32 g_Inventory_EquippedItemIdx; // 0x800C3E34
 
 s32 __pad_bss_800C3E38[2];
+#endif
 
 u8 D_800C3E40;
 
@@ -523,14 +535,22 @@ const char* g_ItemDescriptions[] = {
 };
 
 #ifdef SH_PC_PORT
+#include "lang_text.h" /* PAL localized item text (NULL = use the US string) */
+
 static const char* s_ItemName(u8 id) {
     int idx = (int)id - 32;
     int n   = (int)(sizeof(INVENTORY_ITEM_NAMES) / sizeof(INVENTORY_ITEM_NAMES[0]));
+    const char* lang = Pc_LangItemName(idx);
+    if (lang != NULL)
+        return lang;
     return (idx >= 0 && idx < n && INVENTORY_ITEM_NAMES[idx]) ? INVENTORY_ITEM_NAMES[idx] : "";
 }
 static const char* s_ItemDesc(u8 id) {
     int idx = (int)id - 32;
     int n   = (int)(sizeof(g_ItemDescriptions) / sizeof(g_ItemDescriptions[0]));
+    const char* lang = Pc_LangItemDesc(idx);
+    if (lang != NULL)
+        return lang;
     return (idx >= 0 && idx < n && g_ItemDescriptions[idx]) ? g_ItemDescriptions[idx] : "";
 }
 #endif
@@ -561,6 +581,14 @@ s16 D_800AE1A8 = 0;
 
 s32    g_Items_PickupAnimState = 0;
 q19_12 g_Items_PickupScale     = Q12(0.0f);
+
+#ifdef SH_PC_PORT
+/* Set to 1 every frame the world item-pickup model is on screen (see
+ * Gfx_PickupItemAnimate). game_main.c reads it to bracket the item's OT0 draw
+ * with force-item-depth (the inventory see-through fix) and to release the
+ * freeze-frame when the pickup ends. */
+int g_PcPickupItemActive = 0;
+#endif
 
 VECTOR3 D_800AE1B4[1] = { 0x00000000, 0x000000CC, 0xFFFFFEC9 };
 
@@ -1528,7 +1556,10 @@ void Gfx_Inventory_2dBackgroundDraw(s32* arg0) // 0x8004FBCC
 
     if (*arg0 == 8 || g_GameWork.gameStateSteps[1] == 0xF)
     {
-#ifndef SH_PC_PORT
+        /* Item-inspection glare sweep restored on PC: a semi-transparent animated
+         * POLY_G4 shine over the item. PACKET is 1 byte so the GsOUT_PACKET_P
+         * advance below is correct (same pattern as the FT4 path just under it,
+         * which already runs on PC). */
         poly_g4 = (POLY_G4*)GsOUT_PACKET_P;
 
         setPolyG4(poly_g4);
@@ -1581,7 +1612,6 @@ void Gfx_Inventory_2dBackgroundDraw(s32* arg0) // 0x8004FBCC
 
         addPrim(&ot1->org[5], poly_g4);
         GsOUT_PACKET_P = (PACKET*)poly_g4 + sizeof(POLY_G4);
-#endif
 
         Gfx_Primitive2dTextureSet(0, 0, 5, 2);
 
@@ -3940,6 +3970,16 @@ void Gfx_Items_Display(s_TmdFile* tmd, s32 displayItemIdx, s32 loadableItemIdx)
         struct TMD_STRUCT* obj;
         GsMapModelingData(tmd_hdr);
         obj = GsGetTMDObject(tmd_hdr, loadableItemIdx);
+        {
+            static int s_linkLog = 0;
+            if (s_linkLog < 32)
+            {
+                SH_DBG("[ITEMPICK] map-pack link: slot=%d loadableIdx=%d nobj=%u obj=%s",
+                       (int)displayItemIdx, (int)loadableItemIdx,
+                       (unsigned)tmd->modelCount, obj != NULL ? "ok" : "NULL");
+                s_linkLog++;
+            }
+        }
         if (obj != NULL) {
             GsLinkObject4_PC(obj, &g_Items_ItemsModelData[displayItemIdx]);
         } else {
@@ -4013,9 +4053,27 @@ void func_8005487C(s32 arg0) // 0x8005487C
 
 void func_800548D8(s32 idx) // 0x800548D8
 {
+#ifdef SH_PC_PORT
+    /* g_Items_Lights is only [7][2]; on PSX idx 7-9 write the [idx][0] light,
+     * which aliases D_800C3A88[0]/D_800C3A88[2]/D_800C3AC8[0] in BSS. Redirect
+     * so the write stays in-bounds (matches the aliasing handled in the sibling
+     * lighting funcs). */
+    GsF_LIGHT* light;
+    switch (idx)
+    {
+        case 7:  light = &D_800C3A88[0]; break;
+        case 8:  light = &D_800C3A88[2]; break;
+        case 9:  light = &D_800C3AC8[0]; break;
+        default: light = &g_Items_Lights[idx][0]; break;
+    }
+    light->vx = g_Items_Coords[idx].coord.t[0];
+    light->vy = g_Items_Coords[idx].coord.t[1];
+    light->vz = g_Items_Coords[idx].coord.t[2] + 20000;
+#else
     g_Items_Lights[idx][0].vx = g_Items_Coords[idx].coord.t[0];
     g_Items_Lights[idx][0].vy = g_Items_Coords[idx].coord.t[1];
     g_Items_Lights[idx][0].vz = g_Items_Coords[idx].coord.t[2] + 20000;
+#endif
 }
 
 void Gfx_Items_SetAmbientLighting(void) // 0x80054928
@@ -4136,6 +4194,16 @@ void func_80054A04(u8 itemId) // 0x80054A04
             struct TMD_STRUCT* _obj;
             GsMapModelingData(_hdr);
             _obj = GsGetTMDObject(_hdr, 0);
+            {
+                static int s_unqLog = 0;
+                if (s_unqLog < 32)
+                {
+                    SH_DBG("[ITEMPICK] unique-item link: id=0x%x nobj=%u obj=%s",
+                           (unsigned)_tmd->id, (unsigned)_tmd->modelCount,
+                           _obj != NULL ? "ok" : "NULL");
+                    s_unqLog++;
+                }
+            }
             if (_obj != NULL) {
                 GsLinkObject4_PC(_obj, &D_800C3E08);
             } else {
@@ -4178,6 +4246,24 @@ bool Gfx_PickupItemAnimate(u8 itemId) // 0x80054AD8
     s16            rotZ;
     GsDOBJ2*       obj;
     GsCOORD2PARAM* transform;
+
+#ifdef SH_PC_PORT
+    /* Isolate the pickup model so its own front faces occlude its back faces
+     * (the inventory see-through fix needs OT0 to hold the item ALONE). Pause
+     * the world render — BgmStatusFlag_Pause gates the whole world/player/NPC
+     * draw block in SysState_Gameplay_Update — and present the frozen room
+     * behind the item, exactly like the pause menu. g_PcPickupItemActive tells
+     * game_main to bracket the OT0 draw with force-item-depth + precise SZ.
+     * Re-set every frame (MainLoop clears bgmStatusFlags each tick). The pickup
+     * event runs via Event_Update, ahead of the paused world block, so the item
+     * still draws. */
+    {
+        extern int g_PsxPresentLastFrame;
+        g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
+        g_PsxPresentLastFrame     = 1;
+        g_PcPickupItemActive      = 1;
+    }
+#endif
 
     g_Items_Coords[9].coord.t[1] = Q8(0.25f);
     g_Items_Coords[9].coord.t[0] = Q8(0.0f);

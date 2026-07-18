@@ -732,10 +732,14 @@ s32 Player_AnimPlaybackStateGet(void)
      *       unstick. Threshold for (B) is generous (4s @ 60fps = 240) so
      *       legitimate brief waits aren't bypassed. */
     {
-        /* Real-time accumulation (Q12 seconds; g_DeltaTimeRaw sums to ~4096
-         * per wall-clock second), NOT frame counts — the old 90-frame
-         * threshold meant 3s at 30fps but 0.37s at 240fps, so high framerate
-         * made the bypass fire during ordinary brief holds. */
+        /* Time accumulation (Q12 seconds), NOT frame counts — the old
+         * 90-frame threshold meant 3s at 30fps but 0.37s at 240fps, so high
+         * framerate made the bypass fire during ordinary brief holds.
+         * Accumulate g_DeltaTime (the SAME clock the watched anim advances
+         * on), not g_DeltaTimeRaw: below 30fps the raw clock runs up to 2x
+         * the capped anim clock, so a raw-clocked detector fired early
+         * relative to the anim's actual progress and could skip scene
+         * content. In anim-clock terms the thresholds are exact at any fps. */
         static s32 s_lastKf       = -1;
         static q19_12 s_stuckTime = 0;
         static s32 s_lastStatus   = -1;
@@ -745,7 +749,7 @@ s32 Player_AnimPlaybackStateGet(void)
             s_lastKf     = model->anim.keyframeIdx;
             s_stuckTime  = 0;
         } else {
-            s_stuckTime += g_DeltaTimeRaw;
+            s_stuckTime += g_DeltaTime;
             if (s_stuckTime > Q12(3.0f)) {
                 static int _bypassLogN = 0;
                 if (_bypassLogN < 20) {
@@ -795,7 +799,7 @@ s32 Player_AnimPlaybackStateGet(void)
             if (result == 1) {
                 s_endTime = 0;
             } else {
-                s_endTime += g_DeltaTimeRaw;
+                s_endTime += g_DeltaTime;
                 if (s_endTime > Q12(4.0f)) {
                     if (_endLogN < 10) {
                         SH_DBG("[ANIM-STUCK] (B) endKf-bypass — status=%d kf=%d expected_endKf=%d after 4s",
@@ -853,7 +857,7 @@ s32 Player_AnimPlaybackStateGet(void)
             s_loopStatus = model->anim.status;
             s_loopTime   = 0;
         }
-        s_loopTime += g_DeltaTimeRaw;
+        s_loopTime += g_DeltaTime;
         if (s_loopTime > Q12(10.0f)) {
             if (_loopLogN < 30) {
                 SH_DBG("[ANIM-STUCK] (C) non-Once bypass — status=%d kf=%d pbFunc=%p after 10s; forcing return 1",

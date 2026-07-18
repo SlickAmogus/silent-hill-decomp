@@ -20,10 +20,34 @@ static volatile sig_atomic_t s_PlayerCrashGuardActive = 0;
 extern int g_DebugNoWallCollision;
 extern int g_DebugNoFloorCollision;
 extern int g_DebugThirdPersonCam;
+extern int g_DebugAnimKfView;
+extern int g_DebugAnimKf;
+extern int g_DebugAnimKfMax;
+extern int g_DebugAnimPlaying;   /* 1 = loop the selected keyframe range instead of freezing on one frame */
+extern int g_DebugAnimKfStart;   /* selected loop range start (absolute keyframe) */
+extern int g_DebugAnimKfEnd;     /* selected loop range end (absolute keyframe) */
+extern s32 g_DebugAnimRate;      /* loop playback rate (q19_12 keyframes/sec @30fps) */
+extern int g_DebugViewNpcSlot;   /* keyframe viewer target: -1 = Harry, else g_SysWork.npcs[] slot */
+extern int g_DebugAnimPlayGen;   /* bumped on each play (re)start so the loop cursor re-seeds */
 extern s32 g_TpsCamYaw;
 extern const unsigned char* g_sdlKeyboardState;
+/* Fixed (classic) camera world position — used by the 2D screen-relative control
+ * path to derive "into the screen" (camera -> Harry) when no orbit cam is active. */
+extern void vwGetViewPosition(VECTOR3* pos);
 #include <SDL_scancode.h>
 #include <SDL_mouse.h>
+#include <SDL_timer.h>
+
+/* OTS/TPS free-aim: the user-verified gun-forward "ready" pose, an absolute
+ * keyframe in Harry's shared pool that holds correctly for EVERY ranged weapon.
+ * The aim is held here (Unk34 would otherwise play backward and drift to ~580);
+ * the shot plays the recoil (Unk30, 594-604 forward) from here. */
+#define PC_AIM_HOLD_KF 591
+
+/* OTS/TPS forward + strafe RUN speed target (q19_12 world units/30fps-frame),
+ * faster than the classic Q12(3.0). Used for both the forward run (D_800C4550)
+ * and the run-strafe so left/right run at the SAME speed as forward. */
+#define PC_OTS_RUN_SPEED Q12(4.5f)
 
 static void Player_CrashHandler(int sig) {
     if (s_PlayerCrashGuardActive) {
@@ -48,6 +72,91 @@ static void Player_CrashHandler(int sig) {
 #include "pc_combat.h"
 #include "pc_timing.h"
 #include "pc_config.h"
+#include "main/fileinfo.h" /* g_GameRegion — EUR overlay pointer rebase */
+
+extern int g_PcFpsCam;
+
+/* Alt-camera fire button state (SDL mouse/bind), published by the TPS input
+ * shim each frame. The multi-tap click queue reads it because those presses
+ * never reach the pad's action mask. 0 whenever the classic camera is active. */
+int g_PcAltFireHeld = 0;
+
+/* Per-weapon steady gun-forward "ready" keyframe for OTS/TPS free-aim. The
+ * rifle reads cleaner a few frames before the shared default; the handgun and
+ * shotgun settle one frame earlier (587/588 chosen by eye in-game). Anything
+ * else keeps PC_AIM_HOLD_KF. weaponAttack holds the Tap
+ * form for an equipped gun (32/33/34), so compare against those directly.
+ * First-person needs the arms held higher/further along the swing so the gun
+ * frames under the crosshair: 592 for handgun/shotgun, 597 for the rifle. */
+static s32 Pc_AimHoldKf(void)
+{
+    switch (g_SysWork.playerCombat.weaponAttack)
+    {
+        case WEAPON_ATTACK(EquippedWeaponId_HuntingRifle, AttackInputType_Tap):
+            return g_PcFpsCam ? 597 : 587;
+        case WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap):
+        case WEAPON_ATTACK(EquippedWeaponId_Shotgun, AttackInputType_Tap):
+            return g_PcFpsCam ? 592 : 588;
+        case WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap):
+            /* The HyperBlaster's WEP53 anim block only spans kf 568-579
+             * (D_80028B94[132..149]); holding the shared 591 kf reads past its
+             * loaded keyframe data and collapses the torso bones (invisible
+             * upper body). 574 is where its aim anims (statuses 33-35) settle. */
+            return 574;
+        default:
+            return PC_AIM_HOLD_KF;
+    }
+}
+
+/* Keyframe-viewer loop playback (driven by P in DebugCamera_Update): a private
+ * model cursor + a synthetic constant-duration loop info let Anim_PlaybackLoop
+ * loop the selected keyframe range with correct interpolation + frame-rate
+ * independence, without disturbing Harry's real anim state. */
+static s_Model    s_DebugAnimLoopModel;
+static s_AnimInfo s_DebugAnimLoopInfo;
+
+/* Shared loop advance for the keyframe viewer: (re)seeds the private cursor to
+ * the selected range whenever a new play starts (tracked by g_DebugAnimPlayGen),
+ * then advances it with the real loop driver. Used for Harry and viewed NPCs. */
+static void Pc_KfLoopAdvance(s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
+{
+    static int seededGen = -1;
+    if (seededGen != g_DebugAnimPlayGen)
+    {
+        s_DebugAnimLoopInfo.hasVariableDuration = 0;
+        s_DebugAnimLoopInfo.duration.constant   = g_DebugAnimRate;
+        s_DebugAnimLoopInfo.startKeyframeIdx    = (s16)g_DebugAnimKfStart;
+        s_DebugAnimLoopInfo.endKeyframeIdx      = (s16)g_DebugAnimKfEnd;
+        s_DebugAnimLoopModel.anim.flags         = AnimFlag_Unlocked | AnimFlag_Visible;
+        s_DebugAnimLoopModel.anim.time          = Q12(g_DebugAnimKfStart);
+        s_DebugAnimLoopModel.anim.keyframeIdx   = (s16)g_DebugAnimKfStart;
+        s_DebugAnimLoopModel.anim.alpha         = 0;
+        seededGen = g_DebugAnimPlayGen;
+    }
+    Anim_PlaybackLoop(&s_DebugAnimLoopModel, anmHdr, coords, &s_DebugAnimLoopInfo);
+    g_DebugAnimKf = s_DebugAnimLoopModel.anim.keyframeIdx;
+}
+
+/* Keyframe viewer: pose a viewed NPC (freeze on g_DebugAnimKf, or loop the
+ * selected range) instead of running its AI. Called from Game_NpcUpdate. */
+void Pc_KeyframeViewerPoseNpc(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
+{
+    if (anmHdr == NULL) { return; }
+
+    if (g_DebugAnimPlaying)
+    {
+        Pc_KfLoopAdvance(anmHdr, boneCoords);
+    }
+    else
+    {
+        s32 kf    = g_DebugAnimKf;
+        s32 maxKf = (anmHdr->keyframeCount > 0) ? (s32)anmHdr->keyframeCount - 1 : 0;
+        if (kf > maxKf) { kf = maxKf; }
+        if (kf < 0)     { kf = 0; }
+        g_DebugAnimKf = kf;
+        Anim_BoneUpdate(anmHdr, boneCoords, kf, kf, Q12(0.0f));
+    }
+}
 #endif
 
 s_800C44F0 D_800C44F0[10];
@@ -93,6 +202,21 @@ s16        __pad_bss_800C4606;
 q19_12     g_Player_HeadingAngle;
 s32        __pad_bss_800C460C;
 VECTOR3    D_800C4610;
+
+#ifdef SH_PC_PORT
+/* Invisible-wall gate (#42): intended horizontal step magnitude of the LAST
+ * func_8007C0D8 integration (Q12). travelDistStep measures the ACTUAL displacement
+ * of that SAME integration, so `actual < intended/2` is a dt/speed/tilt-consistent
+ * "was I really blocked this frame" test. The previous gate recomputed the threshold
+ * from playerProps.moveSpeed (properties.player) * g_DeltaTime, but Harry is actually
+ * moved by player->moveSpeed (a different field, tilt-adjusted in func_8007C0D8); when
+ * the intended field exceeds the one that moved him the threshold inflates and the
+ * smack fires on open ground. */
+s32 g_Player_LastMoveStep;
+/* func_8007D6F0 forward-anticipation raycast result, stashed for the [WALLANIM]
+ * trigger log so a user capture shows what the ray hit when the smack fired. */
+s32 g_Player_WallRayHitDist, g_Player_WallRayAngleDelta, g_Player_WallRayGroundHeight;
+#endif
 
 #define playerProps g_SysWork.playerWork.player.properties.player
 
@@ -680,36 +804,70 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
         }
         else
         {
-#ifdef SH_PC_PORT
-            /* Harry's cutscene/control state — log on change only, not per-frame. */
-            {
-                static s32 s_pupdState = -1, s_pupdCtrl = -1;
-                s32 _st = (s32)g_SysWork.playerWork.extra.state;
-                s32 _ct = (s32)player->model.controlState;
-                if (_st != s_pupdState || _ct != s_pupdCtrl) {
-                    SH_DBG("[PUPD] state=%d ctrl=%d kf=%d", _st, _ct,
-                           (s32)player->model.anim.keyframeIdx);
-                    s_pupdState = _st; s_pupdCtrl = _ct;
-                }
-            }
-#endif
             g_MapOverlayHdr.func_BC(player, extra, coords);
         }
+
+#ifdef SH_PC_PORT
+        /* OTS/TPS full-body movement: Player_AnimUpdate poses the lower body from
+         * player->model.anim and the upper body from extra->model.anim separately.
+         * The upper-body state machine (Player_UpperBodyUpdate, run just above in
+         * Player_LogicUpdate) leaves the upper body in a stale sidestep/idle pose,
+         * so strafing and turn-running only moved Harry's legs. When the lower body
+         * is in a movement anim and the upper body isn't doing something
+         * independent (actively AIMING, or mid gun-shot / reload), mirror the
+         * lower-body anim onto the upper body so the whole body plays the
+         * directional run/walk. Gating on isAiming (not "gun equipped") so it
+         * works while a gun is holstered/lowered — the previous gun-equipped gate
+         * skipped the sync whenever a weapon was out, leaving armed strafe
+         * legs-only. SFX (heavy-breath etc.) already fired in
+         * Player_UpperBodyUpdate, so only the pose is overridden. */
+        if (g_DebugThirdPersonCam)
+        {
+            s32  _lowIdx = ANIM_STATUS_IDX_GET(player->model.anim.status);
+            bool _moveAnim =
+                _lowIdx == HarryAnim_RunForward   || _lowIdx == HarryAnim_WalkForward  ||
+                _lowIdx == HarryAnim_WalkBackward || _lowIdx == HarryAnim_RunLeft       ||
+                _lowIdx == HarryAnim_RunRight     || _lowIdx == HarryAnim_SidestepLeft  ||
+                _lowIdx == HarryAnim_SidestepRight;
+            bool _upperBusy =
+                g_SysWork.playerCombat.isAiming ||
+                extra->upperBodyState == PlayerUpperBodyState_Attack ||
+                extra->upperBodyState == PlayerUpperBodyState_Reload;
+            if (_moveAnim && !_upperBusy)
+            {
+                extra->model.anim.status      = player->model.anim.status;
+                extra->model.anim.keyframeIdx = player->model.anim.keyframeIdx;
+                extra->model.anim.time        = player->model.anim.time;
+            }
+        }
+#endif
 
         Player_AnimUpdate(player, extra, anmHdr, coords);
 #ifndef SH_PC_PORT
         func_8007D090(player, extra, coords);
 #else
-        /* func_8007D090 (head/aim flex + held-light arm pose) is skipped on PC
-         * because its aim-flex path is handled by the PC aim shim. But it also
-         * applies the lighter/flashlight HELD-ARM pose when enablePlayerMatchAnim
+        /* Classic/default camera runs the ORIGINAL head/aim flex (func_8007D090):
+         * head look-around at nearby objects (states Unk52-59 / Unk180), the aim-
+         * pitch lean toward the locked target — including UP at aerial enemies like
+         * the Air Screamer — and the match-anim held-arm pose. On PC func_8007D090
+         * COMPOSES the upper-arm elevation instead of overwriting it (see the fix in
+         * its body) so the arms keep their gun-forward pose instead of T-posing.
+         * Called ONLY in classic; the free-aim (OTS/TPS/FPS) shim owns the aim pose
+         * and re-implements the pieces it needs below, keeping the two camera
+         * families fully isolated. */
+        if (!g_DebugThirdPersonCam)
+        {
+            func_8007D090(player, extra, coords);
+        }
+
+        /* Free-aim (OTS/TPS/FPS) skips func_8007D090 (classic runs it above), so
+         * re-apply its lighter/flashlight HELD-ARM pose here when enablePlayerMatchAnim
          * is set (the alley3 "lighting a match" hold), overriding the base anim's
-         * right arm so Harry holds the light up across idle/walk/look-around.
-         * Without it the arm follows the base anim and the lighter detaches
-         * (matchAnim flag is set, but nothing consumed it on PC). Apply just
-         * that arm-pose block; gate matches the original (state < Unk58 so it
-         * runs during gameplay but not the lighting cutscene at state 84). */
-        if (g_SysWork.enablePlayerMatchAnim && g_SysWork.playerWork.extra.state < PlayerState_Unk58)
+         * right arm so Harry holds the light up across idle/walk/look-around. Without
+         * it the arm follows the base anim and the lighter detaches. Gate matches the
+         * original (state < Unk58 so it runs during gameplay but not the lighting
+         * cutscene at state 84). */
+        if (g_DebugThirdPersonCam && g_SysWork.enablePlayerMatchAnim && g_SysWork.playerWork.extra.state < PlayerState_Unk58)
         {
             func_80044F14(&g_SysWork.playerBoneCoords[HarryBone_RightUpperArm], Q12_ANGLE(0.0f),   Q12_ANGLE(63.3f), Q12_ANGLE(-8.8f));
             func_80044F14(&g_SysWork.playerBoneCoords[HarryBone_RightForearm],  Q12_ANGLE(-14.1f), Q12_ANGLE(22.5f), Q12_ANGLE(-30.8f));
@@ -726,6 +884,100 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
             g_SysWork.playerBoneCoords[HarryBone_RightUpperArm].flg = 0;
             g_SysWork.playerBoneCoords[HarryBone_RightForearm].flg  = 0;
             g_SysWork.playerBoneCoords[HarryBone_RightHand].flg     = 0;
+        }
+
+        /* Free-aim (OTS/TPS/FPS) aim-pitch body tilt: the shim pins a custom gun
+         * hold pose, so re-apply the torso lean toward the aim pitch from field_122
+         * (the camera-ray pitch). Classic uses func_8007D090 above instead. Only the
+         * TORSO leans here (its arms follow as hierarchy children, keeping the hold
+         * pose the shim supplies). Ranged + aiming only. */
+        if (g_DebugThirdPersonCam &&
+            g_SysWork.playerCombat.isAiming &&
+            g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
+            g_SysWork.playerWork.extra.upperBodyState != PlayerUpperBodyState_Reload)
+        {
+            /* Steady-aim HOLD: re-pose the upper body at the verified gun-forward
+             * keyframe (Pc_AimHoldKf, per weapon) so it doesn't drift (Unk34 plays
+             * backward toward ~580). Skip ONLY during the actual shot (recoil anims)
+             * so the forward shooting animation plays. Lower body keeps its movement
+             * anim (LOWER mask disabled = upper bones only). */
+            s32 _upIdx = ANIM_STATUS_IDX_GET(extra->model.anim.status);
+            if (_upIdx != HarryAnim_Unk29 && _upIdx != HarryAnim_Unk30 &&
+                _upIdx != HarryAnim_HandgunRecoil)
+            {
+                s32 _holdKf = Pc_AimHoldKf();
+                g_SysWork.playerWork.extra.disabledAnimBones = HARRY_LOWER_BODY_BONE_MASK;
+                Anim_BoneUpdate(anmHdr, coords, _holdKf, _holdKf, Q12(0.0f));
+            }
+
+            s32 _aimPitch = playerProps.field_122 - Q12_ANGLE(90.0f);
+            _aimPitch = CLAMP(_aimPitch, -Q12_ANGLE(56.25f), Q12_ANGLE(56.25f)); /* = FLEX_ROT_X_RANGE */
+            func_80044F14(&coords[HarryBone_Torso], Q12_ANGLE(0.0f), _aimPitch >> 1, Q12_ANGLE(0.0f));
+            coords[HarryBone_Torso].flg = 0;
+        }
+
+        /* Rear Look head turn (bonus): while the Rear Look bind is held (TPS/OTS
+         * only), ease Harry's head yaw toward an over-the-shoulder cap so he looks
+         * back at the camera; released -> eases back. Head-only, capped below a full
+         * turn so the neck doesn't clip. Byte-identical when Rear Look is never used. */
+        {
+            extern int g_PcRearLookActive;
+            extern int g_PcFpsCam;
+            static q3_12 s_rearHeadYaw = 0;
+            q3_12 target = (g_DebugThirdPersonCam && !g_PcFpsCam && g_PcRearLookActive) ? Q12_ANGLE(85.0f) : 0;
+            q3_12 step   = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(14.0f));
+            q3_12 diff   = target - s_rearHeadYaw;
+            if (diff >  step) diff =  step;
+            if (diff < -step) diff = -step;
+            s_rearHeadYaw += diff;
+            if (s_rearHeadYaw != 0)
+            {
+                func_80044F14(&coords[HarryBone_Head], Q12_ANGLE(0.0f), Q12_ANGLE(0.0f), s_rearHeadYaw);
+                coords[HarryBone_Head].flg = 0;
+            }
+        }
+
+        /* Keyframe inspector (debug): when on, override the sampled pose with a
+         * single absolute keyframe across Harry's whole skeleton so the exact
+         * authored frame index for a pose can be found (drive K / , / . in
+         * DebugCamera_Update). Clear the upper/lower split mask so the FULL body
+         * poses. Write the clamped value back so the readout shows the real max.
+         *
+         * anmHdr->keyframeCount (~568) only counts Harry's BASE anims; the
+         * equipped weapon's anims (aim/fire/recoil) live at HIGHER keyframes
+         * (handgun ~568-658) loaded into the same buffer, which Anim_BoneUpdate
+         * still samples (it skips its clamp for Harry's 18-bone table). Clamping
+         * to keyframeCount made those weapon/aim frames unreachable (stuck at 567).
+         * Extend the max to the highest endKeyframeIdx in the loaded anim-info
+         * table (HARRY_BASE_ANIM_INFOS[0..75] = base + the equipped weapon's
+         * entries 56..75) so the gun/aim anims can be scrubbed/cycled to. */
+        {
+            s32 _maxKf = (anmHdr->keyframeCount > 0) ? (s32)anmHdr->keyframeCount - 1 : 0;
+            s32 _i;
+            for (_i = 0; _i < 76; _i++)
+            {
+                s32 _e = HARRY_BASE_ANIM_INFOS[_i].endKeyframeIdx;
+                if (_e > _maxKf && _e < 1024) /* 1024 sanity-bounds any stale entry */
+                    _maxKf = _e;
+            }
+            g_DebugAnimKfMax = _maxKf + 1; /* publish as a count for the panel readout */
+
+            if (g_DebugAnimKfView && g_DebugViewNpcSlot < 0)
+            {
+                g_SysWork.playerWork.extra.disabledAnimBones = 0;
+                if (g_DebugAnimPlaying)
+                {
+                    Pc_KfLoopAdvance(anmHdr, coords);
+                }
+                else
+                {
+                    s32 _kf = g_DebugAnimKf;
+                    if (_kf > _maxKf) _kf = _maxKf;
+                    if (_kf < 0)      _kf = 0;
+                    g_DebugAnimKf = _kf;
+                    Anim_BoneUpdate(anmHdr, coords, _kf, _kf, Q12(0.0f));
+                }
+            }
         }
 #endif
     }
@@ -1233,8 +1485,36 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
              * Runtime-verified 2026-06-10 (walk/run/sidestep/jump-back/wall smack
              * /exhaustion). The TPS debug cam still needs the shim below
              * (it owns input mapping + body yaw). */
-            if (g_PcConfig.movementOriginal && !g_DebugThirdPersonCam)
+            if (g_PcConfig.movementOriginal && !g_DebugThirdPersonCam &&
+                !(g_PcConfig.control2d && !g_PcFpsCam && !g_SysWork.playerCombat.isAiming))
             {
+                /* 2D screen-relative control (classic camera, not aiming) takes the
+                 * shim path below so it can drive Harry from the camera basis. While
+                 * aiming, or with 2D off, the native lower-body machine runs (vanilla
+                 * tank movement + aim). */
+                /* Quick Turn (bound button): enter the native animated 180 state
+                 * before the lower-body machine runs. Only from grounded locomotion
+                 * / idle / aim-locomotion (never mid quick-turn, jump-back, stumble,
+                 * attack or reload). The state machine plays HarryAnim_QuickTurn* and
+                 * rotates at the native rate to completion. */
+                {
+                    extern int g_PcQuickTurnRequest;
+                    if (g_PcQuickTurnRequest)
+                    {
+                        int _lb = g_SysWork.playerWork.extra.lowerBodyState;
+                        g_PcQuickTurnRequest = 0;
+                        if (_lb <= PlayerLowerBodyState_RunLeft ||
+                            (_lb >= PlayerLowerBodyState_Aim && _lb <= PlayerLowerBodyState_AimRunLeft))
+                        {
+                            int _aim = (_lb < PlayerLowerBodyState_Aim) ? 0 : 20;
+                            g_SysWork.playerWork.extra.lowerBodyState =
+                                (e_PlayerLowerBodyState)(_aim + PlayerLowerBodyState_QuickTurnRight);
+                            player->model.stateStep    = 0;
+                            player->model.controlState = 0;
+                        }
+                    }
+                }
+
                 Player_LowerBodyUpdate(player, extra);
 
                 if (playerExtra.state < (u32)PlayerState_Idle)
@@ -1258,35 +1538,282 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * feel half as responsive as 60fps. */
                 q3_12 turnSpeed = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(4.0f));
 
+                /* 2D screen-relative control: input maps to camera-relative
+                 * directions and Harry turns to face the move direction. Active
+                 * for any non-FPS camera style when enabled, EXCEPT while aiming
+                 * (aiming keeps the classic/TPS behaviour). */
+                int pc2dActive = g_PcConfig.control2d && !g_PcFpsCam &&
+                                 !g_SysWork.playerCombat.isAiming;
+
+                /* Quick Turn in the camera-snap shim (TPS/OTS/FPS): smoothly pan the
+                 * orbit yaw 180 over the turn at the native rate; the body-snap below
+                 * follows it. 2D / classic-fallback drop the request (their body yaw
+                 * is input-driven; the native path handles quick-turn when it runs). */
+                {
+                    extern int g_PcQuickTurnRequest;
+                    static u8  s_qtActive = 0;
+                    static s32 s_qtAccum  = 0;
+                    int qtSnap = g_DebugThirdPersonCam && !pc2dActive;
+                    if (g_PcQuickTurnRequest)
+                    {
+                        g_PcQuickTurnRequest = 0;
+                        if (qtSnap && !s_qtActive) { s_qtActive = 1; s_qtAccum = 0; }
+                    }
+                    if (s_qtActive && qtSnap)
+                    {
+                        s32 step = (s32)(g_DeltaTime * 24) >> 4;
+                        if (step < 1) step = 1;
+                        if (s_qtAccum + step >= Q12_ANGLE(180.0f))
+                        {
+                            step = Q12_ANGLE(180.0f) - s_qtAccum;
+                            s_qtActive = 0;
+                        }
+                        s_qtAccum += step;
+                        g_TpsCamYaw = Q12_ANGLE_NORM_U(g_TpsCamYaw + step + Q12_ANGLE(360.0f));
+                    }
+                    else
+                    {
+                        s_qtActive = 0;
+                    }
+                }
+
                 /* TPS mode: Harry's body always tracks the camera yaw, so
                  * WASD is always relative to Harry (== relative to camera).
                  * W = forward, S = back, A/D = strafe in Harry's frame.
                  * Mouse rotates the camera, body follows automatically. */
-                if (g_DebugThirdPersonCam) {
+                if (pc2dActive) {
+                    /* === 2D screen-relative movement ===
+                     * Map the 8-way digital input to camera-relative directions,
+                     * turn Harry to face the resulting world direction, and run him
+                     * forward along his facing (so he always plays the forward
+                     * walk/run cycle rather than moon-walking). Works under the
+                     * fixed classic camera (the authentic SH "2D control type") and
+                     * under the TPS/OTS orbit camera (twin-stick style). */
+                    s32  held  = g_Controller0->heldBtnFlags;
+                    int  fwd   = (g_sdlKeyboardState[SDL_SCANCODE_W] != 0) || (held & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp));
+                    int  back  = (g_sdlKeyboardState[SDL_SCANCODE_S] != 0) || (held & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown));
+                    int  left  = (g_sdlKeyboardState[SDL_SCANCODE_A] != 0) || (held & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft));
+                    int  right = (g_sdlKeyboardState[SDL_SCANCODE_D] != 0) || (held & (ControllerFlag_LStickRight | ControllerFlag_DpadRight));
+                    int  inX   = (right ? 1 : 0) - (left ? 1 : 0);
+                    int  inZ   = (fwd   ? 1 : 0) - (back ? 1 : 0);
+                    int  anyInput = (inX != 0) || (inZ != 0);
+                    /* Full-360 analog: past a small deadzone the left stick drives a
+                     * continuous direction (keyboard/D-pad stay inherently 8-way).
+                     * forward = -leftY, right = +leftX (joy.c ControllerData_AnalogToDigital). */
+                    s32  a2dX   = (s32)g_Controller0->analogController.leftX - 128;
+                    s32  a2dY   = (s32)g_Controller0->analogController.leftY - 128;
+                    int  a2dUse = (a2dX * a2dX + a2dY * a2dY) >= (40 * 40);
+                    s32  inXv   = a2dUse ?  a2dX : inX;
+                    s32  inZv   = a2dUse ? -a2dY : inZ;
+                    if (a2dUse) anyInput = 1;
+
+                    /* Camera "into the screen" yaw (world Q12 angle). Orbit cam =
+                     * g_TpsCamYaw directly; fixed classic cam = the yaw from the
+                     * camera toward Harry (its horizontal look direction). */
+                    q3_12 camYaw = g_TpsCamYaw;
+                    int   camValid = 1;
+                    if (!g_DebugThirdPersonCam) {
+                        VECTOR3 camPos;
+                        s32     dx, dz;
+                        vwGetViewPosition(&camPos);
+                        dx = player->position.vx - camPos.vx;
+                        dz = player->position.vz - camPos.vz;
+                        if (ABS(dx) < Q12(0.1f) && ABS(dz) < Q12(0.1f))
+                            camValid = 0; /* camera ~overhead: horizontal dir undefined */
+                        else
+                            camYaw = ratan2(dx, dz);
+                    }
+
+                    /* Camera-cut handling (option b): follow gradual pans, but hold
+                     * the basis across a hard cut while a direction is pressed, so a
+                     * room change never flips Harry mid-run. Re-samples on release. */
+                    {
+                        static q3_12 s_2dBasisYaw = 0;
+                        static int   s_2dValid    = 0;
+
+                        if (camValid) {
+                            /* Track the live camera EXCEPT when a fixed-camera cut
+                             * jumps the yaw (>45 deg in one frame) while a direction
+                             * is held — then hold the old basis until release. The
+                             * orbit cam never cuts, so it always tracks. */
+                            q3_12 d     = Math_AngleNormalizeSigned(camYaw - s_2dBasisYaw);
+                            int   track = !anyInput || !s_2dValid || g_DebugThirdPersonCam ||
+                                          (ABS(d) < Q12_ANGLE(45.0f));
+                            if (track) {
+                                s_2dBasisYaw = camYaw;
+                                s_2dValid    = 1;
+                            }
+                        }
+
+                        if (anyInput && s_2dValid) {
+                            /* world move dir = inZ*forward + inX*right,
+                             * forward=(sin,cos), right=(cos,-sin) of the basis yaw. */
+                            s32   sfwd = Math_Sin(s_2dBasisYaw);
+                            s32   cfwd = Math_Cos(s_2dBasisYaw);
+                            s32   moveX = inZv * sfwd + inXv * cfwd;
+                            s32   moveZ = inZv * cfwd - inXv * sfwd;
+                            q3_12 targetYaw = ratan2(moveX, moveZ);
+                            if (g_PcConfig.control2dSnap) {
+                                /* snap: face the input direction immediately */
+                                player->rotation.vy = Q12_ANGLE_NORM_U(targetYaw + Q12_ANGLE(360.0f));
+                            } else {
+                                q3_12 diff = Math_AngleNormalizeSigned(targetYaw - player->rotation.vy);
+                                q3_12 turn2d = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(10.0f));
+                                if (diff >  turn2d) diff =  turn2d;
+                                if (diff < -turn2d) diff = -turn2d;
+                                player->rotation.vy = Q12_ANGLE_NORM_U(player->rotation.vy + diff + Q12_ANGLE(360.0f));
+                            }
+                        }
+                    }
+
+                    /* Reuse the shim's forward walk/run anim + speed by flagging a
+                     * forward move; Harry travels straight along his (turning) facing. */
+                    g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | (anyInput ? 1 : 0);
+                    g_Player_IsMovingBackward    = 0;
+                    g_Player_IsSteppingLeftHold  = 0;
+                    g_Player_IsSteppingRightHold = 0;
+                    g_Player_IsTurningLeft       = 0;
+                    g_Player_IsTurningRight      = 0;
+                    g_Player_HasMoveInput        = anyInput;
+                    {
+                        u16 runBtn = g_GameWorkPtr->config.controllerConfig.run;
+                        int cfgRun = g_GameWork.config.extraWalkRunCtrl
+                                         ? !(held & runBtn) : (held & runBtn) != 0;
+                        s32 lx = (s32)g_Controller0->analogController.leftX - 128;
+                        s32 ly = (s32)g_Controller0->analogController.leftY - 128;
+                        /* altcam_button_sprint ("Always use button based
+                         * sprinting"): only the bound run control sprints; stick
+                         * magnitude stops mattering. Applies to 2D control under
+                         * ANY camera, classic included. */
+                        int stickSprint = !g_PcConfig.altButtonSprint &&
+                                          (lx * lx + ly * ly) >= (96 * 96);
+                        g_Player_IsRunning = cfgRun || stickSprint;
+                    }
+                    g_Player_HeadingAngle = Q12_ANGLE(0.0f);
+                    g_SysWork.playerWork.player.properties.player.headingAngle = Q12_ANGLE(0.0f);
+                } else if (g_DebugThirdPersonCam) {
+#ifdef SH_PC_PORT
+                    /* FPS look-around: while standing still and not aiming in
+                     * first-person, DON'T snap the body to the camera — leave
+                     * Harry's body/legs put so you can mouse-look around him. The
+                     * camera clamps that look to ±90° of the body yaw (straight
+                     * left..straight right), so the body "catches up" the moment
+                     * you move (the snap below resumes on any move input or while
+                     * aiming). TPS/OTS (non-FPS) always snap. */
+                    int fpsIdleLook = 0;
+                    if (g_PcFpsCam && !g_SysWork.playerCombat.isAiming)
+                    {
+                        s32 held   = g_Controller0->heldBtnFlags;
+                        int moveIn = (g_sdlKeyboardState[SDL_SCANCODE_W] != 0) ||
+                                     (g_sdlKeyboardState[SDL_SCANCODE_A] != 0) ||
+                                     (g_sdlKeyboardState[SDL_SCANCODE_S] != 0) ||
+                                     (g_sdlKeyboardState[SDL_SCANCODE_D] != 0) ||
+                                     (held & (ControllerFlag_LStickUp   | ControllerFlag_LStickDown  |
+                                              ControllerFlag_LStickLeft | ControllerFlag_LStickRight |
+                                              ControllerFlag_DpadUp     | ControllerFlag_DpadDown    |
+                                              ControllerFlag_DpadLeft   | ControllerFlag_DpadRight));
+                        fpsIdleLook = !moveIn;
+                    }
+                    if (fpsIdleLook)
+                    {
+                        /* Body stays put — the ±90° look clamp lives in the camera
+                         * (Pc_TpsCamera_Apply). Nothing to do here. */
+                    }
+                    else
+#endif
                     /* Snap body yaw to camera yaw every frame — no lerp,
                      * camera IS the steering. (Future: rotate head bone
                      * separately so only the head tracks the cam while
                      * the body lags slightly.) */
                     player->rotation.vy = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
 
-                    g_Player_IsMovingForward     = g_sdlKeyboardState[SDL_SCANCODE_W] != 0;
-                    g_Player_IsMovingBackward    = g_sdlKeyboardState[SDL_SCANCODE_S] != 0;
-                    g_Player_IsSteppingLeftHold  = g_sdlKeyboardState[SDL_SCANCODE_A] != 0;
-                    g_Player_IsSteppingRightHold = g_sdlKeyboardState[SDL_SCANCODE_D] != 0;
-                    g_Player_IsRunning           = g_sdlKeyboardState[SDL_SCANCODE_LSHIFT] != 0;
-                    g_Player_IsTurningLeft       = 0;
-                    g_Player_IsTurningRight      = 0;
-                    g_Player_HasMoveInput        = g_Player_IsMovingForward || g_Player_IsMovingBackward ||
-                                                   g_Player_IsSteppingLeftHold || g_Player_IsSteppingRightHold;
-                    g_Player_HeadingAngle        = Q12_ANGLE(0.0f);
-                    g_SysWork.playerWork.player.properties.player.headingAngle = Q12_ANGLE(0.0f);
+                    /* Invisible-wall ROOT FIX (#42): preserve the aged bit1 of the forward
+                     * shift register instead of clobbering it. A bare `= input` here wipes
+                     * the 30 Hz-aged history that Player_Controller maintains, so a single
+                     * dropped-input frame (a preload frame hitch) reads as "released" and
+                     * fires the skid-stop "ran into a wall" smack while forward is still held.
+                     * Keep bit1, OR the current input into bit0 — matches the |= at ~9941. */
+                    /* Camera-relative movement from the global input system:
+                     * legacy WASD + bound d-pad keys (arrows) + controller left
+                     * stick all drive forward/back/strafe in Harry's (== camera)
+                     * frame. Right stick / mouse own the look (handled in the
+                     * camera). */
+                    {
+                        s32  held  = g_Controller0->heldBtnFlags;
+                        int  fwd   = (g_sdlKeyboardState[SDL_SCANCODE_W] != 0) || (held & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp));
+                        int  back  = (g_sdlKeyboardState[SDL_SCANCODE_S] != 0) || (held & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown));
+                        int  left  = (g_sdlKeyboardState[SDL_SCANCODE_A] != 0) || (held & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft));
+                        int  right = (g_sdlKeyboardState[SDL_SCANCODE_D] != 0) || (held & (ControllerFlag_LStickRight | ControllerFlag_DpadRight));
+
+                        g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | (fwd ? 1 : 0);
+                        g_Player_IsMovingBackward    = back  ? 1 : 0;
+                        g_Player_IsSteppingLeftHold  = left  ? 1 : 0;
+                        g_Player_IsSteppingRightHold = right ? 1 : 0;
+                        /* Run from the BOUND sprint control (mirrors classic at
+                         * ~10009, incl. the extraWalkRunCtrl inversion) plus the
+                         * controller left stick sprints. No hardcoded keys — the
+                         * keyboard sprint key reaches this through its config ->
+                         * heldBtnFlags mapping, same as every other action. */
+                        {
+                            u16 runBtn   = g_GameWorkPtr->config.controllerConfig.run;
+                            int cfgRun   = g_GameWork.config.extraWalkRunCtrl
+                                             ? !(held & runBtn) : (held & runBtn) != 0;
+#ifdef SH_PC_PORT
+                            if (g_DebugThirdPersonCam)
+                            {
+                                /* TPS/OTS: walk by default; SPRINT (== classic run, 3.0)
+                                 * only on the bound run key (keyboard, default Shift) OR a
+                                 * near-full left-stick push (controller). Partial stick =
+                                 * walk. The old "any left-stick bit = run" heuristic forced
+                                 * run whenever moving, which is why TPS "always ran".
+                                 * leftX/leftY are u8 centered at 128; 96/128 ~= 75%.
+                                 * (Aiming a gun still forces walk at the move-speed site.) */
+                                s32 lx = (s32)g_Controller0->analogController.leftX - 128;
+                                s32 ly = (s32)g_Controller0->analogController.leftY - 128;
+                                /* altcam_button_sprint: only the bound run control
+                                 * sprints; a full stick push stays a walk. */
+                                int stickSprint = !g_PcConfig.altButtonSprint &&
+                                                  (lx * lx + ly * ly) >= (96 * 96);
+                                g_Player_IsRunning = cfgRun || stickSprint;
+                            }
+                            else
+#endif
+                            {
+                                int stickRun = (held & (ControllerFlag_LStickUp   | ControllerFlag_LStickDown |
+                                                        ControllerFlag_LStickLeft | ControllerFlag_LStickRight)) != 0;
+                                g_Player_IsRunning = cfgRun || stickRun;
+                            }
+                        }
+                        g_Player_IsTurningLeft       = 0;
+                        g_Player_IsTurningRight      = 0;
+                        g_Player_HasMoveInput        = fwd || back || left || right;
+                    }
+                    /* Diagonal strafe: when moving forward/back AND sidestepping,
+                     * angle the movement 45° toward the strafe side via the normal
+                     * (collision-checked) heading mechanism, so Harry strafes while
+                     * advancing and keeps the walk-forward/backward animation. Pure
+                     * sidestep (no fwd/back) still plays the sidestep anim below. */
+                    {
+                        int   mZ = (g_Player_IsMovingForward    ? 1 : 0) - (g_Player_IsMovingBackward    ? 1 : 0);
+                        int   mX = (g_Player_IsSteppingRightHold ? 1 : 0) - (g_Player_IsSteppingLeftHold ? 1 : 0);
+                        q3_12 heading = Q12_ANGLE(0.0f);
+                        if (mZ != 0 && mX != 0) {
+                            heading = (mX > 0) ? Q12_ANGLE(45.0f) : -Q12_ANGLE(45.0f);
+                            if (mZ < 0) heading = -heading;   /* backward flips the strafe side (D is negative) */
+                        }
+                        g_Player_HeadingAngle = heading;
+                        g_SysWork.playerWork.player.properties.player.headingAngle = heading;
+                    }
                 } else {
                     /* Non-TPS: after cutscenes, Player_Controller's `*2 & 0x3` shift
                      * register can leave stale bits in g_Player_IsMovingForward that
                      * appear swapped with backward. Force a clean snapshot from the
                      * PSX pad buttons (which the PC joy bridge maps from arrow keys/
                      * D-pad) so forward/back are deterministic every frame. */
-                    g_Player_IsMovingForward  = (g_Controller0->heldBtnFlags & ControllerFlag_LStickUp)   ? 1 : 0;
+                    /* Preserve aged bit1 (see ROOT FIX #42 in the TPS branch above): a bare
+                     * `= input` clobbers the 30 Hz debounce so a 1-frame input dropout fires
+                     * the skid-stop invisible-wall smack while forward is held. */
+                    g_Player_IsMovingForward  = (g_Player_IsMovingForward & 0x2) | ((g_Controller0->heldBtnFlags & ControllerFlag_LStickUp) ? 1 : 0);
                     g_Player_IsMovingBackward = (g_Controller0->heldBtnFlags & ControllerFlag_LStickDown) ? 1 : 0;
                     /* Reset heading offset. PlayerLowerBodyState_WalkBackward sets
                      * g_Player_HeadingAngle = 180° for the backward-walk case, but
@@ -1330,7 +1857,11 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     bool backEdge = pureBack && !s_prevBack;
                     s_prevBack = pureBack;
 
-                    if (backEdge && g_Player_IsRunning && !s_jumpBackActive) {
+                    /* No quick hop-back in TPS/OTS: a controller's backward stick
+                     * deflection reads as running, which triggered the hop on every
+                     * back-step. Free-aim/modern cameras just walk backward (handled
+                     * by the g_Player_IsMovingBackward branch below). Classic keeps it. */
+                    if (backEdge && g_Player_IsRunning && !s_jumpBackActive && !g_DebugThirdPersonCam) {
                         s_jumpBackActive = 1;
                         s_jumpBackFrames = 0;
                         s_prevJumpBackTime = -1;
@@ -1403,7 +1934,21 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         }
                         D_800C4550 = Q12(0.0f);
                     } else if (g_Player_IsMovingForward) {
+#ifdef SH_PC_PORT
+                        /* Free-aim (OTS/TPS): no sprint while a ranged weapon is up
+                         * (Dead Space feel). Force walk speed when aiming a gun so the
+                         * Run leg anim is never selected — this is how move+aim+shoot
+                         * avoids the sprint-in-place bug instead of cancelling aim.
+                         * Classic camera (g_DebugThirdPersonCam==0) is unchanged. */
+                        if (g_Player_IsRunning &&
+                            !(g_DebugThirdPersonCam && g_Player_IsAiming &&
+                              g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)))
+                            D_800C4550 = g_DebugThirdPersonCam ? PC_OTS_RUN_SPEED : Q12(3.0f);
+                        else
+                            D_800C4550 = Q12(1.5f);
+#else
                         D_800C4550 = g_Player_IsRunning ? Q12(3.0f) : Q12(1.5f);
+#endif
                     } else if (g_Player_IsMovingBackward) {
                         D_800C4550 = Q12(-1.5f);
                     } else {
@@ -1433,11 +1978,22 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * clears → stuck-in-shooting-pose. Treat any active gun-type attack
                  * like aim for the purpose of extra anim ownership. */
                 bool inGunAttack = (g_SysWork.playerCombat.weaponAttack >=
-                                    WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap));
+                                    WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)) ||
+                                   (g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Attack);
+                /* ... and ANY in-flight attack, melee included: stomping
+                 * extra->model mid-pipe-swing restarted the TAP anim on every
+                 * forward press (the "endless quick attack loop" report) and
+                 * blinded pcAttackDone the same way. Legs still take the walk
+                 * anim (PSX knife/axe walk-cancel feel); the swing completes.
+                 * Same predicate as Player_Update's _upperBusy. */
                 /* While jump-back is active, suppress normal anim-state assignments
                  * so the hop plays to completion even if the player releases the
                  * back button or briefly touches another direction. */
                 if (!jumpBackActive) if (g_Player_IsMovingForward) {
+                    /* Movement-direction anim (OTS/TPS, Oblivion-style): forward and
+                     * diagonal use RunForward (IsMovingForward wins here); PURE left/
+                     * right are handled by the sidestep/strafe branch below (RunLeft/
+                     * RunRight). Not tied to camera/look direction. */
                     u8 targetWalk = g_Player_IsRunning ? HarryAnim_RunForward : HarryAnim_WalkForward;
                     if (player->model.anim.status != ANIM_STATUS(targetWalk, true) &&
                         player->model.anim.status != ANIM_STATUS(targetWalk, false)) {
@@ -1469,10 +2025,25 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * real-time — mirrors how PSX original ties movement
                      * to anim keyframes. */
                     bool isLeft = (g_Player_IsSteppingLeftHold || g_Player_IsSteppingLeftTap);
-                    s32 wantActive = isLeft ? ANIM_STATUS(HarryAnim_SidestepLeft,  true)
-                                            : ANIM_STATUS(HarryAnim_SidestepRight, true);
-                    s32 wantInactive = isLeft ? ANIM_STATUS(HarryAnim_SidestepLeft,  false)
-                                              : ANIM_STATUS(HarryAnim_SidestepRight, false);
+#ifdef SH_PC_PORT
+                    /* OTS/TPS: holding sprint (PC) or a full stick push (controller)
+                     * while strafing plays the dedicated side-RUN cycle
+                     * (HarryAnim_RunLeft kf 121-133 / RunRight 136-148) at run speed
+                     * instead of the slow sidestep shuffle. Walk strafe and classic
+                     * camera keep the sidestep. Hold-only (Tap is a quick step). */
+                    bool runStrafe = (g_DebugThirdPersonCam && g_Player_IsRunning &&
+                                      (g_Player_IsSteppingLeftHold || g_Player_IsSteppingRightHold));
+                    u8 leftStrafeAnim  = runStrafe ? HarryAnim_RunLeft  : HarryAnim_SidestepLeft;
+                    u8 rightStrafeAnim = runStrafe ? HarryAnim_RunRight : HarryAnim_SidestepRight;
+#else
+                    bool runStrafe = false;
+                    u8 leftStrafeAnim  = HarryAnim_SidestepLeft;
+                    u8 rightStrafeAnim = HarryAnim_SidestepRight;
+#endif
+                    s32 wantActive = isLeft ? ANIM_STATUS(leftStrafeAnim,  true)
+                                            : ANIM_STATUS(rightStrafeAnim, true);
+                    s32 wantInactive = isLeft ? ANIM_STATUS(leftStrafeAnim,  false)
+                                              : ANIM_STATUS(rightStrafeAnim, false);
                     static q19_12 s_prevSidestepTime = -1;
 
                     if (player->model.anim.status != wantActive &&
@@ -1499,8 +2070,17 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         }
                         s_prevSidestepTime = curTime;
 
-                        if (dTime > 0) {
-                            q19_12 step = Q12_MULT_PRECISE(Q12(0.024f), dTime);
+                        /* Run-strafe moves dt-based at the SAME run speed as forward
+                         * (PC_OTS_RUN_SPEED * g_DeltaTime, matching func_8007C0D8's
+                         * forward integration) so left/right run as fast as forward.
+                         * Walk-sidestep keeps the slow anim-driven discrete shuffle. */
+                        q19_12 step = 0;
+                        if (runStrafe) {
+                            step = Q12_MULT_PRECISE(PC_OTS_RUN_SPEED, g_DeltaTime);
+                        } else if (dTime > 0) {
+                            step = Q12_MULT_PRECISE(Q12(0.024f), dTime);
+                        }
+                        if (step != 0) {
                             if (isLeft) {
                                 player->position.vx -= Q12_MULT(step, Math_Cos(player->rotation.vy));
                                 player->position.vz += Q12_MULT(step, Math_Sin(player->rotation.vy));
@@ -1552,78 +2132,37 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     static u8 s_fireFrames = 0;
                     static u8 s_prevAimHeld = 0;
                     static u8 s_prevFireHeld = 0;
+                    /* Melee tap/hold timing for the alt-camera attack shim below
+                     * (declared here so the aim-release flush can cancel a
+                     * pending tap pulse). */
+                    static Uint32 s_pcFireDownMs    = 0;
+                    static Uint32 s_pcTapPulseUntil = 0;
                     u16 aimBtn  = g_GameWorkPtr->config.controllerConfig.aim;
                     u16 fireBtn = g_GameWorkPtr->config.controllerConfig.action;
                     bool hasWeapon = (g_SysWork.playerCombat.weaponAttack != (s8)NO_VALUE);
                     bool aimHeld;
                     bool fireHeld;
 
-                    /* TPS mode: mouse-only for aim/fire so LSHIFT can stay
-                     * a pure run modifier (LSHIFT is mapped to R2/aim in
-                     * the PSX-button layer; if we honored that here, aim
-                     * would steal sprint).  Outside TPS keep the keyboard
-                     * mapping (LSHIFT aim, C fire). */
-                    if (g_DebugThirdPersonCam) {
-                        Uint32 mb = SDL_GetMouseState(NULL, NULL);
-                        aimHeld  = (mb & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
-                        fireHeld = (mb & SDL_BUTTON(SDL_BUTTON_LEFT))  != 0;
-                    } else {
-                        aimHeld  = (g_Controller0->heldBtnFlags & aimBtn)  != 0;
-                        fireHeld = (g_Controller0->heldBtnFlags & fireBtn) != 0;
-                    }
+                    /* Aim/fire come straight from the global input word now:
+                     * mouse (Mouse1->Action, Mouse2->Aim via the secondary-bind
+                     * layer), controller (R2/Cross), and keyboard all arrive in
+                     * g_Controller0, so TPS no longer reads SDL mouse state
+                     * itself. LSHIFT==R2 overlaps the run key, but the
+                     * sprint-cancel below drops aim while running. */
+                    aimHeld  = (g_Controller0->heldBtnFlags & aimBtn)  != 0;
+                    fireHeld = (g_Controller0->heldBtnFlags & fireBtn) != 0;
 
-                    /* Sprint overrides weapon ready: running and aiming at
-                     * the same time produces the sprint-in-place bug (D_800C4550
-                     * zeroed by aim path, run anim still plays).  Cancel aim
-                     * when the run button is held. */
-                    static bool s_sprintCancelledAim = false;
-                    if (g_Player_IsRunning) {
+                    /* Free-aim (OTS/TPS): a ranged weapon stays aimed while running
+                     * (move+aim+shoot). Walk speed is forced at the move-speed site
+                     * above so the Run leg anim is never selected — no sprint-in-place
+                     * — which is why the old sprint-cancels-aim latch + AimStop/AimStart
+                     * recovery are no longer needed for guns. Melee has no Aim pose, so
+                     * still drop its "aim" while running to avoid the arm-swinging-in-
+                     * place bug. */
+                    if (g_DebugThirdPersonCam && g_Player_IsRunning &&
+                        g_SysWork.playerCombat.weaponAttack < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)) {
                         aimHeld = false;
                         g_Player_IsAiming = false;
-                        if (hasWeapon) s_sprintCancelledAim = true;
-                    }
-                    /* When sprint ends while the weapon-ready button is still
-                     * physically held, skip the AimStop→AimStart animation delay
-                     * and snap straight back to Aim.  Without this, Harry plays
-                     * the full lower-weapon then raise-weapon sequence (~30 frames)
-                     * before attacks are allowed again. */
-                    else if (s_sprintCancelledAim && !g_Player_IsRunning &&
-                             (g_Controller0->heldBtnFlags & aimBtn) && hasWeapon)
-                    {
-                        s_sprintCancelledAim = false;
-                        aimHeld = true;
-                        g_Player_IsAiming = true;
-                        g_SysWork.playerCombat.isAiming = true;
-                        /* Only snap upper body state for ranged weapons — melee
-                         * weapons (knife, pipe) have no Aim state and snapping
-                         * to it causes the arm-swinging-in-place bug. */
-                        bool isRanged = (g_SavegamePtr->equippedWeapon >= InvItemId_Handgun);
-                        if (isRanged) {
-                            e_PlayerUpperBodyState ubs = g_SysWork.playerWork.extra.upperBodyState;
-                            if (ubs != PlayerUpperBodyState_Aim &&
-                                ubs != PlayerUpperBodyState_Attack &&
-                                ubs != PlayerUpperBodyState_AimTargetLock)
-                            {
-                                g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
-                                extra->model.stateStep    = 0;
-                                extra->model.controlState = 0;
-                            }
-                        } else {
-                            /* Melee: no Aim state, but RunForward upper-body must be
-                             * cleared so the idle pose takes over instead of leaving
-                             * Harry swinging his arms in place. */
-                            e_PlayerUpperBodyState ubsMelee = g_SysWork.playerWork.extra.upperBodyState;
-                            if (ubsMelee == PlayerUpperBodyState_RunForward) {
-                                g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_None;
-                                extra->model.stateStep    = 0;
-                                extra->model.controlState = 0;
-                            } else {
-                            }
-                        }
-                    }
-                    else
-                    {
-                        s_sprintCancelledAim = false;
                     }
 
                     /* Edge-log key state changes so we can see in the log
@@ -1655,6 +2194,12 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * reads PsyCross keyboard mappings. Override the input
                      * flags Player_Controller set if we're in TPS so the
                      * upper-body state machine sees the mouse state. */
+                    /* Published for the multi-tap click queue in
+                     * Player_UpperBodyMainUpdate: alt cameras read the fire
+                     * button straight from SDL, so the pad's action mask never
+                     * sees those presses. */
+                    g_PcAltFireHeld = (g_DebugThirdPersonCam && fireHeld) ? 1 : 0;
+
                     if (g_DebugThirdPersonCam) {
                         g_Player_IsAiming = aimHeld && hasWeapon;
                         if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
@@ -1662,18 +2207,55 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                             g_Player_IsShooting  = fireHeld;
                             g_Player_IsAttacking = fireHeld;
                         } else if (hasWeapon && extra->lowerBodyState >= PlayerLowerBodyState_Aim) {
-                            // Melee in TPS: left-mouse = attack. Bypass the PSX 4-frame
-                            // shift register so the attack fires on press, not after hold.
+                            /* Melee in alt cameras: left-mouse = attack, mirroring the
+                             * PSX shift-register semantics (Player_Controller ~10884)
+                             * with wall-clock timing instead of 30Hz ticks:
+                             *   - held >= 130ms (PSX: 4 ticks) -> IsAttacking = the
+                             *     wide SWIPE at dispatch;
+                             *   - a completed shorter click (PSX: tap pattern with
+                             *     current bit clear) -> a ~100ms IsShooting pulse =
+                             *     the TAP event, dispatching the stab the multi-tap
+                             *     combo chains from (combo window requires
+                             *     MeleeAttackType == 0).
+                             * The old raw-level IsAttacking made every click a swipe,
+                             * so alternate swings could never trigger here. Dispatch
+                             * gate is (IsAttacking || IsShooting), so taps dispatch on
+                             * release exactly like classic/PSX. */
+                            Uint32 pcNowMs = SDL_GetTicks();
+                            if (fireHeld && !s_prevFireHeld) {
+                                s_pcFireDownMs = pcNowMs;
+                            }
+                            if (!fireHeld && s_prevFireHeld && (pcNowMs - s_pcFireDownMs) < 130u) {
+                                s_pcTapPulseUntil = pcNowMs + 100u;
+                            }
                             g_Player_IsHoldAttack = fireHeld ? 0x1F : 0;
-                            g_Player_IsAttacking  = fireHeld ? 1    : 0;
+                            g_Player_IsAttacking  = (fireHeld && (pcNowMs - s_pcFireDownMs) >= 130u) ? 1 : 0;
+                            g_Player_IsShooting   = (pcNowMs < s_pcTapPulseUntil) ? 1 : 0;
                         }
                     }
 
-                    if (g_Player_IsAiming && hasWeapon) {
-                        if (g_Player_IsRunning)
-                            D_800C4550 = Q12(0.0f);
+                    if (g_DebugThirdPersonCam && g_Player_IsAiming && hasWeapon) {
+                        /* (Removed the run+aim D_800C4550=0 freeze: aiming a gun now
+                         * forces walk speed at the move-speed site, so move+aim+shoot
+                         * works without zeroing movement.) */
                         g_SysWork.playerCombat.isAiming = true;
-                        extra->lowerBodyState = PlayerLowerBodyState_Aim;
+                        /* Don't stomp an active swing's lower-body Attack state:
+                         * it carries the swing's root motion (katana forward
+                         * lunge) and the swing-synced lower anim. Forcing Aim
+                         * every frame here killed the lunge in alt cameras and
+                         * let movement fight the swing mid-attack. */
+                        if (extra->lowerBodyState != PlayerLowerBodyState_Attack) {
+                            extra->lowerBodyState = PlayerLowerBodyState_Aim;
+                        }
+                    }
+                    else if (g_DebugThirdPersonCam &&
+                             g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)) {
+                        /* Free-aim gun: aim released (or weapon lost). Clear isAiming
+                         * so the custom upper-body FSM (Pc_FreeAimGunUpperBody) exits
+                         * and the normal movement path resumes. We bypass
+                         * Player_UpperBodyMainUpdate, which is where the PSX path used
+                         * to clear this — without it Harry is stuck aiming forever. */
+                        g_SysWork.playerCombat.isAiming = false;
                     }
 
                     /* Flush PSX shift-register attack bits ONCE when weapon-ready
@@ -1682,9 +2264,14 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * aimHeld=false, which reset IsHoldAttack to 0 mid-hold and
                      * made swipe impossible; and it prevented attacks from working
                      * during the sprint-return frame before aimHeld recovered. */
-                    if (s_prevAimHeld && !aimHeld) {
+                    if (g_DebugThirdPersonCam && s_prevAimHeld && !aimHeld) {
                         g_Player_IsHoldAttack = 0;
                         g_Player_IsAttacking  = 0;
+                        /* Also kill a pending melee tap pulse — a click released
+                         * just before aim dropped must not dispatch a phantom
+                         * swing when aim resumes. */
+                        g_Player_IsShooting   = 0;
+                        s_pcTapPulseUntil     = 0;
                     }
                     s_prevAimHeld  = aimHeld;
                     s_prevFireHeld = fireHeld;
@@ -1693,12 +2280,25 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 /* Set lowerBodyState for footstep sound triggers
                  * (aim state already set above if aiming) */
                 if (!g_Player_IsAiming) {
+                    /* Strafe footsteps (PC): the sidestep / strafe-run anim is driven
+                     * by the stepping globals, not IsMovingForward/Backward, so without
+                     * these branches every strafe fell through to None and the dispatcher
+                     * played no footstep. Mirror the anim selection at 1699-1718 exactly
+                     * (Hold + run + TPS = side-RUN cycle, otherwise the sidestep shuffle). */
+                    bool stepLeft  = g_Player_IsSteppingLeftHold  || g_Player_IsSteppingLeftTap;
+                    bool stepRight = g_Player_IsSteppingRightHold || g_Player_IsSteppingRightTap;
+                    bool runStrafe = g_DebugThirdPersonCam && g_Player_IsRunning &&
+                                     (g_Player_IsSteppingLeftHold || g_Player_IsSteppingRightHold);
                     if (g_Player_IsMovingForward && g_Player_IsRunning)
                         extra->lowerBodyState = PlayerLowerBodyState_RunForward;
                     else if (g_Player_IsMovingForward)
                         extra->lowerBodyState = PlayerLowerBodyState_WalkForward;
                     else if (g_Player_IsMovingBackward)
                         extra->lowerBodyState = PlayerLowerBodyState_WalkBackward;
+                    else if (stepLeft)
+                        extra->lowerBodyState = runStrafe ? PlayerLowerBodyState_RunLeft : PlayerLowerBodyState_SidestepLeft;
+                    else if (stepRight)
+                        extra->lowerBodyState = runStrafe ? PlayerLowerBodyState_RunRight : PlayerLowerBodyState_SidestepRight;
                     else
                         extra->lowerBodyState = PlayerLowerBodyState_None;
                 }
@@ -2971,6 +3571,15 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
             break;
     }
 
+#ifdef SH_PC_PORT
+    /* Free-aim (OTS/TPS): the body already faces the camera (rotation.vy is set
+     * to g_TpsCamYaw by the camera shim). Zero the turn/auto-face delta D_800C454C
+     * so it isn't added on top here — the body stays locked to the camera yaw, no
+     * auto-face toward an enemy (the aim direction is the camera ray instead). */
+    if (g_DebugThirdPersonCam) {
+        D_800C454C = 0;
+    }
+#endif
     player->rotation.vy      = Q12_ANGLE_NORM_U(player->rotation.vy + (D_800C454C >> 4) + Q12_ANGLE(360.0f));
     player->headingAngle     = Q12_ANGLE_NORM_U((player->rotation.vy + g_Player_HeadingAngle) + Q12_ANGLE(360.0f));
     player->moveSpeed        = D_800C4550;
@@ -3186,9 +3795,236 @@ void Player_UpperBodyStateUpdate(s_PlayerExtra* extra, e_PlayerUpperBodyState up
     }
 }
 
+#ifdef SH_PC_PORT
+/* ── Clean PC free-aim (TPS/OTS) gun upper-body FSM ──
+ * Replaces the patched PSX gun-combat path (Player_CombatAnimUpdate + its
+ * blend / keyframe-reset hacks) which wedged the 2nd shot and looped the
+ * shotgun reload at high FPS. Three explicit states drive ONLY the upper body;
+ * the lower body keeps its movement anim, and the steady-aim re-pose block
+ * (Player_Update) holds the AIM pose. Damage / ammo / SFX reuse the existing
+ * (working) dispatch verbatim. Completion is range-based (>=) plus a safety cap
+ * so frame pacing can never strand a state. */
+typedef enum { PcGun_Aim = 0, PcGun_Fire, PcGun_Reload } e_PcGunState;
+
+/* Frames a new shot is locked out after firing — debounces analog-trigger
+ * threshold jitter (a single controller pull crossing the digital threshold
+ * 2-3 times read as 2-3 shots). The release-required edge below is the primary
+ * guard; this just absorbs noise. Frame-based, kept small so semi-auto mashing
+ * is unaffected. */
+#define PC_GUN_REFIRE_SEC  Q12(0.2f)   /* min wall-time between shots */
+#define PC_GUN_MIN_RELEASE Q12(0.05f)  /* trigger must be released this long to re-arm */
+
+static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra, bool freshAim)
+{
+    static e_PcGunState s_state        = PcGun_Aim;
+    static s32          s_stuckTmr     = 0;
+    static bool         s_prevFireHeld = false;
+    static q19_12       s_refireT      = 0;          /* wall-time until the next shot may fire */
+    static q19_12       s_releasedT    = Q12(1.0f);  /* how long fire has been released */
+
+    u8  recoilSt  = (u8)(g_Player_EquippedWeaponInfo.animAttackHold | 1); /* Unk30 active */
+    s16 recoilBeg = HARRY_BASE_ANIM_INFOS[recoilSt].startKeyframeIdx;
+    s16 recoilEnd = HARRY_BASE_ANIM_INFOS[recoilSt].endKeyframeIdx;
+
+    bool fireHeld  = g_Player_IsShooting != 0;
+    /* Semi-auto: fire only on the trigger's rising edge (must release between
+     * shots). Holding the trigger used to auto-refire once per recoil cycle —
+     * at high FPS the recoil cycles fast, so a single controller trigger pull
+     * (held a touch longer than a keyboard tap) loosed 2-3 rounds.
+     * Both anti-double-fire timers are WALL-TIME (g_DeltaTime seconds), not
+     * frame counts — the old 4-frame cooldown was ~16ms at 240 fps and stopped
+     * nothing. The edge additionally requires the trigger to have been released
+     * for a minimum time, absorbing analog chatter and 1-frame IsShooting
+     * dropouts. Neither timer resets on freshAim, so a state-gate blip can't
+     * re-arm an instant second shot. */
+    bool fireEdge;
+    bool reloadReq = PC_PlayerManualReloadRequested();
+    s32  ammo      = g_SysWork.playerCombat.currentWeaponAmmo;
+    s32  reserve   = g_SysWork.playerCombat.totalWeaponAmmo;
+    /* The HyperBlaster is the PSX full-auto exception: it consumes no ammo (the
+     * fire block below already skips the decrement) and has no reload, and on
+     * PSX holding the trigger kept firing once per recoil cycle. The semi-auto
+     * rising-edge rule capped it to one shot per press, and the ammo>0 gate
+     * locked it out entirely (its clip count is 0 and never refills). */
+    bool isHyperBlaster = g_SysWork.playerCombat.weaponAttack ==
+                          WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap);
+
+    if (freshAim)
+    {
+        /* Re-entering the FSM (aim released/blipped mid-reload) must RESUME an
+         * in-flight reload, not stomp back to the aim pose: the stomp cancelled
+         * the reload without refilling, replayed the SFX via the PSX case, and
+         * forced a second full reload (the "double reload on first reload"
+         * report — sibling of the July-06 fire gate blip). */
+        s_state = (extra->upperBodyState == PlayerUpperBodyState_Reload ||
+                   extra->model.anim.status == ANIM_STATUS(HarryAnim_HandgunRecoil, false) ||
+                   extra->model.anim.status == ANIM_STATUS(HarryAnim_HandgunRecoil, true))
+                      ? PcGun_Reload
+                      : PcGun_Aim;
+        s_stuckTmr = 0;
+        s_prevFireHeld = fireHeld;
+    }
+    if (s_refireT > 0) s_refireT -= g_DeltaTime;
+    if (!fireHeld) s_releasedT += g_DeltaTime;
+    fireEdge = fireHeld && !s_prevFireHeld && s_refireT <= 0 && s_releasedT >= PC_GUN_MIN_RELEASE;
+    if (fireHeld) s_releasedT = 0;
+    s_prevFireHeld = fireHeld;
+
+    /* Keep Harry in the combat player-state so the free-aim camera-ray bullet
+     * override (Player_CombatUpdate) runs every frame. That override is gated on
+     * extra->state being None/Combat; the PSX fire path used to set Combat, but
+     * we bypass it, so without this the shot falls back to Harry's body facing
+     * (player->angleToTarget) and only hits enemies directly ahead. Clearing the
+     * auto-target keeps the bullet on the camera ray, not a stale lock. */
+    g_SysWork.playerWork.extra.state = PlayerState_Combat;
+    g_Player_TargetNpcIdx            = NO_VALUE;
+
+    switch (s_state)
+    {
+        default:
+        case PcGun_Aim:
+        {
+            /* Hold the ready pose. Pin the hold anim at the per-weapon keyframe
+             * (the re-pose block draws it) and keep the status non-recoil so the
+             * re-pose applies. */
+            s32 holdKf = Pc_AimHoldKf();
+            extra->upperBodyState         = PlayerUpperBodyState_Aim;
+            extra->model.anim.status      = ANIM_STATUS(HarryAnim_Unk34, true);
+            extra->model.anim.keyframeIdx = holdKf;
+            extra->model.anim.time        = Q12(holdKf);
+            playerProps.flags &= ~PlayerFlag_Shooting;
+
+            if (!isHyperBlaster && reserve > 0 && (reloadReq || (fireEdge && ammo == 0)))
+            {
+                /* Begin reload: play the reload anim (blend->active track) from the
+                 * proven per-weapon keyframes, firing locked out. */
+                extra->upperBodyState         = PlayerUpperBodyState_Reload;
+                extra->model.anim.status      = ANIM_STATUS(HarryAnim_HandgunRecoil, false);
+                extra->model.anim.keyframeIdx = D_800AF624;
+                extra->model.anim.time        = Q12((s32)D_800AF624);
+                func_8005DC1C(g_Player_EquippedWeaponInfo.reloadSfx, &player->position, Q8(0.5f), 0);
+                player->properties.player.field_10C = 0x20;
+                s_state    = PcGun_Reload;
+                s_stuckTmr = 0;
+                break;
+            }
+
+            /* HyperBlaster fires full-auto: fire while held, once per recoil
+             * cycle (the FSM only re-enters Aim after the recoil ends), with the
+             * wall-time refire floor as the rate cap. All other guns stay
+             * semi-auto (release-required rising edge) and need ammo. */
+            if (isHyperBlaster ? (fireHeld && s_refireT <= 0) : (fireEdge && ammo > 0))
+            {
+                /* Fire: the existing (working) damage trigger + ammo + SFX. */
+                s_refireT = PC_GUN_REFIRE_SEC;
+                player->field_44.field_0 = 1;
+                if (g_SysWork.playerCombat.weaponAttack != WEAPON_ATTACK(EquippedWeaponId_HyperBlaster, AttackInputType_Tap))
+                {
+                    g_SysWork.playerCombat.currentWeaponAmmo--;
+                    g_SavegamePtr->items[g_SysWork.playerCombat.weaponInventoryIdx].count_1--;
+                    func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx, &player->position, Q8(0.5f), 0);
+                }
+                else
+                {
+                    func_8005DC1C(g_Player_EquippedWeaponInfo.attackSfx, &player->position, Q8_CLAMPED(0.19f), 0);
+                }
+                player->properties.player.field_10C = 0xC8;
+                playerProps.flags |= PlayerFlag_Shooting;
+
+                extra->upperBodyState = PlayerUpperBodyState_Attack;
+                if (recoilBeg > 0)
+                {
+                    extra->model.anim.status      = recoilSt;
+                    extra->model.anim.keyframeIdx = recoilBeg;
+                    extra->model.anim.time        = Q12((s32)recoilBeg);
+                }
+                s_state    = PcGun_Fire;
+                s_stuckTmr = 0;
+            }
+            break;
+        }
+
+        case PcGun_Fire:
+            /* One recoil per shot; back to ready when it ends (fire again next
+             * frame if still held). Done = recoil reached its end keyframe OR the
+             * playback linked the status away (direction-agnostic) OR safety cap. */
+            extra->upperBodyState = PlayerUpperBodyState_Attack;
+            if (recoilEnd <= 0 || extra->model.anim.keyframeIdx >= recoilEnd ||
+                extra->model.anim.status != recoilSt || ++s_stuckTmr > 180)
+            {
+                s_state    = PcGun_Aim;
+                s_stuckTmr = 0;
+            }
+            break;
+
+        case PcGun_Reload:
+            extra->upperBodyState = PlayerUpperBodyState_Reload;
+            /* PSX plays the keyframe track continuously through the blend (false)
+             * into the active reload (true); advance the status at the blend end. */
+            if (extra->model.anim.status == ANIM_STATUS(HarryAnim_HandgunRecoil, false))
+            {
+                s16 blendEnd = HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_HandgunRecoil, false)].endKeyframeIdx;
+                if (blendEnd > 0 && extra->model.anim.keyframeIdx >= blendEnd)
+                    extra->model.anim.status = ANIM_STATUS(HarryAnim_HandgunRecoil, true);
+            }
+            if ((D_800AF626 > 0 && extra->model.anim.keyframeIdx >= D_800AF626) || ++s_stuckTmr > 600)
+            {
+                if (g_SysWork.playerCombat.totalWeaponAmmo != 0)
+                {
+                    s32 cur = g_SysWork.playerCombat.currentWeaponAmmo;
+                    s32 tot = g_SysWork.playerCombat.totalWeaponAmmo;
+                    s32 i;
+                    Items_AmmoReloadCalculation(&cur, &tot, g_SysWork.playerCombat.weaponAttack);
+                    g_SysWork.playerCombat.currentWeaponAmmo = cur;
+                    g_SysWork.playerCombat.totalWeaponAmmo   = tot;
+                    for (i = 0; i < INV_ITEM_COUNT_MAX; i++)
+                    {
+                        if (g_SavegamePtr->items[i].id_0 == (g_SysWork.playerCombat.weaponAttack + InvItemId_KitchenKnife))
+                            g_SavegamePtr->items[i].count_1 = g_SysWork.playerCombat.currentWeaponAmmo;
+                        if (g_SavegamePtr->items[i].id_0 == (g_SysWork.playerCombat.weaponAttack + InvItemId_Handgun))
+                            g_SavegamePtr->items[i].count_1 = g_SysWork.playerCombat.totalWeaponAmmo;
+                    }
+                }
+                s_state    = PcGun_Aim;
+                s_stuckTmr = 0;
+            }
+            break;
+    }
+}
+#endif
+
 void Player_UpperBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x80074254
 {
     s32 stumbleSfxId;
+
+#ifdef SH_PC_PORT
+    /* Free-aim (TPS/OTS) guns run the dedicated clean upper-body FSM instead of
+     * the patched PSX gun-combat path. Gate on actively aiming a ranged weapon;
+     * melee, holstered, and classic camera keep the original logic. */
+    {
+        static u8 s_pcGunWasAiming = 0;
+        /* Gate on the combat state OR the raw aim input: if isAiming blips false
+         * for a frame while the aim button is still held (state-machine churn
+         * during rapid fire), falling through to the PSX gun path for that frame
+         * fired an ungated extra shot and cleared isAiming (the "kicked out of
+         * zoom while mashing fire" report). The input flag keeps the FSM in
+         * control across such blips; releasing aim still exits normally. */
+        if (g_DebugThirdPersonCam &&
+            (g_SysWork.playerCombat.isAiming || g_Player_IsAiming ||
+             /* Reloads are uninterruptible on PSX: keep the FSM owning an
+              * in-flight reload even if aim drops, so the PSX case Reload
+              * never runs a frame of it (double-SFX + anim restart). */
+             g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Reload) &&
+            g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
+        {
+            bool fresh = !s_pcGunWasAiming;
+            s_pcGunWasAiming = 1;
+            Pc_FreeAimGunUpperBody(player, extra, fresh);
+            return;
+        }
+        s_pcGunWasAiming = 0;
+    }
+#endif
 
     if (Player_UpperBodyMainUpdate(player, extra))
     {
@@ -3394,6 +4230,20 @@ static bool Player_CombatAnimUpdate(s_SubCharacter* player, s_PlayerExtra* extra
             D_800C44D0 = HARRY_BASE_ANIM_INFOS[g_Player_AttackAnimIdx].startKeyframeIdx + D_800AD4C8[g_SysWork.playerCombat.weaponAttack].field_E;
             D_800C44D4 = HARRY_BASE_ANIM_INFOS[g_Player_AttackAnimIdx].startKeyframeIdx + D_800AD4C8[g_SysWork.playerCombat.weaponAttack].field_E +
                          D_800AD4C8[g_SysWork.playerCombat.weaponAttack].field_F;
+#ifdef SH_PC_PORT
+            /* Instant fire (free-aim): jump the recoil anim straight to the damage
+             * window start so the bullet dispatches THIS frame (the keyframe check
+             * at ~3752/3790 passes immediately), then the recoil plays out from the
+             * shot. This is in the controlState==0 Attack-entry block, so it runs
+             * once on the press — NOT every frame (which would stall recoil at the
+             * damage frame). Ranged + OTS/TPS only; melee untouched. */
+            if (g_DebugThirdPersonCam && D_800C44D0 > 0 &&
+                g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
+            {
+                extra->model.anim.keyframeIdx = D_800C44D0;
+                extra->model.anim.time        = Q12((s32)D_800C44D0);
+            }
+#endif
         }
 
         // Used for make continuos/hold shooting smoother?
@@ -3525,7 +4375,19 @@ static bool Player_CombatAnimUpdate(s_SubCharacter* player, s_PlayerExtra* extra
 
             if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
             {
-                if (playerProps.flags & PlayerFlag_Unk11)
+                if ((playerProps.flags & PlayerFlag_Unk11)
+#ifdef SH_PC_PORT
+                    /* TPS/OTS instant fire: Harry already holds the gun extended at
+                     * the aim-hold (kf591), so route EVERY shot — including the first
+                     * — through the short Unk30 recoil instead of the full Unk36
+                     * (gun raise + extend + recoil). The bullet then dispatches as the
+                     * recoil starts (kf ~593->594 damage window) instead of after the
+                     * 12-frame raise windup — that windup is the "animation finishes
+                     * before he fires" delay. The recoil anim itself still plays
+                     * (unchanged); between-shots cadence is still its length. */
+                    || g_DebugThirdPersonCam
+#endif
+                   )
                 {
                     if (extra->model.stateStep == 0)
                     {
@@ -3718,25 +4580,9 @@ static bool Player_CombatAnimUpdate(s_SubCharacter* player, s_PlayerExtra* extra
                     }
 
                     player->properties.player.field_10C = 0xC8;
-#ifdef SH_PC_PORT
-                    SH_DBG("[AMMO] fire: clip=%d reserve=%d weap=%d",
-                           (int)g_SysWork.playerCombat.currentWeaponAmmo,
-                           (int)g_SysWork.playerCombat.totalWeaponAmmo,
-                           (int)g_SysWork.playerCombat.weaponAttack);
-#endif
                 }
                 else
                 {
-#ifdef SH_PC_PORT
-                    /* Dry fire. The auto-reload decision happens on the NEXT
-                     * trigger pull in the Aim dispatch (~line 5500); log the
-                     * inputs it will see so a failed condition is visible. */
-                    SH_DBG("[AMMO] DRY-FIRE: clip=0 reserve=%d equipped=%d group=%d upper=%d",
-                           (int)g_SysWork.playerCombat.totalWeaponAmmo,
-                           (int)g_SavegamePtr->equippedWeapon,
-                           (int)INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon),
-                           (int)g_SysWork.playerWork.extra.upperBodyState);
-#endif
                     func_8005DC1C(g_Player_EquippedWeaponInfo.outOfAmmoSfx, &player->position, Q8(0.5f), 0);
 
                     player->properties.player.field_10C = 32;
@@ -3811,15 +4657,16 @@ static bool Player_CombatAnimUpdate(s_SubCharacter* player, s_PlayerExtra* extra
             {
                 if (
 #ifdef SH_PC_PORT
-                    /* Skip the early field_6 transition during multi-tap so the
-                     * full swing-down anim plays. For knife: kf advances 596→611
-                     * but D_800C44F0[2].field_6=598 — without this gate the
-                     * transition fires only 2 kf into the multi-tap anim, leaving
-                     * Harry with the knife raised at the windup position and
-                     * never showing the actual strike. pcAttackDone (at kf>=611)
-                     * still triggers the transition at the natural anim end. */
-                    (g_Player_MeleeAttackType != 2 && extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_6)
-                    || pcAttackDone
+                    /* Rely SOLELY on pcAttackDone (derived from the verified-good
+                     * HARRY_BASE_ANIM_INFOS endKeyframeIdx). The old
+                     * `keyframeIdx == D_800C44F0[..].field_6` term read the corrupt
+                     * PC-reconstructed D_800294F4 table: e.g. for the SteelPipe it
+                     * yields 597, which lands INSIDE the 584->613 swing and cut the
+                     * swing at waist height. The outer guard only admits the active
+                     * swing statuses (Unk29/Unk30/HandgunRecoil = 59/61/63), all
+                     * covered by pcAttackDone, which fires at each swing's true end
+                     * keyframe — full arc to the ground, FPS-independent. */
+                    pcAttackDone
 #else
                     extra->model.anim.keyframeIdx == D_800C44F0[D_800AF220].field_6
 #endif
@@ -4067,15 +4914,35 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
      *     up and dispense as extra swings the moment the player stops sprinting.
      *   - Clear stale queue whenever no melee weapon is equipped, so a
      *     previously-buffered click can't carry across weapon swaps. */
+    /* s_pcMtClickQueue lives at file scope here (see the un-nesting note above):
+     * Player_CombatAnimUpdate is no longer nested inside this function, so a
+     * block-scope static would be shadowed away from the consumer that decrements
+     * it on slash-start — the queue would fill here and never drain there. */
     {
         s8 wa = g_SysWork.playerCombat.weaponAttack;
         bool meleeReady = (wa != (s8)NO_VALUE) &&
                           (wa < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap));
         u16 actionMask = g_GameWorkPtr->config.controllerConfig.action;
 
+        /* Alt cameras fire with the SDL-read mouse/bind (g_PcAltFireHeld),
+         * which never reaches the pad's action mask — the queue stayed empty
+         * there and multi-tap combos could not trigger. Same edge/held
+         * semantics from whichever source is live. */
+        extern int g_PcAltFireHeld;
+        static int s_pcPrevAltFire = 0;
+        int fireHeldNow, fireClickedNow;
+        if (g_DebugThirdPersonCam) {
+            fireHeldNow    = g_PcAltFireHeld;
+            fireClickedNow = g_PcAltFireHeld && !s_pcPrevAltFire;
+        } else {
+            fireHeldNow    = (g_Controller0->heldBtnFlags & actionMask) != 0;
+            fireClickedNow = (g_Controller0->clickedBtnFlags & actionMask) != 0;
+        }
+        s_pcPrevAltFire = g_PcAltFireHeld;
+
         /* Fresh rising edge re-arms melee dispatch (clears the post-swing
          * "needs release" latch). See latch comment near declaration. */
-        if (g_Controller0->clickedBtnFlags & actionMask) {
+        if (fireClickedNow) {
             s_pcMeleeNeedsRelease = false;
         }
 
@@ -4083,10 +4950,17 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
          * Suppressing increments isn't enough — a click pressed BEFORE the
          * user starts sprinting would already be queued, then dispense the
          * moment sprint ends. Same for weapon swaps. Clearing each frame
-         * the gate fails guarantees no stale clicks survive a state change. */
-        if (!meleeReady || g_Player_IsRunning) {
+         * the gate fails guarantees no stale clicks survive a state change.
+         *
+         * Also flush the instant the attack button is RELEASED: buffered taps
+         * only survive while it's held. Without this, rapidly spamming attack
+         * then letting go leaves several queued clicks that keep dispatching
+         * "phantom" swings for a second or two (the PSX original required the
+         * attack to be live at the multi-tap window, so it stopped on release).
+         * Hold-to-repeat is unaffected — that runs through the dispatch gate. */
+        if (!meleeReady || g_Player_IsRunning || !fireHeldNow) {
             s_pcMtClickQueue = 0;
-        } else if (g_Controller0->clickedBtnFlags & actionMask) {
+        } else if (fireClickedNow) {
             if (s_pcMtClickQueue < 8) s_pcMtClickQueue++;
         }
     }
@@ -4690,6 +5564,40 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                         player->field_44.field_0 = 1;
                     }
                 }
+#ifdef SH_PC_PORT
+                /* Same high-FPS keyframe-skip guard as the non-gas else path below:
+                 * at uncapped FPS the gas-weapon aim-start anim (HandgunAim fueling,
+                 * or Unk33 when already fuelled) steps OVER D_800C44F0[..].field_6 in
+                 * one frame, so the == checks never matched and the chainsaw / rock
+                 * drill got stuck in AimStart — the pose was held but Aim was never
+                 * reached, so they never fired. Detect "reached or passed" the active
+                 * anim's end keyframe. func_8004C564(,1) only on the HandgunAim
+                 * (fuelling) completion, matching the == D_800C44F0[0] case above. */
+                else if (extra->model.anim.status < 76)
+                {
+                    const s_AnimInfo* info = &HARRY_BASE_ANIM_INFOS[extra->model.anim.status];
+                    bool isBackward = !info->hasVariableDuration && info->duration.constant < 0;
+                    s16 doneKf = isBackward ? info->startKeyframeIdx : info->endKeyframeIdx;
+                    bool reached = isBackward ? (extra->model.anim.keyframeIdx <= doneKf)
+                                              : (extra->model.anim.keyframeIdx >= doneKf);
+                    if (doneKf > 0 && reached)
+                    {
+                        if (ANIM_STATUS_IDX_GET(extra->model.anim.status) == HarryAnim_HandgunAim)
+                        {
+                            func_8004C564(g_SysWork.playerCombat.weaponAttack, 1);
+                        }
+
+                        g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
+                        extra->model.controlState = extra->model.stateStep = 0;
+                        playerProps.flags &= ~PlayerFlag_Unk2;
+
+                        if (playerProps.gasWeaponPowerTimer != Q12(0.0f))
+                        {
+                            player->field_44.field_0 = 1;
+                        }
+                    }
+                }
+#endif
             }
             else
             {
@@ -4705,7 +5613,15 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                     const s_AnimInfo* info = &HARRY_BASE_ANIM_INFOS[extra->model.anim.status];
                     bool isBackward = !info->hasVariableDuration && info->duration.constant < 0;
                     s16 doneKf = isBackward ? info->startKeyframeIdx : info->endKeyframeIdx;
-                    if (doneKf > 0 && extra->model.anim.keyframeIdx == doneKf)
+                    /* "reached or passed", NOT ==: at uncapped FPS the aim-start anim
+                     * steps OVER doneKf in a single frame, so == never matched and
+                     * Harry got stuck in AimStart — the aim pose is held but the
+                     * aim-RELEASE check only runs in the Aim state, so isAiming never
+                     * cleared ("stuck aiming even when not aiming"). Forward playback
+                     * ends at/above endKf; backward ends at/below startKf. */
+                    bool reached = isBackward ? (extra->model.anim.keyframeIdx <= doneKf)
+                                              : (extra->model.anim.keyframeIdx >= doneKf);
+                    if (doneKf > 0 && reached)
                     {
                         g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
                     }
@@ -5074,8 +5990,11 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
                  * 588→580 over ~14 PC frames, giving a smooth "gun comes back
                  * to ready" tail to the reload instead of a snap. */
                 extra->model.anim.status                              = ANIM_STATUS(HarryAnim_Unk34, true);
-                extra->model.anim.keyframeIdx                         = 588;
-                extra->model.anim.time                                = Q12(588);
+                {
+                    s32 _holdKf = Pc_AimHoldKf();
+                    extra->model.anim.keyframeIdx                     = _holdKf;
+                    extra->model.anim.time                            = Q12(_holdKf);
+                }
 #else
                 extra->model.anim.status                              = ANIM_STATUS(HarryAnim_HandgunAim, true);
                 extra->model.anim.keyframeIdx                         = 588;
@@ -5122,6 +6041,23 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
     s32 totalAmmoVar;
     s32 i;
 
+#ifdef SH_PC_PORT
+    /* Free-aim run-then-aim fix: pressing aim while ALREADY running leaves the
+     * upper body in a Run* state, which the aim-entry switch below doesn't list
+     * (classic makes you stop to aim) — so aim never engaged and you just slowed
+     * down. In TPS/OTS with a gun, treat a Run* upper body as Walk so it falls
+     * into the aim-entry case and snaps to the ready pose, identical whether you
+     * started walking or running. Classic (g_DebugThirdPersonCam==0) untouched. */
+    if (g_DebugThirdPersonCam && g_Player_IsAiming &&
+        g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_KitchenKnife, AttackInputType_Tap) &&
+        (g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_RunForward ||
+         g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_RunRight ||
+         g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_RunLeft))
+    {
+        g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_WalkForward;
+    }
+#endif
+
     // Lock player view onto enemy.
     switch (g_SysWork.playerWork.extra.upperBodyState)
     {
@@ -5166,6 +6102,33 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                         }
                     }
 
+#ifdef SH_PC_PORT
+                    if (g_DebugThirdPersonCam &&
+                        g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
+                    {
+                        /* Instant aim-in (free-aim): skip the AimStart raise windup AND
+                         * the auto-target lock. Snap straight to the steady Unk34(true)
+                         * gun-forward hold at the per-weapon ready keyframe (Pc_AimHoldKf).
+                         * The steady-aim HOLD (Unk34 plays backward and would
+                         * otherwise drift to ~580) is enforced after Player_AnimUpdate.
+                         * stateStep=1 stops the Aim case re-issuing the slow Unk34(false)
+                         * raise. Aim DIRECTION comes from the camera ray in
+                         * Player_CombatUpdate; auto-face (D_800C454C) is suppressed. */
+                        g_SysWork.targetNpcIdx = NO_VALUE;
+                        g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_Aim;
+                        extra->model.stateStep    = 1;
+                        extra->model.controlState = 0;
+                        extra->model.anim.status  = ANIM_STATUS(HarryAnim_Unk34, true);
+                        {
+                            s32 _holdKf = Pc_AimHoldKf();
+                            extra->model.anim.keyframeIdx = _holdKf;
+                            extra->model.anim.time        = Q12(_holdKf);
+                        }
+                        playerProps.field_122 = Q12_ANGLE(90.0f);
+                    }
+                    else
+#endif
+                    {
                     g_SysWork.targetNpcIdx = g_Player_TargetNpcIdx;
                     if (g_SysWork.targetNpcIdx == NO_VALUE)
                     {
@@ -5176,6 +6139,7 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                     {
                         g_SysWork.playerWork.extra.state          = PlayerState_Combat;
                         g_SysWork.playerWork.extra.upperBodyState = PlayerUpperBodyState_AimStartTargetLock;
+                    }
                     }
 
                     if (g_SysWork.playerWork.extra.lowerBodyState == PlayerLowerBodyState_None)
@@ -5540,20 +6504,6 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
 
                 if (g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
                 {
-#ifdef SH_PC_PORT
-                    /* Log the auto-reload decision whenever the clip is empty,
-                     * including the failing condition when it does NOT enter. */
-                    if (g_SysWork.playerCombat.currentWeaponAmmo == 0)
-                    {
-                        SH_DBG("[AMMO] auto-reload check: reserve=%d equipped=%d group=%d (gun-group=%d) -> %s",
-                               (int)g_SysWork.playerCombat.totalWeaponAmmo,
-                               (int)g_SavegamePtr->equippedWeapon,
-                               (int)INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon),
-                               (int)InvItemGroup_GunWeapons,
-                               (INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon) == InvItemGroup_GunWeapons &&
-                                g_SysWork.playerCombat.totalWeaponAmmo != 0) ? "RELOAD" : "no-reload");
-                    }
-#endif
                     if (g_SysWork.playerCombat.currentWeaponAmmo == 0 &&
                         INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon) == InvItemGroup_GunWeapons &&
                         g_SysWork.playerCombat.totalWeaponAmmo != 0)
@@ -5579,7 +6529,6 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                                 extra->model.anim.keyframeIdx = reloadStartKf;
                                 extra->model.anim.time        = Q12((s32)reloadStartKf);
                             }
-                            SH_DBG("[AMMO] auto-reload ENTER: seeded kf=%d", (int)reloadStartKf);
                         }
 #endif
 
@@ -5890,7 +6839,13 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                 {
                     if ((aimState == 0 && playerProps.moveSpeed == Q12(0.0f))||
                         player->model.anim.status >= ANIM_STATUS(HarryAnim_Unk29, false) ||
-                        SH_AIM_KF_REACHED_P(D_800C44F0[0].field_6))
+                        SH_AIM_KF_REACHED_P(D_800C44F0[0].field_6) ||
+                        /* PC: aim-at-nothing reaches its aim-ready pose on the [5]
+                         * keyframe, not [0]; without this the idle-aim -> aim-walk
+                         * transition never fired when not locked onto an enemy, so
+                         * you could not start walking after aiming from a standstill.
+                         * Mirrors the locked-on (Combat) branch which already checks [5]. */
+                        SH_AIM_KF_REACHED_P(D_800C44F0[5].field_6))
                     {
                         if (g_Player_IsMovingForward)
                         {
@@ -6333,8 +7288,30 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                         break;
 
                     case PlayerLowerBodyState_RunForward:
-                        if (player->properties.player.runDistance >= (u32)Q12(10.0f))
+                        if (player->properties.player.runDistance >= (u32)Q12(10.0f)
+#ifdef SH_PC_PORT
+                            /* Invisible-wall ROOT FIX: only play the run-into-wall
+                             * "hands up + stop" (RunForwardWallStop) when Harry is
+                             * ACTUALLY blocked this frame, not merely because the
+                             * forward-anticipation raycast (func_8007D6F0) saw a surface
+                             * ahead. travelDistStep is his realized per-frame displacement;
+                             * g_Player_LastMoveStep is what that SAME integration intended
+                             * before collision clamped it, so this is a dt/speed/tilt-
+                             * consistent "blocked to under half my step" test. On open
+                             * ground he keeps moving so the smack is suppressed; a real
+                             * wall collides his movement to ~0 first, so it still fires. */
+                            && travelDistStep < (g_Player_LastMoveStep >> 1)
+#endif
+                            )
                         {
+#ifdef SH_PC_PORT
+                            SH_DBG("[WALLANIM] pathA travel=%d intended=%d runDist=%d spdProp=%d spdTop=%d dt=%d rayHit=%d rayAng=%d rayGH=%d pos=(%d,%d)",
+                                   (int)travelDistStep, (int)g_Player_LastMoveStep,
+                                   (int)player->properties.player.runDistance,
+                                   (int)playerProps.moveSpeed, (int)player->moveSpeed, (int)g_DeltaTime,
+                                   (int)g_Player_WallRayHitDist, (int)g_Player_WallRayAngleDelta, (int)g_Player_WallRayGroundHeight,
+                                   (int)player->position.vx, (int)player->position.vz);
+#endif
                             g_SysWork.playerWork.extra.lowerBodyState = PlayerLowerBodyState_RunForwardWallStop;
                         }
                         else if (player->model.anim.keyframeIdx >= 30 &&
@@ -6381,12 +7358,24 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                                 if (player->model.anim.keyframeIdx >= 33 &&
                                     player->model.anim.keyframeIdx <= 34)
                                 {
+#ifdef SH_PC_PORT
+                                    SH_DBG("[WALLANIM] pathB kf=%d travel=%d intended=%d runStepSfx=%d spdProp=%d pos=(%d,%d)",
+                                           (int)player->model.anim.keyframeIdx, (int)travelDistStep, (int)g_Player_LastMoveStep,
+                                           (int)player->properties.player.runStepSfxCount, (int)playerProps.moveSpeed,
+                                           (int)player->position.vx, (int)player->position.vz);
+#endif
                                     g_SysWork.playerWork.extra.lowerBodyState             = PlayerLowerBodyState_RunForwardWallStop;
                                     playerProps.flags &= ~PlayerFlag_WallStopRight;
                                 }
                                 else if (player->model.anim.keyframeIdx >= 43 &&
                                          player->model.anim.keyframeIdx <= 44)
                                 {
+#ifdef SH_PC_PORT
+                                    SH_DBG("[WALLANIM] pathB kf=%d travel=%d intended=%d runStepSfx=%d spdProp=%d pos=(%d,%d)",
+                                           (int)player->model.anim.keyframeIdx, (int)travelDistStep, (int)g_Player_LastMoveStep,
+                                           (int)player->properties.player.runStepSfxCount, (int)playerProps.moveSpeed,
+                                           (int)player->position.vx, (int)player->position.vz);
+#endif
                                     g_SysWork.playerWork.extra.lowerBodyState             = PlayerLowerBodyState_RunForwardWallStop;
                                     playerProps.flags |= PlayerFlag_WallStopRight;
                                 }
@@ -7476,7 +8465,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                         player->model.stateStep++;
                     }
 
-                    if (player->model.anim.keyframeIdx == D_800C44F0[0].field_6 || player->model.anim.keyframeIdx == D_800C44F0[5].field_6)
+                    if (SH_AIM_KF_REACHED_P(D_800C44F0[0].field_6) || SH_AIM_KF_REACHED_P(D_800C44F0[5].field_6))
                     {
                         player->model.anim.status      = extra->model.anim.status;
                         player->model.anim.keyframeIdx = extra->model.anim.keyframeIdx;
@@ -7551,7 +8540,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
                  WEAPON_ATTACK_ID_GET(g_SysWork.playerCombat.weaponAttack) != EquippedWeaponId_Katana))
             {
                 if (ANIM_STATUS_IS_ACTIVE(player->model.anim.status) && ANIM_STATUS_IS_ACTIVE(extra->model.anim.status) &&
-                    (player->model.anim.status >= ANIM_STATUS(HarryAnim_Unk29, false) || player->model.anim.keyframeIdx == D_800C44F0[0].field_6))
+                    (player->model.anim.status >= ANIM_STATUS(HarryAnim_Unk29, false) || SH_AIM_KF_REACHED_P(D_800C44F0[0].field_6)))
                 {
                     if (!g_Player_IsMovingForward)
                     {
@@ -7599,7 +8588,7 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
             }
 
             if (ANIM_STATUS_IS_ACTIVE(player->model.anim.status) && ANIM_STATUS_IS_ACTIVE(extra->model.anim.status) &&
-                (player->model.anim.status >= ANIM_STATUS(HarryAnim_Unk29, false) || player->model.anim.keyframeIdx == D_800C44F0[0].field_6))
+                (player->model.anim.status >= ANIM_STATUS(HarryAnim_Unk29, false) || SH_AIM_KF_REACHED_P(D_800C44F0[0].field_6)))
             {
                 if (g_Player_IsMovingForward)
                 {
@@ -7951,6 +8940,13 @@ void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
 
     temp_s0_2 = Q12_MULT_PRECISE(player->moveSpeed, g_DeltaTime);
 
+#ifdef SH_PC_PORT
+    /* Intended horizontal step this frame, before collision clamps `offset`.
+     * The RunForward wall-smack gate compares the realized displacement against
+     * half of this. See g_Player_LastMoveStep. */
+    g_Player_LastMoveStep = ABS(temp_s0_2);
+#endif
+
     temp_v0_3 = player->headingAngle;
     temp      = temp_s0_2 + SHRT_MAX;
     temp_s2_2 = (temp > (SHRT_MAX * 2)) * 4;
@@ -8015,6 +9011,16 @@ void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
         q19_12 maxUpDelta   = TIMESTEP_SCALE_60_FPS(g_DeltaTime, Q12(1.5f));
 
         if (newGround == Q12(8.0f)) {
+            D_800C4590.surface.groundHeight = prevGround;
+        } else if (newGround < player->position.vy - Q12(2.0f)) {
+            extern int g_PhantomRejectCount; g_PhantomRejectCount++;
+            /* Phantom floor far ABOVE Harry's feet (-Y is up): a surface 2+ units
+             * over his head is not a floor he's standing on. The map2_s00 kitchen
+             * spot has one whose ground flips -11840<->0 (~2.9u up) as you cross it;
+             * selecting it snaps his ground/Y up and hitches the sprint == invisible
+             * wall on flat floor. Compared to his actual Y (not a per-frame delta)
+             * so it also catches the 30fps case where the climb limit is looser.
+             * Keep the real floor he was already on. */
             D_800C4590.surface.groundHeight = prevGround;
         } else {
             s32 delta = newGround - prevGround;
@@ -8527,6 +9533,16 @@ void Player_ReceiveDamage(s_SubCharacter* player, s_PlayerExtra* extra) // 0x800
 
     if (player->damage.amount != Q12(0.0f))
     {
+#ifdef SH_PC_PORT
+        /* god mode (`god` console cmd): absorb the hit before it reaches HP. The
+         * flinch/SFX below still fire so a landed hit still reads, but health is
+         * never reduced. */
+        {
+            extern int g_PcGodMode;
+            if (g_PcGodMode)
+                player->damage.amount = Q12(0.0f);
+        }
+#endif
         playerProps.flags &= ~PlayerFlag_Unk2;
         if (!(playerProps.flags & PlayerFlag_DamageReceived))
         {
@@ -8560,6 +9576,15 @@ void Player_ReceiveDamage(s_SubCharacter* player, s_PlayerExtra* extra) // 0x800
             player->health = NO_VALUE;
             g_Player_IsDead  = true;
         }
+
+#ifdef SH_PC_PORT
+        /* Randomizer score penalty: the damage actually deducted, after the
+         * difficulty scaling above. No-op unless a run is live. */
+        {
+            extern void Pc_Rando_OnDamageTaken(s32 amount);
+            Pc_Rando_OnDamageTaken(player->damage.amount);
+        }
+#endif
 
         func_800893D0(player->damage.amount);
         player->damage.amount = Q12(0.0f);
@@ -8744,8 +9769,23 @@ void func_8007D090(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
 
                 // Apply flex rotation to torso and arms.
                 func_80044F14(&coords[HarryBone_Torso], Q12_ANGLE(0.0f), g_Player_FlexRotationX >> 1, g_Player_FlexRotationY);
+#ifdef SH_PC_PORT
+                /* COMPOSE the upper-arm elevation onto the animated arm pose rather
+                 * than OVERWRITING it. Math_RotMatrixZ replaces the bone's whole
+                 * local rotation with a pure Z-rotation; on PSX the upper-arm's
+                 * animated local rotation is ~identity (the arm pose lives on the
+                 * shoulder/forearm) so overwrite == compose, but on our reformatted
+                 * anim data the upper arm CARRIES the pose, so overwriting reverts
+                 * it toward bind -> the arms snap out into a T-pose. func_80044F14
+                 * with rotZ builds the identical Z matrix (Math_RotMatrixZxyNeg
+                 * reduces to it when rotX=rotY=0) but MulMatrix-composes it,
+                 * preserving the anim's gun-forward pose and adding the elevation. */
+                func_80044F14(&coords[HarryBone_LeftUpperArm],  g_Player_FlexRotationX >> 1, Q12_ANGLE(0.0f), Q12_ANGLE(0.0f));
+                func_80044F14(&coords[HarryBone_RightUpperArm], g_Player_FlexRotationX >> 1, Q12_ANGLE(0.0f), Q12_ANGLE(0.0f));
+#else
                 Math_RotMatrixZ(g_Player_FlexRotationX >> 1, &coords[HarryBone_LeftUpperArm].coord);
                 Math_RotMatrixZ(g_Player_FlexRotationX >> 1, &coords[HarryBone_RightUpperArm].coord);
+#endif
             }
             break;
 
@@ -8800,8 +9840,16 @@ void func_8007D090(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
 
             // Apply flex rotation to torso and arms.
             func_80044F14(&coords[HarryBone_Torso], Q12_ANGLE(0.0f), g_Player_FlexRotationX >> 1, g_Player_FlexRotationY);
+#ifdef SH_PC_PORT
+            /* Compose (not overwrite) the upper-arm rotation -- see the Combat case
+             * above. Here flex decays to 0 in the None state, so this is a no-op on
+             * the arms while walking; overwriting would T-pose them every frame. */
+            func_80044F14(&coords[HarryBone_LeftUpperArm],  g_Player_FlexRotationX >> 1, Q12_ANGLE(0.0f), Q12_ANGLE(0.0f));
+            func_80044F14(&coords[HarryBone_RightUpperArm], g_Player_FlexRotationX >> 1, Q12_ANGLE(0.0f), Q12_ANGLE(0.0f));
+#else
             Math_RotMatrixZ(g_Player_FlexRotationX >> 1, &coords[HarryBone_LeftUpperArm].coord);
             Math_RotMatrixZ(g_Player_FlexRotationX >> 1, &coords[HarryBone_RightUpperArm].coord);
+#endif
             break;
 
         case PlayerState_Unk180:
@@ -8896,6 +9944,12 @@ s32 func_8007D6F0(s_SubCharacter* player, s_800C45C8* arg1) // 0x8007D6F0
 
             angle      = Q12_ANGLE_NORM_U(((rays[0].field_1C + rays[1].field_1C) >> 1) + Q12_ANGLE(360.0f));
             angleDelta = ABS_DIFF(angle, player->headingAngle);
+
+#ifdef SH_PC_PORT
+            g_Player_WallRayHitDist      = arg1->field_14;
+            g_Player_WallRayAngleDelta   = angleDelta;
+            g_Player_WallRayGroundHeight = rays[0].groundHeight;
+#endif
 
             if (angleDelta > Q12_ANGLE(160.0f) && angleDelta < Q12_ANGLE(200.0f))
             {
@@ -9018,6 +10072,90 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
             {
                 unkAngle = Q12_ANGLE(33.75f);
             }
+
+#ifdef SH_PC_PORT
+            /* Free-aim (OTS/TPS): override the auto-target/facing aim with the
+             * CAMERA RAY so the bullet + muzzle particle go where the reticle
+             * (screen center = camera forward) points. Raycast from the camera eye
+             * along its forward; the hit point (or a far point if nothing is hit)
+             * is the aim target, and we aim Harry's hand AT it (converges past the
+             * OTS shoulder offset). Forcing D_800C4554/D_800C4556=NO_VALUE makes the
+             * damage dispatch (~9337) use these unkRot angles instead of a lock;
+             * field_122 keeps the upper-body aim pose pitch in sync. Ranged only
+             * (the enclosing branch already gates weaponAttack>=Handgun). */
+            if (g_DebugThirdPersonCam)
+            {
+                extern VECTOR3 g_TpsCamPos;
+                extern VECTOR3 g_TpsCamFwd;
+                extern s32     g_TpsCamPitch;
+                s_RayTrace _tr;
+                VECTOR3    _off, _P;
+                VECTOR3*   _hand = &playerCombat.attackPosition;
+                s32        _pitch;
+                #define SH_AIM_RANGE Q12(60.0f)
+                _off.vx = (s32)(((s64)g_TpsCamFwd.vx * SH_AIM_RANGE) >> 12);
+                _off.vy = (s32)(((s64)g_TpsCamFwd.vy * SH_AIM_RANGE) >> 12);
+                _off.vz = (s32)(((s64)g_TpsCamFwd.vz * SH_AIM_RANGE) >> 12);
+                #undef SH_AIM_RANGE
+                if (Ray_CharaTraceQuery(&_tr, &g_TpsCamPos, &_off, player))
+                {
+                    _P = _tr.target;
+                }
+                else
+                {
+                    _P.vx = g_TpsCamPos.vx + _off.vx;
+                    _P.vy = g_TpsCamPos.vy + _off.vy;
+                    _P.vz = g_TpsCamPos.vz + _off.vz;
+                }
+                /* Aim assist: if the reticle is over (mouse) or near (controller
+                 * auto-aim) an enemy's body, redirect the aim point onto the
+                 * enemy's axis so the bullet hits anywhere on the body, not just
+                 * the narrow collision strip the raw screen-center ray needs. */
+                /* Not in first person: FPS is meant to be raw manual aim down the
+                 * view ray, so the body-snap/auto-aim would fight the player. */
+                if (g_PcConfig.aimAssist && !g_PcFpsCam)
+                {
+                    extern s32 Pc_AimAssistFind(const VECTOR3*, const VECTOR3*, s32, VECTOR3*);
+                    VECTOR3 _aim;
+                    if (Pc_AimAssistFind(&g_TpsCamPos, &g_TpsCamFwd, Q12(60.0f), &_aim) != NO_VALUE)
+                    {
+                        _P = _aim;
+                    }
+                }
+                /* Yaw: heading from the hand to the aim point (matches the engine's
+                 * ratan2(dx,dz) heading convention used just above). */
+                unkRot.vx = ratan2(_P.vx - _hand->vx, _P.vz - _hand->vz);
+                /* Pitch: aim from the HAND to the camera-ray hit point P so the
+                 * bullet (and muzzle particle) actually go THROUGH the reticle. The
+                 * camera sits above/behind the hand, so using the camera's own pitch
+                 * makes shots under/overshoot the target (bullets missed an enemy
+                 * the reticle was dead-on). The old reason for using camera pitch
+                 * (arms thrown over the head) is gone — the aim pose no longer
+                 * rotates the arms, only the torso leans. Convention: 90 = level,
+                 * <90 = down, >90 = up; horiz>0 keeps ratan2 in the 0..180 range. */
+                {
+                    s32 _dx6   = (_P.vx - _hand->vx) >> 6;
+                    s32 _dz6   = (_P.vz - _hand->vz) >> 6;
+                    s32 _dy6   = (_P.vy - _hand->vy) >> 6;
+                    s32 _horiz = SquareRoot0((u32)(SQUARE(_dx6) + SQUARE(_dz6)));
+                    _pitch = (_horiz != 0 || _dy6 != 0) ? ratan2(_horiz, _dy6)
+                                                        : Q12_ANGLE(90.0f);
+                }
+                /* DAMAGE pitch stays unclamped, like the PSX lock path (its
+                 * D_800C4554 pitch reaches the dispatch raw; only the particle
+                 * angle is clamped). Clamping the damage ray to 56.25 deg from
+                 * level made point-blank shots at low enemies (dogs/crawlers)
+                 * pass over their collision band with the reticle dead-on. */
+                unkRot.vy = _pitch;
+                if (_pitch < Q12_ANGLE(33.75f))  _pitch = Q12_ANGLE(33.75f);
+                if (_pitch > Q12_ANGLE(146.25f)) _pitch = Q12_ANGLE(146.25f);
+                unkAngle              = _pitch;
+                playerProps.field_122 = _pitch;
+                (void)g_TpsCamPitch;
+                D_800C4554 = NO_VALUE;
+                D_800C4556 = NO_VALUE;
+            }
+#endif
 
             if (player->field_44.field_0 > 0)
             {
@@ -9455,6 +10593,8 @@ void GameFs_PlayerMapAnimLoad(s32 mapIdx) // 0x8007EB64
     {
         g_GameWork.mapAnimIdx = mapIdx;
         Fs_QueueStartRead(BASE_FILE_IDX + mapIdx, FS_BUFFER_4);
+    }
+
 #ifdef SH_PC_PORT
         /* Per-map g_MapHeaderTable_38 fix. Only 7 of 43 maps define their own
          * g_MapHeaderTable_38; the other 36 map DLLs reference it without
@@ -9467,7 +10607,16 @@ void GameFs_PlayerMapAnimLoad(s32 mapIdx) // 0x8007EB64
          * holds the PSX pointer to that map's real table. Drain so the overlay
          * (queued earlier in GameBoot_MapLoad) and this anim file are in memory,
          * then redirect field_38 to the overlay's table. The DLL header may be
-         * read-only, so patch a writable copy and repoint g_pMapOverlayHeader. */
+         * read-only, so patch a writable copy and repoint g_pMapOverlayHeader.
+         *
+         * This block deliberately sits OUTSIDE the mapAnimIdx-changed guard:
+         * the DLL loader resets g_pMapOverlayHeader to the fresh UNPATCHED
+         * header on every map (re)load, so any load where the anim idx is
+         * unchanged (death retry / reload inside the same map) used to skip
+         * the re-patch and leave field_38 on map0_s00's linked table — whose
+         * missing rows made scripted poses no-ops (the KeyOfWoodman pickup
+         * freeze: state 59's 0x12C row exists only in the map's own table).
+         * Re-derive the patch on every call; it is idempotent. */
         {
             extern void Fs_QueueWaitForEmpty(void);
             extern void* g_OvlDynamic;
@@ -9484,6 +10633,28 @@ void GameFs_PlayerMapAnimLoad(s32 mapIdx) // 0x8007EB64
                  * the overlay's link base (USA 0x800C9578), so PSX_ADDR converts
                  * the stored pointer directly. */
                 u32 psxField38 = *(u32*)((u8*)g_OvlDynamic + 0x3C);
+                /* EUR overlays are linked for base 0x800CB370, JAP (Rev 1/2)
+                 * for 0x800CBBD0, but both load at the US base 0x800C9578 —
+                 * rebase overlay-internal pointers by the link delta or they
+                 * resolve past the real table. */
+                if (g_GameRegion == Region_EUR && psxField38 >= 0x800CB370u) {
+                    psxField38 -= 0x800CB370u - 0x800C9578u;
+                }
+                else if (g_GameRegion == Region_JPN && psxField38 >= 0x800CBBD0u) {
+                    psxField38 -= 0x800CBBD0u - 0x800C9578u;
+                }
+                else if (g_GameRegion == Region_USA) {
+                    /* A REBUILT USA disc (Brazilian re-translation) relinks each
+                     * overlay to a per-map base BELOW 0x800C9578; the same delta
+                     * shifts both the message table (0x34) and this field_38
+                     * pointer. Detect the current overlay's base the way the
+                     * message path does and rebase — vanilla / in-place (Spanish)
+                     * discs detect 0x800C9578, so the delta is 0 and this is a
+                     * no-op. Without it, field_38 resolves into garbage on a
+                     * rebuilt disc and Harry's map anim table is corrupt. */
+                    extern unsigned int Pc_UsaOverlayLinkBase(const void* ovl, int mapIdx);
+                    psxField38 += 0x800C9578u - Pc_UsaOverlayLinkBase(g_OvlDynamic, mapIdx);
+                }
                 if (psxField38 >= 0x80000000u && psxField38 < 0x80200000u) {
                     s_patchedMapHeader            = *g_pMapOverlayHeader;
                     s_patchedMapHeader.field_38   = (s_UnkStruct3_Mo*)PSX_ADDR(psxField38);
@@ -9492,7 +10663,6 @@ void GameFs_PlayerMapAnimLoad(s32 mapIdx) // 0x8007EB64
             }
         }
 #endif
-    }
 
     #undef BASE_FILE_IDX
 }
@@ -9626,6 +10796,18 @@ void GameFs_WeaponInfoUpdate(void) // 0x8007EBBC
 
     for (i = 56; i < 76; i++)
     {
+#ifdef SH_PC_PORT
+        /* The HyperBlaster block (relAnimInfoIdx 132) is only 18 entries, so
+         * this fixed 20-entry copy reads D_80028B94[150..151] — past the end of
+         * the array (the @bug note at its definition). On PSX that read landed
+         * in the adjacent ROM table and filled two status-37 slots the
+         * HyperBlaster never plays; on PC it's UB over unrelated .rodata. Keep
+         * those slots' previous contents instead. */
+        if ((i - 56) + relAnimInfoIdx >= D_80028B94_COUNT)
+        {
+            continue;
+        }
+#endif
         HARRY_BASE_ANIM_INFOS[i] = D_80028B94[(i - 56) + relAnimInfoIdx];
     }
 
@@ -9850,7 +11032,23 @@ void Player_Controller(void) // 0x8007F32C
 {
     s32 attackBtnInput;
 
-    g_Player_IsMovingForward    = (g_Player_IsMovingForward * 2) & 0x3;
+#ifdef SH_PC_PORT
+    /* Age the forward-input history at 30 Hz, not per render frame (#42). This is
+     * a 2-bit shift register {prevTick, currTick} of the forward input; the
+     * RunForward case reads !g_Player_IsMovingForward (BOTH bits clear) as "player
+     * released forward" to play the skid-stop RunForwardWallStop — the random
+     * "ran into an invisible wall" hands-up smack. Aged per PC frame it reaches 0
+     * after only 2 frames (~8 ms at 240 fps), so a transient stick/key gap while
+     * the player is still holding forward fires the skid on open ground. PSX ages
+     * it once per 30 Hz tick (needs ~66 ms of genuine release). The current-input
+     * OR below stays per frame, so forward held in ANY sub-frame keeps bit0 set.
+     * Same throttle the attack shift register uses further down. */
+    static int s_moveFwdShiftAccum = 0;
+    if (PC_Tick30HzReady(&s_moveFwdShiftAccum))
+#endif
+    {
+        g_Player_IsMovingForward = (g_Player_IsMovingForward * 2) & 0x3;
+    }
     g_Player_IsSteppingLeftTap  = (g_Player_IsSteppingLeftTap * 2) & 0x3F;
     g_Player_IsSteppingRightTap = (g_Player_IsSteppingRightTap * 2) & 0x3F;
 

@@ -1,5 +1,8 @@
 # Silent Hill FMV File Table
 
+> Part of modding/extraction. For the disc-unpacking pipeline, VAB audio, and the
+> loose-file override mechanism, see [`Modding_And_Extraction_Guide.md`](Modding_And_Extraction_Guide.md).
+
 Silent Hill (PSX) stores all 21 of its FMVs on the disc as raw MDEC video
 streams interleaved with XA audio. To get them onto the PC port, extract
 them with **jPSXdec** (https://github.com/m35/jpsxdec/releases/tag/v2.0)
@@ -68,3 +71,26 @@ The PC port has a built-in MDEC software decoder. If an AVI override
 isn't present, it decodes the original PSX stream straight from the BIN
 and plays the interleaved XA audio through SDL. The result is identical
 content, just at the original 320×240 resolution.
+
+## Supported AVI formats (upscale mods)
+
+There is **no file size or resolution limit**: 64-bit offsets, OpenDML
+(`RIFF AVIX`) multi-gigabyte files, and 4K+ frames all play (the decode
+buffer sizes itself from the video). Any frame rate in the AVI header is
+honored.
+
+Video codecs:
+
+- **MJPEG** (fourcc `MJPG`, `dmb1`, `jpeg`, `AVI1`, any case) — the
+  recommended format: `ffmpeg -i in.mp4 -c:v mjpeg -q:v 3 -c:a pcm_s16le out.avi`
+- Uncompressed RGB DIB (24/32 bpp)
+- Raw YUV: `YUY2`/`YUYV`, `UYVY`, `I420`/`IYUV`, `YV12`, `NV12`
+
+Audio: integer PCM 8/16/24/32-bit and float 32-bit
+(`pcm_u8/s16le/s24le/s32le/f32le`), including WAVE_FORMAT_EXTENSIBLE.
+Compressed audio (MP3/AAC/AC3) is not decoded — the video plays silent
+and `SilentHill.log` prints the re-encode hint.
+
+A file using an unsupported *video* codec (H.264, Xvid, …) is not an
+error: the port logs the fourcc and falls back to the original disc
+movie for that slot.

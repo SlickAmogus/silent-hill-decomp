@@ -2,9 +2,9 @@
 #include "inline_no_dmpsx.h"
 #ifdef SH_PC_PORT
 #include "pc_config.h"
-/* PsyCross runtime PAR (cca5660). main_pc.c sets this from
- * g_PcConfig.pixelAspectMode at startup; the per-poly cull bounds
- * here must track the same factor PsyCross's Hor+ ortho uses. */
+/* PsyCross runtime horizontal PAR. main_pc.c bakes this to 15/14 (320x224 -> 4:3)
+ * at startup; the per-poly cull bounds here must track the same factor PsyCross's
+ * Hor+ ortho uses. */
 extern float g_PsxPixelAspect;
 #endif
 
@@ -28,6 +28,7 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
 #include <stdio.h>
 #include "sh_log.h"
 #include "pc_config.h"
+#include "hires_override.h"
 /* When culling is disabled, ignore fog-based draw distance clamp.
  * PSX uses fogFarDistance as a draw distance optimization (don't render
  * what fog fully hides). On PC we want everything to render and let
@@ -49,8 +50,61 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
         if ((((depth) >> (shift)) >> 2) >= ORDERING_TABLE_SIZE)                 \
             (depth) = (ORDERING_TABLE_SIZE - 1) << ((shift) + 2);               \
     } while (0)
+
+/* Whole-town mode (Pc_WholeMapDrawActive): the visible-square radius is set
+ * by the per-poly far drop (min(fog.farDistance, 0x79C<<(shift+2) ≈ 61u)),
+ * NOT by shader fog — lift it so distant blocks submit. Polys past 128u wrap
+ * the s16 view-Z scratch negative and would hit the `<= 0` drop; rescue them
+ * into the last OT bucket. Per-pixel GL depth reads the same slots as u16
+ * (PsyX_SetNextPrimSz), so ordering stays correct — only the PSX OT bucket
+ * is approximated. Both are no-ops when the mode is off. */
+#define SH_WHOLEMAP_FARCAP(cap)                                                 \
+    do {                                                                        \
+        if (Pc_WholeMapDrawActive())                                            \
+            (cap) = 0x7FFFFFFF;                                                 \
+    } while (0)
+/* STRICT `< 0`, not `<= 0`: wrapped far depths (>=128u) are always negative
+ * (SZ3 saturates at 0xFFFF before a second s16 wrap), while a poly fully
+ * BEHIND the camera has SZ3 min-clamped to exactly 0 on every vertex — the
+ * vanilla `<= 0` drop IS the behind-camera cull. Rescuing those projected
+ * them through gte_divide(H,0) into +-1024-clamped garbage quads (the
+ * "random walls all over the street" of the first whole-map test). */
+#define SH_WHOLEMAP_DEPTH_RESCUE(depth, shift)                                  \
+    do {                                                                        \
+        if ((depth) < 0 && Pc_WholeMapDrawActive())                             \
+            (depth) = (ORDERING_TABLE_SIZE - 1) << ((shift) + 2);               \
+    } while (0)
+/* True iff this poly was depth-rescued/clamped into the last OT bucket — the
+ * far band the whole-map mode adds. Gates the far-only render tweaks below so
+ * the near scene keeps stock PSX behavior exactly. Depth compare FIRST: this
+ * runs per poly in the drawers, and the gate is a cross-TU call. */
+#define SH_WHOLEMAP_FAR_POLY(depth, shift)                                      \
+    ((depth) == ((ORDERING_TABLE_SIZE - 1) << ((shift) + 2)) && Pc_WholeMapDrawActive())
 #else
 #define SH_CLAMP_OT_DEPTH(depth, shift) ((void)0)
+#define SH_WHOLEMAP_FARCAP(cap) ((void)0)
+#define SH_WHOLEMAP_DEPTH_RESCUE(depth, shift) ((void)0)
+#define SH_WHOLEMAP_FAR_POLY(depth, shift) (0)
+#endif
+
+#ifdef SH_PC_PORT
+/* PGXP shadow-memory propagation (Step 3): after the drawer copies a vertex word
+ * from a GTE scratch slot (screenXy_0[idx], shadow-stored at gte_stsxy3c time)
+ * into a prim field, propagate the precise GTE projection along the same path so
+ * MakeVertex resolves the prim field BY ADDRESS at draw. Address-exact and
+ * deterministic — no slot/ring/closest matching. No-op when PGXP is off or the
+ * source slot is untracked (-> clean affine). */
+#define SH_PGXP_PROP4(sd, p, i0, i1, i2, i3) do {        \
+    Shadow_Copy(&(p)->x0, &(sd)->screenXy_0[(i0)]);      \
+    Shadow_Copy(&(p)->x1, &(sd)->screenXy_0[(i1)]);      \
+    Shadow_Copy(&(p)->x2, &(sd)->screenXy_0[(i2)]);      \
+    Shadow_Copy(&(p)->x3, &(sd)->screenXy_0[(i3)]);      \
+} while (0)
+#define SH_PGXP_PROP3(sd, p, i0, i1, i2) do {            \
+    Shadow_Copy(&(p)->x0, &(sd)->screenXy_0[(i0)]);      \
+    Shadow_Copy(&(p)->x1, &(sd)->screenXy_0[(i1)]);      \
+    Shadow_Copy(&(p)->x2, &(sd)->screenXy_0[(i2)]);      \
+} while (0)
 #endif
 
 
@@ -141,8 +195,122 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 
     ot = &g_OrderingTable0[g_ActiveBufferIdx];
 
+#ifdef SH_PC_PORT
+    /* Per-pixel flashlight (PC port): once per frame, push the world point light
+     * into VIEW space for the fragment-shader cone. GsWSMATRIX is the world->view
+     * matrix (Q8 t, Q12 rotation); transforming the Q8 world light position
+     * through it yields the same Q8 camera-space units the GTE RTPS captures into
+     * GrVertex.vsx/vsy/vsz (the fog code transforms world positions identically,
+     * see bodyprog_bone_80044F14.c). Off path: g_PsyX_FlashlightActive stays 0
+     * (or the master flag is 0), so the shader cone is fully inert. */
+    {
+        extern int     g_PsyX_UsePerPixelFlashlight;
+        extern int     g_PsyX_FlashlightActive;
+        extern float   g_PsyX_FlashlightPos[3];
+        extern float   g_PsyX_FlashlightShadowPos[3];
+        extern float   g_PsyX_FlashlightDir[3];
+        extern float   g_PsyX_FlashlightColor[3];
+        extern VECTOR3 g_PcFlashlightShadowWorld;
+
+        /* Gate on Harry's actual flashlight state (== what Game_FlashlightIsOn
+         * returns). field_0==1 is only the room's dynamic-light mode (on even
+         * with the flashlight stowed, so the cone got stuck on) and field_2 is
+         * only the per-room glow-halo enable (0 in rooms like map3_s05 even with
+         * the flashlight on, so the cone never showed) — neither tracks the
+         * flashlight itself. field_60 (light pos) is refreshed every frame by
+         * Gfx_FlashlightUpdate regardless, so it's valid whenever this is true.
+         *
+         * Cutscene gate: the active cone dims the whole scene to a dark base
+         * (fragment shader *= 0.15) so the beam reads as the only light. That's
+         * right for dark gameplay rooms but WRONG during cutscenes, which have
+         * their own scripted lighting/framing — the first map0_s00 cutscene came
+         * out looking like a pitch-dark flashlight area. Fall back to the game's
+         * normal PSX flashlight rendering (glow halo below) during cutscenes,
+         * same as the FPS camera + head-hide do. */
+        if (g_PsyX_UsePerPixelFlashlight && g_SysWork.field_2388.isFlashlightOn_15
+            && !(g_SysWork.sysFlags & SysFlag_CutsceneActive)
+            && g_SysWork.cutsceneBorderState == CutsceneBorderState_None)
+        {
+            s32 lx = Q12_TO_Q8(g_WorldEnvWork.field_60.vx);
+            s32 ly = Q12_TO_Q8(g_WorldEnvWork.field_60.vy);
+            s32 lz = Q12_TO_Q8(g_WorldEnvWork.field_60.vz);
+
+            s32 vx = (s32)(((s64)GsWSMATRIX.m[0][0] * lx + (s64)GsWSMATRIX.m[0][1] * ly + (s64)GsWSMATRIX.m[0][2] * lz) >> 12) + GsWSMATRIX.t[0];
+            s32 vy = (s32)(((s64)GsWSMATRIX.m[1][0] * lx + (s64)GsWSMATRIX.m[1][1] * ly + (s64)GsWSMATRIX.m[1][2] * lz) >> 12) + GsWSMATRIX.t[1];
+            s32 vz = (s32)(((s64)GsWSMATRIX.m[2][0] * lx + (s64)GsWSMATRIX.m[2][1] * ly + (s64)GsWSMATRIX.m[2][2] * lz) >> 12) + GsWSMATRIX.t[2];
+
+            g_PsyX_FlashlightPos[0] = (float)vx;
+            g_PsyX_FlashlightPos[1] = (float)vy;
+            g_PsyX_FlashlightPos[2] = (float)vz;
+
+            /* Shadow-map light origin: the PHYSICAL flashlight (chest/hand),
+             * snapshotted before the FPS eye-override, pushed to view space the
+             * same way. In TPS this equals FlashlightPos; in FPS it stays at the
+             * real light so the shadow lands where third person shows it (a shadow
+             * depends on light+occluder, not the camera). */
+            {
+                s32 slx = Q12_TO_Q8(g_PcFlashlightShadowWorld.vx);
+                s32 sly = Q12_TO_Q8(g_PcFlashlightShadowWorld.vy);
+                s32 slz = Q12_TO_Q8(g_PcFlashlightShadowWorld.vz);
+                s32 svx = (s32)(((s64)GsWSMATRIX.m[0][0] * slx + (s64)GsWSMATRIX.m[0][1] * sly + (s64)GsWSMATRIX.m[0][2] * slz) >> 12) + GsWSMATRIX.t[0];
+                s32 svy = (s32)(((s64)GsWSMATRIX.m[1][0] * slx + (s64)GsWSMATRIX.m[1][1] * sly + (s64)GsWSMATRIX.m[1][2] * slz) >> 12) + GsWSMATRIX.t[1];
+                s32 svz = (s32)(((s64)GsWSMATRIX.m[2][0] * slx + (s64)GsWSMATRIX.m[2][1] * sly + (s64)GsWSMATRIX.m[2][2] * slz) >> 12) + GsWSMATRIX.t[2];
+                g_PsyX_FlashlightShadowPos[0] = (float)svx;
+                g_PsyX_FlashlightShadowPos[1] = (float)svy;
+                g_PsyX_FlashlightShadowPos[2] = (float)svz;
+            }
+
+            /* Beam direction = the flashlight's world direction (field_58 — the same
+             * vector the per-vertex "ambient" flashlight uses, so it turns with Harry's
+             * facing) rotated into view space. Camera +Z only tracked his position, so
+             * the cone never turned when he did. Rotation only (it's a direction). */
+            s32 fdx = g_WorldEnvWork.field_58.vx;
+            s32 fdy = g_WorldEnvWork.field_58.vy;
+            s32 fdz = g_WorldEnvWork.field_58.vz;
+            g_PsyX_FlashlightDir[0] = (float)(s32)(((s64)GsWSMATRIX.m[0][0] * fdx + (s64)GsWSMATRIX.m[0][1] * fdy + (s64)GsWSMATRIX.m[0][2] * fdz) >> 12);
+            g_PsyX_FlashlightDir[1] = (float)(s32)(((s64)GsWSMATRIX.m[1][0] * fdx + (s64)GsWSMATRIX.m[1][1] * fdy + (s64)GsWSMATRIX.m[1][2] * fdz) >> 12);
+            g_PsyX_FlashlightDir[2] = (float)(s32)(((s64)GsWSMATRIX.m[2][0] * fdx + (s64)GsWSMATRIX.m[2][1] * fdy + (s64)GsWSMATRIX.m[2][2] * fdz) >> 12);
+
+            /* Classic style matches the room-specific RGB matrix used by the
+             * original flashlight (so console `fl` tints reach the cone too);
+             * Modern keeps its own warm-white beam character. */
+            {
+                extern int g_PsyX_FlashlightStyle;
+                if (g_PsyX_FlashlightStyle)
+                {
+                    g_PsyX_FlashlightColor[0] = (float)g_WorldEnvWork.field_2C.m[0][0] / 4096.0f;
+                    g_PsyX_FlashlightColor[1] = (float)g_WorldEnvWork.field_2C.m[1][0] / 4096.0f;
+                    g_PsyX_FlashlightColor[2] = (float)g_WorldEnvWork.field_2C.m[2][0] / 4096.0f;
+                }
+                else
+                {
+                    g_PsyX_FlashlightColor[0] = 1.00f;
+                    g_PsyX_FlashlightColor[1] = 0.95f;
+                    g_PsyX_FlashlightColor[2] = 0.85f;
+                }
+            }
+
+            g_PsyX_FlashlightActive = 1;
+        }
+        else
+        {
+            g_PsyX_FlashlightActive = 0;
+        }
+    }
+#endif
+
     if (g_WorldEnvWork.field_2 != 0)
     {
+#ifdef SH_PC_PORT
+        /* Classic per-pixel style still needs the original subtractive outer
+         * mask (func_800414E0 suppresses only its additive center while the
+         * cone is active). Modern replaces the whole PSX glow compositor —
+         * drawing any of it under the stylized cone double-lights into
+         * blown-out highlights, so skip it entirely like the pre-calibration
+         * builds did. */
+        extern int g_PsyX_FlashlightActive, g_PsyX_FlashlightStyle;
+        if (!(g_PsyX_FlashlightActive && g_PsyX_FlashlightStyle == 0))
+#endif
         func_80041074(ot, g_WorldEnvWork.field_54, &g_WorldEnvWork.field_58, &g_WorldEnvWork.field_60);
     }
 
@@ -321,6 +489,11 @@ void func_80055330(u8 arg0, s32 arg1, u8 arg2, s32 tintR, s32 tintG, s32 tintB, 
             g_WorldEnvWork.field_26 = (s16)((s32)g_WorldEnvWork.field_26 * g_PcWorldLightColorB / 255);
         }
     }
+
+    /* NOTE: do NOT zero field_2C here for the per-pixel cone. The shader already
+     * dims the whole per-vertex-lit result to a dark base, so zeroing the directional
+     * light is redundant AND harmful: the character draw forces field_0=1 (point-light
+     * path) and reads field_2C, so a zeroed matrix renders Harry solid black. */
 #endif
 }
 
@@ -403,6 +576,45 @@ void func_800554C4(s32 arg0, s16 arg1, GsCOORDINATE2* coord0, GsCOORDINATE2* coo
         pos1->vy = Q8_TO_Q12(vec.vy + mat.t[1]);
         pos1->vz = Q8_TO_Q12(vec.vz + mat.t[2]);
     }
+
+#ifdef SH_PC_PORT
+    /* FPS: aim the flashlight where the player looks, from the eye. Override the
+     * Harry-facing light dir (field_58) + pos (field_60) with the FPS view forward
+     * + eye so BOTH the per-pixel cone (pushed from field_58/60) and the PSX
+     * per-vertex lighting follow the view. Done here, before field_6C and the
+     * per-region setup below consume field_58, so they inherit the FPS direction. */
+    {
+        extern int     g_PcFpsCam;
+        extern int     g_PsyX_FlashlightFpsMode;
+        extern VECTOR3 g_PcFpsViewFwd;
+        extern VECTOR3 g_PcFpsEyePos;
+        extern VECTOR3 g_PcFlashlightShadowWorld;
+        extern int     Pc_ScriptOwnsScene(void);
+        /* Only aim the flashlight from the FPS eye when the FPS camera is
+         * ACTUALLY the view — i.e. NOT while a script/cutscene owns the scene.
+         * Pc_ScriptOwnsScene() is the same predicate that stands the FPS camera
+         * down (game_main.c): during a cutscene the view is the cinematic DMS
+         * camera, but g_PcFpsCam (the config mode) stays set, so gating this
+         * override only on g_PcFpsCam pointed the light along the stale FPS
+         * eye/forward instead of the game's DMS light — the dark amusement-park
+         * Cybil cutscenes rendered mostly black (the flashlight lit the wrong
+         * direction). Fall back to the game's own field_58/field_60 for
+         * scripted scenes, exactly as the classic camera does. */
+        const int fpsViewActive = g_PcFpsCam && !Pc_ScriptOwnsScene();
+        g_PsyX_FlashlightFpsMode = fpsViewActive; /* select the FPS cone size/brightness in the shader */
+        /* Snapshot the REAL light position before the FPS block overrides field_60
+         * with the eye. The shadow map uses this (not the eye) so FPS shadows land
+         * where third person shows them; in TPS it just mirrors field_60. */
+        g_PcFlashlightShadowWorld = g_WorldEnvWork.field_60;
+        if (fpsViewActive && g_SysWork.field_2388.isFlashlightOn_15)
+        {
+            g_WorldEnvWork.field_58.vx = g_PcFpsViewFwd.vx;
+            g_WorldEnvWork.field_58.vy = g_PcFpsViewFwd.vy;
+            g_WorldEnvWork.field_58.vz = g_PcFpsViewFwd.vz;
+            g_WorldEnvWork.field_60    = g_PcFpsEyePos;
+        }
+    }
+#endif
 
     vwVectorToAngle(&g_WorldEnvWork.field_6C, &g_WorldEnvWork.field_58);
     g_WorldEnvWork.field_4C = arg0 >> 8;
@@ -586,6 +798,25 @@ u8 func_80055A50(s32 arg0) // 0x80055A50
 
     return g_WorldEnvWork.fogRamp[(temp << 7) >> g_WorldEnvWork.fog.depthShift];
 }
+
+#ifdef SH_PC_PORT
+/* World-fog "keep" factor in [0..256] for a blood prim at screen-depth z: 256 near
+ * (no fog), 0 far (full fog). The layered ADDITIVE blood layers (GL_ONE,GL_ONE) keep
+ * adding red into the distance regardless of depth, visually overpowering the color fog
+ * func_80055A90 already applies — so distant blood stays vivid while the world around it
+ * grays out. Multiplying the additive layer color by this (>>8) fades it toward black at
+ * the SAME rate as world geometry (same fogRamp), so it disappears into the fog. */
+int Pc_BloodFogKeep(s32 z)
+{
+    s32 idx;
+    if (!g_WorldEnvWork.isFogEnabled) return 256;
+    if (z < 0) z = 0;
+    if (z >= (1 << g_WorldEnvWork.fog.depthShift)) return 0;
+    idx = (z << 7) >> g_WorldEnvWork.fog.depthShift;
+    if (idx > 127) idx = 127;
+    return 256 - g_WorldEnvWork.fogRamp[idx];
+}
+#endif
 
 void func_80055A90(CVECTOR* arg0, CVECTOR* arg1, u8 arg2, s32 arg3) // 0x80055A90
 {
@@ -1170,6 +1401,36 @@ bool Lm_IsTextureLoaded(s_LmHeader* lmHdr) // 0x80056888
     return true;
 }
 
+#ifdef SH_PC_PORT
+/* Set while the interior chunk-texture pool is being (re)synced
+ * (Ipd_ChunkMaterialsApply steal loop). Scopes the NULL-texture untexture below
+ * to that path only, so other maps/draws are unaffected. */
+int g_PcInteriorMatSync = 0;
+
+/* Force every prim bound to material `matIdx` to the untextured sentinel (32,
+ * same value the no-material case uses). A material whose VRAM page was stolen
+ * for a nearer chunk has texture==NULL but its field_E still points at that
+ * page, which now holds another chunk's 4bpp texture+CLUT — drawing it sampled
+ * the wrong page (the interior "rainbow"). Rendering it flat instead matches
+ * vanilla's out-of-pool chunks (which simply go untextured/black). */
+static void Model_MaterialUntexture(s_ModelHeader* modelHdr, s32 matIdx)
+{
+    s_MeshHeader* curMeshHdr;
+    s_Primitive*  curPrim;
+
+    for (curMeshHdr = modelHdr->meshHdrs; curMeshHdr < &modelHdr->meshHdrs[modelHdr->meshCount]; curMeshHdr++)
+    {
+        for (curPrim = curMeshHdr->primitives; curPrim < &curMeshHdr->primitives[curMeshHdr->primitiveCount]; curPrim++)
+        {
+            if (curPrim->field_6.bits.materialIdx == matIdx)
+            {
+                curPrim->field_6.bits.field_6_0 = 32;
+            }
+        }
+    }
+}
+#endif
+
 void Lm_MaterialFlagsApply(s_LmHeader* lmHdr) // 0x80056954
 {
     s32         i;
@@ -1179,6 +1440,19 @@ void Lm_MaterialFlagsApply(s_LmHeader* lmHdr) // 0x80056954
 
     for (i = 0, curMat = lmHdr->materials; i < lmHdr->materialCount; i++, curMat++)
     {
+#ifdef SH_PC_PORT
+        if (g_PcInteriorMatSync && curMat->texture == NULL)
+        {
+            for (j = 0; j < lmHdr->modelCount; j++)
+            {
+                if (lmHdr->magic == LM_HEADER_MAGIC)
+                {
+                    Model_MaterialUntexture(&lmHdr->modelHdrs[j], i);
+                }
+            }
+            continue;
+        }
+#endif
         matFlags = (curMat->field_E != curMat->field_F) ? MaterialFlag_0 : MaterialFlag_None;
 
         if (curMat->field_10 != curMat->field_12)
@@ -1189,6 +1463,20 @@ void Lm_MaterialFlagsApply(s_LmHeader* lmHdr) // 0x80056954
         {
             matFlags |= MaterialFlag_2;
         }
+#ifdef SH_PC_PORT
+        /* Reaching here during an interior sync means this material IS resident
+         * (the texture==NULL case untextured its prims and continued above). Its
+         * VRAM page may have been stolen and then returned to the SAME slot, so
+         * field_E == field_F and the change-detection wouldn't re-apply the page —
+         * leaving the prims we set to the untextured sentinel (field_6_0=32) stuck
+         * flat forever (the "some interiors render untextured" report). Force the
+         * page re-apply while syncing so a returned page re-textures its prims;
+         * a no-op for prims already at field_E. */
+        if (g_PcInteriorMatSync)
+        {
+            matFlags |= MaterialFlag_0;
+        }
+#endif
 
         if (matFlags != 0)
         {
@@ -2044,6 +2332,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
             scratchData->field_380.s_0.field_1C = temp_v1;
         }
     }
+    SH_WHOLEMAP_FARCAP(scratchData->field_380.s_0.field_1C);
 
 #ifdef SH_PC_PORT
     /* Hor+ widescreen: per-polygon visibility bound. PSX uses raw
@@ -2121,11 +2410,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_13],
                         arg3
                     );
-                    PsyX_SetNextPrimPgxp(
-                        &scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
-                        &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
-                        &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
-                        &scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
 #endif
                     scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
 
@@ -2144,6 +2428,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_13];
                     }
 
+                    SH_WHOLEMAP_DEPTH_RESCUE(scratchData->field_380.s_0.field_18, arg3);
                     if (scratchData->field_380.s_0.field_18 <= 0)
                     {
                         continue;
@@ -2161,6 +2446,32 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         continue;
                     }
 
+#ifdef SH_PC_PORT
+                    if (SH_WHOLEMAP_FAR_POLY(scratchData->field_380.s_0.field_18, arg3))
+                    {
+                        /* Far poly: integer NCLIP collapses sub-pixel-tall distant
+                         * ground to zero area and culls it. Re-test on the PGXP
+                         * float projection (integer fallback = same semantics). */
+                        s32 _n012 = 0, _n312 = 0;
+                        extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+                        gte_NormalClip(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                       *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                       *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12], &_n012);
+                        gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+                        gte_nclip();
+                        gte_stopz(&_n312);
+                        if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                                   &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                                   &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                                   &scratchData->screenXy_0[scratchData->field_380.s_0.field_13],
+                                                   _n012, _n312))
+                        {
+                            continue;
+                        }
+                    }
+                    else
+#endif
+                    {
                     gte_NormalClip(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
                                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12], &sp10);
@@ -2175,6 +2486,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         {
                             continue;
                         }
+                    }
                     }
 
                     temp_a3 = scratchData->field_380.s_0.field_0;
@@ -2197,6 +2509,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         *(s32*)&poly1->x2  = temp_a0;
                         *(s32*)&poly3->x3 = temp_v1_5;
                         *(s32*)&poly1->x3  = temp_v1_5;
+#ifdef SH_PC_PORT
+                        SH_PGXP_PROP4(scratchData, poly3,
+                            scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
+                            scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13);
+#endif
 
                         *(s32*)&scratchData->field_380.s_0.field_14 = *(s32*)&prim->field_10;
 
@@ -2340,11 +2657,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_13],
                     arg3
                 );
-                PsyX_SetNextPrimPgxp(
-                    &scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
-                    &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
-                    &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
-                    &scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
 #endif
                 scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
 
@@ -2363,6 +2675,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_13];
                 }
 
+                SH_WHOLEMAP_DEPTH_RESCUE(scratchData->field_380.s_0.field_18, arg3);
                 if (scratchData->field_380.s_0.field_18 <= 0)
                 {
                     continue;
@@ -2380,6 +2693,32 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     continue;
                 }
 
+#ifdef SH_PC_PORT
+                if (SH_WHOLEMAP_FAR_POLY(scratchData->field_380.s_0.field_18, arg3))
+                {
+                    /* Far poly: precise backface re-test (see loop A). */
+                    s32 _n012 = 0, _n312 = 0;
+                    extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+                    gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                               *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                               *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
+                    gte_nclip();
+                    gte_stopz(&_n012);
+                    gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+                    gte_nclip();
+                    gte_stopz(&_n312);
+                    if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                               &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                               &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                               &scratchData->screenXy_0[scratchData->field_380.s_0.field_13],
+                                               _n012, _n312))
+                    {
+                        continue;
+                    }
+                }
+                else
+#endif
+                {
                 gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
                            *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                            *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
@@ -2396,6 +2735,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     {
                         continue;
                     }
+                }
                 }
 
                 temp_a3_2 = scratchData->field_380.s_0.field_0;
@@ -2414,6 +2754,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     *(s32*)&poly3->x1 = temp_a1_2;
                     *(s32*)&poly3->x2 = temp_a0_5;
                     *(s32*)&poly3->x3 = temp_v1_11;
+#ifdef SH_PC_PORT
+                    SH_PGXP_PROP4(scratchData, poly3,
+                        scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
+                        scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13);
+#endif
 
                     *(s32*)&scratchData->field_380.s_0.field_14 = *(s32*)&prim->field_10;
 
@@ -2480,11 +2825,6 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_13],
                 arg3
             );
-            PsyX_SetNextPrimPgxp(
-                &scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
-                &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
-                &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
-                &scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
 #endif
             scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
 
@@ -2503,6 +2843,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_13];
             }
 
+            SH_WHOLEMAP_DEPTH_RESCUE(scratchData->field_380.s_0.field_18, arg3);
             if (scratchData->field_380.s_0.field_18 <= 0)
             {
                 continue;
@@ -2520,6 +2861,32 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 continue;
             }
 
+#ifdef SH_PC_PORT
+            if (SH_WHOLEMAP_FAR_POLY(scratchData->field_380.s_0.field_18, arg3))
+            {
+                /* Far poly: precise backface re-test (see loop A). */
+                s32 _n012 = 0, _n312 = 0;
+                extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+                gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                           *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                           *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
+                gte_nclip();
+                gte_stopz(&_n012);
+                gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+                gte_nclip();
+                gte_stopz(&_n312);
+                if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                           &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                           &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                           &scratchData->screenXy_0[scratchData->field_380.s_0.field_13],
+                                           _n012, _n312))
+                {
+                    continue;
+                }
+            }
+            else
+#endif
+            {
             gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
                        *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                        *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
@@ -2536,6 +2903,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 {
                     continue;
                 }
+            }
             }
 
             temp_a3_4 = scratchData->field_380.s_0.field_0;
@@ -2558,6 +2926,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 *(s32*)&poly2->x2 = temp_a0_9;
                 *(s32*)&poly3->x3  = temp_v1_21;
                 *(s32*)&poly2->x3 = temp_v1_21;
+#ifdef SH_PC_PORT
+                SH_PGXP_PROP4(scratchData, poly3,
+                    scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
+                    scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13);
+#endif
 
                 temp4    = 0x1000 - scratchData->field_252[scratchData->field_380.s_0.field_10] * 0x10;
                 var_t3_2 = temp4 - scratchData->field_380.s_0.field_4;
@@ -2708,11 +3081,6 @@ __block1530:
             (unsigned short)(u16)scratchData->field_18C[scratchData->field_380.s_0.field_13],
             arg3
         );
-        PsyX_SetNextPrimPgxp(
-            &scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
-            &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
-            &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
-            &scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
 #endif
         scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
 
@@ -2731,6 +3099,7 @@ __block1530:
             scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_13];
         }
 
+        SH_WHOLEMAP_DEPTH_RESCUE(scratchData->field_380.s_0.field_18, arg3);
         if (scratchData->field_380.s_0.field_18 <= 0)
         {
 #ifdef SH_PC_PORT
@@ -2754,6 +3123,32 @@ __block1530:
             continue;
         }
 
+#ifdef SH_PC_PORT
+        if (SH_WHOLEMAP_FAR_POLY(scratchData->field_380.s_0.field_18, arg3))
+        {
+            /* Far poly: precise backface re-test (see loop A). */
+            s32 _n012 = 0, _n312 = 0;
+            extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+            gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                       *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                       *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
+            gte_nclip();
+            gte_stopz(&_n012);
+            gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+            gte_nclip();
+            gte_stopz(&_n312);
+            if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_13],
+                                       _n012, _n312))
+            {
+                continue;
+            }
+        }
+        else
+#endif
+        {
         gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
@@ -2770,6 +3165,7 @@ __block1530:
             {
                 continue;
             }
+        }
         }
 
         temp_a3_3 = scratchData->field_380.s_0.field_0;
@@ -2788,6 +3184,11 @@ __block1530:
             *(s32*)&poly0->x1 = temp_a1_3;
             *(s32*)&poly0->x2 = temp_a0_7;
             *(s32*)&poly0->x3 = temp_v1_16;
+#ifdef SH_PC_PORT
+            SH_PGXP_PROP4(scratchData, poly0,
+                scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
+                scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13);
+#endif
 
             *(s32*)&scratchData->field_380.s_0.field_14 = *(s32*)&prim->field_10;
 
@@ -2918,6 +3319,7 @@ __block19CC:
             scratchData->field_380.s_0.field_18 = scratchData->field_18C[scratchData->field_380.s_0.field_13];
         }
 
+        SH_WHOLEMAP_DEPTH_RESCUE(scratchData->field_380.s_0.field_18, arg3);
         if (scratchData->field_380.s_0.field_18 <= 0)
         {
 #ifdef SH_PC_PORT
@@ -2930,6 +3332,8 @@ __block19CC:
         {
             scratchData->field_380.s_0.field_18 = 0x20;
         }
+
+        SH_CLAMP_OT_DEPTH(scratchData->field_380.s_0.field_18, arg3);
 
         if (scratchData->field_380.s_0.field_18 > scratchData->field_380.s_0.field_1C)
         {
@@ -2949,6 +3353,32 @@ __block19CC:
         }
 #endif
 
+#ifdef SH_PC_PORT
+        if (SH_WHOLEMAP_FAR_POLY(scratchData->field_380.s_0.field_18, arg3))
+        {
+            /* Far poly: precise backface re-test (see loop A). */
+            s32 _n012 = 0, _n312 = 0;
+            extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+            gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                       *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                       *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
+            gte_nclip();
+            gte_stopz(&_n012);
+            gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+            gte_nclip();
+            gte_stopz(&_n312);
+            if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_13],
+                                       _n012, _n312))
+            {
+                continue;
+            }
+        }
+        else
+#endif
+        {
         gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                    *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12]);
@@ -2965,6 +3395,7 @@ __block19CC:
             {
                 continue;
             }
+        }
         }
 
         temp_a3_5 = scratchData->field_380.s_0.field_0;
@@ -2984,6 +3415,11 @@ __block19CC:
             *(s32*)&poly4->x1 = temp_a1_5;
             *(s32*)&poly4->x2 = temp_a0_13;
             *(s32*)&poly4->x3 = temp_v1_27;
+#ifdef SH_PC_PORT
+            SH_PGXP_PROP4(scratchData, poly4,
+                scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
+                scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13);
+#endif
 
             *(s32*)&poly4->r0 = *(s32*)&scratchData->field_380.s_0.field_8;
 
@@ -3074,6 +3510,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
 
     temp_v1 = 0x79C << (arg3 + 2);
     var_t9  = g_WorldEnvWork.isFogEnabled ? MIN(temp_v1, FOG_FAR_DIST()) : temp_v1;
+    SH_WHOLEMAP_FARCAP(var_t9);
 
     poly                        = (POLY_FT4*)GsOUT_PACKET_P;
 #ifdef SH_PC_PORT
@@ -3099,11 +3536,13 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
     {
         *(s32*)&scratchData->field_380.s_0.field_10 = *(s32*)&prim->field_C;
 
+
         var_t2 = scratchData->field_18C[scratchData->field_380.s_0.field_10];
         var_t2 = MAX(scratchData->field_18C[scratchData->field_380.s_0.field_11], var_t2);
         var_t2 = MAX(scratchData->field_18C[scratchData->field_380.s_0.field_12], var_t2);
         var_t2 = MAX(scratchData->field_18C[scratchData->field_380.s_0.field_13], var_t2);
 
+        SH_WHOLEMAP_DEPTH_RESCUE(var_t2, arg3);
         if (var_t2 <= 0)
         {
             continue;
@@ -3118,7 +3557,32 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
         {
             continue;
         }
+        SH_CLAMP_OT_DEPTH(var_t2, arg3);
 
+#ifdef SH_PC_PORT
+        if (SH_WHOLEMAP_FAR_POLY(var_t2, arg3))
+        {
+            /* Far poly: precise backface re-test (see Gfx_MeshDraw loop A). */
+            s32 _n012 = 0, _n312 = 0;
+            extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+            gte_NormalClip(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                           *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                           *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12], &_n012);
+            gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_13]);
+            gte_nclip();
+            gte_stopz(&_n312);
+            if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
+                                       &scratchData->screenXy_0[scratchData->field_380.s_0.field_13],
+                                       _n012, _n312))
+            {
+                continue;
+            }
+        }
+        else
+#endif
+        {
         gte_NormalClip(*(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10],
                        *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_11],
                        *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_12],
@@ -3134,6 +3598,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
             {
                 continue;
             }
+        }
         }
 
         temp = *(s32*)&scratchData->screenXy_0[scratchData->field_380.s_0.field_10];
@@ -3157,6 +3622,11 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
         *(s32*)&poly->x1 = x1;
         *(s32*)&poly->x2 = x2;
         *(s32*)&poly->x3 = x3;
+#ifdef SH_PC_PORT
+        SH_PGXP_PROP4(scratchData, poly,
+            scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
+            scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13);
+#endif
 
         *(s32*)&poly->r0 = packedColor;
         *(s32*)&poly->u0 = *(s32*)&prim->field_0;
@@ -3200,19 +3670,26 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
     }
 #endif
 
+#ifdef SH_PC_PORT
+    /* Characters are fogged by the SHADER: the prim builder below attaches
+     * per-vertex fog bytes (PC_SCREEN_Z_TO_FOG) and the GPU fades these prims
+     * toward the fog color exactly like world geometry (whose CPU vertex fog
+     * was moved to the shader wholesale — see VTXCOL_LDDP). Feeding the
+     * fog-attenuated alpha into the flat character light here as well fogged
+     * characters TWICE — a CPU fade toward the black far color on top of the
+     * shader fade — so characters rendered darker than PSX relative to the
+     * world in every foggy scene (the "characters dark vs environment"
+     * report; the shader bytes predate the restoration of this CPU fog path,
+     * which is how the double-application crept in). Use the no-fog alpha so
+     * the dpcs keeps only the field_20 light boost (tint * map gain, e.g.
+     * 121 -> 133 in the cafe intro) and the shader owns ALL character fog. */
+    var_v1 = 256 << 4;
+#else
     if (g_WorldEnvWork.isFogEnabled)
     {
         if (mat->t[2] < (1 << g_WorldEnvWork.fog.depthShift))
         {
-#ifdef SH_PC_PORT
-            /* Bounds-check fogRamp index to prevent OOB on bad matrix data */
-            s32 fogIdx = (s32)(mat->t[2] << 7) >> g_WorldEnvWork.fog.depthShift;
-            if (fogIdx < 0) fogIdx = 0;
-            if (fogIdx > 127) fogIdx = 127;
-            var_v1 = Q12(1.0f) - (g_WorldEnvWork.fogRamp[fogIdx] << 4);
-#else
             var_v1 = Q12(1.0f) - (g_WorldEnvWork.fogRamp[(s32)(mat->t[2] << 7) >> g_WorldEnvWork.fog.depthShift] << 4);
-#endif
         }
         else
         {
@@ -3223,6 +3700,7 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
     {
         var_v1 = 256 << 4;
     }
+#endif
 
     switch (g_WorldEnvWork.field_0)
     {
@@ -3259,16 +3737,6 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
         {
             func_8005AA08(curMeshHdr, normalOffset, (s_GteScratchData2*)scratchData);
         }
-
-#ifdef SH_PC_PORT
-        {
-            static int _meshLog = 0;
-            if (_meshLog < 25) {
-                s_GteScratchData2* sd2 = (s_GteScratchData2*)scratchData;
-                _meshLog++;
-            }
-        }
-#endif
 
         func_8005AC50(curMeshHdr, (s_GteScratchData2*)scratchData, otTag, (s32)(intptr_t)arg2);
     }
@@ -3585,6 +4053,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
     temp_a0 = 0x79C << (arg3 + 2);
     var_t9  = g_WorldEnvWork.isFogEnabled ? MIN(temp_a0, FOG_FAR_DIST()) : temp_a0;
+    SH_WHOLEMAP_FARCAP(var_t9);
 
 #ifdef SH_PC_PORT
     s32 _dbgPrimPass = 0, _dbgPrimDepthFail = 0, _dbgPrimOobFail = 0, _dbgPrimTotal = 0;
@@ -3630,6 +4099,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             temp_t4 = (scratchData->screenZ_168[scratchData->u.s_1.field_0] + scratchData->screenZ_168[scratchData->u.s_1.field_1] +
                        scratchData->screenZ_168[scratchData->u.s_1.field_2] + scratchData->screenZ_168[scratchData->u.s_1.field_2]) >> 2;
 
+            SH_WHOLEMAP_DEPTH_RESCUE(temp_t4, arg3);
             if (temp_t4 <= 0 || var_t9 < temp_t4)
             {
 #ifdef SH_PC_PORT
@@ -3648,10 +4118,23 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
              * polys (face visible through the back of the head). The identical
              * cull in the non-lit Gfx_MeshDraw path works correctly on PC, so
              * the GTE NormalClip sign is right here too. */
+#ifdef SH_PC_PORT
+            /* Backface decision on the PGXP-precise projection, not the rounded
+             * 16-bit coords, so distant near-edge-on faces don't flip sign and
+             * vanish (the "model sheds chunks far away" holes). Integer fallback. */
+            {
+                extern int PsyX_PGXP_TriBackface(const void*, const void*, const void*, int);
+                if (PsyX_PGXP_TriBackface(&scratchData->screenXy_0[scratchData->u.s_1.field_0],
+                                          &scratchData->screenXy_0[scratchData->u.s_1.field_1],
+                                          &scratchData->screenXy_0[scratchData->u.s_1.field_2], r4))
+                    continue;
+            }
+#else
             if (r4 <= 0)
             {
                 continue;
             }
+#endif
 
             *(s32*)&poly.gt3->x0 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_0];
             *(s32*)&poly.gt3->x1 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_1];
@@ -3662,6 +4145,8 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                 _dbgPrimOobFail++;
                 continue;
             }
+            SH_PGXP_PROP3(scratchData, poly.gt3,
+                scratchData->u.s_1.field_0, scratchData->u.s_1.field_1, scratchData->u.s_1.field_2);
 #endif
 
             if (var_a3 != 0)
@@ -3692,6 +4177,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
             setlen(poly.gt3, 9);
 
+            SH_CLAMP_OT_DEPTH(temp_t4, arg3);
             addPrim(&ot[(temp_t4 >> arg3) >> 2], poly.gt3);
             poly.gt3++;
 #ifdef SH_PC_PORT
@@ -3703,6 +4189,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             temp_t4 = (scratchData->screenZ_168[scratchData->u.s_1.field_0] + scratchData->screenZ_168[scratchData->u.s_1.field_1] +
                        scratchData->screenZ_168[scratchData->u.s_1.field_2] + scratchData->screenZ_168[scratchData->u.s_1.field_3]) >> 2;
 
+            SH_WHOLEMAP_DEPTH_RESCUE(temp_t4, arg3);
             if (temp_t4 <= 0 || var_t9 < temp_t4)
             {
 #ifdef SH_PC_PORT
@@ -3718,6 +4205,21 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             gte_stopz(&sp4);
 
             /* PC: re-enabled backface cull (see GT3 path above). */
+#ifdef SH_PC_PORT
+            /* Precise backface cull on both triangles of the quad (see GT3). */
+            {
+                s32 _sp4b = 0;
+                extern int PsyX_PGXP_QuadBackface(const void*, const void*, const void*, const void*, int, int);
+                gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_3]);
+                gte_nclip();
+                gte_stopz(&_sp4b);
+                if (PsyX_PGXP_QuadBackface(&scratchData->screenXy_0[scratchData->u.s_1.field_0],
+                                           &scratchData->screenXy_0[scratchData->u.s_1.field_1],
+                                           &scratchData->screenXy_0[scratchData->u.s_1.field_2],
+                                           &scratchData->screenXy_0[scratchData->u.s_1.field_3], sp4, _sp4b))
+                    continue;
+            }
+#else
             if (sp4 <= 0)
             {
                 gte_ldsxy0(*(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_3]);
@@ -3729,6 +4231,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                     continue;
                 }
             }
+#endif
 
             *(s32*)&poly.gt4->x0 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_0];
             *(s32*)&poly.gt4->x1 = *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_1];
@@ -3741,6 +4244,9 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                 _dbgPrimOobFail++;
                 continue;
             }
+            SH_PGXP_PROP4(scratchData, poly.gt4,
+                scratchData->u.s_1.field_0, scratchData->u.s_1.field_1,
+                scratchData->u.s_1.field_2, scratchData->u.s_1.field_3);
 #endif
 
             if (var_a3 != 0)
@@ -3774,6 +4280,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
             setlen(poly.gt4, 12);
 
+            SH_CLAMP_OT_DEPTH(temp_t4, arg3);
             addPrim(&ot[(temp_t4 >> arg3) >> 2], poly.gt4);
             poly.gt4++;
 #ifdef SH_PC_PORT
@@ -3818,6 +4325,19 @@ void Texture_Init(s_Texture* tex, char* texName, u8 tPage0, u8 tPage1, s32 u, s3
     tex->queueIdx = NO_VALUE;
 }
 
+#ifdef SH_PC_PORT
+/* TIMs whose VRAM CLUT map code manipulates directly — StoreImage of the
+ * palette row, derived palette rows (getClut(x, y+1/+13/+14/+15)), blend-
+ * variant tpages — must keep a REAL pool page: a virtual GL slot has no VRAM
+ * CLUT to read and its synthetic clutY makes every derived row a bogus slot
+ * key. Only known case: map4_s03's Twinfeeler palette animation
+ * (func_800D078C via Texture_InfoGet). */
+static bool Pc_MaterialNeedsVramSlot(const s_Material* mat)
+{
+    return !COMPARE_FILENAMES(&mat->name, "SPUM602F");
+}
+#endif
+
 s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void* fsBuffer9, e_FsFile fileIdx, s32 arg4)
 {
     s8         filename[12];
@@ -3828,11 +4348,67 @@ s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void*
     u32        queueIdx;
     s_Texture* curTex;
     s_Texture* foundTex;
+#ifdef SH_PC_PORT
+    bool       needsVram = Pc_MaterialNeedsVramSlot(mat);
+#endif
 
     smallestQueueIdx = INT_MAX;
     mat->texture = NULL;
     foundTex = NULL;
 
+#ifdef SH_PC_PORT
+    /* Claim a VIRTUAL slot when one is free: GL-backed slots are immune to
+     * the 2D-event/map-screen/boss-FX uploads that write straight into the
+     * pool's VRAM pages. Vanilla healed those stomps by constantly
+     * releasing + reloading chunk textures; resident texturing PINS
+     * materials for the whole map, so a stomped physical page stayed
+     * garbled forever (school floors/walls after any 2D screen). Physical
+     * pages remain for VRAM-dependent TIMs (needsVram), the global LM
+     * (its count=4 clamp only ever exposes the first 4 physical entries),
+     * and overflow. With resident_textures=0 no virtual slots are listed
+     * and this reduces to the vanilla single-candidate scan. */
+    {
+        s_Texture* bestVirt  = NULL;
+        s_Texture* bestPhys  = NULL;
+        s32        bestVirtQ = INT_MAX;
+        s32        bestPhysQ = INT_MAX;
+
+        for (i = 0; i < activeTexs->count; i++)
+        {
+            curTex = activeTexs->textures[i];
+
+            if (!COMPARE_FILENAMES(&mat->name, &curTex->name))
+            {
+                mat->texture = curTex;
+                curTex->refCount++;
+                return curTex;
+            }
+
+            if (curTex->refCount != 0)
+            {
+                continue;
+            }
+
+            if (curTex->imageDesc.clutY >= HIRES_POOL_CLUT_ROW_BASE)
+            {
+                if ((s32)curTex->queueIdx < bestVirtQ)
+                {
+                    bestVirtQ = (s32)curTex->queueIdx;
+                    bestVirt  = curTex;
+                }
+            }
+            else if ((s32)curTex->queueIdx < bestPhysQ)
+            {
+                bestPhysQ = (s32)curTex->queueIdx;
+                bestPhys  = curTex;
+            }
+        }
+
+        foundTex = needsVram ? bestPhys : (bestVirt != NULL ? bestVirt : bestPhys);
+    }
+    (void)smallestQueueIdx;
+    (void)queueIdx;
+#else
     for (i = 0; i < activeTexs->count; i++)
     {
         curTex = activeTexs->textures[i];
@@ -3851,9 +4427,25 @@ s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void*
             foundTex       = curTex;
         }
     }
+#endif
 
     if (foundTex == NULL)
     {
+#ifdef SH_PC_PORT
+        /* Every slot pinned (refCount > 0). Under resident_textures this
+         * means the expanded pool is undersized for this map's distinct TIM
+         * count — the material stays untextured and its chunk is never drawn.
+         * Loud so sizing problems name themselves. */
+        if (g_PcConfig.residentTextures)
+        {
+            static int s_poolExhaustLog = 0;
+            if (s_poolExhaustLog < 8)
+            {
+                SH_DBG("[POOLTEX] pool exhausted: no free slot for '%.8s'", mat->name.str);
+                s_poolExhaustLog++;
+            }
+        }
+#endif
         return NULL;
     }
 
@@ -3880,6 +4472,35 @@ s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void*
          * the bogus read; the slot keeps its previous VRAM content exactly
          * like PSX's garbage read effectively did. */
         SH_DBG("[FSQ] chunk TIM '%.11s' not in file table — skipping read (Texture_Get)", filename);
+
+        /* "Previous VRAM content" only exists on a PHYSICAL slot; a virtual
+         * slot with no read never registers a GL texture and its bit-15 clut
+         * has nothing to fall back on. Swap to a free physical slot when one
+         * exists so the missing-TIM material keeps the PSX degraded look. */
+        if (foundTex->imageDesc.clutY >= HIRES_POOL_CLUT_ROW_BASE)
+        {
+            s32        bestQ = INT_MAX;
+            s_Texture* phys  = NULL;
+
+            for (i = 0; i < activeTexs->count; i++)
+            {
+                curTex = activeTexs->textures[i];
+                if (curTex->imageDesc.clutY >= HIRES_POOL_CLUT_ROW_BASE)
+                {
+                    continue;
+                }
+                if (curTex->refCount == 0 && (s32)curTex->queueIdx < bestQ)
+                {
+                    bestQ = (s32)curTex->queueIdx;
+                    phys  = curTex;
+                }
+            }
+            if (phys != NULL)
+            {
+                foundTex = phys;
+            }
+        }
+
         foundTex->queueIdx = 0;
         foundTex->refCount++;
         foundTex->name     = mat->name;
@@ -4048,6 +4669,7 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
 
     temp_v1 = 0x79C << (arg5 + 2);
     sp494   = g_WorldEnvWork.isFogEnabled ? MIN(temp_v1, FOG_FAR_DIST()) : temp_v1;
+    SH_WHOLEMAP_FARCAP(sp494);
     Vw_WorldScreenMatrixAtPositionGet(&matrix_sp18[0], posX, posY, posZ);
 
     // @hack Pointer needed for match, is there a way to remove this?
@@ -4189,6 +4811,20 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
         temp_v0_2 = RotTransPers((SVECTOR*)&curPtr->position.vx, &field_1C, &field_24, &field_24);
         temp_a0   = temp_v0_2 << 2;
 
+#ifdef SH_PC_PORT
+        /* Whole-town far billboards: beyond ~256u the GTE SZ3 register pegs at
+         * 0xFFFF, so the size divisor below freezes at the 256u scale while the
+         * re-projected center is correct — trees/grass rendered huge all over
+         * the street. Substitute the TRUE unclamped depth (exported by the GTE
+         * far path) so distant sprites shrink correctly instead. */
+        if (temp_a0 >= 0xFFFC && Pc_WholeMapDrawActive())
+        {
+            extern int g_PsxWholeMapLastSz;
+            if (g_PsxWholeMapLastSz > temp_a0)
+                temp_a0 = g_PsxWholeMapLastSz;
+        }
+#endif
+
         if (temp_v0_2 > 32 && temp_a0 < sp494)
         {
             s32 tpage = 0x2C;
@@ -4242,7 +4878,13 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
                 }
                 poly_gt4->pad2 = poly_gt4->p1; /* v0 fog (uniform billboard) */
 
-                addPrim(&ot_arg4->org[temp_v0_2 >> arg5], poly_gt4);
+                /* PGXP: billboard corners are built in screen space from the one
+                 * projected centre (field_1C) — the 4th vertex IS that centre, so
+                 * with PGXP it alone matches the ring (centre W) while the other
+                 * corners go affine, warping the quad ("tree-foliage spikes").
+                 * Billboards are camera-facing flat quads, so affine is correct. */
+                PsyX_SetNextPrimAffine();
+                addPrim(&ot_arg4->org[MIN(temp_v0_2 >> arg5, ORDERING_TABLE_SIZE - 1)], poly_gt4);
                 poly_gt4++;
             }
 #else

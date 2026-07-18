@@ -5,6 +5,7 @@
 #include "pc_config.h"
 #include "xa_player.h"
 #include <SDL_timer.h>
+#include <math.h>
 extern void PsyX_EndScene(void);
 extern void PsyX_UpdateInput(void);
 extern float g_PsyX_FogColor[3];
@@ -34,13 +35,16 @@ extern const unsigned char* g_sdlKeyboardState;
 #include "bodyprog/screen/background_draw.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
+#include "bodyprog/screen/screen_fade.h"
 #include "bodyprog/screen/vsync.h"
 #include "bodyprog/sys/joy.h"
 #include "bodyprog/text/text_draw.h"
 #include "bodyprog/math/math.h"
+#include "bodyprog/collision/ray.h"
 #include "bodyprog/memcard.h"
 #include "bodyprog/sound/sound_system.h"
 #include "screens/b_konami/b_konami.h"
+#include "control_style.h"
 
 #include "bodyprog/memcard.h"
 #include "bodyprog/sys/game_main.h"
@@ -70,8 +74,12 @@ static s32 g_PrevVBlanks = 0;
 #ifdef SH_PC_PORT
 /* Packet buffer corruption detection canaries */
 /* With preloading, up to ~25 chunks render (5x5 grid around player).
- * Each chunk uses ~40KB of primitives. 25 * 40 = 1MB. 2MB gives headroom. */
-#define PC_PKTBUF_SIZE (2 * 1024 * 1024)
+ * Each chunk uses ~40KB of primitives. 25 * 40 = 1MB. 2MB gives headroom.
+ * Whole-town mode submits the whole in-view cone (~60+ chunks) at once, so the
+ * arena is enlarged and the whole-map submit budget (bodyprog_80040B74.c) is
+ * sized well under it — the old 1.2MB budget was throttling the draw set to ~19
+ * chunks. 16MB fits ~400 chunks; normal play still uses <2MB. */
+#define PC_PKTBUF_SIZE (16 * 1024 * 1024)
 #define PC_CANARY_SIZE 64
 #define PC_CANARY_VAL  0xDE
 static PACKET* s_PcPacketBufs[2] = { NULL, NULL };
@@ -118,12 +126,49 @@ static void (*g_GameStateUpdateFuncs[])(void) = {
 int g_DebugCamEnabled = 0;  /* 0 = normal camera, 1 = debug camera */
 int g_DebugFogDisabled = 0; /* 0 = fog normal, 1 = fog forced off (debug cam only) */
 int g_DebugNoWallCollision = 0;  /* 0 = wall collision on, 1 = walk through walls */
+int g_PcGodMode = 0;             /* 1 = god mode: no combat damage + health held full. ONE shared flag toggled by the `god` console cmd AND debug key 7, so turning it off either way fully disables it. */
 int g_DebugNoFloorCollision = 0; /* 0 = floor collision on, always on (toggle removed) */
 int g_DebugThirdPersonCam = 0;   /* 0 = game camera, 1 = static third-person follow cam */
-int g_DebugInvincible = 0;       /* 0 = normal health, 1 = health locked to max each frame */
 int g_DebugNoTarget = 0;         /* 0 = normal AI detection, 1 = enemies ignore Harry */
+int g_DebugAnimKfView = 0;       /* 1 = freeze Harry's whole skeleton on g_DebugAnimKf for keyframe inspection */
+int g_DebugAnimKf = 588;         /* absolute keyframe index posed while g_DebugAnimKfView is on (588 = gun-forward) */
+int g_DebugAnimKfMax = 0;        /* keyframeCount of Harry's active anim header, published by Player_Update for the inspector panel */
+int g_DebugAnimPlaying = 0;      /* 1 = loop the selected keyframe range (P) instead of freezing on one frame */
+int g_DebugAnimKfStart = 0;      /* selected loop range start (absolute keyframe) */
+int g_DebugAnimKfEnd   = 0;      /* selected loop range end (absolute keyframe) */
+s32 g_DebugAnimRate    = Q12(15.0f); /* loop playback rate (q19_12 kf/sec @30fps); copied from the source anim when constant */
+int g_DebugViewNpcSlot = -1;     /* keyframe viewer target: -1 = Harry, else g_SysWork.npcs[] slot */
+int g_DebugAnimPlayGen = 0;      /* bumped on each play (re)start so the loop cursor re-seeds */
 s32 g_TpsCamYaw = 0;             /* TPS orbit yaw (Q12), independent from Harry's body */
 s32 g_TpsCamPitch = 0;           /* TPS orbit pitch (Q12) */
+/* Camera eye + forward (unit Q12) published each frame by Pc_TpsCamera_Apply for
+ * free-aim: the aim ray is cast from g_TpsCamPos along g_TpsCamFwd (screen-center
+ * reticle == camera forward). Read by Player_CombatUpdate. */
+VECTOR3 g_TpsCamPos = { 0, 0, 0 };
+VECTOR3 g_TpsCamFwd = { 0, 0, Q12(1.0f) };
+/* First-person camera eye offset in Harry's local frame (vx=right, vy=up [Y-up
+ * is negative], vz=forward), rotated by his BODY yaw each frame to place the eye
+ * between his arms. Captured via the L cam-pos log key or the numpad tuner. */
+extern int g_PcFpsCam;
+VECTOR3 g_PcFpsOffset = { -29, -6836, 919 }; /* FPS eye BASELINE in Harry's BODY frame (all weapons); vx=right, vy=up(neg), vz=forward. Head-follow sway rides on top. */
+VECTOR3 g_PcFpsViewFwd = { 0, 0, 4096 };     /* FPS view-forward, WORLD space Q12; published each FPS frame for the head-mounted flashlight */
+VECTOR3 g_PcFpsEyePos  = { 0, 0, 0 };        /* FPS eye WORLD pos (Q19.12); flashlight origin in FPS */
+VECTOR3 g_PcFlashlightShadowWorld = { 0, 0, 0 }; /* physical flashlight WORLD pos (Q19.12), captured before the FPS eye-override; drives the shadow-map light so FPS shadows match third person */
+/* FPS melee arm-clearance dolly (Pc_TpsCamera_Apply): smoothed pull distance, and
+ * the "head visible" publish read by world_draw.c — once the dolly is genuinely
+ * behind Harry's head, the head draws again so the pulled-back swing reads as a
+ * brief third-person beat instead of a headless body. */
+static s32 s_FpsSwingPull   = 0; /* Q12 */
+int g_PcFpsSwingHeadShow = 0;
+/* Published each FPS frame for the KP_5 tuner log: the running head-sway reference
+ * (== idle-mean head-local once settled) and the instantaneous head-local. Logging
+ * the settled ref at idle gives the constant needed to bake a FIXED sway reference. */
+VECTOR3 g_PcFpsHeadRefDbg   = { 0, 0, 0 };
+VECTOR3 g_PcFpsHeadLocalDbg = { 0, 0, 0 };
+/* Which device last drove the aim/look: 0 = mouse, 1 = controller. Sticky (holds
+ * the last device while look input is momentarily idle). Read by Pc_AimAssistFind
+ * to pick a mouse-light vs controller-strong (auto-aim) assist window. */
+int g_PcAimDevice = 0;
 int g_SH_PostFireTrace = 0;      /* Frames remaining of verbose post-fire main-loop tracing */
 int g_SH_AlwaysMlTrace = 0;      /* 1 = unconditional ML_TRACE every frame; flip to 0 once silent crashes are diagnosed */
 int g_DebugUnlockFps = 0;        /* 0 = fps_cap from config, 1 = uncapped (debug toggle) */
@@ -137,50 +182,794 @@ static q3_12 g_DebugCamAngleX = 0; /* pitch/tilt: positive = look down, negative
 static VECTOR3 g_DebugCamSavedHarryPos; /* Harry's position when debug cam was enabled */
 static s32 g_DebugCamSavedHarryPosY;    /* Separate Y for collision restore */
 
-/* ---- Normal-camera "nudge" state (numpad-driven manual cam tweaking) ----
- * vcMoveAndSetCamera produces a camera each frame; we want to let the user
- * nudge that output in real time so they can find a good camera and log it
- * via top-row 4/5. The nudges are an additive delta on top of whatever the
- * normal cam computed:
- *     final cam_pos     = vcWork.cam_pos       + g_PcCamNudgePos
- *     final watch_tgt   = (rotate watch_tgt around cam_pos by yaw nudge,
- *                          pitch yaw by pitch nudge) + g_PcCamNudgePos
- * Numpad 3 zeroes the nudges, restoring the scene's default cam.
- *
- * "Default cam" tracking: every frame BEFORE we apply nudges we record
- * vcWork.cam_pos / watch_tgt_pos in g_DefaultCam. That way the natural
- * cam-road interpolation drives the default and Numpad 3 simply discards
- * accumulated tweaks. */
-typedef struct {
-    VECTOR3 pos;
-    VECTOR3 lookAt;
-    s32     valid;
-} s_DefaultCamera;
 
-static VECTOR3       g_PcCamNudgePos     = {0, 0, 0};
-static s32           g_PcCamNudgeYaw     = 0; /* Q3.12 added to cam yaw */
-static s32           g_PcCamNudgePitch   = 0; /* Q3.12 added to cam pitch (TRUE rotation) */
-static s_DefaultCamera g_DefaultCam      = {{0,0,0}, {0,0,0}, 0};
-
-/* Post-nudge cam state — written by the apply site after computing newCam
- * and newLook (the values actually passed to Vw_SetLookAtMatrix this frame).
- * Read by the BAD/GOOD log so [CAM-GOOD-FINAL] shows the exact on-screen
- * camera the user is looking at. g_PcCamAppliedValid is 0 when no nudge
- * was applied this frame (fall back to vcWork for the log). */
+/* FPS eye position actually applied this frame; read by the L-key re-log so its
+ * LOCAL OFFSET reflects the live first-person camera. */
 static VECTOR3       g_PcCamAppliedPos    = {0, 0, 0};
-static VECTOR3       g_PcCamAppliedLookAt = {0, 0, 0};
 static int           g_PcCamAppliedValid  = 0;
 
-/* KP_0: "raw cam mode" — zeroes the manual numpad nudge so the engine's
- * unmodified camera output is visible. Lets the user take an accurate BAD
- * snapshot before adjusting. Toggle on/off with KP_0. */
-static int           g_DebugRawCamMode    = 0;
+/* TPS orbit camera application. Promoted out of the debug-only path: runs
+ * whenever the TPS control style is active (g_DebugThirdPersonCam, mirrored
+ * from g_ControlStyle), with or without allow_debug_controls. Mouse delta
+ * orbits the camera around Harry; body-yaw follow + movement live in
+ * player_control.c's TPS branch. */
+/* True while a scripted scene owns the screen. The alternate cameras (TPS/OTS/FPS)
+ * must stand down for these — otherwise the follow/eye camera overrides the scripted
+ * shot and the scene plays from the wrong place (Harry's sewer ladder descent being
+ * the obvious one). Standing down does NOT freeze the view: vcMoveAndSetCamera has
+ * already placed the game's own camera this frame, so skipping our override simply
+ * lets that camera through.
+ *
+ * A letterboxed cinematic is unambiguous. Everything else is a scene only when the
+ * script drives BOTH the camera and Harry — neither half is sufficient alone:
+ *
+ *  - The camera flags alone (VC_USER_CAM_F / VC_USER_WATCH_F, raised by
+ *    vcUserCamTarget / vcUserWatchTarget) are also raised by the maps' own boss and
+ *    region cameras during ORDINARY gameplay. map7_s03 re-raises them every single
+ *    frame of the final boss fight, so keying on them alone would leave the alternate
+ *    camera dead for that entire fight.
+ *
+ *  - g_Player_DisableControl alone (Player_ControlFreeze) is raised by every text box
+ *    and every item pickup, which freeze Harry but never touch the camera. Keying on
+ *    it alone would pop the view to the classic angle and back on every memo and
+ *    every item taken — Event_ItemTake freezes at EventState_Initialize, several
+ *    frames before Gfx_PickupItemAnimate pauses the world, so there is a live window.
+ *
+ * Both together hold exactly for the scripted scenes: the sewer descent, the DMS
+ * cutscenes, the scripted camera moves.
+ *
+ * SysState_ReadMessage is excluded outright — examining a memo is never a scene, not
+ * even in the few areas whose region camera happens to hold the camera flags up
+ * during gameplay. control_style.c makes the same carve-out. */
+extern u8 g_Player_DisableControl; /* bodyprog/player.h */
+
+/* Non-static: the per-vertex flashlight override (bodyprog_80055028.c) gates
+ * its FPS-eye aim on this too, so the flashlight follows the FPS eye only when
+ * the FPS camera is actually the view (not during scripted scenes/cutscenes). */
+int Pc_ScriptOwnsScene(void)
+{
+    if ((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
+        g_SysWork.cutsceneBorderState != CutsceneBorderState_None)
+        return 1;
+
+    if (g_SysWork.sysState == SysState_ReadMessage)
+        return 0;
+
+    return (vcWork.flags & (VC_USER_CAM_F | VC_USER_WATCH_F)) && g_Player_DisableControl;
+}
+
+/* Alternate-camera FOV (degrees of horizontal FOV on the 4:3 frame): override the
+ * GTE projection distance ONLY during interactive alternate-camera gameplay. FPS
+ * uses fps_fov, Thirdperson and Over-the-Shoulder use tps_fov. Menus, cutscenes,
+ * scripted scenes and the Classic fixed cameras always keep the game's own
+ * projection. H = 160 / tan(fov/2).
+ *
+ * The game's own projection distance in gameplay is g_GameWork.gsScreenHeight, and
+ * gameplay runs PROGRESSIVE — Screen_Init(SCREEN_WIDTH, false) — so H is 224, not
+ * 240. On the 320-wide frame that is a true horizontal FOV of 2*atan(160/224) =
+ * 71.1 deg, which is why both fps_fov and tps_fov default to 71.1: they map back to
+ * H = 224, the exact value vcExecCamera already set this frame, so the defaults are
+ * a genuine no-op. Do NOT use 67.4 (H = 240) — that is the interlaced height and is
+ * narrower than the game's real gameplay FOV.
+ *
+ * Called on BOTH exits of Pc_TpsCamera_Apply, including the stand-down path: the
+ * restore has to run even when the camera body is skipped, or the FOV stays
+ * clamped onto the scripted shot for the whole scene. */
+static void Pc_CameraFov_Update(void)
+{
+    static int s_fovApplied = 0;
+    float      fov          = 0.0f;
+
+    /* Apply the alt-cam FOV whenever the alt camera BODY is active this frame — i.e.
+     * we did not stand down (!Pc_ScriptOwnsScene). Restricting to SysState_Gameplay
+     * dropped the FOV back to the game default during examine (SysState_ReadMessage)
+     * and item pickup, even though the alt camera keeps rendering — a visible FOV pop.
+     * The stand-down exit calls this too, where Pc_ScriptOwnsScene() is true, so the
+     * game FOV is correctly restored for scripted scenes/cutscenes. */
+    if (g_GameWork.gameState == GameState_InGame &&
+        !Pc_ScriptOwnsScene())
+    {
+        if (g_PcFpsCam)
+            fov = g_PcConfig.fpsFov;
+        else if (g_ControlStyle == ControlStyle_Tps || g_ControlStyle == ControlStyle_Ots)
+            fov = g_PcConfig.tpsFov;
+    }
+
+    if (fov > 0.0f)
+    {
+        /* Float tan + round-to-nearest so a default tps_fov (71.1) lands on EXACTLY
+         * H = 224 = gsScreenHeight, i.e. the projection the game already had. */
+        float t = tanf(fov * (3.14159265f / 360.0f));
+        s32   h = (t > 0.001f) ? (s32)((160.0f / t) + 0.5f) : g_GameWork.gsScreenHeight;
+        if (h < 16)  h = 16;
+        if (h > 512) h = 512;
+        SetGeomScreen(h);
+        s_fovApplied = 1;
+    }
+    else if (s_fovApplied)
+    {
+        SetGeomScreen(g_GameWork.gsScreenHeight);
+        s_fovApplied = 0;
+    }
+}
+
+static void Pc_TpsCamera_Apply(void)
+{
+    /* Hand the camera back to the game whenever a script owns the scene. */
+    if (Pc_ScriptOwnsScene())
+    {
+        /* Exception: the post-load fade-in of a room/area transition is not a
+         * scripted scene -- Pc_ScriptOwnsScene only trips its third branch there
+         * (camera flags + frozen control). In first person, standing down lets the
+         * vanilla third-person camera ease in from its stale position, which reads
+         * as the eye floating toward Harry's body out of a void. The FPS eye is
+         * computed fresh from Harry's already-placed head, so applying it here snaps
+         * straight in with no drift. Only during the actual fade-in (masked status
+         * FadeInStart/FadeInSteps) and never for a real cutscene, so scripted camera
+         * moves and cutscenes still stand down normally. */
+        int fpsSnapThroughLoad =
+            g_PcFpsCam &&
+            (g_Screen_FadeStatus & 0x7) >= ScreenFadeState_FadeInStart &&
+            !(g_SysWork.sysFlags & SysFlag_CutsceneActive) &&
+            g_SysWork.cutsceneBorderState == CutsceneBorderState_None;
+
+        if (!fpsSnapThroughLoad)
+        {
+            Pc_CameraFov_Update();
+            return;
+        }
+    }
+
+    #define TP_DIST         Q12(2.5f)    /* orbit radius from Harry */
+    #define TP_HEIGHT       Q12(-1.4f)   /* base lift above Harry (Y-up = negative) */
+    #define TP_LOOKAT_OFS   Q12(-0.85f)  /* Y offset for look target (Harry's chest) */
+    #define TP_MOUSE_SENS     6          /* Q12 units per pixel for yaw */
+    #define TP_PITCH_SENS     2          /* Q12 units per pixel for pitch */
+    #define TP_STICK_DEADZONE 24         /* right-stick deadzone (of 128) */
+    #define TP_STICK_YAW      40         /* per-30fps-frame yaw at full deflection */
+    #define TP_STICK_PITCH    28         /* per-30fps-frame pitch at full deflection */
+    #define TP_DIST_AIM       Q12(1.3f)  /* aim orbit radius at the 100% (default) zoom */
+    /* Full-scale (200%) aim zoom pulls TWICE as far in as TP_DIST_AIM: the slider is
+     * linear from TP_DIST (0%) to TP_DIST_AIM_MAX (200%), so 100% (the default) lands
+     * exactly on TP_DIST_AIM (the original zoom). = 2*1.3 - 2.5 = Q12(0.1). */
+    #define TP_DIST_AIM_MAX   (2 * TP_DIST_AIM - TP_DIST)
+
+    s_SubCharacter* tp_hr = &g_SysWork.playerWork.player;
+    int             isAiming;
+    /* FPS head-follow: body-local head-bone offset captured on FPS entry, used to
+     * isolate the idle-animation SWAY so the eye rides Harry's head, not his root. */
+    static VECTOR3  s_fpsHeadRef;
+    static int      s_fpsHeadRefValid = 0;
+    /* FPS head-LOOK follow: the head bone's animated ROTATION (relative to the
+     * body), low-passed to null its rest orientation so only the sway/lean turns
+     * the view. Layered on top of the mouse look below. */
+    static q3_12    s_fpsHeadYawRef   = 0;
+    static q3_12    s_fpsHeadPitchRef = 0;
+    static int      s_fpsHeadRotValid = 0;
+
+    /* Zoom + OTS offset follow the AIM state only — NOT firing/attacking. Gating
+     * on g_Player_IsAttacking too made the camera jarringly zoom in whenever the
+     * player fired a shot, swung a melee weapon, or activated/examined something
+     * (Cross) without aiming. The zoom is lerped below, so dropping it doesn't
+     * snap during an aimed shot (isAiming stays held).
+     * Also OR the raw aim-input flag: combat-state churn during rapid fire can
+     * blip isAiming false for a frame, which visibly popped the zoom out even
+     * though the player never released the aim button. */
+    { extern u16 g_Player_IsAiming;
+      isAiming = g_SysWork.playerCombat.isAiming || g_Player_IsAiming; }
+
+    /* Aim zoom: ease the orbit distance in while aiming a gun, so the shot lines
+     * up better. tps_aim_zoom config gates it (on by default). */
+    static s32 s_tpDist = TP_DIST;
+    static s32 s_otsOff = 0;   /* OTS lateral offset; also reset on mode entry */
+    {
+        extern int g_TpsCamNeedsReset;
+        if (g_TpsCamNeedsReset)
+        {
+            /* First frame after entering TPS/OTS from classic: seed the orbit
+             * behind Harry's current facing and clear the eased zoom/shoulder so
+             * nothing pops in from the previous third-person session. */
+            g_TpsCamNeedsReset = 0;
+            g_TpsCamYaw   = tp_hr->rotation.vy;
+            g_TpsCamPitch = 0;
+            s_tpDist      = TP_DIST;
+            s_otsOff      = 0;
+        }
+        /* tps_aim_zoom_amount scales how far in the dolly goes: 0% leaves the
+         * camera at TP_DIST (no zoom), 100% (the default) lands on TP_DIST_AIM (the
+         * original zoom), 200% goes all the way to TP_DIST_AIM_MAX (twice as far
+         * in). Linear across the whole range. */
+        s32 pct = (s32)(g_PcConfig.tpsAimZoom + 0.5f);
+        s32 aimDist;
+        s32 target;
+
+        if (pct < 0)   pct = 0;
+        if (pct > 200) pct = 200;
+
+        aimDist = TP_DIST - (((TP_DIST - TP_DIST_AIM_MAX) * pct) / 200);
+        target  = isAiming ? aimDist : TP_DIST;
+        s_tpDist += (target - s_tpDist) >> 3;
+    }
+
+    /* Mouse + right stick: orbit the camera, decoupled from Harry's body. */
+    {
+        int mdx = 0, mdy = 0;
+        s32 dPitch;
+        s32 rx, ry;
+        /* Console open: hold the camera perfectly still so the frozen frame shows
+         * the exact view you were looking at. Still drain the relative-mouse
+         * accumulator (below) so the view doesn't jump when the console closes. */
+        extern int g_PcConsoleInputActive;
+        int frozen = g_PcConsoleInputActive;
+
+        SDL_GetRelativeMouseState(&mdx, &mdy);
+        if (frozen) { mdx = 0; mdy = 0; }
+        /* Mouse-RIGHT (mdx>0) → += yaw → view rotates right.
+         * Mouse-UP (mdy<0) → pitch up by default; invert_mouse_y flips it. */
+        {
+            float ms = g_PcConfig.mouseSensitivity; /* 0.1..4.0, default 1.0 */
+            g_TpsCamYaw   += (s32)(mdx * TP_MOUSE_SENS * ms);
+            dPitch         = (s32)(mdy * TP_PITCH_SENS * ms);
+        }
+        g_TpsCamPitch += g_PcConfig.invertMouseY ? dPitch : -dPitch;
+
+        /* Right stick (controller look parity). 0..255 centered at 128;
+         * deadzone, then accumulate frame-rate-scaled. ry>0 = stick down →
+         * look down by default; invert_controller_y flips it. */
+        rx = (s32)g_Controller0->analogController.rightX - 128;
+        ry = (s32)g_Controller0->analogController.rightY - 128;
+        if (frozen) { rx = 0; ry = 0; }
+        if (rx > -TP_STICK_DEADZONE && rx < TP_STICK_DEADZONE) rx = 0;
+        if (ry > -TP_STICK_DEADZONE && ry < TP_STICK_DEADZONE) ry = 0;
+        if (rx != 0 || ry != 0) {
+            float cs   = g_PcConfig.controllerSensitivity; /* 0.1..4.0, default 1.0 */
+            s32 sYaw   = TIMESTEP_SCALE_30_FPS(g_DeltaTime, (s32)(((rx * TP_STICK_YAW)   >> 7) * cs));
+            s32 sPitch = TIMESTEP_SCALE_30_FPS(g_DeltaTime, (s32)(((ry * TP_STICK_PITCH) >> 7) * cs));
+            g_TpsCamYaw   += sYaw;
+            g_TpsCamPitch += g_PcConfig.invertControllerY ? sPitch : -sPitch;
+        }
+
+        /* Sticky aim-device detection for aim-assist: mouse motion -> mouse;
+         * else any stick deflection (right = look, left = move) -> controller. */
+        {
+            s32 lx = (s32)g_Controller0->analogController.leftX - 128;
+            s32 ly = (s32)g_Controller0->analogController.leftY - 128;
+            if (mdx != 0 || mdy != 0)
+                g_PcAimDevice = 0;
+            else if (rx != 0 || ry != 0 ||
+                     lx > TP_STICK_DEADZONE || lx < -TP_STICK_DEADZONE ||
+                     ly > TP_STICK_DEADZONE || ly < -TP_STICK_DEADZONE)
+                g_PcAimDevice = 1;
+        }
+
+        g_TpsCamYaw = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
+        /* Tighter clamp on the look-down side so the camera doesn't rise far
+         * over Harry's head. */
+        if (g_PcFpsCam) {
+            /* First-person: allow looking down at the legs / up toward the sky,
+             * but stay short of straight up/down so the forward vector + the
+             * ratan2 in Vw_SetLookAtMatrix don't degenerate. */
+            if (g_TpsCamPitch < -Q12_ANGLE(82.0f)) g_TpsCamPitch = -Q12_ANGLE(82.0f);
+            if (g_TpsCamPitch >  Q12_ANGLE(82.0f)) g_TpsCamPitch =  Q12_ANGLE(82.0f);
+
+            /* Yaw limit: you can mouse-look from straight-left to straight-right
+             * (±90°) of Harry's BODY yaw, but not past his shoulders. When
+             * moving or aiming the body snaps to the camera (player_control), so
+             * the ±90° window rides along and turning is free; it only bites
+             * while standing still — then the body catches up when you move. */
+            {
+                s32 yd = Math_AngleNormalizeSigned(g_TpsCamYaw - tp_hr->rotation.vy);
+                if (yd >  Q12_ANGLE(90.0f))
+                    g_TpsCamYaw = Q12_ANGLE_NORM_U(tp_hr->rotation.vy + Q12_ANGLE(90.0f) + Q12_ANGLE(360.0f));
+                else if (yd < -Q12_ANGLE(90.0f))
+                    g_TpsCamYaw = Q12_ANGLE_NORM_U(tp_hr->rotation.vy - Q12_ANGLE(90.0f) + Q12_ANGLE(360.0f));
+            }
+        } else {
+            if (g_TpsCamPitch < -Q12_ANGLE(40.0f)) g_TpsCamPitch = -Q12_ANGLE(40.0f);
+            if (g_TpsCamPitch >  Q12_ANGLE(50.0f)) g_TpsCamPitch =  Q12_ANGLE(50.0f);
+        }
+    }
+
+    /* forward = (sin(yaw)*cos(pitch), -sin(pitch), cos(yaw)*cos(pitch))  Q12.
+     * PSX -Y=up convention: pitch>0 (look up) → forward.y negative. */
+    {
+        /* First-person head-LOOK: fold Harry's animated head-bone rotation into
+         * the view direction so the camera turns with his idle sway / melee lean
+         * even when the mouse is still — the mouse look is layered on top. The
+         * head bone's world orientation already contains the body yaw (it's a
+         * child of the body), so express its forward relative to the body yaw to
+         * get the head's local turn, then low-pass a reference to null the DC
+         * rest orientation (same >>8 / tau ~4s as the position-sway ref below) so
+         * the view rests neutral and only the sway/lean delta turns it. The
+         * head-local +Z column is used as face-forward: for YAW this is exact
+         * under any rest axis (a Y-rotation shifts every horizontal vector's yaw
+         * equally, and the constant axis offset is removed by the reference). */
+        s32 rearOfs;
+        s32 viewYaw;
+        s32 viewPitch = g_TpsCamPitch;
+        /* Rear Look (held bind): swing the orbit 180 so the camera sits in front of
+         * Harry and looks back past him. TPS/OTS only; FPS forces 0 (byte-identical). */
+        {
+            extern int g_PcRearLookActive;
+            rearOfs = (g_PcRearLookActive && !g_PcFpsCam) ? Q12_ANGLE(180.0f) : 0;
+        }
+        viewYaw = g_TpsCamYaw + rearOfs;
+        if (g_PcFpsCam && g_PcConfig.immersiveFpsHeadTracking)
+        {
+            const MATRIX* hm  = &g_SysWork.playerBoneCoords[HarryBone_Head].workm;
+            s32   fX   = hm->m[0][2]; /* head-local +Z rotated to world, Q12 */
+            s32   fY   = hm->m[1][2];
+            s32   fZ   = hm->m[2][2];
+            s32   hmag = SquareRoot0(SQUARE(fX) + SQUARE(fZ));
+            q3_12 headYawW   = ratan2(fX, fZ);
+            q3_12 headPitchW = ratan2(-fY, hmag);
+            q3_12 headYawL   = Math_AngleNormalizeSigned(headYawW - tp_hr->rotation.vy);
+
+            if (!s_fpsHeadRotValid)
+            {
+                if (g_GameWork.gameState == GameState_InGame &&
+                    g_SysWork.sysState   == SysState_Gameplay)
+                {
+                    s_fpsHeadYawRef   = headYawL;
+                    s_fpsHeadPitchRef = headPitchW;
+                    s_fpsHeadRotValid = 1;
+                }
+            }
+            else
+            {
+                s32 dYaw, dPitch, gain;
+
+                /* Settle delay: Harry's idle head sway begins the instant he stops,
+                 * so locking the view onto it immediately feels aggressive. Ease
+                 * the follow in over a few seconds of standing still — the body
+                 * animates normally, only the CAMERA's response is delayed. Any
+                 * movement resets the timer; the reference keeps low-passing so the
+                 * delta stays small when the gain finally rises (no pop). */
+                #define FPS_LOOK_DELAY_MS 1500u  /* fully off for this long after stopping */
+                #define FPS_LOOK_RAMP_MS  3500u  /* fully on by here (ramp over the gap) */
+                {
+                    static Uint32 s_lastMoveMs = 0;
+                    Uint32 now   = SDL_GetTicks();
+                    s32    held2 = g_Controller0->heldBtnFlags;
+                    int    moving = (g_sdlKeyboardState[SDL_SCANCODE_W] != 0) ||
+                                    (g_sdlKeyboardState[SDL_SCANCODE_A] != 0) ||
+                                    (g_sdlKeyboardState[SDL_SCANCODE_S] != 0) ||
+                                    (g_sdlKeyboardState[SDL_SCANCODE_D] != 0) ||
+                                    (held2 & (ControllerFlag_LStickUp   | ControllerFlag_LStickDown  |
+                                              ControllerFlag_LStickLeft | ControllerFlag_LStickRight |
+                                              ControllerFlag_DpadUp     | ControllerFlag_DpadDown    |
+                                              ControllerFlag_DpadLeft   | ControllerFlag_DpadRight));
+                    Uint32 still;
+                    if (moving) s_lastMoveMs = now;
+                    still = now - s_lastMoveMs;
+                    if (still <= FPS_LOOK_DELAY_MS)      gain = 0;
+                    else if (still >= FPS_LOOK_RAMP_MS)  gain = Q12(1.0f);
+                    else gain = (s32)(((s64)(still - FPS_LOOK_DELAY_MS) << 12) /
+                                      (FPS_LOOK_RAMP_MS - FPS_LOOK_DELAY_MS));
+                }
+                #undef FPS_LOOK_DELAY_MS
+                #undef FPS_LOOK_RAMP_MS
+
+                s_fpsHeadYawRef   += Math_AngleNormalizeSigned(headYawL   - s_fpsHeadYawRef)   >> 8;
+                s_fpsHeadPitchRef += Math_AngleNormalizeSigned(headPitchW - s_fpsHeadPitchRef) >> 8;
+
+                dYaw   = Math_AngleNormalizeSigned(headYawL   - s_fpsHeadYawRef);
+                dPitch = Math_AngleNormalizeSigned(headPitchW - s_fpsHeadPitchRef);
+                viewYaw   += (s32)(((s64)dYaw   * gain) >> 12);
+                viewPitch += (s32)(((s64)dPitch * gain) >> 12);
+
+                /* Safety: keep the composed pitch short of straight up/down so the
+                 * ratan2 in Vw_SetLookAtMatrix doesn't degenerate. */
+                if (viewPitch >  Q12_ANGLE(87.0f)) viewPitch =  Q12_ANGLE(87.0f);
+                if (viewPitch < -Q12_ANGLE(87.0f)) viewPitch = -Q12_ANGLE(87.0f);
+            }
+        }
+        else
+        {
+            /* Immersive head-tracking off (or non-FPS): re-seed the sway
+             * reference next time it's enabled so the view doesn't jerk from a
+             * stale frozen reference. */
+            s_fpsHeadRotValid = 0;
+        }
+
+        s32 sy = Math_Sin(viewYaw);
+        s32 cy = Math_Cos(viewYaw);
+        s32 sp = Math_Sin(viewPitch);
+        s32 cp = Math_Cos(viewPitch);
+
+        s32 fwdX = (s32)((s64)sy * cp >> 12);
+        s32 fwdY = -sp;
+        s32 fwdZ = (s32)((s64)cy * cp >> 12);
+
+        VECTOR3 tpCamPos, tpLookAt;
+        s32     anchorY;
+        #define TP_LOOKAT_DIST Q12(25.0f)
+
+        if (!g_PcFpsCam)
+        {
+            s_fpsHeadRefValid = 0; /* re-capture the head-sway baseline on next FPS entry */
+            s_fpsHeadRotValid = 0; /* re-seed the head-LOOK baseline on next FPS entry */
+            s_FpsSwingPull       = 0; /* a stale pulled state would flash the head interior on FPS re-entry */
+            g_PcFpsSwingHeadShow = 0;
+        }
+
+        if (g_PcFpsCam)
+        {
+            /* First-person: eye = Harry's root + the local between-the-arms offset,
+             * rotated by Harry's BODY yaw (rotation.vy) — the SAME frame the L-key
+             * logs the offset in, so a captured value reproduces the spot exactly
+             * and each numpad axis is a fixed straight-line nudge (no orbit).
+             * lookAt = eye + forward (forward still uses camYaw/pitch below — the
+             * view direction is the mouse, the eye POSITION rides the body). */
+            s32     eyeYaw = tp_hr->rotation.vy;
+            s32     sYaw   = Math_Sin(eyeYaw);
+            s32     cYaw   = Math_Cos(eyeYaw);
+            VECTOR3 eyeLocal = g_PcFpsOffset;
+
+            /* Head-follow: ride Harry's animated head bone so the view breathes and
+             * sways with his idle animation instead of his body sliding out from
+             * under a root-anchored eye. Take the head bone's body-local offset (its
+             * world pos, Q8->Q12, inverse-rotated by body yaw), subtract the value
+             * captured on FPS entry to isolate just the SWAY, and add it to the
+             * tuned eye offset — so the baseline stays exactly the tuned spot. */
+            {
+                s32     hdx = Q8_TO_Q12(g_SysWork.playerBoneCoords[HarryBone_Head].workm.t[0]) - tp_hr->position.vx;
+                s32     hdy = Q8_TO_Q12(g_SysWork.playerBoneCoords[HarryBone_Head].workm.t[1]) - tp_hr->position.vy;
+                s32     hdz = Q8_TO_Q12(g_SysWork.playerBoneCoords[HarryBone_Head].workm.t[2]) - tp_hr->position.vz;
+                VECTOR3 headLocal;
+                headLocal.vx = (s32)(((s64)hdx * cYaw - (s64)hdz * sYaw) >> 12);
+                headLocal.vz = (s32)(((s64)hdx * sYaw + (s64)hdz * cYaw) >> 12);
+                headLocal.vy = hdy;
+
+                /* Seed the sway reference from settled gameplay (not the load/spawn
+                 * pose), THEN low-pass it toward the head's running mean every frame.
+                 * A FROZEN reference stays biased by whatever single pose it captured
+                 * (never the idle mean), so the resting eye is off by a constant that
+                 * differs per install — the recurring "FPS camera is off on a fresh
+                 * install" bug. A TRACKING reference always re-centres, so the eye's
+                 * resting position converges to the tuned baseline deterministically
+                 * on every install; fast head motion (walk/turn/idle sway) still shows
+                 * through, only the slow DC drift is removed. The time constant must
+                 * stay WELL above the ~0.5-0.7s melee aim/swing lean, or the reference
+                 * tracks the lean and cancels it — the eye must ride the head fully
+                 * through an aim/swing. >>8 (tau ~4s @60fps) passes the lean and idle
+                 * breathing while still nulling multi-second drift. */
+                if (!s_fpsHeadRefValid)
+                {
+                    if (g_GameWork.gameState == GameState_InGame &&
+                        g_SysWork.sysState   == SysState_Gameplay)
+                    {
+                        s_fpsHeadRef      = headLocal;
+                        s_fpsHeadRefValid = 1;
+                    }
+                }
+                else
+                {
+                    s_fpsHeadRef.vx += (headLocal.vx - s_fpsHeadRef.vx) >> 8;
+                    s_fpsHeadRef.vy += (headLocal.vy - s_fpsHeadRef.vy) >> 8;
+                    s_fpsHeadRef.vz += (headLocal.vz - s_fpsHeadRef.vz) >> 8;
+                }
+
+                if (s_fpsHeadRefValid)
+                {
+                    eyeLocal.vx += headLocal.vx - s_fpsHeadRef.vx;
+                    eyeLocal.vy += headLocal.vy - s_fpsHeadRef.vy;
+                    eyeLocal.vz += headLocal.vz - s_fpsHeadRef.vz;
+                }
+
+                {
+                    extern VECTOR3 g_PcFpsHeadRefDbg, g_PcFpsHeadLocalDbg;
+                    g_PcFpsHeadRefDbg   = s_fpsHeadRef;
+                    g_PcFpsHeadLocalDbg = headLocal;
+                }
+            }
+
+            tpCamPos.vx = tp_hr->position.vx + (s32)((s64)eyeLocal.vz * sYaw >> 12)
+                                             + (s32)((s64)eyeLocal.vx * cYaw >> 12);
+            tpCamPos.vz = tp_hr->position.vz + (s32)((s64)eyeLocal.vz * cYaw >> 12)
+                                             - (s32)((s64)eyeLocal.vx * sYaw >> 12);
+            tpCamPos.vy = tp_hr->position.vy + eyeLocal.vy;
+
+            /* Melee arm clearance: with the eye in the head, raise/swing poses put
+             * Harry's forearms right across the camera. Dolly the eye straight back
+             * along the view axis by how much the nearest forearm/hand bone crowds
+             * it — the camera backs off as the arms come up and eases home as the
+             * swing carries them away, self-timed for every weapon's animation.
+             * Gated to melee/unarmed attack input (guns don't raise into the face);
+             * proximity keeps it inert while the arms are down. A ray toward the
+             * pulled position keeps the dolly out of level geometry behind the eye. */
+            {
+                #define SWING_PULL_NEAR Q12(0.55f) /* arm distance where the dolly starts */
+                #define SWING_PULL_MAX  Q12(0.50f) /* dolly cap */
+                #define SWING_PULL_WALL Q12(0.15f) /* keep-out margin from level geometry */
+                s32 target = 0;
+
+                if (g_SysWork.playerCombat.weaponAttack != NO_VALUE &&
+                    g_SysWork.playerCombat.weaponAttack < WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
+                {
+                    static const u8 ARM_BONES[4] = { HarryBone_LeftForearm, HarryBone_LeftHand,
+                                                     HarryBone_RightForearm, HarryBone_RightHand };
+                    s32 minDist = 0x7FFFFFFF;
+                    s32 i;
+
+                    for (i = 0; i < 4; i++)
+                    {
+                        const MATRIX* bm = &g_SysWork.playerBoneCoords[ARM_BONES[i]].workm;
+                        s32 dx = Q8_TO_Q12(bm->t[0]) - tpCamPos.vx;
+                        s32 dy = Q8_TO_Q12(bm->t[1]) - tpCamPos.vy;
+                        s32 dz = Q8_TO_Q12(bm->t[2]) - tpCamPos.vz;
+                        s32 d  = SquareRoot0(SQUARE(dx) + SQUARE(dy) + SQUARE(dz));
+                        if (d < minDist) minDist = d;
+                    }
+
+                    if (minDist < SWING_PULL_NEAR)
+                    {
+                        /* 1.5x gain: bone origins (elbow/wrist) sit past the mesh
+                         * surface that actually fills the view. */
+                        target = (SWING_PULL_NEAR - minDist) + ((SWING_PULL_NEAR - minDist) >> 1);
+                        if (target > SWING_PULL_MAX) target = SWING_PULL_MAX;
+                    }
+                }
+
+                /* Ease: quick to extend (beat the raise), gentler to come home.
+                 * Snap the tail so the timestep-scaled integer step can't stall. */
+                {
+                    s32 d = target - s_FpsSwingPull;
+                    s_FpsSwingPull += TIMESTEP_SCALE_30_FPS(g_DeltaTime, (d > 0) ? (d >> 1) : (d >> 2));
+                    d = target - s_FpsSwingPull;
+                    if (d < 0) d = -d;
+                    if (d < 24) s_FpsSwingPull = target;
+                }
+
+                /* Head visibility follows the ACTUAL dolly distance, not the swing
+                 * state: below the threshold the camera is still inside the head.
+                 * Hysteresis so it can't flicker around the edge. */
+                if (s_FpsSwingPull > Q12(0.32f))
+                    g_PcFpsSwingHeadShow = 1;
+                else if (s_FpsSwingPull < Q12(0.22f))
+                    g_PcFpsSwingHeadShow = 0;
+
+                if (s_FpsSwingPull > 0)
+                {
+                    s32 pull = s_FpsSwingPull;
+                    s_RayTrace pullTrace;
+                    VECTOR3    back;
+                    back.vx = tpCamPos.vx - (s32)((s64)(pull + SWING_PULL_WALL) * fwdX >> 12);
+                    back.vy = tpCamPos.vy - (s32)((s64)(pull + SWING_PULL_WALL) * fwdY >> 12);
+                    back.vz = tpCamPos.vz - (s32)((s64)(pull + SWING_PULL_WALL) * fwdZ >> 12);
+                    if (Ray_TraceQuery(&pullTrace, &tpCamPos, &back) && pullTrace.hasHit)
+                    {
+                        s32 safe = pullTrace.hitDistance - SWING_PULL_WALL;
+                        if (safe < 0)    safe = 0;
+                        if (safe < pull) pull = safe;
+                    }
+                    tpCamPos.vx -= (s32)((s64)pull * fwdX >> 12);
+                    tpCamPos.vy -= (s32)((s64)pull * fwdY >> 12);
+                    tpCamPos.vz -= (s32)((s64)pull * fwdZ >> 12);
+                }
+                #undef SWING_PULL_NEAR
+                #undef SWING_PULL_MAX
+                #undef SWING_PULL_WALL
+            }
+
+            g_PcCamAppliedPos   = tpCamPos;
+            g_PcCamAppliedValid = 1;
+            /* Publish the view-forward (world Q12) + eye pos so the flashlight can
+             * aim where the player looks, from the eye, in FPS — see func_800554C4. */
+            g_PcFpsViewFwd.vx = fwdX;
+            g_PcFpsViewFwd.vy = fwdY;
+            g_PcFpsViewFwd.vz = fwdZ;
+            g_PcFpsEyePos     = tpCamPos;
+            tpLookAt.vx = tpCamPos.vx + (s32)((s64)TP_LOOKAT_DIST * fwdX >> 12);
+            tpLookAt.vy = tpCamPos.vy + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
+            tpLookAt.vz = tpCamPos.vz + (s32)((s64)TP_LOOKAT_DIST * fwdZ >> 12);
+        }
+        else
+        {
+            /* Camera D units BACK along forward, lifted by TP_HEIGHT */
+            tpCamPos.vx = tp_hr->position.vx - (s32)((s64)s_tpDist * fwdX >> 12);
+            tpCamPos.vy = tp_hr->position.vy - (s32)((s64)s_tpDist * fwdY >> 12) + TP_HEIGHT;
+            tpCamPos.vz = tp_hr->position.vz - (s32)((s64)s_tpDist * fwdZ >> 12);
+
+            /* lookAt projects FAR ahead (anti-jitter), Y-anchored to Harry's chest
+             * so the screen-center crosshair lands on him, biased by pitch. */
+            anchorY     = tp_hr->position.vy + TP_LOOKAT_OFS;
+            tpLookAt.vx = tpCamPos.vx + (s32)((s64)TP_LOOKAT_DIST * fwdX >> 12);
+            tpLookAt.vy = anchorY     + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
+            tpLookAt.vz = tpCamPos.vz + (s32)((s64)TP_LOOKAT_DIST * fwdZ >> 12);
+        }
+        #undef TP_LOOKAT_DIST
+
+        /* Over-the-Shoulder: shift the camera + look target laterally so Harry
+         * sits to one side; more while aiming. g_OtsSide (middle-mouse) flips it.
+         *
+         * tps_ots_aim (on by default) gives plain Thirdperson the same shoulder
+         * framing WHILE AIMING ONLY: its resting offset is 0, so the camera eases
+         * over Harry's shoulder as he raises the gun and back to centre as he
+         * lowers it. The branch is entered every frame in that mode — not only
+         * while aiming — precisely so s_otsOff can ease both ways instead of
+         * snapping. With the option off, Thirdperson never enters it and the
+         * camera stays centred exactly as before. */
+        if (g_ControlStyle == ControlStyle_Ots ||
+            (g_ControlStyle == ControlStyle_Tps && g_PcConfig.tpsOtsAim))
+        {
+            #define OTS_OFFSET     Q12(0.55f)
+            #define OTS_OFFSET_AIM Q12(0.9f)
+            s32 restOff   = (g_ControlStyle == ControlStyle_Ots) ? OTS_OFFSET : 0;
+            s32 targetOff = (isAiming ? OTS_OFFSET_AIM : restOff) * g_OtsSide;
+            s32 rX = Math_Cos(g_TpsCamYaw + rearOfs);   /* horizontal right vector = (cos yaw, -sin yaw); +rearOfs flips the shoulder with Rear Look */
+            s32 rZ = -Math_Sin(g_TpsCamYaw + rearOfs);
+            s32 ox, oz;
+
+            s_otsOff += (targetOff - s_otsOff) >> 3;
+            ox = (s32)((s64)s_otsOff * rX >> 12);
+            oz = (s32)((s64)s_otsOff * rZ >> 12);
+            tpCamPos.vx += ox; tpCamPos.vz += oz;
+            tpLookAt.vx += ox; tpLookAt.vz += oz;
+            #undef OTS_OFFSET
+            #undef OTS_OFFSET_AIM
+        }
+
+#ifdef SH_PC_PORT
+        /* Third-person camera-wall collision: keep the eye from clipping through
+         * level geometry. Cast from Harry's chest (the orbit anchor) out to the
+         * computed eye; on a wall hit, pull the eye in along that line to just
+         * short of the wall. TPS/OTS only — the FPS eye sits at Harry's head.
+         * lookAt is left anchored to Harry so he stays framed as the eye zooms.
+         *
+         * The pull-in is computed whenever we are not in FPS, into aimEye. With
+         * tps_camera_collision = 1 (default) it also becomes the render eye. With 0 the
+         * render eye keeps its full orbit distance and is allowed through geometry —
+         * what that option asks for — and aimEye survives only to keep the free-aim ray
+         * out of the wall (see the publish below). */
+        VECTOR3 aimEye = tpCamPos;
+        if (!g_PcFpsCam)
+        {
+            #define CAM_COLL_MARGIN Q12(0.25f)
+            #define CAM_COLL_MIN    Q12(0.35f)
+            s_RayTrace camTrace;
+            VECTOR3    pivot;
+            pivot.vx = tp_hr->position.vx;
+            pivot.vy = anchorY;
+            pivot.vz = tp_hr->position.vz;
+
+            if (Ray_TraceQuery(&camTrace, &pivot, &tpCamPos) && camTrace.hasHit)
+            {
+                s32 dx  = tpCamPos.vx - pivot.vx;
+                s32 dy  = tpCamPos.vy - pivot.vy;
+                s32 dz  = tpCamPos.vz - pivot.vz;
+                s32 ax  = dx >> 6, ay = dy >> 6, az = dz >> 6;
+                s32 full = SquareRoot0(SQUARE(ax) + SQUARE(ay) + SQUARE(az)) << 6;
+                if (full > 0 && camTrace.hitDistance < full)
+                {
+                    s32 safe = camTrace.hitDistance - CAM_COLL_MARGIN;
+                    s32 frac;
+                    if (safe < CAM_COLL_MIN) { safe = CAM_COLL_MIN; }
+                    frac = (s32)(((s64)safe << 12) / full);
+                    aimEye.vx = pivot.vx + (s32)(((s64)dx * frac) >> 12);
+                    aimEye.vy = pivot.vy + (s32)(((s64)dy * frac) >> 12);
+                    aimEye.vz = pivot.vz + (s32)(((s64)dz * frac) >> 12);
+                }
+            }
+            #undef CAM_COLL_MARGIN
+            #undef CAM_COLL_MIN
+
+            if (g_PcConfig.tpsCameraCollision)
+                tpCamPos = aimEye;
+        }
+
+        /* Publish the camera eye + forward for free-aim (set AFTER the OTS lateral
+         * offset so the eye matches the rendered view). The aim ray in
+         * Player_CombatUpdate is cast from g_TpsCamPos along g_TpsCamFwd.
+         *
+         * Forward must be the ACTUAL view direction (render eye -> lookAt), NOT the raw
+         * orbit forward (fwdX/Y/Z): tpLookAt.vy is anchored to Harry's chest, so the
+         * screen-center ray has a different PITCH than the orbit forward. Publishing
+         * the orbit forward made the aim ray (and the bullet) miss screen-center
+         * vertically. unit(lookAt - eye) passes through the reticle at every depth. */
+        g_TpsCamPos = tpCamPos;
+        {
+            s32 dx  = tpLookAt.vx - tpCamPos.vx;
+            s32 dy  = tpLookAt.vy - tpCamPos.vy;
+            s32 dz  = tpLookAt.vz - tpCamPos.vz;
+            s32 ax  = dx >> 6, ay = dy >> 6, az = dz >> 6; /* avoid SQUARE overflow */
+            s32 mag = SquareRoot0(SQUARE(ax) + SQUARE(ay) + SQUARE(az));
+            if (mag > 0)
+            {
+                g_TpsCamFwd.vx = (s32)(((s64)ax << 12) / mag);
+                g_TpsCamFwd.vy = (s32)(((s64)ay << 12) / mag);
+                g_TpsCamFwd.vz = (s32)(((s64)az << 12) / mag);
+            }
+            else
+            {
+                g_TpsCamFwd.vx = fwdX;
+                g_TpsCamFwd.vy = fwdY;
+                g_TpsCamFwd.vz = fwdZ;
+            }
+        }
+
+        /* tps_camera_collision = 0: the render eye is allowed through walls, but the
+         * shot must not be. Player_CombatUpdate traces this ray against level geometry
+         * with a DOUBLE-SIDED surface test, so an origin sitting behind a wall hits
+         * that wall first and flips the shot ~180 degrees back into it — Harry would
+         * fire backwards whenever he backed into a corner.
+         *
+         * Slide the origin forward ALONG THE VIEW LINE by however far the pull-in would
+         * have moved the eye. Using the pulled-in point itself as the origin is wrong:
+         * the pull runs along pivot->eye, which is ~11 degrees off the view direction
+         * (tpLookAt.vy is anchored to Harry's chest, not to the eye) and is measured
+         * from an un-shifted pivot, so it also cancels part of the OTS shoulder offset.
+         * That point is off the reticle line, and a ray from it is PARALLEL to the line
+         * the player is aiming along — a constant miss at every range. Projecting the
+         * displacement onto g_TpsCamFwd keeps origin and reticle collinear.
+         *
+         * No-op when collision is on (aimEye == tpCamPos) and in FPS (block skipped). */
+        if (!g_PcFpsCam && !g_PcConfig.tpsCameraCollision)
+        {
+            s32 dx = aimEye.vx - tpCamPos.vx;
+            s32 dy = aimEye.vy - tpCamPos.vy;
+            s32 dz = aimEye.vz - tpCamPos.vz;
+            s64 t  = ((s64)dx * g_TpsCamFwd.vx +
+                      (s64)dy * g_TpsCamFwd.vy +
+                      (s64)dz * g_TpsCamFwd.vz) >> 12; /* Q12 distance along the view line */
+            if (t > 0)
+            {
+                g_TpsCamPos.vx = tpCamPos.vx + (s32)((t * g_TpsCamFwd.vx) >> 12);
+                g_TpsCamPos.vy = tpCamPos.vy + (s32)((t * g_TpsCamFwd.vy) >> 12);
+                g_TpsCamPos.vz = tpCamPos.vz + (s32)((t * g_TpsCamFwd.vz) >> 12);
+            }
+        }
+#endif
+        Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
+        vwSetViewInfo();
+    }
+
+    Pc_CameraFov_Update();
+
+    #undef TP_DIST
+    #undef TP_DIST_AIM
+    #undef TP_DIST_AIM_MAX
+    #undef TP_HEIGHT
+    #undef TP_LOOKAT_OFS
+    #undef TP_MOUSE_SENS
+    #undef TP_PITCH_SENS
+    #undef TP_STICK_DEADZONE
+    #undef TP_STICK_YAW
+    #undef TP_STICK_PITCH
+}
+
+/* Auto-repeat with acceleration for the keyframe-inspector , / . keys: steps
+ * once on the press edge, then after a short delay repeats at an accelerating
+ * rate, ramping from ~4/s up to a 10/s top speed the longer the key is held.
+ * pressMs/lastMs are per-key static timers. Returns 1 on the frames it fires. */
+static int Kf_HoldRepeat(int cur, int prev, Uint32* pressMs, Uint32* lastMs)
+{
+    Uint32 now = SDL_GetTicks();
+
+    if (cur && !prev) { /* fresh press: fire immediately */
+        *pressMs = now;
+        *lastMs  = now;
+        return 1;
+    }
+    if (cur && prev) { /* held */
+        Uint32 held = now - *pressMs;
+        if (held >= 350) { /* initial delay before auto-repeat kicks in */
+            int interval = 250 - (int)((held - 350) / 10); /* 250ms -> 100ms over ~1.5s */
+            if (interval < 100) interval = 100;            /* 100ms = 10/s top speed */
+            if ((now - *lastMs) >= (Uint32)interval) {
+                *lastMs = now;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
 
 void DebugCamera_Update(void)
 {
-    #define DBG_CAM_MOVE_SPEED 512   /* Q12(0.125) */
-    #define DBG_CAM_TURN_SPEED 16
-    #define DBG_CAM_VERT_SPEED 256
+    #define DBG_CAM_MOVE_SPEED 128   /* Q12(0.03125) — slow enough to dial in the FPS-cam spot */
+    #define DBG_CAM_TURN_SPEED 6
+    #define DBG_CAM_VERT_SPEED 64
 
     if (!g_sdlKeyboardState) return;
 #ifdef SH_PC_PORT
@@ -189,31 +978,36 @@ void DebugCamera_Update(void)
      * is set in config. */
     {
         extern int g_PcAllowDebugControls;
-        if (!g_PcAllowDebugControls) return;
+        if (!g_PcAllowDebugControls) {
+            /* TPS is a normal (non-debug) camera now: apply it even with dev
+             * keys off, then skip the dev-key handlers below. Classic just
+             * lets the game camera stand. */
+            if (g_GameWork.gameState == GameState_InGame && !g_DebugCamEnabled && g_DebugThirdPersonCam)
+                Pc_TpsCamera_Apply();
+            return;
+        }
     }
     /* Console input mode: typed characters land on the same top-row keys the
      * debug binds use (0-9, -, =), and the controller suppression doesn't
      * cover these direct SDL reads — block them all while typing. */
     {
         extern int g_PcConsoleInputActive;
-        if (g_PcConsoleInputActive) return;
+        if (g_PcConsoleInputActive) {
+            /* Keep the alternate (TPS/OTS/FPS) camera applied while the console
+             * is open, so the frozen frame shows the exact view you were looking
+             * at instead of snapping back to the default game camera. The look
+             * input is held still inside Pc_TpsCamera_Apply (frozen), so the
+             * angle doesn't drift while you type. */
+            if (g_GameWork.gameState == GameState_InGame && !g_DebugCamEnabled && g_DebugThirdPersonCam)
+                Pc_TpsCamera_Apply();
+            return;
+        }
     }
 #endif
     if (g_GameWork.gameState != GameState_InGame) return;
 
-    /* Esc: warm-reboot to the title screen (edge-triggered) — same path as the
-     * controller Select+Start reset and the death warm-boot. Works in gameplay
-     * and cutscenes (both are GameState_InGame), so it also escapes a stuck
-     * scene. SysFlag_DoWarmReset is consumed by MainLoop_ShouldWarmReset(). */
-    {
-        static int s_escPrev = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_ESCAPE];
-        if (cur && !s_escPrev) {
-            g_SysWork.sysFlags |= SysFlag_DoWarmReset;
-            SH_DBG_ECHO("[DEBUG] Esc: warm reboot to title");
-        }
-        s_escPrev = cur;
-    }
+    /* (Esc warm-reboot / title quit moved to DbgOverlay_Update so it works without
+     * debug controls and in every game state, including the title menu.) */
 
     /* Numpad *: toggle debug camera on/off (edge-triggered) */
     {
@@ -280,18 +1074,9 @@ void DebugCamera_Update(void)
         }
         prevKey = cur;
     }
-    /* Numpad 2: toggle third-person follow camera (edge-triggered) */
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_2];
-        if (cur && !prevKey) {
-            g_DebugThirdPersonCam = !g_DebugThirdPersonCam;
-            /* Capture/release mouse for TPS mode */
-            SDL_SetRelativeMouseMode(g_DebugThirdPersonCam ? SDL_TRUE : SDL_FALSE);
-            SH_DBG_ECHO("[DEBUG] Numpad 2: Third-person camera: %s", g_DebugThirdPersonCam ? "ON (mouse captured)" : "OFF (mouse released)");
-        }
-        prevKey = cur;
-    }
+    /* (Third-person camera toggle moved out of debug controls: it's now the
+     * rebindable Change-Camera action / control_style config, handled every
+     * frame by Pc_ControlStyleUpdate.) */
 
     /* Kill Harry moved to the `kill` console command (was number key 1). */
     /* Number keys 4/5: cycle the `map` config value (4 = previous, 5 = next,
@@ -321,42 +1106,45 @@ void DebugCamera_Update(void)
         prevKey5 = cur5;
     }
 
-    /* Number key 6: spawn a Grey Child ~2.5 units in front of Harry, facing him
-     * (debug enemy spawn). Chara_Spawn refuses once the active NPC count reaches
-     * the per-area cap (g_SysWork.npcFlagsId) — which is already met in rooms
-     * that have Grey Children, and tiny during the Cheryl chase — so raise the
-     * cap just for this one spawn. Also needs the Grey Child model loaded
-     * (registeredCharaModels[Chara_GreyChild]); skip with a note if it isn't. */
+    /* Number key 6: kill every active enemy near Harry (debug). Each enemy's own
+     * update applies damage.amount to its health (health = MAX(health - amount, 0))
+     * and then runs its normal death path, so forcing a huge damage.amount routes
+     * the kill through each enemy's real death/cleanup — works for every type, and
+     * the value clears all per-enemy damage thresholds (e.g. Creeper needs >=200).
+     * Replaces the old (non-working) Grey Child spawn. */
     {
         static int prevKey6 = 0;
         int cur6 = g_sdlKeyboardState[SDL_SCANCODE_6];
         if (cur6 && !prevKey6) {
-            s_SubCharacter* hr  = &g_SysWork.playerWork.player;
-            q3_12           yaw = hr->rotation.vy;
-            q19_12          sx  = hr->position.vx + Q12_MULT_PRECISE(Q12(2.5f), Math_Sin(yaw));
-            q19_12          sz  = hr->position.vz + Q12_MULT_PRECISE(Q12(2.5f), Math_Cos(yaw));
-            if (g_WorldGfxWork.registeredCharaModels[Chara_GreyChild] == NULL) {
-                SH_DBG_ECHO("[DEBUG] Key 6: Grey Child model not loaded in this area — can't spawn visibly");
-            } else {
-                s32 savedCap = g_SysWork.npcFlagsId;
-                g_SysWork.npcFlagsId = ARRAY_SIZE(g_SysWork.npcs);
-                s32 idx = Chara_Spawn(Chara_GreyChild, 0, sx, sz, yaw ^ Q12_ANGLE(180.0f), 5);
-                g_SysWork.npcFlagsId = savedCap;
-                SH_DBG_ECHO("[DEBUG] Key 6: spawn Grey Child -> slot %d at (%ld,%ld) modelOK",
-                    (int)idx, (long)sx, (long)sz);
+            s_SubCharacter* hr   = &g_SysWork.playerWork.player;
+            s32             killed = 0;
+            s32             i;
+            for (i = 0; i < NPC_COUNT_MAX; i++) {
+                s_SubCharacter* npc = &g_SysWork.npcs[i];
+                if (npc->model.charaId == Chara_None || npc->model.charaId == Chara_Harry ||
+                    npc->health <= Q12(0.0f)) {
+                    continue;
+                }
+                if (ABS(npc->position.vx - hr->position.vx) > Q12(50.0f) ||
+                    ABS(npc->position.vz - hr->position.vz) > Q12(50.0f)) {
+                    continue;
+                }
+                npc->damage.amount = Q12(99999.0f);
+                killed++;
             }
+            SH_DBG_ECHO("[DEBUG] Key 6: killed %d nearby enemies", (int)killed);
         }
         prevKey6 = cur6;
     }
 
-    /* Top-row 7: toggle invincibility (health locked to max each frame) */
+    /* Top-row 7: toggle god mode (same shared g_PcGodMode flag as the `god` console cmd) */
     {
         static int prevKey = 0;
         int cur = g_sdlKeyboardState[SDL_SCANCODE_7];
         if (cur && !prevKey) {
-            g_DebugInvincible = !g_DebugInvincible;
-            Sd_PlaySfx(g_DebugInvincible ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
-            SH_DBG_ECHO("[DEBUG] Key 7: Invincibility: %s", g_DebugInvincible ? "ON" : "OFF");
+            g_PcGodMode = !g_PcGodMode;
+            Sd_PlaySfx(g_PcGodMode ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
+            SH_DBG_ECHO("[DEBUG] Key 7: Invincibility: %s", g_PcGodMode ? "ON" : "OFF");
         }
         prevKey = cur;
     }
@@ -421,9 +1209,190 @@ void DebugCamera_Update(void)
         prevKey = cur;
     }
 
-    /* Per-frame cheat enforcement: invincibility + no-target */
+    /* Keyframe inspector: K toggles freezing Harry's whole skeleton on one
+     * absolute keyframe; , / . step the keyframe down / up. Used to find the
+     * exact authored pose index for the aim shim (e.g. the gun-forward frame).
+     * The actual pose override + clamp to the anim header's keyframe count live
+     * in Player_Update (player_control.c); here we just drive the index. */
+    {
+        static int    prevK = 0, prevComma = 0, prevPeriod = 0;
+        static Uint32 commaPress = 0, commaLast = 0, periodPress = 0, periodLast = 0;
+        int curK      = g_sdlKeyboardState[SDL_SCANCODE_K];
+        int curComma  = g_sdlKeyboardState[SDL_SCANCODE_COMMA];
+        int curPeriod = g_sdlKeyboardState[SDL_SCANCODE_PERIOD];
+        if (curK && !prevK) {
+            g_DebugAnimKfView = !g_DebugAnimKfView;
+            if (!g_DebugAnimKfView) g_DebugAnimPlaying = 0;
+            Sd_PlaySfx(g_DebugAnimKfView ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
+            SH_DBG_ECHO("[DEBUG] K: Keyframe view: %s (KF %d)",
+                        g_DebugAnimKfView ? "ON" : "OFF", g_DebugAnimKf);
+        }
+        if (g_DebugAnimKfView) {
+            /* Hold , / . to scroll, accelerating up to 10/s the longer it's held.
+             * Any manual scrub also stops loop playback. */
+            if (Kf_HoldRepeat(curComma, prevComma, &commaPress, &commaLast)) {
+                if (g_DebugAnimKf > 0) g_DebugAnimKf--;
+                g_DebugAnimPlaying = 0;
+            }
+            if (Kf_HoldRepeat(curPeriod, prevPeriod, &periodPress, &periodLast)) {
+                g_DebugAnimKf++;
+                g_DebugAnimPlaying = 0;
+            }
+            /* Echo on a fresh tap or on release (the landed frame) only — the amber
+             * panel is the live readout, so a held fast-scroll doesn't spam the log. */
+            if ((curComma && !prevComma) || (curPeriod && !prevPeriod) ||
+                (!curComma && prevComma) || (!curPeriod && prevPeriod)) {
+                SH_DBG_ECHO("[DEBUG] KF %d", g_DebugAnimKf);
+            }
+        }
+        prevK      = curK;
+        prevComma  = curComma;
+        prevPeriod = curPeriod;
+    }
+
+    /* `/` while the inspector is on: cycle the equipped weapon's UPPER-BODY anims
+     * (HARRY_BASE_ANIM_INFOS entries 56..75 = anim indices 28..37: aim / fire /
+     * recoil / reload — these are overwritten per equipped weapon by
+     * GameFs_WeaponInfoUpdate, so EQUIP THE WEAPON FIRST). Jumps straight to the
+     * next weapon-anim start keyframe so you land on the gun/aim poses instead of
+     * stepping through every base movement anim. The base movement anims sit at
+     * lower keyframes — reach them by scrubbing , / . . If no weapon anims are
+     * loaded (unarmed), `/` falls back to cycling ALL anim starts. */
+    {
+        static int prevSlash = 0;
+        int curSlash = g_sdlKeyboardState[SDL_SCANCODE_SLASH];
+        if (curSlash && !prevSlash && g_DebugAnimKfView) {
+            int i, lo, hi, haveWeaponAnims = 0;
+            int best    = -1;   /* smallest start keyframe strictly above current */
+            int wrapMin = -1;   /* smallest start keyframe overall (for wrap)      */
+            for (i = 56; i < 76; i++) {
+                if (HARRY_BASE_ANIM_INFOS[i].startKeyframeIdx >= 0) { haveWeaponAnims = 1; break; }
+            }
+            lo = haveWeaponAnims ? 56 : 0;
+            hi = haveWeaponAnims ? 76 : 256;
+            for (i = lo; i < hi; i++) {
+                int sk = HARRY_BASE_ANIM_INFOS[i].startKeyframeIdx;
+                if (sk < 0) continue; /* NO_VALUE blend entries */
+                if (wrapMin < 0 || sk < wrapMin) wrapMin = sk;
+                if (sk > g_DebugAnimKf && (best < 0 || sk < best)) best = sk;
+            }
+            if (best < 0) best = wrapMin;
+            if (best >= 0) {
+                g_DebugAnimKf = best;
+                g_DebugAnimPlaying = 0;
+                SH_DBG_ECHO("[DEBUG] / %s anim start: KF %d",
+                            haveWeaponAnims ? "weapon" : "base", g_DebugAnimKf);
+            }
+        }
+        prevSlash = curSlash;
+    }
+
+    /* N while the inspector is on: cycle the viewed character among Harry (-1)
+     * and the loaded NPCs (g_SysWork.npcs slots with a real charaId). Resets the
+     * keyframe + stops playback so scrubbing restarts in the new target's space. */
+    {
+        static int prevN = 0;
+        int curN = g_sdlKeyboardState[SDL_SCANCODE_N];
+        if (curN && !prevN && g_DebugAnimKfView) {
+            int i, next = -1;
+            for (i = g_DebugViewNpcSlot + 1; i < NPC_COUNT_MAX; i++) {
+                if (g_SysWork.npcs[i].model.charaId != Chara_None &&
+                    g_SysWork.npcs[i].model.charaId != Chara_Padlock) { next = i; break; }
+            }
+            g_DebugViewNpcSlot = next;
+            g_DebugAnimPlaying = 0;
+            if (next < 0) {
+                g_DebugAnimKf = 588;
+                SH_DBG_ECHO("[DEBUG] N: view Harry (KF %d)", g_DebugAnimKf);
+            } else {
+                g_DebugAnimKf = 0;
+                SH_DBG_ECHO("[DEBUG] N: view NPC slot %d (chara %d)", next,
+                            (int)g_SysWork.npcs[next].model.charaId);
+            }
+        }
+        prevN = curN;
+    }
+
+    /* P while the inspector is on: PLAY — loop the anim that contains the current
+     * keyframe, from the active target's table: Harry's HARRY_BASE_ANIM_INFOS, or
+     * a viewed NPC's own baseAnimInfos. Press again to stop; , / . or / resume
+     * manual scrubbing. The looping pose is driven in Player_Update / Game_NpcUpdate. */
+    {
+        static int prevP = 0;
+        int curP = g_sdlKeyboardState[SDL_SCANCODE_P];
+        if (curP && !prevP && g_DebugAnimKfView) {
+            if (!g_DebugAnimPlaying) {
+                s_AnimInfo* tbl = HARRY_BASE_ANIM_INFOS;
+                int count = 76, i, lo = -1, hi = -1;
+                s32 rate = Q12(15.0f);
+                if (g_DebugViewNpcSlot >= 0 && g_DebugViewNpcSlot < NPC_COUNT_MAX) {
+                    s_SubCharacter* npc = &g_SysWork.npcs[g_DebugViewNpcSlot];
+                    tbl   = (npc->model.charaId != Chara_None) ? npc->model.anim.baseAnimInfos : NULL;
+                    count = 64; /* NPC tables carry no runtime length: cap + validate */
+                }
+                for (i = 0; tbl != NULL && i < count; i++) {
+                    s32 sk = tbl[i].startKeyframeIdx;
+                    s32 ek = tbl[i].endKeyframeIdx;
+                    if (tbl[i].playbackFunc == NULL) continue;
+                    if (sk < 0 || ek <= sk || ek >= 2048) continue;
+                    if (g_DebugAnimKf >= sk && g_DebugAnimKf <= ek) {
+                        lo = sk; hi = ek;
+                        rate = tbl[i].hasVariableDuration ? Q12(15.0f) : tbl[i].duration.constant;
+                        break;
+                    }
+                }
+                if (lo >= 0) {
+                    g_DebugAnimKfStart = lo;
+                    g_DebugAnimKfEnd   = hi;
+                    g_DebugAnimRate    = rate;
+                    g_DebugAnimPlayGen++;
+                    g_DebugAnimPlaying = 1;
+                    SH_DBG_ECHO("[DEBUG] P: play loop [%d..%d] rate=%d", lo, hi, (int)rate);
+                } else {
+                    SH_DBG_ECHO("[DEBUG] P: no loopable anim contains KF %d", g_DebugAnimKf);
+                }
+            } else {
+                g_DebugAnimPlaying = 0;
+                SH_DBG_ECHO("[DEBUG] P: play stopped (KF %d)", g_DebugAnimKf);
+            }
+        }
+        prevP = curP;
+    }
+
+    /* L: log the FPS eye offset to bake into g_PcFpsOffset.
+     * In FPS mode the eye = g_PcFpsOffset (baseline) + live head-sway, so logging
+     * the swaying EYE would bake the sway in and it re-adds every session (the
+     * "always off by the same amount" bug). Log the stable BASELINE the numpad
+     * edits instead — pasting it converges. With the debug cam, there is no
+     * baseline, so fall back to the flown-to eye position in Harry's body frame. */
+    {
+        static int prevL = 0;
+        int curL = g_sdlKeyboardState[SDL_SCANCODE_L];
+        if (curL && !prevL) {
+            if (g_PcFpsCam && !g_DebugCamEnabled) {
+                SH_DBG_ECHO("[FPSCAM] g_PcFpsOffset = { %d, %d, %d }  (baseline; paste to bake)",
+                            (int)g_PcFpsOffset.vx, (int)g_PcFpsOffset.vy, (int)g_PcFpsOffset.vz);
+            } else {
+                s_SubCharacter* hr = &g_SysWork.playerWork.player;
+                VECTOR3 cam = g_DebugCamEnabled ? g_DebugCamPos : g_PcCamAppliedPos;
+                s32 dx = cam.vx - hr->position.vx;
+                s32 dy = cam.vy - hr->position.vy;
+                s32 dz = cam.vz - hr->position.vz;
+                s32 sy = Math_Sin(hr->rotation.vy);
+                s32 cy = Math_Cos(hr->rotation.vy);
+                s32 localX = (s32)(((s64)dx * cy - (s64)dz * sy) >> 12);
+                s32 localZ = (s32)(((s64)dx * sy + (s64)dz * cy) >> 12);
+                SH_DBG_ECHO("[FPSCAM] cam=(%d,%d,%d) harry=(%d,%d,%d) bodyYaw=%d  -> LOCAL OFFSET { %d, %d, %d }",
+                            cam.vx, cam.vy, cam.vz, hr->position.vx, hr->position.vy, hr->position.vz,
+                            (int)hr->rotation.vy, localX, dy, localZ);
+            }
+        }
+        prevL = curL;
+    }
+
+    /* Per-frame cheat enforcement: god mode (health catch-all) + no-target */
     if (g_GameWork.gameState == GameState_InGame) {
-        if (g_DebugInvincible)
+        if (g_PcGodMode)
             g_SysWork.playerWork.player.health = Q12(100.0f);
         if (g_DebugNoTarget)
             g_SysWork.playerWork.player.flags |= CharaFlag_Unk4;
@@ -466,7 +1435,9 @@ void DebugCamera_Update(void)
              * the same broken floor spot and immediately fall again — log
              * showed exactly that, vy 32768 → -608 → 32768 → -608 looping. */
             int curKp3 = g_sdlKeyboardState[SDL_SCANCODE_KP_3];
-            if (curKp3 && !prevKp3 && _haveSafeY) {
+            /* FPS-cam eye tuner owns KP_3 (yaw fine-turn); don't also fire the
+             * fall-recovery teleport there. */
+            if (curKp3 && !prevKp3 && _haveSafeY && !g_PcFpsCam) {
                 s32 oldY = p->vy;
                 s32 oldX = p->vx;
                 s32 oldZ = p->vz;
@@ -512,327 +1483,56 @@ void DebugCamera_Update(void)
      * are unnecessary here. Re-add when an in-progress later-map test
      * needs an item that isn't in the world yet. */
 
-    /* ==== Normal-camera manual tweak (numpad nudges) + Numpad 3 reset ====
-     * Active in NORMAL camera mode only (not debug-cam, not TPS). Reads
-     * keyboard, accumulates an additive offset on top of vcMoveAndSetCamera
-     * and applies it to vcWork via Vw_SetLookAtMatrix. ~5x less sensitive
-     * than the debug-cam speeds so nudges are usable for fine-tuning.
-     *
-     * Numpad 3 zeroes the nudge accumulator, snapping the camera back to
-     * vcMoveAndSetCamera's natural output (the "default" cam). Tracking a
-     * separate g_DefaultCam isn't actually needed — vcWork already holds
-     * the default before our nudges land — but we still update it each
-     * frame so external observers (logging, future commands) can see the
-     * pristine pre-nudge cam. */
-    if (!g_DebugCamEnabled && !g_DebugThirdPersonCam &&
+    /* ==== First-person eye tuning (numpad) ====
+     * Active only in FPS mode (not debug-cam). The eye sits at Harry's root +
+     * g_PcFpsOffset, a LOCAL offset in his BODY frame. Every key below is a
+     * straight-line nudge along one body axis — no rotation, no orbit — so the
+     * eye moves exactly where you'd expect. Press KP_5 to print values to bake:
+     *   KP_8/KP_2  move eye forward / back    (offset vz, held)
+     *   KP_6/KP_4  move eye right / left       (offset vx, held)
+     *   KP_9/KP_7  move eye up / down          (offset vy, held, coarse)
+     *   KP_+/KP_-  move eye up / down          (offset vy, held, fine)
+     *   KP_5       log g_PcFpsOffset (paste to bake) */
+    if (g_PcFpsCam && !g_DebugCamEnabled &&
         g_GameWork.gameState == GameState_InGame)
     {
-        #define PC_NUDGE_MOVE_SPEED  48    /* Q12(~0.012) — ~0.7m/s at 60fps, fine for tuning */
-        #define PC_NUDGE_TURN_SPEED  3     /* ~5x slower than debug 16 */
-        #define PC_NUDGE_VERT_SPEED  51    /* ~5x slower than debug 256 */
+        #define FPS_MOVE_STEP 64
+        #define FPS_VFINE     12   /* fine vertical step for KP_- / KP_+ */
 
-        /* Snapshot the pristine default cam BEFORE nudge application.
-         * vcMoveAndSetCamera ran earlier this frame and put its result in
-         * vcWork — that's our default. */
-        g_DefaultCam.pos    = vcWork.cam_pos;
-        g_DefaultCam.lookAt = vcWork.watch_tgt_pos;
-        g_DefaultCam.valid  = 1;
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) g_PcFpsOffset.vz += FPS_MOVE_STEP; /* forward */
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_2]) g_PcFpsOffset.vz -= FPS_MOVE_STEP; /* back */
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) g_PcFpsOffset.vx += FPS_MOVE_STEP; /* right */
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) g_PcFpsOffset.vx -= FPS_MOVE_STEP; /* left */
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_9]) g_PcFpsOffset.vy -= FPS_MOVE_STEP; /* up (PSX +Y is down) */
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_7]) g_PcFpsOffset.vy += FPS_MOVE_STEP; /* down */
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS])  g_PcFpsOffset.vy -= FPS_VFINE; /* fine up */
+        if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) g_PcFpsOffset.vy += FPS_VFINE; /* fine down */
 
-        /* Auto-clear accumulated nudges on map transition so a follow-cam
-         * entry or yaw/pitch from one map doesn't bleed into the next. */
         {
-            static int s_prevMapForNudgeReset = -1;
-            int curMapNow = (int)g_SavegamePtr->mapIdx;
-            if (curMapNow != s_prevMapForNudgeReset) {
-                if (s_prevMapForNudgeReset != -1) {
-                    g_PcCamNudgePos.vx = 0;
-                    g_PcCamNudgePos.vy = 0;
-                    g_PcCamNudgePos.vz = 0;
-                    g_PcCamNudgeYaw    = 0;
-                    g_PcCamNudgePitch  = 0;
-                }
-                s_prevMapForNudgeReset = curMapNow;
+            static int prev5 = 0;
+            int cur5 = g_sdlKeyboardState[SDL_SCANCODE_KP_5];
+            if (cur5 && !prev5) {
+                extern VECTOR3 g_PcFpsHeadRefDbg, g_PcFpsHeadLocalDbg;
+                SH_DBG_ECHO("[FPSCAM-TUNE] g_PcFpsOffset = { %d, %d, %d }",
+                            (int)g_PcFpsOffset.vx, (int)g_PcFpsOffset.vy, (int)g_PcFpsOffset.vz);
+                SH_DBG_ECHO("[FPSCAM-HEADREF] s_fpsHeadRef = { %d, %d, %d }  headLocal = { %d, %d, %d }",
+                            (int)g_PcFpsHeadRefDbg.vx, (int)g_PcFpsHeadRefDbg.vy, (int)g_PcFpsHeadRefDbg.vz,
+                            (int)g_PcFpsHeadLocalDbg.vx, (int)g_PcFpsHeadLocalDbg.vy, (int)g_PcFpsHeadLocalDbg.vz);
             }
+            prev5 = cur5;
         }
 
-        /* Numpad 3: reset nudge accumulator (held = repeats; cheap) */
-        {
-            static int prevKey3 = 0;
-            int cur3 = g_sdlKeyboardState[SDL_SCANCODE_KP_3];
-            if (cur3 && !prevKey3) {
-                g_PcCamNudgePos.vx = 0;
-                g_PcCamNudgePos.vy = 0;
-                g_PcCamNudgePos.vz = 0;
-                g_PcCamNudgeYaw    = 0;
-                g_PcCamNudgePitch  = 0;
-            }
-            prevKey3 = cur3;
-        }
-
-        /* Numpad 0: toggle "raw cam mode" — zeros the manual nudge so the
-         * unmodified engine camera is visible. Use to get a clean BAD
-         * snapshot before adjusting: press KP_0 (camera snaps to raw
-         * default), log BAD (top-row 4), adjust with numpad, log GOOD
-         * (top-row 5). Logs current g_DefaultCam on activation so you can
-         * see the engine baseline in the log. */
-        {
-            static int prevKp0 = 0;
-            int curKp0 = g_sdlKeyboardState[SDL_SCANCODE_KP_0];
-            if (curKp0 && !prevKp0) {
-                g_DebugRawCamMode = !g_DebugRawCamMode;
-                g_PcCamNudgePos.vx = 0;
-                g_PcCamNudgePos.vy = 0;
-                g_PcCamNudgePos.vz = 0;
-                g_PcCamNudgeYaw    = 0;
-                g_PcCamNudgePitch  = 0;
-                if (g_DebugRawCamMode) {
-                } else {
-                }
-            }
-            prevKp0 = curKp0;
-        }
-
-        /* Read numpad nudge keys (held = continuous). Camera-relative
-         * forward/strafe uses the cam's current yaw so 8 always pushes
-         * "into the screen". Deltas are NOT scaled by g_DeltaTime — the
-         * base constants (esp. PC_NUDGE_TURN_SPEED=3) are small enough
-         * that integer division by TIMESTEP_60_FPS at high fps rounds
-         * them to 0, silently killing KP_7/9. Reverted to direct
-         * constants so the keys always do something. */
-        {
-            /* Cam-relative movement: KP_8 always pushes into the screen,
-             * KP_4/6 strafe along the cam's left/right, regardless of
-             * which way the cam is facing in world space. Uses the
-             * cam's CURRENT yaw (baseline + accumulated yaw nudge) so
-             * direction follows the live view. */
-            s32 camYaw = (s32)vcWork.cam_mat_ang.vy + g_PcCamNudgeYaw;
-            s32 sinY   = Math_Sin(camYaw);
-            s32 cosY   = Math_Cos(camYaw);
-            if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) {
-                g_PcCamNudgePos.vx += (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
-                g_PcCamNudgePos.vz += (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
-            }
-            if (g_sdlKeyboardState[SDL_SCANCODE_KP_5]) {
-                g_PcCamNudgePos.vx -= (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
-                g_PcCamNudgePos.vz -= (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
-            }
-            if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) {
-                g_PcCamNudgePos.vx -= (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
-                g_PcCamNudgePos.vz += (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
-            }
-            if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) {
-                g_PcCamNudgePos.vx += (s32)((s64)PC_NUDGE_MOVE_SPEED * cosY >> 12);
-                g_PcCamNudgePos.vz -= (s32)((s64)PC_NUDGE_MOVE_SPEED * sinY >> 12);
-            }
-            /* Numpad 7/9: turn left / right (yaw) */
-            if (g_sdlKeyboardState[SDL_SCANCODE_KP_7]) {
-                g_PcCamNudgeYaw -= PC_NUDGE_TURN_SPEED;
-            }
-            if (g_sdlKeyboardState[SDL_SCANCODE_KP_9]) {
-                g_PcCamNudgeYaw += PC_NUDGE_TURN_SPEED;
-            }
-            /* Numpad +/-: tilt cam pitch. NOW a true rotation around the
-             * cam-local X axis (matching the yaw rotation), units are
-             * Q3.12 angle deltas. Empirically: KP_+ → pitchN negative
-             * → cam tilts DOWN (lookAt drops toward ground); KP_- →
-             * pitchN positive → cam tilts UP (lookAt rises toward sky).
-             * Speed matches yaw (PC_NUDGE_TURN_SPEED) so both rotation
-             * axes feel equally responsive. */
-            if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS]) {
-                g_PcCamNudgePitch -= PC_NUDGE_TURN_SPEED;
-            }
-            if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) {
-                g_PcCamNudgePitch += PC_NUDGE_TURN_SPEED;
-            }
-            /* Page Up / Page Down: vertical move (camera-Y) — also
-             * matches debug cam's vertical bindings. */
-            if (g_sdlKeyboardState[SDL_SCANCODE_PAGEUP]) {
-                g_PcCamNudgePos.vy -= PC_NUDGE_VERT_SPEED;
-            }
-            if (g_sdlKeyboardState[SDL_SCANCODE_PAGEDOWN]) {
-                g_PcCamNudgePos.vy += PC_NUDGE_VERT_SPEED;
-            }
-        }
-
-        /* Numpad /: print current nudged camera (works in normal cam) */
-        {
-            static int npslPrev = 0;
-            int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_DIVIDE];
-            if (cur && !npslPrev) {
-            }
-            npslPrev = cur;
-        }
-
-
-        /* Apply the manual numpad nudge (debug camera tuning tool): rebuild
-         * cam_pos / watch_tgt and the view matrix from the engine baseline
-         * plus the runtime nudge. Yaw/pitch are applied as a TRUE rotation
-         * around the cam axes so dragging feels intuitive. The scene-baseline
-         * correction table was removed once the road/chase/settle cameras were
-         * fixed at the source (Math_RotMatrixZxyNeg + TransposeMatrix); this
-         * remains only as a live-tuning aid (BAD/GOOD logging, numpad). */
-        s32 effPosX  = g_PcCamNudgePos.vx;
-        s32 effPosY  = g_PcCamNudgePos.vy;
-        s32 effPosZ  = g_PcCamNudgePos.vz;
-        s32 effYaw   = g_PcCamNudgeYaw;
-        s32 effPitch = g_PcCamNudgePitch;
-        if (effPosX | effPosY | effPosZ | effYaw | effPitch)
-        {
-            VECTOR3 newCam, newLook;
-            VECTOR3 dl;
-            VECTOR3 baseLook;
-
-            newCam.vx = vcWork.cam_pos.vx + effPosX;
-            newCam.vy = vcWork.cam_pos.vy + effPosY;
-            newCam.vz = vcWork.cam_pos.vz + effPosZ;
-
-            baseLook = vcWork.watch_tgt_pos;
-
-            if (effYaw | effPitch) {
-                /* Rotate (baseLook - newCam) around newCam by yaw+pitch. */
-                dl.vx = baseLook.vx - newCam.vx;
-                dl.vy = baseLook.vy - newCam.vy;
-                dl.vz = baseLook.vz - newCam.vz;
-
-                s32 horizDist = SquareRoot0(dl.vx * dl.vx + dl.vz * dl.vz);
-                s32 baseYaw   = ratan2(dl.vx, dl.vz);
-                s32 basePitch = ratan2(-dl.vy, horizDist);
-
-                s32 newYaw   = baseYaw   + effYaw;
-                s32 newPitch = basePitch + effPitch;
-
-                s32 dist3D = SquareRoot0(horizDist * horizDist + dl.vy * dl.vy);
-
-                s32 cp = Math_Cos(newPitch);
-                s32 sp = Math_Sin(newPitch);
-                s32 cy = Math_Cos(newYaw);
-                s32 sy = Math_Sin(newYaw);
-
-                s32 newHorizDist = (s32)(((s64)dist3D * cp) >> 12);
-                s32 newDlY = -(s32)(((s64)dist3D * sp) >> 12);
-                s32 newDlX = (s32)(((s64)newHorizDist * sy) >> 12);
-                s32 newDlZ = (s32)(((s64)newHorizDist * cy) >> 12);
-
-                newLook.vx = newCam.vx + newDlX;
-                newLook.vy = newCam.vy + newDlY;
-                newLook.vz = newCam.vz + newDlZ;
-            } else {
-                /* No rotation — pure translation. */
-                newLook = baseLook;
-            }
-
-            /* Stash applied state for the BAD/GOOD log so it can report
-             * the actual on-screen cam (not just the pre-nudge baseline). */
-            g_PcCamAppliedPos    = newCam;
-            g_PcCamAppliedLookAt = newLook;
-            g_PcCamAppliedValid  = 1;
-
-            Vw_SetLookAtMatrix(&newCam, &newLook);
-            vwSetViewInfo();
-
-            /* Periodic trace so log shows nudge cam is live */
-            {
-                static int tickCounter = 0;
-                if ((++tickCounter & 0x3F) == 0) {
-                }
-            }
-        }
-        else
-        {
-            /* No nudge / no scene correction — log fallback uses vcWork. */
-            g_PcCamAppliedValid = 0;
-        }
-
-        #undef PC_NUDGE_MOVE_SPEED
-        #undef PC_NUDGE_TURN_SPEED
-        #undef PC_NUDGE_VERT_SPEED
+        #undef FPS_MOVE_STEP
+        #undef FPS_VFINE
     }
+
 
     /* If free-fly debug cam is off */
     if (!g_DebugCamEnabled) {
-        /* Third-person orbit camera. Mouse moves the camera around Harry
-         * (head-look style); Harry's body only rotates when a movement
-         * key is pressed and snaps toward the camera-relative direction.
-         * Movement input handling lives in player_control.c TPS branch. */
+        /* TPS orbit camera (when the TPS control style is active). Body-yaw
+         * follow + movement live in player_control.c's TPS branch. */
         if (g_DebugThirdPersonCam) {
-            #define TP_DIST         Q12(2.5f)    /* orbit radius from Harry */
-            #define TP_HEIGHT       Q12(-1.4f)   /* base lift above Harry (Y-up = negative) */
-            #define TP_LOOKAT_OFS   Q12(-0.85f)  /* Y offset for look target (Harry's chest) */
-            #define TP_MOUSE_SENS   6            /* Q12 units per pixel for yaw */
-            #define TP_PITCH_SENS   2            /* Q12 units per pixel for pitch */
-
-            s_SubCharacter* tp_hr = &g_SysWork.playerWork.player;
-
-            /* Mouse: orbit the camera, decoupled from Harry's body */
-            {
-                int mdx = 0, mdy = 0;
-                SDL_GetRelativeMouseState(&mdx, &mdy);
-                /* GTA-style orbit camera. Convention:
-                 *   yaw=0   → camera south of Harry, looking north
-                 *   pitch>0 → camera looks UP (pitches up, dips below)
-                 *   pitch<0 → camera looks DOWN (pitches down, rises above)
-                 *
-                 * Mouse-RIGHT (mdx>0) → += yaw → view rotates right (FPS) ✓
-                 * Mouse-UP    (mdy<0) → -=mdy → += pitch → view tilts up   ✓
-                 * Mouse-DOWN  (mdy>0) → -=mdy → -= pitch → view tilts down ✓ */
-                g_TpsCamYaw   += (s32)(mdx * TP_MOUSE_SENS);
-                g_TpsCamYaw    = Q12_ANGLE_NORM_U(g_TpsCamYaw + Q12_ANGLE(360.0f));
-                g_TpsCamPitch -= (s32)(mdy * TP_PITCH_SENS);
-                /* Tighter clamp on the look-down side so the camera doesn't
-                 * rise far over Harry's head; symmetric range was making the
-                 * cam pop overhead easily. */
-                if (g_TpsCamPitch < -Q12_ANGLE(40.0f)) g_TpsCamPitch = -Q12_ANGLE(40.0f);
-                if (g_TpsCamPitch >  Q12_ANGLE(50.0f)) g_TpsCamPitch =  Q12_ANGLE(50.0f);
-            }
-
-            /* Compute view direction (forward unit vector) from yaw+pitch.
-             * PSX -Y=up convention: pitch>0 (look up) → forward.y negative. */
-            s32 sy = Math_Sin(g_TpsCamYaw);
-            s32 cy = Math_Cos(g_TpsCamYaw);
-            s32 sp = Math_Sin(g_TpsCamPitch);
-            s32 cp = Math_Cos(g_TpsCamPitch);
-
-            /* forward = (sin(yaw)*cos(pitch), -sin(pitch), cos(yaw)*cos(pitch))  Q12 */
-            s32 fwdX = (s32)((s64)sy * cp >> 12);
-            s32 fwdY = -sp;
-            s32 fwdZ = (s32)((s64)cy * cp >> 12);
-
-            /* Camera D units BACK along forward, lifted by TP_HEIGHT */
-            VECTOR3 tpCamPos, tpLookAt;
-            tpCamPos.vx = tp_hr->position.vx - (s32)((s64)TP_DIST * fwdX >> 12);
-            tpCamPos.vy = tp_hr->position.vy - (s32)((s64)TP_DIST * fwdY >> 12) + TP_HEIGHT;
-            tpCamPos.vz = tp_hr->position.vz - (s32)((s64)TP_DIST * fwdZ >> 12);
-
-            /* lookAt FAR ahead, Y-anchored to Harry's chest. Previous
-             * impl projected straight forward from camera origin (vy
-             * = camPos.vy) which placed screen-center at the camera's
-             * own Y — TP_HEIGHT above Harry's feet, ≈ his mid-back.
-             * Hence the user complaint that the cam sits "halfway up
-             * Harry's back". TP_LOOKAT_OFS was declared but never
-             * applied. Anchor lookAt.vy at harry.y + TP_LOOKAT_OFS so
-             * the screen-center crosshair lands on Harry's chest. The
-             * X/Z still project forward by TP_LOOKAT_DIST so we keep
-             * the Q12→Q8 anti-jitter benefit of a far target.
-             *
-             * Pitch contribution: bias additionally by sin(pitch) so
-             * looking up/down still works — at pitch=0 the cam looks
-             * dead-on at chest; at pitch=+50° the look target rides
-             * higher; at pitch=-40° lower. */
-            #define TP_LOOKAT_DIST Q12(25.0f)
-            s32 anchorY = tp_hr->position.vy + TP_LOOKAT_OFS;
-            tpLookAt.vx = tpCamPos.vx + (s32)((s64)TP_LOOKAT_DIST * fwdX >> 12);
-            tpLookAt.vy = anchorY     + (s32)((s64)TP_LOOKAT_DIST * fwdY >> 12);
-            tpLookAt.vz = tpCamPos.vz + (s32)((s64)TP_LOOKAT_DIST * fwdZ >> 12);
-            #undef TP_LOOKAT_DIST
-
-            Vw_SetLookAtMatrix(&tpCamPos, &tpLookAt);
-            vwSetViewInfo();
-
-            #undef TP_DIST
-            #undef TP_HEIGHT
-            #undef TP_LOOKAT_OFS
-            #undef TP_MOUSE_SENS
-            #undef TP_PITCH_SENS
+            Pc_TpsCamera_Apply();
         }
         return;
     }
@@ -848,6 +1548,15 @@ void DebugCamera_Update(void)
     s32 dbgMoveSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, DBG_CAM_MOVE_SPEED);
     s32 dbgTurnSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, DBG_CAM_TURN_SPEED);
     s32 dbgVertSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, DBG_CAM_VERT_SPEED);
+
+    /* Hold Left-Ctrl for ultra-fine placement (quarter speed) when nudging the
+     * debug cam onto the exact between-the-arms FPS spot before pressing L. */
+    if (g_sdlKeyboardState[SDL_SCANCODE_LCTRL]) {
+        dbgMoveSpeed >>= 2;
+        dbgVertSpeed >>= 2;
+        dbgTurnSpeed >>= 2;
+        if (dbgTurnSpeed < 1) dbgTurnSpeed = 1;
+    }
 
     /* Numpad 8: forward */
     if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) {
@@ -1043,111 +1752,27 @@ void GameState_Boot_Update(void) // 0x80032D1C
     }
 
     func_80033548();
+#ifndef SH_PC_PORT
+    /* g_MainImg0 is the 2ZANKO_E "violent images" warning (descriptor identical to
+     * warning_screen.c's s_WarnImg, same VRAM). On PSX the boot state IS the warning
+     * screen; on PC the warning is a separate pre-loop pass (Pc_PlayWarningScreen), so
+     * re-drawing the same VRAM image here just flashed the warning a SECOND time
+     * (snaps in 4:3-pillarboxed, then fades out). Boot clears to black (background2dColor=0)
+     * without it, so the hand-off to the Konami logo stays clean. */
     Screen_BackgroundImgDraw(&g_MainImg0);
+#endif
     func_80089090(1);
 }
 
 #ifdef SH_PC_PORT
-/* Sentinel scan helper — walks an OT chain looking for the corrupt-addr
- * fingerprint that's been plaguing the muzzle flash codepath: a prim's
- * `addr` field points OUTSIDE both the packet buffer and the OT bucket
- * array (and isn't the natural &prim_terminator). The bug class is a
- * 32→64-bit pointer truncation hidden somewhere in the spawn/update
- * dispatch we haven't been able to spot via grep.
- *
- * Strategy: call this at multiple checkpoints across the frame. The
- * FIRST checkpoint that detects corruption brackets the writer to the
- * subsystem that ran since the previous clean checkpoint.
- *
- * Logs at most once per (phase × ot) per session so the log doesn't
- * flood; switch phases by adding a new label string, no de-dup overhead.
- *
- * Safe to call on any frame — the existing OT0/OT2 sanitizer at
- * post-GsSortClear will still terminate the chain so we never crash. */
-extern OT_TAG prim_terminator;
 /* Provided by libgs_stub.c — gives the bounds of any subroot OT registered
  * via GsSortOt(subroot, root). The pickup-screen pipeline registers
  * g_OrderingTable1 as a subroot of g_OrderingTable0; its bucket nodes
  * live in storage outside our packet-buffer + OT0-array windows and
- * MUST be accepted as valid chain pointers, otherwise the sanitizer
- * truncates the chain mid-walk and the picked-up item disappears. */
+ * MUST be accepted as valid chain pointers by the OT0 sanitizer below,
+ * otherwise the chain is truncated mid-walk and the picked-up item
+ * disappears. */
 extern void GsSortOt_GetSubrootBounds(uintptr_t* lo, uintptr_t* hi);
-
-void Pc_OtSentinelScan(GsOT* ot, const char* phase, const char* otName)
-{
-    if (!ot || !ot->tag) return;
-
-    uintptr_t pktLo  = (uintptr_t)s_PcPacketBufs[g_ActiveBufferIdx];
-    uintptr_t pktHi  = (uintptr_t)s_PcPacketBufEnds[g_ActiveBufferIdx];
-    uintptr_t otLo   = (uintptr_t)ot->org;
-    int       otLen  = (ot->length > 0 && ot->length <= 16) ? (int)ot->length : 0;
-    size_t    otCnt  = (size_t)1 << otLen;
-    uintptr_t otHi   = (otLo && otLen) ? (otLo + otCnt * sizeof(GsOT_TAG)) : otLo;
-    uintptr_t termA  = (uintptr_t)&prim_terminator;
-    uintptr_t subLo  = 0, subHi = 0;
-    GsSortOt_GetSubrootBounds(&subLo, &subHi);
-
-    OT_TAG* prev = NULL;
-    OT_TAG* cur  = (OT_TAG*)ot->tag;
-    int hops = 0;
-
-    while (cur && hops < 16384)
-    {
-        uintptr_t curA = (uintptr_t)cur;
-        int valid = (curA == termA) ||
-                    (curA >= pktLo && curA < pktHi) ||
-                    (curA >= otLo  && curA < otHi) ||
-                    (subLo && curA >= subLo && curA < subHi);
-        if (!valid)
-        {
-            /* Found the corruption boundary. prev is the LAST valid prim;
-             * its `addr` field was clobbered to point at `cur` (wild).
-             * Log once per phase × OT name pair. */
-            static const void* s_seenPhase[16] = {0};
-            static const void* s_seenOt[16]    = {0};
-            static int         s_seenCount     = 0;
-            int seen = 0;
-            for (int i = 0; i < s_seenCount; i++)
-                if (s_seenPhase[i] == phase && s_seenOt[i] == otName) { seen = 1; break; }
-            if (!seen && s_seenCount < 16)
-            {
-                s_seenPhase[s_seenCount] = phase;
-                s_seenOt[s_seenCount]    = otName;
-                s_seenCount++;
-                SH_DBG("[OT-SCAN] %s/%s: CORRUPT addr field — prev=%p next=%p hops=%d (pkt=[%p..%p) ot=[%p..%p))",
-                       phase, otName, (void*)prev, (void*)cur, hops,
-                       (void*)pktLo, (void*)pktHi, (void*)otLo, (void*)otHi);
-                if (prev != NULL)
-                {
-                    u32* w = (u32*)prev;
-                    SH_DBG("[OT-SCAN]   prev raw bytes: %08x %08x %08x %08x  %08x %08x %08x %08x",
-                           w[0], w[1], w[2], w[3], w[4], w[5], w[6], w[7]);
-                    SH_DBG("[OT-SCAN]   prev raw bytes: %08x %08x %08x %08x  %08x %08x %08x %08x",
-                           w[8], w[9], w[10], w[11], w[12], w[13], w[14], w[15]);
-                }
-            }
-            return;
-        }
-        if (curA == termA) return; /* clean end of chain */
-        prev = cur;
-        cur  = (OT_TAG*)nextPrim(cur);
-        hops++;
-    }
-}
-
-/* Pure-diagnostic OT corruption walker — fixes nothing, just logs. Off by
- * default so release builds don't pay the per-frame OT-chain walk (×2 OTs ×
- * several phases) or spam the log. Flip g_PcOtScanEnabled=1 to re-arm when
- * chasing OT corruption. */
-int g_PcOtScanEnabled = 0;
-#define PC_OT_SCAN(phase) do { \
-    if (g_PcOtScanEnabled && g_GameWork.gameState == GameState_InGame) { \
-        Pc_OtSentinelScan(&g_OrderingTable0[g_ActiveBufferIdx], phase, "OT0"); \
-        Pc_OtSentinelScan(&g_OrderingTable2[g_ActiveBufferIdx], phase, "OT2"); \
-    } \
-} while (0)
-#else
-#define PC_OT_SCAN(phase) ((void)0)
 #endif
 
 void MainLoop(void) // 0x80032EE0
@@ -1224,6 +1849,13 @@ void MainLoop(void) // 0x80032EE0
          * via hardware interrupt during VBlank. */
         PsyX_UpdateInput();
         DbgOverlay_Update();
+
+        /* Randomizer: per-area monster placement, entry-door relock timer.
+         * No-op unless a run is live. */
+        {
+            extern void Pc_Rando_Update(void);
+            Pc_Rando_Update();
+        }
 #endif
         // Update input.
         Joy_ReadP1();
@@ -1271,6 +1903,34 @@ void MainLoop(void) // 0x80032EE0
         {
             extern void Pc_QuickSaveLoadUpdate(void);
             Pc_QuickSaveLoadUpdate();
+        }
+
+        /* Change Camera (F9 / R3): toggle control style; manages TPS mouse
+         * capture. Always on, not debug-gated. */
+        {
+            extern void Pc_ControlStyleUpdate(void);
+            Pc_ControlStyleUpdate();
+        }
+
+        /* Bound PC actions: Cycle Weapons + Quick Heal + Quick Turn request (reload
+         * is pulled by the combat FSM). Keyboard + controller, edge-detected. */
+        {
+            extern void Pc_ExtraActionsUpdate(void);
+            Pc_ExtraActionsUpdate();
+        }
+
+        /* Rear Look (held): set g_PcRearLookActive for the TPS/OTS camera + head. */
+        {
+            extern void Pc_RearLookUpdate(void);
+            Pc_RearLookUpdate();
+        }
+
+        /* Mouse cursor: drive free-cursor puzzles + the main menu from the mouse.
+         * Runs after the controller is built and before the state update reads
+         * it, so puzzle-cursor injection lands this frame. */
+        {
+            extern void Pc_MouseCursor_FrameUpdate(void);
+            Pc_MouseCursor_FrameUpdate();
         }
 
         /* Console `fmv`: once the fade-out it started lands, this blocks in
@@ -1337,9 +1997,15 @@ void MainLoop(void) // 0x80032EE0
             }
         }
 #endif
+#ifdef SH_PC_PORT
+        /* Cleared each frame; Gfx_PickupItemAnimate re-arms it while a world
+         * item-pickup model is on screen. See the OT0 force-item-depth bracket
+         * and the freeze-frame release below. */
+        { extern int g_PcPickupItemActive; g_PcPickupItemActive = 0; }
+#endif
+
         // Call update function for current GameState.
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
-        PC_OT_SCAN("post-GameStateUpdate");
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState == GameState_InGame) {
             /* Canary checks after InGame state update */
@@ -1366,8 +2032,37 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
 
+#ifdef SH_PC_PORT
+        /* Flashlight shadow master gate: the light-POV depth pre-pass is a
+         * live-gameplay-only effect. Running it on menu / room-load-fade /
+         * transition frames corrupts unrelated rendering (white flash between
+         * rooms, on inventory/map open-close, and on first load; Harry's face
+         * dropping out on the options screen). Arm it only in settled gameplay:
+         * the in-game state, the plain gameplay sub-state (not paused/menu/map),
+         * and no screen fade in progress. Recomputed every frame here, before the
+         * OT is drawn; reset paths (menus, fades) simply leave it 0. */
+        {
+            extern int g_PsyX_ShadowsAllowed;
+            g_PsyX_ShadowsAllowed = (g_GameWork.gameState == GameState_InGame &&
+                                     g_SysWork.sysState == SysState_Gameplay &&
+                                     ScreenFade_IsNone()) ? 1 : 0;
+        }
+
+        /* Release the freeze-frame the instant the world item-pickup ends
+         * (Gfx_PickupItemAnimate stops re-arming g_PcPickupItemActive), so live
+         * gameplay rendering resumes. The item pass held g_PsxPresentLastFrame
+         * to show the frozen room behind the isolated model. */
+        {
+            extern int g_PcPickupItemActive;
+            extern int g_PsxPresentLastFrame;
+            static int s_pcPickupWas = 0;
+            if (s_pcPickupWas && !g_PcPickupItemActive)
+                g_PsxPresentLastFrame = 0;
+            s_pcPickupWas = g_PcPickupItemActive;
+        }
+#endif
+
         Demo_Update();
-        PC_OT_SCAN("post-Demo_Update");
         Demo_GameRandSeedSet();
 
         if (MainLoop_ShouldWarmReset() == 2)
@@ -1377,10 +2072,8 @@ void MainLoop(void) // 0x80032EE0
         }
 
 #define ML_TRACE(tag) ((void)0)
-        PC_OT_SCAN("pre-Screen_FadeUpdate");
         ML_TRACE("Screen_FadeUpdate");
         Screen_FadeUpdate();
-        PC_OT_SCAN("post-Screen_FadeUpdate");
         ML_TRACE("MemCard_Update");
         MemCard_Update();
         ML_TRACE("Sd_TaskPoolExecute");
@@ -1416,13 +2109,10 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
 
-        PC_OT_SCAN("post-Fs_QueueUpdate");
         ML_TRACE("func_80089128");
         func_80089128();
-        PC_OT_SCAN("post-func_80089128");
         ML_TRACE("func_8008D78C");
         func_8008D78C(); // Camera update?
-        PC_OT_SCAN("post-func_8008D78C");
         ML_TRACE("DrawSync");
         DrawSync(SyncMode_Wait);
         ML_TRACE("VSync-begin");
@@ -1509,9 +2199,12 @@ void MainLoop(void) // 0x80032EE0
                         {
                             effectiveMin = 0; /* uncapped: don't wait */
                         }
-                        else if (effectiveFps > 60)
+                        else if (effectiveFps > 60 || (60 % effectiveFps) != 0)
                         {
-                            /* High fps (120, 240): SDL timer — vblank loop can't express <16ms */
+                            /* High fps (120, 240) or a cap that doesn't divide 60
+                             * (e.g. 45, 40): SDL timer — the vblank loop can only
+                             * express whole-vblank multiples, so 60/fps integer
+                             * division silently turned 31..59 into a 60fps cap. */
                             Uint64 freq = SDL_GetPerformanceFrequency();
                             Uint64 targetTicks = freq / (Uint64)effectiveFps;
                             if (s_lastFrameTime == 0)
@@ -1573,7 +2266,16 @@ void MainLoop(void) // 0x80032EE0
              * never exceed what PSX itself swept. Frames faster than 30fps are
              * unaffected; a real hitch just slows time slightly instead of
              * teleporting Harry forward. g_DeltaTimeRaw (vCountCopy) is left raw
-             * for the wall-clock accumulators / cutscene timers. */
+             * for the wall-clock accumulators / cutscene timers.
+             *
+             * NOTE: a previous cutscene-desync fix skipped this cap during
+             * cutscenes (so the visual clock tracked the uncapped audio). That
+             * left cutscene timing frame-rate dependent — DMS/animation steps
+             * advanced on a per-frame dt that could grow to the 15fps floor on
+             * heavy scenes, skipping keyframes/steps, so cutscenes only played
+             * correctly near a single frame rate (~50fps). Reverted per user
+             * request: cap the cutscene step like normal gameplay so cutscenes
+             * behave the same across frame rates as they did before. */
             vCount = MIN(vCount, H_BLANKS_PER_SECOND / 30);
 #endif
         }
@@ -1586,14 +2288,133 @@ void MainLoop(void) // 0x80032EE0
         GsClearVcount();
 
 #ifdef SH_PC_PORT
+        /* Lossless game clock + cutscene audio catch-up. The per-frame
+         * vCount pipeline above loses real time at THREE truncation sites
+         * (GsGetVcount's int cast, GsClearVcount's epoch reset discarding the
+         * fraction, Q12_MULT's floor). Each loss is < 1 unit, but it repeats
+         * every frame, so the whole game clock runs slow vs wall time in
+         * proportion to fps: ~0.4% at 60fps, ~3.3% at 120, ~6.25% at 240,
+         * ~27% uncapped — while XA voices play at true wall clock (OpenAL).
+         * Over a 3-minute cutscene that is 6-11+ seconds of scene/subtitle
+         * lag behind the dialog. Recompute dt from ONE cumulative Q12 clock
+         * (fixed epoch, floored only at the read), so the summed dt equals
+         * true elapsed time at any fps forever.
+         *
+         * A prior fix (edfe66887) carried the per-frame remainder and was
+         * reverted on a theory the desync was map6_s04-specific; widespread
+         * subtitle/scene desync reports at high fps since then match the
+         * uncorrected drift exactly. This version differs from the reverted
+         * one: single clock source (no double GsGetVcount sample feeding two
+         * different values), and the cutscene catch-up below never lets one
+         * frame exceed the PSX 30fps step, the regression mode that revert
+         * blamed (comment above at the 30fps cap).
+         *
+         * Cutscene catch-up: the 30fps cap (invisible-wall fix) and 15fps
+         * floor discard wall time on every slow frame; during a cutscene the
+         * discarded time goes into a debt that later fast frames repay — but
+         * each frame's dt stays <= the PSX 30fps step (136), so DMS/anim
+         * stepping never sees a larger step than original hardware. After a
+         * load hitch the scene briefly runs fast and relocks to the voices
+         * instead of staying permanently behind. Debt is bounded, reset
+         * outside cutscenes, and not accrued while the console freeze has
+         * dt zeroed (frozen time stays lost, matching today's behavior).
+         * During cutscenes g_DeltaTimeRaw = g_DeltaTime so subtitles, message
+         * timers and event waits share one clock with DMS/anims (on PSX the
+         * two were the same variable; the raw/capped split is PC-only and
+         * made subtitles advance up to 2x faster than the scene below
+         * 30fps). */
+        if (!(g_SysWork.sysFlags & SysFlag_DemoActive))
+        {
+            extern long long GsGetCumulativeQ12(void);
+            extern int g_PcConsoleInputActive;
+
+            #define PC_DT_STEP_30FPS     136 /* (526*1063)>>12: PSX 30fps step in Q12 seconds */
+            #define PC_DT_STEP_15FPS     273 /* (1052*1063)>>12: PSX 15fps floor step */
+            #define PC_CUTSCENE_DEBT_MAX Q12(2.0f)
+
+            static long long s_prevCumQ12   = -1;
+            static s32       s_cutsceneDebt = 0;
+
+            long long cumQ12 = GsGetCumulativeQ12();
+            s32       dtTrue;
+            s32       dtRaw;
+            s32       dtCapped;
+            int       pcInCutscene = (g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
+                                     g_SysWork.cutsceneBorderState != CutsceneBorderState_None;
+            int       pcConsoleFrozen = g_PcConsoleInputActive &&
+                                        !(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause) &&
+                                        !g_SysWork.isMgsStringSet;
+
+            /* Voice audio must freeze with the game clock, or the spoken line
+             * runs ahead of the frozen scene/subtitle for the whole console
+             * session. */
+            XaPlayer_SetPauseHold(pcConsoleFrozen);
+
+            if (s_prevCumQ12 < 0)
+            {
+                s_prevCumQ12 = cumQ12;
+            }
+            dtTrue       = (s32)(cumQ12 - s_prevCumQ12);
+            s_prevCumQ12 = cumQ12;
+            if (dtTrue < 0)
+            {
+                dtTrue = 0;
+            }
+
+            dtRaw    = MIN(dtTrue, PC_DT_STEP_15FPS);
+            dtCapped = MIN(dtRaw, PC_DT_STEP_30FPS);
+
+            if (pcInCutscene && !pcConsoleFrozen)
+            {
+                s_cutsceneDebt += dtTrue - dtCapped;
+                s_cutsceneDebt  = MIN(s_cutsceneDebt, PC_CUTSCENE_DEBT_MAX);
+                if (s_cutsceneDebt > 0 && dtCapped < PC_DT_STEP_30FPS)
+                {
+                    s32 pay = MIN(s_cutsceneDebt, PC_DT_STEP_30FPS - dtCapped);
+
+                    dtCapped       += pay;
+                    s_cutsceneDebt -= pay;
+                }
+                dtRaw = dtCapped;
+            }
+            else if (!pcInCutscene)
+            {
+                s_cutsceneDebt = 0;
+            }
+
+            g_DeltaTime    = dtCapped;
+            g_DeltaTimeRaw = dtRaw;
+            g_GravitySpeed = Q12_MULT(dtCapped, Q12(9.8f));
+
+            #undef PC_DT_STEP_30FPS
+            #undef PC_DT_STEP_15FPS
+            #undef PC_CUTSCENE_DEBT_MAX
+        }
+#endif
+
+#ifdef SH_PC_PORT
         /* Interactive console input mode (hold `~`): freeze the game like the
          * pause screen — zero game time so the world stops simulating. Must
          * happen here, after the dt recompute above, so next frame's game
          * update sees 0. Controller suppression lives next to the pad parse
-         * at the top of the loop. */
+         * at the top of the loop.
+         *
+         * BUT only when the game isn't ALREADY paused. The pause screen /
+         * inventory / status / map / any state that sets BgmStatusFlag_Pause
+         * already froze the world its own way; zeroing dt on top makes the two
+         * pauses fight — the menu's own blink/animation freezes, and the world
+         * stays stuck after you unpause until the console is closed. When
+         * already paused, leave dt alone and let that pause own the freeze.
+         *
+         * Same applies while a map-message is on screen (e.g. "I don't have a
+         * map"): it runs on the live mapMsgTimer (-= g_DeltaTimeRaw), so zeroing
+         * dt freezes the message's own timing and the console fights it. isMgsStringSet
+         * is true while a map-message is being displayed — leave dt alone then too. */
         {
             extern int g_PcConsoleInputActive;
-            if (g_PcConsoleInputActive) {
+            if (g_PcConsoleInputActive &&
+                !(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause) &&
+                !g_SysWork.isMgsStringSet) {
                 g_DeltaTime    = 0;
                 g_DeltaTimeRaw = 0;
                 g_GravitySpeed = 0;
@@ -1675,20 +2496,109 @@ void MainLoop(void) // 0x80032EE0
          * which flashed the 4:3 pillarbox mid-fade ("4:3 swap" reports).
          * Only drop to 4:3 after the narrow condition holds for several
          * consecutive frames; returning to Hor+ stays instant. */
+        /* "Fullscreen 2D background screen drawn within the last 300ms" signal,
+         * maintained UNCONDITIONALLY every frame so it always decays. The
+         * per-frame decrement must NOT live behind the fog/menu branches below:
+         * in non-foggy rooms that branch never ran, so g_Pc2dBackgroundActive
+         * stuck >0 and Hor+ stayed permanently pillarboxed after examining an
+         * object. Screen_BackgroundImgDraw* re-sets the counter to 2 each frame
+         * it draws; the 300ms hold bridges the few-frame TIM-swap gaps during
+         * puzzle interactions (and avoids a stretched-frame flash on return). */
+        int bg2dHeld;
+        {
+            extern s32 g_Pc2dBackgroundActive;
+            static Uint32 s_bg2dHoldUntilMs;
+            if (g_Pc2dBackgroundActive > 0) {
+                g_Pc2dBackgroundActive--;
+                s_bg2dHoldUntilMs = SDL_GetTicks() + 300;
+            }
+            bg2dHeld = (SDL_GetTicks() < s_bg2dHoldUntilMs) ? 1 : 0;
+        }
         {
             static int s_narrowFrames = 0;
+            /* Fullscreen 2D background screens that run inside GameState_InGame
+             * (keypad/dial/plate puzzles, the eclipse door, item-inspection and
+             * death-tip images) draw via Screen_BackgroundImgDraw* and must use
+             * 4:3 ortho like the menus — Hor+ widening stretches them off-screen.
+             * Honour bg2dHeld immediately (these are stable screens, not a fade
+             * transient to ride out — the countdown would flash a stretched
+             * frame before snapping). */
             int wantHorPlus = (g_GameWork.gameState == GameState_InGame &&
                                !g_PsxSkipFramebufferStore &&
-                               !g_PcMapScreenActive) ? 1 : 0;
+                               !g_PcMapScreenActive &&
+                               !bg2dHeld) ? 1 : 0;
             if (wantHorPlus)
             {
                 s_narrowFrames     = 0;
                 g_PcHorPlusEnabled = 1;
             }
+            else if (bg2dHeld)
+            {
+                s_narrowFrames     = 6;
+                g_PcHorPlusEnabled = 0;
+            }
             else if (++s_narrowFrames >= 6)
             {
                 g_PcHorPlusEnabled = 0;
             }
+        }
+
+        /* Cutscenes get their vertical framing from the letterbox bars, so the gameplay
+         * vfov crop (g_PsxWorldVScale) must NOT apply during them — it scaled/clipped the
+         * bars and subtitles off the bottom. Hand the cutscene state to PsyCross so
+         * GR_SetOffscreenState skips the vertical crop while a cutscene is active. */
+        {
+            extern int g_PsxCutsceneActive;
+            g_PsxCutsceneActive = ((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
+                                   g_SysWork.cutsceneBorderState != CutsceneBorderState_None) ? 1 : 0;
+        }
+
+        /* Fixed-angle camera shots frame the top of the scene clipped vs PSX (e.g. a
+         * medkit off the top of frame). Correct it by shifting the GTE projection
+         * center down (world content moves down INSIDE the normal 224-line frame)
+         * rather than shifting the PsyCross ortho window up: the ortho shift revealed
+         * rows above the frame that screen-space overlay prims (darkness/light quads,
+         * authored 0..224) never cover — the "faded letterbox" band at the top that
+         * toggled with FIX_ANG camera zones, in every camera style. Screen-space prims
+         * don't go through the GTE, so full-frame overlay coverage is preserved; the
+         * visible world window is identical to the old ortho shift (same cull margins).
+         * Asserted every frame in every state so item screens / menus (GTE consumers
+         * outside gameplay) always run at the clean baseline offset (0,0). Gameplay
+         * classic camera only: alt cameras (FPS/TPS/OTS) replace the game camera, and
+         * cutscenes frame via letterbox bars. g_PsxWorldVShift (PsyCross, console
+         * `vshift`) stays the live-tunable amount in PSX units. */
+        {
+            extern int   g_PsxFixedCamActive;
+            extern int   g_PsxCutsceneActive;
+            extern float g_PsxWorldVShift;
+            extern int   g_PcPickupItemActive;
+            static s32   s_heldWorldOfy = 0;
+            s32 ofy = 0;
+
+            if (g_GameWork.gameState == GameState_InGame &&
+                g_SysWork.sysState == SysState_Gameplay &&
+                !g_PcPickupItemActive)
+            {
+                if (g_PsxFixedCamActive && !g_PsxCutsceneActive && !g_DebugThirdPersonCam)
+                {
+                    ofy = (s32)g_PsxWorldVShift;
+                }
+                s_heldWorldOfy = ofy;
+            }
+            else if (g_GameWork.gameState == GameState_InGame &&
+                     (g_SysWork.sysState == SysState_ReadMessage || g_PcPickupItemActive))
+            {
+                /* Frozen interactions — examine/read-message text and the item-pickup
+                 * animation — keep re-rendering the SAME fixed-cam frame (vcMoveAndSetCamera
+                 * still runs every frame) and snapshot it for the frozen backdrop. The
+                 * original has no per-state offset, so it looks identical before and during
+                 * the interaction; hold the gameplay offset here instead of recomputing it,
+                 * so the shift can't jump the instant text/pickup appears (any display
+                 * camera, since the shift is at the GTE projection center). */
+                ofy = s_heldWorldOfy;
+            }
+
+            SetGeomOffset(0, ofy);
         }
 
         /* Suppress dither on 2D-only states (logos, menus, map screen,
@@ -1699,42 +2609,49 @@ void MainLoop(void) // 0x80032EE0
         extern int g_PsxDitherSuppressed;
         g_PsxDitherSuppressed = (g_GameWork.gameState == GameState_InGame) ? 0 : 1;
 
+        /* Set by the game (game_sys_states.c) while a state freezes the world and presents
+         * the captured FOGGY gameplay frame behind a message: the literal PAUSED screen
+         * and the map-screen messages ("I don't have a map" / "too dark for map"). Those
+         * want the foggy frozen scene behind the text, NOT a black 2D-menu clear. */
+        extern int g_PsxPresentLastFrame;
+
         /* Override background color with fog color during InGame.
          * fog params are set by Gfx_FlashlightUpdate from the previous frame's
          * update, so they're valid by frame 2+. Use the normal GsSortClear path
          * which PsyCross handles via activeDrawEnv.isbg in PsyX_BeginScene. */
-        if (g_GameWork.gameState == 11 &&
-            ((g_SysWork.sysFlags & SysFlag_MenuActive) || g_SysWork.sysState == SysState_GameOver)) {
-            /* A 2D menu (inventory/status/options/paper map) is open or opening
-             * within InGame. These transition through gameState==InGame for a
-             * few frames before the menu draws, so the fog-color background
-             * clear below would flash gray (the void fog color) on open. Force
-             * black for the 2D background instead; fog params are left untouched
-             * so 3D gameplay fog is unaffected once the menu closes.
-             * Same for the GAME OVER screen: it's a SysState within InGame that
-             * draws text/tips over what must be the game's own black clear. */
+        if (g_PcMapScreenActive && !g_PsxPresentLastFrame) {
+            /* Paper-map / map-pickup screens (Screen_BackgroundImgDraw) run under
+             * GameState_MapEvent (12) for the pickup, so the gameState==11 forcing below
+             * is skipped and the pillarbox bars kept the stale gameplay fog color (read
+             * as garbage/old scenery). Force black so the map sits on black bars like the
+             * inventory. (A map-screen MESSAGE state freezes + presents the foggy frame
+             * instead — excluded via !g_PsxPresentLastFrame so it keeps the foggy sky.) */
+            g_GameWork.background2dColor.r = 0;
+            g_GameWork.background2dColor.g = 0;
+            g_GameWork.background2dColor.b = 0;
+        }
+        else if (g_GameWork.gameState == 11 &&
+            (((g_SysWork.sysFlags & SysFlag_MenuActive) && !g_PsxPresentLastFrame) ||
+             g_SysWork.sysState == SysState_GameOver)) {
+            /* 2D menus (inventory/status/options/paper map) and the GAME OVER screen clear
+             * to black. EXCEPTION: map-screen message states ("I don't have a map", "too
+             * dark for map") set MenuActive (they run in SysState_MapScreen) but freeze the
+             * world and present the captured foggy frame (g_PsxPresentLastFrame) — those
+             * want the foggy frozen sky behind the text, like the literal PAUSED screen, so
+             * exclude them and let them fall through to the fog clear. GAME OVER stays black
+             * (it renders its own death scene; the sky is meant to be black there). */
             g_GameWork.background2dColor.r = 0;
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
         }
         else if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled) {
             /* Fullscreen 2D background screens (eclipse/plates doors, item
-             * inspection) must clear to the game's own color (black) — on
-             * PSX the fog void isn't the clear color, so these screens were
-             * never fog-tinted. Counter set by Screen_BackgroundImgDraw*.
-             * Time-based bridge: puzzle interactions (key insertion) swap
-             * TIMs across a few frames where the background draw doesn't
-             * run, so the 2-frame counter lapsed and the fog color flashed
-             * through. Hold black for 300ms past the last 2D-background
-             * frame instead of counting frames (frame counts are fps-
-             * dependent anyway). */
-            extern s32 g_Pc2dBackgroundActive;
-            static Uint32 s_bg2dHoldUntilMs;
-            if (g_Pc2dBackgroundActive > 0) {
-                g_Pc2dBackgroundActive--;
-                s_bg2dHoldUntilMs = SDL_GetTicks() + 300;
-            }
-            if (SDL_GetTicks() < s_bg2dHoldUntilMs) {
+             * inspection) must clear to the game's own color (black) — on PSX
+             * the fog void isn't the clear color, so these screens were never
+             * fog-tinted. bg2dHeld (maintained unconditionally above) is the
+             * time-based "2D background drawn within the last 300ms" signal that
+             * bridges the few-frame TIM-swap gaps during puzzle interactions. */
+            if (bg2dHeld) {
                 g_GameWork.background2dColor.r = 0;
                 g_GameWork.background2dColor.g = 0;
                 g_GameWork.background2dColor.b = 0;
@@ -1944,7 +2861,35 @@ void MainLoop(void) // 0x80032EE0
             }
         }
 #endif
+#ifdef SH_PC_PORT
+        /* Inventory item see-through fix: force real per-pixel depth (test+write,
+         * with a fresh depth clear) around the item OT0 draw. Scoped to
+         * GameState_InventoryScreen only, where OT0 holds the rotating item ALONE
+         * (the world is not sorted), so the model's own front faces occlude its
+         * back faces (radio antenna through the body) without touching gameplay or
+         * in-world pickups. Pairs with g_PcItemPreciseDepth feeding true per-prim
+         * SZ during the sort (item_screens_cam.c). */
+        /* Also the world item-pickup: Gfx_PickupItemAnimate pauses the world so
+         * OT0 again holds only the item model (g_PcPickupItemActive), so the same
+         * per-pixel depth pass fixes its see-through without touching the world. */
+        {
+            extern int g_PcPickupItemActive;
+            if (g_GameWork.gameState == GameState_InventoryScreen || g_PcPickupItemActive) {
+                extern void PsyX_ForceItemDepthBegin(void);
+                PsyX_ForceItemDepthBegin();
+            }
+        }
+#endif
         GsDrawOt(&g_OrderingTable0[g_ActiveBufferIdx]);
+#ifdef SH_PC_PORT
+        {
+            extern int g_PcPickupItemActive;
+            if (g_GameWork.gameState == GameState_InventoryScreen || g_PcPickupItemActive) {
+                extern void PsyX_ForceItemDepthEnd(void);
+                PsyX_ForceItemDepthEnd();
+            }
+        }
+#endif
         ML_TRACE("OT0-done");
 #ifdef SH_PC_PORT
         /* Sanitize InGame OT2 — extended whitelist for 2D overlays.
@@ -2013,10 +2958,27 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
         ML_TRACE("OT2-draw");
+#ifdef SH_PC_PORT
+        /* OT2 = 2D UI (text/subtitles, screen fade, cutscene letterbox bars).
+         * Flag its splits so the renderer draws them with the full vertical
+         * ortho instead of the Hor+ world crop (g_PsxWorldVScale), which would
+         * otherwise clip bottom-anchored subtitles and the bottom letterbox
+         * bar off-screen. The world (OT0, drawn above) keeps the crop. */
+        {
+            extern int g_PsxUIOrthoPass;
+            g_PsxUIOrthoPass = 1;
+            GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
+            g_PsxUIOrthoPass = 0;
+        }
+#else
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
+#endif
         ML_TRACE("OT2-done");
 #ifdef SH_PC_PORT
-        DbgOverlay_Render();
+        /* The dev console is now drawn via g_PsyX_PostCaptureHook (registered in main_pc.c)
+         * INSIDE PsyX_EndScene, AFTER the freeze-frame capture — so it's never baked into a
+         * frozen pause / "no map" image (which used to ghost the live console against the
+         * frozen copy when the console was already open before pausing). Not drawn here. */
         ML_TRACE("PsyX_EndScene");
         PsyX_EndScene();
         ML_TRACE("frame-done");

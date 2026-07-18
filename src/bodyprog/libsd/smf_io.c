@@ -357,17 +357,22 @@ void volume_calc(PORT* p, MIDI* mp) // 0x800A3F14
 
 #ifdef SH_PC_PORT
     {
+        // Rolling sampler: the previous fixed one-shot cap exhausted on the very
+        // first BGM track and never re-armed, so it never captured later tracks
+        // (e.g. the sewer water track 28). Re-arm periodically to sample whatever
+        // track is currently playing.
         static int volcalc_count = 0;
-        if (volcalc_count < 10) {
-            SH_DBG("[SH_BGM] volume_calc: mvol_18=%d midi_master=%d express=%d mvol3=%d pvol=%d tvol=%d velo=%d pan=%d -> l_vol=%d r_vol=%d",
+        if (volcalc_count < 12) {
+            SH_DBG("[SH_BGM] volume_calc: ch=%d mvol_18=%d midi_master=%d express=%d mvol3=%d pvol=%d tvol=%d velo=%d pan=%d -> l_vol=%d r_vol=%d",
+                    p->midi_ch_3 & 0xF,
                     (u8)vab_h[sd_seq_play_no].mvol_18,
                     smf_song[p->midi_ch_3 >> 4].midi_master_vol_538,
                     mp->express_5, mp->mvol_3,
                     p->pvol_10, p->tvol_11,
                     p->velo_1A & 0x7F, p->pan_14,
                     p->l_vol_C, p->r_vol_E);
-            volcalc_count++;
         }
+        if (++volcalc_count >= 4000) { volcalc_count = 0; }
     }
 #endif
 
@@ -971,6 +976,56 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
     }
     prog = &vab1->vab_prog[progNo];
     note = c1;
+
+#ifdef SH_PC_PORT
+    /* [SH_DRIP] Diagnostic: the sewer KDT has 7 tracks but only 5 channels reach
+     * volume_calc — a note-on that finds no matching tone in its resolved VAB is
+     * dropped here, invisible to the volume_calc probe. Log each distinct
+     * (song,ch,prog,vab,match) once. vab2match cross-checks whether the SAME
+     * prog/note WOULD match in the ambient VAB (slot 2), i.e. the drip was routed
+     * to the wrong VAB. Read-only; safe (bounds-checked). */
+    {
+        static u32 s_dripSeen[256];
+        static s32 s_dripN = 0;
+        s32        mt = 0;
+        s32        vab2match = -1;
+        u16        tt;
+        u32        dkey;
+        s32        k, found = 0;
+
+        for (tt = 0; tt < prog->tones; tt++)
+        {
+            VagAtr* va = &vab1->vag_atr[(sp28 * 16) + tt];
+            if (va->vag != 0 && c1 >= va->min && va->max >= c1)
+                mt++;
+        }
+
+        dkey = ((u32)chan << 20) | ((u32)progNo << 12) | ((u32)vabId << 4) | (mt ? 1u : 0u);
+        for (k = 0; k < s_dripN; k++)
+            if (s_dripSeen[k] == dkey) { found = 1; break; }
+
+        if (!found && s_dripN < (s32)ARRAY_SIZE(s_dripSeen))
+        {
+            if (vab_h[2].vh_addr_4 != NULL && progNo < 128)
+            {
+                SD_VAB_H* av   = vab_h[2].vh_addr_4;
+                s32       off2 = 0, j;
+                for (j = 0; j < progNo; j++)
+                    if (av->vab_prog[j].tones != 0) off2++;
+                vab2match = 0;
+                for (tt = 0; tt < av->vab_prog[progNo].tones; tt++)
+                {
+                    VagAtr* va2 = &av->vag_atr[(off2 * 16) + tt];
+                    if (va2->vag != 0 && c1 >= va2->min && va2->max >= c1)
+                        vab2match++;
+                }
+            }
+            s_dripSeen[s_dripN++] = dkey;
+            SH_DBG("[SH_DRIP] key_on song=%d ch=%d prog=%d note=%d bank=%d vabId=%d tones=%d match=%d vab2match=%d",
+                   chan >> 4, chan & 0xF, progNo, c1, midi->bank_change_5A, vabId, prog->tones, mt, vab2match);
+        }
+    }
+#endif
 
     for (tone = 0; tone < prog->tones; tone++)
     {

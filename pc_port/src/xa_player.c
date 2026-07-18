@@ -8,6 +8,31 @@
 #include <AL/alc.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <SDL_timer.h>
+
+/* [XATIME] diagnostic: measure actual wall-clock voice playback duration vs
+ * expected, and the gap between consecutive voice fires, to determine whether
+ * cutscene dialogue races because voices drain prematurely (bug) or because
+ * there is no inter-line pacing (lost PSX CD-load latency). */
+static Uint32 s_xaPlayStartMs = 0;
+static Uint32 s_xaPrevFireMs  = 0;
+
+/* PSX end-of-voice pacing. PSX had no end-of-XA interrupt: a voice "ended"
+ * when the vblank watchdog (sd_call.c, D_800C1688: elapsed > audioLength+32)
+ * queued the stop task — i.e. every line held its 'streaming' state for
+ * ~0.53s (32 vblanks) PAST the audio, and that pad is the authored
+ * inter-line rhythm of every voiced cutscene. OpenAL drain fires the moment
+ * the samples end, so each line advanced ~0.5s early and long dialogs
+ * compressed, running the voices ahead of the scene. Hold the finished
+ * signal until the PSX watchdog moment (play start + (length+32)/60 s). */
+static Uint32 s_xaPadEndMs = 0;
+
+/* Console-freeze hold: the console zeroes game dt but OpenAL kept playing,
+ * running the voice ahead of the frozen scene. While held, the source is
+ * paused and Update does nothing; on release the pad/diagnostic clocks are
+ * shifted by the held duration so pacing resumes where it left off. */
+static int    s_xaPauseHold    = 0;
+static Uint32 s_xaPauseStartMs = 0;
 
 /* Resolved from main_pc.c (where -data sets it). */
 extern const char* PcPort_GetGameDataPath(void);
@@ -131,6 +156,13 @@ typedef struct {
 } XaPlayerState;
 
 static XaPlayerState g_XaPlayer = {0};
+
+/* Master XA (FMV/voice) volume multiplier in [0,1], from config/console/options
+ * menu. Applied on top of the game-driven per-track gain. s_XaGameGain caches
+ * the last game-driven gain so a live master-volume change can be re-applied to
+ * an already-playing source without waiting for the next Sd_SetVolXa. */
+float g_PcXaVolume = 1.0f;
+static float s_XaGameGain = 1.0f;
 
 // Clamp s32 to s16
 static int16_t ClampS16(int32_t val) {
@@ -349,14 +381,17 @@ static int ReadXaSectorFromBin(uint32_t baseSector, uint32_t sectorIndex,
     return fread(outBuf, 1, XA_SECTOR_SIZE, s_BinFile) == XA_SECTOR_SIZE;
 }
 
-// Calculate number of sectors to read based on VSync frames
-static uint32_t CalculateSectorsFromDuration(uint32_t vyncFrames) {
-    // At 60 FPS: 1 frame = 37800/60 = 630 samples (per channel)
-    // 37.8kHz stereo: 2016 samples per channel per sector
-    // 630 * vyncFrames samples / 2016 samples/sector
-    uint32_t totalSamples = (630 * vyncFrames);
-    uint32_t sectors = (totalSamples + 2015) / 2016;  // round up
-    return sectors;
+/* Calculate the number of MATCHED (this clip's channel) sectors from the
+ * authored duration in VSync frames. Per-channel samples per sector: 4032
+ * total 4-bit samples, halved for stereo. Samples per 1/60s frame = rate/60.
+ * Every voice clip on the USA disc is stereo 37800 (verified by reading all
+ * 726 subheaders: sectors = 630*frames/2016), but PAL/JP discs go through
+ * this path too, so derive from the parsed format instead of assuming. */
+static uint32_t CalculateSectorsFromDuration(uint32_t vyncFrames, int sampleRate, int isStereo) {
+    uint32_t samplesPerFrame  = (uint32_t)sampleRate / 60u;
+    uint32_t samplesPerSector = isStereo ? 2016u : 4032u;
+    uint32_t totalSamples     = samplesPerFrame * vyncFrames;
+    return (totalSamples + samplesPerSector - 1) / samplesPerSector; // round up
 }
 
 // Initialize playback for a specific XA index
@@ -414,7 +449,7 @@ void XaPlayer_Play(uint16_t xaIdx) {
 
     // Calculate number of sectors to read
     // audioLength_8 is in VSync frames; convert to sectors
-    uint32_t numSectors = CalculateSectorsFromDuration(item->audioLength_8_bits);
+    uint32_t numSectors = CalculateSectorsFromDuration(item->audioLength_8_bits, sampleRate, isStereo);
 
     g_XaPlayer.file = s_BinFile;   /* shared — never fclose'd per track */
     g_XaPlayer.baseSector = baseSector;
@@ -429,6 +464,15 @@ void XaPlayer_Play(uint16_t xaIdx) {
     g_XaPlayer.filterChannel = filterChannel;
     g_XaPlayer.isPlaying = 1;
     g_XaPlayer.needsInitialFill = 1;
+    {
+        Uint32 nowMs = SDL_GetTicks();
+        uint32_t expMs = (uint32_t)(((uint64_t)numSectors * (XA_SAMPLES_PER_SECTOR / 2u) * 1000u) / (unsigned)sampleRate);
+        SH_DBG("[XATIME] Play xaIdx=%u sectors=%u expMs=%u gapSinceLastFireMs=%u",
+               xaIdx, numSectors, expMs, s_xaPrevFireMs ? (nowMs - s_xaPrevFireMs) : 0);
+        s_xaPrevFireMs  = nowMs;
+        s_xaPlayStartMs = nowMs;
+        s_xaPadEndMs    = nowMs + (((uint32_t)item->audioLength_8_bits + 32u) * 1000u) / 60u;
+    }
     SH_DBG("[XA] Play xaIdx=%u file=%u sector=%u sectors=%u %s %dHz filter=(%u,%u)",
            xaIdx, fileIdx, (uint32_t)item->sector_4_bits, numSectors,
            isStereo ? "stereo" : "mono", sampleRate, filterFile, filterChannel);
@@ -453,7 +497,8 @@ void XaPlayer_Play(uint16_t xaIdx) {
      * 0.0 for the rest of the session. Without this reset, every voice
      * line after the first ~20 plays silently (cafe cutscene voices
      * still work because they precede the mute event). */
-    alSourcef(g_XaPlayer.alSource, AL_GAIN, 1.0f);
+    s_XaGameGain = 1.0f;
+    alSourcef(g_XaPlayer.alSource, AL_GAIN, s_XaGameGain * g_PcXaVolume);
 
 }
 
@@ -575,6 +620,7 @@ static int FillAndUploadOne(ALuint alBuffer) {
 }
 
 void XaPlayer_Update(void) {
+    if (s_xaPauseHold) return;
     if (!g_XaPlayer.isPlaying) return;
 
     /* On first Update after Play: queue all buffers fresh (none are
@@ -613,12 +659,83 @@ void XaPlayer_Update(void) {
      * AL_INITIAL counts too — if the initial fill found zero matching
      * sectors the source never started and would never reach AL_STOPPED. */
     if (g_XaPlayer.remainingSectors == 0 && sourceState != AL_PLAYING) {
-        SH_DBG("[XA] finished xaIdx=%u (drained)", (unsigned)g_XaPlayer.xaIdx);
+        /* PSX pacing: hold the finished signal until the vblank-watchdog
+         * moment (see s_xaPadEndMs). An explicit XaPlayer_Stop (skip / next
+         * line preempting) still signals immediately. Wrap-safe compare. */
+        if ((Sint32)(SDL_GetTicks() - s_xaPadEndMs) < 0) {
+            return;
+        }
+        SH_DBG("[XA] finished xaIdx=%u (drained) playedMs=%u", (unsigned)g_XaPlayer.xaIdx,
+               (unsigned)(SDL_GetTicks() - s_xaPlayStartMs));
         g_XaPlayer.isPlaying = 0;
         /* g_XaPlayer.file aliases the shared s_BinFile — never fclose it
          * here. The BIN handle is held for the lifetime of the process. */
         g_XaPlayer.file = NULL;
         Xa_SignalPlaybackFinished();
+    }
+}
+
+/* True only while the voice is ACTUALLY producing audio — the true-drain
+ * condition at XaPlayer_Update above (remainingSectors==0 && source not
+ * playing), negated, but EXCLUDING the s_xaPadEndMs tail. isPlaying stays 1
+ * through the pad window (the isPlaying=0 clear is behind the pad guard), so
+ * during the ~490ms pad this returns 0 while Sd_AudioStreamingCheck() still
+ * reports 1.
+ *
+ * The subtitle page-advance gate (pcVoiceHold, map_msg_display.c) uses THIS
+ * instead of the padded streaming flag: on PSX pages advanced on the authored
+ * ~J page timer alone (no voice gate), so gating on the padded flag added a
+ * redundant ~0.5s inter-line gap that accumulated across a voiced cutscene
+ * (the map6_s04 Flauros desync). Releasing at real audio drain restores the
+ * authored pacing while still preventing PC's instant next-line SD_Call from
+ * cutting a genuinely-still-playing voice (the PR#17 anti-overlap fix). The
+ * pad itself stays intact for its other consumers (the map6_s04 step-43
+ * inter-DMS barrier, BGM transitions). AL_PAUSED (console-freeze hold) counts
+ * as still-draining. */
+int Xa_IsVoiceAudioDraining(void) {
+    ALint st;
+
+    if (!g_XaPlayer.isPlaying) {
+        return 0;
+    }
+    if (g_XaPlayer.remainingSectors > 0) {
+        return 1;
+    }
+    st = 0;
+    if (g_XaPlayer.alSource) {
+        alGetSourcei(g_XaPlayer.alSource, AL_SOURCE_STATE, &st);
+    }
+    return (st == AL_PLAYING || st == AL_PAUSED);
+}
+
+void XaPlayer_SetPauseHold(int hold) {
+    hold = hold ? 1 : 0;
+    if (hold == s_xaPauseHold) {
+        return;
+    }
+    s_xaPauseHold = hold;
+
+    if (hold) {
+        s_xaPauseStartMs = SDL_GetTicks();
+        if (g_XaPlayer.isPlaying && g_XaPlayer.alSource) {
+            alSourcePause(g_XaPlayer.alSource);
+        }
+    } else {
+        Uint32 heldMs = SDL_GetTicks() - s_xaPauseStartMs;
+
+        /* Shift the pacing/diagnostic clocks so the held time doesn't count
+         * as playback: the pad watchdog and [XATIME] resume where the freeze
+         * began. */
+        s_xaPadEndMs    += heldMs;
+        s_xaPlayStartMs += heldMs;
+        s_xaPrevFireMs  += heldMs;
+        if (g_XaPlayer.isPlaying && g_XaPlayer.alSource) {
+            ALint st = 0;
+            alGetSourcei(g_XaPlayer.alSource, AL_SOURCE_STATE, &st);
+            if (st == AL_PAUSED) {
+                alSourcePlay(g_XaPlayer.alSource);
+            }
+        }
     }
 }
 
@@ -635,6 +752,18 @@ void XaPlayer_SetVolume(int16_t volLeft, int16_t volRight) {
     if (vol < 0) vol = 0;
     float gain = (float)vol / 127.0f;
     if (gain > 1.0f) gain = 1.0f;
-    alSourcef(g_XaPlayer.alSource, AL_GAIN, gain);
+    s_XaGameGain = gain;
+    alSourcef(g_XaPlayer.alSource, AL_GAIN, gain * g_PcXaVolume);
 
+}
+
+/* Set the master XA volume [0,1] and re-apply it to the live source so an
+ * in-game options-menu / console change is audible immediately. */
+void XaPlayer_SetMasterVolume(float v) {
+    if (v < 0.0f) v = 0.0f;
+    if (v > 1.0f) v = 1.0f;
+    g_PcXaVolume = v;
+    if (g_XaPlayer.alSource) {
+        alSourcef(g_XaPlayer.alSource, AL_GAIN, s_XaGameGain * g_PcXaVolume);
+    }
 }

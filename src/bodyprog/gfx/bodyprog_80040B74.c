@@ -4,7 +4,9 @@
 #include <stdlib.h>
 #include <SDL_timer.h>
 #include "pc_config.h"
+#include "bodyprog/gfx/world.h"
 #include "sh_log.h"
+#include "hires_override.h"
 /* Max IPD chunk slots on PC. Largest maps (map0_s00) have ~129 chunks.
  * PSX uses 1-4 slots with streaming. PC can hold all chunks in memory. */
 #define PC_MAX_IPD_CHUNKS 256
@@ -327,6 +329,9 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
     POLY_G3* poly_g3;
     POLY_G4* poly_g4;
     POLY_F4* poly_f4;
+#ifdef SH_PC_PORT
+    extern int g_PsyX_FlashlightActive;
+#endif
 
     if (arg1->vz < Q12(0.25f))
     {
@@ -388,7 +393,10 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
         *(s32*)&poly_g3->x1 = var_t0[j];
         *(s32*)&poly_g3->x2 = var_t0[j + 1];
 
-        addPrim(arg0->org, poly_g3);
+#ifdef SH_PC_PORT
+        if (!g_PsyX_FlashlightActive)
+#endif
+            addPrim(arg0->org, poly_g3);
 
         *(s32*)&poly_f4->x0 = var_t0[j + 51];
         *(s32*)&poly_f4->x1 = var_t0[j + 52];
@@ -414,7 +422,10 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
         }
     }
 
-    AddPrim(arg0->org, &D_800BFBF0[g_ActiveBufferIdx][sizeof(DR_TPAGE)]);
+#ifdef SH_PC_PORT
+    if (!g_PsyX_FlashlightActive)
+#endif
+        AddPrim(arg0->org, &D_800BFBF0[g_ActiveBufferIdx][sizeof(DR_TPAGE)]);
     AddPrim(&arg0->org[1], &D_800BFBF0[g_ActiveBufferIdx]);
 }
 
@@ -560,6 +571,60 @@ void Ipd_TexturesInit(void) // 0x80041D48
 
     Textures_ActiveTex_CountReset(&g_Map.chunkTextures.halfPage);
     Textures_ActiveTex_PutTextures(&g_Map.chunkTextures.halfPage, g_Map.chunkTextures.halfPageTextures, 2);
+
+#ifdef SH_PC_PORT
+    /* Expanded pool (resident_textures; key encoding in hires_override.h):
+     * append VIRTUAL slots after the 10 vanilla page slots. Claim order in
+     * Texture_Get is list order, so the physical slots fill first and
+     * assignment stays vanilla-identical until vanilla capacity would have
+     * been exceeded. Virtual slots never upload to VRAM (PostLoadTim skips
+     * on the synthetic clutY and registers a per-slot GL texture instead);
+     * the tpage byte only feeds the prim's page bits, which the GL override
+     * path ignores — if a slot's registration ever fails, its prims render
+     * broken (FT4 dropped / GT wrong palette), the same class of breakage as
+     * vanilla's missing-TIM stale pages, and [POOLTEX] names the slot. */
+    if (g_PcConfig.residentTextures)
+    {
+        s32 k;
+
+        /* Virtual slot id -> synthetic clut coords (hires_override.h): the
+         * id is split across the clut X bits (per-prim +64*row palette
+         * deltas never touch them) and 16-row-spaced Y groups, so multi-row
+         * chunk TIMs (school ships 6-12 palette rows) stay disambiguable. */
+        for (k = 0; k < PC_TEXPOOL_FULL_EXTRA; k++)
+        {
+            Texture_Init(&g_Map.chunkTextures.fullPageTextures[8 + k], 0,
+                         0, 8, 0, 0,
+                         (s16)((k % 64) * 16),
+                         (s16)(HIRES_POOL_CLUT_ROW_BASE + (k / 64) * HIRES_POOL_MAX_ROWS));
+            g_Map.chunkTextures.fullPage.textures[g_Map.chunkTextures.fullPage.count++] =
+                &g_Map.chunkTextures.fullPageTextures[8 + k];
+        }
+        for (k = 0; k < PC_TEXPOOL_HALF_EXTRA; k++)
+        {
+            s32 id = PC_TEXPOOL_FULL_EXTRA + k;
+            Texture_Init(&g_Map.chunkTextures.halfPageTextures[2 + k], 0,
+                         0, 26, 0, 0,
+                         (s16)((id % 64) * 16),
+                         (s16)(HIRES_POOL_CLUT_ROW_BASE + (id / 64) * HIRES_POOL_MAX_ROWS));
+            /* The last CHUNK-range slot id (255) is reserved for the bullet-
+             * decal texture (pc_decals.c): keep the s_Texture initialized
+             * (RefClear walks the full array) but never offer it to the claim
+             * list. Named constant — HIRES_POOL_SLOT_MAX now spans the chara
+             * range too, so "SLOT_MAX - 1" would silently unreserve it. */
+            if (id == HIRES_POOL_DECAL_SLOT)
+            {
+                continue;
+            }
+            g_Map.chunkTextures.halfPage.textures[g_Map.chunkTextures.halfPage.count++] =
+                &g_Map.chunkTextures.halfPageTextures[2 + k];
+        }
+    }
+    HiresOverride_PoolSlotsReset();
+    /* The reset above also freed the decal slot's GL texture; drop the decal
+     * FIFO and let pc_decals.c re-register lazily on its next draw. */
+    { extern void Pc_DecalsReset(void); Pc_DecalsReset(); }
+#endif
 }
 
 void Map_CollisionDataInit(void) // 0x80041E98
@@ -568,10 +633,20 @@ void Map_CollisionDataInit(void) // 0x80041E98
     g_Map.collisionData.subcellSize = 512;
 }
 
+#ifdef SH_PC_PORT
+static void Pc_ParkedCellRecord(s32 cellX, s32 cellZ); /* defined near Pc_WholeMapDrawActive */
+#endif
+
 void Map_PlaceIpdAtCell(s16 ipdFileIdx, s32 cellX, s32 cellZ) // 0x80041ED0
 {
     s_Chunk*  curChunk;
     s_IpdHeader* ipdHdr;
+
+#ifdef SH_PC_PORT
+    /* Record hosted-interior host cells for the whole-town gate (see
+     * Pc_WholeMapDrawActive). */
+    Pc_ParkedCellRecord(cellX, cellZ);
+#endif
 
     ((s16*)&g_Map.chunkGridCenter[cellZ])[cellX] = ipdFileIdx;
 
@@ -600,13 +675,51 @@ void Ipd_ActiveMapChunksClear(void) // 0x80041FF0
     Ipd_ActiveChunksClear(&g_Map, g_Map.activeChunkCount);
 }
 
+#ifdef SH_PC_PORT
+/* Diagnostic: name every TIM upload that lands on a PINNED physical pool
+ * slot. 2D event backgrounds / boss FX write straight into pool pages; with
+ * resident texturing the stomped slot was never reloaded — the garbled
+ * interior floors/walls class. Called from Fs_QueuePostLoadTim. */
+void Pc_PoolStompProbe(int x, int y, int w, int h)
+{
+    static int s_stompLog = 0;
+    s32 i;
+
+    if (s_stompLog >= 64) return;
+
+    for (i = 0; i < 10; i++)
+    {
+        s_Texture* t = (i < 8) ? &g_Map.chunkTextures.fullPageTextures[i]
+                               : &g_Map.chunkTextures.halfPageTextures[i - 8];
+        int sx = t->imageDesc.u + ((t->imageDesc.tPage[1] & 0xF) << 6);
+        int sy = t->imageDesc.v + ((t->imageDesc.tPage[1] << 4) & 0x100);
+        int sw = (i < 8) ? 64 : 32;
+
+        if (t->refCount <= 0) continue;
+        if (x >= sx + sw || x + w <= sx || y >= sy + 256 || y + h <= sy) continue;
+
+        SH_DBG("[POOLSTOMP] upload (%d,%d %dx%d) hits PINNED pool slot %d '%.8s' (%d,%d)",
+               x, y, w, h, (int)i, t->name.str, sx, sy);
+        s_stompLog++;
+    }
+}
+#endif
+
 void Ipd_TexturesRefClear(void) // 0x8004201C
 {
     s_Texture* curTex;
 
+#ifdef SH_PC_PORT
+    s32 fullBound = 8 + (g_PcConfig.residentTextures ? PC_TEXPOOL_FULL_EXTRA : 0);
+    s32 halfBound = 2 + (g_PcConfig.residentTextures ? PC_TEXPOOL_HALF_EXTRA : 0);
+#else
+    #define fullBound 8
+    #define halfBound 2
+#endif
+
     // TODO: Will these match as for loops?
     curTex = &g_Map.chunkTextures.fullPageTextures[0];
-    while (curTex < (&g_Map.chunkTextures.fullPageTextures[8]))
+    while (curTex < (&g_Map.chunkTextures.fullPageTextures[fullBound]))
     {
         if (curTex->refCount == 0)
         {
@@ -617,7 +730,7 @@ void Ipd_TexturesRefClear(void) // 0x8004201C
     }
 
     curTex = &g_Map.chunkTextures.halfPageTextures[0];
-    while (curTex < (&g_Map.chunkTextures.halfPageTextures[2]))
+    while (curTex < (&g_Map.chunkTextures.halfPageTextures[halfBound]))
     {
         if (curTex->refCount == 0)
         {
@@ -626,6 +739,10 @@ void Ipd_TexturesRefClear(void) // 0x8004201C
 
         curTex++;
     }
+#ifndef SH_PC_PORT
+    #undef fullBound
+    #undef halfBound
+#endif
 }
 
 void Map_WorldClearReset(void) // 0x800420C0
@@ -1645,6 +1762,201 @@ void Ipd_DistanceToEdgeCalc(s_Chunk* chunk, q19_12 posX0, q19_12 posZ0, q19_12 p
     chunk->paddedDistanceToEdge1 = Ipd_PaddedDistanceToEdgeGet(posX1, posZ1, chunk->cellX, chunk->cellZ, isExterior);
 }
 
+#ifdef SH_PC_PORT
+/* Single gate for the experimental whole-town render mode: texture-all
+ * (Ipd_ChunkMaterialsApply), draw-all model buffers (Ipd_ChunkDraw), and the
+ * lifted per-poly far caps in bodyprog_80055028.c all key off this. Scenic
+ * mode ONLY: it exists so the town is visible at once (on foot / flycam);
+ * hosted interiors live in the SAME map's grid (Levin house = THR cells of
+ * map2_s00), so "am I outdoors" cannot come from map identity or fog. */
+extern s_WorldEnvWork g_WorldEnvWork;
+
+/* Parked-cell registry: Map_PlaceIpdAtCell targets (THR05FD -> (-1,8) at THR
+ * map load; THRF908 -> (-7,6) from an event). Their chunk content is swapped at
+ * runtime, so exclude them from the outdoor draw set outright and recompute the
+ * room table when a placement changes the grid. */
+enum { PC_MAX_PARKED_CELLS = 16 };
+static struct { s16 x, z; } s_pcParkedCells[PC_MAX_PARKED_CELLS];
+static s32 s_pcParkedCount = 0;
+
+/* Outdoor-room classification. Every grid cell with an IPD is classified by the
+ * map's own authored position->room function (g_MapOverlayHdr.mapRoomIdxGet —
+ * the same one Game_MapRoomIdxUpdate feeds mapRoomIdx from), sampled at the
+ * cell center. A room spanning >= PC_WM_MIN_ROOM_CELLS cells is an outdoor
+ * area (streets span dozens of cells, alleys several); a room on 1-2 cells is a
+ * hosted interior island (Levin house). Both the activation gate (player's
+ * CURRENT room must be outdoor-sized) and the far-draw / texture-all cell
+ * filter key off this, so the whole town never renders or mass-textures from
+ * inside a house, and interior islands never float in the flyover view. Pure
+ * position math on the town maps -> safe to compute during load. */
+enum { PC_WM_MIN_ROOM_CELLS = 3 };
+static u16 s_pcRoomCellCount[256];
+static u8  s_pcCellOutdoor[19][16]; /* [z + 8][x + 8], grid z -8..10, x -8..7 */
+static s32 s_pcRoomTableValid = 0;
+
+void Pc_ParkedCellsReset(void) /* called at map load, before any placement */
+{
+    s_pcParkedCount    = 0;
+    s_pcRoomTableValid = 0;
+}
+
+static int Pc_CellIsParked(s32 cellX, s32 cellZ)
+{
+    s32 i;
+    for (i = 0; i < s_pcParkedCount; i++)
+    {
+        if (s_pcParkedCells[i].x == cellX && s_pcParkedCells[i].z == cellZ)
+            return 1;
+    }
+    return 0;
+}
+
+static void Pc_ParkedCellRecord(s32 cellX, s32 cellZ)
+{
+    if (Pc_CellIsParked(cellX, cellZ))
+        return;
+    if (s_pcParkedCount < PC_MAX_PARKED_CELLS)
+    {
+        s_pcParkedCells[s_pcParkedCount].x = (s16)cellX;
+        s_pcParkedCells[s_pcParkedCount].z = (s16)cellZ;
+        s_pcParkedCount++;
+    }
+    s_pcRoomTableValid = 0; /* grid content changed under the room table */
+}
+
+static void Pc_WholeMapRoomTableEnsure(void)
+{
+    /* 5 sample points per cell: center + 4 corners inset 14u. The authored
+     * street bands (Map_RoomIdxGet primary grids) are ~24-32u wide and do NOT
+     * always contain cell centers — on map2_s00 the east-west street rooms
+     * miss every center, so center-only sampling classified street and
+     * crossroads cells as indoor (gate flicker on E-W streets, holes at every
+     * intersection, void under the player). Corner samples reach into the
+     * adjoining bands. Hosted-interior rooms come from the per-cell fallback
+     * grid (MAP_ROOM_IDXS), so all 5 samples agree inside a house cell and it
+     * can never gain an outdoor sample. Room cell counts are DISTINCT-CELL
+     * counts (a room seen by several samples of one cell counts once). */
+    static const s32 SAMPLE_OFS[5][2] = {
+        { 0, 0 },
+        { -Q12(14.0f), -Q12(14.0f) }, { -Q12(14.0f), Q12(14.0f) },
+        {  Q12(14.0f), -Q12(14.0f) }, {  Q12(14.0f), Q12(14.0f) },
+    };
+    u8  cellRooms[19][16][5];
+    s32 x;
+    s32 z;
+    s32 s;
+    s32 outdoorCells = 0;
+
+    if (s_pcRoomTableValid)
+        return;
+
+    bzero(s_pcRoomCellCount, sizeof(s_pcRoomCellCount));
+    bzero(s_pcCellOutdoor, sizeof(s_pcCellOutdoor));
+
+    if (g_MapOverlayHdr.mapRoomIdxGet == NULL || g_Map.chunkGridCenter == NULL)
+    {
+        s_pcRoomTableValid = 1; /* no room data -> mode stays off on this map */
+        return;
+    }
+
+    for (z = -8; z < 11; z++)
+    {
+        for (x = -8; x < 8; x++)
+        {
+            if (((s16*)&g_Map.chunkGridCenter[z])[x] == NO_VALUE)
+                continue;
+
+            for (s = 0; s < 5; s++)
+            {
+                s32 seen = 0;
+                s32 k;
+                u8  room = g_MapOverlayHdr.mapRoomIdxGet(
+                    x * CHUNK_CELL_SIZE + (CHUNK_CELL_SIZE / 2) + SAMPLE_OFS[s][0],
+                    z * CHUNK_CELL_SIZE + (CHUNK_CELL_SIZE / 2) + SAMPLE_OFS[s][1]);
+
+                cellRooms[z + 8][x + 8][s] = room;
+                for (k = 0; k < s; k++)
+                {
+                    if (cellRooms[z + 8][x + 8][k] == room)
+                    {
+                        seen = 1;
+                        break;
+                    }
+                }
+                if (!seen)
+                    s_pcRoomCellCount[room]++;
+            }
+        }
+    }
+
+    for (z = -8; z < 11; z++)
+    {
+        for (x = -8; x < 8; x++)
+        {
+            if (((s16*)&g_Map.chunkGridCenter[z])[x] == NO_VALUE || Pc_CellIsParked(x, z))
+                continue;
+
+            for (s = 0; s < 5; s++)
+            {
+                if (s_pcRoomCellCount[cellRooms[z + 8][x + 8][s]] >= PC_WM_MIN_ROOM_CELLS)
+                {
+                    s_pcCellOutdoor[z + 8][x + 8] = 1;
+                    outdoorCells++;
+                    break;
+                }
+            }
+        }
+    }
+
+    s_pcRoomTableValid = 1;
+
+    if (g_PcConfig.wholeMapExteriors && g_Map.isExterior)
+    {
+        s32 r;
+        SH_DBG("[WHOLEMAP] room table: %d outdoor cells; distinct-cell counts per room:", outdoorCells);
+        for (r = 0; r < 256; r++)
+        {
+            if (s_pcRoomCellCount[r] != 0)
+                SH_DBG("[WHOLEMAP]   room %d: %d cells%s", r, (int)s_pcRoomCellCount[r],
+                       (s_pcRoomCellCount[r] >= PC_WM_MIN_ROOM_CELLS) ? " (outdoor)" : "");
+        }
+    }
+}
+
+static int Pc_WholeMapCellOutdoor(s32 cellX, s32 cellZ)
+{
+    if (cellX < -8 || cellX >= 8 || cellZ < -8 || cellZ >= 11)
+        return 0;
+
+    Pc_WholeMapRoomTableEnsure();
+    return s_pcCellOutdoor[cellZ + 8][cellX + 8];
+}
+
+int Pc_WholeMapDrawActive(void)
+{
+    s32 pcx;
+    s32 pcz;
+
+    if (!(g_PcConfig.wholeMapExteriors && g_PcConfig.preloadChunks &&
+          g_PcConfig.residentTextures && g_Map.isExterior))
+    {
+        return 0;
+    }
+
+    /* Gate on the player's CELL being outdoor, not the player's room: street
+     * ROOMS can be small (an intersection room spans 1-2 cells; east-west
+     * street bands miss cell centers), so a room-count test flickers the mode
+     * off mid-street. The cell test uses the same classification as the draw/
+     * texture filters, so an active gate implies the ground under the player
+     * is textured and drawn. Player position (not g_Map.cellX/cellZ, which is
+     * a camera-forward-projected sample that escapes the cell near edges). */
+    pcx = FLOOR_TO_STEP(Q12_TO_Q8(g_SysWork.playerWork.player.position.vx), Q12_TO_Q8(CHUNK_CELL_SIZE));
+    pcz = FLOOR_TO_STEP(Q12_TO_Q8(g_SysWork.playerWork.player.position.vz), Q12_TO_Q8(CHUNK_CELL_SIZE));
+
+    return Pc_WholeMapCellOutdoor(pcx, pcz);
+}
+#endif
+
 void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
 {
     s_Chunk* curChunk;
@@ -1664,6 +1976,100 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
      * nearest neighbors (the Hor+ screen-edge reveal, cafe side walls)
      * take what remains, and farther residents keep geometry+collision
      * but release their textures like vanilla's out-of-cell chunks. */
+    /* Expanded pool (INTERIOR-class maps only): every loaded resident chunk
+     * keeps its materials textured — the pool no longer starves, so the
+     * keep-4 window, the steal loop, and the g_PcInteriorMatSync
+     * flat/untexture shims below are unnecessary (they remain as the
+     * resident_textures=0 fallback). Releases still happen on chunk unload
+     * (Map_PlaceIpdAtCell / Ipd_ActiveChunksClear), exactly like vanilla.
+     *
+     * Do NOT extend this to exterior-class maps: their release-far/
+     * reload-near loop below IS the draw-distance system (an untextured
+     * chunk is skipped by the draw gate). Texturing all of a street map at
+     * once draws the whole map through walls/fog (severe lag, distant
+     * geometry visible) and mass-claims hundreds of slots simultaneously —
+     * broke the Lenin St house (exterior-class map2_s00 hosts interior
+     * cells). Whole-map exterior draw distance is its own future task. */
+    /* whole_map_exteriors (EXPERIMENTAL, scenic mode): texture the OUTDOOR
+     * cells so the whole town can render. Two hard lessons baked in here:
+     *
+     * - Outdoor cells only (Pc_WholeMapCellOutdoor). Hosted interiors live in
+     *   the same grid (Levin house = THR cells of map2_s00); claiming them, or
+     *   claiming ANYTHING while the player is inside one (the gate handles
+     *   that), mass-loads the town through the house.
+     * - Staggered, nearest-first. Claiming ~200 street cells in one frame with
+     *   a hi-res texture pack composes + uploads GL textures for every CLUT
+     *   row of every page at pack resolution — the 2026-07-12 system-crash
+     *   (memory exhaustion during the Levin-house save load). A few first-time
+     *   claims per frame, nearest first, spreads the cost and lets the pack
+     *   byte budget (fsqueue_3.c) favor what is close to the player. */
+    if ((!g_Map.isExterior && g_PcConfig.residentTextures) || Pc_WholeMapDrawActive())
+    {
+        enum { PC_WM_CLAIMS_PER_FRAME = 3 };
+        s_Chunk* newClaims[PC_WM_CLAIMS_PER_FRAME];
+        s32      newCount = 0;
+        s32      wm = g_Map.isExterior; /* whole-map claim vs interior resident claim */
+        s32      i;
+
+        /* Visibility is NOT decided here: interiors draw exactly the
+         * player's cell (Ipd_CellPositionMatchCheck), matching retail —
+         * texturing everything must not widen what renders, or neighbor
+         * room islands ghost into open areas (school-courtyard corridor). */
+        for (curChunk = &map->activeChunks[0]; curChunk < &map->activeChunks[map->activeChunkCount]; curChunk++)
+        {
+            if (Fs_QueueEntryLoadStatusGet(curChunk->queueIdx) < ChunkLoadState_Loaded ||
+                curChunk->ipdHdr == NULL || !curChunk->ipdHdr->isLoaded)
+            {
+                continue;
+            }
+
+            if (wm)
+            {
+                /* Chunks inside the vanilla claim window (padded distance <= 0)
+                 * always texture — exactly what the vanilla release/reload loop
+                 * would do — so the ground around the player can never be
+                 * starved by a misclassified cell. */
+                if (curChunk->paddedDistanceToEdge0 > Q12(0.0f) &&
+                    !Pc_WholeMapCellOutdoor(curChunk->cellX, curChunk->cellZ))
+                    continue;
+
+                if (IpdHeader_LoadStateGet(curChunk) < StaticModelLoadState_Loaded)
+                {
+                    /* First-time texture claim — stagger it. Keep the
+                     * PC_WM_CLAIMS_PER_FRAME nearest candidates (insertion
+                     * sort by padded edge distance, updated per frame by
+                     * Ipd_ActiveChunksSample). */
+                    s32 ins = newCount;
+                    while (ins > 0 &&
+                           newClaims[ins - 1]->paddedDistanceToEdge0 > curChunk->paddedDistanceToEdge0)
+                    {
+                        if (ins < PC_WM_CLAIMS_PER_FRAME)
+                            newClaims[ins] = newClaims[ins - 1];
+                        ins--;
+                    }
+                    if (ins < PC_WM_CLAIMS_PER_FRAME)
+                    {
+                        newClaims[ins] = curChunk;
+                        if (newCount < PC_WM_CLAIMS_PER_FRAME)
+                            newCount++;
+                    }
+                    continue;
+                }
+            }
+
+            Ipd_MaterialsLoad(curChunk->ipdHdr, &map->chunkTextures.fullPage, &map->chunkTextures.halfPage, map->textureFileIdx);
+            Lm_MaterialFlagsApply(curChunk->ipdHdr->lmHdr);
+        }
+
+        for (i = 0; i < newCount; i++)
+        {
+            Ipd_MaterialsLoad(newClaims[i]->ipdHdr, &map->chunkTextures.fullPage, &map->chunkTextures.halfPage, map->textureFileIdx);
+            Lm_MaterialFlagsApply(newClaims[i]->ipdHdr->lmHdr);
+        }
+
+        return;
+    }
+
     if (!g_Map.isExterior)
     {
         enum { PC_INTERIOR_TEXTURED_CHUNKS = 4 };
@@ -1747,6 +2153,12 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
          * out-of-cell chunks. (A NULL texture is the pool-exhausted
          * signal; a non-NULL texture with a still-pending TIM read is
          * fine and must not trigger a steal.) */
+#ifdef SH_PC_PORT
+        /* Untexture NULL-texture materials during this sync so a chunk that lost
+         * a pool page (stolen for a nearer chunk) renders flat instead of
+         * sampling the stale VRAM page another chunk now owns (the "rainbow"). */
+        { extern int g_PcInteriorMatSync; g_PcInteriorMatSync = 1; }
+#endif
         for (ins = 0; ins < keepCount; ins++)
         {
             s32 stealFrom;
@@ -1778,6 +2190,9 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
 
             Lm_MaterialFlagsApply(keep[ins]->ipdHdr->lmHdr);
         }
+#ifdef SH_PC_PORT
+        { extern int g_PcInteriorMatSync; g_PcInteriorMatSync = 0; }
+#endif
 
         return;
     }
@@ -2037,6 +2452,72 @@ bool func_8004393C(q19_12 posX, q19_12 posZ) // 0x8004393C
     return false;
 }
 
+#ifdef SH_PC_PORT
+/* Cheap world-space per-chunk frustum reject for whole-town mode. Transforms the
+ * 40u cell's center into view space via GsWSMATRIX (the world->view matrix, in Q8
+ * world units — the same space Ipd_ChunkDraw uses for cell bounds) and rejects
+ * cells fully behind the camera or outside a generous horizontal cone. It runs in
+ * WORLD space, so it is immune to the GTE depth saturation the far-projection fix
+ * works around — a far but on-screen chunk is correctly kept. Bounds the submit
+ * set so the software vertex transform and the flat vertex buffer stay in budget.
+ * GsWSMATRIX row 2 (m[2]/t[2]) is the forward/depth axis, matching RTPS's MAC3, so
+ * view Z > 0 == in front. */
+/* Horizontal cone half-tangent for the whole-map reject. Derived from the actual
+ * projection so it can never be tighter than the visible frustum: 160/H is the
+ * 4:3 horizontal half-tangent (H = ReadGeomScreen already folds in fps_fov), and
+ * winAspect/(4:3) applies the Hor+ widescreen widening (tracks ultrawide). A 30%
+ * margin guarantees nothing on screen is culled; the fix trades a little extra
+ * submitted geometry (bounded by the widened vertex buffer) for zero over-cull. */
+static float Pc_WholeMapConeSlope(void)
+{
+    float H = (float)ReadGeomScreen();
+    float winA;
+    float slope;
+
+    if (H < 1.0f)
+        H = 1.0f;
+    winA = (g_PcConfig.windowHeight > 0)
+         ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight
+         : (4.0f / 3.0f);
+    slope = (160.0f / H) * (winA / (4.0f / 3.0f)) * 1.3f;
+    if (slope < 1.0f) /* never tighter than ~90deg full */
+        slope = 1.0f;
+    return slope;
+}
+
+/* View-space depth of a cell center (Q8 world units; GsWSMATRIX row 2 is the
+ * camera forward axis, matching RTPS MAC3 — positive = in front). Also serves
+ * as the painter's sort key for the whole-town submit order. */
+static s32 Pc_WholeMapCellViewZ(s32 cellX, s32 cellZ)
+{
+    const s32 CELL = Q12_TO_Q8(CHUNK_CELL_SIZE);
+    s32 cx = cellX * CELL + (CELL >> 1);
+    s32 cz = cellZ * CELL + (CELL >> 1);
+    return (s32)(((s64)GsWSMATRIX.m[2][0] * cx + (s64)GsWSMATRIX.m[2][2] * cz) >> 12) + GsWSMATRIX.t[2];
+}
+
+static int Pc_WholeMapChunkCulled(s32 cellX, s32 cellZ, float coneSlope)
+{
+    const s32 CELL = Q12_TO_Q8(CHUNK_CELL_SIZE); /* 40u in Q8 */
+    s32 cx = cellX * CELL + (CELL >> 1);         /* cell center, Q8 world */
+    s32 cz = cellZ * CELL + (CELL >> 1);
+    /* cell center Y = 0 (ground); GsWSMATRIX.t carries the camera height. */
+    s32 vx = (s32)(((s64)GsWSMATRIX.m[0][0] * cx + (s64)GsWSMATRIX.m[0][2] * cz) >> 12) + GsWSMATRIX.t[0];
+    s32 vz = Pc_WholeMapCellViewZ(cellX, cellZ);
+    float ax;
+
+    if (vz < -CELL) /* whole cell behind the near plane */
+        return 1;
+
+    /* Horizontal cone (coneSlope * depth) plus a whole-cell margin. */
+    ax = (float)(vx < 0 ? -vx : vx);
+    if (ax > (float)vz * coneSlope + (float)CELL)
+        return 1;
+
+    return 0;
+}
+#endif
+
 void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 {
     s32         queueState;
@@ -2080,9 +2561,23 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 #endif
 #ifdef SH_PC_PORT
     {
+        extern int g_PsxWholeMapFar; /* PsyCross: gate the GTE far re-projection */
+        extern int g_PsxWholeMapChunkSz; /* PsyCross: true depth for this chunk's saturated far polys */
         int drawCount = 0;
-        int drawLimit = g_DebugCamEnabled ? 16 : PC_MAX_IPD_CHUNKS;
-        int totalChunks = 0, loadedChunks = 0, cellMatchChunks = 0;
+        /* The 16-chunk debug-cam cap predates the OT depth clamps; with the
+         * whole-town mode active it was exactly what truncated the flycam view
+         * to a block of houses. Keep the cap only for plain debug flights. */
+        int drawLimit = (g_DebugCamEnabled && !Pc_WholeMapDrawActive()) ? 16 : PC_MAX_IPD_CHUNKS;
+        int totalChunks = 0, loadedChunks = 0, cellMatchChunks = 0, culledChunks = 0;
+        /* Whole-town mode: unclamp the GTE projection for far world vertices (see
+         * PsyX_GTE.cpp). Scoped to this world-chunk loop so only the map geometry
+         * takes the far path — characters/particles/HUD keep the exact PSX path. */
+        int wmFar = Pc_WholeMapDrawActive();
+        float wmConeSlope = wmFar ? Pc_WholeMapConeSlope() : 0.0f;
+        s_Chunk* wmChunks[PC_MAX_IPD_CHUNKS];
+        s32      wmViewZ[PC_MAX_IPD_CHUNKS];
+        s32      wmCount = 0;
+        g_PsxWholeMapFar = wmFar;
 #endif
     for (; curChunk < &g_Map.activeChunks[g_Map.activeChunkCount]; curChunk++)
     {
@@ -2094,6 +2589,28 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         {
 #ifdef SH_PC_PORT
             cellMatchChunks++;
+            /* Whole-town draw set = outdoor cells only (streets/alleys; hosted
+             * interior islands and parked cells excluded — they'd float in the
+             * flyover view and bleed through house rooms), bounded to what is
+             * actually on screen by the frustum reject. Chunks inside the
+             * vanilla claim window are exempt from both (vanilla draws every
+             * loaded+textured chunk), so the local scene always matches
+             * vanilla regardless of cell classification. */
+            if (wmFar)
+            {
+                if (curChunk->paddedDistanceToEdge0 > Q12(0.0f) &&
+                    (!Pc_WholeMapCellOutdoor(curChunk->cellX, curChunk->cellZ) ||
+                     Pc_WholeMapChunkCulled(curChunk->cellX, curChunk->cellZ, wmConeSlope)))
+                {
+                    culledChunks++;
+                    continue;
+                }
+                /* Collect for sorted submission instead of drawing inline. */
+                wmChunks[wmCount] = curChunk;
+                wmViewZ[wmCount]  = Pc_WholeMapCellViewZ(curChunk->cellX, curChunk->cellZ);
+                wmCount++;
+                continue;
+            }
 #endif
             Ipd_ChunkDraw(curChunk->ipdHdr, g_Map.positionX, g_Map.positionZ, ot, arg1);
 #ifdef SH_PC_PORT
@@ -2102,6 +2619,73 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         }
     }
 #ifdef SH_PC_PORT
+    /* Whole-town painter's submit order: everything past ~64u shares the LAST
+     * OT bucket, and beyond 256u every poly also shares one GL depth value —
+     * so DRAW order decides overlaps there. addPrim PREPENDS to a bucket
+     * (traversal = reverse submission), so submitting chunks NEAR-first makes
+     * the far bucket draw far->near = painter's order at chunk granularity.
+     * This is what turns "random building sides by direction" into a stable
+     * town silhouette. */
+    if (wmFar && wmCount > 0)
+    {
+        /* The frame packet arena is 2MB (game_main.c PC_PKTBUF_SIZE) with
+         * NOTHING stopping emission past its end — sized for ~25 near chunks,
+         * while whole-town submits ~60+. Budget the town's share and stop at
+         * the cap: the list is near-first, so what gets dropped is the far
+         * tail (graceful fade, never the local scene), and characters/effects
+         * later in the frame keep their headroom. */
+        enum { PC_WM_PACKET_BUDGET = 12 * 1024 * 1024 };
+        u8* wmPktBase = (u8*)GsOUT_PACKET_P;
+        s32 i;
+        s32 j;
+        for (i = 1; i < wmCount; i++)
+        {
+            s_Chunk* c = wmChunks[i];
+            s32      z = wmViewZ[i];
+            for (j = i - 1; j >= 0 && wmViewZ[j] > z; j--)
+            {
+                wmChunks[j + 1] = wmChunks[j];
+                wmViewZ[j + 1]  = wmViewZ[j];
+            }
+            wmChunks[j + 1] = c;
+            wmViewZ[j + 1]  = z;
+        }
+        for (i = 0; i < wmCount; i++)
+        {
+            if ((u8*)GsOUT_PACKET_P - wmPktBase > PC_WM_PACKET_BUDGET)
+            {
+                culledChunks += wmCount - i;
+                break;
+            }
+            /* Feed this chunk's true cell-center view depth so its saturated
+             * (>256u) polys depth-sort by block instead of collapsing to one
+             * plane (cells are 40u-confined, so per-chunk depth is exact enough
+             * for block-vs-block ordering). SZ units == Q8 view units. */
+            g_PsxWholeMapChunkSz = wmViewZ[i] > 0 ? wmViewZ[i] : 0;
+            Ipd_ChunkDraw(wmChunks[i]->ipdHdr, g_Map.positionX, g_Map.positionZ, ot, arg1);
+            if (++drawCount >= drawLimit) break;
+        }
+    }
+    g_PsxWholeMapFar = 0; /* far re-projection is world-geometry only */
+    g_PsxWholeMapChunkSz = 0;
+#endif
+#ifdef SH_PC_PORT
+    /* TEMP [WHOLEMAP] probe (remove when the whole-town report closes): with
+     * the mode active, confirm every chunk actually submits — separates a
+     * residual chunk gate from the GTE far-projection limit. */
+    if (g_Map.isExterior && g_PcConfig.wholeMapExteriors)
+    {
+        static u32 s_wmLogMs = 0;
+        if ((SDL_GetTicks() - s_wmLogMs) > 2000)
+        {
+            s_wmLogMs = SDL_GetTicks();
+            SH_DBG("[WHOLEMAP] active=%d preload=%d resident=%d fog=%d roomIdx=%d total=%d loaded=%d drawn=%d culled=%d",
+                   Pc_WholeMapDrawActive(), g_PcConfig.preloadChunks, g_PcConfig.residentTextures,
+                   (int)g_WorldEnvWork.isFogEnabled, (int)g_SavegamePtr->mapRoomIdx,
+                   totalChunks, loadedChunks, drawCount, culledChunks);
+        }
+    }
+
     /* Once/sec while the world is void (black-void diagnosis): fires when
      * NOTHING draws OR when the player's own cell specifically isn't among
      * the drawn chunks (a "room missing, neighbor visible" void would
@@ -2154,31 +2738,31 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 bool Ipd_CellPositionMatchCheck(s_Chunk* chunk, s_MapTerrain* map)
 {
 #ifdef SH_PC_PORT
-    if (g_DebugCamEnabled || g_PcConfig.disableCulling) return true;
-    /* Expand match in X and Z so adjacent geometry isn't clipped at the
-     * screen edges. On PSX exact-cell match was fine because the 4:3
-     * viewport stayed inside one cell width. On PC:
-     *   * 16:9 + Hor+ extends X view ~1.33x
-     *   * + pixel-aspect compensation extends X view another ~9.4%
-     *     (commit 9275146d8 in PsyCross, fixes Harry-too-thick).
-     * Combined, ~1.46x more horizontal extent than PSX. ±2 X cells
-     * covers the worst case (e.g. cafe interior where the side walls
-     * are ~1.5 cells away from Harry's cell). Z stays ±1 since the
-     * vertical FOV is unchanged. */
+    if (g_DebugCamEnabled) return true;
+    /* NOTE: disable_culling must NOT bypass the interior check below — it is
+     * ROOM VISIBILITY, not culling, and disable_culling=1 is the SHIPPED
+     * DEFAULT (its old first-line bypass here is why the courtyard ghost
+     * survived the exact-cell fix on every default config). disableCulling
+     * keeps its real meaning elsewhere: within the visible room every model
+     * buffer still draws (Ipd_ChunkDraw draw-all), and exteriors pass below. */
+    if (g_PcConfig.disableCulling && map->isExterior) return true;
+    /* Interiors draw ONLY the player's cell, exactly like retail. Interior
+     * maps are a packing of self-contained room islands — one room per 40u
+     * cell, 16-28u of dead space between islands, zero cross-cell geometry
+     * on the US disc (the lone cross-boundary vista, HP0002/HP0003, ships
+     * duplicated geometry inside the viewing cell). So widescreen needs no
+     * wider window: everything visible from a room lives in that room's
+     * chunk. Any window beyond the exact cell draws OTHER rooms floating
+     * unoccluded across the dead gaps (the school-courtyard corridor ghost;
+     * previously band-aided per-arena via MapRegistry_IsExactCellArena and
+     * a 4-nearest pcInDrawSet, both now subsumed). The old ±2/±1 window
+     * masked mid-load voids from the 4-slot era, not a real retail gap —
+     * interiors keep 16 resident slots and loads are synchronous now. */
+    if (!map->isExterior)
     {
-        s32 dx = (s32)chunk->cellX - map->cellX;
-        s32 dz = (s32)chunk->cellZ - map->cellZ;
-        /* Single-cell boss arenas (map1_s05 school, map7_s03 final): the open
-         * arena is the player's cell; neighbor cells are different rooms that
-         * the wide window would draw far across the room. Draw exact-cell like
-         * PSX — the frustum cull still handles this cell's edge triangles. */
-        extern int MapRegistry_IsExactCellArena(void);
-        if (!map->isExterior && MapRegistry_IsExactCellArena())
-        {
-            return dx == 0 && dz == 0;
-        }
-        if (dx >= -2 && dx <= 2 && dz >= -1 && dz <= 1) return true;
+        return chunk->cellX == map->cellX && chunk->cellZ == map->cellZ;
     }
+    return true;
 #else
     if (map->cellX == chunk->cellX &&
         map->cellZ == chunk->cellZ)
@@ -2476,16 +3060,17 @@ void Ipd_ChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, bool
     modelCoord.super       = NULL;
 
 #ifdef SH_PC_PORT
-    /* NOTE (Xbox): an earlier fix routed exteriors through this draw-all path,
-     * blaming the subcell PVS for "world vanishes when fighting the air
-     * screamer". The real cause was the setaddr macro-precedence OT corruption
-     * from the layered blood emit (see pc_port/include/psyq/libgpu.h) — blood
-     * sprays during the fight, prims link 4 bytes off, the OT derails. With
-     * that fixed, the PSX-accurate subcell PVS is restored here: it is the
-     * exterior draw-distance system, and draw-all was costing the 733MHz CPU
-     * the whole street's prim load every frame (the town FPS dips). */
-    if (g_DebugCamEnabled || g_PcConfig.disableCulling) {
-        /* Render ALL model buffers, skip subcell/spatial culling */
+    /* NOTE (Xbox): an earlier fix routed ALL exteriors through this draw-all
+     * path, blaming the subcell PVS for "world vanishes when fighting the air
+     * screamer". That was wrong and was reverted: draw-all cost the 733MHz CPU
+     * the whole street's prim load every frame (the town FPS dips). The subcell
+     * PVS is the PSX-accurate exterior draw-distance system — leave it on.
+     * Whole-map mode is a separate, opt-in debug path and is fine to keep. */
+    if (g_DebugCamEnabled || g_PcConfig.disableCulling || Pc_WholeMapDrawActive()) {
+        /* Render ALL model buffers, skip subcell/spatial culling. Whole-map
+         * mode needs this too: the baked subcell PVS rectangles only cover
+         * viewer offsets within ±3.2 cells of the chunk (s16 q7_8), so far
+         * chunks would submit zero buffers no matter what is textured. */
         s32 startI = 0, endI = ipdHdr->modelBufferCount;
         temp_fp = NULL;
         for (i = startI; i < endI; i++)
@@ -2723,6 +3308,16 @@ s_IpdCollisionData* Ipd_CollisionDataGet(q19_12 posX, q19_12 posZ) // 0x800426E4
     }
 }
 
+#ifdef SH_PC_PORT
+/* Preload sets activeChunkCount to the WHOLE map (for rendering). Collision must
+ * stay scoped to the player's local cell window (±1 — the exterior window the
+ * chunk-select / Lm_ModelFind use, see ~L1107) like vanilla, which never had far
+ * chunks active. Iterating far preloaded chunks lets their subcells fire phantom
+ * wall-edges at the player = the preload-only invisible walls (#42). Console
+ * `COLLSCOPE 0/1` (default 1 = scoped) for live A/B against a stuck spot. */
+int g_PcChunkCollisionLocalScope = 1;
+#endif
+
 s_IpdCollisionData** Ipd_ActiveChunksCollisionDataGet(s32* collDataIdx) // 0x800425D8
 {
     s_Chunk*            curChunk;
@@ -2735,6 +3330,15 @@ s_IpdCollisionData** Ipd_ActiveChunksCollisionDataGet(s32* collDataIdx) // 0x800
     // Run through active chunks.
     while (curChunk < &g_Map.activeChunks[g_Map.activeChunkCount])
     {
+#ifdef SH_PC_PORT
+        if (g_PcChunkCollisionLocalScope && g_PcConfig.preloadChunks && g_Map.isExterior &&
+            !(curChunk->cellX >= (g_Map.cellX - 1) && (g_Map.cellX + 1) >= curChunk->cellX &&
+              curChunk->cellZ >= (g_Map.cellZ - 1) && (g_Map.cellZ + 1) >= curChunk->cellZ))
+        {
+            curChunk++;
+            continue;
+        }
+#endif
         if (Map_ChunkLoadStateGet(curChunk->queueIdx) >= ChunkLoadState_Loaded)
         {
             ipdHdr = curChunk->ipdHdr;

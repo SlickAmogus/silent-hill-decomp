@@ -46,6 +46,22 @@ public class ConfigManager
         }
     }
 
+    /// <summary>
+    /// Ensure a "## Launcher" header comment exists so the launcher_* keys that
+    /// Save() appends are grouped and human-identifiable. The game ignores these
+    /// keys (pc_config.c treats launcher_* as a no-op). Idempotent.
+    /// </summary>
+    public void EnsureLauncherSection()
+    {
+        bool hasHeader = _lines.Any(l => l.Trim().Equals("## Launcher", StringComparison.OrdinalIgnoreCase));
+        if (hasHeader) return;
+
+        _lines.Add("");
+        _lines.Add("# ===========================================================================");
+        _lines.Add("## Launcher (managed by the launcher — the game ignores these keys)");
+        _lines.Add("# ===========================================================================");
+    }
+
     public void Save()
     {
         // Track which keys already had a line so we know what to append

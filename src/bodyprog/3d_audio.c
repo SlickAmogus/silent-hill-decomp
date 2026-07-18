@@ -148,6 +148,8 @@ s32 func_8005D9B8(VECTOR3* pos, q23_8 vol) // 0x8005D9B8
     return var_v0;
 }
 
+void func_8005DC3C(e_SfxId sfxId, const VECTOR3* pos, q23_8 vol, s32 soundType, s32 pitch);
+
 void func_8005DC1C(e_SfxId sfxId, const VECTOR3* pos, q23_8 vol, s32 soundType)
 {
     func_8005DC3C(sfxId, pos, vol, soundType, 0);
@@ -158,27 +160,12 @@ void func_8005DC3C(e_SfxId sfxId, const VECTOR3* pos, q23_8 vol, s32 soundType, 
     q23_8 volCpy;
     q23_8 balance;
 
-#ifdef SH_PC_PORT
-    /* PC: restore distance-based volume falloff. Old PC path skipped
-     * func_8005D9B8 entirely, leaving positional SFX at full volume
-     * regardless of distance — Air Screamer wing flaps were audible
-     * across the whole map, footsteps from other NPCs too loud, etc.
-     * Stereo balance still forced to 0 (PSX path uses GTE-based
-     * Vc_StereoBalanceGet which may not work cleanly here). */
-    balance = 0;
-    if (vol > Q8_CLAMPED(1.0f)) vol = Q8_CLAMPED(1.0f);
-    else if (vol < Q8_CLAMPED(0.0f)) vol = Q8_CLAMPED(0.0f);
-    if (!(soundType & (1 << 1)))
-        volCpy = func_8005D9B8((VECTOR3*)pos, vol);
-    else
-        volCpy = vol;
-    if (volCpy > Q8_CLAMPED(1.0f)) volCpy = Q8_CLAMPED(1.0f);
-    if (soundType & (1 << 2))
-        Sd_SfxAttributesUpdate(sfxId, balance, ~volCpy, pitch);
-    else
-        Sd_PlaySfx(sfxId, balance, ~volCpy);
-    return;
-#endif
+    /* PC note: an early port stub forced balance=0 here claiming GTE-based
+     * Vc_StereoBalanceGet "may not work cleanly" — disproven: the sfx.c
+     * aliases of these wrappers call it unguarded from 243 sites. The clean
+     * PSX path below restores real stereo balance (and arms the PC azimuth
+     * side-channel inside Vc_StereoBalanceGet) for the 116 func_8005D*
+     * call sites: NPC cries, footsteps, melee. */
 
     // Get stereo balance.
     if (soundType & (1 << 0) || g_GameWork.config.soundType)
@@ -229,16 +216,9 @@ void func_8005DD44(e_SfxId sfxId, VECTOR3* pos, q23_8 vol, s8 pitch) // 0x8005DD
     q23_8 volCpy;
     s32   balance;
 
-#ifdef SH_PC_PORT
-    /* 3D positional audio crashes — Sound_StereoBalanceGet uses camera
-       coord hierarchy that isn't fully set up on PC.  Play with center
-       balance for now. */
-    balance = 0;
-    volCpy = vol;
-    if (volCpy > Q8_CLAMPED(1.0f)) volCpy = Q8_CLAMPED(1.0f);
-    func_80046620(sfxId, balance, ~volCpy, pitch);
-    return;
-#endif
+    /* PC note: early port stub (balance=0, no falloff) removed — see
+     * func_8005DC3C above. This also restores the func_8005D9B8 distance
+     * falloff this path always had on PSX. */
 
     // Get stereo balance.
     if (g_GameWork.config.soundType)
@@ -288,11 +268,7 @@ void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitc
     u8  att1;
     s32 att2;
 
-#ifdef SH_PC_PORT
-    /* Sound_StereoBalanceGet uses camera coord hierarchy that isn't fully
-       set up on PC (same issue as func_8005DD44). Use center balance. */
-    balance = 0;
-#else
+    /* PC note: early port stub (balance=0) removed — see func_8005DC3C. */
     if (g_GameWork.config.soundType)
     {
         balance = 0;
@@ -301,7 +277,6 @@ void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitc
     {
         balance = Vc_StereoBalanceGet(pos);
     }
-#endif
 
     if (vol > 0xFF)
     {
@@ -310,6 +285,14 @@ void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitc
 
     if (vol < 0)
     {
+#ifdef SH_PC_PORT
+        /* Balance above armed the azimuth latch but no Sd_* call will claim
+         * it on this path — disarm so the next sound can't inherit it. */
+        {
+            extern s32 g_Pc_SfxAzimuthValid;
+            g_Pc_SfxAzimuthValid = 0;
+        }
+#endif
         return;
     }
 

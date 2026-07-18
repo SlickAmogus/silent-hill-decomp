@@ -17,6 +17,19 @@ s32 __pad_bss_800C483C;
 
 #ifdef SH_PC_PORT
 extern s_WorldEnvWork g_WorldEnvWork; /* flare-occlusion facing test */
+/* Force the reflective-water octagon (func_8008EA68) to draw affine — integer
+ * screen coords + painter's-order Z, exactly as with PGXP off. RotTransPers4
+ * writes its projected verts straight into poly->g4[0] (PGXP-tracked since the
+ * item fix), while g3[0]/g4[1]/g3[1] are plain CPU copies (affine); that mix
+ * raises/warps the surface and makes the per-pixel flashlight reconstruct a
+ * ring ("donut") normal. Opting these prims out keeps the rest of the scene
+ * PGXP-correct. No-op when PGXP is off, self-clears after one prim. */
+extern void PsyX_SetNextPrimAffine(void);
+/* Propagate a projected vertex's PGXP + view-space shadow along a plain CPU
+ * word copy (dst = src). The reflection band reuses g4[0]'s/the apex's screen
+ * words this way; without propagation those verts carry zero view-Z, so the
+ * per-pixel flashlight reconstructs a garbage normal and blows the water out. */
+extern void Shadow_Copy(void* dst, const void* src);
 #endif
 
 // ========================================
@@ -81,10 +94,10 @@ void func_8008D470(q3_12 lensFlareIntensity, SVECTOR* rot, VECTOR3* pos, s_Water
         }
     }
 
-#ifndef SH_PC_PORT
-    /* Water reflection flares. TODO(PC): unported — verify func_8008E5B4/
-     * func_8008E794/func_8008EA68 for packet/GTE hazards before enabling.
-     * The chest glare above works without this. */
+    /* Water reflection + illumination, restored on PC. func_8008E5B4/E794/EA68
+     * are ordinary POLY_FT4/G4/G3 emitters via GsOUT_PACKET_P (not the framebuffer-
+     * readback class that func_8008D5A0 above needs), so they run on PC. This is
+     * the water "lighting"/reflection the PSX showed that was missing. */
     if (D_800C4818.field_1 == 0)
     {
         waterZone = Map_WaterZoneGet(Q12_TO_Q4(pos->vx), Q12_TO_Q4(pos->vz), waterZones);
@@ -100,7 +113,6 @@ void func_8008D470(q3_12 lensFlareIntensity, SVECTOR* rot, VECTOR3* pos, s_Water
             }
         }
     }
-#endif
 }
 
 void func_8008D5A0(VECTOR3* arg0, s16 arg1) // 0x8008D5A0
@@ -957,10 +969,35 @@ void func_8008EA68(SVECTOR* arg0, VECTOR3* posXz, q19_12 posY) // 0x8008EA68
         *(s32*)&poly->g4[1].x2 = *(s32*)&poly->g4[0].x2;
         *(s32*)&poly->g4[1].x3 = *(s32*)&poly->g4[0].x3;
 
+#ifdef SH_PC_PORT
+        /* Carry the view-space shadow to every reflection-band vertex that was
+         * plain-copied above, so all water verts share consistent view-Z and
+         * the flashlight reconstructs one flat normal (no white blowout). */
+        Shadow_Copy(&poly->g3[1].x0, &spC8);
+        Shadow_Copy(&poly->g3[0].x0, &spC8);
+        Shadow_Copy(&poly->g3[1].x1, &poly->g4[0].x0);
+        Shadow_Copy(&poly->g3[0].x1, &poly->g4[0].x0);
+        Shadow_Copy(&poly->g4[1].x0, &poly->g4[0].x0);
+        Shadow_Copy(&poly->g3[1].x2, &poly->g4[0].x1);
+        Shadow_Copy(&poly->g3[0].x2, &poly->g4[0].x1);
+        Shadow_Copy(&poly->g4[1].x1, &poly->g4[0].x1);
+        Shadow_Copy(&poly->g4[1].x2, &poly->g4[0].x2);
+        Shadow_Copy(&poly->g4[1].x3, &poly->g4[0].x3);
+
+        PsyX_SetNextPrimAffine();
+        AddPrim(spD0, &poly->g4[0]);
+        PsyX_SetNextPrimAffine();
+        AddPrim(spD0, &poly->g3[0]);
+        PsyX_SetNextPrimAffine();
+        AddPrim(spD4, &poly->g4[1]);
+        PsyX_SetNextPrimAffine();
+        AddPrim(spD4, &poly->g3[1]);
+#else
         AddPrim(spD0, &poly->g4[0]);
         AddPrim(spD0, &poly->g3[0]);
         AddPrim(spD4, &poly->g4[1]);
         AddPrim(spD4, &poly->g3[1]);
+#endif
 
         poly++;
         packet = poly;

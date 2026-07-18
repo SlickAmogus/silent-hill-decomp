@@ -698,8 +698,38 @@ void Map_MessageWithAudio(s32 mapMsgIdx, u8* audioIdx, const u16* audioCmds) // 
     }
     else if (mapMsgState == MapMsgState_Finish)
     {
+#ifdef SH_PC_PORT
+        /* Severed alias of Event_DisplayMapMsgWithAudio (same PSX fn
+         * 0x800869E4) — maps that link THIS copy shipped without the
+         * events_util.c range guard, so a table overrun here still played
+         * adjacent data as voice cmds. Mirror the guard + the dropped-voice
+         * subtitle-release flag (rationale in events_util.c). */
+        {
+            extern int g_PcMapMsgVoiceDropped;
+            u16 _cmd = audioCmds[*audioIdx];
+
+            if (_cmd >= 0x1000 && _cmd < 0x1700)
+            {
+                g_PcMapMsgVoiceDropped = 0;
+                SD_Call(_cmd);
+            }
+            else
+            {
+                static int s_dropLogN = 0;
+                g_PcMapMsgVoiceDropped = 1;
+                if (s_dropLogN < 20)
+                {
+                    SH_DBG("[MSGVOICE] (alias) dropped out-of-range voice cmd 0x%04X at audioIdx=%d (msg %d) — table overrun?",
+                           _cmd, (int)*audioIdx, (int)mapMsgIdx);
+                    s_dropLogN++;
+                }
+            }
+        }
+        *audioIdx += 1;
+#else
         SD_Call(audioCmds[*audioIdx]);
         *audioIdx += 1;
+#endif
     }
 }
 

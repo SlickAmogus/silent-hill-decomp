@@ -16,6 +16,9 @@
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "main/fsqueue.h"
+#ifdef SH_PC_PORT
+#include "main/fileinfo.h" /* g_GameRegion, g_FileTable — PAL font/language hooks */
+#endif
 
 void GameBoot_SavegameInitialize(s8 overlayId, s32 difficulty) // 0x800350BC
 {
@@ -105,20 +108,14 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
      * it via the normal path, so streets stay enemy-free. Force-clearing
      * here unblocks spawning on any non-tutorial map.
      *
-     * EXCEPT map6_s04 (Cybil carousel boss): grey children were spawning into
-     * the 3-slot NPC cap inside the boss arena (Cybil.log: slots filled by
-     * charaId 6/8 before the boss cutscene's case-0 set the flag at line 1781),
-     * so MonsterCybil's Chara_Spawn found no free slot and the boss never
-     * appeared. The carousel is boss-only — all its enemies are cutscene-
-     * spawned and the post-death cutscene clears the flag (line 3101) — so set
-     * NoEnemySpawn on entry to guarantee no regular spawn fills the slots
-     * before the boss does. Same hazard the Jun-11 npc_main per-frame clear
-     * caused; do NOT blanket-clear here. */
-    if (mapIdx == MapIdx_MAP6_S04)
-    {
-        g_SysWork.sysFlags |= SysFlag_NoEnemySpawn;
-    }
-    else if (mapIdx != MapIdx_MAP0_S00 && mapIdx != MapIdx_MAP0_S01)
+     * map6_s04 (Cybil carousel) is included: its approach area has ambient
+     * larval stalkers / grey children that must spawn. The boss-spawn hazard
+     * (ambient enemies filling the 3-slot NPC cap before MonsterCybil's
+     * Chara_Spawn) is handled at the boss cutscene itself, which now frees the
+     * cap via GameBoot_NpcClear right after it sets NoEnemySpawn — see
+     * map6_s04_2.c. Blanket-blocking the whole map here killed the approach
+     * enemies, so do NOT special-case it. */
+    if (mapIdx != MapIdx_MAP0_S00 && mapIdx != MapIdx_MAP0_S01)
     {
         g_SysWork.sysFlags &= ~SysFlag_NoEnemySpawn;
     }
@@ -142,6 +139,21 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
         g_SysWork.playerCombat.weaponInventoryIdx   = 3;
         g_SysWork.playerCombat.totalWeaponAmmo      = 15;
 
+#ifdef SH_PC_PORT
+        /* Randomizer starts Harry with extra rounds on top of this loadout. Written
+         * in place rather than through Inventory_AddSpecialItem, which would open a
+         * second bullet stack next to items[4]. Returns 0 when the mode is off. */
+        {
+            extern int Pc_Rando_ExtraHandgunAmmo(void);
+            int extra = Pc_Rando_ExtraHandgunAmmo();
+            if (extra > 0)
+            {
+                items[4].count_1 = (u8)(15 + extra);
+                g_SysWork.playerCombat.totalWeaponAmmo = (u8)(15 + extra);
+            }
+        }
+#endif
+
         SH_DBG("[AUTO-EQUIP] FIRED on non-tutorial map %d: handgun+15+knife+radio+flashlight, equipped handgun",
                mapIdx);
         fflush(g_ShDebugLog);
@@ -163,6 +175,17 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
 #endif
     /* Switch the active map overlay header to the requested map. */
     MapRegistry_Load(mapIdx);
+    /* MapRegistry_Load swaps g_MapOverlayHdr synchronously here, unlike PSX where
+     * the overlay BIN is read asynchronously (Fs_QueueStartRead below) and the
+     * header only changes once the load completes. That synchronous swap opens a
+     * one-frame window where the NEW map's bgmEvent — ticked by Bgm_TrackUpdate at
+     * the tail of GameState_InGame_Update this same frame — runs Bgm_ChannelSet
+     * while g_GameWork.bgmIdx (the currently-loaded track) still holds the previous
+     * area's index (e.g. map0_s01 combat idx 30), replaying it as a brief BGM blip
+     * before Bgm_Init reloads this map's track. Clearing the loaded-track index to
+     * None makes Bgm_ChannelSet early-return until Bgm_TrackSet loads the correct
+     * one; Bgm_ActiveBgmTrackCheck (None != target) still drives the proper reload. */
+    g_GameWork.bgmIdx = BgmTrackIdx_None;
     fflush(g_ShDebugLog);
     /* Still read the overlay file â€” on PC this is a no-op but keeps the
      * filesystem queue state consistent. */
@@ -170,6 +193,52 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
     Fs_QueueStartRead(FILE_VIN_MAP0_S00_BIN + mapIdx, g_OvlDynamic);
 #ifdef SH_PC_PORT
     fflush(g_ShDebugLog);
+    /* PAL language text: the file table redirected this overlay read to the
+     * chosen language's copy (VIN = PAL-English — its own retranslation —
+     * or VIN2-5 for DE/FR/ES/IT); once it lands, extract + translate its
+     * message table and repoint the compiled map header (compiled maps bake
+     * the US script).
+     * Also re-queue FONT16 on EUR: its atlas home (768,128) shares tpage 12
+     * with boot images, and the auto-load-save boot path never passes the
+     * title-screen reload — a per-map reload is cheap insurance. */
+    {
+        extern void Fs_QueueWaitForEmpty(void);
+        extern int  Pc_LangActive(void);
+        extern void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize);
+        extern e_GameRegion g_GameRegion;
+
+        if (g_GameRegion == Region_EUR)
+        {
+            Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
+        }
+        if (Pc_LangActive() || g_GameRegion == Region_JPN)
+        {
+            Fs_QueueWaitForEmpty();
+            Pc_LangPatchMapMessages(
+                mapIdx, g_OvlDynamic,
+                (unsigned int)g_FileTable[FILE_VIN_MAP0_S00_BIN + mapIdx].blockCount << 8);
+        }
+        else if (g_GameRegion == Region_USA)
+        {
+            /* Fan-translated discs edit the US overlays in place. The USA
+             * patcher reads the overlay bytes off the disc image itself (no
+             * queue drain — the vanilla load path stays untouched) and is a
+             * no-op unless the disc text differs from the compiled strings. */
+            Pc_LangPatchMapMessages(mapIdx, g_OvlDynamic,
+                (unsigned int)g_FileTable[FILE_VIN_MAP0_S00_BIN + mapIdx].blockCount << 8);
+        }
+        if (g_GameRegion == Region_JPN)
+        {
+            /* Fresh kanji atlas per map: drops stale cells and re-uploads the
+             * margin-strip CLUT in case anything scribbled those rows. */
+            extern void Pc_KanjiAtlasReset(void);
+            extern void CharaData_ApplyJpnMapPatches(s32 mapIdx);
+            Pc_KanjiAtlasReset();
+            /* Before any NPC of the new map spawns — chara model/texture
+             * files resolve through CHARA_FILE_INFOS at spawn time. */
+            CharaData_ApplyJpnMapPatches(mapIdx);
+        }
+    }
 #endif
     Map_EffectTexturesLoad(mapIdx);
 #ifdef SH_PC_PORT
@@ -202,5 +271,14 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
     Gfx_PlayerHeldItemAttach(g_SysWork.playerCombat.weaponAttack);
 #ifdef SH_PC_PORT
     fflush(g_ShDebugLog);
+
+    /* Randomizer gamemode. Last writer wins: this installs its own copy of the
+     * map header (rewritten doors / spawns / messages), and it must come after
+     * the language patch above, which installs a header copy of its own. No-op
+     * unless the mode is running. */
+    {
+        extern void Pc_Rando_OnMapLoad(s32 mapIdx);
+        Pc_Rando_OnMapLoad(mapIdx);
+    }
 #endif
 }
