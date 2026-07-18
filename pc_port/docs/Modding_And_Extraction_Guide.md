@@ -328,10 +328,11 @@ offline — no running game needed.
   samples through it. Drop the set into `gamedata/load/CHARA/`.
 
 The per-row loose PNGs are uploaded as full RGBA, so this path is **not** limited to 16
-colours per region — paint freely. (Today the edit must stay at the texture's native size;
-HD upscaling is a later addition.) Both tools need the character's `.ILM` sitting next to its
-`.TIM`, exactly how *Extract BIN…* lays them out. `compose → split` with no edits round-trips
-losslessly.
+colours per region — paint freely — and the edit can be **high-resolution**: paint the
+reference at its native size or at an upscale of it (an exact multiple like 2×/4×/8× gives the
+sharpest region edges), and *Rebuild* keeps that resolution in the output PNGs. Both tools need
+the character's `.ILM` sitting next to its `.TIM`, exactly how *Extract BIN…* lays them out.
+`compose → split` with no edits round-trips losslessly.
 
 ### 5.2 Rebuild the disc image — no size ceiling
 

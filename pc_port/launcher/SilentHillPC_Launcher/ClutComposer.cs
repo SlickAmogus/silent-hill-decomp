@@ -209,11 +209,14 @@ namespace SilentHillPC_Launcher
                 byte[] edit; int ew, eh;
                 if (!LoadRgba(editedPng, out edit, out ew, out eh, out res.Error)) return res;
                 res.Width = ew; res.Height = eh;
-                if (ew != W || eh != H)
+                // Native size OR an HD upscale of the same aspect ratio; the runtime scales each
+                // per-row PNG, so HD detail is preserved. Exact multiples (2x/4x/8x) look sharpest.
+                if (ew < W || eh < H || Math.Abs((long)ew * H - (long)eh * W) > (long)ew * H / 25)
                 {
                     res.Error = string.Format(
-                        "Edited image is {0}x{1} but this texture sheet is {2}x{3}. This version needs a " +
-                        "native-resolution edit; HD upscaling is a later addition.", ew, eh, W, H);
+                        "Edited image is {0}x{1}. It must be the sheet's native {2}x{3} or an upscale " +
+                        "keeping that aspect ratio (e.g. {4}x{5} or {6}x{7}). For sharpest region edges " +
+                        "use an exact multiple.", ew, eh, W, H, W * 2, H * 2, W * 4, H * 4);
                     return res;
                 }
 
@@ -231,13 +234,20 @@ namespace SilentHillPC_Launcher
                 int pad = (clutRows > 100) ? 3 : 2;
                 Directory.CreateDirectory(outDir);
 
+                // map each edited pixel to its native texel -> row, keeping the full HD pixels
+                var sxm = new int[ew]; for (int x = 0; x < ew; x++) sxm[x] = x * W / ew;
+                var sym = new int[eh]; for (int y = 0; y < eh; y++) sym[y] = y * H / eh;
                 foreach (int r in emit)
                 {
-                    var buf = new byte[W * H * 4]; // transparent by default
-                    for (int i = 0; i < W * H; i++)
-                        if (rm[i] == r) Buffer.BlockCopy(edit, i * 4, buf, i * 4, 4);
+                    var buf = new byte[ew * eh * 4]; // transparent by default
+                    for (int y = 0; y < eh; y++)
+                    {
+                        int rowBase = sym[y] * W;
+                        for (int x = 0; x < ew; x++)
+                            if (rm[rowBase + sxm[x]] == r) { int o = (y * ew + x) * 4; Buffer.BlockCopy(edit, o, buf, o, 4); }
+                    }
                     string png = Path.Combine(outDir, full + ".p" + r.ToString("D" + pad) + ".png");
-                    using (var bmp = RgbaToBitmap(buf, W, H))
+                    using (var bmp = RgbaToBitmap(buf, ew, eh))
                         bmp.Save(png, ImageFormat.Png);
                     res.Written.Add(png);
                 }
