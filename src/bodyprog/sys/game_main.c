@@ -2072,6 +2072,14 @@ void MainLoop(void) // 0x80032EE0
 #define ML_TRACE(tag) ((void)0)
         ML_TRACE("Screen_FadeUpdate");
         Screen_FadeUpdate();
+#ifdef SH_PC_PORT
+        /* Quick Heal green pulse — full-screen additive tile into OT2, same window as
+         * the fade. Self-gated on its timer (no-op when not healing). */
+        {
+            extern void Pc_HealFlashUpdate(void);
+            Pc_HealFlashUpdate();
+        }
+#endif
         ML_TRACE("MemCard_Update");
         MemCard_Update();
         ML_TRACE("Sd_TaskPoolExecute");

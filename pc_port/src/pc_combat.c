@@ -39,6 +39,10 @@ int g_PcQuickTurnRequest = 0;
  * the head-look override in Player_Update. */
 int g_PcRearLookActive = 0;
 
+/* PC-only: Quick Heal green screen pulse — Q12 seconds remaining. Counted down and
+ * drawn each frame by Pc_HealFlashUpdate (hooked in game_main.c). 0 = no flash. */
+s32 g_PcHealFlashTimer = 0;
+
 /* Returns true on the frame `sdlScancode` transitions 0→1.
  *
  * Frame-stable: prev-state is sampled at most once per VBlank, so multiple
@@ -197,6 +201,17 @@ static void Pc_EquipWeapon(u8 invItemId, s32 slot)
         g_SysWork.playerCombat.totalWeaponAmmo = 0;
     }
     GameFs_WeaponInfoUpdate();
+
+    /* Swap the VISIBLE held-weapon model too — GameFs_WeaponInfoUpdate only reloads
+     * the info/anim/stat tables, NOT the geometry Harry holds (g_WorldGfxWork.heldItem).
+     * Mirror the inventory-exit sequence: reattach the grip bones for the new weapon
+     * class, point heldItem->itemId at the new weapon + queue its async model/texture
+     * read, and un-hide it. WorldGfx_HeldItemDraw polls the async load every frame and
+     * binds the new model when the read lands (a few frames later; no blocking wait, so
+     * no stutter — a brief empty hand until it binds). */
+    Gfx_PlayerHeldItemAttach(g_SysWork.playerCombat.weaponAttack);
+    WorldGfx_PlayerPrevHeldItem(&g_SysWork.playerCombat);
+    func_8003D01C();
 }
 
 /* Cycle to the next OWNED weapon in acquisition/enum order (wraps). */
@@ -260,7 +275,40 @@ void Pc_QuickHeal(void)
     g_SysWork.playerWork.player.health = CLAMP(health, Q12(0.0f), Q12(100.0f));
     Sd_PlaySfx(Sfx_Unk1325, -0x40, 0x40); /* same feedback SFX as the inventory heal */
     Player_ItemRemove(chosen, 1);
-    /* TODO: brief green screen pulse (via a dedicated full-screen additive tile). */
+    g_PcHealFlashTimer = Q12(0.35f); /* brief green heal pulse (drawn by Pc_HealFlashUpdate) */
+}
+
+/* Per-frame draw for the Quick Heal green pulse: an additive full-screen green TILE
+ * that eases out over ~0.35s. Mirrors the screen-fade full-screen-tile path (static
+ * double-buffered prims into OT2 bucket 4). Called from game_main.c after the fade
+ * update. Self-gates on the timer, so it is byte-identical output when not healing. */
+void Pc_HealFlashUpdate(void)
+{
+    static TILE     s_tile[2];
+    static DR_TPAGE s_tp[2];
+    int buf;
+    s32 g;
+
+    if (g_PcHealFlashTimer <= 0)
+        return;
+
+    g_PcHealFlashTimer -= g_DeltaTime; /* fps-independent countdown (Q12 seconds) */
+    if (g_PcHealFlashTimer < 0)
+        g_PcHealFlashTimer = 0;
+
+    buf = g_ActiveBufferIdx;
+    g   = (g_PcHealFlashTimer * 96) / Q12(0.35f); /* peak additive green ~96, eases to 0 */
+
+    setTile(&s_tile[buf]);
+    setSemiTrans(&s_tile[buf], 1);
+    setRGB0(&s_tile[buf], 0, (u8)g, 0);
+    setWH(&s_tile[buf], SCREEN_WIDTH * 4, SCREEN_HEIGHT * 2);
+    setXY0(&s_tile[buf], -SCREEN_WIDTH, -SCREEN_HEIGHT); /* cover the full Hor+ width */
+
+    setDrawTPage(&s_tp[buf], 0, 1, getTPageN(0, 1, 0, 0)); /* abr=1 = additive */
+
+    AddPrim(&g_OtTags0[buf][4], &s_tile[buf]);
+    AddPrim(&g_OtTags0[buf][4], &s_tp[buf]);
 }
 
 /* Per-frame dispatch for the bound Cycle Weapons + Quick Heal actions (reload is
