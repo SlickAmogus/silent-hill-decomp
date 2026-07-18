@@ -1100,6 +1100,15 @@ adversarially-verified findings; the fixes:
 - **map7_s03 boss motion dwell.** Projectile script nodes counted down once per
   *rendered* frame (8× fast at 240fps, 2× slow at the 15fps floor); dwell is now
   Q12 seconds consuming `g_DeltaTime` (`func_800D88E8`).
+- **Good+ ending Aglaophotis bottle break on impact** (`func_800E514C`, commit
+  `658b39399`). The thrown bottle hit the Incubator's head then hung intact ~0.7s
+  before shattering. Its flight arc is case 27 (`g_Cutscene_Timer` 281→313); the
+  scream (`SD_Call(Sfx_XaAudio606)`, case 30) fires at 313 = impact. The earlier
+  fix keyed the shatter on `timer >= 320` (case 31's endTime = post-impact hold),
+  guessing impact wrong. Shatter (`func_800D7144`) + hide the intact bottle now
+  fire at case 30, so break/scream/reaction coincide. Lesson: a DMS projectile's
+  impact anchor is the flight-arc end / impact-SFX beat, not the next
+  `Event_CutsceneTimerAdvance` endTime.
 - **fps_cap 31–59 honored.** Integer division (`60/fps`) silently turned those
   caps into 60fps; non-divisors of 60 now route through the SDL high-precision
   limiter.
