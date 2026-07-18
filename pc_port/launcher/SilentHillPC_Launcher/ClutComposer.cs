@@ -30,7 +30,7 @@ namespace SilentHillPC_Launcher
     /// </summary>
     public static class ClutComposer
     {
-        private struct Prim { public int[] U; public int[] V; public int Row; }
+        private struct Prim { public int[] U; public int[] V; public int Row; public bool Tri; }
 
         private static ushort U16(byte[] d, int o) { return (ushort)(d[o] | (d[o + 1] << 8)); }
         private static int U32(byte[] d, int o) { return d[o] | (d[o + 1] << 8) | (d[o + 2] << 16) | (d[o + 3] << 24); }
@@ -65,7 +65,9 @@ namespace SilentHillPC_Launcher
                         int clut = U16(d, pb + 2);
                         int mat = (U16(d, pb + 6) >> 8) & 0x7F;
                         int bcy = (mat < baseClutY.Length) ? baseClutY[mat] : 0;
-                        var pr = new Prim { U = new int[4], V = new int[4], Row = (clut >> 6) - bcy };
+                        // Triangle prims set the 4th vertex index (field_C[3]) to 0xFF and leave
+                        // UV3 garbage (0,0); rasterising them as a quad drags a streak to (0,0).
+                        var pr = new Prim { U = new int[4], V = new int[4], Row = (clut >> 6) - bcy, Tri = d[pb + 0xF] == 0xFF };
                         int j = 0;
                         foreach (int o in new[] { 0, 4, 8, 0xA })
                         {
@@ -106,11 +108,9 @@ namespace SilentHillPC_Launcher
             for (int i = 0; i < rm.Length; i++) rm[i] = -1;
             foreach (var p in prims)
             {
-                // winding-agnostic: union of the fan triangles covers a convex quad/tri
                 FillTri(rm, p.U[0], p.V[0], p.U[1], p.V[1], p.U[2], p.V[2], p.Row, W, H);
-                FillTri(rm, p.U[0], p.V[0], p.U[2], p.V[2], p.U[3], p.V[3], p.Row, W, H);
-                FillTri(rm, p.U[0], p.V[0], p.U[1], p.V[1], p.U[3], p.V[3], p.Row, W, H);
-                FillTri(rm, p.U[1], p.V[1], p.U[2], p.V[2], p.U[3], p.V[3], p.Row, W, H);
+                if (!p.Tri) // quad: second triangle, PSX FT4 winding v0v1v2 / v1v3v2
+                    FillTri(rm, p.U[1], p.V[1], p.U[3], p.V[3], p.U[2], p.V[2], p.Row, W, H);
             }
             for (int d = 0; d < dilate; d++) rm = Dilate(rm, W, H);
             return rm;

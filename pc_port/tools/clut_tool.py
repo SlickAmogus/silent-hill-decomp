@@ -193,7 +193,10 @@ def parse_ilm(data):
                 mat = (flags >> 8) & 0x7F
                 base = materials[mat]["base_cluty"] if mat < len(materials) else 0
                 uvs = [(_u16(data, pb + o) & 0xFF, _u16(data, pb + o) >> 8) for o in (0, 4, 8, 0xA)]
-                prims.append(dict(uvs=uvs, row=(clut >> 6) - base, mat=mat))
+                # Triangle prims set the 4th vertex index (field_C[3]) to 0xFF and leave
+                # UV3 as garbage (0,0); rasterising them as a quad drags a streak to (0,0).
+                is_tri = data[pb + 0xF] == 0xFF
+                prims.append(dict(uvs=uvs, row=(clut >> 6) - base, mat=mat, tri=is_tri))
     return materials, prims
 
 
@@ -220,11 +223,9 @@ def build_rowmap(prims, W, H, dilate=1):
     for p in prims:
         uv = p["uvs"]
         r = p["row"]
-        # winding-agnostic: the union of these fan triangles covers a convex quad/tri
         _fill_tri(rowmap, uv[0], uv[1], uv[2], r, W, H)
-        _fill_tri(rowmap, uv[0], uv[2], uv[3], r, W, H)
-        _fill_tri(rowmap, uv[0], uv[1], uv[3], r, W, H)
-        _fill_tri(rowmap, uv[1], uv[2], uv[3], r, W, H)
+        if not p["tri"]:  # quad: second triangle, PSX FT4 winding v0v1v2 / v1v3v2
+            _fill_tri(rowmap, uv[1], uv[3], uv[2], r, W, H)
     for _ in range(max(0, dilate)):
         rowmap = _dilate(rowmap, W, H)
     return rowmap
