@@ -11,6 +11,9 @@
 #include "lang_text.h"     /* Pc_LangMenuText — port-written menu translations. */
 #include "pc_kanji.h"      /* NTSC-J SJIS glyph atlas. */
 #include "main/fileinfo.h" /* g_GameRegion */
+#ifdef SH_PC_PORT
+#include "pc_config.h"     /* g_PcConfig — texture-mod gate for HD-atlas glyph clipping */
+#endif
 #endif
 
 #ifndef PAD_HACK_IGNORE
@@ -300,30 +303,45 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
                 // Draw glyph sprite.
                 if (g_SysWork.enableHighResGlyphs)
                 {
+                    s32 glyphDrawW = FONT_12X16_GLYPH_SIZE_X;
+                    if ((g_PcConfig.texturePacks || g_PcConfig.allowLooseFiles) &&
+                        glyphWidth > 0 && glyphWidth < (s32)FONT_12X16_GLYPH_SIZE_X)
+                        glyphDrawW = glyphWidth; /* clip HD-atlas overlap ghost (see SPRT path) */
+
                     glyphPoly = (POLY_FT4*)GsOUT_PACKET_P;
 
                     setPolyFT4(glyphPoly);
                     setRGB0(glyphPoly, glyphColor, glyphColor >> 8, glyphColor >> 16);
                     setXY4(glyphPoly,
-                           posX,                           drawY * 2,
-                           posX,                           (drawY * 2) + g_FontLayout->hiResGlyphBottom,
-                           posX + FONT_12X16_GLYPH_SIZE_X, drawY * 2,
-                           posX + FONT_12X16_GLYPH_SIZE_X, (drawY * 2) + g_FontLayout->hiResGlyphBottom);
+                           posX,              drawY * 2,
+                           posX,              (drawY * 2) + g_FontLayout->hiResGlyphBottom,
+                           posX + glyphDrawW, drawY * 2,
+                           posX + glyphDrawW, (drawY * 2) + g_FontLayout->hiResGlyphBottom);
 
                     *((u32*)&glyphPoly->u0) = u0 + (vTop << 8) + (g_FontLayout->packedClut << 16); // `u0`, `v0`, `clut`.
                     *((u32*)&glyphPoly->u1) = u0 + (page << 16) + ((vTop + 15) << 8);              // `u1`, `v1`, `page`.
-                    *((u16*)&glyphPoly->u2) = (u16)(u0 + FONT_12X16_GLYPH_SIZE_X + (vTop << 8));   // `u2`, `v2`.
-                    *((u16*)&glyphPoly->u3) = (u16)(u0 + FONT_12X16_GLYPH_SIZE_X + ((vTop + 15) << 8)); // `u3`, `v3`.
+                    *((u16*)&glyphPoly->u2) = (u16)(u0 + glyphDrawW + (vTop << 8));   // `u2`, `v2`.
+                    *((u16*)&glyphPoly->u3) = (u16)(u0 + glyphDrawW + ((vTop + 15) << 8)); // `u3`, `v3`.
 
                     addPrim(ot, glyphPoly);
                     GsOUT_PACKET_P = (u8*)glyphPoly + sizeof(POLY_FT4);
                 }
                 else
                 {
+                    u32 spriteW = FONT_12X16_GLYPH_SIZE_X;
                     posXCpy = (u16)posX;
 
+                    /* Clip to the glyph's advance when a texture mod is active: HD font
+                     * atlases paint the gutterless 4bpp cells edge-to-edge, so a narrow
+                     * glyph's fixed-12 sample overlaps the next glyph with the mod's edge
+                     * pixels ("ghost text"). Original art has transparent padding past the
+                     * advance, so this is visually identical there. */
+                    if ((g_PcConfig.texturePacks || g_PcConfig.allowLooseFiles) &&
+                        glyphWidth > 0 && glyphWidth < (s32)FONT_12X16_GLYPH_SIZE_X)
+                        spriteW = (u32)glyphWidth;
+
                     glyphSprt              = (SPRT*)packet;
-                    *((u32*)&glyphSprt->w) = 0x10000C;
+                    *((u32*)&glyphSprt->w) = ((u32)FONT_12X16_GLYPH_SIZE_Y << 16) | spriteW;
 
                     addPrimFast(ot, glyphSprt, 4);
                     *((u32*)&glyphSprt->r0)   = glyphColor;
