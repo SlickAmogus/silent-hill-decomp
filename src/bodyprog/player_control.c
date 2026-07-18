@@ -1488,6 +1488,29 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * shim path below so it can drive Harry from the camera basis. While
                  * aiming, or with 2D off, the native lower-body machine runs (vanilla
                  * tank movement + aim). */
+                /* Quick Turn (bound button): enter the native animated 180 state
+                 * before the lower-body machine runs. Only from grounded locomotion
+                 * / idle / aim-locomotion (never mid quick-turn, jump-back, stumble,
+                 * attack or reload). The state machine plays HarryAnim_QuickTurn* and
+                 * rotates at the native rate to completion. */
+                {
+                    extern int g_PcQuickTurnRequest;
+                    if (g_PcQuickTurnRequest)
+                    {
+                        int _lb = g_SysWork.playerWork.extra.lowerBodyState;
+                        g_PcQuickTurnRequest = 0;
+                        if (_lb <= PlayerLowerBodyState_RunLeft ||
+                            (_lb >= PlayerLowerBodyState_Aim && _lb <= PlayerLowerBodyState_AimRunLeft))
+                        {
+                            int _aim = (_lb < PlayerLowerBodyState_Aim) ? 0 : 20;
+                            g_SysWork.playerWork.extra.lowerBodyState =
+                                (e_PlayerLowerBodyState)(_aim + PlayerLowerBodyState_QuickTurnRight);
+                            player->model.stateStep    = 0;
+                            player->model.controlState = 0;
+                        }
+                    }
+                }
+
                 Player_LowerBodyUpdate(player, extra);
 
                 if (playerExtra.state < (u32)PlayerState_Idle)
@@ -1517,6 +1540,38 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * (aiming keeps the classic/TPS behaviour). */
                 int pc2dActive = g_PcConfig.control2d && !g_PcFpsCam &&
                                  !g_SysWork.playerCombat.isAiming;
+
+                /* Quick Turn in the camera-snap shim (TPS/OTS/FPS): smoothly pan the
+                 * orbit yaw 180 over the turn at the native rate; the body-snap below
+                 * follows it. 2D / classic-fallback drop the request (their body yaw
+                 * is input-driven; the native path handles quick-turn when it runs). */
+                {
+                    extern int g_PcQuickTurnRequest;
+                    static u8  s_qtActive = 0;
+                    static s32 s_qtAccum  = 0;
+                    int qtSnap = g_DebugThirdPersonCam && !pc2dActive;
+                    if (g_PcQuickTurnRequest)
+                    {
+                        g_PcQuickTurnRequest = 0;
+                        if (qtSnap && !s_qtActive) { s_qtActive = 1; s_qtAccum = 0; }
+                    }
+                    if (s_qtActive && qtSnap)
+                    {
+                        s32 step = (s32)(g_DeltaTime * 24) >> 4;
+                        if (step < 1) step = 1;
+                        if (s_qtAccum + step >= Q12_ANGLE(180.0f))
+                        {
+                            step = Q12_ANGLE(180.0f) - s_qtAccum;
+                            s_qtActive = 0;
+                        }
+                        s_qtAccum += step;
+                        g_TpsCamYaw = Q12_ANGLE_NORM_U(g_TpsCamYaw + step + Q12_ANGLE(360.0f));
+                    }
+                    else
+                    {
+                        s_qtActive = 0;
+                    }
+                }
 
                 /* TPS mode: Harry's body always tracks the camera yaw, so
                  * WASD is always relative to Harry (== relative to camera).
