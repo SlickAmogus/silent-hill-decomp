@@ -1541,38 +1541,6 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 int pc2dActive = g_PcConfig.control2d && !g_PcFpsCam &&
                                  !g_SysWork.playerCombat.isAiming;
 
-                /* Quick Turn in the camera-snap shim (TPS/OTS/FPS): smoothly pan the
-                 * orbit yaw 180 over the turn at the native rate; the body-snap below
-                 * follows it. 2D / classic-fallback drop the request (their body yaw
-                 * is input-driven; the native path handles quick-turn when it runs). */
-                {
-                    extern int g_PcQuickTurnRequest;
-                    static u8  s_qtActive = 0;
-                    static s32 s_qtAccum  = 0;
-                    int qtSnap = g_DebugThirdPersonCam && !pc2dActive;
-                    if (g_PcQuickTurnRequest)
-                    {
-                        g_PcQuickTurnRequest = 0;
-                        if (qtSnap && !s_qtActive) { s_qtActive = 1; s_qtAccum = 0; }
-                    }
-                    if (s_qtActive && qtSnap)
-                    {
-                        s32 step = (s32)(g_DeltaTime * 24) >> 4;
-                        if (step < 1) step = 1;
-                        if (s_qtAccum + step >= Q12_ANGLE(180.0f))
-                        {
-                            step = Q12_ANGLE(180.0f) - s_qtAccum;
-                            s_qtActive = 0;
-                        }
-                        s_qtAccum += step;
-                        g_TpsCamYaw = Q12_ANGLE_NORM_U(g_TpsCamYaw + step + Q12_ANGLE(360.0f));
-                    }
-                    else
-                    {
-                        s_qtActive = 0;
-                    }
-                }
-
                 /* TPS mode: Harry's body always tracks the camera yaw, so
                  * WASD is always relative to Harry (== relative to camera).
                  * W = forward, S = back, A/D = strafe in Harry's frame.
@@ -1952,6 +1920,37 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     }
 
                     jumpBackActive = (bool)s_jumpBackActive;
+                }
+
+                /* Quick Turn (bound button) — shim path (2D / TPS / OTS / classic-
+                 * fallback). Overrides the shim's finalized body yaw with a smooth 180
+                 * at the native rate; syncs the orbit yaw so the TPS/OTS camera follows.
+                 * Runs after every branch yaw writer, so it works in all shim modes
+                 * (classic tank uses the native animated quick-turn instead). */
+                {
+                    extern int g_PcQuickTurnRequest;
+                    static u8  s_qtActive = 0;
+                    static s32 s_qtStart  = 0;
+                    static s32 s_qtAccum  = 0;
+                    if (g_PcQuickTurnRequest)
+                    {
+                        g_PcQuickTurnRequest = 0;
+                        if (!s_qtActive && !jumpBackActive)
+                        {
+                            s_qtActive = 1;
+                            s_qtStart  = player->rotation.vy;
+                            s_qtAccum  = 0;
+                        }
+                    }
+                    if (s_qtActive)
+                    {
+                        s32 step = (s32)(g_DeltaTime * 24) >> 4;
+                        if (step < 1) step = 1;
+                        if (s_qtAccum + step >= Q12_ANGLE(180.0f)) { step = Q12_ANGLE(180.0f) - s_qtAccum; s_qtActive = 0; }
+                        s_qtAccum += step;
+                        player->rotation.vy = Q12_ANGLE_NORM_U(s_qtStart + s_qtAccum + Q12_ANGLE(360.0f));
+                        if (g_DebugThirdPersonCam) g_TpsCamYaw = player->rotation.vy;
+                    }
                 }
 
                 /* Set walk/run animation on lower body (player) and, when not
