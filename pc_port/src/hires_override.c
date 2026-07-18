@@ -489,19 +489,28 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
     while (glGetError() != GL_NO_ERROR) { } /* drain stale errors */
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0,
                  GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-    /* VRAM exhaustion must degrade to native art, never crash: a long session
-     * on a big HD pack can drive the driver to GL_OUT_OF_MEMORY, and a
-     * half-created texture then faults on first sample. Drop it and fail so the
-     * caller keeps the native upload. Cheap now that redundant re-uploads are
-     * skipped (this path runs only on genuinely new content). */
-    if (glGetError() == GL_OUT_OF_MEMORY)
+    /* ANY upload error must degrade to a clean miss, never a live-but-undefined
+     * texture. Only GL_OUT_OF_MEMORY was handled; but on the Intel HD 4600
+     * driver a large resident-texture working set can make glTexImage2D fail
+     * with other errors while leaving the GL name live over undefined storage.
+     * HiresOverride_LookupByTpageClut then returns that name as a HIT, and the
+     * 32-bit override shader's `discard alpha<0.5` renders the undefined texels:
+     * stale VRAM = vertical rainbow on Intel (modern drivers zero the storage =
+     * transparent = invisible). Deleting the texture on any error makes the
+     * lookup miss cleanly so the prim samples the zeroed VRAM texture instead —
+     * invisible, matching the discrete-GPU result. On a conformant driver a
+     * valid upload raises no error, so working setups are unaffected. */
     {
-        static int s_oomLog = 0;
-        if (s_oomLog < 8) { SH_DBG("[POOLTEX] GL_OUT_OF_MEMORY on %dx%d upload — keeping native art", w, h); s_oomLog++; }
-        glBindTexture(GL_TEXTURE_2D, 0);
-        glDeleteTextures(1, tex);
-        *tex = 0;
-        return -1;
+        GLenum uploadErr = glGetError();
+        if (uploadErr != GL_NO_ERROR)
+        {
+            static int s_oomLog = 0;
+            if (s_oomLog < 8) { SH_DBG("[POOLTEX] GL error 0x%X on %dx%d upload — keeping native art", (unsigned)uploadErr, w, h); s_oomLog++; }
+            glBindTexture(GL_TEXTURE_2D, 0);
+            glDeleteTextures(1, tex);
+            *tex = 0;
+            return -1;
+        }
     }
     if (!nearest && glGenerateMipmap != NULL)
     {
