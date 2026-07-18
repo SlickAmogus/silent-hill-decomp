@@ -1628,4 +1628,9 @@ public partial class Form1 : Form
     {
 
     }
+
+    private void checkBox1_CheckedChanged(object sender, EventArgs e)
+    {
+
+    }
 }
