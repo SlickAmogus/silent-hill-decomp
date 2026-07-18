@@ -551,18 +551,6 @@ static void Console_Paste(void)
     SDL_free(clip);
 }
 
-static void log_mark(char letter, int idx, VECTOR3* hpos, VECTOR3* cpos)
-{
-    SH_DBG_ECHO("======== MARK-%c%d ========", letter, idx);
-    SH_DBG_ECHO("  Harry  : (%.3f, %.3f, %.3f)  raw(%d, %d, %d)",
-                hpos->vx / 4096.0f, hpos->vy / 4096.0f, hpos->vz / 4096.0f,
-                (int)hpos->vx, (int)hpos->vy, (int)hpos->vz);
-    SH_DBG_ECHO("  Camera : (%.3f, %.3f, %.3f)  raw(%d, %d, %d)",
-                cpos->vx / 4096.0f, cpos->vy / 4096.0f, cpos->vz / 4096.0f,
-                (int)cpos->vx, (int)cpos->vy, (int)cpos->vz);
-    SH_DBG_ECHO("========================");
-}
-
 static void overlay_gl_init(void)
 {
     GLuint vs, fs;

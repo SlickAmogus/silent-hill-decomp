@@ -14,6 +14,9 @@
  *   FMV                  - list all FMV names (numbered)
  *   FMV <name|number>    - play an FMV (fades out, plays, fades back in)
  *   FMV INTROn / ENDn    - alias for the nth intro (C*) / ending (Z*) movie
+ *   LOGA / LOGB          - stamp an incremental A#/B# position mark
+ *                          (Harry + camera pos/angles) into SilentHill.log;
+ *                          LOGA RESET / LOGB RESET restarts the counter
  */
 #include "game.h"
 #include "bodyprog/bodyprog.h"
@@ -373,6 +376,7 @@ static const char* const HELP_LINES[] = {
     " fmv            list movies (numbered)",
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
     " kf [n]         keyframe inspector: set/show frame (K key)",
+    " loga / logb    log Harry+camera pos/angles to SilentHill.log",
     "Quick Save: F6   Quick Load: F8 (work outside console)",
 };
 
@@ -827,6 +831,60 @@ static void cmd_ambsfx(const char* arg)
            g_Vab_InfoTable[id - Sfx_Base].noteIdx_4);
 }
 
+/* Reinstates the old [ / ] A-B position markers (dropped in 712cd8d2c when those
+ * keys were repurposed for effect intensity) as LOGA / LOGB console commands.
+ * Counters are per-session so successive marks read A1, A2, ... in the log. The
+ * union of the two removed loggers: A/B counters from the [ ]/dbg_overlay markers
+ * plus camera pitch/yaw/lookAt/fov from the old 4/5 camera-position logger. */
+static void cmd_logmark(char letter, const char* arg)
+{
+    static int s_markA = 0, s_markB = 0;
+    extern e_MapIdx g_CurrentMapIdx;
+
+    int* count = (letter == 'A') ? &s_markA : &s_markB;
+    s_SubCharacter* hr = &g_SysWork.playerWork.player;
+    VECTOR3 hpos = hr->position;
+    VECTOR3 cpos = vcWork.cam_pos;
+    VECTOR3 look = vcWork.watch_tgt_pos;
+    int idx;
+
+    if (strcmp(arg, "RESET") == 0) {
+        *count = 0;
+        cprintf("log%c: counter reset", letter);
+        return;
+    }
+
+    /* SH_DBG is a no-op while the log is closed (enable_debug_log=0), which would
+     * silently drop the only durable copy of the mark. Warn instead of misleading. */
+    if (!g_ShDebugLog)
+        cprintf("log%c: WARNING enable_debug_log=0 - console only, not in SilentHill.log", letter);
+
+    idx = ++(*count);
+
+    SH_DBG("======== MARK-%c%d ========", letter, idx);
+    SH_DBG("  Map    : %s", MapRegistry_GetName(g_CurrentMapIdx));
+    SH_DBG("  Harry  : (%.3f, %.3f, %.3f)  raw(%d, %d, %d)  yaw=%d",
+           hpos.vx / 4096.0f, hpos.vy / 4096.0f, hpos.vz / 4096.0f,
+           (int)hpos.vx, (int)hpos.vy, (int)hpos.vz, (int)hr->rotation.vy);
+    SH_DBG("  Camera : (%.3f, %.3f, %.3f)  raw(%d, %d, %d)",
+           cpos.vx / 4096.0f, cpos.vy / 4096.0f, cpos.vz / 4096.0f,
+           (int)cpos.vx, (int)cpos.vy, (int)cpos.vz);
+    SH_DBG("  LookAt : (%.3f, %.3f, %.3f)  raw(%d, %d, %d)",
+           look.vx / 4096.0f, look.vy / 4096.0f, look.vz / 4096.0f,
+           (int)look.vx, (int)look.vy, (int)look.vz);
+    SH_DBG("  CamAng : pitch=%d yaw=%d roll=%d  fov=%d",
+           (int)vcWork.cam_mat_ang.vx, (int)vcWork.cam_mat_ang.vy,
+           (int)vcWork.cam_mat_ang.vz, (int)vcWork.geom_screen_dist);
+    SH_DBG("========================");
+
+    cprintf("%c%d H(%.1f,%.1f,%.1f) yaw=%d", letter, idx,
+            hpos.vx / 4096.0f, hpos.vy / 4096.0f, hpos.vz / 4096.0f,
+            (int)hr->rotation.vy);
+    cprintf("   C(%.1f,%.1f,%.1f) pitch=%d yaw=%d",
+            cpos.vx / 4096.0f, cpos.vy / 4096.0f, cpos.vz / 4096.0f,
+            (int)vcWork.cam_mat_ang.vx, (int)vcWork.cam_mat_ang.vy);
+}
+
 void Pc_ConsoleExec(const char* line)
 {
     char cmd[48];
@@ -869,6 +927,10 @@ void Pc_ConsoleExec(const char* line)
             push_lines(DEBUG_PAGE1, (int)(sizeof(DEBUG_PAGE1) / sizeof(DEBUG_PAGE1[0])));
     } else if (strcmp(cmd, "AMBSFX") == 0) {
         cmd_ambsfx(arg);
+    } else if (strcmp(cmd, "LOGA") == 0) {
+        cmd_logmark('A', arg);
+    } else if (strcmp(cmd, "LOGB") == 0) {
+        cmd_logmark('B', arg);
     } else if (strcmp(cmd, "MAP") == 0) {
         cmd_map(arg);
     } else if (strcmp(cmd, "GIVE") == 0) {
