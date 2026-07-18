@@ -84,6 +84,10 @@ s_PcConfig g_PcConfig = {
         .padL2 = "lefttrigger", .padR2 = "righttrigger",
         .padL3 = "leftstick", .padR3 = "rightstick",
         .padStart = "start", .padSelect = "back",
+        .keyChangeCam = "F9", .padChangeCam = "rightstick",
+        .keyReload = "R", .padReload = "NONE",
+        .keyCycleWeapons = "NONE", .padCycleWeapons = "NONE",
+        .keyQuickHeal = "NONE", .padQuickHeal = "NONE",
     },
     /* === ALTCAM scheme: any alternate/modern camera (TPS/OTS). WASD move,
      * A/D strafe, mouse aim(RMB)/fire(LMB); controller LT aim / RT fire, A = use.
@@ -100,18 +104,20 @@ s_PcConfig g_PcConfig = {
         .padL3 = "leftstick", .padR3 = "rightstick",
         .padStart = "start", .padSelect = "back",
         .padCross2 = "a",
+        /* Action binds default to the same as classic until the player rebinds
+         * the altcam scheme (Change Camera stays F9/rightstick, reload keyboard R). */
+        .keyChangeCam = "F9", .padChangeCam = "rightstick",
+        .keyReload = "R", .padReload = "NONE",
+        .keyCycleWeapons = "NONE", .padCycleWeapons = "NONE",
+        .keyQuickHeal = "NONE", .padQuickHeal = "NONE",
     },
     .keyQuickSave = "F6", .keyQuickLoad = "F8",
-    .keyChangeCam = "F9", .padChangeCam = "rightstick",
     .keySwapShoulder = "Mouse3",
     .keyConsole = "`",
     .keyGfxCycle = "\\",
     .keyGfxPrev  = "[",
     .keyGfxNext  = "]",
     .keyExitGame = "Escape",
-    .keyReload = "R", .padReload = "NONE",             /* reload: keyboard R kept; controller unbound by default */
-    .keyCycleWeapons = "NONE", .padCycleWeapons = "NONE",
-    .keyQuickHeal = "NONE", .padQuickHeal = "NONE",
 
     .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it — PAL-disc text language; USA: menu translations on fan-patched discs */
     .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal 3=jap — preferred disc when several are present */
@@ -186,26 +192,27 @@ static const struct { const char* key; size_t off; } s_SchemeBinds[] = {
     { "pad_r3_2",       offsetof(ControlScheme, padR32)       },
     { "pad_start_2",    offsetof(ControlScheme, padStart2)    },
     { "pad_select_2",   offsetof(ControlScheme, padSelect2)   },
+    /* PC-only actions — per-scheme (base key = classic, "_altcam" = altcam). */
+    { "key_change_cam",    offsetof(ControlScheme, keyChangeCam)    },
+    { "pad_change_cam",    offsetof(ControlScheme, padChangeCam)    },
+    { "key_reload",        offsetof(ControlScheme, keyReload)       },
+    { "pad_reload",        offsetof(ControlScheme, padReload)       },
+    { "key_cycle_weapons", offsetof(ControlScheme, keyCycleWeapons) },
+    { "pad_cycle_weapons", offsetof(ControlScheme, padCycleWeapons) },
+    { "key_quick_heal",    offsetof(ControlScheme, keyQuickHeal)    },
+    { "pad_quick_heal",    offsetof(ControlScheme, padQuickHeal)    },
 };
 
 /* Global (scheme-independent) binds -> offset within s_PcConfig. */
 static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
     { "key_quicksave",     offsetof(s_PcConfig, keyQuickSave)    },
     { "key_quickload",     offsetof(s_PcConfig, keyQuickLoad)    },
-    { "key_change_cam",    offsetof(s_PcConfig, keyChangeCam)    },
-    { "pad_change_cam",    offsetof(s_PcConfig, padChangeCam)    },
     { "key_swap_shoulder", offsetof(s_PcConfig, keySwapShoulder) },
     { "key_console",       offsetof(s_PcConfig, keyConsole)      },
     { "key_gfx_cycle",     offsetof(s_PcConfig, keyGfxCycle)     },
     { "key_gfx_prev",      offsetof(s_PcConfig, keyGfxPrev)      },
     { "key_gfx_next",      offsetof(s_PcConfig, keyGfxNext)      },
     { "key_exit_game",     offsetof(s_PcConfig, keyExitGame)     },
-    { "key_reload",        offsetof(s_PcConfig, keyReload)       },
-    { "pad_reload",        offsetof(s_PcConfig, padReload)       },
-    { "key_cycle_weapons", offsetof(s_PcConfig, keyCycleWeapons) },
-    { "pad_cycle_weapons", offsetof(s_PcConfig, padCycleWeapons) },
-    { "key_quick_heal",    offsetof(s_PcConfig, keyQuickHeal)    },
-    { "pad_quick_heal",    offsetof(s_PcConfig, padQuickHeal)    },
 };
 
 /* Remembered at load time so PcConfig_SaveMapName writes the same file. */

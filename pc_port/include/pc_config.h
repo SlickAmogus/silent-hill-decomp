@@ -20,6 +20,11 @@ typedef struct {
     char padCross2[24], padCircle2[24], padTriangle2[24], padSquare2[24];
     char padL12[24], padR12[24], padL22[24], padR22[24], padL32[24], padR32[24];
     char padStart2[24], padSelect2[24];
+    /* PC-only action binds — per-scheme (classic vs altcam), no secondary/_2 slot. */
+    char keyChangeCam[24], padChangeCam[24];        /* Change Camera (cycle control style) */
+    char keyReload[24], padReload[24];              /* reload weapon */
+    char keyCycleWeapons[24], padCycleWeapons[24];  /* cycle to next owned weapon */
+    char keyQuickHeal[24], padQuickHeal[24];        /* auto-use best healing item */
 } ControlScheme;
 
 typedef struct {
@@ -134,12 +139,9 @@ typedef struct {
     ControlScheme classic;
     ControlScheme altcam;
 
-    /* Global (scheme-independent) binds. */
+    /* Global (scheme-independent) binds. Change Camera / Reload / Cycle Weapons /
+     * Quick Heal are per-scheme now — they live in ControlScheme above. */
     char keyQuickSave[24], keyQuickLoad[24]; /* PC-only: quick save/load screen hotkeys */
-    char keyChangeCam[24], padChangeCam[24]; /* PC-only: Change Camera (cycle control style) */
-    char keyReload[24], padReload[24];             /* PC-only: reload weapon (key default R; pad unbound by default) */
-    char keyCycleWeapons[24], padCycleWeapons[24]; /* PC-only: cycle to the next owned weapon */
-    char keyQuickHeal[24], padQuickHeal[24];       /* PC-only: auto-use the most sensible healing item */
     char keySwapShoulder[24]; /* PC-only: swap OTS shoulder side (default Mouse3) */
     char keyConsole[24]; /* PC-only: dev console toggle key (default tilde "`"); keyboard-only */
     /* PC-only graphics-effect tuning keys (keyboard-only). keyGfxCycle switches

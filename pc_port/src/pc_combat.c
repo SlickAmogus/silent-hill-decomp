@@ -120,16 +120,25 @@ bool PC_RawControllerButtonClicked(int sdlButton)
  * had no manual reload — it fired automatically on empty; PC adds this convenience. */
 bool PC_PlayerManualReloadRequested(void)
 {
-    static SDL_Scancode s_kb  = SDL_SCANCODE_UNKNOWN;
-    static int          s_pad = -2; /* -2 = unresolved */
-    if (s_pad == -2) {
-        s_kb  = SDL_GetScancodeFromName(g_PcConfig.keyReload);
-        s_pad = (g_PcConfig.padReload[0] != '\0')
-                    ? (int)SDL_GameControllerGetButtonFromString(g_PcConfig.padReload)
-                    : SDL_CONTROLLER_BUTTON_INVALID;
+    static SDL_Scancode s_kb[2]  = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN };
+    static int          s_pad[2] = { -2, -2 }; /* [scheme]; -2 = unresolved */
+    extern int          g_DebugThirdPersonCam;
+    int sch;
+    if (s_pad[0] == -2) {
+        const ControlScheme* sc[2];
+        int i;
+        sc[0] = &g_PcConfig.classic;
+        sc[1] = &g_PcConfig.altcam;
+        for (i = 0; i < 2; i++) {
+            s_kb[i]  = SDL_GetScancodeFromName(sc[i]->keyReload);
+            s_pad[i] = (sc[i]->padReload[0] != '\0')
+                        ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padReload)
+                        : SDL_CONTROLLER_BUTTON_INVALID;
+        }
     }
-    return ((s_kb != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kb)) ||
-            (s_pad >= 0 && PC_RawControllerButtonClicked(s_pad))) &&
+    sch = g_DebugThirdPersonCam ? 1 : 0;
+    return ((s_kb[sch] != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kb[sch])) ||
+            (s_pad[sch] >= 0 && PC_RawControllerButtonClicked(s_pad[sch]))) &&
            g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
            g_SysWork.playerCombat.totalWeaponAmmo != 0 &&
            INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon) == InvItemGroup_GunWeapons;
@@ -246,22 +255,31 @@ void Pc_QuickHeal(void)
  * controller, edge-detected; gated to safe gameplay. Called from game_main.c. */
 void Pc_ExtraActionsUpdate(void)
 {
-    static SDL_Scancode s_kbCycle = SDL_SCANCODE_UNKNOWN, s_kbHeal = SDL_SCANCODE_UNKNOWN;
-    static int          s_padCycle = -2, s_padHeal = -2;
-    int cycleClicked, healClicked;
+    static SDL_Scancode s_kbCycle[2] = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN };
+    static SDL_Scancode s_kbHeal[2]  = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN };
+    static int          s_padCycle[2] = { -2, -2 }, s_padHeal[2] = { -2, -2 };
+    extern int          g_DebugThirdPersonCam;
+    int cycleClicked, healClicked, sch;
 
-    if (s_padCycle == -2) {
-        s_kbCycle  = SDL_GetScancodeFromName(g_PcConfig.keyCycleWeapons);
-        s_kbHeal   = SDL_GetScancodeFromName(g_PcConfig.keyQuickHeal);
-        s_padCycle = (g_PcConfig.padCycleWeapons[0] != '\0') ? (int)SDL_GameControllerGetButtonFromString(g_PcConfig.padCycleWeapons) : SDL_CONTROLLER_BUTTON_INVALID;
-        s_padHeal  = (g_PcConfig.padQuickHeal[0]    != '\0') ? (int)SDL_GameControllerGetButtonFromString(g_PcConfig.padQuickHeal)    : SDL_CONTROLLER_BUTTON_INVALID;
+    if (s_padCycle[0] == -2) {
+        const ControlScheme* sc[2];
+        int i;
+        sc[0] = &g_PcConfig.classic;
+        sc[1] = &g_PcConfig.altcam;
+        for (i = 0; i < 2; i++) {
+            s_kbCycle[i]  = SDL_GetScancodeFromName(sc[i]->keyCycleWeapons);
+            s_kbHeal[i]   = SDL_GetScancodeFromName(sc[i]->keyQuickHeal);
+            s_padCycle[i] = (sc[i]->padCycleWeapons[0] != '\0') ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padCycleWeapons) : SDL_CONTROLLER_BUTTON_INVALID;
+            s_padHeal[i]  = (sc[i]->padQuickHeal[0]    != '\0') ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padQuickHeal)    : SDL_CONTROLLER_BUTTON_INVALID;
+        }
     }
+    sch = g_DebugThirdPersonCam ? 1 : 0;
 
     /* Sample the edges every frame (keeps prev-state current), act only in gameplay. */
-    cycleClicked = (s_kbCycle != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kbCycle)) ||
-                   (s_padCycle >= 0 && PC_RawControllerButtonClicked(s_padCycle));
-    healClicked  = (s_kbHeal  != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kbHeal))  ||
-                   (s_padHeal  >= 0 && PC_RawControllerButtonClicked(s_padHeal));
+    cycleClicked = (s_kbCycle[sch] != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kbCycle[sch])) ||
+                   (s_padCycle[sch] >= 0 && PC_RawControllerButtonClicked(s_padCycle[sch]));
+    healClicked  = (s_kbHeal[sch]  != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kbHeal[sch]))  ||
+                   (s_padHeal[sch]  >= 0 && PC_RawControllerButtonClicked(s_padHeal[sch]));
 
     if (!Pc_ActionSafe()) return;
     if (cycleClicked) Pc_CycleWeapons();

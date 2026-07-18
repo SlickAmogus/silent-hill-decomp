@@ -160,8 +160,8 @@ static int SwapShoulder_MouseButton(const char* name)
 
 void Pc_ControlStyleUpdate(void)
 {
-    static SDL_Scancode scCam    = SDL_SCANCODE_UNKNOWN;
-    static int          scPad    = -1; /* SDL_GameControllerButton, -1 = unbound */
+    static SDL_Scancode scCam[2] = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN };
+    static int          scPad[2] = { -1, -1 }; /* [scheme] SDL_GameControllerButton, -1 = unbound */
     static int          resolved = 0;
     static int          prevKey  = 0;
     static int          prevPad  = 0;
@@ -173,12 +173,21 @@ void Pc_ControlStyleUpdate(void)
     int          inGameplay;
     int          wantCapture;
 
+    /* Resolve BOTH schemes once; index by the live camera mode each frame so a
+     * classic<->altcam switch takes effect immediately. */
     if (!resolved)
     {
-        scCam    = SDL_GetScancodeFromName(g_PcConfig.keyChangeCam);
-        scPad    = (g_PcConfig.padChangeCam && g_PcConfig.padChangeCam[0])
-                       ? (int)SDL_GameControllerGetButtonFromString(g_PcConfig.padChangeCam)
-                       : SDL_CONTROLLER_BUTTON_INVALID;
+        const ControlScheme* sc[2];
+        int i;
+        sc[0] = &g_PcConfig.classic;
+        sc[1] = &g_PcConfig.altcam;
+        for (i = 0; i < 2; i++)
+        {
+            scCam[i] = SDL_GetScancodeFromName(sc[i]->keyChangeCam);
+            scPad[i] = (sc[i]->padChangeCam[0])
+                           ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padChangeCam)
+                           : SDL_CONTROLLER_BUTTON_INVALID;
+        }
         resolved = 1;
     }
 
@@ -187,8 +196,11 @@ void Pc_ControlStyleUpdate(void)
                   !g_PcConsoleInputActive);
 
     keys   = SDL_GetKeyboardState(NULL);
-    curKey = (keys && scCam != SDL_SCANCODE_UNKNOWN) ? keys[scCam] : 0;
-    curPad = PsyX_RawControllerButtonHeld(scPad); /* physical controller only, not the kb-merged pad */
+    {
+        int sch = g_DebugThirdPersonCam ? 1 : 0; /* which scheme's Change-Camera bind is live */
+        curKey = (keys && scCam[sch] != SDL_SCANCODE_UNKNOWN) ? keys[scCam[sch]] : 0;
+        curPad = PsyX_RawControllerButtonHeld(scPad[sch]); /* physical controller only */
+    }
 
     /* Edge-toggle the active style — gameplay only. */
     if (inGameplay && ((curKey && !prevKey) || (curPad && !prevPad)))
