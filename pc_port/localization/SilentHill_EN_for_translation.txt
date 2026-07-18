@@ -1,0 +1,6890 @@
+================================================================================
+ SILENT HILL (1999)  —  ENGLISH SCRIPT FOR TRANSLATION
+================================================================================
+ Every visible in-game English string that is NOT baked into an image:
+ story/cutscene dialogue, examine/pickup prompts, menus, item names and
+ item descriptions.  Total entries: 1646.
+
+ HOW TO USE
+ ----------
+ * Each entry is three lines:
+       [KEY]        <- an ID. DO NOT change or translate this.
+       EN: ...      <- the English text.
+       PT:          <- write the Portuguese translation here, on this line.
+ * Translate ONLY the words. Keep every control code exactly, in place.
+
+ CONTROL CODES — keep these unchanged and in the same position:
+ * ~N        line break inside a message (start a new on-screen line).
+ * ~E        end-of-message marker. Always keep it at the very end.
+ * ~C2 ... ~C7   colour on / off. The words between them are highlighted
+                 (usually an item name). Keep the codes around the same words.
+ * ~S4       a Yes/No choice prompt. Keep as-is.
+ * ~J0(1.2), ~J1(3.8), ...   on-screen display time in seconds for that line.
+                 Keep the code AND the number exactly — do not translate it.
+                 (If the Portuguese line is much longer than the English and
+                 reads too fast, note it and we can raise the number later.)
+ * ~D        a short leading marker on some map/notice lines. Keep as-is.
+ * [Lion], [Woodman], [Scarecrow] ...  bracketed key names — keep the brackets.
+
+ NOTES
+ -----
+ * These strings use the US/NTSC English script (the game's original text).
+ * A few entries are blank on purpose (timing-only lines): they show
+   "(no text — timing only, leave PT blank)". Skip those.
+ * Line order within each area follows the game's internal order, not
+   necessarily on-screen order, but the English gives the context.
+ * When every PT line is filled, send the file back and we import it as a new
+   selectable language.
+================================================================================
+
+
+
+
+################################################################################
+##  COMMON MESSAGES  (shown in every area: Yes/No, pickups, doors)
+################################################################################
+
+[COMMON.0]
+EN: Yes
+PT: 
+
+[COMMON.1]
+EN: No
+PT: 
+
+[COMMON.2]
+EN: Someday, someone may experience ~N these bizarre events. Hopefully, ~N they will find my notes useful. ~E
+PT: 
+
+[COMMON.3]
+EN: ~D I don't have the map ~N for this place.~E
+PT: 
+
+[COMMON.4]
+EN: ~D Too dark to look ~N at the map here. ~E
+PT: 
+
+[COMMON.5]
+EN: There is a ~C2 First aid kit ~C7 . ~N Take it? ~S4
+PT: 
+
+[COMMON.6]
+EN: There is a ~C2 Health drink ~C7 . ~N Take it? ~S4
+PT: 
+
+[COMMON.7]
+EN: There is an ~C2 Ampoule ~C7 . ~N Take it? ~S4
+PT: 
+
+[COMMON.8]
+EN: There are some ~C2 Handgun bullets ~C7 . ~N Take it? ~S4
+PT: 
+
+[COMMON.9]
+EN: There are some ~C2 Rifle shells ~C7 . ~N Take it? ~S4
+PT: 
+
+[COMMON.10]
+EN: There are some ~C2 Shotgun shells ~C7 . ~N Take it? ~S4
+PT: 
+
+[COMMON.11]
+EN: The lock is jammed. ~N This door can't be opened. ~E
+PT: 
+
+[COMMON.12]
+EN: It's locked.~E
+PT: 
+
+[COMMON.13]
+EN: It's unlocked.~E
+PT: 
+
+[COMMON.14]
+EN: ~C6Now Making!~C7~E
+PT: 
+
+
+
+################################################################################
+##  MENUS & UI  (title, options, pause, save/load, memory card, inventory actions, save-location names)
+################################################################################
+
+[MENU.LOAD]
+EN: LOAD
+PT: 
+
+[MENU.CONTINUE]
+EN: CONTINUE
+PT: 
+
+[MENU.START]
+EN: START
+PT: 
+
+[MENU.OPTION]
+EN: OPTION
+PT: 
+
+[MENU.EASY]
+EN: EASY
+PT: 
+
+[MENU.NORMAL]
+EN: NORMAL
+PT: 
+
+[MENU.HARD]
+EN: HARD
+PT: 
+
+[MENU.OPTION_S]
+EN: OPTION S
+PT: 
+
+[MENU.EXTRA_OPTION_S]
+EN: EXTRA OPTION S
+PT: 
+
+[MENU.Exit]
+EN: Exit
+PT: 
+
+[MENU.Brightness_Level]
+EN: Brightness Level
+PT: 
+
+[MENU.Controller_Config]
+EN: Controller Config
+PT: 
+
+[MENU.Vibration]
+EN: Vibration
+PT: 
+
+[MENU.Auto_Load]
+EN: Auto Load
+PT: 
+
+[MENU.Language]
+EN: Language
+PT: 
+
+[MENU.Sound]
+EN: Sound
+PT: 
+
+[MENU.BGM_Volume]
+EN: BGM Volume
+PT: 
+
+[MENU.SE_Volume]
+EN: SE Volume
+PT: 
+
+[MENU.Voice]
+EN: Voice
+PT: 
+
+[MENU.On]
+EN: On
+PT: 
+
+[MENU.Off]
+EN: Off
+PT: 
+
+[MENU.Stereo]
+EN: Stereo
+PT: 
+
+[MENU.Monaural]
+EN: Monaural
+PT: 
+
+[MENU.Weapon_Control]
+EN: Weapon Control
+PT: 
+
+[MENU.Blood_Color]
+EN: Blood Color
+PT: 
+
+[MENU.View_Control]
+EN: View Control
+PT: 
+
+[MENU.Retreat_Turn]
+EN: Retreat Turn
+PT: 
+
+[MENU.Walk/Run_Control]
+EN: Walk/Run Control
+PT: 
+
+[MENU.Auto_Aiming]
+EN: Auto Aiming
+PT: 
+
+[MENU.View_Mode]
+EN: View Mode
+PT: 
+
+[MENU.Bullet_Adjust]
+EN: Bullet Adjust
+PT: 
+
+[MENU.Press]
+EN: Press
+PT: 
+
+[MENU.Switch]
+EN: Switch
+PT: 
+
+[MENU.Normal]
+EN: Normal
+PT: 
+
+[MENU.Green]
+EN: Green
+PT: 
+
+[MENU.Violet]
+EN: Violet
+PT: 
+
+[MENU.Black]
+EN: Black
+PT: 
+
+[MENU.Reverse]
+EN: Reverse
+PT: 
+
+[MENU.Self_View]
+EN: Self View
+PT: 
+
+[MENU.PAUSE]
+EN: PAUSE
+PT: 
+
+[MENU.PAUSED]
+EN: PAUSED
+PT: 
+
+[MENU.Is_it_OK_to_save?]
+EN: Is it OK to save?
+PT: 
+
+[MENU.Yes_____________No]
+EN: Yes No
+PT: 
+
+[MENU.NEXT_GAME_MODE]
+EN: NEXT GAME MODE
+PT: 
+
+[MENU.Is_it_OK_to_overwrite?]
+EN: Is it OK to overwrite?
+PT: 
+
+[MENU.Is_it_OK_to_format?]
+EN: Is it OK to format?
+PT: 
+
+[MENU.FILE]
+EN: FILE
+PT: 
+
+[MENU.Data]
+EN: Data
+PT: 
+
+[MENU.Save]
+EN: Save
+PT: 
+
+[MENU.Time]
+EN: Time
+PT: 
+
+[MENU.You_need_1_free_block
+__to_create_a_new_file.]
+EN: You need 1 free block to create a new file.
+PT: 
+
+[MENU.You_removed_the_MEMORY_CARD!]
+EN: You removed the MEMORY CARD!
+PT: 
+
+[MENU.Now_formatting...]
+EN: Now formatting...
+PT: 
+
+[MENU.Now_saving...]
+EN: Now saving...
+PT: 
+
+[MENU.Unable_to_create_a_new_file.]
+EN: Unable to create a new file.
+PT: 
+
+[MENU.Finished_saving.]
+EN: Finished saving.
+PT: 
+
+[MENU.Failed_to_save!]
+EN: Failed to save!
+PT: 
+
+[MENU.The_data_is_not_found!]
+EN: The data is not found!
+PT: 
+
+[MENU.The_data_is_damaged!]
+EN: The data is damaged!
+PT: 
+
+[MENU.Failed_to_load!]
+EN: Failed to load!
+PT: 
+
+[MENU.Finished_loading.]
+EN: Finished loading.
+PT: 
+
+[MENU.Now_loading...]
+EN: Now loading...
+PT: 
+
+[MENU.Anywhere]
+EN: Anywhere
+PT: 
+
+[MENU.Cafe]
+EN: Cafe
+PT: 
+
+[MENU.Store]
+EN: Store
+PT: 
+
+[MENU.Infirmary]
+EN: Infirmary
+PT: 
+
+[MENU.Doghouse]
+EN: Doghouse
+PT: 
+
+[MENU.Church]
+EN: Church
+PT: 
+
+[MENU.Garage]
+EN: Garage
+PT: 
+
+[MENU.Police]
+EN: Police
+PT: 
+
+[MENU.Reception]
+EN: Reception
+PT: 
+
+[MENU.Room_302]
+EN: Room 302
+PT: 
+
+[MENU.Director's]
+EN: Director's
+PT: 
+
+[MENU.Jewelry_shop]
+EN: Jewelry shop
+PT: 
+
+[MENU.Pool_hall]
+EN: Pool hall
+PT: 
+
+[MENU.Antique_shop]
+EN: Antique shop
+PT: 
+
+[MENU.Theme_park]
+EN: Theme park
+PT: 
+
+[MENU.Boat]
+EN: Boat
+PT: 
+
+[MENU.Bridge]
+EN: Bridge
+PT: 
+
+[MENU.Lighthouse]
+EN: Lighthouse
+PT: 
+
+[MENU.Sewer]
+EN: Sewer
+PT: 
+
+[MENU.Nowhere]
+EN: Nowhere
+PT: 
+
+[MENU.Child's_room]
+EN: Child's room
+PT: 
+
+[MENU.Next_fear]
+EN: Next fear
+PT: 
+
+[MENU.Use]
+EN: Use
+PT: 
+
+[MENU.Equip]
+EN: Equip
+PT: 
+
+[MENU.Unequip]
+EN: Unequip
+PT: 
+
+[MENU.Reload]
+EN: Reload
+PT: 
+
+[MENU.Detail]
+EN: Detail
+PT: 
+
+[MENU.Look]
+EN: Look
+PT: 
+
+[MENU.Equipment]
+EN: Equipment
+PT: 
+
+[MENU.Option]
+EN: Option
+PT: 
+
+[MENU.Map]
+EN: Map
+PT: 
+
+[MENU.Command]
+EN: Command
+PT: 
+
+[MENU.Status]
+EN: Status
+PT: 
+
+[MENU.Name:]
+EN: Name:
+PT: 
+
+[MENU.PC_Options]
+EN: PC Options
+PT: 
+
+[MENU.Resolution]
+EN: Resolution
+PT: 
+
+[MENU.Window_Mode]
+EN: Window Mode
+PT: 
+
+[MENU.Texture_Filter]
+EN: Texture Filter
+PT: 
+
+[MENU.Antialiasing]
+EN: Antialiasing
+PT: 
+
+[MENU.Post_Process]
+EN: Post Process
+PT: 
+
+[MENU.Tone_Mapping]
+EN: Tone Mapping
+PT: 
+
+[MENU.Next_Page]
+EN: Next Page
+PT: 
+
+[MENU.Prev_Page]
+EN: Prev Page
+PT: 
+
+[MENU.Back]
+EN: Back
+PT: 
+
+[MENU.FPS_Limit]
+EN: FPS Limit
+PT: 
+
+[MENU.Disable_Culling]
+EN: Disable Culling
+PT: 
+
+[MENU.Preload_Chunks]
+EN: Preload Chunks
+PT: 
+
+[MENU.PP_Flashlight]
+EN: PP Flashlight
+PT: 
+
+[MENU.PP_Shadows]
+EN: PP Shadows
+PT: 
+
+[MENU.Beam_Intensity]
+EN: Beam Intensity
+PT: 
+
+[MENU.Beam_Size]
+EN: Beam Size
+PT: 
+
+[MENU.First_Person_FOV]
+EN: First Person FOV
+PT: 
+
+[MENU.Mouse_Sensitivity]
+EN: Mouse Sensitivity
+PT: 
+
+[MENU.Pad_Sensitivity]
+EN: Pad Sensitivity
+PT: 
+
+[MENU.Invert_Mouse_Y]
+EN: Invert Mouse Y
+PT: 
+
+[MENU.Invert_Pad_Y]
+EN: Invert Pad Y
+PT: 
+
+[MENU.Aim_Assist]
+EN: Aim Assist
+PT: 
+
+[MENU.Crosshair]
+EN: Crosshair
+PT: 
+
+[MENU.2D_Controls]
+EN: 2D Controls
+PT: 
+
+[MENU.FMV_Movie_Vol]
+EN: FMV Movie Vol
+PT: 
+
+[MENU.Windowed]
+EN: Windowed
+PT: 
+
+[MENU.Fullscreen]
+EN: Fullscreen
+PT: 
+
+[MENU.Borderless]
+EN: Borderless
+PT: 
+
+[MENU.Bilinear]
+EN: Bilinear
+PT: 
+
+[MENU.External]
+EN: External
+PT: 
+
+[MENU.In_Game]
+EN: In Game
+PT: 
+
+[MENU.Both]
+EN: Both
+PT: 
+
+[MENU.Scanlines]
+EN: Scanlines
+PT: 
+
+[MENU.Vignette]
+EN: Vignette
+PT: 
+
+[MENU.Color_Grade]
+EN: Color Grade
+PT: 
+
+[MENU.Film_Grain]
+EN: Film Grain
+PT: 
+
+[MENU.Sharpen]
+EN: Sharpen
+PT: 
+
+[MENU.Cinematic]
+EN: Cinematic
+PT: 
+
+[MENU.Filmic]
+EN: Filmic
+PT: 
+
+[MENU.Too_dark_to_look_at
+		the_map_here.]
+EN: Too dark to look at the map here.
+PT: 
+
+[MENU.I_don't_have_the_map
+		for_this_place.]
+EN: I don't have the map for this place.
+PT: 
+
+
+
+################################################################################
+##  ITEM NAMES  (inventory)
+################################################################################
+
+[ITEM_NAME.0]
+EN: Health drink(s)
+PT: 
+
+[ITEM_NAME.1]
+EN: First aid kit(s)
+PT: 
+
+[ITEM_NAME.2]
+EN: Ampoule(s)
+PT: 
+
+[ITEM_NAME.32]
+EN: Lobby key
+PT: 
+
+[ITEM_NAME.33]
+EN: House key
+PT: 
+
+[ITEM_NAME.34]
+EN: Key of [Lion]
+PT: 
+
+[ITEM_NAME.35]
+EN: Key of [Woodman]
+PT: 
+
+[ITEM_NAME.36]
+EN: Key of [Scarecrow]
+PT: 
+
+[ITEM_NAME.37]
+EN: Library reserve key
+PT: 
+
+[ITEM_NAME.38]
+EN: Classroom key
+PT: 
+
+[ITEM_NAME.39]
+EN: K. Gordon key
+PT: 
+
+[ITEM_NAME.40]
+EN: Drawbridge key
+PT: 
+
+[ITEM_NAME.41]
+EN: Basement key
+PT: 
+
+[ITEM_NAME.42]
+EN: Basement storeroom key
+PT: 
+
+[ITEM_NAME.43]
+EN: Examination room key
+PT: 
+
+[ITEM_NAME.44]
+EN: Antique shop key
+PT: 
+
+[ITEM_NAME.45]
+EN: Sewer key
+PT: 
+
+[ITEM_NAME.46]
+EN: Key of [Ophiel]
+PT: 
+
+[ITEM_NAME.47]
+EN: Key of [Hagith]
+PT: 
+
+[ITEM_NAME.48]
+EN: Key of [Phaleg]
+PT: 
+
+[ITEM_NAME.49]
+EN: Key of [Bethor]
+PT: 
+
+[ITEM_NAME.50]
+EN: Key of [Aratron]
+PT: 
+
+[ITEM_NAME.51]
+EN: A note [To school]
+PT: 
+
+[ITEM_NAME.52]
+EN: A note [Doghouse]
+PT: 
+
+[ITEM_NAME.53]
+EN: Picture card
+PT: 
+
+[ITEM_NAME.55]
+EN: Sewer exit key
+PT: 
+
+[ITEM_NAME.56]
+EN: Channeling stone
+PT: 
+
+[ITEM_NAME.64]
+EN: Chemical
+PT: 
+
+[ITEM_NAME.65]
+EN: Gold medallion
+PT: 
+
+[ITEM_NAME.66]
+EN: Silver medallion
+PT: 
+
+[ITEM_NAME.67]
+EN: Rubber ball
+PT: 
+
+[ITEM_NAME.68]
+EN: [Flauros]
+PT: 
+
+[ITEM_NAME.69]
+EN: Plastic bottle
+PT: 
+
+[ITEM_NAME.70]
+EN: Unknown liquid
+PT: 
+
+[ITEM_NAME.71]
+EN: Plate of [Turtle]
+PT: 
+
+[ITEM_NAME.72]
+EN: Plate of [Hatter]
+PT: 
+
+[ITEM_NAME.73]
+EN: Plate of [Cat]
+PT: 
+
+[ITEM_NAME.74]
+EN: Plate of [Queen]
+PT: 
+
+[ITEM_NAME.75]
+EN: Blood pack
+PT: 
+
+[ITEM_NAME.76]
+EN: Disinfecting alcohol
+PT: 
+
+[ITEM_NAME.77]
+EN: Lighter
+PT: 
+
+[ITEM_NAME.78]
+EN: Video tape
+PT: 
+
+[ITEM_NAME.80]
+EN: Kaufmann key
+PT: 
+
+[ITEM_NAME.81]
+EN: Receipt
+PT: 
+
+[ITEM_NAME.82]
+EN: Safe key
+PT: 
+
+[ITEM_NAME.83]
+EN: Magnet
+PT: 
+
+[ITEM_NAME.84]
+EN: Motorcycle key
+PT: 
+
+[ITEM_NAME.85]
+EN: Bird cage key
+PT: 
+
+[ITEM_NAME.86]
+EN: Pliers
+PT: 
+
+[ITEM_NAME.87]
+EN: Screwdriver
+PT: 
+
+[ITEM_NAME.88]
+EN: Camera
+PT: 
+
+[ITEM_NAME.89]
+EN: Ring of contract
+PT: 
+
+[ITEM_NAME.90]
+EN: Stone of time
+PT: 
+
+[ITEM_NAME.91]
+EN: Amulet of Solomon
+PT: 
+
+[ITEM_NAME.92]
+EN: Crest of Mercury
+PT: 
+
+[ITEM_NAME.93]
+EN: Ankh
+PT: 
+
+[ITEM_NAME.94]
+EN: Dagger of Melchior
+PT: 
+
+[ITEM_NAME.95]
+EN: Disk of Ouroboros
+PT: 
+
+[ITEM_NAME.96]
+EN: Kitchen knife
+PT: 
+
+[ITEM_NAME.97]
+EN: Steel pipe
+PT: 
+
+[ITEM_NAME.98]
+EN: Rock drill
+PT: 
+
+[ITEM_NAME.100]
+EN: Hammer
+PT: 
+
+[ITEM_NAME.101]
+EN: Chainsaw
+PT: 
+
+[ITEM_NAME.102]
+EN: Katana
+PT: 
+
+[ITEM_NAME.103]
+EN: Axe
+PT: 
+
+[ITEM_NAME.128]
+EN: Handgun
+PT: 
+
+[ITEM_NAME.129]
+EN: Hunting rifle
+PT: 
+
+[ITEM_NAME.130]
+EN: Shotgun
+PT: 
+
+[ITEM_NAME.131]
+EN: Hyper Blaster
+PT: 
+
+[ITEM_NAME.160]
+EN: Handgun bullets
+PT: 
+
+[ITEM_NAME.161]
+EN: Rifle shells
+PT: 
+
+[ITEM_NAME.162]
+EN: Shotgun shells
+PT: 
+
+[ITEM_NAME.192]
+EN: Flashlight
+PT: 
+
+[ITEM_NAME.193]
+EN: Pocket radio
+PT: 
+
+[ITEM_NAME.194]
+EN: Gasoline tank
+PT: 
+
+
+
+################################################################################
+##  ITEM DESCRIPTIONS  (inventory)
+################################################################################
+
+[ITEM_DESC.0]
+EN: Supplies nutrition to recover a small amount of stamina.
+PT: 
+
+[ITEM_DESC.1]
+EN: Heals injury to provide moderate stamina recovery.
+PT: 
+
+[ITEM_DESC.2]
+EN: Relieve pain to recover stamina to high. Effect lasts for a while.
+PT: 
+
+[ITEM_DESC.32]
+EN: The key to open the door to the lobby. I found it in the locker room.
+PT: 
+
+[ITEM_DESC.33]
+EN: The house key hidden in the dog house.
+PT: 
+
+[ITEM_DESC.34]
+EN: The key to the garden of the house. Found in patrol car's trunk.
+PT: 
+
+[ITEM_DESC.35]
+EN: The key to the garden of the house. Found in the basketball court.
+PT: 
+
+[ITEM_DESC.36]
+EN: The key to the garden of the house. Found in mailbox blocked by a fallen tree.
+PT: 
+
+[ITEM_DESC.37]
+EN: The key to the school's 2nd floor library reserves. Picked up in the locker room.
+PT: 
+
+[ITEM_DESC.38]
+EN: The tagged classroom key found hanging in the drainpipe on the roof.
+PT: 
+
+[ITEM_DESC.39]
+EN: The tag says, [K. Gordon;] found in the school's boiler room.
+PT: 
+
+[ITEM_DESC.40]
+EN: Key to operate the drawbridge. Found in the church.
+PT: 
+
+[ITEM_DESC.41]
+EN: The hospital basement door key, found on the table in 1st floor conference room.
+PT: 
+
+[ITEM_DESC.42]
+EN: The hospital basement storeroom key found in the operating room.
+PT: 
+
+[ITEM_DESC.43]
+EN: Found in patient room in the 2nd floor basement.
+PT: 
+
+[ITEM_DESC.44]
+EN: The tagged key with a shop name on it that Dahlia left at the hospital.
+PT: 
+
+[ITEM_DESC.45]
+EN: Sewer passageway door key.
+PT: 
+
+[ITEM_DESC.46]
+EN: The word [Ophiel] is engraved on the key.
+PT: 
+
+[ITEM_DESC.47]
+EN: The word [Hagith] is engraved on the key.
+PT: 
+
+[ITEM_DESC.48]
+EN: The word [Phaleg] is engraved on the key.
+PT: 
+
+[ITEM_DESC.49]
+EN: The word [Bethor] is engraved on the key.
+PT: 
+
+[ITEM_DESC.50]
+EN: The word [Aratron] is engraved on the key.
+PT: 
+
+[ITEM_DESC.51]
+EN: [To school] is written in Cheryl's handwriting.
+PT: 
+
+[ITEM_DESC.52]
+EN: [Doghouse] and [Levin st.] are written in Cheryl's handwriting.
+PT: 
+
+[ITEM_DESC.53]
+EN: A rectangular card with a picture of a key. Found on a desk in a classroom.
+PT: 
+
+[ITEM_DESC.55]
+EN: Key to exit from the sewer to the resort area, which was dropped in the water.
+PT: 
+
+[ITEM_DESC.56]
+EN: A mystical stone possessing power. If used somewhere, the result will be...?
+PT: 
+
+[ITEM_DESC.64]
+EN: The label reads, [Concentrated hydrochloric acid.] Found in the lab equipment room.
+PT: 
+
+[ITEM_DESC.65]
+EN: A picture of a clock tower is engraved on the surface. Found in the chemistry lab.
+PT: 
+
+[ITEM_DESC.66]
+EN: A picture of a clock tower is engraved on the surface. Found in the music room.
+PT: 
+
+[ITEM_DESC.67]
+EN: Florescent pink rubber ball used by children.
+PT: 
+
+[ITEM_DESC.68]
+EN: Pyramid shaped object found in the church. Purpose and use unknown.
+PT: 
+
+[ITEM_DESC.69]
+EN: Empty bottle found in the kitchen of the hospital.
+PT: 
+
+[ITEM_DESC.70]
+EN: Red liquid found in a broken vial in the Hospital Director's room.
+PT: 
+
+[ITEM_DESC.71]
+EN: Square, blue plate with a picture of a [Mock Turtle.]
+PT: 
+
+[ITEM_DESC.72]
+EN: Square, green plate with a picture of a [Mad Hatter.]
+PT: 
+
+[ITEM_DESC.73]
+EN: Square, yellow plate with a picture of a [Cheshire Cat.]
+PT: 
+
+[ITEM_DESC.74]
+EN: Square, red plate with a picture of a [Queen of Hearts.]
+PT: 
+
+[ITEM_DESC.75]
+EN: 200ml blood pack. Found in the hospital storage room.
+PT: 
+
+[ITEM_DESC.76]
+EN: Isopropyl alcohol bottle, found in ICU at the hospital.
+PT: 
+
+[ITEM_DESC.77]
+EN: Oil lighter found in Room 201.
+PT: 
+
+[ITEM_DESC.78]
+EN: Nothing on the label. Found on 2nd floor hospital basement.
+PT: 
+
+[ITEM_DESC.80]
+EN: A [3] is written on the tag. The key was thought to have been dropped by Kaufmann.
+PT: 
+
+[ITEM_DESC.81]
+EN: Receipt from General Store, thought to have been dropped by Kaufmann.
+PT: 
+
+[ITEM_DESC.82]
+EN: Key to the safe, found at Indian Runner General Store.
+PT: 
+
+[ITEM_DESC.83]
+EN: Long, thin magnetic rod with a string attached, in the motel office.
+PT: 
+
+[ITEM_DESC.84]
+EN: Key to an old motorcycle, which was dropped between the floorboards in the motel room.
+PT: 
+
+[ITEM_DESC.85]
+EN: Bird cage key with engraved handle.
+PT: 
+
+[ITEM_DESC.86]
+EN: Tool to use on metal and wires. Rusted but usable.
+PT: 
+
+[ITEM_DESC.87]
+EN: Tool for screws. Rusted, but usable.
+PT: 
+
+[ITEM_DESC.88]
+EN: Camera with flash.
+PT: 
+
+[ITEM_DESC.89]
+EN: Rustic, hefty-looking ring of unknown material.
+PT: 
+
+[ITEM_DESC.90]
+EN: Large stone with clock-face design on pillar with astrology chart hanging from it.
+PT: 
+
+[ITEM_DESC.91]
+EN: The amulet is a star shaped object with 6 corners named after the ancient magician.
+PT: 
+
+[ITEM_DESC.92]
+EN: Snake in the symbol of mercury signifies alchemy.
+PT: 
+
+[ITEM_DESC.93]
+EN: Elliptical talisman with a cross inside.
+PT: 
+
+[ITEM_DESC.94]
+EN: The ancient dagger named after the Magi.
+PT: 
+
+[ITEM_DESC.95]
+EN: Ring of a snake biting it's own tail.
+PT: 
+
+[ITEM_DESC.96]
+EN: Hard to use, but better than nothing.
+PT: 
+
+[ITEM_DESC.97]
+EN: 3' long steel pipe. Long range but of limited use.
+PT: 
+
+[ITEM_DESC.98]
+EN: A tool used in road construction to create holes in the road for poles.
+PT: 
+
+[ITEM_DESC.100]
+EN: Emergency hammer. Highly damaging, but hard to use.
+PT: 
+
+[ITEM_DESC.101]
+EN: Power tool used for cutting down trees, etc., highly deadly.
+PT: 
+
+[ITEM_DESC.102]
+EN: Traditional single edged Japanese blade.
+PT: 
+
+[ITEM_DESC.103]
+EN: Small one hand axe. Moderately effective as a weapon.
+PT: 
+
+[ITEM_DESC.128]
+EN: Handgun received from Cybil. Holds up to 15 rounds.
+PT: 
+
+[ITEM_DESC.129]
+EN: Holds up to 6 rounds.
+PT: 
+
+[ITEM_DESC.130]
+EN: Fires in a wide radius. Holds up to 6 rounds.
+PT: 
+
+[ITEM_DESC.131]
+EN: High-powered handgun with infrared scope and unlimited bullets.
+PT: 
+
+[ITEM_DESC.160]
+EN: Ammo for the handgun.
+PT: 
+
+[ITEM_DESC.161]
+EN: Ammo for the hunting rifle.
+PT: 
+
+[ITEM_DESC.162]
+EN: Ammo for the shotgun.
+PT: 
+
+[ITEM_DESC.192]
+EN: One touch on/off switch. In the chest pocket.
+PT: 
+
+[ITEM_DESC.193]
+EN: Portable radio that emits static when monsters are near.
+PT: 
+
+[ITEM_DESC.194]
+EN: Fuel for chainsaws and rock drills.
+PT: 
+
+
+
+################################################################################
+##  OTHER IN-GAME PROMPTS
+################################################################################
+
+[MISC.0]
+EN: Can't use here
+PT: 
+
+[MISC.1]
+EN: Too dark too look at the item
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map0_s00
+################################################################################
+
+[MAP0_S00.15]
+EN: ~J0(2.5) Cheryl. Where could you be? ~E
+PT: 
+
+[MAP0_S00.16]
+EN: ~J0(1.5) It's strange...
+PT: 
+
+[MAP0_S00.17]
+EN: ~J0(2.0) It's quiet. Too quiet.
+PT: 
+
+[MAP0_S00.18]
+EN: ~J0(3.0) This place is ~N like a ghost town. ~E
+PT: 
+
+[MAP0_S00.19]
+EN: ~J0(3.0) Cheryl. ~E
+PT: 
+
+[MAP0_S00.20]
+EN: ~J0(1.5) Footsteps? ~E
+PT: 
+
+[MAP0_S00.21]
+EN: ~J0(2.8) Cheryl? ~N Is that Cheryl!? ~E
+PT: 
+
+[MAP0_S00.22]
+EN: ~J0(1.2) Where are you going? ~E
+PT: 
+
+[MAP0_S00.23]
+EN: ~J0(1.8) Hey wait...stop! ~E
+PT: 
+
+[MAP0_S00.24]
+EN: I'd better follow Cheryl... ~E
+PT: 
+
+[MAP0_S00.25]
+EN: That's strange, ~N it's getting darker. ~E
+PT: 
+
+[MAP0_S00.26]
+EN: A dead end? ~N What the hell!? ~E
+PT: 
+
+[MAP0_S00.27]
+EN: ~J0(1.6) What is this?
+PT: 
+
+[MAP0_S00.28]
+EN: ~J0(2.5) What's going on here!? ~E
+PT: 
+
+[MAP0_S00.29]
+EN: What's this? ~E
+PT: 
+
+[MAP0_S00.30]
+EN: ......better than nothing, ~N I guess. ~E
+PT: 
+
+[MAP0_S00.31]
+EN: What? ~N What's this doing here? ~E
+PT: 
+
+[MAP0_S00.32]
+EN: Blocked by a fence? ~E
+PT: 
+
+[MAP0_S00.33]
+EN: A broken wheelchair? ~N What's this doing here? ~E
+PT: 
+
+[MAP0_S00.34]
+EN: What the..? ~N What is it? ~E
+PT: 
+
+[MAP0_S00.35]
+EN: The street is blocked.
+PT: 
+
+[MAP0_S00.36]
+EN: Can't get out of town ~N through here. ~E
+PT: 
+
+[MAP0_S00.37]
+EN: My car... ~N too banged up to drive.
+PT: 
+
+[MAP0_S00.38]
+EN: Where's Cheryl? ~N Hope she's safe. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map0_s01
+################################################################################
+
+[MAP0_S01.15]
+EN: ~J0(2.0) Was I dreaming? ~E
+PT: 
+
+[MAP0_S01.16]
+EN: ~J0(2.5) How do you feel? ~E
+PT: 
+
+[MAP0_S01.17]
+EN: ~J0(6.0) Like I've been ~N run over by a truck, ~N but I'm all right, I guess. ~E
+PT: 
+
+[MAP0_S01.18]
+EN: ~J0(1.5) Glad to hear it.
+PT: 
+
+[MAP0_S01.19]
+EN: ~J0(5.0) You from around here? ~N Why don't you ~N tell me what happened?
+PT: 
+
+[MAP0_S01.20]
+EN: ~J0(3.0) Wait a second. ~N I'm just a tourist.
+PT: 
+
+[MAP0_S01.21]
+EN: ~J0(5.2) I came here for a vacation. ~N I just got here...
+PT: 
+
+[MAP0_S01.22]
+EN: ~J0(4.2) I don't know what happened.
+PT: 
+
+[MAP0_S01.23]
+EN: ~J0(4.0) I'd like to find out myself.
+PT: 
+
+[MAP0_S01.24]
+EN: ~J0(2.0) Uh-huh? ~E
+PT: 
+
+[MAP0_S01.25]
+EN: ~J0(3.0) Have you seen a little girl?
+PT: 
+
+[MAP0_S01.26]
+EN: ~J0(4.0) Just turned seven last month... ~N Short, black hair...
+PT: 
+
+[MAP0_S01.27]
+EN: ~J0(1.5) My daughter.
+PT: 
+
+[MAP0_S01.28]
+EN: ~J0(1.0) Sorry.
+PT: 
+
+[MAP0_S01.29]
+EN: ~J0(3.0) The only person I've seen ~N in this town is you.
+PT: 
+
+[MAP0_S01.30]
+EN: ~J0(2.5) Where is everybody?
+PT: 
+
+[MAP0_S01.31]
+EN: ~J0(3.5) I'd tell you if I knew,~N believe me.
+PT: 
+
+[MAP0_S01.32]
+EN: ~J0(5.5) But, from what I can tell, ~N something bizarre is going on.
+PT: 
+
+[MAP0_S01.33]
+EN: ~J0(2.5) That's all I know.
+PT: 
+
+[MAP0_S01.34]
+EN: ~J0(2.0) Hmmm... ~E
+PT: 
+
+[MAP0_S01.35]
+EN: ~J0(2.0) What's your name?
+PT: 
+
+[MAP0_S01.36]
+EN: ~J0(1.0) Harry...
+PT: 
+
+[MAP0_S01.37]
+EN: ~J0(2.0) Harry Mason.
+PT: 
+
+[MAP0_S01.38]
+EN: ~J0(2.0) Cybil Bennett.
+PT: 
+
+[MAP0_S01.39]
+EN: ~J0(4.0) I'm a police officer ~N from Brahms, ~N the next town over.
+PT: 
+
+[MAP0_S01.40]
+EN: ~J0(3.0) The phones are all dead, ~N and the radio, too.
+PT: 
+
+[MAP0_S01.41]
+EN: ~J0(4.0) I'm going back to call ~N in some reinforcements.
+PT: 
+
+[MAP0_S01.42]
+EN: ~J0(1.5) Hmph. ~E
+PT: 
+
+[MAP0_S01.43]
+EN: ~D ~J0(4.0) Hold it! ~N Where do you think ~N you're going? ~E
+PT: 
+
+[MAP0_S01.44]
+EN: ~J0(4.0) My daughter... ~N I've gotta find her! ~E
+PT: 
+
+[MAP0_S01.45]
+EN: ~D ~J0(1.5) No way! ~E
+PT: 
+
+[MAP0_S01.46]
+EN: ~J0(3.0) It's dangerous out there.
+PT: 
+
+[MAP0_S01.47]
+EN: ~J0(5.0) In that case, ~N I need to find her now! ~N Cheryl's my little girl.
+PT: 
+
+[MAP0_S01.48]
+EN: ~J0(3.0) I can't just leave her out ~N there by herself. ~E
+PT: 
+
+[MAP0_S01.49]
+EN: ~J0(2.5) Have you got a gun?
+PT: 
+
+[MAP0_S01.50]
+EN: ~J0(3.0) Ummm... no. ~E
+PT: 
+
+[MAP0_S01.51]
+EN: ~J0(5.0) Take this. ~N And hope you don't ~N have to use it.
+PT: 
+
+[MAP0_S01.52]
+EN: ~J0(1.5) Now listen to me,
+PT: 
+
+[MAP0_S01.53]
+EN: ~J0(4.5) before you pull the trigger, ~N know who you're shooting.
+PT: 
+
+[MAP0_S01.54]
+EN: ~J0(3.0) And don't do it ~N unless you have to. ~E
+PT: 
+
+[MAP0_S01.55]
+EN: ~J0(3.0) And don't go blasting me ~N by mistake.
+PT: 
+
+[MAP0_S01.56]
+EN: ~J0(2.5) Got it? ~E
+PT: 
+
+[MAP0_S01.57]
+EN: ~J0(2.5) Yeah. Thanks. ~E
+PT: 
+
+[MAP0_S01.58]
+EN: ~J0(5.0) You'd do best to stay nearby. ~N I'll be back with ~N help as quick as I can. ~E
+PT: 
+
+[MAP0_S01.59]
+EN: ~H There is a ~C5 Residential area map ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP0_S01.60]
+EN: There is a ~C2 Kitchen knife ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP0_S01.61]
+EN: There is a ~C2 Flashlight ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP0_S01.62]
+EN: ~J0(1.1) What's that? ~E
+PT: 
+
+[MAP0_S01.63]
+EN: ~J0(4.5) Huh? Radio? ~N What's going on with that radio? ~E
+PT: 
+
+[MAP0_S01.64]
+EN: There is a ~C2 Pocket radio ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP0_S01.65]
+EN: A radio... is it broken? ~N Can't hear anything. ~E
+PT: 
+
+[MAP0_S01.67]
+EN: Maybe I should check for ~N something useful before leaving. ~E
+PT: 
+
+[MAP0_S01.68]
+EN: ~J0(4.3) This is not a dream! ~N What's happening to this place!? ~E
+PT: 
+
+[MAP0_S01.69]
+EN: I'll worry about the radio later, ~N I have more important stuff ~N to do. ~E
+PT: 
+
+[MAP0_S01.70]
+EN: I've got to beat that monster! ~E
+PT: 
+
+[MAP0_S01.71]
+EN: The radio may be ~N useful for something.
+PT: 
+
+[MAP0_S01.72]
+EN: I better take it with me. ~E
+PT: 
+
+[MAP0_S01.73]
+EN: Pinball machine. ~N Nothing unusual. ~E
+PT: 
+
+[MAP0_S01.74]
+EN: Can't turn on the TV. ~N No power? ~E
+PT: 
+
+[MAP0_S01.75]
+EN: I have more important stuff to do. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map0_s02
+################################################################################
+
+[MAP0_S02.15]
+EN: There is a ~C2 Chain saw ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP0_S02.16]
+EN: Some oil cans are on the shelf. ~E
+PT: 
+
+[MAP0_S02.17]
+EN: A car engine. ~N No problem there. ~E
+PT: 
+
+[MAP0_S02.18]
+EN: There's a TV set. ~N It doesn't turn on. ~E
+PT: 
+
+[MAP0_S02.19]
+EN: There is a ~C2 Gasoline tank ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP0_S02.20]
+EN: There is a ~C2 Katana ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP0_S02.21]
+EN: There is a ~C2 Channeling stone ~C7 . ~N Take it? ~S4
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map1_s00
+################################################################################
+
+[MAP1_S00.15]
+EN: The tower door is locked. ~E
+PT: 
+
+[MAP1_S00.16]
+EN: The hands are stopped at 10:00. ~E
+PT: 
+
+[MAP1_S00.17]
+EN: The hands are stopped at 12:00. ~E
+PT: 
+
+[MAP1_S00.18]
+EN: The hands are stopped at 5:00. ~E
+PT: 
+
+[MAP1_S00.19]
+EN: ~C3 A Golden Sun ~E
+PT: 
+
+[MAP1_S00.20]
+EN: ~C3 A Silver Moon ~E
+PT: 
+
+[MAP1_S00.21]
+EN: The door won't open. ~E
+PT: 
+
+[MAP1_S00.22]
+EN: ~L4 ~M ~C3 10:00 ~N [Alchemy laboratory] ~N ~N Gold in an old man's palm. ~N The future hidden in his fist. ~N Exchange for sage's water. ~E
+PT: 
+
+[MAP1_S00.23]
+EN: ~L4 ~M ~C3 12:00 ~N [A place with songs and sound] ~N ~N A silver guidepost is ~N untapped in lost tongues. ~N Awakening at the ordained order. ~E
+PT: 
+
+[MAP1_S00.24]
+EN: ~L4 ~M ~C3 5:00 ~N [Darkness that brings ~N the choking heat] ~N ~N Flames render the silence, ~N awakening the hungry beast. ~N Open time's door to beckon prey. ~E
+PT: 
+
+[MAP1_S00.25]
+EN: It's written in blood. ~E
+PT: 
+
+[MAP1_S00.26]
+EN: Cheryl might be here. ~N I should search for her. ~E
+PT: 
+
+[MAP1_S00.27]
+EN: A picture of a door.
+PT: 
+
+[MAP1_S00.28]
+EN: I don't know who drew it, ~N but it is certainly in bad taste. ~E
+PT: 
+
+[MAP1_S00.29]
+EN: There is a switch. ~N Do you want to press the switch? ~S4
+PT: 
+
+[MAP1_S00.30]
+EN: Nothing appears to happen. ~E
+PT: 
+
+[MAP1_S00.31]
+EN: The boiler is working. ~E
+PT: 
+
+[MAP1_S00.32]
+EN: It appears to be broken. ~E
+PT: 
+
+[MAP1_S00.33]
+EN: The valve is tightly shut. ~N Can't move it.
+PT: 
+
+[MAP1_S00.34]
+EN: Don't know what it is for, ~N better leave it alone. ~E
+PT: 
+
+[MAP1_S00.35]
+EN: Nothing special is written. ~E
+PT: 
+
+[MAP1_S00.36]
+EN: Nothing useful ~N in the desk drawer. ~E
+PT: 
+
+[MAP1_S00.37]
+EN: ~H There is a ~C5 School map ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP1_S00.38]
+EN: Moore, Ranaldo, Gordon... ~N This must be the list of teachers. ~E
+PT: 
+
+[MAP1_S00.39]
+EN: Nothing inside. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map1_s01
+################################################################################
+
+[MAP1_S01.15]
+EN: Statue of an old man's hand.
+PT: 
+
+[MAP1_S01.16]
+EN: The fist shut tight, ~N as if never to let go. ~E
+PT: 
+
+[MAP1_S01.17]
+EN: There is a ~C2 Gold medallion ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP1_S01.18]
+EN: There is a ~C2 Chemical ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP1_S01.19]
+EN: Nothing unusual.~E
+PT: 
+
+[MAP1_S01.20]
+EN: Just the melted remains of ~N a statue of a hand.
+PT: 
+
+[MAP1_S01.21]
+EN: Nothing to worry about. ~E
+PT: 
+
+[MAP1_S01.23]
+EN: ~L4 ~M ~C3 [A Tale of Birds Without a Voice] ~N ~N First flew the greedy Pelican, ~N Eager for the reward, ~N White wings flailing. ~N ~N Then came a silent Dove, ~N Flying beyond the Pelican, ~N As far as he could.
+PT: 
+
+[MAP1_S01.24]
+EN: ~L4 ~M ~C3 A Raven flies in, ~N Flying higher than the Dove, ~N Just to show that he can. ~N ~N A Swan glides in, ~N To find a peaceful spot, ~N Next to another bird.
+PT: 
+
+[MAP1_S01.25]
+EN: ~L4 ~M ~C3 Finally out comes a Crow, ~N Coming quickly to a stop, ~N Yawning and then napping. ~N ~N Who will show the way, ~N Who will be the key, ~N Who will lead to ~N The silver reward. ~E
+PT: 
+
+[MAP1_S01.26]
+EN: It won't open. Odd, ~N doesn't look locked, though. ~E
+PT: 
+
+[MAP1_S01.27]
+EN: There's some blood ~N on some of the keys.....
+PT: 
+
+[MAP1_S01.28]
+EN: Does this mean anything? ~E
+PT: 
+
+[MAP1_S01.29]
+EN: Check the piano? ~S4
+PT: 
+
+[MAP1_S01.30]
+EN: There is a ~C2 Silver medallion ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP1_S01.31]
+EN: It's written in blood. ~E
+PT: 
+
+[MAP1_S01.32]
+EN: Nothing inside. ~E
+PT: 
+
+[MAP1_S01.33]
+EN: ~J0(2.0) Just a cat... ~E
+PT: 
+
+[MAP1_S01.34]
+EN: Distilled water. ~N No reason to take it. ~E
+PT: 
+
+[MAP1_S01.35]
+EN: Nothing useful on the shelf. ~E
+PT: 
+
+[MAP1_S01.36]
+EN: Nothing useful ~N in the desk drawer. ~E
+PT: 
+
+[MAP1_S01.37]
+EN: Nothing helpful. ~E
+PT: 
+
+[MAP1_S01.38]
+EN: Glucose. ~N No reason to take it. ~E
+PT: 
+
+[MAP1_S01.39]
+EN: ~C3 Warning. Don't forget to ~N take all of your possessions ~N after using the lockers.
+PT: 
+
+[MAP1_S01.40]
+EN: Normal elementary school ~N bulletin board. ~N Nothing in particular here. ~E
+PT: 
+
+[MAP1_S01.41]
+EN: ~C3 ~M NO ~N RUNNING OR PLAYING ~N IN THE LOCKER ROOM ~E
+PT: 
+
+[MAP1_S01.42]
+EN: Nothing useful in the locker. ~E
+PT: 
+
+[MAP1_S01.43]
+EN: Nothing useful ~N in the desk drawer. ~E
+PT: 
+
+[MAP1_S01.44]
+EN: No useful books. ~E
+PT: 
+
+[MAP1_S01.45]
+EN: No special book here. ~E
+PT: 
+
+[MAP1_S01.46]
+EN: No need to read ~N any of these books. ~E
+PT: 
+
+[MAP1_S01.47]
+EN: There's some blood ~N on some of the keys..... ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map1_s02
+################################################################################
+
+[MAP1_S02.15]
+EN: ~J0(1.2) Where am I? ~E
+PT: 
+
+[MAP1_S02.16]
+EN: ~J0(2.0) Have I been here before? ~E
+PT: 
+
+[MAP1_S02.17]
+EN: ~J0(3.8) I don't remember ~N this being here before... ~E
+PT: 
+
+[MAP1_S02.18]
+EN: The tower door is locked. ~E
+PT: 
+
+[MAP1_S02.21]
+EN: ~C5 A Golden Sun ~C7 ~E
+PT: 
+
+[MAP1_S02.22]
+EN: ~C5 A Silver Moon ~C7 ~E
+PT: 
+
+[MAP1_S02.23]
+EN: What? ~N Is this a door?
+PT: 
+
+[MAP1_S02.24]
+EN: If it is, there's no keyhole, ~N or even a knob...
+PT: 
+
+[MAP1_S02.25]
+EN: If I push it, it moves a bit, ~N but it certainly won't open. ~E
+PT: 
+
+[MAP1_S02.26]
+EN: What's this? ~E
+PT: 
+
+[MAP1_S02.27]
+EN: In the center of the door is ~N a horizontal slot.
+PT: 
+
+[MAP1_S02.28]
+EN: What is it for? ~E
+PT: 
+
+[MAP1_S02.29]
+EN: There is a ~C2 Picture card ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP1_S02.30]
+EN: Slid the ~C2 Picture card ~C7 ~N into the slot. ~E
+PT: 
+
+[MAP1_S02.31]
+EN: ~J0(0.9)
+PT:   (no text — timing only, leave PT blank)
+
+[MAP1_S02.32]
+EN: ~J0(3.0) Daddy== help me===
+PT: 
+
+[MAP1_S02.33]
+EN: ~J0(3.0) ==Daddy==where are you==?
+PT: 
+
+[MAP1_S02.34]
+EN: ~D ~J0(2.0) Cheryl! ~E
+PT: 
+
+[MAP1_S02.35]
+EN: ~J1(2.4) That was Cheryl's voice. ~N I know it.
+PT: 
+
+[MAP1_S02.36]
+EN: ~J1(2.0) Where is she? ~N Cheryl... ~E
+PT: 
+
+[MAP1_S02.37]
+EN: There is a ~C2 Rubber ball ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP1_S02.38]
+EN: ~C5 Leonard Rhine ~N The Monster Lurks ~C7
+PT: 
+
+[MAP1_S02.39]
+EN: The monster lurks... ~N What's that supposed to mean? ~E
+PT: 
+
+[MAP1_S02.40]
+EN: There is a ~C2 Shotgun ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP1_S02.41]
+EN: ~S3
+PT:   (no text — timing only, leave PT blank)
+
+[MAP1_S02.42]
+EN: Turn the valve left.
+PT: 
+
+[MAP1_S02.43]
+EN: Turn the valve right.
+PT: 
+
+[MAP1_S02.44]
+EN: Stop turning the valve.
+PT: 
+
+[MAP1_S02.45]
+EN: Cards are scattered... ~E
+PT: 
+
+[MAP1_S02.46]
+EN: A wheelchair? ~N At an elementary school? ~E
+PT: 
+
+[MAP1_S02.47]
+EN: Locker is locked. ~E
+PT: 
+
+[MAP1_S02.48]
+EN: A huge fan is rotating.
+PT: 
+
+[MAP1_S02.49]
+EN: If approached carelessly, ~N I may be sucked in. ~E
+PT: 
+
+[MAP1_S02.50]
+EN: Can't use the phone. ~E
+PT: 
+
+[MAP1_S02.51]
+EN: There is a ~C2 Classroom key ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP1_S02.52]
+EN: A hanging body... ~N Why would somebody... ~E
+PT: 
+
+[MAP1_S02.53]
+EN: A doll is on the floor. ~E
+PT: 
+
+[MAP1_S02.54]
+EN: A headless doll is stuck ~N to the wall. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map1_s03
+################################################################################
+
+[MAP1_S03.15]
+EN: What's this? ~E
+PT: 
+
+[MAP1_S03.16]
+EN: [The Monster Lurks] ~N is the book's title. ~E
+PT: 
+
+[MAP1_S03.17]
+EN: ~C3 Chapter 3: ~N [Manifestation of Delusions]
+PT: 
+
+[MAP1_S03.18]
+EN: ~C3 ...Poltergeists are among these. ~N Negative emotions, like fear,
+PT: 
+
+[MAP1_S03.19]
+EN: ~C3 worry or stress manifest ~N into external energy with ~N physical effects.
+PT: 
+
+[MAP1_S03.20]
+EN: ~C3 Nightmares have, in some cases, ~N been shown to trigger them.
+PT: 
+
+[MAP1_S03.21]
+EN: ~C3 However, such phenomena do not ~N appear to happen to just anyone.
+PT: 
+
+[MAP1_S03.22]
+EN: ~C3 Although it's not clear why, ~N adolescents, especially girls, ~N are prone to such occurrences. ~E
+PT: 
+
+[MAP1_S03.23]
+EN: ~C3 Hearing this, the hunter ~N armed with bow and arrow said, ~N [I will kill the lizard.]
+PT: 
+
+[MAP1_S03.24]
+EN: ~C3 But upon meeting his opponent, ~N he held back, taunting, ~N [Who's afraid of a reptile?]
+PT: 
+
+[MAP1_S03.25]
+EN: ~C3 At this, the furious lizard ~N hissed, [I'll swallow you up ~N in a single bite!]
+PT: 
+
+[MAP1_S03.26]
+EN: ~C3 Then the huge creature ~N attacked, jaws opened wide.
+PT: 
+
+[MAP1_S03.27]
+EN: ~C3 This was what the man wanted. ~N Calmly drawing his bow, he shot ~N into the lizard's gaping mouth.
+PT: 
+
+[MAP1_S03.28]
+EN: ~C3 Effortlessly, the arrow flew, ~N piercing the defenseless maw,
+PT: 
+
+[MAP1_S03.29]
+EN: ~C3 and the lizard fell down dead. ~E
+PT: 
+
+[MAP1_S03.30]
+EN: This is from an old fairy tale. ~N I remember reading it as a kid. ~E
+PT: 
+
+[MAP1_S03.31]
+EN: There's a drainage valve. ~N Nothing unusual. ~E
+PT: 
+
+[MAP1_S03.32]
+EN: There's a hanging key. ~N It's just out of reach. ~E
+PT: 
+
+[MAP1_S03.33]
+EN: The key went down the drain. ~E
+PT: 
+
+[MAP1_S03.34]
+EN: The ball is stuffed ~N inside the pipe. ~E
+PT: 
+
+[MAP1_S03.35]
+EN: Nothing special. ~E
+PT: 
+
+[MAP1_S03.36]
+EN: Used the ~C2 Rubber ball ~C7 . ~E
+PT: 
+
+[MAP1_S03.37]
+EN: Used the ~C2 Library reserve key ~C7 . ~E
+PT: 
+
+[MAP1_S03.38]
+EN: Used the ~C2 Classroom key ~C7 . ~E
+PT: 
+
+[MAP1_S03.39]
+EN: No useful books. ~E
+PT: 
+
+[MAP1_S03.40]
+EN: There is a drainage valve. ~N Do you want to open it? ~S4
+PT: 
+
+[MAP1_S03.41]
+EN: It drains into the wrong hole. ~N Maybe I could plug ~N that up somehow. ~E
+PT: 
+
+[MAP1_S03.42]
+EN: Nothing useful in the locker. ~E
+PT: 
+
+[MAP1_S03.43]
+EN: Nothing inside. ~E
+PT: 
+
+[MAP1_S03.44]
+EN: There is a ~C2 Library reserve key ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP1_S03.45]
+EN: A body is slumped over. ~E
+PT: 
+
+[MAP1_S03.46]
+EN: ~J0(1.0) What? ~E
+PT: 
+
+[MAP1_S03.47]
+EN: ~J0(2.5) That light!? ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map1_s04
+################################################################################
+
+[MAP1_S04.15]
+EN: NO STAGE! ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map1_s06
+################################################################################
+
+[MAP1_S06.15]
+EN: ~J0(1.3)
+PT:   (no text — timing only, leave PT blank)
+
+[MAP1_S06.16]
+EN: ~J2(1.5) What was that...? ~E
+PT: 
+
+[MAP1_S06.17]
+EN: ~J0(2.4) Who in the hell was that? ~E
+PT: 
+
+[MAP1_S06.18]
+EN: There is a ~C2 K. Gordon key ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP1_S06.19]
+EN: The boiler is off. ~E
+PT: 
+
+[MAP1_S06.20]
+EN: It appears to be broken. ~E
+PT: 
+
+[MAP1_S06.21]
+EN: The valve is tightly shut. ~N Can't move it. ~E
+PT: 
+
+[MAP1_S06.22]
+EN: ~J0(2.0) I hear a ...
+PT: 
+
+[MAP1_S06.23]
+EN: ~J0(3.0) A church bell, maybe? ~N Who is ringing the bell? ~E
+PT: 
+
+[MAP1_S06.24]
+EN: Moore, Ranaldo, Gordon... ~N This must be the list of teachers. ~E
+PT: 
+
+[MAP1_S06.25]
+EN: List of teachers.
+PT: 
+
+[MAP1_S06.26]
+EN: K. Gordon... that's it. ~N I'll note the address down ~N on the map. ~E
+PT: 
+
+[MAP1_S06.27]
+EN: ~H There is a ~C5 School map ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP1_S06.28]
+EN: ~J1(3.5) Where am I?
+PT: 
+
+[MAP1_S06.29]
+EN: ~J1(3.0) This is... a boiler room!?
+PT: 
+
+[MAP1_S06.30]
+EN: ~J1(3.5) What is going on here? ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map2_s00
+################################################################################
+
+[MAP2_S00.15]
+EN: There is a ~C2 Steel pipe ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP2_S00.16]
+EN: Where could Cheryl have gone?
+PT: 
+
+[MAP2_S00.17]
+EN: I guess I'll check ~N that alley again. ~E
+PT: 
+
+[MAP2_S00.18]
+EN: ~C3 To school ~E
+PT: 
+
+[MAP2_S00.19]
+EN: ~J1(2.5) Isn't this ~N Cheryl's sketchbook?
+PT: 
+
+[MAP2_S00.20]
+EN: ~J1(3.8) Hmm... ~N She's at the school... ~E
+PT: 
+
+[MAP2_S00.21]
+EN: Sketchbook cover. ~N This picture... it's me.
+PT: 
+
+[MAP2_S00.22]
+EN: The first picture that Cheryl ~N drew in the sketchbook that I ~N gave on her 5th birthday. ~E
+PT: 
+
+[MAP2_S00.23]
+EN: ~M ~C3 Doghouse ~N Levin st. ~E
+PT: 
+
+[MAP2_S00.24]
+EN: Nothing unusual. ~E
+PT: 
+
+[MAP2_S00.25]
+EN: Probably a doghouse, ~N though I'm not sure ~N since there's no dog around.
+PT: 
+
+[MAP2_S00.26]
+EN: Nothing in particular around. ~E
+PT: 
+
+[MAP2_S00.27]
+EN: ~C2 House key ~C7 was hidden ~N in the dog house. Take it? ~S4
+PT: 
+
+[MAP2_S00.28]
+EN: There is a ~C2 Key of [Lion] ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP2_S00.29]
+EN: There is a ~C2 Key of [Woodman] ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP2_S00.30]
+EN: There is a ~C2 Key of [Scarecrow] ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP2_S00.31]
+EN: Used the ~C2 House key ~C7 . ~E
+PT: 
+
+[MAP2_S00.32]
+EN: Used the ~C2 Key of [Lion] ~C7 . ~E
+PT: 
+
+[MAP2_S00.33]
+EN: Used the ~C2 Key of [Woodman] ~C7 . ~E
+PT: 
+
+[MAP2_S00.34]
+EN: Used the ~C2 Key of [Scarecrow] ~C7 . ~E
+PT: 
+
+[MAP2_S00.35]
+EN: ~J0(20) What? ~E
+PT: 
+
+[MAP2_S00.36]
+EN: It's getting dark again?
+PT: 
+
+[MAP2_S00.37]
+EN: What's going on!? ~E
+PT: 
+
+[MAP2_S00.38]
+EN: A dog's head... ~E
+PT: 
+
+[MAP2_S00.39]
+EN: Used the ~C2 K. Gordon key ~C7 . ~E
+PT: 
+
+[MAP2_S00.40]
+EN: ~C3 Midwich Elementary School ~E
+PT: 
+
+[MAP2_S00.41]
+EN: No reason to search ~N the school anymore. ~E
+PT: 
+
+[MAP2_S00.42]
+EN: ~C3 Orridge Bridge Control Room ~E
+PT: 
+
+[MAP2_S00.43]
+EN: There's a keyhole ~N on the control panel. ~E
+PT: 
+
+[MAP2_S00.44]
+EN: The machinery is running. ~N Do you want to press the switch? ~S4
+PT: 
+
+[MAP2_S00.45]
+EN: The street is blocked. ~N Can't get out of town through here. ~E
+PT: 
+
+[MAP2_S00.46]
+EN: My car... ~N too banged up to drive.
+PT: 
+
+[MAP2_S00.47]
+EN: Where's Cheryl? ~N Hope she's safe. ~E
+PT: 
+
+[MAP2_S00.48]
+EN: ~C3 Orridge Bridge Control Room ~E
+PT: 
+
+[MAP2_S00.49]
+EN: ~C3 Reservoir. ~N Authorized Personnel only. ~E
+PT: 
+
+[MAP2_S00.50]
+EN: Hmm... the lock is worn out.
+PT: 
+
+[MAP2_S00.51]
+EN: I may be able to break it ~N if I hit it hard. ~E
+PT: 
+
+[MAP2_S00.52]
+EN: Something is written on the map ~N hanging on the wall.
+PT: 
+
+[MAP2_S00.53]
+EN: Copied it to the map. ~E
+PT: 
+
+[MAP2_S00.54]
+EN: Something is written on the map ~N hanging on the wall. ~E
+PT: 
+
+[MAP2_S00.56]
+EN: There are three locks. ~E
+PT: 
+
+[MAP2_S00.57]
+EN: There are two locks. ~E
+PT: 
+
+[MAP2_S00.58]
+EN: There is one lock. ~E
+PT: 
+
+[MAP2_S00.59]
+EN: It's unlocked. ~E
+PT: 
+
+[MAP2_S00.60]
+EN: ~H There is a ~C5 Shopping district map ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP2_S00.61]
+EN: Nothing special. ~E
+PT: 
+
+[MAP2_S00.62]
+EN: The drawbridge is operating. ~E
+PT: 
+
+[MAP2_S00.63]
+EN: The drawbridge is stopped. ~E
+PT: 
+
+[MAP2_S00.64]
+EN: There's a TV set. ~N The power must be out. ~N It doesn't work. ~E
+PT: 
+
+[MAP2_S00.65]
+EN: Nothing useful. ~E
+PT: 
+
+[MAP2_S00.66]
+EN: Nothing special. ~E
+PT: 
+
+[MAP2_S00.67]
+EN: The refrigerator is empty. ~E
+PT: 
+
+[MAP2_S00.68]
+EN: The garage door is smeared ~N with blood. ~E
+PT: 
+
+[MAP2_S00.69]
+EN: ~C3 K. Gordon ~E
+PT: 
+
+[MAP2_S00.70]
+EN: ~C3 Balkan Church ~E
+PT: 
+
+[MAP2_S00.71]
+EN: There is a ~C2 Rock drill ~C7 .
+PT: 
+
+[MAP2_S00.72]
+EN: There is no gasoline. ~N Can't use it. ~E
+PT: 
+
+[MAP2_S00.73]
+EN: There is a ~C2 Rock drill ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP2_S00.74]
+EN: There is a ~C2 Chainsaw ~C7 .
+PT: 
+
+[MAP2_S00.75]
+EN: There is no gasoline. ~N Can't use it. ~E
+PT: 
+
+[MAP2_S00.76]
+EN: There is a ~C2 Chainsaw ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP2_S00.77]
+EN: Used the gasoline. ~E
+PT: 
+
+[MAP2_S00.78]
+EN: This must be that water works ~N Lisa was talking about. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map2_s01
+################################################################################
+
+[MAP2_S01.15]
+EN: ~J1(1.9) Were you ringing that bell?
+PT: 
+
+[MAP2_S01.16]
+EN: ~J1(5.3) I've been expecting you. ~N It was foretold by Gyromancy.
+PT: 
+
+[MAP2_S01.17]
+EN: ~J1(1.8) What are you talking about? ~E
+PT: 
+
+[MAP2_S01.18]
+EN: ~J1(2.2) I knew you'd come.
+PT: 
+
+[MAP2_S01.19]
+EN: ~J1(2.4) You want the girl, right?
+PT: 
+
+[MAP2_S01.20]
+EN: ~J1(0.9) The girl?
+PT: 
+
+[MAP2_S01.21]
+EN: ~J1(1.7) You're talking about Cheryl?
+PT: 
+
+[MAP2_S01.22]
+EN: ~J1(2.8) I see everything. ~E
+PT: 
+
+[MAP2_S01.23]
+EN: ~J0(2.1) You know something!? ~N Tell me! ~E
+PT: 
+
+[MAP2_S01.24]
+EN: ~J0(1.1) Stay back! ~E
+PT: 
+
+[MAP2_S01.25]
+EN: ~J1(4.0) Nothing is to be gained from ~N floundering about at random.
+PT: 
+
+[MAP2_S01.26]
+EN: ~J1(2.3) You must follow the path.
+PT: 
+
+[MAP2_S01.27]
+EN: ~J1(4.0) The path of the hermit, ~N concealed by Flauros...
+PT: 
+
+[MAP2_S01.28]
+EN: ~J1(3.6) What? ~N What are you talking about? ~E
+PT: 
+
+[MAP2_S01.29]
+EN: ~J0(4.0) Here, the Flauros, ~N a cage of peace.
+PT: 
+
+[MAP2_S01.30]
+EN: ~J0(3.3) It can break through ~N the walls of darkness,
+PT: 
+
+[MAP2_S01.31]
+EN: ~J0(3.8) and counteract the wrath of ~N the underworld.
+PT: 
+
+[MAP2_S01.32]
+EN: ~J0(3.0) These will help you. ~E
+PT: 
+
+[MAP2_S01.33]
+EN: ~J0(4.2) Make haste to the hospital ~N before it's too late. ~E
+PT: 
+
+[MAP2_S01.34]
+EN: ~J0(2.4) Wait! ~N Don't go yet! ~E
+PT: 
+
+[MAP2_S01.35]
+EN: There is a ~C2 [Flauros] ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP2_S01.36]
+EN: There is a ~C2 Drawbridge key ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP2_S01.37]
+EN: Bible. ~E
+PT: 
+
+[MAP2_S01.38]
+EN: It won't open.
+PT: 
+
+[MAP2_S01.39]
+EN: It must be locked ~N from the other side. ~E
+PT: 
+
+[MAP2_S01.40]
+EN: There's a collection box. ~N Nothing inside. ~E
+PT: 
+
+[MAP2_S01.41]
+EN: There's a newspaper. ~N Nothing special. ~E
+PT: 
+
+[MAP2_S01.42]
+EN: There's a picture on the wall. ~N Nothing special. ~E
+PT: 
+
+[MAP2_S01.43]
+EN: There's a candle stand. ~N Nothing special. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map2_s02
+################################################################################
+
+[MAP2_S02.15]
+EN: Used the ~C2 Antique shop key ~C7 . ~E
+PT: 
+
+[MAP2_S02.16]
+EN: ~C3 Alchemilla Hospital ~E
+PT: 
+
+[MAP2_S02.17]
+EN: ~C3 green lion ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map2_s03
+################################################################################
+
+[MAP2_S03.15]
+EN: NO STAGE! ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map2_s04
+################################################################################
+
+[MAP2_S04.15]
+EN: There's a memo on the desk.
+PT: 
+
+[MAP2_S04.16]
+EN: ~C3 Coroner Seals called.
+PT: 
+
+[MAP2_S04.17]
+EN: ~C3 Officer Gucci is unlikely to ~N be murdered. He apparently ~N died naturally.
+PT: 
+
+[MAP2_S04.18]
+EN: ~C3 But, medical records show ~N Officer Gucci had no prior ~N symptoms of heart disease. ~E
+PT: 
+
+[MAP2_S04.19]
+EN: There's something on it.
+PT: 
+
+[MAP2_S04.20]
+EN: ~C3 Product only available in ~N selected areas of Silent Hill.
+PT: 
+
+[MAP2_S04.21]
+EN: ~C3 Raw material is White Claudia, ~N a plant peculiar to the region.
+PT: 
+
+[MAP2_S04.22]
+EN: ~C3 Manufactured here? ~N Dealer * manufacturer? ~E
+PT: 
+
+[MAP2_S04.23]
+EN: ~H There is a ~C5 Shopping district map ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP2_S04.24]
+EN: Nothing helpful. ~E
+PT: 
+
+[MAP2_S04.25]
+EN: The desk is messy. ~E
+PT: 
+
+[MAP2_S04.26]
+EN: There is a ~C2 Shotgun ~C7 . ~N Take it? ~S4
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map3_s00
+################################################################################
+
+[MAP3_S00.15]
+EN: ~J0(1.0) Hold it... ~E
+PT: 
+
+[MAP3_S00.16]
+EN: ~J0(0.6) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP3_S00.17]
+EN: ~J0(1.7) Stop! ~N Don't shoot!
+PT: 
+
+[MAP3_S00.18]
+EN: ~J0(2.4) Wait... I'm not here to fight.
+PT: 
+
+[MAP3_S00.19]
+EN: ~J0(3.4) My name is Harry Mason. ~N I'm in town on vacation. ~E
+PT: 
+
+[MAP3_S00.20]
+EN: ~J1(2.8) Thank God. ~N Another human being.
+PT: 
+
+[MAP3_S00.21]
+EN: ~J1(1.5) Do you work here?
+PT: 
+
+[MAP3_S00.22]
+EN: ~J1(3.6) I'm Dr. Michael Kaufmann. ~N I work at this hospital. ~E
+PT: 
+
+[MAP3_S00.23]
+EN: ~J1(2.5) So maybe you can tell me ~N what's going on?
+PT: 
+
+[MAP3_S00.24]
+EN: ~J1(1.5) I really can't say.
+PT: 
+
+[MAP3_S00.25]
+EN: ~J1(4.5) I was taking a nap ~N in the staff room. ~N When I woke up, it was like this.
+PT: 
+
+[MAP3_S00.26]
+EN: ~J1(2.3) Everyone seems to ~N have disappeared.
+PT: 
+
+[MAP3_S00.27]
+EN: ~J1(3.0) And it's snowing out. ~N This time of year.
+PT: 
+
+[MAP3_S00.28]
+EN: ~J1(2.6) Something's gone ~N seriously wrong.
+PT: 
+
+[MAP3_S00.29]
+EN: ~J1(2.2) Did you see those monsters?
+PT: 
+
+[MAP3_S00.30]
+EN: ~J1(2.4) Have you ever seen ~N such aberrations?
+PT: 
+
+[MAP3_S00.31]
+EN: ~J1(2.0) Ever even heard of such things?
+PT: 
+
+[MAP3_S00.32]
+EN: ~J1(3.5) You and I both know, ~N creatures like that don't exist!
+PT: 
+
+[MAP3_S00.33]
+EN: ~J1(1.5) Yeah... ~E
+PT: 
+
+[MAP3_S00.34]
+EN: ~J1(2.4) Have you seen ~N a little girl anywhere?
+PT: 
+
+[MAP3_S00.35]
+EN: ~J1(1.6) I'm looking for my daughter.
+PT: 
+
+[MAP3_S00.36]
+EN: ~J1(3.0) She's only seven. ~N Short, black hair.
+PT: 
+
+[MAP3_S00.37]
+EN: ~J1(2.8) She's missing? ~N I'm sorry.
+PT: 
+
+[MAP3_S00.38]
+EN: ~J1(4.0) But with all those ~N monsters around, ~N I highly doubt that she's...
+PT: 
+
+[MAP3_S00.39]
+EN: ~J1(1.7)
+PT:   (no text — timing only, leave PT blank)
+
+[MAP3_S00.40]
+EN: ~J1(2.8) Sorry, ~N I didn't mean to alarm you. ~E
+PT: 
+
+[MAP3_S00.41]
+EN: ~J0(2.6) Your wife, she's here with you?
+PT: 
+
+[MAP3_S00.42]
+EN: ~J0(5.0) She died four years ago. ~N Now, it's just me and my daughter.
+PT: 
+
+[MAP3_S00.43]
+EN: ~J0(2.6) I see... ~N I'm sorry. ~E
+PT: 
+
+[MAP3_S00.44]
+EN: ~J0(2.3) Well, I'd better be going.
+PT: 
+
+[MAP3_S00.45]
+EN: ~J0(2.7) I can't just sit ~N around here doing nothing.
+PT: 
+
+[MAP3_S00.46]
+EN: ~J0(2.8) So long. ~N Good luck out there. ~E
+PT: 
+
+[MAP3_S00.47]
+EN: I should search the hospital. ~E
+PT: 
+
+[MAP3_S00.48]
+EN: ~H There is a ~C5 Hospital map ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S00.49]
+EN: These are phones and phonebooks. ~N No need to examine this. ~E
+PT: 
+
+[MAP3_S00.50]
+EN: Nothing unusual. ~E
+PT: 
+
+[MAP3_S00.51]
+EN: Nothing helpful. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map3_s01
+################################################################################
+
+[MAP3_S01.15]
+EN: The elevator doesn't ~N appear to be working. ~E
+PT: 
+
+[MAP3_S01.16]
+EN: A glass vial lies shattered.
+PT: 
+
+[MAP3_S01.17]
+EN: It's not just broken. ~N It looks smashed on purpose. ~E
+PT: 
+
+[MAP3_S01.18]
+EN: The remaining liquid is emptied ~N into the ~C2 Plastic bottle ~C7 .
+PT: 
+
+[MAP3_S01.19]
+EN: Now what have we here? ~E
+PT: 
+
+[MAP3_S01.20]
+EN: A glass vial lies shattered. ~E
+PT: 
+
+[MAP3_S01.21]
+EN: There is a ~C2 Plastic bottle ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S01.22]
+EN: ~H There is a ~C5 Hospital map ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S01.23]
+EN: ~H There is a ~N ~C5 Hospital basement map ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S01.24]
+EN: There is a ~C2 Basement key ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S01.25]
+EN: ~C3 The in-house generator ~N powers elevators, ICUs ~N and operating rooms only.
+PT: 
+
+[MAP3_S01.26]
+EN: Do you want to press the switch? ~S4
+PT: 
+
+[MAP3_S01.27]
+EN: The generator is on. ~E
+PT: 
+
+[MAP3_S01.28]
+EN: Used the ~C2 Basement key ~C7 . ~E
+PT: 
+
+[MAP3_S01.29]
+EN: I should search the hospital. ~E
+PT: 
+
+[MAP3_S01.30]
+EN: These are phones and phonebooks. ~N No need to examine this. ~E
+PT: 
+
+[MAP3_S01.31]
+EN: There's a vending machine. ~N It doesn't work. ~E
+PT: 
+
+[MAP3_S01.32]
+EN: The shelves are all messed up. ~N Who did this? ~E
+PT: 
+
+[MAP3_S01.33]
+EN: Books are scattered ~N around the desk. ~N Nothing else special here. ~E
+PT: 
+
+[MAP3_S01.34]
+EN: The phone's out. ~N Can't get a dial tone. ~E
+PT: 
+
+[MAP3_S01.35]
+EN: There's a white board. ~N Nothing special written here. ~E
+PT: 
+
+[MAP3_S01.36]
+EN: There is a newspaper.
+PT: 
+
+[MAP3_S01.37]
+EN: This article's been ~N clipped out... ~E
+PT: 
+
+[MAP3_S01.38]
+EN: The refrigerator is empty. ~E
+PT: 
+
+[MAP3_S01.39]
+EN: Nothing unusual. ~E
+PT: 
+
+[MAP3_S01.40]
+EN: Nothing helpful. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map3_s02
+################################################################################
+
+[MAP3_S02.15]
+EN: Nothing happens when the ~N elevator button is pressed. ~E
+PT: 
+
+[MAP3_S02.16]
+EN: It's locked! ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map3_s03
+################################################################################
+
+[MAP3_S03.15]
+EN: There is a ~C2 Plate of [Hatter] ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S03.16]
+EN: There is a ~C2 Plate of [Cat] ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S03.17]
+EN: There is a ~C2 Plate of [Turtle] ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S03.18]
+EN: ~D ~C3 Clouds flowing over a hill.
+PT: 
+
+[MAP3_S03.19]
+EN: ~D ~C3 Sky on a sunny day.
+PT: 
+
+[MAP3_S03.20]
+EN: ~D ~C3 Tangerines that are bitter.
+PT: 
+
+[MAP3_S03.21]
+EN: ~D ~C3 Lucky four-leaf-clover.
+PT: 
+
+[MAP3_S03.22]
+EN: ~D ~C3 Violets in the garden.
+PT: 
+
+[MAP3_S03.23]
+EN: ~D ~C3 Dandelions along a path.
+PT: 
+
+[MAP3_S03.24]
+EN: ~D ~C3 Unavoidable sleeping time.
+PT: 
+
+[MAP3_S03.25]
+EN: ~D ~C3 Liquid flowing ~N from a slashed wrist. ~E
+PT: 
+
+[MAP3_S03.26]
+EN: The VCR seems broken. ~N It doesn't play. ~E
+PT: 
+
+[MAP3_S03.27]
+EN: ~J0(0.7)
+PT:   (no text — timing only, leave PT blank)
+
+[MAP3_S03.28]
+EN: ~J2(1.5) =======
+PT:   (no text — timing only, leave PT blank)
+
+[MAP3_S03.29]
+EN: ~J2(2.7) Still ===== unusua== ~N ====fever...
+PT: 
+
+[MAP3_S03.30]
+EN: ~J2(2.6) === don't ===== ~N get==== puls==
+PT: 
+
+[MAP3_S03.31]
+EN: ~J2(2.8) === just bare=========
+PT: 
+
+[MAP3_S03.32]
+EN: ~J2(2.3) === skin is ========
+PT: 
+
+[MAP3_S03.33]
+EN: ~J2(1.2) Even when I ch=== ~N ========
+PT: 
+
+[MAP3_S03.34]
+EN: ~J2(3.8) ===================== ~N ==zing thro===
+PT: 
+
+[MAP3_S03.35]
+EN: ~J2(5.9) Why= ~N ================ chil=====
+PT: 
+
+[MAP3_S03.36]
+EN: ~J2(2.8) ============ ~N =========
+PT:   (no text — timing only, leave PT blank)
+
+[MAP3_S03.37]
+EN: ~J2(3.3) ==won't tell ==== ~N =======
+PT: 
+
+[MAP3_S03.38]
+EN: ~J2(2.0) ==please...
+PT: 
+
+[MAP3_S03.39]
+EN: ~J2(0.5) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP3_S03.40]
+EN: There is a ~C2 Blood pack ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S03.41]
+EN: There is a ~C2 Disinfecting alcohol ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S03.42]
+EN: There is a ~C2 Lighter ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S03.43]
+EN: There is a ~N ~C2 Basement storeroom key ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S03.44]
+EN: ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP3_S03.45]
+EN: Slate. Nothing more than that. ~E
+PT: 
+
+[MAP3_S03.46]
+EN: Alcohol bottle. ~N Looks empty. ~E
+PT: 
+
+[MAP3_S03.47]
+EN: Where do you want to ~N set the plate? ~E
+PT: 
+
+[MAP3_S03.48]
+EN: Can't set the plate there. ~E
+PT: 
+
+[MAP3_S03.49]
+EN: Which plate do you ~N want to remove? ~E
+PT: 
+
+[MAP3_S03.50]
+EN: Can't remove that plate. ~E
+PT: 
+
+[MAP3_S03.51]
+EN: There are 4 square indentations ~N on the door. ~E
+PT: 
+
+[MAP3_S03.53]
+EN: Bird cage. It's empty. ~E
+PT: 
+
+[MAP3_S03.54]
+EN: VCR. It's old but usable. ~E
+PT: 
+
+[MAP3_S03.55]
+EN: A steel plate ~N is screwed to the wall. ~E
+PT: 
+
+[MAP3_S03.56]
+EN: Nothing unusual. ~E
+PT: 
+
+[MAP3_S03.57]
+EN: Here are some dryers. ~N Useless now. ~E
+PT: 
+
+[MAP3_S03.58]
+EN: Nothing helpful. ~E
+PT: 
+
+[MAP3_S03.59]
+EN: Nothing useful in the boxes. ~E
+PT: 
+
+[MAP3_S03.60]
+EN: There's a bottle filled ~N with some kind of drug. ~N Better leave it. ~E
+PT: 
+
+[MAP3_S03.61]
+EN: There are some empty bottles. ~E
+PT: 
+
+[MAP3_S03.62]
+EN: Nothing special in the box. ~N Nothing to worry about. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map3_s04
+################################################################################
+
+[MAP3_S04.15]
+EN: ~J1(3.6) Finally. ~N Someone else who's OK.
+PT: 
+
+[MAP3_S04.16]
+EN: ~J1(1.0) Who are you?
+PT: 
+
+[MAP3_S04.17]
+EN: ~J1(3.1) My name's Lisa Garland. ~N What's yours?
+PT: 
+
+[MAP3_S04.18]
+EN: ~J1(1.2) Harry Mason. ~E
+PT: 
+
+[MAP3_S04.19]
+EN: ~J0(4.7) Harry, tell me ~N what's happening here? ~N Where is everybody?
+PT: 
+
+[MAP3_S04.20]
+EN: ~J0(2.7) I must have gotten knocked out.
+PT: 
+
+[MAP3_S04.21]
+EN: ~J0(3.2) When I came to, ~N everyone was gone.
+PT: 
+
+[MAP3_S04.22]
+EN: ~J0(1.3) It's awful... ~E
+PT: 
+
+[MAP3_S04.23]
+EN: ~J1(3.8) So you don't know ~N anything either. Great.
+PT: 
+
+[MAP3_S04.24]
+EN: ~J1(2.5) I just don't get it. ~E
+PT: 
+
+[MAP3_S04.25]
+EN: ~J1(4.0) It's like this is ~N all some kind of bad dream.
+PT: 
+
+[MAP3_S04.26]
+EN: ~J1(2.8) Yeah. ~N A living nightmare. ~E
+PT: 
+
+[MAP3_S04.27]
+EN: ~J1(3.6) Let me ask you, have you seen ~N a little girl around here?
+PT: 
+
+[MAP3_S04.28]
+EN: ~J1(2.8) Short, black hair. ~N Seven years old.
+PT: 
+
+[MAP3_S04.29]
+EN: ~J1(3.8) A seven-year-old girl? ~N What? She's your daughter?
+PT: 
+
+[MAP3_S04.30]
+EN: ~J1(1.2) Yes.
+PT: 
+
+[MAP3_S04.31]
+EN: ~J1(3.0) A seven-year-old girl...
+PT: 
+
+[MAP3_S04.32]
+EN: ~J1(4.8) I can't say that I have. ~N I was unconscious all this time.
+PT: 
+
+[MAP3_S04.33]
+EN: ~J1(1.3) I'm sorry. ~E
+PT: 
+
+[MAP3_S04.34]
+EN: ~J1(2.2) That's alright.
+PT: 
+
+[MAP3_S04.35]
+EN: ~J1(3.8) Do you know anything about all ~N that weird stuff in the basement?
+PT: 
+
+[MAP3_S04.36]
+EN: ~J1(3.8) No. Why? ~N Is there something down there?
+PT: 
+
+[MAP3_S04.37]
+EN: ~J1(2.7) You don't know? ~N Don't you work here?
+PT: 
+
+[MAP3_S04.38]
+EN: ~J1(4.0) We're under strict orders never to ~N enter the basement storeroom.
+PT: 
+
+[MAP3_S04.39]
+EN: ~J1(2.0) So I really don't know. ~E
+PT: 
+
+[MAP3_S04.40]
+EN: ~J1(2.0) What did you say was down there?
+PT: 
+
+[MAP3_S04.41]
+EN: ~J1(1.7) Well, it's... ~E
+PT: 
+
+[MAP3_S04.42]
+EN: ~J0(0.8) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP3_S04.43]
+EN: ~J0(2.5) Damn! ~N My head...
+PT: 
+
+[MAP3_S04.44]
+EN: ~J0(2.5) What's wrong? ~N Harry...? ~E
+PT: 
+
+[MAP3_S04.45]
+EN: ~J0(2.6) Harry, ~N let me help you. ~E
+PT: 
+
+[MAP3_S04.46]
+EN: ~J0(1.0) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP3_S04.47]
+EN: There is a ~C2 Plate of [Queen] ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S04.48]
+EN: Used the ~C2 Examination room key ~C7 . ~E
+PT: 
+
+[MAP3_S04.49]
+EN: There is a broken ~N vending machine. ~E
+PT: 
+
+[MAP3_S04.50]
+EN: Nothing unusual. ~E
+PT: 
+
+[MAP3_S04.51]
+EN: The refrigerator is empty. ~E
+PT: 
+
+[MAP3_S04.52]
+EN: Nothing helpful. ~E
+PT: 
+
+[MAP3_S04.53]
+EN: Nothing useful ~N in the desk drawer. ~E
+PT: 
+
+[MAP3_S04.54]
+EN: A sound is heard ~N from beyond the door. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map3_s05
+################################################################################
+
+[MAP3_S05.15]
+EN: There is a ~C2 Video tape ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S05.16]
+EN: ~C3 Alessa ~E
+PT: 
+
+[MAP3_S05.17]
+EN: Alessa...? ~E
+PT: 
+
+[MAP3_S05.18]
+EN: ~J0(1.2) What's this? ~E
+PT: 
+
+[MAP3_S05.19]
+EN: ~J0(2.6) Looks like someone's been here... ~E
+PT: 
+
+[MAP3_S05.20]
+EN: ~J0(0.4) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP3_S05.21]
+EN: There is an ~C2 Examination room key ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S05.22]
+EN: Looks like a hallway ~N under the grate.
+PT: 
+
+[MAP3_S05.23]
+EN: Can't move it since the vines ~N have grown around it. ~E
+PT: 
+
+[MAP3_S05.24]
+EN: No. ~N The fire goes out right away ~N when I light the vines. ~E
+PT: 
+
+[MAP3_S05.25]
+EN: Poured ~C2 Disinfecting alcohol ~C7 ~N on the vines. ~E
+PT: 
+
+[MAP3_S05.26]
+EN: The vines absorbed the alcohol. ~E
+PT: 
+
+[MAP3_S05.27]
+EN: Used the ~C2 Basement storeroom key ~C7 . ~E
+PT: 
+
+[MAP3_S05.28]
+EN: Do you want to push ~N the cabinet? ~S4
+PT: 
+
+[MAP3_S05.29]
+EN: The generator is on. ~E
+PT: 
+
+[MAP3_S05.30]
+EN: There are skid marks from ~N the cabinet being moved. ~E
+PT: 
+
+[MAP3_S05.31]
+EN: There is a ~C2 Hammer ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S05.32]
+EN: A bed? What's it doing here? ~N Who would... ~E
+PT: 
+
+[MAP3_S05.33]
+EN: A body is laid out on the bed. ~N Don't feel like checking this out. ~E
+PT: 
+
+[MAP3_S05.34]
+EN: Nothing helpful. ~E
+PT: 
+
+[MAP3_S05.35]
+EN: Nothing useful in the boxes. ~E
+PT: 
+
+[MAP3_S05.36]
+EN: There's a bottle filled ~N with some kind of drug. ~N Better leave it. ~E
+PT: 
+
+[MAP3_S05.37]
+EN: There are some empty bottles. ~E
+PT: 
+
+[MAP3_S05.38]
+EN: Nothing special in the box. ~N Nothing to worry about. ~E
+PT: 
+
+[MAP3_S05.39]
+EN: Nothing inside. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map3_s06
+################################################################################
+
+[MAP3_S06.15]
+EN: ~J0(1.5) Was I dreaming? ~E
+PT: 
+
+[MAP3_S06.16]
+EN: ~J0(2.6) You were too late. ~E
+PT: 
+
+[MAP3_S06.17]
+EN: ~J0(1.2) It's you... ~E
+PT: 
+
+[MAP3_S06.18]
+EN: ~J0(3.4) Yes. Dahlia Gillespie. ~E
+PT: 
+
+[MAP3_S06.19]
+EN: ~J1(3.0) Tell me everything you know. ~N What's going on?
+PT: 
+
+[MAP3_S06.20]
+EN: ~J1(1.5) Darkness.
+PT: 
+
+[MAP3_S06.21]
+EN: ~J1(3.9) The town is being devoured ~N by darkness.
+PT: 
+
+[MAP3_S06.22]
+EN: ~J1(5.8) Strength must overcome ~N petty desire. ~N Childish sleep talk.
+PT: 
+
+[MAP3_S06.23]
+EN: ~J1(3.4) I knew this day would come.
+PT: 
+
+[MAP3_S06.24]
+EN: ~J1(4.0) What are you talking about? ~N I don't understand a word of this. ~E
+PT: 
+
+[MAP3_S06.25]
+EN: ~J0(3.8) Believe the evidence ~N of your eyes.
+PT: 
+
+[MAP3_S06.26]
+EN: ~J0(5.3) The other church in this town. ~N That is your destination.
+PT: 
+
+[MAP3_S06.27]
+EN: ~J0(6.5) This is beyond my abilities. ~N Only you can stop it now. ~E
+PT: 
+
+[MAP3_S06.28]
+EN: ~J0(5.0) Have you not seen ~N the crest marked ~N on the ground all over town?
+PT: 
+
+[MAP3_S06.29]
+EN: ~J0(3.2) So that's what I saw ~N in the schoolyard.
+PT: 
+
+[MAP3_S06.30]
+EN: ~J0(1.2) What does it mean?
+PT: 
+
+[MAP3_S06.31]
+EN: ~J0(3.1) It is the mark of Samael...
+PT: 
+
+[MAP3_S06.32]
+EN: ~J0(2.8) Don't let it be completed. ~E
+PT: 
+
+[MAP3_S06.33]
+EN: ~J0(1.8) Hey! Wait! ~E
+PT: 
+
+[MAP3_S06.34]
+EN: The elevator doesn't ~N appear to be working. ~E
+PT: 
+
+[MAP3_S06.35]
+EN: ~H There is a ~C5 Hospital map ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S06.36]
+EN: There is an ~C2 Antique shop key ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP3_S06.37]
+EN: These are phones and phonebooks. ~N No need to examine this. ~E
+PT: 
+
+[MAP3_S06.38]
+EN: These are phones and phonebooks.
+PT: 
+
+[MAP3_S06.39]
+EN: I'll copy the location of ~N the antique shop to the map. ~E
+PT: 
+
+[MAP3_S06.40]
+EN: There's a vending machine. ~N It doesn't work. ~E
+PT: 
+
+[MAP3_S06.41]
+EN: There is a newspaper.
+PT: 
+
+[MAP3_S06.42]
+EN: This article's been ~N clipped out... ~E
+PT: 
+
+[MAP3_S06.43]
+EN: Nothing unusual. ~E
+PT: 
+
+[MAP3_S06.44]
+EN: There's a white board. ~N Nothing special written here. ~E
+PT: 
+
+[MAP3_S06.45]
+EN: Nothing helpful. ~E
+PT: 
+
+[MAP3_S06.46]
+EN: The phone's out. ~N Can't get a dial tone. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map4_s01
+################################################################################
+
+[MAP4_S01.15]
+EN: ~J0(1.6) What's this? ~E
+PT: 
+
+[MAP4_S01.16]
+EN: ~J0(1.0) Harry!
+PT: 
+
+[MAP4_S01.17]
+EN: ~J0(1.0) Cybil? ~E
+PT: 
+
+[MAP4_S01.18]
+EN: ~J0(2.8) I'm glad you're OK.
+PT: 
+
+[MAP4_S01.19]
+EN: ~J1(4.0) I shouldn't have left you. ~N Things are worse than I thought.
+PT: 
+
+[MAP4_S01.20]
+EN: ~J1(1.4) It's nuts! ~E
+PT: 
+
+[MAP4_S01.21]
+EN: ~J1(3.0) What are you doing here? ~N I thought you left town.
+PT: 
+
+[MAP4_S01.22]
+EN: ~J1(2.8) I saw you go in here, ~N so I followed you.
+PT: 
+
+[MAP4_S01.23]
+EN: ~J1(1.8) I couldn't get out.
+PT: 
+
+[MAP4_S01.24]
+EN: ~J1(2.0) All the roads out of town ~N are blocked.
+PT: 
+
+[MAP4_S01.25]
+EN: ~J1(2.2) Cars have completely ~N stopped running.
+PT: 
+
+[MAP4_S01.26]
+EN: ~J1(2.4) The phones and radios ~N are still out, too. ~E
+PT: 
+
+[MAP4_S01.27]
+EN: ~J1(2.7) What about my daughter? ~N Did you see her?
+PT: 
+
+[MAP4_S01.28]
+EN: ~J1(1.9) I did see a girl.
+PT: 
+
+[MAP4_S01.29]
+EN: ~J1(1.4) Was it Cheryl?
+PT: 
+
+[MAP4_S01.30]
+EN: ~J1(2.6) I only caught a glimpse of her ~N through the fog.
+PT: 
+
+[MAP4_S01.31]
+EN: ~J1(2.4) I went after her, ~N but she vanished.
+PT: 
+
+[MAP4_S01.32]
+EN: ~J1(2.7) I don't know about ~N your daughter, but... ~E
+PT: 
+
+[MAP4_S01.33]
+EN: ~J1(3.5) And you just let her go!? ~N Where was it?
+PT: 
+
+[MAP4_S01.34]
+EN: ~J1(3.4) On Bachman Road. ~N She was heading towards the lake.
+PT: 
+
+[MAP4_S01.35]
+EN: ~J1(2.0) Now don't get excited.
+PT: 
+
+[MAP4_S01.36]
+EN: ~J1(2.5) It wasn't like she ran off ~N exactly.
+PT: 
+
+[MAP4_S01.37]
+EN: ~J1(4.8) There was no place for her to go. ~N The road has been obliterated. ~E
+PT: 
+
+[MAP4_S01.38]
+EN: ~J1(3.0) What!? ~N So then Cheryl...
+PT: 
+
+[MAP4_S01.39]
+EN: ~J1(3.6) It was like she was walking ~N on thin air.
+PT: 
+
+[MAP4_S01.40]
+EN: ~J1(2.0) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP4_S01.41]
+EN: ~J1(3.0) What about you? Anything?
+PT: 
+
+[MAP4_S01.42]
+EN: ~J1(3.0) Yeah... ~N I met this bizarre woman.
+PT: 
+
+[MAP4_S01.43]
+EN: ~J1(4.0) Her name's Dahlia Gillespie. ~N Do you know her?
+PT: 
+
+[MAP4_S01.44]
+EN: ~J1(1.8) Dahlia Gillespie?
+PT: 
+
+[MAP4_S01.45]
+EN: ~J1(1.0) No.
+PT: 
+
+[MAP4_S01.46]
+EN: ~J1(1.2) And? ~E
+PT: 
+
+[MAP4_S01.47]
+EN: ~J1(4.0) She said something about ~N the town being devoured ~N by darkness.
+PT: 
+
+[MAP4_S01.48]
+EN: ~J1(1.8) Gibberish like that.
+PT: 
+
+[MAP4_S01.49]
+EN: ~J1(2.0) Any idea what it means? ~E
+PT: 
+
+[MAP4_S01.50]
+EN: ~J1(2.9) Darkness devouring the town?
+PT: 
+
+[MAP4_S01.51]
+EN: ~J1(1.6) Must be on drugs.
+PT: 
+
+[MAP4_S01.52]
+EN: ~J1(2.0) They sell 'em to the tourists.
+PT: 
+
+[MAP4_S01.53]
+EN: ~J1(2.8) The force still can't figure out ~N who's behind it.
+PT: 
+
+[MAP4_S01.54]
+EN: ~J1(2.2) None of our leads ~N have panned out,
+PT: 
+
+[MAP4_S01.55]
+EN: ~J1(2.5) and the investigation is stalled.
+PT: 
+
+[MAP4_S01.56]
+EN: ~J1(3.5) What could drug trafficking ~N have to do with all this?
+PT: 
+
+[MAP4_S01.57]
+EN: ~J1(3.2) I really don't know.
+PT: 
+
+[MAP4_S01.58]
+EN: ~J1(3.6) But, maybe that's the darkness ~N she was talking about.
+PT: 
+
+[MAP4_S01.59]
+EN: ~J1(1.8) That's all I can think of.
+PT: 
+
+[MAP4_S01.60]
+EN: ~J1(2.0) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP4_S01.61]
+EN: ~J1(1.2) What's this?
+PT: 
+
+[MAP4_S01.62]
+EN: ~J1(1.5) Just discovered it.
+PT: 
+
+[MAP4_S01.63]
+EN: ~J1(1.8) Maybe there's something ~N back there.
+PT: 
+
+[MAP4_S01.64]
+EN: ~J1(1.4) Let's have a look.
+PT: 
+
+[MAP4_S01.65]
+EN: ~J1(1.0) Wait.
+PT: 
+
+[MAP4_S01.66]
+EN: ~J1(4.0) We don't know what's back there. ~N I'd better check it out first.
+PT: 
+
+[MAP4_S01.67]
+EN: ~J1(2.2) I'm a cop. I should go.
+PT: 
+
+[MAP4_S01.68]
+EN: ~J1(3.0) No. I'm going.
+PT: 
+
+[MAP4_S01.69]
+EN: ~J1(0.9) Alright.
+PT: 
+
+[MAP4_S01.70]
+EN: ~J1(1.5) I'll cover you from here.
+PT: 
+
+[MAP4_S01.71]
+EN: ~J1(1.7) Be careful.
+PT: 
+
+[MAP4_S01.72]
+EN: ~J1(3.6) If anything looks fishy, ~N get back here on the double. ~E
+PT: 
+
+[MAP4_S01.73]
+EN: ~J0(0.8) Okay. ~E
+PT: 
+
+[MAP4_S01.74]
+EN: ~J0(1.0) Cybil.
+PT: 
+
+[MAP4_S01.75]
+EN: ~J0(0.9) Yes? ~E
+PT: 
+
+[MAP4_S01.76]
+EN: ~J1(2.2) Do you know anything about...
+PT: 
+
+[MAP4_S01.77]
+EN: ~J1(6.2) Well...like some other world... ~N It's like some kind of bad dream...?
+PT: 
+
+[MAP4_S01.78]
+EN: ~J1(1.9) What are you talking about?
+PT: 
+
+[MAP4_S01.79]
+EN: ~J1(1.7) I'm not quite sure.
+PT: 
+
+[MAP4_S01.80]
+EN: ~J1(3.7) I try to make sense of it, ~N but then my mind goes blank.
+PT: 
+
+[MAP4_S01.81]
+EN: ~J1(4.0) Everything's dark there, ~N and I hear sirens in the distance.
+PT: 
+
+[MAP4_S01.82]
+EN: ~J1(2.7) I met this nurse... Lisa.
+PT: 
+
+[MAP4_S01.83]
+EN: ~J1(3.7) It's like I was there, ~N but not really.
+PT: 
+
+[MAP4_S01.84]
+EN: ~J1(4.2) It's all a blur. ~N Like some kind of hallucination, ~N you know?
+PT: 
+
+[MAP4_S01.85]
+EN: ~J1(3.0) I have no idea what ~N you're talking about, Harry. ~E
+PT: 
+
+[MAP4_S01.86]
+EN: ~J1(1.8) Oh...
+PT: 
+
+[MAP4_S01.87]
+EN: ~J1(4.5) I was just wondering. ~N Never mind.
+PT: 
+
+[MAP4_S01.88]
+EN: ~J1(1.0) Harry.
+PT: 
+
+[MAP4_S01.89]
+EN: ~J1(2.5) You're tired. ~E
+PT: 
+
+[MAP4_S01.90]
+EN: ~J0(2.4) Yeah, maybe... ~E
+PT: 
+
+[MAP4_S01.91]
+EN: ~J1(4.1) What's this...? ~N Some kind of altar...?
+PT: 
+
+[MAP4_S01.92]
+EN: ~J1(2.6) Never seen anything ~N like this before.
+PT: 
+
+[MAP4_S01.93]
+EN: ~J1(2.5) Maybe this is ~N [the other church.] ~E
+PT: 
+
+[MAP4_S01.94]
+EN: Some kind of powder ~N is left in the chalice. ~E
+PT: 
+
+[MAP4_S01.95]
+EN: ~J0(1.5)
+PT:   (no text — timing only, leave PT blank)
+
+[MAP4_S01.96]
+EN: ~J2(1.5) What the...!? ~E
+PT: 
+
+[MAP4_S01.97]
+EN: ~J0(4.2) Harry? ~N Are you OK? ~E
+PT: 
+
+[MAP4_S01.98]
+EN: ~J0(1.0) Harry? ~E
+PT: 
+
+[MAP4_S01.99]
+EN: ~J0(2.3) Harry? ~E
+PT: 
+
+[MAP4_S01.100]
+EN: There is a trace on the floor ~N that somebody moved the cabinet.
+PT: 
+
+[MAP4_S01.101]
+EN: Do you want to push ~N the cabinet? ~S4
+PT: 
+
+[MAP4_S01.102]
+EN: ~J0(2.0) Was that another dream? ~E
+PT: 
+
+[MAP4_S01.103]
+EN: ~J0(2.0) Did I pass out again? ~E
+PT: 
+
+[MAP4_S01.104]
+EN: ~J0(2.0) I don't want to think so,
+PT: 
+
+[MAP4_S01.105]
+EN: ~J0(3.0) but maybe this is all just ~N going on in my head.
+PT: 
+
+[MAP4_S01.106]
+EN: ~J0(4.0) I could have had a car accident, ~N and now I'm lying unconscious ~N in a hospital bed...
+PT: 
+
+[MAP4_S01.107]
+EN: ~J0(2.0) I don't know ~N what's real anymore... ~E
+PT: 
+
+[MAP4_S01.108]
+EN: ~J0(1.0)
+PT:   (no text — timing only, leave PT blank)
+
+[MAP4_S01.109]
+EN: ~J0(3.0) Cybil said Cheryl was heading ~N towards the lake.
+PT: 
+
+[MAP4_S01.110]
+EN: ~J0(2.2) But, the road to the lake ~N is blocked...
+PT: 
+
+[MAP4_S01.111]
+EN: ~J0(2.0) Aren't there any other roads?
+PT: 
+
+[MAP4_S01.112]
+EN: ~J0(2.0) Lisa would probably know... ~E
+PT: 
+
+[MAP4_S01.113]
+EN: There is an ~C2 Axe ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP4_S01.114]
+EN: There is a clock. ~N Nothing special. ~E
+PT: 
+
+[MAP4_S01.115]
+EN: No need to go back. ~E
+PT: 
+
+[MAP4_S01.116]
+EN: None of this stuff is of any use. ~E
+PT: 
+
+[MAP4_S01.117]
+EN: Looks like an altar. ~N Wonder what they worship? ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map4_s02
+################################################################################
+
+[MAP4_S02.15]
+EN: ~C3 green lion ~E
+PT: 
+
+[MAP4_S02.16]
+EN: ~C3 Alchemilla Hospital ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map4_s03
+################################################################################
+
+[MAP4_S03.15]
+EN: Daddy...where are you...?
+PT: 
+
+[MAP4_S03.16]
+EN: ~J0(1.0) Cheryl! ~E
+PT: 
+
+[MAP4_S03.17]
+EN: There is a ~C2 Hunting rifle ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP4_S03.18]
+EN: Nothing unusual. ~E
+PT: 
+
+[MAP4_S03.19]
+EN: A picture is projected ~N on the screen.
+PT: 
+
+[MAP4_S03.20]
+EN: Cheryl... ~N where could she be? ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map4_s04
+################################################################################
+
+[MAP4_S04.15]
+EN: ~J0(1.8) Where am I? ~E
+PT: 
+
+[MAP4_S04.16]
+EN: ~J1(1.0) Harry.
+PT: 
+
+[MAP4_S04.17]
+EN: ~J1(1.2) Lisa...
+PT: 
+
+[MAP4_S04.18]
+EN: ~J1(1.5) Then I'm in the hospital.
+PT: 
+
+[MAP4_S04.19]
+EN: ~J1(2.4) You were having a bad dream.
+PT: 
+
+[MAP4_S04.20]
+EN: ~J1(0.8) Was I?
+PT: 
+
+[MAP4_S04.21]
+EN: ~J1(4.2) Hey, you don't look too good. ~N Are you OK?
+PT: 
+
+[MAP4_S04.22]
+EN: ~J1(1.3) I'm fine.
+PT: 
+
+[MAP4_S04.23]
+EN: ~J1(2.2) Nothing you need to ~N worry about.
+PT: 
+
+[MAP4_S04.24]
+EN: ~J1(2.2) Well, if you're sure... ~E
+PT: 
+
+[MAP4_S04.25]
+EN: ~J1(4.3) Lisa... ~N Do you know a woman ~N named Dahlia Gillespie?
+PT: 
+
+[MAP4_S04.26]
+EN: ~J1(3.2) Oh yeah, ~N that crazy Gillespie lady.
+PT: 
+
+[MAP4_S04.27]
+EN: ~J1(2.3) She's kinda' famous around here.
+PT: 
+
+[MAP4_S04.28]
+EN: ~J1(4.0) She never sees anybody, ~N so I don't know ~N that much about her.
+PT: 
+
+[MAP4_S04.29]
+EN: ~J1(5.2) I heard her kid died in a fire, ~N and supposedly she's been crazy ~N ever since. ~E
+PT: 
+
+[MAP4_S04.30]
+EN: ~J1(5.1) Well, she says the town is being ~N devoured by the darkness.
+PT: 
+
+[MAP4_S04.31]
+EN: ~J1(2.7) Do you have any idea ~N what she's talking about?
+PT: 
+
+[MAP4_S04.32]
+EN: ~J1(3.5) The town... devoured ~N by the darkness.
+PT: 
+
+[MAP4_S04.33]
+EN: ~J1(2.1) Yes, I think I do.
+PT: 
+
+[MAP4_S04.34]
+EN: ~J1(2.9) Before this place was turned ~N into a resort,
+PT: 
+
+[MAP4_S04.35]
+EN: ~J1(3.4) the townspeople here were ~N on the quiet side.
+PT: 
+
+[MAP4_S04.36]
+EN: ~J1(4.1) Everybody followed ~N some kind of queer religion. ~E
+PT: 
+
+[MAP4_S04.37]
+EN: ~J1(4.8) Weird occult stuff... ~N Black magic, that kind of thing.
+PT: 
+
+[MAP4_S04.38]
+EN: ~J1(5.0) As young people moved away, ~N the people figured they'd been ~N summoned by the gods.
+PT: 
+
+[MAP4_S04.39]
+EN: ~J1(3.7) Evidently, things like that ~N used to happen around here ~N all the time.
+PT: 
+
+[MAP4_S04.40]
+EN: ~J1(3.5) Before the resort, ~N there really wasn't ~N anything else out here.
+PT: 
+
+[MAP4_S04.41]
+EN: ~J1(4.5) Everyone was so flipped out. ~N Gotta blame it on something.
+PT: 
+
+[MAP4_S04.42]
+EN: ~J1(3.8) Then a lot of new people ~N came in and everybody ~N clammed up about it.
+PT: 
+
+[MAP4_S04.43]
+EN: ~J0(1.8) A cult... ~E
+PT: 
+
+[MAP4_S04.44]
+EN: ~J0(4.8) Last time I heard anything ~N about it was, gosh, years ago...
+PT: 
+
+[MAP4_S04.45]
+EN: ~J1(4.4) When several people connected ~N with developing the town ~N died in accidents.
+PT: 
+
+[MAP4_S04.46]
+EN: ~J1(2.0) People said it was a curse.
+PT: 
+
+[MAP4_S04.47]
+EN: ~J1(4.2) I'm sorry, I'm rambling... ~N I'll shut up. ~E
+PT: 
+
+[MAP4_S04.48]
+EN: ~J0(1.1) Harry! ~E
+PT: 
+
+[MAP4_S04.49]
+EN: ~J0(1.6) Glad you're OK. ~E
+PT: 
+
+[MAP4_S04.50]
+EN: ~J0(4.6) Thank God you came back. ~N I was scared to be here all alone.
+PT: 
+
+[MAP4_S04.51]
+EN: ~J0(2.5) I'm here now. ~N I was worried, too.
+PT: 
+
+[MAP4_S04.52]
+EN: ~J0(1.6) I'm real happy to see you. ~E
+PT: 
+
+[MAP4_S04.53]
+EN: ~J1(3.3) Lisa, can you tell me ~N how to get to the lake?
+PT: 
+
+[MAP4_S04.54]
+EN: ~J1(3.0) The lake? ~N You take Bachman Road.
+PT: 
+
+[MAP4_S04.55]
+EN: ~J1(1.5) The road's blocked.
+PT: 
+
+[MAP4_S04.56]
+EN: ~J1(2.3) Well, that's ~N the only way out there.
+PT: 
+
+[MAP4_S04.57]
+EN: ~J1(1.3) Are you sure?
+PT: 
+
+[MAP4_S04.58]
+EN: ~J1(2.7) There's gotta be another way. ~E
+PT: 
+
+[MAP4_S04.59]
+EN: ~J1(3.0) Wait, ~N I just remembered something.
+PT: 
+
+[MAP4_S04.60]
+EN: ~J1(0.6) What?
+PT: 
+
+[MAP4_S04.61]
+EN: ~J1(3.3) There's a water works over by ~N my old elementary school.
+PT: 
+
+[MAP4_S04.62]
+EN: ~J1(2.3) It's been abandoned for years.
+PT: 
+
+[MAP4_S04.63]
+EN: ~J1(4.2) There's an underground tunnel ~N out there used for inspections, ~N or something!
+PT: 
+
+[MAP4_S04.64]
+EN: ~J1(3.2) I remember hearing it runs ~N all the way to the lake! ~E
+PT: 
+
+[MAP4_S04.65]
+EN: ~J1(0.9) Really?!
+PT: 
+
+[MAP4_S04.66]
+EN: ~J1(2.3) You think I can get to the lake ~N from there?
+PT: 
+
+[MAP4_S04.67]
+EN: ~J1(3.1) I've never been down ~N in there myself, ~N so I'm not positive.
+PT: 
+
+[MAP4_S04.68]
+EN: ~J1(2.8) Besides, it's all fenced off ~N to keep people out.
+PT: 
+
+[MAP4_S04.69]
+EN: ~J1(2.3) If there's a chance, ~N I've got to try. ~E
+PT: 
+
+[MAP4_S04.70]
+EN: ~J1(2.0) Harry, don't go!
+PT: 
+
+[MAP4_S04.71]
+EN: ~J1(4.2) I don't want to be alone. ~N It's so scary. I can't stand it.
+PT: 
+
+[MAP4_S04.72]
+EN: ~J1(1.6) How about coming with me?
+PT: 
+
+[MAP4_S04.73]
+EN: ~J1(2.6) This may not be the safest place ~N in the world either.
+PT: 
+
+[MAP4_S04.74]
+EN: ~J1(3.6) I can't promise you anything, ~N but I'll do my best ~N to protect you.
+PT: 
+
+[MAP4_S04.75]
+EN: ~J1(4.2) No... ~N somehow I feel I'm not supposed ~N to leave this place.
+PT: 
+
+[MAP4_S04.76]
+EN: ~J1(4.0) Oh, Harry, I'm so scared... ~N I'm cold.
+PT: 
+
+[MAP4_S04.77]
+EN: ~J1(3.8) Look, just wait here ~N a little longer.
+PT: 
+
+[MAP4_S04.78]
+EN: ~J1(3.0) I'll be back as soon as ~N I find my daughter. ~E
+PT: 
+
+[MAP4_S04.79]
+EN: ~J0(1.5) Harry... ~E
+PT: 
+
+[MAP4_S04.80]
+EN: Nothing unusual. ~E
+PT: 
+
+[MAP4_S04.81]
+EN: Nothing helpful. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map4_s05
+################################################################################
+
+[MAP4_S05.15]
+EN: ~J0(1.0) What? ~E
+PT: 
+
+[MAP4_S05.16]
+EN: ~J0(2.5) That light!? ~E
+PT: 
+
+[MAP4_S05.17]
+EN: The stairs are wrecked! ~E
+PT: 
+
+[MAP4_S05.18]
+EN: ~C3 Alchemilla Hospital ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map5_s00
+################################################################################
+
+[MAP5_S00.15]
+EN: Used the ~C2 Sewer key ~C7 . ~E
+PT: 
+
+[MAP5_S00.16]
+EN: Used the ~C2 Sewer exit key ~C7 . ~E
+PT: 
+
+[MAP5_S00.17]
+EN: There is a ~C2 Sewer key ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP5_S00.18]
+EN: There is a ~C2 Sewer exit key ~C7 ~N in the water. Take it? ~S4
+PT: 
+
+[MAP5_S00.19]
+EN: Got to find Cheryl. ~N No time to go back. ~E
+PT: 
+
+[MAP5_S00.20]
+EN: ~H There is a ~C5 Sewer map ~N (connecting to resort area) ~C7 . ~N Take it? ~S4
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map5_s01
+################################################################################
+
+[MAP5_S01.15]
+EN: ~H There is a ~C5 Resort area map ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP5_S01.16]
+EN: Nothing unusual. ~E
+PT: 
+
+[MAP5_S01.17]
+EN: Used the ~C2 Kaufmann key ~C7 . ~E
+PT: 
+
+[MAP5_S01.18]
+EN: ~J0(1.0) What? ~E
+PT: 
+
+[MAP5_S01.19]
+EN: ~J0(2.5) That light!? ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map5_s02
+################################################################################
+
+[MAP5_S02.15]
+EN: ~J0(8.7) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP5_S02.16]
+EN: ~J0(1.2) Are you OK? ~E
+PT: 
+
+[MAP5_S02.17]
+EN: ~J0(1.4) Yeah, I guess so.
+PT: 
+
+[MAP5_S02.18]
+EN: ~J0(3.0) But I'm beat. ~N I thought I was a goner there. ~E
+PT: 
+
+[MAP5_S02.19]
+EN: ~J1(3.0) So, how'd it go? ~N Did you find a way out?
+PT: 
+
+[MAP5_S02.20]
+EN: ~J1(2.4) No. Not yet.
+PT: 
+
+[MAP5_S02.21]
+EN: ~J1(1.1) How about you?
+PT: 
+
+[MAP5_S02.22]
+EN: ~J1(1.0) Zip.
+PT: 
+
+[MAP5_S02.23]
+EN: ~J1(1.8) But it's too soon to give up.
+PT: 
+
+[MAP5_S02.24]
+EN: ~J1(2.8) This craziness can't ~N go on forever.
+PT: 
+
+[MAP5_S02.25]
+EN: ~J1(3.4) A military rescue squad ~N should be here any time now.
+PT: 
+
+[MAP5_S02.26]
+EN: ~J1(2.8) If they come through the town, ~N we're home free.
+PT: 
+
+[MAP5_S02.27]
+EN: ~J1(1.7) I hope so.
+PT: 
+
+[MAP5_S02.28]
+EN: ~J1(1.4) I better get going.
+PT: 
+
+[MAP5_S02.29]
+EN: ~J1(3.4) This isn't the time to stand ~N around flapping our gums. ~E
+PT: 
+
+[MAP5_S02.30]
+EN: ~J0(2.0) Do you know ~N a girl called Alessa? ~E
+PT: 
+
+[MAP5_S02.31]
+EN: ~J0(1.0) No. ~E
+PT: 
+
+[MAP5_S02.32]
+EN: Kaufmann must have dropped ~N this.
+PT: 
+
+[MAP5_S02.33]
+EN: Looks like it's full of stuff... ~E
+PT: 
+
+[MAP5_S02.34]
+EN: What is this? ~N Drugs? ~E
+PT: 
+
+[MAP5_S02.35]
+EN: ~C3 August 20
+PT: 
+
+[MAP5_S02.36]
+EN: ~C3 He came by. I handed over the ~N package that the woman left here.
+PT: 
+
+[MAP5_S02.37]
+EN: ~C3 September 12
+PT: 
+
+[MAP5_S02.38]
+EN: ~C3 He showed up at Norman's, too.
+PT: 
+
+[MAP5_S02.39]
+EN: ~C3 Don't want to be involved with ~N the likes of them anymore, but...
+PT: 
+
+[MAP5_S02.40]
+EN: ~C3 I'm getting creeped out ~N even more than before.
+PT: 
+
+[MAP5_S02.41]
+EN: ~C3 Thought of leaving town, but ~N I'm afraid of what will happen ~N if I do. ~E
+PT: 
+
+[MAP5_S02.42]
+EN: ~C3 3 loaves of bread. ~N 3 cartons of milk. ~N 2 dozen eggs.
+PT: 
+
+[MAP5_S02.43]
+EN: ~C3 Deliver to back door daily 8 a.m. ~N Rear entrance code 0886 ~N Norman Young ~E
+PT: 
+
+[MAP5_S02.44]
+EN: ~C3 Norman's Grand Opening. ~E
+PT: 
+
+[MAP5_S02.45]
+EN: There is a drawer. ~N Do you want to open it? ~S4
+PT: 
+
+[MAP5_S02.46]
+EN: Used the ~C2 Safe key ~C7 . ~E
+PT: 
+
+[MAP5_S02.47]
+EN: There is a ~C2 Safe key ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP5_S02.48]
+EN: It's locked. ~E
+PT: 
+
+[MAP5_S02.49]
+EN: I've got a ~C2 Receipt ~C7 . ~E
+PT: 
+
+[MAP5_S02.50]
+EN: I've got a ~C2 Kaufmann key ~C7 . ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map5_s03
+################################################################################
+
+[MAP5_S03.15]
+EN: I've got a ~C2 Motorcycle key ~C7 . ~E
+PT: 
+
+[MAP5_S03.16]
+EN: There's a crack. ~E
+PT: 
+
+[MAP5_S03.17]
+EN: There's a crack. ~N Something glints inside.
+PT: 
+
+[MAP5_S03.18]
+EN: The crack is too small ~N to reach in. ~E
+PT: 
+
+[MAP5_S03.19]
+EN: An old motorcycle.
+PT: 
+
+[MAP5_S03.20]
+EN: Looks like it's been sitting ~N here for years.
+PT: 
+
+[MAP5_S03.21]
+EN: ~J1(1.5)
+PT:   (no text — timing only, leave PT blank)
+
+[MAP5_S03.22]
+EN: That's weird.
+PT: 
+
+[MAP5_S03.23]
+EN: The dust is wiped away ~N just around the gas tank cap. ~E
+PT: 
+
+[MAP5_S03.24]
+EN: A small glass vial, ~N wrapped in a plastic bag.
+PT: 
+
+[MAP5_S03.25]
+EN: What's this? ~E
+PT: 
+
+[MAP5_S03.26]
+EN: It's like the busted vial ~N I found in the director's office ~N at the hospital. ~E
+PT: 
+
+[MAP5_S03.27]
+EN: ~J0(1.3) Give me that!
+PT: 
+
+[MAP5_S03.28]
+EN: ~J0(1.2) What is this? ~E
+PT: 
+
+[MAP5_S03.29]
+EN: ~J1(2.0) That's none of your business!
+PT: 
+
+[MAP5_S03.30]
+EN: ~J1(3.3) Instead of messing with that, ~N how about coming up with a way ~N to get out of here?
+PT: 
+
+[MAP5_S03.31]
+EN: ~J1(0.9) Humph. ~E
+PT: 
+
+[MAP5_S03.32]
+EN: ~J1(2.6) You shouldn't be hanging ~N around here goofing off!
+PT: 
+
+[MAP5_S03.33]
+EN: ~J1(1.3) What do you think ~N you are doing?
+PT: 
+
+[MAP5_S03.34]
+EN: ~J1(3.0) You want to get yourself killed!? ~N Get outta here!
+PT: 
+
+[MAP5_S03.35]
+EN: ~J1(1.9) Okay, take it easy. ~E
+PT: 
+
+[MAP5_S03.36]
+EN: ~J1(3.2) Unless you want to die, ~N keep your mind on business.
+PT: 
+
+[MAP5_S03.37]
+EN: ~J1(0.8) Got it? ~E
+PT: 
+
+[MAP5_S03.38]
+EN: ~J1(3.3) That guy's gotta be involved ~N in the local drug racket.
+PT: 
+
+[MAP5_S03.39]
+EN: ~J1(3.1) Man, was he pissed. ~N And in such a rush, too.
+PT: 
+
+[MAP5_S03.40]
+EN: ~J1(1.8) That was probably dope ~N in the bottle.
+PT: 
+
+[MAP5_S03.41]
+EN: ~J1(3.9) Anyway, better let him do as he ~N pleases. There's more than ~N my life at stake. ~E
+PT: 
+
+[MAP5_S03.42]
+EN: ~J1(2.0) I guess I wasted my time.
+PT: 
+
+[MAP5_S03.43]
+EN: ~J1(2.0) Better hurry.... ~N I'm worried about Cheryl. ~E
+PT: 
+
+[MAP5_S03.44]
+EN: ~J1(3.1) Man, was he pissed. ~N And in such a rush, too. ~E
+PT: 
+
+[MAP5_S03.45]
+EN: There is a newspaper. ~E
+PT: 
+
+[MAP5_S03.46]
+EN: Newspaper.
+PT: 
+
+[MAP5_S03.47]
+EN: It's the same date as ~N the one in the hospital... ~E
+PT: 
+
+[MAP5_S03.48]
+EN: ~L4 ~C3 Investigation stalled. ~N [PTV] dealers still at large. ~N ~N Suspicious deaths continue. ~N Like the anti-drug mayor, ~N a narcotics officer dies of ~N a sudden heart failure of ~N unknown origin. ~E
+PT: 
+
+[MAP5_S03.49]
+EN: ~C3 September 10
+PT: 
+
+[MAP5_S03.50]
+EN: ~C3 Took package. ~N Told to sit on it awhile.
+PT: 
+
+[MAP5_S03.51]
+EN: ~C3 Don't want to get involved, ~N but can't disobey...
+PT: 
+
+[MAP5_S03.52]
+EN: ~C3 He's probably linked to the death ~N of the mayor and others. ~E
+PT: 
+
+[MAP5_S03.53]
+EN: There is a ~C2 Magnet ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP5_S03.54]
+EN: Used the ~C2 Motorcycle key ~C7 . ~E
+PT: 
+
+[MAP5_S03.55]
+EN: Batteries, oil cans, ~N and other items line the shelves.
+PT: 
+
+[MAP5_S03.56]
+EN: A fine layer of ~N dust covers everything, ~N as if long abandoned. ~E
+PT: 
+
+[MAP5_S03.57]
+EN: There's a radio ~N on top of the cabinet.
+PT: 
+
+[MAP5_S03.58]
+EN: It's completely dead. ~N Maybe it's broken. ~E
+PT: 
+
+[MAP5_S03.59]
+EN: A poster is on the wall. ~N Don't look at that now, though. ~E
+PT: 
+
+[MAP5_S03.60]
+EN: There's a TV set.
+PT: 
+
+[MAP5_S03.61]
+EN: The power must be out. ~N It doesn't work. ~E
+PT: 
+
+[MAP5_S03.62]
+EN: There's a guest register. ~N Nothing special written here. ~E
+PT: 
+
+[MAP5_S03.63]
+EN: Nothing special. ~E
+PT: 
+
+[MAP5_S03.64]
+EN: There's a vending machine. ~N It doesn't work. ~E
+PT: 
+
+[MAP5_S03.65]
+EN: Nobody inside. ~E
+PT: 
+
+[MAP5_S03.66]
+EN: Do you want to push ~N the shelf? ~S4
+PT: 
+
+[MAP5_S03.67]
+EN: An old motorcycle. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map6_s00
+################################################################################
+
+[MAP6_S00.15]
+EN: ~J0(1.5) What's this! ~E
+PT: 
+
+[MAP6_S00.16]
+EN: ~J0(0.1) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP6_S00.17]
+EN: ~J0(0.1) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP6_S00.18]
+EN: ~J0(0.1) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP6_S00.19]
+EN: ~J1(4.0) Not again...!? ~N No, this time it feels different.
+PT: 
+
+[MAP6_S00.20]
+EN: ~J1(4.5) Rather than shifting ~N from reality to a nightmare,
+PT: 
+
+[MAP6_S00.21]
+EN: ~J1(4.5) this is more like reality ~N becoming a nightmare.
+PT: 
+
+[MAP6_S00.22]
+EN: ~J1(6.0) I don't like this feeling. ~N Like something bad ~N will happen...
+PT: 
+
+[MAP6_S00.23]
+EN: ~J1(4.0) No doubt, something terrible ~N is going on... ~E
+PT: 
+
+[MAP6_S00.24]
+EN: The cover has been removed...
+PT: 
+
+[MAP6_S00.25]
+EN: Could Cybil have gotten ~N to the Amusement Park from here? ~E
+PT: 
+
+[MAP6_S00.26]
+EN: ~C3 LAKE SIDE AMUSEMENT PARK ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map6_s01
+################################################################################
+
+[MAP6_S01.15]
+EN: ~J0(1.0) Cybil! ~E
+PT: 
+
+[MAP6_S01.16]
+EN: ~J1(1.1) Harry!
+PT: 
+
+[MAP6_S01.17]
+EN: ~J1(1.6) How did you get back here?
+PT: 
+
+[MAP6_S01.18]
+EN: ~J1(1.6) I followed the sewer.
+PT: 
+
+[MAP6_S01.19]
+EN: ~J1(1.9) Were you the one ~N who cut the fence?
+PT: 
+
+[MAP6_S01.20]
+EN: ~J1(1.0) Yeah.
+PT: 
+
+[MAP6_S01.21]
+EN: ~J1(3.0) I'm glad you made it. ~N I was worried about you. ~E
+PT: 
+
+[MAP6_S01.22]
+EN: ~J1(3.6) You were worried!? ~N Where did you disappear to?
+PT: 
+
+[MAP6_S01.23]
+EN: ~J1(1.0) Never mind.
+PT: 
+
+[MAP6_S01.24]
+EN: ~J1(2.1) I want to know ~N what's going on here.
+PT: 
+
+[MAP6_S01.25]
+EN: ~J1(2.4) What is with this town? ~E
+PT: 
+
+[MAP6_S01.26]
+EN: ~J1(3.5) This may sound really off ~N the wall, but listen to me.
+PT: 
+
+[MAP6_S01.27]
+EN: ~J1(1.8) You've got to believe me.
+PT: 
+
+[MAP6_S01.28]
+EN: ~J1(3.2) I haven't gone crazy, ~N and I'm not fooling around. ~E
+PT: 
+
+[MAP6_S01.29]
+EN: ~J1(3.7) At first, I thought I was ~N losing my mind.
+PT: 
+
+[MAP6_S01.30]
+EN: ~J1(2.3) But now I know I'm not.
+PT: 
+
+[MAP6_S01.31]
+EN: ~J1(3.0) It's not me. ~N This whole town...
+PT: 
+
+[MAP6_S01.32]
+EN: ~J1(2.5) it's being invaded ~N by the Otherworld.
+PT: 
+
+[MAP6_S01.33]
+EN: ~J1(4.0) By a world of someone's ~N nightmarish delusions ~N come to life...
+PT: 
+
+[MAP6_S01.34]
+EN: ~J1(2.9) Little by little ~N the invasion is spreading...
+PT: 
+
+[MAP6_S01.35]
+EN: ~J1(2.8) Trying to swallow up ~N everything in darkness.
+PT: 
+
+[MAP6_S01.36]
+EN: ~J1(4.2) I think I'm finally beginning ~N to understand what that lady ~N was talking about. ~E
+PT: 
+
+[MAP6_S01.37]
+EN: ~J1(4.6) Harry. ~N Hold on a minute. ~N I don't get it?
+PT: 
+
+[MAP6_S01.38]
+EN: ~J1(3.1) Look, I don't understand ~N it all myself.
+PT: 
+
+[MAP6_S01.39]
+EN: ~J1(1.8) I guess I can't explain it.
+PT: 
+
+[MAP6_S01.40]
+EN: ~J1(2.2) Well, what's making ~N this happen?
+PT: 
+
+[MAP6_S01.41]
+EN: ~J1(1.6) I don't know that either.
+PT: 
+
+[MAP6_S01.42]
+EN: ~J1(2.8) But, I do know ~N Cheryl is [there].
+PT: 
+
+[MAP6_S01.43]
+EN: ~J1(1.0) [There]...?
+PT: 
+
+[MAP6_S01.44]
+EN: ~J1(3.1) Under whoever created ~N this darkness.
+PT: 
+
+[MAP6_S01.45]
+EN: ~J1(3.2) Cheryl is somewhere. ~N And she needs my help. ~E
+PT: 
+
+[MAP6_S01.46]
+EN: ~J1(1.0) Harry.
+PT: 
+
+[MAP6_S01.47]
+EN: ~J1(2.8) This whole thing's been ~N a major blow to you.
+PT: 
+
+[MAP6_S01.48]
+EN: ~J1(1.8) You need to rest.
+PT: 
+
+[MAP6_S01.49]
+EN: ~J1(1.5) Cybil, I... ~E
+PT: 
+
+[MAP6_S01.50]
+EN: ~J1(5.2) The demon is awakening! ~N Spreading those wings.
+PT: 
+
+[MAP6_S01.51]
+EN: ~J1(1.7) Dahlia Gillespie... ~E
+PT: 
+
+[MAP6_S01.52]
+EN: ~J1(2.9) Was it not as I said?
+PT: 
+
+[MAP6_S01.53]
+EN: ~J1(4.4) I see it all, now. ~N Yes, everything.
+PT: 
+
+[MAP6_S01.54]
+EN: ~J1(4.9) Hungry for sacrifice, ~N the demon will swallow up ~N the land.
+PT: 
+
+[MAP6_S01.55]
+EN: ~J1(3.1) I knew this day would come.
+PT: 
+
+[MAP6_S01.56]
+EN: ~J1(3.9) And what's more, ~N the task is almost finished.
+PT: 
+
+[MAP6_S01.57]
+EN: ~J1(2.5) There's only two left.
+PT: 
+
+[MAP6_S01.58]
+EN: ~J1(5.3) To seal this town to the abyss, ~N the mark of Samael.
+PT: 
+
+[MAP6_S01.59]
+EN: ~J1(3.6) When it is completed, all is lost.
+PT: 
+
+[MAP6_S01.60]
+EN: ~J1(4.6) Even in daytime, ~N darkness will cover the sun.
+PT: 
+
+[MAP6_S01.61]
+EN: ~J1(5.8) The dead will walk, ~N and martyrs will burn ~N in the fires of hell.
+PT: 
+
+[MAP6_S01.62]
+EN: ~J1(3.1) Everyone will die. ~E
+PT: 
+
+[MAP6_S01.63]
+EN: ~J0(3.5) So what am I supposed to do? ~N I've got to save Cheryl.
+PT: 
+
+[MAP6_S01.64]
+EN: ~J1(3.6) It is simple. ~N Stop the demon.
+PT: 
+
+[MAP6_S01.65]
+EN: ~J1(4.6) The demon, ~N the demon taking that ~N child's form.
+PT: 
+
+[MAP6_S01.66]
+EN: ~J1(3.7) Stop it before your daughter ~N becomes a sacrifice.
+PT: 
+
+[MAP6_S01.67]
+EN: ~J1(2.6) Before it is too late.
+PT: 
+
+[MAP6_S01.68]
+EN: ~J1(3.0) Stop it. Stop it.
+PT: 
+
+[MAP6_S01.69]
+EN: ~J1(1.6) What do I do?
+PT: 
+
+[MAP6_S01.70]
+EN: ~J1(3.0) Go to the lighthouse ~N on the lake,
+PT: 
+
+[MAP6_S01.71]
+EN: ~J1(3.5) and to the center of ~N the amusement park.
+PT: 
+
+[MAP6_S01.72]
+EN: ~J1(3.5) Make haste. ~N You are the only hope. ~E
+PT: 
+
+[MAP6_S01.73]
+EN: ~J0(1.1) Look Harry.
+PT: 
+
+[MAP6_S01.74]
+EN: ~J0(2.1) I really don't get ~N what's going on.
+PT: 
+
+[MAP6_S01.75]
+EN: ~J0(4.4) But if there's a chance ~N we can save your daughter, ~N I'm in.
+PT: 
+
+[MAP6_S01.76]
+EN: ~J0(1.9) I'll check out ~N the amusement park.
+PT: 
+
+[MAP6_S01.77]
+EN: ~J0(1.7) You go to the lighthouse. ~E
+PT: 
+
+[MAP6_S01.78]
+EN: ~J0(2.5) Cybil... Thanks. ~E
+PT: 
+
+[MAP6_S01.79]
+EN: ~J0(2.1) You will need to use it. ~E
+PT: 
+
+[MAP6_S01.80]
+EN: ~J0(1.2) Use what?
+PT: 
+
+[MAP6_S01.81]
+EN: ~J0(1.7) The Flauros.
+PT: 
+
+[MAP6_S01.82]
+EN: ~J0(3.2) Only with that can you ~N stop it. ~E
+PT: 
+
+[MAP6_S01.83]
+EN: ~J0(2.0) What about Cybil!? ~E
+PT: 
+
+[MAP6_S01.84]
+EN: ~J0(2.0) Cybil hasn't come back. ~E
+PT: 
+
+[MAP6_S01.85]
+EN: ~J0(3.5) That creep's sure to show up ~N at the Amusement Park ~N pretty soon.
+PT: 
+
+[MAP6_S01.86]
+EN: ~J0(2.0) Let me be on time. ~E
+PT: 
+
+[MAP6_S01.87]
+EN: There's a ship's wheel. ~N Don't worry about that now, ~N though. ~E
+PT: 
+
+[MAP6_S01.88]
+EN: There's a body stuck ~N to the bulkhead. ~E
+PT: 
+
+[MAP6_S01.89]
+EN: ~J0(1.0) What? ~E
+PT: 
+
+[MAP6_S01.90]
+EN: ~J0(2.5) That light!? ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map6_s02
+################################################################################
+
+[MAP6_S02.15]
+EN: ~J0(1.0) ...! ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP6_S02.16]
+EN: ~J0(1.0) Wait! ~E
+PT: 
+
+[MAP6_S02.17]
+EN: ~J0(1.7) Damn! ~N I was too late? ~E
+PT: 
+
+[MAP6_S02.18]
+EN: ~J0(1.5) Sorry...
+PT: 
+
+[MAP6_S02.19]
+EN: ~J0(0.6) Ah...
+PT: 
+
+[MAP6_S02.20]
+EN: ~J0(1.5)
+PT:   (no text — timing only, leave PT blank)
+
+[MAP6_S02.21]
+EN: ~J0(3.6) Let me ask you, have you seen ~N a little girl around here? ~E
+PT: 
+
+[MAP6_S02.22]
+EN: ~J0(2.8) Short, black hair... ~E
+PT: 
+
+[MAP6_S02.23]
+EN: ~J0(1.0) What? ~E
+PT: 
+
+[MAP6_S02.24]
+EN: ~J0(2.5) That light!? ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map6_s03
+################################################################################
+
+[MAP6_S03.15]
+EN: ~H There is a ~C5 Sewer map ~N (connecting to amusement park) ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP6_S03.16]
+EN: Gotta' go find Cybil! ~N No time to go back. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map6_s04
+################################################################################
+
+[MAP6_S04.15]
+EN: Gotta' go find Cybil! ~N No time to go back. ~E
+PT: 
+
+[MAP6_S04.16]
+EN: ~J0(10) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP6_S04.17]
+EN: ~J0(10) Cybil! ~E
+PT: 
+
+[MAP6_S04.18]
+EN: ~J0(2.3) Wake up! Snap out of it! ~E
+PT: 
+
+[MAP6_S04.19]
+EN: ~J0(1.0) Cybil! ~E
+PT: 
+
+[MAP6_S04.20]
+EN: ~J0(4.7) ...Harry? ~N ...What...happened?
+PT: 
+
+[MAP6_S04.21]
+EN: ~J0(3.3) Don't talk. ~N I'll take care of you. ~E
+PT: 
+
+[MAP6_S04.22]
+EN: ~J1(4.8) Harry... ~N Why did they take your daughter?
+PT: 
+
+[MAP6_S04.23]
+EN: ~J1(2.3) Why her?
+PT: 
+
+[MAP6_S04.24]
+EN: ~J1(3.0) I'm not sure, myself.
+PT: 
+
+[MAP6_S04.25]
+EN: ~J1(4.3) But you know, Cheryl isn't ~N my biological daughter.
+PT: 
+
+[MAP6_S04.26]
+EN: ~J1(3.0) I actually haven't told her yet.
+PT: 
+
+[MAP6_S04.27]
+EN: ~J1(3.3) She probably already knows ~N anyway, though. ~E
+PT: 
+
+[MAP6_S04.28]
+EN: ~J1(3.9) We found her abandoned ~N on the side of the highway.
+PT: 
+
+[MAP6_S04.29]
+EN: ~J1(3.3) Nobody knew ~N where she came from.
+PT: 
+
+[MAP6_S04.30]
+EN: ~J1(3.3) We didn't have any kids ~N of our own.
+PT: 
+
+[MAP6_S04.31]
+EN: ~J1(2.4) My wife was sick,
+PT: 
+
+[MAP6_S04.32]
+EN: ~J1(3.4) and it didn't look like ~N she was getting any better.
+PT: 
+
+[MAP6_S04.33]
+EN: ~J1(2.7) So we took Cheryl in. ~E
+PT: 
+
+[MAP6_S04.34]
+EN: ~J1(3.1) So in that case...
+PT: 
+
+[MAP6_S04.35]
+EN: ~J1(5.2) There might be some connection ~N between Cheryl and this town. ~E
+PT: 
+
+[MAP6_S04.36]
+EN: ~J1(3.4) So what do you do now?
+PT: 
+
+[MAP6_S04.37]
+EN: ~J1(3.5) Cheryl is my daughter. ~N I will save her.
+PT: 
+
+[MAP6_S04.38]
+EN: ~J1(4.5) No matter what. ~E
+PT: 
+
+[MAP6_S04.39]
+EN: ~J0(7.3) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP6_S04.40]
+EN: ~J0(7.0) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP6_S04.41]
+EN: ~J0(6.0) What in the hell... ~N How could this have happened? ~E
+PT: 
+
+[MAP6_S04.42]
+EN: ~J1(1.7) I figured you'd show.
+PT: 
+
+[MAP6_S04.43]
+EN: ~J1(1.6) Hold it right there.
+PT: 
+
+[MAP6_S04.44]
+EN: ~J1(4.0) I don't know who you are, ~N what you are trying to do, ~N and I don't care.
+PT: 
+
+[MAP6_S04.45]
+EN: ~J1(1.6) Just one thing.
+PT: 
+
+[MAP6_S04.46]
+EN: ~J1(3.1) Let Cheryl go. ~N That's all I ask. ~E
+PT: 
+
+[MAP6_S04.47]
+EN: ~J0(1.0) What? ~E
+PT: 
+
+[MAP6_S04.48]
+EN: ~J0(1.0) Damn! ~E
+PT: 
+
+[MAP6_S04.49]
+EN: ~J0(1.2) Huh? ~E
+PT: 
+
+[MAP6_S04.50]
+EN: ~J0(1.5) What is this? ~E
+PT: 
+
+[MAP6_S04.51]
+EN: ~J0(1.4) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP6_S04.52]
+EN: ~J1(1.6) Where's Cheryl?
+PT: 
+
+[MAP6_S04.53]
+EN: ~J1(2.0) Give me back my daughter. ~E
+PT: 
+
+[MAP6_S04.54]
+EN: ~J0(3.2) We meet at last, Alessa.
+PT: 
+
+[MAP6_S04.55]
+EN: ~J0(1.2) .......! ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP6_S04.56]
+EN: ~J1(1.8) Dahlia Gillespie......
+PT: 
+
+[MAP6_S04.57]
+EN: ~J1(2.0) Where's Cheryl? ~N Where is she!? ~E
+PT: 
+
+[MAP6_S04.58]
+EN: ~J1(1.2) Alessa.
+PT: 
+
+[MAP6_S04.59]
+EN: ~J1(4.0) This is the end of ~N your little game.
+PT: 
+
+[MAP6_S04.60]
+EN: ~J1(1.2) Mama...
+PT: 
+
+[MAP6_S04.61]
+EN: ~J1(2.7) Huh? ~N Could she be...? ~E
+PT: 
+
+[MAP6_S04.62]
+EN: ~J1(4.6) You've been a ghastly little pest, ~N haven't you? Alessa?
+PT: 
+
+[MAP6_S04.63]
+EN: ~J1(2.0) I was careless.
+PT: 
+
+[MAP6_S04.64]
+EN: ~J1(3.5) Thinking you couldn't escape ~N from our spell.
+PT: 
+
+[MAP6_S04.65]
+EN: ~J1(4.5) But Mommy didn't know ~N how much you'd grown.
+PT: 
+
+[MAP6_S04.66]
+EN: ~J1(4.3) That's why I couldn't catch you ~N all by myself.
+PT: 
+
+[MAP6_S04.67]
+EN: ~J1(2.8) But what a pity, yes?
+PT: 
+
+[MAP6_S04.68]
+EN: ~J1(5.0) Now you're half indebted ~N to this man for his help.
+PT: 
+
+[MAP6_S04.69]
+EN: ~J1(2.7) Hey! ~N What are you talking about?
+PT: 
+
+[MAP6_S04.70]
+EN: ~J1(6.9) Alessa. My dear little girl... ~N There is one thing left ~N I need you to do for me. ~E
+PT: 
+
+[MAP6_S04.71]
+EN: ~J0(2.3) No. ~N Get away from me.
+PT: 
+
+[MAP6_S04.72]
+EN: ~J0(1.8) Bad girl.
+PT: 
+
+[MAP6_S04.73]
+EN: ~J0(5.1) Everything is ready. ~N Let's go home now. ~E
+PT: 
+
+[MAP6_S04.74]
+EN: ~J0(1.7) What's going on here!? ~E
+PT: 
+
+[MAP6_S04.75]
+EN: ~J0(1.2) ~E
+PT:   (no text — timing only, leave PT blank)
+
+
+
+################################################################################
+##  DIALOGUE — map7_s00
+################################################################################
+
+[MAP7_S00.15]
+EN: ~J0(1.2) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S00.16]
+EN: ~J1(1.2) Lisa?
+PT: 
+
+[MAP7_S00.17]
+EN: ~J1(3.8) What happened? ~N Where's Alessa and Dahlia?
+PT: 
+
+[MAP7_S00.18]
+EN: ~J1(1.6) Harry, listen.
+PT: 
+
+[MAP7_S00.19]
+EN: ~J1(2.8) Something you said before ~N has been bothering me.
+PT: 
+
+[MAP7_S00.20]
+EN: ~J1(2.6) I just can't get it out of my head.
+PT: 
+
+[MAP7_S00.21]
+EN: ~J1(1.6) What is it Lisa?
+PT: 
+
+[MAP7_S00.22]
+EN: ~J1(2.5) So I went to look ~N in the basement.
+PT: 
+
+[MAP7_S00.23]
+EN: ~J1(3.0) Even though I was scared ~N as hell.
+PT: 
+
+[MAP7_S00.24]
+EN: ~J1(3.1) Like you said, ~N there were these creepy rooms.
+PT: 
+
+[MAP7_S00.25]
+EN: ~J1(3.2) But nothing really unusual ~N down there.
+PT: 
+
+[MAP7_S00.26]
+EN: ~J1(3.6) But while I was down there, ~N I got this weird feeling.
+PT: 
+
+[MAP7_S00.27]
+EN: ~J1(2.2) Like I'd been there before.
+PT: 
+
+[MAP7_S00.28]
+EN: ~J1(5.0) Like something happened there, ~N but I can't quite remember ~N somehow.
+PT: 
+
+[MAP7_S00.29]
+EN: ~J1(1.8) What was it? ~E
+PT: 
+
+[MAP7_S00.30]
+EN: ~J0(2.4) Harry... help me...
+PT: 
+
+[MAP7_S00.31]
+EN: ~J0(3.2) I'm so scared. ~N I can't take this.
+PT: 
+
+[MAP7_S00.32]
+EN: ~J0(2.0) It's only a temporary thing.
+PT: 
+
+[MAP7_S00.33]
+EN: ~J0(2.7) You're in shock from ~N when you were knocked out.
+PT: 
+
+[MAP7_S00.34]
+EN: ~J0(2.7) Don't fret about it, ~N you'll remember after a while... ~E
+PT: 
+
+[MAP7_S00.35]
+EN: ~J0(1.5) No.
+PT: 
+
+[MAP7_S00.36]
+EN: ~J0(2.0) You don't understand... ~E
+PT: 
+
+[MAP7_S00.37]
+EN: ~J0(2.8) Wait! ~N Where do you think ~N you're going? ~E
+PT: 
+
+[MAP7_S00.38]
+EN: ~J0(2.0) Lisa...
+PT: 
+
+[MAP7_S00.39]
+EN: ~J0(3.0) Damn! What's that? ~E
+PT: 
+
+[MAP7_S00.40]
+EN: ~J0(2.0) That sound....
+PT: 
+
+[MAP7_S00.41]
+EN: ~J0(4.0) From down there... ~N It's coming from the basement... ~E
+PT: 
+
+[MAP7_S00.42]
+EN: ~J0(2.4) I'm being summoned... ~E
+PT: 
+
+[MAP7_S00.43]
+EN: ~J0(2.1) What happened in this town?
+PT: 
+
+[MAP7_S00.44]
+EN: ~J0(2.7) What could be making things ~N like this?
+PT: 
+
+[MAP7_S00.45]
+EN: ~J0(4.3) I have a feeling if I take ~N the elevator down I'll find it. ~E
+PT: 
+
+[MAP7_S00.46]
+EN: ~J0(1.5) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S00.47]
+EN: Nothing unusual. ~E
+PT: 
+
+[MAP7_S00.48]
+EN: Nothing helpful. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map7_s01
+################################################################################
+
+[MAP7_S01.15]
+EN: ~J0(5.5)
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S01.16]
+EN: ~J0(2.8) Damn! ~N What's that? ~E
+PT: 
+
+[MAP7_S01.17]
+EN: ~J0(1.2) Harry? ~E
+PT: 
+
+[MAP7_S01.18]
+EN: ~J1(2.6) Lisa... ~N What's the matter with you?
+PT: 
+
+[MAP7_S01.19]
+EN: ~J1(1.8) I get it now...
+PT: 
+
+[MAP7_S01.20]
+EN: ~J1(4.0) Why I'm still alive even ~N though everyone else's dead.
+PT: 
+
+[MAP7_S01.21]
+EN: ~J1(4.0) I'm not the only one ~N who's still walking around.
+PT: 
+
+[MAP7_S01.22]
+EN: ~J1(1.7) I'm the same as them.
+PT: 
+
+[MAP7_S01.23]
+EN: ~J1(2.8) I just hadn't noticed it before. ~E
+PT: 
+
+[MAP7_S01.24]
+EN: ~J1(1.3) Lisa?
+PT: 
+
+[MAP7_S01.25]
+EN: ~J1(3.6) Stay by me, Harry. ~N Please.
+PT: 
+
+[MAP7_S01.26]
+EN: ~J1(3.3) I'm so scared. ~N Help me... ~E
+PT: 
+
+[MAP7_S01.27]
+EN: ~J0(2.4) Save me from them.
+PT: 
+
+[MAP7_S01.28]
+EN: ~J0(4.0) Please... Harry... ~E
+PT: 
+
+[MAP7_S01.29]
+EN: ~J0(8.9) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S01.30]
+EN: Same thing... ~E
+PT: 
+
+[MAP7_S01.31]
+EN: ~L4 ~C3 Investigation stalled. ~N [PTV] dealers still at large. ~N ~N Suspicious deaths continue. ~N Like the anti-drug mayor, ~N a narcotics officer dies of ~N a sudden heart failure of ~N unknown origin. ~E
+PT: 
+
+[MAP7_S01.32]
+EN: Are there others? ~N It's pretty old...
+PT: 
+
+[MAP7_S01.33]
+EN: ~L4 ~C3 Fire broke out in town. ~N 6 homes destroyed. ~N ~N Charred body ~N of Alessa Gillespie(7) ~N found in aftermath. ~N ~N Cause of fire currently under ~N investigation.
+PT: 
+
+[MAP7_S01.34]
+EN: ~L4 ~C3 Investigations show source ~N as basement of Gillespie home. ~N Blaze now believed caused by ~N malfunction of antiquated ~N boiler. ~E
+PT: 
+
+[MAP7_S01.35]
+EN: The date of the blaze...
+PT: 
+
+[MAP7_S01.36]
+EN: it's the same day ~N we found Cheryl! ~E
+PT: 
+
+[MAP7_S01.37]
+EN: There's a place mark ~N in the book... ~E
+PT: 
+
+[MAP7_S01.38]
+EN: ~L4 ~C3 WHITE CLAUDIA. ~N ~N Perennial herb found near water. ~N Reaches height of 10 to 15 in. ~N Oblong leaves, white blossoms.
+PT: 
+
+[MAP7_S01.39]
+EN: ~L4 ~C3 Seeds contain hallucinogen. ~N Ancient records show it was ~N used for religious ceremonies. ~N The hallucinogenic effect ~N was key. ~E
+PT: 
+
+[MAP7_S01.40]
+EN: ~L4 ~C3 Ask doctor to let me quit being ~N in charge of that patient. ~N ~N It's too weird. ~E
+PT: 
+
+[MAP7_S01.41]
+EN: ~L4 ~C3 The room is filled with insects. ~N ~N Even with doors ~N and windows shut ~N they get in to spite me. ~N ~N To the hospital... ~E
+PT: 
+
+[MAP7_S01.42]
+EN: ~L4 ~C3 Still alive, ~N but with wounds that won't heal. ~E
+PT: 
+
+[MAP7_S01.43]
+EN: ~L4 ~C3 Blood and pus flow from ~N the bathroom faucet. ~N ~N I try to stop it, ~N but it won't turn off. ~E
+PT: 
+
+[MAP7_S01.44]
+EN: ~L4 ~C3 Feeling bad. ~N Need to throw up. ~N But nothing comes out. ~N Vomiting only bile. ~E
+PT: 
+
+[MAP7_S01.45]
+EN: ~L4 ~C3 Need drug. ~E
+PT: 
+
+[MAP7_S01.46]
+EN: ~L4 ~C3 Told the doctor I quit. ~N Won't work at that ~N hospital anymore. ~E
+PT: 
+
+[MAP7_S01.47]
+EN: ~L4 ~C3 Help me... ~E
+PT: 
+
+[MAP7_S01.48]
+EN: Used the ~C2 Key of [Ophiel] ~C7 . ~E
+PT: 
+
+[MAP7_S01.49]
+EN: Used the ~C2 Key of [Hagith] ~C7 . ~E
+PT: 
+
+[MAP7_S01.50]
+EN: Used the ~C2 Key of [Phaleg] ~C7 . ~E
+PT: 
+
+[MAP7_S01.51]
+EN: There is a ~C2 Ring of contract ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S01.52]
+EN: There are ~C2 Pliers ~C7 . ~N Take them? ~S4
+PT: 
+
+[MAP7_S01.53]
+EN: There is a ~C2 Screwdriver ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S01.54]
+EN: There is a ~C2 Bird cage key ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S01.55]
+EN: There is a ~C2 Camera ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S01.56]
+EN: There is a ~C2 Stone of time ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S01.57]
+EN: There is a ~C2 Key of [Ophiel] ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S01.58]
+EN: There is a ~C2 Key of [Hagith] ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S01.59]
+EN: There is a ~C2 Key of [Phaleg] ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S01.60]
+EN: There is an ~C2 Amulet of Solomon ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S01.61]
+EN: There is a ~C2 Crest of Mercury ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S01.62]
+EN: ~C3 Go home.
+PT: 
+
+[MAP7_S01.63]
+EN: ~C3 Thief.
+PT: 
+
+[MAP7_S01.64]
+EN: ~C3 Drop dead. ~E
+PT: 
+
+[MAP7_S01.65]
+EN: Old clock. ~N There is a square hole ~N in the center of the clock.
+PT: 
+
+[MAP7_S01.66]
+EN: The hands of the clock ~N ...it's a key.
+PT: 
+
+[MAP7_S01.67]
+EN: I can't get to it because ~N of the glass cover. ~E
+PT: 
+
+[MAP7_S01.68]
+EN: There is a key in the faucet,
+PT: 
+
+[MAP7_S01.69]
+EN: but I can't get it out no matter ~N how much I pull. ~E
+PT: 
+
+[MAP7_S01.70]
+EN: There is a slate. ~E
+PT: 
+
+[MAP7_S01.71]
+EN: ~C3 Names engraved ~N On a lithograph. ~N The Grim Reaper's list.
+PT: 
+
+[MAP7_S01.72]
+EN: ~C3 Yes, the headcount is set ~N Young and old lined up ~N In order of age.
+PT: 
+
+[MAP7_S01.73]
+EN: ~C3 Then, the pathway opens ~N Awaiting them, the frenzied ~N Uproar, the feast of death! ~E
+PT: 
+
+[MAP7_S01.74]
+EN: There is a key.
+PT: 
+
+[MAP7_S01.75]
+EN: Electricity is flowing to the key. ~N I'll get shocked if I grab it now. ~E
+PT: 
+
+[MAP7_S01.76]
+EN: ~C3 The light to the future. ~E
+PT: 
+
+[MAP7_S01.77]
+EN: ~C3 The light illuminating ~N the darkness. ~E
+PT: 
+
+[MAP7_S01.78]
+EN: The bird cage is locked. ~E
+PT: 
+
+[MAP7_S01.79]
+EN: Used the ~C2 Bird cage key ~C7 . ~E
+PT: 
+
+[MAP7_S01.80]
+EN: Bird cage. It's empty. ~E
+PT: 
+
+[MAP7_S01.81]
+EN: It's locked.
+PT: 
+
+[MAP7_S01.82]
+EN: The word, [Ophiel] ~N is carved on the door. ~E
+PT: 
+
+[MAP7_S01.83]
+EN: It's locked.
+PT: 
+
+[MAP7_S01.84]
+EN: The word, [Hagith] ~N is carved on the door. ~E
+PT: 
+
+[MAP7_S01.85]
+EN: It's locked.
+PT: 
+
+[MAP7_S01.86]
+EN: The word, [Phaleg] ~N is carved on the door. ~E
+PT: 
+
+[MAP7_S01.87]
+EN: A steel plate ~N is screwed to the wall. ~E
+PT: 
+
+[MAP7_S01.88]
+EN: The elevator doesn't ~N appear to be working. ~E
+PT: 
+
+[MAP7_S01.89]
+EN: There's a clock ~N with a broken face. ~E
+PT: 
+
+[MAP7_S01.90]
+EN: None of this stuff is of any use. ~E
+PT: 
+
+[MAP7_S01.91]
+EN: Just a wall. ~E
+PT: 
+
+[MAP7_S01.92]
+EN: There is a diary on the floor. ~E
+PT: 
+
+[MAP7_S01.93]
+EN: Nothing helpful. ~E
+PT: 
+
+[MAP7_S01.94]
+EN: Looks like an altar. ~N Wonder what they worship? ~E
+PT: 
+
+[MAP7_S01.95]
+EN: A body is laid out on the bed. ~N Don't feel like checking this out. ~E
+PT: 
+
+[MAP7_S01.96]
+EN: There's a botanical ~N reference book. ~N Don't need to read it now. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map7_s02
+################################################################################
+
+[MAP7_S02.15]
+EN: Same thing... ~E
+PT: 
+
+[MAP7_S02.16]
+EN: ~L4 ~C3 Investigation stalled. ~N [PTV] dealers still at large. ~N ~N Suspicious deaths continue. ~N Like anti-drug Mayor, ~N narcotics officer dies of ~N sudden heart failure of ~N unknown origin. ~E
+PT: 
+
+[MAP7_S02.17]
+EN: Are there others? ~N It's pretty old...
+PT: 
+
+[MAP7_S02.18]
+EN: ~L4 ~C3 Fire broke out in town. ~N 6 homes destroyed. ~N ~N Charred body ~N of Alessa Gillespie(7) ~N found in aftermath. ~N ~N Cause of fire currently under ~N investigation.
+PT: 
+
+[MAP7_S02.19]
+EN: ~L4 ~C3 Investigations show source ~N as basement of Gillespie home. ~N Blaze now believed caused by ~N malfunction of antiquated ~N boiler. ~E
+PT: 
+
+[MAP7_S02.20]
+EN: The date of the blaze...
+PT: 
+
+[MAP7_S02.21]
+EN: it's the same day ~N we found Cheryl! ~E
+PT: 
+
+[MAP7_S02.22]
+EN: There's a place mark ~N in the book.. ~E
+PT: 
+
+[MAP7_S02.23]
+EN: ~L4 ~C3 WHITE CLAUDIA. ~N ~N Perennial herb found near water. ~N Reaches height of 10 to 15 in. ~N Oblong leaves, white blossoms.
+PT: 
+
+[MAP7_S02.24]
+EN: ~L4 ~C3 Seeds contain hallucinogen. ~N Ancient records show it was ~N used for religious ceremonies. ~N The hallucinogenic effect ~N was key. ~E
+PT: 
+
+[MAP7_S02.25]
+EN: ~L4 ~C3 Ask doctor to let me quit being ~N in charge of that patient. ~N ~N It's too weird. ~E
+PT: 
+
+[MAP7_S02.26]
+EN: ~L4 ~C3 The room is filled with insects. ~N ~N Even with doors ~N and windows shut ~N they get in to spite me. ~N ~N To the hospital... ~E
+PT: 
+
+[MAP7_S02.27]
+EN: ~L4 ~C3 Still alive, ~N but with wounds that won't heal. ~E
+PT: 
+
+[MAP7_S02.28]
+EN: ~L4 ~C3 Blood and pus flow from ~N the bathroom faucet. ~N ~N I try to stop it, ~N but it won't turn off. ~E
+PT: 
+
+[MAP7_S02.29]
+EN: ~L4 ~C3 Feeling bad. ~N Need to throw up. ~N But nothing comes out. ~N Vomiting only bile. ~E
+PT: 
+
+[MAP7_S02.30]
+EN: ~L4 ~C3 Need drug. ~E
+PT: 
+
+[MAP7_S02.31]
+EN: ~L4 ~C3 Told the doctor I quit. ~N Won't work at that ~N hospital anymore. ~E
+PT: 
+
+[MAP7_S02.32]
+EN: ~J0(0.7)
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S02.33]
+EN: ~J2(1.5) What is it?
+PT: 
+
+[MAP7_S02.34]
+EN: ~J2(2.7) Still has an unusually ~N high fever...
+PT: 
+
+[MAP7_S02.35]
+EN: ~J2(2.6) Eyes don't open... ~N getting a pulse...
+PT: 
+
+[MAP7_S02.36]
+EN: ~J2(2.8) But just barely breathing.
+PT: 
+
+[MAP7_S02.37]
+EN: ~J2(2.3) Her skin is all charred!
+PT: 
+
+[MAP7_S02.38]
+EN: ~J2(1.2) Even when I change ~N the bandages,
+PT: 
+
+[MAP7_S02.39]
+EN: ~J2(3.8) the blood and pus just start ~N oozing through!
+PT: 
+
+[MAP7_S02.40]
+EN: ~J2(5.9) Why... ~N What is keeping that child alive?
+PT: 
+
+[MAP7_S02.41]
+EN: ~J2(2.8) I... can't stand it ~N any longer...
+PT: 
+
+[MAP7_S02.42]
+EN: ~J2(3.3) I won't tell a soul ~N ...promise.
+PT: 
+
+[MAP7_S02.43]
+EN: ~J2(2.0) So please...
+PT: 
+
+[MAP7_S02.44]
+EN: ~J2(1.0) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S02.45]
+EN: ~J0(1.3)
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S02.46]
+EN: ~J0(3.3) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S02.47]
+EN: ~J1(6.4) Everything is going ~N according to plan. ~N Sheltered in the womb.
+PT: 
+
+[MAP7_S02.48]
+EN: ~J1(1.8) But it's not done yet.
+PT: 
+
+[MAP7_S02.49]
+EN: ~J1(4.5) Half the soul is lost. ~N That is why the seed ~N lies dormant.
+PT: 
+
+[MAP7_S02.50]
+EN: ~J1(3.6) And what soul remains ~N captured in that husk,
+PT: 
+
+[MAP7_S02.51]
+EN: ~J1(3.7) is buried deep down ~N in the subconscious.
+PT: 
+
+[MAP7_S02.52]
+EN: ~J1(2.6) Are you trying to say ~N it won't work!?
+PT: 
+
+[MAP7_S02.53]
+EN: ~J1(2.0) That wasn't our agreement!
+PT: 
+
+[MAP7_S02.54]
+EN: ~J1(4.0) No, no. ~N These are just stalling tactics.
+PT: 
+
+[MAP7_S02.55]
+EN: ~J1(4.4) If we lend a hand, ~N we will be able to get power.
+PT: 
+
+[MAP7_S02.56]
+EN: ~J1(5.4) Never fear. ~N The promise shall not be broken.
+PT: 
+
+[MAP7_S02.57]
+EN: ~J1(5.0) But the power we could ~N draw now would be ~N very weak; almost nothing.
+PT: 
+
+[MAP7_S02.58]
+EN: ~J1(3.2) Unless we get the other ~N half of the soul...
+PT: 
+
+[MAP7_S02.59]
+EN: ~J1(3.1) We'll use a magical spell.
+PT: 
+
+[MAP7_S02.60]
+EN: ~J1(6.0) Feeling this child's pain, ~N it's sure to come.
+PT: 
+
+[MAP7_S02.61]
+EN: ~J1(2.8) But that will take time... ~E
+PT: 
+
+[MAP7_S02.62]
+EN: ~J0(2.9)
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S02.63]
+EN: ~J0(3.0) No! ~N I don't want to!
+PT: 
+
+[MAP7_S02.64]
+EN: ~J0(2.7) Do what mommy tells you, now.
+PT: 
+
+[MAP7_S02.65]
+EN: ~J0(6.3) I just want you to lend me ~N a teeny bit of your power. ~N That's all.
+PT: 
+
+[MAP7_S02.66]
+EN: ~J2(1.2) No! ~E
+PT: 
+
+[MAP7_S02.67]
+EN: ~J0(2.0) I don't want to do it! ~E
+PT: 
+
+[MAP7_S02.68]
+EN: ~J1(5.8) It will make everyone happy... ~N and it's for your own good, too.
+PT: 
+
+[MAP7_S02.69]
+EN: ~J1(4.3) Oh, but mommy. ~N I just want to be with you.
+PT: 
+
+[MAP7_S02.70]
+EN: ~J1(4.3) Just two of us. ~N Please understand. ~E
+PT: 
+
+[MAP7_S02.71]
+EN: ~J1(7.1) Oh, yes, I see... ~N Maybe mommy has been wrong.
+PT: 
+
+[MAP7_S02.72]
+EN: ~J1(1.3) Mommy...
+PT: 
+
+[MAP7_S02.73]
+EN: ~J1(5.3) Why didn't I see this before? ~N There's no reason to wait...
+PT: 
+
+[MAP7_S02.74]
+EN: ~J1(7.2) Herein lies the mother's womb, ~N containing the power ~N to create life.
+PT: 
+
+[MAP7_S02.75]
+EN: ~J1(4.2) I could have done it all myself.
+PT: 
+
+[MAP7_S02.76]
+EN: ~J1(1.6) Mommy? ~E
+PT: 
+
+[MAP7_S02.77]
+EN: Used the ~C2 Key of [Bethor] ~C7 . ~E
+PT: 
+
+[MAP7_S02.78]
+EN: Used the ~C2 Key of [Aratron] ~C7 . ~E
+PT: 
+
+[MAP7_S02.79]
+EN: There is a ~C2 Key of [Bethor] ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S02.80]
+EN: There is a ~C2 Key of [Aratron] ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S02.81]
+EN: There is an ~C2 Ankh ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S02.82]
+EN: There is a ~C2 Dagger of Melchior ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S02.83]
+EN: There is a ~C2 Disk of Ouroboros ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S02.84]
+EN: The generator is working. ~N Do you want to press the switch? ~S4
+PT: 
+
+[MAP7_S02.85]
+EN: The generator is stopped. ~N Do you want to press the switch? ~S4
+PT: 
+
+[MAP7_S02.86]
+EN: It's locked.
+PT: 
+
+[MAP7_S02.87]
+EN: The word, [Bethor] ~N is carved on the door. ~E
+PT: 
+
+[MAP7_S02.88]
+EN: It's locked.
+PT: 
+
+[MAP7_S02.89]
+EN: The word, [Aratron] ~N is carved on the door. ~E
+PT: 
+
+[MAP7_S02.90]
+EN: Jelly beans. ~N Do you want to open the bag? ~S4
+PT: 
+
+[MAP7_S02.91]
+EN: The chain is missing a link. ~E
+PT: 
+
+[MAP7_S02.92]
+EN: The chain is fixed ~N with the ring. ~E
+PT: 
+
+[MAP7_S02.93]
+EN: There is a ~C2 Ring of contract ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S02.94]
+EN: There is a ~C2 Screwdriver ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S02.95]
+EN: There is a ~C2 Camera ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S02.96]
+EN: There is an ~C2 Amulet of Solomon ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S02.97]
+EN: There is a ~C2 Crest of Mercury ~C7 . ~N Take it? ~S4
+PT: 
+
+[MAP7_S02.98]
+EN: ~C3 Go home.
+PT: 
+
+[MAP7_S02.99]
+EN: ~C3 Thief.
+PT: 
+
+[MAP7_S02.100]
+EN: ~C3 Drop dead. ~E
+PT: 
+
+[MAP7_S02.101]
+EN: ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S02.102]
+EN: ~C3 Names engraved ~N On a lithograph. ~N The Grim Reaper's list.
+PT: 
+
+[MAP7_S02.103]
+EN: ~C3 Yes, the headcount is set ~N Young and old lined up ~N In order of age.
+PT: 
+
+[MAP7_S02.104]
+EN: ~C3 Then, the pathway opens ~N Awaiting them, the frenzied ~N Uproar, the feast of death! ~E
+PT: 
+
+[MAP7_S02.105]
+EN: There is a key.
+PT: 
+
+[MAP7_S02.106]
+EN: Electricity is flowing to the key. ~N I'll get shocked if I grab it now. ~E
+PT: 
+
+[MAP7_S02.107]
+EN: ~C3 The light to the future. ~E
+PT: 
+
+[MAP7_S02.108]
+EN: ~C3 The light illuminating ~N the darkness. ~E
+PT: 
+
+[MAP7_S02.109]
+EN: Bird cage. It's empty. ~E
+PT: 
+
+[MAP7_S02.110]
+EN: A steel plate ~N is screwed to the wall. ~E
+PT: 
+
+[MAP7_S02.111]
+EN: ~J0(1.2) Harry? ~E
+PT: 
+
+[MAP7_S02.112]
+EN: ~J1(2.6) Lisa... ~N What's the matter with you?
+PT: 
+
+[MAP7_S02.113]
+EN: ~J1(1.8) I get it now...
+PT: 
+
+[MAP7_S02.114]
+EN: ~J1(4.0) Why I'm still alive even ~N though everyone else's dead.
+PT: 
+
+[MAP7_S02.115]
+EN: ~J1(4.0) I'm not the only one ~N who's still walking around.
+PT: 
+
+[MAP7_S02.116]
+EN: ~J1(1.7) I'm the same as them.
+PT: 
+
+[MAP7_S02.117]
+EN: ~J1(2.8) I just hadn't noticed it before. ~E
+PT: 
+
+[MAP7_S02.118]
+EN: ~J1(1.3) Lisa?
+PT: 
+
+[MAP7_S02.119]
+EN: ~J1(3.6) Stay by me, Harry. ~N Please.
+PT: 
+
+[MAP7_S02.120]
+EN: ~J1(3.3) I'm so scared. ~N Help me... ~E
+PT: 
+
+[MAP7_S02.121]
+EN: ~J0(2.4) Save me from them.
+PT: 
+
+[MAP7_S02.122]
+EN: ~J0(4.0) Please... Harry... ~E
+PT: 
+
+[MAP7_S02.123]
+EN: ~J0(8.9) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S02.124]
+EN: [Alessa] ~E
+PT: 
+
+[MAP7_S02.125]
+EN: Used the ~C2 Amulet of Solomon ~C7 . ~E
+PT: 
+
+[MAP7_S02.126]
+EN: Used the ~C2 Crest of Mercury ~C7 . ~E
+PT: 
+
+[MAP7_S02.127]
+EN: Used the ~C2 Ankh ~C7 . ~E
+PT: 
+
+[MAP7_S02.128]
+EN: Used the ~C2 Dagger of Melchior ~C7 . ~E
+PT: 
+
+[MAP7_S02.129]
+EN: Used the ~C2 Disk of Ouroboros ~C7 . ~E
+PT: 
+
+[MAP7_S02.130]
+EN: ~C3 thou possess them ~N to guard thy spirit ~N evoke five rites ~N unveil thy fate ~E
+PT: 
+
+[MAP7_S02.131]
+EN: There's a severed power line. ~N Nothing special here either. ~E
+PT: 
+
+[MAP7_S02.132]
+EN: The elevator doesn't ~N appear to be working. ~E
+PT: 
+
+[MAP7_S02.133]
+EN: There's a clock ~N with a broken face. ~E
+PT: 
+
+[MAP7_S02.134]
+EN: Used the ~C2 Ring of contract ~C7 . ~E
+PT: 
+
+[MAP7_S02.135]
+EN: None of this stuff is of any use. ~E
+PT: 
+
+[MAP7_S02.136]
+EN: Just a wall. ~E
+PT: 
+
+[MAP7_S02.137]
+EN: There are specimen of ~N butterflies and moths ~N hanging on the wall. ~E
+PT: 
+
+[MAP7_S02.138]
+EN: A girl's clothing hangs ~N on the wall.
+PT: 
+
+[MAP7_S02.139]
+EN: Six, maybe seven... ~N Must be a kid about that age. ~E
+PT: 
+
+[MAP7_S02.140]
+EN: Cards are scattered ~N on the floor. ~E
+PT: 
+
+[MAP7_S02.141]
+EN: There are dolls on the floor. ~E
+PT: 
+
+[MAP7_S02.142]
+EN: A child's drawings are scattered ~N on the floor. ~E
+PT: 
+
+[MAP7_S02.143]
+EN: Nothing unusual. ~E
+PT: 
+
+[MAP7_S02.144]
+EN: There are old fairy tales, ~N picture books of animals, ~N and plants on the shelf. ~E
+PT: 
+
+[MAP7_S02.145]
+EN: None of this stuff is of any use. ~E
+PT: 
+
+[MAP7_S02.146]
+EN: ~L4 ~C3 Help me... ~E
+PT: 
+
+[MAP7_S02.147]
+EN: There is a diary on the floor. ~E
+PT: 
+
+[MAP7_S02.148]
+EN: Nothing helpful. ~E
+PT: 
+
+[MAP7_S02.149]
+EN: Looks like an altar. ~N Wonder what they worship? ~E
+PT: 
+
+[MAP7_S02.150]
+EN: The floors and walls are covered ~N with graffiti. ~E
+PT: 
+
+[MAP7_S02.151]
+EN: VCR. It's old but usable. ~E
+PT: 
+
+[MAP7_S02.152]
+EN: A body is laid out on the bed. ~N Don't feel like checking this out. ~E
+PT: 
+
+[MAP7_S02.153]
+EN: There's a bottle filled ~N with some kind of drug. ~N Better leave it. ~E
+PT: 
+
+[MAP7_S02.154]
+EN: There are some empty bottles. ~E
+PT: 
+
+[MAP7_S02.155]
+EN: Nothing special in the box. ~N Nothing to worry about. ~E
+PT: 
+
+[MAP7_S02.156]
+EN: Nothing inside. ~E
+PT: 
+
+[MAP7_S02.157]
+EN: Nothing useful in the boxes. ~E
+PT: 
+
+[MAP7_S02.158]
+EN: There's a botanical ~N reference book. ~N Don't need to read it now. ~E
+PT: 
+
+
+
+################################################################################
+##  DIALOGUE — map7_s03
+################################################################################
+
+[MAP7_S03.15]
+EN: ~J1(4.9) I was shocked to realize ~N the talisman of Metraton ~N was being used.
+PT: 
+
+[MAP7_S03.16]
+EN: ~J1(4.0) In spite of the lost soul ~N returning at last,
+PT: 
+
+[MAP7_S03.17]
+EN: ~J1(4.3) Just a little longer and all ~N would have been for naught.
+PT: 
+
+[MAP7_S03.18]
+EN: ~J1(7.0) It's all because of that man. ~N We must be thankful to him.
+PT: 
+
+[MAP7_S03.19]
+EN: ~J1(3.2) Even though Alessa ~N has been stopped,
+PT: 
+
+[MAP7_S03.20]
+EN: ~J1(8.5) his little girl still has to go. ~N What a pity... ~E
+PT: 
+
+[MAP7_S03.21]
+EN: ~J0(1.2) Freeze! ~E
+PT: 
+
+[MAP7_S03.22]
+EN: ~J0(2.6) What in the devil's name...! ~E
+PT: 
+
+[MAP7_S03.23]
+EN: ~J0(1.1) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.24]
+EN: ~J1(1.1) Dahlia!
+PT: 
+
+[MAP7_S03.25]
+EN: ~J1(5.6) Well, well, well. ~N To think you'd make it this far.
+PT: 
+
+[MAP7_S03.26]
+EN: ~J1(2.5) Where's Cheryl!? ~N What have you done to her!?
+PT: 
+
+[MAP7_S03.27]
+EN: ~J1(2.0) What are you talking about?
+PT: 
+
+[MAP7_S03.28]
+EN: ~J1(4.8) You've seen her many times. ~N Restored to her former self.
+PT: 
+
+[MAP7_S03.29]
+EN: ~J1(2.4) I'm in no mood for jokes. ~E
+PT: 
+
+[MAP7_S03.30]
+EN: ~J0(3.4) Don't you see? ~N She's right there. ~E
+PT: 
+
+[MAP7_S03.31]
+EN: ~J1(1.8) That's absurd.
+PT: 
+
+[MAP7_S03.32]
+EN: ~J1(4.5) You are the only one ~N who thinks so.
+PT: 
+
+[MAP7_S03.33]
+EN: ~J1(1.4) Why?
+PT: 
+
+[MAP7_S03.34]
+EN: ~J1(2.2) Why are you doing this? ~E
+PT: 
+
+[MAP7_S03.35]
+EN: ~J1(3.8) It's been a long seven years...
+PT: 
+
+[MAP7_S03.36]
+EN: ~J1(4.4) For the seven years ~N since that terrible day,
+PT: 
+
+[MAP7_S03.37]
+EN: ~J1(3.2) Alessa has been kept alive,
+PT: 
+
+[MAP7_S03.38]
+EN: ~J1(3.9) suffering a fate worse ~N than death.
+PT: 
+
+[MAP7_S03.39]
+EN: ~J1(6.5) Alessa has been trapped ~N in an endless nightmare ~N from which she never wakens.
+PT: 
+
+[MAP7_S03.40]
+EN: ~J1(4.0) He has been nurtured ~N by that nightmare.
+PT: 
+
+[MAP7_S03.41]
+EN: ~J1(3.6) Waiting for ~N the day to be born.
+PT: 
+
+[MAP7_S03.42]
+EN: ~J1(3.6) That day has finally come.
+PT: 
+
+[MAP7_S03.43]
+EN: ~J1(2.9) The time is neigh. ~E
+PT: 
+
+[MAP7_S03.44]
+EN: ~J1(5.1) Everyone will be released, ~N from pain and suffering.
+PT: 
+
+[MAP7_S03.45]
+EN: ~J1(3.1) Our salvation is at hand.
+PT: 
+
+[MAP7_S03.46]
+EN: ~J1(2.8) This is the day of reckoning.
+PT: 
+
+[MAP7_S03.47]
+EN: ~J1(4.7) When all our sorrows ~N will be washed away.
+PT: 
+
+[MAP7_S03.48]
+EN: ~J1(4.8) When we return to ~N the true paradise! ~E
+PT: 
+
+[MAP7_S03.49]
+EN: ~J0(6.2) My daughter will be ~N the mother of God! ~E
+PT: 
+
+[MAP7_S03.50]
+EN: ~J0(4.0) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.51]
+EN: ~J1(1.7) Quit screwing around!
+PT: 
+
+[MAP7_S03.52]
+EN: ~J1(2.4) Return things to how ~N they were before!
+PT: 
+
+[MAP7_S03.53]
+EN: ~J1(1.0) Kaufmann!
+PT: 
+
+[MAP7_S03.54]
+EN: ~J1(1.9) Did I ask for this!
+PT: 
+
+[MAP7_S03.55]
+EN: ~J1(1.9) Nobody uses me!
+PT: 
+
+[MAP7_S03.56]
+EN: ~J1(3.0) You won't get away ~N with this! ~E
+PT: 
+
+[MAP7_S03.57]
+EN: ~J1(4.7) Your role is over. ~N We don't need you anymore.
+PT: 
+
+[MAP7_S03.58]
+EN: ~J1(3.6) What do you think you can ~N accomplish by coming here?
+PT: 
+
+[MAP7_S03.59]
+EN: ~J1(3.5) My, aren't we getting cocky?
+PT: 
+
+[MAP7_S03.60]
+EN: ~J1(3.2) Bet you can't see this ~N and keep your cool. ~E
+PT: 
+
+[MAP7_S03.61]
+EN: ~J0(3.5) Aglaophotis! ~N I thought I got rid of that!
+PT: 
+
+[MAP7_S03.62]
+EN: ~J0(3.2) All I had to do was plant it ~N somewhere for you to find,
+PT: 
+
+[MAP7_S03.63]
+EN: ~J0(3.9) You all, well, ~N it kept you busy.
+PT: 
+
+[MAP7_S03.64]
+EN: ~J0(1.7) You're easy!
+PT: 
+
+[MAP7_S03.65]
+EN: ~J0(2.4) And there's more ~N where this came from! ~E
+PT: 
+
+[MAP7_S03.66]
+EN: ~J0(1.7) Stop it!! ~E
+PT: 
+
+[MAP7_S03.67]
+EN: ~J0(2.2) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.68]
+EN: ~J0(1.4)
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.69]
+EN: ~J2(1.2) What the!? ~E
+PT: 
+
+[MAP7_S03.70]
+EN: ~J0(10.4) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.71]
+EN: ~J0(3.0) What on earth? ~N That's not supposed to... ~E
+PT: 
+
+[MAP7_S03.72]
+EN: ~J0(1.8) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.73]
+EN: ~J0(3.5) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.74]
+EN: ~J0(3.4) It's awakening! ~N It's awake!
+PT: 
+
+[MAP7_S03.75]
+EN: ~J0(3.0) Now no one can interfere! ~E
+PT: 
+
+[MAP7_S03.76]
+EN: ~J0(1.2) Cheryl!!
+PT: 
+
+[MAP7_S03.77]
+EN: ~J0(3.5) Give up! ~N That person no longer exists. ~E
+PT: 
+
+[MAP7_S03.78]
+EN: ~J0(2.0) This is a God!
+PT: 
+
+[MAP7_S03.79]
+EN: ~J2(4.9) Descended among us to reach out ~N and save us! ~E
+PT: 
+
+[MAP7_S03.80]
+EN: ~J0(13.2) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.81]
+EN: ~J0(2.4) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.82]
+EN: ~J0(1.3)
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.83]
+EN: ~J0(1.1) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.84]
+EN: ~J0(1.6) Thank you daddy.
+PT: 
+
+[MAP7_S03.85]
+EN: ~J0(1.4) Goodbye. ~E
+PT: 
+
+[MAP7_S03.86]
+EN: ~J0(3.0) Cheryl...? ~E
+PT: 
+
+[MAP7_S03.87]
+EN: ~J0(2.3) Can't be?
+PT: 
+
+[MAP7_S03.88]
+EN: ~J0(2.2) You can't leave like this...
+PT: 
+
+[MAP7_S03.89]
+EN: ~J0(3.2) This can't be happening! ~N Cheryl!? ~E
+PT: 
+
+[MAP7_S03.90]
+EN: ~J0(1.4) ...Cheryl!! ~E
+PT: 
+
+[MAP7_S03.91]
+EN: ~J0(1.1) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.92]
+EN: ~J0(3.9) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.93]
+EN: ~J0(1.3) Wait... ~E
+PT: 
+
+[MAP7_S03.94]
+EN: ~J0(4.8) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.95]
+EN: ~J0(1.0) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.96]
+EN: ~J0(1.0) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.97]
+EN: ~J0(4.5) ~E
+PT:   (no text — timing only, leave PT blank)
+
+[MAP7_S03.98]
+EN: ~J0(1.4) Harry.
+PT: 
+
+[MAP7_S03.99]
+EN: ~J0(1.0) Go. ~E
+PT: 
