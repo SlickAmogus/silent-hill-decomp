@@ -2144,25 +2144,29 @@ void func_800E514C(void) // 0x800E514C
 
         case 30:
             SD_Call(Sfx_XaAudio606);
+#ifdef SH_PC_PORT
+            /* Bottle breaks ON IMPACT (PSX behavior). The throw's flight arc is
+             * case 27 (timer 281->313); it ends here, and the scream (XA 606)
+             * fires this same step — 313 IS the impact beat. Break the bottle now
+             * so the shatter, the scream and her reaction land together.
+             *
+             * The earlier fix keyed the shatter on timer>=320 (case 31's endTime),
+             * a guess at the impact time; but 313->320 is the post-impact hold, so
+             * the intact bottle visibly hung at her head ~0.7s (7 units / rate 10)
+             * before breaking, and the break read as desynced from the scream.
+             * Case 31 still animates the shatter each frame and holds for the
+             * scream; case 33's spawn stays guarded so it can't double-fire. */
+            if (g_Cutscene_UpdateBin)
+            {
+                func_800D7144(&g_WorldObject_Bin.position);
+                g_Cutscene_UpdateBin = false;
+            }
+#endif
             SysWork_StateStepIncrement(0);
 
         case 31:
             Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(281.0f), Q12(320.0f), true, false);
 #ifdef SH_PC_PORT
-            /* Bottle breaks ON IMPACT (PSX behavior). The bottle (g_WorldObject_Bin,
-             * a DMS-driven world object) reaches the Incubator's head when the
-             * timer hits 320, but the original step order only spawns the shatter
-             * at case 33 — AFTER this step waits out the full ~8s XA 606 scream —
-             * so on PC the intact bottle hovered at her head for several seconds.
-             * Spawn the shatter and hide the intact bottle the instant it impacts,
-             * animate it each frame, and still hold this step for the scream (so
-             * later beats don't start early / the scream isn't cut). The case 33
-             * spawn is guarded below so it doesn't double-fire. */
-            if (g_Cutscene_Timer >= Q12(320.0f) && g_Cutscene_UpdateBin)
-            {
-                func_800D7144(&g_WorldObject_Bin.position);
-                g_Cutscene_UpdateBin = false;
-            }
             if (!g_Cutscene_UpdateBin)
             {
                 func_800D70EC();
