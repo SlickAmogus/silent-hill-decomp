@@ -449,6 +449,22 @@ void Options_PcOptionsMenu_Control(void)
             g_Options_SelectionHighlightTimer = 0;
         }
 
+        /* L1 / R1 (LB / RB) jump to the previous / next PC-options page (wraps).
+         * clickedBtnFlags is the per-frame rising edge; keyboard L1=A / R1=D map to
+         * the same PSX bits, so this works on keyboard too. */
+        if (g_Controller0->clickedBtnFlags & ControllerFlag_R1) {
+            Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+            g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 1) & 3; /* 4 pages */
+            g_PcOptionsMenu_SelectedEntry     = 0;
+            g_Options_SelectionHighlightTimer = 0;
+        }
+        if (g_Controller0->clickedBtnFlags & ControllerFlag_L1) {
+            Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+            g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 3) & 3; /* -1 mod 4 */
+            g_PcOptionsMenu_SelectedEntry     = 0;
+            g_Options_SelectionHighlightTimer = 0;
+        }
+
         sel = &tbl[g_PcOptionsMenu_SelectedEntry];
 
         /* Every value row (INT/RES/FILTER/WINMODE/VSYNC/SLIDER) adjusts on
