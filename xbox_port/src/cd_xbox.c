@@ -15,6 +15,7 @@
  */
 #include <windows.h>
 #include <stdio.h>
+#include <string.h>
 #include "sh_log.h"
 
 typedef unsigned char u8;
@@ -51,6 +52,15 @@ static int CdPosToInt(const CdlLOC* p)
  * dir; same place the log is written via fopen). Idempotent. Tries the expected
  * filenames by direct fopen first — FindFirstFile is unreliable on the nxdk D:
  * mount — then falls back to scanning D:\*.bin. */
+/* stdio buffer for the BIN handle. The XA/FMV raw-sector readers pull 2352-byte
+ * sectors one gulp at a time; an unbuffered handle turns each into a syscall. */
+static char s_binStdioBuf[32 * 1024];
+static void Cd_SetStreamBuffer(void)
+{
+    if (s_bin)
+        setvbuf(s_bin, s_binStdioBuf, _IOFBF, sizeof(s_binStdioBuf));
+}
+
 void Cd_XboxInit(void)
 {
     /* Check both layouts: next to the XBE (D: root) and in a gamedata\ subfolder
@@ -76,6 +86,7 @@ void Cd_XboxInit(void)
     for (i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
         s_bin = fopen(names[i], "rb");
         if (s_bin) {
+            Cd_SetStreamBuffer();
             SH_DBG("[CD] disc image: %s", names[i]);
             return;
         }
@@ -93,6 +104,7 @@ void Cd_XboxInit(void)
             FindClose(h);
             s_bin = fopen(path, "rb");
             if (s_bin) {
+                Cd_SetStreamBuffer();
                 SH_DBG("[CD] disc image (scan): %s", path);
                 return;
             }
@@ -116,23 +128,54 @@ int CdControlB(unsigned char com, unsigned char* param, unsigned char* result)
     return CdControl(com, param, result);
 }
 
-/* Read `sectors` 2048-byte data sectors from the current position into buf. */
+/* Read `sectors` 2048-byte data sectors from the current position into buf.
+ *
+ * fsqueue_3.c calls this ONCE with a whole file's sector count and CdReadSync
+ * immediately reports "done", so the PSX's async sector trickle collapses into
+ * one blocking burst inside a single frame — this is the hitch the player feels
+ * on room transitions. The old loop made that burst as expensive as possible:
+ * an fseek AND an fread per 2048-byte sector, i.e. two stdio calls per sector
+ * for a file that can run to thousands of sectors.
+ *
+ * The sectors are contiguous, so seek ONCE and stream them in gulps: one fread
+ * of up to CD_GULP_SECTORS raw 2352-byte sectors, then memcpy the 2048-byte
+ * payloads out (the 304 bytes of sync/header/ECC per sector are what stop us
+ * reading straight into dst). That is ~32x fewer stdio round trips. */
+#define CD_GULP_SECTORS 32
+static unsigned char s_gulpBuf[CD_GULP_SECTORS * BIN_SECTOR_SIZE];
+
 int CdRead(int sectors, unsigned long* buf, int mode)
 {
-    int i;
     unsigned char* dst = (unsigned char*)buf;
+    int done = 0;
 
     (void)mode;
     if (!s_bin || !buf || sectors <= 0)
         return 1;
 
-    for (i = 0; i < sectors; i++) {
-        long off = (long)(s_curSector + i) * BIN_SECTOR_SIZE + BIN_DATA_OFFSET;
-        if (fseek(s_bin, off, SEEK_SET) != 0)
-            break;
-        if (fread(dst + (size_t)i * BIN_DATA_SIZE, 1, BIN_DATA_SIZE, s_bin) != BIN_DATA_SIZE)
-            break;
+    if (fseek(s_bin, (long)s_curSector * BIN_SECTOR_SIZE, SEEK_SET) == 0) {
+        while (done < sectors) {
+            int    want = sectors - done;
+            int    got;
+            size_t bytes;
+            int    i;
+
+            if (want > CD_GULP_SECTORS)
+                want = CD_GULP_SECTORS;
+
+            bytes = fread(s_gulpBuf, 1, (size_t)want * BIN_SECTOR_SIZE, s_bin);
+            got   = (int)(bytes / BIN_SECTOR_SIZE);
+            if (got <= 0)
+                break;                     /* short read / EOF: stop, keep what we have */
+
+            for (i = 0; i < got; i++)
+                memcpy(dst + (size_t)(done + i) * BIN_DATA_SIZE,
+                       s_gulpBuf + (size_t)i * BIN_SECTOR_SIZE + BIN_DATA_OFFSET,
+                       BIN_DATA_SIZE);
+            done += got;
+        }
     }
+
     s_curSector += sectors;
     return 1;
 }

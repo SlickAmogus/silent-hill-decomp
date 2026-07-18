@@ -290,17 +290,42 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
 
     /* Miss: fill a free slot, else evict the least-recently-used. (The old
      * round-robin evicted HOT entries under pressure — with a working set just
-     * over capacity that meant re-decoding almost every page every frame.) */
+     * over capacity that meant re-decoding almost every page every frame.)
+     *
+     * PIN THIS FRAME'S ENTRIES. GpuNv2a_BindTexture writes the slot's raw pointer
+     * into the NV2A pushbuffer as a bare TX_OFFSET and the draw is asynchronous —
+     * nothing waits for the GPU to consume it. Evicting a slot that was bound
+     * earlier in THIS frame means the CPU's DecodePage overwrites 256KB the GPU
+     * has not rasterized yet, so already-submitted geometry samples half-rewritten
+     * texels. lastUse used to gate only which victim we PREFER; it must also gate
+     * which victims are LEGAL.
+     *
+     * If EVERY slot is pinned (working set > 96 distinct pages in one frame) we
+     * deliberately fall back to evicting the LRU anyway, accepting the race. The
+     * alternative — returning 0 — drops the primitive, and dropped geometry is
+     * precisely the "world vanishes" class of bug being chased elsewhere; a rare
+     * one-frame texture glitch is the lesser failure. The counter says which
+     * happened. */
     {
-        int      best = -1;
-        unsigned bestUse = 0xFFFFFFFFu;
+        int      best = -1, bestPinned = -1;
+        unsigned bestUse = 0xFFFFFFFFu, bestPinnedUse = 0xFFFFFFFFu;
+        unsigned thisFrame = (unsigned)g_Nv2aFrameCount;
         for (i = 0; i < CACHE_N; i++) {
             if (!s_cache[i].argb) continue;
             if (s_cache[i].key == -1) { best = i; break; }
+            if (s_cache[i].lastUse < bestPinnedUse) { bestPinnedUse = s_cache[i].lastUse; bestPinned = i; }
+            if (s_cache[i].lastUse == thisFrame) continue;   /* in flight — not evictable */
             if (s_cache[i].lastUse < bestUse) { bestUse = s_cache[i].lastUse; best = i; }
         }
+        if (best < 0) {
+            static unsigned s_pinnedOut;
+            if ((++s_pinnedOut & 255) == 1)
+                SH_DBG("[VRAM] all %d slots in flight (#%u) — evicting anyway",
+                       CACHE_N, s_pinnedOut);
+            best = bestPinned;
+        }
         if (best < 0)
-            return 0;
+            return 0;                      /* cache never allocated */
         i = best;
     }
     TexEntry_SetBBox(&s_cache[i], tpage, clut);   /* record VRAM footprint for selective invalidation */
