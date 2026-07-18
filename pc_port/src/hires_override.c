@@ -38,6 +38,14 @@ static int        g_initialized = 0;
 
 static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int nearest);
 
+/* One-shot: set to 1 immediately before an upload_rgba call to suppress mipmaps for
+ * that upload. 2D-UI overrides (fonts / HUD / 2D backgrounds) are drawn at a fixed 2D
+ * size, never minified at distance, so trilinear mip minification only blends adjacent
+ * font-atlas glyphs together — the "ghost text" regression from f47c1f871, which added
+ * mipmaps for WORLD art at distance. World/pool-slot uploads leave this 0 (keep mips).
+ * Captured + cleared at the top of upload_rgba so an error return can't leak it. */
+static int s_uploadNoMipmap = 0;
+
 /* ---- Texture-pack GL byte budget ------------------------------------------
  * A DuckStation pack composes + uploads a pack-resolution RGBA texture (with
  * mipmaps) for EVERY CLUT row of EVERY claimed page. The whole-town render
@@ -318,6 +326,7 @@ int HiresOverride_RegisterFromTim(const char* timPath,
     }
 
     GLuint tex = 0;
+    s_uploadNoMipmap = 1; /* 2D-UI override (font/HUD/2D-bg): no mip -> no glyph-blend ghost */
     if (upload_rgba(&tex, rgba, hiW, hiH, 0) != 0)
     {
         free(rgba);
@@ -479,6 +488,8 @@ int HiresOverride_PoolSlotRegister(int slotId,
  * stay NEAREST with no mips (PSX-exact). Returns 0 on success. */
 static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int nearest)
 {
+    int noMipmap = s_uploadNoMipmap;
+    s_uploadNoMipmap = 0;
     if (rgba == NULL || w <= 0 || h <= 0) return -1;
     if (*tex == 0)
     {
@@ -512,7 +523,7 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
             return -1;
         }
     }
-    if (!nearest && glGenerateMipmap != NULL)
+    if (!nearest && !noMipmap && glGenerateMipmap != NULL)
     {
         glGenerateMipmap(GL_TEXTURE_2D);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
@@ -633,6 +644,7 @@ int HiresOverride_RegisterRGBAKeyed(const char* label,
         e->contentHash = 0;
     }
 
+    s_uploadNoMipmap = 1; /* 2D-UI override (font/HUD/2D-bg): no mip -> no glyph-blend ghost */
     if (upload_rgba(&e->glTexture, rgba, w, h, 0) != 0)
     {
         e->contentHash = 0;
