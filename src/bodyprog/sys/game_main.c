@@ -1925,6 +1925,16 @@ void MainLoop(void) // 0x80032EE0
             Pc_RearLookUpdate();
         }
 
+        /* "Disable D-pad for movement" applies ONLY during gameplay, so the D-pad
+         * still navigates menus / inventory / the map. Re-evaluated every frame. */
+        {
+            extern int g_cfg_disableDpadMovement;
+            g_cfg_disableDpadMovement =
+                (g_PcConfig.disableDpadMovement &&
+                 g_GameWork.gameState == GameState_InGame &&
+                 g_SysWork.sysState   == SysState_Gameplay) ? 1 : 0;
+        }
+
         /* Mouse cursor: drive free-cursor puzzles + the main menu from the mouse.
          * Runs after the controller is built and before the state update reads
          * it, so puzzle-cursor injection lands this frame. */

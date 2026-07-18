@@ -645,7 +645,8 @@ public class ControlsForm : Form
         tips.SetToolTip(chkDisableDpad,
             "Stops the controller D-pad from walking / turning Harry, freeing it to be bound to actions — pick " +
             "dpup / dpdown / dpleft / dpright for Reload, Cycle Weapons, Quick Heal, or any controller bind above. " +
-            "Keyboard arrow keys are unaffected. Off = the D-pad moves Harry as usual.");
+            "The D-pad still navigates menus and the inventory, and keyboard arrow keys are unaffected. " +
+            "Off = the D-pad moves Harry as usual.");
 
         tips.SetToolTip(chkAimAssist,
             "Thirdperson / Over-the-Shoulder free-aim only (NOT first person): when the reticle is over an enemy " +

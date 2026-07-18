@@ -968,7 +968,7 @@ int main(int argc, char* argv[])
     /* Menus / 2D-only frames (g_PsxDitherSuppressed) get bilinear if enabled,
      * independent of the 3D psx_dither mode above. */
     g_cfg_menuFilter = g_PcConfig.menuFilter ? 1 : 0;
-    g_cfg_disableDpadMovement = g_PcConfig.disableDpadMovement ? 1 : 0;
+    g_cfg_disableDpadMovement = 0; /* driven per-frame by gameplay state (game_main.c) so the D-pad still navigates menus */
     SH_LOG("Filtering: %s",
            g_cfg_psxDither ? "PSX dither" :
            g_cfg_bilinearFiltering ? "bilinear" : "off");
