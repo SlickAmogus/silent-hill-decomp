@@ -1,5 +1,97 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.18.1 -- 2026-07-18
+- Fixed more cutscene issues
+- Added 360 degree movement and snap turning option for 2d controls
+- Fix for cybil shooting awkwardly during boss fight (untested)
+- Fix for air screamers not dying properly
+- Cycle pc options pages with L1\R1
+- Option to enable bilinear filtering in menus
+- Add new control options: reload on controllers, quick heal and cycle weapons for both pc and controllers. Option to disable dpad movement so it can be bound to other things. Quick turn and rear look have also been added.
+- Fix for hd texture pack stuttering and crash after extended playtime
+- Added mod manager functionality to extract textures with CLUTs as a unified composite texture. Can then rebuild the cluts from the modified composite texture, and supports upscaled textures
+- Potential fix for school corruption on older hardware
+
+Commit summaries:
+- game: case-insensitive loose-file lookup (fixes loose mods on Linux)
+- Bump PsyCross: PGXP coplanar z-fighting fix (GL_ALWAYS static world)
+- Fix map6_s04 Flauros cutscene voice desync: resume-not-restart voice index
+- docs: Port_Fixes_Index entry for the Flauros voice-index resume-not-restart fix
+- docs: clean up and reorganize pc_port/docs
+- docs: fix inner CLAUDE.md keybinds + Enemy audit mojibake
+- tools: add clut_tool.py (compose/split character CLUT textures)
+- launcher: CLUT texture Build Reference / Rebuild tools in Mod Manager
+- map_msg: no-op the spurious PC restart of a multi-page cutscene chain (Lisa "temporary thing" double)
+- lang/region: mirror disc-region + JP map-text install decisions to SilentHill.log
+- texpack: skip redundant GL re-uploads (content-keyed) + graceful VRAM-OOM fallback
+- localization: extract the full English script for translation (1646 strings)
+- docs: add HDR / RTX HDR feasibility note
+- fix(clut): triangle prims bled a streak to UV (0,0) in the composite
+- localization: separate PC-options menu string file for translation
+- feat(clut): high-resolution Rebuild — accept HD reference edits
+- feat(launcher): "Build character reference composites" on Extract BIN
+- feat(2d-control): full 360 analog turning + optional snap-to-direction
+- fix(cybil): frame-scale her yaw so the gun doesn't swing at high FPS
+- fix(air-screamer): kill fires without a menu toggle (relocate death gate)
+- feat(options): L1/R1 (LB/RB) skip PC-options pages
+- feat(input): config binds for reload/cycle-weapons/quick-heal + disable-dpad (part 1)
+- feat(#1): optional bilinear filtering for menus / 2D screens
+- feat(#2): reload-to-controller + Cycle Weapons + Quick Heal (part 2)
+- feat(#2): wire disable_dpad_movement (part 3)
+- pc-port: reinstate [ / ] position markers as LOGA/LOGB console commands
+- fix(school rainbow): degrade any pool-texture upload error to a clean miss
+- fix(#1 launcher): commit checkBox1/lblMenu Designer scaffolding
+- feat(#2 launcher): Reload/Cycle/Heal binds + Disable-D-pad + controls layout
+- feat(controls): per-scheme Change Cam / Reload / Cycle / Heal + 2D_Snap option
+- feat(launcher): per-scheme Change Cam / Reload / Cycle / Heal binds
+- feat(controls): input plumbing for reload-2 / quick-turn / rear-look
+- feat(controls): Rear Look — camera swings behind Harry + head turn (TPS/OTS)
+- feat(controls): Quick Turn — animated 180 (classic native state + TPS/OTS shim)
+- feat(launcher): Reload keyboard row (+alt) + Quick Turn + Rear Look rows
+- fix(controls): quick-turn stale-request + edge-cache size (review findings)
+- fix(controls): move Map to Camera page + D-pad still navigates menus
+- fix(controls): Quick Turn now works in the shim (2D / TPS / OTS), not just camera-snap
+- feat(controls): quick-switch swaps the held model live + green heal flash
+
+## beta-2026.07.16.2 -- 2026-07-16
+- Fixed missing SFX/BGMs including sewer drip audio
+- Added surround sound support and audio option to Launcher
+- Enhanced mod support including extracting individual CLUTs that can be replaced individually or all at once
+- Added 7z mod support and fixed zips
+- Fixed cutscene timing issue and out of sync cutscenes. Still some issues being worked on (like amusement park scene)
+- Fixed character brightness issue
+- Fixed certain scenes being black when using FPS camera
+- Fixed misc crash with puppet nurses
+
+Commit summaries:
+- PsyCross: sewer drip fix — wide-stereo (negative-volume) voices no longer silent
+- Cutscene timing overhaul: lossless game clock + audio catch-up (any-fps sync)
+- docs: Port_Fixes_Index entry for the cutscene timing overhaul
+- Voice pacing: restore PSX end-of-voice rhythm + freeze XA with the console
+- audio: surround sound (5.1/7.1) + true 3D positional SFX
+- Trigger sweep fixes: dt-scale frame-counted cutscene pacing + voice-table hardening
+- docs: Port_Fixes_Index entry for the trigger sweep + voice pacing batch
+- audio: close every azimuth-latch leak found by review
+- debug: [LIGHTCMP2] cutscene character-lighting probe (dark-characters report)
+- Fix characters rendering darker than PSX: remove double fog on character prims
+- docs: Port_Fixes_Index entry for the character double-fog fix
+- Fix Puppet Nurse crash after the Stone of Time puzzle (stale field_124)
+- debug: remove [LIGHTCMP2] probe (character double-fog fix confirmed)
+- docs: Port_Fixes_Index entry for the Puppet Nurse stale-field_124 crash
+- whole-map stopgap: un-throttle the draw count (packet arena 2MB->16MB)
+- game: per-CLUT-row loose texture overrides + zip-extract coordination
+- launcher: per-palette TIM->PNG extraction + unified zip/7z extract backend
+- tools: cross-platform tim2png.py (per-palette TIM->PNG, no deps)
+- docs: note p00.png is the per-palette-set trigger for loose overrides
+- docs: modding guide — per-palette textures, zip/7z packs, Linux/macOS, fan discs
+- Fix map6_s04 Flauros cutscene desync: unpad the subtitle page-advance gate
+- docs: Port_Fixes_Index entry for the map6_s04 Flauros desync fix
+- game: a single whole-image loose PNG replaces ALL of a texture's CLUT rows
+- docs: whole-reskin — a lone NAME.png replaces every CLUT of a texture
+- Fix cutscenes rendering black in FPS mode: gate the FPS flashlight aim
+- release: ship the 7-Zip LGPL notice as licenses/LICENSE-7zip.txt
+
+
 ## beta-2026.07.16.1 -- 2026-07-16
 - Added BIN extraction tool to Mod Manager in Launcher, extracts game data to match expected folder structure (for potential mods)
 - Also added individual and bulk TIM > PNG converter in same window (can also convert when extracting BIN)
