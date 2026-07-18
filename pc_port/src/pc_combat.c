@@ -48,7 +48,7 @@ int g_PcRearLookActive = 0;
  * (since each fresh slot starts with prev=0), instantly closing it. */
 bool PC_KeyboardKeyClicked(int sdlScancode)
 {
-    #define PC_KEY_CACHE_SIZE 8
+    #define PC_KEY_CACHE_SIZE 16 /* both schemes' reload/reload2/cycle/heal/quick-turn keys share this never-evicting cache */
     static int  s_keys[PC_KEY_CACHE_SIZE]   = {0};
     static bool s_prev[PC_KEY_CACHE_SIZE]   = {0};
     static bool s_edge[PC_KEY_CACHE_SIZE]   = {0};
@@ -92,7 +92,7 @@ bool PC_KeyboardKeyClicked(int sdlScancode)
  * trigger a controller-only action. sdlButton < 0 (unbound) never fires. */
 bool PC_RawControllerButtonClicked(int sdlButton)
 {
-    #define PC_PAD_CACHE_SIZE 8
+    #define PC_PAD_CACHE_SIZE 16 /* both schemes' reload/cycle/heal/quick-turn buttons share this never-evicting cache */
     static int  s_btn[PC_PAD_CACHE_SIZE]    = {0};
     static bool s_prevP[PC_PAD_CACHE_SIZE]  = {0};
     static bool s_edgeP[PC_PAD_CACHE_SIZE]  = {0};
@@ -300,11 +300,18 @@ void Pc_ExtraActionsUpdate(void)
     qtClicked    = (s_kbQt[sch]    != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kbQt[sch]))    ||
                    (s_padQt[sch]    >= 0 && PC_RawControllerButtonClicked(s_padQt[sch]));
 
-    if (!Pc_ActionSafe()) return;
+    if (!Pc_ActionSafe())
+    {
+        g_PcQuickTurnRequest = 0; /* not safe gameplay -> drop any pending turn */
+        return;
+    }
     if (cycleClicked) Pc_CycleWeapons();
     if (healClicked)  Pc_QuickHeal();
-    /* Quick Turn: request a one-frame animated 180 in Player_LogicUpdate. */
-    if (qtClicked)    g_PcQuickTurnRequest = 1;
+    /* Quick Turn: (re)assign the one-frame request every safe frame — never latch —
+     * so a press the current player sub-state ignores (e.g. the AFK look-around idle)
+     * can't queue a delayed 180 on the next movement input. Consumed + cleared in
+     * Player_LogicUpdate (native state entry or shim latch). */
+    g_PcQuickTurnRequest = qtClicked ? 1 : 0;
 }
 
 /* Per-frame HELD read for Rear Look: sets g_PcRearLookActive while the bind is
