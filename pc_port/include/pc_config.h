@@ -25,6 +25,9 @@ typedef struct {
     char keyReload[24], padReload[24];              /* reload weapon */
     char keyCycleWeapons[24], padCycleWeapons[24];  /* cycle to next owned weapon */
     char keyQuickHeal[24], padQuickHeal[24];        /* auto-use best healing item */
+    char keyReload2[24];                            /* keyboard SECONDARY reload (no pad twin) */
+    char keyQuickTurn[24], padQuickTurn[24];        /* quick 180 turn (edge-triggered) */
+    char keyRearLook[24], padRearLook[24];          /* rear look, HELD; TPS/OTS only */
 } ControlScheme;
 
 typedef struct {

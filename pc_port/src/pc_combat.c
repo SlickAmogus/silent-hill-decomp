@@ -29,6 +29,16 @@ s32    g_PcBulletHitActive = 0;
 q19_12 g_PcBulletVertMul   = Q12(2.0f); /* vertical reach added each side = 2x collision radius */
 q19_12 g_PcBulletRadMul    = Q12(1.0f); /* horizontal radius added = 1x collision radius */
 
+/* PC-only: one-frame request that a Quick Turn (animated 180) start this frame.
+ * Set by Pc_ExtraActionsUpdate on the bind edge; consumed + cleared by
+ * Player_LogicUpdate (native state machine or the movement shim). */
+int g_PcQuickTurnRequest = 0;
+
+/* PC-only: 1 while the Rear Look bind is HELD in a TPS/OTS camera. Set every
+ * frame by Pc_RearLookUpdate; consumed by Pc_TpsCamera_Apply (orbit +180) and
+ * the head-look override in Player_Update. */
+int g_PcRearLookActive = 0;
+
 /* Returns true on the frame `sdlScancode` transitions 0→1.
  *
  * Frame-stable: prev-state is sampled at most once per VBlank, so multiple
@@ -121,6 +131,7 @@ bool PC_RawControllerButtonClicked(int sdlButton)
 bool PC_PlayerManualReloadRequested(void)
 {
     static SDL_Scancode s_kb[2]  = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN };
+    static SDL_Scancode s_kb2[2] = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN }; /* keyboard secondary */
     static int          s_pad[2] = { -2, -2 }; /* [scheme]; -2 = unresolved */
     extern int          g_DebugThirdPersonCam;
     int sch;
@@ -131,13 +142,15 @@ bool PC_PlayerManualReloadRequested(void)
         sc[1] = &g_PcConfig.altcam;
         for (i = 0; i < 2; i++) {
             s_kb[i]  = SDL_GetScancodeFromName(sc[i]->keyReload);
+            s_kb2[i] = SDL_GetScancodeFromName(sc[i]->keyReload2);
             s_pad[i] = (sc[i]->padReload[0] != '\0')
                         ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padReload)
                         : SDL_CONTROLLER_BUTTON_INVALID;
         }
     }
     sch = g_DebugThirdPersonCam ? 1 : 0;
-    return ((s_kb[sch] != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kb[sch])) ||
+    return ((s_kb[sch]  != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kb[sch]))  ||
+            (s_kb2[sch] != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kb2[sch])) ||
             (s_pad[sch] >= 0 && PC_RawControllerButtonClicked(s_pad[sch]))) &&
            g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
            g_SysWork.playerCombat.totalWeaponAmmo != 0 &&
@@ -257,9 +270,11 @@ void Pc_ExtraActionsUpdate(void)
 {
     static SDL_Scancode s_kbCycle[2] = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN };
     static SDL_Scancode s_kbHeal[2]  = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN };
+    static SDL_Scancode s_kbQt[2]    = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN };
     static int          s_padCycle[2] = { -2, -2 }, s_padHeal[2] = { -2, -2 };
+    static int          s_padQt[2] = { -2, -2 };
     extern int          g_DebugThirdPersonCam;
-    int cycleClicked, healClicked, sch;
+    int cycleClicked, healClicked, qtClicked, sch;
 
     if (s_padCycle[0] == -2) {
         const ControlScheme* sc[2];
@@ -269,8 +284,10 @@ void Pc_ExtraActionsUpdate(void)
         for (i = 0; i < 2; i++) {
             s_kbCycle[i]  = SDL_GetScancodeFromName(sc[i]->keyCycleWeapons);
             s_kbHeal[i]   = SDL_GetScancodeFromName(sc[i]->keyQuickHeal);
+            s_kbQt[i]     = SDL_GetScancodeFromName(sc[i]->keyQuickTurn);
             s_padCycle[i] = (sc[i]->padCycleWeapons[0] != '\0') ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padCycleWeapons) : SDL_CONTROLLER_BUTTON_INVALID;
             s_padHeal[i]  = (sc[i]->padQuickHeal[0]    != '\0') ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padQuickHeal)    : SDL_CONTROLLER_BUTTON_INVALID;
+            s_padQt[i]    = (sc[i]->padQuickTurn[0]    != '\0') ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padQuickTurn)    : SDL_CONTROLLER_BUTTON_INVALID;
         }
     }
     sch = g_DebugThirdPersonCam ? 1 : 0;
@@ -280,10 +297,50 @@ void Pc_ExtraActionsUpdate(void)
                    (s_padCycle[sch] >= 0 && PC_RawControllerButtonClicked(s_padCycle[sch]));
     healClicked  = (s_kbHeal[sch]  != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kbHeal[sch]))  ||
                    (s_padHeal[sch]  >= 0 && PC_RawControllerButtonClicked(s_padHeal[sch]));
+    qtClicked    = (s_kbQt[sch]    != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kbQt[sch]))    ||
+                   (s_padQt[sch]    >= 0 && PC_RawControllerButtonClicked(s_padQt[sch]));
 
     if (!Pc_ActionSafe()) return;
     if (cycleClicked) Pc_CycleWeapons();
     if (healClicked)  Pc_QuickHeal();
+    /* Quick Turn: request a one-frame animated 180 in Player_LogicUpdate. */
+    if (qtClicked)    g_PcQuickTurnRequest = 1;
+}
+
+/* Per-frame HELD read for Rear Look: sets g_PcRearLookActive while the bind is
+ * held during TPS/OTS gameplay (never FPS or classic). Consumed by the camera
+ * (orbit +180) and the head-look override. Called from game_main.c. */
+void Pc_RearLookUpdate(void)
+{
+    static SDL_Scancode s_kb[2]  = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN };
+    static int          s_pad[2] = { -2, -2 };
+    extern int          g_DebugThirdPersonCam;
+    extern int          g_PcFpsCam;
+    extern int          g_PcConsoleInputActive;
+    const Uint8*        keys;
+    int                 sch, held;
+
+    if (s_pad[0] == -2) {
+        const ControlScheme* sc[2];
+        int i;
+        sc[0] = &g_PcConfig.classic;
+        sc[1] = &g_PcConfig.altcam;
+        for (i = 0; i < 2; i++) {
+            s_kb[i]  = SDL_GetScancodeFromName(sc[i]->keyRearLook);
+            s_pad[i] = (sc[i]->padRearLook[0] != '\0') ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padRearLook) : SDL_CONTROLLER_BUTTON_INVALID;
+        }
+    }
+    sch  = g_DebugThirdPersonCam ? 1 : 0;
+    keys = SDL_GetKeyboardState(NULL);
+    held = ((keys && s_kb[sch] != SDL_SCANCODE_UNKNOWN && keys[s_kb[sch]]) ||
+            (s_pad[sch] >= 0 && PsyX_RawControllerButtonHeld(s_pad[sch])));
+
+    /* TPS/OTS only (not FPS, not classic), gameplay only; cleared otherwise so it
+     * can never latch on. */
+    g_PcRearLookActive = (held && g_DebugThirdPersonCam && !g_PcFpsCam &&
+                          g_GameWork.gameState == GameState_InGame &&
+                          g_SysWork.sysState   == SysState_Gameplay &&
+                          !g_PcConsoleInputActive) ? 1 : 0;
 }
 
 /* OTS/TPS free-aim aim assist.

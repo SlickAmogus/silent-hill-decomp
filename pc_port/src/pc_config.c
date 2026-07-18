@@ -88,6 +88,9 @@ s_PcConfig g_PcConfig = {
         .keyReload = "R", .padReload = "NONE",
         .keyCycleWeapons = "NONE", .padCycleWeapons = "NONE",
         .keyQuickHeal = "NONE", .padQuickHeal = "NONE",
+        .keyReload2 = "NONE",
+        .keyQuickTurn = "NONE", .padQuickTurn = "NONE",
+        .keyRearLook = "NONE", .padRearLook = "NONE",
     },
     /* === ALTCAM scheme: any alternate/modern camera (TPS/OTS). WASD move,
      * A/D strafe, mouse aim(RMB)/fire(LMB); controller LT aim / RT fire, A = use.
@@ -110,6 +113,9 @@ s_PcConfig g_PcConfig = {
         .keyReload = "R", .padReload = "NONE",
         .keyCycleWeapons = "NONE", .padCycleWeapons = "NONE",
         .keyQuickHeal = "NONE", .padQuickHeal = "NONE",
+        .keyReload2 = "NONE",
+        .keyQuickTurn = "NONE", .padQuickTurn = "NONE",
+        .keyRearLook = "NONE", .padRearLook = "NONE",
     },
     .keyQuickSave = "F6", .keyQuickLoad = "F8",
     .keySwapShoulder = "Mouse3",
@@ -201,6 +207,11 @@ static const struct { const char* key; size_t off; } s_SchemeBinds[] = {
     { "pad_cycle_weapons", offsetof(ControlScheme, padCycleWeapons) },
     { "key_quick_heal",    offsetof(ControlScheme, keyQuickHeal)    },
     { "pad_quick_heal",    offsetof(ControlScheme, padQuickHeal)    },
+    { "key_reload_2",      offsetof(ControlScheme, keyReload2)      },
+    { "key_quick_turn",    offsetof(ControlScheme, keyQuickTurn)    },
+    { "pad_quick_turn",    offsetof(ControlScheme, padQuickTurn)    },
+    { "key_rear_look",     offsetof(ControlScheme, keyRearLook)     },
+    { "pad_rear_look",     offsetof(ControlScheme, padRearLook)     },
 };
 
 /* Global (scheme-independent) binds -> offset within s_PcConfig. */

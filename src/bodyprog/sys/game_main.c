@@ -1904,11 +1904,17 @@ void MainLoop(void) // 0x80032EE0
             Pc_ControlStyleUpdate();
         }
 
-        /* Bound PC actions: Cycle Weapons + Quick Heal (reload is pulled by the
-         * combat FSM). Keyboard + controller, edge-detected, gated to gameplay. */
+        /* Bound PC actions: Cycle Weapons + Quick Heal + Quick Turn request (reload
+         * is pulled by the combat FSM). Keyboard + controller, edge-detected. */
         {
             extern void Pc_ExtraActionsUpdate(void);
             Pc_ExtraActionsUpdate();
+        }
+
+        /* Rear Look (held): set g_PcRearLookActive for the TPS/OTS camera + head. */
+        {
+            extern void Pc_RearLookUpdate(void);
+            Pc_RearLookUpdate();
         }
 
         /* Mouse cursor: drive free-cursor puzzles + the main menu from the mouse.
