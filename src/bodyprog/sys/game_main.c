@@ -1904,6 +1904,13 @@ void MainLoop(void) // 0x80032EE0
             Pc_ControlStyleUpdate();
         }
 
+        /* Bound PC actions: Cycle Weapons + Quick Heal (reload is pulled by the
+         * combat FSM). Keyboard + controller, edge-detected, gated to gameplay. */
+        {
+            extern void Pc_ExtraActionsUpdate(void);
+            Pc_ExtraActionsUpdate();
+        }
+
         /* Mouse cursor: drive free-cursor puzzles + the main menu from the mouse.
          * Runs after the controller is built and before the state update reads
          * it, so puzzle-cursor injection lands this frame. */
