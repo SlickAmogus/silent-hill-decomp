@@ -64,12 +64,15 @@ public class ControlsForm : Form
         new[] { "Inventory",        "pad_select" },
     };
 
-    // Valid controller buttons (SDL names). D-pad/sticks excluded (movement).
+    // Valid controller buttons (SDL names). Sticks excluded (movement/look). The
+    // D-pad is included so it can be bound to actions once "Disable D-pad for
+    // movement" (Experimental) frees it from walking.
     private static readonly string[] ControllerButtons =
     {
         "a", "b", "x", "y",
         "leftshoulder", "rightshoulder", "lefttrigger", "righttrigger",
-        "leftstick", "rightstick", "start", "back", "guide", "NONE",
+        "leftstick", "rightstick", "start", "back", "guide",
+        "dpup", "dpdown", "dpleft", "dpright", "NONE",
     };
 
     // Default binding for each key, so a config without the line shows the
@@ -86,6 +89,8 @@ public class ControlsForm : Form
         { "key_swap_shoulder", "Mouse3" }, { "key_console", "`" },
         { "key_gfx_cycle", "\\" }, { "key_gfx_prev", "[" }, { "key_gfx_next", "]" },
         { "key_exit_game", "Escape" },
+        { "key_cycle_weapons", "NONE" }, { "key_quick_heal", "NONE" },
+        { "pad_reload", "NONE" }, { "pad_cycle_weapons", "NONE" }, { "pad_quick_heal", "NONE" },
         { "pad_cross", "a" }, { "pad_circle", "b" }, { "pad_triangle", "y" }, { "pad_square", "x" },
         { "pad_l1", "leftshoulder" }, { "pad_r1", "rightshoulder" }, { "pad_l2", "lefttrigger" }, { "pad_r2", "righttrigger" },
         { "pad_l3", "leftstick" }, { "pad_r3", "rightstick" }, { "pad_start", "start" }, { "pad_select", "back" },
@@ -142,6 +147,7 @@ public class ControlsForm : Form
     private CheckBox chk2dControls;
     private CheckBox chkButtonSprint;
     private CheckBox chkTpsCameraCollision;
+    private CheckBox chkDisableDpad;
     private NumericUpDown numMouseSens;
     private NumericUpDown numControllerSens;
     private NumericUpDown numFpsFov;
@@ -295,6 +301,16 @@ public class ControlsForm : Form
         tips.SetToolTip(inputs["key_exit_game"],
             "Quits to desktop at the title/main menu; warm-reboots to the title during gameplay or a cutscene. Unbind to disable.");
 
+        // PC-only action binds with no PSX button (keyboard). Reload already has a
+        // classic-scheme keyboard bind; these two actions are new.
+        int cycleHealY = exitGameY + rowH + 8;
+        AddKeyRow("Cycle Weapons", "key_cycle_weapons", colKbX, cycleHealY, labelW, inputW, false);
+        AddKeyRow("Quick Heal", "key_quick_heal", colKbX, cycleHealY + rowH, labelW, inputW, false);
+        tips.SetToolTip(inputs["key_cycle_weapons"],
+            "Cycles the equipped weapon through the weapons you own, weakest to strongest.");
+        tips.SetToolTip(inputs["key_quick_heal"],
+            "Uses the most sensible healing item you are carrying (a stronger one when badly hurt, a drink otherwise).");
+
         // Controller binds — primary + an alternate (second button) per action.
         for (int i = 0; i < ControllerBinds.Length; i++)
         {
@@ -309,18 +325,40 @@ public class ControlsForm : Form
         AddLabel("Change Camera", colPadX, padChangeCamY, labelW);
         AddPadCombo("pad_change_cam", colPadX + labelW, padChangeCamY - 3, padInputW);
 
-        // --- Experimental section (right column, gap left above for a future
-        // control under Select) ---
-        int expY = padChangeCamY + rowH + 16;
-        AddHeader("Experimental", colPadX, expY);
+        // PC-only action binds (controller) — Reload / Cycle Weapons / Quick Heal,
+        // in the room freed below by shifting the Experimental block down.
+        int padReloadY = padChangeCamY + rowH;
+        int padCycleY  = padReloadY + rowH;
+        int padHealY   = padCycleY + rowH;
+        AddLabel("Reload", colPadX, padReloadY, labelW);
+        AddPadCombo("pad_reload", colPadX + labelW, padReloadY - 3, padInputW);
+        AddLabel("Cycle Weapons", colPadX, padCycleY, labelW);
+        AddPadCombo("pad_cycle_weapons", colPadX + labelW, padCycleY - 3, padInputW);
+        AddLabel("Quick Heal", colPadX, padHealY, labelW);
+        AddPadCombo("pad_quick_heal", colPadX + labelW, padHealY - 3, padInputW);
+        tips.SetToolTip(inputs["pad_reload"],
+            "Reload the equipped firearm on the controller (same action as the keyboard Reload).");
+        tips.SetToolTip(inputs["pad_cycle_weapons"],
+            "Cycles the equipped weapon through the weapons you own, weakest to strongest.");
+        tips.SetToolTip(inputs["pad_quick_heal"],
+            "Uses the most sensible healing item you are carrying (a stronger one when badly hurt).");
 
-        int styleY = expY + 30;
-        AddLabel("Control Style", colPadX, styleY, 90);
+        // --- Experimental section (right column) ---
+        // The whole left column (header, Control Style, all checkboxes) is shifted
+        // down to clear the new controller binds added above (Reload / Cycle Weapons
+        // / Quick Heal). The sensitivity sliders keep the original styleY so they do
+        // NOT move; only the checkbox column (chkY) shifts.
+        int styleY = padChangeCamY + rowH + 16 + 30;   // sensitivity column (unshifted)
+        int chkY = styleY + 3 * rowH;                  // Experimental left column (shifted 3 rows)
+        AddHeader("Experimental", colPadX, chkY - 30);
+        AddLabel("Control Style", colPadX, chkY, 90);
         cmbControlStyle = new ComboBox
         {
             Left = colPadX + 90,
-            Top = styleY - 3,
-            Width = 180,
+            Top = chkY - 3,
+            Width = 90,             // half width — its old 180 overlapped the sensitivity column
+            DropDownWidth = 180,    // keep the open list readable
+
             DropDownStyle = ComboBoxStyle.DropDownList,
             BackColor = PanelBack,
             ForeColor = TextColor,
@@ -332,7 +370,7 @@ public class ControlsForm : Form
         {
             Text = "Invert Mouse Y",
             Left = colPadX,
-            Top = styleY + 30,
+            Top = chkY + 30,
             Width = 160,
             ForeColor = TextColor,
         };
@@ -340,7 +378,7 @@ public class ControlsForm : Form
         {
             Text = "Invert Controller Y",
             Left = colPadX,
-            Top = styleY + 56,
+            Top = chkY + 56,
             Width = 180,
             ForeColor = TextColor,
         };
@@ -348,7 +386,7 @@ public class ControlsForm : Form
         {
             Text = "OTS aiming in Thirdperson",
             Left = colPadX,
-            Top = styleY + 82,
+            Top = chkY + 82,
             Width = 220,
             ForeColor = TextColor,
         };
@@ -356,7 +394,7 @@ public class ControlsForm : Form
         {
             Text = "Crosshair (aiming, TPS/OTS)",
             Left = colPadX,
-            Top = styleY + 108,
+            Top = chkY + 108,
             Width = 220,
             ForeColor = TextColor,
         };
@@ -364,7 +402,7 @@ public class ControlsForm : Form
         {
             Text = "Immersive FPS head tracking",
             Left = colPadX,
-            Top = styleY + 134,
+            Top = chkY + 134,
             Width = 240,
             ForeColor = TextColor,
         };
@@ -381,7 +419,7 @@ public class ControlsForm : Form
         {
             Text = "2D Controls (screen-relative)",
             Left = colPadX,
-            Top = styleY + 160,
+            Top = chkY + 160,
             Width = 240,
             ForeColor = TextColor,
         };
@@ -509,7 +547,7 @@ public class ControlsForm : Form
         {
             Text = "Aim Assist (TPS/OTS)",
             Left = colPadX,
-            Top = styleY + 186,
+            Top = chkY + 186,
             Width = 200,
             ForeColor = TextColor,
         };
@@ -519,7 +557,7 @@ public class ControlsForm : Form
         {
             Text = "Always use button based sprinting",
             Left = colPadX,
-            Top = styleY + 212,
+            Top = chkY + 212,
             Width = 260,
             ForeColor = TextColor,
         };
@@ -533,7 +571,7 @@ public class ControlsForm : Form
         {
             Text = "Allow thirdperson camera collision",
             Left = colPadX,
-            Top = styleY + 238,
+            Top = chkY + 238,
             /* Kept clear of the sensitivity column (Left = colPadX + 235): this row
              * now sits beside the Thirdperson FOV slider. */
             Width = 230,
@@ -544,6 +582,21 @@ public class ControlsForm : Form
             "Thirdperson / Over-the-Shoulder cameras only: when a wall would come between the camera and Harry, " +
             "pull the camera in so it stays on his side of it (on = the default). Off = the camera holds its full " +
             "orbit distance and is allowed to pass through geometry.");
+
+        chkDisableDpad = new CheckBox
+        {
+            Text = "Disable D-pad for movement",
+            Left = colPadX,
+            Top = chkY + 264,
+            Width = 210,
+            ForeColor = TextColor,
+        };
+        Controls.Add(chkDisableDpad);
+        tips.SetToolTip(chkDisableDpad,
+            "Stops the controller D-pad from walking / turning Harry, freeing it to be bound to actions — pick " +
+            "dpup / dpdown / dpleft / dpright for Reload, Cycle Weapons, Quick Heal, or any controller bind above. " +
+            "Keyboard arrow keys are unaffected. Off = the D-pad moves Harry as usual.");
+
         tips.SetToolTip(chkAimAssist,
             "Thirdperson / Over-the-Shoulder free-aim only (NOT first person): when the reticle is over an enemy " +
             "(mouse) or near one (controller), the shot is redirected onto the enemy's body so it connects instead of " +
@@ -927,6 +980,7 @@ public class ControlsForm : Form
         chkAimAssist.Checked = config.Get("aim_assist", "1") == "1";
         chkButtonSprint.Checked = config.Get("altcam_button_sprint", "0") == "1";
         chkTpsCameraCollision.Checked = config.Get("tps_camera_collision", "1") == "1";
+        chkDisableDpad.Checked = config.Get("disable_dpad_movement", "0") == "1";
         numMouseSens.Value = ClampSens(config.Get("mouse_sensitivity", "1.0"));
         numControllerSens.Value = ClampSens(config.Get("controller_sensitivity", "1.0"));
         numFpsFov.Value = ClampFov(config.Get("fps_fov", "71.1"));
@@ -973,6 +1027,7 @@ public class ControlsForm : Form
         chkAimAssist.Checked = true;
         chkButtonSprint.Checked = false;
         chkTpsCameraCollision.Checked = true;
+        chkDisableDpad.Checked = false;
         numMouseSens.Value = 1.0m;
         numControllerSens.Value = 1.0m;
         numFpsFov.Value = 71.1m;
@@ -1106,6 +1161,7 @@ public class ControlsForm : Form
         config.Set("aim_assist", chkAimAssist.Checked ? "1" : "0");
         config.Set("altcam_button_sprint", chkButtonSprint.Checked ? "1" : "0");
         config.Set("tps_camera_collision", chkTpsCameraCollision.Checked ? "1" : "0");
+        config.Set("disable_dpad_movement", chkDisableDpad.Checked ? "1" : "0");
         config.Set("mouse_sensitivity",
             ((double)numMouseSens.Value).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
         config.Set("controller_sensitivity",
