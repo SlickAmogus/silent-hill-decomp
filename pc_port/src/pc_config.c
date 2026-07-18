@@ -61,6 +61,7 @@ s_PcConfig g_PcConfig = {
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .control2dSnap           = 0, /* 2D control turns into the direction (0), doesn't snap */
+    .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
     .audioOutput         = 0,    /* auto: OpenAL detects the system speaker layout */
     .fpsFov              = 71.1f, /* first-person FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
@@ -107,6 +108,9 @@ s_PcConfig g_PcConfig = {
     .keyGfxPrev  = "[",
     .keyGfxNext  = "]",
     .keyExitGame = "Escape",
+    .keyReload = "R", .padReload = "NONE",             /* reload: keyboard R kept; controller unbound by default */
+    .keyCycleWeapons = "NONE", .padCycleWeapons = "NONE",
+    .keyQuickHeal = "NONE", .padQuickHeal = "NONE",
 
     .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it — PAL-disc text language; USA: menu translations on fan-patched discs */
     .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal 3=jap — preferred disc when several are present */
@@ -195,6 +199,12 @@ static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
     { "key_gfx_prev",      offsetof(s_PcConfig, keyGfxPrev)      },
     { "key_gfx_next",      offsetof(s_PcConfig, keyGfxNext)      },
     { "key_exit_game",     offsetof(s_PcConfig, keyExitGame)     },
+    { "key_reload",        offsetof(s_PcConfig, keyReload)       },
+    { "pad_reload",        offsetof(s_PcConfig, padReload)       },
+    { "key_cycle_weapons", offsetof(s_PcConfig, keyCycleWeapons) },
+    { "pad_cycle_weapons", offsetof(s_PcConfig, padCycleWeapons) },
+    { "key_quick_heal",    offsetof(s_PcConfig, keyQuickHeal)    },
+    { "pad_quick_heal",    offsetof(s_PcConfig, padQuickHeal)    },
 };
 
 /* Remembered at load time so PcConfig_SaveMapName writes the same file. */
@@ -685,6 +695,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "control_2d_snap") == 0)
         {
             g_PcConfig.control2dSnap = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "disable_dpad_movement") == 0)
+        {
+            g_PcConfig.disableDpadMovement = (atoi(value) != 0);
         }
         else if (strcmp(key, "mouse_sensitivity") == 0)
         {
