@@ -415,7 +415,8 @@ namespace SilentHillPC_Launcher
             string outDir;
             bool convertPng;
             bool deleteTim;
-            if (!PromptExtractOptions(binPath, out outDir, out convertPng, out deleteTim)) return;
+            bool buildRefs;
+            if (!PromptExtractOptions(binPath, out outDir, out convertPng, out deleteTim, out buildRefs)) return;
 
             try { Directory.CreateDirectory(outDir); }
             catch (Exception ex)
@@ -445,6 +446,21 @@ namespace SilentHillPC_Launcher
                 return;
             }
 
+            ClutComposer.ComposeAllResult refRes = null;
+            if (buildRefs)
+            {
+                try
+                {
+                    ProgressDialog.Run(this, "Building character reference composites…",
+                        r => { refRes = ClutComposer.ComposeAll(outDir, r); });
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Extraction finished, but building reference composites failed:\n\n" + ex.Message,
+                        "Extract BIN", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+
             string msg = "Extracted " + res.Files + " files";
             if (!string.IsNullOrEmpty(res.ReleaseId)) msg += " from " + res.ReleaseId;
             msg += ".\n";
@@ -453,6 +469,8 @@ namespace SilentHillPC_Launcher
                 msg += "Converted " + res.Textures + " textures to PNG.\n";
                 if (deleteTim) msg += "Deleted " + res.TexturesDeleted + " original .TIM file(s).\n";
             }
+            if (buildRefs && refRes != null)
+                msg += "Built " + refRes.Made + " character reference composite(s).\n";
             msg += "\nOutput folder:\n" + outDir;
             if (res.Warnings.Count > 0)
                 msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
@@ -464,9 +482,9 @@ namespace SilentHillPC_Launcher
         }
 
         /// <summary>Modal: choose where to extract + whether to also dump textures as PNG.</summary>
-        private bool PromptExtractOptions(string binPath, out string outDir, out bool convertPng, out bool deleteTim)
+        private bool PromptExtractOptions(string binPath, out string outDir, out bool convertPng, out bool deleteTim, out bool buildRefs)
         {
-            outDir = null; convertPng = false; deleteTim = false;
+            outDir = null; convertPng = false; deleteTim = false; buildRefs = false;
             string defaultOut = Path.Combine(
                 Path.GetDirectoryName(binPath) ?? _gameRoot,
                 Path.GetFileNameWithoutExtension(binPath) + "_extracted");
@@ -474,7 +492,7 @@ namespace SilentHillPC_Launcher
             using (var dlg = new Form())
             {
                 dlg.Text            = "Extract Disc Image";
-                dlg.ClientSize      = new Size(460, 172);
+                dlg.ClientSize      = new Size(460, 200);
                 dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
                 dlg.StartPosition   = FormStartPosition.CenterParent;
                 dlg.MaximizeBox     = false;
@@ -506,11 +524,14 @@ namespace SilentHillPC_Launcher
                     chkDel.Enabled = chk.Checked;
                     if (!chk.Checked) chkDel.Checked = false;
                 };
+                var chkRef = new CheckBox { Text = "Build character reference composites (.ILM + .TIM)",
+                                           Location = new Point(12, 122), AutoSize = true };
                 dlg.Controls.Add(chk);
                 dlg.Controls.Add(chkDel);
+                dlg.Controls.Add(chkRef);
 
-                var ok     = new Button { Text = "Extract", Location = new Point(276, 132), Size = new Size(84, 28), DialogResult = DialogResult.OK };
-                var cancel = new Button { Text = "Cancel",  Location = new Point(364, 132), Size = new Size(84, 28), DialogResult = DialogResult.Cancel };
+                var ok     = new Button { Text = "Extract", Location = new Point(276, 160), Size = new Size(84, 28), DialogResult = DialogResult.OK };
+                var cancel = new Button { Text = "Cancel",  Location = new Point(364, 160), Size = new Size(84, 28), DialogResult = DialogResult.Cancel };
                 dlg.Controls.Add(ok);
                 dlg.Controls.Add(cancel);
                 dlg.AcceptButton = ok;
@@ -520,6 +541,7 @@ namespace SilentHillPC_Launcher
                 outDir = txtOut.Text.Trim();
                 convertPng = chk.Checked;
                 deleteTim = chk.Checked && chkDel.Checked;
+                buildRefs = chkRef.Checked;
                 return !string.IsNullOrEmpty(outDir);
             }
         }

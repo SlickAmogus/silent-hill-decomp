@@ -129,6 +129,10 @@ via the same ISO9660 reader the game uses).
 - **Convert textures to PNG** — a checkbox in the extract dialog. When set, every extracted
   `.TIM` also gets a same-named `.png` beside it, decoded exactly the way the game draws it
   (`TimConverter.cs` mirrors `hires_override.c`: BGR555, `cx==0` transparent, STP ignored).
+- **Build character reference composites** — a second checkbox in the extract dialog. When set,
+  every character (`.ILM` + matching `.TIM`) also gets a `NAME_reference.png` composite beside
+  it in one pass — the correct in-game look to paint over and *Rebuild* (see §5.1). Same result
+  as clicking *Reference…* per character.
 - **TIM → PNG…** / **Bulk → PNG…** — convert individual `.TIM` files, or recursively
   convert every `.TIM` under a folder to `<name>.png` in place (with an option to delete the
   originals). This is the quick way to turn an extracted texture tree into PNGs for the

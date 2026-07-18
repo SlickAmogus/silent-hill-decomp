@@ -256,6 +256,39 @@ namespace SilentHillPC_Launcher
             catch (Exception ex) { res.Error = ex.Message; return res; }
         }
 
+        // ---- batch: build every character's reference composite under a folder --
+
+        public class ComposeAllResult
+        {
+            public int Made;
+            public int Failed;
+            public readonly List<string> Failures = new List<string>();
+        }
+
+        /// <summary>Walk <paramref name="root"/> for every .ILM that has a matching .TIM beside it
+        /// and write NAME_reference.png next to it. ILMs with no texture are skipped silently.</summary>
+        public static ComposeAllResult ComposeAll(string root, Action<int, int, string> report)
+        {
+            var res = new ComposeAllResult();
+            string[] ilms;
+            try { ilms = Directory.GetFiles(root, "*.ilm", SearchOption.AllDirectories); }
+            catch (Exception ex) { res.Failures.Add(ex.Message); return res; }
+            for (int i = 0; i < ilms.Length; i++)
+            {
+                string ilm = ilms[i];
+                if (!ilm.EndsWith(".ilm", StringComparison.OrdinalIgnoreCase)) continue; // 8.3 wildcard guard
+                if (report != null) report(i, ilms.Length, Path.GetFileName(ilm));
+                string tim = ResolveTim(ilm, null);
+                if (tim == null) continue; // no texture beside it -> not a composable character
+                string outPng = Path.Combine(Path.GetDirectoryName(ilm),
+                    Path.GetFileNameWithoutExtension(ilm) + "_reference.png");
+                string err;
+                if (Compose(ilm, tim, outPng, out err)) res.Made++;
+                else { res.Failed++; res.Failures.Add(Path.GetFileName(ilm) + ": " + err); }
+            }
+            return res;
+        }
+
         // ---- bitmap <-> RGBA helpers (R,G,B,A byte order) -----------------------
 
         private static Bitmap RgbaToBitmap(byte[] rgba, int W, int H)
