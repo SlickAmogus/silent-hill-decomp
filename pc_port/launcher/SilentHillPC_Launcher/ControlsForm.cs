@@ -112,6 +112,11 @@ public class ControlsForm : Form
         { "pad_l1", "NONE" }, { "pad_r1", "NONE" }, { "pad_l2", "NONE" }, { "pad_r2", "lefttrigger" },
         { "pad_start", "start" }, { "pad_select", "back" },
         { "pad_cross_2", "a" },
+        // PC-only actions (alt-cam scheme) — default to the same as classic until rebound.
+        { "key_change_cam", "F9" }, { "pad_change_cam", "rightstick" },
+        { "pad_reload", "NONE" },
+        { "key_cycle_weapons", "NONE" }, { "pad_cycle_weapons", "NONE" },
+        { "key_quick_heal", "NONE" }, { "pad_quick_heal", "NONE" },
     };
 
     // Per-scheme bind keys (saved twice: classic as-is, altcam with an "_altcam"
@@ -123,6 +128,14 @@ public class ControlsForm : Form
         var s = new HashSet<string>();
         foreach (var b in KeyboardBinds)   { s.Add(b[1]); s.Add(b[1] + "_2"); }
         foreach (var b in ControllerBinds) { s.Add(b[1]); s.Add(b[1] + "_2"); }
+        // PC-only actions are per-scheme too (classic vs alt-cam), riding the same
+        // _altcam save/load path — but with no secondary (_2) slot for now.
+        // key_reload has no launcher row (its keyboard default "R" is engine-side),
+        // so it is intentionally NOT listed here.
+        foreach (var k in new[] { "key_change_cam", "pad_change_cam", "pad_reload",
+                                  "key_cycle_weapons", "pad_cycle_weapons",
+                                  "key_quick_heal", "pad_quick_heal" })
+            s.Add(k);
         return s;
     }
 
