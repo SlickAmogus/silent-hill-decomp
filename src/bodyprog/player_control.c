@@ -1517,6 +1517,15 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     int  inX   = (right ? 1 : 0) - (left ? 1 : 0);
                     int  inZ   = (fwd   ? 1 : 0) - (back ? 1 : 0);
                     int  anyInput = (inX != 0) || (inZ != 0);
+                    /* Full-360 analog: past a small deadzone the left stick drives a
+                     * continuous direction (keyboard/D-pad stay inherently 8-way).
+                     * forward = -leftY, right = +leftX (joy.c ControllerData_AnalogToDigital). */
+                    s32  a2dX   = (s32)g_Controller0->analogController.leftX - 128;
+                    s32  a2dY   = (s32)g_Controller0->analogController.leftY - 128;
+                    int  a2dUse = (a2dX * a2dX + a2dY * a2dY) >= (40 * 40);
+                    s32  inXv   = a2dUse ?  a2dX : inX;
+                    s32  inZv   = a2dUse ? -a2dY : inZ;
+                    if (a2dUse) anyInput = 1;
 
                     /* Camera "into the screen" yaw (world Q12 angle). Orbit cam =
                      * g_TpsCamYaw directly; fixed classic cam = the yaw from the
@@ -1561,14 +1570,19 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                              * forward=(sin,cos), right=(cos,-sin) of the basis yaw. */
                             s32   sfwd = Math_Sin(s_2dBasisYaw);
                             s32   cfwd = Math_Cos(s_2dBasisYaw);
-                            s32   moveX = inZ * sfwd + inX * cfwd;
-                            s32   moveZ = inZ * cfwd - inX * sfwd;
+                            s32   moveX = inZv * sfwd + inXv * cfwd;
+                            s32   moveZ = inZv * cfwd - inXv * sfwd;
                             q3_12 targetYaw = ratan2(moveX, moveZ);
-                            q3_12 diff = Math_AngleNormalizeSigned(targetYaw - player->rotation.vy);
-                            q3_12 turn2d = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(10.0f));
-                            if (diff >  turn2d) diff =  turn2d;
-                            if (diff < -turn2d) diff = -turn2d;
-                            player->rotation.vy = Q12_ANGLE_NORM_U(player->rotation.vy + diff + Q12_ANGLE(360.0f));
+                            if (g_PcConfig.control2dSnap) {
+                                /* snap: face the input direction immediately */
+                                player->rotation.vy = Q12_ANGLE_NORM_U(targetYaw + Q12_ANGLE(360.0f));
+                            } else {
+                                q3_12 diff = Math_AngleNormalizeSigned(targetYaw - player->rotation.vy);
+                                q3_12 turn2d = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(10.0f));
+                                if (diff >  turn2d) diff =  turn2d;
+                                if (diff < -turn2d) diff = -turn2d;
+                                player->rotation.vy = Q12_ANGLE_NORM_U(player->rotation.vy + diff + Q12_ANGLE(360.0f));
+                            }
                         }
                     }
 

@@ -60,6 +60,7 @@ s_PcConfig g_PcConfig = {
     .altButtonSprint     = 0, /* alt cams sprint from the run control only (off = full stick push also sprints) */
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
+    .control2dSnap           = 0, /* 2D control turns into the direction (0), doesn't snap */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
     .audioOutput         = 0,    /* auto: OpenAL detects the system speaker layout */
     .fpsFov              = 71.1f, /* first-person FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
@@ -680,6 +681,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "control_2d") == 0)
         {
             g_PcConfig.control2d = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "control_2d_snap") == 0)
+        {
+            g_PcConfig.control2dSnap = (atoi(value) != 0);
         }
         else if (strcmp(key, "mouse_sensitivity") == 0)
         {
