@@ -62,6 +62,7 @@ s_PcConfig g_PcConfig = {
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .control2dSnap           = 0, /* 2D control turns into the direction (0), doesn't snap */
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
+    .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
     .audioOutput         = 0,    /* auto: OpenAL detects the system speaker layout */
     .fpsFov              = 71.1f, /* first-person FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
@@ -397,6 +398,10 @@ void PcConfig_Load(const char* path)
             if (v < 0) v = 0;
             if (v > 2) v = 2;
             g_PcConfig.psxDither = v;
+        }
+        else if (strcmp(key, "menu_filter") == 0)
+        {
+            g_PcConfig.menuFilter = (atoi(value) != 0);
         }
         else if (strcmp(key, "widescreen_mode") == 0)
         {

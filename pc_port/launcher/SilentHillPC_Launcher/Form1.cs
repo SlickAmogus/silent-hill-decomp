@@ -410,6 +410,13 @@ public partial class Form1 : Form
         Set(filteringLabel, filteringTip);
         Set(comboFiltering, filteringTip);
 
+        const string menuFilterTip =
+            "Also apply bilinear filtering to menus and 2D screens (title, main menu,\n" +
+            "save/load, options). Off by default, and independent of the in-game Filtering\n" +
+            "setting above. Note: this smooths menu text as well as the artwork.";
+        Set(lblMenu, menuFilterTip);
+        Set(checkBox1, menuFilterTip);
+
         const string pgxpTip =
             "On: sub-pixel-precision vertices and perspective-correct textures\n" +
             "(reduced PSX vertex jitter and texture warping).\n" +
@@ -757,6 +764,9 @@ public partial class Form1 : Form
         if (filterIdx < 0 || filterIdx > 2) filterIdx = 1;
         comboFiltering.SelectedIndex = filterIdx;
 
+        // "Menus:" checkbox — also bilinear-filter menu/2D screens (config key menu_filter)
+        checkBox1.Checked = config.Get("menu_filter", "0") == "1";
+
         // Antialiasing (MSAA): config msaa value 0/2/4/8 <-> dropdown index 0..3
         switch (config.Get("msaa", "0"))
         {
@@ -883,6 +893,7 @@ public partial class Form1 : Form
         // Filtering: dropdown index (0=Off, 1=Dithering, 2=Bilinear) -> int
         if (comboFiltering.SelectedIndex >= 0)
             config.Set("psx_dither", comboFiltering.SelectedIndex.ToString());
+        config.Set("menu_filter", checkBox1.Checked ? "1" : "0");
 
         // Antialiasing (MSAA): dropdown index 0..3 -> msaa 0/2/4/8
         switch (comboAA.SelectedIndex)
