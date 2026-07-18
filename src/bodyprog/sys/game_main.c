@@ -484,8 +484,16 @@ static void Pc_TpsCamera_Apply(void)
          * head-local +Z column is used as face-forward: for YAW this is exact
          * under any rest axis (a Y-rotation shifts every horizontal vector's yaw
          * equally, and the constant axis offset is removed by the reference). */
-        s32 viewYaw   = g_TpsCamYaw;
+        s32 rearOfs;
+        s32 viewYaw;
         s32 viewPitch = g_TpsCamPitch;
+        /* Rear Look (held bind): swing the orbit 180 so the camera sits in front of
+         * Harry and looks back past him. TPS/OTS only; FPS forces 0 (byte-identical). */
+        {
+            extern int g_PcRearLookActive;
+            rearOfs = (g_PcRearLookActive && !g_PcFpsCam) ? Q12_ANGLE(180.0f) : 0;
+        }
+        viewYaw = g_TpsCamYaw + rearOfs;
         if (g_PcFpsCam && g_PcConfig.immersiveFpsHeadTracking)
         {
             const MATRIX* hm  = &g_SysWork.playerBoneCoords[HarryBone_Head].workm;
@@ -789,8 +797,8 @@ static void Pc_TpsCamera_Apply(void)
             #define OTS_OFFSET_AIM Q12(0.9f)
             s32 restOff   = (g_ControlStyle == ControlStyle_Ots) ? OTS_OFFSET : 0;
             s32 targetOff = (isAiming ? OTS_OFFSET_AIM : restOff) * g_OtsSide;
-            s32 rX = Math_Cos(g_TpsCamYaw);   /* horizontal right vector = (cos yaw, -sin yaw) */
-            s32 rZ = -Math_Sin(g_TpsCamYaw);
+            s32 rX = Math_Cos(g_TpsCamYaw + rearOfs);   /* horizontal right vector = (cos yaw, -sin yaw); +rearOfs flips the shoulder with Rear Look */
+            s32 rZ = -Math_Sin(g_TpsCamYaw + rearOfs);
             s32 ox, oz;
 
             s_otsOff += (targetOff - s_otsOff) >> 3;

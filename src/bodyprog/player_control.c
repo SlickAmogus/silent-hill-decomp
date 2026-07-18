@@ -912,6 +912,27 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
             coords[HarryBone_Torso].flg = 0;
         }
 
+        /* Rear Look head turn (bonus): while the Rear Look bind is held (TPS/OTS
+         * only), ease Harry's head yaw toward an over-the-shoulder cap so he looks
+         * back at the camera; released -> eases back. Head-only, capped below a full
+         * turn so the neck doesn't clip. Byte-identical when Rear Look is never used. */
+        {
+            extern int g_PcRearLookActive;
+            extern int g_PcFpsCam;
+            static q3_12 s_rearHeadYaw = 0;
+            q3_12 target = (g_DebugThirdPersonCam && !g_PcFpsCam && g_PcRearLookActive) ? Q12_ANGLE(85.0f) : 0;
+            q3_12 step   = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(14.0f));
+            q3_12 diff   = target - s_rearHeadYaw;
+            if (diff >  step) diff =  step;
+            if (diff < -step) diff = -step;
+            s_rearHeadYaw += diff;
+            if (s_rearHeadYaw != 0)
+            {
+                func_80044F14(&coords[HarryBone_Head], Q12_ANGLE(0.0f), Q12_ANGLE(0.0f), s_rearHeadYaw);
+                coords[HarryBone_Head].flg = 0;
+            }
+        }
+
         /* Keyframe inspector (debug): when on, override the sampled pose with a
          * single absolute keyframe across Harry's whole skeleton so the exact
          * authored frame index for a pose can be found (drive K / , / . in
