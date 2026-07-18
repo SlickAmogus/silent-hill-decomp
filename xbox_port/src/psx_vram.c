@@ -263,13 +263,19 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
          * Stop short of HEAP_RESERVE_KB so the map/cutscene allocations always fit;
          * a smaller cache only costs decode thrash, never a boot failure. */
         extern unsigned Xbox_MemFreeKB(void);   /* sh_log_xbox.c */
-        enum { HEAP_RESERVE_KB = 8 * 1024, SLOT_KB = (TEX_DIM * TEX_DIM * 4) / 1024 };
+        /* CACHE_MIN_SLOTS is a floor the reserve may NOT undercut. A 16MB packet
+         * arena regression once left only 4.4MB free here, the reserve refused
+         * every slot, and the game rendered ENTIRELY UNTEXTURED (white screens) —
+         * a far worse failure than being tight on heap. Below the floor we
+         * allocate regardless and let the map allocations degrade instead. */
+        enum { HEAP_RESERVE_KB = 8 * 1024, SLOT_KB = (TEX_DIM * TEX_DIM * 4) / 1024,
+               CACHE_MIN_SLOTS = 24 };
         int ok = 0;
         for (i = 0; i < CACHE_N; i++) {
             unsigned freeKB = Xbox_MemFreeKB();
             s_cache[i].key  = -1;
             s_cache[i].argb = NULL;
-            if (freeKB && freeKB < HEAP_RESERVE_KB + SLOT_KB)
+            if (ok >= CACHE_MIN_SLOTS && freeKB && freeKB < HEAP_RESERVE_KB + SLOT_KB)
                 continue;                       /* reserve floor reached — leave the rest NULL */
             s_cache[i].argb = (uint32_t*)GpuNv2a_AllocTexMem(TEX_DIM * TEX_DIM * 4);
             if (s_cache[i].argb) ok++;

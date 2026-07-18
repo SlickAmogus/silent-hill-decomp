@@ -79,7 +79,16 @@ static s32 g_PrevVBlanks = 0;
  * arena is enlarged and the whole-map submit budget (bodyprog_80040B74.c) is
  * sized well under it — the old 1.2MB budget was throttling the draw set to ~19
  * chunks. 16MB fits ~400 chunks; normal play still uses <2MB. */
+#ifdef SH_XBOX_PORT
+/* Xbox: 2MB. TWO arenas are calloc'd (double-buffered), so PC's 16MB costs 32MB
+ * of a 64MB console — it took free RAM at boot from ~33MB to 4.4MB, which left
+ * the texture cache 0 of 96 slots and rendered the whole game untextured white.
+ * The enlargement is for whole-map mode only (wholeMapExteriors, pinned off
+ * here); the Xbox's measured usage is ~29KB/frame against this arena. */
+#define PC_PKTBUF_SIZE (2 * 1024 * 1024)
+#else
 #define PC_PKTBUF_SIZE (16 * 1024 * 1024)
+#endif
 #define PC_CANARY_SIZE 64
 #define PC_CANARY_VAL  0xDE
 static PACKET* s_PcPacketBufs[2] = { NULL, NULL };
@@ -2228,12 +2237,28 @@ void MainLoop(void) // 0x80032EE0
                     if (effectiveMin > 0 || s_lastFrameTime == 0)
                         s_lastFrameTime = 0; /* reset SDL timer when not in use */
 
+#ifdef SH_XBOX_PORT
+                    /* Coalesce the wait into ONE VSync call. On Xbox VSync both
+                     * presents and opens the next frame, so calling it twice (the
+                     * 30fps case, effectiveMin == 2) presents the freshly-cleared
+                     * back buffer the second time — a black frame every other
+                     * frame. VSync(n) holds n vblanks for a single present, which
+                     * is what the pacing actually wants. */
+                    if (g_VBlanks < effectiveMin)
+                    {
+                        int need = effectiveMin - g_VBlanks;
+                        VSync(need);
+                        g_VBlanks     += need;
+                        g_PrevVBlanks += need;
+                    }
+#else
                     while (g_VBlanks < effectiveMin)
                     {
                         VSync(SyncMode_Wait);
                         g_VBlanks++;
                         g_PrevVBlanks++;
                     }
+#endif
                 }
 #else
                 while (g_VBlanks < g_IntervalVBlanks)
