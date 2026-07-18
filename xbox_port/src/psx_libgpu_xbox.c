@@ -163,6 +163,7 @@ extern void Audio_XboxPump(void); /* refill the DirectSound ring (dsound_xbox.c)
 
 static volatile int s_vblanks = 0;
 static void (*s_vsyncCb)(void) = 0;   /* the game's per-vblank callback */
+extern int g_GpuXboxFrameDirty;        /* set by DrawOTag (gpu_xbox.c) */
 
 /* PSX VSync():
  *   mode <0 (SyncMode_Count): return the vblank counter WITHOUT blocking. The game
@@ -176,16 +177,28 @@ static void (*s_vsyncCb)(void) = 0;   /* the game's per-vblank callback */
  * is fired once per real vblank — we have no vblank IRQ, so this is its tick. */
 int VSync(int mode)
 {
-    int n, i;
+    int n, i, present;
 
     if (mode < 0)
         return s_vblanks;
 
-    Pad_Poll();
-    Audio_XboxPump();               /* keep the DirectSound ring fed (once per frame) */
-    GpuNv2a_FrameEnd();              /* present the rendered frame (swap at vblank) */
-    GpuXbox_FbStoreFrameTick();      /* latch+reset the per-frame TIM-protect gate
+    /* Present ONLY when a DrawOTag actually rendered something since the last
+     * present. At 30fps the pacing loop in game_main.c burns 2 vblanks by calling
+     * VSync(SyncMode_Wait) TWICE per tick; presenting on both swapped in the
+     * freshly-cleared back buffer, i.e. a black frame every other frame. The
+     * second call must be a pure vblank wait, which is also what PSX VSync(0)
+     * is — on PSX drawing goes to VRAM and there is no swap at all. */
+    present = g_GpuXboxFrameDirty;
+
+    if (present) {
+        Pad_Poll();                  /* once per rendered frame: polling twice
+                                      * would consume the clicked/edge flags */
+        Audio_XboxPump();            /* keep the DirectSound ring fed */
+        GpuNv2a_FrameEnd();          /* present the rendered frame (swap at vblank) */
+        GpuXbox_FbStoreFrameTick();  /* latch+reset the per-frame TIM-protect gate
                                       * (g_PsxSkipFramebufferStore) — PsyX_EndScene parity */
+        g_GpuXboxFrameDirty = 0;
+    }
 
     n = (mode == 0) ? 1 : mode;
     for (i = 0; i < n; i++) {
@@ -198,7 +211,11 @@ int VSync(int mode)
             s_vsyncCb();
     }
 
-    GpuNv2a_FrameBegin();           /* clear + target the next frame's back buffer */
+    if (!present)
+        Audio_XboxPump();           /* still service audio on a pure wait */
+
+    if (present)
+        GpuNv2a_FrameBegin();       /* clear + target the next frame's back buffer */
     if ((s_vblanks % 600) == 0) {
         extern void Xbox_MemReport(const char*);
         SH_DBG("[SH-XBOX] vblank %d", s_vblanks);

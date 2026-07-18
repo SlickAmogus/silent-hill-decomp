@@ -49,7 +49,7 @@ void DbgOverlay_Update(void)            { }
 void DbgOverlay_Render(void)            { }
 /* FMV_Play: real STR/MDEC + XA player in fmv_xbox.c. */
 void HiresOverride_RegisterFromTim(void){ }
-void PcConfig_SaveMapName(void)         { }
+/* PcConfig_SaveMapName: real implementation now comes from pc_config.c. */
 void Pc_ConsoleApplyPendingFlags(void)  { }
 void Pc_ConsoleFmvUpdate(void)          { }
 void Pc_PlayWarningScreen(void)         { }

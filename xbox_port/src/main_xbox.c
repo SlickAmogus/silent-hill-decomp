@@ -27,6 +27,8 @@ extern void Pad_XboxInit(void);   /* USB controller init (pad_xbox.c) */
 extern void Cd_XboxInit(void);    /* open the BIN disc image on D: (cd_xbox.c) */
 extern void Mcard_XboxInit(void); /* PSX events + E:\UDATA memory card (mcard_xbox.c) */
 extern void Fs_InitFileTableForRegion(int region);  /* fill g_FileTable (USA=0) */
+extern void PcConfig_Load(const char* path);          /* pc_port/src/pc_config.c */
+extern void XboxConfig_ApplyOverrides(void);          /* xbox_compat_globals.c */
 
 /* Game entry + PSX subsystem init (defined in the shared decomp / pc_port data). */
 extern void MainLoop(void);
@@ -158,6 +160,15 @@ int main(void)
             XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
 
         XboxFs_MountHomeDrive();
+
+        /* Config: PC's own parser + defaults (pc_config.c is SDL-free and is
+         * compiled on Xbox). There is no launcher here, so silenthill.cfg on the
+         * game drive is how a user tunes anything; absent, PC's defaults apply.
+         * Xbox overrides run AFTER, pinning the settings the console cannot
+         * afford (see XboxConfig_ApplyOverrides). */
+        PcConfig_Load("D:\\silenthill.cfg");
+        XboxConfig_ApplyOverrides();
+
         SH_DebugLogInit();
         Crash_InstallSehFrame(&sehFrame); /* from here on, any fault logs [FATAL] + flushes */
         debugPrint("Silent Hill (Xbox) booting...\n");

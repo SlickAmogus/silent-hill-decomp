@@ -23,6 +23,7 @@
  * driven by GpuNv2a_FrameBegin/End; these are wired to the present when the game
  * loop is integrated. */
 static int     g_gpuDisabled = 0;
+int            g_GpuXboxFrameDirty = 0;  /* set by DrawOTag, consumed by VSync (psx_libgpu_xbox.c) */
 static DISPENV g_activeDispEnv;
 static DRAWENV g_activeDrawEnv;
 
@@ -567,6 +568,11 @@ void DrawOTag(u_long* p)
 
     if (g_gpuDisabled)
         return;
+
+    /* Mark that this frame has real rendered content. VSync presents only when
+     * this is set, so the 30fps pacing loop (which calls VSync twice per tick to
+     * burn 2 vblanks) cannot present a second, freshly-cleared black frame. */
+    g_GpuXboxFrameDirty = 1;
 
     /* Render census: detect the frame boundary via the NV2A frame counter and
      * dump the accumulated window once per 150 frames (~5s at 30fps). The old

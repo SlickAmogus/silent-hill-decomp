@@ -145,9 +145,17 @@ MAP_SRCS := \
 #  prefix) are wrong for i386. xbox_port/src/map7_s03_boss_motion.c is the
 #  i386 equivalent; map7_s03's boss code resolves the data from the exe side,
 #  exactly like the PC DLL does.)
-PCPORT_HAL_EXCLUDE := main_pc pc_config pc_combat pc_console_cmd pc_crash pc_quicksave \
+# NOTE: pc_config is deliberately NOT excluded. It is SDL-free (stdio only) and
+# carries g_PcConfig's full default initializer plus the key=value parser, so the
+# Xbox inherits every PC default automatically as the config struct grows, and
+# users get a config file on the console without a launcher (see main_xbox.c).
+# Xbox-specific overrides are applied after the load in xbox_compat_globals.c.
+PCPORT_HAL_EXCLUDE := main_pc pc_combat pc_console_cmd pc_crash pc_quicksave \
 	pc_timing dbg_overlay warning_screen hires_override fs_pc dll_loader \
 	map_overlay_loader map_registry xa_player \
+	control_style pc_mouse_cursor \
+	combat_target \
+	miniz tex_pack \
 	map7_s03_boss_motion
 PCPORT_REUSE := $(filter-out $(foreach f,$(PCPORT_HAL_EXCLUDE),$(PCPORT)/src/$(f).c),\
 	$(wildcard $(PCPORT)/src/*.c))
@@ -195,6 +203,7 @@ XBOX_SRCS = \
 	$(XBOX_PORT)/src/psx_libgpu_xbox.c \
 	$(XBOX_PORT)/src/xbox_compat_stubs.c \
 	$(XBOX_PORT)/src/xbox_compat_globals.c \
+	$(XBOX_PORT)/src/xbox_pcfeature_stubs.c \
 	$(XBOX_PORT)/src/map_xbox.c \
 	$(XBOX_PORT)/src/map7_s03_boss_motion.c \
 	$(XBOX_PORT)/src/libc_compat_xbox.c \
@@ -266,6 +275,7 @@ DSOUND_OBJS = \
 	$(DSOUND_OBJS_DIR)/wavfileio.obj
 NXDK_LDFLAGS += $(DSOUND_OBJS)
 NXDK_LDFLAGS += /safeseh:no
+NXDK_LDFLAGS += /errorlimit:0
 # Linker map for crash telemetry: nxdk links at -fixed -base:0x00010000 and CXBE
 # keeps the base, so a [FATAL] eip=%08x from crash_xbox.c resolves directly
 # against this file (no rebasing needed). NOTE: "-map:" (dash) — a "/map:" slash

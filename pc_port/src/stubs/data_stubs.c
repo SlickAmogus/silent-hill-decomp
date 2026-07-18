@@ -697,8 +697,15 @@ u8 StCdIntrFlag[256] = {0};
  * which definition wins per call site — undefined behavior that may
  * have been silently corrupting the memcard path even when it
  * appeared to work. Using PsyCross's real ones now. */
+#ifndef SH_XBOX_PORT
 u8 fst_max[256] = {0};
 u8 fst_min[256] = {0};
+#else
+/* fst_max[]/fst_min[]: dead stub arrays (nothing references them) that collide
+ * with PsyCross's real fst_max()/fst_min() GTE helpers in src/psx/libgte.c,
+ * which the Xbox compiles. MinGW --export-all-symbols tolerates the duplicate;
+ * lld rejects it. */
+#endif
 u8 g_ActiveBufferIdx[256] = {0};
 /* g_Ai_AirScreamer_ControlFuncs now defined in src/maps/characters/air_screamer.c */
 u8 g_Ai_MonsterCybil_ExtraModel[256] = {0};
