@@ -45,6 +45,12 @@ void HiresOverride_Init(void);
  * edge under bilinear sampling ("ghost text"); all other overrides stay bilinear. */
 void HiresOverride_SetForceNearestUpload(int on);
 
+/* Decode a raw TIM/PNG blob to RGBA8 (no PSX VRAM, no override tables) — used by
+ * the PC minimap to turn the per-area paper-map TIM into a GL texture.
+ * Caller frees *outRGBA. Returns 0 on success. */
+int HiresOverride_DecodeToRGBA(const unsigned char* data, unsigned int size,
+                               unsigned char** outRGBA, int* outW, int* outH);
+
 /* Register a hi-res override.
  *   timPath:     loose-file path (used only for log messages)
  *   timData:     raw TIM file bytes (will be parsed; not retained after return)

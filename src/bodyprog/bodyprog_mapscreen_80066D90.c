@@ -898,6 +898,15 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
     }
 
     temp_s4 = (mapCoordIdxZ << 16) + var_a3;
+#ifdef SH_PC_PORT
+    /* PC minimap query: return Harry's map cell WITHOUT drawing the paper-map
+     * arrow/markings below. Mirrors the existing L1/R1 early-out, but driven by
+     * the caller instead of held buttons so the overlay can poll it each frame. */
+    {
+        extern int g_PcMapQueryOnly;
+        if (g_PcMapQueryOnly) return temp_s4;
+    }
+#endif
     if (g_Controller0->heldBtnFlags & (ControllerFlag_L1 | ControllerFlag_R1))
     {
         return temp_s4;

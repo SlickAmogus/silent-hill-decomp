@@ -305,6 +305,15 @@ static int decode_to_rgba(const char* tag,
     return 0;
 }
 
+/* PC minimap: decode a raw TIM (or PNG) blob to RGBA8 without touching PSX VRAM
+ * or the override tables. Caller frees *outRGBA. Returns 0 on success. */
+int HiresOverride_DecodeToRGBA(const unsigned char* data, unsigned int size,
+                               unsigned char** outRGBA, int* outW, int* outH)
+{
+    int bpp = 0;
+    return decode_to_rgba("minimap", data, size, outRGBA, outW, outH, &bpp, 0, NULL);
+}
+
 int HiresOverride_RegisterFromTim(const char* timPath,
                                    const unsigned char* timData,
                                    unsigned int timSize,

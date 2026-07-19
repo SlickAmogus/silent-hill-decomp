@@ -2078,6 +2078,11 @@ void MainLoop(void) // 0x80032EE0
         {
             extern void Pc_HealFlashUpdate(void);
             Pc_HealFlashUpdate();
+
+            /* Minimap: load the area's paper-map TIM here (game side) when it
+             * changes — the Fs queue must not be touched from the GL hook that
+             * draws it. Self-gated on g_PcConfig.minimap. */
+            { extern void Pc_MinimapUpdate(void); Pc_MinimapUpdate(); }
         }
 #endif
         ML_TRACE("MemCard_Update");
