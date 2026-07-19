@@ -383,6 +383,38 @@ void Game_NpcRoomInitSpawn(bool cond) // 0x80037F24
 #endif
 }
 
+#ifdef SH_PC_PORT
+/* Spawned cutscene actors (charaId >= Chara_Cybil) have no AI update func in a
+ * foreign map, so Game_NpcUpdate's render-only fallback poses keyframe 0 and they
+ * freeze. For the human actors whose standing-idle clip (anim index 1) range is
+ * known, the fallback loops it instead of freezing. Ranges transcribed from the
+ * per-map-overlay *_ANIM_INFOS (those symbols aren't linked into other maps):
+ *   Cybil    (26) cybil.h:88    kf 0..15
+ *   Dahlia   (30) dahlia.h:76   kf 0..15
+ *   Lisa     (32) lisa.h:67     kf 0..9
+ *   Kaufmann (38) kaufmann.h:70 kf 0..5
+ * Non-human render-only ids in the same band (Cat, Alessa, Flauros, Incubator,
+ * Parasite, …) are EXCLUDED — anim 1 there is a walk/attack, not an idle. Cheryl
+ * and the ending/bloody variants use different ANM files / unverified ranges, so
+ * they keep the static pose until their idle range is confirmed. */
+static bool Pc_ActorIdleClipGet(s32 charaId, s16* outStartKf, s16* outEndKf, q19_12* outDur)
+{
+    s16 s, e;
+    switch (charaId)
+    {
+        case Chara_Cybil:    s = 0; e = 15; break;
+        case Chara_Dahlia:   s = 0; e = 15; break;
+        case Chara_Lisa:     s = 0; e = 9;  break;
+        case Chara_Kaufmann: s = 0; e = 5;  break;
+        default: return false;
+    }
+    *outStartKf = s;
+    *outEndKf   = e;
+    *outDur     = Q12(5.0f);
+    return true;
+}
+#endif
+
 void Game_NpcUpdate(void) // 0x80038354
 {
     typedef struct
@@ -687,6 +719,27 @@ void Game_NpcUpdate(void) // 0x80038354
                          * keyframe 0 and place the root every frame (same
                          * recipe as the cutscene actors' update funcs). */
                         if (statueHdr != NULL) {
+#ifdef SH_PC_PORT
+                            s16    idleStart, idleEnd;
+                            q19_12 idleDur;
+                            if (Pc_ActorIdleClipGet(npc->model.charaId, &idleStart, &idleEnd, &idleDur)) {
+                                /* Loop the standing-idle clip so spawned human actors
+                                 * breathe instead of freezing at keyframe 0.
+                                 * Anim_PlaybackLoop reads only this stack info and poses
+                                 * bones 1+; the root placement below still applies (it
+                                 * never writes bone 0). model.anim.time is per-npc and was
+                                 * zeroed at spawn; AnimFlag_Unlocked is already set above. */
+                                s_AnimInfo idle;
+                                idle.playbackFunc        = Anim_PlaybackLoop;
+                                idle.status              = 0;
+                                idle.hasVariableDuration = 0;
+                                idle.linkStatus          = 0;
+                                idle.duration.constant   = idleDur;
+                                idle.startKeyframeIdx    = idleStart;
+                                idle.endKeyframeIdx      = idleEnd;
+                                Anim_PlaybackLoop(&npc->model, statueHdr, statueBc, &idle);
+                            } else
+#endif
                             Anim_BoneUpdate(statueHdr, statueBc, 0, 0, Q12(0.0f));
                             Math_RotMatrixZxyNegGte(&npc->rotation, &statueBc->coord);
                             statueBc->coord.t[0] = Q12_TO_Q8(npc->position.vx);
