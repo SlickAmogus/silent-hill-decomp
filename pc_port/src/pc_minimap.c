@@ -1,4 +1,4 @@
-/* Config-only PC minimap overlay (top-left).
+/* Config-only PC minimap overlay (top-left, circular).
  *
  * Drawn with PSX PRIMITIVES into the game's own display list — the same path
  * Pc_HealFlashUpdate and every other 2D HUD element uses. An earlier raw-GL
@@ -18,7 +18,7 @@
  *
  * Harry's position comes from the game's own world->map transform (func_80067914)
  * in query mode, so the marker cannot drift from the real paper map. Areas with no
- * paper map fall back to a scrolling grid.
+ * paper map show an empty dark disc.
  *
  * Off by default: g_PcConfig.minimap == 0 early-returns before any work. */
 
@@ -57,9 +57,11 @@ int g_PcMapQueryOnly = 0;
 #define MM_UV_MAX (MM_NATIVE - 1)
 #define MM_ZOOM   3      /* show ~1/3 of the map around Harry */
 
-#define MM_GRID_LINES 5
-#define MM_CELL       40
-#define MM_VIEW       100
+#define MM_SEG     20   /* triangle-fan segments approximating the circle */
+#define MM_R       (MM_SIZE / 2)
+#define MM_OUTLINE 2    /* black ring thickness, in the same 2D units */
+#define MM_CX      (MM_X0 + MM_SIZE / 2)
+#define MM_CY      (MM_Y0 + MM_SIZE / 2)
 
 /* Map-cell extents the paper map spans; used to place Harry on the image. */
 #define MM_HALF_X 160
@@ -127,12 +129,12 @@ static void mm_map_load_tick(int idx)
 
 void Pc_MinimapUpdate(void)
 {
-    static TILE     s_panel[2];
-    static TILE     s_grid[2][MM_GRID_LINES * 2];
-    static POLY_FT4 s_map[2];
+    static POLY_F3  s_ring[2][MM_SEG];   /* black outline + backing disc */
+    static POLY_F3  s_fill[2][MM_SEG];   /* dark interior when no map */
+    static POLY_FT3 s_fan[2][MM_SEG];    /* the map image */
     static POLY_F3  s_mark[2];
     static DR_TPAGE s_tp[2];
-    int       buf, i, n = 0;
+    int       buf, i;
     s32       packed, px, py;
     int       haveMap;
     int       u0 = 0, v0 = 0, u1 = MM_UV_MAX, v1 = MM_UV_MAX;
@@ -156,34 +158,82 @@ void Pc_MinimapUpdate(void)
 
     if (packed != 0)
     {
-        /* Harry in map-image UV space. */
         s32 mx = (s32)(s16)(packed & 0xFFFF);
         s32 mz = (s32)(s16)((packed >> 16) & 0xFFFF);
         int cu = mm_clamp(((mx + MM_HALF_X) * MM_UV_MAX) / (2 * MM_HALF_X), 0, MM_UV_MAX);
         int cv = mm_clamp(((mz + MM_HALF_Z) * MM_UV_MAX) / (2 * MM_HALF_Z), 0, MM_UV_MAX);
         int half = MM_UV_MAX / (2 * MM_ZOOM);
 
-        /* Zoom window centred on Harry, clamped to the image edges. */
         u0 = mm_clamp(cu - half, 0, MM_UV_MAX - 2 * half);
         v0 = mm_clamp(cv - half, 0, MM_UV_MAX - 2 * half);
         u1 = u0 + 2 * half;
         v1 = v0 + 2 * half;
 
-        /* Marker sits where Harry falls inside that window (centre normally, and
-         * correctly off-centre once the window clamps at a map edge). */
-        px = MM_X0 + ((cu - u0) * MM_SIZE) / (u1 - u0);
-        py = MM_Y0 + ((cv - v0) * MM_SIZE) / (v1 - v0);
+        px = MM_CX + (((cu - u0) * 2 - (u1 - u0)) * MM_R) / (u1 - u0);
+        py = MM_CY + (((cv - v0) * 2 - (v1 - v0)) * MM_R) / (v1 - v0);
     }
     else
     {
-        px = MM_X0 + MM_SIZE / 2;
-        py = MM_Y0 + MM_SIZE / 2;
+        px = MM_CX;
+        py = MM_CY;
     }
-    px = mm_clamp(px, MM_X0 + 4, MM_X1 - 4);
-    py = mm_clamp(py, MM_Y0 + 4, MM_Y1 - 4);
+    /* keep the arrow inside the disc */
+    {
+        s32 dx = px - MM_CX, dy = py - MM_CY;
+        s32 lim = MM_R - 5;
+        if (dx * dx + dy * dy > lim * lim)
+        {
+            s32 d = dx * dx + dy * dy;
+            s32 k = 0;
+            while ((k + 1) * (k + 1) <= d) k++;      /* integer sqrt */
+            if (k > 0) { px = MM_CX + (dx * lim) / k; py = MM_CY + (dy * lim) / k; }
+        }
+    }
 
-    /* --- marker: small triangle along Harry's heading (screen +Y is down, so
-     *     "north" is -Y at angle 0) --- */
+    /* --- circle fans: black ring underneath, then the map (or a dark disc) --- */
+    for (i = 0; i < MM_SEG; i++)
+    {
+        q3_12 a0 = (q3_12)((4096 * i) / MM_SEG);
+        q3_12 a1 = (q3_12)((4096 * (i + 1)) / MM_SEG);
+        s32   c0 = Math_Cos(a0), n0 = Math_Sin(a0);
+        s32   c1 = Math_Cos(a1), n1 = Math_Sin(a1);
+        s32   Ro = MM_R + MM_OUTLINE;
+
+        setPolyF3(&s_ring[buf][i]);
+        setRGB0(&s_ring[buf][i], 0, 0, 0);
+        setXY3(&s_ring[buf][i], MM_CX, MM_CY,
+               MM_CX + ((Ro * c0) >> 12), MM_CY + ((Ro * n0) >> 12),
+               MM_CX + ((Ro * c1) >> 12), MM_CY + ((Ro * n1) >> 12));
+
+        if (haveMap)
+        {
+            /* vertex position within the panel, 0..4096, -> zoom-window UV */
+            s32 nx0 = 2048 + (c0 >> 1), ny0 = 2048 + (n0 >> 1);
+            s32 nx1 = 2048 + (c1 >> 1), ny1 = 2048 + (n1 >> 1);
+            setPolyFT3(&s_fan[buf][i]);
+            setRGB0(&s_fan[buf][i], 128, 128, 128);  /* neutral = unmodulated */
+            setXY3(&s_fan[buf][i], MM_CX, MM_CY,
+                   MM_CX + ((MM_R * c0) >> 12), MM_CY + ((MM_R * n0) >> 12),
+                   MM_CX + ((MM_R * c1) >> 12), MM_CY + ((MM_R * n1) >> 12));
+            setUV3(&s_fan[buf][i],
+                   (u8)((u0 + u1) / 2),                 (u8)((v0 + v1) / 2),
+                   (u8)(u0 + (((u1 - u0) * nx0) >> 12)), (u8)(v0 + (((v1 - v0) * ny0) >> 12)),
+                   (u8)(u0 + (((u1 - u0) * nx1) >> 12)), (u8)(v0 + (((v1 - v0) * ny1) >> 12)));
+            /* tpage irrelevant: the bit-15 clut alone keys the pool-slot override */
+            s_fan[buf][i].tpage = 0;
+            s_fan[buf][i].clut  = MM_CLUT;
+        }
+        else
+        {
+            setPolyF3(&s_fill[buf][i]);
+            setRGB0(&s_fill[buf][i], 16, 20, 30);
+            setXY3(&s_fill[buf][i], MM_CX, MM_CY,
+                   MM_CX + ((MM_R * c0) >> 12), MM_CY + ((MM_R * n0) >> 12),
+                   MM_CX + ((MM_R * c1) >> 12), MM_CY + ((MM_R * n1) >> 12));
+        }
+    }
+
+    /* --- marker: small triangle along Harry's heading (+Y is down, so north is -Y) --- */
     {
         static const s32 lx[3] = {  0, -3,  3 };
         static const s32 ly[3] = { -5,  3,  3 };
@@ -200,66 +250,15 @@ void Pc_MinimapUpdate(void)
         setXY3(&s_mark[buf], vx[0], vy[0], vx[1], vy[1], vx[2], vy[2]);
     }
 
-    /* --- map image, or a scrolling grid where the area has no paper map --- */
-    if (haveMap)
-    {
-        setPolyFT4(&s_map[buf]);
-        setRGB0(&s_map[buf], 128, 128, 128); /* neutral = unmodulated */
-        setXY4(&s_map[buf], MM_X0, MM_Y0, MM_X1, MM_Y0, MM_X0, MM_Y1, MM_X1, MM_Y1);
-        /* tpage is irrelevant: the bit-15 clut alone keys the pool-slot override. */
-        s_map[buf].tpage = 0;
-        s_map[buf].clut  = MM_CLUT;
-        s_map[buf].u0 = (u8)u0; s_map[buf].v0 = (u8)v0;
-        s_map[buf].u1 = (u8)u1; s_map[buf].v1 = (u8)v0;
-        s_map[buf].u2 = (u8)u0; s_map[buf].v2 = (u8)v1;
-        s_map[buf].u3 = (u8)u1; s_map[buf].v3 = (u8)v1;
-    }
-    else
-    {
-        s32 hx = g_SysWork.playerWork.player.position.vx >> 12;
-        s32 hz = g_SysWork.playerWork.player.position.vz >> 12;
-        for (i = 0; i < MM_GRID_LINES; i++)
-        {
-            s32 wx = ((hx - MM_VIEW) / MM_CELL + i) * MM_CELL;
-            s32 wz = ((hz - MM_VIEW) / MM_CELL + i) * MM_CELL;
-            s32 gx = MM_X0 + (((wx - hx) + MM_VIEW) * MM_SIZE) / (2 * MM_VIEW);
-            s32 gy = MM_Y0 + (((wz - hz) + MM_VIEW) * MM_SIZE) / (2 * MM_VIEW);
-            if (gx > MM_X0 && gx < MM_X1)
-            {
-                setTile(&s_grid[buf][n]);
-                setRGB0(&s_grid[buf][n], 72, 88, 104);
-                setWH(&s_grid[buf][n], 1, MM_SIZE);
-                setXY0(&s_grid[buf][n], gx, MM_Y0);
-                n++;
-            }
-            if (gy > MM_Y0 && gy < MM_Y1)
-            {
-                setTile(&s_grid[buf][n]);
-                setRGB0(&s_grid[buf][n], 72, 88, 104);
-                setWH(&s_grid[buf][n], MM_SIZE, 1);
-                setXY0(&s_grid[buf][n], MM_X0, gy);
-                n++;
-            }
-        }
-    }
-
-    /* --- panel background --- */
-    setTile(&s_panel[buf]);
-    setSemiTrans(&s_panel[buf], 1);
-    setRGB0(&s_panel[buf], 16, 20, 30);
-    setWH(&s_panel[buf], MM_SIZE, MM_SIZE);
-    setXY0(&s_panel[buf], MM_X0, MM_Y0);
-
-    setDrawTPage(&s_tp[buf], 0, 1, getTPageN(0, 0, 0, 0)); /* abr=0 = 50% blend */
+    setDrawTPage(&s_tp[buf], 0, 1, getTPageN(0, 0, 0, 0));
 
     /* AddPrim pushes to the head, so the LAST added is processed FIRST: add
-     * front-to-back (marker, map/grid, panel) and the tpage last. */
+     * front-to-back (marker, map/fill, ring) and the tpage last. */
     AddPrim(ot, &s_mark[buf]);
-    if (haveMap)
-        AddPrim(ot, &s_map[buf]);
-    else
-        for (i = 0; i < n; i++) AddPrim(ot, &s_grid[buf][i]);
-    AddPrim(ot, &s_panel[buf]);
+    for (i = 0; i < MM_SEG; i++)
+        AddPrim(ot, haveMap ? (void*)&s_fan[buf][i] : (void*)&s_fill[buf][i]);
+    for (i = 0; i < MM_SEG; i++)
+        AddPrim(ot, &s_ring[buf][i]);
     AddPrim(ot, &s_tp[buf]);
 }
 
