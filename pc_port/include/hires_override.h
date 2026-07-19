@@ -39,6 +39,12 @@ extern "C" {
 /* Initialize the override system. Safe to call multiple times. */
 void HiresOverride_Init(void);
 
+/* Force GL_NEAREST (point) sampling on subsequent override uploads until cleared
+ * with 0. The font TIM loader wraps its registration in this so HD font atlases
+ * (gutterless glyph cells) don't bleed a neighbour glyph's ink across the cell
+ * edge under bilinear sampling ("ghost text"); all other overrides stay bilinear. */
+void HiresOverride_SetForceNearestUpload(int on);
+
 /* Register a hi-res override.
  *   timPath:     loose-file path (used only for log messages)
  *   timData:     raw TIM file bytes (will be parsed; not retained after return)

@@ -38,6 +38,16 @@ static int        g_initialized = 0;
 
 static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int nearest);
 
+/* Force GL_NEAREST (point) sampling on the next upload(s), set by the font TIM
+ * loader. HD font packs paint gutterless glyph cells edge-to-edge, so bilinear
+ * MAG/mipmap sampling bleeds a neighbour glyph's ink across the cell boundary
+ * ("ghost text" beside A/O). Point-sampling the font atlas removes the bleed
+ * while every other override keeps bilinear. Persistent (not one-shot): a font
+ * registers one upload per CLUT row, so the loader sets it around the whole
+ * PostLoadTim registration and clears it after. */
+static int s_forceNearestUpload = 0;
+void HiresOverride_SetForceNearestUpload(int on) { s_forceNearestUpload = on ? 1 : 0; }
+
 /* ---- Texture-pack GL byte budget ------------------------------------------
  * A DuckStation pack composes + uploads a pack-resolution RGBA texture (with
  * mipmaps) for EVERY CLUT row of EVERY claimed page. The whole-town render
@@ -479,6 +489,7 @@ int HiresOverride_PoolSlotRegister(int slotId,
  * stay NEAREST with no mips (PSX-exact). Returns 0 on success. */
 static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int nearest)
 {
+    if (s_forceNearestUpload) nearest = 1; /* font atlas: point-sample, kill gutterless-cell bleed */
     if (rgba == NULL || w <= 0 || h <= 0) return -1;
     if (*tex == 0)
     {

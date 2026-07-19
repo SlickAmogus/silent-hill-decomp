@@ -881,6 +881,17 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 #ifdef SH_PC_PORT
     { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0/TIM] PostLoadTim done\n"); fflush(g_ShDebugLog); } }
 
+    /* Point-sample the font atlas: an HD font pack paints gutterless glyph cells
+     * edge-to-edge, so bilinear sampling bleeds the neighbour glyph's ink across
+     * the cell boundary ("ghost text" beside A/O). Force GL_NEAREST for the font
+     * TIMs only (FONT16 = the 12x16 menu/UI/dialogue font; FONT24 = credits) —
+     * every other override keeps bilinear. Cleared before return. */
+    {
+        int fidx = FSQ_INFO_VALID(entry->info) ? (int)(entry->info - &g_FileTable[0]) : -1;
+        HiresOverride_SetForceNearestUpload(
+            fidx == FILE_1ST_FONT16_TIM || fidx == FILE_TIM_FONT24_TIM);
+    }
+
     /* Virtual pool slot: decode the TIM (or a loose PNG/TIM replacement)
      * into the slot's persistent GL texture. slotId comes from the synthetic
      * clutY the slot was initialized with; native pixel dims come from the
@@ -1220,6 +1231,8 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
             }
         }
     }
+
+    HiresOverride_SetForceNearestUpload(0);
 #endif
 
     return true;
