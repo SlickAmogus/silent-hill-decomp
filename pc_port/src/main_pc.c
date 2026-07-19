@@ -261,6 +261,25 @@ static void Sh_LogAtExitFlush(void) {
     if (g_ShDebugLog && g_ShDebugLog != stdout) fflush(g_ShDebugLog);
 }
 
+/* Bounded tail loss for crash reports. The 64KB buffer only self-flushes when
+ * full, so a quiet stretch (exploration, menus) can hold minutes of log that a
+ * crash then discards — and a crash that bypasses our SetUnhandledExceptionFilter
+ * (heap corruption fast-fails straight to the kernel) never gets the handler's
+ * flush either. One flush per wall-clock second caps the loss without
+ * reintroducing the per-SH_DBG flush that halved framerate. */
+void Sh_LogPeriodicFlush(void)
+{
+    static time_t s_lastFlush = 0;
+    time_t now;
+
+    if (!g_ShDebugLog || g_ShDebugLog == stdout) return;
+
+    now = time(NULL);
+    if (now == s_lastFlush) return;
+    s_lastFlush = now;
+    fflush(g_ShDebugLog);
+}
+
 /* Crash telemetry lives in pc_crash.c (windows.h conflicts with the decomp
  * `byte` typedef, so it can't be included here). */
 extern void Sh_InstallCrashFilter(void);

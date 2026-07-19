@@ -2083,6 +2083,8 @@ void MainLoop(void) // 0x80032EE0
              * changes — the Fs queue must not be touched from the GL hook that
              * draws it. Self-gated on g_PcConfig.minimap. */
             { extern void Pc_MinimapUpdate(void); Pc_MinimapUpdate(); }
+
+            { extern void Sh_LogPeriodicFlush(void); Sh_LogPeriodicFlush(); }
         }
 #endif
         ML_TRACE("MemCard_Update");
