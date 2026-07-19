@@ -215,23 +215,6 @@ void Pc_MinimapDraw(void)
     if (vp[2] <= 0 || vp[3] <= 0) return;
     MM_TRACE("draw: vp=%d,%d %dx%d", vp[0], vp[1], vp[2], vp[3]);
 
-    /* upload a freshly decoded map image */
-    if (s_pendingRGBA && s_pendingW > 0 && s_pendingH > 0)
-    {
-        MM_TRACE("draw: uploading map tex %dx%d", s_pendingW, s_pendingH);
-        if (s_mapTex == 0) glGenTextures(1, &s_mapTex);
-        glBindTexture(GL_TEXTURE_2D, s_mapTex);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, s_pendingW, s_pendingH, 0,
-                     GL_RGBA, GL_UNSIGNED_BYTE, s_pendingRGBA);
-        glBindTexture(GL_TEXTURE_2D, 0);
-        s_mapTexW = s_pendingW; s_mapTexH = s_pendingH;
-        free(s_pendingRGBA); s_pendingRGBA = NULL;
-    }
-
     /* Harry's map cell, straight from the game's own transform (query mode = no
      * paper-map arrow drawn). Returns 0 when this area has no map. */
     MM_TRACE("draw: querying map cell");
@@ -256,7 +239,11 @@ void Pc_MinimapDraw(void)
     glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prevBuf);
+    /* All our texture work happens on unit 0, so save unit 0's binding
+     * specifically (and the active unit) — reading the binding without
+     * selecting the unit first would record some other unit's texture. */
     glGetIntegerv(GL_ACTIVE_TEXTURE, &prevActive);
+    glActiveTexture(GL_TEXTURE0);
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTex);
     glGetIntegerv(GL_BLEND_SRC_ALPHA, &prevBsrc);
     glGetIntegerv(GL_BLEND_DST_ALPHA, &prevBdst);
@@ -271,6 +258,28 @@ void Pc_MinimapDraw(void)
     glBindVertexArray(s_vao);
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
     MM_TRACE("draw: bound vao/vbo");
+
+    /* Upload a freshly decoded map image. MUST happen after the state save above:
+     * doing it earlier bound our texture over whatever PsyX had bound on the live
+     * texture unit and then left 0 there, and the later glGetIntegerv read back
+     * that 0 as the "previous" binding — so PsyX kept rendering with an unbound
+     * texture and the driver's async worker thread faulted a frame later. */
+    if (s_pendingRGBA && s_pendingW > 0 && s_pendingH > 0)
+    {
+        MM_TRACE("draw: uploading map tex %dx%d", s_pendingW, s_pendingH);
+        if (s_mapTex == 0) glGenTextures(1, &s_mapTex);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, s_mapTex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, s_pendingW, s_pendingH, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, s_pendingRGBA);
+        s_mapTexW = s_pendingW; s_mapTexH = s_pendingH;
+        free(s_pendingRGBA); s_pendingRGBA = NULL;
+        MM_TRACE("draw: map tex uploaded (tex=%u)", (unsigned)s_mapTex);
+    }
 
     /* --- panel rect (square, top-right, NDC) --- */
     aspect = (float)vp[2] / (float)vp[3];
@@ -356,9 +365,10 @@ void Pc_MinimapDraw(void)
     if (!prevBlend) glDisable(GL_BLEND);
     if (prevDepth) glEnable(GL_DEPTH_TEST);
     glBlendFunc((GLenum)prevBsrc, (GLenum)prevBdst);
+    /* Put unit 0's binding back, THEN reselect PsyX's active unit — doing it the
+     * other way round binds our saved texture onto the wrong unit. */
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, (GLuint)prevTex);
-    /* PsyX may render from a different texture unit next frame — leaving ours
-     * selected would bind its textures to the wrong unit. */
     glActiveTexture((GLenum)prevActive);
     glUseProgram((GLuint)prevProg);
     glBindVertexArray((GLuint)prevVao);
