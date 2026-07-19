@@ -1370,3 +1370,56 @@ has `autoAdvance=false`, so its message-completion duration gates when
 is safe. LESSON: the case7/case9 resume idiom has two shapes — single-page
 (voice-only suppress) and multi-page chain (no-op the whole restart); tell them
 apart by `g_MapMsg_CurrentIdx` vs `msgIdx`.
+
+---
+
+## Manual reload: frozen input edge cache + unlatched request (`5d94ae12f`)
+
+`pc_port/src/pc_combat.c`, `pc_port/include/pc_combat.h`,
+`src/bodyprog/player_control.c`
+
+ROOT: the rising-edge caches keyed their "resample once per frame" test on
+`g_VBlanks`, which is a per-frame vblank DELTA (`VSync(SyncMode_Count) -
+g_PrevVBlanks`, pumped to `effectiveMin`, clamped `MIN(...,V_BLANKS_MAX=4)`),
+NOT a monotonic counter. At a steady frame rate it is constant (1 @60fps, 2
+@fps_cap=30), so `if (s_frame[slot] != g_VBlanks)` never fires again after slot
+creation and the cached edge FREEZES — stuck false (bind dead) or stuck true
+(action re-fires every frame with no press = the reported accidental/double
+reload). Input was only really sampled on frame-pacing hitches. Cycle Weapons,
+Quick Heal and Quick Turn shared the defect. FIX: monotonic `g_PcInputFrame`,
+bumped once per frame in `Pc_ExtraActionsUpdate` (called unconditionally before
+the state dispatch). Keep the INEQUALITY test — a `>` ordering test stalls on wrap.
+
+ROOT 2: the reload bind was sampled ONLY from two aim-gated call sites, and
+prev-state only advances when that scancode is passed in — so it went stale
+whenever the gun was lowered. Hold the bind while walking, then aim → rising
+edge that never happened (phantom reload on aim-entry); release it mid-reload →
+next press swallowed. FIX: sample every frame (as cycle/heal/QT already did for
+this exact reason) and publish `g_PcReloadRequest`, latched ~0.30s, consumed
+ONLY where a reload actually starts. Clearing it inside the query does not work
+— free-aim queries it every frame including during recoil, so it would clear and
+drop. Conditions are evaluated at PRESS time, so a press mid-reload is rejected
+outright rather than queued; that is what stops the double reload.
+
+Plus three state-ownership fixes in `Pc_FreeAimGunUpperBody`:
+- Stale `s_state` reconciliation. Damage/grabs/death/inventory cancel a reload
+  via `Player_ExtraStateSet` clearing `upperBodyState`, but they do it while
+  `Player_UpperBodyUpdate` is skipped (`playerExtra.state >= PlayerState_Idle`),
+  so the FSM never saw the cancel: stuck in `PcGun_Reload`, upper body locked,
+  gun dead, until `++s_stuckTmr > 600` granted a SILENT FREE CLIP. Gate on
+  `!freshAim` — the freshAim block legitimately sets `PcGun_Reload` before
+  `upperBodyState` is Reload (`9a594e2fd`'s resume path); unguarded it stomps
+  that and resurrects the double reload.
+- `extra->model.stateStep = 1` at the top of `case PcGun_Reload`. The native
+  `case PlayerUpperBodyState_Reload` re-inits on `stateStep == 0` and rewinds
+  `keyframeIdx` to `D_800AF624`, so a camera flip mid-reload silently RESTARTED
+  the reload (appeared to take twice as long, no second sound). Must be exactly
+  1 — 0 is the sentinel.
+- Completion leaves the native terminal aim state (Aim + `Unk34` + hold
+  keyframe) instead of a stale Reload state, so a flip on the completion frame
+  cannot replay the SFX or a whole second reload.
+
+KNOWN-REMAINING (audited, not yet fixed): free-aim dry-fire is silent when clip
+and reserve are both empty; free-aim reload SFX fires ~37 keyframes early vs the
+classic camera (should be `D_800AF624 + field_9`); the reload keyframe pre-seed
+at ~6272/6517 is dead code.
