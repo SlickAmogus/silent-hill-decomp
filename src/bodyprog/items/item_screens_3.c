@@ -75,7 +75,14 @@ GsCOORDINATE2 g_Items_Coords[DISPLAYED_ITEM_COUNT_MAX]; // 0x800C3E48
 
 #include "item_rotations.h"
 
+#ifdef SH_PC_PORT
+/* Non-static under the PC port so the manual-reload request gate
+ * (pc_combat.c, PC_PlayerManualReloadRequested) can read a gun's clip capacity
+ * to avoid reloading an already-full clip. Matching build keeps it static. */
+u8 g_Items_GunsMaxLoadAmmo[36] = {
+#else
 static u8 g_Items_GunsMaxLoadAmmo[36] = {
+#endif
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,

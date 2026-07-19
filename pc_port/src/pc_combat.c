@@ -138,6 +138,7 @@ bool PC_PlayerManualReloadRequested(void)
     static SDL_Scancode s_kb2[2] = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN }; /* keyboard secondary */
     static int          s_pad[2] = { -2, -2 }; /* [scheme]; -2 = unresolved */
     extern int          g_DebugThirdPersonCam;
+    extern u8           g_Items_GunsMaxLoadAmmo[36]; /* clip capacity by weaponAttack (item_screens_3.c) */
     int sch;
     if (s_pad[0] == -2) {
         const ControlScheme* sc[2];
@@ -158,7 +159,16 @@ bool PC_PlayerManualReloadRequested(void)
             (s_pad[sch] >= 0 && PC_RawControllerButtonClicked(s_pad[sch]))) &&
            g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
            g_SysWork.playerCombat.totalWeaponAmmo != 0 &&
-           INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon) == InvItemGroup_GunWeapons;
+           INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon) == InvItemGroup_GunWeapons &&
+           /* Don't reload an already-full clip (PSX only auto-reloaded on empty):
+            * without this a press on a full clip plays a pointless reload+SFX for
+            * zero rounds, and a stray 2nd controller edge right after a reload tops
+            * the clip re-triggers a second reload — the "double up". Same index the
+            * reload itself uses: Items_AmmoReloadCalculation(gunIdx = weaponAttack). */
+           g_SysWork.playerCombat.currentWeaponAmmo <
+               g_Items_GunsMaxLoadAmmo[g_SysWork.playerCombat.weaponAttack] &&
+           /* Not already mid-reload (belt-and-suspenders vs the edge-latch). */
+           g_SysWork.playerWork.extra.upperBodyState != PlayerUpperBodyState_Reload;
 }
 
 /* ---- Cycle Weapons + Quick Heal (bound, dispatched once per frame) ---------- */
