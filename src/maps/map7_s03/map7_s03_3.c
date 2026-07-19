@@ -2171,6 +2171,22 @@ void func_800E514C(void) // 0x800E514C
             {
                 func_800D70EC();
             }
+            /* ~8.5s freeze-at-impact ROOT. This step waits for the scream (XA 606)
+             * to stop being the active XA (Sd_AudioStreamingCheck()!=1, i.e.
+             * xaAudioIdx cleared). On PSX xaAudioIdx clears right after the play
+             * command dispatches, so this advances almost immediately and the
+             * scream plays OVER the transformation (cases 33-36; case 36's
+             * `!Sd_AudioStreamingCheck()` is the real scream-end sync). PsyX keeps
+             * the XA "active" for the whole ~8.5s playback, so waiting here
+             * freeze-frames the scene at the impact pose (g_Cutscene_Timer clamped
+             * at 320, so every DMS character/camera is stuck) until the scream
+             * drains. The impact is done once the timer reaches 320; advance then
+             * and let the scream overlap the transformation, matching PSX. */
+            if (g_Cutscene_Timer >= Q12(320.0f))
+            {
+                SysWork_StateStepIncrement(0);
+                break;
+            }
 #endif
             if (Sd_AudioStreamingCheck() != 1)
             {
