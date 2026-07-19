@@ -3,6 +3,13 @@
 
 bool PC_PlayerManualReloadRequested(void);
 
+/* Latched manual-reload request. Set on the bind's rising edge (sampled every
+ * frame in Pc_ExtraActionsUpdate, weapon/ammo conditions checked at press time)
+ * and cleared by whoever ACTS on it — clearing it in the query instead would
+ * drop presses, since the free-aim FSM queries it every frame including on
+ * frames it cannot start a reload. Self-expires after ~0.30s. */
+extern int g_PcReloadRequest;
+
 /* Rising-edge detection for a raw keyboard scancode. Returns true on the
  * frame the key transitions 0→1. Each scancode tracked separately. Used
  * for PC convenience hotkeys (M=map, I=inventory, R=reload) that live

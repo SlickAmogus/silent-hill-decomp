@@ -43,9 +43,19 @@ int g_PcRearLookActive = 0;
  * drawn each frame by Pc_HealFlashUpdate (hooked in game_main.c). 0 = no flash. */
 s32 g_PcHealFlashTimer = 0;
 
+/* Monotonic per-frame counter for the edge caches below. Bumped once per frame
+ * by Pc_ExtraActionsUpdate. This must NOT be g_VBlanks: that is a per-frame
+ * vblank DELTA (game_main.c, clamped MIN(...,V_BLANKS_MAX=4)), not a counter,
+ * so at a steady frame rate it holds the same small value every frame and the
+ * "resample once per frame" test below never fires again after slot creation.
+ * The cached edge then freezes — stuck false (bind does nothing) or stuck true
+ * (reload re-triggers every frame with no press), which is the reported
+ * accidental/double reload. */
+s32 g_PcInputFrame = 0;
+
 /* Returns true on the frame `sdlScancode` transitions 0→1.
  *
- * Frame-stable: prev-state is sampled at most once per VBlank, so multiple
+ * Frame-stable: prev-state is sampled at most once per frame, so multiple
  * callers in the same frame all see the same rising-edge result. Without
  * this, a press that opens the inventory in gameplay state would also fire
  * a "rising edge" again the first time the inventory state queries it
@@ -74,24 +84,24 @@ bool PC_KeyboardKeyClicked(int sdlScancode)
          * when first queried, that's NOT a rising edge. */
         s_prev[slot]  = g_sdlKeyboardState[sdlScancode] != 0;
         s_edge[slot]  = false;
-        s_frame[slot] = g_VBlanks;
+        s_frame[slot] = g_PcInputFrame;
         return false;
     }
 
     /* Resample only once per frame (per slot). Other call sites in the
      * same frame get the cached edge result. */
-    if (s_frame[slot] != g_VBlanks) {
+    if (s_frame[slot] != g_PcInputFrame) {
         bool nowHeld = g_sdlKeyboardState[sdlScancode] != 0;
         s_edge[slot] = nowHeld && !s_prev[slot];
         s_prev[slot] = nowHeld;
-        s_frame[slot] = g_VBlanks;
+        s_frame[slot] = g_PcInputFrame;
     }
     return s_edge[slot];
 }
 
 /* Frame-stable rising edge of a PHYSICAL controller button (SDL game-controller
  * button index). Mirrors PC_KeyboardKeyClicked: prev-state is sampled at most once
- * per VBlank so multiple callers in one frame see the same edge. Reads the physical
+ * per frame so multiple callers in one frame see the same edge. Reads the physical
  * controller (not the kb-merged pad), so a keyboard key on the same PSX bit can't
  * trigger a controller-only action. sdlButton < 0 (unbound) never fires. */
 bool PC_RawControllerButtonClicked(int sdlButton)
@@ -115,14 +125,14 @@ bool PC_RawControllerButtonClicked(int sdlButton)
         s_btn[slot]    = sdlButton;
         s_prevP[slot]  = PsyX_RawControllerButtonHeld(sdlButton) != 0;
         s_edgeP[slot]  = false;
-        s_frameP[slot] = g_VBlanks;
+        s_frameP[slot] = g_PcInputFrame;
         return false;
     }
-    if (s_frameP[slot] != g_VBlanks) {
+    if (s_frameP[slot] != g_PcInputFrame) {
         bool nowHeld = PsyX_RawControllerButtonHeld(sdlButton) != 0;
         s_edgeP[slot] = nowHeld && !s_prevP[slot];
         s_prevP[slot] = nowHeld;
-        s_frameP[slot] = g_VBlanks;
+        s_frameP[slot] = g_PcInputFrame;
     }
     return s_edgeP[slot];
 }
@@ -132,32 +142,31 @@ bool PC_RawControllerButtonClicked(int sdlButton)
  * every PSX button keeps its original semantics; now configurable on BOTH keyboard
  * (key_reload, default R) and controller (pad_reload, default unbound). The PSX game
  * had no manual reload — it fired automatically on empty; PC adds this convenience. */
-bool PC_PlayerManualReloadRequested(void)
+static SDL_Scancode s_kbReload[2]  = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN };
+static SDL_Scancode s_kbReload2[2] = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN }; /* keyboard secondary */
+static int          s_padReload[2] = { -2, -2 }; /* [scheme]; -2 = unresolved */
+
+static void Pc_ReloadBindsResolve(void)
 {
-    static SDL_Scancode s_kb[2]  = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN };
-    static SDL_Scancode s_kb2[2] = { SDL_SCANCODE_UNKNOWN, SDL_SCANCODE_UNKNOWN }; /* keyboard secondary */
-    static int          s_pad[2] = { -2, -2 }; /* [scheme]; -2 = unresolved */
-    extern int          g_DebugThirdPersonCam;
-    extern u8           g_Items_GunsMaxLoadAmmo[36]; /* clip capacity by weaponAttack (item_screens_3.c) */
-    int sch;
-    if (s_pad[0] == -2) {
-        const ControlScheme* sc[2];
-        int i;
-        sc[0] = &g_PcConfig.classic;
-        sc[1] = &g_PcConfig.altcam;
-        for (i = 0; i < 2; i++) {
-            s_kb[i]  = SDL_GetScancodeFromName(sc[i]->keyReload);
-            s_kb2[i] = SDL_GetScancodeFromName(sc[i]->keyReload2);
-            s_pad[i] = (sc[i]->padReload[0] != '\0')
-                        ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padReload)
-                        : SDL_CONTROLLER_BUTTON_INVALID;
-        }
+    const ControlScheme* sc[2];
+    int i;
+    if (s_padReload[0] != -2) return;
+    sc[0] = &g_PcConfig.classic;
+    sc[1] = &g_PcConfig.altcam;
+    for (i = 0; i < 2; i++) {
+        s_kbReload[i]  = SDL_GetScancodeFromName(sc[i]->keyReload);
+        s_kbReload2[i] = SDL_GetScancodeFromName(sc[i]->keyReload2);
+        s_padReload[i] = (sc[i]->padReload[0] != '\0')
+                          ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padReload)
+                          : SDL_CONTROLLER_BUTTON_INVALID;
     }
-    sch = g_DebugThirdPersonCam ? 1 : 0;
-    return ((s_kb[sch]  != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kb[sch]))  ||
-            (s_kb2[sch] != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kb2[sch])) ||
-            (s_pad[sch] >= 0 && PC_RawControllerButtonClicked(s_pad[sch]))) &&
-           g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
+}
+
+/* Weapon/ammo conditions for a manual reload, evaluated at PRESS time only. */
+static bool Pc_ManualReloadConditions(void)
+{
+    extern u8 g_Items_GunsMaxLoadAmmo[36]; /* clip capacity by weaponAttack (item_screens_3.c) */
+    return g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap) &&
            g_SysWork.playerCombat.totalWeaponAmmo != 0 &&
            INV_ITEM_GROUP(g_SavegamePtr->equippedWeapon) == InvItemGroup_GunWeapons &&
            /* Don't reload an already-full clip (PSX only auto-reloaded on empty):
@@ -167,8 +176,51 @@ bool PC_PlayerManualReloadRequested(void)
             * reload itself uses: Items_AmmoReloadCalculation(gunIdx = weaponAttack). */
            g_SysWork.playerCombat.currentWeaponAmmo <
                g_Items_GunsMaxLoadAmmo[g_SysWork.playerCombat.weaponAttack] &&
-           /* Not already mid-reload (belt-and-suspenders vs the edge-latch). */
+           /* Not already mid-reload — rejecting the press outright (rather than
+            * latching it) is what stops a second press queueing a double reload. */
            g_SysWork.playerWork.extra.upperBodyState != PlayerUpperBodyState_Reload;
+}
+
+/* Latched manual-reload request, sampled every frame in Pc_ExtraActionsUpdate and
+ * consumed exactly once where the reload actually starts.
+ *
+ * The bind used to be sampled only from the two aim-gated call sites, so its
+ * prev-state went stale whenever the gun was lowered: holding the key while
+ * walking and then aiming produced a rising edge that never happened (phantom
+ * reload on aim-entry), and releasing it mid-reload swallowed the next press.
+ * Sampling unconditionally keeps prev current; the short latch carries a press
+ * that lands on a frame the FSM can't act on (recoil, the dead frame after a
+ * reload completes) instead of destroying it. */
+int g_PcReloadRequest = 0;
+static q19_12 s_reloadLatchT = 0;
+
+/* Kept as the FSM-facing query — now just reads the latch. */
+bool PC_PlayerManualReloadRequested(void)
+{
+    return g_PcReloadRequest != 0;
+}
+
+static void Pc_ManualReloadSample(int sch)
+{
+    int e1, e2, e3;
+
+    Pc_ReloadBindsResolve();
+
+    /* Evaluate all three into separate ints: `||` would short-circuit and skip
+     * sampling the secondary/pad slots, leaving their prev-state stale. */
+    e1 = (s_kbReload[sch]  != SDL_SCANCODE_UNKNOWN) && PC_KeyboardKeyClicked(s_kbReload[sch]);
+    e2 = (s_kbReload2[sch] != SDL_SCANCODE_UNKNOWN) && PC_KeyboardKeyClicked(s_kbReload2[sch]);
+    e3 = (s_padReload[sch] >= 0) && PC_RawControllerButtonClicked(s_padReload[sch]);
+
+    if ((e1 || e2 || e3) && Pc_ManualReloadConditions()) {
+        g_PcReloadRequest = 1;
+        s_reloadLatchT    = Q12(0.30f);
+    } else if (g_PcReloadRequest) {
+        /* Keep the window short — a stale press resurfacing later IS the
+         * spurious-reload symptom this is meant to remove. */
+        s_reloadLatchT -= g_DeltaTime;
+        if (s_reloadLatchT <= 0) g_PcReloadRequest = 0;
+    }
 }
 
 /* ---- Cycle Weapons + Quick Heal (bound, dispatched once per frame) ---------- */
@@ -334,6 +386,8 @@ void Pc_ExtraActionsUpdate(void)
     extern int          g_DebugThirdPersonCam;
     int cycleClicked, healClicked, qtClicked, sch;
 
+    g_PcInputFrame++; /* frame identity for the edge caches — see g_PcInputFrame */
+
     if (s_padCycle[0] == -2) {
         const ControlScheme* sc[2];
         int i;
@@ -358,9 +412,13 @@ void Pc_ExtraActionsUpdate(void)
     qtClicked    = (s_kbQt[sch]    != SDL_SCANCODE_UNKNOWN && PC_KeyboardKeyClicked(s_kbQt[sch]))    ||
                    (s_padQt[sch]    >= 0 && PC_RawControllerButtonClicked(s_padQt[sch]));
 
+    Pc_ManualReloadSample(sch);
+
     if (!Pc_ActionSafe())
     {
         g_PcQuickTurnRequest = 0; /* not safe gameplay -> drop any pending turn */
+        g_PcReloadRequest    = 0; /* ditto any pending reload */
+        s_reloadLatchT       = 0;
         return;
     }
     if (cycleClicked) Pc_CycleWeapons();

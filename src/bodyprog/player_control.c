@@ -3858,6 +3858,25 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
                       : PcGun_Aim;
         s_stuckTmr = 0;
         s_prevFireHeld = fireHeld;
+        /* Resuming an in-flight reload consumes the request too — otherwise the
+         * latch survives the resume and starts a second reload the moment this
+         * one finishes. */
+        if (s_state == PcGun_Reload) g_PcReloadRequest = 0;
+    }
+    /* Damage, grabs, death and the inventory all cancel a reload by clearing
+     * upperBodyState (Player_ExtraStateSet), but they do it while
+     * Player_UpperBodyUpdate is skipped entirely, so this FSM never sees the
+     * cancel. s_state then stays PcGun_Reload with a foreign anim playing and
+     * case PcGun_Reload re-pins upperBodyState every frame — upper body locked
+     * and gun dead until the ~600-frame escape hatch grants a silent free clip.
+     * The !freshAim gate is required: the freshAim block above legitimately sets
+     * PcGun_Reload before upperBodyState is Reload (the resume path). */
+    if (!freshAim && s_state == PcGun_Reload &&
+        extra->upperBodyState != PlayerUpperBodyState_Reload)
+    {
+        s_state    = PcGun_Aim;
+        s_stuckTmr = 0;
+        playerProps.flags &= ~PlayerFlag_Unk2;
     }
     if (s_refireT > 0) s_refireT -= g_DeltaTime;
     if (!fireHeld) s_releasedT += g_DeltaTime;
@@ -3893,6 +3912,7 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
             {
                 /* Begin reload: play the reload anim (blend->active track) from the
                  * proven per-weapon keyframes, firing locked out. */
+                g_PcReloadRequest             = 0; /* consumed here, where the reload actually starts */
                 extra->upperBodyState         = PlayerUpperBodyState_Reload;
                 extra->model.anim.status      = ANIM_STATUS(HarryAnim_HandgunRecoil, false);
                 extra->model.anim.keyframeIdx = D_800AF624;
@@ -3960,6 +3980,12 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
 
         case PcGun_Reload:
             extra->upperBodyState = PlayerUpperBodyState_Reload;
+            /* Claim the native reload's setup latch (case PlayerUpperBodyState_Reload,
+             * ~5914). If the camera is flipped mid-reload the frame drops into that
+             * case with stateStep still 0, which re-inits and rewinds keyframeIdx to
+             * D_800AF624 — the reload silently restarts and appears to take twice as
+             * long. Must be exactly 1: 0 is the sentinel. */
+            extra->model.stateStep = 1;
             /* PSX plays the keyframe track continuously through the blend (false)
              * into the active reload (true); advance the status at the blend end. */
             if (extra->model.anim.status == ANIM_STATUS(HarryAnim_HandgunRecoil, false))
@@ -3987,6 +4013,19 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
                     }
                 }
                 playerProps.flags &= ~PlayerFlag_Unk2; /* reload done — release the SFX-fired guard */
+                /* Leave the native path in its terminal aim state. Staying in
+                 * upperBodyState_Reload with a reload keyframe means a camera flip on
+                 * the completion frame re-enters the native case Reload with Unk2
+                 * already cleared, replaying the SFX and possibly a whole second
+                 * reload animation. */
+                extra->upperBodyState    = PlayerUpperBodyState_Aim;
+                extra->model.anim.status = ANIM_STATUS(HarryAnim_Unk34, true);
+                {
+                    s32 holdKf = Pc_AimHoldKf();
+                    extra->model.anim.keyframeIdx = holdKf;
+                    extra->model.anim.time        = Q12(holdKf);
+                }
+                g_PcReloadRequest = 0; /* don't let a latched press chain a second reload */
                 s_state    = PcGun_Aim;
                 s_stuckTmr = 0;
             }
@@ -6249,8 +6288,9 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
             }
 
 #ifdef SH_PC_PORT
-            if (PC_PlayerManualReloadRequested())
+            if (g_PcReloadRequest)
             {
+                g_PcReloadRequest = 0; /* consumed here, where the reload actually starts */
                 /* Make manual reload behave identically to auto-reload. Auto
                  * enters case Reload from a post-fire state where:
                  *   1. extra->model.stateStep is 0 (pcAttackDone reset it),
