@@ -1120,14 +1120,22 @@ adversarially-verified findings; the fixes:
   was stashed for, so at pop require it to match the loading TIM's disc name
   (`Fs_GetFileInfoName`); mismatch → drop, base disc TIM renders.
 - **HD-font "ghost text" — restore baseline** (`hires_override.c` / `text_draw.c`,
-  commit `a4cabe12c`, reverts `029b69a40` + `c60389147`). The ghost was the
-  *regression*, not the fix: baseline beta-2026.07.16.2 generated mipmaps for the
-  2D-UI/font path (`f47c1f871`, an ancestor) and was clean; `029b69a40` turned them
-  off, and since the HD atlas is *minified* when drawn, the mipmaps had been
-  averaging away the mod's gutterless neighbour-cell bleed — removing them unmasked
-  it. Restoring mipmaps + dropping the companion advance-clip returns the clean look.
-  `f3c9cbbcd` (content-keyed upload skip) is kept: it keeps the font texture *with*
-  its mipmaps, so it doesn't change font appearance.
+  commit `a4cabe12c`, reverts `029b69a40` + `c60389147`). **Correction (2nd audit):**
+  the menu A/O "ghost text" is NOT a regression from either commit — it is a
+  *pre-existing* bilinear-magnification bleed on the HD pack's gutterless atlas. The
+  font override uploads `GL_TEXTURE_MAG_FILTER=GL_LINEAR` unconditionally for upscaled
+  packs (`hires_override.c:524`), and the 32-bit RGBA override shader ignores the
+  `menu_filter`/`bilinear` toggle (`PsyX_render.cpp:1974`, `u_bilinearFilterLoc=-1`),
+  so the bilinear tap at each fixed-12 UV cell edge reaches ~½ texel into the
+  neighbouring inked atlas cell. Present at baseline `9fcc18b61`. The two reverts
+  return HEAD to the clean baseline (correct) but neither *causes* nor *cures* A/O:
+  mipmaps are min-filter only, and `c60389147`'s advance-clip fixes a *separate*
+  narrow-glyph (advance<12: I/S/T/E/P) overlap — its `glyphWidth < 12` guard excludes
+  A(12)/O(13), so the earlier claim that it "clips wide HD glyphs A/O" is wrong. Keep
+  the mipmap revert (baseline; menu font is minified, no-mipmap build was worse).
+  Real fix for A/O (not yet applied): force `nearest` on the font/2D-UI atlas upload
+  (GL_NEAREST mag) or have the mod add a 1px gutter — `u_hiresHalf`'s existing
+  half-texel inset is insufficient for a ~10× minified atlas. `f3c9cbbcd` kept.
 - **fps_cap 31–59 honored.** Integer division (`60/fps`) silently turned those
   caps into 60fps; non-divisors of 60 now route through the SDL high-precision
   limiter.
