@@ -3898,6 +3898,12 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
                 extra->model.anim.keyframeIdx = D_800AF624;
                 extra->model.anim.time        = Q12((s32)D_800AF624);
                 func_8005DC1C(g_Player_EquippedWeaponInfo.reloadSfx, &player->position, Q8(0.5f), 0);
+                /* Mark the reload SFX as fired (same guard the native reload uses,
+                 * player_control.c:5945). If the camera is flipped mid-reload the
+                 * frame drops into the native case PlayerUpperBodyState_Reload, whose
+                 * SFX gate (5939-5940) would otherwise re-play the reload sound. Cleared
+                 * at reload done below; the native path also clears it on completion. */
+                playerProps.flags |= PlayerFlag_Unk2;
                 player->properties.player.field_10C = 0x20;
                 s_state    = PcGun_Reload;
                 s_stuckTmr = 0;
@@ -3980,6 +3986,7 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
                             g_SavegamePtr->items[i].count_1 = g_SysWork.playerCombat.totalWeaponAmmo;
                     }
                 }
+                playerProps.flags &= ~PlayerFlag_Unk2; /* reload done — release the SFX-fired guard */
                 s_state    = PcGun_Aim;
                 s_stuckTmr = 0;
             }
