@@ -2641,16 +2641,22 @@ void MainLoop(void) // 0x80032EE0
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
         }
-        else if (g_GameWork.gameState == 11 &&
-            (((g_SysWork.sysFlags & SysFlag_MenuActive) && !g_PsxPresentLastFrame) ||
-             g_SysWork.sysState == SysState_GameOver)) {
-            /* 2D menus (inventory/status/options/paper map) and the GAME OVER screen clear
-             * to black. EXCEPTION: map-screen message states ("I don't have a map", "too
-             * dark for map") set MenuActive (they run in SysState_MapScreen) but freeze the
-             * world and present the captured foggy frame (g_PsxPresentLastFrame) — those
-             * want the foggy frozen sky behind the text, like the literal PAUSED screen, so
-             * exclude them and let them fall through to the fog clear. GAME OVER stays black
-             * (it renders its own death scene; the sky is meant to be black there). */
+        else if (g_GameWork.gameState == 11 && g_SysWork.sysState == SysState_GameOver) {
+            /* GAME OVER renders its own death scene; the sky is meant to be black there.
+             *
+             * This branch used to ALSO force black on any gameState==11 frame with
+             * SysFlag_MenuActive — that was the one-frame BLACK-SKY FLASH on opening the
+             * status menu / map. MenuActive is set on the SAME frame the button is pressed
+             * (SysState_Gameplay_Update, sysState set immediately) while gameState is still
+             * InGame(11) and Gfx_InGameDraw still renders the full world, so forcing the
+             * clear black painted the uncovered fog/sky region black under a lit world for
+             * one frame (map: for the whole ScreenFade). The genuine 2D menus re-black
+             * background2dColor themselves once they are actually up (inventory/options at
+             * their own gameState; paper map via g_PcMapScreenActive above), so the
+             * transition frame must keep the FOG clear to match the world still being drawn.
+             * Fixes the flash on both status and map WITHOUT re-arming g_PsxPresentLastFrame
+             * (the reverted hold, c2751cf15/2a2260a57, which poisoned the VRAM framebuffer
+             * feedback -> post-close sky/pillarbox ghost). */
             g_GameWork.background2dColor.r = 0;
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
