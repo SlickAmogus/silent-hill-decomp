@@ -234,6 +234,7 @@ void Pc_MinimapDraw(void)
     GLint     vp[4];
     GLint     prevProg = 0, prevVao = 0, prevBuf = 0, prevBsrc = 0, prevBdst = 0, prevTex = 0;
     GLint     prevActive = GL_TEXTURE0;
+    GLint     prevFb = 0, prevBeqRgb = GL_FUNC_ADD, prevBeqA = GL_FUNC_ADD;
     GLboolean prevDepth, prevBlend, prevScissor;
     float     aspect, hh, hw, cx, cy, x0, y0, x1, y1;
     float     buf[2048 / 4 * 4];
@@ -284,14 +285,22 @@ void Pc_MinimapDraw(void)
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTex);
     glGetIntegerv(GL_BLEND_SRC_ALPHA, &prevBsrc);
     glGetIntegerv(GL_BLEND_DST_ALPHA, &prevBdst);
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prevFb);
+    glGetIntegerv(GL_BLEND_EQUATION_RGB, &prevBeqRgb);
+    glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &prevBeqA);
     prevDepth   = glIsEnabled(GL_DEPTH_TEST);
     prevBlend   = glIsEnabled(GL_BLEND);
     prevScissor = glIsEnabled(GL_SCISSOR_TEST);
 
     MM_TRACE("draw: state saved (prog=%d vao=%d buf=%d)", prevProg, prevVao, prevBuf);
+    /* Draw to the DEFAULT framebuffer, exactly as dbg_overlay.c does in this same
+     * hook. Without this we were rendering into whatever FBO PsyX had bound at
+     * EndScene (its internal PSX framebuffer target) instead of the screen. */
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendEquation(GL_FUNC_ADD);
     glBindVertexArray(s_vao);
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
     MM_TRACE("draw: bound vao/vbo");
@@ -404,6 +413,8 @@ void Pc_MinimapDraw(void)
     if (!prevBlend) glDisable(GL_BLEND);
     if (prevDepth) glEnable(GL_DEPTH_TEST);
     glBlendFunc((GLenum)prevBsrc, (GLenum)prevBdst);
+    glBlendEquationSeparate((GLenum)prevBeqRgb, (GLenum)prevBeqA);
+    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)prevFb);
     /* Put unit 0's binding back, THEN reselect PsyX's active unit — doing it the
      * other way round binds our saved texture onto the wrong unit. */
     glActiveTexture(GL_TEXTURE0);
