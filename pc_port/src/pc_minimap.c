@@ -1,4 +1,4 @@
-/* Config-only PC minimap overlay (top-right corner).
+/* Config-only PC minimap overlay (top-left corner, circular).
  *
  * PC-native: the per-area paper-map TIM is read as raw bytes, decoded to RGBA and
  * uploaded to our own GL texture, then drawn as a GL quad on top of the frame.
@@ -35,7 +35,10 @@ static int    s_inited = 0;
 static int    s_dead   = 0;  /* latched off after any GL failure */
 static int    s_trace  = 0;  /* checkpoint frames still to log */
 static GLuint s_progCol = 0, s_progTex = 0, s_vao = 0, s_vbo = 0;
-static GLint  s_uColor = -1, s_uTex = -1;
+static GLint  s_uColor = -1, s_uTex = -1, s_uCircCol = -1, s_uCircTex = -1;
+/* Panel bounds in NDC, set each frame — used to give every vertex its normalised
+ * in-panel position so the circular mask applies uniformly. */
+static float  s_px0, s_py0, s_px1, s_py1;
 
 /* The first crash reports landed inside the GPU driver with no resolvable frame,
  * so trace the GL sequence for the first few drawn frames — the last checkpoint
@@ -93,13 +96,25 @@ static void mm_init(void)
         "attribute vec2 a_uv;\n"
         "varying vec2 v_uv;\n"
         "void main() { v_uv = a_uv; gl_Position = vec4(a_pos, 0.0, 1.0); }\n";
+    /* u_circle crops the panel to a disc: v_uv is the vertex's normalised position
+     * within the panel, so anything outside the unit circle is discarded (a v flip
+     * on the map quad doesn't matter — the mask is symmetric). */
     static const char* fs_col =
+        "varying vec2 v_uv;\n"
         "uniform vec4 u_color;\n"
-        "void main() { gl_FragColor = u_color; }\n";
+        "uniform float u_circle;\n"
+        "void main() {\n"
+        "    if (u_circle > 0.5) { vec2 d = v_uv * 2.0 - 1.0; if (dot(d, d) > 1.0) discard; }\n"
+        "    gl_FragColor = u_color;\n"
+        "}\n";
     static const char* fs_tex =
         "varying vec2 v_uv;\n"
         "uniform sampler2D u_tex;\n"
-        "void main() { gl_FragColor = texture2D(u_tex, v_uv); }\n";
+        "uniform float u_circle;\n"
+        "void main() {\n"
+        "    if (u_circle > 0.5) { vec2 d = v_uv * 2.0 - 1.0; if (dot(d, d) > 1.0) discard; }\n"
+        "    gl_FragColor = texture2D(u_tex, v_uv);\n"
+        "}\n";
 
     s_inited = 1;
     s_trace  = 6;
@@ -109,8 +124,12 @@ static void mm_init(void)
     s_progTex = mm_prog(vs_src, fs_tex);
     MM_TRACE("init: progCol=%u progTex=%u", (unsigned)s_progCol, (unsigned)s_progTex);
     if (s_progCol == 0) { s_dead = 1; return; }
-    s_uColor = glGetUniformLocation(s_progCol, "u_color");
-    if (s_progTex) s_uTex = glGetUniformLocation(s_progTex, "u_tex");
+    s_uColor  = glGetUniformLocation(s_progCol, "u_color");
+    s_uCircCol = glGetUniformLocation(s_progCol, "u_circle");
+    if (s_progTex) {
+        s_uTex     = glGetUniformLocation(s_progTex, "u_tex");
+        s_uCircTex = glGetUniformLocation(s_progTex, "u_circle");
+    }
 
     /* VAOs are core-profile only; if the entry point is missing this would jump
      * through a null pointer, so verify it before use. */
@@ -146,11 +165,20 @@ static void mm_upload_draw(GLenum mode, const float* v, int nverts)
     glDrawArrays(mode, 0, nverts);
 }
 
+/* Position-only vertex: derives its in-panel uv so the circle mask can clip it. */
+static void mm_putp(float* v, int i, float x, float y)
+{
+    mm_put(v, i, x, y,
+           (x - s_px0) / (s_px1 - s_px0),
+           (y - s_py0) / (s_py1 - s_py0));
+}
+
 static void mm_draw_col(GLenum mode, const float* v, int nverts,
                         float r, float g, float b, float a)
 {
     glUseProgram(s_progCol);
     glUniform4f(s_uColor, r, g, b, a);
+    glUniform1f(s_uCircCol, 1.0f);
     mm_upload_draw(mode, v, nverts);
 }
 
@@ -164,6 +192,15 @@ void Pc_MinimapUpdate(void)
 
     idx = (int)g_SavegamePtr->paperMapIdx;
     if (idx == s_mapIdxLoaded) return;
+
+    /* NEVER touch the file queue while the game has its own loads in flight.
+     * Enqueueing here (and worse, Fs_QueueWaitForEmpty draining the game's
+     * pending reads early) corrupts an area load in progress — the game then
+     * uploads malformed texture data and the GL driver's async worker thread
+     * faults on it, which is what crashed when loading a save with the minimap
+     * on. Retry on a later frame once the queue is idle; the map can wait. */
+    if (Fs_QueueGetLength() > 0) return;
+
     s_mapIdxLoaded = idx; /* attempt once per change, even if it fails */
 
     if (s_pendingRGBA) { free(s_pendingRGBA); s_pendingRGBA = NULL; }
@@ -285,13 +322,14 @@ void Pc_MinimapDraw(void)
     aspect = (float)vp[2] / (float)vp[3];
     hh = 0.17f;
     hw = hh / aspect;
-    cx = 0.97f - hw;
+    cx = -0.97f + hw;   /* top-LEFT */
     cy = 0.97f - hh;
     x0 = cx - hw; x1 = cx + hw; y0 = cy - hh; y1 = cy + hh;
+    s_px0 = x0; s_py0 = y0; s_px1 = x1; s_py1 = y1;
 
     n = 0;
-    mm_put(buf, n++, x0, y0, 0, 0); mm_put(buf, n++, x1, y0, 0, 0); mm_put(buf, n++, x1, y1, 0, 0);
-    mm_put(buf, n++, x0, y0, 0, 0); mm_put(buf, n++, x1, y1, 0, 0); mm_put(buf, n++, x0, y1, 0, 0);
+    mm_putp(buf, n++, x0, y0); mm_putp(buf, n++, x1, y0); mm_putp(buf, n++, x1, y1);
+    mm_putp(buf, n++, x0, y0); mm_putp(buf, n++, x1, y1); mm_putp(buf, n++, x0, y1);
     mm_draw_col(GL_TRIANGLES, buf, n, 0.04f, 0.05f, 0.08f, 0.55f);
     MM_TRACE("draw: panel drawn");
 
@@ -315,6 +353,7 @@ void Pc_MinimapDraw(void)
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, s_mapTex);
         glUniform1i(s_uTex, 0);
+        glUniform1f(s_uCircTex, 1.0f);
         mm_upload_draw(GL_TRIANGLES, buf, n);
         glBindTexture(GL_TEXTURE_2D, 0);
         MM_TRACE("draw: map quad done");
@@ -330,12 +369,12 @@ void Pc_MinimapDraw(void)
         st = floorf((harryX - VIEW) / CELL) * CELL;
         for (wx = st; wx <= harryX + VIEW && n < 400; wx += CELL) {
             float nx = cx + (wx - harryX) * sX;
-            mm_put(buf, n++, nx, y0, 0, 0); mm_put(buf, n++, nx, y1, 0, 0);
+            mm_putp(buf, n++, nx, y0); mm_putp(buf, n++, nx, y1);
         }
         st = floorf((harryZ - VIEW) / CELL) * CELL;
         for (wz = st; wz <= harryZ + VIEW && n < 400; wz += CELL) {
             float ny = cy + (wz - harryZ) * sY;
-            mm_put(buf, n++, x0, ny, 0, 0); mm_put(buf, n++, x1, ny, 0, 0);
+            mm_putp(buf, n++, x0, ny); mm_putp(buf, n++, x1, ny);
         }
         mm_draw_col(GL_LINES, buf, n, 0.35f, 0.42f, 0.5f, 0.6f);
     }
@@ -354,7 +393,7 @@ void Pc_MinimapDraw(void)
         for (i = 0; i < 3; i++) {
             float rx = lx[i] * ca - ly[i] * sa;
             float ry = lx[i] * sa + ly[i] * ca;
-            mm_put(buf, n++, px + (rx * s) / aspect, py + ry * s, 0, 0);
+            mm_putp(buf, n++, px + (rx * s) / aspect, py + ry * s);
         }
         mm_draw_col(GL_TRIANGLES, buf, n, 1.0f, 0.85f, 0.2f, 1.0f);
         MM_TRACE("draw: marker drawn");
