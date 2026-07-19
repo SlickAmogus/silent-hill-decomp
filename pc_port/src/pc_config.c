@@ -61,7 +61,10 @@ s_PcConfig g_PcConfig = {
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .control2dSnap           = 0, /* 2D control turns into the direction (0), doesn't snap */
-    .minimap                 = 0, /* top-right minimap overlay off by default */
+    .minimap                 = 0, /* minimap overlay off by default */
+    .minimapCorner           = 0, /* top-left */
+    .minimapShape            = 1, /* circle */
+    .minimapOpacity          = 100.0f,
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
@@ -723,6 +726,22 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "minimap") == 0)
         {
             g_PcConfig.minimap = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "minimap_corner") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.minimapCorner = (v < 0) ? 0 : ((v > 3) ? 3 : v);
+        }
+        else if (strcmp(key, "minimap_shape") == 0)
+        {
+            g_PcConfig.minimapShape = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "minimap_opacity") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.0f)   v = 0.0f;
+            if (v > 100.0f) v = 100.0f;
+            g_PcConfig.minimapOpacity = v;
         }
         else if (strcmp(key, "disable_dpad_movement") == 0)
         {

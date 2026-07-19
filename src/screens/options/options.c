@@ -143,6 +143,8 @@ static const int VAL_TONE[]  = { 0, 1, 2, 3 };
 static const int VAL_CON[]   = { 0, 1, 2, 3 };
 static const int VAL_FPS[]   = { 0, 30, 60, 120, 240 };
 static const int VAL_FLMODE[] = { 0, 1, 2, 3 };
+static const int VAL_MMCNR[]  = { 0, 1, 2, 3 };
+static const int VAL_MMSHP[]  = { 0, 1 };
 
 static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
 static const char* const LBL_VSYNC[] = { "Off", "On" };
@@ -155,6 +157,8 @@ static const char* const LBL_CON[]   = { "Off", "External", "In_Game", "Both" };
 static const char* const LBL_FPS[]   = { "Off", "30", "60", "120", "240" };
 /* Short enough to fit the value column at every language/width ("Modern_Shadows" clipped). */
 static const char* const LBL_FLMODE[] = { "Classic", "C_+_Shadows", "Modern", "M_+_Shadows" };
+static const char* const LBL_MMCNR[]  = { "Top_Left", "Top_Right", "Bottom_Left", "Bottom_Right" };
+static const char* const LBL_MMSHP[]  = { "Square", "Circle" };
 
 static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
 static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
@@ -214,6 +218,9 @@ static const s_PcOpt PCOPT_C[] = {
 static const s_PcOpt PCOPT_T[] = {
     { "Crosshair",         &g_PcConfig.crosshair,          "crosshair",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Minimap",           &g_PcConfig.minimap,            "minimap",               VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Minimap_Shape",     &g_PcConfig.minimapShape,       "minimap_shape",         VAL_MMSHP, 2, LBL_MMSHP, NULL, 1, PCK_INT },
+    { "Minimap_Corner",    &g_PcConfig.minimapCorner,      "minimap_corner",        VAL_MMCNR, 4, LBL_MMCNR, NULL, 1, PCK_INT },
+    { "Minimap_Opacity",   NULL, "minimap_opacity",        NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapOpacity, NULL, 0.0f, 100.0f, 5.0f },
     { "Aim_Assist",        &g_PcConfig.aimAssist,          "aim_assist",            VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Aim_Zoom",          NULL, "tps_aim_zoom_amount",    NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsAimZoom,  NULL, 0.0f, 100.0f, 5.0f },
     { "OTS_Aim_In_TPS",    &g_PcConfig.tpsOtsAim,          "tps_ots_aim",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },

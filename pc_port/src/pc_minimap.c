@@ -1,4 +1,4 @@
-/* Config-only PC minimap overlay (top-left, circular).
+/* Config-only PC minimap overlay (corner/shape/opacity configurable).
  *
  * Drawn with PSX PRIMITIVES into the game's own display list — the same path
  * Pc_HealFlashUpdate and every other 2D HUD element uses. An earlier raw-GL
@@ -37,10 +37,7 @@ int g_PcMapQueryOnly = 0;
 /* Panel geometry in 2D screen space (origin = screen centre; 4:3 is
  * x -160..+160, y -120..+120). Top-left corner, inset a little. */
 #define MM_SIZE   72
-#define MM_X0     (-(SCREEN_WIDTH / 2) + 10)
-#define MM_Y0     (-(SCREEN_HEIGHT / 2) + 10)
-#define MM_X1     (MM_X0 + MM_SIZE)
-#define MM_Y1     (MM_Y0 + MM_SIZE)
+#define MM_MARGIN 10
 
 /* Dedicated pool slot for the map image. Must avoid every allocated range in
  * hires_override.h: 0..254 map chunks, 255 decal, 256+ chara, 320..447 chara
@@ -58,10 +55,7 @@ int g_PcMapQueryOnly = 0;
 #define MM_ZOOM   3      /* show ~1/3 of the map around Harry */
 
 #define MM_SEG     20   /* triangle-fan segments approximating the circle */
-#define MM_R       (MM_SIZE / 2)
-#define MM_OUTLINE 2    /* black ring thickness, in the same 2D units */
-#define MM_CX      (MM_X0 + MM_SIZE / 2)
-#define MM_CY      (MM_Y0 + MM_SIZE / 2)
+#define MM_OUTLINE 2    /* black outline thickness, in the same 2D units */
 
 /* Map-cell extents the paper map spans; used to place Harry on the image. */
 #define MM_HALF_X 160
@@ -129,14 +123,18 @@ static void mm_map_load_tick(int idx)
 
 void Pc_MinimapUpdate(void)
 {
-    static POLY_F3  s_ring[2][MM_SEG];   /* black outline + backing disc */
-    static POLY_F3  s_fill[2][MM_SEG];   /* dark interior when no map */
-    static POLY_FT3 s_fan[2][MM_SEG];    /* the map image */
+    static POLY_F3  s_ring[2][MM_SEG];   /* circle: black outline + backing disc */
+    static POLY_F3  s_fill[2][MM_SEG];   /* circle: dark interior when no map */
+    static POLY_FT3 s_fan[2][MM_SEG];    /* circle: the map image */
+    static TILE     s_sqOut[2];          /* square: black outline */
+    static TILE     s_sqFill[2];         /* square: dark interior when no map */
+    static POLY_FT4 s_sqMap[2];          /* square: the map image */
     static POLY_F3  s_mark[2];
     static DR_TPAGE s_tp[2];
     int       buf, i;
     s32       packed, px, py;
-    int       haveMap;
+    int       haveMap, round, semi, op, lum;
+    int       x0, y0, x1, y1, cx, cy, R;
     int       u0 = 0, v0 = 0, u1 = MM_UV_MAX, v1 = MM_UV_MAX;
     GsOT_TAG* ot;
 
@@ -144,10 +142,36 @@ void Pc_MinimapUpdate(void)
     if (g_GameWork.gameState != GameState_InGame ||
         g_SysWork.sysState   != SysState_Gameplay) return;
 
+    /* PSX blending only offers fixed ratios (abr), so opacity is approximated:
+     * under 100 the prims draw semi-transparent (50%) and the colour is scaled by
+     * the percentage on top, which reads as a fade. 0 = don't draw at all. */
+    op = (int)g_PcConfig.minimapOpacity;
+    if (op <= 0) return;
+    if (op > 100) op = 100;
+    semi = (op < 100);
+    lum  = (128 * op) / 100;
+    if (lum < 1) lum = 1;
+
     mm_map_load_tick((int)g_SavegamePtr->paperMapIdx);
 
-    buf = g_ActiveBufferIdx;
-    ot  = &g_OtTags0[buf][4];
+    buf   = g_ActiveBufferIdx;
+    ot    = &g_OtTags0[buf][4];
+    round = (g_PcConfig.minimapShape != 0);
+
+    /* --- corner placement (4:3 bounds: x -160..+160, y -120..+120) --- */
+    switch (g_PcConfig.minimapCorner)
+    {
+        case 1:  x0 =  (SCREEN_WIDTH / 2) - MM_MARGIN - MM_SIZE;
+                 y0 = -(SCREEN_HEIGHT / 2) + MM_MARGIN; break;
+        case 2:  x0 = -(SCREEN_WIDTH / 2) + MM_MARGIN;
+                 y0 =  (SCREEN_HEIGHT / 2) - MM_MARGIN - MM_SIZE; break;
+        case 3:  x0 =  (SCREEN_WIDTH / 2) - MM_MARGIN - MM_SIZE;
+                 y0 =  (SCREEN_HEIGHT / 2) - MM_MARGIN - MM_SIZE; break;
+        default: x0 = -(SCREEN_WIDTH / 2) + MM_MARGIN;
+                 y0 = -(SCREEN_HEIGHT / 2) + MM_MARGIN; break;
+    }
+    x1 = x0 + MM_SIZE; y1 = y0 + MM_SIZE;
+    cx = x0 + MM_SIZE / 2; cy = y0 + MM_SIZE / 2; R = MM_SIZE / 2;
 
     /* --- Harry's cell on the paper map (query mode: no arrow drawn) --- */
     g_PcMapQueryOnly = 1;
@@ -169,71 +193,110 @@ void Pc_MinimapUpdate(void)
         u1 = u0 + 2 * half;
         v1 = v0 + 2 * half;
 
-        px = MM_CX + (((cu - u0) * 2 - (u1 - u0)) * MM_R) / (u1 - u0);
-        py = MM_CY + (((cv - v0) * 2 - (v1 - v0)) * MM_R) / (v1 - v0);
+        px = x0 + ((cu - u0) * MM_SIZE) / (u1 - u0);
+        py = y0 + ((cv - v0) * MM_SIZE) / (v1 - v0);
     }
     else
     {
-        px = MM_CX;
-        py = MM_CY;
+        px = cx;
+        py = cy;
     }
-    /* keep the arrow inside the disc */
+
+    /* keep the arrow inside the panel (disc or box) */
+    if (round)
     {
-        s32 dx = px - MM_CX, dy = py - MM_CY;
-        s32 lim = MM_R - 5;
-        if (dx * dx + dy * dy > lim * lim)
+        s32 dx = px - cx, dy = py - cy;
+        s32 lim = R - 5, d = dx * dx + dy * dy;
+        if (d > lim * lim)
         {
-            s32 d = dx * dx + dy * dy;
             s32 k = 0;
             while ((k + 1) * (k + 1) <= d) k++;      /* integer sqrt */
-            if (k > 0) { px = MM_CX + (dx * lim) / k; py = MM_CY + (dy * lim) / k; }
+            if (k > 0) { px = cx + (dx * lim) / k; py = cy + (dy * lim) / k; }
         }
     }
-
-    /* --- circle fans: black ring underneath, then the map (or a dark disc) --- */
-    for (i = 0; i < MM_SEG; i++)
+    else
     {
-        q3_12 a0 = (q3_12)((4096 * i) / MM_SEG);
-        q3_12 a1 = (q3_12)((4096 * (i + 1)) / MM_SEG);
-        s32   c0 = Math_Cos(a0), n0 = Math_Sin(a0);
-        s32   c1 = Math_Cos(a1), n1 = Math_Sin(a1);
-        s32   Ro = MM_R + MM_OUTLINE;
+        px = mm_clamp(px, x0 + 4, x1 - 4);
+        py = mm_clamp(py, y0 + 4, y1 - 4);
+    }
 
-        setPolyF3(&s_ring[buf][i]);
-        setRGB0(&s_ring[buf][i], 0, 0, 0);
-        setXY3(&s_ring[buf][i], MM_CX, MM_CY,
-               MM_CX + ((Ro * c0) >> 12), MM_CY + ((Ro * n0) >> 12),
-               MM_CX + ((Ro * c1) >> 12), MM_CY + ((Ro * n1) >> 12));
+    if (round)
+    {
+        for (i = 0; i < MM_SEG; i++)
+        {
+            q3_12 a0 = (q3_12)((4096 * i) / MM_SEG);
+            q3_12 a1 = (q3_12)((4096 * (i + 1)) / MM_SEG);
+            s32   c0 = Math_Cos(a0), n0 = Math_Sin(a0);
+            s32   c1 = Math_Cos(a1), n1 = Math_Sin(a1);
+            s32   Ro = R + MM_OUTLINE;
+
+            setPolyF3(&s_ring[buf][i]);
+            setRGB0(&s_ring[buf][i], 0, 0, 0);
+            if (semi) setSemiTrans(&s_ring[buf][i], 1);
+            setXY3(&s_ring[buf][i], cx, cy,
+                   cx + ((Ro * c0) >> 12), cy + ((Ro * n0) >> 12),
+                   cx + ((Ro * c1) >> 12), cy + ((Ro * n1) >> 12));
+
+            if (haveMap)
+            {
+                s32 nx0 = 2048 + (c0 >> 1), ny0 = 2048 + (n0 >> 1);
+                s32 nx1 = 2048 + (c1 >> 1), ny1 = 2048 + (n1 >> 1);
+                setPolyFT3(&s_fan[buf][i]);
+                setRGB0(&s_fan[buf][i], (u8)lum, (u8)lum, (u8)lum);
+                if (semi) setSemiTrans(&s_fan[buf][i], 1);
+                setXY3(&s_fan[buf][i], cx, cy,
+                       cx + ((R * c0) >> 12), cy + ((R * n0) >> 12),
+                       cx + ((R * c1) >> 12), cy + ((R * n1) >> 12));
+                setUV3(&s_fan[buf][i],
+                       (u8)((u0 + u1) / 2),                  (u8)((v0 + v1) / 2),
+                       (u8)(u0 + (((u1 - u0) * nx0) >> 12)), (u8)(v0 + (((v1 - v0) * ny0) >> 12)),
+                       (u8)(u0 + (((u1 - u0) * nx1) >> 12)), (u8)(v0 + (((v1 - v0) * ny1) >> 12)));
+                s_fan[buf][i].tpage = 0;
+                s_fan[buf][i].clut  = MM_CLUT;
+            }
+            else
+            {
+                setPolyF3(&s_fill[buf][i]);
+                setRGB0(&s_fill[buf][i], (u8)((16 * op) / 100), (u8)((20 * op) / 100), (u8)((30 * op) / 100));
+                if (semi) setSemiTrans(&s_fill[buf][i], 1);
+                setXY3(&s_fill[buf][i], cx, cy,
+                       cx + ((R * c0) >> 12), cy + ((R * n0) >> 12),
+                       cx + ((R * c1) >> 12), cy + ((R * n1) >> 12));
+            }
+        }
+    }
+    else
+    {
+        setTile(&s_sqOut[buf]);
+        setRGB0(&s_sqOut[buf], 0, 0, 0);
+        if (semi) setSemiTrans(&s_sqOut[buf], 1);
+        setWH(&s_sqOut[buf], MM_SIZE + MM_OUTLINE * 2, MM_SIZE + MM_OUTLINE * 2);
+        setXY0(&s_sqOut[buf], x0 - MM_OUTLINE, y0 - MM_OUTLINE);
 
         if (haveMap)
         {
-            /* vertex position within the panel, 0..4096, -> zoom-window UV */
-            s32 nx0 = 2048 + (c0 >> 1), ny0 = 2048 + (n0 >> 1);
-            s32 nx1 = 2048 + (c1 >> 1), ny1 = 2048 + (n1 >> 1);
-            setPolyFT3(&s_fan[buf][i]);
-            setRGB0(&s_fan[buf][i], 128, 128, 128);  /* neutral = unmodulated */
-            setXY3(&s_fan[buf][i], MM_CX, MM_CY,
-                   MM_CX + ((MM_R * c0) >> 12), MM_CY + ((MM_R * n0) >> 12),
-                   MM_CX + ((MM_R * c1) >> 12), MM_CY + ((MM_R * n1) >> 12));
-            setUV3(&s_fan[buf][i],
-                   (u8)((u0 + u1) / 2),                 (u8)((v0 + v1) / 2),
-                   (u8)(u0 + (((u1 - u0) * nx0) >> 12)), (u8)(v0 + (((v1 - v0) * ny0) >> 12)),
-                   (u8)(u0 + (((u1 - u0) * nx1) >> 12)), (u8)(v0 + (((v1 - v0) * ny1) >> 12)));
-            /* tpage irrelevant: the bit-15 clut alone keys the pool-slot override */
-            s_fan[buf][i].tpage = 0;
-            s_fan[buf][i].clut  = MM_CLUT;
+            setPolyFT4(&s_sqMap[buf]);
+            setRGB0(&s_sqMap[buf], (u8)lum, (u8)lum, (u8)lum);
+            if (semi) setSemiTrans(&s_sqMap[buf], 1);
+            setXY4(&s_sqMap[buf], x0, y0, x1, y0, x0, y1, x1, y1);
+            s_sqMap[buf].tpage = 0;
+            s_sqMap[buf].clut  = MM_CLUT;
+            s_sqMap[buf].u0 = (u8)u0; s_sqMap[buf].v0 = (u8)v0;
+            s_sqMap[buf].u1 = (u8)u1; s_sqMap[buf].v1 = (u8)v0;
+            s_sqMap[buf].u2 = (u8)u0; s_sqMap[buf].v2 = (u8)v1;
+            s_sqMap[buf].u3 = (u8)u1; s_sqMap[buf].v3 = (u8)v1;
         }
         else
         {
-            setPolyF3(&s_fill[buf][i]);
-            setRGB0(&s_fill[buf][i], 16, 20, 30);
-            setXY3(&s_fill[buf][i], MM_CX, MM_CY,
-                   MM_CX + ((MM_R * c0) >> 12), MM_CY + ((MM_R * n0) >> 12),
-                   MM_CX + ((MM_R * c1) >> 12), MM_CY + ((MM_R * n1) >> 12));
+            setTile(&s_sqFill[buf]);
+            setRGB0(&s_sqFill[buf], (u8)((16 * op) / 100), (u8)((20 * op) / 100), (u8)((30 * op) / 100));
+            if (semi) setSemiTrans(&s_sqFill[buf], 1);
+            setWH(&s_sqFill[buf], MM_SIZE, MM_SIZE);
+            setXY0(&s_sqFill[buf], x0, y0);
         }
     }
 
-    /* --- marker: small triangle along Harry's heading (+Y is down, so north is -Y) --- */
+    /* --- marker: small triangle along Harry's heading (+Y is down => north is -Y) --- */
     {
         static const s32 lx[3] = {  0, -3,  3 };
         static const s32 ly[3] = { -5,  3,  3 };
@@ -246,19 +309,27 @@ void Pc_MinimapUpdate(void)
             vy[i] = py + ((lx[i] * sa + ly[i] * ca) >> 12);
         }
         setPolyF3(&s_mark[buf]);
-        setRGB0(&s_mark[buf], 255, 216, 48);
+        setRGB0(&s_mark[buf], (u8)((255 * op) / 100), (u8)((216 * op) / 100), (u8)((48 * op) / 100));
+        if (semi) setSemiTrans(&s_mark[buf], 1);
         setXY3(&s_mark[buf], vx[0], vy[0], vx[1], vy[1], vx[2], vy[2]);
     }
 
-    setDrawTPage(&s_tp[buf], 0, 1, getTPageN(0, 0, 0, 0));
+    setDrawTPage(&s_tp[buf], 0, 1, getTPageN(0, 0, 0, 0)); /* abr=0 = 50% blend */
 
-    /* AddPrim pushes to the head, so the LAST added is processed FIRST: add
-     * front-to-back (marker, map/fill, ring) and the tpage last. */
+    /* AddPrim pushes to the head: add front-to-back, tpage last. */
     AddPrim(ot, &s_mark[buf]);
-    for (i = 0; i < MM_SEG; i++)
-        AddPrim(ot, haveMap ? (void*)&s_fan[buf][i] : (void*)&s_fill[buf][i]);
-    for (i = 0; i < MM_SEG; i++)
-        AddPrim(ot, &s_ring[buf][i]);
+    if (round)
+    {
+        for (i = 0; i < MM_SEG; i++)
+            AddPrim(ot, haveMap ? (void*)&s_fan[buf][i] : (void*)&s_fill[buf][i]);
+        for (i = 0; i < MM_SEG; i++)
+            AddPrim(ot, &s_ring[buf][i]);
+    }
+    else
+    {
+        AddPrim(ot, haveMap ? (void*)&s_sqMap[buf] : (void*)&s_sqFill[buf]);
+        AddPrim(ot, &s_sqOut[buf]);
+    }
     AddPrim(ot, &s_tp[buf]);
 }
 
