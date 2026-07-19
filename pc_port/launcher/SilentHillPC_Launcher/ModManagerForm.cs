@@ -32,7 +32,7 @@ namespace SilentHillPC_Launcher
             _mgr      = new ModManager(gameRoot, config);
 
             Text            = "Mod Manager";
-            ClientSize      = new Size(600, 480);
+            ClientSize      = new Size(600, 540);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition   = FormStartPosition.CenterParent;
             MaximizeBox     = false;
@@ -81,7 +81,7 @@ namespace SilentHillPC_Launcher
             _list = new ListView
             {
                 Location      = new Point(12, 50),
-                Size          = new Size(490, 340),
+                Size          = new Size(490, 396),
                 View          = View.Details,
                 CheckBoxes    = true,
                 FullRowSelect = true,
@@ -124,7 +124,9 @@ namespace SilentHillPC_Launcher
             var btnBp = new Button { Text = "Bulk → PNG…",  Location = new Point(510, 258), Size = new Size(78, 28) };
             var btnRef = new Button { Text = "Reference…",  Location = new Point(510, 290), Size = new Size(78, 28) };
             var btnReb = new Button { Text = "Rebuild…",    Location = new Point(510, 322), Size = new Size(78, 28) };
-            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 354), Size = new Size(78, 28) };
+            var btnMo = new Button { Text = "Model → OBJ…", Location = new Point(510, 354), Size = new Size(78, 28) };
+            var btnOm = new Button { Text = "OBJ → Model…", Location = new Point(510, 386), Size = new Size(78, 28) };
+            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 418), Size = new Size(78, 28) };
             _btnTips = new ToolTip();
             _btnTips.SetToolTip(btnEx, "Unpack a Silent Hill .bin disc image into the loose asset tree.");
             _btnTips.SetToolTip(btnTp, "Convert individual .TIM texture files to .png.");
@@ -134,30 +136,39 @@ namespace SilentHillPC_Launcher
                 "image (how it really looks in-game) for you to paint over.");
             _btnTips.SetToolTip(btnReb, "Rebuild Textures: slice your edited reference image back into the per-row " +
                 "NAME.TIM.pNN.png files the game loads (gamedata/load/<FOLDER>/). No 16-colour-per-region limit — paint freely.");
+            _btnTips.SetToolTip(btnMo, "Model → OBJ: write a character model out as a .obj (plus .mtl and .ilmmeta.json) you can " +
+                "open in Blender. Each 'o' object is ONE rigid animated body part — reshape its vertices freely, but do NOT " +
+                "rename, add or remove objects: that list is the rig, and changing it breaks the animation.");
+            _btnTips.SetToolTip(btnOm, "OBJ → Model: fold your edited .obj back into a new .ILM. Needs the ORIGINAL .ILM it came " +
+                "from plus the .ilmmeta.json written beside the .obj — bones, draw order and palette rows come from those.");
             _btnTips.SetToolTip(btnHelp, "How to make and install loose-file texture mods.");
             btnEx.Click += (s, e) => OnExtractBin();
             btnTp.Click += (s, e) => OnConvertTim();
             btnBp.Click += (s, e) => OnBulkPng();
             btnRef.Click += (s, e) => OnBuildReference();
             btnReb.Click += (s, e) => OnRebuildTextures();
+            btnMo.Click += (s, e) => OnExportModel();
+            btnOm.Click += (s, e) => OnImportModel();
             btnHelp.Click += (s, e) => ShowLooseModHelp();
             Controls.Add(btnEx);
             Controls.Add(btnTp);
             Controls.Add(btnBp);
             Controls.Add(btnRef);
             Controls.Add(btnReb);
+            Controls.Add(btnMo);
+            Controls.Add(btnOm);
             Controls.Add(btnHelp);
 
             _chkLoose = new CheckBox
             {
                 Text     = "Enable loose file support (required for load-folder mods)",
-                Location = new Point(12, 398),
+                Location = new Point(12, 454),
                 AutoSize = true
             };
             Controls.Add(_chkLoose);
 
-            var btnApply = new Button { Text = "Apply", Location = new Point(414, 440), Size = new Size(84, 30) };
-            var btnClose = new Button { Text = "Close", Location = new Point(504, 440), Size = new Size(84, 30) };
+            var btnApply = new Button { Text = "Apply", Location = new Point(414, 500), Size = new Size(84, 30) };
+            var btnClose = new Button { Text = "Close", Location = new Point(504, 500), Size = new Size(84, 30) };
             btnApply.Click += OnApply;
             btnClose.Click += (s, e) => { CommitOrderAndState(); _mgr.SaveState(); Close(); };
             Controls.Add(btnApply);
@@ -765,6 +776,138 @@ namespace SilentHillPC_Launcher
             }
         }
 
+        /// <summary>"Model → OBJ…" button: write a character model out as an editable
+        /// .obj + .mtl + .ilmmeta.json set.</summary>
+        private void OnExportModel()
+        {
+            string ilm;
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select a character model (.ILM)";
+                ofd.Filter = "Model files (*.ilm)|*.ilm|All files (*.*)|*.*";
+                string gamedata = Path.Combine(_gameRoot, "gamedata");
+                if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
+                if (ofd.ShowDialog(this) != DialogResult.OK) return;
+                ilm = ofd.FileName;
+            }
+
+            string outObj;
+            using (var sfd = new SaveFileDialog())
+            {
+                sfd.Title = "Save model as OBJ";
+                sfd.Filter = "Wavefront OBJ (*.obj)|*.obj|All files (*.*)|*.*";
+                sfd.InitialDirectory = Path.GetDirectoryName(ilm);
+                sfd.FileName = Path.GetFileNameWithoutExtension(ilm) + ".obj";
+                if (sfd.ShowDialog(this) != DialogResult.OK) return;
+                outObj = sfd.FileName;
+            }
+
+            IlmObjConverter.ExportResult res = null;
+            try
+            {
+                ProgressDialog.Run(this, "Exporting model…",
+                    r => { res = IlmObjConverter.Export(ilm, outObj); });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Export failed:\n\n" + ex.Message,
+                    "Model → OBJ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (res == null || !string.IsNullOrEmpty(res.Error))
+            {
+                MessageBox.Show(this, "Export failed:\n\n" + (res != null ? res.Error : "unknown error"),
+                    "Model → OBJ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string msg = "Wrote " + res.Parts + " body part(s), " + res.Vertices + " vertices, " +
+                res.Prims + " face(s) and " + res.Materials + " material(s):\n" + res.ObjPath +
+                "\n\nBeside it: " + Path.GetFileName(res.MtlPath) + " and " + Path.GetFileName(res.MetaPath) +
+                " — keep the .ilmmeta.json, \"OBJ → Model…\" needs it.\n\n" +
+                "In Blender, each object is one rigid animated body part: move and reshape " +
+                "vertices freely, but do not rename, add or remove objects.";
+            if (res.Dangling > 0)
+                msg += "\n\nNote: " + res.Dangling + " face corner(s) point at a vertex outside their own part, " +
+                       "so the OBJ substitutes that part's first vertex there — those few corners look wrong in " +
+                       "Blender and are restored on import.";
+            if (MessageBox.Show(this, msg + "\n\nOpen the output folder?",
+                    "Model → OBJ", MessageBoxButtons.YesNo,
+                    res.Dangling > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information) == DialogResult.Yes)
+            {
+                try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.ObjPath)); } catch { }
+            }
+        }
+
+        /// <summary>"OBJ → Model…" button: fold an edited .obj back into a new .ILM,
+        /// using the original .ILM plus the .ilmmeta.json written beside the .obj.</summary>
+        private void OnImportModel()
+        {
+            string obj;
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select your edited model (.obj)";
+                ofd.Filter = "Wavefront OBJ (*.obj)|*.obj|All files (*.*)|*.*";
+                string gamedata = Path.Combine(_gameRoot, "gamedata");
+                if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
+                if (ofd.ShowDialog(this) != DialogResult.OK) return;
+                obj = ofd.FileName;
+            }
+
+            string ilm = GuessIlmFor(obj);
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select the ORIGINAL model (.ILM) this OBJ was exported from";
+                ofd.Filter = "Model files (*.ilm)|*.ilm|All files (*.*)|*.*";
+                if (ilm != null) { ofd.InitialDirectory = Path.GetDirectoryName(ilm); ofd.FileName = Path.GetFileName(ilm); }
+                else ofd.InitialDirectory = Path.GetDirectoryName(obj);
+                if (ofd.ShowDialog(this) != DialogResult.OK) return;
+                ilm = ofd.FileName;
+            }
+
+            string outIlm;
+            using (var sfd = new SaveFileDialog())
+            {
+                sfd.Title = "Save the rebuilt model";
+                sfd.Filter = "Model files (*.ilm)|*.ilm|All files (*.*)|*.*";
+                sfd.InitialDirectory = Path.GetDirectoryName(obj);
+                sfd.FileName = Path.GetFileNameWithoutExtension(ilm) + "_new.ILM";
+                if (sfd.ShowDialog(this) != DialogResult.OK) return;
+                outIlm = sfd.FileName;
+            }
+
+            IlmObjConverter.ImportResult res = null;
+            try
+            {
+                ProgressDialog.Run(this, "Rebuilding model…",
+                    r => { res = IlmObjConverter.Import(obj, ilm, outIlm); });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Rebuild failed:\n\n" + ex.Message,
+                    "OBJ → Model", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (res == null || !string.IsNullOrEmpty(res.Error))
+            {
+                MessageBox.Show(this, "Rebuild failed:\n\n" + (res != null ? res.Error : "unknown error"),
+                    "OBJ → Model", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string msg = "Rebuilt " + res.Parts + " body part(s), " + res.Vertices + " vertices, " +
+                res.Normals + " normals and " + res.Prims + " face(s):\n" + res.IlmPath +
+                "\n\nTo use it, drop it into gamedata\\load\\<FOLDER>\\ under its ORIGINAL name " +
+                "(e.g. gamedata\\load\\CHARA\\DOB.ILM) and set allow_loose_files = 1 in config.cfg.";
+            if (MessageBox.Show(this, msg + "\n\nOpen the output folder?",
+                    "OBJ → Model", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+            {
+                try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.IlmPath)); } catch { }
+            }
+        }
+
         /// <summary>Find NAME.TIM beside NAME.ILM (either extension case).</summary>
         private static string FindTimBeside(string ilm)
         {
@@ -831,6 +974,25 @@ namespace SilentHillPC_Launcher
                 "      zip it up. Drag the .zip onto this window to add it to the Mod",
                 "      Manager. Now you can enable/disable it and set load order — when two",
                 "      mods touch the same file, the one higher in the list wins.",
+                "",
+                "EDITING CHARACTER MODELS (advanced)",
+                "",
+                "    \"Model → OBJ…\" writes a model out as a .obj you can open in Blender,",
+                "    along with a .mtl and a .ilmmeta.json. Keep that .ilmmeta.json — the",
+                "    import step needs it.",
+                "",
+                "    Each 'o' object in the .obj is ONE rigid animated body part. Move and",
+                "    reshape its vertices as much as you like, but do NOT rename, add or",
+                "    remove objects: that list IS the rig, and changing it breaks every",
+                "    animation the character has.",
+                "",
+                "    \"OBJ → Model…\" folds the edited .obj back into a new .ILM. It asks for",
+                "    three things: your .obj, the ORIGINAL .ILM it came from, and where to",
+                "    save — the .ilmmeta.json is picked up automatically from beside the",
+                "    .obj. Bones, draw order and palette rows are copied from the original.",
+                "",
+                "    Install the result like any loose file, under its ORIGINAL name — e.g.",
+                "    gamedata\\load\\CHARA\\DOB.ILM",
             };
 
             using (var dlg = new Form())
