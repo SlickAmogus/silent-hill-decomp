@@ -1109,6 +1109,25 @@ adversarially-verified findings; the fixes:
   fire at case 30, so break/scream/reaction coincide. Lesson: a DMS projectile's
   impact anchor is the flight-arc end / impact-SFX beat, not the next
   `Event_CutsceneTimerAdvance` endTime.
+- **Loose CHARA texture bleeding onto a building** (`src/main/fsqueue_3.c`, commit
+  `cd8b1edab`). `gamedata/load/CHARA/BFLU.png` was painted on a random building wall.
+  The hi-res loose-override "pending path" table (`s_hiresPending`) is keyed on the
+  `s_FsQueueEntry*` pointer, which the FS queue RECYCLES; a stash not popped for its
+  own load was popped by a building chunk (`THR2501F.TIM`) that reused the pointer.
+  Pre-existing latent bug (in the 2026-07-16 baseline; introduced `17eab4827`),
+  exposed by a CHARA loose mod — NOT the recent content-keyed-upload / mod-manager
+  work (audited + exonerated). Fix: the stashed path's basename is the disc name it
+  was stashed for, so at pop require it to match the loading TIM's disc name
+  (`Fs_GetFileInfoName`); mismatch → drop, base disc TIM renders.
+- **HD-font "ghost text" — restore baseline** (`hires_override.c` / `text_draw.c`,
+  commit `a4cabe12c`, reverts `029b69a40` + `c60389147`). The ghost was the
+  *regression*, not the fix: baseline beta-2026.07.16.2 generated mipmaps for the
+  2D-UI/font path (`f47c1f871`, an ancestor) and was clean; `029b69a40` turned them
+  off, and since the HD atlas is *minified* when drawn, the mipmaps had been
+  averaging away the mod's gutterless neighbour-cell bleed — removing them unmasked
+  it. Restoring mipmaps + dropping the companion advance-clip returns the clean look.
+  `f3c9cbbcd` (content-keyed upload skip) is kept: it keeps the font texture *with*
+  its mipmaps, so it doesn't change font appearance.
 - **fps_cap 31–59 honored.** Integer division (`60/fps`) silently turned those
   caps into 60fps; non-divisors of 60 now route through the SDL high-precision
   limiter.
