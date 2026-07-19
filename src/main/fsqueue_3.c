@@ -179,26 +179,38 @@ bool Fs_QueueTickSetLoc(s_FsQueueEntry* entry)
  * and computed the engine's target VRAM rect — uses that path to register
  * a hi-res GL texture override. */
 #define HIRES_PENDING_MAX 32
+/* Keyed on the FILE (s_FileInfo* into the stable g_FileTable), NOT on the
+ * s_FsQueueEntry* — the queue RECYCLES entry slots, so a pointer key let a stash
+ * left by one file be popped by a completely different file that later reused the
+ * slot. That is how a CHARA loose override (BFLU.png) ended up painted on a
+ * building wall, and then on Harry's inventory portrait. The file pointer is
+ * unique and stable per file, so an override can only ever be applied to the file
+ * it was stashed for. PopPath additionally re-checks the name, so no caller can
+ * skip validation (there are two pop sites and only one used to check). */
 typedef struct {
-    s_FsQueueEntry* entry;
+    const s_FileInfo* info;
     char path[160];
 } HiresPending;
 static HiresPending s_hiresPending[HIRES_PENDING_MAX];
 
 static void HiresPending_Stash(s_FsQueueEntry* entry, const char* path)
 {
+    const s_FileInfo* info = (entry != NULL) ? entry->info : NULL;
     int free = -1;
+
+    if (info == NULL || !FSQ_INFO_VALID(info)) return;
+
     for (int i = 0; i < HIRES_PENDING_MAX; i++)
     {
-        if (s_hiresPending[i].entry == entry) { free = i; break; }
-        if (s_hiresPending[i].entry == NULL && free < 0) free = i;
+        if (s_hiresPending[i].info == info) { free = i; break; }
+        if (s_hiresPending[i].info == NULL && free < 0) free = i;
     }
     if (free < 0)
     {
         SH_DBG("[HIRES] pending table full, dropping %s", path);
         return;
     }
-    s_hiresPending[free].entry = entry;
+    s_hiresPending[free].info = info;
     strncpy(s_hiresPending[free].path, path,
             sizeof(s_hiresPending[free].path) - 1);
     s_hiresPending[free].path[sizeof(s_hiresPending[free].path) - 1] = '\0';
@@ -207,16 +219,34 @@ static void HiresPending_Stash(s_FsQueueEntry* entry, const char* path)
 static const char* HiresPending_PopPath(s_FsQueueEntry* entry)
 {
     static char buf[160];
-    for (int i = 0; i < HIRES_PENDING_MAX; i++)
+    const s_FileInfo* info = (entry != NULL) ? entry->info : NULL;
+    int i;
+
+    if (info == NULL || !FSQ_INFO_VALID(info)) return NULL;
+
+    for (i = 0; i < HIRES_PENDING_MAX; i++)
     {
-        if (s_hiresPending[i].entry == entry)
+        if (s_hiresPending[i].info != info) continue;
+
+        strncpy(buf, s_hiresPending[i].path, sizeof(buf));
+        buf[sizeof(buf) - 1] = '\0';
+        s_hiresPending[i].info = NULL;
+        s_hiresPending[i].path[0] = '\0';
+
+        /* Belt-and-braces: the stashed path is "gamedata/load/{folder}/{discname}",
+         * so its basename must equal the disc name of the file being loaded. */
         {
-            strncpy(buf, s_hiresPending[i].path, sizeof(buf));
-            buf[sizeof(buf) - 1] = '\0';
-            s_hiresPending[i].entry = NULL;
-            s_hiresPending[i].path[0] = '\0';
-            return buf;
+            char        curName[16] = {0};
+            const char* base = strrchr(buf, '/');
+            base = (base != NULL) ? base + 1 : buf;
+            Fs_GetFileInfoName(curName, info);
+            if (curName[0] != '\0' && strcmp(base, curName) != 0)
+            {
+                SH_DBG("[HIRES] refusing stale override '%s' for '%s'", buf, curName);
+                return NULL;
+            }
         }
+        return buf;
     }
     return NULL;
 }
@@ -910,28 +940,9 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
         int nativeH = (int)pixelRect.h;
         const char* loosePath = HiresPending_PopPath(entry);
         int registered = 0;
-        int perRow;
-        /* The pending-path table is keyed on the s_FsQueueEntry* pointer, which
-         * the FS queue recycles. A stash that wasn't popped for its own load can
-         * be popped HERE by a different file that reused the pointer — e.g. a
-         * building chunk (THR2501F) inheriting a stale CHARA/BFLU stash and
-         * painting BFLU across the wall. The stashed path's basename is the disc
-         * name it was stashed for, so require it to match THIS entry's disc name;
-         * on mismatch drop it so the base disc TIM (below) renders instead. */
-        if (loosePath != NULL && FSQ_INFO_VALID(entry->info))
-        {
-            char        curName[16] = {0};
-            const char* base = strrchr(loosePath, '/');
-            base = (base != NULL) ? base + 1 : loosePath;
-            Fs_GetFileInfoName(curName, entry->info);
-            if (curName[0] != '\0' && strcmp(base, curName) != 0)
-            {
-                SH_DBG("[POOLTEX] slot %d: stale stash '%s' != loading '%s' — discarding",
-                       slotId, loosePath, curName);
-                loosePath = NULL;
-            }
-        }
-        perRow = Loose_HasPerRow(loosePath);
+        /* Ownership is enforced inside HiresPending_PopPath now (file-keyed +
+         * name-checked), so every pop site is covered, not just this one. */
+        int perRow = Loose_HasPerRow(loosePath);
 
         if (discBitDepth <= 0 || !FSQ_INFO_VALID(entry->info))
         {
