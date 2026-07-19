@@ -15,6 +15,7 @@ s_PcConfig g_PcConfig = {
     .vsync          = 0,
     .refreshRate    = 0,
     .fpsCap         = 30,
+    .cutsceneLineGapMs = 300,
     .skipIntros     = 0,
     .showConsole    = 0,
     .psxDither      = 1, /* 0=off, 1=PSX dither, 2=bilinear */
@@ -403,6 +404,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "fps_cap") == 0)
         {
             g_PcConfig.fpsCap = atoi(value);
+        }
+        else if (strcmp(key, "cutscene_line_gap_ms") == 0)
+        {
+            g_PcConfig.cutsceneLineGapMs = atoi(value);
         }
         else if (strcmp(key, "skip_intros") == 0)
         {

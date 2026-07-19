@@ -39,6 +39,9 @@ typedef struct {
     int vsync;           /* 0 = off (uncapped), 1 = on, -1 = adaptive */
     int refreshRate;     /* target refresh rate in hz (0 = display default); fullscreen only */
     int fpsCap;          /* gameplay fps cap: 0 = uncapped, 30 = PSX-accurate, 60 = smooth */
+    int cutsceneLineGapMs; /* min silence (ms) between cutscene voice lines — simulates PSX CD
+                            * seek latency so tightly-timed lines don't run together. Applied as a
+                            * MINIMUM (never shortens an authored gap). 0 = off. Default 300. */
     int skipIntros;      /* 1 = skip Konami/KCET logos and opening movie, go straight to main menu */
     int showConsole;     /* EXTERNAL console window only: 1 or 3 = create it, else none.
                           * The ingame console is not config-gated anymore — `~` toggles it

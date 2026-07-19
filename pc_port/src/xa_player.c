@@ -1,6 +1,7 @@
 #include "xa_player.h"
 #include "sh_log.h"
 #include "main/fileinfo.h"   /* g_FileXaLoc[] — XA file disc-sector offsets */
+#include "pc_config.h"       /* g_PcConfig.cutsceneLineGapMs */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +27,24 @@ static Uint32 s_xaPrevFireMs  = 0;
  * compressed, running the voices ahead of the scene. Hold the finished
  * signal until the PSX watchdog moment (play start + (length+32)/60 s). */
 static Uint32 s_xaPadEndMs = 0;
+
+/* PSX CD-seek inter-line gap. The pause between cutscene voice lines came from
+ * BOTH the authored ~J page timers (tuned longer than the voice) AND the CD
+ * seek to the next clip. PC honors the ~J timers but loads instantly, so lines
+ * whose ~J timer ~= the voice length run together ("talking over each other").
+ * Hold the voiced page-advance an extra g_PcConfig.cutsceneLineGapMs past the
+ * REAL audio end — set at Play (audio-end estimate + gap). Consumed only by the
+ * cutscene page-advance gate (map_msg_display.c pcVoiceHold), and only as a
+ * MINIMUM there (the page still requires mapMsgTimer==0), so a line that already
+ * has an authored gap >= this is untouched — it does NOT reintroduce the
+ * d9a34e548 blanket-pad Flauros desync (that pad extended EVERY line). */
+static Uint32 s_xaVoiceGapEndMs = 0;
+
+int Xa_VoiceGapHold(void)
+{
+    return g_PcConfig.cutsceneLineGapMs > 0 && s_xaVoiceGapEndMs != 0 &&
+           SDL_GetTicks() < s_xaVoiceGapEndMs;
+}
 
 /* Console-freeze hold: the console zeroes game dt but OpenAL kept playing,
  * running the voice ahead of the frozen scene. While held, the source is
@@ -472,6 +491,10 @@ void XaPlayer_Play(uint16_t xaIdx) {
         s_xaPrevFireMs  = nowMs;
         s_xaPlayStartMs = nowMs;
         s_xaPadEndMs    = nowMs + (((uint32_t)item->audioLength_8_bits + 32u) * 1000u) / 60u;
+        /* Real audio end (sample-accurate expMs) + the configured inter-line gap;
+         * the cutscene page-advance holds until here so the next line's voice
+         * doesn't fire back-to-back. */
+        s_xaVoiceGapEndMs = nowMs + expMs + (uint32_t)g_PcConfig.cutsceneLineGapMs;
     }
     SH_DBG("[XA] Play xaIdx=%u file=%u sector=%u sectors=%u %s %dHz filter=(%u,%u)",
            xaIdx, fileIdx, (uint32_t)item->sector_4_bits, numSectors,

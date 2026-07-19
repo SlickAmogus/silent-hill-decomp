@@ -316,10 +316,16 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
              * fell seconds behind the wall-clock animation). Real-drain gating
              * restores the authored pacing while still preventing PC's instant
              * next-line SD_Call from cutting a live voice. */
+            /* Also hold through the post-voice inter-line gap
+             * (cutscene_line_gap_ms) so tightly-timed lines get the PSX CD-seek
+             * pause instead of the next voice firing back-to-back. It's a
+             * MINIMUM: mapMsgTimer==0 is still required, so a line whose authored
+             * ~J timer already exceeds the gap is unaffected (Flauros-safe). */
             extern int Xa_IsVoiceAudioDraining(void);
+            extern int Xa_VoiceGapHold(void);
             const int pcVoiceHold =
                 (g_SysWork.bgmStatusFlags & BgmStatusFlag_VoiceDialog) &&
-                Xa_IsVoiceAudioDraining();
+                (Xa_IsVoiceAudioDraining() || Xa_VoiceGapHold());
 #endif
             temp_s1 = stateMachineIdx0;
             if (temp_s1 == NO_VALUE)
