@@ -32,8 +32,15 @@
 int g_PcMapQueryOnly = 0;
 
 static int    s_inited = 0;
+static int    s_dead   = 0;  /* latched off after any GL failure */
+static int    s_trace  = 0;  /* checkpoint frames still to log */
 static GLuint s_progCol = 0, s_progTex = 0, s_vao = 0, s_vbo = 0;
 static GLint  s_uColor = -1, s_uTex = -1;
+
+/* The first crash reports landed inside the GPU driver with no resolvable frame,
+ * so trace the GL sequence for the first few drawn frames — the last checkpoint
+ * in the log names the call that faulted. Cheap: stops after s_trace runs out. */
+#define MM_TRACE(...) do { if (s_trace > 0) SH_DBG("[MINIMAP] " __VA_ARGS__); } while (0)
 
 static GLuint s_mapTex = 0;
 static int    s_mapTexW = 0, s_mapTexH = 0;
@@ -95,15 +102,26 @@ static void mm_init(void)
         "void main() { gl_FragColor = texture2D(u_tex, v_uv); }\n";
 
     s_inited = 1;
+    s_trace  = 6;
 
+    MM_TRACE("init: begin");
     s_progCol = mm_prog(vs_src, fs_col);
     s_progTex = mm_prog(vs_src, fs_tex);
-    if (s_progCol == 0) return;
+    MM_TRACE("init: progCol=%u progTex=%u", (unsigned)s_progCol, (unsigned)s_progTex);
+    if (s_progCol == 0) { s_dead = 1; return; }
     s_uColor = glGetUniformLocation(s_progCol, "u_color");
     if (s_progTex) s_uTex = glGetUniformLocation(s_progTex, "u_tex");
 
+    /* VAOs are core-profile only; if the entry point is missing this would jump
+     * through a null pointer, so verify it before use. */
+    if (glGenVertexArrays == NULL || glBindVertexArray == NULL) {
+        SH_DBG("[MINIMAP] no VAO entry points — disabling");
+        s_dead = 1;
+        return;
+    }
     glGenVertexArrays(1, &s_vao);
     glGenBuffers(1, &s_vbo);
+    MM_TRACE("init: vao=%u vbo=%u", (unsigned)s_vao, (unsigned)s_vbo);
     glBindVertexArray(s_vao);
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
     glBufferData(GL_ARRAY_BUFFER, 2048 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
@@ -178,6 +196,7 @@ void Pc_MinimapDraw(void)
 {
     GLint     vp[4];
     GLint     prevProg = 0, prevVao = 0, prevBuf = 0, prevBsrc = 0, prevBdst = 0, prevTex = 0;
+    GLint     prevActive = GL_TEXTURE0;
     GLboolean prevDepth, prevBlend, prevScissor;
     float     aspect, hh, hw, cx, cy, x0, y0, x1, y1;
     float     buf[2048 / 4 * 4];
@@ -190,14 +209,16 @@ void Pc_MinimapDraw(void)
     if (g_GameWork.gameState != GameState_InGame || g_SysWork.sysState != SysState_Gameplay) return;
 
     if (!s_inited) mm_init();
-    if (s_progCol == 0) return;
+    if (s_dead || s_progCol == 0) return;
 
     glGetIntegerv(GL_VIEWPORT, vp);
     if (vp[2] <= 0 || vp[3] <= 0) return;
+    MM_TRACE("draw: vp=%d,%d %dx%d", vp[0], vp[1], vp[2], vp[3]);
 
     /* upload a freshly decoded map image */
     if (s_pendingRGBA && s_pendingW > 0 && s_pendingH > 0)
     {
+        MM_TRACE("draw: uploading map tex %dx%d", s_pendingW, s_pendingH);
         if (s_mapTex == 0) glGenTextures(1, &s_mapTex);
         glBindTexture(GL_TEXTURE_2D, s_mapTex);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -213,9 +234,11 @@ void Pc_MinimapDraw(void)
 
     /* Harry's map cell, straight from the game's own transform (query mode = no
      * paper-map arrow drawn). Returns 0 when this area has no map. */
+    MM_TRACE("draw: querying map cell");
     g_PcMapQueryOnly = 1;
     packed = func_80067914((s32)g_SavegamePtr->paperMapIdx, 0, 0, (u16)Q12(1.0f));
     g_PcMapQueryOnly = 0;
+    MM_TRACE("draw: map cell packed=0x%08x", (unsigned)packed);
     if (packed != 0)
     {
         float mx = (float)(s16)(packed & 0xFFFF);
@@ -233,6 +256,7 @@ void Pc_MinimapDraw(void)
     glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prevBuf);
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &prevActive);
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTex);
     glGetIntegerv(GL_BLEND_SRC_ALPHA, &prevBsrc);
     glGetIntegerv(GL_BLEND_DST_ALPHA, &prevBdst);
@@ -240,11 +264,13 @@ void Pc_MinimapDraw(void)
     prevBlend   = glIsEnabled(GL_BLEND);
     prevScissor = glIsEnabled(GL_SCISSOR_TEST);
 
+    MM_TRACE("draw: state saved (prog=%d vao=%d buf=%d)", prevProg, prevVao, prevBuf);
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glBindVertexArray(s_vao);
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
+    MM_TRACE("draw: bound vao/vbo");
 
     /* --- panel rect (square, top-right, NDC) --- */
     aspect = (float)vp[2] / (float)vp[3];
@@ -258,6 +284,7 @@ void Pc_MinimapDraw(void)
     mm_put(buf, n++, x0, y0, 0, 0); mm_put(buf, n++, x1, y0, 0, 0); mm_put(buf, n++, x1, y1, 0, 0);
     mm_put(buf, n++, x0, y0, 0, 0); mm_put(buf, n++, x1, y1, 0, 0); mm_put(buf, n++, x0, y1, 0, 0);
     mm_draw_col(GL_TRIANGLES, buf, n, 0.04f, 0.05f, 0.08f, 0.55f);
+    MM_TRACE("draw: panel drawn");
 
     sx = (int)((x0 * 0.5f + 0.5f) * vp[2]) + vp[0];
     sy = (int)((y0 * 0.5f + 0.5f) * vp[3]) + vp[1];
@@ -274,12 +301,14 @@ void Pc_MinimapDraw(void)
         mm_put(buf, n++, x1, y1, 1.0f, 0.0f);
         mm_put(buf, n++, x0, y0, 0.0f, 1.0f); mm_put(buf, n++, x1, y1, 1.0f, 0.0f);
         mm_put(buf, n++, x0, y1, 0.0f, 0.0f);
+        MM_TRACE("draw: map quad (tex=%u prog=%u)", (unsigned)s_mapTex, (unsigned)s_progTex);
         glUseProgram(s_progTex);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, s_mapTex);
         glUniform1i(s_uTex, 0);
         mm_upload_draw(GL_TRIANGLES, buf, n);
         glBindTexture(GL_TEXTURE_2D, 0);
+        MM_TRACE("draw: map quad done");
     }
     else
     {
@@ -319,6 +348,7 @@ void Pc_MinimapDraw(void)
             mm_put(buf, n++, px + (rx * s) / aspect, py + ry * s, 0, 0);
         }
         mm_draw_col(GL_TRIANGLES, buf, n, 1.0f, 0.85f, 0.2f, 1.0f);
+        MM_TRACE("draw: marker drawn");
     }
 
     /* --- restore --- */
@@ -327,7 +357,12 @@ void Pc_MinimapDraw(void)
     if (prevDepth) glEnable(GL_DEPTH_TEST);
     glBlendFunc((GLenum)prevBsrc, (GLenum)prevBdst);
     glBindTexture(GL_TEXTURE_2D, (GLuint)prevTex);
+    /* PsyX may render from a different texture unit next frame — leaving ours
+     * selected would bind its textures to the wrong unit. */
+    glActiveTexture((GLenum)prevActive);
     glUseProgram((GLuint)prevProg);
     glBindVertexArray((GLuint)prevVao);
     glBindBuffer(GL_ARRAY_BUFFER, (GLuint)prevBuf);
+    MM_TRACE("draw: restored — frame ok");
+    if (s_trace > 0) s_trace--;
 }
