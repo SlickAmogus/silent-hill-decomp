@@ -50,6 +50,10 @@ static int    s_mapTexW = 0, s_mapTexH = 0;
 static int    s_mapIdxLoaded = -1;   /* paperMapIdx we last attempted */
 static unsigned char* s_pendingRGBA = NULL; /* decoded, awaiting GL upload */
 static int    s_pendingW = 0, s_pendingH = 0;
+static unsigned char* s_rawBuf = NULL;      /* raw TIM bytes, read in flight */
+static unsigned int   s_rawSize = 0;
+static int    s_readPending = 0;
+static int    s_idleFrames = 0;             /* consecutive frames with an idle FS queue */
 
 #define MM_PI2 6.2831853f
 /* Map-cell extents the paper map spans (screen -160..+160 / -240..+240 at 1x).
@@ -192,41 +196,52 @@ void Pc_MinimapUpdate(void)
     if (!g_PcConfig.minimap) return;
     if (g_GameWork.gameState != GameState_InGame || g_SysWork.sysState != SysState_Gameplay) return;
 
-    idx = (int)g_SavegamePtr->paperMapIdx;
-    if (idx == s_mapIdxLoaded) return;
-
-    /* NEVER touch the file queue while the game has its own loads in flight.
-     * Enqueueing here (and worse, Fs_QueueWaitForEmpty draining the game's
-     * pending reads early) corrupts an area load in progress — the game then
-     * uploads malformed texture data and the GL driver's async worker thread
-     * faults on it, which is what crashed when loading a save with the minimap
-     * on. Retry on a later frame once the queue is idle; the map can wait. */
-    if (Fs_QueueGetLength() > 0) return;
-
-    s_mapIdxLoaded = idx; /* attempt once per change, even if it fails */
-
-    if (s_pendingRGBA) { free(s_pendingRGBA); s_pendingRGBA = NULL; }
-
+    /* A read in flight: poll (never pump) until the queue drains, then decode. */
+    if (s_readPending)
     {
-        e_FsFile       f    = (e_FsFile)(FILE_TIM_MP_0TOWN_TIM + g_PaperMapFileIdxs[idx]);
-        s32            size = Fs_GetFileSize(f);
-        unsigned char* raw;
-
-        if (size <= 0) return;
-        raw = (unsigned char*)malloc((size_t)size + 2048);
-        if (raw == NULL) return;
-
-        Fs_QueueStartRead(f, raw);
-        Fs_QueueWaitForEmpty();
-
-        if (HiresOverride_DecodeToRGBA(raw, (unsigned int)size,
+        if (Fs_QueueGetLength() > 0) return;
+        s_readPending = 0;
+        if (HiresOverride_DecodeToRGBA(s_rawBuf, s_rawSize,
                                        &s_pendingRGBA, &s_pendingW, &s_pendingH) != 0)
         {
             s_pendingRGBA = NULL;
         }
-        free(raw);
-        SH_DBG("[MINIMAP] paperMapIdx=%d file=%d -> %dx%d %s", idx, (int)f,
-               s_pendingW, s_pendingH, s_pendingRGBA ? "decoded" : "FAILED");
+        free(s_rawBuf); s_rawBuf = NULL;
+        SH_DBG("[MINIMAP] map %dx%d %s", s_pendingW, s_pendingH,
+               s_pendingRGBA ? "decoded" : "FAILED");
+        return;
+    }
+
+    idx = (int)g_SavegamePtr->paperMapIdx;
+    if (idx == s_mapIdxLoaded) return;
+
+    /* The previous guard (queue length 0) was not enough: during an area load the
+     * queue dips to empty between the game's own reads, and we slipped a read in
+     * there — the crash landed immediately after our decode, mid [TEXVRAM] burst.
+     * Worse, Fs_QueueWaitForEmpty PUMPS the queue, running post-load callbacks
+     * (which do GL texture uploads) at a point the game never expects them.
+     *
+     * So: never block, and only start once the queue has been continuously idle
+     * for a good while — long past any loading burst. The map is cosmetic; it can
+     * appear a couple of seconds late. */
+    if (Fs_QueueGetLength() > 0) { s_idleFrames = 0; return; }
+    if (++s_idleFrames < 180) return;
+
+    {
+        e_FsFile f    = (e_FsFile)(FILE_TIM_MP_0TOWN_TIM + g_PaperMapFileIdxs[idx]);
+        s32      size = Fs_GetFileSize(f);
+
+        if (size <= 0) { s_mapIdxLoaded = idx; return; }
+        s_rawBuf = (unsigned char*)malloc((size_t)size + 2048);
+        if (s_rawBuf == NULL) return; /* retry later */
+
+        s_mapIdxLoaded = idx;
+        s_rawSize      = (unsigned int)size;
+        if (s_pendingRGBA) { free(s_pendingRGBA); s_pendingRGBA = NULL; }
+
+        Fs_QueueStartRead(f, s_rawBuf);
+        s_readPending = 1;   /* completion polled above — no Fs_QueueWaitForEmpty */
+        SH_DBG("[MINIMAP] queued map read: paperMapIdx=%d file=%d size=%d", idx, (int)f, (int)size);
     }
 }
 
