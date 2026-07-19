@@ -1,4 +1,4 @@
-/* Config-only PC minimap overlay (top-left corner, circular).
+/* Config-only PC minimap overlay (top-left corner).
  *
  * PC-native: the per-area paper-map TIM is read as raw bytes, decoded to RGBA and
  * uploaded to our own GL texture, then drawn as a GL quad on top of the frame.
@@ -54,6 +54,8 @@ static int    s_pendingW = 0, s_pendingH = 0;
 #define MM_PI2 6.2831853f
 /* Map-cell extents the paper map spans (screen -160..+160 / -240..+240 at 1x).
  * Used to place Harry on the map image — tune if the marker tracks off. */
+/* 1.0 = crop the panel to a disc, 0.0 = square. */
+#define MM_CIRCLE 0.0f
 #define MM_HALF_X 160.0f
 #define MM_HALF_Z 240.0f
 
@@ -178,7 +180,7 @@ static void mm_draw_col(GLenum mode, const float* v, int nverts,
 {
     glUseProgram(s_progCol);
     glUniform4f(s_uColor, r, g, b, a);
-    glUniform1f(s_uCircCol, 1.0f);
+    glUniform1f(s_uCircCol, MM_CIRCLE);
     mm_upload_draw(mode, v, nverts);
 }
 
@@ -235,10 +237,10 @@ void Pc_MinimapDraw(void)
     GLint     prevProg = 0, prevVao = 0, prevBuf = 0, prevBsrc = 0, prevBdst = 0, prevTex = 0;
     GLint     prevActive = GL_TEXTURE0;
     GLint     prevFb = 0, prevBeqRgb = GL_FUNC_ADD, prevBeqA = GL_FUNC_ADD;
-    GLboolean prevDepth, prevBlend, prevScissor;
+    GLboolean prevDepth, prevBlend;
     float     aspect, hh, hw, cx, cy, x0, y0, x1, y1;
     float     buf[2048 / 4 * 4];
-    int       n, sx, sy, sw, sh;
+    int       n;
     s32       packed;
     int       haveCell = 0;
     float     mapU = 0.5f, mapV = 0.5f;
@@ -290,7 +292,6 @@ void Pc_MinimapDraw(void)
     glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &prevBeqA);
     prevDepth   = glIsEnabled(GL_DEPTH_TEST);
     prevBlend   = glIsEnabled(GL_BLEND);
-    prevScissor = glIsEnabled(GL_SCISSOR_TEST);
 
     MM_TRACE("draw: state saved (prog=%d vao=%d buf=%d)", prevProg, prevVao, prevBuf);
     /* Draw to the DEFAULT framebuffer, exactly as dbg_overlay.c does in this same
@@ -342,13 +343,6 @@ void Pc_MinimapDraw(void)
     mm_draw_col(GL_TRIANGLES, buf, n, 0.04f, 0.05f, 0.08f, 0.55f);
     MM_TRACE("draw: panel drawn");
 
-    sx = (int)((x0 * 0.5f + 0.5f) * vp[2]) + vp[0];
-    sy = (int)((y0 * 0.5f + 0.5f) * vp[3]) + vp[1];
-    sw = (int)((x1 - x0) * 0.5f * vp[2]);
-    sh = (int)((y1 - y0) * 0.5f * vp[3]);
-    glEnable(GL_SCISSOR_TEST);
-    glScissor(sx, sy, sw, sh);
-
     if (s_mapTex != 0 && s_progTex != 0)
     {
         /* whole area map in the panel; v flipped (texture rows grow downward) */
@@ -362,7 +356,7 @@ void Pc_MinimapDraw(void)
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, s_mapTex);
         glUniform1i(s_uTex, 0);
-        glUniform1f(s_uCircTex, 1.0f);
+        glUniform1f(s_uCircTex, MM_CIRCLE);
         mm_upload_draw(GL_TRIANGLES, buf, n);
         glBindTexture(GL_TEXTURE_2D, 0);
         MM_TRACE("draw: map quad done");
@@ -392,7 +386,14 @@ void Pc_MinimapDraw(void)
     {
         float px = haveCell ? (x0 + mapU * (x1 - x0)) : cx;
         float py = haveCell ? (y1 - mapV * (y1 - y0)) : cy;
-        float s  = 0.040f;
+        /* nothing clips us any more, so keep the arrow inside the panel */
+        float mx0 = x0 + 0.012f, mx1 = x1 - 0.012f;
+        float my0 = y0 + 0.020f, my1 = y1 - 0.020f;
+        if (px < mx0) px = mx0;
+        if (px > mx1) px = mx1;
+        if (py < my0) py = my0;
+        if (py > my1) py = my1;
+        float s  = 0.013f;   /* small arrow */
         float ang = (float)g_SysWork.playerWork.player.rotation.vy / 4096.0f * MM_PI2;
         float lx[3] = { 0.0f, -0.6f, 0.6f };
         float ly[3] = { 1.0f, -0.7f, -0.7f };
@@ -409,7 +410,6 @@ void Pc_MinimapDraw(void)
     }
 
     /* --- restore --- */
-    if (!prevScissor) glDisable(GL_SCISSOR_TEST);
     if (!prevBlend) glDisable(GL_BLEND);
     if (prevDepth) glEnable(GL_DEPTH_TEST);
     glBlendFunc((GLenum)prevBsrc, (GLenum)prevBdst);
