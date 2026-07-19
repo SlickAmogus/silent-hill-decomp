@@ -29,8 +29,10 @@ static void mm_init(void)
     static const char* vs_src =
         "attribute vec2 a_pos;\n"
         "void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }\n";
+    /* GLSL 1.10 style (matches dbg_overlay.c). NO `precision` qualifier — it is
+     * invalid in desktop GLSL 1.10 and made the driver crash on the linked-but-
+     * broken program. */
     static const char* fs_src =
-        "precision mediump float;\n"
         "uniform vec4 u_color;\n"
         "void main() { gl_FragColor = u_color; }\n";
 
@@ -39,9 +41,14 @@ static void mm_init(void)
     vs = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vs, 1, &vs_src, NULL);
     glCompileShader(vs);
+    glGetShaderiv(vs, GL_COMPILE_STATUS, &ok);
+    if (!ok) { glDeleteShader(vs); return; }
+
     fs = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fs, 1, &fs_src, NULL);
     glCompileShader(fs);
+    glGetShaderiv(fs, GL_COMPILE_STATUS, &ok);
+    if (!ok) { glDeleteShader(vs); glDeleteShader(fs); return; }
 
     s_prog = glCreateProgram();
     glAttachShader(s_prog, vs);
@@ -59,7 +66,7 @@ static void mm_init(void)
     glGenBuffers(1, &s_vbo);
     glBindVertexArray(s_vao);
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
-    glBufferData(GL_ARRAY_BUFFER, 4096 * 2 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 1024 * sizeof(float), NULL, GL_DYNAMIC_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
     glBindVertexArray(0);
@@ -82,7 +89,7 @@ void Pc_MinimapDraw(void)
     GLboolean prevDepth, prevBlend, prevScissor;
     float     aspect, hh, hw, cx, cy, x0, y0, x1, y1;
     float     harryX, harryZ, ang, sY, sX;
-    float     buf[4096 * 2];
+    float     buf[1024]; /* 512 verts — grid is ~a few dozen lines; capped below */
     int       n;
     int       sx, sy, sw, sh;
     const float CELL = 40.0f;   /* world units per map cell (CHUNK_CELL_SIZE = Q12(40)) */
@@ -144,13 +151,13 @@ void Pc_MinimapDraw(void)
 
     n = 0;
     startX = floorf((harryX - VIEW) / CELL) * CELL;
-    for (wx = startX; wx <= harryX + VIEW && n < 4090; wx += CELL) {
+    for (wx = startX; wx <= harryX + VIEW && n < 500; wx += CELL) {
         float nx = cx + (wx - harryX) * sX;
         buf[n*2] = nx; buf[n*2+1] = y0; n++;
         buf[n*2] = nx; buf[n*2+1] = y1; n++;
     }
     startZ = floorf((harryZ - VIEW) / CELL) * CELL;
-    for (wz = startZ; wz <= harryZ + VIEW && n < 4090; wz += CELL) {
+    for (wz = startZ; wz <= harryZ + VIEW && n < 500; wz += CELL) {
         float ny = cy + (wz - harryZ) * sY; /* world +Z -> up (tunable) */
         buf[n*2] = x0; buf[n*2+1] = ny; n++;
         buf[n*2] = x1; buf[n*2+1] = ny; n++;
