@@ -231,6 +231,33 @@ def build_rowmap(prims, W, H, dilate=1):
     return rowmap
 
 
+def build_rowmap_bleed(prims, W, H):
+    """Dilated row-map plus, for each texel the dilation ADDED, the covered texel it
+    should borrow its colour from.
+
+    Straight dilation is wrong for split: it claims a texel just outside the UV island
+    and then copies whatever the edited image happens to hold there. Editors (and every
+    AI upscaler) leave that area opaque BLACK — an RGB export has no alpha at all — so
+    each island came back ringed in black. Borrowing the adjacent covered texel instead
+    extends the art outward, which is the usual UV edge-padding and is what the dilation
+    was always meant to achieve."""
+    true = build_rowmap(prims, W, H, dilate=0)
+    out = list(true)
+    src = [-1] * (W * H)
+    for y in range(H):
+        for x in range(W):
+            i = y * W + x
+            if true[i] != -1:
+                continue
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < W and 0 <= ny < H and true[ny * W + nx] != -1:
+                    out[i] = true[ny * W + nx]
+                    src[i] = ny * W + nx
+                    break
+    return out, src
+
+
 def _dilate(rowmap, W, H):
     """Grow covered regions into adjacent uncovered texels (closes hairline cracks;
     over-inclusion is harmless — each row's PNG is only sampled by that row's prims)."""
@@ -292,7 +319,7 @@ def split(edited_path, ilm_path, tim_path, out_dir):
             "edited image is %dx%d; it must be the sheet's native %dx%d or an upscale keeping that "
             "aspect ratio (e.g. %dx%d, %dx%d). For sharpest region edges use an exact multiple."
             % (ew, eh, W, H, W * 2, H * 2, W * 4, H * 4))
-    rowmap = build_rowmap(prims, W, H, dilate=1)  # dilate so no drawn texel becomes a hole
+    rowmap, srcmap = build_rowmap_bleed(prims, W, H)  # dilate so no drawn texel becomes a hole
     used = sorted({r for r in rowmap if r >= 0})
     os.makedirs(out_dir, exist_ok=True)
     stem = os.path.splitext(os.path.basename(tim_path))[0]
@@ -302,14 +329,34 @@ def split(edited_path, ilm_path, tim_path, out_dir):
     # Map each edited pixel to its native texel -> palette row, in one pass, keeping full HD pixels.
     sx = [(x * W) // ew for x in range(ew)]
     sy = [(y * H) // eh for y in range(eh)]
+    # First edited pixel belonging to each native texel, so a bled texel can copy the
+    # matching pixel out of the texel it borrows from (any scale, integer or not).
+    xstart = [(tx * ew + W - 1) // W for tx in range(W)]
+    ystart = [(ty * eh + H - 1) // H for ty in range(H)]
     bufs = {r: bytearray(ew * eh * 4) for r in rows_to_emit}
     for y in range(eh):
-        base = sy[y] * W
+        ty = sy[y]
+        base = ty * W
         for x in range(ew):
-            b = bufs.get(rowmap[base + sx[x]])
-            if b is not None:
-                o = (y * ew + x) * 4
+            t = base + sx[x]
+            b = bufs.get(rowmap[t])
+            if b is None:
+                continue
+            o = (y * ew + x) * 4
+            s = srcmap[t]
+            if s < 0:
                 b[o:o + 4] = rgba[o:o + 4]  # only row-r prims sample this PNG; rest stays transparent
+            else:
+                # Padding texel: take the pixel at the same offset inside the covered
+                # texel we borrow from, never the (usually black) background here.
+                ux = xstart[s % W] + (x - xstart[sx[x]])
+                uy = ystart[s // W] + (y - ystart[ty])
+                if ux >= ew: ux = ew - 1
+                if uy >= eh: uy = eh - 1
+                if ux < 0: ux = 0
+                if uy < 0: uy = 0
+                so = (uy * ew + ux) * 4
+                b[o:o + 4] = rgba[so:so + 4]
     written = []
     for r in rows_to_emit:
         png = os.path.join(out_dir, "%s.p%0*d.png" % (full, pad, r))

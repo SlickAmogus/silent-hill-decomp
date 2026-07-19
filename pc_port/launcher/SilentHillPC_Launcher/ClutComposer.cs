@@ -116,6 +116,34 @@ namespace SilentHillPC_Launcher
             return rm;
         }
 
+        /// <summary>Dilated row-map plus, for each texel the dilation ADDED, the covered texel it
+        /// should borrow its colour from (-1 when the texel is genuinely covered).
+        /// Straight dilation claims a texel just outside the UV island and then copies whatever the
+        /// edited image holds there — editors and AI upscalers leave that opaque BLACK (an RGB export
+        /// has no alpha at all), which ringed every island in black. Borrowing the adjacent covered
+        /// texel extends the art outward instead: normal UV edge padding, which is what the dilation
+        /// was always meant to achieve.</summary>
+        private static int[] BuildRowMapBleed(List<Prim> prims, int W, int H, out int[] src)
+        {
+            int[] tru = BuildRowMap(prims, W, H, 0);
+            var outp = (int[])tru.Clone();
+            src = new int[W * H];
+            for (int i = 0; i < src.Length; i++) src[i] = -1;
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    int i = y * W + x;
+                    if (tru[i] != -1) continue;
+                    int s = -1;
+                    if (x + 1 < W && tru[i + 1] != -1) s = i + 1;
+                    else if (x > 0 && tru[i - 1] != -1) s = i - 1;
+                    else if (y + 1 < H && tru[i + W] != -1) s = i + W;
+                    else if (y > 0 && tru[i - W] != -1) s = i - W;
+                    if (s >= 0) { outp[i] = tru[s]; src[i] = s; }
+                }
+            return outp;
+        }
+
         private static int[] Dilate(int[] rm, int W, int H)
         {
             var outp = (int[])rm.Clone();
@@ -221,7 +249,8 @@ namespace SilentHillPC_Launcher
                 }
 
                 var prims = ParseIlm(ilm);
-                int[] rm = BuildRowMap(prims, W, H, 1); // dilate so no drawn texel becomes a hole
+                int[] srcm;
+                int[] rm = BuildRowMapBleed(prims, W, H, out srcm); // dilate so no drawn texel becomes a hole
 
                 var used = new SortedSet<int>();
                 foreach (int r in rm) if (r >= 0) used.Add(r);
@@ -237,14 +266,32 @@ namespace SilentHillPC_Launcher
                 // map each edited pixel to its native texel -> row, keeping the full HD pixels
                 var sxm = new int[ew]; for (int x = 0; x < ew; x++) sxm[x] = x * W / ew;
                 var sym = new int[eh]; for (int y = 0; y < eh; y++) sym[y] = y * H / eh;
+                // First edited pixel belonging to each native texel, so a bled texel can copy the
+                // matching pixel out of the texel it borrows from (any scale, integer or not).
+                var xst = new int[W]; for (int t = 0; t < W; t++) xst[t] = (t * ew + W - 1) / W;
+                var yst = new int[H]; for (int t = 0; t < H; t++) yst[t] = (t * eh + H - 1) / H;
                 foreach (int r in emit)
                 {
                     var buf = new byte[ew * eh * 4]; // transparent by default
                     for (int y = 0; y < eh; y++)
                     {
-                        int rowBase = sym[y] * W;
+                        int ty = sym[y];
+                        int rowBase = ty * W;
                         for (int x = 0; x < ew; x++)
-                            if (rm[rowBase + sxm[x]] == r) { int o = (y * ew + x) * 4; Buffer.BlockCopy(edit, o, buf, o, 4); }
+                        {
+                            int t = rowBase + sxm[x];
+                            if (rm[t] != r) continue;
+                            int o = (y * ew + x) * 4;
+                            int s = srcm[t];
+                            if (s < 0) { Buffer.BlockCopy(edit, o, buf, o, 4); continue; }
+                            // Padding texel: take the pixel at the same offset inside the covered
+                            // texel we borrow from, never the (usually black) background here.
+                            int ux = xst[s % W] + (x - xst[sxm[x]]);
+                            int uy = yst[s / W] + (y - yst[ty]);
+                            if (ux >= ew) ux = ew - 1; if (ux < 0) ux = 0;
+                            if (uy >= eh) uy = eh - 1; if (uy < 0) uy = 0;
+                            Buffer.BlockCopy(edit, (uy * ew + ux) * 4, buf, o, 4);
+                        }
                     }
                     string png = Path.Combine(outDir, full + ".p" + r.ToString("D" + pad) + ".png");
                     using (var bmp = RgbaToBitmap(buf, ew, eh))
