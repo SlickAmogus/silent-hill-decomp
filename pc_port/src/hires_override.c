@@ -1,4 +1,5 @@
 #include "hires_override.h"
+#include "dds_load.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -395,6 +396,45 @@ int HiresOverride_PoolSlotRegister(int slotId,
     }
 
     snprintf(tag, sizeof(tag), "pool slot %d", slotId);
+
+    /* BC7 .dds replacement: upload the compressed blocks straight through rather
+     * than expanding to RGBA8. Same 4x VRAM saving the format exists for, and it
+     * keeps a real 8-bit alpha for the override shader's cutout. A whole-image
+     * .dds covers the slot, so it lands on row 0 like any whole-image PNG. */
+    {
+        s_DdsBptc probe;
+        if (Dds_ParseBptc(data, (int)size, &probe))
+        {
+            PoolSlotEntry* ds = &g_poolSlots[slotId];
+            int r2;
+            for (r2 = 0; r2 < HIRES_POOL_MAX_ROWS; r2++)
+            {
+                if (ds->glTexture[r2] != 0)
+                {
+                    glDeleteTextures(1, &ds->glTexture[r2]);
+                    ds->glTexture[r2] = 0;
+                }
+                pack_credit(&ds->rowPackBytes[r2]);
+            }
+            if (Dds_UploadBptc(&ds->glTexture[0], data, (int)size, 0) != 0)
+            {
+                SH_DBG("[POOLTEX] slot %d: BC7 upload failed — falling back", slotId);
+                return -1;
+            }
+            /* BC7 is 1 byte/texel vs RGBA8's 4; charge the budget accordingly by
+             * quartering the width it accounts for. */
+            pack_charge(&ds->rowPackBytes[0], (probe.width + 3) / 4, probe.height);
+            ds->rowW[0] = (unsigned short)probe.width;
+            ds->rowH[0] = (unsigned short)probe.height;
+            ds->nativeW = nativePixelW;
+            ds->nativeH = nativePixelH;
+            ds->rowHash[0] = 0;
+            SH_DBG("[POOLTEX] slot %d <- BC7 %dx%d (%d mip%s, native %dx%d)",
+                   slotId, probe.width, probe.height, probe.mipCount,
+                   probe.mipCount == 1 ? "" : "s", nativePixelW, nativePixelH);
+            return 0;
+        }
+    }
 
     /* One texture per CLUT row: prims select palette rows with baked +64*row
      * clut deltas (see hires_override.h), so every row a TIM ships must be

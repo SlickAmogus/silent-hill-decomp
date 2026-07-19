@@ -414,6 +414,12 @@ static int Loose_ResolveWhole(const char* base, char* out, size_t outSize)
     f = Loose_FOpen(out, "rb");
     if (f != NULL) { fclose(f); return 1; }
 
+    /* BC7 .dds is probed AFTER .png at every form, so a mod that ships both
+     * keeps exactly the behaviour it has today. */
+    snprintf(out, outSize, "%s.dds", base);
+    f = Loose_FOpen(out, "rb");
+    if (f != NULL) { fclose(f); return 1; }
+
     {
         const char* slash = strrchr(base, '/');
         const char* fname = slash ? slash + 1 : base;
@@ -426,6 +432,10 @@ static int Loose_ResolveWhole(const char* base, char* out, size_t outSize)
             memcpy(stem, base, stemLen);
             stem[stemLen] = '\0';
             snprintf(out, outSize, "%s.png", stem);
+            f = Loose_FOpen(out, "rb");
+            if (f != NULL) { fclose(f); return 1; }
+
+            snprintf(out, outSize, "%s.dds", stem);
             f = Loose_FOpen(out, "rb");
             if (f != NULL) { fclose(f); return 1; }
         }
@@ -554,6 +564,12 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
             if (pf == NULL)
             {
                 snprintf(pngPath, sizeof(pngPath), "%s.png", loosePath);
+                pf = Loose_FOpen(pngPath, "rb");
+            }
+
+            if (pf == NULL)
+            {
+                snprintf(pngPath, sizeof(pngPath), "%s.dds", loosePath);
                 pf = Loose_FOpen(pngPath, "rb");
             }
 
