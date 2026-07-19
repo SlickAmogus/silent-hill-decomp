@@ -899,7 +899,28 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
         int nativeH = (int)pixelRect.h;
         const char* loosePath = HiresPending_PopPath(entry);
         int registered = 0;
-        int perRow = Loose_HasPerRow(loosePath);
+        int perRow;
+        /* The pending-path table is keyed on the s_FsQueueEntry* pointer, which
+         * the FS queue recycles. A stash that wasn't popped for its own load can
+         * be popped HERE by a different file that reused the pointer — e.g. a
+         * building chunk (THR2501F) inheriting a stale CHARA/BFLU stash and
+         * painting BFLU across the wall. The stashed path's basename is the disc
+         * name it was stashed for, so require it to match THIS entry's disc name;
+         * on mismatch drop it so the base disc TIM (below) renders instead. */
+        if (loosePath != NULL && FSQ_INFO_VALID(entry->info))
+        {
+            char        curName[16] = {0};
+            const char* base = strrchr(loosePath, '/');
+            base = (base != NULL) ? base + 1 : loosePath;
+            Fs_GetFileInfoName(curName, entry->info);
+            if (curName[0] != '\0' && strcmp(base, curName) != 0)
+            {
+                SH_DBG("[POOLTEX] slot %d: stale stash '%s' != loading '%s' — discarding",
+                       slotId, loosePath, curName);
+                loosePath = NULL;
+            }
+        }
+        perRow = Loose_HasPerRow(loosePath);
 
         if (discBitDepth <= 0 || !FSQ_INFO_VALID(entry->info))
         {
