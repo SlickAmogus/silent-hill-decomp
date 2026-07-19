@@ -1811,6 +1811,10 @@ void DbgOverlay_Render(void)
     int     drawConsole, drawColl, drawAnim, drawToast;
     int     toastAlpha = 0;
 
+    /* Config-only minimap overlay: drawn every frame (self-gated on g_PcConfig.minimap
+     * + live gameplay), independent of the debug panels below. Self-contained GL. */
+    { extern void Pc_MinimapDraw(void); Pc_MinimapDraw(); }
+
     /* Console is hidden once fully slid off-screen (toggled by `~`); the ring
      * buffer keeps filling while hidden. The collision panel draws whenever it's
      * toggled on (`'`), independent of the console. The anim panel draws while the
