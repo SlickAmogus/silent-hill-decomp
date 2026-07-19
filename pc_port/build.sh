@@ -9,6 +9,8 @@
 #  Prerequisites (MSYS2):
 #    pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake \
 #        mingw-w64-x86_64-ninja mingw-w64-x86_64-SDL2 mingw-w64-x86_64-openal
+#  Optional, only for the ffmpeg FMV fallback (cmake .. -DSH_FMV_FFMPEG=ON):
+#        pacman -S mingw-w64-x86_64-ffmpeg     # dev/link only — see docs/fmv_files.md
 #  And initialise the PsyCross submodule once (from the repo root):
 #    git submodule update --init --recursive
 #

@@ -1116,6 +1116,285 @@ static int PlayFromBin(int table_idx, int max_frames)
     return 0;
 }
 
+/* ============================================================================
+ * Optional ffmpeg fallback: native h264/h265/vp9/av1 inside mp4/mkv/webm/avi.
+ *
+ * Compiled only when SH_FMV_FFMPEG is defined (CMake option, OFF by default);
+ * an OFF build is byte-identical to the pre-existing player. This is a FALLBACK
+ * BELOW the zero-dependency built-in MJPEG/raw decoder — a modder can drop e.g.
+ * gamedata/fmv/<name>.mp4 and it plays natively instead of forcing a huge MJPEG
+ * re-encode. Video decodes to RGB24 straight into s_decodeBuffer and presents
+ * through DrawVideoFrame; audio decodes to interleaved S16 and streams through
+ * the same SDL device + FmvApplyVolume the AVI path uses. Presentation is paced
+ * to the container's own PTS. Ship a decode-only LGPL ffmpeg build (see
+ * docs/fmv_files.md); the MSYS2 prebuilt is GPL and dev-only.
+ * ==========================================================================*/
+#if defined(SH_FMV_FFMPEG)
+extern "C" {
+#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavutil/channel_layout.h>
+#include <libswscale/swscale.h>
+#include <libswresample/swresample.h>
+}
+
+static int FindContainerFile(const char* basename, char* out_path, int out_path_size)
+{
+    const char* dirs[] = { "gamedata/fmv/", "../gamedata/fmv/", "" };
+    const char* exts[] = { ".mp4", ".MP4", ".mkv", ".MKV",
+                           ".webm", ".WEBM", ".mov", ".MOV" };
+    for (int d = 0; d < 3; d++) {
+        for (int e = 0; e < (int)(sizeof(exts) / sizeof(exts[0])); e++) {
+            snprintf(out_path, out_path_size, "%s%s%s", dirs[d], basename, exts[e]);
+            FILE* f = fopen(out_path, "rb");
+            if (f) { fclose(f); return 0; }
+        }
+        if (dirs[d][0] == '\0') break;
+    }
+    return -1;
+}
+
+/* Poll the same skip inputs the AVI/BIN paths use. */
+static int FfmpegSkipHeld(void)
+{
+    SDL_PumpEvents();
+    const Uint8* ks = SDL_GetKeyboardState(NULL);
+    return ks[SDL_SCANCODE_RETURN] || ks[SDL_SCANCODE_ESCAPE] ||
+           ks[SDL_SCANCODE_SPACE] || PsyX_Pad_SkipButtonHeld();
+}
+
+/* Returns 0 if the file was played (or skipped) — caller must NOT fall back to
+ * the disc STR — or -1 if it could not be opened/decoded (caller falls back). */
+static int PlayFromFFmpeg(const char* path)
+{
+    AVFormatContext*   fmt = NULL;
+    AVCodecContext*    vctx = NULL;
+    AVCodecContext*    actx = NULL;
+    struct SwsContext* sws = NULL;
+    SwrContext*        swr = NULL;
+    AVPacket*          pkt = NULL;
+    AVFrame*           frm = NULL;
+    SDL_AudioDeviceID  audioDev = 0;
+    uint8_t*           audioBuf = NULL;
+    int                audioBufBytes = 0;
+    int                vs = -1, as = -1, ach = 0;
+    int                played = -1;
+
+    if (avformat_open_input(&fmt, path, NULL, NULL) != 0) {
+        printf("[FMV] ffmpeg: cannot open '%s'\n", path);
+        return -1;
+    }
+    if (avformat_find_stream_info(fmt, NULL) < 0) {
+        printf("[FMV] ffmpeg: no stream info in '%s'\n", path);
+        goto cleanup;
+    }
+
+    vs = av_find_best_stream(fmt, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
+    if (vs < 0) {
+        printf("[FMV] ffmpeg: no video stream in '%s'\n", path);
+        goto cleanup;
+    }
+    as = av_find_best_stream(fmt, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
+
+    {
+        const AVCodec* vc = avcodec_find_decoder(fmt->streams[vs]->codecpar->codec_id);
+        if (!vc) { printf("[FMV] ffmpeg: no video decoder built in\n"); goto cleanup; }
+        vctx = avcodec_alloc_context3(vc);
+        if (!vctx) goto cleanup;
+        avcodec_parameters_to_context(vctx, fmt->streams[vs]->codecpar);
+        if (avcodec_open2(vctx, vc, NULL) < 0) {
+            printf("[FMV] ffmpeg: cannot open video decoder\n"); goto cleanup;
+        }
+    }
+
+    if (as >= 0) {
+        const AVCodec* ac = avcodec_find_decoder(fmt->streams[as]->codecpar->codec_id);
+        if (ac) {
+            actx = avcodec_alloc_context3(ac);
+            if (actx) {
+                avcodec_parameters_to_context(actx, fmt->streams[as]->codecpar);
+                if (avcodec_open2(actx, ac, NULL) < 0) {
+                    avcodec_free_context(&actx);
+                    actx = NULL;
+                }
+            }
+        }
+        if (!actx) {
+            printf("[FMV] ffmpeg: audio decoder unavailable — playing silent\n");
+            as = -1;
+        }
+    }
+
+    printf("[FMV] ffmpeg: %dx%d %s%s\n", vctx->width, vctx->height,
+           avcodec_get_name(vctx->codec_id), (as >= 0) ? " + audio" : "");
+
+    FMV_Init();
+
+    sws = sws_getContext(vctx->width, vctx->height, vctx->pix_fmt,
+                         vctx->width, vctx->height, AV_PIX_FMT_RGB24,
+                         SWS_BILINEAR, NULL, NULL, NULL);
+    if (!sws) { printf("[FMV] ffmpeg: sws_getContext failed\n"); goto cleanup; }
+
+    if (as >= 0) {
+        ach = actx->ch_layout.nb_channels;
+        SDL_AudioSpec want, got;
+        SDL_memset(&want, 0, sizeof(want));
+        want.freq = actx->sample_rate;
+        want.channels = (Uint8)ach;
+        want.format = AUDIO_S16LSB;
+        want.samples = 4096;
+        audioDev = SDL_OpenAudioDevice(NULL, 0, &want, &got, 0);
+        if (audioDev) {
+            AVChannelLayout outLayout;
+            av_channel_layout_default(&outLayout, ach);
+            if (swr_alloc_set_opts2(&swr, &outLayout, AV_SAMPLE_FMT_S16, actx->sample_rate,
+                                    &actx->ch_layout, actx->sample_fmt, actx->sample_rate,
+                                    0, NULL) < 0 ||
+                swr_init(swr) < 0) {
+                printf("[FMV] ffmpeg: swresample init failed — silent\n");
+                if (swr) swr_free(&swr);
+                SDL_CloseAudioDevice(audioDev);
+                audioDev = 0;
+            } else {
+                SDL_PauseAudioDevice(audioDev, 0);
+            }
+            av_channel_layout_uninit(&outLayout);
+        } else {
+            printf("[FMV] ffmpeg: audio device open failed — silent\n");
+        }
+    }
+
+    pkt = av_packet_alloc();
+    frm = av_frame_alloc();
+    if (!pkt || !frm) goto cleanup;
+
+    /* From here the file is ours: even a skip counts as "played", so the caller
+     * must not also run the disc STR. */
+    played = 0;
+
+    {
+        timerCtx_t tmr;
+        Util_InitHPCTimer(&tmr);
+        double   elapsed = 0.0;
+        double   vtb = av_q2d(fmt->streams[vs]->time_base);
+        int64_t  firstPts = AV_NOPTS_VALUE;
+        int      skip_armed = 0;
+        int      stop = 0;   /* skip or SDL_QUIT */
+        int      reading = 1;
+
+        SDL_PumpEvents();
+        SDL_FlushEvent(SDL_KEYDOWN);
+        SDL_FlushEvent(SDL_KEYUP);
+        Util_GetHPCTime(&tmr, 1); /* zero the clock */
+
+        while (!stop) {
+            int haveVideo = 0, haveAudio = 0;
+            if (reading) {
+                int rr = av_read_frame(fmt, pkt);
+                if (rr < 0) {
+                    /* Drain: flush both decoders, then finish. */
+                    avcodec_send_packet(vctx, NULL);
+                    if (actx) avcodec_send_packet(actx, NULL);
+                    reading = 0;
+                    haveVideo = 1;
+                    haveAudio = (actx != NULL);
+                } else if (pkt->stream_index == vs) {
+                    if (avcodec_send_packet(vctx, pkt) >= 0) haveVideo = 1;
+                    av_packet_unref(pkt);
+                } else if (as >= 0 && pkt->stream_index == as) {
+                    if (avcodec_send_packet(actx, pkt) >= 0) haveAudio = 1;
+                    av_packet_unref(pkt);
+                } else {
+                    av_packet_unref(pkt);
+                    continue;
+                }
+            } else {
+                break; /* decoders already flushed below on the EOF pass */
+            }
+
+            /* Audio: convert everything available and queue it ahead. */
+            if (haveAudio && audioDev) {
+                while (avcodec_receive_frame(actx, frm) == 0) {
+                    int outMax = (int)swr_get_out_samples(swr, frm->nb_samples);
+                    int need = outMax * ach * (int)sizeof(int16_t);
+                    if (need > audioBufBytes) {
+                        uint8_t* nb = (uint8_t*)realloc(audioBuf, (size_t)need);
+                        if (nb) { audioBuf = nb; audioBufBytes = need; }
+                    }
+                    if (audioBuf) {
+                        uint8_t* out[1] = { audioBuf };
+                        int n = swr_convert(swr, out, outMax,
+                                            (const uint8_t**)frm->extended_data, frm->nb_samples);
+                        if (n > 0) {
+                            int bytes = n * ach * (int)sizeof(int16_t);
+                            FmvApplyVolume(audioBuf, bytes, AUDIO_S16LSB);
+                            SDL_QueueAudio(audioDev, audioBuf, (Uint32)bytes);
+                        }
+                    }
+                    av_frame_unref(frm);
+                }
+            }
+
+            /* Video: pace each frame to its PTS, then present. */
+            if (haveVideo) {
+                while (avcodec_receive_frame(vctx, frm) == 0) {
+                    int64_t pts = (frm->pts != AV_NOPTS_VALUE) ? frm->pts : frm->best_effort_timestamp;
+                    if (firstPts == AV_NOPTS_VALUE)
+                        firstPts = (pts != AV_NOPTS_VALUE) ? pts : 0;
+                    double target = (pts != AV_NOPTS_VALUE) ? (double)(pts - firstPts) * vtb : elapsed;
+
+                    while (elapsed < target) {
+                        int held = FfmpegSkipHeld();
+                        if (!skip_armed) { if (!held) skip_armed = 1; }
+                        else if (held) { printf("[FMV] ffmpeg: skipped\n"); stop = 1; break; }
+                        SDL_Event ev;
+                        while (SDL_PollEvent(&ev)) if (ev.type == SDL_QUIT) stop = 1;
+                        if (stop) break;
+                        SDL_Delay(1);
+                        elapsed += Util_GetHPCTime(&tmr, 1);
+                    }
+                    if (stop) { av_frame_unref(frm); break; }
+
+                    if (EnsureDecodeBuffer((size_t)vctx->width * vctx->height * 3u) == 0) {
+                        uint8_t* dst[4] = { s_decodeBuffer, NULL, NULL, NULL };
+                        int      dstStride[4] = { vctx->width * 3, 0, 0, 0 };
+                        sws_scale(sws, frm->data, frm->linesize, 0, vctx->height, dst, dstStride);
+                        DrawVideoFrame(vctx->width, vctx->height);
+                    }
+                    elapsed += Util_GetHPCTime(&tmr, 1);
+                    av_frame_unref(frm);
+                }
+            }
+
+            if (!reading) break; /* EOF pass done */
+        }
+
+        /* Match the AVI/BIN paths: don't let the key that skipped/ended the movie
+         * bleed a phantom Confirm into the next game state. */
+        if (audioDev) SDL_PauseAudioDevice(audioDev, 1);
+        for (int w = 0; w < 30 && FfmpegSkipHeld(); w++)
+            SDL_Delay(16);
+        SDL_PumpEvents();
+        SDL_FlushEvent(SDL_KEYDOWN);
+        SDL_FlushEvent(SDL_KEYUP);
+    }
+
+    printf("[FMV] ffmpeg playback complete: %s\n", path);
+
+cleanup:
+    if (audioBuf) ::free(audioBuf);
+    if (audioDev) SDL_CloseAudioDevice(audioDev);
+    if (frm) av_frame_free(&frm);
+    if (pkt) av_packet_free(&pkt);
+    if (sws) sws_freeContext(sws);
+    if (swr) swr_free(&swr);
+    if (vctx) avcodec_free_context(&vctx);
+    if (actx) avcodec_free_context(&actx);
+    if (fmt) avformat_close_input(&fmt);
+    return played;
+}
+#endif /* SH_FMV_FFMPEG */
+
 extern "C" int FMV_Play(int file_idx, int max_frames)
 {
     int table_idx = file_idx - FIRST_XA_FILE_IDX;
@@ -1131,6 +1410,18 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
      * gamedata/fmv/ to replace any cutscene. If no override exists we
      * fall back to decoding the original STR straight from the BIN. */
     if (FindAviFile(basename, filepath, sizeof(filepath)) != 0) {
+#if defined(SH_FMV_FFMPEG)
+        /* No .avi override — look for a modern container (mp4/mkv/webm/mov) and
+         * decode it with ffmpeg before falling back to the disc movie. */
+        char cpath[512];
+        if (FindContainerFile(basename, cpath, sizeof(cpath)) == 0) {
+            printf("[FMV] Container override: %s\n", cpath);
+            if (PlayFromFFmpeg(cpath) == 0)
+                return 0;
+            printf("[FMV] ffmpeg failed for '%s' — decoding from BIN\n", cpath);
+            return PlayFromBin(table_idx, max_frames);
+        }
+#endif
         printf("[FMV] No AVI override for '%s' — decoding from BIN\n", basename);
         return PlayFromBin(table_idx, max_frames);
     }
@@ -1142,6 +1433,12 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
     ReadAVI readAVI(filepath);
     if (!readAVI.IsOpen()) {
         printf("[FMV] Failed to parse AVI '%s' — falling back to the disc movie\n", filepath);
+#if defined(SH_FMV_FFMPEG)
+        /* A container misnamed .avi (or an AVI the built-in parser rejects) can
+         * still open through ffmpeg. */
+        if (PlayFromFFmpeg(filepath) == 0)
+            return 0;
+#endif
         return PlayFromBin(table_idx, max_frames);
     }
 
@@ -1154,6 +1451,11 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
                "[FMV] Supported: MJPEG (MJPG/dmb1/jpeg), uncompressed RGB, YUY2/UYVY/I420/YV12/NV12.\n"
                "[FMV] Re-encode with: ffmpeg -i in.mp4 -c:v mjpeg -q:v 3 -c:a pcm_s16le out.avi\n",
                stream_format.compression_type, stream_format.bits_per_pixel, filepath);
+#if defined(SH_FMV_FFMPEG)
+        /* h264/h265/etc. inside an AVI wrapper: hand the same file to ffmpeg. */
+        if (PlayFromFFmpeg(filepath) == 0)
+            return 0;
+#endif
         return PlayFromBin(table_idx, max_frames);
     }
 

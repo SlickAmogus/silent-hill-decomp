@@ -12,6 +12,8 @@ REM    1. Install MSYS2:  https://www.msys2.org/
 REM    2. In an "MSYS2 MinGW x64" shell, install the toolchain:
 REM         pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake \
 REM             mingw-w64-x86_64-ninja mingw-w64-x86_64-SDL2 mingw-w64-x86_64-openal
+REM       (optional ffmpeg FMV fallback, -DSH_FMV_FFMPEG=ON: also install
+REM        mingw-w64-x86_64-ffmpeg for dev/link — see docs/fmv_files.md)
 REM    3. Fetch the PsyCross submodule (from the repo root):
 REM         git submodule update --init --recursive
 REM    4. Put the disc image at:  pc_port\build\gamedata\Silent Hill (USA).bin

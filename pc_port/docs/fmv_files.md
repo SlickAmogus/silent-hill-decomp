@@ -93,4 +93,82 @@ and `SilentHill.log` prints the re-encode hint.
 
 A file using an unsupported *video* codec (H.264, Xvid, …) is not an
 error: the port logs the fourcc and falls back to the original disc
-movie for that slot.
+movie for that slot — **unless** the ffmpeg fallback below is built in.
+
+## Native H.264/H.265/VP9/AV1 + mp4/mkv/webm (optional ffmpeg build)
+
+The built-in decoder above is intra-frame only (each frame stands alone),
+which is why it can't do H.264/H.265 — those are inter-frame and need a
+real decoder. An **optional** ffmpeg fallback adds that, plus modern
+containers, so modders can drop in the file their editor exported instead
+of re-encoding to a giant MJPEG AVI:
+
+- Put `gamedata/fmv/<basename>.mp4` (or `.mkv`, `.webm`, `.mov`, or an
+  `.avi` carrying H.264/H.265) next to where the MJPEG AVIs would go.
+- Video codecs: **H.264, H.265/HEVC, VP9, AV1** (and everything the
+  built-in path already does — those still use the fast built-in decoder).
+- Audio: AAC, MP3, Opus, Vorbis, FLAC, PCM.
+- The built-in MJPEG/raw path is always tried **first**; ffmpeg is only the
+  fallback, so nothing about the existing AVI workflow changes.
+
+It is **off by default** (the shipped build stays dependency-free and
+byte-identical). Enable it at configure time:
+
+```
+cmake .. -DSH_FMV_FFMPEG=ON
+```
+
+### Building the ffmpeg you ship
+
+Two ffmpeg builds matter, and they are different:
+
+- **For local development/linking:** the MSYS2 package is easiest —
+  `pacman -S mingw-w64-x86_64-ffmpeg`. CMake finds it via pkg-config
+  automatically. **Do not redistribute it** — that prebuilt is GPL-3
+  (it bundles x264/x265) and would GPL-encumber the whole release.
+- **For release:** build a trimmed **decode-only LGPL** ffmpeg (a few MB,
+  ~5–6 DLLs). No `--enable-gpl`, no `--enable-nonfree`:
+
+```
+./configure --prefix=/mingw64/sh-ffmpeg \
+  --disable-everything --disable-programs --disable-doc \
+  --disable-avdevice --disable-avfilter --disable-postproc \
+  --disable-network --disable-encoders --disable-muxers --disable-static \
+  --enable-shared --enable-swscale --enable-swresample --enable-libdav1d \
+  --enable-decoder=h264,hevc,vp9,libdav1d,mjpeg,rawvideo \
+  --enable-decoder=aac,aac_latm,mp3,mp3float,opus,vorbis,flac \
+  --enable-decoder=pcm_s16le,pcm_s16be,pcm_u8,pcm_s24le,pcm_f32le \
+  --enable-demuxer=mov,matroska,webm,avi,mp3,flac,ogg,wav,aac,m4v,h264,hevc \
+  --enable-parser=h264,hevc,vp9,av1,aac,aac_latm,mpegaudio,opus,vorbis,flac,mjpeg \
+  --enable-protocol=file \
+  --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,vp9_superframe,av1_frame_split,extract_extradata,aac_adtstoasc
+make -j && make install
+```
+
+Keep the bitstream filters (`--enable-bsf=…`): the mp4 demuxer needs
+`h264_mp4toannexb`/`hevc_mp4toannexb` + `extract_extradata` or H.264/H.265
+in mp4 silently won't decode. AV1 needs `libdav1d` (FFmpeg's native `av1`
+decoder is a slow placeholder); drop both if you don't want AV1.
+
+Then point the build at it and it bundles the DLLs into the build folder
+(which the nightly zip picks up automatically):
+
+```
+cmake .. -DSH_FMV_FFMPEG=ON -DSH_FMV_FFMPEG_BINDIR=/mingw64/sh-ffmpeg/bin \
+  -DCMAKE_PREFIX_PATH=/mingw64/sh-ffmpeg
+```
+
+On **Linux/macOS** the system ffmpeg is used as a normal runtime
+dependency (`apt install libavcodec-dev libavformat-dev libavutil-dev
+libswscale-dev libswresample-dev`, or `brew install ffmpeg`) — nothing is
+bundled; note it in the platform README.
+
+### Licensing / patent note
+
+A decode-only build with no `--enable-gpl`/`--enable-nonfree` is LGPL, and
+dynamically linking + shipping the DLLs is fine. Separately, **H.264 and
+H.265 decoding is covered by patent pools** (MPEG-LA / Access Advance) that
+are independent of FFmpeg's license — a redistributor shipping an H.264/HEVC
+decoder may owe royalties. VP9, AV1, Opus, Vorbis and FLAC are royalty-free.
+Decide deliberately before enabling this for a public release; one option is
+to ship with the flag off and let users supply their own ffmpeg DLLs.

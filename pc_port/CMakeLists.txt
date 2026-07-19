@@ -16,6 +16,10 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 option(SH_USE_OPENGL "Use OpenGL renderer (via PsyCross)" ON)
 option(SH_DEBUG "Enable debug output" OFF)
 option(SH_ASAN "Enable AddressSanitizer for memory corruption detection" OFF)
+# FMV ffmpeg fallback (native h264/h265/vp9/av1 in mp4/mkv/webm/avi override files).
+# OFF keeps the build dependency-free and byte-identical to the built-in MJPEG/raw
+# decoder. Ship a decode-only LGPL ffmpeg build — see docs/fmv_files.md.
+option(SH_FMV_FFMPEG "Enable ffmpeg FMV fallback decoder (h264/h265/vp9/av1, mp4/mkv/webm)" OFF)
 
 # =============================================================================
 # Version defines - default to USA
@@ -337,6 +341,65 @@ if(JPEG_LIBRARY)
     endif()
 else()
     target_link_libraries(SilentHillPC PRIVATE jpeg)
+endif()
+
+# =============================================================================
+# ffmpeg (optional FMV fallback: h264/h265/vp9/av1 in mp4/mkv/webm/avi)
+# =============================================================================
+if(SH_FMV_FFMPEG)
+    # Prefer pkg-config (Linux distro ffmpeg, macOS brew, and a custom decode-only
+    # build exposed via PKG_CONFIG_PATH). Fall back to find_library on MSYS2 setups
+    # without .pc files.
+    if(PkgConfig_FOUND OR PKG_CONFIG_FOUND)
+        pkg_check_modules(FFMPEG IMPORTED_TARGET
+            libavformat libavcodec libavutil libswscale libswresample)
+    endif()
+    if(FFMPEG_FOUND)
+        target_link_libraries(SilentHillPC PRIVATE PkgConfig::FFMPEG)
+    else()
+        foreach(_ff avformat avcodec avutil swscale swresample)
+            find_library(FF_${_ff} ${_ff})
+            if(NOT FF_${_ff})
+                message(FATAL_ERROR "SH_FMV_FFMPEG=ON but lib${_ff} not found. Install it "
+                    "(MSYS2: pacman -S mingw-w64-x86_64-ffmpeg) or set PKG_CONFIG_PATH to a "
+                    "decode-only build. See docs/fmv_files.md.")
+            endif()
+            target_link_libraries(SilentHillPC PRIVATE ${FF_${_ff}})
+        endforeach()
+        find_path(FFMPEG_INCLUDE_DIR libavcodec/avcodec.h)
+        if(FFMPEG_INCLUDE_DIR)
+            target_include_directories(SilentHillPC PRIVATE ${FFMPEG_INCLUDE_DIR})
+        endif()
+    endif()
+    target_compile_definitions(SilentHillPC PRIVATE SH_FMV_FFMPEG)
+
+    # Windows: copy the ffmpeg runtime DLLs next to the exe so the nightly zip
+    # (which globs build/*.dll) ships them. Globbed (not hardcoded sonames) so it
+    # works across ffmpeg 6/7 and a trimmed custom build. Point SH_FMV_FFMPEG_BINDIR
+    # at your decode-only build's bin/ for release; defaults to the MSYS2 toolchain
+    # (dev). If nothing is found the copy is skipped and the DLLs are expected on
+    # PATH. On Linux/macOS the system ffmpeg is a documented runtime dependency.
+    if(WIN32)
+        set(SH_FMV_FFMPEG_BINDIR "$ENV{MINGW_PREFIX}/bin"
+            CACHE PATH "Directory holding the ffmpeg runtime DLLs to bundle next to the exe")
+        # MinGW ships these as avcodec-60.dll (no lib prefix); other toolchains
+        # use libavcodec-60.dll. Match both, per-lib, across any soname.
+        file(GLOB _ff_dlls
+            "${SH_FMV_FFMPEG_BINDIR}/avcodec-*.dll"    "${SH_FMV_FFMPEG_BINDIR}/libavcodec-*.dll"
+            "${SH_FMV_FFMPEG_BINDIR}/avformat-*.dll"   "${SH_FMV_FFMPEG_BINDIR}/libavformat-*.dll"
+            "${SH_FMV_FFMPEG_BINDIR}/avutil-*.dll"     "${SH_FMV_FFMPEG_BINDIR}/libavutil-*.dll"
+            "${SH_FMV_FFMPEG_BINDIR}/swscale-*.dll"    "${SH_FMV_FFMPEG_BINDIR}/libswscale-*.dll"
+            "${SH_FMV_FFMPEG_BINDIR}/swresample-*.dll" "${SH_FMV_FFMPEG_BINDIR}/libswresample-*.dll"
+            "${SH_FMV_FFMPEG_BINDIR}/dav1d*.dll"       "${SH_FMV_FFMPEG_BINDIR}/libdav1d*.dll")
+        if(_ff_dlls)
+            add_custom_command(TARGET SilentHillPC POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_ff_dlls}
+                        "$<TARGET_FILE_DIR:SilentHillPC>"
+                COMMENT "Copying ffmpeg runtime DLLs (SH_FMV_FFMPEG)"
+                VERBATIM
+            )
+        endif()
+    endif()
 endif()
 
 if(WIN32)
