@@ -299,6 +299,33 @@ typedef struct _MapEffectsPresetIdxs
 
 typedef struct
 {
+    /* NOTE: the array LENGTHS below are artifacts of where the decompiler split
+     * this region (at each offset it happened to observe an access), not real
+     * capacities. Several writers legitimately run past their declared end into
+     * the next field. Measured against all 256 shipped .ILM files:
+     *
+     *   screenXy_0  needs 90 slots, declared 90  -- exact fit, so 90 vertices is
+     *               the genuine design limit of the pool.
+     *   field_18C   is the per-vertex Z pool and needs 90 s16 (180 bytes), but
+     *               only 144 are declared before field_21C. screenZ_168[18] +
+     *               field_18C[72] == 90 s16 starting at 0x168, which is exactly
+     *               the matching pair for screenXy_0[90] -- one array, split in
+     *               two by the decomp.
+     *   field_21C   is written by func_8005AA08 as &field_21C[normalOffset] at
+     *               4 bytes per normal (VECTOR3* stepped once per 3 normals).
+     *               Max normal slot across every shipped model is 92 (BAR.ILM),
+     *               so writes reach 0x38C -- past field_2B8 and 12 bytes into
+     *               field_380.
+     *
+     * That is NOT a buffer overflow: the struct lives at PSX_SCRATCH_ADDR(0) and
+     * g_PsxScratchpad is a full 1024 bytes, so 0x38C is comfortably inside it
+     * (the whole struct ends around 0x3F8). Nor is it a clobber in practice --
+     * field_2B8 is the WORLD path's corner-shade array (unkCount_3 is 0 on every
+     * shipping character), so the two never overlap in a live frame, and the
+     * original PSX build has the identical layout and data.
+     *
+     * Do NOT "fix" these by tightening the bounds, and do NOT hard-code 39 as a
+     * normal-slot limit -- the real ceiling is 92. */
     DVECTOR  screenXy_0[90];
     s16      screenZ_168[18];
     s16      field_18C[72];
