@@ -41,23 +41,20 @@
     (u16)((((HIRES_POOL_CLUT_ROW_BASE + (DECAL_POOL_SLOT / 64) * HIRES_POOL_MAX_ROWS)) << 6) | \
           (DECAL_POOL_SLOT % 64))
 
-/* Two independent forward biases, because the world sorts two different ways:
+/* Depth handling mirrors the game's own blood-splat drawer (func_80062708):
+ * accumulate RAW RotTransPers SZ (no <<2), push one blood-bias step toward FAR
+ * (blood's var_s7 = 256), and draw the decal SEMI-TRANSPARENT.
  *
- * DECAL_SZ_BIAS — the exact per-vertex SZ handed to PsyX_SetNextPrimSzExact,
- *   used only by the GL depth test in pgxpZBuffer mode. World geometry stores
- *   its per-prim GL depth quantized to 64 SZ, always rounding NEARER, so the
- *   decal must clear a full quantum to win the depth test against the surface
- *   it sits on in the worst rounding case. Keep it at ~1.5 quanta.
- *
- * DECAL_BUCKET_BIAS — how far the decal is pulled forward for the painter's
- *   OT bucket (the DEFAULT path: no depth buffer, order is bucket-only, and a
- *   decal added after its wall draws UNDER it in the same bucket). One bucket
- *   (32 SZ, since bucket = avgSZ >> 5) is the minimum that draws the decal over
- *   its coplanar host. Using DECAL_SZ_BIAS here instead pulled the decal 3
- *   buckets nearer, so it painted over any object standing within ~3 buckets in
- *   front of the wall (enemies, railings) — the bug this split fixes. */
-#define DECAL_SZ_BIAS     96
-#define DECAL_BUCKET_BIAS 32
+ * The semi-transparency is the load-bearing part: like blood, the decal then
+ * never depth-tests, so it CANNOT win the depth buffer against a character
+ * standing in front of the wall — it just blends onto the scene and anything
+ * drawn nearer paints over it (no more see-through-objects). The far push keeps
+ * it from over-drawing foreground in painter order; the DECAL_OFFSET normal lift
+ * keeps it in front of its own host surface. This replaces the previous OPAQUE
+ * quad pulled one bucket FORWARD, which won the depth test against — and drew
+ * over — characters/objects near the wall (the reported bug). Bump toward 0 if a
+ * decal dips behind a grazing wall. */
+#define DECAL_BLOOD_BIAS 256 /* == blood-splat var_s7 (func_80062708) */
 
 typedef struct {
     VECTOR3 center; /* Q19.12 world, already offset along the normal */
@@ -286,7 +283,6 @@ void Pc_DecalsDraw(GsOT* ot)
         SVECTOR          v;
         s16              sx[4];
         s16              sy[4];
-        u16              sz[4];
         s32              bucketSum = 0;
         s32              bucket;
         int              k;
@@ -328,15 +324,9 @@ void Pc_DecalsDraw(GsOT* ot)
                 break;
             }
 
-            {
-                /* Per-vertex GL depth (pgxpZBuffer path): full 1.5-quantum bias. */
-                s32 biased = (otz << 2) - DECAL_SZ_BIAS;
-                /* Painter's OT bucket: only one bucket forward, so we clear the
-                 * coplanar host wall without over-drawing foreground geometry. */
-                s32 bbiased = (otz << 2) - DECAL_BUCKET_BIAS;
-                sz[k]       = (u16)((biased < 1) ? 1 : biased);
-                bucketSum  += (bbiased < 1) ? 1 : bbiased;
-            }
+            /* Blood-splat bucket source: RAW RotTransPers SZ (func_80062708
+             * field_20C = average of the 4 corner SZ; no <<2 inflation). */
+            bucketSum += otz;
         }
 
         if (!ok)
@@ -344,8 +334,9 @@ void Pc_DecalsDraw(GsOT* ot)
             continue;
         }
 
-        /* World-geometry bucket convention: SZ >> 3 >> 2 (SH_CLAMP_OT_DEPTH). */
-        bucket = (bucketSum >> 2) >> 5;
+        /* Blood-splat bucketing (func_80062708): (avgSZ + var_s7) >> 3. The far
+         * push (DECAL_BLOOD_BIAS) is what lets foreground paint over the decal. */
+        bucket = ((bucketSum >> 2) + DECAL_BLOOD_BIAS) >> 3;
         if (bucket < 0)
         {
             bucket = 0;
@@ -356,6 +347,12 @@ void Pc_DecalsDraw(GsOT* ot)
         }
 
         setPolyFT4(poly);
+        /* Semi-transparent like the blood splats (setSemiTrans in func_80062708):
+         * the decal then never depth-tests, so a character/object in front covers
+         * it in painter order instead of the decal punching through. The override
+         * shader still alpha-discards the PNG's transparent texels, so the hole
+         * shape is preserved — only the surviving pixels blend. */
+        setSemiTrans(poly, true);
         {
             /* Take the room's ambient like billboards do (worldTintColor
              * scaled by the ambient level) so decals sit in the scene's
@@ -386,7 +383,6 @@ void Pc_DecalsDraw(GsOT* ot)
         poly->v3    = DECAL_UV_MAX;
         setXY4(poly, sx[0], sy[0], sx[1], sy[1], sx[2], sy[2], sx[3], sy[3]);
 
-        PsyX_SetNextPrimSzExact(sz[0], sz[1], sz[2], sz[3]);
         addPrim(&ot->org[bucket], poly);
         poly++;
     }
