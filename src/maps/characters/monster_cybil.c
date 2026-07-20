@@ -699,6 +699,18 @@ void func_800D8D7C(s_SubCharacter* monsterCybil, s_Model* modelUpper, GsCOORDINA
         case MonsterCybilControl_11:
             if (monsterCybil->model.anim.keyframeIdx == 38)
             {
+#ifdef SH_PC_PORT
+                {
+                    #define playerChara g_SysWork.playerWork.player
+                    s32 faceTgt = Q12_ANGLE_ABS(ratan2(Q12_TO_Q8(playerChara.position.vx - monsterCybil->position.vx),
+                                                       Q12_TO_Q8(playerChara.position.vz - monsterCybil->position.vz)));
+                    SH_DBG("[CYBIL-FIRE11] rotY=%d faceTgt=%d fixedPitch=90 cyb=(%d,%d,%d) plr=(%d,%d,%d)",
+                           (int)monsterCybil->rotation.vy, (int)faceTgt,
+                           (int)monsterCybil->position.vx, (int)monsterCybil->position.vy, (int)monsterCybil->position.vz,
+                           (int)playerChara.position.vx, (int)playerChara.position.vy, (int)playerChara.position.vz);
+                    #undef playerChara
+                }
+#endif
                 func_8006342C(EquippedWeaponId_Unk63, Q12_ANGLE(90.0f), monsterCybil->rotation.vy, g_SysWork.npcBoneCoordBuffer);
             }
 
