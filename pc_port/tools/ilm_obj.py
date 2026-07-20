@@ -1987,6 +1987,63 @@ def _pool_alloc(cap, place_order, dpos, counts, life, bound, keep):
     return off, None
 
 
+def _warn_displaced_parts(ilm, by_name, verts, poses):
+    """Flag geometry that sits nowhere near the part it was put in.
+
+    The commonest --replace mistake is geometry landing in the wrong object:
+    the object name IS the bone, so a hand modelled inside `01CHEST_` silently
+    animates with the chest. It cannot be caught by asking which bone is
+    nearest, because a part's mesh legitimately runs from its own bone toward
+    the child one - measured over the corpus, only 43% of correctly assigned
+    stock parts have their own bone closest to their centroid, so that test
+    would cry wolf on the majority of valid work.
+
+    Comparing against the TEMPLATE instead is sound: whatever the modeller
+    built, a replacement part belongs roughly where that part already was.
+    """
+    ref, new, spans = {}, {}, []
+    for model in ilm.models:
+        vs = [v for me in model["meshes"] for v in me["verts"]]
+        o = by_name.get(model["name"])
+        if not vs or o is None or not o["v"]:
+            continue
+        R, T = poses[model["idx"]]
+        acc = [0.0, 0.0, 0.0]
+        for v in vs:
+            # _y_out: the OBJ we are comparing against is written Y-up, so the
+            # template has to be flipped into the same convention or every part
+            # reads as displaced by twice its height.
+            w = bake(R, T, v)
+            w = (w[0], _y_out(w[1]), w[2])
+            for i in range(3):
+                acc[i] += w[i]
+        ref[model["name"]] = [a / len(vs) for a in acc]
+        acc = [0.0, 0.0, 0.0]
+        for vl in o["v"]:
+            w = verts[vl - 1]
+            for i in range(3):
+                acc[i] += w[i]
+        new[model["name"]] = [a / len(o["v"]) for a in acc]
+        spans.extend(bake(R, T, v) for v in vs)
+    if len(ref) < 2:
+        return
+    lo = [min(p[i] for p in spans) for i in range(3)]
+    hi = [max(p[i] for p in spans) for i in range(3)]
+    diag = math.sqrt(sum((hi[i] - lo[i]) ** 2 for i in range(3)))
+    limit = diag * 0.25
+    bad = []
+    for name, r in ref.items():
+        d = math.sqrt(sum((new[name][i] - r[i]) ** 2 for i in range(3)))
+        if d > limit:
+            bad.append((d, name))
+    for d, name in sorted(bad, reverse=True):
+        print("   WARNING: part %s sits %.0f units from where %s is on the original "
+              "(over %.0f, a quarter of the model). If that geometry belongs to a "
+              "different body part, move it into that OBJECT - the object name is the "
+              "bone, so it will animate with %s as it stands."
+              % (name, d, name, limit, name))
+
+
 def _replace_import(obj_path, ilm_path, out_path, data, ilm, meta, verts, norms, uvs,
                     by_name, poses, invs, weld, weld_eps):
     """Rebuild every part's geometry from the OBJ, keeping the template's rig.
@@ -2004,6 +2061,7 @@ def _replace_import(obj_path, ilm_path, out_path, data, ilm, meta, verts, norms,
     welding mechanism the format has (no skinning, no weights - a corner that
     reads a foreign slot simply follows that part's bone).
     """
+    _warn_displaced_parts(ilm, by_name, verts, poses)
     order = list(ilm.d[ilm.modelOrderP:ilm.modelOrderP + ilm.modelCount])
     if sorted(order) != list(range(ilm.modelCount)):
         raise SystemExit("--replace: modelOrder is not a permutation, so the draw order "
