@@ -2778,7 +2778,44 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
             ipdHdr->lmHdr = heapLmHdr;
         }
         if (slot < 0 && s_pcFixedIpdCount < PC_MAX_IPD_CHUNKS) { slot = s_pcFixedIpdCount++; }
-        if (slot >= 0) { s_pcFixedIpd[slot].hdr = ipdHdr; s_pcFixedIpd[slot].lm = ipdHdr->lmHdr; }
+        if (slot < 0)
+        {
+            /* Table full. The count never resets across maps, so a long session
+             * visiting several preloaded maps can exhaust it — and a chunk that
+             * fails to register here is forced isLoaded=false every frame by
+             * Ipd_ActiveChunksSample and thrash-reloads forever (escalating
+             * void/garbage geometry that follows the player from room to room).
+             * Evict an entry whose buffer is not a live active chunk: nothing
+             * can deref an inactive, unregistered chunk's lmHdr, so its heap
+             * copy is safe to free here. */
+            s32 ei, si;
+            for (ei = 0; ei < s_pcFixedIpdCount && slot < 0; ei++)
+            {
+                bool live = false;
+                for (si = 0; si < g_Map.activeChunkCount; si++)
+                {
+                    if (g_Map.activeChunks[si].ipdHdr == s_pcFixedIpd[ei].hdr) { live = true; break; }
+                }
+                if (!live)
+                {
+                    free(s_pcFixedIpd[ei].lm);
+                    s_pcFixedIpd[ei].lm = NULL;
+                    slot = ei;
+                }
+            }
+            if (slot < 0)
+                SH_DBG("[IPD-REG] registry FULL of live chunks (%d) — chunk %p will thrash-reload!",
+                       s_pcFixedIpdCount, (void*)ipdHdr);
+        }
+        if (slot >= 0)
+        {
+            /* Same-address re-registration orphans the previous heap lm copy
+             * (the fresh file load already overwrote ipdHdr->lmHdr with raw
+             * bytes) — free it or every chunk reload leaks one. */
+            if (s_pcFixedIpd[slot].lm != NULL && s_pcFixedIpd[slot].lm != ipdHdr->lmHdr)
+                free(s_pcFixedIpd[slot].lm);
+            s_pcFixedIpd[slot].hdr = ipdHdr; s_pcFixedIpd[slot].lm = ipdHdr->lmHdr;
+        }
         {
             /* Find which chunk slot this belongs to for logging */
             s32 logSlot = -1, si;
