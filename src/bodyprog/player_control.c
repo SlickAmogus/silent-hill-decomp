@@ -5126,6 +5126,17 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
             {
                 player->properties.player.afkTimer++;
 
+#ifdef SH_PC_PORT
+                /* FPS: never trip the AFK look-around — its head/body turning
+                 * drags the first-person eye and the ±90° mouse-look clamp
+                 * basis around on their own. Gate ONLY the trigger, here: the
+                 * AFK state itself, its anim, and every other camera keep
+                 * exact PSX behavior, and leaving FPS re-arms it naturally
+                 * (the timer just restarts its ~10s count). */
+                if (g_PcFpsCam)
+                    player->properties.player.afkTimer = Q12(0.0f);
+#endif
+
                 if (player->properties.player.afkTimer >= 300)
                 {
                     if (player->health >= Q12(60.0f))
