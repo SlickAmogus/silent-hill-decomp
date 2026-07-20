@@ -126,20 +126,20 @@ Put the file at `gamedata/fmv/<basename>.<ext>` — same place the MJPEG AVIs
 go. The built-in path is always tried **first**, so nothing about the
 existing AVI workflow changes; ffmpeg is only the fallback.
 
-### Getting the DLLs (ffmpeg 6.x only)
+### Getting the DLLs (ffmpeg 8.x)
 
-Download a **shared** ffmpeg 6.x build and drop these five DLLs next to
-`SilentHillPC.exe`, or put an ffmpeg 6.x `bin` folder on your `PATH`:
+Download a **shared** ffmpeg 8.x build and drop these five DLLs next to
+`SilentHillPC.exe`, or put an ffmpeg 8.x `bin` folder on your `PATH`:
 
 | Library | DLL |
 |---------|-----|
-| avcodec | `avcodec-60.dll` |
-| avformat | `avformat-60.dll` |
-| avutil | `avutil-58.dll` |
-| swscale | `swscale-7.dll` |
-| swresample | `swresample-4.dll` |
+| avcodec | `avcodec-62.dll` |
+| avformat | `avformat-62.dll` |
+| avutil | `avutil-60.dll` |
+| swscale | `swscale-9.dll` |
+| swresample | `swresample-6.dll` |
 
-Both spellings are accepted — `avcodec-60.dll` and `libavcodec-60.dll`
+Both spellings are accepted — `avcodec-62.dll` and `libavcodec-62.dll`
 both load, whichever your build produced.
 
 The version numbers above come from the ffmpeg headers the port was compiled
@@ -147,27 +147,27 @@ against, so the authoritative list for *your* build is the one written to
 `SilentHill.log` when the libraries are missing — check there if it disagrees
 with this table.
 
-> **It must be ffmpeg 6.x. A 7.x build will not work.** The port is
-> compiled against the ffmpeg 6 ABI and reads decoder struct fields
+> **It must be ffmpeg 8.x. A 6.x or 7.x build will not work.** The port is
+> compiled against the ffmpeg 8 ABI and reads decoder struct fields
 > directly, so a different major version is a crash, not a quirk. The port
 > checks each library's major version on load and **refuses** anything that
 > doesn't match, logging which library was wrong and what it expected. If
 > your movie mod isn't playing, check the DLL version numbers first — the
-> filenames must end in `-60`, `-58`, `-7`, `-4` as above.
+> filenames must end in `-62`, `-60`, `-9`, `-6` as above.
 
 Where to get them:
 
 - **Windows:** [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) or
-  [BtbN](https://github.com/BtbN/FFmpeg-Builds/releases). Pick a **shared**
-  6.x package — the "static" ones contain no DLLs at all. On gyan.dev the
-  file you want is a `ffmpeg-6.*-full_build-shared.7z`; on BtbN, an asset
-  with `shared` in the name from a 6.x release.
-- **Linux:** the distro packages, e.g.
-  `apt install libavcodec60 libavformat60 libavutil58 libswscale7 libswresample4`
-  (Debian 13 / Ubuntu 24.04 era). The loader looks for
-  `libavcodec.so.60` etc.
-- **macOS:** `brew install ffmpeg@6`. The loader looks for
-  `libavcodec.60.dylib` etc.
+  [BtbN](https://github.com/BtbN/FFmpeg-Builds/releases). Both serve 8.x as
+  their current build, so just take the latest — the only thing to watch is
+  **shared** vs "static", since the static packages contain no DLLs at all.
+  On gyan.dev that's the `ffmpeg-*-full_build-shared.7z`; on BtbN, a release
+  asset with `shared` in the name.
+- **Linux:** the distro packages for whatever ffmpeg your build targets, e.g.
+  `apt install libavcodec62 libavformat62 libavutil60 libswscale9 libswresample6`.
+  The loader looks for `libavcodec.so.62` etc.
+- **macOS:** `brew install ffmpeg`. The loader looks for
+  `libavcodec.62.dylib` etc.
 
 ### If the DLLs are missing
 

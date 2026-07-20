@@ -16,8 +16,8 @@ namespace SilentHillPC_Launcher
     ///
     /// Keep the container list and the library majors in agreement with
     /// pc_port/src/fmv/fmv_player.cpp: it probes gamedata/fmv/&lt;name&gt;.{mp4,mkv,
-    /// webm,mov} and loads avcodec 60 / avformat 60 / avutil 58 / swscale 7 /
-    /// swresample 4 by bare name, refusing any other major (we touch struct
+    /// webm,mov} and loads avcodec 62 / avformat 62 / avutil 60 / swscale 9 /
+    /// swresample 6 by bare name, refusing any other major (we touch struct
     /// fields directly, so a different major is an ABI break).
     /// </summary>
     public static class FfmpegCheck
@@ -26,7 +26,7 @@ namespace SilentHillPC_Launcher
 
         private static readonly string[] s_requiredLibs =
         {
-            "avcodec-60", "avformat-60", "avutil-58", "swscale-7", "swresample-4"
+            "avcodec-62", "avformat-62", "avutil-60", "swscale-9", "swresample-6"
         };
 
         private const string GyanUrl = "https://www.gyan.dev/ffmpeg/builds/";
@@ -124,16 +124,16 @@ namespace SilentHillPC_Launcher
                 "This is OPTIONAL. The game and every original movie work fine without it — only those " +
                 "modded FMVs are affected, and they are skipped so the original disc movie plays " +
                 "instead.\r\n\r\n" +
-                "To play them, download an ffmpeg 6.x SHARED build for Windows and copy these DLLs next " +
+                "To play them, download an ffmpeg 8.x SHARED build for Windows and copy these DLLs next " +
                 "to SilentHillPC.exe:\r\n\r\n" +
-                "    avcodec-60.dll    avformat-60.dll    avutil-58.dll\r\n" +
-                "    swscale-7.dll    swresample-4.dll\r\n\r\n" +
+                "    avcodec-62.dll    avformat-62.dll    avutil-60.dll\r\n" +
+                "    swscale-9.dll    swresample-6.dll\r\n\r\n" +
                 "Recommended builds:\r\n" +
                 "    " + GyanUrl + "\r\n" +
                 "    " + BtbNUrl + "\r\n\r\n" +
-                "Pick a \"shared\" 6.x package and take the DLLs from its bin folder (the 'lib'-prefixed " +
-                "spelling works too). An ffmpeg 6.x already on your PATH is used as well. It must be " +
-                "6.x — the game refuses any other version rather than risk a crash.";
+                "Pick a \"shared\" 8.x package and take the DLLs from its bin folder (the 'lib'-prefixed " +
+                "spelling works too). An ffmpeg 8.x already on your PATH is used as well. It must be " +
+                "8.x — the game refuses any other version rather than risk a crash.";
 
             using (var dlg = new Form())
             {

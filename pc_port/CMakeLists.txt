@@ -360,56 +360,90 @@ endif()
 # swr_alloc_set_opts2, which do not exist before ffmpeg 5.1, and 6.0 is the
 # oldest release we actually validate against. Newer majors are accepted.
 set(SH_FFMPEG_MIN_AVCODEC_MAJOR 60)
+set(SH_FFMPEG_PREFIX "" CACHE PATH
+    "Prefix holding ffmpeg development headers to build against (uses <prefix>/include)")
 if(SH_FMV_FFMPEG)
-    if(PkgConfig_FOUND OR PKG_CONFIG_FOUND)
-        pkg_check_modules(FFMPEG
-            libavformat>=60 libavcodec>=${SH_FFMPEG_MIN_AVCODEC_MAJOR}
-            libavutil>=58 libswscale>=7 libswresample>=4)
-    endif()
-
     set(FFMPEG_HEADER_DIRS "")
-    set(FFMPEG_HEADERS_OK FALSE)
-    if(FFMPEG_FOUND)
-        # pkg-config omits -I for compiler-default include dirs, so an EMPTY
-        # FFMPEG_INCLUDE_DIRS means "already on the search path", not "missing".
-        set(FFMPEG_HEADER_DIRS ${FFMPEG_INCLUDE_DIRS})
-        set(FFMPEG_HEADERS_OK TRUE)
+    set(FFMPEG_HEADERS_FOUND FALSE)
+    if(SH_FFMPEG_PREFIX)
+        # An explicit prefix is a deliberate override (side-installed headers that
+        # must win over whatever the system offers), so pkg-config is skipped
+        # entirely rather than allowed to contradict it.
+        if(EXISTS "${SH_FFMPEG_PREFIX}/include/libavcodec/avcodec.h")
+            set(FFMPEG_HEADER_DIRS "${SH_FFMPEG_PREFIX}/include")
+            set(FFMPEG_HEADERS_FOUND TRUE)
+        else()
+            message(STATUS "SH_FFMPEG_PREFIX=${SH_FFMPEG_PREFIX} has no "
+                "include/libavcodec/avcodec.h")
+        endif()
     else()
-        find_path(FFMPEG_INCLUDE_DIR libavcodec/avcodec.h)
-        if(FFMPEG_INCLUDE_DIR)
-            # No pkg-config data here, so read the major straight out of the header
-            # (version_major.h since ffmpeg 5.0, version.h before that).
-            set(_ff_version_header "${FFMPEG_INCLUDE_DIR}/libavcodec/version_major.h")
-            if(NOT EXISTS "${_ff_version_header}")
-                set(_ff_version_header "${FFMPEG_INCLUDE_DIR}/libavcodec/version.h")
-            endif()
-            set(_ff_major 0)
-            if(EXISTS "${_ff_version_header}")
-                file(STRINGS "${_ff_version_header}" _ff_major_lines
-                     REGEX "^#define[ \t]+LIBAVCODEC_VERSION_MAJOR[ \t]+[0-9]+")
-                if(_ff_major_lines)
-                    list(GET _ff_major_lines 0 _ff_major_line)
-                    string(REGEX REPLACE "^.*LIBAVCODEC_VERSION_MAJOR[ \t]+([0-9]+).*$" "\\1"
-                           _ff_major "${_ff_major_line}")
-                endif()
-            endif()
-            if(_ff_major GREATER_EQUAL SH_FFMPEG_MIN_AVCODEC_MAJOR)
+        if(PkgConfig_FOUND OR PKG_CONFIG_FOUND)
+            pkg_check_modules(FFMPEG
+                libavformat>=60 libavcodec>=${SH_FFMPEG_MIN_AVCODEC_MAJOR}
+                libavutil>=58 libswscale>=7 libswresample>=4)
+        endif()
+        if(FFMPEG_FOUND)
+            # pkg-config omits -I for compiler-default include dirs, so an EMPTY
+            # FFMPEG_INCLUDE_DIRS means "already on the search path", not "missing".
+            set(FFMPEG_HEADER_DIRS ${FFMPEG_INCLUDE_DIRS})
+            set(FFMPEG_HEADERS_FOUND TRUE)
+        else()
+            find_path(FFMPEG_INCLUDE_DIR libavcodec/avcodec.h)
+            if(FFMPEG_INCLUDE_DIR)
                 set(FFMPEG_HEADER_DIRS ${FFMPEG_INCLUDE_DIR})
-                set(FFMPEG_HEADERS_OK TRUE)
-            else()
-                message(STATUS "ffmpeg headers at ${FFMPEG_INCLUDE_DIR} are libavcodec major "
-                    "${_ff_major}; ${SH_FFMPEG_MIN_AVCODEC_MAJOR}+ (ffmpeg 6.0+) required")
+                set(FFMPEG_HEADERS_FOUND TRUE)
             endif()
         endif()
     endif()
 
-    if(FFMPEG_HEADERS_OK)
+    # The major is ALWAYS read from the header the compiler will actually open,
+    # never from pkg-config's claim: a .pc whose includedir points at a different
+    # tree reports one version while the compiler silently gets another, and the
+    # runtime soname fmv_player.cpp derives comes from the header, not the .pc.
+    set(_ff_major 0)
+    set(_ff_header_root "")
+    if(FFMPEG_HEADERS_FOUND)
+        foreach(_dir IN LISTS FFMPEG_HEADER_DIRS)
+            if(EXISTS "${_dir}/libavcodec/avcodec.h")
+                set(_ff_header_root "${_dir}")
+                break()
+            endif()
+        endforeach()
+        if(NOT _ff_header_root)
+            find_path(FFMPEG_DEFAULT_INCLUDE_DIR libavcodec/avcodec.h)
+            if(FFMPEG_DEFAULT_INCLUDE_DIR)
+                set(_ff_header_root "${FFMPEG_DEFAULT_INCLUDE_DIR}")
+            endif()
+        endif()
+
+        # version_major.h since ffmpeg 5.0, version.h before that.
+        set(_ff_version_header "${_ff_header_root}/libavcodec/version_major.h")
+        if(NOT EXISTS "${_ff_version_header}")
+            set(_ff_version_header "${_ff_header_root}/libavcodec/version.h")
+        endif()
+        if(_ff_header_root AND EXISTS "${_ff_version_header}")
+            file(STRINGS "${_ff_version_header}" _ff_major_lines
+                 REGEX "^#define[ \t]+LIBAVCODEC_VERSION_MAJOR[ \t]+[0-9]+")
+            if(_ff_major_lines)
+                list(GET _ff_major_lines 0 _ff_major_line)
+                string(REGEX REPLACE "^.*LIBAVCODEC_VERSION_MAJOR[ \t]+([0-9]+).*$" "\\1"
+                       _ff_major "${_ff_major_line}")
+            endif()
+        endif()
+        if(_ff_major LESS SH_FFMPEG_MIN_AVCODEC_MAJOR)
+            message(STATUS "ffmpeg headers at ${_ff_header_root} are libavcodec major "
+                "${_ff_major}; ${SH_FFMPEG_MIN_AVCODEC_MAJOR}+ (ffmpeg 6.0+) required")
+            set(FFMPEG_HEADERS_FOUND FALSE)
+        endif()
+    endif()
+
+    if(FFMPEG_HEADERS_FOUND)
         if(FFMPEG_HEADER_DIRS)
             target_include_directories(SilentHillPC PRIVATE ${FFMPEG_HEADER_DIRS})
         endif()
         target_compile_definitions(SilentHillPC PRIVATE SH_FMV_FFMPEG)
-        message(STATUS "ffmpeg FMV fallback ENABLED (runtime-loaded, headers: "
-            "${FFMPEG_HEADER_DIRS} [default include path if blank])")
+        message(STATUS "ffmpeg FMV fallback ENABLED (runtime-loaded, libavcodec major "
+            "${_ff_major}, headers: ${_ff_header_root})")
     else()
         message(WARNING "SH_FMV_FFMPEG=ON but ffmpeg 6.0+ development headers were not found "
             "(MSYS2: pacman -S mingw-w64-x86_64-ffmpeg; Debian/Ubuntu: apt install libavcodec-dev "
