@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -830,12 +831,20 @@ namespace SilentHillPC_Launcher
                 return;
             }
 
+            // Paint the real in-game texture onto the MTL so the mesh shows textured in
+            // Blender: the raw exporter writes a colourless MTL because a character's
+            // texture is a paletted CLUT composite, not a plain image. Import reads only
+            // the OBJ + .ilmmeta.json and never the MTL, so a map_Kd here cannot affect
+            // the round-trip. Silently skipped when no .TIM sits beside the .ILM.
+            string texNote = TextureExportedObj(ilm, res.ObjPath, res.MtlPath);
+
             string msg = "Wrote " + res.Parts + " body part(s), " + res.Vertices + " vertices, " +
                 res.Prims + " face(s) and " + res.Materials + " material(s):\n" + res.ObjPath +
                 "\n\nBeside it: " + Path.GetFileName(res.MtlPath) + " and " + Path.GetFileName(res.MetaPath) +
                 " — keep the .ilmmeta.json, \"OBJ → Model…\" needs it.\n\n" +
                 "In Blender, each object is one rigid animated body part: move and reshape " +
                 "vertices freely, but do not rename, add or remove objects.";
+            if (texNote != null) msg += "\n\n" + texNote;
             if (res.Dangling > 0)
                 msg += "\n\nNote: " + res.Dangling + " face corner(s) point at a vertex outside their own part, " +
                        "so the OBJ substitutes that part's first vertex there — those few corners look wrong in " +
@@ -1387,6 +1396,50 @@ namespace SilentHillPC_Launcher
                 path = ofd.FileName;
             }
             ModelViewerForm.Open(this, path);
+        }
+
+        /// <summary>Composite the character's true in-game texture (each region through its
+        /// own CLUT palette row) to a PNG beside the OBJ, and point every material in the
+        /// MTL at it via map_Kd, so the mesh shows textured in Blender instead of flat
+        /// white. One image serves every material because the composite already bakes each
+        /// region's palette — which is also exactly what a single loose-PNG override does
+        /// in game (hires_override.c registers one image across all rows). Returns a
+        /// one-line note for the success dialog, or null when there is nothing to do.</summary>
+        private static string TextureExportedObj(string ilm, string objPath, string mtlPath)
+        {
+            try
+            {
+                string tim = FindTimBeside(ilm);
+                if (tim == null || !File.Exists(mtlPath)) return null;
+                string pngPath = Path.Combine(Path.GetDirectoryName(objPath),
+                    Path.GetFileNameWithoutExtension(objPath) + "_texture.png");
+                string err;
+                if (!ClutComposer.Compose(ilm, tim, pngPath, out err)) return null;
+
+                string pngRef = Path.GetFileName(pngPath);
+                var outLines = new List<string>();
+                bool wroteForBlock = false;
+                foreach (string line in File.ReadAllLines(mtlPath))
+                {
+                    string t = line.TrimStart();
+                    if (t.StartsWith("newmtl ", StringComparison.Ordinal)) wroteForBlock = false;
+                    // Drop any stale map_Kd so re-exporting over an old MTL stays clean.
+                    if (t.StartsWith("map_Kd ", StringComparison.Ordinal)) continue;
+                    outLines.Add(line);
+                    // The composite is opaque; a d/Tr line above would make Blender show it
+                    // see-through, so add map_Kd right after Kd where neither is affected.
+                    if (!wroteForBlock && t.StartsWith("Kd ", StringComparison.Ordinal))
+                    {
+                        outLines.Add("map_Kd " + pngRef);
+                        wroteForBlock = true;
+                    }
+                }
+                File.WriteAllLines(mtlPath, outLines.ToArray());
+                return "Textured preview: " + pngRef + " is beside the OBJ and wired into the " +
+                       "MTL, so the mesh shows its real in-game texture in Blender. (Import " +
+                       "ignores the MTL — this is display only.)";
+            }
+            catch { return null; }  // a preview convenience must never fail the export
         }
 
         /// <summary>Find NAME.TIM beside NAME.ILM (either extension case).</summary>
