@@ -1811,13 +1811,79 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
                     SD_Call(Sfx_MenuMove);
                 }
 
-                if (visRow >= 0 && hitSlot == g_SelectedSaveSlotIdx)
+                /* Scroll bar geometry in pointer space. SaveScreen_NavigationDraw
+                 * builds the track from SCROLL_BAR_TRACK_QUADS (local x 0..8,
+                 * y 0..96) at x = slot*SLOT_COLUMN_OFFSET - 139 and
+                 * y - SCROLL_BAR_OFFSET_Y, in the centre-origin prim space whose
+                 * draw offset is (160, 112) — so on screen it is x 21..29 (slot
+                 * 0) / 171..179 (slot 1), y 52..148. The thumb travels 79px from
+                 * +8, which is the mapping inverted below. Widened by 4px each
+                 * side so the bar is comfortable to grab. */
+                #define SAVE_BAR_X(slot)  (((slot) * SLOT_COLUMN_OFFSET) - 139 + 160)
+                /* 112 (prim draw offset Y) - 60 (SCROLL_BAR_OFFSET_Y, which
+                 * SaveScreen_NavigationDraw #undefs before we get here). */
+                #define SAVE_BAR_TOP_Y    (112 - 60)
+                #define SAVE_BAR_TRAVEL   79
+                #define SAVE_BAR_GRAB     4
+                #define SAVE_DRAG_SLOP    3   /* px of travel that still counts as a click */
+
+                /* -1 = idle, else the slot whose bar is being dragged.
+                 * s_pressRow/-X/-Y latch the press so a release can tell a click
+                 * from a drag: the stock code loaded on the press edge, so any
+                 * drag that began on a row also loaded that save. */
+                static s32 s_barDragSlot = -1;
+                static s32 s_pressRow    = -1;
+                static s32 s_pressX      = 0;
+                static s32 s_pressY      = 0;
+                static s32 s_pressMoved  = 0;
+
+                s32 barX      = SAVE_BAR_X(hitSlot);
+                s32 onBar     = (mx >= barX - SAVE_BAR_GRAB && mx <= barX + 8 + SAVE_BAR_GRAB &&
+                                 my >= SAVE_BAR_TOP_Y && my <= SAVE_BAR_TOP_Y + 96);
+                s32 slotCount = g_Savegame_ElementCount0[hitSlot];
+
+                /* --- grab the scroll bar --- */
+                if (s_barDragSlot < 0 && onBar && Pc_MouseCursor_LeftClicked() && slotCount > 0)
+                {
+                    s_barDragSlot = hitSlot;
+                    s_pressRow    = -1; /* a bar grab is never a save click */
+                }
+
+                if (s_barDragSlot >= 0 && Pc_MouseCursor_LeftHeld())
+                {
+                    /* Absolute: thumb follows the pointer. Invert the thumb
+                     * mapping (thumbY = idx*79/count + 8) to get the entry.
+                     * Deliberately does NOT pin the scroll — dragging the bar is
+                     * exactly when the list SHOULD scroll. */
+                    s32 cnt = g_Savegame_ElementCount0[s_barDragSlot];
+
+                    if (cnt > 0)
+                    {
+                        s32 idx = ((my - SAVE_BAR_TOP_Y - 8) * cnt) / SAVE_BAR_TRAVEL;
+
+                        if (idx < 0)    idx = 0;
+                        if (idx >= cnt) idx = cnt - 1;
+
+                        if (g_SlotElementSelectedIdx[s_barDragSlot] != idx)
+                        {
+                            g_SlotElementSelectedIdx[s_barDragSlot] = idx;
+                            SD_Call(Sfx_MenuMove);
+                        }
+                    }
+                }
+                else if (s_barDragSlot >= 0)
+                {
+                    s_barDragSlot = -1; /* released */
+                }
+
+                if (s_barDragSlot < 0 && visRow >= 0 && hitSlot == g_SelectedSaveSlotIdx)
                 {
                     s32 target = g_SaveScreen_HiddenSaves[hitSlot] + visRow;
 
                     if (target >= 0 && target < g_Savegame_ElementCount0[hitSlot])
                     {
-                        if (Pc_MouseCursor_Moved() && g_SlotElementSelectedIdx[hitSlot] != target)
+                        if (Pc_MouseCursor_Moved() && g_SlotElementSelectedIdx[hitSlot] != target &&
+                            s_pressRow < 0)
                         {
                             g_SlotElementSelectedIdx[hitSlot] = target;
                             /* Pointer-driven: pin the scroll for this frame so
@@ -1826,11 +1892,61 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
                             g_PcSaveHoverPinScroll = 1;
                             SD_Call(Sfx_MenuMove);
                         }
+
+                        /* Latch the press; decide click-vs-drag on release. */
                         if (Pc_MouseCursor_LeftClicked() && g_SlotElementSelectedIdx[hitSlot] == target)
                         {
-                            g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+                            s_pressRow   = target;
+                            s_pressX     = mx;
+                            s_pressY     = my;
+                            s_pressMoved = 0;
                         }
                     }
+                }
+
+                /* --- drag inside the list scrolls it, and cancels the load --- */
+                if (s_pressRow >= 0 && Pc_MouseCursor_LeftHeld())
+                {
+                    s32 dx = mx - s_pressX;
+                    s32 dy = my - s_pressY;
+
+                    if (dx < 0) dx = -dx;
+                    if (dy < 0) dy = -dy;
+
+                    if (dx > SAVE_DRAG_SLOP || dy > SAVE_DRAG_SLOP)
+                    {
+                        s_pressMoved = 1;
+
+                        /* One row per row-height of travel, dragging the content
+                         * (pull down = go to earlier saves). */
+                        {
+                            s32 rows = (s_pressY - my) / 20;
+
+                            if (rows != 0 && slotCount > 0)
+                            {
+                                s32 idx = g_SlotElementSelectedIdx[hitSlot] + rows;
+
+                                if (idx < 0)          idx = 0;
+                                if (idx >= slotCount) idx = slotCount - 1;
+
+                                if (idx != g_SlotElementSelectedIdx[hitSlot])
+                                {
+                                    g_SlotElementSelectedIdx[hitSlot] = idx;
+                                    SD_Call(Sfx_MenuMove);
+                                }
+                                s_pressY = my; /* consume the travel */
+                            }
+                        }
+                    }
+                }
+                else if (s_pressRow >= 0)
+                {
+                    /* Released: only a quick click that never travelled loads. */
+                    if (!s_pressMoved)
+                        g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+
+                    s_pressRow   = -1;
+                    s_pressMoved = 0;
                 }
 
                 if (wheel != 0)
