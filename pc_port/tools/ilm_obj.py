@@ -4,6 +4,9 @@
     export  ILM [-o out.obj] [--anm A.ANM] [--keyframe N]
                                     ILM -> OBJ + MTL + .ilmmeta.json
     import  OBJ  ILM [-o new.ILM]   edited OBJ + the ORIGINAL ILM -> new ILM
+    import  OBJ  ILM [-o new.ILM] --grow
+                                    same, but extra vertices/faces in a part
+                                    become NEW geometry (full file rewrite)
 
 An SH1 .ILM holds several "models" that are really rigid BODY PARTS (CAT.ILM:
 01BODY_T, 02FRLEG1 ... 18TAIL2). Animation transforms each part as a unit, so a
@@ -714,6 +717,42 @@ def pair_faces(model, obj, materials):
     return out
 
 
+def _pair_faces_grow(model, obj, materials):
+    """pair_faces, but the per-material queues may hold MORE faces than the
+    part has primitives: the unconsumed remainder (in file order) is the new
+    geometry. Relative order within a material is preserved by both writers,
+    so the first count(prims-with-M) faces of queue M are the originals."""
+    prims = [p for mesh in model["meshes"] for p in mesh["prims"]]
+    faces = obj["faces"]
+    if any(f["mtl"] is None for f in faces):
+        if len(faces) > len(prims):
+            raise SystemExit(
+                "part %r has faces without a usemtl - grow-mode needs material info to "
+                "tell new faces from original ones." % obj["name"])
+        return faces, []
+    buckets = {}
+    for f in faces:
+        buckets.setdefault(f["mtl"], []).append(f)
+    pos = dict.fromkeys(buckets, 0)
+    out = []
+    taken = set()
+    for p in prims:
+        name = mtl_name(p, materials)
+        q = buckets.get(name)
+        if q is None or pos[name] >= len(q):
+            raise SystemExit(
+                "part %r: the OBJ has no unassigned face left with material %r. Material "
+                "names encode the CLUT palette row and are how faces are matched back to "
+                "primitives - reassigning or renaming materials is not supported."
+                % (obj["name"], name))
+        f = q[pos[name]]
+        out.append(f)
+        taken.add(id(f))
+        pos[name] += 1
+    leftover = [f for f in faces if id(f) not in taken]
+    return out, leftover
+
+
 def _s16(v, what):
     v = int(math.floor(v + 0.5))
     if not -32768 <= v <= 32767:
@@ -793,7 +832,7 @@ def _uv_byte(f):
     return 0 if b < 0 else (255 if b > 255 else b)
 
 
-def import_obj(obj_path, ilm_path, out_path):
+def import_obj(obj_path, ilm_path, out_path, grow=False):
     meta_path = os.path.splitext(obj_path)[0] + ".ilmmeta.json"
     if not os.path.exists(meta_path):
         raise SystemExit("missing %s - it is written next to the OBJ by `export` and is "
@@ -867,6 +906,21 @@ def import_obj(obj_path, ilm_path, out_path):
         for _i, _r in enumerate(_ov):
             if _i < len(_o["v"]):
                 owner_v[_r] = _o["v"][_i]
+
+    if grow:
+        need = False
+        for model in ilm.models:
+            o = by_name[model["name"]]
+            _ov, _fv, _a, _b = part_layout(ilm, model)
+            want = sum(m["primCount"] for m in model["meshes"])
+            if len(o["v"]) > len(_ov) + len(_fv) or len(o["faces"]) > want:
+                need = True
+                break
+        if need:
+            return _grow_import(obj_path, ilm_path, out_path, data, ilm, meta,
+                                verts, norms, uvs, by_name, poses, invs, owner_v)
+        # Zero actual growth falls through to the patch-in-place path so that
+        # `--grow` on an unedited OBJ stays byte-identical to a plain import.
 
     nprim = nvert = nnorm = 0
     seam_warn = []
@@ -1002,6 +1056,776 @@ def import_obj(obj_path, ilm_path, out_path):
     return out_path
 
 
+# ---- validator twin (pc_port/src/lm_validate.c) -----------------------------
+
+LM_POOL_SLOTS = 256
+LM_VERT_SLOT_CAP = 255
+LM_ARRAY_SLACK = 8
+LM_SHADE_SLACK = 3
+LM_MAX_PARTS = 56
+
+
+def lm_validate(d, tail_slack=0, anm_bone_count=-1, skeletal=True):
+    """Python twin of Lm_Validate (pc_port/src/lm_validate.c). The Stage 1 rule
+    table is normative for both languages - a drift is a bug in whichever
+    diverges. Grow-mode runs it at tail_slack=0: emitted files carry real
+    in-file pad bytes, so they stay safe even for a loader with no malloc tail.
+    Returns (0, None) on pass, else (ruleId, message); first failure wins in
+    numeric rule order (every V5 site is reported before any V6 site)."""
+    n = len(d)
+
+    def u32(o):
+        return struct.unpack_from('<I', d, o)[0]
+
+    def nm(o):
+        return d[o:o + 8].split(b'\0')[0].decode('ascii', 'replace')
+
+    def extent_ok(off, cnt, es):
+        return off <= n and cnt * es <= n - off
+
+    if n < 20 or d[0] != 0x30 or d[1] != 6 or d[2] != 0:
+        return 1, ("V1: not a raw LM file (magic=0x%02X ver=%d isLoaded=%d size=%u)"
+                   % (d[0] if n > 0 else 0, d[1] if n > 1 else 0,
+                      d[2] if n > 2 else 0, n))
+    matCount, matOff = d[3], u32(4)
+    modelCount, hdrsOff, orderOff = d[8], u32(12), u32(16)
+
+    if not extent_ok(matOff, matCount, 24):
+        return 2, ("V2: materials section out of file (off=0x%X len=0x%X size=0x%X)"
+                   % (matOff, matCount * 24, n))
+    if not extent_ok(hdrsOff, modelCount, 16):
+        return 2, ("V2: modelHdrs section out of file (off=0x%X len=0x%X size=0x%X)"
+                   % (hdrsOff, modelCount * 16, n))
+    if not extent_ok(orderOff, modelCount, 1):
+        return 2, ("V2: modelOrder section out of file (off=0x%X len=0x%X size=0x%X)"
+                   % (orderOff, modelCount, n))
+
+    def mesh_arrays(mb):
+        return [("primitives", u32(mb + 4), d[mb], 20, 0),
+                ("verticesXy", u32(mb + 8), d[mb + 1], 4, LM_ARRAY_SLACK),
+                ("verticesZ", u32(mb + 12), d[mb + 1], 2, LM_ARRAY_SLACK),
+                ("normals", u32(mb + 16), d[mb + 2], 4, LM_ARRAY_SLACK),
+                ("shade", u32(mb + 20), d[mb + 3], 1, LM_SHADE_SLACK)]
+
+    for i in range(modelCount):
+        mh = hdrsOff + i * 16
+        meshCount, meshOff = d[mh + 8], u32(mh + 12)
+        if not extent_ok(meshOff, meshCount, 24):
+            return 2, ("V2: part %s meshHdrs section out of file (off=0x%X len=0x%X size=0x%X)"
+                       % (nm(mh), meshOff, meshCount * 24, n))
+        for j in range(meshCount):
+            for aname, off, cnt, es, _sl in mesh_arrays(meshOff + j * 24):
+                if cnt == 0:
+                    continue
+                if not extent_ok(off, cnt, es):
+                    return 2, ("V2: part %s mesh %u %s section out of file (off=0x%X len=0x%X size=0x%X)"
+                               % (nm(mh), j, aname, off, cnt * es, n))
+                if off & 3:
+                    return 2, ("V2: part %s mesh %u %s section misaligned (off=0x%X)"
+                               % (nm(mh), j, aname, off))
+
+    if skeletal and modelCount > LM_MAX_PARTS:
+        return 3, "V3: %u parts exceeds skeleton cap %d" % (modelCount, LM_MAX_PARTS)
+
+    for i in range(modelCount):
+        if d[orderOff + i] >= modelCount:
+            return 4, ("V4: modelOrder[%u]=%u out of range (%u parts)"
+                       % (i, d[orderOff + i], modelCount))
+
+    vert_cap = LM_VERT_SLOT_CAP if skeletal else LM_POOL_SLOTS
+    for i in range(modelCount):
+        mh = hdrsOff + i * 16
+        for j in range(d[mh + 8]):
+            vc = d[u32(mh + 12) + j * 24 + 1]
+            if d[mh + 9] + vc > vert_cap:
+                return 5, ("V5: part %s mesh %u vertex window %u+%u exceeds %u"
+                           % (nm(mh), j, d[mh + 9], vc, vert_cap))
+    for i in range(modelCount):
+        mh = hdrsOff + i * 16
+        for j in range(d[mh + 8]):
+            nc = d[u32(mh + 12) + j * 24 + 2]
+            if d[mh + 10] + nc > LM_POOL_SLOTS:
+                return 6, ("V6: part %s mesh %u normal window %u+%u exceeds %d"
+                           % (nm(mh), j, d[mh + 10], nc, LM_POOL_SLOTS))
+    for i in range(modelCount):
+        mh = hdrsOff + i * 16
+        for j in range(d[mh + 8]):
+            sc = d[u32(mh + 12) + j * 24 + 3]
+            if d[mh + 10] + sc > LM_POOL_SLOTS:
+                return 7, ("V7: part %s mesh %u shade window %u+%u exceeds %d"
+                           % (nm(mh), j, d[mh + 10], sc, LM_POOL_SLOTS))
+    for i in range(modelCount):
+        mh = hdrsOff + i * 16
+        for j in range(d[mh + 8]):
+            mb = u32(mh + 12) + j * 24
+            # env mode 1 advances a slot even for a count-byte 0 (see the C
+            # twin in lm_validate.c): per-normal advance is max(count, 1).
+            walk = sum(d[u32(mb + 16) + k * 4 + 3] or 1 for k in range(d[mb + 2]))
+            if d[mh + 10] + walk > LM_POOL_SLOTS:
+                return 8, ("V8: part %s mesh %u shade walk %u+%u exceeds %d"
+                           % (nm(mh), j, d[mh + 10], walk, LM_POOL_SLOTS))
+
+    for i in range(modelCount):
+        mh = hdrsOff + i * 16
+        for j in range(d[mh + 8]):
+            for aname, off, cnt, es, sl in mesh_arrays(u32(mh + 12) + j * 24):
+                if cnt == 0 or sl == 0:
+                    continue
+                slack = n + tail_slack - (off + cnt * es)
+                if slack < sl:
+                    return 9, ("V9: part %s mesh %u %s array needs %u slack bytes, has %u"
+                               % (nm(mh), j, aname, sl, slack))
+
+    # V10 is structural (see lm_validate.h): V5-strict + V11 make a slot-255
+    # quad corner impossible, and no file scan can detect one.
+
+    if skeletal:
+        vstamp = bytearray(LM_POOL_SLOTS)
+        nstamp = bytearray(LM_POOL_SLOTS)
+        for i in range(modelCount):
+            mh = hdrsOff + d[orderOff + i] * 16
+            vertOff, normOff, meshOff = d[mh + 9], d[mh + 10], u32(mh + 12)
+            for j in range(d[mh + 8]):
+                mb = meshOff + j * 24
+                vstamp[vertOff:vertOff + d[mb + 1]] = b'\1' * d[mb + 1]
+                nstamp[normOff:normOff + d[mb + 2]] = b'\1' * d[mb + 2]
+            primIdx = 0
+            for j in range(d[mh + 8]):
+                mb = meshOff + j * 24
+                primsOff = u32(mb + 4)
+                for k in range(d[mb]):
+                    pb = primsOff + k * 20
+                    corners = 3 if d[pb + 0xF] == 0xFF else 4
+                    for c in range(corners):
+                        if not vstamp[d[pb + 0xC + c]]:
+                            return 11, ("V11: part %s prim %u corner %u reads unwritten vertex slot %u"
+                                        % (nm(mh), primIdx, c, d[pb + 0xC + c]))
+                        if not nstamp[d[pb + 0x10 + c]]:
+                            return 11, ("V11: part %s prim %u corner %u reads unwritten normal slot %u"
+                                        % (nm(mh), primIdx, c, d[pb + 0x10 + c]))
+                    primIdx += 1
+
+    for i in range(modelCount):
+        mh = hdrsOff + i * 16
+        b4 = (d[mh + 11] >> 4) & 3
+        if b4 != 0 and (d[mh + 9] != 0 or d[mh + 10] != 0):
+            return 12, ("V12: part %s field_B_4=%u requires vertexOffset==0 && normalOffset==0 (got %u/%u)"
+                        % (nm(mh), b4, d[mh + 9], d[mh + 10]))
+
+    if anm_bone_count > 0:
+        for i in range(modelCount):
+            mh = hdrsOff + i * 16
+            if 0x30 <= d[mh] <= 0x39 and 0x30 <= d[mh + 1] <= 0x39:
+                bone = (d[mh] - 0x30) * 10 + (d[mh + 1] - 0x30)
+                if bone >= anm_bone_count:
+                    return 13, ("V13: part %s binds bone %d but the ANM has %d bones"
+                                % (nm(mh), bone, anm_bone_count))
+
+    return 0, None
+
+
+# ---- grow-mode (import --grow) ----------------------------------------------
+
+def _align4(nbytes):
+    return (4 - nbytes % 4) % 4
+
+
+def _shade_pad(cnt):
+    """>= 3 zero bytes after the shade stream, landing the next section
+    4-aligned (F1: func_800574D4's copy strides 4 bytes past the stream)."""
+    pad = _align4(cnt)
+    return pad + 4 if pad < 3 else pad
+
+
+def _shade_edges(ilm, order):
+    """Shade-stream bytes are vertex POOL SLOT references: replay the pool and
+    resolve each byte to its writer, exactly like prim corners. Needed even
+    though growing shaded parts is refused - an unshaded grown part can move a
+    writer that a shaded ungrown part's stream references."""
+    vpool = {}
+    out = {}
+    for mi in order:
+        m = ilm.models[mi]
+        for k, me in enumerate(m["meshes"]):
+            for j in range(me["vertexCount"]):
+                vpool[m["vertexOffset"] + j] = (mi, k, j)
+        lst = []
+        for k, me in enumerate(m["meshes"]):
+            for b in range(me["unkCount_3"]):
+                slot = ilm.d[me["unkP"] + b]
+                lst.append((k, b, slot, vpool.get(slot)))
+        if lst:
+            out[mi] = lst
+    return out
+
+
+def _quant_new_normal(inv, w):
+    """OBJ-space direction -> part-local s8 triple at the stock |n|=127 scale."""
+    d = _unit(_normal_in(w))
+    if d is None:
+        return None
+    nl = _unit(unbake_dir(inv, d))
+    if nl is None:
+        return None
+    return tuple(max(-128, min(127, int(math.floor(v * 127 + 0.5)))) for v in nl)
+
+
+def _grow_budget(ilm, grown, vO2, nO2, finals, old_size, new_size):
+    print("   part              bone  verts        norms        prims        shade  window")
+    ext_v = ext_n = 0
+    for m in ilm.models:
+        mi = m["idx"]
+        vc, nc, pc, sw, dv, dn, dp = finals[mi]
+        ext_v = max(ext_v, vO2[mi] + vc)
+        ext_n = max(ext_n, nO2[mi] + nc)
+
+        def col(total, delta):
+            return "%d (%d+%d)" % (total, total - delta, delta) if delta else "%d" % total
+
+        print("   %-8s%-9s %3d  %-12s %-12s %-12s %5d  v[%d,%d) n[%d,%d)"
+              % (m["name"], " (grown)" if mi in grown else "", bone_of(m["name"]),
+                 col(vc, dv), col(nc, dn), col(pc, dp), sw,
+                 vO2[mi], vO2[mi] + vc, nO2[mi], nO2[mi] + nc))
+    print("   vertex slots: extent %d / 255 (%d free)   normal slots: extent %d / 256"
+          % (ext_v, 255 - ext_v, ext_n))
+    print("   parts: %d / 56    file: 0x%X (was 0x%X)"
+          % (ilm.modelCount, new_size, old_size))
+
+
+def _grow_import(obj_path, ilm_path, out_path, data, ilm, meta, verts, norms, uvs,
+                 by_name, poses, invs, owner_v):
+    """Full-rewrite import: original geometry keeps its bytes (modulo edits and
+    renumbered pool slots), new geometry is appended, windows are re-laid-out.
+
+    Preservation argument for the re-layout: an original sharing edge
+    (writer W, local j, reader R) needs slot vO'_W+j untouched by every part
+    drawn strictly between W and R. (a) W grown -> its slots are fresh and
+    exclusive, nobody else ever writes them. (b) W ungrown -> the slot is the
+    original vO_W+j; the original file guarantees no in-between part covered
+    it, and relocated grown parts only move AWAY (a removed intermediate
+    writer cannot break a last-writer relationship). (c) A part's own reads
+    are always safe (it writes immediately before it reads). Pinned offset-0
+    parts (field_B_4, V12) EXPAND instead of moving, which case (b) does not
+    cover - hence the explicit expansion-zone conflict check below."""
+    order = list(ilm.d[ilm.modelOrderP:ilm.modelOrderP + ilm.modelCount])
+    if sorted(order) != list(range(ilm.modelCount)):
+        raise SystemExit("--grow: modelOrder is not a permutation, so the sharing-graph "
+                         "replay cannot be trusted (no stock file does this).")
+    dpos = {mi: i for i, mi in enumerate(order)}
+    shade_map = _shade_edges(ilm, order)
+
+    # A dangling ref means either the traversal is wrong or this is a prop file
+    # whose corners resolve against the wielder's pool - either way the sharing
+    # graph cannot be rebuilt, so growth must refuse (never add a fallback).
+    for m in ilm.models:
+        for me in m["meshes"]:
+            for p in me["prims"]:
+                n = 3 if p["tri"] else 4
+                if any(p["vref"][i] is None or p["nref"][i] is None for i in range(n)):
+                    raise SystemExit(
+                        "part %r reads a pool slot no part has written (a held-item/prop "
+                        "file resolves those against the wielder's pool at draw time) - "
+                        "--grow requires a fully self-contained skeletal file." % m["name"])
+    for mi, lst in shade_map.items():
+        if any(ref is None for _k, _b, _s, ref in lst):
+            raise SystemExit("part %r shade stream reads an unwritten pool slot - "
+                             "--grow requires a fully self-contained skeletal file."
+                             % ilm.models[mi]["name"])
+
+    new_verts = {}       # mi -> [(x, y, z) s16 local]
+    new_norm_list = {}   # mi -> [(sx, sy, sz) s8, count byte 1]
+    new_prims = {}       # mi -> [{tri, tmpl, vref, nref, uv}]
+    grown = set()
+    seam_warn = []
+    seam_nwarn = []
+    nvert = nnorm = nprim = 0
+
+    for model in ilm.models:
+        o = by_name[model["name"]]
+        mi = model["idx"]
+        own_v, for_v, _own_n, _for_n = part_layout(ilm, model)
+        exp_v = len(own_v) + len(for_v)
+        want = sum(m["primCount"] for m in model["meshes"])
+        if len(o["v"]) < exp_v:
+            raise SystemExit(
+                "part %r has %d vertices but the ILM expects %d (%d own + %d duplicated "
+                "seam vertices). The usual cause is an aggressive 'Merge by Distance' - "
+                "the seam duplicates are deliberate and must not be welded."
+                % (o["name"], len(o["v"]), exp_v, len(own_v), len(for_v)))
+        if len(o["faces"]) < want:
+            raise SystemExit("part %r has %d faces but the ILM has %d primitives - "
+                             "--grow only ADDS geometry, it cannot remove faces."
+                             % (o["name"], len(o["faces"]), want))
+        paired, leftover = _pair_faces_grow(model, o, ilm.materials)
+        extra_v = len(o["v"]) - exp_v
+        if extra_v or leftover:
+            grown.add(mi)
+            if model["meshCount"] > 1:
+                raise SystemExit("part %r has %d meshes; growth supports single-mesh "
+                                 "parts only" % (o["name"], model["meshCount"]))
+            if any(me["unkCount_3"] for me in model["meshes"]):
+                raise SystemExit(
+                    "part %r carries a shade stream (%d bytes); growing shaded parts is "
+                    "not supported yet" % (o["name"],
+                                           sum(me["unkCount_3"] for me in model["meshes"])))
+
+        # Original subset: same verification and same in-place edits as the
+        # plain import path (the rewrite below then copies the patched bytes).
+        gidx = {r: o["v"][i] for i, r in enumerate(own_v + for_v)}
+        fi = 0
+        for mesh in model["meshes"]:
+            for p in mesh["prims"]:
+                face = paired[fi]["c"]; fi += 1
+                n = 3 if p["tri"] else 4
+                if len(face) != n:
+                    raise SystemExit(
+                        "part %r face %d has %d corners but the primitive is a %s. "
+                        "Triangulating or merging faces is not supported."
+                        % (o["name"], fi, len(face), "triangle" if p["tri"] else "quad"))
+                for c, pc in enumerate(corner_order(p)):
+                    want_v = gidx.get(p["vref"][pc])
+                    if want_v is not None and face[c][0] != want_v:
+                        raise SystemExit(
+                            "part %r face %d corner %d references vertex %d but the "
+                            "primitive needs %d. Vertices and faces must keep the order "
+                            "they were exported in - do not use Mesh > Sort Elements, and "
+                            "do not move a face to a different material."
+                            % (o["name"], fi, c, face[c][0], want_v))
+
+        nvec = {}
+        fi = 0
+        for k, mesh in enumerate(model["meshes"]):
+            for p in mesh["prims"]:
+                face = paired[fi]["c"]; fi += 1
+                for c, pc in enumerate(corner_order(p)):
+                    nr, t = p["nref"][pc], face[c][2]
+                    if nr is not None and t:
+                        nvec.setdefault(nr, norms[t - 1])
+
+        def orig_vec(r):
+            m2, k2, j2 = r
+            return ilm.models[m2]["meshes"][k2]["verts"][j2]
+
+        def orig_nrm(r):
+            m2, k2, j2 = r
+            return ilm.models[m2]["meshes"][k2]["normals"][j2][:3]
+
+        for i, r in enumerate(own_v):
+            w = verts[o["v"][i] - 1]
+            _write_vertex(data, ilm, r, w, poses[r[0]], invs[r[0]], orig_vec(r))
+            nvert += 1
+        for i, r in enumerate(for_v):
+            w = verts[o["v"][len(own_v) + i] - 1]
+            oi = owner_v.get(r)
+            if oi is None:
+                continue
+            ow = verts[oi - 1]
+            if (max(abs(w[a] - ow[a]) for a in range(3)) > UNMOVED_EPS
+                    and _moved(w, bake(poses[r[0]][0], poses[r[0]][1], orig_vec(r)))):
+                seam_warn.append((model["name"], ilm.models[r[0]]["name"]))
+
+        for r, w in nvec.items():
+            if r[0] != mi:
+                d_obj, d_exp = _unit(w), _unit(bake_dir(poses[r[0]][0], orig_nrm(r)))
+                if d_obj and d_exp and max(abs(d_obj[a] - _normal_out(d_exp)[a])
+                                           for a in range(3)) > NORMAL_UNMOVED_EPS:
+                    seam_nwarn.append((model["name"], ilm.models[r[0]]["name"]))
+                continue
+            _write_normal(data, ilm, r, w, poses[r[0]], invs[r[0]], orig_nrm(r))
+            nnorm += 1
+
+        fi = 0
+        for mesh in model["meshes"]:
+            for p in mesh["prims"]:
+                face = paired[fi]["c"]; fi += 1
+                for c, pc in enumerate(corner_order(p)):
+                    t = face[c][1]
+                    if not t:
+                        continue
+                    u_f, v_f = uvs[t - 1]
+                    struct.pack_into('<H', data, p["off"] + (0, 4, 8, 0xA)[pc],
+                                     _uv_byte(u_f) | (_uv_byte(1.0 - v_f) << 8))
+
+        if mi not in grown:
+            continue
+
+        # New geometry.
+        inv = invs[mi]
+        _R, T = poses[mi]
+        if inv is None:
+            raise SystemExit("part %r rest-pose matrix is singular; cannot unbake new "
+                             "geometry" % o["name"])
+        nv = []
+        for pos in range(exp_v, len(o["v"])):
+            w = verts[o["v"][pos] - 1]
+            v = unbake(inv, T, [w[0], _y_in(w[1]), w[2]])
+            nv.append((_s16(v[0], "new vertex X"), _s16(v[1], "new vertex Y"),
+                       _s16(v[2], "new vertex Z")))
+        new_verts[mi] = nv
+
+        vline_pos = {vl: i for i, vl in enumerate(o["v"])}
+        legal = sorted(set(mtl_name(p, ilm.materials)
+                           for me in model["meshes"] for p in me["prims"]))
+        prims_flat = [p for me in model["meshes"] for p in me["prims"]]
+        ndedup = {}
+        nlist = []
+
+        def new_normal(w):
+            key = _quant_new_normal(inv, w)
+            if key is None:
+                raise SystemExit("part %r: a new face has a degenerate normal" % o["name"])
+            if key not in ndedup:
+                ndedup[key] = len(nlist)
+                nlist.append(key)
+            return ndedup[key]
+
+        np_list = []
+        for f in leftover:
+            face = f["c"]
+            arity = len(face)
+            if arity not in (3, 4):
+                raise SystemExit("part %r: a new face has %d corners; the format only has "
+                                 "triangles and quads" % (o["name"], arity))
+            if f["mtl"] not in legal:
+                raise SystemExit(
+                    "part %r: new face uses material %r; new faces must reuse one of the "
+                    "part's existing materials (%s)" % (o["name"], f["mtl"], ", ".join(legal)))
+            tmpl = next(p for p in prims_flat if mtl_name(p, ilm.materials) == f["mtl"])
+            tri = arity == 3
+            loop = TRI_LOOP if tri else QUAD_LOOP
+            vref = []
+            nref = []
+            uv8 = []
+            flat_slot = None
+            for i in range(arity):
+                vl, tl, nl = face[loop[i]]
+                pos = vline_pos.get(vl)
+                if pos is None:
+                    raise SystemExit(
+                        "part %r: a new face cites vertex %d outside its own 'o' block - "
+                        "new cross-part seams are not supported (weld to an existing seam "
+                        "duplicate instead)" % (o["name"], vl))
+                if pos < len(own_v):
+                    vref.append(('own', own_v[pos][2]))
+                elif pos < exp_v:
+                    r = for_v[pos - len(own_v)]
+                    vref.append(('for', r[0], r[2]))
+                else:
+                    vref.append(('new', pos - exp_v))
+                if not tl:
+                    raise SystemExit("new face in part %r has no UVs - unwrap the new "
+                                     "geometry" % o["name"])
+                u_f, v_f = uvs[tl - 1]
+                uv8.append((_uv_byte(u_f), _uv_byte(1.0 - v_f)))
+                if nl:
+                    nref.append(('newn', new_normal(norms[nl - 1])))
+                else:
+                    if flat_slot is None:
+                        p0, p1, p2 = (verts[face[c][0] - 1] for c in range(3))
+                        e1 = [p1[a] - p0[a] for a in range(3)]
+                        e2 = [p2[a] - p0[a] for a in range(3)]
+                        flat_slot = new_normal([e1[1] * e2[2] - e1[2] * e2[1],
+                                                e1[2] * e2[0] - e1[0] * e2[2],
+                                                e1[0] * e2[1] - e1[1] * e2[0]])
+                    nref.append(('newn', flat_slot))
+            np_list.append({"tri": tri, "tmpl": tmpl, "vref": vref, "nref": nref, "uv": uv8})
+        new_prims[mi] = np_list
+        new_norm_list[mi] = nlist
+        nprim += len(np_list)
+
+    # Re-layout: ungrown parts keep their windows; grown parts relocate whole
+    # to fresh exclusive ranges above the original extents; pinned (field_B_4)
+    # parts expand in place at offset 0 (V12: the third chain ignores offsets).
+    def vc_new(mi):
+        return ilm.models[mi]["meshes"][0]["vertexCount"] + len(new_verts.get(mi, []))
+
+    def nc_new(mi):
+        return ilm.models[mi]["meshes"][0]["normalCount"] + len(new_norm_list.get(mi, []))
+
+    ext_v = max(m["vertexOffset"] + me["vertexCount"]
+                for m in ilm.models for me in m["meshes"])
+    ext_n = max(m["normalOffset"] + me["normalCount"]
+                for m in ilm.models for me in m["meshes"])
+    vO2 = {}
+    nO2 = {}
+    pinned = []
+    for m in ilm.models:
+        mi = m["idx"]
+        if mi not in grown:
+            vO2[mi], nO2[mi] = m["vertexOffset"], m["normalOffset"]
+        elif (m["bits"] >> 4) & 3:
+            if m["vertexOffset"] or m["normalOffset"]:
+                raise SystemExit(
+                    "part %r: field_B_4=%d with window offsets %d/%d violates V12 in the "
+                    "ORIGINAL file - fix the source ILM first."
+                    % (m["name"], (m["bits"] >> 4) & 3, m["vertexOffset"], m["normalOffset"]))
+            vO2[mi] = nO2[mi] = 0
+            pinned.append(mi)
+    vbase = max([ext_v] + [vc_new(mi) for mi in pinned])
+    nbase = max([ext_n] + [nc_new(mi) for mi in pinned])
+    for m in ilm.models:
+        mi = m["idx"]
+        if mi in grown and mi not in pinned:
+            vO2[mi] = vbase
+            vbase += vc_new(mi)
+            nO2[mi] = nbase
+            nbase += nc_new(mi)
+
+    finals = {}
+    for m in ilm.models:
+        mi = m["idx"]
+        vc = sum(me["vertexCount"] for me in m["meshes"]) + len(new_verts.get(mi, []))
+        nc = sum(me["normalCount"] for me in m["meshes"]) + len(new_norm_list.get(mi, []))
+        pc = sum(me["primCount"] for me in m["meshes"]) + len(new_prims.get(mi, []))
+        sw = sum(n[3] for me in m["meshes"] for n in me["normals"]) + len(new_norm_list.get(mi, []))
+        finals[mi] = (vc, nc, pc, sw, len(new_verts.get(mi, [])),
+                      len(new_norm_list.get(mi, [])), len(new_prims.get(mi, [])))
+    for m in ilm.models:
+        vc, nc, pc = finals[m["idx"]][:3]
+        if pc > 255 or vc > 255 or nc > 255:
+            _grow_budget(ilm, grown, vO2, nO2, finals, len(data), 0)
+            raise SystemExit("part %r: grown counts %d verts / %d normals / %d prims "
+                             "exceed the u8 ceiling 255" % (m["name"], vc, nc, pc))
+
+    if vbase > 255:
+        _grow_budget(ilm, grown, vO2, nO2, finals, len(data), 0)
+        raise SystemExit(
+            "REFUSED V5: vertex slot extent %d exceeds 255 - vertex slot 255 is reserved "
+            "(0xFF in a quad's 4th corner byte is the triangle sentinel)" % vbase)
+    if nbase > 256:
+        _grow_budget(ilm, grown, vO2, nO2, finals, len(data), 0)
+        raise SystemExit("REFUSED V6: normal slot extent %d exceeds 256" % nbase)
+
+    # Pinned expansion conflict check (see the preservation argument above).
+    if pinned:
+        vedges = []
+        nedges = []
+        for m in ilm.models:
+            rmi = m["idx"]
+            for me in m["meshes"]:
+                for p in me["prims"]:
+                    n = 3 if p["tri"] else 4
+                    for i in range(n):
+                        vedges.append((p["vtx"][i], p["vref"][i][0], rmi))
+                        nedges.append((p["nrm"][i], p["nref"][i][0], rmi))
+            for _k, _b, slot, ref in shade_map.get(rmi, []):
+                vedges.append((slot, ref[0], rmi))
+        for P in pinned:
+            m = ilm.models[P]
+            zones = [(m["meshes"][0]["vertexCount"], vc_new(P), vedges, "vertex"),
+                     (m["meshes"][0]["normalCount"], nc_new(P), nedges, "normal")]
+            for lo, hi, edges, kind in zones:
+                for s, w, r in edges:
+                    if lo <= s < hi and dpos[w] < dpos[P] < dpos[r]:
+                        raise SystemExit(
+                            "part %r cannot grow at offset 0: expanding its %s window to "
+                            "%d would overwrite pool slot %d between writer %s and reader "
+                            "%s" % (m["name"], kind, hi, s,
+                                    ilm.models[w]["name"], ilm.models[r]["name"]))
+
+    # Emit. Layout mirrors stock: header | materials | modelHdrs | reserved
+    # zero block | modelOrder | pad4 | per part meshHdrs + arrays, each array
+    # followed by real in-file pad bytes so the file passes V9 at tailSlack 0.
+    out = bytearray()
+    out += data[0:20]
+    matsP = len(out)
+    out += data[ilm.matsP:ilm.matsP + 24 * ilm.matCount]
+    hdrsP = len(out)
+    out += bytes(16 * ilm.modelCount)
+    out += data[ilm.modelHdrsP + 16 * ilm.modelCount:ilm.modelOrderP]
+    orderP = len(out)
+    out += data[ilm.modelOrderP:ilm.modelOrderP + ilm.modelCount]
+    out += bytes(_align4(len(out)))
+    struct.pack_into('<I', out, 4, matsP)
+    struct.pack_into('<I', out, 0xC, hdrsP)
+    struct.pack_into('<I', out, 0x10, orderP)
+    out[2] = 0  # isLoaded: a 1 makes the runtime skip pointer fix-up and crash
+
+    for m in ilm.models:
+        mi = m["idx"]
+        meshHdrsP2 = len(out)
+        out += bytes(24 * m["meshCount"])
+        mesh_info = []
+        for k, me in enumerate(m["meshes"]):
+            add_v = new_verts.get(mi, []) if k == 0 else []
+            add_n = new_norm_list.get(mi, []) if k == 0 else []
+            add_p = new_prims.get(mi, []) if k == 0 else []
+            primsP = len(out)
+            for p in me["prims"]:
+                raw = bytearray(data[p["off"]:p["off"] + 20])
+                n = 3 if p["tri"] else 4
+                for i in range(n):
+                    vr, nr = p["vref"][i], p["nref"][i]
+                    raw[0xC + i] = vO2[vr[0]] + vr[2]
+                    raw[0x10 + i] = nO2[nr[0]] + nr[2]
+                out += raw
+            for npd in add_p:
+                tp = npd["tmpl"]
+                raw = bytearray(data[tp["off"]:tp["off"] + 20])
+                arity = 3 if npd["tri"] else 4
+                for i in range(arity):
+                    ref = npd["vref"][i]
+                    if ref[0] == 'own':
+                        slot = vO2[mi] + ref[1]
+                    elif ref[0] == 'for':
+                        slot = vO2[ref[1]] + ref[2]
+                    else:
+                        slot = vO2[mi] + me["vertexCount"] + ref[1]
+                    raw[0xC + i] = slot
+                    raw[0x10 + i] = nO2[mi] + me["normalCount"] + npd["nref"][i][1]
+                    u, v = npd["uv"][i]
+                    struct.pack_into('<H', raw, (0, 4, 8, 0xA)[i], u | (v << 8))
+                if npd["tri"]:
+                    raw[0xC + 3] = 0xFF
+                    raw[0x10 + 3] = 0  # stock convention: 6109/6109 tris carry 0
+                out += raw
+            xyP = len(out)
+            out += data[me["xyP"]:me["xyP"] + 4 * me["vertexCount"]]
+            for x, y, _z in add_v:
+                out += struct.pack('<hh', x, y)
+            out += bytes(LM_ARRAY_SLACK)
+            zP = len(out)
+            out += data[me["zP"]:me["zP"] + 2 * me["vertexCount"]]
+            for _x, _y, z in add_v:
+                out += struct.pack('<h', z)
+            out += bytes(_align4(len(out)) + LM_ARRAY_SLACK)
+            normP = len(out)
+            out += data[me["normP"]:me["normP"] + 4 * me["normalCount"]]
+            for sx, sy, sz in add_n:
+                # Count byte 1: the stock 1:1 pattern (sum(count) == vertexCount);
+                # it only feeds the env-mode-1/2 walk, which V8 bounds.
+                out += struct.pack('<bbbB', sx, sy, sz, 1)
+            out += bytes(LM_ARRAY_SLACK)
+            cnt = me["unkCount_3"]
+            nc2 = me["normalCount"] + len(add_n)
+            if cnt:
+                unkP = len(out)
+                for _k2, _b, _slot, ref in [e for e in shade_map[mi] if e[0] == k]:
+                    out += bytes([vO2[ref[0]] + ref[2]])
+            else:
+                # Stock relation unkP = normP + 4*normalCount; with count 0 the
+                # pointer is never dereferenced beyond address formation.
+                unkP = normP + 4 * nc2
+            out += bytes(_shade_pad(cnt))
+            mesh_info.append((me["primCount"] + len(add_p),
+                              me["vertexCount"] + len(add_v), nc2, cnt,
+                              primsP, xyP, zP, normP, unkP))
+        for k, (pc2, vc2, nc2, cnt, primsP, xyP, zP, normP, unkP) in enumerate(mesh_info):
+            hb = meshHdrsP2 + 24 * k
+            out[hb] = pc2
+            out[hb + 1] = vc2
+            out[hb + 2] = nc2
+            out[hb + 3] = cnt
+            struct.pack_into('<IIIII', out, hb + 4, primsP, xyP, zP, normP, unkP)
+        hb = hdrsP + 16 * mi
+        out[hb:hb + 8] = data[m["off"]:m["off"] + 8]
+        out[hb + 8] = m["meshCount"]
+        out[hb + 9] = vO2[mi]
+        out[hb + 10] = nO2[mi]
+        out[hb + 11] = m["bits"]
+        struct.pack_into('<I', out, hb + 0xC, meshHdrsP2)
+
+    blob = bytes(out)
+
+    # The validator twin at strict authoring settings; V13 through the ANM.
+    _ap, anm = find_anm(ilm_path, ilm.models)
+    rid, msg = lm_validate(blob, tail_slack=0,
+                           anm_bone_count=anm.boneCount if anm else -1, skeletal=True)
+    if rid:
+        _grow_budget(ilm, grown, vO2, nO2, finals, len(data), len(blob))
+        raise SystemExit("REFUSED %s" % msg)
+
+    # Sharing-graph verification on the EMITTED bytes: every original corner
+    # and shade byte must resolve to the same (writer part, local index), every
+    # new corner to its own part. This is the converter's own acceptance test.
+    ilm2 = Ilm(blob)
+    order2 = resolve_pool(ilm2)
+    if order2 != order:
+        raise SystemExit("grow internal error: modelOrder changed")
+    foreign = kept = 0
+    for m in ilm.models:
+        mi = m["idx"]
+        m2 = ilm2.models[mi]
+        for k, me in enumerate(m["meshes"]):
+            me2 = m2["meshes"][k]
+            for pi, p in enumerate(me["prims"]):
+                p2 = me2["prims"][pi]
+                n = 3 if p["tri"] else 4
+                for i in range(n):
+                    for old, new in ((p["vref"][i], p2["vref"][i]),
+                                     (p["nref"][i], p2["nref"][i])):
+                        expect = (ilm.models[old[0]]["name"], old[2])
+                        got = None if new is None else (ilm2.models[new[0]]["name"], new[2])
+                        if old[0] != mi:
+                            foreign += 1
+                            kept += got == expect
+                        if got != expect:
+                            raise SystemExit(
+                                "grow internal error: part %s prim %d corner %d edge "
+                                "%s != %s" % (m["name"], pi, i, got, expect))
+        vcold = m["meshes"][0]["vertexCount"]
+        ncold = m["meshes"][0]["normalCount"]
+        for j, npd in enumerate(new_prims.get(mi, [])):
+            p2 = m2["meshes"][0]["prims"][m["meshes"][0]["primCount"] + j]
+            arity = 3 if npd["tri"] else 4
+            for i in range(arity):
+                ref = npd["vref"][i]
+                if ref[0] == 'own':
+                    expect = (m["name"], ref[1])
+                elif ref[0] == 'for':
+                    expect = (ilm.models[ref[1]]["name"], ref[2])
+                else:
+                    expect = (m["name"], vcold + ref[1])
+                new = p2["vref"][i]
+                got = None if new is None else (ilm2.models[new[0]]["name"], new[2])
+                if got != expect:
+                    raise SystemExit("grow internal error: new prim %d corner %d vertex "
+                                     "edge %s != %s" % (j, i, got, expect))
+                new = p2["nref"][i]
+                got = None if new is None else (ilm2.models[new[0]]["name"], new[2])
+                if got != (m["name"], ncold + npd["nref"][i][1]):
+                    raise SystemExit("grow internal error: new prim %d corner %d normal "
+                                     "edge mismatch" % (j, i))
+    shade2 = _shade_edges(ilm2, order2)
+    for mi, lst in shade_map.items():
+        lst2 = shade2.get(mi, [])
+        if len(lst) != len(lst2):
+            raise SystemExit("grow internal error: shade stream length changed")
+        for (k, b, _s, ref), (k2, b2, _s2, ref2) in zip(lst, lst2):
+            expect = (ilm.models[ref[0]]["name"], ref[2])
+            got = None if ref2 is None else (ilm2.models[ref2[0]]["name"], ref2[2])
+            if (k, b) != (k2, b2) or got != expect:
+                raise SystemExit("grow internal error: part %s shade byte %d edge %s != %s"
+                                 % (ilm.models[mi]["name"], b, got, expect))
+
+    with open(out_path, "wb") as f:
+        f.write(blob)
+    print("grow-import: %s + %s -> %s" % (os.path.basename(obj_path),
+                                          os.path.basename(ilm_path),
+                                          os.path.basename(out_path)))
+    for mi in sorted(grown):
+        print("   part %s: +%d verts, +%d normals, +%d prims%s"
+              % (ilm.models[mi]["name"], len(new_verts.get(mi, [])),
+                 len(new_norm_list.get(mi, [])), len(new_prims.get(mi, [])),
+                 " (pinned at offset 0: third-chain part)" if mi in pinned else ""))
+    print("   %d original vertices, %d normals patched; sharing graph preserved: "
+          "%d/%d foreign edges" % (nvert, nnorm, kept, foreign))
+    if meta.get("restPose") == "identity":
+        print("   rest pose: IDENTITY (this OBJ was exported without an ANM)")
+    for reader in sorted(set(r for r, _ in seam_warn)):
+        owners = sorted(set(ow for r, ow in seam_warn if r == reader))
+        print("   part %s: %d seam vertex/vertices moved and were IGNORED (owned by %s - "
+              "edit them there)" % (reader, sum(1 for r, _ in seam_warn if r == reader),
+                                    ", ".join(owners)))
+    for reader in sorted(set(r for r, _ in seam_nwarn)):
+        owners = sorted(set(ow for r, ow in seam_nwarn if r == reader))
+        print("   part %s: %d seam normal(s) edited and were IGNORED (owned by %s - "
+              "edit them there)" % (reader, sum(1 for r, _ in seam_nwarn if r == reader),
+                                    ", ".join(owners)))
+    _grow_budget(ilm, grown, vO2, nO2, finals, len(data), len(blob))
+    return out_path
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description="Convert Silent Hill ILM models to/from OBJ.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -1018,13 +1842,16 @@ def main(argv):
     i.add_argument("obj")
     i.add_argument("ilm", help="the ORIGINAL ILM this OBJ was exported from")
     i.add_argument("-o", "--out")
+    i.add_argument("--grow", action="store_true",
+                   help="allow extra vertices/faces per part (full rewrite within the "
+                        "u8 pool limits; without this flag any topology change refuses)")
     a = ap.parse_args(argv)
     if a.cmd == "export":
         out = a.out or (os.path.splitext(a.ilm)[0] + ".obj")
         export(a.ilm, out, a.anm, a.keyframe)
     else:
         out = a.out or (os.path.splitext(a.obj)[0] + "_new.ILM")
-        import_obj(a.obj, a.ilm, out)
+        import_obj(a.obj, a.ilm, out, a.grow)
 
 
 if __name__ == "__main__":

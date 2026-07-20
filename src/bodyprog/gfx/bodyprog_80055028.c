@@ -3291,8 +3291,8 @@ __block19CC:
             scratchData->field_380.s_0.field_13 = scratchData->field_380.s_0.field_10;
         }
         /* Bounds-check vertex indices before using them as array indices */
-        if (scratchData->field_380.s_0.field_10 >= 90 || scratchData->field_380.s_0.field_11 >= 90 ||
-            scratchData->field_380.s_0.field_12 >= 90 || scratchData->field_380.s_0.field_13 >= 90) {
+        if (scratchData->field_380.s_0.field_10 >= GTE_SCRATCH_XY_CAP || scratchData->field_380.s_0.field_11 >= GTE_SCRATCH_XY_CAP ||
+            scratchData->field_380.s_0.field_12 >= GTE_SCRATCH_XY_CAP || scratchData->field_380.s_0.field_13 >= GTE_SCRATCH_XY_CAP) {
             pc_primIdx++;
             continue;
         }

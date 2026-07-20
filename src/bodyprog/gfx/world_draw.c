@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include "sh_log.h"
 #include "pc_config.h"
+#include "pc_big_lm.h"
 #ifdef SH_PC_PORT
 #include "main/fileinfo.h" /* g_GameRegion — PAL BG_ETC material-UV relocation */
 #endif
@@ -961,6 +962,9 @@ s32 WorldGfx_PlayerHeldItemSet(e_InvItemId itemId) // 0x8003CDA0
     // Load model.
     if (fileIdx != NO_VALUE)
     {
+#ifdef SH_PC_PORT
+        heldItem->lmHdr = Pc_BigLm_Redirect(fileIdx, heldItem->lmHdr);
+#endif
         heldItem->queueIdx = Fs_QueueStartRead(fileIdx, heldItem->lmHdr);
         return heldItem->queueIdx;
     }
@@ -1039,6 +1043,9 @@ void WorldGfx_HarryCharaLoad(void) // 0x8003D160
     harryModel                                        = &worldGfxWork->harryModel;
     g_WorldGfxWork.registeredCharaModels[Chara_Harry] = harryModel;
 
+#ifdef SH_PC_PORT
+    harryLmHdr = Pc_BigLm_Redirect(CHARA_FILE_INFOS[Chara_Harry].modelFileIdx, harryLmHdr);
+#endif
     Fs_QueueStartRead(CHARA_FILE_INFOS[Chara_Harry].modelFileIdx, harryLmHdr);
     queueIdx = Fs_QueueStartReadTim(CHARA_FILE_INFOS[Chara_Harry].textureFileIdx, FS_BUFFER_1, &image);
 
@@ -1249,10 +1256,25 @@ void WorldGfx_CharaLmBufferAssign(s8 forceFree) // 0x8003D5B4
         if (charaId != Chara_None)
         {
 #ifdef SH_PC_PORT
-            lmData = (uintptr_t)curModel->lmHdr + Fs_GetFileSize(CHARA_FILE_INFOS[charaId].modelFileIdx);
-            if ((uintptr_t)g_WorldGfxWork.charaLmBuffer < lmData)
             {
-                g_WorldGfxWork.charaLmBuffer = (u8*)lmData;
+                /* A big-LM lmHdr is a heap pointer: heap + fileSize would hijack
+                 * the slab bump cursor and the next chara load would fread into
+                 * unowned memory. Account with the slab pointer the redirect
+                 * displaced so the packing matches vanilla exactly. */
+                s_LmHeader* baseLm = curModel->lmHdr;
+
+                if (Pc_BigLm_IsOwned(baseLm))
+                {
+                    baseLm = Pc_BigLm_NativeOf(baseLm);
+                }
+                if (baseLm != NULL)
+                {
+                    lmData = (uintptr_t)baseLm + Fs_GetFileSize(CHARA_FILE_INFOS[charaId].modelFileIdx);
+                    if ((uintptr_t)g_WorldGfxWork.charaLmBuffer < lmData)
+                    {
+                        g_WorldGfxWork.charaLmBuffer = (u8*)lmData;
+                    }
+                }
             }
 #else
             lmData = (s32)curModel->lmHdr + Fs_GetFileSize(CHARA_FILE_INFOS[charaId].modelFileIdx);
@@ -1341,6 +1363,13 @@ s32 WorldGfx_CharaModelLoad(e_CharaId charaId, s32 modelIdx, s_LmHeader* lmHdr, 
     g_WorldGfxWork.registeredCharaModels[charaId] = model;
 
     // Load model and texture files.
+#ifdef SH_PC_PORT
+    /* Keyed by the CURRENT modelFileIdx — CHARA_FILE_INFOS rows are retargeted
+     * at runtime (PAL/JPN Mumbler swap, pool beta retargets), so charaId is not
+     * a stable key. Substitutes regardless of the incoming lmHdr: the slot-reuse
+     * path above can hand a previous chara's redirected buffer to a new chara. */
+    lmHdr = Pc_BigLm_Redirect(CHARA_FILE_INFOS[charaId].modelFileIdx, lmHdr);
+#endif
     queueIdx = Fs_QueueStartRead(CHARA_FILE_INFOS[charaId].modelFileIdx, lmHdr);
     if (CHARA_FILE_INFOS[charaId].textureFileIdx != NO_VALUE)
     {

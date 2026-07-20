@@ -27,6 +27,7 @@
 #include "main/fsqueue.h"
 #include "main/fileinfo.h"
 
+#include "pc_big_lm.h"
 #include "pc_chara_pool.h"
 #include "pc_config.h"
 #include "hires_override.h"
@@ -114,6 +115,7 @@ static int PoolChara_Load(s32 id)
     s_FsImageDesc    desc;
     s32              ilmSize;
     s32              anmSize;
+    s32              loose;
     s32              slotId = HIRES_POOL_CHARA_SLOT_BASE + id;
 
     if (fi->modelFileIdx == (s16)NO_VALUE || fi->animFileIdx == (s16)NO_VALUE)
@@ -121,7 +123,15 @@ static int PoolChara_Load(s32 id)
         return 0;
     }
 
+    /* Validated oversized loose ILM: size the pool buffer from the real
+     * file (+tail slack for the 3-at-a-time GTE strides). <= 0 means the file
+     * is absent or was REJECTED by the validator. */
+    loose   = Pc_BigLm_LooseSize(fi->modelFileIdx);
     ilmSize = Fs_GetFileSectorAlignedSize(fi->modelFileIdx);
+    if (loose > 0 && loose + PC_BIGLM_TAIL_SLACK > ilmSize)
+    {
+        ilmSize = loose + PC_BIGLM_TAIL_SLACK;
+    }
     anmSize = Fs_GetFileSectorAlignedSize(fi->animFileIdx);
     if (ilmSize <= 0 || anmSize <= 0)
     {
@@ -131,6 +141,10 @@ static int PoolChara_Load(s32 id)
 
     if (p->ilmBuf == NULL || p->ilmCap < ilmSize)
     {
+        /* Drop the registration before the pointer dies: an OOM below returns
+         * early, and a freed pointer left in the table would lift the size
+         * gate for whatever allocation later recycles that address. */
+        Pc_BigLm_RegisterExternal(id, NULL, 0);
         free(p->ilmBuf);
         p->ilmBuf = (u8*)malloc(ilmSize);
         p->ilmCap = ilmSize;
@@ -145,6 +159,20 @@ static int PoolChara_Load(s32 id)
     {
         SH_DBG("[POOL] chara %d: out of memory (ilm %d anm %d)", id, ilmSize, anmSize);
         return 0;
+    }
+
+    /* Lifts the loose byte-replace size gate for this destination so an
+     * oversized validated ILM freads whole. Keyed by charaId: a realloc
+     * above simply overwrites the slot — no stale pointer can linger. The
+     * lift is the CURRENT file's validated extent, never the sticky buffer
+     * capacity, so a REJECTED file can never inherit an earlier file's. */
+    if (loose > 0)
+    {
+        Pc_BigLm_RegisterExternal(id, p->ilmBuf, (size_t)loose + PC_BIGLM_TAIL_SLACK);
+    }
+    else
+    {
+        Pc_BigLm_RegisterExternal(id, NULL, 0);
     }
 
     /* Synthetic virtual-slot desc (canonical encoding: hires_override.h).

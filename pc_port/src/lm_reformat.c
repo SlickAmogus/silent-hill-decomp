@@ -23,6 +23,10 @@
 
 #include "bodyprog/bodyprog.h"
 
+/* game.h already provides u8/u16/u32/s32. */
+#define LM_VALIDATE_HAVE_TYPES
+#include "lm_validate.h"
+
 #define PSX_SIZEOF_LM_HEADER    20
 #define PSX_SIZEOF_MODEL_HEADER 16
 #define PSX_SIZEOF_MESH_HEADER  24
@@ -85,6 +89,40 @@ static void ParseMaterial(s_Material* dst, const u8* src)
     dst->field_12     = rd16(&src[18]);
     dst->field_14.u16 = rd16(&src[20]);
     dst->field_16.u16 = rd16(&src[22]);
+}
+
+/**
+ * Log-only diagnostic for loose byte-replaced LM buffers, called from the
+ * Fs_QueueTickRead loose hit path — the ONLY trigger, so stock disc loads
+ * never pay for it and a file the walkers tolerate is never rejected.
+ * Non-LM bytes (TIMs, ANMs, ...) return on the magic gate. skeletal=0: this
+ * path also serves held-item PLMs and map-loaded LMs, whose dangling corner
+ * refs resolve against the wielder's/map pool by design. tailSlack=16: the
+ * destination is either a g_PsxRam slab (1 MB guarded arena) or a big-lm
+ * buffer (calloc +16), both readable past fileSize.
+ */
+void Lm_LooseValidateDiag(const void* raw, u32 fileSize, const char* name)
+{
+    const u8*          bytes = (const u8*)raw;
+    s_LmValidateParams params;
+    char               err[160];
+    int                rule;
+
+    if (fileSize < PSX_SIZEOF_LM_HEADER ||
+        bytes[0] != LM_HEADER_MAGIC || bytes[1] != LM_VERSION || bytes[2] != 0)
+    {
+        return;
+    }
+
+    params.tailSlackBytes = LM_VALIDATE_BUF_TAIL;
+    params.anmBoneCount   = -1;
+    params.skeletal       = 0;
+
+    rule = Lm_Validate(bytes, fileSize, &params, err, sizeof(err));
+    if (rule != 0)
+    {
+        SH_DBG("[LOOSE/WARN] %s: modded LM fails validation: %s", name, err);
+    }
 }
 
 /**

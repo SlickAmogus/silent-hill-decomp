@@ -28,7 +28,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-extern uint8_t g_PsxScratchpad[1024];
+extern uint8_t g_PsxScratchpad[4096];
 #ifdef __cplusplus
 }
 #endif

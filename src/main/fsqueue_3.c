@@ -11,6 +11,7 @@
 #include "pc_config.h"
 #include "hires_override.h"
 #include "tex_pack.h"
+#include "pc_big_lm.h"
 #include "sh_log.h"
 
 #ifndef _WIN32
@@ -335,6 +336,13 @@ static FILE* Loose_FOpen(const char* path, const char* mode)
     return f;
 }
 
+/* pc_big_lm.c probes the same loose namespace; export the open so the Linux
+ * case-insensitive fallback lives in one place. */
+FILE* Pc_LooseFOpen(const char* path, const char* mode)
+{
+    return Loose_FOpen(path, mode);
+}
+
 /* Read a whole loose file. Returns malloc'd bytes (caller frees) or NULL
  * with the failing step logged. 64MB cap. */
 static unsigned char* PcFile_Slurp(const char* path, long* outSize)
@@ -549,6 +557,11 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
          *   2. "<basename>.png"   e.g. DRU02F.png       (extension replaced —
          *      the intuitive name for replacing DRU02F.TIM with a PNG). */
         int pngOverride = 0;
+        /* Only TIM reads run Fs_QueuePostLoadTim — the sole pop site for the
+         * hi-res stash. Probing for a non-TIM entry both leaks a HiresPending
+         * slot forever and lets a texture pack's stem PNG (CHARA/HERO.png)
+         * suppress the loose byte-replace of a same-stem ILM. */
+        if (entry->postLoad == FsQueuePostLoadType_Tim)
         {
             char pngPath[176];
             FILE* pf;
@@ -606,6 +619,15 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
         if (lf != NULL)
         {
             size_t bufSize = (size_t)ALIGN(file->blockCount * FS_BLOCK_SIZE, FS_SECTOR_SIZE);
+            /* A registered big-model destination raises the gate to its real
+             * capacity; unregistered destinations keep the table-size gate. */
+            {
+                size_t bigCap = Pc_BigLm_DestCapacity(entry->data);
+                if (bigCap > bufSize)
+                {
+                    bufSize = bigCap;
+                }
+            }
             /* Probe loose file size. If it overflows the disc-image buffer
              * slot, we cannot byte-replace; treat it as a hi-res TIM and
              * defer to PostLoadTim. */
@@ -630,11 +652,24 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
             if (fileSize > 0 && (size_t)fileSize > bufSize)
             {
                 fclose(lf);
-                HiresPending_Stash(entry, loosePath);
-                s_hires++;
-                if (s_hires <= 64)
+                /* Same postLoadType gate as the probe block above: a stash
+                 * for a non-TIM entry is never popped. An oversized loose
+                 * file for a non-TIM read that pc_big_lm did not accept is
+                 * loudly ignored — the disc file loads instead. */
+                if (entry->postLoad == FsQueuePostLoadType_Tim)
                 {
-                    SH_DBG("[LOOSE/HIRES] %s (%ld bytes) > buf %u; deferring to PostLoadTim for hi-res override",
+                    HiresPending_Stash(entry, loosePath);
+                    s_hires++;
+                    if (s_hires <= 64)
+                    {
+                        SH_DBG("[LOOSE/HIRES] %s (%ld bytes) > buf %u; deferring to PostLoadTim for hi-res override",
+                               loosePath, fileSize, (unsigned)bufSize);
+                    }
+                }
+                else
+                {
+                    s_warns++;
+                    SH_DBG("[LOOSE/WARN] %s (%ld bytes) > buf %u for non-TIM read; ignoring loose file",
                            loosePath, fileSize, (unsigned)bufSize);
                 }
                 /* Fall through to CdRead so the disc TIM populates entry->data
@@ -669,6 +704,16 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
                                loosePath, (unsigned)got, fileSize, errno, strerror(errno));
                     }
                     (void)got;
+                    /* Log-only modded-LM diagnostic (lm_reformat.c). Big-lm
+                     * destinations already passed the stricter skeletal
+                     * validation before Redirect handed them out. */
+                    {
+                        extern void Lm_LooseValidateDiag(const void* raw, u32 fileSize, const char* name);
+                        if (fileSize > 0 && Pc_BigLm_DestCapacity(entry->data) == 0)
+                        {
+                            Lm_LooseValidateDiag(entry->data, (u32)fileSize, loosePath);
+                        }
+                    }
                     g_FsLooseReadComplete = 1;
                     return true;
                 }

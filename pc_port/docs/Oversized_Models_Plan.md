@@ -7,7 +7,16 @@ references below are from that pass).
 
 ## Verdict: staged. Stage 1 = minimal headroom + converter grow-mode. Stage 2 = sidecar "ILMX" only if evidence demands. Banked pool windows REJECTED; HD skinned renderer deferred indefinitely.
 
-## Experiment 0 — foundation play-test (zero repo changes) — STAGED, AWAITING PLAY TEST
+## Stage 1 — IMPLEMENTED 2026-07-20, AWAITING IN-GAME TEST
+
+Shipped: (1) `SH_PC_PORT`-guarded pool widening in `bodyprog.h` (258 slots /
+261 shade cap; PSX layout unchanged), (2) the oversized loose-ILM loader
+`pc_port/src/pc_big_lm.c` + the `fsqueue_3.c` size-gate lift, (3) the V1–V11
+validator `pc_port/src/lm_validate.c`, (4) `--grow` mode in
+`pc_port/tools/ilm_obj.py`. Known remaining gap: the C# converter twin has NOT
+been updated to match `ilm_obj.py`.
+
+## Experiment 0 — foundation play-test (zero repo changes) — PASSED 2026-07-19
 
 The loose-ILM byte-replace path has never been play-verified, and everything
 below sits on it. A probe file is at `gamedata/load/CHARA/HERO.ILM`: pristine

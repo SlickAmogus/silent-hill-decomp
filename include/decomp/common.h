@@ -9,7 +9,7 @@
 
 #ifdef SH_PC_PORT
 #include <stdint.h>
-extern uint8_t g_PsxScratchpad[1024];
+extern uint8_t g_PsxScratchpad[4096];
 #define PSX_SCRATCH ((void*)g_PsxScratchpad)
 #define PSX_SCRATCH_ADDR(offset) ((void*)(g_PsxScratchpad + (offset)))
 /* Redirect PSX kernel functions that conflict with Windows API names */
