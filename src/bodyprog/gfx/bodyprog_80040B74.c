@@ -418,10 +418,13 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
         }
     }
 
-#ifdef SH_PC_PORT
-    if (!g_PsyX_FlashlightActive)
-#endif
-        AddPrim(arg0->org, &D_800BFBF0[g_ActiveBufferIdx][sizeof(DR_TPAGE)]);
+    /* The additive-restore DR_TPAGE must be submitted even when the per-pixel
+     * flashlight suppresses the additive center fan above: it is the only thing
+     * that returns the drawing env's blend mode from the subtractive tpage at
+     * [0], and skipping it leaked ABR=subtract into the next frame's untextured
+     * semi-trans prims (drawn as dark/black shapes). A DR_TPAGE draws no pixels,
+     * so this keeps the PSX state machine exact in every flashlight mode. */
+    AddPrim(arg0->org, &D_800BFBF0[g_ActiveBufferIdx][sizeof(DR_TPAGE)]);
     AddPrim(&arg0->org[1], &D_800BFBF0[g_ActiveBufferIdx]);
 }
 

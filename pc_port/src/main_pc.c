@@ -709,6 +709,11 @@ int main(int argc, char* argv[])
             #include "sh_build_info.h"
             SH_DBG("[SH] build " SH_BUILD_GIT_HASH " (" SH_BUILD_STAMP ")");
         }
+        /* One-line render-config fingerprint: these are the axes every remote
+         * corruption report gets bisected on — stop having to ask for the cfg. */
+        SH_DBG("[CONFIG] flashlight_mode=%d use_pgxp=%d resident_textures=%d global_chara_pool=%d",
+               g_PcConfig.flashlightMode, g_PcConfig.usePgxp,
+               g_PcConfig.residentTextures, g_PcConfig.globalCharaPool);
     }
 
     /* PsyCross horizontal pixel-aspect compensation. Silent Hill renders a 320x224

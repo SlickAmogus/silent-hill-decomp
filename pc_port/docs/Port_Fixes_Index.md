@@ -1423,3 +1423,28 @@ KNOWN-REMAINING (audited, not yet fixed): free-aim dry-fire is silent when clip
 and reserve are both empty; free-aim reload SFX fires ~37 keyframes early vs the
 classic camera (should be `D_800AF624 + field_9`); the reload keyframe pre-seed
 at ~6272/6517 is dead code.
+
+## Flashlight glow-mask blend-state leak (2026-07-20, "black wedge/banding" reports)
+
+AMD-user reports of solid-black wedges/bands anchored to Harry, worst in
+Nowhere (flashlight always on there). 54-agent adversarial audit; two real
+defects found, both blend-state hygiene, neither vendor-specific in mechanism:
+
+- **Game side** (`func_800414E0`, `bodyprog_80040B74.c`): with the per-pixel
+  flashlight active, the additive center fan is suppressed AND its
+  additive-restore `DR_TPAGE` was skipped with it — but the subtractive tpage
+  at the head of the mask still ran, so the drawing env leaked ABR=subtract
+  into the NEXT frame's untextured semi-trans prims (drawn dark/black until
+  the first tpage-carrying prim). Fix: always submit the restore tpage; it
+  draws no pixels, keeps the PSX state machine exact in every mode.
+- **PsyCross** (`GR_SetBlendMode`): after the shadow pre-pass poisons the
+  blend tracker to `-999` (blending actually disabled), the blended branch
+  only re-enabled `GL_BLEND` when the tracker was exactly `BM_NONE` — a
+  semi-trans split leading the post-shadow batch drew OPAQUE (solid black).
+  Sentinel now treated like BM_NONE. Plus `ShadowTriangleCanCast` finite +
+  magnitude guards (the PR#8 hardening TODO): `!(vsz>0)` rejected NaN but
+  passed +inf, and vsx/vsy were never checked.
+
+Also added a boot `[CONFIG]` fingerprint line (flashlight_mode, use_pgxp,
+resident_textures, global_chara_pool) so remote logs self-describe the
+render config instead of us asking every reporter for config.cfg.
