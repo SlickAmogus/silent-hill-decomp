@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <SDL.h>
 #include <PsyX/common/glad.h>
+#include <PsyX/PsyX_render.h> /* GR_SetPsxDisplayBuffers */
 #include "sh_log.h"
 
 /* Screenshot helper - captures back buffer (call before EndScene/swap) */
@@ -1221,6 +1222,15 @@ void GsDefDispBuff2(unsigned short x0, unsigned short y0, unsigned short x1, uns
     /* PC: No VRAM double-buffering. Both buffers use (0,0) with offset at
      * screen center. CLUT/texture data in VRAM is protected by skipping
      * GR_ClearVRAM in ClearImage (via PSYX_SKIP_FRAMEBUFFER_STORE). */
+
+    /* ...but the game still READS the PSX buffer addresses back as texture:
+     * Screen_BackgroundMotionBlur (Harry-running loading screen) and the
+     * per-map ghosting/dream overlays sample getTPage(2,0,...) display pages.
+     * Collapsing both envs to (0,0) above loses where those pages are, so hand
+     * the real origins to the renderer for its framebuffer-feedback store.
+     * Silent Hill calls GsDefDispBuff2(0, 32, 0, 256) — see screen_draw.c. */
+    GR_SetPsxDisplayBuffers(x0, y0, x1, y1, gs_screen_w, gs_screen_h);
+
     SetDefDispEnv(&gs_disp_env[0], 0, 0, gs_screen_w, gs_screen_h);
     SetDefDispEnv(&gs_disp_env[1], 0, 0, gs_screen_w, gs_screen_h);
     SetDefDrawEnv(&gs_draw_env[0], 0, 0, gs_screen_w, gs_screen_h);
