@@ -11,6 +11,7 @@
 #include "sh_log.h"
 #include "pc_config.h"
 #include "control_style.h"
+#include <PsyX/PsyX_public.h> /* PsyX_LookupGameControllerMapping / RawControllerBindHeld */
 
 #include <SDL.h>
 #include <string.h>
@@ -131,12 +132,12 @@ void Pc_ControlStyleInit(void)
 }
 
 /* PC port: the Change-Camera PAD bind is read from the PHYSICAL controller via
- * SDL (PsyX_RawControllerButtonHeld below + SDL_GameControllerGetButtonFromString),
+ * SDL (PsyX_RawControllerBindHeld below + PsyX_LookupGameControllerMapping),
  * NOT the keyboard-merged PSX pad word. The keyboard's bind is the separate
  * key_change_cam read from the keyboard. This keeps the two input sources
  * independent: a keyboard key mapped to the same PSX button (e.g. [ / ] = L3/R3)
  * no longer triggers a controller-only action like the camera switch. */
-extern int PsyX_RawControllerButtonHeld(int sdlGameControllerButton);
+extern int PsyX_RawControllerBindHeld(int buttonOrAxis);
 
 /* "Mouse1".."Mouse5" -> SDL mouse button number (else 0 = it's a key). */
 static int SwapShoulder_MouseButton(const char* name)
@@ -185,7 +186,7 @@ void Pc_ControlStyleUpdate(void)
         {
             scCam[i] = SDL_GetScancodeFromName(sc[i]->keyChangeCam);
             scPad[i] = (sc[i]->padChangeCam[0])
-                           ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padChangeCam)
+                           ? (int)PsyX_LookupGameControllerMapping(sc[i]->padChangeCam, SDL_CONTROLLER_BUTTON_INVALID)
                            : SDL_CONTROLLER_BUTTON_INVALID;
         }
         resolved = 1;
@@ -199,7 +200,7 @@ void Pc_ControlStyleUpdate(void)
     {
         int sch = g_DebugThirdPersonCam ? 1 : 0; /* which scheme's Change-Camera bind is live */
         curKey = (keys && scCam[sch] != SDL_SCANCODE_UNKNOWN) ? keys[scCam[sch]] : 0;
-        curPad = PsyX_RawControllerButtonHeld(scPad[sch]); /* physical controller only */
+        curPad = PsyX_RawControllerBindHeld(scPad[sch]); /* physical controller only */
     }
 
     /* Edge-toggle the active style — gameplay only. */

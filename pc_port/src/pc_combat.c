@@ -1,4 +1,5 @@
 #include <SDL2/SDL.h>
+#include <PsyX/PsyX_public.h> /* PsyX_LookupGameControllerMapping / RawControllerBindHeld */
 #include "game.h"
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/screen/screen_data.h"
@@ -123,13 +124,13 @@ bool PC_RawControllerButtonClicked(int sdlButton)
         if (s_countP >= PC_PAD_CACHE_SIZE) return false;
         slot = s_countP++;
         s_btn[slot]    = sdlButton;
-        s_prevP[slot]  = PsyX_RawControllerButtonHeld(sdlButton) != 0;
+        s_prevP[slot]  = PsyX_RawControllerBindHeld(sdlButton) != 0;
         s_edgeP[slot]  = false;
         s_frameP[slot] = g_PcInputFrame;
         return false;
     }
     if (s_frameP[slot] != g_PcInputFrame) {
-        bool nowHeld = PsyX_RawControllerButtonHeld(sdlButton) != 0;
+        bool nowHeld = PsyX_RawControllerBindHeld(sdlButton) != 0;
         s_edgeP[slot] = nowHeld && !s_prevP[slot];
         s_prevP[slot] = nowHeld;
         s_frameP[slot] = g_PcInputFrame;
@@ -157,7 +158,7 @@ static void Pc_ReloadBindsResolve(void)
         s_kbReload[i]  = SDL_GetScancodeFromName(sc[i]->keyReload);
         s_kbReload2[i] = SDL_GetScancodeFromName(sc[i]->keyReload2);
         s_padReload[i] = (sc[i]->padReload[0] != '\0')
-                          ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padReload)
+                          ? (int)PsyX_LookupGameControllerMapping(sc[i]->padReload, SDL_CONTROLLER_BUTTON_INVALID)
                           : SDL_CONTROLLER_BUTTON_INVALID;
     }
 }
@@ -397,9 +398,9 @@ void Pc_ExtraActionsUpdate(void)
             s_kbCycle[i]  = SDL_GetScancodeFromName(sc[i]->keyCycleWeapons);
             s_kbHeal[i]   = SDL_GetScancodeFromName(sc[i]->keyQuickHeal);
             s_kbQt[i]     = SDL_GetScancodeFromName(sc[i]->keyQuickTurn);
-            s_padCycle[i] = (sc[i]->padCycleWeapons[0] != '\0') ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padCycleWeapons) : SDL_CONTROLLER_BUTTON_INVALID;
-            s_padHeal[i]  = (sc[i]->padQuickHeal[0]    != '\0') ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padQuickHeal)    : SDL_CONTROLLER_BUTTON_INVALID;
-            s_padQt[i]    = (sc[i]->padQuickTurn[0]    != '\0') ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padQuickTurn)    : SDL_CONTROLLER_BUTTON_INVALID;
+            s_padCycle[i] = (sc[i]->padCycleWeapons[0] != '\0') ? (int)PsyX_LookupGameControllerMapping(sc[i]->padCycleWeapons, SDL_CONTROLLER_BUTTON_INVALID) : SDL_CONTROLLER_BUTTON_INVALID;
+            s_padHeal[i]  = (sc[i]->padQuickHeal[0]    != '\0') ? (int)PsyX_LookupGameControllerMapping(sc[i]->padQuickHeal, SDL_CONTROLLER_BUTTON_INVALID)    : SDL_CONTROLLER_BUTTON_INVALID;
+            s_padQt[i]    = (sc[i]->padQuickTurn[0]    != '\0') ? (int)PsyX_LookupGameControllerMapping(sc[i]->padQuickTurn, SDL_CONTROLLER_BUTTON_INVALID)    : SDL_CONTROLLER_BUTTON_INVALID;
         }
     }
     sch = g_DebugThirdPersonCam ? 1 : 0;
@@ -450,7 +451,7 @@ void Pc_RearLookUpdate(void)
         sc[1] = &g_PcConfig.altcam;
         for (i = 0; i < 2; i++) {
             s_kb[i]  = SDL_GetScancodeFromName(sc[i]->keyRearLook);
-            s_pad[i] = (sc[i]->padRearLook[0] != '\0') ? (int)SDL_GameControllerGetButtonFromString(sc[i]->padRearLook) : SDL_CONTROLLER_BUTTON_INVALID;
+            s_pad[i] = (sc[i]->padRearLook[0] != '\0') ? (int)PsyX_LookupGameControllerMapping(sc[i]->padRearLook, SDL_CONTROLLER_BUTTON_INVALID) : SDL_CONTROLLER_BUTTON_INVALID;
         }
     }
     sch  = g_DebugThirdPersonCam ? 1 : 0;
