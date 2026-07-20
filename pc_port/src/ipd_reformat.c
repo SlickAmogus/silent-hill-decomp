@@ -291,6 +291,53 @@ bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
     u32 modelBuffersOff  = rd32(&raw[0x18]);
     u32 modelOrderOff    = rd32(&raw[0x50]);
 
+    /* Real validation, not just the head byte. Every field above lives in the
+     * FIRST sector, so a partially-delivered or half-stale buffer (fresh head,
+     * stale tail) passes the magic test and would reformat garbage geometry AND
+     * collision that the caller registry then records as done. The LM header
+     * sits at lmHdrOff — the file's DEEPEST section — so its magic+version
+     * double as a tail-arrival sentinel: a different chunk's stale tail almost
+     * never has LM bytes at THIS file's lmHdrOff. Failing here takes the
+     * caller's designed invalid-IPD path (skip + retry next frame), which also
+     * self-heals the genuinely-still-loading case. */
+    {
+        /* No chunk file can exceed the slot it is read into; the shared chunk
+         * buffer (the largest slot) is 0x2C000. */
+        const u32   maxIpd = 0x2C000;
+        const char* bad    = NULL;
+
+        if (lmHdrOff < 0x188 || lmHdrOff > maxIpd - 2)
+            bad = "lmHdrOff";
+        else if (raw[lmHdrOff] != LM_HEADER_MAGIC || raw[lmHdrOff + 1] != LM_VERSION)
+            bad = "LM tail sentinel";
+        else if (modelCount > 0 &&
+                 (modelInfoOff < 0x188 || modelInfoOff > lmHdrOff ||
+                  (u32)modelCount * PSX_IPD_MODEL_INFO_SIZE > lmHdrOff - modelInfoOff))
+            bad = "modelInfo bounds";
+        else if (modelBufferCount > 0 &&
+                 (modelBuffersOff < 0x188 || modelBuffersOff > lmHdrOff ||
+                  (u32)modelBufferCount * PSX_IPD_MODEL_BUFFER_SIZE > lmHdrOff - modelBuffersOff))
+            bad = "modelBuffers bounds";
+        else if (modelOrderCount > 0 &&
+                 (modelOrderOff < 0x188 || modelOrderOff > lmHdrOff ||
+                  (u32)modelOrderCount > lmHdrOff - modelOrderOff))
+            bad = "modelOrder bounds";
+
+        if (bad != NULL)
+        {
+            /* A failing chunk retries every frame — cap the log, keep the canary. */
+            static s32 s_valLogCount = 0;
+            if (s_valLogCount < 32)
+            {
+                s_valLogCount++;
+                SH_DBG("[IPD-VAL] rejected buffer %p: %s (lmHdrOff=0x%X info=0x%X bufs=0x%X order=0x%X counts=%u/%u/%u)%s",
+                       (void*)raw, bad, lmHdrOff, modelInfoOff, modelBuffersOff, modelOrderOff,
+                       modelCount, modelBufferCount, modelOrderCount,
+                       s_valLogCount == 32 ? " — suppressing further" : "");
+            }
+            return false;
+        }
+    }
 
     /* Save subcell table (52 bytes from PSX offset 0x1C to 0x4F) */
     u8 subcellTable[52];

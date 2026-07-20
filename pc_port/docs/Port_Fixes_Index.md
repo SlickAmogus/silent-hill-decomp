@@ -1448,3 +1448,22 @@ defects found, both blend-state hygiene, neither vendor-specific in mechanism:
 Also added a boot `[CONFIG]` fingerprint line (flashlight_mode, use_pgxp,
 resident_textures, global_chara_pool) so remote logs self-describe the
 render config instead of us asking every reporter for config.cfg.
+
+## IPD chunk lifecycle hardening (2026-07-20, cascade-corruption investigation)
+
+Follow-up to the black-wedge reports: audit of how a chunk buffer could ever
+reformat into garbage geometry+collision that persists.
+
+- **Reformat registry eviction + leak** (`IpdHeader_FixOffsets`,
+  `bodyprog_80040B74.c`, commit `0b2d9e025`): the 256-slot registry never reset
+  and overflowed silently → an unregistered chunk thrash-reloads every frame
+  (escalating void/garbage). Latent with current maps (~136 addresses max) but
+  armed by anything that grows the address set; also freed the previously
+  leaked heap `s_LmHeader` copy on every re-registration.
+- **Real IPD validation** (`IpdHeader_FixOffsets_PC`, `pc_port/src/
+  ipd_reformat.c`): was one magic byte in the first sector. Now bounds-checks
+  every section offset/count and uses the LM header's magic+version at
+  `lmHdrOff` (the file's deepest section) as a TAIL-ARRIVAL sentinel — a
+  partially-delivered or half-stale buffer ("frankenbuffer") is rejected into
+  the designed skip+retry path instead of reformatting garbage and registering
+  it as done. `[IPD-VAL]` log canary (capped at 32 lines).
