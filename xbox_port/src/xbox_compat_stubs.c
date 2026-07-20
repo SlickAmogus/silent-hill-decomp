@@ -55,7 +55,9 @@ void Pc_ConsoleFmvUpdate(void)          { }
 void Pc_PlayWarningScreen(void)         { }
 void Pc_QuickSaveLoadUpdate(void)       { }
 int  PC_PlayerManualReloadRequested(void){ return 0; }
-int  PC_Tick30HzReady(void)             { return 0; }
+/* PC_Tick30HzReady: real implementation now comes from pc_timing.c — the old
+ * return-0 stub silently broke the combat attack latch (tap=slash/hold=jab),
+ * the run-release skid stop, and the map1_s01 locker scare. */
 /* XaPlayer_* (XA voice/cutscene streaming): real implementation in xa_xbox.c. */
 void CollVis_CaptureCylinder(void)      { }
 void CollVis_CaptureHit(void)           { }

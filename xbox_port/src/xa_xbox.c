@@ -607,6 +607,16 @@ void XaPlayer_Update(void)
     }
 }
 
+/* map_msg_display.c holds a voiced subtitle page's auto-advance open while the
+ * line is still audible. isPlaying stays set until the duration ran out AND
+ * the ring fully drained (XaPlayer_Update above), so it is exactly the
+ * "still draining" signal. FMV borrows the ring via s_fmvStream without
+ * setting isPlaying, so movies never hold subtitles. */
+int Xa_IsVoiceAudioDraining(void)
+{
+    return s_xa.isPlaying;
+}
+
 void XaPlayer_SetVolume(int16_t volLeft, int16_t volRight)
 {
     static uint32_t s_volLogCount = 0;

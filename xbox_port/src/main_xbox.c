@@ -172,6 +172,12 @@ int main(void)
         SH_DebugLogInit();
         Crash_InstallSehFrame(&sehFrame); /* from here on, any fault logs [FATAL] + flushes */
         debugPrint("Silent Hill (Xbox) booting...\n");
+        {
+            /* Build identification — first thing to check in user logs.
+             * Generated fresh each build by build_xbox.sh. */
+            #include "sh_build_info_xbox.h"
+            SH_DBG("[SH-XBOX] build " SH_XBOX_BUILD_HASH " (" SH_XBOX_BUILD_STAMP ")");
+        }
         SH_DBG("[SH-XBOX] boot: video %s", hd ? "1280x720x32 (720p, pillarboxed 4:3)"
                                               : "640x480x32");
     }

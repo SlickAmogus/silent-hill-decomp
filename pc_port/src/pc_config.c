@@ -835,7 +835,14 @@ void PcConfig_SaveKeyValue(const char* cfgKey, const char* cfgValue)
      * settings are toggled (each unknown key appends a line), and any line past
      * this cap would be dropped on the next save — silently resetting those keys
      * to their defaults. The full keybind config is ~380 lines already. */
+#ifdef SH_XBOX_PORT
+    /* 48KB: the Xbox cfg has no keybind block (pad mapping is fixed in
+     * pad_xbox.c), so 256 lines is generous — and 256KB of permanent BSS
+     * matters on a 64MB console. */
+    static char lines[256][192];
+#else
     static char lines[1024][256];
+#endif
     int   n = 0;
     int   i;
     int   found = 0;
@@ -845,12 +852,25 @@ void PcConfig_SaveKeyValue(const char* cfgKey, const char* cfgValue)
         return;
 
     f = fopen(s_configPath, "r");
+#ifdef SH_XBOX_PORT
+    /* No launcher ships a cfg to the console. If the file does not exist yet,
+     * fall through with 0 preserved lines so the write below CREATES it —
+     * bailing here silently dropped every in-game settings change. */
+    if (f)
+    {
+        while (n < (int)(sizeof(lines) / sizeof(lines[0])) &&
+               fgets(lines[n], sizeof(lines[n]), f))
+            n++;
+        fclose(f);
+    }
+#else
     if (!f)
         return;
     while (n < (int)(sizeof(lines) / sizeof(lines[0])) &&
            fgets(lines[n], sizeof(lines[n]), f))
         n++;
     fclose(f);
+#endif
 
     for (i = 0; i < n; i++)
     {

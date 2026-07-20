@@ -60,12 +60,45 @@ void Anim_BoneInit(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords) // 0x800445A4
         return;
     }
 #endif
+#ifdef SH_XBOX_PORT
+    /* A stale/garbage ANM header can plant out-of-array supers that later derail
+     * the coord walk in Vw_CoordHierarchyMatrixCompute (the 0xfffff948 load
+     * crash; see COORD_PTR_OK there). Reject insane headers and (below) clamp
+     * parent indices so bad data can never seed the chain with wild pointers.
+     * boneCoords can be NULL from an uninitialised g_CharaModelAnimsData slot:
+     * GsInitCoordinate2 above guards NULL, but the loop would write near 0. */
+    if (boneCoords == NULL)
+    {
+        return;
+    }
+    if (anmHdr->boneCount < 1 || anmHdr->boneCount > 64)
+    {
+        static int s_badAnmLogged;
+        if (!s_badAnmLogged)
+        {
+            s_badAnmLogged = 1;
+            SH_DBG("[ANIM] insane boneCount=%d — skipping bone init", (int)anmHdr->boneCount);
+        }
+        return;
+    }
+#endif
 
     for (boneIdx = 1, curBindPose = &anmHdr->bindPoses[1], curCoord = &boneCoords[1];
          boneIdx < anmHdr->boneCount;
          boneIdx++, curBindPose++, curCoord++)
     {
+#ifdef SH_XBOX_PORT
+        {
+            s32 parentIdx = anmHdr->bindPoses[boneIdx].parentBone;
+            if (parentIdx < 0 || parentIdx >= anmHdr->boneCount)
+            {
+                parentIdx = 0;
+            }
+            curCoord->super = &boneCoords[parentIdx];
+        }
+#else
         curCoord->super = &boneCoords[anmHdr->bindPoses[boneIdx].parentBone];
+#endif
 
         // If no translation for this bone, copy over `translationInitial`.
         if (curBindPose->translationDataIdx < 0)

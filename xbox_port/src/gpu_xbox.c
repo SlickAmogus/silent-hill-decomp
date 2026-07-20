@@ -41,6 +41,18 @@ OT_TAG prim_terminator = { (uintptr_t)-1, 0 };
 static float s_ofsX = 160.0f, s_ofsY = 112.0f;
 static float s_scaleX = 640.0f / 320.0f, s_scaleY = 480.0f / 224.0f;
 
+/* --- one-run UI diagnostic (menu double-size text bug) ----------------------
+ * Per frame: raw (pre-transform) coords of the first SPRTs and the first small
+ * (glyph-sized) FT4 quads, plus the env tuple active when the first SPRT was
+ * walked (envs ping-pong per PutDrawEnv, so frame-end state is not what drew
+ * the menu). GpuXbox_UiDiagFrame prints once per state change / ~2s. */
+#define UIDIAG_SPRTS 3
+static int s_diagSprt[UIDIAG_SPRTS][6]; /* x,y,w,h,u,v */
+static int s_diagSprtN;
+static int s_diagFt4[2][4];             /* x0,y0,x3,y3 */
+static int s_diagFt4N;
+static int s_diagEnv[8];                /* disp x,y,w,h, ofs x,y, scale*1000 x,y */
+
 /* Output geometry from gpu_nv2a.c: content rect (4:3) within the framebuffer.
  * At 720p content is 960x720 at x=160 (pillarboxed); 640x480 is identity. */
 extern int g_Nv2aFbW, g_Nv2aFbH, g_Nv2aContentX, g_Nv2aContentW, g_Nv2aContentH;
@@ -228,6 +240,16 @@ static int ProcessPoly(P_TAG* tag)
             const VERTTYPE xy[8] = { p->x0, p->y0, p->x1, p->y1, p->x2, p->y2, p->x3, p->y3 };
             if (PolyOversized(xy, 2, quad ? 4 : 3)) return primLen;
         }
+        if (quad && s_diagFt4N < 2) {
+            /* Glyph-sized FT4s only: the hi-res text path emits these. */
+            int dx = p->x1 - p->x0, dy = p->y2 - p->y0;
+            if (dx < 0) dx = -dx;
+            if (dy < 0) dy = -dy;
+            if (dx <= 48 && dy <= 48) {
+                int* d = s_diagFt4[s_diagFt4N++];
+                d[0] = p->x0; d[1] = p->y0; d[2] = p->x3; d[3] = p->y3;
+            }
+        }
         texAddr = PsxVram_GetTexture(p->tpage, p->clut);
         PutVertUV(&v[0], p->x0, p->y0, p->r0, p->g0, p->b0, p->u0, p->v0);
         PutVertUV(&v[1], p->x1, p->y1, p->r0, p->g0, p->b0, p->u1, p->v1);
@@ -381,6 +403,18 @@ static int ProcessSprtTile(P_TAG* tag)
         u0 = p->u0; v0 = p->v0; clut = p->clut;
         w = fixedSz ? fixedSz : p->w;
         h = fixedSz ? fixedSz : p->h;
+        if (s_diagSprtN < UIDIAG_SPRTS) {
+            int* d = s_diagSprt[s_diagSprtN];
+            d[0] = x0; d[1] = y0; d[2] = w; d[3] = h; d[4] = u0; d[5] = v0;
+            if (s_diagSprtN == 0) {
+                s_diagEnv[0] = g_activeDispEnv.disp.x; s_diagEnv[1] = g_activeDispEnv.disp.y;
+                s_diagEnv[2] = g_activeDispEnv.disp.w; s_diagEnv[3] = g_activeDispEnv.disp.h;
+                s_diagEnv[4] = (int)s_ofsX;            s_diagEnv[5] = (int)s_ofsY;
+                s_diagEnv[6] = (int)(s_scaleX * 1000.0f);
+                s_diagEnv[7] = (int)(s_scaleY * 1000.0f);
+            }
+            s_diagSprtN++;
+        }
         /* Clamp the UV span (not the screen size) so the bottom-right texel never
          * samples past the 256x256 decoded page — a 16-tall glyph at v0=240 would
          * otherwise land on row 256, one past the page (mirrors PsyCross
@@ -1002,6 +1036,35 @@ DRAWENV* PutDrawEnv(DRAWENV* env)
         }
     }
     return env;
+}
+
+/* Once per frame from MainLoop (game_main.c, after GsSwapDispBuff). Prints the
+ * walk-time env tuple + the captured raw prim coords, then resets the capture.
+ * Rate limit: every state change, else 1 line per 120 frames (~2s at 60vbl). */
+void GpuXbox_UiDiagFrame(int gameState, int hiResGlyphs)
+{
+    static int s_frame, s_lastState = -1, s_lastLogFrame = -1000;
+
+    s_frame++;
+    if (gameState != s_lastState || (s_frame - s_lastLogFrame) >= 120) {
+        s_lastState    = gameState;
+        s_lastLogFrame = s_frame;
+        SH_DBG("[UIDIAG] st=%d hires=%d disp=%d,%d,%dx%d ofs=%d,%d scl=%d,%d "
+               "sprt%d=(%d,%d %dx%d uv%d,%d)(%d,%d %dx%d uv%d,%d)(%d,%d %dx%d uv%d,%d) "
+               "ft4x%d=(%d,%d-%d,%d)(%d,%d-%d,%d)",
+               gameState, hiResGlyphs,
+               s_diagEnv[0], s_diagEnv[1], s_diagEnv[2], s_diagEnv[3],
+               s_diagEnv[4], s_diagEnv[5], s_diagEnv[6], s_diagEnv[7],
+               s_diagSprtN,
+               s_diagSprt[0][0], s_diagSprt[0][1], s_diagSprt[0][2], s_diagSprt[0][3], s_diagSprt[0][4], s_diagSprt[0][5],
+               s_diagSprt[1][0], s_diagSprt[1][1], s_diagSprt[1][2], s_diagSprt[1][3], s_diagSprt[1][4], s_diagSprt[1][5],
+               s_diagSprt[2][0], s_diagSprt[2][1], s_diagSprt[2][2], s_diagSprt[2][3], s_diagSprt[2][4], s_diagSprt[2][5],
+               s_diagFt4N,
+               s_diagFt4[0][0], s_diagFt4[0][1], s_diagFt4[0][2], s_diagFt4[0][3],
+               s_diagFt4[1][0], s_diagFt4[1][1], s_diagFt4[1][2], s_diagFt4[1][3]);
+    }
+    s_diagSprtN = 0;
+    s_diagFt4N  = 0;
 }
 
 /* Frame clear colour for GpuNv2a_FrameBegin: the PSX draw-env isbg background

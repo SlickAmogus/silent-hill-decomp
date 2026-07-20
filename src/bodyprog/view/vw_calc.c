@@ -389,7 +389,21 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
      * truncated/uninitialised PSX pointer shows up as ~0 / non-canonical and
      * derefs to a wild read (the bad-ending crash: super == -1). Treat any
      * non-canonical link as end-of-chain instead of crashing. */
+    #ifdef SH_XBOX_PORT
+    /* 32-bit Xbox: the 64-bit canonical test in the #else folds to compile-time
+     * TRUE here (uintptr_t is 32 bits), which let a garbage super (0xfffff948)
+     * through and crashed writing parentCoord->sub into kernel space. Valid
+     * coords live in the XBE image / statics / heap / g_PsxRam (all < 128MB) or
+     * on the current thread's stack (nxdk stacks sit ~0xD00xxxxx — vbSetRefView
+     * walks stack coords). The stack term is a shared-1MB-bucket test, not a
+     * true distance; a coord in another 1MB bucket degrades to identity, which
+     * is safe. All coord walking is main-thread. */
+    #define COORD_PTR_OK(p) ((uintptr_t)(p) >= 0x10000 && \
+                             ((uintptr_t)(p) < 0x08000000 || \
+                              (((uintptr_t)(p) ^ (uintptr_t)&prevCoord) < 0x00100000)))
+    #else
     #define COORD_PTR_OK(p) ((uintptr_t)(p) >= 0x10000ULL && (uintptr_t)(p) < 0x0000800000000000ULL)
+    #endif
     if (!COORD_PTR_OK(rootCoord))
     {
         if (rootCoord != NULL) {

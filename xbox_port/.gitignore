@@ -9,3 +9,4 @@
 *.cpp.d
 *.inl
 bin/
+include/sh_build_info_xbox.h

@@ -1901,7 +1901,13 @@ void func_800D9114(s_800F3D48* arg0) // 0x800D9114
  * with stale entries whose buffer was reused by cutscene TIM loads, leaving
  * wild pointers -> func_800D88E8 / field_48 AV (CutsceneGlitch.log: map7_s03
  * +0xEAB5 reading 0xffff...). Drop any entry that fails a canonical check. */
+#ifdef SH_XBOX_PORT
+/* 32-bit: the 64-bit canonical bound below folds to compile-time TRUE, passing
+ * any garbage >= 0x10000. Code/data pointers on Xbox all live < 128MB. */
+#define SH_F3D48_PTR_OK(p) ((uintptr_t)(p) >= 0x10000 && (uintptr_t)(p) < 0x08000000)
+#else
 #define SH_F3D48_PTR_OK(p) ((uintptr_t)(p) >= 0x10000ULL && (uintptr_t)(p) < 0x0000800000000000ULL)
+#endif
 #define SH_F3D48_ENTRY_CORRUPT(e) \
     (!SH_F3D48_PTR_OK((e)->ptr_0) || \
      ((e)->field_4.field_44 != NULL && !SH_F3D48_PTR_OK((e)->field_4.field_44)) || \

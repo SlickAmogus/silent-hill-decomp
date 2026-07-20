@@ -778,10 +778,9 @@ void XaPlayer_SetPauseHold(int hold)
     (void)hold;
 }
 
-int Xa_IsVoiceAudioDraining(void)
-{
-    return 0;
-}
+/* Xa_IsVoiceAudioDraining: real implementation now lives in xa_xbox.c (reads
+ * s_xa.isPlaying, which stays set until the ring fully drains). The old
+ * return-0 stub let voiced subtitle pages auto-advance mid-line. */
 
 /* =============================================================================
  * Misc PC-only globals with no HAL of their own.

@@ -223,6 +223,23 @@ static const s_PcOpt PCOPT_T[] = {
     { "Back",              NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
 
+#ifdef SH_XBOX_PORT
+/* Xbox: one page, only rows whose backing code actually runs on this port.
+ * The PC pages above stay compiled but unreferenced. Rationale per row class:
+ * resolution/window/vsync/FPS_Limit would unpin the boot overrides that keep a
+ * 733MHz/64MB console stable (vsync=1+refreshRate=30 pacing); Disable_Culling
+ * and Preload_Chunks are perf/RAM hazards the overrides exist to prevent;
+ * PGXP/MSAA/post/tonemap/flashlight-per-pixel/TPS rows drive GL-only or
+ * control_style-only code that is stubbed here (the flashlight row would make
+ * the light invisible for the session). 2D controls are shared gameplay code
+ * (player_control.c) and genuinely work. */
+static const s_PcOpt PCOPT_X[] = {
+    { "2D_Controls", &g_PcConfig.control2d,     "control_2d",      VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+    { "2D_Snap",     &g_PcConfig.control2dSnap, "control_2d_snap", VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+    { "Back",        NULL,                      NULL,              NULL,      0, NULL,      NULL, 0, PCK_BACK },
+};
+#endif
+
 static void Options_PcOptionsMenu_EntryStringsDraw(void);
 static void Options_PcOptionsMenu_ConfigDraw(void);
 static void Options_PcOptionsMenu_SelectionHighlightDraw(void);
@@ -253,11 +270,18 @@ static void PcMouse_InjectDir(int dir)
 
 static const s_PcOpt* PcOpt_Page(int* count)
 {
+#ifdef SH_XBOX_PORT
+    /* Single page; PCOPT_X has no NEXT/PREV rows, so g_PcOptionsMenu_Page
+     * can never leave 0. */
+    *count = (int)(sizeof(PCOPT_X) / sizeof(PCOPT_X[0]));
+    return PCOPT_X;
+#else
     if (g_PcOptionsMenu_Page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
     if (g_PcOptionsMenu_Page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
     if (g_PcOptionsMenu_Page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
     *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0]));
     return PCOPT_T;
+#endif
 }
 
 static int PcOpt_ValIndex(const s_PcOpt* e)

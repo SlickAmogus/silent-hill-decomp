@@ -150,8 +150,11 @@ MAP_SRCS := \
 # Xbox inherits every PC default automatically as the config struct grows, and
 # users get a config file on the console without a launcher (see main_xbox.c).
 # Xbox-specific overrides are applied after the load in xbox_compat_globals.c.
+# pc_timing is NOT excluded either: PC_Tick30HzReady gates the classic-combat
+# attack latch, run-release skid and the map1_s01 locker event; the old
+# return-0 stub silently froze all three. It is SDL-free (g_DeltaTime only).
 PCPORT_HAL_EXCLUDE := main_pc pc_combat pc_console_cmd pc_crash pc_quicksave \
-	pc_timing dbg_overlay warning_screen hires_override fs_pc dll_loader \
+	dbg_overlay warning_screen hires_override fs_pc dll_loader \
 	map_overlay_loader map_registry xa_player \
 	control_style pc_mouse_cursor \
 	combat_target \

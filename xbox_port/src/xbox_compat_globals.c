@@ -58,6 +58,11 @@ void XboxConfig_ApplyOverrides(void)
     g_PcConfig.globalCharaPool  = 0;   /* PC 1: every chara's assets resident */
     g_PcConfig.preloadChunks    = 0;   /* PC 1: stream chunks like PSX instead */
     g_PcConfig.wholeMapExteriors = 0;  /* draws every loaded exterior chunk */
+    g_PcConfig.randomizer       = 0;   /* would re-force globalCharaPool=1 if the
+                                        * rando init were ever wired up here */
+
+    /* --- Untested-on-Xbox I/O paths. --- */
+    g_PcConfig.allowLooseFiles  = 0;   /* fsqueue loose-file probe per read */
 
     /* --- Performance: the 733MHz CPU / 233MHz NV2A cannot absorb these. --- */
     g_PcConfig.disableCulling = 0;     /* PC 1: keep the PSX subcell PVS on */

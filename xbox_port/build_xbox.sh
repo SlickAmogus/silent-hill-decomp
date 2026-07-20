@@ -41,4 +41,14 @@ build_host_tool tools/cxbe         cxbe         CXX="$HOST_CXX"
 build_host_tool tools/vp20compiler vp20compiler CC="$HOST_CC"
 build_host_tool tools/fp20compiler fp20compiler CXX="$HOST_CXX"
 
+# Build identification header (mirrors pc_port's cmake/gen_build_info.cmake):
+# first thing to check in a user log is which xbe produced it. Regenerated every
+# build; only costs a main_xbox.c recompile.
+GIT_SHA="$(git -C "$SCRIPT_DIR/.." rev-parse --short=9 HEAD 2>/dev/null || echo unknown)"
+if [ -n "$(git -C "$SCRIPT_DIR/.." status --porcelain --untracked-files=no 2>/dev/null | head -1)" ]; then
+    GIT_SHA="${GIT_SHA}+dirty"
+fi
+printf '#define SH_XBOX_BUILD_HASH "%s"\n#define SH_XBOX_BUILD_STAMP "%s"\n' \
+    "$GIT_SHA" "$(date '+%Y-%m-%d %H:%M:%S')" > include/sh_build_info_xbox.h
+
 exec /c/msys64/usr/bin/make.exe -f Makefile.nxdk "$@"

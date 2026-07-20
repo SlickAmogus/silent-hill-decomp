@@ -2451,6 +2451,15 @@ void MainLoop(void) // 0x80032EE0
         // Draw objects?
         GsSwapDispBuff();
         ML_TRACE("post-GsSwapDispBuff");
+#ifdef SH_XBOX_PORT
+        {
+            /* One-run diagnostic for the double-size menu text: walk-time env
+             * tuple + raw prim coords from gpu_xbox.c, with the two game-side
+             * inputs the HAL cannot see (state + the sticky hi-res glyph flag). */
+            extern void GpuXbox_UiDiagFrame(int gameState, int hiResGlyphs);
+            GpuXbox_UiDiagFrame((int)g_GameWork.gameState, (int)g_SysWork.enableHighResGlyphs);
+        }
+#endif
 #ifdef SH_PC_PORT
         /* Numpad .: (1) always logs Harry's detailed position with a unique
          * searchable "HARRY POSITION LOGGED" tag — used to mark spots where
@@ -2855,7 +2864,15 @@ void MainLoop(void) // 0x80032EE0
                      * it the new chain terminator instead of just zeroing its
                      * length (the old behaviour left cur->addr pointing at the
                      * wild target, so DrawOTag would still chase it). */
-                    if (next && ((uintptr_t)next < 0x1000 || (uintptr_t)next > (uintptr_t)0x7FFFFFFFFFFF)) {
+#ifdef SH_XBOX_PORT
+/* 32-bit: (uintptr_t)0x7FFFFFFFFFFF truncates to 0xFFFFFFFF, degrading these
+ * wild-pointer guards to "< 0x1000" only. OT prims live in statics / heap /
+ * g_PsxRam — all < 128MB on Xbox. */
+#define SH_OT_PTR_MAX ((uintptr_t)0x08000000)
+#else
+#define SH_OT_PTR_MAX ((uintptr_t)0x7FFFFFFFFFFF)
+#endif
+                    if (next && ((uintptr_t)next < 0x1000 || (uintptr_t)next > SH_OT_PTR_MAX)) {
                         static int s_badNextDumped = 0;
                         if (!s_badNextDumped) {
                             s_badNextDumped = 1;
@@ -2944,7 +2961,7 @@ void MainLoop(void) // 0x80032EE0
                 /* Accept heap packet buffer, OT array, OR any static/BSS primitive
                  * (e.g. screen fade DR_MODE/TILE in D_800A8E5C/D_800A8E74).
                  * Only reject null, very-low, or kernel-space addresses. */
-                int curOk2 = (curAddr2 >= 0x1000 && curAddr2 <= (uintptr_t)0x7FFFFFFFFFFF);
+                int curOk2 = (curAddr2 >= 0x1000 && curAddr2 <= SH_OT_PTR_MAX);
                 if (!curOk2) {
                     static int s_ot2DumpedOnce = 0;
                     if (!s_ot2DumpedOnce) {
@@ -2968,7 +2985,7 @@ void MainLoop(void) // 0x80032EE0
                     }
                 }
                 OT_TAG* next2 = (OT_TAG*)nextPrim(cur2);
-                if (next2 && ((uintptr_t)next2 < 0x1000 || (uintptr_t)next2 > (uintptr_t)0x7FFFFFFFFFFF)) {
+                if (next2 && ((uintptr_t)next2 < 0x1000 || (uintptr_t)next2 > SH_OT_PTR_MAX)) {
                     static int s_ot2BadNextDumped = 0;
                     if (!s_ot2BadNextDumped) {
                         s_ot2BadNextDumped = 1;
