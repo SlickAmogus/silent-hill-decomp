@@ -47,3 +47,4 @@ maprenames.txt
 pc_port/launcher/**/obj/
 pc_port/launcher/**/bin/
 *.user
+.claude/worktrees/
