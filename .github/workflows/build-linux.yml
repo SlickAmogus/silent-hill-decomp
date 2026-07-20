@@ -36,6 +36,34 @@ jobs:
             libsdl2-dev libopenal-dev libjpeg-dev \
             libgl1-mesa-dev libglu1-mesa-dev
 
+      # The ffmpeg FMV fallback needs ffmpeg 6+ headers at build time. jammy only
+      # ships 4.4, which predates AVChannelLayout/swr_alloc_set_opts2, so unpack
+      # noble's -dev packages into a staging prefix rather than installing them
+      # (installing noble runtime libs here would drag in a newer glibc, which is
+      # exactly what pinning ubuntu-22.04 avoids). Headers only: ffmpeg is dlopen'd
+      # at runtime, so nothing from these packages is linked into or shipped with
+      # the binary. Without this the build still succeeds, just with the feature off.
+      - name: Stage ffmpeg 6 headers (build-only, never linked or bundled)
+        run: |
+          set -euo pipefail
+          FFDIR="$RUNNER_TEMP/ffmpeg-headers"
+          mkdir -p "$FFDIR/debs" "$FFDIR/root"
+          echo 'deb http://archive.ubuntu.com/ubuntu noble main universe' \
+            | sudo tee /etc/apt/sources.list.d/noble-ffmpeg-headers.list >/dev/null
+          sudo apt-get update \
+            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/noble-ffmpeg-headers.list \
+            -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0
+          (cd "$FFDIR/debs" && apt-get download \
+            libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev)
+          for deb in "$FFDIR"/debs/*.deb; do dpkg-deb -x "$deb" "$FFDIR/root"; done
+          sudo rm -f /etc/apt/sources.list.d/noble-ffmpeg-headers.list
+          # Repoint the staged .pc files at the staging prefix so pkg-config hands
+          # CMake the right -I flags and the version it gates on.
+          PCDIR="$FFDIR/root/usr/lib/x86_64-linux-gnu/pkgconfig"
+          sed -i "s|^prefix=/usr\$|prefix=$FFDIR/root/usr|" "$PCDIR"/lib*.pc
+          echo "PKG_CONFIG_PATH=$PCDIR" >> "$GITHUB_ENV"
+          PKG_CONFIG_PATH="$PCDIR" pkg-config --modversion libavcodec libavutil
+
       - name: Build (build.sh -> Ninja + map .so overlays)
         run: |
           cd pc_port

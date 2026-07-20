@@ -1119,15 +1119,20 @@ static int PlayFromBin(int table_idx, int max_frames)
 /* ============================================================================
  * Optional ffmpeg fallback: native h264/h265/vp9/av1 inside mp4/mkv/webm/avi.
  *
- * Compiled only when SH_FMV_FFMPEG is defined (CMake option, OFF by default);
- * an OFF build is byte-identical to the pre-existing player. This is a FALLBACK
- * BELOW the zero-dependency built-in MJPEG/raw decoder — a modder can drop e.g.
- * gamedata/fmv/<name>.mp4 and it plays natively instead of forcing a huge MJPEG
- * re-encode. Video decodes to RGB24 straight into s_decodeBuffer and presents
- * through DrawVideoFrame; audio decodes to interleaved S16 and streams through
- * the same SDL device + FmvApplyVolume the AVI path uses. Presentation is paced
- * to the container's own PTS. Ship a decode-only LGPL ffmpeg build (see
- * docs/fmv_files.md); the MSYS2 prebuilt is GPL and dev-only.
+ * Compiled in by default (CMake option SH_FMV_FFMPEG), but ffmpeg is loaded at
+ * RUNTIME and we ship no ffmpeg binaries: only the headers are a build
+ * dependency, nothing is in the exe's import table. Linking normally would make
+ * Windows refuse to start the exe for every user who has no ffmpeg DLLs, and we
+ * cannot redistribute them (the MSYS2 prebuilt is GPL). So the DLLs are
+ * user-supplied — dropped next to the exe or on PATH — and absent DLLs degrade
+ * to the disc STR exactly as if the feature were off.
+ *
+ * This is a FALLBACK BELOW the zero-dependency built-in MJPEG/raw decoder — a
+ * modder can drop e.g. gamedata/fmv/<name>.mp4 and it plays natively instead of
+ * forcing a huge MJPEG re-encode. Video decodes to RGB24 straight into
+ * s_decodeBuffer and presents through DrawVideoFrame; audio decodes to
+ * interleaved S16 and streams through the same SDL device + FmvApplyVolume the
+ * AVI path uses. Presentation is paced to the container's own PTS.
  * ==========================================================================*/
 #if defined(SH_FMV_FFMPEG)
 extern "C" {
@@ -1137,6 +1142,265 @@ extern "C" {
 #include <libswscale/swscale.h>
 #include <libswresample/swresample.h>
 }
+
+extern "C" {
+#include "../dll_loader.h"
+}
+
+/* We read AVCodecContext/AVFrame fields directly, so a different major version
+ * is an ABI break, not a missing-feature problem: refuse rather than crash. */
+struct FfmpegApi
+{
+    int         (*avformat_open_input)(AVFormatContext**, const char*, const AVInputFormat*, AVDictionary**);
+    int         (*avformat_find_stream_info)(AVFormatContext*, AVDictionary**);
+    void        (*avformat_close_input)(AVFormatContext**);
+    int         (*av_read_frame)(AVFormatContext*, AVPacket*);
+    int         (*av_find_best_stream)(AVFormatContext*, enum AVMediaType, int, int, const AVCodec**, int);
+    unsigned    (*avformat_version)(void);
+
+    const AVCodec*   (*avcodec_find_decoder)(enum AVCodecID);
+    AVCodecContext*  (*avcodec_alloc_context3)(const AVCodec*);
+    void        (*avcodec_free_context)(AVCodecContext**);
+    int         (*avcodec_parameters_to_context)(AVCodecContext*, const AVCodecParameters*);
+    int         (*avcodec_open2)(AVCodecContext*, const AVCodec*, AVDictionary**);
+    int         (*avcodec_send_packet)(AVCodecContext*, const AVPacket*);
+    int         (*avcodec_receive_frame)(AVCodecContext*, AVFrame*);
+    const char* (*avcodec_get_name)(enum AVCodecID);
+    AVPacket*   (*av_packet_alloc)(void);
+    void        (*av_packet_free)(AVPacket**);
+    void        (*av_packet_unref)(AVPacket*);
+    unsigned    (*avcodec_version)(void);
+
+    AVFrame*    (*av_frame_alloc)(void);
+    void        (*av_frame_free)(AVFrame**);
+    void        (*av_frame_unref)(AVFrame*);
+    void        (*av_channel_layout_default)(AVChannelLayout*, int);
+    void        (*av_channel_layout_uninit)(AVChannelLayout*);
+    unsigned    (*avutil_version)(void);
+
+    struct SwsContext* (*sws_getContext)(int, int, enum AVPixelFormat, int, int, enum AVPixelFormat,
+                                         int, SwsFilter*, SwsFilter*, const double*);
+    void        (*sws_freeContext)(struct SwsContext*);
+    int         (*sws_scale)(struct SwsContext*, const uint8_t* const[], const int[], int, int,
+                             uint8_t* const[], const int[]);
+    unsigned    (*swscale_version)(void);
+
+    int         (*swr_alloc_set_opts2)(struct SwrContext**,
+                                       const AVChannelLayout*, enum AVSampleFormat, int,
+                                       const AVChannelLayout*, enum AVSampleFormat, int,
+                                       int, void*);
+    int         (*swr_init)(struct SwrContext*);
+    void        (*swr_free)(struct SwrContext**);
+    int         (*swr_convert)(struct SwrContext*, uint8_t**, int, const uint8_t**, int);
+    int         (*swr_get_out_samples)(struct SwrContext*, int);
+    unsigned    (*swresample_version)(void);
+};
+
+static FfmpegApi s_ff;
+static int       s_ffState = 0; /* 0 = untried, 1 = usable, -1 = unavailable */
+
+/* Bare names first: the OS then searches the exe's directory, so a user can
+ * either drop the DLLs next to the game or rely on a system-wide ffmpeg.
+ * On macOS a bare name only reaches the DYLD fallback paths (~/lib, /usr/local/lib,
+ * /usr/lib), which miss Homebrew's Apple Silicon prefix — so those are listed
+ * explicitly as absolute-path candidates. */
+#if defined(_WIN32)
+#define FF_LIB_NAMES(base, ver) { base "-" ver ".dll", "lib" base "-" ver ".dll" }
+#elif defined(__APPLE__)
+#define FF_LIB_NAMES(base, ver)                        \
+    { "lib" base "." ver ".dylib",                     \
+      "/opt/homebrew/lib/lib" base "." ver ".dylib",   \
+      "/usr/local/lib/lib" base "." ver ".dylib" }
+#else
+#define FF_LIB_NAMES(base, ver) { "lib" base ".so." ver }
+#endif
+
+/* The soname we search for and the ABI major we validate must both come from the
+ * headers we compiled against, or the two can disagree and no library the user
+ * supplies could ever satisfy both at once. */
+#define FF_STR2(x) #x
+#define FF_STR(x)  FF_STR2(x)
+
+#define FF_V_AVFORMAT   FF_STR(LIBAVFORMAT_VERSION_MAJOR)
+#define FF_V_AVCODEC    FF_STR(LIBAVCODEC_VERSION_MAJOR)
+#define FF_V_AVUTIL     FF_STR(LIBAVUTIL_VERSION_MAJOR)
+#define FF_V_SWSCALE    FF_STR(LIBSWSCALE_VERSION_MAJOR)
+#define FF_V_SWRESAMPLE FF_STR(LIBSWRESAMPLE_VERSION_MAJOR)
+
+#define FF_ID_AVFORMAT   "avformat-"   FF_V_AVFORMAT
+#define FF_ID_AVCODEC    "avcodec-"    FF_V_AVCODEC
+#define FF_ID_AVUTIL     "avutil-"     FF_V_AVUTIL
+#define FF_ID_SWSCALE    "swscale-"    FF_V_SWSCALE
+#define FF_ID_SWRESAMPLE "swresample-" FF_V_SWRESAMPLE
+
+static DllHandle FfmpegOpenLib(const char* const* names, int count)
+{
+    for (int i = 0; i < count; i++) {
+        DllHandle h = DllLoader_Open(names[i]);
+        if (h)
+            return h;
+    }
+    return NULL;
+}
+
+static int FfmpegCheckMajor(const char* lib, unsigned got, int want)
+{
+    if ((int)(got >> 16) == want)
+        return 0;
+    printf("[FMV] ffmpeg: %s major version %u, need %d — refusing to use ffmpeg (ABI mismatch)\n",
+           lib, got >> 16, want);
+    return -1;
+}
+
+static int FfmpegLoad(void)
+{
+    static const char* const avformatNames[]   = FF_LIB_NAMES("avformat",   FF_V_AVFORMAT);
+    static const char* const avcodecNames[]    = FF_LIB_NAMES("avcodec",    FF_V_AVCODEC);
+    static const char* const avutilNames[]     = FF_LIB_NAMES("avutil",     FF_V_AVUTIL);
+    static const char* const swscaleNames[]    = FF_LIB_NAMES("swscale",    FF_V_SWSCALE);
+    static const char* const swresampleNames[] = FF_LIB_NAMES("swresample", FF_V_SWRESAMPLE);
+#define FF_NAMES(a) a, (int)(sizeof(a) / sizeof((a)[0]))
+
+    DllHandle   hFormat = NULL, hCodec = NULL, hUtil = NULL, hScale = NULL, hResample = NULL;
+    const char* missing = NULL;
+
+    memset(&s_ff, 0, sizeof(s_ff));
+
+    hFormat   = FfmpegOpenLib(FF_NAMES(avformatNames));
+    hCodec    = FfmpegOpenLib(FF_NAMES(avcodecNames));
+    hUtil     = FfmpegOpenLib(FF_NAMES(avutilNames));
+    hScale    = FfmpegOpenLib(FF_NAMES(swscaleNames));
+    hResample = FfmpegOpenLib(FF_NAMES(swresampleNames));
+#undef FF_NAMES
+
+    if (!hFormat || !hCodec || !hUtil || !hScale || !hResample) {
+        printf("[FMV] ffmpeg runtime not found (missing:%s%s%s%s%s) — container overrides disabled\n",
+               hFormat   ? "" : " " FF_ID_AVFORMAT,
+               hCodec    ? "" : " " FF_ID_AVCODEC,
+               hUtil     ? "" : " " FF_ID_AVUTIL,
+               hScale    ? "" : " " FF_ID_SWSCALE,
+               hResample ? "" : " " FF_ID_SWRESAMPLE);
+        printf("[FMV] To play mp4/mkv/webm overrides, put the matching ffmpeg shared libraries\n"
+               "[FMV] (" FF_ID_AVCODEC ", " FF_ID_AVFORMAT ", " FF_ID_AVUTIL ", "
+               FF_ID_SWSCALE ", " FF_ID_SWRESAMPLE ") next to the game exe or on PATH.\n");
+        goto fail;
+    }
+
+#define FF_SYM(handle, name)                                                     \
+    do {                                                                         \
+        *(void**)&s_ff.name = DllLoader_GetSymbol(handle, #name);                \
+        if (!s_ff.name) { missing = #name; goto missing_symbol; }                \
+    } while (0)
+
+    FF_SYM(hFormat, avformat_open_input);
+    FF_SYM(hFormat, avformat_find_stream_info);
+    FF_SYM(hFormat, avformat_close_input);
+    FF_SYM(hFormat, av_read_frame);
+    FF_SYM(hFormat, av_find_best_stream);
+    FF_SYM(hFormat, avformat_version);
+
+    FF_SYM(hCodec, avcodec_find_decoder);
+    FF_SYM(hCodec, avcodec_alloc_context3);
+    FF_SYM(hCodec, avcodec_free_context);
+    FF_SYM(hCodec, avcodec_parameters_to_context);
+    FF_SYM(hCodec, avcodec_open2);
+    FF_SYM(hCodec, avcodec_send_packet);
+    FF_SYM(hCodec, avcodec_receive_frame);
+    FF_SYM(hCodec, avcodec_get_name);
+    FF_SYM(hCodec, av_packet_alloc);
+    FF_SYM(hCodec, av_packet_free);
+    FF_SYM(hCodec, av_packet_unref);
+    FF_SYM(hCodec, avcodec_version);
+
+    FF_SYM(hUtil, av_frame_alloc);
+    FF_SYM(hUtil, av_frame_free);
+    FF_SYM(hUtil, av_frame_unref);
+    FF_SYM(hUtil, av_channel_layout_default);
+    FF_SYM(hUtil, av_channel_layout_uninit);
+    FF_SYM(hUtil, avutil_version);
+
+    FF_SYM(hScale, sws_getContext);
+    FF_SYM(hScale, sws_freeContext);
+    FF_SYM(hScale, sws_scale);
+    FF_SYM(hScale, swscale_version);
+
+    FF_SYM(hResample, swr_alloc_set_opts2);
+    FF_SYM(hResample, swr_init);
+    FF_SYM(hResample, swr_free);
+    FF_SYM(hResample, swr_convert);
+    FF_SYM(hResample, swr_get_out_samples);
+    FF_SYM(hResample, swresample_version);
+#undef FF_SYM
+
+    if (FfmpegCheckMajor("avformat",   s_ff.avformat_version(),   LIBAVFORMAT_VERSION_MAJOR) != 0 ||
+        FfmpegCheckMajor("avcodec",    s_ff.avcodec_version(),    LIBAVCODEC_VERSION_MAJOR) != 0 ||
+        FfmpegCheckMajor("avutil",     s_ff.avutil_version(),     LIBAVUTIL_VERSION_MAJOR) != 0 ||
+        FfmpegCheckMajor("swscale",    s_ff.swscale_version(),    LIBSWSCALE_VERSION_MAJOR) != 0 ||
+        FfmpegCheckMajor("swresample", s_ff.swresample_version(), LIBSWRESAMPLE_VERSION_MAJOR) != 0)
+        goto version_mismatch;
+
+    printf("[FMV] ffmpeg runtime loaded (avcodec %u, avformat %u)\n",
+           s_ff.avcodec_version() >> 16, s_ff.avformat_version() >> 16);
+    return 0;
+
+missing_symbol:
+    printf("[FMV] ffmpeg: symbol '%s' missing — container overrides disabled\n", missing);
+    printf("[FMV] The ffmpeg libraries that loaded are not a complete build of the expected set.\n");
+    goto fail;
+
+version_mismatch:
+    printf("[FMV] ffmpeg was found but is the wrong major version — container overrides disabled.\n");
+    printf("[FMV] This build requires " FF_ID_AVCODEC ", " FF_ID_AVFORMAT ", " FF_ID_AVUTIL ", "
+           FF_ID_SWSCALE ", " FF_ID_SWRESAMPLE " (see the per-library lines above).\n");
+
+fail:
+    memset(&s_ff, 0, sizeof(s_ff));
+    DllLoader_Close(hFormat);
+    DllLoader_Close(hCodec);
+    DllLoader_Close(hUtil);
+    DllLoader_Close(hScale);
+    DllLoader_Close(hResample);
+    return -1;
+}
+
+static int FfmpegAvailable(void)
+{
+    if (s_ffState == 0)
+        s_ffState = (FfmpegLoad() == 0) ? 1 : -1;
+    return s_ffState > 0;
+}
+
+/* Route the decoder body below through the loaded table instead of the (absent)
+ * import stubs. av_q2d stays a real call — it is a static inline in rational.h. */
+#define avformat_open_input           s_ff.avformat_open_input
+#define avformat_find_stream_info     s_ff.avformat_find_stream_info
+#define avformat_close_input          s_ff.avformat_close_input
+#define av_read_frame                 s_ff.av_read_frame
+#define av_find_best_stream           s_ff.av_find_best_stream
+#define avcodec_find_decoder          s_ff.avcodec_find_decoder
+#define avcodec_alloc_context3        s_ff.avcodec_alloc_context3
+#define avcodec_free_context          s_ff.avcodec_free_context
+#define avcodec_parameters_to_context s_ff.avcodec_parameters_to_context
+#define avcodec_open2                 s_ff.avcodec_open2
+#define avcodec_send_packet           s_ff.avcodec_send_packet
+#define avcodec_receive_frame         s_ff.avcodec_receive_frame
+#define avcodec_get_name              s_ff.avcodec_get_name
+#define av_packet_alloc               s_ff.av_packet_alloc
+#define av_packet_free                s_ff.av_packet_free
+#define av_packet_unref               s_ff.av_packet_unref
+#define av_frame_alloc                s_ff.av_frame_alloc
+#define av_frame_free                 s_ff.av_frame_free
+#define av_frame_unref                s_ff.av_frame_unref
+#define av_channel_layout_default     s_ff.av_channel_layout_default
+#define av_channel_layout_uninit      s_ff.av_channel_layout_uninit
+#define sws_getContext                s_ff.sws_getContext
+#define sws_freeContext               s_ff.sws_freeContext
+#define sws_scale                     s_ff.sws_scale
+#define swr_alloc_set_opts2           s_ff.swr_alloc_set_opts2
+#define swr_init                      s_ff.swr_init
+#define swr_free                      s_ff.swr_free
+#define swr_convert                   s_ff.swr_convert
+#define swr_get_out_samples           s_ff.swr_get_out_samples
 
 static int FindContainerFile(const char* basename, char* out_path, int out_path_size)
 {
@@ -1179,6 +1443,9 @@ static int PlayFromFFmpeg(const char* path)
     int                audioBufBytes = 0;
     int                vs = -1, as = -1, ach = 0;
     int                played = -1;
+
+    if (!FfmpegAvailable())
+        return -1;
 
     if (avformat_open_input(&fmt, path, NULL, NULL) != 0) {
         printf("[FMV] ffmpeg: cannot open '%s'\n", path);
@@ -1321,7 +1588,10 @@ static int PlayFromFFmpeg(const char* path)
                         uint8_t* nb = (uint8_t*)realloc(audioBuf, (size_t)need);
                         if (nb) { audioBuf = nb; audioBufBytes = need; }
                     }
-                    if (audioBuf) {
+                    /* A failed realloc leaves audioBuf at its old, smaller size —
+                     * converting into it with the larger outMax would overflow the
+                     * heap, so drop the frame instead. */
+                    if (audioBuf && audioBufBytes >= need) {
                         uint8_t* out[1] = { audioBuf };
                         int n = swr_convert(swr, out, outMax,
                                             (const uint8_t**)frm->extended_data, frm->nb_samples);
@@ -1393,6 +1663,38 @@ cleanup:
     if (fmt) avformat_close_input(&fmt);
     return played;
 }
+
+/* Confine the dispatch-table redirection to the decoder body above — anything
+ * below (or any later #include) must see the real names again. */
+#undef avformat_open_input
+#undef avformat_find_stream_info
+#undef avformat_close_input
+#undef av_read_frame
+#undef av_find_best_stream
+#undef avcodec_find_decoder
+#undef avcodec_alloc_context3
+#undef avcodec_free_context
+#undef avcodec_parameters_to_context
+#undef avcodec_open2
+#undef avcodec_send_packet
+#undef avcodec_receive_frame
+#undef avcodec_get_name
+#undef av_packet_alloc
+#undef av_packet_free
+#undef av_packet_unref
+#undef av_frame_alloc
+#undef av_frame_free
+#undef av_frame_unref
+#undef av_channel_layout_default
+#undef av_channel_layout_uninit
+#undef sws_getContext
+#undef sws_freeContext
+#undef sws_scale
+#undef swr_alloc_set_opts2
+#undef swr_init
+#undef swr_free
+#undef swr_convert
+#undef swr_get_out_samples
 #endif /* SH_FMV_FFMPEG */
 
 extern "C" int FMV_Play(int file_idx, int max_frames)

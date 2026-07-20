@@ -93,82 +93,103 @@ and `SilentHill.log` prints the re-encode hint.
 
 A file using an unsupported *video* codec (H.264, Xvid, …) is not an
 error: the port logs the fourcc and falls back to the original disc
-movie for that slot — **unless** the ffmpeg fallback below is built in.
+movie for that slot — unless ffmpeg is available (see below).
 
-## Native H.264/H.265/VP9/AV1 + mp4/mkv/webm (optional ffmpeg build)
+## Native H.264/H.265/VP9/AV1 + mp4/mkv/webm (bring your own ffmpeg)
 
 The built-in decoder above is intra-frame only (each frame stands alone),
 which is why it can't do H.264/H.265 — those are inter-frame and need a
-real decoder. An **optional** ffmpeg fallback adds that, plus modern
-containers, so modders can drop in the file their editor exported instead
-of re-encoding to a giant MJPEG AVI:
+real decoder. Every build of the port has ffmpeg support **compiled in**,
+but ships **no ffmpeg DLLs**. It looks for them at runtime; if they aren't
+there, nothing breaks — FMVs just play from the disc as always.
 
-- Put `gamedata/fmv/<basename>.mp4` (or `.mkv`, `.webm`, `.mov`, or an
-  `.avi` carrying H.264/H.265) next to where the MJPEG AVIs would go.
-- Video codecs: **H.264, H.265/HEVC, VP9, AV1** (and everything the
-  built-in path already does — those still use the fast built-in decoder).
-- Audio: AAC, MP3, Opus, Vorbis, FLAC, PCM.
-- The built-in MJPEG/raw path is always tried **first**; ffmpeg is only the
-  fallback, so nothing about the existing AVI workflow changes.
+So there are two tiers:
 
-It is **off by default** (the shipped build stays dependency-free and
-byte-identical). Enable it at configure time:
+**Tier 1 — works out of the box, no extra files.** Everything in
+*Supported AVI formats* above: MJPEG, uncompressed RGB, raw
+YUY2/UYVY/I420/YV12/NV12, with PCM or float32 audio. This is still the
+recommended path for mod authors who want zero friction on the player's
+end:
 
 ```
-cmake .. -DSH_FMV_FFMPEG=ON
+ffmpeg -i in.mp4 -c:v mjpeg -q:v 3 -c:a pcm_s16le out.avi
 ```
 
-### Building the ffmpeg you ship
+**Tier 2 — needs the player to supply ffmpeg DLLs.**
 
-Two ffmpeg builds matter, and they are different:
+- Video: **H.264, H.265/HEVC, VP9, AV1**
+- Audio: **AAC, MP3, Opus, Vorbis, FLAC**
+- Containers: `.mp4`, `.mkv`, `.webm`, `.mov`, and `.avi` files carrying
+  any of the above
 
-- **For local development/linking:** the MSYS2 package is easiest —
-  `pacman -S mingw-w64-x86_64-ffmpeg`. CMake finds it via pkg-config
-  automatically. **Do not redistribute it** — that prebuilt is GPL-3
-  (it bundles x264/x265) and would GPL-encumber the whole release.
-- **For release:** build a trimmed **decode-only LGPL** ffmpeg (a few MB,
-  ~5–6 DLLs). No `--enable-gpl`, no `--enable-nonfree`:
+Put the file at `gamedata/fmv/<basename>.<ext>` — same place the MJPEG AVIs
+go. The built-in path is always tried **first**, so nothing about the
+existing AVI workflow changes; ffmpeg is only the fallback.
 
-```
-./configure --prefix=/mingw64/sh-ffmpeg \
-  --disable-everything --disable-programs --disable-doc \
-  --disable-avdevice --disable-avfilter --disable-postproc \
-  --disable-network --disable-encoders --disable-muxers --disable-static \
-  --enable-shared --enable-swscale --enable-swresample --enable-libdav1d \
-  --enable-decoder=h264,hevc,vp9,libdav1d,mjpeg,rawvideo \
-  --enable-decoder=aac,aac_latm,mp3,mp3float,opus,vorbis,flac \
-  --enable-decoder=pcm_s16le,pcm_s16be,pcm_u8,pcm_s24le,pcm_f32le \
-  --enable-demuxer=mov,matroska,webm,avi,mp3,flac,ogg,wav,aac,m4v,h264,hevc \
-  --enable-parser=h264,hevc,vp9,av1,aac,aac_latm,mpegaudio,opus,vorbis,flac,mjpeg \
-  --enable-protocol=file \
-  --enable-bsf=h264_mp4toannexb,hevc_mp4toannexb,vp9_superframe,av1_frame_split,extract_extradata,aac_adtstoasc
-make -j && make install
-```
+### Getting the DLLs (ffmpeg 6.x only)
 
-Keep the bitstream filters (`--enable-bsf=…`): the mp4 demuxer needs
-`h264_mp4toannexb`/`hevc_mp4toannexb` + `extract_extradata` or H.264/H.265
-in mp4 silently won't decode. AV1 needs `libdav1d` (FFmpeg's native `av1`
-decoder is a slow placeholder); drop both if you don't want AV1.
+Download a **shared** ffmpeg 6.x build and drop these five DLLs next to
+`SilentHillPC.exe`, or put an ffmpeg 6.x `bin` folder on your `PATH`:
 
-Then point the build at it and it bundles the DLLs into the build folder
-(which the nightly zip picks up automatically):
+| Library | DLL |
+|---------|-----|
+| avcodec | `avcodec-60.dll` |
+| avformat | `avformat-60.dll` |
+| avutil | `avutil-58.dll` |
+| swscale | `swscale-7.dll` |
+| swresample | `swresample-4.dll` |
 
-```
-cmake .. -DSH_FMV_FFMPEG=ON -DSH_FMV_FFMPEG_BINDIR=/mingw64/sh-ffmpeg/bin \
-  -DCMAKE_PREFIX_PATH=/mingw64/sh-ffmpeg
-```
+Both spellings are accepted — `avcodec-60.dll` and `libavcodec-60.dll`
+both load, whichever your build produced.
 
-On **Linux/macOS** the system ffmpeg is used as a normal runtime
-dependency (`apt install libavcodec-dev libavformat-dev libavutil-dev
-libswscale-dev libswresample-dev`, or `brew install ffmpeg`) — nothing is
-bundled; note it in the platform README.
+The version numbers above come from the ffmpeg headers the port was compiled
+against, so the authoritative list for *your* build is the one written to
+`SilentHill.log` when the libraries are missing — check there if it disagrees
+with this table.
 
-### Licensing / patent note
+> **It must be ffmpeg 6.x. A 7.x build will not work.** The port is
+> compiled against the ffmpeg 6 ABI and reads decoder struct fields
+> directly, so a different major version is a crash, not a quirk. The port
+> checks each library's major version on load and **refuses** anything that
+> doesn't match, logging which library was wrong and what it expected. If
+> your movie mod isn't playing, check the DLL version numbers first — the
+> filenames must end in `-60`, `-58`, `-7`, `-4` as above.
 
-A decode-only build with no `--enable-gpl`/`--enable-nonfree` is LGPL, and
-dynamically linking + shipping the DLLs is fine. Separately, **H.264 and
-H.265 decoding is covered by patent pools** (MPEG-LA / Access Advance) that
-are independent of FFmpeg's license — a redistributor shipping an H.264/HEVC
-decoder may owe royalties. VP9, AV1, Opus, Vorbis and FLAC are royalty-free.
-Decide deliberately before enabling this for a public release; one option is
-to ship with the flag off and let users supply their own ffmpeg DLLs.
+Where to get them:
+
+- **Windows:** [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) or
+  [BtbN](https://github.com/BtbN/FFmpeg-Builds/releases). Pick a **shared**
+  6.x package — the "static" ones contain no DLLs at all. On gyan.dev the
+  file you want is a `ffmpeg-6.*-full_build-shared.7z`; on BtbN, an asset
+  with `shared` in the name from a 6.x release.
+- **Linux:** the distro packages, e.g.
+  `apt install libavcodec60 libavformat60 libavutil58 libswscale7 libswresample4`
+  (Debian 13 / Ubuntu 24.04 era). The loader looks for
+  `libavcodec.so.60` etc.
+- **macOS:** `brew install ffmpeg@6`. The loader looks for
+  `libavcodec.60.dylib` etc.
+
+### If the DLLs are missing
+
+Nothing fails. The port logs a line to `SilentHill.log` saying ffmpeg
+wasn't available (or which library mismatched), that movie falls back to
+the original disc version, and the game continues normally. The launcher
+also flags it so you aren't left guessing why a movie mod did nothing.
+
+### Why we don't bundle ffmpeg
+
+Redistributing ffmpeg carries license obligations, and the common prebuilt
+Windows binaries are GPL builds. Separately, H.264 and H.265 decoding is
+covered by patent pools (MPEG-LA / Access Advance) independent of ffmpeg's
+license. Shipping no decoder at all sidesteps both, while users stay free
+to install ffmpeg themselves. VP9, AV1, Opus, Vorbis and FLAC are
+royalty-free if you'd rather avoid the question entirely when authoring a
+mod.
+
+### Build note
+
+ffmpeg **headers** are a build-time dependency (`pacman -S
+mingw-w64-x86_64-ffmpeg` on MSYS2, or the `-dev` packages on Linux); the
+libraries are never linked. If the headers aren't found, CMake prints a
+warning and auto-disables the feature rather than failing the build.
+`-DSH_FMV_FFMPEG=OFF` still compiles the path out entirely.

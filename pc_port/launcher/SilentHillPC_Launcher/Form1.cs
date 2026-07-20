@@ -98,6 +98,7 @@ public partial class Form1 : Form
             CleanupOldFiles();
             UpdateChecker.CleanupStaleTemp();
             CheckDiscImage();
+            FfmpegCheck.WarnIfNeeded(this, AppDomain.CurrentDomain.BaseDirectory);
             SilentAutoCheckForUpdates();
         };
     }

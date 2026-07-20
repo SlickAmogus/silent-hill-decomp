@@ -17,9 +17,9 @@ option(SH_USE_OPENGL "Use OpenGL renderer (via PsyCross)" ON)
 option(SH_DEBUG "Enable debug output" OFF)
 option(SH_ASAN "Enable AddressSanitizer for memory corruption detection" OFF)
 # FMV ffmpeg fallback (native h264/h265/vp9/av1 in mp4/mkv/webm/avi override files).
-# OFF keeps the build dependency-free and byte-identical to the built-in MJPEG/raw
-# decoder. Ship a decode-only LGPL ffmpeg build — see docs/fmv_files.md.
-option(SH_FMV_FFMPEG "Enable ffmpeg FMV fallback decoder (h264/h265/vp9/av1, mp4/mkv/webm)" OFF)
+# ON by default and free to be: ffmpeg is loaded at runtime, so this costs only the
+# headers at build time and nothing is bundled or linked. See the ffmpeg section below.
+option(SH_FMV_FFMPEG "Enable ffmpeg FMV fallback decoder (h264/h265/vp9/av1, mp4/mkv/webm)" ON)
 
 # =============================================================================
 # Version defines - default to USA
@@ -346,59 +346,75 @@ endif()
 # =============================================================================
 # ffmpeg (optional FMV fallback: h264/h265/vp9/av1 in mp4/mkv/webm/avi)
 # =============================================================================
+# Headers only — the libs are resolved at runtime by fmv_player.cpp through
+# dll_loader, so nothing ffmpeg lands in the exe's import table and we bundle no
+# ffmpeg binaries (we cannot redistribute the GPL prebuilts, and an import-table
+# dependency would stop the exe launching for every user without the DLLs).
+# Users who want container overrides drop shared libs whose major versions match
+# the headers this was built against next to the exe, or install them system-wide
+# (fmv_player.cpp derives the soname it looks for from those same headers).
+# Missing headers only cost the feature, never the build, so a plain checkout
+# still compiles.
+#
+# ffmpeg 6.0 (libavcodec 60) is the floor: the decoder uses AVChannelLayout and
+# swr_alloc_set_opts2, which do not exist before ffmpeg 5.1, and 6.0 is the
+# oldest release we actually validate against. Newer majors are accepted.
+set(SH_FFMPEG_MIN_AVCODEC_MAJOR 60)
 if(SH_FMV_FFMPEG)
-    # Prefer pkg-config (Linux distro ffmpeg, macOS brew, and a custom decode-only
-    # build exposed via PKG_CONFIG_PATH). Fall back to find_library on MSYS2 setups
-    # without .pc files.
     if(PkgConfig_FOUND OR PKG_CONFIG_FOUND)
-        pkg_check_modules(FFMPEG IMPORTED_TARGET
-            libavformat libavcodec libavutil libswscale libswresample)
+        pkg_check_modules(FFMPEG
+            libavformat>=60 libavcodec>=${SH_FFMPEG_MIN_AVCODEC_MAJOR}
+            libavutil>=58 libswscale>=7 libswresample>=4)
     endif()
+
+    set(FFMPEG_HEADER_DIRS "")
+    set(FFMPEG_HEADERS_OK FALSE)
     if(FFMPEG_FOUND)
-        target_link_libraries(SilentHillPC PRIVATE PkgConfig::FFMPEG)
+        # pkg-config omits -I for compiler-default include dirs, so an EMPTY
+        # FFMPEG_INCLUDE_DIRS means "already on the search path", not "missing".
+        set(FFMPEG_HEADER_DIRS ${FFMPEG_INCLUDE_DIRS})
+        set(FFMPEG_HEADERS_OK TRUE)
     else()
-        foreach(_ff avformat avcodec avutil swscale swresample)
-            find_library(FF_${_ff} ${_ff})
-            if(NOT FF_${_ff})
-                message(FATAL_ERROR "SH_FMV_FFMPEG=ON but lib${_ff} not found. Install it "
-                    "(MSYS2: pacman -S mingw-w64-x86_64-ffmpeg) or set PKG_CONFIG_PATH to a "
-                    "decode-only build. See docs/fmv_files.md.")
-            endif()
-            target_link_libraries(SilentHillPC PRIVATE ${FF_${_ff}})
-        endforeach()
         find_path(FFMPEG_INCLUDE_DIR libavcodec/avcodec.h)
         if(FFMPEG_INCLUDE_DIR)
-            target_include_directories(SilentHillPC PRIVATE ${FFMPEG_INCLUDE_DIR})
+            # No pkg-config data here, so read the major straight out of the header
+            # (version_major.h since ffmpeg 5.0, version.h before that).
+            set(_ff_version_header "${FFMPEG_INCLUDE_DIR}/libavcodec/version_major.h")
+            if(NOT EXISTS "${_ff_version_header}")
+                set(_ff_version_header "${FFMPEG_INCLUDE_DIR}/libavcodec/version.h")
+            endif()
+            set(_ff_major 0)
+            if(EXISTS "${_ff_version_header}")
+                file(STRINGS "${_ff_version_header}" _ff_major_lines
+                     REGEX "^#define[ \t]+LIBAVCODEC_VERSION_MAJOR[ \t]+[0-9]+")
+                if(_ff_major_lines)
+                    list(GET _ff_major_lines 0 _ff_major_line)
+                    string(REGEX REPLACE "^.*LIBAVCODEC_VERSION_MAJOR[ \t]+([0-9]+).*$" "\\1"
+                           _ff_major "${_ff_major_line}")
+                endif()
+            endif()
+            if(_ff_major GREATER_EQUAL SH_FFMPEG_MIN_AVCODEC_MAJOR)
+                set(FFMPEG_HEADER_DIRS ${FFMPEG_INCLUDE_DIR})
+                set(FFMPEG_HEADERS_OK TRUE)
+            else()
+                message(STATUS "ffmpeg headers at ${FFMPEG_INCLUDE_DIR} are libavcodec major "
+                    "${_ff_major}; ${SH_FFMPEG_MIN_AVCODEC_MAJOR}+ (ffmpeg 6.0+) required")
+            endif()
         endif()
     endif()
-    target_compile_definitions(SilentHillPC PRIVATE SH_FMV_FFMPEG)
 
-    # Windows: copy the ffmpeg runtime DLLs next to the exe so the nightly zip
-    # (which globs build/*.dll) ships them. Globbed (not hardcoded sonames) so it
-    # works across ffmpeg 6/7 and a trimmed custom build. Point SH_FMV_FFMPEG_BINDIR
-    # at your decode-only build's bin/ for release; defaults to the MSYS2 toolchain
-    # (dev). If nothing is found the copy is skipped and the DLLs are expected on
-    # PATH. On Linux/macOS the system ffmpeg is a documented runtime dependency.
-    if(WIN32)
-        set(SH_FMV_FFMPEG_BINDIR "$ENV{MINGW_PREFIX}/bin"
-            CACHE PATH "Directory holding the ffmpeg runtime DLLs to bundle next to the exe")
-        # MinGW ships these as avcodec-60.dll (no lib prefix); other toolchains
-        # use libavcodec-60.dll. Match both, per-lib, across any soname.
-        file(GLOB _ff_dlls
-            "${SH_FMV_FFMPEG_BINDIR}/avcodec-*.dll"    "${SH_FMV_FFMPEG_BINDIR}/libavcodec-*.dll"
-            "${SH_FMV_FFMPEG_BINDIR}/avformat-*.dll"   "${SH_FMV_FFMPEG_BINDIR}/libavformat-*.dll"
-            "${SH_FMV_FFMPEG_BINDIR}/avutil-*.dll"     "${SH_FMV_FFMPEG_BINDIR}/libavutil-*.dll"
-            "${SH_FMV_FFMPEG_BINDIR}/swscale-*.dll"    "${SH_FMV_FFMPEG_BINDIR}/libswscale-*.dll"
-            "${SH_FMV_FFMPEG_BINDIR}/swresample-*.dll" "${SH_FMV_FFMPEG_BINDIR}/libswresample-*.dll"
-            "${SH_FMV_FFMPEG_BINDIR}/dav1d*.dll"       "${SH_FMV_FFMPEG_BINDIR}/libdav1d*.dll")
-        if(_ff_dlls)
-            add_custom_command(TARGET SilentHillPC POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different ${_ff_dlls}
-                        "$<TARGET_FILE_DIR:SilentHillPC>"
-                COMMENT "Copying ffmpeg runtime DLLs (SH_FMV_FFMPEG)"
-                VERBATIM
-            )
+    if(FFMPEG_HEADERS_OK)
+        if(FFMPEG_HEADER_DIRS)
+            target_include_directories(SilentHillPC PRIVATE ${FFMPEG_HEADER_DIRS})
         endif()
+        target_compile_definitions(SilentHillPC PRIVATE SH_FMV_FFMPEG)
+        message(STATUS "ffmpeg FMV fallback ENABLED (runtime-loaded, headers: "
+            "${FFMPEG_HEADER_DIRS} [default include path if blank])")
+    else()
+        message(WARNING "SH_FMV_FFMPEG=ON but ffmpeg 6.0+ development headers were not found "
+            "(MSYS2: pacman -S mingw-w64-x86_64-ffmpeg; Debian/Ubuntu: apt install libavcodec-dev "
+            "libavformat-dev libavutil-dev libswscale-dev libswresample-dev). Building WITHOUT the "
+            "ffmpeg FMV fallback; mp4/mkv/webm overrides will be ignored.")
     endif()
 endif()
 

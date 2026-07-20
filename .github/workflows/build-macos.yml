@@ -34,7 +34,11 @@ jobs:
           # AppleClang can't compile the PSX decomp C; build.sh auto-selects
           # Homebrew GCC and points CMake at openal-soft + jpeg-turbo (both
           # keg-only, so build.sh passes their prefixes explicitly).
-          brew install gcc cmake ninja sdl2 openal-soft jpeg-turbo
+          # ffmpeg@6 is a build-time header dependency only: the FMV fallback
+          # dlopen's ffmpeg at runtime, so nothing is linked or bundled. Pinned to
+          # @6 so all three nightly platforms target the same ffmpeg major.
+          brew install gcc cmake ninja pkg-config sdl2 openal-soft jpeg-turbo ffmpeg@6
+          echo "PKG_CONFIG_PATH=$(brew --prefix ffmpeg@6)/lib/pkgconfig" >> "$GITHUB_ENV"
 
       - name: Build (build.sh -> Ninja + map .dylib overlays)
         run: |
