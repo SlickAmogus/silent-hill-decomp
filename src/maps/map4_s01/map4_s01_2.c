@@ -713,6 +713,23 @@ void func_800D3420(void) // 0x800D3420
     {
         case 0:
             Player_ControlFreeze();
+#ifdef SH_PC_PORT
+            /* This scene plays AQRM.DMS frames 96-259 but relies on the
+             * PRECEDING event (func_800D2F74, param=4) having left AQRM in
+             * FS_BUFFER_11 — it never loads the file itself. param=4 only
+             * auto-runs off EventFlag_304, which is set by the POI-17
+             * LoadRoom door; entering the hole room by any other route
+             * (elevator, wandering via map4_s03, or a save made between)
+             * skips it, and this scene then reads whatever DMS is resident
+             * (AQSH1 ends at frame 165) — camera and Cybil clamp to its
+             * last keyframe: camera stuck in the previous room while Cybil
+             * plays the look-around anim in place. Load our own copy, same
+             * pattern as func_800D4410 case 0. Redundant when param=4 just
+             * ran (identical bytes re-read behind the forced border). */
+            Fs_QueueStartRead(FILE_ANIM_AQRM_DMS, FS_BUFFER_11);
+            Fs_QueueWaitForEmpty();
+            Dms_HeaderFixOffsets((s_DmsHeader*)FS_BUFFER_11);
+#endif
             D_800D5B06         = false;
             CutsceneBorder_ForceShow();
             g_Cutscene_Timer3         = Q12(96.0f);
