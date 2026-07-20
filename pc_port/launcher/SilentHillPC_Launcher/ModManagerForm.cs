@@ -832,9 +832,17 @@ namespace SilentHillPC_Launcher
                 msg += "\n\nNote: " + res.Dangling + " face corner(s) point at a vertex outside their own part, " +
                        "so the OBJ substitutes that part's first vertex there — those few corners look wrong in " +
                        "Blender and are restored on import.";
+            // res.Warnings carries the exporter's rest-pose diagnosis: when res.AnmName is null it explains
+            // that every part is in its own local space and will pile on the origin in Blender — a failure the
+            // user cannot diagnose from the model itself, so it must not be swallowed by the success dialog.
+            if (res.Warnings.Count > 0)
+                msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
+                       string.Join("\n - ", res.Warnings.Take(8)) +
+                       (res.Warnings.Count > 8 ? "\n - …" : "");
+            bool warn = res.Dangling > 0 || res.Warnings.Count > 0;
             if (MessageBox.Show(this, msg + "\n\nOpen the output folder?",
                     "Model → OBJ", MessageBoxButtons.YesNo,
-                    res.Dangling > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information) == DialogResult.Yes)
+                    warn ? MessageBoxIcon.Warning : MessageBoxIcon.Information) == DialogResult.Yes)
             {
                 try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.ObjPath)); } catch { }
             }
@@ -901,8 +909,15 @@ namespace SilentHillPC_Launcher
                 res.Normals + " normals and " + res.Prims + " face(s):\n" + res.IlmPath +
                 "\n\nTo use it, drop it into gamedata\\load\\<FOLDER>\\ under its ORIGINAL name " +
                 "(e.g. gamedata\\load\\CHARA\\DOB.ILM) and set allow_loose_files = 1 in config.cfg.";
+            // Same contract as the export dialog: res.Warnings carries seam-edit diagnoses the user
+            // cannot see in the written file, so a success box must not swallow them.
+            if (res.Warnings.Count > 0)
+                msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
+                       string.Join("\n - ", res.Warnings.Take(8)) +
+                       (res.Warnings.Count > 8 ? "\n - …" : "");
             if (MessageBox.Show(this, msg + "\n\nOpen the output folder?",
-                    "OBJ → Model", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                    "OBJ → Model", MessageBoxButtons.YesNo,
+                    res.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information) == DialogResult.Yes)
             {
                 try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.IlmPath)); } catch { }
             }
