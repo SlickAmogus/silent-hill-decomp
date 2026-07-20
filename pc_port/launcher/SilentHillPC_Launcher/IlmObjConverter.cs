@@ -67,6 +67,22 @@ namespace SilentHillPC_Launcher
         // vertex drift and 1.5x the s8 quantisation step itself. 0.05 is ~2.9 degrees.
         private const double NormalUnmovedEps = 0.05;
 
+        // Replace-mode seam welding radius. Half a local quantisation step: coincident seam
+        // vertices come out of the OBJ bit-identical (export bakes a foreign vertex with its
+        // OWNER's matrix), so the default only has to absorb a modeller snapping by eye — it is
+        // not a "merge nearby geometry" dial.
+        //
+        // Deliberately tight, because the two failure modes are not symmetric: welding too little
+        // leaves a visible gap the modeller can see and fix by snapping the vertices; welding too
+        // much silently binds geometry to the WRONG BONE, which only shows up once that limb
+        // rotates. Measured over the shipped corpus, 0.5 welded 4 vertices on BFLU of which ALL
+        // FOUR crossed a bone, while 0.01 keeps 121 of SRL's 122 real welds and crosses none.
+        public const double WeldEpsDefault = 0.01;
+
+        // How far past the weld radius to look purely to report a near miss. Wide enough to catch
+        // an eyeballed seam, never used to accept one.
+        private const double NearMissFactor = 100.0;
+
         // A PSX FT4 quad is a triangle STRIP: func_8005AC50 copies the four indices straight
         // into POLY_GT4 x0..x3, which the GPU renders as (v0,v1,v2)+(v1,v2,v3). An OBJ `f` is
         // a polygon LOOP, so emitting 0,1,2,3 makes every quad cross itself — the bowtie that
@@ -78,7 +94,16 @@ namespace SilentHillPC_Launcher
 
         private static int[] CornerOrder(Prim p) { return p.Tri ? TriLoop : QuadLoop; }
 
-        private class IlmException : Exception { public IlmException(string m) : base(m) { } }
+        private class IlmException : Exception
+        {
+            /// <summary>The refusal is a topology mismatch — the OBJ no longer describes the same
+            /// vertices and faces the template has — for which a full rebuild is the remedy. The
+            /// launcher only offers replacement after one of these, so an unrelated failure (a
+            /// renamed part, a missing meta) can never escalate into a silent rebuild.</summary>
+            public readonly bool ReplaceMayHelp;
+            public IlmException(string m) : base(m) { }
+            public IlmException(string m, bool replaceMayHelp) : base(m) { ReplaceMayHelp = replaceMayHelp; }
+        }
 
         // PSX Y grows downward; OBJ/Blender expect Y up, so Y is negated in both
         // directions. Values are small, so the s16 range is never at risk.
@@ -133,6 +158,60 @@ namespace SilentHillPC_Launcher
             /// Populated on success AND on the ceiling refusals, so the launcher can show the
             /// user which part blew the budget and by how much.</summary>
             public readonly List<string> Report = new List<string>();
+
+            /// <summary>True when replace-mode rebuilt every part's geometry from the OBJ.</summary>
+            public bool Replaced;
+            /// <summary>Set on a refusal the caller can retry as a full rebuild — the OBJ's
+            /// topology no longer matches the template. Never set for a structural failure
+            /// (renamed part, missing meta), which a rebuild would refuse the same way.</summary>
+            public bool ReplaceMayHelp;
+            /// <summary>Set on the one replace refusal the caller can clear by itself: welding
+            /// needs a rest pose, and without one the caller may retry with Weld = false.</summary>
+            public bool WeldNeedsRestPose;
+            /// <summary>Replace-mode: whether auto-weld ran, and at what radius.</summary>
+            public bool WeldEnabled;
+            public double WeldEps;
+            /// <summary>Vertices collapsed onto an earlier-drawn part's pool slot, and the
+            /// (reader, owner) pairs they fell into — ascending by reader then owner.</summary>
+            public int WeldedVertices;
+            public readonly List<WeldPairInfo> WeldPairs = new List<WeldPairInfo>();
+            /// <summary>Welds that both MOVED a vertex and handed it to a DIFFERENT bone: the only
+            /// kind that changes how the model animates, so it must reach the user.</summary>
+            public readonly List<CrossedBoneInfo> CrossedBones = new List<CrossedBoneInfo>();
+            /// <summary>Closest unwelded cross-part pair, when one fell outside the weld radius —
+            /// a seam the modeller probably meant. -1 when nothing came close.</summary>
+            public double NearMissDistance = -1.0;
+        }
+
+        /// <summary>One (reading part, owning part) weld bucket. The owner is always the
+        /// earlier-drawn part: a pool slot only survives forwards.</summary>
+        public class WeldPairInfo
+        {
+            public string Reader, Owner;
+            public int Count;
+        }
+
+        public class CrossedBoneInfo
+        {
+            public string Reader, Owner;
+            public int Count;
+            public double MaxDistance;
+        }
+
+        /// <summary>How an import should treat geometry that no longer matches the template.
+        /// Default is the historical behaviour: patch in place, refuse any topology change.</summary>
+        public class ImportOptions
+        {
+            /// <summary>Extra vertices/faces inside a part become NEW geometry (full rewrite).</summary>
+            public bool Grow;
+            /// <summary>Rebuild EVERY part's geometry from the OBJ; the ILM is only the rig and
+            /// the non-geometry template. Mutually exclusive with Grow.</summary>
+            public bool Replace;
+            /// <summary>Replace only: collapse coincident vertices of adjacent parts onto one
+            /// pool slot, which is the format's only welding mechanism.</summary>
+            public bool Weld = true;
+            /// <summary>Replace only: welding radius in model units.</summary>
+            public double WeldEps = WeldEpsDefault;
         }
 
         // ---- rest pose (.ANM) ---------------------------------------------------
@@ -1536,7 +1615,7 @@ namespace SilentHillPC_Launcher
                     if (!buckets.TryGetValue(name, out q) || pos[name] >= q.Count)
                         throw new IlmException("part '" + obj.Name + "': the OBJ has no unassigned face left with " +
                             "material '" + name + "'. Material names encode the CLUT palette row and are how faces " +
-                            "are matched back to primitives - reassigning or renaming materials is not supported.");
+                            "are matched back to primitives - reassigning or renaming materials is not supported.", true);
                     outp.Add(q[pos[name]]);
                     pos[name] = pos[name] + 1;
                 }
@@ -1665,8 +1744,27 @@ namespace SilentHillPC_Launcher
         /// so the flag alone never changes a single byte.</summary>
         public static ImportResult Import(string objPath, string ilmPath, string outIlmPath, bool grow)
         {
+            return Import(objPath, ilmPath, outIlmPath, new ImportOptions { Grow = grow });
+        }
+
+        /// <summary>Import with the full option set. Grow and Replace are alternatives: grow keeps
+        /// the original geometry and adds to it, replace rebuilds all of it from the OBJ.</summary>
+        public static ImportResult Import(string objPath, string ilmPath, string outIlmPath, ImportOptions opts)
+        {
+            if (opts == null) opts = new ImportOptions();
             var res = new ImportResult();
-            try { ImportCore(objPath, ilmPath, outIlmPath, grow, res); }
+            try
+            {
+                if (opts.Grow && opts.Replace)
+                    throw new IlmException("grow and replace are alternatives: grow keeps the original geometry and " +
+                        "adds to it, replace rebuilds it.");
+                ImportCore(objPath, ilmPath, outIlmPath, opts, res);
+            }
+            catch (IlmException ex)
+            {
+                res.Error = ex.Message;
+                res.ReplaceMayHelp = ex.ReplaceMayHelp;
+            }
             catch (Exception ex) { res.Error = ex.Message; }
             return res;
         }
@@ -1678,8 +1776,9 @@ namespace SilentHillPC_Launcher
             return res.Error == null;
         }
 
-        private static void ImportCore(string objPath, string ilmPath, string outIlmPath, bool grow, ImportResult res)
+        private static void ImportCore(string objPath, string ilmPath, string outIlmPath, ImportOptions opts, ImportResult res)
         {
+            bool grow = opts.Grow;
             string metaPath = StripExt(objPath) + ".ilmmeta.json";
             if (!File.Exists(metaPath))
                 throw new IlmException("missing " + Path.GetFileName(metaPath) + " - it is written next to the OBJ by " +
@@ -1760,6 +1859,13 @@ namespace SilentHillPC_Launcher
             res.RestPoseIdentity = restPoseKind != null && restPoseKind.Kind == 's' &&
                                    string.Equals(restPoseKind.Text, "identity", StringComparison.Ordinal);
 
+            if (opts.Replace)
+            {
+                ReplaceImport(objPath, ilmPath, outIlmPath, data, ilm, of, byName, poseR, poseT, invs,
+                    opts.Weld, opts.WeldEps, res);
+                return;
+            }
+
             // Where each owned vertex lives in the OBJ, so a seam duplicate can be compared
             // against its owner's EDITED position rather than the owner's ORIGINAL. Any global
             // transform moves duplicate and owner identically, so comparing against the original
@@ -1812,13 +1918,13 @@ namespace SilentHillPC_Launcher
                     throw new IlmException("part '" + obj.Name + "' has " + obj.V.Count.ToString(Inv) + " vertices but " +
                         "the ILM expects " + (ownV.Count + forV.Count).ToString(Inv) + " (" + ownV.Count.ToString(Inv) +
                         " own + " + forV.Count.ToString(Inv) + " duplicated seam vertices). The usual cause is an " +
-                        "aggressive 'Merge by Distance' - the seam duplicates are deliberate and must not be welded.");
+                        "aggressive 'Merge by Distance' - the seam duplicates are deliberate and must not be welded.", true);
                 int want = 0;
                 foreach (Mesh m in model.Meshes) want += m.PrimCount;
                 if (obj.Faces.Count != want)
                     throw new IlmException("part '" + obj.Name + "' has " + obj.Faces.Count.ToString(Inv) + " faces but " +
                         "the ILM expects " + want.ToString(Inv) + " primitives. Adding or removing faces is not " +
-                        "supported (counts are u8 and the bone/animation data lives in another file).");
+                        "supported (counts are u8 and the bone/animation data lives in another file).", true);
 
                 List<ObjFace> paired = PairFaces(model, obj, ilm.BaseClutY);
                 PatchOriginalSubset(data, ilm, of, model, obj, ownV, forV, paired, poseR, poseT, invs,
@@ -1867,7 +1973,7 @@ namespace SilentHillPC_Launcher
                         if (face.Length != n)
                             throw new IlmException("part '" + obj.Name + "' face " + fi.ToString(Inv) + " has " +
                                 face.Length.ToString(Inv) + " corners but the primitive is a " + (p.Tri ? "triangle" : "quad") +
-                                ". Triangulating or merging faces is not supported.");
+                                ". Triangulating or merging faces is not supported.", true);
                         int[] loop = CornerOrder(p);
                         for (int c = 0; c < n; c++)
                         {
@@ -1879,7 +1985,7 @@ namespace SilentHillPC_Launcher
                                     c.ToString(Inv) + " references vertex " + face[c][0].ToString(Inv) + " but the " +
                                     "primitive needs " + wantV.ToString(Inv) + ". Vertices and faces must keep the " +
                                     "order they were exported in - do not use Mesh > Sort Elements, and do not move a " +
-                                    "face to a different material.");
+                                    "face to a different material.", true);
                         }
                     }
 
@@ -2381,7 +2487,7 @@ namespace SilentHillPC_Launcher
                 {
                     if (obj.Faces.Count > primCount)
                         throw new IlmException("part '" + obj.Name + "' has faces without a usemtl - grow-mode needs " +
-                            "material info to tell new faces from original ones.");
+                            "material info to tell new faces from original ones.", true);
                     leftover = new List<ObjFace>();
                     return obj.Faces;
                 }
@@ -2404,7 +2510,7 @@ namespace SilentHillPC_Launcher
                     if (!buckets.TryGetValue(name, out q) || pos[name] >= q.Count)
                         throw new IlmException("part '" + obj.Name + "': the OBJ has no unassigned face left with " +
                             "material '" + name + "'. Material names encode the CLUT palette row and are how faces " +
-                            "are matched back to primitives - reassigning or renaming materials is not supported.");
+                            "are matched back to primitives - reassigning or renaming materials is not supported.", true);
                     outp.Add(q[pos[name]]);
                     pos[name] = pos[name] + 1;
                 }
@@ -2597,11 +2703,11 @@ namespace SilentHillPC_Launcher
                     throw new IlmException("part '" + obj.Name + "' has " + obj.V.Count.ToString(Inv) + " vertices but " +
                         "the ILM expects " + expV.ToString(Inv) + " (" + ownV.Count.ToString(Inv) + " own + " +
                         forV.Count.ToString(Inv) + " duplicated seam vertices). The usual cause is an aggressive " +
-                        "'Merge by Distance' - the seam duplicates are deliberate and must not be welded.");
+                        "'Merge by Distance' - the seam duplicates are deliberate and must not be welded.", true);
                 if (obj.Faces.Count < want)
                     throw new IlmException("part '" + obj.Name + "' has " + obj.Faces.Count.ToString(Inv) + " faces but " +
                         "the ILM has " + want.ToString(Inv) + " primitives - --grow only ADDS geometry, it cannot " +
-                        "remove faces.");
+                        "remove faces.", true);
 
                 List<ObjFace> leftover;
                 List<ObjFace> paired = PairFacesGrow(model, obj, ilm.BaseClutY, out leftover);
@@ -2611,12 +2717,12 @@ namespace SilentHillPC_Launcher
                     grown.Add(mi);
                     if (model.MeshCount > 1)
                         throw new IlmException("part '" + obj.Name + "' has " + model.MeshCount.ToString(Inv) +
-                            " meshes; growth supports single-mesh parts only");
+                            " meshes; growth supports single-mesh parts only", true);
                     int shadeBytes = 0;
                     foreach (Mesh me in model.Meshes) shadeBytes += me.UnkCount3;
                     if (shadeBytes != 0)
                         throw new IlmException("part '" + obj.Name + "' carries a shade stream (" +
-                            shadeBytes.ToString(Inv) + " bytes); growing shaded parts is not supported yet");
+                            shadeBytes.ToString(Inv) + " bytes); growing shaded parts is not supported yet", true);
                 }
 
                 // Original subset: the same verification and the same in-place edits as the plain
@@ -2672,11 +2778,11 @@ namespace SilentHillPC_Launcher
                     int arity = face.Length;
                     if (arity != 3 && arity != 4)
                         throw new IlmException("part '" + obj.Name + "': a new face has " + arity.ToString(Inv) +
-                            " corners; the format only has triangles and quads");
+                            " corners; the format only has triangles and quads", true);
                     if (!legalSet.Contains(f.Mtl))
                         throw new IlmException("part '" + obj.Name + "': new face uses material '" + f.Mtl +
                             "'; new faces must reuse one of the part's existing materials (" +
-                            string.Join(", ", legal.ToArray()) + ")");
+                            string.Join(", ", legal.ToArray()) + ")", true);
                     Prim tmpl = null;
                     foreach (Prim p in primsFlat)
                         if (string.Equals(MtlName(p, ilm.BaseClutY), f.Mtl, StringComparison.Ordinal)) { tmpl = p; break; }
@@ -2698,7 +2804,7 @@ namespace SilentHillPC_Launcher
                         if (!vlinePos.TryGetValue(vl, out pos))
                             throw new IlmException("part '" + obj.Name + "': a new face cites vertex " + vl.ToString(Inv) +
                                 " outside its own 'o' block - new cross-part seams are not supported (weld to an " +
-                                "existing seam duplicate instead)");
+                                "existing seam duplicate instead)", true);
                         if (pos < ownV.Count) { np.VKind[i] = 0; np.VA[i] = ownV[pos].Local; }
                         else if (pos < expV)
                         {
@@ -3127,6 +3233,1234 @@ namespace SilentHillPC_Launcher
             SeamReport(seamWarn, "seam vertex/vertices moved", res.Warnings);
             SeamReport(seamNWarn, "seam normal(s) edited", res.Warnings);
             GrowBudget(ilm, grown, vO2, nO2, finals, data.Length, blob.Length, res.Report);
+        }
+
+        // ---- C-style numeric formatting -----------------------------------------
+
+        // ---- exact decimal expansion of a double --------------------------------
+        //
+        // Every finite double is m * 2^e for integers m, e, so it has an EXACT finite decimal
+        // expansion — up to ~767 digits for a subnormal. Producing it needs big integers (a long
+        // overflows at mantissa * 10^4), so these three helpers carry a decimal bignum in base
+        // 10^9 limbs, least significant first. They exist for one reason: printf's rounding.
+
+        private const int BigBase = 1000000000;
+
+        private static List<int> BigFrom(ulong m)
+        {
+            var a = new List<int>();
+            while (m != 0) { a.Add((int)(m % (ulong)BigBase)); m /= (ulong)BigBase; }
+            if (a.Count == 0) a.Add(0);
+            return a;
+        }
+
+        /// <summary>Multiply in place by a factor no larger than 10^9, so limb * factor + carry
+        /// stays inside a long.</summary>
+        private static void BigMul(List<int> a, int factor)
+        {
+            long carry = 0;
+            for (int i = 0; i < a.Count; i++)
+            {
+                long cur = (long)a[i] * factor + carry;
+                a[i] = (int)(cur % BigBase);
+                carry = cur / BigBase;
+            }
+            while (carry != 0) { a.Add((int)(carry % BigBase)); carry /= BigBase; }
+        }
+
+        /// <summary>Multiply in place by baseValue^power, in chunks small enough for BigMul.</summary>
+        private static void BigMulPow(List<int> a, int baseValue, int power)
+        {
+            int chunk = 1, per = 0;
+            while ((long)chunk * baseValue <= BigBase) { chunk *= baseValue; per++; }
+            while (power >= per) { BigMul(a, chunk); power -= per; }
+            for (int i = 0; i < power; i++) BigMul(a, baseValue);
+        }
+
+        private static string BigToString(List<int> a)
+        {
+            int top = a.Count - 1;
+            while (top > 0 && a[top] == 0) top--;
+            var sb = new StringBuilder();
+            sb.Append(a[top].ToString(Inv));
+            for (int j = top - 1; j >= 0; j--) sb.Append(a[j].ToString(Inv).PadLeft(9, '0'));
+            return sb.ToString();
+        }
+
+        /// <summary>Add one to a non-negative decimal digit string.</summary>
+        private static string DecInc(string s)
+        {
+            var c = s.ToCharArray();
+            for (int i = c.Length - 1; i >= 0; i--)
+            {
+                if (c[i] != '9') { c[i]++; return new string(c); }
+                c[i] = '0';
+            }
+            return "1" + new string(c);
+        }
+
+        /// <summary>C's (and Python's) "%.*f": round-half-to-EVEN on the double's EXACT binary
+        /// value. .NET's "F0"/"F3" do neither — they pre-round to 15 significant digits and then
+        /// round half AWAY from zero, so a distance of exactly 12.5 prints "13" where the Python
+        /// prints "12". Half-way cases are reachable at 0 decimals (every k+0.5 is a double) and
+        /// the 15-digit pre-round bites at any magnitude, which is why this is exact arithmetic
+        /// rather than a formatting flag.</summary>
+        /// <summary>Digits of round(|v| * 10^decimals), half-to-even on the exact binary value.
+        /// `decimals` may be negative, which rounds to a multiple of a power of ten — %g needs
+        /// that to extract significant digits from a large value.</summary>
+        private static string ScaledDigits(double v, int decimals, out bool neg)
+        {
+            long bits = BitConverter.DoubleToInt64Bits(v);
+            neg = bits < 0;
+            int be = (int)((bits >> 52) & 0x7FF);
+            ulong m = (ulong)(bits & 0xFFFFFFFFFFFFFL);
+            int e;
+            if (be == 0) e = -1074;
+            else { m |= 1UL << 52; e = be - 1075; }
+
+            // value == n / 10^frac exactly: m/2^k == (m*5^k)/10^k, and an integer needs no scaling.
+            List<int> n = BigFrom(m);
+            int frac;
+            if (e >= 0) { BigMulPow(n, 2, e); frac = 0; }
+            else { BigMulPow(n, 5, -e); frac = -e; }
+
+            int drop = frac - decimals;
+            if (drop <= 0)
+            {
+                BigMulPow(n, 10, -drop);
+                return BigToString(n);
+            }
+            string s = BigToString(n);
+            if (s.Length <= drop) s = s.PadLeft(drop + 1, '0');
+            string keep = s.Substring(0, s.Length - drop);
+            string cut = s.Substring(s.Length - drop);
+            bool up;
+            if (cut[0] > '5') up = true;
+            else if (cut[0] < '5') up = false;
+            else
+            {
+                bool restZero = true;
+                for (int i = 1; i < cut.Length && restZero; i++) if (cut[i] != '0') restZero = false;
+                // Exactly half rounds to EVEN; anything above it rounds up.
+                up = !restZero || ((keep[keep.Length - 1] - '0') & 1) != 0;
+            }
+            return up ? DecInc(keep) : keep;
+        }
+
+        private static string FormatFixed(double v, int decimals)
+        {
+            if (double.IsNaN(v)) return "nan";
+            if (double.IsInfinity(v)) return v > 0 ? "inf" : "-inf";
+            bool neg;
+            string q = ScaledDigits(v, decimals, out neg).PadLeft(decimals + 1, '0');
+            string body = decimals == 0
+                ? q
+                : q.Substring(0, q.Length - decimals) + "." + q.Substring(q.Length - decimals);
+            // -0.0 and a negative that rounds to zero both keep the sign, as C does.
+            return (neg ? "-" : "") + body;
+        }
+
+        /// <summary>C's "%g" at the default precision 6, which is how the Python prints the weld
+        /// radius. .NET's "G6" is not a substitute: it writes "1E-06" where C writes "1e-06", and
+        /// it switches to exponent form on different thresholds. The exponent is taken from the
+        /// value rounded to 6 significant digits, not from the raw value — 9.999995e-08 is a
+        /// %g of 9.99999e-08, and reading the exponent off .NET's own "E5" (which rounds half
+        /// away from zero) turns it into 1e-07.</summary>
+        private static string PyG(double v)
+        {
+            if (double.IsNaN(v)) return "nan";
+            if (double.IsInfinity(v)) return v > 0 ? "inf" : "-inf";
+            if (v == 0.0) return (1.0 / v) < 0 ? "-0" : "0";
+
+            bool neg;
+            // Math.Log10 can land one out at a power of ten; the digit count corrects it, and a
+            // rounding carry (999999.6 -> 1000000) needs the same correction.
+            int exp = (int)Math.Floor(Math.Log10(Math.Abs(v)));
+            string digits = null;
+            for (int guard = 0; guard < 4; guard++)
+            {
+                digits = ScaledDigits(v, 5 - exp, out neg);
+                if (digits.Length == 6) break;
+                exp += digits.Length - 6;
+            }
+
+            if (exp < -4 || exp >= 6)
+            {
+                string mant = TrimTrailingZeros(digits.Substring(0, 1) + "." + digits.Substring(1));
+                return (v < 0 ? "-" : "") + mant + "e" + (exp < 0 ? "-" : "+") +
+                       Math.Abs(exp).ToString(Inv).PadLeft(2, '0');
+            }
+            return TrimTrailingZeros(FormatFixed(v, 5 - exp));
+        }
+
+        private static string TrimTrailingZeros(string s)
+        {
+            if (s.IndexOf('.') < 0) return s;
+            s = s.TrimEnd('0');
+            return s.EndsWith(".", StringComparison.Ordinal) ? s.Substring(0, s.Length - 1) : s;
+        }
+
+        // ---- full replacement (import --replace) --------------------------------
+
+        private struct Cell : IEquatable<Cell>
+        {
+            public long X, Y, Z;
+            public bool Equals(Cell o) { return X == o.X && Y == o.Y && Z == o.Z; }
+            public override bool Equals(object o) { return o is Cell && Equals((Cell)o); }
+            public override int GetHashCode()
+            {
+                long h = (X * 73856093L) ^ (Y * 19349663L) ^ (Z * 83492791L);
+                return (int)h ^ (int)(h >> 32);
+            }
+        }
+
+        /// <summary>floor() into a cell coordinate. The Python's int(math.floor(x)) is arbitrary
+        /// precision; saturating here could only merge cells more than 9e18 apart, and every weld
+        /// is still gated on the real distance — the s16 vertex check downstream refuses anything
+        /// that large long before it could matter.</summary>
+        private static long FloorLong(double v)
+        {
+            double f = Math.Floor(v);
+            if (double.IsNaN(f)) return 0;
+            if (f <= -9.2e18) return long.MinValue;
+            if (f >= 9.2e18) return long.MaxValue;
+            return (long)f;
+        }
+
+        /// <summary>Uniform-cell spatial hash. One cell size for both add and query, or the keys
+        /// do not match and nothing is ever found; Near walks the 27 cells around a point in a
+        /// fixed dx/dy/dz order, and each cell keeps insertion order, because both callers take
+        /// the FIRST acceptable candidate.</summary>
+        private class Grid
+        {
+            private readonly Dictionary<Cell, List<int>> _cells = new Dictionary<Cell, List<int>>();
+            private readonly double _size;
+
+            public Grid(double size) { _size = size; }
+
+            private Cell CellOf(double[] p)
+            {
+                return new Cell { X = FloorLong(p[0] / _size), Y = FloorLong(p[1] / _size), Z = FloorLong(p[2] / _size) };
+            }
+
+            public void Add(double[] p, int val)
+            {
+                Cell c = CellOf(p);
+                List<int> lst;
+                if (!_cells.TryGetValue(c, out lst)) { lst = new List<int>(); _cells[c] = lst; }
+                lst.Add(val);
+            }
+
+            public List<int> Near(double[] p)
+            {
+                Cell c = CellOf(p);
+                var outp = new List<int>();
+                for (int dx = -1; dx <= 1; dx++)
+                    for (int dy = -1; dy <= 1; dy++)
+                        for (int dz = -1; dz <= 1; dz++)
+                        {
+                            List<int> lst;
+                            if (_cells.TryGetValue(new Cell { X = c.X + dx, Y = c.Y + dy, Z = c.Z + dz }, out lst))
+                                outp.AddRange(lst);
+                        }
+                return outp;
+            }
+        }
+
+        private static double Dist2(double[] a, double[] b)
+        {
+            double dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
+            return dx * dx + dy * dy + dz * dz;
+        }
+
+        /// <summary>Which part owns a vertex line, and where in that part's rebuilt array.</summary>
+        private struct VLoc { public int Mi, J; }
+
+        /// <summary>A rebuilt normal: either one of the template's (Fresh false, A = its index) or
+        /// a newly quantised s8 triple.</summary>
+        private struct NormKey : IEquatable<NormKey>
+        {
+            public bool Fresh;
+            public int A, B, C;
+            public bool Equals(NormKey o) { return Fresh == o.Fresh && A == o.A && B == o.B && C == o.C; }
+            public override bool Equals(object o) { return o is NormKey && Equals((NormKey)o); }
+            public override int GetHashCode() { return (Fresh ? 1 : 0) ^ (A << 1) ^ (B << 9) ^ (C << 17); }
+        }
+
+        private struct PlanCorner
+        {
+            public int Own, Loc;
+            public NormKey NK;
+            public int U, V;
+        }
+
+        private class PlanPrim
+        {
+            public bool Tri;
+            public string Mtl;
+            public PlanCorner[] Corners;
+        }
+
+        /// <summary>One mesh's fully resolved bytes, ready for EmitIlm.</summary>
+        private class PartBlock
+        {
+            public List<byte[]> Prims = new List<byte[]>();
+            public List<int[]> Verts = new List<int[]>();
+            public List<int[]> Norms = new List<int[]>();
+            public List<int> Shade = new List<int>();
+        }
+
+        /// <summary>Assign every part a contiguous pool window no in-between part clobbers.
+        ///
+        /// Lifetimes are PER SLOT, not per part: a window is contiguous but its slots die at
+        /// different times, which is how stock files fit 466 vertices (KAU) into a 90-slot pool.
+        /// Slot off+j is busy from the writer's draw position until the draw position of the last
+        /// part that reads it, and two occupancies of one slot clash when those closed intervals
+        /// touch — a part that writes a slot at the very position it is last read still clobbers
+        /// it, because vertices are copied into the pool before the part's own primitives draw.
+        /// The coarser per-PART model was tried first and rejected by the corpus: it calls 7488
+        /// windows in the 257 shipped files illegal, the per-slot model calls zero.
+        ///
+        /// First fit over that occupancy, walking parts in draw order and trying the template's
+        /// own offset before anything else, so an unedited replace reproduces the original
+        /// windows exactly. `bound` raises the cap requirement without reserving slots (the shade
+        /// stream indexes a different array off the same normalOffset, so V7/V8 bound it but it
+        /// never occupies a normal slot). Returns the offsets, or null with the blocked part and
+        /// the parts holding the pool across its span.</summary>
+        private static int[] PoolAlloc(int cap, int[] placeOrder, int[] dpos, int[] counts, int[][] life,
+                                       int[] bound, int[] keep, out int failMi, out List<int> failLive)
+        {
+            failMi = -1;
+            failLive = null;
+            int mc = counts.Length;
+            var busy = new Dictionary<int, List<int[]>>();
+            var off = new int[mc];
+            for (int i = 0; i < mc; i++) off[i] = -1;
+
+            foreach (int mi in placeOrder)
+            {
+                int need = Math.Max(counts[mi], bound == null ? 0 : bound[mi]);
+                int chosen = -1;
+                int s = dpos[mi];
+                // The template's own offset first, then plain first fit; a duplicate candidate is
+                // harmless because the first acceptable one wins.
+                for (int attempt = (keep != null && keep[mi] >= 0 && keep[mi] + need <= cap) ? -1 : 0;
+                     attempt <= cap - need; attempt++)
+                {
+                    int o = attempt < 0 ? keep[mi] : attempt;
+                    bool clear = true;
+                    for (int j = 0; j < counts[mi] && clear; j++)
+                    {
+                        List<int[]> lst;
+                        if (!busy.TryGetValue(o + j, out lst)) continue;
+                        int e = life[mi][j];
+                        foreach (int[] iv in lst)
+                            if (s <= iv[1] && iv[0] <= e) { clear = false; break; }
+                    }
+                    if (clear) { chosen = o; break; }
+                }
+
+                if (chosen < 0)
+                {
+                    // Blockers are the parts whose slots stay live anywhere across this part's OWN
+                    // live span, not just at its draw position — a window has to be free for its
+                    // whole span, which is what made the search fail.
+                    int spanEnd = dpos[mi];
+                    for (int j = 0; j < counts[mi]; j++) if (life[mi][j] > spanEnd) spanEnd = life[mi][j];
+                    var live = new List<int>();
+                    var seen = new HashSet<int>();
+                    foreach (KeyValuePair<int, List<int[]>> kv in busy)
+                        foreach (int[] iv in kv.Value)
+                            if (dpos[mi] <= iv[1] && iv[0] <= spanEnd && seen.Add(iv[2])) live.Add(iv[2]);
+                    live.Sort();
+                    failMi = mi;
+                    failLive = live;
+                    return null;
+                }
+
+                off[mi] = chosen;
+                for (int j = 0; j < counts[mi]; j++)
+                {
+                    List<int[]> lst;
+                    if (!busy.TryGetValue(chosen + j, out lst)) { lst = new List<int[]>(); busy[chosen + j] = lst; }
+                    lst.Add(new[] { dpos[mi], life[mi][j], mi });
+                }
+            }
+            return off;
+        }
+
+        /// <summary>Flag geometry that sits nowhere near the part it was put in.
+        ///
+        /// The commonest replace mistake is geometry landing in the wrong object: the object name
+        /// IS the bone, so a hand modelled inside `01CHEST_` silently animates with the chest. It
+        /// cannot be caught by asking which bone is nearest, because a part's mesh legitimately
+        /// runs from its own bone toward the child one — measured over the corpus, only 43% of
+        /// correctly assigned stock parts have their own bone closest to their centroid, so that
+        /// test would cry wolf on the majority of valid work.
+        ///
+        /// Comparing against the TEMPLATE instead is sound: whatever the modeller built, a
+        /// replacement part belongs roughly where that part already was.</summary>
+        private static void WarnDisplacedParts(Ilm ilm, Dictionary<string, ObjObject> byName, ObjFile of,
+                                               int[][] poseR, int[][] poseT, List<string> into)
+        {
+            var names = new List<string>();
+            var refC = new List<double[]>();
+            var newC = new List<double[]>();
+            double[] lo = null, hi = null;
+
+            foreach (Model model in ilm.Models)
+            {
+                Mesh[] meshes = model.Meshes;
+                int nv = 0;
+                foreach (Mesh me in meshes) nv += me.VertexCount;
+                ObjObject o;
+                if (nv == 0 || !byName.TryGetValue(model.Name, out o) || o.V.Count == 0) continue;
+
+                int[] R = poseR[model.Idx], T = poseT[model.Idx];
+                var acc = new double[3];
+                foreach (Mesh me in meshes)
+                    for (int j = 0; j < me.VertexCount; j++)
+                    {
+                        double[] w = Bake(R, T, me.Vx[j], me.Vy[j], me.Vz[j]);
+                        // The span is the model's real extent, so it stays in ILM orientation;
+                        // only the centroid is flipped to match the Y-up OBJ it is compared with.
+                        if (lo == null)
+                        {
+                            lo = new[] { w[0], w[1], w[2] };
+                            hi = new[] { w[0], w[1], w[2] };
+                        }
+                        else
+                            for (int a = 0; a < 3; a++)
+                            {
+                                if (w[a] < lo[a]) lo[a] = w[a];
+                                if (w[a] > hi[a]) hi[a] = w[a];
+                            }
+                        acc[0] += w[0]; acc[1] += YOut(w[1]); acc[2] += w[2];
+                    }
+                names.Add(model.Name);
+                refC.Add(new[] { acc[0] / nv, acc[1] / nv, acc[2] / nv });
+
+                var nacc = new double[3];
+                foreach (int vl in o.V)
+                {
+                    double[] w = of.Verts[vl - 1];
+                    nacc[0] += w[0]; nacc[1] += w[1]; nacc[2] += w[2];
+                }
+                newC.Add(new[] { nacc[0] / o.V.Count, nacc[1] / o.V.Count, nacc[2] / o.V.Count });
+            }
+
+            if (names.Count < 2) return;
+            double diag = Math.Sqrt((hi[0] - lo[0]) * (hi[0] - lo[0]) +
+                                    (hi[1] - lo[1]) * (hi[1] - lo[1]) +
+                                    (hi[2] - lo[2]) * (hi[2] - lo[2]));
+            double limit = diag * 0.25;
+
+            var bad = new List<int>();
+            var dist = new double[names.Count];
+            for (int i = 0; i < names.Count; i++)
+            {
+                dist[i] = Math.Sqrt(Dist2(newC[i], refC[i]));
+                if (dist[i] > limit) bad.Add(i);
+            }
+            // Python sorts the (distance, name) tuples in REVERSE, so a tie falls back to the
+            // name descending.
+            bad.Sort((x, y) =>
+            {
+                int c = dist[y].CompareTo(dist[x]);
+                return c != 0 ? c : string.CompareOrdinal(names[y], names[x]);
+            });
+            foreach (int i in bad)
+                into.Add("part " + names[i] + " sits " + FormatFixed(dist[i], 0) + " units from where " + names[i] +
+                    " is on the original (over " + FormatFixed(limit, 0) + ", a quarter of the model). If that " +
+                    "geometry belongs to a different body part, move it into that OBJECT - the object name is the " +
+                    "bone, so it will animate with " + names[i] + " as it stands.");
+        }
+
+        /// <summary>Serialize a whole ILM from per-part geometry, template for everything else.
+        ///
+        /// Layout mirrors stock: header | materials | modelHdrs | reserved zero block | modelOrder
+        /// | pad4 | per part meshHdrs + arrays, each array followed by real in-file pad bytes so
+        /// the file passes V9 at tailSlack 0. GrowImport emits the same layout inline because it
+        /// streams the template's own array bytes through untouched; this path has every byte
+        /// already materialised, so it can be written straight out.</summary>
+        private static byte[] EmitIlm(byte[] data, Ilm ilm, List<PartBlock>[] parts, int[] vO2, int[] nO2)
+        {
+            int mc = ilm.ModelCount;
+            var outb = new List<byte>(data.Length * 2);
+            AddRange(outb, data, 0, 20, "header");
+            int matsP = outb.Count;
+            AddRange(outb, data, ilm.MatsP, 24 * ilm.MatCount, "materials");
+            int hdrsP = outb.Count;
+            AddZeros(outb, 16 * mc);
+            int reservedFrom = ilm.ModelHdrsP + 16 * mc;
+            if (ilm.ModelOrderP < reservedFrom)
+                throw new IlmException("replace: the source ILM puts modelOrder inside its model header table; the " +
+                    "sections must not overlap.");
+            AddRange(outb, data, reservedFrom, ilm.ModelOrderP - reservedFrom, "block between the model headers and modelOrder");
+            int orderP = outb.Count;
+            AddRange(outb, data, ilm.ModelOrderP, mc, "modelOrder");
+            AddZeros(outb, Align4(outb.Count));
+            PutU32(outb, 4, matsP);
+            PutU32(outb, 0xC, hdrsP);
+            PutU32(outb, 0x10, orderP);
+            outb[2] = 0; // isLoaded: a 1 makes the runtime skip pointer fix-up and crash
+
+            foreach (Model m in ilm.Models)
+            {
+                int mi = m.Idx;
+                int meshHdrsP2 = outb.Count;
+                AddZeros(outb, 24 * m.MeshCount);
+                var meshInfo = new int[m.MeshCount][];
+                for (int k = 0; k < m.MeshCount; k++)
+                {
+                    PartBlock blk = parts[mi][k];
+                    int primsP = outb.Count;
+                    foreach (byte[] raw in blk.Prims) outb.AddRange(raw);
+
+                    int xyP = outb.Count;
+                    foreach (int[] v in blk.Verts)
+                    {
+                        outb.Add((byte)v[0]); outb.Add((byte)(v[0] >> 8));
+                        outb.Add((byte)v[1]); outb.Add((byte)(v[1] >> 8));
+                    }
+                    AddZeros(outb, LmArraySlack);
+
+                    int zP = outb.Count;
+                    foreach (int[] v in blk.Verts) { outb.Add((byte)v[2]); outb.Add((byte)(v[2] >> 8)); }
+                    AddZeros(outb, Align4(outb.Count) + LmArraySlack);
+
+                    int normP = outb.Count;
+                    foreach (int[] n in blk.Norms)
+                    {
+                        outb.Add((byte)(sbyte)n[0]); outb.Add((byte)(sbyte)n[1]);
+                        outb.Add((byte)(sbyte)n[2]); outb.Add((byte)n[3]);
+                    }
+                    AddZeros(outb, LmArraySlack);
+
+                    int cnt = blk.Shade.Count;
+                    int unkP;
+                    if (cnt != 0)
+                    {
+                        unkP = outb.Count;
+                        foreach (int slot in blk.Shade) outb.Add(SlotByte(slot));
+                    }
+                    else
+                    {
+                        // Stock relation unkP = normP + 4*normalCount; with count 0 the pointer is
+                        // never dereferenced beyond address formation.
+                        unkP = normP + 4 * blk.Norms.Count;
+                    }
+                    AddZeros(outb, ShadePad(cnt));
+
+                    meshInfo[k] = new[] { blk.Prims.Count, blk.Verts.Count, blk.Norms.Count, cnt,
+                                          primsP, xyP, zP, normP, unkP };
+                }
+                for (int k = 0; k < m.MeshCount; k++)
+                {
+                    int hb = meshHdrsP2 + 24 * k;
+                    int[] info = meshInfo[k];
+                    outb[hb] = SlotByte(info[0]);
+                    outb[hb + 1] = SlotByte(info[1]);
+                    outb[hb + 2] = SlotByte(info[2]);
+                    outb[hb + 3] = SlotByte(info[3]);
+                    for (int a = 0; a < 5; a++) PutU32(outb, hb + 4 + a * 4, info[4 + a]);
+                }
+                int mhb = hdrsP + 16 * mi;
+                if (m.HdrOff < 0 || m.HdrOff + 8 > data.Length)
+                    throw new IlmException("replace: part '" + m.Name + "' header runs past the end of the source ILM");
+                for (int i = 0; i < 8; i++) outb[mhb + i] = data[m.HdrOff + i];
+                outb[mhb + 8] = (byte)m.MeshCount;
+                outb[mhb + 9] = SlotByte(vO2[mi]);
+                outb[mhb + 10] = SlotByte(nO2[mi]);
+                outb[mhb + 11] = (byte)m.Bits;
+                PutU32(outb, mhb + 0xC, meshHdrsP2);
+            }
+            return outb.ToArray();
+        }
+
+        /// <summary>Rebuild every part's geometry from the OBJ, keeping the template's rig.
+        ///
+        /// Unlike grow-mode this does not need the original vertices or faces to survive: counts,
+        /// topology and material assignment all come from the OBJ. What still comes from the
+        /// template ILM is everything whose meaning is unknown or runtime-owned — the 24-byte
+        /// material blocks, modelOrder, ModelHeader byte 0xB, the align4(modelCount) reserved
+        /// block, and each primitive's non-index bytes (clut, flags, the runtime's tpage low byte,
+        /// materialIdx 127) taken from a primitive of the SAME material name.
+        ///
+        /// Seams are re-derived rather than declared: coincident vertices in different parts
+        /// collapse onto the earliest-drawn part's pool slot, which is the only welding mechanism
+        /// the format has (no skinning, no weights — a corner that reads a foreign slot simply
+        /// follows that part's bone).</summary>
+        private static void ReplaceImport(string objPath, string ilmPath, string outIlmPath, byte[] data, Ilm ilm,
+            ObjFile of, Dictionary<string, ObjObject> byName, int[][] poseR, int[][] poseT, double[][] invs,
+            bool weld, double weldEps, ImportResult res)
+        {
+            int mc = ilm.ModelCount;
+            WarnDisplacedParts(ilm, byName, of, poseR, poseT, res.Warnings);
+
+            if (ilm.ModelOrderP < 0 || (long)ilm.ModelOrderP + mc > ilm.D.Length)
+                throw new IlmException("replace: the modelOrder table runs past the end of the file.");
+            var order = new int[mc];
+            for (int i = 0; i < mc; i++) order[i] = ilm.D[ilm.ModelOrderP + i];
+            var sortedOrder = (int[])order.Clone();
+            Array.Sort(sortedOrder);
+            for (int i = 0; i < mc; i++)
+                if (sortedOrder[i] != i)
+                    throw new IlmException("replace: modelOrder is not a permutation, so the draw order that decides " +
+                        "seam ownership cannot be trusted (no stock file does this).");
+
+            if (weld && res.RestPoseIdentity)
+            {
+                // Without a rest pose every part sits on the origin, so "coincident" stops meaning
+                // "meets at a joint" and welds the model to itself.
+                res.WeldNeedsRestPose = true;
+                throw new IlmException("this OBJ was exported without a rest pose, so every part is piled on the " +
+                    "origin and coincidence no longer means adjacency - auto-weld would fuse unrelated parts. " +
+                    "Re-export with the model's animation file, or rebuild without welding.");
+            }
+
+            var dpos = new int[mc];
+            for (int i = 0; i < mc; i++) dpos[order[i]] = i;
+            var names = new string[mc];
+            foreach (Model m in ilm.Models) names[m.Idx] = m.Name;
+
+            foreach (Model m in ilm.Models)
+            {
+                if (m.MeshCount != 1)
+                    throw new IlmException("part '" + m.Name + "' has " + m.MeshCount.ToString(Inv) + " meshes; " +
+                        "replacement rebuilds one mesh per part and cannot guess how to split the OBJ across them.");
+                foreach (Mesh me in m.Meshes)
+                    foreach (Prim p in me.Prims)
+                    {
+                        int n = p.Tri ? 3 : 4;
+                        for (int i = 0; i < n; i++)
+                            if (!p.VRef[i].Valid || !p.NRef[i].Valid)
+                                throw new IlmException("part '" + m.Name + "' reads a pool slot no part has written " +
+                                    "(a held-item/prop file resolves those against the wielder's pool at draw time) - " +
+                                    "replacement requires a fully self-contained skeletal file.");
+                    }
+            }
+
+            List<ShadeEdge>[] shadeMap = ShadeEdges(ilm, order);
+            foreach (int mi in order)
+            {
+                List<ShadeEdge> lst = shadeMap[mi];
+                if (lst == null) continue;
+                foreach (ShadeEdge e in lst)
+                    if (!e.Ref.Valid)
+                        throw new IlmException("part '" + names[mi] + "' shade stream reads an unwritten pool slot - " +
+                            "replacement requires a fully self-contained skeletal file.");
+            }
+
+            // Ownership of a vertex line is fixed by the 'o' block that declares it; the weld below
+            // only decides whose POOL SLOT it ends up in.
+            var linePart = new Dictionary<int, int>();
+            foreach (Model m in ilm.Models)
+                foreach (int vl in byName[m.Name].V) linePart[vl] = m.Idx;
+
+            // Weld, walking parts in draw order against a grid of the vertices earlier parts have
+            // already claimed. Owners are therefore always drawn earlier by construction — the
+            // direction the mechanic forces (verified over 20 stock files: all 2969 cross-part
+            // corner references point backwards in modelOrder, zero exceptions). Each part is added
+            // to the grid only after its own lines are resolved, so nothing ever welds to itself.
+            var redirect = new Dictionary<int, int>();
+            var owned = new List<int>[mc];
+            var weldOrder = new List<string>();
+            var weldPairs = new Dictionary<string, WeldPairInfo>(StringComparer.Ordinal);
+            var crossOrder = new List<string>();
+            var crossers = new Dictionary<string, CrossedBoneInfo>(StringComparer.Ordinal);
+            bool hasNearMiss = false;
+            double nearMiss = 0.0;
+            // One cell size for both add and query, sized for the near-miss radius — the wider of
+            // the two, since a near miss is searched for and reported but never accepted.
+            var grid = new Grid(weldEps * NearMissFactor);
+
+            foreach (int mi in order)
+            {
+                var mine = new List<int>();
+                foreach (int vl in byName[names[mi]].V)
+                {
+                    double[] w = of.Verts[vl - 1];
+                    int best = -1;
+                    double bestd = 0.0;
+                    if (weld)
+                    {
+                        // Search a wider radius than we accept, purely so a modeller who placed a
+                        // seam by eye gets told to widen the radius instead of silently shipping a
+                        // gap that only opens when the limb rotates.
+                        foreach (int cand in grid.Near(w))
+                        {
+                            double d = Dist2(w, of.Verts[cand - 1]);
+                            if (d <= weldEps * weldEps)
+                            {
+                                if (best < 0 || d < bestd) { best = cand; bestd = d; }
+                            }
+                            else if (!hasNearMiss || d < nearMiss) { hasNearMiss = true; nearMiss = d; }
+                        }
+                    }
+                    if (best < 0) { mine.Add(vl); continue; }
+
+                    redirect[vl] = best;
+                    string ownerName = names[linePart[best]];
+                    string key = names[mi] + "\0" + ownerName;
+                    WeldPairInfo wp;
+                    if (!weldPairs.TryGetValue(key, out wp))
+                    {
+                        wp = new WeldPairInfo { Reader = names[mi], Owner = ownerName };
+                        weldPairs[key] = wp;
+                        weldOrder.Add(key);
+                    }
+                    wp.Count++;
+                    // A weld that both MOVES a vertex and hands it to a different BONE is the only
+                    // kind that can change how the model animates; between parts sharing a bone the
+                    // matrix is the same one, and a zero-distance weld does not move anything.
+                    if (bestd > 0.0 && BoneOf(names[mi]) != BoneOf(ownerName))
+                    {
+                        CrossedBoneInfo cb;
+                        if (!crossers.TryGetValue(key, out cb))
+                        {
+                            cb = new CrossedBoneInfo { Reader = names[mi], Owner = ownerName };
+                            crossers[key] = cb;
+                            crossOrder.Add(key);
+                        }
+                        cb.Count++;
+                        double dd = Math.Sqrt(bestd);
+                        if (dd > cb.MaxDistance) cb.MaxDistance = dd;
+                    }
+                }
+                owned[mi] = mine;
+                foreach (int vl in mine) grid.Add(of.Verts[vl - 1], vl);
+            }
+
+            var vlocal = new Dictionary<int, VLoc>();
+            foreach (int mi in order)
+                for (int j = 0; j < owned[mi].Count; j++)
+                    vlocal[owned[mi][j]] = new VLoc { Mi = mi, J = j };
+
+            // Vertex bytes. An unmoved vertex keeps the template's exact s16 triple rather than
+            // being round-tripped through the inverse matrix, the same contract the patch-in-place
+            // path gives — so an unedited replacement carries the original geometry bytes, not a
+            // re-quantisation of them.
+            //
+            // The original-to-new map follows the weld, and has to: a shade stream names the
+            // template's vertices, and a vertex of its own part can perfectly well end up owned by
+            // a neighbour (CKN.ILM does exactly that).
+            var newVerts = new List<int[]>[mc];
+            var orig2new = new Dictionary<int, VLoc>[mc];
+            foreach (int mi in order)
+            {
+                newVerts[mi] = new List<int[]>();
+                orig2new[mi] = new Dictionary<int, VLoc>();
+                int[] R = poseR[mi], T = poseT[mi];
+                double[] inv = invs[mi];
+                Mesh me = ilm.Models[mi].Meshes[0];
+                var og = new Grid(UnmovedEps);
+                for (int j = 0; j < me.VertexCount; j++)
+                {
+                    double[] b = Bake(R, T, me.Vx[j], me.Vy[j], me.Vz[j]);
+                    og.Add(new[] { b[0], YOut(b[1]), b[2] }, j);
+                }
+                foreach (int vl in byName[names[mi]].V)
+                {
+                    double[] w = of.Verts[vl - 1];
+                    int hit = -1;
+                    foreach (int cand in og.Near(w))
+                        if (!Moved(w, Bake(R, T, me.Vx[cand], me.Vy[cand], me.Vz[cand]))) { hit = cand; break; }
+
+                    if (vlocal.ContainsKey(vl))
+                    {
+                        if (hit >= 0) newVerts[mi].Add(new int[] { me.Vx[hit], me.Vy[hit], me.Vz[hit] });
+                        else
+                        {
+                            if (inv == null)
+                                throw new IlmException("part '" + names[mi] + "' rest-pose matrix is singular; cannot " +
+                                    "unbake replacement geometry");
+                            double[] v = Unbake(inv, T, new[] { w[0], YIn(w[1]), w[2] });
+                            newVerts[mi].Add(new int[] { S16Checked(v[0], "vertex X"), S16Checked(v[1], "vertex Y"),
+                                                         S16Checked(v[2], "vertex Z") });
+                        }
+                    }
+                    if (hit >= 0 && !orig2new[mi].ContainsKey(hit))
+                    {
+                        int tgt;
+                        if (!redirect.TryGetValue(vl, out tgt)) tgt = vl;
+                        orig2new[mi][hit] = vlocal[tgt];
+                    }
+                }
+            }
+
+            // Normal directions of the template, in OBJ space, for the unmoved test.
+            var origDirs = new double[mc][][];
+            foreach (int mi in order)
+            {
+                Mesh me = ilm.Models[mi].Meshes[0];
+                int[] R = poseR[mi];
+                origDirs[mi] = new double[me.NormalCount][];
+                for (int j = 0; j < me.NormalCount; j++)
+                    origDirs[mi][j] = Unit(NormalOut(BakeDir(R, me.Nx[j], me.Ny[j], me.Nz[j])));
+            }
+
+            var usedOrig = new HashSet<int>[mc];      // template normal indices that survived
+            var freshOrder = new List<int[]>[mc];     // newly quantised triples, first-use order
+            var freshMap = new Dictionary<int, int>[mc];
+            for (int i = 0; i < mc; i++)
+            {
+                usedOrig[i] = new HashSet<int>();
+                freshOrder[i] = new List<int[]>();
+                freshMap[i] = new Dictionary<int, int>();
+            }
+
+            // Normal ownership follows VERTEX ownership — verified exactly true of the corpus: all
+            // 260215 corners in the 257 shipped files have the same owner for their vertex slot and
+            // their normal slot.
+            Func<int, double[], NormKey> normalKey = (owner, wObj) =>
+            {
+                double[] d = Unit(wObj);
+                if (d == null)
+                    throw new IlmException("part '" + names[owner] + "': a face has a degenerate normal");
+                int hit = -1;
+                double hitd = 0.0;
+                double[][] od = origDirs[owner];
+                for (int j = 0; j < od.Length; j++)
+                {
+                    if (od[j] == null) continue;
+                    double e = Math.Max(Math.Max(Math.Abs(d[0] - od[j][0]), Math.Abs(d[1] - od[j][1])),
+                                        Math.Abs(d[2] - od[j][2]));
+                    if (e <= NormalUnmovedEps && (hit < 0 || e < hitd)) { hit = j; hitd = e; }
+                }
+                if (hit >= 0)
+                {
+                    usedOrig[owner].Add(hit);
+                    return new NormKey { Fresh = false, A = hit };
+                }
+                int[] q = QuantNewNormal(invs[owner], wObj);
+                if (q == null)
+                    throw new IlmException("part '" + names[owner] + "': a face has a degenerate normal");
+                int pk = ((q[0] + 128) << 16) | ((q[1] + 128) << 8) | (q[2] + 128);
+                if (!freshMap[owner].ContainsKey(pk))
+                {
+                    freshMap[owner][pk] = freshOrder[owner].Count;
+                    freshOrder[owner].Add(q);
+                }
+                return new NormKey { Fresh = true, A = q[0], B = q[1], C = q[2] };
+            };
+
+            // Faces -> primitive plans. Corner order is the FT4 strip/loop involution, exactly as
+            // the other two import paths use it.
+            var plans = new List<PlanPrim>[mc];
+            foreach (int mi in order)
+            {
+                ObjObject o = byName[names[mi]];
+                var plan = new List<PlanPrim>();
+                for (int fidx = 0; fidx < o.Faces.Count; fidx++)
+                {
+                    int[][] face = o.Faces[fidx].C;
+                    int arity = face.Length;
+                    if (arity != 3 && arity != 4)
+                        throw new IlmException("part '" + names[mi] + "' face " + (fidx + 1).ToString(Inv) + " has " +
+                            arity.ToString(Inv) + " corners; the format only has triangles and quads - triangulate or " +
+                            "quadrangulate the mesh first.");
+                    int[] loop = arity == 3 ? TriLoop : QuadLoop;
+                    var corners = new PlanCorner[arity];
+                    double[] flat = null;
+                    for (int i = 0; i < arity; i++)
+                    {
+                        int vl = face[loop[i]][0], tl = face[loop[i]][1], nl = face[loop[i]][2];
+                        VLoc loc;
+                        int tgt;
+                        if (!redirect.TryGetValue(vl, out tgt)) tgt = vl;
+                        if (!vlocal.TryGetValue(tgt, out loc))
+                            throw new IlmException("part '" + names[mi] + "' cites vertex " + vl.ToString(Inv) +
+                                ", which no 'o' block declares.");
+                        if (dpos[loc.Mi] > dpos[mi])
+                            throw new IlmException("part '" + names[mi] + "' face " + (fidx + 1).ToString(Inv) +
+                                " welds to part '" + names[loc.Mi] + "', which draws LATER (position " +
+                                dpos[loc.Mi].ToString(Inv) + " vs " + dpos[mi].ToString(Inv) + "). A pool slot only " +
+                                "survives forwards, so the owner must be the earlier-drawn part - move the geometry, " +
+                                "or rebuild without welding.");
+                        if (tl == 0)
+                            throw new IlmException("part '" + names[mi] + "' face " + (fidx + 1).ToString(Inv) +
+                                " has no UVs - unwrap the geometry (every primitive corner carries a texel).");
+                        if (tl < 0 || tl > of.Uvs.Count)
+                            throw new IlmException("part '" + names[mi] + "' face " + (fidx + 1).ToString(Inv) +
+                                " references vt " + tl.ToString(Inv) + " but the OBJ has only " +
+                                of.Uvs.Count.ToString(Inv) + " 'vt' lines.");
+
+                        double[] nvec;
+                        if (nl != 0)
+                        {
+                            if (nl < 0 || nl > of.Norms.Count)
+                                throw new IlmException("part '" + names[mi] + "' face " + (fidx + 1).ToString(Inv) +
+                                    " references vn " + nl.ToString(Inv) + " but the OBJ has only " +
+                                    of.Norms.Count.ToString(Inv) + " 'vn' lines.");
+                            nvec = of.Norms[nl - 1];
+                        }
+                        else
+                        {
+                            if (flat == null)
+                            {
+                                // One flat normal per face, from OBJ corners 0,1,2 in OBJ order.
+                                double[] p0 = VertAt(of, face[0][0]), p1 = VertAt(of, face[1][0]), p2 = VertAt(of, face[2][0]);
+                                double e10 = p1[0] - p0[0], e11 = p1[1] - p0[1], e12 = p1[2] - p0[2];
+                                double e20 = p2[0] - p0[0], e21 = p2[1] - p0[1], e22 = p2[2] - p0[2];
+                                flat = new[] { e11 * e22 - e12 * e21, e12 * e20 - e10 * e22, e10 * e21 - e11 * e20 };
+                            }
+                            nvec = flat;
+                        }
+                        double[] uv = of.Uvs[tl - 1];
+                        corners[i] = new PlanCorner
+                        {
+                            Own = loc.Mi, Loc = loc.J, NK = normalKey(loc.Mi, nvec),
+                            U = UvByte(uv[0]), V = UvByte(1.0 - uv[1])
+                        };
+                    }
+                    plan.Add(new PlanPrim { Tri = arity == 3, Mtl = o.Faces[fidx].Mtl, Corners = corners });
+                }
+                plans[mi] = plan;
+            }
+
+            var nlocal = new Dictionary<NormKey, int>[mc];
+            var newNorms = new List<int[]>[mc];
+            foreach (int mi in order)
+            {
+                Mesh me = ilm.Models[mi].Meshes[0];
+                // Matched originals first, in the template's own order, so an unedited replacement
+                // reproduces the normal array instead of permuting it.
+                var idx = new Dictionary<NormKey, int>();
+                var lst = new List<int[]>();
+                var keys = new List<int>(usedOrig[mi]);
+                keys.Sort();
+                foreach (int j in keys)
+                {
+                    idx[new NormKey { Fresh = false, A = j }] = lst.Count;
+                    lst.Add(new int[] { me.Nx[j], me.Ny[j], me.Nz[j], me.NCount[j] });
+                }
+                foreach (int[] q in freshOrder[mi])
+                {
+                    idx[new NormKey { Fresh = true, A = q[0], B = q[1], C = q[2] }] = lst.Count;
+                    lst.Add(new int[] { q[0], q[1], q[2], 1 });
+                }
+                nlocal[mi] = idx;
+                newNorms[mi] = lst;
+            }
+
+            // Slot lifetimes: a slot lives from its writer's draw position to the last position
+            // that reads it, counting the shade stream as a reader.
+            var vlife = new int[mc][];
+            var nlife = new int[mc][];
+            foreach (int mi in order)
+            {
+                vlife[mi] = new int[newVerts[mi].Count];
+                for (int j = 0; j < vlife[mi].Length; j++) vlife[mi][j] = dpos[mi];
+                nlife[mi] = new int[newNorms[mi].Count];
+                for (int j = 0; j < nlife[mi].Length; j++) nlife[mi][j] = dpos[mi];
+            }
+            foreach (int mi in order)
+                foreach (PlanPrim pl in plans[mi])
+                    foreach (PlanCorner c in pl.Corners)
+                    {
+                        if (vlife[c.Own][c.Loc] < dpos[mi]) vlife[c.Own][c.Loc] = dpos[mi];
+                        int nl = nlocal[c.Own][c.NK];
+                        if (nlife[c.Own][nl] < dpos[mi]) nlife[c.Own][nl] = dpos[mi];
+                    }
+
+            var newShade = new List<VLoc>[mc];
+            foreach (int mi in order)
+            {
+                var refs = new List<VLoc>();
+                List<ShadeEdge> lst = shadeMap[mi];
+                if (lst != null)
+                    foreach (ShadeEdge e in lst)
+                    {
+                        VLoc hit;
+                        if (!orig2new[e.Ref.Model].TryGetValue(e.Ref.Local, out hit))
+                            throw new IlmException("part '" + names[mi] + "' has a shade stream whose byte " +
+                                e.ByteIdx.ToString(Inv) + " points at a vertex of part '" + names[e.Ref.Model] +
+                                "' that the replacement removed. Shade streams are per-vertex and cannot be " +
+                                "re-derived - keep that vertex, or replace a model without one.");
+                        refs.Add(hit);
+                        if (vlife[hit.Mi][hit.J] < dpos[mi]) vlife[hit.Mi][hit.J] = dpos[mi];
+                    }
+                newShade[mi] = refs;
+            }
+
+            foreach (int mi in order)
+                for (int what = 0; what < 3; what++)
+                {
+                    int n = what == 0 ? newVerts[mi].Count : what == 1 ? newNorms[mi].Count : plans[mi].Count;
+                    if (n <= 255) continue;
+                    string kind = what == 0 ? "vertices" : what == 1 ? "normals" : "primitives";
+                    throw new IlmException("part '" + names[mi] + "' has " + n.ToString(Inv) + " " + kind + "; the " +
+                        "count is a u8 and the ceiling is 255. Split the detail across parts, or decimate.");
+                }
+
+            var vcnt = new int[mc];
+            var ncnt = new int[mc];
+            var nbound = new int[mc];
+            foreach (int mi in order)
+            {
+                vcnt[mi] = newVerts[mi].Count;
+                ncnt[mi] = newNorms[mi].Count;
+                int walk = 0;
+                foreach (int[] n in newNorms[mi]) walk += n[3] != 0 ? n[3] : 1;
+                nbound[mi] = Math.Max(ncnt[mi], Math.Max(newShade[mi].Count, walk));
+            }
+
+            var keepV = new int[mc];
+            var keepN = new int[mc];
+            int pinnedCount = 0;
+            foreach (Model m in ilm.Models)
+            {
+                // V12: the third draw chain ignores window offsets, so those parts are pinned to 0
+                // and may not be relocated.
+                if (((m.Bits >> 4) & 3) != 0)
+                {
+                    if (m.VertexOffset != 0 || m.NormalOffset != 0)
+                        throw new IlmException("part '" + m.Name + "': field_B_4=" + (((m.Bits >> 4) & 3)).ToString(Inv) +
+                            " with window offsets " + m.VertexOffset.ToString(Inv) + "/" + m.NormalOffset.ToString(Inv) +
+                            " violates V12 in the ORIGINAL file - fix the source ILM first.");
+                    keepV[m.Idx] = 0; keepN[m.Idx] = 0;
+                    pinnedCount++;
+                }
+                else { keepV[m.Idx] = m.VertexOffset; keepN[m.Idx] = m.NormalOffset; }
+            }
+
+            string vtag, ntag;
+            int[] vO2 = Allocate(LmVertSlotCap, vcnt, vlife, null, keepV, "vertex", order, dpos, names, pinnedCount, out vtag);
+            int[] nO2 = Allocate(LmPoolSlots, ncnt, nlife, nbound, keepN, "normal", order, dpos, names, pinnedCount, out ntag);
+
+            // Primitive bytes. Every prim inherits a template of the SAME material name, consumed
+            // in order so an unedited replacement reuses each original's own bytes; the surplus of
+            // a grown material falls back to that material's first.
+            var parts = new List<PartBlock>[mc];
+            var intentV = new Dictionary<int, int>();   // (mi,fidx,corner) -> owner<<16 | local
+            var intentN = new Dictionary<int, int>();
+            foreach (int mi in order)
+            {
+                Mesh me = ilm.Models[mi].Meshes[0];
+                var buckets = new Dictionary<string, List<Prim>>(StringComparer.Ordinal);
+                var bucketOrder = new List<string>();
+                foreach (Prim p in me.Prims)
+                {
+                    string nm = MtlName(p, ilm.BaseClutY);
+                    List<Prim> q;
+                    if (!buckets.TryGetValue(nm, out q)) { q = new List<Prim>(); buckets[nm] = q; bucketOrder.Add(nm); }
+                    q.Add(p);
+                }
+                var legal = new List<string>(bucketOrder);
+                legal.Sort(StringComparer.Ordinal);
+                var pos = new Dictionary<string, int>(StringComparer.Ordinal);
+                foreach (string nm in bucketOrder) pos[nm] = 0;
+
+                var blk = new PartBlock();
+                for (int fidx = 0; fidx < plans[mi].Count; fidx++)
+                {
+                    PlanPrim pl = plans[mi][fidx];
+                    string name = pl.Mtl;
+                    if (name == null)
+                    {
+                        if (legal.Count != 1)
+                            throw new IlmException("part '" + names[mi] + "' face " + (fidx + 1).ToString(Inv) +
+                                " has no usemtl and the part uses " + legal.Count.ToString(Inv) + " materials (" +
+                                string.Join(", ", legal.ToArray()) + "). Material names encode the CLUT palette row, " +
+                                "so a face without one cannot be placed.");
+                        name = legal[0];
+                    }
+                    List<Prim> bucket;
+                    if (!buckets.TryGetValue(name, out bucket))
+                        throw new IlmException("part '" + names[mi] + "' face " + (fidx + 1).ToString(Inv) +
+                            " uses material '" + name + "'; a replacement may only use materials the part already " +
+                            "had (" + (legal.Count == 0 ? "none" : string.Join(", ", legal.ToArray())) + ") - the " +
+                            "name encodes the CLUT palette row and there is nowhere to invent one.", true);
+                    Prim tp = bucket[Math.Min(pos[name], bucket.Count - 1)];
+                    pos[name] = pos[name] + 1;
+
+                    var raw = new byte[20];
+                    Buffer.BlockCopy(data, tp.Off, raw, 0, 20);
+                    for (int i = 0; i < pl.Corners.Length; i++)
+                    {
+                        PlanCorner c = pl.Corners[i];
+                        int nslot = nO2[c.Own] + nlocal[c.Own][c.NK];
+                        raw[0xC + i] = SlotByte(vO2[c.Own] + c.Loc);
+                        raw[0x10 + i] = SlotByte(nslot);
+                        W16(raw, UvOffsets[i], c.U | (c.V << 8));
+                        int ik = (mi << 16) | (fidx << 3) | i;
+                        intentV[ik] = (c.Own << 16) | c.Loc;
+                        intentN[ik] = (c.Own << 16) | nlocal[c.Own][c.NK];
+                    }
+                    if (pl.Tri)
+                    {
+                        raw[0xC + 3] = TriSentinel;
+                        raw[0x10 + 3] = 0;   // stock convention: 6109/6109 tris carry 0
+                    }
+                    blk.Prims.Add(raw);
+                }
+                blk.Verts = newVerts[mi];
+                blk.Norms = newNorms[mi];
+                foreach (VLoc s in newShade[mi]) blk.Shade.Add(vO2[s.Mi] + s.J);
+                parts[mi] = new List<PartBlock> { blk };
+            }
+
+            byte[] blob = EmitIlm(data, ilm, parts, vO2, nO2);
+
+            string anmPath;
+            var anmWarn = new List<string>();
+            Anm anm = FindAnm(ilmPath, ilm.Models, null, anmWarn, out anmPath);
+            string vmsg;
+            if (LmValidate(blob, 0, anm != null ? anm.BoneCount : -1, true, out vmsg) != 0)
+                throw new IlmException("REFUSED " + vmsg);
+
+            // Acceptance test on the EMITTED bytes: ResolvePool replays the pool in modelOrder, so
+            // a prim's resolved reference is literally what the slot HOLDS at the moment that
+            // primitive draws. Any weld broken by an intervening writer shows up here — and nowhere
+            // else, since a static render cannot see it.
+            Ilm ilm2 = ParseIlm(blob);
+            ResolvePool(ilm2);
+            foreach (int mi in order)
+            {
+                Prim[] prims2 = ilm2.Models[mi].Meshes[0].Prims;
+                for (int fidx = 0; fidx < prims2.Length; fidx++)
+                {
+                    Prim p2 = prims2[fidx];
+                    int n = p2.Tri ? 3 : 4;
+                    for (int i = 0; i < n; i++)
+                    {
+                        int ik = (mi << 16) | (fidx << 3) | i;
+                        int wantV = intentV[ik], wantN = intentN[ik];
+                        PoolRef vr = p2.VRef[i], nr = p2.NRef[i];
+                        bool ok = vr.Valid && nr.Valid && vr.Mesh == 0 && nr.Mesh == 0 &&
+                                  ((vr.Model << 16) | vr.Local) == wantV && ((nr.Model << 16) | nr.Local) == wantN;
+                        if (!ok)
+                            throw new IlmException("replace internal error: part " + names[mi] + " prim " +
+                                fidx.ToString(Inv) + " corner " + i.ToString(Inv) + " reads the wrong pool slot - " +
+                                "the window layout clobbers a weld.");
+                    }
+                }
+            }
+
+            File.WriteAllBytes(outIlmPath, blob);
+
+            int totV = 0, totN = 0, totP = 0;
+            foreach (int mi in order) { totV += vcnt[mi]; totN += ncnt[mi]; totP += plans[mi].Count; }
+
+            res.IlmPath = outIlmPath;
+            res.Parts = mc;
+            res.Vertices = totV;
+            res.Normals = totN;
+            res.Prims = totP;
+            res.Replaced = true;
+            res.WeldEnabled = weld;
+            res.WeldEps = weldEps;
+
+            res.Report.Add("   " + mc.ToString(Inv) + " parts, " + totV.ToString(Inv) + " vertices, " +
+                totN.ToString(Inv) + " normals, " + totP.ToString(Inv) + " prims rebuilt");
+            if (weld)
+            {
+                weldOrder.Sort(StringComparer.Ordinal);   // '\0' sorts below every name character
+                int tot = 0;
+                foreach (string k in weldOrder) tot += weldPairs[k].Count;
+                res.WeldedVertices = tot;
+                res.Report.Add("   welded " + tot.ToString(Inv) + " vertices across " +
+                    weldOrder.Count.ToString(Inv) + " part pairs (eps " + PyG(weldEps) + "):");
+                foreach (string k in weldOrder)
+                {
+                    WeldPairInfo wp = weldPairs[k];
+                    res.WeldPairs.Add(wp);
+                    res.Report.Add("      " + wp.Reader.PadRight(10) + " reads " + wp.Owner.PadRight(10) + "  " +
+                        wp.Count.ToString(Inv));
+                }
+                if (weldOrder.Count == 0)
+                    res.Report.Add("      (none - no coincident vertices in different parts)");
+                if (hasNearMiss)
+                {
+                    double d = Math.Sqrt(nearMiss);
+                    res.NearMissDistance = d;
+                    res.Report.Add("   HINT: the closest UNWELDED pair of vertices in different parts is " +
+                        FormatFixed(d, 3) + " units apart, just outside --weld-eps " + PyG(weldEps) + ". If those " +
+                        "were meant to be one seam, snap them together in your modeller (exact is best) or re-run " +
+                        "with --weld-eps " + FormatFixed(d * 1.01, 3) + ".");
+                }
+                crossOrder.Sort(StringComparer.Ordinal);
+                foreach (string k in crossOrder)
+                {
+                    CrossedBoneInfo cb = crossers[k];
+                    res.CrossedBones.Add(cb);
+                    res.Report.Add("   NOTE: " + cb.Count.ToString(Inv) + " vertex/vertices of " + cb.Reader +
+                        " moved up to " + FormatFixed(cb.MaxDistance, 3) + " units onto " + cb.Owner +
+                        ", which is a DIFFERENT bone - they will now animate with " + cb.Owner +
+                        ". Lower --weld-eps if that is not what you meant.");
+                }
+            }
+            else
+                res.Report.Add("   welding DISABLED: every part carries its own seam vertices, so the joints only " +
+                    "stay closed while the parts overlap");
+
+            int vext = 0, next = 0;
+            foreach (int mi in order)
+            {
+                if (vO2[mi] + vcnt[mi] > vext) vext = vO2[mi] + vcnt[mi];
+                if (nO2[mi] + ncnt[mi] > next) next = nO2[mi] + ncnt[mi];
+            }
+            res.Report.Add("   windows: vertex extent " + vext.ToString(Inv) + " / " + LmVertSlotCap.ToString(Inv) +
+                " (" + vtag + "), normal extent " + next.ToString(Inv) + " / " + LmPoolSlots.ToString(Inv) +
+                " (" + ntag + ")");
+            res.Report.Add("   file: 0x" + blob.Length.ToString("X", Inv) + " (was 0x" + data.Length.ToString("X", Inv) + ")");
+            if (res.RestPoseIdentity)
+                res.Report.Add("   rest pose: IDENTITY (this OBJ was exported without an ANM)");
+        }
+
+        /// <summary>Try the three window-layout strategies in order. The template's own offsets
+        /// first, so an unedited replacement reproduces the original file's windows; then plain
+        /// first fit; then largest-part-first, which is skipped outright when any part is pinned to
+        /// offset 0 because relocating a pinned part is not an option to try.</summary>
+        private static int[] Allocate(int cap, int[] counts, int[][] life, int[] bound, int[] keep, string kind,
+                                      int[] order, int[] dpos, string[] names, int pinnedCount, out string tag)
+        {
+            int mc = counts.Length;
+            var big = new int[mc];
+            Array.Copy(order, big, mc);
+            var rank = new int[mc];
+            for (int i = 0; i < mc; i++) rank[order[i]] = i;
+            // Python's sorted() is stable, so equal counts keep draw order; List.Sort is not, hence
+            // the explicit tiebreak.
+            Array.Sort(big, (a, b) =>
+            {
+                int c = counts[b].CompareTo(counts[a]);
+                return c != 0 ? c : rank[a].CompareTo(rank[b]);
+            });
+
+            int failMi = -1;
+            List<int> failLive = null;
+            for (int strategy = 0; strategy < 3; strategy++)
+            {
+                if (pinnedCount > 0 && strategy == 2) continue;
+                int[] po = strategy == 2 ? big : order;
+                int[] kp = strategy == 0 ? keep : null;
+                int[] off = PoolAlloc(cap, po, dpos, counts, life, bound, kp, out failMi, out failLive);
+                if (off != null)
+                {
+                    tag = strategy == 0 ? "template windows" : strategy == 1 ? "first fit" : "largest first";
+                    return off;
+                }
+            }
+
+            var hogs = new List<int>(failLive);
+            // failLive is already ascending, and Python's stable sort keeps that order on a tie.
+            hogs.Sort((a, b) =>
+            {
+                int c = counts[b].CompareTo(counts[a]);
+                return c != 0 ? c : a.CompareTo(b);
+            });
+            var shown = new List<string>();
+            for (int i = 0; i < hogs.Count && i < 6; i++)
+                shown.Add(names[hogs[i]] + " (" + counts[hogs[i]].ToString(Inv) + ")");
+            int need = Math.Max(counts[failMi], bound == null ? 0 : bound[failMi]);
+            throw new IlmException("REFUSED: no " + kind + " window fits part '" + names[failMi] + "' (" +
+                need.ToString(Inv) + " slots, cap " + cap.ToString(Inv) + "). The pool is held across its draw " +
+                "position by " + (shown.Count == 0 ? "nothing" : string.Join(", ", shown.ToArray())) +
+                (hogs.Count > 6 ? " and " + (hogs.Count - 6).ToString(Inv) + " more" : "") +
+                ". Either shed geometry in those parts, or shorten the welds that keep their slots alive - a slot " +
+                "cannot be reused until the last part that reads it has drawn.", true);
         }
     }
 }
