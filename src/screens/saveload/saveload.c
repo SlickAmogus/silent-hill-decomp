@@ -1103,7 +1103,27 @@ void SaveScreen_NavigationDraw(s32 slotIdx, s32 saveCount, s32 selectedSaveIdx, 
     // Draw scroll bar thumb.
     if (saveCount != 0)
     {
+#ifdef SH_PC_PORT
+        /* Track the WINDOW, not the selection. Retail derives the scroll offset
+         * from the selection, so "where the selection is" and "where the view
+         * is" were the same thing and either could drive the thumb. The pointer
+         * path decouples them (it scrolls the view without moving the
+         * selection), so the thumb has to follow the view or it reports the
+         * wrong place while dragging. Scaled over maxHidden so the thumb reaches
+         * the bottom of the track exactly when the list is fully scrolled — the
+         * drag in SaveScreen_LogicUpdate inverts this same mapping. */
+        {
+            s32 maxHidden = (saveCount > 5) ? (saveCount - 5) : 0;
+            s32 hidden    = g_SaveScreen_HiddenSaves[slotIdx];
+
+            if (hidden < 0)         hidden = 0;
+            if (hidden > maxHidden) hidden = maxHidden;
+
+            thumbOffsetY = (maxHidden > 0) ? (((hidden * 79) / maxHidden) + 8) : 8;
+        }
+#else
         thumbOffsetY       = ((selectedSaveIdx * 79) / saveCount) + 8;
+#endif
         thumbOffsetBottomY = THUMB_Y_OFFESTS[saveCount - 1];
 
         // Inner and outer rectangles.
@@ -1905,8 +1925,9 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
 
                     if (mh > 0)
                     {
-                        /* Invert the thumb mapping (thumbY = idx*79/cnt + 8). */
-                        s32 h = ((my - SAVE_BAR_TOP_Y - 8) * cnt) / SAVE_BAR_TRAVEL;
+                        /* Inverse of the thumb mapping in SaveScreen_NavigationDraw
+                         * (thumbY = hidden*79/maxHidden + 8). Keep the two in step. */
+                        s32 h = ((my - SAVE_BAR_TOP_Y - 8) * mh) / SAVE_BAR_TRAVEL;
 
                         if (h < 0)  h = 0;
                         if (h > mh) h = mh;
@@ -1963,6 +1984,28 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
                     s_listDrag   = -1;
                     s_pressMoved = 0;
                     s_pressValid = 0;
+                }
+
+                /* Keep the selection inside the visible window whenever the
+                 * pointer scrolled the view. SaveScreen_NavigationDraw places the
+                 * selection highlight at (selected - hidden) * SLOT_ROW_OFFSET,
+                 * so once those two decouple the quad is drawn outside the list —
+                 * the stray highlight that appeared down in the info panel while
+                 * dragging. Clamping also keeps the info panel showing a save the
+                 * player can actually see. */
+                if ((s_barDrag >= 0 || s_listDrag >= 0 || wheel != 0) && listCount > 0)
+                {
+                    s32 lo  = g_SaveScreen_HiddenSaves[hitSlot];
+                    s32 hi  = lo + (SAVE_VIS_ROWS - 1);
+                    s32 sel = g_SlotElementSelectedIdx[hitSlot];
+
+                    if (hi > listCount - 1) hi = listCount - 1;
+                    if (lo < 0)             lo = 0;
+
+                    if (sel < lo) sel = lo;
+                    if (sel > hi) sel = hi;
+
+                    g_SlotElementSelectedIdx[hitSlot] = (u8)sel;
                 }
 
                 /* --- hover: highlight only, never scroll --- */
