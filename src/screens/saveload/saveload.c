@@ -182,6 +182,12 @@ static s16 D_801E756C[MEMCARD_SLOT_COUNT_MAX];
  */
 static s16 g_SaveScreen_HiddenSaves[MEMCARD_SLOT_COUNT_MAX];
 
+#ifdef SH_PC_PORT
+/* Set for the frame in which the mouse pointer moved the save-list selection,
+ * read by the auto-scroll in SaveScreen_ElementDraw. See the comment there. */
+static s32 g_PcSaveHoverPinScroll = 0;
+#endif
+
 /** @brief Dead code.
  * The only usage it is given is to check it is in `SaveScreen_SavesSlotDraw`
  * where it is used to check if the value is not the same as
@@ -466,6 +472,21 @@ void SaveScreen_SavesSlotDraw(s_SaveScreenElement* saveEntry, s32 saveIdx, s32 s
             }
         }
 
+#ifdef SH_PC_PORT
+        /* Mouse hover must not scroll the list. The auto-scroll below keeps the
+         * selection inside rows 1..3 of the 5 visible, so hovering the top or
+         * bottom visible row scrolls — which slides a different entry under the
+         * stationary cursor, which hovers again, and the list rockets to the end
+         * of the save list on the smallest cursor movement. While the selection
+         * came from the pointer, hold the scroll offset where it is: the cursor
+         * picks any visible row, and scrolling stays the wheel's job (the wheel
+         * moves the selection, which scrolls through this same code normally). */
+        if (g_PcSaveHoverPinScroll)
+        {
+            /* leave g_SaveScreen_HiddenSaves[slotIdx] untouched */
+        }
+        else
+#endif
         if (g_Savegame_ElementCount1[slotIdx] < 6 || g_SlotElementSelectedIdx[slotIdx] == 0)
         {
             g_SaveScreen_HiddenSaves[slotIdx] = 0;
@@ -1761,6 +1782,12 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
     {
         int mx, my;
 
+        /* Re-armed every frame: only a hover that actually moves the selection
+         * (below) pins the scroll, so pad/keyboard navigation still scrolls
+         * normally. Consumed later in the frame by SaveScreen_ScreenDraw ->
+         * SaveScreen_SavesSlotDraw. */
+        g_PcSaveHoverPinScroll = 0;
+
         if (Pc_MouseCursor_UiPos(&mx, &my))
         {
             if (gameStateSteps == 0 && g_MemCard_TotalElementsCount > 0)
@@ -1793,6 +1820,10 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
                         if (Pc_MouseCursor_Moved() && g_SlotElementSelectedIdx[hitSlot] != target)
                         {
                             g_SlotElementSelectedIdx[hitSlot] = target;
+                            /* Pointer-driven: pin the scroll for this frame so
+                             * hovering the top/bottom visible row can't scroll
+                             * the list out from under the cursor. */
+                            g_PcSaveHoverPinScroll = 1;
                             SD_Call(Sfx_MenuMove);
                         }
                         if (Pc_MouseCursor_LeftClicked() && g_SlotElementSelectedIdx[hitSlot] == target)
@@ -1804,6 +1835,9 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
 
                 if (wheel != 0)
                 {
+                    /* The wheel is the one thing that SHOULD scroll: let the
+                     * stock auto-scroll run for this frame. */
+                    g_PcSaveHoverPinScroll = 0;
                     g_Controller0->pulsedBtnFlags |= (wheel > 0) ? ControllerFlag_LStickUp
                                                                  : ControllerFlag_LStickDown;
                 }

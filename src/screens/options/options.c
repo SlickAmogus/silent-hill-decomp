@@ -173,6 +173,9 @@ static const s_PcOpt PCOPT_G[] = {
     { "Antialiasing",   &g_PcConfig.msaaSamples,        "msaa",                 VAL_AA,    4, LBL_AA,    NULL,                          0, PCK_INT    },
     { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
+    /* New-Game start map. Moved here from the Camera page, which had run to 12
+     * rows (the practical maximum) while this page had room to spare. */
+    { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
     { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
     { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
 };
@@ -190,6 +193,8 @@ static const s_PcOpt PCOPT_S[] = {
     { "Preload_Chunks",   &g_PcConfig.preloadChunks,  "preload_chunks",   VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
     { "FPS_Limit",        &g_PcConfig.fpsCap,         "fps_cap",          VAL_FPS,   5, LBL_FPS,   NULL, 1, PCK_INT  },
     { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
+    /* Moved here from the Camera page for the same reason as Map above. */
+    { "Crosshair",        &g_PcConfig.crosshair,      "crosshair",        VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -211,12 +216,12 @@ static const s_PcOpt PCOPT_C[] = {
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
 
-/* Page 4 (Camera): the aiming + alternate-camera options, plus the New-Game start
- * Map row (moved here from the now-full Controls page). A page fits ~12 lines
- * (PCOPT_LINE_BASE_Y 40 + 16/row on a 240-line screen). Third_Person_FOV lives with
- * First_Person_FOV on the Controls page. */
+/* Page 4 (Camera): the aiming + alternate-camera options. A page fits ~12 lines
+ * (PCOPT_LINE_BASE_Y 40 + 16/row on a 240-line screen) and this one had reached
+ * that limit, so Crosshair moved to the System page and the New-Game start Map
+ * row to the Graphics page — both of which had spare rows. Third_Person_FOV
+ * lives with First_Person_FOV on the Controls page. */
 static const s_PcOpt PCOPT_T[] = {
-    { "Crosshair",         &g_PcConfig.crosshair,          "crosshair",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Minimap",           &g_PcConfig.minimap,            "minimap",               VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Minimap_Shape",     &g_PcConfig.minimapShape,       "minimap_shape",         VAL_MMSHP, 2, LBL_MMSHP, NULL, 1, PCK_INT },
     { "Minimap_Corner",    &g_PcConfig.minimapCorner,      "minimap_corner",        VAL_MMCNR, 4, LBL_MMCNR, NULL, 1, PCK_INT },
@@ -225,7 +230,6 @@ static const s_PcOpt PCOPT_T[] = {
     { "Aim_Zoom",          NULL, "tps_aim_zoom_amount",    NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsAimZoom,  NULL, 0.0f, 100.0f, 5.0f },
     { "OTS_Aim_In_TPS",    &g_PcConfig.tpsOtsAim,          "tps_ots_aim",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Camera_Collision",  &g_PcConfig.tpsCameraCollision, "tps_camera_collision",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    { "Map",               NULL,                           "map",                   NULL,      0, NULL,      NULL, 1, PCK_MAP  },
     { "Prev_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Back",              NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
@@ -299,6 +303,37 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
         snprintf(buf, bufsz, "%d", e->vals[idx]);
         return buf;
     }
+}
+
+/* Click-and-drag on a slider row. PcOpt_Adjust writes config.cfg on every call,
+ * so driving it once per drag step would rewrite the file dozens of times a
+ * second; instead move the value live here and let the caller save once when the
+ * button is released. */
+static void PcOpt_SliderDragApply(const s_PcOpt* e, int steps)
+{
+    float v;
+
+    if (e->kind != PCK_SLIDER || !e->ffield || steps == 0)
+        return;
+
+    v = *e->ffield + (float)steps * e->fstep;
+    if (v < e->fmin) v = e->fmin;
+    if (v > e->fmax) v = e->fmax;
+
+    *e->ffield = v;
+    if (e->flive) *e->flive = v;
+}
+
+static void PcOpt_SliderDragCommit(const s_PcOpt* e)
+{
+    char fb[16];
+
+    if (e->kind != PCK_SLIDER || !e->ffield || !e->key)
+        return;
+
+    snprintf(fb, sizeof(fb), "%.3f", *e->ffield);
+    PcConfig_SaveKeyValue(e->key, fb);
+    SH_DBG_ECHO("%s: %.2f", e->name, *e->ffield);
 }
 
 static void PcOpt_Adjust(const s_PcOpt* e, int dir)
@@ -414,6 +449,18 @@ void Options_PcOptionsMenu_Control(void)
         {
             int mx, my;
 
+            /* Slider drag state. Holding the button on a slider row grabs it:
+             * the row is pinned (so the vertical wobble of a drag can't hover
+             * onto a neighbour) and pointer travel is accumulated into value
+             * steps. Right or up raises, left or down lowers, so either axis
+             * feels natural. Committed once on release — see
+             * PcOpt_SliderDragApply. */
+            static int s_dragRow  = -1;
+            static int s_dragX    = 0;
+            static int s_dragY    = 0;
+            static int s_dragMoved = 0;
+            const int  PCOPT_DRAG_PX_PER_STEP = 4;
+
             if (Pc_MouseCursor_UiPos(&mx, &my))
             {
                 int row = -1, i;
@@ -423,19 +470,55 @@ void Options_PcOptionsMenu_Control(void)
                     if (my >= top && my < top + 16) { row = i; break; }
                 }
 
-                if (row >= 0 && Pc_MouseCursor_Moved() && row != g_PcOptionsMenu_SelectedEntry) {
+                /* Start a drag when the button goes down on a slider row. */
+                if (s_dragRow < 0 && Pc_MouseCursor_LeftClicked() &&
+                    row >= 0 && row == g_PcOptionsMenu_SelectedEntry &&
+                    tbl[row].kind == PCK_SLIDER)
+                {
+                    s_dragRow   = row;
+                    s_dragX     = mx;
+                    s_dragY     = my;
+                    s_dragMoved = 0;
+                }
+
+                if (s_dragRow >= 0 && Pc_MouseCursor_LeftHeld() && s_dragRow < count)
+                {
+                    int travel = (mx - s_dragX) - (my - s_dragY);
+                    int steps  = travel / PCOPT_DRAG_PX_PER_STEP;
+
+                    if (steps != 0) {
+                        PcOpt_SliderDragApply(&tbl[s_dragRow], steps);
+                        /* Keep the remainder so slow drags still accumulate. */
+                        s_dragX += steps * PCOPT_DRAG_PX_PER_STEP;
+                        s_dragY -= steps * PCOPT_DRAG_PX_PER_STEP;
+                        s_dragMoved = 1;
+                    }
+                }
+                else if (s_dragRow >= 0)
+                {
+                    /* Released. A drag saves once; a click that never moved
+                     * keeps the old behaviour of nudging the value one step. */
+                    if (s_dragRow < count) {
+                        if (s_dragMoved) PcOpt_SliderDragCommit(&tbl[s_dragRow]);
+                        else             PcOpt_Adjust(&tbl[s_dragRow], 1);
+                    }
+                    s_dragRow = -1;
+                }
+
+                if (s_dragRow < 0 &&
+                    row >= 0 && Pc_MouseCursor_Moved() && row != g_PcOptionsMenu_SelectedEntry) {
                     g_PcOptionsMenu_SelectedEntry     = row;
                     g_PcOptionsMenu_PrevSelectedEntry = row;
                     g_PcOptions_HighlightSnap         = 1;
                     Sd_PlaySfx(Sfx_MenuMove, 0, 64);
                 }
-                if (row >= 0 && row == g_PcOptionsMenu_SelectedEntry) {
+                if (s_dragRow < 0 && row >= 0 && row == g_PcOptionsMenu_SelectedEntry) {
                     int wheel = Pc_MouseCursor_WheelStep();
 
                     if (tbl[row].kind >= PCK_NEXT) {
                         if (Pc_MouseCursor_LeftClicked())
                             PcMouse_InjectEnter();
-                    } else if (Pc_MouseCursor_LeftClicked()) {
+                    } else if (Pc_MouseCursor_LeftClicked() && tbl[row].kind != PCK_SLIDER) {
                         PcMouse_InjectDir(1);
                     } else if (wheel != 0) {
                         PcMouse_InjectDir(wheel);
@@ -443,6 +526,13 @@ void Options_PcOptionsMenu_Control(void)
                 }
                 if (Pc_MouseCursor_RightClicked())
                     PcMouse_InjectCancel();
+            }
+            else if (s_dragRow >= 0)
+            {
+                /* Pointer left the viewport mid-drag — commit and let go. */
+                if (s_dragMoved && s_dragRow < count)
+                    PcOpt_SliderDragCommit(&tbl[s_dragRow]);
+                s_dragRow = -1;
             }
         }
 
