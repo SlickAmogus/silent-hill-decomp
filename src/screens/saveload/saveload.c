@@ -473,14 +473,21 @@ void SaveScreen_SavesSlotDraw(s_SaveScreenElement* saveEntry, s32 saveIdx, s32 s
         }
 
 #ifdef SH_PC_PORT
-        /* Mouse hover must not scroll the list. The auto-scroll below keeps the
-         * selection inside rows 1..3 of the 5 visible, so hovering the top or
-         * bottom visible row scrolls — which slides a different entry under the
-         * stationary cursor, which hovers again, and the list rockets to the end
-         * of the save list on the smallest cursor movement. While the selection
-         * came from the pointer, hold the scroll offset where it is: the cursor
-         * picks any visible row, and scrolling stays the wheel's job (the wheel
-         * moves the selection, which scrolls through this same code normally). */
+        /* While the pointer owns the list, it owns the scroll offset too.
+         *
+         * This block DERIVES the offset from the selection, keeping the selected
+         * entry inside rows 1..3 of the 5 visible. That is fine for a d-pad,
+         * where selecting and scrolling are the same gesture, but it makes
+         * "highlight whatever is under the cursor" impossible: highlighting the
+         * top or bottom visible row scrolls, which slides a different entry
+         * under the stationary cursor, which highlights, and the list rockets to
+         * the end on the smallest movement.
+         *
+         * So SaveScreen_LogicUpdate sets the flag whenever the pointer is over
+         * the list, and sets g_SaveScreen_HiddenSaves itself for the explicit
+         * scroll gestures (drag the list, drag the bar, wheel). Hover then only
+         * highlights. Any pad/keyboard input clears the flag and this derived
+         * behaviour resumes unchanged. */
         if (g_PcSaveHoverPinScroll)
         {
             /* leave g_SaveScreen_HiddenSaves[slotIdx] untouched */
@@ -1811,151 +1818,183 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
                     SD_Call(Sfx_MenuMove);
                 }
 
-                /* Scroll bar geometry in pointer space. SaveScreen_NavigationDraw
-                 * builds the track from SCROLL_BAR_TRACK_QUADS (local x 0..8,
-                 * y 0..96) at x = slot*SLOT_COLUMN_OFFSET - 139 and
-                 * y - SCROLL_BAR_OFFSET_Y, in the centre-origin prim space whose
-                 * draw offset is (160, 112) — so on screen it is x 21..29 (slot
-                 * 0) / 171..179 (slot 1), y 52..148. The thumb travels 79px from
-                 * +8, which is the mapping inverted below. Widened by 4px each
-                 * side so the bar is comfortable to grab. */
+                /* ---- Pointer ownership of the list ----------------------
+                 * The stock screen DERIVES the scroll offset from the selection
+                 * every frame (SaveScreen_SavesSlotDraw), so "highlight the row
+                 * under the cursor" and "do not scroll" are in direct conflict:
+                 * highlighting the top/bottom visible row scrolls, which slides
+                 * a different entry under the stationary cursor, which
+                 * highlights, and the list runs away.
+                 *
+                 * So while the pointer is driving, it OWNS the scroll: the
+                 * derived recompute is pinned off and this code sets
+                 * g_SaveScreen_HiddenSaves directly. Hover then only ever
+                 * highlights, and scrolling is an explicit act - drag the list,
+                 * drag the bar, or wheel. Any pad/keyboard input hands the list
+                 * straight back to the stock behaviour.
+                 *
+                 * Bar geometry comes from what SaveScreen_NavigationDraw builds:
+                 * SCROLL_BAR_TRACK_QUADS (local x 0..8, y 0..96) at
+                 * x = slot*SLOT_COLUMN_OFFSET - 139, y - SCROLL_BAR_OFFSET_Y, in
+                 * centre-origin prim space with draw offset (160, 112) => x
+                 * 21..29 (slot 0) / 171..179 (slot 1), y 52..148. Counts use
+                 * ElementCount1, which is what the bar itself is drawn with
+                 * (line 551) - ElementCount0 is a different total and produced a
+                 * wrong thumb mapping. */
                 #define SAVE_BAR_X(slot)  (((slot) * SLOT_COLUMN_OFFSET) - 139 + 160)
                 /* 112 (prim draw offset Y) - 60 (SCROLL_BAR_OFFSET_Y, which
                  * SaveScreen_NavigationDraw #undefs before we get here). */
                 #define SAVE_BAR_TOP_Y    (112 - 60)
                 #define SAVE_BAR_TRAVEL   79
                 #define SAVE_BAR_GRAB     4
+                #define SAVE_VIS_ROWS     5
                 #define SAVE_DRAG_SLOP    3   /* px of travel that still counts as a click */
 
-                /* -1 = idle, else the slot whose bar is being dragged.
-                 * s_pressRow/-X/-Y latch the press so a release can tell a click
-                 * from a drag: the stock code loaded on the press edge, so any
-                 * drag that began on a row also loaded that save. */
-                static s32 s_barDragSlot = -1;
-                static s32 s_pressRow    = -1;
-                static s32 s_pressX      = 0;
-                static s32 s_pressY      = 0;
-                static s32 s_pressMoved  = 0;
+                static s32 s_barDrag    = -1; /* slot whose bar is held, else -1 */
+                static s32 s_listDrag   = -1; /* slot whose list is held, else -1 */
+                static s32 s_pressX     = 0;
+                static s32 s_pressY     = 0;
+                static s32 s_pressMoved = 0;
+                static s32 s_pressValid = 0;  /* press landed on a loadable row */
 
+                s32 listCount = g_Savegame_ElementCount1[hitSlot];
+                s32 maxHidden = (listCount > SAVE_VIS_ROWS) ? (listCount - SAVE_VIS_ROWS) : 0;
                 s32 barX      = SAVE_BAR_X(hitSlot);
                 s32 onBar     = (mx >= barX - SAVE_BAR_GRAB && mx <= barX + 8 + SAVE_BAR_GRAB &&
                                  my >= SAVE_BAR_TOP_Y && my <= SAVE_BAR_TOP_Y + 96);
-                s32 slotCount = g_Savegame_ElementCount0[hitSlot];
 
-                /* --- grab the scroll bar --- */
-                if (s_barDragSlot < 0 && onBar && Pc_MouseCursor_LeftClicked() && slotCount > 0)
+                /* Pad/keyboard reclaims the list from the pointer. */
+                if (g_Controller0->pulsedBtnFlags & (ControllerFlag_LStickUp | ControllerFlag_LStickDown))
                 {
-                    s_barDragSlot = hitSlot;
-                    s_pressRow    = -1; /* a bar grab is never a save click */
+                    g_PcSaveHoverPinScroll = 0;
+                    s_barDrag  = -1;
+                    s_listDrag = -1;
+                }
+                else if (g_SaveScreen_HiddenSaves[hitSlot] != NO_VALUE)
+                {
+                    /* Pointer is over the list: hold the view still. */
+                    g_PcSaveHoverPinScroll = 1;
                 }
 
-                if (s_barDragSlot >= 0 && Pc_MouseCursor_LeftHeld())
+                /* --- press: grab the bar, or arm a list drag / load --- */
+                if (Pc_MouseCursor_LeftClicked() && s_barDrag < 0 && s_listDrag < 0)
                 {
-                    /* Absolute: thumb follows the pointer. Invert the thumb
-                     * mapping (thumbY = idx*79/count + 8) to get the entry.
-                     * Deliberately does NOT pin the scroll — dragging the bar is
-                     * exactly when the list SHOULD scroll. */
-                    s32 cnt = g_Savegame_ElementCount0[s_barDragSlot];
+                    s_pressX     = mx;
+                    s_pressY     = my;
+                    s_pressMoved = 0;
 
-                    if (cnt > 0)
+                    if (onBar && listCount > 0)
                     {
-                        s32 idx = ((my - SAVE_BAR_TOP_Y - 8) * cnt) / SAVE_BAR_TRAVEL;
+                        s_barDrag    = hitSlot;
+                        s_pressValid = 0;
+                    }
+                    else if (visRow >= 0 && hitSlot == g_SelectedSaveSlotIdx)
+                    {
+                        s32 target = g_SaveScreen_HiddenSaves[hitSlot] + visRow;
 
-                        if (idx < 0)    idx = 0;
-                        if (idx >= cnt) idx = cnt - 1;
+                        s_listDrag   = hitSlot;
+                        s_pressValid = (target >= 0 && target < g_Savegame_ElementCount0[hitSlot]);
+                    }
+                }
 
-                        if (g_SlotElementSelectedIdx[s_barDragSlot] != idx)
+                /* --- bar drag: thumb follows the pointer (absolute) --- */
+                if (s_barDrag >= 0 && Pc_MouseCursor_LeftHeld())
+                {
+                    s32 cnt = g_Savegame_ElementCount1[s_barDrag];
+                    s32 mh  = (cnt > SAVE_VIS_ROWS) ? (cnt - SAVE_VIS_ROWS) : 0;
+
+                    if (mh > 0)
+                    {
+                        /* Invert the thumb mapping (thumbY = idx*79/cnt + 8). */
+                        s32 h = ((my - SAVE_BAR_TOP_Y - 8) * cnt) / SAVE_BAR_TRAVEL;
+
+                        if (h < 0)  h = 0;
+                        if (h > mh) h = mh;
+
+                        if (g_SaveScreen_HiddenSaves[s_barDrag] != h)
                         {
-                            g_SlotElementSelectedIdx[s_barDragSlot] = idx;
+                            g_SaveScreen_HiddenSaves[s_barDrag] = (s16)h;
                             SD_Call(Sfx_MenuMove);
                         }
                     }
                 }
-                else if (s_barDragSlot >= 0)
-                {
-                    s_barDragSlot = -1; /* released */
-                }
-
-                if (s_barDragSlot < 0 && visRow >= 0 && hitSlot == g_SelectedSaveSlotIdx)
-                {
-                    s32 target = g_SaveScreen_HiddenSaves[hitSlot] + visRow;
-
-                    if (target >= 0 && target < g_Savegame_ElementCount0[hitSlot])
-                    {
-                        if (Pc_MouseCursor_Moved() && g_SlotElementSelectedIdx[hitSlot] != target &&
-                            s_pressRow < 0)
-                        {
-                            g_SlotElementSelectedIdx[hitSlot] = target;
-                            /* Pointer-driven: pin the scroll for this frame so
-                             * hovering the top/bottom visible row can't scroll
-                             * the list out from under the cursor. */
-                            g_PcSaveHoverPinScroll = 1;
-                            SD_Call(Sfx_MenuMove);
-                        }
-
-                        /* Latch the press; decide click-vs-drag on release. */
-                        if (Pc_MouseCursor_LeftClicked() && g_SlotElementSelectedIdx[hitSlot] == target)
-                        {
-                            s_pressRow   = target;
-                            s_pressX     = mx;
-                            s_pressY     = my;
-                            s_pressMoved = 0;
-                        }
-                    }
-                }
-
-                /* --- drag inside the list scrolls it, and cancels the load --- */
-                if (s_pressRow >= 0 && Pc_MouseCursor_LeftHeld())
+                /* --- list drag: pull the content with the pointer (relative) --- */
+                else if (s_listDrag >= 0 && Pc_MouseCursor_LeftHeld())
                 {
                     s32 dx = mx - s_pressX;
                     s32 dy = my - s_pressY;
 
                     if (dx < 0) dx = -dx;
                     if (dy < 0) dy = -dy;
-
                     if (dx > SAVE_DRAG_SLOP || dy > SAVE_DRAG_SLOP)
-                    {
                         s_pressMoved = 1;
 
-                        /* One row per row-height of travel, dragging the content
-                         * (pull down = go to earlier saves). */
+                    if (s_pressMoved && maxHidden > 0)
+                    {
+                        s32 rows = (s_pressY - my) / 20; /* one row per row-height */
+
+                        if (rows != 0)
                         {
-                            s32 rows = (s_pressY - my) / 20;
+                            s32 h = g_SaveScreen_HiddenSaves[hitSlot] + rows;
 
-                            if (rows != 0 && slotCount > 0)
+                            if (h < 0)         h = 0;
+                            if (h > maxHidden) h = maxHidden;
+
+                            if (g_SaveScreen_HiddenSaves[hitSlot] != h)
                             {
-                                s32 idx = g_SlotElementSelectedIdx[hitSlot] + rows;
-
-                                if (idx < 0)          idx = 0;
-                                if (idx >= slotCount) idx = slotCount - 1;
-
-                                if (idx != g_SlotElementSelectedIdx[hitSlot])
-                                {
-                                    g_SlotElementSelectedIdx[hitSlot] = idx;
-                                    SD_Call(Sfx_MenuMove);
-                                }
-                                s_pressY = my; /* consume the travel */
+                                g_SaveScreen_HiddenSaves[hitSlot] = (s16)h;
+                                SD_Call(Sfx_MenuMove);
                             }
+                            s_pressY = my; /* consume the travel */
                         }
                     }
                 }
-                else if (s_pressRow >= 0)
+                /* --- release --- */
+                else if (s_barDrag >= 0 || s_listDrag >= 0)
                 {
-                    /* Released: only a quick click that never travelled loads. */
-                    if (!s_pressMoved)
+                    /* A quick click that never travelled loads; a drag does not.
+                     * The stock code injected Enter on the press EDGE, so any
+                     * drag beginning on a row loaded that save the instant you
+                     * pressed. */
+                    if (s_listDrag >= 0 && !s_pressMoved && s_pressValid)
                         g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
 
-                    s_pressRow   = -1;
+                    s_barDrag    = -1;
+                    s_listDrag   = -1;
                     s_pressMoved = 0;
+                    s_pressValid = 0;
                 }
 
-                if (wheel != 0)
+                /* --- hover: highlight only, never scroll --- */
+                if (s_barDrag < 0 && s_listDrag < 0 &&
+                    visRow >= 0 && hitSlot == g_SelectedSaveSlotIdx)
                 {
-                    /* The wheel is the one thing that SHOULD scroll: let the
-                     * stock auto-scroll run for this frame. */
-                    g_PcSaveHoverPinScroll = 0;
-                    g_Controller0->pulsedBtnFlags |= (wheel > 0) ? ControllerFlag_LStickUp
-                                                                 : ControllerFlag_LStickDown;
+                    s32 target = g_SaveScreen_HiddenSaves[hitSlot] + visRow;
+
+                    if (target >= 0 && target < g_Savegame_ElementCount0[hitSlot] &&
+                        Pc_MouseCursor_Moved() && g_SlotElementSelectedIdx[hitSlot] != target)
+                    {
+                        g_SlotElementSelectedIdx[hitSlot] = target;
+                        SD_Call(Sfx_MenuMove);
+                    }
+                }
+
+                if (wheel != 0 && maxHidden > 0)
+                {
+                    /* Scroll the VIEW, not the selection. Injecting LStick moved
+                     * the selection and let the derived scroll drag the list back
+                     * under the cursor, which is what made a wheel notch appear
+                     * to scroll and then snap straight back. */
+                    s32 h = g_SaveScreen_HiddenSaves[hitSlot] - wheel;
+
+                    if (h < 0)         h = 0;
+                    if (h > maxHidden) h = maxHidden;
+
+                    if (g_SaveScreen_HiddenSaves[hitSlot] != h)
+                    {
+                        g_SaveScreen_HiddenSaves[hitSlot] = (s16)h;
+                        SD_Call(Sfx_MenuMove);
+                    }
                 }
                 if (Pc_MouseCursor_RightClicked())
                 {
