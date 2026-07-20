@@ -123,6 +123,16 @@ namespace SilentHillPC_Launcher
             public bool RestPoseIdentity;
             public readonly List<string> Warnings = new List<string>();
             public string Error;
+            /// <summary>True when grow-mode actually rewrote the file (extra vertices or faces
+            /// were found). A grow import of an unedited OBJ leaves this false and takes the
+            /// byte-identical patch-in-place path.</summary>
+            public bool Grew;
+            /// <summary>Model indices that gained geometry, ascending.</summary>
+            public readonly List<int> GrownParts = new List<int>();
+            /// <summary>Per-part budget table (slots used vs the u8 ceilings), one line each.
+            /// Populated on success AND on the ceiling refusals, so the launcher can show the
+            /// user which part blew the budget and by how much.</summary>
+            public readonly List<string> Report = new List<string>();
         }
 
         // ---- rest pose (.ANM) ---------------------------------------------------
@@ -560,7 +570,7 @@ namespace SilentHillPC_Launcher
         private class Mesh
         {
             public int PrimCount, VertexCount, NormalCount, UnkCount3;
-            public int PrimsP, XyP, ZP, NormP;
+            public int PrimsP, XyP, ZP, NormP, UnkP;
             public short[] Vx, Vy, Vz;
             public sbyte[] Nx, Ny, Nz;
             public byte[] NCount;
@@ -570,6 +580,10 @@ namespace SilentHillPC_Launcher
         private class Model
         {
             public int Idx, MeshCount, VertexOffset, NormalOffset;
+            // Byte 0xB of the model header. field_B_4 = (Bits >> 4) & 3 marks a part the draw
+            // path feeds through the third chain, which ignores the window offsets (V12).
+            public int Bits;
+            public int HdrOff;
             public string Name;
             public Mesh[] Meshes;
         }
@@ -625,6 +639,8 @@ namespace SilentHillPC_Launcher
                 m.MeshCount = d[b + 8];
                 m.VertexOffset = d[b + 9];
                 m.NormalOffset = d[b + 0xA];
+                m.Bits = d[b + 0xB];
+                m.HdrOff = b;
                 int meshHdrsP = U32(d, b + 0xC);
                 m.Meshes = new Mesh[m.MeshCount];
                 for (int k = 0; k < m.MeshCount; k++)
@@ -645,6 +661,7 @@ namespace SilentHillPC_Launcher
             me.XyP = U32(d, mb + 8);
             me.ZP = U32(d, mb + 0xC);
             me.NormP = U32(d, mb + 0x10);
+            me.UnkP = U32(d, mb + 0x14);
 
             me.Vx = new short[me.VertexCount];
             me.Vy = new short[me.VertexCount];
@@ -1406,6 +1423,7 @@ namespace SilentHillPC_Launcher
             var f = new ObjFile();
             ObjObject cur = null;
             string mtl = null;   // persists across `o` boundaries, as in the Python
+            bool sawO = false;
             foreach (string raw in File.ReadLines(path))
             {
                 string ln = raw.Trim();
@@ -1415,9 +1433,22 @@ namespace SilentHillPC_Launcher
                 string rest = sp < 0 ? "" : ln.Substring(sp + 1);
 
                 if (k == "usemtl") { mtl = rest.Trim(); continue; }
-                if (k == "o")
+                // Milkshape 3D (and several older exporters) write groups as `g` and never
+                // emit `o`; the part name is the bone binding either way. `o` wins when a
+                // file carries both, because Blender writes `o NAME` plus a redundant
+                // `g NAME` and treating those as two parts would double the count.
+                if (k == "o" || (k == "g" && !sawO))
                 {
-                    cur = new ObjObject { Name = rest.Trim() };
+                    if (k == "o" && !sawO)
+                    {
+                        sawO = true;
+                        bool allEmpty = true;
+                        foreach (ObjObject x in f.Objs) if (x.Faces.Count != 0) { allEmpty = false; break; }
+                        if (f.Objs.Count != 0 && allEmpty) { f.Objs.Clear(); cur = null; }
+                    }
+                    string nm = rest.Trim();
+                    if (k == "g" && (nm.Length == 0 || nm == "default" || nm == "off")) continue;
+                    cur = new ObjObject { Name = nm };
                     f.Objs.Add(cur);
                 }
                 else if (k == "v")
@@ -1624,20 +1655,30 @@ namespace SilentHillPC_Launcher
 
         public static ImportResult Import(string objPath, string ilmPath, string outIlmPath)
         {
+            return Import(objPath, ilmPath, outIlmPath, false);
+        }
+
+        /// <summary>Import with optional grow-mode. With grow: false the file must keep its exact
+        /// topology, which is the only mode ModManagerForm has ever used. With grow: true extra
+        /// vertices and faces appended inside a part's `o` block become NEW geometry and the whole
+        /// ILM is rewritten; a grow import that finds no growth falls through to the plain path,
+        /// so the flag alone never changes a single byte.</summary>
+        public static ImportResult Import(string objPath, string ilmPath, string outIlmPath, bool grow)
+        {
             var res = new ImportResult();
-            try { ImportCore(objPath, ilmPath, outIlmPath, res); }
+            try { ImportCore(objPath, ilmPath, outIlmPath, grow, res); }
             catch (Exception ex) { res.Error = ex.Message; }
             return res;
         }
 
         public static bool Import(string objPath, string ilmPath, string outIlmPath, out string error)
         {
-            ImportResult res = Import(objPath, ilmPath, outIlmPath);
+            ImportResult res = Import(objPath, ilmPath, outIlmPath, false);
             error = res.Error;
             return res.Error == null;
         }
 
-        private static void ImportCore(string objPath, string ilmPath, string outIlmPath, ImportResult res)
+        private static void ImportCore(string objPath, string ilmPath, string outIlmPath, bool grow, ImportResult res)
         {
             string metaPath = StripExt(objPath) + ".ilmmeta.json";
             if (!File.Exists(metaPath))
@@ -1733,6 +1774,27 @@ namespace SilentHillPC_Launcher
                 for (int i = 0; i < ov.Count && i < oo.V.Count; i++) ownerV[RefKey(ov[i])] = oo.V[i];
             }
 
+            if (grow)
+            {
+                bool need = false;
+                foreach (Model m in ilm.Models)
+                {
+                    ObjObject oo = byName[m.Name];
+                    List<PoolRef> ov, fv, on, fn;
+                    PartLayout(m, out ov, out fv, out on, out fn);
+                    int wantP = 0;
+                    foreach (Mesh me in m.Meshes) wantP += me.PrimCount;
+                    if (oo.V.Count > ov.Count + fv.Count || oo.Faces.Count > wantP) { need = true; break; }
+                }
+                if (need)
+                {
+                    GrowImport(objPath, ilmPath, outIlmPath, data, ilm, of, byName, poseR, poseT, invs, ownerV, res);
+                    return;
+                }
+                // Zero actual growth falls through to the patch-in-place path so that grow-mode
+                // on an unedited OBJ stays byte-identical to a plain import.
+            }
+
             int nprim = 0, nvert = 0, nnorm = 0;
             var seamWarn = new List<string[]>();
             var seamNWarn = new List<string[]>();
@@ -1758,11 +1820,38 @@ namespace SilentHillPC_Launcher
                         "the ILM expects " + want.ToString(Inv) + " primitives. Adding or removing faces is not " +
                         "supported (counts are u8 and the bone/animation data lives in another file).");
 
+                List<ObjFace> paired = PairFaces(model, obj, ilm.BaseClutY);
+                PatchOriginalSubset(data, ilm, of, model, obj, ownV, forV, paired, poseR, poseT, invs,
+                    ownerV, seamWarn, seamNWarn, ref nvert, ref nnorm, ref nprim);
+            }
+
+            data[2] = 0; // isLoaded: a 1 here makes the runtime skip pointer fix-up and crash
+            File.WriteAllBytes(outIlmPath, data);
+
+            res.IlmPath = outIlmPath;
+            res.Parts = ilm.Models.Length;
+            res.Vertices = nvert;
+            res.Normals = nnorm;
+            res.Prims = nprim;
+            if (res.RestPoseIdentity)
+                res.Warnings.Add("rest pose: IDENTITY (this OBJ was exported without an ANM)");
+            SeamReport(seamWarn, "seam vertex/vertices moved", res.Warnings);
+            SeamReport(seamNWarn, "seam normal(s) edited", res.Warnings);
+        }
+
+        /// <summary>Verify and patch the ORIGINAL geometry of one part in place: arity and corner
+        /// checks, vertex/normal unbake, UV rewrite, seam warnings. Grow-mode runs the identical
+        /// pass over its own pairing before appending anything, so this lives in one place — the
+        /// plain path's byte-exactness depends on every line of it.</summary>
+        private static void PatchOriginalSubset(byte[] data, Ilm ilm, ObjFile of, Model model, ObjObject obj,
+            List<PoolRef> ownV, List<PoolRef> forV, List<ObjFace> paired,
+            int[][] poseR, int[][] poseT, double[][] invs, Dictionary<int, int> ownerV,
+            List<string[]> seamWarn, List<string[]> seamNWarn, ref int nvert, ref int nnorm, ref int nprim)
+        {
+            {
                 var gidx = new Dictionary<int, int>();
                 for (int i = 0; i < ownV.Count; i++) gidx[RefKey(ownV[i])] = obj.V[i];
                 for (int i = 0; i < forV.Count; i++) gidx[RefKey(forV[i])] = obj.V[ownV.Count + i];
-
-                List<ObjFace> paired = PairFaces(model, obj, ilm.BaseClutY);
 
                 // The OBJ's face->vertex indices are the AUTHORITATIVE mapping from a primitive
                 // corner to a `v` line; inferring vertex identity positionally instead is what any
@@ -1899,19 +1988,6 @@ namespace SilentHillPC_Launcher
                         nprim++;
                     }
             }
-
-            data[2] = 0; // isLoaded: a 1 here makes the runtime skip pointer fix-up and crash
-            File.WriteAllBytes(outIlmPath, data);
-
-            res.IlmPath = outIlmPath;
-            res.Parts = ilm.Models.Length;
-            res.Vertices = nvert;
-            res.Normals = nnorm;
-            res.Prims = nprim;
-            if (res.RestPoseIdentity)
-                res.Warnings.Add("rest pose: IDENTITY (this OBJ was exported without an ANM)");
-            SeamReport(seamWarn, "seam vertex/vertices moved", res.Warnings);
-            SeamReport(seamNWarn, "seam normal(s) edited", res.Warnings);
         }
 
         /// <summary>One line per reading part, owners listed once: the Python collapses the raw
@@ -1965,6 +2041,1092 @@ namespace SilentHillPC_Launcher
             for (int i = 0; i < stems.Count; i++)
                 if (!string.Equals(stems[i], want[i], StringComparison.Ordinal)) return false;
             return true;
+        }
+
+        // ---- validator twin (pc_port/src/lm_validate.c) --------------------------
+
+        private const int LmPoolSlots = 256;
+        private const int LmVertSlotCap = 255;
+        private const int LmArraySlack = 8;
+        private const int LmShadeSlack = 3;
+        private const int LmMaxParts = 56;
+
+        private static readonly string[] LmArrayNames = { "primitives", "verticesXy", "verticesZ", "normals", "shade" };
+
+        /// <summary>The five per-mesh arrays as (offset, count, elementSize, requiredSlack).</summary>
+        private static void MeshArrays(byte[] d, int mb, int[] offs, int[] cnts, int[] esz, int[] slack)
+        {
+            offs[0] = U32(d, mb + 4);  cnts[0] = d[mb];     esz[0] = 20; slack[0] = 0;
+            offs[1] = U32(d, mb + 8);  cnts[1] = d[mb + 1]; esz[1] = 4;  slack[1] = LmArraySlack;
+            offs[2] = U32(d, mb + 12); cnts[2] = d[mb + 1]; esz[2] = 2;  slack[2] = LmArraySlack;
+            offs[3] = U32(d, mb + 16); cnts[3] = d[mb + 2]; esz[3] = 4;  slack[3] = LmArraySlack;
+            offs[4] = U32(d, mb + 20); cnts[4] = d[mb + 3]; esz[4] = 1;  slack[4] = LmShadeSlack;
+        }
+
+        private static bool ExtentOk(int n, int off, int cnt, int es)
+        {
+            return off >= 0 && off <= n && (long)cnt * es <= (long)n - off;
+        }
+
+        /// <summary>C# twin of Lm_Validate (pc_port/src/lm_validate.c) and of the Python
+        /// lm_validate. The Stage 1 rule table is normative for all three - a drift is a bug in
+        /// whichever diverges. Grow-mode runs it at tailSlack 0: emitted files carry real in-file
+        /// pad bytes, so they stay safe even for a loader with no malloc tail. Returns 0 on pass,
+        /// else the rule id with its message; first failure wins in numeric rule order (every V5
+        /// site is reported before any V6 site, so each rule is its own full pass).</summary>
+        private static int LmValidate(byte[] d, int tailSlack, int anmBoneCount, bool skeletal, out string msg)
+        {
+            int n = d.Length;
+            var offs = new int[5]; var cnts = new int[5]; var esz = new int[5]; var slack = new int[5];
+
+            if (n < 20 || d[0] != 0x30 || d[1] != 6 || d[2] != 0)
+            {
+                msg = "V1: not a raw LM file (magic=0x" + (n > 0 ? d[0] : 0).ToString("X2", Inv) +
+                      " ver=" + (n > 1 ? d[1] : 0).ToString(Inv) + " isLoaded=" + (n > 2 ? d[2] : 0).ToString(Inv) +
+                      " size=" + n.ToString(Inv) + ")";
+                return 1;
+            }
+            int matCount = d[3], matOff = U32(d, 4);
+            int modelCount = d[8], hdrsOff = U32(d, 12), orderOff = U32(d, 16);
+
+            if (!ExtentOk(n, matOff, matCount, 24))
+            { msg = V2Msg("materials section out of file", matOff, matCount * 24, n); return 2; }
+            if (!ExtentOk(n, hdrsOff, modelCount, 16))
+            { msg = V2Msg("modelHdrs section out of file", hdrsOff, modelCount * 16, n); return 2; }
+            if (!ExtentOk(n, orderOff, modelCount, 1))
+            { msg = V2Msg("modelOrder section out of file", orderOff, modelCount, n); return 2; }
+
+            for (int i = 0; i < modelCount; i++)
+            {
+                int mh = hdrsOff + i * 16;
+                int meshCount = d[mh + 8], meshOff = U32(d, mh + 12);
+                if (!ExtentOk(n, meshOff, meshCount, 24))
+                { msg = V2Msg("part " + Name8(d, mh) + " meshHdrs section out of file", meshOff, meshCount * 24, n); return 2; }
+                for (int j = 0; j < meshCount; j++)
+                {
+                    MeshArrays(d, meshOff + j * 24, offs, cnts, esz, slack);
+                    for (int a = 0; a < 5; a++)
+                    {
+                        if (cnts[a] == 0) continue;
+                        if (!ExtentOk(n, offs[a], cnts[a], esz[a]))
+                        {
+                            msg = V2Msg("part " + Name8(d, mh) + " mesh " + j.ToString(Inv) + " " + LmArrayNames[a] +
+                                        " section out of file", offs[a], cnts[a] * esz[a], n);
+                            return 2;
+                        }
+                        if ((offs[a] & 3) != 0)
+                        {
+                            msg = "V2: part " + Name8(d, mh) + " mesh " + j.ToString(Inv) + " " + LmArrayNames[a] +
+                                  " section misaligned (off=0x" + offs[a].ToString("X", Inv) + ")";
+                            return 2;
+                        }
+                    }
+                }
+            }
+
+            if (skeletal && modelCount > LmMaxParts)
+            { msg = "V3: " + modelCount.ToString(Inv) + " parts exceeds skeleton cap " + LmMaxParts.ToString(Inv); return 3; }
+
+            for (int i = 0; i < modelCount; i++)
+                if (d[orderOff + i] >= modelCount)
+                {
+                    msg = "V4: modelOrder[" + i.ToString(Inv) + "]=" + ((int)d[orderOff + i]).ToString(Inv) +
+                          " out of range (" + modelCount.ToString(Inv) + " parts)";
+                    return 4;
+                }
+
+            int vertCap = skeletal ? LmVertSlotCap : LmPoolSlots;
+            for (int i = 0; i < modelCount; i++)
+            {
+                int mh = hdrsOff + i * 16;
+                for (int j = 0; j < d[mh + 8]; j++)
+                {
+                    int vc = d[U32(d, mh + 12) + j * 24 + 1];
+                    if (d[mh + 9] + vc > vertCap)
+                    {
+                        msg = "V5: part " + Name8(d, mh) + " mesh " + j.ToString(Inv) + " vertex window " +
+                              ((int)d[mh + 9]).ToString(Inv) + "+" + vc.ToString(Inv) + " exceeds " + vertCap.ToString(Inv);
+                        return 5;
+                    }
+                }
+            }
+            for (int i = 0; i < modelCount; i++)
+            {
+                int mh = hdrsOff + i * 16;
+                for (int j = 0; j < d[mh + 8]; j++)
+                {
+                    int nc = d[U32(d, mh + 12) + j * 24 + 2];
+                    if (d[mh + 10] + nc > LmPoolSlots)
+                    {
+                        msg = "V6: part " + Name8(d, mh) + " mesh " + j.ToString(Inv) + " normal window " +
+                              ((int)d[mh + 10]).ToString(Inv) + "+" + nc.ToString(Inv) + " exceeds " + LmPoolSlots.ToString(Inv);
+                        return 6;
+                    }
+                }
+            }
+            for (int i = 0; i < modelCount; i++)
+            {
+                int mh = hdrsOff + i * 16;
+                for (int j = 0; j < d[mh + 8]; j++)
+                {
+                    int sc = d[U32(d, mh + 12) + j * 24 + 3];
+                    if (d[mh + 10] + sc > LmPoolSlots)
+                    {
+                        msg = "V7: part " + Name8(d, mh) + " mesh " + j.ToString(Inv) + " shade window " +
+                              ((int)d[mh + 10]).ToString(Inv) + "+" + sc.ToString(Inv) + " exceeds " + LmPoolSlots.ToString(Inv);
+                        return 7;
+                    }
+                }
+            }
+            for (int i = 0; i < modelCount; i++)
+            {
+                int mh = hdrsOff + i * 16;
+                for (int j = 0; j < d[mh + 8]; j++)
+                {
+                    int mb = U32(d, mh + 12) + j * 24;
+                    // env mode 1 advances a slot even for a count-byte 0 (see the C twin in
+                    // lm_validate.c): per-normal advance is max(count, 1).
+                    int walk = 0;
+                    for (int k = 0; k < d[mb + 2]; k++)
+                    {
+                        int c = d[U32(d, mb + 16) + k * 4 + 3];
+                        walk += c != 0 ? c : 1;
+                    }
+                    if (d[mh + 10] + walk > LmPoolSlots)
+                    {
+                        msg = "V8: part " + Name8(d, mh) + " mesh " + j.ToString(Inv) + " shade walk " +
+                              ((int)d[mh + 10]).ToString(Inv) + "+" + walk.ToString(Inv) + " exceeds " + LmPoolSlots.ToString(Inv);
+                        return 8;
+                    }
+                }
+            }
+
+            for (int i = 0; i < modelCount; i++)
+            {
+                int mh = hdrsOff + i * 16;
+                for (int j = 0; j < d[mh + 8]; j++)
+                {
+                    MeshArrays(d, U32(d, mh + 12) + j * 24, offs, cnts, esz, slack);
+                    for (int a = 0; a < 5; a++)
+                    {
+                        if (cnts[a] == 0 || slack[a] == 0) continue;
+                        long have = (long)n + tailSlack - ((long)offs[a] + (long)cnts[a] * esz[a]);
+                        if (have < slack[a])
+                        {
+                            msg = "V9: part " + Name8(d, mh) + " mesh " + j.ToString(Inv) + " " + LmArrayNames[a] +
+                                  " array needs " + slack[a].ToString(Inv) + " slack bytes, has " + have.ToString(Inv);
+                            return 9;
+                        }
+                    }
+                }
+            }
+
+            // V10 is structural (see lm_validate.h): V5-strict + V11 make a slot-255 quad corner
+            // impossible, and no file scan can detect one.
+
+            if (skeletal)
+            {
+                var vstamp = new bool[LmPoolSlots];
+                var nstamp = new bool[LmPoolSlots];
+                for (int i = 0; i < modelCount; i++)
+                {
+                    int mh = hdrsOff + d[orderOff + i] * 16;
+                    int vertOff = d[mh + 9], normOff = d[mh + 10], meshOff = U32(d, mh + 12);
+                    for (int j = 0; j < d[mh + 8]; j++)
+                    {
+                        int mb = meshOff + j * 24;
+                        for (int s = vertOff; s < vertOff + d[mb + 1] && s < LmPoolSlots; s++) vstamp[s] = true;
+                        for (int s = normOff; s < normOff + d[mb + 2] && s < LmPoolSlots; s++) nstamp[s] = true;
+                    }
+                    int primIdx = 0;
+                    for (int j = 0; j < d[mh + 8]; j++)
+                    {
+                        int mb = meshOff + j * 24;
+                        int primsOff = U32(d, mb + 4);
+                        for (int k = 0; k < d[mb]; k++)
+                        {
+                            int pb = primsOff + k * 20;
+                            int corners = d[pb + 0xF] == 0xFF ? 3 : 4;
+                            for (int c = 0; c < corners; c++)
+                            {
+                                if (!vstamp[d[pb + 0xC + c]])
+                                {
+                                    msg = "V11: part " + Name8(d, mh) + " prim " + primIdx.ToString(Inv) + " corner " +
+                                          c.ToString(Inv) + " reads unwritten vertex slot " + ((int)d[pb + 0xC + c]).ToString(Inv);
+                                    return 11;
+                                }
+                                if (!nstamp[d[pb + 0x10 + c]])
+                                {
+                                    msg = "V11: part " + Name8(d, mh) + " prim " + primIdx.ToString(Inv) + " corner " +
+                                          c.ToString(Inv) + " reads unwritten normal slot " + ((int)d[pb + 0x10 + c]).ToString(Inv);
+                                    return 11;
+                                }
+                            }
+                            primIdx++;
+                        }
+                    }
+                }
+            }
+
+            for (int i = 0; i < modelCount; i++)
+            {
+                int mh = hdrsOff + i * 16;
+                int b4 = (d[mh + 11] >> 4) & 3;
+                if (b4 != 0 && (d[mh + 9] != 0 || d[mh + 10] != 0))
+                {
+                    msg = "V12: part " + Name8(d, mh) + " field_B_4=" + b4.ToString(Inv) +
+                          " requires vertexOffset==0 && normalOffset==0 (got " + ((int)d[mh + 9]).ToString(Inv) +
+                          "/" + ((int)d[mh + 10]).ToString(Inv) + ")";
+                    return 12;
+                }
+            }
+
+            if (anmBoneCount > 0)
+                for (int i = 0; i < modelCount; i++)
+                {
+                    int mh = hdrsOff + i * 16;
+                    if (d[mh] >= 0x30 && d[mh] <= 0x39 && d[mh + 1] >= 0x30 && d[mh + 1] <= 0x39)
+                    {
+                        int bone = (d[mh] - 0x30) * 10 + (d[mh + 1] - 0x30);
+                        if (bone >= anmBoneCount)
+                        {
+                            msg = "V13: part " + Name8(d, mh) + " binds bone " + bone.ToString(Inv) + " but the ANM has " +
+                                  anmBoneCount.ToString(Inv) + " bones";
+                            return 13;
+                        }
+                    }
+                }
+
+            msg = null;
+            return 0;
+        }
+
+        private static string V2Msg(string what, int off, int len, int size)
+        {
+            return "V2: " + what + " (off=0x" + off.ToString("X", Inv) + " len=0x" + len.ToString("X", Inv) +
+                   " size=0x" + size.ToString("X", Inv) + ")";
+        }
+
+        // ---- grow-mode ----------------------------------------------------------
+
+        private static int Align4(int nbytes) { return (4 - nbytes % 4) % 4; }
+
+        /// <summary>&gt;= 3 zero bytes after the shade stream, landing the next section 4-aligned
+        /// (F1: func_800574D4's copy strides 4 bytes past the stream). A count of 0 yields 4, not
+        /// 0 — that is the Python's behaviour and the emitted layout depends on it.</summary>
+        private static int ShadePad(int cnt)
+        {
+            int pad = Align4(cnt);
+            return pad < 3 ? pad + 4 : pad;
+        }
+
+        private struct ShadeEdge { public int Mesh, ByteIdx, Slot; public PoolRef Ref; }
+
+        /// <summary>Shade-stream bytes are vertex POOL SLOT references: replay the pool and resolve
+        /// each byte to its writer, exactly like prim corners. Needed even though growing a shaded
+        /// part is refused — an unshaded grown part can relocate a writer whose slot a shaded
+        /// ungrown part's stream reads. Indexed by model index; each list is in mesh/byte order and
+        /// the models are visited in DRAW order, so callers must walk `order`, never a Dictionary.
+        ///
+        /// Note the stamping here is NOT interleaved with the reads the way ResolvePool's is: the
+        /// whole part's vertex windows are stamped first, then its shade bytes resolved.</summary>
+        private static List<ShadeEdge>[] ShadeEdges(Ilm ilm, int[] order)
+        {
+            var outp = new List<ShadeEdge>[ilm.ModelCount];
+            var vpool = new Dictionary<int, PoolRef>();
+            foreach (int mi in order)
+            {
+                Model m = ilm.Models[mi];
+                for (int k = 0; k < m.MeshCount; k++)
+                {
+                    Mesh me = m.Meshes[k];
+                    for (int j = 0; j < me.VertexCount; j++)
+                        vpool[m.VertexOffset + j] = new PoolRef { Valid = true, Model = mi, Mesh = k, Local = j };
+                }
+                var lst = new List<ShadeEdge>();
+                for (int k = 0; k < m.MeshCount; k++)
+                {
+                    Mesh me = m.Meshes[k];
+                    for (int b = 0; b < me.UnkCount3; b++)
+                    {
+                        if (me.UnkP < 0 || me.UnkP + b >= ilm.D.Length)
+                            throw new IlmException("part '" + m.Name + "' shade stream runs past the end of the file");
+                        int slot = ilm.D[me.UnkP + b];
+                        PoolRef r;
+                        vpool.TryGetValue(slot, out r);
+                        lst.Add(new ShadeEdge { Mesh = k, ByteIdx = b, Slot = slot, Ref = r });
+                    }
+                }
+                if (lst.Count > 0) outp[mi] = lst;
+            }
+            return outp;
+        }
+
+        /// <summary>PairFaces, but the per-material queues may hold MORE faces than the part has
+        /// primitives: the unconsumed remainder (in file order) is the new geometry. Relative order
+        /// within a material is preserved by both writers, so the first count(prims-with-M) faces
+        /// of queue M are the originals.
+        ///
+        /// The Python marks consumed faces by id() and filters; C# has no safe equivalent (ObjFace
+        /// is reference-typed and List.Contains would be an O(n^2) reference scan), so the leftover
+        /// set is reconstructed from the per-material consumed counts. Bucket order IS file order,
+        /// so this yields exactly the same faces in exactly the same order.</summary>
+        private static List<ObjFace> PairFacesGrow(Model model, ObjObject obj, int[] baseClutY, out List<ObjFace> leftover)
+        {
+            int primCount = 0;
+            foreach (Mesh me in model.Meshes) primCount += me.PrimCount;
+
+            foreach (ObjFace fa in obj.Faces)
+                if (fa.Mtl == null)
+                {
+                    if (obj.Faces.Count > primCount)
+                        throw new IlmException("part '" + obj.Name + "' has faces without a usemtl - grow-mode needs " +
+                            "material info to tell new faces from original ones.");
+                    leftover = new List<ObjFace>();
+                    return obj.Faces;
+                }
+
+            var buckets = new Dictionary<string, List<ObjFace>>(StringComparer.Ordinal);
+            var pos = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (ObjFace fa in obj.Faces)
+            {
+                List<ObjFace> q;
+                if (!buckets.TryGetValue(fa.Mtl, out q)) { q = new List<ObjFace>(); buckets[fa.Mtl] = q; pos[fa.Mtl] = 0; }
+                q.Add(fa);
+            }
+
+            var outp = new List<ObjFace>();
+            foreach (Mesh mesh in model.Meshes)
+                foreach (Prim p in mesh.Prims)
+                {
+                    string name = MtlName(p, baseClutY);
+                    List<ObjFace> q;
+                    if (!buckets.TryGetValue(name, out q) || pos[name] >= q.Count)
+                        throw new IlmException("part '" + obj.Name + "': the OBJ has no unassigned face left with " +
+                            "material '" + name + "'. Material names encode the CLUT palette row and are how faces " +
+                            "are matched back to primitives - reassigning or renaming materials is not supported.");
+                    outp.Add(q[pos[name]]);
+                    pos[name] = pos[name] + 1;
+                }
+
+            leftover = new List<ObjFace>();
+            var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (ObjFace fa in obj.Faces)
+            {
+                int s;
+                seen.TryGetValue(fa.Mtl, out s);
+                seen[fa.Mtl] = s + 1;
+                if (s >= pos[fa.Mtl]) leftover.Add(fa);
+            }
+            return outp;
+        }
+
+        /// <summary>OBJ-space direction -> part-local s8 triple at the stock |n|=127 scale.</summary>
+        private static int[] QuantNewNormal(double[] inv, double[] w)
+        {
+            double[] d = Unit(NormalIn(w));
+            if (d == null) return null;
+            double[] nl = Unit(UnbakeDir(inv, d));
+            if (nl == null) return null;
+            return new[] { ClampS8(nl[0] * 127.0), ClampS8(nl[1] * 127.0), ClampS8(nl[2] * 127.0) };
+        }
+
+        private class NewPrim
+        {
+            public bool Tri;
+            public Prim Tmpl;
+            public int[] VKind;    // 0 own, 1 foreign, 2 new
+            public int[] VA, VB;   // own: local | foreign: (ownerModel, ownerLocal) | new: newIdx
+            public int[] NIdx;     // index into this part's new-normal list
+            public int[] Uu, Vv;
+        }
+
+        private static int VcNew(Ilm ilm, List<int[]>[] newVerts, int mi)
+        {
+            return ilm.Models[mi].Meshes[0].VertexCount + (newVerts[mi] == null ? 0 : newVerts[mi].Count);
+        }
+
+        private static int NcNew(Ilm ilm, List<int[]>[] newNormals, int mi)
+        {
+            return ilm.Models[mi].Meshes[0].NormalCount + (newNormals[mi] == null ? 0 : newNormals[mi].Count);
+        }
+
+        private static int CountOf(List<int[]>[] a, int mi) { return a[mi] == null ? 0 : a[mi].Count; }
+
+        private static string BudgetCol(int total, int delta)
+        {
+            return delta != 0
+                ? total.ToString(Inv) + " (" + (total - delta).ToString(Inv) + "+" + delta.ToString(Inv) + ")"
+                : total.ToString(Inv);
+        }
+
+        /// <summary>The per-part slot budget: how many vertex/normal/prim slots each part now uses,
+        /// where its pool window lands, and how much headroom is left against the u8 ceilings. This
+        /// is the sheet a user needs to know how much more they can add, so it is emitted on the
+        /// ceiling refusals too, not only on success.</summary>
+        private static void GrowBudget(Ilm ilm, HashSet<int> grown, int[] vO2, int[] nO2, int[][] finals,
+                                       int oldSize, int newSize, List<string> into)
+        {
+            into.Add("   part              bone  verts        norms        prims        shade  window");
+            int extV = 0, extN = 0;
+            foreach (Model m in ilm.Models)
+            {
+                int mi = m.Idx;
+                int[] f = finals[mi];
+                if (vO2[mi] + f[0] > extV) extV = vO2[mi] + f[0];
+                if (nO2[mi] + f[1] > extN) extN = nO2[mi] + f[1];
+                into.Add("   " + m.Name.PadRight(8) + (grown.Contains(mi) ? " (grown)" : "").PadRight(9) +
+                         " " + BoneOf(m.Name).ToString(Inv).PadLeft(3) + "  " +
+                         BudgetCol(f[0], f[4]).PadRight(12) + " " +
+                         BudgetCol(f[1], f[5]).PadRight(12) + " " +
+                         BudgetCol(f[2], f[6]).PadRight(12) + " " +
+                         f[3].ToString(Inv).PadLeft(5) + "  " +
+                         "v[" + vO2[mi].ToString(Inv) + "," + (vO2[mi] + f[0]).ToString(Inv) + ") n[" +
+                         nO2[mi].ToString(Inv) + "," + (nO2[mi] + f[1]).ToString(Inv) + ")");
+            }
+            into.Add("   vertex slots: extent " + extV.ToString(Inv) + " / 255 (" + (255 - extV).ToString(Inv) +
+                     " free)   normal slots: extent " + extN.ToString(Inv) + " / 256");
+            into.Add("   parts: " + ilm.ModelCount.ToString(Inv) + " / 56    file: 0x" + newSize.ToString("X", Inv) +
+                     " (was 0x" + oldSize.ToString("X", Inv) + ")");
+        }
+
+        private static byte SlotByte(int v)
+        {
+            if (v < 0 || v > 255)
+                throw new IlmException("grow internal error: pool slot " + v.ToString(Inv) + " out of u8 range");
+            return (byte)v;
+        }
+
+        private static void PutU32(List<byte> o, int at, int v)
+        {
+            o[at] = (byte)v; o[at + 1] = (byte)(v >> 8); o[at + 2] = (byte)(v >> 16); o[at + 3] = (byte)(v >> 24);
+        }
+
+        private static void AddRange(List<byte> o, byte[] src, int off, int len, string what)
+        {
+            // Python's data[a:b] clamps at EOF; a C# copy throws an opaque exception instead, and a
+            // hand-edited source ILM really can point a section past the end.
+            if (off < 0 || len < 0 || (long)off + len > src.Length)
+                throw new IlmException("grow: the " + what + " section runs past the end of the source ILM");
+            for (int i = 0; i < len; i++) o.Add(src[off + i]);
+        }
+
+        private static void AddZeros(List<byte> o, int n) { for (int i = 0; i < n; i++) o.Add(0); }
+
+        private static double[] VertAt(ObjFile of, int vl)
+        {
+            if (vl < 1 || vl > of.Verts.Count)
+                throw new IlmException("a new face cites vertex " + vl.ToString(Inv) + " which the OBJ does not define");
+            return of.Verts[vl - 1];
+        }
+
+        /// <summary>Full-rewrite import: original geometry keeps its bytes (modulo edits and
+        /// renumbered pool slots), new geometry is appended, windows are re-laid-out.
+        ///
+        /// Preservation argument for the re-layout: an original sharing edge (writer W, local j,
+        /// reader R) needs slot vO'_W+j untouched by every part drawn strictly between W and R.
+        /// (a) W grown -> its slots are fresh and exclusive, nobody else ever writes them.
+        /// (b) W ungrown -> the slot is the original vO_W+j; the original file guarantees no
+        /// in-between part covered it, and relocated grown parts only move AWAY (a removed
+        /// intermediate writer cannot break a last-writer relationship). (c) A part's own reads are
+        /// always safe (it writes immediately before it reads). Pinned offset-0 parts (field_B_4,
+        /// V12) EXPAND instead of moving, which case (b) does not cover — hence the explicit
+        /// expansion-zone conflict check below.</summary>
+        private static void GrowImport(string objPath, string ilmPath, string outIlmPath, byte[] data, Ilm ilm,
+            ObjFile of, Dictionary<string, ObjObject> byName, int[][] poseR, int[][] poseT, double[][] invs,
+            Dictionary<int, int> ownerV, ImportResult res)
+        {
+            int mc = ilm.ModelCount;
+            if (ilm.ModelOrderP < 0 || (long)ilm.ModelOrderP + mc > ilm.D.Length)
+                throw new IlmException("--grow: the modelOrder table runs past the end of the file.");
+            var order = new int[mc];
+            for (int i = 0; i < mc; i++) order[i] = ilm.D[ilm.ModelOrderP + i];
+            var sortedOrder = (int[])order.Clone();
+            Array.Sort(sortedOrder);
+            for (int i = 0; i < mc; i++)
+                if (sortedOrder[i] != i)
+                    throw new IlmException("--grow: modelOrder is not a permutation, so the sharing-graph replay " +
+                        "cannot be trusted (no stock file does this).");
+            var dpos = new int[mc];
+            for (int i = 0; i < mc; i++) dpos[order[i]] = i;
+            List<ShadeEdge>[] shadeMap = ShadeEdges(ilm, order);
+
+            // A dangling ref means either the traversal is wrong or this is a prop file whose
+            // corners resolve against the wielder's pool - either way the sharing graph cannot be
+            // rebuilt, so growth must refuse (never add a fallback).
+            foreach (Model m in ilm.Models)
+                foreach (Mesh me in m.Meshes)
+                    foreach (Prim p in me.Prims)
+                    {
+                        int n = p.Tri ? 3 : 4;
+                        for (int i = 0; i < n; i++)
+                            if (!p.VRef[i].Valid || !p.NRef[i].Valid)
+                                throw new IlmException("part '" + m.Name + "' reads a pool slot no part has written " +
+                                    "(a held-item/prop file resolves those against the wielder's pool at draw time) - " +
+                                    "--grow requires a fully self-contained skeletal file.");
+                    }
+            foreach (int mi in order)
+            {
+                List<ShadeEdge> lst = shadeMap[mi];
+                if (lst == null) continue;
+                foreach (ShadeEdge e in lst)
+                    if (!e.Ref.Valid)
+                        throw new IlmException("part '" + ilm.Models[mi].Name + "' shade stream reads an unwritten " +
+                            "pool slot - --grow requires a fully self-contained skeletal file.");
+            }
+
+            var newVerts = new List<int[]>[mc];
+            var newNormals = new List<int[]>[mc];
+            var newPrims = new List<NewPrim>[mc];
+            var grown = new HashSet<int>();
+            var seamWarn = new List<string[]>();
+            var seamNWarn = new List<string[]>();
+            int nvert = 0, nnorm = 0, nprim = 0, unusedPrim = 0;
+
+            foreach (Model model in ilm.Models)
+            {
+                ObjObject obj = byName[model.Name];
+                int mi = model.Idx;
+                List<PoolRef> ownV, forV, ownN, forN;
+                PartLayout(model, out ownV, out forV, out ownN, out forN);
+                int expV = ownV.Count + forV.Count;
+                int want = 0;
+                foreach (Mesh me in model.Meshes) want += me.PrimCount;
+
+                if (obj.V.Count < expV)
+                    throw new IlmException("part '" + obj.Name + "' has " + obj.V.Count.ToString(Inv) + " vertices but " +
+                        "the ILM expects " + expV.ToString(Inv) + " (" + ownV.Count.ToString(Inv) + " own + " +
+                        forV.Count.ToString(Inv) + " duplicated seam vertices). The usual cause is an aggressive " +
+                        "'Merge by Distance' - the seam duplicates are deliberate and must not be welded.");
+                if (obj.Faces.Count < want)
+                    throw new IlmException("part '" + obj.Name + "' has " + obj.Faces.Count.ToString(Inv) + " faces but " +
+                        "the ILM has " + want.ToString(Inv) + " primitives - --grow only ADDS geometry, it cannot " +
+                        "remove faces.");
+
+                List<ObjFace> leftover;
+                List<ObjFace> paired = PairFacesGrow(model, obj, ilm.BaseClutY, out leftover);
+                int extraV = obj.V.Count - expV;
+                if (extraV != 0 || leftover.Count != 0)
+                {
+                    grown.Add(mi);
+                    if (model.MeshCount > 1)
+                        throw new IlmException("part '" + obj.Name + "' has " + model.MeshCount.ToString(Inv) +
+                            " meshes; growth supports single-mesh parts only");
+                    int shadeBytes = 0;
+                    foreach (Mesh me in model.Meshes) shadeBytes += me.UnkCount3;
+                    if (shadeBytes != 0)
+                        throw new IlmException("part '" + obj.Name + "' carries a shade stream (" +
+                            shadeBytes.ToString(Inv) + " bytes); growing shaded parts is not supported yet");
+                }
+
+                // Original subset: the same verification and the same in-place edits as the plain
+                // import path (the rewrite below then copies the patched bytes).
+                PatchOriginalSubset(data, ilm, of, model, obj, ownV, forV, paired, poseR, poseT, invs,
+                    ownerV, seamWarn, seamNWarn, ref nvert, ref nnorm, ref unusedPrim);
+
+                if (!grown.Contains(mi)) continue;
+
+                double[] inv = invs[mi];
+                int[] T = poseT[mi];
+                if (inv == null)
+                    throw new IlmException("part '" + obj.Name + "' rest-pose matrix is singular; cannot unbake new geometry");
+
+                var nv = new List<int[]>();
+                for (int pos = expV; pos < obj.V.Count; pos++)
+                {
+                    double[] w = of.Verts[obj.V[pos] - 1];
+                    double[] v = Unbake(inv, T, new[] { w[0], YIn(w[1]), w[2] });
+                    nv.Add(new int[] { S16Checked(v[0], "new vertex X"), S16Checked(v[1], "new vertex Y"),
+                                       S16Checked(v[2], "new vertex Z") });
+                }
+                newVerts[mi] = nv;
+
+                var vlinePos = new Dictionary<int, int>();
+                for (int i = 0; i < obj.V.Count; i++) vlinePos[obj.V[i]] = i;
+
+                var primsFlat = new List<Prim>();
+                var legalSet = new HashSet<string>(StringComparer.Ordinal);
+                foreach (Mesh me in model.Meshes)
+                    foreach (Prim p in me.Prims) { primsFlat.Add(p); legalSet.Add(MtlName(p, ilm.BaseClutY)); }
+                var legal = new List<string>(legalSet);
+                legal.Sort(StringComparer.Ordinal);   // Python sorted() is by code point
+
+                var ndKeys = new List<int[]>();
+                var ndMap = new Dictionary<int, int>();
+                string partName = obj.Name;
+                Func<double[], int> newNormal = w =>
+                {
+                    int[] key = QuantNewNormal(inv, w);
+                    if (key == null)
+                        throw new IlmException("part '" + partName + "': a new face has a degenerate normal");
+                    int pk = ((key[0] + 128) << 16) | ((key[1] + 128) << 8) | (key[2] + 128);
+                    int idx;
+                    if (!ndMap.TryGetValue(pk, out idx)) { idx = ndKeys.Count; ndMap[pk] = idx; ndKeys.Add(key); }
+                    return idx;
+                };
+
+                var npList = new List<NewPrim>();
+                foreach (ObjFace f in leftover)
+                {
+                    int[][] face = f.C;
+                    int arity = face.Length;
+                    if (arity != 3 && arity != 4)
+                        throw new IlmException("part '" + obj.Name + "': a new face has " + arity.ToString(Inv) +
+                            " corners; the format only has triangles and quads");
+                    if (!legalSet.Contains(f.Mtl))
+                        throw new IlmException("part '" + obj.Name + "': new face uses material '" + f.Mtl +
+                            "'; new faces must reuse one of the part's existing materials (" +
+                            string.Join(", ", legal.ToArray()) + ")");
+                    Prim tmpl = null;
+                    foreach (Prim p in primsFlat)
+                        if (string.Equals(MtlName(p, ilm.BaseClutY), f.Mtl, StringComparison.Ordinal)) { tmpl = p; break; }
+
+                    bool tri = arity == 3;
+                    int[] loop = tri ? TriLoop : QuadLoop;
+                    var np = new NewPrim
+                    {
+                        Tri = tri, Tmpl = tmpl,
+                        VKind = new int[arity], VA = new int[arity], VB = new int[arity],
+                        NIdx = new int[arity], Uu = new int[arity], Vv = new int[arity]
+                    };
+                    int flatSlot = -1;
+                    for (int i = 0; i < arity; i++)
+                    {
+                        int[] cor = face[loop[i]];
+                        int vl = cor[0], tl = cor[1], nl = cor[2];
+                        int pos;
+                        if (!vlinePos.TryGetValue(vl, out pos))
+                            throw new IlmException("part '" + obj.Name + "': a new face cites vertex " + vl.ToString(Inv) +
+                                " outside its own 'o' block - new cross-part seams are not supported (weld to an " +
+                                "existing seam duplicate instead)");
+                        if (pos < ownV.Count) { np.VKind[i] = 0; np.VA[i] = ownV[pos].Local; }
+                        else if (pos < expV)
+                        {
+                            PoolRef r = forV[pos - ownV.Count];
+                            np.VKind[i] = 1; np.VA[i] = r.Model; np.VB[i] = r.Local;
+                        }
+                        else { np.VKind[i] = 2; np.VA[i] = pos - expV; }
+
+                        if (tl == 0)
+                            throw new IlmException("new face in part '" + obj.Name + "' has no UVs - unwrap the new geometry");
+                        if (tl < 0 || tl > of.Uvs.Count)
+                            throw new IlmException("part '" + obj.Name + "': a new face references vt " + tl.ToString(Inv) +
+                                " but the OBJ has only " + of.Uvs.Count.ToString(Inv) + " 'vt' lines.");
+                        double[] uv = of.Uvs[tl - 1];
+                        np.Uu[i] = UvByte(uv[0]);
+                        np.Vv[i] = UvByte(1.0 - uv[1]);
+
+                        if (nl != 0)
+                        {
+                            if (nl < 0 || nl > of.Norms.Count)
+                                throw new IlmException("part '" + obj.Name + "': a new face references vn " + nl.ToString(Inv) +
+                                    " but the OBJ has only " + of.Norms.Count.ToString(Inv) + " 'vn' lines.");
+                            np.NIdx[i] = newNormal(of.Norms[nl - 1]);
+                        }
+                        else
+                        {
+                            if (flatSlot < 0)
+                            {
+                                // One flat normal per face, from OBJ corners 0,1,2 in OBJ order.
+                                double[] p0 = VertAt(of, face[0][0]), p1 = VertAt(of, face[1][0]), p2 = VertAt(of, face[2][0]);
+                                double e10 = p1[0] - p0[0], e11 = p1[1] - p0[1], e12 = p1[2] - p0[2];
+                                double e20 = p2[0] - p0[0], e21 = p2[1] - p0[1], e22 = p2[2] - p0[2];
+                                flatSlot = newNormal(new[] { e11 * e22 - e12 * e21,
+                                                             e12 * e20 - e10 * e22,
+                                                             e10 * e21 - e11 * e20 });
+                            }
+                            np.NIdx[i] = flatSlot;
+                        }
+                    }
+                    npList.Add(np);
+                }
+                newPrims[mi] = npList;
+                newNormals[mi] = ndKeys;
+                nprim += npList.Count;
+            }
+
+            // Re-layout: ungrown parts keep their windows; grown parts relocate whole to fresh
+            // exclusive ranges above the original extents; pinned (field_B_4) parts expand in place
+            // at offset 0 (V12: the third chain ignores offsets).
+            int extV0 = 0, extN0 = 0;
+            foreach (Model m in ilm.Models)
+                foreach (Mesh me in m.Meshes)
+                {
+                    if (m.VertexOffset + me.VertexCount > extV0) extV0 = m.VertexOffset + me.VertexCount;
+                    if (m.NormalOffset + me.NormalCount > extN0) extN0 = m.NormalOffset + me.NormalCount;
+                }
+
+            var vO2 = new int[mc];
+            var nO2 = new int[mc];
+            var pinned = new List<int>();
+            var isPinned = new bool[mc];
+            foreach (Model m in ilm.Models)
+            {
+                int mi = m.Idx;
+                if (!grown.Contains(mi)) { vO2[mi] = m.VertexOffset; nO2[mi] = m.NormalOffset; }
+                else if (((m.Bits >> 4) & 3) != 0)
+                {
+                    if (m.VertexOffset != 0 || m.NormalOffset != 0)
+                        throw new IlmException("part '" + m.Name + "': field_B_4=" + (((m.Bits >> 4) & 3)).ToString(Inv) +
+                            " with window offsets " + m.VertexOffset.ToString(Inv) + "/" + m.NormalOffset.ToString(Inv) +
+                            " violates V12 in the ORIGINAL file - fix the source ILM first.");
+                    vO2[mi] = 0; nO2[mi] = 0;
+                    pinned.Add(mi); isPinned[mi] = true;
+                }
+            }
+            int vbase = extV0, nbase = extN0;
+            foreach (int p2 in pinned)
+            {
+                int a = VcNew(ilm, newVerts, p2); if (a > vbase) vbase = a;
+                int b = NcNew(ilm, newNormals, p2); if (b > nbase) nbase = b;
+            }
+            foreach (Model m in ilm.Models)
+            {
+                int mi = m.Idx;
+                if (grown.Contains(mi) && !isPinned[mi])
+                {
+                    vO2[mi] = vbase; vbase += VcNew(ilm, newVerts, mi);
+                    nO2[mi] = nbase; nbase += NcNew(ilm, newNormals, mi);
+                }
+            }
+
+            var finals = new int[mc][];
+            foreach (Model m in ilm.Models)
+            {
+                int mi = m.Idx;
+                int vc = 0, nc = 0, pc = 0, sw = 0;
+                foreach (Mesh me in m.Meshes)
+                {
+                    vc += me.VertexCount; nc += me.NormalCount; pc += me.PrimCount;
+                    foreach (byte b in me.NCount) sw += b;
+                }
+                int dv = CountOf(newVerts, mi), dn = CountOf(newNormals, mi);
+                int dp = newPrims[mi] == null ? 0 : newPrims[mi].Count;
+                finals[mi] = new[] { vc + dv, nc + dn, pc + dp, sw + dn, dv, dn, dp };
+            }
+
+            foreach (Model m in ilm.Models)
+            {
+                int[] f = finals[m.Idx];
+                if (f[2] > 255 || f[0] > 255 || f[1] > 255)
+                {
+                    GrowBudget(ilm, grown, vO2, nO2, finals, data.Length, 0, res.Report);
+                    throw new IlmException("part '" + m.Name + "': grown counts " + f[0].ToString(Inv) + " verts / " +
+                        f[1].ToString(Inv) + " normals / " + f[2].ToString(Inv) + " prims exceed the u8 ceiling 255");
+                }
+            }
+            if (vbase > 255)
+            {
+                GrowBudget(ilm, grown, vO2, nO2, finals, data.Length, 0, res.Report);
+                throw new IlmException("REFUSED V5: vertex slot extent " + vbase.ToString(Inv) + " exceeds 255 - vertex " +
+                    "slot 255 is reserved (0xFF in a quad's 4th corner byte is the triangle sentinel)");
+            }
+            if (nbase > 256)
+            {
+                GrowBudget(ilm, grown, vO2, nO2, finals, data.Length, 0, res.Report);
+                throw new IlmException("REFUSED V6: normal slot extent " + nbase.ToString(Inv) + " exceeds 256");
+            }
+
+            // Pinned expansion conflict check (see the preservation argument above).
+            if (pinned.Count > 0)
+            {
+                var vedges = new List<int[]>();
+                var nedges = new List<int[]>();
+                foreach (Model m in ilm.Models)
+                {
+                    int rmi = m.Idx;
+                    foreach (Mesh me in m.Meshes)
+                        foreach (Prim p in me.Prims)
+                        {
+                            int n = p.Tri ? 3 : 4;
+                            for (int i = 0; i < n; i++)
+                            {
+                                vedges.Add(new[] { (int)p.Vtx[i], p.VRef[i].Model, rmi });
+                                nedges.Add(new[] { (int)p.Nrm[i], p.NRef[i].Model, rmi });
+                            }
+                        }
+                    if (shadeMap[rmi] != null)
+                        foreach (ShadeEdge e in shadeMap[rmi]) vedges.Add(new[] { e.Slot, e.Ref.Model, rmi });
+                }
+                foreach (int P in pinned)
+                {
+                    Model m = ilm.Models[P];
+                    for (int zone = 0; zone < 2; zone++)
+                    {
+                        int lo = zone == 0 ? m.Meshes[0].VertexCount : m.Meshes[0].NormalCount;
+                        int hi = zone == 0 ? VcNew(ilm, newVerts, P) : NcNew(ilm, newNormals, P);
+                        List<int[]> edges = zone == 0 ? vedges : nedges;
+                        string kind = zone == 0 ? "vertex" : "normal";
+                        foreach (int[] e in edges)
+                            if (e[0] >= lo && e[0] < hi && dpos[e[1]] < dpos[P] && dpos[P] < dpos[e[2]])
+                                throw new IlmException("part '" + m.Name + "' cannot grow at offset 0: expanding its " +
+                                    kind + " window to " + hi.ToString(Inv) + " would overwrite pool slot " +
+                                    e[0].ToString(Inv) + " between writer " + ilm.Models[e[1]].Name + " and reader " +
+                                    ilm.Models[e[2]].Name);
+                    }
+                }
+            }
+
+            // Emit. Layout mirrors stock: header | materials | modelHdrs | reserved zero block |
+            // modelOrder | pad4 | per part meshHdrs + arrays, each array followed by real in-file
+            // pad bytes so the file passes V9 at tailSlack 0.
+            var outb = new List<byte>(data.Length * 2);
+            AddRange(outb, data, 0, 20, "header");
+            int matsP = outb.Count;
+            AddRange(outb, data, ilm.MatsP, 24 * ilm.MatCount, "materials");
+            int hdrsP = outb.Count;
+            AddZeros(outb, 16 * mc);
+            int reservedFrom = ilm.ModelHdrsP + 16 * mc;
+            if (ilm.ModelOrderP < reservedFrom)
+                throw new IlmException("grow: the source ILM puts modelOrder inside its model header table; the " +
+                    "sections must not overlap.");
+            AddRange(outb, data, reservedFrom, ilm.ModelOrderP - reservedFrom, "block between the model headers and modelOrder");
+            int orderP = outb.Count;
+            AddRange(outb, data, ilm.ModelOrderP, mc, "modelOrder");
+            AddZeros(outb, Align4(outb.Count));
+            PutU32(outb, 4, matsP);
+            PutU32(outb, 0xC, hdrsP);
+            PutU32(outb, 0x10, orderP);
+            outb[2] = 0; // isLoaded: a 1 makes the runtime skip pointer fix-up and crash
+
+            foreach (Model m in ilm.Models)
+            {
+                int mi = m.Idx;
+                int meshHdrsP2 = outb.Count;
+                AddZeros(outb, 24 * m.MeshCount);
+                var meshInfo = new int[m.MeshCount][];
+                for (int k = 0; k < m.MeshCount; k++)
+                {
+                    Mesh me = m.Meshes[k];
+                    // Growth is single-mesh, so every addition lands in mesh 0.
+                    List<int[]> addV = k == 0 && newVerts[mi] != null ? newVerts[mi] : null;
+                    List<int[]> addN = k == 0 && newNormals[mi] != null ? newNormals[mi] : null;
+                    List<NewPrim> addP = k == 0 && newPrims[mi] != null ? newPrims[mi] : null;
+                    int nAddV = addV == null ? 0 : addV.Count;
+                    int nAddN = addN == null ? 0 : addN.Count;
+                    int nAddP = addP == null ? 0 : addP.Count;
+
+                    int primsP = outb.Count;
+                    foreach (Prim p in me.Prims)
+                    {
+                        var raw = new byte[20];
+                        if (p.Off < 0 || p.Off + 20 > data.Length)
+                            throw new IlmException("grow: part '" + m.Name + "' has a primitive outside the source ILM");
+                        Buffer.BlockCopy(data, p.Off, raw, 0, 20);
+                        int n = p.Tri ? 3 : 4;
+                        for (int i = 0; i < n; i++)
+                        {
+                            raw[0xC + i] = SlotByte(vO2[p.VRef[i].Model] + p.VRef[i].Local);
+                            raw[0x10 + i] = SlotByte(nO2[p.NRef[i].Model] + p.NRef[i].Local);
+                        }
+                        outb.AddRange(raw);
+                    }
+                    if (addP != null)
+                        foreach (NewPrim np in addP)
+                        {
+                            var raw = new byte[20];
+                            Buffer.BlockCopy(data, np.Tmpl.Off, raw, 0, 20);
+                            int arity = np.Tri ? 3 : 4;
+                            for (int i = 0; i < arity; i++)
+                            {
+                                int slot;
+                                if (np.VKind[i] == 0) slot = vO2[mi] + np.VA[i];
+                                else if (np.VKind[i] == 1) slot = vO2[np.VA[i]] + np.VB[i];
+                                else slot = vO2[mi] + me.VertexCount + np.VA[i];
+                                raw[0xC + i] = SlotByte(slot);
+                                raw[0x10 + i] = SlotByte(nO2[mi] + me.NormalCount + np.NIdx[i]);
+                                W16(raw, UvOffsets[i], np.Uu[i] | (np.Vv[i] << 8));
+                            }
+                            if (np.Tri)
+                            {
+                                raw[0xC + 3] = 0xFF;
+                                raw[0x10 + 3] = 0;   // stock convention: tris carry 0
+                            }
+                            outb.AddRange(raw);
+                        }
+
+                    int xyP = outb.Count;
+                    AddRange(outb, data, me.XyP, 4 * me.VertexCount, "part '" + m.Name + "' verticesXy");
+                    if (addV != null)
+                        foreach (int[] v in addV)
+                        {
+                            outb.Add((byte)v[0]); outb.Add((byte)(v[0] >> 8));
+                            outb.Add((byte)v[1]); outb.Add((byte)(v[1] >> 8));
+                        }
+                    AddZeros(outb, LmArraySlack);
+
+                    int zP = outb.Count;
+                    AddRange(outb, data, me.ZP, 2 * me.VertexCount, "part '" + m.Name + "' verticesZ");
+                    if (addV != null)
+                        foreach (int[] v in addV) { outb.Add((byte)v[2]); outb.Add((byte)(v[2] >> 8)); }
+                    AddZeros(outb, Align4(outb.Count) + LmArraySlack);
+
+                    int normP = outb.Count;
+                    AddRange(outb, data, me.NormP, 4 * me.NormalCount, "part '" + m.Name + "' normals");
+                    if (addN != null)
+                        foreach (int[] s in addN)
+                        {
+                            outb.Add((byte)(sbyte)s[0]); outb.Add((byte)(sbyte)s[1]); outb.Add((byte)(sbyte)s[2]);
+                            // Count byte 1: the stock 1:1 pattern (sum(count) == vertexCount); it only
+                            // feeds the env-mode-1/2 walk, which V8 bounds.
+                            outb.Add(1);
+                        }
+                    AddZeros(outb, LmArraySlack);
+
+                    int cnt = me.UnkCount3;
+                    int nc2 = me.NormalCount + nAddN;
+                    int unkP;
+                    if (cnt != 0)
+                    {
+                        unkP = outb.Count;
+                        foreach (ShadeEdge e in shadeMap[mi])
+                            if (e.Mesh == k) outb.Add(SlotByte(vO2[e.Ref.Model] + e.Ref.Local));
+                    }
+                    else
+                    {
+                        // Stock relation unkP = normP + 4*normalCount; with count 0 the pointer is
+                        // never dereferenced beyond address formation.
+                        unkP = normP + 4 * nc2;
+                    }
+                    AddZeros(outb, ShadePad(cnt));
+
+                    meshInfo[k] = new[] { me.PrimCount + nAddP, me.VertexCount + nAddV, nc2, cnt,
+                                          primsP, xyP, zP, normP, unkP };
+                }
+                for (int k = 0; k < m.MeshCount; k++)
+                {
+                    int hb = meshHdrsP2 + 24 * k;
+                    int[] info = meshInfo[k];
+                    outb[hb] = SlotByte(info[0]);
+                    outb[hb + 1] = SlotByte(info[1]);
+                    outb[hb + 2] = SlotByte(info[2]);
+                    outb[hb + 3] = SlotByte(info[3]);
+                    for (int a = 0; a < 5; a++) PutU32(outb, hb + 4 + a * 4, info[4 + a]);
+                }
+                int mhb = hdrsP + 16 * mi;
+                if (m.HdrOff < 0 || m.HdrOff + 8 > data.Length)
+                    throw new IlmException("grow: part '" + m.Name + "' header runs past the end of the source ILM");
+                for (int i = 0; i < 8; i++) outb[mhb + i] = data[m.HdrOff + i];
+                outb[mhb + 8] = (byte)m.MeshCount;
+                outb[mhb + 9] = SlotByte(vO2[mi]);
+                outb[mhb + 10] = SlotByte(nO2[mi]);
+                outb[mhb + 11] = (byte)m.Bits;
+                PutU32(outb, mhb + 0xC, meshHdrsP2);
+            }
+
+            byte[] blob = outb.ToArray();
+
+            // The validator twin at strict authoring settings; V13 through the ANM.
+            string anmPath;
+            var anmWarn = new List<string>();
+            Anm anm = FindAnm(ilmPath, ilm.Models, null, anmWarn, out anmPath);
+            string vmsg;
+            if (LmValidate(blob, 0, anm != null ? anm.BoneCount : -1, true, out vmsg) != 0)
+            {
+                GrowBudget(ilm, grown, vO2, nO2, finals, data.Length, blob.Length, res.Report);
+                throw new IlmException("REFUSED " + vmsg);
+            }
+
+            // Sharing-graph verification on the EMITTED bytes: every original corner and shade byte
+            // must resolve to the same (writer part, local index), every new corner to its own part.
+            // This is the converter's own acceptance test.
+            Ilm ilm2 = ParseIlm(blob);
+            int[] order2 = ResolvePool(ilm2);
+            for (int i = 0; i < mc; i++)
+                if (order2[i] != order[i]) throw new IlmException("grow internal error: modelOrder changed");
+            int foreign = 0, kept = 0;
+            foreach (Model m in ilm.Models)
+            {
+                int mi = m.Idx;
+                Model m2 = ilm2.Models[mi];
+                for (int k = 0; k < m.MeshCount; k++)
+                {
+                    Mesh me = m.Meshes[k], me2 = m2.Meshes[k];
+                    for (int pi = 0; pi < me.PrimCount; pi++)
+                    {
+                        Prim p = me.Prims[pi], p2 = me2.Prims[pi];
+                        int n = p.Tri ? 3 : 4;
+                        for (int i = 0; i < n; i++)
+                            for (int which = 0; which < 2; which++)
+                            {
+                                PoolRef oldR = which == 0 ? p.VRef[i] : p.NRef[i];
+                                PoolRef newR = which == 0 ? p2.VRef[i] : p2.NRef[i];
+                                string expectName = ilm.Models[oldR.Model].Name;
+                                bool ok = newR.Valid && ilm2.Models[newR.Model].Name == expectName && newR.Local == oldR.Local;
+                                if (oldR.Model != mi) { foreign++; if (ok) kept++; }
+                                if (!ok)
+                                    throw new IlmException("grow internal error: part " + m.Name + " prim " +
+                                        pi.ToString(Inv) + " corner " + i.ToString(Inv) + " edge mismatch");
+                            }
+                    }
+                }
+                if (newPrims[mi] == null) continue;
+                int vcold = m.Meshes[0].VertexCount, ncold = m.Meshes[0].NormalCount;
+                for (int j = 0; j < newPrims[mi].Count; j++)
+                {
+                    NewPrim np = newPrims[mi][j];
+                    Prim p2 = m2.Meshes[0].Prims[m.Meshes[0].PrimCount + j];
+                    int arity = np.Tri ? 3 : 4;
+                    for (int i = 0; i < arity; i++)
+                    {
+                        string wantName; int wantLocal;
+                        if (np.VKind[i] == 0) { wantName = m.Name; wantLocal = np.VA[i]; }
+                        else if (np.VKind[i] == 1) { wantName = ilm.Models[np.VA[i]].Name; wantLocal = np.VB[i]; }
+                        else { wantName = m.Name; wantLocal = vcold + np.VA[i]; }
+                        PoolRef r = p2.VRef[i];
+                        if (!r.Valid || ilm2.Models[r.Model].Name != wantName || r.Local != wantLocal)
+                            throw new IlmException("grow internal error: new prim " + j.ToString(Inv) + " corner " +
+                                i.ToString(Inv) + " vertex edge mismatch");
+                        r = p2.NRef[i];
+                        if (!r.Valid || ilm2.Models[r.Model].Name != m.Name || r.Local != ncold + np.NIdx[i])
+                            throw new IlmException("grow internal error: new prim " + j.ToString(Inv) + " corner " +
+                                i.ToString(Inv) + " normal edge mismatch");
+                    }
+                }
+            }
+            List<ShadeEdge>[] shade2 = ShadeEdges(ilm2, order2);
+            foreach (int mi in order)
+            {
+                List<ShadeEdge> lst = shadeMap[mi];
+                if (lst == null) continue;
+                List<ShadeEdge> lst2 = shade2[mi];
+                if (lst2 == null || lst.Count != lst2.Count)
+                    throw new IlmException("grow internal error: shade stream length changed");
+                for (int i = 0; i < lst.Count; i++)
+                {
+                    ShadeEdge a = lst[i], b = lst2[i];
+                    if (a.Mesh != b.Mesh || a.ByteIdx != b.ByteIdx || !b.Ref.Valid ||
+                        ilm2.Models[b.Ref.Model].Name != ilm.Models[a.Ref.Model].Name || b.Ref.Local != a.Ref.Local)
+                        throw new IlmException("grow internal error: part " + ilm.Models[mi].Name + " shade byte " +
+                            i.ToString(Inv) + " edge mismatch");
+                }
+            }
+
+            File.WriteAllBytes(outIlmPath, blob);
+
+            var grownSorted = new List<int>(grown);
+            grownSorted.Sort();
+            res.IlmPath = outIlmPath;
+            res.Parts = mc;
+            res.Vertices = nvert;
+            res.Normals = nnorm;
+            res.Prims = nprim;
+            res.Grew = true;
+            res.GrownParts.AddRange(grownSorted);
+
+            foreach (int mi in grownSorted)
+                res.Report.Add("   part " + ilm.Models[mi].Name + ": +" + CountOf(newVerts, mi).ToString(Inv) +
+                    " verts, +" + CountOf(newNormals, mi).ToString(Inv) + " normals, +" +
+                    (newPrims[mi] == null ? 0 : newPrims[mi].Count).ToString(Inv) + " prims" +
+                    (isPinned[mi] ? " (pinned at offset 0: third-chain part)" : ""));
+            res.Report.Add("   " + nvert.ToString(Inv) + " original vertices, " + nnorm.ToString(Inv) +
+                " normals patched; sharing graph preserved: " + kept.ToString(Inv) + "/" + foreign.ToString(Inv) +
+                " foreign edges");
+            if (res.RestPoseIdentity)
+                res.Warnings.Add("rest pose: IDENTITY (this OBJ was exported without an ANM)");
+            SeamReport(seamWarn, "seam vertex/vertices moved", res.Warnings);
+            SeamReport(seamNWarn, "seam normal(s) edited", res.Warnings);
+            GrowBudget(ilm, grown, vO2, nO2, finals, data.Length, blob.Length, res.Report);
         }
     }
 }

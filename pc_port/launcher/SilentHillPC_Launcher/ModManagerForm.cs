@@ -141,7 +141,9 @@ namespace SilentHillPC_Launcher
                 "open in Blender. Each 'o' object is ONE rigid animated body part — reshape its vertices freely, but do NOT " +
                 "rename, add or remove objects: that list is the rig, and changing it breaks the animation.");
             _btnTips.SetToolTip(btnOm, "OBJ → Model: fold your edited .obj back into a new .ILM. Needs the ORIGINAL .ILM it came " +
-                "from plus the .ilmmeta.json written beside the .obj — bones, draw order and palette rows come from those.");
+                "from plus the .ilmmeta.json written beside the .obj — bones, draw order and palette rows come from those. " +
+                "If you added vertices or faces it rebuilds as a larger-than-original model (it asks first), which needs " +
+                "loose file support switched on.");
             _btnTips.SetToolTip(btnVw, "View Model: preview a .ILM (or an edited .obj before importing it) in a 3D window — " +
                 "textured with its real in-game palettes. Drag to orbit, right-drag to pan, wheel to zoom.");
             _btnTips.SetToolTip(btnHelp, "How to make and install loose-file texture mods.");
@@ -890,14 +892,26 @@ namespace SilentHillPC_Launcher
                 outIlm = sfd.FileName;
             }
 
+            // Grow-mode is passed unconditionally rather than exposed as a checkbox. The converter
+            // falls through to the byte-identical patch-in-place path whenever the OBJ added
+            // nothing, so the flag alone can never alter a same-topology rebuild — which means a
+            // checkbox would only add two ways to be surprised (forget to tick it and a legitimate
+            // grow is rejected as a vertex-count mismatch; tick it on an unchanged mesh and nothing
+            // happens for reasons the user cannot see). Detection is exact instead of guessed, and
+            // the confirmation below quotes the converter's own per-part deltas.
+            //
+            // It builds to a sibling temp file: a refusal (or a declined confirmation) must not
+            // leave a half-written or unwanted .ILM at the path the user picked.
+            string tmpIlm = outIlm + ".rebuild.tmp";
             IlmObjConverter.ImportResult res = null;
             try
             {
                 ProgressDialog.Run(this, "Rebuilding model…",
-                    r => { res = IlmObjConverter.Import(obj, ilm, outIlm); });
+                    r => { res = IlmObjConverter.Import(obj, ilm, tmpIlm, true); });
             }
             catch (Exception ex)
             {
+                TryDelete(tmpIlm);
                 MessageBox.Show(this, "Rebuild failed:\n\n" + ex.Message,
                     "OBJ → Model", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
@@ -905,27 +919,174 @@ namespace SilentHillPC_Launcher
 
             if (res == null || !string.IsNullOrEmpty(res.Error))
             {
-                MessageBox.Show(this, "Rebuild failed:\n\n" + (res != null ? res.Error : "unknown error"),
+                TryDelete(tmpIlm);
+                ShowImportFailure(PreferPlainDiagnosis(res, obj, ilm, tmpIlm));
+                return;
+            }
+
+            if (res.Grew && !ConfirmGrow(res)) { TryDelete(tmpIlm); return; }
+
+            try
+            {
+                // Replace, never delete-then-move: Delete and Move are not atomic, so a Move that
+                // loses a race with an AV scanner (or the preview window's own handle on the file
+                // just written) after the Delete succeeded leaves NEITHER model on disk. Rebuilding
+                // straight onto an existing destination is the documented workflow, not an edge case.
+                if (File.Exists(outIlm)) File.Replace(tmpIlm, outIlm, null);
+                else                     File.Move(tmpIlm, outIlm);
+            }
+            catch (Exception ex)
+            {
+                // The temp is the ONLY copy of the rebuild and the destination may still hold the
+                // user's previous model - deleting either here loses work.
+                MessageBox.Show(this, "The model rebuilt, but it could not be moved to:\n" + outIlm +
+                    "\n\n" + ex.Message + "\n\nThe rebuilt model is here:\n" + tmpIlm,
+                    "OBJ → Model", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            res.IlmPath = outIlm;
+
+            if (res.Grew)
+            {
+                ShowGrowReport(res);
+                if (MessageBox.Show(this, "Open the output folder?", "OBJ → Model",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes)
+                    return;
+            }
+            else
+            {
+                string msg = "Rebuilt " + res.Parts + " body part(s), " + res.Vertices + " vertices, " +
+                    res.Normals + " normals and " + res.Prims + " face(s):\n" + res.IlmPath +
+                    "\n\nTo use it, drop it into gamedata\\load\\<FOLDER>\\ under its ORIGINAL name " +
+                    "(e.g. gamedata\\load\\CHARA\\DOB.ILM) and set allow_loose_files = 1 in config.cfg.";
+                // Same contract as the export dialog: res.Warnings carries seam-edit diagnoses the user
+                // cannot see in the written file, so a success box must not swallow them.
+                if (res.Warnings.Count > 0)
+                    msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
+                           string.Join("\n - ", res.Warnings.Take(8)) +
+                           (res.Warnings.Count > 8 ? "\n - …" : "");
+                if (MessageBox.Show(this, msg + "\n\nOpen the output folder?",
+                        "OBJ → Model", MessageBoxButtons.YesNo,
+                        res.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information) != DialogResult.Yes)
+                    return;
+            }
+
+            try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.IlmPath)); } catch { }
+        }
+
+        /// <summary>Delete a scratch file, ignoring anything that goes wrong — the caller is
+        /// already on an error path and the failure it is reporting is the interesting one.</summary>
+        private static void TryDelete(string path)
+        {
+            try { if (File.Exists(path)) File.Delete(path); } catch { }
+        }
+
+        /// <summary>Pick the refusal that names the right part. Grow-detection fires on ANY extra
+        /// vertex or face, so an accidental topology change — one stray vertex, a face duplicated by
+        /// a mirror or Ctrl+D — is diagnosed by GrowImport's face/vertex pairing check instead of the
+        /// plain path's count check. Adding a vertex shifts every later global OBJ index, so the
+        /// pairing error blames whichever part the shift lands in, which is almost never the part the
+        /// user edited. The plain path's count check names the right part and the right cause, so when
+        /// the growth was not deliberate its refusal is the one to show. A ceiling refusal (Report
+        /// filled) is already the accurate diagnosis of a REAL grow and must survive untouched.</summary>
+        private static IlmObjConverter.ImportResult PreferPlainDiagnosis(
+            IlmObjConverter.ImportResult grown, string obj, string ilm, string tmpIlm)
+        {
+            if (grown == null || grown.Report.Count > 0) return grown;
+            IlmObjConverter.ImportResult plain = IlmObjConverter.Import(obj, ilm, tmpIlm, false);
+            TryDelete(tmpIlm);
+            return (plain != null && !string.IsNullOrEmpty(plain.Error)) ? plain : grown;
+        }
+
+        /// <summary>Import refusal. A ceiling refusal (too many vertices/normals/prims/parts for the
+        /// file format's u8 slot indices) fills res.Report with the same budget table a success
+        /// produces, so the user can see WHICH part blew WHICH limit — that only reads in the
+        /// monospace dialog, so route it there and keep the MessageBox for plain failures.</summary>
+        private void ShowImportFailure(IlmObjConverter.ImportResult res)
+        {
+            string err = res != null ? res.Error : "unknown error";
+            if (res == null || res.Report.Count == 0)
+            {
+                MessageBox.Show(this, "Rebuild failed:\n\n" + err,
                     "OBJ → Model", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            string msg = "Rebuilt " + res.Parts + " body part(s), " + res.Vertices + " vertices, " +
-                res.Normals + " normals and " + res.Prims + " face(s):\n" + res.IlmPath +
-                "\n\nTo use it, drop it into gamedata\\load\\<FOLDER>\\ under its ORIGINAL name " +
-                "(e.g. gamedata\\load\\CHARA\\DOB.ILM) and set allow_loose_files = 1 in config.cfg.";
-            // Same contract as the export dialog: res.Warnings carries seam-edit diagnoses the user
-            // cannot see in the written file, so a success box must not swallow them.
+            var lines = new System.Collections.Generic.List<string>();
+            lines.Add("REBUILD REFUSED — THE MODEL DOES NOT FIT");
+            lines.Add("");
+            lines.Add(err);
+            lines.Add("");
+            lines.Add("Nothing was written.");
+            lines.Add("");
+            lines.Add("A body part addresses its vertices, normals and faces with single bytes, so");
+            lines.Add("the limits below are hard: no build of the game can load a part past them.");
+            lines.Add("Remove geometry from the part named above — decimate it in Blender, or move");
+            lines.Add("some of the detail onto a neighbouring part — and rebuild.");
+            lines.Add("");
+            lines.Add("BUDGET AT THE POINT OF REFUSAL");
+            lines.AddRange(res.Report);
+            ShowTextDialog("OBJ → Model — Refused", lines.ToArray(), true);
+        }
+
+        /// <summary>Ask before committing a grown model: it is a different KIND of output (needs
+        /// loose-file support, cannot go back on a disc), and reaching it by accident — one stray
+        /// subdivide in Blender — must not be silent. The counts come from the converter's own
+        /// per-part delta lines, which are the first GrownParts.Count entries of Report.</summary>
+        private bool ConfirmGrow(IlmObjConverter.ImportResult res)
+        {
+            int n = res.GrownParts.Count;
+            string deltas = string.Join("\n", res.Report.Take(Math.Min(n, 12))) +
+                            (n > 12 ? "\n   … and " + (n - 12) + " more (full table follows)" : "");
+            string msg = "This OBJ ADDS geometry — the rebuilt model is larger than the original.\n\n" +
+                "New geometry in " + n + " of " + res.Parts + " body part(s):\n" +
+                deltas + "\n\n" +
+                "A larger-than-original model loads only through this port's loose-file path with " +
+                "\"Enable loose file support\" switched on. If you did not mean to add geometry, " +
+                "answer No, undo the change in Blender and rebuild.\n\n" +
+                "Rebuild as a larger-than-original model?";
+            return MessageBox.Show(this, msg, "OBJ → Model", MessageBoxButtons.YesNo,
+                       MessageBoxIcon.Question) == DialogResult.Yes;
+        }
+
+        /// <summary>Success dialog for a grown model. The budget table is column-aligned and far
+        /// too long for a MessageBox, and the install rules are stricter than the plain path's, so
+        /// this goes in the scrollable monospace dialog.</summary>
+        private void ShowGrowReport(IlmObjConverter.ImportResult res)
+        {
+            string name = Path.GetFileName(res.IlmPath);
+            var lines = new System.Collections.Generic.List<string>();
+            lines.Add("REBUILT AS A LARGER-THAN-ORIGINAL MODEL");
+            lines.Add("");
+            lines.Add("Written:  " + res.IlmPath);
+            lines.Add("Grew " + res.GrownParts.Count + " of " + res.Parts + " body part(s), adding " +
+                      res.Prims + " new face(s).");
+            lines.Add("");
+            lines.Add("INSTALLING IT  (both of these or it will not load)");
+            lines.Add("");
+            lines.Add("  1.  Tick \"Enable loose file support\" at the bottom of the Mod Manager");
+            lines.Add("      (allow_loose_files = 1 in config.cfg). A model bigger than the one on");
+            lines.Add("      the disc is read ONLY through the loose-file path. Without it the game");
+            lines.Add("      quietly keeps the original and nothing looks wrong.");
+            lines.Add("");
+            lines.Add("  2.  Copy it to   gamedata\\load\\<FOLDER>\\<ORIGINAL NAME>.ILM");
+            lines.Add("      e.g.         gamedata\\load\\CHARA\\DOB.ILM");
+            lines.Add("      Under the ORIGINAL name, in the folder it came from. The game looks the");
+            lines.Add("      file up by that name — " + name + " will never be found.");
+            lines.Add("");
+            lines.Add("An enabled TEXTURE PACK is no obstacle: a pack's .png for this character");
+            lines.Add("overrides that character's TEXTURE only and never interferes with the");
+            lines.Add("loose .ILM.");
             if (res.Warnings.Count > 0)
-                msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
-                       string.Join("\n - ", res.Warnings.Take(8)) +
-                       (res.Warnings.Count > 8 ? "\n - …" : "");
-            if (MessageBox.Show(this, msg + "\n\nOpen the output folder?",
-                    "OBJ → Model", MessageBoxButtons.YesNo,
-                    res.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information) == DialogResult.Yes)
             {
-                try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.IlmPath)); } catch { }
+                lines.Add("");
+                lines.Add("WARNINGS (" + res.Warnings.Count + ")");
+                foreach (var w in res.Warnings) lines.Add("  - " + w);
             }
+            lines.Add("");
+            lines.Add("BUDGET  (per part: used / limit, and the pool window it occupies)");
+            lines.AddRange(res.Report);
+            ShowTextDialog("OBJ → Model — Grown Model", lines.ToArray(), true);
         }
 
         /// <summary>"View Model…" button: open a .ILM or an edited .obj in the
@@ -1030,12 +1191,61 @@ namespace SilentHillPC_Launcher
                 "",
                 "    Install the result like any loose file, under its ORIGINAL name — e.g.",
                 "    gamedata\\load\\CHARA\\DOB.ILM",
+                "",
+                "    ADDING geometry (bigger than the original model)",
+                "",
+                "    You are not limited to reshaping what is there. Add vertices and faces",
+                "    inside an existing 'o' block — subdivide it, extrude it — and the import",
+                "    rebuilds the model at its new size. It notices by itself: when the .obj",
+                "    carries more geometry than it exported, it asks you to confirm, then",
+                "    prints a per-part budget table. You never tick anything, and an .obj you",
+                "    only reshaped still rebuilds exactly as it always did.",
+                "",
+                "    The limits, and they are hard — a part addresses its own vertices,",
+                "    normals and faces with SINGLE BYTES:",
+                "      - vertex slots reach 255 across the whole model (255 is reserved),",
+                "      - normal slots reach 256,",
+                "      - a model has at most 56 body parts,",
+                "      - and each part's own vertex / normal / face counts are byte-sized.",
+                "    Go over and the import REFUSES, names the part and the limit, and writes",
+                "    nothing. Decimate that part, or move some detail onto a neighbour.",
+                "",
+                "    A grown model needs both of these to actually show up in game:",
+                "",
+                "      1. \"Enable loose file support\" ticked (bottom of this window). A model",
+                "         larger than the disc's is read ONLY through the loose-file path.",
+                "      2. Installed under its ORIGINAL name — gamedata\\load\\CHARA\\DOB.ILM.",
+                "         A file called DOB_new.ILM is never looked up.",
+                "",
+                "    Texture packs do not get in the way — a pack's .png for the same",
+                "    character overrides its TEXTURE only, never the loose .ILM.",
+                "",
+                "    Rebuild the animations? No — you do not have to. The rig is untouched:",
+                "    new vertices belong to the part you put them in and follow its bone, so",
+                "    every existing animation keeps working. That is also why the one rule",
+                "    from above still stands — never rename, add or remove an 'o' OBJECT.",
+                "",
+                "    Preview before you install: \"View Model…\" opens the rebuilt .ILM.",
             };
 
+            ShowTextDialog("Loose-File Mods — Help", lines, false);
+        }
+
+        /// <summary>Scrollable read-only text modal — the shape the Help dialog has always had,
+        /// shared so the grow-mode budget report and its refusals look the same. Monospace turns
+        /// off word wrap and widens the window, which column-aligned tables need to stay readable.</summary>
+        private void ShowTextDialog(string title, string[] lines, bool monospace)
+        {
+            int w = monospace ? 720 : 540;
+            int h = monospace ? 470 : 420;
+            // A column-aligned table only lines up in a fixed-pitch face. The font is declared
+            // OUTSIDE the form's using so it is disposed after the form, never while a live
+            // control still references it. A null resource in a using is a legal no-op.
+            using (Font mono = monospace ? new Font(FontFamily.GenericMonospace, 8.25f) : null)
             using (var dlg = new Form())
             {
-                dlg.Text            = "Loose-File Mods — Help";
-                dlg.ClientSize      = new Size(540, 420);
+                dlg.Text            = title;
+                dlg.ClientSize      = new Size(w, h);
                 dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
                 dlg.StartPosition   = FormStartPosition.CenterParent;
                 dlg.MaximizeBox     = false;
@@ -1046,23 +1256,24 @@ namespace SilentHillPC_Launcher
                 {
                     Multiline   = true,
                     ReadOnly    = true,
-                    ScrollBars  = ScrollBars.Vertical,
-                    WordWrap    = true,
+                    ScrollBars  = monospace ? ScrollBars.Both : ScrollBars.Vertical,
+                    WordWrap    = !monospace,
                     BorderStyle = BorderStyle.FixedSingle,
                     BackColor   = SystemColors.Window,
                     Location    = new Point(12, 12),
-                    Size        = new Size(516, 356),
+                    Size        = new Size(w - 24, h - 64),
                     TabStop     = false,
                     Text        = string.Join("\r\n", lines)
                 };
                 box.Select(0, 0);
                 dlg.Controls.Add(box);
 
-                var close = new Button { Text = "Close", Location = new Point(444, 380), Size = new Size(84, 28), DialogResult = DialogResult.OK };
+                var close = new Button { Text = "Close", Location = new Point(w - 96, h - 40), Size = new Size(84, 28), DialogResult = DialogResult.OK };
                 dlg.Controls.Add(close);
                 dlg.AcceptButton = close;
                 dlg.CancelButton = close;
 
+                if (mono != null) box.Font = mono;
                 dlg.ShowDialog(this);
             }
         }

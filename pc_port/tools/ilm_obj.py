@@ -652,6 +652,7 @@ def parse_obj(path):
     objs = []
     cur = None
     mtl = None
+    saw_o = False
     for raw in open(path):
         ln = raw.strip()
         if not ln or ln[0] == '#':
@@ -660,8 +661,20 @@ def parse_obj(path):
         if k == 'usemtl':
             mtl = rest.strip()
             continue
-        if k == 'o':
-            cur = {"name": rest.strip(), "faces": [], "v": [], "vn": []}
+        # Milkshape 3D (and several older exporters) write groups as `g` and never
+        # emit `o`; the part name is the bone binding either way. `o` wins when a
+        # file carries both, because Blender writes `o NAME` plus a redundant
+        # `g NAME` and treating those as two parts would double the count.
+        if k == 'o' or (k == 'g' and not saw_o):
+            if k == 'o' and not saw_o:
+                saw_o = True
+                if objs and all(not x["faces"] for x in objs):
+                    objs = []  # drop `g` groups opened before the first real `o`
+                    cur = None
+            name = rest.strip()
+            if k == 'g' and name in ('', 'default', 'off'):
+                continue  # exporters emit these as "no group", not a part
+            cur = {"name": name, "faces": [], "v": [], "vn": []}
             objs.append(cur)
         elif k == 'v':
             verts.append([float(x) for x in rest.split()[:3]])
