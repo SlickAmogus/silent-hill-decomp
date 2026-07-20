@@ -937,6 +937,22 @@ static FILE* OpenDiscImage(void)
     return f;
 }
 
+/* Taskbar close / Alt+F4 / window X during an FMV used to only stop the video:
+ * all three playback loops treat SDL_QUIT as "bail out of this FMV", then return
+ * into the game, swallowing the close request — the window stayed open and the
+ * user had to close it again once the movie was gone. Route it to the real close
+ * path instead. PsyX_Exit is what PsyCross's own window-close handler calls, so
+ * teardown matches Alt+F4 exactly, including the normal-exit flag that stops a
+ * benign teardown exception from being logged as FATAL. Does not return. */
+extern void PsyX_Exit();
+
+static void FmvQuitNow(const char* where)
+{
+    printf("[FMV] close requested during %s — quitting\n", where);
+    fflush(stdout);
+    PsyX_Exit();
+}
+
 /* Poll skip keys, drain SDL events, and return 1 if the user wants to bail. */
 static int PollSkipOrQuit(int* out_quit)
 {
@@ -945,6 +961,7 @@ static int PollSkipOrQuit(int* out_quit)
     SDL_Event evt;
     while (SDL_PollEvent(&evt)) {
         if (evt.type == SDL_QUIT) {
+            FmvQuitNow("MDEC playback");
             if (out_quit) *out_quit = 1;
             return 1;
         }
@@ -1618,7 +1635,7 @@ static int PlayFromFFmpeg(const char* path)
                         if (!skip_armed) { if (!held) skip_armed = 1; }
                         else if (held) { printf("[FMV] ffmpeg: skipped\n"); stop = 1; break; }
                         SDL_Event ev;
-                        while (SDL_PollEvent(&ev)) if (ev.type == SDL_QUIT) stop = 1;
+                        while (SDL_PollEvent(&ev)) if (ev.type == SDL_QUIT) FmvQuitNow("ffmpeg playback");
                         if (stop) break;
                         SDL_Delay(1);
                         elapsed += Util_GetHPCTime(&tmr, 1);
@@ -1825,6 +1842,7 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
         SDL_Event evt;
         while (SDL_PollEvent(&evt)) {
             if (evt.type == SDL_QUIT) {
+                FmvQuitNow("AVI playback");
                 goto done;
             }
         }
