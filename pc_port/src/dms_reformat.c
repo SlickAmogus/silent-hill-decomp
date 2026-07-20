@@ -159,6 +159,18 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
     /* Check if already reformatted (isLoaded is at byte 0 in both layouts) */
     if (raw[0] == 1)
     {
+#ifdef SH_XBOX_PORT
+        /* On 32-bit the raw PSX file IS layout-compatible with s_DmsHeader, so
+         * a clobbered/stale buffer whose byte 0 happens to read 1 masquerades
+         * as "already reformatted" and its junk pointers would be consumed
+         * wholesale. Only honor the flag when WE built a heap copy for this
+         * buffer; otherwise bail unregistered — readers then fall back to the
+         * latest heap header (safe) instead of the junk buffer. */
+        if (Dms_HeapHeaderForBuffer(dmsHdr) == NULL)
+        {
+            SH_DBG("  [DMS] isLoaded=1 but no heap slot for %p — buffer clobbered/stale, NOT trusting it", (void*)dmsHdr);
+        }
+#endif
         return;
     }
 
@@ -176,6 +188,22 @@ void Dms_HeaderFixOffsets_PC(s_DmsHeader* dmsHdr)
     s32 originVy       = (s32)rd32(&raw[16]);
     s32 originVz       = (s32)rd32(&raw[20]);
     u32 charactersOff  = rd32(&raw[24]);
+
+#ifdef SH_XBOX_PORT
+    /* Sanity-gate the raw header before building a heap copy from it: if a
+     * concurrent load clobbered this buffer, parsing junk here would BUILD a
+     * stable heap copy OF junk (wild cutscene keyframes/camera all scene
+     * long). Real DMS files: a handful of characters, offsets within a few
+     * KB. Bail unregistered instead — the cutscene degrades to no animation
+     * rather than chaos. */
+    if (characterCount > 16 || intervalCount > 64 ||
+        intervalOff >= 0x40000 || charactersOff >= 0x40000)
+    {
+        SH_DBG("  [DMS] insane header at %p (chars=%d intervals=%d offs=0x%X/0x%X) — clobbered, NOT parsing",
+               (void*)dmsHdr, (int)characterCount, (int)intervalCount, intervalOff, charactersOff);
+        return;
+    }
+#endif
 
 
     /* Parse camera entry (immediately after PSX header at offset 0x1C) */

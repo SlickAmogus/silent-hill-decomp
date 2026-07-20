@@ -42,13 +42,37 @@ build_host_tool tools/vp20compiler vp20compiler CC="$HOST_CC"
 build_host_tool tools/fp20compiler fp20compiler CXX="$HOST_CXX"
 
 # Build identification header (mirrors pc_port's cmake/gen_build_info.cmake):
-# first thing to check in a user log is which xbe produced it. Regenerated every
-# build; only costs a main_xbox.c recompile.
+# first thing to check in a user log is which xbe produced it. The .c.d
+# dependency tracking does NOT cover this header (a hardware log carried a
+# stale sha), so when the content changes, delete main_xbox.obj to force the
+# recompile ourselves.
 GIT_SHA="$(git -C "$SCRIPT_DIR/.." rev-parse --short=9 HEAD 2>/dev/null || echo unknown)"
 if [ -n "$(git -C "$SCRIPT_DIR/.." status --porcelain --untracked-files=no 2>/dev/null | head -1)" ]; then
     GIT_SHA="${GIT_SHA}+dirty"
 fi
 printf '#define SH_XBOX_BUILD_HASH "%s"\n#define SH_XBOX_BUILD_STAMP "%s"\n' \
-    "$GIT_SHA" "$(date '+%Y-%m-%d %H:%M:%S')" > include/sh_build_info_xbox.h
+    "$GIT_SHA" "$(date '+%Y-%m-%d %H:%M:%S')" > include/sh_build_info_xbox.h.new
+if ! cmp -s include/sh_build_info_xbox.h.new include/sh_build_info_xbox.h 2>/dev/null; then
+    mv include/sh_build_info_xbox.h.new include/sh_build_info_xbox.h
+    rm -f src/main_xbox.obj
+else
+    rm -f include/sh_build_info_xbox.h.new
+fi
+
+# Orphan-object sweep. An .obj whose .c.d dependency file is missing NEVER
+# rebuilds on header changes (make sees obj newer than .c and knows no header
+# deps) — that hole shipped a torn binary: 98 pre-merge objects incl. the
+# g_SysWork definer linked against post-merge headers, so every post-npcs
+# g_SysWork access landed in foreign globals (looked exactly like wild memory
+# corruption on hardware). Delete any orphan so it recompiles with tracking.
+# src/dsound_objs are prebuilt XDK objects with no sources — skip them.
+for o in $(find "$SCRIPT_DIR/../src" "$SCRIPT_DIR/../pc_port/src" "$SCRIPT_DIR/src" \
+           -name '*.obj' -not -path '*dsound_objs*' 2>/dev/null); do
+    base="${o%.obj}"
+    if [ ! -f "$base.c.d" ] && [ ! -f "$base.cpp.d" ]; then
+        echo "[ ORPHAN   ] $o (no .d — forcing rebuild)"
+        rm -f "$o"
+    fi
+done
 
 exec /c/msys64/usr/bin/make.exe -f Makefile.nxdk "$@"

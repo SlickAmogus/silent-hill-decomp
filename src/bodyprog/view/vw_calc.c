@@ -398,7 +398,12 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
      * walks stack coords). The stack term is a shared-1MB-bucket test, not a
      * true distance; a coord in another 1MB bucket degrades to identity, which
      * is safe. All coord walking is main-thread. */
-    #define COORD_PTR_OK(p) ((uintptr_t)(p) >= 0x10000 && \
+    /* Floor 0x480000: coords live in .data/.bss (>= ~0x4bd000), g_PsxRam or
+     * the malloc heap — never in .text (0x11000..~0x44c000). A hardware crash
+     * proved a garbage super of 0x600bc (code address) passes a 0x10000 floor
+     * and faults on the read-only sub write. If the XBE ever grows .text past
+     * 0x480000 the only symptom is coords degrading to identity — revisit then. */
+    #define COORD_PTR_OK(p) ((uintptr_t)(p) >= 0x00480000 && \
                              (((uintptr_t)(p) & 3) == 0) && \
                              ((uintptr_t)(p) < 0x08000000 || \
                               (((uintptr_t)(p) ^ (uintptr_t)&prevCoord) < 0x00100000)))

@@ -33,6 +33,23 @@
 
 #define VAB_BUFFER_LIMIT 0xC800u
 
+#ifdef SH_XBOX_PORT
+/* Dedicated CD staging for the VAB loader. On PSX, CD_ADDR_0 (0x801E2600)
+ * staged 25-sector reads over the FS buffer region by design — the drive and
+ * the game's interlocks serialized loaders, so nothing lived there mid-load.
+ * The Xbox CD HAL is synchronous and both loaders march concurrently, so a
+ * VAB body load smears [0x1E2600,0x1EEE00) — which fully contains
+ * FS_BUFFER_10 and FS_BUFFER_16 (a live cutscene DMS). 52KB of BSS ends the
+ * whole overlap class. KDT stays in FS_BUFFER_1 (PSX-faithful, no overlap
+ * with 16). Also: every CdRead below re-issues its own CdlSetloc at read
+ * time — the HAL keeps ONE seek cursor and the FS queue's split setloc/read
+ * ticks interleave with ours, so a stale cursor read pulled the wrong file. */
+static u8 s_sdCdStaging[VAB_BUFFER_LIMIT + 0x800];
+#define SD_CD_STAGING ((u_long*)s_sdCdStaging)
+#else
+#define SD_CD_STAGING CD_ADDR_0
+#endif
+
 #ifdef SH_PC_PORT
 /* Emitter-azimuth side-channel, armed in Vc_StereoBalanceGet (vc_util.c) by
  * the positional-SFX wrappers on this same call chain. Every key-on/update
@@ -1540,13 +1557,22 @@ void Sd_VabLoad_FileLoad(void) // 0x80047DB0
 {
     if (CdSync(1, 0) == CdlComplete)
     {
+#ifdef SH_XBOX_PORT
+        /* Self-locating read (see SD_CD_STAGING comment). Same position the
+         * OffSet state computed; the shared cursor may have moved since. */
+        {
+            CdlLOC reloc;
+            CdControl(CdlSetloc,
+                      (u8*)CdIntToPos(g_Sd_VabTargetLoad->fileOffset_8 + (g_Sd_DataMoved / 2048), &reloc), NULL);
+        }
+#endif
         if (g_Sd_VabTargetLoad->fileSize_4 < VAB_BUFFER_LIMIT)
         {
-            CdRead((g_Sd_VabTargetLoad->fileSize_4 + 2047) / 2048, CD_ADDR_0, 128);
+            CdRead((g_Sd_VabTargetLoad->fileSize_4 + 2047) / 2048, SD_CD_STAGING, 128);
         }
         else
         {
-            CdRead(25, CD_ADDR_0, 128);
+            CdRead(25, SD_CD_STAGING, 128);
         }
 
         // @hack
@@ -1570,7 +1596,7 @@ void Sd_VabLoad_OffVagDataSet(void) // 0x80047E3C
 
     if (CdReadSync(1, NULL) == 0)
     {
-        ptr1 = (u8*)CD_ADDR_0;
+        ptr1 = (u8*)SD_CD_STAGING;
         ptr0 = g_Sd_VabBuffers[g_Sd_AudioType];
 
         for (i = 0; i < g_Sd_VabTargetLoad->vagDataOffset_2; i++)
@@ -1592,7 +1618,7 @@ void Sd_VabLoad_VagDataMove(void) // 0x80047F18
 
     if (g_Sd_VabTargetLoad->fileSize_4 < VAB_BUFFER_LIMIT)
     {
-        dataMoveCheck = SdVabTransBody((u8*)CD_ADDR_0 + g_Sd_VabTargetLoad->vagDataOffset_2, g_Sd_AudioType);
+        dataMoveCheck = SdVabTransBody((u8*)SD_CD_STAGING + g_Sd_VabTargetLoad->vagDataOffset_2, g_Sd_AudioType);
         ptr           = &g_Sd_VabTargetLoad->fileSize_4;
 
         g_Sd_DataMoved                             = *ptr;
@@ -1600,7 +1626,7 @@ void Sd_VabLoad_VagDataMove(void) // 0x80047F18
     }
     else
     {
-        dataMoveCheck = SdVabTransBodyPartly((u8*)CD_ADDR_0 + g_Sd_VabTargetLoad->vagDataOffset_2, VAB_BUFFER_LIMIT - g_Sd_VabTargetLoad->vagDataOffset_2, g_Sd_AudioType);
+        dataMoveCheck = SdVabTransBodyPartly((u8*)SD_CD_STAGING + g_Sd_VabTargetLoad->vagDataOffset_2, VAB_BUFFER_LIMIT - g_Sd_VabTargetLoad->vagDataOffset_2, g_Sd_AudioType);
 
         g_Sd_DataMoved                             = VAB_BUFFER_LIMIT;
         g_Sd_AudioStreamingStates.audioLoadState_0 = AudioLoadState_SetNext;
@@ -1641,13 +1667,21 @@ void Sd_VabLoad_NextVagDataMove(void) // 0x8004807C
     }
 
     remainingData = g_Sd_VabTargetLoad->fileSize_4 - g_Sd_DataMoved;
+#ifdef SH_XBOX_PORT
+    /* Self-locating read: same position OffVagNextDataSet computed. */
+    {
+        CdlLOC reloc;
+        CdControl(CdlSetloc,
+                  (u8*)CdIntToPos(g_Sd_VabTargetLoad->fileOffset_8 + ((g_Sd_DataMoved + 2047) / 2048), &reloc), NULL);
+    }
+#endif
     if (remainingData < VAB_BUFFER_LIMIT)
     {
-        CdRead(((remainingData + 2047) / 2048), CD_ADDR_0, 128);
+        CdRead(((remainingData + 2047) / 2048), SD_CD_STAGING, 128);
     }
     else
     {
-        CdRead(25, CD_ADDR_0, 128);
+        CdRead(25, SD_CD_STAGING, 128);
     }
 
     g_Sd_AudioStreamingStates.audioLoadState_0 = AudioLoadState_MoveLast;
@@ -1666,13 +1700,13 @@ void Sd_VabLoad_LastVagDataMove(void) // 0x800480FC
     remainingData = g_Sd_VabTargetLoad->fileSize_4 - g_Sd_DataMoved;
     if (remainingData < VAB_BUFFER_LIMIT)
     {
-        dataMoveCheck                              = SdVabTransBodyPartly((u8*)CD_ADDR_0, remainingData, g_Sd_AudioType);
+        dataMoveCheck                              = SdVabTransBodyPartly((u8*)SD_CD_STAGING, remainingData, g_Sd_AudioType);
         g_Sd_DataMoved                             = g_Sd_VabTargetLoad->fileSize_4;
         g_Sd_AudioStreamingStates.audioLoadState_0 = AudioLoadState_Finalize;
     }
     else
     {
-        dataMoveCheck                              = SdVabTransBodyPartly((u8*)CD_ADDR_0, VAB_BUFFER_LIMIT, g_Sd_AudioType);
+        dataMoveCheck                              = SdVabTransBodyPartly((u8*)SD_CD_STAGING, VAB_BUFFER_LIMIT, g_Sd_AudioType);
         g_Sd_DataMoved                            += VAB_BUFFER_LIMIT;
         g_Sd_AudioStreamingStates.audioLoadState_0 = AudioLoadState_SetNext;
     }
@@ -1775,6 +1809,13 @@ void Sd_KdtLoad_FileLoad(void) // 0x80048424
 {
     if (CdSync(1, 0) == 2)
     {
+#ifdef SH_XBOX_PORT
+        /* Self-locating read (see SD_CD_STAGING comment). */
+        {
+            CdlLOC reloc;
+            CdControl(CdlSetloc, (u8*)CdIntToPos(g_Sd_KdtTargetLoad->fileOffset_8, &reloc), NULL);
+        }
+#endif
         CdRead((g_Sd_KdtTargetLoad->fileSize_4 + 2047) / 2048, FS_BUFFER_1, 128);
 
         g_Sd_AudioStreamingStates.audioLoadState_0 = AudioLoadState_CheckLoad;

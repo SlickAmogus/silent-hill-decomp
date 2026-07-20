@@ -653,6 +653,19 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
     }
 #endif
 
+#ifdef SH_XBOX_PORT
+    /* Self-locating read. The Xbox CD HAL keeps ONE seek cursor, and the sound
+     * loader's split setloc/read state machine (sd_call.c Sd_VabLoad_*) pumps
+     * interleaved with the queue across frames — its setloc landing between
+     * our SetLoc and Read ticks made this read pull sectors from the WRONG
+     * FILE (garbage TIM/ANM/DMS loads). On PSX the physical drive serialized
+     * the two clients; here both march concurrently, so re-issue our own
+     * position immediately before the read. */
+    {
+        CdlLOC reloc;
+        CdControl(CdlSetloc, (u_char*)CdIntToPos(entry->info->startSector, &reloc), NULL);
+    }
+#endif
     return CdRead(sectorCount >> FS_SECTOR_SHIFT, (u32*)entry->data, CdlModeSpeed);
 }
 

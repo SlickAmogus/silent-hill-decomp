@@ -34,11 +34,24 @@ extern s_DmsHeader* Dms_HeapHeaderForBuffer(void* buf);
  * overwritten by later file loads mid-cutscene). Only when there's no per-buffer
  * copy do we fall back to the latest global, and only if the passed header is
  * null / not loaded — so genuinely-valid per-phase pointers are still honored. */
+#ifdef SH_XBOX_PORT
+/* 32-bit: the raw PSX file (and any clobbered buffer with byte0==1) is
+ * layout-compatible with s_DmsHeader, so trusting p->isLoaded from a buffer
+ * WITHOUT a registry slot consumes junk pointers wholesale. No slot -> use
+ * the latest heap header; with neither, leave p — readers zero-position on
+ * character miss, which degrades instead of derailing. */
+#define DMS_HDR_REDIRECT(p) do { \
+    s_DmsHeader* _dh = Dms_HeapHeaderForBuffer(p); \
+    if (_dh) { (p) = _dh; } \
+    else if (g_DmsHeapHeader) { (p) = g_DmsHeapHeader; } \
+} while(0)
+#else
 #define DMS_HDR_REDIRECT(p) do { \
     s_DmsHeader* _dh = Dms_HeapHeaderForBuffer(p); \
     if (_dh) { (p) = _dh; } \
     else if ((!(p) || !((s_DmsHeader*)(p))->isLoaded) && g_DmsHeapHeader) { (p) = g_DmsHeapHeader; } \
 } while(0)
+#endif
 #else
 #define DMS_HDR_REDIRECT(p) ((void)0)
 #endif

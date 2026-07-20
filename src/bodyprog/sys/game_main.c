@@ -1801,6 +1801,28 @@ void MainLoop(void) // 0x80032EE0
     s32 vCountCopy;
     s32 interval;
 
+#ifdef SH_XBOX_PORT
+    /* Torn-layout tripwire (see syswork_globals.c). A stale definer object
+     * allocates g_SysWork/g_GameWork at an old size while everyone else
+     * indexes the new layout — every symptom looks like wild memory
+     * corruption. Compare the definer TU's sizeof against ours and scream. */
+    {
+        extern unsigned SysWorkGlobals_SizeofSysWork(void);
+        extern unsigned SysWorkGlobals_SizeofGameWork(void);
+        unsigned defSys = SysWorkGlobals_SizeofSysWork();
+        unsigned defGame = SysWorkGlobals_SizeofGameWork();
+        if (defSys != (unsigned)sizeof(s_SysWork) || defGame != (unsigned)sizeof(s_GameWork))
+        {
+            SH_DBG("[FATAL-BUILD] TORN LAYOUT: s_SysWork def=%u vs %u, s_GameWork def=%u vs %u — STALE OBJECTS, clean rebuild required",
+                   defSys, (unsigned)sizeof(s_SysWork), defGame, (unsigned)sizeof(s_GameWork));
+        }
+        else
+        {
+            SH_DBG("[SH-XBOX] layout check ok: sizeof(s_SysWork)=%u sizeof(s_GameWork)=%u", defSys, defGame);
+        }
+    }
+#endif
+
     // Initialize engine.
     GsInitVcount();
     MemCard_SysInit();
