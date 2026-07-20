@@ -2262,6 +2262,37 @@ void MainLoop(void) // 0x80032EE0
             g_UncappedVBlanks = g_VBlanks;
             g_VBlanks         = MIN(g_VBlanks, V_BLANKS_MAX);
 
+#ifdef SH_PC_PORT
+            /* [PERF] wall-clock frame telemetry, one line per ~256 frames.
+             * Remote perf reports need numbers: avg/worst frame time separates
+             * "GPU genuinely slow" from a pacing/stall pathology, and
+             * vblanks-per-frame exposes vsync quantization (10fps = 6/frame). */
+            {
+                static Uint32 s_perfLastMs = 0, s_perfAccumMs = 0, s_perfWorstMs = 0;
+                static u32    s_perfFrames = 0, s_perfVbAccum = 0;
+                Uint32        perfNowMs = SDL_GetTicks();
+                if (s_perfLastMs != 0)
+                {
+                    Uint32 dt = perfNowMs - s_perfLastMs;
+                    s_perfAccumMs += dt;
+                    if (dt > s_perfWorstMs)
+                        s_perfWorstMs = dt;
+                    s_perfVbAccum += (u32)g_UncappedVBlanks;
+                    if (++s_perfFrames >= 256)
+                    {
+                        SH_DBG("[PERF] avg=%.1fms (%.1f fps) worst=%lums vblanks/frame=%.2f over %lu frames",
+                               (double)s_perfAccumMs / s_perfFrames,
+                               1000.0 * s_perfFrames / (double)s_perfAccumMs,
+                               (unsigned long)s_perfWorstMs,
+                               (double)s_perfVbAccum / s_perfFrames,
+                               (unsigned long)s_perfFrames);
+                        s_perfFrames = 0; s_perfAccumMs = 0; s_perfWorstMs = 0; s_perfVbAccum = 0;
+                    }
+                }
+                s_perfLastMs = perfNowMs;
+            }
+#endif
+
             // Update V count.
             vCount     = MIN(GsGetVcount(), H_BLANKS_PER_FRAME_MIN); // NOTE: Will call `GsGetVcount` twice.
             vCountCopy = vCount;
