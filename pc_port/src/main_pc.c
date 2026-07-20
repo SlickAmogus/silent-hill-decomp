@@ -657,8 +657,8 @@ static void PrintBanner(void)
 {
     printf("==============================================\n");
     printf("  Silent Hill - PC Port\n");
+    printf("  https://github.com/SlickAmogus/silent-hill-decomp/\n");
     printf("  Based on the Silent Hill Decompilation\n");
-    printf("  https://github.com/Vatuu/silent-hill-decomp\n");
     printf("==============================================\n");
     printf("\n");
 }
