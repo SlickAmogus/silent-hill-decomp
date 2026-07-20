@@ -2076,12 +2076,60 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                             step = Q12_MULT_PRECISE(Q12(0.024f), dTime);
                         }
                         if (step != 0) {
+                            /* Sidestep used to write position DIRECTLY, with no
+                             * collision of any kind — Harry walked through walls
+                             * whenever he strafed in an alt camera. It only looked
+                             * fine at 240fps because the per-frame step is small
+                             * enough there that the body still overlaps the wall
+                             * afterwards and the normal resolve shoves him back
+                             * out; at any lower framerate one step clears the wall
+                             * outright, leaving nothing to resolve against, and he
+                             * ends up on the far side.
+                             *
+                             * Route it through the same collision the forward
+                             * integration uses (func_8007C0D8: build a desired
+                             * offset, resolve it, apply the RESOLVED one).
+                             * Collision_WallDetect SWEEPS the movement line rather
+                             * than just testing the body radius, so it cannot be
+                             * tunnelled at any framerate — no sub-stepping needed.
+                             *
+                             * Resolves into a LOCAL result: the global D_800C4590
+                             * carries the surface/ground state that the ground-height
+                             * clamp reads later in the frame, and must not be
+                             * clobbered from here. */
+                            VECTOR3 strafeWish;
+
+                            strafeWish.vy = 0;
                             if (isLeft) {
-                                player->position.vx -= Q12_MULT(step, Math_Cos(player->rotation.vy));
-                                player->position.vz += Q12_MULT(step, Math_Sin(player->rotation.vy));
+                                strafeWish.vx = -Q12_MULT(step, Math_Cos(player->rotation.vy));
+                                strafeWish.vz =  Q12_MULT(step, Math_Sin(player->rotation.vy));
                             } else {
-                                player->position.vx += Q12_MULT(step, Math_Cos(player->rotation.vy));
-                                player->position.vz -= Q12_MULT(step, Math_Sin(player->rotation.vy));
+                                strafeWish.vx =  Q12_MULT(step, Math_Cos(player->rotation.vy));
+                                strafeWish.vz = -Q12_MULT(step, Math_Sin(player->rotation.vy));
+                            }
+
+#ifdef SH_PC_PORT
+                            if (!g_DebugNoWallCollision) {
+                                s_CollisionResult strafeColl;
+
+                                strafeColl.offset.vx    = 0;
+                                strafeColl.offset.vy    = 0;
+                                strafeColl.offset.vz    = 0;
+                                strafeColl.ceilingHeight = 0xFFFF0000;
+                                strafeColl.surface.groundHeight = player->position.vy;
+                                strafeColl.surface.groundType   = 0;
+                                strafeColl.surface.tiltAngleX   = 0;
+                                strafeColl.surface.tiltAngleZ   = 0;
+
+                                Collision_WallDetect(&strafeColl, &strafeWish, player);
+
+                                player->position.vx += strafeColl.offset.vx;
+                                player->position.vz += strafeColl.offset.vz;
+                            } else
+#endif
+                            {
+                                player->position.vx += strafeWish.vx;
+                                player->position.vz += strafeWish.vz;
                             }
                         }
                     }
