@@ -37,6 +37,10 @@ static const s_MenuTranslation s_MenuTr[] = {
     { "CONTINUE", { "WEITER", "CONTINUER", "CONTINUAR", "CONTINUA"  } },
     { "START",    { NULL,     "COMMENCER", "EMPEZAR",   "INIZIA"    } },
     { "OPTION",   { "OPTIONEN", "OPTIONS", "OPCIONES",  "OPZIONI"   } },
+    /* Port-added main-menu row that closes the game. Distinct key from the
+     * mixed-case "Exit" below, which is the options screen's BACK button
+     * (German "Zur\xFC" "ck") — these must not share a translation. */
+    { "EXIT",     { "BEENDEN", "QUITTER",  "SALIR",     "ESCI"      } },
     { "EASY",     { "LEICHT", "FACILE",    "FACIL",     "FACILE"    } },
     { "NORMAL",   { NULL,     NULL,        NULL,        "NORMALE"   } },
     { "HARD",     { "SCHWER", "DIFFICILE", "DIFICIL",   "DIFFICILE" } },

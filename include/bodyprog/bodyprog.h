@@ -90,6 +90,14 @@ typedef enum _MainMenuEntry
     MainMenuEntry_Option   = 3,
     MainMenuEntry_Extra    = 4, /** @unused The extra options menu may have been accessible via the main menu. */
 
+#ifdef SH_PC_PORT
+    /* PC port: the port's Exit row reuses the unused Extra slot. It sits
+     * directly under Option in draw order and inside the existing
+     * MainMenuEntry_Count, so the row layout, selection wrap and mouse
+     * hit-test all keep working untouched. */
+    MainMenuEntry_Exit     = 4,
+#endif
+
     MainMenuEntry_Count    = 5
 } e_MainMenuEntry;
 

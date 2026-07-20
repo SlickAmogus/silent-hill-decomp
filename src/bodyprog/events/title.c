@@ -2,6 +2,7 @@
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include <stdio.h>
+#include <stdlib.h> /* exit() for the port's main-menu Exit row */
 #include "psx_memory.h"
 #include "pc_config.h"
 #include "map_registry.h"
@@ -44,7 +45,14 @@ static void func_8003BCF4(void);
 
 static s32 g_MainMenuState              = 0;
 static s32 g_MainMenu_SelectedEntry     = MainMenuEntry_Start;
-static u32 g_MainMenu_VisibleEntryFlags = (1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option);
+#ifdef SH_PC_PORT
+/* The port adds an Exit row, always available alongside Option. */
+#define MAINMENU_BASE_ENTRY_FLAGS ((1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option) | (1 << MainMenuEntry_Exit))
+#else
+#define MAINMENU_BASE_ENTRY_FLAGS ((1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option))
+#endif
+
+static u32 g_MainMenu_VisibleEntryFlags = MAINMENU_BASE_ENTRY_FLAGS;
 
 // ========================================
 // GLOBAL VARIABLES
@@ -142,11 +150,11 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 }
             }
 
-            g_MainMenu_VisibleEntryFlags = (1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option);
+            g_MainMenu_VisibleEntryFlags = MAINMENU_BASE_ENTRY_FLAGS;
 
             if (g_GameWork.autosave.playerHealth > Q12(0.0f))
             {
-                g_MainMenu_VisibleEntryFlags = (1 << MainMenuEntry_Continue) | (1 << MainMenuEntry_Start) | (1 << MainMenuEntry_Option);
+                g_MainMenu_VisibleEntryFlags = (1 << MainMenuEntry_Continue) | MAINMENU_BASE_ENTRY_FLAGS;
             }
 
             // Memory card present and savegames exist.
@@ -272,8 +280,21 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                         GameFs_OptionBinLoad();
                         break;
 
+#ifdef SH_PC_PORT
+                    /* Retail leaves this slot dead (never made visible, empty
+                     * handler). The port shows it as Exit and quits here, the
+                     * same way the console QUIT command and the debug overlay
+                     * close the game — exit() runs the registered teardown. */
+                    case MainMenuEntry_Exit:
+                        SH_DBG("[MENU] Exit selected — closing game");
+                        if (g_ShDebugLog)
+                            fflush(g_ShDebugLog);
+                        exit(0);
+                        break;
+#else
                     case MainMenuEntry_Extra: // @unused See `e_MainMenuEntry`.
                         break;
+#endif
                 }
             }
 
@@ -543,7 +564,11 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
         "CONTINUE",
         "START",
         "OPTION",
+#ifdef SH_PC_PORT
+        "EXIT" /* PC port: quits the game. Reuses the unused Extra slot. */
+#else
         "EXTRA" /** @unused See `e_MainMenuEntry`. */
+#endif
     };
     static const u8 STR_OFFSETS_X[] = { 29, 50, 32, 39, 33 }; // @unused Element at index 4. See `g_MainMenu_VisibleEntryFlags`.
 
@@ -563,7 +588,11 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
          * actual string ('[' is 6px wide); untranslated keeps the constant. */
         {
             const char* tr   = Pc_LangMenuText(MAIN_MENU_ENTRY_STRINGS[i]);
-            s32         offX = (tr == MAIN_MENU_ENTRY_STRINGS[i])
+            /* STR_OFFSETS_X holds hand-measured centres for the retail rows, so
+             * keep using them when the text is untranslated. The port's Exit row
+             * has no authored offset (index 4's was for "EXTRA"), so centre it
+             * from the measured width in every language, English included. */
+            s32         offX = (tr == MAIN_MENU_ENTRY_STRINGS[i] && i != MainMenuEntry_Exit)
                                    ? STR_OFFSETS_X[i]
                                    : ((Pc_LangMenuTextWidth(tr) + 6) >> 1);
             Gfx_StringSetPosition(COLUMN_POS_X - offX, COLUMN_POS_Y + (i * STR_OFFSET_Y));
