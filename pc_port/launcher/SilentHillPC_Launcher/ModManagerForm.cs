@@ -32,7 +32,7 @@ namespace SilentHillPC_Launcher
             _mgr      = new ModManager(gameRoot, config);
 
             Text            = "Mod Manager";
-            ClientSize      = new Size(600, 540);
+            ClientSize      = new Size(600, 572);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition   = FormStartPosition.CenterParent;
             MaximizeBox     = false;
@@ -81,7 +81,7 @@ namespace SilentHillPC_Launcher
             _list = new ListView
             {
                 Location      = new Point(12, 50),
-                Size          = new Size(490, 396),
+                Size          = new Size(490, 428),
                 View          = View.Details,
                 CheckBoxes    = true,
                 FullRowSelect = true,
@@ -126,7 +126,8 @@ namespace SilentHillPC_Launcher
             var btnReb = new Button { Text = "Rebuild…",    Location = new Point(510, 322), Size = new Size(78, 28) };
             var btnMo = new Button { Text = "Model → OBJ…", Location = new Point(510, 354), Size = new Size(78, 28) };
             var btnOm = new Button { Text = "OBJ → Model…", Location = new Point(510, 386), Size = new Size(78, 28) };
-            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 418), Size = new Size(78, 28) };
+            var btnVw = new Button { Text = "View Model…",  Location = new Point(510, 418), Size = new Size(78, 28) };
+            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 450), Size = new Size(78, 28) };
             _btnTips = new ToolTip();
             _btnTips.SetToolTip(btnEx, "Unpack a Silent Hill .bin disc image into the loose asset tree.");
             _btnTips.SetToolTip(btnTp, "Convert individual .TIM texture files to .png.");
@@ -141,6 +142,8 @@ namespace SilentHillPC_Launcher
                 "rename, add or remove objects: that list is the rig, and changing it breaks the animation.");
             _btnTips.SetToolTip(btnOm, "OBJ → Model: fold your edited .obj back into a new .ILM. Needs the ORIGINAL .ILM it came " +
                 "from plus the .ilmmeta.json written beside the .obj — bones, draw order and palette rows come from those.");
+            _btnTips.SetToolTip(btnVw, "View Model: preview a .ILM (or an edited .obj before importing it) in a 3D window — " +
+                "textured with its real in-game palettes. Drag to orbit, right-drag to pan, wheel to zoom.");
             _btnTips.SetToolTip(btnHelp, "How to make and install loose-file texture mods.");
             btnEx.Click += (s, e) => OnExtractBin();
             btnTp.Click += (s, e) => OnConvertTim();
@@ -149,6 +152,7 @@ namespace SilentHillPC_Launcher
             btnReb.Click += (s, e) => OnRebuildTextures();
             btnMo.Click += (s, e) => OnExportModel();
             btnOm.Click += (s, e) => OnImportModel();
+            btnVw.Click += (s, e) => OnViewModel();
             btnHelp.Click += (s, e) => ShowLooseModHelp();
             Controls.Add(btnEx);
             Controls.Add(btnTp);
@@ -157,18 +161,19 @@ namespace SilentHillPC_Launcher
             Controls.Add(btnReb);
             Controls.Add(btnMo);
             Controls.Add(btnOm);
+            Controls.Add(btnVw);
             Controls.Add(btnHelp);
 
             _chkLoose = new CheckBox
             {
                 Text     = "Enable loose file support (required for load-folder mods)",
-                Location = new Point(12, 454),
+                Location = new Point(12, 486),
                 AutoSize = true
             };
             Controls.Add(_chkLoose);
 
-            var btnApply = new Button { Text = "Apply", Location = new Point(414, 500), Size = new Size(84, 30) };
-            var btnClose = new Button { Text = "Close", Location = new Point(504, 500), Size = new Size(84, 30) };
+            var btnApply = new Button { Text = "Apply", Location = new Point(414, 532), Size = new Size(84, 30) };
+            var btnClose = new Button { Text = "Close", Location = new Point(504, 532), Size = new Size(84, 30) };
             btnApply.Click += OnApply;
             btnClose.Click += (s, e) => { CommitOrderAndState(); _mgr.SaveState(); Close(); };
             Controls.Add(btnApply);
@@ -921,6 +926,23 @@ namespace SilentHillPC_Launcher
             {
                 try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.IlmPath)); } catch { }
             }
+        }
+
+        /// <summary>"View Model…" button: open a .ILM or an edited .obj in the
+        /// software-rendered 3D preview window.</summary>
+        private void OnViewModel()
+        {
+            string path;
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select a model to view (.ILM or .obj)";
+                ofd.Filter = "Models (*.ilm;*.obj)|*.ilm;*.obj|All files (*.*)|*.*";
+                string gamedata = Path.Combine(_gameRoot, "gamedata");
+                if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
+                if (ofd.ShowDialog(this) != DialogResult.OK) return;
+                path = ofd.FileName;
+            }
+            ModelViewerForm.Open(this, path);
         }
 
         /// <summary>Find NAME.TIM beside NAME.ILM (either extension case).</summary>

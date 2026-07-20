@@ -72,6 +72,9 @@
     <Compile Include="TimConverter.cs" />
     <Compile Include="ClutComposer.cs" />
     <Compile Include="IlmObjConverter.cs" />
+    <Compile Include="ModelViewerForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="ControlsForm.cs">
       <SubType>Form</SubType>
     </Compile>
