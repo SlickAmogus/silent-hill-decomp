@@ -1569,6 +1569,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     int  a2dUse = (a2dX * a2dX + a2dY * a2dY) >= (40 * 40);
                     s32  inXv   = a2dUse ?  a2dX : inX;
                     s32  inZv   = a2dUse ? -a2dY : inZ;
+                    int  moveAligned = 1; /* cleared while the fast in-place spin is still far from the input direction */
                     if (a2dUse) anyInput = 1;
 
                     /* Camera "into the screen" yaw (world Q12 angle). Orbit cam =
@@ -1621,18 +1622,32 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                 /* snap: face the input direction immediately */
                                 player->rotation.vy = Q12_ANGLE_NORM_U(targetYaw + Q12_ANGLE(360.0f));
                             } else {
-                                q3_12 diff = Math_AngleNormalizeSigned(targetYaw - player->rotation.vy);
-                                q3_12 turn2d = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(10.0f));
-                                if (diff >  turn2d) diff =  turn2d;
-                                if (diff < -turn2d) diff = -turn2d;
-                                player->rotation.vy = Q12_ANGLE_NORM_U(player->rotation.vy + diff + Q12_ANGLE(360.0f));
+                                /* SH2-style fast turn-in-place: spin toward the input
+                                 * direction at ~900 deg/s and hold position until nearly
+                                 * aligned, THEN walk — the old ~300 deg/s walk-while-
+                                 * turning read as Harry running an arc. While the move
+                                 * bit stays clear the shim shows idle, so the model
+                                 * visibly rotates on its axis (a full reversal is ~5
+                                 * ticks = ~170ms of spin). Corrections inside the align
+                                 * threshold keep steering mid-walk with no stop-hitch. */
+                                q3_12 diff   = Math_AngleNormalizeSigned(targetYaw - player->rotation.vy);
+                                q3_12 turn2d = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(30.0f));
+                                q3_12 step   = diff;
+                                if (step >  turn2d) step =  turn2d;
+                                if (step < -turn2d) step = -turn2d;
+                                player->rotation.vy = Q12_ANGLE_NORM_U(player->rotation.vy + step + Q12_ANGLE(360.0f));
+                                moveAligned = ABS(diff - step) <= Q12_ANGLE(45.0f);
                             }
                         }
                     }
 
                     /* Reuse the shim's forward walk/run anim + speed by flagging a
-                     * forward move; Harry travels straight along his (turning) facing. */
-                    g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | (anyInput ? 1 : 0);
+                     * forward move; Harry travels straight along his (turning) facing.
+                     * The move bit waits for moveAligned so the fast spin happens in
+                     * place; HasMoveInput stays anyInput regardless — the player IS
+                     * inputting, and clearing it would let the AFK idle-break engage
+                     * mid-spin. */
+                    g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | ((anyInput && moveAligned) ? 1 : 0);
                     g_Player_IsMovingBackward    = 0;
                     g_Player_IsSteppingLeftHold  = 0;
                     g_Player_IsSteppingRightHold = 0;
