@@ -1993,6 +1993,12 @@ void MainLoop(void) // 0x80032EE0
             s_PcPacketBufEnds[1] = s_PcPacketBufs[1] + PC_PKTBUF_SIZE;
             memset(s_PcPacketBufEnds[0], PC_CANARY_VAL, PC_CANARY_SIZE);
             memset(s_PcPacketBufEnds[1], PC_CANARY_VAL, PC_CANARY_SIZE);
+#ifdef SH_XBOX_PORT
+            /* One-shot: nxdk malloc returns addresses ABOVE 128MB — the fact
+             * that broke the magnitude-only OT sanitizer bound (grey void).
+             * Keep this line so any future pointer-guard work sees the truth. */
+            SH_DBG("[ARENA] buf0=%p buf1=%p", (void*)s_PcPacketBufs[0], (void*)s_PcPacketBufs[1]);
+#endif
         }
         GsOUT_PACKET_P = s_PcPacketBufs[g_ActiveBufferIdx];
 #else
@@ -2907,13 +2913,25 @@ void MainLoop(void) // 0x80032EE0
                      * wild target, so DrawOTag would still chase it). */
 #ifdef SH_XBOX_PORT
 /* 32-bit: (uintptr_t)0x7FFFFFFFFFFF truncates to 0xFFFFFFFF, degrading these
- * wild-pointer guards to "< 0x1000" only. OT prims live in statics / heap /
- * g_PsxRam — all < 128MB on Xbox. */
+ * wild-pointer guards to "< 0x1000" only. Statics + g_PsxRam sit < 128MB, but
+ * nxdk's MALLOC HEAP DOES NOT — the 2MB packet arenas holding every world
+ * prim calloc above 0x08000000, so a bare magnitude cap spliced the whole
+ * world OT to its terminator on the first arena prim (the grey-void
+ * regression). Accept the windows the sanitizer already computed instead. */
 #define SH_OT_PTR_MAX ((uintptr_t)0x08000000)
 #else
 #define SH_OT_PTR_MAX ((uintptr_t)0x7FFFFFFFFFFF)
 #endif
+#ifdef SH_XBOX_PORT
+                    uintptr_t nextA = (uintptr_t)next;
+                    if (next && (nextA < 0x1000 ||
+                                 !(nextA < SH_OT_PTR_MAX ||
+                                   (nextA >= pktLo && nextA < pktHi) ||
+                                   (nextA >= otLo && nextA < otHi) ||
+                                   (subLo && nextA >= subLo && nextA < subHi)))) {
+#else
                     if (next && ((uintptr_t)next < 0x1000 || (uintptr_t)next > SH_OT_PTR_MAX)) {
+#endif
                         static int s_badNextDumped = 0;
                         if (!s_badNextDumped) {
                             s_badNextDumped = 1;
@@ -3002,7 +3020,14 @@ void MainLoop(void) // 0x80032EE0
                 /* Accept heap packet buffer, OT array, OR any static/BSS primitive
                  * (e.g. screen fade DR_MODE/TILE in D_800A8E5C/D_800A8E74).
                  * Only reject null, very-low, or kernel-space addresses. */
+#ifdef SH_XBOX_PORT
+                int curOk2 = (curAddr2 >= 0x1000 &&
+                              (curAddr2 < SH_OT_PTR_MAX ||
+                               (curAddr2 >= pktLo2 && curAddr2 < pktHi2) ||
+                               (curAddr2 >= otLo2 && curAddr2 < otHi2)));
+#else
                 int curOk2 = (curAddr2 >= 0x1000 && curAddr2 <= SH_OT_PTR_MAX);
+#endif
                 if (!curOk2) {
                     static int s_ot2DumpedOnce = 0;
                     if (!s_ot2DumpedOnce) {
@@ -3026,7 +3051,15 @@ void MainLoop(void) // 0x80032EE0
                     }
                 }
                 OT_TAG* next2 = (OT_TAG*)nextPrim(cur2);
+#ifdef SH_XBOX_PORT
+                uintptr_t next2A = (uintptr_t)next2;
+                if (next2 && (next2A < 0x1000 ||
+                              !(next2A < SH_OT_PTR_MAX ||
+                                (next2A >= pktLo2 && next2A < pktHi2) ||
+                                (next2A >= otLo2 && next2A < otHi2)))) {
+#else
                 if (next2 && ((uintptr_t)next2 < 0x1000 || (uintptr_t)next2 > SH_OT_PTR_MAX)) {
+#endif
                     static int s_ot2BadNextDumped = 0;
                     if (!s_ot2BadNextDumped) {
                         s_ot2BadNextDumped = 1;
