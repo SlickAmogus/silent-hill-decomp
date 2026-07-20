@@ -2457,7 +2457,26 @@ void MainLoop(void) // 0x80032EE0
              * tuple + raw prim coords from gpu_xbox.c, with the two game-side
              * inputs the HAL cannot see (state + the sticky hi-res glyph flag). */
             extern void GpuXbox_UiDiagFrame(int gameState, int hiResGlyphs);
-            GpuXbox_UiDiagFrame((int)g_GameWork.gameState, (int)g_SysWork.enableHighResGlyphs);
+            /* enableHighResGlyphs is written only as 0/1, yet hardware logged 5
+             * from the first boot frame — memory-corruption shrapnel (the
+             * derailed coord walk's flg++ lands here; see vw_calc.c). Watch
+             * every change to pin the writer's moment, and heal illegal values
+             * so all text stops taking the double-height glyph path. */
+            static int s_lastHires = 0, s_hiresLogs = 0;
+            int hires = (int)g_SysWork.enableHighResGlyphs;
+            if (hires != s_lastHires && s_hiresLogs < 12)
+            {
+                s_hiresLogs++;
+                SH_DBG("[HIRES-WATCH] %d -> %d st=%d vbl=%d", s_lastHires, hires,
+                       (int)g_GameWork.gameState, (int)VSync(-1));
+            }
+            if (hires > 1)
+            {
+                g_SysWork.enableHighResGlyphs = 0;
+                hires = 0;
+            }
+            s_lastHires = hires;
+            GpuXbox_UiDiagFrame((int)g_GameWork.gameState, hires);
         }
 #endif
 #ifdef SH_PC_PORT

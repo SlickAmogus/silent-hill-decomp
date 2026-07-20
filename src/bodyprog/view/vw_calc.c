@@ -399,6 +399,7 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
      * true distance; a coord in another 1MB bucket degrades to identity, which
      * is safe. All coord walking is main-thread. */
     #define COORD_PTR_OK(p) ((uintptr_t)(p) >= 0x10000 && \
+                             (((uintptr_t)(p) & 3) == 0) && \
                              ((uintptr_t)(p) < 0x08000000 || \
                               (((uintptr_t)(p) ^ (uintptr_t)&prevCoord) < 0x00100000)))
     #else
@@ -423,10 +424,27 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
     curCoord  = rootCoord;
     prevCoord = NULL;
 
+#ifdef SH_XBOX_PORT
+    /* Hop caps for BOTH loops. A derailed walk over garbage nodes can plant
+     * sub-links that form a cycle; with flg reading 0 on foreign memory the
+     * loops then never terminate — a silent hard freeze (the save-load hang),
+     * worse than the crash the pointer guard prevents. Real PSX chains are
+     * < 40 deep. On cap: stop and log once with the root, which identifies
+     * the walk that derailed. */
+    {
+        int hops = 0;
+#endif
     // Traverse coord parent hierarchy upward.
     while (true)
     {
         parentCoord = curCoord->super;
+#ifdef SH_XBOX_PORT
+        if (++hops > 96) {
+            static int _capLogged = 0;
+            if (!_capLogged) { _capLogged = 1; SH_DBG("[COORD] up-walk cap hit: root=%p cur=%p", (void*)rootCoord, (void*)curCoord); }
+            parentCoord = NULL;
+        }
+#endif
 #ifdef SH_PC_PORT
         /* A non-canonical super (truncated/garbage) means "no parent" here. */
         if (parentCoord != NULL && !COORD_PTR_OK(parentCoord)) {
@@ -461,6 +479,9 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
     {
         curCoord       = prevCoord;
         rootCoord->sub = NULL; // Detach child link to prevent cycles.
+#ifdef SH_XBOX_PORT
+        hops = 0;
+#endif
         do
         {
             prevCoord = curCoord->super;
@@ -480,9 +501,19 @@ void Vw_CoordHierarchyMatrixCompute(GsCOORDINATE2* rootCoord, MATRIX* transformM
             }
 
             curCoord = curCoord->sub;
+#ifdef SH_XBOX_PORT
+            if (curCoord != NULL && ++hops > 96) {
+                static int _capLogged2 = 0;
+                if (!_capLogged2) { _capLogged2 = 1; SH_DBG("[COORD] down-walk cap hit: root=%p cur=%p", (void*)rootCoord, (void*)curCoord); }
+                break;
+            }
+#endif
         }
         while (curCoord != NULL);
     }
+#ifdef SH_XBOX_PORT
+    } /* hop-cap scope */
+#endif
 
     // Set output.
     *transformMat = rootCoord->workm;

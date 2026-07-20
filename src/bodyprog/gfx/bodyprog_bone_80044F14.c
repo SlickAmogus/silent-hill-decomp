@@ -1,6 +1,10 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
 
+#ifdef SH_XBOX_PORT
+#include "sh_log.h"
+#endif
+
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/screen/screen_data.h"
@@ -320,6 +324,15 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
             if (clutY != curImage->clutY)
             {
                 clutY = curImage->clutY;
+#ifdef SH_XBOX_PORT
+                /* clutY doubles as a bone index straight out of image data
+                 * (s16, only NO_VALUE-checked). Garbage/stale data sends the
+                 * coord walk out of the bone array into foreign statics, where
+                 * its flg++/sub writes corrupt g_SysWork (the doubled-text
+                 * enableHighResGlyphs shrapnel) and its planted links can
+                 * cycle (the save-load hang). No real skeleton tops 64 bones. */
+                if ((u32)clutY >= 64) { continue; }
+#endif
                 Vw_CoordToViewSpaceMatrix(&boneCoords[clutY], &viewMat);
                 SetRotMatrix(&viewMat);
                 SetTransMatrix(&viewMat);
@@ -366,6 +379,17 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
     {
         if (curBone->bone.modelInfo.field_0 >= 0)
         {
+#ifdef SH_XBOX_PORT
+            /* Same containment as the clutY clamp above: a garbage u8 idx
+             * (up to 255 = 0x4FB0 bytes past an 18-entry array) is how the
+             * walk first leaves legit bone memory. */
+            if ((u8)curBone->bone.idx >= 64)
+            {
+                static int s_badBoneLogged = 0;
+                if (!s_badBoneLogged) { s_badBoneLogged = 1; SH_DBG("[BONE] wild root idx=%d — skipping piece", (int)(u8)curBone->bone.idx); }
+                continue;
+            }
+#endif
             Vw_CoordToWorldAndViewMatrices(&boneCoords[(u8)curBone->bone.idx], &worldMat, &viewMat);
 
             if (curBone->bone.modelInfo.field_0 & (1 << 0))

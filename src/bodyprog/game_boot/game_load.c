@@ -80,6 +80,20 @@ void GameBoot_GameStartup(void) // 0x80034964
     // should be triggered.
     static s32 demoLoadAttempCount;
 
+#ifdef SH_XBOX_PORT
+    /* The save-load hang died between step 0 and step 7 with no fault. Log
+     * every step transition with the queue depth: a stall at 3/6 with qlen>0
+     * is an FS-queue entry that never completes; no line at all means the
+     * freeze is inside a draw. */
+    {
+        static s32 s_lastStep = -1;
+        if (g_GameWork.gameStateSteps[0] != s_lastStep)
+        {
+            s_lastStep = g_GameWork.gameStateSteps[0];
+            SH_DBG("[BOOT-STEP] GameStartup step=%d qlen=%d", (int)s_lastStep, (int)Fs_QueueGetLength());
+        }
+    }
+#endif
     switch (g_GameWork.gameStateSteps[0])
     {
         case 0:
