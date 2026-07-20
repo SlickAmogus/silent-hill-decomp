@@ -5,6 +5,8 @@
 #include "bodyprog/player.h"
 
 #include "maps/characters/monster_cybil.h"
+
+#include "sh_log.h"
 s_Model g_MonsterCybil_ExtraModel;
 
 // Weird access pattern using `npcs` array instead of function param.
@@ -1206,6 +1208,22 @@ void func_800D9AB4(s_SubCharacter* monsterCybil, s_Model* modelUpper, GsCOORDINA
                 monsterCybil->field_44.field_0         = 1;
 
                 // TODO: What's weapon attack 63?
+#ifdef SH_PC_PORT
+                {
+                    /* Diagnose "Cybil aims away / shoots air": her actual facing
+                     * (rotY) + gun pitch (11A) vs what aiming at the player needs
+                     * (faceTgt), plus states and the screen-visibility gate f120. */
+                    s32 faceTgt = Q12_ANGLE_ABS(ratan2(Q12_TO_Q8(playerChara.position.vx - monsterCybil->position.vx),
+                                                       Q12_TO_Q8(playerChara.position.vz - monsterCybil->position.vz)));
+                    SH_DBG("[CYBIL-FIRE] ctrl=%d EC=%d EE=%d FE=%d f120=%d rotY=%d faceTgt=%d pitch11A=%d muzzle=(%d,%d,%d) cyb=(%d,%d,%d) plr=(%d,%d,%d)",
+                           (int)monsterCybilProps.controlState, (int)monsterCybilProps.field_EC, (int)monsterCybilProps.field_EE,
+                           (int)monsterCybilProps.field_FE, (int)monsterCybilProps.field_120,
+                           (int)monsterCybil->rotation.vy, (int)faceTgt, (int)monsterCybilProps.field_11A,
+                           (int)D_800ED570.vx, (int)D_800ED570.vy, (int)D_800ED570.vz,
+                           (int)monsterCybil->position.vx, (int)monsterCybil->position.vy, (int)monsterCybil->position.vz,
+                           (int)playerChara.position.vx, (int)playerChara.position.vy, (int)playerChara.position.vz);
+                }
+#endif
                 func_8006342C(EquippedWeaponId_Unk63, monsterCybilProps.field_11A, monsterCybil->rotation.vy, g_SysWork.npcBoneCoordBuffer);
 
                 if (func_8008A0E4(monsterCybil->field_44.field_0,
@@ -1954,6 +1972,9 @@ s32 func_800DB930(void) // 0x800DB930
     shortestDist = Q12(20.0f);
     foundIdx     = NO_VALUE;
 
+#ifdef SH_PC_PORT
+    s32 dbgOffScreen = 0; /* how many of the 10 spots the visibility check calls off-screen */
+#endif
     for (i = 0; i < 10; i++)
     {
         sp10.vx = D_800CB2B4[i] + Q12(20.0f);
@@ -1964,7 +1985,9 @@ s32 func_800DB930(void) // 0x800DB930
         {
             continue;
         }
-
+#ifdef SH_PC_PORT
+        dbgOffScreen++;
+#endif
         dist = Math_Vector2MagCalcSafeQ8(playerChara.position.vx - sp10.vx,
                                          playerChara.position.vz - sp10.vz);
         if (dist < shortestDist)
@@ -1974,6 +1997,11 @@ s32 func_800DB930(void) // 0x800DB930
         }
     }
 
+#ifdef SH_PC_PORT
+    /* If the 16:9 view calls too many spots on-screen, this drops to few/zero and
+     * she can't reposition — a prime suspect for the broken boss behavior. */
+    SH_DBG("[CYBIL-SPOT] picked FE=%d offScreenSpots=%d/10", (int)foundIdx, dbgOffScreen);
+#endif
     return foundIdx;
 }
 
