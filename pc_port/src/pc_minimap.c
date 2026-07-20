@@ -57,9 +57,15 @@ int g_PcMapQueryOnly = 0;
 #define MM_SEG     20   /* triangle-fan segments approximating the circle */
 #define MM_OUTLINE 2    /* black outline thickness, in the same 2D units */
 
-/* Map-cell extents the paper map spans; used to place Harry on the image. */
+/* Half-extents of Harry's map-cell coords (func_80067914 query: mapCoordIdxX/Z),
+ * used to place him on the paper-map image. X spans the full 320-wide texture
+ * (mapCoordIdxX = -160..+160). Z is HALF the texture height: the query returns
+ * mapCoordIdxZ in 240-tall space but the map texture spans Y=-240..+240 (480),
+ * so the arrow gets a *2 Y multiplier (see func_80067914's sp10[1]*2). Using
+ * MM_HALF_Z=240 here omitted that doubling → Harry tracked at HALF speed in Z
+ * (he read too far NORTH as he walked south). 120 = the real ±120 Z range. */
 #define MM_HALF_X 160
-#define MM_HALF_Z 240
+#define MM_HALF_Z 120
 
 static int s_mapIdxLoaded = -1;
 static unsigned char* s_rawBuf = NULL;
@@ -135,6 +141,7 @@ void Pc_MinimapUpdate(void)
     s32       packed, px, py;
     int       haveMap, round, semi, op, lum;
     int       x0, y0, x1, y1, cx, cy, R;
+    int       halfW = SCREEN_WIDTH / 2, mmSize = MM_SIZE;
     int       u0 = 0, v0 = 0, u1 = MM_UV_MAX, v1 = MM_UV_MAX;
     GsOT_TAG* ot;
 
@@ -158,20 +165,32 @@ void Pc_MinimapUpdate(void)
     ot    = &g_OtTags0[buf][4];
     round = (g_PcConfig.minimapShape != 0);
 
-    /* --- corner placement (4:3 bounds: x -160..+160, y -120..+120) --- */
+    /* --- corner placement ---
+     * Vertical is always 4:3 (y -120..+120). Horizontally the port renders 2D at
+     * a Hor+ widescreen ortho, so on a wide window the true left/right screen
+     * edge sits past ±160 — widen `halfW` to reach it (same as dbg_overlay's
+     * collvis: halfW = 160 * winAspect/psxAspect). On 4:3 keep 160 and shrink
+     * the panel a touch. */
+    {
+        float psxA = (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT;
+        float winA = (g_PcConfig.windowWidth > 0 && g_PcConfig.windowHeight > 0)
+                   ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight : psxA;
+        if (winA > psxA + 0.01f) { halfW = (int)(160.0f * (winA / psxA) + 0.5f); }
+        else                     { mmSize = MM_SIZE - 8; }
+    }
     switch (g_PcConfig.minimapCorner)
     {
-        case 1:  x0 =  (SCREEN_WIDTH / 2) - MM_MARGIN - MM_SIZE;
+        case 1:  x0 =  halfW - MM_MARGIN - mmSize;
                  y0 = -(SCREEN_HEIGHT / 2) + MM_MARGIN; break;
-        case 2:  x0 = -(SCREEN_WIDTH / 2) + MM_MARGIN;
-                 y0 =  (SCREEN_HEIGHT / 2) - MM_MARGIN - MM_SIZE; break;
-        case 3:  x0 =  (SCREEN_WIDTH / 2) - MM_MARGIN - MM_SIZE;
-                 y0 =  (SCREEN_HEIGHT / 2) - MM_MARGIN - MM_SIZE; break;
-        default: x0 = -(SCREEN_WIDTH / 2) + MM_MARGIN;
+        case 2:  x0 = -halfW + MM_MARGIN;
+                 y0 =  (SCREEN_HEIGHT / 2) - MM_MARGIN - mmSize; break;
+        case 3:  x0 =  halfW - MM_MARGIN - mmSize;
+                 y0 =  (SCREEN_HEIGHT / 2) - MM_MARGIN - mmSize; break;
+        default: x0 = -halfW + MM_MARGIN;
                  y0 = -(SCREEN_HEIGHT / 2) + MM_MARGIN; break;
     }
-    x1 = x0 + MM_SIZE; y1 = y0 + MM_SIZE;
-    cx = x0 + MM_SIZE / 2; cy = y0 + MM_SIZE / 2; R = MM_SIZE / 2;
+    x1 = x0 + mmSize; y1 = y0 + mmSize;
+    cx = x0 + mmSize / 2; cy = y0 + mmSize / 2; R = mmSize / 2;
 
     /* --- Harry's cell on the paper map (query mode: no arrow drawn) --- */
     g_PcMapQueryOnly = 1;
@@ -193,8 +212,8 @@ void Pc_MinimapUpdate(void)
         u1 = u0 + 2 * half;
         v1 = v0 + 2 * half;
 
-        px = x0 + ((cu - u0) * MM_SIZE) / (u1 - u0);
-        py = y0 + ((cv - v0) * MM_SIZE) / (v1 - v0);
+        px = x0 + ((cu - u0) * mmSize) / (u1 - u0);
+        py = y0 + ((cv - v0) * mmSize) / (v1 - v0);
     }
     else
     {
@@ -270,7 +289,7 @@ void Pc_MinimapUpdate(void)
         setTile(&s_sqOut[buf]);
         setRGB0(&s_sqOut[buf], 0, 0, 0);
         if (semi) setSemiTrans(&s_sqOut[buf], 1);
-        setWH(&s_sqOut[buf], MM_SIZE + MM_OUTLINE * 2, MM_SIZE + MM_OUTLINE * 2);
+        setWH(&s_sqOut[buf], mmSize + MM_OUTLINE * 2, mmSize + MM_OUTLINE * 2);
         setXY0(&s_sqOut[buf], x0 - MM_OUTLINE, y0 - MM_OUTLINE);
 
         if (haveMap)
@@ -291,7 +310,7 @@ void Pc_MinimapUpdate(void)
             setTile(&s_sqFill[buf]);
             setRGB0(&s_sqFill[buf], (u8)((16 * op) / 100), (u8)((20 * op) / 100), (u8)((30 * op) / 100));
             if (semi) setSemiTrans(&s_sqFill[buf], 1);
-            setWH(&s_sqFill[buf], MM_SIZE, MM_SIZE);
+            setWH(&s_sqFill[buf], mmSize, mmSize);
             setXY0(&s_sqFill[buf], x0, y0);
         }
     }
