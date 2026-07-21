@@ -965,6 +965,24 @@ void func_800E0914(s_SubCharacter* chara) // 0x800E0914
 
 void Unknown23_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords) // 0x800E093C
 {
+#ifdef SH_PC_PORT
+    /* [INCUB] bad/bad+ boss "stands there, no attack" probe. If this line never
+     * appears, Unknown23_Update isn't the live update func (charaUpdateFuncs[
+     * Chara_Incubator] is Incubator_Update, the non-attacking cutscene form) —
+     * the func_800E9498 fight override didn't stick. If it appears but cs never
+     * reaches 3, the controlState telegraph (func_800E0528) is stuck. If cs==3
+     * but bones==0, the attack pass gets NULL bone coords. If cs==3 & bones=1
+     * yet nothing spawns, the attack effects (func_800DD0EC/DD260/DD464) are the
+     * problem. One run of the bad ending discriminates all four. TEMP. */
+    {
+        static int _inc = 0;
+        if ((_inc++ % 30) == 0)
+            SH_DBG("[INCUB] Unknown23_Update: cs=%d step=%d bones=%d dt=%d anim=%d",
+                   (int)chara->model.controlState, (int)chara->model.stateStep,
+                   boneCoords != NULL, (int)(g_DeltaTime != Q12(0.0f)),
+                   (int)chara->model.anim.status);
+    }
+#endif
     if (chara->model.controlState == 0)
     {
         Unknown23_Init(chara, boneCoords);
