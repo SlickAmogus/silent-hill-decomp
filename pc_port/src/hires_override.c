@@ -547,8 +547,42 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
     }
     glBindTexture(GL_TEXTURE_2D, *tex);
     while (glGetError() != GL_NO_ERROR) { } /* drain stale errors */
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0,
-                 GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    /* Define the storage as fully TRANSPARENT first, then overlay the real
+     * pixels via glTexSubImage2D. On some AMD drivers, under the large
+     * resident_textures working set, glTexImage2D can leave the texture's
+     * storage silently undefined (NO GL error raised — so the error check below
+     * can't catch it): the override shader then samples garbage that shows as
+     * blue/black spike/wedge fills on AMD while NVIDIA reads benign zeros. This
+     * is the residual the school-rainbow fix anticipated ("silent undefined pool
+     * tex needs pre-zero"), now confirmed by the reporter's resident_textures=0
+     * bisect making it vanish. A zeroed base means any silent/partial upload
+     * failure leaves TRANSPARENT texels (discarded by the override shader),
+     * matching the discrete-GPU result. On a conformant driver the SubImage
+     * overwrite makes the final texels byte-identical, so working setups are
+     * unaffected. Reuses one grown-as-needed zeroed staging buffer. */
+    {
+        static unsigned char* s_zeroFill = NULL;
+        static int            s_zeroBytes = 0;
+        int                   need = w * h * 4;
+        if (need > s_zeroBytes)
+        {
+            unsigned char* nz = (unsigned char*)realloc(s_zeroFill, (size_t)need);
+            if (nz) { s_zeroFill = nz; memset(s_zeroFill, 0, (size_t)need); s_zeroBytes = need; }
+        }
+        if (s_zeroFill != NULL && s_zeroBytes >= need)
+        {
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0,
+                         GL_RGBA, GL_UNSIGNED_BYTE, s_zeroFill);
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h,
+                            GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+        }
+        else
+        {
+            /* Zero buffer alloc failed — fall back to the direct upload. */
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0,
+                         GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+        }
+    }
     /* ANY upload error must degrade to a clean miss, never a live-but-undefined
      * texture. Only GL_OUT_OF_MEMORY was handled; but on the Intel HD 4600
      * driver a large resident-texture working set can make glTexImage2D fail
