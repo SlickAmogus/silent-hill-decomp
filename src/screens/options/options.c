@@ -2995,15 +2995,18 @@ void Options_BrightnessMenu_ArrowsDraw(void) // 0x801E628C
      * knob on the text line, matching the original's 84 vs its 79.5% value row).
      * X (8/64) already brackets the value column. */
     s32 yc  = (s32)(SCREEN_HEIGHT * ((52.0f + (float)g_PcBrtRow * 8.0f) / 100.0f)) - 107;
+    /* Shift both knobs right so the left one clears the label and they bracket
+     * the value number (labels are longer than the retail "LEVEL"). */
+    const s32 xo = 14;
     s32 dir = (g_Controller0->heldBtnFlags & ControllerFlag_LStickLeft)  ? 1 :
               (g_Controller0->heldBtnFlags & ControllerFlag_LStickRight) ? 2 : 0;
     const s_Triangle2d FRONT_ARROWS[2] = {
-        { { 8,  yc }, { 16, yc - 8 }, { 16, yc + 8 } },
-        { { 64, yc }, { 56, yc - 8 }, { 56, yc + 8 } }
+        { { 8 + xo,  yc }, { 16 + xo, yc - 8 }, { 16 + xo, yc + 8 } },
+        { { 64 + xo, yc }, { 56 + xo, yc - 8 }, { 56 + xo, yc + 8 } }
     };
     const s_Triangle2d BORDER_ARROWS[2] = {
-        { { 7,  yc }, { 17, yc - 10 }, { 17, yc + 10 } },
-        { { 65, yc }, { 55, yc - 10 }, { 55, yc + 10 } }
+        { { 7 + xo,  yc }, { 17 + xo, yc - 10 }, { 17 + xo, yc + 10 } },
+        { { 65 + xo, yc }, { 55 + xo, yc - 10 }, { 55 + xo, yc + 10 } }
     };
     s32 i;
 
