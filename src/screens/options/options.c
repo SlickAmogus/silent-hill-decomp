@@ -2987,6 +2987,34 @@ void Options_BrightnessMenu_ConfigDraw(void) // 0x801E6238
 
 void Options_BrightnessMenu_ArrowsDraw(void) // 0x801E628C
 {
+#ifdef SH_PC_PORT
+    /* The knobs must flank the SELECTED row's value, not sit at a fixed y=84
+     * (which now lands on the reference bar as "ears"). ConfigDraw draws each
+     * row at SCREEN_POSITION_Y(52 + 8*row) in screen space; the arrow prims draw
+     * in centre-origin space, so subtract the 112 draw-offset (+5 to centre the
+     * knob on the text line, matching the original's 84 vs its 79.5% value row).
+     * X (8/64) already brackets the value column. */
+    s32 yc  = (s32)(SCREEN_HEIGHT * ((52.0f + (float)g_PcBrtRow * 8.0f) / 100.0f)) - 107;
+    s32 dir = (g_Controller0->heldBtnFlags & ControllerFlag_LStickLeft)  ? 1 :
+              (g_Controller0->heldBtnFlags & ControllerFlag_LStickRight) ? 2 : 0;
+    const s_Triangle2d FRONT_ARROWS[2] = {
+        { { 8,  yc }, { 16, yc - 8 }, { 16, yc + 8 } },
+        { { 64, yc }, { 56, yc - 8 }, { 56, yc + 8 } }
+    };
+    const s_Triangle2d BORDER_ARROWS[2] = {
+        { { 7,  yc }, { 17, yc - 10 }, { 17, yc + 10 } },
+        { { 65, yc }, { 55, yc - 10 }, { 55, yc + 10 } }
+    };
+    s32 i;
+
+    for (i = 0; i < 2; i++)
+        Options_Selection_ArrowDraw(&FRONT_ARROWS[i], true, false);
+
+    /* Border highlights the side being pushed; dir 0 would read [-1] (OOB), so
+     * only draw when a direction is held. */
+    if (dir != 0)
+        Options_Selection_ArrowDraw(&BORDER_ARROWS[dir - 1], false, false);
+#else
     const s_Triangle2d FRONT_ARROWS[] = {
         { { 8, 84  }, { 16, 76 }, { 16, 92 } },
         { { 64, 84 }, { 56, 76 }, { 56, 92 } }
@@ -3023,17 +3051,6 @@ void Options_BrightnessMenu_ArrowsDraw(void) // 0x801E628C
     }
 
     // Draw border to highlight flashing left/right arrow corresponding to direction of UI navigation.
-#ifdef SH_PC_PORT
-    /* dir == 0 (no input) made this loop run once with i = -1, reading
-     * BORDER_ARROWS[-1] — out of bounds. On PSX the garbage before the array
-     * happened to land off-screen; on PC it decodes to a large blue triangle
-     * covering half the brightness screen. Only draw a border when a direction
-     * is actually held. */
-    if (dir != 0)
-    {
-        Options_Selection_ArrowDraw(&BORDER_ARROWS[dir - 1], false, false);
-    }
-#else
     for (i = dir - 1; i < dir; i++)
     {
         Options_Selection_ArrowDraw(&BORDER_ARROWS[i], false, false);
