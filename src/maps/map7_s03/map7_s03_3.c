@@ -1944,10 +1944,26 @@ void func_800E514C(void) // 0x800E514C
 {
     VECTOR3 pos; // Q19.12
     s32     localRand;
+#ifdef SH_PC_PORT
+    /* Lead the Incubator's shriek (XA 606) so its audible onset lands ON the
+     * bottle impact (case 30). PSX pre-seeks+pauses the CD to the XA sector in
+     * the case-26 preload, so its case-30 SD_Call resumes instantly; PC XA
+     * streams instead spend ~0.5-1s seeking+decoding+buffering before the first
+     * sample, so firing at case 30 makes the scream trail the break. We fire it
+     * early during the 3.2s flight arc (case 27) instead, leading impact by
+     * SCREAM_LEAD_UNITS / rate(10) seconds. Tune SCREAM_LEAD_UNITS to taste:
+     * higher = earlier scream (raise if it still trails, lower if it precedes
+     * the break). One-shot; reset in case 0. */
+    #define SCREAM_LEAD_UNITS 7.0f /* 7 timeline units / rate 10 = 0.7s lead */
+    static bool s_ScreamLeadFired;
+#endif
 
     switch (g_SysWork.sysStateSteps[0])
     {
         case 0:
+#ifdef SH_PC_PORT
+            s_ScreamLeadFired = false;
+#endif
             Fs_QueueWaitForEmpty();
 
             D_800F4804 = 0;
@@ -2133,6 +2149,15 @@ void func_800E514C(void) // 0x800E514C
             SysWork_StateStepIncrement(0);
 
         case 27:
+#ifdef SH_PC_PORT
+            /* Fire the shriek early so its ~0.5-1s PC streaming latency elapses
+             * during the flight and it becomes audible at impact (case 30). */
+            if (!s_ScreamLeadFired && g_Cutscene_Timer >= Q12(313.0f - SCREAM_LEAD_UNITS))
+            {
+                SD_Call(Sfx_XaAudio606);
+                s_ScreamLeadFired = true;
+            }
+#endif
             Event_CutsceneTimerAdvance(&g_Cutscene_Timer, Q12(10.0f), Q12(281.0f), Q12(313.0f), false, true);
             break;
 
@@ -2143,6 +2168,12 @@ void func_800E514C(void) // 0x800E514C
             SysWork_StateStepIncrement(0);
 
         case 30:
+#ifdef SH_PC_PORT
+            /* Already fired early in case 27 on PC. Fall back to firing it here
+             * only if a lag spike jumped the timer past the lead point without
+             * triggering it — better a late scream than none. */
+            if (!s_ScreamLeadFired)
+#endif
             SD_Call(Sfx_XaAudio606);
 #ifdef SH_PC_PORT
             /* Bottle breaks ON IMPACT (PSX behavior). The throw's flight arc is
