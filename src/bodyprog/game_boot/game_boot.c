@@ -223,6 +223,13 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
              * files resolve through CHARA_FILE_INFOS at spawn time. */
             CharaData_ApplyJpnMapPatches(mapIdx);
         }
+
+        /* Mod text overrides (gamedata/load/text_overrides.txt) — after any
+         * localization swap so a mod's replacement wins for every region. */
+        {
+            extern void Pc_TextOverrideApply(int mapIdx);
+            Pc_TextOverrideApply(mapIdx);
+        }
     }
 #endif
     Map_EffectTexturesLoad(mapIdx);

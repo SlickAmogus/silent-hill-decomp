@@ -1097,3 +1097,196 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
 
     SH_LOG("[LANG] map %d: %d localized messages installed (lang %d)", mapIdx, srcCount, g_PcConfig.language);
 }
+
+/* ------------------------------------------------------------------ */
+/* Mod text overrides — gamedata/load/text_overrides.txt               */
+/* ------------------------------------------------------------------ */
+/* A minimal moddable per-message replacement. One entry per line:
+ *     map0_s00.18 = Ah shit, ~N here we go again.
+ * (key = the extractor's [MAPn_Snn.idx] lowercased; '#' comments, blank
+ * lines ignored.) The map message's original leading ~J timing cue and a
+ * trailing ~E are kept automatically, so a replacement stays voice-synced;
+ * '_' and ' ' both render as a space and '~N' is a line break. Applied AFTER
+ * any localization swap so it wins for every region; an absent file is a
+ * no-op. This is the seed of a fuller mod text system (menus/items, the
+ * localization-doc format) tracked separately. */
+
+#define TEXT_OVR_MAX 128
+
+typedef struct {
+    short mapIdx;
+    short msgIdx;
+    char* userText; /* raw replacement from the file */
+    char* built;    /* engine-format (prefix + converted + ~E), lazily built */
+} s_TextOverride;
+
+static s_TextOverride  s_TextOvr[TEXT_OVR_MAX];
+static int             s_TextOvrCount = -1; /* -1 = not loaded yet */
+static const char*     s_ModMsgs[MSG_COUNT_MAX];
+static s_MapOverlayHdr s_ModMapHeader;
+
+extern int MapRegistry_FindByName(const char* name);
+extern int Pc_MapMsgCount(int mapIdx);
+
+static void TextOverridesLoad(void)
+{
+    FILE* f;
+    char  line[512];
+
+    s_TextOvrCount = 0;
+    f = fopen("gamedata/load/text_overrides.txt", "rb");
+    if (f == NULL)
+        return;
+
+    while (fgets(line, sizeof(line), f) != NULL && s_TextOvrCount < TEXT_OVR_MAX)
+    {
+        char* p = line;
+        char* eq;
+        char* dot;
+        char* key;
+        char* val;
+        char* end;
+        char* c;
+        int   mapIdx;
+        int   msgIdx;
+
+        while (*p == ' ' || *p == '\t')
+            p++;
+        if (*p == '#' || *p == '\0' || *p == '\r' || *p == '\n')
+            continue;
+
+        eq = strchr(p, '=');
+        if (eq == NULL)
+            continue;
+        *eq = '\0';
+        key = p;
+        val = eq + 1;
+
+        for (end = eq - 1; end >= key && (*end == ' ' || *end == '\t'); end--)
+            *end = '\0';
+
+        dot = strrchr(key, '.');
+        if (dot == NULL)
+            continue;
+        *dot = '\0';
+        msgIdx = atoi(dot + 1);
+        for (c = key; *c != '\0'; c++)
+            if (*c >= 'A' && *c <= 'Z')
+                *c = (char)(*c + 32);
+        mapIdx = MapRegistry_FindByName(key);
+        if (mapIdx < 0 || msgIdx < 0)
+            continue;
+
+        while (*val == ' ' || *val == '\t')
+            val++;
+        for (end = val + strlen(val) - 1;
+             end >= val && (*end == '\r' || *end == '\n' || *end == ' ' || *end == '\t'); end--)
+            *end = '\0';
+
+        s_TextOvr[s_TextOvrCount].mapIdx   = (short)mapIdx;
+        s_TextOvr[s_TextOvrCount].msgIdx   = (short)msgIdx;
+        s_TextOvr[s_TextOvrCount].userText = _strdup(val);
+        s_TextOvr[s_TextOvrCount].built    = NULL;
+        s_TextOvrCount++;
+    }
+    fclose(f);
+    SH_LOG("[MODTEXT] loaded %d text override(s)", s_TextOvrCount);
+}
+
+/* Keep orig's leading ~J..(..) timing prefix (+ following whitespace), then the
+ * user text (space -> '_', '~N' etc. pass through), then a trailing " ~E ". */
+static char* TextOverrideBuild(const char* orig, const char* userText)
+{
+    char        prefix[64];
+    int         pl = 0;
+    const char* s  = orig;
+    const char* u;
+    char*       out;
+    char*       o;
+
+    if (s != NULL && s[0] == '~' && s[1] != '\0')
+    {
+        prefix[pl++] = *s++;
+        prefix[pl++] = *s++;
+        if (*s == '(')
+        {
+            while (*s != '\0' && *s != ')' && pl < (int)sizeof(prefix) - 2)
+                prefix[pl++] = *s++;
+            if (*s == ')')
+                prefix[pl++] = *s++;
+        }
+        while ((*s == '\t' || *s == ' ') && pl < (int)sizeof(prefix) - 1)
+            prefix[pl++] = *s++;
+    }
+
+    out = (char*)malloc((size_t)pl + strlen(userText) + 8);
+    if (out == NULL)
+        return NULL;
+    o = out;
+    memcpy(o, prefix, (size_t)pl);
+    o += pl;
+    for (u = userText; *u != '\0'; u++)
+        *o++ = (*u == ' ') ? '_' : *u;
+    *o++ = ' ';
+    *o++ = '~';
+    *o++ = 'E';
+    *o++ = ' ';
+    *o   = '\0';
+    return out;
+}
+
+void Pc_TextOverrideApply(int mapIdx)
+{
+    const char** src;
+    int          count;
+    int          i;
+    int          any = 0;
+
+    if (s_TextOvrCount < 0)
+        TextOverridesLoad();
+    if (s_TextOvrCount == 0 || g_pMapOverlayHeader == NULL)
+        return;
+
+    for (i = 0; i < s_TextOvrCount; i++)
+    {
+        if (s_TextOvr[i].mapIdx == mapIdx)
+        {
+            any = 1;
+            break;
+        }
+    }
+    if (!any)
+        return;
+
+    src = (const char**)g_pMapOverlayHeader->mapMessages;
+    if (src == NULL)
+        return;
+
+    /* Repoint to a static copy rather than writing the live array: on a vanilla
+     * USA disc it is the compiled MAP_MESSAGES in read-only rodata. Bound the
+     * copy by the map's real message count so it never reads past the array. */
+    count = Pc_MapMsgCount(mapIdx);
+    if (count <= 0 || count > MSG_COUNT_MAX)
+        return;
+
+    for (i = 0; i < count; i++)
+        s_ModMsgs[i] = src[i];
+
+    for (i = 0; i < s_TextOvrCount; i++)
+    {
+        s_TextOverride* o = &s_TextOvr[i];
+
+        if (o->mapIdx != mapIdx || o->msgIdx < 0 || o->msgIdx >= count)
+            continue;
+        if (o->built == NULL)
+            o->built = TextOverrideBuild(src[o->msgIdx], o->userText);
+        if (o->built != NULL)
+            s_ModMsgs[o->msgIdx] = o->built;
+    }
+
+    s_ModMapHeader             = *g_pMapOverlayHeader;
+    s_ModMapHeader.mapMessages = s_ModMsgs;
+    g_pMapOverlayHeader        = &s_ModMapHeader;
+
+    SH_LOG("[MODTEXT] map %d: text override(s) applied", mapIdx);
+}

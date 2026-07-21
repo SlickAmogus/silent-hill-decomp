@@ -43,6 +43,11 @@ const char* Pc_LangItemDesc(int itemIdx);
  * translated strings. No-op unless Pc_LangActive(). */
 void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize);
 
+/* Apply gamedata/load/text_overrides.txt to the active map header. Call after
+ * Pc_LangPatchMapMessages so a mod override wins over the localized string.
+ * No-op when the file is absent or has no entry for this map. */
+void Pc_TextOverrideApply(int mapIdx);
+
 /* Port-written menu translations (lang_menu.c — retail PAL kept every menu
  * English, the disc has no menu strings to reuse). Called from the
  * Gfx_StringDraw chokepoint: returns the translated string when one exists

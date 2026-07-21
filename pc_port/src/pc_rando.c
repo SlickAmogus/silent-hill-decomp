@@ -668,6 +668,15 @@ static void build_messages(int mapIdx, const char** origMsgs)
         s_msgs[count + i] = RANDO_WEAPON_MSGS[i];
 }
 
+/* Public: MAP_MESSAGES entry count for a map (mapMessages carries no runtime
+ * length). Shared with the mod text-override path in lang_text.c. 0 = stub. */
+int Pc_MapMsgCount(int mapIdx)
+{
+    if (mapIdx < 0 || mapIdx >= (int)ARRAY_SIZE(RANDO_MSG_COUNT))
+        return 0;
+    return RANDO_MSG_COUNT[mapIdx];
+}
+
 /* Message index of the prompt for a randomized weapon drop. */
 static int weapon_msg_idx(int mapIdx, int weaponSlot)
 {
