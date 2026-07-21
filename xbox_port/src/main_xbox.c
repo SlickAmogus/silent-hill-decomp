@@ -177,6 +177,13 @@ int main(void)
              * Generated fresh each build by build_xbox.sh. */
             #include "sh_build_info_xbox.h"
             SH_DBG("[SH-XBOX] build " SH_XBOX_BUILD_HASH " (" SH_XBOX_BUILD_STAMP ")");
+            /* Flush the build line to disk IMMEDIATELY. The normal flush is
+             * every ~60 vblanks from VSync; if a later fault hangs that loop
+             * (e.g. a GPU stall), the buffered build line would be lost and we
+             * couldn't tell which xbe actually booted. This line on disk in the
+             * first millisecond makes "am I even running the new build?"
+             * answerable from any log, however early it dies. */
+            { extern void SH_DebugLogFlush(void); SH_DebugLogFlush(); }
         }
         SH_DBG("[SH-XBOX] boot: video %s", hd ? "1280x720x32 (720p, pillarboxed 4:3)"
                                               : "640x480x32");

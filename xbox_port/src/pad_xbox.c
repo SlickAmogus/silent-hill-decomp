@@ -28,6 +28,10 @@ static xid_dev_t*     s_xid      = 0;
 static xid_gamepad_in s_report;
 static int            s_haveReport = 0;
 
+/* Rumble target set by PadSetAct (game loop), sent by Pad_Poll (USB-safe). */
+static unsigned s_wantRumbleL = 0, s_wantRumbleH = 0;
+static int      s_rumbleValid = 0;
+
 static void Pad_FillIdle(unsigned char* b)
 {
     b[0] = 0x00;                          /* connected */
@@ -126,6 +130,24 @@ void Pad_Poll(void)
 {
     usbh_pooling_hubs();   /* pump the USB host stack (fires Pad_ReadCb) */
 
+    /* Send any pending rumble here (the USB-polling context, right after the
+     * hub pump), never from PadSetAct's game-loop context. Change-detected —
+     * the motor state holds, so an idle {0,0} stops it and we only hit the bus
+     * on a change. */
+    if (s_rumbleValid && s_xid) {
+        static unsigned s_lastL = 0xFFFFFFFFu, s_lastH = 0xFFFFFFFFu;
+        if (s_wantRumbleL != s_lastL || s_wantRumbleH != s_lastH) {
+            static int s_firstBuzz = 0;
+            if ((s_wantRumbleL || s_wantRumbleH) && !s_firstBuzz) {
+                s_firstBuzz = 1;
+                SH_DBG("[VIB] rumble l=%u h=%u (engine -> motors live)", s_wantRumbleL, s_wantRumbleH);
+            }
+            s_lastL = s_wantRumbleL;
+            s_lastH = s_wantRumbleH;
+            usbh_xid_rumble(s_xid, (unsigned short)s_wantRumbleL, (unsigned short)s_wantRumbleH);
+        }
+    }
+
     if (!s_padBuf)
         return;
 
@@ -207,20 +229,15 @@ void PadSetAct(int socket, unsigned char* table, int len)
      * only touch the USB bus on a change. */
     unsigned h = (table && len > 0) ? (unsigned)table[0] * 255u : 0u;
     unsigned l = (table && len > 1) ? (unsigned)table[1] * 255u : 0u;
-    static unsigned s_lastL = 0xFFFFFFFFu, s_lastH = 0xFFFFFFFFu;
     (void)socket;
     if (l != 0 && l < 4096) l = 4096;
     if (h != 0 && h < 4096) h = 4096;
-    if (l == s_lastL && h == s_lastH)
-        return;
-    s_lastL = l;
-    s_lastH = h;
-    if (s_xid) {
-        static int s_firstBuzz = 0;
-        if ((l || h) && !s_firstBuzz) {   /* one-shot: proves the engine reached the motors */
-            s_firstBuzz = 1;
-            SH_DBG("[VIB] rumble l=%u h=%u (engine -> motors live)", l, h);
-        }
-        usbh_xid_rumble(s_xid, (unsigned short)l, (unsigned short)h);
-    }
+    /* Do NOT touch USB here. PadSetAct runs from the game loop (vibration engine
+     * pump), which is NOT the USB-polling context — usbh_xid_write from here can
+     * submit a transfer that only completes when usbh_pooling_hubs runs (in
+     * Pad_Poll), a cross-context stall. Just record the target; Pad_Poll sends it
+     * from the safe context. Change-detected there (motor state holds). */
+    s_wantRumbleL = l;
+    s_wantRumbleH = h;
+    s_rumbleValid = 1;
 }
