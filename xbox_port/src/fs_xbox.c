@@ -17,13 +17,16 @@
 #include <string.h>
 #include "sh_log.h"
 
+/* Mount diagnostics, stashed here because this runs BEFORE the log is open
+ * (main_xbox logs them right after SH_DebugLogInit). */
+char g_XboxHomeNtPath[MAX_PATH] = "(unset)";
+int  g_XboxHomeWasMounted = -1;
+int  g_XboxHomeMountOk = -1;
+
 void XboxFs_MountHomeDrive(void)
 {
     char  ntPath[MAX_PATH];
     char* lastSlash;
-
-    if (nxIsDriveMounted('D'))
-        return;
 
     nxGetCurrentXbeNtPath(ntPath);
 
@@ -32,7 +35,19 @@ void XboxFs_MountHomeDrive(void)
     if (lastSlash)
         *(lastSlash + 1) = '\0';
 
-    nxMountDrive('D', ntPath);
+    /* FORCE D: to the XBE's own directory. The old "return early if D: is
+     * already mounted" left D: pointing at whatever the launcher set it to —
+     * frequently the DVD drive — so the BIN, the log and silenthill.cfg (which
+     * all live next to the XBE) were searched on the WRONG drive and the game
+     * "acted as if no disc was present" (blank textures / fog / black menu).
+     * The game never touches the real DVD, so remapping D: is always safe;
+     * remapping an already-correct D: to the same path is idempotent. */
+    g_XboxHomeWasMounted = nxIsDriveMounted('D') ? 1 : 0;
+    if (g_XboxHomeWasMounted)
+        nxUnmountDrive('D');
+    g_XboxHomeMountOk = nxMountDrive('D', ntPath) ? 1 : 0;
+    strncpy(g_XboxHomeNtPath, ntPath, sizeof(g_XboxHomeNtPath) - 1);
+    g_XboxHomeNtPath[sizeof(g_XboxHomeNtPath) - 1] = '\0';
 }
 
 /* Mount E: — the Xbox HDD "data" partition (\Device\Harddisk0\Partition1),

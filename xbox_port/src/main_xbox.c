@@ -177,6 +177,14 @@ int main(void)
              * Generated fresh each build by build_xbox.sh. */
             #include "sh_build_info_xbox.h"
             SH_DBG("[SH-XBOX] build " SH_XBOX_BUILD_HASH " (" SH_XBOX_BUILD_STAMP ")");
+            /* Where D: got mapped (stashed by XboxFs_MountHomeDrive, which runs
+             * before the log opens). If the BIN "isn't found", this is the first
+             * thing to check: D: must point at the XBE's own directory. */
+            {
+                extern char g_XboxHomeNtPath[]; extern int g_XboxHomeWasMounted, g_XboxHomeMountOk;
+                SH_DBG("[FS] D: -> '%s' (wasMounted=%d remap=%s)",
+                       g_XboxHomeNtPath, g_XboxHomeWasMounted, g_XboxHomeMountOk ? "ok" : "FAILED");
+            }
             /* Flush the build line to disk IMMEDIATELY. The normal flush is
              * every ~60 vblanks from VSync; if a later fault hangs that loop
              * (e.g. a GPU stall), the buffered build line would be lost and we
