@@ -13,7 +13,15 @@ static inline unsigned long long ShxLoopRdtsc(void)
     __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
     return ((unsigned long long)hi << 32) | lo;
 }
-extern unsigned long long g_XbWorldDrawCycles;   /* world_draw.c: Gfx_WorldObjectsDraw */
+/* Per-phase cycle counters filled by world_draw.c, read+reset each frame here. */
+extern unsigned long long g_XbWorldDrawCycles;   /* Gfx_WorldObjectsDraw (props)      */
+extern unsigned long long g_XbStreamCycles;      /* Ipd chunk streaming/reformat loop */
+extern unsigned long long g_XbChunkDrawCycles;   /* Ipd_ChunkCheckDraw (static map)   */
+extern unsigned long long g_Xb2dFxCycles;        /* Gfx_2dEffectsDraw                 */
+extern unsigned long long g_XbCharaCycles;       /* func_8003DA9C (Harry + all NPCs)  */
+extern unsigned           g_XbFsQueueIters;      /* Fs_QueueUpdate calls this frame   */
+extern unsigned           g_XbWorldObjCount;     /* dynamic props drawn               */
+extern unsigned           g_XbCharaCount;        /* character meshes drawn            */
 #endif
 
 #ifdef SH_PC_PORT
@@ -2060,19 +2068,34 @@ void MainLoop(void) // 0x80032EE0
         // Call update function for current GameState.
 #ifdef SH_XBOX_PORT
         {
-            unsigned long long _updT0 = ShxLoopRdtsc();
-            g_XbWorldDrawCycles = 0;
+            unsigned long long _updT0;
+            g_XbWorldDrawCycles = g_XbStreamCycles = g_XbChunkDrawCycles = 0;
+            g_Xb2dFxCycles = g_XbCharaCycles = 0;
+            g_XbFsQueueIters = g_XbWorldObjCount = g_XbCharaCount = 0;
+            _updT0 = ShxLoopRdtsc();
             g_GameStateUpdateFuncs[g_GameWork.gameState]();
             {
-                unsigned stateMs = (unsigned)((ShxLoopRdtsc() - _updT0) / 733000ULL);
-                unsigned worldMs = (unsigned)(g_XbWorldDrawCycles / 733000ULL);
+                unsigned stateMs  = (unsigned)((ShxLoopRdtsc() - _updT0) / 733000ULL);
+                unsigned worldMs  = (unsigned)(g_XbWorldDrawCycles / 733000ULL);
+                unsigned streamMs = (unsigned)(g_XbStreamCycles    / 733000ULL);
+                unsigned chunkMs  = (unsigned)(g_XbChunkDrawCycles / 733000ULL);
+                unsigned charaMs  = (unsigned)(g_XbCharaCycles     / 733000ULL);
+                unsigned fx2dMs   = (unsigned)(g_Xb2dFxCycles      / 733000ULL);
+                unsigned drawMs   = worldMs + streamMs + chunkMs + charaMs + fx2dMs;
+                unsigned simMs    = (stateMs > drawMs) ? stateMs - drawMs : 0;
                 static unsigned s_updSample;
-                /* Log every slow update (>25ms) plus a periodic sample. stateMs =
-                 * whole update (game sim + all rendering/OT-build); worldMs = just
-                 * Gfx_WorldObjectsDraw; stateMs-worldMs ~= game sim + other draws. */
-                if (stateMs > 25 || (++s_updSample % 240) == 0)
-                    SH_DBG("[UPD] stateMs=%u worldMs=%u state=%d sub=%d",
-                           stateMs, worldMs, g_GameWork.gameState, g_SysWork.sysState);
+                /* Full frame decomposition, logged on any slow update (>25ms) plus a
+                 * periodic sample. state = whole GameState update; the phases sum to
+                 * the render half; sim = state - render = game logic (player/AI/anim/
+                 * collision). chunk = static map geom, chara = Harry+monsters (combat),
+                 * world = props, stream = disk/reformat, fx2d = 2D. */
+                if (stateMs > 25 || (++s_updSample % 240) == 0) {
+                    SH_DBG("[UPD] state=%u sim=%u | chunk=%u chara=%u world=%u stream=%u fx2d=%u",
+                           stateMs, simMs, chunkMs, charaMs, worldMs, streamMs, fx2dMs);
+                    SH_DBG("[UPD2] gs=%d sub=%d objs=%u charas=%u fsIters=%u",
+                           g_GameWork.gameState, g_SysWork.sysState,
+                           g_XbWorldObjCount, g_XbCharaCount, g_XbFsQueueIters);
+                }
             }
         }
 #else

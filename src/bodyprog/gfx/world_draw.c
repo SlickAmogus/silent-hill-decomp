@@ -444,6 +444,31 @@ bool Ipd_ChunkInitCheck(void) // 0x8003C850
     return Ipd_AreChunksLoaded();
 }
 
+#ifdef SH_XBOX_PORT
+/* Per-frame CPU-cost decomposition of the in-game draw, read+reset each frame by
+ * the game_main.c [UPD] localizer. All the chase-cam slowdown is CPU-bound and
+ * before the render walk (DrawOTag=2ms), so split Gfx_InGameDraw into its phases:
+ *   world  = Gfx_WorldObjectsDraw (dynamic props/items: GTE transform + addPrim)
+ *   stream = the Ipd chunk streaming/reformat loop (disk + Fs_QueueUpdate)
+ *   chunk  = Ipd_ChunkCheckDraw (the STATIC map/room geometry: the big transform)
+ *   fx2d   = Gfx_2dEffectsDraw
+ * plus counts (fsIters = Fs_QueueUpdate calls this frame, objs = dynamic objects). */
+unsigned long long g_XbWorldDrawCycles  = 0;
+unsigned long long g_XbStreamCycles     = 0;
+unsigned long long g_XbChunkDrawCycles  = 0;
+unsigned long long g_Xb2dFxCycles       = 0;
+unsigned long long g_XbCharaCycles      = 0;   /* func_8003DA9C: Harry + all NPC skinned meshes */
+unsigned           g_XbFsQueueIters     = 0;
+unsigned           g_XbWorldObjCount    = 0;
+unsigned           g_XbCharaCount       = 0;   /* character draws this frame (Harry + monsters) */
+static inline unsigned long long ShxWdRdtsc(void)
+{
+    unsigned lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((unsigned long long)hi << 32) | lo;
+}
+#endif
+
 void Gfx_InGameDraw(bool arg0) // 0x8003C878
 {
     Gfx_WorldObjectsDraw(&g_WorldGfxWork);
@@ -458,6 +483,9 @@ void Gfx_InGameDraw(bool arg0) // 0x8003C878
      * two init/flush rounds plus a final init guarantee the window is
      * loaded, reformatted, and drawable this same frame. */
     {
+#ifdef SH_XBOX_PORT
+        unsigned long long _st0 = ShxWdRdtsc();
+#endif
         int pass;
         for (pass = 0; pass < 2; pass++)
         {
@@ -467,10 +495,16 @@ void Gfx_InGameDraw(bool arg0) // 0x8003C878
                 while (Fs_QueueGetLength() > 0 && --flushLimit > 0)
                 {
                     Fs_QueueUpdate();
+#ifdef SH_XBOX_PORT
+                    g_XbFsQueueIters++;
+#endif
                 }
             }
         }
         Ipd_CloseRangeChunksInit();
+#ifdef SH_XBOX_PORT
+        g_XbStreamCycles += ShxWdRdtsc() - _st0;
+#endif
     }
 #else
     while (func_80043830())
@@ -480,13 +514,29 @@ void Gfx_InGameDraw(bool arg0) // 0x8003C878
     }
 #endif
 
+#ifdef SH_XBOX_PORT
+    {
+        unsigned long long _ck0 = ShxWdRdtsc();
+        Ipd_ChunkCheckDraw(&g_OrderingTable0[g_ActiveBufferIdx], arg0);
+        g_XbChunkDrawCycles += ShxWdRdtsc() - _ck0;
+    }
+#else
     Ipd_ChunkCheckDraw(&g_OrderingTable0[g_ActiveBufferIdx], arg0);
+#endif
 #ifdef SH_PC_PORT
     /* Bullet-hole decals ride the world OT here so GsWSMATRIX matches the
      * chunk geometry they sit on (pc_decals.c). */
     { extern void Pc_DecalsDraw(GsOT* ot); Pc_DecalsDraw(&g_OrderingTable0[g_ActiveBufferIdx]); }
 #endif
+#ifdef SH_XBOX_PORT
+    {
+        unsigned long long _fx0 = ShxWdRdtsc();
+        Gfx_2dEffectsDraw();
+        g_Xb2dFxCycles += ShxWdRdtsc() - _fx0;
+    }
+#else
     Gfx_2dEffectsDraw();
+#endif
 }
 
 // ========================================
@@ -621,19 +671,6 @@ void Gfx_WorldObjectsClear(s_WorldGfxWork* worldGfxWork) // 0x8003CB3C
     worldGfxWork->objectCount = 0;
 }
 
-#ifdef SH_XBOX_PORT
-/* Cycle count of the world-object draw pass (GTE transform + addPrim), read and
- * reset each frame by the game_main.c [UPD] localizer to attribute the chase-cam
- * CPU cost. Accumulated (not overwritten) in case the pass runs more than once. */
-unsigned long long g_XbWorldDrawCycles = 0;
-static inline unsigned long long ShxWdRdtsc(void)
-{
-    unsigned lo, hi;
-    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
-    return ((unsigned long long)hi << 32) | lo;
-}
-#endif
-
 void Gfx_WorldObjectsDraw(s_WorldGfxWork* worldGfxWork) // 0x8003CB44
 {
     s_WorldObject* curObj;
@@ -641,6 +678,9 @@ void Gfx_WorldObjectsDraw(s_WorldGfxWork* worldGfxWork) // 0x8003CB44
     unsigned long long _wd0 = ShxWdRdtsc();
 #endif
 
+#ifdef SH_XBOX_PORT
+    g_XbWorldObjCount += worldGfxWork->objectCount;
+#endif
     // Run through world objects to draw.
     for (curObj = &worldGfxWork->objects[0]; curObj < &worldGfxWork->objects[worldGfxWork->objectCount]; curObj++)
     {
@@ -1450,7 +1490,24 @@ void WorldGfx_CharaModelProcessLoad(s_CharaModel* model) // 0x8003D9C8
 #endif
 }
 
+#ifdef SH_XBOX_PORT
+/* Timing wrapper (see the [UPD] localizer): func_8003DA9C draws every skinned
+ * character — Harry and all NPCs/monsters — so this one wrap captures the whole
+ * character-mesh GTE-transform cost, the prime combat-slowdown suspect. Real
+ * body renamed to ShxCharaDrawImpl; public name/signature unchanged for callers. */
+static void ShxCharaDrawImpl(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12 timer, s32 arg4);
+void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12 timer, s32 arg4)
+{
+    unsigned long long _c0;
+    if (charaId != Chara_None) g_XbCharaCount++;
+    _c0 = ShxWdRdtsc();
+    ShxCharaDrawImpl(charaId, boneCoords, arg2, timer, arg4);
+    g_XbCharaCycles += ShxWdRdtsc() - _c0;
+}
+static void ShxCharaDrawImpl(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12 timer, s32 arg4)
+#else
 void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12 timer, s32 arg4) // 0x8003DA9C
+#endif
 {
     CVECTOR tintColor = { 0 };
     s16     ret;
