@@ -1063,6 +1063,12 @@ int main(int argc, char* argv[])
         g_PsyX_FlashlightIntensity = g_PcConfig.flashlightIntensity;
         g_cfg_postProcessIntensity = g_PcConfig.postProcessIntensity;
         g_cfg_tonemapIntensity     = g_PcConfig.tonemapIntensity;
+        {
+            extern float g_cfg_brightness, g_cfg_contrast, g_cfg_saturation;
+            g_cfg_brightness = g_PcConfig.brightness;
+            g_cfg_contrast   = g_PcConfig.contrast;
+            g_cfg_saturation = g_PcConfig.saturation;
+        }
         g_PsyX_FlashlightSize      = g_PcConfig.flashlightSize;
         g_PsyX_FlashlightIntensityFps = g_PcConfig.flashlightIntensityFps;
         g_PsyX_FlashlightSizeFps      = g_PcConfig.flashlightSizeFps;

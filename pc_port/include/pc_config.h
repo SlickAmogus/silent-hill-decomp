@@ -98,6 +98,12 @@ typedef struct {
     float flashlightSizeFps;      /* per-pixel flashlight coverage in FPS mode, 0..3 (config key: flashlight_size_fps) */
     float postProcessIntensity; /* post-process effect mix, 0..1 (config key: post_process_intensity) */
     float tonemapIntensity;     /* tone-map mix, 0..1 (config key: tonemap_intensity) */
+    /* Image adjustments applied to the final frame every time (independent of the
+     * post_process filter). 1.0 = neutral for all three. Driven by the in-game
+     * Brightness screen. (config keys: brightness / contrast / saturation) */
+    float brightness;           /* output brightness multiplier, 0.25..2.0; default 1.0 */
+    float contrast;             /* output contrast around mid-grey, 0.5..2.0; default 1.0 */
+    float saturation;           /* output colour saturation, 0..2.0; default 1.0 */
     float xaVolume;             /* XA cutscene-voice stream volume, 0..1; default 1.0 (config key: xa_volume) */
     float fmvVolume;            /* FMV movie (SDL PCM) volume, 0..1; default 1.0 (config key: fmv_volume) */
     int enableDebugLog;  /* 1 = create + write SilentHill.log; 0 = no log file, SH_DBG no-op (config key: enable_debug_log) */

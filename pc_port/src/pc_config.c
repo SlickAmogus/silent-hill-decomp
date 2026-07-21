@@ -42,6 +42,9 @@ s_PcConfig g_PcConfig = {
     .flashlightSizeFps      = 1.30f, /* FPS-mode coverage (tighter than third-person) */
     .postProcessIntensity = 1.0f, /* post-process effect mix, 0..1 */
     .tonemapIntensity     = 1.0f, /* tone-map mix, 0..1 */
+    .brightness           = 1.0f, /* output image brightness; 1.0 = neutral */
+    .contrast             = 1.0f, /* output image contrast;   1.0 = neutral */
+    .saturation           = 1.0f, /* output image saturation; 1.0 = neutral */
     .xaVolume             = 1.0f, /* XA cutscene-voice volume, 0..1; 1.0 = unchanged */
     .fmvVolume            = 1.0f, /* FMV movie (SDL PCM) volume, 0..1; 1.0 = unchanged */
     .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
@@ -577,6 +580,27 @@ void PcConfig_Load(const char* path)
             if (v < 0.0f) v = 0.0f;
             if (v > 1.0f) v = 1.0f;
             g_PcConfig.tonemapIntensity = v;
+        }
+        else if (strcmp(key, "brightness") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.25f) v = 0.25f;
+            if (v > 2.0f)  v = 2.0f;
+            g_PcConfig.brightness = v;
+        }
+        else if (strcmp(key, "contrast") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.5f) v = 0.5f;
+            if (v > 2.0f) v = 2.0f;
+            g_PcConfig.contrast = v;
+        }
+        else if (strcmp(key, "saturation") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 2.0f) v = 2.0f;
+            g_PcConfig.saturation = v;
         }
         else if (strcmp(key, "enable_debug_log") == 0)
         {

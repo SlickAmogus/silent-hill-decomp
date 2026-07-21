@@ -2776,8 +2776,44 @@ void Options_ScreenPosMenu_ConfigDraw(void) // 0x801E5CBC
 // BRIGHTNESS OPTION SCREEN
 // ========================================
 
+#ifdef SH_PC_PORT
+/* The Brightness screen becomes a three-row image-adjust panel on PC:
+ * Brightness / Contrast / Saturation, each driving a g_PcConfig float and the
+ * matching live renderer global, saved to config on change. A procedural
+ * reference bar (g_cfg_calibBar, drawn in the post shader) sits behind it. */
+static s32 g_PcBrtRow = 0; /* 0 = Brightness, 1 = Contrast, 2 = Saturation */
+
+static void Pc_BrightnessRowAdjust(s32 row, int dir)
+{
+    extern float g_cfg_brightness, g_cfg_contrast, g_cfg_saturation;
+    struct { float* cfg; float* live; float mn, mx, step; const char* key; } R[3] = {
+        { &g_PcConfig.brightness, &g_cfg_brightness, 0.25f, 2.0f, 0.05f, "brightness" },
+        { &g_PcConfig.contrast,   &g_cfg_contrast,   0.5f,  2.0f, 0.05f, "contrast"   },
+        { &g_PcConfig.saturation, &g_cfg_saturation, 0.0f,  2.0f, 0.05f, "saturation" },
+    };
+    float v;
+
+    if (row < 0 || row > 2 || dir == 0)
+        return;
+
+    v = *R[row].cfg + (float)dir * R[row].step;
+    if (v < R[row].mn) v = R[row].mn;
+    if (v > R[row].mx) v = R[row].mx;
+
+    *R[row].cfg  = v;
+    *R[row].live = v;
+    { char b[16]; snprintf(b, sizeof(b), "%.3f", v); PcConfig_SaveKeyValue(R[row].key, b); }
+    Sd_PlaySfx(Sfx_MenuMove, 0, Q8(0.25f));
+}
+#endif
+
 void Options_BrightnessMenu_Control(void) // 0x801E6018
 {
+#ifdef SH_PC_PORT
+    /* Show the procedural reference bar while this screen is up. Cleared in the
+     * Leave state below. */
+    { extern int g_cfg_calibBar; g_cfg_calibBar = 1; }
+#endif
     // Handle menu state.
     switch (g_GameWork.gameStateSteps[1])
     {
@@ -2796,34 +2832,45 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
 
         case BrightnessMenuState_2:
 #ifdef SH_PC_PORT
-            /* Mouse: click the left/right arrows (authored boxes around the
-             * triangles at center-origin x 7..17 / 55..65, y 74..94) or use
-             * the wheel to adjust; right-click leaves (cancel). Left-click
-             * elsewhere is dead space so the screen isn't exited by accident. */
+            /* Up/Down select a row (Brightness/Contrast/Saturation), Left/Right
+             * adjust it. Mouse: wheel adjusts the selected row; hovering a row
+             * band selects it; left-click the arrow columns adjusts; right-click
+             * leaves. Rows drawn from y 74 at 16px pitch (see ConfigDraw). */
             {
                 int mx, my;
+
+                if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp)
+                {
+                    g_PcBrtRow = (g_PcBrtRow + 2) % 3;
+                    Sd_PlaySfx(Sfx_MenuMove, 0, Q8(0.25f));
+                }
+                if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickDown)
+                {
+                    g_PcBrtRow = (g_PcBrtRow + 1) % 3;
+                    Sd_PlaySfx(Sfx_MenuMove, 0, Q8(0.25f));
+                }
+                if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft)
+                    Pc_BrightnessRowAdjust(g_PcBrtRow, -1);
+                if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickRight)
+                    Pc_BrightnessRowAdjust(g_PcBrtRow, +1);
 
                 if (Pc_MouseCursor_UiPos(&mx, &my))
                 {
                     int wheel = Pc_MouseCursor_WheelStep();
 
-                    if (Pc_MouseCursor_LeftClicked() && my >= 182 && my < 210)
-                    {
-                        if (mx >= 163 && mx < 181)
-                            PcMouse_InjectDir(-1);
-                        else if (mx >= 211 && mx < 229)
-                            PcMouse_InjectDir(1);
-                    }
-                    else if (wheel != 0)
-                    {
-                        PcMouse_InjectDir(wheel);
-                    }
+                    /* Wheel adjusts the selected row; left of centre lowers, right
+                     * raises it; right-click leaves. Kept geometry-free (no
+                     * per-row hit-test) — Up/Down selects the row. */
+                    if (wheel != 0)
+                        Pc_BrightnessRowAdjust(g_PcBrtRow, wheel);
+                    else if (Pc_MouseCursor_LeftClicked())
+                        Pc_BrightnessRowAdjust(g_PcBrtRow, (mx < 160) ? -1 : +1);
 
                     if (Pc_MouseCursor_RightClicked())
                         PcMouse_InjectCancel();
                 }
             }
-#endif
+#else
             // Set config.
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft)
             {
@@ -2841,6 +2888,7 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
                     Sd_PlaySfx(Sfx_MenuMove, 0, Q8(0.25f));
                 }
             }
+#endif
 
             // Fade screen and leave menu.
             if (g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |
@@ -2862,6 +2910,9 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
             break;
 
         case BrightnessMenuState_Leave:
+#ifdef SH_PC_PORT
+            { extern int g_cfg_calibBar; g_cfg_calibBar = 0; }
+#endif
             // Switch to previous menu.
             // TODO: Odd check for `ScreenFade_IsFinished()`.
             if ( (g_Screen_FadeStatus & (1 << 2)) &&
@@ -2900,12 +2951,36 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
 
 void Options_BrightnessMenu_ConfigDraw(void) // 0x801E6238
 {
+#ifdef SH_PC_PORT
+    /* Three rows: Brightness / Contrast / Saturation, values shown as a
+     * percentage (100 = neutral). The selected row is gold, the highlight
+     * bracket marks it. Values read from the live renderer globals so the text
+     * always matches what is applied. */
+    extern float g_cfg_brightness, g_cfg_contrast, g_cfg_saturation;
+    const char* const NAMES[3] = { "BRIGHTNESS_", "CONTRAST___", "SATURATION_" };
+    const float*      vals[3];
+    s32 i;
+
+    vals[0] = &g_cfg_brightness;
+    vals[1] = &g_cfg_contrast;
+    vals[2] = &g_cfg_saturation;
+
+    for (i = 0; i < 3; i++)
+    {
+        Gfx_StringSetColor(i == g_PcBrtRow ? StringColorId_Gold : StringColorId_White);
+        Gfx_StringSetPosition(SCREEN_POSITION_X(20.0f), SCREEN_POSITION_Y(66.0f + (float)i * 9.0f));
+        Gfx_StringDraw(i == g_PcBrtRow ? "[" : "_", 20);
+        Gfx_StringDraw(NAMES[i], 20);
+        Gfx_StringDrawInt(3, (s32)((*vals[i] * 100.0f) + 0.5f));
+    }
+#else
     const char* LEVEL_STR = "LEVEL_________";
 
     Gfx_StringSetColor(StringColorId_White);
     Gfx_StringSetPosition(SCREEN_POSITION_X(25.0f), SCREEN_POSITION_Y(79.5f));
     Gfx_StringDraw(LEVEL_STR, 20);
     Gfx_StringDrawInt(1, g_GameWork.config.brightness);
+#endif
 }
 
 void Options_BrightnessMenu_ArrowsDraw(void) // 0x801E628C
