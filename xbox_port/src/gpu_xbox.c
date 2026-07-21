@@ -788,6 +788,7 @@ static int s_fbGateLatch;                  /* gate as of the last present: the w
                                             * AFTER VSync resets the live flag, so protected
                                             * ticks stay protected through their OT walk */
 static int s_fbReadbackFrame = -1;         /* frame id of the last readback (dedup) */
+static int s_fbLastDrainMs = 0;            /* ms in the GPU drain of the last readback */
 static int s_fbConsumerFrame = -1000;      /* frame id a framebuffer consumer was last seen */
 static unsigned short s_fbReadbackBuf[640 * 448]; /* one page image (max 640-wide credits) */
 
@@ -847,7 +848,16 @@ static void FbReadback(int fromLastQueued, int minSpacing)
         return;                                   /* TIM-protect tick (paper map) */
     if (s_fbReadbackFrame >= 0 && g_Nv2aFrameCount - s_fbReadbackFrame < minSpacing)
         return;                                   /* rate limit (>=1 => max one per frame) */
-    fb = (const unsigned char*)GpuNv2a_ReadbackSurface(fromLastQueued, &fbW, &fbH, &pitchB);
+    {
+        /* Measure the GPU-STALL half of the readback (ReadbackSurface does
+         * while(pb_busy()) — a full GPU drain that serializes CPU+GPU). In the
+         * chase-cam house this is the suspected 5-10fps killer: a heavy GPU
+         * frame + this drain compounding. The `took=` below is only the read
+         * half; this drainMs is the part that was invisible. */
+        int td = GpuNv2a_Ms();
+        fb = (const unsigned char*)GpuNv2a_ReadbackSurface(fromLastQueued, &fbW, &fbH, &pitchB);
+        s_fbLastDrainMs = GpuNv2a_Ms() - td;
+    }
     if (!fb)
         return;
     s_fbReadbackFrame = g_Nv2aFrameCount;
@@ -889,12 +899,19 @@ static void FbReadback(int fromLastQueued, int minSpacing)
 
     {
         static int s_rbCount = 0;
+        static int s_rbFrame = -1, s_rbPerFrame = 0;
         int took = GpuNv2a_Ms() - t0;
         s_rbCount++;
-        if (s_rbCount <= 8 || (s_rbCount & 31) == 0)
-            SH_DBG("[STORE] readback env=(%d,%d %dx%d) pages=%d took=%d src=%d n=%d f=%d",
-                   pr[0][0], pr[0][1], pageW, pageH, pages, took, fromLastQueued,
-                   s_rbCount, g_Nv2aFrameCount);
+        /* Track readbacks-per-frame — if StoreImage fires this more than once a
+         * frame the cost multiplies. */
+        if (g_Nv2aFrameCount == s_rbFrame) s_rbPerFrame++;
+        else { s_rbPerFrame = 1; s_rbFrame = g_Nv2aFrameCount; }
+        /* Log the first 30 (to catch the chase-cam entry) then every 8th, with
+         * BOTH halves: drainMs (GPU stall) + took (uncached read). */
+        if (s_rbCount <= 30 || (s_rbCount & 7) == 0)
+            SH_DBG("[STORE] env=(%d,%d %dx%d) drainMs=%d readMs=%d /frame=%d n=%d f=%d",
+                   pr[0][0], pr[0][1], pageW, pageH, s_fbLastDrainMs, took,
+                   s_rbPerFrame, s_rbCount, g_Nv2aFrameCount);
     }
 }
 
