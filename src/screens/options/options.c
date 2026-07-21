@@ -2967,9 +2967,11 @@ void Options_BrightnessMenu_ConfigDraw(void) // 0x801E6238
 
     for (i = 0; i < 3; i++)
     {
+        /* Kept above the bottom reference bar (bar occupies ~the bottom 15%).
+         * Selection shown by gold vs white — no bracket glyph (the menu font
+         * renders '[' as a curly quote). */
         Gfx_StringSetColor(i == g_PcBrtRow ? StringColorId_Gold : StringColorId_White);
-        Gfx_StringSetPosition(SCREEN_POSITION_X(20.0f), SCREEN_POSITION_Y(66.0f + (float)i * 9.0f));
-        Gfx_StringDraw(i == g_PcBrtRow ? "[" : "_", 20);
+        Gfx_StringSetPosition(SCREEN_POSITION_X(22.0f), SCREEN_POSITION_Y(52.0f + (float)i * 8.0f));
         Gfx_StringDraw(NAMES[i], 20);
         Gfx_StringDrawInt(3, (s32)((*vals[i] * 100.0f) + 0.5f));
     }
