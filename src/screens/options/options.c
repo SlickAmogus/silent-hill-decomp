@@ -2946,10 +2946,22 @@ void Options_BrightnessMenu_ArrowsDraw(void) // 0x801E628C
     }
 
     // Draw border to highlight flashing left/right arrow corresponding to direction of UI navigation.
+#ifdef SH_PC_PORT
+    /* dir == 0 (no input) made this loop run once with i = -1, reading
+     * BORDER_ARROWS[-1] — out of bounds. On PSX the garbage before the array
+     * happened to land off-screen; on PC it decodes to a large blue triangle
+     * covering half the brightness screen. Only draw a border when a direction
+     * is actually held. */
+    if (dir != 0)
+    {
+        Options_Selection_ArrowDraw(&BORDER_ARROWS[dir - 1], false, false);
+    }
+#else
     for (i = dir - 1; i < dir; i++)
     {
         Options_Selection_ArrowDraw(&BORDER_ARROWS[i], false, false);
     }
+#endif
 }
 
 // ========================================
