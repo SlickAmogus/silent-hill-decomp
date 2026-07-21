@@ -201,21 +201,6 @@ int main(void)
     pb_show_front_screen();
     SH_DBG("[SH-XBOX] pbkit initialised");
 
-    /* On-screen build banner. Independent of the log entirely: if the D:/E: log
-     * can't be written we still get the ONE fact we need — WHICH xbe is booting
-     * — printed on the TV and held ~4s so it's readable. Same debugPrint +
-     * debug-screen idiom the pb_init-failure path already uses. */
-    {
-        #include "sh_build_info_xbox.h"
-        extern const char* g_ShLogPath;
-        debugPrint("\n\n   SILENT HILL (Xbox)\n\n");
-        debugPrint("   BUILD ID: %s\n", SH_XBOX_BUILD_HASH);
-        debugPrint("   STAMP:    %s\n", SH_XBOX_BUILD_STAMP);
-        debugPrint("   LOG:      %s\n", g_ShLogPath);
-        pb_show_debug_screen();
-        Sleep(4000);
-    }
-
     GpuNv2a_Init();
 
     /* Bring up the USB controller (safe no-op if none is connected). */
