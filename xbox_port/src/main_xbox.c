@@ -210,30 +210,11 @@ int main(void)
     pb_show_front_screen();
     SH_DBG("[SH-XBOX] pbkit initialised");
 
-    /* Open the BIN NOW (before the banner) so it can report whether it loaded. */
+    /* Open the BIN (private Q: mount of the xbe's own dir — see cd_xbox.c — so
+     * it loads regardless of what the dashboard left D: pointing at). The path
+     * it opened from goes to the log; no on-screen banner. */
     Cd_XboxInit();
-
-    /* On-screen boot banner — held ~8s so it can be read/photographed. Puts the
-     * whole "is it even finding the disc image?" story on the TV, independent of
-     * any log file (which needs a writable drive we may not have): the build ID,
-     * where D: got mapped, and — the key line — exactly which path the BIN
-     * opened from (or NOT FOUND). */
-    {
-        #include "sh_build_info_xbox.h"
-        extern char g_XboxHomeNtPath[]; extern int g_XboxHomeWasMounted, g_XboxHomeMountOk;
-        extern char g_CdBinPath[];
-        extern const char* g_ShLogPath;
-        int f;
-        debugPrint("\n\n   SILENT HILL (Xbox)   build %s\n", SH_XBOX_BUILD_HASH);
-        debugPrint("   stamp %s\n\n", SH_XBOX_BUILD_STAMP);
-        debugPrint("   D: -> %s\n", g_XboxHomeNtPath);
-        debugPrint("        wasMounted=%d  remap=%s\n", g_XboxHomeWasMounted, g_XboxHomeMountOk ? "ok" : "FAILED");
-        debugPrint("   BIN: %s\n", g_CdBinPath);
-        debugPrint("   LOG: %s\n", g_ShLogPath);
-        pb_show_debug_screen();
-        for (f = 0; f < 8; f++)
-            Sleep(1000);           /* ~8s, no game rendering yet */
-    }
+    { extern char g_CdBinPath[]; SH_DBG("[CD] BIN: %s", g_CdBinPath); }
 
     GpuNv2a_Init();
 
