@@ -34,9 +34,12 @@
 #define WHITE_TEX_DIM 64
 
 static ShVertex* s_batch;     /* contiguous staging pool for vertex submission */
-static int       s_batchUsed; /* running offset: each draw gets its own slice so
-                               * a later draw never overwrites verts the GPU is
-                               * still DMA-reading from an earlier draw */
+static int       s_batchUsed; /* running offset into the pool (this frame) */
+static int       s_runStart;  /* start of the pending un-drawn run [s_runStart,
+                               * s_batchUsed): adjacent same-state prims accumulate
+                               * here and draw as ONE run at the next state change,
+                               * frame end, or pool wrap — the batching win. */
+static unsigned  s_flushCount; /* draws issued this frame (batching effectiveness) */
 static uint32_t* s_whiteTex;  /* opaque white, for untextured prims */
 
 /* Most recently COMPLETED frame's surface (captured in FrameEnd just before the
@@ -52,6 +55,7 @@ int g_Nv2aFrameCount = 0;
 
 static void GpuNv2a_SetRenderState(void);
 static void SetAttribPointer(unsigned index, unsigned size, const void* data);
+static void GpuNv2a_FlushBatch(void);
 
 static void GpuNv2a_InitShader(void)
 {
@@ -172,7 +176,9 @@ static void GpuNv2a_SetRenderState(void)
  *   ABR3 (4): B+F/4 quarter-additive  -> CONSTANT_ALPHA(0.25) / ONE, ADD. */
 void GpuNv2a_SetBlendMode(int mode)
 {
-    uint32_t* p = pb_begin();
+    uint32_t* p;
+    GpuNv2a_FlushBatch();   /* draw the pending run under the OLD blend first */
+    p = pb_begin();
     if (mode <= 0) {
         p = pb_push1(p, NV097_SET_BLEND_ENABLE, 0);
     } else {
@@ -209,6 +215,7 @@ void GpuNv2a_SetScissor(int x, int y, int w, int h)
 {
     uint32_t* p;
     int x1, y1;
+    GpuNv2a_FlushBatch();   /* pending run drew under the OLD scissor */
     /* Reset = the CONTENT rect (not the full surface): nothing may draw into
      * the pillarbox bars. Identity at 640x480 where content == fb. */
     if (w <= 0 || h <= 0) { x = g_Nv2aContentX; y = 0; w = g_Nv2aContentW; h = g_Nv2aContentH; }
@@ -260,6 +267,8 @@ void GpuNv2a_FrameBegin(void)
     pb_erase_text_screen();
 
     s_batchUsed = 0; /* recycle the vertex pool each frame */
+    s_runStart  = 0; /* no pending run at frame start (the BindTexture in the
+                      * setup below then flushes an empty run — a no-op) */
 
     /* Establish all draw state ONCE per frame (render state, texture, vertex-
      * program constant, attribute arrays). Per-draw EmitTris then only issues
@@ -299,6 +308,18 @@ void GpuNv2a_FrameBegin(void)
 
 void GpuNv2a_FrameEnd(void)
 {
+    GpuNv2a_FlushBatch();   /* draw the frame's final run before we present */
+
+    /* Batching effectiveness: draws issued this frame (BEGIN/END + vertex-cache
+     * breaks). Pre-batching this equalled the primitive count (~1000-1460 in
+     * town); a big drop is the perf win landing. Rate-limited to ~1/10s. */
+    {
+        static unsigned s_dbgFrame;
+        if ((++s_dbgFrame % 600) == 0)
+            SH_DBG("[BATCH] draws/frame=%u verts=%d", s_flushCount, s_batchUsed);
+    }
+    s_flushCount = 0;
+
     /* Remember this frame's surface for the framebuffer readback BEFORE
      * pb_finished() advances pb_back_index (pb_back_buffer() then points at the
      * NEXT frame's target). */
@@ -326,6 +347,7 @@ const void* GpuNv2a_ReadbackSurface(int fromLastQueued, int* w, int* h, int* pit
 
     if (s_frameW <= 0 || s_frameH <= 0)
         return 0;               /* no frame targeted yet (early boot) */
+    GpuNv2a_FlushBatch();       /* the back buffer must hold the pending run */
     fb = fromLastQueued ? s_lastQueuedFb : (const void*)pb_back_buffer();
     if (!fb)
         return 0;
@@ -362,7 +384,9 @@ static void SetAttribPointer(unsigned index, unsigned size, const void* data)
 /* Bind a linear A8R8G8B8 texture (texel coords, clamp, bilinear) to stage 0. */
 void GpuNv2a_BindTexture(const void* addr, int w, int h)
 {
-    uint32_t* p = pb_begin();
+    uint32_t* p;
+    GpuNv2a_FlushBatch();   /* pending run drew with the OLD texture bound */
+    p = pb_begin();
     p = pb_push2(p, NV20_TCL_PRIMITIVE_3D_TX_OFFSET(0), (DWORD)addr & 0x03ffffff, 0x0001122a);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_NPOT_PITCH(0), (w * 4) << 16);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_NPOT_SIZE(0), (w << 16) | h);
@@ -391,57 +415,93 @@ void* GpuNv2a_AllocTexMem(int bytes)
     return MmAllocateContiguousMemoryEx(bytes, 0, MAXRAM, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
 }
 
-/* Append `count` vertices to the frame's pool and draw them as a triangle list.
- * Per-frame draw state (render state, texture, vertex program, attribute arrays)
- * was set once in FrameBegin; here we ONLY copy the verts and issue the draw,
- * selecting this draw's slice via DRAW_ARRAYS START_INDEX. Untextured (white
- * texture bound), so the per-vertex colour shows through unchanged. */
+/* Draw the pending run [s_runStart, s_batchUsed) as NV2A triangle lists, then
+ * mark it drawn. Called at every state-change entry point (texture / blend /
+ * scissor), at frame end, and before the readback drain — so the run always
+ * flushes in exact OT order right before the state that would change it.
+ *
+ * Depth test is OFF (painter's order) and we only ever batch ADJACENT same-state
+ * prims, so the framebuffer result is byte-identical to per-prim draws — just a
+ * fraction of the draw calls (town was ~1000-1460 draws/frame, one BEGIN/END +
+ * vertex-cache break per PSX prim).
+ *
+ * CRITICAL: each pb_begin/pb_end block is a COMPLETE, SELF-CONTAINED draw
+ * (BREAK + BEGIN(TRIANGLES) + INDEX_DATA + END). A run larger than one block's
+ * budget is split into MULTIPLE complete sub-draws — NEVER one BEGIN..END
+ * spanning pb blocks, which hangs the NV2A (that was the first attempt's bug).
+ * MAX_DRAW_VERTS=216 keeps a block at 7 + (216/2) = 115 dwords, well under
+ * pbkit's 128-dword-per-block hard limit; 216 is a multiple of 3 so every chunk
+ * boundary lands on a triangle boundary (the run is a concatenation of 3/6-vert
+ * prims, so its total and every chunk are multiples of 3 — no split triangle). */
+#define MAX_DRAW_VERTS 216
+static void GpuNv2a_FlushBatch(void)
+{
+    int start = s_runStart;
+    int total = s_batchUsed - s_runStart;
+    int done  = 0;
+
+    if (total <= 0)
+        return;
+    s_flushCount++;
+
+    while (done < total) {
+        int       chunk = total - done;
+        int       base, ndwords, i;
+        uint32_t* p;
+
+        if (chunk > MAX_DRAW_VERTS)
+            chunk = MAX_DRAW_VERTS;
+        base    = start + done;
+        ndwords = (chunk + 1) / 2;   /* 2 indices/dword */
+
+        p = pb_begin();
+        /* Fresh vertex cache per draw (Star Fox does this before every batch);
+         * indices within a draw are unique+sequential, so no intra-draw alias. */
+        p = pb_push1(p, NV097_BREAK_VERTEX_BUFFER_CACHE, 0);
+        p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_TRIANGLES);
+        pb_push(p++, 0x40000000 | NV20_TCL_PRIMITIVE_3D_INDEX_DATA, ndwords);
+        for (i = 0; i < ndwords; i++) {
+            int a = base + i * 2;
+            int b = a + 1;
+            if (b >= base + chunk)
+                b = base + chunk - 1;   /* odd tail: pad with last (dangling, ignored) */
+            *(p++) = (uint32_t)(a & 0xFFFF) | ((uint32_t)(b & 0xFFFF) << 16);
+        }
+        p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_END);
+        pb_end(p);
+
+        done += chunk;
+    }
+
+    s_runStart = s_batchUsed;
+}
+
+/* Append `count` vertices to the frame's pool. The run stays OPEN and draws as
+ * one batch at the next state change / frame end (GpuNv2a_FlushBatch). Verts are
+ * contiguous, so the run is a plain sequential triangle list. Per-frame draw
+ * state (render state, vertex program, attribute arrays) was set once in
+ * FrameBegin; texture/blend/scissor are set between runs by gpu_xbox.c. */
 void GpuNv2a_EmitTris(const ShVertex* verts, int count)
 {
-    uint32_t* p;
-    int       start;
+    int start;
 
     if (count <= 0 || count > MAX_BATCH_VERTS)
         return;
     if (s_batchUsed + count > MAX_BATCH_VERTS) {
-        /* Pool full mid-frame: flush rather than drop. Wait for the GPU to finish
-         * reading the current pool (attribute base is fixed at s_batch[0]), then
-         * recycle from 0 — already-submitted draws have rendered into the
-         * framebuffer, so the scene accumulates. Rare at this pool size. */
+        /* Pool full mid-frame: draw the pending run FIRST (its verts are about to
+         * be overwritten), drain the GPU (attribute base is fixed at s_batch[0]),
+         * then recycle from 0 — already-drawn runs are in the framebuffer, so the
+         * scene accumulates. Rare at this pool size. */
         static int s_flushLogged = 0;
         if (!s_flushLogged) { SH_DBG("[NV2A] vertex pool flush (> %d verts/frame)", MAX_BATCH_VERTS); s_flushLogged = 1; }
+        GpuNv2a_FlushBatch();
         while (pb_busy()) { }
         s_batchUsed = 0;
+        s_runStart  = 0;
     }
 
     start = s_batchUsed;
     memcpy(s_batch + start, verts, count * sizeof(ShVertex));
     __asm__ __volatile__("sfence" ::: "memory");
     s_batchUsed += count;
-
-    /* Draw via the INDEX_DATA (ARRAY_ELEMENT16) method — two 16-bit vertex
-     * indices per dword — referencing this draw's slice [start, start+count).
-     * (DRAW_ARRAYS with a non-zero START_INDEX misrenders on this NV2A; the
-     * mesh sample uses INDEX_DATA for multi-batch draws and it works.) */
-    {
-        int ndwords = (count + 1) / 2; /* 2 indices/dword, round up */
-        int i;
-        p = pb_begin();
-        /* Invalidate the NV2A vertex cache so this draw fetches fresh verts
-         * instead of reusing a previous draw's cached (stale) vertices — the
-         * cause of the 2nd-draw-per-frame corruption. (Star Fox does this before
-         * every batch.) */
-        p = pb_push1(p, NV097_BREAK_VERTEX_BUFFER_CACHE, 0);
-        p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_TRIANGLES);
-        pb_push(p++, 0x40000000 | NV20_TCL_PRIMITIVE_3D_INDEX_DATA, ndwords);
-        for (i = 0; i < ndwords; i++) {
-            int a = start + i * 2;
-            int b = start + i * 2 + 1;
-            if (b >= start + count)
-                b = start + count - 1; /* odd count: pad with last (dangling, ignored) */
-            *(p++) = (uint32_t)(a & 0xFFFF) | ((uint32_t)(b & 0xFFFF) << 16);
-        }
-        p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_END);
-        pb_end(p);
-    }
 }
