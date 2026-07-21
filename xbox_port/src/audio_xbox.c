@@ -307,8 +307,15 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
                 s = (s * v->envLevel) >> 15;
             }
 
-            L += (s * v->volL) >> 14;
-            R += (s * v->volR) >> 14;
+            {
+                /* Surround (rear buffer present): keep the signed right so a
+                 * "wide" voice's anti-phase right feeds the rear (L-R) matrix
+                 * below and wraps around, like PC. Stereo/mono (no rear): take
+                 * the magnitude so the anti-phase right can't cancel on downmix. */
+                int vr = (!rear && v->volR < 0) ? -v->volR : v->volR;
+                L += (s * v->volL) >> 14;
+                R += (s * vr) >> 14;
+            }
 
             v->pos += v->step;
             if (v->looping) {
@@ -440,7 +447,20 @@ void SpuSetVoiceAttr(SpuVoiceAttr* a)
         if (a->mask & SPU_VOICE_WDSA)  v->addr     = a->addr;
         if (a->mask & SPU_VOICE_LSAX)  v->loopAddr = a->loop_addr;
         if (a->mask & SPU_VOICE_VOLL)  v->volL     = a->volume.left  & 0x3FFF;
-        if (a->mask & SPU_VOICE_VOLR)  v->volR     = a->volume.right & 0x3FFF;
+        if (a->mask & SPU_VOICE_VOLR) {
+            /* volume.right is a SIGNED short; SH negates it to mark "wide"
+             * ambience/music (smf_io.c) — PC keeps the sign and the negative
+             * (anti-phase) right routes that content to the rears. The old
+             * `& 0x3FFF` STRIPPED the sign (and mangled the magnitude:
+             * -0x1000 -> 0x3000), collapsing wide voices to mono so nothing
+             * reached the rear (L-R) feed. Preserve the sign, clamped; the
+             * mixer takes the magnitude for a stereo/mono downmix (where an
+             * anti-phase right would cancel) but keeps it for surround. */
+            int r = a->volume.right;
+            if (r >  0x3FFF) r =  0x3FFF;
+            if (r < -0x3FFF) r = -0x3FFF;
+            v->volR = r;
+        }
         if (a->mask & SPU_VOICE_PITCH) {
             v->pitch = a->pitch;
             v->step  = ((double)SRC_HZ / (double)OUT_HZ) * ((double)a->pitch / 4096.0);

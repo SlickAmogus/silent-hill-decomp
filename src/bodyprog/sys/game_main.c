@@ -2329,7 +2329,20 @@ void MainLoop(void) // 0x80032EE0
              * correctly near a single frame rate (~50fps). Reverted per user
              * request: cap the cutscene step like normal gameplay so cutscenes
              * behave the same across frame rates as they did before. */
+#ifdef SH_XBOX_PORT
+            /* Xbox: cap the step at the 20fps move, not 30fps. The 733MHz/NV2A
+             * town/combat dips below 30fps, and a 30fps-step cap turns every dip
+             * into slow-motion (a 25fps frame advances game-time at 25/30 = 83%
+             * speed — "slows down a lot"). At /20 the game runs REAL-TIME down to
+             * 20fps and only slows below that. The invisible-wall over-reach the
+             * cap guards (Collision_WallDetect sweeps moveSpeed*dt): measured
+             * per-frame sweep is 9-12 units vs Harry's 76-unit body radius, so
+             * /20 (1.5x = ~18 units) is well within the standoff and strictly
+             * SAFER than the PSX-original 15fps floor (2x) that shipped fine. */
+            vCount = MIN(vCount, H_BLANKS_PER_SECOND / 20);
+#else
             vCount = MIN(vCount, H_BLANKS_PER_SECOND / 30);
+#endif
 #endif
         }
 

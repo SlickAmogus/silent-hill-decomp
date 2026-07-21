@@ -444,6 +444,12 @@ static void GpuNv2a_FlushBatch(void)
         return;
     s_flushCount++;
 
+    /* One store fence per draw (not per appended prim): flushes the WC pool
+     * writes for every vertex in this run to global visibility before the GPU
+     * DMA-reads them. ~1 fence per draw vs ~1 per prim (~958/frame) — the
+     * store-buffer serialization was a real per-prim CPU cost. */
+    __asm__ __volatile__("sfence" ::: "memory");
+
     while (done < total) {
         int       chunk = total - done;
         int       base, ndwords, i;
@@ -502,6 +508,5 @@ void GpuNv2a_EmitTris(const ShVertex* verts, int count)
 
     start = s_batchUsed;
     memcpy(s_batch + start, verts, count * sizeof(ShVertex));
-    __asm__ __volatile__("sfence" ::: "memory");
-    s_batchUsed += count;
+    s_batchUsed += count;   /* sfence deferred to GpuNv2a_FlushBatch (per draw) */
 }
