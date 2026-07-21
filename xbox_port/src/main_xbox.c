@@ -160,6 +160,7 @@ int main(void)
             XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
 
         XboxFs_MountHomeDrive();
+        { extern int XboxFs_MountE(void); XboxFs_MountE(); }  /* mount E: now so the log's E: fallback works */
 
         /* Config: PC's own parser + defaults (pc_config.c is SDL-free and is
          * compiled on Xbox). There is no launcher here, so silenthill.cfg on the
@@ -209,14 +210,36 @@ int main(void)
     pb_show_front_screen();
     SH_DBG("[SH-XBOX] pbkit initialised");
 
+    /* Open the BIN NOW (before the banner) so it can report whether it loaded. */
+    Cd_XboxInit();
+
+    /* On-screen boot banner — held ~8s so it can be read/photographed. Puts the
+     * whole "is it even finding the disc image?" story on the TV, independent of
+     * any log file (which needs a writable drive we may not have): the build ID,
+     * where D: got mapped, and — the key line — exactly which path the BIN
+     * opened from (or NOT FOUND). */
+    {
+        #include "sh_build_info_xbox.h"
+        extern char g_XboxHomeNtPath[]; extern int g_XboxHomeWasMounted, g_XboxHomeMountOk;
+        extern char g_CdBinPath[];
+        extern const char* g_ShLogPath;
+        int f;
+        debugPrint("\n\n   SILENT HILL (Xbox)   build %s\n", SH_XBOX_BUILD_HASH);
+        debugPrint("   stamp %s\n\n", SH_XBOX_BUILD_STAMP);
+        debugPrint("   D: -> %s\n", g_XboxHomeNtPath);
+        debugPrint("        wasMounted=%d  remap=%s\n", g_XboxHomeWasMounted, g_XboxHomeMountOk ? "ok" : "FAILED");
+        debugPrint("   BIN: %s\n", g_CdBinPath);
+        debugPrint("   LOG: %s\n", g_ShLogPath);
+        pb_show_debug_screen();
+        for (f = 0; f < 8; f++)
+            Sleep(1000);           /* ~8s, no game rendering yet */
+    }
+
     GpuNv2a_Init();
 
     /* Bring up the USB controller (safe no-op if none is connected). */
     Pad_XboxInit();
     SH_DBG("[SH-XBOX] USB pad init done");
-
-    /* Open the BIN disc image on D: for real asset loading (libcd reads). */
-    Cd_XboxInit();
 
     /* PSX kernel events + memory card: mounts E:, resolves the save dir
      * (E:\UDATA\SH010000\0.MCD or D:\SilentHill\save fallback) and formats a

@@ -14,9 +14,14 @@
  * matches the game's libcd prototypes at the ABI level.
  */
 #include <windows.h>
+#include <nxdk/mount.h>
+#include <nxdk/path.h>
 #include <stdio.h>
 #include <string.h>
 #include "sh_log.h"
+
+/* Where the BIN actually opened (for the on-screen boot banner). */
+char g_CdBinPath[MAX_PATH] = "NOT FOUND";
 
 typedef unsigned char u8;
 
@@ -63,19 +68,24 @@ static void Cd_SetStreamBuffer(void)
 
 void Cd_XboxInit(void)
 {
-    /* Check both layouts: next to the XBE (D: root) and in a gamedata\ subfolder
-     * (matching the PC port's ./gamedata convention, so a copied PC setup works). */
+    /* Q: = the XBE's OWN directory, mounted here to a PRIVATE drive letter via
+     * its real launch NT path. This loads the BIN from right next to the XBE
+     * regardless of what the dashboard left D: pointing at (usually the empty
+     * DVD drive) — the actual root cause of "acts as if no disc is present". D:
+     * paths are kept as a fallback. */
     static const char* const names[] = {
+        "Q:\\Silent Hill (USA).bin",
         "D:\\Silent Hill (USA).bin",
+        "Q:\\gamedata\\Silent Hill (USA).bin",
         "D:\\gamedata\\Silent Hill (USA).bin",
+        "Q:\\Silent Hill (USA) (Track 1).bin",
         "D:\\Silent Hill (USA) (Track 1).bin",
-        "D:\\gamedata\\Silent Hill (USA) (Track 1).bin",
+        "Q:\\Silent Hill (USA) (Track 01).bin",
         "D:\\Silent Hill (USA) (Track 01).bin",
-        "D:\\gamedata\\Silent Hill (USA) (Track 01).bin",
+        "Q:\\Silent Hill.bin",
         "D:\\Silent Hill.bin",
-        "D:\\gamedata\\Silent Hill.bin",
     };
-    static const char* const scanDirs[] = { "D:\\", "D:\\gamedata\\" };
+    static const char* const scanDirs[] = { "Q:\\", "D:\\", "Q:\\gamedata\\", "D:\\gamedata\\" };
     WIN32_FIND_DATAA fd;
     HANDLE           h;
     unsigned         i;
@@ -83,17 +93,31 @@ void Cd_XboxInit(void)
     if (s_bin)
         return;
 
+    /* Mount Q: to the launch dir (idempotent; independent of D:). */
+    {
+        char home[MAX_PATH];
+        char* ls;
+        nxGetCurrentXbeNtPath(home);
+        ls = strrchr(home, '\\');
+        if (ls) *(ls + 1) = '\0';
+        if (!nxIsDriveMounted('Q'))
+            nxMountDrive('Q', home);
+        SH_DBG("[CD] xbe dir = '%s' (mounted Q:)", home);
+    }
+
     for (i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
         s_bin = fopen(names[i], "rb");
         if (s_bin) {
             Cd_SetStreamBuffer();
+            strncpy(g_CdBinPath, names[i], sizeof(g_CdBinPath) - 1);
+            g_CdBinPath[sizeof(g_CdBinPath) - 1] = '\0';
             SH_DBG("[CD] disc image: %s", names[i]);
             return;
         }
         SH_DBG("[CD] not found: %s", names[i]);
     }
 
-    /* Fallback: any *.bin in either directory. */
+    /* Fallback: any *.bin in these directories. */
     for (i = 0; i < sizeof(scanDirs) / sizeof(scanDirs[0]); i++) {
         char pattern[MAX_PATH];
         snprintf(pattern, sizeof(pattern), "%s*.bin", scanDirs[i]);
@@ -105,12 +129,15 @@ void Cd_XboxInit(void)
             s_bin = fopen(path, "rb");
             if (s_bin) {
                 Cd_SetStreamBuffer();
+                strncpy(g_CdBinPath, path, sizeof(g_CdBinPath) - 1);
+                g_CdBinPath[sizeof(g_CdBinPath) - 1] = '\0';
                 SH_DBG("[CD] disc image (scan): %s", path);
                 return;
             }
         }
     }
-    SH_DBG("[CD] NO .bin found on D:\\ or D:\\gamedata\\ — see filenames tried above");
+    strncpy(g_CdBinPath, "NOT FOUND (Q:/D:)", sizeof(g_CdBinPath) - 1);
+    SH_DBG("[CD] NO .bin found on Q:\\ or D:\\ — see filenames tried above");
 }
 
 void CdInit(void) { Cd_XboxInit(); }
