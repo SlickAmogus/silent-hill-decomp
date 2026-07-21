@@ -308,17 +308,10 @@ void GpuNv2a_FrameBegin(void)
 
 void GpuNv2a_FrameEnd(void)
 {
-    GpuNv2a_FlushBatch();   /* draw the frame's final run before we present */
+    unsigned tFlush, tSwap, tNow;
 
-    /* Batching effectiveness: draws issued this frame (BEGIN/END + vertex-cache
-     * breaks). Pre-batching this equalled the primitive count (~1000-1460 in
-     * town); a big drop is the perf win landing. Rate-limited to ~1/10s. */
-    {
-        static unsigned s_dbgFrame;
-        if ((++s_dbgFrame % 600) == 0)
-            SH_DBG("[BATCH] draws/frame=%u verts=%d", s_flushCount, s_batchUsed);
-    }
-    s_flushCount = 0;
+    tFlush = (unsigned)KeTickCount;      /* ms clock (1ms resolution) */
+    GpuNv2a_FlushBatch();   /* draw the frame's final run before we present */
 
     /* Remember this frame's surface for the framebuffer readback BEFORE
      * pb_finished() advances pb_back_index (pb_back_buffer() then points at the
@@ -330,7 +323,25 @@ void GpuNv2a_FrameEnd(void)
      * at vblank and only blocks when we're >2 frames ahead (the triple-buffer table
      * is full) — correct backpressure that lets the CPU build frame N+1 while the
      * GPU rasterizes frame N. */
+    tSwap = (unsigned)KeTickCount;
     while (pb_finished()) { }
+    tNow = (unsigned)KeTickCount;
+
+    /* Frame-time breakdown (the 5-10fps town/combat is ~100ms/frame; static
+     * analysis says ~10-20ms, so a big cost is hiding). frame = wall ms since
+     * the previous FrameEnd (total frame time incl. the game's CPU work between
+     * frames); swapWait = ms blocked in pb_finished (GPU behind = fill/draw
+     * bound); a large swapWait vs frame => GPU-bound, small => CPU-bound. */
+    {
+        static unsigned s_dbgFrame, s_lastEnd;
+        if ((++s_dbgFrame % 120) == 0) {
+            SH_DBG("[FT] frame=%ums swapWait=%ums flushMs=%ums draws=%u verts=%d",
+                   s_lastEnd ? (tNow - s_lastEnd) : 0, tNow - tSwap, tSwap - tFlush,
+                   s_flushCount, s_batchUsed);
+        }
+        s_lastEnd = tNow;
+    }
+    s_flushCount = 0;
 }
 
 /* CPU-visible A8R8G8B8 surface for the gated framebuffer->PSX-VRAM readback
