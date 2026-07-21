@@ -928,6 +928,34 @@ around the item-only OT0 draw.
 PGXP is on (previously affine). This is the intended behaviour of the setting, but it
 is a visible change to water with `use_pgxp = 1` and is worth an A/B.
 
+## World-pickup freeze engages at the interaction start, not model-load end (2026-07-21)
+
+**Symptom**: examining a common ground pickup (First Aid, Health Drink, ammo) made
+the camera briefly slide to a new angle and freeze there under the rotating item
+until Yes/No.
+
+**Root cause**: the see-through freeze (`Gfx_PickupItemAnimate` sets
+`BgmStatusFlag_Pause` + `g_PsxPresentLastFrame`, isolating the item in OT0 — see the
+PGXP/see-through section above) engages only once the model finishes its **async**
+load, several frames into `Event_ItemTake`. Through that variable-length load window
+the world still renders live, so `vcMoveAndSetCamera` (gated on `!BgmStatusFlag_Pause`,
+`game_sys_states.c`) keeps easing the fixed camera toward its zone target. The freeze
+then snapshots the camera **mid-ease** — a shifted, "stuck" backdrop whose angle
+depended on how long the load took.
+
+**Fix** (`events_util.c`, `Event_ItemTake` `EventState_LoadItemModel`, `#ifdef
+SH_PC_PORT`): arm the same pause + present-last-frame + `g_PcPickupItemActive` at the
+**start** of the interaction (the `LoadItemModel` case, which the `Initialize` case
+falls through into), so the pre-examine frame the player was already looking at is
+held for the whole pickup. The model still loads — `Fs_QueueChunksLoad` runs outside
+the pause gate. OT0 is empty while paused-and-not-yet-loaded, so arming
+`g_PcPickupItemActive` early only extends the existing release edge over the load
+window; the depth bracket has no item prims to touch until `Gfx_PickupItemAnimate`
+draws the model, so the see-through fix still never reaches the world. **Common
+pickups only** — the special key pickups (`func_800DC778` etc.) play a scripted reach
+animation (`Event_CharaAnimPlayToEnd`) before their `Gfx_PickupItemAnimate`, so their
+camera movement is intended and their timing is left alone.
+
 ## Alt cameras stand down for scripted scenes; optional TPS/OTS camera collision (2026-07-14, commit `ff77c3d85`)
 
 **Symptom**: small in-engine scenes — Harry's sewer ladder descent above all — were
