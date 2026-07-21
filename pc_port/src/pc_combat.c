@@ -415,11 +415,25 @@ void Pc_ExtraActionsUpdate(void)
 
     Pc_ManualReloadSample(sch);
 
+    /* Reload is an AIMING action, so it must NOT be subject to Pc_ActionSafe's
+     * movement-state ceiling (Aim=19 outranks SidestepRightStumble=18, so that
+     * gate is false the entire time a gun is raised — which is the only time you
+     * can reload). Pc_ExtraActionsUpdate runs before the combat FSM each frame,
+     * so clearing the request here (as the old gate did) wiped it before the FSM
+     * could ever see it: manual reload never fired. Drop it only when gameplay
+     * itself ends; its own Pc_ManualReloadConditions gates when it is set, the
+     * FSM consumes it, and the 0.30s latch carries a press the FSM can't act on. */
+    if (g_GameWork.gameState != GameState_InGame ||
+        g_SysWork.sysState   != SysState_Gameplay ||
+        g_Player_DisableControl)
+    {
+        g_PcReloadRequest = 0;
+        s_reloadLatchT    = 0;
+    }
+
     if (!Pc_ActionSafe())
     {
         g_PcQuickTurnRequest = 0; /* not safe gameplay -> drop any pending turn */
-        g_PcReloadRequest    = 0; /* ditto any pending reload */
-        s_reloadLatchT       = 0;
         return;
     }
     if (cycleClicked) Pc_CycleWeapons();
