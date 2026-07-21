@@ -4125,6 +4125,21 @@ void func_800DD0EC(const VECTOR3* pos, s32 coordIdx) // 0x800DD0EC
     ptr = &D_800F48A8;
 
     ptr0 = func_800DD090();
+#ifdef SH_PC_PORT
+    /* [INCUB-ATK] the boss reaches its attack states (probe confirmed cs=3) but
+     * you see no attack. This fires only when an attack actually TRIES to spawn
+     * a projectile. slot=NULL => the D_800F3DAC pool handed out nothing (pointer
+     * stale / buffer stomped / all 30 slots stuck non-zero) = the bug. slot=OK =>
+     * projectiles spawn but don't render/damage (look downstream). If this line
+     * never appears, the attack rolls never fire. TEMP. */
+    {
+        static int _atk = 0;
+        if ((_atk++ % 8) == 0)
+            SH_DBG("[INCUB-ATK] spawn try coordIdx=%d slot=%s D_800F3DAC=%p pos=(%d,%d,%d)",
+                   (int)coordIdx, ptr0 ? "OK" : "NULL", (void*)D_800F3DAC,
+                   (int)(pos->vx >> 12), (int)(pos->vy >> 12), (int)(pos->vz >> 12));
+    }
+#endif
     if (ptr0 != NULL)
     {
         // Compute rotation matrix.
