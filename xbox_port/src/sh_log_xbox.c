@@ -23,12 +23,27 @@ void (*g_ShOverlayPushLine)(const char*) = NULL;
  * mid-loop the way line-buffering dropped it. */
 static char s_logBuf[256 * 1024];
 
+/* Where the log actually opened (for the on-screen boot banner). */
+const char* g_ShLogPath = "(none)";
+
 void SH_DebugLogInit(void)
 {
     if (g_ShDebugLog)
         return;
 
+    /* D: is the launch dir — READ-ONLY when booting from a disc/ISO, which
+     * silently gave "no log". Fall back to E: (the writable data partition,
+     * where the memory card lives) and finally a relative path. */
     g_ShDebugLog = fopen("D:\\silenthill.log", "w");
+    if (g_ShDebugLog)      g_ShLogPath = "D:\\silenthill.log";
+    if (!g_ShDebugLog) {
+        g_ShDebugLog = fopen("E:\\silenthill.log", "w");
+        if (g_ShDebugLog)  g_ShLogPath = "E:\\silenthill.log";
+    }
+    if (!g_ShDebugLog) {
+        g_ShDebugLog = fopen("silenthill.log", "w");
+        if (g_ShDebugLog)  g_ShLogPath = "silenthill.log";
+    }
     if (g_ShDebugLog)
         setvbuf(g_ShDebugLog, s_logBuf, _IOFBF, sizeof(s_logBuf));
 }

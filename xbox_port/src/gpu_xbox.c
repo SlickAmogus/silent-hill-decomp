@@ -321,33 +321,6 @@ static int ProcessPoly(P_TAG* tag)
     }
 #endif
 
-    /* Drop the depth-divide-exploded effect quad. Muzzle flash / blood / glass
-     * shards are FLAT-textured semi-transparent sprites (POLY_FT3/FT4|ABE) whose
-     * half-size is computed factor/depth (bodyprog_8005E0DC.c func_80064334
-     * field_160) — at close range that balloons to a screen-wide quad, and
-     * PolyOversized's raw 1024/512 threshold is 2x too loose after the ~2x screen
-     * scale, so it sails through and smears a wide subtractive-cyan RED (or
-     * additive) rectangle. Reject when the on-screen span exceeds 2x the content
-     * rect (a real sprite is tens of px; a legit full-screen quad ~640; only the
-     * blow-up reaches 1280+). Scoped to !gouraud+textured+abe so world geometry
-     * (GT4) and the untextured full-screen fade/fog G4s are never touched. */
-    if (!gouraud && textured && abe) {
-        int j, mnx = 99999, mxx = -99999, mny = 99999, mxy = -99999;
-        const int nv = quad ? 4 : 3;
-        for (j = 0; j < nv; j++) {
-            int X = (int)v[j].pos[0], Y = (int)v[j].pos[1];
-            if (X < mnx) mnx = X; if (X > mxx) mxx = X;
-            if (Y < mny) mny = Y; if (Y > mxy) mxy = Y;
-        }
-        if ((mxx - mnx) >= 2 * g_Nv2aContentW || (mxy - mny) >= 2 * g_Nv2aContentH) {
-            static unsigned s_fx;
-            if ((s_fx++ & 0x3F) == 0)
-                SH_DBG("[FXDROP] code=0x%02x abr=%d tp=0x%x span=%dx%d",
-                       code, (blendTpage >> 5) & 3, blendTpage, mxx - mnx, mxy - mny);
-            return primLen;   /* skip the emit; walk stays in sync */
-        }
-    }
-
     /* Semi-transparent (ABE) prims use the tpage's ABR mode (bits 5-6): 0 =
      * 0.5B+0.5F average, 1 = B+F additive (fire/flashlight glow), 2 = B-F
      * subtractive (shadow darkening), 3 = B+0.25F. Textured prims carry the STP

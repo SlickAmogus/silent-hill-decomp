@@ -255,19 +255,21 @@ void __stdcall XMemFree_stub(void *pAddress, DWORD dwAttributes)
 }
 __asm__(".globl _XMemFree@8\n_XMemFree@8 = _XMemFree_stub@8");
 
-/* XGetAudioFlags — the prebuilt RXDK dsapi.obj calls this to pick which GP/EP
- * DSP encoder image to load. Return 0, exactly like the Duke3D port that gets
- * real discrete 5.1 on the same hardware: the console's dashboard EEPROM was
- * reporting SURROUND|AC3|DTS (0x00030002), and handing dsapi the DTS bit made
- * it select an AC3+DTS encoder that conflicts with our AC3-only speaker config
- * (DirectSoundOverrideSpeakerConfig in dsound_xbox.c) — the whole bitstream
- * went silent on a real receiver. With 0 here, dsapi loads its default and OUR
- * explicit SURROUND|AC3 override + the rear/center mixbins drive the 5.1. The
- * EEPROM is still read directly in Audio_XboxInit for s_surround/AC3, so this
- * does NOT downgrade to stereo. */
+/* XGetAudioFlags — the dashboard's audio mode from the EEPROM (XC_AUDIO=9),
+ * so the dsound objs see the user's real stereo/surround/AC3 setting. Cached;
+ * falls back to 0 (stereo) if the kernel query fails. */
 DWORD __stdcall XGetAudioFlags_stub(void)
 {
-    return 0; /* XC_AUDIO_FLAGS_STEREO — Duke3D-proven; see comment above */
+    static DWORD flags   = 0;
+    static int   queried = 0;
+    if (!queried) {
+        ULONG type = 0, val = 0, len = 0;
+        if (ExQueryNonVolatileSetting(9 /* XC_AUDIO */, &type, &val, sizeof(val), &len) >= 0)
+            flags = (DWORD)val;
+        queried = 1;
+        xbox_log("XGetAudioFlags: eeprom audio flags=0x%08x\n", (unsigned)flags);
+    }
+    return flags;
 }
 __asm__(".globl _XGetAudioFlags@0\n_XGetAudioFlags@0 = _XGetAudioFlags_stub@0");
 

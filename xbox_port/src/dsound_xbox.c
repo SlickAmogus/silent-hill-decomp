@@ -255,20 +255,6 @@ void Audio_XboxPump(void)
                 }
                 if (p1 && b1) Audio_RenderInto6((short*)p1, (short*)r1, (short*)c1, (int)(b1 / DS_BLOCK_ALIGN));
                 if (p2 && b2) Audio_RenderInto6((short*)p2, (short*)r2, (short*)c2, (int)(b2 / DS_BLOCK_ALIGN));
-                /* Silence diagnostic: peak of what we WROTE to the hardware front
-                 * ring. peak>0 while inaudible => the mix is fine, the surround/AC3
-                 * OUTPUT path is the culprit. peak==0 => the software mix itself is
-                 * silent (a different bug). Rate-limited ~1/s. */
-                if (p1 && b1) {
-                    static unsigned s_pk, s_pkCnt;
-                    const short* sp = (const short*)p1;
-                    unsigned k, n = b1 / 2;
-                    for (k = 0; k < n; k++) { int a = sp[k]; if (a < 0) a = -a; if ((unsigned)a > s_pk) s_pk = (unsigned)a; }
-                    if (++s_pkCnt >= 60) {
-                        SH_DBG("[SH_AUDIO] pump front peak=%u avail=%u surround=%d", s_pk, (unsigned)avail, s_surround);
-                        s_pk = 0; s_pkCnt = 0;
-                    }
-                }
                 if (r1 || r2) IDirectSoundBuffer_Unlock(s_bufRear, r1, rb1, r2, rb2);
                 if (c1 || c2) IDirectSoundBuffer_Unlock(s_bufCen,  c1, cb1, c2, cb2);
                 IDirectSoundBuffer_Unlock(s_buf, p1, b1, p2, b2);

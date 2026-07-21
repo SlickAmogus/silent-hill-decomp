@@ -549,11 +549,7 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
     int            count, i;
     const s_PcOpt* tbl = PcOpt_Page(&count);
     DVECTOR        strPos  = { 100, 20 };
-#ifdef SH_XBOX_PORT
-    const char*    HEADING = "Xbox_Options";
-#else
     const char*    HEADING = "PC_Options";
-#endif
 
     Gfx_StringSetColor(StringColorId_White);
     Gfx_StringSetPosition(strPos.vx, strPos.vy);
@@ -1761,9 +1757,7 @@ void Options_MainOptionsMenu_EntryStringsDraw(void) // 0x801E42EC
         "Exit",
         "Brightness_Level",
         "Controller_Config",
-#if defined(SH_XBOX_PORT)
-        "Xbox_Options",
-#elif defined(SH_PC_PORT)
+#ifdef SH_PC_PORT
         "PC_Options",
 #else
         "Screen_Position",
