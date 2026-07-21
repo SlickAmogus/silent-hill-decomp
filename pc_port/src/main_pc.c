@@ -926,6 +926,29 @@ int main(int argc, char* argv[])
         SH_LOG("GL Renderer: %s", gl_renderer ? gl_renderer : "(null)");
         SH_LOG("GL Vendor:   %s", gl_vendor   ? gl_vendor   : "(null)");
         SH_LOG("GL Version:  %s", gl_version  ? gl_version  : "(null)");
+
+        /* AMD GPUs hit an undefined-texture-read corruption (blue/black
+         * spike/wedge fills, worst in Nowhere) in the resident-texture pool path
+         * that NVIDIA/Intel don't — root cause still open (2026-07-21), and the
+         * reporter's resident_textures=0 bisect is a confirmed clean workaround.
+         * Until it's root-fixed, default resident_textures OFF on AMD so those
+         * users get a correct image out of the box. A user who set
+         * resident_textures explicitly in config.cfg keeps their choice; other
+         * vendors are unchanged. AMD reports vendor "ATI Technologies Inc." /
+         * "Advanced Micro Devices" (renderer carries "Radeon"/"AMD"). */
+        if (!g_PcConfig.residentTexturesUserSet && g_PcConfig.residentTextures)
+        {
+            const char* v = gl_vendor   ? gl_vendor   : "";
+            const char* r = gl_renderer ? gl_renderer : "";
+            if (strstr(v, "ATI") || strstr(v, "AMD") || strstr(v, "Advanced Micro Devices") ||
+                strstr(r, "AMD") || strstr(r, "Radeon"))
+            {
+                g_PcConfig.residentTextures = 0;
+                SH_DBG("[CONFIG] AMD GPU ('%s') — resident_textures defaulted OFF "
+                       "(a known AMD-only corruption; set resident_textures=1 in "
+                       "config.cfg to force it on)", r[0] ? r : v);
+            }
+        }
     }
 
     /* Apply keyboard/controller bindings + movement/debug options from config

@@ -54,6 +54,8 @@ typedef struct {
                            * virtual slots backed by persistent per-slot GL textures (whole map stays textured,
                            * no page stealing — the flat/rainbow class). 0 = vanilla 8+2 pool + PC keep-4/steal.
                            * (config key: resident_textures) */
+    int residentTexturesUserSet; /* 1 = resident_textures was set explicitly in config.cfg; suppresses the
+                                  * AMD auto-off default applied in main_pc.c after the GPU vendor is known. */
     int texturePacks;     /* 1 = scan gamedata/texturemods/ for DuckStation-format texture packs
                            * (texupload-*.png, loose folders or .zip archives) and apply them by content
                            * hash at TIM upload (config key: texture_packs) */

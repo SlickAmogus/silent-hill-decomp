@@ -454,6 +454,7 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "resident_textures") == 0)
         {
             g_PcConfig.residentTextures = (atoi(value) != 0);
+            g_PcConfig.residentTexturesUserSet = 1; /* explicit choice overrides the AMD auto-off default */
         }
         else if (strcmp(key, "texture_packs") == 0)
         {
