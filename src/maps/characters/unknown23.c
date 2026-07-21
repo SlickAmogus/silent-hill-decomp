@@ -962,30 +962,30 @@ void func_800E08E4(s_SubCharacter* chara, GsCOORDINATE2* boneCoords) // 0x800E08
 
 void func_800E0914(s_SubCharacter* chara) // 0x800E0914
 {
+#ifdef SH_PC_PORT
+    /* Arm the boss-FX pool draw+free for the Incubator's live fight, mirroring
+     * the Incubus's func_800DF074. func_800DD6CC's gate (D_800F4820 ||
+     * g_PcBossFxArmedDraw) is FALSE during the gameplay fight — D_800F4820 is
+     * only set inside the cutscene/ending step-machines — so func_800DC544 never
+     * ran here: the projectile pool (D_800F3DAC) was never drawn OR freed,
+     * exhausted after ~4 spawns, and the boss stopped attacking. The e2806aa65
+     * gate armed the Incubus caller but not this one. Gate on the combat
+     * controlStates (2 telegraph, 3 attack) so pre-fight stale pool entries stay
+     * suppressed exactly as before. */
+    extern int g_PcBossFxArmedDraw;
+    int armed = (chara->model.controlState == 2 || chara->model.controlState == 3);
+    if (armed) g_PcBossFxArmedDraw = 1;
+    func_800DD6CC();
+    if (armed) g_PcBossFxArmedDraw = 0;
+    func_800DF944();
+#else
     func_800DD6CC();
     func_800DF944();
+#endif
 }
 
 void Unknown23_Update(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords) // 0x800E093C
 {
-#ifdef SH_PC_PORT
-    /* [INCUB] bad/bad+ boss "stands there, no attack" probe. If this line never
-     * appears, Unknown23_Update isn't the live update func (charaUpdateFuncs[
-     * Chara_Incubator] is Incubator_Update, the non-attacking cutscene form) —
-     * the func_800E9498 fight override didn't stick. If it appears but cs never
-     * reaches 3, the controlState telegraph (func_800E0528) is stuck. If cs==3
-     * but bones==0, the attack pass gets NULL bone coords. If cs==3 & bones=1
-     * yet nothing spawns, the attack effects (func_800DD0EC/DD260/DD464) are the
-     * problem. One run of the bad ending discriminates all four. TEMP. */
-    {
-        static int _inc = 0;
-        if ((_inc++ % 30) == 0)
-            SH_DBG("[INCUB] Unknown23_Update: cs=%d step=%d bones=%d dt=%d anim=%d",
-                   (int)chara->model.controlState, (int)chara->model.stateStep,
-                   boneCoords != NULL, (int)(g_DeltaTime != Q12(0.0f)),
-                   (int)chara->model.anim.status);
-    }
-#endif
     if (chara->model.controlState == 0)
     {
         Unknown23_Init(chara, boneCoords);

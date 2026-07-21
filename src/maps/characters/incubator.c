@@ -1,27 +1,11 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/math/math.h"
 #include "maps/characters/incubator.h"
-#ifdef SH_PC_PORT
-#include "sh_log.h"
-#endif
 
 #define incubatorProps incubator->properties.npc
 
 void Incubator_Update(s_SubCharacter* incubator, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords) // 0x800D3BC4
 {
-#ifdef SH_PC_PORT
-    /* [INCUB-CUT] companion to the [INCUB] probe in Unknown23_Update. If THIS
-     * fires during the bad-ending FIGHT, the non-attacking cutscene form is live
-     * because the func_800E9498 swap to Unknown23_Update didn't take — that IS
-     * the "stands there, no attack" bug. If neither probe fires, the boss hit
-     * the render-only NULL-update-func statue pose. TEMP. */
-    {
-        static int _incc = 0;
-        if ((_incc++ % 30) == 0)
-            SH_DBG("[INCUB-CUT] Incubator_Update (non-attacking cutscene form): cs=%d step=%d bones=%d",
-                   (int)incubator->model.controlState, (int)incubator->model.stateStep, boneCoords != NULL);
-    }
-#endif
     if (incubator->model.charaId != Chara_Incubator)
     {
         Incubator_Init(incubator);
