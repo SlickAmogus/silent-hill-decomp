@@ -1,5 +1,21 @@
 #include "game.h"
 
+#ifdef SH_XBOX_PORT
+/* Frame-cost localizer: the [FT]/[OTT] probes proved the chase-cam slowdown is
+ * CPU-bound and NOT in the render backend (DrawOTag walk = 2ms) — it is before
+ * the walk, in the game update. Cycle-count (rdtsc, 733MHz -> /733000 = ms) the
+ * two prime suspects in the main loop: the whole GameState update (sim + world
+ * draw / OT build) and DrawSync (which triggers the framebuffer readback), and
+ * log them on any slow frame so there is no sampling doubt. */
+static inline unsigned long long ShxLoopRdtsc(void)
+{
+    unsigned lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((unsigned long long)hi << 32) | lo;
+}
+extern unsigned long long g_XbWorldDrawCycles;   /* world_draw.c: Gfx_WorldObjectsDraw */
+#endif
+
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include "pc_config.h"
@@ -2042,7 +2058,26 @@ void MainLoop(void) // 0x80032EE0
 #endif
 
         // Call update function for current GameState.
+#ifdef SH_XBOX_PORT
+        {
+            unsigned long long _updT0 = ShxLoopRdtsc();
+            g_XbWorldDrawCycles = 0;
+            g_GameStateUpdateFuncs[g_GameWork.gameState]();
+            {
+                unsigned stateMs = (unsigned)((ShxLoopRdtsc() - _updT0) / 733000ULL);
+                unsigned worldMs = (unsigned)(g_XbWorldDrawCycles / 733000ULL);
+                static unsigned s_updSample;
+                /* Log every slow update (>25ms) plus a periodic sample. stateMs =
+                 * whole update (game sim + all rendering/OT-build); worldMs = just
+                 * Gfx_WorldObjectsDraw; stateMs-worldMs ~= game sim + other draws. */
+                if (stateMs > 25 || (++s_updSample % 240) == 0)
+                    SH_DBG("[UPD] stateMs=%u worldMs=%u state=%d sub=%d",
+                           stateMs, worldMs, g_GameWork.gameState, g_SysWork.sysState);
+            }
+        }
+#else
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
+#endif
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState == GameState_InGame) {
             /* Canary checks after InGame state update */
@@ -2151,7 +2186,19 @@ void MainLoop(void) // 0x80032EE0
         ML_TRACE("func_8008D78C");
         func_8008D78C(); // Camera update?
         ML_TRACE("DrawSync");
+#ifdef SH_XBOX_PORT
+        {
+            unsigned long long _syncT0 = ShxLoopRdtsc();
+            DrawSync(SyncMode_Wait);
+            {
+                unsigned syncMs = (unsigned)((ShxLoopRdtsc() - _syncT0) / 733000ULL);
+                if (syncMs > 8)
+                    SH_DBG("[UPD] drawSyncMs=%u (readback)", syncMs);
+            }
+        }
+#else
         DrawSync(SyncMode_Wait);
+#endif
         ML_TRACE("VSync-begin");
         // Handle V sync.
         if (g_SysWork.sysFlags & SysFlag_DemoActive)

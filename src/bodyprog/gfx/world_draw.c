@@ -621,9 +621,25 @@ void Gfx_WorldObjectsClear(s_WorldGfxWork* worldGfxWork) // 0x8003CB3C
     worldGfxWork->objectCount = 0;
 }
 
+#ifdef SH_XBOX_PORT
+/* Cycle count of the world-object draw pass (GTE transform + addPrim), read and
+ * reset each frame by the game_main.c [UPD] localizer to attribute the chase-cam
+ * CPU cost. Accumulated (not overwritten) in case the pass runs more than once. */
+unsigned long long g_XbWorldDrawCycles = 0;
+static inline unsigned long long ShxWdRdtsc(void)
+{
+    unsigned lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((unsigned long long)hi << 32) | lo;
+}
+#endif
+
 void Gfx_WorldObjectsDraw(s_WorldGfxWork* worldGfxWork) // 0x8003CB44
 {
     s_WorldObject* curObj;
+#ifdef SH_XBOX_PORT
+    unsigned long long _wd0 = ShxWdRdtsc();
+#endif
 
     // Run through world objects to draw.
     for (curObj = &worldGfxWork->objects[0]; curObj < &worldGfxWork->objects[worldGfxWork->objectCount]; curObj++)
@@ -632,6 +648,9 @@ void Gfx_WorldObjectsDraw(s_WorldGfxWork* worldGfxWork) // 0x8003CB44
     }
 
     worldGfxWork->objectCount = 0;
+#ifdef SH_XBOX_PORT
+    g_XbWorldDrawCycles += ShxWdRdtsc() - _wd0;
+#endif
 }
 
 void Gfx_WorldObjectDraw(s_WorldObject* obj) // 0x8003CBA4
