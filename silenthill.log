@@ -1,0 +1,2407 @@
+[SH-XBOX] SEH crash logger installed (frame=0xd0032c68 handler=0x2efbf0)
+[SH-XBOX] boot: video 640x480x32
+[GTE] RotTransPers v(64,32,512) -> sx=352 sy=256 sz=128 flag=0x1000 (expect sx=352 sy=256)
+[SH-XBOX] pbkit initialised
+[SH-XBOX] NV2A backend ready (batch=65536 verts)
+[SH-XBOX] USB pad init done
+[CD] disc image: D:\Silent Hill (USA).bin
+[MCRD] card path = E:\UDATA\SH010000\0.MCD
+[SH-XBOX] PSX RAM @ 0xbd9ca8
+[SH-XBOX] game data initialised
+[SH_AUDIO] SPU mixer init (24 voices, out=48000Hz, ADSR+interp)
+[SH_AUDIO] DirectSound up (48000Hz stereo, 65536-byte ring)
+[SH-XBOX] subsystems up; entering MainLoop
+[FOGST-GPU] clear=0xff000000
+[SH_AUDIO] sound_seq_off(0): reached MIDI init loop
+[SH_AUDIO] sound_seq_off(1): reached MIDI init loop
+[SH_AUDIO] SdInit complete: smf_midi[0].mvol_3=127 smf_midi[1].mvol_3=127
+[XA] SetVolume L=0 R=0
+[SH-XBOX] GameState -> 0 (step 0)
+[SH_AUDIO] TaskPoolExecute task=0
+[SH_BGM] SdSeqCalledTbyT: sd_interrupt_start_flag=1 smf_start_flag=0
+[OT] DrawOTag head=0xbc739c (walking; per-node trace off)
+[VRAM] texture cache: 96/96 slots (256KB each)
+[OT] walk done after 2054 nodes (cap hit=0)
+[MCRD] card_info chan=0 -> IOE (n=1)
+[SH_AUDIO] TaskPoolExecute task=160
+[SH_AUDIO] SdVabTransBodyPartly: vabid=0 complete, total=132080
+[SH_AUDIO] TaskPoolExecute task=0
+[SH_AUDIO] TaskPoolExecute task=162
+[SH_AUDIO] SdVabTransBodyPartly: vabid=2 complete, total=131968
+[MCRD] card_info chan=0 -> IOE (n=2)
+[SH_AUDIO] TaskPoolExecute task=0
+[MCRD] card_clear chan=0 -> IOE (n=1)
+[MCRD] card_load chan=0 -> IOE (n=1)
+[MCRD] dir scan chan=0 (n=1)
+[BOOT0/TIM] PostLoadTim file=6 'FONT16.TIM' ss=0x287 img.u=0 img.v=240 tPage=0,16 clutX=304 clutY=511
+[BOOT0/TIM] post ReadTIM: prect=0xdbc2e0 caddr=0xdbc2bc paddr=0xdbc2e8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(0,496 256x16)
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,511 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCRD] card_info chan=1 -> IOE (n=3)
+[BOOT0/TIM] PostLoadTim file=8 'KONAMI.TIM' ss=0x28e img.u=0 img.v=0 tPage=0,12 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdbc2e0 caddr=0xdbc2bc paddr=0xdbc2e8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 96x384)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCRD] card_info chan=1 -> IOE (n=4)
+[SH-XBOX] GameState -> 1 (step 0)
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_clear chan=1 -> IOE (n=2)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_load chan=1 -> IOE (n=2)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[BOOT0/TIM] PostLoadTim file=9 'KONAMI2.TIM' ss=0x2b3 img.u=0 img.v=0 tPage=0,14 clutX=0 clutY=1
+[BOOT0/TIM] post ReadTIM: prect=0xdbc2e0 caddr=0xdbc2bc paddr=0xdbc2e8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(896,0 104x160)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,1 16x1)
+[BOOT0/TIM] PostLoadTim done
+[KL] pre MemCard_Update
+[MCRD] dir scan chan=1 (n=2)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_info chan=2 -> IOE (n=5)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_info chan=2 -> IOE (n=6)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_clear chan=2 -> IOE (n=3)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[BOOT0/TIM] PostLoadTim file=1423 'HERO.TIM' ss=0x5a6a img.u=0 img.v=0 tPage=0,27 clutX=736 clutY=480
+[BOOT0/TIM] post ReadTIM: prect=0xdbc4a0 caddr=0xdbc2bc paddr=0xdbc4a8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,256 64x192)
+[BOOT0/TIM] pre CLUT LoadImage rect=(736,480 16x15)
+[BOOT0/TIM] PostLoadTim done
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_load chan=2 -> IOE (n=3)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] dir scan chan=2 (n=3)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_info chan=3 -> IOE (n=7)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[BOOT0/TIM] PostLoadTim file=1802 'BLD.TIM' ss=0x795b img.u=0 img.v=0 tPage=0,11 clutX=304 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6cc0 caddr=0xdc6abc paddr=0xdc6cc8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[KL] pre MemCard_Update
+[MCRD] card_info chan=3 -> IOE (n=8)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_clear chan=3 -> IOE (n=4)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_load chan=3 -> IOE (n=4)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] dir scan chan=3 (n=4)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_info chan=16 -> IOE (n=9)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_info chan=16 -> IOE (n=10)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_clear chan=16 -> IOE (n=5)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_load chan=16 -> IOE (n=5)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] dir scan chan=8 (n=5)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_info chan=17 -> IOE (n=11)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_info chan=17 -> IOE (n=12)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_clear chan=17 -> IOE (n=6)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_load chan=17 -> IOE (n=6)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] dir scan chan=9 (n=6)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_info chan=18 -> IOE (n=13)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_info chan=18 -> IOE (n=14)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_clear chan=18 -> IOE (n=7)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_load chan=18 -> IOE (n=7)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] dir scan chan=10 (n=7)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_info chan=19 -> IOE (n=15)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_info chan=19 -> IOE (n=16)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_clear chan=19 -> IOE (n=8)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] card_load chan=19 -> IOE (n=8)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[MCRD] dir scan chan=11 (n=8)
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[KL] pre MemCard_Update
+[KL] pre func_80033548
+[KL] post func_80033548
+[KL] post nullsub
+[KL] post VSync
+[SH-XBOX] GameState -> 2 (step 0)
+[BOOT0/TIM] PostLoadTim file=1799 'BG_ETC.TIM' ss=0x7906 img.u=0 img.v=0 tPage=0,12 clutX=192 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdbc420 caddr=0xdbc2bc paddr=0xdbc428 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(192,0 16x11)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1980 'TITLE_E.TIM' ss=0x90b7 img.u=32 img.v=0 tPage=1,13 clutX=224 clutY=15
+[BOOT0/TIM] post ReadTIM: prect=0xd8c4c0 caddr=0xd8c2bc paddr=0xd8c4c8 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 160x480)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,15 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 6 (step 0)
+[SH] open_main: playing FMV (file=2053 frames=0)
+[FMV] no avi for C1_20670 (checked D:\fmv, D:\gamedata\fmv) -> MDEC
+[FMV] start C1_20670 file_idx=2053 base=133127 sectors=20670 maxFrames=0 (15fps)
+[XA] fmv stream open: 37800Hz stereo coding=0x01
+[FMV] video 320x208, 9 sectors/frame
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[FMV] skipped at frame 19
+[XA] fmv stream end: 23 sectors fed, 768 ring frames discarded
+[FMV] end C1_20670: 19 frames (3 dropped, 0 decode fails, 20 presents)
+[SH] open_main: FMV_Play returned
+[SH-XBOX] GameState -> 7 (step 0)
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+  model[0] name=01CH meshCnt=1 vertOff=50 normOff=50 fB0=1 fB1=0 fB4=0 meshHdrs=0xf81660
+  model[1] name=02HE meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0xf81680
+  model[2] name=02NE meshCnt=1 vertOff=55 normOff=55 fB0=1 fB1=0 fB4=0 meshHdrs=0xf816a0
+  model[3] name=03LS meshCnt=1 vertOff=34 normOff=34 fB0=1 fB1=0 fB4=0 meshHdrs=0xf816c0
+  model[4] name=04LJ meshCnt=1 vertOff=8 normOff=8 fB0=1 fB1=0 fB4=0 meshHdrs=0xf816e0
+  model[5] name=05LZ meshCnt=1 vertOff=30 normOff=30 fB0=1 fB1=0 fB4=0 meshHdrs=0xf81700
+  model[6] name=07RS meshCnt=1 vertOff=44 normOff=44 fB0=1 fB1=0 fB4=0 meshHdrs=0xf81720
+  model[7] name=08RJ meshCnt=1 vertOff=19 normOff=19 fB0=1 fB1=0 fB4=0 meshHdrs=0xf81740
+  model[8] name=09RZ meshCnt=1 vertOff=40 normOff=40 fB0=1 fB1=0 fB4=0 meshHdrs=0xf81760
+  model[9] name=11HI meshCnt=1 vertOff=14 normOff=14 fB0=1 fB1=0 fB4=0 meshHdrs=0xf81780
+  model[10] name=11HI meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0xf817a0
+  model[11] name=12LM meshCnt=1 vertOff=26 normOff=26 fB0=1 fB1=0 fB4=0 meshHdrs=0xf817c0
+  model[12] name=13LS meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0xf817e0
+  model[13] name=14LF meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0xf81800
+  model[14] name=15RM meshCnt=1 vertOff=26 normOff=26 fB0=1 fB1=0 fB4=0 meshHdrs=0xf81820
+  model[15] name=16RS meshCnt=1 vertOff=7 normOff=7 fB0=1 fB1=0 fB4=0 meshHdrs=0xf81840
+  model[16] name=17RF meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0xf81860
+  model[17] name=06LH meshCnt=1 vertOff=50 normOff=50 fB0=1 fB1=0 fB4=0 meshHdrs=0xf81880
+  model[18] name=06LH meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0xf818a0
+  model[19] name=10RH meshCnt=1 vertOff=50 normOff=50 fB0=1 fB1=0 fB4=0 meshHdrs=0xf818c0
+  model[20] name=10RH meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0xf818e0
+  model[21] name=10RH meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0xf81900
+  model[22] name=10RH meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0xf81920
+  modelOrder: 1 21 22 20 18 16 12 15 9 11 14 13 10 4 7 5 3 8 6 17 19 0 2
+[CHARA-TEX] charaId=1 matCount=1 modelCount=23
+[CHARA-TEX] mat[0] name='HERO' field_C=1 E=0x3b F=0x3b clut=0x782e UV=0x0000 tex=0
+[CHARA-TEX] prim0: f0=0x135b(UV0) f2=0x7a6e(clut) f4=0x1651(UV1) f6=0x003b(tpage) f8=0x1251(UV2) fA=0x0000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,27] u=0 v=0 clutXY=(736,480)
+[AUTO-EQUIP-CHECK] mapIdx=0 processFlags=0x4 inventorySlotCount=8 equippedWeapon=0
+[MAP-LOAD] GameBoot_MapLoad mapIdx=0 (map0_s00) fileIdx=1995 linked=1 procFlags=0x4
+[MAP-LOAD] MapRegistry_Load(0)=map0_s00 linked=1 header=004f2d04
+[SH-XBOX] vblank 600
+[SFX] Sd_PlaySfx: sfxId=1281 (Sfx_Base+1) vol=0
+[SFX] Sd_SfxStop: sfxId=1300 (Sfx_Base+20)
+[SFX] Sd_SfxStop: sfxId=1302 (Sfx_Base+22)
+[SFX] Sd_SfxStop: sfxId=1301 (Sfx_Base+21)
+[SFX] Sd_SfxStop: sfxId=1303 (Sfx_Base+23)
+[SH-XBOX] GameState -> 9 (step 0)
+[SH] open_main: playing FMV (file=2055 frames=0)
+[FMV] no avi for M1_03500 (checked D:\fmv, D:\gamedata\fmv) -> MDEC
+[FMV] start M1_03500 file_idx=2055 base=174467 sectors=3500 maxFrames=0 (15fps)
+[XA] fmv stream open: 37800Hz stereo coding=0x01
+[FMV] video 320x208, 9 sectors/frame
+[FMV] skipped at frame 17
+[XA] fmv stream end: 21 sectors fed, 1824 ring frames discarded
+[FMV] end M1_03500: 17 frames (3 dropped, 0 decode fails, 18 presents)
+[SH] open_main: FMV_Play returned
+[SH-XBOX] GameState -> 10 (step 0)
+[STORE] rect=(704,256 4x1)
+[STORE] rect=(736,484 4x1)
+[STORE] rect=(704,256 4x1)
+[STORE] rect=(736,488 4x1)
+[STORE] rect=(704,256 4x1)
+[STORE] rect=(736,480 4x1)
+[TRANSITION] GameStartup step=0: processFlags=0x4 (Unknown) sizeof(s_WorldGfxWork)=11708
+[SH_AUDIO] TaskPoolExecute task=2
+[STORE] readback env=(0,32 320x224) pages=2 took=22 src=1 n=1 f=654
+[SH_AUDIO] TaskPoolExecute task=0
+[TRANSITION] GameStartup step=7: processFlags=0x4 playerPos=(-25395,819,657408) func_80039F90=0x0
+[IPD-INIT] Ipd_MapFileInfoSet: mapTag='THR' activeIpdCount=4 isExterior=1 plmIdx=1370 ipdFileIdx=0 textureFileIdx=0 curSize=0 willRebuildGrid=1
+[TRANSITION] GameStartup step=7 post-init: playerPos=(-25395,819,657408) mapTag='THR'
+  model[0] name=LEAF meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x182fe68
+  model[1] name=LEAF meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x182fe88
+  model[2] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x182fea8
+  model[3] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x182fec8
+  model[4] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x182fee8
+  model[5] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x182ff08
+  model[6] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x182ff28
+  model[7] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x182ff48
+  model[8] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x182ff68
+  model[9] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x182ff88
+  model[10] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x182ffa8
+  model[11] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x182ffc8
+  model[12] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x182ffe8
+  model[13] name=THR0 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1830008
+  model[14] name=THR0 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1830040
+  model[15] name=THR0 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1830078
+  model[16] name=THR0 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18300b0
+  model[17] name=THR0 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18300e8
+  model[18] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1830120
+  model[19] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1830140
+  model[20] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1830160
+  model[21] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1830180
+  model[22] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18301a0
+  model[23] name=THR0 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18301c0
+  model[24] name=TREE meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18301e0
+  modelOrder: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
+  model[0] name=THR5 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1830a08
+  model[1] name=THR5 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1830a40
+  model[2] name=THR5 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1830a90
+  model[3] name=THR5 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1830ac8
+  model[4] name=THR5 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1830b18
+  model[5] name=THR5 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1830b50
+  model[6] name=THR5 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1830ba0
+  model[7] name=5906 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x1830bf0
+  model[8] name=5906 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x1830c10
+  modelOrder: 0 1 2 3 4 5 6 7 8
+  model[0] name=THR6 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1831a60
+  model[1] name=THR6 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1831a98
+  model[2] name=THR6 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1831ab8
+  model[3] name=THR6 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1831ad8
+  model[4] name=THR6 meshCnt=4 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1831b28
+  model[5] name=THR6 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1831b90
+  model[6] name=THR6 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1831bb0
+  model[7] name=THR6 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1831be8
+  model[8] name=SIGN meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1831c08
+  model[9] name=SIGN meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1831c28
+  model[10] name=THR6 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=3 fB4=0 meshHdrs=0x1831c48
+  model[11] name=BMER meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1831c68
+  model[12] name=DOOR meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1831c88
+  modelOrder: 0 1 2 3 4 5 6 7 8 9 10 11 12
+  model[0] name=THRB meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18325c0
+  model[1] name=THRB meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18325f8
+  model[2] name=THRB meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1832618
+  model[3] name=THRB meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1832650
+  model[4] name=THRB meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18326a0
+  model[5] name=THRB meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18326d8
+  model[6] name=THRB meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1832710
+  model[7] name=THRB meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1832730
+  model[8] name=B401 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x1832750
+  model[9] name=B404 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x1832770
+  model[10] name=B404 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x1832790
+  model[11] name=B404 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x18327b0
+  model[12] name=B404 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x18327d0
+  model[13] name=B404 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x18327f0
+  model[14] name=B404 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x1832810
+  model[15] name=B405 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=2 fB4=0 meshHdrs=0x1832830
+  model[16] name=THRB meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1832850
+  model[17] name=B405 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x1832870
+  modelOrder: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17
+  model[0] name=THRB meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1833108
+  model[1] name=THRB meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1833140
+  model[2] name=THRB meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1833178
+  model[3] name=THRB meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18331c8
+  model[4] name=THRB meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1833218
+  model[5] name=THRB meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x1833250
+  model[6] name=THRB meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x1833270
+  model[7] name=THRB meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x1833290
+  model[8] name=THRB meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x18332b0
+  modelOrder: 0 1 2 3 4 5 6 7 8
+[STORE] readback env=(0,32 320x224) pages=2 took=18 src=0 n=2 f=657
+[BOOT0/TIM] PostLoadTim file=1073 'THR0001F.TIM' ss=0x45d8 img.u=0 img.v=0 tPage=0,8 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6380 caddr=0xdc62bc paddr=0xdc6388 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x6)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1077 'THR0003F.TIM' ss=0x4625 img.u=0 img.v=0 tPage=0,9 clutX=16 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6480 caddr=0xdc62bc paddr=0xdc6488 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(16,0 16x14)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1075 'THR0002F.TIM' ss=0x45fe img.u=0 img.v=0 tPage=0,10 clutX=32 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6400 caddr=0xdc62bc paddr=0xdc6408 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(640,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(32,0 16x10)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1079 'THR0004F.TIM' ss=0x4644 img.u=0 img.v=0 tPage=0,21 clutX=48 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc64c0 caddr=0xdc62bc paddr=0xdc64c8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(320,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(48,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1193 'THR5901F.TIM' ss=0x4d8e img.u=0 img.v=0 tPage=0,22 clutX=64 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc64a0 caddr=0xdc62bc paddr=0xdc64a8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(384,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(64,0 16x15)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1194 'THR6001F.TIM' ss=0x4d9f img.u=0 img.v=0 tPage=0,23 clutX=80 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6440 caddr=0xdc62bc paddr=0xdc6448 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(448,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(80,0 16x12)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1195 'THR6002H.TIM' ss=0x4db0 img.u=0 img.v=0 tPage=0,26 clutX=128 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc63e0 caddr=0xdc62bc paddr=0xdc63e8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(640,256 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(128,0 16x9)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1261 'THRB401F.TIM' ss=0x517a img.u=0 img.v=0 tPage=0,24 clutX=96 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc63e0 caddr=0xdc62bc paddr=0xdc63e8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(96,0 16x9)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1265 'THRB701F.TIM' ss=0x51b6 img.u=0 img.v=0 tPage=0,25 clutX=112 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6420 caddr=0xdc62bc paddr=0xdc6428 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(112,0 16x11)
+[BOOT0/TIM] PostLoadTim done
+[TEXVRAM] 'THR0001F' tPage=[0,8] clutXY=(0,0) uv=(0,0)
+[TEXVRAM] 'THR0003F' tPage=[0,9] clutXY=(16,0) uv=(0,0)
+[TEXVRAM] 'THR0002F' tPage=[0,10] clutXY=(32,0) uv=(0,0)
+[TEXVRAM] 'THR0004F' tPage=[0,21] clutXY=(48,0) uv=(0,0)
+[TEXVRAM] 'THR5901F' tPage=[0,22] clutXY=(64,0) uv=(0,0)
+[TEXVRAM] 'THR6001F' tPage=[0,23] clutXY=(80,0) uv=(0,0)
+[TEXVRAM] 'THR6002H' tPage=[0,26] clutXY=(128,0) uv=(0,0)
+[TEXVRAM] 'THRB401F' tPage=[0,24] clutXY=(96,0) uv=(0,0)
+[TEXVRAM] 'THRB701F' tPage=[0,25] clutXY=(112,0) uv=(0,0)
+[SH_AUDIO] TaskPoolExecute task=8
+[STORE] readback env=(0,32 320x224) pages=2 took=17 src=1 n=3 f=660
+[SH_AUDIO] TaskPoolExecute task=0
+[SH_AUDIO] TaskPoolExecute task=8
+[SH_AUDIO] TaskPoolExecute task=206
+[SH_AUDIO] SdVabTransBodyPartly: vabid=3 complete, total=110448
+[SH_AUDIO] TaskPoolExecute task=33
+[SH_AUDIO] SdSeqOpen: addr=0xdcf2a8 magic=0x3154444b vab_id=3
+[SH_AUDIO] SdSeqOpen: opened slot 0, vab_id=3
+[SH_AUDIO] TaskPoolExecute task=0
+[STORE] readback env=(0,32 320x224) pages=2 took=17 src=0 n=4 f=663
+[SH_AUDIO] TaskPoolExecute task=170
+[SH_AUDIO] SdVabTransBodyPartly: vabid=2 complete, total=134288
+[SH_AUDIO] TaskPoolExecute task=0
+[STORE] readback env=(0,32 320x224) pages=2 took=17 src=0 n=5 f=666
+[STORE] readback env=(0,32 320x224) pages=2 took=18 src=0 n=6 f=669
+[STORE] readback env=(0,32 320x224) pages=2 took=18 src=0 n=7 f=672
+[STORE] readback env=(0,32 320x224) pages=2 took=17 src=0 n=8 f=675
+[STP] tpage=0x100 clut=0x0 zero=59175 stp1=1518
+[STP] tpage=0x104 clut=0x0 zero=65088 stp1=224
+[STP] tpage=0x100 clut=0x0 zero=59184 stp1=1518
+[STP] tpage=0x114 clut=0x0 zero=17826 stp1=27227
+[STP] tpage=0x110 clut=0x0 zero=59151 stp1=462
+[STP] tpage=0x114 clut=0x0 zero=17826 stp1=27227
+[STP] tpage=0x110 clut=0x0 zero=59133 stp1=462
+[STP] tpage=0x104 clut=0x0 zero=65088 stp1=224
+[STP] tpage=0x100 clut=0x0 zero=59166 stp1=1518
+[STP] tpage=0x104 clut=0x0 zero=65088 stp1=224
+[STP] tpage=0x100 clut=0x0 zero=59153 stp1=1518
+[STP] tpage=0x114 clut=0x0 zero=17826 stp1=27227
+[SFX] Sd_SfxStop: sfxId=1360 (Sfx_Base+80)
+[SFX] Sd_SfxStop: sfxId=1321 (Sfx_Base+41)
+[SFX] Sd_SfxStop: sfxId=1322 (Sfx_Base+42)
+[BOOT0/TIM] PostLoadTim file=1505 'TIM00.TIM' ss=0x5dcb img.u=0 img.v=0 tPage=0,15 clutX=176 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdbc4c0 caddr=0xdbc2bc paddr=0xdbc4c8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(960,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(176,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 11 (step 0)
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=2)
+[BOOT0/TIM] PostLoadTim file=1514 'TIM07.TIM' ss=0x5e64 img.u=32 img.v=0 tPage=0,13 clutX=240 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdbc3c0 caddr=0xdbc2bc paddr=0xdbc3c8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(240,0 16x8)
+[BOOT0/TIM] PostLoadTim done
+[SYSSTATE] dispatch sysState=10 mapEventData=0x4f25fc
+[SS] EventCallFunc param=2 func=0x3b15f0 step0=0 step1=0 step2=0
+[SFX] Sd_PlaySfx: sfxId=1361 (Sfx_Base+81) vol=144
+[BGM] ChannelSet bgmIdx=3 cmd=770
+[PUPD] state=52 ctrl=0 kf=28
+[SH_AUDIO] TaskPoolExecute task=7
+[SH_AUDIO] func_80046A70: field_10=770 -> SdSeqPlay(0,1,0)
+[SH_BGM] SdSeqPlay: seq=0 play_mode=1 l_count=0 vab_id=3
+[SH_BGM] midi_file_out: file_no=0 magic='KDT1' (0x4b445431) data_ptr=0xdcf2a8
+[SH_AUDIO] func_80046A70: volBgm set to 40, field_E=770
+[SH_BGM] midi_smf_main: call #0 seq0_stat=1 seq1_stat=0 tracks0=17 vab0=3 flag=2
+[SH_BGM] midi_smf_main: call #1 seq0_stat=1 seq1_stat=0 tracks0=17 vab0=3 flag=2
+[SH_BGM] midi_smf_main: call #2 seq0_stat=1 seq1_stat=0 tracks0=17 vab0=3 flag=2
+[SS] EventCallFunc param=2 func=0x3b15f0 step0=2 step1=0 step2=0
+[BOOT0/TIM] PostLoadTim file=1459 'SRL.TIM' ss=0x5b60 img.u=0 img.v=0 tPage=0,28 clutX=704 clutY=464
+[BOOT0/TIM] post ReadTIM: prect=0xdbc400 caddr=0xdbc2bc paddr=0xdbc408 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,256 64x128)
+[BOOT0/TIM] pre CLUT LoadImage rect=(704,464 16x10)
+[BOOT0/TIM] PostLoadTim done
+[SH_AUDIO] TaskPoolExecute task=0
+[SS] EventCallFunc param=2 func=0x3b15f0 step0=3 step1=0 step2=0
+[PUPD] state=53 ctrl=0 kf=28
+[SS] EventCallFunc param=2 func=0x3b15f0 step0=4 step1=0 step2=0
+[FOGST-GPU] clear=0xff6c6474
+[SH_BGM] volume_calc: mvol_18=127 midi_master=127 express=100 mvol3=0 pvol=110 tvol=127 velo=90 pan=7 -> l_vol=0 r_vol=0
+[SH_BGM] volume_calc: mvol_18=127 midi_master=127 express=102 mvol3=0 pvol=110 tvol=127 velo=90 pan=120 -> l_vol=0 r_vol=0
+[SH_BGM] volume_calc: mvol_18=127 midi_master=127 express=100 mvol3=0 pvol=110 tvol=127 velo=81 pan=95 -> l_vol=0 r_vol=0
+[SH_BGM] volume_calc: mvol_18=127 midi_master=127 express=100 mvol3=0 pvol=110 tvol=127 velo=81 pan=95 -> l_vol=0 r_vol=0
+[SH_BGM] volume_calc: mvol_18=127 midi_master=127 express=100 mvol3=0 pvol=110 tvol=127 velo=57 pan=64 -> l_vol=0 r_vol=0
+[SH_BGM] volume_calc: mvol_18=127 midi_master=127 express=100 mvol3=0 pvol=110 tvol=127 velo=57 pan=64 -> l_vol=0 r_vol=0
+[SH_BGM] volume_calc: mvol_18=127 midi_master=127 express=77 mvol3=122 pvol=110 tvol=127 velo=127 pan=63 -> l_vol=7822 r_vol=7699
+[SH_BGM] volume_calc: mvol_18=127 midi_master=127 express=77 mvol3=122 pvol=110 tvol=127 velo=127 pan=63 -> l_vol=7822 r_vol=7699
+[SH_BGM] volume_calc: mvol_18=127 midi_master=127 express=77 mvol3=121 pvol=110 tvol=127 velo=127 pan=63 -> l_vol=7757 r_vol=7635
+[SH_BGM] volume_calc: mvol_18=127 midi_master=127 express=77 mvol3=121 pvol=110 tvol=127 velo=127 pan=63 -> l_vol=7757 r_vol=7635
+  model[0] name=01CH meshCnt=1 vertOff=8 normOff=8 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833c88
+  model[1] name=01CH meshCnt=1 vertOff=44 normOff=44 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833ca8
+  model[2] name=02HE meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833cc8
+  model[3] name=02NE meshCnt=1 vertOff=51 normOff=51 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833ce8
+  model[4] name=03LS meshCnt=1 vertOff=38 normOff=38 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833d08
+  model[5] name=04LJ meshCnt=1 vertOff=12 normOff=12 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833d28
+  model[6] name=05LZ meshCnt=1 vertOff=34 normOff=34 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833d48
+  model[7] name=06LH meshCnt=1 vertOff=44 normOff=44 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833d68
+  model[8] name=07RS meshCnt=1 vertOff=28 normOff=28 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833d88
+  model[9] name=08RJ meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833da8
+  model[10] name=09RZ meshCnt=1 vertOff=24 normOff=24 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833dc8
+  model[11] name=10RH meshCnt=1 vertOff=44 normOff=44 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833de8
+  model[12] name=11HI meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833e08
+  model[13] name=11HI meshCnt=1 vertOff=12 normOff=12 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833e28
+  model[14] name=12LM meshCnt=1 vertOff=20 normOff=20 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833e48
+  model[15] name=13LS meshCnt=1 vertOff=36 normOff=38 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833e68
+  model[16] name=14LF meshCnt=1 vertOff=6 normOff=6 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833e88
+  model[17] name=15RM meshCnt=1 vertOff=30 normOff=32 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833ea8
+  model[18] name=16RS meshCnt=1 vertOff=36 normOff=38 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833ec8
+  model[19] name=17RF meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0x1833ee8
+  modelOrder: 2 9 5 10 8 6 4 11 7 1 3 19 16 13 14 17 15 18 12 0
+[CHARA-TEX] charaId=28 matCount=1 modelCount=20
+[CHARA-TEX] mat[0] name='SRL' field_C=1 E=0x5c F=0x5c clut=0x742c UV=0x0000 tex=0
+[CHARA-TEX] prim0: f0=0x2bb7(UV0) f2=0x74ac(clut) f4=0x2fb7(UV1) f6=0x005c(tpage) f8=0x2bab(UV2) fA=0x2fab(UV3)
+[CHARA-TEX] texDesc: tPage=[0,28] u=0 v=0 clutXY=(704,464)
+[WALL-HIT] subcell=2 chan=0 flags=0x0001 s0=0(t1 d0) s1=3(t1 d0) gt=1 dist=73 rad=76
+[WALL-HIT]   cylBot=-21 cylTop=-430 sv0y=0 sv1y=0 harryY=-16 ground=0 fall=226 spd=16350
+[WALL-HIT]   harryXZ=(8329,6533) moveXZ=(34,-6) sweepDist=34 face0=(8256,10291) face1=(8256,2560)
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=4)
+[SS] EventCallFunc param=4 func=0x3b2240 step0=0 step1=0 step2=0
+[PUPD] state=52 ctrl=0 kf=41
+[SS] EventCallFunc param=4 func=0x3b2240 step0=1 step1=0 step2=0
+[WALL-HIT] subcell=2 chan=0 flags=0x0001 s0=0(t1 d0) s1=3(t1 d0) gt=1 dist=36 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1330 spd=0
+[WALL-HIT]   harryXZ=(8292,6298) moveXZ=(0,0) sweepDist=0 face0=(8256,10291) face1=(8256,2560)
+[WALL-HIT] subcell=2 chan=0 flags=0x0001 s0=0(t1 d0) s1=3(t1 d0) gt=1 dist=36 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(8292,6298) moveXZ=(0,0) sweepDist=0 face0=(8256,10291) face1=(8256,2560)
+[WALL-HIT] subcell=2 chan=0 flags=0x0001 s0=0(t1 d0) s1=3(t1 d0) gt=1 dist=36 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(8292,6298) moveXZ=(0,0) sweepDist=0 face0=(8256,10291) face1=(8256,2560)
+[WALL-HIT] subcell=2 chan=0 flags=0x0001 s0=0(t1 d0) s1=3(t1 d0) gt=1 dist=36 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(8292,6298) moveXZ=(0,0) sweepDist=0 face0=(8256,10291) face1=(8256,2560)
+[WALL-HIT] subcell=2 chan=0 flags=0x0001 s0=0(t1 d0) s1=3(t1 d0) gt=1 dist=36 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(8292,6298) moveXZ=(0,0) sweepDist=0 face0=(8256,10291) face1=(8256,2560)
+[SS] EventCallFunc param=4 func=0x3b2240 step0=2 step1=0 step2=0
+[WALL-HIT] subcell=2 chan=0 flags=0x0001 s0=0(t1 d0) s1=3(t1 d0) gt=1 dist=36 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1335 spd=0
+[WALL-HIT]   harryXZ=(8292,6298) moveXZ=(0,0) sweepDist=0 face0=(8256,10291) face1=(8256,2560)
+[SS] EventCallFunc param=4 func=0x3b2240 step0=3 step1=0 step2=0
+[SS] EventCallFunc param=4 func=0x3b2240 step0=4 step1=0 step2=0
+[PUPD] state=56 ctrl=0 kf=531
+[PUPD] state=52 ctrl=0 kf=195
+[SS] EventCallFunc param=4 func=0x3b2240 step0=5 step1=0 step2=0
+[WALL-HIT] subcell=2 chan=0 flags=0x0001 s0=0(t1 d0) s1=3(t1 d0) gt=1 dist=36 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(8292,6298) moveXZ=(0,0) sweepDist=0 face0=(8256,10291) face1=(8256,2560)
+[WALL-HIT] subcell=2 chan=0 flags=0x0001 s0=0(t1 d0) s1=3(t1 d0) gt=1 dist=36 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(8292,6298) moveXZ=(0,0) sweepDist=0 face0=(8256,10291) face1=(8256,2560)
+[WALL-HIT] subcell=2 chan=0 flags=0x0001 s0=0(t1 d0) s1=3(t1 d0) gt=1 dist=36 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(8292,6298) moveXZ=(0,0) sweepDist=0 face0=(8256,10291) face1=(8256,2560)
+[SS] EventCallFunc param=4 func=0x3b2240 step0=6 step1=0 step2=0
+[SS] EventCallFunc param=4 func=0x3b2240 step0=7 step1=0 step2=0
+[PUPD] state=57 ctrl=0 kf=517
+[WALL-HIT] subcell=2 chan=0 flags=0x0001 s0=0(t1 d0) s1=3(t1 d0) gt=1 dist=36 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(8292,6298) moveXZ=(0,0) sweepDist=0 face0=(8256,10291) face1=(8256,2560)
+[PUPD] state=54 ctrl=0 kf=184
+[WALL-HIT] subcell=2 chan=0 flags=0x0001 s0=0(t1 d0) s1=3(t1 d0) gt=1 dist=57 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1327 spd=16350
+[WALL-HIT]   harryXZ=(8313,6069) moveXZ=(34,1) sweepDist=33 face0=(8256,10291) face1=(8256,2560)
+  model[0] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18346d8
+  model[1] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1834728
+  model[2] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1834778
+  model[3] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18347c8
+  model[4] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1834800
+  model[5] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1834850
+  model[6] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18348a0
+  modelOrder: 0 1 2 3 4 5 6
+[BOOT0/TIM] PostLoadTim file=1146 'THR2001F.TIM' ss=0x4acf img.u=0 img.v=0 tPage=0,24 clutX=96 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6400 caddr=0xdc62bc paddr=0xdc6408 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(96,0 16x10)
+[BOOT0/TIM] PostLoadTim done
+[TEXVRAM] 'THR2001F' tPage=[0,24] clutXY=(96,0) uv=(0,0)
+  model[0] name=THR8 meshCnt=4 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1835500
+  model[1] name=THR8 meshCnt=4 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1835568
+  model[2] name=THR8 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18355d0
+  model[3] name=THR8 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1835608
+  model[4] name=THR8 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1835658
+  model[5] name=THR8 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1835690
+  model[6] name=81A_ meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18356c8
+  model[7] name=81B_ meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18356e8
+  model[8] name=81C_ meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1835708
+  model[9] name=SIGN meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1835728
+  model[10] name=SIGN meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1835748
+  modelOrder: 0 1 2 3 4 5 6 7 8 9 10
+[BOOT0/TIM] PostLoadTim file=1225 'THR8101F.TIM' ss=0x4f56 img.u=0 img.v=0 tPage=0,25 clutX=112 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6440 caddr=0xdc62bc paddr=0xdc6448 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(112,0 16x12)
+[BOOT0/TIM] PostLoadTim done
+[TEXVRAM] 'THR8101F' tPage=[0,25] clutXY=(112,0) uv=(0,0)
+[FOGST] en=1 far=3712 fogRGB=108,100,116 bg2d=108,100,116 state=11
+[WALL-HIT] subcell=2 chan=0 flags=0x0001 s0=0(t1 d0) s1=3(t1 d0) gt=1 dist=61 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1337 spd=16350
+[WALL-HIT]   harryXZ=(8317,3376) moveXZ=(29,-19) sweepDist=34 face0=(8256,10291) face1=(8256,2560)
+[SPAWN-FIRE?] slot=0 allPass! npcFlags=0x1 flagsId=5 full=0 vblanks=1 ABOUT TO TRY SPAWN
+[SPAWN-FIRE!] slot=0 gates passed â†’ entering spawn block, npcIdx will be assigned
+[SPAWN] slot=0 -> npc[1] charaId=0 stateStep=1 pos=(-30,128)
+[PUPD] state=56 ctrl=0 kf=37
+[PUPD] state=52 ctrl=0 kf=193
+[SS] EventCallFunc param=4 func=0x3b2240 step0=8 step1=0 step2=0
+[SYSSTATE] dispatch sysState=4 mapEventData=0x4f2638
+[SH-XBOX] vblank 1200
+[OTS] f=1200 calls=4 n0=2664 n1=21 prims=364487 bb=-1728,3188,-2142,2432
+[FOGPAD] gt=203953 fogged=772105 padMin=1 padMax=127
+[ABR] avg=478 add=146378 sub=1146 q=0 lines=0 unk=0
+[STORE] rect=(320,256 160x240)
+[SH] open_main: playing FMV (file=2056 frames=119)
+[FMV] no avi for M2_01190 (checked D:\fmv, D:\gamedata\fmv) -> MDEC
+[FMV] start M2_01190 file_idx=2056 base=177967 sectors=1190 maxFrames=119 (15fps)
+[XA] fmv stream open: 37800Hz stereo coding=0x01
+[FMV] video 320x208, 9 sectors/frame
+[FMV] skipped at frame 53
+[XA] fmv stream end: 19 sectors fed, 0 ring frames discarded
+[FMV] end M2_01190: 53 frames (17 dropped, 0 decode fails, 40 presents)
+[SH] open_main: FMV_Play returned
+[FOGST-GPU] clear=0xff000000
+[SYSSTATE] dispatch sysState=10 mapEventData=0x4f2644
+[SS] EventCallFunc param=6 func=0x3b26d0 step0=0 step1=0 step2=0
+  model[0] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1836538
+  model[1] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1836570
+  model[2] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18365a8
+  model[3] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18365e0
+  model[4] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1836618
+  model[5] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1836650
+  model[6] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1836688
+  model[7] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18366c0
+  model[8] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18366f8
+  model[9] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1836718
+  model[10] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1836738
+  model[11] name=W1_B meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=3 fB4=0 meshHdrs=0x1836758
+  model[12] name=W1   meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1836778
+  model[13] name=2502 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=3 fB4=0 meshHdrs=0x1836798
+  modelOrder: 0 1 2 3 4 5 6 7 8 9 10 11 12 13
+  model[0] name=THR5 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1836f88
+  model[1] name=THR5 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1836fc0
+  model[2] name=THR5 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1836ff8
+  model[3] name=THR5 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1837030
+  model[4] name=THR5 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1837080
+  model[5] name=THR5 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18370b8
+  model[6] name=THR5 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1837108
+  model[7] name=5803 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1837158
+  modelOrder: 0 1 2 3 4 5 6 7
+[BOOT0/TIM] PostLoadTim file=1153 'THR2501F.TIM' ss=0x4b36 img.u=0 img.v=0 tPage=0,23 clutX=80 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6380 caddr=0xdc62bc paddr=0xdc6388 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(448,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(80,0 16x6)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1191 'THR5801F.TIM' ss=0x4d74 img.u=0 img.v=0 tPage=0,25 clutX=112 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc64c0 caddr=0xdc62bc paddr=0xdc64c8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(112,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1192 'THR5802H.TIM' ss=0x4d85 img.u=32 img.v=0 tPage=0,26 clutX=144 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6340 caddr=0xdc62bc paddr=0xdc6348 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(672,256 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(144,0 16x4)
+[BOOT0/TIM] PostLoadTim done
+[TEXVRAM] 'THR2501F' tPage=[0,23] clutXY=(80,0) uv=(0,0)
+[TEXVRAM] 'THR5801F' tPage=[0,25] clutXY=(112,0) uv=(0,0)
+[TEXVRAM] 'THR5802H' tPage=[0,26] clutXY=(144,0) uv=(32,0)
+[FOGST-GPU] clear=0xff6c6474
+[SS] EventCallFunc param=6 func=0x3b26d0 step0=1 step1=0 step2=0
+[SH_AUDIO] Sd_XaAudioPlayTaskAdd: sfx=0x100D idx=13 fileIdx=1
+[SH_AUDIO] XA tasks queued: idx=13
+[SH_AUDIO] TaskPoolExecute task=2
+[SH_AUDIO] TaskPoolExecute task=1
+[XA] Play xaIdx=13 file=1 sector=619 sectors=56 stereo 37800Hz bits=4 filter=(2,3)
+[XA] primed ring=20481 frames
+[SS] EventCallFunc param=6 func=0x3b26d0 step0=2 step1=0 step2=0
+[SH_AUDIO] TaskPoolExecute task=0
+[XA] channel ended early xaIdx=13 (remaining=1/56)
+[XA] finished xaIdx=13 (drained)
+[SH_AUDIO] TaskPoolExecute task=2
+[SS] EventCallFunc param=6 func=0x3b26d0 step0=3 step1=0 step2=0
+[SH_AUDIO] TaskPoolExecute task=0
+[CHNK] n=4 s0=-1,3,st3 s1=-2,2,st3 s2=-2,3,st3 s3=-1,2,st3
+[SS] EventCallFunc param=6 func=0x3b26d0 step0=4 step1=0 step2=0
+[SS] EventCallFunc param=6 func=0x3b26d0 step0=5 step1=0 step2=0
+[SS] EventCallFunc param=6 func=0x3b26d0 step0=6 step1=0 step2=0
+[PUPD] state=56 ctrl=0 kf=518
+[PUPD] state=54 ctrl=0 kf=193
+[PUPD] state=57 ctrl=0 kf=32
+[PUPD] state=52 ctrl=0 kf=180
+[SS] EventCallFunc param=6 func=0x3b26d0 step0=7 step1=0 step2=0
+[SS] EventCallFunc param=6 func=0x3b26d0 step0=8 step1=0 step2=0
+[SH_AUDIO] Sd_XaAudioPlayTaskAdd: sfx=0x1023 idx=35 fileIdx=1
+[SH_AUDIO] XA tasks queued: idx=35
+[SH_AUDIO] TaskPoolExecute task=2
+[SH_AUDIO] TaskPoolExecute task=1
+[XA] Play xaIdx=35 file=1 sector=1691 sectors=29 stereo 37800Hz bits=4 filter=(5,3)
+[XA] primed ring=20481 frames
+[SH_AUDIO] TaskPoolExecute task=0
+[FOGST] en=1 far=3712 fogRGB=108,100,116 bg2d=108,100,116 state=11
+[XA] channel ended early xaIdx=35 (remaining=1/29)
+[XA] finished xaIdx=35 (drained)
+[SH_AUDIO] TaskPoolExecute task=2
+[SS] EventCallFunc param=6 func=0x3b26d0 step0=9 step1=0 step2=0
+[SH_AUDIO] TaskPoolExecute task=0
+[SS] EventCallFunc param=6 func=0x3b26d0 step0=10 step1=0 step2=0
+[SH-XBOX] vblank 1800
+[OTS] f=1800 calls=2 n0=2728 n1=19 prims=332433 bb=-1728,2374,-1954,2432
+[FOGPAD] gt=190235 fogged=727732 padMin=1 padMax=127
+[ABR] avg=549 add=134846 sub=1103 q=0 lines=0 unk=0
+[SS] EventCallFunc param=6 func=0x3b26d0 step0=11 step1=0 step2=0
+[SH_AUDIO] Sd_XaAudioPlayTaskAdd: sfx=0x1024 idx=36 fileIdx=1
+[SH_AUDIO] XA tasks queued: idx=36
+[SH_AUDIO] TaskPoolExecute task=2
+[SH_AUDIO] TaskPoolExecute task=1
+[XA] Play xaIdx=36 file=1 sector=1693 sectors=28 stereo 37800Hz bits=4 filter=(5,5)
+[XA] primed ring=20481 frames
+[SH_AUDIO] TaskPoolExecute task=0
+[XA] channel ended early xaIdx=36 (remaining=1/28)
+[XA] finished xaIdx=36 (drained)
+[SH_AUDIO] TaskPoolExecute task=2
+[SS] EventCallFunc param=6 func=0x3b26d0 step0=12 step1=0 step2=0
+[SH_AUDIO] TaskPoolExecute task=0
+[CHNK] n=4 s0=-1,3,st3 s1=-2,2,st3 s2=-2,3,st3 s3=-1,2,st3
+[COLL-MISS] cell(0,0) pos(0,0) activeCount=4
+[COLL-MISS]   slot cell(-1,3) qIdx=19 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(-2,2) qIdx=43 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(-2,3) qIdx=44 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(-1,2) qIdx=38 loadState=2 isLoaded=1
+[WALL-HIT] subcell=3 chan=0 flags=0x0001 s0=1(t1 d0) s1=6(t1 d0) gt=1 dist=68 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1337 spd=16350
+[WALL-HIT]   harryXZ=(8312,8324) moveXZ=(32,13) sweepDist=34 face0=(10304,8256) face1=(5888,8256)
+[WALL-HIT] subcell=0 chan=0 flags=0x0001 s0=0(t1 d0) s1=1(t1 d0) gt=1 dist=16 rad=76
+[WALL-HIT]   cylBot=-51 cylTop=-461 sv0y=-38 sv1y=-38 harryY=-46 ground=-38 fall=-2448 spd=16350
+[WALL-HIT]   harryXZ=(7535,8112) moveXZ=(34,8) sweepDist=34 face0=(10304,8128) face1=(6400,8128)
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=12)
+[SS] EventCallFunc param=12 func=0x3b3590 step0=0 step1=0 step2=0
+[SS] EventCallFunc param=12 func=0x3b3590 step0=1 step1=0 step2=0
+[WALL-HIT] subcell=25 chan=0 flags=0x0001 s0=9(t1 d0) s1=13(t1 d0) gt=1 dist=5 rad=76
+[WALL-HIT]   cylBot=-35 cylTop=-444 sv0y=-38 sv1y=0 harryY=-29 ground=-29 fall=1337 spd=6496
+[WALL-HIT]   harryXZ=(6066,7494) moveXZ=(7,11) sweepDist=14 face0=(6390,7431) face1=(5386,7643)
+[SS] EventCallFunc param=12 func=0x3b3590 step0=2 step1=0 step2=0
+[PUPD] state=56 ctrl=0 kf=503
+[PUPD] state=54 ctrl=0 kf=196
+[WALL-HIT] subcell=25 chan=0 flags=0x0001 s0=9(t1 d0) s1=13(t1 d0) gt=1 dist=22 rad=76
+[WALL-HIT]   cylBot=-30 cylTop=-439 sv0y=-38 sv1y=0 harryY=-24 ground=-29 fall=1335 spd=6122
+[WALL-HIT]   harryXZ=(6044,7481) moveXZ=(12,1) sweepDist=13 face0=(6390,7431) face1=(5386,7643)
+  model[0] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1837d00
+  model[1] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1837d50
+  model[2] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1837da0
+  model[3] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1837df0
+  model[4] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1837e28
+  model[5] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1837e60
+  model[6] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1837e98
+  model[7] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1837eb8
+  modelOrder: 0 1 2 3 4 5 6 7
+[BOOT0/TIM] PostLoadTim file=1154 'THR2601F.TIM' ss=0x4b47 img.u=0 img.v=0 tPage=0,22 clutX=64 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc64c0 caddr=0xdc62bc paddr=0xdc64c8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(384,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(64,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[TEXVRAM] 'THR2601F' tPage=[0,22] clutXY=(64,0) uv=(0,0)
+[FOGST] en=1 far=3712 fogRGB=108,100,116 bg2d=108,100,116 state=11
+[PUPD] state=52 ctrl=0 kf=37
+[SS] EventCallFunc param=12 func=0x3b3590 step0=3 step1=0 step2=0
+[SS] EventCallFunc param=12 func=0x3b3590 step0=4 step1=0 step2=0
+[PUPD] state=57 ctrl=0 kf=505
+[PUPD] state=52 ctrl=0 kf=183
+[SS] EventCallFunc param=12 func=0x3b3590 step0=5 step1=0 step2=0
+[SS] EventCallFunc param=12 func=0x3b3590 step0=6 step1=0 step2=0
+[SH-XBOX] vblank 2400
+[OTS] f=2400 calls=4 n0=2803 n1=19 prims=405114 bb=-2534,2374,-1962,2432
+[FOGPAD] gt=261240 fogged=1004827 padMin=1 padMax=127
+[ABR] avg=602 add=140529 sub=674 q=0 lines=0 unk=0
+  model[0] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1838968
+  model[1] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18389b8
+  model[2] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18389d8
+  model[3] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1838a10
+  model[4] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1838a48
+  model[5] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1838a98
+  model[6] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1838ad0
+  model[7] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1838b08
+  model[8] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1838b40
+  model[9] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1838b90
+  modelOrder: 0 1 2 3 4 5 6 7 8 9
+[BOOT0/TIM] PostLoadTim file=1152 'THR2401F.TIM' ss=0x4b25 img.u=0 img.v=0 tPage=0,24 clutX=96 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6400 caddr=0xdc62bc paddr=0xdc6408 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(96,0 16x10)
+[BOOT0/TIM] PostLoadTim done
+[TEXVRAM] 'THR2401F' tPage=[0,24] clutXY=(96,0) uv=(0,0)
+[CHNK] n=4 s0=-3,2,st2 s1=-2,2,st3 s2=-2,1,st3 s3=-1,2,st2
+  model[0] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1839248
+  model[1] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1839280
+  model[2] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18392d0
+  model[3] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1839308
+  model[4] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1839358
+  model[5] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x1839378
+  model[6] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x1839398
+  model[7] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18393b8
+  model[8] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18393d8
+  model[9] name=THR2 meshCnt=5 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x18393f8
+  model[10] name=SIGN meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1839478
+  modelOrder: 0 1 2 3 4 5 6 7 8 9 10
+[BOOT0/TIM] PostLoadTim file=1150 'THR2301F.TIM' ss=0x4b0b img.u=0 img.v=0 tPage=0,23 clutX=80 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc63a0 caddr=0xdc62bc paddr=0xdc63a8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(448,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(80,0 16x7)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1151 'THR2301H.TIM' ss=0x4b1c img.u=0 img.v=0 tPage=0,26 clutX=128 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc63c0 caddr=0xdc62bc paddr=0xdc63c8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(640,256 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(128,0 16x8)
+[BOOT0/TIM] PostLoadTim done
+[TEXVRAM] 'THR2301H' tPage=[0,26] clutXY=(128,0) uv=(0,0)
+[TEXVRAM] 'THR2301F' tPage=[0,23] clutXY=(80,0) uv=(0,0)
+[SFX] Sd_PlaySfx: sfxId=1354 (Sfx_Base+74) vol=164
+  model[0] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1839c38
+  model[1] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1839c70
+  model[2] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1839cc0
+  model[3] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1839d10
+  model[4] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1839d48
+  model[5] name=THR2 meshCnt=4 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1839d80
+  model[6] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x1839de8
+  modelOrder: 0 1 2 3 4 5 6
+[BOOT0/TIM] PostLoadTim file=1147 'THR2101F.TIM' ss=0x4ae0 img.u=0 img.v=0 tPage=0,25 clutX=112 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc64c0 caddr=0xdc62bc paddr=0xdc64c8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(112,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1148 'THR2102H.TIM' ss=0x4af1 img.u=32 img.v=0 tPage=0,26 clutX=144 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6380 caddr=0xdc62bc paddr=0xdc6388 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(672,256 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(144,0 16x6)
+[BOOT0/TIM] PostLoadTim done
+[TEXVRAM] 'THR2101F' tPage=[0,25] clutXY=(112,0) uv=(0,0)
+[TEXVRAM] 'THR2102H' tPage=[0,26] clutXY=(144,0) uv=(32,0)
+  model[0] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183ac88
+  model[1] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183acc0
+  model[2] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183acf8
+  model[3] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183ad30
+  model[4] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183ad68
+  model[5] name=THR2 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183adb8
+  model[6] name=THR2 meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183adf0
+  model[7] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183ae40
+  model[8] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183ae60
+  model[9] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183ae80
+  model[10] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183aea0
+  model[11] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183aec0
+  model[12] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183aee0
+  model[13] name=THR2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183af00
+  modelOrder: 0 1 2 3 4 5 6 7 8 9 10 11 12 13
+[BOOT0/TIM] PostLoadTim file=1149 'THR2201F.TIM' ss=0x4afa img.u=0 img.v=0 tPage=0,22 clutX=64 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc63e0 caddr=0xdc62bc paddr=0xdc63e8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(384,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(64,0 16x9)
+[BOOT0/TIM] PostLoadTim done
+[TEXVRAM] 'THR2201F' tPage=[0,22] clutXY=(64,0) uv=(0,0)
+[WALL-HIT] subcell=32 chan=0 flags=0x0001 s0=0(t1 d0) s1=255(t-1 d-1) gt=1 dist=316 rad=76
+[WALL-HIT]   cylBot=-17 cylTop=-427 sv0y=-1536 sv1y=-1536 harryY=-12 ground=0 fall=2898 spd=16350
+[WALL-HIT]   harryXZ=(5331,1989) moveXZ=(4,33) sweepDist=33 face0=(5425,2376) face1=(5379,2304)
+[SFX] Sd_PlaySfx: sfxId=1333 (Sfx_Base+53) vol=0
+[GP-STATE-TXN] Gameplay -> sysState=6 (param=19)
+[SYSSTATE] dispatch sysState=6 mapEventData=0x4f26b0
+[SFX] Sd_PlaySfx: sfxId=1354 (Sfx_Base+74) vol=0
+[SH-XBOX] GameState -> 10 (step 0)
+[TRANSITION] GameStartup step=0: processFlags=0x1 (RoomTransition) sizeof(s_WorldGfxWork)=11708
+[TRANSITION] AreaLoad_UpdatePlayerPosition: BEFORE playerPos=(-234680,0,192851) targetPos=(-396492,1011712) loadScreen=0
+[TRANSITION] AreaLoad_UpdatePlayerPosition: AFTER playerPos=(-394854,0,1011712)
+[SH_AUDIO] TaskPoolExecute task=2
+[TRANSITION] GameStartup step=7: processFlags=0x1 playerPos=(-394854,0,1011712) func_80039F90=0x0
+[IPD-INIT] Ipd_MapFileInfoSet: mapTag='THR' activeIpdCount=4 isExterior=1 plmIdx=1370 ipdFileIdx=0 textureFileIdx=0 curSize=4 willRebuildGrid=0
+[TRANSITION] GameStartup step=7 post-init: playerPos=(-394854,0,1011712) mapTag='THR'
+  model[0] name=THRW meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183b5b0
+  model[1] name=THRW meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183b5e8
+  model[2] name=THRW meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183b620
+  model[3] name=THRW meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183b658
+  model[4] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183b690
+  model[5] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183b6b0
+  model[6] name=THRW meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183b6d0
+  model[7] name=THRW meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183b720
+  model[8] name=THRW meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183b758
+  modelOrder: 0 1 2 3 4 5 6 7 8
+  model[0] name=THRW meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c048
+  model[1] name=THRW meshCnt=4 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c098
+  model[2] name=THRW meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c100
+  model[3] name=THRW meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c138
+  model[4] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c188
+  model[5] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c1a8
+  model[6] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183c1c8
+  model[7] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c1e8
+  model[8] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c208
+  model[9] name=CAN2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c228
+  model[10] name=CAN3 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c248
+  model[11] name=CAN1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c268
+  model[12] name=CAN1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c288
+  model[13] name=CAN2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c2a8
+  model[14] name=CAN3 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c2c8
+  model[15] name=P1_F meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=2 fB4=0 meshHdrs=0x183c2e8
+  model[16] name=F1_B meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=3 fB4=0 meshHdrs=0x183c308
+  model[17] name=W2_B meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=3 fB4=0 meshHdrs=0x183c328
+  model[18] name=W1_B meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=3 fB4=0 meshHdrs=0x183c348
+  model[19] name=DOR_ meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=2 fB4=0 meshHdrs=0x183c368
+  model[20] name=W5_1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183c388
+  modelOrder: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
+[SH_AUDIO] TaskPoolExecute task=0
+[FOGST-GPU] clear=0xff000000
+[BOOT0/TIM] PostLoadTim file=1361 'THRWAY1.TIM' ss=0x58a4 img.u=0 img.v=0 tPage=0,23 clutX=80 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6320 caddr=0xdc62bc paddr=0xdc6328 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(448,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(80,0 16x3)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1363 'THRWAY2F.TIM' ss=0x58c6 img.u=0 img.v=0 tPage=0,25 clutX=112 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc63c0 caddr=0xdc62bc paddr=0xdc63c8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(112,0 16x8)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1362 'THRWAY2B.TIM' ss=0x58b5 img.u=0 img.v=0 tPage=0,22 clutX=64 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6380 caddr=0xdc62bc paddr=0xdc6388 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(384,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(64,0 16x6)
+[BOOT0/TIM] PostLoadTim done
+[TEXVRAM] 'THRWAY1' tPage=[0,23] clutXY=(80,0) uv=(0,0)
+[TEXVRAM] 'THRWAY2F' tPage=[0,25] clutXY=(112,0) uv=(0,0)
+[TEXVRAM] 'THRWAY2B' tPage=[0,22] clutXY=(64,0) uv=(0,0)
+[FOGST] en=1 far=3712 fogRGB=108,100,116 bg2d=0,0,0 state=10
+[STORE] readback env=(0,32 320x224) pages=2 took=17 src=0 n=32 f=2926
+[SFX] Sd_PlaySfx: sfxId=1359 (Sfx_Base+79) vol=224
+[SH-XBOX] GameState -> 11 (step 0)
+[WALL-HIT] subcell=103 chan=0 flags=0x0001 s0=13(t10 d1) s1=255(t-1 d-1) gt=1 dist=280 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=-4453 sv1y=-4453 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(6041,1792) moveXZ=(0,0) sweepDist=0 face0=(5861,1551) face1=(5892,1551)
+[FOGST-GPU] clear=0xff6c6474
+[SFX] Sd_PlaySfx: sfxId=1320 (Sfx_Base+40) vol=191
+[SH-XBOX] vblank 3000
+[OTS] f=3000 calls=2 n0=2885 n1=16 prims=398524 bb=-2528,3158,-2136,2432
+[FOGPAD] gt=279060 fogged=1079643 padMin=1 padMax=127
+[ABR] avg=538 add=118617 sub=40 q=0 lines=0 unk=0
+[FOGST-GPU] clear=0xff6b6373
+[FOGST-GPU] clear=0xff6a6372
+[FOGST-GPU] clear=0xff6a6272
+[FOGST-GPU] clear=0xff6a6271
+[FOGST-GPU] clear=0xff696271
+[FOGST-GPU] clear=0xff696171
+[FOGST-GPU] clear=0xff696170
+[FOGST-GPU] clear=0xff686170
+[FOGST-GPU] clear=0xff686070
+[FOGST-GPU] clear=0xff68606f
+[FOGST-GPU] clear=0xff67606f
+[FOGST-GPU] clear=0xff675f6f
+[FOGST-GPU] clear=0xff675f6e
+[FOGST-GPU] clear=0xff665f6e
+[FOGST-GPU] clear=0xff665e6e
+[FOGST-GPU] clear=0xff665e6d
+[FOGST-GPU] clear=0xff655e6d
+[FOGST-GPU] clear=0xff655d6d
+[FOGST-GPU] clear=0xff655d6c
+[FOGST-GPU] clear=0xff645d6c
+[FOGST-GPU] clear=0xff645c6b
+[FOGST-GPU] clear=0xff635c6b
+[FOGST-GPU] clear=0xff635c6a
+[FOGST-GPU] clear=0xff635b6a
+[FOGST-GPU] clear=0xff625b6a
+[FOGST-GPU] clear=0xff625b69
+[FOGST-GPU] clear=0xff625a69
+[FOGST-GPU] clear=0xff615a69
+[FOGST-GPU] clear=0xff615a68
+[FOGST-GPU] clear=0xff615968
+[FOGST-GPU] clear=0xff605968
+[FOGST-GPU] clear=0xff605967
+[FOGST-GPU] clear=0xff605867
+[FOGST-GPU] clear=0xff5f5866
+[FOGST-GPU] clear=0xff5f5766
+[FOGST-GPU] clear=0xff5e5765
+[FOGST-GPU] clear=0xff5d5664
+[FOGST-GPU] clear=0xff5d5663
+[FOGST-GPU] clear=0xff5c5563
+[FOGST-GPU] clear=0xff5b5562
+[FOGST-GPU] clear=0xff5b5462
+[FOGST-GPU] clear=0xff5b5461
+[FOGST-GPU] clear=0xff5a5461
+[FOGST-GPU] clear=0xff5a5361
+[WALL-HIT] subcell=6 chan=0 flags=0x0001 s0=1(t1 d0) s1=3(t1 d0) gt=1 dist=0 rad=76
+[WALL-HIT]   cylBot=105 cylTop=-304 sv0y=193 sv1y=193 harryY=110 ground=190 fall=13439 spd=9100
+[WALL-HIT]   harryXZ=(7150,8283) moveXZ=(4,-20) sweepDist=19 face0=(6383,8282) face1=(8064,8282)
+[FOGST-GPU] clear=0xff5a5360
+[FOGST-GPU] clear=0xff595360
+[FOGST-GPU] clear=0xff595260
+[FOGST-GPU] clear=0xff59525f
+[FOGST-GPU] clear=0xff58525f
+[FOGST-GPU] clear=0xff57505d
+[FOGST-GPU] clear=0xff56505d
+[FOGST-GPU] clear=0xff56505c
+[FOGST-GPU] clear=0xff564f5c
+[FOGST-GPU] clear=0xff554f5c
+[FOGST-GPU] clear=0xff554f5b
+[FOGST-GPU] clear=0xff554e5b
+[FOGST-GPU] clear=0xff544e5b
+[FOGST-GPU] clear=0xff544e5a
+[FOGST-GPU] clear=0xff544d5a
+[FOGST-GPU] clear=0xff534d5a
+[FOGST-GPU] clear=0xff534d59
+[FOGST-GPU] clear=0xff534c59
+[FOGST-GPU] clear=0xff524c59
+[FOGST-GPU] clear=0xff524c58
+[CHNK] n=4 s0=-3,6,st3 s1=-1,0,st2 s2=-2,1,st2 s3=-3,5,st3
+[FOGST-GPU] clear=0xff514b57
+[FOGST-GPU] clear=0xff504a56
+[FOGST-GPU] clear=0xff4f4a55
+[FOGST-GPU] clear=0xff4f4955
+[FOGST-GPU] clear=0xff4f4954
+[FOGST-GPU] clear=0xff4e4954
+[FOGST-GPU] clear=0xff4e4854
+[FOGST-GPU] clear=0xff4e4853
+[FOGST-GPU] clear=0xff4d4853
+[FOGST-GPU] clear=0xff4d4753
+[FOGST-GPU] clear=0xff4d4752
+[FOGST-GPU] clear=0xff4c4752
+[FOGST-GPU] clear=0xff4c4652
+[FOGST-GPU] clear=0xff4c4651
+[FOGST-GPU] clear=0xff4b4651
+[FOGST-GPU] clear=0xff4b4551
+[FOGST-GPU] clear=0xff4b4550
+[FOGST-GPU] clear=0xff4a4550
+[FOGST-GPU] clear=0xff4a444f
+[FOGST-GPU] clear=0xff49444f
+[FOGST-GPU] clear=0xff49434e
+[FOGST-GPU] clear=0xff48434e
+[FOGST-GPU] clear=0xff48434d
+[FOGST-GPU] clear=0xff48424d
+[FOGST-GPU] clear=0xff47424d
+[FOGST-GPU] clear=0xff47424c
+[FOGST-GPU] clear=0xff47414c
+[FOGST-GPU] clear=0xff46414c
+[FOGST-GPU] clear=0xff46414b
+[FOGST-GPU] clear=0xff45404a
+[FOGST-GPU] clear=0xff453f4a
+[FOGST-GPU] clear=0xff443f49
+[FOGST-GPU] clear=0xff433e48
+[WALL-HIT] subcell=35 chan=0 flags=0x0001 s0=4(t1 d0) s1=255(t-1 d-1) gt=1 dist=125 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=-1536 sv1y=-1536 harryY=0 ground=0 fall=1337 spd=16350
+[WALL-HIT]   harryXZ=(4841,6913) moveXZ=(33,-7) sweepDist=34 face0=(4851,6788) face1=(4807,6653)
+[FOGST-GPU] clear=0xff423d47
+[FOGST-GPU] clear=0xff413d46
+[FOGST-GPU] clear=0xff413c46
+[FOGST-GPU] clear=0xff413c45
+[FOGST-GPU] clear=0xff403c45
+[FOGST-GPU] clear=0xff403b45
+[FOGST-GPU] clear=0xff403b44
+[FOGST-GPU] clear=0xff3f3b44
+[FOGST-GPU] clear=0xff3f3a44
+[FOGST-GPU] clear=0xff3f3a43
+[FOGST-GPU] clear=0xff3e3a43
+[FOGST-GPU] clear=0xff3e3943
+[FOGST-GPU] clear=0xff3e3942
+[FOGST-GPU] clear=0xff3d3942
+[FOGST-GPU] clear=0xff3d3841
+[FOGST-GPU] clear=0xff3c3841
+[FOGST-GPU] clear=0xff3c3840
+[FOGST-GPU] clear=0xff3c3740
+[FOGST-GPU] clear=0xff3b3740
+[FOGST-GPU] clear=0xff3b363f
+[FOGST-GPU] clear=0xff3a363f
+[FOGST-GPU] clear=0xff3a363e
+[FOGST-GPU] clear=0xff3a353e
+[FOGST-GPU] clear=0xff39353e
+[FOGST-GPU] clear=0xff39353d
+[FOGST-GPU] clear=0xff39343d
+[FOGST-GPU] clear=0xff38343d
+[FOGST-GPU] clear=0xff38343c
+[FOGST-GPU] clear=0xff38333c
+[FOGST-GPU] clear=0xff37333b
+[FOGST-GPU] clear=0xff37323b
+[FOGST-GPU] clear=0xff36323a
+[SFX] Sd_PlaySfx: sfxId=1333 (Sfx_Base+53) vol=0
+[GP-STATE-TXN] Gameplay -> sysState=6 (param=22)
+[SFX] Sd_PlaySfx: sfxId=1354 (Sfx_Base+74) vol=0
+[SH-XBOX] GameState -> 10 (step 0)
+[TRANSITION] GameStartup step=0: processFlags=0x1 (RoomTransition) sizeof(s_WorldGfxWork)=11708
+[TRANSITION] AreaLoad_UpdatePlayerPosition: BEFORE playerPos=(-450943,0,919980) targetPos=(-1105920,1048576) loadScreen=0
+[TRANSITION] AreaLoad_UpdatePlayerPosition: AFTER playerPos=(-1105920,0,1046938)
+[SH_AUDIO] TaskPoolExecute task=2
+[TRANSITION] GameStartup step=7: processFlags=0x1 playerPos=(-1105920,0,1046938) func_80039F90=0x0
+[IPD-INIT] Ipd_MapFileInfoSet: mapTag='THR' activeIpdCount=4 isExterior=1 plmIdx=1370 ipdFileIdx=0 textureFileIdx=0 curSize=4 willRebuildGrid=0
+[TRANSITION] GameStartup step=7 post-init: playerPos=(-1105920,0,1046938) mapTag='THR'
+  model[0] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d148
+  model[1] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d168
+  model[2] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d188
+  model[3] name=W6_1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d1a8
+  model[4] name=W6_1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d1c8
+  model[5] name=W6_2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d1e8
+  model[6] name=DC1_ meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=4 fB4=0 meshHdrs=0x183d208
+  model[7] name=W6_3 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d228
+  model[8] name=W6_3 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d248
+  model[9] name=W6_4 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d268
+  model[10] name=W6_3 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d288
+  model[11] name=W6_4 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=2 fB4=0 meshHdrs=0x183d2a8
+  model[12] name=W6_4 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d2c8
+  model[13] name=W6_2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d2e8
+  model[14] name=THRW meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183d308
+  model[15] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183d340
+  model[16] name=THRW meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183d360
+  model[17] name=THEW meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183d398
+  model[18] name=W6_1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=5 fB4=0 meshHdrs=0x183d3d0
+  model[19] name=W6_2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=5 fB4=0 meshHdrs=0x183d3f0
+  model[20] name=F2_B meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=5 fB4=0 meshHdrs=0x183d410
+  model[21] name=F1_B meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=4 fB4=0 meshHdrs=0x183d430
+  model[22] name=W6_4 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=2 fB4=0 meshHdrs=0x183d450
+  model[23] name=CPS4 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d470
+  model[24] name=CPS3 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d490
+  model[25] name=CPS1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d4b0
+  model[26] name=CPS1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d4d0
+  model[27] name=CPS1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d4f0
+  model[28] name=B2_F meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=2 fB4=0 meshHdrs=0x183d510
+  model[29] name=B3_F meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=2 fB4=0 meshHdrs=0x183d530
+  model[30] name=B1_F meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=2 fB4=0 meshHdrs=0x183d550
+  model[31] name=W1_B meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=5 fB4=0 meshHdrs=0x183d570
+  model[32] name=FC5_ meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=3 fB4=0 meshHdrs=0x183d590
+  model[33] name=FC2_ meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=5 fB4=0 meshHdrs=0x183d5b0
+  model[34] name=FC_B meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=5 fB4=0 meshHdrs=0x183d5d0
+  model[35] name=F6_B meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=5 fB4=0 meshHdrs=0x183d5f0
+  model[36] name=W6_2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183d610
+  model[37] name=W6_2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=2 fB4=0 meshHdrs=0x183d630
+  model[38] name=W6_3 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=2 fB4=0 meshHdrs=0x183d650
+  modelOrder: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38
+  model[0] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183df30
+  model[1] name=THRW meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183df50
+  model[2] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183df88
+  model[3] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183dfa8
+  model[4] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183dfc8
+  model[5] name=W5_2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183dfe8
+  model[6] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183e008
+  model[7] name=W5_4 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183e028
+  model[8] name=THRW meshCnt=4 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183e048
+  model[9] name=THRW meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183e0b0
+  model[10] name=W5_4 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183e0e8
+  model[11] name=COVE meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183e108
+  model[12] name=W5_4 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=4 fB4=0 meshHdrs=0x183e128
+  model[13] name=W5_3 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=2 fB4=0 meshHdrs=0x183e148
+  model[14] name=WC   meshCnt=3 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183e168
+  model[15] name=WHEE meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183e1b8
+  model[16] name=WHEE meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183e1d8
+  model[17] name=YUK1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=3 fB4=0 meshHdrs=0x183e1f8
+  model[18] name=YUK2 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=4 fB4=0 meshHdrs=0x183e218
+  model[19] name=W5_1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=3 fB4=0 meshHdrs=0x183e238
+  model[20] name=W525 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=3 fB4=0 meshHdrs=0x183e258
+  model[21] name=W5_4 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183e278
+  model[22] name=W556 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=5 fB4=0 meshHdrs=0x183e298
+  modelOrder: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22
+[SH_AUDIO] TaskPoolExecute task=0
+[FOGST-GPU] clear=0xff000000
+[BOOT0/TIM] PostLoadTim file=1364 'THRWAY4A.TIM' ss=0x58d7 img.u=0 img.v=0 tPage=0,24 clutX=96 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc63c0 caddr=0xdc62bc paddr=0xdc63c8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(96,0 16x8)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1367 'THRWAY5A.TIM' ss=0x590a img.u=0 img.v=0 tPage=0,23 clutX=80 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6400 caddr=0xdc62bc paddr=0xdc6408 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(448,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(80,0 16x10)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1368 'THRWAY6A.TIM' ss=0x591b img.u=0 img.v=0 tPage=0,25 clutX=112 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc63a0 caddr=0xdc62bc paddr=0xdc63a8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(112,0 16x7)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1369 'THRWAY6B.TIM' ss=0x592c img.u=0 img.v=0 tPage=0,22 clutX=64 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdc6460 caddr=0xdc62bc paddr=0xdc6468 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(384,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(64,0 16x13)
+[BOOT0/TIM] PostLoadTim done
+[TEXVRAM] 'THRWAY4A' tPage=[0,24] clutXY=(96,0) uv=(0,0)
+[TEXVRAM] 'THRWAY5A' tPage=[0,23] clutXY=(80,0) uv=(0,0)
+[TEXVRAM] 'THRWAY6A' tPage=[0,25] clutXY=(112,0) uv=(0,0)
+[TEXVRAM] 'THRWAY6B' tPage=[0,22] clutXY=(64,0) uv=(0,0)
+[SFX] Sd_PlaySfx: sfxId=1359 (Sfx_Base+79) vol=192
+  model[0] name=AIDK meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183e380
+  model[1] name=AMPU meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183e3a0
+  model[2] name=BULL meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183e3c0
+  model[3] name=DRIN meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183e3e0
+  model[4] name=PAD_ meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183e400
+  model[5] name=SHEL meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183e420
+  model[6] name=SHOT meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183e440
+  modelOrder: 0 1 2 3 4 5 6
+[WOBJ] resolved 'WHEEL1_H' lmIdx=5
+[WOBJ] resolved 'WHEEL2_H' lmIdx=5
+[SFX] Sd_SfxStop: sfxId=1361 (Sfx_Base+81)
+[SFX] Sd_PlaySfx: sfxId=1358 (Sfx_Base+78) vol=0
+[STORE] readback env=(0,32 320x224) pages=2 took=17 src=0 n=64 f=3479
+[SH-XBOX] GameState -> 11 (step 0)
+[SFX] Sd_PlaySfx: sfxId=1358 (Sfx_Base+78) vol=0
+[FOGST-GPU] clear=0xff36323a
+[FOGST-GPU] clear=0xff221f24
+[FOGST-GPU] clear=0xff211f24
+[FOGST-GPU] clear=0xff211e23
+[FOGST-GPU] clear=0xff201e23
+[FOGST-GPU] clear=0xff201d22
+[FOGST-GPU] clear=0xff1f1c21
+[FOGST-GPU] clear=0xff1d1b20
+[FOGST-GPU] clear=0xff1d1b1f
+[FOGST-GPU] clear=0xff1b191d
+[FOGST] en=1 far=3809 fogRGB=26,24,27 bg2d=26,24,27 state=11
+[FOGST-GPU] clear=0xff1a181b
+[FOGST-GPU] clear=0xff19171b
+[FOGST-GPU] clear=0xff181619
+[FOGST-GPU] clear=0xff171519
+[FOGST-GPU] clear=0xff161418
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=13)
+[FOGST-GPU] clear=0xff151417
+[SYSSTATE] dispatch sysState=10 mapEventData=0x4f2710
+[SS] EventCallFunc param=13 func=0x3b38a0 step0=0 step1=0 step2=0
+[BOOT0/TIM] PostLoadTim file=1846 'FLAME.TIM' ss=0x7eae img.u=32 img.v=0 tPage=0,12 clutX=800 clutY=64
+[BOOT0/TIM] post ReadTIM: prect=0xdbc2e0 caddr=0xdbc2bc paddr=0xdbc2e8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(800,0 16x64)
+[BOOT0/TIM] pre CLUT LoadImage rect=(800,64 16x1)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1399 'CLD3.TIM' ss=0x59ef img.u=0 img.v=128 tPage=0,28 clutX=720 clutY=464
+[BOOT0/TIM] post ReadTIM: prect=0xdbc340 caddr=0xdbc2bc paddr=0xdbc348 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,384 32x128)
+[BOOT0/TIM] pre CLUT LoadImage rect=(720,464 16x4)
+[BOOT0/TIM] PostLoadTim done
+[FOGST-GPU] clear=0xff151316
+[SS] EventCallFunc param=13 func=0x3b38a0 step0=1 step1=0 step2=1
+[FOGST-GPU] clear=0xff141316
+[FOGST-GPU] clear=0xff141215
+[FOGST-GPU] clear=0xff131215
+[FOGST-GPU] clear=0xff131114
+[FOGST-GPU] clear=0xff121114
+[FOGST-GPU] clear=0xff121113
+[FOGST-GPU] clear=0xff121013
+[FOGST-GPU] clear=0xff111013
+[FOGST-GPU] clear=0xff111012
+[FOGST-GPU] clear=0xff110f12
+[FOGST-GPU] clear=0xff100f12
+[FOGST-GPU] clear=0xff100f11
+[FOGST-GPU] clear=0xff100e11
+[FOGST-GPU] clear=0xff0f0e10
+[FOGST-GPU] clear=0xff0e0d0f
+[FOGST-GPU] clear=0xff0d0c0e
+[FOGST-GPU] clear=0xff0c0b0d
+[FOGST-GPU] clear=0xff0b0b0c
+[FOGST-GPU] clear=0xff0b0a0c
+[FOGST-GPU] clear=0xff0a0a0b
+[SS] EventCallFunc param=13 func=0x3b38a0 step0=2 step1=0 step2=0
+[FOGST-GPU] clear=0xff0a090b
+[SS] EventCallFunc param=13 func=0x3b38a0 step0=3 step1=0 step2=0
+[SS] EventCallFunc param=13 func=0x3b38a0 step0=4 step1=0 step2=0
+[FOGST-GPU] clear=0xff09090a
+[FOGST-GPU] clear=0xff09080a
+[FOGST-GPU] clear=0xff090809
+[FOGST-GPU] clear=0xff080809
+[FOGST-GPU] clear=0xff080709
+[FOGST-GPU] clear=0xff080708
+[FOGST-GPU] clear=0xff070708
+[FOGST-GPU] clear=0xff070607
+[FOGST-GPU] clear=0xff060607
+[FOGST-GPU] clear=0xff060506
+[FOGST-GPU] clear=0xff050506
+[FOGST-GPU] clear=0xff050505
+[FOGST-GPU] clear=0xff050405
+[FOGST-GPU] clear=0xff040405
+[SS] EventCallFunc param=13 func=0x3b38a0 step0=5 step1=0 step2=0
+[FOGST-GPU] clear=0xff040404
+[FOGST-GPU] clear=0xff040304
+[FOGST-GPU] clear=0xff030304
+[FOGST-GPU] clear=0xff030303
+[FOGST-GPU] clear=0xff030203
+[FOGST-GPU] clear=0xff020203
+[FOGST-GPU] clear=0xff020202
+[FOGST-GPU] clear=0xff010102
+[FOGST-GPU] clear=0xff010101
+[FOGST-GPU] clear=0xff000001
+[FOGST-GPU] clear=0xff000000
+[SS] EventCallFunc param=13 func=0x3b38a0 step0=6 step1=0 step2=0
+[SS] EventCallFunc param=13 func=0x3b38a0 step0=7 step1=0 step2=0
+[PUPD] state=84 ctrl=0 kf=523
+[SS] EventCallFunc param=13 func=0x3b38a0 step0=8 step1=0 step2=0
+[SH-XBOX] vblank 3600
+[OTS] f=3600 calls=2 n0=2609 n1=19 prims=357960 bb=-1728,2396,-1954,2464
+[FOGPAD] gt=237018 fogged=913748 padMin=1 padMax=127
+[ABR] avg=538 add=109140 sub=7374 q=0 lines=0 unk=0
+[SFX] Sd_PlaySfx: sfxId=1356 (Sfx_Base+76) vol=0
+[SS] EventCallFunc param=13 func=0x3b38a0 step0=9 step1=0 step2=0
+[SS] EventCallFunc param=13 func=0x3b38a0 step0=10 step1=0 step2=0
+[SS] EventCallFunc param=13 func=0x3b38a0 step0=11 step1=0 step2=0
+[SS] EventCallFunc param=13 func=0x3b38a0 step0=12 step1=0 step2=0
+  model[0] name=01HI meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e588
+  model[1] name=02CH meshCnt=1 vertOff=24 normOff=24 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e5a8
+  model[2] name=03HE meshCnt=1 vertOff=48 normOff=48 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e5c8
+  model[3] name=04RA meshCnt=1 vertOff=45 normOff=45 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e5e8
+  model[4] name=05RA meshCnt=1 vertOff=51 normOff=51 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e608
+  model[5] name=06RH meshCnt=1 vertOff=54 normOff=54 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e628
+  model[6] name=06RH meshCnt=1 vertOff=0 normOff=0 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e648
+  model[7] name=07LA meshCnt=1 vertOff=42 normOff=42 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e668
+  model[8] name=08LA meshCnt=1 vertOff=48 normOff=48 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e688
+  model[9] name=09LH meshCnt=1 vertOff=54 normOff=54 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e6a8
+  model[10] name=10RL meshCnt=1 vertOff=16 normOff=16 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e6c8
+  model[11] name=11RR meshCnt=1 vertOff=36 normOff=36 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e6e8
+  model[12] name=12RF meshCnt=1 vertOff=48 normOff=48 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e708
+  model[13] name=13LL meshCnt=1 vertOff=20 normOff=20 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e728
+  model[14] name=14LL meshCnt=1 vertOff=39 normOff=39 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e748
+  model[15] name=15LF meshCnt=1 vertOff=48 normOff=48 fB0=1 fB1=0 fB4=0 meshHdrs=0x183e768
+  modelOrder: 6 0 10 13 1 11 14 7 3 2 12 15 8 4 9 5
+[CHARA-TEX] charaId=8 matCount=1 modelCount=16
+[CHARA-TEX] mat[0] name='CLD3' field_C=1 E=0x3c F=0x3c clut=0x742d UV=0x8000 tex=0
+[CHARA-TEX] prim0: f0=0xdf7c(UV0) f2=0x746d(clut) f4=0xdf7f(UV1) f6=0x003c(tpage) f8=0xc97c(UV2) fA=0x8000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,28] u=0 v=128 clutXY=(720,464)
+[SPAWN-FIRE?] slot=18 allPass! npcFlags=0x7 flagsId=5 full=0 vblanks=1 ABOUT TO TRY SPAWN
+[SPAWN-FIRE!] slot=18 gates passed â†’ entering spawn block, npcIdx will be assigned
+[SPAWN] slot=18 -> npc[3] charaId=0 stateStep=5 pos=(-259,232)
+[WALL-HIT] subcell=24 chan=0 flags=0x0001 s0=1(t1 d0) s1=255(t-1 d-1) gt=1 dist=557 rad=76
+[WALL-HIT]   cylBot=-11 cylTop=-421 sv0y=-1536 sv1y=-1536 harryY=-6 ground=0 fall=4229 spd=16350
+[WALL-HIT]   harryXZ=(4870,1036) moveXZ=(-12,-31) sweepDist=33 face0=(5120,1536) face1=(5120,1792)
+[SPAWN-FIRE?] slot=16 allPass! npcFlags=0xf flagsId=5 full=0 vblanks=1 ABOUT TO TRY SPAWN
+[SPAWN-FIRE!] slot=16 gates passed â†’ entering spawn block, npcIdx will be assigned
+[SPAWN] slot=16 -> npc[4] charaId=0 stateStep=5 pos=(-252,223)
+[WALL-HIT] subcell=130 chan=0 flags=0x0001 s0=44(t10 d1) s1=255(t-1 d-1) gt=1 dist=75 rad=76
+[WALL-HIT]   cylBot=-17 cylTop=-427 sv0y=-4736 sv1y=-4736 harryY=-12 ground=0 fall=2902 spd=16350
+[WALL-HIT]   harryXZ=(5196,9537) moveXZ=(-11,-14) sweepDist=16 face0=(5133,8960) face1=(5150,9477)
+[CHNK] n=4 s0=-3,6,st2 s1=-7,5,st3 s2=-7,6,st3 s3=-3,5,st2
+[WALL-HIT] subcell=103 chan=0 flags=0x0001 s0=44(t10 d1) s1=255(t-1 d-1) gt=1 dist=477 rad=76
+[WALL-HIT]   cylBot=-11 cylTop=-421 sv0y=-4736 sv1y=-4733 harryY=-6 ground=0 fall=4239 spd=16350
+[WALL-HIT]   harryXZ=(6577,7245) moveXZ=(32,-5) sweepDist=32 face0=(6963,7526) face1=(7334,7552)
+[SFX] Sd_PlaySfx: sfxId=1333 (Sfx_Base+53) vol=0
+[WOBJ] resolved 'WHEEL1_H' lmIdx=5
+[WOBJ] resolved 'WHEEL2_H' lmIdx=5
+[WOBJ] resolved 'WHEEL1_H' lmIdx=5
+[WOBJ] resolved 'WHEEL2_H' lmIdx=5
+[WOBJ] resolved 'WHEEL1_H' lmIdx=5
+[WOBJ] resolved 'WHEEL2_H' lmIdx=5
+[WOBJ] resolved 'WHEEL1_H' lmIdx=5
+[WOBJ] resolved 'WHEEL2_H' lmIdx=5
+[WOBJ] resolved 'WHEEL1_H' lmIdx=5
+[WOBJ] resolved 'WHEEL2_H' lmIdx=5
+[WOBJ] resolved 'WHEEL1_H' lmIdx=5
+[WOBJ] resolved 'WHEEL2_H' lmIdx=5
+[WOBJ] resolved 'WHEEL1_H' lmIdx=5
+[WOBJ] resolved 'WHEEL2_H' lmIdx=5
+[WOBJ] resolved 'WHEEL1_H' lmIdx=5
+[WOBJ] resolved 'WHEEL2_H' lmIdx=5
+[WOBJ] resolved 'WHEEL1_H' lmIdx=5
+[WOBJ] resolved 'WHEEL2_H' lmIdx=5
+[WOBJ] resolved 'WHEEL1_H' lmIdx=5
+[WOBJ] resolved 'WHEEL2_H' lmIdx=5
+[WOBJ] resolved 'WHEEL1_H' lmIdx=5
+[WOBJ] resolved 'WHEEL2_H' lmIdx=5
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=15)
+[SS] EventCallFunc param=15 func=0x3b3d80 step0=0 step1=0 step2=0
+[SFX] Sd_SfxStop: sfxId=1358 (Sfx_Base+78)
+[SFX] Sd_PlaySfx: sfxId=1359 (Sfx_Base+79) vol=208
+[SFX] Sd_SfxStop: sfxId=1300 (Sfx_Base+20)
+[SFX] Sd_SfxStop: sfxId=1302 (Sfx_Base+22)
+[SFX] Sd_SfxStop: sfxId=1301 (Sfx_Base+21)
+[SFX] Sd_SfxStop: sfxId=1303 (Sfx_Base+23)
+[PUPD] state=52 ctrl=0 kf=31
+[SFX] Sd_SfxStop: sfxId=1360 (Sfx_Base+80)
+[SS] EventCallFunc param=15 func=0x3b3d80 step0=1 step1=0 step2=1
+[SS] EventCallFunc param=15 func=0x3b3d80 step0=2 step1=0 step2=0
+[SS] EventCallFunc param=15 func=0x3b3d80 step0=3 step1=0 step2=0
+[PUPD] state=57 ctrl=0 kf=512
+[FOGST] en=1 far=9966 fogRGB=0,0,0 bg2d=0,0,0 state=11
+[PUPD] state=53 ctrl=0 kf=183
+[PUPD] state=57 ctrl=0 kf=10
+[PUPD] state=52 ctrl=0 kf=182
+[SS] EventCallFunc param=15 func=0x3b3d80 step0=4 step1=0 step2=0
+[SH_AUDIO] Sd_XaAudioPlayTaskAdd: sfx=0x101E idx=30 fileIdx=1
+[SH_AUDIO] XA tasks queued: idx=30
+[SH_AUDIO] TaskPoolExecute task=2
+[SH_AUDIO] TaskPoolExecute task=1
+[XA] Play xaIdx=30 file=1 sector=1457 sectors=31 stereo 37800Hz bits=4 filter=(4,1)
+[XA] primed ring=20481 frames
+[SH_AUDIO] TaskPoolExecute task=0
+[SH-XBOX] vblank 4200
+[OTS] f=4200 calls=2 n0=2355 n1=19 prims=449119 bb=-1728,2398,-1954,2466
+[FOGPAD] gt=315112 fogged=1000071 padMin=1 padMax=126
+[ABR] avg=599 add=93047 sub=30361 q=0 lines=0 unk=0
+[XA] channel ended early xaIdx=30 (remaining=1/31)
+[XA] finished xaIdx=30 (drained)
+[SH_AUDIO] Sd_XaAudioPlayTaskAdd: sfx=0x1017 idx=23 fileIdx=1
+[SH_AUDIO] XA tasks queued: idx=23
+[SH_AUDIO] TaskPoolExecute task=2
+[SH_AUDIO] TaskPoolExecute task=1
+[XA] Play xaIdx=23 file=1 sector=1145 sectors=40 stereo 37800Hz bits=4 filter=(3,1)
+[XA] primed ring=20481 frames
+[SH_AUDIO] TaskPoolExecute task=0
+[XA] channel ended early xaIdx=23 (remaining=1/40)
+[XA] finished xaIdx=23 (drained)
+[SH_AUDIO] TaskPoolExecute task=2
+[SS] EventCallFunc param=15 func=0x3b3d80 step0=5 step1=0 step2=0
+[SH_AUDIO] TaskPoolExecute task=0
+  model[0] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183eb20
+  model[1] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183eb40
+  model[2] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183eb60
+  model[3] name=W7_1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183eb80
+  model[4] name=THRW meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183eba0
+  model[5] name=W7_1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=2 fB4=0 meshHdrs=0x183ebd8
+  model[6] name=W7_1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=2 fB4=0 meshHdrs=0x183ebf8
+  model[7] name=W7_1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=2 fB4=0 meshHdrs=0x183ec18
+  model[8] name=W7_1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183ec38
+  model[9] name=THRW meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=1 fB4=0 meshHdrs=0x183ec58
+  modelOrder: 0 1 2 3 4 5 6 7 8 9
+[WALL-HIT] subcell=109 chan=0 flags=0x0001 s0=44(t10 d1) s1=255(t-1 d-1) gt=1 dist=142 rad=76
+[WALL-HIT]   cylBot=-19 cylTop=-428 sv0y=-4733 sv1y=-4733 harryY=-13 ground=0 fall=-1109 spd=15962
+[WALL-HIT]   harryXZ=(-553,-2) moveXZ=(-31,-10) sweepDist=32 face0=(7424,5376) face1=(7424,5107)
+[SFX] Sd_SfxStop: sfxId=65535 (Sfx_Base+64255)
+[SFX] Sd_PlaySfx: sfxId=1366 (Sfx_Base+86) vol=0
+[SFX] Sd_PlaySfx: sfxId=1329 (Sfx_Base+49) vol=191
+[SFX] Sd_PlaySfx: sfxId=1364 (Sfx_Base+84) vol=0
+[SFX] Sd_PlaySfx: sfxId=1327 (Sfx_Base+47) vol=191
+[SFX] Sd_PlaySfx: sfxId=1327 (Sfx_Base+47) vol=191
+[SYSSTATE] dispatch sysState=3 mapEventData=0
+[CHNK] n=4 s0=-3,6,st2 s1=-7,5,st3 s2=-7,6,st2 s3=-3,5,st2
+[WALL-HIT] subcell=109 chan=0 flags=0x0001 s0=44(t10 d1) s1=255(t-1 d-1) gt=1 dist=140 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=-4733 sv1y=-4733 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(258,-1) moveXZ=(0,0) sweepDist=0 face0=(7424,5376) face1=(7424,5107)
+[WALL-HIT] subcell=109 chan=0 flags=0x0001 s0=44(t10 d1) s1=255(t-1 d-1) gt=1 dist=257 rad=40
+[WALL-HIT]   cylBot=-6 cylTop=-274 sv0y=-637 sv1y=-637 harryY=0 ground=0 fall=0 spd=9158
+[WALL-HIT]   harryXZ=(1114,-1) moveXZ=(3,3) sweepDist=4 face0=(7424,5376) face1=(7424,5107)
+[WALL-HIT] subcell=106 chan=0 flags=0x0001 s0=44(t10 d1) s1=255(t-1 d-1) gt=1 dist=220 rad=40
+[WALL-HIT]   cylBot=-6 cylTop=-292 sv0y=-637 sv1y=-637 harryY=-13 ground=0 fall=-2446 spd=16350
+[WALL-HIT]   harryXZ=(1009,-1) moveXZ=(4,-2) sweepDist=5 face0=(7373,6925) face1=(7396,5912)
+[SFX] Sd_PlaySfx: sfxId=1364 (Sfx_Base+84) vol=0
+[FOGST] en=1 far=9966 fogRGB=0,0,0 bg2d=0,0,0 state=11
+[WALL-HIT] subcell=130 chan=0 flags=0x0001 s0=44(t10 d1) s1=255(t-1 d-1) gt=1 dist=75 rad=76
+[WALL-HIT]   cylBot=-19 cylTop=-428 sv0y=-4736 sv1y=-4736 harryY=-13 ground=0 fall=-1109 spd=16350
+[WALL-HIT]   harryXZ=(503,-1) moveXZ=(32,2) sweepDist=32 face0=(5133,8960) face1=(5150,9477)
+[SFX] Sd_PlaySfx: sfxId=1333 (Sfx_Base+53) vol=0
+[SH-XBOX] vblank 4800
+[OTS] f=4800 calls=4 n0=2821 n1=16 prims=517854 bb=-1728,2398,-1954,2466
+[FOGPAD] gt=352563 fogged=980516 padMin=1 padMax=70
+[ABR] avg=586 add=125441 sub=24212 q=0 lines=0 unk=0
+[GP-STATE-TXN] Gameplay -> sysState=7 (param=32)
+[SYSSTATE] dispatch sysState=7 mapEventData=0x4f27dc
+[SFX] Sd_SfxStop: sfxId=1366 (Sfx_Base+86)
+[SFX] Sd_PlaySfx: sfxId=1366 (Sfx_Base+86) vol=0
+[WALL-HIT] subcell=22 chan=0 flags=0x0001 s0=90(t15 d1) s1=0(t1 d0) gt=1 dist=389 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=-4736 sv1y=-4736 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(-843,-2) moveXZ=(0,0) sweepDist=0 face0=(5627,230) face1=(5627,282)
+[SFX] Sd_SfxStop: sfxId=1364 (Sfx_Base+84)
+[SFX] Sd_PlaySfx: sfxId=1329 (Sfx_Base+49) vol=191
+[WALL-HIT] subcell=22 chan=0 flags=0x0001 s0=90(t15 d1) s1=0(t1 d0) gt=1 dist=429 rad=38
+[WALL-HIT]   cylBot=-6 cylTop=-180 sv0y=-640 sv1y=-640 harryY=0 ground=0 fall=0 spd=0
+[WALL-HIT]   harryXZ=(-905,-2) moveXZ=(0,0) sweepDist=0 face0=(5627,230) face1=(5627,282)
+[SFX] Sd_PlaySfx: sfxId=1364 (Sfx_Base+84) vol=0
+[SFX] Sd_PlaySfx: sfxId=1327 (Sfx_Base+47) vol=191
+[WALL-HIT] subcell=89 chan=0 flags=0x0001 s0=42(t1 d0) s1=255(t-1 d-1) gt=1 dist=353 rad=40
+[WALL-HIT]   cylBot=-6 cylTop=-274 sv0y=-1536 sv1y=-1536 harryY=0 ground=0 fall=0 spd=0
+[WALL-HIT]   harryXZ=(-905,-2) moveXZ=(-8,-1) sweepDist=8 face0=(5632,10227) face1=(5632,8704)
+[WALL-HIT] subcell=22 chan=0 flags=0x0001 s0=90(t15 d1) s1=0(t1 d0) gt=1 dist=435 rad=41
+[WALL-HIT]   cylBot=-6 cylTop=-271 sv0y=-640 sv1y=-640 harryY=0 ground=0 fall=0 spd=0
+[WALL-HIT]   harryXZ=(-905,-2) moveXZ=(0,0) sweepDist=0 face0=(5627,230) face1=(5627,282)
+[SFX] Sd_PlaySfx: sfxId=1327 (Sfx_Base+47) vol=191
+[WALL-HIT] subcell=22 chan=0 flags=0x0001 s0=90(t15 d1) s1=0(t1 d0) gt=1 dist=425 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=-4736 sv1y=-4736 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(-945,-2) moveXZ=(0,0) sweepDist=0 face0=(5627,230) face1=(5627,282)
+[WALL-HIT] subcell=22 chan=0 flags=0x0001 s0=90(t15 d1) s1=0(t1 d0) gt=1 dist=429 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=-4736 sv1y=-4736 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(-980,-2) moveXZ=(0,0) sweepDist=0 face0=(5627,230) face1=(5627,282)
+[WALL-HIT] subcell=22 chan=0 flags=0x0001 s0=90(t15 d1) s1=0(t1 d0) gt=1 dist=450 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=-4736 sv1y=-4736 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(-965,-2) moveXZ=(0,0) sweepDist=0 face0=(5627,230) face1=(5627,282)
+[SFX] Sd_PlaySfx: sfxId=1318 (Sfx_Base+38) vol=0
+[WALL-HIT] subcell=22 chan=0 flags=0x0001 s0=90(t15 d1) s1=0(t1 d0) gt=1 dist=460 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=-4736 sv1y=-4736 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(-958,-2) moveXZ=(0,0) sweepDist=0 face0=(5627,230) face1=(5627,282)
+[CHNK] n=4 s0=-3,6,st2 s1=-7,5,st3 s2=-7,6,st3 s3=-3,5,st2
+[WALL-HIT] subcell=22 chan=0 flags=0x0001 s0=90(t15 d1) s1=0(t1 d0) gt=1 dist=464 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=-4736 sv1y=-4736 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(-922,-2) moveXZ=(0,0) sweepDist=0 face0=(5627,230) face1=(5627,282)
+[WALL-HIT] subcell=22 chan=0 flags=0x0001 s0=90(t15 d1) s1=0(t1 d0) gt=1 dist=469 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=-4736 sv1y=-4736 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(-857,-2) moveXZ=(0,0) sweepDist=0 face0=(5627,230) face1=(5627,282)
+[SFX] Sd_PlaySfx: sfxId=1319 (Sfx_Base+39) vol=0
+[WALL-HIT] subcell=22 chan=0 flags=0x0001 s0=90(t15 d1) s1=0(t1 d0) gt=1 dist=472 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=-4736 sv1y=-4736 harryY=0 ground=0 fall=1337 spd=0
+[WALL-HIT]   harryXZ=(-789,-2) moveXZ=(0,0) sweepDist=0 face0=(5627,230) face1=(5627,282)
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=16)
+[SYSSTATE] dispatch sysState=10 mapEventData=0x4f277c
+[SS] EventCallFunc param=16 func=0x3b4410 step0=0 step1=0 step2=0
+[SFX] Sd_SfxStop: sfxId=1359 (Sfx_Base+79)
+[SFX] Sd_SfxStop: sfxId=1361 (Sfx_Base+81)
+[SYSSTATE] dispatch sysState=5 mapEventData=0x4f2788
+[AUTO-EQUIP-CHECK] mapIdx=1 processFlags=0x2 inventorySlotCount=8 equippedWeapon=0
+[MAP-LOAD] GameBoot_MapLoad mapIdx=1 (map0_s01) fileIdx=1996 linked=1 procFlags=0x2
+[MAP-LOAD] MapRegistry_Load(1)=map0_s01 linked=1 header=0046faf4
+[BOOT0/TIM] PostLoadTim file=1849 'GLASS.TIM' ss=0x7ec3 img.u=0 img.v=0 tPage=0,13 clutX=224 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xdce2e0 caddr=0xdce2bc paddr=0xdce2e8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(832,0 16x64)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,0 16x1)
+[BOOT0/TIM] PostLoadTim done
+[SH_AUDIO] TaskPoolExecute task=8
+[SH_AUDIO] sound_seq_off(0): reached MIDI init loop
+[SH-XBOX] GameState -> 10 (step 0)
+[TRANSITION] GameStartup step=0: processFlags=0x2 (OverlayTransition) sizeof(s_WorldGfxWork)=11708
+[SH_AUDIO] TaskPoolExecute task=2
+[SH_AUDIO] TaskPoolExecute task=0
+[TRANSITION] AreaLoad_UpdatePlayerPosition: BEFORE playerPos=(-1063967,0,979798) targetPos=(8192,1111654) loadScreen=0
+[SFX] Sd_SfxStop: sfxId=1300 (Sfx_Base+20)
+[SFX] Sd_SfxStop: sfxId=1302 (Sfx_Base+22)
+[SFX] Sd_SfxStop: sfxId=1301 (Sfx_Base+21)
+[SFX] Sd_SfxStop: sfxId=1303 (Sfx_Base+23)
+[TRANSITION] AreaLoad_UpdatePlayerPosition: AFTER playerPos=(8192,0,1111654)
+[TRANSITION] GameStartup step=7: processFlags=0x2 playerPos=(8192,0,1111654) func_80039F90=0x0
+[IPD-INIT] Ipd_MapFileInfoSet: mapTag='THR' activeIpdCount=4 isExterior=1 plmIdx=1370 ipdFileIdx=0 textureFileIdx=0 curSize=4 willRebuildGrid=0
+[TRANSITION] GameStartup step=7 post-init: playerPos=(8192,0,1111654) mapTag='THR'
+[SFX] Sd_SfxStop: sfxId=1321 (Sfx_Base+41)
+[SFX] Sd_SfxStop: sfxId=1322 (Sfx_Base+42)
+  model[0] name=CF20 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=5 fB4=0 meshHdrs=0x183ef78
+  model[1] name=CF20 meshCnt=2 vertOff=0 normOff=0 fB0=0 fB1=5 fB4=0 meshHdrs=0x183efb0
+  model[2] name=CF20 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=5 fB4=0 meshHdrs=0x183efe8
+  model[3] name=CF20 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=5 fB4=0 meshHdrs=0x183f008
+  model[4] name=OUT1 meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183f028
+  model[5] name=OUT_ meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183f048
+  model[6] name=MAP_ meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183f068
+  model[7] name=FLAS meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183f088
+  model[8] name=KNIF meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183f0a8
+  model[9] name=RADI meshCnt=1 vertOff=0 normOff=0 fB0=0 fB1=0 fB4=0 meshHdrs=0x183f0c8
+  modelOrder: 0 1 2 3 4 5 6 7 8 9
+[FATAL] code=c0000005 flags=00000000 eip=003e0217 (xbe+003d0217) esp=d0032630 ebp=d0032638
+[FATAL] eax=00000000 ebx=00f50008 ecx=00d67154 edx=00000001 esi=00000000 edi=00d652a8
+[FATAL] access violation: WRITE addr=00000000
+[FATAL] bt[00] ret=003c7a1a (xbe+003b7a1a) ebp=d0032638
+[FATAL] bt[01] ret=003c75b8 (xbe+003b75b8) ebp=d0032660
+[FATAL] bt[02] ret=0033e1f2 (xbe+0032e1f2) ebp=d0032808
+[FATAL] bt[03] ret=003395b1 (xbe+003295b1) ebp=d0032814
+[FATAL] bt[04] ret=00339352 (xbe+00329352) ebp=d0032844
+[FATAL] bt[05] ret=0034c213 (xbe+0033c213) ebp=d00328c8
+[FATAL] bt[06] ret=0034c228 (xbe+0033c228) ebp=d003297c
+[FATAL] bt[07] ret=00335cca (xbe+00325cca) ebp=d0032984
+[FATAL] bt[08] ret=003355fe (xbe+003255fe) ebp=d00329ec
+[FATAL] bt[09] ret=0038b9b9 (xbe+0037b9b9) ebp=d00329f8
+[FATAL] bt[10] ret=002efa01 (xbe+002dfa01) ebp=d0032c4c
+[FATAL] bt[11] ret=004287ba (xbe+004187ba) ebp=d0032c74
+[FATAL] bt[12] ret=00428af6 (xbe+00418af6) ebp=d0032c8c
+[FATAL] bt[13] ret=003fa19c (xbe+003ea19c) ebp=d0032ca8

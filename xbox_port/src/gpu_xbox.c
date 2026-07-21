@@ -621,9 +621,22 @@ static int ParsePrim(P_TAG* tag)
 
 static int s_otLog = 1; /* one-shot OT-walk trace */
 
+/* Cycle-accurate split of the frame's render cost: total OT-walk time (parse +
+ * transform + emit + submit) minus the GPU-command submission time = the pure
+ * prim parse/transform cost. Both are per-frame, logged in [OTS] then reset. */
+extern unsigned long long g_Nv2aDrawCycles;    /* set in gpu_nv2a.c FlushBatch */
+static unsigned long long s_walkCycles = 0;    /* this frame's DrawOTag walk time */
+static inline unsigned long long shx_rdtsc(void)
+{
+    unsigned lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((unsigned long long)hi << 32) | lo;
+}
+
 void DrawOTag(u_long* p)
 {
     uintptr_t base = (uintptr_t)p;
+    unsigned long long walk0;
     int       safety;
 
     if (g_gpuDisabled)
@@ -642,12 +655,23 @@ void DrawOTag(u_long* p)
                    s_cnGt, s_cnFogged, s_cnPadMin > 128 ? -1 : s_cnPadMin, s_cnPadMax);
             SH_DBG("[ABR] avg=%d add=%d sub=%d q=%d lines=%d unk=%d",
                    s_cnAbr[0], s_cnAbr[1], s_cnAbr[2], s_cnAbr[3], s_cnLines, s_cnUnk);
+            /* Where the render frame goes: walk = the whole DrawOTag(s) (parse +
+             * transform + emit + submit); draw = just the GPU-command submission
+             * (FlushBatch); parse ~= walk - draw. One frame's totals (reset each
+             * frame just below). If walk is small, the cost is OUTSIDE the walk. */
+            SH_DBG("[OTT] walkMs=%d drawMs=%d parseMs=%d",
+                   (int)(s_walkCycles / 733000ULL),
+                   (int)(g_Nv2aDrawCycles / 733000ULL),
+                   (int)((s_walkCycles > g_Nv2aDrawCycles ? s_walkCycles - g_Nv2aDrawCycles : 0) / 733000ULL));
             s_cnPrims = 0; s_cnGt = 0; s_cnFogged = 0;
             s_cnPadMin = 999; s_cnPadMax = -1;
             s_cnAbr[0] = s_cnAbr[1] = s_cnAbr[2] = s_cnAbr[3] = 0;
             s_cnLines = 0; s_cnUnk = 0; s_cnCallsMax = 0;
             s_bbMinX = 99999; s_bbMaxX = -99999; s_bbMinY = 99999; s_bbMaxY = -99999;
         }
+        /* Per-frame reset: these hold ONE frame's totals for the snapshot above. */
+        s_walkCycles = 0;
+        g_Nv2aDrawCycles = 0;
         s_cnFrame = g_Nv2aFrameCount;
         s_cnCallIdx = 0;
     }
@@ -658,6 +682,7 @@ void DrawOTag(u_long* p)
 
     if (s_otLog) SH_DBG("[OT] DrawOTag head=%p (walking; per-node trace off)", (void*)base);
 
+    walk0 = shx_rdtsc();
     for (safety = 0; safety < 16384; safety++) {
         const int len = getlen(base);
         uintptr_t next;
@@ -680,6 +705,7 @@ void DrawOTag(u_long* p)
             break;
         base = next;
     }
+    s_walkCycles += shx_rdtsc() - walk0;
 
     if (s_otLog) { SH_DBG("[OT] walk done after %d nodes (cap hit=%d)", safety, safety >= 16384); s_otLog = 0; }
 

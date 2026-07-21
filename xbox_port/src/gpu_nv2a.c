@@ -23,6 +23,19 @@
 #define MAXRAM 0x03FFAFFF
 #define MASK(mask, val) (((val) << (__builtin_ffs(mask) - 1)) & (mask))
 
+/* Fine-grained CPU cycle counter (KeTickCount's 1ms is too coarse to attribute
+ * a 50ms frame across ~320 sub-ms draws). 733MHz P3 -> cycles/733000 = ms. */
+static inline unsigned long long sh_rdtsc(void)
+{
+    unsigned lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((unsigned long long)hi << 32) | lo;
+}
+/* CPU cycles spent in the actual GPU-command submission (FlushBatch draws) this
+ * frame — gpu_xbox.c reads + resets it to split "draw submit" from "prim parse/
+ * transform" in the [OTS] timing line. */
+unsigned long long g_Nv2aDrawCycles = 0;
+
 /* Sized for a whole frame's geometry. At 1024 (~170 quads) the pool filled mid-
  * frame and EmitTris silently DROPPED the rest of the scene — and since DrawOTag
  * walks far->near, the dropped remainder was the near-camera geometry (Harry + his
@@ -450,10 +463,12 @@ static void GpuNv2a_FlushBatch(void)
     int start = s_runStart;
     int total = s_batchUsed - s_runStart;
     int done  = 0;
+    unsigned long long _cyc0;
 
     if (total <= 0)
         return;
     s_flushCount++;
+    _cyc0 = sh_rdtsc();
 
     /* One store fence per draw (not per appended prim): flushes the WC pool
      * writes for every vertex in this run to global visibility before the GPU
@@ -490,6 +505,7 @@ static void GpuNv2a_FlushBatch(void)
         done += chunk;
     }
 
+    g_Nv2aDrawCycles += sh_rdtsc() - _cyc0;
     s_runStart = s_batchUsed;
 }
 

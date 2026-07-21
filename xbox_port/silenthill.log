@@ -1,0 +1,725 @@
+[SH-XBOX] SEH crash logger installed (frame=0xd0032c60 handler=0x2efe00)
+[SH-XBOX] build ddc1a610f (2026-07-21 11:37:55)
+[FS] D: -> '\Device\Harddisk0\Partition1\Apps\SH\' (wasMounted=1 remap=ok)
+[SH-XBOX] boot: video 640x480x32
+[GTE] RotTransPers v(64,32,512) -> sx=352 sy=256 sz=128 flag=0x1000 (expect sx=352 sy=256)
+[SH-XBOX] pbkit initialised
+[CD] xbe dir = '\Device\Harddisk0\Partition1\Apps\SH\' (mounted Q:)
+[CD] disc image: Q:\Silent Hill (USA).bin
+[CD] BIN: Q:\Silent Hill (USA).bin
+[SH-XBOX] NV2A fb 640x480, content 640x480 at x=0
+[SH-XBOX] NV2A backend ready (batch=65536 verts)
+[SH-XBOX] USB pad init done
+[MCRD] card path = E:\UDATA\SH010000\0.MCD
+[SH-XBOX] PSX RAM @ 0xce1b88
+[SH-XBOX] game data initialised
+[SH_AUDIO] SPU mixer init (24 voices, out=48000Hz, ADSR+interp)
+[SH_AUDIO] eeprom audio flags=0x00030002 -> surround+AC3
+[SH_AUDIO] DirectSound up (48000Hz 5.1, 65536-byte ring)
+[SH-XBOX] subsystems up; entering MainLoop
+[FOGST-GPU] clear=0xff000000
+[SH-XBOX] layout check ok: sizeof(s_SysWork)=38588 sizeof(s_GameWork)=1496
+[SH_AUDIO] sound_seq_off(0): reached MIDI init loop
+[SH_AUDIO] sound_seq_off(1): reached MIDI init loop
+[SH_AUDIO] SdInit complete: smf_midi[0].mvol_3=127 smf_midi[1].mvol_3=127
+[XA] SetVolume L=0 R=0
+[ARENA] buf0=0x7fdd0008 buf1=0x7fbc0008
+[SH-XBOX] GameState -> 0 (step 0)
+[SH_AUDIO] TaskPoolExecute task=0
+[SH_BGM] SdSeqCalledTbyT: sd_interrupt_start_flag=1 smf_start_flag=0
+[UIDIAG] st=0 hires=0 disp=0,0,0x0 ofs=0,0 scl=0,0 sprt0=(0,0 0x0 uv0,0)(0,0 0x0 uv0,0)(0,0 0x0 uv0,0) ft4x0=(0,0-0,0)(0,0-0,0)
+[OT] DrawOTag head=0xc64c6c (walking; per-node trace off)
+[OT] walk done after 2048 nodes (cap hit=0)
+[MCRD] card_info chan=0 -> IOE (n=1)
+[SH_AUDIO] TaskPoolExecute task=160
+[SH_AUDIO] SdVabTransBodyPartly: vabid=0 complete, total=132080
+[SH_AUDIO] TaskPoolExecute task=0
+[SH_AUDIO] TaskPoolExecute task=162
+[SH_AUDIO] SdVabTransBodyPartly: vabid=2 complete, total=131968
+[MCRD] card_info chan=0 -> IOE (n=2)
+[SH_AUDIO] TaskPoolExecute task=0
+[MCRD] card_clear chan=0 -> IOE (n=1)
+[MCRD] card_load chan=0 -> IOE (n=1)
+[LOOSE/INIT] allow_loose_files=0  base=gamedata/load/  verbose=no
+[MCRD] dir scan chan=0 (n=1)
+[BOOT0/TIM] PostLoadTim file=6 'FONT16.TIM' ss=0x287 img.u=0 img.v=240 tPage=0,16 clutX=304 clutY=511
+[BOOT0/TIM] post ReadTIM: prect=0xec41c0 caddr=0xec419c paddr=0xec41c8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(0,496 256x16)
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,511 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=512 len=256 ok
+[BOOT0/TIM] PostLoadTim file=8 'KONAMI.TIM' ss=0x28e img.u=0 img.v=0 tPage=0,12 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xec41c0 caddr=0xec419c paddr=0xec41c8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 96x384)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCRD] card_info chan=1 -> IOE (n=3)
+[MCRD] card_info chan=1 -> IOE (n=4)
+[UIDIAG] st=1 hires=0 disp=0,0,0x0 ofs=0,0 scl=0,0 sprt0=(0,0 0x0 uv0,0)(0,0 0x0 uv0,0)(0,0 0x0 uv0,0) ft4x0=(0,0-0,0)(0,0-0,0)
+[SH-XBOX] GameState -> 1 (step 0)
+[MCRD] card_clear chan=1 -> IOE (n=2)
+[VRAM] texture cache: 96/96 slots (256KB each), free=8656KB after
+[MCRD] card_load chan=1 -> IOE (n=2)
+[MCRD] dir scan chan=1 (n=2)
+[BOOT0/TIM] PostLoadTim file=9 'KONAMI2.TIM' ss=0x2b3 img.u=0 img.v=0 tPage=0,14 clutX=0 clutY=1
+[BOOT0/TIM] post ReadTIM: prect=0xec41c0 caddr=0xec419c paddr=0xec41c8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(896,0 104x160)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,1 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCRD] card_info chan=2 -> IOE (n=5)
+[MCRD] card_info chan=2 -> IOE (n=6)
+[MCRD] card_clear chan=2 -> IOE (n=3)
+[BOOT0/TIM] PostLoadTim file=1423 'HERO.TIM' ss=0x5a6a img.u=0 img.v=0 tPage=0,27 clutX=736 clutY=480
+[BOOT0/TIM] post ReadTIM: prect=0xec4380 caddr=0xec419c paddr=0xec4388 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,256 64x192)
+[BOOT0/TIM] pre CLUT LoadImage rect=(736,480 16x15)
+[BOOT0/TIM] PostLoadTim done
+[MCRD] card_load chan=2 -> IOE (n=3)
+[MCRD] dir scan chan=2 (n=3)
+[MCRD] card_info chan=3 -> IOE (n=7)
+[MCRD] card_info chan=3 -> IOE (n=8)
+[BOOT0/TIM] PostLoadTim file=1802 'BLD.TIM' ss=0x795b img.u=0 img.v=0 tPage=0,11 clutX=304 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xeceba0 caddr=0xece99c paddr=0xeceba8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[MCRD] card_clear chan=3 -> IOE (n=4)
+[MCRD] card_load chan=3 -> IOE (n=4)
+[MCRD] dir scan chan=3 (n=4)
+[SH_AUDIO] pump front peak=0 avail=14208 surround=1
+[MCRD] card_info chan=16 -> IOE (n=9)
+[MCRD] card_info chan=16 -> IOE (n=10)
+[MCRD] card_clear chan=16 -> IOE (n=5)
+[MCRD] card_load chan=16 -> IOE (n=5)
+[MCRD] dir scan chan=8 (n=5)
+[MCRD] open 'bu10:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=512 len=256 ok
+[MCRD] card_info chan=17 -> IOE (n=11)
+[MCRD] card_info chan=17 -> IOE (n=12)
+[MCRD] card_clear chan=17 -> IOE (n=6)
+[MCRD] card_load chan=17 -> IOE (n=6)
+[MCRD] dir scan chan=9 (n=6)
+[MCRD] card_info chan=18 -> IOE (n=13)
+[MCRD] card_info chan=18 -> IOE (n=14)
+[MCRD] card_clear chan=18 -> IOE (n=7)
+[MCRD] card_load chan=18 -> IOE (n=7)
+[MCRD] dir scan chan=10 (n=7)
+[MCRD] card_info chan=19 -> IOE (n=15)
+[MCRD] card_info chan=19 -> IOE (n=16)
+[MCRD] card_clear chan=19 -> IOE (n=8)
+[MCRD] card_load chan=19 -> IOE (n=8)
+[MCRD] dir scan chan=11 (n=8)
+[FT] frame=17ms swapWait=0ms flushMs=0ms draws=6 verts=36
+[SH_AUDIO] pump front peak=0 avail=7296 surround=1
+[SH_AUDIO] pump front peak=0 avail=8064 surround=1
+[UIDIAG] st=2 hires=0 disp=0,0,640x448 ofs=320,224 scl=1000,1071 sprt3=(64,64 128x128 uv0,0)(-192,64 256x128 uv0,0)(64,-192 128x256 uv0,0) ft4x0=(0,0-0,0)(0,0-0,0)
+[SH-XBOX] GameState -> 2 (step 0)
+[FT] frame=4ms swapWait=0ms flushMs=0ms draws=4 verts=24
+[SH_AUDIO] pump front peak=0 avail=11648 surround=1
+[BOOT0/TIM] PostLoadTim file=1799 'BG_ETC.TIM' ss=0x7906 img.u=0 img.v=0 tPage=0,12 clutX=192 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xec4300 caddr=0xec419c paddr=0xec4308 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(192,0 16x11)
+[BOOT0/TIM] PostLoadTim done
+[SH_AUDIO] pump front peak=0 avail=3200 surround=1
+[MCRD] open 'bu10:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=768 len=128 ok
+[BOOT0/TIM] PostLoadTim file=1980 'TITLE_E.TIM' ss=0x90b7 img.u=32 img.v=0 tPage=1,13 clutX=224 clutY=15
+[BOOT0/TIM] post ReadTIM: prect=0xe943a0 caddr=0xe9419c paddr=0xe943a8 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 160x480)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,15 256x1)
+[BOOT0/TIM] PostLoadTim done
+[UIDIAG] st=6 hires=0 disp=0,0,640x448 ofs=320,224 scl=1000,1071 sprt3=(48,-80 160x160 uv0,0)(-208,-80 256x160 uv0,0)(48,-80 160x160 uv0,0) ft4x0=(0,0-0,0)(0,0-0,0)
+[SH-XBOX] GameState -> 6 (step 0)
+[SH] open_main: playing FMV (file=2053 frames=0)
+[FMV] no avi for C1_20670 (checked D:\fmv, D:\gamedata\fmv) -> MDEC
+[FMV] start C1_20670 file_idx=2053 base=133127 sectors=20670 maxFrames=0 (15fps)
+[XA] fmv stream open: 37800Hz stereo coding=0x01
+[FMV] video 320x208, 9 sectors/frame
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[FMV] skipped at frame 27
+[XA] fmv stream end: 33 sectors fed, 3360 ring frames discarded
+[FT] frame=6ms swapWait=0ms flushMs=0ms draws=0 verts=0
+[SH_AUDIO] pump front peak=5726 avail=10240 surround=1
+[FMV] end C1_20670: 27 frames (12 dropped, 0 decode fails, 19 presents)
+[SH] open_main: FMV_Play returned
+[UIDIAG] st=7 hires=0 disp=0,0,640x448 ofs=320,224 scl=1000,1071 sprt0=(48,-80 160x160 uv0,0)(-208,-80 256x160 uv0,0)(48,-80 160x160 uv0,0) ft4x0=(0,0-0,0)(0,0-0,0)
+[SH-XBOX] GameState -> 7 (step 0)
+[SH_AUDIO] pump front peak=0 avail=7808 surround=1
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1281 (Sfx_Base+1) vol=0
+[BOOT0/TIM] PostLoadTim file=1939 'SAVELOAD.TIM' ss=0x8ced img.u=0 img.v=16 tPage=1,5 clutX=224 clutY=14
+[BOOT0/TIM] post ReadTIM: prect=0xec43a0 caddr=0xec419c paddr=0xec43a8 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(320,16 160x240)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,14 256x1)
+[BOOT0/TIM] PostLoadTim done
+[FT] frame=22ms swapWait=0ms flushMs=0ms draws=20 verts=1500
+[SH_AUDIO] pump front peak=22925 avail=3200 surround=1
+[UIDIAG] st=7 hires=0 disp=0,0,320x448 ofs=160,224 scl=2000,1071 sprt3=(31,16 128x256 uv0,0)(-225,16 256x256 uv0,0)(31,-240 128x256 uv0,0) ft4x0=(0,0-0,0)(0,0-0,0)
+[UIDIAG] st=8 hires=0 disp=0,0,320x448 ofs=160,224 scl=2000,1071 sprt3=(31,16 128x256 uv0,0)(-225,16 256x256 uv0,0)(31,-240 128x256 uv0,0) ft4x0=(0,0-0,0)(0,0-0,0)
+[SH-XBOX] GameState -> 8 (step 0)
+[SH_AUDIO] pump front peak=22115 avail=3328 surround=1
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SH-XBOX] vblank 600
+[MEM] tick: free=7860KB (1965 pages)
+[FT] frame=17ms swapWait=0ms flushMs=0ms draws=64 verts=900
+[OTS] f=600 calls=2 n0=2052 n1=254 prims=62022 bb=-320,2240,-274,1028
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=28504 sub=550 q=0 lines=3708 unk=0
+[SH_AUDIO] pump front peak=13853 avail=3200 surround=1
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[UIDIAG] st=8 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt3=(95,-120 64x240 uv0,16)(-161,-120 256x240 uv0,16)(111,-59 12x16 uv228,240) ft4x0=(0,0-0,0)(0,0-0,0)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SH_AUDIO] pump front peak=11843 avail=3200 surround=1
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[FT] frame=17ms swapWait=0ms flushMs=0ms draws=64 verts=894
+[SH_AUDIO] pump front peak=11843 avail=3200 surround=1
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[UIDIAG] st=8 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt3=(95,-120 64x240 uv0,16)(-161,-120 256x240 uv0,16)(111,-59 12x16 uv228,240) ft4x0=(0,0-0,0)(0,0-0,0)
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=0
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=3456 len=640 ok
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=768 len=128 ok
+[CHARA-TEX] charaId=1 matCount=1 modelCount=23
+[CHARA-TEX] mat[0] name='HERO' field_C=1 E=0x3b F=0x3b clut=0x782e UV=0x0000 tex=0
+[CHARA-TEX] prim0: f0=0x135b(UV0) f2=0x7a6e(clut) f4=0x1651(UV1) f6=0x003b(tpage) f8=0x1251(UV2) fA=0x0000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,27] u=0 v=0 clutXY=(736,480)
+[AUTO-EQUIP-CHECK] mapIdx=10 processFlags=0x8 inventorySlotCount=10 equippedWeapon=160
+[MAP-LOAD] GameBoot_MapLoad mapIdx=10 (map2_s00) fileIdx=2005 linked=1 procFlags=0x8
+[MAP-LOAD] MapRegistry_Load(10)=map2_s00 linked=1 header=004f8b94
+[MEM] after map-load: free=7856KB (1964 pages)
+[SH_AUDIO] pump front peak=12267 avail=3328 surround=1
+[UIDIAG] st=10 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt3=(95,-120 64x240 uv0,16)(-161,-120 256x240 uv0,16)(111,-59 12x16 uv228,240) ft4x0=(0,0-0,0)(0,0-0,0)
+[SH-XBOX] GameState -> 10 (step 0)
+[BOOT-STEP] GameStartup step=0 qlen=0
+[TRANSITION] GameStartup step=0: processFlags=0x8 (LoadSave) sizeof(s_WorldGfxWork)=11708
+[SH_AUDIO] TaskPoolExecute task=2
+[STORE] readback env=(0,32 320x224) pages=2 took=22 src=1 n=1 f=802
+[BOOT-STEP] GameStartup step=3 qlen=0
+[SH_AUDIO] TaskPoolExecute task=0
+[BOOT-STEP] GameStartup step=4 qlen=0
+[STORE] rect=(704,256 4x1)
+[STORE] rect=(736,484 4x1)
+[STORE] rect=(704,256 4x1)
+[STORE] rect=(736,488 4x1)
+[STORE] rect=(704,256 4x1)
+[STORE] rect=(736,480 4x1)
+[BOOT-STEP] GameStartup step=5 qlen=0
+[BOOT-STEP] GameStartup step=6 qlen=6
+[STORE] readback env=(0,32 320x224) pages=2 took=22 src=0 n=2 f=805
+[BOOT0/TIM] PostLoadTim file=1449 'REBIRD.TIM' ss=0x5b2c img.u=0 img.v=0 tPage=0,28 clutX=704 clutY=464
+[BOOT0/TIM] post ReadTIM: prect=0xec4260 caddr=0xec419c paddr=0xec4268 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,256 32x128)
+[BOOT0/TIM] pre CLUT LoadImage rect=(704,464 16x6)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1415 'DOG.TIM' ss=0x5a47 img.u=0 img.v=128 tPage=0,28 clutX=720 clutY=464
+[BOOT0/TIM] post ReadTIM: prect=0xec4240 caddr=0xec419c paddr=0xec4248 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,384 32x128)
+[BOOT0/TIM] pre CLUT LoadImage rect=(720,464 16x5)
+[BOOT0/TIM] PostLoadTim done
+[BOOT-STEP] GameStartup step=7 qlen=0
+[TRANSITION] GameStartup step=7: processFlags=0x8 playerPos=(483674,819,888027) func_80039F90=0x0
+[IPD-INIT] Ipd_MapFileInfoSet: mapTag='THR' activeIpdCount=4 isExterior=1 plmIdx=1370 ipdFileIdx=0 textureFileIdx=0 curSize=0 willRebuildGrid=1
+[MEM] after chunk-buffers: free=6192KB (1548 pages)
+[TRANSITION] GameStartup step=7 post-init: playerPos=(483674,819,888027) mapTag='THR'
+[BOOT-STEP] GameStartup step=8 qlen=6
+[BOOT0/TIM] PostLoadTim file=1073 'THR0001F.TIM' ss=0x45d8 img.u=0 img.v=0 tPage=0,8 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xece260 caddr=0xece19c paddr=0xece268 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x6)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (512,0 64x256) hits PINNED pool slot 0 'THR0001F' (512,0)
+[BOOT0/TIM] PostLoadTim file=1077 'THR0003F.TIM' ss=0x4625 img.u=0 img.v=0 tPage=0,9 clutX=16 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xece360 caddr=0xece19c paddr=0xece368 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(16,0 16x14)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (576,0 64x256) hits PINNED pool slot 1 'THR0003F' (576,0)
+[BOOT0/TIM] PostLoadTim file=1075 'THR0002F.TIM' ss=0x45fe img.u=0 img.v=0 tPage=0,10 clutX=32 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xece2e0 caddr=0xece19c paddr=0xece2e8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(640,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(32,0 16x10)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (640,0 64x256) hits PINNED pool slot 2 'THR0002F' (640,0)
+[BOOT0/TIM] PostLoadTim file=1079 'THR0004F.TIM' ss=0x4644 img.u=0 img.v=0 tPage=0,21 clutX=48 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xece3a0 caddr=0xece19c paddr=0xece3a8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(320,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(48,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (320,256 64x256) hits PINNED pool slot 3 'THR0004F' (320,256)
+[BOOT0/TIM] PostLoadTim file=1105 'THR02H2F.TIM' ss=0x483e img.u=0 img.v=0 tPage=0,22 clutX=64 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xece3a0 caddr=0xece19c paddr=0xece3a8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(384,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(64,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (384,256 64x256) hits PINNED pool slot 4 'THR02H2F' (384,256)
+[BOOT0/TIM] PostLoadTim file=1106 'THR02HMF.TIM' ss=0x484f img.u=0 img.v=0 tPage=0,23 clutX=80 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xece300 caddr=0xece19c paddr=0xece308 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(448,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(80,0 16x11)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (448,256 64x256) hits PINNED pool slot 5 'THR02HMF' (448,256)
+[TEXVRAM] 'THR0001F' tPage=[0,8] clutXY=(0,0) uv=(0,0)
+[TEXVRAM] 'THR0003F' tPage=[0,9] clutXY=(16,0) uv=(0,0)
+[TEXVRAM] 'THR0002F' tPage=[0,10] clutXY=(32,0) uv=(0,0)
+[TEXVRAM] 'THR0004F' tPage=[0,21] clutXY=(48,0) uv=(0,0)
+[TEXVRAM] 'THR02H2F' tPage=[0,22] clutXY=(64,0) uv=(0,0)
+[TEXVRAM] 'THR02HMF' tPage=[0,23] clutXY=(80,0) uv=(0,0)
+[STORE] readback env=(0,32 320x224) pages=2 took=17 src=1 n=3 f=838
+[BOOT-STEP] GameStartup step=9 qlen=0
+[SH_AUDIO] TaskPoolExecute task=8
+[SH_AUDIO] TaskPoolExecute task=0
+[SH_AUDIO] TaskPoolExecute task=8
+[SH_AUDIO] TaskPoolExecute task=209
+[SH_AUDIO] SdVabTransBodyPartly: vabid=3 complete, total=131360
+[SH_AUDIO] TaskPoolExecute task=36
+[SH_AUDIO] SdSeqOpen: addr=0xed7188 magic=0x3154444b vab_id=3
+[SH_AUDIO] SdSeqOpen: opened slot 0, vab_id=3
+[FT] frame=54ms swapWait=0ms flushMs=0ms draws=59 verts=987
+[SH_AUDIO] TaskPoolExecute task=0
+[STORE] readback env=(0,32 320x224) pages=2 took=17 src=0 n=4 f=841
+[SH_AUDIO] pump front peak=0 avail=7552 surround=1
+[BOOT-STEP] GameStartup step=10 qlen=0
+[SH_AMB] Sd_AmbientSfxSet idx=4 -> loadCmd=204
+[SH_AUDIO] TaskPoolExecute task=204
+[SH_AMB] Sd_VabLoad ambient cmd=204 type=2 dedup=0
+[SH_AUDIO] SdVabTransBodyPartly: vabid=2 complete, total=196560
+[STORE] readback env=(0,32 320x224) pages=2 took=17 src=0 n=5 f=844
+[SH_AUDIO] TaskPoolExecute task=0
+[BOOT-STEP] GameStartup step=11 qlen=0
+[STORE] readback env=(0,32 320x224) pages=2 took=17 src=0 n=6 f=847
+[STORE] readback env=(0,32 320x224) pages=2 took=18 src=0 n=7 f=850
+[STP] tpage=0x104 clut=0x0 zero=27532 stp1=9774
+[STP] tpage=0x100 clut=0x0 zero=64127 stp1=1262
+[STORE] readback env=(0,32 320x224) pages=2 took=18 src=0 n=8 f=853
+[STP] tpage=0x104 clut=0x0 zero=27532 stp1=9774
+[STP] tpage=0x100 clut=0x0 zero=64125 stp1=1262
+[STP] tpage=0x114 clut=0x0 zero=17252 stp1=25552
+[STP] tpage=0x110 clut=0x0 zero=63673 stp1=462
+[STP] tpage=0x114 clut=0x0 zero=17252 stp1=25552
+[STP] tpage=0x110 clut=0x0 zero=63673 stp1=462
+[STP] tpage=0x104 clut=0x0 zero=27532 stp1=9774
+[STP] tpage=0x100 clut=0x0 zero=64125 stp1=1262
+[STP] tpage=0x104 clut=0x0 zero=27532 stp1=9774
+[STP] tpage=0x100 clut=0x0 zero=64123 stp1=1262
+[CHARA-TEX] charaId=2 matCount=1 modelCount=16
+[CHARA-TEX] mat[0] name='REBIRD' field_C=1 E=0x5c F=0x5c clut=0x742c UV=0x0000 tex=0
+[CHARA-TEX] prim0: f0=0x2971(UV0) f2=0x74ac(clut) f4=0x1d6a(UV1) f6=0x005c(tpage) f8=0x2077(UV2) fA=0x0000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,28] u=0 v=0 clutXY=(704,464)
+[CHARA-TEX] charaId=4 matCount=1 modelCount=22
+[CHARA-TEX] mat[0] name='DOG' field_C=1 E=0x5c F=0x5c clut=0x742d UV=0x8000 tex=0
+[CHARA-TEX] prim0: f0=0xce2b(UV0) f2=0x742d(clut) f4=0xc02e(UV1) f6=0x005c(tpage) f8=0xcd2f(UV2) fA=0x8000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,28] u=0 v=128 clutXY=(720,464)
+[SFX] Sd_SfxStop: sfxId=1300 (Sfx_Base+20)
+[SFX] Sd_SfxStop: sfxId=1302 (Sfx_Base+22)
+[SFX] Sd_SfxStop: sfxId=1301 (Sfx_Base+21)
+[SFX] Sd_SfxStop: sfxId=1303 (Sfx_Base+23)
+[SFX] Sd_SfxStop: sfxId=1321 (Sfx_Base+41)
+[SFX] Sd_SfxStop: sfxId=1322 (Sfx_Base+42)
+[WOBJ] resolved 'JO0C_HID' lmIdx=3
+[WOBJ] resolved 'PAD_NEAR' lmIdx=1
+[WOBJ] resolved 'DRINK_NE' lmIdx=1
+[WEP_DBG] handgun pre-copy D_800AFBF4[6]: sfx0=1283 sfx2=1284 sfx4=1285 aim6=66 att7=72 hold8=61 f9=37 fA=37 fB=0 sizeof=12
+[WEP_DBG] handgun post-copy g_Player_EquippedWeaponInfo: sfx0=1283 sfx2=1284 sfx4=1285 aim6=66 att7=72 hold8=61 f9=37 fA=37 fB=0 sizeof=12
+[RELOAD_KF] weap=32 blendStart=-1 blendEnd=605 activeEnd=658
+[WEP_LOAD] weaponAttack=32 FS_BUFFER_12=0xe01d3c — queuing weapon ANM
+[WEP_LOAD] post-load FS_BUFFER_12 first 16 bytes: 00 fa 00 7f ff fd 01 7f fe 03 02 7f 7f 01 01 ff
+[WEP_LOAD] HARRY_BASE_ANIM_INFOS[56] status=56 hasVar=0 link=57 sk=-1 ek=570
+[WEP_LOAD] HARRY_BASE_ANIM_INFOS[57] status=57 hasVar=0 link=57 sk=570 ek=579
+[WEP_LOAD] g_Player_EquippedWeaponInfo: attackSfx=1283 animStop=66 animAttack=72 animHold=61 sizeof=12
+[BOOT0/TIM] PostLoadTim file=1505 'TIM00.TIM' ss=0x5dcb img.u=0 img.v=0 tPage=0,15 clutX=176 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xec43a0 caddr=0xec419c paddr=0xec43a8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(960,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(176,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[SH_AUDIO] TaskPoolExecute task=166
+[SH_AUDIO] SdVabTransBody: vabid=1 size=14384 spu_addr=0x21490 OK
+[BOOT-STEP] GameStartup step=12 qlen=2
+[SH_AUDIO] TaskPoolExecute task=0
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt2=(96,-112 64x224 uv0,0)(-160,-112 256x224 uv0,0)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[SH-XBOX] GameState -> 11 (step 0)
+[WALLSTOP] kind=2 sub=3 a=(9728,4226) b=(8700,4225) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(483674,888027) head=2522
+[WALLSTOP]   off=(9749,4301) full=(9749,4301) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[BOOT0/TIM] PostLoadTim file=1514 'TIM07.TIM' ss=0x5e64 img.u=32 img.v=0 tPage=0,13 clutX=240 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xec42a0 caddr=0xec419c paddr=0xec42a8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(240,0 16x8)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1509 'TIM02.TIM' ss=0x5e0f img.u=0 img.v=0 tPage=0,14 clutX=160 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xec43a0 caddr=0xec419c paddr=0xec43a8 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(896,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(160,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[FOGST-GPU] clear=0xff5c5464
+[WALLSTOP] kind=2 sub=3 a=(9728,4226) b=(8700,4225) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(483674,888027) head=2522
+[WALLSTOP]   off=(9749,4301) full=(9749,4301) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[SH_AUDIO] pump front peak=0 avail=3072 surround=1
+[WALLSTOP] kind=2 sub=3 a=(9728,4226) b=(8700,4225) rad=76 dist=77 frac=1 sweepDist=12 spd=5724 world=(483448,888051) head=2522
+[WALLSTOP]   off=(9735,4303) full=(9735,4303) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=3 a=(9728,4226) b=(8700,4225) rad=76 dist=77 frac=1 sweepDist=12 spd=5724 world=(482220,888041) head=2732
+[WALLSTOP]   off=(9658,4302) full=(9658,4302) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=3 a=(9728,4226) b=(8700,4225) rad=76 dist=76 frac=1 sweepDist=0 spd=0 world=(481259,888027) head=3178
+[WALLSTOP]   off=(9598,4301) full=(9598,4301) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=3 a=(9728,4226) b=(8700,4225) rad=76 dist=76 frac=1 sweepDist=0 spd=0 world=(481259,888027) head=3118
+[WALLSTOP]   off=(9598,4301) full=(9598,4301) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=3 a=(9728,4226) b=(8700,4225) rad=76 dist=77 frac=1 sweepDist=7 spd=3268 world=(481098,888047) head=3244
+[WALLSTOP]   off=(9588,4302) full=(9588,4302) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[FT] frame=49ms swapWait=0ms flushMs=0ms draws=440 verts=4695
+[SH_AUDIO] pump front peak=5444 avail=9600 surround=1
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=27)
+[SYSSTATE] dispatch sysState=10 mapEventData=0x4f82d8
+[SS] EventCallFunc param=27 func=0xcacf0 step0=0 step1=0 step2=0
+[WALLSTOP] kind=2 sub=51 a=(8959,4608) b=(8959,5762) rad=76 dist=83 frac=1 sweepDist=30 spd=14298 world=(472263,892406) head=3114
+[WALLSTOP]   off=(9036,4575) full=(9036,4575) wrap=0 cellWH=(10240,10240) fall=4204 hp=363480
+[FOGST] en=1 far=3712 fogRGB=92,84,100 bg2d=92,84,100 state=11
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[SH_AUDIO] pump front peak=10645 avail=6528 surround=1
+[WALLSTOP] kind=2 sub=3 a=(9728,4226) b=(8700,4225) rad=76 dist=82 frac=1 sweepDist=28 spd=14298 world=(466129,887906) head=855
+[WALLSTOP]   off=(8653,4294) full=(8653,4294) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[SH-XBOX] vblank 1200
+[MEM] tick: free=6192KB (1548 pages)
+[FT] frame=57ms swapWait=0ms flushMs=0ms draws=465 verts=5016
+[SH_AUDIO] pump front peak=10673 avail=9600 surround=1
+[WALL-HIT] subcell=10 chan=0 flags=0x0001 s0=1(t8 d0) s1=255(t-1 d-1) gt=8 dist=60 rad=76
+[WALL-HIT]   cylBot=-21 cylTop=-430 sv0y=0 sv1y=0 harryY=-16 ground=0 fall=208 spd=14298
+[WALL-HIT]   harryXZ=(-60,4354) moveXZ=(-1,29) sweepDist=28 face0=(0,6144) face1=(0,3584)
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=26)
+[SS] EventCallFunc param=26 func=0xcacc0 step0=0 step1=0 step2=0
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[SH_AUDIO] pump front peak=10678 avail=6784 surround=1
+[SFX] Sd_PlaySfx: sfxId=1314 (Sfx_Base+34) vol=0
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=28 spd=14298 world=(521055,889790) head=345
+[WALLSTOP]   off=(1845,4411) full=(1845,4411) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(521051,892279) head=3871
+[WALLSTOP]   off=(1845,4567) full=(1845,4567) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[FT] frame=60ms swapWait=0ms flushMs=0ms draws=178 verts=2004
+[OTS] f=1200 calls=2 n0=2412 n1=16 prims=219301 bb=-1728,2310,-835,2432
+[FOGPAD] gt=174097 fogged=644277 padMin=1 padMax=120
+[ABR] avg=310 add=2604 sub=447 q=0 lines=6696 unk=0
+[SH_AUDIO] pump front peak=12036 avail=7808 surround=1
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(521051,892279) head=3106
+[WALLSTOP]   off=(1845,4567) full=(1845,4567) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=7 spd=3072 world=(521051,892279) head=2426
+[WALLSTOP]   off=(1845,4567) full=(1845,4567) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=80 frac=1 sweepDist=30 spd=14298 world=(513160,885993) head=2969
+[WALLSTOP]   off=(1352,4174) full=(1352,4174) wrap=0 cellWH=(10240,10240) fall=1540 hp=363480
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[SH_AUDIO] pump front peak=10668 avail=9856 surround=1
+[WALL-HIT] subcell=10 chan=0 flags=0x0001 s0=1(t8 d0) s1=255(t-1 d-1) gt=8 dist=61 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1332 spd=14298
+[WALL-HIT]   harryXZ=(61,4321) moveXZ=(-4,-30) sweepDist=30 face0=(0,6144) face1=(0,3584)
+[WALLSTOP] kind=2 sub=3 a=(9728,4226) b=(8700,4225) rad=76 dist=83 frac=1 sweepDist=30 spd=14298 world=(477053,888137) head=3071
+[WALLSTOP]   off=(9335,4308) full=(9335,4308) wrap=0 cellWH=(10240,10240) fall=-2456 hp=363480
+[FT] frame=77ms swapWait=0ms flushMs=0ms draws=331 verts=3642
+[SH_AUDIO] pump front peak=10680 avail=7808 surround=1
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=27)
+[SS] EventCallFunc param=27 func=0xcacf0 step0=0 step1=0 step2=0
+[WALLSTOP] kind=2 sub=45 a=(8448,4348) b=(8448,4489) rad=76 dist=78 frac=1 sweepDist=29 spd=14298 world=(464097,889480) head=3207
+[WALLSTOP]   off=(8526,4392) full=(8526,4392) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[SH-XBOX] vblank 1800
+[MEM] tick: free=6192KB (1548 pages)
+[SFX] Sd_PlaySfx: sfxId=1314 (Sfx_Base+34) vol=0
+[WALLSTOP] kind=2 sub=45 a=(8448,4348) b=(8448,4489) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(464081,889622) head=3207
+[WALLSTOP]   off=(8525,4401) full=(8525,4401) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=45 a=(8448,4348) b=(8448,4489) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(464081,889622) head=3207
+[WALLSTOP]   off=(8525,4401) full=(8525,4401) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[WALLSTOP] kind=2 sub=45 a=(8448,4348) b=(8448,4489) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(464081,889622) head=3717
+[WALLSTOP]   off=(8525,4401) full=(8525,4401) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[SH_AUDIO] pump front peak=12032 avail=15616 surround=1
+[WALLSTOP] kind=2 sub=42 a=(10388,4091) b=(8191,4095) rad=76 dist=77 frac=1 sweepDist=19 spd=9158 world=(465316,885944) head=3887
+[WALLSTOP]   off=(8602,4171) full=(8602,4171) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALL-HIT] subcell=46 chan=0 flags=0x0001 s0=6(t1 d0) s1=255(t-1 d-1) gt=8 dist=363 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=-740 sv1y=-740 harryY=0 ground=0 fall=1332 spd=0
+[WALL-HIT]   harryXZ=(8625,4170) moveXZ=(0,0) sweepDist=0 face0=(8448,4489) face1=(8191,4488)
+[WALLSTOP] kind=2 sub=42 a=(10388,4091) b=(8191,4095) rad=76 dist=76 frac=1 sweepDist=0 spd=0 world=(465641,885934) head=46
+[WALLSTOP]   off=(8622,4170) full=(8622,4170) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=0 a=(8700,4225) b=(8700,4081) rad=76 dist=77 frac=1 sweepDist=25 spd=12244 world=(465650,886472) head=335
+[WALLSTOP]   off=(8623,4204) full=(8623,4204) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=50 a=(8833,4608) b=(8959,4608) rad=76 dist=81 frac=1 sweepDist=28 spd=14298 world=(469232,891654) head=573
+[WALLSTOP]   off=(8847,4528) full=(8847,4528) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALL-HIT] subcell=23 chan=0 flags=0x0001 s0=4(t8 d0) s1=255(t-1 d-1) gt=8 dist=382 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=-229 sv1y=-229 harryY=0 ground=0 fall=1332 spd=1227
+[WALL-HIT]   harryXZ=(8936,4534) moveXZ=(0,-2) sweepDist=2 face0=(9195,4817) face1=(9243,4914)
+[WALLSTOP] kind=2 sub=50 a=(8833,4608) b=(8959,4608) rad=76 dist=78 frac=1 sweepDist=0 spd=0 world=(470692,891710) head=1244
+[WALLSTOP]   off=(8938,4531) full=(8938,4531) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[FT] frame=50ms swapWait=1ms flushMs=0ms draws=345 verts=3945
+[SH_AUDIO] pump front peak=10680 avail=15360 surround=1
+[WALLSTOP] kind=2 sub=3 a=(9728,4226) b=(8700,4225) rad=76 dist=83 frac=1 sweepDist=29 spd=14298 world=(476179,888135) head=1142
+[WALLSTOP]   off=(9281,4308) full=(9281,4308) wrap=0 cellWH=(10240,10240) fall=4204 hp=363480
+[WALL-HIT] subcell=10 chan=0 flags=0x0001 s0=1(t8 d0) s1=255(t-1 d-1) gt=8 dist=54 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=0 sv1y=0 harryY=0 ground=0 fall=1332 spd=14298
+[WALL-HIT]   harryXZ=(-54,4422) moveXZ=(3,29) sweepDist=29 face0=(0,6144) face1=(0,3584)
+[CHNK] n=4 s0=2,5,st3 s1=3,5,st3 s2=0,0,st0 s3=0,0,st0
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[SH_AUDIO] pump front peak=10667 avail=15232 surround=1
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=26)
+[SS] EventCallFunc param=26 func=0xcacc0 step0=0 step1=0 step2=0
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=81 frac=1 sweepDist=29 spd=14298 world=(520977,889877) head=598
+[WALLSTOP]   off=(1841,4417) full=(1841,4417) wrap=0 cellWH=(10240,10240) fall=198 hp=363480
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=29 spd=14298 world=(521042,892447) head=666
+[WALLSTOP]   off=(1845,4577) full=(1845,4577) wrap=0 cellWH=(10240,10240) fall=-1124 hp=363480
+[FT] frame=33ms swapWait=0ms flushMs=0ms draws=158 verts=1995
+[SH_AUDIO] pump front peak=10673 avail=6400 surround=1
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=82 frac=1 sweepDist=0 spd=0 world=(521041,893657) head=836
+[WALLSTOP]   off=(1845,4653) full=(1845,4653) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[SFX] Sd_PlaySfx: sfxId=1314 (Sfx_Base+34) vol=0
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=82 frac=1 sweepDist=0 spd=0 world=(521041,893657) head=836
+[WALLSTOP]   off=(1845,4653) full=(1845,4653) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[FOGST] en=1 far=3712 fogRGB=92,84,100 bg2d=92,84,100 state=11
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=82 frac=1 sweepDist=0 spd=0 world=(521041,893657) head=921
+[WALLSTOP]   off=(1845,4653) full=(1845,4653) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=82 frac=1 sweepDist=0 spd=0 world=(521041,893657) head=1686
+[WALLSTOP]   off=(1845,4653) full=(1845,4653) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=83 frac=1 sweepDist=19 spd=9158 world=(520957,893363) head=2230
+[WALLSTOP]   off=(1839,4635) full=(1839,4635) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=30 spd=14298 world=(521040,887086) head=1788
+[WALLSTOP]   off=(1845,4242) full=(1845,4242) wrap=0 cellWH=(10240,10240) fall=4204 hp=363480
+[SH_AUDIO] pump front peak=12032 avail=6400 surround=1
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=76 frac=1 sweepDist=0 spd=0 world=(521054,885929) head=1167
+[WALLSTOP]   off=(1845,4170) full=(1845,4170) wrap=0 cellWH=(10240,10240) fall=1322 hp=363480
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=76 frac=1 sweepDist=5 spd=3061 world=(521054,885929) head=453
+[WALLSTOP]   off=(1845,4170) full=(1845,4170) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=28 spd=14298 world=(521054,888522) head=453
+[WALLSTOP]   off=(1845,4332) full=(1845,4332) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[SH-XBOX] vblank 2400
+[MEM] tick: free=6192KB (1548 pages)
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=28 spd=14298 world=(521053,892226) head=149
+[WALLSTOP]   off=(1845,4564) full=(1845,4564) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(521040,893491) head=3522
+[WALLSTOP]   off=(1845,4643) full=(1845,4643) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(521040,893491) head=2757
+[WALLSTOP]   off=(1845,4643) full=(1845,4643) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[FT] frame=34ms swapWait=0ms flushMs=0ms draws=171 verts=2013
+[SH_AUDIO] pump front peak=10643 avail=6272 surround=1
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=78 frac=1 sweepDist=6 spd=2660 world=(513670,885958) head=3988
+[WALLSTOP]   off=(1384,4172) full=(1384,4172) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(513683,885945) head=3988
+[WALLSTOP]   off=(1385,4171) full=(1385,4171) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[SH_AUDIO] pump front peak=10670 avail=6400 surround=1
+[WALLSTOP] kind=2 sub=20 a=(1446,4817) b=(1449,4869) rad=76 dist=78 frac=1 sweepDist=29 spd=14298 world=(515068,895103) head=266
+[WALLSTOP]   off=(1471,4743) full=(1471,4743) wrap=0 cellWH=(10240,10240) fall=-1124 hp=363480
+[WALLSTOP] kind=2 sub=4 a=(1277,4996) b=(1922,4996) rad=76 dist=77 frac=1 sweepDist=29 spd=14298 world=(517385,897925) head=470
+[WALLSTOP]   off=(1616,4920) full=(1616,4920) wrap=0 cellWH=(10240,10240) fall=-2456 hp=363480
+[WALLSTOP] kind=2 sub=16 a=(1787,5017) b=(1787,4734) rad=76 dist=77 frac=1 sweepDist=15 spd=7781 world=(518891,897937) head=835
+[WALLSTOP]   off=(1710,4921) full=(1710,4921) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=16 a=(1787,5017) b=(1787,4734) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(518894,897945) head=1260
+[WALLSTOP]   off=(1710,4921) full=(1710,4921) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=16 a=(1787,5017) b=(1787,4734) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(518894,897945) head=1345
+[WALLSTOP]   off=(1710,4921) full=(1710,4921) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[FT] frame=33ms swapWait=0ms flushMs=0ms draws=175 verts=1920
+[OTS] f=1800 calls=2 n0=2395 n1=16 prims=312631 bb=-1160,2366,-1165,2432
+[FOGPAD] gt=312031 fogged=1208821 padMin=1 padMax=126
+[ABR] avg=600 add=0 sub=0 q=0 lines=0 unk=0
+[SH_AUDIO] pump front peak=10668 avail=6528 surround=1
+[WALLSTOP] kind=2 sub=4 a=(1277,4996) b=(1922,4996) rad=76 dist=76 frac=1 sweepDist=18 spd=9158 world=(516750,897936) head=1345
+[WALLSTOP]   off=(1576,4921) full=(1576,4921) wrap=0 cellWH=(10240,10240) fall=3796 hp=363480
+[WALLSTOP] kind=2 sub=21 a=(1449,4869) b=(1403,4894) rad=76 dist=77 frac=1 sweepDist=5 spd=2660 world=(515624,897940) head=1345
+[WALLSTOP]   off=(1506,4921) full=(1506,4921) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=21 a=(1449,4869) b=(1403,4894) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(515624,897940) head=1940
+[WALLSTOP]   off=(1506,4921) full=(1506,4921) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=21 a=(1449,4869) b=(1403,4894) rad=76 dist=78 frac=1 sweepDist=30 spd=14298 world=(515981,897088) head=2365
+[WALLSTOP]   off=(1528,4868) full=(1528,4868) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[SH_AUDIO] pump front peak=10680 avail=6528 surround=1
+[WALLSTOP] kind=2 sub=19 a=(1402,4793) b=(1446,4817) rad=76 dist=78 frac=1 sweepDist=2 spd=1254 world=(514118,894662) head=426
+[WALLSTOP]   off=(1412,4716) full=(1412,4716) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=19 a=(1402,4793) b=(1446,4817) rad=76 dist=78 frac=1 sweepDist=12 spd=6122 world=(514242,894673) head=1055
+[WALLSTOP]   off=(1420,4717) full=(1420,4717) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[FT] frame=33ms swapWait=0ms flushMs=0ms draws=162 verts=1956
+[WALLSTOP] kind=2 sub=16 a=(1787,5017) b=(1787,4734) rad=76 dist=80 frac=1 sweepDist=29 spd=14298 world=(518847,895324) head=749
+[WALLSTOP]   off=(1707,4757) full=(1707,4757) wrap=0 cellWH=(10240,10240) fall=-1124 hp=363480
+[SH_AUDIO] pump front peak=10668 avail=6400 surround=1
+[WALLSTOP] kind=2 sub=16 a=(1787,5017) b=(1787,4734) rad=76 dist=77 frac=1 sweepDist=8 spd=4492 world=(518895,897592) head=332
+[WALLSTOP]   off=(1710,4899) full=(1710,4899) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=16 a=(1787,5017) b=(1787,4734) rad=76 dist=76 frac=1 sweepDist=0 spd=0 world=(518911,897759) head=4003
+[WALLSTOP]   off=(1711,4909) full=(1711,4909) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=4 a=(1277,4996) b=(1922,4996) rad=76 dist=77 frac=1 sweepDist=29 spd=14298 world=(517926,897924) head=3544
+[WALLSTOP]   off=(1650,4920) full=(1650,4920) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[SH-XBOX] vblank 3000
+[MEM] tick: free=6192KB (1548 pages)
+[WALLSTOP] kind=2 sub=4 a=(1277,4996) b=(1922,4996) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(516081,897935) head=2923
+[WALLSTOP]   off=(1535,4920) full=(1535,4920) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=4 a=(1277,4996) b=(1922,4996) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(516081,897935) head=2158
+[WALLSTOP]   off=(1535,4920) full=(1535,4920) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[WALLSTOP] kind=2 sub=4 a=(1277,4996) b=(1922,4996) rad=76 dist=77 frac=1 sweepDist=6 spd=3061 world=(516081,897935) head=1478
+[WALLSTOP]   off=(1535,4920) full=(1535,4920) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[SH_AUDIO] pump front peak=2045 avail=6400 surround=1
+[WALLSTOP] kind=2 sub=16 a=(1787,5017) b=(1787,4734) rad=76 dist=76 frac=1 sweepDist=29 spd=14298 world=(518898,895458) head=1478
+[WALLSTOP]   off=(1711,4766) full=(1711,4766) wrap=0 cellWH=(10240,10240) fall=-3788 hp=363480
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=80 frac=1 sweepDist=29 spd=14298 world=(521006,892666) head=1376
+[WALLSTOP]   off=(1842,4591) full=(1842,4591) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=22 spd=11028 world=(521053,891287) head=1061
+[WALLSTOP]   off=(1845,4505) full=(1845,4505) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(521055,891327) head=296
+[WALLSTOP]   off=(1845,4507) full=(1845,4507) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(521055,891327) head=3627
+[WALLSTOP]   off=(1845,4507) full=(1845,4507) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=1 sub=19 a=(1446,4817) b=(-116,0) rad=76 dist=86 frac=1501 sweepDist=30 spd=14298 world=(515725,895376) head=3474
+[WALLSTOP]   off=(1512,4761) full=(1512,4761) wrap=0 cellWH=(10240,10240) fall=4204 hp=363480
+[FT] frame=34ms swapWait=1ms flushMs=0ms draws=168 verts=2049
+[SH_AUDIO] pump front peak=10680 avail=6528 surround=1
+[WALLSTOP] kind=2 sub=19 a=(1402,4793) b=(1446,4817) rad=76 dist=77 frac=1 sweepDist=30 spd=14298 world=(514492,894798) head=3508
+[WALLSTOP]   off=(1435,4724) full=(1435,4724) wrap=0 cellWH=(10240,10240) fall=2872 hp=363480
+[WALLSTOP] kind=2 sub=19 a=(1402,4793) b=(1446,4817) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(513177,894943) head=3508
+[WALLSTOP]   off=(1353,4733) full=(1353,4733) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=19 a=(1402,4793) b=(1446,4817) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(513177,894943) head=3508
+[WALLSTOP]   off=(1353,4733) full=(1353,4733) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[CHNK] n=4 s0=2,5,st3 s1=3,5,st3 s2=0,0,st0 s3=0,0,st0
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[SH_AUDIO] pump front peak=10672 avail=6400 surround=1
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=79 frac=1 sweepDist=12 spd=5926 world=(521013,888720) head=3508
+[WALLSTOP]   off=(1843,4345) full=(1843,4345) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(521048,888543) head=3508
+[WALLSTOP]   off=(1845,4333) full=(1845,4333) wrap=0 cellWH=(10240,10240) fall=1313 hp=363480
+[FT] frame=34ms swapWait=0ms flushMs=0ms draws=166 verts=1998
+[SH_AUDIO] pump front peak=10667 avail=6400 surround=1
+[WALLSTOP] kind=2 sub=3 a=(1277,4608) b=(1277,4996) rad=76 dist=77 frac=1 sweepDist=30 spd=14298 world=(513190,893543) head=3083
+[WALLSTOP]   off=(1354,4646) full=(1354,4646) wrap=0 cellWH=(10240,10240) fall=1530 hp=363480
+[WALLSTOP] kind=2 sub=3 a=(1277,4608) b=(1277,4996) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(513191,893043) head=2564
+[WALLSTOP]   off=(1354,4615) full=(1354,4615) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[FOGST] en=1 far=3712 fogRGB=92,84,100 bg2d=92,84,100 state=11
+[WALLSTOP] kind=2 sub=3 a=(1277,4608) b=(1277,4996) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(513191,893043) head=1799
+[WALLSTOP]   off=(1354,4615) full=(1354,4615) wrap=0 cellWH=(10240,10240) fall=1322 hp=363480
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=77 frac=1 sweepDist=28 spd=14298 world=(521054,893204) head=796
+[WALLSTOP]   off=(1845,4625) full=(1845,4625) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[SH_AUDIO] pump front peak=10674 avail=6400 surround=1
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=77 frac=1 sweepDist=28 spd=14298 world=(521054,893734) head=796
+[WALLSTOP]   off=(1845,4658) full=(1845,4658) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=76 frac=1 sweepDist=0 spd=0 world=(521058,893756) head=796
+[WALLSTOP]   off=(1846,4659) full=(1846,4659) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=76 frac=1 sweepDist=0 spd=0 world=(521058,893756) head=796
+[WALLSTOP]   off=(1846,4659) full=(1846,4659) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=76 frac=1 sweepDist=0 spd=0 world=(521058,893756) head=796
+[WALLSTOP]   off=(1846,4659) full=(1846,4659) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[SH-XBOX] vblank 3600
+[MEM] tick: free=6192KB (1548 pages)
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=76 frac=1 sweepDist=0 spd=0 world=(521058,893756) head=796
+[WALLSTOP]   off=(1846,4659) full=(1846,4659) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=76 frac=1 sweepDist=0 spd=0 world=(521058,893756) head=796
+[WALLSTOP]   off=(1846,4659) full=(1846,4659) wrap=0 cellWH=(10240,10240) fall=1322 hp=363480
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=76 frac=1 sweepDist=0 spd=0 world=(521058,893756) head=796
+[WALLSTOP]   off=(1846,4659) full=(1846,4659) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[FT] frame=33ms swapWait=0ms flushMs=0ms draws=166 verts=1965
+[SH_AUDIO] pump front peak=2039 avail=6400 surround=1
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=76 frac=1 sweepDist=0 spd=0 world=(521058,893756) head=796
+[WALLSTOP]   off=(1846,4659) full=(1846,4659) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=77 frac=1 sweepDist=22 spd=11028 world=(521043,893742) head=796
+[WALLSTOP]   off=(1845,4658) full=(1845,4658) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALL-HIT] subcell=17 chan=0 flags=0x0001 s0=2(t1 d0) s1=255(t-1 d-1) gt=8 dist=75 rad=76
+[WALL-HIT]   cylBot=-6 cylTop=-415 sv0y=-256 sv1y=-256 harryY=0 ground=0 fall=1332 spd=0
+[WALL-HIT]   harryXZ=(1847,4660) moveXZ=(0,0) sweepDist=0 face0=(1787,4734) face1=(1954,4735)
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(521039,893737) head=31
+[WALLSTOP]   off=(1844,4658) full=(1844,4658) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=17 a=(1787,4734) b=(1954,4735) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(521039,893737) head=4042
+[WALLSTOP]   off=(1844,4658) full=(1844,4658) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=75 frac=0 sweepDist=18 spd=9158 world=(521073,892828) head=4042
+[WALLSTOP]   off=(1847,4601) full=(1847,4601) wrap=0 cellWH=(10240,10240) fall=-2864 hp=363480
+[WALL-HIT] subcell=17 chan=0 flags=0x0001 s0=2(t1 d0) s1=255(t-1 d-1) gt=8 dist=134 rad=76
+[WALL-HIT]   cylBot=-40 cylTop=-450 sv0y=-256 sv1y=-256 harryY=-35 ground=0 fall=-2864 spd=9158
+[WALL-HIT]   harryXZ=(1847,4601) moveXZ=(0,-20) sweepDist=18 face0=(1787,4734) face1=(1954,4735)
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=79 frac=1 sweepDist=18 spd=9158 world=(521020,890110) head=4042
+[WALLSTOP]   off=(1843,4431) full=(1843,4431) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=5 a=(1922,4996) b=(1922,4095) rad=76 dist=78 frac=1 sweepDist=0 spd=0 world=(521034,888617) head=3872
+[WALLSTOP]   off=(1844,4338) full=(1844,4338) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[SH_AUDIO] pump front peak=10649 avail=6272 surround=1
+[WALLSTOP] kind=2 sub=2 a=(140,4608) b=(1277,4608) rad=76 dist=77 frac=1 sweepDist=18 spd=9158 world=(511826,891726) head=2061
+[WALLSTOP]   off=(1269,4532) full=(1269,4532) wrap=0 cellWH=(10240,10240) fall=5128 hp=363480
+[WALLSTOP] kind=2 sub=2 a=(140,4608) b=(1277,4608) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(511872,891727) head=2061
+[WALLSTOP]   off=(1272,4532) full=(1272,4532) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[FT] frame=67ms swapWait=0ms flushMs=0ms draws=647 verts=6336
+[OTS] f=2400 calls=2 n0=3131 n1=16 prims=236151 bb=-1112,1734,-1285,2432
+[FOGPAD] gt=235551 fogged=906446 padMin=1 padMax=127
+[ABR] avg=600 add=0 sub=0 q=0 lines=0 unk=0
+[SH_AUDIO] pump front peak=10681 avail=12800 surround=1
+[WALLSTOP] kind=2 sub=2 a=(140,4608) b=(1277,4608) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(511872,891727) head=2061
+[WALLSTOP]   off=(1272,4532) full=(1272,4532) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=77 frac=1 sweepDist=30 spd=14298 world=(511847,885927) head=2027
+[WALLSTOP]   off=(1270,4170) full=(1270,4170) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(511881,885930) head=2027
+[WALLSTOP]   off=(1272,4170) full=(1272,4170) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(511881,885930) head=2027
+[WALLSTOP]   off=(1272,4170) full=(1272,4170) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[SH_AUDIO] pump front peak=2045 avail=9600 surround=1
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(511881,885930) head=2027
+[WALLSTOP]   off=(1272,4170) full=(1272,4170) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[FT] frame=50ms swapWait=0ms flushMs=0ms draws=538 verts=6063
+[SH_AUDIO] pump front peak=10658 avail=9728 surround=1
+[SH-XBOX] vblank 4200
+[MEM] tick: free=6192KB (1548 pages)
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[WALLSTOP] kind=2 sub=2 a=(140,4608) b=(1277,4608) rad=76 dist=81 frac=1 sweepDist=30 spd=14298 world=(509358,891662) head=3126
+[WALLSTOP]   off=(1114,4528) full=(1114,4528) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[SH_AUDIO] pump front peak=10662 avail=9600 surround=1
+[FT] frame=50ms swapWait=0ms flushMs=0ms draws=635 verts=6339
+[SH_AUDIO] pump front peak=10670 avail=9728 surround=1
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=77 frac=1 sweepDist=29 spd=14298 world=(506521,885928) head=1477
+[WALLSTOP]   off=(937,4170) full=(937,4170) wrap=0 cellWH=(10240,10240) fall=2872 hp=363480
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=77 frac=1 sweepDist=28 spd=14298 world=(510245,885930) head=1171
+[WALLSTOP]   off=(1170,4170) full=(1170,4170) wrap=0 cellWH=(10240,10240) fall=1540 hp=363480
+[CHNK] n=4 s0=2,5,st3 s1=3,5,st3 s2=0,0,st0 s3=0,0,st0
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(25,-18-30,-6)(32,-13-30,-6)
+[SH_AUDIO] pump front peak=10669 avail=6528 surround=1
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=77 frac=1 sweepDist=30 spd=14298 world=(518904,885942) head=2125
+[WALLSTOP]   off=(1711,4171) full=(1711,4171) wrap=0 cellWH=(10240,10240) fall=-1124 hp=363480
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=77 frac=1 sweepDist=9 spd=4492 world=(519210,885936) head=1708
+[WALLSTOP]   off=(1730,4171) full=(1730,4171) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[FT] frame=33ms swapWait=0ms flushMs=0ms draws=175 verts=2058
+[SH_AUDIO] pump front peak=10646 avail=6272 surround=1
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(519306,885937) head=943
+[WALLSTOP]   off=(1736,4171) full=(1736,4171) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[WALLSTOP] kind=2 sub=6 a=(1922,4095) b=(-11,4091) rad=76 dist=77 frac=1 sweepDist=0 spd=0 world=(519306,885937) head=203
+[WALLSTOP]   off=(1736,4171) full=(1736,4171) wrap=0 cellWH=(10240,10240) fall=1332 hp=363480
+[FOGST] en=1 far=3712 fogRGB=92,84,100 bg2d=92,84,100 state=11
+[SFX] Sd_PlaySfx: sfxId=1283 (Sfx_Base+3) vol=0
+[MUZZLE] depth150=559 size160=6 f158=0 f2C=224 xy=(79,25) rgb=(47,248,237) fieldB=0
+[MUZZLE] depth150=557 size160=6 f158=0 f2C=224 xy=(81,28) rgb=(35,40,48) fieldB=1
+[MUZZLE] depth150=557 size160=6 f158=0 f2C=224 xy=(83,26) rgb=(35,40,48) fieldB=2
+[MUZZLE] depth150=559 size160=7 f158=141 f2C=224 xy=(79,25) rgb=(47,248,237) fieldB=0
+[MUZZLE] depth150=557 size160=7 f158=141 f2C=224 xy=(81,28) rgb=(67,77,92) fieldB=1
+[MUZZLE] depth150=557 size160=7 f158=154 f2C=224 xy=(83,26) rgb=(67,77,92) fieldB=2
+[MUZZLE] depth150=559 size160=8 f158=299 f2C=224 xy=(79,25) rgb=(132,252,250) fieldB=0
+[MUZZLE] depth150=557 size160=8 f158=284 f2C=224 xy=(81,28) rgb=(72,83,99) fieldB=1
+[MUZZLE] depth150=557 size160=8 f158=280 f2C=224 xy=(83,26) rgb=(73,84,100) fieldB=2
+[MUZZLE] depth150=559 size160=8 f158=418 f2C=224 xy=(79,25) rgb=(96,0,65) fieldB=0
+[MUZZLE] depth150=557 size160=8 f158=445 f2C=224 xy=(81,29) rgb=(66,75,90) fieldB=1
+[MUZZLE] depth150=557 size160=8 f158=440 f2C=224 xy=(84,26) rgb=(64,74,88) fieldB=2
+[MUZZLE] depth150=559 size160=9 f158=565 f2C=224 xy=(79,25) rgb=(97,0,65) fieldB=0
+[MUZZLE] depth150=557 size160=9 f158=563 f2C=224 xy=(80,29) rgb=(58,66,79) fieldB=1
+[MUZZLE] depth150=557 size160=9 f158=549 f2C=224 xy=(84,26) rgb=(58,66,79) fieldB=2
+[MUZZLE] depth150=559 size160=10 f158=697 f2C=224 xy=(78,26) rgb=(97,0,66) fieldB=0
+[ATTACK-DONE] st=73 lookupSt=73 kf=604 -> pcAttackDone
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt0=(96,-112 64x224 uv0,32)(-160,-112 256x224 uv0,32)(111,-59 12x16 uv228,240) ft4x0=(69,9-101,41)(62,14-94,46)
+[SFX] Sd_PlaySfx: sfxId=1283 (Sfx_Base+3) vol=0
+[SH_AUDIO] pump front peak=29002 avail=6400 surround=1
+[ATTACK-DONE] st=61 lookupSt=61 kf=604 -> pcAttackDone
+[SH-XBOX] vblank 4800
+[MEM] tick: free=6192KB (1548 pages)
+[SYSSTATE] dispatch sysState=14 mapEventData=0
+[FT] frame=17ms swapWait=0ms flushMs=0ms draws=3 verts=36
+[SH_AUDIO] pump front peak=9475 avail=3200 surround=1
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt3=(22,-8 12x16 uv96,240)(11,-8 12x16 uv108,240)(1,-8 12x16 uv24,240) ft4x0=(59,11-91,43)(59,18-91,50)
+[SH_AUDIO] pump front peak=0 avail=3200 surround=1
+[FT] frame=17ms swapWait=0ms flushMs=0ms draws=3 verts=36
+[OTS] f=3000 calls=2 n0=2048 n1=28 prims=318920 bb=-1168,1798,-818,2432
+[FOGPAD] gt=317309 fogged=1244130 padMin=1 padMax=127
+[ABR] avg=454 add=79 sub=0 q=0 lines=0 unk=0
+[SH_AUDIO] pump front peak=0 avail=3200 surround=1
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt3=(22,-8 12x16 uv96,240)(11,-8 12x16 uv108,240)(1,-8 12x16 uv24,240) ft4x0=(59,11-91,43)(59,18-91,50)
+[SH_AUDIO] pump front peak=0 avail=3200 surround=1
+[FT] frame=17ms swapWait=0ms flushMs=0ms draws=0 verts=0
+[SH_AUDIO] pump front peak=0 avail=3200 surround=1
+[UIDIAG] st=11 hires=0 disp=0,0,320x224 ofs=160,112 scl=2000,2142 sprt3=(22,-8 12x16 uv96,240)(11,-8 12x16 uv108,240)(1,-8 12x16 uv24,240) ft4x0=(59,11-91,43)(59,18-91,50)
+[SH_AUDIO] pump front peak=0 avail=3200 surround=1
+[FT] frame=17ms swapWait=0ms flushMs=0ms draws=0 verts=0
+[SH_AUDIO] pump front peak=0 avail=3200 surround=1
