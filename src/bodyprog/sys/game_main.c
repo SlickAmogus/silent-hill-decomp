@@ -84,6 +84,14 @@ static s32 g_PrevVBlanks = 0;
 #define PC_CANARY_VAL  0xDE
 static PACKET* s_PcPacketBufs[2] = { NULL, NULL };
 static PACKET* s_PcPacketBufEnds[2] = { NULL, NULL };
+
+/* Exposes the active packet arena's end so the wide-LM drawer (pc_wide_lm_draw.c)
+ * can bounds-check every emit — the GsOUT_PACKET_P arena has no emit-time guard,
+ * and a dense modded model can emit far more prims than any stock walker. */
+PACKET* Pc_PacketBuf_End(void)
+{
+    return s_PcPacketBufEnds[g_ActiveBufferIdx];
+}
 #endif
 
 // Audio task for `SD_Call` meant to load base VAB audios.

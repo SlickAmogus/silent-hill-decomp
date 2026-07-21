@@ -25,6 +25,7 @@ extern float g_PsxPixelAspect;
 #include "sh_log.h"
 #include "pc_config.h"
 #include "hires_override.h"
+#include "pc_wide_lm.h"
 /* When culling is disabled, ignore fog-based draw distance clamp.
  * PSX uses fogFarDistance as a draw distance optimization (don't render
  * what fog fully hides). On PC we want everything to render and let
@@ -1481,6 +1482,16 @@ void Lm_MaterialFlagsApply(s_LmHeader* lmHdr) // 0x80056954
                 if (lmHdr->magic == LM_HEADER_MAGIC)
                 {
                     Model_MaterialFlagsApply(&lmHdr->modelHdrs[j], i, curMat, matFlags);
+#ifdef SH_PC_PORT
+                    /* A v7 spine has meshCount==0, so the bake above touches no
+                     * prims. Bake the same material state into the wide part's
+                     * prims (no-op for stock v6 — IsWide false). Without it the
+                     * wide prims keep field_6_0==0 and sample VRAM page 0. */
+                    if (Pc_WideLm_IsWide(&lmHdr->modelHdrs[j]))
+                    {
+                        Pc_WideLm_ApplyMaterial(&lmHdr->modelHdrs[j], i, curMat, matFlags);
+                    }
+#endif
                 }
             }
 
@@ -1764,6 +1775,17 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
 
     otTag = &arg1->org[func_800571D0(modelHdr->field_B_1)];
     temp_a0 = modelHdr->field_B_4;
+
+#ifdef SH_PC_PORT
+    /* v7 high-poly model: draw the dense wide geometry instead of the stock
+     * chain. Registry-gated — false for every stock v6 model, so those fall
+     * through to the unchanged dispatch below. */
+    if (Pc_WideLm_IsWide(modelHdr))
+    {
+        Pc_WideLm_DrawPart(modelInfo, otTag, arg2, viewMat, worldMat, arg5);
+        return;
+    }
+#endif
 
     if ((temp_a0 & 0xFF) && temp_a0 >= 0 && temp_a0 < 4) // TODO: `& 0xFF` needed for match.
     {

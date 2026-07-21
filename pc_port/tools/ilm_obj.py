@@ -870,7 +870,7 @@ def _uv_byte(f):
 
 
 def import_obj(obj_path, ilm_path, out_path, grow=False, replace=False,
-               weld=True, weld_eps=WELD_EPS):
+               v7=False, weld=True, weld_eps=WELD_EPS):
     meta_path = os.path.splitext(obj_path)[0] + ".ilmmeta.json"
     if not os.path.exists(meta_path):
         raise SystemExit("missing %s - it is written next to the OBJ by `export` and is "
@@ -923,6 +923,10 @@ def import_obj(obj_path, ilm_path, out_path, grow=False, replace=False,
         rp = mm.get("restPose") or {"R": list(IDENTITY_R), "T": [0, 0, 0]}
         poses.append((rp["R"], rp["T"]))
     invs = [mat_inverse(R) for R, _T in poses]
+
+    if v7:
+        return _wide_import(obj_path, ilm_path, out_path, data, ilm, meta,
+                            verts, norms, uvs, by_name, poses, invs)
 
     if replace:
         return _replace_import(obj_path, ilm_path, out_path, data, ilm, meta,
@@ -1262,6 +1266,116 @@ def lm_validate(d, tail_slack=0, anm_bone_count=-1, skeletal=True):
                 if bone >= anm_bone_count:
                     return 13, ("V13: part %s binds bone %d but the ANM has %d bones"
                                 % (nm(mh), bone, anm_bone_count))
+
+    return 0, None
+
+
+def lm_validate_v7(d, anm_bone_count=-1):
+    """Twin of the planned lm_validate.c v7 ruleset for high-poly ILMs.
+
+    The spine is a v6-shaped LmHeader (magic '0', version 7, isLoaded 0) whose
+    parts declare meshCount==0 - stock walkers therefore draw nothing and the
+    wide u32 blob is the only geometry. Kept from the stock ruleset: V3 (<=56
+    parts, the sole guard against Skeleton_BoneModelAssign overrunning
+    bones_C[56]), V4 (modelOrder in range), V13 (bone prefix < ANM boneCount)
+    and the <=32 animatable-bone mask cap. Dropped: the <=256 pool-window rules
+    V5-V12 - wide parts never enter the shared scratch pool. Added: partOrdinal
+    ascending, boneIdx == name prefix, and every corner index in range of its
+    own mesh's u32 vertex/normal counts.
+
+    Returns (0, None) on pass, else (ruleId, message)."""
+    n = len(d)
+
+    def u32(o):
+        return struct.unpack_from('<I', d, o)[0]
+
+    def nm(o):
+        return d[o:o + 8].split(b'\0')[0].decode('ascii', 'replace')
+
+    def extent_ok(off, cnt, es):
+        return off <= n and cnt * es <= n - off
+
+    def name_bone(mh):
+        return ((d[mh] - 0x30) * 10 + (d[mh + 1] - 0x30)
+                if 0x30 <= d[mh] <= 0x39 and 0x30 <= d[mh + 1] <= 0x39 else 0)
+
+    if n < 0x20 or d[0] != 0x30 or d[1] != 7 or d[2] != 0:
+        return 1, ("V1: not a raw v7 LM file (magic=0x%02X ver=%d isLoaded=%d size=%u)"
+                   % (d[0] if n > 0 else 0, d[1] if n > 1 else 0,
+                      d[2] if n > 2 else 0, n))
+    matCount, matOff = d[3], u32(4)
+    modelCount, hdrsOff, orderOff = d[8], u32(0xC), u32(0x10)
+    wideOff, wideSize, widePartCount = u32(0x14), u32(0x18), u32(0x1C)
+
+    if not extent_ok(matOff, matCount, 24):
+        return 2, "V2: materials section out of file"
+    if not extent_ok(hdrsOff, modelCount, 16):
+        return 2, "V2: modelHdrs section out of file"
+    if not extent_ok(orderOff, modelCount, 1):
+        return 2, "V2: modelOrder section out of file"
+    if not extent_ok(wideOff, 1, wideSize) or wideOff + wideSize > n:
+        return 2, ("V2: wide blob out of file (off=0x%X size=0x%X file=0x%X)"
+                   % (wideOff, wideSize, n))
+    if widePartCount != modelCount:
+        return 2, ("V2: widePartCount %u != modelCount %u" % (widePartCount, modelCount))
+
+    if modelCount > LM_MAX_PARTS:
+        return 3, "V3: %u parts exceeds skeleton cap %d" % (modelCount, LM_MAX_PARTS)
+    for i in range(modelCount):
+        if d[orderOff + i] >= modelCount:
+            return 4, ("V4: modelOrder[%u]=%u out of range (%u parts)"
+                       % (i, d[orderOff + i], modelCount))
+
+    for i in range(modelCount):
+        mh = hdrsOff + i * 16
+        if d[mh + 8] != 0:
+            return 14, ("V14: spine part %s meshCount=%u must be 0 (stock walkers must "
+                        "draw nothing)" % (nm(mh), d[mh + 8]))
+        bone = name_bone(mh)
+        if bone >= 32:
+            return 15, ("V15: part %s binds bone %d; activeBones is a u32 mask so bone "
+                        ">= 32 cannot animate" % (nm(mh), bone))
+        if anm_bone_count > 0 and bone >= anm_bone_count:
+            return 13, ("V13: part %s binds bone %d but the ANM has %d bones"
+                        % (nm(mh), bone, anm_bone_count))
+
+    p = wideOff
+    end = wideOff + wideSize
+    for pi in range(modelCount):
+        if p + 12 > end:
+            return 16, "V16: wide part %u header runs past the blob" % pi
+        ordinal, boneIdx, meshCount = u32(p), d[p + 4], u32(p + 8)
+        p += 12
+        mh = hdrsOff + pi * 16
+        if ordinal != pi:
+            return 16, ("V16: wide part %u carries partOrdinal %u (records must be "
+                        "ascending model index)" % (pi, ordinal))
+        if boneIdx != name_bone(mh):
+            return 16, ("V16: wide part %s boneIdx %u != name prefix %u"
+                        % (nm(mh), boneIdx, name_bone(mh)))
+        for mj in range(meshCount):
+            if p + 12 > end:
+                return 16, "V16: part %s mesh %u header past the blob" % (nm(mh), mj)
+            vc, nc, pc = u32(p), u32(p + 4), u32(p + 8)
+            p += 12
+            body = vc * 8 + nc * 8 + pc * 48
+            if p + body > end:
+                return 16, "V16: part %s mesh %u arrays past the blob" % (nm(mh), mj)
+            primsP = p + vc * 8 + nc * 8
+            for pk in range(pc):
+                pb = primsP + pk * 48
+                tri = u32(pb + 0xC) == 0xFFFFFFFF
+                for c in range(3 if tri else 4):
+                    vco, nco = u32(pb + c * 4), u32(pb + 0x10 + c * 4)
+                    if vco >= vc:
+                        return 17, ("V17: part %s prim %u corner %u vertex index %u >= "
+                                    "vertexCount %u" % (nm(mh), pk, c, vco, vc))
+                    if nco >= nc:
+                        return 17, ("V17: part %s prim %u corner %u normal index %u >= "
+                                    "normalCount %u" % (nm(mh), pk, c, nco, nc))
+            p += body
+    if p != end:
+        return 16, "V16: wide blob has %d unconsumed trailing bytes" % (end - p)
 
     return 0, None
 
@@ -2486,6 +2600,233 @@ def _replace_import(obj_path, ilm_path, out_path, data, ilm, meta, verts, norms,
     return out_path
 
 
+# ---- v7 high-poly (import --v7) ---------------------------------------------
+
+TRI_SENTINEL32 = 0xFFFFFFFF
+
+
+def _emit_wide_ilm(data, ilm, wide_parts):
+    """Serialize a v7 high-poly ILM: a narrow v6-shaped spine the game binds
+    against unchanged, plus a PC-only u32 geometry blob the wide drawer consumes.
+
+    Spine layout: LmHeader(20) | v7 extension(12) | materials | modelOrder | pad4
+    | spine ModelHeader[] (meshCount=0) | one zero MeshHeader | pad4. The wide
+    blob follows, part records in ascending model index (partOrdinal == index).
+    Materials, modelOrder, part names and the ModelHeader 0xB bits are copied
+    verbatim from the donor so Skeleton_BoneModelAssign / the ANM bind path /
+    Model_MaterialFlagsApply run on a real s_LmHeader.
+    """
+    out = bytearray()
+    out += data[0:20]
+    out[1] = 7          # version 7 is the only discriminator (v6 pinned by validator V1)
+    out[2] = 0          # isLoaded: a 1 makes the runtime skip pointer fix-up and crash
+    out[9] = out[10] = out[11] = 0
+    out += bytes(12)    # v7 header extension, filled in once offsets are known
+
+    matsP = len(out)
+    out += data[ilm.matsP:ilm.matsP + 24 * ilm.matCount]
+    orderP = len(out)
+    out += data[ilm.modelOrderP:ilm.modelOrderP + ilm.modelCount]
+    out += bytes(_align4(len(out)))
+    hdrsP = len(out)
+    out += bytes(16 * ilm.modelCount)
+    zeroMeshP = len(out)
+    out += bytes(24)
+    out += bytes(_align4(len(out)))
+
+    struct.pack_into('<I', out, 4, matsP)
+    struct.pack_into('<I', out, 0xC, hdrsP)
+    struct.pack_into('<I', out, 0x10, orderP)
+
+    for m in ilm.models:
+        hb = hdrsP + 16 * m["idx"]
+        out[hb:hb + 8] = data[m["off"]:m["off"] + 8]  # name = rig binding
+        out[hb + 8] = 0                               # meshCount 0 -> stock walkers are no-ops
+        out[hb + 9] = 0                               # vertexOffset (spine never drawn natively)
+        out[hb + 10] = 0                              # normalOffset
+        out[hb + 11] = m["bits"]                      # field_B draw-chain selector, for parity
+        struct.pack_into('<I', out, hb + 0xC, zeroMeshP)
+
+    wideP = len(out)
+    for wp in wide_parts:
+        out += struct.pack('<I', wp["ordinal"])
+        out += struct.pack('<B', wp["bone"]) + bytes(3)
+        out += struct.pack('<I', 1)  # one mesh per part (mirrors --replace's single-mesh rebuild)
+        out += struct.pack('<III', len(wp["verts"]), len(wp["norms"]), len(wp["prims"]))
+        for x, y, z in wp["verts"]:
+            out += struct.pack('<hhhh', x, y, z, 0)
+        for sx, sy, sz in wp["norms"]:
+            out += struct.pack('<hhhh', sx, sy, sz, 0)
+        for pr in wp["prims"]:
+            out += struct.pack('<IIII', *pr["vtx"])
+            out += struct.pack('<IIII', *pr["nrm"])
+            out += struct.pack('<HHHH', *pr["uv"])
+            out += struct.pack('<HH', pr["clut"], pr["flags"])
+            out += struct.pack('<I', 0)
+    wideSize = len(out) - wideP
+
+    struct.pack_into('<III', out, 0x14, wideP, wideSize, ilm.modelCount)
+    return bytes(out)
+
+
+def _wide_import(obj_path, ilm_path, out_path, data, ilm, meta,
+                 verts, norms, uvs, by_name, poses, invs):
+    """Build a v7 high-poly ILM from the SAME manually-rigged OBJ --replace takes.
+
+    Unlike --replace there is no decimation and no shared pool: each part's
+    vertices and normals are self-contained (index = position within the part's
+    own list), counts are u32, and there is no seam weld - a v7 part carries its
+    own seam vertices exactly as --replace --no-weld would. Reused verbatim from
+    --replace: the bone-local unbake, the atlas UV handling, the flat-face
+    normal fallback, and the material/CLUT bake from a donor prim of the same
+    material name. The rig, materials and modelOrder come from the donor spine;
+    the donor ANM is reused untouched.
+    """
+    for m in ilm.models:
+        if m["meshCount"] != 1:
+            raise SystemExit("part %r has %d meshes; --v7 rebuilds one mesh per part and "
+                             "cannot guess how to split the OBJ across them."
+                             % (m["name"], m["meshCount"]))
+        me = m["meshes"][0]
+        if me["unkCount_3"]:
+            raise SystemExit("part %r carries a shade stream (%d bytes); v7 forbids shade "
+                             "streams (per-normal advance is fixed at 1)."
+                             % (m["name"], me["unkCount_3"]))
+
+    wide_parts = []
+    for m in ilm.models:  # ascending model index -> partOrdinal
+        mi = m["idx"]
+        name = m["name"]
+        o = by_name[name]
+        R, T = poses[mi]
+        inv = invs[mi]
+        if inv is None:
+            raise SystemExit("part %r rest-pose matrix is singular; cannot unbake geometry"
+                             % name)
+
+        # Self-contained: a face may only cite vertices its own 'o' block declares,
+        # and the wide vertex index is that line's position in the block.
+        vpos = {vl: i for i, vl in enumerate(o["v"])}
+        wide_verts = []
+        for vl in o["v"]:
+            w = verts[vl - 1]
+            v = unbake(inv, T, [w[0], _y_in(w[1]), w[2]])
+            wide_verts.append((_s16(v[0], "vertex X"), _s16(v[1], "vertex Y"),
+                               _s16(v[2], "vertex Z")))
+
+        me = m["meshes"][0]
+        buckets = {}
+        for p in me["prims"]:
+            buckets.setdefault(mtl_name(p, ilm.materials), []).append(p)
+        legal = sorted(buckets)
+        matpos = dict.fromkeys(buckets, 0)
+
+        nlist = []
+        ndedup = {}
+
+        def new_normal(nvec):
+            key = _quant_new_normal(inv, nvec)
+            if key is None:
+                raise SystemExit("part %r: a face has a degenerate normal" % name)
+            if key not in ndedup:
+                ndedup[key] = len(nlist)
+                nlist.append(key)
+            return ndedup[key]
+
+        wide_prims = []
+        for fidx, f in enumerate(o["faces"]):
+            face = f["c"]
+            arity = len(face)
+            if arity not in (3, 4):
+                raise SystemExit("part %r face %d has %d corners; the format only has "
+                                 "triangles and quads - triangulate or quadrangulate the "
+                                 "mesh first." % (name, fidx + 1, arity))
+            tri = arity == 3
+            loop = TRI_LOOP if tri else QUAD_LOOP
+
+            mname = f["mtl"]
+            if mname is None:
+                if len(legal) != 1:
+                    raise SystemExit(
+                        "part %r face %d has no usemtl and the part uses %d materials (%s). "
+                        "Material names encode the CLUT palette row, so a face without one "
+                        "cannot be placed." % (name, fidx + 1, len(legal), ", ".join(legal)))
+                mname = legal[0]
+            if mname not in buckets:
+                raise SystemExit(
+                    "part %r face %d uses material %r; a replacement may only use materials "
+                    "the part already had (%s) - the name encodes the CLUT palette row and "
+                    "there is nowhere to invent one."
+                    % (name, fidx + 1, mname, ", ".join(legal) or "none"))
+            tp = buckets[mname][min(matpos[mname], len(buckets[mname]) - 1)]
+            matpos[mname] += 1
+
+            vtx = [TRI_SENTINEL32] * 4
+            nrm = [TRI_SENTINEL32] * 4
+            uv = [0] * 4
+            flat = None
+            for i in range(arity):
+                vl, tl, nl = face[loop[i]]
+                if vl not in vpos:
+                    raise SystemExit(
+                        "part %r face %d cites vertex %d outside its own 'o' block - v7 "
+                        "parts are self-contained, so each carries its own seam vertices "
+                        "(no cross-part welding)." % (name, fidx + 1, vl))
+                vtx[i] = vpos[vl]
+                if not tl:
+                    raise SystemExit("part %r face %d has no UVs - unwrap the geometry "
+                                     "(every primitive corner carries a texel)."
+                                     % (name, fidx + 1))
+                u_f, v_f = uvs[tl - 1]
+                uv[i] = _uv_byte(u_f) | (_uv_byte(1.0 - v_f) << 8)
+                if nl:
+                    nvec = norms[nl - 1]
+                else:
+                    if flat is None:
+                        p0, p1, p2 = (verts[face[c][0] - 1] for c in range(3))
+                        e1 = [p1[a] - p0[a] for a in range(3)]
+                        e2 = [p2[a] - p0[a] for a in range(3)]
+                        flat = [e1[1] * e2[2] - e1[2] * e2[1],
+                                e1[2] * e2[0] - e1[0] * e2[2],
+                                e1[0] * e2[1] - e1[1] * e2[0]]
+                    nvec = flat
+                nrm[i] = new_normal(nvec)
+            wide_prims.append({"vtx": vtx, "nrm": nrm, "uv": uv,
+                               "clut": tp["clut"], "flags": tp["flags"]})
+
+        wide_parts.append({"ordinal": mi, "bone": bone_of(name),
+                           "verts": wide_verts, "norms": nlist, "prims": wide_prims})
+
+    blob = _emit_wide_ilm(data, ilm, wide_parts)
+
+    _ap, anm = find_anm(ilm_path, ilm.models)
+    rid, msg = lm_validate_v7(blob, anm_bone_count=anm.boneCount if anm else -1)
+    if rid:
+        raise SystemExit("REFUSED %s" % msg)
+
+    with open(out_path, "wb") as f:
+        f.write(blob)
+
+    print("v7-import: %s + %s -> %s"
+          % (os.path.basename(obj_path), os.path.basename(ilm_path),
+             os.path.basename(out_path)))
+    tv = sum(len(wp["verts"]) for wp in wide_parts)
+    tn = sum(len(wp["norms"]) for wp in wide_parts)
+    tpr = sum(len(wp["prims"]) for wp in wide_parts)
+    print("   %d parts, %d vertices, %d normals, %d prims (u32 wide blob, no pool packing)"
+          % (len(wide_parts), tv, tn, tpr))
+    print("   part              bone  verts  norms  prims")
+    for wp in wide_parts:
+        print("   %-16s  %3d  %5d  %5d  %5d"
+              % (ilm.models[wp["ordinal"]]["name"], wp["bone"],
+                 len(wp["verts"]), len(wp["norms"]), len(wp["prims"])))
+    print("   wide blob: 0x%X bytes    file: 0x%X" % (
+        struct.unpack_from('<I', blob, 0x18)[0], len(blob)))
+    if meta.get("restPose") == "identity":
+        print("   rest pose: IDENTITY (this OBJ was exported without an ANM)")
+    return out_path
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description="Convert Silent Hill ILM models to/from OBJ.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -2510,6 +2851,11 @@ def main(argv):
                         "faces need not survive. The ILM is still needed as the template "
                         "for the rig and for every non-geometry byte. Part count and "
                         "part names may not change: parts ARE bones.")
+    i.add_argument("--v7", "--wide", dest="v7", action="store_true",
+                   help="write a v7 HIGH-POLY ILM: a narrow v6-shaped spine the game binds "
+                        "against unchanged plus a PC-only u32 geometry blob. No decimation "
+                        "and no 256-slot pool packing - each part carries its own vertices "
+                        "at full density. Takes the same manually-rigged OBJ as --replace.")
     i.add_argument("--no-weld", dest="weld", action="store_false",
                    help="--replace only: do not collapse coincident vertices of adjacent "
                         "parts onto one pool slot. Joints then stay closed only while the "
@@ -2522,11 +2868,12 @@ def main(argv):
         out = a.out or (os.path.splitext(a.ilm)[0] + ".obj")
         export(a.ilm, out, a.anm, a.keyframe)
     else:
-        if a.grow and a.replace:
-            raise SystemExit("--grow and --replace are alternatives: --grow keeps the "
-                             "original geometry and adds to it, --replace rebuilds it.")
+        if sum([a.grow, a.replace, a.v7]) > 1:
+            raise SystemExit("--grow, --replace and --v7 are alternatives: --grow keeps the "
+                             "original geometry and adds to it, --replace rebuilds it within "
+                             "the u8 pool, --v7 writes a wide u32 high-poly file.")
         out = a.out or (os.path.splitext(a.obj)[0] + "_new.ILM")
-        import_obj(a.obj, a.ilm, out, a.grow, a.replace, a.weld, a.weld_eps)
+        import_obj(a.obj, a.ilm, out, a.grow, a.replace, a.v7, a.weld, a.weld_eps)
 
 
 if __name__ == "__main__":

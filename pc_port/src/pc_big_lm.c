@@ -107,6 +107,27 @@ static int BigLm_LoosePath(s32 fileIdx, char* out, size_t outSize)
     return snprintf(out, outSize, "gamedata/load/%s/%s", strippedFolder, nameBuf) < (int)outSize;
 }
 
+/* Peek the first two bytes for the v7 high-poly magic. A v7 file must take the
+ * PC-owned redirect buffer even when it fits its slot: the wide drawer needs a
+ * fileIdx-keyed owned buffer, and a v7 file can be smaller than its v6 slot. */
+static int BigLm_PeekIsV7(const char* path)
+{
+    FILE* f = Pc_LooseFOpen(path, "rb");
+    u8    hdr[2];
+    int   isV7 = 0;
+
+    if (f == NULL)
+    {
+        return 0;
+    }
+    if (fread(hdr, 1, 2, f) == 2)
+    {
+        isV7 = hdr[0] == LM_HEADER_MAGIC && hdr[1] == 7;
+    }
+    fclose(f);
+    return isV7;
+}
+
 static long BigLm_ProbeSize(const char* path)
 {
     long  sz = -1;
@@ -149,12 +170,13 @@ static u8* BigLm_Slurp(const char* path, long expectSize)
  * loaded and the FS tick must not read a second file; an out-of-range bone
  * prefix degrades (garbage placement), it does not corrupt, and grow-mode
  * enforces V13 strictly at author time. */
-static int BigLm_Validate(const u8* bytes, long fileSize, char* err, u32 errCap)
+static int BigLm_Validate(const u8* bytes, long fileSize, u8 version, char* err, u32 errCap)
 {
     s_LmValidateParams params;
 
     params.tailSlackBytes = PC_BIGLM_TAIL_SLACK;
     params.anmBoneCount   = -1;
+    params.version        = version;
     params.skeletal       = 1;
 
     return Lm_Validate(bytes, (u32)fileSize, &params, err, errCap);
@@ -182,13 +204,16 @@ static PcBigLm* BigLm_Ensure(s32 fileIdx, const char* path)
 {
     long     fileSize;
     long     tableSize;
+    int      isV7;
     PcBigLm* e;
 
     fileSize  = BigLm_ProbeSize(path);
     tableSize = (long)Fs_GetFileSectorAlignedSize(fileIdx);
-    if (fileSize <= tableSize)
+    isV7      = BigLm_PeekIsV7(path);
+    if (!isV7 && fileSize <= tableSize)
     {
-        /* Absent or fits the slot: the ordinary byte-replace path owns it. */
+        /* Absent or fits the slot: the ordinary byte-replace path owns it.
+         * v7 files bypass this — they always take the PC-owned redirect. */
         return NULL;
     }
 
@@ -212,7 +237,7 @@ static PcBigLm* BigLm_Ensure(s32 fileIdx, const char* path)
         else
         {
             SH_DBG("[BIGLM] bone-prefix check skipped (ANM boneCount unknown)");
-            ok = BigLm_Validate(tmp, fileSize, err, sizeof(err)) == 0;
+            ok = BigLm_Validate(tmp, fileSize, isV7 ? 7 : LM_VERSION, err, sizeof(err)) == 0;
         }
         free(tmp);
 
@@ -397,6 +422,27 @@ s_LmHeader* Pc_BigLm_NativeOf(const void* ownedPtr)
         }
     }
     return NULL;
+}
+
+s32 Pc_BigLm_FileIdxOf(const void* buf)
+{
+    const u8* q = (const u8*)buf;
+    int       i;
+
+    if (q == NULL)
+    {
+        return -1;
+    }
+    for (i = 0; i < s_bigLmCount; i++)
+    {
+        if (s_bigLm[i].buf != NULL && q >= s_bigLm[i].buf && q < s_bigLm[i].buf + s_bigLm[i].cap)
+        {
+            return s_bigLm[i].fileIdx;
+        }
+    }
+    /* Retired buffers do not carry a fileIdx — a v7 spine keyed off one falls
+     * back to lmHdr-pointer keying, which still parses and registers. */
+    return -1;
 }
 
 s32 Pc_BigLm_LooseSize(s32 fileIdx)

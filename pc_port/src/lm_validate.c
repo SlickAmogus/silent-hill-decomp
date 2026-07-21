@@ -68,6 +68,217 @@ static u32 LmvMeshArrays(const u8* mesh, LmvArray out[5])
     return 5;
 }
 
+/* v7 wide-blob record sizes (little-endian), mirroring _emit_wide_ilm. */
+#define LMV_V7_HEADER      32 /* LmHeader(20) + v7 extension(12) */
+#define LMV_V7_PART_HDR    12 /* ordinal:u32, bone:u8+3pad, meshCount:u32 */
+#define LMV_V7_MESH_HDR    12 /* vertexCount/normalCount/primCount u32 */
+#define LMV_V7_SVECTOR     8
+#define LMV_V7_PRIM        48
+#define LMV_V7_TRI_SENT    0xFFFFFFFFu
+#define LMV_V7_ANIM_BONES  32 /* activeBones u32 mask cap (skeletal only) */
+
+/* v7 high-poly ruleset. Structural + the rules that still apply to wide parts:
+ * keeps V3 (<=56 parts), V4 (modelOrder in range), V13 (bone-prefix < ANM
+ * bones) and the <=32 animatable-bones mask; drops the <=256 pool-window rules
+ * (V5-V8/V11 — wide parts never enter the T8 scratch pool); adds a per-prim
+ * corner < mesh count check (the wide equivalent of V11's dangling-corner
+ * guard, but bounded by the part's OWN u32 vertex/normal arrays). */
+static int LmvValidateV7(const u8* file, u32 fileSize, const s_LmValidateParams* p,
+                         char* err, u32 errCap)
+{
+    u32 matCount;
+    u32 matOff;
+    u32 modelCount;
+    u32 modelHdrsOff;
+    u32 modelOrderOff;
+    u32 wideBlobOff;
+    u32 wideBlobSize;
+    u32 widePartCount;
+    u32 blobEnd;
+    u32 c;
+    u32 i;
+
+    if (fileSize < LMV_V7_HEADER || file[0] != 0x30 || file[1] != 7 || file[2] != 0)
+    {
+        LMV_FAIL(1, "V1: not a raw v7 LM file (magic=0x%02X ver=%d isLoaded=%d size=%u)",
+                 fileSize > 0 ? file[0] : 0,
+                 fileSize > 1 ? file[1] : 0,
+                 fileSize > 2 ? file[2] : 0,
+                 fileSize);
+    }
+
+    matCount      = file[3];
+    matOff        = LMV_RD32(&file[4]);
+    modelCount    = file[8];
+    modelHdrsOff  = LMV_RD32(&file[12]);
+    modelOrderOff = LMV_RD32(&file[16]);
+    wideBlobOff   = LMV_RD32(&file[20]);
+    wideBlobSize  = LMV_RD32(&file[24]);
+    widePartCount = LMV_RD32(&file[28]);
+
+    /* V2 — spine sections + the wide blob within the file. Spine strides are
+     * the stock 24/16/1 byte layouts (the game binds the spine unchanged). */
+    if (!LmvExtentOk(matOff, matCount, LMV_SIZEOF_MATERIAL, fileSize))
+    {
+        LMV_FAIL(2, "V2: materials section out of file (off=0x%X len=0x%X size=0x%X)",
+                 matOff, matCount * LMV_SIZEOF_MATERIAL, fileSize);
+    }
+    if (!LmvExtentOk(modelHdrsOff, modelCount, LMV_SIZEOF_MODEL, fileSize))
+    {
+        LMV_FAIL(2, "V2: modelHdrs section out of file (off=0x%X len=0x%X size=0x%X)",
+                 modelHdrsOff, modelCount * LMV_SIZEOF_MODEL, fileSize);
+    }
+    if (!LmvExtentOk(modelOrderOff, modelCount, 1, fileSize))
+    {
+        LMV_FAIL(2, "V2: modelOrder section out of file (off=0x%X len=0x%X size=0x%X)",
+                 modelOrderOff, modelCount, fileSize);
+    }
+    if (wideBlobOff > fileSize || wideBlobSize > fileSize - wideBlobOff)
+    {
+        LMV_FAIL(2, "V2: wide blob out of file (off=0x%X size=0x%X file=0x%X)",
+                 wideBlobOff, wideBlobSize, fileSize);
+    }
+
+    /* V3 — Skeleton_BoneModelAssign writes bones_C[56] unchecked. */
+    if (p->skeletal && modelCount > LM_VALIDATE_MAX_PARTS)
+    {
+        LMV_FAIL(3, "V3: %u parts exceeds skeleton cap %d", modelCount, LM_VALIDATE_MAX_PARTS);
+    }
+
+    /* V4 — every modelOrder byte indexes modelHdrs. */
+    for (i = 0; i < modelCount; i++)
+    {
+        u32 order = file[modelOrderOff + i];
+
+        if (order >= modelCount)
+        {
+            LMV_FAIL(4, "V4: modelOrder[%u]=%u out of range (%u parts)", i, order, modelCount);
+        }
+    }
+
+    /* V12 — the wide drawer implements only the LIT chain (field_B_0==1 &&
+     * field_B_4==0). A part selecting the flat chain (field_B_0==0) or the
+     * third chain (field_B_4!=0) would be drawn lit with wrong shading, so
+     * reject it and fall back to the invisible-but-stable spine. Mirrors the
+     * v6 V12 offset rule, gating the same draw-chain bits the drawer assumes. */
+    for (i = 0; i < modelCount; i++)
+    {
+        const u8* mh      = file + modelHdrsOff + i * LMV_SIZEOF_MODEL;
+        u32       fieldB0 = mh[11] & 1;
+        u32       fieldB4 = (mh[11] >> 4) & 3;
+
+        if (fieldB0 == 0 || fieldB4 != 0)
+        {
+            LMV_FAIL(12, "V12: part %.8s field_B_0=%u field_B_4=%u — wide drawer implements only the lit chain",
+                     (const char*)mh, fieldB0, fieldB4);
+        }
+    }
+
+    /* V13 — bone-prefix bound to the ANM (skipped when unknown, as v6 does),
+     * plus the <=32 animatable-bones mask cap that holds regardless. */
+    for (i = 0; i < modelCount; i++)
+    {
+        const u8* mh = file + modelHdrsOff + i * LMV_SIZEOF_MODEL;
+
+        if (mh[0] >= '0' && mh[0] <= '9' && mh[1] >= '0' && mh[1] <= '9')
+        {
+            s32 boneIdx = (mh[0] - '0') * 10 + (mh[1] - '0');
+
+            if (p->skeletal && boneIdx >= LMV_V7_ANIM_BONES)
+            {
+                LMV_FAIL(13, "V13: part %.8s binds bone %d but the activeBones mask holds %d",
+                         (const char*)mh, boneIdx, LMV_V7_ANIM_BONES);
+            }
+            if (p->anmBoneCount > 0 && boneIdx >= p->anmBoneCount)
+            {
+                LMV_FAIL(13, "V13: part %.8s binds bone %d but the ANM has %d bones",
+                         (const char*)mh, boneIdx, p->anmBoneCount);
+            }
+        }
+    }
+
+    /* V14 — walk the wide blob: every record fits, every prim corner indexes
+     * its own mesh's u32 vertex/normal arrays. */
+    c = wideBlobOff;
+    blobEnd = wideBlobOff + wideBlobSize;
+    for (i = 0; i < widePartCount; i++)
+    {
+        u32 ordinal;
+        u32 meshCount;
+        u32 mi;
+
+        if (c + LMV_V7_PART_HDR > blobEnd)
+        {
+            LMV_FAIL(14, "V14: part %u header runs past wide blob (off=0x%X end=0x%X)", i, c, blobEnd);
+        }
+        ordinal   = LMV_RD32(&file[c]);
+        meshCount = LMV_RD32(&file[c + 8]);
+        if (ordinal >= modelCount)
+        {
+            LMV_FAIL(14, "V14: wide part %u ordinal %u out of range (%u parts)", i, ordinal, modelCount);
+        }
+        c += LMV_V7_PART_HDR;
+
+        for (mi = 0; mi < meshCount; mi++)
+        {
+            u32 vc;
+            u32 nc;
+            u32 pc;
+            u32 k;
+
+            if (c + LMV_V7_MESH_HDR > blobEnd)
+            {
+                LMV_FAIL(14, "V14: part %u mesh %u header past wide blob", ordinal, mi);
+            }
+            vc = LMV_RD32(&file[c]);
+            nc = LMV_RD32(&file[c + 4]);
+            pc = LMV_RD32(&file[c + 8]);
+            c += LMV_V7_MESH_HDR;
+
+            if (vc > (blobEnd - c) / LMV_V7_SVECTOR)
+            {
+                LMV_FAIL(14, "V14: part %u mesh %u verts (%u) past wide blob", ordinal, mi, vc);
+            }
+            c += vc * LMV_V7_SVECTOR;
+            if (nc > (blobEnd - c) / LMV_V7_SVECTOR)
+            {
+                LMV_FAIL(14, "V14: part %u mesh %u normals (%u) past wide blob", ordinal, mi, nc);
+            }
+            c += nc * LMV_V7_SVECTOR;
+            if (pc > (blobEnd - c) / LMV_V7_PRIM)
+            {
+                LMV_FAIL(14, "V14: part %u mesh %u prims (%u) past wide blob", ordinal, mi, pc);
+            }
+            for (k = 0; k < pc; k++)
+            {
+                const u8* prim    = file + c + k * LMV_V7_PRIM;
+                u32       corners = LMV_RD32(&prim[12]) == LMV_V7_TRI_SENT ? 3 : 4;
+                u32       ci;
+
+                for (ci = 0; ci < corners; ci++)
+                {
+                    u32 corner = LMV_RD32(&prim[ci * 4]);
+                    u32 normal = LMV_RD32(&prim[16 + ci * 4]);
+
+                    if (corner >= vc)
+                    {
+                        LMV_FAIL(14, "V14: part %u prim %u corner %u reads vertex %u of %u",
+                                 ordinal, k, ci, corner, vc);
+                    }
+                    if (normal >= nc)
+                    {
+                        LMV_FAIL(14, "V14: part %u prim %u corner %u reads normal %u of %u",
+                                 ordinal, k, ci, normal, nc);
+                    }
+                }
+            }
+            c += pc * LMV_V7_PRIM;
+        }
+    }
+
+    return 0;
+}
+
 int Lm_Validate(const u8* file, u32 fileSize, const s_LmValidateParams* p,
                 char* err, u32 errCap)
 {
@@ -80,6 +291,13 @@ int Lm_Validate(const u8* file, u32 fileSize, const s_LmValidateParams* p,
     u32 j;
     u32 k;
     u32 vertSlotCap;
+
+    /* v7 high-poly ILMs have an entirely different geometry layout; stock v6
+     * (version 0 defaults here too) falls through to the pool-window ruleset. */
+    if (p->version == 7)
+    {
+        return LmvValidateV7(file, fileSize, p, err, errCap);
+    }
 
     /* V1 — header. isLoaded must be 0: lm_reformat.c:106-109 skips fix-up on 1
      * and the runtime would then dereference file offsets as pointers. */

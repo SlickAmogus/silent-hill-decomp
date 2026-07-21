@@ -27,6 +27,9 @@
 #define LM_VALIDATE_HAVE_TYPES
 #include "lm_validate.h"
 
+#include "pc_big_lm.h"
+#include "pc_wide_lm.h"
+
 #define PSX_SIZEOF_LM_HEADER    20
 #define PSX_SIZEOF_MODEL_HEADER 16
 #define PSX_SIZEOF_MESH_HEADER  24
@@ -109,13 +112,15 @@ void Lm_LooseValidateDiag(const void* raw, u32 fileSize, const char* name)
     int                rule;
 
     if (fileSize < PSX_SIZEOF_LM_HEADER ||
-        bytes[0] != LM_HEADER_MAGIC || bytes[1] != LM_VERSION || bytes[2] != 0)
+        bytes[0] != LM_HEADER_MAGIC ||
+        (bytes[1] != LM_VERSION && bytes[1] != 7) || bytes[2] != 0)
     {
         return;
     }
 
     params.tailSlackBytes = LM_VALIDATE_BUF_TAIL;
     params.anmBoneCount   = -1;
+    params.version        = bytes[1];
     params.skeletal       = 0;
 
     rule = Lm_Validate(bytes, fileSize, &params, err, sizeof(err));
@@ -160,6 +165,17 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
     if (magic != LM_HEADER_MAGIC)
     {
         lmHdr->isLoaded = 1; /* prevent re-entry */
+        return;
+    }
+
+    /* v7 high-poly ILM: build the narrow spine (v6-style reformat, meshCount
+     * forced 0 so the stock walkers draw nothing) and register the wide u32
+     * geometry blob for the PC drawer. On any failure the spine alone stands:
+     * an invisible, non-corrupting model. The version==7 predicate is false for
+     * every stock v6 file, which falls through to the unchanged path below. */
+    if (version == 7)
+    {
+        Pc_WideLm_Parse(lmHdr, Pc_BigLm_DestCapacity(lmHdr), Pc_BigLm_FileIdxOf(lmHdr));
         return;
     }
 

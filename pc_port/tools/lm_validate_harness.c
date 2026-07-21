@@ -18,6 +18,7 @@ int main(int argc, char** argv)
 
     params.tailSlackBytes = LM_VALIDATE_BUF_TAIL;
     params.anmBoneCount   = -1;
+    params.version        = 6;
     params.skeletal       = 1;
 
     for (i = 1; i < argc; i++)
@@ -29,6 +30,10 @@ int main(int argc, char** argv)
         else if (strcmp(argv[i], "--prop") == 0)
         {
             params.skeletal = 0;
+        }
+        else if (strcmp(argv[i], "--v7") == 0)
+        {
+            params.version = 7;
         }
         else if (strcmp(argv[i], "--bones") == 0 && i + 1 < argc)
         {

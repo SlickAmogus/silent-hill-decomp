@@ -40,6 +40,10 @@ int Pc_BigLm_IsOwned(const void* p);
 /* The slab pointer a redirect displaced; NULL if p is not owned. */
 s_LmHeader* Pc_BigLm_NativeOf(const void* ownedPtr);
 
+/* The fileIdx that owns buf, or -1 if buf is not a live redirect buffer. Used
+ * to key v7 wide-geometry registration off the same index the redirect uses. */
+s32 Pc_BigLm_FileIdxOf(const void* buf);
+
 /* Validated actual size of an oversized loose file for fileIdx, or -1 when
  * absent / not oversized / invalid. Pool buffer sizing only. */
 s32 Pc_BigLm_LooseSize(s32 fileIdx);

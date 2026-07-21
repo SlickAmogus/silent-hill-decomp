@@ -39,6 +39,10 @@ typedef struct
                            buffer. Runtime callers pass LM_VALIDATE_BUF_TAIL (16, the
                            F1 malloc contract). 0 = strict authoring check. */
     s32 anmBoneCount;   /* <= 0: unknown, V13 skipped */
+    u8  version;        /* LM version to validate against. 6 (or 0) = stock v6
+                           ruleset. 7 = high-poly wide ILM: u32 wide-blob counts,
+                           no pool-window rules (parts never enter the pool),
+                           keeps V3/V4/V13, adds per-prim corner < mesh count. */
     u8  skeletal;       /* 1 = chara path: enforces V3 (<=56 parts), V5-strict
                            (vertex windows <= 255) and V11 (no dangling refs).
                            0 = held-item/prop/diagnostic mode: those resolve prim
