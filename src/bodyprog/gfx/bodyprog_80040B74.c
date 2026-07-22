@@ -1593,7 +1593,19 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
     {
         for (x = scanMin; x <= scanMax; x++)
         {
-#ifdef SH_PC_PORT
+#if defined(SH_XBOX_PORT)
+            /* Xbox: interiors DRAW only the exact cell (Ipd_CellPositionMatchCheck)
+             * and interior rooms are self-contained islands (one room per 40u cell,
+             * zero cross-cell geometry — cross-boundary vistas ship duplicated
+             * inside the viewing cell). So the PC's ±2 X / ±1 Z LOAD window streams
+             * and reformats up to 15 rooms every time it shifts, to draw ONE — a
+             * continuous churn while walking a large interior on the 733MHz CPU
+             * (the "living room slow, foyer fine" report). Load only the exact cell,
+             * matching the draw and the PSX original; the 16 resident slots still
+             * cache recently-visited rooms so backtracking never reloads. Exteriors
+             * keep their streaming window. */
+            if (g_DebugCamEnabled || map->isExterior || (x == 0 && z == 0))
+#elif defined(SH_PC_PORT)
             if (g_DebugCamEnabled || map->isExterior || (z >= -1 && z <= 1))
 #else
             if (map->isExterior || (x == 0 && z == 0))
