@@ -4,17 +4,17 @@
 enum
 {
     PC_SPU_RENDERER_LEGACY = 0,
-    PC_SPU_RENDERER_EXACT = 1,
-    PC_SPU_RENDERER_IDEAL = 2,
-    PC_SPU_RENDERER_REFERENCE = 3
+    PC_SPU_RENDERER_AUTHENTIC = 1,
+    PC_SPU_RENDERER_HIGH_PRECISION = 2,
+    PC_SPU_RENDERER_MODERN = 3
 };
 
 typedef struct
 {
     int renderer;
-    int idealClip;
-    int referenceClip;
-    int referenceDither;
+    int highPrecisionClip;
+    int modernClip;
+    int modernDither;
     int backend;
     int mode;
     int rate;

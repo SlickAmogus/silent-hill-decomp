@@ -61,21 +61,21 @@ void PcAudioConfig_Load(const char* path)
 
         if (strcmp(key, "spu_renderer") == 0)
         {
-            if (strcmp(value, "exact") == 0)
-                g_PcAudioConfig.renderer = PC_SPU_RENDERER_EXACT;
-            else if (strcmp(value, "ideal") == 0)
-                g_PcAudioConfig.renderer = PC_SPU_RENDERER_IDEAL;
-            else if (strcmp(value, "reference") == 0)
-                g_PcAudioConfig.renderer = PC_SPU_RENDERER_REFERENCE;
+            if (strcmp(value, "authentic") == 0 || strcmp(value, "exact") == 0)
+                g_PcAudioConfig.renderer = PC_SPU_RENDERER_AUTHENTIC;
+            else if (strcmp(value, "high_precision") == 0 || strcmp(value, "ideal") == 0)
+                g_PcAudioConfig.renderer = PC_SPU_RENDERER_HIGH_PRECISION;
+            else if (strcmp(value, "modern") == 0 || strcmp(value, "reference") == 0)
+                g_PcAudioConfig.renderer = PC_SPU_RENDERER_MODERN;
             else
                 g_PcAudioConfig.renderer = PC_SPU_RENDERER_LEGACY;
         }
-        else if (strcmp(key, "ideal_clip") == 0)
-            g_PcAudioConfig.idealClip = ParseClip(value);
-        else if (strcmp(key, "reference_clip") == 0)
-            g_PcAudioConfig.referenceClip = ParseClip(value);
-        else if (strcmp(key, "reference_dither") == 0)
-            g_PcAudioConfig.referenceDither = strcmp(value, "tpdf") == 0;
+        else if (strcmp(key, "high_precision_clip") == 0 || strcmp(key, "ideal_clip") == 0)
+            g_PcAudioConfig.highPrecisionClip = ParseClip(value);
+        else if (strcmp(key, "modern_clip") == 0 || strcmp(key, "reference_clip") == 0)
+            g_PcAudioConfig.modernClip = ParseClip(value);
+        else if (strcmp(key, "modern_dither") == 0 || strcmp(key, "reference_dither") == 0)
+            g_PcAudioConfig.modernDither = strcmp(value, "tpdf") == 0;
         else if (strcmp(key, "audio_backend") == 0)
             g_PcAudioConfig.backend = strcmp(value, "wasapi") == 0 ? 1 :
                                       strcmp(value, "sdl") == 0 ? 2 : 0;
@@ -96,7 +96,7 @@ void PcAudioConfig_Load(const char* path)
 
     if (PcAudioConfig_UsesSoftwareSpu() && g_PcAudioConfig.rate == 0)
         g_PcAudioConfig.rate =
-            g_PcAudioConfig.renderer == PC_SPU_RENDERER_EXACT ? 44100 : 176400;
+            g_PcAudioConfig.renderer == PC_SPU_RENDERER_AUTHENTIC ? 44100 : 176400;
 }
 
 int PcAudioConfig_UsesSoftwareSpu(void)

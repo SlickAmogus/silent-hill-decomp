@@ -1035,14 +1035,16 @@ int main(int argc, char* argv[])
     /* Select the backend before applying backend-specific controls. */
     {
         extern void PsyX_SPUAL_ConfigureOutput(int backend, int mode, int rate, int bitPerfect);
-        extern int PsyX_SPUAL_ConfigureRenderer(int renderer, int idealClip,
-                                                int referenceClip, int referenceDither);
+        extern int PsyX_SPUAL_ConfigureRenderer(int renderer, int highPrecisionClip,
+                                                int modernClip, int modernDither);
         if (PcAudioConfig_UsesSoftwareSpu())
             PsyX_SPUAL_ConfigureOutput(g_PcAudioConfig.backend, g_PcAudioConfig.mode,
                                        g_PcAudioConfig.rate, g_PcAudioConfig.bitPerfect);
 
-        if (!PsyX_SPUAL_ConfigureRenderer(g_PcAudioConfig.renderer, g_PcAudioConfig.idealClip,
-                                         g_PcAudioConfig.referenceClip, g_PcAudioConfig.referenceDither))
+        if (!PsyX_SPUAL_ConfigureRenderer(g_PcAudioConfig.renderer,
+                                         g_PcAudioConfig.highPrecisionClip,
+                                         g_PcAudioConfig.modernClip,
+                                         g_PcAudioConfig.modernDither))
             SH_ERR("Invalid SPU renderer configuration; audio startup will fail");
 
         if (PcAudioConfig_UsesSoftwareSpu()) {
