@@ -716,6 +716,43 @@ int main(int argc, char* argv[])
                g_PcConfig.residentTextures, g_PcConfig.globalCharaPool);
     }
 
+    /* Scale the texture-pack memory budgets to the machine's RAM. The defaults
+     * (texpack_cache_mb 2 GB compose cache + texpack_budget_mb 6 GB of GL
+     * textures) were sized for a discrete-GPU desktop; on a shared-memory AMD
+     * APU (integrated Radeon, no dedicated VRAM) both come out of the same
+     * system RAM as the game and the driver, so a big pack pushes total usage
+     * past physical RAM and the process is killed by an OOM the SEH handler
+     * can't catch (pc_crash.c logs nothing — matches the reporter's texture-pack
+     * crashes). Cap the compose cache to 1/8 of RAM always; cap the GL budget to
+     * 1/4 of RAM only on low-memory machines (<=8 GB, the APU/laptop range) so
+     * high-RAM desktops with discrete VRAM keep the full budget. Only ever
+     * lowers a value; logged so it's visible in the config fingerprint. */
+    {
+        int ramMb = SDL_GetSystemRAM(); /* physical RAM in MB (0 if unknown) */
+        if (ramMb > 0)
+        {
+            int cacheCap = ramMb / 8;
+            if (cacheCap < 128) cacheCap = 128;
+            if (g_PcConfig.texpackCacheMb > cacheCap)
+            {
+                SH_DBG("[TEXPACK] compose cache capped %d -> %d MB (1/8 of %d MB RAM)",
+                       g_PcConfig.texpackCacheMb, cacheCap, ramMb);
+                g_PcConfig.texpackCacheMb = cacheCap;
+            }
+            if (ramMb <= 8192)
+            {
+                int budgetCap = ramMb / 4;
+                if (budgetCap < 256) budgetCap = 256;
+                if (g_PcConfig.texpackBudgetMb > budgetCap)
+                {
+                    SH_DBG("[TEXPACK] GL texture budget capped %d -> %d MB (low-RAM %d MB machine)",
+                           g_PcConfig.texpackBudgetMb, budgetCap, ramMb);
+                    g_PcConfig.texpackBudgetMb = budgetCap;
+                }
+            }
+        }
+    }
+
     /* PsyCross horizontal pixel-aspect compensation. Silent Hill renders a 320x224
      * framebuffer the PSX displays as a 4:3 picture, so its pixels are NOT square
      * (PAR = (4/3)/(320/224) = 14/15). PsyCross's Hor+ ortho and the matching game-side
