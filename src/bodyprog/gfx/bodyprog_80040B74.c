@@ -3125,12 +3125,23 @@ void Ipd_ChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, bool
                 }
             }
         }
-    } else if (!g_Map.isExterior) {
+    }
+#ifndef SH_XBOX_PORT
+    else if (!g_Map.isExterior) {
         /* Interior maps: PSX subcell visibility rectangles were baked for
          * fixed-angle cameras. TPS camera orbits Harry and can fall outside
          * those rectangles, causing in-frustum model buffers to be dropped.
          * Skip subcell prefilter entirely; func_80057090 handles per-model
-         * culling. Same approach as the debug-cam path above. */
+         * culling. Same approach as the debug-cam path above.
+         *
+         * XBOX: this bypass is EXCLUDED. It draws EVERY model buffer in the
+         * room every frame (the 18-20ms interior OT-build cost measured in the
+         * school), and it only exists for the PC's FREE TPS orbit camera. Xbox
+         * ships the classic fixed/chase cameras — the exact cameras the PSX
+         * subcell rects were baked for — so interiors fall through to the
+         * subcell PVS below and draw only the player-subcell's visible models,
+         * PSX-accurate and far cheaper. (If a free/debug camera is ever enabled
+         * on Xbox, the g_DebugCamEnabled draw-all branch above still covers it.) */
         for (i = 0; i < ipdHdr->modelBufferCount; i++)
         {
             ipdModelBuf = &ipdHdr->modelBuffers[i];
@@ -3155,7 +3166,9 @@ void Ipd_ChunkDraw(s_IpdHeader* ipdHdr, q19_12 posX, q19_12 posZ, GsOT* ot, bool
                 }
             }
         }
-    } else
+    }
+#endif
+    else
 #endif
     {
     temp_fp = &ipdHdr->textureCount + (subcellZ * 10) + (subcellX * 2);

@@ -2088,9 +2088,28 @@ void Sd_TaskPoolExecute(void) // 0x800485D8
  * Skipped while XA voice is playing so we don't fast-forward fade
  * timers. Lives here (not game_main.c) because g_Sd_TaskPool /
  * g_Sd_AudioWork are static to this file. */
+#ifdef SH_XBOX_PORT
+static inline unsigned long long ShxSdRdtsc(void)
+{
+    unsigned lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((unsigned long long)hi << 32) | lo;
+}
+#endif
+
 void Sd_TaskPoolDrain(void)
 {
     int drain;
+#ifdef SH_XBOX_PORT
+    /* TIME-BOX audio-loader draining. The PC drains up to 512 tasks (VAB sound-
+     * bank part-transfers) in ONE frame — the 35-69ms combat hitch when a
+     * monster's sound bank loads on spawn ([POST] audio=). On the 733MHz CPU
+     * that freezes the frame. Drain only ~4ms/frame; the rest finishes over the
+     * next frames (Sd_TaskPoolExecute also advances one task/frame). A freshly-
+     * spawned enemy's sound may lag a couple frames instead of stalling. */
+    unsigned long long _t0 = ShxSdRdtsc();
+    const unsigned long long _budget = 4ULL * 733000ULL; /* ~4ms at 733MHz */
+#endif
 
     if (g_Sd_AudioWork.xaAudioIdx_4 != 0)
         return;
@@ -2100,6 +2119,10 @@ void Sd_TaskPoolDrain(void)
         if (g_Sd_TaskPool[0] == 0)
             return;
         Sd_TaskPoolExecute();
+#ifdef SH_XBOX_PORT
+        if (ShxSdRdtsc() - _t0 >= _budget)
+            return;
+#endif
     }
 }
 #endif
