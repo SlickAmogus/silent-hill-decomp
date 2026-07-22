@@ -1521,6 +1521,11 @@ static int PlayFromFFmpeg(const char* path)
 
     if (as >= 0) {
         ach = actx->ch_layout.nb_channels;
+        /* The game runs its own audio through OpenAL, so SDL's audio subsystem is
+         * never brought up at startup — open it here exactly as the AVI/STR paths
+         * do, or SDL_OpenAudioDevice fails and every container plays silent. */
+        if (!(SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO))
+            SDL_InitSubSystem(SDL_INIT_AUDIO);
         SDL_AudioSpec want, got;
         SDL_memset(&want, 0, sizeof(want));
         want.freq = actx->sample_rate;
