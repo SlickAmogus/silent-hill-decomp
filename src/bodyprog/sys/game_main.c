@@ -2167,10 +2167,22 @@ void MainLoop(void) // 0x80032EE0
         }
 
 #define ML_TRACE(tag) ((void)0)
+#ifdef SH_XBOX_PORT
+        /* Close the last frame-cost gap: everything between the GameState update
+         * and DrawSync (audio task pool + XA + file queue + camera). This is the
+         * ~15ms unaccounted for on heavy town frames (state+walk only summed 18
+         * of 33ms). audio = Sd task pool + XaPlayer; fs = Fs_QueueUpdate. */
+        unsigned long long _post0 = ShxLoopRdtsc();
+        unsigned _postAudioMs = 0, _postFsMs = 0;
+#endif
         ML_TRACE("Screen_FadeUpdate");
         Screen_FadeUpdate();
         ML_TRACE("MemCard_Update");
         MemCard_Update();
+#ifdef SH_XBOX_PORT
+        {
+        unsigned long long _a0 = ShxLoopRdtsc();
+#endif
         ML_TRACE("Sd_TaskPoolExecute");
         Sd_TaskPoolExecute();
 #ifdef SH_PC_PORT
@@ -2180,6 +2192,10 @@ void MainLoop(void) // 0x80032EE0
          * g_Sd_AudioStreamingStates are static there. */
         Sd_TaskPoolDrain();
         XaPlayer_Update();
+#endif
+#ifdef SH_XBOX_PORT
+        _postAudioMs = (unsigned)((ShxLoopRdtsc() - _a0) / 733000ULL);
+        }
 #endif
 
 #ifdef SH_PC_PORT
@@ -2195,7 +2211,15 @@ void MainLoop(void) // 0x80032EE0
          * (Fs_QueueChunksLoad never returns true), room transitions,
          * and DMS chunk loads. Tick the queue every frame on PC. */
         ML_TRACE("Fs_QueueUpdate");
+#ifdef SH_XBOX_PORT
+        {
+            unsigned long long _f0 = ShxLoopRdtsc();
+            Fs_QueueUpdate();
+            _postFsMs = (unsigned)((ShxLoopRdtsc() - _f0) / 733000ULL);
+        }
+#else
         Fs_QueueUpdate();
+#endif
 #else
         if (!Sd_AudioStreamingCheck())
         {
@@ -2208,6 +2232,13 @@ void MainLoop(void) // 0x80032EE0
         func_80089128();
         ML_TRACE("func_8008D78C");
         func_8008D78C(); // Camera update?
+#ifdef SH_XBOX_PORT
+        {
+            unsigned postMs = (unsigned)((ShxLoopRdtsc() - _post0) / 733000ULL);
+            if (postMs > 6)
+                SH_DBG("[POST] postMs=%u audio=%u fs=%u", postMs, _postAudioMs, _postFsMs);
+        }
+#endif
         ML_TRACE("DrawSync");
 #ifdef SH_XBOX_PORT
         {

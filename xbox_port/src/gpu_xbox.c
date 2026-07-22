@@ -869,6 +869,7 @@ static void FbReadback(int fromLastQueued, int minSpacing)
     float biasX, biasY;
     int k, i, n, t0;
     static int bxTab[640];
+    static unsigned int s_fbSrcRow[1024]; /* cached scratch: one source-row span */
 
     if (g_PsxSkipFramebufferStore || s_fbGateLatch)
         return;                                   /* TIM-protect tick (paper map) */
@@ -902,18 +903,33 @@ static void FbReadback(int fromLastQueued, int minSpacing)
         if (bx >= fbW) bx = fbW - 1;
         bxTab[i] = bx;
     }
-    for (k = 0; k < pageH; k++) {
-        const unsigned int* srow;
-        unsigned short*     drow = &s_fbReadbackBuf[k * pageW];
-        int by = (int)(((float)k + biasY) * s_scaleY);
-        if (by < 0) by = 0;
-        if (by >= fbH) by = fbH - 1;
-        srow = (const unsigned int*)(fb + by * pitchB);
-        for (i = 0; i < pageW; i++) {
-            unsigned int c = srow[bxTab[i]];      /* A8R8G8B8 -> BGR555, STP=0 */
-            drow[i] = (unsigned short)(((c >> 19) & 0x1F)
-                                       | (((c >> 11) & 0x1F) << 5)
-                                       | (((c >> 3) & 0x1F) << 10));
+    /* bxTab is monotonic, so the sampled source pixels all lie in [bx0..bxN].
+     * Reading them one at a time straight from the write-combined back buffer
+     * (srow[bxTab[i]]) was the readback's ENTIRE ~20ms cost — strided reads out
+     * of WC video memory never burst. Instead bulk-copy that span into a cached
+     * scratch row (sequential WC reads DO read-combine), then downsample from
+     * cache. Same output, a few-x faster. */
+    {
+        int bx0  = bxTab[0];
+        int bxN  = bxTab[pageW - 1];
+        int span = bxN - bx0 + 1;
+        if (span < 1) span = 1;
+        if (span > (int)(sizeof(s_fbSrcRow) / sizeof(s_fbSrcRow[0])))
+            span = (int)(sizeof(s_fbSrcRow) / sizeof(s_fbSrcRow[0]));
+        for (k = 0; k < pageH; k++) {
+            const unsigned int* srow;
+            unsigned short*     drow = &s_fbReadbackBuf[k * pageW];
+            int by = (int)(((float)k + biasY) * s_scaleY);
+            if (by < 0) by = 0;
+            if (by >= fbH) by = fbH - 1;
+            srow = (const unsigned int*)(fb + by * pitchB);
+            memcpy(s_fbSrcRow, srow + bx0, (size_t)span * sizeof(unsigned int));
+            for (i = 0; i < pageW; i++) {
+                unsigned int c = s_fbSrcRow[bxTab[i] - bx0]; /* A8R8G8B8 -> BGR555 */
+                drow[i] = (unsigned short)(((c >> 19) & 0x1F)
+                                           | (((c >> 11) & 0x1F) << 5)
+                                           | (((c >> 3) & 0x1F) << 10));
+            }
         }
     }
     /* PsxVram_Load memcmps per row and only dirties the texture cache when the

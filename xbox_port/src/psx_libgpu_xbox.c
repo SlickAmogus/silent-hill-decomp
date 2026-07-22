@@ -193,7 +193,18 @@ int VSync(int mode)
      * freshly-cleared back buffer on the second call (a black frame every other
      * frame), which is why game_main.c coalesces the wait into a single call. */
     Pad_Poll();
-    Audio_XboxPump();                /* keep the DirectSound ring fed */
+    {   /* time the audio ring pump (software SPU mix) — part of closing the
+         * per-frame cost gap; logs only when it spikes above 5ms. */
+        extern int GpuNv2a_Ms(void);
+        int _ap = GpuNv2a_Ms();
+        Audio_XboxPump();            /* keep the DirectSound ring fed */
+        {
+            int ms = GpuNv2a_Ms() - _ap;
+            static int s_apLog = 0;
+            if (ms > 5 && (s_apLog++ & 7) == 0)
+                SH_DBG("[POST] audioPumpMs=%d", ms);
+        }
+    }
     GpuNv2a_FrameEnd();              /* present the rendered frame (swap at vblank) */
     GpuXbox_FbStoreFrameTick();      /* latch+reset the per-frame TIM-protect gate
                                       * (g_PsxSkipFramebufferStore) — PsyX_EndScene parity */
