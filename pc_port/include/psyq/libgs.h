@@ -58,13 +58,31 @@ typedef struct {
 } GsCOORD2PARAM;
 
 typedef struct _GsCOORDINATE2 {
-    unsigned long flg;
+    /* PSX-layout flag word — must stay 4 bytes. It was `unsigned long`, which is
+     * 8 bytes on LP64 (Linux/Steam Deck) and silently pushed `coord` from offset 4
+     * to 8, breaking the PSX-original `(s32*)coords + 1` access (Air Screamer went
+     * invisible). `unsigned int` is 4 bytes on PSX, Windows (LLP64) and Linux
+     * (LP64) alike; every use is `flg = 0/bool`, so narrowing is layout-restoring
+     * and behaviour-preserving. NOTE: the full Sony SDK header
+     * include/psyq/libgs.h also declares GsCOORDINATE2 (kept `unsigned long` —
+     * correct for its 32-bit MIPS matching target). This PC stub is the copy the
+     * LP64 build actually uses, so the fix belongs here, not there. */
+    unsigned int flg;
     MATRIX  coord;
     MATRIX  workm;
     GsCOORD2PARAM *param;
     struct _GsCOORDINATE2 *super;
     struct _GsCOORDINATE2 *sub;
 } GsCOORDINATE2;
+
+/* Build-time tripwire for the layout raw `(s32*)coords + 1` access depends on:
+ * `coord` must sit right after the 4-byte `flg`, at offset 4. Re-widening `flg` or
+ * inserting a field before `coord` now fails the BUILD instead of making the Air
+ * Screamer invisible only at runtime, only on LP64. (A whole-struct sizeof assert
+ * can't be used: the trailing pointers make the total size legitimately differ
+ * between PSX/Windows 4-byte pointers and Linux 8-byte pointers.) */
+_Static_assert(__builtin_offsetof(GsCOORDINATE2, coord) == 4,
+               "GsCOORDINATE2.coord must be at offset 4 (PSX layout)");
 
 typedef struct {
     MATRIX  view;

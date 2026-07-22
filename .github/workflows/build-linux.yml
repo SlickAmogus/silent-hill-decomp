@@ -69,6 +69,21 @@ jobs:
           cd pc_port
           chmod +x build.sh
           ./build.sh
+          # The compile-time LP64 layout guard runs HERE: the build fails if the
+          # _Static_assert(offsetof(GsCOORDINATE2, coord) == 4) in
+          # pc_port/include/psyq/libgs.h ever breaks (the class behind the
+          # invisible Air Screamer).
+
+      - name: LP64 runtime smoke (skips cleanly without game data)
+        run: |
+          cd pc_port
+          chmod +x lp64-smoke.sh
+          # No disc image in public CI -> the script exits 0 (SKIP). On a
+          # self-hosted runner with the disc + a save (and Xvfb/xdotool/ffmpeg),
+          # it boots headless, loads the café and runs the Air Screamer fly-by,
+          # failing the job on any crash. See lp64-smoke.sh for the v2 golden-image
+          # step that would also catch silent render regressions.
+          ./lp64-smoke.sh
 
       - name: Stage release files
         run: |

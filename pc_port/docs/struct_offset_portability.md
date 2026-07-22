@@ -73,6 +73,41 @@ fields by 4 bytes on 64-bit. `field_5C` moves from offset 92 → 96. The old cod
 Ray_MissSet(ray, from, &dir, ((s_RayState*)scratchAddr)->field_5C);
 ```
 
+### Case Study: `GsCOORDINATE2.flg` (the `unsigned long`-SIZE variant)
+
+Not every instance is a *pointer*-growth bug. `unsigned long` is itself 8 bytes on LP64
+(4 on PSX/Windows), so a struct laid out around a leading `unsigned long` shifts on Linux
+with no pointer involved. `GsCOORDINATE2` starts with `unsigned long flg`, then `MATRIX coord`:
+
+```
+PSX / Windows (LLP64):          Linux (LP64):
+  0x0 flg   (unsigned long, 4)    0x0 flg   (unsigned long, 8)
+  0x4 coord (MATRIX)              0x8 coord (MATRIX)   <-- shifted +4
+```
+
+The matched placement function `sharedFunc_800D7560_0_s01` reaches `coord` with
+`mat = (s32*)coords + 1;` — a **word-pointer cast + index** (advance 4 bytes to skip `flg`),
+not the byte-pointer form the greps below catch. On LP64 that lands 4 bytes *inside* the
+8-byte `flg`, so the Air Screamer's per-frame position and rotation are written 4 bytes short
+of `coord`; `coord` never receives a correct transform and the bird is invisible — on Linux
+only, since `flg` is 4 bytes on PSX/Windows and the `+ 1` is correct there.
+
+**Fix**: narrow the field to a fixed 4-byte type in the PC stub header
+(`pc_port/include/psyq/libgs.h`), restoring the PSX layout on every ABI *without editing the
+matched function* (keeping its source byte-identical for the match check):
+
+```c
+unsigned int flg;   /* was `unsigned long` — 8 bytes on LP64 */
+...
+_Static_assert(__builtin_offsetof(GsCOORDINATE2, coord) == 4,
+               "GsCOORDINATE2.coord must be at offset 4 (PSX layout)");
+```
+
+Two general lessons: (1) prefer *retyping* a pure-PSX-data field over patching a call site
+when the struct is used by matched code — it doesn't touch matched source; (2) where a fixed
+offset is load-bearing, guard it with a `_Static_assert` so a regression fails the BUILD
+instead of surfacing as a runtime-only, LP64-only bug.
+
 ### How to Find More Instances
 
 Search the codebase for these patterns:
@@ -83,10 +118,14 @@ grep -rn '(u8\*)\|((s8\*)\|((char\*)' src/ | grep '\[[0-9]'
 
 # Hardcoded struct sizes in pointer arithmetic
 grep -rn '+ [0-9][0-9])' src/ | grep 'u8\*\|s8\*\|char\*'
+
+# Word-pointer cast + small index — steps over a leading `unsigned long`/pointer
+# field (the GsCOORDINATE2.flg class the byte-pointer greps above miss)
+grep -rnE '\((s32|int|u32|s16|u16|short)\s*\*\)[^;]*\)\s*\+\s*[1-9]' src/ pc_port/src/
 ```
 
-Any match where the numeric constant corresponds to a field offset in a struct that contains
-pointers is a potential 64-bit portability bug.
+Any match where the numeric constant (or word index) corresponds to a field offset in a struct
+that contains pointers **or a leading `unsigned long`** is a potential 64-bit portability bug.
 
 ### General Rules for the PC Port
 
