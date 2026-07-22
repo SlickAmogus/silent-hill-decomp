@@ -1366,12 +1366,17 @@ void GsMapModelingData(unsigned long *p)
     size_t copy_size;
 
     if (!p) return;
-    /* p[0] = flags, p[1] = nobj */
-    nobj = p[1];
+    /* TMD header fields are 32-bit on disc, but this parameter is `unsigned long*`,
+     * which is 8 bytes on LP64 (Linux/Steam Deck) and 4 on LLP64 (Windows). Reading
+     * `p[1]` as unsigned long fetched nobj from offset 8 instead of 4 on LP64 -> a
+     * garbage count -> the early return below -> the TMD is never cached, so
+     * inventory item models link NULL and draw black. Read the header at 32-bit
+     * width so the offsets are correct on both ABIs. */
+    nobj = ((u32*)p)[1];             /* header: [0]=flags, [1]=nobj */
     if (nobj == 0 || nobj > GS_TMD_MAX_OBJS) return;
 
-    /* Object table starts right after flags + nobj (2 u_longs = 8 bytes) */
-    obj_table = (u8*)&p[2];
+    /* Object table starts right after flags + nobj (two u32 = 8 bytes). */
+    obj_table = (u8*)p + 8;
 
     /* Always allocate a fresh slot. Reusing a slot for the same base pointer
      * would overwrite objs[] in-place and invalidate existing GsDOBJ2.tmd
