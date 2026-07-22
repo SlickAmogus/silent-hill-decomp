@@ -231,6 +231,18 @@ file(GLOB_RECURSE ALL_C_SOURCES
 set_source_files_properties(${ALL_C_SOURCES} PROPERTIES
     COMPILE_DEFINITIONS "static_assert=_Static_assert"
 )
+set_property(SOURCE "${CMAKE_SOURCE_DIR}/src/xa_player.c" APPEND PROPERTY
+    COMPILE_DEFINITIONS
+        "XaPlayer_PlayWithParams=PcLegacyXa_PlayWithParams"
+        "XaPlayer_Play=PcLegacyXa_Play"
+        "XaPlayer_Stop=PcLegacyXa_Stop"
+        "XaPlayer_Update=PcLegacyXa_Update"
+        "XaPlayer_SetVolume=PcLegacyXa_SetVolume"
+        "XaPlayer_SetPauseHold=PcLegacyXa_SetPauseHold"
+        "Xa_IsVoiceAudioDraining=PcLegacyXa_IsVoiceAudioDraining"
+        "Xa_VoiceGapHold=PcLegacyXa_VoiceGapHold"
+        "XaPlayer_SetMasterVolume=PcLegacyXa_SetMasterVolume"
+)
 if(SH_DEBUG)
     target_compile_definitions(SilentHillPC PRIVATE SH_DEBUG=1)
 endif()
