@@ -21,6 +21,7 @@
 #include "sh_log.h"
 #include "psx_memory.h"
 #include "pc_config.h"
+#include "pc_audio_config.h"
 #include "map_registry.h"
 #include "main/fsqueue.h"
 #include "main/fileinfo.h"
@@ -697,6 +698,7 @@ int main(int argc, char* argv[])
 
     /* Load config file */
     PcConfig_Load("config.cfg");
+    PcAudioConfig_Load("config.cfg");
 
     /* Now that we know whether logging is enabled, open the log file (or
      * leave g_ShDebugLog NULL so SH_DBG stays a no-op). */
@@ -1090,28 +1092,38 @@ int main(int argc, char* argv[])
         SH_LOG("Flashlight mode: %s", Pc_FlashlightModeLabel(g_PcConfig.flashlightMode));
     }
 
-    /* SPU ADSR envelopes (attack/release instrument fades in the sequenced BGM)
-     * + reverb depth->wet scale. adsr default on; `adsr 0/1` console overrides
-     * live, `revscale` tunes the reverb mapping. */
+    /* Select the backend before applying backend-specific controls. */
     {
-        extern void  PsyX_SPUAL_SetAdsrEnabled(int on);
-        extern void  PsyX_SPUAL_SetReverbDepthScale(float scale);
-        PsyX_SPUAL_SetAdsrEnabled(g_PcConfig.adsr ? 1 : 0);
-        if (g_PcConfig.reverbScale > 0.0f)
-            PsyX_SPUAL_SetReverbDepthScale(g_PcConfig.reverbScale);
-        SH_LOG("SPU ADSR envelopes: %s, reverb scale %.2f",
-               g_PcConfig.adsr ? "ON" : "off", g_PcConfig.reverbScale);
-    }
+        extern void PsyX_SPUAL_ConfigureOutput(int backend, int mode, int rate, int bitPerfect);
+        extern int PsyX_SPUAL_ConfigureRenderer(int renderer, int highPrecisionClip,
+                                                int modernClip, int modernDither);
+        if (PcAudioConfig_UsesSoftwareSpu())
+            PsyX_SPUAL_ConfigureOutput(g_PcAudioConfig.backend, g_PcAudioConfig.mode,
+                                       g_PcAudioConfig.rate, g_PcAudioConfig.bitPerfect);
 
-    /* Speaker layout (audio_output = auto|stereo|quad|51|71|hrtf). Must be
-     * latched before SpuInit below — the OpenAL context is created there and
-     * an explicit layout rides in as a context attribute. Auto passes no
-     * attribute so OpenAL Soft detects the system layout itself. */
-    {
-        extern void PsyX_SPUAL_SetOutputMode(int mode);
-        static const char* const kSpeakerNames[] = { "auto", "stereo", "quad", "5.1", "7.1", "hrtf" };
-        PsyX_SPUAL_SetOutputMode(g_PcConfig.audioOutput);
-        SH_LOG("Speaker layout request: %s", kSpeakerNames[g_PcConfig.audioOutput]);
+        if (!PsyX_SPUAL_ConfigureRenderer(g_PcAudioConfig.renderer,
+                                         g_PcAudioConfig.highPrecisionClip,
+                                         g_PcAudioConfig.modernClip,
+                                         g_PcAudioConfig.modernDither))
+            SH_ERR("Invalid SPU renderer configuration; audio startup will fail");
+
+        if (PcAudioConfig_UsesSoftwareSpu()) {
+            SH_LOG("Software SPU output: renderer=%d backend=%d mode=%d rate=%d bit-perfect=%d",
+                   g_PcAudioConfig.renderer, g_PcAudioConfig.backend, g_PcAudioConfig.mode,
+                   g_PcAudioConfig.rate, g_PcAudioConfig.bitPerfect);
+        } else {
+            extern void PsyX_SPUAL_SetAdsrEnabled(int on);
+            extern void PsyX_SPUAL_SetReverbDepthScale(float scale);
+            extern void PsyX_SPUAL_SetOutputMode(int mode);
+            static const char* const kSpeakerNames[] = { "auto", "stereo", "quad", "5.1", "7.1", "hrtf" };
+            PsyX_SPUAL_SetAdsrEnabled(g_PcConfig.adsr ? 1 : 0);
+            if (g_PcConfig.reverbScale > 0.0f)
+                PsyX_SPUAL_SetReverbDepthScale(g_PcConfig.reverbScale);
+            PsyX_SPUAL_SetOutputMode(g_PcConfig.audioOutput);
+            SH_LOG("Legacy OpenAL SPU: ADSR %s, reverb scale %.2f, speakers %s",
+                   g_PcConfig.adsr ? "ON" : "off", g_PcConfig.reverbScale,
+                   kSpeakerNames[g_PcConfig.audioOutput]);
+        }
     }
 
     /* Effect intensities (in-game [ lowers / ] raises, \ switches which enabled
