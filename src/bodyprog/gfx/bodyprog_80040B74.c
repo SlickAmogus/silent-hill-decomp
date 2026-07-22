@@ -1594,17 +1594,25 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
         for (x = scanMin; x <= scanMax; x++)
         {
 #if defined(SH_XBOX_PORT)
-            /* Xbox: interiors DRAW only the exact cell (Ipd_CellPositionMatchCheck)
-             * and interior rooms are self-contained islands (one room per 40u cell,
-             * zero cross-cell geometry — cross-boundary vistas ship duplicated
-             * inside the viewing cell). So the PC's ±2 X / ±1 Z LOAD window streams
-             * and reformats up to 15 rooms every time it shifts, to draw ONE — a
-             * continuous churn while walking a large interior on the 733MHz CPU
-             * (the "living room slow, foyer fine" report). Load only the exact cell,
-             * matching the draw and the PSX original; the 16 resident slots still
-             * cache recently-visited rooms so backtracking never reloads. Exteriors
-             * keep their streaming window. */
-            if (g_DebugCamEnabled || map->isExterior || (x == 0 && z == 0))
+            /* Xbox chunk LOAD window, tightened to cut the continuous synchronous
+             * streaming that blocks the frame on the 733MHz CPU ([POST] fs=10-27ms
+             * every frame while moving through the exterior):
+             *   Interiors: EXACT cell only. Ipd_CellPositionMatchCheck draws only
+             *     the player's cell (rooms are self-contained 1-cell islands, cross-
+             *     boundary vistas ship duplicated geom inside the viewing cell), so
+             *     the PC's ±2/±1 = 15-cell load streamed+reformatted 15 rooms to draw
+             *     one — the "living room slow, foyer fine" churn. 16 resident slots
+             *     still cache recent rooms (backtrack = no reload).
+             *   Exteriors: a '+' around the player (player cell + 4 orthogonal
+             *     neighbors), skipping the 4 diagonal corners of the PC's 3x3 box.
+             *     The street you walk/look down is orthogonal; diagonals are farther
+             *     (already low-priority) — dropping them from the load set cuts the
+             *     streaming churn without touching the forward view. (Per user
+             *     request: "we really only need the one the player is in or a + shape,
+             *     especially outdoors.") */
+            if (g_DebugCamEnabled ||
+                (!map->isExterior && x == 0 && z == 0) ||
+                (map->isExterior && (x == 0 || z == 0)))
 #elif defined(SH_PC_PORT)
             if (g_DebugCamEnabled || map->isExterior || (z >= -1 && z <= 1))
 #else

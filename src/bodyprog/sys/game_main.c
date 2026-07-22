@@ -22,6 +22,11 @@ extern unsigned long long g_XbCharaCycles;       /* func_8003DA9C (Harry + all N
 extern unsigned           g_XbFsQueueIters;      /* Fs_QueueUpdate calls this frame   */
 extern unsigned           g_XbWorldObjCount;     /* dynamic props drawn               */
 extern unsigned           g_XbCharaCount;        /* character meshes drawn            */
+/* Chunk-streaming cost split (fsqueue_1.c): disk READ vs REFORMAT (offset fixups). */
+extern unsigned long long g_FsReadCycles;
+extern unsigned long long g_FsReformatCycles;
+extern unsigned           g_FsReadCount;
+extern unsigned           g_FsReformatCount;
 #endif
 
 #ifdef SH_PC_PORT
@@ -2072,6 +2077,8 @@ void MainLoop(void) // 0x80032EE0
             g_XbWorldDrawCycles = g_XbStreamCycles = g_XbChunkDrawCycles = 0;
             g_Xb2dFxCycles = g_XbCharaCycles = 0;
             g_XbFsQueueIters = g_XbWorldObjCount = g_XbCharaCount = 0;
+            g_FsReadCycles = g_FsReformatCycles = 0;
+            g_FsReadCount = g_FsReformatCount = 0;
             _updT0 = ShxLoopRdtsc();
             g_GameStateUpdateFuncs[g_GameWork.gameState]();
             {
@@ -2248,6 +2255,12 @@ void MainLoop(void) // 0x80032EE0
                 unsigned syncMs = (unsigned)((ShxLoopRdtsc() - _syncT0) / 733000ULL);
                 if (syncMs > 8)
                     SH_DBG("[UPD] drawSyncMs=%u (readback)", syncMs);
+                /* Whole-frame chunk-streaming split: how much of the fs cost is disk
+                 * READ vs REFORMAT, and how many of each ran this frame. */
+                if (g_FsReadCount || g_FsReformatCount)
+                    SH_DBG("[FSQ] readMs=%u n=%u | reformatMs=%u n=%u",
+                           (unsigned)(g_FsReadCycles / 733000ULL), g_FsReadCount,
+                           (unsigned)(g_FsReformatCycles / 733000ULL), g_FsReformatCount);
             }
         }
 #else

@@ -14,6 +14,22 @@
 
 s_FsQueue g_FsQueue;
 
+#ifdef SH_XBOX_PORT
+/* Split the per-frame chunk-streaming cost ([POST] fs=) into disk-READ vs
+ * REFORMAT (post-load offset fixups), read+reset each frame by game_main.c.
+ * The exterior streams continuously while moving; this says which half to kill. */
+unsigned long long g_FsReadCycles     = 0;
+unsigned long long g_FsReformatCycles = 0;
+unsigned           g_FsReadCount      = 0;
+unsigned           g_FsReformatCount  = 0;
+static inline unsigned long long ShxFsRdtsc(void)
+{
+    unsigned lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((unsigned long long)hi << 32) | lo;
+}
+#endif
+
 bool Fs_QueueIsEntryLoaded(s32 queueIdx)
 {
     return queueIdx < g_FsQueue.postLoad.idx;
@@ -269,7 +285,13 @@ void Fs_QueueUpdate(void)
                 break;
 
             case FsQueueOp_Read:
+#ifdef SH_XBOX_PORT
+                { unsigned long long _t = ShxFsRdtsc();
+                  temp = Fs_QueueUpdateRead(tick);
+                  g_FsReadCycles += ShxFsRdtsc() - _t; g_FsReadCount++; }
+#else
                 temp = Fs_QueueUpdateRead(tick);
+#endif
                 break;
         }
 
@@ -308,7 +330,13 @@ void Fs_QueueUpdate(void)
             return;
         }
 #endif
+#ifdef SH_XBOX_PORT
+        { unsigned long long _t = ShxFsRdtsc();
+          temp = Fs_QueueUpdatePostLoad(tick);
+          g_FsReformatCycles += ShxFsRdtsc() - _t; g_FsReformatCount++; }
+#else
         temp = Fs_QueueUpdatePostLoad(tick);
+#endif
         if (temp == true)
         {
             g_FsQueue.postLoadState = FsQueuePostLoadState_Init;
