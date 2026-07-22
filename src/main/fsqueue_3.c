@@ -12,6 +12,8 @@
 #include "hires_override.h"
 #include "tex_pack.h"
 #include "pc_big_lm.h"
+#include "lang_pack.h"    /* Pc_LangPackActive — FONT16 Polish glyph patch */
+#include "font_region.h"  /* Font_PatchPolishGlyphs */
 #include "sh_log.h"
 
 #ifndef _WIN32
@@ -930,6 +932,17 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 #endif
 
 #ifdef SH_PC_PORT
+    /* Polish ships no FONT16 of its own: build its extra letterforms into the
+     * atlas pixels right before upload. No-op unless the Polish pack is the
+     * active language, and covers every FONT16 reload site (boot, Konami,
+     * title, save-select) since they all pass through here. */
+    if (Pc_LangPackActive() &&
+        FSQ_INFO_VALID(entry->info) &&
+        (int)(entry->info - &g_FileTable[0]) == FILE_1ST_FONT16_TIM)
+    {
+        Font_PatchPolishGlyphs(tim.paddr, tim.prect->w, tim.prect->h);
+    }
+
     if (!pcVirtualSlot)
 #endif
     {

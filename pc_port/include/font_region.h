@@ -45,6 +45,13 @@ int Font_MapChar(unsigned int charCode, s_GlyphEmit emits[2]);
  * EUR STRING_COLORS[6] tint. Call once after Fs_InitFileTableForRegion. */
 void Font_ApplyRegionPatches(void);
 
+/* Polish ships as a PC-side language pack rather than on a disc, so its
+ * letterforms are built into the FONT16 pixel block just before upload (all
+ * reload sites covered) and selected by a widened layout. Both are no-ops
+ * unless the Polish pack is the active language. */
+void Font_PatchPolishGlyphs(void* pixels, int widthWords, int height);
+void Font_UsePolishLayout(void);
+
 /* Replace the active layout's kerning table (fan-translation discs retune the
  * BODYPROG widths to match their repainted FONT16 glyphs). Copies the first
  * glyphCount entries; call after Font_ApplyRegionPatches. */

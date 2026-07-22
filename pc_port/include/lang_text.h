@@ -12,6 +12,14 @@
  * draws it; accent bytes pass through raw and resolve in text_draw via the
  * region font layout (font_region.c). */
 
+/* Selectable languages, in options-menu (and config `language`) order:
+ * 0=en 1=de 2=fr 3=es 4=it are the PAL disc's own; LANG_PACK_FIRST and up are
+ * PC-side packs loaded from gamedata/lang (see lang_pack.h). */
+#define LANG_PACK_FIRST 5
+#define LANG_COUNT      6
+
+extern const char* const s_LangIds[LANG_COUNT];
+
 /* Non-zero when an EUR disc is active (localized text pipeline in use). */
 int Pc_LangActive(void);
 
@@ -25,6 +33,10 @@ int Pc_FanTextActive(void);
 /* Non-zero when the options menu should show the Language row (EUR disc +
  * menu entered from the title screen). */
 int Pc_LangMenuRowActive(void);
+
+/* Number of languages the Language row cycles: LANG_COUNT on EUR (disc five
+ * plus PC-side packs), LANG_PACK_FIRST elsewhere (packs need the EUR font). */
+int Pc_LangSelectableCount(void);
 
 /* Live language switch (0=en 1=de 2=fr 3=es 4=it): persists the config key,
  * rebinds the file table, reloads item text. Title-screen options only. */

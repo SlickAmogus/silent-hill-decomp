@@ -1,4 +1,5 @@
 #include "lang_text.h"
+#include "lang_pack.h"
 
 #include <string.h>
 
@@ -240,11 +241,22 @@ const char* Pc_LangMenuText(const char* str)
     int lang = g_PcConfig.language;
     int i;
 
+    if (str == NULL)
+        return str;
+
+    /* PC-side pack language (Polish): menu strings come from the pack, keyed
+     * by this same US literal. A key the pack lacks keeps English. */
+    if (Pc_LangPackActive())
+    {
+        const char* tr = Pc_LangPackMenu(str);
+        return tr ? tr : str;
+    }
+
     /* EUR discs always; USA only when a fan-translated disc is active (its
      * story/item text comes from the disc, these tables cover the menus the
      * patch can't reach — the port renders menus from compiled strings). */
     if (!(g_GameRegion == Region_EUR || (g_GameRegion == Region_USA && Pc_FanTextActive())) ||
-        lang < 1 || lang > 4 || str == NULL)
+        lang < 1 || lang > 4)
     {
         return str;
     }

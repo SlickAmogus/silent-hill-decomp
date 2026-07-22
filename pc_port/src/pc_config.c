@@ -629,6 +629,7 @@ void PcConfig_Load(const char* path)
             else if (strcmp(value, "fr") == 0) g_PcConfig.language = 2;
             else if (strcmp(value, "es") == 0) g_PcConfig.language = 3;
             else if (strcmp(value, "it") == 0) g_PcConfig.language = 4;
+            else if (strcmp(value, "pl") == 0) g_PcConfig.language = 5; /* PC-side pack (gamedata/lang/pl.lang) */
             else                               g_PcConfig.language = 0;
         }
         else if (strcmp(key, "region") == 0)

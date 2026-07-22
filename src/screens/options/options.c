@@ -25,6 +25,7 @@
 #include "pc_mouse_cursor.h"
 #include "map_registry.h"
 #include "lang_text.h" /* PAL Language row (title-screen options) */
+#include "lang_pack.h" /* PC-side pack language label (Polish) */
 #define LAYER_24   PSX_OT_OFS(24)
 #define LAYER_40   PSX_OT_OFS(40)
 #define LAYER_36   PSX_OT_OFS(36)
@@ -1486,15 +1487,17 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
              * title screen (retail SLES had a front-end Language option). */
             if (Pc_LangMenuRowActive())
             {
+                int langCount = Pc_LangSelectableCount();
+
                 if (g_Controller0->clickedBtnFlags & ControllerFlag_LStickRight)
                 {
                     Sd_PlaySfx(Sfx_MenuMove, 0, 64);
-                    Pc_LangSetLanguage((g_PcConfig.language + 1) % 5);
+                    Pc_LangSetLanguage((g_PcConfig.language + 1) % langCount);
                 }
                 else if (g_Controller0->clickedBtnFlags & ControllerFlag_LStickLeft)
                 {
                     Sd_PlaySfx(Sfx_MenuMove, 0, 64);
-                    Pc_LangSetLanguage((g_PcConfig.language + 4) % 5);
+                    Pc_LangSetLanguage((g_PcConfig.language + langCount - 1) % langCount);
                 }
                 break;
             }
@@ -2430,12 +2433,27 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
                 if (Pc_LangMenuRowActive())
                 {
                     /* Names in the retail PAL option-menu order (= config
-                     * language index). X nudged per word length like On/Off. */
+                     * language index). X nudged per word length like On/Off.
+                     * Index 5+ are PC-side packs; their label is the pack's own
+                     * `!menu` field (e.g. "POLISH"). */
                     static const char* const LANG_STRS[5]  = { "English", "German", "French", "Spanish", "Italian" };
                     static const u8          LANG_STR_X[5] = { 198, 204, 204, 198, 198 };
+                    const char*              label;
+                    int                      lx;
 
-                    Gfx_StringSetPosition(LANG_STR_X[g_PcConfig.language], 136);
-                    Gfx_StringDraw(LANG_STRS[g_PcConfig.language], 10);
+                    if (g_PcConfig.language >= LANG_PACK_FIRST)
+                    {
+                        label = Pc_LangPackName();
+                        lx    = 200;
+                    }
+                    else
+                    {
+                        label = LANG_STRS[g_PcConfig.language];
+                        lx    = LANG_STR_X[g_PcConfig.language];
+                    }
+
+                    Gfx_StringSetPosition(lx, 136);
+                    Gfx_StringDraw(label, 10);
                     break;
                 }
 #endif

@@ -7,6 +7,7 @@
 #include "game.h"
 #include "bodyprog/map/map.h" /* s_MapOverlayHdr, g_pMapOverlayHeader, e_MapIdx */
 #include "font_region.h"      /* g_FontLayout, Font_SetGlyphWidths (fan-patch kerning) */
+#include "lang_pack.h"        /* PC-side language packs (gamedata/lang) */
 #include "main/fileinfo.h"    /* g_GameRegion, Fs_EurFileLookup */
 #include "pc_config.h"
 #include "sh_log.h"
@@ -48,6 +49,12 @@ extern const char* PcPort_GetGameDiscPath(void);
 #define SECTOR_DATA_LEN 2048
 
 static const char* s_ItemBinNames[5] = { "ITEM_ENG", "ITEM_GER", "ITEM_FRN", "ITEM_SPN", "ITEM_ITL" };
+
+/* Language ids in options-menu order. 0-4 are the PAL disc's own languages;
+ * from LANG_PACK_FIRST on they are PC-side packs (gamedata/lang/<id>.lang),
+ * which exist on no disc and so are offered on EUR only -- the US font has no
+ * accent cells to build their letters into. */
+const char* const s_LangIds[LANG_COUNT] = { "en", "de", "fr", "es", "it", "pl" };
 
 static char*       s_ItemPool;
 static const char* s_ItemNames[ITEM_TEXT_COUNT];
@@ -450,6 +457,32 @@ void Pc_LangInit(void)
     free(s_ItemPool);
     s_ItemPool = NULL;
 
+    /* A PC-side pack language (no disc carries it) serves item and story text
+     * from gamedata/lang instead of the disc. EUR only: the glyphs for its
+     * extra letters are built into the EUR FONT16 atlas (font_region.c), and
+     * the US atlas has no accent cells to hold them. The per-map English
+     * overlay walk (still EUR) supplies the count and untranslated fallback,
+     * so the disc path below is left entirely alone. */
+    if (g_PcConfig.language >= LANG_PACK_FIRST)
+    {
+        if (g_GameRegion == Region_EUR && Pc_LangPackLoad(s_LangIds[g_PcConfig.language]))
+        {
+            Font_UsePolishLayout();
+            /* Item name/desc come from the pack (Pc_LangItemName checks it
+             * first); untranslated entries fall back to the compiled US
+             * strings in item_screens_3.c. Story text is overlaid per map on
+             * the English EUR overlay walk below. No disc item load needed. */
+            return;
+        }
+        SH_WARN("[LANG] pack '%s' unavailable (region=%d) — English",
+                s_LangIds[g_PcConfig.language], (int)g_GameRegion);
+        g_PcConfig.language = 0;
+    }
+    else
+    {
+        Pc_LangPackFree();
+    }
+
     if (g_GameRegion == Region_USA)
     {
         FanTextInit();
@@ -508,16 +541,17 @@ void Pc_LangInit(void)
  * rebinds the file table and reloads item text. */
 void Pc_LangSetLanguage(int lang)
 {
-    static const char* const ids[5] = { "en", "de", "fr", "es", "it" };
-
-    if (lang < 0 || lang > 4)
+    if (lang < 0 || lang >= LANG_COUNT)
         lang = 0;
 
     g_PcConfig.language = lang;
-    PcConfig_SaveKeyValue("language", ids[lang]);
+    PcConfig_SaveKeyValue("language", s_LangIds[lang]);
+    /* Pack languages fall through to the English disc assets (the redirect
+     * only knows the five disc languages), which is what they want: the pack
+     * supplies the text, the disc supplies everything else. */
     Fs_ApplyLanguageRedirects();
     Pc_LangInit();
-    SH_LOG("[LANG] language switched to '%s'", ids[lang]);
+    SH_LOG("[LANG] language switched to '%s'", s_LangIds[lang]);
 }
 
 /* The options menu shows the Language row only on EUR discs and only when
@@ -533,8 +567,19 @@ int Pc_LangMenuRowActive(void)
            g_GameWork.gameStatePrev == GameState_MainMenu;
 }
 
+/* How many languages the Language row cycles through. PC-side packs need the
+ * EUR font atlas, so they are offered on EUR discs only; elsewhere the row
+ * stops at the five disc languages. */
+int Pc_LangSelectableCount(void)
+{
+    return (g_GameRegion == Region_EUR) ? LANG_COUNT : LANG_PACK_FIRST;
+}
+
 const char* Pc_LangItemName(int itemIdx)
 {
+    if (Pc_LangPackActive())
+        return Pc_LangPackItemName(itemIdx);
+
     if (s_ItemPool == NULL || itemIdx < 0 || itemIdx >= ITEM_TEXT_COUNT)
         return NULL;
     /* Empty strings mean "untranslated" on the disc — fall back to English. */
@@ -543,6 +588,9 @@ const char* Pc_LangItemName(int itemIdx)
 
 const char* Pc_LangItemDesc(int itemIdx)
 {
+    if (Pc_LangPackActive())
+        return Pc_LangPackItemDesc(itemIdx);
+
     if (s_ItemPool == NULL || itemIdx < 0 || itemIdx >= ITEM_TEXT_COUNT)
         return NULL;
     return (s_ItemDescs[itemIdx] && s_ItemDescs[itemIdx][0]) ? s_ItemDescs[itemIdx] : NULL;
@@ -934,7 +982,7 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
     char*                out;
     extern s_MapOverlayHdr* g_pMapOverlayHeader;
 
-    if (g_GameRegion == Region_USA)
+    if (g_GameRegion == Region_USA && !Pc_LangPackActive())
     {
         UsaPatchMapMessages(mapIdx);
         return;
@@ -1089,6 +1137,30 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
     for (; usIdx < MSG_COUNT_MAX; usIdx++)
     {
         s_MsgPtrs[usIdx] = "";
+    }
+
+    /* PC-side pack (Polish): the walk above filled s_MsgPtrs with the disc's
+     * own English text (this language clamps the file redirect to English), so
+     * it doubles as the count discovery and the untranslated-line fallback.
+     * Overlay the pack's translations, keyed by the same US message index the
+     * split logic just resolved. Pack strings outlive this call (owned by
+     * lang_pack), so pointing straight at them is safe. */
+    if (Pc_LangPackActive())
+    {
+        int replaced = 0;
+
+        for (usIdx = 0; usIdx < MSG_COUNT_MAX; usIdx++)
+        {
+            const char* tr = Pc_LangPackMapMsg(mapIdx, usIdx);
+
+            if (tr != NULL)
+            {
+                s_MsgPtrs[usIdx] = tr;
+                replaced++;
+            }
+        }
+        SH_LOG("[LANG] map %d: %d pack messages overlaid (%s)", mapIdx, replaced,
+               s_LangIds[g_PcConfig.language]);
     }
 
     s_LangMapHeader             = *g_pMapOverlayHeader;
