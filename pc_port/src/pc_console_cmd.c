@@ -1180,47 +1180,42 @@ void Pc_ConsoleExec(const char* line)
                 cprintf("unknown color '%s' (red/green/blue/yellow/cyan/purple/orange/pink/white/default)", arg);
         }
     } else if (strcmp(cmd, "ADSR") == 0) {
-        if (PcConfig_UsesSoftwareSpu()) {
-            cprintf("ADSR control is legacy-only; software SPU envelopes are renderer-defined");
-        } else {
-            extern void PsyX_SPUAL_SetAdsrEnabled(int on);
-            extern int  PsyX_SPUAL_GetAdsrEnabled(void);
-            int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !PsyX_SPUAL_GetAdsrEnabled();
-            PsyX_SPUAL_SetAdsrEnabled(on);
-            g_PcConfig.adsr = on;
-            PcConfig_SaveKeyValue("adsr", on ? "1" : "0");
-            cprintf("legacy ADSR envelope %s", on ? "ON" : "OFF");
-        }
+        extern void PsyX_SPUAL_SetAdsrEnabled(int on);
+        extern int  PsyX_SPUAL_GetAdsrEnabled(void);
+        int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !PsyX_SPUAL_GetAdsrEnabled();
+        PsyX_SPUAL_SetAdsrEnabled(on);
+        cprintf("ADSR envelope %s (default on; config key adsr)", on ? "ON" : "OFF");
     } else if (strcmp(cmd, "AUDIOOUT") == 0) {
-        if (PcConfig_UsesSoftwareSpu()) {
-            cprintf("AUDIOOUT is legacy-only; software output uses audio_backend/audio_mode/audio_rate");
-        } else {
-            extern int PsyX_SPUAL_ApplyOutputMode(int mode);
-            extern int PsyX_SPUAL_GetOutputMode(void);
-            extern int PsyX_SPUAL_GetSurroundActive(void);
-            static const char* const kSpkUp[] = { "AUTO", "STEREO", "QUAD", "51", "71", "HRTF" };
-            static const char* const kSpk[]   = { "auto", "stereo", "quad", "51", "71", "hrtf" };
-            static const char* const kSpkUi[] = { "auto", "stereo", "quad", "5.1", "7.1", "hrtf" };
-            if (arg[0] != '\0') {
-                int mode = -1, k;
-                for (k = 0; k < 6; k++) {
-                    if (strcmp(arg, kSpkUp[k]) == 0)
-                        mode = k;
-                }
-                if (mode < 0) {
-                    cprintf("usage: AUDIOOUT auto|stereo|quad|51|71|hrtf");
-                } else {
-                    int live = PsyX_SPUAL_ApplyOutputMode(mode);
-                    g_PcConfig.audioOutput = mode;
-                    PcConfig_SaveKeyValue("audio_output", kSpk[mode]);
-                    if (!live)
-                        cprintf("saved; this OpenAL build can't switch live - restart the game");
-                }
+        /* Speaker layout. Applies LIVE via alcResetDeviceSOFT (mix format
+         * renegotiated, sources keep playing) and persists to config.cfg.
+         * No-arg reports the achieved layout — trust that over the request:
+         * a 5.1 ask on a stereo endpoint silently degrades. */
+        extern int PsyX_SPUAL_ApplyOutputMode(int mode);
+        extern int PsyX_SPUAL_GetOutputMode(void);
+        extern int PsyX_SPUAL_GetSurroundActive(void);
+        static const char* const kSpkUp[] = { "AUTO", "STEREO", "QUAD", "51", "71", "HRTF" };
+        static const char* const kSpk[]   = { "auto", "stereo", "quad", "51", "71", "hrtf" };
+        static const char* const kSpkUi[] = { "auto", "stereo", "quad", "5.1", "7.1", "hrtf" };
+        if (arg[0] != '\0') {
+            int mode = -1, k;
+            for (k = 0; k < 6; k++) {
+                if (strcmp(arg, kSpkUp[k]) == 0)
+                    mode = k;
             }
-            cprintf("speaker layout: %s active (requested %s)%s", kSpkUi[PsyX_SPUAL_GetOutputMode()],
-                    kSpkUi[g_PcConfig.audioOutput],
-                    PsyX_SPUAL_GetSurroundActive() ? " [surround routing ON]" : "");
+            /* No bare-digit aliases: "5" would read as 5.1 but mean HRTF. */
+            if (mode < 0) {
+                cprintf("usage: AUDIOOUT auto|stereo|quad|51|71|hrtf");
+            } else {
+                int live = PsyX_SPUAL_ApplyOutputMode(mode);
+                g_PcConfig.audioOutput = mode;
+                PcConfig_SaveKeyValue("audio_output", kSpk[mode]);
+                if (!live)
+                    cprintf("saved; this OpenAL build can't switch live - restart the game");
+            }
         }
+        cprintf("speaker layout: %s active (requested %s)%s", kSpkUi[PsyX_SPUAL_GetOutputMode()],
+                kSpkUi[g_PcConfig.audioOutput],
+                PsyX_SPUAL_GetSurroundActive() ? " [surround routing ON]" : "");
     } else if (strcmp(cmd, "FOV") == 0) {
         /* First-person FOV (degrees, horizontal on the 4:3 frame). Same value
          * as the launcher slider / PC options row; persists to config.cfg.
@@ -1292,24 +1287,16 @@ void Pc_ConsoleExec(const char* line)
         cprintf("thirdperson camera collision %s (off = the camera may pass through walls)",
                 on ? "ON" : "OFF");
     } else if (strcmp(cmd, "REVSCALE") == 0) {
-        if (PcConfig_UsesSoftwareSpu()) {
-            cprintf("REVSCALE is legacy-only; software SPU reverb is renderer-defined");
-        } else {
-            extern void  PsyX_SPUAL_SetReverbDepthScale(float scale);
-            extern float PsyX_SPUAL_GetReverbDepthScale(void);
-            if (arg[0] != '\0') {
-                char buf[16];
-                float s = (float)atof(arg);
-                if (s < 0.0f) s = 0.0f;
-                if (s > 8.0f) s = 8.0f;
-                PsyX_SPUAL_SetReverbDepthScale(s);
-                g_PcConfig.reverbScale = s;
-                snprintf(buf, sizeof(buf), "%.2f", s);
-                PcConfig_SaveKeyValue("reverb_scale", buf);
-            }
-            cprintf("legacy reverb depth->wet scale %.2f",
-                    PsyX_SPUAL_GetReverbDepthScale());
+        extern void  PsyX_SPUAL_SetReverbDepthScale(float scale);
+        extern float PsyX_SPUAL_GetReverbDepthScale(void);
+        if (arg[0] != '\0') {
+            float s = (float)atof(arg);
+            if (s < 0.0f) s = 0.0f;
+            if (s > 8.0f) s = 8.0f;
+            PsyX_SPUAL_SetReverbDepthScale(s);
         }
+        cprintf("reverb depth->wet scale %.2f (persist via config reverb_scale)",
+                PsyX_SPUAL_GetReverbDepthScale());
     } else if (strcmp(cmd, "KF") == 0 || strcmp(cmd, "KEYFRAME") == 0) {
         extern int g_DebugAnimKfView;
         extern int g_DebugAnimKf;

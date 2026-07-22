@@ -71,20 +71,12 @@ s_PcConfig g_PcConfig = {
     .minimapOpacity          = 100.0f,
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
-    .adsr                = 1,
-    .audioOutput         = 0,
-    .reverbScale         = 0.0f,
-    .audioBackend        = 0,
-    .audioMode           = 1,
-    .audioRate           = 0,
-    .audioBitPerfect     = 0,
-    .spuRenderer         = PC_SPU_RENDERER_LEGACY,
-    .idealClip           = 0,
-    .referenceClip       = 0,
-    .referenceDither     = 0,
+    .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
+    .audioOutput         = 0,    /* auto: OpenAL detects the system speaker layout */
     .fpsFov              = 71.1f, /* first-person FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
     .tpsFov              = 71.1f, /* thirdperson/OTS FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
     .tpsAimZoom          = 100.0f, /* default aim dolly = the original zoom; 200 = 2x zoom, 0 = no zoom */
+    .reverbScale         = 0.0f, /* 0 = PsyCross default depth->wet scale */
     .mouseSensitivity        = 1.0f,
     .controllerSensitivity   = 1.0f,
 
@@ -153,11 +145,6 @@ s_PcConfig g_PcConfig = {
  * reset) mirror their value here; Map_EffectTexturesLoad re-applies it every map
  * load, so map corruption can't change the player's blood color. Default 0/red. */
 unsigned char g_PcTrustedBloodColor = 0;
-
-int PcConfig_UsesSoftwareSpu(void)
-{
-    return g_PcConfig.spuRenderer != PC_SPU_RENDERER_LEGACY;
-}
 
 /* Per-scheme control-binding config keys -> offset within ControlScheme. The
  * same base key with an "_altcam" suffix targets the altcam scheme; without it,
@@ -734,68 +721,13 @@ void PcConfig_Load(const char* path)
         }
         else if (strcmp(key, "audio_output") == 0)
         {
-            if      (strcmp(value, "auto")   == 0) g_PcConfig.audioOutput = 0;
-            else if (strcmp(value, "stereo") == 0) g_PcConfig.audioOutput = 1;
+            /* Unknown values map to auto so a hand-edited config can't wedge audio. */
+            if      (strcmp(value, "stereo") == 0) g_PcConfig.audioOutput = 1;
             else if (strcmp(value, "quad")   == 0) g_PcConfig.audioOutput = 2;
             else if (strcmp(value, "51")     == 0) g_PcConfig.audioOutput = 3;
             else if (strcmp(value, "71")     == 0) g_PcConfig.audioOutput = 4;
             else if (strcmp(value, "hrtf")   == 0) g_PcConfig.audioOutput = 5;
-            else {
-                g_PcConfig.audioOutput = 0;
-                fprintf(stderr, "[CONFIG] Invalid audio_output '%s'; using auto\n", value);
-            }
-        }
-        else if (strcmp(key, "reverb_scale") == 0)
-        {
-            g_PcConfig.reverbScale = (float)atof(value);
-        }
-        else if (strcmp(key, "audio_backend") == 0)
-        {
-            if      (strcmp(value, "wasapi") == 0) g_PcConfig.audioBackend = 1;
-            else if (strcmp(value, "sdl")    == 0) g_PcConfig.audioBackend = 2;
-            else                                    g_PcConfig.audioBackend = 0;
-        }
-        else if (strcmp(key, "audio_mode") == 0)
-        {
-            if      (strcmp(value, "exclusive") == 0) g_PcConfig.audioMode = 2;
-            else if (strcmp(value, "shared")    == 0) g_PcConfig.audioMode = 1;
-            else                                       g_PcConfig.audioMode = 0;
-        }
-        else if (strcmp(key, "audio_rate") == 0)
-        {
-            int rate = strcmp(value, "auto") == 0 ? 0 : atoi(value);
-            g_PcConfig.audioRate =
-                (rate == 0 || rate == 44100 || rate == 88200 ||
-                 rate == 176400 || rate == 352800) ? rate : 44100;
-        }
-        else if (strcmp(key, "audio_bit_perfect") == 0)
-        {
-            g_PcConfig.audioBitPerfect = atoi(value) != 0;
-        }
-        else if (strcmp(key, "spu_renderer") == 0)
-        {
-            if      (strcmp(value, "legacy")    == 0) g_PcConfig.spuRenderer = PC_SPU_RENDERER_LEGACY;
-            else if (strcmp(value, "exact")     == 0) g_PcConfig.spuRenderer = PC_SPU_RENDERER_EXACT;
-            else if (strcmp(value, "ideal")     == 0) g_PcConfig.spuRenderer = PC_SPU_RENDERER_IDEAL;
-            else if (strcmp(value, "reference") == 0) g_PcConfig.spuRenderer = PC_SPU_RENDERER_REFERENCE;
-            else {
-                g_PcConfig.spuRenderer = PC_SPU_RENDERER_LEGACY;
-                fprintf(stderr, "[CONFIG] Invalid spu_renderer '%s'; using legacy\n", value);
-            }
-        }
-        else if (strcmp(key, "ideal_clip") == 0)
-        {
-            g_PcConfig.idealClip =
-                strcmp(value, "psx") == 0 ? 1 : strcmp(value, "soft") == 0 ? 2 : 0;
-        }
-        else if (strcmp(key, "reference_clip") == 0)
-        {
-            g_PcConfig.referenceClip =
-                strcmp(value, "psx") == 0 ? 1 : strcmp(value, "soft") == 0 ? 2 : 0;
-        }
-        else if (strcmp(key, "reference_dither") == 0)
-        {
-            g_PcConfig.referenceDither = strcmp(value, "tpdf") == 0 ? 1 : 0;
+            else                                   g_PcConfig.audioOutput = 0;
         }
         else if (strcmp(key, "fps_fov") == 0)
         {
@@ -803,6 +735,10 @@ void PcConfig_Load(const char* path)
             if (v < 55.0f)  v = 55.0f;
             if (v > 110.0f) v = 110.0f;
             g_PcConfig.fpsFov = v;
+        }
+        else if (strcmp(key, "reverb_scale") == 0)
+        {
+            g_PcConfig.reverbScale = (float)atof(value);
         }
         else if (strcmp(key, "immersive_fps_head_tracking") == 0)
         {
@@ -931,10 +867,6 @@ void PcConfig_Load(const char* path)
 
     fclose(f);
 
-    if (PcConfig_UsesSoftwareSpu() && g_PcConfig.audioRate == 0)
-        g_PcConfig.audioRate =
-            g_PcConfig.spuRenderer == PC_SPU_RENDERER_EXACT ? 44100 : 176400;
-
     /* Configs from before flashlight_mode existed carry only the legacy
      * pp/shadows keys. pp+shadows was the pre-calibration per-pixel look, so
      * it maps to Modern + Shadows — those users keep the flashlight they had. */
@@ -1025,3 +957,4 @@ void PcConfig_SaveMapName(const char* mapName)
         return;
     PcConfig_SaveKeyValue("map", mapName);
 }
+

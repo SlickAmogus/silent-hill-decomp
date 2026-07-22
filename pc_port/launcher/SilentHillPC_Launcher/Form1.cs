@@ -478,7 +478,7 @@ public partial class Form1 : Form
         Set(comboMap, levelTip);
 
         const string audioTip =
-            "Legacy OpenAL renderer only. Auto detects your Windows sound setup\n" +
+            "Speaker layout. Auto detects your Windows sound setup\n" +
             "(a 5.1 system gets surround automatically). With rear\n" +
             "speakers active, monster cries / doors / world sounds pan\n" +
             "all around you and diffuse ambience layers play from the\n" +
@@ -815,7 +815,6 @@ public partial class Form1 : Form
             string ao = config.Get("audio_output", "auto");
             int aoIdx = Array.IndexOf(AudioOutputIds, ao);
             comboAudioOut.SelectedIndex = aoIdx >= 0 ? aoIdx : 0;
-            comboAudioOut.Enabled = config.Get("spu_renderer", "legacy") == "legacy";
         }
 
         // resolution

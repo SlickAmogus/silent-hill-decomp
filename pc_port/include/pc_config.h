@@ -138,20 +138,12 @@ typedef struct {
     int minimapCorner;       /* minimap screen corner: 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right (config key: minimap_corner); default 0 */
     int minimapShape;        /* minimap shape: 0 = square, 1 = circle (config key: minimap_shape); default 1 */
     float minimapOpacity;    /* minimap opacity percentage, 0..100 (config key: minimap_opacity); default 100 */
-    int   adsr;             /* legacy renderer only: SPU ADSR envelopes (config key: adsr) */
-    int   audioOutput;      /* legacy renderer only: 0=auto, 1=stereo, 2=quad, 3=5.1, 4=7.1, 5=HRTF */
-    float reverbScale;      /* legacy renderer only: reverb depth scale; 0 = backend default */
-    int   audioBackend;     /* software renderers only: 0=auto, 1=WASAPI, 2=SDL */
-    int   audioMode;        /* 0=auto, 1=shared, 2=exclusive event-driven */
-    int   audioRate;        /* 44100, 88200, 176400, or 352800 only */
-    int   audioBitPerfect;  /* require exact 44.1kHz integer exclusive output */
-    int   spuRenderer;      /* 0=legacy OpenAL, 1=exact, 2=ideal, 3=reference */
-    int   idealClip;        /* 0=none, 1=psx, 2=soft */
-    int   referenceClip;    /* 0=none, 1=psx, 2=soft */
-    int   referenceDither;  /* 0=none, 1=tpdf */
+    int   adsr;             /* 1 = SPU ADSR envelopes (instrument attack/release fades in sequenced BGM); default 1 (config key: adsr) */
+    int   audioOutput;      /* speaker layout: 0 = auto (OpenAL detects the system layout; alsoft.ini honored), 1 = stereo, 2 = quad, 3 = 5.1, 4 = 7.1, 5 = hrtf headphones. With rear speakers active: positional SFX pan on the full circle, wide-stereo BGM layers play from the surrounds (config key: audio_output = auto|stereo|quad|51|71|hrtf) */
     float fpsFov;           /* first-person horizontal FOV in degrees (4:3 basis), 55..110; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during FPS gameplay (config key: fps_fov) */
     float tpsFov;           /* Thirdperson/OTS horizontal FOV in degrees (4:3 basis), 55..110; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during TPS/OTS gameplay — the Classic camera always keeps the original projection (config key: tps_fov) */
     float tpsAimZoom;       /* "TPS/OTS Aim Zoom": how far the TPS/OTS camera dollies in while aiming, as a percentage of the zoom range, 0..200. 100 (default) = the original full zoom, 200 = a deeper 2x zoom, 0 = no zoom at all. Replaces the old tps_aim_zoom on/off key (config key: tps_aim_zoom_amount) */
+    float reverbScale;      /* reverb depth->wet mapping scale, 0 = leave PsyCross default (2.0) (config key: reverb_scale) */
     float mouseSensitivity;      /* mouse-look sensitivity multiplier for TPS/OTS/FPS cameras, 0.1..4.0; default 1.0 (config key: mouse_sensitivity) */
     float controllerSensitivity; /* right-stick look sensitivity multiplier for TPS/OTS/FPS cameras, 0.1..4.0; default 1.0 (config key: controller_sensitivity) */
 
@@ -203,18 +195,6 @@ typedef struct {
 
 extern s_PcConfig g_PcConfig;
 
-enum
-{
-    PC_SPU_RENDERER_LEGACY = 0,
-    PC_SPU_RENDERER_EXACT = 1,
-    PC_SPU_RENDERER_IDEAL = 2,
-    PC_SPU_RENDERER_REFERENCE = 3
-};
-
-/* Renderer selection is immutable after audio startup. Integration code uses
- * this instead of duplicating backend state. */
-int PcConfig_UsesSoftwareSpu(void);
-
 /* True while the experimental whole-town render mode applies: exterior map,
  * street room, whole_map_exteriors + preload_chunks + resident_textures all
  * on. Implemented in bodyprog_80040B74.c (needs g_Map/g_SavegamePtr). */
@@ -249,3 +229,4 @@ void PcConfig_SaveKeyValue(const char* key, const char* value);
 void PcConfig_ApplyXaVolume(float norm);
 
 #endif /* PC_CONFIG_H */
+

@@ -21,6 +21,7 @@
 #include "sh_log.h"
 #include "psx_memory.h"
 #include "pc_config.h"
+#include "pc_audio_config.h"
 #include "map_registry.h"
 #include "main/fsqueue.h"
 #include "main/fileinfo.h"
@@ -697,6 +698,7 @@ int main(int argc, char* argv[])
 
     /* Load config file */
     PcConfig_Load("config.cfg");
+    PcAudioConfig_Load("config.cfg");
 
     /* Now that we know whether logging is enabled, open the log file (or
      * leave g_ShDebugLog NULL so SH_DBG stays a no-op). */
@@ -1035,18 +1037,18 @@ int main(int argc, char* argv[])
         extern void PsyX_SPUAL_ConfigureOutput(int backend, int mode, int rate, int bitPerfect);
         extern int PsyX_SPUAL_ConfigureRenderer(int renderer, int idealClip,
                                                 int referenceClip, int referenceDither);
-        if (PcConfig_UsesSoftwareSpu())
-            PsyX_SPUAL_ConfigureOutput(g_PcConfig.audioBackend, g_PcConfig.audioMode,
-                                       g_PcConfig.audioRate, g_PcConfig.audioBitPerfect);
+        if (PcAudioConfig_UsesSoftwareSpu())
+            PsyX_SPUAL_ConfigureOutput(g_PcAudioConfig.backend, g_PcAudioConfig.mode,
+                                       g_PcAudioConfig.rate, g_PcAudioConfig.bitPerfect);
 
-        if (!PsyX_SPUAL_ConfigureRenderer(g_PcConfig.spuRenderer, g_PcConfig.idealClip,
-                                         g_PcConfig.referenceClip, g_PcConfig.referenceDither))
+        if (!PsyX_SPUAL_ConfigureRenderer(g_PcAudioConfig.renderer, g_PcAudioConfig.idealClip,
+                                         g_PcAudioConfig.referenceClip, g_PcAudioConfig.referenceDither))
             SH_ERR("Invalid SPU renderer configuration; audio startup will fail");
 
-        if (PcConfig_UsesSoftwareSpu()) {
+        if (PcAudioConfig_UsesSoftwareSpu()) {
             SH_LOG("Software SPU output: renderer=%d backend=%d mode=%d rate=%d bit-perfect=%d",
-                   g_PcConfig.spuRenderer, g_PcConfig.audioBackend, g_PcConfig.audioMode,
-                   g_PcConfig.audioRate, g_PcConfig.audioBitPerfect);
+                   g_PcAudioConfig.renderer, g_PcAudioConfig.backend, g_PcAudioConfig.mode,
+                   g_PcAudioConfig.rate, g_PcAudioConfig.bitPerfect);
         } else {
             extern void PsyX_SPUAL_SetAdsrEnabled(int on);
             extern void PsyX_SPUAL_SetReverbDepthScale(float scale);

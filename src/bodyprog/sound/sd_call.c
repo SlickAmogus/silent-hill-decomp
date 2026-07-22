@@ -3,6 +3,7 @@
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include "xa_player.h"
+#include "pc_audio_config.h"
 #include <stdio.h>
 #endif
 
@@ -1862,7 +1863,8 @@ void Sd_TaskPoolExecute(void) // 0x800485D8
              * Stop-then-Play sequence in Sd_XaAudioPlayTaskAdd work correctly
              * even when Stop fully clears the streaming-state flags. */
             XaPlayer_Play(g_Sd_AudioWork.xaAudioIdxCheck_2);
-            SdSetSerialAttr(0, 0, 1);
+            if (PcAudioConfig_UsesSoftwareSpu())
+                SdSetSerialAttr(0, 0, 1);
             g_Sd_AudioWork.xaAudioIdx_4 = g_Sd_AudioWork.xaAudioIdxCheck_2;
             Sd_TaskPoolUpdate();
 #else
@@ -1875,7 +1877,8 @@ void Sd_TaskPoolExecute(void) // 0x800485D8
             /* XaPlayer_Stop calls Xa_SignalPlaybackFinished which clears
              * xaAudioIdx_4 + D_800C37DC. Safe because the upcoming Play in
              * Sd_XaAudioPlayTaskAdd's queue uses xaAudioIdxCheck_2 (still set). */
-            SdSetSerialAttr(0, 0, 0);
+            if (PcAudioConfig_UsesSoftwareSpu())
+                SdSetSerialAttr(0, 0, 0);
             XaPlayer_Stop();
             Sd_TaskPoolUpdate();
 #else
