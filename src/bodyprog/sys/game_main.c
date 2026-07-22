@@ -2431,16 +2431,22 @@ void MainLoop(void) // 0x80032EE0
              * request: cap the cutscene step like normal gameplay so cutscenes
              * behave the same across frame rates as they did before. */
 #ifdef SH_XBOX_PORT
-            /* Xbox: cap the step at the 20fps move, not 30fps. The 733MHz/NV2A
-             * town/combat dips below 30fps, and a 30fps-step cap turns every dip
-             * into slow-motion (a 25fps frame advances game-time at 25/30 = 83%
-             * speed — "slows down a lot"). At /20 the game runs REAL-TIME down to
-             * 20fps and only slows below that. The invisible-wall over-reach the
-             * cap guards (Collision_WallDetect sweeps moveSpeed*dt): measured
-             * per-frame sweep is 9-12 units vs Harry's 76-unit body radius, so
-             * /20 (1.5x = ~18 units) is well within the standoff and strictly
-             * SAFER than the PSX-original 15fps floor (2x) that shipped fine. */
-            vCount = MIN(vCount, H_BLANKS_PER_SECOND / 20);
+            /* Xbox: cap the gameplay step at the 15fps move. Measured hardware:
+             * the DENSE TOWN dips to 15-20fps (48-68ms frames, 400-509 draws —
+             * genuine software-GTE + draw load, not a bug). A dt-cap tighter than
+             * that frame rate turns the dip into SLOW-MOTION: game-time advances
+             * at cap/actual speed. /30 slow-mo'd everything under 30fps; /20 still
+             * slow-mo'd the sub-20fps town (the 68ms/15fps frames = the user's
+             * "slow motion"). /15 = REAL-TIME down to 15fps, covering the whole
+             * observed town range — it just runs at low fps (like PSX) instead of
+             * eerie slow-mo. /15 IS the PSX-original floor (2x the 30fps step);
+             * the invisible-wall over-reach it guards (Collision_WallDetect sweeps
+             * moveSpeed*dt) is 9-12 units/frame vs Harry's 76-unit radius, so 2x
+             * (~18-24u) is still well inside the standoff. Below 15fps (the
+             * one-frame room-load hitches) still slow-mo's, but a lower floor
+             * would risk wall-clipping and those are single-frame stutters anyway
+             * (fixed separately by de-hitching the streaming). */
+            vCount = MIN(vCount, H_BLANKS_PER_SECOND / 15);
 #else
             vCount = MIN(vCount, H_BLANKS_PER_SECOND / 30);
 #endif
