@@ -484,8 +484,33 @@ void Gfx_InGameDraw(bool arg0) // 0x8003C878
      * loaded, reformatted, and drawable this same frame. */
     {
 #ifdef SH_XBOX_PORT
+        /* TIME-BOXED streaming (replaces PC's force-drain-the-whole-queue-every-
+         * frame). On the 733MHz CPU each Fs_QueueUpdate is a SYNCHRONOUS disk read
+         * (9-28ms, [FSQ] readMs) or texture LoadImage (28-79ms, [FSQ] reformatMs),
+         * and the PC 2-pass loop drained ALL queued cells in one frame -> the
+         * 51-146ms movement stutter and 280ms transition freezes that dominate the
+         * exterior ([POST] fs / [UPD] stream). Instead: queue the window, then drain
+         * only until an ~8ms wall-clock budget; the rest finishes over the next
+         * frames (the main-loop Fs_QueueUpdate also advances one entry/frame). The
+         * load window (Map_ChunkLoad's '+' for exteriors / exact cell for interiors)
+         * pre-queues the cells around the player, so by the time you reach a cell
+         * it is already resident — where you STAND stays loaded; only cells you
+         * rush toward faster than ~8ms/frame can stream pop in, under the fog. This
+         * trades the whole-frame freeze for a bounded far-edge pop-in.
+         * NOTE: a single entry can still exceed the budget (it is checked AFTER
+         * each Fs_QueueUpdate, and one texture LoadImage can be 79ms) — this kills
+         * the MULTI-entry drains, not the rare single-texture spike. */
         unsigned long long _st0 = ShxWdRdtsc();
-#endif
+        unsigned long long _budget = 8ULL * 733000ULL; /* ~8ms at 733MHz */
+        Ipd_CloseRangeChunksInit();
+        while (Fs_QueueGetLength() > 0 && (ShxWdRdtsc() - _st0) < _budget)
+        {
+            Fs_QueueUpdate();
+            g_XbFsQueueIters++;
+        }
+        Ipd_CloseRangeChunksInit();
+        g_XbStreamCycles += ShxWdRdtsc() - _st0;
+#else
         int pass;
         for (pass = 0; pass < 2; pass++)
         {
@@ -495,15 +520,10 @@ void Gfx_InGameDraw(bool arg0) // 0x8003C878
                 while (Fs_QueueGetLength() > 0 && --flushLimit > 0)
                 {
                     Fs_QueueUpdate();
-#ifdef SH_XBOX_PORT
-                    g_XbFsQueueIters++;
-#endif
                 }
             }
         }
         Ipd_CloseRangeChunksInit();
-#ifdef SH_XBOX_PORT
-        g_XbStreamCycles += ShxWdRdtsc() - _st0;
 #endif
     }
 #else
