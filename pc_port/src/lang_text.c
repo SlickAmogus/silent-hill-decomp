@@ -1206,8 +1206,17 @@ static char* TextOverrideBuild(const char* orig, const char* userText)
 
     if (s != NULL && s[0] == '~' && s[1] != '\0')
     {
-        prefix[pl++] = *s++;
-        prefix[pl++] = *s++;
+        prefix[pl++] = *s++; /* ~ */
+        prefix[pl++] = *s++; /* code letter, e.g. J */
+        /* Copy any parameter chars between the code letter and the '(' timing
+         * group. The PSX format is ~J0(2.5) — a page/variant digit sits before
+         * the paren, NOT ~J(2.5). The old code checked for '(' immediately after
+         * the letter, so it dropped the "0(2.5)\t" entirely and produced a bare
+         * "~J<text>" the map-message timer couldn't parse — the override showed
+         * nothing. Capture up to the '(' (or whitespace / next code / end). */
+        while (*s != '\0' && *s != '(' && *s != ' ' && *s != '\t' && *s != '~' &&
+               pl < (int)sizeof(prefix) - 2)
+            prefix[pl++] = *s++;
         if (*s == '(')
         {
             while (*s != '\0' && *s != ')' && pl < (int)sizeof(prefix) - 2)
