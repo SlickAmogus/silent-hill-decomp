@@ -1030,28 +1030,36 @@ int main(int argc, char* argv[])
         SH_LOG("Flashlight mode: %s", Pc_FlashlightModeLabel(g_PcConfig.flashlightMode));
     }
 
-    /* SPU ADSR envelopes (attack/release instrument fades in the sequenced BGM)
-     * + reverb depth->wet scale. adsr default on; `adsr 0/1` console overrides
-     * live, `revscale` tunes the reverb mapping. */
+    /* Select the backend before applying backend-specific controls. */
     {
-        extern void  PsyX_SPUAL_SetAdsrEnabled(int on);
-        extern void  PsyX_SPUAL_SetReverbDepthScale(float scale);
-        PsyX_SPUAL_SetAdsrEnabled(g_PcConfig.adsr ? 1 : 0);
-        if (g_PcConfig.reverbScale > 0.0f)
-            PsyX_SPUAL_SetReverbDepthScale(g_PcConfig.reverbScale);
-        SH_LOG("SPU ADSR envelopes: %s, reverb scale %.2f",
-               g_PcConfig.adsr ? "ON" : "off", g_PcConfig.reverbScale);
-    }
+        extern void PsyX_SPUAL_ConfigureOutput(int backend, int mode, int rate, int bitPerfect);
+        extern int PsyX_SPUAL_ConfigureRenderer(int renderer, int idealClip,
+                                                int referenceClip, int referenceDither);
+        if (PcConfig_UsesSoftwareSpu())
+            PsyX_SPUAL_ConfigureOutput(g_PcConfig.audioBackend, g_PcConfig.audioMode,
+                                       g_PcConfig.audioRate, g_PcConfig.audioBitPerfect);
 
-    /* Speaker layout (audio_output = auto|stereo|quad|51|71|hrtf). Must be
-     * latched before SpuInit below — the OpenAL context is created there and
-     * an explicit layout rides in as a context attribute. Auto passes no
-     * attribute so OpenAL Soft detects the system layout itself. */
-    {
-        extern void PsyX_SPUAL_SetOutputMode(int mode);
-        static const char* const kSpeakerNames[] = { "auto", "stereo", "quad", "5.1", "7.1", "hrtf" };
-        PsyX_SPUAL_SetOutputMode(g_PcConfig.audioOutput);
-        SH_LOG("Speaker layout request: %s", kSpeakerNames[g_PcConfig.audioOutput]);
+        if (!PsyX_SPUAL_ConfigureRenderer(g_PcConfig.spuRenderer, g_PcConfig.idealClip,
+                                         g_PcConfig.referenceClip, g_PcConfig.referenceDither))
+            SH_ERR("Invalid SPU renderer configuration; audio startup will fail");
+
+        if (PcConfig_UsesSoftwareSpu()) {
+            SH_LOG("Software SPU output: renderer=%d backend=%d mode=%d rate=%d bit-perfect=%d",
+                   g_PcConfig.spuRenderer, g_PcConfig.audioBackend, g_PcConfig.audioMode,
+                   g_PcConfig.audioRate, g_PcConfig.audioBitPerfect);
+        } else {
+            extern void PsyX_SPUAL_SetAdsrEnabled(int on);
+            extern void PsyX_SPUAL_SetReverbDepthScale(float scale);
+            extern void PsyX_SPUAL_SetOutputMode(int mode);
+            static const char* const kSpeakerNames[] = { "auto", "stereo", "quad", "5.1", "7.1", "hrtf" };
+            PsyX_SPUAL_SetAdsrEnabled(g_PcConfig.adsr ? 1 : 0);
+            if (g_PcConfig.reverbScale > 0.0f)
+                PsyX_SPUAL_SetReverbDepthScale(g_PcConfig.reverbScale);
+            PsyX_SPUAL_SetOutputMode(g_PcConfig.audioOutput);
+            SH_LOG("Legacy OpenAL SPU: ADSR %s, reverb scale %.2f, speakers %s",
+                   g_PcConfig.adsr ? "ON" : "off", g_PcConfig.reverbScale,
+                   kSpeakerNames[g_PcConfig.audioOutput]);
+        }
     }
 
     /* Effect intensities (in-game [ lowers / ] raises, \ switches which enabled

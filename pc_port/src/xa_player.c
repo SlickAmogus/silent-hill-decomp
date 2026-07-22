@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <SDL_timer.h>
+#include <PsyX/PsyX_audio.h>
+#include <psyq/libspu.h>
 
 /* [XATIME] diagnostic: measure actual wall-clock voice playback duration vs
  * expected, and the gap between consecutive voice fires, to determine whether
@@ -22,7 +24,7 @@ static Uint32 s_xaPrevFireMs  = 0;
  * when the vblank watchdog (sd_call.c, D_800C1688: elapsed > audioLength+32)
  * queued the stop task — i.e. every line held its 'streaming' state for
  * ~0.53s (32 vblanks) PAST the audio, and that pad is the authored
- * inter-line rhythm of every voiced cutscene. OpenAL drain fires the moment
+ * inter-line rhythm of every voiced cutscene. Host-side drain fires the moment
  * the samples end, so each line advanced ~0.5s early and long dialogs
  * compressed, running the voices ahead of the scene. Hold the finished
  * signal until the PSX watchdog moment (play start + (length+32)/60 s). */
@@ -46,7 +48,7 @@ int Xa_VoiceGapHold(void)
            SDL_GetTicks() < s_xaVoiceGapEndMs;
 }
 
-/* Console-freeze hold: the console zeroes game dt but OpenAL kept playing,
+/* Console-freeze hold: the console zeroes game dt but host audio kept playing,
  * running the voice ahead of the frozen scene. While held, the source is
  * paused and Update does nothing; on release the pad/diagnostic clocks are
  * shifted by the held duration so pacing resumes where it left off. */
@@ -66,7 +68,7 @@ extern const char* PcPort_GetGameDiscPath(void);
  *    8 bytes EDC + Q parity (or unused for Form 2)
  * The XA decoder operates on the 2336-byte slice that starts at the
  * subheader (i.e. offset +16 into the raw sector) — matching the layout
- * of disc_extract/XA/*.xa (which are pre-extracted disc sectors with the
+ * of extracted XA files (which are pre-extracted disc sectors with the
  * 16-byte sync+header stripped). So to read XA sector K of fileIdx N
  * from the disc image, seek to:
  *   (g_FileXaLoc[N] + K) * 2352 + 16     and read 2336 bytes. */
@@ -131,10 +133,10 @@ static const int16_t g_FilterNeg[16] = {0,  0, -52, -55, -60, 0, 0, 0, 0, 0, 0, 
 #define XA_GROUP_SIZE 128
 #define XA_SAMPLES_PER_SECTOR 4032  // 18 * 224 samples total (stereo: 2016 per channel)
 
-// OpenAL buffer management
 #define XA_NUM_BUFFERS 8
 #define XA_SECTORS_PER_BUFFER 4
 #define XA_SAMPLES_PER_BUFFER (XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR / 2)  // stereo
+#define XA_QUEUE_TARGET_FRAMES (XA_SAMPLES_PER_BUFFER * 4)
 
 typedef struct {
     FILE* file;
@@ -165,6 +167,7 @@ typedef struct {
 
     int isPlaying;
     int needsInitialFill;
+    int finishSignaled;
 
     /* ADPCM history per channel — int32 to hold UNCLAMPED filter feedback,
      * which is critical for accurate IIR prediction near saturation. */
@@ -176,10 +179,7 @@ typedef struct {
 
 static XaPlayerState g_XaPlayer = {0};
 
-/* Master XA (FMV/voice) volume multiplier in [0,1], from config/console/options
- * menu. Applied on top of the game-driven per-track gain. s_XaGameGain caches
- * the last game-driven gain so a live master-volume change can be re-applied to
- * an already-playing source without waiting for the next Sd_SetVolXa. */
+/* Master XA (FMV/voice) volume multiplier in [0,1], from config/console/options. */
 float g_PcXaVolume = 1.0f;
 static float s_XaGameGain = 1.0f;
 
@@ -302,8 +302,10 @@ static int DecodeXaSector(const uint8_t* sector, int16_t* pcmOut) {
         long long lSum=0, rSum=0;
         for (int i = 0; i < written; i += 2) {
             int16_t lv = outStart[i], rv = outStart[i+1];
-            if (lv < lMin) lMin = lv; if (lv > lMax) lMax = lv;
-            if (rv < rMin) rMin = rv; if (rv > rMax) rMax = rv;
+            if (lv < lMin) lMin = lv;
+            if (lv > lMax) lMax = lv;
+            if (rv < rMin) rMin = rv;
+            if (rv > rMax) rMax = rv;
             lSum += lv; rSum += rv;
         }
         /* Mid-sector slice: stereo pairs at offset 1000 (sample ~T1000 of first sector) */
@@ -311,7 +313,7 @@ static int DecodeXaSector(const uint8_t* sector, int16_t* pcmOut) {
 
 #ifdef SH_XA_DUMP
     /* DEBUG: dump decoded PCM to a .wav file (first 8 sectors of the very first
-     * track). Lets us listen to the raw decoded output independently of OpenAL.
+     * track). Lets us listen to the raw decoded output independently of the device backend.
      * Compile with -DSH_XA_DUMP to enable; off in release. */
     static FILE*    s_WavFile      = NULL;
     static int      s_WavSectors   = 0;
@@ -483,6 +485,7 @@ void XaPlayer_Play(uint16_t xaIdx) {
     g_XaPlayer.filterChannel = filterChannel;
     g_XaPlayer.isPlaying = 1;
     g_XaPlayer.needsInitialFill = 1;
+    g_XaPlayer.finishSignaled = 0;
     {
         Uint32 nowMs = SDL_GetTicks();
         uint32_t expMs = (uint32_t)(((uint64_t)numSectors * (XA_SAMPLES_PER_SECTOR / 2u) * 1000u) / (unsigned)sampleRate);
@@ -504,11 +507,20 @@ void XaPlayer_Play(uint16_t xaIdx) {
     /* Mono replication test confirmed not the issue — leave off. */
     g_XaPlayer.debugForceMono = 0;
 
-    // Create OpenAL source/buffers once
-    if (!g_XaPlayer.alSource) {
-        alGenSources(1, &g_XaPlayer.alSource);
-        alGenBuffers(XA_NUM_BUFFERS, g_XaPlayer.alBuffers);
+    if (!g_XaPlayer.pcmBuffer) {
         g_XaPlayer.pcmBuffer = malloc(XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * 2 * sizeof(int16_t));
+    }
+    if (PcConfig_UsesSoftwareSpu()) {
+        PsyX_AudioResetXa();
+        PsyX_AudioSetXaMasterGain(g_PcXaVolume);
+        SpuSetCommonCDVolume(0x7F00, 0x7F00);
+    } else {
+        if (!g_XaPlayer.alSource) {
+            alGenSources(1, &g_XaPlayer.alSource);
+            alGenBuffers(XA_NUM_BUFFERS, g_XaPlayer.alBuffers);
+        }
+        s_XaGameGain = 1.0f;
+        alSourcef(g_XaPlayer.alSource, AL_GAIN, s_XaGameGain * g_PcXaVolume);
     }
 
     /* Always reset gain to full at the start of a new track. The game's
@@ -516,12 +528,10 @@ void XaPlayer_Play(uint16_t xaIdx) {
      * in gameplay (sd_call.c:1073, inside Sd_XaPreLoadAudio case 0).
      * On PSX the matching restore happens after the seek completes; on
      * PC the seek path is a no-op via PsyCross's CdControl, so the
-     * restore never fires and the OpenAL source gain stays stuck at
-     * 0.0 for the rest of the session. Without this reset, every voice
+     * restore never fires and the SPU CD volume stays at zero. Without
+     * this reset, every voice
      * line after the first ~20 plays silently (cafe cutscene voices
      * still work because they precede the mute event). */
-    s_XaGameGain = 1.0f;
-    alSourcef(g_XaPlayer.alSource, AL_GAIN, s_XaGameGain * g_PcXaVolume);
 
 }
 
@@ -532,11 +542,10 @@ void XaPlayer_Stop(void) {
                (unsigned)g_XaPlayer.xaIdx, g_XaPlayer.remainingSectors, g_XaPlayer.totalSectors);
     }
 
-    if (g_XaPlayer.alSource) {
+    if (PcConfig_UsesSoftwareSpu()) {
+        PsyX_AudioResetXa();
+    } else if (g_XaPlayer.alSource) {
         alSourceStop(g_XaPlayer.alSource);
-        /* Detach all buffers from the source so the next Play starts with a
-         * clean queue. Without this, leftover buffers from the previous track
-         * play before the new audio (audible as "tail of previous line"). */
         alSourcei(g_XaPlayer.alSource, AL_BUFFER, 0);
     }
 
@@ -548,50 +557,14 @@ void XaPlayer_Stop(void) {
     Xa_SignalPlaybackFinished();
 }
 
-// Fill a single OpenAL buffer with decoded XA data
-static void FillBuffer(ALuint buffer) {
-    if (!g_XaPlayer.remainingSectors) {
-        return;
-    }
-
-    // Decode sectors into PCM
-    int16_t* pcmPtr = g_XaPlayer.pcmBuffer;
-    int sectorsThisBuffer = (g_XaPlayer.remainingSectors > XA_SECTORS_PER_BUFFER) ?
-                            XA_SECTORS_PER_BUFFER : g_XaPlayer.remainingSectors;
-
-    for (int s = 0; s < sectorsThisBuffer; s++) {
-        uint8_t sectorData[XA_SECTOR_SIZE];
-        if (!ReadXaSectorFromBin(g_XaPlayer.baseSector,
-                                 g_XaPlayer.currentSector + s,
-                                 sectorData)) {
-            g_XaPlayer.isPlaying = 0;
-            return;
-        }
-
-        // Decode
-        DecodeXaSector(sectorData, pcmPtr);
-        pcmPtr += XA_SAMPLES_PER_SECTOR * sizeof(int16_t);
-    }
-
-    // Queue buffer to OpenAL
-    int sampleBytes = sectorsThisBuffer * XA_SAMPLES_PER_SECTOR * sizeof(int16_t);
-    alBufferData(buffer, AL_FORMAT_STEREO16, g_XaPlayer.pcmBuffer,
-                 sampleBytes, g_XaPlayer.sampleRate);
-    alSourceQueueBuffers(g_XaPlayer.alSource, 1, &buffer);
-
-    g_XaPlayer.currentSector += sectorsThisBuffer;
-    g_XaPlayer.remainingSectors -= sectorsThisBuffer;
-}
-
 void XaPlayer_PlayWithParams(uint16_t xaIdx, uint16_t fileIdx, uint32_t sectorOffset, uint32_t numSectors) {
     // Alternative entry point (not used yet)
     XaPlayer_Play(xaIdx);
 }
 
-/* Decode up to XA_SECTORS_PER_BUFFER MATCHING sectors (skipping interleaved
- * sectors of other channels) into the PCM scratch buffer and upload to a
- * given AL buffer. Returns total int16 samples written. */
-static int FillAndUploadOne(ALuint alBuffer) {
+/* Decode up to XA_SECTORS_PER_BUFFER matching sectors and queue them into the
+ * unified software-SPU CD input. Returns source PCM frames queued. */
+static int FillAndQueueOne(void) {
     if (g_XaPlayer.remainingSectors == 0) return 0;
 
     int wantedMatches = (g_XaPlayer.remainingSectors > XA_SECTORS_PER_BUFFER)
@@ -634,11 +607,57 @@ static int FillAndUploadOne(ALuint alBuffer) {
     }
     g_XaPlayer.remainingSectors -= matchedCount;
 
-    int byteCount = totalSamples * (int)sizeof(int16_t);
-    ALenum format = g_XaPlayer.isStereo ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16;
-    alBufferData(alBuffer, format, g_XaPlayer.pcmBuffer, byteCount, g_XaPlayer.sampleRate);
-    alSourceQueueBuffers(g_XaPlayer.alSource, 1, &alBuffer);
+    int channels = g_XaPlayer.isStereo ? 2 : 1;
+    int frames = totalSamples / channels;
+    if (!PsyX_AudioPushXaFrames(g_XaPlayer.pcmBuffer, (uint32_t)frames,
+                                (uint32_t)g_XaPlayer.sampleRate, (uint32_t)channels)) {
+        return 0;
+    }
+    return frames;
+}
 
+static int FillAndUploadLegacy(ALuint alBuffer) {
+    if (g_XaPlayer.remainingSectors == 0) return 0;
+
+    int wantedMatches = (g_XaPlayer.remainingSectors > XA_SECTORS_PER_BUFFER)
+                      ? XA_SECTORS_PER_BUFFER : (int)g_XaPlayer.remainingSectors;
+    int16_t* pcmPtr = g_XaPlayer.pcmBuffer;
+    int totalSamples = 0;
+    int matchedCount = 0;
+    int scanCap = wantedMatches * 32;
+
+    while (matchedCount < wantedMatches && scanCap-- > 0) {
+        uint8_t sectorData[XA_SECTOR_SIZE];
+        if (!ReadXaSectorFromBin(g_XaPlayer.baseSector,
+                                 g_XaPlayer.currentSector,
+                                 sectorData)) {
+            g_XaPlayer.remainingSectors = 0;
+            break;
+        }
+        g_XaPlayer.currentSector++;
+        if (sectorData[0] != g_XaPlayer.filterFile ||
+            sectorData[1] != g_XaPlayer.filterChannel) {
+            continue;
+        }
+        {
+            int written = DecodeXaSector(sectorData, pcmPtr);
+            pcmPtr += written;
+            totalSamples += written;
+        }
+        matchedCount++;
+    }
+
+    if (matchedCount == 0) {
+        g_XaPlayer.remainingSectors = 0;
+        return 0;
+    }
+    g_XaPlayer.remainingSectors -= matchedCount;
+
+    alBufferData(alBuffer,
+                 g_XaPlayer.isStereo ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16,
+                 g_XaPlayer.pcmBuffer, totalSamples * (int)sizeof(int16_t),
+                 g_XaPlayer.sampleRate);
+    alSourceQueueBuffers(g_XaPlayer.alSource, 1, &alBuffer);
     return totalSamples;
 }
 
@@ -646,56 +665,69 @@ void XaPlayer_Update(void) {
     if (s_xaPauseHold) return;
     if (!g_XaPlayer.isPlaying) return;
 
-    /* On first Update after Play: queue all buffers fresh (none are
-     * processed because nothing has been queued or played yet). */
-    if (g_XaPlayer.needsInitialFill) {
-        int queued = 0;
-        for (int i = 0; i < XA_NUM_BUFFERS && g_XaPlayer.remainingSectors > 0; i++) {
-            if (FillAndUploadOne(g_XaPlayer.alBuffers[i]) > 0) queued++;
-        }
-        g_XaPlayer.needsInitialFill = 0;
+    if (!PcConfig_UsesSoftwareSpu()) {
+        ALint sourceState = 0;
 
-        if (queued > 0) {
-            alSourcePlay(g_XaPlayer.alSource);
-        }
-        return;
-    }
-
-    /* Refill any buffers that have finished playing back. */
-    ALint processed = 0;
-    alGetSourcei(g_XaPlayer.alSource, AL_BUFFERS_PROCESSED, &processed);
-    while (processed > 0 && g_XaPlayer.remainingSectors > 0) {
-        ALuint buf;
-        alSourceUnqueueBuffers(g_XaPlayer.alSource, 1, &buf);
-        FillAndUploadOne(buf);
-        processed--;
-    }
-
-    /* If the source underran (e.g. paused mid-stream), re-kick. */
-    ALint sourceState = 0;
-    alGetSourcei(g_XaPlayer.alSource, AL_SOURCE_STATE, &sourceState);
-    if (sourceState != AL_PLAYING && g_XaPlayer.remainingSectors > 0) {
-        alSourcePlay(g_XaPlayer.alSource);
-    }
-
-    /* Detect end-of-playback: no more sectors AND source not playing.
-     * AL_INITIAL counts too — if the initial fill found zero matching
-     * sectors the source never started and would never reach AL_STOPPED. */
-    if (g_XaPlayer.remainingSectors == 0 && sourceState != AL_PLAYING) {
-        /* PSX pacing: hold the finished signal until the vblank-watchdog
-         * moment (see s_xaPadEndMs). An explicit XaPlayer_Stop (skip / next
-         * line preempting) still signals immediately. Wrap-safe compare. */
-        if ((Sint32)(SDL_GetTicks() - s_xaPadEndMs) < 0) {
+        if (g_XaPlayer.needsInitialFill) {
+            int queued = 0;
+            int i;
+            for (i = 0; i < XA_NUM_BUFFERS && g_XaPlayer.remainingSectors > 0; i++) {
+                if (FillAndUploadLegacy(g_XaPlayer.alBuffers[i]) > 0)
+                    queued++;
+            }
+            g_XaPlayer.needsInitialFill = 0;
+            if (queued > 0)
+                alSourcePlay(g_XaPlayer.alSource);
             return;
         }
-        SH_DBG("[XA] finished xaIdx=%u (drained) playedMs=%u", (unsigned)g_XaPlayer.xaIdx,
-               (unsigned)(SDL_GetTicks() - s_xaPlayStartMs));
-        g_XaPlayer.isPlaying = 0;
-        /* g_XaPlayer.file aliases the shared s_BinFile — never fclose it
-         * here. The BIN handle is held for the lifetime of the process. */
-        g_XaPlayer.file = NULL;
-        Xa_SignalPlaybackFinished();
+
+        {
+            ALint processed = 0;
+            alGetSourcei(g_XaPlayer.alSource, AL_BUFFERS_PROCESSED, &processed);
+            while (processed > 0 && g_XaPlayer.remainingSectors > 0) {
+                ALuint buffer;
+                alSourceUnqueueBuffers(g_XaPlayer.alSource, 1, &buffer);
+                FillAndUploadLegacy(buffer);
+                processed--;
+            }
+        }
+
+        alGetSourcei(g_XaPlayer.alSource, AL_SOURCE_STATE, &sourceState);
+        if (sourceState != AL_PLAYING && g_XaPlayer.remainingSectors > 0) {
+            alSourcePlay(g_XaPlayer.alSource);
+            sourceState = AL_PLAYING;
+        }
+        if (g_XaPlayer.remainingSectors != 0 || sourceState == AL_PLAYING)
+            return;
+    } else {
+        g_XaPlayer.needsInitialFill = 0;
+        while (g_XaPlayer.remainingSectors > 0 &&
+               PsyX_AudioGetQueuedXaFrames() < XA_QUEUE_TARGET_FRAMES) {
+            if (FillAndQueueOne() <= 0)
+                break;
+        }
+
+        if (g_XaPlayer.remainingSectors == 0 && !g_XaPlayer.finishSignaled) {
+            g_XaPlayer.finishSignaled = 1;
+            PsyX_AudioFinishXa();
+        }
+        if (g_XaPlayer.remainingSectors != 0 || !PsyX_AudioIsXaDrained())
+            return;
     }
+
+    /* PSX pacing: hold the finished signal until the vblank-watchdog
+     * moment (see s_xaPadEndMs). An explicit XaPlayer_Stop (skip / next
+     * line preempting) still signals immediately. Wrap-safe compare. */
+    if ((Sint32)(SDL_GetTicks() - s_xaPadEndMs) < 0) {
+        return;
+    }
+    SH_DBG("[XA] finished xaIdx=%u (drained) playedMs=%u", (unsigned)g_XaPlayer.xaIdx,
+           (unsigned)(SDL_GetTicks() - s_xaPlayStartMs));
+    g_XaPlayer.isPlaying = 0;
+    /* g_XaPlayer.file aliases the shared s_BinFile — never fclose it
+     * here. The BIN handle is held for the lifetime of the process. */
+    g_XaPlayer.file = NULL;
+    Xa_SignalPlaybackFinished();
 }
 
 /* True only while the voice is ACTUALLY producing audio — the true-drain
@@ -716,7 +748,7 @@ void XaPlayer_Update(void) {
  * inter-DMS barrier, BGM transitions). AL_PAUSED (console-freeze hold) counts
  * as still-draining. */
 int Xa_IsVoiceAudioDraining(void) {
-    ALint st;
+    ALint state = 0;
 
     if (!g_XaPlayer.isPlaying) {
         return 0;
@@ -724,11 +756,11 @@ int Xa_IsVoiceAudioDraining(void) {
     if (g_XaPlayer.remainingSectors > 0) {
         return 1;
     }
-    st = 0;
-    if (g_XaPlayer.alSource) {
-        alGetSourcei(g_XaPlayer.alSource, AL_SOURCE_STATE, &st);
-    }
-    return (st == AL_PLAYING || st == AL_PAUSED);
+    if (PcConfig_UsesSoftwareSpu())
+        return !PsyX_AudioIsXaDrained();
+    if (g_XaPlayer.alSource)
+        alGetSourcei(g_XaPlayer.alSource, AL_SOURCE_STATE, &state);
+    return state == AL_PLAYING || state == AL_PAUSED;
 }
 
 void XaPlayer_SetPauseHold(int hold) {
@@ -740,7 +772,9 @@ void XaPlayer_SetPauseHold(int hold) {
 
     if (hold) {
         s_xaPauseStartMs = SDL_GetTicks();
-        if (g_XaPlayer.isPlaying && g_XaPlayer.alSource) {
+        if (PcConfig_UsesSoftwareSpu()) {
+            PsyX_AudioSetXaPaused(1);
+        } else if (g_XaPlayer.isPlaying && g_XaPlayer.alSource) {
             alSourcePause(g_XaPlayer.alSource);
         }
     } else {
@@ -752,32 +786,25 @@ void XaPlayer_SetPauseHold(int hold) {
         s_xaPadEndMs    += heldMs;
         s_xaPlayStartMs += heldMs;
         s_xaPrevFireMs  += heldMs;
-        if (g_XaPlayer.isPlaying && g_XaPlayer.alSource) {
-            ALint st = 0;
-            alGetSourcei(g_XaPlayer.alSource, AL_SOURCE_STATE, &st);
-            if (st == AL_PAUSED) {
+        if (PcConfig_UsesSoftwareSpu()) {
+            PsyX_AudioSetXaPaused(0);
+        } else if (g_XaPlayer.isPlaying && g_XaPlayer.alSource) {
+            ALint state = 0;
+            alGetSourcei(g_XaPlayer.alSource, AL_SOURCE_STATE, &state);
+            if (state == AL_PAUSED)
                 alSourcePlay(g_XaPlayer.alSource);
-            }
         }
     }
 }
 
 void XaPlayer_SetVolume(int16_t volLeft, int16_t volRight) {
-    if (!g_XaPlayer.alSource) {
-        return;
-    }
-
-    /* Match PSX scaling: (vol * globalVolumeXa_E) >> 7 then map 0..127 to 0..1 OpenAL gain.
-     * Per Sd_SetVolXa in sd_call.c. Without globalVolumeXa_E here we approximate
-     * by treating the input vol as the already-scaled value. Divide by 127 to
-     * normalize, NOT by 84 which overdrove voices well past max gain. */
     int vol = (volLeft + volRight) / 2;
     if (vol < 0) vol = 0;
-    float gain = (float)vol / 127.0f;
-    if (gain > 1.0f) gain = 1.0f;
-    s_XaGameGain = gain;
-    alSourcef(g_XaPlayer.alSource, AL_GAIN, gain * g_PcXaVolume);
-
+    if (vol > 127) vol = 127;
+    if (!PcConfig_UsesSoftwareSpu() && g_XaPlayer.alSource) {
+        s_XaGameGain = (float)vol / 127.0f;
+        alSourcef(g_XaPlayer.alSource, AL_GAIN, s_XaGameGain * g_PcXaVolume);
+    }
 }
 
 /* Set the master XA volume [0,1] and re-apply it to the live source so an
@@ -786,7 +813,9 @@ void XaPlayer_SetMasterVolume(float v) {
     if (v < 0.0f) v = 0.0f;
     if (v > 1.0f) v = 1.0f;
     g_PcXaVolume = v;
-    if (g_XaPlayer.alSource) {
+    if (PcConfig_UsesSoftwareSpu()) {
+        PsyX_AudioSetXaMasterGain((double)v);
+    } else if (g_XaPlayer.alSource) {
         alSourcef(g_XaPlayer.alSource, AL_GAIN, s_XaGameGain * g_PcXaVolume);
     }
 }
