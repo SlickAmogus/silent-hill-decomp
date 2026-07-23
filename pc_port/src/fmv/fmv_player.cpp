@@ -1635,17 +1635,27 @@ static int PlayFromFFmpeg(const char* path)
                         firstPts = (pts != AV_NOPTS_VALUE) ? pts : 0;
                     double target = (pts != AV_NOPTS_VALUE) ? (double)(pts - firstPts) * vtb : elapsed;
 
-                    while (elapsed < target) {
+                    /* Poll skip + pump events at least ONCE per frame, even when the
+                     * frame is already late (elapsed >= target). The old `while (elapsed
+                     * < target)` skipped this entirely for a slow-decoding movie, so it
+                     * hammered full-speed with no event pump — the window stopped
+                     * responding and the movie couldn't be skipped ("locks the system"). */
+                    for (;;) {
                         int held = FfmpegSkipHeld();
                         if (!skip_armed) { if (!held) skip_armed = 1; }
-                        else if (held) { printf("[FMV] ffmpeg: skipped\n"); stop = 1; break; }
+                        else if (held) { printf("[FMV] ffmpeg: skipped\n"); stop = 1; }
                         SDL_Event ev;
                         while (SDL_PollEvent(&ev)) if (ev.type == SDL_QUIT) FmvQuitNow("ffmpeg playback");
-                        if (stop) break;
+                        if (stop || elapsed >= target) break;
                         SDL_Delay(1);
                         elapsed += Util_GetHPCTime(&tmr, 1);
                     }
                     if (stop) { av_frame_unref(frm); break; }
+
+                    /* A frame that has fallen well behind realtime is dropped so a slow
+                     * decode catches up (plays near real speed, just choppier) instead of
+                     * crawling through every frame at 100% CPU. */
+                    if (reading && target < elapsed - 0.10) { av_frame_unref(frm); continue; }
 
                     if (EnsureDecodeBuffer((size_t)vctx->width * vctx->height * 3u) == 0) {
                         uint8_t* dst[4] = { s_decodeBuffer, NULL, NULL, NULL };
