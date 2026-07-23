@@ -45,3 +45,32 @@ any disc (e.g. Portuguese) gets added PC-side:
 
 Keep `raw.json` and the `[KEY]`s stable so a partially-translated file can be
 re-imported incrementally.
+
+## Polish (`language = pl`) — the worked example
+
+Polish is the first fully wired PC-side pack language (EUR discs only). The
+pipeline above is realised by:
+
+| File | Purpose |
+|------|---------|
+| `import_translation.py` | Re-import: `SilentHill_PL_translation.txt` (+`_raw.json`) → `../assets/gamedata/lang/pl.lang` (the runtime pack). Run: `python import_translation.py --in <translated.txt> --code pl --name Polish --menu POLISH`. |
+| `add_polish_glyphs.py` | Adds the Polish letterforms to an HD-font pack's `FONT16.png` so the HD font and Polish work together (see below). |
+
+The pack is loaded by `pc_port/src/lang_pack.c`; the extra letters (ą ę ł ż ó
+ć ś ń ź + capitals) are drawn by `font_region.c` — most compose from the
+existing accent marks, seven are painted into free FONT16 atlas cells.
+
+### Polish + an HD font pack
+
+A loose HD-font override (`gamedata/load/1ST/FONT16.png`) replaces the whole
+FONT16 texture, so the seven *built* Polish glyphs (which the port paints into
+the low-res disc atlas) would come out blank. `add_polish_glyphs.py` fixes this
+by painting the same seven glyphs into the HD PNG at full resolution — copying
+each HD base letter and adding a matching diacritic (ink/shadow sampled from
+the font). The composed accents (ć ś ń ź ó + caps) already work with any HD
+pack, since they stack the pack's own HD acute mark at draw time.
+
+    python add_polish_glyphs.py "gamedata/load/1ST/FONT16.png"   # in place, keeps a .orig backup
+
+Re-run it whenever the HD font pack is updated. Only needed for the EU-layout
+HD font (Polish is EUR-only); a US-layout pack won't apply on a EUR disc.
