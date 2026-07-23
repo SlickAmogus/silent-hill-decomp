@@ -279,11 +279,19 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
         }
 
         /* Slight Y placement match vs Duckstation: carousel items (idx < 7) a
-         * touch down, equipped weapon (idx 7) a touch up. Translation only. */
-        if (displayItemIdx == 7)
-            localToScreenMat.t[1] += g_PcInvEquipYOff;
-        else if (displayItemIdx < 7)
-            localToScreenMat.t[1] += g_PcInvCarouselYOff;
+         * touch down, equipped weapon (idx 7) a touch up. Translation only.
+         * These nudges are tuned for the inventory/status/save item previews,
+         * which all run in MENU states. The map5_s01 combination-lock puzzle
+         * also renders sub-models at idx < 7 but under GameState_InGame — it
+         * must NOT inherit the +50 carousel drop (it sank the lock reels), so
+         * gate the nudges out of in-game rendering. World pickups use idx 9. */
+        if (g_GameWork.gameState != GameState_InGame)
+        {
+            if (displayItemIdx == 7)
+                localToScreenMat.t[1] += g_PcInvEquipYOff;
+            else if (displayItemIdx < 7)
+                localToScreenMat.t[1] += g_PcInvCarouselYOff;
+        }
     }
 #endif
     GsSetLsMatrix(&localToScreenMat);

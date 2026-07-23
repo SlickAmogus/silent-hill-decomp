@@ -9,6 +9,19 @@ s16 func_800CD20C(void) // 0x800CD20C
     s32      i;
     GsDOBJ2* itemModel;
 
+#ifdef SH_PC_PORT
+    /* This close-up combination-lock puzzle draws its reel models into OT0 (the
+     * 3D world pass) but its arrows/vignette into OT2 (the 2D-UI pass). Under
+     * Hor+ those two passes get DIFFERENT vertical ortho windows — OT0 is
+     * crop-scaled by g_PsxWorldVScale, OT2 is full height — so the lock sinks
+     * ~7% below its own arrows. Announce this frame as a fullscreen 2D-UI
+     * screen (the same signal Screen_BackgroundImgDraw* / the keypad-dial
+     * puzzles use) so OT0 also renders in the uncropped 4:3 ortho and the reels
+     * line up with the overlay at any aspect. Only reached while the puzzle is
+     * on screen (this whole function is its per-frame draw). */
+    { extern s32 g_Pc2dBackgroundActive; g_Pc2dBackgroundActive = 2; }
+#endif
+
     if (D_800F159C == 1)
     {
         if (g_SysWork.sysStateSteps[0] == 5)
