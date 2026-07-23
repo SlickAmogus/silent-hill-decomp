@@ -328,26 +328,32 @@ void PuppetNurse_Init(s_SubCharacter* nurse, bool isDoctor)
     localNurseProps.field_120 = Q12(1.0f);
 }
 
+#ifdef SH_PC_PORT
+/* field_124 is set ONLY by PuppetNurse_Init, to &sharedData_800D5710_3_s03[i]
+ * (i in 0..3). Any other value is stale/garbage from an npc slot reused without
+ * a bzero. Validate the pointer's IDENTITY (in-array + aligned) rather than
+ * null-checking field_124->animInfo_24: a stale field_124 can point at memory
+ * whose +0x28 reads small NON-zero garbage, which the old animInfo_24==NULL
+ * guard passed -> PuppetNurse_AnimUpdate then computed animInfoBase[status] off
+ * that garbage base and read an access violation (the map7_s01 elevator crash:
+ * AV at 0x340 = ~0 + status*0x20). This check catches NULL and every wild
+ * pointer, and re-Init rebuilds field_124 from the intact model.stateStep. */
+static bool PuppetNurse_Field124IsValid(s_800D5710* fd)
+{
+    extern s_800D5710 sharedData_800D5710_3_s03[4];
+    s_800D5710* base = &sharedData_800D5710_3_s03[0];
+    if (fd < base || fd >= base + 4)
+        return false;
+    return (((char*)fd - (char*)base) % sizeof(*base)) == 0; /* aligned to an entry */
+}
+#endif
+
 void PuppetNurse_Update(s_SubCharacter* nurse, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
 {
     // Initialize.
 #ifdef SH_PC_PORT
-    /* field_124 (the per-variant instance ptr) is set only by PuppetNurse_Init
-     * to &sharedData_800D5710_3_s03[charStatIdx], whose animInfo_24 is always
-     * non-NULL (PuppetNurseData_Init fills all 4 entries). The nurse crashes in
-     * map7_s01 when its npc slot is reused with STALE state: a leftover non-zero
-     * model.controlState + a leftover non-NULL field_124 that does NOT point at
-     * sharedData (its +0x28 happens to read 0). The original guard only forced
-     * Init on `controlState==0 || field_124==NULL`, so a stale non-NULL field_124
-     * slipped through -> Init skipped -> PuppetNurse_AnimUpdate deref'd
-     * animInfoBase = field_124->animInfo_24 = 0 -> playbackFunc read AV at 0x2c0
-     * (Stone-of-Time nurse, stateStep 27 -> charStatIdx 3). Also force Init when
-     * field_124->animInfo_24 is NULL: that uniquely flags "field_124 is stale /
-     * not a real instance ptr", and re-Init restores it from the intact
-     * model.stateStep. (field_124==NULL short-circuits before the deref.) */
     if (nurse->model.controlState == 0 ||
-        nurse->properties.puppetNurse.field_124 == NULL ||
-        nurse->properties.puppetNurse.field_124->animInfo_24 == NULL)
+        !PuppetNurse_Field124IsValid(nurse->properties.puppetNurse.field_124))
 #else
     if (nurse->model.controlState == 0)
 #endif
@@ -362,10 +368,9 @@ void PuppetDoctor_Update(s_SubCharacter* doctor, s_AnmHeader* anmHdr, GsCOORDINA
 {
     // Initialize.
 #ifdef SH_PC_PORT
-    /* Same stale-slot guard as PuppetNurse_Update above (shared instance data). */
+    /* Same stale-slot identity guard as PuppetNurse_Update above (shared data). */
     if (doctor->model.controlState == 0 ||
-        doctor->properties.puppetNurse.field_124 == NULL ||
-        doctor->properties.puppetNurse.field_124->animInfo_24 == NULL)
+        !PuppetNurse_Field124IsValid(doctor->properties.puppetNurse.field_124))
 #else
     if (doctor->model.controlState == 0)
 #endif
