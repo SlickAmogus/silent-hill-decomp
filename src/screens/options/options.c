@@ -2990,7 +2990,11 @@ void Options_BrightnessMenu_ConfigDraw(void) // 0x801E6238
      * bracket marks it. Values read from the live renderer globals so the text
      * always matches what is applied. */
     extern float g_cfg_brightness, g_cfg_contrast, g_cfg_saturation;
-    const char* const NAMES[3] = { "BRIGHTNESS_", "CONTRAST___", "SATURATION_" };
+    /* Trailing '_' pad the labels to equal RENDERED width so the value column
+     * lines up (the font is proportional, so "CONTRAST" + 3 spaces was 9px
+     * narrower than "BRIGHTNESS" + 1, pushing its number left). 5 underscores
+     * = 118px, matching BRIGHTNESS 117 / SATURATION 120. */
+    const char* const NAMES[3] = { "BRIGHTNESS_", "CONTRAST_____", "SATURATION_" };
     const float*      vals[3];
     s32 i;
 
@@ -3029,8 +3033,10 @@ void Options_BrightnessMenu_ArrowsDraw(void) // 0x801E628C
      * X (8/64) already brackets the value column. */
     s32 yc  = (s32)(SCREEN_HEIGHT * ((52.0f + (float)g_PcBrtRow * 8.0f) / 100.0f)) - 107;
     /* Shift both knobs right so the left one clears the label and they bracket
-     * the value number (labels are longer than the retail "LEVEL"). */
-    const s32 xo = 14;
+     * the value number (labels are longer than the retail "LEVEL"). With the
+     * value column now aligned across rows, 10 sits the knobs a touch tighter
+     * around the number than the old 14. */
+    const s32 xo = 10;
     s32 dir = (g_Controller0->heldBtnFlags & ControllerFlag_LStickLeft)  ? 1 :
               (g_Controller0->heldBtnFlags & ControllerFlag_LStickRight) ? 2 : 0;
     const s_Triangle2d FRONT_ARROWS[2] = {
