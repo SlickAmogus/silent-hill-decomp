@@ -2706,7 +2706,37 @@ bool Ipd_CellPositionMatchCheck(s_Chunk* chunk, s_MapTerrain* map)
      * interiors keep 16 resident slots and loads are synchronous now. */
     if (!map->isExterior)
     {
-        return chunk->cellX == map->cellX && chunk->cellZ == map->cellZ;
+        /* The player's own cell always draws. */
+        if (chunk->cellX == map->cellX && chunk->cellZ == map->cellZ)
+            return true;
+        /* Wide Hor+ FoV (already at 16:9, badly at 21:9+) sees well past the
+         * player's own cell, so the exact-cell gate culls THIS room's geometry
+         * that spills into a neighbouring cell — the void at the screen edges
+         * that reappears as the (chase) camera moves. Draw a neighbouring cell
+         * too, but ONLY when it is the SAME room as the player's cell, so other
+         * rooms across the dead gaps stay hidden (the courtyard/other-room ghost
+         * the exact-cell draw was added to kill). Widen in BOTH axes since a
+         * chase cam can face any direction. No-op where a room is a single
+         * self-contained cell (mapRoomIdxGet differs across the gap); loaded
+         * state is already gated by the caller. */
+        {
+            s32 dx = (s32)chunk->cellX - map->cellX;
+            s32 dz = (s32)chunk->cellZ - map->cellZ;
+            if (dx >= -2 && dx <= 2 && dz >= -2 && dz <= 2 &&
+                g_MapOverlayHdr.mapRoomIdxGet != NULL)
+            {
+                s32 half       = CHUNK_CELL_SIZE / 2;
+                u8  playerRoom = g_MapOverlayHdr.mapRoomIdxGet(
+                    (s32)map->cellX * CHUNK_CELL_SIZE + half,
+                    (s32)map->cellZ * CHUNK_CELL_SIZE + half);
+                u8  chunkRoom  = g_MapOverlayHdr.mapRoomIdxGet(
+                    (s32)chunk->cellX * CHUNK_CELL_SIZE + half,
+                    (s32)chunk->cellZ * CHUNK_CELL_SIZE + half);
+                if (chunkRoom == playerRoom)
+                    return true;
+            }
+        }
+        return false;
     }
     return true;
 #else
