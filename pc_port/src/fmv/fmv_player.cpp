@@ -1570,6 +1570,12 @@ static int PlayFromFFmpeg(const char* path)
         int      skip_armed = 0;
         int      stop = 0;   /* skip or SDL_QUIT */
         int      reading = 1;
+        /* Audio master clock: bytes we've QUEUED minus bytes still queued = bytes
+         * actually played; /bytes-per-second = playback time. The device plays at
+         * a steady rate, so pacing video to it keeps A/V locked and smooth. */
+        long long audioQueuedBytes = 0;
+        double    audioBytesPerSec = (audioDev && as >= 0)
+                                       ? (double)actx->sample_rate * ach * 2.0 : 0.0;
 
         SDL_PumpEvents();
         SDL_FlushEvent(SDL_KEYDOWN);
@@ -1621,6 +1627,7 @@ static int PlayFromFFmpeg(const char* path)
                             int bytes = n * ach * (int)sizeof(int16_t);
                             FmvApplyVolume(audioBuf, bytes, AUDIO_S16LSB);
                             SDL_QueueAudio(audioDev, audioBuf, (Uint32)bytes);
+                            audioQueuedBytes += bytes;
                         }
                     }
                     av_frame_unref(frm);
@@ -1635,7 +1642,22 @@ static int PlayFromFFmpeg(const char* path)
                         firstPts = (pts != AV_NOPTS_VALUE) ? pts : 0;
                     double target = (pts != AV_NOPTS_VALUE) ? (double)(pts - firstPts) * vtb : elapsed;
 
-                    while (elapsed < target) {
+                    /* Pace to the AUDIO clock when there is audio (how much has
+                     * actually played out of the device); fall back to the wall
+                     * clock (elapsed) when silent. The device plays at a steady
+                     * rate, so slaving the picture to it keeps A/V locked and stops
+                     * the judder a free-running wall clock picks up from SDL_Delay
+                     * granularity and the vsync'd present fighting each other. */
+                    for (;;) {
+                        double now;
+                        if (audioBytesPerSec > 0.0) {
+                            Uint32 q = SDL_GetQueuedAudioSize(audioDev);
+                            now = (double)(audioQueuedBytes - (long long)q) / audioBytesPerSec;
+                        } else {
+                            now = elapsed;
+                        }
+                        if (now >= target) break;
+
                         int held = FfmpegSkipHeld();
                         if (!skip_armed) { if (!held) skip_armed = 1; }
                         else if (held) { printf("[FMV] ffmpeg: skipped\n"); stop = 1; break; }
@@ -1646,6 +1668,15 @@ static int PlayFromFFmpeg(const char* path)
                         elapsed += Util_GetHPCTime(&tmr, 1);
                     }
                     if (stop) { av_frame_unref(frm); break; }
+
+                    /* If decode fell well behind the audio clock, drop this frame
+                     * instead of presenting it late — the video catches back up
+                     * rather than lagging further and starving the audio queue. */
+                    if (audioBytesPerSec > 0.0 && reading) {
+                        Uint32 q   = SDL_GetQueuedAudioSize(audioDev);
+                        double now = (double)(audioQueuedBytes - (long long)q) / audioBytesPerSec;
+                        if (target < now - 0.075) { av_frame_unref(frm); continue; }
+                    }
 
                     if (EnsureDecodeBuffer((size_t)vctx->width * vctx->height * 3u) == 0) {
                         uint8_t* dst[4] = { s_decodeBuffer, NULL, NULL, NULL };
