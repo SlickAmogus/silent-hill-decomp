@@ -347,18 +347,31 @@ namespace SilentHillPC_Launcher
 
         // --- type detection ---------------------------------------------------
 
+        /// <summary>Video containers the FMV player can override with — the game
+        /// plays .avi natively and mp4/mkv/webm/mov/m4v through its ffmpeg path.
+        /// An archive or folder holding any of these is treated as an FMV mod.</summary>
+        private static readonly string[] VideoExts =
+            { ".avi", ".mp4", ".mkv", ".webm", ".mov", ".m4v" };
+
+        private static bool IsVideoFile(string name)
+        {
+            foreach (var e in VideoExts)
+                if (name.EndsWith(e, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
         private static ModType DetectType(string dir)
         {
-            bool hasAvi = false, hasFile = false;
+            bool hasVideo = false, hasFile = false;
             foreach (var f in SafeFiles(dir))
             {
                 hasFile = true;
                 string n = Path.GetFileName(f).ToLowerInvariant();
                 if (n.EndsWith(".png") && (n.StartsWith("texupload-") || n.StartsWith("texpage-"))) return ModType.Texturemods;
                 if (n == "config.yaml") return ModType.Texturemods;
-                if (n.EndsWith(".avi")) hasAvi = true;
+                if (IsVideoFile(n)) hasVideo = true;
             }
-            if (hasAvi) return ModType.Fmv;
+            if (hasVideo) return ModType.Fmv;
             if (FindDirNamed(dir, "load") != null) return ModType.Load;
             if (hasFile) return ModType.Load;
             return ModType.Unknown;
@@ -377,16 +390,16 @@ namespace SilentHillPC_Launcher
                 {
                     using (var za = ZipFile.OpenRead(path))
                     {
-                        bool hasAvi = false;
+                        bool hasVideo = false;
                         foreach (var en in za.Entries)
                         {
                             string n = Path.GetFileName(en.FullName).ToLowerInvariant();
                             if (n.EndsWith(".png") && (n.StartsWith("texupload-") || n.StartsWith("texpage-"))) return ModType.Texturemods;
                             if (n == "config.yaml") return ModType.Texturemods;
-                            if (n.EndsWith(".avi")) hasAvi = true;
+                            if (IsVideoFile(n)) hasVideo = true;
                             if (en.FullName.Replace('\\', '/').ToLowerInvariant().Contains("load/")) return ModType.Load;
                         }
-                        if (hasAvi) return ModType.Fmv;
+                        if (hasVideo) return ModType.Fmv;
                     }
                 }
                 catch { }
@@ -653,7 +666,7 @@ namespace SilentHillPC_Launcher
             var fmvMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled && m.Type == ModType.Fmv).ToList();
             foreach (var m in Enumerable.Reverse(fmvMods))
             {
-                try { result.Files += CopyAvisFlat(m.LibraryPath, FmvDir, manifest); result.Fmv++; }
+                try { result.Files += CopyVideosFlat(m.LibraryPath, FmvDir, manifest); result.Fmv++; }
                 catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
             WriteManifest(manifest);
@@ -752,13 +765,13 @@ namespace SilentHillPC_Launcher
             return n;
         }
 
-        private int CopyAvisFlat(string src, string dstRoot, List<string> manifest)
+        private int CopyVideosFlat(string src, string dstRoot, List<string> manifest)
         {
             int n = 0;
             Directory.CreateDirectory(dstRoot);
             foreach (var file in SafeFiles(src))
             {
-                if (!file.EndsWith(".avi", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!IsVideoFile(file)) continue;
                 string dst = Path.Combine(dstRoot, Path.GetFileName(file));
                 File.Copy(file, dst, true);
                 manifest.Add("F|" + Rel(dst));
