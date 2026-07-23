@@ -1,5 +1,158 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.23.1 -- 2026-07-23
+- fix: Air Screamer invisible on LP64 - narrow GsCOORDINATE2.flg to 4 bytes
+- ci: guard the Linux build against LP64 layout/render regressions
+- fix: black inventory item models on LP64 - read TMD header as 32-bit
+- Restore baseline HD-font rendering: revert no-mipmap + glyph advance-clip
+- fsqueue: stop stale loose-override stash bleeding onto reused chunks (BFLU-on-building)
+- docs: index the BFLU-on-building + HD-font ghost regression fixes
+- docs: correct HD-font ghost entry — pre-existing bilinear atlas bleed, not our regression
+- hires: point-sample the HD font atlas to kill gutterless-cell bilinear ghost
+- map7_s03: fix ~8.5s freeze-at-impact in the Good+ ending bottle scene
+- fmv: optional ffmpeg fallback for h264/h265/vp9/av1 + mp4/mkv/webm
+- combat: manual reload — don't reload a full clip / re-fire (fixes controller double-up)
+- combat: stop free-aim reload double-SFX when the camera is flipped mid-reload
+- minimap: config-only top-right overlay — SPIKE (pipeline + Harry tracking)
+- minimap: fix crash on enable + move option to next page
+- minimap: draw the real per-area paper map + Harry's marker (PC-native GL)
+- minimap: GL checkpoint trace + two real hardening fixes for the enable-crash
+- minimap: fix crash — texture upload clobbered PsyX's texture binding
+- minimap: fix save-load crash (Fs read injected mid-load) + top-left circular panel
+- minimap: draw to the default framebuffer (was rendering into PsyX's bound FBO)
+- fix: kill the one-frame black-sky flash when opening the status menu / map
+- minimap: square panel, much smaller marker, and stop clobbering PsyX's scissor box
+- npc: spawned human actors loop their idle animation instead of freezing
+- minimap: never pump the FS queue — non-blocking, deferred map read
+- minimap: rewrite on PSX primitives — drop the raw-GL overlay entirely
+- fsqueue: key loose-override stash by FILE, not recycled queue pointer
+- minimap: draw the real area map, zoomed on Harry, via a hires-override pool slot
+- minimap: round again, with a black outline (triangle-fan discs)
+- minimap: add Shape, Corner and Opacity options on the last options page
+- cutscene: restore the PSX inter-line voice pause (minimum gap, Flauros-safe)
+- log: flush at most once per second to bound crash tail loss
+- reload: fix the frozen input edge cache + latch the request
+- docs: index the manual-reload edge-cache + latch fixes (5d94ae12f)
+- decals: match the blood-splat drawer so they stop showing through objects
+- clut_tool/ClutComposer: edge-bleed padding instead of copying the background
+- tools: ilm_obj.py -- ILM -> OBJ exporter
+- tools: ilm_obj.py import -- edited OBJ + original ILM -> new ILM
+- tex: BC7 .dds loose-texture support (4x cheaper than the RGBA8 path)
+- docs: s_GteScratchData2 array lengths are decomp artifacts, not a bug
+- launcher: in-process C# ILM<->OBJ converter + Mod Manager buttons
+- cybil(diag): log aim state at fire + reposition spot-pick (aims-away investigation)
+- cybil(diag): also log the scripted fixed-fire path (control 11) aim state
+- fix(cybil): compose the gun-elevation onto the arm pose instead of overwriting it
+- minimap: fix north-drift tracking + widescreen corner placement + 4:3 size
+- tools: fix ILM export geometry — rest pose, quad order, normals
+- banner: point the log header at our repo, not the upstream decomp
+- launcher: port the six ILM export geometry fixes to the C# converter
+- launcher: software-rendered model viewer in the Mod Manager
+- docs: staged plan for larger-than-original character models
+- Bump PsyCross: fix SetDrawOffset malformed OT prim (cutscene diff=-4 corruption)
+- Bump PsyCross: scene VRAM-scratch feedback fix (Lisa dream rainbow/atlas)
+- map4_s01: self-load AQRM.DMS in the Cybil-hole cutscene (func_800D3420)
+- Report PSX display-buffer origins so framebuffer feedback works
+- Revert the PSX display-buffer framebuffer store (RGBA vs RG8 corruption)
+- models: Stage 1 support for larger-than-original character models
+- Report PSX display-buffer origins for the framebuffer-feedback store
+- Bump PsyCross: feedback capture reads the presented viewport
+- fmv: load ffmpeg at runtime so the port ships enabled with no bundled DLLs
+- Bump PsyCross: damp loading-screen blur feedback to hardware strength
+- flashlight: stop the glow-mask subtractive blend leak + config fingerprint
+- chore: ignore transient .claude/worktrees
+- launcher: grow-mode in the Mod Manager + accept Milkshape `g` groups
+- Bump PsyCross: self-protecting framebuffer-feedback store
+- Menu QoL: rebalance PC options pages, drag sliders, stop hover-scroll
+- fmv: target ffmpeg 8 so Windows users can grab a current build
+- ipd: registry eviction + heap-lm leak fix — the cascading corruption class
+- Add an Exit row to the main menu, under Option
+- Closing the window during an FMV now actually quits
+- tools: --replace for full mesh replacement, with automatic seam welding
+- Aim Zoom to 200, and make the save list scroll bar draggable
+- Save list: pointer owns the scroll, so hover only highlights
+- ipd: validate the whole header + LM tail sentinel before reformatting
+- tools: warn when replacement geometry lands in the wrong part
+- Fix walking through walls when strafing in the alt cameras
+- Save list: thumb tracks the window, and the highlight stays in view
+- Bump PsyCross: per-read CD cursor (frankenbuffer root fix)
+- launcher: --replace and auto-weld in the C# converter + Mod Manager
+- Action binds: accept trigger axes, matching the PSX-button binds
+- perf: [PERF] frame telemetry — avg/worst ms + vblanks/frame every 256 frames
+- Bump PsyCross: remove per-frame dead 2MB readback + DrawOTag glFinish (Intel 10fps)
+- launcher: Model -> OBJ writes a textured MTL for Blender
+- 2d-control: SH2-style fast turn-in-place replaces the walk-while-turn arc
+- fps: suppress the AFK look-around idle while in first person
+- Bump PsyCross: [PGXP-SPIKE] guard-band clamp diagnostic
+- Fix manual reload never firing (aim-state gate wiped the request)
+- Fix the blue triangle on the brightness screen (out-of-bounds arrow)
+- Brightness screen: restore brightness + add contrast/saturation + color bar
+- Brightness screen: move the rows up and drop the stray bracket glyph
+- Bump PsyCross: Nowhere spike affine-drop + near-caster wedge reject
+- Brightness screen: anchor the value knobs to the selected row
+- Brightness screen: nudge the value knobs right to bracket the number
+- map7_s03: lead the Good+ bottle shriek to cancel PC XA startup latency
+- map7_s03: [INCUB] probe — bad/bad+ Incubator "stands there, no attack"
+- fix(build): include sh_log.h in unknown23.c for the [INCUB] SH_DBG probe
+- map7_s03: [INCUB-CUT] companion probe in Incubator_Update
+- map7_s03: [INCUB-ATK] probe at the boss projectile-spawn point
+- pc_port: v7 high-poly ILM path + wide-prim material bake
+- pc_port: moddable map-message text overrides (gamedata/load/text_overrides.txt)
+- items: freeze world-pickup at interaction start, not model-load end
+- map7_s03: fix bad-ending Incubator not attacking — arm its boss-FX pool
+- hires: pre-zero pool texture storage — fix AMD resident-texture garbage
+- config: default resident_textures OFF on AMD GPUs (known corruption)
+- modtext: capture the full ~J0(n) timing cue so overrides actually show
+- texpack: scale HD-pack memory budgets to system RAM (APU crash fix)
+- Integrate selectable PsyCross SPU backends
+- Isolate software SPU integration
+- Rename software SPU modes
+- Document software SPU output rates
+- Merge PR #70: selectable PsyCross SPU backends
+- PsyCross: repoint submodule at locally merged software-SPU branch
+- PsyCross: pick up lazy software-SPU construction
+- PsyCross: pick up reverb work-area reservation + audio test wiring
+- fmv: init SDL audio in the ffmpeg path so container FMVs aren't silent
+- Merge software SPU backends (PR #70 + PsyCross PR #13)
+- PsyCross: point submodule at merged master
+- localization: re-import tooling + Polish language pack
+- localization: runtime Polish language pack (EUR), 6th language slot
+- config: document language = pl (Polish PC-side pack, EUR only)
+- Merge PR #64: fix black inventory item models on LP64 (GsMapModelingData TMD header)
+- Merge PR #63: fix Air Screamer invisible on LP64 (GsCOORDINATE2.flg 4-byte layout)
+- lang: re-upload FONT16 on live language switch so pack glyphs appear
+- options: nudge volume bars right so long translated labels don't collide
+- 2d-control: lock the fixed-cam basis while held (fixes run-in-circles / veer)
+- localization: fix Polish options title "OPCJE S" -> "OPCJE"
+- localization: tool to add Polish glyphs to an HD FONT16.png pack
+- docs: RetroAchievements integration feasibility study
+- pc: Discord Rich Presence (current area on Discord profile)
+- pc: Discord presence — bake app id, journal/cheryl icons, difficulty line
+- 2d-control: travel along the move vector, not the lagging facing (fix circles)
+- options: align Contrast value column + tighten brightness-screen arrows
+- 2d-control: lock world move-heading on input change (fix hold-a-direction circle)
+- content: add `uncensored` toggle to restore Grey Children on PAL/EUR
+- fix: harden Puppet Nurse field_124 guard (Nowhere elevator crash)
+- options: drop the in-game 2D_Snap toggle (config-only now)
+- launcher: make the Controls window resizable + proportionally scaled
+- fix(cull): ultrawide interior edge void — the 6th, chunk-level cull site
+- fix(lock): center the map5_s01 combination-lock puzzle at wide aspect
+- fix(font): EUR mall FONT16 corruption — reclaim the tpage-12 font page
+- feedback: restrict the framebuffer blur to the loading screen
+- Revert "2d-control: lock world move-heading on input change"
+- fmv: slave ffmpeg video to the audio clock (fix mp4/mkv stutter)
+- launcher(mod-manager): detect mp4/mkv/webm/mov video archives as FMV mods
+- feat(crosshair): selectable reticle shapes (cross / dot / circle / dashes)
+- fix(aim): free-aim shots land on the reticle at any distance
+- launcher(mod-manager): read fully-stored .zip texture packs in place (no extract)
+- launcher(controls): drop the Immersive FPS head-tracking toggle (config-only)
+- feat(crosshair): Backspace cycles styles + launcher style dropdown
+- 2d-control: detect room cuts by camera-position jump, not bearing swing
+- Revert "fmv: slave ffmpeg video to the audio clock" — mp4s stopped playing
+- Bump PsyCross: Alt+Enter fullscreen on live modifier state (fix Enter alt-tab)
+- Bump PsyCross: take foreground on launch (fix Enter spawning extra game copies)
+- fmv: keep mp4 playback responsive + skippable when decode falls behind
+
 ## beta-2026.07.18.1 -- 2026-07-18
 - Fixed more cutscene issues
 - Added 360 degree movement and snap turning option for 2d controls
