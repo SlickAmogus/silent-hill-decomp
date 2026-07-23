@@ -85,42 +85,39 @@ SH_CPPFLAGS += -I$(NXDK_DIR)/lib/xboxrt/vcruntime
 NXDK_CFLAGS   += $(SH_CPPFLAGS)
 NXDK_CXXFLAGS += $(SH_CPPFLAGS)
 
-# --- Optimization: THE Xbox perf fix ---------------------------------------
-# The build was shipping at clang's default -O0 (no -O flag anywhere). On the
-# 733MHz in-order Pentium III that is catastrophic for this codebase: every
-# gte_*/prim/mesh primitive stays a real cross-TU call (no inlining), the
-# constant COP2 opcodes get re-decoded through a 20-way switch every call (no
-# const-prop), the ~45-local mesh/prim loops spill to the stack every access
-# (no regalloc), and the bit-exact int64 GTE math expands to long stack-bound
-# sequences. That is why building ONE interior room's ordering table cost
-# 18-20ms ([UPD] chunk=) and the texture reformat / everything CPU-bound was
-# slow. -O2 inlines + const-folds + register-allocates that hot path — a large
-# multiple on this call+arithmetic-bound code.
+# --- Optimization: -O2 the RENDER/TRANSFORM/GTE hot path ONLY --------------
+# The build shipped at clang's default -O0 (no -O flag anywhere). On the 733MHz
+# in-order Pentium III that is catastrophic for the GEOMETRY path specifically:
+# every gte_*/prim/mesh primitive stays a real cross-TU call (no inlining), the
+# ~45-local mesh/prim loops spill to the stack every access (no regalloc), and
+# the bit-exact int64 GTE math expands to long stack-bound sequences. That is
+# why building ONE interior room's ordering table cost 18-20ms ([UPD] chunk=) —
+# the profiled dominant cost.
 #
-# Two safety flags REQUIRED for this decomp (not perf, correctness under -O2):
-#   -fno-strict-aliasing : the GTE macros + prim builder type-pun pervasively
-#       (*(u32*)&screenXy = *(u32*)vertexXy, union field_0/s_0 access) — strict
-#       aliasing would miscompile them.
-#   -fwrapv : the fixed-point math (Q12/Q19_12 etc.) relies on signed integer
-#       overflow WRAPPING (PSX/MIPS behavior); without this -O2 may assume it
-#       cannot happen and miscompile the arithmetic.
-# Xbox-only: the PC port is a separate CMake build and is not affected.
-# (LTO is a further win but landed separately after this is verified.)
-NXDK_CFLAGS   += -O2 -fno-strict-aliasing -fwrapv
-NXDK_CXXFLAGS += -O2 -fno-strict-aliasing -fwrapv
-
-# -O0 exception list: -O2 exposed a latent bug in the SAVE/LOAD/MEMCARD path
-# (the -O0 build loaded saves fine; the -O2 build hangs on "load game" right
-# after SAVELOAD.TIM — an infinite loop in the save-screen scroll/enumeration
-# with mis-set data upstream). These are menu/IO TUs, NOT the per-frame hot
-# path, so -O0 here costs nothing measurable while the exact UB is pinned. The
-# %.obj rule applies $(CFLAGS) AFTER $(NXDK_CFLAGS), and the last -O wins, so a
-# per-file -O0 here overrides the global -O2. Render/transform keeps -O2.
-$(DECOMP)/src/screens/saveload/saveload.obj:       CFLAGS += -O0
-$(DECOMP)/src/bodyprog/memcard.obj:                CFLAGS += -O0
-$(DECOMP)/src/bodyprog/sys/memcard_2.obj:          CFLAGS += -O0
-$(DECOMP)/src/bodyprog/game_boot/game_load.obj:    CFLAGS += -O0
-$(DECOMP)/src/bodyprog/events/title.obj:           CFLAGS += -O0
+# BUT a GLOBAL -O2 also exposes latent UB in the DECOMP's non-render code (the
+# save-screen enumeration + memcard FSM wedge on "load game"). Those paths were
+# never the perf cost (game sim = 2-6ms), so there is nothing to gain by
+# optimizing them and real risk in doing so. So optimize ONLY the render/
+# transform/GTE TUs — where the entire perf problem lives — and leave the rest
+# of the game (logic, save/load, memcard, boot, IO) at its proven-working -O0.
+# The %.obj rule applies $(CFLAGS)/$(CXXFLAGS) AFTER $(NXDK_CFLAGS), so these
+# per-file -O2 overrides win. Two safety flags for the decomp under -O2:
+#   -fno-strict-aliasing : GTE macros + prim builder type-pun pervasively.
+#   -fwrapv              : fixed-point Q12 math relies on signed-overflow wrap.
+# Xbox-only (the PC port is a separate CMake build). LTO would inline the GTE
+# ops across these TUs for more — a later step once this is verified.
+SH_OPT := -O2 -fno-strict-aliasing -fwrapv
+# The GTE core (software COP2 — the per-vertex transform).
+$(PSYCROSS)/src/psx/inline_c.obj:                  CFLAGS   += $(SH_OPT)
+$(PSYCROSS)/src/psx/libgte.obj:                    CFLAGS   += $(SH_OPT)
+$(PSYCROSS)/src/psx/abs.obj:                       CFLAGS   += $(SH_OPT)
+$(PSYCROSS)/src/gte/PsyX_GTE.obj:                  CXXFLAGS += $(SH_OPT)
+# The mesh draw / OT build (the 18-20ms) + the NV2A render backend.
+$(DECOMP)/src/bodyprog/gfx/bodyprog_80055028.obj:  CFLAGS   += $(SH_OPT)
+$(DECOMP)/src/bodyprog/gfx/bodyprog_80040B74.obj:  CFLAGS   += $(SH_OPT)
+$(DECOMP)/src/bodyprog/gfx/world_draw.obj:         CFLAGS   += $(SH_OPT)
+$(XBOX_PORT)/src/gpu_xbox.obj:                     CFLAGS   += $(SH_OPT)
+$(XBOX_PORT)/src/gpu_nv2a.obj:                     CFLAGS   += $(SH_OPT)
 
 # The decomp uses C11 `static_assert` as a bare keyword. Map it to _Static_assert
 # for C TUs only — applying it to C++ breaks libc++/std headers (matches the PC
