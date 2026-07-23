@@ -1591,52 +1591,63 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                             camYaw = ratan2(dx, dz);
                     }
 
-                    /* Camera-cut handling (option b): follow gradual pans, but hold
-                     * the basis across a hard cut while a direction is pressed, so a
-                     * room change never flips Harry mid-run. Re-samples on release. */
+                    /* Fixed-camera 2D control LOCKS the world move heading when the input
+                     * direction changes and holds it while that direction is held. The
+                     * fixed shot pans to follow Harry on its own; tracking it live made him
+                     * re-aim toward the current camera every frame and run in a circle.
+                     * Instead: "press right → snap to face right relative to the camera
+                     * NOW, then run that fixed world line; only a NEW input direction
+                     * re-aims." A camera cut is handled for free — the locked heading just
+                     * carries through it (you keep the direction you started until you push
+                     * a new one). The orbit cam is player-driven (mouse), so it tracks live
+                     * = twin-stick. */
                     {
-                        static q3_12 s_2dBasisYaw = 0;
-                        static int   s_2dValid    = 0;
+                        static q3_12 s_2dLockYaw   = 0;
+                        static int   s_2dLockValid = 0;
+                        static q3_12 s_2dLockInAng = 0; /* input-space dir at the last lock */
 
-                        if (camValid) {
-                            /* Track the live camera so "forward" always means the CURRENT
-                             * camera's into-screen — EXCEPT hold the basis across a hard
-                             * fixed-cam cut (>45°/frame) while a direction is held, so a
-                             * room change never flips Harry mid-run; re-syncs when the keys
-                             * return to neutral. Orbit cam never cuts, so it always tracks.
-                             * (The circling was NOT this tracking — it was Harry moving
-                             * along his lagging facing; fixed by the heading offset below.) */
-                            q3_12 d     = Math_AngleNormalizeSigned(camYaw - s_2dBasisYaw);
-                            int   track = !anyInput || !s_2dValid || g_DebugThirdPersonCam ||
-                                          (ABS(d) < Q12_ANGLE(45.0f));
-                            if (track) {
-                                s_2dBasisYaw = camYaw;
-                                s_2dValid    = 1;
+                        q3_12 targetYaw  = player->rotation.vy;
+                        int   haveTarget = 0;
+
+                        if (anyInput && camValid) {
+                            /* world move dir = inZ*forward + inX*right,
+                             * forward=(sin,cos), right=(cos,-sin) of the camera yaw. */
+                            s32 sfwd = Math_Sin(camYaw);
+                            s32 cfwd = Math_Cos(camYaw);
+                            s32 moveX = inZv * sfwd + inXv * cfwd;
+                            s32 moveZ = inZv * cfwd - inXv * sfwd;
+                            if (g_DebugThirdPersonCam) {
+                                targetYaw     = ratan2(moveX, moveZ); /* orbit: live */
+                                s_2dLockValid = 0;                    /* re-seed on return to fixed cam */
+                            } else {
+                                /* re-lock only when the INPUT direction moves (>15° in
+                                 * stick/dpad space) or from neutral — camera motion alone
+                                 * never re-aims him. */
+                                q3_12 inAng = ratan2(inXv, inZv);
+                                if (!s_2dLockValid ||
+                                    ABS(Math_AngleNormalizeSigned(inAng - s_2dLockInAng)) > Q12_ANGLE(15.0f)) {
+                                    s_2dLockYaw   = ratan2(moveX, moveZ);
+                                    s_2dLockInAng = inAng;
+                                    s_2dLockValid = 1;
+                                }
+                                targetYaw = s_2dLockYaw;
                             }
+                            haveTarget = 1;
+                        } else {
+                            s_2dLockValid = 0; /* neutral: re-seed on next press */
                         }
 
-                        if (anyInput && s_2dValid) {
-                            /* world move dir = inZ*forward + inX*right,
-                             * forward=(sin,cos), right=(cos,-sin) of the basis yaw. */
-                            s32   sfwd = Math_Sin(s_2dBasisYaw);
-                            s32   cfwd = Math_Cos(s_2dBasisYaw);
-                            s32   moveX = inZv * sfwd + inXv * cfwd;
-                            s32   moveZ = inZv * cfwd - inXv * sfwd;
-                            q3_12 targetYaw = ratan2(moveX, moveZ);
-                            move2dYaw  = targetYaw; /* travel this way regardless of facing */
+                        if (haveTarget) {
+                            move2dYaw  = targetYaw; /* travel this way; the body swings to it */
                             have2dMove = 1;
                             if (g_PcConfig.control2dSnap) {
-                                /* snap: face the input direction immediately */
+                                /* snap: face the locked direction immediately */
                                 player->rotation.vy = Q12_ANGLE_NORM_U(targetYaw + Q12_ANGLE(360.0f));
                             } else {
-                                /* SH2-style fast turn-in-place: spin toward the input
-                                 * direction at ~900 deg/s and hold position until nearly
-                                 * aligned, THEN walk — the old ~300 deg/s walk-while-
-                                 * turning read as Harry running an arc. While the move
-                                 * bit stays clear the shim shows idle, so the model
-                                 * visibly rotates on its axis (a full reversal is ~5
-                                 * ticks = ~170ms of spin). Corrections inside the align
-                                 * threshold keep steering mid-walk with no stop-hitch. */
+                                /* fast turn-in-place toward the now-fixed heading (~900°/s):
+                                 * spin and hold position until nearly aligned, then run.
+                                 * Since the heading is locked, this converges instead of
+                                 * chasing a moving target. */
                                 q3_12 diff   = Math_AngleNormalizeSigned(targetYaw - player->rotation.vy);
                                 q3_12 turn2d = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(30.0f));
                                 q3_12 step   = diff;
