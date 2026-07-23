@@ -1,9 +1,34 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.23.2 -- 2026-07-23
+- (no commits since last release)
+
 ## beta-2026.07.23.1 -- 2026-07-23
-- fix: Air Screamer invisible on LP64 - narrow GsCOORDINATE2.flg to 4 bytes
-- ci: guard the Linux build against LP64 layout/render regressions
-- fix: black inventory item models on LP64 - read TMD header as 32-bit
+- New Polish language option in PAL thanks to rafalekkB!
+- Also able to choose "uncensored" PAL in launcher now
+- Added optional minimap (still needs an update for marked locations)
+- Fixed black flash when opening Menus
+- Fixed some crashes
+- Model viewer and WIP model support in mod manager
+- Added brightness, saturation, and contrast menu over original brightness Menu
+- Adjusted 2D controls to be like SH2
+- Discord Rich Presence support added (will show map and difficulty you're playing on in Discord if you add it)
+- Fixed ultrawide culling and other ultrawide issues
+- Fixed jumping camera when examining items and item positioning
+- Fixed Cybil boss fight
+- Added MP4/MKV and multiple codec support for replacement FMVs
+- Uncompressed ZIP support for texture packs
+- FMV replacements recognized in mod manager by archives containing video files
+- Resizable controls Window
+- Multiple crosshairs added, cycle with backspace ingame or in launcher
+- Fixed some manual reload issues
+- Support for DDS BC7 for replacement textures
+- Restore pauses between some voice lines
+- Fixed Lisa cutscene and Cybil cutscene issue (may still need to fix Kaufmann scene, to do next update)
+- Added exit button to main menu
++ more probably, check commits
+
+Commit summaries:
 - Restore baseline HD-font rendering: revert no-mipmap + glyph advance-clip
 - fsqueue: stop stale loose-override stash bleeding onto reused chunks (BFLU-on-building)
 - docs: index the BFLU-on-building + HD-font ghost regression fixes
@@ -152,6 +177,9 @@
 - Bump PsyCross: Alt+Enter fullscreen on live modifier state (fix Enter alt-tab)
 - Bump PsyCross: take foreground on launch (fix Enter spawning extra game copies)
 - fmv: keep mp4 playback responsive + skippable when decode falls behind
+- fix: Air Screamer invisible on LP64 - narrow GsCOORDINATE2.flg to 4 bytes
+- ci: guard the Linux build against LP64 layout/render regressions
+- fix: black inventory item models on LP64 - read TMD header as 32-bit
 
 ## beta-2026.07.18.1 -- 2026-07-18
 - Fixed more cutscene issues
