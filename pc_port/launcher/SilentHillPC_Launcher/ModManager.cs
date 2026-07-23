@@ -23,11 +23,13 @@ namespace SilentHillPC_Launcher
         public bool       IsArchive;   // texture mod backed by a .zip/.rar/.7z (vs a loose folder)
         public bool       IsRar;       // .rar: extracted via UnRAR.dll
         public bool       IsSevenZip;  // .7z: extracted via 7za.exe
+        public bool       IsInPlaceZip; // fully-stored .zip the game reads in place (miniz), never extracted
 
-        /// <summary>Every texture archive (.zip/.rar/.7z) is now materialized by the
-        /// launcher to a sibling &lt;name&gt;.extracted/ folder that the game reads as a
-        /// loose folder — so enable/disable toggles that folder, not the archive.</summary>
-        public bool IsExtractedArchive { get { return IsArchive; } }
+        /// <summary>Texture archives are materialized to a sibling &lt;name&gt;.extracted/
+        /// folder the game reads as a loose folder — EXCEPT a fully-stored .zip, which the
+        /// game reads straight from the file (miniz), so it toggles like a loose entry
+        /// (&lt;name&gt;.zip ↔ &lt;name&gt;.zip.disabled), not via an extracted folder.</summary>
+        public bool IsExtractedArchive { get { return IsArchive && !IsInPlaceZip; } }
 
         public string Label { get { return string.IsNullOrEmpty(DisplayName) ? Name : DisplayName; } }
 
@@ -38,10 +40,11 @@ namespace SilentHillPC_Launcher
                 switch (Type)
                 {
                     case ModType.Texturemods:
-                        return IsRar      ? "Texture pack (.rar)"
-                             : IsSevenZip ? "Texture pack (.7z)"
-                             : IsArchive  ? "Texture pack (.zip)"
-                                          : "Texture pack (folder)";
+                        return IsRar        ? "Texture pack (.rar)"
+                             : IsSevenZip   ? "Texture pack (.7z)"
+                             : IsInPlaceZip ? "Texture pack (.zip, in place)"
+                             : IsArchive    ? "Texture pack (.zip)"
+                                            : "Texture pack (folder)";
                     case ModType.Load:        return "Load folder";
                     case ModType.Fmv:         return "FMV";
                     default:                  return "Unrecognized";
@@ -144,6 +147,31 @@ namespace SilentHillPC_Launcher
         private static string ArchiveActiveFolder(string archivePath)   { return StripDisabled(archivePath) + ".extracted"; }
         private static string ArchiveDisabledFolder(string archivePath) { return ArchiveActiveFolder(archivePath) + ".disabled"; }
 
+        /// <summary>True if EVERY file entry in the zip is STORED (uncompressed): its
+        /// bytes sit plainly in the file, so the game's miniz reader loads it in place
+        /// with no extraction and no disk copy. Compressed (deflate/LZMA/…) or unreadable
+        /// → false, so it falls back to the extract path. (miniz also decodes deflate, so
+        /// a false positive here is only ever conservative — it extracts something that
+        /// would have read fine.)</summary>
+        private static bool IsFullyStoredZip(string zipPath)
+        {
+            try
+            {
+                using (var za = ZipFile.OpenRead(zipPath))
+                {
+                    bool anyFile = false;
+                    foreach (var en in za.Entries)
+                    {
+                        if (en.FullName.EndsWith("/", StringComparison.Ordinal)) continue; // directory
+                        anyFile = true;
+                        if (en.CompressedLength != en.Length) return false;                 // compressed
+                    }
+                    return anyFile;
+                }
+            }
+            catch { return false; }
+        }
+
         /// <summary>Extract a texture archive to <paramref name="dest"/>, dispatching by
         /// extension: .rar → UnRAR.dll, .zip/.7z → 7za.exe. Returns success.</summary>
         private static bool ExtractArchive(string archivePath, string dest, Action<int, int, string> report)
@@ -182,6 +210,8 @@ namespace SilentHillPC_Launcher
                             .Where(a => IsArchiveFile(a) && !IsDisabled(a))
                             .Where(a => !Directory.Exists(ArchiveActiveFolder(a)) &&
                                         !Directory.Exists(ArchiveDisabledFolder(a)))
+                            // A fully-stored .zip is read in place by the game — don't extract it.
+                            .Where(a => !(a.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) && IsFullyStoredZip(a)))
                             .ToArray();
         }
 
@@ -239,10 +269,26 @@ namespace SilentHillPC_Launcher
             // read by the game as a loose folder; "active" = that folder exists.
             foreach (var f in Directory.GetFiles(TexturemodsDir))
             {
-                if (!IsArchiveFile(f)) continue;
-                string name   = Path.GetFileName(StripDisabled(f));
-                bool   active = Directory.Exists(ArchiveActiveFolder(f));
-                list.Add(MakeTexture(name, f, true, IsRar(f), IsSevenZip(f), active, saved));
+                string real = StripDisabled(f);
+                if (!IsArchiveFile(real)) continue;
+                string name = Path.GetFileName(real);
+
+                // Fully-stored .zip with no .extracted sibling: the game reads it in place
+                // (miniz), so it toggles like a loose entry — f is <name>.zip when enabled,
+                // <name>.zip.disabled when disabled — and is never extracted.
+                if (real.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) &&
+                    !Directory.Exists(ArchiveActiveFolder(real)) &&
+                    !Directory.Exists(ArchiveDisabledFolder(real)) &&
+                    IsFullyStoredZip(f))
+                {
+                    list.Add(MakeTexture(name, f, true, false, false, true, !IsDisabled(f), saved));
+                    continue;
+                }
+
+                if (IsDisabled(f)) continue; // a disabled non-in-place archive file: not expected
+
+                bool active = Directory.Exists(ArchiveActiveFolder(f));
+                list.Add(MakeTexture(name, f, true, IsRar(f), IsSevenZip(f), false, active, saved));
             }
 
             // Loose top-level folders (each its own pack). Skip a legacy *.extracted
@@ -257,24 +303,25 @@ namespace SilentHillPC_Launcher
                 if (enabled.EndsWith(".extracted", StringComparison.OrdinalIgnoreCase) &&
                     archiveBases.Contains(enabled.Substring(0, enabled.Length - ".extracted".Length)))
                     continue;
-                list.Add(MakeTexture(enabled, d, false, false, false, !IsDisabled(dname), saved));
+                list.Add(MakeTexture(enabled, d, false, false, false, false, !IsDisabled(dname), saved));
             }
             return list;
         }
 
         private static ModEntry MakeTexture(string name, string path, bool isArchive, bool isRar, bool isSevenZip,
-                                            bool enabled, Dictionary<string, ModStateDto> saved)
+                                            bool isInPlaceZip, bool enabled, Dictionary<string, ModStateDto> saved)
         {
             var e = new ModEntry
             {
-                Name        = name,
-                Type        = ModType.Texturemods,
-                Source      = ModSource.TextureMods,
-                LibraryPath = path,
-                IsArchive   = isArchive,
-                IsRar       = isRar,
-                IsSevenZip  = isSevenZip,
-                Enabled     = enabled
+                Name         = name,
+                Type         = ModType.Texturemods,
+                Source       = ModSource.TextureMods,
+                LibraryPath  = path,
+                IsArchive    = isArchive,
+                IsRar        = isRar,
+                IsSevenZip   = isSevenZip,
+                IsInPlaceZip = isInPlaceZip,
+                Enabled      = enabled
             };
             ModStateDto s;
             if (saved.TryGetValue(name, out s)) { e.DisplayName = s.DisplayName; e.Description = s.Description; }
@@ -518,7 +565,7 @@ namespace SilentHillPC_Launcher
                 if (IsDisabled(m.LibraryPath))
                 {
                     string on = StripDisabled(m.LibraryPath);
-                    MovePath(m.LibraryPath, on, true); // loose folder
+                    MovePath(m.LibraryPath, on, !m.IsInPlaceZip); // loose folder (dir) or in-place .zip (file)
                     m.LibraryPath = on;
                 }
                 m.Enabled = true;
@@ -550,7 +597,7 @@ namespace SilentHillPC_Launcher
                 if (!IsDisabled(m.LibraryPath))
                 {
                     string offp = m.LibraryPath + ".disabled";
-                    MovePath(m.LibraryPath, offp, true); // loose folder
+                    MovePath(m.LibraryPath, offp, !m.IsInPlaceZip); // loose folder (dir) or in-place .zip (file)
                     m.LibraryPath = offp;
                 }
                 m.Enabled = false;
