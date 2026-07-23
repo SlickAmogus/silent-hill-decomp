@@ -3827,6 +3827,24 @@ void func_800D7408(void) // 0x800D7408
     func_800D7450();
     func_800D7548();
 
+#ifdef SH_PC_PORT
+    /* EUR only: func_800D7450's case 1 uploads TV2.TIM into tpage 12 (VRAM
+     * 800,0), which on the PAL/EUR layout overlaps the FONT16 atlas home
+     * (768,128) and its CLUT (816,255) — see font_region.c — so it corrupts
+     * all FONT16 text (the blue-box glyph corruption reported in the mall). US
+     * parks FONT16 at the (0,496) strip and never collides; retail SLES
+     * relocates this TV bank instead, but that overlay isn't decompiled.
+     * Re-queue FONT16 AFTER the TV bank so it wins the page back and text stays
+     * legible. Cost: the ~32px corner of TV2 that overlaps the atlas shows font
+     * pixels — cosmetic on the mall's static monitors. Proper fix: move TV2 to
+     * a free EUR page once its SLES coordinates are known. */
+    {
+        extern e_GameRegion g_GameRegion;
+        if (g_GameRegion == Region_EUR)
+            Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
+    }
+#endif
+
     WorldObject_ModelNameSet(&D_800E0698.objRef_238, "REF_NEAR");
 }
 
