@@ -269,15 +269,31 @@ void Pc_ControlStyleUpdate(void)
         prevSwap = curSwap;
     }
 
-    /* Backspace: toggle the alternate-camera (TPS/OTS) aim crosshair — gameplay
-     * only. Drives g_PcConfig.crosshair, the same gate the draw checks. */
+    /* Backspace: cycle the alternate-camera (TPS/OTS) aim crosshair — gameplay
+     * only. Steps off -> cross (+) -> dot -> circle -> dashes -> off, driving
+     * g_PcConfig.crosshair + crosshairStyle, the same gates the draw checks. */
     {
+        static const char* const s_chNames[] = { "cross (+)", "dot", "circle", "dashes" };
         static int prevCh = 0;
         int        curCh  = (keys) ? keys[SDL_SCANCODE_BACKSPACE] : 0;
         if (inGameplay && curCh && !prevCh)
         {
-            g_PcConfig.crosshair = !g_PcConfig.crosshair;
-            SH_DBG_ECHO("[CTRLSTYLE] Crosshair: %s", g_PcConfig.crosshair ? "ON" : "OFF");
+            if (!g_PcConfig.crosshair)
+            {
+                g_PcConfig.crosshair      = 1;
+                g_PcConfig.crosshairStyle = 0;
+            }
+            else if (g_PcConfig.crosshairStyle < 3)
+            {
+                g_PcConfig.crosshairStyle++;
+            }
+            else
+            {
+                g_PcConfig.crosshair = 0;
+            }
+            SH_DBG_ECHO("[CTRLSTYLE] Crosshair: %s",
+                        !g_PcConfig.crosshair ? "off"
+                                              : s_chNames[g_PcConfig.crosshairStyle & 3]);
         }
         prevCh = curCh;
     }

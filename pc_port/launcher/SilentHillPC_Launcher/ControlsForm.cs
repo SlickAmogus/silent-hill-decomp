@@ -173,6 +173,7 @@ public class ControlsForm : Form
 
     private ComboBox cmbControlStyle;
     private readonly List<string> styleIds = new List<string>();
+    private ComboBox cmbCrosshairStyle;
     private CheckBox chkInvertMouseY;
     private CheckBox chkInvertControllerY;
     private CheckBox chkTpsOtsAim;
@@ -554,12 +555,25 @@ public class ControlsForm : Form
         };
         chkCrosshair = new CheckBox
         {
-            Text = "Crosshair (aiming, TPS/OTS)",
+            Text = "Crosshair",
             Left = colPadX,
             Top = chkY + 108,
-            Width = 220,
+            Width = 90,
             ForeColor = TextColor,
         };
+        // Reticle shape, beside the on/off checkbox (uses the row freed by the
+        // removed immersive-FPS option). Item index maps 1:1 to crosshair_style 0..3.
+        cmbCrosshairStyle = new ComboBox
+        {
+            Left = colPadX + 92,
+            Top = chkY + 105,
+            Width = 120,
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            BackColor = PanelBack,
+            ForeColor = TextColor,
+            FlatStyle = FlatStyle.Flat,
+        };
+        cmbCrosshairStyle.Items.AddRange(new object[] { "Cross (+)", "Dot", "Circle", "Dashes" });
         // "Immersive FPS head tracking" is config-only now (removed from the UI).
         // The key immersive_fps_head_tracking still loads from config.cfg and the
         // game still honours it; ConfigManager preserves it across launcher saves.
@@ -567,6 +581,7 @@ public class ControlsForm : Form
         Controls.Add(chkInvertControllerY);
         Controls.Add(chkTpsOtsAim);
         Controls.Add(chkCrosshair);
+        Controls.Add(cmbCrosshairStyle);
 
         chk2dControls = new CheckBox
         {
@@ -766,6 +781,8 @@ public class ControlsForm : Form
             "works while aiming too. Off = Thirdperson keeps its centred camera while aiming.");
         tips.SetToolTip(chkCrosshair,
             "Draws a small crosshair at the center of the screen while you're aiming in Thirdperson / Over-the-Shoulder mode.");
+        tips.SetToolTip(cmbCrosshairStyle,
+            "Reticle shape: Cross (+), Dot, Circle, or Dashes. In game, Backspace cycles off -> the styles -> off.");
 
         // Allow debug controls — on the bottom button row, to the right of Reset
         // to Defaults (clear of the keyboard column AND the Reset button).
@@ -1136,6 +1153,13 @@ public class ControlsForm : Form
         chkInvertControllerY.Checked = config.Get("invert_controller_y", "0") == "1";
         chkTpsOtsAim.Checked = config.Get("tps_ots_aim", "1") == "1";
         chkCrosshair.Checked = config.Get("crosshair", "0") == "1";
+        {
+            int chStyle;
+            if (!int.TryParse(config.Get("crosshair_style", "0"), out chStyle)) chStyle = 0;
+            if (chStyle < 0) chStyle = 0;
+            if (chStyle > 3) chStyle = 3;
+            cmbCrosshairStyle.SelectedIndex = chStyle;
+        }
         chk2dControls.Checked = config.Get("control_2d", "0") == "1";
         chkAimAssist.Checked = config.Get("aim_assist", "1") == "1";
         chkButtonSprint.Checked = config.Get("altcam_button_sprint", "0") == "1";
@@ -1315,6 +1339,8 @@ public class ControlsForm : Form
         config.Set("invert_controller_y", chkInvertControllerY.Checked ? "1" : "0");
         config.Set("tps_ots_aim", chkTpsOtsAim.Checked ? "1" : "0");
         config.Set("crosshair", chkCrosshair.Checked ? "1" : "0");
+        config.Set("crosshair_style",
+            (cmbCrosshairStyle.SelectedIndex < 0 ? 0 : cmbCrosshairStyle.SelectedIndex).ToString());
         config.Set("control_2d", chk2dControls.Checked ? "1" : "0");
         config.Set("aim_assist", chkAimAssist.Checked ? "1" : "0");
         config.Set("altcam_button_sprint", chkButtonSprint.Checked ? "1" : "0");
