@@ -5,9 +5,11 @@
 #include <string.h>
 
 #include "game.h"
+#include "bodyprog/bodyprog.h" /* g_Font16AtlasImg (FONT16 re-queue on live switch) */
 #include "bodyprog/map/map.h" /* s_MapOverlayHdr, g_pMapOverlayHeader, e_MapIdx */
 #include "font_region.h"      /* g_FontLayout, Font_SetGlyphWidths (fan-patch kerning) */
 #include "lang_pack.h"        /* PC-side language packs (gamedata/lang) */
+#include "main/fsqueue.h"     /* Fs_QueueStartReadTim, FS_BUFFER_1 */
 #include "main/fileinfo.h"    /* g_GameRegion, Fs_EurFileLookup */
 #include "pc_config.h"
 #include "sh_log.h"
@@ -551,6 +553,19 @@ void Pc_LangSetLanguage(int lang)
      * supplies the text, the disc supplies everything else. */
     Fs_ApplyLanguageRedirects();
     Pc_LangInit();
+
+    /* A pack's built letters (ą ę ł ż + caps) live in atlas cells patched onto
+     * the FONT16 pixels at upload time (font_region.c). FONT16 was uploaded at
+     * boot, before this live switch, so those cells are still blank — re-queue
+     * the atlas so Font_PatchPolishGlyphs runs against the now-active pack.
+     * (Composed accents like ć/ś/ó reuse vanilla cells and were fine already.)
+     * The options menu drains the queue before it redraws, so the glyphs are
+     * in VRAM by the next frame. EUR only — pack languages need that atlas. */
+    if (g_GameRegion == Region_EUR)
+    {
+        Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
+    }
+
     SH_LOG("[LANG] language switched to '%s'", s_LangIds[lang]);
 }
 
