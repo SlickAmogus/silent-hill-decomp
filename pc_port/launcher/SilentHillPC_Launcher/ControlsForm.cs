@@ -177,7 +177,6 @@ public class ControlsForm : Form
     private CheckBox chkInvertControllerY;
     private CheckBox chkTpsOtsAim;
     private CheckBox chkCrosshair;
-    private CheckBox chkImmersiveFps;
     private CheckBox chkAimAssist;
     private CheckBox chk2dControls;
     private CheckBox chkButtonSprint;
@@ -561,28 +560,19 @@ public class ControlsForm : Form
             Width = 220,
             ForeColor = TextColor,
         };
-        chkImmersiveFps = new CheckBox
-        {
-            Text = "Immersive FPS head tracking",
-            Left = colPadX,
-            Top = chkY + 134,
-            Width = 240,
-            ForeColor = TextColor,
-        };
+        // "Immersive FPS head tracking" is config-only now (removed from the UI).
+        // The key immersive_fps_head_tracking still loads from config.cfg and the
+        // game still honours it; ConfigManager preserves it across launcher saves.
         Controls.Add(chkInvertMouseY);
         Controls.Add(chkInvertControllerY);
         Controls.Add(chkTpsOtsAim);
         Controls.Add(chkCrosshair);
-        Controls.Add(chkImmersiveFps);
-        tips.SetToolTip(chkImmersiveFps,
-            "First-person only: the view follows Harry's animated head (idle sway / lean) with your mouse look layered " +
-            "on top, easing in after you stand still for a moment. Off = the view is driven purely by the mouse.");
 
         chk2dControls = new CheckBox
         {
             Text = "2D Controls (screen-relative)",
             Left = colPadX,
-            Top = chkY + 160,
+            Top = chkY + 134,
             Width = 240,
             ForeColor = TextColor,
         };
@@ -710,7 +700,7 @@ public class ControlsForm : Form
         {
             Text = "Aim Assist (TPS/OTS)",
             Left = colPadX,
-            Top = chkY + 186,
+            Top = chkY + 160,
             Width = 200,
             ForeColor = TextColor,
         };
@@ -720,7 +710,7 @@ public class ControlsForm : Form
         {
             Text = "Always use button based sprinting",
             Left = colPadX,
-            Top = chkY + 212,
+            Top = chkY + 186,
             Width = 260,
             ForeColor = TextColor,
         };
@@ -734,7 +724,7 @@ public class ControlsForm : Form
         {
             Text = "Allow thirdperson camera collision",
             Left = colPadX,
-            Top = chkY + 238,
+            Top = chkY + 212,
             /* Kept clear of the sensitivity column (Left = colPadX + 235): this row
              * now sits beside the Thirdperson FOV slider. */
             Width = 230,
@@ -750,7 +740,7 @@ public class ControlsForm : Form
         {
             Text = "Disable D-pad for movement",
             Left = colPadX,
-            Top = chkY + 264,
+            Top = chkY + 238,
             Width = 210,
             ForeColor = TextColor,
         };
@@ -1146,7 +1136,6 @@ public class ControlsForm : Form
         chkInvertControllerY.Checked = config.Get("invert_controller_y", "0") == "1";
         chkTpsOtsAim.Checked = config.Get("tps_ots_aim", "1") == "1";
         chkCrosshair.Checked = config.Get("crosshair", "0") == "1";
-        chkImmersiveFps.Checked = config.Get("immersive_fps_head_tracking", "0") == "1";
         chk2dControls.Checked = config.Get("control_2d", "0") == "1";
         chkAimAssist.Checked = config.Get("aim_assist", "1") == "1";
         chkButtonSprint.Checked = config.Get("altcam_button_sprint", "0") == "1";
@@ -1193,7 +1182,6 @@ public class ControlsForm : Form
         chkInvertControllerY.Checked = false;
         chkTpsOtsAim.Checked = true;
         chkCrosshair.Checked = false;
-        chkImmersiveFps.Checked = false;
         chk2dControls.Checked = false;
         chkAimAssist.Checked = true;
         chkButtonSprint.Checked = false;
@@ -1327,7 +1315,6 @@ public class ControlsForm : Form
         config.Set("invert_controller_y", chkInvertControllerY.Checked ? "1" : "0");
         config.Set("tps_ots_aim", chkTpsOtsAim.Checked ? "1" : "0");
         config.Set("crosshair", chkCrosshair.Checked ? "1" : "0");
-        config.Set("immersive_fps_head_tracking", chkImmersiveFps.Checked ? "1" : "0");
         config.Set("control_2d", chk2dControls.Checked ? "1" : "0");
         config.Set("aim_assist", chkAimAssist.Checked ? "1" : "0");
         config.Set("altcam_button_sprint", chkButtonSprint.Checked ? "1" : "0");
