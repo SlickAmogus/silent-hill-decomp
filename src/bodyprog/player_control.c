@@ -1579,7 +1579,10 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * camera toward Harry (its horizontal look direction). */
                     q3_12 camYaw = g_TpsCamYaw;
                     int   camValid = 1;
+                    int   camCut   = 0; /* a real fixed-cam room CUT happened this frame */
                     if (!g_DebugThirdPersonCam) {
+                        static VECTOR3 s_2dPrevCamPos  = { 0, 0, 0 };
+                        static int     s_2dHavePrevCam = 0;
                         VECTOR3 camPos;
                         s32     dx, dz;
                         vwGetViewPosition(&camPos);
@@ -1589,26 +1592,35 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                             camValid = 0; /* camera ~overhead: horizontal dir undefined */
                         else
                             camYaw = ratan2(dx, dz);
+
+                        /* Detect a room cut from the camera POSITION teleporting, NOT from
+                         * the bearing swinging. When Harry CIRCLES (holding left/right) his
+                         * own motion swings ratan2(HarryPos-camPos) fast even under a
+                         * perfectly static camera; that used to false-trip the basis hold
+                         * (>45°/frame on the bearing) and freeze a stale "forward", so the
+                         * next press turned him. The camera only jumps far in one frame on
+                         * an actual cut. */
+                        if (s_2dHavePrevCam) {
+                            s32 cdx = camPos.vx - s_2dPrevCamPos.vx;
+                            s32 cdz = camPos.vz - s_2dPrevCamPos.vz;
+                            if ((s64)cdx * cdx + (s64)cdz * cdz > (s64)Q12(3.0f) * Q12(3.0f))
+                                camCut = 1;
+                        }
+                        s_2dPrevCamPos  = camPos;
+                        s_2dHavePrevCam = 1;
                     }
 
-                    /* Camera-cut handling (option b): follow gradual pans, but hold
-                     * the basis across a hard cut while a direction is pressed, so a
-                     * room change never flips Harry mid-run. Re-samples on release. */
+                    /* Camera-cut handling (option b): track the live camera so "forward"
+                     * is always the CURRENT camera's into-screen, but hold the basis
+                     * across a real room CUT while a direction is held so the change
+                     * can't flip Harry mid-run; re-samples when the keys return to
+                     * neutral. Orbit cam never cuts, so it always tracks. */
                     {
                         static q3_12 s_2dBasisYaw = 0;
                         static int   s_2dValid    = 0;
 
                         if (camValid) {
-                            /* Track the live camera so "forward" always means the CURRENT
-                             * camera's into-screen — EXCEPT hold the basis across a hard
-                             * fixed-cam cut (>45°/frame) while a direction is held, so a
-                             * room change never flips Harry mid-run; re-syncs when the keys
-                             * return to neutral. Orbit cam never cuts, so it always tracks.
-                             * (The circling was NOT this tracking — it was Harry moving
-                             * along his lagging facing; fixed by the heading offset below.) */
-                            q3_12 d     = Math_AngleNormalizeSigned(camYaw - s_2dBasisYaw);
-                            int   track = !anyInput || !s_2dValid || g_DebugThirdPersonCam ||
-                                          (ABS(d) < Q12_ANGLE(45.0f));
+                            int track = !anyInput || !s_2dValid || g_DebugThirdPersonCam || !camCut;
                             if (track) {
                                 s_2dBasisYaw = camYaw;
                                 s_2dValid    = 1;
