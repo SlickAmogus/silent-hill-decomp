@@ -1597,13 +1597,26 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         static int   s_2dValid    = 0;
 
                         if (camValid) {
-                            /* Track the live camera EXCEPT when a fixed-camera cut
-                             * jumps the yaw (>45 deg in one frame) while a direction
-                             * is held — then hold the old basis until release. The
-                             * orbit cam never cuts, so it always tracks. */
-                            q3_12 d     = Math_AngleNormalizeSigned(camYaw - s_2dBasisYaw);
-                            int   track = !anyInput || !s_2dValid || g_DebugThirdPersonCam ||
-                                          (ABS(d) < Q12_ANGLE(45.0f));
+                            /* Lock the fixed-camera basis while a direction is held;
+                             * re-sample only when the keys/stick return to neutral. The
+                             * orbit cam is player-driven, so it always tracks.
+                             *
+                             * Continuously tracking the fixed camera was the bug behind
+                             * the "runs in circles / veers off and won't go straight"
+                             * report: SH1's fixed shots pan to follow Harry, so "into the
+                             * screen" rotates as he moves, and the fast-turn align window
+                             * lets him start walking a few degrees off-radial. That drift
+                             * moves him sideways → the camera pans to keep him framed →
+                             * the basis rotates the same way → the target heading runs
+                             * away under him and he curves, sometimes into a full spiral.
+                             * A camera cut re-synced the basis mid-run and kicked it off.
+                             * Locking the basis makes "forward" a fixed world heading for
+                             * the whole hold: he spins to it once and runs dead straight.
+                             * A hard cut is handled too — the basis just stays put through
+                             * it (he never reverses); release + re-press re-syncs the new
+                             * shot. Fixed cameras rarely pan far, so the held heading stays
+                             * close to the screen; the straight run is worth the drift. */
+                            int track = !anyInput || !s_2dValid || g_DebugThirdPersonCam;
                             if (track) {
                                 s_2dBasisYaw = camYaw;
                                 s_2dValid    = 1;
