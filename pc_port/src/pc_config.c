@@ -59,6 +59,7 @@ s_PcConfig g_PcConfig = {
     .tpsCameraCollision  = 1, /* pull the TPS/OTS eye in off walls (off = eye may pass through geometry) */
     .tpsOtsAim           = 1, /* raising the gun in TPS eases the camera into the OTS shoulder framing */
     .crosshair           = 0, /* draw a center crosshair while aiming in TPS/OTS */
+    .crosshairStyle      = 0, /* 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap */
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
     .altButtonSprint     = 0, /* alt cams sprint from the run control only (off = full stick push also sprints) */
@@ -711,6 +712,13 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "crosshair") == 0)
         {
             g_PcConfig.crosshair = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "crosshair_style") == 0)
+        {
+            int v = atoi(value);
+            if (v < 0) v = 0;
+            if (v > 3) v = 3;
+            g_PcConfig.crosshairStyle = v;
         }
         else if (strcmp(key, "mouse_cursor") == 0)
         {
