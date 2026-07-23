@@ -25,17 +25,17 @@
  * so this game-facing TU stays free of libc system headers. */
 #define SH_DISCORD_PID() ShDiscordIpc_Pid()
 
-/* The project's Discord application id. Set it here (or via config.cfg
- * discord_app_id) after creating the app at https://discord.com/developers and
- * uploading the Cheryl icon as a Rich Presence Art Asset named
- * SH_DISCORD_LARGE_IMAGE. Empty = feature dormant. */
+/* The project's Discord application id (baked in; config.cfg discord_app_id can
+ * still override, e.g. for a third-party build). Empty = feature dormant. */
 #ifndef SH_DISCORD_DEFAULT_APP_ID
-#define SH_DISCORD_DEFAULT_APP_ID ""
+#define SH_DISCORD_DEFAULT_APP_ID "1529658536274034770"
 #endif
 
-/* Art-asset key shown as the large image — must match the asset name uploaded in
- * the Discord app's Rich Presence -> Art Assets. */
-#define SH_DISCORD_LARGE_IMAGE "cheryl"
+/* Art-asset keys — must match the asset names uploaded in the Discord app's
+ * Rich Presence -> Art Assets. Large = the journal (main image); small = the
+ * Cheryl badge overlaid on the large image's corner. */
+#define SH_DISCORD_LARGE_IMAGE "journal"
+#define SH_DISCORD_SMALL_IMAGE "cheryl"
 
 /* Discord IPC opcodes. */
 #define DISCORD_OP_HANDSHAKE 0
@@ -59,6 +59,7 @@ static long long    s_lastConnAttempt;
 static int          s_forceSend;
 static unsigned int s_nonce;
 static char         s_lastDetails[64];
+static char         s_lastState[32];
 
 /* Read accumulator for framed IPC replies (PING/PONG keepalive). */
 static unsigned char s_rx[8192];
@@ -110,6 +111,18 @@ static const char* Discord_AreaName(int idx)
     case MapIdx_MAP7_S02:
     case MapIdx_MAP7_S03: return "Nowhere";
     default:              return "Silent Hill";
+    }
+}
+
+/* Second presence line: the action difficulty (savegame bitfield, signed 4-bit
+ * e_GameDifficulty). Kept JSON-safe. */
+static const char* Discord_DifficultyName(int diff)
+{
+    switch (diff)
+    {
+    case GameDifficulty_Easy: return "Easy";
+    case GameDifficulty_Hard: return "Hard";
+    default:                  return "Normal";
     }
 }
 
@@ -184,21 +197,29 @@ static void Discord_PumpReads(void)
     }
 }
 
-static void Discord_SendActivity(const char* details)
+static void Discord_SendActivity(const char* details, const char* state)
 {
     char json[512];
+    char stateField[64];
+    stateField[0] = '\0';
+    if (state && state[0])
+        snprintf(stateField, sizeof(stateField), "\"state\":\"%s\",", state);
     snprintf(json, sizeof(json),
              "{\"cmd\":\"SET_ACTIVITY\",\"args\":{\"pid\":%d,\"activity\":{"
-             "\"details\":\"%s\","
-             "\"assets\":{\"large_image\":\"%s\",\"large_text\":\"Silent Hill\"},"
+             "\"details\":\"%s\",%s"
+             "\"assets\":{\"large_image\":\"%s\",\"large_text\":\"Silent Hill\","
+             "\"small_image\":\"%s\",\"small_text\":\"Cheryl\"},"
              "\"timestamps\":{\"start\":%lld}"
              "}},\"nonce\":\"%u\"}",
-             SH_DISCORD_PID(), details, SH_DISCORD_LARGE_IMAGE,
+             SH_DISCORD_PID(), details, stateField,
+             SH_DISCORD_LARGE_IMAGE, SH_DISCORD_SMALL_IMAGE,
              (long long)s_startTime, ++s_nonce);
     if (Discord_SendFrame(DISCORD_OP_FRAME, json))
     {
         strncpy(s_lastDetails, details, sizeof(s_lastDetails) - 1);
         s_lastDetails[sizeof(s_lastDetails) - 1] = '\0';
+        strncpy(s_lastState, state ? state : "", sizeof(s_lastState) - 1);
+        s_lastState[sizeof(s_lastState) - 1] = '\0';
     }
 }
 
@@ -224,6 +245,7 @@ void Pc_Discord_Init(void)
     s_lastConnAttempt = 0;
     s_forceSend       = 1;
     s_lastDetails[0]  = '\0';
+    s_lastState[0]    = '\0';
     s_rxLen           = 0;
     s_enabled         = 1;
     SH_DBG("[DISCORD] rich presence on (app id %s)", s_appId);
@@ -233,6 +255,7 @@ void Pc_Discord_Update(void)
 {
     long long now;
     char      details[64];
+    char      state[32];
 
     if (!s_enabled)
         return;
@@ -255,6 +278,7 @@ void Pc_Discord_Update(void)
         }
         s_forceSend      = 1;
         s_lastDetails[0] = '\0';
+        s_lastState[0]   = '\0';
         SH_DBG("[DISCORD] connected");
     }
 
@@ -262,23 +286,28 @@ void Pc_Discord_Update(void)
     if (!ShDiscordIpc_IsOpen())
         return; /* PumpReads may have seen a CLOSE / error */
 
+    state[0] = '\0';
     if (g_SavegamePtr != NULL && g_GameWork.gameState == GameState_InGame)
+    {
         snprintf(details, sizeof(details), "%s", Discord_AreaName((int)g_SavegamePtr->mapIdx));
+        snprintf(state, sizeof(state), "Difficulty: %s",
+                 Discord_DifficultyName((int)g_SavegamePtr->gameDifficulty));
+    }
     else
         snprintf(details, sizeof(details), "%s", "In the menus");
 
-    if (s_forceSend || strcmp(details, s_lastDetails) != 0)
+    if (s_forceSend || strcmp(details, s_lastDetails) != 0 || strcmp(state, s_lastState) != 0)
     {
         if (s_forceSend || (now - s_lastSend) >= DISCORD_MIN_SEND_GAP)
         {
-            Discord_SendActivity(details);
+            Discord_SendActivity(details, state);
             s_lastSend  = now;
             s_forceSend = 0;
         }
     }
     else if ((now - s_lastSend) >= DISCORD_HEARTBEAT)
     {
-        Discord_SendActivity(details);
+        Discord_SendActivity(details, state);
         s_lastSend = now;
     }
 }
