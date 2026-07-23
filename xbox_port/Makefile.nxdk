@@ -109,6 +109,19 @@ NXDK_CXXFLAGS += $(SH_CPPFLAGS)
 NXDK_CFLAGS   += -O2 -fno-strict-aliasing -fwrapv
 NXDK_CXXFLAGS += -O2 -fno-strict-aliasing -fwrapv
 
+# -O0 exception list: -O2 exposed a latent bug in the SAVE/LOAD/MEMCARD path
+# (the -O0 build loaded saves fine; the -O2 build hangs on "load game" right
+# after SAVELOAD.TIM — an infinite loop in the save-screen scroll/enumeration
+# with mis-set data upstream). These are menu/IO TUs, NOT the per-frame hot
+# path, so -O0 here costs nothing measurable while the exact UB is pinned. The
+# %.obj rule applies $(CFLAGS) AFTER $(NXDK_CFLAGS), and the last -O wins, so a
+# per-file -O0 here overrides the global -O2. Render/transform keeps -O2.
+$(DECOMP)/src/screens/saveload/saveload.obj:       CFLAGS += -O0
+$(DECOMP)/src/bodyprog/memcard.obj:                CFLAGS += -O0
+$(DECOMP)/src/bodyprog/sys/memcard_2.obj:          CFLAGS += -O0
+$(DECOMP)/src/bodyprog/game_boot/game_load.obj:    CFLAGS += -O0
+$(DECOMP)/src/bodyprog/events/title.obj:           CFLAGS += -O0
+
 # The decomp uses C11 `static_assert` as a bare keyword. Map it to _Static_assert
 # for C TUs only — applying it to C++ breaks libc++/std headers (matches the PC
 # port's CMake, which scopes this define to C sources).
