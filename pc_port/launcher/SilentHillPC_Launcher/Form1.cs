@@ -498,6 +498,16 @@ public partial class Form1 : Form
             "boss, and your score picks which of the four endings you get.\n\n" +
             "Takes over the Level dropdown, and forces the global chara pool on.");
 
+        const string uncensoredTip =
+            "Restore the Grey Children on a PAL/European disc.\n\n" +
+            "PAL is the only version that censored the school child enemies into\n" +
+            "\"Mumblers\"; the original Grey Child model ships on the disc unused.\n" +
+            "Turning this on renders them as Grey Children, matching the US/NTSC\n" +
+            "content — so a PAL disc (which also carries every language) plays\n" +
+            "like the uncensored US version. No effect on USA / NTSC-J discs.";
+        Set(lblUncensored,  uncensoredTip);
+        Set(chkUncensored,  uncensoredTip);
+
         const string loggingTip =
             "Write SH_DBG output to SilentHill.log next to the executable.\n" +
             "Required for diagnosing crashes/regressions; small disk-write\n" +
@@ -718,6 +728,8 @@ public partial class Form1 : Form
         chkRandomizer.Checked = config.Get("randomizer", "0") == "1";
         ApplyRandomizerUi();
 
+        chkUncensored.Checked = config.Get("uncensored", "0") == "1";
+
         // fullscreen
         // fullscreen: 0 = windowed, 1 = exclusive fullscreen, 2 = borderless.
         // Dropdown order: Fullscreen(0), Windowed(1), Borderless(2).
@@ -935,6 +947,7 @@ public partial class Form1 : Form
             config.Set("disc_image", _discIds[comboDisc.SelectedIndex]);
 
         config.Set("randomizer", chkRandomizer.Checked ? "1" : "0");
+        config.Set("uncensored", chkUncensored.Checked ? "1" : "0");
 
         // Level: persist only the map id, not the " - description" suffix. Skipped
         // while the randomizer owns the row — the selection is the synthetic

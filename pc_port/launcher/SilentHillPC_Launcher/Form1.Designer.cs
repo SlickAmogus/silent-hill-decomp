@@ -146,6 +146,8 @@ partial class Form1
             this.label1 = new System.Windows.Forms.Label();
             this.chkRandomizer = new System.Windows.Forms.CheckBox();
             this.checkBox1 = new System.Windows.Forms.CheckBox();
+            this.chkUncensored = new System.Windows.Forms.CheckBox();
+            this.lblUncensored = new System.Windows.Forms.Label();
             this.lblMenu = new System.Windows.Forms.Label();
             this.vsyncPanel.SuspendLayout();
             this.cullingPanel.SuspendLayout();
@@ -796,9 +798,26 @@ partial class Form1
             this.chkRandomizer.TabIndex = 66;
             this.chkRandomizer.UseVisualStyleBackColor = true;
             this.chkRandomizer.CheckedChanged += new System.EventHandler(this.chkRandomizer_CheckedChanged);
-            // 
+            //
+            // lblUncensored
+            //
+            this.lblUncensored.AutoSize = true;
+            this.lblUncensored.Location = new System.Drawing.Point(9, 507);
+            this.lblUncensored.Name = "lblUncensored";
+            this.lblUncensored.Size = new System.Drawing.Size(66, 13);
+            this.lblUncensored.TabIndex = 90;
+            this.lblUncensored.Text = "Uncensored:";
+            //
+            // chkUncensored
+            //
+            this.chkUncensored.Location = new System.Drawing.Point(80, 505);
+            this.chkUncensored.Name = "chkUncensored";
+            this.chkUncensored.Size = new System.Drawing.Size(16, 17);
+            this.chkUncensored.TabIndex = 91;
+            this.chkUncensored.UseVisualStyleBackColor = true;
+            //
             // checkBox1
-            // 
+            //
             this.checkBox1.Location = new System.Drawing.Point(186, 245);
             this.checkBox1.Name = "checkBox1";
             this.checkBox1.Size = new System.Drawing.Size(16, 17);
@@ -819,6 +838,8 @@ partial class Form1
             // 
             this.ClientSize = new System.Drawing.Size(420, 499);
             this.Controls.Add(this.lblMenu);
+            this.Controls.Add(this.lblUncensored);
+            this.Controls.Add(this.chkUncensored);
             this.Controls.Add(this.checkBox1);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.regionLabel);
@@ -901,5 +922,7 @@ partial class Form1
     private Label label1;
     private CheckBox chkRandomizer;
     private CheckBox checkBox1;
+    private CheckBox chkUncensored;
+    private Label lblUncensored;
     private Label lblMenu;
 }

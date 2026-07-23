@@ -136,6 +136,7 @@ s_PcConfig g_PcConfig = {
     .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it — PAL-disc text language; USA: menu translations on fan-patched discs */
     .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal 3=jap — preferred disc when several are present */
     .discImage      = "", /* exact .bin in gamedata/ (launcher Disc dropdown); empty = auto */
+    .uncensored     = 0, /* 0=retail PAL Mumblers (default); 1=restore Grey Children on EUR (matches US) */
     .discordRichPresence = 1,  /* show current area on the player's Discord profile (needs a discord_app_id) */
     .discordAppId        = "", /* project's Discord application id; empty = compiled-in default / off */
     .mapName        = "map0_s00"
@@ -649,6 +650,10 @@ void PcConfig_Load(const char* path)
                 strncpy(g_PcConfig.discImage, value, sizeof(g_PcConfig.discImage) - 1);
                 g_PcConfig.discImage[sizeof(g_PcConfig.discImage) - 1] = '\0';
             }
+        }
+        else if (strcmp(key, "uncensored") == 0)
+        {
+            g_PcConfig.uncensored = (atoi(value) != 0);
         }
         else if (strcmp(key, "control_style") == 0)
         {

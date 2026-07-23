@@ -192,6 +192,13 @@ typedef struct {
      * name-priority order. */
     char discImage[128];
 
+    /* Restore the Grey Children on a PAL/EUR disc (config key: uncensored).
+     * PAL is the only region that censors them into Mumblers; the Grey Child
+     * model ships on the disc, just unused. 1 = keep Grey Children (matches
+     * US/NTSC content); 0 = retail PAL Mumblers (default). No effect on
+     * US/NTSC-J discs, which already render their retail creature. */
+    int uncensored;
+
     /* Discord Rich Presence: show the current area on the player's Discord
      * profile (presence only — no achievements/account system; see
      * docs/RetroAchievements_Feasibility.md). discordAppId is the project's

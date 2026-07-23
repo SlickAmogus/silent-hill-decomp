@@ -54,16 +54,20 @@ s_CharaFileInfo CHARA_FILE_INFOS[] = {
 #ifdef SH_PC_PORT
 #include "main/fileinfo.h"    /* g_GameRegion */
 #include "bodyprog/map/map.h" /* e_MapIdx */
+#include "pc_config.h"        /* g_PcConfig.uncensored */
 
 /* PAL (SLES-01514) censored the Grey Children into "Mumblers": same enemy, AI and
  * animation, only a different model + texture (CLD3 -> CLD4). Replicate it by
  * pointing the Grey Child's model/texture at the Mumbler's so PAL spawns render
  * as Mumblers while keeping the working Grey Child AI/charaId. Called once after
- * the disc region is detected. (A future option could keep the Grey Children by
- * not applying this.) */
+ * the disc region is detected.
+ *
+ * The `uncensored` config key skips the swap, restoring the Grey Children on a
+ * PAL disc (which ships CLD3 too — it is simply unused) so an EUR disc matches
+ * the US/NTSC content. Off by default = retail PAL behaviour. */
 void CharaData_ApplyRegionPatches(void)
 {
-    if (g_GameRegion == Region_EUR)
+    if (g_GameRegion == Region_EUR && !g_PcConfig.uncensored)
     {
         CHARA_FILE_INFOS[Chara_GreyChild].modelFileIdx   = FILE_CHARA_CLD4_ILM;
         CHARA_FILE_INFOS[Chara_GreyChild].textureFileIdx = FILE_CHARA_CLD4_TIM;
