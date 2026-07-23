@@ -192,6 +192,15 @@ typedef struct {
      * name-priority order. */
     char discImage[128];
 
+    /* Discord Rich Presence: show the current area on the player's Discord
+     * profile (presence only — no achievements/account system; see
+     * docs/RetroAchievements_Feasibility.md). discordAppId is the project's
+     * Discord application id; empty = use the compiled-in default, and if that
+     * is also empty the feature stays dormant. (config keys:
+     * discord_rich_presence / discord_app_id) */
+    int  discordRichPresence;
+    char discordAppId[80];
+
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
 

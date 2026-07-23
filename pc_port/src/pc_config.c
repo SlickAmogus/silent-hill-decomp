@@ -136,6 +136,8 @@ s_PcConfig g_PcConfig = {
     .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it — PAL-disc text language; USA: menu translations on fan-patched discs */
     .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal 3=jap — preferred disc when several are present */
     .discImage      = "", /* exact .bin in gamedata/ (launcher Disc dropdown); empty = auto */
+    .discordRichPresence = 1,  /* show current area on the player's Discord profile (needs a discord_app_id) */
+    .discordAppId        = "", /* project's Discord application id; empty = compiled-in default / off */
     .mapName        = "map0_s00"
 };
 
@@ -799,6 +801,18 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "randomizer") == 0)
         {
             g_PcConfig.randomizer = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "discord_rich_presence") == 0)
+        {
+            g_PcConfig.discordRichPresence = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "discord_app_id") == 0)
+        {
+            if (strlen(value) < sizeof(g_PcConfig.discordAppId))
+            {
+                strncpy(g_PcConfig.discordAppId, value, sizeof(g_PcConfig.discordAppId) - 1);
+                g_PcConfig.discordAppId[sizeof(g_PcConfig.discordAppId) - 1] = '\0';
+            }
         }
         else if (strcmp(key, "control_styles") == 0)
         {

@@ -22,6 +22,7 @@
 #include "psx_memory.h"
 #include "pc_config.h"
 #include "pc_audio_config.h"
+#include "pc_discord.h"
 #include "map_registry.h"
 #include "main/fsqueue.h"
 #include "main/fileinfo.h"
@@ -1216,6 +1217,11 @@ int main(int argc, char* argv[])
     MapRegistry_Init();
     SH_LOG("Active map: %s", g_PcConfig.mapName);
 
+    /* Discord Rich Presence: opens the Discord IPC pipe lazily on the first
+     * per-frame update (Pc_Discord_Update, pumped from DbgOverlay_Render), so
+     * this only captures the session-start time + resolves the app id. */
+    Pc_Discord_Init();
+
     SH_LOG("All subsystems initialized. Entering MainLoop...");
 
     /* The graphic-content warning ("There are violent and disturbing
@@ -1235,6 +1241,7 @@ int main(int argc, char* argv[])
 
     /* Cleanup */
     SH_DBG("[SH] MainLoop exited normally. Shutting down...");
+    Pc_Discord_Shutdown();
     PsyX_Shutdown();
 
     return 0;
