@@ -1569,7 +1569,9 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     int  a2dUse = (a2dX * a2dX + a2dY * a2dY) >= (40 * 40);
                     s32  inXv   = a2dUse ?  a2dX : inX;
                     s32  inZv   = a2dUse ? -a2dY : inZ;
-                    int  moveAligned = 1; /* cleared while the fast in-place spin is still far from the input direction */
+                    int   moveAligned = 1; /* cleared while the fast in-place spin is still far from the input direction */
+                    q3_12 move2dYaw   = 0;  /* WORLD heading Harry should TRAVEL along (stick relative to camera) */
+                    int   have2dMove  = 0;
                     if (a2dUse) anyInput = 1;
 
                     /* Camera "into the screen" yaw (world Q12 angle). Orbit cam =
@@ -1597,26 +1599,16 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         static int   s_2dValid    = 0;
 
                         if (camValid) {
-                            /* Lock the fixed-camera basis while a direction is held;
-                             * re-sample only when the keys/stick return to neutral. The
-                             * orbit cam is player-driven, so it always tracks.
-                             *
-                             * Continuously tracking the fixed camera was the bug behind
-                             * the "runs in circles / veers off and won't go straight"
-                             * report: SH1's fixed shots pan to follow Harry, so "into the
-                             * screen" rotates as he moves, and the fast-turn align window
-                             * lets him start walking a few degrees off-radial. That drift
-                             * moves him sideways → the camera pans to keep him framed →
-                             * the basis rotates the same way → the target heading runs
-                             * away under him and he curves, sometimes into a full spiral.
-                             * A camera cut re-synced the basis mid-run and kicked it off.
-                             * Locking the basis makes "forward" a fixed world heading for
-                             * the whole hold: he spins to it once and runs dead straight.
-                             * A hard cut is handled too — the basis just stays put through
-                             * it (he never reverses); release + re-press re-syncs the new
-                             * shot. Fixed cameras rarely pan far, so the held heading stays
-                             * close to the screen; the straight run is worth the drift. */
-                            int track = !anyInput || !s_2dValid || g_DebugThirdPersonCam;
+                            /* Track the live camera so "forward" always means the CURRENT
+                             * camera's into-screen — EXCEPT hold the basis across a hard
+                             * fixed-cam cut (>45°/frame) while a direction is held, so a
+                             * room change never flips Harry mid-run; re-syncs when the keys
+                             * return to neutral. Orbit cam never cuts, so it always tracks.
+                             * (The circling was NOT this tracking — it was Harry moving
+                             * along his lagging facing; fixed by the heading offset below.) */
+                            q3_12 d     = Math_AngleNormalizeSigned(camYaw - s_2dBasisYaw);
+                            int   track = !anyInput || !s_2dValid || g_DebugThirdPersonCam ||
+                                          (ABS(d) < Q12_ANGLE(45.0f));
                             if (track) {
                                 s_2dBasisYaw = camYaw;
                                 s_2dValid    = 1;
@@ -1631,6 +1623,8 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                             s32   moveX = inZv * sfwd + inXv * cfwd;
                             s32   moveZ = inZv * cfwd - inXv * sfwd;
                             q3_12 targetYaw = ratan2(moveX, moveZ);
+                            move2dYaw  = targetYaw; /* travel this way regardless of facing */
+                            have2dMove = 1;
                             if (g_PcConfig.control2dSnap) {
                                 /* snap: face the input direction immediately */
                                 player->rotation.vy = Q12_ANGLE_NORM_U(targetYaw + Q12_ANGLE(360.0f));
@@ -1655,11 +1649,11 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     }
 
                     /* Reuse the shim's forward walk/run anim + speed by flagging a
-                     * forward move; Harry travels straight along his (turning) facing.
-                     * The move bit waits for moveAligned so the fast spin happens in
-                     * place; HasMoveInput stays anyInput regardless — the player IS
-                     * inputting, and clearing it would let the AFK idle-break engage
-                     * mid-spin. */
+                     * forward move. Harry TRAVELS along the move vector (set via the
+                     * heading offset below), not his turning facing; the move bit still
+                     * waits for moveAligned so the big reorientation happens in place.
+                     * HasMoveInput stays anyInput regardless — the player IS inputting,
+                     * and clearing it would let the AFK idle-break engage mid-spin. */
                     g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | ((anyInput && moveAligned) ? 1 : 0);
                     g_Player_IsMovingBackward    = 0;
                     g_Player_IsSteppingLeftHold  = 0;
@@ -1681,8 +1675,24 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                           (lx * lx + ly * ly) >= (96 * 96);
                         g_Player_IsRunning = cfgRun || stickSprint;
                     }
-                    g_Player_HeadingAngle = Q12_ANGLE(0.0f);
-                    g_SysWork.playerWork.player.properties.player.headingAngle = Q12_ANGLE(0.0f);
+                    /* Travel along the MOVE vector (stick relative to the camera), NOT
+                     * Harry's turning facing: set the heading OFFSET = (move dir − facing)
+                     * so he goes exactly where the stick points while the body swings to
+                     * catch up. The shim moves at rotation.vy + headingAngle (the same
+                     * mechanism as diagonal strafe). Driving him along the lagging facing
+                     * instead was the real cause of the "runs in circles / veers off and
+                     * won't go straight" report — his own sideways drift fed back through
+                     * the tracking camera. The move bit only arms inside the align window
+                     * (moveAligned), so this offset is ≤45° while he actually travels →
+                     * the forward/diagonal walk anim still reads right; the big
+                     * reorientation already happened in place. */
+                    {
+                        q3_12 h2d = have2dMove
+                                        ? Math_AngleNormalizeSigned(move2dYaw - player->rotation.vy)
+                                        : Q12_ANGLE(0.0f);
+                        g_Player_HeadingAngle = h2d;
+                        g_SysWork.playerWork.player.properties.player.headingAngle = h2d;
+                    }
                 } else if (g_DebugThirdPersonCam) {
 #ifdef SH_PC_PORT
                     /* FPS look-around: while standing still and not aiming in
