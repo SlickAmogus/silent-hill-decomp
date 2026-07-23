@@ -24,6 +24,16 @@ public class ControlsForm : Form
 {
     private readonly ConfigManager config;
 
+    // Resizable window with proportional UI scaling. The dialog was a fixed
+    // 860x868 — taller than some laptop work areas — so it opened clipped. The
+    // design-time layout of every control (bounds + font) is captured once, then
+    // scaled to the live client size on each resize; the window also shrinks to
+    // fit the screen work area when it first opens.
+    private Size _designClient;
+    private readonly Dictionary<Control, Rectangle> _origBounds = new Dictionary<Control, Rectangle>();
+    private readonly Dictionary<Control, float> _origFontPt = new Dictionary<Control, float>();
+    private bool _scaleReady;
+
     // { display label, config key } per bindable PSX button.
     private static readonly string[][] KeyboardBinds =
     {
@@ -217,6 +227,109 @@ public class ControlsForm : Form
         // key..."). Move focus to the Save button; the box's Leave restores it.
         if (ActiveControl is TextBox)
             ActiveControl = AcceptButton as Button;
+    }
+
+    // Snapshot the as-built layout and make the window user-resizable. Called at
+    // the end of BuildUi, before LoadValues (which only sets values, not layout).
+    private void SetupResizable()
+    {
+        _designClient = ClientSize;   // 860 x 868 as built
+        CaptureOriginals(this);
+
+        FormBorderStyle = FormBorderStyle.Sizable;
+        MaximizeBox = true;
+        Resize += (s, e) => ApplyScale();
+        _scaleReady = true;
+    }
+
+    private void CaptureOriginals(Control parent)
+    {
+        foreach (Control c in parent.Controls)
+        {
+            _origBounds[c] = c.Bounds;
+            _origFontPt[c] = c.Font.Size;
+            CaptureOriginals(c);
+        }
+    }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        if (!_scaleReady)
+            return;
+
+        // Non-client size (borders + title bar) is only known once the handle exists.
+        int ncW = Width - ClientSize.Width;
+        int ncH = Height - ClientSize.Height;
+
+        // Shrink to fit the work area when the design size is too big for this
+        // screen (the reported case: 868px tall on a 768px laptop). Everything
+        // scales down with the window; re-center so it can't open off-screen.
+        Rectangle wa = Screen.FromControl(this).WorkingArea;
+        float fitW = (wa.Width - ncW - 16) / (float)_designClient.Width;
+        float fitH = (wa.Height - ncH - 16) / (float)_designClient.Height;
+        float fit = Math.Min(1f, Math.Min(fitW, fitH));
+        if (fit < 0.999f)
+        {
+            ClientSize = new Size(
+                (int)(_designClient.Width * fit),
+                (int)(_designClient.Height * fit));
+            Location = new Point(
+                wa.Left + Math.Max(0, (wa.Width - Width) / 2),
+                wa.Top + Math.Max(0, (wa.Height - Height) / 2));
+        }
+
+        // Floor so it can't collapse to unreadable text (~45% of design), but
+        // never above the size we just fit to the screen — set it AFTER the fit.
+        int minClientW = Math.Min(ClientSize.Width, (int)(_designClient.Width * 0.45f));
+        int minClientH = Math.Min(ClientSize.Height, (int)(_designClient.Height * 0.45f));
+        MinimumSize = new Size(minClientW + ncW, minClientH + ncH);
+
+        ApplyScale();
+    }
+
+    // Rescale every captured control (bounds + font) to the current client size.
+    private void ApplyScale()
+    {
+        if (!_scaleReady || _designClient.Width <= 0 || _designClient.Height <= 0)
+            return;
+
+        float sx = ClientSize.Width / (float)_designClient.Width;
+        float sy = ClientSize.Height / (float)_designClient.Height;
+        float sf = Math.Min(sx, sy);   // uniform font factor so text never distorts
+
+        SuspendLayout();
+        ScaleControls(this, sx, sy, sf);
+        ResumeLayout(true);
+    }
+
+    private void ScaleControls(Control parent, float sx, float sy, float sf)
+    {
+        foreach (Control c in parent.Controls)
+        {
+            Rectangle b;
+            if (_origBounds.TryGetValue(c, out b))
+            {
+                int x = (int)Math.Round(b.X * sx);
+                int y = (int)Math.Round(b.Y * sy);
+                if (c.AutoSize)
+                    c.Location = new Point(x, y);   // AutoSize owns its Width/Height
+                else
+                    c.Bounds = new Rectangle(x, y,
+                        (int)Math.Round(b.Width * sx),
+                        (int)Math.Round(b.Height * sy));
+            }
+
+            float pt;
+            if (_origFontPt.TryGetValue(c, out pt))
+            {
+                float np = Math.Max(6f, pt * sf);
+                if (Math.Abs(c.Font.Size - np) > 0.1f)
+                    c.Font = new Font(c.Font.FontFamily, np, c.Font.Style);
+            }
+
+            ScaleControls(c, sx, sy, sf);
+        }
     }
 
     private void BuildUi()
@@ -703,6 +816,8 @@ public class ControlsForm : Form
         Controls.Add(btnCancel);
         AcceptButton = btnSave;
         CancelButton = btnCancel;
+
+        SetupResizable();
     }
 
     private void AddHeader(string text, int x, int y)
