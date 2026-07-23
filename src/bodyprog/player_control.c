@@ -10232,9 +10232,22 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
                 }
                 else
                 {
-                    _P.vx = g_TpsCamPos.vx + _off.vx;
-                    _P.vy = g_TpsCamPos.vy + _off.vy;
-                    _P.vz = g_TpsCamPos.vz + _off.vz;
+                    /* No enemy on the camera ray (free-aim / no monsters around):
+                     * aim at the ACTUAL surface the reticle is over, not a fixed
+                     * 60-units-ahead point. The bullet fires from the hand (below
+                     * the camera), so aiming at a fixed distance makes it converge
+                     * ONLY at that distance and land off the reticle everywhere
+                     * else — below it for the common closer-than-60u surfaces,
+                     * and the error grows with the distance mismatch. Ray_TraceQuery
+                     * fills _wtr.target with the world hit point, or (on a miss)
+                     * with the endpoint, so it is always the correct aim point. */
+                    s_RayTrace _wtr;
+                    VECTOR3    _end;
+                    _end.vx = g_TpsCamPos.vx + _off.vx;
+                    _end.vy = g_TpsCamPos.vy + _off.vy;
+                    _end.vz = g_TpsCamPos.vz + _off.vz;
+                    Ray_TraceQuery(&_wtr, &g_TpsCamPos, &_end);
+                    _P = _wtr.target;
                 }
                 /* Aim assist: if the reticle is over (mouse) or near (controller
                  * auto-aim) an enemy's body, redirect the aim point onto the
