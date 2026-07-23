@@ -331,6 +331,49 @@ static void Pc_CameraFov_Update(void)
     }
 }
 
+#ifdef SH_XBOX_PORT
+/* Xbox control-style / camera cycle (PC's control_style.c is excluded). R3
+ * cycles the camera style during gameplay; the "Camera" row in Xbox Options and
+ * the saved config set the default. Style 0 = Classic (tank + fixed game camera,
+ * the faithful default). Styles 1/2 (Thirdperson / Over-shoulder) enable the
+ * free-look orbit camera the right stick drives (Pc_TpsCamera_Apply) — note this
+ * also switches movement to the camera-relative scheme (player_control.c), which
+ * is how the PC port's TPS styles work; there is no "tank + free orbit" hybrid.
+ * FPS (3) is intentionally left out of the R3 cycle (riskiest; the option can
+ * still select it). Mirrors control_style.c's Set/cycle + the g_TpsCamNeedsReset
+ * reseed so the camera starts behind Harry instead of popping. */
+extern int g_DebugThirdPersonCam;
+extern int g_ControlStyle, g_PcFpsCam, g_TpsCamNeedsReset;
+void Xbox_ApplyControlStyle(int s)
+{
+    g_ControlStyle        = s;
+    g_DebugThirdPersonCam = (s == 1 || s == 2 || s == 3); /* Tps/Ots/Fps */
+    g_PcFpsCam            = (s == 3);
+}
+void Pc_ControlStyleUpdate(void)
+{
+    static int inited = 0, prevR3 = 0;
+    int inGameplay = (g_GameWork.gameState == GameState_InGame &&
+                      g_SysWork.sysState   == SysState_Gameplay);
+    int curR3;
+
+    if (!inited) { Xbox_ApplyControlStyle(g_PcConfig.controlStyle); inited = 1; }
+
+    curR3 = (g_Controller0->heldBtnFlags & ControllerFlag_R3) != 0;
+    if (inGameplay && curR3 && !prevR3) {
+        int wasCam = g_DebugThirdPersonCam;
+        int next   = g_ControlStyle + 1;
+        if (next > 2) next = 0;                 /* cycle Classic <-> Tps <-> Ots */
+        Xbox_ApplyControlStyle(next);
+        if (!wasCam && g_DebugThirdPersonCam) g_TpsCamNeedsReset = 1;
+        { extern void PcConfig_SaveKeyValue(const char*, const char*);
+          PcConfig_SaveKeyValue("control_style",
+              next == 1 ? "tps" : next == 2 ? "ots" : "classic"); }
+    }
+    prevR3 = curR3;
+}
+#endif
+
 static void Pc_TpsCamera_Apply(void)
 {
     /* Hand the camera back to the game whenever a script owns the scene. */

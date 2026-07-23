@@ -188,7 +188,20 @@ void Pad_Poll(void)
         s_padBuf[1] = 0x41;
         s_padBuf[2] = (unsigned char)(psx & 0xFF);
         s_padBuf[3] = (unsigned char)((psx >> 8) & 0xFF);
-        s_padBuf[4] = 0x80; s_padBuf[5] = 0x80;
+        /* Right analog stick -> PSX rightX/rightY (0..255, 128=center) so the
+         * shared TPS/free-look camera (Pc_TpsCamera_Apply, game_main.c) can orbit.
+         * XID axes are s16 (+X=right, +Y=up); >>8 maps to +-128, Y inverted so
+         * stick-up = look-up. The camera's own 24-unit deadzone handles center.
+         * Only steers the camera in a non-Classic control style (R3 / Xbox Options
+         * enable it); in Classic these bytes are read but the camera ignores them. */
+        {
+            int rxb = 128 + ((int)s_report.rightStickX >> 8);
+            int ryb = 128 - ((int)s_report.rightStickY >> 8);
+            if (rxb < 0) rxb = 0; if (rxb > 255) rxb = 255;
+            if (ryb < 0) ryb = 0; if (ryb > 255) ryb = 255;
+            s_padBuf[4] = (unsigned char)rxb;   /* rightX */
+            s_padBuf[5] = (unsigned char)ryb;   /* rightY */
+        }
         s_padBuf[6] = 0x80; s_padBuf[7] = 0x80;
     } else {
         Pad_FillIdle(s_padBuf);

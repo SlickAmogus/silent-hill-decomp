@@ -84,6 +84,17 @@ typedef struct {
     int            envCounter;  /* cycles accumulator */
     double         envTickAcc;  /* fractional 44100Hz-tick accumulator */
     unsigned short adsr1, adsr2;
+
+    /* Positional (azimuth) 3D audio. The game computes the emitter azimuth
+     * (Vc_StereoBalanceGet, vc_util.c) and hands it to us per key-on and on live
+     * updates (sd_call.c -> PsyX_SPUAL_SetNextKeyOnAzimuth / SetVoiceAzimuth).
+     * When set (and we're in 5.1), the voice is panned around the listener with
+     * per-speaker gains instead of the plain volL/volR front + Hafler rear.
+     * azimQ12 is PSX angle units (0..4096 = full circle, 0 = front). Gains are
+     * Q14 (amplitude-folded), recomputed on azimuth/volume change. */
+    int            azimValid;   /* 1 = pan by azimuth, 0 = legacy volL/volR path */
+    int            azimQ12;
+    int            gFL, gFR, gRL, gRR;  /* per-speaker gains, Q14 */
 } Voice;
 
 static Voice s_v[SPU_VOICES];
@@ -260,6 +271,68 @@ static int s_lfeQ16 = 0; /* LFE low-pass state */
  * `cenLfe` = (center, LFE) pair. rear/cenLfe may be NULL — NULL reproduces the
  * stereo path bit-exactly (XA routing included). One mix pass feeds all three
  * lockstep DirectSound buffers (dsound_xbox.c). */
+/* --- Positional (azimuth) 3D audio --------------------------------------- */
+
+/* Q12 cosine, angle in PSX units (0..4096 = 0..360deg), 16-entry + lerp. */
+static int AzCos(int aQ12)
+{
+    static const int cosT[16] = {
+        4096, 3784, 2896, 1567, 0, -1567, -2896, -3784,
+        -4096, -3784, -2896, -1567, 0, 1567, 2896, 3784
+    };
+    int a    = aQ12 & 4095;
+    int i    = a >> 8;          /* 0..15 */
+    int frac = a & 255;
+    int c0   = cosT[i];
+    int c1   = cosT[(i + 1) & 15];
+    return c0 + (((c1 - c0) * frac) >> 8);   /* Q12 */
+}
+static int AzSin(int aQ12) { return AzCos(aQ12 - 1024); }   /* sin = cos(a-90deg) */
+
+/* Recompute a voice's 4 speaker gains (Q14, amplitude folded in) from its
+ * azimuth + current volume. Called on key-on, live azimuth update, and volume
+ * write so fades/movement track. front-center=split L/R, 90deg=side, 180deg=rears. */
+static void AzimRecomputeGains(Voice* v)
+{
+    int amp, fwd, rgt, frontA, rearA, leftA, rightA;
+    if (!v->azimValid) return;
+    amp    = ((v->volL < 0 ? -v->volL : v->volL) +
+              (v->volR < 0 ? -v->volR : v->volR)) >> 1;   /* Q14 mono amplitude */
+    fwd    = AzCos(v->azimQ12);           /* Q12: +front .. -back  */
+    rgt    = AzSin(v->azimQ12);           /* Q12: +right .. -left  */
+    frontA = (4096 + fwd) >> 1;           /* Q12 0..4096 */
+    rearA  = (4096 - fwd) >> 1;
+    leftA  = (4096 - rgt) >> 1;
+    rightA = (4096 + rgt) >> 1;
+    v->gFL = (amp * ((frontA * leftA)  >> 12)) >> 12;   /* Q14 */
+    v->gFR = (amp * ((frontA * rightA) >> 12)) >> 12;
+    v->gRL = (amp * ((rearA  * leftA)  >> 12)) >> 12;
+    v->gRR = (amp * ((rearA  * rightA) >> 12)) >> 12;
+}
+
+/* Azimuth armed for the NEXT key-on (sd_call.c calls this just before keying a
+ * positioned SFX). Claimed + cleared by SpuSetKey(ON). */
+static int s_azPendingValid = 0;
+static int s_azPendingQ12    = 0;
+
+void PsyX_SPUAL_SetNextKeyOnAzimuth(int azimuthQ12)
+{
+    s_azPendingValid = 1;
+    s_azPendingQ12   = azimuthQ12;
+}
+void PsyX_SPUAL_ClearNextKeyOnAzimuth(void)
+{
+    s_azPendingValid = 0;
+}
+/* Live reposition of an already-playing voice (looped ambience, radio proximity). */
+void PsyX_SPUAL_SetVoiceAzimuth(int voiceIdx, int azimuthQ12)
+{
+    if (voiceIdx < 0 || voiceIdx >= SPU_VOICES) return;
+    s_v[voiceIdx].azimValid = 1;
+    s_v[voiceIdx].azimQ12   = azimuthQ12;
+    AzimRecomputeGains(&s_v[voiceIdx]);
+}
+
 void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
 {
     int f, i;
@@ -275,6 +348,7 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
 
     for (f = 0; f < frames; f++) {
         int L = 0, R = 0, C = 0;
+        int pFL = 0, pFR = 0, pRL = 0, pRR = 0;  /* positional (azimuth-panned) accumulators */
 
         for (i = 0; i < SPU_VOICES; i++) {
             Voice* v = &s_v[i];
@@ -307,7 +381,15 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
                 s = (s * v->envLevel) >> 15;
             }
 
-            {
+            if (rear && v->azimValid) {
+                /* Positional (emitter azimuth): pan the voice around the 5.1
+                 * field with its precomputed per-speaker gains. Kept OUT of the
+                 * L/R Hafler source below so it is not double-fed to the rears. */
+                pFL += (s * v->gFL) >> 14;
+                pFR += (s * v->gFR) >> 14;
+                pRL += (s * v->gRL) >> 14;
+                pRR += (s * v->gRR) >> 14;
+            } else {
                 /* Surround (rear buffer present): keep the signed right so a
                  * "wide" voice's anti-phase right feeds the rear (L-R) matrix
                  * below and wraps around, like PC. Stereo/mono (no rear): take
@@ -334,13 +416,18 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
          * int16 before scaling. */
         L = (int)(((long long)L * s_masterL) >> 14);
         R = (int)(((long long)R * s_masterR) >> 14);
+        pFL = (int)(((long long)pFL * s_masterL) >> 14);
+        pFR = (int)(((long long)pFR * s_masterR) >> 14);
+        pRL = (int)(((long long)pRL * s_masterL) >> 14);
+        pRR = (int)(((long long)pRR * s_masterR) >> 14);
 
         /* Derived surround feeds — from the post-master, pre-clamp fronts so
          * pause-ducking/fades hit every speaker. */
         if (rear) {
-            int side  = (L - R) >> 1;
-            int rl    = (side * SH_REAR_Q8) >> 8;
-            int rr    = -rl;
+            int side  = (L - R) >> 1;                 /* Hafler from NON-positional front */
+            int haf   = (side * SH_REAR_Q8) >> 8;
+            int rl    = haf + pRL;                    /* + azimuth-panned rears on top */
+            int rr    = -haf + pRR;
             if (rl > 32767)  rl = 32767;
             if (rl < -32768) rl = -32768;
             if (rr > 32767)  rr = 32767;
@@ -348,6 +435,11 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
             rear[f * 2]     = (short)rl;
             rear[f * 2 + 1] = (short)rr;
         }
+        /* Fold the positional FRONT into the mains AFTER the Hafler read L/R, so
+         * a positioned voice is not double-fed to the rears. cenLfe below then
+         * sees the full front mix. */
+        L += pFL;
+        R += pFR;
         if (cenLfe) {
             int mono = (L + R) >> 1;
             int lfe, c;
@@ -461,6 +553,8 @@ void SpuSetVoiceAttr(SpuVoiceAttr* a)
             if (r < -0x3FFF) r = -0x3FFF;
             v->volR = r;
         }
+        if ((a->mask & (SPU_VOICE_VOLL | SPU_VOICE_VOLR)) && v->azimValid)
+            AzimRecomputeGains(v);   /* keep positional speaker gains tracking volume fades */
         if (a->mask & SPU_VOICE_PITCH) {
             v->pitch = a->pitch;
             v->step  = ((double)SRC_HZ / (double)OUT_HZ) * ((double)a->pitch / 4096.0);
@@ -517,6 +611,17 @@ void SpuSetKey(int on_off, unsigned int voice_bit)
                 v->envCounter = 0;
                 v->envTickAcc = 0.0;
             }
+
+            /* Positional 3D: claim the azimuth armed for this key-on (sd_call.c
+             * -> PsyX_SPUAL_SetNextKeyOnAzimuth). If none is armed, this voice
+             * plays through the legacy volL/volR + Hafler path. */
+            if (s_azPendingValid) {
+                v->azimValid = 1;
+                v->azimQ12   = s_azPendingQ12;
+                AzimRecomputeGains(v);
+            } else {
+                v->azimValid = 0;
+            }
         } else if (v->hasEnv && v->envPhase != ENV_OFF) {
             /* Key-off with an envelope: enter RELEASE and keep rendering (and
              * looping) so the tail rings out; the mixer deactivates at ENV_OFF. */
@@ -528,6 +633,7 @@ void SpuSetKey(int on_off, unsigned int voice_bit)
             v->active  = 0;
         }
     }
+    if (on_off == SPU_ON) s_azPendingValid = 0;   /* claimed; don't leak to next */
 }
 
 void SpuSetKeyOnWithAttr(SpuVoiceAttr* a)

@@ -210,9 +210,10 @@ int g_OtsSide           = 1; /* +1 = right shoulder (control_style.c default) */
 int g_PcFpsCam          = 0; /* First-person camera off */
 int g_TpsCamNeedsReset  = 0; /* control_style.c default (no pending TPS reseed) */
 
-void Pc_ControlStyleUpdate(void)
-{
-}
+/* Pc_ControlStyleUpdate is now IMPLEMENTED for Xbox in game_main.c (it needs the
+ * controller/game-state structs that live there): R3 cycles the camera style and
+ * the Xbox Options "Camera" row / config sets the default. Defined there, not
+ * here, to avoid a duplicate symbol. */
 
 /* =============================================================================
  * PC combat tuning (pc_combat.c, excluded - SDL keyboard/controller reads).
@@ -817,30 +818,10 @@ int g_cfg_psxDither         = 1;
 int g_cfg_postProcess       = 0;
 int g_cfg_tonemap           = 0;
 
-/* =============================================================================
- * Positional (azimuth) 3D audio hooks (PsyX_SPUAL.cpp - OpenAL-only). Xbox
- * has its own software SPU (audio_xbox.c, 24 voices, real hardware output via
- * dsound_xbox.c) that has no positional-panning stage yet - it mixes each
- * voice's L/R volume from SpuSetVoiceAttr only. No-op for now; wiring these
- * into audio_xbox.c's mixer (deriving a stereo pan from azimuthQ12 per
- * voice) would give real positional/5.1 audio and is a known, tracked
- * follow-up (see xbox-roadmap.md's audio v2 item), not something this stub
- * silently forecloses.
- * ========================================================================= */
-void PsyX_SPUAL_SetNextKeyOnAzimuth(int azimuthQ12)
-{
-    (void)azimuthQ12;
-}
-
-void PsyX_SPUAL_ClearNextKeyOnAzimuth(void)
-{
-}
-
-void PsyX_SPUAL_SetVoiceAzimuth(int voiceIdx, int azimuthQ12)
-{
-    (void)voiceIdx;
-    (void)azimuthQ12;
-}
+/* Positional (azimuth) 3D audio hooks are now IMPLEMENTED in audio_xbox.c
+ * (PsyX_SPUAL_SetNextKeyOnAzimuth / ClearNextKeyOnAzimuth / SetVoiceAzimuth):
+ * they pan each positioned voice around the 5.1 field with per-speaker gains.
+ * The stubs that used to live here were removed to avoid duplicate symbols. */
 
 /* =============================================================================
  * PcPort_GetGameDiscPath (main_pc.c, excluded - launcher disc-image
