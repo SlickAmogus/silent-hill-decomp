@@ -92,6 +92,14 @@ extern float g_PsyX_FlashlightSize;
  * The Sound menu's Voice slider drives g_PcXaVolume separately. */
 extern float g_PcFmvVolume;
 
+/* The volume-bar labels are far longer once translated ("Głośność Efektów",
+ * "Musiklautstärke") than the English "BGM Volume" the retail x=184 bar origin
+ * was placed for, so the label ran into the bar. Nudge the bars, their notch
+ * hit-test, and their selection arrows right by this many (authored, pre-160)
+ * pixels in every language — the widescreen 2D layer has ample room on the
+ * right, and English still sits comfortably clear. */
+#define OPT_VOLUME_BAR_DX 28
+
 s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
 static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls, 3 = Camera */
@@ -1334,16 +1342,18 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
                 }
                 else if (row >= MainOptionsMenuEntry_BgmVolume)
                 {
-                    /* Volume bars: notches at authored x 184 + n*6, n = 0..15;
-                     * just left of the bar drags the volume to zero. */
-                    if (Pc_MouseCursor_LeftHeld() && mx >= 174)
+                    /* Volume bars: notches at authored x (184 + DX) + n*6,
+                     * n = 0..15; just left of the bar drags the volume to
+                     * zero. Origin tracks the OPT_VOLUME_BAR_DX bar nudge. */
+                    if (Pc_MouseCursor_LeftHeld() && mx >= 174 + OPT_VOLUME_BAR_DX)
                     {
                         extern float g_PcXaVolume;
+                        s32 barX0 = 184 + OPT_VOLUME_BAR_DX;
                         s32 curVol =
                             (row == MainOptionsMenuEntry_BgmVolume) ? g_GameWork.config.volumeBgm :
                             (row == MainOptionsMenuEntry_SfxVolume) ? g_GameWork.config.volumeSe  :
                             CLAMP((s32)((g_PcXaVolume * (float)OPT_SOUND_VOLUME_MAX) + 0.5f), 0, OPT_SOUND_VOLUME_MAX);
-                        s32 lit = (mx < 184) ? 0 : CLAMP(((mx - 184) / 6) + 1, 1, 16);
+                        s32 lit = (mx < barX0) ? 0 : CLAMP(((mx - barX0) / 6) + 1, 1, 16);
 
                         if (lit > curVol / 8)
                             PcMouse_InjectDir(1);
@@ -1737,10 +1747,10 @@ void Options_MainOptionsMenu_VolumeBarDraw(s32 row, u8 vol) // 0x801E3FB8
                 setRGBC0(poly, color2, color2, color2, PRIM_POLY | RECT_SIZE_1);
             }
 
-            xOffset = 24 + (i * 6);
+            xOffset = 24 + OPT_VOLUME_BAR_DX + (i * 6);
             offset  = -69;
 
-            x0Offset = j + 24;
+            x0Offset = j + 24 + OPT_VOLUME_BAR_DX;
             x0       = (x0Offset + (i * 6)) & 0xFFFF;
             yOffset  = j + 56;
 
@@ -2370,6 +2380,11 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
         s32 langDx = (g_MainOptionsMenu_SelectedEntry == MainOptionsMenuEntry_AutoLoad &&
                       Pc_LangMenuRowActive()) ? 26 : 0;
 
+        /* Volume-bar rows moved right by OPT_VOLUME_BAR_DX; their flanking
+         * arrows follow so they still bracket the bar (both shift the same
+         * way, unlike the Language row's outward spread). */
+        s32 volDx = (g_MainOptionsMenu_SelectedEntry >= MainOptionsMenuEntry_BgmVolume) ? OPT_VOLUME_BAR_DX : 0;
+
         #define ARROW_DRAW_DX(tris, idx, dx, flashing)              \
         {                                                           \
             s_Triangle2d shifted = (tris)[idx];                     \
@@ -2383,17 +2398,17 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
         for (i = 0; i < 2; i++)
         {
             ARROW_DRAW_DX(FRONT_ARROWS, ((g_MainOptionsMenu_SelectedEntry - 4) * 2) + i,
-                          (i == 0) ? -langDx : langDx, true);
+                          ((i == 0) ? -langDx : langDx) + volDx, true);
         }
 
         // Draw border to highlight flashing left/right arrow corresponding to direction of UI navigation.
         if (g_Controller0->heldBtnFlags & ControllerFlag_LStickLeft)
         {
-            ARROW_DRAW_DX(BACK_ARROWS, (g_MainOptionsMenu_SelectedEntry - 4) << 1, -langDx, false);
+            ARROW_DRAW_DX(BACK_ARROWS, (g_MainOptionsMenu_SelectedEntry - 4) << 1, -langDx + volDx, false);
         }
         if (g_Controller0->heldBtnFlags & ControllerFlag_LStickRight)
         {
-            ARROW_DRAW_DX(BACK_ARROWS, ((g_MainOptionsMenu_SelectedEntry - 4) << 1) + 1, langDx, false);
+            ARROW_DRAW_DX(BACK_ARROWS, ((g_MainOptionsMenu_SelectedEntry - 4) << 1) + 1, langDx + volDx, false);
         }
 
         #undef ARROW_DRAW_DX
