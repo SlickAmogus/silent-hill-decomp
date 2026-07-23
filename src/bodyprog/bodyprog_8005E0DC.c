@@ -2130,6 +2130,24 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                 continue;
             }
 
+#ifdef SH_XBOX_PORT
+            /* All FOUR corners of this FT4 are independently GTE-projected, but
+             * the stock guard above only bounds corner[0]. At point-blank a
+             * near-plane corner saturates to the GTE +-0x400 screen box
+             * (PsyX_GTE.cpp Lm_G1/G2) while the others stay on-screen, so the
+             * quad smears into an OBLONG (upscaled ~2x on Xbox; tp=0x4B
+             * subtractive -> red flash out of the enemy on every hit). The PSX
+             * GPU clamped/rejected that; the NV2A draws it. Reject the sub-quad
+             * if ANY of the other three corners leaves the same bound. The rest
+             * of the 5x5 grid still draws, so the legit small splat is intact. */
+            if (ABS(ptr->field_278[temp_a1_3 + 1].vx) > 200 || ABS(ptr->field_278[temp_a1_3 + 1].vy) > 160 ||
+                ABS(ptr->field_278[temp_a1_3 + 5].vx) > 200 || ABS(ptr->field_278[temp_a1_3 + 5].vy) > 160 ||
+                ABS(ptr->field_278[temp_a1_3 + 6].vx) > 200 || ABS(ptr->field_278[temp_a1_3 + 6].vy) > 160)
+            {
+                continue;
+            }
+#endif
+
             ptr->field_20C = (ptr->field_214[temp_a1_3] + ptr->field_214[temp_a1_3 + 1] + ptr->field_214[temp_a1_3 + 5] + ptr->field_214[temp_a1_3 + 6]) >> 2;
 
             if (ptr->field_20C <= 0 || ptr->field_20C >> 3 >= ORDERING_TABLE_SIZE)
@@ -2585,7 +2603,19 @@ bool func_80063A50(POLY_FT4** poly, s32 idx) // 0x80063A50
 
         if (ptr->field_1BC <= 0 || (ptr->field_1BC >> 3) >= ORDERING_TABLE_SIZE ||
             ABS(ptr->field_1CC.vx) > 200 ||
-            ABS(ptr->field_1CC.vy) > 160)
+            ABS(ptr->field_1CC.vy) > 160
+#ifdef SH_XBOX_PORT
+            /* Same one-corner-guard bug as the on-hit blood: gte_stsxy3_g3 above
+             * projected corners 0-2 straight into *poly but only corner 3
+             * (field_1CC) is bounds-checked. A point-blank shot puts a muzzle-
+             * flash corner past the near plane -> it saturates to the GTE screen
+             * box and the additive flash smears an oblong. Bound all three too;
+             * a 1-2 frame skip is invisible vs the smear. */
+            || ABS((*poly)->x0) > 200 || ABS((*poly)->y0) > 160
+            || ABS((*poly)->x1) > 200 || ABS((*poly)->y1) > 160
+            || ABS((*poly)->x2) > 200 || ABS((*poly)->y2) > 160
+#endif
+           )
         {
             return false;
         }
