@@ -95,6 +95,9 @@ typedef struct {
     int            azimValid;   /* 1 = pan by azimuth, 0 = legacy volL/volR path */
     int            azimQ12;
     int            gFL, gFR, gRL, gRR;  /* per-speaker gains, Q14 */
+
+    int            reverb;      /* SpuSetReverbVoice send enable (PSX reverb bus) */
+    int            isWide;      /* libsd "wide" latch: volL>0 && volR<0 -> route to rears */
 } Voice;
 
 static Voice s_v[SPU_VOICES];
@@ -333,6 +336,63 @@ void PsyX_SPUAL_SetVoiceAzimuth(int voiceIdx, int azimuthQ12)
     AzimRecomputeGains(&s_v[voiceIdx]);
 }
 
+/* --- Software reverb (PC/PsyCross-parity "Room") -------------------------- *
+ * SH's BGM + ambience are BUILT on the PSX SPU reverb wash — the sequencer
+ * ramps a reverb depth every sequence (smf_io.c replay_reverb_set) and enables
+ * per-voice reverb sends (SpuSetReverbVoice). The Xbox stubs discarded all of
+ * it, so every note was dry and short => the "thin, 1-2 layers, missing
+ * spectrum" BGM. This is a fixed Freeverb-style comb+allpass network whose WET
+ * level is driven by the game's depth, matching PsyCross's model (wet =
+ * max(|depthL|,|depthR|)/32768 * 2.0). Delay lengths scaled 44.1k->48k. */
+static int   s_reverbOn  = 0;
+static int   s_revDepthL = 0, s_revDepthR = 0;   /* SpuReverbAttr depth (<<8) */
+static float s_wet       = 0.0f;
+#define REV_NCOMB 8
+#define REV_NAP   4
+static const int REV_COMB_L[REV_NCOMB] = { 1214, 1293, 1390, 1476, 1548, 1623, 1695, 1760 };
+static const int REV_AP_L[REV_NAP]     = { 605, 480, 371, 245 };
+static float s_combBuf[2][REV_NCOMB][1792]; static int s_combIdx[2][REV_NCOMB]; static float s_combLP[2][REV_NCOMB];
+static float s_apBuf[2][REV_NAP][672];      static int s_apIdx[2][REV_NAP];
+#define REV_FEEDBACK 0.84f
+#define REV_DAMP1    0.20f
+#define REV_DAMP2    0.80f
+#define REV_APFB     0.50f
+
+static void RevRecomputeWet(void)
+{
+    int   dl = s_revDepthL < 0 ? -s_revDepthL : s_revDepthL;
+    int   dr = s_revDepthR < 0 ? -s_revDepthR : s_revDepthR;
+    float w  = (float)(dl > dr ? dl : dr) / 32768.0f * 2.0f;   /* PC depth scale */
+    if (w < 0.0f) w = 0.0f;
+    if (w > 1.0f) w = 1.0f;
+    s_wet = s_reverbOn ? w : 0.0f;
+}
+
+static float RevProcess(int ch, float in)   /* one sample, one channel */
+{
+    int   i, spread = ch ? 25 : 0;   /* stereo decorrelation on the right */
+    float out = 0.0f;
+    for (i = 0; i < REV_NCOMB; i++) {
+        int   len = REV_COMB_L[i] + spread;
+        int*  idx = &s_combIdx[ch][i];
+        float y   = s_combBuf[ch][i][*idx];
+        s_combLP[ch][i] = y * REV_DAMP2 + s_combLP[ch][i] * REV_DAMP1;
+        s_combBuf[ch][i][*idx] = in + s_combLP[ch][i] * REV_FEEDBACK;
+        if (++(*idx) >= len) *idx = 0;
+        out += y;
+    }
+    for (i = 0; i < REV_NAP; i++) {
+        int   len = REV_AP_L[i] + spread;
+        int*  idx = &s_apIdx[ch][i];
+        float buf = s_apBuf[ch][i][*idx];
+        float y   = -out + buf;
+        s_apBuf[ch][i][*idx] = out + buf * REV_APFB;
+        if (++(*idx) >= len) *idx = 0;
+        out = y;
+    }
+    return out;
+}
+
 void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
 {
     int f, i;
@@ -347,8 +407,9 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
     const double envRate = (double)SRC_HZ / (double)OUT_HZ;
 
     for (f = 0; f < frames; f++) {
-        int L = 0, R = 0, C = 0;
-        int pFL = 0, pFR = 0, pRL = 0, pRR = 0;  /* positional (azimuth-panned) accumulators */
+        int   L = 0, R = 0, C = 0;
+        int   pFL = 0, pFR = 0, pRL = 0, pRR = 0;  /* positional (azimuth-panned) accumulators */
+        float revInL = 0.0f, revInR = 0.0f;        /* reverb bus send (from reverb-enabled voices) */
 
         for (i = 0; i < SPU_VOICES; i++) {
             Voice* v = &s_v[i];
@@ -385,18 +446,32 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
                 /* Positional (emitter azimuth): pan the voice around the 5.1
                  * field with its precomputed per-speaker gains. Kept OUT of the
                  * L/R Hafler source below so it is not double-fed to the rears. */
-                pFL += (s * v->gFL) >> 14;
-                pFR += (s * v->gFR) >> 14;
+                int dl = (s * v->gFL) >> 14, dr = (s * v->gFR) >> 14;
+                pFL += dl;
+                pFR += dr;
                 pRL += (s * v->gRL) >> 14;
                 pRR += (s * v->gRR) >> 14;
+                if (v->reverb) { revInL += (float)dl; revInR += (float)dr; }
+            } else if (rear && v->isWide) {
+                /* "Wide" ambience/music (SH marks it with a negated right volume,
+                 * smf_io.c): place it BEHIND the listener per-voice, like PC —
+                 * magnitude to the rears, kept OUT of the front Hafler source so
+                 * there's no anti-phase artifact in the front-R. */
+                int al = v->volL < 0 ? -v->volL : v->volL;
+                int ar = v->volR < 0 ? -v->volR : v->volR;
+                int dl = (s * al) >> 14, dr = (s * ar) >> 14;
+                pRL += dl;
+                pRR += dr;
+                if (v->reverb) { revInL += (float)dl; revInR += (float)dr; }
             } else {
-                /* Surround (rear buffer present): keep the signed right so a
-                 * "wide" voice's anti-phase right feeds the rear (L-R) matrix
-                 * below and wraps around, like PC. Stereo/mono (no rear): take
-                 * the magnitude so the anti-phase right can't cancel on downmix. */
-                int vr = (!rear && v->volR < 0) ? -v->volR : v->volR;
-                L += (s * v->volL) >> 14;
-                R += (s * vr) >> 14;
+                /* Front (Hafler-rear source). Non-wide voices carry no anti-phase
+                 * right now (wide ones route above), so take the magnitude —
+                 * stereo/mono downmix stays correct too. */
+                int vr = v->volR < 0 ? -v->volR : v->volR;
+                int dl = (s * v->volL) >> 14, dr = (s * vr) >> 14;
+                L += dl;
+                R += dr;
+                if (v->reverb) { revInL += (float)dl; revInR += (float)dr; }
             }
 
             v->pos += v->step;
@@ -420,6 +495,23 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
         pFR = (int)(((long long)pFR * s_masterR) >> 14);
         pRL = (int)(((long long)pRL * s_masterL) >> 14);
         pRR = (int)(((long long)pRR * s_masterR) >> 14);
+
+        /* Reverb wet return: run the send through the network and fold into the
+         * fronts BEFORE the Hafler reads L/R, so the diffuse tail also spreads to
+         * the rears (PsyCross's aux slot reverberates everywhere). Master-scale
+         * the wet so fades/pause-duck carry it. Always step the network (even at
+         * wet 0) so the delay lines keep flushing and a later note has no stale
+         * tail. This wash is what restores the "missing layers" of SH BGM. */
+        {
+            float wl = RevProcess(0, revInL);
+            float wr = RevProcess(1, revInR);
+            if (s_wet > 0.0f) {
+                int iwl = (int)(((long long)(int)(wl * s_wet) * s_masterL) >> 14);
+                int iwr = (int)(((long long)(int)(wr * s_wet) * s_masterR) >> 14);
+                L += iwl;
+                R += iwr;
+            }
+        }
 
         /* Derived surround feeds — from the post-master, pre-clamp fronts so
          * pause-ducking/fades hit every speaker. */
@@ -481,6 +573,12 @@ void SpuInit(void)
 
     memset(s_spuRam, 0, sizeof(s_spuRam));
     memset(s_v, 0, sizeof(s_v));
+
+    /* Reverb network reset (memset(s_v) already cleared per-voice reverb/isWide). */
+    s_reverbOn = 0; s_revDepthL = 0; s_revDepthR = 0; s_wet = 0.0f;
+    memset(s_combBuf, 0, sizeof(s_combBuf)); memset(s_combIdx, 0, sizeof(s_combIdx));
+    memset(s_combLP,  0, sizeof(s_combLP));
+    memset(s_apBuf,   0, sizeof(s_apBuf));   memset(s_apIdx,   0, sizeof(s_apIdx));
     for (i = 0; i < SPU_VOICES; i++) {
         s_v[i].pcm       = s_voicePcm[i];
         s_v[i].loopStart = -1;
@@ -553,8 +651,15 @@ void SpuSetVoiceAttr(SpuVoiceAttr* a)
             if (r < -0x3FFF) r = -0x3FFF;
             v->volR = r;
         }
-        if ((a->mask & (SPU_VOICE_VOLL | SPU_VOICE_VOLR)) && v->azimValid)
-            AzimRecomputeGains(v);   /* keep positional speaker gains tracking volume fades */
+        if (a->mask & (SPU_VOICE_VOLL | SPU_VOICE_VOLR)) {
+            /* "wide" latch: SH negates the right volume to mark wide ambience/
+             * music -> the mixer routes wide voices to the rears per-voice (PC
+             * parity), instead of relying only on the global Hafler matrix. */
+            if (v->volL > 0 && v->volR < 0)        v->isWide = 1;
+            else if (v->volL != 0 || v->volR != 0) v->isWide = 0;
+            if (v->azimValid)
+                AzimRecomputeGains(v);   /* keep positional speaker gains tracking fades */
+        }
         if (a->mask & SPU_VOICE_PITCH) {
             v->pitch = a->pitch;
             v->step  = ((double)SRC_HZ / (double)OUT_HZ) * ((double)a->pitch / 4096.0);
@@ -671,9 +776,29 @@ void SpuSetCommonAttr(SpuCommonAttr* a)
     if (a->mask & SPU_COMMON_MVOLR) { int m = a->mvol.right; if (m < 0) m = -m; s_masterR = m & 0x3FFF; }
 }
 
-/* --- reverb: no-op for now (software reverb is the next build) ------------- */
-int          SpuSetReverb(int on_off)                       { (void)on_off; return 0; }
-int          SpuSetReverbModeParam(SpuReverbAttr* a)        { (void)a; return 0; }
-unsigned int SpuSetReverbVoice(int on_off, unsigned int v) { (void)on_off; (void)v; return 0; }
-int          SpuReserveReverbWorkArea(int on_off)           { (void)on_off; return 1; }
-int          SpuClearReverbWorkArea(int mode)              { (void)mode; return 0; }
+/* --- reverb: drives the software network in Audio_RenderInto6 -------------- */
+int SpuSetReverb(int on_off)
+{
+    int prev = s_reverbOn;
+    s_reverbOn = (on_off > 0);
+    RevRecomputeWet();
+    return prev;
+}
+int SpuSetReverbModeParam(SpuReverbAttr* a)
+{
+    if (!a) return 0;
+    if (a->mask & SPU_REV_DEPTHL) s_revDepthL = a->depth.left;
+    if (a->mask & SPU_REV_DEPTHR) s_revDepthR = a->depth.right;
+    RevRecomputeWet();
+    return 0;
+}
+unsigned int SpuSetReverbVoice(int on_off, unsigned int v)
+{
+    int i;
+    for (i = 0; i < SPU_VOICES; i++)
+        if (v & SPU_VOICECH(i))
+            s_v[i].reverb = (on_off > 0);
+    return v;
+}
+int SpuReserveReverbWorkArea(int on_off) { (void)on_off; return 1; }
+int SpuClearReverbWorkArea(int mode)     { (void)mode;   return 0; }

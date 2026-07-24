@@ -1651,6 +1651,25 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
         return false;
     }
 
+#ifdef SH_XBOX_PORT
+    /* Same one-corner-guard bug as the on-hit blood + muzzle flash: gte_stsxy3_g3
+     * above projected corners 0-2 into *poly (x0/y0,x1/y1,x2/y2) but the two
+     * guards above only bound corner 3 (field_16C). This is the PERSISTENT ground
+     * blood POOL (subtractive tpage 0x4B -> red; re-emitted every frame while it
+     * lives ~50u): a pool at the player's feet puts a floor corner past the near
+     * plane -> the software GTE saturates it to the +-0x400 screen box while the
+     * others stay on-screen -> a screen-wide red oblong re-projected every frame =
+     * the "light red translucent plane flickering the whole time". Reject when any
+     * of corners 0-2 leaves the same +-200/+-160 bound corner 3 uses; the smaller
+     * partial-crossing oblongs (that slip the render-side FXDROP) go too. */
+    if (ABS((*poly)->x0) > 200 || ABS((*poly)->y0) > 160 ||
+        ABS((*poly)->x1) > 200 || ABS((*poly)->y1) > 160 ||
+        ABS((*poly)->x2) > 200 || ABS((*poly)->y2) > 160)
+    {
+        return false;
+    }
+#endif
+
     *(s32*)&(*poly)->x3 = *(s32*)&ptr->field_16C;
 
     ptr->field_17C = !(g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_0 & 8) << 5;
@@ -2739,6 +2758,18 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
     }
 
     ptr->field_160 = (((ptr->field_158 >> 6) + 16) * ptr->field_0.field_2C) / ptr->field_150;
+
+#ifdef SH_XBOX_PORT
+    /* Muzzle-smoke half-size is factor/projected-depth and UNCLAMPED (the blood
+     * spray func_80060044 caps at 80). At point-blank field_150 collapses toward
+     * the near plane and field_160 balloons, so this symmetric additive quad
+     * (tpage 0x2B) flashes across a big part of the screen for its 1-2 frames --
+     * one of the "smaller flickering shapes" while firing that the render-side
+     * FXDROP (only >=2x-content) passes. Cap it like the spray does. */
+    if (ptr->field_160 > 1000 || ptr->field_160 < -1000) return false;
+    if (ptr->field_160 > 96)  ptr->field_160 = 96;
+    if (ptr->field_160 < -96) ptr->field_160 = -96;
+#endif
 
 #ifdef SH_PC_PORT
     /* Giant-blob diagnosis: size field_160 = (f158-based factor * f2C) /
