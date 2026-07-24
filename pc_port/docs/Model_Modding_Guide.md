@@ -77,6 +77,7 @@ a rebuild):
 | patch-in-place | same topology, verts only moved | byte-identical but the moved verts |
 | `--grow` | you added verts/faces | full rewrite within the u8 pool (≤255 verts/part) |
 | `--replace` | topology changed enough | rebuilds all geometry; the ILM supplies only the rig |
+| `--v7` (high-poly) | a whole new mesh, or you need >255 verts/part | rebuilds as a PC-only high-poly file with no vertex cap; the ILM supplies only the rig. **The button's "High-poly replace".** |
 
 ## 4. Install
 
@@ -86,22 +87,80 @@ Drop the new model at `gamedata/load/CHARA/NAME.ILM` and set `allow_loose_files 
 
 ---
 
-## Replacing Harry with a completely different model (advanced — WIP)
+## Replacing Harry with a completely different model
 
 Putting a foreign model (e.g. a GTA character) on the skeleton is a full **rig**, not an
-edit. In Blender:
+edit. The **geometry** work is yours in Blender; the **texture + format** work is the
+button's. What does what:
 
-1. Export a character as the **reference skeleton** (step 1), overlay it, and cut your
-   model into the 23 parts — name each to the table and **position each to match the
-   Harry part it replaces** (parts animate around their bone's pivot, so alignment matters).
-2. Assign **all** geometry; leave no part empty; get **L/R correct** (left-side geometry
-   in the `L` parts).
-3. **Overlap** verts at every joint.
-4. Textures: several source textures are **atlas-packed into one sheet** and their UVs
-   relocated automatically — you never author UVs; existing ones are preserved.
+| Step | Who |
+|---|---|
+| Cut / name / position / assign the 23 parts | **You** (Blender) |
+| Left / right naming | **You** — the button *validates*, doesn't fix |
+| Fix winding | **You** — one click (Recalculate Outside) |
+| Overlap joints (close seams) | **You** — drag verts |
+| Pack the textures into one sheet + fix the UVs | **Button** (auto) |
+| Relabel materials to the game's CLUT rows | **Button** (auto) |
+| High-poly (v7) conversion + rest-pose meta | **Button** |
 
-**Status:** the high-density path (**v7** — lifts the ~255-verts-per-part ceiling so a
-model keeps its full detail) and the atlas / L-R / seam-collar prep are **scripts today,
-not Mod Manager buttons yet**. A one-click **Prep Model** button is planned. Known
-gotchas from the first replacement: atlas UVs must be scaled by the native texture's real
-(often non-square) height; a mirror-named rig swaps L/R; rigid parts need joint overlap.
+### 1. Rig (Blender)
+
+1. **Model → OBJ** on the character you're replacing (e.g. HERO) to get a **reference
+   skeleton** — all 23 parts, named, at the rest pose. Import it beside your model.
+2. Cut your model into the 23 parts: Edit mode, select a region, **P → Selection**. Name
+   each **exactly** to the reference's part name — the two-digit prefix *is* the bone.
+3. **Position each part to overlay the reference part** it replaces. Parts animate around
+   their bone's pivot, so a part far from its reference swings wrong.
+4. **Assign all geometry** — no part left empty. Parts sharing a bone (e.g. the four
+   `10R*` hand parts) animate identically, so how you split them doesn't matter; only that
+   none is empty.
+5. **Left / right**: name each part after the reference part it sits on, so `L` geometry
+   lands in an `L` part. Get this wrong and the arms cross the body under animation — the
+   button warns, but does not fix it.
+
+### 2. Clean up (still Blender)
+
+- **Winding** (one click): Edit mode → select all (**A**) → **Mesh → Normals → Recalculate
+  Outside** (**Shift+N**). The game backface-culls, so inconsistent winding shows as holes.
+- **Seams**: rigid parts aren't skinned, so a gap at a joint opens into a hole when it
+  bends. Drag the boundary verts of adjacent parts to **overlap** a little at each joint
+  (neck↔chest, thigh↔hip, arm segments, wrist↔hand). Do **not** *Merge by Distance* across
+  parts — it fuses UVs; just move them.
+
+### 3. Export
+
+File → Export → Wavefront (.obj) **with the .mtl** (Blender writes your textures into it).
+The object list must stay = the 23 parts.
+
+### 4. Build (button)
+
+**Mod Manager → OBJ → Model** → **High-poly replace: Yes** → **Auto texturing: Yes**. Pick
+your OBJ and the ORIGINAL ILM (e.g. `HERO.ILM`). It packs your textures into one sheet,
+fixes the UVs (with the native-TIM V-fix), relabels the materials, mints the rest-pose
+data, and writes `<CHARA>_new.ILM` **and** `<CHARA>.TIM.png`.
+
+> Already have a single sheet + game materials? Choose **Auto texturing: No** and it just
+> builds the v7. CLI (v7 only, no atlas): `ilm_obj.py import prepped.obj HERO.ILM --v7`.
+
+### 5. Install
+
+Drop **both** files into `gamedata/load/CHARA/` under the ORIGINAL names (`HERO.ILM` and
+`HERO.TIM.png`) and set `allow_loose_files = 1`.
+
+### What the button checks
+
+- **Missing** part (fewer objects than the rig) → refused.
+- **Empty** part (no faces) → warned; it'll be invisible.
+- Part **far from where the donor expects it** → warned (mis-assigned geometry or L/R swap).
+
+### Why the tool does what it does (gotchas)
+
+- **V-fix**: HERO's texture is **256×192** (not square) and the loose-override shader
+  samples `u/256, v/192`. The atlas UVs are pre-scaled by native-height/256 so they land
+  1:1 — skip it and the lower body samples into empty atlas space (a black band).
+- **Materials**: the game addresses one texture slot by CLUT-row material names
+  (`mat00_rowNN`); the button relabels your model's materials to the donor's rows.
+- **Geometry stays in Blender**: winding, L/R and joint overlap are intent the tool can't
+  read as well as you can, so it warns rather than guesses. (An automatic seam-collar /
+  winding-fix / L-R un-mirror pass exists as prototype scripts; ask if you want them added
+  to the button.)
