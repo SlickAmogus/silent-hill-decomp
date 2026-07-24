@@ -106,7 +106,7 @@ static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Cont
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_CAMSTYLE, PCK_NEXT, PCK_PREV, PCK_BACK };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -148,6 +148,14 @@ static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" 
 static const char* const LBL_VSYNC[] = { "Off", "On" };
 static const char* const LBL_FILT[]  = { "Off", "Dither", "Bilinear" };
 static const char* const LBL_ONOFF[] = { "Off", "On" };
+#ifdef SH_XBOX_PORT
+static const int         VAL_CAM[]      = { 0, 1, 2 };
+static const int         VAL_CHSTYLE[]  = { 0, 1, 2, 3 };
+static const char* const LBL_CAM[]      = { "Classic", "Thirdperson", "Over_Shoulder" };
+static const char* const LBL_CHSTYLE[]  = { "Cross", "Dot", "Circle", "Dashes" };
+static const char* const LBL_VIDEO[]    = { "480p", "720p" };
+extern int g_ControlStyle;   /* live camera style (R3 also updates it) */
+#endif
 static const char* const LBL_AA[]    = { "Off", "2x", "4x", "8x" };
 static const char* const LBL_POST[]  = { "Off", "CRT", "Scanlines", "Vignette", "Color_Grade", "Film_Grain", "Sharpen", "PSX_Retro", "Cinematic" };
 static const char* const LBL_TONE[]  = { "Off", "Reinhard", "ACES", "Filmic" };
@@ -234,9 +242,13 @@ static const s_PcOpt PCOPT_T[] = {
  * the light invisible for the session). 2D controls are shared gameplay code
  * (player_control.c) and genuinely work. */
 static const s_PcOpt PCOPT_X[] = {
-    { "2D_Controls", &g_PcConfig.control2d,     "control_2d",      VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
-    { "2D_Snap",     &g_PcConfig.control2dSnap, "control_2d_snap", VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
-    { "Back",        NULL,                      NULL,              NULL,      0, NULL,      NULL, 0, PCK_BACK },
+    { "Camera",          &g_PcConfig.controlStyle,      "control_style",       VAL_CAM,     3, LBL_CAM,     &g_ControlStyle, 1, PCK_CAMSTYLE },
+    { "2D_Controls",     &g_PcConfig.control2d,         "control_2d",          VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
+    { "Invert_Pad_Y",    &g_PcConfig.invertControllerY, "invert_controller_y", VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
+    { "Crosshair",       &g_PcConfig.crosshair,         "crosshair",           VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
+    { "Crosshair_Style", &g_PcConfig.crosshairStyle,    "crosshair_style",     VAL_CHSTYLE, 4, LBL_CHSTYLE, NULL,            1, PCK_INT      },
+    { "Display_(reboot)",&g_PcConfig.xboxVideo720p,     "video_720p",          VAL_ONOFF,   2, LBL_VIDEO,   NULL,            0, PCK_INT      },
+    { "Back",            NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_BACK     },
 };
 #endif
 
@@ -365,6 +377,27 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
         }
         return;
     }
+#ifdef SH_XBOX_PORT
+    if (e->kind == PCK_CAMSTYLE) {
+        /* control_style persists as a STRING (pc_config.c parser maps tps/ots/
+         * classic), so the generic %d path below would write "1" and reload as
+         * Classic. Apply live via the same Xbox_ApplyControlStyle the R3 handler
+         * uses so menu + R3 stay in sync, and reseed the orbit so the camera
+         * starts behind Harry instead of popping. */
+        extern void Xbox_ApplyControlStyle(int s);
+        extern int  g_DebugThirdPersonCam, g_TpsCamNeedsReset;
+        static const char* const CAM_KEY[] = { "classic", "tps", "ots" };
+        int idx    = (PcOpt_ValIndex(e) + dir + e->nVals) % e->nVals;
+        int val    = e->vals[idx];
+        int wasCam = g_DebugThirdPersonCam;
+        *e->field  = val;
+        Xbox_ApplyControlStyle(val);
+        if (!wasCam && g_DebugThirdPersonCam) g_TpsCamNeedsReset = 1;
+        PcConfig_SaveKeyValue("control_style", CAM_KEY[val & 3]);
+        SH_DBG_ECHO("%s: %s", e->name, PcOpt_ValueLabel(e, vbuf, sizeof(vbuf)));
+        return;
+    }
+#endif
     if (e->field == NULL)
         return;
 

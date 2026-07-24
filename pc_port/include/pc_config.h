@@ -117,6 +117,7 @@ typedef struct {
     int tpsCameraCollision; /* "Allow thirdperson camera collision": 1 (default) = the TPS/OTS eye is pulled in when level geometry would come between it and Harry; 0 = the eye keeps its ideal orbit position and may pass through walls (config key: tps_camera_collision) */
     int tpsOtsAim;          /* "OTS aiming in Thirdperson": 1 (default) = raising the gun in TPS eases the camera into the Over-the-Shoulder framing (and the shoulder-swap bind works); 0 = TPS keeps its centred camera while aiming (config key: tps_ots_aim) */
     int crosshair;          /* 1 = draw a center crosshair while aiming in TPS/OTS (config key: crosshair) */
+    int crosshairStyle;     /* reticle shape: 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes (config key: crosshair_style) */
     int aimAssist;          /* 1 = OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) (config key: aim_assist) */
     int mouseCursor;        /* 1 = mouse controls cursor puzzles + clickable main menu (config key: mouse_cursor) */
     int altButtonSprint;    /* "Always use button based sprinting": 1 = walk by default, sprint ONLY while the bound run control is held — applies to alt cameras (TPS/OTS/FPS) AND 2D control under any camera; 0 = a near-full stick push also sprints (config key: altcam_button_sprint) */
@@ -126,6 +127,7 @@ typedef struct {
     int disableDpadMovement; /* 1 = the controller D-pad no longer drives movement, freeing those D-pad inputs to be bound to other actions (config key: disable_dpad_movement); default 0 */
     int menuFilter;          /* 1 = bilinear-filter menus / 2D screens, independent of the in-game texture Filtering mode; default 0 (config key: menu_filter) */
     int   adsr;             /* 1 = SPU ADSR envelopes (instrument attack/release fades in sequenced BGM); default 1 (config key: adsr) */
+    int   xboxVideo720p;    /* Xbox only: 0 = 480p (default), 1 = 1280x720 pillarboxed 4:3 (config key: video_720p; applied at boot, reboot to change) */
     int   audioOutput;      /* speaker layout: 0 = auto (OpenAL detects the system layout; alsoft.ini honored), 1 = stereo, 2 = quad, 3 = 5.1, 4 = 7.1, 5 = hrtf headphones. With rear speakers active: positional SFX pan on the full circle, wide-stereo BGM layers play from the surrounds (config key: audio_output = auto|stereo|quad|51|71|hrtf) */
     float fpsFov;           /* first-person horizontal FOV in degrees (4:3 basis), 55..110; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during FPS gameplay (config key: fps_fov) */
     float tpsFov;           /* Thirdperson/OTS horizontal FOV in degrees (4:3 basis), 55..110; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during TPS/OTS gameplay — the Classic camera always keeps the original projection (config key: tps_fov) */

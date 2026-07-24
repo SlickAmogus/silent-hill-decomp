@@ -195,12 +195,32 @@ void Pad_Poll(void)
          * Only steers the camera in a non-Classic control style (R3 / Xbox Options
          * enable it); in Classic these bytes are read but the camera ignores them. */
         {
-            int rxb = 128 + ((int)s_report.rightStickX >> 8);
-            int ryb = 128 - ((int)s_report.rightStickY >> 8);
+            /* Deadzone at the PAD level (not just the camera): the game's
+             * ControllerData_AnalogToDigital (joy.c) turns ANY off-center analog
+             * byte into digital stick flags with a threshold smaller than the
+             * camera's own deadzone, so raw controller DRIFT that the camera
+             * ignores still pulsed the menu cursor (cursor flew through the main
+             * menu on a slightly-drifting stick). Snap drift to dead-center (128)
+             * here so no stick flag is generated; subtract the deadzone so motion
+             * past it ramps smoothly. RSTICK_DZ matches the camera's ~24-byte
+             * deadzone (24<<8) so the camera loses no usable range. */
+            #define RSTICK_DZ 7000
+            int rawx = (int)s_report.rightStickX;
+            int rawy = (int)s_report.rightStickY;
+            int rxb, ryb;
+            if      (rawx >  RSTICK_DZ) rawx -= RSTICK_DZ;
+            else if (rawx < -RSTICK_DZ) rawx += RSTICK_DZ;
+            else                        rawx  = 0;
+            if      (rawy >  RSTICK_DZ) rawy -= RSTICK_DZ;
+            else if (rawy < -RSTICK_DZ) rawy += RSTICK_DZ;
+            else                        rawy  = 0;
+            rxb = 128 + (rawx >> 8);
+            ryb = 128 - (rawy >> 8);
             if (rxb < 0) rxb = 0; if (rxb > 255) rxb = 255;
             if (ryb < 0) ryb = 0; if (ryb > 255) ryb = 255;
             s_padBuf[4] = (unsigned char)rxb;   /* rightX */
             s_padBuf[5] = (unsigned char)ryb;   /* rightY */
+            #undef RSTICK_DZ
         }
         s_padBuf[6] = 0x80; s_padBuf[7] = 0x80;
     } else {

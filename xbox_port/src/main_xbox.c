@@ -19,6 +19,7 @@
 #include "gpu_nv2a.h"
 #include "sh_log.h"
 #include "psx_memory.h"   /* PSX_ADDR, PsxMemory_Init (includes only <stdint.h>) */
+#include "pc_config.h"    /* g_PcConfig (SDL-free) — the video_720p toggle */
 
 extern void Crash_InstallSehFrame(void* stackFrame); /* crash_xbox.c */
 extern void XboxFs_MountHomeDrive(void);
@@ -151,13 +152,6 @@ int main(void)
      * loss. Define SH_XBOX_ENABLE_720P to opt in anyway. */
     {
         int hd = 0;
-#ifdef SH_XBOX_ENABLE_720P
-        /* XVideoSetMode validates against the encoder settings (XVideoListModes),
-         * so SDTV/composite users fall back to 480p — no unsupported signal. */
-        hd = XVideoSetMode(1280, 720, 32, REFRESH_DEFAULT);
-#endif
-        if (!hd)
-            XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
 
         XboxFs_MountHomeDrive();
         { extern int XboxFs_MountE(void); XboxFs_MountE(); }  /* mount E: now so the log's E: fallback works */
@@ -169,6 +163,17 @@ int main(void)
          * afford (see XboxConfig_ApplyOverrides). */
         PcConfig_Load("D:\\silenthill.cfg");
         XboxConfig_ApplyOverrides();
+
+        /* Video mode chosen HERE, after the config is parsed, so the persisted
+         * video_720p toggle (Xbox Options "Display") drives it. XVideoSetMode
+         * validates against the encoder (XVideoListModes), so SDTV/composite falls
+         * back to 480p — no unsupported signal. Applied before pb_init() below (the
+         * consumer). A mid-session switch is infeasible (pbkit/NV2A allocations are
+         * sized at init), so the option is reboot-to-apply. */
+        if (g_PcConfig.xboxVideo720p)
+            hd = XVideoSetMode(1280, 720, 32, REFRESH_DEFAULT);
+        if (!hd)
+            XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
 
         SH_DebugLogInit();
         Crash_InstallSehFrame(&sehFrame); /* from here on, any fault logs [FATAL] + flushes */
