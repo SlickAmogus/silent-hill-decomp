@@ -985,6 +985,56 @@ namespace SilentHillPC_Launcher
             return (long)R[a * 3] * v0 + (long)R[a * 3 + 1] * v1 + (long)R[a * 3 + 2] * v2;
         }
 
+        /// <summary>Each part's donor CLUT-row material name (mat00_rowNN), so the high-poly texture
+        /// prep can re-label a new model's faces to names the v7 path accepts. A part uses its first
+        /// prim's material; a part with no prims falls back to mat00_row00.</summary>
+        public static Dictionary<string, string> PartMaterialRows(string ilmPath)
+        {
+            byte[] data = File.ReadAllBytes(ilmPath);
+            Ilm ilm = ParseIlm(data);
+            ResolvePool(ilm);
+            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (Model m in ilm.Models)
+            {
+                string sh = null;
+                foreach (Mesh me in m.Meshes)
+                    if (me.Prims != null && me.Prims.Length > 0) { sh = MtlName(me.Prims[0], ilm.BaseClutY); break; }
+                map[m.Name] = sh != null ? sh : "mat00_row00";
+            }
+            return map;
+        }
+
+        /// <summary>Read the character TIM's native pixel size (the loose-override shader samples
+        /// UVs as u/W, v/H, so a non-square TIM makes the atlas V need scaling). Looks for NAME.TIM
+        /// beside the .ILM. Returns false when not found or unparseable.</summary>
+        public static bool TryReadNativeTimDims(string ilmPath, out int w, out int h)
+        {
+            w = 0; h = 0;
+            string dir = Path.GetDirectoryName(ilmPath);
+            string stem = Path.GetFileNameWithoutExtension(ilmPath);
+            string tim = Path.Combine(dir, stem + ".TIM");
+            if (!File.Exists(tim)) tim = Path.Combine(dir, stem + ".tim");
+            if (!File.Exists(tim)) return false;
+            byte[] d = File.ReadAllBytes(tim);
+            if (d.Length < 12 || d[0] != 0x10 || d[1] != 0 || d[2] != 0 || d[3] != 0) return false;
+            uint flags = (uint)(d[4] | (d[5] << 8) | (d[6] << 16) | ((uint)d[7] << 24));
+            int bpp = (int)(flags & 7);
+            bool hasClut = ((flags >> 3) & 1) != 0;
+            int p = 8;
+            if (hasClut)
+            {
+                if (p + 4 > d.Length) return false;
+                uint clen = (uint)(d[p] | (d[p + 1] << 8) | (d[p + 2] << 16) | ((uint)d[p + 3] << 24));
+                p += (int)clen;
+            }
+            if (p + 12 > d.Length) return false;
+            int cellW = d[p + 8] | (d[p + 9] << 8);
+            int pixH = d[p + 10] | (d[p + 11] << 8);
+            int mul = bpp == 0 ? 4 : bpp == 1 ? 2 : 1;
+            w = cellW * mul; h = pixH;
+            return w > 0 && h > 0;
+        }
+
         // ---- export -------------------------------------------------------------
 
         public static ExportResult Export(string ilmPath, string outObjPath)
