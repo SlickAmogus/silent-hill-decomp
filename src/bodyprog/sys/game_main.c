@@ -363,12 +363,12 @@ void Pc_ControlStyleUpdate(void)
     if (inGameplay && curR3 && !prevR3) {
         int wasCam = g_DebugThirdPersonCam;
         int next   = g_ControlStyle + 1;
-        if (next > 2) next = 0;                 /* cycle Classic <-> Tps <-> Ots */
+        if (next > 3) next = 0;                 /* Classic -> Tps -> Ots -> Fps -> Classic */
         Xbox_ApplyControlStyle(next);
         if (!wasCam && g_DebugThirdPersonCam) g_TpsCamNeedsReset = 1;
         { extern void PcConfig_SaveKeyValue(const char*, const char*);
           PcConfig_SaveKeyValue("control_style",
-              next == 1 ? "tps" : next == 2 ? "ots" : "classic"); }
+              next == 1 ? "tps" : next == 2 ? "ots" : next == 3 ? "fps" : "classic"); }
     }
     prevR3 = curR3;
 }

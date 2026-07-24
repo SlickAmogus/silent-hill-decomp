@@ -13,6 +13,7 @@
  */
 #include <hal/debug.h>
 #include <hal/video.h>
+#include <hal/xbox.h>     /* XReboot — the main-menu Exit -> dashboard */
 #include <pbkit/pbkit.h>
 #include <windows.h>
 
@@ -30,6 +31,14 @@ extern void Mcard_XboxInit(void); /* PSX events + E:\UDATA memory card (mcard_xb
 extern void Fs_InitFileTableForRegion(int region);  /* fill g_FileTable (USA=0) */
 extern void PcConfig_Load(const char* path);          /* pc_port/src/pc_config.c */
 extern void XboxConfig_ApplyOverrides(void);          /* xbox_compat_globals.c */
+
+/* Main-menu "Exit" (title.c, Xbox only) -> quit to the dashboard. XReboot()
+ * reboots through the BIOS, which loads the configured dashboard (a console has
+ * no "return to desktop"; this is the equivalent of the PC port's exit(0)). */
+void Xbox_QuitToDashboard(void)
+{
+    XReboot();
+}
 
 /* Game entry + PSX subsystem init (defined in the shared decomp / pc_port data). */
 extern void MainLoop(void);

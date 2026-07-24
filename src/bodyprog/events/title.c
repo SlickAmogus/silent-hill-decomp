@@ -173,6 +173,12 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 }
             }
 
+#ifdef SH_XBOX_PORT
+            /* Repurpose the unused Extra slot as "EXIT" (quit to dashboard) — a
+             * console has no window-close, so give the main menu a real quit. */
+            g_MainMenu_VisibleEntryFlags |= (1 << MainMenuEntry_Extra);
+#endif
+
             g_MainMenu_VisibleEntryFlags |= g_MainMenu_VisibleEntryFlags << MainMenuEntry_Count;
 
             if (g_Controller0->pulsedBtnFlags & (ControllerFlag_LStickUp | ControllerFlag_LStickDown))
@@ -277,7 +283,11 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                         GameFs_OptionBinLoad();
                         break;
 
-                    case MainMenuEntry_Extra: // @unused See `e_MainMenuEntry`.
+                    case MainMenuEntry_Extra:
+#ifdef SH_XBOX_PORT
+                        /* Xbox: the Extra slot is "EXIT" -> quit to dashboard. */
+                        { extern void Xbox_QuitToDashboard(void); Xbox_QuitToDashboard(); }
+#endif
                         break;
                 }
             }
@@ -548,7 +558,11 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
         "CONTINUE",
         "START",
         "OPTION",
+#ifdef SH_XBOX_PORT
+        "EXIT"  /* Xbox: repurposed Extra slot -> quit to dashboard */
+#else
         "EXTRA" /** @unused See `e_MainMenuEntry`. */
+#endif
     };
     static const u8 STR_OFFSETS_X[] = { 29, 50, 32, 39, 33 }; // @unused Element at index 4. See `g_MainMenu_VisibleEntryFlags`.
 

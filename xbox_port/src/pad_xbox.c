@@ -177,7 +177,15 @@ void Pad_Poll(void)
          * the classic tank scheme (up = forward, left/right = turn), ORed with
          * the real d-pad. XID sticks are s16, Y+ = up / X+ = right; ~25%
          * deadzone. (Right stick stays unused — camera is fixed on Xbox.) */
-        #define STICK_DZ 8000
+        /* Left stick -> d-pad. This is the ONLY stick->UI path (the pad reports
+         * as DIGITAL, status 0x41, so the game's analog->digital stage ignores
+         * the sticks entirely — the right-stick camera reads its bytes directly).
+         * The deadzone was 8000 (~24%); on a drifting controller the drift sat
+         * near that edge and toggled the d-pad bit every frame, and the main menu
+         * edge-reads that as repeated presses -> the cursor flew through the
+         * options the moment the menu appeared. Raised to ~40% so typical drift
+         * stays firmly below the threshold; a real push still walks/navigates. */
+        #define STICK_DZ 13000
         if (s_report.leftStickY >  STICK_DZ) PRESS(4);   /* up    -> forward */
         if (s_report.leftStickY < -STICK_DZ) PRESS(6);   /* down  -> back    */
         if (s_report.leftStickX < -STICK_DZ) PRESS(7);   /* left  -> turn L  */

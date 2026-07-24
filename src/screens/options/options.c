@@ -149,9 +149,9 @@ static const char* const LBL_VSYNC[] = { "Off", "On" };
 static const char* const LBL_FILT[]  = { "Off", "Dither", "Bilinear" };
 static const char* const LBL_ONOFF[] = { "Off", "On" };
 #ifdef SH_XBOX_PORT
-static const int         VAL_CAM[]      = { 0, 1, 2 };
+static const int         VAL_CAM[]      = { 0, 1, 2, 3 };
 static const int         VAL_CHSTYLE[]  = { 0, 1, 2, 3 };
-static const char* const LBL_CAM[]      = { "Classic", "Thirdperson", "Over_Shoulder" };
+static const char* const LBL_CAM[]      = { "Classic", "Thirdperson", "Over_Shoulder", "First_Person" };
 static const char* const LBL_CHSTYLE[]  = { "Cross", "Dot", "Circle", "Dashes" };
 static const char* const LBL_VIDEO[]    = { "480p", "720p" };
 extern int g_ControlStyle;   /* live camera style (R3 also updates it) */
@@ -242,7 +242,7 @@ static const s_PcOpt PCOPT_T[] = {
  * the light invisible for the session). 2D controls are shared gameplay code
  * (player_control.c) and genuinely work. */
 static const s_PcOpt PCOPT_X[] = {
-    { "Camera",          &g_PcConfig.controlStyle,      "control_style",       VAL_CAM,     3, LBL_CAM,     &g_ControlStyle, 1, PCK_CAMSTYLE },
+    { "Camera",          &g_PcConfig.controlStyle,      "control_style",       VAL_CAM,     4, LBL_CAM,     &g_ControlStyle, 1, PCK_CAMSTYLE },
     { "2D_Controls",     &g_PcConfig.control2d,         "control_2d",          VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Invert_Pad_Y",    &g_PcConfig.invertControllerY, "invert_controller_y", VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Crosshair",       &g_PcConfig.crosshair,         "crosshair",           VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
@@ -386,7 +386,7 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
          * starts behind Harry instead of popping. */
         extern void Xbox_ApplyControlStyle(int s);
         extern int  g_DebugThirdPersonCam, g_TpsCamNeedsReset;
-        static const char* const CAM_KEY[] = { "classic", "tps", "ots" };
+        static const char* const CAM_KEY[] = { "classic", "tps", "ots", "fps" };
         int idx    = (PcOpt_ValIndex(e) + dir + e->nVals) % e->nVals;
         int val    = e->vals[idx];
         int wasCam = g_DebugThirdPersonCam;
