@@ -3901,6 +3901,18 @@ namespace SilentHillPC_Launcher
                         "shade stream (per-normal advance is fixed at 1).");
             }
 
+            // Non-fatal rig checks surfaced to the user (MISSING parts are already refused above by
+            // the name match): a part with no faces draws nothing, and a part sitting far from where
+            // the donor expects it is usually mis-assigned geometry or a left/right swap.
+            WarnDisplacedParts(ilm, byName, of, poseR, poseT, res.Warnings);
+            foreach (Model mm in ilm.Models)
+            {
+                ObjObject oz = byName[mm.Name];
+                if (oz.Faces.Count == 0)
+                    res.Warnings.Add("part '" + mm.Name + "' has no faces, so it will be invisible in game. Assign its " +
+                        "geometry in Blender (parts sharing a bone can hold it) or it stays empty.");
+            }
+
             var wideParts = new List<WidePart>();
             foreach (Model m in ilm.Models)   // ascending model index -> part ordinal
             {

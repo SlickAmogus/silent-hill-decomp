@@ -141,11 +141,11 @@ namespace SilentHillPC_Launcher
             _btnTips.SetToolTip(btnMo, "Model → OBJ: write a character model out as a .obj (plus .mtl and .ilmmeta.json) you can " +
                 "open in Blender. Each 'o' object is ONE rigid animated body part — reshape its vertices freely, but do NOT " +
                 "rename, add or remove objects: that list is the rig, and changing it breaks the animation.");
-            _btnTips.SetToolTip(btnOm, "OBJ → Model: fold your edited .obj back into a new .ILM. Needs the ORIGINAL .ILM it came " +
-                "from plus the .ilmmeta.json written beside the .obj — bones, draw order and palette rows come from those. " +
-                "If you added vertices or faces it rebuilds as a larger-than-original model (it asks first), which needs " +
-                "loose file support switched on. If the geometry no longer matches the original at all it offers to " +
-                "rebuild the whole model from your mesh — the .ILM then supplies only the rig.");
+            _btnTips.SetToolTip(btnOm, "OBJ → Model: fold your .obj back into a new .ILM. Needs the ORIGINAL .ILM it came " +
+                "from plus the .ilmmeta.json written beside the .obj. It asks first: Edit existing (reshape the current " +
+                "character — patches in place, grows, or rebuilds within the vertex limit) or High-poly replace (a v7 " +
+                "model with NO vertex cap, for swapping in a whole new mesh like a ripped model). Either way the object " +
+                "list must still match the original's parts — parts are bones.");
             _btnTips.SetToolTip(btnVw, "View Model: preview a .ILM (or an edited .obj before importing it) in a 3D window — " +
                 "textured with its real in-game palettes. Drag to orbit, right-drag to pan, wheel to zoom.");
             _btnTips.SetToolTip(btnHelp, "How to make and install loose-file texture mods.");
@@ -869,6 +869,15 @@ namespace SilentHillPC_Launcher
         /// using the original .ILM plus the .ilmmeta.json written beside the .obj.</summary>
         private void OnImportModel()
         {
+            var mode = MessageBox.Show(this,
+                "Is this a full model REPLACEMENT — swapping in a different character or mesh (e.g. a ripped model)?\n\n" +
+                "• Yes — High-poly replace: rebuilds as a v7 model with NO vertex-count limit. Use this for a new model.\n" +
+                "• No — Edit existing: reshape the current character (auto patch / grow / replace; vertex-limited).\n\n" +
+                "Either way the OBJ's object list must still match the original's parts — parts are bones.",
+                "OBJ → Model", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (mode == DialogResult.Cancel) return;
+            bool v7 = (mode == DialogResult.Yes);
+
             string obj;
             using (var ofd = new OpenFileDialog())
             {
@@ -900,6 +909,65 @@ namespace SilentHillPC_Launcher
                 sfd.FileName = Path.GetFileNameWithoutExtension(ilm) + "_new.ILM";
                 if (sfd.ShowDialog(this) != DialogResult.OK) return;
                 outIlm = sfd.FileName;
+            }
+
+            // High-poly (v7) replacement is a self-contained path: it rebuilds the mesh with no
+            // vertex cap and never patches/grows/welds, so it does not share the escalation below.
+            if (v7)
+            {
+                string tmpV7 = outIlm + ".rebuild.tmp";
+                IlmObjConverter.ImportResult vres = null;
+                try
+                {
+                    ProgressDialog.Run(this, "Rebuilding high-poly model…",
+                        r => { vres = IlmObjConverter.Import(obj, ilm, tmpV7,
+                            new IlmObjConverter.ImportOptions { V7 = true }); });
+                }
+                catch (Exception ex)
+                {
+                    TryDelete(tmpV7);
+                    MessageBox.Show(this, "High-poly rebuild failed:\n\n" + ex.Message,
+                        "OBJ → Model", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                if (vres == null || !string.IsNullOrEmpty(vres.Error))
+                {
+                    TryDelete(tmpV7);
+                    MessageBox.Show(this, "High-poly rebuild failed:\n\n" + (vres != null ? vres.Error : "unknown error"),
+                        "OBJ → Model", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                try
+                {
+                    if (File.Exists(outIlm)) File.Replace(tmpV7, outIlm, null);
+                    else                     File.Move(tmpV7, outIlm);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "The model rebuilt, but it could not be moved to:\n" + outIlm +
+                        "\n\n" + ex.Message + "\n\nThe rebuilt model is here:\n" + tmpV7,
+                        "OBJ → Model", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                vres.IlmPath = outIlm;
+
+                string vmsg = "Rebuilt a HIGH-POLY (v7) model: " + vres.Parts + " part(s), " + vres.Vertices +
+                    " vertices, " + vres.Prims + " face(s):\n" + vres.IlmPath +
+                    "\n\nDrop it into gamedata\\load\\<FOLDER>\\ under the ORIGINAL name (e.g. " +
+                    "gamedata\\load\\CHARA\\HERO.ILM) and set allow_loose_files = 1.\n\n" +
+                    "v7 is a PC-port high-poly format: this build loads it, but original hardware / a vanilla decomp " +
+                    "build would not.";
+                if (vres.Warnings.Count > 0)
+                    vmsg += "\n\nWarnings (" + vres.Warnings.Count + "):\n - " +
+                            string.Join("\n - ", vres.Warnings.Take(10)) +
+                            (vres.Warnings.Count > 10 ? "\n - …" : "");
+                var vicon = vres.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information;
+                if (MessageBox.Show(this, vmsg + "\n\nOpen the output folder?", "OBJ → Model",
+                        MessageBoxButtons.YesNo, vicon) == DialogResult.Yes)
+                {
+                    try { System.Diagnostics.Process.Start(Path.GetDirectoryName(vres.IlmPath)); } catch { }
+                }
+                return;
             }
 
             // Grow-mode is passed unconditionally rather than exposed as a checkbox. The converter
