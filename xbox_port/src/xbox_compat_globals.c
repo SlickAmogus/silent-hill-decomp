@@ -77,16 +77,19 @@ void XboxConfig_ApplyOverrides(void)
     g_PcConfig.windowHeight   = 480;
     g_PcConfig.fullscreen     = 0;
     g_PcConfig.vsync          = 1;
-    /* THE frame-pacing setting, and the reason for the reported stutter. The
-     * pacing branch in game_main.c is:
+    /* THE frame-pacing setting. The pacing branch in game_main.c is:
      *     if (vsync != 0 && refreshRate > 0) effectiveFps = refreshRate;
      *     else if (...) ... else effectiveFps = fpsCap;
-     * refreshRate wins outright, so the old vsync=1 + refreshRate=60 asked a
-     * 733MHz CPU for 60fps and fpsCap=30 was never read. The console cannot hold
-     * 60 in the town, so frame time oscillated between the 1- and 2-vblank
-     * quantisations — "sometimes a solid 60 but constantly stuttering". 30 is
-     * also the PSX-native rate: effectiveFps=30 -> effectiveMin = 60/30 = 2. */
-    g_PcConfig.refreshRate    = 30;
+     * so with vsync pinned, refreshRate is the cap: 60 -> effectiveMin = 1 vblank
+     * (60fps when a frame fits in 16ms, cleanly dropping to 30/20 under load),
+     * 30 -> effectiveMin = 2 (a hard 30 lock). The old build pinned 30 because
+     * the dense town can't hold 60 and the boundary oscillates 60<->30. But the
+     * flat 30 lock also capped SIMPLE rooms that easily do 60, which read as
+     * sluggish next to the 60fps menus — so this is now the "Framerate" row in
+     * Xbox Options (30/60). Default a fresh install to 60; a persisted choice
+     * (already loaded into refreshRate by now) survives untouched. */
+    if (g_PcConfig.refreshRate <= 0)
+        g_PcConfig.refreshRate = 60;
     g_PcConfig.fpsCap         = 30;
 
     /* --- GL-shader features with no NV2A implementation. --- */

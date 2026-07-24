@@ -106,7 +106,7 @@ static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Cont
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_CAMSTYLE, PCK_NEXT, PCK_PREV, PCK_BACK };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_CAMSTYLE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_EXITMENU };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -154,6 +154,8 @@ static const int         VAL_CHSTYLE[]  = { 0, 1, 2, 3 };
 static const char* const LBL_CAM[]      = { "Classic", "Thirdperson", "Over_Shoulder", "First_Person" };
 static const char* const LBL_CHSTYLE[]  = { "Cross", "Dot", "Circle", "Dashes" };
 static const char* const LBL_VIDEO[]    = { "480p", "720p" };
+static const int         VAL_FR[]       = { 30, 60 };
+static const char* const LBL_FR[]       = { "30_fps", "60_fps" };
 extern int g_ControlStyle;   /* live camera style (R3 also updates it) */
 #endif
 static const char* const LBL_AA[]    = { "Off", "2x", "4x", "8x" };
@@ -235,7 +237,9 @@ static const s_PcOpt PCOPT_T[] = {
 /* Xbox: one page, only rows whose backing code actually runs on this port.
  * The PC pages above stay compiled but unreferenced. Rationale per row class:
  * resolution/window/vsync/FPS_Limit would unpin the boot overrides that keep a
- * 733MHz/64MB console stable (vsync=1+refreshRate=30 pacing); Disable_Culling
+ * 733MHz/64MB console stable (vsync stays pinned; the Framerate row below
+ * exposes just refreshRate 30/60, which is the only pacing knob that matters);
+ * Disable_Culling
  * and Preload_Chunks are perf/RAM hazards the overrides exist to prevent;
  * PGXP/MSAA/post/tonemap/flashlight-per-pixel/TPS rows drive GL-only or
  * control_style-only code that is stubbed here (the flashlight row would make
@@ -248,6 +252,8 @@ static const s_PcOpt PCOPT_X[] = {
     { "Crosshair",       &g_PcConfig.crosshair,         "crosshair",           VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Crosshair_Style", &g_PcConfig.crosshairStyle,    "crosshair_style",     VAL_CHSTYLE, 4, LBL_CHSTYLE, NULL,            1, PCK_INT      },
     { "Display_(reboot)",&g_PcConfig.xboxVideo720p,     "video_720p",          VAL_ONOFF,   2, LBL_VIDEO,   NULL,            0, PCK_INT      },
+    { "Framerate",       &g_PcConfig.refreshRate,       "refresh_rate",        VAL_FR,      2, LBL_FR,      NULL,            1, PCK_INT      },
+    { "Exit_To_Menu",    NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_EXITMENU },
     { "Back",            NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_BACK     },
 };
 #endif
@@ -557,6 +563,22 @@ void Options_PcOptionsMenu_Control(void)
                 g_GameWork.gameStateSteps[1] = 0;
                 g_GameWork.gameStateSteps[2] = 0;
                 return;
+#ifdef SH_XBOX_PORT
+            } else if (sel->kind == PCK_EXITMENU) {
+                /* Quit the current game session back to the title. Game_WarmBoot
+                 * does the full teardown (audio/fs/SysWork) and sets
+                 * GameState_MainMenu — the inventory screens already call it
+                 * mid-game, so it is safe from this options sub-state. Only
+                 * meaningful in-game; from the main-menu options there is nothing
+                 * to exit, so it just plays the cancel blip. */
+                if (g_GameWork.gameState == GameState_InGame) {
+                    extern void Game_WarmBoot(void);
+                    Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                    Game_WarmBoot();
+                    return;
+                }
+                Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
+#endif
             }
         }
     }
