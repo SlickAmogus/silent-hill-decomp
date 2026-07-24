@@ -9,6 +9,7 @@ more depth and are the authoritative reference for those:
 
 - **FMV / video replacement** → [`fmv_files.md`](fmv_files.md)
 - **Textures (loose PNG/TIM + DuckStation packs)** → [`Texture_Residency_And_Custom_Textures_Task.md`](Texture_Residency_And_Custom_Textures_Task.md)
+- **Character models (ILM ↔ OBJ, edit/replace in Blender)** → [`Model_Modding_Guide.md`](Model_Modding_Guide.md)
 
 ---
 
