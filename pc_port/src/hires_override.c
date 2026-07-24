@@ -676,6 +676,53 @@ int HiresOverride_PoolSlotRegisterRGBA(int slotId, int row,
                                                    nativePixelW, nativePixelH, 0);
 }
 
+/* Pack .dds twin of PoolSlotRegisterRGBAKeyed: upload the BC7 blocks straight to
+ * this slot row (no RGBA expansion, 4x cheaper VRAM). Same redundant-upload skip
+ * and budget bookkeeping; the budget is charged at BC7's 1 byte/texel (quarter
+ * width) like the loose-.dds path in PoolSlotRegister. */
+int HiresOverride_PoolSlotRegisterDdsKeyed(int slotId, int row,
+                                           const unsigned char* ddsBytes, size_t ddsSize,
+                                           int nativePixelW, int nativePixelH,
+                                           unsigned long long contentHash)
+{
+    s_DdsBptc      probe;
+    int            w, h;
+    PoolSlotEntry* s;
+
+    if (!g_initialized) HiresOverride_Init();
+    if (slotId < 0 || slotId >= HIRES_POOL_SLOT_MAX ||
+        row < 0 || row >= HIRES_POOL_MAX_ROWS)
+    {
+        SH_DBG("[POOLTEX] slot %d row %d out of range (DDS)", slotId, row);
+        return -1;
+    }
+    if (!Dds_ParseBptc(ddsBytes, (int)ddsSize, &probe)) return -1;
+    w = probe.width;
+    h = probe.height;
+
+    s = &g_poolSlots[slotId];
+    if (contentHash != 0 && s->rowHash[row] == contentHash && s->glTexture[row] != 0 &&
+        s->rowW[row] == (unsigned short)w && s->rowH[row] == (unsigned short)h)
+    {
+        s->nativeW = nativePixelW;
+        s->nativeH = nativePixelH;
+        return 0;
+    }
+
+    if (Dds_UploadBptc(&s->glTexture[row], ddsBytes, (int)ddsSize, 0) != 0)
+    {
+        s->rowHash[row] = 0;
+        return -1;
+    }
+    pack_charge(&s->rowPackBytes[row], (w + 3) / 4, h);
+    s->rowHash[row] = contentHash;
+    s->rowW[row] = (unsigned short)w;
+    s->rowH[row] = (unsigned short)h;
+    s->nativeW = nativePixelW;
+    s->nativeH = nativePixelH;
+    return 0;
+}
+
 int HiresOverride_RegisterRGBAKeyed(const char* label,
                                     const unsigned char* rgba, int w, int h,
                                     int targetVramX, int targetVramY,
@@ -759,6 +806,83 @@ int HiresOverride_RegisterRGBAKeyed(const char* label,
                originalBitDepth, targetClutX, targetClutY, (unsigned)e->glTexture);
         s_rgbaLog++;
     }
+    return 0;
+}
+
+/* Pack .dds twin of RegisterRGBAKeyed: a whole-upload BC7 pack entry uploaded to
+ * a VRAM-rect override without RGBA expansion. Same find-in-place + redundant
+ * skip; dims come from the DDS header, budget charged at BC7's 1 byte/texel. */
+int HiresOverride_RegisterDdsKeyed(const char* label,
+                                   const unsigned char* ddsBytes, size_t ddsSize,
+                                   int targetVramX, int targetVramY,
+                                   int targetVramW, int targetVramH,
+                                   int targetClutX, int targetClutY,
+                                   int originalBitDepth,
+                                   unsigned long long contentHash)
+{
+    s_DdsBptc   probe;
+    int         w, h, i;
+    HiresEntry* e = NULL;
+
+    if (!g_initialized) HiresOverride_Init();
+    if (!Dds_ParseBptc(ddsBytes, (int)ddsSize, &probe)) return -1;
+    w = probe.width;
+    h = probe.height;
+
+    for (i = 0; i < g_numEntries; i++)
+    {
+        HiresEntry* c = &g_entries[i];
+        if (c->vramX == targetVramX && c->vramY == targetVramY &&
+            c->vramW == targetVramW && c->vramH == targetVramH &&
+            c->clutX == targetClutX && c->clutY == targetClutY &&
+            c->originalBitDepth == originalBitDepth)
+        {
+            e = c;
+            break;
+        }
+    }
+
+    if (e != NULL && contentHash != 0 && e->contentHash == contentHash &&
+        e->glTexture != 0 && e->hiresW == w && e->hiresH == h)
+    {
+        return 0;
+    }
+
+    if (e == NULL)
+    {
+        if (g_numEntries >= MAX_HIRES_OVERRIDES)
+        {
+            SH_DBG("[HIRES] table full, ignoring %s", label);
+            return -1;
+        }
+        e = &g_entries[g_numEntries];
+        e->glTexture = 0;
+        e->contentHash = 0;
+    }
+
+    if (Dds_UploadBptc(&e->glTexture, ddsBytes, (int)ddsSize, 0) != 0)
+    {
+        e->contentHash = 0;
+        return -1;
+    }
+    if (e == &g_entries[g_numEntries])
+    {
+        e->packBytes = 0;
+        g_numEntries++;
+    }
+    pack_charge(&e->packBytes, (w + 3) / 4, h);
+    e->contentHash = contentHash;
+
+    e->vramX = targetVramX;
+    e->vramY = targetVramY;
+    e->vramW = targetVramW;
+    e->vramH = targetVramH;
+    e->clutX = targetClutX;
+    e->clutY = targetClutY;
+    e->originalBitDepth = originalBitDepth;
+    e->hiresW = w;
+    e->hiresH = h;
+    e->sourceBitDepth = 32; /* the override shader samples BC7 as RGBA */
     return 0;
 }
 

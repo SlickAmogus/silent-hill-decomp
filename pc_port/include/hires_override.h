@@ -1,6 +1,8 @@
 #ifndef HIRES_OVERRIDE_H
 #define HIRES_OVERRIDE_H
 
+#include <stddef.h> /* size_t */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -206,6 +208,22 @@ int  HiresOverride_RegisterRGBAKeyed(const char* label,
                                      int targetClutX, int targetClutY,
                                      int originalBitDepth,
                                      unsigned long long contentHash);
+
+/* BC7 .dds twins of the two *RGBAKeyed registrars: a whole-upload BC7 pack
+ * entry is uploaded compressed (4x cheaper VRAM) rather than expanded to RGBA.
+ * Dims come from the DDS header; contentHash gives the same redundant-upload
+ * skip. Used by the TexPack_LastComposeIsDds() path at the two compose sites. */
+int  HiresOverride_PoolSlotRegisterDdsKeyed(int slotId, int row,
+                                            const unsigned char* ddsBytes, size_t ddsSize,
+                                            int nativePixelW, int nativePixelH,
+                                            unsigned long long contentHash);
+int  HiresOverride_RegisterDdsKeyed(const char* label,
+                                    const unsigned char* ddsBytes, size_t ddsSize,
+                                    int targetVramX, int targetVramY,
+                                    int targetVramW, int targetVramH,
+                                    int targetClutX, int targetClutY,
+                                    int originalBitDepth,
+                                    unsigned long long contentHash);
 
 /* Drop every rect-keyed entry whose pixel rect or CLUT cells intersect a
  * VRAM region that was just rewritten — pool slots and map atlas VRAM

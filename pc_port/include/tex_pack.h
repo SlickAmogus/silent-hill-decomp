@@ -1,6 +1,8 @@
 #ifndef TEX_PACK_H
 #define TEX_PACK_H
 
+#include <stddef.h> /* size_t */
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -46,6 +48,15 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
  * feed it to the *Keyed pool registrars so a re-upload of byte-identical content
  * skips the glTexImage2D churn. 0 means "no stable key" (always re-upload). */
 unsigned long long TexPack_LastComposeHash(void);
+
+/* BC7 .dds whole-upload result of the most recent TexPack_Compose. When the
+ * single matching entry is a .dds covering the entire upload, Compose returns
+ * NULL, TexPack_LastComposeIsDds() is 1, and TexPack_LastComposeDds() yields
+ * the raw .dds file bytes to hand to Dds_UploadBptc (keyed by
+ * TexPack_LastComposeHash so a byte-identical re-upload is skipped). The bytes
+ * stay valid until the next TexPack_Compose call. */
+int                  TexPack_LastComposeIsDds(void);
+const unsigned char* TexPack_LastComposeDds(size_t* outSize);
 
 #ifdef __cplusplus
 }

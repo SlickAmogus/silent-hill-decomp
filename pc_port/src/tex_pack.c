@@ -25,6 +25,7 @@
 
 #include "pc_config.h"
 #include "sh_log.h"
+#include "dds_load.h" /* BC7 .dds whole-upload pack entries */
 
 #ifndef TEXPACK_DIR
 #define TEXPACK_DIR "gamedata/texturemods"
@@ -45,6 +46,7 @@ typedef struct {
     char*          loosePath;    /* malloc'd, NULL for zip entries */
     int            priority;     /* from loadorder.txt; higher wins same-subrect conflicts */
     unsigned int   seq;          /* insertion index — final tiebreak so the sort is total/stable */
+    unsigned char  isDds;        /* 1 = BC7 .dds entry (uploaded compressed, whole-upload only) */
 } PackEntry;
 
 static PackEntry* g_entries    = NULL;
@@ -246,15 +248,19 @@ static void Entry_Add(const PackEntry* e)
     g_entryCount++;
 }
 
-/* File title = basename minus a final .png/.PNG. Returns 0 when the name is
- * not a png. `out` must hold >= 160 chars. */
-static int FileTitle(const char* name, char* out, size_t outSize)
+/* File title = basename minus a final .png or .dds (case-insensitive). Returns
+ * 0 when the name is neither; sets *isDds. `out` must hold >= 160 chars. A BC7
+ * .dds pack entry keys on the same texupload-… hash name as its .png twin. */
+static int FileTitle(const char* name, char* out, size_t outSize, int* isDds)
 {
     size_t len = strlen(name);
+    int    dds;
     if (len < 5 || len >= outSize) return 0;
-    if (_stricmp(name + len - 4, ".png") != 0) return 0;
+    dds = (_stricmp(name + len - 4, ".dds") == 0);
+    if (!dds && _stricmp(name + len - 4, ".png") != 0) return 0;
     memcpy(out, name, len - 4);
     out[len - 4] = '\0';
+    if (isDds != NULL) *isDds = dds;
     return 1;
 }
 
@@ -262,11 +268,13 @@ static void Scan_LoosePng(const char* path, const char* name)
 {
     char      title[160];
     PackEntry e;
+    int       isDds = 0;
 
-    if (!FileTitle(name, title, sizeof(title))) return;
+    if (!FileTitle(name, title, sizeof(title), &isDds)) return;
     memset(&e, 0, sizeof(e));
     if (!ParseName(title, &e)) return;
 
+    e.isDds     = (unsigned char)isDds;
     e.zipIdx    = -1;
     e.loosePath = _strdup(path);
     Entry_Add(&e);
@@ -307,9 +315,13 @@ static void Scan_Zip(const char* path)
 
         base = strrchr(entryName, '/');
         base = base ? base + 1 : entryName;
-        if (!FileTitle(base, title, sizeof(title))) continue;
-        memset(&e, 0, sizeof(e));
-        if (!ParseName(title, &e)) continue;
+        {
+            int isDds = 0;
+            if (!FileTitle(base, title, sizeof(title), &isDds)) continue;
+            memset(&e, 0, sizeof(e));
+            if (!ParseName(title, &e)) continue;
+            e.isDds = (unsigned char)isDds;
+        }
 
         e.zipIdx    = zipIdx;
         e.zipEntry  = (unsigned int)i;
@@ -459,6 +471,52 @@ static int Entry_LowerBound(unsigned long long hash)
         else hi = mid;
     }
     return lo;
+}
+
+/* Load a pack entry's raw file bytes (loose fread or zip extract) into a
+ * malloc'd buffer the caller frees with free(). Used for BC7 .dds, whose
+ * blocks are handed to the GL uploader as-is rather than stbi-decoded. */
+static unsigned char* Entry_LoadRaw(const PackEntry* e, size_t* outSize)
+{
+    unsigned char* out = NULL;
+
+    *outSize = 0;
+
+    if (e->zipIdx < 0)
+    {
+        FILE* f = fopen(e->loosePath, "rb");
+        long  sz;
+        if (f == NULL) return NULL;
+        fseek(f, 0, SEEK_END);
+        sz = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        if (sz > 0 && sz < 256 * 1024 * 1024)
+        {
+            out = (unsigned char*)malloc((size_t)sz);
+            if (out != NULL && fread(out, 1, (size_t)sz, f) == (size_t)sz)
+                *outSize = (size_t)sz;
+            else { free(out); out = NULL; }
+        }
+        fclose(f);
+    }
+    else
+    {
+        mz_zip_archive zip;
+        memset(&zip, 0, sizeof(zip));
+        if (mz_zip_reader_init_file(&zip, g_zipPaths[e->zipIdx], 0))
+        {
+            size_t size = 0;
+            void*  data = mz_zip_reader_extract_to_heap(&zip, e->zipEntry, &size, 0);
+            mz_zip_reader_end(&zip);
+            if (data != NULL)
+            {
+                out = (unsigned char*)malloc(size);
+                if (out != NULL) { memcpy(out, data, size); *outSize = size; }
+                mz_free(data);
+            }
+        }
+    }
+    return out;
 }
 
 static unsigned char* Entry_LoadPng(const PackEntry* e, int* outW, int* outH)
@@ -617,6 +675,25 @@ unsigned long long TexPack_LastComposeHash(void)
     return g_tpLastHash;
 }
 
+/* BC7 .dds whole-upload result of the most recent compose. When set, compose
+ * returned NULL (no RGBA canvas) and the upload site uploads these file bytes
+ * compressed instead. Bytes are malloc'd and owned here — freed at the start
+ * of the next compose (the site consumes them before that runs). */
+static int            g_tpLastIsDds = 0;
+static unsigned char* g_tpDdsBytes  = NULL;
+static size_t         g_tpDdsSize   = 0;
+
+int TexPack_LastComposeIsDds(void)
+{
+    return g_tpLastIsDds;
+}
+
+const unsigned char* TexPack_LastComposeDds(size_t* outSize)
+{
+    if (outSize != NULL) *outSize = g_tpDdsSize;
+    return g_tpDdsBytes;
+}
+
 /* Canvas kept alive until the next compose when caching is off/overflowing. */
 static unsigned char* g_tpTransient = NULL;
 
@@ -644,7 +721,14 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
     unsigned char*     canvas;
     size_t             cacheCap;
 
-    g_tpLastHash = 0;
+    g_tpLastHash  = 0;
+    g_tpLastIsDds = 0;
+    if (g_tpDdsBytes != NULL)
+    {
+        free(g_tpDdsBytes);
+        g_tpDdsBytes = NULL;
+        g_tpDdsSize  = 0;
+    }
 
     Scan_Once();
     if (g_entryCount == 0 || pixels == NULL || w16 <= 0 || h <= 0) return NULL;
@@ -719,6 +803,36 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
     if (matchCount == 0) return NULL;
 
     nativeW = w16 * (16 / bpp);
+
+    /* BC7 .dds whole-upload fast path: a single .dds entry covering the entire
+     * native texture is uploaded compressed — the compositor can't blit BC7
+     * blocks, and a whole-cover has nothing to blit over. Signal it via
+     * TexPack_LastComposeIsDds(); the upload site hands the file to Dds_Upload.
+     * A partial or multi-entry .dds falls through to the RGBA path, where
+     * Entry_LoadPng's stbi decode can't read .dds and returns NULL — so it just
+     * doesn't apply (compressed sub-rect compositing is out of scope). */
+    if (matchCount == 1 && g_entries[matches[0]].isDds)
+    {
+        const PackEntry* e = &g_entries[matches[0]];
+        if (e->offX == 0 && e->offY == 0 &&
+            (int)e->subW == nativeW && (int)e->subH == h)
+        {
+            size_t         rawSize = 0;
+            unsigned char* raw     = Entry_LoadRaw(e, &rawSize);
+            s_DdsBptc      probe;
+
+            if (raw != NULL && Dds_ParseBptc(raw, (int)rawSize, &probe))
+            {
+                g_tpDdsBytes  = raw;
+                g_tpDdsSize   = rawSize;
+                g_tpLastIsDds = 1;
+                *outW = probe.width;
+                *outH = probe.height;
+                return NULL; /* DDS, not RGBA — g_tpLastHash already set for keying */
+            }
+            free(raw);
+        }
+    }
 
     /* Decode every matching PNG once; the pack scale is the largest
      * PNG-to-subrect ratio among them (uniform in practice). */

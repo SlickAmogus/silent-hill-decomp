@@ -409,6 +409,10 @@ static int Loose_HasPerRow(const char* base)
     snprintf(p, sizeof(p), "%s.p00.png", base);
     f = Loose_FOpen(p, "rb");
     if (f != NULL) { fclose(f); return 1; }
+    /* A per-row set may ship BC7 .dds rows instead of / alongside .png. */
+    snprintf(p, sizeof(p), "%s.p00.dds", base);
+    f = Loose_FOpen(p, "rb");
+    if (f != NULL) { fclose(f); return 1; }
     return 0;
 }
 
@@ -575,6 +579,12 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
              * the exact form (per-row overlay vs whole-image replace). */
             snprintf(pngPath, sizeof(pngPath), "%s.p00.png", loosePath);
             pf = Loose_FOpen(pngPath, "rb");
+
+            if (pf == NULL)
+            {
+                snprintf(pngPath, sizeof(pngPath), "%s.p00.dds", loosePath);
+                pf = Loose_FOpen(pngPath, "rb");
+            }
 
             if (pf == NULL)
             {
@@ -1078,8 +1088,17 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                     {
                         char  pr[176];
                         FILE* chk;
+                        int   ddsRow = 0;
                         snprintf(pr, sizeof(pr), "%s.p%02d.png", loosePath, r);
                         chk = Loose_FOpen(pr, "rb");
+                        if (chk == NULL)
+                        {
+                            /* BC7 .dds row: a full compressed image for palette r,
+                             * uploaded to this slot row (4x cheaper than RGBA). */
+                            snprintf(pr, sizeof(pr), "%s.p%02d.dds", loosePath, r);
+                            chk = Loose_FOpen(pr, "rb");
+                            ddsRow = 1;
+                        }
                         if (chk == NULL) continue; /* row not supplied — keep disc art */
                         fclose(chk);
                         {
@@ -1087,9 +1106,12 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                             unsigned char* pbuf = PcFile_Slurp(pr, &psz);
                             if (pbuf != NULL)
                             {
-                                if (HiresOverride_PoolSlotLoosePngRow(
-                                        slotId, r, pbuf, (unsigned int)psz, nativeW, nativeH) == 0)
-                                    looseRowsApplied++;
+                                int ok = ddsRow
+                                    ? (HiresOverride_PoolSlotRegisterDdsKeyed(
+                                           slotId, r, pbuf, (size_t)psz, nativeW, nativeH, 0) == 0)
+                                    : (HiresOverride_PoolSlotLoosePngRow(
+                                           slotId, r, pbuf, (unsigned int)psz, nativeW, nativeH) == 0);
+                                if (ok) looseRowsApplied++;
                                 free(pbuf);
                             }
                         }
@@ -1141,6 +1163,16 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                              * unchanged re-upload skips the glTexImage2D churn. */
                             HiresOverride_PoolSlotRegisterRGBAKeyed(
                                 slotId, r, canvas, cw, ch, nativeW, nativeH,
+                                TexPack_LastComposeHash());
+                        }
+                        else if (TexPack_LastComposeIsDds())
+                        {
+                            /* Whole-upload BC7 pack entry: upload the compressed
+                             * blocks straight to this slot row (4x cheaper VRAM). */
+                            size_t               ddsSize = 0;
+                            const unsigned char* dds     = TexPack_LastComposeDds(&ddsSize);
+                            HiresOverride_PoolSlotRegisterDdsKeyed(
+                                slotId, r, dds, ddsSize, nativeW, nativeH,
                                 TexPack_LastComposeHash());
                         }
                     }
@@ -1195,8 +1227,15 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                 {
                     char  pr[176];
                     FILE* chk;
+                    int   ddsRow = 0;
                     snprintf(pr, sizeof(pr), "%s.p%02d.png", base, r);
                     chk = Loose_FOpen(pr, "rb");
+                    if (chk == NULL)
+                    {
+                        snprintf(pr, sizeof(pr), "%s.p%02d.dds", base, r);
+                        chk = Loose_FOpen(pr, "rb");
+                        ddsRow = 1;
+                    }
                     if (chk == NULL) continue;
                     fclose(chk);
                     {
@@ -1205,14 +1244,20 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                         if (buf != NULL)
                         {
                             char label[24];
+                            int  clutY = haveClut ? ((int)clutRect.y + r) : -1;
+                            int  clutX = haveClut ? (int)clutRect.x : -1;
                             snprintf(label, sizeof(label), "loose row %d", r);
-                            if (HiresOverride_RegisterLoosePngRow(
-                                    label, buf, (unsigned int)sz,
-                                    (int)pixelRect.x, (int)pixelRect.y,
-                                    (int)pixelRect.w, (int)pixelRect.h,
-                                    haveClut ? (int)clutRect.x : -1,
-                                    haveClut ? ((int)clutRect.y + r) : -1,
-                                    discBitDepth) == 0)
+                            if ((ddsRow
+                                     ? HiresOverride_RegisterDdsKeyed(
+                                           label, buf, (size_t)sz,
+                                           (int)pixelRect.x, (int)pixelRect.y,
+                                           (int)pixelRect.w, (int)pixelRect.h,
+                                           clutX, clutY, discBitDepth, 0)
+                                     : HiresOverride_RegisterLoosePngRow(
+                                           label, buf, (unsigned int)sz,
+                                           (int)pixelRect.x, (int)pixelRect.y,
+                                           (int)pixelRect.w, (int)pixelRect.h,
+                                           clutX, clutY, discBitDepth)) == 0)
                                 applied++;
                             free(buf);
                         }
@@ -1307,6 +1352,19 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                      * compose content hash so an unchanged re-upload of this VRAM
                      * rect skips the glTexImage2D churn. */
                     HiresOverride_RegisterRGBAKeyed(packLabel, canvas, cw, ch,
+                                               (int)pixelRect.x, (int)pixelRect.y,
+                                               (int)pixelRect.w, (int)pixelRect.h,
+                                               haveClut ? (int)clutRect.x : -1,
+                                               haveClut ? ((int)clutRect.y + r) : -1,
+                                               discBitDepth, TexPack_LastComposeHash());
+                }
+                else if (TexPack_LastComposeIsDds())
+                {
+                    char                 packLabel[24];
+                    size_t               ddsSize = 0;
+                    const unsigned char* dds     = TexPack_LastComposeDds(&ddsSize);
+                    snprintf(packLabel, sizeof(packLabel), "texpack row %d", r);
+                    HiresOverride_RegisterDdsKeyed(packLabel, dds, ddsSize,
                                                (int)pixelRect.x, (int)pixelRect.y,
                                                (int)pixelRect.w, (int)pixelRect.h,
                                                haveClut ? (int)clutRect.x : -1,
