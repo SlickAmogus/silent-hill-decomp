@@ -820,10 +820,18 @@ static void Pc_TpsCamera_Apply(void)
 
 #ifdef SH_PC_PORT
         /* Third-person camera-wall collision: keep the eye from clipping through
-         * level geometry. Cast from Harry's chest (the orbit anchor) out to the
-         * computed eye; on a wall hit, pull the eye in along that line to just
-         * short of the wall. TPS/OTS only — the FPS eye sits at Harry's head.
-         * lookAt is left anchored to Harry so he stays framed as the eye zooms.
+         * level geometry. Cast from Harry's head out to the computed eye; on a wall
+         * hit, pull the eye in along that line to just short of the wall. TPS/OTS
+         * only — the FPS eye already sits at Harry's head.
+         *
+         * The pivot sits at HEAD height, not the chest look-anchor. Pulling the eye
+         * toward the chest dropped it to waist level against a close wall and framed
+         * Harry's back/backside — the "ass camera", worst on room entry where the
+         * persisted orbit aims the eye straight into the wall behind him. From the
+         * head anchor the eye instead stays level with his head as it comes in, and
+         * the look target is lifted toward the head in step with the pull (lookRaiseY)
+         * so the close shot centers on his head rather than tilting down at his chest.
+         * At the full orbit distance the lift is 0, so the normal framing is unchanged.
          *
          * The pull-in is computed whenever we are not in FPS, into aimEye. With
          * tps_camera_collision = 1 (default) it also becomes the render eye. With 0 the
@@ -831,14 +839,17 @@ static void Pc_TpsCamera_Apply(void)
          * what that option asks for — and aimEye survives only to keep the free-aim ray
          * out of the wall (see the publish below). */
         VECTOR3 aimEye = tpCamPos;
+        s32     lookRaiseY = 0;   /* upward look-target lift toward the head, applied with the pull-in */
         if (!g_PcFpsCam)
         {
             #define CAM_COLL_MARGIN Q12(0.25f)
             #define CAM_COLL_MIN    Q12(0.35f)
+            #define TP_HEAD_OFS     Q12(-1.55f)  /* Harry's head height above his root (Y-up = negative) */
             s_RayTrace camTrace;
             VECTOR3    pivot;
+            s32        headAnchorY = tp_hr->position.vy + TP_HEAD_OFS;
             pivot.vx = tp_hr->position.vx;
-            pivot.vy = anchorY;
+            pivot.vy = headAnchorY;
             pivot.vz = tp_hr->position.vz;
 
             if (Ray_TraceQuery(&camTrace, &pivot, &tpCamPos) && camTrace.hasHit)
@@ -852,18 +863,31 @@ static void Pc_TpsCamera_Apply(void)
                 {
                     s32 safe = camTrace.hitDistance - CAM_COLL_MARGIN;
                     s32 frac;
+                    s32 pullT;
                     if (safe < CAM_COLL_MIN) { safe = CAM_COLL_MIN; }
                     frac = (s32)(((s64)safe << 12) / full);
                     aimEye.vx = pivot.vx + (s32)(((s64)dx * frac) >> 12);
                     aimEye.vy = pivot.vy + (s32)(((s64)dy * frac) >> 12);
                     aimEye.vz = pivot.vz + (s32)(((s64)dz * frac) >> 12);
+
+                    /* pullT: 0 at the full orbit distance, 1 when pulled to the
+                     * minimum. Lift the look target from the chest anchor toward the
+                     * head by that fraction, so the framing rises with the eye. */
+                    pullT = Q12(1.0f) - frac;
+                    if (pullT < 0)         pullT = 0;
+                    if (pullT > Q12(1.0f)) pullT = Q12(1.0f);
+                    lookRaiseY = (s32)(((s64)(headAnchorY - anchorY) * pullT) >> 12);
                 }
             }
             #undef CAM_COLL_MARGIN
             #undef CAM_COLL_MIN
+            #undef TP_HEAD_OFS
 
             if (g_PcConfig.tpsCameraCollision)
-                tpCamPos = aimEye;
+            {
+                tpCamPos     = aimEye;
+                tpLookAt.vy += lookRaiseY;
+            }
         }
 
         /* Publish the camera eye + forward for free-aim (set AFTER the OTS lateral
