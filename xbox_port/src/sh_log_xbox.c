@@ -8,6 +8,7 @@
  * with zero changes to the shared header.
  */
 #include <stdio.h>
+#include <stdlib.h>   /* atoi (per-run log index) */
 #include <xboxkrnl/xboxkrnl.h>
 
 #include "sh_log.h"
@@ -26,23 +27,45 @@ static char s_logBuf[256 * 1024];
 /* Where the log actually opened (for the on-screen boot banner). */
 const char* g_ShLogPath = "(none)";
 
+/* Per-run log index (PC uses a timestamped filename; the Xbox RTC is often
+ * unset/dead so a timestamp would collide or read 2000-01-01). A small counter
+ * file on the same drive advances each boot so a new run does not overwrite the
+ * previous log; SH_LOG_KEEP files are recycled. */
+#define SH_LOG_KEEP 20
+
+static int ShLog_NextIndex(const char* dir)
+{
+    char  path[64], buf[16];
+    int   idx = 0;
+    FILE* f;
+    snprintf(path, sizeof(path), "%sshlog_idx.txt", dir);
+    f = fopen(path, "r");
+    if (f) { if (fgets(buf, sizeof(buf), f)) idx = atoi(buf); fclose(f); }
+    if (idx < 0) idx = 0;
+    idx %= SH_LOG_KEEP;
+    f = fopen(path, "w");
+    if (f) { fprintf(f, "%d\n", (idx + 1) % SH_LOG_KEEP); fclose(f); }
+    return idx;
+}
+
 void SH_DebugLogInit(void)
 {
+    /* D: is the launch dir — READ-ONLY when booting from a disc/ISO (silently
+     * gave "no log"). Fall back to E: (the writable data partition) and finally a
+     * relative path. Whichever opens first wins; its counter file lives there. */
+    static const char* const dirs[] = { "D:\\", "E:\\", "" };
+    static char s_pathStore[64];
+    int i;
+
     if (g_ShDebugLog)
         return;
 
-    /* D: is the launch dir — READ-ONLY when booting from a disc/ISO, which
-     * silently gave "no log". Fall back to E: (the writable data partition,
-     * where the memory card lives) and finally a relative path. */
-    g_ShDebugLog = fopen("D:\\silenthill.log", "w");
-    if (g_ShDebugLog)      g_ShLogPath = "D:\\silenthill.log";
-    if (!g_ShDebugLog) {
-        g_ShDebugLog = fopen("E:\\silenthill.log", "w");
-        if (g_ShDebugLog)  g_ShLogPath = "E:\\silenthill.log";
-    }
-    if (!g_ShDebugLog) {
-        g_ShDebugLog = fopen("silenthill.log", "w");
-        if (g_ShDebugLog)  g_ShLogPath = "silenthill.log";
+    for (i = 0; i < 3 && !g_ShDebugLog; i++) {
+        int n = ShLog_NextIndex(dirs[i]);
+        snprintf(s_pathStore, sizeof(s_pathStore), "%ssilenthill_%03d.log", dirs[i], n);
+        g_ShDebugLog = fopen(s_pathStore, "w");
+        if (g_ShDebugLog)
+            g_ShLogPath = s_pathStore;
     }
     if (g_ShDebugLog)
         setvbuf(g_ShDebugLog, s_logBuf, _IOFBF, sizeof(s_logBuf));
