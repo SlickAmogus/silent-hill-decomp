@@ -357,6 +357,13 @@ static float s_apBuf[2][REV_NAP][672];      static int s_apIdx[2][REV_NAP];
 #define REV_DAMP1    0.20f
 #define REV_DAMP2    0.80f
 #define REV_APFB     0.50f
+/* Freeverb's input gain. 8 combs at feedback 0.84 have ~6.25x steady-state gain
+ * each (~50x summed), so feeding `in` raw made RevProcess return ~50x its input
+ * -> the wet fold hard-clipped the whole mix (front peak pegged at 32768), which
+ * is what made SFX tinny/harsh/higher-pitched and smeared across every speaker.
+ * 0.015 is the canonical Freeverb value; it brings the wet return to ~0.75x the
+ * send so the tail is audible without overdriving. */
+#define REV_FIXEDGAIN 0.015f
 
 static void RevRecomputeWet(void)
 {
@@ -372,6 +379,7 @@ static float RevProcess(int ch, float in)   /* one sample, one channel */
 {
     int   i, spread = ch ? 25 : 0;   /* stereo decorrelation on the right */
     float out = 0.0f;
+    in *= REV_FIXEDGAIN;             /* compensate the comb bank's ~50x resonance */
     for (i = 0; i < REV_NCOMB; i++) {
         int   len = REV_COMB_L[i] + spread;
         int*  idx = &s_combIdx[ch][i];

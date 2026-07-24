@@ -564,7 +564,15 @@ static void MainMenu_MainTextDraw(void) // 0x8003B568
         "EXTRA" /** @unused See `e_MainMenuEntry`. */
 #endif
     };
-    static const u8 STR_OFFSETS_X[] = { 29, 50, 32, 39, 33 }; // @unused Element at index 4. See `g_MainMenu_VisibleEntryFlags`.
+    static const u8 STR_OFFSETS_X[] = { 29, 50, 32, 39,
+#ifdef SH_XBOX_PORT
+        24  /* EXIT: X = COLUMN_POS_X - offset, so smaller = further right. "EXIT"
+             * is 4 chars (narrow 'I'); the 33 tuned for the 5-char "EXTRA" sat it
+             * too far left. 24 nudges it right to sit centred with the column. */
+#else
+        33  // @unused Element at index 4. See `g_MainMenu_VisibleEntryFlags`.
+#endif
+    };
 
     s32 i;
 
