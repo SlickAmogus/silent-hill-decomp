@@ -878,6 +878,19 @@ namespace SilentHillPC_Launcher
             if (mode == DialogResult.Cancel) return;
             bool v7 = (mode == DialogResult.Yes);
 
+            bool autoTex = false;
+            if (v7)
+            {
+                var tex = MessageBox.Show(this,
+                    "Auto texturing?\n\n" +
+                    "• Yes — pack the model's own textures (from its .mtl) into one sheet, fix the UVs, and set up the " +
+                    "materials. Use this for a raw rigged model that has its own textures.\n" +
+                    "• No — my OBJ is already prepped (uses the game's materials + one texture sheet); just build the v7.",
+                    "OBJ → Model (high-poly)", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                if (tex == DialogResult.Cancel) return;
+                autoTex = (tex == DialogResult.Yes);
+            }
+
             string obj;
             using (var ofd = new OpenFileDialog())
             {
@@ -915,6 +928,45 @@ namespace SilentHillPC_Launcher
             // vertex cap and never patches/grows/welds, so it does not share the escalation below.
             if (v7)
             {
+                if (autoTex)
+                {
+                    // One click: atlas-pack the model's textures + fix the UVs, mint the rest-pose meta
+                    // from the donor (a brand-new model has no .ilmmeta.json), then rebuild v7. The sheet
+                    // is written as <DONOR>.TIM.png beside the model so the loose override picks it up.
+                    string donorStem = Path.GetFileNameWithoutExtension(ilm);
+                    string atlasPng = Path.Combine(Path.GetDirectoryName(outIlm), donorStem + ".TIM.png");
+                    AtlasPrep.Result hp = null;
+                    try
+                    {
+                        ProgressDialog.Run(this, "Packing textures + rebuilding high-poly model…",
+                            r => { hp = AtlasPrep.BuildHighPoly(obj, ilm, outIlm, atlasPng); });
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(this, "High-poly build failed:\n\n" + ex.Message, "OBJ → Model",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+                    if (hp == null || !string.IsNullOrEmpty(hp.Error))
+                    {
+                        MessageBox.Show(this, "High-poly build failed:\n\n" + (hp != null ? hp.Error : "unknown error"),
+                            "OBJ → Model", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+                    string amsg = "Built a HIGH-POLY (v7) model with a packed texture sheet:\n" +
+                        outIlm + "\n" + atlasPng + "  (" + hp.Textures + " textures, " + hp.AtlasW + "x" + hp.AtlasH + ")\n\n" +
+                        "Drop BOTH into gamedata\\load\\<FOLDER>\\ under the ORIGINAL names (e.g. gamedata\\load\\CHARA\\" +
+                        donorStem + ".ILM and " + donorStem + ".TIM.png) and set allow_loose_files = 1.";
+                    if (hp.Warnings.Count > 0)
+                        amsg += "\n\nWarnings (" + hp.Warnings.Count + "):\n - " +
+                                string.Join("\n - ", hp.Warnings.Take(10)) + (hp.Warnings.Count > 10 ? "\n - …" : "");
+                    var aicon = hp.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information;
+                    if (MessageBox.Show(this, amsg + "\n\nOpen the output folder?", "OBJ → Model",
+                            MessageBoxButtons.YesNo, aicon) == DialogResult.Yes)
+                    { try { System.Diagnostics.Process.Start(Path.GetDirectoryName(outIlm)); } catch { } }
+                    return;
+                }
+
                 string tmpV7 = outIlm + ".rebuild.tmp";
                 IlmObjConverter.ImportResult vres = null;
                 try

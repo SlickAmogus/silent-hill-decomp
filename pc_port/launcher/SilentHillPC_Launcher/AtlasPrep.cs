@@ -207,5 +207,78 @@ namespace SilentHillPC_Launcher
         }
 
         private static double ParseD(string s) { return double.Parse(s, NumberStyles.Float, Inv); }
+
+        /// <summary>Locate the .mtl for an OBJ: the mtllib line resolved against the OBJ folder,
+        /// else NAME.mtl beside it (Blender's default).</summary>
+        public static string FindMtl(string objPath)
+        {
+            string dir = Path.GetDirectoryName(objPath);
+            foreach (string raw in File.ReadLines(objPath))
+            {
+                string ln = raw.Trim();
+                if (ln.StartsWith("mtllib ", StringComparison.Ordinal))
+                {
+                    string mt = ln.Substring(7).Trim();
+                    if (!Path.IsPathRooted(mt)) mt = Path.Combine(dir, mt);
+                    if (File.Exists(mt)) return mt;
+                    break;
+                }
+            }
+            string sib = Path.Combine(dir, Path.GetFileNameWithoutExtension(objPath) + ".mtl");
+            return File.Exists(sib) ? sib : null;
+        }
+
+        /// <summary>The whole one-click high-poly-with-atlas chain: atlas-prep the rigged OBJ, then
+        /// generate the rest-pose meta a brand-new model has no .ilmmeta.json for by exporting the
+        /// donor ILM, then rebuild as v7. Writes outIlmPath + outAtlasPath (name it &lt;DONOR&gt;.TIM.png
+        /// so the loose override picks it up). Warnings from both stages are merged. The WinForms
+        /// button is a thin wrapper over this.</summary>
+        public static Result BuildHighPoly(string objPath, string donorIlmPath, string outIlmPath, string outAtlasPath)
+        {
+            var r = new Result();
+            string prepObj = Path.Combine(Path.GetDirectoryName(outIlmPath),
+                "_hp_" + Path.GetFileNameWithoutExtension(outIlmPath) + ".obj");
+            string prepMeta = Path.Combine(Path.GetDirectoryName(prepObj),
+                Path.GetFileNameWithoutExtension(prepObj) + ".ilmmeta.json");
+            string tmpExportObj = Path.Combine(Path.GetTempPath(),
+                "shp_meta_" + Path.GetFileNameWithoutExtension(donorIlmPath) + ".obj");
+            try
+            {
+                string mtl = FindMtl(objPath);
+                if (mtl == null) { r.Error = "no .mtl found for the OBJ (needs a mtllib line or a NAME.mtl beside it) — " +
+                    "the material textures come from it."; return r; }
+
+                Result a = Build(objPath, mtl, donorIlmPath, prepObj, outAtlasPath);
+                if (a.Error != null) return a;
+                r.Textures = a.Textures; r.NativeW = a.NativeW; r.NativeH = a.NativeH;
+                r.AtlasW = a.AtlasW; r.AtlasH = a.AtlasH; r.AtlasPath = a.AtlasPath;
+                r.Warnings.AddRange(a.Warnings);
+
+                // A brand-new model has no .ilmmeta.json; the donor's rest poses ARE what the OBJ was
+                // rigged against, so mint the meta by exporting the donor and reuse it for the prep OBJ.
+                IlmObjConverter.ExportResult ex = IlmObjConverter.Export(donorIlmPath, tmpExportObj);
+                if (ex == null || !string.IsNullOrEmpty(ex.Error))
+                { r.Error = "could not read the donor's rest pose: " + (ex != null ? ex.Error : "unknown"); return r; }
+                File.Copy(ex.MetaPath, prepMeta, true);
+
+                IlmObjConverter.ImportResult iv = IlmObjConverter.Import(prepObj, donorIlmPath, outIlmPath,
+                    new IlmObjConverter.ImportOptions { V7 = true });
+                if (iv == null || !string.IsNullOrEmpty(iv.Error))
+                { r.Error = iv != null ? iv.Error : "v7 rebuild failed"; return r; }
+                r.Warnings.AddRange(iv.Warnings);
+                r.ObjPath = outIlmPath;
+            }
+            catch (Exception ex) { r.Error = ex.Message; }
+            finally
+            {
+                TryDel(prepObj); TryDel(prepMeta); TryDel(tmpExportObj);
+                TryDel(Path.ChangeExtension(tmpExportObj, ".mtl"));
+                TryDel(Path.ChangeExtension(tmpExportObj, ".ilmmeta.json"));
+                TryDel(Path.Combine(Path.GetDirectoryName(prepObj), Path.GetFileNameWithoutExtension(prepObj) + ".mtl"));
+            }
+            return r;
+        }
+
+        private static void TryDel(string p) { try { if (p != null && File.Exists(p)) File.Delete(p); } catch { } }
     }
 }
