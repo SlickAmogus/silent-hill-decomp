@@ -124,6 +124,11 @@ namespace SilentHillPC_Launcher
         private static sbyte S8(byte[] d, int o) { return (sbyte)d[o]; }
 
         private static void W16(byte[] d, int o, int v) { d[o] = (byte)v; d[o + 1] = (byte)(v >> 8); }
+        private static void W32(byte[] d, int o, int v)
+        { d[o] = (byte)v; d[o + 1] = (byte)(v >> 8); d[o + 2] = (byte)(v >> 16); d[o + 3] = (byte)(v >> 24); }
+        private static void A16(List<byte> o, int v) { o.Add((byte)v); o.Add((byte)(v >> 8)); }
+        private static void A32(List<byte> o, int v)
+        { o.Add((byte)v); o.Add((byte)(v >> 8)); o.Add((byte)(v >> 16)); o.Add((byte)(v >> 24)); }
 
         // ---- results ------------------------------------------------------------
 
@@ -161,6 +166,8 @@ namespace SilentHillPC_Launcher
 
             /// <summary>True when replace-mode rebuilt every part's geometry from the OBJ.</summary>
             public bool Replaced;
+            /// <summary>True when the OBJ was written back as a v7 high-poly model.</summary>
+            public bool V7;
             /// <summary>Set on a refusal the caller can retry as a full rebuild — the OBJ's
             /// topology no longer matches the template. Never set for a structural failure
             /// (renamed part, missing meta), which a rebuild would refuse the same way.</summary>
@@ -212,6 +219,10 @@ namespace SilentHillPC_Launcher
             public bool Weld = true;
             /// <summary>Replace only: welding radius in model units.</summary>
             public double WeldEps = WeldEpsDefault;
+            /// <summary>Rebuild as a v7 HIGH-POLY model: a PC-only u32 geometry blob with no
+            /// 256-slot pool packing, so a dense model keeps full detail (no decimation). The
+            /// ILM is still the rig/material template. Mutually exclusive with Grow and Replace.</summary>
+            public bool V7;
         }
 
         // ---- rest pose (.ANM) ---------------------------------------------------
@@ -1755,9 +1766,9 @@ namespace SilentHillPC_Launcher
             var res = new ImportResult();
             try
             {
-                if (opts.Grow && opts.Replace)
-                    throw new IlmException("grow and replace are alternatives: grow keeps the original geometry and " +
-                        "adds to it, replace rebuilds it.");
+                if ((opts.Grow ? 1 : 0) + (opts.Replace ? 1 : 0) + (opts.V7 ? 1 : 0) > 1)
+                    throw new IlmException("grow, replace and high-poly (v7) are alternatives: grow keeps the original " +
+                        "geometry and adds to it, replace rebuilds it in the u8 pool, v7 writes a wide high-poly file.");
                 ImportCore(objPath, ilmPath, outIlmPath, opts, res);
             }
             catch (IlmException ex)
@@ -1858,6 +1869,12 @@ namespace SilentHillPC_Launcher
             JNode restPoseKind = JGet(meta, "restPose");
             res.RestPoseIdentity = restPoseKind != null && restPoseKind.Kind == 's' &&
                                    string.Equals(restPoseKind.Text, "identity", StringComparison.Ordinal);
+
+            if (opts.V7)
+            {
+                V7Import(objPath, ilmPath, outIlmPath, data, ilm, of, byName, poseR, poseT, invs, res);
+                return;
+            }
 
             if (opts.Replace)
             {
@@ -3791,6 +3808,239 @@ namespace SilentHillPC_Launcher
         /// collapse onto the earliest-drawn part's pool slot, which is the only welding mechanism
         /// the format has (no skinning, no weights — a corner that reads a foreign slot simply
         /// follows that part's bone).</summary>
+        // ---- v7 high-poly import (mirrors ilm_obj.py _wide_import / _emit_wide_ilm) ---------
+        //
+        // A v7 file is a narrow v6-shaped spine the game binds against unchanged (meshCount=0 on
+        // every part, so the stock draw walkers are no-ops) plus a PC-only u32 geometry blob a
+        // dedicated wide drawer consumes. No 256-slot pool, no decimation, no seam weld — each
+        // part carries its own vertices, normals and prims at full density.
+
+        private const uint TRI_SENTINEL32 = 0xFFFFFFFFu;
+
+        private class WidePrim { public int[] Vtx, Nrm, Uv; public int Clut, Flags; }
+
+        private class WidePart
+        {
+            public int Ordinal, Bone;
+            public List<int[]> Verts, Norms;
+            public List<WidePrim> Prims;
+        }
+
+        /// <summary>Serialize a v7 high-poly ILM. Spine (materials, modelOrder, part names and the
+        /// 0xB draw-chain bits) is copied verbatim from the donor so the rig/ANM/material paths run
+        /// on a real s_LmHeader; the wide blob follows in ascending model index.</summary>
+        private static byte[] EmitWideIlm(byte[] data, Ilm ilm, List<WidePart> wideParts)
+        {
+            var o = new List<byte>(data.Length);
+            for (int i = 0; i < 20; i++) o.Add(data[i]);
+            o[1] = 7;                        // version 7 is the only discriminator (v6 pinned by the validator)
+            o[2] = 0;                        // isLoaded: a 1 makes the runtime skip pointer fix-up and crash
+            o[9] = 0; o[10] = 0; o[11] = 0;
+            for (int i = 0; i < 12; i++) o.Add(0);   // v7 header extension, filled in once offsets are known
+
+            int matsP = o.Count;
+            for (int i = 0; i < 24 * ilm.MatCount; i++) o.Add(data[ilm.MatsP + i]);
+            int orderP = o.Count;
+            for (int i = 0; i < ilm.ModelCount; i++) o.Add(data[ilm.ModelOrderP + i]);
+            for (int i = Align4(o.Count); i > 0; i--) o.Add(0);
+            int hdrsP = o.Count;
+            for (int i = 0; i < 16 * ilm.ModelCount; i++) o.Add(0);
+            int zeroMeshP = o.Count;
+            for (int i = 0; i < 24; i++) o.Add(0);
+            for (int i = Align4(o.Count); i > 0; i--) o.Add(0);
+
+            foreach (Model m in ilm.Models)
+            {
+                int hb = hdrsP + 16 * m.Idx;
+                for (int i = 0; i < 8; i++) o[hb + i] = data[m.HdrOff + i];  // name = rig binding
+                o[hb + 8] = 0;                       // meshCount 0 -> stock walkers are no-ops
+                o[hb + 9] = 0;                       // vertexOffset (spine never drawn natively)
+                o[hb + 10] = 0;                      // normalOffset
+                o[hb + 11] = (byte)m.Bits;           // field_B draw-chain selector, for parity
+                o[hb + 0xC] = (byte)zeroMeshP; o[hb + 0xD] = (byte)(zeroMeshP >> 8);
+                o[hb + 0xE] = (byte)(zeroMeshP >> 16); o[hb + 0xF] = (byte)(zeroMeshP >> 24);
+            }
+
+            int wideP = o.Count;
+            foreach (WidePart wp in wideParts)
+            {
+                A32(o, wp.Ordinal);
+                o.Add((byte)wp.Bone); o.Add(0); o.Add(0); o.Add(0);   // bone + 3 pad
+                A32(o, 1);                                            // one mesh per part
+                A32(o, wp.Verts.Count); A32(o, wp.Norms.Count); A32(o, wp.Prims.Count);
+                foreach (int[] v in wp.Verts) { A16(o, v[0]); A16(o, v[1]); A16(o, v[2]); A16(o, 0); }
+                foreach (int[] n in wp.Norms) { A16(o, n[0]); A16(o, n[1]); A16(o, n[2]); A16(o, 0); }
+                foreach (WidePrim pr in wp.Prims)
+                {
+                    for (int i = 0; i < 4; i++) A32(o, pr.Vtx[i]);
+                    for (int i = 0; i < 4; i++) A32(o, pr.Nrm[i]);
+                    for (int i = 0; i < 4; i++) A16(o, pr.Uv[i]);
+                    A16(o, pr.Clut); A16(o, pr.Flags);
+                    A32(o, 0);                                        // pad
+                }
+            }
+            int wideSize = o.Count - wideP;
+
+            byte[] b = o.ToArray();
+            W32(b, 4, matsP); W32(b, 0xC, hdrsP); W32(b, 0x10, orderP);
+            W32(b, 0x14, wideP); W32(b, 0x18, wideSize); W32(b, 0x1C, ilm.ModelCount);
+            return b;
+        }
+
+        private static void V7Import(string objPath, string ilmPath, string outIlmPath, byte[] data, Ilm ilm,
+            ObjFile of, Dictionary<string, ObjObject> byName, int[][] poseR, int[][] poseT, double[][] invs,
+            ImportResult res)
+        {
+            foreach (Model m in ilm.Models)
+            {
+                if (m.MeshCount != 1)
+                    throw new IlmException("part '" + m.Name + "' has " + m.MeshCount.ToString(Inv) + " meshes; high-poly " +
+                        "rebuild uses one mesh per part and cannot guess how to split the OBJ across them.");
+                if (m.Meshes[0].UnkCount3 != 0)
+                    throw new IlmException("part '" + m.Name + "' carries a shade stream; the high-poly format has no " +
+                        "shade stream (per-normal advance is fixed at 1).");
+            }
+
+            var wideParts = new List<WidePart>();
+            foreach (Model m in ilm.Models)   // ascending model index -> part ordinal
+            {
+                int mi = m.Idx;
+                string name = m.Name;
+                ObjObject oo = byName[name];
+                int[] T = poseT[mi];
+                double[] inv = invs[mi];
+                if (inv == null)
+                    throw new IlmException("part '" + name + "' rest-pose matrix is singular; cannot unbake geometry.");
+
+                // Self-contained: a face may only cite vertices its own 'o' block declares, and the
+                // wide vertex index is that line's position in the block.
+                var vpos = new Dictionary<int, int>();
+                for (int i = 0; i < oo.V.Count; i++) vpos[oo.V[i]] = i;
+
+                var wideVerts = new List<int[]>();
+                foreach (int vl in oo.V)
+                {
+                    double[] w = of.Verts[vl - 1];
+                    double[] v = Unbake(inv, T, new double[] { w[0], YIn(w[1]), w[2] });
+                    wideVerts.Add(new int[] {
+                        S16Checked(v[0], "vertex X"), S16Checked(v[1], "vertex Y"), S16Checked(v[2], "vertex Z") });
+                }
+
+                Mesh me = m.Meshes[0];
+                var buckets = new Dictionary<string, List<Prim>>(StringComparer.Ordinal);
+                foreach (Prim p in me.Prims)
+                {
+                    string nm = MtlName(p, ilm.BaseClutY);
+                    List<Prim> q;
+                    if (!buckets.TryGetValue(nm, out q)) { q = new List<Prim>(); buckets[nm] = q; }
+                    q.Add(p);
+                }
+                var legal = new List<string>(buckets.Keys);
+                legal.Sort(StringComparer.Ordinal);
+                var matpos = new Dictionary<string, int>(StringComparer.Ordinal);
+                foreach (string k in buckets.Keys) matpos[k] = 0;
+
+                var nlist = new List<int[]>();
+                var ndedup = new Dictionary<string, int>(StringComparer.Ordinal);
+
+                var widePrims = new List<WidePrim>();
+                for (int fidx = 0; fidx < oo.Faces.Count; fidx++)
+                {
+                    ObjFace f = oo.Faces[fidx];
+                    int[][] face = f.C;
+                    int arity = face.Length;
+                    if (arity != 3 && arity != 4)
+                        throw new IlmException("part '" + name + "' face " + (fidx + 1).ToString(Inv) + " has " +
+                            arity.ToString(Inv) + " corners; the format only has triangles and quads - triangulate " +
+                            "or quadrangulate the mesh first.");
+                    bool tri = arity == 3;
+                    int[] loop = tri ? TriLoop : QuadLoop;
+
+                    string mname = f.Mtl;
+                    if (mname == null)
+                    {
+                        if (legal.Count != 1)
+                            throw new IlmException("part '" + name + "' face " + (fidx + 1).ToString(Inv) + " has no " +
+                                "usemtl and the part uses " + legal.Count.ToString(Inv) + " materials (" +
+                                string.Join(", ", legal) + "). Material names encode the CLUT palette row, so a face " +
+                                "without one cannot be placed.");
+                        mname = legal[0];
+                    }
+                    List<Prim> bk;
+                    if (!buckets.TryGetValue(mname, out bk))
+                        throw new IlmException("part '" + name + "' face " + (fidx + 1).ToString(Inv) + " uses material '" +
+                            mname + "'; a replacement may only use materials the part already had (" +
+                            (legal.Count > 0 ? string.Join(", ", legal) : "none") + ") - the name encodes the CLUT " +
+                            "palette row and there is nowhere to invent one.");
+                    Prim tp = bk[Math.Min(matpos[mname], bk.Count - 1)];
+                    matpos[mname] = matpos[mname] + 1;
+
+                    int sent = unchecked((int)TRI_SENTINEL32);
+                    var vtx = new int[] { sent, sent, sent, sent };
+                    var nrm = new int[] { sent, sent, sent, sent };
+                    var uv = new int[4];
+                    double[] flat = null;
+                    for (int i = 0; i < arity; i++)
+                    {
+                        int[] corner = face[loop[i]];
+                        int vlc = corner[0], tlc = corner[1], nlc = corner[2];
+                        int local;
+                        if (!vpos.TryGetValue(vlc, out local))
+                            throw new IlmException("part '" + name + "' face " + (fidx + 1).ToString(Inv) + " cites vertex " +
+                                vlc.ToString(Inv) + " outside its own 'o' block - high-poly parts are self-contained " +
+                                "(no cross-part welding), so each carries its own seam vertices.");
+                        vtx[i] = local;
+                        if (tlc == 0)
+                            throw new IlmException("part '" + name + "' face " + (fidx + 1).ToString(Inv) + " has no UVs - " +
+                                "unwrap the geometry (every primitive corner carries a texel).");
+                        double[] uvc = of.Uvs[tlc - 1];
+                        uv[i] = UvByte(uvc[0]) | (UvByte(1.0 - uvc[1]) << 8);
+                        double[] nvec;
+                        if (nlc != 0) nvec = of.Norms[nlc - 1];
+                        else
+                        {
+                            if (flat == null)
+                            {
+                                double[] p0 = of.Verts[face[0][0] - 1];
+                                double[] p1 = of.Verts[face[1][0] - 1];
+                                double[] p2 = of.Verts[face[2][0] - 1];
+                                double[] e1 = new double[] { p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2] };
+                                double[] e2 = new double[] { p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2] };
+                                flat = new double[] { e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2],
+                                    e1[0] * e2[1] - e1[1] * e2[0] };
+                            }
+                            nvec = flat;
+                        }
+                        int[] key = QuantNewNormal(inv, nvec);
+                        if (key == null)
+                            throw new IlmException("part '" + name + "': a face has a degenerate normal.");
+                        string nk = key[0].ToString(Inv) + "," + key[1].ToString(Inv) + "," + key[2].ToString(Inv);
+                        int nidx;
+                        if (!ndedup.TryGetValue(nk, out nidx)) { nidx = nlist.Count; ndedup[nk] = nidx; nlist.Add(key); }
+                        nrm[i] = nidx;
+                    }
+                    widePrims.Add(new WidePrim { Vtx = vtx, Nrm = nrm, Uv = uv, Clut = tp.Clut, Flags = tp.Flags });
+                }
+                wideParts.Add(new WidePart { Ordinal = mi, Bone = BoneOf(name), Verts = wideVerts, Norms = nlist, Prims = widePrims });
+            }
+
+            // The converter-side v7 validator (lm_validate_v7) is not ported; the game's runtime
+            // parser (Pc_WideLm_Parse) re-validates and falls back to the invisible spine on any
+            // malformed blob, so a bad file is non-corrupting rather than refused here.
+            byte[] blob = EmitWideIlm(data, ilm, wideParts);
+            File.WriteAllBytes(outIlmPath, blob);
+
+            res.V7 = true;
+            res.IlmPath = outIlmPath;
+            res.Parts = wideParts.Count;
+            int tv = 0, tn = 0, tpr = 0;
+            foreach (WidePart wp in wideParts) { tv += wp.Verts.Count; tn += wp.Norms.Count; tpr += wp.Prims.Count; }
+            res.Vertices = tv; res.Normals = tn; res.Prims = tpr;
+            foreach (WidePart wp in wideParts)
+                res.Report.Add(ilm.Models[wp.Ordinal].Name + ": " + wp.Verts.Count.ToString(Inv) + " verts, " +
+                    wp.Prims.Count.ToString(Inv) + " faces");
+        }
+
         private static void ReplaceImport(string objPath, string ilmPath, string outIlmPath, byte[] data, Ilm ilm,
             ObjFile of, Dictionary<string, ObjObject> byName, int[][] poseR, int[][] poseT, double[][] invs,
             bool weld, double weldEps, ImportResult res)
