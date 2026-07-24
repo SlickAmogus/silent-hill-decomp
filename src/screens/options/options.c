@@ -573,6 +573,8 @@ void Options_PcOptionsMenu_Control(void)
                  * gameState is always GameState_OptionScreen — gameStatePrev is
                  * what records whether we came from in-game or the main menu, the
                  * same idiom this file already uses at ~737/765/1054. */
+                SH_DBG("[EXITMENU] pressed gameStatePrev=%d gameState=%d",
+                       (int)g_GameWork.gameStatePrev, (int)g_GameWork.gameState);
                 if (g_GameWork.gameStatePrev == GameState_InGame) {
                     extern void Game_WarmBoot(void);
                     Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);

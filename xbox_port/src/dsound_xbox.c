@@ -46,6 +46,18 @@ extern void Xa_XboxPump(void);
                                             * (pump is frame-tied; long CD reads can hitch).
                                             * ALL THREE surround buffers must share this
                                             * size — the lockstep Lock depends on it. */
+/* Cap the bytes mixed per pump call. Without this, any frame stall (a CD reformat,
+ * an options-screen load) drains the ring, and the next pump locks+mixes the WHOLE
+ * drained span in one blocking call. The software SPU mix stays in-cache and runs
+ * <5ms for a normal ~one-frame batch, but a big catch-up (the log showed avail up
+ * to 44800 bytes) blows the cache — the reverb delay-line working set grows with
+ * batch size — and the mix balloons to 300-400ms. That long frame drains the ring
+ * further -> the next catch-up is bigger -> a runaway spiral that pins the game at
+ * ~5fps until it decays. 8192 bytes = 2048 frames = ~43ms of audio, still well
+ * ahead of a 30/60fps frame's consumption so it keeps the ring fed in steady
+ * state; after a stall the ring may underrun for a few frames (a brief audio blip)
+ * but the frame rate recovers immediately instead of spiralling. */
+#define DS_PUMP_MAX     8192
 
 static IDirectSound*       s_ds      = NULL;
 static IDirectSoundBuffer* s_buf     = NULL;   /* front L/R — always exists   */
@@ -244,6 +256,8 @@ void Audio_XboxPump(void)
     if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(s_buf, &play, &write))) {
         avail = (s_write <= play) ? (play - s_write)
                                   : (DS_BUFFER_SIZE - s_write + play);
+        if (avail > DS_PUMP_MAX)            /* bound the per-frame mix -> no stall spiral */
+            avail = DS_PUMP_MAX;
         if (avail >= 1024) {
             avail -= 512;                       /* guard gap ahead of the DAC */
             avail &= ~(DWORD)(DS_BLOCK_ALIGN - 1);

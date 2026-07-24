@@ -188,7 +188,18 @@ VECTOR3 g_TpsCamFwd = { 0, 0, Q12(1.0f) };
  * is negative], vz=forward), rotated by his BODY yaw each frame to place the eye
  * between his arms. Captured via the L cam-pos log key or the numpad tuner. */
 extern int g_PcFpsCam;
+#ifdef SH_XBOX_PORT
+/* FPS eye BASELINE in Harry's BODY frame; vx=right, vy=up(neg), vz=forward.
+ * Xbox: horizontal zeroed so the eye sits on Harry's turn axis. The stock 919
+ * forward (~0.22u) put the eye in front of the axis, and since the eye rotates
+ * by BODY yaw around the root, a full turn (body follows the camera past ±90°)
+ * swung the eye on a 0.22u arc around the hidden head — you saw the empty head
+ * space sweep by. On the axis, a full turn pivots in place at the head. Vertical
+ * (head height) kept; head-follow sway still rides on top. */
+VECTOR3 g_PcFpsOffset = { 0, -6836, 0 };
+#else
 VECTOR3 g_PcFpsOffset = { -29, -6836, 919 }; /* FPS eye BASELINE in Harry's BODY frame (all weapons); vx=right, vy=up(neg), vz=forward. Head-follow sway rides on top. */
+#endif
 VECTOR3 g_PcFpsViewFwd = { 0, 0, 4096 };     /* FPS view-forward, WORLD space Q12; published each FPS frame for the head-mounted flashlight */
 VECTOR3 g_PcFpsEyePos  = { 0, 0, 0 };        /* FPS eye WORLD pos (Q19.12); flashlight origin in FPS */
 VECTOR3 g_PcFlashlightShadowWorld = { 0, 0, 0 }; /* physical flashlight WORLD pos (Q19.12), captured before the FPS eye-override; drives the shadow-map light so FPS shadows match third person */
