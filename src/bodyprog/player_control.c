@@ -10233,7 +10233,15 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
                 VECTOR3    _off, _P;
                 VECTOR3*   _hand = &playerCombat.attackPosition;
                 s32        _pitch;
-                #define SH_AIM_RANGE Q12(60.0f)
+                /* Long enough to reach the far wall of any room/area, so the aim
+                 * point below is the TRUE surface under the reticle at ANY distance
+                 * (not a capped mid-air point). The bullet fires from the hand,
+                 * below the camera, and only converges with the reticle ray at the
+                 * aim point — so if the aim point sits SHORT of the real surface
+                 * (the old 60u cap), the bullet keeps diverging past it and lands
+                 * below the reticle, worse the farther the wall is. A true-surface
+                 * aim point converges exactly, independent of distance. */
+                #define SH_AIM_RANGE Q12(300.0f)
                 _off.vx = (s32)(((s64)g_TpsCamFwd.vx * SH_AIM_RANGE) >> 12);
                 _off.vy = (s32)(((s64)g_TpsCamFwd.vy * SH_AIM_RANGE) >> 12);
                 _off.vz = (s32)(((s64)g_TpsCamFwd.vz * SH_AIM_RANGE) >> 12);
@@ -10245,12 +10253,7 @@ void Player_CombatUpdate(s_SubCharacter* player, GsCOORDINATE2* coord) // 0x8007
                 else
                 {
                     /* No enemy on the camera ray (free-aim / no monsters around):
-                     * aim at the ACTUAL surface the reticle is over, not a fixed
-                     * 60-units-ahead point. The bullet fires from the hand (below
-                     * the camera), so aiming at a fixed distance makes it converge
-                     * ONLY at that distance and land off the reticle everywhere
-                     * else — below it for the common closer-than-60u surfaces,
-                     * and the error grows with the distance mismatch. Ray_TraceQuery
+                     * aim at the ACTUAL surface the reticle is over. Ray_TraceQuery
                      * fills _wtr.target with the world hit point, or (on a miss)
                      * with the endpoint, so it is always the correct aim point. */
                     s_RayTrace _wtr;

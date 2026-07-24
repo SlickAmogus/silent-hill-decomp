@@ -120,6 +120,28 @@ void Pc_CrosshairDraw(void)
     p   = s_pool[buf];
     n   = Pc_CrosshairBuild(p, g_PcConfig.crosshairStyle);
 
+    /* Vertical alignment with where bullets actually go. The 3D world (OT0)
+     * renders vertically cropped by g_PsxWorldVScale (top-anchored) while this
+     * reticle draws in the full-scale UI pass (OT2, via g_OtTags0). That crop
+     * lands the world's optical axis — the screen-center point a free-aim shot
+     * converges on — at screen fraction 0.5/vscale, BELOW the geometric center a
+     * naive center reticle sits at, so bullets appear under the crosshair. Shift
+     * the reticle down onto the world axis so it marks the true impact point.
+     * Offset in UI-pass PSX-Y units = (H/2)*(1/vscale - 1); H = 224 (progressive
+     * gameplay buffer). Zero when the world isn't cropped (vscale >= 1). */
+    {
+        extern float g_PsxWorldVScale;
+        float vs = g_PsxWorldVScale;
+        if (vs > 0.01f && vs < 0.999f)
+        {
+            int dy = (int)(112.0f * (1.0f / vs - 1.0f) + 0.5f);
+            for (i = 0; i < n; i++)
+            {
+                p[i].y0 += dy; p[i].y1 += dy; p[i].y2 += dy; p[i].y3 += dy;
+            }
+        }
+    }
+
     for (i = 0; i < n; i++)
     {
         p[i].r0 = p[i].r1 = p[i].r2 = p[i].r3 = 255;
