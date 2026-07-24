@@ -568,10 +568,12 @@ void Options_PcOptionsMenu_Control(void)
                 /* Quit the current game session back to the title. Game_WarmBoot
                  * does the full teardown (audio/fs/SysWork) and sets
                  * GameState_MainMenu — the inventory screens already call it
-                 * mid-game, so it is safe from this options sub-state. Only
-                 * meaningful in-game; from the main-menu options there is nothing
-                 * to exit, so it just plays the cancel blip. */
-                if (g_GameWork.gameState == GameState_InGame) {
+                 * mid-game, so it is safe from this options sub-state. Gate on
+                 * gameStatePrev (NOT gameState): while the options screen is up,
+                 * gameState is always GameState_OptionScreen — gameStatePrev is
+                 * what records whether we came from in-game or the main menu, the
+                 * same idiom this file already uses at ~737/765/1054. */
+                if (g_GameWork.gameStatePrev == GameState_InGame) {
                     extern void Game_WarmBoot(void);
                     Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
                     Game_WarmBoot();
