@@ -37,17 +37,23 @@ namespace SilentHillPC_Launcher
             if (!any) File.Copy(objPath, outObjPath, true);
         }
 
-        private class Face { public int Line; public string[] Tokens; public int[] V; public bool Flip; }
+        private class Face { public int Line; public string[] Tokens; public int[] V; public int[] N; public bool Flip; }
 
-        /// <summary>Recalculate-Outside in code: reorder each face's corners so winding is CONSISTENT
-        /// and OUTWARD per part (flood-fill an orientation per connected component, then flip a
-        /// component whose faces point inward). The game backface-culls, so mixed winding shows as
-        /// holes. Verts/UVs/normals are untouched — only face corner order. objPath may equal
-        /// outObjPath. Ported from consistent_winding.</summary>
+        /// <summary>Recalculate-Outside in code, anchored to the model's own vertex normals: flip any
+        /// face whose geometric normal (from corner order) opposes the average of its Blender vertex
+        /// normals — the artist already pointed those outward with Shift+N. This is HERO's native
+        /// convention (his exported faces agree with their normals 98% and point outward 96%), and
+        /// unlike a per-component signed-volume test it fixes small and flat patches (neck-back, seat,
+        /// shoe soles) too — those are exactly what the old test skipped. A Blender mirror /
+        /// negative-scale export reverses winding relative to the normals, so every face reads
+        /// "disagree" and all flip. Falls back to the flood-fill/centroid pass only for an OBJ that
+        /// carries no normals at all. Verts/UVs/normals untouched — only face corner order. objPath
+        /// may equal outObjPath.</summary>
         public static void FixWinding(string objPath, string outObjPath)
         {
             var lines = new List<string>(File.ReadLines(objPath));
             var verts = new List<double[]>();
+            var norms = new List<double[]>();
             var faces = new List<Face>();
             var partFaces = new List<List<Face>>();
             List<Face> cur = null;
@@ -60,6 +66,11 @@ namespace SilentHillPC_Launcher
                     string[] p = t.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
                     verts.Add(new double[] { D(p[1]), D(p[2]), D(p[3]) });
                 }
+                else if (t.StartsWith("vn ", StringComparison.Ordinal))
+                {
+                    string[] p = t.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+                    norms.Add(new double[] { D(p[1]), D(p[2]), D(p[3]) });
+                }
                 else if (t.StartsWith("o ", StringComparison.Ordinal))
                 {
                     cur = new List<Face>();
@@ -70,25 +81,61 @@ namespace SilentHillPC_Launcher
                     string[] p = t.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
                     var corners = new string[p.Length - 1];
                     var vidx = new int[p.Length - 1];
+                    var nidx = new int[p.Length - 1];
                     for (int i = 1; i < p.Length; i++)
                     {
                         corners[i - 1] = p[i];
-                        int slash = p[i].IndexOf('/');
-                        string vs = slash < 0 ? p[i] : p[i].Substring(0, slash);
-                        vidx[i - 1] = int.Parse(vs, Inv) - 1;
+                        string[] a = p[i].Split('/');
+                        vidx[i - 1] = int.Parse(a[0], Inv) - 1;
+                        nidx[i - 1] = (a.Length >= 3 && a[2].Length > 0) ? int.Parse(a[2], Inv) - 1 : -1;
                     }
-                    var f = new Face { Line = li, Tokens = corners, V = vidx };
+                    var f = new Face { Line = li, Tokens = corners, V = vidx, N = nidx };
                     faces.Add(f);
                     if (cur == null) { cur = new List<Face>(); partFaces.Add(cur); }
                     cur.Add(f);
                 }
             }
 
-            foreach (var pf in partFaces) FixPart(verts, pf);
+            if (norms.Count > 0)
+                foreach (var pf in partFaces) FixPartByNormals(verts, norms, pf);
+            else
+                foreach (var pf in partFaces) FixPart(verts, pf);
 
             foreach (var f in faces)
                 lines[f.Line] = "f " + string.Join(" ", f.Flip ? Rev(f.Tokens) : f.Tokens);
             File.WriteAllText(outObjPath, string.Join("\n", lines) + "\n", new UTF8Encoding(false));
+        }
+
+        /// <summary>Per-face winding fix anchored to vertex normals: flip a face when its geometric
+        /// normal opposes the average of its Blender vertex normals. A face missing normals falls back
+        /// to a part-centroid outward test (HERO's normals are also 96% outward, so both agree).</summary>
+        private static void FixPartByNormals(List<double[]> verts, List<double[]> norms, List<Face> pf)
+        {
+            if (pf.Count == 0) return;
+            var vids = new HashSet<int>();
+            foreach (var f in pf) foreach (int vi in f.V) vids.Add(vi);
+            double cx = 0, cy = 0, cz = 0;
+            foreach (int vi in vids) { cx += verts[vi][0]; cy += verts[vi][1]; cz += verts[vi][2]; }
+            int nc = Math.Max(1, vids.Count); cx /= nc; cy /= nc; cz /= nc;
+
+            foreach (var f in pf)
+            {
+                int[] v = f.V; if (v.Length < 3) continue;
+                double[] a = verts[v[0]], b = verts[v[1]], c = verts[v[2]];
+                double gx = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
+                double gy = (b[2] - a[2]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[2] - a[2]);
+                double gz = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+                double rx = 0, ry = 0, rz = 0; int have = 0;
+                foreach (int ni in f.N)
+                    if (ni >= 0 && ni < norms.Count) { rx += norms[ni][0]; ry += norms[ni][1]; rz += norms[ni][2]; have++; }
+                if (have == 0 || (rx == 0 && ry == 0 && rz == 0))
+                {
+                    double fx = 0, fy = 0, fz = 0;
+                    foreach (int vi in v) { fx += verts[vi][0]; fy += verts[vi][1]; fz += verts[vi][2]; }
+                    rx = fx / v.Length - cx; ry = fy / v.Length - cy; rz = fz / v.Length - cz;
+                }
+                if (gx * rx + gy * ry + gz * rz < 0) f.Flip = true;
+            }
         }
 
         private static void FixPart(List<double[]> verts, List<Face> pf)
