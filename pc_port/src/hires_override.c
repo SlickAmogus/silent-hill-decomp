@@ -949,6 +949,27 @@ int HiresOverride_RegisterLoosePngAllRows(const char* label,
     unsigned char* rgba = NULL;
     int w = 0, h = 0, bpp = 0, r, ok = 0;
 
+    /* BC7 .dds whole-image replacement on the VRAM-rect path (regular/map/HUD
+     * textures — the pool/chara path already detects .dds in PoolSlotRegister).
+     * Upload the compressed file at each palette row's clut cell, like the RGBA
+     * loop below, so any palette a prim selects samples it. */
+    {
+        s_DdsBptc probe;
+        if (Dds_ParseBptc(data, (int)size, &probe))
+        {
+            if (rows < 1) rows = 1;
+            for (r = 0; r < rows; r++)
+            {
+                if (HiresOverride_RegisterDdsKeyed(label, data, (size_t)size,
+                        targetVramX, targetVramY, targetVramW, targetVramH,
+                        targetClutX, targetClutY + r, originalBitDepth, 0) == 0)
+                    ok++;
+                if (targetClutX < 0 || targetClutY < 0) break;
+            }
+            return (ok > 0) ? 0 : -1;
+        }
+    }
+
     if (decode_to_rgba(label, data, size, &rgba, &w, &h, &bpp, 0, NULL) != 0)
     {
         return -1;
