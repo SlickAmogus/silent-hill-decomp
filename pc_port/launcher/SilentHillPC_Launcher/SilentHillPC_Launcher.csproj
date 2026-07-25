@@ -96,6 +96,9 @@
     <Compile Include="ModManagerForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="HighPolyDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="ProgressDialog.cs">
       <SubType>Form</SubType>
     </Compile>

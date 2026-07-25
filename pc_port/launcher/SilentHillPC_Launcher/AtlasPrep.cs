@@ -234,7 +234,7 @@ namespace SilentHillPC_Launcher
         /// so the loose override picks it up). Warnings from both stages are merged. The WinForms
         /// button is a thin wrapper over this.</summary>
         public static Result BuildHighPoly(string objPath, string donorIlmPath, string outIlmPath, string outAtlasPath,
-                                           GeometryPrep.Options geo = null)
+                                           GeometryPrep.Options geo = null, bool autoTexture = true)
         {
             var r = new Result();
             string prepObj = Path.Combine(Path.GetDirectoryName(outIlmPath),
@@ -243,32 +243,44 @@ namespace SilentHillPC_Launcher
                 "_geo_" + Path.GetFileNameWithoutExtension(outIlmPath) + ".obj");
             string prepMeta = Path.Combine(Path.GetDirectoryName(prepObj),
                 Path.GetFileNameWithoutExtension(prepObj) + ".ilmmeta.json");
+            string geoMeta = Path.Combine(Path.GetDirectoryName(geoObj),
+                Path.GetFileNameWithoutExtension(geoObj) + ".ilmmeta.json");
             string tmpExportObj = Path.Combine(Path.GetTempPath(),
                 "shp_meta_" + Path.GetFileNameWithoutExtension(donorIlmPath) + ".obj");
             try
             {
-                string mtl = FindMtl(objPath);
-                if (mtl == null) { r.Error = "no .mtl found for the OBJ (needs a mtllib line or a NAME.mtl beside it) — " +
-                    "the material textures come from it."; return r; }
-
-                // Optional geometry pre-passes (winding fix, L/R mirror) on a temp copy; the atlas
-                // still reads the ORIGINAL .mtl for textures (the passes keep usemtl/mtllib intact).
+                // Geometry pre-passes (winding fix, L/R mirror, seam collar) on a temp copy.
                 GeometryPrep.Apply(objPath, geoObj, geo);
 
-                Result a = Build(geoObj, mtl, donorIlmPath, prepObj, outAtlasPath);
-                if (a.Error != null) return a;
-                r.Textures = a.Textures; r.NativeW = a.NativeW; r.NativeH = a.NativeH;
-                r.AtlasW = a.AtlasW; r.AtlasH = a.AtlasH; r.AtlasPath = a.AtlasPath;
-                r.Warnings.AddRange(a.Warnings);
+                string forV7, metaAt;
+                if (autoTexture)
+                {
+                    string mtl = FindMtl(objPath);
+                    if (mtl == null) { r.Error = "no .mtl found for the OBJ (needs a mtllib line or a NAME.mtl beside " +
+                        "it) — the material textures come from it."; return r; }
+                    // The atlas reads the ORIGINAL .mtl for textures (the passes keep usemtl/mtllib intact).
+                    Result a = Build(geoObj, mtl, donorIlmPath, prepObj, outAtlasPath);
+                    if (a.Error != null) return a;
+                    r.Textures = a.Textures; r.NativeW = a.NativeW; r.NativeH = a.NativeH;
+                    r.AtlasW = a.AtlasW; r.AtlasH = a.AtlasH; r.AtlasPath = a.AtlasPath;
+                    r.Warnings.AddRange(a.Warnings);
+                    forV7 = prepObj; metaAt = prepMeta;
+                }
+                else
+                {
+                    // Already prepped (the OBJ uses the game's materials + one sheet): v7 straight on
+                    // the geometry-fixed OBJ, no atlas.
+                    forV7 = geoObj; metaAt = geoMeta; r.AtlasPath = null;
+                }
 
                 // A brand-new model has no .ilmmeta.json; the donor's rest poses ARE what the OBJ was
-                // rigged against, so mint the meta by exporting the donor and reuse it for the prep OBJ.
+                // rigged against, so mint the meta by exporting the donor and reuse it.
                 IlmObjConverter.ExportResult ex = IlmObjConverter.Export(donorIlmPath, tmpExportObj);
                 if (ex == null || !string.IsNullOrEmpty(ex.Error))
                 { r.Error = "could not read the donor's rest pose: " + (ex != null ? ex.Error : "unknown"); return r; }
-                File.Copy(ex.MetaPath, prepMeta, true);
+                File.Copy(ex.MetaPath, metaAt, true);
 
-                IlmObjConverter.ImportResult iv = IlmObjConverter.Import(prepObj, donorIlmPath, outIlmPath,
+                IlmObjConverter.ImportResult iv = IlmObjConverter.Import(forV7, donorIlmPath, outIlmPath,
                     new IlmObjConverter.ImportOptions { V7 = true });
                 if (iv == null || !string.IsNullOrEmpty(iv.Error))
                 { r.Error = iv != null ? iv.Error : "v7 rebuild failed"; return r; }
@@ -278,7 +290,7 @@ namespace SilentHillPC_Launcher
             catch (Exception ex) { r.Error = ex.Message; }
             finally
             {
-                TryDel(prepObj); TryDel(prepMeta); TryDel(tmpExportObj); TryDel(geoObj);
+                TryDel(prepObj); TryDel(prepMeta); TryDel(tmpExportObj); TryDel(geoObj); TryDel(geoMeta);
                 TryDel(Path.ChangeExtension(tmpExportObj, ".mtl"));
                 TryDel(Path.ChangeExtension(tmpExportObj, ".ilmmeta.json"));
                 TryDel(Path.Combine(Path.GetDirectoryName(prepObj), Path.GetFileNameWithoutExtension(prepObj) + ".mtl"));
