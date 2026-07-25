@@ -270,7 +270,12 @@ bool func_801E342C(void) // 0x801E342C
     GsOT* ot;
     TILE* tile;
 
-    if (((g_GameWork.config.extraOptionsEnabled >> (D_801E5E8C - 1)) & (1 << 0)) &&
+    if (
+#ifndef SH_PC_PORT
+        /* PSX gates credits-skip behind the extra-options unlock (beat the game
+         * once). PC-port QoL: always allow skipping. */
+        ((g_GameWork.config.extraOptionsEnabled >> (D_801E5E8C - 1)) & (1 << 0)) &&
+#endif
         (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.skip))
     {
         D_800C48F0 = D_801E5558[D_801E5E8C].field_4 + (D_801E5E84 / 2);
@@ -669,7 +674,12 @@ bool func_801E3970(void) // 0x801E3970
             }
         }
     }
-    else if (((g_GameWork.config.extraOptionsEnabled >> (D_801E5E8C - 1)) & (1 << 0)) &&
+    else if (
+#ifndef SH_PC_PORT
+             /* PSX gates credits-skip behind the extra-options unlock; PC-port
+              * QoL: always allow skipping. */
+             ((g_GameWork.config.extraOptionsEnabled >> (D_801E5E8C - 1)) & (1 << 0)) &&
+#endif
              (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.skip))
     {
         skipTo = D_801E5E84 + 168;

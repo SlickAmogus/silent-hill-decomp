@@ -772,8 +772,15 @@ void* g_Cutscene_UpdateMar = 0;
 void* g_Cutscene_UpdateKau = 0;
 void* g_Cutscene_UpdateArsia = 0;
 void* g_Cutscene_UpdateHero = 0;
-/* Binary-extracted MAP3_S03.BIN @0x800D57F0 (SfxPair[9] as u16 words). */
-u16 g_NursePuppetSfxs[18] = { 1506, 128, 1507, 128, 1508, 128, 1509, 128, 1510, 160, 1511, 255, 1512, 128, 1512, 128, 1519, 128 };
+/* Binary-extracted MAP3_S03.BIN @0x800D57F0 (SfxPair[18] as u16 words). Two
+ * 9-pair banks selected by field_124->idx_1C in PuppetNurse_SfxPlay
+ * (idx0 = idx_1C*9 + idx): bank 0 = Puppet Nurse, bank 1 = Puppet Doctor.
+ * Only bank 0 was present, so the doctor (idx_1C=1, idx0=9..17) indexed past
+ * the array and played sfxId 0 -> silent. Bank 1 = the exact disc bytes at
+ * VRAM 0x800D5814 (verified against the USA MAP3_S03.BIN @file 0xc29c). The
+ * shared.h extern already declares [18] SfxPairs, matching this full size. */
+u16 g_NursePuppetSfxs[36] = { 1506, 128, 1507, 128, 1508, 128, 1509, 128, 1510, 160, 1511, 255, 1512, 128, 1512, 128, 1519, 128,
+                              1513, 128, 1514, 128, 1515, 128, 1516, 128, 1517, 168, 1518, 255, 1512, 128, 1512, 128, 1519, 128 };
 /* Binary-extracted from MAP3_S03.BIN (anim time -> nurse SFX map). */
 u8 g_NursePuppet_AnimSfxs[580] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 3, 3,

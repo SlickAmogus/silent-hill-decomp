@@ -470,7 +470,11 @@ void SysState_GamePaused_Update(void) // 0x800391E8
     }
 
     func_80091380();
+#ifndef SH_PC_PORT
+    /* PSX keeps the clear-time clock running while paused; PC-port QoL: freeze it
+     * so a pause doesn't inflate the ending results time. */
     Game_TimerUpdate();
+#endif
 
     if (g_SysWork.sysStateSteps[0] == 0)
     {
