@@ -14,6 +14,25 @@ namespace SilentHillPC_Launcher
     {
         private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
+        /// <summary>Which pre-atlas geometry passes to run. Winding is on by default (safe); the
+        /// L/R mirror is off by default (only a mis-named rig needs it, and it flips the texture).</summary>
+        public class Options
+        {
+            public bool FixWinding = true;
+            public bool MirrorLR = false;
+        }
+
+        /// <summary>Run the selected passes objPath -> outObjPath (mirror first so FixWinding
+        /// re-derives the winding it reverses). No-op copy when nothing is selected.</summary>
+        public static void Apply(string objPath, string outObjPath, Options opt)
+        {
+            if (opt == null) opt = new Options();
+            bool any = false;
+            if (opt.MirrorLR) { MirrorX(any ? outObjPath : objPath, outObjPath); any = true; }
+            if (opt.FixWinding) { FixWinding(any ? outObjPath : objPath, outObjPath); any = true; }
+            if (!any) File.Copy(objPath, outObjPath, true);
+        }
+
         private class Face { public int Line; public string[] Tokens; public int[] V; public bool Flip; }
 
         /// <summary>Recalculate-Outside in code: reorder each face's corners so winding is CONSISTENT

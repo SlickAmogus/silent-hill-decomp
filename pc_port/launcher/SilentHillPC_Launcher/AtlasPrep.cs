@@ -233,11 +233,14 @@ namespace SilentHillPC_Launcher
         /// donor ILM, then rebuild as v7. Writes outIlmPath + outAtlasPath (name it &lt;DONOR&gt;.TIM.png
         /// so the loose override picks it up). Warnings from both stages are merged. The WinForms
         /// button is a thin wrapper over this.</summary>
-        public static Result BuildHighPoly(string objPath, string donorIlmPath, string outIlmPath, string outAtlasPath)
+        public static Result BuildHighPoly(string objPath, string donorIlmPath, string outIlmPath, string outAtlasPath,
+                                           GeometryPrep.Options geo = null)
         {
             var r = new Result();
             string prepObj = Path.Combine(Path.GetDirectoryName(outIlmPath),
                 "_hp_" + Path.GetFileNameWithoutExtension(outIlmPath) + ".obj");
+            string geoObj = Path.Combine(Path.GetDirectoryName(outIlmPath),
+                "_geo_" + Path.GetFileNameWithoutExtension(outIlmPath) + ".obj");
             string prepMeta = Path.Combine(Path.GetDirectoryName(prepObj),
                 Path.GetFileNameWithoutExtension(prepObj) + ".ilmmeta.json");
             string tmpExportObj = Path.Combine(Path.GetTempPath(),
@@ -248,7 +251,11 @@ namespace SilentHillPC_Launcher
                 if (mtl == null) { r.Error = "no .mtl found for the OBJ (needs a mtllib line or a NAME.mtl beside it) — " +
                     "the material textures come from it."; return r; }
 
-                Result a = Build(objPath, mtl, donorIlmPath, prepObj, outAtlasPath);
+                // Optional geometry pre-passes (winding fix, L/R mirror) on a temp copy; the atlas
+                // still reads the ORIGINAL .mtl for textures (the passes keep usemtl/mtllib intact).
+                GeometryPrep.Apply(objPath, geoObj, geo);
+
+                Result a = Build(geoObj, mtl, donorIlmPath, prepObj, outAtlasPath);
                 if (a.Error != null) return a;
                 r.Textures = a.Textures; r.NativeW = a.NativeW; r.NativeH = a.NativeH;
                 r.AtlasW = a.AtlasW; r.AtlasH = a.AtlasH; r.AtlasPath = a.AtlasPath;
@@ -271,7 +278,7 @@ namespace SilentHillPC_Launcher
             catch (Exception ex) { r.Error = ex.Message; }
             finally
             {
-                TryDel(prepObj); TryDel(prepMeta); TryDel(tmpExportObj);
+                TryDel(prepObj); TryDel(prepMeta); TryDel(tmpExportObj); TryDel(geoObj);
                 TryDel(Path.ChangeExtension(tmpExportObj, ".mtl"));
                 TryDel(Path.ChangeExtension(tmpExportObj, ".ilmmeta.json"));
                 TryDel(Path.Combine(Path.GetDirectoryName(prepObj), Path.GetFileNameWithoutExtension(prepObj) + ".mtl"));
