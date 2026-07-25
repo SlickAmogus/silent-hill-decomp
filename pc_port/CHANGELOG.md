@@ -1,8 +1,5 @@
 # Silent Hill PC Port — Changelog
 
-## beta-2026.07.23.2 -- 2026-07-23
-- (no commits since last release)
-
 ## beta-2026.07.23.1 -- 2026-07-23
 - New Polish language option in PAL thanks to rafalekkB!
 - Also able to choose "uncensored" PAL in launcher now
