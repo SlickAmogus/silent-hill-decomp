@@ -75,6 +75,7 @@
     <Compile Include="AtlasPrep.cs" />
     <Compile Include="GeometryPrep.cs" />
     <Compile Include="IlmObjConverter.cs" />
+    <Compile Include="DdsConverter.cs" />
     <Compile Include="ModelViewerForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -124,6 +125,13 @@
          LICENSE-7zip.txt beside the launcher. -->
     <EmbeddedResource Include="7za.exe">
       <LogicalName>SilentHillPC_Launcher.7za.exe</LogicalName>
+    </EmbeddedResource>
+    <!-- Microsoft DirectXTex texconv (MIT). Embedded so DdsConverter can
+         materialize it to a temp path and run it as a separate process for
+         PNG<->BC7 .dds conversion — no managed-DLL load surface. Lives in
+         pc_port/tools/ (referenced by relative path, flattened by LogicalName). -->
+    <EmbeddedResource Include="..\..\tools\texconv.exe">
+      <LogicalName>SilentHillPC_Launcher.texconv.exe</LogicalName>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>

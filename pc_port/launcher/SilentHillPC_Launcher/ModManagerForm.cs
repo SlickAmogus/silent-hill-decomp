@@ -168,6 +168,26 @@ namespace SilentHillPC_Launcher
             Controls.Add(btnVw);
             Controls.Add(btnHelp);
 
+            // BC7 .dds tooling (texconv). One button, a dropdown of actions —
+            // like the OBJ pair, but grouped since they share the same converter.
+            var btnDds = new Button { Text = "DDS ▾", Location = new Point(510, 482), Size = new Size(78, 28) };
+            var ddsMenu = new ContextMenuStrip();
+            ddsMenu.Items.Add("PNG → BC7 DDS…",       null, (s, e) => OnDdsEncode());
+            ddsMenu.Items.Add("DDS → PNG…",           null, (s, e) => OnDdsDecode());
+            ddsMenu.Items.Add("Convert folder → BC7…", null, (s, e) => OnDdsFolder());
+            btnDds.Click += (s, e) => ddsMenu.Show(btnDds, new Point(0, btnDds.Height));
+            _btnTips.SetToolTip(btnDds,
+                "PNG ↔ BC7 .dds (via texconv). BC7 is 4x cheaper in VRAM than an RGBA " +
+                "pack, with a real 8-bit alpha the cutout needs.\n\n" +
+                "PNG → BC7 DDS: convert one or more .png to .dds beside them (full mip " +
+                "chain — required, or the texture renders black).\n" +
+                "DDS → PNG: decode a .dds back to .png to inspect or edit.\n" +
+                "Convert folder → BC7: convert every .png under a folder (a whole pack) " +
+                "to .dds; offers to remove the source .png so the game uses the .dds.\n\n" +
+                "Works for loose overrides and whole-texture DuckStation pack entries; the " +
+                "GPU must support BC7 (any card since ~2010).");
+            Controls.Add(btnDds);
+
             _chkLoose = new CheckBox
             {
                 Text     = "Enable loose file support (required for load-folder mods)",
@@ -595,6 +615,121 @@ namespace SilentHillPC_Launcher
                 MessageBox.Show(this, msg, "TIM → PNG", MessageBoxButtons.OK,
                     failures.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
             }
+        }
+
+        private bool DdsReady()
+        {
+            if (DdsConverter.IsAvailable()) return true;
+            MessageBox.Show(this,
+                "texconv.exe isn't available, so BC7 .dds conversion can't run.\n\n" +
+                "It ships embedded in the launcher; if this build was made without it, put " +
+                "texconv.exe (Microsoft DirectXTex) next to the launcher or on your PATH.",
+                "DDS", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
+
+        /// <summary>DDS ▸ "PNG → BC7 DDS…": convert selected .png to .dds beside them.</summary>
+        private void OnDdsEncode()
+        {
+            if (!DdsReady()) return;
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select PNG texture(s) to convert to BC7 .dds";
+                ofd.Filter = "PNG images (*.png)|*.png|All files (*.*)|*.*";
+                ofd.Multiselect = true;
+                string gamedata = Path.Combine(_gameRoot, "gamedata");
+                if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
+                if (ofd.ShowDialog(this) != DialogResult.OK) return;
+
+                int ok = 0;
+                var failures = new System.Collections.Generic.List<string>();
+                foreach (var png in ofd.FileNames)
+                {
+                    string err;
+                    if (DdsConverter.EncodePng(png, Path.GetDirectoryName(png), out err)) ok++;
+                    else failures.Add(err);
+                }
+
+                string msg = "Encoded " + ok + " of " + ofd.FileNames.Length + " file(s) to BC7 .dds.";
+                if (failures.Count > 0) msg += "\n\nFailed:\n - " + string.Join("\n - ", failures.Take(6));
+                MessageBox.Show(this, msg, "PNG → BC7 DDS", MessageBoxButtons.OK,
+                    failures.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+            }
+        }
+
+        /// <summary>DDS ▸ "DDS → PNG…": decode selected .dds back to .png beside them.</summary>
+        private void OnDdsDecode()
+        {
+            if (!DdsReady()) return;
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select .dds texture(s) to decode to PNG";
+                ofd.Filter = "DDS textures (*.dds)|*.dds|All files (*.*)|*.*";
+                ofd.Multiselect = true;
+                string gamedata = Path.Combine(_gameRoot, "gamedata");
+                if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
+                if (ofd.ShowDialog(this) != DialogResult.OK) return;
+
+                int ok = 0;
+                var failures = new System.Collections.Generic.List<string>();
+                foreach (var dds in ofd.FileNames)
+                {
+                    string err;
+                    if (DdsConverter.DecodeDds(dds, Path.GetDirectoryName(dds), out err)) ok++;
+                    else failures.Add(err);
+                }
+
+                string msg = "Decoded " + ok + " of " + ofd.FileNames.Length + " file(s) to PNG.";
+                if (failures.Count > 0) msg += "\n\nFailed:\n - " + string.Join("\n - ", failures.Take(6));
+                MessageBox.Show(this, msg, "DDS → PNG", MessageBoxButtons.OK,
+                    failures.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+            }
+        }
+
+        /// <summary>DDS ▸ "Convert folder → BC7…": encode every .png under a folder to
+        /// .dds beside it (a whole pack at once), optionally removing the source PNGs
+        /// so the game takes the .dds path.</summary>
+        private void OnDdsFolder()
+        {
+            if (!DdsReady()) return;
+            string folder;
+            using (var fbd = new FolderBrowserDialog())
+            {
+                fbd.Description = "Choose a folder — every .png under it is converted to BC7 .dds";
+                string gamedata = Path.Combine(_gameRoot, "gamedata");
+                if (Directory.Exists(gamedata)) fbd.SelectedPath = gamedata;
+                if (fbd.ShowDialog(this) != DialogResult.OK) return;
+                folder = fbd.SelectedPath;
+            }
+
+            var del = MessageBox.Show(this,
+                "Delete each source .png after it converts?\n\n" +
+                "Yes = keep only the .dds (recommended — the game uses the .dds only when the\n" +
+                "        .png isn't also present)\n" +
+                "No  = keep both the .png and the new .dds",
+                "Convert folder → BC7", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (del == DialogResult.Cancel) return;
+            bool deleteSource = del == DialogResult.Yes;
+
+            int converted = 0, failed = 0;
+            string firstError = null;
+            try
+            {
+                ProgressDialog.Run(this, "Encoding textures to BC7…",
+                    r => DdsConverter.EncodeFolder(folder, deleteSource, r, out converted, out failed, out firstError));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Conversion failed:\n\n" + ex.Message,
+                    "Convert folder → BC7", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string msg = "Encoded " + converted + " texture(s) to BC7 .dds.";
+            if (failed > 0) msg += "\n" + failed + " failed.";
+            if (firstError != null) msg += "\n\nFirst error:\n" + firstError;
+            MessageBox.Show(this, msg, "Convert folder → BC7", MessageBoxButtons.OK,
+                failed > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
         }
 
         /// <summary>"Bulk → PNG…" button: recursively convert every .TIM under a folder, in place.</summary>
