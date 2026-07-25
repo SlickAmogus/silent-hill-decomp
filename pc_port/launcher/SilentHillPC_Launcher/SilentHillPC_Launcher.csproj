@@ -73,6 +73,7 @@
     <Compile Include="TimConverter.cs" />
     <Compile Include="ClutComposer.cs" />
     <Compile Include="AtlasPrep.cs" />
+    <Compile Include="GeometryPrep.cs" />
     <Compile Include="IlmObjConverter.cs" />
     <Compile Include="ModelViewerForm.cs">
       <SubType>Form</SubType>
