@@ -96,12 +96,11 @@ button's. What does what:
 | Step | Who |
 |---|---|
 | Cut / name / position / assign the 23 parts | **You** (Blender) |
-| Left / right naming | **You** — the button *validates*, doesn't fix |
-| Fix winding | **You** — one click (Recalculate Outside) |
-| Overlap joints (close seams) | **You** — drag verts |
-| Pack the textures into one sheet + fix the UVs | **Button** (auto) |
-| Relabel materials to the game's CLUT rows | **Button** (auto) |
+| Pack textures into one sheet + fix UVs + relabel materials | **Button** — *Auto-texture* |
 | High-poly (v7) conversion + rest-pose meta | **Button** |
+| Fix winding | **Button** checkbox (on) — or Blender (Recalculate Outside) |
+| Left / right (mirror) | **Button** checkbox — or correct naming; the button also warns |
+| Close seams | **Button** checkbox (rough) — or drag verts in Blender (cleaner) |
 
 ### 1. Rig (Blender)
 
@@ -118,29 +117,41 @@ button's. What does what:
    lands in an `L` part. Get this wrong and the arms cross the body under animation — the
    button warns, but does not fix it.
 
-### 2. Clean up (still Blender)
+### 2. Clean up (optional — the button can do these, but by hand is cleaner)
+
+The build dialog has checkboxes for winding and seams, so you can skip this. Doing them in
+Blender gives a better result, especially the seams:
 
 - **Winding** (one click): Edit mode → select all (**A**) → **Mesh → Normals → Recalculate
   Outside** (**Shift+N**). The game backface-culls, so inconsistent winding shows as holes.
+  (The dialog's *Fix winding* does the same automatically.)
 - **Seams**: rigid parts aren't skinned, so a gap at a joint opens into a hole when it
   bends. Drag the boundary verts of adjacent parts to **overlap** a little at each joint
   (neck↔chest, thigh↔hip, arm segments, wrist↔hand). Do **not** *Merge by Distance* across
-  parts — it fuses UVs; just move them.
+  parts — it fuses UVs; just move them. (The dialog's *Close seams* is a rougher auto version.)
 
 ### 3. Export
 
 File → Export → Wavefront (.obj) **with the .mtl** (Blender writes your textures into it).
 The object list must stay = the 23 parts.
 
-### 4. Build (button)
+### 4. Build (the dialog)
 
-**Mod Manager → OBJ → Model** → **High-poly replace: Yes** → **Auto texturing: Yes**. Pick
-your OBJ and the ORIGINAL ILM (e.g. `HERO.ILM`). It packs your textures into one sheet,
-fixes the UVs (with the native-TIM V-fix), relabels the materials, mints the rest-pose
-data, and writes `<CHARA>_new.ILM` **and** `<CHARA>.TIM.png`.
+**Mod Manager → OBJ → Model → Yes** (high-poly) opens a dialog. **Browse** your `.obj` and
+the original character's `.ILM` (e.g. `HERO.ILM`, remembered for next time), tick the fixes,
+and click **OK**:
 
-> Already have a single sheet + game materials? Choose **Auto texturing: No** and it just
-> builds the v7. CLI (v7 only, no atlas): `ilm_obj.py import prepped.obj HERO.ILM --v7`.
+- **Auto-texture** (on) — pack your textures into one sheet, fix the UVs (native-TIM V-fix),
+  relabel materials. Turn **off** only if your OBJ is already a single sheet using the game's
+  material names.
+- **Fix winding** (on) — face the geometry outward so it doesn't show holes. Safe on.
+- **Fix left/right (mirror)** (off) — only if the limbs came out swapped (you'll get a
+  warning). It also flips the texture, so leave off unless needed.
+- **Close seams (rough)** (off) — auto-overlap joints; dragging verts in Blender is cleaner.
+
+A **Help** button explains each. Output: `<CHARA>.ILM` and (with auto-texture) `<CHARA>.TIM.png`.
+
+> CLI (v7 only, no atlas): `ilm_obj.py import prepped.obj HERO.ILM --v7`.
 
 ### 5. Install
 
