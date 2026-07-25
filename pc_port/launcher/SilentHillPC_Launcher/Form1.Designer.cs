@@ -317,7 +317,7 @@ partial class Form1
             // 
             // lblUpdateStatus
             // 
-            this.lblUpdateStatus.Location = new System.Drawing.Point(209, 480);
+            this.lblUpdateStatus.Location = new System.Drawing.Point(209, 482);
             this.lblUpdateStatus.Name = "lblUpdateStatus";
             this.lblUpdateStatus.Size = new System.Drawing.Size(206, 15);
             this.lblUpdateStatus.TabIndex = 14;
@@ -348,7 +348,7 @@ partial class Form1
             this.banner.Image = global::SilentHillPC_Launcher.Properties.Resources.launcher;
             this.banner.Location = new System.Drawing.Point(0, 0);
             this.banner.Name = "banner";
-            this.banner.Size = new System.Drawing.Size(420, 111);
+            this.banner.Size = new System.Drawing.Size(417, 111);
             this.banner.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.banner.TabIndex = 6;
             this.banner.TabStop = false;
@@ -681,7 +681,7 @@ partial class Form1
             // lblDisc
             // 
             this.lblDisc.AutoEllipsis = true;
-            this.lblDisc.Location = new System.Drawing.Point(9, 452);
+            this.lblDisc.Location = new System.Drawing.Point(9, 459);
             this.lblDisc.Name = "lblDisc";
             this.lblDisc.Size = new System.Drawing.Size(193, 18);
             this.lblDisc.TabIndex = 65;
@@ -743,7 +743,7 @@ partial class Form1
             // 
             // btnHelp
             // 
-            this.btnHelp.Location = new System.Drawing.Point(10, 473);
+            this.btnHelp.Location = new System.Drawing.Point(10, 477);
             this.btnHelp.Name = "btnHelp";
             this.btnHelp.Size = new System.Drawing.Size(39, 23);
             this.btnHelp.TabIndex = 53;
@@ -753,7 +753,7 @@ partial class Form1
             // 
             // btnBug
             // 
-            this.btnBug.Location = new System.Drawing.Point(112, 473);
+            this.btnBug.Location = new System.Drawing.Point(112, 477);
             this.btnBug.Name = "btnBug";
             this.btnBug.Size = new System.Drawing.Size(84, 23);
             this.btnBug.TabIndex = 54;
@@ -763,7 +763,7 @@ partial class Form1
             // 
             // btnReset
             // 
-            this.btnReset.Location = new System.Drawing.Point(54, 473);
+            this.btnReset.Location = new System.Drawing.Point(54, 477);
             this.btnReset.Name = "btnReset";
             this.btnReset.Size = new System.Drawing.Size(53, 23);
             this.btnReset.TabIndex = 55;
@@ -798,32 +798,34 @@ partial class Form1
             this.chkRandomizer.TabIndex = 66;
             this.chkRandomizer.UseVisualStyleBackColor = true;
             this.chkRandomizer.CheckedChanged += new System.EventHandler(this.chkRandomizer_CheckedChanged);
-            //
-            // lblUncensored
-            //
-            this.lblUncensored.AutoSize = true;
-            this.lblUncensored.Location = new System.Drawing.Point(9, 507);
-            this.lblUncensored.Name = "lblUncensored";
-            this.lblUncensored.Size = new System.Drawing.Size(66, 13);
-            this.lblUncensored.TabIndex = 90;
-            this.lblUncensored.Text = "Uncensored:";
-            //
-            // chkUncensored
-            //
-            this.chkUncensored.Location = new System.Drawing.Point(80, 505);
-            this.chkUncensored.Name = "chkUncensored";
-            this.chkUncensored.Size = new System.Drawing.Size(16, 17);
-            this.chkUncensored.TabIndex = 91;
-            this.chkUncensored.UseVisualStyleBackColor = true;
-            //
+            // 
             // checkBox1
-            //
+            // 
             this.checkBox1.Location = new System.Drawing.Point(186, 245);
             this.checkBox1.Name = "checkBox1";
             this.checkBox1.Size = new System.Drawing.Size(16, 17);
             this.checkBox1.TabIndex = 69;
             this.checkBox1.UseVisualStyleBackColor = true;
             this.checkBox1.CheckedChanged += new System.EventHandler(this.checkBox1_CheckedChanged);
+            // 
+            // chkUncensored
+            // 
+            this.chkUncensored.Location = new System.Drawing.Point(26, 441);
+            this.chkUncensored.Name = "chkUncensored";
+            this.chkUncensored.Size = new System.Drawing.Size(16, 17);
+            this.chkUncensored.TabIndex = 91;
+            this.chkUncensored.UseVisualStyleBackColor = true;
+            this.chkUncensored.CheckedChanged += new System.EventHandler(this.chkUncensored_CheckedChanged);
+            // 
+            // lblUncensored
+            // 
+            this.lblUncensored.AutoSize = true;
+            this.lblUncensored.Location = new System.Drawing.Point(7, 442);
+            this.lblUncensored.Name = "lblUncensored";
+            this.lblUncensored.Size = new System.Drawing.Size(19, 13);
+            this.lblUncensored.TabIndex = 90;
+            this.lblUncensored.Text = "🚫";
+            this.lblUncensored.Click += new System.EventHandler(this.lblUncensored_Click);
             // 
             // lblMenu
             // 
@@ -836,7 +838,7 @@ partial class Form1
             // 
             // Form1
             // 
-            this.ClientSize = new System.Drawing.Size(420, 499);
+            this.ClientSize = new System.Drawing.Size(417, 503);
             this.Controls.Add(this.lblMenu);
             this.Controls.Add(this.lblUncensored);
             this.Controls.Add(this.chkUncensored);

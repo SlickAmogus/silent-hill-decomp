@@ -499,12 +499,13 @@ public partial class Form1 : Form
             "Takes over the Level dropdown, and forces the global chara pool on.");
 
         const string uncensoredTip =
-            "Restore the Grey Children on a PAL/European disc.\n\n" +
-            "PAL is the only version that censored the school child enemies into\n" +
-            "\"Mumblers\"; the original Grey Child model ships on the disc unused.\n" +
-            "Turning this on renders them as Grey Children, matching the US/NTSC\n" +
-            "content — so a PAL disc (which also carries every language) plays\n" +
-            "like the uncensored US version. No effect on USA / NTSC-J discs.";
+            "Censor the school child enemies on a PAL/European disc.\n\n" +
+            "PAL is the only version that censored them into \"Mumblers\"; the\n" +
+            "original Grey Child model ships on the disc unused.\n\n" +
+            "Checked (default) = Mumblers, matching the retail PAL disc.\n" +
+            "Unchecked = restore the Grey Children, matching the US/NTSC content\n" +
+            "— so a PAL disc (which also carries every language) plays like the\n" +
+            "uncensored US version. No effect on USA / NTSC-J discs.";
         Set(lblUncensored,  uncensoredTip);
         Set(chkUncensored,  uncensoredTip);
 
@@ -728,7 +729,11 @@ public partial class Form1 : Form
         chkRandomizer.Checked = config.Get("randomizer", "0") == "1";
         ApplyRandomizerUi();
 
-        chkUncensored.Checked = config.Get("uncensored", "0") == "1";
+        // The box reads as "Censored" (🚫): CHECKED = censored (retail PAL
+        // Mumblers), UNCHECKED = uncensored (Grey Children). The config key is
+        // still `uncensored`, so the mapping is inverted here. Default 0
+        // (censored) → checked, so the box defaults on.
+        chkUncensored.Checked = config.Get("uncensored", "0") == "0";
 
         // fullscreen
         // fullscreen: 0 = windowed, 1 = exclusive fullscreen, 2 = borderless.
@@ -947,7 +952,7 @@ public partial class Form1 : Form
             config.Set("disc_image", _discIds[comboDisc.SelectedIndex]);
 
         config.Set("randomizer", chkRandomizer.Checked ? "1" : "0");
-        config.Set("uncensored", chkUncensored.Checked ? "1" : "0");
+        config.Set("uncensored", chkUncensored.Checked ? "0" : "1"); // checked = censored
 
         // Level: persist only the map id, not the " - description" suffix. Skipped
         // while the randomizer owns the row — the selection is the synthetic
@@ -1644,6 +1649,16 @@ public partial class Form1 : Form
     }
 
     private void checkBox1_CheckedChanged(object sender, EventArgs e)
+    {
+
+    }
+
+    private void lblUncensored_Click(object sender, EventArgs e)
+    {
+
+    }
+
+    private void chkUncensored_CheckedChanged(object sender, EventArgs e)
     {
 
     }
