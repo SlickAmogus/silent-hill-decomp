@@ -141,8 +141,9 @@ namespace SilentHillPC_Launcher
             _btnTips.SetToolTip(btnMo, "Model → OBJ: write a character model out as a .obj (plus .mtl and .ilmmeta.json) you can " +
                 "open in Blender. Each 'o' object is ONE rigid animated body part — reshape its vertices freely, but do NOT " +
                 "rename, add or remove objects: that list is the rig, and changing it breaks the animation.");
-            _btnTips.SetToolTip(btnOm, "OBJ → Model: fold an .obj back into a new .ILM. Pick Edit existing (reshape a " +
-                "character) or High-poly replacement (swap in a new mesh — opens a dialog with browse, options and Help).");
+            _btnTips.SetToolTip(btnOm, "OBJ → Model: opens the high-poly replacement dialog (browse your model + the " +
+                "character to replace, tick the fixes, Help explains each). A \"Simple…\" button there switches to " +
+                "reshaping an existing character (patch / grow / replace, vertex-limited).");
             _btnTips.SetToolTip(btnVw, "View Model: preview a .ILM (or an edited .obj before importing it) in a 3D window — " +
                 "textured with its real in-game palettes. Drag to orbit, right-drag to pan, wheel to zoom.");
             _btnTips.SetToolTip(btnHelp, "How to make and install loose-file texture mods.");
@@ -1003,13 +1004,15 @@ namespace SilentHillPC_Launcher
         private void RunHighPolyImport()
         {
             string obj, ilm;
-            bool autoTex, doWind, doMirror, doSeams;
+            bool autoTex, doWind, doMirror, doSeams, simple;
             using (var dlg = new HighPolyDialog(_gameRoot))
             {
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                simple = dlg.Simple;
                 obj = dlg.ObjPath; ilm = dlg.IlmPath;
                 autoTex = dlg.AutoTexture; doWind = dlg.DoWinding; doMirror = dlg.DoMirror; doSeams = dlg.DoSeams;
             }
+            if (simple) { RunSimpleImport(); return; }
 
             string donorStem = Path.GetFileNameWithoutExtension(ilm);
             string outIlm;
@@ -1059,18 +1062,17 @@ namespace SilentHillPC_Launcher
             { try { System.Diagnostics.Process.Start(Path.GetDirectoryName(outIlm)); } catch { } }
         }
 
-        /// <summary>"OBJ → Model…" button: fold an edited .obj back into a new .ILM,
-        /// using the original .ILM plus the .ilmmeta.json written beside the .obj.</summary>
+        /// <summary>"OBJ → Model…" button: opens the high-poly replacement dialog directly (the
+        /// common case). The dialog's "Simple…" button drops into the edit-existing flow below.</summary>
         private void OnImportModel()
         {
-            var mode = MessageBox.Show(this,
-                "Replacing the character with a DIFFERENT model (a new mesh, e.g. a ripped character)?\n\n" +
-                "• Yes — High-poly replacement: opens a dialog to browse your model and tick the automatic fixes.\n" +
-                "• No — Edit the existing character: reshape it (auto patch / grow / replace; vertex-limited).",
-                "OBJ → Model", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
-            if (mode == DialogResult.Cancel) return;
-            if (mode == DialogResult.Yes) { RunHighPolyImport(); return; }
+            RunHighPolyImport();
+        }
 
+        /// <summary>Simple edit-existing import: reshape the current character within the vertex
+        /// limit (auto patch / grow / replace). Reached from the dialog's "Simple…" button.</summary>
+        private void RunSimpleImport()
+        {
             string obj;
             using (var ofd = new OpenFileDialog())
             {

@@ -25,6 +25,9 @@ namespace SilentHillPC_Launcher
         public bool DoWinding { get { return _winding.Checked; } }
         public bool DoMirror { get { return _mirror.Checked; } }
         public bool DoSeams { get { return _seams.Checked; } }
+        /// <summary>True when the user clicked "Simple replacement…" — the caller should run the
+        /// edit-existing flow instead of the high-poly build (the browse fields may be empty).</summary>
+        public bool Simple { get; private set; }
 
         public HighPolyDialog(string gameRoot)
         {
@@ -58,6 +61,8 @@ namespace SilentHillPC_Launcher
 
             var help = new Button { Text = "Help", Location = new Point(16, 296), Size = new Size(82, 28) };
             help.Click += delegate { ShowHelp(); };
+            var simpleBtn = new Button { Text = "Simple replacement…", Location = new Point(104, 296), Size = new Size(150, 28) };
+            simpleBtn.Click += delegate { Simple = true; DialogResult = DialogResult.OK; };
             _ok.Text = "OK"; _ok.SetBounds(316, 296, 82, 28); _ok.Enabled = false; _ok.DialogResult = DialogResult.OK;
             _ok.Click += delegate { s_lastIlm = _ilm.Text; };
             var cancel = new Button { Text = "Cancel", Location = new Point(402, 296), Size = new Size(82, 28), DialogResult = DialogResult.Cancel };
@@ -66,7 +71,7 @@ namespace SilentHillPC_Launcher
             _ilm.TextChanged += delegate { UpdateOk(); };
             UpdateOk();
 
-            Controls.AddRange(new Control[] { lblObj, _obj, brObj, lblIlm, _ilm, brIlm, grp, help, _ok, cancel });
+            Controls.AddRange(new Control[] { lblObj, _obj, brObj, lblIlm, _ilm, brIlm, grp, help, simpleBtn, _ok, cancel });
             AcceptButton = _ok; CancelButton = cancel;
         }
 
@@ -118,6 +123,8 @@ namespace SilentHillPC_Launcher
                 "warning). It also flips the texture left-right, so leave it off unless needed.\n\n" +
                 "CLOSE SEAMS (rough): auto-overlaps the joints to hide gaps, but it's approximate — dragging " +
                 "the boundary vertices together in Blender is cleaner. Off by default.\n\n" +
+                "SIMPLE REPLACEMENT…: switches to the basic editor for RESHAPING an existing character " +
+                "(patch / grow / replace within the vertex limit), instead of swapping in a new high-poly mesh.\n\n" +
                 "Output: a new .ILM and a .TIM.png sheet. Drop BOTH into gamedata\\load\\CHARA\\ under the " +
                 "ORIGINAL names and set allow_loose_files = 1.",
                 "Help — High-poly replacement", MessageBoxButtons.OK, MessageBoxIcon.Information);
