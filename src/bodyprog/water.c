@@ -25,6 +25,9 @@ extern s_WorldEnvWork g_WorldEnvWork; /* flare-occlusion facing test */
  * ring ("donut") normal. Opting these prims out keeps the rest of the scene
  * PGXP-correct. No-op when PGXP is off, self-clears after one prim. */
 extern void PsyX_SetNextPrimAffine(void);
+/* Keep the reflective octagon out of the per-pixel flashlight (Classic look at
+ * all times): under PGXP the bright reflection albedo blows out white otherwise. */
+extern void PsyX_SetNextPrimNoFlashlight(void);
 /* Propagate a projected vertex's PGXP + view-space shadow along a plain CPU
  * word copy (dst = src). The reflection band reuses g4[0]'s/the apex's screen
  * words this way; without propagation those verts carry zero view-Z, so the
@@ -985,12 +988,16 @@ void func_8008EA68(SVECTOR* arg0, VECTOR3* posXz, q19_12 posY) // 0x8008EA68
         Shadow_Copy(&poly->g4[1].x3, &poly->g4[0].x3);
 
         PsyX_SetNextPrimAffine();
+        PsyX_SetNextPrimNoFlashlight();
         AddPrim(spD0, &poly->g4[0]);
         PsyX_SetNextPrimAffine();
+        PsyX_SetNextPrimNoFlashlight();
         AddPrim(spD0, &poly->g3[0]);
         PsyX_SetNextPrimAffine();
+        PsyX_SetNextPrimNoFlashlight();
         AddPrim(spD4, &poly->g4[1]);
         PsyX_SetNextPrimAffine();
+        PsyX_SetNextPrimNoFlashlight();
         AddPrim(spD4, &poly->g3[1]);
 #else
         AddPrim(spD0, &poly->g4[0]);
