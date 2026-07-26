@@ -799,6 +799,15 @@ void func_8008E794(VECTOR3* posXz, q3_12 angle, q19_12 posY) // 0x8008E794
 
     static SVECTOR svec0 = {};
 
+#ifdef SH_PC_PORT
+    /* Remove the animated gray "smoke" reflection rectangle: this PC-restored
+     * sprite shows the scrolling tpage-45 water texture (from func_8008E5B4) as a
+     * tall screen-space quad that follows the player, reading as an out-of-place
+     * gray fog patch on the water. The desired reflection is the octagon
+     * (func_8008EA68), not this. */
+    return;
+#endif
+
     memset(&sp20, 0, 16);
     sp20.vx = Q12_TO_Q8(posXz->vx);
     sp20.vy = Q12_TO_Q8(posY * 2) - Q12_TO_Q8(posXz->vy);
