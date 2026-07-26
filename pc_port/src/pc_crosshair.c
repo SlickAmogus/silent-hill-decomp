@@ -23,6 +23,11 @@ enum { CH_CROSS = 0, CH_DOT = 1, CH_CIRCLE = 2, CH_DASH = 3 };
 
 #define CH_MAX_PRIMS 12  /* worst case = the circle's 8 ring quads */
 
+/* Downward reticle nudge (UI-Y px) to center the hand-vs-camera bullet drop in
+ * TPS/OTS. Tunable: raise if far shots still read low, lower if close shots read
+ * too high. */
+#define CH_AIM_DROP_Y 4
+
 /* Axis-aligned filled rectangle (POLY_G4 quad) at [x0,x1] x [y0,y1]. */
 static void Ch_Rect(POLY_G4* q, int x0, int y0, int x1, int y1)
 {
@@ -119,6 +124,23 @@ void Pc_CrosshairDraw(void)
     buf = g_ActiveBufferIdx;
     p   = s_pool[buf];
     n   = Pc_CrosshairBuild(p, g_PcConfig.crosshairStyle);
+
+    /* Bullet-drop compensation (TPS/OTS only). The shot fires from Harry's hand,
+     * below the camera, and converges with the screen-center reticle only at the
+     * aim-trace distance (~60u): close shots land dead on the reticle, farther
+     * shots land a little below it (more with range). Nudging the DRAWN reticle
+     * down a few px centers that error — close reads slightly high, medium/far
+     * lines up — instead of far always reading low. This is purely a draw offset;
+     * it cannot move where bullets actually go (so it can never scatter them).
+     * FPS aims straight down the view ray (no hand-vs-view parallax) → centered. */
+    if (g_ControlStyle == ControlStyle_Tps || g_ControlStyle == ControlStyle_Ots)
+    {
+        const int dy = CH_AIM_DROP_Y;
+        for (i = 0; i < n; i++)
+        {
+            p[i].y0 += dy; p[i].y1 += dy; p[i].y2 += dy; p[i].y3 += dy;
+        }
+    }
 
     for (i = 0; i < n; i++)
     {
