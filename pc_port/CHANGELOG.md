@@ -1,5 +1,52 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.26.2 -- 2026-07-26
+- Fixed flashlight lens flare not working in flashlight modes other than classic.
+
+## beta-2026.07.26.1 -- 2026-07-26
+- Implemented PGXP fixes from PR 50/51, courtesy of nikizhy - Part could not be implemented yet without breaking non-PGXP, but will be done in the future.
+- Adjusted thirdperson\over the shoulder cameras so that camera is oriented to Harry's head, makes using with collision much more tolerable
+- The game should now support DDS BC7 in texture packs and replacements, but hasn't been tested
+- Also added DDS conversion tools to Launcher
+- Fixed sewer flashlight glare that happens with non-default flashlight or PGXP (WIP, reflection needs more work)
+- Added/fixed ability to skip credits
+- Fixed a major issue with certain types of prims, was the likely source behind many of the corruption issues 
+- Fixed clock still counting when paused 
+- Fixed repeated text in important newspaper article
+- Restored puppet doctor SFX
+- Adjust crosshair reticle slightly so that it's more accurate to where bullets land (full aiming fix coming)
+- Added early WIP model replacement tool to launcher's mod manager. Please note that mod manager tools are a WIP and absolutely will have issues until I can focus on them, especially for models.
+
+Resuming bug fixing tonight, more updates in the coming days.
+
+Commit summaries:
+- TPS/OTS: frame Harry's head, not his back, when the camera collides
+- Free-aim: land bullets on the crosshair (fix vertical offset + far-shot drop)
+- launcher: multi-texture atlas prep for high-poly models (AtlasPrep.cs)
+- launcher: one-click high-poly + auto-atlas in OBJ -> Mo
+- texpack: BC7 .dds support for DuckStation packs + per-CLUT-row loose sets
+- launcher: geometry pre-passes for high-poly — winding fix + L/R mirror
+- launcher: run geometry pre-passes in the high-poly chain
+- launcher(mod-manager): PNG<->BC7 .dds converter (texconv) + DDS button
+- launcher: seam-collar geometry pass (opt-in, rough)
+- launcher: high-poly replacement dialog (browse + checkboxes + Help)
+- texpack: whole-image loose BC7 .dds on the VRAM path too (not just pool/chara)
+- launcher: OBJ -> Model opens the high-poly dialog directly + Simple button
+- launcher: anchor FixWinding to vertex normals, not signed volume
+- Bug batch: pause clock, Nowhere newspaper repeat, puppet doctor SFX, credits skip
+- Bump PsyCross: harden ParsePrimitive against zeroed NOP prims (diff=-4 flood)
+- crosshair: nudge TPS/OTS reticle down to center the bullet drop
+- Bump PsyCross: integrate PGXP exact-transform twins (drop unfinished depth channel)
+- Bump PsyCross: flashlight v_viewpos screen-linear (fix PGXP sewer-water glare)
+- water: opt reflective octagon out of per-pixel flashlight (fix PGXP sewer glare)
+- Bump PsyCross: cap per-pixel flashlight under PGXP (sewer-water white blowout)
+- water: dim chest-light flare under PGXP+per-pixel (fix sewer-water white blob)
+- water: skip reflective octagon under PGXP+per-pixel (decisive fix for white blob)
+- water: remove animated gray reflection rectangle (func_8008E794)
+- water: restore Harry-reflection blob (E794), remove gray-rectangle flare (D990)
+- water: skip func_8008E5B4 (removes leaked animated gray rectangle)
+
+
 ## beta-2026.07.23.1 -- 2026-07-23
 - New Polish language option in PAL thanks to rafalekkB!
 - Also able to choose "uncensored" PAL in launcher now
