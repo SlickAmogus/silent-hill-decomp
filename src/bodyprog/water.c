@@ -430,6 +430,15 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
         { 90, 0 }
     };
 
+#ifdef SH_PC_PORT
+    /* Remove the lens-flare reflection quads (all tpage 44): at low flare
+     * intensity they read as an out-of-place blocky gray rectangle on the water
+     * that follows the player. Only in the PGXP + per-pixel-flashlight combo where
+     * it is objectionable; PGXP-off and Classic keep the original reflection. */
+    if (g_PsxUsePgxp && g_PsyX_UsePerPixelFlashlight)
+        return;
+#endif
+
     // TODO: 512 is probably a screen constant.
     if (arg2->vx < ((-g_GameWork.gsScreenWidth  >> 1) - 512) || ((g_GameWork.gsScreenWidth  >> 1) + 512) < arg2->vx ||
         arg2->vy < ((-g_GameWork.gsScreenHeight >> 1) - 512) || ((g_GameWork.gsScreenHeight >> 1) + 512) < arg2->vy)
@@ -798,15 +807,6 @@ void func_8008E794(VECTOR3* posXz, q3_12 angle, q19_12 posY) // 0x8008E794
     POLY_FT4* poly;
 
     static SVECTOR svec0 = {};
-
-#ifdef SH_PC_PORT
-    /* Remove the animated gray "smoke" reflection rectangle: this PC-restored
-     * sprite shows the scrolling tpage-45 water texture (from func_8008E5B4) as a
-     * tall screen-space quad that follows the player, reading as an out-of-place
-     * gray fog patch on the water. The desired reflection is the octagon
-     * (func_8008EA68), not this. */
-    return;
-#endif
 
     memset(&sp20, 0, 16);
     sp20.vx = Q12_TO_Q8(posXz->vx);
