@@ -33,6 +33,14 @@ extern void PsyX_SetNextPrimNoFlashlight(void);
  * words this way; without propagation those verts carry zero view-Z, so the
  * per-pixel flashlight reconstructs a garbage normal and blows the water out. */
 extern void Shadow_Copy(void* dst, const void* src);
+/* The chest-light reflection/flare on the water (func_8008D990) is an additive
+ * screen-space semi-transparent quad whose brightness/size scale with the flare
+ * ramp. Under PGXP the reflected water surface beneath it is lit much brighter by
+ * the per-pixel flashlight, so the additive flare saturates to a white blob. Dim
+ * the flare ONLY when both are on (PGXP + per-pixel) — the exact blow-out combo;
+ * PGXP-off and Classic (per-pixel off) keep the original flare (byte-identical). */
+extern int g_PsxUsePgxp;
+extern int g_PsyX_UsePerPixelFlashlight;
 #endif
 
 // ========================================
@@ -446,7 +454,13 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
 
     temp_a1 = (arg1 + Q12(3.0f)) >> 2;
 
-    FL_SETRGB0(poly, Q12_MULT(temp_a1, 40), Q12_MULT(temp_a1, 40), Q12_MULT(temp_a1, 40));
+    {
+        s32 glareC = Q12_MULT(temp_a1, 40);
+#ifdef SH_PC_PORT
+        if (g_PsxUsePgxp && g_PsyX_UsePerPixelFlashlight) glareC = (glareC * 5) >> 4;
+#endif
+        FL_SETRGB0(poly, glareC, glareC, glareC);
+    }
     setSemiTrans(poly, 1);
 
     temp_a2   = arg2->vx + Q12_MULT(sinCurAngle, 5);
@@ -517,6 +531,9 @@ void func_8008D990(s32 arg0, q19_12 arg1, VECTOR3* arg2, s32 arg3, s32 arg4) // 
     setSemiTrans(poly, 1);
 
     temp_v0_5 = Q12_MULT(MIN(arg1 * 2, Q12(1.0f)), 48);
+#ifdef SH_PC_PORT
+    if (g_PsxUsePgxp && g_PsyX_UsePerPixelFlashlight) temp_v0_5 = (temp_v0_5 * 5) >> 4;
+#endif
     FL_SETRGB0(poly, temp_v0_5, temp_v0_5, temp_v0_5);
 
     poly->tpage = 44;
