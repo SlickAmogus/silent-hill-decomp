@@ -891,6 +891,17 @@ void func_8008EA68(SVECTOR* arg0, VECTOR3* posXz, q19_12 posY) // 0x8008EA68
     GsOT_TAG*        spD4;
     GsOT_TAG*        ot;
 
+#ifdef SH_PC_PORT
+    /* This reflective octagon is untextured Gouraud; under the per-pixel flashlight
+     * its per-fragment albedo reads white and, with PGXP giving the verts view-Z,
+     * it saturates to a white blob on the water. It renders correctly with PGXP off
+     * or in Classic (per-pixel off), so skip it only in that exact blow-out combo —
+     * matching the Classic look. Attempts to opt it out of the beam per-prim did not
+     * take effect on these OrderingTable0 prims. */
+    if (g_PsxUsePgxp && g_PsyX_UsePerPixelFlashlight)
+        return;
+#endif
+
     ot         = g_OrderingTable0[g_ActiveBufferIdx].org;
     sp50.flg   = false;
     sp50.coord = GsIDMATRIX;
