@@ -804,6 +804,48 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
 
     nativeW = w16 * (16 / bpp);
 
+    /* DDS-first: a pack shipping both FOO.dds and FOO.png (converter run with
+     * "keep both", or a pre-mixed pack) matches BOTH for this upload, which
+     * used to leave matchCount > 1 — skipping the compressed fast path below,
+     * so the .png silently won. When a whole-cover .dds is present and every
+     * other match is a whole-cover twin of no HIGHER load-order priority,
+     * collapse to the .dds alone. A higher-priority whole-cover .png from a
+     * DIFFERENT pack still wins (load order), and partial .dds entries can't
+     * be composited so their twins keep the .png path. matches[] is in
+     * ascending (priority, seq) order — scan from the end for the winner. */
+    if (matchCount > 1)
+    {
+        int di;
+        for (di = matchCount - 1; di >= 0; di--)
+        {
+            const PackEntry* d = &g_entries[matches[di]];
+            if (d->isDds && d->offX == 0 && d->offY == 0 &&
+                (int)d->subW == nativeW && (int)d->subH == h)
+                break;
+        }
+        if (di >= 0)
+        {
+            int allTwins = 1;
+            for (i = 0; i < matchCount; i++)
+            {
+                const PackEntry* t = &g_entries[matches[i]];
+                if (i == di) continue;
+                if (t->offX != 0 || t->offY != 0 ||
+                    (int)t->subW != nativeW || (int)t->subH != h ||
+                    t->priority > g_entries[matches[di]].priority)
+                {
+                    allTwins = 0;
+                    break;
+                }
+            }
+            if (allTwins)
+            {
+                matches[0] = matches[di];
+                matchCount = 1;
+            }
+        }
+    }
+
     /* BC7 .dds whole-upload fast path: a single .dds entry covering the entire
      * native texture is uploaded compressed — the compositor can't blit BC7
      * blocks, and a whole-cover has nothing to blit over. Signal it via

@@ -424,13 +424,13 @@ static int Loose_ResolveWhole(const char* base, char* out, size_t outSize)
 {
     FILE* f;
 
-    snprintf(out, outSize, "%s.png", base);
+    /* BC7 .dds is probed BEFORE .png at every form: when a mod ships both for
+     * the same texture, the .dds (4x cheaper in VRAM) must win. */
+    snprintf(out, outSize, "%s.dds", base);
     f = Loose_FOpen(out, "rb");
     if (f != NULL) { fclose(f); return 1; }
 
-    /* BC7 .dds is probed AFTER .png at every form, so a mod that ships both
-     * keeps exactly the behaviour it has today. */
-    snprintf(out, outSize, "%s.dds", base);
+    snprintf(out, outSize, "%s.png", base);
     f = Loose_FOpen(out, "rb");
     if (f != NULL) { fclose(f); return 1; }
 
@@ -445,11 +445,11 @@ static int Loose_ResolveWhole(const char* base, char* out, size_t outSize)
             if (stemLen >= sizeof(stem)) stemLen = sizeof(stem) - 1;
             memcpy(stem, base, stemLen);
             stem[stemLen] = '\0';
-            snprintf(out, outSize, "%s.png", stem);
+            snprintf(out, outSize, "%s.dds", stem);
             f = Loose_FOpen(out, "rb");
             if (f != NULL) { fclose(f); return 1; }
 
-            snprintf(out, outSize, "%s.dds", stem);
+            snprintf(out, outSize, "%s.png", stem);
             f = Loose_FOpen(out, "rb");
             if (f != NULL) { fclose(f); return 1; }
         }
@@ -611,6 +611,15 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
                 snprintf(pngPath, sizeof(pngPath), "gamedata/load/%s/%s.png",
                          strippedFolder, baseName);
                 pf = Loose_FOpen(pngPath, "rb");
+
+                /* A stem-form mod may ship ONLY the .dds — without this probe
+                 * it would never be detected/stashed at all. */
+                if (pf == NULL)
+                {
+                    snprintf(pngPath, sizeof(pngPath), "gamedata/load/%s/%s.dds",
+                             strippedFolder, baseName);
+                    pf = Loose_FOpen(pngPath, "rb");
+                }
             }
 
             if (pf != NULL)
@@ -1088,16 +1097,16 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                     {
                         char  pr[176];
                         FILE* chk;
-                        int   ddsRow = 0;
-                        snprintf(pr, sizeof(pr), "%s.p%02d.png", loosePath, r);
+                        /* BC7 .dds row first (a full compressed image for palette
+                         * r, 4x cheaper than RGBA): when both ship, .dds wins. */
+                        int   ddsRow = 1;
+                        snprintf(pr, sizeof(pr), "%s.p%02d.dds", loosePath, r);
                         chk = Loose_FOpen(pr, "rb");
                         if (chk == NULL)
                         {
-                            /* BC7 .dds row: a full compressed image for palette r,
-                             * uploaded to this slot row (4x cheaper than RGBA). */
-                            snprintf(pr, sizeof(pr), "%s.p%02d.dds", loosePath, r);
+                            snprintf(pr, sizeof(pr), "%s.p%02d.png", loosePath, r);
                             chk = Loose_FOpen(pr, "rb");
-                            ddsRow = 1;
+                            ddsRow = 0;
                         }
                         if (chk == NULL) continue; /* row not supplied — keep disc art */
                         fclose(chk);
@@ -1227,14 +1236,15 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                 {
                     char  pr[176];
                     FILE* chk;
-                    int   ddsRow = 0;
-                    snprintf(pr, sizeof(pr), "%s.p%02d.png", base, r);
+                    /* .dds row first: when both ship, .dds wins. */
+                    int   ddsRow = 1;
+                    snprintf(pr, sizeof(pr), "%s.p%02d.dds", base, r);
                     chk = Loose_FOpen(pr, "rb");
                     if (chk == NULL)
                     {
-                        snprintf(pr, sizeof(pr), "%s.p%02d.dds", base, r);
+                        snprintf(pr, sizeof(pr), "%s.p%02d.png", base, r);
                         chk = Loose_FOpen(pr, "rb");
-                        ddsRow = 1;
+                        ddsRow = 0;
                     }
                     if (chk == NULL) continue;
                     fclose(chk);
