@@ -4,6 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef _WIN32
+#define _strdup(s) strdup(s)
+#endif
+
 #include "game.h"
 #include "bodyprog/bodyprog.h" /* g_Font16AtlasImg (FONT16 re-queue on live switch) */
 #include "bodyprog/map/map.h" /* s_MapOverlayHdr, g_pMapOverlayHeader, e_MapIdx */
