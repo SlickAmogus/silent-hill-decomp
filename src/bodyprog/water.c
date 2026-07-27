@@ -254,9 +254,17 @@ s32 func_8008D850(void) // 0x8008D850
             g_WorldEnvWork.field_60.vy + ((s32)g_WorldEnvWork.field_58.vy << 2),
             g_WorldEnvWork.field_60.vz + ((s32)g_WorldEnvWork.field_58.vz << 2));
         deltaZ  = m0.t[2] - m1.t[2]; /* > 0 = beam points toward camera */
+        /* The probe step is (field_58 << 2) in Q12, but deltaZ comes from
+         * Vw_WorldScreenMatrixAtPositionGet whose t[] is Q8 (inputs go through
+         * Q12_TO_Q8), so stepLen must be Q8 too: (<<2)>>4 net = >>2. The old
+         * <<2 left stepLen 16x too large, making the full-intensity knee below
+         * unreachable - the flare lived permanently on the linear cos ramp
+         * capped at half intensity, and its ramp target tracked every
+         * chest-bone wobble instead of pinning at full like the PSX binary
+         * seed-pixel test: the reported flicker/wander. */
         stepLen = SquareRoot0(((s32)g_WorldEnvWork.field_58.vx * g_WorldEnvWork.field_58.vx) +
                               ((s32)g_WorldEnvWork.field_58.vy * g_WorldEnvWork.field_58.vy) +
-                              ((s32)g_WorldEnvWork.field_58.vz * g_WorldEnvWork.field_58.vz)) << 2;
+                              ((s32)g_WorldEnvWork.field_58.vz * g_WorldEnvWork.field_58.vz)) >> 2;
         if (deltaZ <= 0 || stepLen == 0)
         {
             return 0;
