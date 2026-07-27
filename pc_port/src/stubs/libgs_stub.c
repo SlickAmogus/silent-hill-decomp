@@ -1483,6 +1483,14 @@ void GsSortObject4J(GsDOBJ2 *obj, GsOT *ot, int shift, unsigned long *scratch)
         return;
     }
 
+    /* Depth channel: register the OT->viewZ scale (p ~ SZ>>2, bucket = p>>shift
+     * => viewZ ~ bucket << (shift+2)). Disagreement with the world drawer's
+     * scale is logged once by PsyX. */
+    {
+        extern void PsyX_SetOtViewZShift(int shiftEff);
+        PsyX_SetOtViewZShift(shift + 2);
+    }
+
     /* The world fog path reprograms the GTE depth-cue registers every frame
      * in fog-enabled maps (gte_lddqa(g_WorldEnvWork.field_4C) + DQB=0 in
      * bodyprog_80055028.c). Our TMD renderers bucket prims by IR0 (`p` from

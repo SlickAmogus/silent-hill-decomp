@@ -2335,6 +2335,12 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
     POLY_FT4*    poly4;
 
 
+#ifdef SH_PC_PORT
+    /* Depth channel: world OT buckets = SZ >> (arg3+2); register the scale so
+     * the PGXP depth path can seed untracked buckets on the shared viewZ scale. */
+    PsyX_SetOtViewZShift((s32)arg3 + 2);
+#endif
+
     temp_v1 = 0x79C << (arg3 + 2);
 
     if (!g_WorldEnvWork.isFogEnabled)

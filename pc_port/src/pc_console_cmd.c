@@ -1058,6 +1058,20 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PgxpUseUnquantizedDepth = 0;
         else g_PgxpUseUnquantizedDepth = !g_PgxpUseUnquantizedDepth;
         cprintf("PGXP unquantized-depth W (distance-seam fix): %s", g_PgxpUseUnquantizedDepth ? "ON" : "OFF");
+    } else if (strcmp(cmd, "PGXPWORLDDEPTH") == 0) {
+        /* Depth-channel kill-switch: OFF suppresses FLAT world promotion
+         * (GL_ALWAYS painter + viewZ flat depth), dropping depth behavior
+         * back to bucket+painter instantly. */
+        extern int g_PsxPgxpWorldDepth;
+        if (arg[0] == '1') g_PsxPgxpWorldDepth = 1;
+        else if (arg[0] == '0') g_PsxPgxpWorldDepth = 0;
+        else g_PsxPgxpWorldDepth = !g_PsxPgxpWorldDepth;
+        cprintf("PGXP world depth channel: %s", g_PsxPgxpWorldDepth ? "ON" : "OFF");
+    } else if (strcmp(cmd, "PGXPWALLBIAS") == 0) {
+        /* Writer-side far-push margin M (SZ units) on world geometry. */
+        extern int g_PsxPgxpWorldFarBias;
+        if (arg[0]) g_PsxPgxpWorldFarBias = atoi(arg);
+        cprintf("PGXP world far-bias M: %d SZ units", g_PsxPgxpWorldFarBias);
     } else if (strcmp(cmd, "PGXPNEARCLIP") == 0) {
         extern int g_PsxPgxpNearClip;
         if (arg[0] == '1') g_PsxPgxpNearClip = 1;
