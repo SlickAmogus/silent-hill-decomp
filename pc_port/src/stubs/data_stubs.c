@@ -20,7 +20,11 @@ u8 D_80028544[256] = {0};
  * binary-extracted weapon anim keyframe data. The prior zero-stub here
  * caused Harry's handgun aim pose to render with shrunken torso because
  * GameFs_WeaponInfoUpdate copied all-zeros into D_800C44F0[]. */
-u8 D_8002B2CC[256] = {0};
+/* u_Filename "DWAVE" (BODYPROG.BIN @0x8002B2CC): the material name water.c
+ * func_8008E4EC retextures to the page-13 water caustic (img0). As a zero-stub
+ * the LM material search matched nothing, so the sewer water surface never
+ * received the caustic texture and rendered black. */
+u8 D_8002B2CC[256] = "DWAVE";
 u8 D_800A9938[256] = {0};
 u8 D_800A9945[256] = {0};
 u8 D_800A99B5[256] = {0};
