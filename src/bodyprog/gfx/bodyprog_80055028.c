@@ -2658,6 +2658,9 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     }
                 }
 
+#ifdef SH_PC_PORT
+                PsyX_CancelNextPrimSz(); /* armed-but-culled last poly must not leak world SZ/kind */
+#endif
                 GsOUT_PACKET_P = poly1; // @bug? Should be `poly_gt4`
                 return;
             }
@@ -2818,6 +2821,9 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 }
             }
 
+#ifdef SH_PC_PORT
+            PsyX_CancelNextPrimSz(); /* armed-but-culled last poly must not leak world SZ/kind */
+#endif
             GsOUT_PACKET_P = poly3;
             return;
         }
@@ -3067,6 +3073,9 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 }
             }
         }
+#ifdef SH_PC_PORT
+        PsyX_CancelNextPrimSz(); /* armed-but-culled last poly must not leak world SZ/kind */
+#endif
         GsOUT_PACKET_P = poly2; // @bug? Should be `poly_gt4`
         return;
     }
@@ -3287,6 +3296,9 @@ __block1530:
         _b1530Log++;
     }
     }
+#endif
+#ifdef SH_PC_PORT
+    PsyX_CancelNextPrimSz(); /* armed-but-culled last poly must not leak world SZ/kind */
 #endif
     GsOUT_PACKET_P = poly0;
     return;
