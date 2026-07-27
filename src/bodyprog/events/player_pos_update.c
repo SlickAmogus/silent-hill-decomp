@@ -40,6 +40,28 @@ void Chara_PositionSet(s_MapPoint2d* mapPoint) // 0x800371E8
 
     g_SysWork.cameraAngleY = rotY;
 
+#ifdef SH_PC_PORT
+    /* Alt cams: re-base the orbit yaw onto the spawn heading, exactly as the
+     * line above re-bases the game camera. The orbit yaw is world-space and
+     * otherwise survives area loads, and the TPS/OTS body-slave
+     * (player_control.c) snaps Harry back to it on the first gameplay frame -
+     * overriding this function's spawn facing, so stairs into a
+     * differently-oriented area left Harry (and the frozen Ankh take-screen
+     * backdrop) facing un-drawn void. Seed BEHIND the spawn facing (yaw =
+     * rotY, camera behind Harry, classic-camera semantic) - NOT the reverted
+     * df49aa9d7 designs, which warp-detected in Pc_TpsCamera_Apply and seeded
+     * the camera IN FRONT. Pitch 0 matches the mode-entry reset. */
+    {
+        extern int g_DebugThirdPersonCam;
+        extern s32 g_TpsCamYaw, g_TpsCamPitch;
+        if (g_DebugThirdPersonCam)
+        {
+            g_TpsCamYaw   = rotY;
+            g_TpsCamPitch = 0;
+        }
+    }
+#endif
+
     func_8007E9C4();
     Game_MapRoomIdxUpdate();
 
