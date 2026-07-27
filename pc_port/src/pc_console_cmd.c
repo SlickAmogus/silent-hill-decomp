@@ -1058,6 +1058,13 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PgxpUseUnquantizedDepth = 0;
         else g_PgxpUseUnquantizedDepth = !g_PgxpUseUnquantizedDepth;
         cprintf("PGXP unquantized-depth W (distance-seam fix): %s", g_PgxpUseUnquantizedDepth ? "ON" : "OFF");
+    } else if (strcmp(cmd, "PGXPDEPTHSTATS") == 0) {
+        /* Opt-in [PGXPDEPTH] diagnostics dump (60-frame cadence, PGXP on). */
+        extern int g_PsxPgxpDepthStats;
+        if (arg[0] == '1') g_PsxPgxpDepthStats = 1;
+        else if (arg[0] == '0') g_PsxPgxpDepthStats = 0;
+        else g_PsxPgxpDepthStats = !g_PsxPgxpDepthStats;
+        cprintf("PGXP depth-channel stats dump: %s", g_PsxPgxpDepthStats ? "ON" : "OFF");
     } else if (strcmp(cmd, "PGXPWORLDDEPTH") == 0) {
         /* Depth-channel kill-switch: OFF suppresses FLAT world promotion
          * (GL_ALWAYS painter + viewZ flat depth), dropping depth behavior

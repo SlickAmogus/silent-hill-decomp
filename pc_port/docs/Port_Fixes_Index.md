@@ -1564,3 +1564,37 @@ one full playthrough on build `46daf37f8` (reports/0727reports).
   FOV release now restores vcWork.geom_screen_dist instead of stomping the
   letterbox zoom ramp for one frame. Open decision: widening flashlight
   modes 1-3 stand-down to non-letterboxed scripted scenes.
+
+## PGXP depth channel — flat world depth was provably inert; now live + per-vertex (2026-07-27)
+
+PsyCross `71ee9bf`..`6c7d191` + decomp `dfb05966b`/`1d7c6c795` (+ probe demotion).
+The FLAT/WORLD depth classification shipped 2026-07-17 (GL_ALWAYS world painter,
+`SplitDepthForPrim`) never fired in gameplay: `PsyX_ClearGteDepthTable` memset the
+SZ table at every GsDrawOt start — between addPrim capture and the parse. A
+runtime probe measured ~70k world entries/s captured and discarded with parse
+hit = 0. Fix, in independently-tested steps, all PGXP-on only (`use_pgxp=0` keeps
+the wipe + legacy formulas verbatim):
+
+1. **Gen-stamped SZ table** (reuses `s_pgxpGen`, same lifecycle as the shadow/
+   affine tables) replaces the wipe when PGXP is on; a reused packet address
+   from a prior frame reads as a miss. On->off toggle self-heals (first off
+   GsDrawOt wipes as before).
+2. **One constant linear depth scale** for every source: `ndc(vz) = 1-2*vz/2^18`
+   — flat world prims at `avg_raw + M` (M = `PGXPWALLBIAS`, default 64 SZ,
+   writer-side so coplanar testers win LEQUAL), EXACT sans M, untracked (NONE —
+   auto-captured TMD FIFO garbage) keeps the OT bucket seed, itself remapped
+   onto the same scale via `PsyX_SetOtViewZShift` (world `SZ>>(arg3+2)`, TMD
+   `p>>shift` ~ shift+2). Item pass excluded wholesale (legacy path verbatim).
+3. **Per-vertex depth on opaque world writes only** (`_p1`/`a_extra.w` marker →
+   vertex shader derives depth from the unquantized `a_pgxp.z` on the same
+   scale). The GL_ALWAYS class never depth-tests itself, so per-vertex depth
+   there cannot flicker — it makes the depth field actors test against
+   per-pixel accurate. Semi-trans world prims are NOT marked (LEQUAL testers
+   vs their coplanar host = the historical two-interpolants coin-flip that
+   killed 4 prior attempts). `Gfx_MeshDraw` also cancels armed-but-culled
+   one-shot SZ payloads at every exit (silent kind/depth poisoning).
+
+Verified live by counters (`PGXPDEPTHSTATS`): armF~350k/s, capF = parse-hit F =
+splitWORLD (~100k/s), staleR < 400/s, splitHW 794/4096, exhaust 0, no OT-shift
+disagreement. Kill-switch: `PGXPWORLDDEPTH`. Remaining distant thin seams are
+sub-pixel position cracks (PGXPEDGE/weld class), NOT depth — out of scope here.
