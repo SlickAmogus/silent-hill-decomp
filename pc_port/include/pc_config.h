@@ -82,6 +82,10 @@ typedef struct {
                             * geometry vanilla never rendered at once. Requires preload_chunks and
                             * resident_textures. (config key: whole_map_exteriors) */
     int usePgxp;         /* 1 = enable PGXP precision/perspective-correct textures (work-in-progress) */
+    int psxPolySizeCull; /* 1 = PSX GPU parity: reject triangles whose screen bbox exceeds 1023x511,
+                          * like real hardware — kills the screen-crossing wedge polys when the camera
+                          * sits inside geometry (elevator doors/staircase). 0 = draw them (old behavior).
+                          * (config key: psx_poly_size_cull; console: polysizecull) */
     int msaaSamples;     /* MSAA on the default framebuffer: 0 = off, 2/4/8 = sample count (config key: msaa) */
     int postProcess;     /* full-screen post-process look: 0 = off, 1.. = built-in filter (config key: post_process) */
     int tonemap;         /* tone-map operator: 0=off,1=Reinhard,2=ACES,3=Filmic (config key: tonemap) */

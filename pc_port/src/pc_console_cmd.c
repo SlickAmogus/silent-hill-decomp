@@ -1069,6 +1069,18 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PgxpNearZ;
         if (arg[0]) { g_PgxpNearZ = (float)atof(arg); if (g_PgxpNearZ < 1.0f) g_PgxpNearZ = 1.0f; }
         cprintf("PGXP near-clip plane depth: %.1f gte-units", g_PgxpNearZ);
+    } else if (strcmp(cmd, "POLYSIZECULL") == 0) {
+        /* PSX GPU parity: hardware rejects triangles whose screen bbox exceeds
+         * 1023x511; drawing them is the wedge-poly corruption. Off = A/B the
+         * old behavior (and an escape hatch if a load-bearing oversize quad
+         * turns up, e.g. the flashlight glow-mask borders). */
+        extern int g_PsxPolySizeCull;
+        if (arg[0] == '1') g_PsxPolySizeCull = 1;
+        else if (arg[0] == '0') g_PsxPolySizeCull = 0;
+        else g_PsxPolySizeCull = !g_PsxPolySizeCull;
+        g_PcConfig.psxPolySizeCull = g_PsxPolySizeCull;
+        PcConfig_SaveKeyValue("psx_poly_size_cull", g_PsxPolySizeCull ? "1" : "0");
+        cprintf("PSX oversize-poly cull (bbox >1023x511 rejected): %s", g_PsxPolySizeCull ? "ON" : "OFF");
     } else if (strcmp(cmd, "PGXPFARW") == 0) {
         /* Beyond this view depth (SZ units, 256 = 1 world unit) perspective
          * interpolation fades to affine — kills the distant grazing-angle

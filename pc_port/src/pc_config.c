@@ -30,6 +30,7 @@ s_PcConfig g_PcConfig = {
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
+    .psxPolySizeCull = 1, /* 1=PSX GPU parity: cull triangles with screen bbox >1023x511 (hardware never drew them) */
     .msaaSamples    = 0, /* 0=off, 2/4/8 = MSAA sample count */
     .postProcess    = 0, /* 0=off, 1.. = post-process look */
     .tonemap        = 0, /* 0=off, 1=Reinhard, 2=ACES, 3=Filmic */
@@ -490,6 +491,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "use_pgxp") == 0)
         {
             g_PcConfig.usePgxp = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "psx_poly_size_cull") == 0)
+        {
+            g_PcConfig.psxPolySizeCull = (atoi(value) != 0);
         }
         else if (strcmp(key, "msaa") == 0)
         {

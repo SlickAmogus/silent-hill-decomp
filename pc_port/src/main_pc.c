@@ -1069,6 +1069,15 @@ int main(int argc, char* argv[])
     g_PsxUsePgxp = g_PcConfig.usePgxp ? 1 : 0;
     SH_LOG("PGXP: %s", g_PsxUsePgxp ? "ON (perspective-correct, WIP)" : "off (affine)");
 
+    /* PSX GPU parity: reject triangles whose screen bbox exceeds 1023x511
+     * (hardware never rasterized them; PsyX drawing them is the wedge-poly
+     * corruption when the camera sits inside geometry). Console `polysizecull`. */
+    {
+        extern int g_PsxPolySizeCull;
+        g_PsxPolySizeCull = g_PcConfig.psxPolySizeCull ? 1 : 0;
+        SH_LOG("PSX oversize-poly cull: %s", g_PsxPolySizeCull ? "on" : "OFF (wedge polys possible)");
+    }
+
     /* Full-screen post-process look (color grade / CRT / scanlines / vignette /
      * grain / sharpen / PSX downsample / cinematic). Runtime-settable; F2 cycles
      * it in-game (dbg_overlay.c). */
