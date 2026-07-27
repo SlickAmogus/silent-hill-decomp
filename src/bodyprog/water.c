@@ -33,12 +33,8 @@ extern void PsyX_SetNextPrimNoFlashlight(void);
  * words this way; without propagation those verts carry zero view-Z, so the
  * per-pixel flashlight reconstructs a garbage normal and blows the water out. */
 extern void Shadow_Copy(void* dst, const void* src);
-/* The reflective water octagon (func_8008EA68) is untextured Gouraud, so under the
- * per-pixel flashlight its albedo reads white and (with PGXP giving its verts
- * view-Z) it saturates to a white blob. Skip that octagon ONLY when both are on
- * (PGXP + per-pixel) — the exact blow-out combo; PGXP-off and Classic (per-pixel
- * off) keep the original octagon. The chest lens flare (func_8008D990) is a
- * SEPARATE effect and must NOT be gated on these. */
+/* The chest lens flare (func_8008D990) is a SEPARATE effect from the water
+ * reflection prims and must never be gated on PGXP/flashlight state. */
 extern int g_PsxUsePgxp;
 extern int g_PsyX_UsePerPixelFlashlight;
 #endif
@@ -886,17 +882,10 @@ void func_8008EA68(SVECTOR* arg0, VECTOR3* posXz, q19_12 posY) // 0x8008EA68
     GsOT_TAG*        spD4;
     GsOT_TAG*        ot;
 
-#ifdef SH_PC_PORT
-    /* This reflective octagon is untextured Gouraud; under the per-pixel flashlight
-     * its per-fragment albedo reads white and, with PGXP giving the verts view-Z,
-     * it saturates to a white blob on the water. It renders correctly with PGXP off
-     * or in Classic (per-pixel off), so skip it only in that exact blow-out combo —
-     * matching the Classic look. Attempts to opt it out of the beam per-prim did not
-     * take effect on these OrderingTable0 prims. */
-    if (g_PsxUsePgxp && g_PsyX_UsePerPixelFlashlight)
-        return;
-#endif
-
+    /* PC: the per-pixel flashlight's untextured-albedo fix (u_untextured in
+     * PsyCross GPU_LIT_TAIL) bounds the beam's add by this octagon's own dark
+     * vertex colors, so it no longer saturates white under PGXP + per-pixel —
+     * the earlier hard skip here is gone and the octagon draws in all modes. */
     ot         = g_OrderingTable0[g_ActiveBufferIdx].org;
     sp50.flg   = false;
     sp50.coord = GsIDMATRIX;
