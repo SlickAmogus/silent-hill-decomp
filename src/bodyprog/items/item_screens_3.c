@@ -591,6 +591,14 @@ q19_12 g_Items_PickupScale     = Q12(0.0f);
  * with force-item-depth (the inventory see-through fix) and to release the
  * freeze-frame when the pickup ends. */
 int g_PcPickupItemActive = 0;
+
+/* Set to 1 every frame a full-screen puzzle draws its 3D models through the
+ * shared item path (func_8004BD74 arg2==0 under GameState_InGame — today only
+ * the map5_s01 combination lock). The puzzle's map event holds
+ * BgmStatusFlag_Pause, so OT0 holds the puzzle models ALONE and the same
+ * force-item-depth bracket + precise-SZ feed as the inventory applies. Armed
+ * at the puzzle draw site, cleared each frame in game_main.c. */
+int g_PcPuzzleItemDepth = 0;
 #endif
 
 VECTOR3 D_800AE1B4[1] = { 0x00000000, 0x000000CC, 0xFFFFFEC9 };

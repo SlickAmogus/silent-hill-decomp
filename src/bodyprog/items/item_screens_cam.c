@@ -314,7 +314,11 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
          * model draws (Gfx_PickupItemAnimate sets BgmStatusFlag_Pause). Pairs
          * with the force-item-depth bracket in game_main.c. See libgs_stub.c
          * g_PcItemPreciseDepth. */
-        g_PcItemPreciseDepth = (g_GameWork.gameState == GameState_InventoryScreen) || (arg2 == 2);
+        {
+            extern int g_PcPuzzleItemDepth;
+            g_PcItemPreciseDepth = (g_GameWork.gameState == GameState_InventoryScreen) || (arg2 == 2) ||
+                                   g_PcPuzzleItemDepth;
+        }
         if (displayItemIdx < 7 && g_PcInvDimStrength > 0) {
             /* depth past center = t[2]+Q8(4) = |Math_Sin(slot*256)| (Q12):
              * slot1~1567, slot2~2896, slot3~3784. Quantize to slot distance and

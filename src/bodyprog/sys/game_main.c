@@ -2032,6 +2032,9 @@ void MainLoop(void) // 0x80032EE0
          * item-pickup model is on screen. See the OT0 force-item-depth bracket
          * and the freeze-frame release below. */
         { extern int g_PcPickupItemActive; g_PcPickupItemActive = 0; }
+        /* Same lifecycle for the full-screen puzzle depth flag (map5_s01 lock
+         * draw re-arms it while the puzzle is on screen). */
+        { extern int g_PcPuzzleItemDepth; g_PcPuzzleItemDepth = 0; }
 #endif
 
         // Call update function for current GameState.
@@ -2937,7 +2940,9 @@ void MainLoop(void) // 0x80032EE0
          * per-pixel depth pass fixes its see-through without touching the world. */
         {
             extern int g_PcPickupItemActive;
-            if (g_GameWork.gameState == GameState_InventoryScreen || g_PcPickupItemActive) {
+            extern int g_PcPuzzleItemDepth;
+            if (g_GameWork.gameState == GameState_InventoryScreen || g_PcPickupItemActive ||
+                g_PcPuzzleItemDepth) {
                 extern void PsyX_ForceItemDepthBegin(void);
                 PsyX_ForceItemDepthBegin();
             }
@@ -2947,7 +2952,9 @@ void MainLoop(void) // 0x80032EE0
 #ifdef SH_PC_PORT
         {
             extern int g_PcPickupItemActive;
-            if (g_GameWork.gameState == GameState_InventoryScreen || g_PcPickupItemActive) {
+            extern int g_PcPuzzleItemDepth;
+            if (g_GameWork.gameState == GameState_InventoryScreen || g_PcPickupItemActive ||
+                g_PcPuzzleItemDepth) {
                 extern void PsyX_ForceItemDepthEnd(void);
                 PsyX_ForceItemDepthEnd();
             }

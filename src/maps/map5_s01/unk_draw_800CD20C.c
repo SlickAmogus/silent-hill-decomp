@@ -20,6 +20,16 @@ s16 func_800CD20C(void) // 0x800CD20C
      * line up with the overlay at any aspect. Only reached while the puzzle is
      * on screen (this whole function is its per-frame draw). */
     { extern s32 g_Pc2dBackgroundActive; g_Pc2dBackgroundActive = 2; }
+
+    /* The map event holds BgmStatusFlag_Pause every puzzle frame, so the world
+     * is not submitted and OT0 holds only the reel models — the inventory
+     * see-through fix (precise per-vertex SZ + force-item-depth bracket in
+     * game_main.c) applies verbatim. Without it the reels collapse to one
+     * depth per OT bucket and the back digit plates draw over the front body.
+     * NOTE while the bracket is live the reels skip VsFillVertex, i.e. they
+     * are excluded from per-pixel flashlight + PGXP vertex data — irrelevant
+     * for a full-screen close-up. */
+    { extern int g_PcPuzzleItemDepth; g_PcPuzzleItemDepth = 1; }
 #endif
 
     if (D_800F159C == 1)
