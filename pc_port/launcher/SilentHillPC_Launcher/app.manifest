@@ -37,6 +37,11 @@
            grew but the layout didn't, clipping every control. false restores
            the pre-manifest behavior (whole window scaled by Windows). -->
       <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">false</dpiAware>
+      <!-- Opt in to Win10 long-path support (with the OS LongPathsEnabled
+           policy) so non-\\?\ Win32 ops also survive >MAX_PATH texture-pack
+           paths; the DdsConverter shuffle works without it, this is a
+           belt-and-braces layer. -->
+      <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
     </windowsSettings>
   </application>
 </assembly>

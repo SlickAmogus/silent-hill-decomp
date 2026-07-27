@@ -18,10 +18,26 @@ namespace SilentHillPC_Launcher
     /// cutout — BC1/DXT1 would wreck it), and the FULL mip chain (-m 0) is
     /// MANDATORY: the game uploads the file's own mips level-by-level, and a
     /// single-level .dds pins GL_TEXTURE_MAX_LEVEL 0 and renders black.
+    ///
+    /// PATH HANDLING: DuckStation packs pair ~110-char texupload-* hash names
+    /// with users' deeply nested extract folders, so full paths routinely pass
+    /// MAX_PATH, and a real pack holds 12000+ PNGs in ONE directory — batching
+    /// them onto a texconv command line blows CreateProcess's 32K argument cap
+    /// ("The filename or extension is too long"). Every conversion therefore
+    /// goes through a short-temp shuffle: sources are copied (\\?\-prefixed
+    /// File.Copy, immune to MAX_PATH) to sequential short names in %TEMP%,
+    /// texconv runs THERE with relative arguments in bounded chunks, and each
+    /// result is moved (\\?\ again) to its long destination beside the source.
+    /// texconv itself never sees a user path.
     /// </summary>
     public static class DdsConverter
     {
         private const string EmbeddedName = "SilentHillPC_Launcher.texconv.exe";
+
+        /// <summary>Files per texconv invocation. Temp names are ~14 chars, so a
+        /// chunk's relative-arg command line stays a few KB — far under the 32K
+        /// CreateProcess limit — while keeping process spawns low.</summary>
+        private const int ChunkSize = 128;
 
         private static readonly object _lock = new object();
         private static bool   _tried;
@@ -105,10 +121,62 @@ namespace SilentHillPC_Launcher
             catch { return null; }
         }
 
+        // ------------------------------------------------------------------
+        // Long-path plumbing. \\?\-prefixed absolute paths bypass MAX_PATH for
+        // every System.IO file op regardless of the OS LongPathsEnabled policy
+        // (App.config additionally pins the 4.6.2+ path-handling switches).
+        // ------------------------------------------------------------------
+
+        private static string ToExtended(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return path;
+            if (path.StartsWith(@"\\?\", StringComparison.Ordinal)) return path;
+            string full = Path.IsPathRooted(path) ? path : Path.GetFullPath(path);
+            if (full.StartsWith(@"\\", StringComparison.Ordinal))
+                return @"\\?\UNC\" + full.Substring(2);
+            return @"\\?\" + full;
+        }
+
+        private static string FromExtended(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return path;
+            if (path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
+                return @"\\" + path.Substring(8);
+            if (path.StartsWith(@"\\?\", StringComparison.Ordinal))
+                return path.Substring(4);
+            return path;
+        }
+
+        private static void LongCopy(string src, string dst)
+        {
+            File.Copy(ToExtended(src), ToExtended(dst), true);
+        }
+
+        /// <summary>Move (overwriting) a short temp file to a possibly-long final
+        /// path. MoveFileW copies+deletes across volumes for files, but fall back
+        /// to an explicit copy+delete if a filesystem refuses the move.</summary>
+        private static void LongMoveOver(string src, string dst)
+        {
+            string xdst = ToExtended(dst);
+            if (File.Exists(xdst)) File.Delete(xdst);
+            try { File.Move(ToExtended(src), xdst); }
+            catch (IOException)
+            {
+                File.Copy(ToExtended(src), xdst, true);
+                try { File.Delete(ToExtended(src)); } catch { }
+            }
+        }
+
+        private static void LongDelete(string path)
+        {
+            string x = ToExtended(path);
+            if (File.Exists(x)) File.Delete(x);
+        }
+
         /// <summary>Run texconv with the given args; returns exit 0 and captures any
         /// output for diagnostics. stdout+stderr are drained asynchronously so a
         /// full pipe never deadlocks the wait.</summary>
-        private static bool Run(string args, out string output)
+        private static bool Run(string args, string workDir, out string output)
         {
             output = "";
             string exe = ResolveExe();
@@ -125,6 +193,7 @@ namespace SilentHillPC_Launcher
                     RedirectStandardOutput = true,
                     RedirectStandardError  = true
                 };
+                if (!string.IsNullOrEmpty(workDir)) psi.WorkingDirectory = workDir;
 
                 var sb = new StringBuilder();
                 using (var proc = new Process { StartInfo = psi })
@@ -146,53 +215,174 @@ namespace SilentHillPC_Launcher
             catch (Exception ex) { output = ex.Message; return false; }
         }
 
-        private static string Quote(string s) { return "\"" + s + "\""; }
+        // ------------------------------------------------------------------
+        // Shuffle conversion core.
+        // ------------------------------------------------------------------
+
+        private sealed class Job
+        {
+            public string Src;      // user's source file (may exceed MAX_PATH)
+            public string DstDir;   // destination directory (may exceed MAX_PATH)
+            public string TempIn;   // short temp copy fed to texconv
+            public string TempOut;  // short temp result texconv writes
+            public string Final;    // DstDir + source basename + new extension
+            public string Error;
+            public bool   Ok;
+        }
+
+        /// <summary>Convert sources via the short-temp shuffle, chunked. decode=false
+        /// is PNG-&gt;BC7 .dds, decode=true is .dds-&gt;PNG. dstDirOf maps a source to
+        /// its output directory. onConverted fires per successful source (used for
+        /// delete-source). The output keeps the exact source basename with only the
+        /// extension swapped — the engine matches textures by parsing that name.</summary>
+        private static void ConvertMany(List<string> sources, Func<string, string> dstDirOf,
+                                        bool decode, Action<int, int, string> report,
+                                        Action<string> onConverted,
+                                        out int converted, out int failed, out string firstError)
+        {
+            converted  = 0;
+            failed     = 0;
+            firstError = null;
+
+            string inExt   = decode ? ".dds" : ".png";
+            string outExt  = decode ? ".png" : ".dds";
+            string convArg = decode ? "-nologo -ft png -y -o o"
+                                    : "-nologo -f BC7_UNORM -m 0 -y -o o";
+            int done = 0;
+
+            for (int start = 0; start < sources.Count; start += ChunkSize)
+            {
+                int count = Math.Min(ChunkSize, sources.Count - start);
+                string workDir = Path.Combine(Path.GetTempPath(), "SilentHillPC_Launcher",
+                                              "dds-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+                string inDir  = Path.Combine(workDir, "i");
+                string outDir = Path.Combine(workDir, "o");
+                var    jobs   = new List<Job>(count);
+
+                try
+                {
+                    Directory.CreateDirectory(inDir);
+                    Directory.CreateDirectory(outDir);
+
+                    var sb = new StringBuilder(convArg);
+                    for (int k = 0; k < count; k++)
+                    {
+                        string src = sources[start + k];
+                        var job = new Job
+                        {
+                            Src     = src,
+                            DstDir  = dstDirOf(src),
+                            TempIn  = Path.Combine(inDir,  k.ToString("D6") + inExt),
+                            TempOut = Path.Combine(outDir, k.ToString("D6") + outExt)
+                        };
+                        job.Final = Path.Combine(job.DstDir,
+                                                 Path.GetFileNameWithoutExtension(src) + outExt);
+                        jobs.Add(job);
+
+                        try
+                        {
+                            LongCopy(src, job.TempIn);
+                            sb.Append(" i\\").Append(k.ToString("D6")).Append(inExt);
+                        }
+                        catch (Exception ex)
+                        {
+                            job.Error = "copy failed for " + Path.GetFileName(src) + ": " + ex.Message;
+                        }
+                    }
+
+                    if (report != null && jobs.Count > 0)
+                        report(done + 1, sources.Count,
+                               (decode ? "Decoding " : "Encoding ") +
+                               Path.GetFileName(jobs[0].Src) + "  (" + (done + 1) + "/" + sources.Count + ")");
+
+                    string output;
+                    Run(sb.ToString(), workDir, out output);
+
+                    foreach (var job in jobs)
+                    {
+                        done++;
+                        if (job.Error == null)
+                        {
+                            if (File.Exists(job.TempOut))
+                            {
+                                try
+                                {
+                                    Directory.CreateDirectory(ToExtended(job.DstDir));
+                                    LongMoveOver(job.TempOut, job.Final);
+                                    job.Ok = true;
+                                }
+                                catch (Exception ex)
+                                {
+                                    job.Error = "could not place " + Path.GetFileName(job.Final) + ": " + ex.Message;
+                                }
+                            }
+                            else
+                            {
+                                job.Error = "texconv failed for " + Path.GetFileName(job.Src) +
+                                            (string.IsNullOrEmpty(output) ? "" : ":\n" + output.Trim());
+                            }
+                        }
+
+                        if (job.Ok)
+                        {
+                            converted++;
+                            if (onConverted != null) onConverted(job.Src);
+                        }
+                        else
+                        {
+                            failed++;
+                            if (firstError == null) firstError = job.Error;
+                        }
+
+                        if (report != null)
+                            report(done, sources.Count,
+                                   (decode ? "Decoding " : "Encoding ") +
+                                   Path.GetFileName(job.Src) + "  (" + done + "/" + sources.Count + ")");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Whole-chunk failure (temp dir creation etc.) — charge every
+                    // job in the chunk that hasn't been accounted yet.
+                    foreach (var job in jobs)
+                        if (!job.Ok && job.Error == null) job.Error = ex.Message;
+                    int unaccounted = count - jobs.Count;
+                    failed += unaccounted;
+                    done   += unaccounted;
+                    if (firstError == null) firstError = ex.Message;
+                }
+                finally
+                {
+                    try { Directory.Delete(workDir, true); } catch { }
+                }
+            }
+        }
 
         /// <summary>Encode one PNG to a BC7 .dds (full mip chain) in <paramref
-        /// name="outDir"/>. texconv keeps the base name, so FOO.TIM.p00.png ->
+        /// name="outDir"/>. The base name is kept, so FOO.TIM.p00.png ->
         /// FOO.TIM.p00.dds. Returns false + a message on failure.</summary>
         public static bool EncodePng(string pngPath, string outDir, out string error)
         {
-            error = null;
-            Directory.CreateDirectory(outDir);
-            string output;
-            // -f BC7_UNORM: 8-bit alpha kept; -m 0: full mip chain (mandatory);
-            // -y: overwrite; -o: output dir. DDS is texconv's default output type.
-            bool ok = Run("-nologo -f BC7_UNORM -m 0 -y -o " + Quote(outDir) + " " + Quote(pngPath), out output);
-            string outFile = Path.Combine(outDir, Path.GetFileNameWithoutExtension(pngPath) + ".dds");
-            if (!ok || !File.Exists(outFile))
-            {
-                error = "texconv failed for " + Path.GetFileName(pngPath) +
-                        (string.IsNullOrEmpty(output) ? "" : ":\n" + output.Trim());
-                return false;
-            }
-            return true;
+            int converted, failed;
+            ConvertMany(new List<string> { pngPath }, _ => outDir, false, null, null,
+                        out converted, out failed, out error);
+            return failed == 0 && converted == 1;
         }
 
         /// <summary>Decode one .dds to a .png in <paramref name="outDir"/>.</summary>
         public static bool DecodeDds(string ddsPath, string outDir, out string error)
         {
-            error = null;
-            Directory.CreateDirectory(outDir);
-            string output;
-            bool ok = Run("-nologo -ft png -y -o " + Quote(outDir) + " " + Quote(ddsPath), out output);
-            string outFile = Path.Combine(outDir, Path.GetFileNameWithoutExtension(ddsPath) + ".png");
-            if (!ok || !File.Exists(outFile))
-            {
-                error = "texconv failed for " + Path.GetFileName(ddsPath) +
-                        (string.IsNullOrEmpty(output) ? "" : ":\n" + output.Trim());
-                return false;
-            }
-            return true;
+            int converted, failed;
+            ConvertMany(new List<string> { ddsPath }, _ => outDir, true, null, null,
+                        out converted, out failed, out error);
+            return failed == 0 && converted == 1;
         }
 
         /// <summary>Batch-encode every *.png under <paramref name="folder"/> to a BC7
-        /// .dds beside it (recursive). texconv is invoked once per containing
-        /// directory to keep process spawns down. When <paramref
-        /// name="deleteSource"/>, each source .png that converted is removed — the
-        /// game only takes the .dds fast path when the .png isn't also present.
-        /// Returns (converted, failed); <paramref name="firstError"/> holds the
-        /// first failure message.</summary>
+        /// .dds beside it (recursive). When <paramref name="deleteSource"/>, each
+        /// source .png that converted is removed — the game only takes the .dds fast
+        /// path when the .png isn't also present. Returns (converted, failed);
+        /// <paramref name="firstError"/> holds the first failure message.</summary>
         public static void EncodeFolder(string folder, bool deleteSource,
                                         Action<int, int, string> report,
                                         out int converted, out int failed, out string firstError)
@@ -201,54 +391,23 @@ namespace SilentHillPC_Launcher
             failed = 0;
             firstError = null;
 
-            List<string> pngs;
-            try { pngs = new List<string>(Directory.EnumerateFiles(folder, "*.png", SearchOption.AllDirectories)); }
+            var pngs = new List<string>();
+            try
+            {
+                // Enumerate through the extended prefix so files nested past
+                // MAX_PATH are found at all; strip it back off for the jobs.
+                foreach (var f in Directory.EnumerateFiles(ToExtended(folder), "*.png",
+                                                           SearchOption.AllDirectories))
+                    pngs.Add(FromExtended(f));
+            }
             catch (Exception ex) { firstError = ex.Message; return; }
 
-            // Group by directory so one texconv call handles all PNGs in a folder.
-            var byDir = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-            foreach (var p in pngs)
-            {
-                string d = Path.GetDirectoryName(p);
-                if (!byDir.ContainsKey(d)) byDir[d] = new List<string>();
-                byDir[d].Add(p);
-            }
+            Action<string> onConverted = null;
+            if (deleteSource)
+                onConverted = src => { try { LongDelete(src); } catch { /* leave the png if locked */ } };
 
-            int done = 0;
-            foreach (var kv in byDir)
-            {
-                string dir = kv.Key;
-                var    files = kv.Value;
-                var    sb = new StringBuilder("-nologo -f BC7_UNORM -m 0 -y -o " + Quote(dir));
-                foreach (var f in files) sb.Append(' ').Append(Quote(f));
-
-                string output;
-                Run(sb.ToString(), out output);
-
-                foreach (var f in files)
-                {
-                    done++;
-                    if (report != null)
-                        report(done, pngs.Count, "Encoding " + Path.GetFileName(f) + "  (" + done + "/" + pngs.Count + ")");
-
-                    string dds = Path.Combine(dir, Path.GetFileNameWithoutExtension(f) + ".dds");
-                    if (File.Exists(dds))
-                    {
-                        converted++;
-                        if (deleteSource)
-                        {
-                            try { File.Delete(f); } catch { /* leave the png if locked */ }
-                        }
-                    }
-                    else
-                    {
-                        failed++;
-                        if (firstError == null)
-                            firstError = "texconv failed for " + Path.GetFileName(f) +
-                                         (string.IsNullOrEmpty(output) ? "" : ":\n" + output.Trim());
-                    }
-                }
-            }
+            ConvertMany(pngs, src => Path.GetDirectoryName(src), false, report, onConverted,
+                        out converted, out failed, out firstError);
         }
     }
 }
