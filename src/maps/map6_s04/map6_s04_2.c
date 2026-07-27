@@ -679,6 +679,22 @@ bool func_800DF41C(s_800ED848* arg0) // 0x800DF41C
 
     arg0->field_8 += 30;
 
+#ifdef SH_PC_PORT
+    {
+        /* One-shot Flauros-ray diagnosis (0727 report: ray not visible). The
+         * sweep advances 30/frame regardless of dt, so at 60fps it crosses in
+         * ~half the PSX wall time; these lines tell the next log whether the
+         * ray ran (and how fast), or never got here at all. */
+        static s32 s_rayProbes = 0;
+        if (s_rayProbes < 8)
+        {
+            SH_DBG("[FLAUROS-RAY] update field_8=%d trans=(%d,%d,%d)",
+                   arg0->field_8, arg0->field_28.t[0], arg0->field_28.t[1], arg0->field_28.t[2]);
+            s_rayProbes++;
+        }
+    }
+#endif
+
     for (i = 0; i < 50; i++)
     {
         var_v1 = 332;
@@ -993,6 +1009,22 @@ void* func_800DFD3C(GsOT_TAG* ot, PACKET* packet, MATRIX* mat, s32 arg3, s32 arg
             temp_s1 = var_s5;
             var_s5  = func_800DE350(j + (i * 28));
 
+#ifdef SH_PC_PORT
+            {
+                /* One-shot Flauros-ray diagnosis: first grid quad's screen
+                 * coords + colors distinguish drawn-but-blink-fast from
+                 * off-screen from all-black. */
+                static s32 s_rayDrawProbes = 0;
+                if (i == 1 && j == 1 && s_rayDrawProbes < 8)
+                {
+                    SH_DBG("[FLAUROS-RAY] draw quad0 xy0=(%d,%d) xy2=(%d,%d) c0=%08X c1=%08X p=%d flag=%d",
+                           sp48[0].vx, sp48[0].vy, sp48[2].vx, sp48[2].vy,
+                           (u32)temp_s0, (u32)temp_s1, sp58, sp5C);
+                    s_rayDrawProbes++;
+                }
+            }
+#endif
+
             setPolyG4(poly);
 
             *(s32*)&poly->x0 = *(s32*)&sp48[0];
@@ -1155,7 +1187,16 @@ s_func_800E030C* func_800E030C(void) // 0x800E030C
     s32              i;
     s_func_800E030C* ptr;
 
+#ifdef SH_PC_PORT
+    /* PSX offset 0x494 != offsetof(field_494) on 64-bit: s_func_800E030C has
+     * an 8-byte funcPtr so the array aligns up to 0x498. base+0x494 made every
+     * spawn write -4 vs the readers (the [FXBUF-BAD] 0x7ffc signature + the
+     * old EXECUTING 0x7ffa crash) -> the Dahlia-teleport light-gather never
+     * rendered. On PSX both expressions are the same address. */
+    ptr = ((s_func_800E05C8*)MAP6S04_FXBUF)->field_494;
+#else
     ptr = (s_func_800E030C*)((u8*)MAP6S04_FXBUF + 0x494);
+#endif
 
     for (i = 0; i < 800; i++, ptr++)
     {
