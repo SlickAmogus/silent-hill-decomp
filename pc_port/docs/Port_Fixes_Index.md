@@ -1495,3 +1495,72 @@ reformat into garbage geometry+collision that persists.
   partially-delivered or half-stale buffer ("frankenbuffer") is rejected into
   the designed skip+retry path instead of reformatting garbage and registering
   it as done. `[IPD-VAL]` log canary (capped at 32 lines).
+
+## 0727 user-report batch (2026-07-27, 12 bugs root-caused via multi-agent investigation)
+
+All root causes adversarially verified before implementation. Session log:
+one full playthrough on build `46daf37f8` (reports/0727reports).
+
+- **Cutscene rainbow bar, recurring** (`hires_override.c`, `e3598f829`): the
+  PSX ghosting overlays (map4_s01/map4_s04/map3_s02) draw 16bpp framebuffer
+  SPRTs whose `clut` is legitimately uninitialized (hardware ignores it in
+  16bpp mode); the hi-res override honored the garbage as a virtual-pool key
+  and hijacked a live resident texture. Virtual branch now rejects tp>=2
+  tpages; one-shot `[HIRES] ignored virtual clut` canary proves firing.
+  Supersedes the "P_TAG sibling prim" theory for the map3_s02 rainbow.
+- **Plate of Queen tilted through desk** (`map3_s04_extracted_data.c`,
+  `3e4d9a21f`): PSX VA 0x800CB35C is a DIFFERENT per-overlay variable in
+  map3_s04 (zero SVECTOR3 rotation for PLATE_NE + six DR*_HID drawers) vs
+  map3_s05 (SFX position); the cross-map exe promotion served the map3_s05
+  value to both, read as {20889,1,0} = ~36deg pitch. DLL-local disc-exact
+  zeros now shadow the exe stub (same class + same fix shape as the
+  b2e4adecf elevator-chime entry). Regen config updated; NEVER bulk-regen.
+- **Incubus lightning flood/missing** (`map7_s03_2.c`, `80889e4a9`):
+  func_800DBA08 projects arg0[0] AND arg0[1] (PSX stack adjacency); PC stack
+  layout put sp18 below sp10 so the second vector was a host pointer ->
+  exploded quads (screen flood) or GTE overflow -> segments skipped (missing
+  bolts). SVECTOR spVec[2] under SH_PC_PORT restores defined adjacency.
+  Same class as the Split Head stack-frame fix. Bolt color fade is still
+  per-rendered-frame (24 draws); 30Hz-tick fix designed, not shipped.
+- **Good+ bottle-throw scream 0.6s early** (`map7_s03_3.c`, `5c342d2bc`):
+  removed the b2565289e 0.7s "shriek lead" - its 0.5-1s PC XA latency
+  premise measured false (~2 frames; playedMs==pad on all 33 clips in the
+  session log). Authored fire-at-impact restored; ending runs ~0.7s slower
+  (PSX-correct). If a user still hears trailing audio, config-gated lead
+  only - never a hardcoded one.
+- **Dahlia teleport FX invisible** (`map6_s04_2.c`, `b8939e101`): allocator
+  used PSX byte offset +0x494 into the FX buffer; on x64 field_494 aligns to
+  0x498, every spawn wrote -4 vs readers, [FXBUF-BAD] guard retired all 570
+  particles. Struct-member access on PC; pins the old EXECUTING-0x7ffa crash
+  source. One-shot [FLAUROS-RAY] probes added for the still-open ray
+  question (suspect: per-frame sweep = 0.3s blink at 60fps).
+- **VHS tape subtitles only after audio** (`map_msg_display.c`,
+  `79239e5a1`): the tape is a J2 map-message cutscene (one 35s XA clip, 13
+  timer-advanced pages), not an FMV; pcVoiceHold pinned the blank ~J0 lead
+  page for the whole clip. J2 pages (+ their chaining lead page) are now
+  exempt; peek gated on an active ~J page to avoid OOB on selection pages.
+  Regression-test Flauros/Lisa/Kaufmann per-page voice scenes.
+- **Lisa-intro FMV "no music"** (`fmv_player.cpp`, `5ae45f31c`): music
+  (SEQ "Loneliness", BGM 802) plays correctly under the movie; the missing
+  piece was PSX movie_main's SsSetSerialVol(0,80,80) = 80/128 attenuation of
+  the movie audio bed, which the PC FMV paths never modeled - the static
+  masked the quiet cue. Factor applied in FmvApplyVolume for all three
+  paths; `fmv_psx_volume=0` opts out for remastered packs.
+- **Combination-lock see-through** (`item_screens_*`, `game_main.c`,
+  `unk_draw_800CD20C.c`, `98612c762`): the map5_s01 lock renders via the
+  shared item path but under InGame/arg2=0, outside both gates of the
+  radio-antenna fix. New g_PcPuzzleItemDepth (armed at the puzzle draw site,
+  world paused so OT0 is reels-only) extends precise-SZ + force-depth to it.
+  Dark-room ammo pickups: diagnosed PSX-authentic painter behavior (single
+  OT link) made visible by flashlight contrast - enhancement deferred.
+- **Chest lens-flare flicker/wander** (`water.c`, `69b58b39b`): Q12 stepLen
+  vs Q8 deltaZ left the facing-factor knee unreachable - flare stuck on a
+  linear cos ramp at <=50%, re-targeted by every chest-bone wobble. stepLen
+  now Q8; knee fires at cos>=1/8 and the ramp target pins constant like the
+  PSX seed-pixel test. Expect ~2x brighter than June-July builds (PSX-correct).
+- **Cutscene FOV report** (`game_main.c`, `d0c0ca292`): sliders/alt-cam/
+  60fps cap were already correctly gated (log-proven; cutscenes run the
+  non-Gameplay VSync path and cannot exceed 60fps). Fixed the real residual:
+  FOV release now restores vcWork.geom_screen_dist instead of stomping the
+  letterbox zoom ramp for one frame. Open decision: widening flashlight
+  modes 1-3 stand-down to non-letterboxed scripted scenes.
