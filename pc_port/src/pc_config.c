@@ -47,6 +47,7 @@ s_PcConfig g_PcConfig = {
     .saturation           = 1.0f, /* output image saturation; 1.0 = neutral */
     .xaVolume             = 1.0f, /* XA cutscene-voice volume, 0..1; 1.0 = unchanged */
     .fmvVolume            = 1.0f, /* FMV movie (SDL PCM) volume, 0..1; 1.0 = unchanged */
+    .fmvPsxVolume         = 1,    /* PSX-faithful 80/128 movie-audio attenuation (SsSetSerialVol) */
     .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
     .allowDebugControls = 0, /* 0=off (default), 1=enable dev/cheat keys */
     .controllerMovement = 2, /* 0=analog, 1=dpad, 2=both */
@@ -571,6 +572,10 @@ void PcConfig_Load(const char* path)
             if (v < 0.0f) v = 0.0f;
             if (v > 1.0f) v = 1.0f;
             g_PcConfig.fmvVolume = v;
+        }
+        else if (strcmp(key, "fmv_psx_volume") == 0)
+        {
+            g_PcConfig.fmvPsxVolume = atoi(value) ? 1 : 0;
         }
         else if (strcmp(key, "post_process_intensity") == 0)
         {

@@ -1154,9 +1154,11 @@ int main(int argc, char* argv[])
     {
         extern float g_PcXaVolume;
         extern float g_PcFmvVolume;
+        extern int   g_PcFmvPsxVolume;
         g_PcXaVolume = g_PcConfig.xaVolume;
         g_PcFmvVolume = g_PcConfig.fmvVolume;
-        SH_LOG("XA voice volume: %.2f, FMV movie volume: %.2f", g_PcXaVolume, g_PcFmvVolume);
+        g_PcFmvPsxVolume = g_PcConfig.fmvPsxVolume;
+        SH_LOG("XA voice volume: %.2f, FMV movie volume: %.2f (psx_vol=%d)", g_PcXaVolume, g_PcFmvVolume, g_PcFmvPsxVolume);
     }
 
     /* Initialize PSY-Q subsystems via PsyCross */

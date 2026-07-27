@@ -751,10 +751,20 @@ static int FmvDecodeXaSector(const uint8_t* sector, int16_t* pcmOut)
  * different path from the OpenAL XA player — so it must be scaled here, and the
  * two are split into separate options sliders (Voice vs FMV Movie). */
 extern "C" { float g_PcFmvVolume = 1.0f; }
+extern "C" { int   g_PcFmvPsxVolume = 1; }
+
+/* PSX movie_main routes the STR's XA through the SPU CD input at
+ * SsSetSerialVol(0, 80, 80) = 80/128 of full scale (stream.c:215-216;
+ * SdSetSerialVol maps voll<<8 against s16 full scale). The PC FMV paths
+ * bypass movie_main entirely, so without this factor every movie's audio bed
+ * plays ~4 dB hotter than on PSX relative to the SEQ BGM that keeps running
+ * underneath (e.g. "Loneliness" under the M7_01536 static in the
+ * Lisa-introduction scene) and masks it. */
+#define FMV_PSX_SERIAL_VOL (80.0f / 128.0f)
 
 static void FmvApplyVolume(void* buf, int bytes, SDL_AudioFormat fmt)
 {
-    float g = g_PcFmvVolume;
+    float g = g_PcFmvVolume * (g_PcFmvPsxVolume ? FMV_PSX_SERIAL_VOL : 1.0f);
     if (g >= 0.999f) return; /* full volume: leave the samples byte-identical */
     if (g < 0.0f) g = 0.0f;
 
