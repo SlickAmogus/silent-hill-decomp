@@ -357,6 +357,7 @@ EXTRA_SYMBOLS = {
     "map3_s04": [("D_800D599C", 0x800D599C, 64),
                  ("D_800CB370", 0x800CB370, 12),
                  ("D_800CB364", 0x800CB364, 12),  # stinger SFX pos (VECTOR3); zero stub = played from world origin
+                 ("D_800CB35C", 0x800CB35C, 8),   # PLATE_NE/drawer rotation (SVECTOR3, zeros); per-overlay VA collision with map3_s05's SFX pos
                  ("sharedData_800CB094_3_s01", 0x800CB2B4, 12)],  # elevator arrival pos (see map3_s01 note)
     "map3_s05": [("D_800DAC70", 0x800DAC70, 8),
                  ("sharedData_800CB094_3_s01", 0x800CB4FC, 12)],  # elevator arrival pos (see map3_s01 note)

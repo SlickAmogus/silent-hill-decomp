@@ -1545,10 +1545,12 @@ typedef int e_MapIdx; /* avoid pulling in heavy headers; underlying type is enum
 e_MapIdx g_ParticleMapIdx0 = 0;
 e_MapIdx g_ParticleMapIdx1 = 0;
 
-/* Cross-map shared symbol: defined in map3_s05.c, used by map3_s04.c.
- * On PSX both maps share the address; on PC each is a separate DLL so
- * we promote the definition to the main exe and #ifndef the original.
- * Value from map3_s05.c. */
+/* map3_s05 SFX-emit position (VECTOR3), promoted to the exe for map3_s05.dll.
+ * PSX VA 0x800CB35C ALSO exists in map3_s04 as a DIFFERENT per-overlay
+ * variable (SVECTOR3 world-object rotation, all zeros on disc) -- that one is
+ * defined DLL-locally in map3_s04_extracted_data.c and must NOT resolve to
+ * this value (reading this position as angles pitched the Plate of Queen ~36
+ * degrees). Each overlay has its own rodata at the shared VA. */
 const struct { int vx, vy, vz; } D_800CB35C = {
     (int)0x00015199, (int)0x00000000, (int)0xFFFEC000
 };

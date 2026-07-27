@@ -265,3 +265,16 @@ u8 D_800CB364[12] = {
 u8 sharedData_800CB094_3_s01[12] = {
     0x33, 0x13, 0x01, 0x00, 0x00, 0xF0, 0xFF, 0xFF, 0x99, 0xB1, 0x03, 0x00
 };
+
+
+/* World-object rotation for PLATE_NE (Plate of Queen) and the six DR*_HID
+   drawers (map3_s04_2.c:506/525; extern retyped to SVECTOR3 at :466). All
+   zeros on disc: VA 0x800CB35C = MAP3_S04.BIN offset 0x1DE4 (8 B incl. pad).
+   Same VA as map3_s05's D_800CB35C SFX-emit position but a DIFFERENT
+   per-overlay variable; without this local def the DLL imported the exe stub
+   {0x15199,0,0xFFFEC000} (data_stubs.c), read as SVECTOR3 {20889,1,0} =
+   ~36 deg X pitch -> the plate stood on edge through the desk.
+   Hand-maintained: a regen drops this. */
+u8 D_800CB35C[8] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
