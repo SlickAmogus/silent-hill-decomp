@@ -3357,8 +3357,19 @@ bool func_800DBCA4(MATRIX* mat, VECTOR3* outVec) // 0x800DBCA4
 
 void func_800DBD94(s_800F3DAC* arg0, GsOT_TAG* ot) // 0x800DBD94
 {
+#ifdef SH_PC_PORT
+    /* func_800DBA08 projects arg0[0] AND arg0[1] (it does arg0++): the PSX
+     * stack had sp10/sp18 adjacent at sp+0x10/sp+0x18. As separate locals the
+     * PC compiler places sp18 BELOW sp10, so the second RotTransPers projected
+     * whatever host stack slot sat above sp10 (an OT pointer) as an SVECTOR ->
+     * exploded/missing Incubus lightning quads. Force real adjacency. */
+    SVECTOR       spVec[2];
+#define sp10 spVec[0]
+#define sp18 spVec[1]
+#else
     SVECTOR       sp10;
     SVECTOR       sp18;
+#endif
     VECTOR3       sp20;
     s32           sp30;
     s32           sp34;
@@ -3550,6 +3561,10 @@ void func_800DBD94(s_800F3DAC* arg0, GsOT_TAG* ot) // 0x800DBD94
     packet         = poly;
     GsOUT_PACKET_P = packet;
 }
+#ifdef SH_PC_PORT
+#undef sp10
+#undef sp18
+#endif
 
 void func_800DC3EC(s_800F3DAC* arg0) // 0x800DC3EC
 {
