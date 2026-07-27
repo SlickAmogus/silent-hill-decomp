@@ -711,16 +711,10 @@ void func_8008E5B4(void) // 0x8008E5B4
     s32              temp_v0;
     s_func_8008E5B4* packet;
 
-#ifdef SH_PC_PORT
-    /* This composites the scrolling tpage-45 caustic into an offscreen VRAM
-     * scratch (RECT 832,224 = tpage 13) via a private DrawOTag. That render-to-VRAM
-     * does not work here: the water surface that should sample tpage 13 renders
-     * solid black, and the generation quads instead leak on screen as the animated
-     * gray rectangle in the water. Skip it — the visible reflection (func_8008E794)
-     * samples tpage 45 directly and is unaffected. */
-    return;
-#endif
-
+    /* PC: this render-to-VRAM scratch (RECT 832,224 = the tile the water
+     * surface samples) works again — PsyX routes small x>=320 draw-areas
+     * through the offscreen FBO and packs the pixels back into VRAM
+     * (ProcessDrawEnv DR_AREA / GR_SetOffscreenState small-rect writeback). */
     GetDrawEnv(&drawEnv);
     packet         = GsOUT_PACKET_P;
     GsOUT_PACKET_P = &packet[1];
