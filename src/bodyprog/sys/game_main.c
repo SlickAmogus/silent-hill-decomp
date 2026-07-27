@@ -296,7 +296,14 @@ static void Pc_CameraFov_Update(void)
     }
     else if (s_fovApplied)
     {
-        SetGeomScreen(g_GameWork.gsScreenHeight);
+        /* Restore the game's CURRENT projection, not the gameplay default: on
+         * the first frame of a letterboxed cutscene the border zoom ramp
+         * (cutscene_border.c vcChangeProjectionValue) may already own
+         * geom_screen_dist, and vcExecCamera applied it earlier this frame --
+         * writing gsScreenHeight here stomped that value for one frame. In
+         * plain gameplay geom_screen_dist == gsScreenHeight, so this write is
+         * value-identical there. */
+        SetGeomScreen(vcWork.geom_screen_dist);
         s_fovApplied = 0;
     }
 }
