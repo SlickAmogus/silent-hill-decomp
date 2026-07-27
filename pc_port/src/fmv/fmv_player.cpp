@@ -306,7 +306,11 @@ static void RestoreGLState(const FmvGLState* s)
     glBindBuffer(GL_ARRAY_BUFFER, s->bound_vbo);
 }
 
-static void DrawVideoFrame(int image_w, int image_h)
+/* Texture storage is (re)allocated only when the frame size/format changes —
+ * a per-frame glTexImage2D realloc stalls some drivers hard at 4K. */
+static int s_fmvTexW = 0, s_fmvTexH = 0, s_fmvTexRgba = -1;
+
+static void DrawVideoFrameEx(const unsigned char* pixels, int image_w, int image_h, int rgba)
 {
     int windowWidth, windowHeight;
 
@@ -359,7 +363,27 @@ static void DrawVideoFrame(int image_w, int image_h)
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, s_fmvTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB8, image_w, image_h, 0, GL_RGB, GL_UNSIGNED_BYTE, s_decodeBuffer);
+
+    /* Our buffers are tightly packed; alignment 1 covers RGB24 rows where
+     * w*3 % 4 != 0 (default alignment 4 would skew those frames). */
+    GLint prevAlign = 4, prevRowLen = 0;
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &prevAlign);
+    glGetIntegerv(GL_UNPACK_ROW_LENGTH, &prevRowLen);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+
+    if (image_w != s_fmvTexW || image_h != s_fmvTexH || rgba != s_fmvTexRgba) {
+        glTexImage2D(GL_TEXTURE_2D, 0, rgba ? GL_RGBA8 : GL_RGB8, image_w, image_h, 0,
+                     rgba ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, NULL);
+        s_fmvTexW = image_w;
+        s_fmvTexH = image_h;
+        s_fmvTexRgba = rgba;
+    }
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, image_w, image_h,
+                    rgba ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, pixels);
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, prevAlign);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, prevRowLen);
 
     glUseProgram(s_fmvProgram);
     glUniform1i(glGetUniformLocation(s_fmvProgram, "s_texture"), 0);
@@ -377,6 +401,11 @@ static void DrawVideoFrame(int image_w, int image_h)
     RestoreGLState(&saved);
 
     SDL_GL_SwapWindow(g_window);
+}
+
+static void DrawVideoFrame(int image_w, int image_h)
+{
+    DrawVideoFrameEx(s_decodeBuffer, image_w, image_h, 0);
 }
 
 /* ===== Video codec dispatch =====
@@ -596,6 +625,10 @@ extern "C" void FMV_Init(void)
         memset(s_decodeBuffer, 0, s_decodeBufferSize);
 
     glGenTextures(1, &s_fmvTexture);
+    /* Fresh texture object has no storage — invalidate the size cache so the
+     * next DrawVideoFrameEx allocates before its glTexSubImage2D. */
+    s_fmvTexW = s_fmvTexH = 0;
+    s_fmvTexRgba = -1;
     glBindTexture(GL_TEXTURE_2D, s_fmvTexture);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -621,6 +654,8 @@ extern "C" void FMV_Shutdown(void)
     if (s_fmvTexture) {
         glDeleteTextures(1, &s_fmvTexture);
         s_fmvTexture = 0;
+        s_fmvTexW = s_fmvTexH = 0;
+        s_fmvTexRgba = -1;
     }
     if (s_fmvVAO) {
         glDeleteVertexArrays(1, &s_fmvVAO);
@@ -1210,6 +1245,10 @@ struct FfmpegApi
     void        (*sws_freeContext)(struct SwsContext*);
     int         (*sws_scale)(struct SwsContext*, const uint8_t* const[], const int[], int, int,
                              uint8_t* const[], const int[]);
+    const int*  (*sws_getCoefficients)(int colorspace);
+    int         (*sws_setColorspaceDetails)(struct SwsContext*, const int inv_table[4], int srcRange,
+                                            const int table[4], int dstRange,
+                                            int brightness, int contrast, int saturation);
     unsigned    (*swscale_version)(void);
 
     int         (*swr_alloc_set_opts2)(struct SwrContext**,
@@ -1349,6 +1388,8 @@ static int FfmpegLoad(void)
     FF_SYM(hScale, sws_getContext);
     FF_SYM(hScale, sws_freeContext);
     FF_SYM(hScale, sws_scale);
+    FF_SYM(hScale, sws_getCoefficients);
+    FF_SYM(hScale, sws_setColorspaceDetails);
     FF_SYM(hScale, swscale_version);
 
     FF_SYM(hResample, swr_alloc_set_opts2);
@@ -1423,6 +1464,8 @@ static int FfmpegAvailable(void)
 #define sws_getContext                s_ff.sws_getContext
 #define sws_freeContext               s_ff.sws_freeContext
 #define sws_scale                     s_ff.sws_scale
+#define sws_getCoefficients           s_ff.sws_getCoefficients
+#define sws_setColorspaceDetails      s_ff.sws_setColorspaceDetails
 #define swr_alloc_set_opts2           s_ff.swr_alloc_set_opts2
 #define swr_init                      s_ff.swr_init
 #define swr_free                      s_ff.swr_free
@@ -1454,6 +1497,245 @@ static int FfmpegSkipHeld(void)
            ks[SDL_SCANCODE_SPACE] || PsyX_Pad_SkipButtonHeld();
 }
 
+/* ===== Decode-ahead pipeline =====
+ *
+ * A worker thread does all libav work (demux, decode, swresample+SDL_QueueAudio,
+ * sws to RGBA) into a small ring of converted frames; the main thread only
+ * paces, uploads and presents. A decode spike then eats into the queued
+ * lead instead of stalling the present.
+ *
+ * PACING IS UNCHANGED: presentation still runs on the free-running HPC wall
+ * clock against container PTS (the audio-clock-slaved variant f66147ea5 broke
+ * playback outright and was reverted — if the audio device stalls, a clock
+ * derived from bytes-played stalls with it and video never advances; the wall
+ * clock cannot stall). The only clock change is WHEN it starts: at
+ * first-decoded-frame-ready instead of at codec-open, so open/probe/warm-up
+ * time no longer counts as "elapsed" (it made every early frame late enough
+ * to trip the >100ms drop rule and start 4K movies choppy). */
+#define FMV_QUEUE_SLOTS 3
+
+typedef struct {
+    uint8_t* rgba;   /* worker-converted frame, tightly packed w*4 */
+    size_t   cap;
+    int      w, h;
+    double   target; /* presentation time, seconds from first PTS */
+} FmvQueuedFrame;
+
+typedef struct {
+    /* ring: worker advances head, presenter advances tail */
+    FmvQueuedFrame slots[FMV_QUEUE_SLOTS];
+    int            head, tail, count; /* count guarded by mtx */
+    SDL_mutex*     mtx;
+    SDL_cond*      canPush;
+    SDL_atomic_t   abort;  /* presenter asks the worker to bail */
+    int            eof;    /* worker finished (EOF, error) — guarded by mtx */
+
+    /* decode state, worker-owned while the thread runs */
+    AVFormatContext*  fmt;
+    AVCodecContext*   vctx;
+    AVCodecContext*   actx;
+    SwrContext*       swr;
+    SDL_AudioDeviceID audioDev;
+    int               vs, as, ach;
+    struct SwsContext* sws;
+    int               swsW, swsH, swsFmt;
+    uint8_t*          audioBuf;
+    int               audioBufBytes;
+    double            vtb;        /* video stream time_base in seconds */
+    double            defaultDur; /* frame duration guess for NOPTS frames */
+    double            lastTarget;
+    int64_t           firstPts;
+} FmvDecodeCtx;
+
+/* (Re)build the RGBA converter from the DECODED frame's format, not the
+ * container's codecpar: for 10-bit HEVC (yuv420p10le) or a mid-stream
+ * format/size switch, codecpar and the real frames can disagree, and a
+ * mismatched SwsContext produces garbage. Also program the real matrix and
+ * range — swscale defaults to BT.601 limited, which visibly shifts colors on
+ * BT.709/full-range HD/4K re-encodes. */
+static void FmvWorkerEnsureSws(FmvDecodeCtx* dc, const AVFrame* frm)
+{
+    if (dc->sws && dc->swsW == frm->width && dc->swsH == frm->height &&
+        dc->swsFmt == frm->format)
+        return;
+
+    if (dc->sws) {
+        sws_freeContext(dc->sws);
+        dc->sws = NULL;
+    }
+    /* 1:1 size (GPU does the fit-to-window scaling at draw), so the scaler
+     * flag only drives chroma upsampling — take the cheapest one. */
+    dc->sws = sws_getContext(frm->width, frm->height, (enum AVPixelFormat)frm->format,
+                             frm->width, frm->height, AV_PIX_FMT_RGBA,
+                             SWS_FAST_BILINEAR, NULL, NULL, NULL);
+    dc->swsW   = frm->width;
+    dc->swsH   = frm->height;
+    dc->swsFmt = frm->format;
+    if (!dc->sws) {
+        printf("[FMV] ffmpeg: sws_getContext failed (%dx%d pixfmt=%d)\n",
+               frm->width, frm->height, frm->format);
+        return;
+    }
+
+    int csp;
+    switch (frm->colorspace) {
+        case AVCOL_SPC_BT709:      csp = SWS_CS_ITU709; break;
+        case AVCOL_SPC_BT2020_NCL:
+        case AVCOL_SPC_BT2020_CL:  csp = SWS_CS_BT2020; break;
+        case AVCOL_SPC_SMPTE170M:
+        case AVCOL_SPC_BT470BG:    csp = SWS_CS_ITU601; break;
+        /* untagged: HD content is near-universally BT.709 */
+        default: csp = (frm->height >= 720) ? SWS_CS_ITU709 : SWS_CS_ITU601; break;
+    }
+    int srcRange = (frm->color_range == AVCOL_RANGE_JPEG) ? 1 : 0;
+    /* Failure just keeps swscale's 601/limited default — same as before. */
+    sws_setColorspaceDetails(dc->sws, sws_getCoefficients(csp), srcRange,
+                             sws_getCoefficients(csp), 1, 0, 1 << 16, 1 << 16);
+
+    printf("[FMV] ffmpeg: convert %dx%d pixfmt=%d matrix=%s range=%s -> RGBA\n",
+           frm->width, frm->height, frm->format,
+           (csp == SWS_CS_ITU709) ? "709" : (csp == SWS_CS_BT2020) ? "2020" : "601",
+           srcRange ? "full" : "limited");
+}
+
+/* Convert + enqueue one video frame. Blocks while the ring is full.
+ * Returns 0 to continue decoding, -1 to stop (abort or fatal). */
+static int FmvWorkerPushFrame(FmvDecodeCtx* dc, AVFrame* frm)
+{
+    int64_t pts = (frm->pts != AV_NOPTS_VALUE) ? frm->pts : frm->best_effort_timestamp;
+    double  target;
+    if (pts != AV_NOPTS_VALUE) {
+        if (dc->firstPts == AV_NOPTS_VALUE)
+            dc->firstPts = pts;
+        target = (double)(pts - dc->firstPts) * dc->vtb;
+    } else {
+        target = dc->lastTarget + dc->defaultDur;
+    }
+    dc->lastTarget = target;
+
+    SDL_LockMutex(dc->mtx);
+    while (dc->count == FMV_QUEUE_SLOTS && !SDL_AtomicGet(&dc->abort))
+        SDL_CondWait(dc->canPush, dc->mtx);
+    if (SDL_AtomicGet(&dc->abort)) {
+        SDL_UnlockMutex(dc->mtx);
+        return -1;
+    }
+    int idx = dc->head;
+    SDL_UnlockMutex(dc->mtx);
+
+    /* The head slot is invisible to the presenter until count++ below, so it
+     * is safe to fill outside the lock (single producer). */
+    FmvQueuedFrame* q = &dc->slots[idx];
+    size_t need = (size_t)frm->width * frm->height * 4u;
+    if (need > q->cap) {
+        uint8_t* nb = (uint8_t*)realloc(q->rgba, need);
+        if (!nb)
+            return 0; /* drop this frame, keep playing */
+        q->rgba = nb;
+        q->cap = need;
+    }
+
+    FmvWorkerEnsureSws(dc, frm);
+    if (!dc->sws)
+        return -1;
+
+    uint8_t* dst[4]       = { q->rgba, NULL, NULL, NULL };
+    int      dstStride[4] = { frm->width * 4, 0, 0, 0 };
+    sws_scale(dc->sws, frm->data, frm->linesize, 0, frm->height, dst, dstStride);
+    q->w = frm->width;
+    q->h = frm->height;
+    q->target = target;
+
+    SDL_LockMutex(dc->mtx);
+    dc->head = (dc->head + 1) % FMV_QUEUE_SLOTS;
+    dc->count++;
+    SDL_UnlockMutex(dc->mtx);
+    return 0;
+}
+
+/* Same audio convert+queue the old inline loop did; SDL_QueueAudio is
+ * thread-safe, and queueing to a still-paused device just buffers. */
+static void FmvWorkerQueueAudio(FmvDecodeCtx* dc, AVFrame* frm)
+{
+    int outMax = (int)swr_get_out_samples(dc->swr, frm->nb_samples);
+    int need = outMax * dc->ach * (int)sizeof(int16_t);
+    if (need > dc->audioBufBytes) {
+        uint8_t* nb = (uint8_t*)realloc(dc->audioBuf, (size_t)need);
+        if (nb) { dc->audioBuf = nb; dc->audioBufBytes = need; }
+    }
+    /* A failed realloc leaves audioBuf at its old, smaller size — converting
+     * into it with the larger outMax would overflow the heap, so drop the
+     * frame instead. */
+    if (dc->audioBuf && dc->audioBufBytes >= need) {
+        uint8_t* out[1] = { dc->audioBuf };
+        int n = swr_convert(dc->swr, out, outMax,
+                            (const uint8_t**)frm->extended_data, frm->nb_samples);
+        if (n > 0) {
+            int bytes = n * dc->ach * (int)sizeof(int16_t);
+            FmvApplyVolume(dc->audioBuf, bytes, AUDIO_S16LSB);
+            SDL_QueueAudio(dc->audioDev, dc->audioBuf, (Uint32)bytes);
+        }
+    }
+}
+
+static int SDLCALL FmvDecodeWorker(void* ud)
+{
+    FmvDecodeCtx* dc = (FmvDecodeCtx*)ud;
+    AVPacket* pkt = av_packet_alloc();
+    AVFrame*  frm = av_frame_alloc();
+    int reading = (pkt && frm) ? 1 : 0;
+    int fatal = !reading;
+
+    while (!fatal && !SDL_AtomicGet(&dc->abort)) {
+        int haveVideo = 0, haveAudio = 0;
+
+        int rr = av_read_frame(dc->fmt, pkt);
+        if (rr < 0) {
+            /* Drain: flush both decoders, then finish. */
+            avcodec_send_packet(dc->vctx, NULL);
+            if (dc->actx) avcodec_send_packet(dc->actx, NULL);
+            reading = 0;
+            haveVideo = 1;
+            haveAudio = (dc->actx != NULL);
+        } else if (pkt->stream_index == dc->vs) {
+            if (avcodec_send_packet(dc->vctx, pkt) >= 0) haveVideo = 1;
+            av_packet_unref(pkt);
+        } else if (dc->as >= 0 && pkt->stream_index == dc->as) {
+            if (avcodec_send_packet(dc->actx, pkt) >= 0) haveAudio = 1;
+            av_packet_unref(pkt);
+        } else {
+            av_packet_unref(pkt);
+            continue;
+        }
+
+        if (haveAudio && dc->audioDev) {
+            while (avcodec_receive_frame(dc->actx, frm) == 0) {
+                FmvWorkerQueueAudio(dc, frm);
+                av_frame_unref(frm);
+            }
+        }
+
+        if (haveVideo) {
+            while (avcodec_receive_frame(dc->vctx, frm) == 0) {
+                int r = FmvWorkerPushFrame(dc, frm);
+                av_frame_unref(frm);
+                if (r != 0) { fatal = 1; break; }
+            }
+        }
+
+        if (!reading)
+            break; /* EOF drain pass done */
+    }
+
+    if (frm) av_frame_free(&frm);
+    if (pkt) av_packet_free(&pkt);
+
+    SDL_LockMutex(dc->mtx);
+    dc->eof = 1;
+    SDL_UnlockMutex(dc->mtx);
+    return 0;
+}
+
 /* Returns 0 if the file was played (or skipped) — caller must NOT fall back to
  * the disc STR — or -1 if it could not be opened/decoded (caller falls back). */
 static int PlayFromFFmpeg(const char* path)
@@ -1461,15 +1743,14 @@ static int PlayFromFFmpeg(const char* path)
     AVFormatContext*   fmt = NULL;
     AVCodecContext*    vctx = NULL;
     AVCodecContext*    actx = NULL;
-    struct SwsContext* sws = NULL;
     SwrContext*        swr = NULL;
-    AVPacket*          pkt = NULL;
-    AVFrame*           frm = NULL;
     SDL_AudioDeviceID  audioDev = 0;
-    uint8_t*           audioBuf = NULL;
-    int                audioBufBytes = 0;
+    SDL_Thread*        worker = NULL;
     int                vs = -1, as = -1, ach = 0;
     int                played = -1;
+    FmvDecodeCtx       dc;
+
+    memset(&dc, 0, sizeof(dc));
 
     if (!FfmpegAvailable())
         return -1;
@@ -1496,6 +1777,11 @@ static int PlayFromFFmpeg(const char* path)
         vctx = avcodec_alloc_context3(vc);
         if (!vctx) goto cleanup;
         avcodec_parameters_to_context(vctx, fmt->streams[vs]->codecpar);
+        /* Multithreaded decode: one core cannot hold 4K HEVC at speed.
+         * 0 = auto (core count); the codec picks frame and/or slice
+         * threading from the allowed mask. */
+        vctx->thread_count = 0;
+        vctx->thread_type  = FF_THREAD_FRAME | FF_THREAD_SLICE;
         if (avcodec_open2(vctx, vc, NULL) < 0) {
             printf("[FMV] ffmpeg: cannot open video decoder\n"); goto cleanup;
         }
@@ -1519,15 +1805,11 @@ static int PlayFromFFmpeg(const char* path)
         }
     }
 
-    printf("[FMV] ffmpeg: %dx%d %s%s\n", vctx->width, vctx->height,
-           avcodec_get_name(vctx->codec_id), (as >= 0) ? " + audio" : "");
+    printf("[FMV] ffmpeg: %dx%d %s%s, threads=%d\n", vctx->width, vctx->height,
+           avcodec_get_name(vctx->codec_id), (as >= 0) ? " + audio" : "",
+           vctx->thread_count);
 
     FMV_Init();
-
-    sws = sws_getContext(vctx->width, vctx->height, vctx->pix_fmt,
-                         vctx->width, vctx->height, AV_PIX_FMT_RGB24,
-                         SWS_BILINEAR, NULL, NULL, NULL);
-    if (!sws) { printf("[FMV] ffmpeg: sws_getContext failed\n"); goto cleanup; }
 
     if (as >= 0) {
         ach = actx->ch_layout.nb_channels;
@@ -1554,132 +1836,137 @@ static int PlayFromFFmpeg(const char* path)
                 if (swr) swr_free(&swr);
                 SDL_CloseAudioDevice(audioDev);
                 audioDev = 0;
-            } else {
-                SDL_PauseAudioDevice(audioDev, 0);
             }
+            /* Device stays PAUSED (queued audio just buffers) until the first
+             * video frame is ready, so decoder warm-up cannot put audio ahead
+             * of the video clock for the whole movie. */
             av_channel_layout_uninit(&outLayout);
         } else {
             printf("[FMV] ffmpeg: audio device open failed — silent\n");
         }
     }
 
-    pkt = av_packet_alloc();
-    frm = av_frame_alloc();
-    if (!pkt || !frm) goto cleanup;
+    dc.mtx = SDL_CreateMutex();
+    dc.canPush = SDL_CreateCond();
+    if (!dc.mtx || !dc.canPush) goto cleanup;
+    dc.fmt = fmt;
+    dc.vctx = vctx;
+    dc.actx = actx;
+    dc.swr = swr;
+    dc.audioDev = audioDev;
+    dc.vs = vs;
+    dc.as = as;
+    dc.ach = ach;
+    dc.vtb = av_q2d(fmt->streams[vs]->time_base);
+    dc.firstPts = AV_NOPTS_VALUE;
+    {
+        double fps = av_q2d(fmt->streams[vs]->avg_frame_rate);
+        dc.defaultDur = (fps > 1.0) ? 1.0 / fps : 1.0 / 30.0;
+    }
+    SDL_AtomicSet(&dc.abort, 0);
+
+    worker = SDL_CreateThread(FmvDecodeWorker, "fmv_decode", &dc);
+    if (!worker) {
+        printf("[FMV] ffmpeg: decode thread creation failed\n");
+        goto cleanup;
+    }
 
     /* From here the file is ours: even a skip counts as "played", so the caller
-     * must not also run the disc STR. */
+     * must not also run the disc STR. (Decoding NOTHING demotes this back to -1
+     * below so the caller can still fall back.) */
     played = 0;
 
     {
         timerCtx_t tmr;
         Util_InitHPCTimer(&tmr);
-        double   elapsed = 0.0;
-        double   vtb = av_q2d(fmt->streams[vs]->time_base);
-        int64_t  firstPts = AV_NOPTS_VALUE;
-        int      skip_armed = 0;
-        int      stop = 0;   /* skip or SDL_QUIT */
-        int      reading = 1;
+        double elapsed = 0.0;
+        int    skip_armed = 0;
+        int    stop = 0;   /* skip or SDL_QUIT */
+        int    clockStarted = 0;
+        int    framesShown = 0;
 
         SDL_PumpEvents();
         SDL_FlushEvent(SDL_KEYDOWN);
         SDL_FlushEvent(SDL_KEYUP);
-        Util_GetHPCTime(&tmr, 1); /* zero the clock */
 
         while (!stop) {
-            int haveVideo = 0, haveAudio = 0;
-            if (reading) {
-                int rr = av_read_frame(fmt, pkt);
-                if (rr < 0) {
-                    /* Drain: flush both decoders, then finish. */
-                    avcodec_send_packet(vctx, NULL);
-                    if (actx) avcodec_send_packet(actx, NULL);
-                    reading = 0;
-                    haveVideo = 1;
-                    haveAudio = (actx != NULL);
-                } else if (pkt->stream_index == vs) {
-                    if (avcodec_send_packet(vctx, pkt) >= 0) haveVideo = 1;
-                    av_packet_unref(pkt);
-                } else if (as >= 0 && pkt->stream_index == as) {
-                    if (avcodec_send_packet(actx, pkt) >= 0) haveAudio = 1;
-                    av_packet_unref(pkt);
-                } else {
-                    av_packet_unref(pkt);
-                    continue;
-                }
+            /* Wait for a converted frame from the worker (or its EOF). */
+            int queued = 0, done = 0;
+            for (;;) {
+                SDL_LockMutex(dc.mtx);
+                queued = dc.count;
+                done = dc.eof;
+                SDL_UnlockMutex(dc.mtx);
+                if (queued > 0 || done) break;
+                int held = FfmpegSkipHeld();
+                if (!skip_armed) { if (!held) skip_armed = 1; }
+                else if (held) { printf("[FMV] ffmpeg: skipped\n"); stop = 1; break; }
+                SDL_Event ev;
+                while (SDL_PollEvent(&ev)) if (ev.type == SDL_QUIT) FmvQuitNow("ffmpeg playback");
+                SDL_Delay(1);
+            }
+            if (stop || queued == 0)
+                break; /* skip, or worker done and ring drained */
+
+            /* tail is only ever advanced by this thread — safe unlocked. */
+            FmvQueuedFrame* q = &dc.slots[dc.tail];
+
+            /* The clock starts at first-frame-READY and audio starts with it —
+             * open/probe/decoder-warm-up time must not count as elapsed playback
+             * (it made every early frame "late" → dropped → choppy 4K starts,
+             * and would put audio ahead of video by the warm-up time). */
+            if (!clockStarted) {
+                if (audioDev) SDL_PauseAudioDevice(audioDev, 0);
+                Util_GetHPCTime(&tmr, 1); /* zero the clock */
+                clockStarted = 1;
             } else {
-                break; /* decoders already flushed below on the EOF pass */
+                elapsed += Util_GetHPCTime(&tmr, 1);
             }
 
-            /* Audio: convert everything available and queue it ahead. */
-            if (haveAudio && audioDev) {
-                while (avcodec_receive_frame(actx, frm) == 0) {
-                    int outMax = (int)swr_get_out_samples(swr, frm->nb_samples);
-                    int need = outMax * ach * (int)sizeof(int16_t);
-                    if (need > audioBufBytes) {
-                        uint8_t* nb = (uint8_t*)realloc(audioBuf, (size_t)need);
-                        if (nb) { audioBuf = nb; audioBufBytes = need; }
-                    }
-                    /* A failed realloc leaves audioBuf at its old, smaller size —
-                     * converting into it with the larger outMax would overflow the
-                     * heap, so drop the frame instead. */
-                    if (audioBuf && audioBufBytes >= need) {
-                        uint8_t* out[1] = { audioBuf };
-                        int n = swr_convert(swr, out, outMax,
-                                            (const uint8_t**)frm->extended_data, frm->nb_samples);
-                        if (n > 0) {
-                            int bytes = n * ach * (int)sizeof(int16_t);
-                            FmvApplyVolume(audioBuf, bytes, AUDIO_S16LSB);
-                            SDL_QueueAudio(audioDev, audioBuf, (Uint32)bytes);
-                        }
-                    }
-                    av_frame_unref(frm);
-                }
+            /* Pace to PTS on the free-running wall clock (NOT the audio clock —
+             * see the pipeline comment above). Poll skip + pump events at least
+             * ONCE per frame, even when the frame is already late, or a slow
+             * stretch would hammer full-speed with no event pump — the window
+             * stopped responding and the movie couldn't be skipped. */
+            for (;;) {
+                int held = FfmpegSkipHeld();
+                if (!skip_armed) { if (!held) skip_armed = 1; }
+                else if (held) { printf("[FMV] ffmpeg: skipped\n"); stop = 1; }
+                SDL_Event ev;
+                while (SDL_PollEvent(&ev)) if (ev.type == SDL_QUIT) FmvQuitNow("ffmpeg playback");
+                if (stop || elapsed >= q->target) break;
+                SDL_Delay(1);
+                elapsed += Util_GetHPCTime(&tmr, 1);
+            }
+            if (stop)
+                break;
+
+            /* A frame that has fallen well behind realtime is dropped so a slow
+             * decode catches up (plays near real speed, just choppier) instead
+             * of crawling at 100% CPU. The final frame always shows. */
+            SDL_LockMutex(dc.mtx);
+            int lastFrame = (dc.count <= 1 && dc.eof);
+            SDL_UnlockMutex(dc.mtx);
+            if (lastFrame || q->target >= elapsed - 0.10) {
+                DrawVideoFrameEx(q->rgba, q->w, q->h, 1);
+                framesShown++;
+                elapsed += Util_GetHPCTime(&tmr, 1);
             }
 
-            /* Video: pace each frame to its PTS, then present. */
-            if (haveVideo) {
-                while (avcodec_receive_frame(vctx, frm) == 0) {
-                    int64_t pts = (frm->pts != AV_NOPTS_VALUE) ? frm->pts : frm->best_effort_timestamp;
-                    if (firstPts == AV_NOPTS_VALUE)
-                        firstPts = (pts != AV_NOPTS_VALUE) ? pts : 0;
-                    double target = (pts != AV_NOPTS_VALUE) ? (double)(pts - firstPts) * vtb : elapsed;
-
-                    /* Poll skip + pump events at least ONCE per frame, even when the
-                     * frame is already late (elapsed >= target). The old `while (elapsed
-                     * < target)` skipped this entirely for a slow-decoding movie, so it
-                     * hammered full-speed with no event pump — the window stopped
-                     * responding and the movie couldn't be skipped ("locks the system"). */
-                    for (;;) {
-                        int held = FfmpegSkipHeld();
-                        if (!skip_armed) { if (!held) skip_armed = 1; }
-                        else if (held) { printf("[FMV] ffmpeg: skipped\n"); stop = 1; }
-                        SDL_Event ev;
-                        while (SDL_PollEvent(&ev)) if (ev.type == SDL_QUIT) FmvQuitNow("ffmpeg playback");
-                        if (stop || elapsed >= target) break;
-                        SDL_Delay(1);
-                        elapsed += Util_GetHPCTime(&tmr, 1);
-                    }
-                    if (stop) { av_frame_unref(frm); break; }
-
-                    /* A frame that has fallen well behind realtime is dropped so a slow
-                     * decode catches up (plays near real speed, just choppier) instead of
-                     * crawling through every frame at 100% CPU. */
-                    if (reading && target < elapsed - 0.10) { av_frame_unref(frm); continue; }
-
-                    if (EnsureDecodeBuffer((size_t)vctx->width * vctx->height * 3u) == 0) {
-                        uint8_t* dst[4] = { s_decodeBuffer, NULL, NULL, NULL };
-                        int      dstStride[4] = { vctx->width * 3, 0, 0, 0 };
-                        sws_scale(sws, frm->data, frm->linesize, 0, vctx->height, dst, dstStride);
-                        DrawVideoFrame(vctx->width, vctx->height);
-                    }
-                    elapsed += Util_GetHPCTime(&tmr, 1);
-                    av_frame_unref(frm);
-                }
-            }
-
-            if (!reading) break; /* EOF pass done */
+            SDL_LockMutex(dc.mtx);
+            dc.tail = (dc.tail + 1) % FMV_QUEUE_SLOTS;
+            dc.count--;
+            SDL_CondSignal(dc.canPush);
+            SDL_UnlockMutex(dc.mtx);
         }
+
+        /* Retire the worker before touching any libav state below. */
+        SDL_LockMutex(dc.mtx);
+        SDL_AtomicSet(&dc.abort, 1);
+        SDL_CondSignal(dc.canPush);
+        SDL_UnlockMutex(dc.mtx);
+        SDL_WaitThread(worker, NULL);
+        worker = NULL;
 
         /* Match the AVI/BIN paths: don't let the key that skipped/ended the movie
          * bleed a phantom Confirm into the next game state. */
@@ -1689,16 +1976,33 @@ static int PlayFromFFmpeg(const char* path)
         SDL_PumpEvents();
         SDL_FlushEvent(SDL_KEYDOWN);
         SDL_FlushEvent(SDL_KEYUP);
+
+        if (framesShown == 0 && !stop) {
+            /* Opened fine but produced nothing (codec present, stream broken —
+             * e.g. a truncated re-encode): let the caller run the disc STR. */
+            printf("[FMV] ffmpeg: no video frames decoded from '%s' — falling back\n", path);
+            played = -1;
+        } else {
+            printf("[FMV] ffmpeg playback complete: %s (%d frames%s)\n",
+                   path, framesShown, stop ? ", stopped early" : "");
+        }
     }
 
-    printf("[FMV] ffmpeg playback complete: %s\n", path);
-
 cleanup:
-    if (audioBuf) ::free(audioBuf);
+    if (worker) {
+        SDL_LockMutex(dc.mtx);
+        SDL_AtomicSet(&dc.abort, 1);
+        SDL_CondSignal(dc.canPush);
+        SDL_UnlockMutex(dc.mtx);
+        SDL_WaitThread(worker, NULL);
+    }
+    for (int i = 0; i < FMV_QUEUE_SLOTS; i++)
+        if (dc.slots[i].rgba) ::free(dc.slots[i].rgba);
+    if (dc.audioBuf) ::free(dc.audioBuf);
+    if (dc.sws) sws_freeContext(dc.sws);
+    if (dc.canPush) SDL_DestroyCond(dc.canPush);
+    if (dc.mtx) SDL_DestroyMutex(dc.mtx);
     if (audioDev) SDL_CloseAudioDevice(audioDev);
-    if (frm) av_frame_free(&frm);
-    if (pkt) av_packet_free(&pkt);
-    if (sws) sws_freeContext(sws);
     if (swr) swr_free(&swr);
     if (vctx) avcodec_free_context(&vctx);
     if (actx) avcodec_free_context(&actx);
@@ -1732,6 +2036,8 @@ cleanup:
 #undef sws_getContext
 #undef sws_freeContext
 #undef sws_scale
+#undef sws_getCoefficients
+#undef sws_setColorspaceDetails
 #undef swr_alloc_set_opts2
 #undef swr_init
 #undef swr_free
