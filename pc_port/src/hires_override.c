@@ -1094,6 +1094,23 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
      * row 0. */
     if (clut & 0x8000)
     {
+        /* Virtual pool slots only ever key 4/8bpp CLUT TIMs. A 16bpp (tp>=2)
+         * tpage cannot legitimately address one: PSX hardware ignores `clut`
+         * in 16bpp mode, so framebuffer-sampling prims (cutscene ghosting
+         * overlays) ship uninitialized clut bytes. Honoring such a garbage key
+         * hijacked a live pool texture = rainbow bar in cutscenes. */
+        if (((tpage >> 7) & 0x3) >= 2)
+        {
+            static int s_fbClutLogged = 0;
+            if (s_fbClutLogged < 8)
+            {
+                SH_DBG("[HIRES] ignored virtual clut 0x%04X on 16bpp tpage 0x%X (framebuffer prim)",
+                       clut, tpage);
+                s_fbClutLogged++;
+            }
+            return 0;
+        }
+
         int q = ((clut >> 6) & 0x3FF) - HIRES_POOL_CLUT_ROW_BASE;
         if (q >= 0)
         {
