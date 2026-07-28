@@ -547,20 +547,48 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
     }
     glBindTexture(GL_TEXTURE_2D, *tex);
     while (glGetError() != GL_NO_ERROR) { } /* drain stale errors */
-    /* Define the storage as fully TRANSPARENT first, then overlay the real
-     * pixels via glTexSubImage2D. On some AMD drivers, under the large
-     * resident_textures working set, glTexImage2D can leave the texture's
-     * storage silently undefined (NO GL error raised — so the error check below
-     * can't catch it): the override shader then samples garbage that shows as
-     * blue/black spike/wedge fills on AMD while NVIDIA reads benign zeros. This
-     * is the residual the school-rainbow fix anticipated ("silent undefined pool
-     * tex needs pre-zero"), now confirmed by the reporter's resident_textures=0
-     * bisect making it vanish. A zeroed base means any silent/partial upload
-     * failure leaves TRANSPARENT texels (discarded by the override shader),
-     * matching the discrete-GPU result. On a conformant driver the SubImage
-     * overwrite makes the final texels byte-identical, so working setups are
-     * unaffected. Reuses one grown-as-needed zeroed staging buffer. */
+
+    /* When this texture object ALREADY has these exact dimensions and format,
+     * no storage is (re)allocated, so the AMD undefined-storage case the
+     * prefill below exists for cannot arise: glTexSubImage2D alone is correct,
+     * ~3x faster, and skips the per-upload VRAM realloc churn that fragments
+     * the driver heap over a long session. The prefill path stays verbatim for
+     * genuine (re)allocations — the only case that workaround was ever about.
+     * The driver is asked rather than a side table kept: GL names are deleted
+     * and recycled throughout this file, and a slot row that last took a BC7
+     * upload reports a COMPRESSED internal format here (a sub-image into it
+     * would fail), so only GL's own answer is trustworthy. */
+    int reuseStorage;
     {
+        GLint curW = 0, curH = 0, curFmt = 0;
+        glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &curW);
+        glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &curH);
+        glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, &curFmt);
+        reuseStorage = (curW == w && curH == h &&
+                        (curFmt == GL_RGBA || curFmt == GL_RGBA8));
+    }
+
+    if (reuseStorage)
+    {
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, w, h,
+                        GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    }
+    else
+    {
+        /* Define the storage as fully TRANSPARENT first, then overlay the real
+         * pixels via glTexSubImage2D. On some AMD drivers, under the large
+         * resident_textures working set, glTexImage2D can leave the texture's
+         * storage silently undefined (NO GL error raised — so the error check
+         * below can't catch it): the override shader then samples garbage that
+         * shows as blue/black spike/wedge fills on AMD while NVIDIA reads benign
+         * zeros. This is the residual the school-rainbow fix anticipated
+         * ("silent undefined pool tex needs pre-zero"), now confirmed by the
+         * reporter's resident_textures=0 bisect making it vanish. A zeroed base
+         * means any silent/partial upload failure leaves TRANSPARENT texels
+         * (discarded by the override shader), matching the discrete-GPU result.
+         * On a conformant driver the SubImage overwrite makes the final texels
+         * byte-identical, so working setups are unaffected. Reuses one
+         * grown-as-needed zeroed staging buffer. */
         static unsigned char* s_zeroFill = NULL;
         static int            s_zeroBytes = 0;
         int                   need = w * h * 4;

@@ -842,6 +842,34 @@ bool Fs_QueueTickReadPcDrv(s_FsQueueEntry* entry)
     return result;
 }
 
+#ifdef SH_PC_PORT
+/* Per-tick texture-pack compose budget.
+ *
+ * One multi-palette TIM can trigger a canvas compose for EVERY CLUT row it
+ * carries — up to 16 PNG-decode + upscale + GL-upload rounds inside a single
+ * post-load, which is the 200-300ms hitch on room entry and exterior chunk
+ * stream-in. Only this many composes run per queue tick; the rest resume on
+ * later ticks (see the resume cursor in Fs_QueuePostLoadTim).
+ *
+ * A deferred row is never dropped: the post-load reports NOT done, so
+ * Fs_QueueUpdate leaves postLoad.idx parked on the entry with postLoadState
+ * still Exec and re-enters here next tick. Fs_QueueGetLength() therefore still
+ * counts the entry, so every blocking waiter (Fs_QueueWaitForEmpty,
+ * Fs_QueueChunksLoad, the queue-full wait in Fs_QueueEnqueue) keeps ticking
+ * until the last row is composed. The budget is refilled below on every tick,
+ * so each visit makes forward progress and the loop always terminates. */
+#define FSQ_TEXPACK_COMPOSE_BUDGET 2
+static int s_texpackComposeBudget = 0;
+
+/* Where the deferred post-load resumes. Keyed on BOTH the entry and the
+ * post-load index it was parked at, and cleared on entry to every
+ * Fs_QueuePostLoadTim call, so a recycled queue slot can never be mistaken for
+ * the deferred one. */
+static const s_FsQueueEntry* s_composeResumeEntry = NULL;
+static s32                   s_composeResumeIdx   = 0;
+static s32                   s_composeResumeRow   = 0;
+#endif
+
 bool Fs_QueueUpdatePostLoad(s_FsQueueEntry* entry)
 {
     bool result;
@@ -850,6 +878,10 @@ bool Fs_QueueUpdatePostLoad(s_FsQueueEntry* entry)
 
     result = false;
     state  = g_FsQueue.postLoadState;
+
+#ifdef SH_PC_PORT
+    s_texpackComposeBudget = FSQ_TEXPACK_COMPOSE_BUDGET;
+#endif
 
     switch (state)
     {
@@ -913,10 +945,20 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
      * persistent GL texture. */
     bool      pcVirtualSlot = entry->extra.image.u != UCHAR_MAX &&
                               entry->extra.image.clutY >= HIRES_POOL_CLUT_ROW_BASE;
+    /* First CLUT row still owed from a previous tick that ran out of compose
+     * budget. Non-zero means VRAM, the loose overrides and the base pool
+     * registration all already happened on that first pass — only the
+     * outstanding pack rows are redone here, and redoing the rest would undo
+     * the rows already composed. */
+    s32       composeResume = (s_composeResumeEntry == entry &&
+                               s_composeResumeIdx == g_FsQueue.postLoad.idx)
+                                  ? s_composeResumeRow : 0;
+
+    s_composeResumeEntry = NULL;
 #endif
 
 #ifdef SH_PC_PORT
-    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) {
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog && !composeResume) {
         char _fnm[16] = {0};
         int _fidx = (entry->info >= &g_FileTable[0] && entry->info < &g_FileTable[FS_FILE_COUNT])
                         ? (int)(entry->info - &g_FileTable[0]) : -1;
@@ -930,7 +972,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
     OpenTIM((u64*)entry->externalData);
     ReadTIM(&tim);
 #ifdef SH_PC_PORT
-    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0/TIM] post ReadTIM: prect=%p caddr=%p paddr=%p mode=%u\n",
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog && !composeResume) { fprintf(g_ShDebugLog, "[BOOT0/TIM] post ReadTIM: prect=%p caddr=%p paddr=%p mode=%u\n",
         (void*)tim.prect, (void*)tim.caddr, (void*)tim.paddr, (unsigned)tim.mode); fflush(g_ShDebugLog); } }
 #endif
 
@@ -946,7 +988,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
         tempRect.y = entry->extra.image.v + ((entry->extra.image.tPage[1] << 4) & 0x100);
     }
 #ifdef SH_PC_PORT
-    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0/TIM] pre pixel LoadImage rect=(%d,%d %dx%d)\n",
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog && !composeResume) { fprintf(g_ShDebugLog, "[BOOT0/TIM] pre pixel LoadImage rect=(%d,%d %dx%d)\n",
         (int)tempRect.x, (int)tempRect.y, (int)tempRect.w, (int)tempRect.h); fflush(g_ShDebugLog); } }
 #endif
 
@@ -962,7 +1004,8 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
         Font_PatchPolishGlyphs(tim.paddr, tim.prect->w, tim.prect->h);
     }
 
-    if (!pcVirtualSlot)
+    /* A resumed post-load already uploaded this TIM to VRAM on its first pass. */
+    if (!pcVirtualSlot && !composeResume)
 #endif
     {
         LoadImage(&tempRect, tim.paddr);
@@ -986,12 +1029,12 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
             tempRect.y = entry->extra.image.clutY;
         }
 #ifdef SH_PC_PORT
-        { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0/TIM] pre CLUT LoadImage rect=(%d,%d %dx%d)\n",
+        { extern FILE* g_ShDebugLog; if (g_ShDebugLog && !composeResume) { fprintf(g_ShDebugLog, "[BOOT0/TIM] pre CLUT LoadImage rect=(%d,%d %dx%d)\n",
             (int)tempRect.x, (int)tempRect.y, (int)tempRect.w, (int)tempRect.h); fflush(g_ShDebugLog); } }
 #endif
 
 #ifdef SH_PC_PORT
-        if (!pcVirtualSlot)
+        if (!pcVirtualSlot && !composeResume)
 #endif
         {
             LoadImage(&tempRect, tim.caddr);
@@ -1002,7 +1045,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 #endif
     }
 #ifdef SH_PC_PORT
-    { extern FILE* g_ShDebugLog; if (g_ShDebugLog) { fprintf(g_ShDebugLog, "[BOOT0/TIM] PostLoadTim done\n"); fflush(g_ShDebugLog); } }
+    { extern FILE* g_ShDebugLog; if (g_ShDebugLog && !composeResume) { fprintf(g_ShDebugLog, "[BOOT0/TIM] PostLoadTim done\n"); fflush(g_ShDebugLog); } }
 
     /* Point-sample the font atlas: an HD font pack paints gutterless glyph cells
      * edge-to-edge, so bilinear sampling bleeds the neighbour glyph's ink across
@@ -1075,10 +1118,16 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
              * loose replacement above fully covers the slot instead. */
             if (!registered)
             {
-                unsigned int discSize = (unsigned int)ALIGN(
-                    entry->info->blockCount * FS_BLOCK_SIZE, FS_SECTOR_SIZE);
-                HiresOverride_PoolSlotRegister(slotId, (const unsigned char*)entry->externalData,
-                                               discSize, nativeW, nativeH);
+                /* Skipped when resuming: this rewrites EVERY row of the slot with
+                 * the disc art, which would wipe the pack rows the earlier tick
+                 * already composed. */
+                if (!composeResume)
+                {
+                    unsigned int discSize = (unsigned int)ALIGN(
+                        entry->info->blockCount * FS_BLOCK_SIZE, FS_SECTOR_SIZE);
+                    HiresOverride_PoolSlotRegister(slotId, (const unsigned char*)entry->externalData,
+                                                   discSize, nativeW, nativeH);
+                }
 
                 /* Per-CLUT-row loose overlay: replace only the palette rows the
                  * modder supplied ("{base}.pNN.png"); untouched rows keep the
@@ -1142,7 +1191,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                     if (rows < 1) rows = 1;
                     if (rows > HIRES_POOL_MAX_ROWS) rows = HIRES_POOL_MAX_ROWS;
 
-                    for (r = 0; r < rows; r++)
+                    for (r = composeResume; r < rows; r++)
                     {
                         int cw = 0, ch = 0;
                         const unsigned short* clutRow;
@@ -1159,12 +1208,25 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                             break;
                         }
 
+                        /* Out of compose budget for this tick — park the cursor on
+                         * row r and report the post-load unfinished so the queue
+                         * comes back to it. Deferred, never dropped. */
+                        if (s_texpackComposeBudget <= 0)
+                        {
+                            s_composeResumeEntry = entry;
+                            s_composeResumeIdx   = g_FsQueue.postLoad.idx;
+                            s_composeResumeRow   = r;
+                            HiresOverride_SetForceNearestUpload(0);
+                            return false;
+                        }
+
                         clutRow = (tim.caddr != NULL)
                             ? (const unsigned short*)tim.caddr + (size_t)r * (size_t)clutW
                             : NULL;
                         canvas = TexPack_Compose(
                             (const unsigned char*)tim.paddr, (int)pixelRect.w, (int)pixelRect.h,
                             clutRow, clutW, discBitDepth, &cw, &ch);
+                        if (TexPack_LastComposeWasBuilt()) s_texpackComposeBudget--;
                         if (canvas != NULL)
                         {
                             /* canvas is owned by the compose cache — no free. Key
@@ -1199,18 +1261,23 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
         int         looseHires = 0;
 
         /* This upload just rewrote VRAM: any rect-keyed override covering
-         * those cells now shows the wrong image. */
+         * those cells now shows the wrong image. A resumed post-load wrote no
+         * VRAM this tick, and invalidating again would drop the pack rows the
+         * earlier tick already registered over this very rect. */
+        if (!composeResume)
         {
-            extern void Pc_PoolStompProbe(int x, int y, int w, int h);
-            Pc_PoolStompProbe((int)pixelRect.x, (int)pixelRect.y,
-                              (int)pixelRect.w, (int)pixelRect.h);
-        }
-        HiresOverride_InvalidateVramRect((int)pixelRect.x, (int)pixelRect.y,
-                                         (int)pixelRect.w, (int)pixelRect.h);
-        if (haveClut)
-        {
-            HiresOverride_InvalidateVramRect((int)clutRect.x, (int)clutRect.y,
-                                             (int)clutRect.w, (int)clutRect.h);
+            {
+                extern void Pc_PoolStompProbe(int x, int y, int w, int h);
+                Pc_PoolStompProbe((int)pixelRect.x, (int)pixelRect.y,
+                                  (int)pixelRect.w, (int)pixelRect.h);
+            }
+            HiresOverride_InvalidateVramRect((int)pixelRect.x, (int)pixelRect.y,
+                                             (int)pixelRect.w, (int)pixelRect.h);
+            if (haveClut)
+            {
+                HiresOverride_InvalidateVramRect((int)clutRect.x, (int)clutRect.y,
+                                                 (int)clutRect.w, (int)clutRect.h);
+            }
         }
 
         if (base && base[0])
@@ -1331,7 +1398,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
             if (rows < 1) rows = 1;
             if (rows > 16) rows = 16;
 
-            for (r = 0; r < rows; r++)
+            for (r = composeResume; r < rows; r++)
             {
                 int cw = 0, ch = 0;
                 const unsigned short* clutRow;
@@ -1348,12 +1415,25 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                     break;
                 }
 
+                /* Out of compose budget for this tick — park the cursor on row r
+                 * and report the post-load unfinished so the queue comes back to
+                 * it. Deferred, never dropped. */
+                if (s_texpackComposeBudget <= 0)
+                {
+                    s_composeResumeEntry = entry;
+                    s_composeResumeIdx   = g_FsQueue.postLoad.idx;
+                    s_composeResumeRow   = r;
+                    HiresOverride_SetForceNearestUpload(0);
+                    return false;
+                }
+
                 clutRow = (tim.caddr != NULL)
                     ? (const unsigned short*)tim.caddr + (size_t)r * (size_t)clutW
                     : NULL;
                 canvas = TexPack_Compose(
                     (const unsigned char*)tim.paddr, (int)pixelRect.w, (int)pixelRect.h,
                     clutRow, clutW, discBitDepth, &cw, &ch);
+                if (TexPack_LastComposeWasBuilt()) s_texpackComposeBudget--;
                 if (canvas != NULL)
                 {
                     char packLabel[24];

@@ -58,6 +58,12 @@ unsigned long long TexPack_LastComposeHash(void);
 int                  TexPack_LastComposeIsDds(void);
 const unsigned char* TexPack_LastComposeDds(size_t* outSize);
 
+/* 1 when the most recent TexPack_Compose paid the expensive path (pack files
+ * read + decoded + upscaled, or a .dds read), 0 when it hit the compose cache
+ * or matched no entry. The upload sites budget composes per frame; a cache hit
+ * costs almost nothing and must not spend that budget. */
+int TexPack_LastComposeWasBuilt(void);
+
 #ifdef __cplusplus
 }
 #endif
