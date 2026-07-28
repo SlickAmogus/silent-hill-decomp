@@ -433,7 +433,12 @@ void Gfx_StringDrawInt(s32 widthMin, s32 val) // 0x8004AD90
     while (val >= ATLAS_COLUMN_COUNT)
     {
         str--;
+#ifdef SH_PC_PORT
+        /* See text_draw.c: `>> 32` is a no-op on MIPS but folds to 0 on x86-64. */
+        quotient = val / ATLAS_COLUMN_COUNT;
+#else
         quotient = (val / ATLAS_COLUMN_COUNT) >> 32;
+#endif
         *str     = (val - (quotient * ATLAS_COLUMN_COUNT)) + '0';
 
         if (widthMin > 0)

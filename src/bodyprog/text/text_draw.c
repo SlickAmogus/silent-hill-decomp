@@ -1206,7 +1206,16 @@ void Gfx_StringDrawInt(s32 widthMin, s32 val) // 0x8004B9F8
     while (val >= ATLAS_COLUMN_COUNT)
     {
         str--;
+#ifdef SH_PC_PORT
+        /* MIPS `srl` masks the shift amount to 5 bits, so `>> 32` is a no-op on
+         * PSX. x86-64 GCC constant-folds it to 0 instead, which collapses the
+         * loop to one pass and emits chr(val + '0') for every value >= 10
+         * (22 -> "0F", 27 -> "0K"), and reads OOB past the glyph-width table
+         * once val + '0' exceeds the atlas. */
+        quotient = val / ATLAS_COLUMN_COUNT;
+#else
         quotient = (val / ATLAS_COLUMN_COUNT) >> 32;
+#endif
         *str     = (val - (quotient * ATLAS_COLUMN_COUNT)) + '0';
 
         if (widthMin > 0)
