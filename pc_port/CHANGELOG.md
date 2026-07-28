@@ -1,5 +1,50 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.28.1 -- 2026-07-28
+- Fix for rainbox cutscene corruption that still appeared in some places
+- Fix Plate of Queen object rotation being OFF
+- Fix for Incubus lightning (untested)
+- Fix for bottle throw scream 
+- Dahlia teleport effects Restored
+- VHS Subtitles fixed
+- Lisa FMv music Fix
+- Fix for puzzle objects and handgun ammo having see through faces
+- Fix flashlight lens flare flicker
+- Fix for FOV affecting cutscenes
+
+- water: revert func_8008D990 changes — restore chest lens flare (regression fix)
+- water: restore caustic generator — animated water surface via VRAM scratch
+- stubs: give D_8002B2CC its real bytes ("DWAVE") — water caustic material name
+- water: restore reflective octagon in all modes (blowout fixed engine-side)
+- map3_s04: local zero rotation for D_800CB35C (Plate of Queen stood on edge)
+- gfx: cancel armed one-shot SZ payload at every Gfx_MeshDraw exit (depth Step 2)
+- hires: reject virtual-clut lookups from 16bpp tpages (cutscene rainbow bar)
+- flare: fix Q12/Q8 unit mismatch in chest lens-flare facing factor
+- map7_s03: force sp10/sp18 adjacency in Incubus lightning drawer
+- map7_s03: remove the bottle-throw shriek lead (premise disproven)
+- map6_s04: fix 64-bit FX pool offset (Dahlia teleport FX never rendered)
+- map-msg: exempt J2 single-audio-file pages from pcVoiceHold (VHS subs)
+- fmv: model PSX SsSetSerialVol movie-audio attenuation (Lisa FMV music)
+- items: extend the see-through depth fix to full-screen puzzle models
+- fov: restore current projection, not gameplay default, on FOV release
+- docs: index the 0727 user-report batch fixes
+- Bump PsyCross: PSX polygon size rule (elevator/stair wedge fix) + wiring
+- altcam: re-base orbit yaw to the spawn heading on area loads
+- pgxp: depth Step 3 decomp side — OT viewZ-shift registration + console knobs
+- Bump PsyCross: depth Step 4 — per-vertex world depth (distant-gap fix)
+- Bump PsyCross: per-vertex item-pass depth (ammo-box take-screen fix)
+- Bump PsyCross: [PGXPDEPTH] probe upgrade (depth Step-4 anomaly hunt)
+- pgxp: depth Step 6 — PGXPDEPTHSTATS console cmd + Port_Fixes_Index entry
+- map _strdup to strdup on non-Windows platforms (#77)
+- launcher: DDS converter survives huge packs and long paths (v2026.7.27.1)
+- fmv: threaded decode-ahead pipeline + correct colorspace (4K HEVC)
+- texpack: prefer .dds over .png on every loose/pack load path
+- Bump PsyCross: [ITEMDEPTH] item-pass discriminator probe
+- control2d: real release-to-neutral basis latch (fix camera-cut ping-pong)
+- build: stop shipping -O0 (default RelWithDebInfo + decomp UB guards)
+- launcher: fix DDS gamma (--ignore-srgb) + safer delete-source (v2026.7.27.3)
+- texpack: kill the room-entry hitch (blit fast path, upload realloc, scan, budget)
+
 ## beta-2026.07.26.2 -- 2026-07-26
 - Fixed flashlight lens flare not working in flashlight modes other than classic.
 

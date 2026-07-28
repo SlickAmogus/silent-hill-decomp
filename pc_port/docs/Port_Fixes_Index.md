@@ -1598,3 +1598,53 @@ Verified live by counters (`PGXPDEPTHSTATS`): armF~350k/s, capF = parse-hit F =
 splitWORLD (~100k/s), staleR < 400/s, splitHW 794/4096, exhaust 0, no OT-shift
 disagreement. Kill-switch: `PGXPWORLDDEPTH`. Remaining distant thin seams are
 sub-pixel position cracks (PGXPEDGE/weld class), NOT depth — out of scope here.
+
+## BC7 sub-rect texture-pack entries + faster PNG inflate (2026-07-28)
+
+Two independent changes to the texture-pack decode path.
+
+**1. `.dds` sub-rects were inert.** `TexPack_Compose` fed every match through
+`Entry_LoadPng` → `stbi_load_from_memory`, which returns NULL for a `.dds`, so
+no canvas was built and the entry was silently dropped. Only the whole-cover
+`.dds` fast path (which uploads compressed, 4x cheaper VRAM) ever applied. On
+the real SLES-01514 pack that is 121 of 12,227 files: measured end to end
+against the actual pack, **40 of 1443 upload groups produced anything before,
+1443 of 1443 after** (1403 composited canvases + the same 40 compressed
+uploads). ~99% of that pack was dead.
+- `Dds_DecodeRgba` (`pc_port/src/dds_load.c`) CPU-decodes mip 0 of a BC7 DDS to
+  RGBA8 via vendored `bcdec.h` (v0.98, Unlicense/public domain, iOrange).
+  Verified bit-exact against Pillow on 60 real pack files; the
+  non-multiple-of-4 edge-block clip verified against cropped aligned references
+  on 125 forced-odd sizes.
+- `Entry_LoadPng` → `Entry_LoadImage` (`tex_pack.c`): sniffs the file magic
+  (not the extension) and dispatches DDS→bcdec, else stb_image. Same
+  `(rgba, w, h)` contract, so scale detection, `DecodeNative`, `BlitNearest`
+  and the content-hash compose cache are untouched. An extra `*outStbi` out-param
+  says which allocator owns the buffer (stb's vs plain `malloc`).
+- The whole-cover compressed path is unchanged and still preferred: the
+  single-match whole-cover check and the DDS-first collapse both run BEFORE the
+  RGBA path. CPU decode is only reached when the entry cannot take that path
+  (sub-rect, or multiple matches).
+- Only BC7 (DXGI 98/99) decodes, matching the upload path's existing stance.
+  Anything else — BC1/2/3/4/5/6H, uncompressed, legacy FourCC, truncated block
+  data — now logs its format once via `SH_DBG` instead of vanishing.
+
+**2. PNG IDAT inflate → miniz.** stb_image's own inflate was the single largest
+cost in a pack PNG decode and upstream stb offers no hook, so `stb_image.h`
+carries a 2-hunk local patch (`STBI_PNG_ZLIB_DECODE`, marked
+`SH_PC_PORT LOCAL PATCH`, a no-op unless defined) and
+`pc_port/src/hires_override.c` points it at miniz's `tinfl` — already vendored
+for `.zip` packs, so no new dependency. Decodes into a right-sized buffer
+(stb's `raw_len` guess is exact for non-interlaced PNGs) with the growing heap
+decode as the interlaced fallback. Byte-identical output verified by full-content
+checksum over every file in three test sets.
+- `stbi_load_from_memory`, best-of-6: 2.537 → 1.958 ms/file (**-22.8%**) on the
+  audit's 200-file SLES-01514 set; 2.238 → 1.744 ms/file (**-22.1%**) on 200
+  files from the real Silent_Hill_HD009654 PNG pack.
+- End-to-end `TexPack_Compose` on that HD pack (120 real upload groups,
+  best-of-3): **29.72 → 23.53 ms per canvas, -20.8%**.
+- The win is encoding-dependent: on Pillow-level-6 re-encodes of the same art it
+  collapses to ~3%. libdeflate measured 1.104-1.174 ms/file (-42% to -56%)
+  consistently across all three sets, but vendoring it means a multi-file,
+  multi-arch C library, against this repo's single-header convention — NOT
+  shipped; revisit if PNG packs become a hot path.
