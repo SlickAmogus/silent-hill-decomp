@@ -420,34 +420,47 @@ is still read in place as a fallback.
 
 ### 7.1 Dumping the game's own textures (`dump_textures`)
 
-Set `dump_textures = 1` in `config.cfg` and play. Every texture the engine uploads is
-written to **`gamedata/dump/`** as a PNG, *already named* the way the pack loader matches
-it — so the dump folder **is** a texture pack:
+Set `dump_textures = 1` in `config.cfg` and play. The game's art is written to
+**`gamedata/dump/`** as PNGs, *already named* the way the pack loader matches them — so
+the dump folder **is** a texture pack:
 
 ```
-gamedata/dump/texupload-P4-20D7201241D7412C-16F3DC9AA8F748C5-64x256-0-0-256x256-P0-15.png
+gamedata/dump/texupload-P4-20D7201241D7412C-16F3DC9AA8F748C5-64x256-88-0-104x109-P0-15.png
+                                                             ^sheet   ^box in the sheet
 ```
+
+Each file is **one object**, not a whole sheet: the piece of the sheet a model actually
+draws, through the palette row it actually draws it with — the same shape DuckStation
+dumps. The `88-0-104x109` above is that box in native texels; the piece is drawn out of
+the model file (`.ILM` for characters, `.PLM` for weapons/props, `.IPD` for world
+geometry) as the engine loads it, so you get a small, tight, correctly-coloured image you
+can edit directly instead of a 256×256 sheet you have to hunt through. Sheets that no
+model references at all — fonts, HUD, 2D event screens — still come out as the whole
+upload, because for those the whole sheet *is* the object.
 
 Copy `gamedata/dump/` into `gamedata/texturemods/MyPack/`, repaint (or AI-upscale) the
 files in place, and they load back over the exact uploads they came from. Upscales must
-keep the aspect ratio; any integer scale works.
+keep the aspect ratio; any integer scale works. Pieces you do not touch simply keep the
+original art — the loader lays every crop over the native texture, so a pack can be as
+partial as you like.
 
 **Why this and not the per-palette extractor.** A SH1 texture is one 4-bit index sheet
 shared by many CLUT rows, and a single model draws its head, body and limbs through
 *different* rows at the same time — so `NAME.TIM.pNN.png` from §5.1 is the whole sheet
 tinted by one palette and none of them looks like the thing you see in-game. A dump is
-the region as it is actually drawn, through the palette actually in use, so it looks
-right with no model file involved. Since `clut_tool.py` learned to read `.IPD`/`.PLM`
-as well as `.ILM` (§5.1), backgrounds and world geometry get offline composites too —
-prefer that, because it covers the **whole disc** rather than only the rooms you happened
-to walk through. Dumping is still the fallback for the sheets no model references (2D
-event backgrounds, UI and effect atlases, item preview atlases drawn from `.TMD`).
+the region as it is actually drawn, through the palette actually in use. `clut_tool.py`
+(§5.1) reads the same model data offline and covers the **whole disc** rather than only
+the rooms you walked through, so it is still the better starting point for a full-game
+pack; dumping is the way to grab exactly the object in front of you, and the only way to
+reach the sheets no model references.
 
-Notes: visit the areas you want; textures are dumped as they load. Each file is written
-once (already-dumped uploads are skipped, in this session and in later ones), so delete
+Notes: visit the areas you want; art is dumped as it loads. Each file is written once
+(already-dumped entries are skipped, in this session and in later ones), so delete
 `gamedata/dump/` to start over. A newly-seen texture costs a few ms on the loading frame,
-so turn the option back off for normal play. Textures with no palette at all
-(`FONT8NOC.TIM`) and 24-bit uploads are skipped — the pack format cannot address them.
+so turn the option back off for normal play. Sheets with no model are held briefly in case
+their model is still loading, and are written whole at the latest when you quit — exit the
+game normally rather than killing it. Textures with no palette at all (`FONT8NOC.TIM`) and
+24-bit uploads are skipped — the pack format cannot address them.
 
 ## 8. Linux / macOS
 

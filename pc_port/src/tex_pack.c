@@ -991,6 +991,47 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
 
     nativeW = w16 * (16 / bpp);
 
+    /* Exact twins: the SAME pack file present in both formats. Scan_Dir walks
+     * subfolders, so converting a pack in place — or parking the .dds in a
+     * "DDS/" folder beside the .png it came from — indexes BOTH copies (the
+     * 12,227-file SLES-01514 pack indexes 24,452 entries that way). They carry
+     * one parsed name, so they blit the same rect with the same pixels and only
+     * the directory enumeration order decides which lands last: the pack costs
+     * double the decode work for a result that is a coin flip. Drop the .png
+     * twin — .dds wins on every other load path (fsqueue_3.c probes .dds first)
+     * and the whole-cover collapse below already assumes it. A twin is only a
+     * twin at EQUAL priority, so a higher-priority .png from a different pack
+     * still wins on load order. */
+    if (matchCount > 1)
+    {
+        int a, b, n = 0;
+        for (a = 0; a < matchCount; a++)
+        {
+            const PackEntry* ea  = &g_entries[matches[a]];
+            int              dup = 0;
+
+            if (!ea->isDds)
+            {
+                for (b = 0; b < matchCount; b++)
+                {
+                    const PackEntry* eb = &g_entries[matches[b]];
+                    if (!eb->isDds || eb->priority != ea->priority) continue;
+                    if (eb->mode == ea->mode &&
+                        eb->offX == ea->offX && eb->offY == ea->offY &&
+                        eb->subW == ea->subW && eb->subH == ea->subH &&
+                        eb->palMin == ea->palMin && eb->palMax == ea->palMax &&
+                        eb->palHash == ea->palHash)
+                    {
+                        dup = 1;
+                        break;
+                    }
+                }
+            }
+            if (!dup) matches[n++] = matches[a];
+        }
+        matchCount = n;
+    }
+
     /* DDS-first: a pack shipping both FOO.dds and FOO.png (converter run with
      * "keep both", or a pre-mixed pack) matches BOTH for this upload, which
      * used to leave matchCount > 1 — skipping the compressed fast path below,
@@ -1186,17 +1227,31 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
 }
 
 /* ---- Texture dumping (dump_textures) ---------------------------------------
- * DecodeNative above already produces exactly what a modder needs: the VRAM
- * region as it is actually uploaded, seen through the palette actually in use.
- * Writing that image out under the name ParseName expects turns the dump into a
- * texture pack — copy gamedata/dump/ into gamedata/texturemods/<pack>/ and the
- * entries match the very uploads they came from. That covers every texture
- * class uniformly (chara pool, VRAM-resident, BG chunks), unlike the ILM-driven
- * offline compose which only works for models that ship one.
+ * DuckStation dumps the piece of a texture a draw actually samples, through the
+ * palette that draw selects. This does the same, without a draw hook: the piece
+ * is the UV bounding box of one MODEL over the sheet, and the palette is the
+ * CLUT row that model's primitives carry — both baked into the .ILM/.PLM/.IPD
+ * the engine has just loaded (TexPack_DumpScanLm reads them straight out of the
+ * PSX-layout bytes, the same fields pc_port/tools/clut_tool.py parses offline).
+ * The result is one concise image per object with its correct colours, instead
+ * of a whole sheet per palette that a modder has to hunt through.
  *
- * The emitted entry always covers the whole upload (offset 0,0, sub-rect =
- * native size, full palette range), which is the case TexPack_Compose treats as
- * "replace everything": composing a dump reproduces the native decode exactly. */
+ * The two halves meet by TIM NAME, which is also the material name
+ * (Material_TimFileNameGet appends the extension and nothing else). Because an
+ * LM is what queues its own materials' TIM reads, the geometry is normally
+ * registered BEFORE the upload arrives; a sheet whose model shows up later
+ * (shared BG sheets are referenced by up to 118 chunks) is served from a held
+ * copy of the upload, so the crops appear the moment that chunk loads.
+ *
+ * Rows the geometry never selects still get dumped, using the union of the rows
+ * it does select: a material's CLUT row is bumped at runtime for palette
+ * effects, which moves the SAME geometry onto another row. A sheet no model
+ * ever references at all (fonts, HUD, 2D screens) falls back to the whole
+ * upload, which is what "the object" means for those.
+ *
+ * Every name is one TexPack_Compose entry would match this very upload by, so
+ * the dump folder IS a texture pack: the crops blit back over the native base
+ * layer at their offsets and reproduce the native decode exactly. */
 
 /* Deflate level for the dump PNGs. This runs inline on a load frame, so it
  * trades a little size for latency: measured over real disc TIMs, level 6 is
@@ -1205,11 +1260,78 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
 #define TEXDUMP_PNG_LEVEL 3
 #endif
 
+/* Rows past this are never uploaded (HIRES_POOL_MAX_ROWS), so never dumped. */
+#define DUMP_MAX_ROWS 16
+
+/* Crops per (sheet, row). TexPack_Compose stops collecting matches at 64 per
+ * upload, and a modder may stack a second pack on top of the dump, so keep well
+ * clear of that: over the whole disc corpus a row averages 1.1 objects (BG) /
+ * 2.1 (characters), and the cap is only reached by merging the two boxes whose
+ * union wastes least — never by dropping one. */
+#define DUMP_MAX_REGIONS 16
+
+/* An upload with no geometry yet is held this many further uploads before it is
+ * written whole-cover. The LM that names a sheet is what queues its read, so a
+ * sheet still unclaimed after a load batch has no model at all. */
+#define DUMP_PENDING_GRACE 96
+
+/* Held-upload cache: dev-mode only, and only the raw TIM bytes (a 4bpp 256x256
+ * sheet is 32 KB). Bounded so a long session cannot grow without limit. */
+#define DUMP_HOLD_MAX_BYTES (64u * 1024u * 1024u)
+#define DUMP_HOLD_MAX_COUNT 2048
+
+/** Sub-rect of a sheet in native texels, corners INCLUSIVE. */
+typedef struct {
+    unsigned short x0, y0, x1, y1;
+} DumpRect;
+
+/** Every object box registered for one sheet name, per CLUT row. */
+typedef struct {
+    char          name[12];
+    unsigned char count[DUMP_MAX_ROWS];
+    DumpRect      rect[DUMP_MAX_ROWS][DUMP_MAX_REGIONS];
+} DumpRegions;
+
+/** A retained copy of one upload, so late geometry can still be cropped. */
+typedef struct {
+    char               name[12];
+    unsigned char*     pixels;
+    unsigned short*    clut;
+    unsigned long long srcHash;
+    int                w16, h, bpp, clutW, clutRows;
+    size_t             bytes;
+    unsigned int       gen;     /* upload counter at the time it was held */
+    int                emitted; /* 1 once geometry-driven crops were written */
+} DumpHeld;
+
 static unsigned long long* g_dumpSeen      = NULL; /* sorted name hashes handled this session */
 static int                 g_dumpSeenCount = 0;
 static int                 g_dumpSeenCap   = 0;
 static int                 g_dumpWritten   = 0;
 static int                 g_dumpFailed    = 0;
+static int                 g_dumpCrops     = 0; /* geometry-driven entries */
+static int                 g_dumpWhole     = 0; /* whole-upload fallbacks */
+
+static DumpRegions** g_dumpRegions     = NULL;
+static int           g_dumpRegionCount = 0;
+static int           g_dumpRegionCap   = 0;
+
+static DumpHeld*    g_dumpHeld      = NULL;
+static int          g_dumpHeldCount = 0;
+static int          g_dumpHeldCap   = 0;
+static size_t       g_dumpHeldBytes = 0;
+static unsigned int g_dumpGen       = 0;
+
+static unsigned int Dump_Rd32(const unsigned char* p)
+{
+    return (unsigned int)p[0] | ((unsigned int)p[1] << 8) |
+           ((unsigned int)p[2] << 16) | ((unsigned int)p[3] << 24);
+}
+
+static unsigned int Dump_Rd16(const unsigned char* p)
+{
+    return (unsigned int)p[0] | ((unsigned int)p[1] << 8);
+}
 
 /* Index of the first seen-key >= k. */
 static int Dump_LowerBound(unsigned long long k)
@@ -1224,7 +1346,7 @@ static int Dump_LowerBound(unsigned long long k)
     return lo;
 }
 
-/* 1 when k is new (and now recorded), 0 when this upload was already handled. */
+/* 1 when k is new (and now recorded), 0 when this entry was already handled. */
 static int Dump_MarkSeen(unsigned long long k)
 {
     int at = Dump_LowerBound(k);
@@ -1259,78 +1381,150 @@ static void Dump_EnsureDir(void)
 #else
     mkdir(TEXDUMP_DIR, 0755);
 #endif
-    SH_DBG("[TEXDUMP] dump_textures on — writing decoded uploads to %s/", TEXDUMP_DIR);
+    atexit(TexPack_DumpFlush);
+    SH_DBG("[TEXDUMP] dump_textures on — writing per-object crops to %s/", TEXDUMP_DIR);
 }
 
-void TexPack_DumpUpload(const unsigned char* pixels, int w16, int h,
-                        const unsigned short* clut, int clutCount, int bpp)
+/* Sheet name key: the file/material stem, uppercased, extension dropped. */
+static void Dump_NameKey(const char* src, char* out)
 {
-    unsigned long long srcHash;
-    unsigned long long palHash = 0;
-    char               name[192];
-    char               path[320];
-    int                nativeW;
-    unsigned char*     rgba;
-    void*              png;
-    size_t             pngLen = 0;
-    FILE*              f;
+    int i = 0;
 
-    if (!g_PcConfig.dumpTextures) return;
-    if (pixels == NULL || w16 <= 0 || h <= 0) return;
-    /* 24bpp has no mode token in the pack grammar, so a dump of one could never
-     * be loaded back — and nothing replaces those uploads today either. */
-    if (bpp != 4 && bpp != 8 && bpp != 16) return;
-    if (bpp != 16 && (clut == NULL || clutCount <= 0)) return;
-
-    /* Byte-for-byte the hashes TexPack_Compose matches entries on. */
-    srcHash = XXH3_64bits(pixels, (size_t)w16 * (size_t)h * 2);
-    if (bpp != 16)
+    if (src != NULL)
     {
-        int n = (bpp == 4) ? 16 : 256;
-        if (n > clutCount) n = clutCount;
-        palHash = XXH3_64bits(clut, (size_t)n * 2);
+        for (; i < 8; i++)
+        {
+            char c = src[i];
+            if (c == '\0' || c == '.' || c == ' ') break;
+            out[i] = (c >= 'a' && c <= 'z') ? (char)(c - ('a' - 'A')) : c;
+        }
+    }
+    while (i < 12) out[i++] = '\0';
+}
+
+/* ---- object boxes ---------------------------------------------------------- */
+
+static DumpRegions* Dump_RegionsFind(const char* key, int create)
+{
+    int i;
+
+    if (key[0] == '\0') return NULL;
+
+    for (i = 0; i < g_dumpRegionCount; i++)
+    {
+        if (memcmp(g_dumpRegions[i]->name, key, 12) == 0) return g_dumpRegions[i];
+    }
+    if (!create) return NULL;
+
+    if (g_dumpRegionCount == g_dumpRegionCap)
+    {
+        int           cap   = g_dumpRegionCap ? g_dumpRegionCap * 2 : 128;
+        DumpRegions** grown = (DumpRegions**)realloc(g_dumpRegions, (size_t)cap * sizeof(DumpRegions*));
+        if (grown == NULL) return NULL;
+        g_dumpRegions   = grown;
+        g_dumpRegionCap = cap;
     }
 
-    nativeW = w16 * (16 / bpp);
+    g_dumpRegions[g_dumpRegionCount] = (DumpRegions*)calloc(1, sizeof(DumpRegions));
+    if (g_dumpRegions[g_dumpRegionCount] == NULL) return NULL;
+    memcpy(g_dumpRegions[g_dumpRegionCount]->name, key, 12);
+    return g_dumpRegions[g_dumpRegionCount++];
+}
 
+static unsigned int Dump_RectArea(const DumpRect* r)
+{
+    return (unsigned int)(r->x1 - r->x0 + 1) * (unsigned int)(r->y1 - r->y0 + 1);
+}
+
+static int Dump_RectContains(const DumpRect* a, const DumpRect* b) /* a covers b */
+{
+    return a->x0 <= b->x0 && a->y0 <= b->y0 && a->x1 >= b->x1 && a->y1 >= b->y1;
+}
+
+static void Dump_RectUnion(DumpRect* dst, const DumpRect* a, const DumpRect* b)
+{
+    dst->x0 = a->x0 < b->x0 ? a->x0 : b->x0;
+    dst->y0 = a->y0 < b->y0 ? a->y0 : b->y0;
+    dst->x1 = a->x1 > b->x1 ? a->x1 : b->x1;
+    dst->y1 = a->y1 > b->y1 ? a->y1 : b->y1;
+}
+
+/* Add one box to a row's list: swallowed boxes collapse, and a full list merges
+ * the newcomer into whichever box wastes the least area — never drops it, so no
+ * texel an object draws can fall out of the dump. */
+static void Dump_RectAdd(DumpRect* list, unsigned char* count, const DumpRect* add)
+{
+    int          i, n = (int)*count, bestIdx = 0;
+    unsigned int bestCost = 0;
+
+    for (i = 0; i < n; i++)
+    {
+        if (Dump_RectContains(&list[i], add)) return;
+    }
+    for (i = 0; i < n;)
+    {
+        if (Dump_RectContains(add, &list[i])) list[i] = list[--n];
+        else i++;
+    }
+    if (n < DUMP_MAX_REGIONS)
+    {
+        list[n++] = *add;
+        *count    = (unsigned char)n;
+        return;
+    }
+
+    for (i = 0; i < n; i++)
+    {
+        DumpRect     u;
+        unsigned int cost;
+        Dump_RectUnion(&u, &list[i], add);
+        cost = Dump_RectArea(&u) - Dump_RectArea(&list[i]);
+        if (i == 0 || cost < bestCost)
+        {
+            bestCost = cost;
+            bestIdx  = i;
+        }
+    }
+    Dump_RectUnion(&list[bestIdx], &list[bestIdx], add);
+    *count = (unsigned char)n;
+}
+
+/* ---- entry naming + writing ------------------------------------------------- */
+
+static void Dump_EntryName(char* out, size_t outSize, int bpp,
+                           unsigned long long srcHash, unsigned long long palHash,
+                           int w16, int h, int ox, int oy, int sw, int sh)
+{
     if (bpp == 16)
     {
-        snprintf(name, sizeof(name), "texupload-C16-%016llX-%dx%d-0-0-%dx%d.png",
-                 srcHash, w16, h, nativeW, h);
+        snprintf(out, outSize, "texupload-C16-%016llX-%dx%d-%d-%d-%dx%d.png",
+                 srcHash, w16, h, ox, oy, sw, sh);
     }
     else
     {
-        snprintf(name, sizeof(name), "texupload-%s-%016llX-%016llX-%dx%d-0-0-%dx%d-P0-%d.png",
-                 (bpp == 4) ? "P4" : "P8", srcHash, palHash, w16, h, nativeW, h,
+        snprintf(out, outSize, "texupload-%s-%016llX-%016llX-%dx%d-%d-%d-%dx%d-P0-%d.png",
+                 (bpp == 4) ? "P4" : "P8", srcHash, palHash, w16, h, ox, oy, sw, sh,
                  (bpp == 4) ? 15 : 255);
     }
+}
 
-    /* The file name IS the identity, so dedupe on it: different CLUT rows that
-     * hold the same palette collapse to one dump, as they must. */
-    if (!Dump_MarkSeen(XXH3_64bits(name, strlen(name)))) return;
+static int Dump_WritePng(const char* name, const unsigned char* rgba, int w, int h)
+{
+    char   path[320];
+    void*  png;
+    size_t pngLen = 0;
+    FILE*  f;
+    int    ok = 0;
 
-    Dump_EnsureDir();
-    snprintf(path, sizeof(path), "%s/%s", TEXDUMP_DIR, name);
-
-    f = fopen(path, "rb");
-    if (f != NULL)
-    {
-        fclose(f); /* dumped by an earlier session */
-        return;
-    }
-
-    rgba = DecodeNative(pixels, w16, h, clut, clutCount, bpp, nativeW);
-    if (rgba == NULL) return;
-
-    png = tdefl_write_image_to_png_file_in_memory_ex(rgba, nativeW, h, 4, &pngLen,
+    png = tdefl_write_image_to_png_file_in_memory_ex(rgba, w, h, 4, &pngLen,
                                                      TEXDUMP_PNG_LEVEL, MZ_FALSE);
-    free(rgba);
     if (png == NULL)
     {
         g_dumpFailed++;
-        return;
+        return 0;
     }
 
+    snprintf(path, sizeof(path), "%s/%s", TEXDUMP_DIR, name);
     f = fopen(path, "wb");
     if (f == NULL)
     {
@@ -1338,15 +1532,484 @@ void TexPack_DumpUpload(const unsigned char* pixels, int w16, int h,
     }
     else
     {
-        if (fwrite(png, 1, pngLen, f) == pngLen) g_dumpWritten++;
-        else g_dumpFailed++;
+        if (fwrite(png, 1, pngLen, f) == pngLen)
+        {
+            g_dumpWritten++;
+            ok = 1;
+        }
+        else
+        {
+            g_dumpFailed++;
+        }
         fclose(f);
     }
     mz_free(png);
 
-    if (g_dumpWritten > 0 && (g_dumpWritten & 63) == 0)
+    if (g_dumpWritten > 0 && (g_dumpWritten & 255) == 0)
     {
-        SH_DBG("[TEXDUMP] %d textures written to %s/ (%d failed)",
-               g_dumpWritten, TEXDUMP_DIR, g_dumpFailed);
+        SH_DBG("[TEXDUMP] %d entries written to %s/ (%d object crops, %d whole sheets, %d failed)",
+               g_dumpWritten, TEXDUMP_DIR, g_dumpCrops, g_dumpWhole, g_dumpFailed);
     }
+    return ok;
+}
+
+/* Write every crop of one CLUT row. The row is decoded ONCE, and only if some
+ * crop of it is actually new. */
+static void Dump_EmitRow(const DumpHeld* rec, int row, const DumpRect* rects, int nRects, int wholeCover)
+{
+    unsigned long long    palHash = 0;
+    const unsigned short* pal     = NULL;
+    unsigned char*        rowRgba = NULL;
+    int                   nativeW = rec->w16 * (16 / rec->bpp);
+    int                   i;
+
+    if (rec->bpp != 16)
+    {
+        int n = (rec->bpp == 4) ? 16 : 256;
+        pal   = rec->clut + (size_t)row * (size_t)rec->clutW;
+        if (n > rec->clutW) n = rec->clutW;
+        palHash = XXH3_64bits(pal, (size_t)n * 2);
+    }
+
+    for (i = 0; i < nRects; i++)
+    {
+        char           name[192];
+        char           path[320];
+        FILE*          f;
+        unsigned char* crop;
+        int            ox = rects[i].x0, oy = rects[i].y0;
+        int            sw = (int)rects[i].x1 - ox + 1;
+        int            sh = (int)rects[i].y1 - oy + 1;
+        int            y, wrote;
+
+        if (ox >= nativeW || oy >= rec->h) continue;
+        if (ox + sw > nativeW) sw = nativeW - ox;
+        if (oy + sh > rec->h) sh = rec->h - oy;
+        if (sw <= 0 || sh <= 0) continue;
+
+        Dump_EntryName(name, sizeof(name), rec->bpp, rec->srcHash, palHash,
+                       rec->w16, rec->h, ox, oy, sw, sh);
+
+        /* The file name IS the identity, so dedupe on it: two objects with the
+         * same box, or two CLUT rows holding the same palette, collapse to one
+         * entry, as they must. */
+        if (!Dump_MarkSeen(XXH3_64bits(name, strlen(name)))) continue;
+
+        Dump_EnsureDir();
+        snprintf(path, sizeof(path), "%s/%s", TEXDUMP_DIR, name);
+        f = fopen(path, "rb");
+        if (f != NULL)
+        {
+            fclose(f); /* dumped by an earlier session */
+            continue;
+        }
+
+        if (rowRgba == NULL)
+        {
+            rowRgba = DecodeNative(rec->pixels, rec->w16, rec->h, pal, rec->clutW, rec->bpp, nativeW);
+            if (rowRgba == NULL) return;
+        }
+
+        if (sw == nativeW && sh == rec->h)
+        {
+            wrote = Dump_WritePng(name, rowRgba, nativeW, rec->h);
+        }
+        else
+        {
+            crop = (unsigned char*)malloc((size_t)sw * (size_t)sh * 4);
+            if (crop == NULL) continue;
+            for (y = 0; y < sh; y++)
+            {
+                memcpy(&crop[(size_t)y * (size_t)sw * 4],
+                       &rowRgba[(((size_t)(oy + y) * (size_t)nativeW) + (size_t)ox) * 4],
+                       (size_t)sw * 4);
+            }
+            wrote = Dump_WritePng(name, crop, sw, sh);
+            free(crop);
+        }
+
+        if (!wrote) continue;
+        if (wholeCover) g_dumpWhole++;
+        else g_dumpCrops++;
+    }
+
+    free(rowRgba);
+}
+
+/* Emit one held upload. allowWholeCover=0 leaves a sheet with no geometry yet
+ * untouched (it stays held); =1 writes the whole upload for one that never got
+ * any. */
+static void Dump_EmitHeld(DumpHeld* rec, int allowWholeCover)
+{
+    const DumpRegions* regs     = Dump_RegionsFind(rec->name, 0);
+    int                nativeW  = rec->w16 * (16 / rec->bpp);
+    int                rows     = (rec->bpp == 16) ? 1 : rec->clutRows;
+    DumpRect           anyRow[DUMP_MAX_REGIONS];
+    unsigned char      anyCount = 0;
+    int                row, done = 0;
+
+    if (rows < 1) rows = 1;
+
+    if (regs == NULL)
+    {
+        DumpRect whole;
+
+        if (!allowWholeCover) return;
+
+        whole.x0 = 0;
+        whole.y0 = 0;
+        whole.x1 = (unsigned short)(nativeW - 1);
+        whole.y1 = (unsigned short)(rec->h - 1);
+        for (row = 0; row < rows; row++)
+        {
+            Dump_EmitRow(rec, row, &whole, 1, 1);
+        }
+        rec->emitted = 1;
+        return;
+    }
+
+    /* A material's CLUT row is bumped at runtime for palette effects, moving the
+     * same geometry onto a row no prim names statically — so a row with no boxes
+     * of its own is dumped through the union of the boxes that do exist. */
+    for (row = 0; row < DUMP_MAX_ROWS; row++)
+    {
+        int i;
+        for (i = 0; i < (int)regs->count[row]; i++)
+        {
+            Dump_RectAdd(anyRow, &anyCount, &regs->rect[row][i]);
+        }
+    }
+
+    for (row = 0; row < rows; row++)
+    {
+        if (regs->count[row] > 0)
+        {
+            Dump_EmitRow(rec, row, regs->rect[row], (int)regs->count[row], 0);
+            done = 1;
+        }
+        else if (anyCount > 0)
+        {
+            Dump_EmitRow(rec, row, anyRow, (int)anyCount, 0);
+            done = 1;
+        }
+    }
+    /* No box survived validation: leave it pending rather than call it dumped. */
+    if (done) rec->emitted = 1;
+}
+
+/* ---- held uploads ---------------------------------------------------------- */
+
+static DumpHeld* Dump_HeldFind(const char* key)
+{
+    int i;
+    if (key[0] == '\0') return NULL;
+    for (i = 0; i < g_dumpHeldCount; i++)
+    {
+        if (memcmp(g_dumpHeld[i].name, key, 12) == 0) return &g_dumpHeld[i];
+    }
+    return NULL;
+}
+
+static void Dump_HeldRelease(int idx)
+{
+    DumpHeld* rec = &g_dumpHeld[idx];
+
+    free(rec->pixels);
+    free(rec->clut);
+    g_dumpHeldBytes -= rec->bytes;
+    g_dumpHeld[idx] = g_dumpHeld[--g_dumpHeldCount];
+}
+
+/* Pending sheets are written whole-cover once the load batch that could have
+ * claimed them is long past; emitted ones are simply dropped to stay in budget. */
+static void Dump_HeldTrim(void)
+{
+    int i;
+
+    for (i = 0; i < g_dumpHeldCount;)
+    {
+        if (!g_dumpHeld[i].emitted && g_dumpHeld[i].gen + DUMP_PENDING_GRACE < g_dumpGen)
+        {
+            Dump_EmitHeld(&g_dumpHeld[i], 1);
+            Dump_HeldRelease(i);
+            continue;
+        }
+        i++;
+    }
+
+    while (g_dumpHeldCount > 0 &&
+           (g_dumpHeldBytes > DUMP_HOLD_MAX_BYTES || g_dumpHeldCount > DUMP_HOLD_MAX_COUNT))
+    {
+        int oldest = 0;
+        for (i = 1; i < g_dumpHeldCount; i++)
+        {
+            if (g_dumpHeld[i].gen < g_dumpHeld[oldest].gen) oldest = i;
+        }
+        if (!g_dumpHeld[oldest].emitted) Dump_EmitHeld(&g_dumpHeld[oldest], 1);
+        Dump_HeldRelease(oldest);
+    }
+}
+
+void TexPack_DumpFlush(void)
+{
+    while (g_dumpHeldCount > 0)
+    {
+        if (!g_dumpHeld[0].emitted) Dump_EmitHeld(&g_dumpHeld[0], 1);
+        Dump_HeldRelease(0);
+    }
+    if (g_dumpWritten > 0 || g_dumpFailed > 0)
+    {
+        SH_DBG("[TEXDUMP] %d entries in %s/ (%d object crops, %d whole sheets, %d failed)",
+               g_dumpWritten, TEXDUMP_DIR, g_dumpCrops, g_dumpWhole, g_dumpFailed);
+    }
+}
+
+/* ---- public entry points ---------------------------------------------------- */
+
+static void Dump_AddRegion(const char* sheetName, int row, int x0, int y0, int x1, int y1)
+{
+    char         key[12];
+    DumpRegions* regs;
+    DumpRect     r;
+
+    if (!g_PcConfig.dumpTextures) return;
+    if (row < 0 || row >= DUMP_MAX_ROWS) return;
+    if (x1 < x0 || y1 < y0 || x0 < 0 || y0 < 0) return;
+    if (x1 > 0xFFFF || y1 > 0xFFFF) return;
+
+    Dump_NameKey(sheetName, key);
+    regs = Dump_RegionsFind(key, 1);
+    if (regs == NULL) return;
+
+    r.x0 = (unsigned short)x0;
+    r.y0 = (unsigned short)y0;
+    r.x1 = (unsigned short)x1;
+    r.y1 = (unsigned short)y1;
+    Dump_RectAdd(regs->rect[row], &regs->count[row], &r);
+}
+
+void TexPack_DumpScanLm(const unsigned char* lm)
+{
+    unsigned int matCount, matOff, modelCount, modelOff;
+    DumpRect*    box;
+    unsigned char* boxValid;
+    unsigned int m, i;
+
+    if (!g_PcConfig.dumpTextures || lm == NULL) return;
+    /* '0' = LM_HEADER_MAGIC. Version 7 is the port's wide high-poly ILM, whose
+     * primitives have a different layout — its narrow spine carries no prims. */
+    if (lm[0] != '0' || lm[1] != 6) return;
+
+    matCount   = lm[3];
+    matOff     = Dump_Rd32(&lm[4]);
+    modelCount = lm[8];
+    modelOff   = Dump_Rd32(&lm[12]);
+
+    /* The engine walks these very offsets a few lines later with no bounds check
+     * of its own; refuse only the obviously wild ones so a garbage header cannot
+     * make dump mode the thing that crashes. */
+    if (matCount == 0 || modelCount == 0) return;
+    if (matOff < 20 || matOff > 0x400000 || modelOff < 20 || modelOff > 0x400000) return;
+
+    box      = (DumpRect*)malloc((size_t)matCount * DUMP_MAX_ROWS * sizeof(DumpRect));
+    boxValid = (unsigned char*)malloc((size_t)matCount * DUMP_MAX_ROWS);
+    if (box == NULL || boxValid == NULL)
+    {
+        free(box);
+        free(boxValid);
+        return;
+    }
+
+    for (m = 0; m < modelCount; m++)
+    {
+        const unsigned char* mh = &lm[modelOff + m * 16];
+        unsigned int         meshCount = mh[8];
+        unsigned int         meshOff   = Dump_Rd32(&mh[12]);
+        unsigned int         k;
+
+        if (meshCount == 0 || meshOff < 20 || meshOff > 0x400000) continue;
+        memset(boxValid, 0, (size_t)matCount * DUMP_MAX_ROWS);
+
+        for (k = 0; k < meshCount; k++)
+        {
+            const unsigned char* msh       = &lm[meshOff + k * 24];
+            unsigned int         primCount = msh[0];
+            unsigned int         primOff   = Dump_Rd32(&msh[4]);
+            unsigned int         p;
+
+            if (primCount == 0 || primOff < 20 || primOff > 0x400000) continue;
+
+            for (p = 0; p < primCount; p++)
+            {
+                const unsigned char* pb  = &lm[primOff + p * 20];
+                unsigned int         mat = (Dump_Rd16(&pb[6]) >> 8) & 0x7F;
+                int                  row, slot, nUv, uvi;
+                static const int     uvOff[4] = { 0, 4, 8, 0xA };
+
+                if (mat >= matCount) continue;
+
+                /* row = prim CLUT - the material's baked base CLUT, both still
+                 * the values from the file: Material_FsImageApply has not run
+                 * yet (it needs the reformatted header this call produces). */
+                row = (int)(Dump_Rd16(&pb[2]) >> 6) -
+                      (int)(Dump_Rd16(&lm[matOff + mat * 24 + 0x10]) >> 6);
+                if (row < 0 || row >= DUMP_MAX_ROWS) continue;
+
+                /* A character triangle sets its 4th vertex index to 0xFF and
+                 * leaves UV3 garbage (0,0); counting it drags the box to the
+                 * sheet origin. Verified over the corpus: 6109 hits, every one
+                 * in a .ILM, zero in 431185 .IPD + 10735 .PLM primitives. */
+                nUv  = (pb[0xF] == 0xFF) ? 3 : 4;
+                slot = (int)mat * DUMP_MAX_ROWS + row;
+
+                for (uvi = 0; uvi < nUv; uvi++)
+                {
+                    unsigned int   uv = Dump_Rd16(&pb[uvOff[uvi]]);
+                    unsigned short u  = (unsigned short)(uv & 0xFF);
+                    unsigned short v  = (unsigned short)(uv >> 8);
+
+                    if (!boxValid[slot])
+                    {
+                        boxValid[slot] = 1;
+                        box[slot].x0 = box[slot].x1 = u;
+                        box[slot].y0 = box[slot].y1 = v;
+                    }
+                    else
+                    {
+                        if (u < box[slot].x0) box[slot].x0 = u;
+                        if (v < box[slot].y0) box[slot].y0 = v;
+                        if (u > box[slot].x1) box[slot].x1 = u;
+                        if (v > box[slot].y1) box[slot].y1 = v;
+                    }
+                }
+            }
+        }
+
+        /* One box per (object, palette row) — the shape DuckStation dumps. */
+        for (i = 0; i < matCount * DUMP_MAX_ROWS; i++)
+        {
+            if (!boxValid[i]) continue;
+            Dump_AddRegion((const char*)&lm[matOff + (i / DUMP_MAX_ROWS) * 24],
+                           (int)(i % DUMP_MAX_ROWS),
+                           box[i].x0, box[i].y0, box[i].x1, box[i].y1);
+        }
+    }
+
+    free(box);
+    free(boxValid);
+
+    /* Sheets already uploaded now have geometry: crop them where they stand. */
+    for (i = 0; i < matCount; i++)
+    {
+        char      key[12];
+        DumpHeld* rec;
+
+        Dump_NameKey((const char*)&lm[matOff + i * 24], key);
+        rec = Dump_HeldFind(key);
+        if (rec != NULL) Dump_EmitHeld(rec, 0);
+    }
+}
+
+void TexPack_DumpUpload(const char* timName, const unsigned char* pixels, int w16, int h,
+                        const unsigned short* clut, int clutW, int clutRows, int bpp)
+{
+    char               key[12];
+    DumpHeld*          rec;
+    unsigned long long srcHash;
+    size_t             pixBytes, clutBytes = 0;
+
+    if (!g_PcConfig.dumpTextures) return;
+    if (pixels == NULL || w16 <= 0 || h <= 0) return;
+    /* 24bpp has no mode token in the pack grammar, so a dump of one could never
+     * be loaded back — and nothing replaces those uploads today either. */
+    if (bpp != 4 && bpp != 8 && bpp != 16) return;
+    if (bpp != 16 && (clut == NULL || clutW <= 0)) return;
+
+    if (bpp == 16) clutRows = 1;
+    if (clutRows < 1) clutRows = 1;
+    if (clutRows > DUMP_MAX_ROWS) clutRows = DUMP_MAX_ROWS;
+
+    Dump_EnsureDir();
+    Dump_NameKey(timName, key);
+    /* Byte-for-byte the hash TexPack_Compose matches entries on. */
+    srcHash  = XXH3_64bits(pixels, (size_t)w16 * (size_t)h * 2);
+    pixBytes = (size_t)w16 * (size_t)h * 2;
+    g_dumpGen++;
+
+    /* No file name to match geometry by: nothing can ever claim this upload, so
+     * write it whole from the caller's buffers and hold nothing. */
+    if (key[0] == '\0')
+    {
+        DumpHeld borrowed;
+
+        memset(&borrowed, 0, sizeof(borrowed));
+        borrowed.pixels   = (unsigned char*)pixels;
+        borrowed.clut     = (unsigned short*)clut;
+        borrowed.srcHash  = srcHash;
+        borrowed.w16      = w16;
+        borrowed.h        = h;
+        borrowed.bpp      = bpp;
+        borrowed.clutW    = clutW;
+        borrowed.clutRows = clutRows;
+        Dump_EmitHeld(&borrowed, 1);
+        return;
+    }
+
+    rec = Dump_HeldFind(key);
+    if (rec != NULL && rec->srcHash == srcHash)
+    {
+        rec->gen = g_dumpGen;
+        Dump_EmitHeld(rec, 0);
+        Dump_HeldTrim();
+        return;
+    }
+    if (rec != NULL)
+    {
+        /* Same name, different art (a re-used slot): the old copy will never be
+         * claimed by geometry now, so settle it before dropping it. */
+        if (!rec->emitted) Dump_EmitHeld(rec, 1);
+        Dump_HeldRelease((int)(rec - g_dumpHeld));
+    }
+
+    if (g_dumpHeldCount == g_dumpHeldCap)
+    {
+        int       cap   = g_dumpHeldCap ? g_dumpHeldCap * 2 : 128;
+        DumpHeld* grown = (DumpHeld*)realloc(g_dumpHeld, (size_t)cap * sizeof(DumpHeld));
+        if (grown == NULL) return;
+        g_dumpHeld    = grown;
+        g_dumpHeldCap = cap;
+    }
+
+    rec = &g_dumpHeld[g_dumpHeldCount];
+    memset(rec, 0, sizeof(*rec));
+    memcpy(rec->name, key, 12);
+    rec->pixels = (unsigned char*)malloc(pixBytes);
+    if (rec->pixels == NULL) return;
+    memcpy(rec->pixels, pixels, pixBytes);
+    if (bpp != 16)
+    {
+        clutBytes = (size_t)clutW * (size_t)clutRows * 2;
+        rec->clut = (unsigned short*)malloc(clutBytes);
+        if (rec->clut == NULL)
+        {
+            free(rec->pixels);
+            return;
+        }
+        memcpy(rec->clut, clut, clutBytes);
+    }
+    rec->srcHash  = srcHash;
+    rec->w16      = w16;
+    rec->h        = h;
+    rec->bpp      = bpp;
+    rec->clutW    = clutW;
+    rec->clutRows = clutRows;
+    rec->bytes    = pixBytes + clutBytes;
+    rec->gen      = g_dumpGen;
+    g_dumpHeldBytes += rec->bytes;
+    g_dumpHeldCount++;
+
+    /* Crops only: with no geometry yet this stays held until one turns up, or
+     * until the grace period says none ever will. */
+    Dump_EmitHeld(rec, 0);
+    Dump_HeldTrim();
 }

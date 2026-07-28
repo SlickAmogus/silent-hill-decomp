@@ -1047,32 +1047,27 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 #ifdef SH_PC_PORT
     { extern FILE* g_ShDebugLog; if (g_ShDebugLog && !composeResume) { fprintf(g_ShDebugLog, "[BOOT0/TIM] PostLoadTim done\n"); fflush(g_ShDebugLog); } }
 
-    /* Texture dump (dump_textures): write out the decoded native art of this
-     * upload, one PNG per CLUT row, under the name the pack path would match it
-     * by. Sits ABOVE the pool/VRAM split on purpose — every texture class goes
-     * through here with the same (pixels, palette, bpp) triple the pack matcher
-     * hashes, so one call site covers chara pool, VRAM-resident and BG chunks
-     * and the dumps are guaranteed to be loadable back. A resumed post-load
-     * already dumped every row on its first pass. */
+    /* Texture dump (dump_textures): hand this upload to the dumper, which crops
+     * it to the pieces the geometry that names this TIM actually draws. Sits
+     * ABOVE the pool/VRAM split on purpose — every texture class goes through
+     * here with the same (pixels, palette, bpp) triple the pack matcher hashes,
+     * so one call site covers chara pool, VRAM-resident and BG chunks and the
+     * dumps are guaranteed to be loadable back. The file name is what ties the
+     * upload to the geometry TexPack_DumpScanLm registered at LM load. A resumed
+     * post-load already dumped this TIM on its first pass. */
     if (g_PcConfig.dumpTextures && !composeResume && discBitDepth > 0)
     {
-        int clutW = (tim.caddr != NULL && tim.crect != NULL) ? (int)tim.crect->w : 0;
-        int rows  = (haveClut && tim.crect != NULL) ? (int)clutRect.h : 1;
-        int r;
+        char timName[16] = { 0 };
+        int  clutW = (tim.caddr != NULL && tim.crect != NULL) ? (int)tim.crect->w : 0;
+        int  rows  = (haveClut && tim.crect != NULL) ? (int)clutRect.h : 1;
 
-        if (rows < 1) rows = 1;
-        if (rows > HIRES_POOL_MAX_ROWS) rows = HIRES_POOL_MAX_ROWS;
-
-        for (r = 0; r < rows; r++)
+        if (FSQ_INFO_VALID(entry->info))
         {
-            const unsigned short* clutRow =
-                (tim.caddr != NULL)
-                    ? (const unsigned short*)tim.caddr + (size_t)r * (size_t)clutW
-                    : NULL;
-            TexPack_DumpUpload((const unsigned char*)tim.paddr,
-                               (int)pixelRect.w, (int)pixelRect.h,
-                               clutRow, clutW, discBitDepth);
+            Fs_GetFileInfoName(timName, entry->info);
         }
+        TexPack_DumpUpload(timName, (const unsigned char*)tim.paddr,
+                           (int)pixelRect.w, (int)pixelRect.h,
+                           (const unsigned short*)tim.caddr, clutW, rows, discBitDepth);
     }
 
     /* Point-sample the font atlas: an HD font pack paints gutterless glyph cells

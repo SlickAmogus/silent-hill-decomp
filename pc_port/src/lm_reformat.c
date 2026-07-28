@@ -29,6 +29,7 @@
 
 #include "pc_big_lm.h"
 #include "pc_wide_lm.h"
+#include "tex_pack.h"
 
 #define PSX_SIZEOF_LM_HEADER    20
 #define PSX_SIZEOF_MODEL_HEADER 16
@@ -178,6 +179,13 @@ void LmHeader_FixOffsets_PC(s_LmHeader* lmHdr)
         Pc_WideLm_Parse(lmHdr, Pc_BigLm_DestCapacity(lmHdr), Pc_BigLm_FileIdxOf(lmHdr));
         return;
     }
+
+    /* Texture dump (dump_textures): register what this model draws over each of
+     * its sheets BEFORE anything is reformatted or rebased — the dumper reads
+     * the raw PSX bytes still standing here, and needs the material/primitive
+     * CLUT words as the file baked them (Material_FsImageApply rewrites them
+     * against VRAM the moment this header is usable). No-op when dumping is off. */
+    TexPack_DumpScanLm(raw);
 
     /* Parse materials (PSX stride = 24 bytes) into heap allocation */
     s_Material* mats = NULL;

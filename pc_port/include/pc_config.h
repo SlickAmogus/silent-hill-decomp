@@ -69,12 +69,12 @@ typedef struct {
                            * VRAM wants this high; the cap only exists so whole-map mode cannot try to
                            * upload multi-GB in one load and hang a small GPU. 0 = unlimited
                            * (config key: texpack_budget_mb) */
-    int dumpTextures;     /* 1 = write every decoded texture upload (the exact VRAM region through the
-                           * exact palette in use) to gamedata/dump/ as a PNG named the way the pack
-                           * loader matches it, so a dump is directly usable as a texture pack — the
-                           * only way to get correct reference art for world/BG textures, which have
-                           * no .ILM to recover the texel->palette map from. Off costs nothing
-                           * (config key: dump_textures) */
+    int dumpTextures;     /* 1 = write the game's art to gamedata/dump/ as PNGs named the way the pack
+                           * loader matches them, so a dump is directly usable as a texture pack. Like
+                           * DuckStation, one entry per OBJECT: the piece of the sheet a model draws,
+                           * through the palette row it draws it with, read out of the .ILM/.PLM/.IPD
+                           * as it loads. Sheets no model references (fonts, HUD, 2D screens) fall
+                           * back to the whole upload. Off costs nothing (config key: dump_textures) */
     int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
                            * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
                            * (config key: bullet_decals) */

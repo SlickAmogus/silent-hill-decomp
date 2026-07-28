@@ -531,30 +531,73 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   parsing the `.ILM`, which only exists for CHARACTERS. The dumper takes
   DuckStation's approach instead — write what the engine actually uploads — so
   BG/world textures are covered too.
-- Hook: ONE call site in `Fs_QueuePostLoadTim` (`src/main/fsqueue_3.c`), above
-  the virtual-pool / VRAM-resident split, looping the same CLUT rows the pack
-  path composes. That is the single point every texture class passes through
-  with the exact `(pixels, palette, bpp)` triple the pack matcher hashes.
-- `TexPack_DumpUpload` (`pc_port/src/tex_pack.c`) reuses `DecodeNative` and the
-  same XXH3 hashes `TexPack_Compose` matches on, and always emits a whole-upload
-  entry: `texupload-P4-<srcHash>-<palHash>-<w16>x<h>-0-0-<nativeW>x<h>-P0-15.png`
-  (`P8` → `P0-255`, 16bpp → `texupload-C16-<srcHash>-<w16>x<h>-0-0-<w>x<h>.png`).
-  WxH is in VRAM 16-bit WORDS, the sub-rect in native texels.
+- **Per-object sub-rects (2026-07-28, revised).** An entry is no longer the whole
+  sheet: like DuckStation, it is the piece of the sheet ONE OBJECT draws, through
+  the palette row that object selects. The piece is the UV bounding box of one
+  model over the sheet, and it comes out of the model file — the same
+  `s_Primitive` UV/CLUT words `pc_port/tools/clut_tool.py` parses offline.
+- Two hooks:
+  - `TexPack_DumpScanLm(raw)` from `LmHeader_FixOffsets_PC`
+    (`pc_port/src/lm_reformat.c`), BEFORE the header is reformatted, so the
+    material/primitive CLUT words are still the values the file baked
+    (`Material_FsImageApply` rewrites them against VRAM immediately after).
+    Walks the raw PSX-layout bytes, so .ILM, .PLM and an .IPD's embedded LM are
+    all the same code, and registers one box per (model, material, CLUT row).
+    Verified over the disc corpus: material `field_14`/`field_16` are 0 in every
+    file, i.e. baked UVs are sheet-relative — no page-offset correction needed.
+  - `TexPack_DumpUpload(name, …)` from `Fs_QueuePostLoadTim`
+    (`src/main/fsqueue_3.c`), still above the virtual-pool / VRAM-resident split
+    — the single point every texture class passes through with the exact
+    `(pixels, palette, bpp)` triple the pack matcher hashes. The TIM's file name
+    is what ties it to the boxes: the material name IS the TIM stem.
+- Entry name is unchanged except the sub-rect fields now carry the box:
+  `texupload-P4-<srcHash>-<palHash>-<w16>x<h>-<ox>-<oy>-<w>x<h>-P0-15.png`
+  (`P8` → `P0-255`, 16bpp → `texupload-C16-…`). WxH is in VRAM 16-bit WORDS,
+  the sub-rect in native texels. The crops blit back over the native base layer
+  at their offsets, which is how `TexPack_Compose` already works.
+- Load order: an LM is what queues its own materials' TIM reads, so geometry
+  normally registers FIRST. A sheet whose model turns up later (shared BG sheets
+  are referenced by up to 118 chunks) is served from a held copy of the upload
+  (64 MB LRU, dev-mode only) and gets its crops the moment that chunk loads. A
+  sheet still unclaimed 96 uploads later is written whole instead — never wrong,
+  just less concise.
+- Rows no primitive names statically are dumped through the UNION of the rows
+  that do — a material's CLUT row is bumped at runtime for palette/lighting
+  variants, which moves the same geometry onto another row. So row coverage is
+  exactly what it was before the change; only the extent shrank.
+- Whole-sheet entries remain for sheets NO model references (fonts, HUD, 2D
+  screens) — for those the whole upload *is* the object. They are written once
+  the load batch that could have claimed them is 96 uploads past, or at exit
+  (`TexPack_DumpFlush`, also on `atexit`).
+- Regions per (sheet, row) are capped at 16 (compose stops collecting at 64
+  matches/upload); over the corpus a row averages 1.1 objects (BG) / 2.1
+  (characters), and the cap merges the two boxes whose union wastes least rather
+  than dropping one.
 - Dedupe: a sorted set of emitted names plus an on-disk existence check, so a
-  file is written once per install, never per re-upload. Cost of a NEW dump is
-  ~2.6-5 ms (decode + level-3 deflate + write, measured on real disc TIMs);
-  an already-dumped upload costs ~0.1 ms (hash + one `fopen` probe). It is not
-  budgeted per frame, so first entry into a room with many unseen multi-CLUT
-  TIMs can add tens of ms to that load frame — acceptable for a modding tool
-  that is off by default.
+  file is written once per install, never per re-upload. Two objects with the
+  same box, or two CLUT rows holding the same palette, collapse to one file.
 - Skipped by design: 24bpp uploads and CLUT-less 4/8bpp uploads (e.g.
   `FONT8NOC.TIM`). Neither can be expressed in the pack name grammar, and the
   matcher can never replace them either, so a dump would be dead weight.
   Palette rows past 16 are skipped, same cap as the pack compose loops.
-- Verified offline against the real `tex_pack.c`: 132 disc TIMs → 804 row dumps
-  → 752 unique PNGs; the real `Scan_Once`/`ParseName` accepted 752/752 (100%),
-  and 802/802 replaceable rows composed back BYTE-IDENTICAL to the native
-  decode (the 2 misses are the CLUT-less TIM above).
+- Verified offline against the real `tex_pack.c` (harness feeds real disc models
+  and TIMs to the two entry points, then indexes the result with the real
+  `Scan_Once`/`ParseName`): whole disc, 996 TIMs + 577 models → 10097 entries
+  (9345 object crops + 752 whole sheets); **10097/10097 names parsed (100%)** and
+  **6737/6738 rows composed back BYTE-IDENTICAL** to an independently written
+  native decode (the 1 miss is the CLUT-less TIM above). Crops carry 119.4 Mpx
+  where whole-cover entries would carry 609.0 Mpx — 19.6%.
+  - Feeding each model one step BEHIND its upload (the held path): 10121 files /
+    9369 crops / 19.6%, same 100% parse and same 6737/6738 byte-identical.
+  - Degenerate order, every upload before any model: falls back to 6308 whole
+    sheets — still 100% parse and 6737/6738 byte-identical.
+  - Model scanning costs 8-9 ms for all 577 models. With `dump_textures=0` both
+    entry points measure 0.0 ms and write nothing.
+  - Cross-checked against `clut_tool.py`: the C walker's boxes for `HERO.ILM`
+    are exactly the ones the Python model derives, rect for rect.
+- Consequence for BC7: a whole-cover `.dds` takes `TexPack_Compose`'s compressed
+  fast path, but a sub-rect `.dds` cannot (the compositor blits 32-bit pixels),
+  so converting a crop-shaped dump costs a CPU BC7 decode per entry.
 
 ## Texture-pack load order (2026-07-11)
 

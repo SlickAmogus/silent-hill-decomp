@@ -69,18 +69,42 @@ const unsigned char* TexPack_LastComposeDds(size_t* outSize);
  * costs almost nothing and must not spend that budget. */
 int TexPack_LastComposeWasBuilt(void);
 
-/* Write one TIM upload's decoded native art to gamedata/dump/ as a PNG whose
- * name is the texupload-… entry this very upload matches (whole-upload sub-rect,
- * full palette range), so the dump folder IS a texture pack. Arguments are
- * exactly TexPack_Compose's — call it once per CLUT ROW so every palette a draw
- * can select gets its own correct-looking sheet.
+/* ---- Texture dumping (dump_textures) ----
+ * Writes gamedata/dump/ as a ready-made texture pack: every entry is named with
+ * the grammar above, so dropping the folder into gamedata/texturemods/ matches
+ * the very uploads it came from with no conversion step.
  *
- * No-op unless g_PcConfig.dumpTextures: nothing is hashed, allocated or written
- * when the option is off. Already-dumped uploads (this session or a previous
- * one) are skipped, so a long play session writes each file exactly once.
- * 24bpp uploads are skipped — the pack name grammar cannot express them. */
-void TexPack_DumpUpload(const unsigned char* pixels, int w16, int h,
-                        const unsigned short* clut, int clutCount, int bpp);
+ * Like DuckStation, an entry is the piece of the sheet ONE OBJECT draws, seen
+ * through the palette that object selects — not the whole sheet. The piece is
+ * the UV bounding box of one model over the sheet, read out of the .ILM/.PLM/
+ * .IPD by TexPack_DumpScanLm; the sheet a box belongs to is the material name,
+ * which is also the TIM name. A sheet no model ever references (fonts, HUD, 2D
+ * screens) still falls back to one whole-upload entry per CLUT row.
+ *
+ * Both calls are no-ops unless g_PcConfig.dumpTextures: nothing is hashed,
+ * scanned, allocated or written when the option is off. Entries already dumped
+ * (this session or a previous one) are skipped, so a long play session writes
+ * each file exactly once. 24bpp uploads are skipped — the pack name grammar
+ * cannot express them. */
+
+/* Register the geometry of one just-loaded LM (PSX-layout bytes, header at
+ * `lm`) — .ILM, .PLM or an .IPD's embedded LM, all identical here. Call BEFORE
+ * the header is reformatted and before Material_FsImageApply rebases anything:
+ * the material/primitive CLUT words must still be the values from the file.
+ * Also crops any upload already held for the materials named by this LM. */
+void TexPack_DumpScanLm(const unsigned char* lm);
+
+/* Dump one TIM upload. `timName` is the file name (extension optional) — it is
+ * what ties the upload to the geometry registered above. pixels/w16/h/clut/bpp
+ * are exactly TexPack_Compose's arguments; clutRows is the CLUT block height,
+ * so all palettes are covered in one call. */
+void TexPack_DumpUpload(const char* timName, const unsigned char* pixels, int w16, int h,
+                        const unsigned short* clut, int clutW, int clutRows, int bpp);
+
+/* Settle every upload still held for late geometry: the ones no model ever
+ * claimed are written whole-cover. Runs at exit on its own; call it to force
+ * that point earlier. */
+void TexPack_DumpFlush(void);
 
 #ifdef __cplusplus
 }
