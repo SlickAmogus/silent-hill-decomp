@@ -93,6 +93,13 @@ namespace SilentHillPC_Launcher
             new Release("PAL 99-06-07 (SLES-01514)",             0x337E4A60, 0xB8FC, 2310, DIRS_PAL,   FILE_TYPES,       FLAG_ENCRYPTED_1ST),
         };
 
+        // The first four file-table entries carry the same names on every build
+        // ("2ZANKO80", "2ZANKO_E", "BASE", "BODYPROG"), so they anchor a scan for
+        // the table in an exe whose CRC we don't recognize — a rebuilt/fan-patched
+        // disc shifts the table away from the baked TocOffset. Same anchor the game
+        // uses in Pc_RemapFileTableFromDisc (main_pc.c).
+        private static readonly string[] TOC_SIGNATURE = { "2ZANKO80", "2ZANKO_E", "BASE    ", "BODYPROG" };
+
         public sealed class ExtractResult
         {
             public bool Ok;
@@ -389,8 +396,28 @@ namespace SilentHillPC_Launcher
                     var exeReader = new ArchiveReader(f, exeRec.ExtentLba, exeRec.DataLen, 24, 2048);
                     byte[] exe = exeReader.Read(0, exeRec.DataLen);
 
-                    Release rel = Detect(Crc32(exe, 4096));
-                    if (rel == null) { res.Error = string.Format("Unrecognized executable checksum ({0:X8}) — not a supported Silent Hill disc.", Crc32(exe, 4096)); return res; }
+                    uint crc = Crc32(exe, 4096);
+                    Release rel = Detect(crc);
+                    if (rel == null)
+                    {
+                        // Fan-patched or rebuilt disc: the exe matches no known build, but its
+                        // dirs/types/oddities are still the region's. Take those from the boot
+                        // serial and locate the table by its first four entries — a rebuild
+                        // shifts it, so the baked TocOffset can't be trusted.
+                        var probed = DiscProbe.Probe(binPath);
+                        Release baseRel = (probed == null) ? null : RegionFallback(probed.Region);
+                        int toc = (baseRel == null) ? -1 : FindTocBySignature(exe);
+                        if (toc < 0)
+                        {
+                            res.Error = string.Format("Unrecognized executable checksum ({0:X8}) — not a supported Silent Hill disc.", crc);
+                            return res;
+                        }
+                        rel = new Release(baseRel.Id + " [modified exe]", crc, toc, baseRel.FileCount,
+                                          baseRel.Dirs, baseRel.Types, baseRel.Flags);
+                        res.Warnings.Add(string.Format(
+                            "Unrecognized exe (CRC {0:X8}) — file table located by signature at 0x{1:X}, using {2} defaults.",
+                            crc, toc, probed.Region));
+                    }
                     res.ReleaseId = rel.Id;
 
                     // Parse the table into SILENT. (all non-XA) and HILL. (XA) lists.
@@ -444,6 +471,56 @@ namespace SilentHillPC_Launcher
         {
             foreach (var r in RELEASES) if (r.Checksum == checksum) return r;
             return null;
+        }
+
+        // Retail release whose directory/type/flag layout a patched disc of this
+        // region still follows (DiscProbe.Disc.Region key -> release).
+        private static Release RegionFallback(string region)
+        {
+            switch (region)
+            {
+                case "USA": return Detect(0xCF9CD8E5); // NTSC 1.1 99-02-10
+                case "PAL": return Detect(0x337E4A60); // PAL 99-06-07
+                case "JAP": return Detect(0xEB733CAA); // NTSC-J Rev 1/2 99-06-02
+            }
+            return null;
+        }
+
+        // Four 6-bit chars packed low-to-high, as the file table stores names.
+        private static uint EncodeName4(string s, int start)
+        {
+            uint v = 0;
+            for (int i = 0; i < 4; i++) v |= (uint)((s[start + i] - 32) & 63) << (6 * i);
+            return v;
+        }
+
+        /// <summary>
+        /// Byte offset of the file table in <paramref name="exe"/>, found by matching
+        /// TOC_SIGNATURE against the first four entries' name fields, or -1.
+        /// Non-ALT_STRUCT layout only (all three retail regions).
+        /// </summary>
+        private static int FindTocBySignature(byte[] exe)
+        {
+            var n0123 = new uint[4];
+            var n4567 = new uint[4];
+            for (int k = 0; k < 4; k++)
+            {
+                n0123[k] = EncodeName4(TOC_SIGNATURE[k], 0);
+                n4567[k] = EncodeName4(TOC_SIGNATURE[k], 4);
+            }
+
+            for (int off = 0x800; off + 4 * 12 <= exe.Length; off += 4)
+            {
+                bool hit = true;
+                for (int k = 0; k < 4 && hit; k++)
+                {
+                    int p = off + k * 12;
+                    hit = ((LE32(exe, p + 4) >> 4) & 0xFFFFFF) == n0123[k]
+                       && (LE32(exe, p + 8) & 0xFFFFFF) == n4567[k];
+                }
+                if (hit) return off;
+            }
+            return -1;
         }
 
         private static void ExtractList(List<TableEntry> entries, string outDir, ArchiveReader reader,

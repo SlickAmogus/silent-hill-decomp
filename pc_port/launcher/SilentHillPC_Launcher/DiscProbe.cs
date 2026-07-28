@@ -22,8 +22,15 @@ namespace SilentHillPC_Launcher
             public string Region;      // "USA" / "PAL" / "JAP" (game region key)
             public string RegionLabel; // shown to the user
             public bool   Supported;   // false = recognized but the game can't load it yet
+            public string UnsupportedReason; // short label shown when Supported is false (null = generic)
             public bool   Modified;    // BODYPROG differs from the retail disc (fan translation / patch)
         }
+
+        // The port's NTSC-J tables are built from the Rev 1/Rev 2 exe
+        // (SLPM-86192 99-06-02). Its PS-X EXE header declares this t_size; the
+        // first print is a different build with shifted containers and file
+        // table, so its data would misload. Matches Pc_DetectRegionFromBin.
+        private const uint JpRev12TextSize = 0x13800;
 
         // Serial prefix -> region. Table-driven, mirroring the game-side probe
         // (Pc_DetectRegionFromBin) — keep the two in agreement.
@@ -77,6 +84,24 @@ namespace SilentHillPC_Launcher
         }
 
         /// <summary>
+        /// PS-X EXE header t_size of the boot executable at <paramref name="exeLba"/>,
+        /// or 0 when the sector isn't a PS-X EXE. Mirrors the game's own read
+        /// (main_pc.c Pc_DetectRegionFromBin).
+        /// </summary>
+        private static uint ReadExeTextSize(FileStream f, long exeLba)
+        {
+            try
+            {
+                var hdr = new byte[2048];
+                f.Seek(exeLba * 2352 + 24, SeekOrigin.Begin);
+                if (f.Read(hdr, 0, 2048) != 2048) return 0;
+                if (Encoding.ASCII.GetString(hdr, 0, 8) != "PS-X EXE") return 0;
+                return (uint)hdr[0x1C] | ((uint)hdr[0x1D] << 8) | ((uint)hdr[0x1E] << 16) | ((uint)hdr[0x1F] << 24);
+            }
+            catch { return 0; }
+        }
+
+        /// <summary>
         /// Probe a single .bin. Returns null when the file isn't a raw-sector
         /// PSX bin with a recognized boot serial (matching the game, which
         /// skips unknown serials during autodetect).
@@ -109,16 +134,34 @@ namespace SilentHillPC_Launcher
                             {
                                 if (name.StartsWith((string)RegionMap[r, 0], StringComparison.Ordinal))
                                 {
-                                    string region = (string)RegionMap[r, 1];
+                                    string region    = (string)RegionMap[r, 1];
+                                    bool   supported = (bool)RegionMap[r, 3];
+                                    string reason    = null;
+
+                                    if (region == "JAP")
+                                    {
+                                        long exeLba = (uint)sec[o + 2] | ((uint)sec[o + 3] << 8) |
+                                                      ((uint)sec[o + 4] << 16) | ((uint)sec[o + 5] << 24);
+                                        uint tSize  = ReadExeTextSize(f, exeLba);
+                                        if (tSize != JpRev12TextSize)
+                                        {
+                                            supported = false;
+                                            reason    = (tSize == 0)
+                                                ? "boot exe unreadable"
+                                                : "NTSC-J first print (unsupported build)";
+                                        }
+                                    }
+
                                     return new Disc
                                     {
-                                        Path        = path,
-                                        FileName    = System.IO.Path.GetFileName(path),
-                                        Serial      = FormatSerial(name),
-                                        Region      = region,
-                                        RegionLabel = (string)RegionMap[r, 2],
-                                        Supported   = (bool)RegionMap[r, 3],
-                                        Modified    = IsBodyprogModified(f, region),
+                                        Path              = path,
+                                        FileName          = System.IO.Path.GetFileName(path),
+                                        Serial            = FormatSerial(name),
+                                        Region            = region,
+                                        RegionLabel       = (string)RegionMap[r, 2],
+                                        Supported         = supported,
+                                        UnsupportedReason = reason,
+                                        Modified          = IsBodyprogModified(f, region),
                                     };
                                 }
                             }
