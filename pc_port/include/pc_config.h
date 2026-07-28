@@ -54,8 +54,6 @@ typedef struct {
                            * virtual slots backed by persistent per-slot GL textures (whole map stays textured,
                            * no page stealing — the flat/rainbow class). 0 = vanilla 8+2 pool + PC keep-4/steal.
                            * (config key: resident_textures) */
-    int residentTexturesUserSet; /* 1 = resident_textures was set explicitly in config.cfg; suppresses the
-                                  * AMD auto-off default applied in main_pc.c after the GPU vendor is known. */
     int texturePacks;     /* 1 = scan gamedata/texturemods/ for DuckStation-format texture packs
                            * (texupload-*.png, loose folders or .zip archives) and apply them by content
                            * hash at TIM upload (config key: texture_packs) */
@@ -229,11 +227,14 @@ typedef struct {
     int  retroAchievements;
     char raUsername[64];
     char raToken[96];
-    /* Submit unlocks on a non-USA disc. Off by default: the address map is
-     * USA-authored, so other regions evaluate in spectator mode (log only,
-     * nothing submitted) until the session log confirms the set reads the
-     * addresses we map. (config key: ra_unverified_region) */
-    int  raUnverifiedRegion;
+    /* The one RA game id whose achievement set is known to read the addresses
+     * this build maps. Unlocks are submitted only when the server matches THIS
+     * id. 0 (default) = no id verified, in which case only a USA disc submits
+     * (the build the address map was authored from) and every other disc
+     * evaluates in spectator mode: achievements log but nothing is posted. The
+     * matched id is printed in the session log. (config key:
+     * ra_verified_game_id) */
+    int  raVerifiedGameId;
 
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;

@@ -146,7 +146,7 @@ s_PcConfig g_PcConfig = {
     .retroAchievements   = 0,  /* opt-in; needs a launcher sign-in to do anything */
     .raUsername          = "",
     .raToken             = "", /* connect token from the launcher — never the password */
-    .raUnverifiedRegion  = 0,  /* non-USA discs stay in spectator mode until verified */
+    .raVerifiedGameId    = 0,  /* 0 = only a USA disc submits; else the one verified game id */
     .mapName        = "map0_s00"
 };
 
@@ -465,7 +465,6 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "resident_textures") == 0)
         {
             g_PcConfig.residentTextures = (atoi(value) != 0);
-            g_PcConfig.residentTexturesUserSet = 1; /* explicit choice overrides the AMD auto-off default */
         }
         else if (strcmp(key, "texture_packs") == 0)
         {
@@ -866,9 +865,19 @@ void PcConfig_Load(const char* path)
                 g_PcConfig.raToken[sizeof(g_PcConfig.raToken) - 1] = '\0';
             }
         }
+        else if (strcmp(key, "ra_verified_game_id") == 0)
+        {
+            int id = atoi(value);
+            g_PcConfig.raVerifiedGameId = (id > 0) ? id : 0;
+        }
         else if (strcmp(key, "ra_unverified_region") == 0)
         {
-            g_PcConfig.raUnverifiedRegion = atoi(value) ? 1 : 0;
+            /* Superseded. A whole region is the wrong unit: the achievement set
+             * is authored against one build's addresses, so the id the server
+             * matched is what decides whether our map fits it. */
+            if (atoi(value))
+                fprintf(stderr, "[CONFIG] ra_unverified_region is no longer honored - "
+                                "use ra_verified_game_id = <id from the [RA] log>\n");
         }
         else if (strcmp(key, "control_styles") == 0)
         {

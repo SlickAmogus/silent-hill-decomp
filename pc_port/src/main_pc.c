@@ -430,12 +430,13 @@ static int Pc_ReadDiscExe(const char* path, unsigned char** outBuf, unsigned* ou
     }
 }
 
-/* Correct g_FileTable for a rearranged USA fan disc. Reads the disc's own file
- * table out of its boot exe and remaps every sector by name (Fs_RemapFromDiscTable).
+/* Correct g_FileTable for a rearranged fan disc, any region. Reads the disc's own
+ * file table out of its boot exe and remaps every sector by name (Fs_RemapFromDiscTable).
  * The table sits at a build-specific offset in the exe (a rebuilt disc shifts it),
  * so locate it by anchoring on the baked table's first four file names — data we
- * already hold, so no filename is hardcoded. A no-op on a stock/Spanish USA disc
- * (its table equals ours). Any failure leaves the baked table intact. */
+ * already hold, so no filename is hardcoded (the USA/EUR/JAP tables all open with
+ * the same four 1ST files). A no-op on a stock or in-place-patched disc of any
+ * region (its table equals ours). Any failure leaves the baked table intact. */
 static void Pc_RemapFileTableFromDisc(const char* discPath)
 {
     unsigned char* exe     = NULL;
@@ -476,8 +477,12 @@ static void Pc_RemapFileTableFromDisc(const char* discPath)
     }
 
     {
+        /* Cap covers the largest real table (EUR is 2310 entries, USA/JAP 2074)
+         * plus slack for a fan disc that appended files; the tail past a shorter
+         * table is unrelated .data, but a false hit needs a 56-bit name/type/path
+         * collision and real entries come first and win. */
         unsigned avail   = (exeSize - tableOff) / 12;
-        s32      count   = (s32)(avail < 2200u ? avail : 2200u);
+        s32      count   = (s32)(avail < 2400u ? avail : 2400u);
         s32      changed = Fs_RemapFromDiscTable((const s_FileInfo*)(exe + tableOff), count);
         if (changed > 0)
             SH_LOG("Fan disc detected: remapped %d file sectors from disc's own table", changed);
@@ -487,11 +492,14 @@ static void Pc_RemapFileTableFromDisc(const char* discPath)
 }
 
 /* Select region tables for a resolved disc, then correct sectors from the disc
- * itself for USA fan re-translations that rearranged the CD (no-op otherwise). */
+ * itself for fan re-translations that rearranged the CD (no-op otherwise).
+ * Runs for every region: PAL and NTSC-J fan patches rebuild the CD the same way
+ * a USA one does, and Fs_RemapFromDiscTable matches through the region's own
+ * name/path shape, so a stock disc of any region still changes nothing. */
 static void Pc_ApplyDiscRegion(const char* discPath, e_GameRegion region)
 {
     Fs_InitFileTableForRegion(region);
-    if (region == Region_USA && discPath && discPath[0])
+    if (discPath && discPath[0])
         Pc_RemapFileTableFromDisc(discPath);
     /* Also to the log file: the "Disc:" SH_LOG line only reaches stdout/the
      * in-game console, so a launcher run leaves no record of the applied
@@ -967,28 +975,13 @@ int main(int argc, char* argv[])
         SH_LOG("GL Vendor:   %s", gl_vendor   ? gl_vendor   : "(null)");
         SH_LOG("GL Version:  %s", gl_version  ? gl_version  : "(null)");
 
-        /* AMD GPUs hit an undefined-texture-read corruption (blue/black
-         * spike/wedge fills, worst in Nowhere) in the resident-texture pool path
-         * that NVIDIA/Intel don't — root cause still open (2026-07-21), and the
-         * reporter's resident_textures=0 bisect is a confirmed clean workaround.
-         * Until it's root-fixed, default resident_textures OFF on AMD so those
-         * users get a correct image out of the box. A user who set
-         * resident_textures explicitly in config.cfg keeps their choice; other
-         * vendors are unchanged. AMD reports vendor "ATI Technologies Inc." /
-         * "Advanced Micro Devices" (renderer carries "Radeon"/"AMD"). */
-        if (!g_PcConfig.residentTexturesUserSet && g_PcConfig.residentTextures)
-        {
-            const char* v = gl_vendor   ? gl_vendor   : "";
-            const char* r = gl_renderer ? gl_renderer : "";
-            if (strstr(v, "ATI") || strstr(v, "AMD") || strstr(v, "Advanced Micro Devices") ||
-                strstr(r, "AMD") || strstr(r, "Radeon"))
-            {
-                g_PcConfig.residentTextures = 0;
-                SH_DBG("[CONFIG] AMD GPU ('%s') — resident_textures defaulted OFF "
-                       "(a known AMD-only corruption; set resident_textures=1 in "
-                       "config.cfg to force it on)", r[0] ? r : v);
-            }
-        }
+        /* AMD used to get resident_textures forced OFF here, from a 2026-07-21
+         * report of undefined-texture-read corruption in the pool path. That
+         * silently split the user base across two render paths, so an AMD bug
+         * report described a build nobody else was running and the path never
+         * got the exposure it needed to be fixed. Everyone is on the resident
+         * pool now; AMD-specific corruption gets root-caused rather than
+         * routed around. Anyone hitting it can still set resident_textures=0. */
     }
 
     /* Apply keyboard/controller bindings + movement/debug options from config
