@@ -137,6 +137,7 @@ partial class Form1
             this.audioLabel = new System.Windows.Forms.Label();
             this.comboAudioOut = new System.Windows.Forms.ComboBox();
             this.btnControls = new System.Windows.Forms.Button();
+            this.btnRetroAchievements = new System.Windows.Forms.Button();
             this.btnBuildSettings = new System.Windows.Forms.Button();
             this.downloadBuild = new System.Windows.Forms.Button();
             this.btnHelp = new System.Windows.Forms.Button();
@@ -721,6 +722,16 @@ partial class Form1
             this.btnControls.UseVisualStyleBackColor = true;
             this.btnControls.Click += new System.EventHandler(this.btnControls_Click);
             // 
+            // btnRetroAchievements
+            // 
+            this.btnRetroAchievements.Location = new System.Drawing.Point(206, 388);
+            this.btnRetroAchievements.Name = "btnRetroAchievements";
+            this.btnRetroAchievements.Size = new System.Drawing.Size(97, 23);
+            this.btnRetroAchievements.TabIndex = 51;
+            this.btnRetroAchievements.Text = "Achievements";
+            this.btnRetroAchievements.UseVisualStyleBackColor = true;
+            this.btnRetroAchievements.Click += new System.EventHandler(this.btnRetroAchievements_Click);
+            // 
             // btnBuildSettings
             // 
             this.btnBuildSettings.Location = new System.Drawing.Point(314, 360);
@@ -857,6 +868,7 @@ partial class Form1
             this.Controls.Add(this.downloadBuild);
             this.Controls.Add(this.btnBuildSettings);
             this.Controls.Add(this.btnControls);
+            this.Controls.Add(this.btnRetroAchievements);
             this.Controls.Add(this.cullLabel);
             this.Controls.Add(this.chunksLabel);
             this.Controls.Add(this.fullscreenLabel);
@@ -915,6 +927,7 @@ partial class Form1
 
     private Label chunksLabel;
     private Button btnControls;
+    private Button btnRetroAchievements;
     private Button btnBuildSettings;
     private Button downloadBuild;
     private Button btnHelp;

@@ -1492,6 +1492,16 @@ public partial class Form1 : Form
         }
     }
 
+    private void btnRetroAchievements_Click(object sender, EventArgs e)
+    {
+        // Achievements button: RetroAchievements sign-in. Shares this form's
+        // ConfigManager so the token lands in the same config.cfg the game reads.
+        using (var dlg = new RetroAchievementsForm(config))
+        {
+            dlg.ShowDialog(this);
+        }
+    }
+
     private void btnBuildSettings_Click(object sender, EventArgs e)
     {
         // Build Settings: choose the repo/branch/build the launcher tracks for
