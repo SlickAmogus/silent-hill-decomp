@@ -227,14 +227,11 @@ typedef struct {
     int  retroAchievements;
     char raUsername[64];
     char raToken[96];
-    /* The one RA game id whose achievement set is known to read the addresses
-     * this build maps. Unlocks are submitted only when the server matches THIS
-     * id. 0 (default) = no id verified, in which case only a USA disc submits
-     * (the build the address map was authored from) and every other disc
-     * evaluates in spectator mode: achievements log but nothing is posted. The
-     * matched id is printed in the session log. (config key:
-     * ra_verified_game_id) */
-    int  raVerifiedGameId;
+    /* 1 = submit unlocks even on a disc whose region the achievement address
+     * map was not authored against; 0 (default) = those discs evaluate in
+     * spectator mode (achievements log, nothing is posted).
+     * (config key: ra_unverified_region) */
+    int  raUnverifiedRegion;
 
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
