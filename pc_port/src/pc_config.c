@@ -26,6 +26,7 @@ s_PcConfig g_PcConfig = {
     .texturePacks = 1, /* 1=scan gamedata/texturemods/ for DuckStation texture packs (loose dirs or .zip) */
     .texpackCacheMb = 2048, /* composed-canvas cache RAM cap; kills pack re-compose stutter on chunk churn */
     .texpackBudgetMb = 6144, /* HD pack GL-texture cap; generous for 64-bit/real VRAM + big packs (0 = unlimited) */
+    .dumpTextures = 0, /* 1=write every decoded texture upload to gamedata/dump/ as a pack-named PNG (modding aid) */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
@@ -142,6 +143,9 @@ s_PcConfig g_PcConfig = {
     .uncensored     = 0, /* 0=retail PAL Mumblers (default); 1=restore Grey Children on EUR (matches US) */
     .discordRichPresence = 1,  /* show current area on the player's Discord profile (needs a discord_app_id) */
     .discordAppId        = "", /* project's Discord application id; empty = compiled-in default / off */
+    .retroAchievements   = 0,  /* opt-in; needs a launcher sign-in to do anything */
+    .raUsername          = "",
+    .raToken             = "", /* connect token from the launcher — never the password */
     .mapName        = "map0_s00"
 };
 
@@ -479,6 +483,10 @@ void PcConfig_Load(const char* path)
             if (mb < 0) mb = 0;
             if (mb > 65536) mb = 65536;
             g_PcConfig.texpackBudgetMb = mb;
+        }
+        else if (strcmp(key, "dump_textures") == 0)
+        {
+            g_PcConfig.dumpTextures = (atoi(value) != 0);
         }
         else if (strcmp(key, "bullet_decals") == 0)
         {
@@ -835,6 +843,26 @@ void PcConfig_Load(const char* path)
             {
                 strncpy(g_PcConfig.discordAppId, value, sizeof(g_PcConfig.discordAppId) - 1);
                 g_PcConfig.discordAppId[sizeof(g_PcConfig.discordAppId) - 1] = '\0';
+            }
+        }
+        else if (strcmp(key, "retroachievements") == 0)
+        {
+            g_PcConfig.retroAchievements = atoi(value) ? 1 : 0;
+        }
+        else if (strcmp(key, "ra_username") == 0)
+        {
+            if (strlen(value) < sizeof(g_PcConfig.raUsername))
+            {
+                strncpy(g_PcConfig.raUsername, value, sizeof(g_PcConfig.raUsername) - 1);
+                g_PcConfig.raUsername[sizeof(g_PcConfig.raUsername) - 1] = '\0';
+            }
+        }
+        else if (strcmp(key, "ra_token") == 0)
+        {
+            if (strlen(value) < sizeof(g_PcConfig.raToken))
+            {
+                strncpy(g_PcConfig.raToken, value, sizeof(g_PcConfig.raToken) - 1);
+                g_PcConfig.raToken[sizeof(g_PcConfig.raToken) - 1] = '\0';
             }
         }
         else if (strcmp(key, "control_styles") == 0)

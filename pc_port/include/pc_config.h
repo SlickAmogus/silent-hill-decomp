@@ -69,6 +69,12 @@ typedef struct {
                            * VRAM wants this high; the cap only exists so whole-map mode cannot try to
                            * upload multi-GB in one load and hang a small GPU. 0 = unlimited
                            * (config key: texpack_budget_mb) */
+    int dumpTextures;     /* 1 = write every decoded texture upload (the exact VRAM region through the
+                           * exact palette in use) to gamedata/dump/ as a PNG named the way the pack
+                           * loader matches it, so a dump is directly usable as a texture pack — the
+                           * only way to get correct reference art for world/BG textures, which have
+                           * no .ILM to recover the texel->palette map from. Off costs nothing
+                           * (config key: dump_textures) */
     int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
                            * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
                            * (config key: bullet_decals) */
@@ -213,6 +219,16 @@ typedef struct {
      * discord_rich_presence / discord_app_id) */
     int  discordRichPresence;
     char discordAppId[80];
+
+    /* RetroAchievements (softcore only — the port's quick save/load, debug
+     * controls, free cameras and gamemodes rule out hardcore). The launcher
+     * signs in and stores the account name plus a connect token; the game
+     * never sees the password. Unlocks post to the real RA account, matched to
+     * the player's own disc image by hash. (config keys: retroachievements /
+     * ra_username / ra_token) */
+    int  retroAchievements;
+    char raUsername[64];
+    char raToken[96];
 
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;

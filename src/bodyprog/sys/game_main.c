@@ -2127,6 +2127,12 @@ void MainLoop(void) // 0x80032EE0
             { extern void Pc_MinimapUpdate(void); Pc_MinimapUpdate(); }
 
             { extern void Sh_LogPeriodicFlush(void); Sh_LogPeriodicFlush(); }
+
+            /* RetroAchievements: dispatch finished server calls and evaluate
+             * the achievement set. Placed after the game-state update so the
+             * frame's world state is settled; self-gated to live gameplay and
+             * to being signed in. */
+            { extern void Pc_Ra_Update(void); Pc_Ra_Update(); }
         }
 #endif
         ML_TRACE("MemCard_Update");

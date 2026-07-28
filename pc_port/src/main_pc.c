@@ -1233,6 +1233,11 @@ int main(int argc, char* argv[])
      * this only captures the session-start time + resolves the app id. */
     Pc_Discord_Init();
 
+    /* RetroAchievements: logs in with the launcher-stored token, hashes the
+     * disc the port is actually running, and requests that game's set. Inert
+     * unless enabled and signed in. */
+    { extern void Pc_Ra_Init(void); Pc_Ra_Init(); }
+
     SH_LOG("All subsystems initialized. Entering MainLoop...");
 
     /* The graphic-content warning ("There are violent and disturbing
@@ -1252,6 +1257,7 @@ int main(int argc, char* argv[])
 
     /* Cleanup */
     SH_DBG("[SH] MainLoop exited normally. Shutting down...");
+    { extern void Pc_Ra_Shutdown(void); Pc_Ra_Shutdown(); }
     Pc_Discord_Shutdown();
     PsyX_Shutdown();
 
