@@ -36,6 +36,11 @@ import zlib
 import struct
 import argparse
 
+# pc_port/include/hires_override.h. Both loose per-row loops (fsqueue_3.c) clamp the
+# CLUT row count to this before probing "{base}.pNN.png", so a PNG for row 16 or
+# above can never be read back by the game - don't write one.
+HIRES_POOL_MAX_ROWS = 16
+
 
 # ---- minimal RGBA8 PNG writer (stdlib only) --------------------------------
 
@@ -198,6 +203,9 @@ def convert_file(tim_path, only_row=None):
     written = []
 
     if only_row is not None:
+        if only_row >= HIRES_POOL_MAX_ROWS:
+            print("  %s: row %d is past the runtime's %d-row limit and could never be loaded"
+                  % (tim_path, only_row, HIRES_POOL_MAX_ROWS), file=sys.stderr)
         rgba, w, h, _ = decode_tim(data, only_row)
         png = os.path.join(directory, "%s.p%02d.png" % (full, only_row))
         write_png_rgba(png, w, h, rgba)
@@ -209,10 +217,14 @@ def convert_file(tim_path, only_row=None):
         write_png_rgba(png, w, h, rgba)
         return [png]
 
-    pad = 3 if rows > 100 else 2
-    for r in range(rows):
+    emit = min(rows, HIRES_POOL_MAX_ROWS)
+    if emit < rows:
+        print("  %s: %d CLUT rows, writing %d - the game clamps to %d rows so p%02d..p%02d "
+              "could never be loaded" % (tim_path, rows, emit, HIRES_POOL_MAX_ROWS,
+                                         emit, rows - 1), file=sys.stderr)
+    for r in range(emit):
         rgba, w, h, _ = decode_tim(data, r)
-        png = os.path.join(directory, "%s.p%0*d.png" % (full, pad, r))
+        png = os.path.join(directory, "%s.p%02d.png" % (full, r))
         write_png_rgba(png, w, h, rgba)
         written.append(png)
     return written

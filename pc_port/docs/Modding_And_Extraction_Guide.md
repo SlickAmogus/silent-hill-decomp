@@ -317,27 +317,51 @@ Extraction tools that produce these PNGs:
 ##### Author from one correct image (recommended)
 
 Editing raw `pNN.png` palette rows directly is fiddly — each one is the whole sheet tinted
-by a single palette, so none of them looks like the character (verified: `DOB` spreads 278
-primitives across all 7 rows, `HERO` uses 7 of 15, `DARIA` 11). Instead, work from the
-**composite**: one image showing every region in the palette the game actually draws it
-with. Which region uses which palette is baked into each model primitive's CLUT word in the
-`.ILM` (`row = (field_2 >> 6) − materialBaseClutY`), so the true look is reconstructable
-offline — no running game needed.
+by a single palette, so none of them looks like the thing you see in-game (verified: `DOB`
+spreads 278 primitives across all 7 rows, `HERO` uses 14, a Old-Town chunk sheet 14).
+Instead, work from the **composite**: one image showing every region in the palette the game
+actually draws it with. Which region uses which palette is baked into each model primitive's
+CLUT word (`row = (field_2 >> 6) − (material.field_10 >> 6)`), so the true look is
+reconstructable offline — no running game needed.
 
-- **Build Reference** — *Reference…* in the Mod Manager, or
-  `python3 clut_tool.py compose CHARA/DOB.ILM` — reads the `.ILM` model + `.TIM` and writes
-  one correct `NAME_reference.png`. Edit *that* in any image editor; keep the pixel size.
+This works for **every** texture class, not just characters: the same `s_LmHeader` sits at
+offset 0 of an `.ILM` (characters) and a `.PLM` (weapons, BG globals), and at the `u32` at
+offset 4 of an `.IPD` (world geometry chunk). Materials are matched to their `.TIM` by the
+**material name**, which is why `BIRD.ILM` finds `REBIRD.TIM` and every weapon `.PLM` finds
+`CHARA/HERO.TIM`.
+
+- **Index the tree once** — `python3 clut_tool.py index <extracted-tree> -o clut_index.json`
+  (about a second). One `.TIM` is shared by up to 118 `.IPD` chunks, and for 54 sheets no
+  single chunk uses every palette row the game does, so the row map has to be **UNIONed
+  across the whole tree** — that is what the index is for.
+- **Build every reference in one pass** —
+  `python3 clut_tool.py compose-all --index clut_index.json -o refs/` writes
+  `refs/<FOLDER>/<NAME>_reference.png` for every texture on the disc and prints per-class
+  coverage. A sheet no model references (2D backgrounds, UI, effect atlases) is emitted as
+  its plain decode — there is no row map to recover for it.
+- **Build one Reference** — *Reference…* in the Mod Manager, or
+  `python3 clut_tool.py compose BG/THR0003F.TIM --index clut_index.json` (or point it at a
+  model: `compose CHARA/DOB.ILM`, which without `--index` uses only that one model). Edit
+  *that* image in any editor.
 - **Rebuild Textures** — *Rebuild…*, or
-  `python3 clut_tool.py split DOB_reference.png CHARA/DOB.ILM` — slices your edited image
-  back into the `NAME.TIM.pNN.png` set above, each row carrying only the texels the game
-  samples through it. Drop the set into `gamedata/load/CHARA/`.
+  `python3 clut_tool.py split THR0003F_reference.png BG/THR0003F.TIM --index clut_index.json
+  -o out/` — slices your edited image back into the `NAME.TIM.pNN.png` set above, each row
+  carrying only the texels the game samples through it. Drop the set into
+  `gamedata/load/<FOLDER>/`. Pass the same `--index` you composed with.
 
 The per-row loose PNGs are uploaded as full RGBA, so this path is **not** limited to 16
 colours per region — paint freely — and the edit can be **high-resolution**: paint the
 reference at its native size or at an upscale of it (an exact multiple like 2×/4×/8× gives the
-sharpest region edges), and *Rebuild* keeps that resolution in the output PNGs. Both tools need
-the character's `.ILM` sitting next to its `.TIM`, exactly how *Extract BIN…* lays them out.
+sharpest region edges), and *Rebuild* keeps that resolution in the output PNGs.
 `compose → split` with no edits round-trips losslessly.
+
+Two limits worth knowing. The runtime keeps **16** CLUT rows per texture
+(`HIRES_POOL_MAX_ROWS`), so `pNN.png` files for row 16 and above can never load — the tools
+no longer write them (`PRS.TIM` has 48 CLUT rows, `BOS2.TIM` 32; no geometry uses rows past
+13, so nothing is lost). And about 3% of covered texels are drawn through *more than one*
+palette row (a handful of sheets — `BG/RSRG1F`, `ITEM/DRILL`, `BG/HU1F051` — are over half
+shared); a single composite necessarily shows one of them, and an edit there applies to the
+row the composite picked.
 
 ### 5.2 Rebuild the disc image — no size ceiling
 
@@ -409,9 +433,11 @@ shared by many CLUT rows, and a single model draws its head, body and limbs thro
 *different* rows at the same time — so `NAME.TIM.pNN.png` from §5.1 is the whole sheet
 tinted by one palette and none of them looks like the thing you see in-game. A dump is
 the region as it is actually drawn, through the palette actually in use, so it looks
-right with no `.ILM` involved. That matters most for **backgrounds and world geometry**,
-which have no model file for `clut_tool.py` to read (§5.1) — dumping is the only way to
-get correct reference art for them.
+right with no model file involved. Since `clut_tool.py` learned to read `.IPD`/`.PLM`
+as well as `.ILM` (§5.1), backgrounds and world geometry get offline composites too —
+prefer that, because it covers the **whole disc** rather than only the rooms you happened
+to walk through. Dumping is still the fallback for the sheets no model references (2D
+event backgrounds, UI and effect atlases, item preview atlases drawn from `.TMD`).
 
 Notes: visit the areas you want; textures are dumped as they load. Each file is written
 once (already-dumped uploads are skipped, in this session and in later ones), so delete
