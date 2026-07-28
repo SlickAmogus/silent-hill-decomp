@@ -138,8 +138,11 @@ namespace SilentHillPC_Launcher
             catch { return null; }
         }
 
-        /// <summary>Extract every entry of <paramref name="rarPath"/> into <paramref name="destDir"/>.</summary>
-        public static bool Extract(string rarPath, string destDir, Action<int, int, string> report)
+        /// <summary>Extract every entry of <paramref name="rarPath"/> into <paramref name="destDir"/>.
+        /// <paramref name="cancelled"/> is polled between entries — never inside one, so no file is
+        /// left half-written — and a cancelled run returns false like any other failure.</summary>
+        public static bool Extract(string rarPath, string destDir, Action<int, int, string> report,
+                                   Func<bool> cancelled = null)
         {
             if (!IsAvailable()) return false;
 
@@ -169,6 +172,8 @@ namespace SilentHillPC_Launcher
                 int count = 0;
                 while (true)
                 {
+                    if (cancelled != null && cancelled()) return false;
+
                     int rh = RARReadHeaderEx(handle, ref hdr);
                     if (rh == ERAR_END_ARCHIVE) break;
                     if (rh != 0) return false;

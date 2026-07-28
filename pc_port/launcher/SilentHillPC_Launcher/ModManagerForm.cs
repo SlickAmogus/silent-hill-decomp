@@ -58,13 +58,40 @@ namespace SilentHillPC_Launcher
             ExtractThenScan();
         }
 
-        /// <summary>Extract any pending archives (with progress) then re-index and repopulate.</summary>
+        /// <summary>Ask about any archive lying in the mod folders, unpack what was agreed to
+        /// (cancellable), then re-index and repopulate.</summary>
         private void ExtractThenScan()
         {
-            if (_mgr.AnyPending())
-                ProgressDialog.Run(this, "Extracting archives…", r => _mgr.Prepare(r));
+            var pending = _mgr.PendingWork();
+            if (pending.Count > 0)
+            {
+                // A fully-stored .zip unpacks by plain copy, so it goes through silently.
+                // Anything that really decompresses is offered first: this used to start on
+                // its own and could duplicate a folder the user had unpacked by hand.
+                var todo = pending.Where(p => p.Cheap).ToList();
+                var ask  = pending.Where(p => !p.Cheap).ToList();
+                if (ask.Count > 0 && AskUnpack(ask)) todo.AddRange(ask);
+
+                if (todo.Count > 0)
+                    ProgressDialog.RunCancellable(this, "Unpacking archives…",
+                        (r, cancelled) => _mgr.Prepare(todo, r, cancelled));
+            }
             _mgr.Scan();
             Populate();
+        }
+
+        /// <summary>Confirm before unpacking archives found in the mod folders, naming them.</summary>
+        private bool AskUnpack(List<ModManager.PendingItem> items)
+        {
+            var lines = items.Take(8).Select(p => "    " + p.Name).ToList();
+            if (items.Count > lines.Count) lines.Add("    …and " + (items.Count - lines.Count) + " more");
+
+            return MessageBox.Show(this,
+                "Unpack " + items.Count + " archive(s) found in your mod folders?\n\n" +
+                string.Join("\n", lines) +
+                "\n\nNo = leave them as they are; tick one later to unpack it.",
+                "Mod Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                MessageBoxDefaultButton.Button2) == DialogResult.Yes;
         }
 
         private void BuildUi()
@@ -421,15 +448,16 @@ namespace SilentHillPC_Launcher
             _mgr.SaveState();
 
             int imported = 0;
-            ProgressDialog.Run(this, "Importing mods…", r =>
+            ProgressDialog.RunCancellable(this, "Importing mods…", (r, cancelled) =>
             {
                 foreach (var p in others)
-                    if (_mgr.Import(p, r) == ModManager.ImportResult.Added) imported++;
-                _mgr.Prepare(r); // extract any .zip (library) / .rar (texture) we just imported
+                {
+                    if (cancelled()) return;
+                    if (_mgr.Import(p, r, cancelled) == ModManager.ImportResult.Added) imported++;
+                }
             });
 
-            _mgr.Scan();
-            Populate();
+            ExtractThenScan(); // asks before unpacking anything we just copied in
 
             if (imported == 0)
                 MessageBox.Show(this, "Nothing added. Drop a disc .bin to extract, or mod folders / .zip / .rar archives.",
@@ -472,8 +500,8 @@ namespace SilentHillPC_Launcher
             BinExtractor.ExtractResult res = null;
             try
             {
-                ProgressDialog.Run(this, "Extracting " + Path.GetFileName(binPath) + "…",
-                    r => { res = BinExtractor.Extract(binPath, outDir, convertPng, deleteTim, r); });
+                ProgressDialog.RunCancellable(this, "Extracting " + Path.GetFileName(binPath) + "…",
+                    (r, cancelled) => { res = BinExtractor.Extract(binPath, outDir, convertPng, deleteTim, r, cancelled); });
             }
             catch (Exception ex)
             {
@@ -486,6 +514,14 @@ namespace SilentHillPC_Launcher
             {
                 MessageBox.Show(this, "Extraction failed:\n\n" + (res != null ? res.Error : "unknown error"),
                     "Extract BIN", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (res.Cancelled)
+            {
+                MessageBox.Show(this,
+                    "Cancelled after " + res.Files + " file(s). They are complete and were left in:\n" + outDir,
+                    "Extract BIN", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -785,6 +821,7 @@ namespace SilentHillPC_Launcher
             bool deleteSource = del == DialogResult.Yes;
 
             int converted = 0, failed = 0;
+            bool finished = true;
             string firstError = null;
             try
             {
@@ -793,19 +830,27 @@ namespace SilentHillPC_Launcher
                 // skipped region .png is not in the list at all. Those entries take
                 // the compressed upload path, so they need the full mip chain.
                 if (wholeOnly)
-                    ProgressDialog.Run(this, "Encoding whole textures to BC7…",
-                        r => DdsConverter.EncodeFiles(pack.WholeCoverPngs, deleteSource, true, r,
+                    finished = ProgressDialog.RunCancellable(this, "Encoding whole textures to BC7…",
+                        (r, cancelled) => DdsConverter.EncodeFiles(pack.WholeCoverPngs, deleteSource, true, r, cancelled,
                                                       out converted, out failed, out firstError));
                 else
-                    ProgressDialog.Run(this, "Encoding textures to BC7…",
-                        r => DdsConverter.EncodeFolder(folder, deleteSource,
-                                                      pack != null ? pack.WholeCoverPngs : null, r,
+                    finished = ProgressDialog.RunCancellable(this, "Encoding textures to BC7…",
+                        (r, cancelled) => DdsConverter.EncodeFolder(folder, deleteSource,
+                                                      pack != null ? pack.WholeCoverPngs : null, r, cancelled,
                                                       out converted, out failed, out firstError));
             }
             catch (Exception ex)
             {
                 MessageBox.Show(this, "Conversion failed:\n\n" + ex.Message,
                     "Convert folder → BC7", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (!finished)
+            {
+                MessageBox.Show(this,
+                    "Cancelled after " + converted + " texture(s). The rest are untouched — run it again to finish.",
+                    "Convert folder → BC7", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -842,13 +887,21 @@ namespace SilentHillPC_Launcher
             TimConverter.BulkResult res = null;
             try
             {
-                ProgressDialog.Run(this, "Converting textures…",
-                    r => { res = TimConverter.BulkConvert(folder, deleteOriginals, r); });
+                ProgressDialog.RunCancellable(this, "Converting textures…",
+                    (r, cancelled) => { res = TimConverter.BulkConvert(folder, deleteOriginals, r, cancelled); });
             }
             catch (Exception ex)
             {
                 MessageBox.Show(this, "Conversion failed:\n\n" + ex.Message,
                     "Bulk → PNG", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (res != null && res.Cancelled)
+            {
+                MessageBox.Show(this,
+                    "Cancelled after " + res.Converted + " file(s). The rest are untouched — run it again to finish.",
+                    "Bulk → PNG", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -971,10 +1024,11 @@ namespace SilentHillPC_Launcher
             var failures = new List<string>();
             try
             {
-                ProgressDialog.Run(this, "Building references…", r =>
+                ProgressDialog.RunCancellable(this, "Building references…", (r, cancelled) =>
                 {
                     for (int i = 0; i < targets.Count; i++)
                     {
+                        if (cancelled()) return; // between images: each one is written whole
                         r(i, targets.Count, Path.GetFileName(targets[i].TimPath));
                         string png = Path.Combine(outDir,
                             Path.GetFileNameWithoutExtension(targets[i].TimPath) + "_reference.png");
@@ -2136,7 +2190,11 @@ namespace SilentHillPC_Launcher
             try
             {
                 ModManager.ApplyResult r = null;
-                ProgressDialog.Run(this, "Applying mods…", rep => { r = _mgr.Apply(_chkLoose.Checked, rep); });
+                // Cancel here aborts an archive being unpacked (the only slow part), not the
+                // apply itself: the pack is left off and everything else still commits, so the
+                // config on disk always matches the list the user is looking at.
+                ProgressDialog.RunCancellable(this, "Applying mods…",
+                    (rep, cancelled) => { r = _mgr.Apply(_chkLoose.Checked, rep, cancelled); });
                 _chkLoose.Checked = r.LooseEnabled;
                 Populate(); // reflect enable/disable state changes
 

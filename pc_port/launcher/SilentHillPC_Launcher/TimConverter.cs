@@ -288,6 +288,7 @@ namespace SilentHillPC_Launcher
             public int Failed;
             public int Deleted;
             public int PngsWritten;  // total PNG files emitted (multi-palette TIMs emit several)
+            public bool Cancelled;   // stopped between files; the counts describe what completed
             public readonly List<string> Failures = new List<string>();
         }
 
@@ -295,9 +296,13 @@ namespace SilentHillPC_Launcher
         /// Recursively convert every *.TIM under <paramref name="folder"/> to a PNG set
         /// in place (single "FOO.png", or per-palette "FOO.TIM.pNN.png" for multi-CLUT
         /// TIMs). When <paramref name="deleteOriginals"/> is set, each successfully
-        /// converted .TIM is deleted.
+        /// converted .TIM is deleted. <paramref name="cancelled"/> is polled between .TIM files:
+        /// a file's whole PNG set is written before the next check, and a .TIM is only ever
+        /// deleted after its PNGs exist, so stopping leaves neither a partial set nor an
+        /// unconverted-but-deleted source.
         /// </summary>
-        public static BulkResult BulkConvert(string folder, bool deleteOriginals, Action<int, int, string> report)
+        public static BulkResult BulkConvert(string folder, bool deleteOriginals, Action<int, int, string> report,
+                                             Func<bool> cancelled = null)
         {
             var res = new BulkResult();
             var tims = new List<string>();
@@ -306,6 +311,8 @@ namespace SilentHillPC_Launcher
 
             for (int i = 0; i < tims.Count; i++)
             {
+                if (cancelled != null && cancelled()) { res.Cancelled = true; break; }
+
                 string tim = tims[i];
                 if (report != null) report(i, tims.Count, Path.GetFileName(tim));
 

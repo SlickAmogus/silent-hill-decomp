@@ -217,7 +217,7 @@ namespace SilentHillPC_Launcher
         /// <summary>Run texconv with the given args; returns exit 0 and captures any
         /// output for diagnostics. stdout+stderr are drained asynchronously so a
         /// full pipe never deadlocks the wait.</summary>
-        private static bool Run(string args, string workDir, out string output)
+        private static bool Run(string args, string workDir, out string output, Func<bool> cancelled = null)
         {
             output = "";
             string exe = ResolveExe();
@@ -248,7 +248,19 @@ namespace SilentHillPC_Launcher
                     proc.Start();
                     proc.BeginOutputReadLine();
                     proc.BeginErrorReadLine();
-                    proc.WaitForExit();
+
+                    // Killing texconv only ever discards work in the private temp dir the
+                    // caller wipes; it writes nothing into the pack itself.
+                    while (!proc.WaitForExit(150))
+                    {
+                        if (cancelled == null || !cancelled()) continue;
+                        try { proc.Kill(); } catch { }
+                        try { proc.WaitForExit(5000); } catch { }
+                        output = sb.ToString();
+                        return false;
+                    }
+                    proc.WaitForExit(); // timed waits don't drain the async readers; this does
+
                     output = sb.ToString();
                     return proc.ExitCode == 0;
                 }
@@ -279,12 +291,18 @@ namespace SilentHillPC_Launcher
         /// the engine matches textures by parsing that name.
         ///
         /// doneBase/totalOverride let a caller run several passes behind ONE progress
-        /// bar; pass 0/0 for a standalone run.</summary>
+        /// bar; pass 0/0 for a standalone run.
+        ///
+        /// cancelled is polled per chunk AND handed to texconv. A cancelled chunk is
+        /// abandoned whole — its results never leave the temp dir, so no .dds is placed
+        /// half-written and no source is deleted for a conversion that didn't land.
+        /// Chunks that already finished keep their output; re-running converts the rest.</summary>
         private static void ConvertMany(List<string> sources, Func<string, string> dstDirOf,
                                         bool decode, bool fullMips,
                                         Action<int, int, string> report,
                                         Action<string> onConverted,
                                         int doneBase, int totalOverride,
+                                        Func<bool> cancelled,
                                         out int converted, out int failed, out string firstError)
         {
             converted  = 0;
@@ -309,6 +327,8 @@ namespace SilentHillPC_Launcher
 
             for (int start = 0; start < sources.Count; start += ChunkSize)
             {
+                if (cancelled != null && cancelled()) return;
+
                 int count = Math.Min(ChunkSize, sources.Count - start);
                 string workDir = Path.Combine(Path.GetTempPath(), "SilentHillPC_Launcher",
                                               "dds-" + Guid.NewGuid().ToString("N").Substring(0, 8));
@@ -353,7 +373,11 @@ namespace SilentHillPC_Launcher
                                "  (" + (doneBase + done + 1) + "/" + total + ")");
 
                     string output;
-                    Run(sb.ToString(), workDir, out output);
+                    Run(sb.ToString(), workDir, out output, cancelled);
+
+                    // Cancelled mid-chunk: drop this chunk's results untouched (the finally
+                    // wipes the temp dir) rather than place a partially-encoded batch.
+                    if (cancelled != null && cancelled()) return;
 
                     foreach (var job in jobs)
                     {
@@ -424,7 +448,7 @@ namespace SilentHillPC_Launcher
         public static bool EncodePng(string pngPath, string outDir, out string error)
         {
             int converted, failed;
-            ConvertMany(new List<string> { pngPath }, _ => outDir, false, true, null, null, 0, 0,
+            ConvertMany(new List<string> { pngPath }, _ => outDir, false, true, null, null, 0, 0, null,
                         out converted, out failed, out error);
             return failed == 0 && converted == 1;
         }
@@ -433,7 +457,7 @@ namespace SilentHillPC_Launcher
         public static bool DecodeDds(string ddsPath, string outDir, out string error)
         {
             int converted, failed;
-            ConvertMany(new List<string> { ddsPath }, _ => outDir, true, true, null, null, 0, 0,
+            ConvertMany(new List<string> { ddsPath }, _ => outDir, true, true, null, null, 0, 0, null,
                         out converted, out failed, out error);
             return failed == 0 && converted == 1;
         }
@@ -451,7 +475,7 @@ namespace SilentHillPC_Launcher
         /// keeps the full chain, which is never wrong, only bigger.</summary>
         public static void EncodeFolder(string folder, bool deleteSource,
                                         ICollection<string> wholeCoverPngs,
-                                        Action<int, int, string> report,
+                                        Action<int, int, string> report, Func<bool> cancelled,
                                         out int converted, out int failed, out string firstError)
         {
             converted = 0;
@@ -471,7 +495,7 @@ namespace SilentHillPC_Launcher
 
             if (wholeCoverPngs == null || wholeCoverPngs.Count == 0)
             {
-                EncodeFiles(pngs, deleteSource, true, report, out converted, out failed, out firstError);
+                EncodeFiles(pngs, deleteSource, true, report, cancelled, out converted, out failed, out firstError);
                 return;
             }
 
@@ -488,9 +512,9 @@ namespace SilentHillPC_Launcher
             // progress bar. Failures accumulate; the first message wins.
             int c1, f1, c2 = 0, f2 = 0;
             string e1, e2 = null;
-            EncodePass(mipped, deleteSource, true, report, 0, pngs.Count, out c1, out f1, out e1);
-            if (flat.Count > 0)
-                EncodePass(flat, deleteSource, false, report, mipped.Count, pngs.Count,
+            EncodePass(mipped, deleteSource, true, report, 0, pngs.Count, cancelled, out c1, out f1, out e1);
+            if (flat.Count > 0 && (cancelled == null || !cancelled()))
+                EncodePass(flat, deleteSource, false, report, mipped.Count, pngs.Count, cancelled,
                            out c2, out f2, out e2);
 
             converted  = c1 + c2;
@@ -507,15 +531,16 @@ namespace SilentHillPC_Launcher
         /// <paramref name="fullMips"/> must be true for any source that could upload
         /// compressed (a whole-cover pack entry or a loose override).</summary>
         public static void EncodeFiles(List<string> sources, bool deleteSource, bool fullMips,
-                                       Action<int, int, string> report,
+                                       Action<int, int, string> report, Func<bool> cancelled,
                                        out int converted, out int failed, out string firstError)
         {
-            EncodePass(sources, deleteSource, fullMips, report, 0, 0,
+            EncodePass(sources, deleteSource, fullMips, report, 0, 0, cancelled,
                        out converted, out failed, out firstError);
         }
 
         private static void EncodePass(List<string> sources, bool deleteSource, bool fullMips,
                                        Action<int, int, string> report, int doneBase, int totalOverride,
+                                       Func<bool> cancelled,
                                        out int converted, out int failed, out string firstError)
         {
             Action<string> onConverted = null;
@@ -523,7 +548,7 @@ namespace SilentHillPC_Launcher
                 onConverted = src => { try { LongDelete(src); } catch { /* leave the png if locked */ } };
 
             ConvertMany(sources, src => Path.GetDirectoryName(src), false, fullMips, report,
-                        onConverted, doneBase, totalOverride,
+                        onConverted, doneBase, totalOverride, cancelled,
                         out converted, out failed, out firstError);
         }
 

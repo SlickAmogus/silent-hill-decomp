@@ -101,6 +101,7 @@ namespace SilentHillPC_Launcher
             public int Files;
             public int Textures;         // TIMs converted to PNG (0 unless convertTimToPng)
             public int TexturesDeleted;  // original TIMs removed after conversion (0 unless deleteTimAfterConvert)
+            public bool Cancelled;       // stopped between files: Files counts what is complete on disk
             public readonly List<string> Warnings = new List<string>();
         }
 
@@ -365,9 +366,13 @@ namespace SilentHillPC_Launcher
         /// <paramref name="convertTimToPng"/> is set, every extracted TIM also gets a
         /// same-named .png beside it; if <paramref name="deleteTimAfterConvert"/> is also
         /// set, the original .TIM is removed once its .png is written. <paramref name="report"/>
-        /// receives (done, total, name).
+        /// receives (done, total, name). <paramref name="cancelled"/> is polled between files —
+        /// each file is written in one call, so stopping never leaves a truncated one — and sets
+        /// <see cref="ExtractResult.Cancelled"/>; whatever was already written stays put, since
+        /// the output folder is the user's own and may not be ours to delete.
         /// </summary>
-        public static ExtractResult Extract(string binPath, string outDir, bool convertTimToPng, bool deleteTimAfterConvert, Action<int, int, string> report)
+        public static ExtractResult Extract(string binPath, string outDir, bool convertTimToPng, bool deleteTimAfterConvert,
+                                            Action<int, int, string> report, Func<bool> cancelled = null)
         {
             var res = new ExtractResult();
             try
@@ -411,12 +416,14 @@ namespace SilentHillPC_Launcher
                     int done = 0;
 
                     var silentReader = new ArchiveReader(f, silentRec.ExtentLba, silentRec.DataLen, 24, 2048);
-                    ExtractList(silent, outDir, silentReader, 2048, rel.Flags, convertTimToPng, deleteTimAfterConvert, res, ref done, total, report);
+                    ExtractList(silent, outDir, silentReader, 2048, rel.Flags, convertTimToPng, deleteTimAfterConvert, res, ref done, total, report, cancelled);
+
+                    if (res.Cancelled) { res.Ok = true; return res; }
 
                     if ((rel.Flags & FLAG_NO_XA) == 0 && hillRec != null && hill.Count > 0)
                     {
                         var hillReader = new ArchiveReader(f, hillRec.ExtentLba, hillRec.DataLen, 16, 2336);
-                        ExtractList(hill, outDir, hillReader, 2336, rel.Flags, false, false, res, ref done, total, report);
+                        ExtractList(hill, outDir, hillReader, 2336, rel.Flags, false, false, res, ref done, total, report, cancelled);
                     }
                     else if (hill.Count > 0)
                     {
@@ -441,13 +448,16 @@ namespace SilentHillPC_Launcher
 
         private static void ExtractList(List<TableEntry> entries, string outDir, ArchiveReader reader,
                                         int sectorSize, uint flags, bool convertTimToPng, bool deleteTimAfterConvert,
-                                        ExtractResult res, ref int done, int total, Action<int, int, string> report)
+                                        ExtractResult res, ref int done, int total, Action<int, int, string> report,
+                                        Func<bool> cancelled)
         {
             if (entries.Count == 0) return;
             int baseLba = entries[0].Lba;
 
             for (int index = 0; index < entries.Count; index++)
             {
+                if (cancelled != null && cancelled()) { res.Cancelled = true; return; }
+
                 TableEntry e = entries[index];
                 long logicalOff = (long)(e.Lba - baseLba) * sectorSize;
 

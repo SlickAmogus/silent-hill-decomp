@@ -173,13 +173,15 @@ namespace SilentHillPC_Launcher
         }
 
         /// <summary>Extract a texture archive to <paramref name="dest"/>, dispatching by
-        /// extension: .rar → UnRAR.dll, .zip/.7z → 7za.exe. Returns success.</summary>
-        private static bool ExtractArchive(string archivePath, string dest, Action<int, int, string> report)
+        /// extension: .rar → UnRAR.dll, .zip/.7z → 7za.exe. Returns success — a cancelled
+        /// run reports failure, so the caller drops the half-written folder.</summary>
+        private static bool ExtractArchive(string archivePath, string dest, Action<int, int, string> report,
+                                           Func<bool> cancelled = null)
         {
             // Extract the literal file on disk (a legacy "<name>.disabled" archive
             // keeps that suffix); the extension under any .disabled picks the tool.
-            if (IsRar(archivePath)) return RarExtractor.Extract(archivePath, dest, report);
-            return SevenZipExtractor.Extract(archivePath, dest, report); // .zip and .7z
+            if (IsRar(archivePath)) return RarExtractor.Extract(archivePath, dest, report, cancelled);
+            return SevenZipExtractor.Extract(archivePath, dest, report, cancelled); // .zip and .7z
         }
 
         private static IEnumerable<string> SafeFiles(string dir)
@@ -190,7 +192,32 @@ namespace SilentHillPC_Launcher
 
         // --- scan / state -----------------------------------------------------
 
-        public bool AnyPending() { return PendingLibraryZips().Length > 0 || PendingArchives().Length > 0; }
+        /// <summary>An archive sitting in the mod folders that has not been materialized to a
+        /// folder yet. <see cref="Cheap"/> marks one whose unpacking is a plain byte copy with
+        /// no decompression, so it can run without asking the user first.</summary>
+        public class PendingItem
+        {
+            public string Path;         // the archive on disk
+            public bool   IsLibraryZip; // mods/<name>.zip → mods/<name>/ (vs a texture pack)
+            public bool   Cheap;        // fully-STORED zip: unpacking is a copy, not a decompress
+
+            public string Name { get { return System.IO.Path.GetFileName(Path); } }
+        }
+
+        /// <summary>Everything <see cref="Prepare"/> would unpack right now. Nothing here is
+        /// touched until the caller passes items back in — opening the manager must not start
+        /// unpacking on its own.</summary>
+        public List<PendingItem> PendingWork()
+        {
+            var list = new List<PendingItem>();
+            foreach (var z in PendingLibraryZips())
+                list.Add(new PendingItem { Path = z, IsLibraryZip = true, Cheap = IsFullyStoredZip(z) });
+            // Texture side: a fully-stored .zip is already excluded by PendingArchives()
+            // (the game reads it in place), so every entry left here really decompresses.
+            foreach (var a in PendingArchives())
+                list.Add(new PendingItem { Path = a, IsLibraryZip = false, Cheap = false });
+            return list;
+        }
 
         private string[] PendingLibraryZips()
         {
@@ -215,22 +242,33 @@ namespace SilentHillPC_Launcher
                             .ToArray();
         }
 
-        /// <summary>Extract pending library .zip mods (load/FMV) and .zip/.rar/.7z texture
-        /// packs, with progress.</summary>
-        public void Prepare(Action<int, int, string> report)
+        /// <summary>Unpack the given <see cref="PendingWork"/> items, with progress. Cancel is
+        /// cooperative and leaves nothing behind: the archive itself is never modified, and a
+        /// folder that was only partly written is deleted, so the next scan sees exactly the
+        /// state this one started from.</summary>
+        public void Prepare(IEnumerable<PendingItem> items, Action<int, int, string> report, Func<bool> cancelled)
         {
             Directory.CreateDirectory(ModsDir);
-            foreach (var zip in PendingLibraryZips())
-                ExtractZip(zip, Path.Combine(ModsDir, Path.GetFileNameWithoutExtension(zip)), report);
-            foreach (var arc in PendingArchives())
+            foreach (var it in items)
             {
-                string dest = ArchiveActiveFolder(arc);
+                if (cancelled != null && cancelled()) return;
+
+                string dest = it.IsLibraryZip
+                    ? Path.Combine(ModsDir, Path.GetFileNameWithoutExtension(it.Path))
+                    : ArchiveActiveFolder(it.Path);
+
+                bool ok;
                 try
                 {
-                    if (!ExtractArchive(arc, dest, report) && Directory.Exists(dest))
-                        Directory.Delete(dest, true); // partial/failed → drop it so it retries next open
+                    ok = it.IsLibraryZip ? ExtractZip(it.Path, dest, report, cancelled)
+                                         : ExtractArchive(it.Path, dest, report, cancelled);
                 }
-                catch { }
+                catch { ok = false; }
+
+                if (!ok && Directory.Exists(dest))
+                {
+                    try { Directory.Delete(dest, true); } catch { } // partial/failed/cancelled → drop it
+                }
             }
         }
 
@@ -478,42 +516,33 @@ namespace SilentHillPC_Launcher
 
         public enum ImportResult { Added, Skipped }
 
-        /// <summary>Route a dropped folder/.zip/.rar/.7z to texturemods/ (texture) or mods/ (load/FMV).</summary>
-        public ImportResult Import(string path, Action<int, int, string> report)
+        /// <summary>Route a dropped folder/.zip/.rar/.7z to texturemods/ (texture) or mods/ (load/FMV).
+        /// A cancelled folder copy deletes the half-copied destination and reports Skipped; the
+        /// dropped original is never touched.</summary>
+        public ImportResult Import(string path, Action<int, int, string> report, Func<bool> cancelled = null)
         {
             try
             {
                 ModType t = DetectDroppedType(path);
                 if (t == ModType.Unknown) return ImportResult.Skipped;
 
-                if (t == ModType.Texturemods)
-                {
-                    Directory.CreateDirectory(TexturemodsDir);
-                    if (Directory.Exists(path))
-                    {
-                        string dest = Path.Combine(TexturemodsDir, Path.GetFileName(path.TrimEnd('\\', '/')));
-                        if (!Directory.Exists(dest)) CopyTree(path, dest, report, "Importing " + Path.GetFileName(dest));
-                    }
-                    else
-                    {
-                        // An archive (.zip/.rar/.7z) — copy it in; Prepare() extracts it after.
-                        string dest = Path.Combine(TexturemodsDir, Path.GetFileName(path));
-                        if (report != null) report(0, 0, "Copying " + Path.GetFileName(path));
-                        if (!File.Exists(dest)) File.Copy(path, dest);
-                    }
-                    return ImportResult.Added;
-                }
+                string home = t == ModType.Texturemods ? TexturemodsDir : ModsDir;
+                Directory.CreateDirectory(home);
 
-                // Load / FMV → the mods/ library (extracted/scanned like before).
-                Directory.CreateDirectory(ModsDir);
                 if (Directory.Exists(path))
                 {
-                    string dest = Path.Combine(ModsDir, Path.GetFileName(path.TrimEnd('\\', '/')));
-                    if (!Directory.Exists(dest)) CopyTree(path, dest, report, "Importing " + Path.GetFileName(dest));
+                    string dest = Path.Combine(home, Path.GetFileName(path.TrimEnd('\\', '/')));
+                    if (!Directory.Exists(dest) &&
+                        !CopyTree(path, dest, report, "Importing " + Path.GetFileName(dest), cancelled))
+                    {
+                        try { Directory.Delete(dest, true); } catch { }
+                        return ImportResult.Skipped;
+                    }
                 }
                 else
                 {
-                    string dest = Path.Combine(ModsDir, Path.GetFileName(path));
+                    // An archive (.zip/.rar/.7z) — copy it in; Prepare() unpacks it after.
+                    string dest = Path.Combine(home, Path.GetFileName(path));
                     if (report != null) report(0, 0, "Copying " + Path.GetFileName(path));
                     if (!File.Exists(dest)) File.Copy(path, dest);
                 }
@@ -541,7 +570,7 @@ namespace SilentHillPC_Launcher
         /// <summary>Activate a texture pack so the game loads it. Archive (.zip/.rar/.7z):
         /// make its <c>.extracted</c> folder active, extracting on first use. Loose folder:
         /// drop the .disabled suffix.</summary>
-        public bool EnableTexture(ModEntry m, Action<int, int, string> report)
+        public bool EnableTexture(ModEntry m, Action<int, int, string> report, Func<bool> cancelled = null)
         {
             try
             {
@@ -552,7 +581,7 @@ namespace SilentHillPC_Launcher
                     if (!Directory.Exists(active))
                     {
                         if (Directory.Exists(off)) Directory.Move(off, active);
-                        else if (!ExtractArchive(m.LibraryPath, active, report))
+                        else if (!ExtractArchive(m.LibraryPath, active, report, cancelled))
                         {
                             if (Directory.Exists(active)) { try { Directory.Delete(active, true); } catch { } }
                             return false;
@@ -664,7 +693,7 @@ namespace SilentHillPC_Launcher
             public List<string> Warnings = new List<string>();
         }
 
-        public ApplyResult Apply(bool looseFileSupport, Action<int, int, string> report)
+        public ApplyResult Apply(bool looseFileSupport, Action<int, int, string> report, Func<bool> cancelled = null)
         {
             var result = new ApplyResult();
 
@@ -676,7 +705,16 @@ namespace SilentHillPC_Launcher
                 if (m.Enabled && !activeNow)
                 {
                     if (report != null) report(0, 0, "Enabling " + m.Label);
-                    if (!EnableTexture(m, report)) result.Warnings.Add(m.Label + ": enable failed");
+                    if (!EnableTexture(m, report, cancelled))
+                    {
+                        // Leave it OFF: a pack whose unpack failed or was cancelled has no
+                        // .extracted folder, and listing it in loadorder.txt would point the
+                        // game at a directory that isn't there.
+                        m.Enabled = false;
+                        result.Warnings.Add(m.Label + (cancelled != null && cancelled()
+                                                       ? ": unpack cancelled, left off"
+                                                       : ": enable failed"));
+                    }
                 }
                 else if (!m.Enabled && activeNow)
                 {
@@ -762,7 +800,10 @@ namespace SilentHillPC_Launcher
             return full.StartsWith(root, StringComparison.OrdinalIgnoreCase) ? full.Substring(root.Length) : full;
         }
 
-        private static void ExtractZip(string zip, string dest, Action<int, int, string> report)
+        /// <summary>Returns false if cancelled part-way (the caller deletes <paramref name="dest"/>).
+        /// The probe is checked between entries, never during one, so no file is left truncated.</summary>
+        private static bool ExtractZip(string zip, string dest, Action<int, int, string> report,
+                                       Func<bool> cancelled = null)
         {
             using (var za = ZipFile.OpenRead(zip))
             {
@@ -771,6 +812,7 @@ namespace SilentHillPC_Launcher
                 Directory.CreateDirectory(dest);
                 foreach (var entry in za.Entries)
                 {
+                    if (cancelled != null && cancelled()) return false;
                     i++;
                     if (report != null) report(i, total, string.Format("Extracting {0}  ({1}/{2})",
                         Path.GetFileName(zip), i, total));
@@ -781,9 +823,13 @@ namespace SilentHillPC_Launcher
                     entry.ExtractToFile(outPath, true);
                 }
             }
+            return true;
         }
 
-        private static void CopyTree(string src, string dst, Action<int, int, string> report = null, string label = null)
+        /// <summary>Returns false if cancelled part-way (checked between files, so no file is
+        /// left half-copied); the caller deletes <paramref name="dst"/>.</summary>
+        private static bool CopyTree(string src, string dst, Action<int, int, string> report = null,
+                                     string label = null, Func<bool> cancelled = null)
         {
             Directory.CreateDirectory(dst);
             foreach (var dir in Directory.GetDirectories(src, "*", SearchOption.AllDirectories))
@@ -791,9 +837,11 @@ namespace SilentHillPC_Launcher
             var files = Directory.GetFiles(src, "*", SearchOption.AllDirectories);
             for (int i = 0; i < files.Length; i++)
             {
+                if (cancelled != null && cancelled()) return false;
                 if (report != null) report(i + 1, files.Length, string.Format("{0}  ({1}/{2})", label ?? "Copying", i + 1, files.Length));
                 File.Copy(files[i], files[i].Replace(src, dst), true);
             }
+            return true;
         }
 
         private int CopyTreeTracked(string src, string dstRoot, List<string> manifest)

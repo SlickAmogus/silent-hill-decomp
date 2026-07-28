@@ -10,9 +10,10 @@ namespace SilentHillPC_Launcher
     /// thread so the manager window doesn't freeze. The work delegate is handed a
     /// <c>report(current, total, message)</c> callback: total &gt; 0 shows a
     /// determinate bar, total &lt;= 0 shows a marquee. Marshals every update back
-    /// to the UI thread. <see cref="Run"/> has no cancel — extraction/copy runs to
-    /// completion; <see cref="RunCancellable"/> adds a Cancel button and polls a
-    /// flag the work delegate is expected to check.
+    /// to the UI thread. <see cref="Run"/> has no cancel, so it is only for work that
+    /// is short or atomic; anything long or destructive uses <see cref="RunCancellable"/>,
+    /// which adds a Cancel button and polls a flag the work delegate must check at a
+    /// point where stopping leaves no half-written output.
     /// </summary>
     public class ProgressDialog : Form
     {

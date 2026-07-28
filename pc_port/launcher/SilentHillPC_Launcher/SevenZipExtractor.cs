@@ -110,8 +110,11 @@ namespace SilentHillPC_Launcher
 
         /// <summary>Extract every entry of <paramref name="archivePath"/> into
         /// <paramref name="destDir"/> (full paths preserved). Returns false on any
-        /// failure (missing tool, nonzero exit, exception).</summary>
-        public static bool Extract(string archivePath, string destDir, Action<int, int, string> report)
+        /// failure (missing tool, nonzero exit, exception, cancellation).
+        /// <paramref name="cancelled"/> kills 7za outright — the archive is only ever read,
+        /// so the worst it can leave is a partial destination the caller deletes.</summary>
+        public static bool Extract(string archivePath, string destDir, Action<int, int, string> report,
+                                   Func<bool> cancelled = null)
         {
             string exe = ResolveExe();
             if (exe == null) return false;
@@ -154,7 +157,17 @@ namespace SilentHillPC_Launcher
                     proc.Start();
                     proc.BeginOutputReadLine();
                     proc.BeginErrorReadLine();
-                    proc.WaitForExit();
+
+                    while (!proc.WaitForExit(150))
+                    {
+                        if (cancelled == null || !cancelled()) continue;
+                        try { proc.Kill(); } catch { }
+                        try { proc.WaitForExit(5000); } catch { }
+                        return false;
+                    }
+
+                    proc.WaitForExit(); // timed waits don't drain the async readers; this does
+
                     // 7-Zip exit codes: 0 = OK, 1 = warning (still usable), >=2 = error.
                     return proc.ExitCode == 0 || proc.ExitCode == 1;
                 }
