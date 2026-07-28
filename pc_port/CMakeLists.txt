@@ -4,6 +4,21 @@ project(SilentHillPC C CXX)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+# No CMAKE_BUILD_TYPE meant -O0 for the whole game (engine, PsyCross and every
+# map DLL), and release-nightly.ps1 ships this build dir -- so every release so
+# far was unoptimized. RelWithDebInfo keeps -g for the open crash
+# investigations. Callers who pass -DCMAKE_BUILD_TYPE explicitly still win.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
+    message(STATUS "CMAKE_BUILD_TYPE unset -> defaulting to RelWithDebInfo")
+endif()
+
+# The decomp is MIPS-faithful C: it type-puns through incompatible pointers and
+# relies on signed arithmetic wrapping the way the PSX did. Both are UB that an
+# optimizer is free to exploit, and -O0 was masking it. These two flags cost
+# almost nothing and keep the generated code honest to what the source means.
+add_compile_options(-fno-strict-aliasing -fwrapv)
+
 # Build everything position-independent. On Linux the map overlays are .so
 # shared objects that link the static psycross_static archive; linking a
 # static (non-PIC) archive into a shared object fails, so force PIC globally.
