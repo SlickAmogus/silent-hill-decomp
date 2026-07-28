@@ -719,62 +719,27 @@ namespace SilentHillPC_Launcher
             bool wholeOnly = false;
             if (pack != null && pack.SubRect > 0)
             {
-                string counts =
-                    "Of its " + pack.Total.ToString("N0") + " files, " +
-                    pack.WholeCover.ToString("N0") + " replace a whole texture" +
-                    (pack.WholeCoverPngs.Count == 0 && pack.WholeCover > 0 ? " (none still a .png)" : "") +
-                    " and\n" + pack.SubRect.ToString("N0") +
-                    " replace only a small region of one.\n";
-
-                string why =
-                    "BC7 .dds decodes about twice as fast as .png, so a converted pack loads\n" +
-                    "quicker, and it takes about 30% less disk space.\n";
-
-                string caveat =
-                    "Memory use only drops for the whole-texture files. A region file is\n" +
-                    "pasted onto the original texture first and the result is uploaded\n" +
-                    "uncompressed either way, so those cost the same as before.\n";
+                string head =
+                    "Texture pack: " + pack.Total.ToString("N0") + " files.\n\n" +
+                    "BC7 .dds loads about twice as fast as .png and uses ~30% less disk. " +
+                    "Memory use is unchanged.\n\n";
 
                 if (pack.WholeCoverPngs.Count > 0)
                 {
-                    var choice = MessageBox.Show(this,
-                        "This looks like a DuckStation texture pack. All of it converts — the\n" +
-                        "game loads .png and .dds alike.\n\n" + counts + "\n" + why + "\n" + caveat +
-                        "\nConverting is one-way if you delete the sources at the next prompt.\n\n" +
-                        "Yes    = convert every .png in the folder (recommended)\n" +
+                    var choice = MessageBox.Show(this, head +
+                        "Yes    = convert all of it (recommended)\n" +
                         "No     = convert only the " + pack.WholeCoverPngs.Count.ToString("N0") +
-                        " whole-texture files, leave the rest as .png\n" +
+                        " whole-texture files\n" +
                         "Cancel = do nothing",
                         "Convert folder → BC7", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Information,
                         MessageBoxDefaultButton.Button1);
                     if (choice == DialogResult.Cancel) return;
                     wholeOnly = choice == DialogResult.No;
-
-                    if (wholeOnly)
-                    {
-                        var sure = MessageBox.Show(this,
-                            "Convert only the " + pack.WholeCoverPngs.Count.ToString("N0") +
-                            " whole-texture files?\n\n" +
-                            "That is the smallest change: those are the ones that save memory,\n" +
-                            "and the other " + pack.SubRect.ToString("N0") +
-                            " files stay .png and keep loading at .png\n" +
-                            "speed. Converting the whole pack is usually the better option.",
-                            "Convert folder → BC7", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
-                            MessageBoxDefaultButton.Button1);
-                        if (sure != DialogResult.Yes) return;
-                    }
                 }
                 else
                 {
-                    var choice = MessageBox.Show(this,
-                        "This looks like a DuckStation texture pack. All of it converts — the\n" +
-                        "game loads .png and .dds alike.\n\n" + counts + "\n" + why + "\n" +
-                        "Memory use will not change: every one of these files is a region that\n" +
-                        "is pasted onto the original texture and uploaded uncompressed either\n" +
-                        "way. Converting is one-way if you delete the sources at the next\n" +
-                        "prompt.\n\n" +
-                        "Yes = convert every .png in the folder\n" +
-                        "No  = do nothing",
+                    var choice = MessageBox.Show(this, head +
+                        "Convert all of it?",
                         "Convert folder → BC7", MessageBoxButtons.YesNo, MessageBoxIcon.Information,
                         MessageBoxDefaultButton.Button1);
                     if (choice != DialogResult.Yes) return;
@@ -783,15 +748,13 @@ namespace SilentHillPC_Launcher
 
             var del = MessageBox.Show(this,
                 (wholeOnly
-                    ? "Only the " + pack.WholeCoverPngs.Count.ToString("N0") +
-                      " whole-texture .png files are converted; every other\nfile in the folder is left alone.\n\n"
+                    ? "Converting only the " + pack.WholeCoverPngs.Count.ToString("N0") +
+                      " whole-texture files; the rest are left alone.\n\n"
                     : "") +
                 "Delete each source .png after it converts?\n\n" +
-                "No  = keep both the .png and the new .dds\n" +
-                "Yes = keep only the .dds. Sources go to the Recycle Bin where Windows\n" +
-                "        allows it, but files on very long paths — common in texture\n" +
-                "        packs — are deleted permanently and cannot be recovered.\n\n" +
-                "The game uses a .dds only when the matching .png isn't also present.",
+                "No  = keep both. The game prefers the .dds, so the .png just takes space.\n" +
+                "Yes = keep only the .dds. Sources go to the Recycle Bin, except on very\n" +
+                "        long paths (common in packs) where deletion is permanent.",
                 "Convert folder → BC7", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question,
                 MessageBoxDefaultButton.Button2);
             if (del == DialogResult.Cancel) return;
