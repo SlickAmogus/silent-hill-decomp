@@ -1577,12 +1577,37 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     /* Camera "into the screen" yaw (world Q12 angle). Orbit cam =
                      * g_TpsCamYaw directly; fixed classic cam = the yaw from the
                      * camera toward Harry (its horizontal look direction). */
+                    static VECTOR3 s_2dPrevCamPos  = { 0, 0, 0 };
+                    static int     s_2dHavePrevCam = 0;
+                    static q3_12   s_2dBasisYaw    = 0;
+                    static int     s_2dValid       = 0;
+                    /* SH2 "2D control" cut rule: once a shot change happens with a
+                     * direction held, the basis stays latched until input returns to
+                     * neutral (see the basis block below). */
+                    static int     s_2dCutHold     = 0;
+                    static Uint32  s_2dLastRunMs   = 0;
                     q3_12 camYaw = g_TpsCamYaw;
                     int   camValid = 1;
-                    int   camCut   = 0; /* a real fixed-cam room CUT happened this frame */
+                    int   camCut   = 0; /* the fixed cam changed shot this frame (teleport OR fast swing) */
+
+                    /* This path stops running while aiming, in scripted scenes
+                     * (g_Player_DisableControl skips Player_LogicUpdate), in menus and
+                     * across room loads. After such a gap all camera history is stale —
+                     * a latched hold would steer by a camera from before the scene.
+                     * Drop everything and re-sample live. Short gaps (a few frames'
+                     * hitch) keep state, so a cut spanning a brief aim tap still
+                     * latches instead of flipping. */
+                    {
+                        Uint32 nowMs = SDL_GetTicks();
+                        if ((Uint32)(nowMs - s_2dLastRunMs) > 300) {
+                            s_2dValid       = 0;
+                            s_2dCutHold     = 0;
+                            s_2dHavePrevCam = 0;
+                        }
+                        s_2dLastRunMs = nowMs;
+                    }
+
                     if (!g_DebugThirdPersonCam) {
-                        static VECTOR3 s_2dPrevCamPos  = { 0, 0, 0 };
-                        static int     s_2dHavePrevCam = 0;
                         VECTOR3 camPos;
                         s32     dx, dz;
                         vwGetViewPosition(&camPos);
@@ -1593,38 +1618,60 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         else
                             camYaw = ratan2(dx, dz);
 
-                        /* Detect a room cut from the camera POSITION teleporting, NOT from
-                         * the bearing swinging. When Harry CIRCLES (holding left/right) his
-                         * own motion swings ratan2(HarryPos-camPos) fast even under a
-                         * perfectly static camera; that used to false-trip the basis hold
-                         * (>45°/frame on the bearing) and freeze a stale "forward", so the
-                         * next press turned him. The camera only jumps far in one frame on
-                         * an actual cut. */
+                        /* Detect a shot change from CAMERA motion only, never Harry's:
+                         * (a) the camera position teleporting — the classic hard cut;
+                         * (b) the basis swinging faster than any tracking dolly BECAUSE
+                         *     the camera moved — measured with Harry's position held
+                         *     fixed (both bearings use his CURRENT position), so his
+                         *     own running/circling contributes exactly zero and cannot
+                         *     false-trip the hold (the old >45°/frame bearing check
+                         *     tripped on circling; see d3bc008d2). (b) catches the
+                         *     eased-but-fast shot swings that never move far in any
+                         *     single frame. */
                         if (s_2dHavePrevCam) {
                             s32 cdx = camPos.vx - s_2dPrevCamPos.vx;
                             s32 cdz = camPos.vz - s_2dPrevCamPos.vz;
-                            if ((s64)cdx * cdx + (s64)cdz * cdz > (s64)Q12(3.0f) * Q12(3.0f))
+                            if ((s64)cdx * cdx + (s64)cdz * cdz > (s64)Q12(3.0f) * Q12(3.0f)) {
                                 camCut = 1;
+                            } else if (camValid && (cdx != 0 || cdz != 0)) {
+                                s32 pdx = player->position.vx - s_2dPrevCamPos.vx;
+                                s32 pdz = player->position.vz - s_2dPrevCamPos.vz;
+                                if (ABS(pdx) >= Q12(0.1f) || ABS(pdz) >= Q12(0.1f)) {
+                                    q3_12 swing = Math_AngleNormalizeSigned(camYaw - ratan2(pdx, pdz));
+                                    if (ABS(swing) > TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(20.0f)))
+                                        camCut = 1;
+                                }
+                            }
                         }
                         s_2dPrevCamPos  = camPos;
                         s_2dHavePrevCam = 1;
                     }
 
-                    /* Camera-cut handling (option b): track the live camera so "forward"
-                     * is always the CURRENT camera's into-screen, but hold the basis
-                     * across a real room CUT while a direction is held so the change
-                     * can't flip Harry mid-run; re-samples when the keys return to
-                     * neutral. Orbit cam never cuts, so it always tracks. */
+                    /* Camera-cut handling — the SH2(:EE) 2D-control rule: track the
+                     * live camera so "forward" is always the CURRENT shot's into-screen
+                     * (live tracking under a panning cam is what makes held left/right
+                     * arc), but the moment the shot changes while a direction is held,
+                     * LATCH the basis and keep it latched — through any number of
+                     * further cuts — until input returns to neutral. A held direction
+                     * keeps its world-space meaning across every cut, so ping-ponging
+                     * back and forth through a camera trigger cannot happen; the new
+                     * shot's mapping applies on the next press. (The previous code held
+                     * for a single frame only: camCut is an edge, so `track = !camCut`
+                     * re-sampled the flipped basis one frame after the cut with the key
+                     * still down — Harry reversed, re-crossed the trigger, and
+                     * ping-ponged.) Orbit cam never cuts, so it always tracks. */
                     {
-                        static q3_12 s_2dBasisYaw = 0;
-                        static int   s_2dValid    = 0;
+                        if (!anyInput || g_DebugThirdPersonCam) {
+                            s_2dCutHold = 0;
+                        } else if (camCut && s_2dValid && !s_2dCutHold) {
+                            s_2dCutHold = 1;
+                            SH_DBG("[2DCUT] basis latched at %d (live cam %d) until input neutral",
+                                   (int)s_2dBasisYaw, (int)camYaw);
+                        }
 
-                        if (camValid) {
-                            int track = !anyInput || !s_2dValid || g_DebugThirdPersonCam || !camCut;
-                            if (track) {
-                                s_2dBasisYaw = camYaw;
-                                s_2dValid    = 1;
-                            }
+                        if (camValid && !s_2dCutHold) {
+                            s_2dBasisYaw = camYaw;
+                            s_2dValid    = 1;
                         }
 
                         if (anyInput && s_2dValid) {
