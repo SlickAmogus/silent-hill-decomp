@@ -48,6 +48,9 @@
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
+    <!-- Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile is the only in-box way
+         to send a file to the Recycle Bin (DdsConverter's delete-source path). -->
+    <Reference Include="Microsoft.VisualBasic" />
     <Reference Include="System.Data" />
     <Reference Include="System.Deployment" />
     <Reference Include="System.Drawing" />

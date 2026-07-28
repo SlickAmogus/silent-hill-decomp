@@ -702,10 +702,13 @@ namespace SilentHillPC_Launcher
 
             var del = MessageBox.Show(this,
                 "Delete each source .png after it converts?\n\n" +
-                "Yes = keep only the .dds (recommended — the game uses the .dds only when the\n" +
-                "        .png isn't also present)\n" +
-                "No  = keep both the .png and the new .dds",
-                "Convert folder → BC7", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                "No  = keep both the .png and the new .dds\n" +
+                "Yes = keep only the .dds. Sources go to the Recycle Bin where Windows\n" +
+                "        allows it, but files on very long paths — common in texture\n" +
+                "        packs — are deleted permanently and cannot be recovered.\n\n" +
+                "The game uses a .dds only when the matching .png isn't also present.",
+                "Convert folder → BC7", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question,
+                MessageBoxDefaultButton.Button2);
             if (del == DialogResult.Cancel) return;
             bool deleteSource = del == DialogResult.Yes;
 
