@@ -717,10 +717,27 @@ namespace SilentHillPC_Launcher
             catch { pack = null; }
 
             bool wholeOnly = false;
+
+            /* Total counts pack entries whatever the extension, so an already-converted
+             * folder still reports thousands of files with nothing left to encode. Say
+             * that instead of running a conversion that reports "0 converted". */
+            if (pack != null && pack.Total > 0 && pack.Pngs == 0)
+            {
+                MessageBox.Show(this,
+                    "Nothing to convert — all " + pack.Total.ToString("N0") +
+                    " files here are already .dds.\n\n" +
+                    "To start over, delete this folder and re-extract the pack from its archive.",
+                    "Convert folder → BC7", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
             if (pack != null && pack.SubRect > 0)
             {
                 string head =
-                    "Texture pack: " + pack.Total.ToString("N0") + " files.\n\n" +
+                    "Texture pack: " + pack.Pngs.ToString("N0") + " .png to convert" +
+                    (pack.Total > pack.Pngs
+                        ? " (" + (pack.Total - pack.Pngs).ToString("N0") + " already .dds)"
+                        : "") + ".\n\n" +
                     "BC7 .dds loads about twice as fast as .png and uses ~30% less disk. " +
                     "Memory use is unchanged.\n\n";
 

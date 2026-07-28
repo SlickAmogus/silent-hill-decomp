@@ -574,6 +574,10 @@ namespace SilentHillPC_Launcher
             /// <summary>The whole-cover entries that are still .png, i.e. the exact set
             /// a whole-texture-only conversion may touch.</summary>
             public readonly List<string> WholeCoverPngs = new List<string>();
+            /// <summary>Sources a conversion could actually consume. Total counts pack
+            /// ENTRIES whatever their extension, so an already-converted folder still
+            /// reports thousands of files while having nothing left to encode.</summary>
+            public int Pngs;
         }
 
         private static readonly string[] ModeNames =
@@ -753,6 +757,7 @@ namespace SilentHillPC_Launcher
 
                     if (!EntryTitle(name, out title, out isDds)) continue;
                     a.Total++;
+                    if (!isDds) a.Pngs++;
 
                     PackEntryName e;
                     if (!ParseEntryName(title, out e)) { a.Unparsed++; continue; }
