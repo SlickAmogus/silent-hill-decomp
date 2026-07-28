@@ -175,16 +175,16 @@ namespace SilentHillPC_Launcher
             ddsMenu.Items.Add("Convert folder → BC7…", null, (s, e) => OnDdsFolder());
             btnDds.Click += (s, e) => ddsMenu.Show(btnDds, new Point(0, btnDds.Height));
             _btnTips.SetToolTip(btnDds,
-                "PNG ↔ BC7 .dds (via texconv). BC7 is 4x cheaper in VRAM than an RGBA " +
-                "pack, with a real 8-bit alpha the cutout needs.\n\n" +
-                "PNG → BC7 DDS: convert one or more .png to .dds beside them (full mip " +
-                "chain — required, or the texture renders black).\n" +
+                "PNG ↔ BC7 .dds (via texconv). BC7 decodes about twice as fast as .png " +
+                "and keeps a real 8-bit alpha the cutout needs; a whole-texture " +
+                "replacement is also 4x cheaper in VRAM.\n\n" +
+                "PNG → BC7 DDS: convert one or more .png to .dds beside them.\n" +
                 "DDS → PNG: decode a .dds back to .png to inspect or edit.\n" +
                 "Convert folder → BC7: convert every .png under a folder (a whole pack) " +
                 "to .dds; offers to remove the source .png so the game uses the .dds. A " +
-                "DuckStation pack is checked first — those replace small regions of a " +
-                "texture, which .dds cannot do, so only the whole-texture files convert.\n\n" +
-                "Works for loose overrides and whole-texture DuckStation pack entries; the " +
+                "DuckStation pack is classified first so its whole-texture entries keep " +
+                "a mip chain and its region entries are written single-level.\n\n" +
+                "Works for loose overrides and every kind of DuckStation pack entry; the " +
                 "GPU must support BC7 (any card since ~2010).");
             Controls.Add(btnDds);
 
@@ -690,11 +690,11 @@ namespace SilentHillPC_Launcher
         /// .dds beside it (a whole pack at once), optionally removing the source PNGs
         /// so the game takes the .dds path.
         ///
-        /// GUARDRAIL: a DuckStation pack is overwhelmingly sub-rect patches, which the
-        /// engine can only apply as plain pixels — converting those to .dds destroys
-        /// the pack (and with "delete sources", the working PNGs with it). The folder
-        /// is classified BEFORE anything is written, and a pack with sub-rects gets a
-        /// dialog whose default converts only the whole-texture entries.</summary>
+        /// The folder is classified BEFORE anything is written, but no longer as a
+        /// guardrail: since the engine gained CPU BC7 decoding, sub-rect entries
+        /// composite normally and the whole pack converts. The classification now
+        /// drives the mip decision (whole-cover keeps its chain, the rest is encoded
+        /// single-level) and the informational counts in the dialog.</summary>
         private void OnDdsFolder()
         {
             if (!DdsReady()) return;
@@ -727,54 +727,56 @@ namespace SilentHillPC_Launcher
                     " replace only a small region of one.\n";
 
                 string why =
-                    "The game can load a .dds only when the file replaces a WHOLE texture. A\n" +
-                    "region file has to be pasted onto the original texture first, and that\n" +
-                    "compositor works on plain pixels — it cannot read compressed .dds data, so\n" +
-                    "a converted region file is silently ignored and that part of the texture\n" +
-                    "reverts to the PS1 original. BC7 saves no memory on them either: the\n" +
-                    "pasted-together result is uploaded uncompressed regardless.\n";
+                    "BC7 .dds decodes about twice as fast as .png, so a converted pack loads\n" +
+                    "quicker, and it takes about 30% less disk space.\n";
 
-                string stillWorks =
-                    "only " + pack.UsableGroups.ToString("N0") + " of the " +
-                    pack.Groups.ToString("N0") + " textures this pack replaces would still work";
+                string caveat =
+                    "Memory use only drops for the whole-texture files. A region file is\n" +
+                    "pasted onto the original texture first and the result is uploaded\n" +
+                    "uncompressed either way, so those cost the same as before.\n";
 
                 if (pack.WholeCoverPngs.Count > 0)
                 {
                     var choice = MessageBox.Show(this,
-                        "This looks like a DuckStation texture pack, and most of it cannot be\n" +
-                        "converted.\n\n" + counts + "\n" + why + "\n" +
-                        "Converting only the whole-texture files leaves every region .png\n" +
-                        "untouched, so the pack keeps working.\n\n" +
-                        "Yes    = convert only the " + pack.WholeCoverPngs.Count.ToString("N0") +
-                        " whole-texture files (recommended)\n" +
-                        "No     = convert every .png anyway\n" +
+                        "This looks like a DuckStation texture pack. All of it converts — the\n" +
+                        "game loads .png and .dds alike.\n\n" + counts + "\n" + why + "\n" + caveat +
+                        "\nConverting is one-way if you delete the sources at the next prompt.\n\n" +
+                        "Yes    = convert every .png in the folder (recommended)\n" +
+                        "No     = convert only the " + pack.WholeCoverPngs.Count.ToString("N0") +
+                        " whole-texture files, leave the rest as .png\n" +
                         "Cancel = do nothing",
-                        "Convert folder → BC7", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning,
+                        "Convert folder → BC7", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Information,
                         MessageBoxDefaultButton.Button1);
                     if (choice == DialogResult.Cancel) return;
-                    wholeOnly = choice == DialogResult.Yes;
+                    wholeOnly = choice == DialogResult.No;
 
-                    if (!wholeOnly)
+                    if (wholeOnly)
                     {
                         var sure = MessageBox.Show(this,
-                            "Convert every .png in this folder anyway?\n\n" +
-                            "Afterwards " + stillWorks + " — the rest fall back to the PS1\n" +
-                            "originals, and the " + pack.SubRect.ToString("N0") +
-                            " region files are converted for nothing.",
-                            "Convert folder → BC7", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
-                            MessageBoxDefaultButton.Button2);
+                            "Convert only the " + pack.WholeCoverPngs.Count.ToString("N0") +
+                            " whole-texture files?\n\n" +
+                            "That is the smallest change: those are the ones that save memory,\n" +
+                            "and the other " + pack.SubRect.ToString("N0") +
+                            " files stay .png and keep loading at .png\n" +
+                            "speed. Converting the whole pack is usually the better option.",
+                            "Convert folder → BC7", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                            MessageBoxDefaultButton.Button1);
                         if (sure != DialogResult.Yes) return;
                     }
                 }
                 else
                 {
                     var choice = MessageBox.Show(this,
-                        "This looks like a DuckStation texture pack, and nothing in it can be\n" +
-                        "usefully converted.\n\n" + counts + "\n" + why + "\n" +
-                        "Yes = convert every .png anyway — afterwards " + stillWorks + "\n" +
+                        "This looks like a DuckStation texture pack. All of it converts — the\n" +
+                        "game loads .png and .dds alike.\n\n" + counts + "\n" + why + "\n" +
+                        "Memory use will not change: every one of these files is a region that\n" +
+                        "is pasted onto the original texture and uploaded uncompressed either\n" +
+                        "way. Converting is one-way if you delete the sources at the next\n" +
+                        "prompt.\n\n" +
+                        "Yes = convert every .png in the folder\n" +
                         "No  = do nothing",
-                        "Convert folder → BC7", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
-                        MessageBoxDefaultButton.Button2);
+                        "Convert folder → BC7", MessageBoxButtons.YesNo, MessageBoxIcon.Information,
+                        MessageBoxDefaultButton.Button1);
                     if (choice != DialogResult.Yes) return;
                 }
             }
@@ -801,14 +803,17 @@ namespace SilentHillPC_Launcher
             {
                 // The whole-cover run hands EncodeFiles an explicit source list, so
                 // delete-source can only ever reach a file that was converted — a
-                // skipped region .png is not in the list at all.
+                // skipped region .png is not in the list at all. Those entries take
+                // the compressed upload path, so they need the full mip chain.
                 if (wholeOnly)
                     ProgressDialog.Run(this, "Encoding whole textures to BC7…",
-                        r => DdsConverter.EncodeFiles(pack.WholeCoverPngs, deleteSource, r,
+                        r => DdsConverter.EncodeFiles(pack.WholeCoverPngs, deleteSource, true, r,
                                                       out converted, out failed, out firstError));
                 else
                     ProgressDialog.Run(this, "Encoding textures to BC7…",
-                        r => DdsConverter.EncodeFolder(folder, deleteSource, r, out converted, out failed, out firstError));
+                        r => DdsConverter.EncodeFolder(folder, deleteSource,
+                                                      pack != null ? pack.WholeCoverPngs : null, r,
+                                                      out converted, out failed, out firstError));
             }
             catch (Exception ex)
             {

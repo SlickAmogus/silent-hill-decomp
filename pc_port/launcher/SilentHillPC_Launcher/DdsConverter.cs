@@ -15,9 +15,19 @@ namespace SilentHillPC_Launcher
     /// surface to fail on a user's machine.
     ///
     /// BC7 keeps a real 8-bit alpha (needed for the override shader's alpha&lt;0.5
-    /// cutout — BC1/DXT1 would wreck it), and the FULL mip chain (-m 0) is
-    /// MANDATORY: the game uploads the file's own mips level-by-level, and a
-    /// single-level .dds pins GL_TEXTURE_MAX_LEVEL 0 and renders black.
+    /// cutout — BC1/DXT1 would wreck it).
+    ///
+    /// MIP CHAINS ARE PER-ENTRY, not global. glGenerateMipmap is invalid on a
+    /// compressed texture (it fails silently black), so a file that uploads
+    /// COMPRESSED must carry its own chain — that is the whole-cover fast path in
+    /// TexPack_Compose, and those get -m 0. Everything else is composited: the
+    /// sub-rect blitter cannot paste BC7 blocks, so tex_pack.c hands the file to
+    /// Dds_DecodeRgba, which decodes LEVEL 0 ONLY and ignores the rest. A mip chain
+    /// on a sub-rect entry is dead weight — a measured 25% of the file — so those
+    /// get -m 1. A single-level file is safe even if it somehow did reach the
+    /// compressed uploader: dds_load.c pins GL_TEXTURE_MAX_LEVEL 0 and drops
+    /// MIN_FILTER to the non-mipmap form, which renders correctly, just unfiltered
+    /// at distance.
     ///
     /// PATH HANDLING: DuckStation packs pair ~110-char texupload-* hash names
     /// with users' deeply nested extract folders, so full paths routinely pass
@@ -262,13 +272,19 @@ namespace SilentHillPC_Launcher
         }
 
         /// <summary>Convert sources via the short-temp shuffle, chunked. decode=false
-        /// is PNG-&gt;BC7 .dds, decode=true is .dds-&gt;PNG. dstDirOf maps a source to
-        /// its output directory. onConverted fires per successful source (used for
-        /// delete-source). The output keeps the exact source basename with only the
-        /// extension swapped — the engine matches textures by parsing that name.</summary>
+        /// is PNG-&gt;BC7 .dds, decode=true is .dds-&gt;PNG. fullMips picks -m 0 vs -m 1
+        /// (see the class remarks). dstDirOf maps a source to its output directory.
+        /// onConverted fires per successful source (used for delete-source). The
+        /// output keeps the exact source basename with only the extension swapped —
+        /// the engine matches textures by parsing that name.
+        ///
+        /// doneBase/totalOverride let a caller run several passes behind ONE progress
+        /// bar; pass 0/0 for a standalone run.</summary>
         private static void ConvertMany(List<string> sources, Func<string, string> dstDirOf,
-                                        bool decode, Action<int, int, string> report,
+                                        bool decode, bool fullMips,
+                                        Action<int, int, string> report,
                                         Action<string> onConverted,
+                                        int doneBase, int totalOverride,
                                         out int converted, out int failed, out string firstError)
         {
             converted  = 0;
@@ -277,6 +293,7 @@ namespace SilentHillPC_Launcher
 
             string inExt   = decode ? ".dds" : ".png";
             string outExt  = decode ? ".png" : ".dds";
+            int    total   = totalOverride > 0 ? totalOverride : sources.Count;
             // --ignore-srgb is MANDATORY on the encode. DuckStation packs write PNGs
             // carrying an sRGB chunk (intent 0) + gAMA 45455, so WIC hands texconv a
             // *_UNORM_SRGB source; DirectXTex then does a metadata-driven sRGB->linear
@@ -286,7 +303,8 @@ namespace SilentHillPC_Launcher
             // would re-darken at sample time), so the fix is to keep the output at
             // dxgi 98 and stop the conversion — NOT to tag the file _SRGB.
             string convArg = decode ? "-nologo -ft png -y -o o"
-                                    : "-nologo -f BC7_UNORM -m 0 --ignore-srgb -y -o o";
+                                    : "-nologo -f BC7_UNORM " + (fullMips ? "-m 0" : "-m 1") +
+                                      " --ignore-srgb -y -o o";
             int done = 0;
 
             for (int start = 0; start < sources.Count; start += ChunkSize)
@@ -330,9 +348,9 @@ namespace SilentHillPC_Launcher
                     }
 
                     if (report != null && jobs.Count > 0)
-                        report(done + 1, sources.Count,
-                               (decode ? "Decoding " : "Encoding ") +
-                               Path.GetFileName(jobs[0].Src) + "  (" + (done + 1) + "/" + sources.Count + ")");
+                        report(doneBase + done + 1, total,
+                               (decode ? "Decoding " : "Encoding ") + Path.GetFileName(jobs[0].Src) +
+                               "  (" + (doneBase + done + 1) + "/" + total + ")");
 
                     string output;
                     Run(sb.ToString(), workDir, out output);
@@ -374,9 +392,9 @@ namespace SilentHillPC_Launcher
                         }
 
                         if (report != null)
-                            report(done, sources.Count,
-                                   (decode ? "Decoding " : "Encoding ") +
-                                   Path.GetFileName(job.Src) + "  (" + done + "/" + sources.Count + ")");
+                            report(doneBase + done, total,
+                                   (decode ? "Decoding " : "Encoding ") + Path.GetFileName(job.Src) +
+                                   "  (" + (doneBase + done) + "/" + total + ")");
                     }
                 }
                 catch (Exception ex)
@@ -397,13 +415,16 @@ namespace SilentHillPC_Launcher
             }
         }
 
-        /// <summary>Encode one PNG to a BC7 .dds (full mip chain) in <paramref
-        /// name="outDir"/>. The base name is kept, so FOO.TIM.p00.png ->
-        /// FOO.TIM.p00.dds. Returns false + a message on failure.</summary>
+        /// <summary>Encode one PNG to a BC7 .dds in <paramref name="outDir"/>. The base
+        /// name is kept, so FOO.TIM.p00.png -> FOO.TIM.p00.dds. Returns false + a
+        /// message on failure.
+        ///
+        /// Always the FULL mip chain: a hand-picked file is typically a loose override
+        /// that uploads compressed, and nothing here knows otherwise.</summary>
         public static bool EncodePng(string pngPath, string outDir, out string error)
         {
             int converted, failed;
-            ConvertMany(new List<string> { pngPath }, _ => outDir, false, null, null,
+            ConvertMany(new List<string> { pngPath }, _ => outDir, false, true, null, null, 0, 0,
                         out converted, out failed, out error);
             return failed == 0 && converted == 1;
         }
@@ -412,7 +433,7 @@ namespace SilentHillPC_Launcher
         public static bool DecodeDds(string ddsPath, string outDir, out string error)
         {
             int converted, failed;
-            ConvertMany(new List<string> { ddsPath }, _ => outDir, true, null, null,
+            ConvertMany(new List<string> { ddsPath }, _ => outDir, true, true, null, null, 0, 0,
                         out converted, out failed, out error);
             return failed == 0 && converted == 1;
         }
@@ -421,8 +442,15 @@ namespace SilentHillPC_Launcher
         /// .dds beside it (recursive). When <paramref name="deleteSource"/>, each
         /// source .png that converted is removed — the game only takes the .dds fast
         /// path when the .png isn't also present. Returns (converted, failed);
-        /// <paramref name="firstError"/> holds the first failure message.</summary>
+        /// <paramref name="firstError"/> holds the first failure message.
+        ///
+        /// <paramref name="wholeCoverPngs"/> is the subset that can upload COMPRESSED
+        /// and therefore needs a real mip chain (PackAnalysis.WholeCoverPngs).
+        /// Everything else is only ever CPU-decoded at level 0, so it is encoded
+        /// single-level. Pass null when the folder was not analysed — then every file
+        /// keeps the full chain, which is never wrong, only bigger.</summary>
         public static void EncodeFolder(string folder, bool deleteSource,
+                                        ICollection<string> wholeCoverPngs,
                                         Action<int, int, string> report,
                                         out int converted, out int failed, out string firstError)
         {
@@ -441,23 +469,61 @@ namespace SilentHillPC_Launcher
             }
             catch (Exception ex) { firstError = ex.Message; return; }
 
-            EncodeFiles(pngs, deleteSource, report, out converted, out failed, out firstError);
+            if (wholeCoverPngs == null || wholeCoverPngs.Count == 0)
+            {
+                EncodeFiles(pngs, deleteSource, true, report, out converted, out failed, out firstError);
+                return;
+            }
+
+            var whole  = new HashSet<string>(wholeCoverPngs, StringComparer.OrdinalIgnoreCase);
+            var mipped = new List<string>();
+            var flat   = new List<string>();
+            foreach (var p in pngs)
+            {
+                if (whole.Contains(p)) mipped.Add(p);
+                else                   flat.Add(p);
+            }
+
+            // texconv takes one -m per invocation, so this is two passes sharing one
+            // progress bar. Failures accumulate; the first message wins.
+            int c1, f1, c2 = 0, f2 = 0;
+            string e1, e2 = null;
+            EncodePass(mipped, deleteSource, true, report, 0, pngs.Count, out c1, out f1, out e1);
+            if (flat.Count > 0)
+                EncodePass(flat, deleteSource, false, report, mipped.Count, pngs.Count,
+                           out c2, out f2, out e2);
+
+            converted  = c1 + c2;
+            failed     = f1 + f2;
+            firstError = e1 ?? e2;
         }
 
         /// <summary>Batch-encode an explicit list of .png sources to a BC7 .dds beside
         /// each one. <paramref name="deleteSource"/> removes ONLY the sources that
         /// actually converted — a file that was never in <paramref name="sources"/>,
         /// or that failed, is never touched. This is what makes the whole-texture-only
-        /// pack run safe: every sub-rect .png the caller left out survives.</summary>
-        public static void EncodeFiles(List<string> sources, bool deleteSource,
+        /// pack run safe: every sub-rect .png the caller left out survives.
+        ///
+        /// <paramref name="fullMips"/> must be true for any source that could upload
+        /// compressed (a whole-cover pack entry or a loose override).</summary>
+        public static void EncodeFiles(List<string> sources, bool deleteSource, bool fullMips,
                                        Action<int, int, string> report,
+                                       out int converted, out int failed, out string firstError)
+        {
+            EncodePass(sources, deleteSource, fullMips, report, 0, 0,
+                       out converted, out failed, out firstError);
+        }
+
+        private static void EncodePass(List<string> sources, bool deleteSource, bool fullMips,
+                                       Action<int, int, string> report, int doneBase, int totalOverride,
                                        out int converted, out int failed, out string firstError)
         {
             Action<string> onConverted = null;
             if (deleteSource)
                 onConverted = src => { try { LongDelete(src); } catch { /* leave the png if locked */ } };
 
-            ConvertMany(sources, src => Path.GetDirectoryName(src), false, report, onConverted,
+            ConvertMany(sources, src => Path.GetDirectoryName(src), false, fullMips, report,
+                        onConverted, doneBase, totalOverride,
                         out converted, out failed, out firstError);
         }
 
@@ -468,13 +534,17 @@ namespace SilentHillPC_Launcher
         // its files patch a small sub-rect of one VRAM upload, and the engine
         // composites them onto an upscaled copy of the native texture
         // (TexPack_Compose, pc_port/src/tex_pack.c). That compositor is an RGBA
-        // blitter — a compressed sub-rect cannot be blitted, so converting one to
-        // .dds makes it silently do nothing. Only a single entry covering the whole
-        // native texture takes the compressed whole-upload fast path.
+        // blitter, so a sub-rect .dds is decoded to RGBA on the CPU first
+        // (Dds_DecodeRgba) and then blitted like any .png — it loads fine, it just
+        // cannot stay compressed. Only a single entry covering the whole native
+        // texture takes the compressed whole-upload fast path, so only those save
+        // VRAM and only those need a mip chain.
         //
-        // The parser below is a LITERAL port of tex_pack.c's ParseName/Mode_Bpp and
-        // of the whole-cover test in TexPack_Compose. It must stay a mirror: if the
-        // engine grammar changes, change it here too and re-run AnalyzeSelfTest.
+        // The classification therefore drives the mip decision and the informational
+        // counts, NOT whether a file works. The parser is a LITERAL port of
+        // tex_pack.c's ParseName/Mode_Bpp and of the whole-cover test in
+        // TexPack_Compose. It must stay a mirror: if the engine grammar changes,
+        // change it here too and re-run AnalyzeSelfTest.
         // ------------------------------------------------------------------
 
         /// <summary>What a folder of pack files actually contains.
@@ -483,18 +553,21 @@ namespace SilentHillPC_Launcher
         {
             /// <summary>.png/.dds files whose name the engine would even look at.</summary>
             public int Total;
-            /// <summary>Entries replacing an entire native texture — .dds-safe.</summary>
+            /// <summary>Entries replacing an entire native texture — these upload
+            /// compressed, so they save VRAM and need a full mip chain.</summary>
             public int WholeCover;
-            /// <summary>Entries patching a sub-rect — .dds would be ignored by the engine.</summary>
+            /// <summary>Entries patching a sub-rect — composited, so a .dds is decoded
+            /// to RGBA (level 0 only) before it is blitted.</summary>
             public int SubRect;
             /// <summary>Distinct (source texture, bpp, palette) uploads the pack touches.</summary>
             public int Groups;
-            /// <summary>Groups that would still work after a full .dds conversion: the
-            /// compressed fast path needs matchCount == 1, so EVERY entry in the group
-            /// must be whole-cover. One entry qualifies outright; several qualify only
-            /// because TexPack_Compose's DDS-first pass collapses whole-cover twins
-            /// (Mode_Bpp masks the ST bit, so a P4 and its STP4 twin are one group).
-            /// A group holding even one sub-rect is dead once its .png is gone.</summary>
+            /// <summary>Groups that can take the compressed whole-upload path once
+            /// converted, i.e. the ones that actually save VRAM: the fast path needs
+            /// matchCount == 1, so EVERY entry in the group must be whole-cover. One
+            /// entry qualifies outright; several qualify only because TexPack_Compose's
+            /// DDS-first pass collapses whole-cover twins (Mode_Bpp masks the ST bit,
+            /// so a P4 and its STP4 twin are one group). A group holding even one
+            /// sub-rect is composited and costs full RGBA either way.</summary>
             public int UsableGroups;
             /// <summary>Named like a pack file but rejected by the grammar.</summary>
             public int Unparsed;
