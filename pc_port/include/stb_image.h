@@ -583,6 +583,16 @@ STBIDEF int   stbi_zlib_decode_noheader_buffer(char *obuffer, int olen, const ch
 #define STBI_NO_ZLIB
 #endif
 
+/* SH_PC_PORT LOCAL PATCH (1 of 2; the other is the IDAT call site in
+ * stbi__parse_png_file). Upstream stb hard-codes its own inflate for PNG IDAT
+ * streams and offers no hook. Texture packs decode thousands of PNGs and that
+ * inflate is the single largest cost, so define STBI_PNG_ZLIB_DECODE to a
+ * function with the same signature to substitute a faster one. Re-apply both
+ * hunks when updating stb_image.h. */
+#ifndef STBI_PNG_ZLIB_DECODE
+#define STBI_PNG_ZLIB_DECODE stbi_zlib_decode_malloc_guesssize_headerflag
+#endif
+
 
 #include <stdarg.h>
 #include <stddef.h> // ptrdiff_t on osx
@@ -5204,7 +5214,8 @@ static int stbi__parse_png_file(stbi__png *z, int scan, int req_comp)
             // initial guess for decoded data size to avoid unnecessary reallocs
             bpl = (s->img_x * z->depth + 7) / 8; // bytes per line, per component
             raw_len = bpl * s->img_y * s->img_n /* pixels */ + s->img_y /* filter mode per row */;
-            z->expanded = (stbi_uc *) stbi_zlib_decode_malloc_guesssize_headerflag((char *) z->idata, ioff, raw_len, (int *) &raw_len, !is_iphone);
+            /* SH_PC_PORT LOCAL PATCH (2 of 2) — see STBI_PNG_ZLIB_DECODE above. */
+            z->expanded = (stbi_uc *) STBI_PNG_ZLIB_DECODE((char *) z->idata, ioff, raw_len, (int *) &raw_len, !is_iphone);
             if (z->expanded == NULL) return 0; // zlib should set error
             STBI_FREE(z->idata); z->idata = NULL;
             if ((req_comp == s->img_n+1 && req_comp != 3 && !pal_img_n) || has_trans)
