@@ -464,6 +464,56 @@ static int Loose_ResolveWhole(const char* base, char* out, size_t outSize)
     }
     return 0;
 }
+
+/* True when ANY loose override form exists for a base disc path: the byte-
+ * replace file itself, plus — for TIM reads only, mirroring the probe gate in
+ * Fs_QueueTickRead — the whole-image {base}/{stem} .png/.dds and the {base}.p00
+ * per-CLUT-row sentinel. This only picks WHICH of two candidate names for the
+ * same read carries a mod (a PAL localized file's real disc name vs its
+ * US-canonical table name); the exact form is resolved by the unchanged probe
+ * chain afterwards. */
+static int Loose_AnyForm(const char* base, int allowImageForms)
+{
+    static const char* const imageSfx[] = { ".png", ".dds", ".p00.png", ".p00.dds" };
+    char   p[176];
+    FILE*  f;
+    size_t i;
+
+    if (base == NULL || base[0] == '\0') return 0;
+
+    f = Loose_FOpen(base, "rb");
+    if (f != NULL) { fclose(f); return 1; }
+
+    if (!allowImageForms) return 0;
+
+    for (i = 0; i < sizeof(imageSfx) / sizeof(imageSfx[0]); i++)
+    {
+        snprintf(p, sizeof(p), "%s%s", base, imageSfx[i]);
+        f = Loose_FOpen(p, "rb");
+        if (f != NULL) { fclose(f); return 1; }
+    }
+
+    {
+        const char* slash = strrchr(base, '/');
+        const char* fname = slash ? slash + 1 : base;
+        const char* dot   = strchr(fname, '.');
+        if (dot != NULL && dot != fname)
+        {
+            size_t stemLen = (size_t)(dot - base);
+            char   stem[160];
+            if (stemLen >= sizeof(stem)) stemLen = sizeof(stem) - 1;
+            memcpy(stem, base, stemLen);
+            stem[stemLen] = '\0';
+            snprintf(p, sizeof(p), "%s.dds", stem);
+            f = Loose_FOpen(p, "rb");
+            if (f != NULL) { fclose(f); return 1; }
+            snprintf(p, sizeof(p), "%s.png", stem);
+            f = Loose_FOpen(p, "rb");
+            if (f != NULL) { fclose(f); return 1; }
+        }
+    }
+    return 0;
+}
 #endif
 
 #ifdef SH_PC_PORT
@@ -548,6 +598,42 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
         /* Use forward slashes — fopen on mingw accepts them. */
         snprintf(loosePath, sizeof(loosePath), "gamedata/load/%s/%s",
                  strippedFolder, nameBuf);
+
+        /* Region-renamed asset. g_FileTable is US-canonical, but PAL keeps the
+         * localized map overlays in VIN2..VIN5 and stamps a language letter into
+         * the death-hint TIMs, so on a non-English PAL disc the name above is a
+         * DIFFERENT file — the English original. An extracted PAL tree dropped
+         * into gamedata/load/ carries the real names, which were unreachable;
+         * worse, serving the English file for a German read would silently
+         * un-localize the game, so the real disc name wins when it carries an
+         * override. Fs_GetRegionFilePath reports no difference on USA, on JPN
+         * (its table is name-identical to USA at every index) and on English
+         * PAL, so those paths issue no extra fopen at all. */
+        if (FSQ_INFO_VALID(file))
+        {
+            const char* regionDir = NULL;
+            char        regionName[32];
+
+            if (Fs_GetRegionFilePath((s32)(file - &g_FileTable[0]), &regionDir, regionName))
+            {
+                char regionPath[160];
+
+                snprintf(regionPath, sizeof(regionPath), "gamedata/load/%s/%s",
+                         regionDir, regionName);
+                if (Loose_AnyForm(regionPath, entry->postLoad == FsQueuePostLoadType_Tim))
+                {
+                    static int s_regionLogged = 0;
+                    if (s_regionLogged < 32)
+                    {
+                        s_regionLogged++;
+                        SH_DBG("[LOOSE/REGION] %s overrides canonical %s", regionPath, loosePath);
+                    }
+                    snprintf(loosePath, sizeof(loosePath), "%s", regionPath);
+                    snprintf(strippedFolder, sizeof(strippedFolder), "%s", regionDir);
+                    snprintf(nameBuf, sizeof(nameBuf), "%s", regionName);
+                }
+            }
+        }
 
         static int s_hits = 0;
         static int s_misses = 0;

@@ -132,18 +132,35 @@ void Fs_InitFileTableForRegion(e_GameRegion region);
  * in the compiled EUR table. `name8` = bare name, no extension. Returns 1 on hit. */
 int Fs_EurFileLookup(const char* name8, s32 pathIdx, s32 type, u32* outSector, u32* outBlocks);
 
-/** @brief Fan-disc support: overwrite g_FileTable sectors/sizes (and the audio +
- * XA offset tables) from the mounted disc's OWN file table, matched by name. A
- * USA fan re-translation can rebuild the CD, shifting every sector; reading the
- * disc's table is the only way to know the true layout. `disc` points at the raw
- * 12-byte file-table entries read out of the disc executable, `count` = how many.
- * No-op (returns 0) when the disc matches the baked vanilla table. */
+/** @brief Fan-disc support, any region: overwrite g_FileTable sectors/sizes (and
+ * the audio + XA offset tables) from the mounted disc's OWN file table, matched
+ * by name. A fan re-translation can rebuild the CD, shifting every sector;
+ * reading the disc's table is the only way to know the true layout. `disc` points
+ * at the raw 12-byte file-table entries read out of the disc executable, `count` =
+ * how many. On PAL the match runs through the EUR name/path shape (including the
+ * active language redirect) since g_FileTable stays US-canonical.
+ * No-op (returns 0) when the disc matches the baked table for its region. */
 s32 Fs_RemapFromDiscTable(const s_FileInfo* disc, s32 count);
 
 /** @brief (Re)bind the VIN map-overlay + TIPS entries to the configured
  * language's EUR files. Idempotent — the title-screen options menu re-runs
  * it when the language changes. No-op outside Region_EUR. */
 void Fs_ApplyLanguageRedirects(void);
+
+/** @brief The file's REAL on-disc directory + name for the active region, when
+ * the US-canonical g_FileTable entry does not name it.
+ *
+ * g_FileTable is kept in US-canonical shape so the FILE_* enum indices resolve
+ * unchanged, but on PAL the localized assets live under different names/dirs
+ * (VIN/MAPx_S0z -> VIN2..VIN5/MAPx_S<lang>z, TIM/TIPS_Exy -> TIM/TIPS_<L>xy).
+ * Anything that addresses a file BY NAME on disk — the loose-file override
+ * probe — needs the real name, not the canonical one.
+ *
+ * Returns 1 and fills `*outDir` (bare directory, no separators; points at
+ * static storage) and `outName` (name + extension, needs FS_NAME_CHAR_MAX + 5
+ * bytes) only when they differ from the canonical entry. Returns 0 otherwise,
+ * which is every file on USA/JPN and every file on an English PAL disc. */
+int Fs_GetRegionFilePath(s32 fileIdx, const char** outDir, char* outName);
 #endif
 
 /** @brief Decrypts an encrypted overlay.

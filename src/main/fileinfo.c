@@ -1,6 +1,7 @@
 #include "main/fileinfo.h"
 
 #ifdef SH_PC_PORT
+#include <stdlib.h> /* malloc, free */
 #include <string.h> /* memcpy */
 #include "bodyprog/sound/sound_system.h" /* s_AudioItemData g_AudioData */
 #include "pc_config.h"                   /* g_PcConfig.language */
@@ -43,6 +44,41 @@ e_GameRegion g_GameRegion = Region_USA;
  * from 10 to 14; every other path index is identical. */
 static const u8 s_UsaToEurPath[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 14 };
 
+/* EUR pathIdx -> bare directory name. An EUR pathIdx is NOT a g_FilePaths index
+ * (that array has 11 entries and stops at XA); it must be resolved here. */
+static const char* const s_EurFilePathNames[] = {
+    "1ST", "ANIM", "BG", "CHARA", "ITEM", "MISC", "SND", "TEST",
+    "TIM", "VIN", "VIN2", "VIN3", "VIN4", "VIN5", "XA"
+};
+
+/* The name/dir each US-canonical index ACTUALLY has on the mounted disc, held
+ * in that disc's own pathIdx space. startSector/blockCount are deliberately
+ * left zero — only the identity is meaningful here, g_FileTable owns location.
+ * Diverges from g_FileTable only for the PAL language redirects below, so
+ * Fs_GetRegionFilePath reports "same as canonical" for USA, JPN and English PAL. */
+static s_FileInfo s_ActiveDiscName[FS_FILE_COUNT];
+
+static void Fs_ResetActiveDiscNames(void)
+{
+    s32 i;
+
+    for (i = 0; i < FS_FILE_COUNT; i++)
+    {
+        const s_FileInfo* g = &g_FileTable[i];
+
+        s_ActiveDiscName[i].startSector = 0;
+        s_ActiveDiscName[i].blockCount  = 0;
+        s_ActiveDiscName[i].name0123    = g->name0123;
+        s_ActiveDiscName[i].name4567    = g->name4567;
+        s_ActiveDiscName[i].type        = g->type;
+        s_ActiveDiscName[i].pathIdx =
+            (g_GameRegion == Region_EUR &&
+             g->pathIdx < (u32)(sizeof(s_UsaToEurPath) / sizeof(s_UsaToEurPath[0])))
+                ? s_UsaToEurPath[g->pathIdx]
+                : g->pathIdx;
+    }
+}
+
 /* XA stream base sectors, runtime-selected. EUR[1] = 0x0B847 is the PAL HILL.
  * container start, mirroring US[1] = 0x099BF; JAP (Rev 1/2) is US shifted +5. */
 static const u32 s_FileXaLoc_USA[] = {
@@ -59,11 +95,26 @@ static const u32 s_FileXaLoc_JAP[] = {
 };
 u32 g_FileXaLoc[11];
 
+/* Retained copy of a rearranged disc's file table (NULL for every stock disc).
+ * A live language switch re-binds the VIN/TIPS slots from the BAKED EUR table,
+ * which would silently undo Fs_RemapFromDiscTable for exactly those slots. */
+static s_FileInfo* s_DiscTable      = NULL;
+static s32         s_DiscTableCount = 0;
+
 void Fs_InitFileTableForRegion(e_GameRegion region)
 {
     s32 i, j;
 
     g_GameRegion = region;
+
+    /* Back to the baked tables: a previously remapped disc no longer describes
+     * what is in g_FileTable. */
+    if (s_DiscTable != NULL)
+    {
+        free(s_DiscTable);
+        s_DiscTable      = NULL;
+        s_DiscTableCount = 0;
+    }
 
     memcpy(g_FileXaLoc, (region == Region_EUR) ? s_FileXaLoc_EUR
                       : (region == Region_JPN) ? s_FileXaLoc_JAP
@@ -73,6 +124,7 @@ void Fs_InitFileTableForRegion(e_GameRegion region)
     memcpy(g_FileTable, s_FileTable_USA, sizeof(s_FileTable_USA));
     if (region == Region_USA)
     {
+        Fs_ResetActiveDiscNames();
         return;
     }
 
@@ -80,6 +132,7 @@ void Fs_InitFileTableForRegion(e_GameRegion region)
     {
         /* Index-aligned with USA — sectors/sizes drop straight in. */
         memcpy(g_FileTable, s_FileTable_JAP, sizeof(s_FileTable_JAP));
+        Fs_ResetActiveDiscNames();
     }
     else
     {
@@ -133,53 +186,140 @@ void Fs_InitFileTableForRegion(e_GameRegion region)
     }
 }
 
-/* Fan-disc sector correction (PC port). A USA-region fan re-translation (e.g.
- * the Brazilian patch) rebuilds the CD: every file keeps its name/type/path but
- * moves to a new sector, and the disc's own in-executable file table records the
- * new sectors. We baked the vanilla-USA sectors, so read the mounted disc's own
- * table and overwrite each same-named entry's sector/size from it. Files with no
- * disc match (pruned vanilla backups: B_KONAMI, *_SAFE*) keep their baked sector.
- * Returns the number of entries changed; 0 means the disc matches vanilla (stock
- * or in-place-patched USA), in which case nothing — not even the audio/XA offset
- * tables — is touched, so a non-rearranged disc is never disturbed. */
+/* The name + pathIdx a US-canonical slot carries ON A PAL DISC. Two things
+ * differ there: EUR inserts VIN2..VIN5 into its path list (so XA is pathIdx 14,
+ * not 10), and the config language rebinds the VIN map overlays / TIPS TIMs onto
+ * differently-named files. Returns 1 when the slot is language-redirected.
+ * Language 0 (English) yields the canonical name, so the result is always the
+ * file the slot is currently bound to. */
+static s32 Fs_EurDiscKey(const s_FileInfo* u, u32* outName4567, u32* outPath)
+{
+    s32             lang       = (g_PcConfig.language >= 1 && g_PcConfig.language <= 4) ? g_PcConfig.language : 0;
+    u32             mapPrefix  = FNP('M', 'A', 'P', ' ') & 0x3FFFF; /* chars 0-2 */
+    u32             mapSuffix  = FNP('_', 'S', ' ', ' ') & 0xFFF;   /* chars 4-5 */
+    u32             tipsName   = FNP('T', 'I', 'P', 'S');
+    u32             tipsSuffix = FNP('_', 'E', ' ', ' ') & 0xFFF;   /* chars 4-5 */
+    static const u8 tipsLetter[5] = { 'E' - 0x20, 'G' - 0x20, 'R' - 0x20, 'S' - 0x20, 'T' - 0x20 };
+
+    if (u->pathIdx == 9 &&
+        (u->name0123 & 0x3FFFF) == mapPrefix && (u->name4567 & 0xFFF) == mapSuffix)
+    {
+        *outName4567 = ((u32)u->name4567 & ~(0x3Fu << 12)) | ((u32)(0x10 + lang) << 12);
+        *outPath     = (u32)(9 + lang);
+        return 1;
+    }
+
+    if (u->pathIdx == 8 && u->name0123 == tipsName && (u->name4567 & 0xFFF) == tipsSuffix)
+    {
+        *outName4567 = ((u32)u->name4567 & ~(0x3Fu << 6)) | ((u32)tipsLetter[lang] << 6);
+        *outPath     = 8;
+        return 1;
+    }
+
+    *outName4567 = u->name4567;
+    *outPath     = (u->pathIdx < (u32)(sizeof(s_UsaToEurPath) / sizeof(s_UsaToEurPath[0])))
+                       ? s_UsaToEurPath[u->pathIdx]
+                       : u->pathIdx;
+    return 0;
+}
+
+/* Take one slot's sector/size from a disc's own file table, matched on the name
+ * and path THAT DISC uses. Returns 1 when the slot actually moved. */
+static s32 Fs_BindSlotFromDisc(const s_FileInfo* disc, s32 count, s32 slot, u32 wantName4567, u32 wantPath)
+{
+    s_FileInfo* g = &g_FileTable[slot];
+    s32         j;
+
+    for (j = 0; j < count; j++)
+    {
+        const s_FileInfo* d = &disc[j];
+        if (d->name0123 == g->name0123 && d->name4567 == wantName4567 &&
+            d->type == g->type && d->pathIdx == wantPath)
+        {
+            if (g->startSector != d->startSector || g->blockCount != d->blockCount)
+            {
+                g->startSector = d->startSector;
+                g->blockCount  = d->blockCount;
+                return 1;
+            }
+            return 0;
+        }
+    }
+    return 0;
+}
+
+/* Fan-disc sector correction (PC port). A fan re-translation (e.g. the Brazilian
+ * patch) rebuilds the CD: every file keeps its name/type/path but moves to a new
+ * sector, and the disc's own in-executable file table records the new sectors. We
+ * baked the vanilla sectors, so read the mounted disc's own table and overwrite
+ * each same-named entry's sector/size from it. On PAL the slot's name/path are
+ * US-canonical while the disc's table is in EUR shape (and may be language-
+ * redirected), so match through Fs_EurDiscKey rather than on raw equality. Files
+ * with no disc match (pruned vanilla backups: B_KONAMI, *_SAFE*; the US-only
+ * TIPS_J* on PAL) keep their baked sector. Returns the number of entries changed;
+ * 0 means the disc matches the baked table (stock or in-place-patched), in which
+ * case nothing — not even the audio/XA offset tables — is touched, so a
+ * non-rearranged disc is never disturbed. */
 s32 Fs_RemapFromDiscTable(const s_FileInfo* disc, s32 count)
 {
-    s32 i, j, changed = 0;
+    s32  i, j, changed = 0;
+    u32* oldSector;
+
+    if (disc == NULL || count <= 0)
+        return 0;
+
+    /* The audio/XA rebinds below map an OLD sector to its file, so the pre-remap
+     * active sectors have to survive the overwrite. They are not the US ones
+     * outside Region_USA. */
+    oldSector = (u32*)malloc(sizeof(u32) * FS_FILE_COUNT);
+    if (oldSector == NULL)
+        return 0;
 
     for (i = 0; i < FS_FILE_COUNT; i++)
     {
-        s_FileInfo* g = &g_FileTable[i];
-        for (j = 0; j < count; j++)
+        u32 wantName4567 = g_FileTable[i].name4567;
+        u32 wantPath     = g_FileTable[i].pathIdx;
+
+        oldSector[i] = g_FileTable[i].startSector;
+
+        if (g_GameRegion == Region_EUR)
         {
-            const s_FileInfo* d = &disc[j];
-            if (d->name0123 == g->name0123 && d->name4567 == g->name4567 &&
-                d->type == g->type && d->pathIdx == g->pathIdx)
-            {
-                if (g->startSector != d->startSector || g->blockCount != d->blockCount)
-                {
-                    g->startSector = d->startSector;
-                    g->blockCount  = d->blockCount;
-                    changed++;
-                }
-                break;
-            }
+            Fs_EurDiscKey(&s_FileTable_USA[i], &wantName4567, &wantPath);
         }
+
+        changed += Fs_BindSlotFromDisc(disc, count, i, wantName4567, wantPath);
     }
 
     if (changed == 0)
+    {
+        free(oldSector);
         return 0;
+    }
+
+    if (s_DiscTable != NULL)
+    {
+        free(s_DiscTable);
+        s_DiscTable      = NULL;
+        s_DiscTableCount = 0;
+    }
+    s_DiscTable = (s_FileInfo*)malloc(sizeof(s_FileInfo) * (size_t)count);
+    if (s_DiscTable != NULL)
+    {
+        memcpy(s_DiscTable, disc, sizeof(s_FileInfo) * (size_t)count);
+        s_DiscTableCount = count;
+    }
 
     /* Re-point the audio sector table and the XA container bases the same way
-     * the EUR path does: old US sector -> same file -> its new sector. */
+     * the EUR path does: old sector -> same file -> its new sector. */
     {
         extern s_AudioItemData g_AudioData[];
         s32 a;
         for (a = 0; a < AUDIO_DATA_COUNT; a++)
         {
-            s32 us = g_AudioData[a].fileOffset_8;
+            s32 old = g_AudioData[a].fileOffset_8;
             for (j = 0; j < FS_FILE_COUNT; j++)
             {
-                if ((s32)s_FileTable_USA[j].startSector == us)
+                if ((s32)oldSector[j] == old)
                 {
                     g_AudioData[a].fileOffset_8 = (s32)g_FileTable[j].startSector;
                     break;
@@ -194,7 +334,7 @@ s32 Fs_RemapFromDiscTable(const s_FileInfo* disc, s32 count)
             continue;
         for (j = 0; j < FS_FILE_COUNT; j++)
         {
-            if (s_FileTable_USA[j].startSector == base)
+            if (oldSector[j] == base)
             {
                 g_FileXaLoc[i] = g_FileTable[j].startSector;
                 break;
@@ -202,6 +342,7 @@ s32 Fs_RemapFromDiscTable(const s_FileInfo* disc, s32 count)
         }
     }
 
+    free(oldSector);
     return changed;
 }
 /* Language redirect (config `language`, EUR discs only): PAL carries the
@@ -228,6 +369,11 @@ void Fs_ApplyLanguageRedirects(void)
     {
         return;
     }
+
+    /* Rebuilt from scratch on every pass so a live language switch can never
+     * leave the previous language's disc name behind on an entry this pass
+     * fails to match. */
+    Fs_ResetActiveDiscNames();
 
     for (i = 0; i < FS_FILE_COUNT; i++)
     {
@@ -262,10 +408,80 @@ void Fs_ApplyLanguageRedirects(void)
             {
                 g_FileTable[i].startSector = e->startSector;
                 g_FileTable[i].blockCount  = e->blockCount;
+                /* The entry keeps its US-canonical name in g_FileTable, so the
+                 * localized file's REAL name is only recorded here — it is what
+                 * anything addressing the file on disk by name has to use. */
+                s_ActiveDiscName[i].name0123 = e->name0123;
+                s_ActiveDiscName[i].name4567 = e->name4567;
+                s_ActiveDiscName[i].pathIdx  = e->pathIdx;
                 break;
             }
         }
     }
+
+    /* The sectors just written are the BAKED (vanilla PAL) ones. On a rearranged
+     * fan disc that is stale, so re-take the redirected slots from the disc's own
+     * table. s_DiscTable is NULL for every stock disc, making this a no-op. */
+    if (s_DiscTable != NULL)
+    {
+        for (i = 0; i < FS_FILE_COUNT; i++)
+        {
+            u32 discName4567;
+            u32 discPath;
+
+            if (Fs_EurDiscKey(&s_FileTable_USA[i], &discName4567, &discPath))
+            {
+                Fs_BindSlotFromDisc(s_DiscTable, s_DiscTableCount, i, discName4567, discPath);
+            }
+        }
+    }
+}
+
+int Fs_GetRegionFilePath(s32 fileIdx, const char** outDir, char* outName)
+{
+    const s_FileInfo* disc;
+    const s_FileInfo* canon;
+    s_FileInfo        named;
+    u32               canonPath;
+
+    if (outDir == NULL || outName == NULL || fileIdx < 0 || fileIdx >= FS_FILE_COUNT)
+    {
+        return 0;
+    }
+
+    /* USA and JPN name their files exactly as the active table does (the JAP
+     * table is name/path/type-identical to USA at every index), so there is
+     * never a second name to try. */
+    if (g_GameRegion != Region_EUR)
+    {
+        return 0;
+    }
+
+    disc      = &s_ActiveDiscName[fileIdx];
+    canon     = &g_FileTable[fileIdx];
+    canonPath = (canon->pathIdx < (u32)(sizeof(s_UsaToEurPath) / sizeof(s_UsaToEurPath[0])))
+                    ? s_UsaToEurPath[canon->pathIdx]
+                    : canon->pathIdx;
+
+    if (disc->name0123 == canon->name0123 && disc->name4567 == canon->name4567 &&
+        disc->pathIdx == canonPath)
+    {
+        return 0;
+    }
+
+    if (disc->pathIdx >= (u32)(sizeof(s_EurFilePathNames) / sizeof(s_EurFilePathNames[0])))
+    {
+        return 0;
+    }
+
+    named             = *disc;
+    named.type        = canon->type;
+    named.startSector = 0;
+    named.blockCount  = 0;
+    Fs_GetFileInfoName(outName, &named);
+
+    *outDir = s_EurFilePathNames[disc->pathIdx];
+    return 1;
 }
 
 /* Locate an EUR-only file (one with no US-canonical g_FileTable slot, e.g.
