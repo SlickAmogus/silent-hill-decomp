@@ -390,6 +390,35 @@ Store/Deflate and would silently load nothing from an LZMA zip). Enable/disable 
 folder; load order is set in the Mod Manager. A `.zip` **hand-dropped without the launcher**
 is still read in place as a fallback.
 
+### 7.1 Dumping the game's own textures (`dump_textures`)
+
+Set `dump_textures = 1` in `config.cfg` and play. Every texture the engine uploads is
+written to **`gamedata/dump/`** as a PNG, *already named* the way the pack loader matches
+it — so the dump folder **is** a texture pack:
+
+```
+gamedata/dump/texupload-P4-20D7201241D7412C-16F3DC9AA8F748C5-64x256-0-0-256x256-P0-15.png
+```
+
+Copy `gamedata/dump/` into `gamedata/texturemods/MyPack/`, repaint (or AI-upscale) the
+files in place, and they load back over the exact uploads they came from. Upscales must
+keep the aspect ratio; any integer scale works.
+
+**Why this and not the per-palette extractor.** A SH1 texture is one 4-bit index sheet
+shared by many CLUT rows, and a single model draws its head, body and limbs through
+*different* rows at the same time — so `NAME.TIM.pNN.png` from §5.1 is the whole sheet
+tinted by one palette and none of them looks like the thing you see in-game. A dump is
+the region as it is actually drawn, through the palette actually in use, so it looks
+right with no `.ILM` involved. That matters most for **backgrounds and world geometry**,
+which have no model file for `clut_tool.py` to read (§5.1) — dumping is the only way to
+get correct reference art for them.
+
+Notes: visit the areas you want; textures are dumped as they load. Each file is written
+once (already-dumped uploads are skipped, in this session and in later ones), so delete
+`gamedata/dump/` to start over. A newly-seen texture costs a few ms on the loading frame,
+so turn the option back off for normal play. Textures with no palette at all
+(`FONT8NOC.TIM`) and 24-bit uploads are skipped — the pack format cannot address them.
+
 ## 8. Linux / macOS
 
 The game ships **native Linux and macOS builds** (nightly), and the whole texture-mod

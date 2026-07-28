@@ -38,6 +38,15 @@
 #define TEXPACK_DIR "gamedata/texturemods"
 #endif
 
+#ifndef TEXDUMP_DIR
+#define TEXDUMP_DIR "gamedata/dump"
+#endif
+
+#ifdef _WIN32
+/* Declared here rather than via <direct.h>, which is MSVC-only. */
+int _mkdir(const char* dirname);
+#endif
+
 typedef struct {
     unsigned long long srcHash;
     unsigned long long palHash;
@@ -1174,4 +1183,170 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
     *outW = canvasW;
     *outH = canvasH;
     return canvas;
+}
+
+/* ---- Texture dumping (dump_textures) ---------------------------------------
+ * DecodeNative above already produces exactly what a modder needs: the VRAM
+ * region as it is actually uploaded, seen through the palette actually in use.
+ * Writing that image out under the name ParseName expects turns the dump into a
+ * texture pack — copy gamedata/dump/ into gamedata/texturemods/<pack>/ and the
+ * entries match the very uploads they came from. That covers every texture
+ * class uniformly (chara pool, VRAM-resident, BG chunks), unlike the ILM-driven
+ * offline compose which only works for models that ship one.
+ *
+ * The emitted entry always covers the whole upload (offset 0,0, sub-rect =
+ * native size, full palette range), which is the case TexPack_Compose treats as
+ * "replace everything": composing a dump reproduces the native decode exactly. */
+
+/* Deflate level for the dump PNGs. This runs inline on a load frame, so it
+ * trades a little size for latency: measured over real disc TIMs, level 6 is
+ * 2.1x the CPU of level 3 for 9% smaller files. */
+#ifndef TEXDUMP_PNG_LEVEL
+#define TEXDUMP_PNG_LEVEL 3
+#endif
+
+static unsigned long long* g_dumpSeen      = NULL; /* sorted name hashes handled this session */
+static int                 g_dumpSeenCount = 0;
+static int                 g_dumpSeenCap   = 0;
+static int                 g_dumpWritten   = 0;
+static int                 g_dumpFailed    = 0;
+
+/* Index of the first seen-key >= k. */
+static int Dump_LowerBound(unsigned long long k)
+{
+    int lo = 0, hi = g_dumpSeenCount;
+    while (lo < hi)
+    {
+        int mid = (lo + hi) / 2;
+        if (g_dumpSeen[mid] < k) lo = mid + 1;
+        else hi = mid;
+    }
+    return lo;
+}
+
+/* 1 when k is new (and now recorded), 0 when this upload was already handled. */
+static int Dump_MarkSeen(unsigned long long k)
+{
+    int at = Dump_LowerBound(k);
+
+    if (at < g_dumpSeenCount && g_dumpSeen[at] == k) return 0;
+
+    if (g_dumpSeenCount == g_dumpSeenCap)
+    {
+        int                 cap = g_dumpSeenCap ? g_dumpSeenCap * 2 : 256;
+        unsigned long long* grown =
+            (unsigned long long*)realloc(g_dumpSeen, (size_t)cap * sizeof(unsigned long long));
+        if (grown == NULL) return 0;
+        g_dumpSeen    = grown;
+        g_dumpSeenCap = cap;
+    }
+
+    memmove(&g_dumpSeen[at + 1], &g_dumpSeen[at],
+            (size_t)(g_dumpSeenCount - at) * sizeof(unsigned long long));
+    g_dumpSeen[at] = k;
+    g_dumpSeenCount++;
+    return 1;
+}
+
+static void Dump_EnsureDir(void)
+{
+    static int s_done = 0;
+    if (s_done) return;
+    s_done = 1;
+
+#ifdef _WIN32
+    _mkdir(TEXDUMP_DIR);
+#else
+    mkdir(TEXDUMP_DIR, 0755);
+#endif
+    SH_DBG("[TEXDUMP] dump_textures on — writing decoded uploads to %s/", TEXDUMP_DIR);
+}
+
+void TexPack_DumpUpload(const unsigned char* pixels, int w16, int h,
+                        const unsigned short* clut, int clutCount, int bpp)
+{
+    unsigned long long srcHash;
+    unsigned long long palHash = 0;
+    char               name[192];
+    char               path[320];
+    int                nativeW;
+    unsigned char*     rgba;
+    void*              png;
+    size_t             pngLen = 0;
+    FILE*              f;
+
+    if (!g_PcConfig.dumpTextures) return;
+    if (pixels == NULL || w16 <= 0 || h <= 0) return;
+    /* 24bpp has no mode token in the pack grammar, so a dump of one could never
+     * be loaded back — and nothing replaces those uploads today either. */
+    if (bpp != 4 && bpp != 8 && bpp != 16) return;
+    if (bpp != 16 && (clut == NULL || clutCount <= 0)) return;
+
+    /* Byte-for-byte the hashes TexPack_Compose matches entries on. */
+    srcHash = XXH3_64bits(pixels, (size_t)w16 * (size_t)h * 2);
+    if (bpp != 16)
+    {
+        int n = (bpp == 4) ? 16 : 256;
+        if (n > clutCount) n = clutCount;
+        palHash = XXH3_64bits(clut, (size_t)n * 2);
+    }
+
+    nativeW = w16 * (16 / bpp);
+
+    if (bpp == 16)
+    {
+        snprintf(name, sizeof(name), "texupload-C16-%016llX-%dx%d-0-0-%dx%d.png",
+                 srcHash, w16, h, nativeW, h);
+    }
+    else
+    {
+        snprintf(name, sizeof(name), "texupload-%s-%016llX-%016llX-%dx%d-0-0-%dx%d-P0-%d.png",
+                 (bpp == 4) ? "P4" : "P8", srcHash, palHash, w16, h, nativeW, h,
+                 (bpp == 4) ? 15 : 255);
+    }
+
+    /* The file name IS the identity, so dedupe on it: different CLUT rows that
+     * hold the same palette collapse to one dump, as they must. */
+    if (!Dump_MarkSeen(XXH3_64bits(name, strlen(name)))) return;
+
+    Dump_EnsureDir();
+    snprintf(path, sizeof(path), "%s/%s", TEXDUMP_DIR, name);
+
+    f = fopen(path, "rb");
+    if (f != NULL)
+    {
+        fclose(f); /* dumped by an earlier session */
+        return;
+    }
+
+    rgba = DecodeNative(pixels, w16, h, clut, clutCount, bpp, nativeW);
+    if (rgba == NULL) return;
+
+    png = tdefl_write_image_to_png_file_in_memory_ex(rgba, nativeW, h, 4, &pngLen,
+                                                     TEXDUMP_PNG_LEVEL, MZ_FALSE);
+    free(rgba);
+    if (png == NULL)
+    {
+        g_dumpFailed++;
+        return;
+    }
+
+    f = fopen(path, "wb");
+    if (f == NULL)
+    {
+        g_dumpFailed++;
+    }
+    else
+    {
+        if (fwrite(png, 1, pngLen, f) == pngLen) g_dumpWritten++;
+        else g_dumpFailed++;
+        fclose(f);
+    }
+    mz_free(png);
+
+    if (g_dumpWritten > 0 && (g_dumpWritten & 63) == 0)
+    {
+        SH_DBG("[TEXDUMP] %d textures written to %s/ (%d failed)",
+               g_dumpWritten, TEXDUMP_DIR, g_dumpFailed);
+    }
 }

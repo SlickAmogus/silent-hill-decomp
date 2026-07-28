@@ -69,6 +69,19 @@ const unsigned char* TexPack_LastComposeDds(size_t* outSize);
  * costs almost nothing and must not spend that budget. */
 int TexPack_LastComposeWasBuilt(void);
 
+/* Write one TIM upload's decoded native art to gamedata/dump/ as a PNG whose
+ * name is the texupload-… entry this very upload matches (whole-upload sub-rect,
+ * full palette range), so the dump folder IS a texture pack. Arguments are
+ * exactly TexPack_Compose's — call it once per CLUT ROW so every palette a draw
+ * can select gets its own correct-looking sheet.
+ *
+ * No-op unless g_PcConfig.dumpTextures: nothing is hashed, allocated or written
+ * when the option is off. Already-dumped uploads (this session or a previous
+ * one) are skipped, so a long play session writes each file exactly once.
+ * 24bpp uploads are skipped — the pack name grammar cannot express them. */
+void TexPack_DumpUpload(const unsigned char* pixels, int w16, int h,
+                        const unsigned short* clut, int clutCount, int bpp);
+
 #ifdef __cplusplus
 }
 #endif

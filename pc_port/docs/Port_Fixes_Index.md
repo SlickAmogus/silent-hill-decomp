@@ -518,6 +518,44 @@ missing; `adsr 1` confirmed improving fade-ins. Root causes + fixes:
   this is how the Mod Manager toggles a pack off. `texpage-*` entries
   (page-mode dumps) are unsupported and counted in the log.
 
+## Texture dumper (2026-07-28)
+
+- `dump_textures = 1` writes every decoded texture upload to `gamedata/dump/`
+  as a PNG named the way the pack loader matches it, so the dump folder IS a
+  texture pack: copy it into `gamedata/texturemods/<pack>/`, repaint the files,
+  done. Default 0; off it hashes/allocates/writes nothing.
+- Why it exists: a SH1 TIM is ONE 4-bit index sheet plus MANY CLUT rows, and a
+  model draws different regions through different palettes at once, so a raw
+  per-palette export is the whole sheet tinted one way and none of them looks
+  right. `clut_tool.py` / `ClutComposer.cs` recover the texel→palette map by
+  parsing the `.ILM`, which only exists for CHARACTERS. The dumper takes
+  DuckStation's approach instead — write what the engine actually uploads — so
+  BG/world textures are covered too.
+- Hook: ONE call site in `Fs_QueuePostLoadTim` (`src/main/fsqueue_3.c`), above
+  the virtual-pool / VRAM-resident split, looping the same CLUT rows the pack
+  path composes. That is the single point every texture class passes through
+  with the exact `(pixels, palette, bpp)` triple the pack matcher hashes.
+- `TexPack_DumpUpload` (`pc_port/src/tex_pack.c`) reuses `DecodeNative` and the
+  same XXH3 hashes `TexPack_Compose` matches on, and always emits a whole-upload
+  entry: `texupload-P4-<srcHash>-<palHash>-<w16>x<h>-0-0-<nativeW>x<h>-P0-15.png`
+  (`P8` → `P0-255`, 16bpp → `texupload-C16-<srcHash>-<w16>x<h>-0-0-<w>x<h>.png`).
+  WxH is in VRAM 16-bit WORDS, the sub-rect in native texels.
+- Dedupe: a sorted set of emitted names plus an on-disk existence check, so a
+  file is written once per install, never per re-upload. Cost of a NEW dump is
+  ~2.6-5 ms (decode + level-3 deflate + write, measured on real disc TIMs);
+  an already-dumped upload costs ~0.1 ms (hash + one `fopen` probe). It is not
+  budgeted per frame, so first entry into a room with many unseen multi-CLUT
+  TIMs can add tens of ms to that load frame — acceptable for a modding tool
+  that is off by default.
+- Skipped by design: 24bpp uploads and CLUT-less 4/8bpp uploads (e.g.
+  `FONT8NOC.TIM`). Neither can be expressed in the pack name grammar, and the
+  matcher can never replace them either, so a dump would be dead weight.
+  Palette rows past 16 are skipped, same cap as the pack compose loops.
+- Verified offline against the real `tex_pack.c`: 132 disc TIMs → 804 row dumps
+  → 752 unique PNGs; the real `Scan_Once`/`ParseName` accepted 752/752 (100%),
+  and 802/802 replaceable rows composed back BYTE-IDENTICAL to the native
+  decode (the 2 misses are the CLUT-less TIM above).
+
 ## Texture-pack load order (2026-07-11)
 
 - `gamedata/texturemods/loadorder.txt` (one top-level pack folder per line,

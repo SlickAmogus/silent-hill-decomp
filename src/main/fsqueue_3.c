@@ -1047,6 +1047,34 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 #ifdef SH_PC_PORT
     { extern FILE* g_ShDebugLog; if (g_ShDebugLog && !composeResume) { fprintf(g_ShDebugLog, "[BOOT0/TIM] PostLoadTim done\n"); fflush(g_ShDebugLog); } }
 
+    /* Texture dump (dump_textures): write out the decoded native art of this
+     * upload, one PNG per CLUT row, under the name the pack path would match it
+     * by. Sits ABOVE the pool/VRAM split on purpose — every texture class goes
+     * through here with the same (pixels, palette, bpp) triple the pack matcher
+     * hashes, so one call site covers chara pool, VRAM-resident and BG chunks
+     * and the dumps are guaranteed to be loadable back. A resumed post-load
+     * already dumped every row on its first pass. */
+    if (g_PcConfig.dumpTextures && !composeResume && discBitDepth > 0)
+    {
+        int clutW = (tim.caddr != NULL && tim.crect != NULL) ? (int)tim.crect->w : 0;
+        int rows  = (haveClut && tim.crect != NULL) ? (int)clutRect.h : 1;
+        int r;
+
+        if (rows < 1) rows = 1;
+        if (rows > HIRES_POOL_MAX_ROWS) rows = HIRES_POOL_MAX_ROWS;
+
+        for (r = 0; r < rows; r++)
+        {
+            const unsigned short* clutRow =
+                (tim.caddr != NULL)
+                    ? (const unsigned short*)tim.caddr + (size_t)r * (size_t)clutW
+                    : NULL;
+            TexPack_DumpUpload((const unsigned char*)tim.paddr,
+                               (int)pixelRect.w, (int)pixelRect.h,
+                               clutRow, clutW, discBitDepth);
+        }
+    }
+
     /* Point-sample the font atlas: an HD font pack paints gutterless glyph cells
      * edge-to-edge, so bilinear sampling bleeds the neighbour glyph's ink across
      * the cell boundary ("ghost text" beside A/O). Force GL_NEAREST for the font
