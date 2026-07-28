@@ -137,7 +137,6 @@ partial class Form1
             this.audioLabel = new System.Windows.Forms.Label();
             this.comboAudioOut = new System.Windows.Forms.ComboBox();
             this.btnControls = new System.Windows.Forms.Button();
-            this.btnRetroAchievements = new System.Windows.Forms.Button();
             this.btnBuildSettings = new System.Windows.Forms.Button();
             this.downloadBuild = new System.Windows.Forms.Button();
             this.btnHelp = new System.Windows.Forms.Button();
@@ -150,6 +149,7 @@ partial class Form1
             this.chkUncensored = new System.Windows.Forms.CheckBox();
             this.lblUncensored = new System.Windows.Forms.Label();
             this.lblMenu = new System.Windows.Forms.Label();
+            this.btnRA = new System.Windows.Forms.Button();
             this.vsyncPanel.SuspendLayout();
             this.cullingPanel.SuspendLayout();
             this.preloadPanel.SuspendLayout();
@@ -277,9 +277,9 @@ partial class Form1
             this.btnManager.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Zoom;
             this.btnManager.FlatAppearance.BorderSize = 0;
             this.btnManager.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnManager.Location = new System.Drawing.Point(216, 273);
+            this.btnManager.Location = new System.Drawing.Point(205, 273);
             this.btnManager.Name = "btnManager";
-            this.btnManager.Size = new System.Drawing.Size(192, 48);
+            this.btnManager.Size = new System.Drawing.Size(216, 49);
             this.btnManager.TabIndex = 11;
             this.btnManager.UseVisualStyleBackColor = true;
             this.btnManager.Click += new System.EventHandler(this.btnManager_Click);
@@ -349,7 +349,7 @@ partial class Form1
             this.banner.Image = global::SilentHillPC_Launcher.Properties.Resources.launcher;
             this.banner.Location = new System.Drawing.Point(0, 0);
             this.banner.Name = "banner";
-            this.banner.Size = new System.Drawing.Size(417, 111);
+            this.banner.Size = new System.Drawing.Size(421, 111);
             this.banner.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.banner.TabIndex = 6;
             this.banner.TabStop = false;
@@ -722,16 +722,6 @@ partial class Form1
             this.btnControls.UseVisualStyleBackColor = true;
             this.btnControls.Click += new System.EventHandler(this.btnControls_Click);
             // 
-            // btnRetroAchievements
-            // 
-            this.btnRetroAchievements.Location = new System.Drawing.Point(206, 388);
-            this.btnRetroAchievements.Name = "btnRetroAchievements";
-            this.btnRetroAchievements.Size = new System.Drawing.Size(97, 23);
-            this.btnRetroAchievements.TabIndex = 51;
-            this.btnRetroAchievements.Text = "Achievements";
-            this.btnRetroAchievements.UseVisualStyleBackColor = true;
-            this.btnRetroAchievements.Click += new System.EventHandler(this.btnRetroAchievements_Click);
-            // 
             // btnBuildSettings
             // 
             this.btnBuildSettings.Location = new System.Drawing.Point(314, 360);
@@ -754,7 +744,7 @@ partial class Form1
             // 
             // btnHelp
             // 
-            this.btnHelp.Location = new System.Drawing.Point(10, 477);
+            this.btnHelp.Location = new System.Drawing.Point(4, 477);
             this.btnHelp.Name = "btnHelp";
             this.btnHelp.Size = new System.Drawing.Size(39, 23);
             this.btnHelp.TabIndex = 53;
@@ -764,9 +754,9 @@ partial class Form1
             // 
             // btnBug
             // 
-            this.btnBug.Location = new System.Drawing.Point(112, 477);
+            this.btnBug.Location = new System.Drawing.Point(98, 477);
             this.btnBug.Name = "btnBug";
-            this.btnBug.Size = new System.Drawing.Size(84, 23);
+            this.btnBug.Size = new System.Drawing.Size(70, 23);
             this.btnBug.TabIndex = 54;
             this.btnBug.Text = "Report Bug";
             this.btnBug.UseVisualStyleBackColor = true;
@@ -774,7 +764,7 @@ partial class Form1
             // 
             // btnReset
             // 
-            this.btnReset.Location = new System.Drawing.Point(54, 477);
+            this.btnReset.Location = new System.Drawing.Point(44, 477);
             this.btnReset.Name = "btnReset";
             this.btnReset.Size = new System.Drawing.Size(53, 23);
             this.btnReset.TabIndex = 55;
@@ -847,9 +837,20 @@ partial class Form1
             this.lblMenu.TabIndex = 70;
             this.lblMenu.Text = "Menus:";
             // 
+            // btnRA
+            // 
+            this.btnRA.Location = new System.Drawing.Point(170, 477);
+            this.btnRA.Name = "btnRA";
+            this.btnRA.Size = new System.Drawing.Size(30, 23);
+            this.btnRA.TabIndex = 92;
+            this.btnRA.Text = "RA";
+            this.btnRA.UseVisualStyleBackColor = true;
+            this.btnRA.Click += new System.EventHandler(this.btnRA_Click);
+            // 
             // Form1
             // 
-            this.ClientSize = new System.Drawing.Size(417, 503);
+            this.ClientSize = new System.Drawing.Size(421, 502);
+            this.Controls.Add(this.btnRA);
             this.Controls.Add(this.lblMenu);
             this.Controls.Add(this.lblUncensored);
             this.Controls.Add(this.chkUncensored);
@@ -868,7 +869,6 @@ partial class Form1
             this.Controls.Add(this.downloadBuild);
             this.Controls.Add(this.btnBuildSettings);
             this.Controls.Add(this.btnControls);
-            this.Controls.Add(this.btnRetroAchievements);
             this.Controls.Add(this.cullLabel);
             this.Controls.Add(this.chunksLabel);
             this.Controls.Add(this.fullscreenLabel);
@@ -927,7 +927,6 @@ partial class Form1
 
     private Label chunksLabel;
     private Button btnControls;
-    private Button btnRetroAchievements;
     private Button btnBuildSettings;
     private Button downloadBuild;
     private Button btnHelp;
@@ -940,4 +939,5 @@ partial class Form1
     private CheckBox chkUncensored;
     private Label lblUncensored;
     private Label lblMenu;
+    private Button btnRA;
 }

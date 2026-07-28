@@ -269,7 +269,9 @@ public partial class Form1 : Form
         if (!disc.Supported)
         {
             lblDisc.ForeColor = Color.Firebrick;
-            lblDisc.Text      = text + " — not supported yet";
+            lblDisc.Text      = text + " — " + (string.IsNullOrEmpty(disc.UnsupportedReason)
+                                                ? "not supported yet"
+                                                : disc.UnsupportedReason);
             btnPlay.Enabled   = false;
             return;
         }
@@ -567,6 +569,9 @@ public partial class Form1 : Form
         Set(btnManager, "Manage texture packs, load-folder mods, and FMV mods: enable/disable and set load order.");
 
         Set(btnPlay, "Save current settings to config.cfg and launch SilentHillPC.exe.");
+
+        // RA's tip reflects live sign-in state, so it gets its own refreshable pass.
+        RefreshRaTooltip();
         Set(btnChangelog, "Shows the LOCAL copy of CHANGELOG.md that's currently installed. (Build Settings and the update prompt preview other builds' changelogs.)");
         Set(btnControls, "Customize keyboard and controller bindings, and toggle debug/cheat keys.");
         Set(btnUpdate, "Check the selected branch for a build newer than any you've installed, and offer to update + switch to the latest.");
@@ -1492,14 +1497,60 @@ public partial class Form1 : Form
         }
     }
 
-    private void btnRetroAchievements_Click(object sender, EventArgs e)
+    // RetroAchievements tooltip lives on its own ToolTip so it can be refreshed
+    // after sign-in/out without rebuilding every other tip in SetupTooltips.
+    private readonly ToolTip _raTip = new ToolTip
     {
-        // Achievements button: RetroAchievements sign-in. Shares this form's
-        // ConfigManager so the token lands in the same config.cfg the game reads.
+        AutoPopDelay = 12000,
+        InitialDelay = 400,
+        ReshowDelay  = 200,
+        ShowAlways   = true,
+    };
+
+    private void RefreshRaTooltip()
+    {
+        if (btnRA == null) return;
+        bool signedIn = !string.IsNullOrEmpty(config.Get("ra_token", ""));
+        bool enabled  = config.Get("retroachievements", "0") == "1";
+        string user   = config.Get("ra_username", "");
+
+        string text;
+        if (signedIn)
+        {
+            text = "RetroAchievements: signed in as " + user +
+                   (enabled ? "." : " (achievements currently disabled).") +
+                   "\r\nClick to sign out or switch accounts.";
+        }
+        else
+        {
+            text = "RetroAchievements: not signed in.\r\n" +
+                   "Click to sign in and earn achievements on your real RA account " +
+                   "(softcore, matched to your disc).";
+        }
+        _raTip.SetToolTip(btnRA, text);
+    }
+
+    private void btnRA_Click(object sender, EventArgs e)
+    {
+        // Already signed in: say so and confirm before reopening the dialog,
+        // which is where sign-out / switching accounts happens.
+        if (!string.IsNullOrEmpty(config.Get("ra_token", "")))
+        {
+            var choice = MessageBox.Show(this,
+                "You are signed in to RetroAchievements as " +
+                config.Get("ra_username", "") + ".\r\n\r\n" +
+                "Do you want to sign out or switch accounts?",
+                "RetroAchievements",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (choice != DialogResult.Yes)
+                return;
+        }
+
         using (var dlg = new RetroAchievementsForm(config))
         {
             dlg.ShowDialog(this);
         }
+        RefreshRaTooltip();
     }
 
     private void btnBuildSettings_Click(object sender, EventArgs e)
