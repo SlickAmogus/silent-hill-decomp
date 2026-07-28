@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Net;
@@ -59,7 +59,7 @@ namespace SilentHillPC_Launcher
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(430, 250);
+            ClientSize = new Size(430, 229);
 
             var lblIntro = new Label
             {
@@ -107,22 +107,23 @@ namespace SilentHillPC_Launcher
 
             _lblStatus = new Label
             {
-                Location = new Point(15, 162),
-                Size = new Size(400, 40),
+                Location = new Point(15, 158),
+                Size = new Size(400, 30),
                 Text = ""
             };
 
             var lblPrivacy = new Label
             {
-                Location = new Point(15, 196),
-                Size = new Size(400, 16),
+                Location = new Point(15, 198),
+                Size = new Size(305, 15),
                 ForeColor = SystemColors.GrayText,
-                Text = "Only a connect token is saved. Your password is never stored."
+                Font = new Font(Font.FontFamily, 7.5f),
+                Text = "Only a connect token is saved, never your password."
             };
 
             _btnClose = new Button
             {
-                Location = new Point(330, 215),
+                Location = new Point(330, 192),
                 Size = new Size(85, 25),
                 Text = "Close",
                 DialogResult = DialogResult.OK
