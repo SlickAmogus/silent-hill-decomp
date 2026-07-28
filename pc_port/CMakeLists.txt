@@ -197,6 +197,41 @@ if(WIN32)
         OBJECT_DEPENDS "${CMAKE_SOURCE_DIR}/res/app_icon.ico;${CMAKE_BINARY_DIR}/sh_version.h")
 endif()
 
+# =============================================================================
+# RetroAchievements (rcheevos) — optional, ON when the submodule is present
+# =============================================================================
+# rcheevos is self-contained (libc only): the achievement runtime, the RA web
+# API layer, and the disc hasher that identifies the user's real PSX dump.
+# Excluded: rc_libretro.c (needs libretro.h) and rc_client_raintegration.c
+# (Windows RAIntegration dev toolkit — not used by a player-facing client).
+set(SH_RCHEEVOS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/rcheevos")
+option(SH_ENABLE_RETROACHIEVEMENTS "Build RetroAchievements support (rcheevos)" ON)
+if(SH_ENABLE_RETROACHIEVEMENTS AND EXISTS "${SH_RCHEEVOS_DIR}/src/rc_client.c")
+    file(GLOB RCHEEVOS_SOURCES
+        "${SH_RCHEEVOS_DIR}/src/rcheevos/*.c"
+        "${SH_RCHEEVOS_DIR}/src/rapi/*.c"
+        "${SH_RCHEEVOS_DIR}/src/rhash/*.c"
+        "${SH_RCHEEVOS_DIR}/src/rc_client.c"
+        "${SH_RCHEEVOS_DIR}/src/rc_client_external.c"
+        "${SH_RCHEEVOS_DIR}/src/rc_compat.c"
+        "${SH_RCHEEVOS_DIR}/src/rc_util.c"
+        "${SH_RCHEEVOS_DIR}/src/rc_version.c"
+    )
+    add_library(rcheevos_static STATIC ${RCHEEVOS_SOURCES})
+    target_include_directories(rcheevos_static PUBLIC
+        "${SH_RCHEEVOS_DIR}/include"
+        "${SH_RCHEEVOS_DIR}/src"
+    )
+    # Third-party: don't inherit the port's warning set.
+    if(NOT MSVC)
+        target_compile_options(rcheevos_static PRIVATE -w)
+    endif()
+    set(SH_HAVE_RETROACHIEVEMENTS ON)
+else()
+    set(SH_HAVE_RETROACHIEVEMENTS OFF)
+    message(STATUS "RetroAchievements: disabled (rcheevos submodule missing — run: git submodule update --init --recursive)")
+endif()
+
 add_executable(SilentHillPC
     ${PC_PORT_SOURCES}
     ${MAIN_SOURCES}
@@ -316,6 +351,24 @@ find_path(JPEG_INCLUDE_DIR jpeglib.h)
 target_link_libraries(SilentHillPC PRIVATE
     psycross_static
 )
+
+# RetroAchievements: the runtime plus the platform HTTP backend it posts through
+# (WinHTTP ships with Windows; libcurl is the Linux/macOS standard).
+if(SH_HAVE_RETROACHIEVEMENTS)
+    target_link_libraries(SilentHillPC PRIVATE rcheevos_static)
+    target_compile_definitions(SilentHillPC PRIVATE SH_RETROACHIEVEMENTS=1)
+    if(WIN32)
+        target_link_libraries(SilentHillPC PRIVATE winhttp)
+    else()
+        find_package(CURL)
+        if(CURL_FOUND)
+            target_link_libraries(SilentHillPC PRIVATE CURL::libcurl)
+            target_compile_definitions(SilentHillPC PRIVATE SH_RA_HAVE_CURL=1)
+        else()
+            message(STATUS "RetroAchievements: libcurl not found — RA will be inert on this build")
+        endif()
+    endif()
+endif()
 
 # On Linux/ELF the map overlay .so files no longer link their own copy of
 # PsyCross (see maps/CMakeLists.txt) — they import the entire PsyCross runtime
