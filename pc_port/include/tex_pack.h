@@ -22,7 +22,12 @@ extern "C" {
  * write size in VRAM halfwords, and ox/oy/wxh = the replaced sub-rectangle
  * in native texels. One upload can have many sub-rectangle replacements;
  * TexPack_Compose rebuilds the whole upload at the pack's scale and blits
- * each matching PNG over it, mirroring DuckStation's compositor. */
+ * each matching image over it, mirroring DuckStation's compositor.
+ *
+ * Entries may also be .dds (BC7). A .dds covering the whole upload is handed
+ * back compressed for a 4x cheaper VRAM upload (see TexPack_LastComposeIsDds);
+ * one that only covers a sub-rectangle is BC7-decoded on the CPU and blitted
+ * like a PNG, since the compositor works in 32-bit pixels. */
 
 /* True when at least one pack entry is indexed (first call scans the
  * texturemods folder; respects g_PcConfig.texturePacks). */

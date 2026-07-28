@@ -594,11 +594,17 @@ static unsigned char* Entry_LoadRaw(const PackEntry* e, size_t* outSize)
     return out;
 }
 
-static unsigned char* Entry_LoadPng(const PackEntry* e, int* outW, int* outH)
+/* Decode one pack entry to RGBA8. .png goes through stb_image, .dds through the
+ * BC7 CPU decoder (mip 0) — both yield the same (rgba, w, h) the compositor
+ * wants. The two allocators are not interchangeable, so *outStbi reports which
+ * free() the buffer needs; NULL means the caller does not care. */
+static unsigned char* Entry_LoadImage(const PackEntry* e, int* outW, int* outH, int* outStbi)
 {
     unsigned char* data = NULL;
     size_t         size = 0;
     unsigned char* rgba = NULL;
+
+    if (outStbi != NULL) *outStbi = 1;
 
     if (e->zipIdx < 0)
     {
@@ -636,6 +642,13 @@ static unsigned char* Entry_LoadPng(const PackEntry* e, int* outW, int* outH)
 
     if (data == NULL) return NULL;
 
+    /* Sniff the magic rather than trusting the extension: the file decides. */
+    if (size >= 4 && data[0] == 'D' && data[1] == 'D' && data[2] == 'S' && data[3] == ' ')
+    {
+        rgba = Dds_DecodeRgba(data, (int)size, outW, outH);
+        if (outStbi != NULL) *outStbi = 0;
+    }
+    else
     {
         int comp = 0;
         rgba = stbi_load_from_memory(data, (int)size, outW, outH, &comp, 4);
@@ -975,8 +988,8 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
      * so the .png silently won. When a whole-cover .dds is present and every
      * other match is a whole-cover twin of no HIGHER load-order priority,
      * collapse to the .dds alone. A higher-priority whole-cover .png from a
-     * DIFFERENT pack still wins (load order), and partial .dds entries can't
-     * be composited so their twins keep the .png path. matches[] is in
+     * DIFFERENT pack still wins (load order), and a sub-rect match keeps every
+     * entry on the composited path (both formats decode there). matches[] is in
      * ascending (priority, seq) order — scan from the end for the winner. */
     if (matchCount > 1)
     {
@@ -1015,9 +1028,9 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
      * native texture is uploaded compressed — the compositor can't blit BC7
      * blocks, and a whole-cover has nothing to blit over. Signal it via
      * TexPack_LastComposeIsDds(); the upload site hands the file to Dds_Upload.
-     * A partial or multi-entry .dds falls through to the RGBA path, where
-     * Entry_LoadPng's stbi decode can't read .dds and returns NULL — so it just
-     * doesn't apply (compressed sub-rect compositing is out of scope). */
+     * A partial or multi-entry .dds cannot take this path — the compositor has
+     * to blit 32-bit pixels — so it falls through to the RGBA path below, where
+     * Entry_LoadImage decodes its BC7 blocks on the CPU. */
     if (matchCount == 1 && g_entries[matches[0]].isDds)
     {
         const PackEntry* e = &g_entries[matches[0]];
@@ -1041,24 +1054,24 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
         }
     }
 
-    /* Decode every matching PNG once; the pack scale is the largest
-     * PNG-to-subrect ratio among them (uniform in practice). */
+    /* Decode every matching image once; the pack scale is the largest
+     * image-to-subrect ratio among them (uniform in practice). */
     {
-        unsigned char* pngs[64];
-        int pngW[64], pngH[64];
-        int anyPng = 0;
+        unsigned char* imgs[64];
+        int imgW[64], imgH[64], imgStbi[64];
+        int anyImage = 0;
 
         for (i = 0; i < matchCount; i++)
         {
-            pngs[i] = Entry_LoadPng(&g_entries[matches[i]], &pngW[i], &pngH[i]);
-            if (pngs[i] != NULL)
+            imgs[i] = Entry_LoadImage(&g_entries[matches[i]], &imgW[i], &imgH[i], &imgStbi[i]);
+            if (imgs[i] != NULL)
             {
                 const PackEntry* e = &g_entries[matches[i]];
-                float sx = (float)pngW[i] / (float)e->subW;
-                float sy = (float)pngH[i] / (float)e->subH;
+                float sx = (float)imgW[i] / (float)e->subW;
+                float sy = (float)imgH[i] / (float)e->subH;
                 if (sx > scaleX) scaleX = sx;
                 if (sy > scaleY) scaleY = sy;
-                anyPng = 1;
+                anyImage = 1;
             }
         }
         if (scaleX > 16.0f) scaleX = 16.0f;
@@ -1068,7 +1081,7 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
         canvasH = (int)ceilf((float)h * scaleY);
 
         canvas = NULL;
-        if (anyPng && canvasW > 0 && canvasH > 0 && canvasW <= 16384 && canvasH <= 16384)
+        if (anyImage && canvasW > 0 && canvasH > 0 && canvasW <= 16384 && canvasH <= 16384)
         {
             /* Base layer: the native upload, nearest-upscaled — sub-rects
              * the pack doesn't cover keep the original look, like
@@ -1087,7 +1100,7 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
 
         for (i = 0; i < matchCount; i++)
         {
-            if (pngs[i] == NULL) continue;
+            if (imgs[i] == NULL) continue;
             if (canvas != NULL)
             {
                 const PackEntry* e = &g_entries[matches[i]];
@@ -1095,9 +1108,10 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
                 int dy = (int)((float)e->offY * scaleY);
                 int dw = (int)ceilf((float)e->subW * scaleX);
                 int dh = (int)ceilf((float)e->subH * scaleY);
-                BlitNearest(canvas, canvasW, canvasH, dx, dy, dw, dh, pngs[i], pngW[i], pngH[i]);
+                BlitNearest(canvas, canvasW, canvasH, dx, dy, dw, dh, imgs[i], imgW[i], imgH[i]);
             }
-            stbi_image_free(pngs[i]);
+            if (imgStbi[i]) stbi_image_free(imgs[i]);
+            else free(imgs[i]);
         }
         if (canvas == NULL) return NULL;
     }

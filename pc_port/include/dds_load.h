@@ -24,6 +24,13 @@ int Dds_BptcSupported(void);
  * are rejected rather than guessed at. */
 int Dds_ParseBptc(const unsigned char* data, int size, s_DdsBptc* out);
 
+/* Decodes mip 0 of a BC7 DDS to a malloc'd RGBA8 buffer (*outW * *outH * 4) the
+ * caller frees, or NULL. For the texture-pack compositor, which blits 32-bit
+ * pixels and so cannot composite a sub-rect that is still BC7 blocks — the
+ * whole-upload compressed path (Dds_UploadBptc) stays preferred where it
+ * applies. An undecodable file logs its format once instead of vanishing. */
+unsigned char* Dds_DecodeRgba(const unsigned char* data, int size, int* outW, int* outH);
+
 /* Uploads a BC7 DDS into *tex (generated if 0). Uploads the file's OWN mip chain
  * level by level: glGenerateMipmap is invalid on compressed textures and fails
  * silently black. Returns 0 on success; on any failure the texture is deleted
