@@ -111,6 +111,28 @@ static uint32_t s_missAddr[RA_MISS_MAX];
 static int      s_missCount;
 static int      s_missOverflow;
 
+/* First few distinct pages the set touches, hit or miss: this is what reveals
+ * which build's address space the achievement conditions were authored in. */
+#define RA_SAMPLE_MAX 8
+static uint32_t s_samplePage[RA_SAMPLE_MAX];
+static int      s_sampleCount;
+
+static void Pc_RaNoteRead(uint32_t address, int hit)
+{
+    int i;
+    const uint32_t page = address & ~0xFFu;
+    for (i = 0; i < s_sampleCount; i++)
+    {
+        if (s_samplePage[i] == page)
+            break;
+    }
+    if (i == s_sampleCount && s_sampleCount < RA_SAMPLE_MAX)
+    {
+        s_samplePage[s_sampleCount++] = page;
+        SH_LOG("[RA] set reads 0x80%06X (%s)", address, hit ? "mapped" : "UNMAPPED");
+    }
+}
+
 static void Pc_RaNoteMiss(uint32_t address)
 {
     int i;
@@ -151,10 +173,12 @@ static uint32_t Pc_RaReadMemory(uint32_t address, uint8_t* buffer,
             const uint32_t n     = (num_bytes < avail) ? num_bytes : avail;
             if (buffer)
                 memcpy(buffer, (const u8*)r->native + (address - r->start), n);
+            Pc_RaNoteRead(address, 1);
             return n;
         }
     }
 
+    Pc_RaNoteRead(address, 0);
     Pc_RaNoteMiss(address);
     return 0;
 }
@@ -295,6 +319,7 @@ static void Pc_RaServerCall(const rc_api_request_t* request,
 static rc_client_t* s_client;
 static int          s_active;       /* set is loaded and evaluating */
 static int          s_enabled;      /* compiled in, configured, credentialed */
+static int          s_spectator;    /* evaluate + log, never post (unverified region) */
 static char         s_status[64];
 
 static void Pc_RaToast(const char* line)
@@ -369,6 +394,12 @@ static void RC_CCONV Pc_RaLoadGameCallback(int result, const char* error_message
 
     s_active = 1;
     Pc_RaRefreshStatus();
+    {
+        const rc_client_game_t* game = rc_client_get_game_info(client);
+        if (game)
+            SH_LOG("[RA] matched game %u \"%s\" (hash identifies the mounted disc)",
+                   game->id, game->title ? game->title : "?");
+    }
     SH_LOG("[RA] achievements active (softcore) - %s", s_status);
     {
         char line[96];
@@ -417,20 +448,22 @@ void Pc_Ra_Init(void)
     if (!g_PcConfig.retroAchievements)
         return;
 
-    /* Region gate. The address table below is built from the USA symbol map,
-     * and the other builds put these globals somewhere else entirely (JAP0 has
-     * SysWork at 0x800BC4F0 vs USA's 0x800B9FC0), with ranges that overlap
-     * across regions -- so one table cannot serve them all. Running a non-USA
-     * disc against USA addresses would feed the achievement set unrelated
-     * bytes, and a false unlock lands on the player's real account. Stay
-     * inactive instead. (configs/ ships sym maps for USA/JAP0/JAP1 only; the
-     * NTSC-J build this port targets is JAP2, which has none.) */
-    if (g_GameRegion != Region_USA)
-    {
-        SH_LOG("[RA] achievements are USA-disc only for now "
-               "(no verified address map for this region) - staying off");
-        return;
-    }
+    /* Region handling. The table below uses USA addresses, which is the space
+     * an RA set is almost certainly authored in -- and because this port keeps
+     * ONE compiled struct layout no matter which disc is mounted, that table
+     * stays correct for a PAL/JP disc too *provided* RA serves the same
+     * (USA-authored) set for it. What we cannot know without asking the server
+     * is whether RA instead matched a region-specific entry whose conditions
+     * read that build's own addresses (JAP0 puts SysWork at 0x800BC4F0 vs USA's
+     * 0x800B9FC0; those ranges overlap, so no single table serves both).
+     *
+     * So: non-USA discs run in SPECTATOR MODE -- achievements evaluate and log
+     * exactly as normal, but rc_client posts nothing, so a mismatched map can
+     * never write a false unlock to a real account. The session log then answers
+     * the question outright (which game id matched, which addresses the set
+     * reads), and `ra_unverified_region = 1` promotes that region to posting
+     * once it checks out. */
+    s_spectator = (g_GameRegion != Region_USA) && !g_PcConfig.raUnverifiedRegion;
 
     if (!g_PcConfig.raUsername[0] || !g_PcConfig.raToken[0])
     {
@@ -466,6 +499,13 @@ void Pc_Ra_Init(void)
     /* Softcore, permanently: see the file header. */
     rc_client_set_hardcore_enabled(s_client, 0);
     rc_client_set_event_handler(s_client, Pc_RaEventHandler);
+    if (s_spectator)
+    {
+        rc_client_set_spectator_mode_enabled(s_client, 1);
+        SH_LOG("[RA] non-USA disc: SPECTATOR mode - achievements evaluate and log "
+               "but nothing is submitted. Check the addresses logged below, then set "
+               "ra_unverified_region = 1 to submit for real.");
+    }
 
     s_enabled = 1;
     rc_client_begin_login_with_token(s_client, g_PcConfig.raUsername,

@@ -146,6 +146,7 @@ s_PcConfig g_PcConfig = {
     .retroAchievements   = 0,  /* opt-in; needs a launcher sign-in to do anything */
     .raUsername          = "",
     .raToken             = "", /* connect token from the launcher — never the password */
+    .raUnverifiedRegion  = 0,  /* non-USA discs stay in spectator mode until verified */
     .mapName        = "map0_s00"
 };
 
@@ -864,6 +865,10 @@ void PcConfig_Load(const char* path)
                 strncpy(g_PcConfig.raToken, value, sizeof(g_PcConfig.raToken) - 1);
                 g_PcConfig.raToken[sizeof(g_PcConfig.raToken) - 1] = '\0';
             }
+        }
+        else if (strcmp(key, "ra_unverified_region") == 0)
+        {
+            g_PcConfig.raUnverifiedRegion = atoi(value) ? 1 : 0;
         }
         else if (strcmp(key, "control_styles") == 0)
         {

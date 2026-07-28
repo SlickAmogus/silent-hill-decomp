@@ -229,6 +229,11 @@ typedef struct {
     int  retroAchievements;
     char raUsername[64];
     char raToken[96];
+    /* Submit unlocks on a non-USA disc. Off by default: the address map is
+     * USA-authored, so other regions evaluate in spectator mode (log only,
+     * nothing submitted) until the session log confirms the set reads the
+     * addresses we map. (config key: ra_unverified_region) */
+    int  raUnverifiedRegion;
 
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
