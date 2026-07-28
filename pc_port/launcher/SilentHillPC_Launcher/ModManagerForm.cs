@@ -123,7 +123,7 @@ namespace SilentHillPC_Launcher
             var btnEx = new Button { Text = "Extract BIN…", Location = new Point(510, 194), Size = new Size(78, 28) };
             var btnTp = new Button { Text = "TIM → PNG…",   Location = new Point(510, 226), Size = new Size(78, 28) };
             var btnBp = new Button { Text = "Bulk → PNG…",  Location = new Point(510, 258), Size = new Size(78, 28) };
-            var btnRef = new Button { Text = "Reference…",  Location = new Point(510, 290), Size = new Size(78, 28) };
+            var btnRef = new Button { Text = "Reference ▾", Location = new Point(510, 290), Size = new Size(78, 28) };
             var btnReb = new Button { Text = "Rebuild…",    Location = new Point(510, 322), Size = new Size(78, 28) };
             var btnMo = new Button { Text = "Model → OBJ…", Location = new Point(510, 354), Size = new Size(78, 28) };
             var btnOm = new Button { Text = "OBJ → Model…", Location = new Point(510, 386), Size = new Size(78, 28) };
@@ -133,9 +133,9 @@ namespace SilentHillPC_Launcher
             _btnTips.SetToolTip(btnEx, "Unpack a Silent Hill .bin disc image into the loose asset tree.");
             _btnTips.SetToolTip(btnTp, "Convert individual .TIM texture files to .png.");
             _btnTips.SetToolTip(btnBp, "Recursively convert every .TIM under a folder to .png in place.");
-            _btnTips.SetToolTip(btnRef, "Build Reference: a character draws its regions through several CLUT palettes, so no " +
-                "single .TIM/pNN PNG looks right. This reads the .ILM model + .TIM and assembles ONE correct composite " +
-                "image (how it really looks in-game) for you to paint over.");
+            _btnTips.SetToolTip(btnRef, "Reference: one correct image to paint over — every region shown through the palette " +
+                "the game really draws it with. Works for ANY texture (characters, world, weapons, items), one at a time or " +
+                "the whole disc in one pass.");
             _btnTips.SetToolTip(btnReb, "Rebuild Textures: slice your edited reference image back into the per-row " +
                 "NAME.TIM.pNN.png files the game loads (gamedata/load/<FOLDER>/). No 16-colour-per-region limit — paint freely.");
             _btnTips.SetToolTip(btnMo, "Model → OBJ: write a character model out as a .obj (plus .mtl and .ilmmeta.json) you can " +
@@ -150,7 +150,10 @@ namespace SilentHillPC_Launcher
             btnEx.Click += (s, e) => OnExtractBin();
             btnTp.Click += (s, e) => OnConvertTim();
             btnBp.Click += (s, e) => OnBulkPng();
-            btnRef.Click += (s, e) => OnBuildReference();
+            var refMenu = new ContextMenuStrip();
+            refMenu.Items.Add("One texture…",  null, (s, e) => OnBuildReference());
+            refMenu.Items.Add("Every texture…", null, (s, e) => OnBuildAllReferences());
+            btnRef.Click += (s, e) => refMenu.Show(btnRef, new Point(0, btnRef.Height));
             btnReb.Click += (s, e) => OnRebuildTextures();
             btnMo.Click += (s, e) => OnExportModel();
             btnOm.Click += (s, e) => OnImportModel();
@@ -491,8 +494,12 @@ namespace SilentHillPC_Launcher
             {
                 try
                 {
-                    ProgressDialog.Run(this, "Building character reference composites…",
-                        r => { refRes = ClutComposer.ComposeAll(outDir, r); });
+                    string tree = outDir;
+                    ProgressDialog.RunCancellable(this, "Building reference composites…", (r, cancelled) =>
+                    {
+                        var idx = ClutComposer.EnsureIndex(tree, (i, n, m) => r(i, n, "Indexing " + m));
+                        refRes = ClutComposer.ComposeAll(idx, null, (i, n, m) => r(i, n, m), cancelled);
+                    });
                 }
                 catch (Exception ex)
                 {
@@ -510,7 +517,7 @@ namespace SilentHillPC_Launcher
                 if (deleteTim) msg += "Deleted " + res.TexturesDeleted + " original .TIM file(s).\n";
             }
             if (buildRefs && refRes != null)
-                msg += "Built " + refRes.Made + " character reference composite(s).\n";
+                msg += "Built " + (refRes.Made + refRes.Flat) + " reference composite(s).\n";
             msg += "\nOutput folder:\n" + outDir;
             if (res.Warnings.Count > 0)
                 msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
@@ -564,7 +571,7 @@ namespace SilentHillPC_Launcher
                     chkDel.Enabled = chk.Checked;
                     if (!chk.Checked) chkDel.Checked = false;
                 };
-                var chkRef = new CheckBox { Text = "Build character reference composites (.ILM + .TIM)",
+                var chkRef = new CheckBox { Text = "Build reference composites (one paintable image per texture)",
                                            Location = new Point(12, 122), AutoSize = true };
                 dlg.Controls.Add(chk);
                 dlg.Controls.Add(chkDel);
@@ -854,66 +861,178 @@ namespace SilentHillPC_Launcher
                 res.Failed > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
         }
 
-        /// <summary>"Reference…" button: compose a character's true in-game look from
-        /// its .ILM model + .TIM into one editable PNG.</summary>
+        /// <summary>The extracted-disc root for an asset stored at ROOT\&lt;CLASS&gt;\NAME.EXT —
+        /// the folder the whole-tree CLUT index is built over.</summary>
+        private static string TreeRootFor(string assetPath)
+        {
+            string dir = Path.GetDirectoryName(Path.GetFullPath(assetPath));
+            string parent = Path.GetDirectoryName(dir);
+            return (!string.IsNullOrEmpty(parent) && Directory.Exists(parent)) ? parent : dir;
+        }
+
+        /// <summary>"Reference ▾ → One texture…": compose one texture's true in-game look
+        /// (every region through the palette that draws it) into one editable PNG. Works for
+        /// any texture class — the row map is unioned over every model on the disc that
+        /// samples the sheet, which is what the index is for.</summary>
         private void OnBuildReference()
         {
-            string ilm;
+            string target;
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select a character model (.ILM)";
-                ofd.Filter = "Model files (*.ilm)|*.ilm|All files (*.*)|*.*";
+                ofd.Title = "Select a texture (.TIM) or a model (.ILM / .PLM / .IPD)";
+                ofd.Filter = "Textures and models (*.tim;*.ilm;*.plm;*.ipd)|*.tim;*.ilm;*.plm;*.ipd|All files (*.*)|*.*";
                 string gamedata = Path.Combine(_gameRoot, "gamedata");
                 if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
                 if (ofd.ShowDialog(this) != DialogResult.OK) return;
-                ilm = ofd.FileName;
+                target = ofd.FileName;
             }
 
-            string tim = FindTimBeside(ilm);
-            if (tim == null)
+            string root = TreeRootFor(target);
+            List<ClutComposer.Target> targets = null;
+            string err = null;
+            try
             {
-                using (var ofd = new OpenFileDialog())
+                ProgressDialog.Run(this, "Reading the texture…", r =>
                 {
-                    ofd.Title = "Select the matching .TIM texture for " + Path.GetFileName(ilm);
-                    ofd.Filter = "TIM textures (*.tim)|*.tim|All files (*.*)|*.*";
-                    ofd.InitialDirectory = Path.GetDirectoryName(ilm);
-                    if (ofd.ShowDialog(this) != DialogResult.OK) return;
-                    tim = ofd.FileName;
-                }
+                    var idx = ClutComposer.EnsureIndex(root, (i, n, m) => r(i, n, "Indexing " + m));
+                    targets = ClutComposer.ResolveTargets(target, idx, null, out err);
+                });
+            }
+            catch (Exception ex) { err = ex.Message; }
+
+            if (targets == null || targets.Count == 0)
+            {
+                MessageBox.Show(this, "Could not build the reference:\n\n" + (err ?? "unknown error"),
+                    "Reference", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
             }
 
+            if (targets.Count > 1)
+            {
+                BuildReferenceSet(targets, target);
+                return;
+            }
+
+            var t = targets[0];
             string outPng;
             using (var sfd = new SaveFileDialog())
             {
                 sfd.Title = "Save reference image";
                 sfd.Filter = "PNG image (*.png)|*.png";
-                sfd.InitialDirectory = Path.GetDirectoryName(ilm);
-                sfd.FileName = Path.GetFileNameWithoutExtension(ilm) + "_reference.png";
+                sfd.InitialDirectory = Path.GetDirectoryName(target);
+                sfd.FileName = Path.GetFileNameWithoutExtension(t.TimPath) + "_reference.png";
                 if (sfd.ShowDialog(this) != DialogResult.OK) return;
                 outPng = sfd.FileName;
             }
 
-            bool ok = false; string err = null;
+            ClutComposer.ComposeResult res = null;
             try
             {
-                ProgressDialog.Run(this, "Building reference…",
-                    r => { ok = ClutComposer.Compose(ilm, tim, outPng, out err); });
+                ProgressDialog.Run(this, "Building reference…", r => { res = ClutComposer.ComposeTarget(t, outPng); });
             }
-            catch (Exception ex) { err = ex.Message; ok = false; }
-
-            if (!ok)
+            catch (Exception ex)
             {
-                MessageBox.Show(this, "Could not build the reference:\n\n" + err,
-                    "Build Reference", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, "Could not build the reference:\n\n" + ex.Message,
+                    "Reference", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
-            if (MessageBox.Show(this,
-                    "Reference image written:\n" + outPng +
-                    "\n\nEdit it in any image editor (keep the same pixel size), then use \"Rebuild…\" " +
-                    "to turn it back into the per-row PNGs the game loads.\n\nOpen it now?",
-                    "Build Reference", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+
+            string what = t.IsFlat
+                ? string.Format("{0} — {1}x{2}, flat 2D texture (no model draws it, so this is its plain decode).",
+                                Path.GetFileName(outPng), res.Width, res.Height)
+                : string.Format("{0} — {1}x{2}, {3} palette row(s), {4:F0}% of the sheet covered.",
+                                Path.GetFileName(outPng), res.Width, res.Height, res.Rows.Count, res.CoveragePct);
+            if (MessageBox.Show(this, what + "\n\nPaint over it, then \"Rebuild…\".  Open it now?",
+                    "Reference", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
             {
                 try { System.Diagnostics.Process.Start(outPng); } catch { }
+            }
+        }
+
+        /// <summary>A model that draws several textures composes to one reference each.</summary>
+        private void BuildReferenceSet(List<ClutComposer.Target> targets, string source)
+        {
+            string outDir;
+            using (var fbd = new FolderBrowserDialog())
+            {
+                fbd.Description = Path.GetFileName(source) + " uses " + targets.Count +
+                                  " textures — folder for the reference images";
+                fbd.SelectedPath = Path.GetDirectoryName(source);
+                if (fbd.ShowDialog(this) != DialogResult.OK) return;
+                outDir = fbd.SelectedPath;
+            }
+
+            int made = 0;
+            var failures = new List<string>();
+            try
+            {
+                ProgressDialog.Run(this, "Building references…", r =>
+                {
+                    for (int i = 0; i < targets.Count; i++)
+                    {
+                        r(i, targets.Count, Path.GetFileName(targets[i].TimPath));
+                        string png = Path.Combine(outDir,
+                            Path.GetFileNameWithoutExtension(targets[i].TimPath) + "_reference.png");
+                        try { ClutComposer.ComposeTarget(targets[i], png); made++; }
+                        catch (Exception ex) { failures.Add(Path.GetFileName(targets[i].TimPath) + ": " + ex.Message); }
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Could not build the references:\n\n" + ex.Message,
+                    "Reference", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string msg = made + " reference image(s) written to:\n" + outDir;
+            if (failures.Count > 0) msg += "\n\nFailed:\n - " + string.Join("\n - ", failures.Take(6));
+            if (MessageBox.Show(this, msg + "\n\nOpen the folder?", "Reference",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+            {
+                try { System.Diagnostics.Process.Start(outDir); } catch { }
+            }
+        }
+
+        /// <summary>"Reference ▾ → Every texture…": compose every texture on the disc in one
+        /// pass, into a sibling folder mirroring the tree.</summary>
+        private void OnBuildAllReferences()
+        {
+            string tree;
+            using (var fbd = new FolderBrowserDialog())
+            {
+                fbd.Description = "Extracted disc folder (the one holding BG, CHARA, TIM…)";
+                string gamedata = Path.Combine(_gameRoot, "gamedata");
+                if (Directory.Exists(gamedata)) fbd.SelectedPath = gamedata;
+                if (fbd.ShowDialog(this) != DialogResult.OK) return;
+                tree = fbd.SelectedPath;
+            }
+            string outDir = tree.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + "_reference";
+
+            ClutComposer.ComposeAllResult res = null;
+            try
+            {
+                ProgressDialog.RunCancellable(this, "Building reference images…", (r, cancelled) =>
+                {
+                    var idx = ClutComposer.EnsureIndex(tree, (i, n, m) => r(i, n, "Indexing " + m));
+                    res = ClutComposer.ComposeAll(idx, outDir, (i, n, m) => r(i, n, m), cancelled);
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Could not build the references:\n\n" + ex.Message,
+                    "Reference", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            if (res == null) return;
+
+            string msg = string.Format("{0} reference image(s){1} in:\n{2}",
+                res.Made + res.Flat, res.Cancelled ? ", cancelled early" : "", outDir);
+            if (res.Failed > 0) msg += "\n" + res.Failed + " texture(s) could not be composed.";
+            if (MessageBox.Show(this, msg + "\n\nOpen the folder?", "Reference",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+            {
+                try { System.Diagnostics.Process.Start(outDir); } catch { }
             }
         }
 
@@ -932,28 +1051,15 @@ namespace SilentHillPC_Launcher
                 edited = ofd.FileName;
             }
 
-            string ilm = GuessIlmFor(edited);
+            string source = GuessSourceFor(edited);
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select the character model (.ILM) this image came from";
-                ofd.Filter = "Model files (*.ilm)|*.ilm|All files (*.*)|*.*";
-                if (ilm != null) { ofd.InitialDirectory = Path.GetDirectoryName(ilm); ofd.FileName = Path.GetFileName(ilm); }
+                ofd.Title = "Select the texture (.TIM) or model this image came from";
+                ofd.Filter = "Textures and models (*.tim;*.ilm;*.plm;*.ipd)|*.tim;*.ilm;*.plm;*.ipd|All files (*.*)|*.*";
+                if (source != null) { ofd.InitialDirectory = Path.GetDirectoryName(source); ofd.FileName = Path.GetFileName(source); }
                 else ofd.InitialDirectory = Path.GetDirectoryName(edited);
                 if (ofd.ShowDialog(this) != DialogResult.OK) return;
-                ilm = ofd.FileName;
-            }
-
-            string tim = FindTimBeside(ilm);
-            if (tim == null)
-            {
-                using (var ofd = new OpenFileDialog())
-                {
-                    ofd.Title = "Select the matching .TIM texture for " + Path.GetFileName(ilm);
-                    ofd.Filter = "TIM textures (*.tim)|*.tim|All files (*.*)|*.*";
-                    ofd.InitialDirectory = Path.GetDirectoryName(ilm);
-                    if (ofd.ShowDialog(this) != DialogResult.OK) return;
-                    tim = ofd.FileName;
-                }
+                source = ofd.FileName;
             }
 
             string outDir;
@@ -968,11 +1074,15 @@ namespace SilentHillPC_Launcher
                 outDir = fbd.SelectedPath;
             }
 
+            string src = source;
             ClutComposer.SplitResult res = null;
             try
             {
-                ProgressDialog.Run(this, "Rebuilding textures…",
-                    r => { res = ClutComposer.Split(edited, ilm, tim, outDir); });
+                ProgressDialog.Run(this, "Rebuilding textures…", r =>
+                {
+                    var idx = ClutComposer.EnsureIndex(TreeRootFor(src), (i, n, m) => r(i, n, "Indexing " + m));
+                    res = ClutComposer.Split(edited, src, idx, null, outDir);
+                });
             }
             catch (Exception ex)
             {
@@ -989,9 +1099,12 @@ namespace SilentHillPC_Launcher
             }
 
             string msg = "Wrote " + res.Written.Count + " per-row PNG(s) to:\n" + outDir +
-                "\n\nPalette rows this model uses: " + string.Join(", ", res.RowsUsed) +
-                "\n\nDrop these into gamedata/load/<FOLDER>/ (e.g. CHARA) and set " +
-                "allow_loose_files = 1 in config.cfg.";
+                "\n\nPalette rows used: " + string.Join(", ", res.RowsUsed) +
+                "\n\nDrop these into gamedata/load/<FOLDER>/ (e.g. CHARA) and tick " +
+                "\"Enable loose file support\".";
+            if (res.RowsDropped.Count > 0)
+                msg += "\n\nRow(s) " + string.Join(", ", res.RowsDropped) + " are past the game's 16-row " +
+                       "limit and were skipped — it could never load them.";
             if (MessageBox.Show(this, msg + "\n\nOpen the output folder?",
                     "Rebuild Textures", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
             {
@@ -1736,6 +1849,23 @@ namespace SilentHillPC_Launcher
             return File.Exists(c) ? c : null;
         }
 
+        /// <summary>Best-effort guess of the texture or model a reference PNG came from
+        /// (NAME_reference.png -> NAME.TIM / .ILM / .PLM / .IPD beside it). The .TIM wins:
+        /// it is the target that gets the whole-corpus palette-row union.</summary>
+        private static string GuessSourceFor(string png)
+        {
+            string dir = Path.GetDirectoryName(png) ?? ".";
+            string stem = Path.GetFileNameWithoutExtension(png);
+            if (stem.EndsWith("_reference", StringComparison.OrdinalIgnoreCase))
+                stem = stem.Substring(0, stem.Length - "_reference".Length);
+            foreach (var ext in new[] { ".TIM", ".tim", ".ILM", ".ilm", ".PLM", ".plm", ".IPD", ".ipd" })
+            {
+                string c = Path.Combine(dir, stem + ext);
+                if (File.Exists(c)) return c;
+            }
+            return null;
+        }
+
         /// <summary>Best-effort guess of the .ILM a reference PNG came from
         /// (NAME_reference.png -> NAME.ILM beside it).</summary>
         private static string GuessIlmFor(string png)
@@ -1775,6 +1905,15 @@ namespace SilentHillPC_Launcher
                 "    change. You can ship just the rows you edited, but KEEP p00.png —",
                 "    the game uses it to detect a per-palette set (the extractor always",
                 "    writes it).",
+                "",
+                "    THE EASY WAY: don't edit those palette rows by hand. \"Reference ▾\"",
+                "    builds ONE image showing every region through the palette the game",
+                "    really draws it with — that is what the texture looks like in game.",
+                "    It works for every texture on the disc, not just characters: the",
+                "    world (.IPD), weapons and items (.PLM) too, and \"Every texture…\"",
+                "    does the whole disc in one pass. Paint over that image (at native",
+                "    size or any upscale of it), then \"Rebuild…\" slices it back into the",
+                "    NAME.TIM.pNN.png set below. No 16-colour limit — paint freely.",
                 "",
                 "2.  Edit the ones you want.",
                 "    Replace a .png with your own art, keeping the SAME name and folder.",
