@@ -940,8 +940,13 @@ namespace SilentHillPC_Launcher
             string what = t.IsFlat
                 ? string.Format("{0} — {1}x{2}, flat 2D texture (no model draws it, so this is its plain decode).",
                                 Path.GetFileName(outPng), res.Width, res.Height)
-                : string.Format("{0} — {1}x{2}, {3} palette row(s), {4:F0}% of the sheet covered.",
-                                Path.GetFileName(outPng), res.Width, res.Height, res.Rows.Count, res.CoveragePct);
+                : string.Format("{0} — {1}x{2}, {3} palette row(s), {4:F0}% of the sheet covered, {5:F0}% shared.",
+                                Path.GetFileName(outPng), res.Width, res.Height, res.Rows.Count,
+                                res.CoveragePct, res.SharedPct);
+            if (res.TooShared)
+                what += string.Format("\n\nWARNING: {0:F0}% of it is drawn through MORE THAN ONE palette and a " +
+                                      "composite can show only one. Edit the per-row {1}.pNN.png set instead.",
+                                      res.SharedPct, Path.GetFileName(t.TimPath));
             if (MessageBox.Show(this, what + "\n\nPaint over it, then \"Rebuild…\".  Open it now?",
                     "Reference", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
             {
@@ -962,7 +967,7 @@ namespace SilentHillPC_Launcher
                 outDir = fbd.SelectedPath;
             }
 
-            int made = 0;
+            int made = 0, tooShared = 0;
             var failures = new List<string>();
             try
             {
@@ -973,7 +978,11 @@ namespace SilentHillPC_Launcher
                         r(i, targets.Count, Path.GetFileName(targets[i].TimPath));
                         string png = Path.Combine(outDir,
                             Path.GetFileNameWithoutExtension(targets[i].TimPath) + "_reference.png");
-                        try { ClutComposer.ComposeTarget(targets[i], png); made++; }
+                        try
+                        {
+                            if (ClutComposer.ComposeTarget(targets[i], png).TooShared) tooShared++;
+                            made++;
+                        }
                         catch (Exception ex) { failures.Add(Path.GetFileName(targets[i].TimPath) + ": " + ex.Message); }
                     }
                 });
@@ -986,6 +995,9 @@ namespace SilentHillPC_Launcher
             }
 
             string msg = made + " reference image(s) written to:\n" + outDir;
+            if (tooShared > 0)
+                msg += string.Format("\n{0} of them are over {1:F0}% shared — for those, edit the per-row " +
+                                     "pNN.png set, not the composite.", tooShared, ClutComposer.SharedWarnPct);
             if (failures.Count > 0) msg += "\n\nFailed:\n - " + string.Join("\n - ", failures.Take(6));
             if (MessageBox.Show(this, msg + "\n\nOpen the folder?", "Reference",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
@@ -1029,6 +1041,9 @@ namespace SilentHillPC_Launcher
             string msg = string.Format("{0} reference image(s){1} in:\n{2}",
                 res.Made + res.Flat, res.Cancelled ? ", cancelled early" : "", outDir);
             if (res.Failed > 0) msg += "\n" + res.Failed + " texture(s) could not be composed.";
+            if (res.TooShared > 0)
+                msg += string.Format("\n{0} sheet(s) are over {1:F0}% shared — for those, edit the per-row " +
+                                     "pNN.png set, not the composite.", res.TooShared, ClutComposer.SharedWarnPct);
             if (MessageBox.Show(this, msg + "\n\nOpen the folder?", "Reference",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
             {

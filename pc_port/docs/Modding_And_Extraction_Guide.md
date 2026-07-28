@@ -359,10 +359,13 @@ sharpest region edges), and *Rebuild* keeps that resolution in the output PNGs.
 Two limits worth knowing. The runtime keeps **16** CLUT rows per texture
 (`HIRES_POOL_MAX_ROWS`), so `pNN.png` files for row 16 and above can never load — the tools
 no longer write them (`PRS.TIM` has 48 CLUT rows, `BOS2.TIM` 32; no geometry uses rows past
-13, so nothing is lost). And about 3% of covered texels are drawn through *more than one*
-palette row (a handful of sheets — `BG/RSRG1F`, `ITEM/DRILL`, `BG/HU1F051` — are over half
-shared); a single composite necessarily shows one of them, and an edit there applies to the
-row the composite picked.
+13, so nothing is lost). And 3.1% of covered texels are drawn through *more than one*
+palette row; a composite necessarily shows one of them, so an edit there applies only to the
+row it picked. Both tools measure that per sheet and report it as **shared%** — past **20%**
+they warn and tell you to edit that sheet's `pNN.png` set instead, which is the only way to
+paint those texels correctly. 30 of the 995 composable sheets are over the line (the worst
+are `BG/THRB502H` 88%, `BG/RSRG1F` 81%, `ITEM/DRILL` 80%, `BG/HU1F051` 70%); `compose-all`
+lists every one of them at the end, and `--exclude-shared 20` skips writing them at all.
 
 ### 5.2 Rebuild the disc image — no size ceiling
 

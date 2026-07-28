@@ -31,6 +31,8 @@ Commands:
       The correct composite: every texel painted through the palette row the game
       actually draws it with. Edit THIS in any image editor. With `--index` the
       row map is the whole-corpus union; without it, only the given model is used.
+      Reports `shared%`: the texels SEVERAL rows draw, where a composite can only
+      show one of them. Over SHARED_WARN_PCT it warns - edit the pNN set instead.
 
   split    edited.png  MODEL-or-TIM  ->  NAME.TIM.pNN.png set
       Slices your edited image back into the per-row loose-override PNGs the
@@ -394,11 +396,17 @@ def _fill_prim(rowmap, uv, row, tri, W, H):
     _fill_tri(rowmap, uv[1], uv[3], uv[2], row, W, H)  # PSX FT4 winding
 
 
-def build_rowmap(prims, W, H, dilate=1, stats=None):
-    rowmap = [-1] * (W * H)
+def _rasterise(rowmap, prims, W, H, value=None):
+    """Draw every prim into `rowmap`, returning how many had to be clamped.
+
+    `value` overrides the palette row written; the share pass reuses this to draw one
+    row at a time into a 0/1 plane, so the share count can never disagree with the
+    composite's own coverage.
+    """
     clamped = 0
     for p in prims:
         uv = p["uvs"]
+        row = p["row"] if value is None else value
         if uv[0][0] >= W or uv[1][0] >= W or uv[2][0] >= W or uv[3][0] >= W or \
            uv[0][1] >= H or uv[1][1] >= H or uv[2][1] >= H or uv[3][1] >= H:
             # Half-page materials (RSR08H, SPR07H, THR9002H, THRB502H) address past
@@ -410,14 +418,51 @@ def build_rowmap(prims, W, H, dilate=1, stats=None):
             cv = [min(v, H - 1) for (_u, v) in uv]
             if p["tri"]:
                 cu, cv = cu[:3], cv[:3]
-            _fill_rect(rowmap, min(cu), min(cv), max(cu), max(cv), p["row"], W, H)
+            _fill_rect(rowmap, min(cu), min(cv), max(cu), max(cv), row, W, H)
             continue
-        _fill_prim(rowmap, uv, p["row"], p["tri"], W, H)
+        _fill_prim(rowmap, uv, row, p["tri"], W, H)
+    return clamped
+
+
+def build_rowmap(prims, W, H, dilate=1, stats=None):
+    rowmap = [-1] * (W * H)
+    clamped = _rasterise(rowmap, prims, W, H)
     for _ in range(max(0, dilate)):
         rowmap = _dilate(rowmap, W, H)
     if stats is not None:
         stats["clampedPrims"] = clamped
     return rowmap
+
+
+# Above this share of its covered texels a composite is the WRONG tool for a sheet: too
+# much of it is drawn through several palettes at once, so the one colour a composite can
+# show is right for only one of them. Picked off the corpus (995 composable sheets): the
+# share is exactly 0 on 55% of them, 1.0% at p90 and 3.07% overall, so 20% is twenty times
+# the p90 and fires on 30 sheets (p97) - and those 30 are the ones where the sharing is
+# whole regions (22 of them are past 40%), not the stray reused prim the 1-20% band is.
+SHARED_WARN_PCT = 20.0
+
+
+def shared_texels(prims, W, H, clut_h):
+    """(shared, covered): of the texels a composite paints, how many does MORE THAN ONE
+    palette row sample?
+
+    The composite's row map is last-writer-wins, so it cannot itself tell one row from
+    two. Each row is drawn alone into a 0/1 plane and the planes are summed as one big
+    little-endian integer: byte i of the sum is how many rows sample texel i, and no
+    byte can carry into the next because a sheet has nothing like 255 rows.
+    """
+    rows = sorted({p["row"] for p in prims if 0 <= p["row"] < clut_h})
+    if not rows:
+        return 0, 0
+    acc = 0
+    for r in rows:
+        plane = bytearray(W * H)
+        _rasterise(plane, [p for p in prims if p["row"] == r], W, H, value=1)
+        acc += int.from_bytes(bytes(plane), "little")
+    blob = acc.to_bytes(W * H, "little")
+    covered = W * H - blob.count(0)
+    return covered - blob.count(1), covered
 
 
 def build_rowmap_bleed(prims, W, H, stats=None):
@@ -623,27 +668,37 @@ def _render_composite(tim, rowmap):
     return rgba, covered, oob
 
 
-def compose_tim(tim_path, prims, out_path, quiet=False):
+def compose_tim(tim_path, prims, out_path, quiet=False, skip_shared_above=None):
     """Render one composite from an already-unioned prim list."""
     tim = parse_tim_indexed(open(tim_path, "rb").read())
     W, H = tim["w"], tim["h"]
     stats = {}
     rowmap = build_rowmap(prims, W, H, dilate=0, stats=stats)  # compose shows true coverage
+    shared, sbase = shared_texels(prims, W, H, tim["clutH"])
+    shared_pct = 100.0 * shared / max(1, sbase)
+    skipped = skip_shared_above is not None and shared_pct > skip_shared_above
     rgba, covered, oob = _render_composite(tim, rowmap)
-    write_png_rgba(out_path, W, H, bytes(rgba))
+    if not skipped:
+        write_png_rgba(out_path, W, H, bytes(rgba))
     rows = sorted({r for r in rowmap if r >= 0})
+    stem = os.path.basename(tim_path)
     if not quiet:
-        print("compose: %s -> %s  (%dx%d, %d prims, %d/%d texels = %.1f%%, rows %s)"
-              % (os.path.basename(tim_path), out_path, W, H, len(prims),
-                 covered, W * H, 100.0 * covered / max(1, W * H),
+        print("compose: %s -> %s  (%dx%d, %d prims, %d/%d texels = %.1f%%, %.1f%% shared, rows %s)"
+              % (stem, out_path, W, H, len(prims),
+                 covered, W * H, 100.0 * covered / max(1, W * H), shared_pct,
                  ",".join(map(str, rows)) if rows else "-"))
         if stats.get("clampedPrims"):
             print("   %d prim(s) address past the %dx%d sheet (half-page material) - clamped"
                   % (stats["clampedPrims"], W, H))
         if oob:
             print("   WARNING: %d texel(s) select a CLUT row this TIM does not have" % oob)
+        if shared_pct > SHARED_WARN_PCT:
+            print("   WARNING: %.1f%% of covered texels are drawn through MORE THAN ONE palette row, and"
+                  "\n   a composite can show only one. Edit the per-row %s.pNN.png set instead."
+                  % (shared_pct, stem))
     return dict(path=out_path, w=W, h=H, covered=covered, total=W * H,
-                rows=rows, clutH=tim["clutH"], clamped=stats.get("clampedPrims", 0))
+                rows=rows, clutH=tim["clutH"], clamped=stats.get("clampedPrims", 0),
+                shared=shared, sharedBase=sbase, sharedPct=shared_pct, skipped=skipped)
 
 
 def split_tim(edited_path, tim_path, prims, out_dir, quiet=False):
@@ -762,7 +817,7 @@ def _class_of(rel):
     return d.split("/")[0] if d else "."
 
 
-def compose_all(idx, out_dir, only=None):
+def compose_all(idx, out_dir, only=None, exclude_shared=None):
     root = idx["root"]
     rels = sorted(idx["tims"])
     if only:
@@ -780,7 +835,8 @@ def compose_all(idx, out_dir, only=None):
                            os.path.splitext(os.path.basename(rel))[0] + "_reference.png")
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         try:
-            r = compose_tim(os.path.join(root, rel), prims, dst, quiet=True)
+            r = compose_tim(os.path.join(root, rel), prims, dst, quiet=True,
+                            skip_shared_above=exclude_shared)
         except Exception as ex:  # noqa: BLE001
             print("   FAILED %s: %s" % (rel, ex), file=sys.stderr)
             continue
@@ -805,31 +861,52 @@ def compose_all(idx, out_dir, only=None):
                            os.path.splitext(os.path.basename(rel))[0] + "_reference.png")
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         write_png_rgba(dst, w, h, rgba)
+        # sharedBase 0: a flat sheet has no row map, so "how many rows draw this texel"
+        # is not a question about it - it must not dilute the class averages either.
         stats[rel] = dict(path=dst, w=w, h=h, covered=w * h, total=w * h, rows=[0],
-                          clutH=rows, clamped=0,
+                          clutH=rows, clamped=0, shared=0, sharedBase=0,
+                          sharedPct=0.0, skipped=False,
                           kind="flat" if rows <= 1 else "flat-multirow")
 
     # per-class coverage summary
     cls = {}
     for rel, r in stats.items():
-        c = cls.setdefault(_class_of(rel), dict(n=0, cov=0, tot=0, full=0, multi=0, unrec=0))
+        c = cls.setdefault(_class_of(rel), dict(n=0, cov=0, tot=0, full=0, multi=0, unrec=0,
+                                                sh=0, shb=0))
         c["n"] += 1
         c["cov"] += r["covered"]
         c["tot"] += r["total"]
+        c["sh"] += r["shared"]
+        c["shb"] += r["sharedBase"]
         if r["covered"] == r["total"]:
             c["full"] += 1
         if r["clutH"] > 1:
             c["multi"] += 1
         if r["kind"] == "flat-multirow":
             c["unrec"] += 1
-    print("\n%-8s %6s %8s %8s %8s   %s" % ("CLASS", "TIMs", "multiCLUT", "texel%", "full", "no-rowmap(multiCLUT)"))
-    tn = tc = tt = 0
+    print("\n%-8s %6s %8s %8s %8s %8s   %s"
+          % ("CLASS", "TIMs", "multiCLUT", "texel%", "shared%", "full", "no-rowmap(multiCLUT)"))
+    tn = tc = tt = ts = tsb = 0
     for k in sorted(cls):
         c = cls[k]
-        print("%-8s %6d %8d %8.1f %8d   %d"
-              % (k, c["n"], c["multi"], 100.0 * c["cov"] / max(1, c["tot"]), c["full"], c["unrec"]))
-        tn += c["n"]; tc += c["cov"]; tt += c["tot"]
-    print("%-8s %6d %8s %8.1f" % ("TOTAL", tn, "", 100.0 * tc / max(1, tt)))
+        print("%-8s %6d %8d %8.1f %8.1f %8d   %d"
+              % (k, c["n"], c["multi"], 100.0 * c["cov"] / max(1, c["tot"]),
+                 100.0 * c["sh"] / max(1, c["shb"]), c["full"], c["unrec"]))
+        tn += c["n"]; tc += c["cov"]; tt += c["tot"]; ts += c["sh"]; tsb += c["shb"]
+    print("%-8s %6d %8s %8.1f %8.1f"
+          % ("TOTAL", tn, "", 100.0 * tc / max(1, tt), 100.0 * ts / max(1, tsb)))
+
+    # The sheets a composite is the wrong tool for - name every one, they are the only
+    # ones a modder has to treat differently.
+    bad = sorted(((r["sharedPct"], rel) for rel, r in stats.items()
+                  if r["sharedPct"] > SHARED_WARN_PCT), reverse=True)
+    if bad:
+        nskip = sum(1 for r in stats.values() if r["skipped"])
+        print("\n%d sheet(s) over %.0f%% shared - edit their per-row NAME.TIM.pNN.png set, "
+              "not the composite%s:"
+              % (len(bad), SHARED_WARN_PCT, " (%d not written)" % nskip if nskip else ""))
+        for pct, rel in bad:
+            print("   %-28s %5.1f%%" % (rel, pct))
     return stats
 
 
@@ -871,6 +948,9 @@ def main(argv):
     a.add_argument("--index")
     a.add_argument("--root")
     a.add_argument("--only", help="fnmatch filter on the TIM's path inside the tree, e.g. 'BG/*'")
+    a.add_argument("--exclude-shared", type=float, metavar="PCT",
+                   help="do not write a composite for sheets whose shared%% is above PCT "
+                        "(they are still listed); a composite would mislead on those")
 
     args = ap.parse_args(argv)
 
@@ -886,7 +966,7 @@ def main(argv):
         idx = _maybe_index(args)
         if not idx:
             raise SystemExit("compose-all needs --index or --root")
-        compose_all(idx, args.out, args.only)
+        compose_all(idx, args.out, args.only, args.exclude_shared)
         return 0
 
     idx = _maybe_index(args)

@@ -40,12 +40,25 @@ namespace SilentHillPC_Launcher
     /// see fsqueue_3.c / hires_override.c), so a Split output is not limited to 16 colours
     /// per region — the artist paints freely. Split is a per-row slice of the edited
     /// reference, dilated 1px so no drawn texel becomes a hole where a prim samples it.
+    ///
+    /// Compose also reports shared%: the covered texels SEVERAL rows draw, where a composite
+    /// can only ever show one of them. Past SharedWarnPct the sheet belongs in the per-row
+    /// pNN.png path instead — a composite would mislead the artist on most of it.
     /// </summary>
     public static class ClutComposer
     {
         // pc_port/include/hires_override.h — the runtime only keeps this many CLUT rows
         // per pool slot, so a pNN.png with N >= this is never read. Never emit one.
         public const int HiresPoolMaxRows = 16;
+
+        /// <summary>Above this share of its covered texels a composite is the WRONG tool for a
+        /// sheet: too much of it is drawn through several palettes at once, so the one colour a
+        /// composite can show is right for only one of them. Picked off the corpus (995 composable
+        /// sheets): the share is exactly 0 on 55% of them, 1.0% at p90 and 3.07% overall, so 20%
+        /// is twenty times the p90 and fires on 30 sheets (p97) — and those 30 are the ones where
+        /// the sharing is whole regions (22 of them are past 40%), not the stray reused prim the
+        /// 1-20% band is. Kept in step with clut_tool.py's SHARED_WARN_PCT.</summary>
+        public const double SharedWarnPct = 20.0;
 
         private const int LmMagic   = 0x30;   // '0'
         private const int LmVersion = 6;
@@ -363,6 +376,39 @@ namespace SilentHillPC_Launcher
                     if (s >= 0) { outp[i] = tru[s]; src[i] = s; }
                 }
             return outp;
+        }
+
+        /// <summary>Of the texels a composite paints, how many does MORE THAN ONE palette row
+        /// sample? The composite's row map is last-writer-wins, so it cannot itself tell one row
+        /// from two: each row is rasterised alone (through the same BuildRowMap, so the count can
+        /// never disagree with the composite's coverage) and the planes are counted per texel.
+        /// Mirrors clut_tool.py's shared_texels() exactly.</summary>
+        private static int SharedTexels(List<Prim> prims, int W, int H, int clutRows, out int covered)
+        {
+            var rows = new SortedSet<int>();
+            for (int i = 0; i < prims.Count; i++)
+                if (prims[i].Row >= 0 && prims[i].Row < clutRows) rows.Add(prims[i].Row);
+            covered = 0;
+            if (rows.Count == 0) return 0;
+
+            var counts = new byte[W * H];
+            var one = new List<Prim>();
+            foreach (int r in rows)
+            {
+                one.Clear();
+                for (int i = 0; i < prims.Count; i++) if (prims[i].Row == r) one.Add(prims[i]);
+                int clamped;
+                int[] plane = BuildRowMap(one, W, H, 0, out clamped);
+                for (int i = 0; i < plane.Length; i++) if (plane[i] >= 0) counts[i]++;
+            }
+            int shared = 0;
+            for (int i = 0; i < counts.Length; i++)
+            {
+                if (counts[i] == 0) continue;
+                covered++;
+                if (counts[i] > 1) shared++;
+            }
+            return shared;
         }
 
         private static int[] Dilate(int[] rm, int W, int H)
@@ -826,8 +872,13 @@ namespace SilentHillPC_Launcher
             public int ClampedPrims;
             public int OutOfRangeTexels;
             public string Kind;                 // "composite" | "flat" | "flat-multirow"
+            public int SharedTexels;            // painted texels MORE THAN ONE palette row samples
+            public int SharedBase;              // painted texels the share is measured over
             public readonly List<int> Rows = new List<int>();
             public double CoveragePct { get { return Total > 0 ? 100.0 * Covered / Total : 0.0; } }
+            public double SharedPct { get { return SharedBase > 0 ? 100.0 * SharedTexels / SharedBase : 0.0; } }
+            /// <summary>A composite is the wrong tool for this sheet — the pNN.png set is.</summary>
+            public bool TooShared { get { return SharedPct > SharedWarnPct; } }
         }
 
         /// <summary>Render one composite from an already-unioned prim list.</summary>
@@ -843,10 +894,14 @@ namespace SilentHillPC_Launcher
             int clamped;
             int[] rm = BuildRowMap(prims, W, H, 0, out clamped);   // compose shows true coverage
 
+            int sharedBase;
+            int shared = SharedTexels(prims, W, H, clutRows, out sharedBase);
+
             var res = new ComposeResult
             {
                 Path = outPng, Width = W, Height = H, Total = W * H, ClutRows = clutRows,
-                PrimCount = prims.Count, ClampedPrims = clamped, Kind = "composite"
+                PrimCount = prims.Count, ClampedPrims = clamped, Kind = "composite",
+                SharedTexels = shared, SharedBase = sharedBase
             };
 
             var rowRgba = new Dictionary<int, byte[]>();
@@ -1148,9 +1203,10 @@ namespace SilentHillPC_Launcher
 
         public class ClassStat
         {
-            public int Tims, MultiClut, Full, NoRowMap;
-            public long Covered, Total;
+            public int Tims, MultiClut, Full, NoRowMap, TooShared;
+            public long Covered, Total, Shared, SharedBase;
             public double CoveragePct { get { return Total > 0 ? 100.0 * Covered / Total : 0.0; } }
+            public double SharedPct { get { return SharedBase > 0 ? 100.0 * Shared / SharedBase : 0.0; } }
         }
 
         public class ComposeAllResult
@@ -1158,12 +1214,14 @@ namespace SilentHillPC_Launcher
             public int Made;            // geometry-referenced composites
             public int Flat;            // plain decodes (no model references the sheet)
             public int Failed;
+            public int TooShared;       // sheets a composite would mislead on (SharedWarnPct)
             public bool Cancelled;
             public readonly List<string> Failures = new List<string>();
             public readonly SortedDictionary<string, ClassStat> Classes =
                 new SortedDictionary<string, ClassStat>(StringComparer.Ordinal);
-            public long Covered, Total;
+            public long Covered, Total, Shared, SharedBase;
             public double CoveragePct { get { return Total > 0 ? 100.0 * Covered / Total : 0.0; } }
+            public double SharedPct { get { return SharedBase > 0 ? 100.0 * Shared / SharedBase : 0.0; } }
         }
 
         private static string ClassOf(string rel)
@@ -1218,11 +1276,16 @@ namespace SilentHillPC_Launcher
                 cs.Tims++;
                 cs.Covered += r.Covered;
                 cs.Total += r.Total;
+                cs.Shared += r.SharedTexels;
+                cs.SharedBase += r.SharedBase;
                 if (r.Covered == r.Total) cs.Full++;
                 if (r.ClutRows > 1) cs.MultiClut++;
                 if (r.Kind == "flat-multirow") cs.NoRowMap++;
+                if (r.TooShared) { cs.TooShared++; res.TooShared++; }
                 res.Covered += r.Covered;
                 res.Total += r.Total;
+                res.Shared += r.SharedTexels;
+                res.SharedBase += r.SharedBase;
             }
             return res;
         }
