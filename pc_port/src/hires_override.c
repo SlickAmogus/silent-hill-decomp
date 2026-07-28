@@ -495,7 +495,9 @@ int HiresOverride_PoolSlotRegister(int slotId,
                 }
                 pack_credit(&ds->rowPackBytes[r2]);
             }
-            if (Dds_UploadBptc(&ds->glTexture[0], data, (int)size, 0) != 0)
+            if (Dds_UploadBptc(&ds->glTexture[0], data, (int)size,
+                               s_forceNearestUpload ||
+                               (probe.width == nativePixelW && probe.height == nativePixelH)) != 0)
             {
                 SH_DBG("[POOLTEX] slot %d: BC7 upload failed — falling back", slotId);
                 return -1;
@@ -816,7 +818,15 @@ int HiresOverride_PoolSlotRegisterDdsKeyed(int slotId, int row,
         return 0;
     }
 
-    if (Dds_UploadBptc(&s->glTexture[row], ddsBytes, (int)ddsSize, 0) != 0)
+    /* Sampling must not depend on the pack's FORMAT: upload_rgba derives
+     * `nearest` from native-vs-upscaled and additionally honours the font
+     * atlas's force-nearest, so the .dds twin has to do both or the same
+     * texture renders differently once converted (a font TIM shipped as .dds
+     * came back bilinear+mipmapped, re-opening the gutterless-cell ghost text
+     * a3e7973cf fixed for .png). */
+    if (Dds_UploadBptc(&s->glTexture[row], ddsBytes, (int)ddsSize,
+                       s_forceNearestUpload ||
+                       (w == nativePixelW && h == nativePixelH)) != 0)
     {
         s->rowHash[row] = 0;
         return -1;
@@ -967,7 +977,9 @@ int HiresOverride_RegisterDdsKeyed(const char* label,
         e->contentHash = 0;
     }
 
-    if (Dds_UploadBptc(&e->glTexture, ddsBytes, (int)ddsSize, 0) != 0)
+    /* RGBA twin passes 0 here and upload_rgba ORs the font force-nearest in
+     * itself; replicate that so format never changes sampling. */
+    if (Dds_UploadBptc(&e->glTexture, ddsBytes, (int)ddsSize, s_forceNearestUpload) != 0)
     {
         e->contentHash = 0;
         return -1;
