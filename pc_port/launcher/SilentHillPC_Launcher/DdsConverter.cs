@@ -441,12 +441,310 @@ namespace SilentHillPC_Launcher
             }
             catch (Exception ex) { firstError = ex.Message; return; }
 
+            EncodeFiles(pngs, deleteSource, report, out converted, out failed, out firstError);
+        }
+
+        /// <summary>Batch-encode an explicit list of .png sources to a BC7 .dds beside
+        /// each one. <paramref name="deleteSource"/> removes ONLY the sources that
+        /// actually converted — a file that was never in <paramref name="sources"/>,
+        /// or that failed, is never touched. This is what makes the whole-texture-only
+        /// pack run safe: every sub-rect .png the caller left out survives.</summary>
+        public static void EncodeFiles(List<string> sources, bool deleteSource,
+                                       Action<int, int, string> report,
+                                       out int converted, out int failed, out string firstError)
+        {
             Action<string> onConverted = null;
             if (deleteSource)
                 onConverted = src => { try { LongDelete(src); } catch { /* leave the png if locked */ } };
 
-            ConvertMany(pngs, src => Path.GetDirectoryName(src), false, report, onConverted,
+            ConvertMany(sources, src => Path.GetDirectoryName(src), false, report, onConverted,
                         out converted, out failed, out firstError);
+        }
+
+        // ------------------------------------------------------------------
+        // DuckStation pack analysis.
+        //
+        // A DuckStation pack is NOT a set of whole-texture replacements: most of
+        // its files patch a small sub-rect of one VRAM upload, and the engine
+        // composites them onto an upscaled copy of the native texture
+        // (TexPack_Compose, pc_port/src/tex_pack.c). That compositor is an RGBA
+        // blitter — a compressed sub-rect cannot be blitted, so converting one to
+        // .dds makes it silently do nothing. Only a single entry covering the whole
+        // native texture takes the compressed whole-upload fast path.
+        //
+        // The parser below is a LITERAL port of tex_pack.c's ParseName/Mode_Bpp and
+        // of the whole-cover test in TexPack_Compose. It must stay a mirror: if the
+        // engine grammar changes, change it here too and re-run AnalyzeSelfTest.
+        // ------------------------------------------------------------------
+
+        /// <summary>What a folder of pack files actually contains.
+        /// WholeCover + SubRect + Unparsed == Total.</summary>
+        public sealed class PackAnalysis
+        {
+            /// <summary>.png/.dds files whose name the engine would even look at.</summary>
+            public int Total;
+            /// <summary>Entries replacing an entire native texture — .dds-safe.</summary>
+            public int WholeCover;
+            /// <summary>Entries patching a sub-rect — .dds would be ignored by the engine.</summary>
+            public int SubRect;
+            /// <summary>Distinct (source texture, bpp, palette) uploads the pack touches.</summary>
+            public int Groups;
+            /// <summary>Groups that would still work after a full .dds conversion: the
+            /// compressed fast path needs matchCount == 1, so EVERY entry in the group
+            /// must be whole-cover. One entry qualifies outright; several qualify only
+            /// because TexPack_Compose's DDS-first pass collapses whole-cover twins
+            /// (Mode_Bpp masks the ST bit, so a P4 and its STP4 twin are one group).
+            /// A group holding even one sub-rect is dead once its .png is gone.</summary>
+            public int UsableGroups;
+            /// <summary>Named like a pack file but rejected by the grammar.</summary>
+            public int Unparsed;
+            /// <summary>The whole-cover entries that are still .png, i.e. the exact set
+            /// a whole-texture-only conversion may touch.</summary>
+            public readonly List<string> WholeCoverPngs = new List<string>();
+        }
+
+        private static readonly string[] ModeNames =
+            { "P4", "P8", "C16", "C16", "STP4", "STP8", "STC16", "STC16" };
+
+        private struct PackEntryName
+        {
+            public ulong  SrcHash;
+            public ulong  PalHash;
+            public ushort SrcW, SrcH;
+            public ushort OffX, OffY;
+            public ushort SubW, SubH;
+            public byte   Mode;
+        }
+
+        private sealed class GroupInfo
+        {
+            public int Count;
+            public int WholeCount;
+        }
+
+        /// <summary>tex_pack.c Mode_Bpp. The ST bit is masked off, so P4 and STP4
+        /// (and P8/STP8, C16/STC16) land in the same group.</summary>
+        private static int ModeBpp(byte mode)
+        {
+            switch (mode & 3)
+            {
+                case 0:  return 4;
+                case 1:  return 8;
+                default: return 16;
+            }
+        }
+
+        private static int HexVal(char c)
+        {
+            if (c >= '0' && c <= '9') return c - '0';
+            if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+            if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+            return -1;
+        }
+
+        /// <summary>Exactly 16 hex digits, not 15 and not 17 — DuckStation always
+        /// writes 16 and tex_pack.c's ParseHex64 rejects any other run length.</summary>
+        private static bool ParseHex64(string s, ref int p, out ulong v)
+        {
+            v = 0;
+            if (p + 16 > s.Length) return false;
+            for (int i = 0; i < 16; i++)
+            {
+                int d = HexVal(s[p + i]);
+                if (d < 0) return false;
+                v = (v << 4) | (ulong)(uint)d;
+            }
+            if (p + 16 < s.Length && HexVal(s[p + 16]) >= 0) return false;
+            p += 16;
+            return true;
+        }
+
+        private static bool ParseDec16(string s, ref int p, out ushort v)
+        {
+            uint acc   = 0;
+            int  start = p;
+
+            v = 0;
+            while (p < s.Length && s[p] >= '0' && s[p] <= '9')
+            {
+                acc = acc * 10 + (uint)(s[p] - '0');
+                if (acc > 0xFFFF) return false;
+                p++;
+            }
+            if (p == start) return false;
+            v = (ushort)acc;
+            return true;
+        }
+
+        private static bool Expect(string s, ref int p, char c)
+        {
+            if (p >= s.Length || s[p] != c) return false;
+            p++;
+            return true;
+        }
+
+        /// <summary>tex_pack.c ParseName. 16bpp names omit the palette hash and the
+        /// P-range. Anchored: any trailing character (an upscaler tool's suffix, a
+        /// " (1)" copy marker) rejects the name, exactly as the engine rejects it.</summary>
+        private static bool ParseEntryName(string title, out PackEntryName e)
+        {
+            e = new PackEntryName();
+
+            if (title.StartsWith("texpage-", StringComparison.Ordinal)) return false;
+            if (!title.StartsWith("texupload-", StringComparison.Ordinal)) return false;
+            int p = 10;
+
+            int dash = title.IndexOf('-', p);
+            if (dash < 0) return false;
+            int modeLen = dash - p;
+            if (modeLen == 0 || modeLen >= 8) return false;
+            string modeTok = title.Substring(p, modeLen);
+            p = dash + 1;
+
+            e.Mode = 0xFF;
+            for (int m = 0; m < ModeNames.Length; m++)
+            {
+                if (string.Equals(modeTok, ModeNames[m], StringComparison.Ordinal))
+                {
+                    e.Mode = (byte)m;
+                    break;
+                }
+            }
+            if (e.Mode == 0xFF) return false;
+
+            if (!ParseHex64(title, ref p, out e.SrcHash)) return false;
+
+            if (ModeBpp(e.Mode) != 16)
+            {
+                ushort palMin, palMax;
+                if (!Expect(title, ref p, '-') || !ParseHex64(title, ref p, out e.PalHash)) return false;
+                if (!Expect(title, ref p, '-') || !ParseDec16(title, ref p, out e.SrcW)) return false;
+                if (!Expect(title, ref p, 'x') || !ParseDec16(title, ref p, out e.SrcH)) return false;
+                if (!Expect(title, ref p, '-') || !ParseDec16(title, ref p, out e.OffX)) return false;
+                if (!Expect(title, ref p, '-') || !ParseDec16(title, ref p, out e.OffY)) return false;
+                if (!Expect(title, ref p, '-') || !ParseDec16(title, ref p, out e.SubW)) return false;
+                if (!Expect(title, ref p, 'x') || !ParseDec16(title, ref p, out e.SubH)) return false;
+                if (!Expect(title, ref p, '-') || !Expect(title, ref p, 'P') ||
+                    !ParseDec16(title, ref p, out palMin)) return false;
+                if (!Expect(title, ref p, '-') || !ParseDec16(title, ref p, out palMax)) return false;
+                if (palMin > 255) return false;
+            }
+            else
+            {
+                if (!Expect(title, ref p, '-') || !ParseDec16(title, ref p, out e.SrcW)) return false;
+                if (!Expect(title, ref p, 'x') || !ParseDec16(title, ref p, out e.SrcH)) return false;
+                if (!Expect(title, ref p, '-') || !ParseDec16(title, ref p, out e.OffX)) return false;
+                if (!Expect(title, ref p, '-') || !ParseDec16(title, ref p, out e.OffY)) return false;
+                if (!Expect(title, ref p, '-') || !ParseDec16(title, ref p, out e.SubW)) return false;
+                if (!Expect(title, ref p, 'x') || !ParseDec16(title, ref p, out e.SubH)) return false;
+                e.PalHash = 0;
+            }
+
+            if (p != title.Length) return false;
+
+            return e.SrcW != 0 && e.SrcH != 0 && e.SubW != 0 && e.SubH != 0;
+        }
+
+        /// <summary>tex_pack.c FileTitle: basename minus a final .png/.dds. The 160-char
+        /// cap is the engine's title buffer — a longer name is not indexed at all.</summary>
+        private static bool EntryTitle(string name, out string title, out bool isDds)
+        {
+            title = null;
+            isDds = false;
+
+            int len = name.Length;
+            if (len < 5 || len >= 160) return false;
+            string ext = name.Substring(len - 4);
+            isDds = string.Equals(ext, ".dds", StringComparison.OrdinalIgnoreCase);
+            if (!isDds && !string.Equals(ext, ".png", StringComparison.OrdinalIgnoreCase)) return false;
+            title = name.Substring(0, len - 4);
+            return true;
+        }
+
+        /// <summary>Classify every pack file under <paramref name="folder"/> (recursive).
+        /// Read-only: nothing is written, moved or deleted.</summary>
+        public static PackAnalysis AnalyzePack(string folder)
+        {
+            var a      = new PackAnalysis();
+            var groups = new Dictionary<string, GroupInfo>(StringComparer.Ordinal);
+
+            try
+            {
+                foreach (var f in Directory.EnumerateFiles(ToExtended(folder), "*",
+                                                           SearchOption.AllDirectories))
+                {
+                    string path = FromExtended(f);
+                    string name = Path.GetFileName(path);
+                    string title;
+                    bool   isDds;
+
+                    if (!EntryTitle(name, out title, out isDds)) continue;
+                    a.Total++;
+
+                    PackEntryName e;
+                    if (!ParseEntryName(title, out e)) { a.Unparsed++; continue; }
+
+                    // The name's WxH is in VRAM 16-bit WORDS, not texels: a 4bpp
+                    // "64x256" upload is 256 texels wide. Comparing subW to srcW
+                    // instead of nativeW silently reclassifies whole covers as
+                    // sub-rects (and vice versa).
+                    int bpp     = ModeBpp(e.Mode);
+                    int nativeW = e.SrcW * (16 / bpp);
+
+                    bool whole = e.OffX == 0 && e.OffY == 0 &&
+                                 e.SubW == nativeW && e.SubH == e.SrcH;
+                    if (whole)
+                    {
+                        a.WholeCover++;
+                        if (!isDds) a.WholeCoverPngs.Add(path);
+                    }
+                    else
+                    {
+                        a.SubRect++;
+                    }
+
+                    string key = e.SrcHash.ToString("X16") + "|" + bpp + "|" + e.PalHash.ToString("X16");
+                    GroupInfo g;
+                    if (!groups.TryGetValue(key, out g)) { g = new GroupInfo(); groups[key] = g; }
+                    g.Count++;
+                    if (whole) g.WholeCount++;
+                }
+            }
+            catch { /* unreadable subtree — report what was classified */ }
+
+            a.Groups = groups.Count;
+            foreach (var g in groups.Values)
+                if (g.WholeCount == g.Count) a.UsableGroups++;
+
+            return a;
+        }
+
+        /// <summary>Grammar regression gate. Run against the reference DuckStation pack
+        /// (SLES-01514 .../replacements, 12,227 files): these numbers were derived from
+        /// tex_pack.c by hand and any drift means the port stopped mirroring the engine.
+        /// If it trips, fix the port — do NOT re-baseline the numbers.</summary>
+        public static bool AnalyzeSelfTest(string packFolder, out string report)
+        {
+            var a  = AnalyzePack(packFolder);
+            var sb = new StringBuilder();
+            bool ok = true;
+
+            Action<string, int, int> check = (what, got, want) =>
+            {
+                if (got != want) ok = false;
+                sb.AppendLine((got == want ? "PASS " : "FAIL ") + what +
+                              ": got " + got + ", expected " + want);
+            };
+
+            check("total",        a.Total,        12227);
+            check("wholeCover",   a.WholeCover,   121);
+            check("subRect",      a.SubRect,      12105);
+            check("groups",       a.Groups,       9487);
+            check("usableGroups", a.UsableGroups, 86);
+            check("unparsed",     a.Unparsed,     1);
+
+            report = sb.ToString();
+            return ok;
         }
 
         // ------------------------------------------------------------------
