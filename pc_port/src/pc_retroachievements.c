@@ -32,6 +32,7 @@
 #include <rc_consoles.h>
 
 #include "game.h"
+#include "main/fileinfo.h"   /* g_GameRegion — the address table is USA-only */
 #include "bodyprog/savegame.h"
 #include "pc_config.h"
 #include "sh_log.h"
@@ -415,6 +416,21 @@ void Pc_Ra_Init(void)
 {
     if (!g_PcConfig.retroAchievements)
         return;
+
+    /* Region gate. The address table below is built from the USA symbol map,
+     * and the other builds put these globals somewhere else entirely (JAP0 has
+     * SysWork at 0x800BC4F0 vs USA's 0x800B9FC0), with ranges that overlap
+     * across regions -- so one table cannot serve them all. Running a non-USA
+     * disc against USA addresses would feed the achievement set unrelated
+     * bytes, and a false unlock lands on the player's real account. Stay
+     * inactive instead. (configs/ ships sym maps for USA/JAP0/JAP1 only; the
+     * NTSC-J build this port targets is JAP2, which has none.) */
+    if (g_GameRegion != Region_USA)
+    {
+        SH_LOG("[RA] achievements are USA-disc only for now "
+               "(no verified address map for this region) - staying off");
+        return;
+    }
 
     if (!g_PcConfig.raUsername[0] || !g_PcConfig.raToken[0])
     {
