@@ -9,6 +9,13 @@
  * WinHTTP on Windows (ships with the OS), libcurl elsewhere. Without either,
  * requests fail cleanly and RA stays dormant.
  */
+/* glibc only declares RTLD_DEFAULT under _GNU_SOURCE, and the macro has to beat
+ * the first system header to it (they all pull in features.h). macOS declares it
+ * unconditionally, which is why only the Linux build broke. */
+#if !defined(_WIN32) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 
