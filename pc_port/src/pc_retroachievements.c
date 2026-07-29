@@ -45,6 +45,7 @@
 #include "sh_log.h"
 #include "dbg_overlay.h"
 #include "pc_ra_http.h"
+#include "pc_ra_toast.h"
 
 extern const char* PcPort_GetGameDiscPath(void);
 
@@ -393,7 +394,11 @@ static void RC_CCONV Pc_RaEventHandler(const rc_client_event_t* event, rc_client
     case RC_CLIENT_EVENT_ACHIEVEMENT_TRIGGERED:
         snprintf(line, sizeof(line), "Achievement: %s (%u)",
                  event->achievement->title, event->achievement->points);
-        Pc_RaToast(line);
+        SH_DBG("%s", line);
+        Pc_RaToast_Show(event->achievement->title,
+                        event->achievement->description,
+                        event->achievement->badge_name,
+                        event->achievement->points);
         Pc_RaRefreshStatus();
         break;
 

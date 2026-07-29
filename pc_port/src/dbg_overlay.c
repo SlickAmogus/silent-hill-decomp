@@ -1820,6 +1820,12 @@ void DbgOverlay_Render(void)
      * an app id is set); does no drawing. */
     { extern void Pc_Discord_Update(void); Pc_Discord_Update(); }
 
+    /* Achievement unlock popup: fully self-contained GL (own program, VAO and
+     * textures, with its own state save/restore), so it lives here rather than
+     * inside the shared panel state block below — and above the early-out, or
+     * it would never run during normal gameplay. */
+    { extern void Pc_RaToast_Draw(void); Pc_RaToast_Draw(); }
+
     /* Console is hidden once fully slid off-screen (toggled by `~`); the ring
      * buffer keeps filling while hidden. The collision panel draws whenever it's
      * toggled on (`'`), independent of the console. The anim panel draws while the

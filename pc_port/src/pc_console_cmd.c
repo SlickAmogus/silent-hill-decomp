@@ -1065,6 +1065,14 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PsxPgxpDepthStats = 0;
         else g_PsxPgxpDepthStats = !g_PsxPgxpDepthStats;
         cprintf("PGXP depth-channel stats dump: %s", g_PsxPgxpDepthStats ? "ON" : "OFF");
+    } else if (strcmp(cmd, "RATOAST") == 0) {
+        /* Preview the achievement popup without earning anything. */
+        extern void Pc_RaToast_Show(const char*, const char*, const char*, unsigned);
+        Pc_RaToast_Show(arg[0] ? arg : "Welcome to Silent Hill",
+                        "Find the flashlight and survive your first encounter "
+                        "with the creatures in the alley.",
+                        "", 10);
+        cprintf("Achievement toast preview shown");
     } else if (strcmp(cmd, "PGXPWORLDDEPTH") == 0) {
         /* Depth-channel kill-switch: OFF suppresses FLAT world promotion
          * (GL_ALWAYS painter + viewZ flat depth), dropping depth behavior
