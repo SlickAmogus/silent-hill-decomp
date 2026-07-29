@@ -129,7 +129,7 @@ static void Pc_RaNoteRead(uint32_t address, int hit)
     if (i == s_sampleCount && s_sampleCount < RA_SAMPLE_MAX)
     {
         s_samplePage[s_sampleCount++] = page;
-        SH_DBG_ECHO("[RA] set reads 0x80%06X (%s)", address, hit ? "mapped" : "UNMAPPED");
+        SH_DBG("[RA] set reads 0x80%06X (%s)", address, hit ? "mapped" : "UNMAPPED");
     }
 }
 
@@ -146,12 +146,12 @@ static void Pc_RaNoteMiss(uint32_t address)
         if (!s_missOverflow)
         {
             s_missOverflow = 1;
-            SH_DBG_ECHO("[RA] unmapped-read log full; further misses suppressed");
+            SH_DBG("[RA] unmapped-read log full; further misses suppressed");
         }
         return;
     }
     s_missAddr[s_missCount++] = address;
-    SH_DBG_ECHO("[RA] achievement read of unmapped PSX address 0x80%06X - "
+    SH_DBG("[RA] achievement read of unmapped PSX address 0x80%06X - "
             "needs a translation entry", address);
 }
 
@@ -325,7 +325,7 @@ static char         s_status[64];
 static void Pc_RaToast(const char* line)
 {
     DbgOverlay_ToastLine(line);
-    SH_DBG_ECHO("%s", line);
+    SH_DBG("%s", line);
 }
 
 static void Pc_RaRefreshStatus(void)
@@ -361,7 +361,7 @@ static void RC_CCONV Pc_RaEventHandler(const rc_client_event_t* event, rc_client
         break;
 
     case RC_CLIENT_EVENT_SERVER_ERROR:
-        SH_DBG_ECHO("[RA] server error: %s",
+        SH_DBG("[RA] server error: %s",
                 event->server_error ? event->server_error->error_message : "unknown");
         break;
 
@@ -387,7 +387,7 @@ static void RC_CCONV Pc_RaLoadGameCallback(int result, const char* error_message
     {
         /* NO_GAME_LOADED = this disc has no set (or an unrecognized dump);
          * that is a normal outcome, not a failure worth alarming about. */
-        SH_DBG_ECHO("[RA] achievement set unavailable: %s",
+        SH_DBG("[RA] achievement set unavailable: %s",
                 error_message ? error_message : "unknown");
         return;
     }
@@ -397,10 +397,10 @@ static void RC_CCONV Pc_RaLoadGameCallback(int result, const char* error_message
     {
         const rc_client_game_t* game = rc_client_get_game_info(client);
         if (game)
-            SH_DBG_ECHO("[RA] matched game %u \"%s\" (hash identifies the mounted disc)",
+            SH_DBG("[RA] matched game %u \"%s\" (hash identifies the mounted disc)",
                    game->id, game->title ? game->title : "?");
     }
-    SH_DBG_ECHO("[RA] achievements active (softcore) - %s", s_status);
+    SH_DBG("[RA] achievements active (softcore) - %s", s_status);
     {
         char line[96];
         snprintf(line, sizeof(line), "RetroAchievements: %s", s_status);
@@ -417,17 +417,17 @@ static void RC_CCONV Pc_RaLoginCallback(int result, const char* error_message,
 
     if (result != RC_OK)
     {
-        SH_DBG_ECHO("[RA] login failed: %s. Re-authenticate in the launcher.",
+        SH_DBG("[RA] login failed: %s. Re-authenticate in the launcher.",
                 error_message ? error_message : "unknown");
         return;
     }
 
-    SH_DBG_ECHO("[RA] logged in as %s", g_PcConfig.raUsername);
+    SH_DBG("[RA] logged in as %s", g_PcConfig.raUsername);
 
     disc = PcPort_GetGameDiscPath();
     if (!disc || !disc[0])
     {
-        SH_DBG_ECHO("[RA] no disc image resolved - cannot identify the game");
+        SH_DBG("[RA] no disc image resolved - cannot identify the game");
         return;
     }
 
@@ -435,17 +435,17 @@ static void RC_CCONV Pc_RaLoginCallback(int result, const char* error_message,
      * article -- no spoofing involved. */
     if (!rc_hash_generate_from_file(hash, RC_CONSOLE_PLAYSTATION, disc))
     {
-        SH_DBG_ECHO("[RA] could not hash disc image '%s'", disc);
+        SH_DBG("[RA] could not hash disc image '%s'", disc);
         return;
     }
 
-    SH_DBG_ECHO("[RA] disc hash %s", hash);
+    SH_DBG("[RA] disc hash %s", hash);
     rc_client_begin_load_game(client, hash, Pc_RaLoadGameCallback, NULL);
 }
 
 void Pc_Ra_Init(void)
 {
-    SH_DBG_ECHO("[RA] init: enabled=%d user='%s' token=%s region=%d",
+    SH_DBG("[RA] init: enabled=%d user='%s' token=%s region=%d",
                 g_PcConfig.retroAchievements,
                 g_PcConfig.raUsername,
                 g_PcConfig.raToken[0] ? "present" : "MISSING",
@@ -453,7 +453,7 @@ void Pc_Ra_Init(void)
 
     if (!g_PcConfig.retroAchievements)
     {
-        SH_DBG_ECHO("[RA] disabled in config (retroachievements = 0) - off");
+        SH_DBG("[RA] disabled in config (retroachievements = 0) - off");
         return;
     }
 
@@ -476,7 +476,7 @@ void Pc_Ra_Init(void)
 
     if (!g_PcConfig.raUsername[0] || !g_PcConfig.raToken[0])
     {
-        SH_DBG_ECHO("[RA] enabled but not signed in - use the launcher's "
+        SH_DBG("[RA] enabled but not signed in - use the launcher's "
                "RetroAchievements login");
         return;
     }
@@ -487,21 +487,21 @@ void Pc_Ra_Init(void)
     s_queueSem  = SDL_CreateSemaphore(0);
     if (!s_queueLock || !s_queueSem)
     {
-        SH_DBG_ECHO("[RA] could not create worker primitives - disabled");
+        SH_DBG("[RA] could not create worker primitives - disabled");
         return;
     }
 
     s_httpThread = SDL_CreateThread(Pc_RaHttpThread, "SH_RA_HTTP", NULL);
     if (!s_httpThread)
     {
-        SH_DBG_ECHO("[RA] could not start HTTP worker - disabled");
+        SH_DBG("[RA] could not start HTTP worker - disabled");
         return;
     }
 
     s_client = rc_client_create(Pc_RaReadMemory, Pc_RaServerCall);
     if (!s_client)
     {
-        SH_DBG_ECHO("[RA] client creation failed - disabled");
+        SH_DBG("[RA] client creation failed - disabled");
         return;
     }
 
@@ -511,7 +511,7 @@ void Pc_Ra_Init(void)
     if (s_spectator)
     {
         rc_client_set_spectator_mode_enabled(s_client, 1);
-        SH_DBG_ECHO("[RA] non-USA disc: SPECTATOR mode - achievements evaluate and log "
+        SH_DBG("[RA] non-USA disc: SPECTATOR mode - achievements evaluate and log "
                "but nothing is submitted. Check the addresses logged below, then set "
                "ra_unverified_region = 1 to submit for real.");
     }

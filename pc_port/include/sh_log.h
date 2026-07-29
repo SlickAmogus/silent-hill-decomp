@@ -13,6 +13,9 @@
 
 #define SH_LOG(fmt, ...) do { \
     printf("[SH] " fmt "\n", ##__VA_ARGS__); \
+    if (g_ShDebugLog) { \
+        fprintf(g_ShDebugLog, "[SH] " fmt "\n", ##__VA_ARGS__); \
+    } \
     if (g_ShOverlayPushLine) { \
         char _sh_log_buf[SH_LOG_LINE_MAX]; \
         snprintf(_sh_log_buf, sizeof(_sh_log_buf), "[SH] " fmt, ##__VA_ARGS__); \
@@ -21,6 +24,9 @@
 } while (0)
 #define SH_WARN(fmt, ...) do { \
     printf("[SH WARN] " fmt "\n", ##__VA_ARGS__); \
+    if (g_ShDebugLog) { \
+        fprintf(g_ShDebugLog, "[SH WARN] " fmt "\n", ##__VA_ARGS__); \
+    } \
     if (g_ShOverlayPushLine) { \
         char _sh_warn_buf[SH_LOG_LINE_MAX]; \
         snprintf(_sh_warn_buf, sizeof(_sh_warn_buf), "[SH WARN] " fmt, ##__VA_ARGS__); \
