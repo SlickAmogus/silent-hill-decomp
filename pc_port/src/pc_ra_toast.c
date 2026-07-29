@@ -86,6 +86,17 @@ static GLint  s_locTex, s_locColor;
 static int    s_glReady;
 
 static GLuint s_texBadge, s_texName, s_texDesc, s_texPanel;
+
+/* Unlock events arrive on the game-logic thread, but PsyCross caches the bound
+ * texture (g_lastBoundTexture) and skips redundant binds. Any bind or delete
+ * issued outside the draw desyncs that cache and the whole scene keeps sampling
+ * our texture for the rest of the run, so all GL work is deferred to Draw. */
+#define TOAST_GARBAGE_MAX 16
+static GLuint s_garbage[TOAST_GARBAGE_MAX];
+static int    s_garbageCount;
+
+static unsigned char* s_pendBadge;
+static int            s_pendBadgeW, s_pendBadgeH;
 static int    s_texNameW, s_texNameH, s_texDescW, s_texDescH;
 static int    s_panelW, s_panelH;
 static int    s_badgeReady;
@@ -647,7 +658,7 @@ void Pc_RaToast_ProvideBadge(const char* badgeName, const unsigned char* png, si
     int w = 0, h = 0, comp = 0;
     unsigned char* rgba;
 
-    if (!s_liveActive || s_badgeReady || !png || len == 0)
+    if (!s_liveActive || s_badgeReady || s_pendBadge || !png || len == 0)
         return;
     if (!badgeName || strcmp(s_live.badge, badgeName) != 0)
         return;
@@ -658,22 +669,48 @@ void Pc_RaToast_ProvideBadge(const char* badgeName, const unsigned char* png, si
         SH_DBG("[RATOAST] badge %s: decode failed", badgeName);
         return;
     }
-    if (s_texBadge) { glDeleteTextures(1, &s_texBadge); s_texBadge = 0; }
-    s_texBadge   = toast_upload_rgba(rgba, w, h);
-    s_badgeReady = 1;
-    stbi_image_free(rgba);
-    SH_DBG("[RATOAST] badge %s ready (%dx%d)", badgeName, w, h);
+    if (s_pendBadge)
+        stbi_image_free(s_pendBadge);
+    s_pendBadge  = rgba;
+    s_pendBadgeW = w;
+    s_pendBadgeH = h;
+    SH_DBG("[RATOAST] badge %s decoded (%dx%d), upload queued", badgeName, w, h);
 }
 
 /* ------------------------------------------------------------------ */
 /* Queue                                                               */
 /* ------------------------------------------------------------------ */
 
+static void toast_retire(GLuint tex)
+{
+    if (tex && s_garbageCount < TOAST_GARBAGE_MAX)
+        s_garbage[s_garbageCount++] = tex;
+}
+
+/* Render-thread only, and only from inside Draw's save/restore block. */
+static void toast_gl_pump(void)
+{
+    int i;
+    for (i = 0; i < s_garbageCount; i++)
+        glDeleteTextures(1, &s_garbage[i]);
+    s_garbageCount = 0;
+
+    if (s_pendBadge)
+    {
+        toast_retire(s_texBadge);
+        s_texBadge   = toast_upload_rgba(s_pendBadge, s_pendBadgeW, s_pendBadgeH);
+        s_badgeReady = 1;
+        stbi_image_free(s_pendBadge);
+        s_pendBadge = NULL;
+    }
+}
+
 static void toast_clear_textures(void)
 {
-    if (s_texBadge) { glDeleteTextures(1, &s_texBadge); s_texBadge = 0; }
-    if (s_texName)  { glDeleteTextures(1, &s_texName);  s_texName  = 0; }
-    if (s_texDesc)  { glDeleteTextures(1, &s_texDesc);  s_texDesc  = 0; }
+    toast_retire(s_texBadge); s_texBadge = 0;
+    toast_retire(s_texName);  s_texName  = 0;
+    toast_retire(s_texDesc);  s_texDesc  = 0;
+    if (s_pendBadge) { stbi_image_free(s_pendBadge); s_pendBadge = NULL; }
     s_badgeReady = 0;
 }
 
@@ -741,6 +778,9 @@ void Pc_RaToast_Draw(void)
 
     /* GL state we touch, saved and restored around the draw. */
     GLint  prevProg = 0, prevVao = 0, prevBuf = 0, prevTex = 0;
+    GLint  prevUnit = GL_TEXTURE0, prevAlign = 4;
+    GLint  prevSrcRgb = GL_ONE, prevDstRgb = GL_ZERO;
+    GLint  prevSrcA = GL_ONE, prevDstA = GL_ZERO;
     GLboolean prevBlend, prevDepth, prevCull;
 
     if (!s_liveActive)
@@ -782,6 +822,26 @@ void Pc_RaToast_Draw(void)
         s_soundPlayed = 1;
         toast_sound_play();
     }
+
+    /* Saved BEFORE the text/panel bakes below -- those create textures, so
+     * sampling the binding afterwards would capture one of ours and "restore"
+     * it into PsyCross's cache. */
+    glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prevBuf);
+    glGetIntegerv(GL_ACTIVE_TEXTURE, &prevUnit);
+    glActiveTexture(GL_TEXTURE0);
+    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTex);
+    glGetIntegerv(GL_UNPACK_ALIGNMENT, &prevAlign);
+    glGetIntegerv(GL_BLEND_SRC_RGB,   &prevSrcRgb);
+    glGetIntegerv(GL_BLEND_DST_RGB,   &prevDstRgb);
+    glGetIntegerv(GL_BLEND_SRC_ALPHA, &prevSrcA);
+    glGetIntegerv(GL_BLEND_DST_ALPHA, &prevDstA);
+    prevBlend = glIsEnabled(GL_BLEND);
+    prevDepth = glIsEnabled(GL_DEPTH_TEST);
+    prevCull  = glIsEnabled(GL_CULL_FACE);
+
+    toast_gl_pump();
 
     /* Layout in viewport pixels (origin = viewport bottom-left). */
     B          = 0.150f * vpH;
@@ -853,19 +913,9 @@ void Pc_RaToast_Draw(void)
 
     toast_build_panel((int)colW, (int)panelH);
 
-    /* ---- GL: save, draw, restore ---- */
-    glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
-    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
-    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prevBuf);
-    glGetIntegerv(GL_TEXTURE_BINDING_2D, &prevTex);
-    prevBlend = glIsEnabled(GL_BLEND);
-    prevDepth = glIsEnabled(GL_DEPTH_TEST);
-    prevCull  = glIsEnabled(GL_CULL_FACE);
-
     glUseProgram(s_prog);
     glBindVertexArray(s_vao);
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
-    glActiveTexture(GL_TEXTURE0);
     glUniform1i(s_locTex, 0);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -902,7 +952,11 @@ void Pc_RaToast_Draw(void)
     glBindVertexArray((GLuint)prevVao);
     glBindBuffer(GL_ARRAY_BUFFER, (GLuint)prevBuf);
     glBindTexture(GL_TEXTURE_2D, (GLuint)prevTex);
+    glActiveTexture((GLenum)prevUnit);
     glUseProgram((GLuint)prevProg);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, prevAlign);
+    glBlendFuncSeparate((GLenum)prevSrcRgb, (GLenum)prevDstRgb,
+                        (GLenum)prevSrcA,   (GLenum)prevDstA);
     if (!prevBlend) glDisable(GL_BLEND);
     if (prevDepth)  glEnable(GL_DEPTH_TEST);
     if (prevCull)   glEnable(GL_CULL_FACE);
