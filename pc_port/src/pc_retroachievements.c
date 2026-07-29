@@ -32,8 +32,15 @@
 #include <rc_consoles.h>
 
 #include "game.h"
-#include "main/fileinfo.h"   /* g_GameRegion — the address table is USA-only */
+#include "main/fileinfo.h"   /* g_GameRegion */
 #include "bodyprog/savegame.h"
+/* Globals the live achievement set reads; see the translation table below. */
+#include "bodyprog/bodyprog.h"                      /* g_WorldGfxWork, MAP_EFFECTS_INFOS, g_KcetLogoImg */
+#include "bodyprog/demo.h"                          /* g_Demo_IsLoadingChunks */
+#include "bodyprog/item_screens.h"                  /* inventory globals */
+#include "bodyprog/collision/collision.h"           /* g_ActiveCollisionTriggers */
+#include "bodyprog/sound/sound_system.h"            /* g_XaItemData */
+#include "bodyprog/events/bodyprog_data_800A99B4.h" /* g_MapEventLastUsedItem */
 #include "pc_config.h"
 #include "sh_log.h"
 #include "dbg_overlay.h"
@@ -74,8 +81,21 @@ typedef struct
     const char* name;
 } s_RaRegion;
 
-static s_RaRegion s_map[4];
+static s_RaRegion s_map[24];
 static int        s_mapCount;
+
+/* Map one native global at its retail PSX offset. sizeof() is the authority on
+ * length, so a translation can never read past the native object even where the
+ * symbol map claims a larger span. */
+#define RA_MAP(psxOffset, sym) do { \
+    if (s_mapCount < (int)(sizeof(s_map) / sizeof(s_map[0]))) { \
+        s_map[s_mapCount].start  = (psxOffset); \
+        s_map[s_mapCount].size   = (uint32_t)sizeof(sym); \
+        s_map[s_mapCount].native = (const void*)&(sym); \
+        s_map[s_mapCount].name   = #sym; \
+        s_mapCount++; \
+    } \
+} while (0)
 
 static void Pc_RaBuildMap(void)
 {
@@ -101,6 +121,27 @@ static void Pc_RaBuildMap(void)
     s_map[s_mapCount].native = (const void*)&g_GameWork;
     s_map[s_mapCount].name   = "GameWork";
     s_mapCount++;
+
+    /* The rest of what the live set (game 11252, 66 achievements) was observed
+     * reading. Every type here is pointer-free and its retail size matches
+     * configs/USA/sym.bodyprog.txt exactly — s_WorldGfxWork 0x2DBC,
+     * MAP_EFFECTS_INFOS 21*44 = 0x39C — so retail offsets hold with no widening
+     * correction of the kind SysWork needs. */
+    RA_MAP(0x0A9004u, g_KcetLogoImg);
+    RA_MAP(0x0A93CCu, MAP_EFFECTS_INFOS);
+    RA_MAP(0x0A9A18u, g_MapEventLastUsedItem);
+    /* Declared as an incomplete array (s_XaItemData[]), so sizeof is unavailable
+     * — take the span straight from the symbol map instead. */
+    s_map[s_mapCount].start  = 0x0AA894u;
+    s_map[s_mapCount].size   = 0x2214u;
+    s_map[s_mapCount].native = (const void*)&g_XaItemData[0];
+    s_map[s_mapCount].name   = "g_XaItemData";
+    s_mapCount++;
+    RA_MAP(0x0AE184u, g_Inventory_EquippedItem);
+    RA_MAP(0x0BCE18u, g_WorldGfxWork);
+    RA_MAP(0x0C3BB8u, g_Item_MapLoadableItems);
+    RA_MAP(0x0C4478u, g_ActiveCollisionTriggers);
+    RA_MAP(0x0C489Cu, g_Demo_IsLoadingChunks);
 }
 
 /* Unmapped-read reporting: the official set's exact address list isn't known
