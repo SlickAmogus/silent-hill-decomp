@@ -27,9 +27,11 @@ extern int g_DebugViewNpcSlot;   /* keyframe viewer target: -1 = Harry, else g_S
 extern int g_DebugAnimPlayGen;   /* bumped on each play (re)start so the loop cursor re-seeds */
 extern s32 g_TpsCamYaw;
 extern const unsigned char* g_sdlKeyboardState;
-/* Fixed (classic) camera world position — used by the 2D screen-relative control
- * path to derive "into the screen" (camera -> Harry) when no orbit cam is active. */
+/* Fixed (classic) camera world pose. The 2D screen-relative control path takes
+ * "into the screen" from the camera's OWN look yaw (vwGetViewAngle -> worldang.vy);
+ * the position is only used to spot a hard cut. */
 extern void vwGetViewPosition(VECTOR3* pos);
+extern void vwGetViewAngle(SVECTOR* ang);
 #include <SDL_scancode.h>
 #include <SDL_mouse.h>
 #include <SDL_timer.h>
@@ -1547,12 +1549,10 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * Mouse rotates the camera, body follows automatically. */
                 if (pc2dActive) {
                     /* === 2D screen-relative movement ===
-                     * Map the 8-way digital input to camera-relative directions,
-                     * turn Harry to face the resulting world direction, and run him
-                     * forward along his facing (so he always plays the forward
-                     * walk/run cycle rather than moon-walking). Works under the
-                     * fixed classic camera (the authentic SH "2D control type") and
-                     * under the TPS/OTS orbit camera (twin-stick style). */
+                     * Map the stick/8-way input into the CAMERA's screen frame, travel
+                     * along the resulting world direction immediately, and slew the mesh
+                     * to face it. Works under the fixed classic camera (the authentic SH
+                     * "2D control type") and under the TPS/OTS orbit camera (twin-stick). */
                     s32  held  = g_Controller0->heldBtnFlags;
                     int  fwd   = (g_sdlKeyboardState[SDL_SCANCODE_W] != 0) || (held & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp));
                     int  back  = (g_sdlKeyboardState[SDL_SCANCODE_S] != 0) || (held & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown));
@@ -1562,158 +1562,207 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     int  inZ   = (fwd   ? 1 : 0) - (back ? 1 : 0);
                     int  anyInput = (inX != 0) || (inZ != 0);
                     /* Full-360 analog: past a small deadzone the left stick drives a
-                     * continuous direction (keyboard/D-pad stay inherently 8-way).
-                     * forward = -leftY, right = +leftX (joy.c ControllerData_AnalogToDigital). */
+                     * continuous direction (keyboard/D-pad stay inherently 8-way,
+                     * authentic to the PS2 d-pad).
+                     * forward = -leftY, right = +leftX (joy.c ControllerData_AnalogToDigital).
+                     * Deadzone radius 24 of the 128-unit stick (~19%): this scheme steers
+                     * purely by ABSOLUTE stick angle, so a fat gate (the old 40, ~31%)
+                     * eats exactly the fine angle-cutting it depends on. */
                     s32  a2dX   = (s32)g_Controller0->analogController.leftX - 128;
                     s32  a2dY   = (s32)g_Controller0->analogController.leftY - 128;
-                    int  a2dUse = (a2dX * a2dX + a2dY * a2dY) >= (40 * 40);
+                    int  a2dUse = (a2dX * a2dX + a2dY * a2dY) >= (24 * 24);
                     s32  inXv   = a2dUse ?  a2dX : inX;
                     s32  inZv   = a2dUse ? -a2dY : inZ;
-                    int   moveAligned = 1; /* cleared while the fast in-place spin is still far from the input direction */
                     q3_12 move2dYaw   = 0;  /* WORLD heading Harry should TRAVEL along (stick relative to camera) */
                     int   have2dMove  = 0;
                     if (a2dUse) anyInput = 1;
 
                     /* Camera "into the screen" yaw (world Q12 angle). Orbit cam =
-                     * g_TpsCamYaw directly; fixed classic cam = the yaw from the
-                     * camera toward Harry (its horizontal look direction). */
+                     * g_TpsCamYaw directly; fixed classic cam = the camera's OWN world
+                     * look yaw, vwGetViewAngle() -> worldang.vy.
+                     *
+                     * NOT the camera->Harry bearing this used to compute. The bearing is
+                     * not the screen axis: travelling along a bearing-derived basis makes
+                     * Harry's velocity permanently perpendicular to the camera->Harry
+                     * radius, so dR/dt is identically 0 and dtheta/dt = v/R — a closed
+                     * orbit centred on the camera (~8.4 s per lap at R=4). That, not lag,
+                     * was the "runs in circles" report, and it also made shot changes
+                     * nearly undetectable, because SH1 changes shots mostly by changing
+                     * the look ANGLE with little camera translation.
+                     *
+                     * worldang.vy is the yaw whose (sin, cos) is the camera FORWARD axis
+                     * — same sense as the old bearing, so no 180 offset. Proofs:
+                     * Vw_SetLookAtMatrix stores ratan2(target-cam) and vwMatrixToAngleYXZ
+                     * reads it back out of column 2; vwAngleToVector builds (sin,cos) and
+                     * vcMakeNormalWatchTgtPos places the FIX_ANG watch target at
+                     * cam_pos + 0.25*dir(fix_ang_y); the debug fly-cam steps forward along
+                     * +(sin,cos) of cam_ang.vy (vc_util.c:336-337).
+                     *
+                     * For a fixed-angle shot this is a per-shot WORLD CONSTANT straight
+                     * out of the road data, independent of Harry — so a held direction is
+                     * a straight world line, and a shot change is directly visible as a
+                     * discontinuity in this yaw. */
                     static VECTOR3 s_2dPrevCamPos  = { 0, 0, 0 };
+                    static q3_12   s_2dPrevCamYaw  = 0;
                     static int     s_2dHavePrevCam = 0;
-                    static q3_12   s_2dBasisYaw    = 0;
-                    static int     s_2dValid       = 0;
-                    /* SH2 "2D control" cut rule: once a shot change happens with a
-                     * direction held, the basis stays latched until input returns to
-                     * neutral (see the basis block below). */
-                    static int     s_2dCutHold     = 0;
+                    /* Steering-window lock (see the block below). */
+                    static int     s_2dLocked      = 0;
+                    static q3_12   s_2dLockHeading = 0;
+                    static q3_12   s_2dLockStick   = 0;
+                    static q3_12   s_2dTravelYaw   = 0; /* world heading he travelled last frame */
+                    static int     s_2dHaveTravel  = 0;
                     static Uint32  s_2dLastRunMs   = 0;
-                    q3_12 camYaw = g_TpsCamYaw;
-                    int   camValid = 1;
-                    int   camCut   = 0; /* the fixed cam changed shot this frame (teleport OR fast swing) */
+                    static s8      s_2dPrevMapIdx  = -1;
+                    static s8      s_2dPrevRoomIdx = -1;
+                    q3_12 camYaw  = g_TpsCamYaw;
+                    int   camSnap = 0; /* the fixed cam changed SHOT this frame (teleport OR yaw jump) */
 
                     /* This path stops running while aiming, in scripted scenes
-                     * (g_Player_DisableControl skips Player_LogicUpdate), in menus and
-                     * across room loads. After such a gap all camera history is stale —
-                     * a latched hold would steer by a camera from before the scene.
-                     * Drop everything and re-sample live. Short gaps (a few frames'
-                     * hitch) keep state, so a cut spanning a brief aim tap still
-                     * latches instead of flipping. */
+                     * (g_Player_DisableControl skips Player_LogicUpdate) and in menus.
+                     * After such a gap all camera history is stale — a lock would steer
+                     * by a camera from before the scene. Drop everything and re-sample
+                     * live. Same on a room/map change (R10): the new room's basis is
+                     * unrelated to the old one. Short gaps (a few frames' hitch) keep
+                     * state, so a shot change spanning a brief aim tap still locks. */
                     {
-                        Uint32 nowMs = SDL_GetTicks();
-                        if ((Uint32)(nowMs - s_2dLastRunMs) > 300) {
-                            s_2dValid       = 0;
-                            s_2dCutHold     = 0;
+                        Uint32 nowMs   = SDL_GetTicks();
+                        s8     mapIdx  = (g_SavegamePtr != NULL) ? g_SavegamePtr->mapIdx     : (s8)-1;
+                        s8     roomIdx = (g_SavegamePtr != NULL) ? g_SavegamePtr->mapRoomIdx : (s8)-1;
+                        if ((Uint32)(nowMs - s_2dLastRunMs) > 300 ||
+                            mapIdx != s_2dPrevMapIdx || roomIdx != s_2dPrevRoomIdx) {
+                            s_2dLocked      = 0;
                             s_2dHavePrevCam = 0;
+                            s_2dHaveTravel  = 0;
                         }
-                        s_2dLastRunMs = nowMs;
+                        s_2dLastRunMs   = nowMs;
+                        s_2dPrevMapIdx  = mapIdx;
+                        s_2dPrevRoomIdx = roomIdx;
                     }
 
                     if (!g_DebugThirdPersonCam) {
                         VECTOR3 camPos;
-                        s32     dx, dz;
+                        SVECTOR camAng; // Q3.12
+                        vwGetViewAngle(&camAng);
                         vwGetViewPosition(&camPos);
-                        dx = player->position.vx - camPos.vx;
-                        dz = player->position.vz - camPos.vz;
-                        if (ABS(dx) < Q12(0.1f) && ABS(dz) < Q12(0.1f))
-                            camValid = 0; /* camera ~overhead: horizontal dir undefined */
-                        else
-                            camYaw = ratan2(dx, dz);
+                        camYaw = Q12_ANGLE_NORM_U(camAng.vy + Q12_ANGLE(360.0f));
 
-                        /* Detect a shot change from CAMERA motion only, never Harry's:
-                         * (a) the camera position teleporting — the classic hard cut;
-                         * (b) the basis swinging faster than any tracking dolly BECAUSE
-                         *     the camera moved — measured with Harry's position held
-                         *     fixed (both bearings use his CURRENT position), so his
-                         *     own running/circling contributes exactly zero and cannot
-                         *     false-trip the hold (the old >45°/frame bearing check
-                         *     tripped on circling; see d3bc008d2). (b) catches the
-                         *     eased-but-fast shot swings that never move far in any
-                         *     single frame. */
+                        /* Shot change, detected from the CAMERA alone: (a) its position
+                         * teleporting — the classic hard cut; (b) its own look yaw jumping
+                         * faster than any dolly/pan could swing it. Harry's position is
+                         * not an input to either test, so his running cannot false-trip
+                         * it (the pre-R0 bearing detector could — see d3bc008d2). A pan,
+                         * however fast it eases, stays far under 25 deg per 30fps frame
+                         * (= 750 deg/s). */
                         if (s_2dHavePrevCam) {
-                            s32 cdx = camPos.vx - s_2dPrevCamPos.vx;
-                            s32 cdz = camPos.vz - s_2dPrevCamPos.vz;
-                            if ((s64)cdx * cdx + (s64)cdz * cdz > (s64)Q12(3.0f) * Q12(3.0f)) {
-                                camCut = 1;
-                            } else if (camValid && (cdx != 0 || cdz != 0)) {
-                                s32 pdx = player->position.vx - s_2dPrevCamPos.vx;
-                                s32 pdz = player->position.vz - s_2dPrevCamPos.vz;
-                                if (ABS(pdx) >= Q12(0.1f) || ABS(pdz) >= Q12(0.1f)) {
-                                    q3_12 swing = Math_AngleNormalizeSigned(camYaw - ratan2(pdx, pdz));
-                                    if (ABS(swing) > TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(20.0f)))
-                                        camCut = 1;
-                                }
+                            s32   cdx   = camPos.vx - s_2dPrevCamPos.vx;
+                            s32   cdz   = camPos.vz - s_2dPrevCamPos.vz;
+                            q3_12 swing = Math_AngleNormalizeSigned(camYaw - s_2dPrevCamYaw);
+                            if ((s64)cdx * cdx + (s64)cdz * cdz > (s64)Q12(3.0f) * Q12(3.0f) ||
+                                ABS(swing) > TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(25.0f))) {
+                                camSnap = 1;
                             }
                         }
                         s_2dPrevCamPos  = camPos;
+                        s_2dPrevCamYaw  = camYaw;
                         s_2dHavePrevCam = 1;
+                    } else {
+                        /* Orbit cam: the player drives it, it never changes shot. Drop the
+                         * fixed-cam history so toggling back to classic doesn't read the
+                         * gap as a snap. */
+                        s_2dHavePrevCam = 0;
+                        s_2dLocked      = 0;
                     }
 
-                    /* Camera-cut handling — the SH2(:EE) 2D-control rule: track the
-                     * live camera so "forward" is always the CURRENT shot's into-screen
-                     * (live tracking under a panning cam is what makes held left/right
-                     * arc), but the moment the shot changes while a direction is held,
-                     * LATCH the basis and keep it latched — through any number of
-                     * further cuts — until input returns to neutral. A held direction
-                     * keeps its world-space meaning across every cut, so ping-ponging
-                     * back and forth through a camera trigger cannot happen; the new
-                     * shot's mapping applies on the next press. (The previous code held
-                     * for a single frame only: camCut is an edge, so `track = !camCut`
-                     * re-sampled the flipped basis one frame after the cut with the key
-                     * still down — Harry reversed, re-crossed the trigger, and
-                     * ping-ponged.) Orbit cam never cuts, so it always tracks. */
-                    {
-                        if (!anyInput || g_DebugThirdPersonCam) {
-                            s_2dCutHold = 0;
-                        } else if (camCut && s_2dValid && !s_2dCutHold) {
-                            s_2dCutHold = 1;
-                            SH_DBG("[2DCUT] basis latched at %d (live cam %d) until input neutral",
-                                   (int)s_2dBasisYaw, (int)camYaw);
+                    /* Shot-change handling — the SH2(:EE) 2D-control rule, in two clearly
+                     * separate halves. Do NOT collapse them back together:
+                     *
+                     *  PAN  (the normal case): the basis TRACKS LIVE every frame, so
+                     *       "forward" is always the current shot's into-screen. Holding
+                     *       left/right under a following/panning camera therefore sweeps
+                     *       a broad arc — that is correct SH behaviour and is the thing
+                     *       both 0d2ae1514 (basis-lock-while-held) and 1c369c3c0
+                     *       (heading-lock-on-input-change) destroyed. Both locked on
+                     *       INPUT, which cannot tell a pan from a cut. Neither may come
+                     *       back.
+                     *
+                     *  SNAP (the shot actually changed, camSnap): with a direction held,
+                     *       LOCK. Harry keeps the world line he is already on instead of
+                     *       being re-mapped into a basis that may point back the way he
+                     *       came — re-mapping is what walks the player back into the
+                     *       trigger they just left and ping-pongs between two shots.
+                     *
+                     * WHILE LOCKED the stick still steers, +/-45 deg relative to the
+                     * stick angle held at lock time, applied to HARRY's heading — the
+                     * camera is free to pan without touching him. Pushing outside that
+                     * window is the deliberate escape valve back to live tracking, so the
+                     * lock can never trap you (this is the mechanism the port was missing
+                     * entirely). Neutral input also releases it; the next press re-samples
+                     * the current shot. Orbit cam never snaps, so it always tracks. */
+                    if (anyInput) {
+                        /* Stick angle in the screen frame (0 = into the screen, + = right).
+                         * world dir = basis + stick: identical to the old
+                         * inZ*forward + inX*right combination, since
+                         * inZ*(sin b, cos b) + inX*(cos b, -sin b) = r*(sin(b+s), cos(b+s))
+                         * for s = ratan2(inX, inZ). One ratan2 instead of two. */
+                        q3_12 stickYaw = ratan2(inXv, inZv);
+                        q3_12 targetYaw;
+
+                        if (camSnap && s_2dHaveTravel && !s_2dLocked) {
+                            s_2dLocked      = 1;
+                            s_2dLockHeading = s_2dTravelYaw;
+                            s_2dLockStick   = stickYaw;
+                            SH_DBG("[2DSNAP] locked heading %d (stick %d, live cam %d)",
+                                   (int)s_2dLockHeading, (int)stickYaw, (int)camYaw);
                         }
 
-                        if (camValid && !s_2dCutHold) {
-                            s_2dBasisYaw = camYaw;
-                            s_2dValid    = 1;
-                        }
-
-                        if (anyInput && s_2dValid) {
-                            /* world move dir = inZ*forward + inX*right,
-                             * forward=(sin,cos), right=(cos,-sin) of the basis yaw. */
-                            s32   sfwd = Math_Sin(s_2dBasisYaw);
-                            s32   cfwd = Math_Cos(s_2dBasisYaw);
-                            s32   moveX = inZv * sfwd + inXv * cfwd;
-                            s32   moveZ = inZv * cfwd - inXv * sfwd;
-                            q3_12 targetYaw = ratan2(moveX, moveZ);
-                            move2dYaw  = targetYaw; /* travel this way regardless of facing */
-                            have2dMove = 1;
-                            if (g_PcConfig.control2dSnap) {
-                                /* snap: face the input direction immediately */
-                                player->rotation.vy = Q12_ANGLE_NORM_U(targetYaw + Q12_ANGLE(360.0f));
+                        if (s_2dLocked) {
+                            q3_12 delta = Math_AngleNormalizeSigned(stickYaw - s_2dLockStick);
+                            if (ABS(delta) <= Q12_ANGLE(45.0f)) {
+                                targetYaw = Q12_ANGLE_NORM_U(s_2dLockHeading + delta + Q12_ANGLE(360.0f));
                             } else {
-                                /* SH2-style fast turn-in-place: spin toward the input
-                                 * direction at ~900 deg/s and hold position until nearly
-                                 * aligned, THEN walk — the old ~300 deg/s walk-while-
-                                 * turning read as Harry running an arc. While the move
-                                 * bit stays clear the shim shows idle, so the model
-                                 * visibly rotates on its axis (a full reversal is ~5
-                                 * ticks = ~170ms of spin). Corrections inside the align
-                                 * threshold keep steering mid-walk with no stop-hitch. */
-                                q3_12 diff   = Math_AngleNormalizeSigned(targetYaw - player->rotation.vy);
-                                q3_12 turn2d = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(30.0f));
-                                q3_12 step   = diff;
-                                if (step >  turn2d) step =  turn2d;
-                                if (step < -turn2d) step = -turn2d;
-                                player->rotation.vy = Q12_ANGLE_NORM_U(player->rotation.vy + step + Q12_ANGLE(360.0f));
-                                moveAligned = ABS(diff - step) <= Q12_ANGLE(45.0f);
+                                s_2dLocked = 0;
+                                targetYaw  = Q12_ANGLE_NORM_U(camYaw + stickYaw + Q12_ANGLE(360.0f));
+                                SH_DBG("[2DSNAP] steering window exited (delta %d), tracking live", (int)delta);
                             }
+                        } else {
+                            targetYaw = Q12_ANGLE_NORM_U(camYaw + stickYaw + Q12_ANGLE(360.0f));
                         }
+
+                        move2dYaw      = targetYaw; /* travel this way regardless of facing */
+                        have2dMove     = 1;
+                        s_2dTravelYaw  = targetYaw;
+                        s_2dHaveTravel = 1;
+
+                        if (g_PcConfig.control2dSnap) {
+                            /* snap: face the input direction immediately */
+                            player->rotation.vy = Q12_ANGLE_NORM_U(targetYaw + Q12_ANGLE(360.0f));
+                        } else {
+                            /* COSMETIC ONLY: the mesh slews toward the travel direction at
+                             * ~900 deg/s so a reversal reads as a spin rather than a pop.
+                             * It must never gate movement — see the g_Player_IsMovingForward
+                             * assignment below. */
+                            q3_12 diff   = Math_AngleNormalizeSigned(targetYaw - player->rotation.vy);
+                            q3_12 turn2d = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(30.0f));
+                            q3_12 step   = diff;
+                            if (step >  turn2d) step =  turn2d;
+                            if (step < -turn2d) step = -turn2d;
+                            player->rotation.vy = Q12_ANGLE_NORM_U(player->rotation.vy + step + Q12_ANGLE(360.0f));
+                        }
+                    } else {
+                        s_2dLocked     = 0;
+                        s_2dHaveTravel = 0;
                     }
 
                     /* Reuse the shim's forward walk/run anim + speed by flagging a
                      * forward move. Harry TRAVELS along the move vector (set via the
-                     * heading offset below), not his turning facing; the move bit still
-                     * waits for moveAligned so the big reorientation happens in place.
-                     * HasMoveInput stays anyInput regardless — the player IS inputting,
-                     * and clearing it would let the AFK idle-break engage mid-spin. */
-                    g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | ((anyInput && moveAligned) ? 1 : 0);
+                     * heading offset below), not his turning facing.
+                     *
+                     * NO alignment gate: 2D Type moves the instant you push, in whatever
+                     * direction you push, and the body catches up visually. Withholding
+                     * this bit until the mesh had swung within ~45 deg made Harry stop
+                     * and pivot before every direction change — the "heavy / fighting
+                     * you" feel. The mesh slew above is decoration. */
+                    g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | (anyInput ? 1 : 0);
                     g_Player_IsMovingBackward    = 0;
                     g_Player_IsSteppingLeftHold  = 0;
                     g_Player_IsSteppingRightHold = 0;
@@ -1738,13 +1787,10 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * Harry's turning facing: set the heading OFFSET = (move dir − facing)
                      * so he goes exactly where the stick points while the body swings to
                      * catch up. The shim moves at rotation.vy + headingAngle (the same
-                     * mechanism as diagonal strafe). Driving him along the lagging facing
-                     * instead was the real cause of the "runs in circles / veers off and
-                     * won't go straight" report — his own sideways drift fed back through
-                     * the tracking camera. The move bit only arms inside the align window
-                     * (moveAligned), so this offset is ≤45° while he actually travels →
-                     * the forward/diagonal walk anim still reads right; the big
-                     * reorientation already happened in place. */
+                     * mechanism as diagonal strafe, and how backward walk rides 180).
+                     * With the align gate gone this offset can briefly reach 180 during a
+                     * full reversal — ~200ms of visible catch-up spin, which is the
+                     * intended 2D Type feel, not a bug. */
                     {
                         q3_12 h2d = have2dMove
                                         ? Math_AngleNormalizeSigned(move2dYaw - player->rotation.vy)
