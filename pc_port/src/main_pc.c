@@ -1178,7 +1178,26 @@ int main(int argc, char* argv[])
             SH_LOG("CD image found, initializing CDFS...");
             PsyX_CDFS_Init(cdImagePath, 0, 0);
         } else {
+            /* Every asset read from here on fails, and the first one takes the
+             * process down. On Windows the crash handler at least pops a box;
+             * on Linux/macOS it died silently with nothing on screen and the
+             * reason only in a log the user has no reason to look at (PR #80).
+             * SDL's message box is the one dialog that works the same on all
+             * three, and SDL is already up by now. Say it, then leave
+             * cleanly rather than crashing further in. */
+            char msg[768];
             SH_WARN("Game will not be able to load assets without a disc image.");
+            snprintf(msg, sizeof(msg),
+                     "No Silent Hill disc image was found.\n\n"
+                     "Put one in:\n  %s\n\n"
+                     "for example \"Silent Hill (USA).bin\". USA, PAL and NTSC-J\n"
+                     "discs all work. A .bin/.cue rip of your own disc is what\n"
+                     "this expects; the launcher can extract its contents for you.",
+                     PcPort_GetGameDataPath());
+            SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,
+                                     "Silent Hill - no disc image found", msg, NULL);
+            PsyX_Shutdown();
+            return 1;
         }
     }
 
