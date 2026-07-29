@@ -29,6 +29,8 @@
 #include "bodyprog/events/bodyprog_data_800A99B4.h" /* g_PaperMapFileIdxs */
 #include "pc_config.h"
 #include "hires_override.h"
+#include "pc_loose_files.h"
+#include "tex_pack.h"
 #include "sh_log.h"
 #include <stdlib.h>
 
@@ -117,6 +119,7 @@ static int s_mapIdxLoaded = -1;
 static unsigned char* s_rawBuf = NULL;
 static unsigned int   s_rawSize = 0;
 static int s_pendKind    = 0;   /* in-flight read: 0 none, 1 map image, 2 markings */
+static int s_pendFileIdx = -1;  /* file the in-flight read is for (override lookup) */
 static int s_idleFrames  = 0;
 static int s_mapReady    = 0;   /* pool slot holds this area's map */
 static int s_markFileLoaded = NO_VALUE; /* marking TIM idx read into MM_MARK_SLOT */
@@ -145,10 +148,135 @@ static int mm_start_read(e_FsFile f, int kind)
 
     s_rawSize = (unsigned int)size;
     Fs_QueueStartRead(f, s_rawBuf);
-    s_pendKind = kind;
+    s_pendKind    = kind;
+    s_pendFileIdx = (int)f;
     SH_DBG("[MINIMAP] queued %s read: file=%d size=%d",
            (kind == 1) ? "map" : "marking", (int)f, (int)size);
     return 1;
+}
+
+/* Pixel dimensions of the disc TIM sitting in s_rawBuf. The marking atlas has to
+ * install under its NATIVE size (see the call site), which varies per file. */
+static int mm_disc_native(int* outW, int* outH)
+{
+    TIM_IMAGE tim;
+
+    if (!OpenTIM((u_long*)s_rawBuf)) return 0;
+    if (ReadTIM(&tim) == NULL || tim.prect == NULL) return 0;
+
+    /* prect->w counts 16-bit VRAM cells; convert per bit depth. */
+    switch ((int)(tim.mode & 0x7))
+    {
+        case 0:  *outW = (int)tim.prect->w * 4;       break;
+        case 1:  *outW = (int)tim.prect->w * 2;       break;
+        case 2:  *outW = (int)tim.prect->w;           break;
+        case 3:  *outW = ((int)tim.prect->w * 2) / 3; break;
+        default: return 0;
+    }
+    *outH = (int)tim.prect->h;
+    return *outW > 0 && *outH > 0;
+}
+
+/* DuckStation texture pack: compose from the disc TIM exactly as the pool path
+ * in Fs_QueuePostLoadTim does — same (pixels, palette, bpp) triple, so the same
+ * pack entry matches — and install the composite. Paper maps and their marking
+ * atlases are single-palette (both MP_ and MR_ TIMs ship one CLUT row), so row 0
+ * is the whole picture. Returns 1 when a pack supplied the image. */
+static int mm_pack_register(int slot, int nativeW, int nativeH, const char* what)
+{
+    TIM_IMAGE            tim;
+    const unsigned char* canvas;
+    int                  cw = 0, ch = 0, bpp = 0, clutW = 0;
+
+    if (!TexPack_HasEntries() || HiresOverride_PackBudgetExceeded()) return 0;
+    if (!OpenTIM((u_long*)s_rawBuf)) return 0;
+    if (ReadTIM(&tim) == NULL || tim.prect == NULL || tim.paddr == NULL) return 0;
+
+    /* tim.mode bits 0-2: 0=4bpp, 1=8bpp, 2=16bpp (24bpp has no pack grammar). */
+    switch ((int)(tim.mode & 0x7))
+    {
+        case 0:  bpp = 4;  break;
+        case 1:  bpp = 8;  break;
+        case 2:  bpp = 16; break;
+        default: return 0;
+    }
+    clutW = (tim.caddr != NULL && tim.crect != NULL) ? (int)tim.crect->w : 0;
+
+    canvas = TexPack_Compose((const unsigned char*)tim.paddr,
+                             (int)tim.prect->w, (int)tim.prect->h,
+                             (const unsigned short*)tim.caddr, clutW, bpp, &cw, &ch);
+    if (canvas != NULL)
+    {
+        /* canvas is owned by the compose cache — no free. */
+        if (HiresOverride_PoolSlotRegisterRGBAKeyed(slot, 0, canvas, cw, ch,
+                                                    nativeW, nativeH,
+                                                    TexPack_LastComposeHash()) != 0) return 0;
+        SH_DBG("[MINIMAP] %s from texture pack: %dx%d", what, cw, ch);
+        return 1;
+    }
+    if (TexPack_LastComposeIsDds())
+    {
+        size_t               ddsSize = 0;
+        const unsigned char* dds     = TexPack_LastComposeDds(&ddsSize);
+
+        if (HiresOverride_PoolSlotRegisterDdsKeyed(slot, 0, dds, ddsSize,
+                                                   nativeW, nativeH,
+                                                   TexPack_LastComposeHash()) != 0) return 0;
+        SH_DBG("[MINIMAP] %s from texture pack (BC7)", what);
+        return 1;
+    }
+    return 0;
+}
+
+/* Install one of the area's paper-map textures, honouring the SAME HD
+ * replacement the paper-map SCREEN shows. The screen gets its mod from
+ * Fs_QueuePostLoadTim (loose .png/.dds override, else a DuckStation pack
+ * composite); the minimap reads the TIM itself and never reaches that code, so
+ * it rendered disc art no matter what was installed. Same priority order as the
+ * post-load, resolved through the queue's own probe chain so the two cannot
+ * drift, and falling back to the disc bytes whenever a mod is absent or
+ * unusable. A byte-replaced loose TIM needs nothing here — those bytes already
+ * arrived in s_rawBuf via the read. Registering from the loose file's raw bytes
+ * also reuses PoolSlotRegister's format handling (PNG, BC7 .dds and oversized
+ * TIM alike). nativeW/H is the UV denominator the caller's prims address the
+ * slot in, NOT the replacement's own size — a mod of any resolution then maps
+ * over the original. */
+static int mm_image_register(int slot, int nativeW, int nativeH, const char* what)
+{
+    unsigned char* rgba = NULL;
+    int            w = 0, h = 0, ok = 0;
+    char           path[176];
+
+    if (Pc_LooseImageOverridePath((s32)s_pendFileIdx, path, sizeof(path)))
+    {
+        long           lsz  = 0;
+        unsigned char* lbuf = Pc_LooseSlurp(path, &lsz);
+
+        if (lbuf != NULL)
+        {
+            ok = (HiresOverride_PoolSlotRegister(slot, lbuf, (unsigned int)lsz,
+                                                 nativeW, nativeH) == 0);
+            free(lbuf);
+            if (ok)
+            {
+                SH_DBG("[MINIMAP] %s from loose override %s", what, path);
+                return 1;
+            }
+            SH_DBG("[MINIMAP] loose override %s unusable — falling back to disc art", path);
+        }
+    }
+
+    if (mm_pack_register(slot, nativeW, nativeH, what)) return 1;
+
+    if (HiresOverride_DecodeToRGBA(s_rawBuf, s_rawSize, &rgba, &w, &h) == 0 && rgba != NULL)
+    {
+        ok = (HiresOverride_PoolSlotRegisterRGBA(slot, 0, rgba, w, h,
+                                                 nativeW, nativeH) == 0);
+        free(rgba);
+        SH_DBG("[MINIMAP] %s %dx%d -> slot %d %s", what, w, h, slot,
+               ok ? "registered" : "FAILED");
+    }
+    return ok;
 }
 
 /* Deferred, non-blocking load of the area's paper-map TIM and its marking sprite
@@ -159,35 +287,38 @@ static void mm_map_load_tick(int idx)
 
     if (s_pendKind != 0)
     {
-        unsigned char* rgba = NULL;
-        int            w = 0, h = 0;
-        int            kind = s_pendKind;
-        int            ok   = 0;
+        int kind = s_pendKind;
 
         if (Fs_QueueGetLength() > 0) return;   /* poll only — never pump */
         s_pendKind = 0;
 
-        if (HiresOverride_DecodeToRGBA(s_rawBuf, s_rawSize, &rgba, &w, &h) == 0 && rgba != NULL)
+        if (kind == 1)
         {
-            if (kind == 1)
+            s_mapReady = mm_image_register(MM_POOL_SLOT, MM_NATIVE, MM_NATIVE, "map image");
+        }
+        else
+        {
+            /* The marking atlas is addressed in its OWN texels — mm_markers_build
+             * feeds the game's sprite table straight into prim UVs — so the UV
+             * denominator is the DISC atlas size, whatever resolution a
+             * replacement ships at. Unmodded the two match and the override
+             * shader's footprint clamp collapses to point sampling; modded, the
+             * clamp keeps each fragment inside its own native texel, which is
+             * what stops sprite cells (1 native texel apart) bleeding into each
+             * other under linear sampling. */
+            int nw = 0, nh = 0;
+
+            if (mm_disc_native(&nw, &nh))
             {
-                ok = s_mapReady = (HiresOverride_PoolSlotRegisterRGBA(MM_POOL_SLOT, 0, rgba, w, h,
-                                                                      MM_NATIVE, MM_NATIVE) == 0);
+                s_markReady = mm_image_register(MM_MARK_SLOT, nw, nh, "markings");
             }
             else
             {
-                /* The marking atlas registers at its OWN pixel size, so prim UVs
-                 * are atlas texels directly and the override shader's footprint
-                 * clamp collapses to point sampling — sprite cells sit 1px apart
-                 * in the atlas and must not bleed into each other. */
-                ok = s_markReady = (HiresOverride_PoolSlotRegisterRGBA(MM_MARK_SLOT, 0, rgba, w, h,
-                                                                       w, h) == 0);
+                SH_DBG("[MINIMAP] markings: unreadable TIM header — slot %d left as-is",
+                       MM_MARK_SLOT);
             }
-            free(rgba);
         }
         free(s_rawBuf); s_rawBuf = NULL;
-        SH_DBG("[MINIMAP] %s %dx%d -> slot %d %s", (kind == 1) ? "map" : "markings", w, h,
-               (kind == 1) ? MM_POOL_SLOT : MM_MARK_SLOT, ok ? "registered" : "FAILED");
         return;
     }
 

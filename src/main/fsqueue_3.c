@@ -514,6 +514,130 @@ static int Loose_AnyForm(const char* base, int allowImageForms)
     }
     return 0;
 }
+
+/* Build the loose-override BASE path for a disc file — "gamedata/load/{FOLDER}/{NAME}",
+ * swapped to the region-renamed name when that one carries the mod. Extracted
+ * from Fs_QueueTickRead so PC-side consumers that read a file OUTSIDE the queue
+ * resolve mods through exactly these names instead of a second copy that drifts.
+ * `allowImageForms` mirrors the TIM-only image-probe gate. */
+static void Loose_BasePathForFile(const s_FileInfo* file, int allowImageForms,
+                                  char* outPath, size_t outPathSize,
+                                  char* outFolder, size_t outFolderSize,
+                                  char* outName, size_t outNameSize)
+{
+    const char* folder = g_FilePaths[file->pathIdx]; /* e.g. "\\BG\\" */
+    size_t      fi;
+    size_t      fl;
+
+    /* Strip leading/trailing backslashes from g_FilePaths entry. */
+    if (folder[0] == '\\') folder++;
+    fl = strlen(folder);
+    while (fl > 0 && folder[fl - 1] == '\\') fl--;
+    if (fl >= outFolderSize) fl = outFolderSize - 1;
+    for (fi = 0; fi < fl; fi++) outFolder[fi] = folder[fi];
+    outFolder[fl] = '\0';
+
+    Fs_GetFileInfoName(outName, file);
+
+    /* Use forward slashes — fopen on mingw accepts them. */
+    snprintf(outPath, outPathSize, "gamedata/load/%s/%s", outFolder, outName);
+
+    /* Region-renamed asset. g_FileTable is US-canonical, but PAL keeps the
+     * localized map overlays in VIN2..VIN5 and stamps a language letter into
+     * the death-hint TIMs, so on a non-English PAL disc the name above is a
+     * DIFFERENT file — the English original. An extracted PAL tree dropped
+     * into gamedata/load/ carries the real names, which were unreachable;
+     * worse, serving the English file for a German read would silently
+     * un-localize the game, so the real disc name wins when it carries an
+     * override. Fs_GetRegionFilePath reports no difference on USA, on JPN
+     * (its table is name-identical to USA at every index) and on English
+     * PAL, so those paths issue no extra fopen at all. */
+    if (FSQ_INFO_VALID(file))
+    {
+        const char* regionDir = NULL;
+        char        regionName[32];
+
+        if (Fs_GetRegionFilePath((s32)(file - &g_FileTable[0]), &regionDir, regionName))
+        {
+            char regionPath[160];
+
+            snprintf(regionPath, sizeof(regionPath), "gamedata/load/%s/%s",
+                     regionDir, regionName);
+            if (Loose_AnyForm(regionPath, allowImageForms))
+            {
+                static int s_regionLogged = 0;
+                if (s_regionLogged < 32)
+                {
+                    s_regionLogged++;
+                    SH_DBG("[LOOSE/REGION] %s overrides canonical %s", regionPath, outPath);
+                }
+                snprintf(outPath, outPathSize, "%s", regionPath);
+                snprintf(outFolder, outFolderSize, "%s", regionDir);
+                snprintf(outName, outNameSize, "%s", regionName);
+            }
+        }
+    }
+}
+
+/* A PC-side reader that consumes a disc file OUTSIDE the FS queue — pc_minimap.c
+ * reads the paper-map TIM itself and owns its own texture — never reaches
+ * Fs_QueuePostLoadTim, so none of the image-form overrides that pipeline applies
+ * would ever show there: an HD paper map replaced the map SCREEN but not the
+ * minimap. This resolves the same whole-image override the post-load would have
+ * picked, in the same order (.dds before .png, disc-name form before stem form,
+ * with a per-CLUT-row set's row 0 ahead of both), and fills `out` with its path.
+ * Returns 1 when one exists. fopen probes only — it never touches the FS queue,
+ * so it is safe from a caller's queue-idle window. A byte-replaced loose TIM
+ * needs nothing here: Fs_QueueTickRead already served its bytes to the read. */
+int Pc_LooseImageOverridePath(s32 fileIdx, char* out, size_t outSize)
+{
+    const s_FileInfo* file;
+    char              base[160];
+    char              folder[16];
+    char              name[32];
+
+    if (out == NULL || outSize == 0) return 0;
+    out[0] = '\0';
+
+    if (!g_PcConfig.allowLooseFiles) return 0;
+    if (fileIdx < 0 || fileIdx >= FS_FILE_COUNT) return 0;
+
+    file = &g_FileTable[fileIdx];
+    Loose_BasePathForFile(file, 1, base, sizeof(base), folder, sizeof(folder),
+                          name, sizeof(name));
+
+    /* A per-CLUT-row set replaces one palette at a time, but a single-palette
+     * TIM (every paper map is one) draws through row 0 — so p00 IS its whole
+     * image, and it outranks the whole-image forms exactly as in PostLoadTim. */
+    if (Loose_HasPerRow(base))
+    {
+        char  p[176];
+        FILE* f;
+
+        snprintf(p, sizeof(p), "%s.p00.dds", base);
+        f = Loose_FOpen(p, "rb");
+        if (f == NULL)
+        {
+            snprintf(p, sizeof(p), "%s.p00.png", base);
+            f = Loose_FOpen(p, "rb");
+        }
+        if (f != NULL)
+        {
+            fclose(f);
+            snprintf(out, outSize, "%s", p);
+            return 1;
+        }
+    }
+
+    return Loose_ResolveWhole(base, out, outSize);
+}
+
+/* The queue's own whole-file read (64MB cap, failures logged), for the same
+ * outside-the-queue consumers. Caller frees. */
+unsigned char* Pc_LooseSlurp(const char* path, long* outSize)
+{
+    return PcFile_Slurp(path, outSize);
+}
 #endif
 
 #ifdef SH_PC_PORT
@@ -577,63 +701,15 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
     if (g_PcConfig.allowLooseFiles && entry->info != NULL)
     {
         s_FileInfo* file = entry->info;
-        const char* folder = g_FilePaths[file->pathIdx]; /* e.g. "\\BG\\" */
         char strippedFolder[16];
         char nameBuf[32];
         char loosePath[160];
-        size_t fi = 0;
-        size_t fl;
         FILE* lf;
 
-        /* Strip leading/trailing backslashes from g_FilePaths entry. */
-        if (folder[0] == '\\') folder++;
-        fl = strlen(folder);
-        while (fl > 0 && folder[fl - 1] == '\\') fl--;
-        if (fl >= sizeof(strippedFolder)) fl = sizeof(strippedFolder) - 1;
-        for (fi = 0; fi < fl; fi++) strippedFolder[fi] = folder[fi];
-        strippedFolder[fl] = '\0';
-
-        Fs_GetFileInfoName(nameBuf, file);
-
-        /* Use forward slashes — fopen on mingw accepts them. */
-        snprintf(loosePath, sizeof(loosePath), "gamedata/load/%s/%s",
-                 strippedFolder, nameBuf);
-
-        /* Region-renamed asset. g_FileTable is US-canonical, but PAL keeps the
-         * localized map overlays in VIN2..VIN5 and stamps a language letter into
-         * the death-hint TIMs, so on a non-English PAL disc the name above is a
-         * DIFFERENT file — the English original. An extracted PAL tree dropped
-         * into gamedata/load/ carries the real names, which were unreachable;
-         * worse, serving the English file for a German read would silently
-         * un-localize the game, so the real disc name wins when it carries an
-         * override. Fs_GetRegionFilePath reports no difference on USA, on JPN
-         * (its table is name-identical to USA at every index) and on English
-         * PAL, so those paths issue no extra fopen at all. */
-        if (FSQ_INFO_VALID(file))
-        {
-            const char* regionDir = NULL;
-            char        regionName[32];
-
-            if (Fs_GetRegionFilePath((s32)(file - &g_FileTable[0]), &regionDir, regionName))
-            {
-                char regionPath[160];
-
-                snprintf(regionPath, sizeof(regionPath), "gamedata/load/%s/%s",
-                         regionDir, regionName);
-                if (Loose_AnyForm(regionPath, entry->postLoad == FsQueuePostLoadType_Tim))
-                {
-                    static int s_regionLogged = 0;
-                    if (s_regionLogged < 32)
-                    {
-                        s_regionLogged++;
-                        SH_DBG("[LOOSE/REGION] %s overrides canonical %s", regionPath, loosePath);
-                    }
-                    snprintf(loosePath, sizeof(loosePath), "%s", regionPath);
-                    snprintf(strippedFolder, sizeof(strippedFolder), "%s", regionDir);
-                    snprintf(nameBuf, sizeof(nameBuf), "%s", regionName);
-                }
-            }
-        }
+        Loose_BasePathForFile(file, entry->postLoad == FsQueuePostLoadType_Tim,
+                              loosePath, sizeof(loosePath),
+                              strippedFolder, sizeof(strippedFolder),
+                              nameBuf, sizeof(nameBuf));
 
         static int s_hits = 0;
         static int s_misses = 0;

@@ -1,5 +1,105 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.29.1 -- 2026-07-29
+- RetroAchievements support (RA button in launcher) softcore only for now
+- 2D Controls Fix
+- Fix for minimap wrong direction in places and no map markers 
+- Water effects added and fix for flashlight on water effect
+- Fix garbled numbers in menus in some cases
+- Full DDS support for texture packs and load texture replacements
+- Fixed mod manager DDS converter
+- Full extraction support for textures with composite images for almost all textures, now there is one image to work with for texture replacements
+- Fix for rainbow cutscene corruption that still appeared in some places
+- Plate of Queen object rotation fixed
+- Fix for Incubus lightning
+- Fix for bottle throw scream 
+- Dahlia teleport effects Restored
+- VHS Subtitles fixed
+- Lisa FMV music fix
+- Fix for puzzle objects like Indian Runner padlock having see through faces
+- Fix flashlight lens flare flicker
+- Fix for FOV affecting cutscenes
+- Elevator door fix
+Note: Some are untested and I may be forgetting some. Please let me know if anything listed is still not fixed or if you've reported an issue that is fixed now.
+
+- water: revert func_8008D990 changes — restore chest lens flare (regression fix)
+- water: restore caustic generator — animated water surface via VRAM scratch
+- stubs: give D_8002B2CC its real bytes ("DWAVE") — water caustic material name
+- water: restore reflective octagon in all modes (blowout fixed engine-side)
+- map3_s04: local zero rotation for D_800CB35C (Plate of Queen stood on edge)
+- gfx: cancel armed one-shot SZ payload at every Gfx_MeshDraw exit (depth Step 2)
+- hires: reject virtual-clut lookups from 16bpp tpages (cutscene rainbow bar)
+- flare: fix Q12/Q8 unit mismatch in chest lens-flare facing factor
+- map7_s03: force sp10/sp18 adjacency in Incubus lightning drawer
+- map7_s03: remove the bottle-throw shriek lead (premise disproven)
+- map6_s04: fix 64-bit FX pool offset (Dahlia teleport FX never rendered)
+- map-msg: exempt J2 single-audio-file pages from pcVoiceHold (VHS subs)
+- fmv: model PSX SsSetSerialVol movie-audio attenuation (Lisa FMV music)
+- items: extend the see-through depth fix to full-screen puzzle models
+- fov: restore current projection, not gameplay default, on FOV release
+- docs: index the 0727 user-report batch fixes
+- Bump PsyCross: PSX polygon size rule (elevator/stair wedge fix) + wiring
+- altcam: re-base orbit yaw to the spawn heading on area loads
+- pgxp: depth Step 3 decomp side — OT viewZ-shift registration + console knobs
+- Bump PsyCross: depth Step 4 — per-vertex world depth (distant-gap fix)
+- Bump PsyCross: per-vertex item-pass depth (ammo-box take-screen fix)
+- Bump PsyCross: [PGXPDEPTH] probe upgrade (depth Step-4 anomaly hunt)
+- pgxp: depth Step 6 — PGXPDEPTHSTATS console cmd + Port_Fixes_Index entry
+- map _strdup to strdup on non-Windows platforms (#77)
+- launcher: DDS converter survives huge packs and long paths (v2026.7.27.1)
+- fmv: threaded decode-ahead pipeline + correct colorspace (4K HEVC)
+- texpack: prefer .dds over .png on every loose/pack load path
+- Bump PsyCross: [ITEMDEPTH] item-pass discriminator probe
+- control2d: real release-to-neutral basis latch (fix camera-cut ping-pong)
+- build: stop shipping -O0 (default RelWithDebInfo + decomp UB guards)
+- launcher: fix DDS gamma (--ignore-srgb) + safer delete-source (v2026.7.27.3)
+- texpack: kill the room-entry hitch (blit fast path, upload realloc, scan, budget)
+- launcher: refuse to wreck DuckStation packs on DDS convert (v2026.7.28.1)
+- texpack: composite BC7 sub-rect entries (converted packs were ~99% inert)
+- png: route stb_image's IDAT inflate through miniz (-22% decode)
+- docs: index the BC7 compositing + PNG inflate work
+- launcher: converting a whole pack is now the right answer (v2026.7.28.2)
+- launcher: cut the convert dialogs down to what matters (v2026.7.28.3)
+- launcher: say nothing-to-convert instead of encoding 0 files (v2026.7.28.4)
+- build: vendor rcheevos as a submodule for RetroAchievements support
+- RetroAchievements: softcore client with PSX-address translation
+- launcher: RetroAchievements sign-in (v2026.7.28.5)
+- texpack: dump every replaceable texture as a loadable pack entry
+- RetroAchievements: gate to the USA disc (address table is region-specific)
+- tools: composite reference images for 995 of 996 TIMs (was 43)
+- RetroAchievements: PAL/NTSC-J via spectator mode instead of a hard region block
+- launcher: reference composites for every texture, not just characters (v2026.7.28.6)
+- tools: warn when a sheet is too palette-shared for a composite (v2026.7.28.7)
+- text: fix garbled numbers >= 10 everywhere (save time read "4 : 0F : 0K")
+- texpack: same sampling for .dds as .png, and don't blit exact twins twice
+- texdump: dump per-object crops instead of whole sheets, + twin dedupe
+- launcher: ask before auto-extracting, and Cancel on every long op (v2026.7.28.8)
+- launcher: wire btnRA to the RetroAchievements dialog (v2026.7.28.10)
+- config: everyone on the resident-texture pool, including AMD
+- config: restore ra_unverified_region (HEAD did not compile)
+- region: loose overrides reach PAL-renamed files, fan discs work everywhere
+- launcher: reject NTSC-J first prints, extract patched discs (v2026.7.28.9)
+- launcher: fix RA dialog layout — privacy line was clipped (v2026.7.28.11)
+- RetroAchievements: log diagnostics to SilentHill.log, not stdout
+- log: SH_LOG/SH_WARN persist to SilentHill.log; RA diagnostics stop toasting
+- RetroAchievements: map the 9 further globals the live set reads
+- RetroAchievements: submit unlocks on every region (address map verified)
+- RA: animated achievement toast (badge, outlined text, trophy sound)
+- RA: fetch badge art for the unlock toast
+- RA: rebuild the PSX address map automatically from the symbol files
+- RA: infer symbol spans from the next address, not a 4-byte default
+- RA: RAWHY — dump an achievement's conditions next to the values we serve
+- RA: report all PSX RAM as readable — one unmapped byte was disabling the set
+- RA: RAWHY was only dumping the core group, hiding the real conditions
+- RA: answer the set's region probe with the USA boot serial
+- RA: correct the synthesized boot serial — probes are big-endian
+- RA toast: keep all GL work on the render thread
+- Show a real error when no disc image is present (PR #80, all platforms)
+- RA toast: load fonts and sound game-side, not from the GL hook
+- RA toast: stop gl_init leaking its bindings into PsyCross
+- minimap: correct per-area heading, and draw the paper map's annotations
+- control2d: basis from the camera's look axis, not the bearing to Harry
+
 ## beta-2026.07.28.1 -- 2026-07-28
 - Fix for rainbox cutscene corruption that still appeared in some places
 - Fix Plate of Queen object rotation being OFF
