@@ -901,9 +901,18 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
 #ifdef SH_PC_PORT
     /* PC minimap query: return Harry's map cell WITHOUT drawing the paper-map
      * arrow/markings below. Mirrors the existing L1/R1 early-out, but driven by
-     * the caller instead of held buttons so the overlay can poll it each frame. */
+     * the caller instead of held buttons so the overlay can poll it each frame.
+     *
+     * `angle` is exported too: several areas lay their paper map out on rotated or
+     * mirrored world axes (the sewers put map-X on world -Z; the Alt Sewer inverts
+     * both), and the per-area offsets applied to `angle` in the switch above are
+     * the ONLY record of that. The marker heading must use this, not the raw
+     * rotation.vy, or it points 90/180 degrees wrong in exactly those areas. */
     {
-        extern int g_PcMapQueryOnly;
+        extern int   g_PcMapQueryOnly;
+        extern q3_12 g_PcMapQueryAngle;
+
+        g_PcMapQueryAngle = angle;
         if (g_PcMapQueryOnly) return temp_s4;
     }
 #endif
