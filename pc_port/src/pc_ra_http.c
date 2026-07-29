@@ -15,8 +15,28 @@
 #include "pc_ra_http.h"
 
 #if defined(_WIN32)
-
 #include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
+
+/* Resolve one of the exe's own exported globals by name. The port links with
+ * -Wl,--export-all-symbols, so every non-static global (2500+) is in the export
+ * table -- which lets the achievement layer rebuild the PSX address map from the
+ * decomp symbol files instead of hand-mapping globals. */
+void* Pc_RaSymbolLookup(const char* name)
+{
+#if defined(_WIN32)
+    static HMODULE self;
+    if (!self) self = GetModuleHandleA(NULL);
+    return self ? (void*)GetProcAddress(self, name) : NULL;
+#else
+    return dlsym(RTLD_DEFAULT, name);
+#endif
+}
+
+#if defined(_WIN32)
+
 #include <winhttp.h>
 
 int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t* out_len)
