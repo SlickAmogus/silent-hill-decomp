@@ -1065,6 +1065,11 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PsxPgxpDepthStats = 0;
         else g_PsxPgxpDepthStats = !g_PsxPgxpDepthStats;
         cprintf("PGXP depth-channel stats dump: %s", g_PsxPgxpDepthStats ? "ON" : "OFF");
+    } else if (strcmp(cmd, "RAWHY") == 0) {
+        /* Dump an achievement's conditions + the values we return, to SilentHill.log. */
+        extern int Pc_Ra_Why(const char*);
+        int n = Pc_Ra_Why(arg);
+        cprintf(n ? "Dumped %d achievement trigger(s) to the log" : "No match (or no set loaded)", n);
     } else if (strcmp(cmd, "RATOAST") == 0) {
         /* Preview the achievement popup without earning anything. */
         extern void Pc_RaToast_Show(const char*, const char*, const char*, unsigned);
