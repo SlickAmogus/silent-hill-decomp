@@ -142,6 +142,7 @@ static void toast_gl_init(void)
 
     GLuint vs, fs;
     GLint  ok = 0;
+    GLint  initPrevVao = 0, initPrevBuf = 0;
 
     s_glReady = -1; /* attempted */
 
@@ -172,6 +173,14 @@ static void toast_gl_init(void)
     s_locTex   = glGetUniformLocation(s_prog, "u_tex");
     s_locColor = glGetUniformLocation(s_prog, "u_color");
 
+    /* This runs on the first toast draw, BEFORE the draw's own state save, so
+     * whatever it leaves bound would be captured as "previous" and restored on
+     * top of PsyCross -- which caches its bindings and then skips rebinding,
+     * drawing the rest of the game through our vertex buffer. Hand back exactly
+     * what was bound on entry. */
+    glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &initPrevVao);
+    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &initPrevBuf);
+
     glGenVertexArrays(1, &s_vao);
     glBindVertexArray(s_vao);
     glGenBuffers(1, &s_vbo);
@@ -181,7 +190,9 @@ static void toast_gl_init(void)
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
-    glBindVertexArray(0);
+
+    glBindVertexArray((GLuint)initPrevVao);
+    glBindBuffer(GL_ARRAY_BUFFER, (GLuint)initPrevBuf);
 
     s_glReady = 1;
 }
