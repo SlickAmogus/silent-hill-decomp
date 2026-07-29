@@ -30,6 +30,10 @@ void Pc_RaToast_ProvideBadge(const char* badgeName,
 /* 1 while a live or queued toast is still missing this badge image. */
 int Pc_RaToast_WantsBadge(const char* badgeName);
 
+/* Load fonts + sound from disk. Game-thread only, safe to call every frame
+ * (self-gates after the first call). Must run before any toast appears. */
+void Pc_RaToast_Preload(void);
+
 /* Per-frame animate + draw. Cheap no-op when nothing is showing. */
 void Pc_RaToast_Draw(void);
 

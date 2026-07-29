@@ -961,3 +961,18 @@ void Pc_RaToast_Draw(void)
     if (prevDepth)  glEnable(GL_DEPTH_TEST);
     if (prevCull)   glEnable(GL_CULL_FACE);
 }
+
+/* Reads the fonts and the trophy WAV off disk. MUST be driven from the game
+ * loop, never from Pc_RaToast_Draw: the draw runs inside the GL hook, and
+ * pulling files through there mid-frame races the Fs queue the same way the
+ * minimap's paper-map TIM does. Doing it lazily at unlock time landed the reads
+ * on top of the post-cutscene map transition and wedged the load. */
+void Pc_RaToast_Preload(void)
+{
+    static int done;
+    if (done)
+        return;
+    done = 1;
+    toast_fonts_init();
+    toast_sound_init();
+}

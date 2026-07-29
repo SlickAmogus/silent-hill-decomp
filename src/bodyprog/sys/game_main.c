@@ -2128,6 +2128,12 @@ void MainLoop(void) // 0x80032EE0
 
             { extern void Sh_LogPeriodicFlush(void); Sh_LogPeriodicFlush(); }
 
+            /* Achievement toast: pull its fonts and sound off disk here for the
+             * same reason as the minimap above. The draw runs in the GL hook,
+             * so loading them there landed on the post-cutscene map transition
+             * and hung the load. Self-gates after the first call. */
+            { extern void Pc_RaToast_Preload(void); Pc_RaToast_Preload(); }
+
             /* RetroAchievements: dispatch finished server calls and evaluate
              * the achievement set. Placed after the game-state update so the
              * frame's world state is settled; self-gated to live gameplay and
