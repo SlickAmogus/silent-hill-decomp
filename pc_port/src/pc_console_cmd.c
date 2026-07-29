@@ -1068,11 +1068,20 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "RATOAST") == 0) {
         /* Preview the achievement popup without earning anything. */
         extern void Pc_RaToast_Show(const char*, const char*, const char*, unsigned);
-        Pc_RaToast_Show(arg[0] ? arg : "Welcome to Silent Hill",
-                        "Find the flashlight and survive your first encounter "
-                        "with the creatures in the alley.",
-                        "", 10);
-        cprintf("Achievement toast preview shown");
+        extern int  Pc_Ra_PreviewFirst(void);
+        /* Prefer a real achievement (badge art included) when a set is loaded. */
+        if (arg[0] || !Pc_Ra_PreviewFirst())
+        {
+            Pc_RaToast_Show(arg[0] ? arg : "Welcome to Silent Hill",
+                            "Find the flashlight and survive your first encounter "
+                            "with the creatures in the alley.",
+                            "", 10);
+            cprintf("Achievement toast preview (placeholder art)");
+        }
+        else
+        {
+            cprintf("Achievement toast preview (real achievement + badge)");
+        }
     } else if (strcmp(cmd, "PGXPWORLDDEPTH") == 0) {
         /* Depth-channel kill-switch: OFF suppresses FLAT world promotion
          * (GL_ALWAYS painter + viewZ flat depth), dropping depth behavior

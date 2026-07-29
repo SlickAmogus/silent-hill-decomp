@@ -49,6 +49,9 @@
 
 extern const char* PcPort_GetGameDiscPath(void);
 
+/* Defined below; the unlock event handler above it kicks the badge download. */
+static void Pc_RaFetchBadge(const char* badgeName);
+
 /* ------------------------------------------------------------------------- */
 /* PSX address -> native global translation                                   */
 /* ------------------------------------------------------------------------- */
@@ -240,6 +243,9 @@ typedef struct s_RaJob
     char*                       body;       /* filled by the worker */
     size_t                      body_len;
     int                         status;
+    /* Non-empty = this is a badge-image fetch of ours, NOT an rcheevos server
+     * call, so the completion goes to the toast instead of rc_client. */
+    char                        badge[16];
 } s_RaJob;
 
 static SDL_Thread*  s_httpThread;
@@ -399,6 +405,7 @@ static void RC_CCONV Pc_RaEventHandler(const rc_client_event_t* event, rc_client
                         event->achievement->description,
                         event->achievement->badge_name,
                         event->achievement->points);
+        Pc_RaFetchBadge(event->achievement->badge_name);
         Pc_RaRefreshStatus();
         break;
 
@@ -489,6 +496,62 @@ static void RC_CCONV Pc_RaLoginCallback(int result, const char* error_message,
     rc_client_begin_load_game(client, hash, Pc_RaLoadGameCallback, NULL);
 }
 
+/* Queue the achievement's badge art. The toast plays regardless; the image
+ * simply appears once it lands (usually within the rise animation). */
+static void Pc_RaFetchBadge(const char* badgeName)
+{
+    s_RaJob* job;
+    char     url[160];
+
+    if (!badgeName || !badgeName[0] || !s_queueLock || !s_queueSem)
+        return;
+
+    job = (s_RaJob*)calloc(1, sizeof(*job));
+    if (!job)
+        return;
+
+    snprintf(url, sizeof(url), "https://media.retroachievements.org/Badge/%s.png", badgeName);
+    job->url = Pc_RaStrdup(url);
+    strncpy(job->badge, badgeName, sizeof(job->badge) - 1);
+
+    SDL_LockMutex(s_queueLock);
+    Pc_RaQueuePush(&s_pending, job);
+    SDL_UnlockMutex(s_queueLock);
+    SDL_SemPost(s_queueSem);
+}
+
+/* Console preview: show a REAL achievement from the loaded set (title,
+ * description, points and its actual badge art) so the popup can be judged
+ * exactly as players will see it. 0 = no set loaded, caller shows canned text. */
+int Pc_Ra_PreviewFirst(void)
+{
+    rc_client_achievement_list_t* list;
+    const rc_client_achievement_t* ach = NULL;
+    uint32_t b;
+
+    if (!s_client || !s_active)
+        return 0;
+
+    list = rc_client_create_achievement_list(s_client,
+               RC_CLIENT_ACHIEVEMENT_CATEGORY_CORE,
+               RC_CLIENT_ACHIEVEMENT_LIST_GROUPING_LOCK_STATE);
+    if (!list)
+        return 0;
+
+    for (b = 0; b < list->num_buckets && !ach; b++)
+    {
+        if (list->buckets[b].num_achievements > 0)
+            ach = list->buckets[b].achievements[0];
+    }
+    if (ach)
+    {
+        Pc_RaToast_Show(ach->title, ach->description, ach->badge_name, ach->points);
+        Pc_RaFetchBadge(ach->badge_name);
+    }
+    rc_client_destroy_achievement_list(list);
+    return ach ? 1 : 0;
+}
+
 void Pc_Ra_Init(void)
 {
     SH_DBG("[RA] init: enabled=%d user='%s' token=%s region=%d",
@@ -577,6 +640,16 @@ void Pc_Ra_Update(void)
         if (!done)
             break;
 
+        if (done->badge[0])
+        {
+            /* Badge PNG: hand the bytes to the toast (it decodes and uploads). */
+            if (done->status == 200 && done->body && done->body_len)
+                Pc_RaToast_ProvideBadge(done->badge,
+                                        (const unsigned char*)done->body, done->body_len);
+            else
+                SH_DBG("[RA] badge %s fetch failed (http %d)", done->badge, done->status);
+        }
+        else if (done->callback)
         {
             rc_api_server_response_t response;
             memset(&response, 0, sizeof(response));
