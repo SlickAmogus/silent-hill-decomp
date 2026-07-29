@@ -1,5 +1,12 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.29.2 -- 2026-07-29
+- minimap: honour HD texture replacements, like the map screen does
+- FMV replacements work again with any of ffmpeg 6, 7 or 8 instead of one exact version
+- Launcher reports which ffmpeg you have and can download a matching one
+- Fixed rainbow lines flashing between rooms in widescreen
+- Cutscenes no longer take the per-pixel flashlight dim or a custom FOV
+
 ## beta-2026.07.29.1 -- 2026-07-29
 - RetroAchievements support (RA button in launcher) softcore only for now
 - 2D Controls Fix
