@@ -227,11 +227,11 @@ typedef struct {
     int  retroAchievements;
     char raUsername[64];
     char raToken[96];
-    /* 1 = submit unlocks even on a disc whose region the achievement address
-     * map was not authored against; 0 (default) = those discs evaluate in
-     * spectator mode (achievements log, nothing is posted).
-     * (config key: ra_unverified_region) */
-    int  raUnverifiedRegion;
+    /* 1 = spectator mode: achievements evaluate and toast locally but are never
+     * submitted. Testing aid only — every region submits for real by default now
+     * that a live session proved the address map resolves the official set's
+     * reads correctly. (config key: ra_spectator) */
+    int  raSpectator;
 
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;

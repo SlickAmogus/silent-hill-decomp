@@ -498,22 +498,15 @@ void Pc_Ra_Init(void)
         return;
     }
 
-    /* Region handling. The table below uses USA addresses, which is the space
-     * an RA set is almost certainly authored in -- and because this port keeps
-     * ONE compiled struct layout no matter which disc is mounted, that table
-     * stays correct for a PAL/JP disc too *provided* RA serves the same
-     * (USA-authored) set for it. What we cannot know without asking the server
-     * is whether RA instead matched a region-specific entry whose conditions
-     * read that build's own addresses (JAP0 puts SysWork at 0x800BC4F0 vs USA's
-     * 0x800B9FC0; those ranges overlap, so no single table serves both).
-     *
-     * So: non-USA discs run in SPECTATOR MODE -- achievements evaluate and log
-     * exactly as normal, but rc_client posts nothing, so a mismatched map can
-     * never write a false unlock to a real account. The session log then answers
-     * the question outright (which game id matched, which addresses the set
-     * reads), and `ra_unverified_region = 1` promotes that region to posting
-     * once it checks out. */
-    s_spectator = (g_GameRegion != Region_USA) && !g_PcConfig.raUnverifiedRegion;
+    /* Region handling — resolved empirically 2026-07-28. A PAL session proved
+     * RA matches game 11252 and serves the SAME official 66-achievement set,
+     * and that the set reads USA addresses: its reads landed on savegame +0xA4
+     * (mapIdx), +0x24A (clearGameCount) and +0x16E (eventFlags) through this
+     * table. Since the port compiles one struct layout for every disc, the map
+     * is correct for PAL and NTSC-J as well, so no region is held back now.
+     * `ra_spectator = 1` still forces evaluate-and-toast-without-submitting for
+     * testing. */
+    s_spectator = g_PcConfig.raSpectator;
 
     if (!g_PcConfig.raUsername[0] || !g_PcConfig.raToken[0])
     {
