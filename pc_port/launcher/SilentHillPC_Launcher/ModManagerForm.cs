@@ -25,6 +25,7 @@ namespace SilentHillPC_Launcher
         private ListView  _list;
         private CheckBox  _chkLoose;
         private ToolTip   _btnTips;
+        private FfmpegStatusRow _ffmpegRow;
 
         public ModManagerForm(ConfigManager config, string gameRoot)
         {
@@ -33,7 +34,7 @@ namespace SilentHillPC_Launcher
             _mgr      = new ModManager(gameRoot, config);
 
             Text            = "Mod Manager";
-            ClientSize      = new Size(600, 572);
+            ClientSize      = new Size(600, 602);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition   = FormStartPosition.CenterParent;
             MaximizeBox     = false;
@@ -226,8 +227,17 @@ namespace SilentHillPC_Launcher
             };
             Controls.Add(_chkLoose);
 
-            var btnApply = new Button { Text = "Apply", Location = new Point(414, 532), Size = new Size(84, 30) };
-            var btnClose = new Button { Text = "Close", Location = new Point(504, 532), Size = new Size(84, 30) };
+            // FMV mods only play through ffmpeg, and a wrong/absent runtime fails
+            // silently — so the requirement is stated here, next to the mods it gates.
+            _ffmpegRow = new FfmpegStatusRow(_gameRoot)
+            {
+                Location = new Point(12, 516),
+                Size     = new Size(576, 28),
+            };
+            Controls.Add(_ffmpegRow);
+
+            var btnApply = new Button { Text = "Apply", Location = new Point(414, 562), Size = new Size(84, 30) };
+            var btnClose = new Button { Text = "Close", Location = new Point(504, 562), Size = new Size(84, 30) };
             btnApply.Click += OnApply;
             btnClose.Click += (s, e) => { CommitOrderAndState(); _mgr.SaveState(); Close(); };
             Controls.Add(btnApply);

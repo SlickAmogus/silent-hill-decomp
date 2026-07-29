@@ -277,9 +277,9 @@ partial class Form1
             this.btnManager.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Zoom;
             this.btnManager.FlatAppearance.BorderSize = 0;
             this.btnManager.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnManager.Location = new System.Drawing.Point(205, 273);
+            this.btnManager.Location = new System.Drawing.Point(208, 273);
             this.btnManager.Name = "btnManager";
-            this.btnManager.Size = new System.Drawing.Size(216, 49);
+            this.btnManager.Size = new System.Drawing.Size(203, 49);
             this.btnManager.TabIndex = 11;
             this.btnManager.UseVisualStyleBackColor = true;
             this.btnManager.Click += new System.EventHandler(this.btnManager_Click);
