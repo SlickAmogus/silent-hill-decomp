@@ -246,6 +246,34 @@ int Pc_ScriptOwnsScene(void)
     return (vcWork.flags & (VC_USER_CAM_F | VC_USER_WATCH_F)) && g_Player_DisableControl;
 }
 
+/* Pc_ScriptOwnsScene, minus the post-load fade-in of a room/area transition.
+ *
+ * The camera cares only about who is DRIVING the view, and during a transition
+ * the script genuinely is (the third branch trips on every single door: the
+ * room-entry camera raises the camera flags while control is still frozen).
+ * Overrides that change the LOOK of the frame need the narrower question --
+ * "is an authored shot on screen?" -- because the camera a transition hands
+ * back is the ordinary room camera the player is about to play under. Dropping
+ * the per-pixel flashlight's whole-scene dim across that boundary would flash
+ * the room's brightness on the frame control returns, twice per door.
+ *
+ * Letterboxed cinematics stay scenes even while they fade, so the first branch
+ * of Pc_ScriptOwnsScene is answered before the fade is consulted. Deliberately
+ * derived from the one predicate instead of being spelled out again: a second
+ * independent notion of "in a cutscene" is how the camera and the lighting end
+ * up standing down on different frames. */
+int Pc_ScriptOwnsShot(void)
+{
+    if ((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
+        g_SysWork.cutsceneBorderState != CutsceneBorderState_None)
+        return 1;
+
+    if ((g_Screen_FadeStatus & 0x7) >= ScreenFadeState_FadeInStart)
+        return 0;
+
+    return Pc_ScriptOwnsScene();
+}
+
 /* Alternate-camera FOV (degrees of horizontal FOV on the 4:3 frame): override the
  * GTE projection distance ONLY during interactive alternate-camera gameplay. FPS
  * uses fps_fov, Thirdperson and Over-the-Shoulder use tps_fov. Menus, cutscenes,
@@ -263,19 +291,20 @@ int Pc_ScriptOwnsScene(void)
  * Called on BOTH exits of Pc_TpsCamera_Apply, including the stand-down path: the
  * restore has to run even when the camera body is skipped, or the FOV stays
  * clamped onto the scripted shot for the whole scene. */
-static void Pc_CameraFov_Update(void)
+static void Pc_CameraFov_Update(int standDown)
 {
     static int s_fovApplied = 0;
     float      fov          = 0.0f;
 
-    /* Apply the alt-cam FOV whenever the alt camera BODY is active this frame — i.e.
-     * we did not stand down (!Pc_ScriptOwnsScene). Restricting to SysState_Gameplay
-     * dropped the FOV back to the game default during examine (SysState_ReadMessage)
-     * and item pickup, even though the alt camera keeps rendering — a visible FOV pop.
-     * The stand-down exit calls this too, where Pc_ScriptOwnsScene() is true, so the
-     * game FOV is correctly restored for scripted scenes/cutscenes. */
+    /* Apply the alt-cam FOV whenever the alt camera BODY is active this frame. The
+     * caller passes the decision it made rather than re-testing Pc_ScriptOwnsScene:
+     * the two must agree, and they did not during a room transition in first person,
+     * where the camera keeps the FPS eye (fpsSnapThroughLoad) but the FOV dropped to
+     * the game projection for the whole fade-in. Restricting to SysState_Gameplay
+     * would be wrong for the same reason: examine (SysState_ReadMessage) and item
+     * pickup keep the alt camera rendering, so pinning the FOV there pops it. */
     if (g_GameWork.gameState == GameState_InGame &&
-        !Pc_ScriptOwnsScene())
+        !standDown)
     {
         if (g_PcFpsCam)
             fov = g_PcConfig.fpsFov;
@@ -330,7 +359,7 @@ static void Pc_TpsCamera_Apply(void)
 
         if (!fpsSnapThroughLoad)
         {
-            Pc_CameraFov_Update();
+            Pc_CameraFov_Update(1);
             return;
         }
     }
@@ -963,7 +992,7 @@ static void Pc_TpsCamera_Apply(void)
         vwSetViewInfo();
     }
 
-    Pc_CameraFov_Update();
+    Pc_CameraFov_Update(0);
 
     #undef TP_DIST
     #undef TP_DIST_AIM
@@ -2261,6 +2290,30 @@ void MainLoop(void) // 0x80032EE0
                             effectiveFps = 0; /* uncapped */
                         else
                             effectiveFps = g_PcConfig.fpsCap;
+
+                        /* Scripted shots never run above 60. Animation, DMS
+                         * stepping and the FX pacing were authored against a
+                         * fixed step, and this project has a documented desync
+                         * class from cutscenes running at other rates.
+                         *
+                         * The cap is overwhelmingly already in force and NOT from
+                         * here: a scene runs under SysState_EventCallback, which
+                         * takes the branch above, and that branch's single
+                         * VSync(SyncMode_Wait) per pass is a hard ~59.94Hz gate
+                         * (PsyX_WaitForTimestep(1) blocks until one vblank tick
+                         * has elapsed since the previous call). This clamp covers
+                         * the frames of a scene that DO land in the gameplay
+                         * branch — chiefly the letterbox ramp, which outlives the
+                         * event state — and pins the intent so a later change to
+                         * the state branch above cannot silently unlock cutscenes.
+                         *
+                         * Stateless: recomputed from the predicate every frame, so
+                         * a skipped scene, a load, a death or a scene that ends
+                         * early restores the user's cap on the very next frame
+                         * with nothing to unwind. */
+                        if (Pc_ScriptOwnsShot() &&
+                            (effectiveFps <= 0 || effectiveFps > 60))
+                            effectiveFps = 60;
 
                         if (effectiveFps <= 0)
                         {

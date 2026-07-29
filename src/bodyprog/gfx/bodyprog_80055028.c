@@ -208,6 +208,7 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
         extern float   g_PsyX_FlashlightDir[3];
         extern float   g_PsyX_FlashlightColor[3];
         extern VECTOR3 g_PcFlashlightShadowWorld;
+        extern int     Pc_ScriptOwnsShot(void);
 
         /* Gate on Harry's actual flashlight state (== what Game_FlashlightIsOn
          * returns). field_0==1 is only the room's dynamic-light mode (on even
@@ -217,16 +218,23 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
          * flashlight itself. field_60 (light pos) is refreshed every frame by
          * Gfx_FlashlightUpdate regardless, so it's valid whenever this is true.
          *
-         * Cutscene gate: the active cone dims the whole scene to a dark base
+         * Scripted-scene gate: the active cone dims the whole scene to a dark base
          * (fragment shader *= 0.15) so the beam reads as the only light. That's
-         * right for dark gameplay rooms but WRONG during cutscenes, which have
-         * their own scripted lighting/framing — the first map0_s00 cutscene came
-         * out looking like a pitch-dark flashlight area. Fall back to the game's
-         * normal PSX flashlight rendering (glow halo below) during cutscenes,
-         * same as the FPS camera + head-hide do. */
+         * right for dark gameplay rooms but WRONG for any shot the game authored
+         * its own lighting for — the first map0_s00 cutscene came out looking like
+         * a pitch-dark flashlight area. Worse on a scripted camera that is nowhere
+         * near Harry: the dim applies to the whole frame while the only lit cone
+         * points off-screen, so the shot renders nearly black — the same failure
+         * the FPS flashlight aim had before it was gated (8e84f2938).
+         *
+         * Pc_ScriptOwnsShot() rather than a second copy of the letterbox test:
+         * the letterbox flags mark only cinematics, so non-letterboxed scripted
+         * scenes (the sewer ladder descent, the maps' scripted camera moves) kept
+         * the dim while the camera had already stood down for them. One predicate
+         * means the camera and the lighting hand back on the same frame. Falls
+         * back to the game's normal PSX flashlight rendering (glow halo below). */
         if (g_PsyX_UsePerPixelFlashlight && g_SysWork.field_2388.isFlashlightOn_15
-            && !(g_SysWork.sysFlags & SysFlag_CutsceneActive)
-            && g_SysWork.cutsceneBorderState == CutsceneBorderState_None)
+            && !Pc_ScriptOwnsShot())
         {
             s32 lx = Q12_TO_Q8(g_WorldEnvWork.field_60.vx);
             s32 ly = Q12_TO_Q8(g_WorldEnvWork.field_60.vy);

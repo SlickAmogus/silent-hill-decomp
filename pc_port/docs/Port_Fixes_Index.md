@@ -1645,6 +1645,24 @@ one full playthrough on build `46daf37f8` (reports/0727reports).
   FOV release now restores vcWork.geom_screen_dist instead of stomping the
   letterbox zoom ramp for one frame. Open decision: widening flashlight
   modes 1-3 stand-down to non-letterboxed scripted scenes.
+- **Cutscene overrides, unified predicate** (`game_main.c`,
+  `bodyprog_80055028.c`): closes the open decision above. New
+  `Pc_ScriptOwnsShot()` = `Pc_ScriptOwnsScene()` minus the room-transition
+  fade-in (whose camera+freeze branch trips on every door, and whose camera
+  IS the one gameplay resumes under). The per-pixel flashlight's whole-scene
+  dim now stands down on that predicate instead of its own copy of the
+  letterbox test, so the camera and the lighting hand back on the same frame
+  — a scripted camera far from Harry no longer renders a near-black shot
+  (the cone lights off-screen while the dim covers the frame). The shadow
+  map follows for free (`GR_FlashlightShadowActive` gates on
+  `g_PsyX_FlashlightActive`). `Pc_CameraFov_Update` now takes the caller's
+  stand-down decision rather than re-testing, fixing first-person room
+  transitions that kept the FPS eye but dropped `fps_fov` to the game
+  projection for the whole fade-in. The 60fps cap is made explicit in the
+  gameplay VSync branch for the frames of a scene that land there (the
+  letterbox ramp outlives the event state); the non-Gameplay branch remains
+  the primary gate. All of it is recomputed per frame from the predicate, so
+  a skipped/aborted scene needs no restore path.
 
 ## PGXP depth channel — flat world depth was provably inert; now live + per-vertex (2026-07-27)
 
