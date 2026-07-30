@@ -31,6 +31,7 @@ s_PcConfig g_PcConfig = {
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
+    .itemDepthProbe = 0, /* 1=one-shot [ITEMDEPTH] depth dump per item-screen entry (diagnostic) */
     .psxPolySizeCull = 1, /* 1=PSX GPU parity: cull triangles with screen bbox >1023x511 (hardware never drew them) */
     .msaaSamples    = 0, /* 0=off, 2/4/8 = MSAA sample count */
     .postProcess    = 0, /* 0=off, 1.. = post-process look */
@@ -71,7 +72,8 @@ s_PcConfig g_PcConfig = {
     .control2dSnap           = 0, /* 2D control turns into the direction (0), doesn't snap */
     .minimap                 = 0, /* minimap overlay off by default */
     .minimapCorner           = 0, /* top-left */
-    .minimapShape            = 1, /* circle */
+    .minimapShape            = 1, /* deprecated; only feeds the old-config migration */
+    .minimapScale            = 100.0f,
     .minimapOpacity          = 100.0f,
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
@@ -266,6 +268,8 @@ static void TrimWhitespace(char* s)
 /* Set while parsing when the file carries an explicit flashlight_mode key;
  * without one, mode is derived from the legacy pp/shadows keys after the parse. */
 static int s_sawFlashlightMode = 0;
+static int s_minimapSeen       = 0;
+static int s_minimapShapeSeen  = 0;
 
 void Pc_FlashlightModeApply(int mode, int persist)
 {
@@ -499,6 +503,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "use_pgxp") == 0)
         {
             g_PcConfig.usePgxp = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "item_depth_probe") == 0)
+        {
+            g_PcConfig.itemDepthProbe = (atoi(value) != 0);
         }
         else if (strcmp(key, "psx_poly_size_cull") == 0)
         {
@@ -789,7 +797,19 @@ void PcConfig_Load(const char* path)
         }
         else if (strcmp(key, "minimap") == 0)
         {
-            g_PcConfig.minimap = (atoi(value) != 0);
+            /* 0 = off, 1 = square, 2 = circle. Older configs only ever wrote
+             * 0/1 here and kept the shape in minimap_shape, so a bare 1 is
+             * promoted below once both keys have been seen. */
+            int v = atoi(value);
+            g_PcConfig.minimap = (v < 0) ? 0 : ((v > 2) ? 2 : v);
+            s_minimapSeen = 1;
+        }
+        else if (strcmp(key, "minimap_scale") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < MINIMAP_SCALE_MIN) v = MINIMAP_SCALE_MIN;
+            if (v > MINIMAP_SCALE_MAX) v = MINIMAP_SCALE_MAX;
+            g_PcConfig.minimapScale = v;
         }
         else if (strcmp(key, "minimap_corner") == 0)
         {
@@ -798,7 +818,10 @@ void PcConfig_Load(const char* path)
         }
         else if (strcmp(key, "minimap_shape") == 0)
         {
+            /* Deprecated: the shape now lives in `minimap` itself. Still read so
+             * an existing config keeps the shape the player had. */
             g_PcConfig.minimapShape = (atoi(value) != 0);
+            s_minimapShapeSeen = 1;
         }
         else if (strcmp(key, "minimap_opacity") == 0)
         {
@@ -944,6 +967,15 @@ void PcConfig_Load(const char* path)
     if (!s_sawFlashlightMode && g_PcConfig.perPixelFlashlight)
     {
         g_PcConfig.flashlightMode = g_PcConfig.flashlightShadows ? 3 : 2;
+    }
+
+    /* Before the shape folded into `minimap`, "on" was minimap=1 with the shape
+     * in its own key. A bare 1 from such a config means "on, with whatever
+     * minimap_shape said", so promote it to keep the player's shape. */
+    if (s_minimapSeen && s_minimapShapeSeen &&
+        g_PcConfig.minimap == 1 && g_PcConfig.minimapShape != 0)
+    {
+        g_PcConfig.minimap = 2;
     }
 
     fprintf(stderr, "[CONFIG] Resolution: %dx%d, Fullscreen: %d, DisableCulling: %d, Map: %s\n",

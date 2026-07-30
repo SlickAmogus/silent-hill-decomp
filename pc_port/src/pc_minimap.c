@@ -466,9 +466,15 @@ static int mm_markers_build(int buf, const s_MmView* vw)
             p = &s_markPrim[buf][count++];
             setPolyFT4(p);
             setRGB0(p, (u8)vw->lum, (u8)vw->lum, (u8)vw->lum); /* == func_80068E0C's shade 128 at full opacity */
-            if (vw->semi) setSemiTrans(p, 1);
+            /* The atlas art is cyan, not red. The map screen turns it red purely
+             * with the subtractive blend in its tpage (0x47 -> abr 2, B-F): cyan
+             * taken off the light paper leaves (255,0,0). Semi-transparency is
+             * unconditional there (RECT_BLEND), so it is here too -- drawing
+             * these with abr 0 is what made the markings come out blue.
+             * Reduced opacity still fades correctly, via the lum scale below. */
+            setSemiTrans(p, 1);
             setXY4(p, kx0, ky0, kx1, ky0, kx0, ky1, kx1, ky1);
-            p->tpage = 0;
+            p->tpage = getTPage(0, 2, 0, 0);
             p->clut  = MM_MARK_CLUT;
             p->u0 = (u8)nu0; p->v0 = (u8)nv0;
             p->u1 = (u8)nu1; p->v1 = (u8)nv0;
@@ -517,7 +523,7 @@ void Pc_MinimapUpdate(void)
 
     buf   = g_ActiveBufferIdx;
     ot    = &g_OtTags0[buf][4];
-    round = (g_PcConfig.minimapShape != 0);
+    round = (g_PcConfig.minimap == 2); /* 1 = square, 2 = circle */
 
     /* --- corner placement ---
      * Vertical is always 4:3 (y -120..+120). Horizontally the port renders 2D at
@@ -531,6 +537,15 @@ void Pc_MinimapUpdate(void)
                    ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight : psxA;
         if (winA > psxA + 0.01f) { halfW = (int)(160.0f * (winA / psxA) + 0.5f); }
         else                     { mmSize = MM_SIZE - 8; }
+    }
+
+    /* Scale last, so it applies to whichever base the aspect branch picked. */
+    {
+        float sc = g_PcConfig.minimapScale;
+        if (sc < MINIMAP_SCALE_MIN) sc = MINIMAP_SCALE_MIN;
+        if (sc > MINIMAP_SCALE_MAX) sc = MINIMAP_SCALE_MAX;
+        mmSize = (int)(((float)mmSize * sc) / 100.0f + 0.5f);
+        if (mmSize < 8) mmSize = 8;
     }
     switch (g_PcConfig.minimapCorner)
     {
