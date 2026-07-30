@@ -3,8 +3,8 @@
 
 /* Minimap size range, as a percentage of the built-in MM_SIZE. The top end is a
  * little larger than the stock panel; the bottom end is a bit over half of it. */
-#define MINIMAP_SCALE_MIN 50.0f
-#define MINIMAP_SCALE_MAX 110.0f
+#define MINIMAP_SCALE_MIN 60.0f
+#define MINIMAP_SCALE_MAX 120.0f
 
 /* One full control scheme: keyboard primary + alternate, controller primary +
  * alternate. Keyboard values are SDL scancode names ("C","Up","Left Shift","[")
