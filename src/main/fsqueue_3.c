@@ -1030,6 +1030,55 @@ static int s_texpackComposeBudget = 0;
 static const s_FsQueueEntry* s_composeResumeEntry = NULL;
 static s32                   s_composeResumeIdx   = 0;
 static s32                   s_composeResumeRow   = 0;
+
+/* A texture pack that replaces SOME palette rows of a sheet but not others is
+ * indistinguishable in the log from one that replaces all of them: the rows it
+ * covers are announced, the rows it misses are silent, and the missing ones only
+ * show up as one body region of a monster staying at native resolution while the
+ * rest is HD. Naming them costs one line per partially covered upload and turns
+ * "which palette does this body part use, and does the pack ship it" from an
+ * offline hash hunt into a grep. Only PARTIAL coverage is reported — a sheet the
+ * pack does not touch at all is the normal case and would flood the log.
+ *
+ * A row set split across ticks by the compose budget reports in two halves; each
+ * half is honest about the rows it visited. */
+static void TexPack_ReportUncoveredRows(const s_FsQueueEntry* entry, s32 slotId,
+                                        u32 missMask, s32 matched)
+{
+    static s32 s_uncoveredLog = 0;
+    char       timName[16] = { 0 };
+    char       rowList[80];
+    s32        len = 0;
+    s32        r;
+
+    if (missMask == 0 || matched == 0 || s_uncoveredLog >= 64) return;
+    s_uncoveredLog++;
+
+    if (FSQ_INFO_VALID(entry->info))
+    {
+        Fs_GetFileInfoName(timName, entry->info);
+    }
+
+    rowList[0] = '\0';
+    for (r = 0; r < 32; r++)
+    {
+        if (!(missMask & (1u << r))) continue;
+        len += snprintf(&rowList[len], sizeof(rowList) - (size_t)len,
+                        (len == 0) ? "%d" : ",%d", (int)r);
+        if (len >= (s32)sizeof(rowList) - 8) break;
+    }
+
+    if (slotId >= 0)
+    {
+        SH_DBG("[TEXPACK] %.8s (pool slot %d): pack covers %d CLUT row(s), NO replacement for row(s) %s — those rows keep native art",
+               timName, (int)slotId, (int)matched, rowList);
+    }
+    else
+    {
+        SH_DBG("[TEXPACK] %.8s (VRAM): pack covers %d CLUT row(s), NO replacement for row(s) %s — those rows keep native art",
+               timName, (int)matched, rowList);
+    }
+}
 #endif
 
 bool Fs_QueueUpdatePostLoad(s_FsQueueEntry* entry)
@@ -1372,6 +1421,8 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                     int clutW = (tim.caddr != NULL && tim.crect != NULL) ? (int)tim.crect->w : 0;
                     int rows  = (haveClut && tim.crect != NULL) ? (int)clutRect.h : 1;
                     int r;
+                    u32 missMask = 0;
+                    s32 matched  = 0;
 
                     if (rows < 1) rows = 1;
                     if (rows > HIRES_POOL_MAX_ROWS) rows = HIRES_POOL_MAX_ROWS;
@@ -1420,6 +1471,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                             HiresOverride_PoolSlotRegisterRGBAKeyed(
                                 slotId, r, canvas, cw, ch, nativeW, nativeH,
                                 TexPack_LastComposeHash());
+                            matched++;
                         }
                         else if (TexPack_LastComposeIsDds())
                         {
@@ -1430,8 +1482,15 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                             HiresOverride_PoolSlotRegisterDdsKeyed(
                                 slotId, r, dds, ddsSize, nativeW, nativeH,
                                 TexPack_LastComposeHash());
+                            matched++;
+                        }
+                        else if (r < 32)
+                        {
+                            missMask |= 1u << r;
                         }
                     }
+
+                    TexPack_ReportUncoveredRows(entry, slotId, missMask, matched);
                 }
             }
         }
@@ -1579,6 +1638,8 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
             int clutW = (haveClut && tim.crect != NULL) ? (int)tim.crect->w : 0;
             int rows  = haveClut ? (int)clutRect.h : 1;
             int r;
+            u32 missMask = 0;
+            s32 matched  = 0;
 
             if (rows < 1) rows = 1;
             if (rows > 16) rows = 16;
@@ -1632,6 +1693,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                                                haveClut ? (int)clutRect.x : -1,
                                                haveClut ? ((int)clutRect.y + r) : -1,
                                                discBitDepth, TexPack_LastComposeHash());
+                    matched++;
                 }
                 else if (TexPack_LastComposeIsDds())
                 {
@@ -1645,8 +1707,15 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                                                haveClut ? (int)clutRect.x : -1,
                                                haveClut ? ((int)clutRect.y + r) : -1,
                                                discBitDepth, TexPack_LastComposeHash());
+                    matched++;
+                }
+                else if (r < 32)
+                {
+                    missMask |= 1u << r;
                 }
             }
+
+            TexPack_ReportUncoveredRows(entry, -1, missMask, matched);
         }
     }
 
