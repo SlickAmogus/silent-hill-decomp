@@ -1,5 +1,32 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.30.1 -- 2026-07-30
+- Fixed gray void in door transitions
+- Fixed see-through item faces for items the player can pick up
+- Minimap no longer shows areas where you don't have a map, config option "minimap_require_map" can be set to 0 for old behavior
+- Added givemap command to give current map for the area you're in
+- Made blue minimap markers red
+- Added minimap size setting (60-120%)
+- Minimap player arrow now scales with the minimap size instead of staying the same size
+- Minimap option now controls shape as well, so Minimap = Off, Square, Circle. (Apologies, you may have to set your shape again if it's wrong)
+- Fixed menus being blurry or having artifacts with HD texture packs even with menu filtering turned off
+- Potential fixes for permanent rainbow texture corruption, this time on every kind of surface instead of just one
+- Texture pack log now tells you which palette rows a pack didn't replace, so mixed HD/original models are easier to track down
+Note: If you're on an AMD gpu and want to test the corruption fix, search your config for resident_textures and remove the line if it exists.
+
+Commit summaries:
+- Fix Linux build: RTLD_DEFAULT needs _GNU_SOURCE
+- minimap: red markings, and fold shape into Minimap to free a row for scale
+- minimap: only show the map once it has been found
+- minimap: scale range 60-120%
+- take-screen see-through FIXED; [ITEMDEPTH] probe hooks
+- console: add givemap to grant the area map Harry is standing in
+- bump PsyCross: unbacked bit-15 clut guard on all textured prims
+- texpack: name the CLUT rows a pack does not replace
+- minimap: scale the player arrow with the panel, not just the map
+- bump PsyCross: menus honour menu_filter for HD-replaced art
+
+
 ## beta-2026.07.29.2 -- 2026-07-29
 - Minimap: honour HD texture replacements, like the map screen does
 - FMV replacements work again with any of ffmpeg 6, 7 or 8 instead of one exact version
