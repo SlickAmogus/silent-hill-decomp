@@ -1062,6 +1062,15 @@ int main(int argc, char* argv[])
     g_PsxUsePgxp = g_PcConfig.usePgxp ? 1 : 0;
     SH_LOG("PGXP: %s", g_PsxUsePgxp ? "ON (perspective-correct, WIP)" : "off (affine)");
 
+    /* [ITEMDEPTH] one-shot item-model depth probe. Diagnostic only — the probe
+     * reads state and never writes rendering state. */
+    {
+        extern int g_PsyX_ItemDepthProbe;
+        g_PsyX_ItemDepthProbe = g_PcConfig.itemDepthProbe ? 1 : 0;
+        if (g_PsyX_ItemDepthProbe)
+            SH_LOG("Item depth probe: ON ([ITEMDEPTH] one-shot dump per item-screen entry)");
+    }
+
     /* PSX GPU parity: reject triangles whose screen bbox exceeds 1023x511
      * (hardware never rasterized them; PsyX drawing them is the wedge-poly
      * corruption when the camera sits inside geometry). Console `polysizecull`. */

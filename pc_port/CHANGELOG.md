@@ -1,11 +1,12 @@
 # Silent Hill PC Port — Changelog
 
 ## beta-2026.07.29.2 -- 2026-07-29
-- minimap: honour HD texture replacements, like the map screen does
+- Minimap: honour HD texture replacements, like the map screen does
 - FMV replacements work again with any of ffmpeg 6, 7 or 8 instead of one exact version
-- Launcher reports which ffmpeg you have and can download a matching one
+- Launcher reports which ffmpeg you have or can download it for you
 - Fixed rainbow lines flashing between rooms in widescreen
 - Cutscenes no longer take the per-pixel flashlight dim or a custom FOV
+- Pickup take-screen items no longer render see-through (radio antenna, shotgun shells)
 
 ## beta-2026.07.29.1 -- 2026-07-29
 - RetroAchievements support (RA button in launcher) softcore only for now
@@ -29,6 +30,7 @@
 - Elevator door fix
 Note: Some are untested and I may be forgetting some. Please let me know if anything listed is still not fixed or if you've reported an issue that is fixed now.
 
+Commit summaries:
 - water: revert func_8008D990 changes — restore chest lens flare (regression fix)
 - water: restore caustic generator — animated water surface via VRAM scratch
 - stubs: give D_8002B2CC its real bytes ("DWAVE") — water caustic material name

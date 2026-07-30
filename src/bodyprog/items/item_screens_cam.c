@@ -318,6 +318,21 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
             extern int g_PcPuzzleItemDepth;
             g_PcItemPreciseDepth = (g_GameWork.gameState == GameState_InventoryScreen) || (arg2 == 2) ||
                                    g_PcPuzzleItemDepth;
+
+            /* [ITEMDEPTH] diagnostic (config item_depth_probe, off by default):
+             * announce this model draw so the probe can arm once per item-screen
+             * entry and tag every primitive with its screen + slot. Read-only. */
+            {
+                extern int  g_PsyX_ItemDepthProbe;
+                extern void PsyX_ItemProbeModelBegin(int screen, int slot, int arg2);
+                if (g_PsyX_ItemDepthProbe)
+                {
+                    s32 _probeScreen = (arg2 == 2) ? 1
+                                     : (g_GameWork.gameState == GameState_InventoryScreen) ? 2
+                                     : (g_PcPuzzleItemDepth ? 3 : 0);
+                    PsyX_ItemProbeModelBegin((int)_probeScreen, (int)displayItemIdx, (int)arg2);
+                }
+            }
         }
         if (displayItemIdx < 7 && g_PcInvDimStrength > 0) {
             /* depth past center = t[2]+Q8(4) = |Math_Sin(slot*256)| (Q12):

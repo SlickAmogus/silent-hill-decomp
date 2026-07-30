@@ -3031,6 +3031,15 @@ void MainLoop(void) // 0x80032EE0
                 PsyX_ForceItemDepthEnd();
             }
         }
+        /* [ITEMDEPTH] diagnostic: flush an armed one-shot item-depth capture now
+         * that the item's OT0 draw is complete (and before the OT2 GsDrawOt swaps
+         * the SZ-max reference). Unconditional — it is also the "screen was left"
+         * edge that re-arms the probe for the next entry. No-op unless the
+         * item_depth_probe config flag is set. */
+        {
+            extern void PsyX_ItemProbeEndFrame(void);
+            PsyX_ItemProbeEndFrame();
+        }
 #endif
         ML_TRACE("OT0-done");
 #ifdef SH_PC_PORT
