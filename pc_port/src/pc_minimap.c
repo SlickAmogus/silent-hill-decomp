@@ -137,6 +137,13 @@ static int mm_isqrt(int v)
     return k;
 }
 
+/* Apply the panel's Q12 size factor to a length in 2D units. Rounded, and the
+ * exact identity at 4096 (100%), so the default panel is untouched. */
+static int mm_scaled(int v, s32 mkScale)
+{
+    return (int)((((s32)v * mkScale) + 2048) >> 12);
+}
+
 /* 1 = read started, 0 = transient failure (retry a later frame), -1 = no file. */
 static int mm_start_read(e_FsFile f, int kind)
 {
@@ -501,6 +508,7 @@ void Pc_MinimapUpdate(void)
     int       haveMap, round, semi, op, lum;
     int       x0, y0, x1, y1, cx, cy, R;
     int       halfW = SCREEN_WIDTH / 2, mmSize = MM_SIZE;
+    s32       mkScale = 4096;
     int       u0 = 0, v0 = 0, u1 = MM_UV_MAX, v1 = MM_UV_MAX;
     int       markCount = 0;
     GsOT_TAG* ot;
@@ -539,13 +547,18 @@ void Pc_MinimapUpdate(void)
         else                     { mmSize = MM_SIZE - 8; }
     }
 
-    /* Scale last, so it applies to whichever base the aspect branch picked. */
+    /* Scale last, so it applies to whichever base the aspect branch picked.
+     * mkScale carries the same factor in Q12 to the things drawn at a FIXED size
+     * instead of being derived from mmSize — Harry's arrow and its edge clamp.
+     * (The paper-map markings already scale: mm_markers_build sizes them through
+     * vw->size, so they follow the panel on their own.) */
     {
         float sc = g_PcConfig.minimapScale;
         if (sc < MINIMAP_SCALE_MIN) sc = MINIMAP_SCALE_MIN;
         if (sc > MINIMAP_SCALE_MAX) sc = MINIMAP_SCALE_MAX;
         mmSize = (int)(((float)mmSize * sc) / 100.0f + 0.5f);
         if (mmSize < 8) mmSize = 8;
+        mkScale = (s32)(((sc * 4096.0f) / 100.0f) + 0.5f);
     }
     switch (g_PcConfig.minimapCorner)
     {
@@ -601,11 +614,13 @@ void Pc_MinimapUpdate(void)
         py = cy;
     }
 
-    /* keep the arrow inside the panel (disc or box) */
+    /* Keep the arrow inside the panel (disc or box). The inset is the arrow's own
+     * reach, so it shrinks with it — otherwise a small panel would hold Harry a
+     * fixed distance off its edge and misreport him as further inside than he is. */
     if (round)
     {
         s32 dx = px - cx, dy = py - cy;
-        s32 lim = R - 5, d = dx * dx + dy * dy;
+        s32 lim = R - mm_scaled(5, mkScale), d = dx * dx + dy * dy;
         if (d > lim * lim)
         {
             s32 k = 0;
@@ -615,8 +630,9 @@ void Pc_MinimapUpdate(void)
     }
     else
     {
-        px = mm_clamp(px, x0 + 4, x1 - 4);
-        py = mm_clamp(py, y0 + 4, y1 - 4);
+        int inset = mm_scaled(4, mkScale);
+        px = mm_clamp(px, x0 + inset, x1 - inset);
+        py = mm_clamp(py, y0 + inset, y1 - inset);
     }
 
     if (round)
@@ -706,8 +722,14 @@ void Pc_MinimapUpdate(void)
         s32   vx[3], vy[3];
         for (i = 0; i < 3; i++)
         {
-            vx[i] = px + ((lx[i] * ca - ly[i] * sa) >> 12);
-            vy[i] = py + ((lx[i] * sa + ly[i] * ca) >> 12);
+            /* Rotate, then apply the panel scale in the same step: the operand is
+             * Q12 and mkScale is Q12, so >>24 lands back in 2D units. At 100%
+             * mkScale is exactly 4096 and (v * 4096) >> 24 == v >> 12, i.e. the
+             * default arrow is bit-identical to the unscaled one. Scaling the
+             * ROTATED offsets rather than lx/ly keeps the triangle's proportions
+             * intact and its pivot exactly on Harry. */
+            vx[i] = px + (((lx[i] * ca - ly[i] * sa) * mkScale) >> 24);
+            vy[i] = py + (((lx[i] * sa + ly[i] * ca) * mkScale) >> 24);
         }
         setPolyF3(&s_mark[buf]);
         setRGB0(&s_mark[buf], (u8)((255 * op) / 100), (u8)((216 * op) / 100), (u8)((48 * op) / 100));
