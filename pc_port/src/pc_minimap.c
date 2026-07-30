@@ -569,7 +569,15 @@ void Pc_MinimapUpdate(void)
     packed = func_80067914((s32)g_SavegamePtr->paperMapIdx, 0, 0, (u16)Q12(1.0f));
     g_PcMapQueryOnly  = 0;
 
+    /* The paper map is only drawn once Harry has actually found it -- HAS_MAP is
+     * the same savegame bit the map screen gates on. minimap_require_map=0
+     * restores the old always-visible behaviour. */
     haveMap = (s_mapReady && packed != 0);
+    if (haveMap && g_PcConfig.minimapRequireMap)
+    {
+        int mi = (int)g_SavegamePtr->paperMapIdx;
+        if (mi < 0 || mi >= MM_PAPER_MAP_COUNT || !HAS_MAP(mi)) haveMap = 0;
+    }
 
     if (packed != 0)
     {
@@ -648,7 +656,7 @@ void Pc_MinimapUpdate(void)
             else
             {
                 setPolyF3(&s_fill[buf][i]);
-                setRGB0(&s_fill[buf][i], (u8)((16 * op) / 100), (u8)((20 * op) / 100), (u8)((30 * op) / 100));
+                setRGB0(&s_fill[buf][i], (u8)((46 * op) / 100), (u8)((46 * op) / 100), (u8)((49 * op) / 100));
                 if (semi) setSemiTrans(&s_fill[buf][i], 1);
                 setXY3(&s_fill[buf][i], cx, cy,
                        cx + ((R * c0) >> 12), cy + ((R * n0) >> 12),
@@ -680,7 +688,7 @@ void Pc_MinimapUpdate(void)
         else
         {
             setTile(&s_sqFill[buf]);
-            setRGB0(&s_sqFill[buf], (u8)((16 * op) / 100), (u8)((20 * op) / 100), (u8)((30 * op) / 100));
+            setRGB0(&s_sqFill[buf], (u8)((46 * op) / 100), (u8)((46 * op) / 100), (u8)((49 * op) / 100));
             if (semi) setSemiTrans(&s_sqFill[buf], 1);
             setWH(&s_sqFill[buf], mmSize, mmSize);
             setXY0(&s_sqFill[buf], x0, y0);

@@ -74,6 +74,7 @@ s_PcConfig g_PcConfig = {
     .minimapCorner           = 0, /* top-left */
     .minimapShape            = 1, /* deprecated; only feeds the old-config migration */
     .minimapScale            = 100.0f,
+    .minimapRequireMap       = 1, /* the map only appears once Harry has found it */
     .minimapOpacity          = 100.0f,
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
@@ -803,6 +804,10 @@ void PcConfig_Load(const char* path)
             int v = atoi(value);
             g_PcConfig.minimap = (v < 0) ? 0 : ((v > 2) ? 2 : v);
             s_minimapSeen = 1;
+        }
+        else if (strcmp(key, "minimap_require_map") == 0)
+        {
+            g_PcConfig.minimapRequireMap = (atoi(value) != 0);
         }
         else if (strcmp(key, "minimap_scale") == 0)
         {
