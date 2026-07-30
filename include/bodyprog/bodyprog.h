@@ -155,7 +155,13 @@ typedef struct
  * below alias ONE buffer (func_8005A21C casts between them), so their shared
  * fields must stay offset-identical — pinned by the _Static_asserts after
  * s_GteScratchData2. See pc_port/docs/Oversized_Models_Plan.md. */
-#ifdef SH_PC_PORT
+/* Flip to 1 to give the PC build the PSX pool dims exactly (disables
+ * oversized-model support while set). Was tried as the cause of the nurse/
+ * doctor back-parasite vanishing and disproved — that turned out to be the
+ * bone hide-list walk in func_8003E4A0, not the pools. */
+#define SH_GTE_SCRATCH_PSX_DIMS 0
+
+#if defined(SH_PC_PORT) && !SH_GTE_SCRATCH_PSX_DIMS
 #define GTE_SCRATCH_POOL_SLOTS     258
 #define GTE_SCRATCH_XY_CAP         GTE_SCRATCH_POOL_SLOTS
 #define GTE_SCRATCH_Z_UNLIT_CAP    GTE_SCRATCH_POOL_SLOTS
@@ -167,6 +173,12 @@ typedef struct
 #define GTE_SCRATCH_V1_MID_PAD     ((GTE_SCRATCH_Z_LIT_TAIL_CAP * 2 + GTE_SCRATCH_NORMAL_CAP * 4) - \
                                     (GTE_SCRATCH_Z_UNLIT_CAP * 2 + GTE_SCRATCH_FOG_CAP))
 #else
+#if defined(SH_PC_PORT) && SH_GTE_SCRATCH_PSX_DIMS
+/* PC using PSX dims: the pad collapses to 0, so field_2B8 aligns the same way
+ * it does on hardware and the runtime overlap is restored. */
+#define GTE_SCRATCH_POOL_SLOTS     90
+#define GTE_SCRATCH_V1_MID_PAD     0
+#endif
 #define GTE_SCRATCH_XY_CAP         90
 #define GTE_SCRATCH_Z_UNLIT_CAP    99
 #define GTE_SCRATCH_Z_LIT_TAIL_CAP 72
@@ -184,7 +196,7 @@ typedef struct _GteScratchData
     s16 field_18C[GTE_SCRATCH_Z_UNLIT_CAP]; // The size changed from 150 due to the addition of `field_252`. Not sure if this is correct.
     u8  field_252[GTE_SCRATCH_FOG_CAP];
 
-#ifdef SH_PC_PORT
+#if defined(SH_PC_PORT) && GTE_SCRATCH_V1_MID_PAD > 0
     u8 pcPad_0[GTE_SCRATCH_V1_MID_PAD];
 #endif
     u8 field_2B8[GTE_SCRATCH_SHADE_CAP]; // Size likely incorrect.

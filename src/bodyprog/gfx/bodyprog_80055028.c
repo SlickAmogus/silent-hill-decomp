@@ -1761,6 +1761,55 @@ void Gfx_FogOverlayQuadDraw(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s3
     }
 }
 
+#ifdef SH_PC_PORT
+/* ---- [CHARAPRIM] character-part submission probe (config chara_prim_probe) ----
+ * The character draw chain hands func_8005AC50 nothing but a mesh header, so a
+ * part that silently fails to draw is indistinguishable from one that was never
+ * asked to. These carry the subject down: world_draw.c stamps the chara, this
+ * file stamps the model, and the prim builder reports what became of its prims.
+ * Read-only — the probe counts rejects the chain already makes. */
+int g_PcCharaPrimProbe       = 0; /* e_CharaId to trace, 0 = off */
+int g_PcCharaPrimProbeActive = 0; /* set while that chara's skeleton is drawing */
+
+#define CHARA_PRIM_PROBE_MAX_LINES 120
+
+static const s_ModelHeader* s_charaPrimProbeHdr  = NULL;
+static s32                  s_charaPrimProbeIdx  = -1;
+static s32                  s_charaPrimProbeLines = 0;
+static s64                  s_charaPrimProbeDet   = 0;
+
+/* Determinant of a rotation matrix's 3x3 part, in Q12^3 (4096^3 == 1.0). A
+ * mirror anywhere in a bone's matrix chain makes this NEGATIVE and inverts the
+ * winding of every triangle the bone draws, which every backface test on both
+ * the PGXP and integer paths then rejects wholesale. That is the one signature
+ * that separates "the transform is mirrored" from "this part legitimately
+ * faces away from the camera" — the counters alone cannot tell them apart. */
+static s64 CharaPrimProbe_Det3(const MATRIX* m)
+{
+    return (s64)m->m[0][0] * ((s64)m->m[1][1] * m->m[2][2] - (s64)m->m[1][2] * m->m[2][1])
+         - (s64)m->m[0][1] * ((s64)m->m[1][0] * m->m[2][2] - (s64)m->m[1][2] * m->m[2][0])
+         + (s64)m->m[0][2] * ((s64)m->m[1][0] * m->m[2][1] - (s64)m->m[1][1] * m->m[2][0]);
+}
+
+static void CharaPrimProbe_Note(const s_ModelInfo* modelInfo, const char* what)
+{
+    const s_ModelHeader* h = modelInfo->modelHdr;
+
+    if (s_charaPrimProbeLines >= CHARA_PRIM_PROBE_MAX_LINES)
+    {
+        return;
+    }
+    s_charaPrimProbeLines++;
+    SH_DBG("[CHARAPRIM] model=%2d '%.8s' vOff=%d nOff=%d meshes=%d fB0=%d fB1=%d fB4=%d field_0=0x%08X -> %s",
+           modelInfo->modelIdx, h != NULL ? h->name.str : "<null>",
+           h != NULL ? h->vertexOffset : -1, h != NULL ? h->normalOffset : -1,
+           h != NULL ? h->meshCount : -1,
+           h != NULL ? h->field_B_0 : -1, h != NULL ? h->field_B_1 : -1,
+           h != NULL ? h->field_B_4 : -1,
+           (unsigned)modelInfo->field_0, what);
+}
+#endif
+
 void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat, MATRIX* worldMat, u16 arg5) // 0x80057090
 {
     s32            temp_a0;
@@ -1770,6 +1819,21 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
     modelHdr = modelInfo->modelHdr;
 
 #ifdef SH_PC_PORT
+    if (g_PcCharaPrimProbeActive)
+    {
+        s_charaPrimProbeHdr = modelHdr;
+        s_charaPrimProbeIdx = modelInfo->modelIdx;
+        s_charaPrimProbeDet = (viewMat != NULL) ? CharaPrimProbe_Det3(viewMat) : 0;
+        if (modelHdr == NULL)
+        {
+            CharaPrimProbe_Note(modelInfo, "DROPPED: modelHdr NULL");
+        }
+        else if (modelInfo->field_0 < 0)
+        {
+            CharaPrimProbe_Note(modelInfo, "DROPPED: bone disabled (field_0 bit31)");
+        }
+    }
+
     if (modelHdr == NULL) {
         return;
     }
@@ -1790,6 +1854,7 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
      * through to the unchanged dispatch below. */
     if (Pc_WideLm_IsWide(modelHdr))
     {
+        if (g_PcCharaPrimProbeActive) CharaPrimProbe_Note(modelInfo, "wide (v7) drawer");
         Pc_WideLm_DrawPart(modelInfo, otTag, arg2, viewMat, worldMat, arg5);
         return;
     }
@@ -1797,6 +1862,9 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
 
     if ((temp_a0 & 0xFF) && temp_a0 >= 0 && temp_a0 < 4) // TODO: `& 0xFF` needed for match.
     {
+#ifdef SH_PC_PORT
+        if (g_PcCharaPrimProbeActive) CharaPrimProbe_Note(modelInfo, "func_80059D50 chain (field_B_4)");
+#endif
         func_80059D50(temp_a0, modelInfo, viewMat, arg2, otTag);
     }
     else
@@ -1813,6 +1881,9 @@ void func_80057090(s_ModelInfo* modelInfo, GsOT* arg1, s32 arg2, MATRIX* viewMat
         }
         else
         {
+#ifdef SH_PC_PORT
+            if (g_PcCharaPrimProbeActive) CharaPrimProbe_Note(modelInfo, "func_80057344 chain (unlit)");
+#endif
             func_80057344(modelInfo, otTag, arg2, viewMat);
         }
     }
@@ -3710,6 +3781,7 @@ void func_8005A21C(s_ModelInfo* modelInfo, GsOT_TAG* otTag, bool arg2, MATRIX* m
 #ifdef SH_PC_PORT
     modelHdr = modelInfo->modelHdr;
     if (modelHdr == NULL || modelHdr->meshHdrs == NULL) {
+        if (g_PcCharaPrimProbeActive) CharaPrimProbe_Note(modelInfo, "DROPPED: meshHdrs NULL");
         return;
     }
 #endif
@@ -4101,6 +4173,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 
 #ifdef SH_PC_PORT
     s32 _dbgPrimPass = 0, _dbgPrimDepthFail = 0, _dbgPrimOobFail = 0, _dbgPrimTotal = 0;
+    s32 _dbgPrimBackfaceFail = 0;
     {
         static int _charTexLog = 0;
         if (_charTexLog < 3 && meshHdr->primitiveCount > 0) {
@@ -4171,7 +4244,10 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                 if (PsyX_PGXP_TriBackface(&scratchData->screenXy_0[scratchData->u.s_1.field_0],
                                           &scratchData->screenXy_0[scratchData->u.s_1.field_1],
                                           &scratchData->screenXy_0[scratchData->u.s_1.field_2], r4))
+                {
+                    _dbgPrimBackfaceFail++;
                     continue;
+                }
             }
 #else
             if (r4 <= 0)
@@ -4261,7 +4337,10 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                                            &scratchData->screenXy_0[scratchData->u.s_1.field_1],
                                            &scratchData->screenXy_0[scratchData->u.s_1.field_2],
                                            &scratchData->screenXy_0[scratchData->u.s_1.field_3], sp4, _sp4b))
+                {
+                    _dbgPrimBackfaceFail++;
                     continue;
+                }
             }
 #else
             if (sp4 <= 0)
@@ -4334,16 +4413,42 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
     }
 
 #ifdef SH_PC_PORT
+    /* [CHARAPRIM]: what became of this part's prims. The three rejects are the
+     * only ways a submitted prim disappears here, so a part that is present but
+     * unseen has to show up as one of them — or as pass>0, which moves the
+     * question downstream to the OT/rasteriser. The first prim's projected
+     * corners come along because a collapsed or off-screen transform is the
+     * other way a part vanishes, and it is invisible to the counters. */
+    if (g_PcCharaPrimProbeActive && s_charaPrimProbeLines < CHARA_PRIM_PROBE_MAX_LINES)
     {
-        static int _primSummaryLog = 0;
-        if (_primSummaryLog < 25) {
-            /* Log first prim vertex indices for ALL models */
-            if (meshHdr->primitiveCount > 0) {
-                s_Primitive* p0 = &meshHdr->primitives[0];
-                u8* fc = (u8*)&p0->field_C;
+        char vtx[128];
+
+        vtx[0] = '\0';
+        if (meshHdr->primitiveCount > 0)
+        {
+            const u8* fc = (const u8*)&meshHdr->primitives[0].field_C;
+            int       n  = (fc[3] == 0xFF) ? 3 : 4;
+            int       i;
+            int       used = 0;
+
+            for (i = 0; i < n; i++)
+            {
+                used += snprintf(vtx + used, sizeof(vtx) - (size_t)used, " s%u=(%d,%d z=%d)",
+                                 (unsigned)fc[i],
+                                 scratchData->screenXy_0[fc[i]].vx,
+                                 scratchData->screenXy_0[fc[i]].vy,
+                                 scratchData->screenZ_168[fc[i]]);
+                if (used >= (int)sizeof(vtx) - 1) break;
             }
-            _primSummaryLog++;
         }
+
+        s_charaPrimProbeLines++;
+        SH_DBG("[CHARAPRIM] model=%2d '%.8s' prims=%d -> pass=%d depthRej=%d backfaceRej=%d screenBoundRej=%d otWindow=%d det=%s(%lld) |%s",
+               s_charaPrimProbeIdx,
+               s_charaPrimProbeHdr != NULL ? s_charaPrimProbeHdr->name.str : "<null>",
+               _dbgPrimTotal, _dbgPrimPass, _dbgPrimDepthFail, _dbgPrimBackfaceFail,
+               _dbgPrimOobFail, var_t9,
+               s_charaPrimProbeDet < 0 ? "MIRRORED" : "+", (long long)s_charaPrimProbeDet, vtx);
     }
 #endif
 

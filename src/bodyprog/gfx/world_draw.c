@@ -1551,10 +1551,16 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
      * pre-pass (monsters still cast). Set here (build time) so the GTE captures it
      * per-vertex; cleared right after. */
     { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = (charaId == Chara_Harry) ? 1 : 0; }
+    /* [CHARAPRIM]: the draw chain below (func_80057090 -> func_8005AC50) only ever
+     * sees a model header, never a chara, so the probe's subject is stamped here —
+     * the one place both are in scope. */
+    { extern int g_PcCharaPrimProbe, g_PcCharaPrimProbeActive;
+      g_PcCharaPrimProbeActive = (g_PcCharaPrimProbe != 0 && charaId == g_PcCharaPrimProbe); }
 #endif
     func_80045534(&g_WorldGfxWork.registeredCharaModels[charaId]->skeleton, &g_OrderingTable0[g_ActiveBufferIdx], arg2,
                   boneCoords, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6), ret, CHARA_FILE_INFOS[charaId].field_8);
 #ifdef SH_PC_PORT
+    { extern int g_PcCharaPrimProbeActive; g_PcCharaPrimProbeActive = 0; }
     { extern int g_PcHideHarryFpsBody; g_PcHideHarryFpsBody = 0; }
     { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 0; }
 #endif
@@ -1815,8 +1821,11 @@ void func_8003E238(s_Skeleton* skel, s32 arg1) // 0x8003E238
 {
     s32 maskedVal;
 
-    static s32 D_800A9F20 = 0x06050403;
-    static s32 D_800A9F24 = 0x000000FE; // @unused
+    /* Kaufmann's hide list has the same cross-static terminator as the nurse's
+     * (see func_8003E4A0). It currently survives an optimizing build only
+     * because the static the linker happens to place next starts with a byte
+     * this list already hides -- an accident, not a guarantee. */
+    static s32 D_800A9F20[2] = { 0x06050403, 0x000000FE };
     static s32 D_800A9F28 = 0x0000FE03;
     static s32 D_800A9F2C = 0x0000FE04;
     static s32 D_800A9F30 = 0x00FE0504;
@@ -1829,7 +1838,7 @@ void func_8003E238(s_Skeleton* skel, s32 arg1) // 0x8003E238
     maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal != 0)
     {
-        func_80045468(skel, &D_800A9F20, false);
+        func_80045468(skel, D_800A9F20, false);
 
         switch (maskedVal)
         {
@@ -1930,8 +1939,16 @@ void func_8003E4A0(s_Skeleton* skel, s32 arg1) // 0x8003E4A0
 {
     s32 maskedVal;
 
-    static s32 D_800A9F58 = 0x05040302;
-    static s32 D_800A9F5C = 0x00FE0706; // @unused
+    /* One byte stream, not two words: `Bone_ModelIdxGet` walks bytes forward
+     * from the pointer it is given and only stops on -2, so the terminator for
+     * this list lives in the word the PSX linker placed immediately after it.
+     * Nothing names that second word, so an optimizing build drops it and
+     * reorders what is left -- the walk then runs off the end of this list into
+     * whatever static landed next (measured: Split Head's 0xFE22FD1A, which
+     * hides bones 26-34 and took the nurse's back parasite with it). An array
+     * makes the adjacency a language guarantee instead of a linker accident;
+     * the emitted bytes are the PSX ones in the PSX order. */
+    static s32 D_800A9F58[2] = { 0x05040302, 0x00FE0706 };
     static s32 D_800A9F60 = 0x00FE0502;
     static s32 D_800A9F64 = 0x00FE0603;
     static s32 D_800A9F68 = 0x00FE0704;
@@ -1939,7 +1956,7 @@ void func_8003E4A0(s_Skeleton* skel, s32 arg1) // 0x8003E4A0
     maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal != 0)
     {
-        func_80045468(skel, &D_800A9F58, false);
+        func_80045468(skel, D_800A9F58, false);
 
         switch (maskedVal)
         {
@@ -1962,8 +1979,9 @@ void func_8003E544(s_Skeleton* skel, s32 arg1) // 0x8003E544
 {
     s32 maskedVal;
 
-    static s32 D_800A9F6C = 0x05040302;
-    static s32 D_800A9F70 = 0x00FE0706; // @unused
+    /* Same cross-static byte stream as the nurse above -- kept contiguous by
+     * the array so the terminator cannot be optimized away. */
+    static s32 D_800A9F6C[2] = { 0x05040302, 0x00FE0706 };
     static s32 D_800A9F74 = 0x00FE0502;
     static s32 D_800A9F78 = 0x00FE0603;
     static s32 D_800A9F7C = 0x00FE0704;
@@ -1974,7 +1992,7 @@ void func_8003E544(s_Skeleton* skel, s32 arg1) // 0x8003E544
         return;
     }
 
-    func_80045468(skel, &D_800A9F6C, false);
+    func_80045468(skel, D_800A9F6C, false);
 
     switch (maskedVal)
     {

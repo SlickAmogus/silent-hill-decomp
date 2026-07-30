@@ -32,6 +32,7 @@ s_PcConfig g_PcConfig = {
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
     .itemDepthProbe = 0, /* 1=one-shot [ITEMDEPTH] depth dump per item-screen entry (diagnostic) */
+    .charaPrimProbe = 0, /* 0=off, else e_CharaId to trace: one-shot [CHARAPRIM] per-model submit/reject dump */
     .psxPolySizeCull = 1, /* 1=PSX GPU parity: cull triangles with screen bbox >1023x511 (hardware never drew them) */
     .msaaSamples    = 0, /* 0=off, 2/4/8 = MSAA sample count */
     .postProcess    = 0, /* 0=off, 1.. = post-process look */
@@ -508,6 +509,11 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "item_depth_probe") == 0)
         {
             g_PcConfig.itemDepthProbe = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "chara_prim_probe") == 0)
+        {
+            /* charaId, not a bool — 0 means off and no chara is id 0 (Chara_None). */
+            g_PcConfig.charaPrimProbe = atoi(value);
         }
         else if (strcmp(key, "psx_poly_size_cull") == 0)
         {

@@ -1071,6 +1071,15 @@ int main(int argc, char* argv[])
             SH_LOG("Item depth probe: ON ([ITEMDEPTH] one-shot dump per item-screen entry)");
     }
 
+    /* [CHARAPRIM] one-shot character-part submission probe. Diagnostic only —
+     * counts rejects the draw chain already performs, changes none of them. */
+    {
+        extern int g_PcCharaPrimProbe;
+        g_PcCharaPrimProbe = g_PcConfig.charaPrimProbe;
+        if (g_PcCharaPrimProbe)
+            SH_LOG("Chara prim probe: ON for charaId=%d ([CHARAPRIM] one-shot per-model dump)", g_PcCharaPrimProbe);
+    }
+
     /* PSX GPU parity: reject triangles whose screen bbox exceeds 1023x511
      * (hardware never rasterized them; PsyX drawing them is the wedge-poly
      * corruption when the camera sits inside geometry). Console `polysizecull`. */

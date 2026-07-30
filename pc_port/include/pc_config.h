@@ -97,6 +97,15 @@ typedef struct {
                           * ApplyGtePerVertexDepth's per-vertex branch fired, the resulting NDC +
                           * window depth, the raster order, and the REAL queried GL depth state at
                           * draw time. Read-only: changes no rendering. (config key: item_depth_probe) */
+    int charaPrimProbe;  /* DIAGNOSTIC, default 0 (off): e_CharaId to trace through the character
+                          * draw chain. Emits [CHARAPRIM], per model of that chara, whether the
+                          * model reached the prim builder at all and — if it did — how many of its
+                          * prims survived each reject in func_8005AC50 (OT-depth window, backface,
+                          * screen-bound), plus the projected screen XY/Z of the first prim's
+                          * corners. Answers "is this part submitted, and if so where did it land"
+                          * without guessing. One-shot: dumps CHARA_PRIM_PROBE_FRAMES frames' worth
+                          * then goes quiet. Read-only: changes no rendering.
+                          * (config key: chara_prim_probe; PuppetNurse=16, PuppetDoctor=18) */
     int psxPolySizeCull; /* 1 = PSX GPU parity: reject triangles whose screen bbox exceeds 1023x511,
                           * like real hardware — kills the screen-crossing wedge polys when the camera
                           * sits inside geometry (elevator doors/staircase). 0 = draw them (old behavior).
