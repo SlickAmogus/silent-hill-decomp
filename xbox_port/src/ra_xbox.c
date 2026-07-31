@@ -982,6 +982,7 @@ void Pc_Ra_StatusToast(void)
 
     if (!g_PcConfig.retroAchievements)
     {
+        Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);   /* menu feedback (no card in this branch) */
         Ra_Toast("RA: off (set retroachievements=1)");
         return;
     }
@@ -989,6 +990,7 @@ void Pc_Ra_StatusToast(void)
     user = s_client ? rc_client_get_user_info(s_client) : NULL;
     if (!user)
     {
+        Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
         Ra_Toast("RA: not signed in");
         return;
     }
@@ -1006,6 +1008,7 @@ void Pc_Ra_StatusToast(void)
     {
         const char* nm = (user->display_name && user->display_name[0]) ? user->display_name
                        : (user->username ? user->username : "?");
+        Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
         snprintf(line, sizeof(line), "RA: signed in as %s (%u pts)",
                  nm, (unsigned)user->score_softcore);
         Ra_Toast(line);

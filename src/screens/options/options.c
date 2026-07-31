@@ -591,11 +591,12 @@ void Options_PcOptionsMenu_Control(void)
                 }
                 Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
             } else if (sel->kind == PCK_RASTATUS) {
-                /* Query RA login state and toast the result so the user can
-                 * check it from the menu (ra_xbox.c reads rc_client_get_user_info
-                 * and pushes the line through the overlay toast ring). */
+                /* RA status / notification self-test. Pc_Ra_StatusToast OWNS the
+                 * sound for this row: when signed in it fires the full mock unlock
+                 * (which plays achievement.wav, or the chime if that's absent), so
+                 * do NOT also play the menu confirm here -- that produced a double
+                 * sound (menu chime + achievement.wav) in the preview. */
                 extern void Pc_Ra_StatusToast(void);
-                Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
                 Pc_Ra_StatusToast();
 #endif
             }
