@@ -38,6 +38,15 @@
 #include <rc_hash.h>
 #include <rc_consoles.h>
 
+/* Vendored rcheevos PRIVATE headers, resolved via the same -I.../src the library
+ * TUs use. They let Ra_DumpWorklist walk the parsed memref list at game-load and
+ * print the COMPLETE, finite set of addresses the whole 66-achievement set reads
+ * -- the authoritative worklist for finishing the translation table, in one shot
+ * with no gameplay. Included BEFORE the decomp headers: they carry only rc_*
+ * symbols, so they can't collide with game.h's `byte`/RECT/etc. */
+#include "rc_client_internal.h"   /* rc_client_t.game -> rc_client_game_info_t.runtime */
+#include "rcheevos/rc_internal.h" /* rc_memrefs_t / rc_memref_list_t struct bodies    */
+
 #include "game.h"
 #include "bodyprog/savegame.h"
 /* Globals the live achievement set was observed reading (see the table below). */
@@ -282,6 +291,85 @@ static uint32_t RC_CCONV Ra_ReadMemory(uint32_t address, uint8_t* buffer,
         return num_bytes;
     }
     return 0;
+}
+
+/* Does some native region (or the boot-id shim) back this RA/RAM offset? Mirrors
+ * the containment test in Ra_ReadMemory so the worklist agrees with what actually
+ * gets served. */
+static int Ra_AddrServed(uint32_t address)
+{
+    int i;
+    if (address >= RA_BOOTID_BASE && address < RA_BOOTID_BASE + sizeof(s_bootId))
+        return 1;
+    for (i = 0; i < s_mapCount; i++)
+        if (address >= s_map[i].start && address < s_map[i].start + s_map[i].size)
+            return 1;
+    return 0;
+}
+
+/* One-shot at game-load: walk the parsed memref list (every address the WHOLE set
+ * -- all achievements + leaderboards + rich-presence -- reads) and print each
+ * distinct one that no native region backs. This is the authoritative, finite
+ * worklist for finishing the translation table: unlike the per-frame miss log it
+ * needs no gameplay and can't miss a condition that this session didn't happen to
+ * evaluate. Distinct unmapped addresses are deduped and capped so the D: log stays
+ * bounded even if the set reads hundreds of scratch bytes. */
+#define RA_WORKLIST_MAX 160
+static void Ra_DumpWorklist(rc_client_t* client)
+{
+    const rc_client_game_info_t* game;
+    const rc_memrefs_t*          memrefs;
+    const rc_memref_list_t*      list;
+    uint32_t seen[RA_WORKLIST_MAX];
+    uint32_t total    = 0;   /* every memref entry, served or not          */
+    uint32_t unserved = 0;   /* raw entries with no backing region          */
+    uint32_t distinct = 0;   /* distinct unserved addresses actually logged */
+
+    if (!client)
+        return;
+    game = client->game;
+    if (!game || !game->runtime.memrefs)
+    {
+        SH_DBG("[RA] worklist: no parsed memrefs (set not loaded?)");
+        return;
+    }
+
+    memrefs = game->runtime.memrefs;
+    for (list = &memrefs->memrefs; list != NULL; list = list->next)
+    {
+        int i;
+        for (i = 0; i < (int)list->count; i++)
+        {
+            const uint32_t addr = list->items[i].address;
+            const unsigned sz   = (unsigned)list->items[i].value.size;
+            uint32_t       j;
+            int            dup   = 0;
+
+            total++;
+            if (Ra_AddrServed(addr))
+                continue;
+            unserved++;
+
+            for (j = 0; j < distinct; j++)
+                if (seen[j] == addr) { dup = 1; break; }
+            if (dup)
+                continue;
+
+            if (distinct < RA_WORKLIST_MAX)
+            {
+                seen[distinct++] = addr;
+                /* sz is an RC_MEMSIZE_* code, not a byte count -- it tells the
+                 * mapper the operand width (8/16/24/32/bit) at this address. */
+                SH_DBG("[RA] worklist UNMAPPED 0x80%06X (memsize=%u)", addr, sz);
+            }
+        }
+    }
+
+    SH_DBG("[RA] worklist: %u memrefs total, %u unserved, %u distinct-unmapped listed%s",
+           total, unserved, distinct,
+           (distinct >= RA_WORKLIST_MAX) ? " (cap hit -- raise RA_WORKLIST_MAX)" : "");
+    if (unserved == 0)
+        SH_DBG("[RA] worklist: table COMPLETE -- every address the set reads is backed");
 }
 
 /* ------------------------------------------------------------------------- */
@@ -529,6 +617,9 @@ static void RC_CCONV Ra_LoadGameCallback(int result, const char* error_message,
             SH_DBG("[RA] matched game %u \"%s\"",
                    (unsigned)game->id, game->title ? game->title : "?");
     }
+
+    /* Print the complete address worklist now that every achievement is parsed. */
+    Ra_DumpWorklist(client);
     {
         char line[96];
         snprintf(line, sizeof(line), "RetroAchievements: %s", s_status);
