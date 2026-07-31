@@ -66,6 +66,7 @@ s_PcConfig g_PcConfig = {
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
     .xboxVideo720p       = 0,    /* Xbox: 480p by default (720p costs texture-cache RAM) */
+    .logDiag             = 0,    /* Xbox: quiet log by default (per-frame diag probes gated; log_diag=1 restores) */
     .audioOutput         = 0,    /* auto: OpenAL detects the system speaker layout */
     .fpsFov              = 71.1f, /* first-person FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
     .tpsFov              = 71.1f, /* thirdperson/OTS FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
@@ -682,6 +683,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "video_720p") == 0)
         {
             g_PcConfig.xboxVideo720p = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "log_diag") == 0)
+        {
+            g_PcConfig.logDiag = (atoi(value) != 0);
         }
         else if (strcmp(key, "mouse_cursor") == 0)
         {

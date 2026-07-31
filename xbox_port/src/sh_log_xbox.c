@@ -17,6 +17,34 @@ FILE* g_ShDebugLog = NULL;
 int   g_ShDebugEchoStdout = 0;
 void (*g_ShOverlayPushLine)(const char*) = NULL;
 
+/* Log-volume gate (config log_diag; 0 = quiet). The per-frame + periodic
+ * diagnostic probes flooded a multi-day session to 136 MB (1.88 M lines) and
+ * cost render-loop HDD flushes. Sh_LogAllow drops lines whose fmt starts with a
+ * gated prefix; fmt is a compile-time literal so a dropped line costs one prefix
+ * scan and NO vsnprintf/fwrite. Set log_diag=1 in the config to restore the full
+ * diagnostic stream when a problem needs it. Essential boot/CD/FS/error prefixes
+ * are deliberately NOT in the list, so they always log. */
+int g_XboxLogDiag = 0;
+
+int Sh_LogAllow(const char* fmt)
+{
+    static const char* const GATED[] = {
+        "[SH_AUDIO]", "[SH_BGM]", "[UIDIAG]", "[FT]", "[UPD]", "[UPD2]", "[POST]",
+        "[OTT]", "[OTS]", "[FOGST]", "[FOGPAD]", "[ABR]", "[MEM]", "[WALLSTOP]",
+        "[WALL-HIT]", "[RAIN]", "[FSQ]", "[SS]", "[FXDROP]", "[BATCH]", "[STORE]",
+    };
+    int i;
+    if (g_XboxLogDiag)          return 1;   /* diag on: keep everything */
+    if (!fmt || fmt[0] != '[')  return 1;   /* non-tagged line: keep */
+    for (i = 0; i < (int)(sizeof(GATED) / sizeof(GATED[0])); i++) {
+        const char* g = GATED[i];
+        const char* f = fmt;
+        while (*g && *g == *f) { g++; f++; }
+        if (*g == '\0') return 0;           /* fmt begins with a gated prefix -> drop */
+    }
+    return 1;
+}
+
 /* RAM staging buffer for the log. Unbuffered (_IONBF) flushed every SH_DBG to the
  * HDD, which on the 733MHz/HDD path is a real per-line cost in the render loop.
  * A large full buffer (_IOFBF) makes SH_DBG a cheap memcpy; the loop flushes

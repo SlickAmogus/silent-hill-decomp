@@ -195,8 +195,13 @@ extern int g_PcFpsCam;
  * by BODY yaw around the root, a full turn (body follows the camera past ±90°)
  * swung the eye on a 0.22u arc around the hidden head — you saw the empty head
  * space sweep by. On the axis, a full turn pivots in place at the head. Vertical
- * (head height) kept; head-follow sway still rides on top. */
-VECTOR3 g_PcFpsOffset = { 0, -6836, 0 };
+ * (head height) kept; head-follow sway still rides on top.
+ * vz: 0 sat the eye at the neck and Harry's (headless) body showed in front; the
+ * stock 919 sat it far enough forward that a full body turn orbited past the
+ * head. 800 moves it forward ~a step to clear the body while keeping the arc
+ * small. Tunable — raise vz if the body still shows, lower it if a full turn
+ * still orbits. */
+VECTOR3 g_PcFpsOffset = { 0, -6836, 800 };
 #else
 VECTOR3 g_PcFpsOffset = { -29, -6836, 919 }; /* FPS eye BASELINE in Harry's BODY frame (all weapons); vx=right, vy=up(neg), vz=forward. Head-follow sway rides on top. */
 #endif

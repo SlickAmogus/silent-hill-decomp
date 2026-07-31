@@ -92,6 +92,10 @@ void XboxConfig_ApplyOverrides(void)
         g_PcConfig.refreshRate = 60;
     g_PcConfig.fpsCap         = 30;
 
+    /* Log verbosity: quiet by default (the per-frame diag probes flooded a
+     * multi-day session to 136 MB). log_diag=1 restores the full stream. */
+    { extern int g_XboxLogDiag; g_XboxLogDiag = g_PcConfig.logDiag; }
+
     /* --- GL-shader features with no NV2A implementation. --- */
     g_PcConfig.usePgxp            = 0;
     g_PcConfig.perPixelFlashlight = 0;

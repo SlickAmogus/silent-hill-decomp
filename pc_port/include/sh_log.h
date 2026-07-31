@@ -43,6 +43,16 @@ extern int   g_ShDebugEchoStdout;              /* set by main_pc.c after PcConfi
 extern void (*g_ShOverlayPushLine)(const char*);  /* NULL, or DbgOverlay_PushLine  (console buffer only) */
 extern void (*g_ShOverlayToastLine)(const char*); /* NULL, or DbgOverlay_ToastLine (buffer + top-left toast) */
 void SH_DebugLogInit(void);
+#ifdef SH_XBOX_PORT
+/* Xbox log-volume gate. The per-frame/periodic diagnostic probes ([UPD], [FT],
+ * [SH_AUDIO], [MEM], ...) generated a 136 MB log over a multi-day session and
+ * cost HDD flushes in the render loop. Sh_LogAllow() drops those by fmt PREFIX
+ * (a compile-time literal, so no formatting happens for a dropped line) unless
+ * g_XboxLogDiag (config log_diag=1) is set. Essential boot/CD/FS/error lines are
+ * never in the gated list, so they always log. */
+extern int g_XboxLogDiag;
+int        Sh_LogAllow(const char* fmt);
+#endif
 #ifdef __cplusplus
 }
 #endif
@@ -57,11 +67,19 @@ void SH_DebugLogInit(void);
  * Rely on stdio's _IOLBF line buffering (set in SH_DebugLogInit). On
  * unhandled crash, our SetUnhandledExceptionFilter handler in main_pc.c
  * does the final fflush. */
+#ifdef SH_XBOX_PORT
+#define SH_DBG(fmt, ...) do { \
+    if (g_ShDebugLog && Sh_LogAllow(fmt)) { \
+        fprintf(g_ShDebugLog, fmt "\n", ##__VA_ARGS__); \
+    } \
+} while (0)
+#else
 #define SH_DBG(fmt, ...) do { \
     if (g_ShDebugLog) { \
         fprintf(g_ShDebugLog, fmt "\n", ##__VA_ARGS__); \
     } \
 } while (0)
+#endif
 
 /* Like SH_DBG but also prints to stdout when show_console is on — use for
  * lines you want to watch live in the console window during a session.
