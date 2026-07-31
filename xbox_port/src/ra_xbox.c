@@ -1026,8 +1026,12 @@ void Pc_Ra_StatusToast(void)
 
     if (s_active && s_sampleBadge[0])
     {
-        /* Full notification preview: same path a real unlock takes. */
-        Ra_ShowUnlock(s_sampleTitle, s_samplePoints, s_sampleBadge);
+        /* LOCAL-ONLY preview of the unlock card (badge image + layout + sound).
+         * This path is display-only -- Ra_ShowUnlock never awards or contacts the
+         * server; only a real RC_CLIENT_EVENT_ACHIEVEMENT_TRIGGERED posts an unlock.
+         * Use a self-describing title (not the sample achievement's real name) so
+         * the preview can never be mistaken for an actual unlock. */
+        Ra_ShowUnlock("Notification Preview", s_samplePoints, s_sampleBadge);
     }
     else
     {
