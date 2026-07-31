@@ -7,6 +7,9 @@
 #include "bodyprog/screen/screen_draw.h"
 #include "main/fsqueue.h"
 #include "main/rng.h"
+#ifdef SH_XBOX_PORT
+#include "sh_log.h"   /* SH_DBG for the [DEMO] attract-mode trace */
+#endif
 
 s32              g_Demo_DemoFileIdx;
 s32              g_Demo_PlayFileIdx;
@@ -185,6 +188,10 @@ bool g_Demo_Play = false;
 
 void Demo_Start(void) // 0x8008F398
 {
+#ifdef SH_XBOX_PORT
+    SH_DBG("[DEMO] start: demoId=%d playFile=%d interval=%d",
+           (int)g_Demo_DemoId, (int)g_Demo_PlayFileIdx, (int)g_Demo_VideoPresentInterval);
+#endif
     g_Demo_Play         = true;
     g_SysWork.sysFlags |= SysFlag_DemoActive;
 

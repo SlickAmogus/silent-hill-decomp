@@ -2350,6 +2350,20 @@ void MainLoop(void) // 0x80032EE0
                 interval = g_IntervalVBlanks;
             }
 
+#ifdef SH_XBOX_PORT
+            /* Coalesce the demo's present-interval hold into ONE present. On Xbox
+             * VSync both presents AND opens the next frame, so the PSX per-vblank
+             * do-while would present the freshly-cleared back buffer on every
+             * iteration past the first -> a black frame every other demo frame.
+             * VSync(n) = one present held n vblanks, which is what the demo's fixed
+             * present-interval pacing actually wants (same fix as gameplay). */
+            {
+                int need = (interval > g_VBlanks) ? (interval - g_VBlanks) : 1;
+                VSync(need);
+                g_VBlanks     += need;
+                g_PrevVBlanks += need;
+            }
+#else
             do
             {
                 VSync(SyncMode_Wait);
@@ -2357,6 +2371,7 @@ void MainLoop(void) // 0x80032EE0
                 g_PrevVBlanks++;
             }
             while (g_VBlanks < interval);
+#endif
 
             g_UncappedVBlanks = g_VBlanks;
             g_VBlanks         = MIN(g_VBlanks, 4);
