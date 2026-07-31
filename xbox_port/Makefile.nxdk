@@ -118,6 +118,22 @@ $(DECOMP)/src/bodyprog/gfx/bodyprog_80040B74.obj:  CFLAGS   += $(SH_OPT)
 $(DECOMP)/src/bodyprog/gfx/world_draw.obj:         CFLAGS   += $(SH_OPT)
 $(XBOX_PORT)/src/gpu_xbox.obj:                     CFLAGS   += $(SH_OPT)
 $(XBOX_PORT)/src/gpu_nv2a.obj:                     CFLAGS   += $(SH_OPT)
+# HAL decode hotspots — hand-written C, NOT machine-decompiled MIPS, so they carry
+# none of the cross-static / stack-adjacency / arg-eval UB that makes decomp files
+# risky at -O2; the only idioms they use (VRAM ARGB type-punning, fixed-point pitch
+# /resample wrap) are exactly what -fno-strict-aliasing -fwrapv already cover. These
+# are the confirmed CPU hotspots: psx_vram = the 28-79ms LoadImage texture reformat
+# ([FSQ] streaming hitch); audio_xbox = the software SPU mix + reverb (frees pump
+# headroom vs the DS_PUMP spiral); xa/fmv/mdec/str/avi = the ~28% FMV frame drops.
+# Held OUT: dsound_xbox.c + psx_libgpu_xbox.c drive producer/consumer ring + frame-
+# present ordering — flip those only as their own verified step.
+$(XBOX_PORT)/src/psx_vram.obj:                     CFLAGS   += $(SH_OPT)
+$(XBOX_PORT)/src/audio_xbox.obj:                   CFLAGS   += $(SH_OPT)
+$(XBOX_PORT)/src/xa_xbox.obj:                      CFLAGS   += $(SH_OPT)
+$(XBOX_PORT)/src/fmv_xbox.obj:                     CFLAGS   += $(SH_OPT)
+$(XBOX_PORT)/src/avi_read.obj:                     CFLAGS   += $(SH_OPT)
+$(PCPORT)/src/fmv/mdec.obj:                        CFLAGS   += $(SH_OPT)
+$(PCPORT)/src/fmv/str_demux.obj:                   CFLAGS   += $(SH_OPT)
 
 # The decomp uses C11 `static_assert` as a bare keyword. Map it to _Static_assert
 # for C TUs only — applying it to C++ breaks libc++/std headers (matches the PC

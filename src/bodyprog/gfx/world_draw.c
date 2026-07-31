@@ -1882,8 +1882,12 @@ void func_8003E238(s_Skeleton* skel, s32 arg1) // 0x8003E238
 {
     s32 maskedVal;
 
-    static s32 D_800A9F20 = 0x06050403;
-    static s32 D_800A9F24 = 0x000000FE; // @unused
+    /* The 0x06050403 list's 0xFE terminator lives in the next word — kept as one
+     * array so -O2 GlobalDCE can't drop the (unreferenced) terminator and let the
+     * byte-walker run off the end into the neighbouring static (the invisible-
+     * parasite / stacked-neck-variant bug). Byte-identical to two adjacent s32.
+     * Matches the PC fix (0065c7a0f). */
+    static s32 D_800A9F20[2] = { 0x06050403, 0x000000FE };
     static s32 D_800A9F28 = 0x0000FE03;
     static s32 D_800A9F2C = 0x0000FE04;
     static s32 D_800A9F30 = 0x00FE0504;
@@ -1896,7 +1900,7 @@ void func_8003E238(s_Skeleton* skel, s32 arg1) // 0x8003E238
     maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal != 0)
     {
-        func_80045468(skel, &D_800A9F20, false);
+        func_80045468(skel, D_800A9F20, false);
 
         switch (maskedVal)
         {
@@ -1997,8 +2001,9 @@ void func_8003E4A0(s_Skeleton* skel, s32 arg1) // 0x8003E4A0
 {
     s32 maskedVal;
 
-    static s32 D_800A9F58 = 0x05040302;
-    static s32 D_800A9F5C = 0x00FE0706; // @unused
+    /* 0x05040302 list continues + terminates (0xFE) in the next word — one array
+     * so -O2 can't drop the terminator (Puppet Nurse back-parasite). See D_800A9F20. */
+    static s32 D_800A9F58[2] = { 0x05040302, 0x00FE0706 };
     static s32 D_800A9F60 = 0x00FE0502;
     static s32 D_800A9F64 = 0x00FE0603;
     static s32 D_800A9F68 = 0x00FE0704;
@@ -2006,7 +2011,7 @@ void func_8003E4A0(s_Skeleton* skel, s32 arg1) // 0x8003E4A0
     maskedVal = MODEL_BONE_MESH_VARIANT_IDX_GET(arg1);
     if (maskedVal != 0)
     {
-        func_80045468(skel, &D_800A9F58, false);
+        func_80045468(skel, D_800A9F58, false);
 
         switch (maskedVal)
         {
@@ -2029,8 +2034,9 @@ void func_8003E544(s_Skeleton* skel, s32 arg1) // 0x8003E544
 {
     s32 maskedVal;
 
-    static s32 D_800A9F6C = 0x05040302;
-    static s32 D_800A9F70 = 0x00FE0706; // @unused
+    /* 0x05040302 list continues + terminates (0xFE) in the next word — one array
+     * so -O2 can't drop the terminator (Puppet Doctor back-parasite). See D_800A9F20. */
+    static s32 D_800A9F6C[2] = { 0x05040302, 0x00FE0706 };
     static s32 D_800A9F74 = 0x00FE0502;
     static s32 D_800A9F78 = 0x00FE0603;
     static s32 D_800A9F7C = 0x00FE0704;
@@ -2041,7 +2047,7 @@ void func_8003E544(s_Skeleton* skel, s32 arg1) // 0x8003E544
         return;
     }
 
-    func_80045468(skel, &D_800A9F6C, false);
+    func_80045468(skel, D_800A9F6C, false);
 
     switch (maskedVal)
     {
