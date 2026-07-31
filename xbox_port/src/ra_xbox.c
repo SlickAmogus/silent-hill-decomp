@@ -41,11 +41,13 @@
 #include "game.h"
 #include "bodyprog/savegame.h"
 /* Globals the live achievement set was observed reading (see the table below). */
-#include "bodyprog/bodyprog.h"                      /* g_KcetLogoImg, MAP_EFFECTS_INFOS, g_WorldGfxWork */
+#include "bodyprog/bodyprog.h"                      /* g_KcetLogoImg, MAP_EFFECTS_INFOS, g_WorldGfxWork, D_800AD4C8 */
 #include "bodyprog/demo.h"                          /* g_Demo_IsLoadingChunks */
-#include "bodyprog/item_screens.h"                  /* g_Inventory_EquippedItem, g_Item_MapLoadableItems */
+#include "bodyprog/item_screens.h"                  /* g_Inventory_EquippedItem, g_Item_MapLoadableItems, g_Items_Coords */
+#include "bodyprog/screen/screen_data.h"            /* g_OtTags1 */
 #include "bodyprog/collision/collision.h"           /* g_ActiveCollisionTriggers */
 #include "bodyprog/sound/sound_system.h"            /* g_XaItemData, Sd_PlaySfx */
+#include "bodyprog/libsd.h"                         /* smf_song (SMF_SONG) */
 #include "bodyprog/sound/sfx_id_enum.h"             /* Sfx_MenuConfirm (trophy chime) */
 #include "bodyprog/events/bodyprog_data_800A99B4.h" /* g_MapEventLastUsedItem */
 
@@ -82,7 +84,7 @@ typedef struct
     const char* name;
 } s_RaRegion;
 
-static s_RaRegion s_map[16];
+static s_RaRegion s_map[48];
 static int        s_mapCount;
 
 #define RA_MAP(psxOffset, sym) do { \
@@ -128,6 +130,46 @@ static void Ra_BuildMap(void)
     RA_MAP(0x0C3BB8u, g_Item_MapLoadableItems);
     RA_MAP(0x0C4478u, g_ActiveCollisionTriggers);
     RA_MAP(0x0C489Cu, g_Demo_IsLoadingChunks);
+
+    /* ---- Worklist additions (2026-07-31): the 17 addresses the live set was
+     * observed reading that fell in no mapped region. Each entry below maps the
+     * whole CONTAINING named global at its retail base (from configs/USA/
+     * sym.bodyprog.txt), verified against a real C global with a computable size.
+     * Several worklist addresses that fall in PSY-Q library scratch (libgte/libgs/
+     * libcd) or unnamed statics have NO backing C global and are intentionally
+     * left unmapped -- they safely read 0 via the RAM fallback in Ra_ReadMemory.
+     *
+     * NOTE: the Split Head boss-kill flag (EventFlag_131) is NOT among these; the
+     * event flags live in g_GameWork.savegame.eventFlags (g_SavegamePtr ==
+     * &g_GameWork.savegame), so they are ALREADY covered by the g_GameWork entry
+     * above. */
+
+    /* Weapon-attack / combat data table `s_800AD4C8 D_800AD4C8[70]` (bodyprog.h,
+     * 70 * 24 = 0x690). Covers 0x800AD77C. */
+    RA_MAP(0x0AD4C8u, D_800AD4C8);
+
+    /* Ordering table `g_OtTags1`. On SH_PC_PORT the NATIVE array is [3][2048]
+     * (0x6000), but retail is [2][2048] (0x4000) and g_GravitySpeed/vcWork/g_SysWork
+     * sit immediately after it in the RA offset space. Map ONLY the retail 0x4000
+     * span (explicit, like g_XaItemData) so this region can never shadow the
+     * g_SysWork@0x0B9FC0 entry. Covers 0x800B95B8, 0x800B96AE, 0x800B9B98,
+     * 0x800B9C8E. */
+    if (s_mapCount < (int)(sizeof(s_map) / sizeof(s_map[0])))
+    {
+        s_map[s_mapCount].start  = 0x0B5CC4u;
+        s_map[s_mapCount].size   = 0x4000u;
+        s_map[s_mapCount].native = (const void*)&g_OtTags1[0][0];
+        s_map[s_mapCount].name   = "g_OtTags1";
+        s_mapCount++;
+    }
+
+    /* Item-screen display transforms `GsCOORDINATE2 g_Items_Coords[10]`
+     * (item_screens.h, 10 * 0x50 = 0x320). Covers 0x800C3EA2. */
+    RA_MAP(0x0C3E48u, g_Items_Coords);
+
+    /* libsd MIDI sequencer state `SMF_SONG smf_song[2]` (libsd.h, 2 * 1340 = 0xA78).
+     * Covers 0x800C945D. */
+    RA_MAP(0x0C8B00u, smf_song);
 }
 
 /* First few distinct pages the set touches, hit or miss: reveals which build's
@@ -448,6 +490,16 @@ static void RC_CCONV Ra_EventHandler(const rc_client_event_t* event, rc_client_t
 
     case RC_CLIENT_EVENT_RECONNECTED:
         Ra_Toast("RetroAchievements reconnected");
+        break;
+
+    case RC_CLIENT_EVENT_ACHIEVEMENT_CHALLENGE_INDICATOR_SHOW:
+        /* Primed: an achievement's primary condition is met and it's now waiting
+         * on its trigger. Diagnostic for the Split Head miss: if it primes here
+         * but never TRIGGERS, its final operand is reading wrong (a map-worklist
+         * gap) rather than a logic issue. */
+        SH_DBG("[RA] primed (challenge active): id=%u %s",
+               event->achievement ? (unsigned)event->achievement->id : 0u,
+               event->achievement ? event->achievement->title : "?");
         break;
 
     default:
