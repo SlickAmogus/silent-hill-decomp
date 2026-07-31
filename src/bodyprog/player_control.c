@@ -1498,8 +1498,13 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
              * Runtime-verified 2026-06-10 (walk/run/sidestep/jump-back/wall smack
              * /exhaustion). The TPS debug cam still needs the shim below
              * (it owns input mapping + body yaw). */
-            if (g_PcConfig.movementOriginal && !g_DebugThirdPersonCam &&
-                !(g_PcConfig.control2d && !g_PcFpsCam && !g_SysWork.playerCombat.isAiming))
+            /* An attract demo replays input recorded against the authored PSX
+             * machine, so it must run through that machine whatever the player
+             * has configured -- the shim's own speeds and input mapping would
+             * make the playback drift within seconds. */
+            if ((g_SysWork.sysFlags & SysFlag_DemoActive) ||
+                (g_PcConfig.movementOriginal && !g_DebugThirdPersonCam &&
+                 !(g_PcConfig.control2d && !g_PcFpsCam && !g_SysWork.playerCombat.isAiming)))
             {
                 /* 2D screen-relative control (classic camera, not aiming) takes the
                  * shim path below so it can drive Harry from the camera basis. While
@@ -1555,8 +1560,12 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * directions and Harry turns to face the move direction. Active
                  * for any non-FPS camera style when enabled, EXCEPT while aiming
                  * (aiming keeps the classic/TPS behaviour). */
+                /* A demo replays recorded input against the authored movement
+                 * machine. 2D control retargets that input to the camera basis,
+                 * so leaving it on makes the playback drift apart. */
                 int pc2dActive = g_PcConfig.control2d && !g_PcFpsCam &&
-                                 !g_SysWork.playerCombat.isAiming;
+                                 !g_SysWork.playerCombat.isAiming &&
+                                 !(g_SysWork.sysFlags & SysFlag_DemoActive);
 
                 /* TPS mode: Harry's body always tracks the camera yaw, so
                  * WASD is always relative to Harry (== relative to camera).

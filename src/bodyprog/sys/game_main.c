@@ -339,6 +339,15 @@ static void Pc_CameraFov_Update(int standDown)
 
 static void Pc_TpsCamera_Apply(void)
 {
+    /* An attract demo is a recording of the stock game; the player is not
+     * driving, so an orbit camera has nothing to steer and would only misframe
+     * shots the demo was authored around. */
+    if (g_SysWork.sysFlags & SysFlag_DemoActive)
+    {
+        Pc_CameraFov_Update(1);
+        return;
+    }
+
     /* Hand the camera back to the game whenever a script owns the scene. */
     if (Pc_ScriptOwnsScene())
     {

@@ -78,6 +78,9 @@ typedef struct {
                            * through the palette row it draws it with, read out of the .ILM/.PLM/.IPD
                            * as it loads. Sheets no model references (fonts, HUD, 2D screens) fall
                            * back to the whole upload. Off costs nothing (config key: dump_textures) */
+    int attractDemos;     /* 1 = play the PSX attract-mode gameplay demos after the title screen
+                           * sits idle (the intro FMV still plays every third cycle either way)
+                           * (config key: attract_demos) */
     int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
                            * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
                            * (config key: bullet_decals) */

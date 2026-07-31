@@ -101,7 +101,14 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     // demo gameplay segment should be played. If the next value from `g_Demo_ReproducedCount`
     // is a value divisible by 3, the intro FMV will play. Otherwise, it defaults to a gameplay demo.
 #ifdef SH_PC_PORT
-    playInGameDemo = false; /* Skip demo on PC - not fully functional */
+    /* The whole demo pipeline is wired on PC -- Demo_ControllerDataUpdate is
+     * already spliced between Joy_ReadP1 and Joy_ControllerDataUpdate
+     * (game_main.c), the PSX vblank-derived dt is used instead of the port's
+     * wall-clock one while SysFlag_DemoActive is set (game_main.c), and
+     * PsyCross reports idle pads as 0xFFFF so the any-button exit works. Left
+     * off historically because it had never been exercised; config-gated so it
+     * can be turned off without a rebuild. */
+    playInGameDemo = g_PcConfig.attractDemos && (((g_Demo_ReproducedCount + 1) % 3) != 0);
 #else
     playInGameDemo = ((g_Demo_ReproducedCount + 1) % 3) != 0;
 #endif
