@@ -673,6 +673,8 @@ static void PrintBanner(void)
     printf("\n");
 }
 
+static int s_SkipToGameArg = 0;
+
 static void ParseArgs(int argc, char* argv[])
 {
     for (int i = 1; i < argc; i++)
@@ -708,6 +710,20 @@ int main(int argc, char* argv[])
     /* Load config file */
     PcConfig_Load("config.cfg");
     PcAudioConfig_Load("config.cfg");
+
+    /* After the config load, or the parsed skip_intros would clobber it.
+     * map0_s00 is the compiled-in default, so a config still naming it counts as
+     * "no level picked" and gets the bus level, which has a save point. */
+    if (s_SkipToGameArg)
+    {
+        g_PcConfig.skipIntros = 2;
+
+        if (strcmp(g_PcConfig.mapName, "map0_s00") == 0)
+        {
+            strncpy(g_PcConfig.mapName, "map0_s02", sizeof(g_PcConfig.mapName) - 1);
+            g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = ' ';
+        }
+    }
 
     /* Now that we know whether logging is enabled, open the log file (or
      * leave g_ShDebugLog NULL so SH_DBG stays a no-op). */

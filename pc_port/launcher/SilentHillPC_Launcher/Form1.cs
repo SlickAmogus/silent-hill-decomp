@@ -430,13 +430,15 @@ public partial class Form1 : Form
         Set(pgxpNo,     pgxpTip);
 
         const string skipIntrosTip =
-            "Skip the Konami/KCET logos and the opening movie and go\n" +
-            "straight to the main menu.\n" +
-            "Yes = boot straight to the title screen.\n" +
-            "No = play the intros as the original game does.";
-        Set(skipIntrosLabel,     skipIntrosTip);
-        Set(radioSkipIntrosYes,  skipIntrosTip);
-        Set(radioSkipIntrosNo,   skipIntrosTip);
+            "How much of the boot sequence to skip.\n" +
+            "Don't Skip = warning screen, logos and intro movie, as the\n" +
+            "             original game does.\n" +
+            "Skip to Menu = straight to the title screen.\n" +
+            "Skip to Game = straight into gameplay: starts a New Game on\n" +
+            "             NORMAL at the map set on the Advanced page, and\n" +
+            "             skips the opening movie.";
+        Set(skipIntrosLabel,  skipIntrosTip);
+        Set(comboSkipIntros,  skipIntrosTip);
 
         const string preloadTip =
             "Preload all map chunks at level start instead of streaming\n" +
@@ -858,9 +860,12 @@ public partial class Form1 : Form
         // Region dropdown is populated from the detected discs in
         // CheckDiscImage (runs on Shown), not from config.
 
-        // skip_intros (default No — the game plays the intros like the original)
-        radioSkipIntrosYes.Checked = config.Get("skip_intros", "0") == "1";
-        radioSkipIntrosNo.Checked = !radioSkipIntrosYes.Checked;
+        // skip_intros is a level: 0 = don't skip, 1 = to the menu, 2 = into gameplay
+        int skipIntrosLevel;
+        if (!int.TryParse(config.Get("skip_intros", "0"), out skipIntrosLevel)) skipIntrosLevel = 0;
+        if (skipIntrosLevel < 0) skipIntrosLevel = 0;
+        if (skipIntrosLevel > 2) skipIntrosLevel = 2;
+        comboSkipIntros.SelectedIndex = skipIntrosLevel;
 
         // preload_chunks (recommended: Yes — matches engine default)
         radioPreloadYes.Checked = config.Get("preload_chunks", "1") == "1";
@@ -897,7 +902,7 @@ public partial class Form1 : Form
         /* skip_intros. disable_culling is deliberately no longer surfaced here — it stays
          * game-side (pc_config.c) and in-game-toggleable, and ConfigManager.Save() rewrites
          * only keys it holds, so a user's existing value is preserved untouched. */
-        config.Set("skip_intros", radioSkipIntrosYes.Checked ? "1" : "0");
+        config.Set("skip_intros", comboSkipIntros.SelectedIndex.ToString());
 
         // preload_chunks
         config.Set("preload_chunks", radioPreloadYes.Checked ? "1" : "0");
@@ -1453,11 +1458,6 @@ public partial class Form1 : Form
     }
 
     private void comboRefresh_SelectedIndexChanged(object sender, EventArgs e)
-    {
-
-    }
-
-    private void radioSkipIntrosYes_CheckedChanged(object sender, EventArgs e)
     {
 
     }

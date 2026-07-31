@@ -17,8 +17,7 @@ partial class Form1
     private ProgressBar progUpdate;
 
     private ComboBox comboResolution;
-    private RadioButton radioSkipIntrosYes;
-    private RadioButton radioSkipIntrosNo;
+    private ComboBox comboSkipIntros;
     private RadioButton radioPreloadYes;
     private RadioButton radioPreloadNo;
     private ComboBox comboPillarbox;
@@ -85,8 +84,7 @@ partial class Form1
             this.radioVsyncYes = new System.Windows.Forms.RadioButton();
             this.radioVsyncNo = new System.Windows.Forms.RadioButton();
             this.skipIntrosPanel = new System.Windows.Forms.Panel();
-            this.radioSkipIntrosYes = new System.Windows.Forms.RadioButton();
-            this.radioSkipIntrosNo = new System.Windows.Forms.RadioButton();
+            this.comboSkipIntros = new System.Windows.Forms.ComboBox();
             this.preloadPanel = new System.Windows.Forms.Panel();
             this.radioPreloadYes = new System.Windows.Forms.RadioButton();
             this.radioPreloadNo = new System.Windows.Forms.RadioButton();
@@ -199,29 +197,23 @@ partial class Form1
             // 
             // skipIntrosPanel
             // 
-            this.skipIntrosPanel.Controls.Add(this.radioSkipIntrosYes);
-            this.skipIntrosPanel.Controls.Add(this.radioSkipIntrosNo);
-            this.skipIntrosPanel.Location = new System.Drawing.Point(300, 116);
+            this.skipIntrosPanel.Controls.Add(this.comboSkipIntros);
+            this.skipIntrosPanel.Location = new System.Drawing.Point(290, 116);
             this.skipIntrosPanel.Name = "skipIntrosPanel";
-            this.skipIntrosPanel.Size = new System.Drawing.Size(100, 30);
+            this.skipIntrosPanel.Size = new System.Drawing.Size(120, 30);
             this.skipIntrosPanel.TabIndex = 18;
             // 
-            // radioSkipIntrosYes
+            // comboSkipIntros
             // 
-            this.radioSkipIntrosYes.Location = new System.Drawing.Point(4, 5);
-            this.radioSkipIntrosYes.Name = "radioSkipIntrosYes";
-            this.radioSkipIntrosYes.Size = new System.Drawing.Size(45, 24);
-            this.radioSkipIntrosYes.TabIndex = 2;
-            this.radioSkipIntrosYes.Text = "Yes";
-            this.radioSkipIntrosYes.CheckedChanged += new System.EventHandler(this.radioSkipIntrosYes_CheckedChanged);
-            // 
-            // radioSkipIntrosNo
-            // 
-            this.radioSkipIntrosNo.Location = new System.Drawing.Point(59, 5);
-            this.radioSkipIntrosNo.Name = "radioSkipIntrosNo";
-            this.radioSkipIntrosNo.Size = new System.Drawing.Size(40, 24);
-            this.radioSkipIntrosNo.TabIndex = 3;
-            this.radioSkipIntrosNo.Text = "No";
+            this.comboSkipIntros.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboSkipIntros.Items.AddRange(new object[] {
+            "Don't Skip",
+            "Skip to Menu",
+            "Skip to Game"});
+            this.comboSkipIntros.Location = new System.Drawing.Point(0, 4);
+            this.comboSkipIntros.Name = "comboSkipIntros";
+            this.comboSkipIntros.Size = new System.Drawing.Size(120, 21);
+            this.comboSkipIntros.TabIndex = 2;
             // 
             // preloadPanel
             // 

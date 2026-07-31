@@ -432,7 +432,10 @@ void PcConfig_Load(const char* path)
         }
         else if (strcmp(key, "skip_intros") == 0)
         {
-            g_PcConfig.skipIntros = (atoi(value) != 0);
+            int v = atoi(value);
+            if (v < 0) v = 0;
+            if (v > 2) v = 2;
+            g_PcConfig.skipIntros = v;
         }
         else if (strcmp(key, "show_console") == 0)
         {
