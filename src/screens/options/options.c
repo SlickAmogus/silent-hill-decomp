@@ -578,7 +578,12 @@ void Options_PcOptionsMenu_Control(void)
                  * same idiom this file already uses at ~737/765/1054. */
                 SH_DBG("[EXITMENU] pressed gameStatePrev=%d gameState=%d",
                        (int)g_GameWork.gameStatePrev, (int)g_GameWork.gameState);
-                if (g_GameWork.gameStatePrev == GameState_InGame) {
+                /* In-game options is reached via the pause/inventory screen, so
+                 * gameStatePrev is GameState_InventoryScreen (14), not InGame (11)
+                 * — the old ==InGame gate never matched. "Not from the main menu"
+                 * is the right test (same idiom this file uses elsewhere): a game
+                 * session is active whenever we didn't come straight from the title. */
+                if (g_GameWork.gameStatePrev != GameState_MainMenu) {
                     extern void Game_WarmBoot(void);
                     Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
                     Game_WarmBoot();

@@ -165,6 +165,11 @@ int main(void)
         XboxFs_MountHomeDrive();
         { extern int XboxFs_MountE(void); XboxFs_MountE(); }  /* mount E: now so the log's E: fallback works */
 
+        /* Open the log BEFORE PcConfig_Load so the [CFG] parse trace is captured —
+         * the parser runs just below, long before the historical SH_DebugLogInit
+         * site, which silently dropped every config-parse SH_DBG. */
+        SH_DebugLogInit();
+
         /* Config: PC's own parser + defaults (pc_config.c is SDL-free and is
          * compiled on Xbox). There is no launcher here, so silenthill.cfg on the
          * game drive is how a user tunes anything; absent, PC's defaults apply.
@@ -184,7 +189,6 @@ int main(void)
         if (!hd)
             XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
 
-        SH_DebugLogInit();
         Crash_InstallSehFrame(&sehFrame); /* from here on, any fault logs [FATAL] + flushes */
         debugPrint("Silent Hill (Xbox) booting...\n");
         {
