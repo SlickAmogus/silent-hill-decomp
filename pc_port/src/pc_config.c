@@ -5,6 +5,9 @@
 #include <ctype.h>
 #include <stddef.h>
 #include "xa_player.h"
+#ifdef SH_XBOX_PORT
+#include "sh_log.h"   /* [CFG] parse trace so a real Xbox log shows every key/value */
+#endif
 
 s_PcConfig g_PcConfig = {
     .windowWidth    = 640,
@@ -384,6 +387,11 @@ void PcConfig_Load(const char* path)
         }
 #endif
         TrimWhitespace(value);
+#ifdef SH_XBOX_PORT
+        /* One-off diagnostic: dump every parsed key (with its length, to expose a
+         * hidden char) + value, so a boot log shows exactly what the parser sees. */
+        SH_DBG("[CFG] key='%s'(%d) value='%s'", key, (int)strlen(key), value);
+#endif
 
         if (strcmp(key, "width") == 0)
         {
@@ -715,6 +723,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "retroachievements") == 0)
         {
             g_PcConfig.retroAchievements = (atoi(value) != 0);
+#ifdef SH_XBOX_PORT
+            SH_DBG("[CFG] >> retroachievements branch: atoi=%d -> retroAchievements=%d",
+                   atoi(value), g_PcConfig.retroAchievements);
+#endif
         }
         else if (strcmp(key, "ra_username") == 0)
         {
