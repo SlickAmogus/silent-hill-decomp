@@ -1,5 +1,9 @@
 # Silent Hill PC Port — Changelog
 
+## Unreleased
+- Added `-skiptogame` command-line flag: boots straight into gameplay, skipping the warning screen, logos, intro movie, main menu, difficulty prompt and opening movie. Starts a New Game on NORMAL at the `map` set in config.cfg; if `map` is still the default `map0_s00`, the bus level (`map0_s02`) is used instead.
+- `skip_intros` is now a level rather than an on/off switch: `0` = normal boot, `1` = straight to the main menu (previous behavior), `2` = straight into gameplay (same as `-skiptogame`).
+
 ## beta-2026.07.30.1 -- 2026-07-30
 - Fixed gray void in door transitions
 - Fixed see-through item faces for items the player can pick up

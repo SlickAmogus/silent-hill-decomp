@@ -94,6 +94,18 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     e_GameState prevState;
     static s32  newGameSelectedDifficultyIdx = 1;
     static s32  prevSavegameCount            = 0;
+#ifdef SH_PC_PORT
+    /* Skip-to-game (`-skiptogame` / skip_intros=2) drives the stock New Game
+     * path instead of duplicating it: arm on the first menu frame, synthesise
+     * the difficulty confirm on the next, then hand off. Consumed on hand-off so
+     * a later warm boot back to the title behaves normally. */
+    static s32  skipToGameStep = 0;
+
+    if (skipToGameStep == 0 && g_PcConfig.skipIntros >= 2)
+    {
+        skipToGameStep = 1;
+    }
+#endif
 
     func_80033548();
 
@@ -225,6 +237,15 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                         SD_Call(Sfx_MenuMove);
                     }
                 }
+            }
+#endif
+
+#ifdef SH_PC_PORT
+            if (skipToGameStep == 1)
+            {
+                g_MainMenu_SelectedEntry = MainMenuEntry_Start;
+                g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+                skipToGameStep = 2;
             }
 #endif
 
@@ -389,6 +410,16 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             }
 
             // Select game difficulty.
+#ifdef SH_PC_PORT
+            /* Placed after the scroll/mouse handling so a stray hover cannot
+             * override NORMAL on the frame the confirm is synthesised. */
+            if (skipToGameStep == 2)
+            {
+                newGameSelectedDifficultyIdx = 1;
+                g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+                skipToGameStep = 3;
+            }
+#endif
             if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
             {
 
@@ -457,6 +488,18 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                     Chara_PositionSet(&g_MapOverlayHdr.mapPoints[0]);
                 }
 
+#ifdef SH_PC_PORT
+                /* GameState_MovieOpening only plays the opening movie and then
+                 * hands off to GameState_MainLoadScreen, so targeting the load
+                 * screen directly drops the movie and nothing else. Consuming the
+                 * latch here leaves a later warm boot on the normal title flow. */
+                if (skipToGameStep == 3)
+                {
+                    NEXT_GAME_STATES[MainMenuEntry_Start] = GameState_MainLoadScreen;
+                    skipToGameStep = 4;
+                }
+#endif
+
                 MemCard_SysDisable();
 
                 prevState                       = g_GameWork.gameState;
@@ -507,6 +550,15 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
     if (g_GameWork.gameState == GameState_MainMenu)
     {
+#ifdef SH_PC_PORT
+        /* Skip-to-game passes through the menu for two frames; drawing it would
+         * flash the title art before the fade to gameplay. */
+        if (skipToGameStep != 0 && skipToGameStep < 4)
+        {
+            return;
+        }
+#endif
+
         MainMenu_BackgroundDraw();
         func_8003B560();
 

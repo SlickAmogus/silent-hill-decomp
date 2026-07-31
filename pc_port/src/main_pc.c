@@ -673,6 +673,8 @@ static void PrintBanner(void)
     printf("\n");
 }
 
+static int s_SkipToGameArg = 0;
+
 static void ParseArgs(int argc, char* argv[])
 {
     for (int i = 1; i < argc; i++)
@@ -683,11 +685,16 @@ static void ParseArgs(int argc, char* argv[])
             g_GameDataPath[sizeof(g_GameDataPath) - 1] = '\0';
             i++;
         }
+        else if (strcmp(argv[i], "-skiptogame") == 0)
+        {
+            s_SkipToGameArg = 1;
+        }
         else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("Usage: SilentHillPC [options]\n");
             printf("Options:\n");
             printf("  -data <path>    Path to game data directory or CD image\n");
+            printf("  -skiptogame     Boot straight into gameplay (New Game, NORMAL difficulty)\n");
             printf("  -h, --help      Show this help\n");
             exit(0);
         }
@@ -708,6 +715,20 @@ int main(int argc, char* argv[])
     /* Load config file */
     PcConfig_Load("config.cfg");
     PcAudioConfig_Load("config.cfg");
+
+    /* Applied after the config load, or the parsed `skip_intros` would clobber
+     * it. `map0_s00` is the compiled-in default, so a config that still names it
+     * counts as "no level picked" and gets the bus level instead. */
+    if (s_SkipToGameArg)
+    {
+        g_PcConfig.skipIntros = 2;
+
+        if (strcmp(g_PcConfig.mapName, "map0_s00") == 0)
+        {
+            strncpy(g_PcConfig.mapName, "map0_s02", sizeof(g_PcConfig.mapName) - 1);
+            g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
+        }
+    }
 
     /* Now that we know whether logging is enabled, open the log file (or
      * leave g_ShDebugLog NULL so SH_DBG stays a no-op). */

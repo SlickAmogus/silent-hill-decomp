@@ -47,7 +47,11 @@ typedef struct {
     int cutsceneLineGapMs; /* min silence (ms) between cutscene voice lines — simulates PSX CD
                             * seek latency so tightly-timed lines don't run together. Applied as a
                             * MINIMUM (never shortens an authored gap). 0 = off. Default 300. */
-    int skipIntros;      /* 1 = skip Konami/KCET logos and opening movie, go straight to main menu */
+    int skipIntros;      /* 0 = normal boot; 1 = skip warning/Konami/KCET logos and intro movie, go
+                          * straight to main menu; 2 = additionally auto-start a New Game (NORMAL
+                          * difficulty, `map` from config) and skip the opening movie, so the game
+                          * boots directly into gameplay. Set to 2 by the `-skiptogame` CLI flag.
+                          * Every `skipIntros` test below level 2 stays truthy, so 2 implies 1. */
     int showConsole;     /* EXTERNAL console window only: 1 or 3 = create it, else none.
                           * The ingame console is not config-gated anymore — `~` toggles it
                           * (needs allow_debug_controls). Legacy values 2/3 still parse. */
