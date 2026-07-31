@@ -198,7 +198,7 @@ partial class Form1
             // skipIntrosPanel
             // 
             this.skipIntrosPanel.Controls.Add(this.comboSkipIntros);
-            this.skipIntrosPanel.Location = new System.Drawing.Point(290, 116);
+            this.skipIntrosPanel.Location = new System.Drawing.Point(290, 117);
             this.skipIntrosPanel.Name = "skipIntrosPanel";
             this.skipIntrosPanel.Size = new System.Drawing.Size(120, 30);
             this.skipIntrosPanel.TabIndex = 18;
@@ -207,10 +207,10 @@ partial class Form1
             // 
             this.comboSkipIntros.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboSkipIntros.Items.AddRange(new object[] {
-            "Don't Skip",
+            "Don\'t Skip",
             "Skip to Menu",
             "Skip to Game"});
-            this.comboSkipIntros.Location = new System.Drawing.Point(0, 4);
+            this.comboSkipIntros.Location = new System.Drawing.Point(0, 6);
             this.comboSkipIntros.Name = "comboSkipIntros";
             this.comboSkipIntros.Size = new System.Drawing.Size(120, 21);
             this.comboSkipIntros.TabIndex = 2;
@@ -350,9 +350,9 @@ partial class Form1
             // skipIntrosLabel
             // 
             this.skipIntrosLabel.AutoSize = true;
-            this.skipIntrosLabel.Location = new System.Drawing.Point(214, 125);
+            this.skipIntrosLabel.Location = new System.Drawing.Point(214, 127);
             this.skipIntrosLabel.Name = "skipIntrosLabel";
-            this.skipIntrosLabel.Size = new System.Drawing.Size(63, 13);
+            this.skipIntrosLabel.Size = new System.Drawing.Size(60, 13);
             this.skipIntrosLabel.TabIndex = 0;
             this.skipIntrosLabel.Text = "Skip Intros:";
             // 
