@@ -195,6 +195,12 @@ s32        D_800C45EC;
 u16        g_Player_IsMovingBackward;
 s8         __pad_bss_800C45F2[6];
 VECTOR3    g_Player_PrevPosition;
+#ifdef SH_PC_PORT
+/* Set by Player_LowerBodyUpdate, consumed + cleared by func_8007C0D8. The PC
+ * movement shim REPLACES Player_LowerBodyUpdate, so under the alternate cameras
+ * and 2D control the results-screen walk/run totals never accrued. */
+int        g_PcNativeDistAccrued;
+#endif
 u16        g_Player_IsRunning;
 s16        __pad_bss_800C4606;
 q19_12     g_Player_HeadingAngle;
@@ -6895,6 +6901,13 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
     travelDistStep = SquareRoot0(speedX + speedZ);
 
 
+#ifdef SH_PC_PORT
+    /* Claim the results-screen distance for this frame so the shim's fallback in
+     * func_8007C0D8 stands down. Set even for the no-accrual states below: "the
+     * native machine decided nothing moves" is still a decision. */
+    g_PcNativeDistAccrued = 1;
+#endif
+
     switch (g_SysWork.playerWork.extra.lowerBodyState)
     {
         case PlayerLowerBodyState_None:
@@ -9306,6 +9319,28 @@ void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
     {
         player->properties.player.runDistance = 0;
     }
+
+#ifdef SH_PC_PORT
+    /* Results-screen totals for the frames the PC shim owned. Horizontal only and
+     * clamped exactly as Player_LowerBodyUpdate does, so a run mixing both paths
+     * still sums to the same numbers the classic camera reports. */
+    if (!g_PcNativeDistAccrued)
+    {
+        s32 step = SquareRoot0(SQUARE(D_800C4590.offset.vx) + SQUARE(D_800C4590.offset.vz));
+
+        if (g_Player_IsRunning)
+        {
+            g_SavegamePtr->runDistance += step;
+            g_SavegamePtr->runDistance  = CLAMP(g_SavegamePtr->runDistance, 1, Q12(1000000.0f));
+        }
+        else
+        {
+            g_SavegamePtr->walkDistance += step;
+            g_SavegamePtr->walkDistance  = CLAMP(g_SavegamePtr->walkDistance, 1, Q12(1000000.0f));
+        }
+    }
+    g_PcNativeDistAccrued = 0;
+#endif
 
     if (g_SavegamePtr->mapIdx == MapIdx_MAP1_S00 && g_SavegamePtr->mapRoomIdx == 13)
     {
