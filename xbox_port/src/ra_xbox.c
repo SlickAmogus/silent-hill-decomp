@@ -575,6 +575,14 @@ void Pc_Ra_Init(void)
         return;
     }
 
+    /* THE line that makes login work on Xbox: rc_client uses its OWN host
+     * (client->state.host), which defaults to https://retroachievements.org and
+     * IGNORES the global rc_api_set_host above. Our transport has no TLS, so
+     * every request went out https:// and got rejected ("No response"). Point the
+     * CLIENT at the plain-HTTP endpoint. (rc_api_set_host is kept for any rc_api-
+     * direct paths; the badge host is plain-HTTP in ra_badge_xbox.c already.) */
+    rc_client_set_host(s_client, "http://retroachievements.org");
+
     rc_client_set_hardcore_enabled(s_client, 0); /* softcore, permanently */
     rc_client_set_event_handler(s_client, Ra_EventHandler);
 
