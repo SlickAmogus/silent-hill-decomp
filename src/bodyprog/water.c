@@ -272,13 +272,24 @@ s32 func_8008D850(void) // 0x8008D850
         /* PSX rendered the full halo+star whenever the chest light faced the
          * camera (the 1x1 seed pixel survived the readback), i.e. an
          * effectively binary "frontal -> full" response. Without framebuffer
-         * readback we approximate with the beam-vs-camera-Z cosine, but
-         * saturate it hard so the flare reads at full strength across nearly
-         * the whole frontal hemisphere (cos >= ~0.12, ~82 deg) and only fades
-         * within the last few degrees before edge-on. The earlier *3 knee
-         * left the flare scaled well below full at ordinary viewing angles,
-         * so the halo and ray star almost vanished vs hardware. */
-        deltaZ *= 8;
+         * readback we approximate with the beam-vs-camera-Z cosine.
+         *
+         * The probe offset is 4.0 world units, which is 1024 in the Q8 space
+         * t[] lives in, and stepLen is that same 1024 -- so deltaZ / stepLen is
+         * exactly cos(beam, camera), with no knee needed.
+         *
+         * A `deltaZ *= 8` used to sit here. It was added (eae7e5582) to
+         * compensate for stepLen being 16x too large, which starved the factor
+         * everywhere; 69b58b39b then fixed that unit mismatch at the source but
+         * left the compensation behind, so the factor saturated to full across
+         * cos >= 0.125 -- ~83 of the 90 degrees of the frontal hemisphere. That
+         * pinned field_A at its ceiling permanently: the halo sat at its
+         * maximum 33px/RGB45, and the ray star at RGB 144 instead of the ~11
+         * hardware shows at oblique angles. Measured against a DuckStation
+         * capture at the same 9x scale, our saturated-pixel area was 83x the
+         * reference. The raw cosine restores the smooth fade, and full strength
+         * with the ray star now only arrives as the light turns to face the
+         * camera, which is what hardware does. */
         if (deltaZ >= stepLen)
         {
             return Q12(1.0f);
