@@ -696,8 +696,12 @@ static void Ra_ShowUnlock(const char* title, unsigned points, const char* badge_
 {
     extern void DbgOverlay_XboxUnlock(const char* title, unsigned points);
     extern int  RaBadge_Fetch(const char*);
+    extern int  RaSound_PlayUnlock(void);   /* custom achievement.wav (dsound_xbox.c) */
 
-    Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+    /* Prefer the user's custom unlock sound (achievement.wav beside the xbe); fall
+     * back to the game's own confirm chime if it isn't present / not loadable. */
+    if (!RaSound_PlayUnlock())
+        Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
     DbgOverlay_XboxUnlock(title ? title : "Achievement", points);
     SH_DBG("[RA] UNLOCK card '%s' (%u pts) badge=%s",
            title ? title : "?", points,

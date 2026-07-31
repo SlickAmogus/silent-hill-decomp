@@ -29,6 +29,8 @@
 #include <xboxkrnl/xboxkrnl.h>   /* KeStallExecutionProcessor, RtlInitializeCriticalSection, ExQueryNonVolatileSetting */
 #include <dsound.h>              /* RXDK DirectSound (pulls in the xtl.h shim) */
 #include <string.h>
+#include <stdio.h>               /* fopen/fread: load the custom unlock WAV */
+#include <stdlib.h>              /* malloc/free                              */
 
 #include "sh_log.h"
 
@@ -293,4 +295,168 @@ void Audio_XboxPump(void)
 
     /* REQUIRED on Xbox: drives the VP->GP->EP hardware frame pipeline. */
     DirectSoundDoWork();
+}
+
+/* ------------------------------------------------------------------------- */
+/* Custom RetroAchievements unlock sound (achievement.wav beside the xbe)      */
+/* ------------------------------------------------------------------------- */
+/* A one-shot secondary buffer, wholly separate from the SPU mix rings above so
+ * it can never disturb the game-audio pipeline. Filled once from a PCM WAV the
+ * user drops next to the xbe, then played to completion on each unlock -- the
+ * per-frame DirectSoundDoWork already in Audio_XboxPump advances it, so no extra
+ * pumping is needed. Loaded lazily on the first unlock (a rare, brief hitch). If
+ * the file is missing or not plain PCM, RaSound_PlayUnlock returns 0 and
+ * ra_xbox.c falls back to the game's built-in chime. */
+
+static IDirectSoundBuffer* s_raBuf;
+static int                 s_raTried;
+
+static unsigned Rd16(const unsigned char* p) { return (unsigned)p[0] | ((unsigned)p[1] << 8); }
+static unsigned Rd32(const unsigned char* p) {
+    return (unsigned)p[0] | ((unsigned)p[1] << 8) | ((unsigned)p[2] << 16) | ((unsigned)p[3] << 24);
+}
+
+#define RA_WAV_MAX (4 * 1024 * 1024)   /* sanity cap: ~10 s of 48k stereo 16-bit */
+
+static int RaSound_Load(const char* path)
+{
+    FILE*                f;
+    long                 flen;
+    unsigned char*       fb = NULL;
+    size_t               got, off;
+    WAVEFORMATEX         wfx;
+    int                  haveFmt = 0;
+    const unsigned char* data    = NULL;
+    DWORD                dataLen = 0;
+    DSBUFFERDESC         dsbd;
+    DSMIXBINVOLUMEPAIR   pairs[2];
+    DSMIXBINS            bins;
+    LPVOID               lp1 = NULL, lp2 = NULL;
+    DWORD                l1 = 0, l2 = 0;
+    HRESULT              hr;
+
+    f = fopen(path, "rb");
+    if (!f)
+        return 0;
+    fseek(f, 0, SEEK_END);
+    flen = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (flen <= 44 || flen > RA_WAV_MAX) { fclose(f); return 0; }
+    fb = (unsigned char*)malloc((size_t)flen);
+    if (!fb) { fclose(f); return 0; }
+    got = fread(fb, 1, (size_t)flen, f);
+    fclose(f);
+    if (got != (size_t)flen) { free(fb); return 0; }
+
+    if (memcmp(fb, "RIFF", 4) != 0 || memcmp(fb + 8, "WAVE", 4) != 0) { free(fb); return 0; }
+
+    memset(&wfx, 0, sizeof(wfx));
+    off = 12;
+    while (off + 8 <= (size_t)flen) {          /* walk the RIFF chunks */
+        const unsigned char* id   = fb + off;
+        DWORD                csz  = Rd32(fb + off + 4);
+        const unsigned char* body = fb + off + 8;
+        if (off + 8 + csz > (size_t)flen)
+            csz = (DWORD)((size_t)flen - (off + 8));
+        if (memcmp(id, "fmt ", 4) == 0 && csz >= 16) {
+            wfx.wFormatTag      = (WORD)Rd16(body + 0);
+            wfx.nChannels       = (WORD)Rd16(body + 2);
+            wfx.nSamplesPerSec  = Rd32(body + 4);
+            wfx.nAvgBytesPerSec = Rd32(body + 8);
+            wfx.nBlockAlign     = (WORD)Rd16(body + 12);
+            wfx.wBitsPerSample  = (WORD)Rd16(body + 14);
+            wfx.cbSize          = 0;
+            haveFmt = 1;
+        } else if (memcmp(id, "data", 4) == 0) {
+            data    = body;
+            dataLen = csz;
+        }
+        off += 8 + csz + (csz & 1);            /* chunks are word-aligned */
+        if (haveFmt && data)
+            break;
+    }
+
+    if (!haveFmt || !data || dataLen == 0 || wfx.wFormatTag != WAVE_FORMAT_PCM ||
+        wfx.nChannels < 1 || wfx.nChannels > 2 || wfx.nBlockAlign == 0) {
+        SH_DBG("[RASND] %s not usable (fmt=%d ch=%d dataLen=%u)", path,
+               haveFmt ? (int)wfx.wFormatTag : -1, haveFmt ? (int)wfx.nChannels : 0,
+               (unsigned)dataLen);
+        free(fb);
+        return 0;
+    }
+
+    /* Front L/R (stereo) or front-left (mono). Kept in scope through Create. */
+    pairs[0].dwMixBin = DSMIXBIN_FRONT_LEFT;  pairs[0].lVolume = 0;
+    pairs[1].dwMixBin = DSMIXBIN_FRONT_RIGHT; pairs[1].lVolume = 0;
+    bins.dwMixBinCount       = (wfx.nChannels == 2) ? 2 : 1;
+    bins.lpMixBinVolumePairs = pairs;
+
+    memset(&dsbd, 0, sizeof(dsbd));
+    dsbd.dwSize        = sizeof(dsbd);
+    dsbd.dwFlags       = 0;
+    dsbd.dwBufferBytes = dataLen;
+    dsbd.lpwfxFormat   = &wfx;
+    dsbd.lpMixBins     = &bins;
+    dsbd.dwInputMixBin = 0;
+
+    hr = IDirectSound_CreateSoundBuffer(s_ds, &dsbd, &s_raBuf, NULL);
+    if (FAILED(hr) || !s_raBuf) {
+        SH_DBG("[RASND] CreateSoundBuffer failed hr=0x%08x", (unsigned)hr);
+        s_raBuf = NULL;
+        free(fb);
+        return 0;
+    }
+    IDirectSoundBuffer_SetHeadroom(s_raBuf, 0);
+
+    if (SUCCEEDED(IDirectSoundBuffer_Lock(s_raBuf, 0, dataLen, &lp1, &l1, &lp2, &l2,
+                                          DSBLOCK_ENTIREBUFFER))) {
+        if (lp1 && l1) memcpy(lp1, data, l1);
+        if (lp2 && l2) memcpy(lp2, data + l1, l2);
+        IDirectSoundBuffer_Unlock(s_raBuf, lp1, l1, lp2, l2);
+    } else {
+        SH_DBG("[RASND] Lock failed");
+        IDirectSoundBuffer_Release(s_raBuf);
+        s_raBuf = NULL;
+        free(fb);
+        return 0;
+    }
+
+    free(fb);
+    SH_DBG("[RASND] loaded %s (%u Hz, %d ch, %d-bit, %u bytes)", path,
+           (unsigned)wfx.nSamplesPerSec, (int)wfx.nChannels, (int)wfx.wBitsPerSample,
+           (unsigned)dataLen);
+    return 1;
+}
+
+/* Play the custom unlock sound; returns 1 if it played, 0 if unavailable (caller
+ * then uses the built-in chime). Lazy first-time load from the xbe dir (Q:) with
+ * a few fallbacks. */
+int RaSound_PlayUnlock(void)
+{
+    if (!s_up || !s_ds)
+        return 0;
+
+    if (!s_raBuf && !s_raTried) {
+        static const char* const cand[] = {
+            "Q:\\achievement.wav",   /* the xbe's own dir (cd_xbox mount) */
+            "D:\\achievement.wav",
+            "E:\\achievement.wav",
+            "achievement.wav"
+        };
+        int i;
+        s_raTried = 1;
+        for (i = 0; i < (int)(sizeof(cand) / sizeof(cand[0])); i++)
+            if (RaSound_Load(cand[i]))
+                break;
+        if (!s_raBuf)
+            SH_DBG("[RASND] no achievement.wav found (Q:/D:/E:/rel) - game chime fallback");
+    }
+
+    if (!s_raBuf)
+        return 0;
+
+    IDirectSoundBuffer_SetCurrentPosition(s_raBuf, 0);
+    if (SUCCEEDED(IDirectSoundBuffer_Play(s_raBuf, 0, 0, 0)))   /* 0 = one-shot */
+        return 1;
+    return 0;
 }
