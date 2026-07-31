@@ -327,7 +327,9 @@ static int Ra_PumpOne(void)
         return 0;
     s_pending = job->next;
 
+    SH_DBG("[RA] http %s %.90s", job->post ? "POST" : "GET", job->url ? job->url : "(null)");
     status = Net_XboxHttpRequest(job->url, job->post, &body, &len);
+    SH_DBG("[RA] http -> status=%d bodyLen=%d body='%.60s'", status, len, body ? body : "");
 
     memset(&response, 0, sizeof(response));
     response.body             = body ? body : "";

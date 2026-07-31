@@ -178,8 +178,10 @@ int Net_XboxHttpRequest(const char* url, const char* post, char** out_body, int*
         return 0;   /* caller must Net_XboxBringUp() during init */
 
     /* --- Parse "http://host[:port]/path" ------------------------------------ */
-    if (strncmp(url, "http://", 7) != 0)
+    if (strncmp(url, "http://", 7) != 0) {
+        SH_DBG("[NET] non-http URL rejected (no TLS on this transport): %.80s", url);
         return 0;   /* https:// / other schemes: no TLS on this transport */
+    }
     p = url + 7;
 
     hi = 0;
