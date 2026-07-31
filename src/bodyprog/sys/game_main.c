@@ -2167,6 +2167,13 @@ void MainLoop(void) // 0x80032EE0
 #else
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
 #endif
+#ifdef SH_XBOX_PORT
+        /* RetroAchievements per-frame pump + evaluation (ra_xbox.c). Drives the
+         * bounded blocking-HTTP pump; evaluates only in settled gameplay
+         * (rc_client_do_frame) else idles. No-op unless retroachievements=1 and
+         * signed in. */
+        { extern void Pc_Ra_Update(void); Pc_Ra_Update(); }
+#endif
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState == GameState_InGame) {
             /* Canary checks after InGame state update */

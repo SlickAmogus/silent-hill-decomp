@@ -68,6 +68,10 @@ s_PcConfig g_PcConfig = {
     .xboxVideo720p       = 0,    /* Xbox: 480p by default (720p costs texture-cache RAM) */
     .logDiag             = 0,    /* Xbox: quiet log by default (per-frame diag probes gated; log_diag=1 restores) */
     .cutsceneLineGapMs   = 300,  /* min ms between cutscene voice lines (PSX inter-line pause); tune down if it re-desyncs */
+    .retroAchievements   = 0,    /* RetroAchievements off by default (opt-in) */
+    .raUsername          = "",
+    .raToken             = "",
+    .raPassword          = "",
     .audioOutput         = 0,    /* auto: OpenAL detects the system speaker layout */
     .fpsFov              = 71.1f, /* first-person FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
     .tpsFov              = 71.1f, /* thirdperson/OTS FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
@@ -692,6 +696,25 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "cutscene_line_gap_ms") == 0)
         {
             g_PcConfig.cutsceneLineGapMs = atoi(value);
+        }
+        else if (strcmp(key, "retroachievements") == 0)
+        {
+            g_PcConfig.retroAchievements = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "ra_username") == 0)
+        {
+            strncpy(g_PcConfig.raUsername, value, sizeof(g_PcConfig.raUsername) - 1);
+            g_PcConfig.raUsername[sizeof(g_PcConfig.raUsername) - 1] = '\0';
+        }
+        else if (strcmp(key, "ra_token") == 0)
+        {
+            strncpy(g_PcConfig.raToken, value, sizeof(g_PcConfig.raToken) - 1);
+            g_PcConfig.raToken[sizeof(g_PcConfig.raToken) - 1] = '\0';
+        }
+        else if (strcmp(key, "ra_password") == 0)
+        {
+            strncpy(g_PcConfig.raPassword, value, sizeof(g_PcConfig.raPassword) - 1);
+            g_PcConfig.raPassword[sizeof(g_PcConfig.raPassword) - 1] = '\0';
         }
         else if (strcmp(key, "mouse_cursor") == 0)
         {

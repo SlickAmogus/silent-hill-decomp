@@ -256,6 +256,12 @@ int main(void)
     Fs_QueueInitialize();
     SH_DBG("[SH-XBOX] subsystems up; entering MainLoop");
 
+    /* RetroAchievements (softcore): network bring-up + rc_client login + rc_hash
+     * over the mounted BIN, all gated on config `retroachievements` (default 0).
+     * Safe no-op when disabled/uncredentialed. After PcConfig_Load (g_PcConfig)
+     * and Cd_XboxInit (g_CdBinPath) so both are ready. */
+    { extern void Pc_Ra_Init(void); Pc_Ra_Init(); }
+
     /* Open the first NV2A frame; VSync() presents + opens the next each frame. */
     GpuNv2a_FrameBegin();
 

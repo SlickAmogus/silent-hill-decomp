@@ -67,6 +67,11 @@ SH_CPPFLAGS += -I$(XBOX_PORT)/include
 SH_CPPFLAGS += -I$(PCPORT)/include            # shared sh_log.h, psx_memory.h, gpu_gte_pc.h, ...
 SH_CPPFLAGS += -I$(PCPORT)/include/psyq_compat # PC-adapted libgs.h (overrides psyq/)
 SH_CPPFLAGS += -I$(PCPORT)/src                 # pc_port-relative includes (e.g. "main/...")
+# RetroAchievements: vendored rcheevos (libc-only). Global -I is harmless (headers
+# only pull where #included). RC_NO_THREADS = single-threaded main-loop client
+# (rc_mutex_* become no-ops); MUST be consistent across rcheevos + ra_xbox.c.
+RCHEEVOS_DIR := $(PCPORT)/third_party/rcheevos
+SH_CPPFLAGS  += -DSH_RETROACHIEVEMENTS -DRC_NO_THREADS -I$(RCHEEVOS_DIR)/include -I$(RCHEEVOS_DIR)/src
 SH_CPPFLAGS += -I$(DECOMP)/include             # game headers: game.h, bodyprog/, main/, maps/
 SH_CPPFLAGS += -I$(DECOMP)/include/decomp      # common.h, types.h, version.h, include_asm.h
 SH_CPPFLAGS += -I$(PSYCROSS)/include/psx
@@ -273,7 +278,27 @@ XBOX_SRCS = \
 	$(XBOX_PORT)/src/audio_xbox.c \
 	$(XBOX_PORT)/src/dsound_xbox.c \
 	$(XBOX_PORT)/src/dsound_bridge.c \
-	$(XBOX_PORT)/src/msvc_compat.c
+	$(XBOX_PORT)/src/msvc_compat.c \
+	$(XBOX_PORT)/src/net_xbox.c \
+	$(XBOX_PORT)/src/ra_xbox.c
+
+# RetroAchievements client library (rcheevos). Excludes rc_libretro.c (needs
+# libretro.h) + rc_client_raintegration.c (Windows RAIntegration), matching the PC.
+# Third-party: silence its warnings (-w). hash.c takes an MSVCRT branch under the
+# clang win32 target (_WIN32 predefined) -> <share.h>/_fseeki64 absent in nxdk;
+# -U_WIN32 for that ONE TU makes it use fopen/fseek/ftell (all in pdclib).
+RCHEEVOS_SRCS = \
+	$(wildcard $(RCHEEVOS_DIR)/src/rcheevos/*.c) \
+	$(wildcard $(RCHEEVOS_DIR)/src/rapi/*.c) \
+	$(wildcard $(RCHEEVOS_DIR)/src/rhash/*.c) \
+	$(RCHEEVOS_DIR)/src/rc_client.c \
+	$(RCHEEVOS_DIR)/src/rc_client_external.c \
+	$(RCHEEVOS_DIR)/src/rc_compat.c \
+	$(RCHEEVOS_DIR)/src/rc_util.c \
+	$(RCHEEVOS_DIR)/src/rc_version.c
+RCHEEVOS_OBJS = $(addsuffix .obj,$(basename $(RCHEEVOS_SRCS)))
+$(RCHEEVOS_OBJS):                       CFLAGS += -w
+$(RCHEEVOS_DIR)/src/rhash/hash.obj:     CFLAGS += -U_WIN32
 
 # PC port's STR demuxer + software MDEC decoder (pure C, integer bitstream work
 # + x87-safe float YUV; no SDL/GL/x64 assumptions). Compiled IN PLACE, unmodified
@@ -286,6 +311,7 @@ FMV_SRCS = \
 SRCS = \
 	$(XBOX_SRCS) \
 	$(FMV_SRCS) \
+	$(RCHEEVOS_SRCS) \
 	$(MAIN_SRCS) \
 	$(BODYPROG_SRCS) \
 	$(SCREEN_SRCS) \
@@ -340,6 +366,11 @@ NXDK_LDFLAGS += -map:$(XBOX_PORT)/bin/default.map
 # nxdk's `clean: $(CLEANRULES)` rule expands CLEANRULES at include time, so this
 # hook (defined below, after the include) must be registered here.
 CLEANRULES += clean-maps
+
+# RetroAchievements HTTP needs the lwIP/nvnetdrv stack. In this fork lib/net is
+# included unconditionally so this is effectively inert (libnxdk_net already
+# links), but set it to document intent + survive a future nxdk rebase.
+NXDK_NET = y
 
 include $(NXDK_DIR)/Makefile
 
