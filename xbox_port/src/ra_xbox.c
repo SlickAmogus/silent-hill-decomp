@@ -444,6 +444,45 @@ static void Ra_DumpWorklist(rc_client_t* client)
     }
 }
 
+/* Full core roster with lock state, at load. Every LOCKED line is an achievement
+ * that CAN still fire on this console (already-unlocked ones are inert here); the
+ * UNLK lines name what the account already has, so a PC-earned unlock is never
+ * mistaken for proof of the Xbox path. */
+static void Ra_DumpRoster(rc_client_t* client)
+{
+    rc_client_achievement_list_t* list;
+    uint32_t b, a;
+    uint32_t locked = 0, unlocked = 0;
+
+    list = rc_client_create_achievement_list(client,
+              RC_CLIENT_ACHIEVEMENT_CATEGORY_CORE,
+              RC_CLIENT_ACHIEVEMENT_LIST_GROUPING_LOCK_STATE);
+    if (!list)
+    {
+        SH_DBG("[RA] roster: unavailable");
+        return;
+    }
+
+    for (b = 0; b < list->num_buckets; b++)
+    {
+        const rc_client_achievement_bucket_t* bk = &list->buckets[b];
+        for (a = 0; a < bk->num_achievements; a++)
+        {
+            const rc_client_achievement_t* ac = bk->achievements[a];
+            const int isUnlocked =
+                (ac->state == RC_CLIENT_ACHIEVEMENT_STATE_UNLOCKED) || ac->unlocked;
+            if (isUnlocked) unlocked++; else locked++;
+            SH_DBG("[RA] ach %s id=%u %up '%s'",
+                   isUnlocked ? "UNLK" : "lock",
+                   (unsigned)ac->id, (unsigned)ac->points,
+                   ac->title ? ac->title : "?");
+        }
+    }
+    SH_DBG("[RA] roster: %u locked, %u unlocked (%u total)",
+           locked, unlocked, locked + unlocked);
+    rc_client_destroy_achievement_list(list);
+}
+
 /* ------------------------------------------------------------------------- */
 /* HTTP transport: bounded main-thread pump (no worker thread on Xbox)         */
 /* ------------------------------------------------------------------------- */
@@ -579,8 +618,9 @@ static void RC_CCONV Ra_Fr_Close(void* h)
 /* ------------------------------------------------------------------------- */
 
 static rc_client_t* s_client;
-static int          s_active;    /* set loaded and evaluating */
-static int          s_enabled;   /* configured, credentialed, client created */
+static int          s_active;      /* set loaded and evaluating */
+static int          s_enabled;     /* configured, credentialed, client created */
+static int          s_selfTestDone;/* in-game notification self-test fired once */
 static char         s_status[64];
 
 static void Ra_Toast(const char* line)
@@ -692,6 +732,13 @@ static void RC_CCONV Ra_LoadGameCallback(int result, const char* error_message,
 
     /* Print the complete address worklist now that every achievement is parsed. */
     Ra_DumpWorklist(client);
+
+    /* And the full roster + lock state: shows exactly which achievements are still
+     * LOCKED (hence testable on THIS console -- an already-unlocked one, e.g. any
+     * earned earlier on the PC port under the same account, will NOT re-fire here),
+     * their point values, and names the unlocked ones so a PC-earned unlock can't
+     * be mistaken for an Xbox one. */
+    Ra_DumpRoster(client);
     {
         char line[96];
         snprintf(line, sizeof(line), "RetroAchievements: %s", s_status);
@@ -830,6 +877,20 @@ void Pc_Ra_Update(void)
         g_GameWork.gameState == GameState_InGame &&
         g_SysWork.sysState   == SysState_Gameplay)
     {
+        /* One-shot in-game proof of the NOTIFICATION path: fire the exact chime +
+         * a toast a real unlock uses, the first time settled gameplay is reached.
+         * The boot-time "signed in" toast fades during the logos (the overlay only
+         * draws from GameState_MainMenu on), so it is never seen -- this fires
+         * where a real unlock would, on the SPU-pumping main thread. If the user
+         * sees the line and hears the ding, the unlock DISPLAY/audio path works
+         * independent of whether any achievement's CONDITIONS are yet satisfied. */
+        if (!s_selfTestDone)
+        {
+            s_selfTestDone = 1;
+            Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+            Ra_Toast("RetroAchievements ready - unlocks show here");
+            SH_DBG("[RA] self-test: in-game toast+chime fired (notification path live)");
+        }
         rc_client_do_frame(s_client);
     }
     else
