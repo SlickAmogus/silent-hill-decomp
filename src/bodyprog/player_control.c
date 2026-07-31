@@ -47,6 +47,15 @@ extern void vwGetViewAngle(SVECTOR* ang);
  * and the run-strafe so left/right run at the SAME speed as forward. */
 #define PC_OTS_RUN_SPEED Q12(4.5f)
 
+/* The authored PSX run speeds, mirrored from GET_MOVE_SPEED in
+ * Player_LowerBodyUpdate (function-local there, so the shim cannot reuse it).
+ * The shim ran a flat Q12(3.0), which is 25% under the Normal-zone speed and 40%
+ * under Fast — invisible while only the debug cam used the shim, but 2D control
+ * routes ordinary play through it and the deficit became "Harry runs slower". */
+#define PC_SHIM_RUN_SPEED(zoneType)                   \
+    (((zoneType) == SpeedZoneType_Fast) ? Q12(5.0f) : \
+     ((zoneType) == SpeedZoneType_Slow) ? Q12(3.5f) : Q12(4.0f))
+
 static void Player_CrashHandler(int sig) {
     if (s_PlayerCrashGuardActive) {
         s_PlayerCrashGuardActive = 0;
@@ -2056,7 +2065,10 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         if (g_Player_IsRunning &&
                             !(g_DebugThirdPersonCam && g_Player_IsAiming &&
                               g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)))
-                            D_800C4550 = g_DebugThirdPersonCam ? PC_OTS_RUN_SPEED : Q12(3.0f);
+                            D_800C4550 = g_DebugThirdPersonCam
+                                             ? PC_OTS_RUN_SPEED
+                                             : PC_SHIM_RUN_SPEED(Map_SpeedZoneTypeGet(player->position.vx,
+                                                                                      player->position.vz));
                         else
                             D_800C4550 = Q12(1.5f);
 #else

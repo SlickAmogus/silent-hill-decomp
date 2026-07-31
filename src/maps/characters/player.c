@@ -150,14 +150,6 @@ void sharedFunc_800D1C38_0_s00(s_SubCharacter* chara, s_PlayerExtra* extra, GsCO
     }
 
     moveSpeed    = chara->moveSpeed;
-#ifdef SH_PC_PORT
-    /* During cutscenes Player_LogicUpdate doesn't run, so headingAngle
-     * never gets synced from rotation.vy. The waypoint system updates
-     * rotation.vy to face the target -- use it directly so cutscene
-     * movement doesn't sin/cos a stale heading and produce huge
-     * offsets that crash Collision_WallDetect downstream. */
-    chara->headingAngle = chara->rotation.vy;
-#endif
     headingAngle = chara->headingAngle;
     moveDist      = Q12_MULT_PRECISE(moveSpeed, g_DeltaTime);
 

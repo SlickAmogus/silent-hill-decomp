@@ -360,7 +360,7 @@ partial class Form1
             this.skipIntrosLabel.AutoSize = true;
             this.skipIntrosLabel.Location = new System.Drawing.Point(214, 125);
             this.skipIntrosLabel.Name = "skipIntrosLabel";
-            this.skipIntrosLabel.Size = new System.Drawing.Size(79, 13);
+            this.skipIntrosLabel.Size = new System.Drawing.Size(63, 13);
             this.skipIntrosLabel.TabIndex = 0;
             this.skipIntrosLabel.Text = "Skip Intros:";
             // 

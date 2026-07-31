@@ -20,10 +20,6 @@ refresh_rate = 0
 # Toggle at runtime with numpad 0. Game physics use real elapsed time so any cap is safe.
 fps_cap = 30
 
-# Skip the Konami/KCET logos and the opening movie, booting straight to the
-# main menu (0 = play the intros like the original, 1 = skip them)
-skip_intros = 0
-
 # Disable aggressive PSX view culling (0 = original culling, 1 = render all objects)
 # The original game aggressively culls objects based on view angle and position.
 # Disabling culling prevents objects like fences and trees from popping in/out.
