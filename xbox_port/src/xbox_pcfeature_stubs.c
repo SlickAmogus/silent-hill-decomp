@@ -675,28 +675,12 @@ unsigned long long TexPack_LastComposeHash(void)
 }
 
 /* =============================================================================
- * stb_image (only linked for its STB_IMAGE_IMPLEMENTATION in hires_override.c,
- * excluded on Xbox). pc_decals.c is NOT excluded and still declares/calls the
- * plain stb_image.h prototypes for its optional gamedata/decal.png loose
- * bullet-decal texture; on decode failure it already logs
- * stbi_failure_reason() and disables decals gracefully (s_texMissing = 1),
- * so "PNG decoding unavailable" is a fully supported, cosmetic-only outcome.
+ * stb_image: the real PNG decoder is now compiled in stb_image_impl.c (the sole
+ * STB_IMAGE_IMPLEMENTATION TU on Xbox), so stbi_load_from_memory /
+ * stbi_failure_reason link against it. It is used by ra_badge_xbox.c (RA unlock
+ * badge images) and remains available to pc_decals.c's optional gamedata/decal.png
+ * loose bullet-decal texture. The former NULL-returning stubs were removed here.
  * ========================================================================= */
-unsigned char* stbi_load_from_memory(unsigned char const* buffer, int len, int* x, int* y, int* channels_in_file, int desired_channels)
-{
-    (void)buffer;
-    (void)len;
-    (void)desired_channels;
-    if (x) *x = 0;
-    if (y) *y = 0;
-    if (channels_in_file) *channels_in_file = 0;
-    return NULL;
-}
-
-const char* stbi_failure_reason(void)
-{
-    return "stb_image not built on Xbox (HD texture packs / loose PNG decals are disabled)";
-}
 
 /* =============================================================================
  * CD-XA voice/cutscene volume + pause + drain query. xa_xbox.c already

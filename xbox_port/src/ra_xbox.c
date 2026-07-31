@@ -423,6 +423,12 @@ static void RC_CCONV Ra_EventHandler(const rc_client_event_t* event, rc_client_t
                  event->achievement->title, (unsigned)event->achievement->points);
         Ra_Toast(line);
         Ra_RefreshStatus();
+
+        /* Badge image: fetch + decode + upload the unlock icon and arm the
+         * on-screen quad (ra_badge_xbox.c). BLOCKING one-shot on the main thread;
+         * a brief hitch on unlock is fine (rare, settled gameplay). Any failure is
+         * a silent skip - the chime + toast above already fired. */
+        { extern int RaBadge_Fetch(const char*); RaBadge_Fetch(event->achievement->badge_name); }
         break;
 
     case RC_CLIENT_EVENT_GAME_COMPLETED:

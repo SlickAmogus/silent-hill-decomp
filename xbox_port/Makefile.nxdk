@@ -281,6 +281,8 @@ XBOX_SRCS = \
 	$(XBOX_PORT)/src/msvc_compat.c \
 	$(XBOX_PORT)/src/net_xbox.c \
 	$(XBOX_PORT)/src/ra_xbox.c \
+	$(XBOX_PORT)/src/ra_badge_xbox.c \
+	$(XBOX_PORT)/src/stb_image_impl.c \
 	$(XBOX_PORT)/src/dbg_overlay_xbox.c
 
 # RetroAchievements client library (rcheevos). Excludes rc_libretro.c (needs
@@ -300,6 +302,8 @@ RCHEEVOS_SRCS = \
 RCHEEVOS_OBJS = $(addsuffix .obj,$(basename $(RCHEEVOS_SRCS)))
 $(RCHEEVOS_OBJS):                       CFLAGS += -w
 $(RCHEEVOS_DIR)/src/rhash/hash.obj:     CFLAGS += -U_WIN32
+# stb_image PNG decoder (RA badge images): third-party, silence its warnings.
+$(XBOX_PORT)/src/stb_image_impl.obj:    CFLAGS += -w
 
 # PC port's STR demuxer + software MDEC decoder (pure C, integer bitstream work
 # + x87-safe float YUV; no SDL/GL/x64 assumptions). Compiled IN PLACE, unmodified

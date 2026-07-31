@@ -160,6 +160,7 @@ extern void GpuNv2a_FrameEnd(void);
 extern void GpuNv2a_WaitVbl(void);
 extern void Pad_Poll(void);       /* refresh the PSX pad buffer (pad_xbox.c) */
 extern void Audio_XboxPump(void); /* refill the DirectSound ring (dsound_xbox.c) */
+extern void RaBadge_RenderDirect(void); /* RA unlock badge quad (ra_badge_xbox.c) */
 
 static volatile int s_vblanks = 0;
 static void (*s_vsyncCb)(void) = 0;   /* the game's per-vblank callback */
@@ -205,6 +206,10 @@ int VSync(int mode)
                 SH_DBG("[POST] audioPumpMs=%d", ms);
         }
     }
+    /* RA unlock badge: emit its textured quad NOW (after the game's OT walk that
+     * ran before this VSync, so on top of world + toast text) and before the
+     * present flush inside GpuNv2a_FrameEnd. No-op unless a badge is armed. */
+    RaBadge_RenderDirect();
     GpuNv2a_FrameEnd();              /* present the rendered frame (swap at vblank) */
     GpuXbox_FbStoreFrameTick();      /* latch+reset the per-frame TIM-protect gate
                                       * (g_PsxSkipFramebufferStore) — PsyX_EndScene parity */
