@@ -17,20 +17,20 @@ partial class Form1
     private ProgressBar progUpdate;
 
     private ComboBox comboResolution;
-    private RadioButton radioCullingYes;
-    private RadioButton radioCullingNo;
+    private RadioButton radioSkipIntrosYes;
+    private RadioButton radioSkipIntrosNo;
     private RadioButton radioPreloadYes;
     private RadioButton radioPreloadNo;
     private ComboBox comboPillarbox;
 
-    private Label cullLabel;
+    private Label skipIntrosLabel;
     private Label fullscreenLabel;
     private Label vsyncLabel;
     private Label resolutionLabel;
     private Label refreshLabel;
 
     private Panel vsyncPanel;
-    private Panel cullingPanel;
+    private Panel skipIntrosPanel;
     private Panel preloadPanel;
     private Panel pillarboxPanel;
 
@@ -84,9 +84,9 @@ partial class Form1
             this.vsyncPanel = new System.Windows.Forms.Panel();
             this.radioVsyncYes = new System.Windows.Forms.RadioButton();
             this.radioVsyncNo = new System.Windows.Forms.RadioButton();
-            this.cullingPanel = new System.Windows.Forms.Panel();
-            this.radioCullingYes = new System.Windows.Forms.RadioButton();
-            this.radioCullingNo = new System.Windows.Forms.RadioButton();
+            this.skipIntrosPanel = new System.Windows.Forms.Panel();
+            this.radioSkipIntrosYes = new System.Windows.Forms.RadioButton();
+            this.radioSkipIntrosNo = new System.Windows.Forms.RadioButton();
             this.preloadPanel = new System.Windows.Forms.Panel();
             this.radioPreloadYes = new System.Windows.Forms.RadioButton();
             this.radioPreloadNo = new System.Windows.Forms.RadioButton();
@@ -100,7 +100,7 @@ partial class Form1
             this.progUpdate = new System.Windows.Forms.ProgressBar();
             this.comboResolution = new System.Windows.Forms.ComboBox();
             this.banner = new System.Windows.Forms.PictureBox();
-            this.cullLabel = new System.Windows.Forms.Label();
+            this.skipIntrosLabel = new System.Windows.Forms.Label();
             this.fullscreenLabel = new System.Windows.Forms.Label();
             this.vsyncLabel = new System.Windows.Forms.Label();
             this.resolutionLabel = new System.Windows.Forms.Label();
@@ -151,7 +151,7 @@ partial class Form1
             this.lblMenu = new System.Windows.Forms.Label();
             this.btnRA = new System.Windows.Forms.Button();
             this.vsyncPanel.SuspendLayout();
-            this.cullingPanel.SuspendLayout();
+            this.skipIntrosPanel.SuspendLayout();
             this.preloadPanel.SuspendLayout();
             this.pillarboxPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.banner)).BeginInit();
@@ -197,31 +197,31 @@ partial class Form1
             this.radioVsyncNo.TabIndex = 10;
             this.radioVsyncNo.Text = "No";
             // 
-            // cullingPanel
+            // skipIntrosPanel
             // 
-            this.cullingPanel.Controls.Add(this.radioCullingYes);
-            this.cullingPanel.Controls.Add(this.radioCullingNo);
-            this.cullingPanel.Location = new System.Drawing.Point(300, 116);
-            this.cullingPanel.Name = "cullingPanel";
-            this.cullingPanel.Size = new System.Drawing.Size(100, 30);
-            this.cullingPanel.TabIndex = 18;
+            this.skipIntrosPanel.Controls.Add(this.radioSkipIntrosYes);
+            this.skipIntrosPanel.Controls.Add(this.radioSkipIntrosNo);
+            this.skipIntrosPanel.Location = new System.Drawing.Point(300, 116);
+            this.skipIntrosPanel.Name = "skipIntrosPanel";
+            this.skipIntrosPanel.Size = new System.Drawing.Size(100, 30);
+            this.skipIntrosPanel.TabIndex = 18;
             // 
-            // radioCullingYes
+            // radioSkipIntrosYes
             // 
-            this.radioCullingYes.Location = new System.Drawing.Point(4, 5);
-            this.radioCullingYes.Name = "radioCullingYes";
-            this.radioCullingYes.Size = new System.Drawing.Size(45, 24);
-            this.radioCullingYes.TabIndex = 2;
-            this.radioCullingYes.Text = "Yes";
-            this.radioCullingYes.CheckedChanged += new System.EventHandler(this.radioCullingYes_CheckedChanged);
+            this.radioSkipIntrosYes.Location = new System.Drawing.Point(4, 5);
+            this.radioSkipIntrosYes.Name = "radioSkipIntrosYes";
+            this.radioSkipIntrosYes.Size = new System.Drawing.Size(45, 24);
+            this.radioSkipIntrosYes.TabIndex = 2;
+            this.radioSkipIntrosYes.Text = "Yes";
+            this.radioSkipIntrosYes.CheckedChanged += new System.EventHandler(this.radioSkipIntrosYes_CheckedChanged);
             // 
-            // radioCullingNo
+            // radioSkipIntrosNo
             // 
-            this.radioCullingNo.Location = new System.Drawing.Point(59, 5);
-            this.radioCullingNo.Name = "radioCullingNo";
-            this.radioCullingNo.Size = new System.Drawing.Size(40, 24);
-            this.radioCullingNo.TabIndex = 3;
-            this.radioCullingNo.Text = "No";
+            this.radioSkipIntrosNo.Location = new System.Drawing.Point(59, 5);
+            this.radioSkipIntrosNo.Name = "radioSkipIntrosNo";
+            this.radioSkipIntrosNo.Size = new System.Drawing.Size(40, 24);
+            this.radioSkipIntrosNo.TabIndex = 3;
+            this.radioSkipIntrosNo.Text = "No";
             // 
             // preloadPanel
             // 
@@ -355,14 +355,14 @@ partial class Form1
             this.banner.TabStop = false;
             this.banner.Click += new System.EventHandler(this.banner_Click);
             // 
-            // cullLabel
+            // skipIntrosLabel
             // 
-            this.cullLabel.AutoSize = true;
-            this.cullLabel.Location = new System.Drawing.Point(214, 125);
-            this.cullLabel.Name = "cullLabel";
-            this.cullLabel.Size = new System.Drawing.Size(79, 13);
-            this.cullLabel.TabIndex = 0;
-            this.cullLabel.Text = "Disable Culling:";
+            this.skipIntrosLabel.AutoSize = true;
+            this.skipIntrosLabel.Location = new System.Drawing.Point(214, 125);
+            this.skipIntrosLabel.Name = "skipIntrosLabel";
+            this.skipIntrosLabel.Size = new System.Drawing.Size(79, 13);
+            this.skipIntrosLabel.TabIndex = 0;
+            this.skipIntrosLabel.Text = "Skip Intros:";
             // 
             // fullscreenLabel
             // 
@@ -869,7 +869,7 @@ partial class Form1
             this.Controls.Add(this.downloadBuild);
             this.Controls.Add(this.btnBuildSettings);
             this.Controls.Add(this.btnControls);
-            this.Controls.Add(this.cullLabel);
+            this.Controls.Add(this.skipIntrosLabel);
             this.Controls.Add(this.chunksLabel);
             this.Controls.Add(this.fullscreenLabel);
             this.Controls.Add(this.vsyncLabel);
@@ -887,7 +887,7 @@ partial class Form1
             this.Controls.Add(this.refreshLabel);
             this.Controls.Add(this.comboFullscreen);
             this.Controls.Add(this.vsyncPanel);
-            this.Controls.Add(this.cullingPanel);
+            this.Controls.Add(this.skipIntrosPanel);
             this.Controls.Add(this.preloadPanel);
             this.Controls.Add(this.fpsLabel);
             this.Controls.Add(this.comboFps);
@@ -913,7 +913,7 @@ partial class Form1
             this.Text = "Silent Hill Launcher";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.vsyncPanel.ResumeLayout(false);
-            this.cullingPanel.ResumeLayout(false);
+            this.skipIntrosPanel.ResumeLayout(false);
             this.preloadPanel.ResumeLayout(false);
             this.pillarboxPanel.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.banner)).EndInit();

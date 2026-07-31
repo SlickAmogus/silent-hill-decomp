@@ -429,14 +429,14 @@ public partial class Form1 : Form
         Set(pgxpYes,    pgxpTip);
         Set(pgxpNo,     pgxpTip);
 
-        const string cullingTip =
-            "Disable the game's aggressive PSX view culling.\n" +
-            "Yes = render everything (recommended) — stops fences, trees and\n" +
-            "      other geometry from popping in/out as the camera turns.\n" +
-            "No = original PSX behavior (objects culled by view angle).";
-        Set(cullLabel,        cullingTip);
-        Set(radioCullingYes,  cullingTip);
-        Set(radioCullingNo,   cullingTip);
+        const string skipIntrosTip =
+            "Skip the Konami/KCET logos and the opening movie and go\n" +
+            "straight to the main menu.\n" +
+            "Yes = boot straight to the title screen.\n" +
+            "No = play the intros as the original game does.";
+        Set(skipIntrosLabel,     skipIntrosTip);
+        Set(radioSkipIntrosYes,  skipIntrosTip);
+        Set(radioSkipIntrosNo,   skipIntrosTip);
 
         const string preloadTip =
             "Preload all map chunks at level start instead of streaming\n" +
@@ -858,9 +858,9 @@ public partial class Form1 : Form
         // Region dropdown is populated from the detected discs in
         // CheckDiscImage (runs on Shown), not from config.
 
-        // disable_culling (recommended: Yes — matches engine default)
-        radioCullingYes.Checked = config.Get("disable_culling", "1") == "1";
-        radioCullingNo.Checked = !radioCullingYes.Checked;
+        // skip_intros (default No — the game plays the intros like the original)
+        radioSkipIntrosYes.Checked = config.Get("skip_intros", "0") == "1";
+        radioSkipIntrosNo.Checked = !radioSkipIntrosYes.Checked;
 
         // preload_chunks (recommended: Yes — matches engine default)
         radioPreloadYes.Checked = config.Get("preload_chunks", "1") == "1";
@@ -894,8 +894,10 @@ public partial class Form1 : Form
             default: config.Set("menu_pillarbox", "1"); config.Set("widescreen_mode", "1"); break; // Menus Only
         }
 
-        // disable_culling
-        config.Set("disable_culling", radioCullingYes.Checked ? "1" : "0");
+        /* skip_intros. disable_culling is deliberately no longer surfaced here — it stays
+         * game-side (pc_config.c) and in-game-toggleable, and ConfigManager.Save() rewrites
+         * only keys it holds, so a user's existing value is preserved untouched. */
+        config.Set("skip_intros", radioSkipIntrosYes.Checked ? "1" : "0");
 
         // preload_chunks
         config.Set("preload_chunks", radioPreloadYes.Checked ? "1" : "0");
@@ -1455,7 +1457,7 @@ public partial class Form1 : Form
 
     }
 
-    private void radioCullingYes_CheckedChanged(object sender, EventArgs e)
+    private void radioSkipIntrosYes_CheckedChanged(object sender, EventArgs e)
     {
 
     }
