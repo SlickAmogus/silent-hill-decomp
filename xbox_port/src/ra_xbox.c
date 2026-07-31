@@ -45,7 +45,8 @@
 #include "bodyprog/demo.h"                          /* g_Demo_IsLoadingChunks */
 #include "bodyprog/item_screens.h"                  /* g_Inventory_EquippedItem, g_Item_MapLoadableItems */
 #include "bodyprog/collision/collision.h"           /* g_ActiveCollisionTriggers */
-#include "bodyprog/sound/sound_system.h"            /* g_XaItemData */
+#include "bodyprog/sound/sound_system.h"            /* g_XaItemData, Sd_PlaySfx */
+#include "bodyprog/sound/sfx_id_enum.h"             /* Sfx_MenuConfirm (trophy chime) */
 #include "bodyprog/events/bodyprog_data_800A99B4.h" /* g_MapEventLastUsedItem */
 
 #include "pc_config.h"
@@ -408,7 +409,17 @@ static void RC_CCONV Ra_EventHandler(const rc_client_event_t* event, rc_client_t
     switch (event->type)
     {
     case RC_CLIENT_EVENT_ACHIEVEMENT_TRIGGERED:
-        snprintf(line, sizeof(line), "Achievement unlocked: %s (%u)",
+        /* Trophy chime: the game's own positive "confirm" cue (Sfx_MenuConfirm,
+         * in the persistent BASE.VAB). This handler only runs from
+         * rc_client_do_frame in settled gameplay (main thread, SPU pumping), so a
+         * direct Sd_PlaySfx is safe and needs ZERO new asset. Already-unlocked
+         * achievements loaded at boot do NOT fire this event, so no spurious ding. */
+        Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+
+        /* Two distinctly-formatted lines (banner + title) so an unlock never reads
+         * like the plain status lines that also flow through Ra_Toast. */
+        Ra_Toast("* * ACHIEVEMENT UNLOCKED * *");
+        snprintf(line, sizeof(line), "%s  (%u pts)",
                  event->achievement->title, (unsigned)event->achievement->points);
         Ra_Toast(line);
         Ra_RefreshStatus();
@@ -621,7 +632,43 @@ const char* Pc_Ra_StatusLine(void)
     return s_status;
 }
 
+/* Menu action (Xbox Options "RetroAchievements" row): toast the current login
+ * state so the user can check it from the menu without the D: log. Routes through
+ * Ra_Toast -> g_ShOverlayToastLine (wired to DbgOverlay_XboxToast). */
+void Pc_Ra_StatusToast(void)
+{
+    const rc_client_user_t* user;
+    char                    line[96];
+
+    if (!g_PcConfig.retroAchievements)
+    {
+        Ra_Toast("RA: off (set retroachievements=1)");
+        return;
+    }
+
+    user = s_client ? rc_client_get_user_info(s_client) : NULL;
+    if (user)
+    {
+        const char* nm = (user->display_name && user->display_name[0]) ? user->display_name
+                       : (user->username ? user->username : "?");
+        snprintf(line, sizeof(line), "RA: signed in as %s (%u pts)",
+                 nm, (unsigned)user->score_softcore);
+        Ra_Toast(line);
+    }
+    else
+    {
+        Ra_Toast("RA: not signed in");
+    }
+}
+
 #else /* !SH_RETROACHIEVEMENTS */
+
+void Pc_Ra_StatusToast(void)
+{
+    extern void (*g_ShOverlayToastLine)(const char* line);
+    if (g_ShOverlayToastLine)
+        g_ShOverlayToastLine("RA: not built in");
+}
 
 void        Pc_Ra_Init(void)       {}
 void        Pc_Ra_Update(void)     {}

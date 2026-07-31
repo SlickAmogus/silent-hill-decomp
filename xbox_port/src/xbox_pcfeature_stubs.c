@@ -759,12 +759,11 @@ void XaPlayer_SetPauseHold(int hold)
  * Misc PC-only globals with no HAL of their own.
  * ========================================================================= */
 
-/* g_ShOverlayToastLine: NULL function pointer, matching main_pc.c's own
- * `= NULL` initializer; sh_log.h's SH_DBG_ECHO macro already null-checks it
- * before calling, so this is the documented "no overlay toast" state, not a
- * missing wire-up (Xbox is blind to the screen anyway - see
- * testing-workflow.md - so there is nowhere to draw a toast). */
-void (*g_ShOverlayToastLine)(const char* line) = NULL;
+/* g_ShOverlayToastLine: MOVED. It used to be a permanent NULL stub here ("Xbox
+ * is blind to the screen anyway - nowhere to draw a toast"). There is now a real
+ * on-screen toast overlay (dbg_overlay_xbox.c), which OWNS this pointer (= NULL,
+ * wired to DbgOverlay_XboxToast at boot in main_xbox.c). Defining it here too
+ * would be a duplicate symbol, so it is gone. */
 
 /* g_PcUnlimitedEnemies: off, matching main_pc.c's `= 0` (a debug/randomizer
  * toggle, not something that should silently be on by default). */

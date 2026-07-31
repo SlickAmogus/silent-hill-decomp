@@ -3191,6 +3191,18 @@ void MainLoop(void) // 0x80032EE0
         }
 #endif
         ML_TRACE("OT0-done");
+#ifdef SH_XBOX_PORT
+        /* On-screen toast/notification overlay (RA unlocks + SH_DBG_ECHO). Drawn
+         * AFTER the world (OT0) and BEFORE OT2 is walked, so its text
+         * (Gfx_StringDraw -> OT2 layer 6) sits on top in EVERY game state. Gated
+         * past the boot logos so a frame never samples the font atlas before it
+         * is resident in VRAM (font-readiness guard). */
+        if (g_GameWork.gameState >= GameState_MainMenu)
+        {
+            extern void DbgOverlay_XboxRender(void);
+            DbgOverlay_XboxRender();
+        }
+#endif
 #ifdef SH_PC_PORT
         /* Sanitize InGame OT2 — extended whitelist for 2D overlays.
          * OT2 holds text, screen fade, cutscene borders via g_OtTags0 layers.

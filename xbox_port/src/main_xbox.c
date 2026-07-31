@@ -262,6 +262,12 @@ int main(void)
      * and Cd_XboxInit (g_CdBinPath) so both are ready. */
     { extern void Pc_Ra_Init(void); Pc_Ra_Init(); }
 
+    /* Route SH_DBG_ECHO + RetroAchievements-unlock notifications to the on-screen
+     * toast overlay (dbg_overlay_xbox.c). Set before MainLoop; the render side runs
+     * from the frame draw path and no-ops until the font is up. */
+    { extern void DbgOverlay_XboxToast(const char* line);
+      g_ShOverlayToastLine = DbgOverlay_XboxToast; }
+
     /* Open the first NV2A frame; VSync() presents + opens the next each frame. */
     GpuNv2a_FrameBegin();
 

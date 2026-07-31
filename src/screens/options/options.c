@@ -106,7 +106,7 @@ static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Cont
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_CAMSTYLE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_EXITMENU };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_CAMSTYLE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_EXITMENU, PCK_RASTATUS };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -241,10 +241,11 @@ static const s_PcOpt PCOPT_T[] = {
  * exposes just refreshRate 30/60, which is the only pacing knob that matters);
  * Disable_Culling
  * and Preload_Chunks are perf/RAM hazards the overrides exist to prevent;
- * PGXP/MSAA/post/tonemap/flashlight-per-pixel/TPS rows drive GL-only or
+ * MSAA/post/tonemap/flashlight-per-pixel/TPS rows drive GL-only or
  * control_style-only code that is stubbed here (the flashlight row would make
  * the light invisible for the session). 2D controls are shared gameplay code
- * (player_control.c) and genuinely work. */
+ * (player_control.c) and genuinely work. PGXP is live (g_PsxUsePgxp is read
+ * per-draw); RetroAchievements is an action row that toasts login state. */
 static const s_PcOpt PCOPT_X[] = {
     { "Camera",          &g_PcConfig.controlStyle,      "control_style",       VAL_CAM,     4, LBL_CAM,     &g_ControlStyle, 1, PCK_CAMSTYLE },
     { "2D_Controls",     &g_PcConfig.control2d,         "control_2d",          VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
@@ -252,6 +253,8 @@ static const s_PcOpt PCOPT_X[] = {
     { "Crosshair",       &g_PcConfig.crosshair,         "crosshair",           VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Crosshair_Style", &g_PcConfig.crosshairStyle,    "crosshair_style",     VAL_CHSTYLE, 4, LBL_CHSTYLE, NULL,            1, PCK_INT      },
     { "Display_(reboot)",&g_PcConfig.xboxVideo720p,     "video_720p",          VAL_ONOFF,   2, LBL_VIDEO,   NULL,            0, PCK_INT      },
+    { "PGXP",            &g_PcConfig.usePgxp,           "use_pgxp",            VAL_ONOFF,   2, LBL_ONOFF,   &g_PsxUsePgxp,   1, PCK_INT      },
+    { "RetroAchievements",NULL,                         NULL,                  NULL,        0, NULL,        NULL,            0, PCK_RASTATUS },
     { "Framerate",       &g_PcConfig.refreshRate,       "refresh_rate",        VAL_FR,      2, LBL_FR,      NULL,            1, PCK_INT      },
     { "Exit_To_Menu",    NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_EXITMENU },
     { "Back",            NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_BACK     },
@@ -582,6 +585,13 @@ void Options_PcOptionsMenu_Control(void)
                     return;
                 }
                 Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
+            } else if (sel->kind == PCK_RASTATUS) {
+                /* Query RA login state and toast the result so the user can
+                 * check it from the menu (ra_xbox.c reads rc_client_get_user_info
+                 * and pushes the line through the overlay toast ring). */
+                extern void Pc_Ra_StatusToast(void);
+                Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                Pc_Ra_StatusToast();
 #endif
             }
         }
