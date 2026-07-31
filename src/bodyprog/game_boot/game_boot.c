@@ -115,12 +115,18 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
      * cap via GameBoot_NpcClear right after it sets NoEnemySpawn — see
      * map6_s04_2.c. Blanket-blocking the whole map here killed the approach
      * enemies, so do NOT special-case it. */
-    if (mapIdx != MapIdx_MAP0_S00 && mapIdx != MapIdx_MAP0_S01)
+    /* Both blocks below rewrite state that an attract demo just installed from
+     * its recorded savegame, so they stand down for it: force-clearing the spawn
+     * gate changes which enemies the recording meets, and the loadout rewrite
+     * hands Harry a gun the recorded inputs never fired. */
+    if (mapIdx != MapIdx_MAP0_S00 && mapIdx != MapIdx_MAP0_S01 &&
+        !(g_SysWork.processFlags & ProcessFlag_BootDemo))
     {
         g_SysWork.sysFlags &= ~SysFlag_NoEnemySpawn;
     }
 
     if (mapIdx != MapIdx_MAP0_S00 && mapIdx != MapIdx_MAP0_S01 &&
+        !(g_SysWork.processFlags & ProcessFlag_BootDemo) &&
         g_SavegamePtr->equippedWeapon == InvItemId_Unequipped)
     {
         s_InventoryItem* items = g_SavegamePtr->items;

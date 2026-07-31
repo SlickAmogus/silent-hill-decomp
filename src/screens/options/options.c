@@ -170,7 +170,9 @@ static const char* const LBL_CON[]   = { "Off", "External", "In_Game", "Both" };
 static const char* const LBL_FPS[]   = { "Off", "30", "60", "120", "240" };
 /* Short enough to fit the value column at every language/width ("Modern_Shadows" clipped). */
 static const char* const LBL_FLMODE[] = { "Classic", "C_+_Shadows", "Modern", "M_+_Shadows" };
-static const char* const LBL_MMCNR[]  = { "Top_Left", "Top_Right", "Bottom_Left", "Bottom_Right" };
+/* Abbreviated for the same reason as LBL_FLMODE: "Bottom_Right" ran off the
+ * right edge of the value column. */
+static const char* const LBL_MMCNR[]  = { "Top_L", "Top_R", "Bottom_L", "Bottom_R" };
 static const char* const LBL_MMMODE[] = { "Off", "Square", "Circle" };
 
 static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
