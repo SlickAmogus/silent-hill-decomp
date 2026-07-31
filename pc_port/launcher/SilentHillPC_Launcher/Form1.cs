@@ -1413,6 +1413,13 @@ public partial class Form1 : Form
 
     private void banner_Click(object sender, EventArgs e)
     {
+        /* Belt and braces: Control only raises Click off WM_LBUTTONUP, so the
+         * right-click that opens the background menu should never reach here --
+         * but About popping up behind that menu would be a nasty surprise. */
+        MouseEventArgs me = e as MouseEventArgs;
+        if (me != null && me.Button != MouseButtons.Left)
+            return;
+
         string about =
     "This port is based on the decompiled Silent Hill 1 for PSX Source Code:\n\n" +
     "https://github.com/Vatuu/silent-hill-decomp\n\n" +
@@ -1467,6 +1474,136 @@ public partial class Form1 : Form
 
         //ApplyDarkMode();
         LoadConfig();
+        BannerInit();
+    }
+
+    // ==========================================================
+    // Custom banner (right-click the banner image)
+    // ==========================================================
+
+    /* The chosen image is re-encoded to one fixed PNG beside the launcher, so its
+     * presence alone is the "customised" flag -- nothing to keep in sync in the
+     * config, and Reset is just a delete. Re-encoding also means we do not care
+     * what container the user picked. */
+    private static string BannerCustomPath =>
+        Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "launcher_banner.png");
+
+    private Image             _bannerCustom;
+    private ContextMenuStrip  _bannerMenu;
+    private ToolStripMenuItem _bannerMenuReset;
+
+    private void BannerInit()
+    {
+        banner.MouseUp += banner_MouseUp;
+        BannerApplyCustomIfPresent();
+    }
+
+    private void BannerApplyCustomIfPresent()
+    {
+        if (!File.Exists(BannerCustomPath))
+            return;
+
+        try
+        {
+            /* Image.FromFile keeps the file locked for the lifetime of the Image,
+             * which would make Reset fail with a sharing violation. Copy the pixels
+             * and let the handle go. */
+            Image loaded;
+            using (var fs = new FileStream(BannerCustomPath, FileMode.Open, FileAccess.Read))
+            using (var tmp = Image.FromStream(fs))
+                loaded = new Bitmap(tmp);
+
+            banner.Image = loaded;
+            if (_bannerCustom != null) _bannerCustom.Dispose();
+            _bannerCustom = loaded;
+        }
+        catch (Exception ex)
+        {
+            /* A corrupt or unreadable file must not stop the launcher opening --
+             * fall back to the built-in banner and say why. */
+            MessageBox.Show(this,
+                "The custom launcher background could not be loaded, so the default is being used.\n\n" + ex.Message,
+                "Custom background", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void banner_MouseUp(object sender, MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Right)
+            return;
+
+        /* Built once and reused. Disposing a ContextMenuStrip from its own Closed
+         * handler races the item's Click, which may not have run yet. */
+        if (_bannerMenu == null)
+        {
+            _bannerMenu = new ContextMenuStrip();
+            _bannerMenu.Items.Add("Change background", null, (s2, e2) => BannerChange());
+            _bannerMenuReset = (ToolStripMenuItem)_bannerMenu.Items.Add("Reset", null, (s2, e2) => BannerReset());
+            _bannerMenu.Items.Add("Cancel", null, (s2, e2) => { });
+        }
+
+        _bannerMenuReset.Visible = File.Exists(BannerCustomPath);
+        _bannerMenu.Show(banner, e.Location);
+    }
+
+    private void BannerChange()
+    {
+        using (var dlg = new OpenFileDialog())
+        {
+            dlg.Title  = "Choose a launcher background";
+            dlg.Filter = "Image files|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff|All files|*.*";
+
+            if (dlg.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            try
+            {
+                /* Decode fully before touching the destination: if the pick turns
+                 * out not to be an image, the existing background is untouched. */
+                Bitmap copy;
+                using (var fs = new FileStream(dlg.FileName, FileMode.Open, FileAccess.Read))
+                using (var src = Image.FromStream(fs))
+                    copy = new Bitmap(src);
+
+                using (copy)
+                    copy.Save(BannerCustomPath, System.Drawing.Imaging.ImageFormat.Png);
+
+                BannerApplyCustomIfPresent();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this,
+                    "That file could not be used as a background.\n\n" + ex.Message,
+                    "Change background", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+    }
+
+    private void BannerReset()
+    {
+        if (MessageBox.Show(this, "Are you sure?", "Reset background",
+                            MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+            return;
+
+        try
+        {
+            banner.Image = SilentHillPC_Launcher.Properties.Resources.launcher;
+
+            if (_bannerCustom != null)
+            {
+                _bannerCustom.Dispose();
+                _bannerCustom = null;
+            }
+
+            if (File.Exists(BannerCustomPath))
+                File.Delete(BannerCustomPath);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this,
+                "The custom background could not be removed.\n\n" + ex.Message,
+                "Reset background", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void radioPreloadYes_CheckedChanged(object sender, EventArgs e)
