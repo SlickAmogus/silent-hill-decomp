@@ -203,6 +203,31 @@ static void Ra_BuildMap(void)
     RA_MAP(0x0C48BAu, D_800C48BA);   /* u16 melee kill count     */
     RA_MAP(0x0C48D1u, D_800C48D1);   /* u8  continue count       */
 
+    /* ---- Worklist additions (2026-07-31, log 017 — THE region fix) ----------
+     * The live set does NOT read the ranking block / equipped item at the USA
+     * addresses mapped above; it reads them at the addresses this decomp calls the
+     * JAP0 layout (configs/JAP0/sym.bodyprog.txt): D_800C48A0 lives at 0x800C6DD0,
+     * g_Inventory_EquippedItem at 0x800B0544. The 0x0C48xx / 0x0AE184 entries above
+     * were therefore DEAD (nothing sampled them) and the ending / rank / weapon
+     * achievements all read unmapped memory -> never evaluated. Map the SAME
+     * pointer-free globals at the offsets the set actually reads (verified byte-for-
+     * byte: all twelve 0x800C6Dxx/0x800C6E01 addresses match the ranking field
+     * offsets, JAP0 = USA + 0x2530). Weapon achievements read the equipped item;
+     * ending/rank achievements read the ranking stats. */
+    RA_MAP(0x0B0544u, g_Inventory_EquippedItem); /* Drillin/Chainsaw/Weeb/Gift */
+    RA_MAP(0x0C6DD0u, D_800C48A0);   /* s16 savegame count       */
+    RA_MAP(0x0C6DD2u, D_800C48A2);   /* u16 gameplay hours       */
+    RA_MAP(0x0C6DD6u, D_800C48A6);   /* u16 walk distance        */
+    RA_MAP(0x0C6DDCu, D_800C48AC);   /* u16 picked-up item count */
+    RA_MAP(0x0C6DDEu, D_800C48AE);   /* u8  minutes              */
+    RA_MAP(0x0C6DE0u, D_800C48B0);   /* u8  clear-game count     */
+    RA_MAP(0x0C6DE2u, D_800C48B2);   /* u8  ending flags         */
+    RA_MAP(0x0C6DE4u, D_800C48B4);   /* u8  special-item count   */
+    RA_MAP(0x0C6DE5u, D_800C48B5);   /* s8  computed rank/score  */
+    RA_MAP(0x0C6DE8u, D_800C48B8);   /* u16 ranged kill count    */
+    RA_MAP(0x0C6DEAu, D_800C48BA);   /* u16 melee kill count     */
+    RA_MAP(0x0C6E01u, D_800C48D1);   /* u8  continue count       */
+
     /* libsd pitch table `u16 PitchTbl[12][128]` (bodyprog/libsd.h, 0xC00). The set
      * reads 0x800B2214/0x800B2218, inside this const table; the port's copy is
      * byte-identical so the reads return the genuine retail values. */
