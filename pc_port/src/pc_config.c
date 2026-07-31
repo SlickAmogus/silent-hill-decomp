@@ -1072,3 +1072,40 @@ void PcConfig_SaveMapName(const char* mapName)
     PcConfig_SaveKeyValue("map", mapName);
 }
 
+
+/* The controller-configuration screen displays these; nothing writes through
+ * them. The pad D-pad is movement owned by PsyCross, not a bindable scheme
+ * field, so those bits return "". */
+const char* PcConfig_BindName(unsigned short btnFlag, int device, int scheme, int slot)
+{
+    const ControlScheme* s = (scheme != 0) ? &g_PcConfig.altcam : &g_PcConfig.classic;
+    const char*          v = NULL;
+
+#define PICK(BTN)                                                                  \
+    (device != 0 ? (slot != 0 ? s->pad##BTN##2 : s->pad##BTN)                      \
+                 : (slot != 0 ? s->key##BTN##2 : s->key##BTN))
+
+    switch (btnFlag)
+    {
+        case 1u << 0:  v = PICK(Select);   break;
+        case 1u << 1:  v = PICK(L3);       break;
+        case 1u << 2:  v = PICK(R3);       break;
+        case 1u << 3:  v = PICK(Start);    break;
+        case 1u << 8:  v = PICK(L2);       break;
+        case 1u << 9:  v = PICK(R2);       break;
+        case 1u << 10: v = PICK(L1);       break;
+        case 1u << 11: v = PICK(R1);       break;
+        case 1u << 12: v = PICK(Triangle); break;
+        case 1u << 13: v = PICK(Circle);   break;
+        case 1u << 14: v = PICK(Cross);    break;
+        case 1u << 15: v = PICK(Square);   break;
+        default:       return "";
+    }
+
+#undef PICK
+
+    if (v == NULL || v[0] == '\0' || strcmp(v, "NONE") == 0)
+        return "";
+
+    return v;
+}

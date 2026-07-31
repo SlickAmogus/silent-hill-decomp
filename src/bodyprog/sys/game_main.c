@@ -1775,6 +1775,25 @@ void GameState_Boot_Update(void) // 0x80032D1C
             Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
             Fs_QueueStartReadTim(FILE_1ST_KONAMI_TIM, FS_BUFFER_1, &g_KonamiLogoImg);
 #ifdef SH_PC_PORT
+            /* PSX uploads the 8x8 atlas from main() (main.c:222 via g_MainImg1);
+             * the PC build drops that translation unit for main_pc.c, so the page
+             * Text_Debug_Draw samples was empty and every label it draws -- the
+             * controller-config action names -- rendered as nothing. Queued here
+             * rather than in the warning screen because this state runs even with
+             * skip_intros set. The TIM has no CLUT block; its palette is baked into
+             * its own bottom row. */
+            {
+                static const s_FsImageDesc FONT8_ATLAS_IMG = {
+                    .tPage = { 0, 20 },
+                    .u     = 0,
+                    .v     = 240,
+                    .clutX = 0,
+                    .clutY = 0
+                };
+
+                Fs_QueueStartReadTim(FILE_1ST_FONT8NOC_TIM, FS_BUFFER_1, &FONT8_ATLAS_IMG);
+            }
+
             if (g_PcConfig.skipIntros) {
                 /* Replicate all loads that b_konami.c/b_kcet.c normally handle during logo display */
                 WorldGfx_HarryCharaLoad();

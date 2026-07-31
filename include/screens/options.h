@@ -121,6 +121,14 @@ typedef enum _ControllerMenuState
     ControllerMenuState_Count   = 4
 } e_ControllerMenuState;
 
+#ifdef SH_PC_PORT
+/* The launcher owns the bindings now, so the preset column is EXIT plus a
+ * read-only USER row; TYPE 2/3 are PSX alternate presets with nothing to apply. */
+#define CONTROLLER_MENU_ROW_COUNT 2
+#else
+#define CONTROLLER_MENU_ROW_COUNT ControllerMenuState_Count
+#endif
+
 /** @brief Input actions. Also used as controller config menu entries for the right pane. */
 typedef enum _InputAction
 {

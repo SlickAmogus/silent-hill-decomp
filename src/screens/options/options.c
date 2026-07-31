@@ -15,6 +15,10 @@
 #include "bodyprog/text/text_draw.h"
 #include "screens/options.h"
 #include "screens/stream/stream.h"
+#ifdef SH_PC_PORT
+#include <ctype.h>
+#include "pc_config.h"
+#endif
 
 #define LINE_CURSOR_TIMER_MAX 8
 #ifdef SH_PC_PORT
@@ -3369,7 +3373,7 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
             {
                 s32 row = -1, i;
 
-                for (i = 0; i < ControllerMenuState_Count; i++)
+                for (i = 0; i < CONTROLLER_MENU_ROW_COUNT; i++)
                 {
                     s32 top = 22 + (i * 20) - 3;
                     if (my >= top && my < top + 20) { row = i; break; }
@@ -3439,7 +3443,7 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
             // Move selection cursor up/down.
             if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickUp)
             {
-                g_GameWork.gameStateSteps[1] = ControllerMenuState_Type3;
+                g_GameWork.gameStateSteps[1] = CONTROLLER_MENU_ROW_COUNT - 1;
                 g_GameWork.gameStateSteps[2] = 0;
             }
             else if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickDown)
@@ -3463,8 +3467,12 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
             // Set binding preset.
             if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
             {
+#ifndef SH_PC_PORT
                 SD_Call(Sfx_MenuConfirm);
                 Settings_RestoreControlDefaults(g_GameWork.gameStateSteps[1] - 1);
+#endif
+                /* PC: the USER row REPORTS the launcher's bindings, so confirming
+                 * it must not overwrite them with a stock preset. */
             }
             // Reset selection cursor.
             else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel)
@@ -3479,12 +3487,20 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
                 // Move selection cursor up/down.
                 if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickUp)
                 {
+#ifdef SH_PC_PORT
+                    g_GameWork.gameStateSteps[1] = (g_GameWork.gameStateSteps[1] + (CONTROLLER_MENU_ROW_COUNT - 1)) % CONTROLLER_MENU_ROW_COUNT;
+#else
                     g_GameWork.gameStateSteps[1] = (g_GameWork.gameStateSteps[1] - 1) & 3;
+#endif
                     g_GameWork.gameStateSteps[2] = 0;
                 }
                 else if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickDown)
                 {
+#ifdef SH_PC_PORT
+                    g_GameWork.gameStateSteps[1] = (g_GameWork.gameStateSteps[1] + 1) % CONTROLLER_MENU_ROW_COUNT;
+#else
                     g_GameWork.gameStateSteps[1] = (g_GameWork.gameStateSteps[1] + 1) & 3;
+#endif
                     g_GameWork.gameStateSteps[2] = 0;
                 }
                 // Move selection cursor left/right.
@@ -3771,7 +3787,11 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
     /** @brief Controller menu entry strings for the presets pane on the left. */
     static const char* CONTROLLER_MENU_PRESETS_PANE_ENTRY_STRINGS[] = {
         "EXIT",
+#ifdef SH_PC_PORT
+        "USER",
+#else
         "TYPE_1",
+#endif
         "TYPE_2",
         "TYPE_3"
     };
@@ -3800,7 +3820,7 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
     drMode = &SELECTION_HIGHLIGHT_DRAW_MODES[g_ActiveBufferIdx];
 
     // Draw entry strings.
-    for (i = 0; i < ControllerMenuState_Count; i++)
+    for (i = 0; i < CONTROLLER_MENU_ROW_COUNT; i++)
     {
         Gfx_StringSetPosition(24, STR_BASE_Y + (i * STR_OFFSET_Y));
         Gfx_StringDraw(CONTROLLER_MENU_PRESETS_PANE_ENTRY_STRINGS[i], 20);
@@ -3837,6 +3857,39 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
         {
             highlightY0 = strYPos - 113;
         }
+
+#ifdef SH_PC_PORT
+        /* Status column: what the launcher actually bound this action to. The
+         * screen is read-only now, so it reports rather than edits. Only the
+         * lowest set bit is shown -- an action mapped to several PSX buttons
+         * would otherwise overrun the 320px frame at 8px/glyph. */
+        {
+            u16         bit  = (u16)(*contConfig & (u16)(-(s16)*contConfig));
+            /* Pad bind first (this IS the controller screen), keyboard as the
+             * fallback so the column is never blank for keyboard players.
+             * Scheme 0 = classic: control_style.c forces that scheme into the
+             * input layer while any menu is up, so it is what is live here. */
+            const char* name = PcConfig_BindName(bit, 1, 0, 0);
+            char        buf[14];
+            s32         n;
+
+            if (name[0] == '\0')
+                name = PcConfig_BindName(bit, 0, 0, 0);
+
+            for (n = 0; n < (s32)sizeof(buf) - 1 && name[n] != '\0'; n++)
+            {
+                /* Text_Debug_Draw's atlas starts at '*': anything below it
+                 * indexes off-atlas garbage. Uppercase, and drop the rest. */
+                s32 c = (unsigned char)name[n];
+                c     = toupper(c);
+                buf[n] = (c >= '*' && c <= 'i') ? (char)c : ' ';
+            }
+            buf[n] = '\0';
+
+            Text_Debug_PositionSet(184, strYPos);
+            Text_Debug_Draw(buf);
+        }
+#endif
 
         strYPos = (strYPos + ICON_SIZE_Y) + ((i == 2) ? ICON_SIZE_Y : 0);
     }

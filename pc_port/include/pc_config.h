@@ -293,5 +293,12 @@ void PcConfig_SaveKeyValue(const char* key, const char* value);
  * and the `xavolume` console command. */
 void PcConfig_ApplyXaVolume(float norm);
 
+/* Read-only: the physical input the launcher assigned to one PSX button.
+ * btnFlag = a single ControllerFlag_* bit; device 0 = keyboard/mouse, 1 = game
+ * controller; scheme 0 = classic, 1 = altcam; slot 0 = primary, 1 = the
+ * alternate (_2) bind. Returns the config's own name ("C", "Left Shift",
+ * "Mouse1", "lefttrigger"), or "" when unbound. Never NULL. */
+const char* PcConfig_BindName(unsigned short btnFlag, int device, int scheme, int slot);
+
 #endif /* PC_CONFIG_H */
 
