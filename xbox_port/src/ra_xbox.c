@@ -518,11 +518,11 @@ void Pc_Ra_Init(void)
 {
     rc_hash_filereader_t fr;
 
-    SH_DBG("[RA] init: enabled=%d user='%s' token=%s password=%s",
+    SH_DBG("[RA] init: enabled=%d user='%s' token=%s passwordLen=%d",
            g_PcConfig.retroAchievements,
            g_PcConfig.raUsername,
            g_PcConfig.raToken[0] ? "present" : "none",
-           g_PcConfig.raPassword[0] ? "present" : "none");
+           (int)strlen(g_PcConfig.raPassword));
 
     if (!g_PcConfig.retroAchievements)
     {

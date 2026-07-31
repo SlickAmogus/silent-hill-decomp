@@ -368,6 +368,21 @@ void PcConfig_Load(const char* path)
 
         strncpy(value, eq + 1, sizeof(value) - 1);
         value[sizeof(value) - 1] = '\0';
+#ifdef SH_XBOX_PORT
+        /* Strip an inline "# ..."/"; ..." comment (must be whitespace-preceded, so
+         * a literal '#'/';' inside a value is preserved). Without this a value
+         * pasted with a trailing note — an RA password, an int flag — is stored
+         * with the comment text appended (broke ra_password + risked flags). */
+        {
+            char* c;
+            for (c = value; *c; c++)
+                if ((*c == '#' || *c == ';') && (c == value || c[-1] == ' ' || c[-1] == '\t'))
+                {
+                    *c = '\0';
+                    break;
+                }
+        }
+#endif
         TrimWhitespace(value);
 
         if (strcmp(key, "width") == 0)
