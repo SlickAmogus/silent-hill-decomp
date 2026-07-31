@@ -792,6 +792,7 @@ void Pc_RaToast_Draw(void)
     GLint  prevUnit = GL_TEXTURE0, prevAlign = 4;
     GLint  prevSrcRgb = GL_ONE, prevDstRgb = GL_ZERO;
     GLint  prevSrcA = GL_ONE, prevDstA = GL_ZERO;
+    GLint  prevEqRgb = GL_FUNC_ADD, prevEqA = GL_FUNC_ADD;
     GLboolean prevBlend, prevDepth, prevCull;
 
     if (!s_liveActive)
@@ -848,6 +849,8 @@ void Pc_RaToast_Draw(void)
     glGetIntegerv(GL_BLEND_DST_RGB,   &prevDstRgb);
     glGetIntegerv(GL_BLEND_SRC_ALPHA, &prevSrcA);
     glGetIntegerv(GL_BLEND_DST_ALPHA, &prevDstA);
+    glGetIntegerv(GL_BLEND_EQUATION_RGB,   &prevEqRgb);
+    glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &prevEqA);
     prevBlend = glIsEnabled(GL_BLEND);
     prevDepth = glIsEnabled(GL_DEPTH_TEST);
     prevCull  = glIsEnabled(GL_CULL_FACE);
@@ -930,6 +933,13 @@ void Pc_RaToast_Draw(void)
     glUniform1i(s_locTex, 0);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    /* PsyCross leaves GL_FUNC_REVERSE_SUBTRACT set whenever the frame's last prim
+     * was a PSX subtractive (ABR=2) one — PsyX_render.cpp only ever pushes the
+     * equation, never restores it. Without this the toast blends dst-src and
+     * clamps to a solid black slab over any dark scene. It looked camera-related
+     * because the TPS/OTS aim crosshair is an ABR=0 prim on the topmost overlay
+     * layer, so aiming happened to leave GL_FUNC_ADD behind and "fixed" it. */
+    glBlendEquation(GL_FUNC_ADD);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
 
@@ -968,6 +978,7 @@ void Pc_RaToast_Draw(void)
     glPixelStorei(GL_UNPACK_ALIGNMENT, prevAlign);
     glBlendFuncSeparate((GLenum)prevSrcRgb, (GLenum)prevDstRgb,
                         (GLenum)prevSrcA,   (GLenum)prevDstA);
+    glBlendEquationSeparate((GLenum)prevEqRgb, (GLenum)prevEqA);
     if (!prevBlend) glDisable(GL_BLEND);
     if (prevDepth)  glEnable(GL_DEPTH_TEST);
     if (prevCull)   glEnable(GL_CULL_FACE);

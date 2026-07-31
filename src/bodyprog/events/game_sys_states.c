@@ -240,6 +240,19 @@ void GameState_InGame_Update(void) // 0x80038BD4
          * PSX game. The fallback third-person chase cam was a placeholder
          * before the road system worked. Now removed — original cameras active.
          * Debug camera (numpad *) still works independently. */
+        /* Alternate cameras (TPS/OTS/FPS, and the numpad free cam) replace the
+         * view matrix that vcMoveAndSetCamera just published, so they MUST run
+         * before any map hook that bakes screen coordinates. func_44 does exactly
+         * that: map4_s03's TV bank pulls GsWSMATRIX through
+         * Vw_WorldScreenMatrixAtPositionGet and RotTransPers's the screen quads on
+         * the spot, so with the camera applied afterwards the screens kept the
+         * classic camera's projection and stayed glued to the view while the rest
+         * of the room orbited. (Was below func_44; also the reason the free cam
+         * never moved those effects.) */
+        {
+            extern void DebugCamera_Update(void);
+            DebugCamera_Update();
+        }
 #endif
 
         if (g_MapOverlayHdr.func_44 != NULL)
@@ -248,15 +261,6 @@ void GameState_InGame_Update(void) // 0x80038BD4
         }
 
         Demo_DemoRandSeedRestore();
-
-#ifdef SH_PC_PORT
-        /* Debug camera toggle (numpad *). Without this call the toggle
-         * never fires and the free cam becomes unreachable. */
-        {
-            extern void DebugCamera_Update(void);
-            DebugCamera_Update();
-        }
-#endif
 
         player = &g_SysWork.playerWork.player;
         Player_Update(player, FS_BUFFER_0, g_SysWork.playerBoneCoords);
