@@ -56,9 +56,10 @@
 #include "bodyprog/screen/screen_data.h"            /* g_OtTags1 */
 #include "bodyprog/collision/collision.h"           /* g_ActiveCollisionTriggers */
 #include "bodyprog/sound/sound_system.h"            /* g_XaItemData, Sd_PlaySfx */
-#include "bodyprog/libsd.h"                         /* smf_song (SMF_SONG) */
+#include "bodyprog/libsd.h"                         /* smf_song (SMF_SONG), PitchTbl */
 #include "bodyprog/sound/sfx_id_enum.h"             /* Sfx_MenuConfirm (trophy chime) */
 #include "bodyprog/events/bodyprog_data_800A99B4.h" /* g_MapEventLastUsedItem */
+#include "bodyprog/ranking.h"                        /* end-of-run stat scalars D_800C48xx */
 
 #include "pc_config.h"
 #include "sh_log.h"
@@ -179,6 +180,42 @@ static void Ra_BuildMap(void)
     /* libsd MIDI sequencer state `SMF_SONG smf_song[2]` (libsd.h, 2 * 1340 = 0xA78).
      * Covers 0x800C945D. */
     RA_MAP(0x0C8B00u, smf_song);
+
+    /* ---- Worklist additions (2026-07-31, log 013 COMPLETE memref dump) -----
+     * The full-set dump (Ra_DumpWorklist) resolved every unmapped address the 66
+     * achievements + rich presence read. The biggest cluster (0x800C48A0-0x800C48D1)
+     * is the RANKING module (src/bodyprog/ranking.c .bss) -- the game's end-of-run
+     * stats: save/continue/clear counts, play time, item + kill counts, ending
+     * flags, computed rank. These back the completion / kill-count / time / rank
+     * achievements, which read individual scalars here. Each is a pointer-free
+     * integer at its own retail offset (extern in bodyprog/ranking.h), mapped 1:1
+     * so a native pointer value can never leak in. */
+    RA_MAP(0x0C48A0u, D_800C48A0);   /* s16 savegame count       */
+    RA_MAP(0x0C48A2u, D_800C48A2);   /* u16 gameplay hours       */
+    RA_MAP(0x0C48A6u, D_800C48A6);   /* u16 walk distance        */
+    RA_MAP(0x0C48ACu, D_800C48AC);   /* u16 picked-up item count */
+    RA_MAP(0x0C48AEu, D_800C48AE);   /* u8  minutes              */
+    RA_MAP(0x0C48B0u, D_800C48B0);   /* u8  clear-game count     */
+    RA_MAP(0x0C48B2u, D_800C48B2);   /* u8  ending flags         */
+    RA_MAP(0x0C48B4u, D_800C48B4);   /* u8  special-item count   */
+    RA_MAP(0x0C48B5u, D_800C48B5);   /* s8  computed rank/score  */
+    RA_MAP(0x0C48B8u, D_800C48B8);   /* u16 ranged kill count    */
+    RA_MAP(0x0C48BAu, D_800C48BA);   /* u16 melee kill count     */
+    RA_MAP(0x0C48D1u, D_800C48D1);   /* u8  continue count       */
+
+    /* libsd pitch table `u16 PitchTbl[12][128]` (bodyprog/libsd.h, 0xC00). The set
+     * reads 0x800B2214/0x800B2218, inside this const table; the port's copy is
+     * byte-identical so the reads return the genuine retail values. */
+    RA_MAP(0x0B1728u, PitchTbl);
+
+    /* Deliberately NOT mapped (verified 2026-07-31, subagent a93f036f):
+     *  - 0x25740/45/49: an UNNAMED .rodata gap between SFX_PAIRS (ends 0x25320)
+     *    and the 12x16 font table -- not inside SFX_PAIRS (only 0x64 bytes), no
+     *    single named C object to bind. If a real achievement needs it, the culprit
+     *    dump will name it and we resolve that specific object.
+     *  - D_800C4449, MSTACK, dire, load_buf, StFunc1/2, Clear, VWD0: PSY-Q library
+     *    internals (libcd/libgs/libsd) with NO pointer-free port C global. They
+     *    keep reading 0 via the RAM fallback (safe). */
 }
 
 /* First few distinct pages the set touches, hit or miss: reveals which build's
@@ -320,7 +357,8 @@ static void Ra_DumpWorklist(rc_client_t* client)
     const rc_client_game_info_t* game;
     const rc_memrefs_t*          memrefs;
     const rc_memref_list_t*      list;
-    uint32_t seen[RA_WORKLIST_MAX];
+    uint32_t             seen[RA_WORKLIST_MAX];    /* distinct unmapped addresses */
+    const rc_memref_t*   seenRef[RA_WORKLIST_MAX]; /* the memref backing each     */
     uint32_t total    = 0;   /* every memref entry, served or not          */
     uint32_t unserved = 0;   /* raw entries with no backing region          */
     uint32_t distinct = 0;   /* distinct unserved addresses actually logged */
@@ -357,7 +395,9 @@ static void Ra_DumpWorklist(rc_client_t* client)
 
             if (distinct < RA_WORKLIST_MAX)
             {
-                seen[distinct++] = addr;
+                seen[distinct]    = addr;
+                seenRef[distinct] = &list->items[i];
+                distinct++;
                 /* sz is an RC_MEMSIZE_* code, not a byte count -- it tells the
                  * mapper the operand width (8/16/24/32/bit) at this address. */
                 SH_DBG("[RA] worklist UNMAPPED 0x80%06X (memsize=%u)", addr, sz);
@@ -369,7 +409,39 @@ static void Ra_DumpWorklist(rc_client_t* client)
            total, unserved, distinct,
            (distinct >= RA_WORKLIST_MAX) ? " (cap hit -- raise RA_WORKLIST_MAX)" : "");
     if (unserved == 0)
+    {
         SH_DBG("[RA] worklist: table COMPLETE -- every address the set reads is backed");
+        return;
+    }
+
+    /* Name the culprit: for every still-unmapped memref, print which achievement
+     * reads it (rc_trigger_contains_memref is rcheevos' own membership test). This
+     * turns the raw address list into "achievement <title> can't evaluate because
+     * it reads 0xADDR" -- e.g. exactly which unmapped operand is blocking the Split
+     * Head unlock, by name, with no gameplay needed. */
+    {
+        const rc_runtime_t* rt = &game->runtime;
+        uint32_t ti;
+        for (ti = 0; ti < rt->trigger_count; ti++)
+        {
+            const rc_runtime_trigger_t* run = &rt->triggers[ti];
+            uint32_t k;
+            if (!run->trigger)
+                continue;
+            for (k = 0; k < distinct; k++)
+            {
+                if (rc_trigger_contains_memref(run->trigger, seenRef[k]))
+                {
+                    const rc_client_achievement_t* ach =
+                        rc_client_get_achievement_info(client, run->id);
+                    SH_DBG("[RA] culprit: achiev id=%u '%s' reads unmapped 0x80%06X",
+                           (unsigned)run->id,
+                           (ach && ach->title) ? ach->title : "?",
+                           seenRef[k]->address);
+                }
+            }
+        }
+    }
 }
 
 /* ------------------------------------------------------------------------- */
