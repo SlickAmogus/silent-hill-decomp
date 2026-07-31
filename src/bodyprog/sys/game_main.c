@@ -1781,8 +1781,6 @@ void GameState_Boot_Update(void) // 0x80032D1C
             break;
 
         case 2:
-            Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
-            Fs_QueueStartReadTim(FILE_1ST_KONAMI_TIM, FS_BUFFER_1, &g_KonamiLogoImg);
 #ifdef SH_PC_PORT
             /* PSX uploads the 8x8 atlas from main() (main.c:222 via g_MainImg1);
              * the PC build drops that translation unit for main_pc.c, so the page
@@ -1790,7 +1788,16 @@ void GameState_Boot_Update(void) // 0x80032D1C
              * controller-config action names -- rendered as nothing. Queued here
              * rather than in the warning screen because this state runs even with
              * skip_intros set. The TIM has no CLUT block; its palette is baked into
-             * its own bottom row. */
+             * its own bottom row.
+             *
+             * MUST stay ahead of the FONT16 queue below. The two overlap by
+             * design: this atlas covers VRAM (256..319, 496..511) and FONT16's
+             * 16-entry CLUT sits at (304, 511), inside its last row. That is
+             * deliberate PSX packing -- those halfwords are glyph cells 56..63,
+             * which Text_Debug_Draw's toupper() can never index -- but it only
+             * works if FONT16's palette is written LAST. Queued after it, this
+             * atlas overwrote the menu font's palette and every string drawn
+             * through Gfx_StringDraw came out solid magenta. */
             {
                 static const s_FsImageDesc FONT8_ATLAS_IMG = {
                     .tPage = { 0, 20 },
@@ -1802,6 +1809,10 @@ void GameState_Boot_Update(void) // 0x80032D1C
 
                 Fs_QueueStartReadTim(FILE_1ST_FONT8NOC_TIM, FS_BUFFER_1, &FONT8_ATLAS_IMG);
             }
+#endif
+            Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
+            Fs_QueueStartReadTim(FILE_1ST_KONAMI_TIM, FS_BUFFER_1, &g_KonamiLogoImg);
+#ifdef SH_PC_PORT
 
             if (g_PcConfig.skipIntros) {
                 /* Replicate all loads that b_konami.c/b_kcet.c normally handle during logo display */
