@@ -490,12 +490,16 @@ static void RC_CCONV Ra_LoginCallback(int result, const char* error_message,
 
     if (result != RC_OK)
     {
+        char t[96];
         SH_DBG("[RA] login failed: %s. Check ra_username / ra_token / ra_password in silenthill.cfg.",
                error_message ? error_message : "unknown");
+        snprintf(t, sizeof(t), "RA login failed: %s", error_message ? error_message : "check user/password");
+        Ra_Toast(t);
         return;
     }
 
     SH_DBG("[RA] logged in as %s", g_PcConfig.raUsername);
+    { char t[80]; snprintf(t, sizeof(t), "RA: signed in as %s", g_PcConfig.raUsername); Ra_Toast(t); }
 
     if (!g_CdBinPath[0] || g_CdBinPath[0] == 'N') /* "NOT FOUND..." */
     {
