@@ -33,9 +33,11 @@
  */
 #include <string.h>
 #include <stdint.h>
+#include <xboxkrnl/xboxkrnl.h>   /* KeTickCount: kernel ms-since-boot clock */
 
 #include "xa_player.h"   /* the exact prototypes sd_call.c/game_main.c compile against */
 #include "sh_log.h"
+#include "pc_config.h"   /* g_PcConfig.cutsceneLineGapMs (inter-line voice gap) */
 
 /* --- externs ---------------------------------------------------------------*/
 
@@ -129,6 +131,10 @@ static int      s_inUnderrun        = 0;
 static uint32_t s_underrunFrames    = 0;
 static uint32_t s_underrunEpisodes  = 0;
 static uint32_t s_underrunLogged    = 0;
+
+/* Post-voice inter-line gap deadline (KeTickCount ms). Armed at real audio
+ * drain; consumed by Xa_VoiceGapHold below. See that function for rationale. */
+static uint32_t s_xaVoiceGapEndMs   = 0;
 
 /* --- XA-ADPCM decode (ported verbatim from pc_port/src/xa_player.c) --------*/
 
@@ -547,6 +553,7 @@ void XaPlayer_Play(uint16_t xaIdx)
     s_ringRead  = 0;
     s_ringWrite = 0;
     s_inUnderrun = 0;
+    s_xaVoiceGapEndMs = 0;   /* fresh line: no pending inter-line gap */
 
     s_xa.isPlaying = 1;
 
@@ -572,6 +579,9 @@ void XaPlayer_Stop(void)
         SH_DBG("[XA] Stop xaIdx=%u (remaining=%u/%u sectors, ring=%u frames)",
                (unsigned)s_xa.xaIdx, s_xa.remainingSectors, s_xa.totalSectors,
                s_ringWrite - s_ringRead);
+        /* Interrupted mid-line: impose no post-voice inter-line gap. A natural
+         * drain arms the gap via XaPlayer_Update; a hard stop means "move on". */
+        s_xaVoiceGapEndMs = 0;
     }
 
     s_xa.isPlaying = 0;
@@ -603,6 +613,9 @@ void XaPlayer_Update(void)
     if (s_xa.remainingSectors == 0 && s_ringRead == s_ringWrite) {
         SH_DBG("[XA] finished xaIdx=%u (drained)", (unsigned)s_xa.xaIdx);
         s_xa.isPlaying = 0;
+        /* Arm the inter-line gap from the REAL audio end (see Xa_VoiceGapHold).
+         * cutscene_line_gap_ms==0 disables it (the >0 guard in the getter). */
+        s_xaVoiceGapEndMs = (uint32_t)KeTickCount + (uint32_t)g_PcConfig.cutsceneLineGapMs;
         Xa_SignalPlaybackFinished();
     }
 }
@@ -615,6 +628,26 @@ void XaPlayer_Update(void)
 int Xa_IsVoiceAudioDraining(void)
 {
     return s_xa.isPlaying;
+}
+
+/* PSX CD-seek inter-line gap. On PSX the pause between cutscene voice lines came
+ * from BOTH the authored ~J page timers (tuned longer than the voice) AND the CD
+ * seek to the next clip. The Xbox port honours the ~J timers but loads instantly,
+ * so lines whose ~J timer ~= the voice length ran together ("talking over each
+ * other"). s_xaVoiceGapEndMs is armed at the REAL audio-drain moment
+ * (XaPlayer_Update) to KeTickCount + cutscene_line_gap_ms; the cutscene
+ * page-advance gate (map_msg_display.c pcVoiceHold) holds until it elapses.
+ *
+ * This matches the PC mechanism's effect (a MINIMUM silence past the voice's
+ * real end) without the PC's Play-time expMs projection — deriving the gap from
+ * the actual drain avoids the mono/stereo sector-duration ambiguity. It is a
+ * MINIMUM only: the page still requires mapMsgTimer==0, so a line whose authored
+ * ~J gap already exceeds cutscene_line_gap_ms is UNTOUCHED. NOT the reverted
+ * blanket +533ms pad (that extended every line and desynced Flauros). */
+int Xa_VoiceGapHold(void)
+{
+    return g_PcConfig.cutsceneLineGapMs > 0 && s_xaVoiceGapEndMs != 0 &&
+           (uint32_t)KeTickCount < s_xaVoiceGapEndMs;
 }
 
 void XaPlayer_SetVolume(int16_t volLeft, int16_t volRight)

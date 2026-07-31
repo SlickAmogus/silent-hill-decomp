@@ -118,6 +118,7 @@ $(DECOMP)/src/bodyprog/gfx/bodyprog_80040B74.obj:  CFLAGS   += $(SH_OPT)
 $(DECOMP)/src/bodyprog/gfx/world_draw.obj:         CFLAGS   += $(SH_OPT)
 $(XBOX_PORT)/src/gpu_xbox.obj:                     CFLAGS   += $(SH_OPT)
 $(XBOX_PORT)/src/gpu_nv2a.obj:                     CFLAGS   += $(SH_OPT)
+$(XBOX_PORT)/src/pgxp_xbox.obj:                    CFLAGS   += $(SH_OPT)
 # HAL decode hotspots — hand-written C, NOT machine-decompiled MIPS, so they carry
 # none of the cross-static / stack-adjacency / arg-eval UB that makes decomp files
 # risky at -O2; the only idioms they use (VRAM ARGB type-punning, fixed-point pitch
@@ -249,6 +250,7 @@ XBOX_SRCS = \
 	$(XBOX_PORT)/src/sh_log_xbox.c \
 	$(XBOX_PORT)/src/fs_xbox.c \
 	$(XBOX_PORT)/src/pgxp_stub.c \
+	$(XBOX_PORT)/src/pgxp_xbox.c \
 	$(XBOX_PORT)/src/gte_selftest.c \
 	$(XBOX_PORT)/src/gpu_nv2a.c \
 	$(XBOX_PORT)/src/gpu_xbox.c \

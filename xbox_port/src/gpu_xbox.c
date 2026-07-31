@@ -66,6 +66,13 @@ static int         s_curBlend = -1;   /* current blend-enable state (dedup) */
  * Reset per DrawOTag to the draw-env default. */
 static int         s_curTpage = 0;
 
+/* PGXP (texture-only, default OFF; pgxp_xbox.c). g_PsxUsePgxp is the config
+ * master flag; Pgxp_GetPreciseVertex resolves a prim vertex-word address to the
+ * precise sub-pixel screen X/Y + per-vertex W the software GTE recorded. Every
+ * use is gated on g_PsxUsePgxp so the OFF path is byte-identical to affine. */
+extern int  g_PsxUsePgxp;
+extern int  Pgxp_GetPreciseVertex(const void* addr, unsigned value, float* ox, float* oy, float* ow);
+
 /* World fog colour, fed per-frame from fog.color by game_main.c (InGame). The
  * SH_PC_PORT build strips PSX vertex-colour fog and instead writes per-vertex
  * fog factors (0..127) into the GT-prim pad bytes for the renderer to consume
@@ -105,6 +112,7 @@ static void PutVert(ShVertex* v, int x, int y, int r, int g, int b)
     v->pos[0] = ((float)x + s_ofsX) * s_scaleX + (float)g_Nv2aContentX;
     v->pos[1] = ((float)y + s_ofsY) * s_scaleY;
     v->pos[2] = 0.0f;
+    v->pos[3] = 1.0f;   /* affine W (VS divides screen pos by this); PGXP overrides */
     v->col[0] = (float)r * (1.0f / 255.0f);
     v->col[1] = (float)g * (1.0f / 255.0f);
     v->col[2] = (float)b * (1.0f / 255.0f);
@@ -125,6 +133,7 @@ static void PutVertUV(ShVertex* v, int x, int y, int r, int g, int b, int u, int
     v->pos[0] = ((float)x + s_ofsX) * s_scaleX + (float)g_Nv2aContentX;
     v->pos[1] = ((float)y + s_ofsY) * s_scaleY;
     v->pos[2] = 0.0f;
+    v->pos[3] = 1.0f;   /* affine W (VS divides screen pos by this); PGXP overrides */
     r <<= 1; if (r > 255) r = 255;
     g <<= 1; if (g > 255) g = 255;
     b <<= 1; if (b > 255) b = 255;
@@ -136,6 +145,26 @@ static void PutVertUV(ShVertex* v, int x, int y, int r, int g, int b, int u, int
     v->tex[1] = (float)tv;
     v->spec[0] = 0.0f; v->spec[1] = 0.0f; v->spec[2] = 0.0f; v->spec[3] = 0.0f;
     TrackBB(v);
+}
+
+/* PGXP resolve (texture-only): overwrite an already-filled vertex's screen X/Y
+ * with the software GTE's precise sub-pixel projection and set its per-vertex W
+ * so the NV2A interpolates this prim's texture perspective-correct. `xyAddr` is
+ * &prim->xN - the packed s16 x|y word that the shared drawer's SH_PGXP_PROP
+ * macro keyed with Shadow_Copy - so *(u32*)xyAddr is the exact validation token.
+ * A miss (untracked / behind near plane) leaves the affine vertex PutVert*
+ * produced (pos[3] stays 1.0). Only ever called when g_PsxUsePgxp; when off this
+ * is never reached and the emit is byte-identical to the legacy renderer. The
+ * transform mirrors PutVert/PutVertUV exactly so precise and affine verts of the
+ * same poly land in one space (no cross-vertex smear from a coordinate mismatch). */
+static void PgxpApplyVert(ShVertex* v, const void* xyAddr)
+{
+    float px, py, pw;
+    if (Pgxp_GetPreciseVertex(xyAddr, *(const unsigned*)xyAddr, &px, &py, &pw)) {
+        v->pos[0] = (px + s_ofsX) * s_scaleX + (float)g_Nv2aContentX;
+        v->pos[1] = (py + s_ofsY) * s_scaleY;
+        v->pos[3] = pw;   /* > 0 -> HW perspective-correct interpolation */
+    }
 }
 
 /* Per-vertex distance fog: fold (1-f) into the diffuse, put fogColor*f into the
@@ -255,6 +284,12 @@ static int ProcessPoly(P_TAG* tag)
         PutVertUV(&v[1], p->x1, p->y1, p->r0, p->g0, p->b0, p->u1, p->v1);
         PutVertUV(&v[2], p->x2, p->y2, p->r0, p->g0, p->b0, p->u2, p->v2);
         if (quad) PutVertUV(&v[3], p->x3, p->y3, p->r0, p->g0, p->b0, p->u3, p->v3);
+        if (g_PsxUsePgxp) {
+            PgxpApplyVert(&v[0], &p->x0);
+            PgxpApplyVert(&v[1], &p->x1);
+            PgxpApplyVert(&v[2], &p->x2);
+            if (quad) PgxpApplyVert(&v[3], &p->x3);
+        }
     } else if (gouraud && !textured) {
         /* POLY_G3 / POLY_G4 */
         POLY_G4* p = (POLY_G4*)tag;
@@ -289,6 +324,12 @@ static int ProcessPoly(P_TAG* tag)
             ApplyFog(&v[1], p4->p1);
             ApplyFog(&v[2], p4->p2);
             ApplyFog(&v[3], p4->p3);
+            if (g_PsxUsePgxp) {
+                PgxpApplyVert(&v[0], &p4->x0);
+                PgxpApplyVert(&v[1], &p4->x1);
+                PgxpApplyVert(&v[2], &p4->x2);
+                PgxpApplyVert(&v[3], &p4->x3);
+            }
         } else {
             s_curTpage = blendTpage = p3->tpage;
             {
@@ -303,6 +344,11 @@ static int ProcessPoly(P_TAG* tag)
             ApplyFog(&v[0], p3->p1);
             ApplyFog(&v[1], p3->p1);
             ApplyFog(&v[2], p3->p2);
+            if (g_PsxUsePgxp) {
+                PgxpApplyVert(&v[0], &p3->x0);
+                PgxpApplyVert(&v[1], &p3->x1);
+                PgxpApplyVert(&v[2], &p3->x2);
+            }
         }
     }
 

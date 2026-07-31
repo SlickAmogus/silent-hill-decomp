@@ -429,40 +429,12 @@ int PsyX_PGXP_QuadBackface(const void* a0, const void* a1, const void* a2, const
     return (intN012 <= 0 && intN312 >= 0) ? 1 : 0;
 }
 
-/* Shadow_Store/VShadow_Store are called unconditionally from PsyX_GTE.cpp's
- * PGXP_StoreAddr (compiled on Xbox) whenever the gte_stsxy* macros fire, but
- * PGXP_StoreAddr itself only calls them behind `if (g_PsxUsePgxp)` /
- * `if (g_PsyX_UsePerPixelFlashlight || g_PsxUsePgxp)` - both 0 on Xbox - so
- * in practice these bodies never execute. Shadow_Copy IS called
- * unconditionally from shared drawer code (water.c, bodyprog_80055028.c,
- * libgs_stub.c) every time a screen vertex is copied into a prim, with no
- * flag gate at the call site, so it must be a safe, always-callable no-op
- * (which is exactly what the real Shadow_Copy reduces to when both
- * g_PsxUsePgxp and g_PsyX_UsePerPixelFlashlight are 0, per PsyX_GPU.cpp). No
- * shadow table is implemented since nothing compiled on Xbox ever reads one
- * back (Shadow_Get/Vs_Get are GL-renderer-only and excluded). */
-void Shadow_Store(void* addr, float x, float y, float w, unsigned int value)
-{
-    (void)addr;
-    (void)x;
-    (void)y;
-    (void)w;
-    (void)value;
-}
-
-void VShadow_Store(void* addr, float x, float y, float z)
-{
-    (void)addr;
-    (void)x;
-    (void)y;
-    (void)z;
-}
-
-void Shadow_Copy(void* dst, const void* src)
-{
-    (void)dst;
-    (void)src;
-}
+/* Shadow_Store / VShadow_Store / Shadow_Copy now have REAL implementations in
+ * pgxp_xbox.c (the texture-only NV2A PGXP shadow table). They used to be no-op
+ * stubs here because no NV2A resolve existed; the table + Pgxp_GetPreciseVertex
+ * draw-time resolve (gpu_xbox.c) turned them live. Everything is still gated on
+ * g_PsxUsePgxp (default 0), so PGXP off remains byte-identical to affine.
+ * Defining them here too would be a duplicate symbol, so they are gone. */
 
 /* GTE projection-center constants PsyX_GTE.cpp writes every RTPS/RTPT call,
  * but only inside the same `if (g_PsxUsePgxp)` block as the Shadow_Store

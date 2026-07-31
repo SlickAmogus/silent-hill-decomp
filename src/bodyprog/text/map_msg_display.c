@@ -317,9 +317,21 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
              * restores the authored pacing while still preventing PC's instant
              * next-line SD_Call from cutting a live voice. */
             extern int Xa_IsVoiceAudioDraining(void);
+#ifdef SH_XBOX_PORT
+            /* Also hold through the post-voice inter-line gap
+             * (cutscene_line_gap_ms) so tightly-timed lines get the PSX CD-seek
+             * pause instead of the next voice firing back-to-back. MINIMUM only:
+             * mapMsgTimer==0 is still required below, so a line whose authored
+             * ~J timer already exceeds the gap is unaffected (Flauros-safe). */
+            extern int Xa_VoiceGapHold(void);
+#endif
             const int pcVoiceHold =
                 (g_SysWork.bgmStatusFlags & BgmStatusFlag_VoiceDialog) &&
-                Xa_IsVoiceAudioDraining();
+                (Xa_IsVoiceAudioDraining()
+#ifdef SH_XBOX_PORT
+                 || Xa_VoiceGapHold()
+#endif
+                );
 #endif
             temp_s1 = stateMachineIdx0;
             if (temp_s1 == NO_VALUE)

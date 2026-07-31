@@ -11,7 +11,7 @@
  * offsets are unchanged. */
 #pragma pack(1)
 typedef struct {
-    float pos[3];
+    float pos[4];   /* xyz window-space; pos[3]=W (1.0=affine; PGXP feeds real W for perspective-correct interpolation) */
     float col[4];
     float tex[2];
     float spec[4];

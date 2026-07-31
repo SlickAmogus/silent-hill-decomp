@@ -66,6 +66,10 @@ static int s_frameW, s_frameH;
 /* Frame counter for gpu_xbox.c's render census (frame-boundary detection). */
 int g_Nv2aFrameCount = 0;
 
+/* PGXP master flag (pgxp_stub.c, config-driven). Read only to gate the per-frame
+ * shadow-table generation bump in FrameEnd; 0 (default) makes that a no-op. */
+extern int g_PsxUsePgxp;
+
 static void GpuNv2a_SetRenderState(void);
 static void SetAttribPointer(unsigned index, unsigned size, const void* data);
 static void GpuNv2a_FlushBatch(void);
@@ -312,7 +316,11 @@ void GpuNv2a_FrameBegin(void)
             *(p++) = 2;
         pb_end(p);
 
-        SetAttribPointer(0, 3, &s_batch[0].pos);
+        /* Position is size 4 (x,y,z,w): the vs passes I.pos.w to o.pos.w, which
+         * the NV2A uses for perspective-correct varying interpolation. w==1 for
+         * every non-PGXP vertex (PutVert/PutVertUV) = affine, identical to the old
+         * size-3 default; PGXP writes the real per-vertex view depth into pos[3]. */
+        SetAttribPointer(0, 4, &s_batch[0].pos);
         SetAttribPointer(3, 4, &s_batch[0].col);
         SetAttribPointer(4, 4, &s_batch[0].spec);  /* per-vertex fog term */
         SetAttribPointer(9, 2, &s_batch[0].tex);
@@ -325,6 +333,15 @@ void GpuNv2a_FrameEnd(void)
 
     tFlush = (unsigned)KeTickCount;      /* ms clock (1ms resolution) */
     GpuNv2a_FlushBatch();   /* draw the frame's final run before we present */
+
+    /* PGXP: advance the shadow-table generation once per frame. By here every
+     * DrawOTag of the frame has resolved its precise vertices and the next
+     * frame's GTE stores have not started, so this is the clean frame boundary
+     * that stales last frame's entries (pgxp_xbox.c). No-op when PGXP is off. */
+    if (g_PsxUsePgxp) {
+        extern void Pgxp_FrameAdvance(void);
+        Pgxp_FrameAdvance();
+    }
 
     /* Remember this frame's surface for the framebuffer readback BEFORE
      * pb_finished() advances pb_back_index (pb_back_buffer() then points at the

@@ -233,6 +233,7 @@ static void Fmv_DrawFrame(const uint32_t* tex, int w, int h)
         v[i].col[1] = 1.0f;
         v[i].col[2] = 1.0f;
         v[i].col[3] = 1.0f;
+        v[i].pos[3] = 1.0f;   /* affine W (ShVertex grew a W; memset left it 0 -> div-by-0 quad) */
     }
     v[0].pos[0] = x0; v[0].pos[1] = y0; v[0].tex[0] = 0.0f;     v[0].tex[1] = 0.0f;
     v[1].pos[0] = x1; v[1].pos[1] = y0; v[1].tex[0] = (float)w; v[1].tex[1] = 0.0f;

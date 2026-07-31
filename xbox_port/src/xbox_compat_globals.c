@@ -96,8 +96,12 @@ void XboxConfig_ApplyOverrides(void)
      * multi-day session to 136 MB). log_diag=1 restores the full stream. */
     { extern int g_XboxLogDiag; g_XboxLogDiag = g_PcConfig.logDiag; }
 
+    /* PGXP is now the opt-in texture-only NV2A path (pgxp_xbox.c): honour the
+     * loaded use_pgxp (default 0) instead of force-disabling, and mirror it into
+     * the GTE runtime master flag exactly as the PC boot does. */
+    { extern int g_PsxUsePgxp; g_PsxUsePgxp = g_PcConfig.usePgxp ? 1 : 0; }
+
     /* --- GL-shader features with no NV2A implementation. --- */
-    g_PcConfig.usePgxp            = 0;
     g_PcConfig.perPixelFlashlight = 0;
     g_PcConfig.flashlightShadows  = 0; /* PC 1 */
     g_PcConfig.flashlightMode     = 0; /* Classic (PSX) */

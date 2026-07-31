@@ -67,6 +67,7 @@ s_PcConfig g_PcConfig = {
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
     .xboxVideo720p       = 0,    /* Xbox: 480p by default (720p costs texture-cache RAM) */
     .logDiag             = 0,    /* Xbox: quiet log by default (per-frame diag probes gated; log_diag=1 restores) */
+    .cutsceneLineGapMs   = 300,  /* min ms between cutscene voice lines (PSX inter-line pause); tune down if it re-desyncs */
     .audioOutput         = 0,    /* auto: OpenAL detects the system speaker layout */
     .fpsFov              = 71.1f, /* first-person FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
     .tpsFov              = 71.1f, /* thirdperson/OTS FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
@@ -687,6 +688,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "log_diag") == 0)
         {
             g_PcConfig.logDiag = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "cutscene_line_gap_ms") == 0)
+        {
+            g_PcConfig.cutsceneLineGapMs = atoi(value);
         }
         else if (strcmp(key, "mouse_cursor") == 0)
         {

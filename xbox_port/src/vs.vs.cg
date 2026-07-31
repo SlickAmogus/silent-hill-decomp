@@ -32,7 +32,7 @@ vOut main(vIn I)
 	o.pos.x = I.pos.x;
 	o.pos.y = I.pos.y;
 	o.pos.z = I.pos.z;
-	o.pos.w = 1.0;
+	o.pos.w = I.pos.w;
 	o.col   = I.col;
 	o.spec  = I.spec;
 	o.tex0  = I.tex;
