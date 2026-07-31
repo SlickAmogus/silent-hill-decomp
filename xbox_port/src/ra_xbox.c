@@ -448,6 +448,14 @@ static void Ra_DumpWorklist(rc_client_t* client)
  * that CAN still fire on this console (already-unlocked ones are inert here); the
  * UNLK lines name what the account already has, so a PC-earned unlock is never
  * mistaken for proof of the Xbox path. */
+/* A sample achievement (first one with a badge in the roster) captured at load, so
+ * the Xbox-Options "RetroAchievements" action can fire a full MOCK unlock card --
+ * real badge image + card text -- on demand, to preview/prove the notification UI
+ * without waiting for a real unlock. */
+static char     s_sampleTitle[64];
+static char     s_sampleBadge[16];
+static unsigned s_samplePoints;
+
 static void Ra_DumpRoster(rc_client_t* client)
 {
     rc_client_achievement_list_t* list;
@@ -472,6 +480,18 @@ static void Ra_DumpRoster(rc_client_t* client)
             const int isUnlocked =
                 (ac->state == RC_CLIENT_ACHIEVEMENT_STATE_UNLOCKED) || ac->unlocked;
             if (isUnlocked) unlocked++; else locked++;
+
+            /* Keep the first achievement that has a badge as the menu self-test
+             * sample (real title + points + badge image). */
+            if (!s_sampleBadge[0] && ac->badge_name[0])
+            {
+                strncpy(s_sampleTitle, ac->title ? ac->title : "Achievement",
+                        sizeof(s_sampleTitle) - 1);
+                s_sampleTitle[sizeof(s_sampleTitle) - 1] = '\0';
+                strncpy(s_sampleBadge, ac->badge_name, sizeof(s_sampleBadge) - 1);
+                s_sampleBadge[sizeof(s_sampleBadge) - 1] = '\0';
+                s_samplePoints = (unsigned)ac->points;
+            }
             SH_DBG("[RA] ach %s id=%u %up '%s'",
                    isUnlocked ? "UNLK" : "lock",
                    (unsigned)ac->id, (unsigned)ac->points,
@@ -620,7 +640,6 @@ static void RC_CCONV Ra_Fr_Close(void* h)
 static rc_client_t* s_client;
 static int          s_active;      /* set loaded and evaluating */
 static int          s_enabled;     /* configured, credentialed, client created */
-static int          s_selfTestDone;/* in-game notification self-test fired once */
 static char         s_status[64];
 
 static void Ra_Toast(const char* line)
@@ -645,34 +664,43 @@ static void Ra_RefreshStatus(void)
              (unsigned)summary.points_unlocked);
 }
 
+/* The ONE unlock-notification path: chime + on-screen CARD (badge image top-left,
+ * title + "Unlocked - N points" beside it, ~5 s) + the D: log line. Shared by a
+ * real RC_CLIENT_EVENT_ACHIEVEMENT_TRIGGERED and the menu self-test so they render
+ * identically. Badge fetch is a BLOCKING one-shot (a brief hitch, fine on a rare
+ * unlock or a deliberate menu press). */
+static void Ra_ShowUnlock(const char* title, unsigned points, const char* badge_name)
+{
+    extern void DbgOverlay_XboxUnlock(const char* title, unsigned points);
+    extern int  RaBadge_Fetch(const char*);
+
+    Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+    DbgOverlay_XboxUnlock(title ? title : "Achievement", points);
+    SH_DBG("[RA] UNLOCK card '%s' (%u pts) badge=%s",
+           title ? title : "?", points,
+           (badge_name && badge_name[0]) ? badge_name : "-");
+    if (badge_name && badge_name[0])
+        RaBadge_Fetch(badge_name);
+}
+
 static void RC_CCONV Ra_EventHandler(const rc_client_event_t* event, rc_client_t* client)
 {
     char line[128];
     (void)client;
+    (void)line;
 
     switch (event->type)
     {
     case RC_CLIENT_EVENT_ACHIEVEMENT_TRIGGERED:
-        /* Trophy chime: the game's own positive "confirm" cue (Sfx_MenuConfirm,
-         * in the persistent BASE.VAB). This handler only runs from
-         * rc_client_do_frame in settled gameplay (main thread, SPU pumping), so a
-         * direct Sd_PlaySfx is safe and needs ZERO new asset. Already-unlocked
-         * achievements loaded at boot do NOT fire this event, so no spurious ding. */
-        Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-
-        /* Two distinctly-formatted lines (banner + title) so an unlock never reads
-         * like the plain status lines that also flow through Ra_Toast. */
-        Ra_Toast("* * ACHIEVEMENT UNLOCKED * *");
-        snprintf(line, sizeof(line), "%s  (%u pts)",
-                 event->achievement->title, (unsigned)event->achievement->points);
-        Ra_Toast(line);
+        /* Real unlock: the full card (chime + badge image + title/points, ~5 s),
+         * then refresh the X/Y summary. This handler only runs from
+         * rc_client_do_frame in settled gameplay (main thread, SPU pumping), so the
+         * chime + blocking badge fetch inside Ra_ShowUnlock are safe. Already-
+         * unlocked achievements loaded at boot do NOT fire this event. */
+        Ra_ShowUnlock(event->achievement->title,
+                      (unsigned)event->achievement->points,
+                      event->achievement->badge_name);
         Ra_RefreshStatus();
-
-        /* Badge image: fetch + decode + upload the unlock icon and arm the
-         * on-screen quad (ra_badge_xbox.c). BLOCKING one-shot on the main thread;
-         * a brief hitch on unlock is fine (rare, settled gameplay). Any failure is
-         * a silent skip - the chime + toast above already fired. */
-        { extern int RaBadge_Fetch(const char*); RaBadge_Fetch(event->achievement->badge_name); }
         break;
 
     case RC_CLIENT_EVENT_GAME_COMPLETED:
@@ -877,20 +905,6 @@ void Pc_Ra_Update(void)
         g_GameWork.gameState == GameState_InGame &&
         g_SysWork.sysState   == SysState_Gameplay)
     {
-        /* One-shot in-game proof of the NOTIFICATION path: fire the exact chime +
-         * a toast a real unlock uses, the first time settled gameplay is reached.
-         * The boot-time "signed in" toast fades during the logos (the overlay only
-         * draws from GameState_MainMenu on), so it is never seen -- this fires
-         * where a real unlock would, on the SPU-pumping main thread. If the user
-         * sees the line and hears the ding, the unlock DISPLAY/audio path works
-         * independent of whether any achievement's CONDITIONS are yet satisfied. */
-        if (!s_selfTestDone)
-        {
-            s_selfTestDone = 1;
-            Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-            Ra_Toast("RetroAchievements ready - unlocks show here");
-            SH_DBG("[RA] self-test: in-game toast+chime fired (notification path live)");
-        }
         rc_client_do_frame(s_client);
     }
     else
@@ -928,9 +942,12 @@ const char* Pc_Ra_StatusLine(void)
     return s_status;
 }
 
-/* Menu action (Xbox Options "RetroAchievements" row): toast the current login
- * state so the user can check it from the menu without the D: log. Routes through
- * Ra_Toast -> g_ShOverlayToastLine (wired to DbgOverlay_XboxToast). */
+/* Menu action (Xbox Options "RetroAchievements" row). When signed in with the set
+ * loaded, this doubles as an on-demand SELF-TEST: it fires a full mock unlock card
+ * -- a real achievement's badge image + "Title / Unlocked - N points" -- so the
+ * notification UI can be previewed and proven any time from the menu, without
+ * waiting for a real unlock. When not signed in / RA off / set not yet loaded, it
+ * falls back to a plain status toast. */
 void Pc_Ra_StatusToast(void)
 {
     const rc_client_user_t* user;
@@ -943,17 +960,28 @@ void Pc_Ra_StatusToast(void)
     }
 
     user = s_client ? rc_client_get_user_info(s_client) : NULL;
-    if (user)
+    if (!user)
+    {
+        Ra_Toast("RA: not signed in");
+        return;
+    }
+
+    SH_DBG("[RA] menu self-test: signed in as %s (%u pts softcore), set=%s",
+           user->username ? user->username : "?",
+           (unsigned)user->score_softcore, s_active ? "loaded" : "not loaded");
+
+    if (s_active && s_sampleBadge[0])
+    {
+        /* Full notification preview: same path a real unlock takes. */
+        Ra_ShowUnlock(s_sampleTitle, s_samplePoints, s_sampleBadge);
+    }
+    else
     {
         const char* nm = (user->display_name && user->display_name[0]) ? user->display_name
                        : (user->username ? user->username : "?");
         snprintf(line, sizeof(line), "RA: signed in as %s (%u pts)",
                  nm, (unsigned)user->score_softcore);
         Ra_Toast(line);
-    }
-    else
-    {
-        Ra_Toast("RA: not signed in");
     }
 }
 

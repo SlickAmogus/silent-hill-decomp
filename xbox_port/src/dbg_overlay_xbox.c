@@ -82,6 +82,25 @@ static char     s_toast[TOAST_MAX][TOAST_LINE_LEN];
 static uint32_t s_pushMs[TOAST_MAX];
 static int      s_count = 0;
 
+/* --- unlock card (RetroAchievements) --------------------------------------
+ * A richer notification than a plain toast, matching the PC popup: the badge
+ * IMAGE (drawn by ra_badge_xbox.c as a direct NV2A quad, top-left) with two text
+ * lines to its RIGHT -- line 1 the achievement title, line 2 "Unlocked - N
+ * points" -- held ~5 s. The badge lives in 640x480 quad space at x[16..72];
+ * the font is 320x240, so x=44 (=88/640) clears the badge with a small gap. */
+#define UNLOCK_TEXT_X       44      /* 320-space; just right of the 640-space badge */
+#define UNLOCK_LINE1_Y      20      /* aligns with the badge top (640 y40 = 320 y20) */
+#define UNLOCK_LINE2_Y      36
+#define UNLOCK_DRAW_GLYPHS  26      /* fits x44..~310 without spilling off the right  */
+#define UNLOCK_HOLD_MS      4600u
+#define UNLOCK_FADE_MS      700u
+#define UNLOCK_LIFE_MS      (UNLOCK_HOLD_MS + UNLOCK_FADE_MS)  /* >= 5 s on screen */
+
+static char     s_unlockL1[TOAST_LINE_LEN];  /* title                     */
+static char     s_unlockL2[TOAST_LINE_LEN];  /* "Unlocked - N points"     */
+static uint32_t s_unlockPushMs;
+static int      s_unlockActive = 0;
+
 /* Copy `src` into `dst` mapped to what the 12x16 atlas can actually render:
  *   - real space (0x20)      -> '_'  (the drawer treats '_' as a space advance)
  *   - '!' and '&'            -> kept ('!' -> '\\', '&' -> '^' inside the drawer)
@@ -132,6 +151,37 @@ void DbgOverlay_XboxToast(const char* line)
     s_count++;
 }
 
+/* Arm the RetroAchievements unlock card: title on line 1, "Unlocked - N points"
+ * on line 2, both drawn to the right of the badge for ~5 s. The caller
+ * (ra_xbox.c) separately kicks the badge image (RaBadge_Fetch). */
+void DbgOverlay_XboxUnlock(const char* title, unsigned points)
+{
+    char buf[TOAST_LINE_LEN];
+    int  n;
+
+    Toast_Sanitize(s_unlockL1, (title && title[0]) ? title : "Achievement");
+
+    n = 0;
+    {   /* "Unlocked - N points" (avoid snprintf %u locale surprises: build it plain) */
+        const char* pre = "Unlocked - ";
+        char        num[12];
+        int         d = 0, j;
+        unsigned    p = points;
+        while (*pre && n < (int)sizeof(buf) - 1) buf[n++] = *pre++;
+        if (p == 0) num[d++] = '0';
+        else { char tmp[12]; int t = 0; while (p && t < 11) { tmp[t++] = (char)('0' + (p % 10)); p /= 10; }
+               for (j = t - 1; j >= 0; j--) num[d++] = tmp[j]; }
+        for (j = 0; j < d && n < (int)sizeof(buf) - 1; j++) buf[n++] = num[j];
+        { const char* suf = (points == 1) ? " point" : " points";
+          while (*suf && n < (int)sizeof(buf) - 1) buf[n++] = *suf++; }
+        buf[n] = '\0';
+    }
+    Toast_Sanitize(s_unlockL2, buf);
+
+    s_unlockPushMs = (uint32_t)KeTickCount;
+    s_unlockActive = 1;
+}
+
 /* Per-frame: expire finished lines, then draw the survivors top-left. Called
  * from the MainLoop draw path (game_main.c) after OT0 is drawn and before OT2
  * is walked, so the text lands in OT2 on top of the world in EVERY game state
@@ -159,7 +209,7 @@ void DbgOverlay_XboxRender(void)
     }
     s_count = w;
 
-    if (s_count == 0)
+    if (s_count == 0 && !s_unlockActive)
         return; /* nothing live — cheap no-op (also the safe early-boot path) */
 
     for (i = 0; i < s_count; i++)
@@ -179,5 +229,32 @@ void DbgOverlay_XboxRender(void)
         /* Glyph budget bounds packet use / off-screen spill; the line is NUL-
          * terminated so short lines stop early anyway. */
         Gfx_StringDraw(s_toast[i], TOAST_DRAW_GLYPHS);
+    }
+
+    /* RA unlock card: two lines to the RIGHT of the badge image (the badge quad
+     * itself is emitted by RaBadge_RenderDirect at present time). Held ~5 s, then
+     * a short colour-stepped fade like the toasts. */
+    if (s_unlockActive)
+    {
+        uint32_t age = now - s_unlockPushMs;
+
+        if (age >= UNLOCK_LIFE_MS)
+        {
+            s_unlockActive = 0;
+        }
+        else
+        {
+            short c = (age < UNLOCK_HOLD_MS)                    ? TOAST_COLOR_BRIGHT
+                    : (age < UNLOCK_HOLD_MS + (UNLOCK_FADE_MS / 2)) ? TOAST_COLOR_DIM
+                    :                                            TOAST_COLOR_FAINT;
+
+            Gfx_StringSetColor(c);
+            Gfx_StringSetPosition(UNLOCK_TEXT_X, UNLOCK_LINE1_Y);
+            Gfx_StringDraw(s_unlockL1, UNLOCK_DRAW_GLYPHS);
+
+            Gfx_StringSetColor(c);
+            Gfx_StringSetPosition(UNLOCK_TEXT_X, UNLOCK_LINE2_Y);
+            Gfx_StringDraw(s_unlockL2, UNLOCK_DRAW_GLYPHS);
+        }
     }
 }

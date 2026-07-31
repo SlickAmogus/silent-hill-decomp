@@ -64,9 +64,10 @@ extern int g_Nv2aContentX, g_Nv2aContentW, g_Nv2aContentH;
  * (128*128*4 = 64 KB of contiguous WC memory, allocated once). */
 #define BADGE_MAX_DIM   128
 
-/* How long the badge stays on screen after an unlock (ms). Matched to the toast
- * text lifetime (dbg_overlay_xbox.c ~3.3 s) so image + text fade out together. */
-#define BADGE_SHOW_MS   3300u
+/* How long the badge stays on screen after an unlock (ms). Matched to the unlock
+ * CARD lifetime (dbg_overlay_xbox.c UNLOCK_LIFE_MS = 5300) so the image and its
+ * text fade out together. */
+#define BADGE_SHOW_MS   5300u
 
 static uint32_t* s_badgeTex;        /* reusable A8R8G8B8 GPU texture (128x128 cap) */
 static int       s_badgeW;          /* current badge dims (texels)                */
