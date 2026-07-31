@@ -1747,3 +1747,88 @@ checksum over every file in three test sets.
   consistently across all three sets, but vendoring it means a multi-file,
   multi-arch C library, against this repo's single-header convention — NOT
   shipped; revisit if PNG packs become a hot path.
+
+## Alt-camera view-matrix ordering + RA-toast blend equation (2026-07-30, commit `a2af0b907`)
+
+Two user reports that looked like one camera bug and are not.
+
+### Mall TV screens track the view under any alternate camera
+
+`map4_s03`'s TV bank is not textured world geometry — `func_800D7718`
+(`map4_s03.c:3951`) snapshots the global world→screen matrix through
+`Vw_WorldScreenMatrixAtPositionGet` (`vw_calc.c:505`, reads `GsWSMATRIX`), loads it
+into the GTE, and `func_800D88C8` (`:4676`) `RotTransPers`es each corner at `:4715`
+and writes **finished 2D screen pixels** straight into the `POLY_FT4` at `:4731`
+before `AddPrim` at `:4747`. The quads are frozen against whatever matrix was live
+at bake time; the cabinets added alongside via `WorldGfx_ObjectAdd` (`:3975`) are
+merely queued in world space and reprojected later, at draw.
+
+That bake runs from `g_MapOverlayHdr.func_44`, which sat **above** the PC-port
+`DebugCamera_Update()` call in `GameState_InGame_Update`. `DebugCamera_Update` →
+`Pc_TpsCamera_Apply` ends with `Vw_SetLookAtMatrix` + `vwSetViewInfo()`
+(`game_main.c:991-992`), which re-publishes `GsWSMATRIX`. So per frame:
+classic camera published → TV quads baked with it → alt camera overwrites the
+matrix → everything else draws with the alt camera. The screens kept the classic
+camera's projection and stayed glued to the view. Under Classic nothing
+re-publishes, producer and consumer agree, and the bug cannot appear.
+
+Fix: move `DebugCamera_Update()` above the `func_44` dispatch — a matrix producer
+belongs before its consumers. Also fixes the same skew for a non-default
+`tps_fov`/`fps_fov`: `Pc_CameraFov_Update`'s `SetGeomScreen(h)` (`game_main.c:323`)
+is reached only from inside `Pc_TpsCamera_Apply`, so it sat on the same wrong side
+and the quads were baked with the wrong projection distance H too.
+
+**Scope (corrected — the commit message overstates this).** `func_44` is non-NULL
+in exactly three map headers. Only **map4_s03** and **map7_s03** straddle the
+window: map7_s03 via `func_800E9874` → `func_800D917C` → `func_800D90C8` →
+`Vw_WorldScreenMatrixAtPositionGet` (`map7_s03_2.c:1882`), reachable only during
+the final boss (`D_800F4820 != 0`), where alt cams may stand down — mechanically
+affected, symptom possibly unreachable. **map6_s02 is NOT affected**: its `func_44`
+is `func_800D1AE4` (`map6_s02_2.c:1149`), pure flashlight/light-vector math. The
+`Vw_WorldScreenMatrixAtPositionGet` at `map6_s02_2.c:1506` belongs to
+`func_800D2364`, wired to the **`.func_A8`** slot (`map6_s02_header.c:77`) and
+dispatched from `func_8005E89C`, already downstream of the camera apply.
+Likewise `map7_s03_2.c:4371`/`:4456` are in `func_800DD6CC`, the boss-*character*
+draw path (callers `incubus.c` / `unknown23.c`), not a `func_44` site.
+
+Regression history: the ordering was **correct** at `3583772df` (the March chase
+cam applied above `func_44`). `7ee17d07c` (2026-03-20) deleted that correctly-ordered
+apply, leaving only the debug-only free cam below `func_44` — unreported.
+`3d278fc44` (2026-06-22) then promoted TPS to a user-facing mode but routed it
+through `Pc_TpsCamera_Apply` **inside** `DebugCamera_Update`, i.e. re-instated the
+apply on the wrong side. `3d278fc44` is the regression commit for the symptom.
+
+### RetroAchievements toast renders as a solid black slab
+
+`Pc_RaToast_Draw` saved and set blend *enable*, blend *func*, depth, cull, program,
+VAO/VBO, texture, active unit and unpack alignment — but never the blend
+**equation**. `PsyX_render.cpp:4436`
+(`glBlendEquationSeparate(blendMode == BM_SUBTRACT ? GL_FUNC_REVERSE_SUBTRACT : GL_FUNC_ADD, GL_FUNC_ADD)`)
+is the only equation writer in the whole build, and it never restores `GL_FUNC_ADD`:
+`GR_SetBlendMode` early-returns on same-mode (`:4394`) and on `BM_NONE` (`:4417`,
+after only `glDisable(GL_BLEND)`), so an opaque split following a subtractive one
+leaves `REVERSE_SUBTRACT` latched with blending merely off — and the toast's own
+`glEnable(GL_BLEND)` resurrects it. `GR_EndScene` (`:748`) resets nothing, and
+nothing between the last split and the post-capture hook touches it.
+
+With the toast's `glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)` the result is
+`dst*(1-a) - src*a`. Panel texels are (10,10,12) at alpha ~0.87
+(`toast_build_panel`), so the panel becomes `0.13*dst - 8` ≈ black, and the
+white text/badge quads (alpha ≈ 1) subtract to a clamped 0 and vanish entirely —
+a black slab with no text, matching the report.
+
+**Why aiming "fixed" it, and why it is not a camera bug.** `Pc_CrosshairDraw`
+(`pc_crosshair.c:102`) is the port's only aim-gated draw and runs only in
+TPS/OTS/FPS. It emits ABR=0 (`0xE1000200` → `BM_AVERAGE`) semi-transparent
+`POLY_G4`s onto `g_OtTags0[buf][4]` (`:152`). Bucket 4 is the highest bucket any
+game code uses, `GsClearOt` reverses traversal, and OT2 is the last `GsDrawOt` of
+the frame — so the crosshair is genuinely the last blended split and leaves
+`GL_FUNC_ADD` bound. Aiming sanitised the state; it never had anything to do with
+the camera.
+
+Fix: save `GL_BLEND_EQUATION_RGB/ALPHA`, force `glBlendEquation(GL_FUNC_ADD)`,
+restore with `glBlendEquationSeparate` — exactly what `dbg_overlay.c` already does
+at `:1888`/`:2079`. Swept for other exposed consumers: `Pc_MinimapDraw` is an empty
+stub (`pc_minimap.c:773` — the minimap draws through PSX prims), `pc_mouse_cursor.c`
+does no raw GL, and `fmv_player.cpp` is immune (`glDisable(GL_BLEND)` before its
+draw). The toast was the only one.
