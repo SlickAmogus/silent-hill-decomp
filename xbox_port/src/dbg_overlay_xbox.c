@@ -88,10 +88,17 @@ static int      s_count = 0;
  * lines to its RIGHT -- line 1 the achievement title, line 2 "Unlocked - N
  * points" -- held ~5 s. The badge lives in 640x480 quad space at x[16..72];
  * the font is 320x240, so x=44 (=88/640) clears the badge with a small gap. */
-#define UNLOCK_TEXT_X       44      /* 320-space; just right of the 640-space badge */
-#define UNLOCK_LINE1_Y      20      /* aligns with the badge top (640 y40 = 320 y20) */
-#define UNLOCK_LINE2_Y      36
-#define UNLOCK_DRAW_GLYPHS  26      /* fits x44..~310 without spilling off the right  */
+/* The whole card (badge image + two text lines) is centered horizontally and
+ * pinned near the BOTTOM, like a console achievement popup. The badge is a
+ * 640x480-space quad (BADGE_DRAW_PX=56 in ra_badge_xbox.c); the font is 320x240,
+ * so 56 in 640-space == 28 in 320-space. */
+#define UNLOCK_BADGE_W320   28      /* badge width in 320-space (56 in 640-space) */
+#define UNLOCK_GAP320       6       /* badge-to-text gap                          */
+#define UNLOCK_GLYPH_W320   9       /* avg glyph advance estimate (for centering) */
+#define UNLOCK_LINE1_Y      188     /* two lines near the bottom (safe of overscan) */
+#define UNLOCK_LINE2_Y      204
+#define UNLOCK_BADGE_Y320   190     /* badge top, ~centered on the two text lines  */
+#define UNLOCK_DRAW_GLYPHS  26      /* clip guard so a long title can't overrun    */
 #define UNLOCK_HOLD_MS      4600u
 #define UNLOCK_FADE_MS      700u
 #define UNLOCK_LIFE_MS      (UNLOCK_HOLD_MS + UNLOCK_FADE_MS)  /* >= 5 s on screen */
@@ -100,6 +107,13 @@ static char     s_unlockL1[TOAST_LINE_LEN];  /* title                     */
 static char     s_unlockL2[TOAST_LINE_LEN];  /* "Unlocked - N points"     */
 static uint32_t s_unlockPushMs;
 static int      s_unlockActive = 0;
+static int      s_unlockTextX  = 44;         /* left x of the text, computed per card */
+
+/* Badge quad placement (640x480 space), computed with the card so the image lines
+ * up with the centered text. Read by ra_badge_xbox.c's RaBadge_RenderDirect. The
+ * defaults keep an un-armed badge harmless. */
+float g_RaBadgeX640 = 32.0f;
+float g_RaBadgeY640 = 380.0f;
 
 /* Copy `src` into `dst` mapped to what the 12x16 atlas can actually render:
  *   - real space (0x20)      -> '_'  (the drawer treats '_' as a space advance)
@@ -178,6 +192,27 @@ void DbgOverlay_XboxUnlock(const char* title, unsigned points)
     }
     Toast_Sanitize(s_unlockL2, buf);
 
+    /* Center the badge+text unit horizontally: cardW = badge + gap + widest line
+     * (glyph count * an average advance estimate). Then place the text right of
+     * the badge, and hand the badge its own 640-space position (x2 the 320 x). */
+    {
+        int len1 = (int)strlen(s_unlockL1);
+        int len2 = (int)strlen(s_unlockL2);
+        int chars = (len1 > len2) ? len1 : len2;
+        int cardW, cardLeft;
+
+        if (chars > UNLOCK_DRAW_GLYPHS)
+            chars = UNLOCK_DRAW_GLYPHS;
+        cardW    = UNLOCK_BADGE_W320 + UNLOCK_GAP320 + chars * UNLOCK_GLYPH_W320;
+        cardLeft = (320 - cardW) / 2;
+        if (cardLeft < 6)
+            cardLeft = 6;
+
+        s_unlockTextX = cardLeft + UNLOCK_BADGE_W320 + UNLOCK_GAP320;
+        g_RaBadgeX640 = (float)(cardLeft * 2);
+        g_RaBadgeY640 = (float)(UNLOCK_BADGE_Y320 * 2);
+    }
+
     s_unlockPushMs = (uint32_t)KeTickCount;
     s_unlockActive = 1;
 }
@@ -249,11 +284,11 @@ void DbgOverlay_XboxRender(void)
                     :                                            TOAST_COLOR_FAINT;
 
             Gfx_StringSetColor(c);
-            Gfx_StringSetPosition(UNLOCK_TEXT_X, UNLOCK_LINE1_Y);
+            Gfx_StringSetPosition(s_unlockTextX, UNLOCK_LINE1_Y);
             Gfx_StringDraw(s_unlockL1, UNLOCK_DRAW_GLYPHS);
 
             Gfx_StringSetColor(c);
-            Gfx_StringSetPosition(UNLOCK_TEXT_X, UNLOCK_LINE2_Y);
+            Gfx_StringSetPosition(s_unlockTextX, UNLOCK_LINE2_Y);
             Gfx_StringDraw(s_unlockL2, UNLOCK_DRAW_GLYPHS);
         }
     }

@@ -55,6 +55,10 @@ extern void     stbi_image_free(void* retval_from_stbi_load);
  * resolution (identity at 640x480, scaled up when pillarboxed at 720p). */
 extern int g_Nv2aContentX, g_Nv2aContentW, g_Nv2aContentH;
 
+/* Card layout owns the badge position (640x480 space); defined in
+ * dbg_overlay_xbox.c so the image tracks the centered, bottom-pinned text. */
+extern float g_RaBadgeX640, g_RaBadgeY640;
+
 /* Placement + sizing, in the 640x480 UI base (top-left, beside the toast text). */
 #define BADGE_POS_X     16.0f
 #define BADGE_POS_Y     40.0f
@@ -175,8 +179,10 @@ void RaBadge_RenderDirect(void)
 
     sx = (float)g_Nv2aContentW / 640.0f;
     sy = (float)g_Nv2aContentH / 480.0f;
-    x0 = (float)g_Nv2aContentX + BADGE_POS_X * sx;
-    y0 = BADGE_POS_Y * sy;
+    /* Position comes from the overlay's card layout (dbg_overlay_xbox.c) so the
+     * image lines up with the centered, bottom-pinned text. */
+    x0 = (float)g_Nv2aContentX + g_RaBadgeX640 * sx;
+    y0 = g_RaBadgeY640 * sy;
     x1 = x0 + BADGE_DRAW_PX * sx;
     y1 = y0 + BADGE_DRAW_PX * sy;
 

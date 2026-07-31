@@ -272,13 +272,35 @@ static void Ra_NoteMiss(uint32_t address)
  * We answer with the USA serial regardless of the mounted disc because the port
  * has ONE struct layout and our map is the USA one -- so the USA group is the
  * only one whose addresses we serve correctly. Serial is stored WITHOUT the dot:
- * "SLUS_00707" (the probes are 32-bit big-endian: 0x534C5553 "SLUS" @0x24C10,
- * 0x30303730 "0070" @0x24C15, '7' @0x24C19).
+ * "SLUS_00707" (the probe is 32-bit big-endian: 'SLUS' @+0, skip the separator
+ * @+4, '0070' @+5, '7' @+9 -- the standard RA PSX serial parse).
+ *
+ * The set reads the serial at TWO addresses. The complete memref dump (log 015)
+ * proved that ALL 65 core achievements read 0x800257{40,45,49} -- THIS is the gate
+ * the Silent Hill set actually uses, and with it returning 0 nothing could ever
+ * unlock on Xbox (e.g. Split Head / "Who's Afraid of a Reptile?" reads only this
+ * trio). 0x24C10 is kept too (harmless if unused); both serve the same bytes.
  */
-#define RA_BOOTID_BASE 0x024C10u
+#define RA_BOOTID_BASE  0x024C10u
+#define RA_SERIAL2_BASE 0x025740u   /* the address the SH set's region gate reads */
 static const unsigned char s_bootId[] = {
     'S','L','U','S','_','0','0','7','0','7',' ',' ',' ',' ',' ',' '
 };
+
+/* Serve the fake serial for either base; 0 if `address` is in neither region. */
+static uint32_t Ra_ServeSerial(uint32_t base, uint32_t address,
+                               uint8_t* buffer, uint32_t num_bytes)
+{
+    if (address >= base && address < base + sizeof(s_bootId))
+    {
+        const uint32_t avail = (uint32_t)(base + sizeof(s_bootId) - address);
+        const uint32_t n     = (num_bytes < avail) ? num_bytes : avail;
+        if (buffer)
+            memcpy(buffer, s_bootId + (address - base), n);
+        return n;
+    }
+    return 0;
+}
 
 static uint32_t RC_CCONV Ra_ReadMemory(uint32_t address, uint8_t* buffer,
                                        uint32_t num_bytes, rc_client_t* client)
@@ -289,13 +311,12 @@ static uint32_t RC_CCONV Ra_ReadMemory(uint32_t address, uint8_t* buffer,
     if (num_bytes == 0)
         return 0;
 
-    if (address >= RA_BOOTID_BASE && address < RA_BOOTID_BASE + sizeof(s_bootId))
     {
-        const uint32_t avail = (uint32_t)(RA_BOOTID_BASE + sizeof(s_bootId) - address);
-        const uint32_t n     = (num_bytes < avail) ? num_bytes : avail;
-        if (buffer)
-            memcpy(buffer, s_bootId + (address - RA_BOOTID_BASE), n);
-        return n;
+        uint32_t n = Ra_ServeSerial(RA_BOOTID_BASE, address, buffer, num_bytes);
+        if (n == 0)
+            n = Ra_ServeSerial(RA_SERIAL2_BASE, address, buffer, num_bytes);
+        if (n)
+            return n;
     }
 
     for (i = 0; i < s_mapCount; i++)
@@ -337,6 +358,8 @@ static int Ra_AddrServed(uint32_t address)
 {
     int i;
     if (address >= RA_BOOTID_BASE && address < RA_BOOTID_BASE + sizeof(s_bootId))
+        return 1;
+    if (address >= RA_SERIAL2_BASE && address < RA_SERIAL2_BASE + sizeof(s_bootId))
         return 1;
     for (i = 0; i < s_mapCount; i++)
         if (address >= s_map[i].start && address < s_map[i].start + s_map[i].size)
