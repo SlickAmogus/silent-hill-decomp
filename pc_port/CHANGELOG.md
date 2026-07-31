@@ -1,20 +1,27 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.07.31.2 -- 2026-07-31
+- Fixed issue with pink menu text caused by controller settings menu fix.
+
+Commit summary:
+- fix pink menu text: queue FONT8NOC before FONT16, not after
+
+
 ## beta-2026.07.31.1 -- 2026-07-31
-- Attract videos are in. Leave the title screen sitting for a while and it plays the original recorded demos off the disc, with the intro movie every third time, the way the PSX does. Any button drops you back to the title. Set attract_demos = 0 in your config if you'd rather it didn't.
-- Skip Intros is now a three-way setting in the launcher instead of Yes/No: Don't Skip, Skip to Menu, Skip to Game. Skip to Game boots you straight into gameplay at whatever map you've got set, no menu and no opening movie. Thanks to keylimesoda for the PR this came from (#84).
-- The controller configuration screen works again. The action names next to the buttons were missing this whole time and are back, TYPE 1 is now USER and shows what you actually have bound in the launcher, and TYPE 2/3 are hidden until I figure out what to do with them.
+- Attract videos enabled! These are the videos that play if you sit AFK at the main menu. They may desync but they work. Set attract_demos = 0 in your config to disable them.
+- Skip intros added back to launcher (by popular demand), replaces "Disable Culling" which can still be adjusted ingame or via the config.
+- Skip intros can also be set to go straight to the game. Thanks to keylimesoda for the PR this came from (#84).
+- The controller configuration screen works again, kind of. For now, TYPE 1 is USER and shows what you actually have bound in the launcher. Will figure out what to do with the others. One will probably be used to show alternate controls.
 - Fixed chunks of character models disappearing
 - Fixed the community center TV screens sliding around on their own if you were using any camera other than the default
-- Fixed the achievement popup showing up as a black box. It would only look right if you happened to be aiming.
+- Fixed the achievement popup showing up as a black box. It would only look right in some casese if you happened to be aiming.
 - Fixed cancelling out of the quick load screen dumping you back at the main menu, which also left half the menu as garbage and made OPTION play a random sound effect
 - Fixed Harry standing in the fire in the hospital instead of backing away from it before he kneels
 - Fixed walking and running distance not being counted on the results screen unless you were on the classic camera
 - 2D controls were quietly making Harry run 25-40% slower than he should. Fixed, he runs at the proper speed now.
 - Flashlight lens flare was going full brightness across almost the entire range instead of only when the light turns toward the camera. It ramps smoothly now.
 - Minimap position setting no longer runs off the edge of the screen (Top L, Top R, Bottom L, Bottom R)
-- Launcher: Disable Culling is gone, Skip Intros took its slot. Culling is still there in the config and toggleable in-game, nobody was turning it on anyway.
-Note: A few of these are untested, particularly the controls screen, the fire scene and Skip to Game. Let me know if any of them are still wrong. The attract demos will drift out of sync on some of the longer ones, that's a known one and I'll come back to it.
+Note: A few of these are untested, like the fire scene. Let me know if any of them are still wrong.
 
 Commit summaries:
 - bones: keep hide-list terminators in the same object as the list
