@@ -28,6 +28,10 @@
 static const char* s_PageMsg;
 static s32         s_PageOff;  /* where the page being drawn starts */
 static s32         s_PageNext; /* where the next page starts; 0 = none pending */
+/* A continuation page starts AFTER the codes that set these, and the caller
+ * re-sets the colour to white every frame, so both have to be carried over. */
+static s16         s_PageColorId;
+static s32         s_PageAlign;
 
 void Pc_MapMsgPageReset(void)
 {
@@ -57,9 +61,11 @@ static s32 Pc_MapMsgPageStart(const char* msg)
  * the engine already uses for "page over, more follows" (a message ending at a
  * bare NUL), which is what makes Gfx_MapMsg_Draw turn the page. `at` always
  * advances past the page start, so the walk cannot stall. */
-static s32 Pc_MapMsgPageBreak(const char* base, const char* at)
+static s32 Pc_MapMsgPageBreak(const char* base, const char* at, s16 colorId, s32 align)
 {
-    s_PageNext = (s32)(at - base);
+    s_PageNext    = (s32)(at - base);
+    s_PageColorId = colorId;
+    s_PageAlign   = align;
     return 1;
 }
 #endif
@@ -686,6 +692,12 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
     pcPageBase = mapMsg;
     mapMsg    += s_PageOff;
 
+    if (s_PageOff != 0)
+    {
+        g_StringColorId = s_PageColorId;
+        result          = s_PageAlign;
+    }
+
     pcTerminated = false;
     /* msgDisplayLength is clamped to MAP_MESSAGE_DISPLAY_ALL_LENGTH by the
      * caller, so once the budget IS that clamp the rollout can never reach any
@@ -1002,7 +1014,7 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
 #ifdef SH_PC_PORT
                     if (pcBudgetMax)
                     {
-                        result = Pc_MapMsgPageBreak(pcPageBase, mapMsg);
+                        result = Pc_MapMsgPageBreak(pcPageBase, mapMsg, g_StringColorId, result);
                     }
 #endif
 
@@ -1146,7 +1158,7 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
 #ifdef SH_PC_PORT
                 if (pcBudgetMax)
                 {
-                    result = Pc_MapMsgPageBreak(pcPageBase, mapMsg);
+                    result = Pc_MapMsgPageBreak(pcPageBase, mapMsg, g_StringColorId, result);
                 }
 #endif
 
@@ -1167,7 +1179,7 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
      * Turn the page instead. */
     if (!pcTerminated)
     {
-        result = Pc_MapMsgPageBreak(pcPageBase, mapMsg);
+        result = Pc_MapMsgPageBreak(pcPageBase, mapMsg, g_StringColorId, result);
     }
 #endif
 
