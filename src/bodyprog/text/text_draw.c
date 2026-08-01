@@ -635,6 +635,17 @@ s32 Gfx_MapMsg_CalculateWidths(s32 mapMsgIdx) // 0x8004ACF4
 
     // TODO: JAP0 includes extra code and returns a value here.
 #ifdef SH_PC_PORT
+    /* A page that ended on the line bound counted the ~N that opens the line it
+     * never drew, leaving one line more than Gfx_MapMsg_StringDraw renders. That
+     * would push the bottom-anchored boxes up by a line and let the longest-line
+     * scan read the one slot the clear loop above does not cover. Terminated
+     * pages (every USA message, every retail PAL page) already sit at or below
+     * the cap, so this is a no-op for them. */
+    if (g_MapMsg_WidthIdx > MAP_MSG_LINE_MAX)
+    {
+        g_MapMsg_WidthIdx = MAP_MSG_LINE_MAX;
+    }
+
     /* NTSC-J returns a select code here; the NTSC callers store it and read it
      * only inside `#if VERSION_REGION_IS(NTSCJ)`. Return a defined value rather
      * than falling off the end of a non-void function, which -O2 may miscompile.
@@ -768,6 +779,24 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
     g_StringPositionX1  = g_StringPosition.vx;
     glyphPosX           = g_StringPositionX1;
     glyphPosY           = g_StringPosition.vy;
+
+#ifdef SH_PC_PORT
+    /* The restored alignment mode also needs its origin: line 0 of a
+     * continuation page starts after the ~M/~T that would have set it, so apply
+     * what those handlers apply. */
+    if (s_PageOff != 0)
+    {
+        if (result == MapMsgCode_AlignCenter)
+        {
+            glyphPosX = -(g_MapMsg_Widths[0] >> 1);
+        }
+        else if (result == MapMsgCode_SetByT)
+        {
+            g_StringPositionX1 = -120;
+            glyphPosX          = -120;
+        }
+    }
+#endif
 
     // Parse string.
     for (lineIdx = 0; lineIdx < MAP_MSG_LINE_MAX;)
@@ -905,6 +934,11 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
 
                     case MAP_MSG_CODE_DISPLAY_ALL:
                         strLength = MAP_MESSAGE_DISPLAY_ALL_LENGTH;
+#ifdef SH_PC_PORT
+                        /* Re-armed here, so the rollout is at its ceiling
+                         * whatever it was on entry. */
+                        pcBudgetMax = true;
+#endif
                         break;
 
                     case MAP_MSG_CODE_END:
