@@ -36,6 +36,27 @@ typedef struct {
 
 extern const s_FontLayout* g_FontLayout;
 
+/* Rendered-line cap of the map-message renderer (Gfx_MapMsg_CalculateWidths /
+ * Gfx_MapMsg_StringDraw). One PC binary serves every region, so retail's
+ * per-region constant has to be a runtime value. 9 on NTSC-U and NTSC-J; retail
+ * PAL lays messages out over TEN lines and its localizations use that tenth line
+ * (the tallest single entry on the PAL disc is exactly 10). Read out of the
+ * decrypted retail overlays (EUR sha1 f748528af6da66184978a08c4bcbf924a306eaba ==
+ * configs/EUR/bodyprog.yaml, USA sha1 eb118537b0c3c1e5cccfa2c5d283b3119c5ec7a3 ==
+ * configs/USA/bodyprog.yaml):
+ *   CalculateWidths bound  EUR 0x8004ACFC 28C2000A  USA 0x8004AF04 28C20009
+ *   widths[] clear         EUR 0x8004AA40 a2=9,+36  USA 0x8004ACF4 a2=8,+32
+ *   StringDraw bound       EUR 0x8004A42C 241E000A (beq $s0,$fp)
+ *   StringDraw {E}/{S}     EUR 0x8004A58C/0x8004A5CC 2410000A
+ * Rendered at nine, a ten-line PAL page's parse ends on the line bound before it
+ * reaches the page's ~E or NUL — the only three writers of the renderer's return
+ * code — so Gfx_MapMsg_Draw never reaches FINISH_MAP_MSG and the document cannot
+ * be dismissed at all (GitHub #85).
+ * NOT applied to the positionIdx-4 box anchor (text_draw.c): that constant is
+ * retail PAL's centre in a 256-scanline field, and the port renders PAL content
+ * in the NTSC 240-line frame with its own g_PsxMsgVShift compensation. */
+extern int g_PcMapMsgLineMax;
+
 /* Map a text byte (already '!'/'&'-remapped by the caller) to 0..2 glyph
  * emissions. Bytes >= 0x80 resolve through the retail EUR accent scheme and
  * yield nothing on the US layout. */

@@ -142,6 +142,9 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
             g_MapMsg_Select.selectedEntryIdx = 0;
             g_MapMsg_AudioLoadBlock          = 0;
             g_MapMsg_CurrentIdx              = mapMsgIdx;
+#ifdef SH_PC_PORT
+            Pc_MapMsgPageReset();
+#endif
             stateMachineIdx0                 = 0;
             stateMachineIdx1                 = 0;
             msgIdx                           = mapMsgIdx;
@@ -454,7 +457,25 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                         break;
                     }
 
+#ifdef SH_PC_PORT
+                    /* A localized message can need more lines than one page
+                     * holds (PAL documents; GitHub #85). The renderer breaks it
+                     * into pages and reports the same "more follows" code a
+                     * message ending at a bare NUL uses, so turn the page WITHIN
+                     * this message instead of stepping to the next index —
+                     * everything below (timer, width recalc, rollout reset) then
+                     * runs for the continuation exactly as for a real page. */
+                    if (Pc_MapMsgPagePending())
+                    {
+                        Pc_MapMsgPageAdvance();
+                    }
+                    else
+                    {
+                        g_MapMsg_CurrentIdx++;
+                    }
+#else
                     g_MapMsg_CurrentIdx++;
+#endif
                     g_SysWork.mapMsgTimer = g_MapMsg_Select.maxIdx;
 
                     var_a1 = Gfx_MapMsg_CalculateWidths(g_MapMsg_CurrentIdx);

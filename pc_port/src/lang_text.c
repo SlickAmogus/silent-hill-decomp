@@ -11,6 +11,7 @@
 #include "game.h"
 #include "bodyprog/bodyprog.h" /* g_Font16AtlasImg (FONT16 re-queue on live switch) */
 #include "bodyprog/map/map.h" /* s_MapOverlayHdr, g_pMapOverlayHeader, e_MapIdx */
+#include "bodyprog/text/text_draw.h" /* MAP_MSG_CODE_PAGE */
 #include "font_region.h"      /* g_FontLayout, Font_SetGlyphWidths (fan-patch kerning) */
 #include "lang_pack.h"        /* PC-side language packs (gamedata/lang) */
 #include "main/fsqueue.h"     /* Fs_QueueStartReadTim, FS_BUFFER_1 */
@@ -48,7 +49,7 @@ extern const char* PcPort_GetGameDiscPath(void);
  * (Was 96 — the replaced pointer array under-covered MAP4_S01/MAP7_S01/
  * MAP7_S02 on PAL, sending reads past it.) */
 #define MSG_COUNT_MAX   176
-#define MSG_LINES_MAX   9 /* FONT_12X16_LINE_COUNT_MAX — the renderer clips past it */
+#define MSG_PARTS_MAX   8 /* largest s_MsgSplits `parts` is 3 */
 
 #define RAW_SECTOR_SIZE 2352
 #define SECTOR_DATA_OFF 24
@@ -72,9 +73,10 @@ static s_MapOverlayHdr s_LangMapHeader;
 
 /* PAL split-page exceptions: a few messages one US entry wide are split into
  * several sequential pages in some languages (probe-verified indices; US
- * index space, langs 1=de 2=fr 3=es 4=it). Parts are joined with ~N; joins
- * over 9 lines lose their tail to the renderer's line cap (FR/IT piano poem
- * — known limitation, candidates for hand-condensed overrides later). */
+ * index space, langs 1=de 2=fr 3=es 4=it). Parts are joined with ~N so the
+ * compiled map code's US indices still resolve; a join too tall for one
+ * rendered page keeps the disc's own page breaks instead (~P — see the join
+ * loop). Before that, an over-cap message could not be dismissed at all. */
 typedef struct {
     unsigned char mapIdx;
     unsigned char lang;
@@ -695,29 +697,6 @@ static int MsgLineCount(const char* msg)
     return lines;
 }
 
-/* Collapse one blank line ("~N " directly followed by another "~N") in
- * place; returns 1 if one was removed. Used to squeeze joined split-pages
- * under the renderer's 9-line cap before clipping loses real text. */
-static int MsgCollapseOneBlankLine(char* msg)
-{
-    char* p;
-    for (p = msg; *p; p++)
-    {
-        if (p[0] == '~' && p[1] == 'N')
-        {
-            char* q = p + 2;
-            while (*q == ' ' || *q == '_')
-                q++;
-            if (q[0] == '~' && q[1] == 'N')
-            {
-                memmove(p, q, strlen(q) + 1);
-                return 1;
-            }
-        }
-    }
-    return 0;
-}
-
 static int SplitPartsFor(int mapIdx, int usIdx)
 {
     int i;
@@ -1128,6 +1107,8 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
         int   parts = (usIdx == 2) ? 2 : SplitPartsFor(mapIdx, usIdx);
         int   p;
         char* start = out;
+        char* seam[MSG_PARTS_MAX];
+        int   seamCount = 0;
 
         s_MsgPtrs[usIdx] = start;
 
@@ -1136,7 +1117,11 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
             if (p > 0)
             {
                 /* Re-open after the previous part's NUL with a line break. */
-                out    = out - 1;
+                out = out - 1;
+                if (seamCount < MSG_PARTS_MAX)
+                {
+                    seam[seamCount++] = out;
+                }
                 *out++ = '~';
                 *out++ = 'N';
                 *out++ = ' ';
@@ -1144,10 +1129,19 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
             out = TranslateMapMsg(out, bytes + srcPtrs[srcIdx], p == parts - 1);
         }
 
-        if (parts > 1)
+        if (seamCount != 0)
         {
-            while (MsgLineCount(start) > MSG_LINES_MAX && MsgCollapseOneBlankLine(start))
+            /* Retail shows these parts as separate pages; joining them is what
+             * keeps the compiled maps' message indices resolving. When the join
+             * does not fit one rendered page, promote the seams back to page
+             * breaks so each part lands on retail's own boundary — otherwise the
+             * renderer has to break mid-part at the line cap. */
+            if (MsgLineCount(start) > g_PcMapMsgLineMax)
             {
+                for (p = 0; p < seamCount; p++)
+                {
+                    seam[p][1] = MAP_MSG_CODE_PAGE;
+                }
             }
             out = start + strlen(start) + 1;
         }

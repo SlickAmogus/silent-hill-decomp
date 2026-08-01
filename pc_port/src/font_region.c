@@ -54,6 +54,11 @@ static const s_FontLayout s_FontLayout_EUR_PL = { 126, 128, 6, 0x0C, 0x3FF3, 31,
 
 const s_FontLayout* g_FontLayout = &s_FontLayout_USA;
 
+/* == FONT_12X16_LINE_COUNT_MAX (see font_region.h). Region-independent default
+ * so USA and NTSC-J evaluate every site exactly as before; Font_ApplyRegionPatches
+ * raises it to retail PAL's ten. */
+int g_PcMapMsgLineMax = FONT_12X16_LINE_COUNT_MAX;
+
 /* Atlas cells the Polish patch writes. */
 #define PL_CELL_a_OGONEK 90
 #define PL_CELL_e_OGONEK 91
@@ -375,6 +380,9 @@ void Font_ApplyRegionPatches(void)
     }
 
     g_FontLayout = &s_FontLayout_EUR;
+
+    /* Retail PAL lays out ten message lines, not nine (see font_region.h). */
+    g_PcMapMsgLineMax = 10;
 
     /* PAL FONT16.TIM is a 21x6 grid that cannot sit at the US strip home
      * (0,496): retail SLES places it at (768,128) in tpage 12, CLUT (816,255). */

@@ -11,6 +11,57 @@
 #include "lang_text.h"     /* Pc_LangMenuText — port-written menu translations. */
 #include "pc_kanji.h"      /* NTSC-J SJIS glyph atlas. */
 #include "main/fileinfo.h" /* g_GameRegion */
+
+/* Retail PAL renders TEN map-message lines where NTSC-U/J render nine
+ * (g_PcMapMsgLineMax, font_region.h); identical to FONT_12X16_LINE_COUNT_MAX on
+ * USA and NTSC-J. Parsing sites only — the positionIdx-4 box anchor keeps the
+ * literal, see the note in font_region.h. */
+#define MAP_MSG_LINE_MAX g_PcMapMsgLineMax
+#else
+#define MAP_MSG_LINE_MAX FONT_12X16_LINE_COUNT_MAX
+#endif
+
+#ifdef SH_PC_PORT
+/* Page continuation state (see text_draw.h). Offsets are into `s_PageMsg`, so a
+ * message re-examined later starts from the top: the pointer is re-latched below
+ * whenever a different message is drawn, and Gfx_MapMsg_Draw resets on setup. */
+static const char* s_PageMsg;
+static s32         s_PageOff;  /* where the page being drawn starts */
+static s32         s_PageNext; /* where the next page starts; 0 = none pending */
+
+void Pc_MapMsgPageReset(void)
+{
+    s_PageMsg  = NULL;
+    s_PageOff  = 0;
+    s_PageNext = 0;
+}
+
+int Pc_MapMsgPagePending(void)
+{
+    return s_PageNext != 0;
+}
+
+void Pc_MapMsgPageAdvance(void)
+{
+    s_PageOff  = s_PageNext;
+    s_PageNext = 0;
+}
+
+/** Byte offset the current page of `msg` starts at. */
+static s32 Pc_MapMsgPageStart(const char* msg)
+{
+    return (msg != NULL && msg == s_PageMsg) ? s_PageOff : 0;
+}
+
+/** Ends the page at `at`, leaving the rest for the next one. Returns the code
+ * the engine already uses for "page over, more follows" (a message ending at a
+ * bare NUL), which is what makes Gfx_MapMsg_Draw turn the page. `at` always
+ * advances past the page start, so the walk cannot stall. */
+static s32 Pc_MapMsgPageBreak(const char* base, const char* at)
+{
+    s_PageNext = (s32)(at - base);
+    return 1;
+}
 #endif
 
 #ifndef PAD_HACK_IGNORE
@@ -450,14 +501,19 @@ s32 Gfx_MapMsg_CalculateWidths(s32 mapMsgIdx) // 0x8004ACF4
     g_MapMsg_WidthIdx  = 1;
     g_MapMsg_AudioLoadBlock = 0;
 
-    for (i = (FONT_12X16_LINE_COUNT_MAX - 1); i >= 0; i--)
+    for (i = (MAP_MSG_LINE_MAX - 1); i >= 0; i--)
     {
         g_MapMsg_Widths[i] = 0;
     }
 
     mapMsg = g_MapOverlayHdr.mapMessages[mapMsgIdx];
 
-    for (j = 0; j < FONT_12X16_LINE_COUNT_MAX; )
+#ifdef SH_PC_PORT
+    /* Measure the page actually on screen, not the whole message. */
+    mapMsg += Pc_MapMsgPageStart((const char*)mapMsg);
+#endif
+
+    for (j = 0; j < MAP_MSG_LINE_MAX; )
     {
         charCode = *mapMsg;
 
@@ -491,8 +547,14 @@ s32 Gfx_MapMsg_CalculateWidths(s32 mapMsgIdx) // 0x8004ACF4
                         break;
 
                     case MAP_MSG_CODE_END:
-                        j = FONT_12X16_LINE_COUNT_MAX;
+                        j = MAP_MSG_LINE_MAX;
                         break;
+
+#ifdef SH_PC_PORT
+                    case MAP_MSG_CODE_PAGE:
+                        j = MAP_MSG_LINE_MAX;
+                        break;
+#endif
 
                     case MAP_MSG_CODE_LINE_POSITION:
                         D_800C38B0.positionIdx = posIdx;
@@ -520,7 +582,7 @@ s32 Gfx_MapMsg_CalculateWidths(s32 mapMsgIdx) // 0x8004ACF4
                 break;
 
             case 0:
-                j = FONT_12X16_LINE_COUNT_MAX;
+                j = MAP_MSG_LINE_MAX;
                 break;
 
             default:
@@ -566,6 +628,13 @@ s32 Gfx_MapMsg_CalculateWidths(s32 mapMsgIdx) // 0x8004ACF4
     }
 
     // TODO: JAP0 includes extra code and returns a value here.
+#ifdef SH_PC_PORT
+    /* NTSC-J returns a select code here; the NTSC callers store it and read it
+     * only inside `#if VERSION_REGION_IS(NTSCJ)`. Return a defined value rather
+     * than falling off the end of a non-void function, which -O2 may miscompile.
+     * PC build only — the PSX build keeps the matching decompile's codegen. */
+    return 0;
+#endif
 }
 
 s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
@@ -595,9 +664,35 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
     DR_TPAGE* tPage;
     POLY_FT4* glyphPoly;
     SPRT*     glyphSprt;
+#ifdef SH_PC_PORT
+    char*     pcPageBase;
+    bool      pcTerminated;
+    bool      pcBudgetMax;
+#endif
 
     packet = NULL;
     result = 0;
+
+#ifdef SH_PC_PORT
+    /* Page continuation (see text_draw.h). A different message means a fresh
+     * document, so drop whatever the previous one had pending. */
+    if (mapMsg != s_PageMsg)
+    {
+        s_PageMsg  = mapMsg;
+        s_PageOff  = 0;
+        s_PageNext = 0;
+    }
+
+    pcPageBase = mapMsg;
+    mapMsg    += s_PageOff;
+
+    pcTerminated = false;
+    /* msgDisplayLength is clamped to MAP_MESSAGE_DISPLAY_ALL_LENGTH by the
+     * caller, so once the budget IS that clamp the rollout can never reach any
+     * further than it does on this frame — a page that still has text left at
+     * that point has to break here or it never ends. */
+    pcBudgetMax = (strLength >= MAP_MESSAGE_DISPLAY_ALL_LENGTH);
+#endif
 
     ot                  = (GsOT*)&g_OtTags0[g_ActiveBufferIdx][6];
     color               = STRING_COLORS[g_StringColorId];
@@ -663,7 +758,7 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
     glyphPosY           = g_StringPosition.vy;
 
     // Parse string.
-    for (lineIdx = 0; lineIdx < FONT_12X16_LINE_COUNT_MAX;)
+    for (lineIdx = 0; lineIdx < MAP_MSG_LINE_MAX;)
     {
         // Convert literal `!` and `&` into `char`s mappable to representative atlas glyphs.
 #ifdef SH_PC_PORT
@@ -802,13 +897,28 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
 
                     case MAP_MSG_CODE_END:
                         result  = NO_VALUE;
-                        lineIdx = FONT_12X16_LINE_COUNT_MAX;
+                        lineIdx = MAP_MSG_LINE_MAX;
+#ifdef SH_PC_PORT
+                        pcTerminated = true;
+#endif
                         break;
 
                     case MAP_MSG_CODE_SELECT:
                         result  = codeArg;
-                        lineIdx = FONT_12X16_LINE_COUNT_MAX;
+                        lineIdx = MAP_MSG_LINE_MAX;
+#ifdef SH_PC_PORT
+                        pcTerminated = true;
+#endif
                         break;
+
+#ifdef SH_PC_PORT
+                    /* Explicit page break: the localizer joined retail pages
+                     * that do not fit one page, so they keep their own
+                     * boundaries (Pc_LangPatchMapMessages). */
+                    case MAP_MSG_CODE_PAGE:
+                        lineIdx = MAP_MSG_LINE_MAX;
+                        break;
+#endif
 
                     case MAP_MSG_CODE_HIGH_RES:
                         g_SysWork.enableHighResGlyphs = true;
@@ -821,7 +931,10 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
         // Terminator.
         case '\0':
             result  = 1;
-            lineIdx = FONT_12X16_LINE_COUNT_MAX;
+            lineIdx = MAP_MSG_LINE_MAX;
+#ifdef SH_PC_PORT
+            pcTerminated = true;
+#endif
             break;
 
         // Draw glyph sprite.
@@ -886,6 +999,13 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
 
                 if (strLength <= 0)
                 {
+#ifdef SH_PC_PORT
+                    if (pcBudgetMax)
+                    {
+                        result = Pc_MapMsgPageBreak(pcPageBase, mapMsg);
+                    }
+#endif
+
                     if (!g_SysWork.enableHighResGlyphs)
                     {
                         GsOUT_PACKET_P = packet;
@@ -1023,6 +1143,13 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
             // Stop drawing if length exceeded.
             if (strLength <= 0)
             {
+#ifdef SH_PC_PORT
+                if (pcBudgetMax)
+                {
+                    result = Pc_MapMsgPageBreak(pcPageBase, mapMsg);
+                }
+#endif
+
                 if (!g_SysWork.enableHighResGlyphs)
                 {
                     GsOUT_PACKET_P = packet;
@@ -1032,6 +1159,17 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
             }
         }
     }
+
+#ifdef SH_PC_PORT
+    /* Only ~E, ~S and the terminating NUL write `result`; ending the parse on
+     * the line bound instead leaves it 0, which Gfx_MapMsg_Draw reads as "still
+     * rolling out" — the message could then never be dismissed (GitHub #85).
+     * Turn the page instead. */
+    if (!pcTerminated)
+    {
+        result = Pc_MapMsgPageBreak(pcPageBase, mapMsg);
+    }
+#endif
 
     if (!g_SysWork.enableHighResGlyphs)
     {

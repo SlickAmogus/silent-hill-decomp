@@ -12,6 +12,9 @@
 #define MAP_MSG_CODE_LINE_POSITION 'L' /** Set next line position. */
 #define MAP_MSG_CODE_MIDDLE        'M' /** Align center. */
 #define MAP_MSG_CODE_NEWLINE       'N' /** Newline. */
+#ifdef SH_PC_PORT
+    #define MAP_MSG_CODE_PAGE      'P' /** PC only: page break (see `Pc_MapMsgPageReset`). */
+#endif
 #define MAP_MSG_CODE_SELECT        'S' /** Display dialog prompt with selectable entries. */
 #define MAP_MSG_CODE_TAB           'T' /** Inset line. */
 
@@ -109,6 +112,30 @@ s32 Gfx_MapMsg_CalculateWidths(s32 mapMsgIdx);
 
 /** Draws string and returns map message index. */
 s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength);
+
+#ifdef SH_PC_PORT
+/* Map-message page continuation (text_draw.c).
+ *
+ * A message longer than the renderer's page (`g_PcMapMsgLineMax` rendered lines)
+ * used to end the parse on the line bound, which leaves `Gfx_MapMsg_StringDraw`'s
+ * return code at 0 and makes the message impossible to dismiss (GitHub #85 — PAL
+ * documents, where the localizations are wordier than the US text the page count
+ * was sized for). Instead the renderer stops at the page bound, reports the same
+ * "page ended, more follows" code the engine already uses for a message that ends
+ * at a bare NUL, and remembers where to resume; `Gfx_MapMsg_Draw` then turns the
+ * page in place instead of stepping to the next message index. `~P` forces the
+ * break at a chosen byte (the localizer emits it where retail's own page boundary
+ * was — see `Pc_LangPatchMapMessages`). */
+
+/** Forgets any pending continuation. Call when a different message starts. */
+void Pc_MapMsgPageReset(void);
+
+/** 1 if the last draw stopped at a page bound with text still to come. */
+int Pc_MapMsgPagePending(void);
+
+/** Makes the pending continuation the current page. */
+void Pc_MapMsgPageAdvance(void);
+#endif
 
 void func_8004B658(void);
 
