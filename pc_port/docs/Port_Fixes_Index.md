@@ -1832,3 +1832,88 @@ at `:1888`/`:2079`. Swept for other exposed consumers: `Pc_MinimapDraw` is an em
 stub (`pc_minimap.c:773` — the minimap draws through PSX prims), `pc_mouse_cursor.c`
 does no raw GL, and `fmv_player.cpp` is immune (`glDisable(GL_BLEND)` before its
 draw). The toast was the only one.
+
+## PAL documents undismissable — the port rendered PAL through the NTSC-U line cap (2026-08-01, commits `a94c5cda5`, `e197b5cfc`, `04cfaf89f`)
+
+**Report** (issue #85): on a PAL Spanish build, reading the Norman's Motel
+newspaper or the school music-room piano poem left the document on screen —
+"the screen stays like this and can't do nothing". No log. The screenshot shows
+exactly nine rendered lines, cut mid-sentence, with the game window still alive.
+
+**Root cause.** `Gfx_MapMsg_StringDraw`'s parse loop is bounded by the rendered
+line cap, and only three things write its return value: `~E` (`NO_VALUE`), `~S`
+(the select code) and the terminating NUL (`1`). A message taller than the cap
+ends the parse *on the bound* instead, so the return value keeps its initial `0`.
+`Gfx_MapMsg_SelectionUpdate` passes that straight through, so
+`map_msg_display.c`'s `stateMachineIdx1 != 0 && stateMachineIdx1 < MapMsgCode_Select4`
+never fires — and that is the **only** assignment of `stateMachineIdx0 = NO_VALUE`,
+which all four `stateMachineIdx1 = FINISH_MAP_MSG` sites sit behind. Dismissal is
+unreachable forever; the button press only sets `msgDisplayLength = 400`.
+
+**Why PAL only.** One PC binary serves every region and used the NTSC-U cap of 9
+everywhere. Retail PAL uses **ten**, at every corresponding site — read out of the
+decrypted retail overlays (EUR sha1 `f748528af…` = `configs/EUR/bodyprog.yaml`,
+USA `eb118537b…` = `configs/USA/bodyprog.yaml`):
+
+| site | EUR | USA |
+|---|---|---|
+| `CalculateWidths` loop bound | `0x8004ACFC 28C2000A` (10) | `0x8004AF04 28C20009` (9) |
+| widths[] clear | `0x8004AA40` a2=9, base+36 (10 slots) | `0x8004ACF4` a2=8, base+32 (9) |
+| `StringDraw` loop bound | `0x8004A42C 241E000A` + `beq $s0,$fp` | `0x8004B5EC 29C20009` |
+| `{E}`/`{S}` "lineIdx = MAX" | `0x8004A58C`/`0x8004A5CC 2410000A` | `0x8004B360`/`0x8004B36C 240E0009` |
+| positionIdx-4 anchor | `0x8004AE20 2402000A` | `0x8004B058 24020009` |
+
+`MAP_MESSAGE_DISPLAY_ALL_LENGTH` is 400 on both, and the positionIdx 0/1/2/3
+anchors are identical — PAL's 256-scanline field bought exactly one extra text
+line, nothing else. The PAL localizers used it: the tallest single entry anywhere
+on the PAL disc is exactly 10 lines. Fifteen shipped PAL messages exceed nine
+(de 2, fr 4, es 4, it 5) — the PTV newspaper in Norman's Motel *and* its two
+unreached copies in Nowhere, plus the piano poem. PAL-English and the USA disc
+have **zero**, which is why this survived so long.
+
+**Fix, part 1 — match retail.** `g_PcMapMsgLineMax` (`pc_port/include/font_region.h`,
+defined in `font_region.c`) is 9 by default and raised to 10 by
+`Font_ApplyRegionPatches`, which sits behind its own `g_GameRegion != Region_EUR`
+early-return — so USA and NTSC-J are structurally untouched. `text_draw.c` uses it
+via `MAP_MSG_LINE_MAX` at the eight **parsing** sites. The positionIdx-4 box anchor
+deliberately keeps the literal 9: that constant is retail's centre in a 256-line
+field, and the port draws PAL in the NTSC frame with its own `g_PsxMsgVShift`
+compensation, so copying it would just drop every PAL document box 8px.
+
+**Fix, part 2 — page instead of stopping.** The reporter is not on the retail disc:
+their Spanish matches neither retail PAL nor our copy of the Spanish fan patch, so
+it is a newer third-party revision that no data-side fix can anticipate. So the
+renderer now *pages*: on ending a page at the bound (or at a `~P`, or at the
+400-glyph rollout ceiling) it calls `Pc_MapMsgPageBreak`, which records the resume
+offset and returns `1` — the code the engine **already** uses for a message ending
+at a bare NUL — and `Gfx_MapMsg_Draw` turns the page in place instead of stepping
+`g_MapMsg_CurrentIdx`. `Gfx_MapMsg_CalculateWidths` measures from the same offset.
+This needs no message-table surgery, so the randomizer, text overrides and language
+packs are all unaffected. Colour (`~C`), alignment mode (`~M`/`~T`) and the `~T`
+inset origin are latched at the break and restored on resume — the caller resets the
+colour to white every frame, and a continuation page starts *after* the codes that
+set them.
+
+**Fix, part 3 — keep retail's own page breaks.** When `Pc_LangPatchMapMessages`
+joins retail's split parts (to preserve the compiled maps' message numbering) and
+the join exceeds the cap, its seams are promoted from `~N` to the PC-only `~P`, so
+each part lands on retail's boundary rather than being cut mid-part.
+`MsgCollapseOneBlankLine`, which used to buy headroom by deleting authored blank
+lines, is retired.
+
+**A subtlety worth keeping.** `CalculateWidths` counts the `~N` that *opens* the
+line it never draws, so a page ending on the bound left `g_MapMsg_WidthIdx` one
+above the drawn line count — pushing bottom-anchored boxes up by a line (a visible
+jump on every page turn) and letting the longest-line scan read
+`g_MapMsg_Widths[MAP_MSG_LINE_MAX]`, the one slot the clear loop does not cover.
+Clamped in `04cfaf89f`. Reachable only on the continuation path, i.e. only on
+fan-translated discs — retail PAL always breaks on an explicit `~P`.
+
+**Verification.** Simulating the joiner + parse loop + state machine over all 45
+maps × 5 PAL languages (9975 messages): 15 soft-locks before, **0** after, every
+drawable glyph still reached, only the fr/it piano poem spanning more than one
+page. 707 compiled USA map-message literals, none over nine lines, so the
+continuation path is never entered there. The USA-region Spanish fan patch's
+10-line Alessa-fire newspaper (map7_s01 #33 / map7_s02 #18) pages 9+1 with all
+155 glyphs reached. Not a memory-corruption crash: `GsOUT_PACKET_P` is a 16 MiB
+arena with a canary, and the worst-case document is ~38 KiB of `POLY_FT4`.
