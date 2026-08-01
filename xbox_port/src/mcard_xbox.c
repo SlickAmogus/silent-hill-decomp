@@ -447,8 +447,13 @@ int _card_info(int chan)
             SH_DBG("[MCRD] card_info chan=%d -> TIMOUT (no storage) (n=%d)", chan, s_logCardInfo);
         return 1;
     }
-    mc_ensure_card(chan & 1);
-    s_lastCardOk[chan & 1] = 1;
+    /* The FSM background-polls _card_info forever; the HDD-backed card doesn't
+     * vanish, so fopen+size-check it only ONCE (until _new_card clears the flag)
+     * instead of on every poll -- the per-frame file open was wasted work. */
+    if (!s_lastCardOk[chan & 1]) {
+        mc_ensure_card(chan & 1);
+        s_lastCardOk[chan & 1] = 1;
+    }
     mc_deliver_iod();
     if (Mcrd_LogGate(&s_logCardInfo))
         SH_DBG("[MCRD] card_info chan=%d -> IOE (n=%d)", chan, s_logCardInfo);

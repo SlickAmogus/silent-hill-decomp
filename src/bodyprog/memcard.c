@@ -1586,6 +1586,26 @@ bool MemCard_MemCardIsIdle(void) // 0x800309FC
 
 void MemCard_StateUpdate(void) // 0x80030A0C
 {
+#ifdef SH_XBOX_PORT
+    /* Freeze diagnostic: the save/load FSM has been seen wedging in a wait state
+     * (log 018 = card_clear then vblank-only forever). Log every (state,step)
+     * change, and flag a non-Idle state that spins > ~2s without progressing, so
+     * the next log names the exact stuck state. [MCFSM] is not in the log gate. */
+    {
+        static s32 s_prevState = -1, s_prevStep = -1, s_stuckFrames = 0;
+        if ((s32)g_MemCard_Work.state != s_prevState || g_MemCard_Work.stateStep != s_prevStep) {
+            SH_DBG("[MCFSM] state=%d step=%d (was %d/%d after %d f)",
+                   (int)g_MemCard_Work.state, (int)g_MemCard_Work.stateStep,
+                   (int)s_prevState, (int)s_prevStep, (int)s_stuckFrames);
+            s_prevState   = (s32)g_MemCard_Work.state;
+            s_prevStep    = g_MemCard_Work.stateStep;
+            s_stuckFrames = 0;
+        } else if (g_MemCard_Work.state != MemCardWorkState_Idle && ++s_stuckFrames == 120) {
+            SH_DBG("[MCFSM] STUCK in state=%d step=%d for 120 frames",
+                   (int)g_MemCard_Work.state, (int)g_MemCard_Work.stateStep);
+        }
+    }
+#endif
     switch (g_MemCard_Work.state)
     {
         case MemCardWorkState_Idle:

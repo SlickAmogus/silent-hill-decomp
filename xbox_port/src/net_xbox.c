@@ -29,8 +29,16 @@ extern struct netif *g_pnetif;
 
 /* LWIP_SO_RCVTIMEO defaults to 0 in this fork's lwipopts, so SO_RCVTIMEO is a
  * no-op here -- every blocking wait is bounded with select() instead. */
-#define NET_CONNECT_TIMEOUT_MS 8000
+#define NET_CONNECT_TIMEOUT_MS 4000
 #define NET_RECV_TIMEOUT_MS    8000
+/* After a DNS/connect failure, fast-fail every request for this long instead of
+ * paying the multi-second resolve/connect timeout again. A console that drops its
+ * network mid-session was stalling the frame ~8s per RA request, over and over
+ * (log 018 = the "menus get terribly slow" report). net_xbox does NOT pump VSync
+ * while blocking, so each stall is a hard freeze -- the backoff turns a continuous
+ * stall into one probe every 20s. sys_now() is lwip's ms-since-boot clock. */
+#define NET_BACKOFF_MS         20000u
+extern unsigned sys_now(void);   /* lwip ms-since-boot (u32_t == unsigned on 32-bit) */
 
 /* Hard cap on a single response so a misbehaving/slow server can't exhaust the
  * 64 MB console. RA payloads (patch data, session responses) sit far below this. */
@@ -205,12 +213,20 @@ int Net_XboxHttpRequest(const char* url, const char* post, char** out_body, int*
         p++;
     pathPtr = (*p == '/') ? p : "/";
 
+    /* Network-down backoff (see NET_BACKOFF_MS): if we recently failed to resolve
+     * or connect, don't block on it again -- fast-fail until the window elapses. */
+    static unsigned s_netFailAtMs = 0;
+    if (s_netFailAtMs != 0 && (unsigned)(sys_now() - s_netFailAtMs) < NET_BACKOFF_MS)
+        return 0;
+
     /* --- DNS resolve -------------------------------------------------------- */
     memset(&hints, 0, sizeof(hints));
     hints.ai_family   = AF_INET;      /* IPv4 only: keep the connect path simple */
     hints.ai_socktype = SOCK_STREAM;
     if (getaddrinfo(host, portStr, &hints, &res) != 0 || res == NULL) {
         SH_DBG("[NET] DNS fail host=%s", host);
+        s_netFailAtMs = sys_now();
+        if (s_netFailAtMs == 0) s_netFailAtMs = 1;   /* 0 means "no failure" */
         return 0;
     }
 
@@ -222,8 +238,11 @@ int Net_XboxHttpRequest(const char* url, const char* post, char** out_body, int*
     freeaddrinfo(res);
     if (s < 0) {
         SH_DBG("[NET] connect fail host=%s:%s", host, portStr);
+        s_netFailAtMs = sys_now();
+        if (s_netFailAtMs == 0) s_netFailAtMs = 1;
         return 0;
     }
+    s_netFailAtMs = 0;   /* connected -> network is up, clear the backoff */
 
     /* --- Build + send the request ------------------------------------------ */
     isPost  = (post != NULL && post[0] != '\0');
