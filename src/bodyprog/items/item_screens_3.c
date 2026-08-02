@@ -3224,6 +3224,28 @@ void func_800539A4(s32 scrollDirection, s32 arg1) // 0x800539A4
  *   map being loaded.
  */
 
+#ifdef SH_PC_PORT
+/* Oversized loose item-TMD support (pc_port/src/pc_big_tmd.c).
+ *
+ * Every one of the ~79 arms below reads into the SINGLE fixed slab
+ * FS_BUFFER_5, whose usable size is set by the disc file table. A loose
+ * replacement larger than its slot cannot be byte-replaced, so Fs_QueueTickRead
+ * refuses it and the disc file loads instead.
+ *
+ * Rather than edit 79 identical call sites — where one being missed would make
+ * the mechanism silently wrong for that item — the read is intercepted for the
+ * extent of this ONE function. Pc_BigTmd_Redirect is keyed by fileIdx, so each
+ * item gets its own verdict, and it returns `dest` unchanged unless an
+ * oversized, valid loose file exists for that exact file id. With
+ * allow_loose_files off (the default) it is one boolean test that returns the
+ * incoming pointer, so the slab the read lands in is FS_BUFFER_5 as before.
+ *
+ * #undef'd immediately after the function so no other call site is affected. */
+#include "pc_big_tmd.h"
+#define Fs_QueueStartRead(fileIdx_, dest_) \
+    Fs_QueueStartRead((fileIdx_), Pc_BigTmd_Redirect((fileIdx_), (dest_)))
+#endif
+
 void GameFs_UniqueItemModelLoad(u8 itemId) // 0x80053B08
 {
     switch (itemId)
@@ -3522,6 +3544,10 @@ void GameFs_UniqueItemModelLoad(u8 itemId) // 0x80053B08
             break;
     }
 }
+
+#ifdef SH_PC_PORT
+#undef Fs_QueueStartRead
+#endif
 
 void GameFs_Tim00TIMLoad(void) // 0x80053dA0
 {
@@ -4183,7 +4209,16 @@ void func_80054A04(u8 itemId) // 0x80054A04
     g_Items_Transforms[9].trans.vy  = 0;
     g_Items_Transforms[9].trans.vx  = 0;
 
+#ifdef SH_PC_PORT
+    /* Resolve the oversized-item substitution: when this item's model was
+     * redirected into a PC-owned buffer, GsMapModelingData must parse THAT
+     * buffer, not the slab the read never went into. Pc_BigTmd_Resolve is the
+     * identity for any pointer with no active substitution, which is always the
+     * case on stock data — so this stays FS_BUFFER_5 exactly as before. */
+    GameFs_TmdDataAlloc((s32*)Pc_BigTmd_Resolve(FS_BUFFER_5));
+#else
     GameFs_TmdDataAlloc(FS_BUFFER_5);
+#endif
 
 #ifndef SH_PC_PORT
     D_800C3E18[9] = 0; /* PSX BSS aliasing; out of bounds on PC */
@@ -4199,7 +4234,8 @@ void func_80054A04(u8 itemId) // 0x80054A04
      * to render — that's the "invisible health drink / picked-up map
      * shows no model" symptom. */
     {
-        s_TmdFile* _tmd = (s_TmdFile*)FS_BUFFER_5;
+        /* Same substitution resolve as the GameFs_TmdDataAlloc call above. */
+        s_TmdFile* _tmd = (s_TmdFile*)Pc_BigTmd_Resolve(FS_BUFFER_5);
         if (_tmd != NULL) {
             unsigned long*     _hdr = (unsigned long*)&_tmd->flags;
             struct TMD_STRUCT* _obj;

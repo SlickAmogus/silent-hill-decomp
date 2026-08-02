@@ -12,6 +12,7 @@
 #include "hires_override.h"
 #include "tex_pack.h"
 #include "pc_big_lm.h"
+#include "pc_big_tmd.h"   /* Pc_BigTmd_DestCapacity — oversized loose ITEM TMDs */
 #include "lang_pack.h"    /* Pc_LangPackActive — FONT16 Polish glyph patch */
 #include "font_region.h"  /* Font_PatchPolishGlyphs */
 #include "sh_log.h"
@@ -806,6 +807,14 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
              * capacity; unregistered destinations keep the table-size gate. */
             {
                 size_t bigCap = Pc_BigLm_DestCapacity(entry->data);
+                if (bigCap > bufSize)
+                {
+                    bufSize = bigCap;
+                }
+                /* Same lift for oversized ITEM TMDs (pc_big_tmd.c). Returns 0
+                 * for FS_BUFFER_5 and every other unregistered pointer, so the
+                 * stock item path keeps the exact table-size gate. */
+                bigCap = Pc_BigTmd_DestCapacity(entry->data);
                 if (bigCap > bufSize)
                 {
                     bufSize = bigCap;
