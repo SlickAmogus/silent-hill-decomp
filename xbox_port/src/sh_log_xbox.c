@@ -30,8 +30,10 @@ int Sh_LogAllow(const char* fmt)
 {
     static const char* const GATED[] = {
         "[SH_AUDIO]", "[SH_BGM]", "[UIDIAG]", "[FT]", "[UPD]", "[UPD2]", "[POST]",
-        "[OTT]", "[OTS]", "[FOGST]", "[FOGPAD]", "[ABR]", "[MEM]", "[WALLSTOP]",
+        "[OTT]", "[OTS]", "[FOGST]", "[FOGPAD]", "[ABR]", "[WALLSTOP]",
         "[WALL-HIT]", "[RAIN]", "[FSQ]", "[SS]", "[FXDROP]", "[BATCH]", "[STORE]",
+        /* NOT gated: [MEM] (RAM tick every ~10s -- the leak/creep diagnostic;
+         * gating it hid the exact data needed to chase a progressive slowdown). */
     };
     int i;
     if (g_XboxLogDiag)          return 1;   /* diag on: keep everything */
@@ -70,9 +72,21 @@ static int ShLog_NextIndex(const char* dir)
     f = fopen(path, "r");
     if (f) { if (fgets(buf, sizeof(buf), f)) idx = atoi(buf); fclose(f); }
     if (idx < 0) idx = 0;
-    idx %= SH_LOG_KEEP;
+    /* MONOTONIC index (no wrap): the newest log is ALWAYS the highest-numbered
+     * file. The old `idx %= 20` wrapped after silenthill_019 back to _000, so the
+     * latest run was impossible to spot by name. Keep only a recent window by
+     * deleting the log SH_LOG_KEEP behind. (One-time bump past any leftover
+     * wrapped 0..19 counter so the number visibly climbs instead of re-using an
+     * existing low file first.) */
+    if (idx < SH_LOG_KEEP)
+        idx += SH_LOG_KEEP;
     f = fopen(path, "w");
-    if (f) { fprintf(f, "%d\n", (idx + 1) % SH_LOG_KEEP); fclose(f); }
+    if (f) { fprintf(f, "%d\n", idx + 1); fclose(f); }
+    if (idx >= SH_LOG_KEEP) {
+        char oldp[64];
+        snprintf(oldp, sizeof(oldp), "%ssilenthill_%03d.log", dir, idx - SH_LOG_KEEP);
+        remove(oldp);
+    }
     return idx;
 }
 
