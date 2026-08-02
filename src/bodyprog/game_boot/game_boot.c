@@ -17,7 +17,8 @@
 #include "bodyprog/player.h"
 #include "main/fsqueue.h"
 #ifdef SH_PC_PORT
-#include "main/fileinfo.h" /* g_GameRegion, g_FileTable — PAL font/language hooks */
+#include "main/fileinfo.h"          /* g_GameRegion, g_FileTable — PAL font/language hooks */
+#include "bodyprog/item_screens.h"  /* func_8004F190 — inventory sort + slot recount */
 #endif
 
 void GameBoot_SavegameInitialize(s8 overlayId, s32 difficulty) // 0x800350BC
@@ -71,6 +72,29 @@ void GameBoot_PlayerInit(void) // 0x80035178
     Game_PlayerInfoInit();
 }
 
+#ifdef SH_PC_PORT
+/* True only when all 40 slots hold the canonical empty marker. `id_0` is u8 and
+ * `InvItemId_Empty` is NO_VALUE (-1), so an empty slot reads back as 0xFF and
+ * never as 0 — hence the cast, the same idiom item_screens_2.c uses.
+ * `inventorySlotCount` cannot answer this: Game_SavegameResetPlayer leaves it at
+ * 8 with all 40 slots empty, and Game_PlayerInfoInit clamps it to [8,40]
+ * whatever the real occupancy is, so it carries no occupancy information. */
+static int Pc_SavegameInventoryIsEmpty(void)
+{
+    s32 i;
+
+    for (i = 0; i < INV_ITEM_COUNT_MAX; i++)
+    {
+        if (g_SavegamePtr->items[i].id_0 != (u8)InvItemId_Empty)
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+#endif
+
 void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
 {
 #ifdef SH_PC_PORT
@@ -83,23 +107,26 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
      * the crash is worth it. */
     fflush(g_ShDebugLog);
 
-    /* PC-only convenience: when entering a non-tutorial map with an empty
-     * weapon slot (equippedWeapon == 0 = Unequipped), provide the basic
-     * combat loadout. equippedWeapon is the right gate because:
-     *   - GameBoot_SavegameInitialize bzero's it to 0 on a New Game, so
-     *     my code fires on the post-bzero map load.
-     *   - After my auto-equip sets it to InvItemId_Handgun, subsequent
-     *     room transitions see != 0 and skip â€” no re-fire on transitions.
-     *   - Loaded saves carry their own equipped weapon (Handgun or
-     *     whatever), so we won't overwrite a real save's equipment.
-     *   - The earlier static-flag approach broke when an auto-load
-     *     savegame state ran BEFORE the user clicked New Game: auto-load's
-     *     map load consumed the static, then the user's New Game bzero
-     *     wiped the items but the static stayed set so no re-fire. */
-    SH_DBG("[AUTO-EQUIP-CHECK] mapIdx=%d processFlags=0x%x inventorySlotCount=%d equippedWeapon=%d",
+    /* PC-only convenience with no PSX counterpart: a New Game booted straight
+     * onto a config-selected map (config `map` key / console MAP) skips the
+     * intro that normally hands Harry his starting gear, so hand it over here.
+     *
+     * The gate is New Game AND a provably empty inventory. It used to be
+     * `equippedWeapon == InvItemId_Unequipped`, which is NOT New-Game-exclusive:
+     * the inventory screen's Unequip clears that field mid-playthrough
+     * (item_screens_3.c, Inventory_PlayerItemScroll case 6), and this function
+     * runs on every area transition AND every save load. The block below
+     * OVERWRITES items[0..4] rather than adding, so it destroyed live
+     * inventories at the next door. Worse, func_8004F190 keeps the inventory
+     * sorted by D_80025EB0, where the health stacks sort first and a gun with
+     * its ammo right after - so slots 0..4 are exactly the health items plus
+     * the gun and its whole spare stack, and the damage landed precisely on
+     * healing items and ammo. */
+    SH_DBG("[AUTO-EQUIP-CHECK] mapIdx=%d processFlags=0x%x inventorySlotCount=%d equippedWeapon=%d invEmpty=%d",
            mapIdx, (unsigned)g_SysWork.processFlags,
            (int)g_SavegamePtr->inventorySlotCount,
-           (int)g_SavegamePtr->equippedWeapon);
+           (int)g_SavegamePtr->equippedWeapon,
+           Pc_SavegameInventoryIsEmpty());
     fflush(g_ShDebugLog);
     /* Clear SysFlag_NoEnemySpawn on every non-tutorial map entry. This flag is
      * set by map2_s00.c:1948 (gated on EventFlag_146 / WaterWorks cutscene
@@ -115,10 +142,9 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
      * cap via GameBoot_NpcClear right after it sets NoEnemySpawn — see
      * map6_s04_2.c. Blanket-blocking the whole map here killed the approach
      * enemies, so do NOT special-case it. */
-    /* Both blocks below rewrite state that an attract demo just installed from
-     * its recorded savegame, so they stand down for it: force-clearing the spawn
-     * gate changes which enemies the recording meets, and the loadout rewrite
-     * hands Harry a gun the recorded inputs never fired. */
+    /* Force-clearing the spawn gate rewrites state an attract demo just installed
+     * from its recorded savegame - it changes which enemies the recording meets -
+     * so it stands down for the demo. */
     if (mapIdx != MapIdx_MAP0_S00 && mapIdx != MapIdx_MAP0_S01 &&
         !(g_SysWork.processFlags & ProcessFlag_BootDemo))
     {
@@ -126,8 +152,8 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
     }
 
     if (mapIdx != MapIdx_MAP0_S00 && mapIdx != MapIdx_MAP0_S01 &&
-        !(g_SysWork.processFlags & ProcessFlag_BootDemo) &&
-        g_SavegamePtr->equippedWeapon == InvItemId_Unequipped)
+        (g_SysWork.processFlags & ProcessFlag_NewGame) &&
+        Pc_SavegameInventoryIsEmpty())
     {
         s_InventoryItem* items = g_SavegamePtr->items;
         items[0].id_0 = InvItemId_Flashlight;     items[0].count_1 = 1;
@@ -135,33 +161,49 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
         items[2].id_0 = InvItemId_KitchenKnife;   items[2].count_1 = 1;
         items[3].id_0 = InvItemId_Handgun;        items[3].count_1 = 1;
         items[4].id_0 = InvItemId_HandgunBullets; items[4].count_1 = 15;
-        g_SavegamePtr->inventorySlotCount = 5;
 
-        g_SavegamePtr->equippedWeapon = InvItemId_Handgun;
+        /* Before the recount: func_8004F190 only derives weaponInventoryIdx and
+         * totalWeaponAmmo when a weapon is equipped. g_Inventory_EquippedItem is
+         * deliberately left alone - the inventory screen rebuilds it from this
+         * field every time it opens. */
+        g_SavegamePtr->equippedWeapon   = InvItemId_Handgun;
         g_SavegamePtr->itemToggleFlags |= ItemToggleFlag_RadioOn;
         g_SavegamePtr->itemToggleFlags &= ~ItemToggleFlag_FlashlightOff;
 
-        g_SysWork.playerCombat.weaponAttack         = WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap);
-        g_SysWork.playerCombat.weaponInventoryIdx   = 3;
-        g_SysWork.playerCombat.totalWeaponAmmo      = 15;
-
-#ifdef SH_PC_PORT
         /* Randomizer starts Harry with extra rounds on top of this loadout. Written
          * in place rather than through Inventory_AddSpecialItem, which would open a
-         * second bullet stack next to items[4]. Returns 0 when the mode is off. */
+         * second bullet stack next to items[4]. Returns 0 when the mode is off.
+         * Before the recount so totalWeaponAmmo comes out of the final stack. */
         {
             extern int Pc_Rando_ExtraHandgunAmmo(void);
             int extra = Pc_Rando_ExtraHandgunAmmo();
             if (extra > 0)
             {
                 items[4].count_1 = (u8)(15 + extra);
-                g_SysWork.playerCombat.totalWeaponAmmo = (u8)(15 + extra);
             }
         }
-#endif
 
-        SH_DBG("[AUTO-EQUIP] FIRED on non-tutorial map %d: handgun+15+knife+radio+flashlight, equipped handgun",
-               mapIdx);
+        /* Sorts, dedups, derives weaponInventoryIdx + totalWeaponAmmo, and
+         * returns the count with the game's own [8,40] floor. The old
+         * hard-assigned 5 sat below that floor, and nothing on a transition path
+         * repairs it (the clamp lives in Game_PlayerInfoInit, which overlay
+         * transitions never call), so the next pickup landed on top of the item
+         * in slot 5. */
+        g_SavegamePtr->inventorySlotCount = func_8004F190(g_SavegamePtr);
+
+        g_SysWork.playerCombat.weaponAttack = WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap);
+        if (g_SysWork.playerCombat.weaponInventoryIdx != NO_VALUE)
+        {
+            /* Never set before, so the starting handgun read as empty and the
+             * next ammo writeback stored that 0 over the loaded round. */
+            g_SysWork.playerCombat.currentWeaponAmmo =
+                g_SavegamePtr->items[g_SysWork.playerCombat.weaponInventoryIdx].count_1;
+        }
+
+        SH_DBG("[AUTO-EQUIP] FIRED on New Game, map %d: handgun+%d+knife+radio+flashlight, slots=%d idx=%d",
+               mapIdx, (int)g_SysWork.playerCombat.totalWeaponAmmo,
+               (int)g_SavegamePtr->inventorySlotCount,
+               (int)g_SysWork.playerCombat.weaponInventoryIdx);
         fflush(g_ShDebugLog);
     }
     /* Switch the active map overlay header to the requested map. */

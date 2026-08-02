@@ -3709,7 +3709,17 @@ void func_800540A4(s8 arg0) // 0x800540A4
         g_SavegamePtr->items[g_SysWork.playerCombat.weaponInventoryIdx].count_1 = g_SysWork.playerCombat.currentWeaponAmmo;
     }
 
-    for (i = 0; i < g_SavegamePtr->inventorySlotCount; i++)
+    /* The loop body dereferences items[weaponInventoryIdx] unguarded, unlike the
+     * writeback above. With nothing equipped that index is NO_VALUE, so items[-1]
+     * reads the four bytes preceding the savegame; if they happen to spell a gun
+     * id whose ammo the player carries, that stack is overwritten with a stale
+     * totalWeaponAmmo and deleted outright when it lands on zero. Reachable from
+     * the inventory screen, which clears the index on Unequip. */
+    for (i = 0;
+#ifdef SH_PC_PORT
+         g_SysWork.playerCombat.weaponInventoryIdx != NO_VALUE &&
+#endif
+         i < g_SavegamePtr->inventorySlotCount; i++)
     {
         if (INV_ITEM_GROUP(g_SavegamePtr->items[i].id_0) == InvItemGroup_GunAmmo &&
             g_SavegamePtr->items[i].id_0 == INV_WEAPON_AMMO_ID(g_SavegamePtr->items[g_SysWork.playerCombat.weaponInventoryIdx].id_0))
