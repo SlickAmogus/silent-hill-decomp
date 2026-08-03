@@ -246,6 +246,42 @@ namespace SilentHillPC_Launcher
 
             AcceptButton = btnApply;
             CancelButton = btnClose;
+
+            FitToolColumn(
+                new[] { btnUp, btnDn, btnRe, btnOp, btnEx, btnVw, btnTp, btnBp,
+                        btnRef, btnReb, btnMo, btnOm, btnHelp, btnDds },
+                new[] { btnApply, btnClose },
+                new Control[] { help, _ffmpegRow });
+        }
+
+        /// <summary>Size the right-hand tool column to its widest LABEL and grow the form
+        /// to match, rather than trusting the hardcoded design width. The buttons are
+        /// laid out in pixels, but the text is drawn in the USER's font at the USER's
+        /// DPI — anything wider than the baseline is silently clipped mid-word
+        /// ("Model Viewer" -> "Model Vie"), with no visual cue that it happened.
+        /// Purely additive: a column whose labels already fit is left untouched, so the
+        /// stock layout is unchanged on the machine it was designed on.</summary>
+        private void FitToolColumn(Button[] column, Button[] rightAligned, Control[] fullWidth)
+        {
+            int need = 0;
+            foreach (Button b in column)
+            {
+                // MeasureText covers the glyphs; the constant is the button's own
+                // border, focus rectangle and internal padding.
+                int w = TextRenderer.MeasureText(b.Text, b.Font).Width + 14;
+                if (w > need) need = w;
+            }
+
+            int delta = need - column[0].Width;
+            if (delta <= 0) return;
+            // A pathological font must not stretch the window off-screen; past this the
+            // tooltip carries the full text anyway.
+            if (delta > 90) delta = 90;
+
+            foreach (Button b in column) b.Width += delta;
+            foreach (Button b in rightAligned) b.Left += delta;
+            foreach (Control c in fullWidth) c.Width += delta;
+            ClientSize = new Size(ClientSize.Width + delta, ClientSize.Height);
         }
 
         private ContextMenuStrip BuildContextMenu()
