@@ -121,17 +121,32 @@ namespace SilentHillPC_Launcher
                 order.Sort((a, b) => texH[b].CompareTo(texH[a]));
                 int atlasW = 512;
                 foreach (string m in order) if (texW[m] > atlasW) atlasW = texW[m];
+                // Gutters: the game samples on the donor TIM's native u8 grid, so one UV step
+                // spans atlasW/nativeW atlas pixels — islands packed edge-to-edge let a boundary
+                // texel floor into the neighbour. One native texel of padding per island makes
+                // that impossible. The vertical gutter depends on atlasH, which the gutter
+                // itself grows, so iterate to the (immediately reached in practice) fixed point.
+                int gx = (atlasW + nativeW - 1) / nativeW;
+                int gy = 1;
                 var rect = new Dictionary<string, int[]>();    // m -> [x0,y0,w,h]
-                int x = 0, y = 0, shelfH = 0;
-                foreach (string m in order)
+                int atlasH = 0;
+                for (int pass = 0; pass < 16; pass++)
                 {
-                    int w = texW[m], h = texH[m];
-                    if (x + w > atlasW) { x = 0; y += shelfH; shelfH = 0; }
-                    rect[m] = new int[] { x, y, w, h };
-                    x += w;
-                    if (h > shelfH) shelfH = h;
+                    rect.Clear();
+                    int x = 0, y = 0, shelfH = 0;
+                    foreach (string m in order)
+                    {
+                        int w = texW[m], h = texH[m];
+                        if (x + w > atlasW) { x = 0; y += shelfH + gy; shelfH = 0; }
+                        rect[m] = new int[] { x, y, w, h };
+                        x += w + gx;
+                        if (h > shelfH) shelfH = h;
+                    }
+                    atlasH = y + shelfH;
+                    int need = (atlasH + nativeH - 1) / nativeH;
+                    if (need <= gy) break;
+                    gy = need;
                 }
-                int atlasH = y + shelfH;
 
                 using (var atlas = new Bitmap(atlasW, atlasH, PixelFormat.Format32bppArgb))
                 {
@@ -155,22 +170,37 @@ namespace SilentHillPC_Launcher
                 // Game samples the atlas at (u8/nativeW, v8/nativeH); ilm_obj encodes u8=floor(u*256),
                 // v8=floor((1-v)*256). Pre-scaling by native/256 makes the sample land on the atlas 1:1.
                 double su = nativeW / 256.0, sv = nativeH / 256.0;
+                // Half a native texel in atlas pixels: the clamp below keeps every remapped UV at
+                // least this far inside its island so u8 quantisation cannot cross the gutter.
+                double halfU = 0.5 * atlasW / nativeW, halfV = 0.5 * atlasH / nativeH;
                 var remapped = new string[uvs.Count];
+                var tiledMats = new HashSet<string>(StringComparer.Ordinal);
                 for (int i = 0; i < uvs.Count; i++)
                 {
                     string m; int[] rc;
                     if (owner.TryGetValue(i + 1, out m) && rect.TryGetValue(m, out rc))
                     {
                         double u = uvs[i][0], v = uvs[i][1];
-                        double ax = (rc[0] + u * rc[2]) / atlasW;                 // atlas sample x, top-left origin
-                        double ay = (rc[1] + (1.0 - v) * rc[3]) / atlasH;         // atlas sample y, top origin
-                        double uo = su * ax;
-                        double vo = 1.0 - sv * ay;
+                        // A tiling UV offset into the atlas would land inside the NEXT island.
+                        // Wrapping is only correct when the tile spans its island exactly, hence
+                        // the per-material warning below.
+                        if (u < 0.0 || u > 1.0) { u -= Math.Floor(u); tiledMats.Add(m); }
+                        if (v < 0.0 || v > 1.0) { v -= Math.Floor(v); tiledMats.Add(m); }
+                        double px = rc[0] + u * rc[2];                            // atlas sample x, top-left origin
+                        double py = rc[1] + (1.0 - v) * rc[3];                    // atlas sample y, top origin
+                        px = Math.Max(rc[0] + halfU, Math.Min(rc[0] + rc[2] - halfU, px));
+                        py = Math.Max(rc[1] + halfV, Math.Min(rc[1] + rc[3] - halfV, py));
+                        double uo = su * (px / atlasW);
+                        double vo = 1.0 - sv * (py / atlasH);
                         remapped[i] = "vt " + uo.ToString("F6", Inv) + " " + vo.ToString("F6", Inv);
                     }
                     else
                         remapped[i] = "vt " + uvs[i][0].ToString("F6", Inv) + " " + uvs[i][1].ToString("F6", Inv);
                 }
+                foreach (string m in usedMats)
+                    if (tiledMats.Contains(m))
+                        r.Warnings.Add("material '" + m + "' tiles its texture (u/v outside 0..1); tiled regions " +
+                            "were wrapped and may look wrong - bake the texture flat for best results.");
 
                 // ---- rewrite: vt remapped, usemtl -> the part's donor CLUT row, mtllib -> atlas ----
                 string atlasMtl = Path.GetFileNameWithoutExtension(outObjPath) + ".mtl";
@@ -249,6 +279,9 @@ namespace SilentHillPC_Launcher
                 "shp_meta_" + Path.GetFileNameWithoutExtension(donorIlmPath) + ".obj");
             try
             {
+                if (geo != null && geo.MirrorLR && !geo.FixWinding)
+                    r.Warnings.Add("Mirror flips face winding - Fix winding was enabled automatically");
+
                 // Geometry pre-passes (winding fix, L/R mirror, seam collar) on a temp copy.
                 GeometryPrep.Apply(objPath, geoObj, geo);
 
@@ -273,12 +306,31 @@ namespace SilentHillPC_Launcher
                     forV7 = geoObj; metaAt = geoMeta; r.AtlasPath = null;
                 }
 
-                // A brand-new model has no .ilmmeta.json; the donor's rest poses ARE what the OBJ was
-                // rigged against, so mint the meta by exporting the donor and reuse it.
-                IlmObjConverter.ExportResult ex = IlmObjConverter.Export(donorIlmPath, tmpExportObj);
-                if (ex == null || !string.IsNullOrEmpty(ex.Error))
-                { r.Error = "could not read the donor's rest pose: " + (ex != null ? ex.Error : "unknown"); return r; }
-                File.Copy(ex.MetaPath, metaAt, true);
+                // A .ilmmeta.json beside the user's OBJ is the rest pose they actually rigged
+                // against (keyframe 0 is NOT reliably an idle pose) - silently minting a fresh
+                // keyframe-0 meta instead would displace every part, so a sibling meta wins.
+                string userMeta = Path.Combine(Path.GetDirectoryName(objPath),
+                    Path.GetFileNameWithoutExtension(objPath) + ".ilmmeta.json");
+                bool haveMeta = false;
+                if (File.Exists(userMeta))
+                {
+                    try { File.Copy(userMeta, metaAt, true); haveMeta = true; }
+                    catch (Exception mex)
+                    {
+                        r.Warnings.Add("found " + Path.GetFileName(userMeta) + " beside the OBJ but could not read " +
+                            "it (" + mex.Message + "); falling back to the donor's keyframe-0 rest pose, which may " +
+                            "displace parts if the model was rigged against a different export.");
+                    }
+                }
+                if (!haveMeta)
+                {
+                    // A brand-new model has no .ilmmeta.json; the donor's rest poses ARE what the
+                    // OBJ was rigged against, so mint the meta by exporting the donor and reuse it.
+                    IlmObjConverter.ExportResult ex = IlmObjConverter.Export(donorIlmPath, tmpExportObj);
+                    if (ex == null || !string.IsNullOrEmpty(ex.Error))
+                    { r.Error = "could not read the donor's rest pose: " + (ex != null ? ex.Error : "unknown"); return r; }
+                    File.Copy(ex.MetaPath, metaAt, true);
+                }
 
                 IlmObjConverter.ImportResult iv = IlmObjConverter.Import(forV7, donorIlmPath, outIlmPath,
                     new IlmObjConverter.ImportOptions { V7 = true });

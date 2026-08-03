@@ -717,7 +717,13 @@ def parse_obj(path):
             corners = []
             for tok in rest.split():
                 p = (tok.split('/') + ['', ''])[:3]
-                corners.append(tuple(int(v) if v else 0 for v in p))
+                idx = tuple(int(v) if v else 0 for v in p)
+                # Python's list[-n] wraps from the END, so a relative index would
+                # silently read the wrong vertex instead of failing.
+                if any(x < 0 for x in idx):
+                    raise SystemExit("relative (negative) OBJ indices are not supported - "
+                                     "re-export with absolute indices")
+                corners.append(idx)
             cur["faces"].append({"c": corners, "mtl": mtl})
     return verts, norms, uvs, objs
 
@@ -917,6 +923,14 @@ def import_obj(obj_path, ilm_path, out_path, grow=False, replace=False,
     if len(meta.get("models", [])) != len(ilm.models):
         raise SystemExit("the .ilmmeta.json describes %d parts but the ILM has %d - it was "
                          "written for a different model." % (len(meta.get("models", [])), len(ilm.models)))
+    # Same part COUNT is not the same MODEL: two exports shuffled in one folder
+    # would otherwise drive unbakes with another character's matrices.
+    for i, mm in enumerate(meta["models"]):
+        mn = mm.get("name")
+        if mn is not None and mn != ilm.models[i]["name"]:
+            raise SystemExit("the .ilmmeta.json calls part %d %r but the ILM calls it %r - it "
+                             "was written for a different model."
+                             % (i, mn, ilm.models[i]["name"]))
 
     poses = []
     for mm in meta["models"]:
@@ -2494,7 +2508,7 @@ def _replace_import(obj_path, ilm_path, out_path, data, ilm, meta, verts, norms,
 
     # Primitive bytes. Every prim inherits a template of the SAME material name,
     # consumed in order so an unedited --replace reuses each original's own
-    # bytes; the surplus of a grown material falls back to that material's first.
+    # bytes; the surplus of a grown material falls back to that material's last.
     parts = {}
     intent = {}
     for mi in order:
@@ -2824,6 +2838,29 @@ def _wide_import(obj_path, ilm_path, out_path, data, ilm, meta,
         struct.unpack_from('<I', blob, 0x18)[0], len(blob)))
     if meta.get("restPose") == "identity":
         print("   rest pose: IDENTITY (this OBJ was exported without an ANM)")
+    else:
+        # v7 has no pool, so the weld --replace derives from coincidence cannot
+        # exist here: a butt-joint renders closed at rest and opens the moment a
+        # bone bends. Warn now, not in game. Skipped for identity rest poses,
+        # where every part piles on the origin and coincidence stops meaning
+        # "meets at a joint" (the same reason --replace refuses to weld one).
+        pairs = 0
+        grid = {}
+        for m in ilm.models:
+            o = by_name[m["name"]]
+            for vl in o["v"]:
+                w = verts[vl - 1]
+                for cand in _grid_near(grid, w, WELD_EPS):
+                    if _dist2(w, verts[cand - 1]) <= WELD_EPS * WELD_EPS:
+                        pairs += 1
+                        break
+            for vl in o["v"]:
+                _grid_add(grid, verts[vl - 1], WELD_EPS, vl)
+        if pairs:
+            print("   WARNING: %d coincident cross-part vertex pair(s) found. The high-poly "
+                  "format CANNOT weld them - these joints WILL open when bones bend. Model "
+                  "the parts OVERLAPPING at each joint (telescoping, like the stock models) "
+                  "or enable Close seams." % pairs)
     return out_path
 
 

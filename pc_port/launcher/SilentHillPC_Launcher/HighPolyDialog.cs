@@ -121,8 +121,12 @@ namespace SilentHillPC_Launcher
                 "FIX WINDING: makes faces point outward so the model doesn't show through itself. Safe on.\n\n" +
                 "FIX LEFT/RIGHT: mirrors the model — use ONLY if the limbs came out swapped (you'll get a " +
                 "warning). It also flips the texture left-right, so leave it off unless needed.\n\n" +
-                "CLOSE SEAMS (rough): auto-overlaps the joints to hide gaps, but it's approximate — dragging " +
-                "the boundary vertices together in Blender is cleaner. Off by default.\n\n" +
+                "CLOSE SEAMS (rough): auto-overlaps the joints to hide gaps, but it's approximate — " +
+                "overlapping the parts by hand in Blender is cleaner. Off by default.\n\n" +
+                "JOINTS — IMPORTANT: the high-poly format has NO welding. Vertices snapped to exactly the " +
+                "same spot stay separate copies, and the joint OPENS as soon as a bone bends. Model the " +
+                "parts OVERLAPPING at each joint (telescoping, like the game's own models) or tick Close " +
+                "seams. Only the Simple replacement's rebuild welds coincident vertices.\n\n" +
                 "SIMPLE REPLACEMENT…: switches to the basic editor for RESHAPING an existing character " +
                 "(patch / grow / replace within the vertex limit), instead of swapping in a new high-poly mesh.\n\n" +
                 "Output: a new .ILM and a .TIM.png sheet. Drop BOTH into gamedata\\load\\CHARA\\ under the " +

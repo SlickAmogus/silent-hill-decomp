@@ -30,9 +30,12 @@ namespace SilentHillPC_Launcher
         public static void Apply(string objPath, string outObjPath, Options opt)
         {
             if (opt == null) opt = new Options();
+            // MirrorX reverses every face's winding and cannot correct it itself, so mirror
+            // without the winding pass would ship an inside-out model - mirror forces it on.
+            bool winding = opt.FixWinding || opt.MirrorLR;
             bool any = false;
             if (opt.MirrorLR) { MirrorX(any ? outObjPath : objPath, outObjPath); any = true; }
-            if (opt.FixWinding) { FixWinding(any ? outObjPath : objPath, outObjPath); any = true; }
+            if (winding) { FixWinding(any ? outObjPath : objPath, outObjPath); any = true; }
             if (opt.CloseSeams) { Collar(any ? outObjPath : objPath, outObjPath, opt.CollarMargin); any = true; }
             if (!any) File.Copy(objPath, outObjPath, true);
         }
@@ -256,7 +259,10 @@ namespace SilentHillPC_Launcher
             {11,0},{12,11},{13,12},{14,13},{15,11},{16,15},{17,16},{0,0}
         };
 
-        private class CPart { public string Name; public string Mtl = "mat00_row00"; public List<int[][]> Faces = new List<int[][]>(); }
+        // Per-face materials, not one per part: AtlasPrep picks each UV's island from its face's
+        // material, so collapsing a multi-material part to a single usemtl would remap every one
+        // of its UVs into one texture's rect.
+        private class CPart { public string Name; public List<string> FaceMtl = new List<string>(); public List<int[][]> Faces = new List<int[][]>(); }
 
         /// <summary>ROUGH auto seam-close: extrude each tube part's PARENT-facing open loop toward its
         /// parent so it telescopes into the neighbour. Weaker than dragging verts by hand (opt-in;
@@ -265,6 +271,7 @@ namespace SilentHillPC_Launcher
         {
             var V = new List<double[]>(); var VT = new List<double[]>(); var VN = new List<double[]>();
             var parts = new List<CPart>(); CPart cur = null; string mtllib = null;
+            string curMtl = "mat00_row00";   // persists across `o` boundaries, as OBJ state does
             foreach (string raw in File.ReadLines(objPath))
             {
                 string[] p = raw.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
@@ -274,7 +281,7 @@ namespace SilentHillPC_Launcher
                 else if (p[0] == "vt") VT.Add(new[] { D(p[1]), D(p[2]) });
                 else if (p[0] == "vn") VN.Add(new[] { D(p[1]), D(p[2]), D(p[3]) });
                 else if (p[0] == "o") { cur = new CPart { Name = p.Length > 1 ? p[1] : "" }; parts.Add(cur); }
-                else if (p[0] == "usemtl") { if (cur != null && p.Length > 1) cur.Mtl = p[1]; }
+                else if (p[0] == "usemtl") { if (p.Length > 1) curMtl = p[1]; }
                 else if (p[0] == "f" && cur != null)
                 {
                     var f = new int[p.Length - 1][];
@@ -287,6 +294,7 @@ namespace SilentHillPC_Launcher
                         f[i - 1] = new[] { vi, ti, ni };
                     }
                     cur.Faces.Add(f);
+                    cur.FaceMtl.Add(curMtl);
                 }
             }
 
@@ -315,6 +323,7 @@ namespace SilentHillPC_Launcher
             {
                 var collarV = new List<double[]>();
                 var collarFaces = new List<int[][]>();
+                var collarMtl = new List<string>();
                 int b = BoneOfName(part.Name);
                 double[] pj = null; int pb;
                 if (PARENT.TryGetValue(b, out pb)) boneC.TryGetValue(pb, out pj);
@@ -324,14 +333,16 @@ namespace SilentHillPC_Launcher
                 if (isTube && part.Faces.Count > 0 && pj != null)
                 {
                     var ec = new Dictionary<long, int>();
-                    foreach (var f in part.Faces)
-                        foreach (var t in Tri(f))
+                    var emtl = new Dictionary<long, string>();   // boundary edges have ONE face, so its material sticks
+                    for (int fi = 0; fi < part.Faces.Count; fi++)
+                        foreach (var t in Tri(part.Faces[fi]))
                             for (int e = 0; e < 3; e++)
                             {
                                 int x = t[e][0], y = t[(e + 1) % 3][0];
                                 if (x == y) continue;
                                 long key = EdgeKey(x, y);
                                 int cc; ec[key] = ec.TryGetValue(key, out cc) ? cc + 1 : 1;
+                                emtl[key] = part.FaceMtl[fi];
                             }
                     var bedges = new List<int[]>();
                     foreach (var kv in ec)
@@ -394,8 +405,10 @@ namespace SilentHillPC_Launcher
                                 if (!loop.Contains(a) || !loop.Contains(bb)) continue;
                                 int ta = vtOf.ContainsKey(a) ? vtOf[a] : -1, tb = vtOf.ContainsKey(bb) ? vtOf[bb] : -1;
                                 int na = vnOf.ContainsKey(a) ? vnOf[a] : -1, nb = vnOf.ContainsKey(bb) ? vnOf[bb] : -1;
+                                string em = emtl[EdgeKey(a, bb)];
                                 collarFaces.Add(new[] { new[] { a, ta, na }, new[] { bb, tb, nb }, new[] { newof[bb], tb, nb }, new[] { newof[a], ta, na } });
                                 collarFaces.Add(new[] { new[] { newof[a], ta, na }, new[] { newof[bb], tb, nb }, new[] { bb, tb, nb }, new[] { a, ta, na } });
+                                collarMtl.Add(em); collarMtl.Add(em);
                             }
                         }
                     }
@@ -403,12 +416,25 @@ namespace SilentHillPC_Launcher
 
                 var lv = new Dictionary<string, int>(); var lt = new Dictionary<string, int>(); var lnn = new Dictionary<string, int>();
                 var vlines = new List<string>(); var tlines = new List<string>(); var nlines = new List<string>();
+                // Re-emit usemtl changes in face order rather than one per part: a stateful
+                // reader gets every face back under its ORIGINAL material. The run state resets
+                // per part because AtlasPrep's rewrite maps each usemtl line to the CURRENT
+                // part's donor row - a run carried across `o` would hand this part's faces the
+                // previous part's row.
+                string lastMtl = null;
                 var fl = new List<string>();
-                foreach (var f in part.Faces) fl.Add(EmitFace(f, lv, lt, lnn, vlines, tlines, nlines, V, VT, VN, collarV, gv, gt, gn));
-                foreach (var q in collarFaces) fl.Add(EmitFace(q, lv, lt, lnn, vlines, tlines, nlines, V, VT, VN, collarV, gv, gt, gn));
+                for (int fi = 0; fi < part.Faces.Count; fi++)
+                {
+                    if (part.FaceMtl[fi] != lastMtl) { lastMtl = part.FaceMtl[fi]; fl.Add("usemtl " + lastMtl); }
+                    fl.Add(EmitFace(part.Faces[fi], lv, lt, lnn, vlines, tlines, nlines, V, VT, VN, collarV, gv, gt, gn));
+                }
+                for (int ci = 0; ci < collarFaces.Count; ci++)
+                {
+                    if (collarMtl[ci] != lastMtl) { lastMtl = collarMtl[ci]; fl.Add("usemtl " + lastMtl); }
+                    fl.Add(EmitFace(collarFaces[ci], lv, lt, lnn, vlines, tlines, nlines, V, VT, VN, collarV, gv, gt, gn));
+                }
                 outLines.Add("o " + part.Name);
                 outLines.AddRange(vlines); outLines.AddRange(tlines); outLines.AddRange(nlines);
-                outLines.Add("usemtl " + part.Mtl);
                 outLines.AddRange(fl);
                 gv += vlines.Count; gt += tlines.Count; gn += nlines.Count;
             }

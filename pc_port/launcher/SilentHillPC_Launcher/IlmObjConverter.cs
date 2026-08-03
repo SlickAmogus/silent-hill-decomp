@@ -1643,6 +1643,11 @@ namespace SilentHillPC_Launcher
             int v;
             if (!int.TryParse(parts[i], NumberStyles.Integer, Inv, out v))
                 throw new IlmException("face index is not an integer: " + parts[i]);
+            // OBJ allows end-relative indices; every lookup here is absolute 1-based, so a
+            // negative one would either throw an opaque range error or read the wrong element.
+            if (v < 0)
+                throw new IlmException("relative (negative) OBJ indices are not supported - " +
+                    "re-export with absolute indices");
             return v;
         }
 
@@ -1895,6 +1900,15 @@ namespace SilentHillPC_Launcher
             if (metaCount != ilm.Models.Length)
                 throw new IlmException("the .ilmmeta.json describes " + metaCount.ToString(Inv) + " parts but the ILM " +
                     "has " + ilm.Models.Length.ToString(Inv) + " - it was written for a different model.");
+            // Same part COUNT is not the same MODEL: two exports shuffled in one folder would
+            // otherwise drive unbakes with another character's matrices.
+            for (int i = 0; i < metaCount; i++)
+            {
+                JNode mn = JGet(metaModels.Items[i], "name");
+                if (mn != null && mn.Kind == 's' && !string.Equals(mn.Text, ilm.Models[i].Name, StringComparison.Ordinal))
+                    throw new IlmException("the .ilmmeta.json calls part " + i.ToString(Inv) + " '" + mn.Text +
+                        "' but the ILM calls it '" + ilm.Models[i].Name + "' - it was written for a different model.");
+            }
 
             var poseR = new int[metaCount][];
             var poseT = new int[metaCount][];
@@ -4101,6 +4115,32 @@ namespace SilentHillPC_Launcher
             foreach (WidePart wp in wideParts)
                 res.Report.Add(ilm.Models[wp.Ordinal].Name + ": " + wp.Verts.Count.ToString(Inv) + " verts, " +
                     wp.Prims.Count.ToString(Inv) + " faces");
+
+            // v7 has no pool, so the weld ReplaceImport derives from coincidence cannot exist
+            // here: a butt-joint renders closed at rest and opens the moment a bone bends. Warn
+            // now, not in game. Skipped for identity rest poses, where every part piles on the
+            // origin and coincidence stops meaning "meets at a joint" (the same reason replace
+            // refuses to weld one).
+            if (!res.RestPoseIdentity)
+            {
+                int seamPairs = 0;
+                var lintGrid = new Grid(WeldEpsDefault);
+                foreach (Model m in ilm.Models)
+                {
+                    ObjObject oo = byName[m.Name];
+                    foreach (int vl in oo.V)
+                    {
+                        double[] w = of.Verts[vl - 1];
+                        foreach (int cand in lintGrid.Near(w))
+                            if (Dist2(w, of.Verts[cand - 1]) <= WeldEpsDefault * WeldEpsDefault) { seamPairs++; break; }
+                    }
+                    foreach (int vl in oo.V) lintGrid.Add(of.Verts[vl - 1], vl);
+                }
+                if (seamPairs > 0)
+                    res.Warnings.Add(seamPairs.ToString(Inv) + " coincident cross-part vertex pair(s) found. The " +
+                        "high-poly format CANNOT weld them - these joints WILL open when bones bend. Model the " +
+                        "parts OVERLAPPING at each joint (telescoping, like the stock models) or enable Close seams.");
+            }
         }
 
         private static void ReplaceImport(string objPath, string ilmPath, string outIlmPath, byte[] data, Ilm ilm,
@@ -4543,7 +4583,7 @@ namespace SilentHillPC_Launcher
 
             // Primitive bytes. Every prim inherits a template of the SAME material name, consumed
             // in order so an unedited replacement reuses each original's own bytes; the surplus of
-            // a grown material falls back to that material's first.
+            // a grown material falls back to that material's last.
             var parts = new List<PartBlock>[mc];
             var intentV = new Dictionary<int, int>();   // (mi,fidx,corner) -> owner<<16 | local
             var intentN = new Dictionary<int, int>();
