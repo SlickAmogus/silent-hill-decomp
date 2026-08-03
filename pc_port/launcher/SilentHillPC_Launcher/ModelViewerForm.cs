@@ -10,15 +10,16 @@ using System.Windows.Forms;
 namespace SilentHillPC_Launcher
 {
     /// <summary>
-    /// Software-rendered model viewer. Opens character models (.ILM), prop/item
-    /// models (.PLM), PSX item TMDs (.TMD) and edited .OBJ files, and plays .ANM
-    /// skeletal animation on character models with a scrub/play timeline.
+    /// Software-rendered model viewer. ONE reusable window: opening another model
+    /// (File > Open, drag &amp; drop, or a second "Model Viewer" click) loads into the
+    /// same window instead of spawning a new one. Opens character models (.ILM),
+    /// prop/item models (.PLM), PSX item TMDs (.TMD) and edited .OBJ files, and
+    /// plays .ANM skeletal animation on character models with a scrub timeline.
     ///
     /// Character/prop scenes come from IlmObjConverter.BuildAnimScene — the same
     /// parser and scratch-pool weld replay the converter itself uses, so what this
-    /// window shows in motion is the format's real behaviour (welded joints stay
-    /// closed exactly where the pool welds them). .OBJ files render as-is, so the
-    /// viewer still doubles as a live check on a Blender round trip.
+    /// window shows in motion is the format's real behaviour. .OBJ files render
+    /// as-is, so the viewer still doubles as a live check on a Blender round trip.
     ///
     /// Pose math is AnmFile — the engine-exact sampler (component-lerped q12
     /// matrices, shared translation slot 0, rootYOffset) — NOT a generic skeletal
@@ -30,17 +31,20 @@ namespace SilentHillPC_Launcher
     /// </summary>
     public class ModelViewerForm : Form
     {
-        private readonly IlmViewScene _scene;
-        private readonly IlmObjConverter.AnimScene _anim; // null for .OBJ / .TMD scenes
-        private readonly string _gameRoot;                // null when opened without one
-        private int[] _vertPart, _vertLocal;              // scene vertex -> (part, local)
+        private static ModelViewerForm s_open; // the one reusable window
+
+        private IlmViewScene _scene;                // null until a model is opened
+        private IlmObjConverter.AnimScene _anim;    // null for .OBJ / .TMD scenes
+        private string _gameRoot;                   // null when opened without one
+        private int[] _vertPart, _vertLocal;        // scene vertex -> (part, local)
 
         private PictureBox _view;
         private CheckBox _chkTex, _chkWire;
         private Label _lblInfo;
+        private ToolStripMenuItem _miExportThis;
         private float _yaw = 0.6f, _pitch = 0.25f;
         private float _dist, _panX, _panY;
-        private readonly float _distHome;
+        private float _distHome;
         private Point _last;
         private MouseButtons _drag = MouseButtons.None;
 
@@ -54,7 +58,6 @@ namespace SilentHillPC_Launcher
         private Button _btnPlay;
         private Label _lblKf;
         private ComboBox _cmbSpeed;
-        private Panel _animPanel;
         private DateTime _lastTick;
         private bool _barFromCode;
 
@@ -63,81 +66,51 @@ namespace SilentHillPC_Launcher
             Open(owner, path, null);
         }
 
-        /// <summary>Open a viewer for a supported model file, reporting failure via
-        /// MessageBox instead of letting an exception escape the caller's Click
-        /// handler. `gameRoot` enables the Convert menu (shared ConverterActions).</summary>
+        /// <summary>Show the viewer (reusing the open window when there is one) and
+        /// load <paramref name="path"/> into it — or just show it empty when path is
+        /// null, ready for File > Open / drag &amp; drop. Load failures report via
+        /// MessageBox; the window stays up either way.</summary>
         public static void Open(IWin32Window owner, string path, string gameRoot)
         {
-            IlmViewScene scene = null;
-            IlmObjConverter.AnimScene anim = null;
-            try
+            ModelViewerForm f = s_open;
+            if (f == null || f.IsDisposed)
             {
-                string ext = (Path.GetExtension(path) ?? "").ToUpperInvariant();
-                string err = null;
-                if (ext == ".OBJ")
-                {
-                    scene = IlmViewScene.Load(path, out err);
-                }
-                else if (ext == ".TMD")
-                {
-                    scene = IlmViewScene.FromTmd(path, out err);
-                }
-                else // .ILM / .PLM (and anything with the LM magic)
-                {
-                    anim = IlmObjConverter.BuildAnimScene(path, null);
-                    scene = IlmViewScene.FromAnimScene(anim, out err);
-                }
-                if (scene == null)
-                {
-                    MessageBox.Show(owner, "Could not open the model:\n\n" + (err ?? "unknown error"),
-                        "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
+                f = new ModelViewerForm(gameRoot);
+                s_open = f;
+                f.FormClosed += (s, e) => { if (s_open == f) s_open = null; };
+                f.Show(owner as Form);
             }
-            catch (Exception ex)
+            else
             {
-                MessageBox.Show(owner, "Could not open the model:\n\n" + ex.Message,
-                    "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
+                if (gameRoot != null) f._gameRoot = gameRoot;
+                if (f.WindowState == FormWindowState.Minimized) f.WindowState = FormWindowState.Normal;
+                f.Activate();
             }
-
-            var f = new ModelViewerForm(scene, anim, gameRoot);
-            f.Show(owner as Form);
-            if (scene.Warnings.Count > 0)
-                MessageBox.Show(f, string.Join("\n\n", scene.Warnings.ToArray()),
-                    "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            if (path != null) f.LoadPath(path);
         }
 
-        private ModelViewerForm(IlmViewScene scene, IlmObjConverter.AnimScene anim, string gameRoot)
+        private ModelViewerForm(string gameRoot)
         {
-            _scene = scene;
-            _anim = anim;
             _gameRoot = gameRoot;
-            _dist = _distHome = scene.Radius * 2.6f + 1.0f;
 
-            Text = "Model Viewer — " + scene.Title;
+            Text = "Model Viewer";
             ClientSize = new Size(800, 640);
             MinimumSize = new Size(520, 400);
             StartPosition = FormStartPosition.CenterParent;
             KeyPreview = true;
+            AllowDrop = true;
+            DragEnter += OnDragEnter;
+            DragDrop += OnDragDrop;
 
             var menu = BuildMenu();
 
             var bar = new Panel { Dock = DockStyle.Top, Height = 30 };
-            _chkTex = new CheckBox
-            {
-                Text = "Textured",
-                Location = new Point(8, 6),
-                AutoSize = true,
-                Checked = scene.HasTexture,
-                Enabled = scene.HasTexture
-            };
+            _chkTex = new CheckBox { Text = "Textured", Location = new Point(8, 6), AutoSize = true, Enabled = false };
             _chkWire = new CheckBox { Text = "Wireframe", Location = new Point(92, 6), AutoSize = true };
             var btnReset = new Button { Text = "Reset View", Location = new Point(188, 3), Size = new Size(80, 24) };
             _lblInfo = new Label
             {
-                Text = scene.Parts + " parts   " + scene.VertexCount + " verts   " + scene.Tris.Count + " tris" +
-                       "   |   drag: orbit    right-drag: pan    wheel: zoom",
+                Text = "File > Open a model, or drop one here",
                 Location = new Point(282, 8),
                 AutoSize = true,
                 ForeColor = SystemColors.GrayText
@@ -158,22 +131,117 @@ namespace SilentHillPC_Launcher
             MouseWheel += OnViewWheel;
             Resize += (s, e) => Render();
 
-            BuildAnimPanel();
+            var animPanel = BuildAnimPanel();
 
             Controls.Add(_view);
-            if (_animPanel != null) Controls.Add(_animPanel);
+            Controls.Add(animPanel);
             Controls.Add(bar);
             Controls.Add(menu);
             MainMenuStrip = menu;
+
+            Shown += (s, e) => Render();
+            FormClosed += (s, e) => { if (_timer != null) _timer.Dispose(); };
+        }
+
+        // ---- open / load ----------------------------------------------------------
+
+        private static readonly string[] OpenableExts = { ".ILM", ".PLM", ".TMD", ".OBJ" };
+
+        private static bool IsOpenable(string path)
+        {
+            string ext = (Path.GetExtension(path) ?? "").ToUpperInvariant();
+            return Array.IndexOf(OpenableExts, ext) >= 0;
+        }
+
+        /// <summary>Load a model into THIS window. On failure the previous scene (or
+        /// the empty state) stays; the error goes to a MessageBox.</summary>
+        public void LoadPath(string path)
+        {
+            IlmViewScene scene = null;
+            IlmObjConverter.AnimScene anim = null;
+            try
+            {
+                string ext = (Path.GetExtension(path) ?? "").ToUpperInvariant();
+                string err = null;
+                if (ext == ".OBJ")
+                {
+                    scene = IlmViewScene.Load(path, out err);
+                }
+                else if (ext == ".TMD")
+                {
+                    scene = IlmViewScene.FromTmd(path, out err);
+                }
+                else // .ILM / .PLM (anything with the LM magic)
+                {
+                    anim = IlmObjConverter.BuildAnimScene(path, null);
+                    scene = IlmViewScene.FromAnimScene(anim, out err);
+                }
+                if (scene == null)
+                {
+                    MessageBox.Show(this, "Could not open the model:\n\n" + (err ?? "unknown error"),
+                        "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Could not open the model:\n\n" + ex.Message,
+                    "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            _scene = scene;
+            _anim = anim;
+            _vertPart = null;
+            _vertLocal = null;
+            _anm2 = null;
+            _anmPath = null;
+            _time = 0;
+            _playing = false;
+            _btnPlay.Enabled = false;
+            _btnPlay.Text = "Play";
+            _bar.Enabled = false;
+            _lblKf.Text = "no ANM";
+            _distHome = scene.Radius * 2.6f + 1.0f;
+            _chkTex.Checked = scene.HasTexture;
+            _chkTex.Enabled = scene.HasTexture;
+            _miExportThis.Enabled = _anim != null && _anim.IlmPath != null;
+            _lblInfo.Text = scene.Parts + " parts   " + scene.VertexCount + " verts   " + scene.Tris.Count + " tris" +
+                            "   |   drag: orbit    right-drag: pan    wheel: zoom";
+            Text = "Model Viewer — " + scene.Title;
 
             if (_anim != null)
             {
                 BuildVertexMap();
                 if (_anim.AnmPath != null) LoadAnm(_anim.AnmPath, false);
-                ApplyPose(); // posed at keyframe 0 (or identity for props)
+                ApplyPose();
             }
-            Shown += (s, e) => Render();
-            FormClosed += (s, e) => { if (_timer != null) _timer.Dispose(); };
+            ResetView();
+
+            if (scene.Warnings.Count > 0)
+                MessageBox.Show(this, string.Join("\n\n", scene.Warnings.ToArray()),
+                    "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        private void OnDragEnter(object s, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                if (files != null && files.Length > 0 && IsOpenable(files[0]))
+                {
+                    e.Effect = DragDropEffects.Copy;
+                    return;
+                }
+            }
+            e.Effect = DragDropEffects.None;
+        }
+
+        private void OnDragDrop(object s, DragEventArgs e)
+        {
+            var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+            if (files != null && files.Length > 0 && IsOpenable(files[0]))
+                LoadPath(files[0]);
         }
 
         // ---- menu ----------------------------------------------------------------
@@ -188,26 +256,19 @@ namespace SilentHillPC_Launcher
             file.DropDownItems.Add("&Close", null, (s, e) => Close());
 
             var conv = new ToolStripMenuItem("&Convert");
-            var expThis = new ToolStripMenuItem("Export &This Model → OBJ…");
-            expThis.Click += (s, e) => ConverterActions.ExportModelFrom(this, _anim.IlmPath);
-            expThis.Enabled = _anim != null && _anim.IlmPath != null;
-            conv.DropDownItems.Add(expThis);
+            _miExportThis = new ToolStripMenuItem("Export &This Model → OBJ…");
+            _miExportThis.Click += (s, e) => ConverterActions.ExportModelFrom(this, _anim.IlmPath);
+            _miExportThis.Enabled = false;
+            conv.DropDownItems.Add(_miExportThis);
             conv.DropDownItems.Add("&Model → OBJ…", null, (s, e) => ConverterActions.ExportModel(this, RootOrGuess()));
             conv.DropDownItems.Add("&OBJ → Model (high-poly)…", null, (s, e) => ConverterActions.HighPolyImport(this, RootOrGuess()));
             conv.DropDownItems.Add("&Simple OBJ → Model…", null, (s, e) => ConverterActions.SimpleImport(this, RootOrGuess()));
 
             var animM = new ToolStripMenuItem("&Animation");
-            var pick = new ToolStripMenuItem("Choose &ANM…");
-            pick.Click += (s, e) => OnChooseAnm();
-            pick.Enabled = _anim != null;
-            animM.DropDownItems.Add(pick);
+            animM.DropDownItems.Add("Choose &ANM…", null, (s, e) => OnChooseAnm());
             animM.DropDownItems.Add(new ToolStripSeparator());
-            var expJ = new ToolStripMenuItem("Export ANM → editable &JSON…");
-            expJ.Click += (s, e) => OnExportAnmJson();
-            animM.DropDownItems.Add(expJ);
-            var impJ = new ToolStripMenuItem("&Import JSON → ANM…");
-            impJ.Click += (s, e) => OnImportAnmJson();
-            animM.DropDownItems.Add(impJ);
+            animM.DropDownItems.Add("Export ANM → editable &JSON…", null, (s, e) => OnExportAnmJson());
+            animM.DropDownItems.Add("&Import JSON → ANM…", null, (s, e) => OnImportAnmJson());
 
             var help = new ToolStripMenuItem("&Help");
             help.DropDownItems.Add("&About the viewer…", null, (s, e) => ShowHelp());
@@ -238,9 +299,18 @@ namespace SilentHillPC_Launcher
             {
                 ofd.Title = "Select a model to view";
                 ofd.Filter = "Models (*.ilm;*.plm;*.tmd;*.obj)|*.ilm;*.plm;*.tmd;*.obj|All files (*.*)|*.*";
-                try { ofd.InitialDirectory = _anim != null ? Path.GetDirectoryName(_anim.IlmPath) : null; } catch { }
+                try
+                {
+                    if (_anim != null) ofd.InitialDirectory = Path.GetDirectoryName(_anim.IlmPath);
+                    else if (!string.IsNullOrEmpty(_gameRoot))
+                    {
+                        string gd = Path.Combine(_gameRoot, "gamedata");
+                        if (Directory.Exists(gd)) ofd.InitialDirectory = gd;
+                    }
+                }
+                catch { }
                 if (ofd.ShowDialog(this) != DialogResult.OK) return;
-                Open(this, ofd.FileName, _gameRoot);
+                LoadPath(ofd.FileName);
             }
         }
 
@@ -250,10 +320,15 @@ namespace SilentHillPC_Launcher
             {
                 "MODEL VIEWER",
                 "",
+                "Open models with File > Open, or drag & drop a file onto the window.",
+                "The window is reused — opening another model replaces the current one.",
+                "",
                 "Opens:",
                 "  .ILM   character models — animated when their .ANM is found (the",
                 "         ANIM folder beside CHARA, like the extracted disc layout).",
-                "  .PLM   prop/item models (weapons, furniture) — static, identity pose.",
+                "  .PLM   prop models — weapons/items (ITEM), and each area's global",
+                "         world props (BG\\*_GLB.PLM: doors, signs, fences, building",
+                "         shells the map instances). Static, identity pose.",
                 "  .TMD   PSX inventory item models (ITEM folder).",
                 "  .OBJ   an edited export, exactly as Blender sees it.",
                 "",
@@ -285,11 +360,9 @@ namespace SilentHillPC_Launcher
 
         // ---- animation panel ------------------------------------------------------
 
-        private void BuildAnimPanel()
+        private Panel BuildAnimPanel()
         {
-            if (_anim == null) return;
-
-            _animPanel = new Panel { Dock = DockStyle.Bottom, Height = 34 };
+            var panel = new Panel { Dock = DockStyle.Bottom, Height = 34 };
             _btnPlay = new Button { Text = "Play", Location = new Point(8, 4), Size = new Size(56, 26), Enabled = false };
             _btnPlay.Click += (s, e) => TogglePlay();
             _bar = new TrackBar
@@ -328,13 +401,14 @@ namespace SilentHillPC_Launcher
             _cmbSpeed.Items.AddRange(new object[] { "0.25x", "0.5x", "1x", "2x" });
             _cmbSpeed.SelectedIndex = 2;
 
-            _animPanel.Controls.Add(_btnPlay);
-            _animPanel.Controls.Add(_bar);
-            _animPanel.Controls.Add(_lblKf);
-            _animPanel.Controls.Add(_cmbSpeed);
+            panel.Controls.Add(_btnPlay);
+            panel.Controls.Add(_bar);
+            panel.Controls.Add(_lblKf);
+            panel.Controls.Add(_cmbSpeed);
 
             _timer = new Timer { Interval = 33 };
             _timer.Tick += (s, e) => OnAnimTick();
+            return panel;
         }
 
         private void TogglePlay()
@@ -399,19 +473,22 @@ namespace SilentHillPC_Launcher
             _anmPath = path;
             _time = 0;
             _playing = false;
-            if (_btnPlay != null)
-            {
-                _btnPlay.Enabled = true;
-                _btnPlay.Text = "Play";
-                _bar.Enabled = true;
-                _bar.Maximum = Math.Max(1, anm.KeyframeCount - 1);
-                _barFromCode = true; _bar.Value = 0; _barFromCode = false;
-            }
+            _btnPlay.Enabled = true;
+            _btnPlay.Text = "Play";
+            _bar.Enabled = true;
+            _bar.Maximum = Math.Max(1, anm.KeyframeCount - 1);
+            _barFromCode = true; _bar.Value = 0; _barFromCode = false;
             Text = "Model Viewer — " + _scene.Title + "  [" + Path.GetFileName(path) + "]";
         }
 
         private void OnChooseAnm()
         {
+            if (_anim == null)
+            {
+                MessageBox.Show(this, "Open a character model (.ILM) first — animations pose its skeleton.",
+                    "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
             using (var ofd = new OpenFileDialog())
             {
                 ofd.Title = "Select an animation (.ANM)";
@@ -544,31 +621,26 @@ namespace SilentHillPC_Launcher
         {
             if (_anim == null || _vertPart == null) return;
 
-            int kf0 = 0, kf1 = 0, alpha = 0;
             int[][] R = null, T = null;
             if (_anm2 != null)
             {
-                kf0 = (int)Math.Floor(_time);
+                int kf0 = (int)Math.Floor(_time);
                 if (kf0 < 0) kf0 = 0;
                 if (kf0 > _anm2.KeyframeCount - 1) kf0 = _anm2.KeyframeCount - 1;
-                kf1 = kf0 + 1 < _anm2.KeyframeCount ? kf0 + 1 : kf0;
-                alpha = (int)((_time - kf0) * 4096.0);
+                int kf1 = kf0 + 1 < _anm2.KeyframeCount ? kf0 + 1 : kf0;
+                int alpha = (int)((_time - kf0) * 4096.0);
                 if (alpha < 0) alpha = 0;
                 if (alpha > 4095) alpha = 4095;
                 R = new int[_anm2.BoneCount][];
                 T = new int[_anm2.BoneCount][];
                 _anm2.WorldPose(kf0, kf1, alpha, R, T);
 
-                if (_lblKf != null)
-                    _lblKf.Text = "KF " + _time.ToString("0.0", CultureInfo.InvariantCulture) +
-                                  " / " + (_anm2.KeyframeCount - 1);
-                if (_bar != null)
-                {
-                    _barFromCode = true;
-                    int v = Math.Min(kf0, _bar.Maximum);
-                    if (_bar.Value != v) _bar.Value = v;
-                    _barFromCode = false;
-                }
+                _lblKf.Text = "KF " + _time.ToString("0.0", CultureInfo.InvariantCulture) +
+                              " / " + (_anm2.KeyframeCount - 1);
+                _barFromCode = true;
+                int v = Math.Min(kf0, _bar.Maximum);
+                if (_bar.Value != v) _bar.Value = v;
+                _barFromCode = false;
             }
 
             var parts = _anim.Parts;
@@ -629,6 +701,7 @@ namespace SilentHillPC_Launcher
 
         private void OnViewWheel(object s, MouseEventArgs e)
         {
+            if (_scene == null) return;
             _dist *= (float)Math.Pow(0.88, e.Delta / 120.0);
             float lo = _scene.Radius * 0.3f + 0.1f, hi = _distHome * 8f;
             if (_dist < lo) _dist = lo;
@@ -640,8 +713,25 @@ namespace SilentHillPC_Launcher
         {
             int w = _view.ClientSize.Width, h = _view.ClientSize.Height;
             if (w < 8 || h < 8) return;
-            var bmp = IlmSoftRenderer.Render(_scene, w, h, _yaw, _pitch, _dist, _panX, _panY,
-                _chkTex.Checked, _chkWire.Checked);
+            Bitmap bmp;
+            if (_scene == null)
+            {
+                bmp = new Bitmap(w, h);
+                using (var g = Graphics.FromImage(bmp))
+                using (var f = new Font(FontFamily.GenericSansSerif, 10f))
+                using (var br = new SolidBrush(Color.FromArgb(150, 150, 156)))
+                {
+                    g.Clear(Color.FromArgb(48, 48, 52));
+                    const string hint = "File > Open a model (.ILM / .PLM / .TMD / .OBJ)\n\nor drag && drop one here";
+                    var size = g.MeasureString(hint, f);
+                    g.DrawString(hint, f, br, (w - size.Width) / 2f, (h - size.Height) / 2f);
+                }
+            }
+            else
+            {
+                bmp = IlmSoftRenderer.Render(_scene, w, h, _yaw, _pitch, _dist, _panX, _panY,
+                    _chkTex.Checked, _chkWire.Checked);
+            }
             var old = _view.Image;
             _view.Image = bmp;
             if (old != null) old.Dispose();
@@ -659,6 +749,7 @@ namespace SilentHillPC_Launcher
             public int V0, V1, V2;
             public float U0, Vv0, U1, Vv1, U2, Vv2;
             public bool Alpha, HasUv;
+            public int Mat; // material index for the per-material atlas; -1 = none
         }
 
         /// <summary>Provenance of an AnimScene-built triangle: scene vertex ids plus
@@ -679,8 +770,8 @@ namespace SilentHillPC_Launcher
         public int[] TexPix; // ARGB
         public int TexW, TexH;
         // UV -> texel scale. The ILM sheet convention is the 256-texel PSX page on
-        // both axes regardless of the sheet's pixel size; TMD atlases address their
-        // real pixel grid instead.
+        // both axes regardless of the sheet's pixel size; the per-material atlas and
+        // TMD atlases address their real pixel grid on V instead.
         public float UvScaleX = 256f, UvScaleY = 256f;
         public bool HasTexture { get { return TexPix != null; } }
         public float Cx, Cy, Cz, Radius;
@@ -711,7 +802,20 @@ namespace SilentHillPC_Launcher
             sc.Title = Path.GetFileName(path);
             sc.Warnings.AddRange(warnings);
 
-            if (ilm != null) sc.TextureFromModel(ilm);
+            // The exported OBJ's UVs were authored against the single composed
+            // sheet, so the legacy one-sheet texture path stays correct here.
+            if (ilm != null)
+            {
+                try
+                {
+                    string dir = Path.Combine(Path.GetTempPath(), "SHPC_ModelViewer");
+                    Directory.CreateDirectory(dir);
+                    string png = Path.Combine(dir, Path.GetFileNameWithoutExtension(ilm) + "_sheet.png");
+                    string terr;
+                    if (ClutComposer.Compose(ilm, null, png, out terr)) sc.LoadTexture(png);
+                }
+                catch { }
+            }
             return sc;
         }
 
@@ -746,7 +850,7 @@ namespace SilentHillPC_Launcher
                 {
                     V0 = a, V1 = b, V2 = c,
                     U0 = t.U0, Vv0 = t.V0, U1 = t.U1, Vv1 = t.V1, U2 = t.U2, Vv2 = t.V2,
-                    Alpha = t.Alpha, HasUv = t.HasUv
+                    Alpha = t.Alpha, HasUv = t.HasUv, Mat = t.Mat
                 });
                 sc.SourceTris.Add(new SourceTri
                 {
@@ -792,8 +896,139 @@ namespace SilentHillPC_Launcher
                     "identity and piles on the origin. Keep the ANIM folder beside the model's folder " +
                     "(like the extracted disc layout) so the skeleton can be posed.");
 
-            sc.TextureFromModel(anim.IlmPath);
+            sc.BuildMaterialAtlas(anim);
             return sc;
+        }
+
+        /// <summary>One composed sheet per MATERIAL, stacked into a vertical atlas, and
+        /// every triangle's V remapped into its own material's band. A model with one
+        /// material renders exactly as the old single-sheet path did; a multi-material
+        /// model (the BG *_GLB.PLM world-prop sets reference several map sheets) no
+        /// longer samples everything from the first material's sheet.</summary>
+        private void BuildMaterialAtlas(IlmObjConverter.AnimScene anim)
+        {
+            try
+            {
+                int matCount = anim.MaterialNames != null ? anim.MaterialNames.Length : 0;
+                if (matCount == 0) return;
+
+                string dir = Path.Combine(Path.GetTempPath(), "SHPC_ModelViewer");
+                Directory.CreateDirectory(dir);
+
+                // Resolve each material to a composed sheet. ResolveTargets does the
+                // name -> .TIM work (sidecar dir first, then the whole-corpus clut
+                // index, which is what finds CHARA/HERO.TIM for a weapon PLM or the
+                // map sheets for a BG prop set).
+                ClutComposer.ClutIndex idx = null;
+                string root = FindExtractedRoot(anim.IlmPath);
+                if (root != null)
+                {
+                    try { idx = ClutComposer.EnsureIndex(root, (i, n, m) => { }); } catch { }
+                }
+                string rerr;
+                List<ClutComposer.Target> targets = ClutComposer.ResolveTargets(anim.IlmPath, idx, null, out rerr);
+                if (targets == null || targets.Count == 0) return;
+
+                var sheetPix = new Dictionary<string, int[]>();
+                var sheetW = new Dictionary<string, int>();
+                var sheetH = new Dictionary<string, int>();
+                foreach (var t in targets)
+                {
+                    if (t.MaterialName == null || sheetPix.ContainsKey(t.MaterialName)) continue;
+                    string png = Path.Combine(dir, Path.GetFileNameWithoutExtension(anim.IlmPath) +
+                        "_" + t.MaterialName + "_sheet.png");
+                    try
+                    {
+                        ClutComposer.ComposeTarget(t, png);
+                        if (!File.Exists(png)) continue;
+                        int w, h;
+                        int[] pix = LoadPixels(png, out w, out h);
+                        sheetPix[t.MaterialName] = pix;
+                        sheetW[t.MaterialName] = w;
+                        sheetH[t.MaterialName] = h;
+                    }
+                    catch { }
+                }
+                if (sheetPix.Count == 0) return;
+
+                // Stack: 256-wide bands (page space), one per material WITH a sheet.
+                var yOff = new int[matCount];
+                var bandH = new int[matCount];
+                var bandName = new string[matCount];
+                int atlasH = 0;
+                for (int mi = 0; mi < matCount; mi++)
+                {
+                    string name = anim.MaterialNames[mi];
+                    yOff[mi] = -1;
+                    if (name == null || !sheetPix.ContainsKey(name)) continue;
+                    yOff[mi] = atlasH;
+                    bandH[mi] = sheetH[name];
+                    bandName[mi] = name;
+                    atlasH += sheetH[name];
+                }
+                if (atlasH == 0) return;
+
+                const int atlasW = 256;
+                var atlas = new int[atlasW * atlasH];
+                for (int mi = 0; mi < matCount; mi++)
+                {
+                    if (yOff[mi] < 0) continue;
+                    string name = bandName[mi];
+                    int w = Math.Min(sheetW[name], atlasW), h = sheetH[name];
+                    int[] pix = sheetPix[name];
+                    for (int y = 0; y < h; y++)
+                        for (int x = 0; x < w; x++)
+                            atlas[(yOff[mi] + y) * atlasW + x] = pix[y * sheetW[name] + x];
+                }
+
+                // Remap each textured tri's V into its material's band. The page-space
+                // texel row is (1-v)*256; in the atlas it sits at yOff + that row, so
+                // v' = 1 - (yOff + (1-v)*256) / atlasH with UvScaleY = atlasH. U keeps
+                // page space (atlas is 256 wide). Single-sheet models reduce to the
+                // old behaviour exactly.
+                for (int i = 0; i < Tris.Count; i++)
+                {
+                    Tri t = Tris[i];
+                    if (!t.HasUv) continue;
+                    if (t.Mat < 0 || t.Mat >= matCount || yOff[t.Mat] < 0)
+                    {
+                        t.HasUv = false; // material has no sheet on disc — flat grey
+                        Tris[i] = t;
+                        continue;
+                    }
+                    float yo = yOff[t.Mat];
+                    t.Vv0 = 1f - (yo + (1f - t.Vv0) * 256f) / atlasH;
+                    t.Vv1 = 1f - (yo + (1f - t.Vv1) * 256f) / atlasH;
+                    t.Vv2 = 1f - (yo + (1f - t.Vv2) * 256f) / atlasH;
+                    Tris[i] = t;
+                }
+
+                TexPix = atlas;
+                TexW = atlasW;
+                TexH = atlasH;
+                UvScaleX = 256f;
+                UvScaleY = atlasH;
+            }
+            catch { } // texturing is best-effort; untextured is always a valid fallback
+        }
+
+        /// <summary>Walk up from the model looking for the extracted-tree root (the dir
+        /// holding CHARA/ITEM — or an already-built clut_index.json).</summary>
+        private static string FindExtractedRoot(string modelPath)
+        {
+            try
+            {
+                string d = Path.GetDirectoryName(Path.GetFullPath(modelPath));
+                for (int i = 0; i < 4 && d != null; i++)
+                {
+                    if (File.Exists(Path.Combine(d, ClutComposer.IndexFileName))) return d;
+                    if (Directory.Exists(Path.Combine(d, "CHARA")) &&
+                        Directory.Exists(Path.Combine(d, "ITEM"))) return d;
+                    d = Path.GetDirectoryName(d);
+                }
+            }
+            catch { }
+            return null;
         }
 
         /// <summary>Adapt a TMD (via TmdFile/TmdViewSceneBuilder) into the renderer's
@@ -823,7 +1058,7 @@ namespace SilentHillPC_Launcher
                 {
                     V0 = t.V0, V1 = t.V1, V2 = t.V2,
                     U0 = t.U0, Vv0 = t.Vv0, U1 = t.U1, Vv1 = t.Vv1, U2 = t.U2, Vv2 = t.Vv2,
-                    Alpha = t.SemiTransparent, HasUv = t.Textured
+                    Alpha = t.SemiTransparent, HasUv = t.Textured, Mat = -1
                 });
                 int[][] es = { new[] { t.V0, t.V1 }, new[] { t.V1, t.V2 }, new[] { t.V2, t.V0 } };
                 foreach (var e in es)
@@ -843,55 +1078,6 @@ namespace SilentHillPC_Launcher
             sc.Warnings.AddRange(ts.Warnings);
             sc.ComputeBounds();
             return sc;
-        }
-
-        /// <summary>Compose the model's real palette-correct sheet. Sibling .TIM first
-        /// (characters); when the model's material names another sheet entirely (weapon
-        /// PLMs are textured from "HERO"), fall back to the whole-corpus clut index,
-        /// which resolves material names across the extracted tree.</summary>
-        private void TextureFromModel(string modelPath)
-        {
-            try
-            {
-                string dir = Path.Combine(Path.GetTempPath(), "SHPC_ModelViewer");
-                Directory.CreateDirectory(dir);
-                string png = Path.Combine(dir, Path.GetFileNameWithoutExtension(modelPath) + "_sheet.png");
-                string terr;
-                if (ClutComposer.Compose(modelPath, null, png, out terr))
-                {
-                    LoadTexture(png);
-                    return;
-                }
-
-                string root = FindExtractedRoot(modelPath);
-                if (root == null) return;
-                var idx = ClutComposer.EnsureIndex(root, (i, n, m) => { });
-                if (idx == null) return;
-                string err2;
-                var res = ClutComposer.Compose(modelPath, idx, null, png, out err2);
-                if (res != null) LoadTexture(png);
-                // No sheet is normal for a handful of models — just view untextured.
-            }
-            catch { }
-        }
-
-        /// <summary>Walk up from the model looking for the extracted-tree root (the dir
-        /// holding CHARA/ITEM/ANIM — or an already-built clut_index.json).</summary>
-        private static string FindExtractedRoot(string modelPath)
-        {
-            try
-            {
-                string d = Path.GetDirectoryName(Path.GetFullPath(modelPath));
-                for (int i = 0; i < 4 && d != null; i++)
-                {
-                    if (File.Exists(Path.Combine(d, ClutComposer.IndexFileName))) return d;
-                    if (Directory.Exists(Path.Combine(d, "CHARA")) &&
-                        Directory.Exists(Path.Combine(d, "ITEM"))) return d;
-                    d = Path.GetDirectoryName(d);
-                }
-            }
-            catch { }
-            return null;
         }
 
         public void ComputeBounds()
@@ -953,7 +1139,7 @@ namespace SilentHillPC_Launcher
                     // Fan-triangulate the polygon loop; OBJ corner order is already a loop.
                     for (int i = 1; i + 1 < n; i++)
                     {
-                        var t = new Tri { V0 = vi[0], V1 = vi[i], V2 = vi[i + 1], Alpha = alpha };
+                        var t = new Tri { V0 = vi[0], V1 = vi[i], V2 = vi[i + 1], Alpha = alpha, Mat = -1 };
                         if (ti[0] >= 0 && ti[i] >= 0 && ti[i + 1] >= 0 &&
                             ti[0] < tu.Count && ti[i] < tu.Count && ti[i + 1] < tu.Count)
                         {
@@ -981,22 +1167,31 @@ namespace SilentHillPC_Launcher
             return sc;
         }
 
-        public void LoadTexture(string png)
+        private static int[] LoadPixels(string png, out int w, out int h)
         {
             using (var src = new Bitmap(png))
             using (var bmp = new Bitmap(src.Width, src.Height, PixelFormat.Format32bppArgb))
             {
                 using (var g = Graphics.FromImage(bmp)) g.DrawImageUnscaled(src, 0, 0);
-                TexW = bmp.Width; TexH = bmp.Height;
-                var bd = bmp.LockBits(new Rectangle(0, 0, TexW, TexH), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                w = bmp.Width; h = bmp.Height;
+                var bd = bmp.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
                 try
                 {
-                    TexPix = new int[TexW * TexH];
-                    for (int y = 0; y < TexH; y++)
-                        Marshal.Copy(bd.Scan0 + y * bd.Stride, TexPix, y * TexW, TexW);
+                    var pix = new int[w * h];
+                    for (int y = 0; y < h; y++)
+                        Marshal.Copy(bd.Scan0 + y * bd.Stride, pix, y * w, w);
+                    return pix;
                 }
                 finally { bmp.UnlockBits(bd); }
             }
+        }
+
+        public void LoadTexture(string png)
+        {
+            int w, h;
+            TexPix = LoadPixels(png, out w, out h);
+            TexW = w;
+            TexH = h;
         }
     }
 
@@ -1122,8 +1317,8 @@ namespace SilentHillPC_Launcher
                     if (tex)
                     {
                         // ILM sheets: vt = ((u+0.5)/256, 1-(v+0.5)/256) — the 256-texel
-                        // PSX page regardless of pixel size. TMD atlases set UvScale to
-                        // their real pixel grid instead.
+                        // PSX page. Per-material and TMD atlases set UvScale to their
+                        // real pixel grid instead.
                         float uu = w0 * tr.U0 + w1 * tr.U1 + w2 * tr.U2;
                         float vv = w0 * tr.Vv0 + w1 * tr.Vv1 + w2 * tr.Vv2;
                         int tx = (int)(uu * sc.UvScaleX);

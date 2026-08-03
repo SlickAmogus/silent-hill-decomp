@@ -155,8 +155,8 @@ namespace SilentHillPC_Launcher
             var btnReb = new Button { Text = "Rebuild…",    Location = new Point(510, 322), Size = new Size(78, 28) };
             var btnMo = new Button { Text = "Model → OBJ…", Location = new Point(510, 354), Size = new Size(78, 28) };
             var btnOm = new Button { Text = "OBJ → Model…", Location = new Point(510, 386), Size = new Size(78, 28) };
-            var btnVw = new Button { Text = "View Model…",  Location = new Point(510, 418), Size = new Size(78, 28) };
-            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 450), Size = new Size(78, 28) };
+            var btnVw = new Button { Text = "Model Viewer", Location = new Point(510, 14),  Size = new Size(78, 28) };
+            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 418), Size = new Size(78, 28) };
             _btnTips = new ToolTip();
             _btnTips.SetToolTip(btnEx, "Unpack a Silent Hill .bin disc image into the loose asset tree.");
             _btnTips.SetToolTip(btnTp, "Convert individual .TIM texture files to .png.");
@@ -172,8 +172,9 @@ namespace SilentHillPC_Launcher
             _btnTips.SetToolTip(btnOm, "OBJ → Model: opens the high-poly replacement dialog (browse your model + the " +
                 "character to replace, tick the fixes, Help explains each). A \"Simple…\" button there switches to " +
                 "reshaping an existing character (patch / grow / replace, vertex-limited).");
-            _btnTips.SetToolTip(btnVw, "View Model: preview a .ILM (or an edited .obj before importing it) in a 3D window — " +
-                "textured with its real in-game palettes. Drag to orbit, right-drag to pan, wheel to zoom.");
+            _btnTips.SetToolTip(btnVw, "Model Viewer: a 3D window for .ILM characters (with .ANM animation playback), " +
+                ".PLM props, .TMD items and edited .obj files — textured with their real in-game palettes. " +
+                "Open models from its File menu or drag & drop them onto it.");
             _btnTips.SetToolTip(btnHelp, "How to make and install loose-file texture mods.");
             btnEx.Click += (s, e) => OnExtractBin();
             btnTp.Click += (s, e) => OnConvertTim();
@@ -199,7 +200,7 @@ namespace SilentHillPC_Launcher
 
             // BC7 .dds tooling (texconv). One button, a dropdown of actions —
             // like the OBJ pair, but grouped since they share the same converter.
-            var btnDds = new Button { Text = "DDS ▾", Location = new Point(510, 482), Size = new Size(78, 28) };
+            var btnDds = new Button { Text = "DDS ▾", Location = new Point(510, 450), Size = new Size(78, 28) };
             var ddsMenu = new ContextMenuStrip();
             ddsMenu.Items.Add("PNG → BC7 DDS…",       null, (s, e) => OnDdsEncode());
             ddsMenu.Items.Add("DDS → PNG…",           null, (s, e) => OnDdsDecode());
@@ -1205,10 +1206,11 @@ namespace SilentHillPC_Launcher
             ConverterActions.HighPolyImport(this, _gameRoot);
         }
 
-        /// <summary>"View Model…" button. Shared flow.</summary>
+        /// <summary>"Model Viewer" button: show the reusable viewer window, empty —
+        /// models open from its File menu or by drag &amp; drop.</summary>
         private void OnViewModel()
         {
-            ConverterActions.ViewModel(this, _gameRoot);
+            ConverterActions.OpenModelViewer(this, _gameRoot);
         }
 
         /// <summary>Best-effort guess of the texture or model a reference PNG came from

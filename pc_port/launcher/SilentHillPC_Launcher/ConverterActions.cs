@@ -312,20 +312,11 @@ namespace SilentHillPC_Launcher
             try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.IlmPath)); } catch { }
         }
 
-        /// <summary>"View Model…": open a model in the software-rendered 3D preview window.</summary>
-        public static void ViewModel(IWin32Window owner, string gameRoot)
+        /// <summary>"Model Viewer": show the (single, reused) viewer window, empty —
+        /// the user opens models from File > Open or by dropping them on it.</summary>
+        public static void OpenModelViewer(IWin32Window owner, string gameRoot)
         {
-            string path;
-            using (var ofd = new OpenFileDialog())
-            {
-                ofd.Title = "Select a model to view (.ILM, .PLM, .TMD or .obj)";
-                ofd.Filter = "Models (*.ilm;*.plm;*.tmd;*.obj)|*.ilm;*.plm;*.tmd;*.obj|All files (*.*)|*.*";
-                string gamedata = Path.Combine(gameRoot, "gamedata");
-                if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
-                if (ofd.ShowDialog(owner) != DialogResult.OK) return;
-                path = ofd.FileName;
-            }
-            ModelViewerForm.Open(owner, path, gameRoot);
+            ModelViewerForm.Open(owner, null, gameRoot);
         }
 
         // ---- helpers moved verbatim from ModManagerForm -------------------------

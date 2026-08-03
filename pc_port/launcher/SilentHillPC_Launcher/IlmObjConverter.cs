@@ -4878,6 +4878,7 @@ namespace SilentHillPC_Launcher
             public int P0, L0, P1, L1, P2, L2;   // (part, flattened local vertex) per corner
             public float U0, V0, U1, V1, U2, V2; // page-space UVs, V flipped like the OBJ export
             public bool Alpha, HasUv;
+            public int Mat;                       // material index, -1 = none (materialIdx 127)
         }
 
         public class AnimScene
@@ -4887,6 +4888,7 @@ namespace SilentHillPC_Launcher
             public AnimSceneTri[] Tris;
             public string AnmPath;              // located base ANM, or null (props)
             public int MaxBone;
+            public string[] MaterialNames;      // the sheet each material's name resolves to
             public readonly List<string> Warnings = new List<string>();
         }
 
@@ -4901,6 +4903,10 @@ namespace SilentHillPC_Launcher
             byte[] data = File.ReadAllBytes(ilmPath);
             Ilm ilm = ParseIlm(data);
             var sc = new AnimScene { IlmPath = ilmPath };
+
+            sc.MaterialNames = new string[ilm.MatCount];
+            for (int i = 0; i < ilm.MatCount; i++)
+                sc.MaterialNames[i] = Name8(data, ilm.MatsP + i * 24);
 
             var parts = new AnimScenePart[ilm.ModelCount];
             for (int i = 0; i < ilm.ModelCount; i++)
@@ -4953,6 +4959,7 @@ namespace SilentHillPC_Launcher
                         }
                         if (!ok) continue;
                         bool hasUv = pr.MaterialIdx != 0x7F;
+                        int mat = hasUv && pr.MaterialIdx < ilm.MatCount ? pr.MaterialIdx : -1;
                         // Native strip triangulation: a quad's corners are a STRIP
                         // (0,1,2,3) -> triangles (0,1,2) and (1,3,2); UVs travel with
                         // their corner so no loop conversion is needed.
@@ -4960,14 +4967,14 @@ namespace SilentHillPC_Launcher
                         {
                             P0 = pi[0], L0 = li[0], P1 = pi[1], L1 = li[1], P2 = pi[2], L2 = li[2],
                             U0 = uf[0], V0 = vf[0], U1 = uf[1], V1 = vf[1], U2 = uf[2], V2 = vf[2],
-                            Alpha = pr.IsTransparent, HasUv = hasUv
+                            Alpha = pr.IsTransparent, HasUv = hasUv, Mat = mat
                         });
                         if (corners == 4)
                             tris.Add(new AnimSceneTri
                             {
                                 P0 = pi[1], L0 = li[1], P1 = pi[3], L1 = li[3], P2 = pi[2], L2 = li[2],
                                 U0 = uf[1], V0 = vf[1], U1 = uf[3], V1 = vf[3], U2 = uf[2], V2 = vf[2],
-                                Alpha = pr.IsTransparent, HasUv = hasUv
+                                Alpha = pr.IsTransparent, HasUv = hasUv, Mat = mat
                             });
                     }
             sc.Tris = tris.ToArray();
