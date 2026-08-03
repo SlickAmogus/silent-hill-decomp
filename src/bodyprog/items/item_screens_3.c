@@ -13,6 +13,7 @@
 #include "main/rng.h"
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+#include "pc_big_tmd.h" /* Pc_BigTmd_Resolve at the FS_BUFFER_5/8 consumers */
 #endif
 
 const s32 pad_rodata_800262F8 = 0;
@@ -2603,7 +2604,11 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
                 {
                     if (g_SavegamePtr->items[D_800C3E18[7]].id_0 == g_Item_MapLoadableItems[k])
                     {
+#ifdef SH_PC_PORT
+                        Gfx_Items_Display((s_TmdFile*)Pc_BigTmd_Resolve(FS_BUFFER_8), 7, k);
+#else
                         Gfx_Items_Display((s_TmdFile*)FS_BUFFER_8, 7, k);
+#endif
                         func_8005487C(7);
                         k = INV_ITEM_COUNT_MAX;
                     }
@@ -3200,7 +3205,11 @@ void func_800539A4(s32 scrollDirection, s32 arg1) // 0x800539A4
         {
             if (g_SavegamePtr->items[arg1].id_0 == g_Item_MapLoadableItems[i])
             {
+#ifdef SH_PC_PORT
+                Gfx_Items_Display(Pc_BigTmd_Resolve(FS_BUFFER_8), var_s0, i);
+#else
                 Gfx_Items_Display(FS_BUFFER_8, var_s0, i);
+#endif
                 func_8005487C(var_s0);
                 i = INV_ITEM_COUNT_MAX;
             }
@@ -3223,6 +3232,27 @@ void func_800539A4(s32 scrollDirection, s32 arg1) // 0x800539A4
  * - `GameFs_MapItemsModelLoad` and `GameFs_MapItemsTextureLoad` load the packs based on the
  *   map being loaded.
  */
+
+#ifdef SH_PC_PORT
+/* Oversized loose item-TMD support (pc_port/src/pc_big_tmd.c).
+ *
+ * Every one of the ~79 arms below reads into the SINGLE fixed slab
+ * FS_BUFFER_5, whose usable size is set by the disc file table. A loose
+ * replacement larger than its slot cannot be byte-replaced, so Fs_QueueTickRead
+ * refuses it and the disc file loads instead.
+ *
+ * Rather than edit 79 identical call sites — where one being missed would make
+ * the mechanism silently wrong for that item — the read is intercepted for the
+ * extent of this ONE function. Pc_BigTmd_Redirect is keyed by fileIdx, so each
+ * item gets its own verdict, and it returns `dest` unchanged unless an
+ * oversized, valid loose file exists for that exact file id. With
+ * allow_loose_files off (the default) it is one boolean test that returns the
+ * incoming pointer, so the slab the read lands in is FS_BUFFER_5 as before.
+ *
+ * #undef'd immediately after the function so no other call site is affected. */
+#define Fs_QueueStartRead(fileIdx_, dest_) \
+    Fs_QueueStartRead((fileIdx_), Pc_BigTmd_Redirect((fileIdx_), (dest_)))
+#endif
 
 void GameFs_UniqueItemModelLoad(u8 itemId) // 0x80053B08
 {
@@ -3523,6 +3553,10 @@ void GameFs_UniqueItemModelLoad(u8 itemId) // 0x80053B08
     }
 }
 
+#ifdef SH_PC_PORT
+#undef Fs_QueueStartRead
+#endif
+
 void GameFs_Tim00TIMLoad(void) // 0x80053dA0
 {
     if (g_SysWork.invItemLoadFlags & InvItemLoadFlag_Tex0)
@@ -3633,6 +3667,14 @@ void GameFs_MapItemsModelLoad(u32 mapId) // 0x80053DFC
     #undef flags
 }
 
+#ifdef SH_PC_PORT
+/* Same oversized-loose-TMD intercept for the per-map inventory item packs
+ * (IT_000..006 into FS_BUFFER_8): a modded pack with more/bigger item models
+ * gets a PC-owned buffer exactly like the UNQ close-ups above. */
+#define Fs_QueueStartRead(fileIdx_, dest_) \
+    Fs_QueueStartRead((fileIdx_), Pc_BigTmd_Redirect((fileIdx_), (dest_)))
+#endif
+
 void GameFs_MapItemsTextureLoad(s32 mapId) // 0x80054024
 {
     switch (mapId)
@@ -3698,6 +3740,10 @@ void GameFs_MapItemsTextureLoad(s32 mapId) // 0x80054024
             break;
     }
 }
+
+#ifdef SH_PC_PORT
+#undef Fs_QueueStartRead
+#endif
 
 void func_800540A4(s8 arg0) // 0x800540A4
 {
@@ -3780,7 +3826,11 @@ void Gfx_Items_Draw(void) // 0x80054200
         g_Items_Transforms[i].trans.vx  = 0;
     }
 
+#ifdef SH_PC_PORT
+    GameFs_TmdDataAlloc((s32*)Pc_BigTmd_Resolve(FS_BUFFER_8));
+#else
     GameFs_TmdDataAlloc(FS_BUFFER_8);
+#endif
 
 #ifdef SH_PC_PORT
     /* Clear every carousel model slot up front. The loops below only call
@@ -3816,7 +3866,11 @@ void Gfx_Items_Draw(void) // 0x80054200
             {
                 if (g_SavegamePtr->items[D_800C3E18[inventoryItemsIdx]].id_0 == g_Item_MapLoadableItems[saveItemsIdx])
                 {
+#ifdef SH_PC_PORT
+                    Gfx_Items_Display(Pc_BigTmd_Resolve(FS_BUFFER_8), inventoryItemsIdx, saveItemsIdx);
+#else
                     Gfx_Items_Display(FS_BUFFER_8, inventoryItemsIdx, saveItemsIdx);
+#endif
                     func_8005487C(inventoryItemsIdx);
 
                     saveItemsIdx = INV_ITEM_COUNT_MAX;
@@ -3843,7 +3897,11 @@ void Gfx_Items_Draw(void) // 0x80054200
             {
                 if (g_Inventory_EquippedItem == g_Item_MapLoadableItems[saveItemsIdx])
                 {
+#ifdef SH_PC_PORT
+                    Gfx_Items_Display(Pc_BigTmd_Resolve(FS_BUFFER_8), 7, saveItemsIdx);
+#else
                     Gfx_Items_Display(FS_BUFFER_8, 7, saveItemsIdx);
+#endif
                     func_8005487C(7);
 
                     saveItemsIdx = INV_ITEM_COUNT_MAX;
@@ -3884,7 +3942,11 @@ void Gfx_Items_Draw(void) // 0x80054200
             {
                 if (ITEM_IDS[inventoryItemsIdx] == g_Item_MapLoadableItems[saveItemsIdx])
                 {
+#ifdef SH_PC_PORT
+                    Gfx_Items_Display(Pc_BigTmd_Resolve(FS_BUFFER_8), inventoryItemsIdx, saveItemsIdx);
+#else
                     Gfx_Items_Display(FS_BUFFER_8, inventoryItemsIdx, saveItemsIdx);
+#endif
                     func_8005487C(inventoryItemsIdx);
 
                     saveItemsIdx = INV_ITEM_COUNT_MAX;
@@ -4193,7 +4255,16 @@ void func_80054A04(u8 itemId) // 0x80054A04
     g_Items_Transforms[9].trans.vy  = 0;
     g_Items_Transforms[9].trans.vx  = 0;
 
+#ifdef SH_PC_PORT
+    /* Resolve the oversized-item substitution: when this item's model was
+     * redirected into a PC-owned buffer, GsMapModelingData must parse THAT
+     * buffer, not the slab the read never went into. Pc_BigTmd_Resolve is the
+     * identity for any pointer with no active substitution, which is always the
+     * case on stock data — so this stays FS_BUFFER_5 exactly as before. */
+    GameFs_TmdDataAlloc((s32*)Pc_BigTmd_Resolve(FS_BUFFER_5));
+#else
     GameFs_TmdDataAlloc(FS_BUFFER_5);
+#endif
 
 #ifndef SH_PC_PORT
     D_800C3E18[9] = 0; /* PSX BSS aliasing; out of bounds on PC */
@@ -4209,7 +4280,8 @@ void func_80054A04(u8 itemId) // 0x80054A04
      * to render — that's the "invisible health drink / picked-up map
      * shows no model" symptom. */
     {
-        s_TmdFile* _tmd = (s_TmdFile*)FS_BUFFER_5;
+        /* Same substitution resolve as the GameFs_TmdDataAlloc call above. */
+        s_TmdFile* _tmd = (s_TmdFile*)Pc_BigTmd_Resolve(FS_BUFFER_5);
         if (_tmd != NULL) {
             unsigned long*     _hdr = (unsigned long*)&_tmd->flags;
             struct TMD_STRUCT* _obj;

@@ -1445,6 +1445,11 @@ void GsMapModelingData(unsigned long *p)
     /* Include the object table itself in the copy (offsets are relative to
      * obj_table, so the copy base is obj_table). */
     copy_size += (size_t)nobj * 28;
+
+    /* Pointer resolution below reaches data_copy + raw[ofs] as far as data_end.
+     * A TMD with a gap between the object table and its data blocks would make
+     * the copy shorter than the furthest resolved pointer — size for both. */
+    if (copy_size < (size_t)data_end) copy_size = (size_t)data_end;
     if (copy_size == 0) copy_size = 4096;
 
     entry->data_copy = (u8*)malloc(copy_size);

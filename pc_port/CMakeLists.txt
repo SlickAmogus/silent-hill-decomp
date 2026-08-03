@@ -620,3 +620,29 @@ endif()
 # Install
 # =============================================================================
 install(TARGETS SilentHillPC RUNTIME DESTINATION bin)
+
+# =============================================================================
+# Tests (-DBUILD_TESTING=ON, then ctest)
+# =============================================================================
+if(BUILD_TESTING)
+    enable_testing()
+
+    # Oversized loose ITEM TMD capacity lift (pc_big_tmd.c). Links the real
+    # module against the real file table so path building, slot arithmetic and
+    # the accept/reject verdicts are exercised exactly as the game does them.
+    add_executable(pc_big_tmd_test
+        tests/pc_big_tmd_test.c
+        src/pc_big_tmd.c
+        "${DECOMP_DIR}/src/main/fileinfo.c")
+    target_compile_definitions(pc_big_tmd_test PRIVATE
+        SH_PC_PORT VER_USA SKIP_ASM static_assert=_Static_assert)
+    # include/decomp is a 32-bit shim whose struct layouts do not satisfy the
+    # decomp static asserts on 64-bit, so it is deliberately absent here — the
+    # real headers live under ${DECOMP_DIR}/include.
+    target_include_directories(pc_big_tmd_test PRIVATE
+        "${CMAKE_BINARY_DIR}"
+        include include/psyq_compat src
+        "${DECOMP_DIR}/include" "${DECOMP_DIR}/include/decomp"
+        "${PSYCROSS_DIR}/include/psx" "${PSYCROSS_DIR}/include")
+    add_test(NAME pc_big_tmd_test COMMAND pc_big_tmd_test)
+endif()

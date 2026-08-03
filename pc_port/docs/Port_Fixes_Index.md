@@ -1982,3 +1982,33 @@ float in front of the eye. Swap-back to Harry restores the vanilla row/slab
 Known cosmetic limits: proportion stretch at neck/shoulders/ankles (worst:
 Kaufmann's ankles — his ILM has no shin↔foot weld), no per-weapon grip hand
 variants on skins, demo attract mode plays with the active skin.
+
+## Bigger item TMDs — oversized loose UNQ close-ups AND per-map IT packs (2026-08-03, adapted from PR #88 by keylimesoda)
+
+**Feature, PC-only.** `pc_port/src/pc_big_tmd.c` — the item-model twin of
+`pc_big_lm.c`: a fileIdx-keyed registry that validates an oversized loose
+`gamedata/load/ITEM/*.TMD`, hands out a calloc'd PC-owned buffer sized for
+`GsMapModelingData`'s worst-case read extent (the stub bounds a prim at 64 B
+when computing its copy, over-reading past EOF for every real TMD), and
+substitutes it at the `Fs_QueueStartRead` seams via a scoped function-like
+macro. Consumers resolve the substitution with `Pc_BigTmd_Resolve`; a stock
+item after a modded one CLEARS the active record (shared-slab stale-pointer
+hazard). Identity in every failure path and with `allow_loose_files` off.
+
+Adaptations beyond the PR: (1) coverage extended from the UNQ close-ups
+(`FS_BUFFER_5`) to the per-map inventory packs IT_000..006 (`FS_BUFFER_8`,
+`GameFs_MapItemsTextureLoad` + six consumer sites); (2) `BigTmd_Validate` now
+also checks every packet's SHAPE — flag must be no-light (bit1 double-sided
+allowed) and (mode, ilen) must be one of SH1's shipped shapes (0x30/4,
+0x34/6, 0x36/6, 0x38/5, 0x3C/8) — because the port's `GsSortObject4J`
+handlers stride by their own struct size, and a lit-flagged or standard-layout
+PSX export mis-strides inside a batch and reads wild vertices (the crash class
+SHModelViewer's flag preprocessor works around); (3) `GsMapModelingData` now
+sizes `data_copy` for the furthest resolved pointer, fixing a latent heap
+over-read on gapped TMDs the PR documented but did not fix; (4) the unit test
+(first in the repo, `pc_port/tests/`, behind `-DBUILD_TESTING=ON`) is ported
+to Windows (`_mkdir` shim) and grown a lit-packet rejection case — 13/13 pass.
+map5_s01's FOOK.TMD (`FS_BUFFER_21`, map-DLL code) is deliberately not lifted.
+
+Modded TMDs must reuse the stock VRAM tpage/CLUT words (15/14/13 per the fixed
+`s_FsImageDesc` upload rects) — there is no per-mod texture upload on this path.
