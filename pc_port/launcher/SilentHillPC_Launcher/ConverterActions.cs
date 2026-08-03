@@ -154,6 +154,11 @@ namespace SilentHillPC_Launcher
             string msg = "Built a high-poly model:\n" + outIlm;
             if (hp.AtlasPath != null)
                 msg += "\n" + atlasPng + "  (" + hp.Textures + " textures, " + hp.AtlasW + "x" + hp.AtlasH + ")";
+            // The weld count is what says the joints will hold in motion, so it is
+            // reported next to the file, not buried in the transcript.
+            if (hp.Welds > 0)
+                msg += "\n\n" + hp.Welds + " cross-part weld(s): those joints follow the neighbouring part's " +
+                       "bone, so they stay closed when the model animates.";
             msg += "\n\nDrop " + (hp.AtlasPath != null ? "BOTH files" : "the .ILM") + " into gamedata\\load\\CHARA\\ under " +
                    "the ORIGINAL name" + (hp.AtlasPath != null ? "s (" + donorStem + ".ILM and " + donorStem + ".TIM.png)" :
                    " (" + donorStem + ".ILM)") + " and set allow_loose_files = 1.";

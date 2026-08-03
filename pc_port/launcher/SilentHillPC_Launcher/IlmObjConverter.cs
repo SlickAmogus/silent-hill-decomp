@@ -168,6 +168,10 @@ namespace SilentHillPC_Launcher
             public bool Replaced;
             /// <summary>True when the OBJ was written back as a v7 high-poly model.</summary>
             public bool V7;
+            /// <summary>Cross-part welds emitted (v7 only). Zero on a butt-joined model
+            /// means every joint will open as soon as a bone bends, so the caller shows
+            /// this number rather than leaving the modder to find out in game.</summary>
+            public int Welds;
             /// <summary>Set on a refusal the caller can retry as a full rebuild — the OBJ's
             /// topology no longer matches the template. Never set for a structural failure
             /// (renamed part, missing meta), which a rebuild would refuse the same way.</summary>
@@ -4181,12 +4185,18 @@ namespace SilentHillPC_Launcher
                 res.Report.Add(ilm.Models[wp.Ordinal].Name + ": " + wp.Verts.Count.ToString(Inv) + " verts, " +
                     wp.Prims.Count.ToString(Inv) + " faces");
 
+            res.Welds = welds.Count;
             if (res.RestPoseIdentity)
                 res.Warnings.Add("This OBJ was exported without an ANM (identity rest pose), so no cross-part " +
                     "welds could be derived - joints stay closed only where the parts overlap.");
             else if (welds.Count > 0)
                 res.Report.Add(welds.Count.ToString(Inv) + " cross-part weld(s) emitted - welded joints follow " +
                     "the owner part's bone, so they stay closed when bones bend");
+            else
+                res.Warnings.Add("No cross-part welds could be derived: no two parts share a vertex position. " +
+                    "If the parts BUTT TOGETHER at the joints, snap those boundary vertices to exactly the same " +
+                    "place in your modeller and rebuild - otherwise every joint will open as soon as a bone bends. " +
+                    "(A model whose parts OVERLAP at each joint needs no welds and is fine as-is.)");
         }
 
         private static void ReplaceImport(string objPath, string ilmPath, string outIlmPath, byte[] data, Ilm ilm,

@@ -23,7 +23,11 @@ namespace SilentHillPC_Launcher
         {
             public string ObjPath, AtlasPath, Error;
             public readonly List<string> Warnings = new List<string>();
-            public int Textures, NativeW, NativeH, AtlasW, AtlasH;
+            /// <summary>The v7 rebuild's own transcript — per-part counts and the weld
+            /// total. The weld count is the signal that says the joints will hold, so
+            /// the success dialog must show it, not drop it.</summary>
+            public readonly List<string> Report = new List<string>();
+            public int Textures, NativeW, NativeH, AtlasW, AtlasH, Welds;
         }
 
         /// <summary>material name -> resolved texture path, from the .mtl's map_Kd lines.</summary>
@@ -337,6 +341,8 @@ namespace SilentHillPC_Launcher
                 if (iv == null || !string.IsNullOrEmpty(iv.Error))
                 { r.Error = iv != null ? iv.Error : "v7 rebuild failed"; return r; }
                 r.Warnings.AddRange(iv.Warnings);
+                r.Report.AddRange(iv.Report);
+                r.Welds = iv.Welds;
                 r.ObjPath = outIlmPath;
             }
             catch (Exception ex) { r.Error = ex.Message; }
