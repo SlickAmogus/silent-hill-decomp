@@ -59,7 +59,12 @@ extern void Xa_XboxPump(void);
  * ahead of a 30/60fps frame's consumption so it keeps the ring fed in steady
  * state; after a stall the ring may underrun for a few frames (a brief audio blip)
  * but the frame rate recovers immediately instead of spiralling. */
-#define DS_PUMP_MAX     8192
+/* 12288 (was 8192): the pump is frame-tied, so a sustained fps below
+ * 192000/DS_PUMP_MAX drains the ring and the play cursor eventually overruns
+ * s_write -> loops STALE audio with no resync. The dt-cap deliberately admits
+ * 20fps in the dense town; 12288 keeps the ring fed down to ~15fps while staying
+ * ~4x under the 44800-byte catch-up mixes that caused the 5fps spiral. */
+#define DS_PUMP_MAX     12288
 
 static IDirectSound*       s_ds      = NULL;
 static IDirectSoundBuffer* s_buf     = NULL;   /* front L/R — always exists   */

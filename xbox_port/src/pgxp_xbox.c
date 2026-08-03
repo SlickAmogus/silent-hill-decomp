@@ -153,7 +153,10 @@ void Shadow_Copy(void* dst, const void* src)
     if (!s_shadow)
         return;
     e = Shadow_Get(src);
-    if (e)
+    /* Value-validate the SOURCE before propagating (PC Vs_Get lesson): a stale
+     * same-address entry from an earlier emitter's scratch reuse would otherwise
+     * propagate a wrong precise position onto this prim's field. */
+    if (e && e->value == *(const unsigned*)src)
         Shadow_Put(dst, e->x, e->y, e->w, *(const unsigned*)dst);
 }
 

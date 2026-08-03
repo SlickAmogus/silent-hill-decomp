@@ -353,7 +353,17 @@ void GsSetProjection(long h)
  * the source buffer (FS_BUFFER_5 / PSX RAM) can be safely reused before
  * the pickup animation finishes rendering.
  * ===================================================================== */
+#ifdef SH_XBOX_PORT
+/* 16 (PC 64): each slot holds a malloc'd TMD copy (~139KB for the map-pack item
+ * TMD after the 64B/prim extent overestimate), so a 64-slot ring can pin ~8.7MB
+ * before evicting — more than the 64MB console's entire free pool. With the
+ * same-content dedup below the live working set is ~10 distinct models, so 16
+ * slots never evicts a linked entry in practice while bounding worst case at
+ * ~2.2MB. */
+#define GS_TMD_CACHE_SLOTS  16
+#else
 #define GS_TMD_CACHE_SLOTS  64
+#endif
 #define GS_TMD_MAX_OBJS    48
 
 typedef struct {
@@ -361,6 +371,9 @@ typedef struct {
     int              nobj;
     struct TMD_STRUCT objs[GS_TMD_MAX_OBJS];
     u8              *data_copy;  /* malloc'd copy of all vert/norm/prim data */
+#ifdef SH_XBOX_PORT
+    size_t           copy_size;  /* for the same-content dedup memcmp */
+#endif
 } GsTmdCacheEntry;
 
 static GsTmdCacheEntry gs_tmd_cache[GS_TMD_CACHE_SLOTS];
@@ -1378,6 +1391,51 @@ void GsMapModelingData(unsigned long *p)
     /* Object table starts right after flags + nobj (2 u_longs = 8 bytes) */
     obj_table = (u8*)&p[2];
 
+#ifdef SH_XBOX_PORT
+    /* SAME-CONTENT DEDUP (the 64MB-console leak fix): the inventory calls this
+     * 8+ times PER OPEN with the SAME unchanged resident map-pack TMD (one call
+     * per carousel slot, plus per-scroll re-links), and the fresh-slot design
+     * below mallocs a ~139KB copy EVERY call — log 021 measured each inventory
+     * open permanently eating 1.1-2.5MB until free RAM hit 144KB (the menu
+     * slowdown + half-speed FMV). If the NEWEST entry for this base already
+     * holds byte-identical content, re-registering is a no-op: GsGetTMDObject
+     * searches newest-first by base, so it finds that same entry and every
+     * existing GsDOBJ2.tmd link stays valid. STOP at the first same-base hit —
+     * deduping against an OLDER same-base entry when a newer different-content
+     * one exists would make GsGetTMDObject return the wrong data (this is the
+     * FS_BUFFER_8 shared-buffer case the fresh-slot design exists for). */
+    {
+        u32    xds = 0xFFFFFFFF, xde = 0;
+        size_t xsz;
+        int    k;
+        for (i = 0; i < (int)nobj; i++) {
+            u32 *raw = (u32*)(obj_table + i * 28);
+            u32 vert_end = raw[0] + raw[1] * 8;
+            u32 norm_end = raw[2] + raw[3] * 8;
+            u32 prim_end = raw[4] + raw[5] * 64;
+            if (raw[0] < xds) xds = raw[0];
+            if (raw[2] < xds) xds = raw[2];
+            if (raw[4] < xds) xds = raw[4];
+            if (vert_end > xde) xde = vert_end;
+            if (norm_end > xde) xde = norm_end;
+            if (prim_end > xde) xde = prim_end;
+        }
+        xsz  = (xds < xde) ? (size_t)(xde - xds) : 0;
+        xsz += (size_t)nobj * 28;
+        if (xsz == 0) xsz = 4096;
+
+        for (k = gs_tmd_cache_count - 1; k >= 0; k--) {
+            GsTmdCacheEntry *e = &gs_tmd_cache[(gs_tmd_cache_head + k) % GS_TMD_CACHE_SLOTS];
+            if (e->base != p)
+                continue;
+            if (e->nobj == (int)nobj && e->data_copy && e->copy_size == xsz &&
+                memcmp(e->data_copy, obj_table, xsz) == 0)
+                return;   /* identical content already registered — reuse it */
+            break;        /* newer content differs — fall through to a fresh slot */
+        }
+    }
+#endif
+
     /* Always allocate a fresh slot. Reusing a slot for the same base pointer
      * would overwrite objs[] in-place and invalidate existing GsDOBJ2.tmd
      * pointers — this causes all inventory items to show the last-loaded model
@@ -1435,6 +1493,9 @@ void GsMapModelingData(unsigned long *p)
     if (entry->data_copy) {
         memcpy(entry->data_copy, obj_table, copy_size);
     }
+#ifdef SH_XBOX_PORT
+    entry->copy_size = copy_size;
+#endif
 
     /* Parse raw 28-byte TMD objects (7 × u32).
      * Pointers resolve into data_copy so they survive buffer reuse. */

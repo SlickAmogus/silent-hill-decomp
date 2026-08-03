@@ -380,6 +380,14 @@ static float RevProcess(int ch, float in)   /* one sample, one channel */
     int   i, spread = ch ? 25 : 0;   /* stereo decorrelation on the right */
     float out = 0.0f;
     in *= REV_FIXEDGAIN;             /* compensate the comb bank's ~50x resonance */
+    in += 1.0e-9f; /* denormal kill: the comb LPs/delay lines otherwise decay into
+                    * single-precision denormals ~16s after the reverb bus goes
+                    * quiet, and the P3 (SSE scalar, no FTZ; DAZ is RESERVED on P3
+                    * so don't touch MXCSR bit 6) pays a ~100-cycle assist on ~104
+                    * float ops PER SAMPLE for the ~2-3s denormal window = a hard
+                    * multi-second frame collapse after every reverb tail. The DC
+                    * floor keeps every state >= ~6e-9 (normal); at -300dB it
+                    * truncates to 0 in the int wet fold — inaudible. */
     for (i = 0; i < REV_NCOMB; i++) {
         int   len = REV_COMB_L[i] + spread;
         int*  idx = &s_combIdx[ch][i];

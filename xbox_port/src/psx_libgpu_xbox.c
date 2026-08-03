@@ -228,8 +228,10 @@ int VSync(int mode)
     GpuNv2a_FrameBegin();           /* clear + target the next frame's back buffer */
     if ((s_vblanks % 600) == 0) {
         extern void Xbox_MemReport(const char*);
+        extern void Pgxp_CovDump(void);
         SH_DBG("[SH-XBOX] vblank %d", s_vblanks);
         Xbox_MemReport("tick");     /* leak watch: free RAM should stay flat */
+        Pgxp_CovDump();             /* [PGXP] cov full/mixed per 10s window */
     }
     return s_vblanks;
 }

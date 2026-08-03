@@ -107,14 +107,41 @@ static int        s_mapCount;
     } \
 } while (0)
 
+/* Explicit-span mapping for regions whose NATIVE size differs from retail. */
+#define RA_MAP_SEG(psxOffset, span, nativePtr, nm) do { \
+    if (s_mapCount < (int)(sizeof(s_map) / sizeof(s_map[0]))) { \
+        s_map[s_mapCount].start  = (uint32_t)(psxOffset); \
+        s_map[s_mapCount].size   = (uint32_t)(span); \
+        s_map[s_mapCount].native = (const void*)(nativePtr); \
+        s_map[s_mapCount].name   = (nm); \
+        s_mapCount++; \
+    } \
+} while (0)
+
 static void Ra_BuildMap(void)
 {
     s_mapCount = 0;
 
-    /* The two big work structs. On 32-bit Xbox field_2510 (game.h, SH_PC_PORT)
-     * is a 4-byte pointer == the retail s32, so g_SysWork keeps its retail layout
-     * and maps whole with no +4 correction. */
-    RA_MAP(0x0B9FC0u, g_SysWork);
+    /* g_SysWork must NOT be mapped whole with sizeof: under SH_PC_PORT
+     * NPC_COUNT_MAX is 32 (retail 6), widening npcs[] and npcBoneCoordBuffer[]
+     * so sizeof(s_SysWork) is ~38588, not the retail 0x2768. A whole-struct
+     * entry therefore spanned RA 0x0B9FC0-0x0C367C and -- because Ra_ReadMemory
+     * returns on FIRST match -- SHADOWED the g_GameWork entry (0x0BC728+): every
+     * event-flag/GameWork achievement operand was served from inside the widened
+     * bone-coordinate arrays (matrix noise), so NO gameplay achievement could
+     * ever trigger. Map the retail layout as FOUR segments anchored at the
+     * native members instead (per-member layout is unchanged; only the two
+     * array lengths differ, so retail slots 0..5 = the first 6 native slots). */
+    RA_MAP_SEG(0x0B9FC0u,           0x1A0u,  &g_SysWork,                      "sysWork.head");
+    RA_MAP_SEG(0x0B9FC0u + 0x1A0u,  0x6F0u,  &g_SysWork.npcs[0],              "sysWork.npcs");
+    RA_MAP_SEG(0x0B9FC0u + 0x890u,  0x19F0u, &g_SysWork.playerBoneCoords[0],  "sysWork.bones");
+    RA_MAP_SEG(0x0B9FC0u + 0x2280u, 0x4E8u,  &g_SysWork.npcFlagsId,           "sysWork.tail");
+    SH_DBG("[RA] syswork native: npcs=0x%X bones=0x%X tail=0x%X sizeof=%u",
+           (unsigned)offsetof(s_SysWork, npcs),
+           (unsigned)offsetof(s_SysWork, playerBoneCoords),
+           (unsigned)offsetof(s_SysWork, npcFlagsId),
+           (unsigned)sizeof(s_SysWork));
+
     RA_MAP(0x0BC728u, g_GameWork);
 
     /* The rest of what the live set (game 11252, 66 achievements) was observed
@@ -241,6 +268,21 @@ static void Ra_BuildMap(void)
      *  - D_800C4449, MSTACK, dire, load_buf, StFunc1/2, Clear, VWD0: PSY-Q library
      *    internals (libcd/libgs/libsd) with NO pointer-free port C global. They
      *    keep reading 0 via the RAM fallback (safe). */
+
+    /* Overlap guard: Ra_ReadMemory returns on FIRST match, so an oversized
+     * region silently shadows every later one inside its span -- exactly the
+     * sizeof(g_SysWork)-under-SH_PC_PORT bug that blocked ALL gameplay unlocks.
+     * Name any overlap at boot so that class can never hide again. */
+    {
+        int i, j;
+        for (i = 0; i < s_mapCount; i++)
+            for (j = i + 1; j < s_mapCount; j++)
+                if (s_map[i].start < s_map[j].start + s_map[j].size &&
+                    s_map[j].start < s_map[i].start + s_map[i].size)
+                    SH_DBG("[RA] MAP OVERLAP: %s (0x%X+0x%X) vs %s (0x%X+0x%X)",
+                           s_map[i].name, s_map[i].start, s_map[i].size,
+                           s_map[j].name, s_map[j].start, s_map[j].size);
+    }
 }
 
 /* First few distinct pages the set touches, hit or miss: reveals which build's
@@ -952,10 +994,13 @@ void Pc_Ra_Update(void)
     Ra_PumpOne();
 
     /* Evaluate only in settled gameplay; menus, FMV and load fades hold no
-     * coherent world state. rc_client_idle still services pings/retries. */
+     * coherent world state. rc_client_idle still services pings/retries.
+     * !DemoActive: the attract demo runs real gameplay state -- without this a
+     * menu-idle demo loop could earn achievements (PC gates the same way). */
     if (s_active &&
         g_GameWork.gameState == GameState_InGame &&
-        g_SysWork.sysState   == SysState_Gameplay)
+        g_SysWork.sysState   == SysState_Gameplay &&
+        !(g_SysWork.sysFlags & SysFlag_DemoActive))
     {
         rc_client_do_frame(s_client);
     }

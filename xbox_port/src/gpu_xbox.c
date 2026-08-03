@@ -157,13 +157,50 @@ static void PutVertUV(ShVertex* v, int x, int y, int r, int g, int b, int u, int
  * is never reached and the emit is byte-identical to the legacy renderer. The
  * transform mirrors PutVert/PutVertUV exactly so precise and affine verts of the
  * same poly land in one space (no cross-vertex smear from a coordinate mismatch). */
-static void PgxpApplyVert(ShVertex* v, const void* xyAddr)
+static unsigned s_pgxpFull, s_pgxpMixed;   /* [PGXP] cov window counters */
+
+/* ALL-OR-NOTHING per poly (the gun-combat flicker fix): combat effect emitters
+ * (src/maps/particle.c) project only vertex x0 via gte_stsxy (tracked) and CPU-
+ * copy the other corners (untracked), so per-vertex resolve gave one corner
+ * W=view-depth (~600) and three W=1.0 — a 600:1 perspective mismatch INSIDE one
+ * quad garbles the sprite every frame while shooting. Apply precise coords only
+ * when EVERY vertex of the prim resolves; any miss leaves the whole prim affine
+ * (PutVert's pos[3]=1.0), matching the PC port's MakeVertexTriangle/Quad rule.
+ * World geometry is unaffected: the SH_PGXP_PROP3/4 drawers propagate all
+ * vertices, so world prims resolve n/n. */
+static void PgxpApplyPoly(ShVertex* v, const void* a0, const void* a1,
+                          const void* a2, const void* a3, int n)
 {
-    float px, py, pw;
-    if (Pgxp_GetPreciseVertex(xyAddr, *(const unsigned*)xyAddr, &px, &py, &pw)) {
-        v->pos[0] = (px + s_ofsX) * s_scaleX + (float)g_Nv2aContentX;
-        v->pos[1] = (py + s_ofsY) * s_scaleY;
-        v->pos[3] = pw;   /* > 0 -> HW perspective-correct interpolation */
+    const void* a[4];
+    float       px[4], py[4], pw[4];
+    int         i, hits = 0;
+
+    a[0] = a0; a[1] = a1; a[2] = a2; a[3] = a3;
+    for (i = 0; i < n; i++)
+        if (Pgxp_GetPreciseVertex(a[i], *(const unsigned*)a[i], &px[i], &py[i], &pw[i]))
+            hits++;
+        else
+            break;
+
+    if (hits < n) {
+        if (hits > 0) s_pgxpMixed++;   /* the would-have-glitched prims */
+        return;
+    }
+    for (i = 0; i < n; i++) {
+        v[i].pos[0] = (px[i] + s_ofsX) * s_scaleX + (float)g_Nv2aContentX;
+        v[i].pos[1] = (py[i] + s_ofsY) * s_scaleY;
+        v[i].pos[3] = pw[i];   /* > 0 -> HW perspective-correct interpolation */
+    }
+    s_pgxpFull++;
+}
+
+/* Blind-verify probe: mixed should be 0 in menus/walking and spike only while
+ * shooting (the demoted effect prims), full stays high (world untouched). */
+void Pgxp_CovDump(void)
+{
+    if (s_pgxpFull || s_pgxpMixed) {
+        SH_DBG("[PGXP] cov full=%u mixed=%u", s_pgxpFull, s_pgxpMixed);
+        s_pgxpFull = s_pgxpMixed = 0;
     }
 }
 
@@ -284,12 +321,10 @@ static int ProcessPoly(P_TAG* tag)
         PutVertUV(&v[1], p->x1, p->y1, p->r0, p->g0, p->b0, p->u1, p->v1);
         PutVertUV(&v[2], p->x2, p->y2, p->r0, p->g0, p->b0, p->u2, p->v2);
         if (quad) PutVertUV(&v[3], p->x3, p->y3, p->r0, p->g0, p->b0, p->u3, p->v3);
-        if (g_PsxUsePgxp) {
-            PgxpApplyVert(&v[0], &p->x0);
-            PgxpApplyVert(&v[1], &p->x1);
-            PgxpApplyVert(&v[2], &p->x2);
-            if (quad) PgxpApplyVert(&v[3], &p->x3);
-        }
+        if (g_PsxUsePgxp)
+            PgxpApplyPoly(v, &p->x0, &p->x1, &p->x2,
+                          quad ? (const void*)&p->x3 : (const void*)&p->x2,
+                          quad ? 4 : 3);
     } else if (gouraud && !textured) {
         /* POLY_G3 / POLY_G4 */
         POLY_G4* p = (POLY_G4*)tag;
@@ -324,12 +359,8 @@ static int ProcessPoly(P_TAG* tag)
             ApplyFog(&v[1], p4->p1);
             ApplyFog(&v[2], p4->p2);
             ApplyFog(&v[3], p4->p3);
-            if (g_PsxUsePgxp) {
-                PgxpApplyVert(&v[0], &p4->x0);
-                PgxpApplyVert(&v[1], &p4->x1);
-                PgxpApplyVert(&v[2], &p4->x2);
-                PgxpApplyVert(&v[3], &p4->x3);
-            }
+            if (g_PsxUsePgxp)
+                PgxpApplyPoly(v, &p4->x0, &p4->x1, &p4->x2, &p4->x3, 4);
         } else {
             s_curTpage = blendTpage = p3->tpage;
             {
@@ -344,11 +375,8 @@ static int ProcessPoly(P_TAG* tag)
             ApplyFog(&v[0], p3->p1);
             ApplyFog(&v[1], p3->p1);
             ApplyFog(&v[2], p3->p2);
-            if (g_PsxUsePgxp) {
-                PgxpApplyVert(&v[0], &p3->x0);
-                PgxpApplyVert(&v[1], &p3->x1);
-                PgxpApplyVert(&v[2], &p3->x2);
-            }
+            if (g_PsxUsePgxp)
+                PgxpApplyPoly(v, &p3->x0, &p3->x1, &p3->x2, &p3->x2, 3);
         }
     }
 
