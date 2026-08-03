@@ -355,18 +355,9 @@ void PsyX_ApplyVsync(int vsync)
     (void)vsync;
 }
 
-/* Inventory/pickup-item real-depth pass (GL depth-test toggle around the item
- * OT0 draw so a rotating item's own front faces occlude its back faces).
- * gpu_xbox.c has its own NV2A depth handling untouched by this GL-only hook;
- * wiring an equivalent Z-state toggle there is a cosmetic follow-up, not a
- * functional requirement (worst case: the PSX-original see-through remains). */
-void PsyX_ForceItemDepthBegin(void)
-{
-}
-
-void PsyX_ForceItemDepthEnd(void)
-{
-}
+/* Inventory/pickup-item real-depth pass: now REAL, implemented in gpu_xbox.c
+ * (PsyX_ForceItemDepthBegin/End -> GpuNv2a_SetDepthTest + the Xbox_ItemSzTag
+ * per-packet SZ depth). The stubs that lived here are gone. */
 
 /* Boot-logo raw-controller skip fallback (PsyX_pad.cpp): only used when
  * g_Controller0's heldBtnFlags isn't wired yet THIS early in boot; b_konami.c

@@ -191,6 +191,22 @@ static void GpuNv2a_SetRenderState(void)
  *   ABR1 (2): B+F   additive          -> ONE / ONE, ADD.
  *   ABR2 (3): B-F   subtractive       -> ONE / ONE, REVERSE_SUBTRACT.
  *   ABR3 (4): B+F/4 quarter-additive  -> CONSTANT_ALPHA(0.25) / ONE, ADD. */
+/* Depth test toggle for the inventory/pickup item real-depth pass (gpu_xbox.c
+ * PsyX_ForceItemDepthBegin/End). The zeta buffer is cleared every FrameBegin and
+ * nothing else tests or writes it, so enabling here sees a fresh far plane.
+ * LEQUAL matches painter's order for equal-depth prims (later draw wins). */
+void GpuNv2a_SetDepthTest(int enable)
+{
+    uint32_t* p;
+    GpuNv2a_FlushBatch();   /* pending run drew under the OLD depth state */
+    p = pb_begin();
+    p = pb_push1(p, NV097_SET_DEPTH_TEST_ENABLE, enable ? 1 : 0);
+    p = pb_push1(p, NV097_SET_DEPTH_MASK,        enable ? 1 : 0);
+    if (enable)
+        p = pb_push1(p, NV097_SET_DEPTH_FUNC, NV097_SET_DEPTH_FUNC_V_LEQUAL);
+    pb_end(p);
+}
+
 void GpuNv2a_SetBlendMode(int mode)
 {
     uint32_t* p;

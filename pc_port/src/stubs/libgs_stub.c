@@ -427,11 +427,25 @@ extern unsigned short g_PsyX_RtpSz[4];
  * GL depth test can separate overlapping faces (radio antenna vs body) that share one
  * coarse OT bucket. The `pz` arg — the drawer's gte_stdp depth cue — is perspective-
  * divided + clamped and too coarse to separate them, so it's intentionally ignored. */
+#ifdef SH_XBOX_PORT
+/* Xbox item-depth path (the see-through / radio-antenna fix): tag the prim
+ * ADDRESS with the raw per-vertex SZ FIFO so the NV2A OT walk (gpu_xbox.c) can
+ * feed a real depth for this packet during the force-item-depth bracket. The PC
+ * PsyX_SetNextPrimSzExact contract ("next addPrim captures") has no Xbox addPrim
+ * hook, so pass `poly` (in scope at every call site) directly instead. */
+extern void Xbox_ItemSzTag(const void* prim, const unsigned short* sz4);
+#define ITEM_PRECISE_SZ(pz) do { \
+    (void)(pz); \
+    if (g_PcItemPreciseDepth) \
+        Xbox_ItemSzTag((const void*)poly, g_PsyX_RtpSz); \
+} while (0)
+#else
 #define ITEM_PRECISE_SZ(pz) do { \
     (void)(pz); \
     if (g_PcItemPreciseDepth) { \
         PsyX_SetNextPrimSzExact(g_PsyX_RtpSz[0], g_PsyX_RtpSz[1], g_PsyX_RtpSz[2], g_PsyX_RtpSz[3]); \
     } } while (0)
+#endif /* SH_XBOX_PORT */
 
 /* PGXP shadow propagation, the item-path twin of SH_PGXP_PROP3/4 in
  * bodyprog_80055028.c. RotTransPers* shadow-stores each projected vertex at the

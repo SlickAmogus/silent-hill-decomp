@@ -157,6 +157,83 @@ static void PutVertUV(ShVertex* v, int x, int y, int r, int g, int b, int u, int
  * is never reached and the emit is byte-identical to the legacy renderer. The
  * transform mirrors PutVert/PutVertUV exactly so precise and affine verts of the
  * same poly land in one space (no cross-vertex smear from a coordinate mismatch). */
+/* ---- Inventory/pickup item real-depth pass (the see-through fix) -----------
+ * PC-proven mechanism (project_inventory_seethrough_depth): a rotating item's
+ * front and back faces land ~1 SZ apart in the same OT bucket, so painter's
+ * order alone can't separate them (antenna visible through the radio body).
+ * The shared code already does the hard part on Xbox too: item_screens_cam.c
+ * arms g_PcItemPreciseDepth, the GsTMDfast drawers tag each packet's raw GTE
+ * SZ FIFO (Xbox_ItemSzTag via the libgs_stub ITEM_PRECISE_SZ macro), and
+ * game_main.c brackets the item-only OT0 draw with PsyX_ForceItemDepthBegin/
+ * End, gated on InventoryScreen || g_PcPickupItemActive (world frozen -> OT0 =
+ * the model ALONE). Here: Begin enables the NV2A depth test/write (the zeta
+ * buffer is already cleared every FrameBegin and no other draw touches it),
+ * ProcessPoly feeds each tagged packet's flat SZ depth as pos[2] (z in
+ * [0,65535] is monotonic under either zeta format's clip range), End disables
+ * and bumps the tag generation. PGXP apply is skipped inside the bracket so W
+ * stays 1.0 and z passes to the rasterizer undivided. */
+#define ITEMSZ_SLOTS 4096   /* direct-map + 4-probe; ~64KB static */
+typedef struct { const void* prim; unsigned gen; float z; } ItemSzTag;
+static ItemSzTag s_itemSz[ITEMSZ_SLOTS];
+static unsigned  s_itemSzGen = 1;
+static int       s_itemDepthOn;
+
+void Xbox_ItemSzTag(const void* prim, const unsigned short* sz4)
+{
+    unsigned h = (unsigned)(((uintptr_t)prim >> 3) & (ITEMSZ_SLOTS - 1));
+    int      i;
+    float    z = ((float)sz4[0] + (float)sz4[1] + (float)sz4[2] + (float)sz4[3]) * 0.25f;
+    for (i = 0; i < 4; i++) {
+        ItemSzTag* t = &s_itemSz[(h + i) & (ITEMSZ_SLOTS - 1)];
+        if (t->gen != s_itemSzGen || t->prim == prim) {
+            t->prim = prim; t->gen = s_itemSzGen; t->z = z;
+            return;
+        }
+    }
+    /* probe window full: overwrite home slot (rare; one prim loses fine depth) */
+    s_itemSz[h].prim = prim; s_itemSz[h].gen = s_itemSzGen; s_itemSz[h].z = z;
+}
+
+static float ItemSzLookup(const void* prim)
+{
+    unsigned h = (unsigned)(((uintptr_t)prim >> 3) & (ITEMSZ_SLOTS - 1));
+    int      i;
+    for (i = 0; i < 4; i++) {
+        const ItemSzTag* t = &s_itemSz[(h + i) & (ITEMSZ_SLOTS - 1)];
+        if (t->gen == s_itemSzGen && t->prim == prim)
+            return t->z;
+    }
+    return -1.0f;
+}
+
+void PsyX_ForceItemDepthBegin(void)
+{
+    extern void GpuNv2a_SetDepthTest(int enable);
+    GpuNv2a_SetDepthTest(1);
+    s_itemDepthOn = 1;
+}
+
+void PsyX_ForceItemDepthEnd(void)
+{
+    extern void GpuNv2a_SetDepthTest(int enable);
+    GpuNv2a_SetDepthTest(0);
+    s_itemDepthOn = 0;
+    s_itemSzGen++;              /* invalidate this frame's tags in O(1) */
+    if (s_itemSzGen == 0) s_itemSzGen = 1;
+}
+
+/* Apply the tagged flat depth to every vertex of the prim (the PC fix is also
+ * flat per-poly). Untagged prims during the bracket keep z=0 (nearest): in the
+ * item-only OT0 that's just non-model packets, and painter's order still holds. */
+static void ItemDepthApply(ShVertex* v, int n, const void* prim)
+{
+    float z = ItemSzLookup(prim);
+    int   i;
+    if (z >= 0.0f)
+        for (i = 0; i < n; i++)
+            v[i].pos[2] = z;
+}
+
 static unsigned s_pgxpFull, s_pgxpMixed;   /* [PGXP] cov window counters */
 
 /* ALL-OR-NOTHING per poly (the gun-combat flicker fix): combat effect emitters
@@ -321,7 +398,7 @@ static int ProcessPoly(P_TAG* tag)
         PutVertUV(&v[1], p->x1, p->y1, p->r0, p->g0, p->b0, p->u1, p->v1);
         PutVertUV(&v[2], p->x2, p->y2, p->r0, p->g0, p->b0, p->u2, p->v2);
         if (quad) PutVertUV(&v[3], p->x3, p->y3, p->r0, p->g0, p->b0, p->u3, p->v3);
-        if (g_PsxUsePgxp)
+        if (g_PsxUsePgxp && !s_itemDepthOn)
             PgxpApplyPoly(v, &p->x0, &p->x1, &p->x2,
                           quad ? (const void*)&p->x3 : (const void*)&p->x2,
                           quad ? 4 : 3);
@@ -359,7 +436,7 @@ static int ProcessPoly(P_TAG* tag)
             ApplyFog(&v[1], p4->p1);
             ApplyFog(&v[2], p4->p2);
             ApplyFog(&v[3], p4->p3);
-            if (g_PsxUsePgxp)
+            if (g_PsxUsePgxp && !s_itemDepthOn)
                 PgxpApplyPoly(v, &p4->x0, &p4->x1, &p4->x2, &p4->x3, 4);
         } else {
             s_curTpage = blendTpage = p3->tpage;
@@ -375,10 +452,16 @@ static int ProcessPoly(P_TAG* tag)
             ApplyFog(&v[0], p3->p1);
             ApplyFog(&v[1], p3->p1);
             ApplyFog(&v[2], p3->p2);
-            if (g_PsxUsePgxp)
+            if (g_PsxUsePgxp && !s_itemDepthOn)
                 PgxpApplyPoly(v, &p3->x0, &p3->x1, &p3->x2, &p3->x2, 3);
         }
     }
+
+    /* Item-depth bracket (see-through fix): give every vertex of a tagged item
+     * packet its flat SZ depth; W stays 1.0 (PGXP skipped above) so z reaches
+     * the rasterizer undivided and the NV2A depth test separates the faces. */
+    if (s_itemDepthOn)
+        ItemDepthApply(v, quad ? 4 : 3, tag);
 
 #ifdef SH_GPU_PRIM_TRACE
     {   /* Sample a few prims periodically (incl. in-game) — code tells us if the OT
