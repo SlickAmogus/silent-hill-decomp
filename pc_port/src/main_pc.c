@@ -721,7 +721,7 @@ int main(int argc, char* argv[])
         if (strcmp(g_PcConfig.mapName, "map0_s00") == 0)
         {
             strncpy(g_PcConfig.mapName, "map0_s02", sizeof(g_PcConfig.mapName) - 1);
-            g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = ' ';
+            g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
         }
     }
 
