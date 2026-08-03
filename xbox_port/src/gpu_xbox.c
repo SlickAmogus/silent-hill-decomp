@@ -381,7 +381,22 @@ static int PolyOversized(const VERTTYPE* xy, int stridePairs, int n)
         if (y < minY) minY = y;
         if (y > maxY) maxY = y;
     }
-    return (maxX - minX) >= 1024 || (maxY - minY) >= 512;
+    if ((maxX - minX) >= 1024 || (maxY - minY) >= 512)
+        return 1;
+    /* GTE-rail backstop: Lm_G1/G2 saturate a broken projection to EXACTLY
+     * +1023/-1024 (PsyX_GTE.cpp). A single X-rail corner whose companions sit on
+     * the same side of center spans 823..1023 -- under the 1024 gate above and
+     * (for GT3/GT4 and non-ABE FTs) never screen-span-checked later, so a ~2-
+     * screen sliver flashes for a frame (point-blank recoil-animated bones, the
+     * residual gun-combat flicker). A rail vert + a span bigger than the visible
+     * field = a broken projection, never legit geometry. */
+    for (i = 0; i < n; i++) {
+        int x = xy[i * stridePairs], y = xy[i * stridePairs + 1];
+        if ((x == 1023 || x == -1024 || y == 1023 || y == -1024) &&
+            ((maxX - minX) > 400 || (maxY - minY) > 300))
+            return 1;
+    }
+    return 0;
 }
 
 static int ProcessPoly(P_TAG* tag)
@@ -499,6 +514,29 @@ static int ProcessPoly(P_TAG* tag)
      * the rasterizer undivided and the NV2A depth test separates the faces. */
     if (s_itemDepthOn)
         ItemDepthApply(v, quad ? 4 : 3, tag);
+
+    /* [BIGPRIM] flicker fingerprint (rate-limited 1/32): any prim spanning a
+     * whole content width/height. During gun-combat windows: code 0x2E + glass
+     * tpage = the glass-shard class; gouraud codes + character tpages = the
+     * GTE-rail class. Legit fullscreen fades show as G4 code 0x38/0x3A -- ignore. */
+    {
+        int   j, mnx = 99999, mxx = -99999, mny = 99999, mxy = -99999;
+        const int nv = quad ? 4 : 3;
+        for (j = 0; j < nv; j++) {
+            int X = (int)v[j].pos[0], Y = (int)v[j].pos[1];
+            if (X < mnx) mnx = X;
+            if (X > mxx) mxx = X;
+            if (Y < mny) mny = Y;
+            if (Y > mxy) mxy = Y;
+        }
+        if ((mxx - mnx) >= g_Nv2aContentW || (mxy - mny) >= g_Nv2aContentH) {
+            static unsigned s_big;
+            if ((s_big++ & 0x1F) == 0)
+                SH_DBG("[BIGPRIM] code=0x%02x tp=0x%x span=%dx%d at(%d,%d)",
+                       (unsigned)code & 0xFF, (unsigned)blendTpage,
+                       mxx - mnx, mxy - mny, mnx, mny);
+        }
+    }
 
 #ifdef SH_GPU_PRIM_TRACE
     {   /* Sample a few prims periodically (incl. in-game) — code tells us if the OT

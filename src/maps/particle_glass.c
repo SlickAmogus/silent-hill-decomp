@@ -386,6 +386,21 @@ bool sharedFunc_800CD1F8_0_s01(POLY_FT4** poly, s32 idx)
         return false;
     }
 
+#ifdef SH_XBOX_PORT
+    /* Same one-corner-guard bug as the on-hit blood / muzzle flash / blood pool
+     * (bodyprog_8005E0DC.c ~1655): gte_stsxy3_g3 wrote corners 0-2 straight into
+     * the poly above, but only corner 3 (field_1D4) is bounds-checked -- a
+     * near-camera shard corner ballooning / hitting the GTE +-0x400 rail while
+     * corner 3 stays on-screen renders a screens-wide FT4 flash for a frame
+     * (the residual gun-combat glass flicker). Guard ALL corners. */
+    if (ABS((*poly)->x0) > 200 || ABS((*poly)->y0) > 160 ||
+        ABS((*poly)->x1) > 200 || ABS((*poly)->y1) > 160 ||
+        ABS((*poly)->x2) > 200 || ABS((*poly)->y2) > 160)
+    {
+        return false;
+    }
+#endif
+
     func_80055A90(&ptr->field_1B8, &ptr->field_1BC, 0x80, ptr->field_1C4 * 0x10);
 
     *(s32*)&(*poly)->r0 = (ptr->field_1BC.r + (ptr->field_1BC.g << 8) + (ptr->field_1BC.b << 16) + 0x2E000000);

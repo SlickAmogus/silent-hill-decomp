@@ -9809,6 +9809,36 @@ void func_8007D090(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
             break;
 
         case PlayerState_None:
+#ifdef SH_XBOX_PORT
+            /* The 60fps "back problems" shudder: the original pre-modulate step
+             * below is NOT timestep-scaled and has NO zero-crossing clamp, so at
+             * 60fps (net per frame: -33 unscaled + the 12-unit scaled step) any
+             * residual X flex in the (0,21] band enters an EXACT 2-frame limit
+             * cycle -- amplitude ~1.85 deg flipping at 30Hz on the torso AND both
+             * upper arms, i.e. a vibrating two-handed shotgun hold. At 30fps the
+             * same map is 0.79 deg at 15Hz (sub-visible), which is why PSX never
+             * showed it. Fold both steps into ONE dt-scaled, zero-clamped step
+             * with the identical 30fps net rate (2.9+2.15 deg/frame). */
+            flexRotStep = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(2.9f) + Q12_ANGLE(2.15f));
+            if (g_Player_FlexRotationX > Q12_ANGLE(0.0f))
+            {
+                g_Player_FlexRotationX -= flexRotStep;
+                if (g_Player_FlexRotationX < Q12_ANGLE(0.0f))
+                {
+                    g_Player_FlexRotationX = Q12_ANGLE(0.0f);
+                }
+            }
+            else if (g_Player_FlexRotationX < Q12_ANGLE(0.0f))
+            {
+                g_Player_FlexRotationX += flexRotStep;
+                if (g_Player_FlexRotationX > Q12_ANGLE(0.0f))
+                {
+                    g_Player_FlexRotationX = Q12_ANGLE(0.0f);
+                }
+            }
+
+            flexRotStep = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(2.15f)); /* Y decay below unchanged */
+#else
             // Pre-modulate X-axis flex angle.
             if (g_Player_FlexRotationX > Q12_ANGLE(0.0f))
             {
@@ -9838,6 +9868,7 @@ void func_8007D090(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
                     g_Player_FlexRotationX = Q12_ANGLE(0.0f);
                 }
             }
+#endif
 
             // Modulate Y-axis flex angle.
             if (g_Player_FlexRotationY > Q12_ANGLE(0.0f))
@@ -9899,6 +9930,27 @@ void func_8007D090(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* 
         func_80044F14(&g_SysWork.playerBoneCoords[HarryBone_RightForearm],  Q12_ANGLE(-14.1f), Q12_ANGLE(22.5f), Q12_ANGLE(-30.8f));
         func_80044F14(&g_SysWork.playerBoneCoords[HarryBone_RightHand],     Q12_ANGLE(13.2f),  Q12_ANGLE(0.0f),  Q12_ANGLE(0.0f));
     }
+
+#ifdef SH_XBOX_PORT
+    /* [FLEX] shotgun-spazz verification (capped 3600 lines = ~60s of aim time).
+     * Signatures: limit-cycle bug (FIXED above) -> st=0 with fx alternating +-21;
+     * parked-keyframe candidate -> f100 climbing forever through a locked aim;
+     * per-shot retarget snap -> f122 toggling 90deg<->elevation across shots. */
+    {
+        static int s_flexLog;
+        if (g_SysWork.playerCombat.isAiming && s_flexLog < 3600)
+        {
+            s_flexLog++;
+            SH_DBG("[FLEX] st=%d f100=%d f122=%d fx=%d fy=%d anim=%d kf=%d dt=%d",
+                   (int)g_SysWork.playerWork.extra.state,
+                   (int)player->properties.player.field_100,
+                   (int)player->properties.player.field_122,
+                   (int)g_Player_FlexRotationX, (int)g_Player_FlexRotationY,
+                   (int)extra->model.anim.status, (int)extra->model.anim.keyframeIdx,
+                   (int)g_DeltaTime);
+        }
+    }
+#endif
 }
 
 void Player_FlexRotationYReset(void) // 0x8007D6E0
