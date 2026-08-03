@@ -1593,7 +1593,13 @@ void MemCard_StateUpdate(void) // 0x80030A0C
      * the next log names the exact stuck state. [MCFSM] is not in the log gate. */
     {
         static s32 s_prevState = -1, s_prevStep = -1, s_stuckFrames = 0;
+        static s32 s_mcfsmLogged = 0;
         if ((s32)g_MemCard_Work.state != s_prevState || g_MemCard_Work.stateStep != s_prevStep) {
+            /* The idle background poll cycles Idle->Init->Idle forever, which
+             * flooded a session log with 6685 transition lines. Log the first 60
+             * transitions (covers any real save/load sequence from boot), then
+             * mute; the STUCK line below always logs -- it is the freeze catcher. */
+            if (s_mcfsmLogged < 60 && ++s_mcfsmLogged)
             SH_DBG("[MCFSM] state=%d step=%d (was %d/%d after %d f)",
                    (int)g_MemCard_Work.state, (int)g_MemCard_Work.stateStep,
                    (int)s_prevState, (int)s_prevStep, (int)s_stuckFrames);

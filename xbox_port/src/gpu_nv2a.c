@@ -207,6 +207,20 @@ void GpuNv2a_SetDepthTest(int enable)
     pb_end(p);
 }
 
+/* Depth WRITE alone (test stays as set above). The item pass flips this per
+ * tagged/untagged run: untagged prims (UI sprites, 2D packets) keep z=0 =
+ * nearest -> always PASS the LEQUAL test (painter-style, draw over everything)
+ * but must not WRITE, or each stamps a z=0 wall that erases everything drawn
+ * after it at those pixels (the "antenna disappears / worse see-through" bug). */
+void GpuNv2a_SetDepthWrite(int enable)
+{
+    uint32_t* p;
+    GpuNv2a_FlushBatch();
+    p = pb_begin();
+    p = pb_push1(p, NV097_SET_DEPTH_MASK, enable ? 1 : 0);
+    pb_end(p);
+}
+
 void GpuNv2a_SetBlendMode(int mode)
 {
     uint32_t* p;

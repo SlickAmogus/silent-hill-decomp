@@ -178,11 +178,15 @@ static ItemSzTag s_itemSz[ITEMSZ_SLOTS];
 static unsigned  s_itemSzGen = 1;
 static int       s_itemDepthOn;
 
+static unsigned s_izTagged, s_izHit, s_izMiss;    /* [ITEMZ] probe counters */
+static float    s_izZMin, s_izZMax;
+
 void Xbox_ItemSzTag(const void* prim, const unsigned short* sz4)
 {
     unsigned h = (unsigned)(((uintptr_t)prim >> 3) & (ITEMSZ_SLOTS - 1));
     int      i;
     float    z = ((float)sz4[0] + (float)sz4[1] + (float)sz4[2] + (float)sz4[3]) * 0.25f;
+    s_izTagged++;
     for (i = 0; i < 4; i++) {
         ItemSzTag* t = &s_itemSz[(h + i) & (ITEMSZ_SLOTS - 1)];
         if (t->gen != s_itemSzGen || t->prim == prim) {
@@ -206,11 +210,15 @@ static float ItemSzLookup(const void* prim)
     return -1.0f;
 }
 
+static int      s_itemWriteOn;                    /* current depth-WRITE state in the bracket */
+
 void PsyX_ForceItemDepthBegin(void)
 {
     extern void GpuNv2a_SetDepthTest(int enable);
     GpuNv2a_SetDepthTest(1);
     s_itemDepthOn = 1;
+    s_itemWriteOn = 1;
+    s_izHit = s_izMiss = 0; s_izZMin = 1e9f; s_izZMax = -1e9f;
 }
 
 void PsyX_ForceItemDepthEnd(void)
@@ -218,20 +226,44 @@ void PsyX_ForceItemDepthEnd(void)
     extern void GpuNv2a_SetDepthTest(int enable);
     GpuNv2a_SetDepthTest(0);
     s_itemDepthOn = 0;
+    /* Blind-verify probe (~1/s): tagged = packets tagged at sort, hit/miss =
+     * draw-time lookups. hit==tagged + sane zmin/zmax = mechanism healthy;
+     * hit==0 with tagged>0 = address/timing mismatch to chase. */
+    {
+        static unsigned s_izLog;
+        if ((s_izLog++ & 31) == 0)
+            SH_DBG("[ITEMZ] tagged=%u hit=%u miss=%u zmin=%d zmax=%d",
+                   s_izTagged, s_izHit, s_izMiss, (int)s_izZMin, (int)s_izZMax);
+    }
+    s_izTagged = 0;
     s_itemSzGen++;              /* invalidate this frame's tags in O(1) */
     if (s_itemSzGen == 0) s_itemSzGen = 1;
 }
 
-/* Apply the tagged flat depth to every vertex of the prim (the PC fix is also
- * flat per-poly). Untagged prims during the bracket keep z=0 (nearest): in the
- * item-only OT0 that's just non-model packets, and painter's order still holds. */
+/* Per-prim depth routing inside the bracket. Tagged item faces: depth WRITE on
+ * + their real flat SZ depth (the PC fix is also flat per-poly). Untagged prims
+ * (UI sprites, text, any 2D packet in the OT): keep z=0 = nearest -> always
+ * pass LEQUAL and draw painter-style, but with depth WRITE OFF so they cannot
+ * stamp a z=0 wall that erases later geometry (the first attempt's bug: the
+ * antenna vanished behind invisible walls and cross-item occlusion scrambled).
+ * The write toggle flushes the batch, but runs are contiguous (an item's faces
+ * emit together) and this only ever runs in menus. */
 static void ItemDepthApply(ShVertex* v, int n, const void* prim)
 {
+    extern void GpuNv2a_SetDepthWrite(int enable);
     float z = ItemSzLookup(prim);
     int   i;
-    if (z >= 0.0f)
+    if (z >= 0.0f) {
+        s_izHit++;
+        if (z < s_izZMin) s_izZMin = z;
+        if (z > s_izZMax) s_izZMax = z;
+        if (!s_itemWriteOn) { GpuNv2a_SetDepthWrite(1); s_itemWriteOn = 1; }
         for (i = 0; i < n; i++)
             v[i].pos[2] = z;
+    } else {
+        s_izMiss++;
+        if (s_itemWriteOn) { GpuNv2a_SetDepthWrite(0); s_itemWriteOn = 0; }
+    }
 }
 
 static unsigned s_pgxpFull, s_pgxpMixed;   /* [PGXP] cov window counters */
@@ -272,10 +304,15 @@ static void PgxpApplyPoly(ShVertex* v, const void* a0, const void* a1,
 }
 
 /* Blind-verify probe: mixed should be 0 in menus/walking and spike only while
- * shooting (the demoted effect prims), full stays high (world untouched). */
+ * shooting (the demoted effect prims), full stays high (world untouched).
+ * Print ZEROS too whenever PGXP is on -- log 022 had cov silent with use_pgxp=1,
+ * which means full==0: PGXP resolves are missing entirely (silently inert). An
+ * explicit "cov full=0 mixed=0" line distinguishes "inert" from "probe not
+ * running" on the next log. */
 void Pgxp_CovDump(void)
 {
-    if (s_pgxpFull || s_pgxpMixed) {
+    extern int g_PsxUsePgxp;
+    if (g_PsxUsePgxp || s_pgxpFull || s_pgxpMixed) {
         SH_DBG("[PGXP] cov full=%u mixed=%u", s_pgxpFull, s_pgxpMixed);
         s_pgxpFull = s_pgxpMixed = 0;
     }

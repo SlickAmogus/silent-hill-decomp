@@ -136,10 +136,15 @@ static void Ra_BuildMap(void)
     RA_MAP_SEG(0x0B9FC0u + 0x1A0u,  0x6F0u,  &g_SysWork.npcs[0],              "sysWork.npcs");
     RA_MAP_SEG(0x0B9FC0u + 0x890u,  0x19F0u, &g_SysWork.playerBoneCoords[0],  "sysWork.bones");
     RA_MAP_SEG(0x0B9FC0u + 0x2280u, 0x4E8u,  &g_SysWork.npcFlagsId,           "sysWork.tail");
-    SH_DBG("[RA] syswork native: npcs=0x%X bones=0x%X tail=0x%X sizeof=%u",
+    /* f2510 bisects the +4 sizeof residual (log 022: tail=0x91D0 as computed but
+     * sizeof=38588 = computed+4, so one 4-byte widen hides in the tail segment):
+     * expected native f2510 = 0x91D0 + (0x2510-0x2280) = 0x9460; 0x9464 means the
+     * widen precedes it -> split the tail segment at the member this names. */
+    SH_DBG("[RA] syswork native: npcs=0x%X bones=0x%X tail=0x%X f2510=0x%X sizeof=%u",
            (unsigned)offsetof(s_SysWork, npcs),
            (unsigned)offsetof(s_SysWork, playerBoneCoords),
            (unsigned)offsetof(s_SysWork, npcFlagsId),
+           (unsigned)offsetof(s_SysWork, field_2510),
            (unsigned)sizeof(s_SysWork));
 
     RA_MAP(0x0BC728u, g_GameWork);
