@@ -484,6 +484,7 @@ static const char* const HELP_LINES[] = {
     " fmv            list movies (numbered)",
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
     " kf [n]         keyframe inspector: set/show frame (K key)",
+    " playas [name]  play as harry|lisa|cybil|kaufmann|dahlia",
     " loga / logb    log Harry+camera pos/angles to SilentHill.log",
     "Quick Save: F6   Quick Load: F8 (work outside console)",
 };
@@ -529,10 +530,11 @@ static const char* const DEBUG_PAGE1[] = {
     " 7       invincibility toggle",
     " 8       +15 handgun bullets",
     " 9       no-target toggle (enemies ignore Harry)",
-    " -       give Hunting Rifle + 30 shells",
-    " =       give Shotgun + 30 shells",
+    " -       give Hunting Rifle + 30 shells (not in K view)",
+    " =       give Shotgun + 30 shells (not in K view)",
     " '       collision visualizer panel",
     " K       keyframe inspector; , . scrub (hold = faster)",
+    " - / =   in K view: cycle play-as character",
     " [ / ]   drop A/B position markers into the log",
     " ~       console open/close (game pauses; PgUp/PgDn scroll)",
     "type DEBUG 2 for the camera keys",
@@ -1476,6 +1478,19 @@ void Pc_ConsoleExec(const char* line)
         } else {
             cprintf("keyframe %d / %d (view %s)", g_DebugAnimKf, maxKf,
                     g_DebugAnimKfView ? "ON" : "OFF");
+        }
+    } else if (strcmp(cmd, "PLAYAS") == 0) {
+        extern int         Pc_PlayAs_SetByName(const char* name, int save);
+        extern int         Pc_PlayAs_Current(void);
+        extern const char* Pc_PlayAs_Label(int idx);
+        if (arg[0] != '\0') {
+            if (Pc_PlayAs_SetByName(arg, 1)) {
+                cprintf("playing as %s", Pc_PlayAs_Label(Pc_PlayAs_Current()));
+            } else {
+                cprintf("unknown character - playas harry|lisa|cybil|kaufmann|dahlia");
+            }
+        } else {
+            cprintf("playing as %s (playas <name> to change)", Pc_PlayAs_Label(Pc_PlayAs_Current()));
         }
     } else if (strcmp(cmd, "FLINTENSITY") == 0 || strcmp(cmd, "FLINT") == 0) {
         extern float g_PsyX_FlashlightIntensity, g_PsyX_FlashlightIntensityFps;

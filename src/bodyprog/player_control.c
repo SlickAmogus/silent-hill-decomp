@@ -992,6 +992,14 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
                 }
             }
         }
+
+        /* Play-as: keep Lisa's rigid hair coords (bones 18-20, untouched by
+         * HB_BASE.ANM) composed against the freshly-animated head, and
+         * re-init them after a warm reset wiped g_SysWork. */
+        {
+            extern void Pc_PlayAs_PlayerAnimTick(void);
+            Pc_PlayAs_PlayerAnimTick();
+        }
 #endif
     }
 

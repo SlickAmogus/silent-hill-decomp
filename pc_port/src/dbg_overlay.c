@@ -944,6 +944,11 @@ static void anim_gather(void)
     int      n  = 0;
 #define AL(...) do { if (n < ANIM_LINES) snprintf(s_anim_lines[n++], ANIM_COLS, __VA_ARGS__); } while (0)
     AL("== ANIM (K) ,. / step ==");
+    {
+        extern int         Pc_PlayAs_Current(void);
+        extern const char* Pc_PlayAs_Label(int idx);
+        AL("chara: %s  (- / =)", Pc_PlayAs_Label(Pc_PlayAs_Current()));
+    }
     AL("KF %d / %d", g_DebugAnimKf, g_DebugAnimKfMax > 0 ? g_DebugAnimKfMax - 1 : 0);
     /* Which authored anim's keyframe range contains the inspected frame ( / jumps
      * to the next anim's start). HARRY_BASE_ANIM_INFOS playback entries carry the

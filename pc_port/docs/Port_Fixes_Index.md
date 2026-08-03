@@ -1917,3 +1917,68 @@ continuation path is never entered there. The USA-region Spanish fan patch's
 10-line Alessa-fire newspaper (map7_s01 #33 / map7_s02 #18) pages 9+1 with all
 155 glyphs reached. Not a memory-corruption crash: `GsOUT_PACKET_P` is a 16 MiB
 arena with a canary, and the worst-case document is ~38 KiB of `POLY_FT4`.
+
+## Play as another character — Lisa / Cybil / Kaufmann / Dahlia (2026-08-03)
+
+**Feature, PC-only.** `player_character` config key, console `PLAYAS <name>`, and
+in-game cycling: with `allow_debug_controls = 1`, turn on the K keyframe viewer
+and press `-` / `=` to cycle Harry → Lisa → Cybil → Kaufmann → Dahlia (the amber
+panel shows the selection; the rifle/shotgun give cheats on those keys stand
+down while K view is on). Turning K view off leaves you playing as the selected
+character; the choice persists to `config.cfg`. Groundwork for character
+selection (and eventually co-op skins).
+
+**Mechanism** (`pc_port/src/pc_playas.c`): retarget
+`CHARA_FILE_INFOS[Chara_Harry].modelFileIdx/textureFileIdx` — the same row
+mechanism as the PAL Mumbler censorship and the pool's beta retargets — and
+rerun `WorldGfx_HarryCharaLoad` + `WorldGfx_PlayerModelProcessLoad`
+synchronously (pool-style `Fs_QueueUpdate` pump; the player draw has no
+`isLoaded` gate, so the buffer must never be mid-read when a frame renders).
+`animFileIdx` is never touched: HB_BASE.ANM, the weapon/map keyframe banks and
+`playerBoneCoords` keep animating, so the skin performs every Harry animation.
+Disc-data verified: Cybil (SIBYL/SBL), Kaufmann (KAU) and Dahlia (DARIA/DA) are
+the same 18-bone skeleton class as Harry — identical parent chain, kfSize 156,
+part-name→bone scheme — so they drive directly (proportion stretch at
+neck/ankles is expected and cosmetic). Lisa (LISA/LS) is 21-bone: her 3 hair
+bones are posed as rigid head-followers from LS.ANM's bind chain into the 5
+spare coords after `playerBoneCoords[18]`, with a per-frame `flg` clear
+(`Pc_PlayAs_PlayerAnimTick`) because `Vw_CoordHierarchyMatrixCompute` caches by
+`flg` and no ANM ever touches those bones.
+
+**The four hazards the naive retarget hits, and their fixes:**
+1. **Held-item buffer stomp.** Disc reads are sector-granular: every humanoid
+   CHARA ILM read writes 16 KiB, and `HELD_ITEM_LM_BUFFER` sits at
+   `HARRY_LM_BUFFER + 14592` (HERO.ILM's exact size). Any swapped read through
+   the PSX slab would overwrite the equipped weapon's PLM (and a later weapon
+   load would stomp the body's tail). Fix: `Pc_PlayAs_PlayerLmRedirect` (hooked
+   after `Pc_BigLm_Redirect` in `WorldGfx_HarryCharaLoad`) hands out a PC-owned
+   buffer for any non-HERO player ILM, registered via
+   `Pc_BigLm_RegisterExternal(Chara_Harry, …)` so loose byte-replace capacity
+   lifts still apply; loose/v7 replacements of the target character
+   (already-owned pointers) pass through, so a CJ-style `LISA.ILM` mod follows
+   the player. Mid-game swaps also free the held item first and re-equip after
+   (`WorldGfx_PlayerPrevHeldItem` + `Gfx_PlayerHeldItemAttach`).
+2. **HERO-textured weapons.** Knife/hammer/axe/handgun/rifle/shotgun PLMs carry
+   a material literally named `HERO` and sample Harry's VRAM parcel (tpage 27,
+   CLUT 736/480) — which now holds the skin's sheet. Fix: HERO.TIM is
+   registered once in virtual texture slot `256 + Chara_Harry` (the pool uses
+   256+id for 2..43 only, so 257 is free) and `WorldGfx_HeldItemDraw` bakes
+   those PLMs against that desc (patched at the lazy bake, so it holds on
+   every load order).
+3. **Embedded prop meshes.** The targets' ILMs carry in-hand props that the
+   show-all after skeleton build would render permanently: Cybil `06LGUN/
+   10RGUN`, Kaufmann `06LHAND2/06LBAG/10RHAND2/10RGUN/10RAGLA`, Dahlia
+   `10RHAND2/10RKEY/10FLAURO`. Fix: per-character hide tables applied by part
+   NAME over the skeleton (slot index = ILM model index, name field on each
+   `s_ModelHeader`) after every `WorldGfx_PlayerModelProcessLoad`.
+4. **Harry's hand-variant toggles.** `func_8003DE60`'s lists are hard-coded
+   HERO part-order indices; on a foreign ILM every equip/unequip hides random
+   meshes. Fix: `WorldGfx_HeldItemAttach`'s Harry case re-applies the skin
+   visibility table instead when a skin is active (self-healing full pass).
+
+Also: the FPS-camera head hide extends to bones ≥ 18 so Lisa's hair doesn't
+float in front of the eye. Swap-back to Harry restores the vanilla row/slab
+(byte-identical path when `player_character = harry` and no swap ever ran).
+Known cosmetic limits: proportion stretch at neck/shoulders/ankles (worst:
+Kaufmann's ankles — his ILM has no shin↔foot weld), no per-weapon grip hand
+variants on skins, demo attract mode plays with the active skin.

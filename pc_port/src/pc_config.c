@@ -146,6 +146,7 @@ s_PcConfig g_PcConfig = {
     .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal 3=jap — preferred disc when several are present */
     .discImage      = "", /* exact .bin in gamedata/ (launcher Disc dropdown); empty = auto */
     .uncensored     = 0, /* 0=retail PAL Mumblers (default); 1=restore Grey Children on EUR (matches US) */
+    .playerCharacter = "harry", /* play as: harry|lisa|cybil|kaufmann|dahlia (also - / = in K view) */
     .discordRichPresence = 1,  /* show current area on the player's Discord profile (needs a discord_app_id) */
     .discordAppId        = "", /* project's Discord application id; empty = compiled-in default / off */
     .retroAchievements   = 0,  /* opt-in; needs a launcher sign-in to do anything */
@@ -696,6 +697,11 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "uncensored") == 0)
         {
             g_PcConfig.uncensored = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "player_character") == 0)
+        {
+            strncpy(g_PcConfig.playerCharacter, value, sizeof(g_PcConfig.playerCharacter) - 1);
+            g_PcConfig.playerCharacter[sizeof(g_PcConfig.playerCharacter) - 1] = '\0';
         }
         else if (strcmp(key, "control_style") == 0)
         {

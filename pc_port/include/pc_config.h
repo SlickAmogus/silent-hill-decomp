@@ -238,6 +238,12 @@ typedef struct {
      * US/NTSC-J discs, which already render their retail creature. */
     int uncensored;
 
+    /* Play as another character (config key: player_character): harry (default),
+     * lisa, cybil, kaufmann, dahlia. Swaps the player's rendered model while
+     * keeping Harry's animations/gameplay; also cycled in-game with - / = while
+     * the K keyframe viewer is on, or the console PLAYAS command. */
+    char playerCharacter[16];
+
     /* Discord Rich Presence: show the current area on the player's Discord
      * profile (presence only — no achievements/account system; see
      * docs/RetroAchievements_Feasibility.md). discordAppId is the project's

@@ -1247,11 +1247,13 @@ void DebugCamera_Update(void)
         }
         prevKey = cur;
     }
-    /* Top-row -: give Hunting Rifle (skip if owned) + a stack of rifle shells */
+    /* Top-row -: give Hunting Rifle (skip if owned) + a stack of rifle shells.
+     * Stands down while the K keyframe view is on — there - / = cycle the
+     * play-as character instead. */
     {
         static int prevKey = 0;
         int cur = g_sdlKeyboardState[SDL_SCANCODE_MINUS];
-        if (cur && !prevKey) {
+        if (cur && !prevKey && !g_DebugAnimKfView) {
             bool hasRifle = false;
             for (int i = 0; i < INV_ITEM_COUNT_MAX; i++) {
                 if (g_SavegamePtr->items[i].id_0 == InvItemId_HuntingRifle) {
@@ -1266,11 +1268,12 @@ void DebugCamera_Update(void)
         }
         prevKey = cur;
     }
-    /* Top-row =: give Shotgun (skip if owned) + a stack of shotgun shells */
+    /* Top-row =: give Shotgun (skip if owned) + a stack of shotgun shells.
+     * Stands down while the K keyframe view is on (see - above). */
     {
         static int prevKey = 0;
         int cur = g_sdlKeyboardState[SDL_SCANCODE_EQUALS];
-        if (cur && !prevKey) {
+        if (cur && !prevKey && !g_DebugAnimKfView) {
             bool hasShotgun = false;
             for (int i = 0; i < INV_ITEM_COUNT_MAX; i++) {
                 if (g_SavegamePtr->items[i].id_0 == InvItemId_Shotgun) {
@@ -1325,6 +1328,30 @@ void DebugCamera_Update(void)
         prevK      = curK;
         prevComma  = curComma;
         prevPeriod = curPeriod;
+    }
+
+    /* - / = while the inspector is on: cycle the play-as character
+     * (Harry / Lisa / Cybil / Kaufmann / Dahlia). The swap is synchronous and
+     * sticks after K is turned off — that's how you pick who to play as. The
+     * rifle/shotgun give cheats on these keys stand down while K view is on. */
+    {
+        static int prevMinus = 0, prevEquals = 0;
+        int curMinus  = g_sdlKeyboardState[SDL_SCANCODE_MINUS];
+        int curEquals = g_sdlKeyboardState[SDL_SCANCODE_EQUALS];
+        if (g_DebugAnimKfView) {
+            int step = 0;
+            if (curMinus && !prevMinus)   step = -1;
+            if (curEquals && !prevEquals) step = 1;
+            if (step != 0) {
+                extern int         Pc_PlayAs_Cycle(int step);
+                extern const char* Pc_PlayAs_Label(int idx);
+                int idx = Pc_PlayAs_Cycle(step);
+                Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                SH_DBG_ECHO("[PLAYAS] %s", Pc_PlayAs_Label(idx));
+            }
+        }
+        prevMinus  = curMinus;
+        prevEquals = curEquals;
     }
 
     /* `/` while the inspector is on: cycle the equipped weapon's UPPER-BODY anims

@@ -1241,6 +1241,10 @@ int main(int argc, char* argv[])
     { extern void Font_ApplyRegionPatches(void); Font_ApplyRegionPatches(); }
     { extern void Pc_LangInit(void); Pc_LangInit(); }
 
+    /* Play-as character (config player_character): retargets Harry's
+     * CHARA_FILE_INFOS row before the boot-time WorldGfx_HarryCharaLoad. */
+    { extern void Pc_PlayAs_Init(void); Pc_PlayAs_Init(); }
+
     CdInit();
 
     /* Initialize GPU */
