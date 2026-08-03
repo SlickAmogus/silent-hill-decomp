@@ -162,6 +162,73 @@ static void pack_charge(unsigned* slot, int w, int h)
     g_packBytesLive += (long long)*slot;
 }
 
+/* Lower the pack budget to something this GPU can actually hold.
+ *
+ * texpack_budget_mb defaults to 6144 MB, chosen when the cap was only a
+ * backstop against a multi-GB whole-map load. It is a HARD cap with no
+ * eviction, and a heavy interior genuinely wants more than that, so the process
+ * simply climbs to the cap and pins there: 6 GB of pack art plus the native
+ * pool rows (uncharged) and driver overhead is the 8-10 GB users report, and on
+ * anything under 12 GB it is the crash (GitHub #91).
+ *
+ * Shaped like the system-RAM clamp in main_pc.c: it only ever LOWERS, so an
+ * explicit small value is respected and 0 ("unlimited") stays unlimited by the
+ * user's own choice. Needs a live GL context, so it runs after PsyX_Initialise.
+ * 45% leaves room for the native rows, the PsyCross framebuffers and the
+ * driver's own working set. */
+void HiresOverride_ClampBudgetToVram(void)
+{
+    int dedicatedMb = 0;
+
+    while (glGetError() != GL_NO_ERROR) { }
+
+    {
+        /* GL_NVX_gpu_memory_info: total dedicated video memory, in KB. */
+        GLint kb = 0;
+        glGetIntegerv(0x9047 /* GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX */, &kb);
+        if (glGetError() == GL_NO_ERROR && kb > 0)
+        {
+            dedicatedMb = kb / 1024;
+        }
+    }
+
+    if (dedicatedMb <= 0)
+    {
+        /* GL_ATI_meminfo: [0] = total free texture memory, in KB. Free rather
+         * than total, so it reads low — acceptable for a clamp that only
+         * lowers, and it is the only figure this extension offers. */
+        GLint info[4] = { 0, 0, 0, 0 };
+        glGetIntegerv(0x87FC /* TEXTURE_FREE_MEMORY_ATI */, info);
+        if (glGetError() == GL_NO_ERROR && info[0] > 0)
+        {
+            dedicatedMb = info[0] / 1024;
+        }
+    }
+
+    while (glGetError() != GL_NO_ERROR) { }
+
+    if (dedicatedMb <= 0)
+    {
+        SH_DBG("[TEXPACK] GPU VRAM not reported by this driver — budget left at %d MB",
+               g_PcConfig.texpackBudgetMb);
+        return;
+    }
+
+    {
+        int cap = dedicatedMb * 45 / 100;
+        if (cap < 256) cap = 256;
+
+        SH_DBG("[TEXPACK] GPU reports %d MB VRAM; pack budget ceiling %d MB", dedicatedMb, cap);
+
+        if (g_PcConfig.texpackBudgetMb > cap)
+        {
+            SH_DBG("[TEXPACK] GL texture budget capped %d -> %d MB (45%% of %d MB VRAM)",
+                   g_PcConfig.texpackBudgetMb, cap, dedicatedMb);
+            g_PcConfig.texpackBudgetMb = cap;
+        }
+    }
+}
+
 int HiresOverride_PackBudgetExceeded(void)
 {
     long long cap = (long long)g_PcConfig.texpackBudgetMb << 20;
@@ -522,6 +589,14 @@ int HiresOverride_PoolSlotRegister(int slotId,
      * decodable at draw. PNG replacements have one palette: row 0 only. */
     PoolSlotEntry* s = &g_poolSlots[slotId];
     int rows = 1, r, hiW = 0, hiH = 0;
+    /* A mid-loop failure used to `return` straight out, skipping the stale-row
+     * drop below. On a RECYCLED slot that left rows r+1..15 holding the PREVIOUS
+     * TIM's textures — so the slot rendered a mix of two sheets depending on
+     * which palette row a prim selected — and left the previous occupant's pack
+     * charges on the books. Break into the shared epilogue instead, and drop
+     * from the number of rows actually written rather than the declared count. */
+    int status = 0;
+    int doneRows = 0;
 
     for (r = 0; r < rows; r++)
     {
@@ -529,7 +604,8 @@ int HiresOverride_PoolSlotRegister(int slotId,
         int w = 0, h = 0, srcBpp = 0, timRows = 1;
         if (decode_to_rgba(tag, data, size, &rgba, &w, &h, &srcBpp, r, &timRows) != 0)
         {
-            return (r == 0) ? -1 : 0;
+            status = (r == 0) ? -1 : 0;
+            break;
         }
         if (r == 0)
         {
@@ -573,9 +649,14 @@ int HiresOverride_PoolSlotRegister(int slotId,
                             w, h, (w == nativePixelW && h == nativePixelH)) != 0)
             {
                 free(rgba);
-                return (r == 0) ? -1 : 0;
+                status = (r == 0) ? -1 : 0;
+                break;
             }
             free(rgba);
+            if (r < HIRES_POOL_MAX_ROWS)
+            {
+                doneRows = r + 1;
+            }
             rowSlot->rowW[rowIdx] = (unsigned short)w;
             rowSlot->rowH[rowIdx] = (unsigned short)h;
             /* This row now holds base/loose content, not a keyed pack composite —
@@ -588,8 +669,10 @@ int HiresOverride_PoolSlotRegister(int slotId,
         }
     }
 
-    /* Slot reuse with fewer rows: drop stale row textures past the new count. */
-    for (r = rows; r < HIRES_POOL_MAX_ROWS; r++)
+    /* Slot reuse with fewer rows, and any tail a mid-loop failure left behind:
+     * drop stale row textures past what this TIM actually wrote. On a clean run
+     * doneRows == min(rows, HIRES_POOL_MAX_ROWS), so this is the old bound. */
+    for (r = doneRows; r < HIRES_POOL_MAX_ROWS; r++)
     {
         if (s->glTexture[r] != 0)
         {
@@ -610,7 +693,7 @@ int HiresOverride_PoolSlotRegister(int slotId,
                (unsigned)s->glTexture[0]);
         s_regLog++;
     }
-    return 0;
+    return status;
 }
 
 /* Upload straight RGBA into a slot/entry texture, creating it on demand.
@@ -766,6 +849,15 @@ int HiresOverride_PoolSlotRegisterRGBAKeyed(int slotId, int row,
                     (w == nativePixelW && h == nativePixelH)) != 0)
     {
         s->rowHash[row] = 0;
+        /* The uploader zeroes the name when it drops a half-made texture; that
+         * row's charge is then dead weight on the budget, which is consulted
+         * most often precisely when uploads are failing. Credit it back. (An
+         * argument-validation reject leaves the name intact, so it stays
+         * charged - correctly, the texture is still live.) */
+        if (s->glTexture[row] == 0)
+        {
+            pack_credit(&s->rowPackBytes[row]);
+        }
         return -1;
     }
     pack_charge(&s->rowPackBytes[row], w, h);
@@ -829,6 +921,15 @@ int HiresOverride_PoolSlotRegisterDdsKeyed(int slotId, int row,
                        (w == nativePixelW && h == nativePixelH)) != 0)
     {
         s->rowHash[row] = 0;
+        /* The uploader zeroes the name when it drops a half-made texture; that
+         * row's charge is then dead weight on the budget, which is consulted
+         * most often precisely when uploads are failing. Credit it back. (An
+         * argument-validation reject leaves the name intact, so it stays
+         * charged - correctly, the texture is still live.) */
+        if (s->glTexture[row] == 0)
+        {
+            pack_credit(&s->rowPackBytes[row]);
+        }
         return -1;
     }
     pack_charge(&s->rowPackBytes[row], (w + 3) / 4, h);
@@ -889,11 +990,18 @@ int HiresOverride_RegisterRGBAKeyed(const char* label,
         e = &g_entries[g_numEntries];
         e->glTexture = 0;
         e->contentHash = 0;
+        /* A recycled table index can still carry the previous entry's charge;
+         * zero it before any failure path below credits it. */
+        e->packBytes = 0;
     }
 
     if (upload_rgba(&e->glTexture, rgba, w, h, 0) != 0)
     {
         e->contentHash = 0;
+        if (e->glTexture == 0)
+        {
+            pack_credit(&e->packBytes);
+        }
         return -1;
     }
     if (e == &g_entries[g_numEntries])
@@ -975,6 +1083,9 @@ int HiresOverride_RegisterDdsKeyed(const char* label,
         e = &g_entries[g_numEntries];
         e->glTexture = 0;
         e->contentHash = 0;
+        /* A recycled table index can still carry the previous entry's charge;
+         * zero it before any failure path below credits it. */
+        e->packBytes = 0;
     }
 
     /* RGBA twin passes 0 here and upload_rgba ORs the font force-nearest in
@@ -982,6 +1093,10 @@ int HiresOverride_RegisterDdsKeyed(const char* label,
     if (Dds_UploadBptc(&e->glTexture, ddsBytes, (int)ddsSize, s_forceNearestUpload) != 0)
     {
         e->contentHash = 0;
+        if (e->glTexture == 0)
+        {
+            pack_credit(&e->packBytes);
+        }
         return -1;
     }
     if (e == &g_entries[g_numEntries])

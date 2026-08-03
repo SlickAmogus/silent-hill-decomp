@@ -21,6 +21,7 @@
 #include "sh_log.h"
 #include "psx_memory.h"
 #include "pc_config.h"
+#include "hires_override.h" /* HiresOverride_ClampBudgetToVram */
 #include "pc_audio_config.h"
 #include "pc_discord.h"
 #include "map_registry.h"
@@ -985,6 +986,10 @@ int main(int argc, char* argv[])
     PsyX_Initialise("Silent Hill", windowWidth, windowHeight, g_PcConfig.fullscreen);
 
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
+
+    /* Needs the GL context, so it runs here rather than beside the system-RAM
+     * clamp above. Same rule as that one: only ever lowers. */
+    HiresOverride_ClampBudgetToVram();
 
     {
         const char* gl_renderer = (const char*)glGetString(GL_RENDERER);

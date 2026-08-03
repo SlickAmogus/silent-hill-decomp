@@ -238,6 +238,10 @@ void HiresOverride_InvalidateVramRect(int x, int y, int w, int h);
  * the whole-town texture-all path against multi-GB pack blowups. */
 int HiresOverride_PackBudgetExceeded(void);
 
+/* Lower texpack_budget_mb to a fraction of the GPU's reported VRAM. Only ever
+ * lowers; needs a live GL context, so call after PsyX_Initialise. */
+void HiresOverride_ClampBudgetToVram(void);
+
 #ifdef __cplusplus
 }
 #endif
