@@ -10,43 +10,86 @@ using System.Windows.Forms;
 namespace SilentHillPC_Launcher
 {
     /// <summary>
-    /// Software-rendered model preview for the Mod Manager. Opens a .ILM (converted
-    /// on the fly through IlmObjConverter) or an edited .OBJ directly, so an artist
-    /// can check their edit BEFORE folding it back into an .ILM.
+    /// Software-rendered model viewer. Opens character models (.ILM), prop/item
+    /// models (.PLM), PSX item TMDs (.TMD) and edited .OBJ files, and plays .ANM
+    /// skeletal animation on character models with a scrub/play timeline.
     ///
-    /// The scene is deliberately built from the converter's own OBJ output rather
-    /// than a private ILM parse: whatever this window shows is exactly what Blender
-    /// will show, so the viewer doubles as a live check on the conversion itself.
-    /// Textures come from ClutComposer.Compose — the one image that applies each
-    /// body region's real palette row — so the preview matches the in-game look.
+    /// Character/prop scenes come from IlmObjConverter.BuildAnimScene — the same
+    /// parser and scratch-pool weld replay the converter itself uses, so what this
+    /// window shows in motion is the format's real behaviour (welded joints stay
+    /// closed exactly where the pool welds them). .OBJ files render as-is, so the
+    /// viewer still doubles as a live check on a Blender round trip.
+    ///
+    /// Pose math is AnmFile — the engine-exact sampler (component-lerped q12
+    /// matrices, shared translation slot 0, rootYOffset) — NOT a generic skeletal
+    /// animator; in-between frames are deliberately non-orthonormal like the GTE's.
     ///
     /// Rendering is pure CPU + System.Drawing (the launcher has zero native or
-    /// NuGet dependencies, and PSX models are a few hundred triangles, so a
-    /// z-buffered software rasterizer is entirely sufficient).
+    /// NuGet dependencies; PSX models are small, so a z-buffered software
+    /// rasterizer is sufficient even at animation rates).
     /// </summary>
     public class ModelViewerForm : Form
     {
         private readonly IlmViewScene _scene;
+        private readonly IlmObjConverter.AnimScene _anim; // null for .OBJ / .TMD scenes
+        private readonly string _gameRoot;                // null when opened without one
+        private int[] _vertPart, _vertLocal;              // scene vertex -> (part, local)
+
         private PictureBox _view;
         private CheckBox _chkTex, _chkWire;
+        private Label _lblInfo;
         private float _yaw = 0.6f, _pitch = 0.25f;
         private float _dist, _panX, _panY;
         private readonly float _distHome;
         private Point _last;
         private MouseButtons _drag = MouseButtons.None;
 
-        /// <summary>Open a viewer for an .ILM or .OBJ, reporting failure via MessageBox
-        /// instead of letting an exception escape into the caller's Click handler.</summary>
+        // ---- animation state ----
+        private AnmFile _anm2;         // loaded ANM, null when none
+        private string _anmPath;
+        private double _time;          // fractional keyframe cursor
+        private bool _playing;
+        private Timer _timer;
+        private TrackBar _bar;
+        private Button _btnPlay;
+        private Label _lblKf;
+        private ComboBox _cmbSpeed;
+        private Panel _animPanel;
+        private DateTime _lastTick;
+        private bool _barFromCode;
+
         public static void Open(IWin32Window owner, string path)
         {
-            IlmViewScene scene;
+            Open(owner, path, null);
+        }
+
+        /// <summary>Open a viewer for a supported model file, reporting failure via
+        /// MessageBox instead of letting an exception escape the caller's Click
+        /// handler. `gameRoot` enables the Convert menu (shared ConverterActions).</summary>
+        public static void Open(IWin32Window owner, string path, string gameRoot)
+        {
+            IlmViewScene scene = null;
+            IlmObjConverter.AnimScene anim = null;
             try
             {
-                string err;
-                scene = IlmViewScene.Load(path, out err);
+                string ext = (Path.GetExtension(path) ?? "").ToUpperInvariant();
+                string err = null;
+                if (ext == ".OBJ")
+                {
+                    scene = IlmViewScene.Load(path, out err);
+                }
+                else if (ext == ".TMD")
+                {
+                    scene = IlmViewScene.FromTmd(path, out err);
+                }
+                else // .ILM / .PLM (and anything with the LM magic)
+                {
+                    anim = IlmObjConverter.BuildAnimScene(path, null);
+                    scene = IlmViewScene.FromAnimScene(anim, out err);
+                }
                 if (scene == null)
                 {
-                    MessageBox.Show(owner, "Could not open the model:\n\n" + err,
+                    MessageBox.Show(owner, "Could not open the model:\n\n" + (err ?? "unknown error"),
                         "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
@@ -58,23 +101,27 @@ namespace SilentHillPC_Launcher
                 return;
             }
 
-            var f = new ModelViewerForm(scene);
+            var f = new ModelViewerForm(scene, anim, gameRoot);
             f.Show(owner as Form);
             if (scene.Warnings.Count > 0)
                 MessageBox.Show(f, string.Join("\n\n", scene.Warnings.ToArray()),
                     "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
-        private ModelViewerForm(IlmViewScene scene)
+        private ModelViewerForm(IlmViewScene scene, IlmObjConverter.AnimScene anim, string gameRoot)
         {
             _scene = scene;
+            _anim = anim;
+            _gameRoot = gameRoot;
             _dist = _distHome = scene.Radius * 2.6f + 1.0f;
 
             Text = "Model Viewer — " + scene.Title;
-            ClientSize = new Size(800, 600);
-            MinimumSize = new Size(480, 360);
+            ClientSize = new Size(800, 640);
+            MinimumSize = new Size(520, 400);
             StartPosition = FormStartPosition.CenterParent;
             KeyPreview = true;
+
+            var menu = BuildMenu();
 
             var bar = new Panel { Dock = DockStyle.Top, Height = 30 };
             _chkTex = new CheckBox
@@ -87,7 +134,7 @@ namespace SilentHillPC_Launcher
             };
             _chkWire = new CheckBox { Text = "Wireframe", Location = new Point(92, 6), AutoSize = true };
             var btnReset = new Button { Text = "Reset View", Location = new Point(188, 3), Size = new Size(80, 24) };
-            var lbl = new Label
+            _lblInfo = new Label
             {
                 Text = scene.Parts + " parts   " + scene.VertexCount + " verts   " + scene.Tris.Count + " tris" +
                        "   |   drag: orbit    right-drag: pan    wheel: zoom",
@@ -101,7 +148,7 @@ namespace SilentHillPC_Launcher
             bar.Controls.Add(_chkTex);
             bar.Controls.Add(_chkWire);
             bar.Controls.Add(btnReset);
-            bar.Controls.Add(lbl);
+            bar.Controls.Add(_lblInfo);
 
             _view = new PictureBox { Dock = DockStyle.Fill, BackColor = Color.FromArgb(48, 48, 52) };
             _view.MouseDown += (s, e) => { _drag = e.Button; _last = e.Location; };
@@ -111,10 +158,446 @@ namespace SilentHillPC_Launcher
             MouseWheel += OnViewWheel;
             Resize += (s, e) => Render();
 
+            BuildAnimPanel();
+
             Controls.Add(_view);
+            if (_animPanel != null) Controls.Add(_animPanel);
             Controls.Add(bar);
+            Controls.Add(menu);
+            MainMenuStrip = menu;
+
+            if (_anim != null)
+            {
+                BuildVertexMap();
+                if (_anim.AnmPath != null) LoadAnm(_anim.AnmPath, false);
+                ApplyPose(); // posed at keyframe 0 (or identity for props)
+            }
             Shown += (s, e) => Render();
+            FormClosed += (s, e) => { if (_timer != null) _timer.Dispose(); };
         }
+
+        // ---- menu ----------------------------------------------------------------
+
+        private MenuStrip BuildMenu()
+        {
+            var menu = new MenuStrip();
+
+            var file = new ToolStripMenuItem("&File");
+            file.DropDownItems.Add("&Open Model…", null, (s, e) => OnOpenAnother());
+            file.DropDownItems.Add(new ToolStripSeparator());
+            file.DropDownItems.Add("&Close", null, (s, e) => Close());
+
+            var conv = new ToolStripMenuItem("&Convert");
+            var expThis = new ToolStripMenuItem("Export &This Model → OBJ…");
+            expThis.Click += (s, e) => ConverterActions.ExportModelFrom(this, _anim.IlmPath);
+            expThis.Enabled = _anim != null && _anim.IlmPath != null;
+            conv.DropDownItems.Add(expThis);
+            conv.DropDownItems.Add("&Model → OBJ…", null, (s, e) => ConverterActions.ExportModel(this, RootOrGuess()));
+            conv.DropDownItems.Add("&OBJ → Model (high-poly)…", null, (s, e) => ConverterActions.HighPolyImport(this, RootOrGuess()));
+            conv.DropDownItems.Add("&Simple OBJ → Model…", null, (s, e) => ConverterActions.SimpleImport(this, RootOrGuess()));
+
+            var animM = new ToolStripMenuItem("&Animation");
+            var pick = new ToolStripMenuItem("Choose &ANM…");
+            pick.Click += (s, e) => OnChooseAnm();
+            pick.Enabled = _anim != null;
+            animM.DropDownItems.Add(pick);
+            animM.DropDownItems.Add(new ToolStripSeparator());
+            var expJ = new ToolStripMenuItem("Export ANM → editable &JSON…");
+            expJ.Click += (s, e) => OnExportAnmJson();
+            animM.DropDownItems.Add(expJ);
+            var impJ = new ToolStripMenuItem("&Import JSON → ANM…");
+            impJ.Click += (s, e) => OnImportAnmJson();
+            animM.DropDownItems.Add(impJ);
+
+            var help = new ToolStripMenuItem("&Help");
+            help.DropDownItems.Add("&About the viewer…", null, (s, e) => ShowHelp());
+
+            menu.Items.Add(file);
+            menu.Items.Add(conv);
+            menu.Items.Add(animM);
+            menu.Items.Add(help);
+            return menu;
+        }
+
+        /// <summary>The Convert flows want the game root for their initial dialogs; when the
+        /// viewer was opened without one, fall back to the opened file's neighbourhood.</summary>
+        private string RootOrGuess()
+        {
+            if (!string.IsNullOrEmpty(_gameRoot)) return _gameRoot;
+            try
+            {
+                string d = _anim != null ? Path.GetDirectoryName(_anim.IlmPath) : null;
+                return d ?? ".";
+            }
+            catch { return "."; }
+        }
+
+        private void OnOpenAnother()
+        {
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select a model to view";
+                ofd.Filter = "Models (*.ilm;*.plm;*.tmd;*.obj)|*.ilm;*.plm;*.tmd;*.obj|All files (*.*)|*.*";
+                try { ofd.InitialDirectory = _anim != null ? Path.GetDirectoryName(_anim.IlmPath) : null; } catch { }
+                if (ofd.ShowDialog(this) != DialogResult.OK) return;
+                Open(this, ofd.FileName, _gameRoot);
+            }
+        }
+
+        private void ShowHelp()
+        {
+            string[] lines =
+            {
+                "MODEL VIEWER",
+                "",
+                "Opens:",
+                "  .ILM   character models — animated when their .ANM is found (the",
+                "         ANIM folder beside CHARA, like the extracted disc layout).",
+                "  .PLM   prop/item models (weapons, furniture) — static, identity pose.",
+                "  .TMD   PSX inventory item models (ITEM folder).",
+                "  .OBJ   an edited export, exactly as Blender sees it.",
+                "",
+                "ANIMATION (character models)",
+                "  The timeline scrubs the .ANM's whole keyframe pool. Play speed 1x is",
+                "  the game's native 30 keyframes per second. The pose sampler is the",
+                "  engine's own math — joints weld exactly where the game welds them.",
+                "  \"Choose ANM…\" swaps in another animation file (an ANM fits when its",
+                "  bone count covers the model's part digits).",
+                "",
+                "  Harry note: HB_BASE.ANM is his base movement set. The weapon and",
+                "  per-map animations live in separate continuation files (HB_WEP*,",
+                "  HB_M*) that only make sense appended after HB_BASE — those are not",
+                "  loadable on their own here.",
+                "",
+                "EDITABLE ANIMATIONS",
+                "  \"Export ANM → editable JSON\" writes every keyframe as raw channel",
+                "  values (rotations are signed-byte 3x3 matrix coefficients, x32 = the",
+                "  game's q12 values; translations are signed bytes scaled by the file's",
+                "  scale). \"Import JSON → ANM\" re-emits a byte-identical .ANM when the",
+                "  values are untouched, so round-trips are lossless.",
+                "",
+                "CONVERT",
+                "  The Convert menu drives the SAME implementations as the Mod Manager's",
+                "  buttons (Model → OBJ, high-poly OBJ → Model, simple import).",
+            };
+            ConverterActions.ShowTextDialog(this, "Model Viewer — Help", lines, false);
+        }
+
+        // ---- animation panel ------------------------------------------------------
+
+        private void BuildAnimPanel()
+        {
+            if (_anim == null) return;
+
+            _animPanel = new Panel { Dock = DockStyle.Bottom, Height = 34 };
+            _btnPlay = new Button { Text = "Play", Location = new Point(8, 4), Size = new Size(56, 26), Enabled = false };
+            _btnPlay.Click += (s, e) => TogglePlay();
+            _bar = new TrackBar
+            {
+                Location = new Point(70, 4),
+                Size = new Size(420, 26),
+                Minimum = 0,
+                Maximum = 1,
+                TickStyle = TickStyle.None,
+                Enabled = false,
+                Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right
+            };
+            _bar.ValueChanged += (s, e) =>
+            {
+                if (_barFromCode) return;
+                _playing = false;
+                _btnPlay.Text = "Play";
+                _time = _bar.Value;
+                ApplyPose();
+                Render();
+            };
+            _lblKf = new Label
+            {
+                Text = "no ANM",
+                Location = new Point(498, 10),
+                AutoSize = true,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            _cmbSpeed = new ComboBox
+            {
+                Location = new Point(640, 6),
+                Size = new Size(64, 24),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            _cmbSpeed.Items.AddRange(new object[] { "0.25x", "0.5x", "1x", "2x" });
+            _cmbSpeed.SelectedIndex = 2;
+
+            _animPanel.Controls.Add(_btnPlay);
+            _animPanel.Controls.Add(_bar);
+            _animPanel.Controls.Add(_lblKf);
+            _animPanel.Controls.Add(_cmbSpeed);
+
+            _timer = new Timer { Interval = 33 };
+            _timer.Tick += (s, e) => OnAnimTick();
+        }
+
+        private void TogglePlay()
+        {
+            if (_anm2 == null) return;
+            _playing = !_playing;
+            _btnPlay.Text = _playing ? "Pause" : "Play";
+            if (_playing)
+            {
+                _lastTick = DateTime.UtcNow;
+                _timer.Start();
+            }
+        }
+
+        private double Speed()
+        {
+            switch (_cmbSpeed.SelectedIndex)
+            {
+                case 0: return 0.25;
+                case 1: return 0.5;
+                case 3: return 2.0;
+                default: return 1.0;
+            }
+        }
+
+        private void OnAnimTick()
+        {
+            if (!_playing || _anm2 == null) { _timer.Stop(); return; }
+            var now = DateTime.UtcNow;
+            double dt = (now - _lastTick).TotalSeconds;
+            _lastTick = now;
+            if (dt > 0.25) dt = 0.25; // window was blocked — don't leap
+
+            // 1x = the game's native 30 keyframes/second (the standard Q12(30) rate).
+            _time += dt * 30.0 * Speed();
+            double max = _anm2.KeyframeCount;
+            if (_time >= max) _time -= max; // loop over the whole pool
+            ApplyPose();
+            Render();
+        }
+
+        private void LoadAnm(string path, bool report)
+        {
+            string err;
+            AnmFile anm = AnmFile.Load(path, out err);
+            if (anm == null)
+            {
+                if (report)
+                    MessageBox.Show(this, "Could not load the ANM:\n\n" + err, "Model Viewer",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            if (_anim.MaxBone >= anm.BoneCount)
+            {
+                if (report)
+                    MessageBox.Show(this, Path.GetFileName(path) + " has " + anm.BoneCount +
+                        " bones but this model binds bone " + _anim.MaxBone + " — not a match.",
+                        "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            _anm2 = anm;
+            _anmPath = path;
+            _time = 0;
+            _playing = false;
+            if (_btnPlay != null)
+            {
+                _btnPlay.Enabled = true;
+                _btnPlay.Text = "Play";
+                _bar.Enabled = true;
+                _bar.Maximum = Math.Max(1, anm.KeyframeCount - 1);
+                _barFromCode = true; _bar.Value = 0; _barFromCode = false;
+            }
+            Text = "Model Viewer — " + _scene.Title + "  [" + Path.GetFileName(path) + "]";
+        }
+
+        private void OnChooseAnm()
+        {
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select an animation (.ANM)";
+                ofd.Filter = "Animations (*.anm)|*.anm|All files (*.*)|*.*";
+                try
+                {
+                    string init = _anmPath != null ? Path.GetDirectoryName(_anmPath)
+                        : Path.GetDirectoryName(_anim.IlmPath);
+                    ofd.InitialDirectory = init;
+                }
+                catch { }
+                if (ofd.ShowDialog(this) != DialogResult.OK) return;
+                LoadAnm(ofd.FileName, true);
+                ApplyPose();
+                Render();
+            }
+        }
+
+        private void OnExportAnmJson()
+        {
+            string src = _anmPath;
+            if (src == null)
+            {
+                using (var ofd = new OpenFileDialog())
+                {
+                    ofd.Title = "Select an animation (.ANM) to export";
+                    ofd.Filter = "Animations (*.anm)|*.anm|All files (*.*)|*.*";
+                    if (ofd.ShowDialog(this) != DialogResult.OK) return;
+                    src = ofd.FileName;
+                }
+            }
+            string err;
+            AnmFile anm = AnmFile.Load(src, out err);
+            if (anm == null)
+            {
+                MessageBox.Show(this, "Could not load the ANM:\n\n" + err, "ANM → JSON",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            using (var sfd = new SaveFileDialog())
+            {
+                sfd.Title = "Save editable animation JSON";
+                sfd.Filter = "JSON (*.json)|*.json|All files (*.*)|*.*";
+                sfd.InitialDirectory = Path.GetDirectoryName(src);
+                sfd.FileName = Path.GetFileNameWithoutExtension(src) + ".anm.json";
+                if (sfd.ShowDialog(this) != DialogResult.OK) return;
+                try
+                {
+                    File.WriteAllText(sfd.FileName, anm.ToJson());
+                    MessageBox.Show(this, "Wrote " + Path.GetFileName(sfd.FileName) + " (" +
+                        anm.KeyframeCount + " keyframes, " + anm.BoneCount + " bones).\n\n" +
+                        "Rotations are raw signed-byte q12 matrix coefficients and translations " +
+                        "raw signed bytes — edit values in place, keep every value in -128..127, " +
+                        "then \"Import JSON → ANM…\" writes it back (byte-identical when untouched).",
+                        "ANM → JSON", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Write failed:\n\n" + ex.Message, "ANM → JSON",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private void OnImportAnmJson()
+        {
+            string src;
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select an animation JSON";
+                ofd.Filter = "JSON (*.json)|*.json|All files (*.*)|*.*";
+                if (ofd.ShowDialog(this) != DialogResult.OK) return;
+                src = ofd.FileName;
+            }
+            string err;
+            AnmFile anm = AnmFile.FromJson(File.ReadAllText(src), out err);
+            if (anm == null)
+            {
+                MessageBox.Show(this, "The JSON did not validate:\n\n" + err, "JSON → ANM",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            using (var sfd = new SaveFileDialog())
+            {
+                sfd.Title = "Save the animation (.ANM)";
+                sfd.Filter = "Animations (*.anm)|*.anm|All files (*.*)|*.*";
+                sfd.InitialDirectory = Path.GetDirectoryName(src);
+                string stem = Path.GetFileNameWithoutExtension(src);
+                if (stem.EndsWith(".anm", StringComparison.OrdinalIgnoreCase))
+                    stem = stem.Substring(0, stem.Length - 4);
+                sfd.FileName = stem + ".ANM";
+                if (sfd.ShowDialog(this) != DialogResult.OK) return;
+                try
+                {
+                    File.WriteAllBytes(sfd.FileName, anm.ToBytes());
+                    MessageBox.Show(this, "Wrote " + Path.GetFileName(sfd.FileName) + ".\n\n" +
+                        "To use it in game, drop it into gamedata\\load\\ANIM\\ under the ORIGINAL " +
+                        "file name and set allow_loose_files = 1.",
+                        "JSON → ANM", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Write failed:\n\n" + ex.Message, "JSON → ANM",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        // ---- pose -----------------------------------------------------------------
+
+        /// <summary>Scene vertex -> (part, flattened local index), derived once from the
+        /// AnimScene triangles. The unique set matters: welded corners share the OWNER
+        /// part's vertex, so a seam vertex appears once and follows the owner's bone —
+        /// exactly the game's weld semantics.</summary>
+        private void BuildVertexMap()
+        {
+            _vertPart = new int[_scene.VertexCount];
+            _vertLocal = new int[_scene.VertexCount];
+            foreach (var t in _scene.SourceTris)
+            {
+                _vertPart[t.SceneV0] = t.P0; _vertLocal[t.SceneV0] = t.L0;
+                _vertPart[t.SceneV1] = t.P1; _vertLocal[t.SceneV1] = t.L1;
+                _vertPart[t.SceneV2] = t.P2; _vertLocal[t.SceneV2] = t.L2;
+            }
+        }
+
+        /// <summary>Write the current pose into the scene's vertex arrays. No ANM (props,
+        /// or none found): identity, i.e. every part in its own local space.</summary>
+        private void ApplyPose()
+        {
+            if (_anim == null || _vertPart == null) return;
+
+            int kf0 = 0, kf1 = 0, alpha = 0;
+            int[][] R = null, T = null;
+            if (_anm2 != null)
+            {
+                kf0 = (int)Math.Floor(_time);
+                if (kf0 < 0) kf0 = 0;
+                if (kf0 > _anm2.KeyframeCount - 1) kf0 = _anm2.KeyframeCount - 1;
+                kf1 = kf0 + 1 < _anm2.KeyframeCount ? kf0 + 1 : kf0;
+                alpha = (int)((_time - kf0) * 4096.0);
+                if (alpha < 0) alpha = 0;
+                if (alpha > 4095) alpha = 4095;
+                R = new int[_anm2.BoneCount][];
+                T = new int[_anm2.BoneCount][];
+                _anm2.WorldPose(kf0, kf1, alpha, R, T);
+
+                if (_lblKf != null)
+                    _lblKf.Text = "KF " + _time.ToString("0.0", CultureInfo.InvariantCulture) +
+                                  " / " + (_anm2.KeyframeCount - 1);
+                if (_bar != null)
+                {
+                    _barFromCode = true;
+                    int v = Math.Min(kf0, _bar.Maximum);
+                    if (_bar.Value != v) _bar.Value = v;
+                    _barFromCode = false;
+                }
+            }
+
+            var parts = _anim.Parts;
+            for (int i = 0; i < _scene.VertexCount; i++)
+            {
+                var p = parts[_vertPart[i]];
+                int li = _vertLocal[i];
+                float lx = p.Lx[li], ly = p.Ly[li], lz = p.Lz[li];
+                float wx, wy, wz;
+                int b = p.Bone;
+                if (R != null && b >= 0 && b < R.Length && R[b] != null)
+                {
+                    int[] r = R[b]; int[] t = T[b];
+                    wx = (r[0] * lx + r[1] * ly + r[2] * lz) / 4096f + t[0];
+                    wy = (r[3] * lx + r[4] * ly + r[5] * lz) / 4096f + t[1];
+                    wz = (r[6] * lx + r[7] * ly + r[8] * lz) / 4096f + t[2];
+                }
+                else
+                {
+                    wx = lx; wy = ly; wz = lz;
+                }
+                // PSX y-down -> viewer y-up, same convention as the OBJ export.
+                _scene.Vx[i] = wx;
+                _scene.Vy[i] = -wy;
+                _scene.Vz[i] = wz;
+            }
+        }
+
+        // ---- view -----------------------------------------------------------------
 
         private void ResetView()
         {
@@ -165,8 +648,10 @@ namespace SilentHillPC_Launcher
         }
     }
 
-    /// <summary>Geometry + texture for the viewer, loaded from a .ILM (via export)
-    /// or a .OBJ. Kept separate from the Form so a headless harness can render it.</summary>
+    /// <summary>Geometry + texture for the viewer. Loaded from a .OBJ, materialized
+    /// from an IlmObjConverter.AnimScene (character/prop models — re-posable), or
+    /// built from a TMD. Kept separate from the Form so a headless harness can
+    /// render it.</summary>
     internal sealed class IlmViewScene
     {
         public struct Tri
@@ -176,14 +661,27 @@ namespace SilentHillPC_Launcher
             public bool Alpha, HasUv;
         }
 
+        /// <summary>Provenance of an AnimScene-built triangle: scene vertex ids plus
+        /// their (part, local) source, so the form can re-pose vertices in place.</summary>
+        public struct SourceTri
+        {
+            public int SceneV0, SceneV1, SceneV2;
+            public int P0, L0, P1, L1, P2, L2;
+        }
+
         public string Title;
         public int Parts, VertexCount;
         public float[] Vx, Vy, Vz;
         public readonly List<Tri> Tris = new List<Tri>();
+        public readonly List<SourceTri> SourceTris = new List<SourceTri>();
         public readonly List<int[]> Edges = new List<int[]>(); // unique [a,b] vertex pairs for wireframe
         public readonly List<string> Warnings = new List<string>();
         public int[] TexPix; // ARGB
         public int TexW, TexH;
+        // UV -> texel scale. The ILM sheet convention is the 256-texel PSX page on
+        // both axes regardless of the sheet's pixel size; TMD atlases address their
+        // real pixel grid instead.
+        public float UvScaleX = 256f, UvScaleY = 256f;
         public bool HasTexture { get { return TexPix != null; } }
         public float Cx, Cy, Cz, Radius;
 
@@ -194,21 +692,7 @@ namespace SilentHillPC_Launcher
             string obj = path, ilm = null;
             var warnings = new List<string>();
 
-            if (string.Equals(ext, ".ilm", StringComparison.OrdinalIgnoreCase))
-            {
-                ilm = path;
-                string dir = Path.Combine(Path.GetTempPath(), "SHPC_ModelViewer");
-                Directory.CreateDirectory(dir);
-                obj = Path.Combine(dir, Path.GetFileNameWithoutExtension(path) + ".obj");
-                var res = IlmObjConverter.Export(ilm, obj);
-                if (res == null || !string.IsNullOrEmpty(res.Error))
-                {
-                    error = res != null ? res.Error : "export failed";
-                    return null;
-                }
-                foreach (string wmsg in res.Warnings) warnings.Add(wmsg);
-            }
-            else if (string.Equals(ext, ".obj", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(ext, ".obj", StringComparison.OrdinalIgnoreCase))
             {
                 // An edited OBJ has no texture reference of its own; the original
                 // .ILM (and its .TIM) normally sit beside it after an export.
@@ -218,7 +702,7 @@ namespace SilentHillPC_Launcher
             }
             else
             {
-                error = "not a .ILM or .OBJ: " + Path.GetFileName(path);
+                error = "not a .OBJ: " + Path.GetFileName(path);
                 return null;
             }
 
@@ -227,17 +711,203 @@ namespace SilentHillPC_Launcher
             sc.Title = Path.GetFileName(path);
             sc.Warnings.AddRange(warnings);
 
-            if (ilm != null)
+            if (ilm != null) sc.TextureFromModel(ilm);
+            return sc;
+        }
+
+        /// <summary>Materialize a converter AnimScene: unique (part, local) pairs become
+        /// scene vertices (welded corners collapse onto the owner's vertex), positions
+        /// are filled by the form's ApplyPose. Character models with no .ANM found get
+        /// the same loud diagnosis the exporter gives; props (bone 0 only) are simply
+        /// an identity-pose still life, which is correct.</summary>
+        public static IlmViewScene FromAnimScene(IlmObjConverter.AnimScene anim, out string error)
+        {
+            error = null;
+            var sc = new IlmViewScene();
+            sc.Title = Path.GetFileName(anim.IlmPath);
+            sc.Parts = anim.Parts.Length;
+
+            var map = new Dictionary<long, int>();
+            Func<int, int, int> vid = (part, local) =>
+            {
+                long key = ((long)part << 32) | (uint)local;
+                int id;
+                if (map.TryGetValue(key, out id)) return id;
+                id = map.Count;
+                map[key] = id;
+                return id;
+            };
+
+            var edgeSeen = new HashSet<long>();
+            foreach (var t in anim.Tris)
+            {
+                int a = vid(t.P0, t.L0), b = vid(t.P1, t.L1), c = vid(t.P2, t.L2);
+                sc.Tris.Add(new Tri
+                {
+                    V0 = a, V1 = b, V2 = c,
+                    U0 = t.U0, Vv0 = t.V0, U1 = t.U1, Vv1 = t.V1, U2 = t.U2, Vv2 = t.V2,
+                    Alpha = t.Alpha, HasUv = t.HasUv
+                });
+                sc.SourceTris.Add(new SourceTri
+                {
+                    SceneV0 = a, SceneV1 = b, SceneV2 = c,
+                    P0 = t.P0, L0 = t.L0, P1 = t.P1, L1 = t.L1, P2 = t.P2, L2 = t.L2
+                });
+                int[][] es = { new[] { a, b }, new[] { b, c }, new[] { c, a } };
+                foreach (var e in es)
+                {
+                    long key = e[0] < e[1] ? ((long)e[0] << 32) | (uint)e[1] : ((long)e[1] << 32) | (uint)e[0];
+                    if (edgeSeen.Add(key)) sc.Edges.Add(e);
+                }
+            }
+            if (map.Count == 0) { error = "no geometry in " + sc.Title; return null; }
+
+            sc.VertexCount = map.Count;
+            sc.Vx = new float[sc.VertexCount];
+            sc.Vy = new float[sc.VertexCount];
+            sc.Vz = new float[sc.VertexCount];
+
+            // Rest-fill from part-local space so bounds exist before the first pose.
+            foreach (var t in sc.SourceTris)
+            {
+                sc.Vx[t.SceneV0] = anim.Parts[t.P0].Lx[t.L0];
+                sc.Vy[t.SceneV0] = -anim.Parts[t.P0].Ly[t.L0];
+                sc.Vz[t.SceneV0] = anim.Parts[t.P0].Lz[t.L0];
+                sc.Vx[t.SceneV1] = anim.Parts[t.P1].Lx[t.L1];
+                sc.Vy[t.SceneV1] = -anim.Parts[t.P1].Ly[t.L1];
+                sc.Vz[t.SceneV1] = anim.Parts[t.P1].Lz[t.L1];
+                sc.Vx[t.SceneV2] = anim.Parts[t.P2].Lx[t.L2];
+                sc.Vy[t.SceneV2] = -anim.Parts[t.P2].Ly[t.L2];
+                sc.Vz[t.SceneV2] = anim.Parts[t.P2].Lz[t.L2];
+            }
+            sc.ComputeBounds();
+            // A posed character spans more than any single part's local box; widen the
+            // framing to the whole-skeleton scale so the home view is not zoomed into
+            // one thigh. (Bounds refresh is cosmetic — the renderer never culls by it.)
+            if (anim.MaxBone > 0) sc.Radius = Math.Max(sc.Radius, 360f);
+
+            sc.Warnings.AddRange(anim.Warnings);
+            if (anim.MaxBone > 0 && anim.AnmPath == null)
+                sc.Warnings.Add("NO ANIMATION FILE FOUND for " + sc.Title + " — every part poses at " +
+                    "identity and piles on the origin. Keep the ANIM folder beside the model's folder " +
+                    "(like the extracted disc layout) so the skeleton can be posed.");
+
+            sc.TextureFromModel(anim.IlmPath);
+            return sc;
+        }
+
+        /// <summary>Adapt a TMD (via TmdFile/TmdViewSceneBuilder) into the renderer's
+        /// scene shape: PSX y-down flips to y-up, per-tri texture flags map onto
+        /// Alpha/HasUv, and the atlas addresses its real pixel grid (UvScale).</summary>
+        public static IlmViewScene FromTmd(string path, out string error)
+        {
+            var tmd = TmdFile.Load(path, out error);
+            if (tmd == null) return null;
+            var ts = TmdViewSceneBuilder.Build(tmd, path, out error);
+            if (ts == null) return null;
+
+            var sc = new IlmViewScene();
+            sc.Title = Path.GetFileName(path) +
+                       (tmd.ObjectCount > 1 ? "  (" + tmd.ObjectCount + " objects)" : "");
+            sc.Parts = tmd.ObjectCount;
+            sc.VertexCount = ts.Vx.Length;
+            sc.Vx = ts.Vx;
+            sc.Vy = new float[ts.Vy.Length];
+            for (int i = 0; i < ts.Vy.Length; i++) sc.Vy[i] = -ts.Vy[i];
+            sc.Vz = ts.Vz;
+
+            var edgeSeen = new HashSet<long>();
+            foreach (var t in ts.Tris)
+            {
+                sc.Tris.Add(new Tri
+                {
+                    V0 = t.V0, V1 = t.V1, V2 = t.V2,
+                    U0 = t.U0, Vv0 = t.Vv0, U1 = t.U1, Vv1 = t.Vv1, U2 = t.U2, Vv2 = t.Vv2,
+                    Alpha = t.SemiTransparent, HasUv = t.Textured
+                });
+                int[][] es = { new[] { t.V0, t.V1 }, new[] { t.V1, t.V2 }, new[] { t.V2, t.V0 } };
+                foreach (var e in es)
+                {
+                    long key = e[0] < e[1] ? ((long)e[0] << 32) | (uint)e[1] : ((long)e[1] << 32) | (uint)e[0];
+                    if (edgeSeen.Add(key)) sc.Edges.Add(e);
+                }
+            }
+            if (ts.TexPix != null)
+            {
+                sc.TexPix = ts.TexPix;
+                sc.TexW = ts.TexW;
+                sc.TexH = ts.TexH;
+                sc.UvScaleX = ts.TexW;
+                sc.UvScaleY = ts.TexH;
+            }
+            sc.Warnings.AddRange(ts.Warnings);
+            sc.ComputeBounds();
+            return sc;
+        }
+
+        /// <summary>Compose the model's real palette-correct sheet. Sibling .TIM first
+        /// (characters); when the model's material names another sheet entirely (weapon
+        /// PLMs are textured from "HERO"), fall back to the whole-corpus clut index,
+        /// which resolves material names across the extracted tree.</summary>
+        private void TextureFromModel(string modelPath)
+        {
+            try
             {
                 string dir = Path.Combine(Path.GetTempPath(), "SHPC_ModelViewer");
                 Directory.CreateDirectory(dir);
-                string png = Path.Combine(dir, Path.GetFileNameWithoutExtension(ilm) + "_sheet.png");
+                string png = Path.Combine(dir, Path.GetFileNameWithoutExtension(modelPath) + "_sheet.png");
                 string terr;
-                if (ClutComposer.Compose(ilm, null, png, out terr))
-                    sc.LoadTexture(png);
-                // No TIM beside the ILM is normal for a handful of models — just view untextured.
+                if (ClutComposer.Compose(modelPath, null, png, out terr))
+                {
+                    LoadTexture(png);
+                    return;
+                }
+
+                string root = FindExtractedRoot(modelPath);
+                if (root == null) return;
+                var idx = ClutComposer.EnsureIndex(root, (i, n, m) => { });
+                if (idx == null) return;
+                string err2;
+                var res = ClutComposer.Compose(modelPath, idx, null, png, out err2);
+                if (res != null) LoadTexture(png);
+                // No sheet is normal for a handful of models — just view untextured.
             }
-            return sc;
+            catch { }
+        }
+
+        /// <summary>Walk up from the model looking for the extracted-tree root (the dir
+        /// holding CHARA/ITEM/ANIM — or an already-built clut_index.json).</summary>
+        private static string FindExtractedRoot(string modelPath)
+        {
+            try
+            {
+                string d = Path.GetDirectoryName(Path.GetFullPath(modelPath));
+                for (int i = 0; i < 4 && d != null; i++)
+                {
+                    if (File.Exists(Path.Combine(d, ClutComposer.IndexFileName))) return d;
+                    if (Directory.Exists(Path.Combine(d, "CHARA")) &&
+                        Directory.Exists(Path.Combine(d, "ITEM"))) return d;
+                    d = Path.GetDirectoryName(d);
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        public void ComputeBounds()
+        {
+            float minx = float.MaxValue, miny = float.MaxValue, minz = float.MaxValue;
+            float maxx = float.MinValue, maxy = float.MinValue, maxz = float.MinValue;
+            for (int i = 0; i < VertexCount; i++)
+            {
+                if (Vx[i] < minx) minx = Vx[i]; if (Vx[i] > maxx) maxx = Vx[i];
+                if (Vy[i] < miny) miny = Vy[i]; if (Vy[i] > maxy) maxy = Vy[i];
+                if (Vz[i] < minz) minz = Vz[i]; if (Vz[i] > maxz) maxz = Vz[i];
+            }
+            Cx = (minx + maxx) * 0.5f; Cy = (miny + maxy) * 0.5f; Cz = (minz + maxz) * 0.5f;
+            float dx = maxx - minx, dy = maxy - miny, dz = maxz - minz;
+            Radius = (float)Math.Sqrt(dx * dx + dy * dy + dz * dz) * 0.5f;
+            if (Radius < 1e-3f) Radius = 1f;
         }
 
         private static IlmViewScene ParseObj(string path, out string error)
@@ -307,23 +977,11 @@ namespace SilentHillPC_Launcher
             sc.Vx = vx.ToArray(); sc.Vy = vy.ToArray(); sc.Vz = vz.ToArray();
             sc.VertexCount = vx.Count;
             sc.Parts = parts > 0 ? parts : 1;
-
-            float minx = float.MaxValue, miny = float.MaxValue, minz = float.MaxValue;
-            float maxx = float.MinValue, maxy = float.MinValue, maxz = float.MinValue;
-            for (int i = 0; i < sc.VertexCount; i++)
-            {
-                if (sc.Vx[i] < minx) minx = sc.Vx[i]; if (sc.Vx[i] > maxx) maxx = sc.Vx[i];
-                if (sc.Vy[i] < miny) miny = sc.Vy[i]; if (sc.Vy[i] > maxy) maxy = sc.Vy[i];
-                if (sc.Vz[i] < minz) minz = sc.Vz[i]; if (sc.Vz[i] > maxz) maxz = sc.Vz[i];
-            }
-            sc.Cx = (minx + maxx) * 0.5f; sc.Cy = (miny + maxy) * 0.5f; sc.Cz = (minz + maxz) * 0.5f;
-            float dx = maxx - minx, dy = maxy - miny, dz = maxz - minz;
-            sc.Radius = (float)Math.Sqrt(dx * dx + dy * dy + dz * dz) * 0.5f;
-            if (sc.Radius < 1e-3f) sc.Radius = 1f;
+            sc.ComputeBounds();
             return sc;
         }
 
-        private void LoadTexture(string png)
+        public void LoadTexture(string png)
         {
             using (var src = new Bitmap(png))
             using (var bmp = new Bitmap(src.Width, src.Height, PixelFormat.Format32bppArgb))
@@ -463,12 +1121,13 @@ namespace SilentHillPC_Launcher
                     int argb;
                     if (tex)
                     {
-                        // vt = ((u+0.5)/256, 1-(v+0.5)/256): UV space is the 256-texel
-                        // PSX page regardless of the sheet's pixel size.
+                        // ILM sheets: vt = ((u+0.5)/256, 1-(v+0.5)/256) — the 256-texel
+                        // PSX page regardless of pixel size. TMD atlases set UvScale to
+                        // their real pixel grid instead.
                         float uu = w0 * tr.U0 + w1 * tr.U1 + w2 * tr.U2;
                         float vv = w0 * tr.Vv0 + w1 * tr.Vv1 + w2 * tr.Vv2;
-                        int tx = (int)(uu * 256f);
-                        int ty = (int)((1f - vv) * 256f);
+                        int tx = (int)(uu * sc.UvScaleX);
+                        int ty = (int)((1f - vv) * sc.UvScaleY);
                         if (tx < 0) tx = 0; if (tx >= sc.TexW) tx = sc.TexW - 1;
                         if (ty < 0) ty = 0; if (ty >= sc.TexH) ty = sc.TexH - 1;
                         argb = sc.TexPix[ty * sc.TexW + tx];

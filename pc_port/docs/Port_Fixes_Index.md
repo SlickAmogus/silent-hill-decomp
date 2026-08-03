@@ -2012,3 +2012,41 @@ map5_s01's FOOK.TMD (`FS_BUFFER_21`, map-DLL code) is deliberately not lifted.
 
 Modded TMDs must reuse the stock VRAM tpage/CLUT words (15/14/13 per the fixed
 `s_FsImageDesc` upload rects) — there is no per-mod texture upload on this path.
+
+## Model Viewer 2.0 — props, TMDs, ANM animation playback, editable ANM JSON (2026-08-03)
+
+**Launcher feature.** The viewer now opens `.ILM` (characters), `.PLM` (props/
+weapons), `.TMD` (PSX item models) and `.OBJ`, and PLAYS `.ANM` animation on
+character models with a play/scrub timeline (1x = the game's native 30 kf/s).
+
+- **Scenes** come from `IlmObjConverter.BuildAnimScene` — the converter's own
+  parser + scratch-pool weld replay, so welded joints stay closed in motion
+  exactly as in game. Props pose at identity (correct — their parts bind the
+  never-animated bone 0), with no spurious "NO REST POSE" warning.
+- **Pose math** is `AnmFile.cs`, a complete public ANM implementation verified
+  byte-level: engine-exact sampling (component-lerped q12 matrices, shared
+  translation slot 0, rootYOffset, arithmetic floor shifts) and a lossless
+  editable JSON round-trip — 55/55 retail ANMs re-emit byte-identical over
+  their `fileSize` extent (tail pads `00 77 88` preserved verbatim). The
+  viewer's Animation menu exports/imports these (`ANM → JSON`, `JSON → ANM`);
+  a loose re-import goes in `gamedata/load/ANIM/` under the original name.
+- **TMDs** parse via `TmdFile.cs` (verified over all 90 shipped TMDs; packet
+  histogram exact) and texture through the stock VRAM mapping (tpage 15 →
+  TIM00, 13 → TIM07, 14 → TIM01..06 per-map — ambiguous from the TMD alone,
+  defaulting to TIM01; 5 → FOOK) into a per-(tpage, CLUT-row) page atlas.
+  The 0x30/0x38 untextured payload layout was confirmed empirically:
+  `{r,g,b,code}` then (norm, vert) u16 pairs.
+- **Weapon PLM texturing** resolves the material NAME through the clut index
+  (KNIFE/SHOTGUN etc. are textured from "HERO" — a sibling probe alone finds
+  nothing, the index-based ClutComposer path finds CHARA/HERO.TIM).
+- **Single-source converter UI**: the Mod Manager's Model → OBJ / OBJ → Model /
+  View Model handlers moved to `ConverterActions.cs`; the Mod Manager buttons
+  and the viewer's Convert menu are two entry points over one implementation.
+- Verified headless (scratchpad harness renders): HERO/LISA posed by their real
+  ANMs, SIBYL at an interpolated keyframe, KNIFE.PLM textured, IT_000.TMD
+  textured — all visually correct.
+
+Not in this pass: Harry's weapon/map continuation banks (HB_WEP*/HB_M*) in the
+timeline (needs the three-buffer concatenation under HB_BASE's header), named
+clip tables (anim-info rows live in code/overlays, not the ANM), and v7
+high-poly ILMs in the viewer (no v7 reader in the converter's parse path).

@@ -4774,5 +4774,122 @@ namespace SilentHillPC_Launcher
                 ". Either shed geometry in those parts, or shorten the welds that keep their slots alive - a slot " +
                 "cannot be reused until the last part that reads it has drawn.", true);
         }
+
+        // ---- animated view scene (Model Viewer) ---------------------------------
+
+        /// <summary>One body part of an AnimScene: its own local-space geometry and the
+        /// bone (part-name digits) whose world matrix poses it. Coordinates are raw PSX
+        /// units, y-down as stored — the viewer flips Y for display.</summary>
+        public class AnimScenePart
+        {
+            public string Name;
+            public int Bone;
+            public float[] Lx, Ly, Lz;
+        }
+
+        public struct AnimSceneTri
+        {
+            public int P0, L0, P1, L1, P2, L2;   // (part, flattened local vertex) per corner
+            public float U0, V0, U1, V1, U2, V2; // page-space UVs, V flipped like the OBJ export
+            public bool Alpha, HasUv;
+        }
+
+        public class AnimScene
+        {
+            public string IlmPath;
+            public AnimScenePart[] Parts;
+            public AnimSceneTri[] Tris;
+            public string AnmPath;              // located base ANM, or null (props)
+            public int MaxBone;
+            public readonly List<string> Warnings = new List<string>();
+        }
+
+        /// <summary>Build the per-part local-space scene the Model Viewer animates. Each
+        /// part carries its OWN vertices, and every face corner is resolved through the
+        /// draw-order scratch-pool replay to the (part, vertex) that actually owns it —
+        /// the format's weld mechanism, reproduced, so joints stay closed in motion.
+        /// Works for character ILMs and prop PLMs alike: a prop's parts bind bone 0,
+        /// which is never animated, so its pose is the identity rest pose.</summary>
+        public static AnimScene BuildAnimScene(string ilmPath, string anmOverride)
+        {
+            byte[] data = File.ReadAllBytes(ilmPath);
+            Ilm ilm = ParseIlm(data);
+            var sc = new AnimScene { IlmPath = ilmPath };
+
+            var parts = new AnimScenePart[ilm.ModelCount];
+            for (int i = 0; i < ilm.ModelCount; i++)
+            {
+                Model m = ilm.Models[i];
+                int total = 0;
+                foreach (Mesh me in m.Meshes) total += me.VertexCount;
+                var p = new AnimScenePart
+                {
+                    Name = m.Name,
+                    Bone = BoneOf(m.Name),
+                    Lx = new float[total],
+                    Ly = new float[total],
+                    Lz = new float[total]
+                };
+                int o = 0;
+                foreach (Mesh me in m.Meshes)
+                    for (int v = 0; v < me.VertexCount; v++, o++)
+                    {
+                        p.Lx[o] = me.Vx[v]; p.Ly[o] = me.Vy[v]; p.Lz[o] = me.Vz[v];
+                    }
+                parts[i] = p;
+                if (p.Bone > sc.MaxBone) sc.MaxBone = p.Bone;
+            }
+            sc.Parts = parts;
+
+            ResolvePool(ilm); // fills every prim corner's VRef with its owning (model, mesh, local)
+
+            var tris = new List<AnimSceneTri>();
+            for (int mi = 0; mi < ilm.ModelCount; mi++)
+                foreach (Mesh me in ilm.Models[mi].Meshes)
+                    foreach (Prim pr in me.Prims)
+                    {
+                        int corners = pr.Tri ? 3 : 4;
+                        var pi = new int[4];
+                        var li = new int[4];
+                        var uf = new float[4];
+                        var vf = new float[4];
+                        bool ok = true;
+                        for (int c = 0; c < corners; c++)
+                        {
+                            PoolRef r = pr.VRef[c];
+                            if (!r.Valid) { ok = false; break; }
+                            int off = 0;
+                            for (int k = 0; k < r.Mesh; k++) off += ilm.Models[r.Model].Meshes[k].VertexCount;
+                            pi[c] = r.Model;
+                            li[c] = off + r.Local;
+                            uf[c] = (pr.U[c] + 0.5f) / 256f;
+                            vf[c] = 1f - (pr.V[c] + 0.5f) / 256f;
+                        }
+                        if (!ok) continue;
+                        bool hasUv = pr.MaterialIdx != 0x7F;
+                        // Native strip triangulation: a quad's corners are a STRIP
+                        // (0,1,2,3) -> triangles (0,1,2) and (1,3,2); UVs travel with
+                        // their corner so no loop conversion is needed.
+                        tris.Add(new AnimSceneTri
+                        {
+                            P0 = pi[0], L0 = li[0], P1 = pi[1], L1 = li[1], P2 = pi[2], L2 = li[2],
+                            U0 = uf[0], V0 = vf[0], U1 = uf[1], V1 = vf[1], U2 = uf[2], V2 = vf[2],
+                            Alpha = pr.IsTransparent, HasUv = hasUv
+                        });
+                        if (corners == 4)
+                            tris.Add(new AnimSceneTri
+                            {
+                                P0 = pi[1], L0 = li[1], P1 = pi[3], L1 = li[3], P2 = pi[2], L2 = li[2],
+                                U0 = uf[1], V0 = vf[1], U1 = uf[3], V1 = vf[3], U2 = uf[2], V2 = vf[2],
+                                Alpha = pr.IsTransparent, HasUv = hasUv
+                            });
+                    }
+            sc.Tris = tris.ToArray();
+
+            string found;
+            FindAnm(ilmPath, ilm.Models, anmOverride, sc.Warnings, out found);
+            sc.AnmPath = found;
+            return sc;
+        }
     }
 }

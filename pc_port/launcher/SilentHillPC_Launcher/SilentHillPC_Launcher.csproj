@@ -78,6 +78,9 @@
     <Compile Include="AtlasPrep.cs" />
     <Compile Include="GeometryPrep.cs" />
     <Compile Include="IlmObjConverter.cs" />
+    <Compile Include="AnmFile.cs" />
+    <Compile Include="TmdFile.cs" />
+    <Compile Include="ConverterActions.cs" />
     <Compile Include="DdsConverter.cs" />
     <Compile Include="ModelViewerForm.cs">
       <SubType>Form</SubType>
