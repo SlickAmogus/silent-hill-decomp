@@ -224,16 +224,45 @@ void PsyX_ForceItemDepthBegin(void)
 void PsyX_ForceItemDepthEnd(void)
 {
     extern void GpuNv2a_SetDepthTest(int enable);
-    GpuNv2a_SetDepthTest(0);
+    static unsigned s_izLog;
+    int             doLog = ((s_izLog++ & 31) == 0);
+
+    GpuNv2a_SetDepthTest(0);    /* flushes the item draws under depth state */
     s_itemDepthOn = 0;
     /* Blind-verify probe (~1/s): tagged = packets tagged at sort, hit/miss =
      * draw-time lookups. hit==tagged + sane zmin/zmax = mechanism healthy;
      * hit==0 with tagged>0 = address/timing mismatch to chase. */
-    {
-        static unsigned s_izLog;
-        if ((s_izLog++ & 31) == 0)
-            SH_DBG("[ITEMZ] tagged=%u hit=%u miss=%u zmin=%d zmax=%d",
-                   s_izTagged, s_izHit, s_izMiss, (int)s_izZMin, (int)s_izZMax);
+    if (doLog)
+        SH_DBG("[ITEMZ] tagged=%u hit=%u miss=%u zmin=%d zmax=%d",
+               s_izTagged, s_izHit, s_izMiss, (int)s_izZMin, (int)s_izZMax);
+
+    /* [ZETA] HARDWARE-truth probe (log 024: [ITEMZ] fully healthy yet still no
+     * occlusion on hw -> the open question is whether depth WRITES actually
+     * land). The zeta buffer is plain RAM: idle the GPU and sample a 8x6 grid.
+     * wrote>0 with sane min/max = writes land -> the failure is the COMPARE
+     * (func/range); wrote==0 = the depth state/binding never took effect. */
+    if (doLog && s_izHit > 0) {
+        extern unsigned int pb_depth_stencil_addr(void);
+        extern unsigned int pb_depth_stencil_pitch(void);
+        extern int          pb_busy(void);
+        const unsigned char* zb    = (const unsigned char*)(uintptr_t)pb_depth_stencil_addr();
+        unsigned             pitch = pb_depth_stencil_pitch();
+        if (zb && pitch) {
+            int gx, gy, wrote = 0;
+            unsigned zminw = 0xFFFFFFu, zmaxw = 0;
+            while (pb_busy()) { }
+            for (gy = 1; gy <= 6; gy++)
+                for (gx = 1; gx <= 8; gx++) {
+                    unsigned v = *(const unsigned*)(zb + (unsigned)(gy * 68) * pitch + (unsigned)(gx * 64) * 4);
+                    unsigned d = v >> 8;   /* Z24S8: (depth<<8)|stencil */
+                    if (d != 0xFFFFFFu) {
+                        wrote++;
+                        if (d < zminw) zminw = d;
+                        if (d > zmaxw) zmaxw = d;
+                    }
+                }
+            SH_DBG("[ZETA] wrote=%d/48 min=%u max=%u", wrote, zminw, zmaxw);
+        }
     }
     s_izTagged = 0;
     s_itemSzGen++;              /* invalidate this frame's tags in O(1) */

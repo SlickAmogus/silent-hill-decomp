@@ -1083,6 +1083,29 @@ void Pc_Ra_Update(void)
         !(g_SysWork.sysFlags & SysFlag_DemoActive))
     {
         rc_client_do_frame(s_client);
+
+        /* [RA] watch (~1/30s of evaluated gameplay): the traced achievement's
+         * LIVE client state + its two eventFlags operand bytes served through
+         * the real read path. Log 024 proved every operand SERVES correctly at
+         * load yet the kill still never fired -- state here distinguishes:
+         * state=ACTIVE(3) + flag bytes flipping at the kill but no unlock =
+         * evaluation/trigger logic; state=WAITING/INACTIVE = the trigger was
+         * true at activation (e.g. a save made after an earlier kill) and can
+         * never fire until it sees the condition false once. */
+        {
+            static unsigned s_watchFrames;
+            if ((++s_watchFrames % 1800u) == 0)
+            {
+                const rc_client_achievement_t* a =
+                    rc_client_get_achievement_info(s_client, RA_TRACE_ACH_ID);
+                uint8_t f1 = 0, f2 = 0;
+                Ra_ReadMemory(0x0BCBACu, &f1, 1, s_client);
+                Ra_ReadMemory(0x0BCBC9u, &f2, 1, s_client);
+                SH_DBG("[RA] watch %u: state=%d unlocked=%d flags[4B4]=%02X flags[4A1]=%02X",
+                       RA_TRACE_ACH_ID, a ? (int)a->state : -1,
+                       a ? (int)a->unlock_time : 0, f1, f2);
+            }
+        }
     }
     else
     {
