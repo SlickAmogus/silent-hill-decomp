@@ -149,14 +149,14 @@ namespace SilentHillPC_Launcher
             // + recursive) for the loose-texture workflow. Drag a .bin onto the
             // window for the same extract flow (OnDragDrop).
             var btnEx = new Button { Text = "Extract BIN…", Location = new Point(510, 194), Size = new Size(78, 28) };
-            var btnTp = new Button { Text = "TIM → PNG…",   Location = new Point(510, 226), Size = new Size(78, 28) };
-            var btnBp = new Button { Text = "Bulk → PNG…",  Location = new Point(510, 258), Size = new Size(78, 28) };
-            var btnRef = new Button { Text = "Reference ▾", Location = new Point(510, 290), Size = new Size(78, 28) };
-            var btnReb = new Button { Text = "Rebuild…",    Location = new Point(510, 322), Size = new Size(78, 28) };
-            var btnMo = new Button { Text = "Model → OBJ…", Location = new Point(510, 354), Size = new Size(78, 28) };
-            var btnOm = new Button { Text = "OBJ → Model…", Location = new Point(510, 386), Size = new Size(78, 28) };
-            var btnVw = new Button { Text = "Model Viewer", Location = new Point(510, 14),  Size = new Size(78, 28) };
-            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 418), Size = new Size(78, 28) };
+            var btnVw = new Button { Text = "Model Viewer", Location = new Point(510, 226), Size = new Size(78, 28) };
+            var btnTp = new Button { Text = "TIM → PNG…",   Location = new Point(510, 258), Size = new Size(78, 28) };
+            var btnBp = new Button { Text = "Bulk → PNG…",  Location = new Point(510, 290), Size = new Size(78, 28) };
+            var btnRef = new Button { Text = "Reference ▾", Location = new Point(510, 322), Size = new Size(78, 28) };
+            var btnReb = new Button { Text = "Rebuild…",    Location = new Point(510, 354), Size = new Size(78, 28) };
+            var btnMo = new Button { Text = "Model → OBJ…", Location = new Point(510, 386), Size = new Size(78, 28) };
+            var btnOm = new Button { Text = "OBJ → Model…", Location = new Point(510, 418), Size = new Size(78, 28) };
+            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 450), Size = new Size(78, 28) };
             _btnTips = new ToolTip();
             _btnTips.SetToolTip(btnEx, "Unpack a Silent Hill .bin disc image into the loose asset tree.");
             _btnTips.SetToolTip(btnTp, "Convert individual .TIM texture files to .png.");
@@ -200,7 +200,7 @@ namespace SilentHillPC_Launcher
 
             // BC7 .dds tooling (texconv). One button, a dropdown of actions —
             // like the OBJ pair, but grouped since they share the same converter.
-            var btnDds = new Button { Text = "DDS ▾", Location = new Point(510, 450), Size = new Size(78, 28) };
+            var btnDds = new Button { Text = "DDS ▾", Location = new Point(510, 482), Size = new Size(78, 28) };
             var ddsMenu = new ContextMenuStrip();
             ddsMenu.Items.Add("PNG → BC7 DDS…",       null, (s, e) => OnDdsEncode());
             ddsMenu.Items.Add("DDS → PNG…",           null, (s, e) => OnDdsDecode());
