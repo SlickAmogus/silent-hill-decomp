@@ -312,5 +312,8 @@ void Pc_ControlStyleUpdate(void)
         /* Drain any accumulated relative motion on the capture transition so the
          * first TPS/OTS frame doesn't jerk the camera by the cursor's menu travel. */
         SDL_GetRelativeMouseState(NULL, NULL);
+        /* Leaving relative mode hands the pointer back, so re-apply the window
+         * confinement it was standing in for (GitHub #87). */
+        PsyX_UpdateMouseConfinement();
     }
 }

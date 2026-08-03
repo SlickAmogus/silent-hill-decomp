@@ -10,6 +10,7 @@ s_PcConfig g_PcConfig = {
     .windowWidth    = 640,
     .windowHeight   = 480,
     .fullscreen     = 0,
+    .confineCursor  = 1, /* borderless/fullscreen pointer trap; alt-tab still releases it */
     .disableCulling = 1,
     .preloadChunks  = 1,
     .vsync          = 0,
@@ -405,6 +406,10 @@ void PcConfig_Load(const char* path)
             int v = atoi(value);
             if (v < 0 || v > 2) v = 0;
             g_PcConfig.fullscreen = v;
+        }
+        else if (strcmp(key, "confine_cursor") == 0)
+        {
+            g_PcConfig.confineCursor = (atoi(value) != 0);
         }
         else if (strcmp(key, "disable_culling") == 0)
         {

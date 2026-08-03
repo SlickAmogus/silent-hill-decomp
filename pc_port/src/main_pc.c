@@ -977,6 +977,9 @@ int main(int argc, char* argv[])
     g_cfg_msaaSamples = g_PcConfig.msaaSamples;
     SH_LOG("MSAA: %dx", g_cfg_msaaSamples);
 
+    /* Before PsyX_Initialise: the window is confined as soon as it is created. */
+    g_cfg_confineCursor = g_PcConfig.confineCursor;
+
     /* Initialize PsyCross (creates SDL2 window + OpenGL context) */
     SH_LOG("Initializing PsyCross (SDL2 + OpenGL)...");
     PsyX_Initialise("Silent Hill", windowWidth, windowHeight, g_PcConfig.fullscreen);
