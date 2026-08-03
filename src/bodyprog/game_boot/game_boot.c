@@ -243,6 +243,18 @@ void GameBoot_MapLoad(s32 mapIdx) // 0x8003521C
         if (g_GameRegion == Region_EUR)
         {
             Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
+            /* BG_ETC needs the same insurance: PAL reslices the tree/branch
+             * billboard band to texels (128..191, 0..63) = VRAM (800..816, 0..63),
+             * which the hospital/mall TV bank (map4_s03 func_800D7450 case 1,
+             * TV2.TIM at (800,0 64x256), US coordinates) overwrites. Retail SLES
+             * relocates that TV bank; until its EUR coordinates are known, reload
+             * BG_ETC per map so every exterior gets intact leaves — without this,
+             * tree billboards render as opaque garbage squares for the rest of
+             * the session after the first TV room visit. */
+            {
+                extern void GameFs_BgEtcGfxLoad(void);
+                GameFs_BgEtcGfxLoad();
+            }
         }
         if (Pc_LangActive() || g_GameRegion == Region_JPN)
         {
