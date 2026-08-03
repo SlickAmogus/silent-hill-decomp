@@ -2096,3 +2096,59 @@ accepts all 107 (owners: chest/head/shoulders/arms/hips/shins — the joint
 anatomy); Python and C# outputs byte-identical; engine + launcher builds
 clean. In-game verification needs a rebuilt v7 model (re-run the high-poly
 import on the CJ source — the new file welds automatically).
+
+## EUR tree billboards + item-prop "rainbow mush" — one VRAM stomp (2026-08-03, commit `e96512123`)
+
+**Symptom (user, build `dacbe0b7c`, pure vanilla, no texture pack):** "past
+floatstinger the leaves get bugged and when entering sewers the items turn
+into rainbow mush, but not all of them — items you pick up in nowhere are
+fine". Trees render as opaque green/black squares (screenshot: map7_s01
+exterior); item pickups show colour corruption. "The textures don't get more
+messed up with time per se, but at certain breakpoints they break."
+
+**Root cause — ONE stomp, two symptoms.** `map4_s03`'s TV bank
+(`func_800D7450` case 1) uploads `TV2.TIM` to VRAM `(800,0 64x256)` using US
+coordinates. On EUR that rect lands on the right half of `BG_ETC.TIM`
+(`(768,0 64x128)`), because PAL reslices BG_ETC from US 128x256 to 256x128 and
+moves both consumers into the stomped columns:
+
+- **Tree/branch billboards** — `font_region.c` shifts `D_800AE4DC[]` UVs by
+  +128 texels (u 128..191, v 0..63). BG_ETC is 4bpp, so at tpage 12 (origin
+  VRAM 768,0) that is VRAM cells **(800..815, 0..63)** — inside TV2's rect.
+  Garbage texels kill the 1-bit transparency key, so the billboard quad draws
+  fully opaque = the reported squares.
+- **World item props** — `func_8003BED0` binds BG_ITEM.PLM's `"BG_ETC"`
+  material at `IMAGE_ETC` u=32,v=64. `s_FsImageDesc.u/v` are VRAM **cells**,
+  not texels (log proof: TV2's own `img.u=32` + tpage 12 → `(800,0)`), so that
+  band is **(800, 64)** — also inside TV2's rect. This is why only *some*
+  pickups corrupt: props on the sibling `"TIM00"` material (drinks, ammo,
+  aid kits — CLUT (928,480), page (960,0)) are untouched, and Nowhere's key
+  items come from IT_005/IT_006 + TIM05/TIM06, not the BG_ETC prop material.
+
+`BG_ETC.TIM` loaded **exactly once in the whole 85k-line session** (boot,
+L92), so the damage was permanent from the mall/hospital TV room onward —
+matching "breakpoints", not gradual decay. Log timeline confirms it: TV2
+stomp L23510 (map4_s03) → first outdoor area after Floatstinger L33247
+(map2_s02, bugged leaves) → sewers L37159 (bugged item props).
+
+**Fix:** re-queue `GameFs_BgEtcGfxLoad()` per map load in `GameBoot_MapLoad`,
+EUR-gated, next to the existing FONT16 insurance re-queue that exists for the
+same tpage-12 collision. Deliberately *not* also re-queued at the stomp site
+in `map4_s03.c` (as FONT16 is): BG_ETC would repaint (800..831, 0..127) over
+half the TV texture, and map4_s03 is indoors with no billboards — the next map
+load repairs it anyway.
+
+**Ruled out with evidence** (full-session VRAM overlap replay of all 2040 TIM
+uploads): the item pixel pages (`896,0` key items / `960,0` TIM00 / `864,0`
+TIM07) and the whole item CLUT block `(896..943, 480..495)` are **never**
+stomped mid-session — so this is not an item-texture corruption. Chara-pool
+row-spill aliasing is also clean (slots used are 0..133, 192..211, 258..299;
+the reserved 320..447 spill range is never allocated). TV2 is the *only*
+writer into BG_ETC's home all session.
+
+**Secondary findings, not fixed (lower confidence / niche):** `BOTL.TIM`
+(L66947, Nowhere bottle scene) overwrites `KATANA.TIM`'s CLUT row 498 with no
+reload — same class, but katana is a 2nd-playthrough bonus weapon. ~35
+`[CLUTDROP] clutY_oob` prims in map7_s01 carry 0xFF-pattern clut/tpage words
+(uninitialised-prim signature); PsyX drops them safely, so the visible cost is
+a few missing polys.
