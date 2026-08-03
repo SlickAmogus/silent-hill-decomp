@@ -1,5 +1,26 @@
 # Silent Hill PC Port — Changelog
 
+## PRERELEASE 2026.08.02 -- Discord test build, not a full release
+Only a handful of fixes since beta-2026.07.31.2, not enough for a proper release, but the PAL one is worth getting tested.
+
+- PAL document soft-lock fix (the main reason for this build, please test it). On a PAL disc, reading the Norman's Motel newspaper or the school piano poem left the document stuck on screen with nothing you could press to get out of it. PAL documents are TEN lines where the US ones are nine, and the port was compiled with the US limit for every region, so anything that reached that tenth line became undismissable. Retail PAL uses ten at every matching spot in the original code, and the PAL translations actually use that line.
+- Fixed healing items and ammo vanishing mid-playthrough. If you unequipped your weapon and then went through any door, five inventory slots were overwritten with the starting loadout. Because of the way the inventory sorts itself, those five slots are always your health items plus your gun and its entire spare ammo stack, so it read as "the game ate my healing items and reset me to 15 bullets".
+- PAL documents long enough to run onto a second page now keep their colour and centring instead of dropping back to plain white and left-aligned, and the text box no longer jumps up a line when the page turns.
+- Launcher: right-click the banner image to set it to any image you like. Right-click again for Reset to put the original back.
+- Launcher: dark mode is back, toggled from that same right-click menu, and it remembers your choice.
+
+Note: prerelease. The PAL document fix needs testing on an actual PAL disc, and the inventory fix wants a playthrough where you unequip and move between areas. Let me know either way.
+
+Commit summaries:
+- launcher: let the banner image be replaced from a right-click menu
+- PAL documents: render ten lines like retail, and page instead of locking
+- PAL documents: carry the ~C colour and ~M/~T alignment across a page break
+- PAL documents: correct the line count and alignment origin of a broken page
+- docs: index the PAL document line-cap soft-lock fix
+- inventory: stop the starting-loadout block from eating live inventories
+- launcher: dark mode back on, toggled from the banner menu
+
+
 ## beta-2026.07.31.2 -- 2026-07-31
 - Fixed issue with pink menu text caused by controller settings menu fix.
 
