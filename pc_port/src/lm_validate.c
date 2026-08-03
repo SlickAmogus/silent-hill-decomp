@@ -97,6 +97,11 @@ static int LmvValidateV7(const u8* file, u32 fileSize, const s_LmValidateParams*
     u32 blobEnd;
     u32 c;
     u32 i;
+    u32 mesh0Vc[256];
+    u8  partSeen[256];
+
+    memset(mesh0Vc, 0, sizeof(mesh0Vc));
+    memset(partSeen, 0, sizeof(partSeen));
 
     if (fileSize < LMV_V7_HEADER || file[0] != 0x30 || file[1] != 7 || file[2] != 0)
     {
@@ -217,6 +222,7 @@ static int LmvValidateV7(const u8* file, u32 fileSize, const s_LmValidateParams*
         {
             LMV_FAIL(14, "V14: wide part %u ordinal %u out of range (%u parts)", i, ordinal, modelCount);
         }
+        partSeen[ordinal] = 1;
         c += LMV_V7_PART_HDR;
 
         for (mi = 0; mi < meshCount; mi++)
@@ -234,6 +240,10 @@ static int LmvValidateV7(const u8* file, u32 fileSize, const s_LmValidateParams*
             nc = LMV_RD32(&file[c + 4]);
             pc = LMV_RD32(&file[c + 8]);
             c += LMV_V7_MESH_HDR;
+            if (mi == 0)
+            {
+                mesh0Vc[ordinal] = vc; /* V18 weld indices refer to mesh 0 */
+            }
 
             if (vc > (blobEnd - c) / LMV_V7_SVECTOR)
             {
@@ -273,6 +283,59 @@ static int LmvValidateV7(const u8* file, u32 fileSize, const s_LmValidateParams*
                 }
             }
             c += pc * LMV_V7_PRIM;
+        }
+    }
+
+    /* V18 — optional cross-part weld section after the last part ('WELD',
+     * count, then 16-byte entries). Runtime applies it all-or-nothing, so a
+     * malformed table must be refused here with a named rule, not silently
+     * dropped into an unwelded model. Older files without the section (or with
+     * other trailing bytes) pass through unchanged. */
+    if (c + 8 <= blobEnd && LMV_RD32(&file[c]) == 0x444C4557u)
+    {
+        u32 weldTotal = LMV_RD32(&file[c + 4]);
+        u32 base      = c + 8;
+        u32 w;
+
+        if (weldTotal > (blobEnd - base) / 16)
+        {
+            LMV_FAIL(18, "V18: weld section (%u entries) runs past wide blob", weldTotal);
+        }
+        for (w = 0; w < weldTotal; w++)
+        {
+            const u8* e     = file + base + w * 16;
+            u32       rdOrd = LMV_RD32(&e[0]);
+            u32       local = LMV_RD32(&e[4]);
+            u32       owOrd = LMV_RD32(&e[8]);
+            u32       owLoc = LMV_RD32(&e[12]);
+            u32       rdRank = 0;
+            u32       owRank = 0;
+
+            if (rdOrd >= modelCount || owOrd >= modelCount || rdOrd == owOrd)
+            {
+                LMV_FAIL(18, "V18: weld %u part pair %u<-%u out of range (%u parts)",
+                         w, rdOrd, owOrd, modelCount);
+            }
+            if (!partSeen[rdOrd] || !partSeen[owOrd])
+            {
+                LMV_FAIL(18, "V18: weld %u names a part with no wide geometry (%u<-%u)",
+                         w, rdOrd, owOrd);
+            }
+            if (local >= mesh0Vc[rdOrd] || owLoc >= mesh0Vc[owOrd])
+            {
+                LMV_FAIL(18, "V18: weld %u vertex out of range (%u/%u <- %u/%u)",
+                         w, local, mesh0Vc[rdOrd], owLoc, mesh0Vc[owOrd]);
+            }
+            for (i = 0; i < modelCount; i++)
+            {
+                if (file[modelOrderOff + i] == rdOrd) { rdRank = i; }
+                if (file[modelOrderOff + i] == owOrd) { owRank = i; }
+            }
+            if (owRank >= rdRank)
+            {
+                LMV_FAIL(18, "V18: weld %u owner %u draws at rank %u, not before reader %u (rank %u)",
+                         w, owOrd, owRank, rdOrd, rdRank);
+            }
         }
     }
 

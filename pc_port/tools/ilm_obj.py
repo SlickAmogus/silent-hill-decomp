@@ -1355,6 +1355,7 @@ def lm_validate_v7(d, anm_bone_count=-1):
 
     p = wideOff
     end = wideOff + wideSize
+    vc0 = {}
     for pi in range(modelCount):
         if p + 12 > end:
             return 16, "V16: wide part %u header runs past the blob" % pi
@@ -1372,6 +1373,8 @@ def lm_validate_v7(d, anm_bone_count=-1):
                 return 16, "V16: part %s mesh %u header past the blob" % (nm(mh), mj)
             vc, nc, pc = u32(p), u32(p + 4), u32(p + 8)
             p += 12
+            if mj == 0:
+                vc0[ordinal] = vc  # V18 weld indices refer to mesh 0
             body = vc * 8 + nc * 8 + pc * 48
             if p + body > end:
                 return 16, "V16: part %s mesh %u arrays past the blob" % (nm(mh), mj)
@@ -1388,6 +1391,31 @@ def lm_validate_v7(d, anm_bone_count=-1):
                         return 17, ("V17: part %s prim %u corner %u normal index %u >= "
                                     "normalCount %u" % (nm(mh), pk, c, nco, nc))
             p += body
+
+    # V18 - optional cross-part weld section ('WELD', count, 16-byte entries).
+    # The runtime applies it all-or-nothing, so a malformed table must be
+    # refused here with a named rule rather than degrade into an unwelded model.
+    if p + 8 <= end and u32(p) == 0x444C4557:
+        cnt = u32(p + 4)
+        base = p + 8
+        if cnt > (end - base) // 16:
+            return 18, "V18: weld section (%u entries) runs past the blob" % cnt
+        rank = {}
+        for i in range(modelCount):
+            rank[d[orderOff + i]] = i
+        for w in range(cnt):
+            eb = base + w * 16
+            rdOrd, local, owOrd, owLoc = u32(eb), u32(eb + 4), u32(eb + 8), u32(eb + 12)
+            if rdOrd >= modelCount or owOrd >= modelCount or rdOrd == owOrd:
+                return 18, "V18: weld %u part pair %u<-%u out of range" % (w, rdOrd, owOrd)
+            if local >= vc0.get(rdOrd, 0) or owLoc >= vc0.get(owOrd, 0):
+                return 18, ("V18: weld %u vertex out of range (%u/%u <- %u/%u)"
+                            % (w, local, vc0.get(rdOrd, 0), owLoc, vc0.get(owOrd, 0)))
+            if rank.get(owOrd, 0) >= rank.get(rdOrd, 0):
+                return 18, ("V18: weld %u owner %u does not draw before reader %u"
+                            % (w, owOrd, rdOrd))
+        p = base + cnt * 16
+
     if p != end:
         return 16, "V16: wide blob has %d unconsumed trailing bytes" % (end - p)
 
@@ -2619,7 +2647,7 @@ def _replace_import(obj_path, ilm_path, out_path, data, ilm, meta, verts, norms,
 TRI_SENTINEL32 = 0xFFFFFFFF
 
 
-def _emit_wide_ilm(data, ilm, wide_parts):
+def _emit_wide_ilm(data, ilm, wide_parts, welds=None):
     """Serialize a v7 high-poly ILM: a narrow v6-shaped spine the game binds
     against unchanged, plus a PC-only u32 geometry blob the wide drawer consumes.
 
@@ -2677,6 +2705,15 @@ def _emit_wide_ilm(data, ilm, wide_parts):
             out += struct.pack('<HHHH', *pr["uv"])
             out += struct.pack('<HH', pr["clut"], pr["flags"])
             out += struct.pack('<I', 0)
+    if welds:
+        # Optional cross-part weld section: the runtime overwrites each reader's
+        # mesh-0 vertex with the owner's transformed one before emit — the stock
+        # scratch-pool weld, reproduced for wide geometry. Older engines stop
+        # reading after the last part and simply ignore this.
+        out += struct.pack('<II', 0x444C4557, len(welds))  # 'WELD'
+        for wd in welds:
+            out += struct.pack('<IIII', wd["part"], wd["local"],
+                               wd["owner"], wd["ownerLocal"])
     wideSize = len(out) - wideP
 
     struct.pack_into('<III', out, 0x14, wideP, wideSize, ilm.modelCount)
@@ -2811,7 +2848,43 @@ def _wide_import(obj_path, ilm_path, out_path, data, ilm, meta,
         wide_parts.append({"ordinal": mi, "bone": bone_of(name),
                            "verts": wide_verts, "norms": nlist, "prims": wide_prims})
 
-    blob = _emit_wide_ilm(data, ilm, wide_parts)
+    # Cross-part welds: coincident vertex pairs across parts (the exact
+    # criterion the --replace weld pass uses) become WELD-section entries the
+    # engine resolves at draw time — the reader's mesh-0 vertex follows the
+    # owner's bone, so these joints stay closed when bones bend. Owner = the
+    # part earliest in modelOrder among the coincident candidates (the stock
+    # pool's owner rule; also what lets the engine resolve against a part it
+    # has already drawn). Skipped for identity rest poses, where coincidence
+    # stops meaning "meets at a joint" (same reason --replace refuses to weld).
+    welds = []
+    if meta.get("restPose") != "identity":
+        rank_of = {}
+        for i in range(ilm.modelCount):
+            rank_of[data[ilm.modelOrderP + i]] = i
+        draw_order = sorted(range(ilm.modelCount), key=lambda k: rank_of.get(k, k))
+        grid = {}
+        for mi2 in draw_order:
+            m2 = ilm.models[mi2]
+            o2 = by_name[m2["name"]]
+            rk = rank_of.get(mi2, mi2)
+            for li, vl in enumerate(o2["v"]):
+                w = verts[vl - 1]
+                best = None
+                for cand in _grid_near(grid, w, WELD_EPS):
+                    cvl, crk, cord, cloc = cand
+                    if _dist2(w, verts[cvl - 1]) <= WELD_EPS * WELD_EPS:
+                        # Earliest-drawn owner wins; equal ranks (duplicate verts
+                        # inside one part) tie-break on the lower local index so
+                        # the Python and C# emitters stay byte-identical.
+                        if best is None or crk < best[1] or (crk == best[1] and cloc < best[3]):
+                            best = (cvl, crk, cord, cloc)
+                if best is not None:
+                    welds.append({"part": mi2, "local": li,
+                                  "owner": best[2], "ownerLocal": best[3]})
+            for li, vl in enumerate(o2["v"]):
+                _grid_add(grid, verts[vl - 1], WELD_EPS, (vl, rk, mi2, li))
+
+    blob = _emit_wide_ilm(data, ilm, wide_parts, welds)
 
     _ap, anm = find_anm(ilm_path, ilm.models)
     rid, msg = lm_validate_v7(blob, anm_bone_count=anm.boneCount if anm else -1)
@@ -2837,30 +2910,11 @@ def _wide_import(obj_path, ilm_path, out_path, data, ilm, meta,
     print("   wide blob: 0x%X bytes    file: 0x%X" % (
         struct.unpack_from('<I', blob, 0x18)[0], len(blob)))
     if meta.get("restPose") == "identity":
-        print("   rest pose: IDENTITY (this OBJ was exported without an ANM)")
-    else:
-        # v7 has no pool, so the weld --replace derives from coincidence cannot
-        # exist here: a butt-joint renders closed at rest and opens the moment a
-        # bone bends. Warn now, not in game. Skipped for identity rest poses,
-        # where every part piles on the origin and coincidence stops meaning
-        # "meets at a joint" (the same reason --replace refuses to weld one).
-        pairs = 0
-        grid = {}
-        for m in ilm.models:
-            o = by_name[m["name"]]
-            for vl in o["v"]:
-                w = verts[vl - 1]
-                for cand in _grid_near(grid, w, WELD_EPS):
-                    if _dist2(w, verts[cand - 1]) <= WELD_EPS * WELD_EPS:
-                        pairs += 1
-                        break
-            for vl in o["v"]:
-                _grid_add(grid, verts[vl - 1], WELD_EPS, vl)
-        if pairs:
-            print("   WARNING: %d coincident cross-part vertex pair(s) found. The high-poly "
-                  "format CANNOT weld them - these joints WILL open when bones bend. Model "
-                  "the parts OVERLAPPING at each joint (telescoping, like the stock models) "
-                  "or enable Close seams." % pairs)
+        print("   rest pose: IDENTITY (this OBJ was exported without an ANM); no welds "
+              "possible - joints stay closed only where the parts overlap")
+    elif welds:
+        print("   %d cross-part weld(s) emitted - welded joints follow the owner part's "
+              "bone, so they stay closed when bones bend" % len(welds))
     return out_path
 
 

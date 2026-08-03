@@ -3893,7 +3893,7 @@ namespace SilentHillPC_Launcher
         /// <summary>Serialize a v7 high-poly ILM. Spine (materials, modelOrder, part names and the
         /// 0xB draw-chain bits) is copied verbatim from the donor so the rig/ANM/material paths run
         /// on a real s_LmHeader; the wide blob follows in ascending model index.</summary>
-        private static byte[] EmitWideIlm(byte[] data, Ilm ilm, List<WidePart> wideParts)
+        private static byte[] EmitWideIlm(byte[] data, Ilm ilm, List<WidePart> wideParts, List<int[]> welds)
         {
             var o = new List<byte>(data.Length);
             for (int i = 0; i < 20; i++) o.Add(data[i]);
@@ -3941,6 +3941,19 @@ namespace SilentHillPC_Launcher
                     for (int i = 0; i < 4; i++) A16(o, pr.Uv[i]);
                     A16(o, pr.Clut); A16(o, pr.Flags);
                     A32(o, 0);                                        // pad
+                }
+            }
+            if (welds != null && welds.Count > 0)
+            {
+                // Optional cross-part weld section: the runtime overwrites each reader's
+                // mesh-0 vertex with the owner's transformed one before emit — the stock
+                // scratch-pool weld, reproduced for wide geometry. Older engines stop
+                // reading after the last part and simply ignore this.
+                A32(o, 0x444C4557); // 'WELD'
+                A32(o, welds.Count);
+                foreach (int[] wd in welds)
+                {
+                    A32(o, wd[0]); A32(o, wd[1]); A32(o, wd[2]); A32(o, wd[3]);
                 }
             }
             int wideSize = o.Count - wideP;
@@ -4100,10 +4113,62 @@ namespace SilentHillPC_Launcher
                 wideParts.Add(new WidePart { Ordinal = mi, Bone = BoneOf(name), Verts = wideVerts, Norms = nlist, Prims = widePrims });
             }
 
+            // Cross-part welds: coincident vertex pairs across parts (the exact criterion the
+            // ReplaceImport weld pass uses) become WELD-section entries the engine resolves at
+            // draw time — the reader's mesh-0 vertex follows the owner part's bone, so these
+            // joints stay closed when bones bend. Owner = the part earliest in modelOrder among
+            // the coincident candidates (the stock pool's owner rule; also what lets the engine
+            // resolve against a part it has already drawn). Skipped for identity rest poses,
+            // where coincidence stops meaning "meets at a joint".
+            var welds = new List<int[]>(); // {readerOrdinal, local, ownerOrdinal, ownerLocal}
+            if (!res.RestPoseIdentity)
+            {
+                var rankOf = new int[ilm.ModelCount];
+                for (int i = 0; i < ilm.ModelCount; i++) rankOf[i] = i;
+                if (ilm.ModelOrderP >= 0 && (long)ilm.ModelOrderP + ilm.ModelCount <= ilm.D.Length)
+                    for (int i = 0; i < ilm.ModelCount; i++)
+                    {
+                        int mIdx = ilm.D[ilm.ModelOrderP + i];
+                        if (mIdx < ilm.ModelCount) rankOf[mIdx] = i;
+                    }
+                var drawOrder = new List<int>();
+                for (int i = 0; i < ilm.ModelCount; i++) drawOrder.Add(i);
+                drawOrder.Sort((a, b) => rankOf[a].CompareTo(rankOf[b]));
+
+                var weldGrid = new Grid(WeldEpsDefault);
+                var entries = new List<int[]>(); // {vertLine, rank, ordinal, local}
+                foreach (int mi2 in drawOrder)
+                {
+                    ObjObject oo = byName[ilm.Models[mi2].Name];
+                    for (int li = 0; li < oo.V.Count; li++)
+                    {
+                        double[] w = of.Verts[oo.V[li] - 1];
+                        int[] best = null;
+                        foreach (int cand in weldGrid.Near(w))
+                        {
+                            int[] e = entries[cand];
+                            // Earliest-drawn owner wins; equal ranks (duplicate verts inside
+                            // one part) tie-break on the lower local index so the Python and
+                            // C# emitters stay byte-identical.
+                            if (Dist2(w, of.Verts[e[0] - 1]) <= WeldEpsDefault * WeldEpsDefault &&
+                                (best == null || e[1] < best[1] || (e[1] == best[1] && e[3] < best[3])))
+                                best = e;
+                        }
+                        if (best != null)
+                            welds.Add(new[] { mi2, li, best[2], best[3] });
+                    }
+                    for (int li = 0; li < oo.V.Count; li++)
+                    {
+                        entries.Add(new[] { oo.V[li], rankOf[mi2], mi2, li });
+                        weldGrid.Add(of.Verts[oo.V[li] - 1], entries.Count - 1);
+                    }
+                }
+            }
+
             // The converter-side v7 validator (lm_validate_v7) is not ported; the game's runtime
             // parser (Pc_WideLm_Parse) re-validates and falls back to the invisible spine on any
             // malformed blob, so a bad file is non-corrupting rather than refused here.
-            byte[] blob = EmitWideIlm(data, ilm, wideParts);
+            byte[] blob = EmitWideIlm(data, ilm, wideParts, welds);
             File.WriteAllBytes(outIlmPath, blob);
 
             res.V7 = true;
@@ -4116,31 +4181,12 @@ namespace SilentHillPC_Launcher
                 res.Report.Add(ilm.Models[wp.Ordinal].Name + ": " + wp.Verts.Count.ToString(Inv) + " verts, " +
                     wp.Prims.Count.ToString(Inv) + " faces");
 
-            // v7 has no pool, so the weld ReplaceImport derives from coincidence cannot exist
-            // here: a butt-joint renders closed at rest and opens the moment a bone bends. Warn
-            // now, not in game. Skipped for identity rest poses, where every part piles on the
-            // origin and coincidence stops meaning "meets at a joint" (the same reason replace
-            // refuses to weld one).
-            if (!res.RestPoseIdentity)
-            {
-                int seamPairs = 0;
-                var lintGrid = new Grid(WeldEpsDefault);
-                foreach (Model m in ilm.Models)
-                {
-                    ObjObject oo = byName[m.Name];
-                    foreach (int vl in oo.V)
-                    {
-                        double[] w = of.Verts[vl - 1];
-                        foreach (int cand in lintGrid.Near(w))
-                            if (Dist2(w, of.Verts[cand - 1]) <= WeldEpsDefault * WeldEpsDefault) { seamPairs++; break; }
-                    }
-                    foreach (int vl in oo.V) lintGrid.Add(of.Verts[vl - 1], vl);
-                }
-                if (seamPairs > 0)
-                    res.Warnings.Add(seamPairs.ToString(Inv) + " coincident cross-part vertex pair(s) found. The " +
-                        "high-poly format CANNOT weld them - these joints WILL open when bones bend. Model the " +
-                        "parts OVERLAPPING at each joint (telescoping, like the stock models) or enable Close seams.");
-            }
+            if (res.RestPoseIdentity)
+                res.Warnings.Add("This OBJ was exported without an ANM (identity rest pose), so no cross-part " +
+                    "welds could be derived - joints stay closed only where the parts overlap.");
+            else if (welds.Count > 0)
+                res.Report.Add(welds.Count.ToString(Inv) + " cross-part weld(s) emitted - welded joints follow " +
+                    "the owner part's bone, so they stay closed when bones bend");
         }
 
         private static void ReplaceImport(string objPath, string ilmPath, string outIlmPath, byte[] data, Ilm ilm,

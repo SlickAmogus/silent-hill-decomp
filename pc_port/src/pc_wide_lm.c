@@ -27,12 +27,20 @@
  *   mesh  : vertexCount:u32, normalCount:u32, primCount:u32,
  *           verts[]:SVECTOR(8), normals[]:SVECTOR(8),
  *           prims[]: corner[4]:u32, normal[4]:u32, uv[4]:u16, clut:u16,
- *                    flags:u16, reserved:u32  (48 bytes total) */
+ *                    flags:u16, reserved:u32  (48 bytes total)
+ *   weld section (OPTIONAL, after the last part; absent in older files and
+ *   ignored by older engines, which stop reading after widePartCount parts):
+ *           magic:u32 'WELD', count:u32,
+ *           entries[]: partOrdinal:u32, local:u32, ownerOrdinal:u32,
+ *                      ownerLocal:u32  (16 bytes each; mesh-0 vertex indices) */
 #define WIDE_PART_HDR_SIZE 12
 #define WIDE_MESH_HDR_SIZE 12
 #define WIDE_SVECTOR_SIZE  8
 #define WIDE_PRIM_SIZE     48
 #define WIDE_TRI_SENTINEL  0xFFFFFFFFu
+#define WIDE_WELD_MAGIC    0x444C4557u /* 'WELD' */
+#define WIDE_WELD_HDR_SIZE 8
+#define WIDE_WELD_ENT_SIZE 16
 
 #define PSX_SIZEOF_MODEL_HEADER 16
 #define PSX_SIZEOF_MATERIAL     24
@@ -115,6 +123,10 @@ static void WideLm_FreeParts(s_WideLmPart* parts, u32 count)
             }
             free(p->meshes);
         }
+        free(p->welds);
+        free(p->ownedSlots);
+        free(p->retXy);
+        free(p->retZ);
     }
     free(parts);
 }
@@ -146,7 +158,7 @@ static PcWideLm* WideLm_FindByKey(s32 fileIdx, const s_LmHeader* lmHdr)
  * The validator already proved these extents at BigLm_Ensure time; this is
  * defense-in-depth so a corrupt or unvalidated buffer degrades, never OOBs. */
 static s_WideLmPart* WideLm_ParseBlob(const u8* raw, u32 blobOff, u32 blobEnd,
-                                      u32 partCount, u32 modelCount)
+                                      u32 partCount, u32 modelCount, const u32* rank)
 {
     s_WideLmPart* parts;
     u32           c = blobOff;
@@ -316,6 +328,114 @@ static s_WideLmPart* WideLm_ParseBlob(const u8* raw, u32 blobOff, u32 blobEnd,
         }
     }
 
+    for (pi = 0; pi < modelCount; pi++)
+    {
+        parts[pi].drawRank = rank[pi];
+    }
+
+    /* Optional cross-part weld section after the last part. All-or-nothing:
+     * any malformed entry fails the whole parse (always-fallback discipline) —
+     * a half-applied weld table renders worse than no welds at all. Older
+     * files simply end here; older engines never read past the last part. */
+    if (c + WIDE_WELD_HDR_SIZE <= blobEnd && rd32(&raw[c]) == WIDE_WELD_MAGIC)
+    {
+        u32 weldTotal = rd32(&raw[c + 4]);
+        u32 base      = c + WIDE_WELD_HDR_SIZE;
+        u32 w;
+
+        if (weldTotal > (blobEnd - base) / WIDE_WELD_ENT_SIZE)
+        {
+            goto fail;
+        }
+
+        /* Pass 1: validate everything + count per reader / per owner. */
+        for (w = 0; w < weldTotal; w++)
+        {
+            const u8*     e     = &raw[base + w * WIDE_WELD_ENT_SIZE];
+            u32           rdOrd = rd32(&e[0]);
+            u32           local = rd32(&e[4]);
+            u32           owOrd = rd32(&e[8]);
+            u32           owLoc = rd32(&e[12]);
+            s_WideLmPart* rdP;
+            s_WideLmPart* owP;
+
+            if (rdOrd >= modelCount || owOrd >= modelCount || rdOrd == owOrd)
+            {
+                goto fail;
+            }
+            rdP = &parts[rdOrd];
+            owP = &parts[owOrd];
+            if (rdP->meshes == NULL || rdP->meshCount == 0 || local >= rdP->meshes[0].vertexCount)
+            {
+                goto fail;
+            }
+            if (owP->meshes == NULL || owP->meshCount == 0 || owLoc >= owP->meshes[0].vertexCount)
+            {
+                goto fail;
+            }
+            /* The owner must draw first: a weld resolves against the owner's
+             * retained transform from earlier in the same character pass. */
+            if (rank[owOrd] >= rank[rdOrd])
+            {
+                goto fail;
+            }
+            rdP->weldCount++;
+            owP->ownedSlotCount++; /* over-counts duplicates; deduped in pass 2 */
+        }
+
+        /* Pass 2: allocate + fill (counts reused as fill cursors). */
+        for (pi = 0; pi < modelCount; pi++)
+        {
+            if (parts[pi].weldCount > 0)
+            {
+                parts[pi].welds = (s_WideWeld*)calloc(parts[pi].weldCount, sizeof(s_WideWeld));
+                if (parts[pi].welds == NULL)
+                {
+                    goto fail;
+                }
+                parts[pi].weldCount = 0;
+            }
+            if (parts[pi].ownedSlotCount > 0)
+            {
+                parts[pi].ownedSlots = (u32*)calloc(parts[pi].ownedSlotCount, sizeof(u32));
+                if (parts[pi].ownedSlots == NULL)
+                {
+                    goto fail;
+                }
+                parts[pi].ownedSlotCount = 0;
+            }
+        }
+        for (w = 0; w < weldTotal; w++)
+        {
+            const u8*     e     = &raw[base + w * WIDE_WELD_ENT_SIZE];
+            u32           rdOrd = rd32(&e[0]);
+            u32           owOrd = rd32(&e[8]);
+            u32           owLoc = rd32(&e[12]);
+            s_WideLmPart* rdP   = &parts[rdOrd];
+            s_WideLmPart* owP   = &parts[owOrd];
+            u32           k;
+            int           seen  = 0;
+
+            rdP->welds[rdP->weldCount].local        = rd32(&e[4]);
+            rdP->welds[rdP->weldCount].ownerOrdinal = owOrd;
+            rdP->welds[rdP->weldCount].ownerLocal   = owLoc;
+            rdP->weldCount++;
+
+            for (k = 0; k < owP->ownedSlotCount; k++)
+            {
+                if (owP->ownedSlots[k] == owLoc)
+                {
+                    seen = 1;
+                    break;
+                }
+            }
+            if (!seen)
+            {
+                owP->ownedSlots[owP->ownedSlotCount++] = owLoc;
+            }
+        }
+    }
+
     return parts;
 
 fail:
@@ -422,7 +542,31 @@ void Pc_WideLm_Parse(s_LmHeader* lmHdr, size_t size, s32 modelFileIdx)
         return;
     }
 
-    parts = WideLm_ParseBlob(raw, wideBlobOff, blobEnd, widePartCount, modelCount);
+    {
+        /* Draw ranks from modelOrder (position of each model in draw order) —
+         * the weld section's owner-draws-first rule validates against these.
+         * modelCount is a u8, so a fixed table covers every possible file. */
+        u32 rank[256];
+
+        for (i = 0; i < modelCount; i++)
+        {
+            rank[i] = (u32)i;
+        }
+        if (modelOrderOff + modelCount <= (u32)size)
+        {
+            for (i = 0; i < modelCount; i++)
+            {
+                u8 m = raw[modelOrderOff + i];
+
+                if (m < modelCount)
+                {
+                    rank[m] = (u32)i;
+                }
+            }
+        }
+
+        parts = WideLm_ParseBlob(raw, wideBlobOff, blobEnd, widePartCount, modelCount, rank);
+    }
     if (parts == NULL)
     {
         SH_DBG("[WIDELM] file %d: wide blob parse failed — spine only (invisible)", modelFileIdx);
@@ -496,6 +640,34 @@ s_WideLmPart* Pc_WideLm_PartOf(const s_ModelHeader* modelHdr)
         {
             u32 idx = (u32)(modelHdr - s_wideLm[i].spineModels);
             return &s_wideLm[i].parts[idx];
+        }
+    }
+    return NULL;
+}
+
+s_WideLmPart* Pc_WideLm_SiblingsOf(const s_ModelHeader* modelHdr, u32* countOut)
+{
+    int i;
+
+    if (countOut != NULL)
+    {
+        *countOut = 0;
+    }
+    if (modelHdr == NULL)
+    {
+        return NULL;
+    }
+    for (i = 0; i < s_wideLmCount; i++)
+    {
+        if (s_wideLm[i].state == WIDELM_STATE_ACCEPTED &&
+            modelHdr >= s_wideLm[i].spineModels &&
+            modelHdr <  s_wideLm[i].spineModels + s_wideLm[i].modelCount)
+        {
+            if (countOut != NULL)
+            {
+                *countOut = s_wideLm[i].modelCount;
+            }
+            return s_wideLm[i].parts;
         }
     }
     return NULL;

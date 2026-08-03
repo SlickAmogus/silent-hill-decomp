@@ -24,6 +24,7 @@
 #include "bodyprog/gfx/world.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "pc_config.h"
 #include "pc_wide_lm.h"
@@ -110,6 +111,17 @@ static s16*     s_wideZ;
 static s32*     s_wideShade;
 static u32      s_wideVertCap;
 static u32      s_wideShadeCap;
+
+/* Character-pass detection for welds. Parts of one character draw in
+ * modelOrder (bones_4 is linked in that order), so within a pass drawRank
+ * strictly increases; a rank reset or a different parts[] array means a new
+ * character (or the next frame) started. Weld reads only trust an owner's
+ * retained transform stamped with the CURRENT pass — an owner hidden this
+ * frame keeps an old stamp and its readers fall back to their own coincident
+ * copies (unwelded but sane), never to another frame's screen coords. */
+static const s_WideLmPart* s_weldPassParts;
+static u32                 s_weldPassRank;
+static u32                 s_weldPass = 1;
 
 static int WideBufs_Ensure(u32 vertCount, u32 normCount)
 {
@@ -394,6 +406,8 @@ void Pc_WideLm_DrawPart(s_ModelInfo* modelInfo, GsOT_TAG* otTag, s32 arg2,
                         MATRIX* viewMat, MATRIX* worldMat, u16 arg5)
 {
     s_WideLmPart*     part;
+    s_WideLmPart*     siblings;
+    u32               sibCount;
     s_GteScratchData2 env;
     u8*               pktEnd;
     s16               var_v1;
@@ -407,11 +421,19 @@ void Pc_WideLm_DrawPart(s_ModelInfo* modelInfo, GsOT_TAG* otTag, s32 arg2,
         return;
     }
 
-    part = Pc_WideLm_PartOf(modelInfo->modelHdr);
+    part     = Pc_WideLm_PartOf(modelInfo->modelHdr);
+    siblings = Pc_WideLm_SiblingsOf(modelInfo->modelHdr, &sibCount);
     if (part == NULL || part->meshCount == 0)
     {
         return;
     }
+
+    if (siblings != s_weldPassParts || part->drawRank <= s_weldPassRank)
+    {
+        s_weldPass++;
+    }
+    s_weldPassParts = siblings;
+    s_weldPassRank  = part->drawRank;
 
     /* The drawer clones only the LIT chain; the validator (V12) rejects v7
      * parts that select the flat (field_B_0==0) or third (field_B_4!=0) chains.
@@ -487,6 +509,64 @@ void Pc_WideLm_DrawPart(s_ModelInfo* modelInfo, GsOT_TAG* otTag, s32 arg2,
         }
 
         Pc_WideLm_Transform(mesh, viewMat, s_wideXy, s_wideZ); /* clone :3730 */
+
+        /* Cross-part welds (mesh 0 by contract). Owner side: retain this
+         * part's transformed mesh so later-drawn readers can resolve against
+         * it. Reader side: overwrite each welded slot with the owner's
+         * retained screen vertex — the stock scratch-pool weld ("later part
+         * reads the slot an earlier part wrote"), reproduced, so v7 joints
+         * stay closed when bones bend. Shadow_Copy carries the PGXP shadow
+         * with the value so welded corners keep the owner's precision. */
+        if (mi == 0)
+        {
+            u32 k;
+
+            if (part->ownedSlotCount > 0)
+            {
+                u32 need = mesh->vertexCount + 2;
+
+                if (part->retCap < need)
+                {
+                    DVECTOR* nxy = (DVECTOR*)realloc(part->retXy, need * sizeof(DVECTOR));
+                    s16*     nz  = (s16*)realloc(part->retZ, need * sizeof(s16));
+
+                    if (nxy != NULL) { part->retXy = nxy; }
+                    if (nz != NULL)  { part->retZ = nz; }
+                    if (nxy != NULL && nz != NULL)
+                    {
+                        part->retCap = need;
+                    }
+                }
+                if (part->retCap >= need)
+                {
+                    memcpy(part->retXy, s_wideXy, mesh->vertexCount * sizeof(DVECTOR));
+                    memcpy(part->retZ, s_wideZ, mesh->vertexCount * sizeof(s16));
+                    for (k = 0; k < part->ownedSlotCount; k++)
+                    {
+                        Shadow_Copy(&part->retXy[part->ownedSlots[k]], &s_wideXy[part->ownedSlots[k]]);
+                    }
+                    part->retStamp = s_weldPass;
+                }
+            }
+
+            if (part->weldCount > 0 && siblings != NULL)
+            {
+                for (k = 0; k < part->weldCount; k++)
+                {
+                    const s_WideWeld* wd    = &part->welds[k];
+                    s_WideLmPart*     owner = &siblings[wd->ownerOrdinal];
+
+                    if (owner->retStamp != s_weldPass || owner->retXy == NULL)
+                    {
+                        continue; /* owner hidden/unretained this pass — coincident fallback */
+                    }
+                    s_wideXy[wd->local] = owner->retXy[wd->ownerLocal];
+                    s_wideZ[wd->local]  = owner->retZ[wd->ownerLocal];
+                    Shadow_Copy(&s_wideXy[wd->local], &owner->retXy[wd->ownerLocal]);
+                }
+            }
+        }
+
         if (var_a3 != 0)
         {
             Pc_WideLm_Shade(mesh, &env, s_wideShade); /* clone :3732-3735 */

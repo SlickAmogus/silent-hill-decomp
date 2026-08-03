@@ -47,11 +47,42 @@ typedef struct
     s_WidePrim* prims;
 } s_WideMesh;
 
+/* One cross-part weld: this part's mesh-0 vertex `local` renders at the OWNER
+ * part's transformed mesh-0 vertex `ownerLocal` — the stock format's
+ * scratch-pool weld (later part reads the earlier part's slot), reproduced for
+ * wide geometry so joints stay closed when bones bend. */
+typedef struct
+{
+    u32 local;
+    u32 ownerOrdinal;
+    u32 ownerLocal;
+} s_WideWeld;
+
 typedef struct
 {
     u8          boneIdx;
     u32         meshCount;
     s_WideMesh* meshes;
+
+    /* Reader side: welds whose `local` slots get overwritten before emit. */
+    s_WideWeld* welds;
+    u32         weldCount;
+
+    /* Owner side: mesh-0 slots some other part reads (deduped), and the
+     * retained post-transform copy of mesh 0 those reads resolve against.
+     * retStamp says which character draw pass the retention belongs to — a
+     * reader only trusts it within the same pass (owner hidden this frame ->
+     * stale stamp -> the reader falls back to its own coincident copy). */
+    u32*        ownedSlots;
+    u32         ownedSlotCount;
+    DVECTOR*    retXy;
+    s16*        retZ;
+    u32         retCap;
+    u32         retStamp;
+
+    /* Position in modelOrder. Weld owners always draw at a lower rank; the
+     * drawer also uses a rank reset to detect a new character pass. */
+    u32         drawRank;
 } s_WideLmPart;
 
 /* Detect a v7 spine at lmHdr, reformat it in place (calloc'd 64-bit structs,
@@ -68,6 +99,10 @@ int Pc_WideLm_IsWide(const s_ModelHeader* modelHdr);
 /* The registered wide part for a spine modelHdr, or NULL if modelHdr is not a
  * live v7 model. modelHdr - spineModels is the part ordinal (== model index). */
 s_WideLmPart* Pc_WideLm_PartOf(const s_ModelHeader* modelHdr);
+
+/* The whole parts[] array (indexed by ordinal) of the entry modelHdr belongs
+ * to, or NULL. The drawer resolves weld owners through this. */
+s_WideLmPart* Pc_WideLm_SiblingsOf(const s_ModelHeader* modelHdr, u32* countOut);
 
 /* The wide drawer: clones the stock lit chain (func_8005A21C transform/shade/
  * emit) with the u8 GTE pool removed, so a dense modded part renders at full

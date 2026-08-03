@@ -2050,3 +2050,49 @@ Not in this pass: Harry's weapon/map continuation banks (HB_WEP*/HB_M*) in the
 timeline (needs the three-buffer concatenation under HB_BASE's header), named
 clip tables (anim-info rows live in code/overlays, not the ANM), and v7
 high-poly ILMs in the viewer (no v7 reader in the converter's parse path).
+
+## v7 high-poly welds — the root fix for joint seams on replacement characters (2026-08-03)
+
+**The diagnosis.** Stock v6 models keep joints closed through the shared
+256-slot scratch pool: a later-drawn part's prim corner reads the slot an
+earlier part already wrote, so the corner follows the earlier part's bone in
+every pose. The v7 wide path removed the pool (that is its whole point — full
+authored density) and with it the ONLY weld mechanism the format had: v7 parts
+were rigid, self-contained meshes, so butt-joined replacements (the user's CJ)
+rendered perfectly at rest and opened at every joint the moment a bone bent.
+Not a rigging error, not a converter bug — a structural gap, now closed.
+
+**The format.** An OPTIONAL weld section appended inside the wide blob after
+the last part record: `'WELD'`, `count:u32`, then 16-byte entries
+`{readerOrdinal, readerLocal, ownerOrdinal, ownerLocal}` (mesh-0 vertex
+indices; the owner must draw earlier in modelOrder). Older engines stop
+reading after the last part and ignore it; older files simply lack it —
+compatible both ways with no version bump.
+
+**The engine** (`pc_wide_lm.c` / `pc_wide_lm_draw.c`): the parser validates
+the section all-or-nothing (a malformed table fails the whole parse into the
+invisible-spine fallback) and distributes entries to reader parts + deduped
+owned-slot lists to owners. The drawer retains each owner part's transformed
+mesh-0 screen coords for the duration of the character's draw pass (pass
+boundaries detected by a modelOrder-rank reset or a different parts array —
+two NPCs sharing one chara model still weld correctly), then overwrites each
+reader's welded slot with the owner's retained screen vertex before emit —
+stock weld semantics exactly. PGXP shadows travel with the value
+(`Shadow_Copy`), so welded corners keep the owner's precision. An owner hidden
+this frame leaves a stale stamp and its readers fall back to their own
+coincident copies (unwelded but sane). `lm_validate.c` gains rule V18 so a
+corrupt weld table is refused loudly at accept time.
+
+**The converters** (`ilm_obj.py` `--v7` + launcher `V7Import`, byte-parity):
+coincident cross-part vertex pairs (the exact criterion the `--replace` weld
+pass uses, eps 0.01) are emitted as weld entries — owner = earliest-drawn
+part, ties broken on the lower local index so both emitters stay
+byte-identical. Python's `lm_validate_v7` gains the V18 twin. Identity-rest-
+pose exports still cannot weld (coincidence is meaningless there) and say so.
+
+**Verified**: HERO exported and rebuilt `--v7` emits 107 welds — exactly the
+107 vertices `--replace` welds on the same model; a simulated engine parse
+accepts all 107 (owners: chest/head/shoulders/arms/hips/shins — the joint
+anatomy); Python and C# outputs byte-identical; engine + launcher builds
+clean. In-game verification needs a rebuilt v7 model (re-run the high-poly
+import on the CJ source — the new file welds automatically).
