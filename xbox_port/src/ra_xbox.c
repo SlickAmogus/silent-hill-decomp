@@ -135,16 +135,35 @@ static void Ra_BuildMap(void)
     RA_MAP_SEG(0x0B9FC0u,           0x1A0u,  &g_SysWork,                      "sysWork.head");
     RA_MAP_SEG(0x0B9FC0u + 0x1A0u,  0x6F0u,  &g_SysWork.npcs[0],              "sysWork.npcs");
     RA_MAP_SEG(0x0B9FC0u + 0x890u,  0x19F0u, &g_SysWork.playerBoneCoords[0],  "sysWork.bones");
-    RA_MAP_SEG(0x0B9FC0u + 0x2280u, 0x4E8u,  &g_SysWork.npcFlagsId,           "sysWork.tail");
-    /* f2510 bisects the +4 sizeof residual (log 022: tail=0x91D0 as computed but
-     * sizeof=38588 = computed+4, so one 4-byte widen hides in the tail segment):
-     * expected native f2510 = 0x91D0 + (0x2510-0x2280) = 0x9460; 0x9464 means the
-     * widen precedes it -> split the tail segment at the member this names. */
-    SH_DBG("[RA] syswork native: npcs=0x%X bones=0x%X tail=0x%X f2510=0x%X sizeof=%u",
+    /* The +4 sizeof residual is RESOLVED (probed with the real nxdk-cc via
+     * offsetof array-size errors, no hardware needed): the u32 bitfields
+     * invItemSelectedIdx/invItemLoadFlags -- packed UNALIGNED at retail
+     * 0x2351/0x2352 by the PSX compiler -- get an ALIGNED 4-byte unit from
+     * clang/i386, shifting every member from targetNpcIdx (retail 0x2353,
+     * native +5) onward by +4 once pointer alignment settles (lightBoneCoord
+     * 0x235C -> +4 ... end). A single tail segment therefore served every
+     * retail offset >= 0x2351 from the wrong native byte -- including 0x26E8
+     * (inside field_254C), one of the addresses the live set reads. Split the
+     * tail at the widen:
+     *   tail-a  retail 0x2280..0x2350 (0xD1 B) -- native layout matches exactly.
+     *   invitem retail 0x2351..0x2352 (2 B)   -- the two 8-bit bitfields live in
+     *           the low bytes of the aligned u32 unit at targetNpcIdx-4.
+     *   tail-b  retail 0x2353..0x235B (9 B)   -- targetNpcIdx..playerStopFlags,
+     *           contiguous s8 run, anchored at the member.
+     *   tail-c  retail 0x235C..0x2767        -- lightBoneCoord..end, uniformly
+     *           +4 native but internally contiguous + layout-identical. */
+    RA_MAP_SEG(0x0B9FC0u + 0x2280u, 0xD1u,   &g_SysWork.npcFlagsId,           "sysWork.tail-a");
+    RA_MAP_SEG(0x0B9FC0u + 0x2351u, 0x2u,
+               (const uint8_t*)&g_SysWork + offsetof(s_SysWork, targetNpcIdx) - 4,
+                                                                              "sysWork.invitem");
+    RA_MAP_SEG(0x0B9FC0u + 0x2353u, 0x9u,    &g_SysWork.targetNpcIdx,         "sysWork.tail-b");
+    RA_MAP_SEG(0x0B9FC0u + 0x235Cu, 0x40Cu,  &g_SysWork.lightBoneCoord,       "sysWork.tail-c");
+    SH_DBG("[RA] syswork native: npcs=0x%X bones=0x%X tailA=0x%X targetNpc=0x%X light=0x%X sizeof=%u",
            (unsigned)offsetof(s_SysWork, npcs),
            (unsigned)offsetof(s_SysWork, playerBoneCoords),
            (unsigned)offsetof(s_SysWork, npcFlagsId),
-           (unsigned)offsetof(s_SysWork, field_2510),
+           (unsigned)offsetof(s_SysWork, targetNpcIdx),
+           (unsigned)offsetof(s_SysWork, lightBoneCoord),
            (unsigned)sizeof(s_SysWork));
 
     RA_MAP(0x0BC728u, g_GameWork);
@@ -539,6 +558,61 @@ static void Ra_DumpWorklist(rc_client_t* client)
     }
 }
 
+/* Deep-dump ONE achievement's complete read set (default: Split Head 84008,
+ * which still won't pop despite every operand now being "served"). For each
+ * memref the trigger reads: the address, operand width code, the serving
+ * region's NAME, and the bytes CURRENTLY served -- so the next log shows
+ * exactly which operand holds a wrong value. One-shot at game-load. */
+#define RA_TRACE_ACH_ID 84008u
+static void Ra_DumpAchievementReads(rc_client_t* client)
+{
+    const rc_client_game_info_t* game = client ? client->game : NULL;
+    const rc_runtime_t*          rt;
+    const rc_memref_list_t*      list;
+    const rc_runtime_trigger_t*  run = NULL;
+    uint32_t                     ti;
+
+    if (!game || !game->runtime.memrefs)
+        return;
+    rt = &game->runtime;
+    for (ti = 0; ti < rt->trigger_count; ti++)
+        if (rt->triggers[ti].id == RA_TRACE_ACH_ID && rt->triggers[ti].trigger)
+        {
+            run = &rt->triggers[ti];
+            break;
+        }
+    if (!run)
+    {
+        SH_DBG("[RA] trace %u: not in runtime (already unlocked?)", RA_TRACE_ACH_ID);
+        return;
+    }
+
+    for (list = &game->runtime.memrefs->memrefs; list != NULL; list = list->next)
+    {
+        int i;
+        for (i = 0; i < (int)list->count; i++)
+        {
+            const uint32_t addr = list->items[i].address;
+            const char*    nm   = "(RAM-fallback:0)";
+            uint8_t        b[4] = { 0, 0, 0, 0 };
+            int            m;
+
+            if (!rc_trigger_contains_memref(run->trigger, &list->items[i]))
+                continue;
+            for (m = 0; m < s_mapCount; m++)
+                if (addr >= s_map[m].start && addr < s_map[m].start + s_map[m].size)
+                {
+                    nm = s_map[m].name;
+                    break;
+                }
+            Ra_ReadMemory(addr, b, 4, client);
+            SH_DBG("[RA] trace %u: reads 0x80%06X (sz=%u) via %s val=%02X %02X %02X %02X",
+                   RA_TRACE_ACH_ID, addr, (unsigned)list->items[i].value.size,
+                   nm, b[0], b[1], b[2], b[3]);
+        }
+    }
+}
+
 /* Full core roster with lock state, at load. Every LOCKED line is an achievement
  * that CAN still fire on this console (already-unlocked ones are inert here); the
  * UNLK lines name what the account already has, so a PC-earned unlock is never
@@ -859,6 +933,7 @@ static void RC_CCONV Ra_LoadGameCallback(int result, const char* error_message,
 
     /* Print the complete address worklist now that every achievement is parsed. */
     Ra_DumpWorklist(client);
+    Ra_DumpAchievementReads(client);
 
     /* And the full roster + lock state: shows exactly which achievements are still
      * LOCKED (hence testable on THIS console -- an already-unlocked one, e.g. any
