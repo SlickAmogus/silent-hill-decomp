@@ -211,6 +211,8 @@ static float ItemSzLookup(const void* prim)
 }
 
 static int      s_itemWriteOn;                    /* current depth-WRITE state in the bracket */
+static float    s_izPrevMin = -1.0f, s_izPrevMax = -1.0f; /* last bracket's SZ range */
+static float    s_izLastNorm;                     /* last normalized z fed (probe) */
 
 void PsyX_ForceItemDepthBegin(void)
 {
@@ -261,8 +263,14 @@ void PsyX_ForceItemDepthEnd(void)
                         if (d > zmaxw) zmaxw = d;
                     }
                 }
-            SH_DBG("[ZETA] wrote=%d/48 min=%u max=%u", wrote, zminw, zmaxw);
+            SH_DBG("[ZETA] wrote=%d/48 min=%u max=%u fedNorm=%d/1000",
+                   wrote, zminw, zmaxw, (int)(s_izLastNorm * 1000.0f));
         }
+    }
+    /* Hand this bracket's SZ range to the next one for normalization. */
+    if (s_izHit > 0 && s_izZMax > s_izZMin) {
+        s_izPrevMin = s_izZMin;
+        s_izPrevMax = s_izZMax;
     }
     s_izTagged = 0;
     s_itemSzGen++;              /* invalidate this frame's tags in O(1) */
@@ -283,12 +291,33 @@ static void ItemDepthApply(ShVertex* v, int n, const void* prim)
     float z = ItemSzLookup(prim);
     int   i;
     if (z >= 0.0f) {
+        float nz;
         s_izHit++;
         if (z < s_izZMin) s_izZMin = z;
         if (z > s_izZMax) s_izZMax = z;
+        /* NORMALIZE to [0,1] -- THE fix for "depth pass did nothing": pbkit sets
+         * DEPTH_RANGE to [0, ZScale=0xFFFFFF], i.e. the NV2A scales the vertex
+         * program's z output by the viewport depth range, so pos[2] must be
+         * NORMALIZED. Feeding raw SZ (thousands) saturated every face to the far
+         * plane == the clear value ([ZETA] wrote~0/48, min==max), so all faces
+         * tied and painter's order took over -- exactly the unchanged
+         * see-through. Normalize against the PREVIOUS bracket's SZ range (the
+         * PC fix's g_szMaxPrevFrame trick; the carousel's depth range is stable
+         * frame to frame) into [0.05,0.95] to keep headroom at both planes.
+         * Polarity: larger SZ = farther = larger depth, and the test is LEQUAL,
+         * so nearer faces win. */
+        if (s_izPrevMax > s_izPrevMin && s_izPrevMin >= 0.0f) {
+            nz = (z - s_izPrevMin) / (s_izPrevMax - s_izPrevMin);
+            if (nz < 0.0f) nz = 0.0f;
+            if (nz > 1.0f) nz = 1.0f;
+            nz = 0.05f + 0.90f * nz;
+        } else {
+            nz = 0.5f;          /* first bracket: no range yet -- all tie, harmless */
+        }
+        s_izLastNorm = nz;
         if (!s_itemWriteOn) { GpuNv2a_SetDepthWrite(1); s_itemWriteOn = 1; }
         for (i = 0; i < n; i++)
-            v[i].pos[2] = z;
+            v[i].pos[2] = nz;
     } else {
         s_izMiss++;
         if (s_itemWriteOn) { GpuNv2a_SetDepthWrite(0); s_itemWriteOn = 0; }

@@ -1101,9 +1101,24 @@ void Pc_Ra_Update(void)
                 uint8_t f1 = 0, f2 = 0;
                 Ra_ReadMemory(0x0BCBACu, &f1, 1, s_client);
                 Ra_ReadMemory(0x0BCBC9u, &f2, 1, s_client);
-                SH_DBG("[RA] watch %u: state=%d unlocked=%d flags[4B4]=%02X flags[4A1]=%02X",
+                /* Also a digest of the WHOLE flag array through the same read
+                 * path: popcount proves RA sees the game's flag writes at all
+                 * (it should climb as the user progresses), while word4 isolates
+                 * the Split Head bit. word4==0 with a climbing popcount = the
+                 * read path is fine and the flag specifically is never set. */
+                unsigned pop = 0, w4 = 0, k;
+                for (k = 0; k < 52u * 4u; k++) {
+                    uint8_t b = 0; unsigned m;
+                    Ra_ReadMemory(0x0BCB9Cu + k, &b, 1, s_client);
+                    for (m = 0; m < 8; m++) if (b & (1u << m)) pop++;
+                }
+                { uint8_t wb[4] = {0,0,0,0};
+                  Ra_ReadMemory(0x0BCBACu, wb, 4, s_client);
+                  w4 = (unsigned)wb[0] | ((unsigned)wb[1] << 8) |
+                       ((unsigned)wb[2] << 16) | ((unsigned)wb[3] << 24); }
+                SH_DBG("[RA] watch %u: state=%d unlocked=%d flags[4B4]=%02X flags[4A1]=%02X word4=0x%08X setbits=%u",
                        RA_TRACE_ACH_ID, a ? (int)a->state : -1,
-                       a ? (int)a->unlock_time : 0, f1, f2);
+                       a ? (int)a->unlock_time : 0, f1, f2, w4, pop);
             }
         }
     }

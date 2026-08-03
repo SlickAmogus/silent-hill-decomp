@@ -974,6 +974,21 @@ void SplitHead_Control_6(s_SubCharacter* splitHead)
             }
 
             Savegame_EventFlagSet(EventFlag_131);
+#ifdef SH_XBOX_PORT
+            /* RA diagnostic: achievement 84008 reads eventFlags word 4 (bit 3 =
+             * this flag) and the byte stayed 00 across a whole session that
+             * included a kill -- so either this path never runs or the write is
+             * not visible where RA reads. One-shot, names both. */
+            {
+                static int s_shLogged;
+                if (!s_shLogged) {
+                    s_shLogged = 1;
+                    SH_DBG("[SPLITHEAD] EventFlag_131 SET; word4=0x%08X flagsAddr=%p savegameAddr=%p",
+                           (unsigned)g_SavegamePtr->eventFlags[4],
+                           (void*)&g_SavegamePtr->eventFlags[0], (void*)g_SavegamePtr);
+                }
+            }
+#endif
             break;
     }
 }
