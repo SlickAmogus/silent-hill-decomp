@@ -1491,11 +1491,92 @@ public partial class Form1 : Form
     private Image             _bannerCustom;
     private ContextMenuStrip  _bannerMenu;
     private ToolStripMenuItem _bannerMenuReset;
+    private ToolStripMenuItem _bannerMenuDark;
+    private bool _darkMode;
+    /* Captured before the first darkening so the toggle can go back. Without it
+     * "off" would have to guess at the designer's per-control colours. */
+    private Dictionary<Control, Color[]> _lightColors;
 
     private void BannerInit()
     {
         banner.MouseUp += banner_MouseUp;
         BannerApplyCustomIfPresent();
+
+        if (config != null && config.Get("launcher_dark_mode", "0").Trim() == "1")
+            DarkModeSet(true, false);
+    }
+
+    // ==========================================================
+    // Dark mode (toggled from the banner right-click menu)
+    // ==========================================================
+
+    private void DarkModeSet(bool on, bool persist = true)
+    {
+        if (on)
+        {
+            if (_lightColors == null)
+            {
+                _lightColors = new Dictionary<Control, Color[]>();
+                DarkModeCapture(this);
+                foreach (Control c in this.Controls) DarkModeCapture(c);
+            }
+            ApplyDarkMode();
+        }
+        else
+        {
+            DarkModeRestore();
+        }
+
+        _darkMode = on;
+
+        if (persist && config != null)
+        {
+            try
+            {
+                config.EnsureLauncherSection();
+                config.Set("launcher_dark_mode", on ? "1" : "0");
+                config.Save();
+            }
+            catch { /* a read-only install must not break the toggle */ }
+        }
+    }
+
+    private void DarkModeCapture(Control c)
+    {
+        if (!_lightColors.ContainsKey(c))
+            _lightColors[c] = new Color[] { c.BackColor, c.ForeColor };
+
+        foreach (Control child in c.Controls)
+            DarkModeCapture(child);
+    }
+
+    private void DarkModeRestore()
+    {
+        if (_lightColors == null) return;
+
+        foreach (var kv in _lightColors)
+        {
+            kv.Key.BackColor = kv.Value[0];
+            kv.Key.ForeColor = kv.Value[1];
+        }
+    }
+
+    /* ContextMenuStrip is a Component, not a Control, so the Controls walk in
+     * ApplyDarkMode never reaches it. */
+    private void DarkModeStyleMenu(ContextMenuStrip menu)
+    {
+        Color back = _darkMode ? Color.FromArgb(45, 45, 45) : SystemColors.Control;
+        Color text = _darkMode ? Color.White              : SystemColors.ControlText;
+
+        menu.BackColor = back;
+        menu.ForeColor = text;
+        menu.RenderMode = _darkMode ? ToolStripRenderMode.System : ToolStripRenderMode.ManagerRenderMode;
+
+        foreach (ToolStripItem it in menu.Items)
+        {
+            it.BackColor = back;
+            it.ForeColor = text;
+        }
     }
 
     private void BannerApplyCustomIfPresent()
@@ -1539,10 +1620,14 @@ public partial class Form1 : Form
             _bannerMenu = new ContextMenuStrip();
             _bannerMenu.Items.Add("Change background", null, (s2, e2) => BannerChange());
             _bannerMenuReset = (ToolStripMenuItem)_bannerMenu.Items.Add("Reset", null, (s2, e2) => BannerReset());
+            _bannerMenu.Items.Add(new ToolStripSeparator());
+            _bannerMenuDark = (ToolStripMenuItem)_bannerMenu.Items.Add("Dark mode", null, (s2, e2) => DarkModeSet(!_darkMode));
             _bannerMenu.Items.Add("Cancel", null, (s2, e2) => { });
         }
 
         _bannerMenuReset.Visible = File.Exists(BannerCustomPath);
+        _bannerMenuDark.Checked  = _darkMode;
+        DarkModeStyleMenu(_bannerMenu);
         _bannerMenu.Show(banner, e.Location);
     }
 
