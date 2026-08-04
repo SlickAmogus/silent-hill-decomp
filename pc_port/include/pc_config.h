@@ -77,6 +77,14 @@ typedef struct {
                            * VRAM wants this high; the cap only exists so whole-map mode cannot try to
                            * upload multi-GB in one load and hang a small GPU. 0 = unlimited
                            * (config key: texpack_budget_mb) */
+    int texpackLazyMs;    /* Wall-clock milliseconds per frame the demand-driven pack composer
+                           * (texpack_lazy.c) may spend on compose + upload. Pool-slot pack rows
+                           * are no longer composed at TIM load - they compose when a prim first
+                           * SAMPLES them, so an unreached row draws native disc art until the pump
+                           * gets to it (visible HD pop-in). At least one row always runs, so a
+                           * single ~7.6ms row/frame is the floor; x3 for the first 180 frames after
+                           * a map load. Raise it to trade frame spikes for faster pop-in
+                           * (config key: texpack_lazy_ms) */
     int dumpTextures;     /* 1 = write the game's art to gamedata/dump/ as PNGs named the way the pack
                            * loader matches them, so a dump is directly usable as a texture pack. Like
                            * DuckStation, one entry per OBJECT: the piece of the sheet a model draws,

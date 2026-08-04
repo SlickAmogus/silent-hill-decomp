@@ -166,7 +166,9 @@ set_source_files_properties(${MAP_SOURCES} PROPERTIES
 )
 
 # PC port specific sources
-file(GLOB_RECURSE PC_PORT_SOURCES
+# CONFIGURE_DEPENDS so adding a file under pc_port/src is picked up by a plain
+# `cmake --build .` (the documented build command) instead of linking without it.
+file(GLOB_RECURSE PC_PORT_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_SOURCE_DIR}/src/*.c"
     "${CMAKE_SOURCE_DIR}/src/*.cpp"
 )

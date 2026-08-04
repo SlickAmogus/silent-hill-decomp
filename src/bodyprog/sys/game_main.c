@@ -26,6 +26,7 @@ extern void vcGetNowWatchPos(VECTOR3* watch_pos);
 extern const unsigned char* g_sdlKeyboardState;
 #include "dbg_overlay.h"
 #include "map_registry.h"
+#include "texpack_lazy.h"
 #endif
 #include <psyq/libetc.h>
 
@@ -3198,6 +3199,17 @@ void MainLoop(void) // 0x80032EE0
          * frozen copy when the console was already open before pausing). Not drawn here. */
         ML_TRACE("PsyX_EndScene");
         PsyX_EndScene();
+        /* Demand-driven texture-pack composes (pc_port/src/texpack_lazy.c). Runs
+         * HERE, after the OT submit and after the swap inside PsyX_EndScene,
+         * because it creates and REPLACES GL texture objects: ApplyHiresOverride
+         * has already baked GL names into this frame's prims, so the same work
+         * inside the mid-frame FS-queue drain in Gfx_InGameDraw would delete a
+         * name a submitted prim still points at. Post-swap also puts the cost in
+         * the window the CPU would otherwise spend blocked on the NEXT frame's
+         * swap, and leaves the renderer's bound-texture cache honest for free:
+         * both uploaders end on glBindTexture(0) and GR_BeginScene zeroes the
+         * cache at the top of the next frame. */
+        TexPackLazy_Pump();
         ML_TRACE("frame-done");
         if (g_SH_PostFireTrace > 0) {
             g_SH_PostFireTrace--;

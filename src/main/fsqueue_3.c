@@ -11,6 +11,7 @@
 #include "pc_config.h"
 #include "hires_override.h"
 #include "tex_pack.h"
+#include "texpack_lazy.h"
 #include "pc_big_lm.h"
 #include "pc_big_tmd.h"   /* Pc_BigTmd_DestCapacity — oversized loose ITEM TMDs */
 #include "lang_pack.h"    /* Pc_LangPackActive — FONT16 Polish glyph patch */
@@ -1029,6 +1030,12 @@ bool Fs_QueueTickReadPcDrv(s_FsQueueEntry* entry)
  * Fs_QueueChunksLoad, the queue-full wait in Fs_QueueEnqueue) keeps ticking
  * until the last row is composed. The budget is refilled below on every tick,
  * so each visit makes forward progress and the loop always terminates. */
+/* SCOPE: the VRAM-rect branch below only. The pool-slot branch no longer
+ * composes here at all (pc_port/src/texpack_lazy.c) - its rows compose from
+ * the frame pump when a prim actually samples them. The VRAM branch cannot
+ * take the same treatment: it composes under HiresOverride_SetForceNearestUpload,
+ * set and cleared around this registration, and moving it out of that window
+ * re-opens the gutterless-glyph ghost text on FONT16/FONT24. */
 #define FSQ_TEXPACK_COMPOSE_BUDGET 2
 static int s_texpackComposeBudget = 0;
 
@@ -1422,84 +1429,48 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
                                slotId, looseRowsApplied, loosePath);
                 }
 
-                /* DuckStation texture pack: per-row palette match, composed rows
-                 * overwrite that row's texture. An explicit loose per-row override
-                 * wins over a pack for this slot (as on the VRAM path). */
+                /* DuckStation texture pack: DEMAND-DRIVEN (pc_port/src/texpack_lazy.c).
+                 * An explicit loose per-row override still wins for this slot.
+                 *
+                 * Composing every CLUT row here was the load hitch. The per-tick
+                 * compose budget above is bypassed roughly 1000x: it is refilled at
+                 * the top of EVERY Fs_QueueUpdatePostLoad, and Gfx_InGameDraw runs
+                 * 2 passes x up to 500 Fs_QueueUpdate() calls synchronously inside
+                 * one frame, so a cell crossing ran hundreds of ~7.6ms composes in a
+                 * single frame (worst measured ~1.36s). On top of that a measured
+                 * mean 9.23 rows/slot were composed when only 2-3 are ever drawn.
+                 *
+                 * So retain the compose inputs and let the rows a prim actually
+                 * SAMPLES compose from the frame pump. Until a row composes it draws
+                 * the disc art HiresOverride_PoolSlotRegister uploaded above at
+                 * native resolution - right art, right palette, no hole - so the only
+                 * visible cost is HD pop-in. PRECONDITION: that base registration
+                 * succeeded. Its return value is ignored above, and on failure
+                 * glTexture[row] stays 0 and the prim gets no override at all (raw
+                 * VRAM art), exactly as before packs existed.
+                 *
+                 * tim.paddr and tim.caddr point INTO entry->externalData, which the
+                 * queue hands to the next file it reads, so the retain COPIES both
+                 * blocks rather than holding pointers. */
                 if (!looseRowsApplied && TexPack_HasEntries())
                 {
-                    int clutW = (tim.caddr != NULL && tim.crect != NULL) ? (int)tim.crect->w : 0;
-                    int rows  = (haveClut && tim.crect != NULL) ? (int)clutRect.h : 1;
-                    int r;
-                    u32 missMask = 0;
-                    s32 matched  = 0;
+                    int  clutW = (tim.caddr != NULL && tim.crect != NULL) ? (int)tim.crect->w : 0;
+                    int  rows  = (haveClut && tim.crect != NULL) ? (int)clutRect.h : 1;
+                    char timName[16] = { 0 };
 
                     if (rows < 1) rows = 1;
                     if (rows > HIRES_POOL_MAX_ROWS) rows = HIRES_POOL_MAX_ROWS;
 
-                    for (r = composeResume; r < rows; r++)
+                    if (FSQ_INFO_VALID(entry->info))
                     {
-                        int cw = 0, ch = 0;
-                        const unsigned short* clutRow;
-                        const unsigned char* canvas;
-
-                        if (HiresOverride_PackBudgetExceeded())
-                        {
-                            static int s_budgetLog = 0;
-                            if (!s_budgetLog)
-                            {
-                                s_budgetLog = 1;
-                                SH_DBG("[TEXPACK] GL byte budget reached — further pool rows keep native art");
-                            }
-                            break;
-                        }
-
-                        /* Out of compose budget for this tick — park the cursor on
-                         * row r and report the post-load unfinished so the queue
-                         * comes back to it. Deferred, never dropped. */
-                        if (s_texpackComposeBudget <= 0)
-                        {
-                            s_composeResumeEntry = entry;
-                            s_composeResumeIdx   = g_FsQueue.postLoad.idx;
-                            s_composeResumeRow   = r;
-                            HiresOverride_SetForceNearestUpload(0);
-                            return false;
-                        }
-
-                        clutRow = (tim.caddr != NULL)
-                            ? (const unsigned short*)tim.caddr + (size_t)r * (size_t)clutW
-                            : NULL;
-                        canvas = TexPack_Compose(
-                            (const unsigned char*)tim.paddr, (int)pixelRect.w, (int)pixelRect.h,
-                            clutRow, clutW, discBitDepth, &cw, &ch);
-                        if (TexPack_LastComposeWasBuilt()) s_texpackComposeBudget--;
-                        if (canvas != NULL)
-                        {
-                            /* canvas is owned by the compose cache — no free. Key
-                             * the upload on the compose content hash so an
-                             * unchanged re-upload skips the glTexImage2D churn. */
-                            HiresOverride_PoolSlotRegisterRGBAKeyed(
-                                slotId, r, canvas, cw, ch, nativeW, nativeH,
-                                TexPack_LastComposeHash());
-                            matched++;
-                        }
-                        else if (TexPack_LastComposeIsDds())
-                        {
-                            /* Whole-upload BC7 pack entry: upload the compressed
-                             * blocks straight to this slot row (4x cheaper VRAM). */
-                            size_t               ddsSize = 0;
-                            const unsigned char* dds     = TexPack_LastComposeDds(&ddsSize);
-                            HiresOverride_PoolSlotRegisterDdsKeyed(
-                                slotId, r, dds, ddsSize, nativeW, nativeH,
-                                TexPack_LastComposeHash());
-                            matched++;
-                        }
-                        else if (r < 32)
-                        {
-                            missMask |= 1u << r;
-                        }
+                        Fs_GetFileInfoName(timName, entry->info);
                     }
 
-                    TexPack_ReportUncoveredRows(entry, slotId, missMask, matched);
+                    TexPackLazy_RegisterSlotSource(
+                        slotId, timName,
+                        (const unsigned char*)tim.paddr, (int)pixelRect.w, (int)pixelRect.h,
+                        (const unsigned short*)tim.caddr, clutW, rows,
+                        discBitDepth, nativeW, nativeH);
                 }
             }
         }

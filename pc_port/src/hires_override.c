@@ -1,5 +1,6 @@
 #include "hires_override.h"
 #include "dds_load.h"
+#include "texpack_lazy.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -540,6 +541,15 @@ int HiresOverride_PoolSlotRegister(int slotId,
         SH_DBG("[POOLTEX] slot %d out of range", slotId);
         return -1;
     }
+
+    /* Engine slot reuse: this call rewrites every row of the slot with a
+     * different TIM, so the previous occupant's retained pack-compose inputs
+     * must not outlive it - a stale source would compose the OLD sheet into the
+     * NEW slot's rows. Covers the disc-TIM base registration, the whole-image
+     * loose replacement (which bypasses the pack path entirely and so installs
+     * no new source) and the minimap slot. The pool path re-installs the new
+     * source right after this returns. */
+    TexPackLazy_DropSlot(slotId);
 
     snprintf(tag, sizeof(tag), "pool slot %d", slotId);
 
@@ -1229,6 +1239,10 @@ int HiresOverride_RegisterLoosePngAllRows(const char* label,
 void HiresOverride_PoolSlotsReset(void)
 {
     int i, r, live = 0;
+    /* Same range as the loop below, and the map-init signal that arms the lazy
+     * composer's post-load burst budget: a retained source outliving its slot
+     * would compose the OLD map's art into the new occupant. */
+    TexPackLazy_MapReset();
     /* Chara-pool slots (>= HIRES_POOL_CHARA_SLOT_BASE, incl. their row-spill
      * aliases) persist across map loads — pc_chara_pool.c loads each chara
      * TIM exactly once and re-registers only on a region file-idx change. */
@@ -1264,6 +1278,10 @@ void HiresOverride_CharaPoolSlotReset(int slotId)
     }
     for (a = slotId; a < HIRES_POOL_SLOT_MAX; a += 64)
     {
+        /* Row-spill aliases never carry a source of their own (only base slots
+         * do, and the pool pack path caps at HIRES_POOL_MAX_ROWS), but dropping
+         * the whole chain keeps this symmetric with the reset above. */
+        TexPackLazy_DropSlot(a);
         for (r = 0; r < HIRES_POOL_MAX_ROWS; r++)
         {
             if (g_poolSlots[a].glTexture[r] != 0)
@@ -1355,6 +1373,14 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
                 PoolSlotEntry* s      = &g_poolSlots[slotId];
                 int            useRow = (s->glTexture[row] != 0) ? row : 0;
                 GLuint         tex    = s->glTexture[useRow];
+                /* Demand signal for the on-demand pack composer: this exact
+                 * (slot, row) is being drawn, so it is worth the compose the
+                 * loader no longer pays up front. Keyed on `row`, NOT `useRow` -
+                 * the row a prim ASKED for is what should get the HD art even
+                 * while it falls back to row 0, and keying on useRow would pin
+                 * such a row to the fallback forever. Placed before the spill
+                 * loop below, which rewrites slotId. */
+                TexPackLazy_NoteWanted(slotId, row);
                 /* Chara-range row spill (base+64k): when the alias slot is
                  * empty — a single-palette loose/PNG replacement registered
                  * only rows 0..15 of a >16-row TIM — fall back to the chara
