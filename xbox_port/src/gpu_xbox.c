@@ -213,6 +213,7 @@ static float ItemSzLookup(const void* prim)
 static int      s_itemWriteOn;                    /* current depth-WRITE state in the bracket */
 static float    s_izPrevMin = -1.0f, s_izPrevMax = -1.0f; /* last bracket's SZ range */
 static float    s_izLastNorm;                     /* last normalized z fed (probe) */
+static int      s_izBbX0, s_izBbX1, s_izBbY0, s_izBbY1;   /* item screen bbox (probe) */
 
 void PsyX_ForceItemDepthBegin(void)
 {
@@ -221,6 +222,7 @@ void PsyX_ForceItemDepthBegin(void)
     s_itemDepthOn = 1;
     s_itemWriteOn = 1;
     s_izHit = s_izMiss = 0; s_izZMin = 1e9f; s_izZMax = -1e9f;
+    s_izBbX0 = 99999; s_izBbX1 = -99999; s_izBbY0 = 99999; s_izBbY1 = -99999;
 }
 
 void PsyX_ForceItemDepthEnd(void)
@@ -249,22 +251,33 @@ void PsyX_ForceItemDepthEnd(void)
         extern int          pb_busy(void);
         const unsigned char* zb    = (const unsigned char*)(uintptr_t)pb_depth_stencil_addr();
         unsigned             pitch = pb_depth_stencil_pitch();
-        if (zb && pitch) {
-            int gx, gy, wrote = 0;
+        if (zb && pitch && s_izBbX1 > s_izBbX0 && s_izBbY1 > s_izBbY0) {
+            /* Sample INSIDE the item's own screen bbox (a fixed grid mostly
+             * missed a small centred model) and dump raw words so the depth
+             * encoding is directly readable against the fed value. */
+            unsigned raw[6];
+            int      k, wrote = 0;
             unsigned zminw = 0xFFFFFFu, zmaxw = 0;
             while (pb_busy()) { }
-            for (gy = 1; gy <= 6; gy++)
-                for (gx = 1; gx <= 8; gx++) {
-                    unsigned v = *(const unsigned*)(zb + (unsigned)(gy * 68) * pitch + (unsigned)(gx * 64) * 4);
-                    unsigned d = v >> 8;   /* Z24S8: (depth<<8)|stencil */
-                    if (d != 0xFFFFFFu) {
-                        wrote++;
-                        if (d < zminw) zminw = d;
-                        if (d > zmaxw) zmaxw = d;
-                    }
+            for (k = 0; k < 6; k++) {
+                int px = s_izBbX0 + ((s_izBbX1 - s_izBbX0) * (k + 1)) / 7;
+                int py = s_izBbY0 + ((s_izBbY1 - s_izBbY0) * (k + 1)) / 7;
+                unsigned v, d;
+                if (px < 0) px = 0;
+                if (py < 0) py = 0;
+                v = *(const unsigned*)(zb + (unsigned)py * pitch + (unsigned)px * 4);
+                d = v >> 8;                /* Z24S8: (depth<<8)|stencil */
+                raw[k] = v;
+                if (d != 0xFFFFFFu) {
+                    wrote++;
+                    if (d < zminw) zminw = d;
+                    if (d > zmaxw) zmaxw = d;
                 }
-            SH_DBG("[ZETA] wrote=%d/48 min=%u max=%u fedNorm=%d/1000",
-                   wrote, zminw, zmaxw, (int)(s_izLastNorm * 1000.0f));
+            }
+            SH_DBG("[ZETA] wrote=%d/6 min=%u max=%u fedZ=%d bbox=%d,%d..%d,%d raw=%08X %08X %08X %08X %08X %08X",
+                   wrote, zminw, zmaxw, (int)(s_izLastNorm * 16777215.0f),
+                   s_izBbX0, s_izBbY0, s_izBbX1, s_izBbY1,
+                   raw[0], raw[1], raw[2], raw[3], raw[4], raw[5]);
         }
     }
     /* Hand this bracket's SZ range to the next one for normalization. */
@@ -315,9 +328,25 @@ static void ItemDepthApply(ShVertex* v, int n, const void* prim)
             nz = 0.5f;          /* first bracket: no range yet -- all tie, harmless */
         }
         s_izLastNorm = nz;
+        /* ...then scale into Z24 WINDOW units. The NV2A's vp20 does NOT apply
+         * pbkit's VIEWPORT_OX/PX_DIV2 to a vertex-program output -- that is why
+         * this shader emits window PIXELS for x/y and renders correctly -- so z
+         * is likewise consumed raw, in depth-buffer units (Z24S8 => [0,0xFFFFFF];
+         * pb_DepthFmt confirms the format). Log 028 nailed it: feeding the bare
+         * normalized 0.931 stored depth 1 (0.931 rounded), i.e. the whole item
+         * collapsed onto the near plane. */
+        nz *= 16777215.0f;
         if (!s_itemWriteOn) { GpuNv2a_SetDepthWrite(1); s_itemWriteOn = 1; }
-        for (i = 0; i < n; i++)
+        for (i = 0; i < n; i++) {
             v[i].pos[2] = nz;
+            /* Track the item's real screen bbox so the [ZETA] readback samples
+             * pixels the item actually covered (a blind grid mostly missed it). */
+            { int px = (int)v[i].pos[0], py = (int)v[i].pos[1];
+              if (px < s_izBbX0) s_izBbX0 = px;
+              if (px > s_izBbX1) s_izBbX1 = px;
+              if (py < s_izBbY0) s_izBbY0 = py;
+              if (py > s_izBbY1) s_izBbY1 = py; }
+        }
     } else {
         s_izMiss++;
         if (s_itemWriteOn) { GpuNv2a_SetDepthWrite(0); s_itemWriteOn = 0; }

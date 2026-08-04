@@ -613,6 +613,72 @@ static void Ra_DumpAchievementReads(rc_client_t* client)
     }
 }
 
+/* Dump the traced trigger's CONDITION-LEVEL state: for every condition in the
+ * requirement set and each ALT group -- its type/operator, whether it evaluated
+ * true on the last check, its hit counts, and both operands (live memref value
+ * + address, or the constant). Log 028 proved the kill flag IS set (word4 bit 3)
+ * and IS readable through our map, yet the achievement never fires -- so the
+ * blocker is a specific condition, and this names it instead of guessing.
+ * Called from the watch, so it reflects LIVE post-kill state. */
+static void Ra_DumpTriggerConds(rc_client_t* client)
+{
+    const rc_client_game_info_t* game = client ? client->game : NULL;
+    const rc_runtime_t*          rt;
+    const rc_trigger_t*          trg = NULL;
+    const rc_condset_t*          cs;
+    uint32_t                     ti;
+    int                          grp;
+
+    if (!game)
+        return;
+    rt = &game->runtime;
+    for (ti = 0; ti < rt->trigger_count; ti++)
+        if (rt->triggers[ti].id == RA_TRACE_ACH_ID && rt->triggers[ti].trigger)
+        {
+            trg = rt->triggers[ti].trigger;
+            break;
+        }
+    if (!trg)
+        return;
+
+    SH_DBG("[RACOND] trigger %u state=%u measured=%u/%u",
+           RA_TRACE_ACH_ID, (unsigned)trg->state,
+           (unsigned)trg->measured_value, (unsigned)trg->measured_target);
+
+    for (grp = 0, cs = trg->requirement; grp < 12; grp++)
+    {
+        const rc_condition_t* c;
+        int                   idx = 0;
+        if (!cs)
+        {
+            /* after the requirement set, walk the ALT groups */
+            cs = (grp == 0) ? trg->alternative : NULL;
+            if (!cs)
+                break;
+        }
+        for (c = cs->conditions; c != NULL && idx < 32; c = c->next, idx++)
+        {
+            unsigned v1 = 0, a1 = 0, v2 = 0, a2 = 0;
+            if (c->operand1.type == RC_OPERAND_ADDRESS || c->operand1.type == RC_OPERAND_DELTA)
+            { if (c->operand1.value.memref) { v1 = c->operand1.value.memref->value.value;
+                                              a1 = c->operand1.value.memref->address; } }
+            else v1 = c->operand1.value.num;
+            if (c->operand2.type == RC_OPERAND_ADDRESS || c->operand2.type == RC_OPERAND_DELTA)
+            { if (c->operand2.value.memref) { v2 = c->operand2.value.memref->value.value;
+                                              a2 = c->operand2.value.memref->address; } }
+            else v2 = c->operand2.value.num;
+            SH_DBG("[RACOND] g%d c%02d type=%u op=%u true=%u hits=%u/%u | o1(t%u,@%06X)=%u  o2(t%u,@%06X)=%u",
+                   grp, idx, (unsigned)c->type, (unsigned)c->oper, (unsigned)c->is_true,
+                   (unsigned)c->current_hits, (unsigned)c->required_hits,
+                   (unsigned)c->operand1.type, a1, v1,
+                   (unsigned)c->operand2.type, a2, v2);
+        }
+        cs = cs->next;
+        if (!cs && grp == 0)
+            cs = trg->alternative;   /* move on to the ALT chain */
+    }
+}
+
 /* Full core roster with lock state, at load. Every LOCKED line is an achievement
  * that CAN still fire on this console (already-unlocked ones are inert here); the
  * UNLK lines name what the account already has, so a PC-earned unlock is never
@@ -1119,6 +1185,18 @@ void Pc_Ra_Update(void)
                 SH_DBG("[RA] watch %u: state=%d unlocked=%d flags[4B4]=%02X flags[4A1]=%02X word4=0x%08X setbits=%u",
                        RA_TRACE_ACH_ID, a ? (int)a->state : -1,
                        a ? (int)a->unlock_time : 0, f1, f2, w4, pop);
+                /* Once the kill flag is actually set, dump the trigger's
+                 * condition-level state -- that is the frame where "flag set but
+                 * no unlock" becomes diagnosable. Capped so it can't flood. */
+                if ((w4 & 0x08u) != 0)
+                {
+                    static int s_condDumps;
+                    if (s_condDumps < 3)
+                    {
+                        s_condDumps++;
+                        Ra_DumpTriggerConds(s_client);
+                    }
+                }
             }
         }
     }
