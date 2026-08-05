@@ -2518,8 +2518,17 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 }
 
                 /* Set lowerBodyState for footstep sound triggers
-                 * (aim state already set above if aiming) */
-                if (!g_Player_IsAiming) {
+                 * (aim state already set above if aiming).
+                 *
+                 * Not during the back-hop: the jump-back block above sets
+                 * lowerBodyState to JumpBackward, which is what makes the
+                 * dispatcher play the landing double-step (its case keys off the
+                 * JumpBackward anim's keyframes 243/245). This shim runs only on
+                 * the modern cameras and would overwrite it with WalkBackward --
+                 * whose keyframe pattern never matches the hop anim -- so the
+                 * landing was silent in TPS/OTS while classic, which does not run
+                 * this shim, kept its sound. */
+                if (!g_Player_IsAiming && !jumpBackActive) {
                     /* Strafe footsteps (PC): the sidestep / strafe-run anim is driven
                      * by the stepping globals, not IsMovingForward/Backward, so without
                      * these branches every strafe fell through to None and the dispatcher
