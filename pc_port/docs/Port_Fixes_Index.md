@@ -2152,3 +2152,86 @@ reload — same class, but katana is a 2nd-playthrough bonus weapon. ~35
 `[CLUTDROP] clutY_oob` prims in map7_s01 carry 0xFF-pattern clut/tpage words
 (uninitialised-prim signature); PsyX drops them safely, so the visible cost is
 a few missing polys.
+
+## Texture-pack stutter + VRAM: the compose throttle was being bypassed (2026-08-04, commits `1ca0c2eeb`, `1f0c5e4b0`)
+
+**Report** (issue #91): severe stuttering while walking with a pack installed, even on
+an NVMe PCIe-4 SSD, and VRAM climbing to 8-10 GB — "probably the reason for a lot of
+crashes related to texture packs in GPUs with less than 12 GB".
+
+**Stutter root.** `s_texpackComposeBudget = FSQ_TEXPACK_COMPOSE_BUDGET` (2) is refilled
+at the top of **every** `Fs_QueueUpdatePostLoad` (fsqueue_3.c), and `Gfx_InGameDraw`
+runs two passes of up to 500 `Fs_QueueUpdate()` calls **synchronously inside one frame**
+(world_draw.c:462-476). The per-tick throttle added in July was therefore bypassed ~1000
+times per frame, and a cell crossing could run hundreds of ~7.6 ms composes before the
+frame ended — worst measured shape ~1.36 s in a single frame. **Any future per-tick
+budget inside the FS queue has this same hole.**
+
+**VRAM root.** Not a leak — the configured default. `texpack_budget_mb` is 6144, the cap
+is a hard stop with no eviction, and a heavy interior genuinely wants more, so the
+process climbs to 6 GB of pack art and pins there; uncharged native pool rows and driver
+overhead make up the rest of the reported 8-10 GB. Compounding it, every CLUT row was
+composed eagerly — a measured mean of **9.23 rows per slot** when only 2-3 are drawn.
+
+**Fix.** `pc_port/src/texpack_lazy.c`: the post-load retains the TIM's pixel and palette
+blocks (they point into `entry->externalData`, which the next queue read recycles, so
+both must be copied — ~15.3 KiB/slot, ~4.5 MiB at 300 slots, freed per slot as soon as
+every row it ships has resolved). `HiresOverride_LookupByTpageClut` marks (slot,row)
+wanted with an O(1) bit test per textured prim; `TexPackLazy_Pump()` composes out of a
+wall-clock budget (`texpack_lazy_ms`) **after `PsyX_EndScene`** — after the OT submit,
+which is what makes GL object churn safe there, since `ApplyHiresOverride` bakes GL
+names into prims mid-frame. Plus `HiresOverride_ClampBudgetToVram()`: 45% of the GPU's
+reported VRAM (NVX_gpu_memory_info → ATI_meminfo → no-op), only ever lowering, like the
+system-RAM clamp in main_pc.c.
+
+**Landing safety.** The retain sits in the same `if (!registered)` block as
+`HiresOverride_PoolSlotRegister(disc TIM)`, which uploads every shipped CLUT row at
+native resolution — so an uncomposed row draws correct PSX-resolution art and the
+upgrade is in place. CAVEAT, stated honestly: if the base registration or the pump's
+upload FAILS, the lookup's `useRow = glTexture[row] ? row : 0` serves **row 0's art**
+(wrong palette on a multi-CLUT slot), not native — virtual pool slots (clutY >= 512)
+never fall back to raw VRAM because `ClutHasNoPalette` treats clutY > 511 as unpalettable.
+
+**Scope.** Pool-slot path only. The VRAM-rect path (fonts, HUD, 2D backgrounds — and the
+*largest* canvases, 3072x960 ≈ 15 MiB) keeps the eager compose, because
+`HiresOverride_SetForceNearestUpload` is set and cleared around that synchronous call and
+deferring it re-opens the gutterless-glyph ghost text.
+
+**Measured and rejected — do not re-propose without new numbers.** A content-keyed GL
+texture cache is NOT a VRAM fix (byte-identical canvases within a source TIM: **0 of
+8730**; `Texture_Get` matches by material name before claiming a slot, so two live chunk
+slots can never hold the same sheet) — it is a stutter fix only. BC3/DXT5 is disqualified
+by mipmaps: `glGenerateMipmap` raises GL_INVALID_OPERATION on compressed textures and
+world rows require mips, so it means CPU box-downsampling and encoding *every* level
+(+33% work) at ~40-130 ms/row against a 7.6 ms compose. BC7/.dds already only reaches
+0.86% of a real pack: a sub-rect .dds cannot take the compressed whole-upload path.
+
+**Also fixed here (pre-existing).** `HiresOverride_PoolSlotRegister` returned out of its
+per-row loop on failure, skipping the stale-row drop — on a recycled slot that left rows
+r+1..15 holding the PREVIOUS TIM's textures, so the slot rendered a mix of two sheets
+depending on palette row, with the old charges still on the books. The four keyed
+registrars did not credit the budget when an upload failed after the uploader had already
+deleted the texture. New rect entries never initialised `packBytes`.
+
+**Build gotcha.** `file(GLOB_RECURSE PC_PORT_SOURCES)` had no `CONFIGURE_DEPENDS`, so a
+new file under `pc_port/src` was silently not compiled by a plain `cmake --build .`.
+
+## Borderless cursor confinement (2026-08-04, commit `b32ef5ba4`, PsyCross `09aa645`)
+
+Issue #87: on multi-monitor borderless the pointer walked off the game screen during any
+mouse-driven moment and a click there tabbed the game out. Nothing in the tree ever
+grabbed the mouse — `SDL_SetRelativeMouseMode` (control_style.c) confines it during
+TPS/OTS mouse-look, which is why only the cursor-visible states were affected.
+`PsyX_UpdateMouseConfinement()` calls `SDL_SetWindowMouseGrab` while fullscreen or
+borderless. **Mouse grab only** — `SDL_SetWindowKeyboardGrab` is a separate call and is
+never made, so Alt+Tab and the Windows key keep working, and SDL's Windows backend clips
+only while focused and drops the clip on deactivation. Windowed mode is never confined.
+Config `confine_cursor` (default 1).
+
+## Quick save refused during a boss fight (2026-08-04)
+
+A quick save inside a boss arena records the player mid-fight; reloading it can strand a
+run that was entered with no health or ammo. The original game has no save point in a
+boss chamber for the same reason. `Pc_QuickSave_BossActive` (pc_quicksave.c) keys on a
+LIVE boss actor rather than a map/room table, so it covers every boss with no table to
+maintain and lifts itself the moment the boss dies. Quick LOAD is deliberately untouched.

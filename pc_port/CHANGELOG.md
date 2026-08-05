@@ -1,5 +1,43 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.08.04.1 -- 2026-08-04
+- Texture packs: the stutter while walking around with a pack installed should be
+  largely gone. The game was rebuilding HD textures in bulk in the middle of a frame —
+  a doorway could cost over a second in one frame. It now builds them a few at a time,
+  only for what is actually on screen, spread across frames.
+- Texture packs: much lower VRAM. The game was building every colour variant of each
+  texture (about 9) when only 2-3 are ever used, and the memory limit was a fixed 6 GB
+  regardless of your card. It now builds only what is drawn and scales the limit to the
+  VRAM your GPU reports, which should stop the crashes on cards under 12 GB.
+  NOTE the trade-off: textures now appear at original PSX quality for a moment after a
+  load and then sharpen, instead of the game stalling to build them up front.
+  DDS packs are unaffected and still get their speed-up — convert if you have not.
+- Borderless: the mouse no longer wanders onto your other monitor while you are picking
+  up items, in the inventory or in menus. Alt+Tab and the Windows key still get you out.
+  Set `confine_cursor = 0` in config.cfg for the old behaviour.
+- Fixed a texture-pack bug where a slot could end up rendering a mix of two different
+  textures depending on the palette row.
+- Quick save is now blocked during a boss fight (Split Head, Twinfeeler, Floatstinger,
+  Bloodsucker, Cybil, Incubus/Incubator), with an on-screen message. It unblocks the
+  moment the boss dies. Quick load still works normally.
+
+Commit summaries:
+- borderless: keep the pointer inside the window while the game has focus
+- texpack: size the VRAM budget to the GPU, and fix three budget/slot defects
+- texpack: compose pack rows on demand instead of eagerly during the load
+- quicksave: refuse to quick save while a boss is alive
+
+## beta-2026.08.02.1 -- 2026-08-02
+- Fixed bug that could cause inventory to be replaced when going through a door after a weapon was unequipped.
+- Fixed bugs that could cause PAL to freeze at certain parts of the game.
+
+Commit summaries:
+- PAL documents: render ten lines like retail, and page instead of locking
+- PAL documents: carry the ~C colour and ~M/~T alignment across a page break
+- PAL documents: correct the line count and alignment origin of a broken page
+- docs: index the PAL document line-cap soft-lock fix
+- inventory: stop the starting-loadout block from eating live inventories
+
 ## PRERELEASE 2026.08.02 -- Discord test build, not a full release
 Only a handful of fixes since beta-2026.07.31.2, not enough for a proper release, but the PAL one is worth getting tested.
 
