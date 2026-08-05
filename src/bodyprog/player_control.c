@@ -1996,11 +1996,30 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     bool backEdge = pureBack && !s_prevBack;
                     s_prevBack = pureBack;
 
-                    /* No quick hop-back in TPS/OTS: a controller's backward stick
-                     * deflection reads as running, which triggered the hop on every
-                     * back-step. Free-aim/modern cameras just walk backward (handled
-                     * by the g_Player_IsMovingBackward branch below). Classic keeps it. */
-                    if (backEdge && g_Player_IsRunning && !s_jumpBackActive && !g_DebugThirdPersonCam) {
+                    /* The hop used to be blocked outright on TPS/OTS because a
+                     * controller's backward stick deflection reads as running, so it
+                     * fired on every ordinary back-step. Gate the modern cameras on
+                     * the explicit run CONTROL rather than the derived
+                     * g_Player_IsRunning: a deliberate sprint+back hops and then
+                     * falls through to the normal backward walk, while a plain stick
+                     * pull-back never triggers it. Classic keeps its original
+                     * behaviour. FPS is excluded — there is no third-person body to
+                     * see the hop on, and the camera lurch reads as a glitch. */
+                    int hopRunHeld;
+                    if (!g_DebugThirdPersonCam)
+                    {
+                        hopRunHeld = g_Player_IsRunning;
+                    }
+                    else
+                    {
+                        u16 hopRunBtn = g_GameWorkPtr->config.controllerConfig.run;
+                        hopRunHeld = !g_PcFpsCam &&
+                                     (g_GameWork.config.extraWalkRunCtrl
+                                          ? !(g_Controller0->heldBtnFlags & hopRunBtn)
+                                          : (g_Controller0->heldBtnFlags & hopRunBtn) != 0);
+                    }
+
+                    if (backEdge && hopRunHeld && !s_jumpBackActive) {
                         s_jumpBackActive = 1;
                         s_jumpBackFrames = 0;
                         s_prevJumpBackTime = -1;
