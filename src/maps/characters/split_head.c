@@ -4,6 +4,9 @@
 #include "main/rng.h"
 #include "maps/shared.h"
 #include "maps/characters/split_head.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"   /* map overlays must include this to link SH_DBG (see groaner.c) */
+#endif
 
 #define splitHeadProps splitHead->properties.splitHead
 

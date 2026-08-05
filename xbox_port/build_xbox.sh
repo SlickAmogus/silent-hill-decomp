@@ -46,10 +46,37 @@ build_host_tool tools/fp20compiler fp20compiler CXX="$HOST_CXX"
 # dependency tracking does NOT cover this header (a hardware log carried a
 # stale sha), so when the content changes, delete main_xbox.obj to force the
 # recompile ourselves.
+# CLEAN BUILD, ALWAYS. Two hard requirements this satisfies:
+#  1. A stale .obj can link a torn binary (the 98-object g_SysWork saga) — the
+#     orphan sweep below catches only the no-.d case, this catches everything.
+#  2. The xbe on disk must ALWAYS be exactly the code just built. Deleting the
+#     output FIRST means a failed build leaves NO xbe at all, so it is
+#     impossible to deploy a stale one believing it is fresh.
+# Scope: our own game/port objects + the xbe output. The nxdk toolchain libs are
+# third-party and stable, so they are left alone (rebuilding them every time
+# would add many minutes for zero safety gain). Set SH_NO_CLEAN=1 to skip.
+if [ -z "$SH_NO_CLEAN" ]; then
+    echo "[ CLEAN    ] removing bin/ + all game objects (guaranteed-fresh build)"
+    rm -rf "$SCRIPT_DIR/bin"
+    mkdir -p "$SCRIPT_DIR/bin"   # linker writes bin/default.map into it
+    find "$SCRIPT_DIR/../src" "$SCRIPT_DIR/../pc_port/src" "$SCRIPT_DIR/src" \
+         \( -name '*.obj' -o -name '*.c.d' -o -name '*.cpp.d' \) \
+         -not -path '*dsound_objs*' -delete 2>/dev/null
+    rm -f "$SCRIPT_DIR/main.exe" "$SCRIPT_DIR/main.lib" 2>/dev/null
+fi
+
+# Build identity. NOTE: this script normally runs BEFORE the commit is made, so
+# HEAD is the PREVIOUS commit and the real content is the working tree. Stamping
+# only the SHA therefore reads as "an old build" when it is actually the newest
+# code — that misreading wasted several hardware test runs. So the stamp is now
+# content-derived: a short hash over every source file's mtime+size, printed at
+# the end of the build. Compare THAT against the log line, never the SHA.
 GIT_SHA="$(git -C "$SCRIPT_DIR/.." rev-parse --short=9 HEAD 2>/dev/null || echo unknown)"
 if [ -n "$(git -C "$SCRIPT_DIR/.." status --porcelain --untracked-files=no 2>/dev/null | head -1)" ]; then
-    GIT_SHA="${GIT_SHA}+dirty"
+    GIT_SHA="${GIT_SHA}+wt"   # working tree ahead of HEAD = the code being built
 fi
+BUILD_ID="$(date '+%m%d-%H%M%S')"
+GIT_SHA="${GIT_SHA} id=${BUILD_ID}"
 printf '#define SH_XBOX_BUILD_HASH "%s"\n#define SH_XBOX_BUILD_STAMP "%s"\n' \
     "$GIT_SHA" "$(date '+%Y-%m-%d %H:%M:%S')" > include/sh_build_info_xbox.h.new
 if ! cmp -s include/sh_build_info_xbox.h.new include/sh_build_info_xbox.h 2>/dev/null; then
@@ -75,4 +102,20 @@ for o in $(find "$SCRIPT_DIR/../src" "$SCRIPT_DIR/../pc_port/src" "$SCRIPT_DIR/s
     fi
 done
 
-exec /c/msys64/usr/bin/make.exe -f Makefile.nxdk "$@"
+/c/msys64/usr/bin/make.exe -f Makefile.nxdk "$@"
+MAKE_RC=$?
+
+# Verification banner. The xbe only exists if the build succeeded (bin/ was
+# deleted up front), and this prints the EXACT string the game logs at boot --
+# so "is the console running this build?" is a direct string comparison against
+# the log's [SH-XBOX] build line, with no SHA/commit-order ambiguity.
+if [ $MAKE_RC -eq 0 ] && [ -f "$SCRIPT_DIR/bin/default.xbe" ]; then
+    echo "==============================================================="
+    echo " BUILD OK  ->  $SCRIPT_DIR/bin/default.xbe"
+    echo " Log line will read:  [SH-XBOX] build $GIT_SHA"
+    echo " Verify the console ran THIS build by matching  id=${BUILD_ID}"
+    echo "==============================================================="
+else
+    echo "!!! BUILD FAILED (rc=$MAKE_RC) — no xbe produced; nothing to deploy !!!"
+fi
+exit $MAKE_RC
