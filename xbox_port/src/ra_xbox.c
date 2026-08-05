@@ -667,11 +667,15 @@ static void Ra_DumpTriggerConds(rc_client_t* client)
             { if (c->operand2.value.memref) { v2 = c->operand2.value.memref->value.value;
                                               a2 = c->operand2.value.memref->address; } }
             else v2 = c->operand2.value.num;
-            SH_DBG("[RACOND] g%d c%02d type=%u op=%u true=%u hits=%u/%u | o1(t%u,@%06X)=%u  o2(t%u,@%06X)=%u",
+            /* Sizes are ESSENTIAL to reading this: several conditions target the
+             * SAME address with different RC_MEMSIZE_BIT_n, which is why one can
+             * be true and the next false on identical raw bytes. (RC_MEMSIZE:
+             * 0=8bit 1=16bit ... 6..13 = BIT_0..BIT_7, 15=16bitBE.) */
+            SH_DBG("[RACOND] g%d c%02d type=%u op=%u true=%u hits=%u/%u | o1(t%u,sz%u,@%06X)=%u  o2(t%u,sz%u,@%06X)=%u",
                    grp, idx, (unsigned)c->type, (unsigned)c->oper, (unsigned)c->is_true,
                    (unsigned)c->current_hits, (unsigned)c->required_hits,
-                   (unsigned)c->operand1.type, a1, v1,
-                   (unsigned)c->operand2.type, a2, v2);
+                   (unsigned)c->operand1.type, (unsigned)c->operand1.size, a1, v1,
+                   (unsigned)c->operand2.type, (unsigned)c->operand2.size, a2, v2);
         }
         cs = cs->next;
         if (!cs && grp == 0)
@@ -1150,6 +1154,30 @@ void Pc_Ra_Update(void)
     {
         rc_client_do_frame(s_client);
 
+        /* Kill-frame capture: the 30s watch dumped conditions long AFTER the
+         * kill, by which time the player had left the boss room -- so the map
+         * condition (mapIdx16 BE == 0x0802 = MAP1_S05 room 2) read as the NEXT
+         * room and looked like the blocker. Detect the flag's RISING EDGE every
+         * frame and dump the trigger THEN, when every condition still holds the
+         * value rcheevos actually evaluated. One byte read per frame. */
+        {
+            static uint8_t s_prevFlagByte;
+            static int     s_edgeDumps;
+            uint8_t        fb = 0;
+            Ra_ReadMemory(0x0BCBACu, &fb, 1, s_client);
+            if ((fb & 0x08u) && !(s_prevFlagByte & 0x08u) && s_edgeDumps < 2)
+            {
+                uint8_t mi = 0, mr = 0;
+                s_edgeDumps++;
+                Ra_ReadMemory(0x0BCAD8u, &mi, 1, s_client);
+                Ra_ReadMemory(0x0BCAD9u, &mr, 1, s_client);
+                SH_DBG("[RACOND] *** KILL-FRAME EDGE: flagByte %02X -> %02X, mapIdx=%u room=%u"
+                       " (set wants mapIdx=8 room=2)", s_prevFlagByte, fb, mi, mr);
+                Ra_DumpTriggerConds(s_client);
+            }
+            s_prevFlagByte = fb;
+        }
+
         /* [RA] watch (~1/30s of evaluated gameplay): the traced achievement's
          * LIVE client state + its two eventFlags operand bytes served through
          * the real read path. Log 024 proved every operand SERVES correctly at
@@ -1182,9 +1210,13 @@ void Pc_Ra_Update(void)
                   Ra_ReadMemory(0x0BCBACu, wb, 4, s_client);
                   w4 = (unsigned)wb[0] | ((unsigned)wb[1] << 8) |
                        ((unsigned)wb[2] << 16) | ((unsigned)wb[3] << 24); }
-                SH_DBG("[RA] watch %u: state=%d unlocked=%d flags[4B4]=%02X flags[4A1]=%02X word4=0x%08X setbits=%u",
-                       RA_TRACE_ACH_ID, a ? (int)a->state : -1,
-                       a ? (int)a->unlock_time : 0, f1, f2, w4, pop);
+                { uint8_t mi = 0, mr = 0;
+                  Ra_ReadMemory(0x0BCAD8u, &mi, 1, s_client);
+                  Ra_ReadMemory(0x0BCAD9u, &mr, 1, s_client);
+                  SH_DBG("[RA] watch %u: state=%d unlocked=%d flags[4B4]=%02X flags[4A1]=%02X word4=0x%08X setbits=%u map=%u/%u",
+                         RA_TRACE_ACH_ID, a ? (int)a->state : -1,
+                         a ? (int)a->unlock_time : 0, f1, f2, w4, pop,
+                         (unsigned)mi, (unsigned)mr); }
                 /* Once the kill flag is actually set, dump the trigger's
                  * condition-level state -- that is the frame where "flag set but
                  * no unlock" becomes diagnosable. Capped so it can't flood. */
