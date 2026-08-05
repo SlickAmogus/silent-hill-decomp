@@ -1,5 +1,14 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.08.05.1 -- 2026-08-05
+- Fix flickering when opening map or pausing, and also reduced time to open map.
+- Allow hopping backwards when sprint + back is pushed in tps and ots camera modes
+
+Commit summaries:
+- pause/map: kill the grey flash on exit, and stop the map open crawling
+- backstep: allow the sprint+back hop on TPS/OTS, gated on the run control
+- backstep: restore the landing double-step sound on TPS/OTS
+
 ## beta-2026.08.04.1 -- 2026-08-04
 - Texture packs: the stutter while walking around with a pack installed should be
   largely gone. The game was rebuilding HD textures in bulk in the middle of a frame —
@@ -8,20 +17,32 @@
 - Texture packs: much lower VRAM. The game was building every colour variant of each
   texture (about 9) when only 2-3 are ever used, and the memory limit was a fixed 6 GB
   regardless of your card. It now builds only what is drawn and scales the limit to the
-  VRAM your GPU reports, which should stop the crashes on cards under 12 GB.
-  NOTE the trade-off: textures now appear at original PSX quality for a moment after a
-  load and then sharpen, instead of the game stalling to build them up front.
-  DDS packs are unaffected and still get their speed-up — convert if you have not.
+  VRAM your GPU reports, which should stop issues on cards under 12 GB.
+  NOTE: There may be pop-in, please let me know if it is severe. Converting to DDS is advised if you haven't already.
 - Borderless: the mouse no longer wanders onto your other monitor while you are picking
   up items, in the inventory or in menus. Alt+Tab and the Windows key still get you out.
   Set `confine_cursor = 0` in config.cfg for the old behaviour.
 - Fixed a texture-pack bug where a slot could end up rendering a mix of two different
-  textures depending on the palette row.
+  textures.
 - Quick save is now blocked during a boss fight (Split Head, Twinfeeler, Floatstinger,
-  Bloodsucker, Cybil, Incubus/Incubator), with an on-screen message. It unblocks the
-  moment the boss dies. Quick load still works normally.
+  Bloodsucker, Cybil, Incubus/Incubator).
+- Added playas console command that allows you to change characters between Lisa, Cybil, Kaufmann or Dahlia. Persists in config. Has some issues with some characters that will be fixed later (mainly just odd proportions). Can also toggle in while in the animation viewer mode (press k, then - and = with debug controls enabled)
+- Mod manager has been updated with an improved model viewer that can now view every model type in the game, as well as convert them. Improved OBJ > ILM automatic conversion and character replacements are much more doable. The game supports larger TMDs as well now so those can be replaced more easily too.
+- Fixed some issues that caused corruption in tree billboards or other aspects of the game in a long session after certain points in the game.
 
 Commit summaries:
+- playas: play as Lisa, Cybil, Kaufmann or Dahlia — character swap groundwork
+- main_pc: replace a literal NUL byte with the '\0' escape
+- big TMD: oversized loose item models for UNQ close-ups and IT packs
+- launcher: Model Viewer 2.0 — props, TMDs, ANM playback, editable ANM JSON
+- converters: seam lint, atlas gutters, and eight review fixes
+- v7 welds: cross-part joints for high-poly models — the CJ seam root fix
+- launcher: one reusable Model Viewer window + per-material texture atlas
+- launcher: surface the weld count in the high-poly success dialog
+- Fix EUR tree billboards turning to garbage squares after TV room
+- launcher: put the Model Viewer button back where it can be seen
+- launcher: size the Mod Manager tool column to its labels, not to 78px
+- docs: record the EUR BG_ETC/TV2 stomp diagnosis
 - borderless: keep the pointer inside the window while the game has focus
 - texpack: size the VRAM budget to the GPU, and fix three budget/slot defects
 - texpack: compose pack rows on demand instead of eagerly during the load
@@ -37,26 +58,6 @@ Commit summaries:
 - PAL documents: correct the line count and alignment origin of a broken page
 - docs: index the PAL document line-cap soft-lock fix
 - inventory: stop the starting-loadout block from eating live inventories
-
-## PRERELEASE 2026.08.02 -- Discord test build, not a full release
-Only a handful of fixes since beta-2026.07.31.2, not enough for a proper release, but the PAL one is worth getting tested.
-
-- PAL document soft-lock fix (the main reason for this build, please test it). On a PAL disc, reading the Norman's Motel newspaper or the school piano poem left the document stuck on screen with nothing you could press to get out of it. PAL documents are TEN lines where the US ones are nine, and the port was compiled with the US limit for every region, so anything that reached that tenth line became undismissable. Retail PAL uses ten at every matching spot in the original code, and the PAL translations actually use that line.
-- Fixed healing items and ammo vanishing mid-playthrough. If you unequipped your weapon and then went through any door, five inventory slots were overwritten with the starting loadout. Because of the way the inventory sorts itself, those five slots are always your health items plus your gun and its entire spare ammo stack, so it read as "the game ate my healing items and reset me to 15 bullets".
-- PAL documents long enough to run onto a second page now keep their colour and centring instead of dropping back to plain white and left-aligned, and the text box no longer jumps up a line when the page turns.
-- Launcher: right-click the banner image to set it to any image you like. Right-click again for Reset to put the original back.
-- Launcher: dark mode is back, toggled from that same right-click menu, and it remembers your choice.
-
-Note: prerelease. The PAL document fix needs testing on an actual PAL disc, and the inventory fix wants a playthrough where you unequip and move between areas. Let me know either way.
-
-Commit summaries:
-- launcher: let the banner image be replaced from a right-click menu
-- PAL documents: render ten lines like retail, and page instead of locking
-- PAL documents: carry the ~C colour and ~M/~T alignment across a page break
-- PAL documents: correct the line count and alignment origin of a broken page
-- docs: index the PAL document line-cap soft-lock fix
-- inventory: stop the starting-loadout block from eating live inventories
-- launcher: dark mode back on, toggled from the banner menu
 
 
 ## beta-2026.07.31.2 -- 2026-07-31
