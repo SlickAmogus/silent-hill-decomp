@@ -331,6 +331,14 @@ bool Fs_QueueChunksLoad(void);
  */
 void Fs_QueueWaitForEmpty(void);
 
+#ifdef SH_PC_PORT
+/** @brief PC only: drains the queue in a bounded tight loop instead of one state
+ * per VSync. Runs every entry's full read and post-load; skips nothing.
+ * Call immediately before `Fs_QueueWaitForEmpty`, never instead of it.
+ */
+void Fs_QueueDrainNow(void);
+#endif
+
 /** @brief Add a new seek operation to the queue.
  *
  * @param fileIdx File table index of the file to seek to.

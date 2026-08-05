@@ -220,6 +220,18 @@ void GameState_PaperMapScreen_Update(void) // 0x80066EB0
         case 0:
             Screen_Refresh(SCREEN_WIDTH, true);
 
+#ifdef SH_PC_PORT
+            /* The paper map is a fullscreen 2D screen, but it never reset the
+             * clear color, so GsSortClear kept painting the room's fog color
+             * behind it and any frame that did not fully cover the screen -- the
+             * open, the fades, a page change -- flashed grey. The inventory
+             * screen has always zeroed this on entry (item_screens_2.c); the map
+             * screen is the one 2D screen that was missed. */
+            g_GameWork.background2dColor.r = 0;
+            g_GameWork.background2dColor.g = 0;
+            g_GameWork.background2dColor.b = 0;
+#endif
+
             activeMarkingFileIdx = g_PaperMapMarkingFileIdxs[g_SavegamePtr->paperMapIdx];
             paperMapIdx = g_SavegamePtr->paperMapIdx;
             screenPosX = NO_VALUE;
@@ -230,6 +242,9 @@ void GameState_PaperMapScreen_Update(void) // 0x80066EB0
             SD_Call(Sfx_MenuMap);
             func_80066E40();
             Fs_QueueStartReadTim(FILE_TIM_MP_0TOWN_TIM + g_PaperMapFileIdxs[paperMapIdx], FS_BUFFER_2, &g_PaperMapImg);
+#ifdef SH_PC_PORT
+            Fs_QueueDrainNow();
+#endif
             Fs_QueueWaitForEmpty();
 
             g_IntervalVBlanks = 1;
@@ -399,6 +414,9 @@ void GameState_PaperMapScreen_Update(void) // 0x80066EB0
                 Fs_QueueStartReadTim(FILE_TIM_MR_0TOWN_TIM + g_PaperMapMarkingFileIdxs[paperMapIdx], FS_BUFFER_1, &g_PaperMapMarkingAtlasImg);
             }
 
+#ifdef SH_PC_PORT
+            Fs_QueueDrainNow();
+#endif
             Fs_QueueWaitForEmpty();
             ScreenFade_Start(true, true, false);
 

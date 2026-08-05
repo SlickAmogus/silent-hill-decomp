@@ -60,6 +60,27 @@ bool Fs_QueueChunksLoad(void)
     return result;
 }
 
+#ifdef SH_PC_PORT
+void Fs_QueueDrainNow(void)
+{
+    /* Fs_QueueWaitForEmpty below advances the queue by exactly one state per
+     * VSync, and PsyCross's CdReadSync(1) copies exactly one 2048 byte sector
+     * per call, so a 76 sector paper map costs ~84 vblanks (~1.4s) of sleeping
+     * on storage that could serve it instantly. Ticking the same state machine
+     * in a bounded loop runs every entry's full read AND post-load: nothing is
+     * skipped, unlike the timeout branch in Fs_QueueWaitForEmpty, which advances
+     * the cursors past entries that were never read. Same bounded-drain pattern
+     * Fs_QueueChunksLoad already uses on PC. Callers must still follow this with
+     * Fs_QueueWaitForEmpty so a limit hit falls back to the stock behaviour. */
+    s32 limit = 4096;
+
+    while (Fs_QueueGetLength() > 0 && limit-- > 0)
+    {
+        Fs_QueueUpdate();
+    }
+}
+#endif
+
 void Fs_QueueWaitForEmpty(void)
 {
     func_800892A4(0);

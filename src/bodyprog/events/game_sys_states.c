@@ -393,7 +393,12 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
          * already presents it — no one-frame background flash. */
         {
             extern int g_PsxPresentLastFrame;
+            extern int g_PcFreezeReleasePending;
             g_PsxPresentLastFrame = 1;
+            /* Re-arming beats a release still pending from a freeze that ended
+             * on this same tick, which MainLoop would otherwise honour after
+             * this arm and drop the freeze on the first paused frame. */
+            g_PcFreezeReleasePending = 0;
         }
 #endif
         SysWork_StateSetNext(SysState_GamePaused);
@@ -502,8 +507,8 @@ void SysState_GamePaused_Update(void) // 0x800391E8
         g_MapEventParam = 0;
 #ifdef SH_PC_PORT
         {
-            extern int g_PsxPresentLastFrame;
-            g_PsxPresentLastFrame = 0;
+            extern int g_PcFreezeReleasePending;
+            g_PcFreezeReleasePending = 1;
         }
 #endif
         SysWork_StateSetNext(SysState_SaveMenu1);
@@ -516,9 +521,12 @@ void SysState_GamePaused_Update(void) // 0x800391E8
 
         SD_Call(4);
 #ifdef SH_PC_PORT
+        /* Releasing on this tick showed one bare fog-colored frame: the world
+         * draw is still gated off by the BgmStatusFlag_Pause set above. Hand the
+         * release to MainLoop, which waits for a tick that drew. */
         {
-            extern int g_PsxPresentLastFrame;
-            g_PsxPresentLastFrame = 0;
+            extern int g_PcFreezeReleasePending;
+            g_PcFreezeReleasePending = 1;
         }
 #endif
         SysWork_StateSetNext(SysState_Gameplay);
@@ -716,9 +724,12 @@ void SysState_MapScreen_Update(void) // 0x800396D4
             Gfx_MapMsg_Draw(MapMsgIdx_NoMap) > MapMsgState_Idle)
         {
 #ifdef SH_PC_PORT
+            /* See the pause exit: this tick's world draw is already gated off by
+             * the BgmStatusFlag_Pause set above, so releasing here would expose
+             * the raw fog-colored clear for a frame. */
             {
-                extern int g_PsxPresentLastFrame;
-                g_PsxPresentLastFrame = 0;
+                extern int g_PcFreezeReleasePending;
+                g_PcFreezeReleasePending = 1;
             }
 #endif
             SysWork_StateSetNext(SysState_Gameplay);
@@ -740,8 +751,8 @@ void SysState_MapScreen_Update(void) // 0x800396D4
         {
 #ifdef SH_PC_PORT
             {
-                extern int g_PsxPresentLastFrame;
-                g_PsxPresentLastFrame = 0;
+                extern int g_PcFreezeReleasePending;
+                g_PcFreezeReleasePending = 1;
             }
 #endif
             SysWork_StateSetNext(SysState_Gameplay);

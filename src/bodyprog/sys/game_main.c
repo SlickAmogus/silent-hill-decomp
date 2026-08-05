@@ -13,6 +13,9 @@ extern int g_PcHorPlusEnabled;
 extern int g_PsxSkipFramebufferStore;
 extern int g_PcAllowDebugControls;
 int g_PcMapScreenActive = 0; /* set while paper-map overlay is displayed */
+/* Set by a freeze-frame state (pause, map messages) when it hands control back,
+ * instead of dropping g_PsxPresentLastFrame on the spot. See the release below. */
+int g_PcFreezeReleasePending = 0;
 #include <stdio.h>
 #include <SDL_scancode.h>
 #include <SDL_mouse.h>
@@ -2195,6 +2198,23 @@ void MainLoop(void) // 0x80032EE0
             if (s_pcPickupWas && !g_PcPickupItemActive)
                 g_PsxPresentLastFrame = 0;
             s_pcPickupWas = g_PcPickupItemActive;
+
+            /* Deferred release of the pause / map-message freeze. Those handlers
+             * set BgmStatusFlag_Pause at the top of their tick, which gates the
+             * whole world draw off for that entire tick, and SysWork_StateSetNext
+             * writes sysState immediately but the new state's handler only runs
+             * next tick. Dropping the freeze inside the handler therefore left one
+             * frame with no world behind it and no capture presented: the bare
+             * fog-colored clear users saw as a grey flash on leaving pause or the
+             * "I don't have a map" / "too dark" messages. Hold the freeze until a
+             * tick that actually drew something. */
+            if (g_PcFreezeReleasePending &&
+                (g_GameWork.gameState != GameState_InGame ||
+                 !(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause)))
+            {
+                g_PsxPresentLastFrame    = 0;
+                g_PcFreezeReleasePending = 0;
+            }
         }
 #endif
 
