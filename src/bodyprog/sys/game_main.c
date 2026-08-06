@@ -249,8 +249,27 @@ int Pc_ScriptOwnsScene(void)
         g_SysWork.cutsceneBorderState != CutsceneBorderState_None)
         return 1;
 
-    if (g_SysWork.sysState == SysState_ReadMessage)
-        return 0;
+    /* States the PLAYER opened, not a script: reading a message, examining an
+     * item, the inventory / map / options / save screens, pause. They all freeze
+     * control, and the room-entry camera leaves VC_USER_* raised for the whole
+     * room, so the test below saw "a script owns the view" and stood the
+     * alternate camera down -- a one-frame snap to the classic camera on the way
+     * into and out of every examine and every menu. A real cutscene is caught by
+     * the branch above, so nothing here can hide one. */
+    switch (g_SysWork.sysState)
+    {
+        case SysState_ReadMessage:
+        case SysState_StatusMenu:
+        case SysState_MapScreen:
+        case SysState_OptionsMenu:
+        case SysState_SaveMenu0:
+        case SysState_SaveMenu1:
+        case SysState_GamePaused:
+            return 0;
+
+        default:
+            break;
+    }
 
     return (vcWork.flags & (VC_USER_CAM_F | VC_USER_WATCH_F)) && g_Player_DisableControl;
 }
