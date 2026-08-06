@@ -2235,3 +2235,71 @@ run that was entered with no health or ammo. The original game has no save point
 boss chamber for the same reason. `Pc_QuickSave_BossActive` (pc_quicksave.c) keys on a
 LIVE boss actor rather than a map/room table, so it covers every boss with no table to
 maintain and lifts itself the moment the boss dies. Quick LOAD is deliberately untouched.
+
+## Texture packs: VRAM budget derivation + GPU-side LRU + zip reader cache (2026-08-06, commit `8ff8c8ed7`)
+
+**Report after the 2026-08-04 lazy-compose change:** "(1) stutters way less on
+the SSD but still noticeable; on the HDD still very noticeable, maybe a little
+improved. (2) Uses less VRAM, but stops loading textures after some point — it
+used 6 GB of VRAM then stopped. 16 GB card (4070 Ti Super), more than 8 GB free."
+
+**(2) was a one-line arithmetic consequence of shipping a constant.**
+`texpack_budget_mb` defaults to 6144 and `HiresOverride_ClampBudgetToVram()`
+only ever *lowered* it. A 16 GB card computes a 45% ceiling of 7372 MB; 6144 is
+already below that, so the clamp did nothing and the run pinned at exactly the
+shipped constant — the reported 6 GB, with 8 GB free. No constant can serve both
+a 4 GB laptop and a 24 GB desktop. Now: with no user value the budget is
+**derived** from the GPU and may be raised as well as lowered
+(`texpackBudgetUserSet`); an explicit config value is still only lowered; and
+main_pc.c's system-RAM clamp publishes `texpackBudgetCeilingMb` that the
+derivation may not exceed, because on a shared-memory APU the GPU's reported
+"VRAM" is the same RAM that clamp exists to protect.
+
+**The general form of (2) was the absence of GPU-side eviction.** The budget was
+a one-way ratchet: `PackBudgetExceeded` latched on and every later row kept
+native art for the rest of the session, however far the player walked from
+whatever filled it. The CPU-side compose cache has had LRU eviction since it was
+written (`tp_cache_evict_lru`); the GPU side had none. Pool rows are now stamped
+with a pump tick when **sampled** (`HiresOverride_LookupByTpageClut`), and under
+pressure `HiresOverride_EvictColdestPackRow` frees the coldest and credits the
+bytes back. The prior note that "LRU is near-worthless here because refCount
+never reaches 0 under `resident_textures=1`" was wrong reasoning — eviction never
+needed refCount; the lazy layer's per-prim want signal *is* the LRU key.
+
+Two constraints the implementation turns on, both load-bearing:
+- An evicted row must be **restored to native art**, never left empty. The
+  lookup's `useRow = glTexture[row] ? row : 0` otherwise serves ROW 0's palette
+  — a monster in another monster's colours. `texpack_lazy.c` therefore now keeps
+  its retained TIM pixel+CLUT blocks for the life of the slot (it used to free
+  them once every row resolved) and `HiresOverride_PoolSlotRestoreNativeRow`
+  re-expands the row, uncharged against the budget.
+- Only rows that *can* be restored are evictable, via
+  `HiresRestorablePredicate` — the chara pool registers no lazy source, so its
+  rows are never candidates.
+Rows sampled within `LAZY_EVICT_MIN_AGE` (8) pumps are exempt, so when the hot
+set alone fills the budget nothing is evictable and the pump degrades to native
+art rather than thrashing evict/recompose.
+
+**(1), partially.** `mz_zip_reader_init_file` opens the archive and parses its
+**entire central directory**, and both entry loaders in `tex_pack.c` did that per
+extracted file — N textures cost N opens and N full directory parses on top of
+the N reads actually needed, and on an HDD every one of those is a seek. Readers
+are now opened once and kept for the process (`Scan_Once` is one-shot; nothing
+rescans). **This only helps zip packs** — a loose-folder pack still pays
+fopen+fread+stbi-decode on the main thread. The
+`[TEXPACK] indexed N replacement entries (M zip packs)` log line says which a
+given reporter has.
+
+**Still open — the real stutter fix.** Compose runs synchronously on the main
+thread inside the pump's millisecond budget, and that budget cannot bound a
+blocking disk read (one HDD seek is 10–50 ms, against a ~4 ms budget). The fix is
+to run read + decode + composite on a worker and leave only `glTexImage2D` on the
+main thread. Scope it against this blocker first: `TexPack_Compose` is
+non-reentrant — `g_tpCache`, `g_tpLastHash/IsDds/Built`, `g_tpDdsBytes` and
+`g_tpTransient` are file-scope globals and the `TexPack_LastCompose*` accessors
+are inherently single-call. `g_entries` is read-only after `Scan_Once`, so the
+match itself is already thread-safe.
+
+**New log lines to check on the next report:**
+`[TEXPACK] GL texture budget X -> Y MB (45% of Z MB VRAM, auto)` and
+`[TEXPACK/LRU] evicted N cold row(s), M MB pack GL live`.
