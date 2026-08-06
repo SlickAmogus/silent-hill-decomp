@@ -500,6 +500,7 @@ void PcConfig_Load(const char* path)
             if (mb < 0) mb = 0;
             if (mb > 65536) mb = 65536;
             g_PcConfig.texpackBudgetMb = mb;
+            g_PcConfig.texpackBudgetUserSet = 1;
         }
         else if (strcmp(key, "texpack_lazy_ms") == 0)
         {

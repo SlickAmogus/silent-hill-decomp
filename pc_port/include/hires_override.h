@@ -238,6 +238,37 @@ void HiresOverride_InvalidateVramRect(int x, int y, int w, int h);
  * the whole-town texture-all path against multi-GB pack blowups. */
 int HiresOverride_PackBudgetExceeded(void);
 
+/* Live pack-composed GL bytes, for logging/telemetry. */
+long long HiresOverride_PackBytesLive(void);
+
+/* Advance the LRU clock. Called once per pumped frame. */
+void HiresOverride_Tick(void);
+
+/* Free the least-recently-SAMPLED pack-composed slot row and credit its bytes
+ * back to the budget, so a spent budget recovers instead of latching off for
+ * the session. Skips rows sampled within `minAgeTicks` pumps. Returns 1 and
+ * fills outSlot and outRow when a row was freed, 0 when everything is hot.
+ *
+ * The caller MUST follow a successful evict with
+ * HiresOverride_PoolSlotRestoreNativeRow for that row — a row at glTexture==0
+ * falls back to ROW 0's palette in the lookup, which is wrong art on the
+ * multi-CLUT slots eviction targets most. */
+/* "Can this (slot,row) be put back to its own native art?" Rows that answer 0
+ * are never evicted — see the note in HiresOverride_EvictColdestPackRow. */
+typedef int (*HiresRestorablePredicate)(int slotId, int row);
+
+int HiresOverride_EvictColdestPackRow(unsigned minAgeTicks,
+                                      HiresRestorablePredicate canRestore,
+                                      int* outSlot, int* outRow);
+
+/* Expand one CLUT row of a raw TIM pixel+palette block to RGBA8 at native
+ * resolution and install it as this slot row's texture, UNCHARGED against the
+ * pack budget. Pairs with the evictor above. Returns 0 on success. */
+int HiresOverride_PoolSlotRestoreNativeRow(int slotId, int row,
+                                           const unsigned char* pixels, int w16, int h,
+                                           const unsigned short* clutRow, int clutW,
+                                           int bpp, int nativePixelW, int nativePixelH);
+
 /* Lower texpack_budget_mb to a fraction of the GPU's reported VRAM. Only ever
  * lowers; needs a live GL context, so call after PsyX_Initialise. */
 void HiresOverride_ClampBudgetToVram(void);

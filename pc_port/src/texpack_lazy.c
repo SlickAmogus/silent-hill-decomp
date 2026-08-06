@@ -33,6 +33,16 @@
 #define LAZY_BURST_FRAMES 180
 #define LAZY_BURST_SCALE  3
 
+/* LRU eviction (see HiresOverride_EvictColdestPackRow). A row sampled within
+ * this many pumped frames is never a candidate, so an actively drawn working
+ * set is never recycled; when the HOT set alone exceeds the budget nothing is
+ * evictable and the pump falls back to keeping native art, which is the old
+ * behaviour and the correct degradation - far better than evict/recompose
+ * thrash. The per-pump cap bounds the glDeleteTextures + native re-upload work
+ * a single frame can take on. */
+#define LAZY_EVICT_MIN_AGE      8
+#define LAZY_EVICT_MAX_PER_PUMP 8
+
 typedef struct {
     unsigned char*  pixels;  /* w16*h halfwords - copy of the TIM pixel block */
     unsigned short* clut;    /* clutW*rows halfwords - copy of the palette block */
@@ -173,6 +183,47 @@ void TexPackLazy_RegisterSlotSource(int slotId, const char* timName,
     }
 }
 
+/* Put an evicted pack row back to correct NATIVE art and re-arm it for compose.
+ *
+ * Clearing `done` is what makes eviction a cache rather than a demotion: the
+ * next prim that samples the row re-enqueues it, and it composes again if the
+ * budget now allows. Without the clear an evicted row would be native forever,
+ * which is the very failure eviction exists to remove. */
+/* Eviction gate: a row is only recyclable while this slot still holds the TIM
+ * blocks its native art is expanded from. */
+static int Lazy_CanRestore(int slotId, int row)
+{
+    const LazySlot* s;
+
+    if (slotId < 0 || slotId >= HIRES_POOL_SLOT_MAX) return 0;
+    if (row < 0 || row >= HIRES_POOL_MAX_ROWS) return 0;
+
+    s = &g_slots[slotId];
+    return s->pixels != NULL && s->clut != NULL && row < s->rows;
+}
+
+void TexPackLazy_RestoreNativeRow(int slotId, int row)
+{
+    LazySlot* s;
+
+    if (slotId < 0 || slotId >= HIRES_POOL_SLOT_MAX) return;
+    if (row < 0 || row >= HIRES_POOL_MAX_ROWS) return;
+
+    s = &g_slots[slotId];
+    if (s->pixels != NULL && s->clut != NULL && row < s->rows)
+    {
+        HiresOverride_PoolSlotRestoreNativeRow(
+            slotId, row, s->pixels, s->w16, s->h,
+            s->clut + (size_t)row * (size_t)s->clutW, s->clutW,
+            s->bpp, s->nativeW, s->nativeH);
+    }
+
+    /* Re-arm even when the source is gone (slot dropped under us): the row is
+     * simply left to whatever the disc-TIM registration put there. */
+    s->done   &= ~(1u << row);
+    s->queued &= ~(1u << row);
+}
+
 void TexPackLazy_NoteWanted(int slotId, int row)
 {
     LazySlot*    s;
@@ -215,20 +266,61 @@ void TexPackLazy_Pump(void)
      * wall-clock window after a map load however little there is to do. */
     if (g_burstFrames > 0) g_burstFrames--;
 
+    /* Advance the LRU clock every pump, including the early-out below: rows
+     * must keep ageing while there is no compose work, or a quiet stretch would
+     * freeze every age and make the next eviction pass see nothing as cold. */
+    HiresOverride_Tick();
+
     if (g_ringHead == g_ringTail) return;
 
-    /* Budget spent: leave the ring INTACT rather than draining it into no-ops
-     * and marking every queued row done, which would keep those rows native
-     * even after a map reset credited the budget back. */
+    /* Budget spent: recycle the coldest rows instead of giving up on the run.
+     *
+     * This used to `return` unconditionally, which made the budget a one-way
+     * ratchet - once any single scene filled it, every later row kept native
+     * art for the rest of the session no matter how far the player walked from
+     * whatever filled it ("uses less VRAM, but stops loading textures after
+     * some point"). Evicting the least-recently-SAMPLED rows turns the budget
+     * into a working-set target: cold art is given back, hot art stays.
+     *
+     * If nothing is old enough to evict, the hot set alone exceeds the budget;
+     * the ring is left INTACT (rather than drained into no-ops that would mark
+     * every queued row done) and those rows keep native art until there is room
+     * - the old behaviour, now reached only in the case that actually warrants
+     * it. */
     if (HiresOverride_PackBudgetExceeded())
     {
-        static int s_budgetLog = 0;
-        if (!s_budgetLog)
+        int evicted = 0;
+
+        while (evicted < LAZY_EVICT_MAX_PER_PUMP && HiresOverride_PackBudgetExceeded())
         {
-            s_budgetLog = 1;
-            SH_DBG("[TEXPACK] GL byte budget reached - further pool rows keep native art");
+            int slotId = -1, row = -1;
+            if (!HiresOverride_EvictColdestPackRow(LAZY_EVICT_MIN_AGE, Lazy_CanRestore,
+                                                   &slotId, &row))
+                break;
+            /* Mandatory: an evicted row left empty resolves to ROW 0's palette
+             * in the lookup, not to native art. */
+            TexPackLazy_RestoreNativeRow(slotId, row);
+            evicted++;
         }
-        return;
+
+        if (evicted > 0 && g_pumpLogs < 256)
+        {
+            g_pumpLogs++;
+            SH_DBG("[TEXPACK/LRU] evicted %d cold row(s), %lld MB pack GL live",
+                   evicted, HiresOverride_PackBytesLive() >> 20);
+        }
+
+        if (HiresOverride_PackBudgetExceeded())
+        {
+            static int s_budgetLog = 0;
+            if (!s_budgetLog)
+            {
+                s_budgetLog = 1;
+                SH_DBG("[TEXPACK] GL byte budget reached and the hot set fills it - "
+                       "further pool rows keep native art until something goes cold");
+            }
+            return;
+        }
     }
 
     budgetMs = g_PcConfig.texpackLazyMs;
@@ -325,31 +417,18 @@ void TexPackLazy_Pump(void)
             }
         }
 
-        /* Terminal state: every row this TIM ships has resolved and none is
-         * queued, so nothing can read the retained source again. Free it now
-         * rather than at the next map change - the measured 2-3 wanted rows of
-         * ~9 resolve within a second or two of entering a map, so holding the
-         * source until then is most of the retain cost for most of the time.
-         * done/rows stay set, and NoteWanted early-outs on the NULL pixels. */
-        if (s->queued == 0 && s->rows > 0 &&
-            s->done == ((1u << s->rows) - 1u) && s->pixels != NULL)
-        {
-            free(s->pixels);
-            free(s->clut);
-            s->pixels = NULL;
-            s->clut   = NULL;
-            g_srcBytes -= s->bytes;
-            s->bytes   = 0;
-            if (g_srcBytes < 0)
-            {
-                SH_DBG("[TEXPACK/LAZY] retain accounting went negative reclaiming slot %d (%lld) - clamped",
-                       slotId, g_srcBytes);
-                g_srcBytes = 0;
-            }
-        }
-
-        /* A row can tip the GL budget over mid-slice; stop before composing
-         * another one that would only be thrown away. */
+        /* The retained source is deliberately NOT freed once every row has
+         * resolved (it used to be). LRU eviction has to be able to put a
+         * recycled row back to correct native art, and the palette expansion
+         * that does it needs exactly these pixel+CLUT blocks; without them an
+         * evicted row would fall back to ROW 0's palette. The sources are
+         * bounded by the live slots and dropped on slot re-register and map
+         * reset, so this is a structural few tens of MB against a
+         * multi-gigabyte texture budget - see LAZY_SRC_CAP_BYTES.
+         *
+         * A row can tip the GL budget over mid-slice; stop before composing
+         * another one that would only be thrown away. The eviction pass at the
+         * top of the next pump reclaims room if any exists. */
         if (HiresOverride_PackBudgetExceeded()) break;
     }
 

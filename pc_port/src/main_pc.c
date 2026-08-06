@@ -771,6 +771,11 @@ int main(int argc, char* argv[])
             {
                 int budgetCap = ramMb / 4;
                 if (budgetCap < 256) budgetCap = 256;
+                /* Published, not just applied: HiresOverride_ClampBudgetToVram runs
+                 * later with a live GL context and may RAISE an unset budget to the
+                 * GPU's reported VRAM. On a shared-memory APU that figure is the same
+                 * RAM this clamp is protecting, so it must not be allowed past here. */
+                g_PcConfig.texpackBudgetCeilingMb = budgetCap;
                 if (g_PcConfig.texpackBudgetMb > budgetCap)
                 {
                     SH_DBG("[TEXPACK] GL texture budget capped %d -> %d MB (low-RAM %d MB machine)",

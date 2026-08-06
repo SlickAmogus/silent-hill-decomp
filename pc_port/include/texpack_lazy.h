@@ -80,6 +80,14 @@ void TexPackLazy_MapReset(void);
  * ShouldDropForClut discriminator, both under DrawOTag. */
 void TexPackLazy_NoteWanted(int slotId, int row);
 
+/* Put a row the LRU evictor just freed back to correct NATIVE art (expanded
+ * from this slot's retained TIM blocks) and clear its resolved bit so a later
+ * sample can compose it again. Must be called for every row
+ * HiresOverride_EvictColdestPackRow reports: a row left empty resolves to ROW
+ * 0's palette in the lookup, not to native art. Pump-time only, same GL-safety
+ * rules as TexPackLazy_Pump. */
+void TexPackLazy_RestoreNativeRow(int slotId, int row);
+
 /* Service the wanted set. MUST run after the frame's OT submit: it creates and
  * REPLACES GL texture objects, and ApplyHiresOverride has already baked GL
  * names into this frame's prims - the same work inside the mid-frame FS-queue

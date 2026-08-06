@@ -118,6 +118,7 @@ static int        g_numEntries = 0;
 static int        g_initialized = 0;
 
 static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int nearest);
+static void bgr555_to_rgba(unsigned short cx, unsigned char* out);
 
 /* Force GL_NEAREST (point) sampling on the next upload(s), set by the font TIM
  * loader. HD font packs paint gutterless glyph cells edge-to-edge, so bilinear
@@ -163,20 +164,27 @@ static void pack_charge(unsigned* slot, int w, int h)
     g_packBytesLive += (long long)*slot;
 }
 
-/* Lower the pack budget to something this GPU can actually hold.
+/* Size the pack budget to what this GPU can actually hold.
  *
- * texpack_budget_mb defaults to 6144 MB, chosen when the cap was only a
- * backstop against a multi-GB whole-map load. It is a HARD cap with no
- * eviction, and a heavy interior genuinely wants more than that, so the process
- * simply climbs to the cap and pins there: 6 GB of pack art plus the native
- * pool rows (uncharged) and driver overhead is the 8-10 GB users report, and on
- * anything under 12 GB it is the crash (GitHub #91).
+ * The shipped `texpack_budget_mb` is a CONSTANT (6144 MB). While this routine
+ * only ever LOWERED it, that constant was the effective budget on every card
+ * bigger than ~13.6 GB: a 16 GB card computes a 7372 MB ceiling, 6144 is
+ * already under it, nothing changes, and the run pins at exactly 6 GB with 8 GB
+ * of VRAM still free — the reported "stops loading textures after some point".
+ * A constant cannot be right for both a 4 GB laptop and a 24 GB desktop, so
+ * when the user has not named a value the budget is DERIVED from the GPU
+ * instead and may be raised as well as lowered.
  *
- * Shaped like the system-RAM clamp in main_pc.c: it only ever LOWERS, so an
- * explicit small value is respected and 0 ("unlimited") stays unlimited by the
- * user's own choice. Needs a live GL context, so it runs after PsyX_Initialise.
- * 45% leaves room for the native rows, the PsyCross framebuffers and the
- * driver's own working set. */
+ * An explicit config value still only ever gets lowered, so a user who wrote a
+ * small number is respected and 0 ("unlimited") stays unlimited by their own
+ * choice. texpackBudgetCeilingMb caps the derivation on shared-memory APUs,
+ * where main_pc.c has already limited pack memory against physical RAM — the
+ * GPU may report plenty of "VRAM" that is really the same RAM the game runs in.
+ *
+ * Needs a live GL context, so it runs after PsyX_Initialise. 45% leaves room
+ * for the native rows, the PsyCross framebuffers and the driver's working set;
+ * with LRU eviction in the pump the budget is now a steady-state working-set
+ * target rather than a one-way ratchet, so overshooting it is self-correcting. */
 void HiresOverride_ClampBudgetToVram(void)
 {
     int dedicatedMb = 0;
@@ -221,11 +229,33 @@ void HiresOverride_ClampBudgetToVram(void)
 
         SH_DBG("[TEXPACK] GPU reports %d MB VRAM; pack budget ceiling %d MB", dedicatedMb, cap);
 
-        if (g_PcConfig.texpackBudgetMb > cap)
+        if (g_PcConfig.texpackBudgetUserSet)
         {
-            SH_DBG("[TEXPACK] GL texture budget capped %d -> %d MB (45%% of %d MB VRAM)",
-                   g_PcConfig.texpackBudgetMb, cap, dedicatedMb);
-            g_PcConfig.texpackBudgetMb = cap;
+            if (g_PcConfig.texpackBudgetMb > cap)
+            {
+                SH_DBG("[TEXPACK] GL texture budget capped %d -> %d MB (45%% of %d MB VRAM)",
+                       g_PcConfig.texpackBudgetMb, cap, dedicatedMb);
+                g_PcConfig.texpackBudgetMb = cap;
+            }
+            return;
+        }
+
+        /* No user value: the GPU decides, up or down. */
+        {
+            int want = cap;
+            if (g_PcConfig.texpackBudgetCeilingMb > 0 &&
+                want > g_PcConfig.texpackBudgetCeilingMb)
+            {
+                want = g_PcConfig.texpackBudgetCeilingMb;
+                SH_DBG("[TEXPACK] VRAM-derived budget held at the %d MB system-RAM ceiling",
+                       want);
+            }
+            if (want != g_PcConfig.texpackBudgetMb)
+            {
+                SH_DBG("[TEXPACK] GL texture budget %d -> %d MB (45%% of %d MB VRAM, auto)",
+                       g_PcConfig.texpackBudgetMb, want, dedicatedMb);
+                g_PcConfig.texpackBudgetMb = want;
+            }
         }
     }
 }
@@ -236,6 +266,162 @@ int HiresOverride_PackBudgetExceeded(void)
     if (cap <= 0)
         return 0; /* 0 = unlimited: use whatever VRAM the system has */
     return g_packBytesLive >= cap;
+}
+
+long long HiresOverride_PackBytesLive(void) { return g_packBytesLive; }
+
+/* ---- Chunk-pool virtual slots (resident_textures) -------------------------
+ * See hires_override.h for the canonical key encoding. Slot texture content
+ * is REPLACED in place when the engine reuses a slot for another TIM. */
+typedef struct {
+    GLuint glTexture[HIRES_POOL_MAX_ROWS]; /* per CLUT row; [0] = base, 0 = empty */
+    int    nativeW, nativeH; /* disc TIM pixel dims — texelSize denominator so
+                              * prim UVs map 0..1 over any replacement size */
+    unsigned rowPackBytes[HIRES_POOL_MAX_ROWS]; /* pack-budget charge per row */
+    unsigned short rowW[HIRES_POOL_MAX_ROWS];   /* GL texture pixel dims per row — */
+    unsigned short rowH[HIRES_POOL_MAX_ROWS];   /* the shader's footprint clamp */
+    unsigned long long rowHash[HIRES_POOL_MAX_ROWS]; /* TexPack_LastComposeHash of each resident row; 0 = unknown */
+    unsigned rowTick[HIRES_POOL_MAX_ROWS];      /* pump tick this row was last SAMPLED (LRU key) */
+} PoolSlotEntry;
+
+static PoolSlotEntry g_poolSlots[HIRES_POOL_SLOT_MAX];
+
+/* Advanced once per pumped frame. Only the ordering matters, so wrap is
+ * harmless: comparisons below are on age (now - tick) in unsigned arithmetic. */
+static unsigned g_hiresTick = 0;
+
+void HiresOverride_Tick(void) { g_hiresTick++; }
+
+/* Free the least-recently-SAMPLED pack-composed row and credit its bytes back.
+ *
+ * Without this the budget is a one-way ratchet: `PackBudgetExceeded` latches on
+ * and every later row keeps native art for the rest of the session, however far
+ * the player walks from whatever filled it. That is the reported "stops loading
+ * textures after some point", and it is why no single budget number can be
+ * right — too small and textures stop, too large and the driver thrashes. The
+ * CPU-side compose cache has had LRU eviction all along (tp_cache_evict_lru);
+ * this is the missing GPU-side half.
+ *
+ * `minAgeTicks` keeps rows sampled in the last few frames off the table. The
+ * pump runs after PsyX_EndScene, so a texture wanted this frame has already
+ * been submitted, but the margin costs nothing and removes any argument about
+ * GL names baked into prims still being in flight.
+ *
+ * The caller MUST restore native art for the returned row (see
+ * HiresOverride_PoolSlotRestoreNativeRow): a row left at glTexture==0 falls
+ * back to row 0's palette in the lookup, which is visibly wrong on the
+ * multi-CLUT slots eviction targets most. Returns 0 when nothing is evictable
+ * (everything is hot), which is the caller's signal to stop trying. */
+int HiresOverride_EvictColdestPackRow(unsigned minAgeTicks,
+                                      HiresRestorablePredicate canRestore,
+                                      int* outSlot, int* outRow)
+{
+    int      bestSlot = -1, bestRow = -1;
+    unsigned bestAge  = 0;
+    int      i, r;
+
+    for (i = 0; i < HIRES_POOL_SLOT_MAX; i++)
+    {
+        PoolSlotEntry* s = &g_poolSlots[i];
+        for (r = 0; r < HIRES_POOL_MAX_ROWS; r++)
+        {
+            unsigned age;
+            /* Only pack-composed rows are worth evicting: a native row costs
+             * the budget nothing, so dropping one frees no bytes and would
+             * just churn the upload. */
+            if (s->rowPackBytes[r] == 0 || s->glTexture[r] == 0) continue;
+            age = g_hiresTick - s->rowTick[r];
+            if (age < minAgeTicks) continue;
+            /* Never free art that cannot be put back. Slots whose retained TIM
+             * blocks are gone (or were never kept - the chara pool registers no
+             * lazy source) have no way back to their own palette, and the
+             * lookup would serve ROW 0's instead: a monster in another
+             * monster's colours. Those rows simply stay resident. */
+            if (canRestore != NULL && !canRestore(i, r)) continue;
+            if (bestSlot < 0 || age > bestAge)
+            {
+                bestAge  = age;
+                bestSlot = i;
+                bestRow  = r;
+            }
+        }
+    }
+
+    if (bestSlot < 0) return 0;
+
+    {
+        PoolSlotEntry* s = &g_poolSlots[bestSlot];
+        glDeleteTextures(1, &s->glTexture[bestRow]);
+        s->glTexture[bestRow] = 0;
+        s->rowHash[bestRow]   = 0;
+        pack_credit(&s->rowPackBytes[bestRow]);
+    }
+
+    if (outSlot) *outSlot = bestSlot;
+    if (outRow)  *outRow  = bestRow;
+    return 1;
+}
+
+/* Expand one CLUT row of a raw TIM pixel+palette block to RGBA8 at native
+ * resolution and install it as this slot row's texture, UNCHARGED against the
+ * pack budget (native rows never were). Restores an evicted row to correct art
+ * rather than leaving the hole described above. */
+int HiresOverride_PoolSlotRestoreNativeRow(int slotId, int row,
+                                           const unsigned char* pixels, int w16, int h,
+                                           const unsigned short* clutRow, int clutW,
+                                           int bpp, int nativePixelW, int nativePixelH)
+{
+    PoolSlotEntry* s;
+    unsigned char* rgba;
+    int            pixW, x, y, rowBytes, rc;
+
+    if (!g_initialized) HiresOverride_Init();
+    if (slotId < 0 || slotId >= HIRES_POOL_SLOT_MAX) return -1;
+    if (row < 0 || row >= HIRES_POOL_MAX_ROWS) return -1;
+    if (pixels == NULL || clutRow == NULL || clutW <= 0) return -1;
+    if (bpp != 4 && bpp != 8) return -1;
+    if (w16 <= 0 || h <= 0) return -1;
+
+    pixW     = (bpp == 4) ? w16 * 4 : w16 * 2;
+    rowBytes = w16 * 2;
+
+    rgba = (unsigned char*)malloc((size_t)pixW * (size_t)h * 4);
+    if (rgba == NULL) return -1;
+
+    for (y = 0; y < h; y++)
+    {
+        const unsigned char* src = pixels + (size_t)y * (size_t)rowBytes;
+        for (x = 0; x < pixW; x++)
+        {
+            unsigned int idx;
+            if (bpp == 4)
+            {
+                unsigned char b = src[x >> 1];
+                idx = (x & 1) ? (unsigned int)((b >> 4) & 0xF) : (unsigned int)(b & 0xF);
+            }
+            else
+            {
+                idx = src[x];
+            }
+            if ((int)idx >= clutW) idx = 0;
+            bgr555_to_rgba(clutRow[idx], &rgba[((size_t)y * (size_t)pixW + (size_t)x) * 4]);
+        }
+    }
+
+    s  = &g_poolSlots[slotId];
+    rc = upload_rgba(&s->glTexture[row], rgba, pixW, h,
+                     (pixW == nativePixelW && h == nativePixelH));
+    free(rgba);
+    if (rc != 0) return -1;
+
+    s->rowW[row]    = (unsigned short)pixW;
+    s->rowH[row]    = (unsigned short)h;
+    s->rowHash[row] = 0;
+    s->rowTick[row] = g_hiresTick;
+    pack_credit(&s->rowPackBytes[row]); /* native art is not pack-budgeted */
+    if (nativePixelW > 0) s->nativeW = nativePixelW;
+    if (nativePixelH > 0) s->nativeH = nativePixelH;
+    return 0;
 }
 
 void HiresOverride_Init(void)
@@ -514,20 +700,6 @@ int HiresOverride_RegisterFromTim(const char* timPath,
     return 0;
 }
 
-/* ---- Chunk-pool virtual slots (resident_textures) -------------------------
- * See hires_override.h for the canonical key encoding. Slot texture content
- * is REPLACED in place when the engine reuses a slot for another TIM. */
-typedef struct {
-    GLuint glTexture[HIRES_POOL_MAX_ROWS]; /* per CLUT row; [0] = base, 0 = empty */
-    int    nativeW, nativeH; /* disc TIM pixel dims — texelSize denominator so
-                              * prim UVs map 0..1 over any replacement size */
-    unsigned rowPackBytes[HIRES_POOL_MAX_ROWS]; /* pack-budget charge per row */
-    unsigned short rowW[HIRES_POOL_MAX_ROWS];   /* GL texture pixel dims per row — */
-    unsigned short rowH[HIRES_POOL_MAX_ROWS];   /* the shader's footprint clamp */
-    unsigned long long rowHash[HIRES_POOL_MAX_ROWS]; /* TexPack_LastComposeHash of each resident row; 0 = unknown */
-} PoolSlotEntry;
-
-static PoolSlotEntry g_poolSlots[HIRES_POOL_SLOT_MAX];
 
 int HiresOverride_PoolSlotRegister(int slotId,
                                    const unsigned char* data, unsigned int size,
@@ -1395,6 +1567,10 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
                 }
                 if (tex != 0)
                 {
+                    /* LRU key: this row is being SAMPLED right now. Stamped on
+                     * the row actually served (useRow), which is the one whose
+                     * texture eviction would delete. */
+                    s->rowTick[useRow] = g_hiresTick;
                     if (outNativePixelW) *outNativePixelW = s->nativeW;
                     if (outNativePixelH) *outNativePixelH = s->nativeH;
                     if (outOffsetX)      *outOffsetX      = 0;

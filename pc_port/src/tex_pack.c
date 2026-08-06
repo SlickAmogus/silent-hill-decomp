@@ -557,6 +557,64 @@ static int Entry_LowerBound(unsigned long long hash)
     return lo;
 }
 
+/* ---- Cached zip readers ----------------------------------------------------
+ * `mz_zip_reader_init_file` OPENS the archive and parses its ENTIRE central
+ * directory. Both entry loaders below used to do that per extracted file and
+ * `mz_zip_reader_end` straight after, so a pack of N textures paid N opens and
+ * N full directory parses on top of the N reads it actually needed. On an HDD
+ * every one of those is a seek, which is why pack stutter was reported as "very
+ * noticeable" there and merely "noticeable" on an SSD.
+ *
+ * One reader per archive, opened on first use and kept for the process:
+ * `Scan_Once` is one-shot and nothing rescans, so there is no reload to
+ * invalidate against. A failed open leaves the slot closed rather than poisoned
+ * so a transient failure retries instead of disabling the archive for the run.
+ *
+ * Single-threaded by construction — every caller is on the pump/queue path. A
+ * background loader would need a per-archive lock (miniz readers are not
+ * re-entrant). */
+static mz_zip_archive* g_zipReaders   = NULL;
+static unsigned char*  g_zipReaderUp  = NULL; /* 1 = that reader is initialised */
+static int             g_zipReaderCap = 0;
+
+static mz_zip_archive* Zip_Reader(int zipIdx)
+{
+    if (zipIdx < 0 || zipIdx >= g_zipCount) return NULL;
+
+    if (g_zipReaderCap < g_zipCount)
+    {
+        mz_zip_archive* nr = (mz_zip_archive*)realloc(g_zipReaders,
+                                 (size_t)g_zipCount * sizeof(mz_zip_archive));
+        unsigned char*  nu = (unsigned char*)realloc(g_zipReaderUp,
+                                 (size_t)g_zipCount);
+        if (nr == NULL || nu == NULL)
+        {
+            /* Keep whatever grew; a NULL realloc leaves the old block valid. */
+            if (nr != NULL) g_zipReaders  = nr;
+            if (nu != NULL) g_zipReaderUp = nu;
+            return NULL;
+        }
+        g_zipReaders  = nr;
+        g_zipReaderUp = nu;
+        memset(&g_zipReaders[g_zipReaderCap], 0,
+               (size_t)(g_zipCount - g_zipReaderCap) * sizeof(mz_zip_archive));
+        memset(&g_zipReaderUp[g_zipReaderCap], 0,
+               (size_t)(g_zipCount - g_zipReaderCap));
+        g_zipReaderCap = g_zipCount;
+    }
+
+    if (!g_zipReaderUp[zipIdx])
+    {
+        if (!mz_zip_reader_init_file(&g_zipReaders[zipIdx], g_zipPaths[zipIdx], 0))
+        {
+            memset(&g_zipReaders[zipIdx], 0, sizeof(mz_zip_archive));
+            return NULL;
+        }
+        g_zipReaderUp[zipIdx] = 1;
+    }
+    return &g_zipReaders[zipIdx];
+}
+
 /* Load a pack entry's raw file bytes (loose fread or zip extract) into a
  * malloc'd buffer the caller frees with free(). Used for BC7 .dds, whose
  * blocks are handed to the GL uploader as-is rather than stbi-decoded. */
@@ -585,13 +643,11 @@ static unsigned char* Entry_LoadRaw(const PackEntry* e, size_t* outSize)
     }
     else
     {
-        mz_zip_archive zip;
-        memset(&zip, 0, sizeof(zip));
-        if (mz_zip_reader_init_file(&zip, g_zipPaths[e->zipIdx], 0))
+        mz_zip_archive* zip = Zip_Reader(e->zipIdx);
+        if (zip != NULL)
         {
             size_t size = 0;
-            void*  data = mz_zip_reader_extract_to_heap(&zip, e->zipEntry, &size, 0);
-            mz_zip_reader_end(&zip);
+            void*  data = mz_zip_reader_extract_to_heap(zip, e->zipEntry, &size, 0);
             if (data != NULL)
             {
                 out = (unsigned char*)malloc(size);
@@ -640,12 +696,10 @@ static unsigned char* Entry_LoadImage(const PackEntry* e, int* outW, int* outH, 
     }
     else
     {
-        mz_zip_archive zip;
-        memset(&zip, 0, sizeof(zip));
-        if (mz_zip_reader_init_file(&zip, g_zipPaths[e->zipIdx], 0))
+        mz_zip_archive* zip = Zip_Reader(e->zipIdx);
+        if (zip != NULL)
         {
-            data = (unsigned char*)mz_zip_reader_extract_to_heap(&zip, e->zipEntry, &size, 0);
-            mz_zip_reader_end(&zip);
+            data = (unsigned char*)mz_zip_reader_extract_to_heap(zip, e->zipEntry, &size, 0);
         }
     }
 

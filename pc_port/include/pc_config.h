@@ -77,6 +77,16 @@ typedef struct {
                            * VRAM wants this high; the cap only exists so whole-map mode cannot try to
                            * upload multi-GB in one load and hang a small GPU. 0 = unlimited
                            * (config key: texpack_budget_mb) */
+    int texpackBudgetUserSet;   /* 1 = texpack_budget_mb came from the config file, so
+                                 * HiresOverride_ClampBudgetToVram may only LOWER it. When 0 the
+                                 * budget is DERIVED from the GPU's reported VRAM instead — the
+                                 * shipped default is a constant and a clamp that only lowers left
+                                 * a 16 GB card pinned at 6 GB with 8 GB free (issue: "stops
+                                 * loading textures after some point"). */
+    int texpackBudgetCeilingMb; /* 0 = none. Hard upper bound from the system-RAM clamp in
+                                 * main_pc.c, which the VRAM derivation must not raise past:
+                                 * on a shared-memory APU, pack textures come out of the same
+                                 * RAM as the game. */
     int texpackLazyMs;    /* Wall-clock milliseconds per frame the demand-driven pack composer
                            * (texpack_lazy.c) may spend on compose + upload. Pool-slot pack rows
                            * are no longer composed at TIM load - they compose when a prim first
