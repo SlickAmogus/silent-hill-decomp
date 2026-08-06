@@ -325,6 +325,11 @@ void GameState_InGame_Update(void) // 0x80038BD4
         func_8005E89C();
         Ipd_CloseRangeChunksInit();
         Gfx_InGameDraw(1);
+#ifdef SH_PC_PORT
+        /* The world is in the OT for this frame, so the fog-colored clear behind
+         * it is correct. Without the world, that clear is the whole image. */
+        { extern int g_PcWorldDrawnThisFrame; g_PcWorldDrawnThisFrame = 1; }
+#endif
         Demo_DemoRandSeedAdvance();
     }
 }

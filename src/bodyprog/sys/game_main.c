@@ -13,6 +13,11 @@ extern int g_PcHorPlusEnabled;
 extern int g_PsxSkipFramebufferStore;
 extern int g_PcAllowDebugControls;
 int g_PcMapScreenActive = 0; /* set while paper-map overlay is displayed */
+
+/* 1 once this frame's Gfx_InGameDraw has submitted the world. The fog-colored
+ * clear is only correct on a frame that actually drew the world behind it; on a
+ * frame that drew nothing it IS the visible image, which is the grey flash. */
+int g_PcWorldDrawnThisFrame = 0;
 /* Set by a freeze-frame state (pause, map messages) when it hands control back,
  * instead of dropping g_PsxPresentLastFrame on the spot. See the release below. */
 int g_PcFreezeReleasePending = 0;
@@ -2141,6 +2146,9 @@ void MainLoop(void) // 0x80032EE0
         /* Same lifecycle for the full-screen puzzle depth flag (map5_s01 lock
          * draw re-arms it while the puzzle is on screen). */
         { extern int g_PcPuzzleItemDepth; g_PcPuzzleItemDepth = 0; }
+        /* Re-armed by the single Gfx_InGameDraw call site during this frame's
+         * state update, and read by the clear-color choice further down. */
+        g_PcWorldDrawnThisFrame = 0;
 #endif
 
         // Call update function for current GameState.
@@ -2888,7 +2896,8 @@ void MainLoop(void) // 0x80032EE0
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
         }
-        else if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled) {
+        else if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled &&
+                 (g_PcWorldDrawnThisFrame || g_PsxPresentLastFrame)) {
             /* Fullscreen 2D background screens (eclipse/plates doors, item
              * inspection) must clear to the game's own color (black) — on PSX
              * the fog void isn't the clear color, so these screens were never
