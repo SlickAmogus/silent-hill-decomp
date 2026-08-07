@@ -31,6 +31,7 @@
 #include "stb_image.h"
 
 #include "pc_config.h"
+#include "hires_override.h" /* HiresOverride_PackBytesLive — GL bytes in the cache stats line */
 #include "sh_log.h"
 #include "dds_load.h" /* BC7 .dds whole-upload pack entries */
 
@@ -1269,9 +1270,17 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
 
         if ((g_tpCacheMisses & 63) == 0)
         {
-            SH_DBG("[TEXPACK] cache: %u hits / %u composes, %d entries, %u MB",
+            /* GL bytes are reported alongside the RAM cache because they are the
+             * figure that actually runs out: the budget latches when spent and,
+             * on the VRAM-rect path, nothing evicts it back. Stacking a second
+             * pack is the usual way to reach it, and without this line the only
+             * evidence is textures quietly staying native. */
+            SH_DBG("[TEXPACK] cache: %u hits / %u composes, %d entries, %u MB RAM; "
+                   "pack GL %lld / %d MB",
                    g_tpCacheHits, g_tpCacheMisses, g_tpCacheCount,
-                   (unsigned)(g_tpCacheBytes >> 20));
+                   (unsigned)(g_tpCacheBytes >> 20),
+                   HiresOverride_PackBytesLive() >> 20,
+                   g_PcConfig.texpackBudgetMb);
         }
     }
 
