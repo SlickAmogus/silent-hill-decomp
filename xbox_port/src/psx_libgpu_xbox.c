@@ -214,6 +214,23 @@ int VSync(int mode)
     GpuXbox_FbStoreFrameTick();      /* latch+reset the per-frame TIM-protect gate
                                       * (g_PsxSkipFramebufferStore) — PsyX_EndScene parity */
 
+    /* Freeze-frame capture, on the RISING EDGE only. The shared code arms
+     * g_PsxPresentLastFrame during the tick that ENTERS pause / item pickup /
+     * map message -- a tick that still renders the world -- and FrameEnd above
+     * has just presented exactly that frame, so the last completed surface is
+     * the live scene we want to hold. */
+    {
+        extern int  g_PsxPresentLastFrame;
+        extern int  GpuNv2a_FreezeCapture(void);
+        extern void GpuNv2a_FreezeRelease(void);
+        static int  s_freezePrev = 0;
+        if (g_PsxPresentLastFrame && !s_freezePrev)
+            GpuNv2a_FreezeCapture();
+        else if (!g_PsxPresentLastFrame && s_freezePrev)
+            GpuNv2a_FreezeRelease();
+        s_freezePrev = g_PsxPresentLastFrame;
+    }
+
     n = (mode == 0) ? 1 : mode;
     for (i = 0; i < n; i++) {
         GpuNv2a_WaitVbl();          /* hold the presented frame for one vblank */
@@ -226,6 +243,17 @@ int VSync(int mode)
     }
 
     GpuNv2a_FrameBegin();           /* clear + target the next frame's back buffer */
+
+    /* ...then lay the frozen gameplay frame under it, so this state's UI (PAUSED
+     * text, the rotating pickup model, map messages) composes over the real
+     * scene instead of the cleared background. Must follow FrameBegin: the clear
+     * would otherwise wipe it. */
+    {
+        extern int  g_PsxPresentLastFrame;
+        extern void GpuNv2a_FreezeBlit(void);
+        if (g_PsxPresentLastFrame)
+            GpuNv2a_FreezeBlit();
+    }
     if ((s_vblanks % 600) == 0) {
         extern void Xbox_MemReport(const char*);
         extern void Pgxp_CovDump(void);

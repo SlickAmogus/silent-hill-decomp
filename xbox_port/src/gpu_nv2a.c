@@ -429,6 +429,70 @@ const void* GpuNv2a_ReadbackSurface(int fromLastQueued, int* w, int* h, int* pit
     return fb;
 }
 
+/* ---- Freeze-frame (g_PsxPresentLastFrame) --------------------------------
+ * PSX never auto-cleared the framebuffer, so pausing simply left the last
+ * gameplay render on screen. The shared code models that by arming
+ * g_PsxPresentLastFrame on the ENTRY tick -- which still renders the world
+ * normally -- and expects the backend to re-present that captured frame for as
+ * long as the flag is held. Xbox had no consumer for it, so pause / item
+ * pickup / map messages just showed the cleared background: the reported grey
+ * screen. Capture once on the rising edge (the frame just presented IS the last
+ * gameplay render), then blit it under each subsequent frame so only that
+ * state's UI draws on top.
+ *
+ * Why capture-once + CPU blit rather than re-presenting the old buffer: the
+ * buffers alternate and get cleared, and the UI (a rotating pickup model) must
+ * compose over a CLEAN copy each frame or it smears. The one-time readback of
+ * write-combined memory is the known ~20ms cost (never per-frame, and only at
+ * the moment of pausing); the per-frame direction is a plain RAM->WC write,
+ * which is fast. Allocation failure degrades to the old grey, never a crash. */
+static void* s_freezeBuf;
+static int   s_freezeH, s_freezePitch;
+
+int GpuNv2a_FreezeCapture(void)
+{
+    int         w = 0, h = 0, pitch = 0;
+    const void* fb = GpuNv2a_ReadbackSurface(1 /* last COMPLETED frame */, &w, &h, &pitch);
+    size_t      bytes;
+
+    if (!fb || w <= 0 || h <= 0 || pitch <= 0)
+        return 0;
+    bytes = (size_t)pitch * (size_t)h;
+    if (s_freezeBuf && (h != s_freezeH || pitch != s_freezePitch)) {
+        free(s_freezeBuf);
+        s_freezeBuf = 0;                       /* resolution changed */
+    }
+    if (!s_freezeBuf) {
+        s_freezeBuf = malloc(bytes);
+        if (!s_freezeBuf)
+            return 0;
+    }
+    memcpy(s_freezeBuf, fb, bytes);
+    s_freezeH     = h;
+    s_freezePitch = pitch;
+    return 1;
+}
+
+void GpuNv2a_FreezeBlit(void)
+{
+    void* bb;
+    if (!s_freezeBuf)
+        return;
+    GpuNv2a_FlushBatch();                      /* nothing pending over the copy */
+    bb = (void*)pb_back_buffer();
+    if (!bb || (int)pb_back_buffer_pitch() != s_freezePitch)
+        return;
+    memcpy(bb, s_freezeBuf, (size_t)s_freezePitch * (size_t)s_freezeH);
+}
+
+void GpuNv2a_FreezeRelease(void)
+{
+    if (s_freezeBuf) {
+        free(s_freezeBuf);
+        s_freezeBuf = 0;
+    }
+}
+
 /* Millisecond clock for the readback's took= probe (KeTickCount is the kernel's
  * 1ms tick counter; integer only — nxdk printf drops %f). */
 int GpuNv2a_Ms(void)

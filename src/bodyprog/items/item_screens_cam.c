@@ -308,14 +308,17 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
          * g_PcItemPreciseDepth. */
         g_PcItemPreciseDepth = (g_GameWork.gameState == GameState_InventoryScreen) || (arg2 == 2);
 #ifdef SH_XBOX_PORT
-        /* Xbox full-resolution OT re-bucketing: INVENTORY ONLY. The pickup path
-         * (arg2==2) is deliberately excluded for now -- it sorts into a live
-         * frame, and re-ordering prims among the world's texture-page state
-         * corrupts every texture drawn afterwards and tanks the frame rate
-         * (observed in-game). Re-enable for pickups only once the world-freeze
-         * is verified to leave that OT holding the model alone. */
+        /* Xbox full-resolution OT re-bucketing. Safe ONLY where the ordering
+         * table holds the model alone, because re-ordering prims among a live
+         * frame's texture-page state corrupts every texture drawn afterwards
+         * (that was the in-game regression). Two such places:
+         *   - the inventory (the world is not drawn at all), and
+         *   - the world pickup (arg2==2), where Gfx_PickupItemAnimate now
+         *     freezes the scene: BgmStatusFlag_Pause gates the world/player/NPC
+         *     draw and g_PsxPresentLastFrame re-presents the captured frame, so
+         *     the only thing sorted is the item. */
         { extern int g_PcItemOtzFine;
-          g_PcItemOtzFine = (g_GameWork.gameState == GameState_InventoryScreen); }
+          g_PcItemOtzFine = (g_GameWork.gameState == GameState_InventoryScreen) || (arg2 == 2); }
 #endif
         if (displayItemIdx < 7 && g_PcInvDimStrength > 0) {
             /* depth past center = t[2]+Q8(4) = |Math_Sin(slot*256)| (Q12):
