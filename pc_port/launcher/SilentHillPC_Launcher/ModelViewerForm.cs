@@ -35,6 +35,8 @@ namespace SilentHillPC_Launcher
 
         private IlmViewScene _scene;                // null until a model is opened
         private IlmObjConverter.AnimScene _anim;    // null for .OBJ / .TMD scenes
+        private string _loadedPath;                 // what LoadPath opened; TMD export needs it
+        private bool _loadedIsTmd;
         private string _gameRoot;                   // null when opened without one
         private int[] _vertPart, _vertLocal;        // scene vertex -> (part, local)
 
@@ -205,7 +207,11 @@ namespace SilentHillPC_Launcher
             _distHome = scene.Radius * 2.6f + 1.0f;
             _chkTex.Checked = scene.HasTexture;
             _chkTex.Enabled = scene.HasTexture;
-            _miExportThis.Enabled = _anim != null && _anim.IlmPath != null;
+            _loadedPath = path;
+            _loadedIsTmd = string.Equals(Path.GetExtension(path), ".TMD", StringComparison.OrdinalIgnoreCase);
+            // A TMD scene carries no AnimScene (it has no bones), so the export item
+            // used to stay greyed out on exactly the models TmdObjConverter handles.
+            _miExportThis.Enabled = (_anim != null && _anim.IlmPath != null) || _loadedIsTmd;
             _lblInfo.Text = scene.Parts + " parts   " + scene.VertexCount + " verts   " + scene.Tris.Count + " tris" +
                             "   |   drag: orbit    right-drag: pan    wheel: zoom";
             Text = "Model Viewer — " + scene.Title;
@@ -257,12 +263,19 @@ namespace SilentHillPC_Launcher
 
             var conv = new ToolStripMenuItem("&Convert");
             _miExportThis = new ToolStripMenuItem("Export &This Model → OBJ…");
-            _miExportThis.Click += (s, e) => ConverterActions.ExportModelFrom(this, _anim.IlmPath);
+            _miExportThis.Click += (s, e) =>
+            {
+                if (_loadedIsTmd) ConverterActions.ExportTmdFrom(this, _loadedPath);
+                else ConverterActions.ExportModelFrom(this, _anim.IlmPath);
+            };
             _miExportThis.Enabled = false;
             conv.DropDownItems.Add(_miExportThis);
             conv.DropDownItems.Add("&Model → OBJ…", null, (s, e) => ConverterActions.ExportModel(this, RootOrGuess()));
             conv.DropDownItems.Add("&OBJ → Model (high-poly)…", null, (s, e) => ConverterActions.HighPolyImport(this, RootOrGuess()));
             conv.DropDownItems.Add("&Simple OBJ → Model…", null, (s, e) => ConverterActions.SimpleImport(this, RootOrGuess()));
+            conv.DropDownItems.Add(new ToolStripSeparator());
+            conv.DropDownItems.Add("&TMD → OBJ… (item models)", null, (s, e) => ConverterActions.ExportTmd(this, RootOrGuess()));
+            conv.DropDownItems.Add("OBJ → &TMD…", null, (s, e) => ConverterActions.ImportTmd(this, RootOrGuess()));
 
             var animM = new ToolStripMenuItem("&Animation");
             animM.DropDownItems.Add("Choose &ANM…", null, (s, e) => OnChooseAnm());

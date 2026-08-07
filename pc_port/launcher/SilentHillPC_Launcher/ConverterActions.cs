@@ -102,6 +102,203 @@ namespace SilentHillPC_Launcher
             }
         }
 
+        /// <summary>"TMD → OBJ…": item models (ITEM/IT_00x banks, UNQ* close-ups,
+        /// FOOK). Separate from ExportModel because a TMD is a different format with
+        /// no bones — see TmdObjConverter for the conventions.</summary>
+        public static void ExportTmd(IWin32Window owner, string gameRoot)
+        {
+            string tmd;
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select an item model (.TMD)";
+                ofd.Filter = "PSX item models (*.tmd)|*.tmd|All files (*.*)|*.*";
+                string items = Path.Combine(Path.Combine(gameRoot, "gamedata"), "ITEM");
+                string gamedata = Path.Combine(gameRoot, "gamedata");
+                if (Directory.Exists(items)) ofd.InitialDirectory = items;
+                else if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
+                if (ofd.ShowDialog(owner) != DialogResult.OK) return;
+                tmd = ofd.FileName;
+            }
+            ExportTmdFrom(owner, tmd);
+        }
+
+        /// <summary>Export with the .TMD already chosen (the viewer exports the model
+        /// it is showing).</summary>
+        public static void ExportTmdFrom(IWin32Window owner, string tmd)
+        {
+            string outObj;
+            using (var sfd = new SaveFileDialog())
+            {
+                sfd.Title = "Save item model as OBJ";
+                sfd.Filter = "Wavefront OBJ (*.obj)|*.obj|All files (*.*)|*.*";
+                sfd.InitialDirectory = Path.GetDirectoryName(tmd);
+                sfd.FileName = Path.GetFileNameWithoutExtension(tmd) + ".obj";
+                if (sfd.ShowDialog(owner) != DialogResult.OK) return;
+                outObj = sfd.FileName;
+            }
+
+            // VRAM page 14 hosts TIM01..06, one per map, so which palette an item's
+            // texture should decode with is genuinely ambiguous from the TMD alone.
+            // Ask rather than silently pick, and let the answer ride along in the meta.
+            string tpage14 = TmdViewSceneBuilder.Tpage14Candidates[0];
+            using (var pick = new TmdPageDialog())
+            {
+                if (pick.ShowDialog(owner) != DialogResult.OK) return;
+                tpage14 = pick.Selected;
+            }
+
+            TmdObjConverter.ExportResult res = null;
+            try
+            {
+                ProgressDialog.Run(owner, "Exporting item model…",
+                    r => { res = TmdObjConverter.Export(tmd, outObj, tpage14); });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(owner, "Export failed:\n\n" + ex.Message, "TMD → OBJ",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            if (res == null || !string.IsNullOrEmpty(res.Error))
+            {
+                MessageBox.Show(owner, "Export failed:\n\n" + (res != null ? res.Error : "unknown error"),
+                    "TMD → OBJ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string msg = "Wrote " + res.Objects + " object(s), " + res.Vertices + " vertices, " +
+                res.Prims + " face(s) and " + res.Materials + " material(s):\n" + res.ObjPath +
+                "\n\nBeside it: " + Path.GetFileName(res.MtlPath) + " and " + Path.GetFileName(res.MetaPath) +
+                (res.Pages > 0 ? " plus " + res.Pages + " texture page PNG(s)" : "") + ".";
+            if (res.Objects > 1)
+                msg += "\n\nThis is a BANK: its " + res.Objects + " items are separate objects that all sit " +
+                       "on the origin (a TMD stores no placement), so they overlap in Blender. " +
+                       "Hide all but the one you are editing.";
+            msg += "\n\nEdit vertex positions freely, but do not add, remove or rename objects, " +
+                   "and do not add, delete or triangulate faces — \"OBJ → TMD\" patches the original " +
+                   "file and needs the topology intact.";
+            if (res.Warnings.Count > 0)
+                msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
+                       string.Join("\n - ", res.Warnings.Take(8)) +
+                       (res.Warnings.Count > 8 ? "\n - …" : "");
+            if (MessageBox.Show(owner, msg + "\n\nOpen the output folder?", "TMD → OBJ",
+                    MessageBoxButtons.YesNo,
+                    res.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information) == DialogResult.Yes)
+            { try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.ObjPath)); } catch { } }
+        }
+
+        /// <summary>"OBJ → TMD…": patch an edited OBJ back over the original item
+        /// model. Same shape as SimpleImport — the original is the template and every
+        /// non-geometry byte is carried over from it.</summary>
+        public static void ImportTmd(IWin32Window owner, string gameRoot)
+        {
+            string obj;
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select your edited item model (.obj)";
+                ofd.Filter = "Wavefront OBJ (*.obj)|*.obj|All files (*.*)|*.*";
+                string gamedata = Path.Combine(gameRoot, "gamedata");
+                if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
+                if (ofd.ShowDialog(owner) != DialogResult.OK) return;
+                obj = ofd.FileName;
+            }
+
+            string tmd = GuessTmdFor(obj);
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select the ORIGINAL item model (.TMD) this OBJ came from";
+                ofd.Filter = "PSX item models (*.tmd)|*.tmd|All files (*.*)|*.*";
+                if (tmd != null) { ofd.InitialDirectory = Path.GetDirectoryName(tmd); ofd.FileName = Path.GetFileName(tmd); }
+                else ofd.InitialDirectory = Path.GetDirectoryName(obj);
+                if (ofd.ShowDialog(owner) != DialogResult.OK) return;
+                tmd = ofd.FileName;
+            }
+
+            string outTmd;
+            using (var sfd = new SaveFileDialog())
+            {
+                sfd.Title = "Save the patched item model";
+                sfd.Filter = "PSX item models (*.tmd)|*.tmd|All files (*.*)|*.*";
+                sfd.InitialDirectory = Path.GetDirectoryName(obj);
+                sfd.FileName = Path.GetFileName(tmd);
+                if (sfd.ShowDialog(owner) != DialogResult.OK) return;
+                outTmd = sfd.FileName;
+            }
+            if (string.Equals(Path.GetFullPath(outTmd), Path.GetFullPath(tmd), StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show(owner, "Choose a different output file — the original is the template " +
+                    "and overwriting it would leave you with nothing to import against next time.",
+                    "OBJ → TMD", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            TmdObjConverter.ImportResult res = null;
+            try
+            {
+                ProgressDialog.Run(owner, "Patching item model…",
+                    r => { res = TmdObjConverter.Import(obj, tmd, outTmd); });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(owner, "Import failed:\n\n" + ex.Message, "OBJ → TMD",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            if (res == null || !string.IsNullOrEmpty(res.Error))
+            {
+                MessageBox.Show(owner, "Import failed:\n\n" + (res != null ? res.Error : "unknown error"),
+                    "OBJ → TMD", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string msg = "Patched " + res.Objects + " object(s): " + res.Vertices + " vertices, " +
+                res.Normals + " normals and " + res.Uvs + " texture coordinate(s).\n" + res.OutPath +
+                "\n\nDrop it into gamedata\\load\\ITEM\\ under the ORIGINAL name (" +
+                Path.GetFileName(tmd) + ") and set allow_loose_files = 1." +
+                "\n\nKeep the CLUT and tpage words as they were: a modded TMD has to reuse the " +
+                "stock VRAM pages, because the game decides what is uploaded there.";
+            if (res.Warnings.Count > 0)
+                msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
+                       string.Join("\n - ", res.Warnings.Take(10)) +
+                       (res.Warnings.Count > 10 ? "\n - …" : "");
+            if (MessageBox.Show(owner, msg + "\n\nOpen the output folder?", "OBJ → TMD",
+                    MessageBoxButtons.YesNo,
+                    res.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information) == DialogResult.Yes)
+            { try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.OutPath)); } catch { } }
+        }
+
+        /// <summary>Best-effort guess at the .TMD an exported .obj came from: the meta
+        /// file records the source name, so read it rather than guessing on stem.</summary>
+        private static string GuessTmdFor(string objPath)
+        {
+            try
+            {
+                string dir = Path.GetDirectoryName(objPath);
+                string meta = Path.Combine(dir, Path.GetFileNameWithoutExtension(objPath) + ".tmdmeta.json");
+                if (File.Exists(meta))
+                {
+                    foreach (string line in File.ReadAllLines(meta))
+                    {
+                        int i = line.IndexOf("\"source\"", StringComparison.Ordinal);
+                        if (i < 0) continue;
+                        int a = line.IndexOf('"', i + 8);
+                        if (a < 0) continue;
+                        a = line.IndexOf('"', a + 1);
+                        if (a < 0) continue;
+                        int b = line.IndexOf('"', a + 1);
+                        if (b <= a) continue;
+                        string name = line.Substring(a + 1, b - a - 1);
+                        string cand = Path.Combine(dir, name);
+                        if (File.Exists(cand)) return cand;
+                    }
+                }
+                string sib = Path.Combine(dir, Path.GetFileNameWithoutExtension(objPath) + ".TMD");
+                if (File.Exists(sib)) return sib;
+            }
+            catch (Exception) { }
+            return null;
+        }
+
         /// <summary>High-poly replacement flow: the checkbox dialog collects the model, the donor
         /// ILM and which automatic fixes to run, then BuildHighPoly does atlas + geometry + v7 in one
         /// pass (or geometry + v7 when auto-texture is off).</summary>

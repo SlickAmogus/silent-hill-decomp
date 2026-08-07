@@ -512,6 +512,29 @@ namespace SilentHillPC_Launcher
             return page;
         }
 
+        /// <summary>Decode one (tpage, CLUT row) combo to a standalone 256x256 ARGB
+        /// page — the same art <see cref="Build"/> packs into its atlas, but on its
+        /// own so the OBJ exporter can write one PNG per page and keep the OBJ's UVs
+        /// in plain per-page space (u = tu/256) instead of atlas space. Returns false
+        /// and appends a warning when the page cannot be resolved.</summary>
+        public static bool TryDecodePageArgb(int tpage, int clutRow, string tmdPath, string tpage14Tim,
+                                             out int[] argb, out string timName, List<string> warnings)
+        {
+            argb = null;
+            timName = null;
+            if (warnings == null) warnings = new List<string>();
+            if (string.IsNullOrEmpty(tpage14Tim)) tpage14Tim = Tpage14Candidates[0];
+
+            var warned = new HashSet<string>();
+            var pixels = new List<int[]>();
+            var cache = new Dictionary<string, TimEntry>(StringComparer.OrdinalIgnoreCase);
+            var page = BuildPage(tpage, clutRow, tmdPath, tpage14Tim, cache, pixels, warned, warnings);
+            if (page == null || pixels.Count == 0) return false;
+            argb = pixels[0];
+            timName = page.TimName;
+            return true;
+        }
+
         private static string StockTimForTpage(int tpage, string tpage14Tim)
         {
             // tpage id: bits 0-3 page x, bit 4 page y, bits 7-8 texel depth. The item

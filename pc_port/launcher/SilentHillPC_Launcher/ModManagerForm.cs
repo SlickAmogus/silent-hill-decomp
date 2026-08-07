@@ -154,8 +154,19 @@ namespace SilentHillPC_Launcher
             var btnBp = new Button { Text = "Bulk → PNG…",  Location = new Point(510, 290), Size = new Size(78, 28) };
             var btnRef = new Button { Text = "Reference ▾", Location = new Point(510, 322), Size = new Size(78, 28) };
             var btnReb = new Button { Text = "Rebuild…",    Location = new Point(510, 354), Size = new Size(78, 28) };
-            var btnMo = new Button { Text = "Model → OBJ…", Location = new Point(510, 386), Size = new Size(78, 28) };
-            var btnOm = new Button { Text = "OBJ → Model…", Location = new Point(510, 418), Size = new Size(78, 28) };
+            // Characters and item models are different formats with different rules,
+            // so each direction is a dropdown rather than a button per combination —
+            // the tool column has no room left, and the DDS button below already
+            // establishes the pattern.
+            var btnMo = new Button { Text = "Model → OBJ ▾", Location = new Point(510, 386), Size = new Size(78, 28) };
+            var btnOm = new Button { Text = "OBJ → Model ▾", Location = new Point(510, 418), Size = new Size(78, 28) };
+            var moMenu = new ContextMenuStrip();
+            moMenu.Items.Add("Character (.ILM / .PLM)…", null, (s, e) => OnExportModel());
+            moMenu.Items.Add("Item model (.TMD)…",       null, (s, e) => ConverterActions.ExportTmd(this, _gameRoot));
+            var omMenu = new ContextMenuStrip();
+            omMenu.Items.Add("Character — high-poly…", null, (s, e) => OnImportModel());
+            omMenu.Items.Add("Character — simple…",    null, (s, e) => ConverterActions.SimpleImport(this, _gameRoot));
+            omMenu.Items.Add("Item model (.TMD)…",     null, (s, e) => ConverterActions.ImportTmd(this, _gameRoot));
             var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 450), Size = new Size(78, 28) };
             _btnTips = new ToolTip();
             _btnTips.SetToolTip(btnEx, "Unpack a Silent Hill .bin disc image into the loose asset tree.");
@@ -166,12 +177,16 @@ namespace SilentHillPC_Launcher
                 "the whole disc in one pass.");
             _btnTips.SetToolTip(btnReb, "Rebuild Textures: slice your edited reference image back into the per-row " +
                 "NAME.TIM.pNN.png files the game loads (gamedata/load/<FOLDER>/). No 16-colour-per-region limit — paint freely.");
-            _btnTips.SetToolTip(btnMo, "Model → OBJ: write a character model out as a .obj (plus .mtl and .ilmmeta.json) you can " +
-                "open in Blender. Each 'o' object is ONE rigid animated body part — reshape its vertices freely, but do NOT " +
-                "rename, add or remove objects: that list is the rig, and changing it breaks the animation.");
-            _btnTips.SetToolTip(btnOm, "OBJ → Model: opens the high-poly replacement dialog (browse your model + the " +
-                "character to replace, tick the fixes, Help explains each). A \"Simple…\" button there switches to " +
-                "reshaping an existing character (patch / grow / replace, vertex-limited).");
+            _btnTips.SetToolTip(btnMo, "Model → OBJ: write a model out as a .obj you can open in Blender.\n\n" +
+                "Character (.ILM/.PLM): each 'o' object is ONE rigid animated body part — reshape its vertices freely, " +
+                "but do NOT rename, add or remove objects: that list is the rig, and changing it breaks the animation.\n\n" +
+                "Item model (.TMD): the pickup and inventory items (IT_00x banks, UNQ close-ups, the meat hook). " +
+                "A bank's items all sit on the origin and overlap — hide all but the one you are editing.");
+            _btnTips.SetToolTip(btnOm, "OBJ → Model: fold an edited .obj back into a game model.\n\n" +
+                "Character — high-poly: browse your model + the character to replace, tick the fixes (Help explains each).\n" +
+                "Character — simple: reshape an existing character within its vertex limit (patch / grow / replace).\n" +
+                "Item model (.TMD): patch an edited item back over the original, which supplies every non-geometry byte. " +
+                "Vertex counts and the face list must be unchanged.");
             _btnTips.SetToolTip(btnVw, "Model Viewer: a 3D window for .ILM characters (with .ANM animation playback), " +
                 ".PLM props, .TMD items and edited .obj files — textured with their real in-game palettes. " +
                 "Open models from its File menu or drag & drop them onto it.");
@@ -184,8 +199,8 @@ namespace SilentHillPC_Launcher
             refMenu.Items.Add("Every texture…", null, (s, e) => OnBuildAllReferences());
             btnRef.Click += (s, e) => refMenu.Show(btnRef, new Point(0, btnRef.Height));
             btnReb.Click += (s, e) => OnRebuildTextures();
-            btnMo.Click += (s, e) => OnExportModel();
-            btnOm.Click += (s, e) => OnImportModel();
+            btnMo.Click += (s, e) => moMenu.Show(btnMo, new Point(0, btnMo.Height));
+            btnOm.Click += (s, e) => omMenu.Show(btnOm, new Point(0, btnOm.Height));
             btnVw.Click += (s, e) => OnViewModel();
             btnHelp.Click += (s, e) => ShowLooseModHelp();
             Controls.Add(btnEx);

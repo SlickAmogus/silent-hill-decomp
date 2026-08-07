@@ -80,6 +80,8 @@
     <Compile Include="IlmObjConverter.cs" />
     <Compile Include="AnmFile.cs" />
     <Compile Include="TmdFile.cs" />
+    <Compile Include="TmdObjConverter.cs" />
+    <Compile Include="TmdPageDialog.cs" />
     <Compile Include="ConverterActions.cs" />
     <Compile Include="DdsConverter.cs" />
     <Compile Include="ModelViewerForm.cs">

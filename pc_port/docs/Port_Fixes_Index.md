@@ -2343,3 +2343,69 @@ FS_BUFFER_0, so the compensation stays correct whatever HB_BASE holds.
 (scratch harness reproducing the same byte patch): Cybil's neck normal,
 Kaufmann's collar mass gone and his shoes attached, Lisa's proportions natural,
 Dahlia unchanged. Numbers the harness derived independently match the engine's.
+
+## TMD ↔ OBJ converters — item models are editable (2026-08-07, launcher 2026.8.7.1)
+
+The Model Viewer gained .TMD support in 2.0, but "Export This Model → OBJ…" was
+gated on `_anim != null && _anim.IlmPath != null` and a TMD scene carries no
+`AnimScene` (it has no bones) — so the menu item was greyed out on exactly the
+models the new parser could read. `TmdObjConverter.cs` supplies the missing
+pair; the menu item now dispatches on the loaded extension.
+
+**Every convention was MEASURED against all 90 shipped TMDs (40 703 prims), not
+carried over from `IlmObjConverter` — and two of them differ:**
+
+- **Normal orientation.** A TMD normal is ANTI-PARALLEL to
+  `cross(v1-v0, v2-v0)` in 40 665 of 40 679 non-degenerate prims (100.0%; the 14
+  exceptions are near-degenerate slivers). Reflecting Y to reach OBJ's Y-up space
+  negates cross products, so exporting positions as `(x, -y, z)` and normals as
+  `(nx, -ny, nz)` — the SAME transform, corner order untouched — leaves winding
+  and vertex normals agreeing and pointing outward. This is NOT the ILM rule
+  (`(-x, y, -z)`, because ILM normals are authored inward); using ILM's rule here
+  lights every item from the inside. Independently confirmed: stored TMD normals
+  point away from the object centroid in 306 of 308 objects.
+- **Quad corner order DOES carry over**: a TMD quad is a triangle STRIP (tris
+  0,1,2 and 1,3,2) against OBJ's perimeter LOOP, so corners emit `0,1,3,2` — an
+  involution, so import reuses the one table.
+
+**Import PATCHES IN PLACE**, like the ILM importer and for the same reason: it
+preserves every non-geometry byte for free. That matters more than expected here
+— 88 of 90 files carry trailing bytes after the last normal block, and in 80 of
+those the tail is a literal copy of the file's own opening bytes (a CD-extraction
+artifact). Topology is immutable; object/face/corner counts must match the
+template, and mismatches fail with a located message rather than a silent
+scramble. Vertex slots are resolved through FACE CORNERS, not by trusting the
+OBJ's v-block order, because Blender renumbers freely.
+
+Other verified layout facts: sections are laid out `[all prims][all verts][all
+normals]`; offsets are relative to the object table at 0xC; vertex/normal entries
+are 8 bytes with the 4th halfword always 0; `flag` and object `scale` are always
+0; on a textured prim corner 0's word is the CLUT id, corner 1's the tpage id and
+corners 2..3's are padding (always 0).
+
+**Validation (all three, because the first two are individually blind):**
+1. Round-trip over all 90 shipped TMDs: **90/90 byte-identical**, 0 errors.
+2. Independent check on the exported OBJ — face winding vs its own `vn`:
+   **40 665/40 679 = 99.97%** agree, **0** files majority-inverted. (A byte-exact
+   round-trip cannot see a shared export/import assumption — that is exactly how
+   the ILM converter's first ship was a visual disaster.)
+3. **Rendered and looked at**: FOOK, IT_000, IT_003, UNQ20/30/40/50/60, UNQC1,
+   UNQE1 — hook, bottles, keys and boxes, smoothly lit, no bowties, no
+   inside-out faces.
+4. Perturbation: shifting an OBJ's vertices +7X/−3Y patched through and
+   re-exported at exactly the shifted values (96 verts, 91 normals, 564 UVs).
+
+**UI.** The tool column was full, so "Model → OBJ" and "OBJ → Model" became
+dropdowns (the "DDS ▾" pattern): character vs item model, and the OBJ → Model
+menu now also surfaces the **simple** character import that was previously
+reachable only from a button inside the high-poly dialog. The Model Viewer's
+Convert menu gains "TMD → OBJ…" and "OBJ → TMD…". Export asks which of TIM01..06
+to decode previews with (`TmdPageDialog`) — VRAM page 14 holds one per-map bank
+at a time, so it is genuinely ambiguous from the TMD alone; the choice affects
+only the preview PNGs, never the geometry.
+
+**Known limits:** a bank file's objects all sit on the origin (a TMD stores no
+placement) so they overlap in Blender — the dialog says so. Adding or removing
+geometry is not supported; the engine's big-TMD path (`pc_big_tmd.c`) would allow
+it, but a rewrite has to reproduce the section layout and the trailing bytes, and
+modded TMDs must reuse the stock VRAM tpage/CLUT words either way.
