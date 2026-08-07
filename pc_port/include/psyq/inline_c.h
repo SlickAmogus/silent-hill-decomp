@@ -40,21 +40,20 @@
  * 2026-05-01 21:37 (ParsePrimitivesLinkedList +0xa5, bad next-pointer
  * with the muzzle-flash tpage byte 0x2B in upper bytes). */
 #undef gte_stsxy3_g3
-#if defined(_M_X64) || defined(__amd64__) || defined(SH_PC_PORT)
+/* Struct-derived slot offsets -- see the full explanation on the canonical copy
+ * in pc_port/include/inline_no_dmpsx.h. Short version: the old
+ * `defined(SH_PC_PORT)` branch used the LP64 offsets 16/24/32, but a 32-bit
+ * SH_PC_PORT build (the Xbox port) has P_LEN=2 and its real slots at 12/20/28,
+ * so all three coordinates were written into the texture words and x0..x2 kept
+ * stale packet bytes. BOTH copies must be fixed: particle_glass.c includes
+ * inline_no_dmpsx.h first but then pulls this header in via bodyprog.h, and
+ * this later #undef/#define is the one that wins in those TUs. */
 #define gte_stsxy3_g3( p ) do { \
-    char *_b = (char*)(p); \
-    *(uint*)(_b + 16) = MFC2(12); \
-    *(uint*)(_b + 24) = MFC2(13); \
-    *(uint*)(_b + 32) = MFC2(14); \
+    POLY_FT3 *_q = (POLY_FT3*)(void*)(p); \
+    *(uint*)&_q->x0 = MFC2(12); \
+    *(uint*)&_q->x1 = MFC2(13); \
+    *(uint*)&_q->x2 = MFC2(14); \
 } while(0)
-#else
-#define gte_stsxy3_g3( p ) do { \
-    char *_b = (char*)(p); \
-    *(uint*)(_b + 8)  = MFC2(12); \
-    *(uint*)(_b + 16) = MFC2(13); \
-    *(uint*)(_b + 24) = MFC2(14); \
-} while(0)
-#endif
 
 /* gte_stsz3c: store SZ1/SZ2/SZ3 (GTE C17-19) with PSX `swc2` stride (4 bytes).
  * Mirrors the canonical fix in pc_port/include/inline_no_dmpsx.h. Kept here

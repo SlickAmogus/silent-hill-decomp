@@ -91,22 +91,34 @@ extern void PGXP_StoreAddr(void* addr, int slot);
  * On PSX (32-bit, non-extended) compiles, fall back to the original
  * offsets so this header stays valid for both targets. */
 #undef gte_stsxy3_g3
-#if defined(_M_X64) || defined(__amd64__) || defined(SH_PC_PORT)
+/* Let the COMPILER derive the X/Y slot offsets from the struct instead of
+ * hardcoding one ABI's byte offsets.
+ *
+ * The bug this fixes (32-bit + SH_PC_PORT, i.e. ONLY the Xbox build): the
+ * prim header DECLARE_P_ADDR is 12 bytes on LP64 but 8 on 32-bit, so P_LEN is
+ * 3 longs there and 2 here. The old `defined(SH_PC_PORT)` branch therefore
+ * applied the LP64 offsets 16/24/32 to a build whose real slots are 12/20/28 --
+ * verified by compiling offsetof against the live headers: P_LEN=2,
+ * sizeof(POLY_FT4)=44, x0=12 x1=20 x2=28, u0=16. So every screen coordinate
+ * landed in u0/clut, u1/tpage and u2, while x0..x2 kept whatever bytes the
+ * recycled packet buffer held from an earlier frame. Three of four corners of
+ * every prim built through this macro were stale garbage (only x3, written
+ * separately by gte_stsxy, was right) -- the blood pool, the muzzle flash and
+ * the glass shards, which is exactly the "line stretching from the monster to
+ * the screen edge, flickering each frame while shooting" artifact, and it also
+ * scrambled the tpage those prims sample.
+ *
+ * POLY_FT3 / POLY_FT4 / POLY_G3 all place x0/x1/x2 at the same 8-byte stride
+ * (probed: 12/20/28 on Xbox), so one struct-derived form serves every caller
+ * and stays byte-identical on the other targets: LP64 resolves to 16/24/32 and
+ * PSX to 8/16/24 -- the two branches this replaces. */
 #define gte_stsxy3_g3( p ) do { \
-    char *_b = (char*)(p); \
-    *(uint*)(_b + 16) = MFC2(12); \
-    *(uint*)(_b + 24) = MFC2(13); \
-    *(uint*)(_b + 32) = MFC2(14); \
-    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight) { PGXP_StoreAddr(_b + 16, 0); PGXP_StoreAddr(_b + 24, 1); PGXP_StoreAddr(_b + 32, 2); } \
+    POLY_FT3 *_q = (POLY_FT3*)(void*)(p); \
+    *(uint*)&_q->x0 = MFC2(12); \
+    *(uint*)&_q->x1 = MFC2(13); \
+    *(uint*)&_q->x2 = MFC2(14); \
+    if (g_PsxUsePgxp || g_PsyX_UsePerPixelFlashlight) { PGXP_StoreAddr(&_q->x0, 0); PGXP_StoreAddr(&_q->x1, 1); PGXP_StoreAddr(&_q->x2, 2); } \
 } while(0)
-#else
-#define gte_stsxy3_g3( p ) do { \
-    char *_b = (char*)(p); \
-    *(uint*)(_b + 8)  = MFC2(12); \
-    *(uint*)(_b + 16) = MFC2(13); \
-    *(uint*)(_b + 24) = MFC2(14); \
-} while(0)
-#endif
 
 /* gte_stsz3c - Store SZ1/SZ2/SZ3 (GTE C17-19) at 4-byte stride.
  *
