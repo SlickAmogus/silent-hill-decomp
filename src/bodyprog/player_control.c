@@ -993,15 +993,22 @@ void Player_Update(s_SubCharacter* player, s_AnmHeader* anmHdr, GsCOORDINATE2* c
             }
         }
 
-        /* Play-as: keep Lisa's rigid hair coords (bones 18-20, untouched by
-         * HB_BASE.ANM) composed against the freshly-animated head, and
-         * re-init them after a warm reset wiped g_SysWork. */
-        {
-            extern void Pc_PlayAs_PlayerAnimTick(void);
-            Pc_PlayAs_PlayerAnimTick();
-        }
 #endif
     }
+
+#ifdef SH_PC_PORT
+    /* Play-as: re-assert the swapped character's own bone offsets and keep
+     * Lisa's rigid hair coords composed against the freshly-animated head.
+     * OUTSIDE the delta-time gate above: a frame that advances no time still
+     * draws, and an Anim_BoneInit (New Game / Continue / save load) landing on
+     * such a frame would otherwise show Harry's proportions until time moves
+     * again. After every Anim_BoneUpdate in this function, before the caller's
+     * all-bones flg reset, so the world matrices recompose from these values. */
+    {
+        extern void Pc_PlayAs_PlayerAnimTick(void);
+        Pc_PlayAs_PlayerAnimTick();
+    }
+#endif
 
     D_800C45B0.vx = 0;
     D_800C45B0.vz = 0;

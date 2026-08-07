@@ -270,6 +270,15 @@ static int s_skinBindValid;
 static int s_rootYPatched;
 static u8  s_rootYOrig;
 
+/* Harry's OWN offsets, latched the first time a skin is loaded. Swapping back
+ * to Harry has to write these back: Anim_BoneUpdate never restores a static
+ * translation and the swap path does not re-run Anim_BoneInit, so without this
+ * Harry would keep wearing the skin's neck, shoulders and legs until the next
+ * New Game / Continue / save load. */
+static s32 s_harryBindT[PLAYAS_BONE_MAX][3];
+static u8  s_harryBindHas[PLAYAS_BONE_MAX];
+static int s_harryBindLatched;
+
 /* Bind-table reader for a raw ANM image: bone i at 0x14 + i*6 =
  * { s8 parentBone, s8 rotationDataIdx, s8 translationDataIdx, s8 t0[3] },
  * translations scaled by the header's scaleLog2 (offset 0x12). */
@@ -328,21 +337,32 @@ static s32 PlayAs_LegDrop(const s32 t[PLAYAS_BONE_MAX][3], const u8 has[PLAYAS_B
  * the FS queue like the chara pool does (pumping it rather than waiting a
  * VSync per state), into a buffer freed before returning — only the 18 bind
  * entries are kept. */
+/* A loaded HB_BASE.ANM, not some earlier tenant of FS_BUFFER_0 (BODYPROG.BIN and
+ * a couple of TIMs pass through it during boot). dataOffset is 404 and the rig
+ * is 18 bones in every retail region. */
+static int PlayAs_HarryAnmReady(const u8* anm)
+{
+    return anm[0] == 0x94 && anm[1] == 0x01 && anm[0x06] == PLAYAS_BONE_MAX;
+}
+
 static void PlayAs_LoadSkinBinds(void)
 {
     const PcPlayAsChara* p = PlayAs_Cur();
+    u8*                  harryAnm = (u8*)FS_BUFFER_0;
+    s32                  skinT[PLAYAS_BONE_MAX][3];
+    u8                   skinHas[PLAYAS_BONE_MAX];
     s16                  animFileIdx;
     s32                  size;
     u8*                  buf;
     s32                  pump = 0;
     int                  boneCount;
-    u8                   skinRootY;
+    int                  harryBones;
+    u8                   throwaway;
+    int                  i;
 
     if (p->charaId == Chara_Harry)
     {
-        s_skinBindValid   = 0;
-        s_skinBindFileIdx = (s16)NO_VALUE;
-        return;
+        return; /* the caller clears; nothing to load */
     }
 
     animFileIdx = CHARA_FILE_INFOS[p->charaId].animFileIdx;
@@ -350,13 +370,30 @@ static void PlayAs_LoadSkinBinds(void)
     {
         return; /* nothing to load, or already loaded for this skin */
     }
+    if (!PlayAs_HarryAnmReady(harryAnm))
+    {
+        SH_DBG("[PLAYAS] HB_BASE not resident yet — retarget deferred");
+        return;
+    }
+
+    /* Harry's own offsets, latched once: the swap-back path writes these back,
+     * and the leg-drop compensation is measured against them. */
+    if (!s_harryBindLatched)
+    {
+        PlayAs_ReadBinds(harryAnm, s_harryBindT, s_harryBindHas, &harryBones, &s_rootYOrig);
+        s_harryBindLatched = 1;
+        s_rootYPatched     = 1;
+    }
 
     size = Fs_GetFileSectorAlignedSize(animFileIdx);
     if (size <= 0x14 + PLAYAS_BONE_MAX * 6)
     {
         return;
     }
-    buf = (u8*)malloc((size_t)size);
+    /* calloc, not malloc: a dropped read or an exhausted pump budget must leave
+     * a buffer that FAILS the header check below rather than one holding heap
+     * garbage that parses as a plausible bind table. */
+    buf = (u8*)calloc(1, (size_t)size);
     if (buf == NULL)
     {
         return;
@@ -368,67 +405,72 @@ static void PlayAs_LoadSkinBinds(void)
         Fs_QueueUpdate();
     }
 
-    PlayAs_ReadBinds(buf, s_skinBindT, s_skinBindHas, &boneCount, &skinRootY);
+    boneCount = 0;
+    if (buf[0] == 0x94 && buf[1] == 0x01 && buf[0x12] <= 4 && buf[0x06] >= PLAYAS_BONE_MAX)
+    {
+        PlayAs_ReadBinds(buf, skinT, skinHas, &boneCount, &throwaway);
+    }
     free(buf);
 
     if (boneCount < PLAYAS_BONE_MAX)
     {
-        /* A shorter rig would leave Harry's own offsets on the missing bones,
-         * which is the mismatch this whole path exists to remove. */
-        SH_DBG("[PLAYAS] %s ANM has %d bones — skipping retarget", p->label, boneCount);
-        s_skinBindValid = 0;
+        /* Unreadable, or a rig too short to cover Harry's bones — either way the
+         * missing bones would keep Harry's offsets, which is the mismatch this
+         * path exists to remove. */
+        SH_DBG("[PLAYAS] %s ANM unusable for retarget (bones %d)", p->label, boneCount);
         return;
     }
 
+    /* A bone is retargetable only when BOTH rigs treat it as static. The engine
+     * decides from HARRY's header, so a bone he animates must keep its keyframe
+     * translation whatever the skin says (identical on every retail rig today,
+     * but the predicate should not depend on that). */
+    for (i = 1; i < PLAYAS_BONE_MAX; i++)
+    {
+        s_skinBindHas[i] = (u8)(skinHas[i] && s_harryBindHas[i]);
+        s_skinBindT[i][0] = skinT[i][0];
+        s_skinBindT[i][1] = skinT[i][1];
+        s_skinBindT[i][2] = skinT[i][2];
+    }
     s_skinBindValid   = 1;
     s_skinBindFileIdx = animFileIdx;
 
     /* Foot-height compensation through the header byte the engine already
-     * applies every frame. Harry's own binds come from the live buffer, so
-     * this stays correct whatever HB_BASE holds. */
+     * applies every frame to each slot-0 sharer. */
     {
-        u8* harryAnm = (u8*)FS_BUFFER_0;
+        s32 drop  = PlayAs_LegDrop(s_harryBindT, s_harryBindHas) - PlayAs_LegDrop(s_skinBindT, s_skinBindHas);
+        s32 rootY = (s32)s_rootYOrig - drop;
 
-        if (harryAnm[0] != 0 || harryAnm[1] != 0) /* dataOffset != 0 = loaded */
-        {
-            s32 harryT[PLAYAS_BONE_MAX][3];
-            u8  harryHas[PLAYAS_BONE_MAX];
-            int harryBones;
-            s32 drop;
-
-            if (!s_rootYPatched)
-            {
-                s_rootYOrig    = harryAnm[0x13];
-                s_rootYPatched = 1;
-            }
-            PlayAs_ReadBinds(harryAnm, harryT, harryHas, &harryBones, &skinRootY);
-            drop = PlayAs_LegDrop(harryT, harryHas) - PlayAs_LegDrop(s_skinBindT, s_skinBindHas);
-
-            {
-                s32 rootY = (s32)s_rootYOrig - drop;
-
-                if (rootY < 0)   rootY = 0;
-                if (rootY > 255) rootY = 255;
-                harryAnm[0x13] = (u8)rootY;
-                SH_DBG("[PLAYAS] %s retarget: leg drop %+d, rootYOffset %d -> %d",
-                       p->label, (int)drop, (int)s_rootYOrig, (int)rootY);
-            }
-        }
+        if (rootY < 0)   rootY = 0;
+        if (rootY > 255) rootY = 255;
+        harryAnm[0x13] = (u8)rootY;
+        SH_DBG("[PLAYAS] %s retarget: leg drop %+d, rootYOffset %d -> %d",
+               p->label, (int)drop, (int)s_rootYOrig, (int)rootY);
     }
 }
 
-/* Put Harry's own offsets and root height back (swap to Harry, or a skin whose
- * ANM could not be read). */
+/* Put Harry's own offsets and root height back. Restoring the header byte is not
+ * enough: nothing in the engine ever rewrites a static translation, and the swap
+ * path does not run Anim_BoneInit — so Harry has to be given his own bind values
+ * back explicitly, which the per-frame tick then keeps asserting. */
 static void PlayAs_ClearRetarget(void)
 {
-    s_skinBindValid   = 0;
     s_skinBindFileIdx = (s16)NO_VALUE;
 
     if (s_rootYPatched)
     {
-        u8* harryAnm = (u8*)FS_BUFFER_0;
+        ((u8*)FS_BUFFER_0)[0x13] = s_rootYOrig;
+    }
 
-        harryAnm[0x13] = s_rootYOrig;
+    if (s_harryBindLatched)
+    {
+        memcpy(s_skinBindT, s_harryBindT, sizeof(s_skinBindT));
+        memcpy(s_skinBindHas, s_harryBindHas, sizeof(s_skinBindHas));
+        s_skinBindValid = 1; /* still writing — Harry's own values now */
+    }
+    else
+    {
+        s_skinBindValid = 0; /* no skin was ever active: never touch the skeleton */
     }
 }
 

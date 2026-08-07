@@ -133,6 +133,16 @@ void GameBoot_LoadScreen_PlayerRun(void) // 0x80035BE0
             boneCoords[_bi].flg = 0;
         }
     }
+
+    /* Play-as: this is the ONE place the player is posed and drawn without
+     * Player_Update, and GameBoot_PlayerInit's Anim_BoneInit has just reset
+     * every bone to Harry's offsets — so the swapped character would run this
+     * screen with Harry's proportions AND the skin's root-height compensation
+     * (feet through the floor). Re-assert the retarget here too. */
+    {
+        extern void Pc_PlayAs_PlayerAnimTick(void);
+        Pc_PlayAs_PlayerAnimTick();
+    }
 #endif
 
     Anim_PlaybackLoop(model, (s_Skeleton*)FS_BUFFER_0, boneCoords, &D_800A998C);
