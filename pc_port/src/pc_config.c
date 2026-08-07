@@ -56,6 +56,7 @@ s_PcConfig g_PcConfig = {
     .fmvVolume            = 1.0f, /* FMV movie (SDL PCM) volume, 0..1; 1.0 = unchanged */
     .fmvPsxVolume         = 1,    /* PSX-faithful 80/128 movie-audio attenuation (SsSetSerialVol) */
     .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
+    .glVerbose      = 0, /* 1 = log GL/GLSL details + shader info logs on success; failures always log */
     .allowDebugControls = 0, /* 0=off (default), 1=enable dev/cheat keys */
     .controllerMovement = 2, /* 0=analog, 1=dpad, 2=both */
     .movementOriginal = 1,   /* 1 = PSX lower-body movement machine (default); 0 = legacy PC shim */
@@ -666,6 +667,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "enable_debug_log") == 0)
         {
             g_PcConfig.enableDebugLog = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "gl_verbose") == 0)
+        {
+            g_PcConfig.glVerbose = (atoi(value) != 0);
         }
         else if (strcmp(key, "allow_debug_controls") == 0)
         {

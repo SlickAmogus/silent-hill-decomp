@@ -551,31 +551,98 @@ static void Console_Paste(void)
     SDL_free(clip);
 }
 
+/* PsyCross asks SDL for a CORE profile context (PsyX_render.cpp), and these
+ * shaders carried no #version, so the compiler defaulted to GLSL 1.10 —
+ * compatibility-profile-only, where `attribute`, `varying`, `gl_FragColor` and
+ * `texture2D` still exist. NVIDIA and current AMD/Intel drivers accept that
+ * anyway; a strict one does not, and with no GL_COMPILE_STATUS check the
+ * failure was SILENT, leaving the console and cursor as solid white rectangles
+ * (reported on a Radeon HD 7290, Crimson 16.2.1, GL 3.3 core). 140 matches what
+ * PsyCross's own desktop shaders already declare, so it is proven to compile on
+ * the hardware that hit this. */
+#define OVERLAY_GLSL "#version 140\n"
+
+/* Never silent again, on any driver: a shader that will not build says so in
+ * the log with the driver's own message, whether or not this build is a debug
+ * one. `what` names the stage so a report identifies it without a source dive. */
+static int overlay_shader_ok(GLuint sh, const char* what)
+{
+    GLint ok = 0;
+    glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
+    if (!ok)
+    {
+        char log[1024];
+        GLsizei n = 0;
+        glGetShaderInfoLog(sh, (GLsizei)sizeof(log) - 1, &n, log);
+        log[(n >= 0 && n < (GLsizei)sizeof(log)) ? n : 0] = '\0';
+        SH_DBG("[GL] overlay %s shader FAILED to compile: %s", what, log);
+        return 0;
+    }
+    if (g_PcConfig.glVerbose)
+    {
+        char log[1024];
+        GLsizei n = 0;
+        glGetShaderInfoLog(sh, (GLsizei)sizeof(log) - 1, &n, log);
+        log[(n >= 0 && n < (GLsizei)sizeof(log)) ? n : 0] = '\0';
+        SH_DBG("[GL] overlay %s shader compiled%s%s", what, n ? ": " : " clean", log);
+    }
+    return 1;
+}
+
+static int overlay_program_ok(GLuint prog, const char* what)
+{
+    GLint ok = 0;
+    glGetProgramiv(prog, GL_LINK_STATUS, &ok);
+    if (!ok)
+    {
+        char log[1024];
+        GLsizei n = 0;
+        glGetProgramInfoLog(prog, (GLsizei)sizeof(log) - 1, &n, log);
+        log[(n >= 0 && n < (GLsizei)sizeof(log)) ? n : 0] = '\0';
+        SH_DBG("[GL] overlay %s program FAILED to link: %s", what, log);
+        return 0;
+    }
+    return 1;
+}
+
 static void overlay_gl_init(void)
 {
     GLuint vs, fs;
     static const char* vs_src =
-        "attribute vec2 a_pos;\n"
-        "attribute vec2 a_uv;\n"
-        "varying vec2 v_uv;\n"
+        OVERLAY_GLSL
+        "in vec2 a_pos;\n"
+        "in vec2 a_uv;\n"
+        "out vec2 v_uv;\n"
         "void main() {\n"
         "    v_uv = a_uv;\n"
         "    gl_Position = vec4(a_pos, 0.0, 1.0);\n"
         "}\n";
     static const char* fs_src =
-        "varying vec2 v_uv;\n"
+        OVERLAY_GLSL
+        "in vec2 v_uv;\n"
+        "out vec4 fragColor;\n"
         "uniform sampler2D u_tex;\n"
         "void main() {\n"
-        "    gl_FragColor = texture2D(u_tex, v_uv);\n"
+        "    fragColor = texture(u_tex, v_uv);\n"
         "}\n";
+
+    if (g_PcConfig.glVerbose)
+    {
+        const GLubyte* sl = glGetString(GL_SHADING_LANGUAGE_VERSION);
+        const GLubyte* rn = glGetString(GL_RENDERER);
+        SH_DBG("[GL] overlay init: GLSL '%s' renderer '%s'",
+               sl ? (const char*)sl : "?", rn ? (const char*)rn : "?");
+    }
 
     vs = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vs, 1, &vs_src, NULL);
     glCompileShader(vs);
+    overlay_shader_ok(vs, "text vertex");
 
     fs = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fs, 1, &fs_src, NULL);
     glCompileShader(fs);
+    overlay_shader_ok(fs, "text fragment");
 
     s_prog = glCreateProgram();
     glAttachShader(s_prog, vs);
@@ -583,6 +650,7 @@ static void overlay_gl_init(void)
     glBindAttribLocation(s_prog, 0, "a_pos");
     glBindAttribLocation(s_prog, 1, "a_uv");
     glLinkProgram(s_prog);
+    overlay_program_ok(s_prog, "text");
     glDeleteShader(vs);
     glDeleteShader(fs);
 
@@ -705,23 +773,29 @@ static void overlay_gl_init(void)
     /* Colored-line program for the collision wireframe (a_pos = NDC, a_col = RGB). */
     {
         static const char* lvs_src =
-            "attribute vec2 a_pos;\n"
-            "attribute vec3 a_col;\n"
-            "varying vec3 v_col;\n"
+            OVERLAY_GLSL
+            "in vec2 a_pos;\n"
+            "in vec3 a_col;\n"
+            "out vec3 v_col;\n"
             "void main() { v_col = a_col; gl_Position = vec4(a_pos, 0.0, 1.0); }\n";
         static const char* lfs_src =
-            "varying vec3 v_col;\n"
-            "void main() { gl_FragColor = vec4(v_col, 1.0); }\n";
+            OVERLAY_GLSL
+            "in vec3 v_col;\n"
+            "out vec4 fragColor;\n"
+            "void main() { fragColor = vec4(v_col, 1.0); }\n";
         GLuint lvs = glCreateShader(GL_VERTEX_SHADER);
         GLuint lfs = glCreateShader(GL_FRAGMENT_SHADER);
         glShaderSource(lvs, 1, &lvs_src, NULL); glCompileShader(lvs);
         glShaderSource(lfs, 1, &lfs_src, NULL); glCompileShader(lfs);
+        overlay_shader_ok(lvs, "line vertex");
+        overlay_shader_ok(lfs, "line fragment");
         s_line_prog = glCreateProgram();
         glAttachShader(s_line_prog, lvs);
         glAttachShader(s_line_prog, lfs);
         glBindAttribLocation(s_line_prog, 0, "a_pos");
         glBindAttribLocation(s_line_prog, 1, "a_col");
         glLinkProgram(s_line_prog);
+        overlay_program_ok(s_line_prog, "line");
         glDeleteShader(lvs); glDeleteShader(lfs);
 
         glGenVertexArrays(1, &s_line_vao);

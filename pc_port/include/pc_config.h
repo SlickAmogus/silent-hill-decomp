@@ -164,6 +164,7 @@ typedef struct {
     float fmvVolume;            /* FMV movie (SDL PCM) volume, 0..1; default 1.0 (config key: fmv_volume) */
     int   fmvPsxVolume;         /* 1 = attenuate FMV audio to the PSX SsSetSerialVol level (80/128); 0 = raw (config key: fmv_psx_volume) */
     int enableDebugLog;  /* 1 = create + write SilentHill.log; 0 = no log file, SH_DBG no-op (config key: enable_debug_log) */
+    int glVerbose;       /* 1 = log GL/GLSL details and shader info logs even on success, for driver-specific bug reports (config key: gl_verbose). Shader FAILURES are always logged regardless. */
     int allowDebugControls; /* 1 = enable dev/cheat keys (numpad, top-row digits, ~, kill-Harry, etc.); 0 = off (default) */
     int unlimitedEnemies;   /* 1 = raise the per-room concurrent-NPC cap to NPC_COUNT_MAX (config key: unlimited_enemies) */
     int randomizer;         /* 1 = randomizer gamemode: New Game always opens in map2_s04, every door leads
