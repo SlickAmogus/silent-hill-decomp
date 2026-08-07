@@ -434,10 +434,19 @@ extern unsigned short g_PsyX_RtpSz[4];
  * PsyX_SetNextPrimSzExact contract ("next addPrim captures") has no Xbox addPrim
  * hook, so pass `poly` (in scope at every call site) directly instead. */
 extern void Xbox_ItemSzTag(const void* prim, const unsigned short* sz4);
+extern int  Xbox_ItemOtz(const unsigned short* sz4, int coarseOtz);
+/* Re-bucket the item's faces by TRUE per-vertex SZ across the full ordering
+ * table: `otz = p >> shift` (the coarse depth CUE) drops a rotating model's
+ * front and back faces into the same bucket, leaving their paint order
+ * arbitrary -- that IS the see-through. OT0 holds the item alone during this
+ * pass, so the whole table is ours to use. `otz` is in scope at every call
+ * site, immediately before addPrim(&ot->org[otz], poly). */
 #define ITEM_PRECISE_SZ(pz) do { \
     (void)(pz); \
-    if (g_PcItemPreciseDepth) \
+    if (g_PcItemPreciseDepth) { \
         Xbox_ItemSzTag((const void*)poly, g_PsyX_RtpSz); \
+        otz = Xbox_ItemOtz(g_PsyX_RtpSz, otz); \
+    } \
 } while (0)
 #else
 #define ITEM_PRECISE_SZ(pz) do { \

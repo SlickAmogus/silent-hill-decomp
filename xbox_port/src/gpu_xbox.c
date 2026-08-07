@@ -179,7 +179,56 @@ static unsigned  s_itemSzGen = 1;
 static int       s_itemDepthOn;
 
 static unsigned s_izTagged, s_izHit, s_izMiss;    /* [ITEMZ] probe counters */
-static float    s_izZMin, s_izZMax;
+static float    s_izZMin = 1e9f, s_izZMax = -1e9f;        /* this bracket's SZ span */
+static float    s_izPrevMin = -1.0f, s_izPrevMax = -1.0f; /* previous bracket's span */
+
+/* THE see-through fix, take 4 — and this one uses no GPU depth at all.
+ *
+ * Why the depth-buffer approach was abandoned: pbkit's own comments show the
+ * NV2A runs automatic Z-COMPRESSION over the zeta buffer, so the [ZETA] probe's
+ * linear CPU reads were never meaningful — every conclusion drawn from them
+ * (including two "unit" fixes) rested on noise. Rather than keep guessing at
+ * hardware depth semantics we cannot observe, fix it the way the PSX itself
+ * would: give the painter's-algorithm sort enough RESOLUTION to separate the
+ * faces.
+ *
+ * Root cause, restated: the drawers bucket a face by `otz = p >> shift`, where
+ * p is the coarse depth CUE. A rotating item's front and back faces land in the
+ * SAME bucket, so their draw order is arbitrary and the back can paint over the
+ * front (antenna through the radio). During the item pass OT0 holds the model
+ * ALONE, so we are free to re-bucket it across the whole ordering table using
+ * the true per-vertex SZ the GTE already gave us — 2048 buckets instead of the
+ * handful the cue collapses into. Same mechanism the game already relies on,
+ * just at full precision, and it cannot affect world rendering because it only
+ * runs while g_PcItemPreciseDepth is armed.
+ *
+ * Polarity: GsClearOt links the table so DrawOTag walks from the HIGHEST index
+ * down, i.e. higher otz = drawn earlier = farther; SZ is view depth, larger =
+ * farther. Both increase with distance, so the mapping is direct.
+ * Range: self-calibrating from the previous bracket's SZ span (the same
+ * prev-frame trick the PC fix uses for its own normalisation), mapped into
+ * [64,1984] to leave headroom; before any range exists we return the drawer's
+ * own otz, so the first frame is exactly the legacy behaviour. */
+int Xbox_ItemOtz(const unsigned short* sz4, int coarseOtz)
+{
+    float avg = ((float)sz4[0] + (float)sz4[1] + (float)sz4[2] + (float)sz4[3]) * 0.25f;
+    float t;
+    int   otz;
+
+    if (avg < s_izZMin) s_izZMin = avg;   /* accumulate THIS bracket's span */
+    if (avg > s_izZMax) s_izZMax = avg;
+
+    if (!(s_izPrevMax > s_izPrevMin) || s_izPrevMin < 0.0f)
+        return coarseOtz;                 /* no calibration yet -> legacy */
+
+    t = (avg - s_izPrevMin) / (s_izPrevMax - s_izPrevMin);
+    if (t < 0.0f) t = 0.0f;
+    if (t > 1.0f) t = 1.0f;
+    otz = 64 + (int)(t * 1920.0f);
+    if (otz < 1)    otz = 1;
+    if (otz > 2047) otz = 2047;
+    return otz;
+}
 
 void Xbox_ItemSzTag(const void* prim, const unsigned short* sz4)
 {
@@ -211,14 +260,17 @@ static float ItemSzLookup(const void* prim)
 }
 
 static int      s_itemWriteOn;                    /* current depth-WRITE state in the bracket */
-static float    s_izPrevMin = -1.0f, s_izPrevMax = -1.0f; /* last bracket's SZ range */
 static float    s_izLastNorm;                     /* last normalized z fed (probe) */
 static int      s_izBbX0, s_izBbX1, s_izBbY0, s_izBbY1;   /* item screen bbox (probe) */
 
 void PsyX_ForceItemDepthBegin(void)
 {
-    extern void GpuNv2a_SetDepthTest(int enable);
-    GpuNv2a_SetDepthTest(1);
+    /* GPU depth is NOT used any more: the see-through is fixed at sort time by
+     * Xbox_ItemOtz (full-resolution OT bucketing). Enabling the depth test here
+     * as well would layer an unverifiable second mechanism -- whose values we
+     * cannot even read back, since the NV2A Z-compresses the zeta buffer -- on
+     * top of a working one. The bracket is kept because it is what arms the
+     * per-bracket SZ calibration and the [ITEMZ] probe. */
     s_itemDepthOn = 1;
     s_itemWriteOn = 1;
     s_izHit = s_izMiss = 0; s_izZMin = 1e9f; s_izZMax = -1e9f;
@@ -227,18 +279,18 @@ void PsyX_ForceItemDepthBegin(void)
 
 void PsyX_ForceItemDepthEnd(void)
 {
-    extern void GpuNv2a_SetDepthTest(int enable);
     static unsigned s_izLog;
     int             doLog = ((s_izLog++ & 31) == 0);
 
-    GpuNv2a_SetDepthTest(0);    /* flushes the item draws under depth state */
     s_itemDepthOn = 0;
-    /* Blind-verify probe (~1/s): tagged = packets tagged at sort, hit/miss =
-     * draw-time lookups. hit==tagged + sane zmin/zmax = mechanism healthy;
-     * hit==0 with tagged>0 = address/timing mismatch to chase. */
+    /* Verify the SORT fix: `span` is how many distinct OT buckets this item's
+     * faces now occupy. Legacy coarse bucketing collapsed them into a handful
+     * (ties = arbitrary paint order = see-through); a healthy spread is
+     * hundreds. tagged/hit stay as the sanity check that every face was seen. */
     if (doLog)
-        SH_DBG("[ITEMZ] tagged=%u hit=%u miss=%u zmin=%d zmax=%d",
-               s_izTagged, s_izHit, s_izMiss, (int)s_izZMin, (int)s_izZMax);
+        SH_DBG("[ITEMZ] tagged=%u hit=%u szmin=%d szmax=%d otzSpan=%d",
+               s_izTagged, s_izHit, (int)s_izZMin, (int)s_izZMax,
+               (s_izPrevMax > s_izPrevMin) ? 1920 : 0);
 
     /* [ZETA] HARDWARE-truth probe (log 024: [ITEMZ] fully healthy yet still no
      * occlusion on hw -> the open question is whether depth WRITES actually
