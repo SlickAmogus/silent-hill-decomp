@@ -587,6 +587,11 @@ void XaPlayer_Stop(void)
     s_xa.isPlaying = 0;
     s_ringRead     = 0;
     s_ringWrite    = 0;
+    /* Also drop what is already MIXED past the DAC (~340 ms of DirectSound
+     * ring), or the tail of this line plays over the start of the next one --
+     * the doubled cutscene voices. Clearing the decode ring above is not
+     * enough; that audio has already left it. */
+    { extern void DSound_XboxDropQueued(void); DSound_XboxDropQueued(); }
 
     /* Clear the streaming-state flags Sd_AudioStreamingCheck consults. Safe
      * for the queued Stop-before-Play in Sd_XaAudioPlayTaskAdd: the upcoming

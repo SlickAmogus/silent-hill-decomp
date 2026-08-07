@@ -424,6 +424,7 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
 
     for (f = 0; f < frames; f++) {
         int   L = 0, R = 0, C = 0;
+        int   haflerL = 0, haflerR = 0;   /* pre-XA front, for the rear feed */
         int   pFL = 0, pFR = 0, pRL = 0, pRR = 0;  /* positional (azimuth-panned) accumulators */
         float revInL = 0.0f, revInR = 0.0f;        /* reverb bus send (from reverb-enabled voices) */
 
@@ -500,13 +501,24 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
         }
 
         /* XA stream (voices / streamed cutscene audio) joins the voice sum.
-         * In surround mode, mono XA (= the voice acting) routes to C instead. */
+         * In surround mode, mono XA (= the voice acting) routes to C instead.
+         * Snapshot the pre-XA front FIRST: the rear Hafler feed below derives
+         * from (L-R), and SH's cutscene XA is STEREO, so any L/R difference in
+         * a voice line lands in the rears ANTI-PHASE against the front. On a
+         * real 5.1 rig that reads as the line being spoken twice, slightly
+         * apart -- the reported "voices were doubled". The Hafler is meant to
+         * carry stereo AMBIENCE, never dialogue (that is what the centre feed
+         * is for), so the rears must be derived from the mix WITHOUT XA. */
+        haflerL = L;
+        haflerR = R;
         Xa_XboxMixInto(&L, &R, cenLfe ? &C : NULL);
 
         /* Master volume (Q14); 64-bit intermediate — the summed mix can exceed
          * int16 before scaling. */
         L = (int)(((long long)L * s_masterL) >> 14);
         R = (int)(((long long)R * s_masterR) >> 14);
+        haflerL = (int)(((long long)haflerL * s_masterL) >> 14);  /* same scaling as the front */
+        haflerR = (int)(((long long)haflerR * s_masterR) >> 14);
         pFL = (int)(((long long)pFL * s_masterL) >> 14);
         pFR = (int)(((long long)pFR * s_masterR) >> 14);
         pRL = (int)(((long long)pRL * s_masterL) >> 14);
@@ -526,13 +538,22 @@ void Audio_RenderInto6(short* out, short* rear, short* cenLfe, int frames)
                 int iwr = (int)(((long long)(int)(wr * s_wet) * s_masterR) >> 14);
                 L += iwl;
                 R += iwr;
+                /* The reverb tail is exactly what the rears SHOULD carry, so it
+                 * folds into the Hafler source too (that was the point of
+                 * folding before the rear read). Only XA is excluded. */
+                haflerL += iwl;
+                haflerR += iwr;
             }
         }
 
         /* Derived surround feeds — from the post-master, pre-clamp fronts so
          * pause-ducking/fades hit every speaker. */
         if (rear) {
-            int side  = (L - R) >> 1;                 /* Hafler from NON-positional front */
+            /* Hafler from the NON-positional, NON-XA front (haflerL/R were
+             * captured before the XA mix and carry the same master scaling and
+             * reverb fold as L/R below), so stereo dialogue cannot leak into
+             * the rears anti-phase. */
+            int side  = (haflerL - haflerR) >> 1;
             int haf   = (side * SH_REAR_Q8) >> 8;
             int rl    = haf + pRL;                    /* + azimuth-panned rears on top */
             int rr    = -haf + pRR;

@@ -244,6 +244,27 @@ void Audio_XboxInit(void)
            DS_OUT_HZ, s_surround ? "5.1" : "stereo", DS_BUFFER_SIZE);
 }
 
+/* Discard everything already mixed AHEAD of the DAC. The XA decode ring is not
+ * the only buffering: up to a full DS_BUFFER_SIZE (~340 ms) of the previous
+ * voice line can already be committed past the play cursor, and XaPlayer_Stop /
+ * XaPlayer_Play reset only s_ringRead/s_ringWrite, so the tail of the previous
+ * line kept playing OVER the start of the next one -- the reported "voices were
+ * doubled" at cutscene page transitions. PC has the direct equivalent
+ * (alSourcei(..., AL_BUFFER, 0) in xa_player.c, commented for exactly this
+ * symptom); Xbox had none. Rewinding s_write to just past the hardware cursor
+ * makes the next pump refill from there, so at most the small guard gap of the
+ * old line survives instead of a third of a second. */
+void DSound_XboxDropQueued(void)
+{
+    DWORD play = 0, write = 0;
+    if (!s_up || !s_buf)
+        return;
+    if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(s_buf, &play, &write))) {
+        s_write = (play + 2048u) % DS_BUFFER_SIZE;   /* ~10 ms guard past the DAC */
+        s_write &= ~(DWORD)(DS_BLOCK_ALIGN - 1);
+    }
+}
+
 /* Refill the rings ahead of the hardware play cursor, then advance the APU
  * frame pipeline. Call once per rendered frame (from VSync). The FRONT
  * buffer's play cursor is the master clock; the surround buffers are locked
