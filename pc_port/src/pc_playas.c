@@ -239,6 +239,199 @@ void Pc_PlayAs_ApplySkinVisibility(void)
     }
 }
 
+/* ---- skeleton retarget ---------------------------------------------------
+ *
+ * A skin's mesh parts are authored in BONE-LOCAL space against THEIR OWN
+ * skeleton's bind translations, but they are posed on Harry's — so every part
+ * renders at Harry's joint spacing instead of its own. That is the whole
+ * source of the reported artifacts: Cybil's head bind sits 20 units BELOW
+ * Harry's, so her neck geometry is pulled 20 units long; Kaufmann's sits 24
+ * ABOVE, so his head/collar geometry telescopes down into the shoulders.
+ *
+ * The fix is standard animation retargeting — source ROTATIONS, target
+ * OFFSETS — and the format hands it to us: a bone whose translationDataIdx is
+ * -1 takes its local translation from the ANM bind table once, in
+ * Anim_BoneInit, and Anim_BoneUpdate never writes it again (it only writes
+ * translations for bones with a channel: slot 0, i.e. bones 0/1/11 on every
+ * humanoid rig). Writing the SKIN's own values into those coords therefore
+ * sticks, while Harry's keyframes keep driving every rotation.
+ *
+ * The legs then land somewhere else, so the character floats or sinks: the
+ * hips still ride Harry's slot-0 root motion. That is corrected through the
+ * ANM header's rootYOffset byte, which Anim_BoneUpdate subtracts from the Y of
+ * every slot-0 sharer each frame — one byte, applied by the engine itself, so
+ * no per-frame accumulation is possible. */
+#define PLAYAS_BONE_MAX 18
+
+static s32 s_skinBindT[PLAYAS_BONE_MAX][3];
+static u8  s_skinBindHas[PLAYAS_BONE_MAX];
+static s16 s_skinBindFileIdx = (s16)NO_VALUE; /* the ANM these came from */
+static int s_skinBindValid;
+static int s_rootYPatched;
+static u8  s_rootYOrig;
+
+/* Bind-table reader for a raw ANM image: bone i at 0x14 + i*6 =
+ * { s8 parentBone, s8 rotationDataIdx, s8 translationDataIdx, s8 t0[3] },
+ * translations scaled by the header's scaleLog2 (offset 0x12). */
+static void PlayAs_ReadBinds(const u8* anm, s32 outT[PLAYAS_BONE_MAX][3], u8 outHas[PLAYAS_BONE_MAX],
+                             int* outBoneCount, u8* outRootY)
+{
+    int boneCount = anm[0x06];
+    int scale     = anm[0x12];
+    int i;
+
+    if (boneCount > PLAYAS_BONE_MAX)
+    {
+        boneCount = PLAYAS_BONE_MAX;
+    }
+    memset(outHas, 0, PLAYAS_BONE_MAX);
+
+    /* Bone 0 is never animated and never drawn against — start at 1. */
+    for (i = 1; i < boneCount; i++)
+    {
+        const u8* b = anm + 0x14 + i * 6;
+
+        if ((s8)b[2] >= 0)
+        {
+            continue; /* animated translation (slot 0) — Harry's root motion owns it */
+        }
+        outT[i][0] = (s32)(s8)b[3] << scale;
+        outT[i][1] = (s32)(s8)b[4] << scale;
+        outT[i][2] = (s32)(s8)b[5] << scale;
+        outHas[i]  = 1;
+    }
+
+    *outBoneCount = boneCount;
+    *outRootY     = anm[0x13];
+}
+
+/* Sum of the Y offsets down the left leg (hips -> thigh -> shin -> foot). The
+ * difference against Harry's is exactly how far the skin's feet miss the floor
+ * his root motion was authored for. */
+static s32 PlayAs_LegDrop(const s32 t[PLAYAS_BONE_MAX][3], const u8 has[PLAYAS_BONE_MAX])
+{
+    s32 drop = 0;
+    int bones[3] = { 12, 13, 14 }; /* LMOMO thigh, LSUNE shin, LFOOT foot */
+    int i;
+
+    for (i = 0; i < 3; i++)
+    {
+        if (has[bones[i]])
+        {
+            drop += t[bones[i]][1];
+        }
+    }
+    return drop;
+}
+
+/* Load the skin's ANM far enough to read its bind table. Read straight through
+ * the FS queue like the chara pool does (pumping it rather than waiting a
+ * VSync per state), into a buffer freed before returning — only the 18 bind
+ * entries are kept. */
+static void PlayAs_LoadSkinBinds(void)
+{
+    const PcPlayAsChara* p = PlayAs_Cur();
+    s16                  animFileIdx;
+    s32                  size;
+    u8*                  buf;
+    s32                  pump = 0;
+    int                  boneCount;
+    u8                   skinRootY;
+
+    if (p->charaId == Chara_Harry)
+    {
+        s_skinBindValid   = 0;
+        s_skinBindFileIdx = (s16)NO_VALUE;
+        return;
+    }
+
+    animFileIdx = CHARA_FILE_INFOS[p->charaId].animFileIdx;
+    if (animFileIdx == (s16)NO_VALUE || animFileIdx == s_skinBindFileIdx)
+    {
+        return; /* nothing to load, or already loaded for this skin */
+    }
+
+    size = Fs_GetFileSectorAlignedSize(animFileIdx);
+    if (size <= 0x14 + PLAYAS_BONE_MAX * 6)
+    {
+        return;
+    }
+    buf = (u8*)malloc((size_t)size);
+    if (buf == NULL)
+    {
+        return;
+    }
+
+    Fs_QueueStartRead(animFileIdx, buf);
+    while (Fs_QueueGetLength() > 0 && pump++ < 100000)
+    {
+        Fs_QueueUpdate();
+    }
+
+    PlayAs_ReadBinds(buf, s_skinBindT, s_skinBindHas, &boneCount, &skinRootY);
+    free(buf);
+
+    if (boneCount < PLAYAS_BONE_MAX)
+    {
+        /* A shorter rig would leave Harry's own offsets on the missing bones,
+         * which is the mismatch this whole path exists to remove. */
+        SH_DBG("[PLAYAS] %s ANM has %d bones — skipping retarget", p->label, boneCount);
+        s_skinBindValid = 0;
+        return;
+    }
+
+    s_skinBindValid   = 1;
+    s_skinBindFileIdx = animFileIdx;
+
+    /* Foot-height compensation through the header byte the engine already
+     * applies every frame. Harry's own binds come from the live buffer, so
+     * this stays correct whatever HB_BASE holds. */
+    {
+        u8* harryAnm = (u8*)FS_BUFFER_0;
+
+        if (harryAnm[0] != 0 || harryAnm[1] != 0) /* dataOffset != 0 = loaded */
+        {
+            s32 harryT[PLAYAS_BONE_MAX][3];
+            u8  harryHas[PLAYAS_BONE_MAX];
+            int harryBones;
+            s32 drop;
+
+            if (!s_rootYPatched)
+            {
+                s_rootYOrig    = harryAnm[0x13];
+                s_rootYPatched = 1;
+            }
+            PlayAs_ReadBinds(harryAnm, harryT, harryHas, &harryBones, &skinRootY);
+            drop = PlayAs_LegDrop(harryT, harryHas) - PlayAs_LegDrop(s_skinBindT, s_skinBindHas);
+
+            {
+                s32 rootY = (s32)s_rootYOrig - drop;
+
+                if (rootY < 0)   rootY = 0;
+                if (rootY > 255) rootY = 255;
+                harryAnm[0x13] = (u8)rootY;
+                SH_DBG("[PLAYAS] %s retarget: leg drop %+d, rootYOffset %d -> %d",
+                       p->label, (int)drop, (int)s_rootYOrig, (int)rootY);
+            }
+        }
+    }
+}
+
+/* Put Harry's own offsets and root height back (swap to Harry, or a skin whose
+ * ANM could not be read). */
+static void PlayAs_ClearRetarget(void)
+{
+    s_skinBindValid   = 0;
+    s_skinBindFileIdx = (s16)NO_VALUE;
+
+    if (s_rootYPatched)
+    {
+        u8* harryAnm = (u8*)FS_BUFFER_0;
+
+        harryAnm[0x13] = s_rootYOrig;
+    }
+}
+
 /* Lisa's hair parts bind bones 18..20, which HB_BASE.ANM (18 bones) never
  * animates. Pose them as rigid children from LS.ANM's bind chain (verified
  * from the disc file: parents 2/2/19, translationInitial << scaleLog2(3)) —
@@ -285,6 +478,27 @@ static void PlayAs_HairInit(void)
 void Pc_PlayAs_PlayerAnimTick(void)
 {
     int i;
+
+    /* Re-assert the skin's bind offsets every frame rather than once after
+     * Anim_BoneInit: it costs 17 vector writes, it is idempotent (Anim_BoneUpdate
+     * never writes these translations back), and it cannot be undone by any
+     * re-init path — map load, save load or warm reset. Runs at the tail of
+     * Player_Update, so it lands after the pose and before the frame's
+     * all-bones flg reset, which is what makes the world matrices recompose. */
+    if (s_skinBindValid)
+    {
+        for (i = 1; i < PLAYAS_BONE_MAX; i++)
+        {
+            if (s_skinBindHas[i])
+            {
+                GsCOORDINATE2* c = &g_SysWork.playerBoneCoords[i];
+
+                c->coord.t[0] = s_skinBindT[i][0];
+                c->coord.t[1] = s_skinBindT[i][1];
+                c->coord.t[2] = s_skinBindT[i][2];
+            }
+        }
+    }
 
     if (PlayAs_Cur()->hairBones == 0)
     {
@@ -339,9 +553,13 @@ void Pc_PlayAs_OnPlayerModelLoaded(void)
 {
     if (PlayAs_Cur()->charaId == Chara_Harry || !g_WorldGfxWork.harryModel.isLoaded)
     {
+        PlayAs_ClearRetarget();
         return;
     }
 
+    /* The skin's own skeleton proportions. Loaded here rather than at
+     * Pc_PlayAs_Init, which runs before the filesystem exists. */
+    PlayAs_LoadSkinBinds();
     PlayAs_EnsureHeroTimSlot();
     Pc_PlayAs_ApplySkinVisibility();
     if (PlayAs_Cur()->hairBones != 0)

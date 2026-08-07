@@ -2303,3 +2303,43 @@ match itself is already thread-safe.
 **New log lines to check on the next report:**
 `[TEXPACK] GL texture budget X -> Y MB (45% of Z MB VRAM, auto)` and
 `[TEXPACK/LRU] evicted N cold row(s), M MB pack GL live`.
+
+## Play-as skeleton retarget — the swapped characters get their OWN proportions (2026-08-07)
+
+**Symptom.** Playing as Cybil stretched her neck; Kaufmann's shoulders bunched
+into his collar and his shoes floated off his trouser legs; Lisa read slightly
+off; Dahlia looked perfect.
+
+**Cause.** A skin's mesh parts are authored in BONE-LOCAL space against THEIR
+OWN skeleton's bind translations, but the swap posed them on Harry's. Measured
+deltas vs HB_BASE: Cybil's head bind sits 20 units below Harry's (neck pulled
+long), Kaufmann's 24 above (head/collar telescopes into the shoulders), and the
+leg chains (hips→thigh→shin→foot) differ by 4 / 36 / 16 / 0 units for
+Cybil / Kaufmann / Lisa / Dahlia — Dahlia's exact match is why she alone
+looked right, and Kaufmann's 36 is his floating feet.
+
+**Fix** (`pc_playas.c`): textbook retargeting — source rotations, target
+offsets. Every bone whose `translationDataIdx` is −1 takes its local
+translation from the ANM bind table once in `Anim_BoneInit` and is never
+rewritten by `Anim_BoneUpdate` (which only writes translations for slot-0
+bones 0/1/11), so the skin's own `translationInitial << scaleLog2` values are
+written into those coords and stay, while Harry's keyframes keep supplying
+every rotation. Re-asserted each frame from `Pc_PlayAs_PlayerAnimTick` — 17
+vector writes, idempotent, and immune to any re-init path (map load, save load,
+warm reset).
+
+Foot height is corrected through the ANM header's `rootYOffset` byte, which the
+engine already subtracts from every slot-0 sharer's Y each frame: patched to
+`255 − (harryLegDrop − skinLegDrop)` (Cybil 251, Kaufmann 219, Lisa 239, Dahlia
+255), so there is no per-frame accumulation to get wrong. Both the binds and
+the byte are restored when swapping back to Harry.
+
+The skin's bind table is read straight off its ANM through the FS queue (pumped,
+not VSync-waited) at `Pc_PlayAs_OnPlayerModelLoaded` — after the filesystem
+exists, unlike `Pc_PlayAs_Init`. Harry's own binds are read live out of
+FS_BUFFER_0, so the compensation stays correct whatever HB_BASE holds.
+
+**Verified** by rendering all four skins on HB_BASE offline before and after
+(scratch harness reproducing the same byte patch): Cybil's neck normal,
+Kaufmann's collar mass gone and his shoes attached, Lisa's proportions natural,
+Dahlia unchanged. Numbers the harness derived independently match the engine's.
