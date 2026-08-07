@@ -329,8 +329,14 @@ static u8  s_harryBindHas[PLAYAS_BONE_MAX];
 static int s_harryBindLatched;
 
 /* Bones 18+ of the skin's own rig, seated in g_SysWork's five spare coords —
- * the last bone indices the player's coord array can address. */
+ * the last bone indices the player's coord array can address. The ROTATION
+ * matters as much as the offset: the Puppet Nurse's parasite hangs off bone 18
+ * with a ~90 degree twist baked into its authored pose, so seating it at
+ * identity (which is all Lisa's hair ever needed) swung the whole chain down
+ * her leg. Each extra bone therefore carries the skin's own keyframe-0
+ * rotation, which is the pose the model was built around. */
 static s32 s_extraT[PLAYAS_EXTRA_MAX][3];
+static s32 s_extraR[PLAYAS_EXTRA_MAX][9];
 static u8  s_extraParent[PLAYAS_EXTRA_MAX];
 static int s_extraCount;
 
@@ -471,15 +477,39 @@ static void PlayAs_LoadSkinBinds(void)
         PlayAs_ReadBinds(buf, skinT, skinHas, &boneCount, &throwaway);
 
         /* PlayAs_ReadBinds caps at Harry's 18; the rig's own extra bones come
-         * straight off the table here. */
+         * straight off the table here, with their authored keyframe-0
+         * rotation (rotation channel r lives at dataOffset + transBC*3 + r*9,
+         * nine s8 row-major coefficients, q12 = v << 5). */
+        u32 dataOffset = (u32)buf[0] | ((u32)buf[1] << 8);
+        int transBC    = buf[0x03];
+
         for (e = PLAYAS_BONE_MAX; e < raw && s_extraCount < PLAYAS_EXTRA_MAX; e++)
         {
-            const u8* b = buf + 0x14 + e * 6;
+            const u8* b   = buf + 0x14 + e * 6;
+            int       rot = (s8)b[1];
+            int       k;
 
             s_extraParent[s_extraCount] = (u8)b[0];
             s_extraT[s_extraCount][0]   = (s32)(s8)b[3] << scale;
             s_extraT[s_extraCount][1]   = (s32)(s8)b[4] << scale;
             s_extraT[s_extraCount][2]   = (s32)(s8)b[5] << scale;
+
+            for (k = 0; k < 9; k++)
+            {
+                s_extraR[s_extraCount][k] = ((k % 4) == 0) ? Q12_ANGLE(360.0f) : Q12_ANGLE(0.0f);
+            }
+            if (rot >= 0)
+            {
+                u32 off = dataOffset + (u32)transBC * 3 + (u32)rot * 9;
+
+                if (off + 9 <= (u32)size)
+                {
+                    for (k = 0; k < 9; k++)
+                    {
+                        s_extraR[s_extraCount][k] = (s32)(s8)buf[off + k] << 5;
+                    }
+                }
+            }
             s_extraCount++;
         }
     }
@@ -570,7 +600,7 @@ static void PlayAs_ExtraBonesInit(void)
         {
             for (c = 0; c < 3; c++)
             {
-                coord->coord.m[r][c] = (r == c) ? Q12_ANGLE(360.0f) : Q12_ANGLE(0.0f);
+                coord->coord.m[r][c] = (s16)s_extraR[i][r * 3 + c];
             }
         }
         coord->coord.t[0] = s_extraT[i][0];
@@ -673,6 +703,13 @@ void Pc_PlayAs_OnPlayerModelLoaded(void)
     PlayAs_EnsureHeroTimSlot();
     Pc_PlayAs_ApplySkinVisibility();
     PlayAs_ExtraBonesInit();
+
+    /* Ghost Alessa, the Ghost Doctor and the Incubator ship with EVERY
+     * primitive flagged semi-transparent — that is their apparition look, baked
+     * into the model rather than applied by the ghost-fade code. As the player
+     * character it just reads as a see-through body, so the flag comes off.
+     * A no-op on the eleven skins whose prims are already solid. */
+    Lm_TransparentPrimSet(g_WorldGfxWork.harryModel.lmHdr, false);
 }
 
 int Pc_PlayAs_SetByIndex(int idx, int save)
