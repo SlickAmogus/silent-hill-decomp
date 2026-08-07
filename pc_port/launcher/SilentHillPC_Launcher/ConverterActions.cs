@@ -137,14 +137,33 @@ namespace SilentHillPC_Launcher
                 outObj = sfd.FileName;
             }
 
-            // VRAM page 14 hosts TIM01..06, one per map, so which palette an item's
-            // texture should decode with is genuinely ambiguous from the TMD alone.
-            // Ask rather than silently pick, and let the answer ride along in the meta.
-            string tpage14 = TmdViewSceneBuilder.Tpage14Candidates[0];
-            using (var pick = new TmdPageDialog())
+            // VRAM page 14 hosts TIM01..06, one per map, so a model that samples it
+            // is ambiguous from the TMD alone — but only THEN, and only when the file
+            // is not one of the IT_00x banks, whose bank is fixed by the same
+            // map-group switch that loads them. Ask in the one case that is really a
+            // question; the other two are answered from the file itself.
+            string tpage14 = null;
             {
-                if (pick.ShowDialog(owner) != DialogResult.OK) return;
-                tpage14 = pick.Selected;
+                string terr;
+                var probe = TmdFile.Load(tmd, out terr);
+                if (probe == null)
+                {
+                    MessageBox.Show(owner, "Could not read the model:\n\n" + terr, "TMD → OBJ",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                if (TmdViewSceneBuilder.UsesTpage14(probe))
+                {
+                    tpage14 = TmdViewSceneBuilder.StockTpage14ForFile(tmd);
+                    if (tpage14 == null)
+                    {
+                        using (var pick = new TmdPageDialog())
+                        {
+                            if (pick.ShowDialog(owner) != DialogResult.OK) return;
+                            tpage14 = pick.Selected;
+                        }
+                    }
+                }
             }
 
             TmdObjConverter.ExportResult res = null;
@@ -262,6 +281,89 @@ namespace SilentHillPC_Launcher
                        string.Join("\n - ", res.Warnings.Take(10)) +
                        (res.Warnings.Count > 10 ? "\n - …" : "");
             if (MessageBox.Show(owner, msg + "\n\nOpen the output folder?", "OBJ → TMD",
+                    MessageBoxButtons.YesNo,
+                    res.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information) == DialogResult.Yes)
+            { try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.OutPath)); } catch { } }
+        }
+
+        /// <summary>"Item model — replace…": rebuild the .TMD outright from the OBJ, so
+        /// vertex and face counts are free. The original is still required — it supplies
+        /// the VRAM page and palette each material binds to, which geometry cannot.</summary>
+        public static void RebuildTmd(IWin32Window owner, string gameRoot)
+        {
+            string obj;
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select your replacement model (.obj)";
+                ofd.Filter = "Wavefront OBJ (*.obj)|*.obj|All files (*.*)|*.*";
+                string gamedata = Path.Combine(gameRoot, "gamedata");
+                if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
+                if (ofd.ShowDialog(owner) != DialogResult.OK) return;
+                obj = ofd.FileName;
+            }
+
+            string tmd = GuessTmdFor(obj);
+            using (var ofd = new OpenFileDialog())
+            {
+                ofd.Title = "Select the ORIGINAL item model (.TMD) to replace";
+                ofd.Filter = "PSX item models (*.tmd)|*.tmd|All files (*.*)|*.*";
+                if (tmd != null) { ofd.InitialDirectory = Path.GetDirectoryName(tmd); ofd.FileName = Path.GetFileName(tmd); }
+                else ofd.InitialDirectory = Path.GetDirectoryName(obj);
+                if (ofd.ShowDialog(owner) != DialogResult.OK) return;
+                tmd = ofd.FileName;
+            }
+
+            string outTmd;
+            using (var sfd = new SaveFileDialog())
+            {
+                sfd.Title = "Save the rebuilt item model";
+                sfd.Filter = "PSX item models (*.tmd)|*.tmd|All files (*.*)|*.*";
+                sfd.InitialDirectory = Path.GetDirectoryName(obj);
+                sfd.FileName = Path.GetFileName(tmd);
+                if (sfd.ShowDialog(owner) != DialogResult.OK) return;
+                outTmd = sfd.FileName;
+            }
+            if (string.Equals(Path.GetFullPath(outTmd), Path.GetFullPath(tmd), StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show(owner, "Choose a different output file — the original supplies the texture " +
+                    "bindings for every rebuild, so overwriting it would leave you without a template.",
+                    "OBJ → TMD (replace)", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            TmdObjConverter.RebuildResult res = null;
+            try
+            {
+                ProgressDialog.Run(owner, "Rebuilding item model…",
+                    r => { res = TmdObjConverter.Rebuild(obj, tmd, outTmd); });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(owner, "Rebuild failed:\n\n" + ex.Message, "OBJ → TMD (replace)",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            if (res == null || !string.IsNullOrEmpty(res.Error))
+            {
+                MessageBox.Show(owner, "Rebuild failed:\n\n" + (res != null ? res.Error : "unknown error"),
+                    "OBJ → TMD (replace)", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            string msg = "Rebuilt " + res.Objects + " object(s): " + res.Vertices + " vertices, " +
+                res.Normals + " normals, " + res.Prims + " face(s) (" + res.Tris + " tri, " + res.Quads +
+                " quad; " + res.Textured + " textured, " + res.Untextured + " flat), " + res.Bytes + " bytes.\n" +
+                res.OutPath +
+                "\n\nDrop it into gamedata\\load\\ITEM\\ under the ORIGINAL name (" +
+                Path.GetFileName(tmd) + ") and set allow_loose_files = 1. Oversized models load through " +
+                "the engine's big-TMD path, which accepts up to 8192 vertices and 8192 faces per object." +
+                "\n\nTextures still come from the stock VRAM pages: keep using the tpNN_clutNN material " +
+                "names the exporter writes, and keep UVs inside the 256x256 page.";
+            if (res.Warnings.Count > 0)
+                msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
+                       string.Join("\n - ", res.Warnings.Take(10)) +
+                       (res.Warnings.Count > 10 ? "\n - …" : "");
+            if (MessageBox.Show(owner, msg + "\n\nOpen the output folder?", "OBJ → TMD (replace)",
                     MessageBoxButtons.YesNo,
                     res.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information) == DialogResult.Yes)
             { try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.OutPath)); } catch { } }

@@ -346,8 +346,11 @@ namespace SilentHillPC_Launcher
         /// IT_000.TMD, or -1 for all. Missing/unmappable textures degrade to
         /// untextured tris plus a warning — never a failure — so the scene always
         /// renders even with no TIM present at all.</summary>
+        /// <param name="tpage14Tim">null = derive from the filename
+        /// (<see cref="StockTpage14ForFile"/>). Defaulting this to a literal
+        /// "TIM01.TIM" was wrong for five of the six banks.</param>
         public static TmdViewScene Build(TmdFile tmd, string tmdPath, out string error,
-                                         string tpage14Tim = "TIM01.TIM", int objectIndex = -1)
+                                         string tpage14Tim = null, int objectIndex = -1)
         {
             error = null;
             if (tmd == null || tmd.ObjectCount == 0) { error = "no TMD objects to build a scene from"; return null; }
@@ -357,7 +360,11 @@ namespace SilentHillPC_Launcher
                       + (tmd.ObjectCount - 1).ToString(Inv);
                 return null;
             }
-            if (string.IsNullOrEmpty(tpage14Tim)) tpage14Tim = Tpage14Candidates[0];
+            // No caller preference: derive the bank from the filename rather than
+            // falling back to TIM01, which is the correct answer for exactly one of
+            // the six banks and silently mis-palettes the other five.
+            if (string.IsNullOrEmpty(tpage14Tim))
+                tpage14Tim = StockTpage14ForFile(tmdPath) ?? Tpage14Candidates[0];
 
             var sc = new TmdViewScene();
             sc.Title = string.IsNullOrEmpty(tmdPath) ? "TMD" : Path.GetFileName(tmdPath);
@@ -512,6 +519,57 @@ namespace SilentHillPC_Launcher
             return page;
         }
 
+        /// <summary>Does this model sample the ambiguous VRAM page 14 at all? Models
+        /// that only use pages 15/13/5 (TIM00 / TIM07 / FOOK) have exactly one
+        /// possible texture and never need to be asked about.</summary>
+        public static bool UsesTpage14(TmdFile tmd, int objectIndex = -1)
+        {
+            if (tmd == null) return false;
+            int first = objectIndex < 0 ? 0 : objectIndex;
+            int last = objectIndex < 0 ? tmd.ObjectCount - 1 : objectIndex;
+            for (int i = first; i <= last && i < tmd.ObjectCount; i++)
+                foreach (var pr in tmd.Objects[i].Prims)
+                    if (pr.Textured && (pr.Tpage & 0xF) == 14 && ((pr.Tpage >> 4) & 1) == 0 &&
+                        ((pr.Tpage >> 7) & 3) == 0)
+                        return true;
+            return false;
+        }
+
+        /// <summary>The page-14 bank an IT_00x item TMD is always paired with, or
+        /// null when the file is not one of those banks.
+        ///
+        /// The pairing is not a guess and it is not the obvious one. item_screens_3.c
+        /// loads the TMD bank (GameFs_MapItemsTextureLoad) and the page-14 TIM
+        /// (GameFs_MapItemsModelLoad) from the SAME map-group switch, so the two
+        /// tables are the same partition of the map list — which fixes the pairing
+        /// exactly, INCLUDING the 001/002 swap:
+        ///
+        ///   IT_001 -> TIM02   (MAP0_S01/S02, MAP1_S06, MAP2_*, MAP4_S00..S03/S05)
+        ///   IT_002 -> TIM01   (MAP1_S00..S03, S05)
+        ///   IT_003 -> TIM03   (MAP3_*, MAP4_S04)
+        ///   IT_004 -> TIM04   (MAP5_*, MAP6_*)
+        ///   IT_005 -> TIM05   (MAP7_S00/S01)
+        ///   IT_006 -> TIM06   (MAP7_S02/S03)
+        ///
+        /// IT_000 is deliberately absent: its group (MAP0_S00) loads no TIM01..06 at
+        /// all, and the shipped data agrees — IT_000 is the ONLY bank with no
+        /// page-14 primitive. That coincidence is what confirms the table.
+        ///
+        /// Note this means defaulting to TIM01 (as this class used to) is wrong for
+        /// every bank except IT_002.</summary>
+        public static string StockTpage14ForFile(string tmdPath)
+        {
+            if (string.IsNullOrEmpty(tmdPath)) return null;
+            string n = Path.GetFileNameWithoutExtension(tmdPath) ?? "";
+            if (n.Equals("IT_001", StringComparison.OrdinalIgnoreCase)) return "TIM02.TIM";
+            if (n.Equals("IT_002", StringComparison.OrdinalIgnoreCase)) return "TIM01.TIM";
+            if (n.Equals("IT_003", StringComparison.OrdinalIgnoreCase)) return "TIM03.TIM";
+            if (n.Equals("IT_004", StringComparison.OrdinalIgnoreCase)) return "TIM04.TIM";
+            if (n.Equals("IT_005", StringComparison.OrdinalIgnoreCase)) return "TIM05.TIM";
+            if (n.Equals("IT_006", StringComparison.OrdinalIgnoreCase)) return "TIM06.TIM";
+            return null;
+        }
+
         /// <summary>Decode one (tpage, CLUT row) combo to a standalone 256x256 ARGB
         /// page — the same art <see cref="Build"/> packs into its atlas, but on its
         /// own so the OBJ exporter can write one PNG per page and keep the OBJ's UVs
@@ -523,7 +581,8 @@ namespace SilentHillPC_Launcher
             argb = null;
             timName = null;
             if (warnings == null) warnings = new List<string>();
-            if (string.IsNullOrEmpty(tpage14Tim)) tpage14Tim = Tpage14Candidates[0];
+            if (string.IsNullOrEmpty(tpage14Tim))
+                tpage14Tim = StockTpage14ForFile(tmdPath) ?? Tpage14Candidates[0];
 
             var warned = new HashSet<string>();
             var pixels = new List<int[]>();

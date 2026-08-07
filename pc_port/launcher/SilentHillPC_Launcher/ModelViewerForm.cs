@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -171,6 +171,8 @@ namespace SilentHillPC_Launcher
                 }
                 else if (ext == ".TMD")
                 {
+                    // FromTmd passes no page-14 preference, so the builder derives it
+                    // from the filename (TmdViewSceneBuilder.StockTpage14ForFile).
                     scene = IlmViewScene.FromTmd(path, out err);
                 }
                 else // .ILM / .PLM (anything with the LM magic)
@@ -275,7 +277,8 @@ namespace SilentHillPC_Launcher
             conv.DropDownItems.Add("&Simple OBJ → Model…", null, (s, e) => ConverterActions.SimpleImport(this, RootOrGuess()));
             conv.DropDownItems.Add(new ToolStripSeparator());
             conv.DropDownItems.Add("&TMD → OBJ… (item models)", null, (s, e) => ConverterActions.ExportTmd(this, RootOrGuess()));
-            conv.DropDownItems.Add("OBJ → &TMD…", null, (s, e) => ConverterActions.ImportTmd(this, RootOrGuess()));
+            conv.DropDownItems.Add("OBJ → &TMD (reshape)…", null, (s, e) => ConverterActions.ImportTmd(this, RootOrGuess()));
+            conv.DropDownItems.Add("OBJ → TMD (&replace)…", null, (s, e) => ConverterActions.RebuildTmd(this, RootOrGuess()));
 
             var animM = new ToolStripMenuItem("&Animation");
             animM.DropDownItems.Add("Choose &ANM…", null, (s, e) => OnChooseAnm());

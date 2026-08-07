@@ -2409,3 +2409,74 @@ placement) so they overlap in Blender — the dialog says so. Adding or removing
 geometry is not supported; the engine's big-TMD path (`pc_big_tmd.c`) would allow
 it, but a rewrite has to reproduce the section layout and the trailing bytes, and
 modded TMDs must reuse the stock VRAM tpage/CLUT words either way.
+
+## TMD replace (real geometry changes) + page-14 bank auto-detect (2026-08-07, launcher 2026.8.7.2)
+
+Two follow-ups to the TMD converters.
+
+### "OBJ → TMD — replace…": arbitrary geometry
+`TmdObjConverter.Import` only moves existing vertices (counts must match), which
+is not model *replacement*. `Rebuild` emits a whole new file, so vertex, normal
+and face counts are free. The engine already supported this — `pc_big_tmd.c`
+accepts **8192 vertices and 8192 primitives per object** (stock's largest object
+is ~140 verts), 48 objects, 16 MB — so the limit was entirely converter-side.
+
+The template is still required, because geometry cannot carry it: it supplies
+which VRAM page and CLUT each material binds to. That is not a convenience — the
+GAME decides what is uploaded to a texture page, so a modded TMD must reuse stock
+tpage/CLUT words or it samples whatever happens to be resident. Materials named
+the way Export writes them (`tpNN_clutNN` / `rgb_r_g_b`) carry the binding
+directly; anything else falls back to the template's own binding with a warning.
+
+**Object COUNT stays fixed**: a bank's object index IS the item identity
+(`g_MapOverlayHdr.loadableItems` indexes it), so adding or removing objects would
+silently repoint items at each other's models.
+
+Only the five shapes `pc_big_tmd.c` accepts are emitted — it hard-switches on the
+exact mode byte (`0x30/0x34/0x36/0x38/0x3C` at their SH1 ilens, flag bit 0
+clear). Two consequences fall out of that and are handled explicitly:
+- **`0x36` (textured tri) is the only semi-transparent shape that exists.** A
+  semi-transparent quad is split into two triangles; semi on an untextured face
+  cannot be represented and is dropped with a warning.
+- n-gons are fan-triangulated (no n-gon packet exists).
+
+### Page-14 bank is now derived, not asked
+Export used to prompt for TIM01..06 on every model, and the viewer silently
+defaulted to `TIM01.TIM`. Both were wrong more often than not:
+
+- **30 of 90 shipped TMDs never sample page 14 at all** (they use 15/13/5 =
+  TIM00/TIM07/FOOK, which are unambiguous). Those are never asked about now.
+- **The `IT_00x` banks are deterministic.** `item_screens_3.c` loads the TMD bank
+  (`GameFs_MapItemsTextureLoad`) and the page-14 TIM (`GameFs_MapItemsModelLoad`)
+  from the SAME map-group switch, so the two tables are the same partition of the
+  map list. That fixes the pairing exactly — **including the 001/002 swap**:
+  `IT_001→TIM02`, `IT_002→TIM01`, `IT_003→TIM03`, `IT_004→TIM04`,
+  `IT_005→TIM05`, `IT_006→TIM06`. `IT_000` is absent because its group
+  (`MAP0_S00`) loads no `TIM01..06` — and the shipped data agrees: IT_000 is the
+  only bank with no page-14 primitive. That coincidence is what confirms the
+  table.
+
+So the viewer was mis-palettting five of the six banks, and the dialog now
+appears only for `UNQ*`/`ITEM_00`, where the bank genuinely depends on which map
+the player is in. A CLUT-row-range test was tried first and **does not work** —
+all six banks ship 16 rows at VRAM y=0, so rows cannot discriminate them.
+
+### Validation
+- Rebuild across all 90 shipped TMDs: **90/90** rebuilt, and re-exporting each
+  reproduces the original's geometry **and its material runs** (order-independent
+  triangle-corner comparison + usemtl run comparison).
+- Patch-mode round-trip still **90/90 byte-identical** (unregressed).
+- Growth: UNQ30 subdivided to **660 verts / 752 prims** (from 96 / 188) rebuilt
+  clean, and was checked against a transcription of `BigTmd_Validate`'s rules
+  taken from the C — **accepted**, as is stock UNQ30 by the same checker.
+- Rendered and compared: the rebuilt high-poly bottle matches stock in silhouette
+  and shading with visibly denser triangulation; a rebuilt IT_003 bank renders
+  correctly.
+
+The material-run check is what caught two real defects the geometry check was
+blind to: `ObjFace.Mtl` was never assigned (every face fell back to the
+template's default binding — fine for single-material objects, wrong for
+anything else), and `_semi` was parsed off the material name but never re-applied,
+so every semi-transparent prim rebuilt opaque.
+
+**Still unverified: in game.** All of the above is offline.

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -166,7 +166,8 @@ namespace SilentHillPC_Launcher
             var omMenu = new ContextMenuStrip();
             omMenu.Items.Add("Character — high-poly…", null, (s, e) => OnImportModel());
             omMenu.Items.Add("Character — simple…",    null, (s, e) => ConverterActions.SimpleImport(this, _gameRoot));
-            omMenu.Items.Add("Item model (.TMD)…",     null, (s, e) => ConverterActions.ImportTmd(this, _gameRoot));
+            omMenu.Items.Add("Item model (.TMD) — reshape…", null, (s, e) => ConverterActions.ImportTmd(this, _gameRoot));
+            omMenu.Items.Add("Item model (.TMD) — replace…", null, (s, e) => ConverterActions.RebuildTmd(this, _gameRoot));
             var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 450), Size = new Size(78, 28) };
             _btnTips = new ToolTip();
             _btnTips.SetToolTip(btnEx, "Unpack a Silent Hill .bin disc image into the loose asset tree.");

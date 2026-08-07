@@ -433,6 +433,425 @@ namespace SilentHillPC_Launcher
             return res;
         }
 
+        // --------------------------------------------------------------- rebuild
+
+        public sealed class RebuildResult
+        {
+            public string OutPath;
+            public int Objects, Vertices, Normals, Prims, Tris, Quads, Textured, Untextured;
+            public long Bytes;
+            public readonly List<string> Warnings = new List<string>();
+            public string Error;
+        }
+
+        /// Engine acceptance limits, mirrored from pc_big_tmd.c so a model that would
+        /// be refused at load fails HERE with a message the modder can act on, rather
+        /// than silently reverting to the stock item in game.
+        private const int EngineMaxVert = 0x2000;  // BIGTMD_MAX_VERT
+        private const int EngineMaxPrim = 0x2000;  // BIGTMD_MAX_PRIM
+        private const int EngineMaxObj  = 48;      // BIGTMD_MAX_OBJ / GS_TMD_MAX_OBJS
+
+        /// <summary>
+        /// OBJ -&gt; TMD, REBUILT: emits a whole new file, so vertex, normal and face
+        /// counts are free. This is the "actually replace the model" path;
+        /// <see cref="Import"/> is the conservative one that only moves existing
+        /// vertices.
+        ///
+        /// The template still supplies what geometry cannot: which VRAM page and CLUT
+        /// each material binds to. That is not a convenience — the game decides what
+        /// is uploaded to a texture page, so a modded TMD MUST reuse stock tpage/CLUT
+        /// words or it samples whatever happens to be resident. Materials named the
+        /// way Export writes them (tpNN_clutNN / rgb_r_g_b) carry that binding
+        /// directly; anything else falls back to the template's first material of the
+        /// same kind, with a warning.
+        ///
+        /// Only the five packet shapes the engine accepts are emitted (0x30/0x34/
+        /// 0x36/0x38/0x3C, flag 0 — "no light"). A standard PSX exporter's lit packets
+        /// mis-stride in GsSortObject4J's handler batches, which is a crash, so
+        /// nothing else is written even if the source model implies it.
+        ///
+        /// Object COUNT stays fixed: a bank's object index IS the item identity
+        /// (g_MapOverlayHdr.loadableItems indexes it), so adding or removing objects
+        /// would silently repoint items at each other's models.
+        /// </summary>
+        public static RebuildResult Rebuild(string objPath, string templateTmdPath, string outTmdPath)
+        {
+            var res = new RebuildResult();
+            string err;
+            var tmpl = TmdFile.Load(templateTmdPath, out err);
+            if (tmpl == null) { res.Error = err ?? "could not read the template TMD"; return res; }
+
+            ObjFile obj;
+            try { obj = ParseObj(objPath); }
+            catch (Exception ex) { res.Error = "could not read the OBJ: " + ex.Message; return res; }
+
+            if (obj.Objects.Count != tmpl.ObjectCount)
+            {
+                res.Error = "the OBJ has " + obj.Objects.Count.ToString(Inv) + " object(s) but " +
+                            Path.GetFileName(templateTmdPath) + " has " + tmpl.ObjectCount.ToString(Inv) +
+                            ". The object list is the item identity — a bank indexes its items by " +
+                            "object number — so objects may be reshaped but not added or removed.";
+                return res;
+            }
+            if (tmpl.ObjectCount > EngineMaxObj)
+            {
+                res.Error = "the template has " + tmpl.ObjectCount.ToString(Inv) +
+                            " objects; the engine accepts at most " + EngineMaxObj.ToString(Inv) + ".";
+                return res;
+            }
+
+            // Per-object built blocks, serialised together at the end because the
+            // file is laid out [all prims][all verts][all normals].
+            int n = tmpl.ObjectCount;
+            var primBytes = new List<byte>[n];
+            var vertBytes = new List<byte>[n];
+            var normBytes = new List<byte>[n];
+            var vertCounts = new int[n];
+            var normCounts = new int[n];
+            var primCounts = new int[n];
+
+            var fallbackWarned = new HashSet<string>();
+
+            for (int i = 0; i < n; i++)
+            {
+                var src = obj.Objects[i];
+                var tobj = tmpl.Objects[i];
+
+                // Default VRAM binding: the template object's own first textured /
+                // untextured prim, used whenever a material name does not carry one.
+                int defTpage = 0, defClut = 0; bool haveTexDefault = false;
+                int defR = 128, defG = 128, defB = 128;
+                foreach (var pr in tobj.Prims)
+                {
+                    if (pr.Textured && !haveTexDefault) { defTpage = pr.Tpage; defClut = pr.Clut; haveTexDefault = true; }
+                    if (!pr.Textured) { defR = pr.R; defG = pr.G; defB = pr.B; }
+                }
+
+                var vmap = new Dictionary<int, int>();   // OBJ v index -> local slot
+                var nmap = new Dictionary<int, int>();   // OBJ vn index -> local slot
+                var vlist = new List<int>();
+                var nlist = new List<double[]>();        // OBJ-space normals, resolved on the spot
+                var prims = new List<byte>();
+                int primCount = 0;
+
+                foreach (var face in src.Faces)
+                {
+                    bool textured, semi; int tpage, clut, cr, cg, cb;
+                    ResolveMaterial(face.Mtl, haveTexDefault, defTpage, defClut, defR, defG, defB,
+                                    res, fallbackWarned, out textured, out semi, out tpage, out clut,
+                                    out cr, out cg, out cb);
+
+                    // The engine hard-switches on the exact mode byte (pc_big_tmd.c):
+                    // only 0x30/0x34/0x36/0x38/0x3C are accepted. 0x36 (textured tri)
+                    // is the ONLY semi-transparent shape that exists, so a semi quad
+                    // has to be split into two tris and semi on an untextured face
+                    // cannot be represented at all.
+                    if (semi && !textured)
+                    {
+                        semi = false;
+                        if (fallbackWarned.Add("semiflat"))
+                            res.Warnings.Add("Semi-transparency was dropped on untextured faces — the " +
+                                             "engine has no semi-transparent flat-shaded packet.");
+                    }
+
+                    // Fan-triangulate anything past a quad: the engine has no n-gon
+                    // packet, and silently dropping the extra corners would lose
+                    // geometry the modder can see in Blender.
+                    var runs = new List<int[]>();
+                    if (face.V.Count == 3) runs.Add(new[] { 0, 1, 2 });
+                    else if (face.V.Count == 4)
+                    {
+                        if (semi)
+                        {
+                            runs.Add(new[] { 0, 1, 2 });
+                            runs.Add(new[] { 0, 2, 3 });
+                            if (fallbackWarned.Add("semiquad"))
+                                res.Warnings.Add("Semi-transparent quads were split into two triangles — " +
+                                                 "0x36 is the only semi-transparent packet the engine accepts.");
+                        }
+                        else runs.Add(new[] { 0, 1, 2, 3 });
+                    }
+                    else if (face.V.Count > 4)
+                    {
+                        for (int k = 1; k + 1 < face.V.Count; k++) runs.Add(new[] { 0, k, k + 1 });
+                        if (fallbackWarned.Add("ngon"))
+                            res.Warnings.Add("Faces with more than 4 corners were split into triangles — " +
+                                             "the PSX has no n-gon primitive.");
+                    }
+                    else
+                    {
+                        if (fallbackWarned.Add("degen"))
+                            res.Warnings.Add("Faces with fewer than 3 corners were skipped.");
+                        continue;
+                    }
+
+                    foreach (int[] run in runs)
+                    {
+                        int corners = run.Length;
+                        var vIdx = new int[corners];
+                        var nIdx = new int[corners];
+                        var tu = new int[corners];
+                        var tv = new int[corners];
+                        double[] faceNrm = null; // computed once, only if a corner lacks vn
+
+                        for (int c = 0; c < corners; c++)
+                        {
+                            // TMD corner c comes from OBJ loop position QuadLoop[c]
+                            // on a quad (involution, same table as export).
+                            int e = corners == 4 ? QuadLoop[c] : c;
+                            int ov = face.V[run[e]];
+                            int on = face.N.Count > run[e] ? face.N[run[e]] : 0;
+                            int ot = face.T.Count > run[e] ? face.T[run[e]] : 0;
+
+                            int slot;
+                            if (!vmap.TryGetValue(ov, out slot))
+                            {
+                                slot = vlist.Count; vmap[ov] = slot; vlist.Add(ov);
+                            }
+                            vIdx[c] = slot;
+
+                            int nslot;
+                            if (on > 0 && on <= obj.Norms.Count)
+                            {
+                                if (!nmap.TryGetValue(on, out nslot))
+                                {
+                                    nslot = nlist.Count; nmap[on] = nslot; nlist.Add(obj.Norms[on - 1]);
+                                }
+                            }
+                            else
+                            {
+                                // No vn on this corner: give it the face's own outward
+                                // normal. Computed once per face, shared by its corners.
+                                if (faceNrm == null) faceNrm = FaceNormalObj(obj, face, run);
+                                nslot = nlist.Count; nlist.Add(faceNrm);
+                            }
+                            nIdx[c] = nslot;
+
+                            if (textured && ot > 0 && ot <= obj.Uvs.Count)
+                            {
+                                double[] uv = obj.Uvs[ot - 1];
+                                tu[c] = ClampByte((int)Math.Round(uv[0] * 256.0, MidpointRounding.AwayFromZero));
+                                tv[c] = ClampByte((int)Math.Round((1.0 - uv[1]) * 256.0, MidpointRounding.AwayFromZero));
+                            }
+                        }
+
+                        int mode = textured ? (corners == 4 ? 0x3C : 0x34) : (corners == 4 ? 0x38 : 0x30);
+                        if (semi && textured && corners == 3) mode = 0x36; // the only legal semi shape
+                        int ilen = textured ? (corners == 4 ? 8 : 6) : (corners == 4 ? 5 : 4);
+                        int olen = textured ? (corners == 4 ? 12 : 9) : (corners == 4 ? 8 : 6);
+
+                        prims.Add((byte)olen); prims.Add((byte)ilen); prims.Add(0); prims.Add((byte)mode);
+                        if (textured)
+                        {
+                            for (int c = 0; c < corners; c++)
+                            {
+                                prims.Add((byte)tu[c]); prims.Add((byte)tv[c]);
+                                int word = c == 0 ? clut : (c == 1 ? tpage : 0);
+                                prims.Add((byte)(word & 0xFF)); prims.Add((byte)((word >> 8) & 0xFF));
+                            }
+                        }
+                        else
+                        {
+                            prims.Add((byte)cr); prims.Add((byte)cg); prims.Add((byte)cb);
+                            prims.Add((byte)mode); // the GPU code byte is the mode repeated
+                        }
+                        for (int c = 0; c < corners; c++)
+                        {
+                            prims.Add((byte)(nIdx[c] & 0xFF)); prims.Add((byte)((nIdx[c] >> 8) & 0xFF));
+                            prims.Add((byte)(vIdx[c] & 0xFF)); prims.Add((byte)((vIdx[c] >> 8) & 0xFF));
+                        }
+                        primCount++;
+                        if (corners == 4) res.Quads++; else res.Tris++;
+                        if (textured) res.Textured++; else res.Untextured++;
+                    }
+                }
+
+                if (vlist.Count == 0 || primCount == 0)
+                {
+                    res.Error = "object " + i.ToString(Inv) + " (\"" + src.Name + "\") has no geometry. " +
+                                "Every object must keep at least one face.";
+                    return res;
+                }
+                if (vlist.Count > EngineMaxVert)
+                {
+                    res.Error = "object " + i.ToString(Inv) + " has " + vlist.Count.ToString(Inv) +
+                                " vertices; the engine accepts at most " + EngineMaxVert.ToString(Inv) +
+                                " per object (pc_big_tmd.c). Decimate the mesh.";
+                    return res;
+                }
+                if (primCount > EngineMaxPrim)
+                {
+                    res.Error = "object " + i.ToString(Inv) + " has " + primCount.ToString(Inv) +
+                                " faces; the engine accepts at most " + EngineMaxPrim.ToString(Inv) +
+                                " per object (pc_big_tmd.c). Decimate the mesh.";
+                    return res;
+                }
+
+                // Serialise the vertex / normal blocks (8 bytes each, 4th halfword 0).
+                var vb = new List<byte>();
+                foreach (int ov in vlist)
+                {
+                    double[] p = obj.Verts[ov - 1];
+                    AppendS16(vb, p[0], res, "vertex X");
+                    AppendS16(vb, -p[1], res, "vertex Y");   // inverse of export's (x,-y,z)
+                    AppendS16(vb, p[2], res, "vertex Z");
+                    vb.Add(0); vb.Add(0);
+                }
+                var nb = new List<byte>();
+                foreach (double[] v in nlist)
+                {
+                    double nx = v[0], ny = v[1], nz = v[2];
+                    double len = Math.Sqrt(nx * nx + ny * ny + nz * nz);
+                    if (len < 1e-9) { nx = 0; ny = 0; nz = 1; len = 1; }
+                    // Same transform as positions; see the class doc for why this is
+                    // NOT the ILM rule.
+                    AppendS16(nb, nx / len * 4096.0, res, "normal X");
+                    AppendS16(nb, -ny / len * 4096.0, res, "normal Y");
+                    AppendS16(nb, nz / len * 4096.0, res, "normal Z");
+                    nb.Add(0); nb.Add(0);
+                }
+
+                primBytes[i] = prims; vertBytes[i] = vb; normBytes[i] = nb;
+                vertCounts[i] = vlist.Count; normCounts[i] = nlist.Count; primCounts[i] = primCount;
+                res.Vertices += vlist.Count;
+                res.Normals += nlist.Count;
+                res.Prims += primCount;
+            }
+
+            // Assemble: header, object table, then [all prims][all verts][all normals].
+            var outBytes = new List<byte>();
+            AppendU32(outBytes, (uint)(tmpl.Id == 0 ? 0x41 : tmpl.Id));
+            AppendU32(outBytes, 0);                       // FIXP: offsets stay relative
+            AppendU32(outBytes, (uint)n);
+
+            int tableBytes = n * ObjectEntrySize;
+            int cursor = tableBytes;                      // offsets are relative to 0xC
+            var primTop = new int[n]; var vertTop = new int[n]; var normTop = new int[n];
+            for (int i = 0; i < n; i++) { primTop[i] = cursor; cursor += primBytes[i].Count; }
+            for (int i = 0; i < n; i++) { vertTop[i] = cursor; cursor += vertBytes[i].Count; }
+            for (int i = 0; i < n; i++) { normTop[i] = cursor; cursor += normBytes[i].Count; }
+
+            for (int i = 0; i < n; i++)
+            {
+                AppendU32(outBytes, (uint)vertTop[i]); AppendU32(outBytes, (uint)vertCounts[i]);
+                AppendU32(outBytes, (uint)normTop[i]); AppendU32(outBytes, (uint)normCounts[i]);
+                AppendU32(outBytes, (uint)primTop[i]); AppendU32(outBytes, (uint)primCounts[i]);
+                AppendU32(outBytes, (uint)tmpl.Objects[i].Scale);
+            }
+            for (int i = 0; i < n; i++) outBytes.AddRange(primBytes[i]);
+            for (int i = 0; i < n; i++) outBytes.AddRange(vertBytes[i]);
+            for (int i = 0; i < n; i++) outBytes.AddRange(normBytes[i]);
+
+            // Prove the result parses under the same strict reader the viewer and the
+            // engine's validator use, before it can reach a save dialog.
+            string verr;
+            var check = TmdFile.Parse(outBytes.ToArray(), out verr);
+            if (check == null)
+            {
+                res.Error = "the rebuilt model failed its own parse check (" + verr +
+                            "). This is a converter bug — please report it with the OBJ.";
+                return res;
+            }
+
+            try { File.WriteAllBytes(outTmdPath, outBytes.ToArray()); }
+            catch (Exception ex) { res.Error = "could not write the TMD: " + ex.Message; return res; }
+
+            res.OutPath = outTmdPath;
+            res.Objects = n;
+            res.Bytes = outBytes.Count;
+            return res;
+        }
+
+        /// <summary>Material name -&gt; VRAM binding. Names Export writes
+        /// (tpNN_clutNN / rgb_r_g_b) carry it exactly; anything else falls back to the
+        /// template object's own binding, which keeps a Blender-authored model on
+        /// stock pages instead of sampling an arbitrary one.</summary>
+        private static void ResolveMaterial(string mtl, bool haveTexDefault, int defTpage, int defClut,
+                                            int defR, int defG, int defB,
+                                            RebuildResult res, HashSet<string> warned,
+                                            out bool textured, out bool semi, out int tpage, out int clut,
+                                            out int r, out int g, out int b)
+        {
+            textured = haveTexDefault; tpage = defTpage; clut = defClut;
+            r = defR; g = defG; b = defB;
+            // Export appends "_semi" for a semi-transparent prim; without reading it
+            // back, every such face rebuilds opaque.
+            semi = mtl != null && mtl.EndsWith("_semi", StringComparison.Ordinal);
+            if (string.IsNullOrEmpty(mtl))
+            {
+                if (warned.Add("nomtl"))
+                    res.Warnings.Add("Some faces carry no 'usemtl'; they use the original model's " +
+                                     "own texture page and palette.");
+                return;
+            }
+            if (mtl.StartsWith("tp", StringComparison.Ordinal))
+            {
+                int us = mtl.IndexOf("_clut", StringComparison.Ordinal);
+                if (us > 2)
+                {
+                    int tp, cl;
+                    string tail = mtl.Substring(us + 5);
+                    int suffix = tail.IndexOf('_'); // trims the "_semi" marker
+                    if (suffix >= 0) tail = tail.Substring(0, suffix);
+                    if (int.TryParse(mtl.Substring(2, us - 2), NumberStyles.Integer, Inv, out tp) &&
+                        int.TryParse(tail, NumberStyles.Integer, Inv, out cl))
+                    {
+                        textured = true; tpage = tp; clut = cl;
+                        return;
+                    }
+                }
+            }
+            if (mtl.StartsWith("rgb_", StringComparison.Ordinal))
+            {
+                int rr, gg, bb;
+                ParseRgbKey(mtl, out rr, out gg, out bb);
+                textured = false; r = rr; g = gg; b = bb;
+                return;
+            }
+            if (warned.Add("mtl:" + mtl))
+                res.Warnings.Add("Material \"" + mtl + "\" is not one this converter writes " +
+                                 "(tpNN_clutNN or rgb_r_g_b), so those faces keep the original " +
+                                 "model's texture page and palette. A modded TMD has to reuse a " +
+                                 "stock VRAM page — the game decides what is uploaded there.");
+        }
+
+        /// <summary>Outward face normal in OBJ space (CCW winding = outward).</summary>
+        private static double[] FaceNormalObj(ObjFile f, ObjFace face, int[] run)
+        {
+            double[] a = f.Verts[face.V[run[0]] - 1];
+            double[] b = f.Verts[face.V[run[1]] - 1];
+            double[] c = f.Verts[face.V[run[2]] - 1];
+            double e1x = b[0] - a[0], e1y = b[1] - a[1], e1z = b[2] - a[2];
+            double e2x = c[0] - a[0], e2y = c[1] - a[1], e2z = c[2] - a[2];
+            return new[]
+            {
+                e1y * e2z - e1z * e2y,
+                e1z * e2x - e1x * e2z,
+                e1x * e2y - e1y * e2x,
+            };
+        }
+
+        private static void AppendS16(List<byte> d, double value, RebuildResult res, string what)
+        {
+            double r = Math.Round(value, MidpointRounding.AwayFromZero);
+            if (r > 32767.0 || r < -32768.0)
+            {
+                if (res.Warnings.Count < 40)
+                    res.Warnings.Add(what + " " + r.ToString("0", Inv) + " is outside the 16-bit range a " +
+                                     "TMD stores and was clamped — scale the model down or move it to the origin.");
+                r = r > 0 ? 32767.0 : -32768.0;
+            }
+            short s = (short)r;
+            d.Add((byte)(s & 0xFF));
+            d.Add((byte)((s >> 8) & 0xFF));
+        }
+
+        private static void AppendU32(List<byte> d, uint v)
+        {
+            d.Add((byte)(v & 0xFF)); d.Add((byte)((v >> 8) & 0xFF));
+            d.Add((byte)((v >> 16) & 0xFF)); d.Add((byte)((v >> 24) & 0xFF));
+        }
+
         /// <summary>Byte offset of primitive <paramref name="index"/>'s payload,
         /// walked from the block start because packets are variable length (ilen is
         /// per mode). Returns -1 if the walk leaves the file.</summary>
@@ -561,6 +980,7 @@ namespace SilentHillPC_Launcher
             public readonly List<int> V = new List<int>();
             public readonly List<int> T = new List<int>();
             public readonly List<int> N = new List<int>();
+            public string Mtl;   // usemtl in effect; carries the VRAM binding on rebuild
         }
 
         private sealed class ObjObj
@@ -587,6 +1007,7 @@ namespace SilentHillPC_Launcher
             var f = new ObjFile();
             ObjObj cur = null;
             bool sawO = false;
+            string mtl = null;   // persists across object boundaries, as the format requires
 
             foreach (string raw in File.ReadLines(path))
             {
@@ -595,6 +1016,8 @@ namespace SilentHillPC_Launcher
                 int sp = ln.IndexOf(' ');
                 string k = sp < 0 ? ln : ln.Substring(0, sp);
                 string rest = sp < 0 ? "" : ln.Substring(sp + 1).Trim();
+
+                if (k == "usemtl") { mtl = rest; continue; }
 
                 if (k == "v") { f.Verts.Add(Nums(rest, 3)); continue; }
                 if (k == "vn") { f.Norms.Add(Nums(rest, 3)); continue; }
@@ -616,7 +1039,7 @@ namespace SilentHillPC_Launcher
                 if (k == "f")
                 {
                     if (cur == null) { cur = new ObjObj { Name = "" }; f.Objects.Add(cur); }
-                    var face = new ObjFace();
+                    var face = new ObjFace { Mtl = mtl };
                     foreach (string tok in rest.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries))
                     {
                         string[] bits = tok.Split('/');
