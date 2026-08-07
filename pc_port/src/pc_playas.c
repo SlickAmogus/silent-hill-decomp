@@ -36,6 +36,11 @@
 #include "hires_override.h"
 #include "sh_log.h"
 
+/* Harry's rig is 18 bones (0..17); g_SysWork carries 5 spare coords right after
+ * them, so a skin may bind parts up to bone 22 and no further. */
+#define PLAYAS_BONE_MAX  18
+#define PLAYAS_EXTRA_MAX 5
+
 typedef struct
 {
     const char* name;  /* config value / console token (lowercase) */
@@ -45,15 +50,32 @@ typedef struct
      * playable body: in-hand guns, bag, key, Flauros, duplicate hand
      * variants. NULL-terminated; exact 8-char ILM part names. */
     const char* hideParts[6];
-    u8          hairBones; /* bones >17 posed as rigid head-followers (Lisa) */
 } PcPlayAsChara;
 
+/* Every rig here shares Harry's bone 0..17 parent chain and binds its parts to
+ * bones <= 22, which is what makes Harry's animation drive it: the chain is
+ * what the rotations mean, and 22 is the last bone the player's coord array can
+ * address (18 bones + the 5 spares). Rigs that fail either test — every monster,
+ * the Incubus boss, the cat, the dogs — are a different skeleton entirely and
+ * cannot be posed by Harry's keyframes at all. */
 static const PcPlayAsChara s_playable[] = {
-    { "harry",    "HARRY",    Chara_Harry,    { NULL }, 0 },
-    { "lisa",     "LISA",     Chara_Lisa,     { NULL }, 3 },
-    { "cybil",    "CYBIL",    Chara_Cybil,    { "06LGUN", "10RGUN", NULL }, 0 },
-    { "kaufmann", "KAUFMANN", Chara_Kaufmann, { "06LHAND2", "06LBAG", "10RHAND2", "10RGUN", "10RAGLA", NULL }, 0 },
-    { "dahlia",   "DAHLIA",   Chara_Dahlia,   { "10RHAND2", "10RKEY", "10FLAURO", NULL }, 0 },
+    { "harry",       "HARRY",       Chara_Harry,      { NULL } },
+    { "lisa",        "LISA",        Chara_Lisa,       { NULL } },
+    { "cybil",       "CYBIL",       Chara_Cybil,      { "06LGUN", "10RGUN", NULL } },
+    { "kaufmann",    "KAUFMANN",    Chara_Kaufmann,   { "06LHAND2", "06LBAG", "10RHAND2", "10RGUN", "10RAGLA", NULL } },
+    { "dahlia",      "DAHLIA",      Chara_Dahlia,     { "10RHAND2", "10RKEY", "10FLAURO", NULL } },
+    { "cheryl",      "CHERYL",      Chara_Cheryl,     { NULL } },
+    { "alessa",      "ALESSA",      Chara_Alessa,     { NULL } },
+    { "ghostalessa", "GHOST ALESSA", Chara_GhostChildAlessa, { NULL } },
+    { "bloodylisa",  "BLOODY LISA", Chara_BloodyLisa, { NULL } },
+    { "nurse",       "PUPPET NURSE", Chara_PuppetNurse, { "10RHAND2", NULL } },
+    { "doctor",      "PUPPET DOCTOR", Chara_PuppetDoctor, { "10RHAND2", NULL } },
+    { "ghostdoctor", "GHOST DOCTOR", Chara_GhostDoctor, { NULL } },
+    { "monstercybil", "MONSTER CYBIL", Chara_MonsterCybil, { "06LGUN", "10RGUN", NULL } },
+    /* The Incubator's outer sleeve segments bind bones 22-23; 23 is past the
+     * last addressable coord, so both right-hand segments are hidden and the
+     * left pair with them, keeping her symmetrical. */
+    { "incubator",   "INCUBATOR",   Chara_Incubator,  { "20LSODE1", "21LSODE2", "22RSODE1", "23RSODE2", NULL } },
 };
 #define PLAYAS_COUNT ((int)(sizeof(s_playable) / sizeof(s_playable[0])))
 
@@ -95,6 +117,16 @@ const char* Pc_PlayAs_Label(int idx)
         return "?";
     }
     return s_playable[idx].label;
+}
+
+/* The token the config key and the console command accept (lowercase). */
+const char* Pc_PlayAs_Name(int idx)
+{
+    if (idx < 0 || idx >= PLAYAS_COUNT)
+    {
+        return "?";
+    }
+    return s_playable[idx].name;
 }
 
 int Pc_PlayAs_SkinCharaId(void)
@@ -228,6 +260,19 @@ void Pc_PlayAs_ApplySkinVisibility(void)
             }
         }
 
+        /* Safety net: a part bound past the last addressable coord would have
+         * the drawer index off the end of the spares. Hidden parts are skipped
+         * before that read, so this keeps any future rig non-corrupting. */
+        {
+            const char* nm = bone->bone.modelInfo.modelHdr->name.str;
+
+            if (nm[0] >= '0' && nm[0] <= '9' && nm[1] >= '0' && nm[1] <= '9' &&
+                ((nm[0] - '0') * 10 + (nm[1] - '0')) >= PLAYAS_BONE_MAX + PLAYAS_EXTRA_MAX)
+            {
+                hide = 1;
+            }
+        }
+
         if (hide)
         {
             bone->bone.modelInfo.field_0 |= 1 << 31;
@@ -261,8 +306,6 @@ void Pc_PlayAs_ApplySkinVisibility(void)
  * ANM header's rootYOffset byte, which Anim_BoneUpdate subtracts from the Y of
  * every slot-0 sharer each frame — one byte, applied by the engine itself, so
  * no per-frame accumulation is possible. */
-#define PLAYAS_BONE_MAX 18
-
 static s32 s_skinBindT[PLAYAS_BONE_MAX][3];
 static u8  s_skinBindHas[PLAYAS_BONE_MAX];
 static s16 s_skinBindFileIdx = (s16)NO_VALUE; /* the ANM these came from */
@@ -278,6 +321,12 @@ static u8  s_rootYOrig;
 static s32 s_harryBindT[PLAYAS_BONE_MAX][3];
 static u8  s_harryBindHas[PLAYAS_BONE_MAX];
 static int s_harryBindLatched;
+
+/* Bones 18+ of the skin's own rig, seated in g_SysWork's five spare coords —
+ * the last bone indices the player's coord array can address. */
+static s32 s_extraT[PLAYAS_EXTRA_MAX][3];
+static u8  s_extraParent[PLAYAS_EXTRA_MAX];
+static int s_extraCount;
 
 /* Bind-table reader for a raw ANM image: bone i at 0x14 + i*6 =
  * { s8 parentBone, s8 rotationDataIdx, s8 translationDataIdx, s8 t0[3] },
@@ -405,10 +454,28 @@ static void PlayAs_LoadSkinBinds(void)
         Fs_QueueUpdate();
     }
 
-    boneCount = 0;
+    boneCount    = 0;
+    s_extraCount = 0;
     if (buf[0] == 0x94 && buf[1] == 0x01 && buf[0x12] <= 4 && buf[0x06] >= PLAYAS_BONE_MAX)
     {
+        int raw   = buf[0x06];
+        int scale = buf[0x12];
+        int e;
+
         PlayAs_ReadBinds(buf, skinT, skinHas, &boneCount, &throwaway);
+
+        /* PlayAs_ReadBinds caps at Harry's 18; the rig's own extra bones come
+         * straight off the table here. */
+        for (e = PLAYAS_BONE_MAX; e < raw && s_extraCount < PLAYAS_EXTRA_MAX; e++)
+        {
+            const u8* b = buf + 0x14 + e * 6;
+
+            s_extraParent[s_extraCount] = (u8)b[0];
+            s_extraT[s_extraCount][0]   = (s32)(s8)b[3] << scale;
+            s_extraT[s_extraCount][1]   = (s32)(s8)b[4] << scale;
+            s_extraT[s_extraCount][2]   = (s32)(s8)b[5] << scale;
+            s_extraCount++;
+        }
     }
     free(buf);
 
@@ -456,6 +523,7 @@ static void PlayAs_LoadSkinBinds(void)
 static void PlayAs_ClearRetarget(void)
 {
     s_skinBindFileIdx = (s16)NO_VALUE;
+    s_extraCount      = 0; /* Harry's rig stops at bone 17 */
 
     if (s_rootYPatched)
     {
@@ -474,31 +542,22 @@ static void PlayAs_ClearRetarget(void)
     }
 }
 
-/* Lisa's hair parts bind bones 18..20, which HB_BASE.ANM (18 bones) never
- * animates. Pose them as rigid children from LS.ANM's bind chain (verified
- * from the disc file: parents 2/2/19, translationInitial << scaleLog2(3)) —
- * they land in g_SysWork's unused spare coords directly after
- * playerBoneCoords[18], which the draw path indexes contiguously. */
-static void PlayAs_HairInit(void)
+/* Bones past Harry's 18 — Lisa's hair, Alessa's hair, the Puppet Nurse's second
+ * body, the Incubator's sleeves — exist in the SKIN's rig only, so HB_BASE.ANM
+ * never poses them. Seat them as rigid children from the skin's OWN bind chain
+ * (parent + translationInitial << scaleLog2, read with the rest of its binds)
+ * in g_SysWork's five spare coords, which sit directly after
+ * playerBoneCoords[17] and are what the draw path indexes for bones 18..22. */
+static void PlayAs_ExtraBonesInit(void)
 {
-    static const struct
-    {
-        u8  parent;
-        s32 t[3];
-    } HAIR_BIND[3] = {
-        { 2,  { 0, 8, -8 } },
-        { 2,  { -8, 0, 8 } },
-        { 19, { 0, 16, 0 } },
-    };
-
     int i;
     int r;
     int c;
 
-    for (i = 0; i < 3; i++)
+    for (i = 0; i < s_extraCount; i++)
     {
         GsCOORDINATE2* coord  = &g_SysWork.unkCoords_E30[i];
-        u8             parent = HAIR_BIND[i].parent;
+        u8             parent = s_extraParent[i];
 
         memset(coord, 0, sizeof(*coord));
         for (r = 0; r < 3; r++)
@@ -508,11 +567,14 @@ static void PlayAs_HairInit(void)
                 coord->coord.m[r][c] = (r == c) ? Q12_ANGLE(360.0f) : Q12_ANGLE(0.0f);
             }
         }
-        coord->coord.t[0] = HAIR_BIND[i].t[0];
-        coord->coord.t[1] = HAIR_BIND[i].t[1];
-        coord->coord.t[2] = HAIR_BIND[i].t[2];
-        coord->super      = (parent >= 18) ? &g_SysWork.unkCoords_E30[parent - 18]
-                                           : &g_SysWork.playerBoneCoords[parent];
+        coord->coord.t[0] = s_extraT[i][0];
+        coord->coord.t[1] = s_extraT[i][1];
+        coord->coord.t[2] = s_extraT[i][2];
+        /* A parent past 17 is another extra bone (the nurse's body chain and
+         * Lisa's third hair segment both do this). */
+        coord->super = (parent >= PLAYAS_BONE_MAX)
+                           ? &g_SysWork.unkCoords_E30[parent - PLAYAS_BONE_MAX]
+                           : &g_SysWork.playerBoneCoords[parent];
         coord->flg = 0;
     }
 }
@@ -542,21 +604,21 @@ void Pc_PlayAs_PlayerAnimTick(void)
         }
     }
 
-    if (PlayAs_Cur()->hairBones == 0)
+    if (s_extraCount == 0)
     {
         return;
     }
 
     /* super == NULL means a warm reset's SysWork_Clear wiped the coords. The
      * per-frame flg clear forces Vw_CoordHierarchyMatrixCompute to recompose
-     * against the freshly-animated head — flg is its "already processed"
+     * against the freshly-animated parent — flg is its "already processed"
      * cache and nothing else resets it for bones no ANM touches. */
     if (g_SysWork.unkCoords_E30[0].super == NULL)
     {
-        PlayAs_HairInit();
+        PlayAs_ExtraBonesInit();
         return;
     }
-    for (i = 0; i < 3; i++)
+    for (i = 0; i < s_extraCount; i++)
     {
         g_SysWork.unkCoords_E30[i].flg = 0;
     }
@@ -604,10 +666,7 @@ void Pc_PlayAs_OnPlayerModelLoaded(void)
     PlayAs_LoadSkinBinds();
     PlayAs_EnsureHeroTimSlot();
     Pc_PlayAs_ApplySkinVisibility();
-    if (PlayAs_Cur()->hairBones != 0)
-    {
-        PlayAs_HairInit();
-    }
+    PlayAs_ExtraBonesInit();
 }
 
 int Pc_PlayAs_SetByIndex(int idx, int save)

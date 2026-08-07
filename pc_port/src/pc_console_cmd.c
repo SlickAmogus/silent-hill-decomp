@@ -484,7 +484,7 @@ static const char* const HELP_LINES[] = {
     " fmv            list movies (numbered)",
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
     " kf [n]         keyframe inspector: set/show frame (K key)",
-    " playas [name]  play as harry|lisa|cybil|kaufmann|dahlia",
+    " playas [name]  play as another character (bare = list)",
     " loga / logb    log Harry+camera pos/angles to SilentHill.log",
     "Quick Save: F6   Quick Load: F8 (work outside console)",
 };
@@ -1487,7 +1487,19 @@ void Pc_ConsoleExec(const char* line)
             if (Pc_PlayAs_SetByName(arg, 1)) {
                 cprintf("playing as %s", Pc_PlayAs_Label(Pc_PlayAs_Current()));
             } else {
-                cprintf("unknown character - playas harry|lisa|cybil|kaufmann|dahlia");
+                extern int         Pc_PlayAs_Count(void);
+                extern const char* Pc_PlayAs_Name(int idx);
+                int _i;
+                cprintf("unknown character. playas <name>:");
+                for (_i = 0; _i < Pc_PlayAs_Count(); _i += 4) {
+                    char _line[80];
+                    int  _j, _n = 0;
+                    _line[0] = '\0';
+                    for (_j = _i; _j < _i + 4 && _j < Pc_PlayAs_Count(); _j++)
+                        _n += snprintf(_line + _n, sizeof(_line) - _n, "%s%s",
+                                       _n ? " " : "  ", Pc_PlayAs_Name(_j));
+                    cprintf("%s", _line);
+                }
             }
         } else {
             cprintf("playing as %s (playas <name> to change)", Pc_PlayAs_Label(Pc_PlayAs_Current()));

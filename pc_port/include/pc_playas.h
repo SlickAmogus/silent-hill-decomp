@@ -19,7 +19,8 @@ void Pc_PlayAs_Init(void);
 
 int         Pc_PlayAs_Count(void);
 int         Pc_PlayAs_Current(void);
-const char* Pc_PlayAs_Label(int idx);   /* uppercase display/console name */
+const char* Pc_PlayAs_Label(int idx);   /* uppercase display name */
+const char* Pc_PlayAs_Name(int idx);    /* lowercase config/console token */
 int         Pc_PlayAs_SkinCharaId(void);/* Chara_Harry when not swapped */
 
 /* Select a character. Mid-game this synchronously reloads the player model
