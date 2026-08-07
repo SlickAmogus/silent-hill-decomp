@@ -150,7 +150,7 @@ s_PcConfig g_PcConfig = {
     .discImage      = "", /* exact .bin in gamedata/ (launcher Disc dropdown); empty = auto */
     .uncensored     = 0, /* 0=retail PAL Mumblers (default); 1=restore Grey Children on EUR (matches US) */
     .playerCharacter = "harry", /* play as: harry|lisa|cybil|kaufmann|dahlia|... (also - / = in K view) */
-    .femaleVoicePitch = 0, /* 0 = off; 100-150 = playback-rate percent for a female play-as voice */
+    .femaleVoicePitch = 118, /* on by default: only ever audible while playing as a woman; 0 = off */
     .discordRichPresence = 1,  /* show current area on the player's Discord profile (needs a discord_app_id) */
     .discordAppId        = "", /* project's Discord application id; empty = compiled-in default / off */
     .retroAchievements   = 0,  /* opt-in; needs a launcher sign-in to do anything */

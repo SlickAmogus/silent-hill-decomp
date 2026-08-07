@@ -267,8 +267,10 @@ typedef struct {
     /* Raise the pitch of Harry's OWN VOICE sound effects — his hurt cries,
      * death screams, landing grunt and low-HP breathing — while playing as one
      * of the female characters, so the voice matches the body. Playback-rate
-     * percent: 0 = off (default), otherwise 100-150 (118 is about a minor
-     * third). Nothing else is touched: footsteps, weapons, monsters, music and
+     * percent: 118 by default (about a minor third), 100-150 accepted, 0 = off.
+     * On by default because it is unreachable unless a female character is
+     * selected — an unmodified playthrough as Harry sounds exactly as it always
+     * did. Nothing else is touched: footsteps, weapons, monsters, music and
      * ambience are untouched, and cutscene dialogue is streamed audio carrying
      * whole scenes, so it stays as recorded (config key: female_voice_pitch) */
     int femaleVoicePitch;
