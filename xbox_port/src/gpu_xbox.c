@@ -520,22 +520,16 @@ static int PolyOversized(const VERTTYPE* xy, int stridePairs, int n)
         if (y < minY) minY = y;
         if (y > maxY) maxY = y;
     }
-    if ((maxX - minX) >= 1024 || (maxY - minY) >= 512)
-        return 1;
-    /* GTE-rail backstop: Lm_G1/G2 saturate a broken projection to EXACTLY
-     * +1023/-1024 (PsyX_GTE.cpp). A single X-rail corner whose companions sit on
-     * the same side of center spans 823..1023 -- under the 1024 gate above and
-     * (for GT3/GT4 and non-ABE FTs) never screen-span-checked later, so a ~2-
-     * screen sliver flashes for a frame (point-blank recoil-animated bones, the
-     * residual gun-combat flicker). A rail vert + a span bigger than the visible
-     * field = a broken projection, never legit geometry. */
-    for (i = 0; i < n; i++) {
-        int x = xy[i * stridePairs], y = xy[i * stridePairs + 1];
-        if ((x == 1023 || x == -1024 || y == 1023 || y == -1024) &&
-            ((maxX - minX) > 400 || (maxY - minY) > 300))
-            return 1;
-    }
-    return 0;
+    return (maxX - minX) >= 1024 || (maxY - minY) >= 512;
+    /* REVERTED: a speculative "GTE-rail backstop" used to drop any prim with a
+     * vertex exactly at the +-1023/-1024 saturation rail whose span exceeded
+     * 400x300. It did NOT fix the reported flicker, and it can silently delete
+     * LEGITIMATE geometry: during an attack animation a limb or torso bone
+     * swings close enough to the camera for one vertex to saturate, and the
+     * whole face then vanishes -- which matches the newly-reported "Harry's
+     * torso disappears for a frame". Dropping visible geometry on a heuristic is
+     * strictly worse than the artifact it was guessing at, so the PSX-accurate
+     * 1024/512 rule above is the only rejection rule again. */
 }
 
 static int ProcessPoly(P_TAG* tag)
