@@ -149,7 +149,8 @@ s_PcConfig g_PcConfig = {
     .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal 3=jap — preferred disc when several are present */
     .discImage      = "", /* exact .bin in gamedata/ (launcher Disc dropdown); empty = auto */
     .uncensored     = 0, /* 0=retail PAL Mumblers (default); 1=restore Grey Children on EUR (matches US) */
-    .playerCharacter = "harry", /* play as: harry|lisa|cybil|kaufmann|dahlia (also - / = in K view) */
+    .playerCharacter = "harry", /* play as: harry|lisa|cybil|kaufmann|dahlia|... (also - / = in K view) */
+    .femaleVoicePitch = 0, /* 0 = off; 100-150 = playback-rate percent for a female play-as voice */
     .discordRichPresence = 1,  /* show current area on the player's Discord profile (needs a discord_app_id) */
     .discordAppId        = "", /* project's Discord application id; empty = compiled-in default / off */
     .retroAchievements   = 0,  /* opt-in; needs a launcher sign-in to do anything */
@@ -721,6 +722,19 @@ void PcConfig_Load(const char* path)
         {
             strncpy(g_PcConfig.playerCharacter, value, sizeof(g_PcConfig.playerCharacter) - 1);
             g_PcConfig.playerCharacter[sizeof(g_PcConfig.playerCharacter) - 1] = '\0';
+        }
+        else if (strcmp(key, "female_voice_pitch") == 0)
+        {
+            /* Clamped at parse as well as at use: a typo'd 1180 would overflow
+             * the s16 the engine stashes the pitch in and land negative. */
+            int v = atoi(value);
+
+            if (v != 0)
+            {
+                if (v < 100) v = 100;
+                if (v > 150) v = 150;
+            }
+            g_PcConfig.femaleVoicePitch = v;
         }
         else if (strcmp(key, "control_style") == 0)
         {

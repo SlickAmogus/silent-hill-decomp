@@ -4,6 +4,8 @@
 #include "sh_log.h"
 #include "xa_player.h"
 #include "pc_audio_config.h"
+#include "pc_config.h"
+#include "pc_playas.h"
 #include <stdio.h>
 #endif
 
@@ -404,6 +406,31 @@ static inline void WriteVolume(s16* left, s16* right, s16 vol)
     *right = vol;
 }
 
+#ifdef SH_PC_PORT
+/* Harry vocalising — the only sounds the play-as voice pitch may touch. Each of
+ * these owns its (VAB program, tone) outright, so no other sound shares a
+ * sample with them. Written as a switch on purpose: 1321/1322 in the middle of
+ * the range are the radio loops, which key onto reserved voices. */
+static int Sd_IsPlayerVoiceSfx(u16 sfxId)
+{
+    switch (sfxId)
+    {
+        case Sfx_Unk1317:          /* landing grunt          */
+        case Sfx_Unk1318:          /* death scream, early    */
+        case Sfx_Unk1319:          /* death scream, late     */
+        case Sfx_HarryHeavyBreath: /* low-HP breathing       */
+        case Sfx_Unk1326:          /* hurt cry               */
+        case Sfx_Unk1327:          /* hurt cry, attack class */
+        case Sfx_Unk1328:
+        case Sfx_Unk1329:
+            return 1;
+
+        default:
+            return 0;
+    }
+}
+#endif
+
 u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
 {
     static s16   audioIdx;
@@ -508,6 +535,33 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
         attr.voice                                               = 1 << g_Sd_VabPlayingInfo.audioVabIdx;
 
         SpuGetVoiceAttr(&attr);
+
+#ifdef SH_PC_PORT
+        /* Playing as one of the women: lift the pitch of HARRY'S OWN VOICE so it
+         * matches the body. Only the eight ids below — his hurt cries, death
+         * screams, landing grunt and low-HP breathing — every one of which owns
+         * its VAB (program, tone) outright, so nothing else can be caught by it.
+         * Deliberately a per-id switch and never a numeric range: the radio loops
+         * sit at 1321/1322, in the middle of them.
+         *
+         * Cutscene dialogue is XA and is untouched by design — it carries whole
+         * scenes, so pitching it would raise every other character's voice too.
+         *
+         * attr is a stack struct here and SpuGetVoiceAttr deliberately leaves
+         * .mask alone, so it MUST be set before writing back or the SPU takes
+         * garbage volume/ADSR/sample-address from uninitialised memory. */
+        if (g_PcConfig.femaleVoicePitch != 0 && attr.pitch != 0 &&
+            Pc_PlayAs_IsFemale() && Sd_IsPlayerVoiceSfx(sfxId))
+        {
+            s32 scaled = ((s32)attr.pitch * g_PcConfig.femaleVoicePitch) / 100;
+
+            if (scaled > 0x3FFF) scaled = 0x3FFF; /* the software SPU's own step clamp */
+            if (scaled < 1)      scaled = 1;
+            attr.pitch = (u16)scaled;
+            attr.mask  = SPU_VOICE_PITCH;
+            SpuSetVoiceAttr(&attr);
+        }
+#endif
 
         g_AudioPlayingPitchList[g_Sd_VabPlayingInfo.audioVabIdx] = attr.pitch;
         return g_Sd_VabPlayingInfo.audioVabIdx;

@@ -264,6 +264,15 @@ typedef struct {
      * the K keyframe viewer is on, or the console PLAYAS command. */
     char playerCharacter[16];
 
+    /* Raise the pitch of Harry's OWN VOICE sound effects — his hurt cries,
+     * death screams, landing grunt and low-HP breathing — while playing as one
+     * of the female characters, so the voice matches the body. Playback-rate
+     * percent: 0 = off (default), otherwise 100-150 (118 is about a minor
+     * third). Nothing else is touched: footsteps, weapons, monsters, music and
+     * ambience are untouched, and cutscene dialogue is streamed audio carrying
+     * whole scenes, so it stays as recorded (config key: female_voice_pitch) */
+    int femaleVoicePitch;
+
     /* Discord Rich Presence: show the current area on the player's Discord
      * profile (presence only — no achievements/account system; see
      * docs/RetroAchievements_Feasibility.md). discordAppId is the project's
