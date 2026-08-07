@@ -150,7 +150,7 @@ s_PcConfig g_PcConfig = {
     .discImage      = "", /* exact .bin in gamedata/ (launcher Disc dropdown); empty = auto */
     .uncensored     = 0, /* 0=retail PAL Mumblers (default); 1=restore Grey Children on EUR (matches US) */
     .playerCharacter = "harry", /* play as: harry|lisa|cybil|kaufmann|dahlia|... (also - / = in K view) */
-    .femaleVoicePitch = 130, /* voiced cries; breath takes 60% of the lift. 0 = off */
+    .femaleVoicePitch = 140, /* voiced cries; breath caps at 118 of its own. 0 = off */
     .discordRichPresence = 1,  /* show current area on the player's Discord profile (needs a discord_app_id) */
     .discordAppId        = "", /* project's Discord application id; empty = compiled-in default / off */
     .retroAchievements   = 0,  /* opt-in; needs a launcher sign-in to do anything */
@@ -732,7 +732,7 @@ void PcConfig_Load(const char* path)
             if (v != 0)
             {
                 if (v < 100) v = 100;
-                if (v > 150) v = 150;
+                if (v > 200) v = 200;
             }
             g_PcConfig.femaleVoicePitch = v;
         }

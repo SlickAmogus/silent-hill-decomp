@@ -440,14 +440,18 @@ static int Sd_IsPlayerVoiceSfx(u16 sfxId)
     }
 }
 
-/* The configured shift for a voiced sound; 60% of it above unity for breath. */
+/* Breath stops gaining once it sounds like a smaller chest; past this it just
+ * sounds fast, so the cries can keep climbing without dragging it along. */
+#define SD_BREATH_PITCH_MAX 118
+
+/* The configured shift for a voiced sound, capped for the unvoiced breath. */
 static s32 Sd_PlayerVoicePitchPct(int sfxClass)
 {
     s32 pct = g_PcConfig.femaleVoicePitch;
 
-    if (sfxClass == SD_VOICE_SFX_BREATH && pct > 100)
+    if (sfxClass == SD_VOICE_SFX_BREATH && pct > SD_BREATH_PITCH_MAX)
     {
-        pct = 100 + ((pct - 100) * 60) / 100;
+        pct = SD_BREATH_PITCH_MAX;
     }
     return pct;
 }
