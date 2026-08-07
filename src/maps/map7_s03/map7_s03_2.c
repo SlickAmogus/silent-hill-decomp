@@ -3516,7 +3516,24 @@ void func_800DBD94(s_800F3DAC* arg0, GsOT_TAG* ot) // 0x800DBD94
         if ((u16)var_s6 > 320 && (u32)(var_s6 >> 16) > 224 &&
             (u16)var_s5 > 320 && (u32)(var_s5 >> 16) > 224)
         {
-            // @hack Some optimized out code?
+            /* NOT a lost off-screen cull -- verified against retail
+             * VIN/MAP7_S03.BIN (sha1 f6524a4f78b9862a030b931d9f954346ed228231,
+             * = configs/USA/maps/map7_s03.yaml, link base 0x800C9578).
+             *
+             * The four-way test above decodes exactly as written here
+             * (0x800DC24C andi 0xFFFF / sltiu 0x141 / sra 16 / sltiu 0xE1), and
+             * the ENTIRE body of the taken branch is one instruction:
+             *   0x800DC280: 8FA30030   lw $v1, 0x30($sp)
+             * which falls through to 0x800DC284, the branch's own skip target.
+             * $v1 is dead on both successors (redefined at 0x800DC2C4
+             * `addiu $v1,$zero,0x40` before any read on the emit path, never
+             * read on the *var_s3 == 0 path). So RETAIL EMITS the quad for
+             * fully off-screen segments.
+             *
+             * Turning this into a `continue` would diverge from the original and
+             * chop up bolts the PSX draws. Two independent disassembly passes
+             * have now reached that conclusion; this note exists so the next
+             * reader does not spend a third. */
             temp_v1 = sp30;
             temp_v1++;
             temp_v1--;
