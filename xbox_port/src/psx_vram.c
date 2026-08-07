@@ -316,6 +316,45 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
         int      best = -1, bestPinned = -1;
         unsigned bestUse = 0xFFFFFFFFu, bestPinnedUse = 0xFFFFFFFFu;
         unsigned thisFrame = (unsigned)g_Nv2aFrameCount;
+
+        /* GROW ON DEMAND before considering eviction. The cache is sized ONCE,
+         * on the first textured prim (the boot logo) — long before any map is
+         * loaded — and it must stop early then, or it starves the map loader
+         * (the documented white-screen/hang failures above). But it never grew
+         * afterwards, so a scene whose working set exceeds that boot-time size
+         * thrashes forever at a capacity chosen when the heap looked its
+         * tightest: the church cutscene forced ~6400 evictions in ~5 s with the
+         * cache stuck at 43 of 96 slots, which re-decodes pages every frame —
+         * that is the frame-rate collapse there, and re-decoding the FONT page
+         * mid-scene is what garbles the subtitles.
+         *
+         * Growing HERE is the safe moment: the map's allocations have already
+         * happened, so taking a slot cannot starve them, and the same
+         * HEAP_RESERVE_KB floor still guards whatever allocates next. Only ever
+         * grows into slots the boot pass left NULL, never past CACHE_N. */
+        for (i = 0; i < CACHE_N; i++) {
+            if (s_cache[i].argb)
+                continue;                       /* already allocated */
+            {
+                extern unsigned Xbox_MemFreeKB(void);
+                enum { GROW_RESERVE_KB = 8 * 1024, SLOT_KB = (TEX_DIM * TEX_DIM * 4) / 1024 };
+                unsigned freeKB = Xbox_MemFreeKB();
+                if (!freeKB || freeKB < GROW_RESERVE_KB + SLOT_KB)
+                    break;                      /* keep the reserve intact */
+                s_cache[i].argb = (uint32_t*)GpuNv2a_AllocTexMem(TEX_DIM * TEX_DIM * 4);
+                if (!s_cache[i].argb)
+                    break;                      /* allocator said no — stop asking */
+                s_cache[i].key     = -1;
+                s_cache[i].lastUse = 0;
+                {   /* rare: only fires while a scene is still growing its set */
+                    static unsigned s_grown;
+                    if ((++s_grown & 15) == 1)
+                        SH_DBG("[VRAM] cache grew to slot %d (free=%uKB)", i + 1, Xbox_MemFreeKB());
+                }
+            }
+            break;                              /* one slot per miss — gentle ramp */
+        }
+
         for (i = 0; i < CACHE_N; i++) {
             if (!s_cache[i].argb) continue;
             if (s_cache[i].key == -1) { best = i; break; }
