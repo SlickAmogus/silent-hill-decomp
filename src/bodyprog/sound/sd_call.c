@@ -410,7 +410,15 @@ static inline void WriteVolume(s16* left, s16* right, s16 vol)
 /* Harry vocalising — the only sounds the play-as voice pitch may touch. Each of
  * these owns its (VAB program, tone) outright, so no other sound shares a
  * sample with them. Written as a switch on purpose: 1321/1322 in the middle of
- * the range are the radio loops, which key onto reserved voices. */
+ * the range are the radio loops, which key onto reserved voices.
+ *
+ * Returns 1 for VOICED sounds (vocal cords: cries and screams) and 2 for the
+ * low-HP BREATHING, which is unvoiced noise. They do not respond alike — the
+ * same shift that turns a grunt feminine turns breath into small fast lungs —
+ * so the breath takes a gentler fraction of it (Sd_PlayerVoicePitchPct). */
+#define SD_VOICE_SFX_VOICED 1
+#define SD_VOICE_SFX_BREATH 2
+
 static int Sd_IsPlayerVoiceSfx(u16 sfxId)
 {
     switch (sfxId)
@@ -418,16 +426,30 @@ static int Sd_IsPlayerVoiceSfx(u16 sfxId)
         case Sfx_Unk1317:          /* landing grunt          */
         case Sfx_Unk1318:          /* death scream, early    */
         case Sfx_Unk1319:          /* death scream, late     */
-        case Sfx_HarryHeavyBreath: /* low-HP breathing       */
         case Sfx_Unk1326:          /* hurt cry               */
         case Sfx_Unk1327:          /* hurt cry, attack class */
         case Sfx_Unk1328:
         case Sfx_Unk1329:
-            return 1;
+            return SD_VOICE_SFX_VOICED;
+
+        case Sfx_HarryHeavyBreath: /* low-HP breathing       */
+            return SD_VOICE_SFX_BREATH;
 
         default:
             return 0;
     }
+}
+
+/* The configured shift for a voiced sound; 60% of it above unity for breath. */
+static s32 Sd_PlayerVoicePitchPct(int sfxClass)
+{
+    s32 pct = g_PcConfig.femaleVoicePitch;
+
+    if (sfxClass == SD_VOICE_SFX_BREATH && pct > 100)
+    {
+        pct = 100 + ((pct - 100) * 60) / 100;
+    }
+    return pct;
 }
 #endif
 
@@ -550,10 +572,12 @@ u8 Sd_PlaySfx(u16 sfxId, q0_7 balance, u8 vol) // 0x80046048
          * attr is a stack struct here and SpuGetVoiceAttr deliberately leaves
          * .mask alone, so it MUST be set before writing back or the SPU takes
          * garbage volume/ADSR/sample-address from uninitialised memory. */
+        int sfxClass = Sd_IsPlayerVoiceSfx(sfxId);
+
         if (g_PcConfig.femaleVoicePitch != 0 && attr.pitch != 0 &&
-            Pc_PlayAs_IsFemale() && Sd_IsPlayerVoiceSfx(sfxId))
+            sfxClass != 0 && Pc_PlayAs_IsFemale())
         {
-            s32 scaled = ((s32)attr.pitch * g_PcConfig.femaleVoicePitch) / 100;
+            s32 scaled = ((s32)attr.pitch * Sd_PlayerVoicePitchPct(sfxClass)) / 100;
 
             if (scaled > 0x3FFF) scaled = 0x3FFF; /* the software SPU's own step clamp */
             if (scaled < 1)      scaled = 1;
