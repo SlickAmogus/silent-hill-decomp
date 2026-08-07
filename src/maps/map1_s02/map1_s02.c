@@ -8,6 +8,9 @@
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
 #include "main/rng.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"   /* map overlays must include this to link SH_DBG (see groaner.c) */
+#endif
 #include "maps/map1/map1_s02.h"
 #include "maps/particle.h"
 #include "maps/characters/creeper.h"
@@ -1503,6 +1506,29 @@ void Map_WorldObjectsUpdate(void) // 0x800DDA84
         WorldGfx_ObjectAdd(&g_WorldObject0.object, &g_WorldObject0.position, &SVECTOR3_Zero);
 
         // Activate collisions for door locking boss entrance.
+#ifdef SH_XBOX_PORT
+        /* EventFlag_362 is the ONLY condition blocking RA achievement 84008
+         * ("Who's Afraid of a Reptile?"): at the Split Head kill every other
+         * operand passes (map 8/room 2, serial, kill transition) and this one
+         * reads 0. It is written ONLY here -- in a different map (map1_s02) --
+         * so whatever value the boss-door area last left it at is what the fight
+         * sees. Log the door angles + resulting flag whenever the player stands
+         * in this chunk, so one walk past the boss doors reveals whether the set
+         * state is reachable at all (Q12_ANGLE: 180deg = 0x800, 90deg = 0x400).
+         * NOTE: this code is byte-identical to the PC port, so any defect here
+         * is shared decomp behaviour, not an Xbox regression. */
+        {
+            static int s_doorLog;
+            if (s_doorLog < 24) {
+                s_doorLog++;
+                SH_DBG("[BOSSDOOR] obj6.vy=0x%X obj7.vy=0x%X -> flag362 %s",
+                       (unsigned)g_WorldObject6.rotation.vy,
+                       (unsigned)g_WorldObject7.rotation.vy,
+                       (g_WorldObject6.rotation.vy == Q12_ANGLE(180.0f) &&
+                        g_WorldObject7.rotation.vy == g_WorldObject6.rotation.vy) ? "SET" : "CLEAR");
+            }
+        }
+#endif
         if (g_WorldObject6.rotation.vy != Q12_ANGLE(180.0f) ||
             g_WorldObject7.rotation.vy != g_WorldObject6.rotation.vy)
         {
