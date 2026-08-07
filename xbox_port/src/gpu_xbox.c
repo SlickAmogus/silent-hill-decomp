@@ -209,11 +209,11 @@ static float    s_izPrevMin = -1.0f, s_izPrevMax = -1.0f; /* previous bracket's 
  * prev-frame trick the PC fix uses for its own normalisation), mapped into
  * [64,1984] to leave headroom; before any range exists we return the drawer's
  * own otz, so the first frame is exactly the legacy behaviour. */
-int Xbox_ItemOtz(const unsigned short* sz4, int coarseOtz)
+int Xbox_ItemOtz(const unsigned short* sz4, int coarseOtz, int otLen)
 {
     float avg = ((float)sz4[0] + (float)sz4[1] + (float)sz4[2] + (float)sz4[3]) * 0.25f;
     float t;
-    int   otz;
+    int   lo, hi, otz;
 
     if (avg < s_izZMin) s_izZMin = avg;   /* accumulate THIS bracket's span */
     if (avg > s_izZMax) s_izZMax = avg;
@@ -221,12 +221,27 @@ int Xbox_ItemOtz(const unsigned short* sz4, int coarseOtz)
     if (!(s_izPrevMax > s_izPrevMin) || s_izPrevMin < 0.0f)
         return coarseOtz;                 /* no calibration yet -> legacy */
 
+    /* Clamp INSIDE THE REAL TABLE. The first version hard-coded [64,1984] for a
+     * 2048-entry OT0, but this macro also runs for the pickup path, which sorts
+     * into g_OrderingTable1 -- a DIFFERENT, smaller table -- and it assigns otz
+     * AFTER the drawer's own bounds clamp, so the index went straight into
+     * addPrim(&ot->org[otz]) unchecked: an out-of-bounds write past the table.
+     * That is memory corruption, and it fits the reported "textures spazz out
+     * everywhere" and the frame-rate collapse far better than any draw-order
+     * theory. otLen is (1 << ot->length) from the live table. */
+    if (otLen < 8)
+        return coarseOtz;
+    lo = otLen / 32;                      /* headroom at both ends */
+    hi = otLen - 1 - lo;
+    if (hi <= lo)
+        return coarseOtz;
+
     t = (avg - s_izPrevMin) / (s_izPrevMax - s_izPrevMin);
     if (t < 0.0f) t = 0.0f;
     if (t > 1.0f) t = 1.0f;
-    otz = 64 + (int)(t * 1920.0f);
-    if (otz < 1)    otz = 1;
-    if (otz > 2047) otz = 2047;
+    otz = lo + (int)(t * (float)(hi - lo));
+    if (otz < 1)          otz = 1;
+    if (otz > otLen - 1)  otz = otLen - 1;
     return otz;
 }
 

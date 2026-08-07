@@ -307,6 +307,16 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
          * with the force-item-depth bracket in game_main.c. See libgs_stub.c
          * g_PcItemPreciseDepth. */
         g_PcItemPreciseDepth = (g_GameWork.gameState == GameState_InventoryScreen) || (arg2 == 2);
+#ifdef SH_XBOX_PORT
+        /* Xbox full-resolution OT re-bucketing: INVENTORY ONLY. The pickup path
+         * (arg2==2) is deliberately excluded for now -- it sorts into a live
+         * frame, and re-ordering prims among the world's texture-page state
+         * corrupts every texture drawn afterwards and tanks the frame rate
+         * (observed in-game). Re-enable for pickups only once the world-freeze
+         * is verified to leave that OT holding the model alone. */
+        { extern int g_PcItemOtzFine;
+          g_PcItemOtzFine = (g_GameWork.gameState == GameState_InventoryScreen); }
+#endif
         if (displayItemIdx < 7 && g_PcInvDimStrength > 0) {
             /* depth past center = t[2]+Q8(4) = |Math_Sin(slot*256)| (Q12):
              * slot1~1567, slot2~2896, slot3~3784. Quantize to slot distance and
@@ -332,7 +342,11 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
     }
 
 #ifdef SH_PC_PORT
-    { extern int g_PcItemDimNum; g_PcItemDimNum = 256; extern int g_PcItemPreciseDepth; g_PcItemPreciseDepth = 0; }
+    { extern int g_PcItemDimNum; g_PcItemDimNum = 256; extern int g_PcItemPreciseDepth; g_PcItemPreciseDepth = 0;
+#ifdef SH_XBOX_PORT
+      extern int g_PcItemOtzFine; g_PcItemOtzFine = 0;
+#endif
+    }
 #endif
 }
 

@@ -418,6 +418,10 @@ int g_PcItemDimNum = 256;
  * so addPrim's auto-captured depth would otherwise be lighting garbage. Off
  * (every non-inventory GsSortObject4J caller) = byte-identical. */
 int g_PcItemPreciseDepth = 0;
+/* Xbox: arm the full-resolution OT re-bucketing (see ITEM_PRECISE_SZ). Set ONLY
+ * where the ordering table provably holds the item alone -- narrower than
+ * g_PcItemPreciseDepth, which also covers the world pickup. */
+int g_PcItemOtzFine = 0;
 extern void PsyX_SetNextPrimSzExact(unsigned short, unsigned short, unsigned short, unsigned short);
 /* Raw per-vertex view-space SZ captured by RotTransPers3/4 (libgte.c) right after
  * the transform, BEFORE these drawers' NormalClip/NormalColorCol clobber the GTE SZ
@@ -434,19 +438,26 @@ extern unsigned short g_PsyX_RtpSz[4];
  * PsyX_SetNextPrimSzExact contract ("next addPrim captures") has no Xbox addPrim
  * hook, so pass `poly` (in scope at every call site) directly instead. */
 extern void Xbox_ItemSzTag(const void* prim, const unsigned short* sz4);
-extern int  Xbox_ItemOtz(const unsigned short* sz4, int coarseOtz);
-/* Re-bucket the item's faces by TRUE per-vertex SZ across the full ordering
- * table: `otz = p >> shift` (the coarse depth CUE) drops a rotating model's
- * front and back faces into the same bucket, leaving their paint order
- * arbitrary -- that IS the see-through. OT0 holds the item alone during this
- * pass, so the whole table is ours to use. `otz` is in scope at every call
- * site, immediately before addPrim(&ot->org[otz], poly). */
+extern int  Xbox_ItemOtz(const unsigned short* sz4, int coarseOtz, int otLen);
+/* Re-bucket the item's faces by TRUE per-vertex SZ: `otz = p >> shift` (the
+ * coarse depth CUE) drops a rotating model's front and back faces into the same
+ * bucket, leaving their paint order arbitrary -- that IS the see-through.
+ *
+ * TWO HARD CONSTRAINTS, both learned the painful way:
+ *  1. Pass the LIVE table size. This assignment happens AFTER the drawer's own
+ *     bounds clamp, so an index that ignores the actual table writes out of
+ *     bounds in addPrim(&ot->org[otz]) -- the pickup path sorts into a
+ *     different, smaller OT than the inventory does.
+ *  2. Only when the OT holds the item ALONE (g_PcItemOtzFine). Reordering prims
+ *     inside the LIVE world's table scatters them among its texture-page state,
+ *     so everything drawn afterwards samples the wrong page and the extra state
+ *     changes wreck the frame rate. Gameplay must never re-bucket. */
 #define ITEM_PRECISE_SZ(pz) do { \
     (void)(pz); \
-    if (g_PcItemPreciseDepth) { \
+    if (g_PcItemPreciseDepth) \
         Xbox_ItemSzTag((const void*)poly, g_PsyX_RtpSz); \
-        otz = Xbox_ItemOtz(g_PsyX_RtpSz, otz); \
-    } \
+    if (g_PcItemOtzFine) \
+        otz = Xbox_ItemOtz(g_PsyX_RtpSz, otz, 1 << ot->length); \
 } while (0)
 #else
 #define ITEM_PRECISE_SZ(pz) do { \
