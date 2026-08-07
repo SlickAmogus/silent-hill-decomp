@@ -540,11 +540,35 @@ void Pc_MinimapUpdate(void)
      * collvis: halfW = 160 * winAspect/psxAspect). On 4:3 keep 160 and shrink
      * the panel a touch. */
     {
+        extern void PsyX_GetScreenSize(int* w, int* h);
+        extern int  g_PcHorPlusEnabled;
+        extern int  g_PcMenuPillarbox;
+        extern int  g_PcWidescreenMode;
+
         float psxA = (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT;
-        float winA = (g_PcConfig.windowWidth > 0 && g_PcConfig.windowHeight > 0)
-                   ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight : psxA;
-        if (winA > psxA + 0.01f) { halfW = (int)(160.0f * (winA / psxA) + 0.5f); }
-        else                     { mmSize = MM_SIZE - 8; }
+        float winA;
+        int   sw = 0, sh = 0;
+        /* The 2D layer only reaches past +-160 when it is genuinely widened. A
+         * PILLARBOXED wide window still draws 4:3, so widening here put the
+         * panel inside (or past) the black bar. Same predicate the inventory
+         * mouse hit-test uses for the same question. */
+        int   stretched = (g_PcHorPlusEnabled && g_PcWidescreenMode == 2) ||
+                          (!g_PcHorPlusEnabled && !g_PcMenuPillarbox);
+
+        /* Ask for the REAL backbuffer: the config width/height this used to read
+         * describe the windowed size and say nothing about the current
+         * fullscreen or borderless resolution. */
+        PsyX_GetScreenSize(&sw, &sh);
+        winA = (sw > 0 && sh > 0) ? (float)sw / (float)sh : psxA;
+
+        if (stretched && winA > psxA + 0.01f)
+        {
+            halfW = (int)(160.0f * (winA / psxA) + 0.5f);
+        }
+        else
+        {
+            mmSize = MM_SIZE - 8;
+        }
     }
 
     /* Scale last, so it applies to whichever base the aspect branch picked.
