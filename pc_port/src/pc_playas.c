@@ -50,6 +50,7 @@ typedef struct
      * playable body: in-hand guns, bag, key, Flauros, duplicate hand
      * variants. NULL-terminated; exact 8-char ILM part names. */
     const char* hideParts[6];
+    u8          female; /* drives the optional voice-pitch shift (SFX only) */
 } PcPlayAsChara;
 
 /* Every rig here shares Harry's bone 0..17 parent chain and binds its parts to
@@ -59,23 +60,23 @@ typedef struct
  * the Incubus boss, the cat, the dogs — are a different skeleton entirely and
  * cannot be posed by Harry's keyframes at all. */
 static const PcPlayAsChara s_playable[] = {
-    { "harry",       "HARRY",       Chara_Harry,      { NULL } },
-    { "lisa",        "LISA",        Chara_Lisa,       { NULL } },
-    { "cybil",       "CYBIL",       Chara_Cybil,      { "06LGUN", "10RGUN", NULL } },
-    { "kaufmann",    "KAUFMANN",    Chara_Kaufmann,   { "06LHAND2", "06LBAG", "10RHAND2", "10RGUN", "10RAGLA", NULL } },
-    { "dahlia",      "DAHLIA",      Chara_Dahlia,     { "10RHAND2", "10RKEY", "10FLAURO", NULL } },
-    { "cheryl",      "CHERYL",      Chara_Cheryl,     { NULL } },
-    { "alessa",      "ALESSA",      Chara_Alessa,     { NULL } },
-    { "ghostalessa", "GHOST ALESSA", Chara_GhostChildAlessa, { NULL } },
-    { "bloodylisa",  "BLOODY LISA", Chara_BloodyLisa, { NULL } },
-    { "nurse",       "PUPPET NURSE", Chara_PuppetNurse, { "10RHAND2", NULL } },
-    { "doctor",      "PUPPET DOCTOR", Chara_PuppetDoctor, { "10RHAND2", NULL } },
-    { "ghostdoctor", "GHOST DOCTOR", Chara_GhostDoctor, { NULL } },
-    { "monstercybil", "MONSTER CYBIL", Chara_MonsterCybil, { "06LGUN", "10RGUN", NULL } },
+    { "harry",       "HARRY",       Chara_Harry,      { NULL }, 0 },
+    { "lisa",        "LISA",        Chara_Lisa,       { NULL }, 1 },
+    { "cybil",       "CYBIL",       Chara_Cybil,      { "06LGUN", "10RGUN", NULL }, 1 },
+    { "kaufmann",    "KAUFMANN",    Chara_Kaufmann,   { "06LHAND2", "06LBAG", "10RHAND2", "10RGUN", "10RAGLA", NULL }, 0 },
+    { "dahlia",      "DAHLIA",      Chara_Dahlia,     { "10RHAND2", "10RKEY", "10FLAURO", NULL }, 1 },
+    { "cheryl",      "CHERYL",      Chara_Cheryl,     { NULL }, 1 },
+    { "alessa",      "ALESSA",      Chara_Alessa,     { NULL }, 1 },
+    { "ghostalessa", "GHOST ALESSA", Chara_GhostChildAlessa, { NULL }, 1 },
+    { "bloodylisa",  "BLOODY LISA", Chara_BloodyLisa, { NULL }, 1 },
+    { "nurse",       "PUPPET NURSE", Chara_PuppetNurse, { "10RHAND2", NULL }, 1 },
+    { "doctor",      "PUPPET DOCTOR", Chara_PuppetDoctor, { "10RHAND2", NULL }, 0 },
+    { "ghostdoctor", "GHOST DOCTOR", Chara_GhostDoctor, { NULL }, 0 },
+    { "monstercybil", "MONSTER CYBIL", Chara_MonsterCybil, { "06LGUN", "10RGUN", NULL }, 1 },
     /* The Incubator's outer sleeve segments bind bones 22-23; 23 is past the
      * last addressable coord, so both right-hand segments are hidden and the
      * left pair with them, keeping her symmetrical. */
-    { "incubator",   "INCUBATOR",   Chara_Incubator,  { "20LSODE1", "21LSODE2", "22RSODE1", "23RSODE2", NULL } },
+    { "incubator",   "INCUBATOR",   Chara_Incubator,  { "20LSODE1", "21LSODE2", "22RSODE1", "23RSODE2", NULL }, 1 },
 };
 #define PLAYAS_COUNT ((int)(sizeof(s_playable) / sizeof(s_playable[0])))
 
@@ -132,6 +133,11 @@ const char* Pc_PlayAs_Name(int idx)
 int Pc_PlayAs_SkinCharaId(void)
 {
     return PlayAs_Cur()->charaId;
+}
+
+int Pc_PlayAs_IsFemale(void)
+{
+    return PlayAs_Cur()->female != 0;
 }
 
 int Pc_PlayAs_SuppressHarryHandVariants(void)

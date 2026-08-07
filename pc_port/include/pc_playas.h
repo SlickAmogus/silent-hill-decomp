@@ -22,6 +22,7 @@ int         Pc_PlayAs_Current(void);
 const char* Pc_PlayAs_Label(int idx);   /* uppercase display name */
 const char* Pc_PlayAs_Name(int idx);    /* lowercase config/console token */
 int         Pc_PlayAs_SkinCharaId(void);/* Chara_Harry when not swapped */
+int         Pc_PlayAs_IsFemale(void);   /* gates the optional voice-pitch shift */
 
 /* Select a character. Mid-game this synchronously reloads the player model
  * (held item freed + re-equipped around the disc reads). save != 0 persists
