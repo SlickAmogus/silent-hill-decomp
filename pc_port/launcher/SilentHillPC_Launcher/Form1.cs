@@ -1036,9 +1036,47 @@ public partial class Form1 : Form
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
+    /// <summary>
+    /// Warn once per launch when the config carries `resident_textures = 0` and
+    /// offer to turn it on. Runs AFTER SaveConfig so the value read here is the
+    /// one the game is about to load, including a hand edit made while the
+    /// launcher was open (ConfigManager.Save re-reads, and this key is never
+    /// Set() by the launcher, so Get reports what is really on disk).
+    ///
+    /// Only ever prompts; the fallback is legitimate on some hardware, so the
+    /// launcher must not overrule a deliberate choice. `launcher_warn_resident_textures = 0`
+    /// suppresses it permanently.
+    /// </summary>
+    private void WarnIfResidentTexturesOff()
+    {
+        if (config == null) return;
+        if (config.Get("resident_textures", "1").Trim() != "0") return;
+        if (config.Get("launcher_warn_resident_textures", "1").Trim() == "0") return;
+
+        using (var dlg = new SilentHillPC_Launcher.ResidentTexturesDialog())
+        {
+            dlg.ShowDialog(this);
+            switch (dlg.Result)
+            {
+                case SilentHillPC_Launcher.ResidentTexturesDialog.Choice.TurnOn:
+                    config.Set("resident_textures", "1");
+                    config.Save();
+                    break;
+                case SilentHillPC_Launcher.ResidentTexturesDialog.Choice.NeverAsk:
+                    config.EnsureLauncherSection();
+                    config.Set("launcher_warn_resident_textures", "0");
+                    config.Save();
+                    break;
+                default:
+                    break; /* leave it off, ask again next launch */
+            }
+        }
+    }
+
     private void btnPlay_Click(object sender, EventArgs e)
     {
         SaveConfig();
+        WarnIfResidentTexturesOff();
 
         string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SilentHillPC.exe");
 

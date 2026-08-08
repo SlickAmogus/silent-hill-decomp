@@ -2525,3 +2525,37 @@ containing `=` is no longer silently unparseable.
   `texpack_budget_mb` line was gone — the report reproduced exactly.
 - post-fix: both hand edits survive and the launcher's own `fullscreen` change is
   applied.
+
+## Launcher warns when resident_textures is off (2026-08-07, launcher 2026.8.7.4)
+
+`resident_textures = 0` is a compatibility fallback, not a performance option,
+and nothing told the user what it costs. Several test sessions ran with it off
+without anyone noticing (helped by the config-clobber bug above), and the
+resulting reports were hard to read because the setting silently changes three
+different subsystems.
+
+At Play, if the config carries `resident_textures = 0`, the launcher now explains
+the trade and offers to turn it on:
+- distant walls/floors losing textures or going garbled/rainbow (the vanilla
+  8-full/2-half VRAM page pool steals pages from farther chunks)
+- more stuttering while texture packs load (eager compose at TIM upload instead
+  of the demand-driven, frame-budgeted pump)
+- HD packs quietly stopping partway through a session (that path has no LRU
+  eviction, so the pack VRAM budget latches once spent — see the eviction work
+  above, which is scoped to the pool-slot path)
+
+Three outcomes, none of which block launching: **Yes** sets it to 1 and saves,
+**No** proceeds unchanged and asks again next launch, **Don't ask again** writes
+`launcher_warn_resident_textures = 0` under the `## Launcher` section. It only
+ever asks — the fallback is genuinely correct on some hardware, which is why it
+exists, and the launcher must not overrule a deliberate choice. Esc / the X
+button read as "No".
+
+Runs AFTER `SaveConfig()`, so the value tested is the one the game is about to
+load, including a hand edit made while the launcher was open — the launcher never
+`Set()`s this key, so post-fix `ConfigManager.Get` reports what is really on disk.
+
+Verified headlessly against the real `ConfigManager`: warns on `0`; "Yes" writes
+`1` and leaves `texpack_budget_mb` and the rest intact, then stops warning;
+"Don't ask again" writes the suppression key, leaves `resident_textures = 0`
+untouched (choice respected), and the suppression sticks on reload.
