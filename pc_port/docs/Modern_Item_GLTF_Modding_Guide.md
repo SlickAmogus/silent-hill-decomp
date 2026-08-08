@@ -116,9 +116,20 @@ An unsupported GLB is not fatal: the game logs the reason and renders the origin
 
 Texture selection uses this priority:
 
-1. an installed loose/high-resolution texture override for the original item;
-2. the GLB's embedded base-color PNG;
+1. the GLB's embedded base-color PNG;
+2. an installed loose/high-resolution texture override for the original item;
 3. the original retail texture already loaded from the disc.
+
+**A self-textured GLB is never overridden by a texture pack.** The two are
+authored against different meshes: your embedded PNG is painted for your model's
+UVs, while a pack replaces the retail TIM, whose art is laid out for the *stock*
+item's UVs. If the pack won, your model would be drawn with an atlas that has no
+relationship to its unwrap. The override lookup is therefore skipped entirely for
+a self-textured mesh, not merely ranked below it.
+
+The override still applies to a **geometry-only** GLB, which is the case it is
+for: that model deliberately inherits the retail binding and is unwrapped against
+it, so a higher-resolution version of that same art is exactly what you want.
 
 This lets you choose among three workflows:
 
@@ -138,7 +149,10 @@ A GLB may have no images or textures. The modern geometry inherits the stock ite
 
 ### Separate high-resolution texture override
 
-You may pair modern geometry with the port's normal loose texture override system. That override wins over the embedded PNG. See [Modding & Asset Extraction Guide](Modding_And_Extraction_Guide.md#51-loose-file-override-no-disc-rebuild--the-easy-path).
+You may pair **geometry-only** modern geometry with the port's normal loose
+texture override system. The override applies only when the GLB ships no texture
+of its own — a self-contained GLB keeps its embedded PNG regardless of what any
+pack replaces. See [Modding & Asset Extraction Guide](Modding_And_Extraction_Guide.md#51-loose-file-override-no-disc-rebuild--the-easy-path).
 
 Materials are flattened to the port's item renderer. Metallic/roughness, normal, occlusion, and other PBR maps are not rendered.
 

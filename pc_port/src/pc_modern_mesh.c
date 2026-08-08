@@ -1022,23 +1022,29 @@ int Pc_ModernMesh_Emit(void* object, void* orderingTable, int shift)
         return 0;
     entry->drawNativeWidth = entry->drawNativeHeight = entry->drawOffsetX = entry->drawOffsetY = 0;
     entry->drawHiresWidth = entry->drawHiresHeight = 0;
-    entry->drawTexture = HiresOverride_LookupByTpageClut(tpage, clut, &entry->drawNativeWidth, &entry->drawNativeHeight,
-                                                     &entry->drawOffsetX, &entry->drawOffsetY,
-                                                     &entry->drawHiresWidth, &entry->drawHiresHeight);
-    if (entry->drawTexture != 0)
-    {
-        entry->drawFormat = TF_32_BIT_RGBA;
-        if ((entry->mesh.loggedTextureSources & PcModernTextureSource_InstalledOverride) == 0)
-        {
-            SH_DBG("[MODERN_MESH] item=%d texture source=installed-override texture=%u",
-                   (int)entry->mesh.fileIdx, (unsigned)entry->drawTexture);
-            entry->mesh.loggedTextureSources |= PcModernTextureSource_InstalledOverride;
-        }
-    }
-    else if (entry->mesh.hasEmbeddedTexture)
+
+    /* An EMBEDDED texture outranks an installed pack override.
+     *
+     * The two are authored against different meshes. A GLB's embedded PNG is
+     * painted for the GLB's OWN UVs; a texture pack replaces the retail TIM,
+     * whose art is laid out for the RETAIL item's UVs. Letting the pack win
+     * meant a replacement model was drawn with an atlas that has no
+     * relationship to its unwrap — reliably garbage, and hard to attribute
+     * because both halves are individually correct.
+     *
+     * The override still wins for a GLB that ships NO texture: that model
+     * deliberately inherits the retail binding and is unwrapped against it, so
+     * the pack's higher-resolution version of that same art is exactly right.
+     * Which is also why the lookup is not merely reordered but SKIPPED when a
+     * mesh is self-textured — its (tpage, clut) is the stock item's, so the
+     * lookup would hit an override meant for geometry that is no longer there. */
+    if (entry->mesh.hasEmbeddedTexture)
     {
         if (!ModernMesh_EnsureEmbeddedTexture(&entry->mesh))
         {
+            /* Fail CLOSED to the stock model rather than falling through to the
+             * retail binding: this mesh's UVs are its own, so retail art would
+             * be the same mismatch the ordering above exists to prevent. */
             SH_DBG("[MODERN_MESH] embedded texture decode/upload failed — native item model");
             return 0;
         }
@@ -1057,6 +1063,19 @@ int Pc_ModernMesh_Emit(void* object, void* orderingTable, int shift)
                    (int)entry->mesh.fileIdx, (unsigned)entry->drawTexture,
                    entry->mesh.embeddedTextureWidth, entry->mesh.embeddedTextureHeight);
             entry->mesh.loggedTextureSources |= PcModernTextureSource_EmbeddedGlb;
+        }
+    }
+    else if ((entry->drawTexture = HiresOverride_LookupByTpageClut(
+                  tpage, clut, &entry->drawNativeWidth, &entry->drawNativeHeight,
+                  &entry->drawOffsetX, &entry->drawOffsetY,
+                  &entry->drawHiresWidth, &entry->drawHiresHeight)) != 0)
+    {
+        entry->drawFormat = TF_32_BIT_RGBA;
+        if ((entry->mesh.loggedTextureSources & PcModernTextureSource_InstalledOverride) == 0)
+        {
+            SH_DBG("[MODERN_MESH] item=%d texture source=installed-override texture=%u",
+                   (int)entry->mesh.fileIdx, (unsigned)entry->drawTexture);
+            entry->mesh.loggedTextureSources |= PcModernTextureSource_InstalledOverride;
         }
     }
     else

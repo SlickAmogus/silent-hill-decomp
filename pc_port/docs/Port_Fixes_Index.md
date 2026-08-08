@@ -2779,3 +2779,31 @@ is verified in game: the feature is opt-in behind `allow_loose_files = 1` and a
 sibling `ITEM/UNQ*.glb`, and falls back to the retail model on anything missing
 or unsupported, so the risk of leaving it untested is contained to the glTF path
 itself.
+
+### Texture precedence corrected: embedded GLB beats a pack override (2026-08-08)
+
+The adapted PR ranked an installed loose/HD texture override ABOVE the GLB's
+embedded PNG. That is backwards for a self-textured model, and the failure is
+silent-but-total: the embedded PNG is painted for the GLB's OWN UVs, while a
+texture pack replaces the retail TIM, whose art is laid out for the STOCK item's
+UVs. With a pack installed, a replacement model was therefore drawn with an atlas
+bearing no relationship to its unwrap. Both halves are individually correct, which
+makes it painful to attribute — the reporter sees a mangled model and blames the
+model.
+
+Order is now embedded → override → retail VRAM, and for a self-textured mesh the
+override lookup is **skipped entirely** rather than merely ranked below: that
+mesh's `(tpage, clut)` is still the stock item's, so the lookup would be matching
+an override authored for geometry that is no longer being drawn.
+
+A failed embedded decode still fails CLOSED to the stock model rather than
+falling through to the retail binding — falling through would reintroduce exactly
+the UV mismatch this ordering exists to prevent.
+
+The override is untouched for **geometry-only** GLBs, which is the case it exists
+for: that model deliberately inherits the retail binding and is unwrapped against
+it, so a higher-resolution version of the same art is correct. Guide updated to
+match.
+
+Diagnosis line, one per item: `[MODERN_MESH] item=N texture source=embedded-glb |
+installed-override | retail-vram`.
