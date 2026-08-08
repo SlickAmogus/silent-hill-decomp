@@ -170,10 +170,12 @@ namespace SilentHillPC_Launcher
                 }
                 r.AtlasW = atlasW; r.AtlasH = atlasH; r.Textures = toPack.Count; r.AtlasPath = outAtlasPath;
 
-                // ---- remap each vt into its owner material's atlas region + native V-fix ----
-                // Game samples the atlas at (u8/nativeW, v8/nativeH); ilm_obj encodes u8=floor(u*256),
-                // v8=floor((1-v)*256). Pre-scaling by native/256 makes the sample land on the atlas 1:1.
-                double su = nativeW / 256.0, sv = nativeH / 256.0;
+                // ---- remap each vt into its owner material's atlas region ----
+                // Game samples the atlas at (u8/nativeW, v8/nativeH), and the ILM importer now
+                // encodes u8=floor(u*nativeW), v8=floor((1-v)*nativeH) — so a plain 0..1 position
+                // inside the atlas already lands 1:1 and no pre-scale is wanted. This used to be
+                // native/256, compensating for an importer that quantised against a fixed 256x256
+                // page; that scaling is the bug, not the correction, and both halves move together.
                 // Half a native texel in atlas pixels: the clamp below keeps every remapped UV at
                 // least this far inside its island so u8 quantisation cannot cross the gutter.
                 double halfU = 0.5 * atlasW / nativeW, halfV = 0.5 * atlasH / nativeH;
@@ -194,8 +196,8 @@ namespace SilentHillPC_Launcher
                         double py = rc[1] + (1.0 - v) * rc[3];                    // atlas sample y, top origin
                         px = Math.Max(rc[0] + halfU, Math.Min(rc[0] + rc[2] - halfU, px));
                         py = Math.Max(rc[1] + halfV, Math.Min(rc[1] + rc[3] - halfV, py));
-                        double uo = su * (px / atlasW);
-                        double vo = 1.0 - sv * (py / atlasH);
+                        double uo = px / atlasW;
+                        double vo = 1.0 - py / atlasH;
                         remapped[i] = "vt " + uo.ToString("F6", Inv) + " " + vo.ToString("F6", Inv);
                     }
                     else
@@ -336,8 +338,16 @@ namespace SilentHillPC_Launcher
                     File.Copy(ex.MetaPath, metaAt, true);
                 }
 
+                // The donor's .TIM size is the sheet BOTH branches produce UVs against: the atlas
+                // branch packed to it, and the already-prepped branch is by definition unwrapped
+                // on the game's own sheet. State it rather than trusting a meta the user may have
+                // carried over from an export predating the sheet-size field.
+                int donorW, donorH;
+                if (!IlmObjConverter.TryReadNativeTimDims(donorIlmPath, out donorW, out donorH))
+                { donorW = 256; donorH = 256; }
+
                 IlmObjConverter.ImportResult iv = IlmObjConverter.Import(forV7, donorIlmPath, outIlmPath,
-                    new IlmObjConverter.ImportOptions { V7 = true });
+                    new IlmObjConverter.ImportOptions { V7 = true, SheetW = donorW, SheetH = donorH });
                 if (iv == null || !string.IsNullOrEmpty(iv.Error))
                 { r.Error = iv != null ? iv.Error : "v7 rebuild failed"; return r; }
                 r.Warnings.AddRange(iv.Warnings);

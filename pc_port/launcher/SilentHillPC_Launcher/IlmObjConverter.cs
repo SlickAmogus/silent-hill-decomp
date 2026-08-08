@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -227,6 +227,12 @@ namespace SilentHillPC_Launcher
             /// 256-slot pool packing, so a dense model keeps full detail (no decimation). The
             /// ILM is still the rig/material template. Mutually exclusive with Grow and Replace.</summary>
             public bool V7;
+            /// <summary>Texture sheet the OBJ's UVs are scaled against, overriding the
+            /// .ilmmeta.json. The atlas path sets it because it PACKED against that size, so it
+            /// must not depend on the age of a meta the user carried over from an older export
+            /// (which would decode at 256x256 and misplace every texel on a non-256 character).
+            /// Zero means "use the meta".</summary>
+            public int SheetW, SheetH;
         }
 
         // ---- rest pose (.ANM) ---------------------------------------------------
@@ -688,6 +694,13 @@ namespace SilentHillPC_Launcher
             public int MatCount, MatsP, ModelCount, ModelHdrsP, ModelOrderP;
             public int[] BaseClutY;
             public Model[] Models;
+            /// <summary>The texture sheet the prim UVs index, in texels. Prim U/V are texel
+            /// coordinates into the character's OWN .TIM, not into a 256x256 page: measured over
+            /// the 43 CHARA .ILM/.TIM pairs, zero UVs reach the TIM's width or height and 41 of
+            /// them touch exactly W-1/H-1. Only 4 of those TIMs are 256x256, so a fixed 256
+            /// divisor mis-scales 42 characters. Left at 256x256 when the .TIM cannot be found,
+            /// which is the pre-fix behaviour.</summary>
+            public int TexW = 256, TexH = 256;
         }
 
         /// <summary>Python's bytes.decode('ascii', 'replace'): every byte &gt;= 0x80 becomes U+FFFD.
@@ -978,6 +991,18 @@ namespace SilentHillPC_Launcher
                    (q % 1000000L).ToString(Inv).PadLeft(6, '0');
         }
 
+        /// <summary>Format num/den exactly as CPython's "%.6f" would, for the positive rationals
+        /// the UV emitter builds. FormatQ12 cannot serve here: a UV is (2u+1)/(2W), which is only
+        /// a multiple of 1/4096 when W is a power of two, and HERO.TIM is 192 tall. Same
+        /// half-to-even rule as FormatQ12, and for den == 512 it produces byte-identical output,
+        /// so every 256-wide axis still round-trips to the same text it always did.</summary>
+        private static string FormatRational(long num, long den)
+        {
+            long n = num * 1000000L, q = n / den, r = n % den;
+            if (2L * r > den || (2L * r == den && (q & 1L) != 0L)) q++;
+            return (q / 1000000L).ToString(Inv) + "." + (q % 1000000L).ToString(Inv).PadLeft(6, '0');
+        }
+
         // Numerators over 4096 of Bake / BakeDir, so FormatQ12 never sees a double.
         private static long BakeNum(int[] R, int[] T, int a, int v0, int v1, int v2)
         {
@@ -1008,17 +1033,50 @@ namespace SilentHillPC_Launcher
             return map;
         }
 
+        /// <summary>The .TIM a character draws through, resolved the way ClutComposer does it: the
+        /// texture is named by the ILM's MATERIAL, which is not always the ILM's own filename —
+        /// BIRD.ILM draws REBIRD.TIM, MTH.ILM draws MOTH.TIM, WRM.ILM draws WORM.TIM and MAN.ILM
+        /// draws DEV.TIM. Matching on the filename alone silently finds nothing for those four.
+        /// Falls back to the filename, then null.</summary>
+        private static string ResolveSiblingTim(string ilmPath)
+        {
+            string dir = Path.GetDirectoryName(ilmPath);
+            if (string.IsNullOrEmpty(dir)) dir = ".";
+            var names = new List<string>();
+            try
+            {
+                byte[] d = File.ReadAllBytes(ilmPath);
+                if (d.Length >= 0x14 && d[0] == (byte)'0' && d[1] == 6)
+                {
+                    int matCount = d[3], matsP = U32(d, 4);
+                    for (int i = 0; i < matCount; i++)
+                    {
+                        int o = matsP + i * 24;
+                        if (o + 24 > d.Length) break;
+                        string n = Name8(d, o).Trim();
+                        if (n.Length > 0) names.Add(n);
+                    }
+                }
+            }
+            catch (IOException) { }
+            names.Add(Path.GetFileNameWithoutExtension(ilmPath));
+            foreach (string n in names)
+                foreach (string ext in new[] { ".TIM", ".tim" })
+                {
+                    string cand = Path.Combine(dir, n + ext);
+                    if (File.Exists(cand)) return cand;
+                }
+            return null;
+        }
+
         /// <summary>Read the character TIM's native pixel size (the loose-override shader samples
-        /// UVs as u/W, v/H, so a non-square TIM makes the atlas V need scaling). Looks for NAME.TIM
-        /// beside the .ILM. Returns false when not found or unparseable.</summary>
+        /// UVs as u/W, v/H, so a non-square TIM makes the atlas V need scaling; the OBJ exporter
+        /// scales its UVs by the same size). Returns false when not found or unparseable.</summary>
         public static bool TryReadNativeTimDims(string ilmPath, out int w, out int h)
         {
             w = 0; h = 0;
-            string dir = Path.GetDirectoryName(ilmPath);
-            string stem = Path.GetFileNameWithoutExtension(ilmPath);
-            string tim = Path.Combine(dir, stem + ".TIM");
-            if (!File.Exists(tim)) tim = Path.Combine(dir, stem + ".tim");
-            if (!File.Exists(tim)) return false;
+            string tim = ResolveSiblingTim(ilmPath);
+            if (tim == null) return false;
             byte[] d = File.ReadAllBytes(tim);
             if (d.Length < 12 || d[0] != 0x10 || d[1] != 0 || d[2] != 0 || d[3] != 0) return false;
             uint flags = (uint)(d[4] | (d[5] << 8) | (d[6] << 16) | ((uint)d[7] << 24));
@@ -1067,6 +1125,16 @@ namespace SilentHillPC_Launcher
             int[] order = ResolvePool(ilm);
             RestPoses poses = ComputeRestPoses(ilmPath, ilm.Models, anmOverride, keyframe, res.Warnings);
 
+            {
+                int tw, th;
+                if (TryReadNativeTimDims(ilmPath, out tw, out th)) { ilm.TexW = tw; ilm.TexH = th; }
+                else
+                    res.Warnings.Add("no " + Path.GetFileNameWithoutExtension(ilmPath) + ".TIM beside the .ILM, so the " +
+                        "UVs are scaled for a 256x256 sheet. Most characters are not 256x256 (HERO is 256x192, and 24 of " +
+                        "46 are 128x128), and on those the texture will not line up in Blender. Export from the folder " +
+                        "that holds the .TIM.");
+            }
+
             if (string.IsNullOrEmpty(outObjPath)) outObjPath = StripExt(ilmPath) + ".obj";
             string mtlPath = StripExt(outObjPath) + ".mtl";
             string metaPath = StripExt(outObjPath) + ".ilmmeta.json";
@@ -1083,6 +1151,9 @@ namespace SilentHillPC_Launcher
             obj.Add("# Do NOT reorder vertices or faces (Mesh > Sort Elements) and do NOT move");
             obj.Add("# a face to a different material - import matches them by order.");
             obj.Add("# The model is ~390 units tall: press Home, or raise the viewport clip end.");
+            obj.Add("# UVs are scaled for a " + ilm.TexW.ToString(Inv) + "x" + ilm.TexH.ToString(Inv) +
+                    " texture (this character's .TIM). Assign an image of that size,");
+            obj.Add("# or the same aspect - a 256x256 sheet will not line up.");
             obj.Add("mtllib " + Path.GetFileName(mtlPath));
             obj.Add("");
 
@@ -1100,6 +1171,11 @@ namespace SilentHillPC_Launcher
             js.Append(' ').Append(JStr("anm")).Append(": ").Append(poses.AnmName == null ? "null" : JStr(poses.AnmName)).Append(',').Append(Nl);
             js.Append(' ').Append(JStr("keyframe")).Append(": ").Append(poses.Keyframe.ToString(Inv)).Append(',').Append(Nl);
             js.Append(' ').Append(JStr("restPose")).Append(": ").Append(JStr(poses.IsAnm ? "anm" : "identity")).Append(',').Append(Nl);
+            // Import must undo the EXPORT's scale, not re-derive one: the .TIM may not sit beside
+            // the .ILM the user imports against, and an OBJ exported before this field existed
+            // must keep decoding at 256x256.
+            js.Append(' ').Append(JStr("textureWidth")).Append(": ").Append(ilm.TexW.ToString(Inv)).Append(',').Append(Nl);
+            js.Append(' ').Append(JStr("textureHeight")).Append(": ").Append(ilm.TexH.ToString(Inv)).Append(',').Append(Nl);
             js.Append(' ').Append(JStr("models")).Append(": ");
             JOpenArray(js, ilm.Models.Length);
 
@@ -1183,10 +1259,10 @@ namespace SilentHillPC_Launcher
                         for (int c = 0; c < cn; c++)
                         {
                             // PSX texel centre -> OBJ [0,1], V flipped (OBJ origin is bottom-left).
-                            // 256 is the PSX page width, not the texture width. Both values are
-                            // exact multiples of 1/4096, so FormatQ12 applies unchanged.
-                            obj.Add("vt " + FormatQ12(8L * (2 * p.U[c] + 1), false) +
-                                    " " + FormatQ12(8L * (511 - 2 * p.V[c]), false));
+                            // Scaled by the TIM's OWN texel size, which is what the UVs index and
+                            // what ClutComposer rasterises them onto; see Ilm.TexW.
+                            obj.Add("vt " + FormatRational(2 * p.U[c] + 1, 2 * ilm.TexW) +
+                                    " " + FormatRational(2 * ilm.TexH - 2 * p.V[c] - 1, 2 * ilm.TexH));
                         }
                     }
 
@@ -1508,6 +1584,19 @@ namespace SilentHillPC_Launcher
             return s.Substring(start, i - start);
         }
 
+        /// <summary>A texture-sheet axis out of the meta, defaulting to the historical fixed 256
+        /// when the key is absent — an OBJ exported before the sheet size was recorded must keep
+        /// decoding the way it was written. Bounded by the TIM decoder's own 8192 limit.</summary>
+        private static int JSheetAxis(JNode meta, string key)
+        {
+            JNode n = JGet(meta, key);
+            long l;
+            if (n == null || n.Kind != 'n' || !long.TryParse(n.Text, NumberStyles.Integer, Inv, out l) ||
+                l < 2 || l > 8192)
+                return 256;
+            return (int)l;
+        }
+
         private static JNode JGet(JNode o, string key)
         {
             if (o == null || o.Kind != 'o') return null;
@@ -1696,12 +1785,17 @@ namespace SilentHillPC_Launcher
 
         /// <summary>OBJ [0,1] -> PSX u8 texel. floor(), never round(): round() banker-rounds
         /// (u+0.5) up for odd u and drifts the texel by one every other coordinate, which
-        /// accumulates into a visible texture shift across round-trips. Clamped to 255, the PSX
-        /// page limit - NOT to the texture width, since a 128-wide TIM sits inside a 256-wide
-        /// page and real UVs do reach 255.</summary>
-        private static int UvByte(double f)
+        /// accumulates into a visible texture shift across round-trips.
+        ///
+        /// <paramref name="size"/> is the axis length of the sheet the EXPORT scaled against
+        /// (Ilm.TexW / TexH, carried in the .ilmmeta.json), so this exactly inverts it. It is also
+        /// the clamp: measured over the CHARA corpus no prim UV reaches its own TIM's width or
+        /// height, so a texel at or past the edge is out of the sheet, not a legal page-relative
+        /// coordinate. An OBJ written before the sheet size was recorded decodes at 256, which is
+        /// the old fixed divisor and the old 255 clamp.</summary>
+        private static int UvByte(double f, int size)
         {
-            double s = f * 256.0;
+            double s = f * size;
             // Python's int(f * 256.0) raises on NaN/inf rather than writing a texel, and the
             // clamps below cannot stand in: every comparison against NaN is false, so NaN
             // would silently land on texel 0. Testing the product also catches a finite f
@@ -1709,7 +1803,7 @@ namespace SilentHillPC_Launcher
             if (double.IsNaN(s) || double.IsInfinity(s))
                 throw new IlmException("UV coordinate is not a finite number: " + f.ToString("R", Inv));
             if (!(s > 0.0)) return 0;
-            if (s >= 255.0) return 255;
+            if (s >= (double)(size - 1)) return size - 1;
             return (int)s;
         }
 
@@ -1861,6 +1955,8 @@ namespace SilentHillPC_Launcher
             // read the original never had.
             byte[] data = File.ReadAllBytes(ilmPath);
             Ilm ilm = ParseIlm(data);
+            ilm.TexW = opts.SheetW > 0 ? opts.SheetW : JSheetAxis(meta, "textureWidth");
+            ilm.TexH = opts.SheetH > 0 ? opts.SheetH : JSheetAxis(meta, "textureHeight");
             ResolvePool(ilm);
             ObjFile of = ParseObj(objPath);
             if (string.IsNullOrEmpty(outIlmPath)) outIlmPath = StripExt(objPath) + "_new.ILM";
@@ -2174,7 +2270,7 @@ namespace SilentHillPC_Launcher
                             // UvOffsets is indexed by the PRIM corner, not the OBJ corner: the loop
                             // reorders 2 and 3, and writing through c would swap those two UVs on
                             // every quad, every round-trip.
-                            W16(data, p.Off + UvOffsets[loop[c]], UvByte(uv[0]) | (UvByte(1.0 - uv[1]) << 8));
+                            W16(data, p.Off + UvOffsets[loop[c]], UvByte(uv[0], ilm.TexW) | (UvByte(1.0 - uv[1], ilm.TexH) << 8));
                         }
                         nprim++;
                     }
@@ -2904,8 +3000,8 @@ namespace SilentHillPC_Launcher
                             throw new IlmException("part '" + obj.Name + "': a new face references vt " + tl.ToString(Inv) +
                                 " but the OBJ has only " + of.Uvs.Count.ToString(Inv) + " 'vt' lines.");
                         double[] uv = of.Uvs[tl - 1];
-                        np.Uu[i] = UvByte(uv[0]);
-                        np.Vv[i] = UvByte(1.0 - uv[1]);
+                        np.Uu[i] = UvByte(uv[0], ilm.TexW);
+                        np.Vv[i] = UvByte(1.0 - uv[1], ilm.TexH);
 
                         if (nl != 0)
                         {
@@ -4087,7 +4183,7 @@ namespace SilentHillPC_Launcher
                             throw new IlmException("part '" + name + "' face " + (fidx + 1).ToString(Inv) + " has no UVs - " +
                                 "unwrap the geometry (every primitive corner carries a texel).");
                         double[] uvc = of.Uvs[tlc - 1];
-                        uv[i] = UvByte(uvc[0]) | (UvByte(1.0 - uvc[1]) << 8);
+                        uv[i] = UvByte(uvc[0], ilm.TexW) | (UvByte(1.0 - uvc[1], ilm.TexH) << 8);
                         double[] nvec;
                         if (nlc != 0) nvec = of.Norms[nlc - 1];
                         else
@@ -4519,7 +4615,7 @@ namespace SilentHillPC_Launcher
                         corners[i] = new PlanCorner
                         {
                             Own = loc.Mi, Loc = loc.J, NK = normalKey(loc.Mi, nvec),
-                            U = UvByte(uv[0]), V = UvByte(1.0 - uv[1])
+                            U = UvByte(uv[0], ilm.TexW), V = UvByte(1.0 - uv[1], ilm.TexH)
                         };
                     }
                     plan.Add(new PlanPrim { Tri = arity == 3, Mtl = o.Faces[fidx].Mtl, Corners = corners });
