@@ -71,6 +71,25 @@ int Pc_GrabGuard_GrabIsPlayable(int attackReceived, int isFrontal)
                                     : ANIM_STATUS(HarryAnim_Unk122, false);
             break;
 
+        /* Romper pin. Four links per side instead of two, and EVERY one has its
+         * own exact-equality gate, so a hole anywhere in the chain wedges: the
+         * *Start state has no mash timer at all (its only exit is the keyframe
+         * gate), and Unk43/Unk44 gate the final return to PlayerState_None. A
+         * map that hosts Rompers carries all four or vanilla would hang there
+         * too, so requiring the set cannot cost a legitimate pin. */
+        case 54:
+            if (isFrontal)
+            {
+                return GrabGuard_MapHasAnimRow(ANIM_STATUS(HarryAnim_Unk127, true))  /* PinnedFrontStart */
+                    && GrabGuard_MapHasAnimRow(ANIM_STATUS(HarryAnim_Unk128, false)) /* PinnedFront      */
+                    && GrabGuard_MapHasAnimRow(ANIM_STATUS(HarryAnim_Unk129, true))  /* ReleasePinnedFront */
+                    && GrabGuard_MapHasAnimRow(ANIM_STATUS(HarryAnim_Unk130, true)); /* Unk43            */
+            }
+            return GrabGuard_MapHasAnimRow(ANIM_STATUS(HarryAnim_Unk128, true))   /* PinnedBackStart  */
+                && GrabGuard_MapHasAnimRow(ANIM_STATUS(HarryAnim_Unk129, false))  /* PinnedBack       */
+                && GrabGuard_MapHasAnimRow(ANIM_STATUS(HarryAnim_Unk130, false))  /* ReleasePinnedBack */
+                && GrabGuard_MapHasAnimRow(ANIM_STATUS(HarryAnim_Unk131, false)); /* Unk44            */
+
         default:
             return 1;
     }

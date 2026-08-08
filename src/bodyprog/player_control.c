@@ -2697,11 +2697,33 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
 
             if (ANIM_STATUS_IS_ACTIVE(player->model.anim.status))
             {
-                temp_s0 = -D_800AF1FC[player->model.anim.keyframeIdx - g_MapOverlayHdr.field_38[D_800AF220].time];
-                g_SysWork.playerWork.player.collision.shapeOffsets.box.vx = Q12(0.0f);
-                g_SysWork.playerWork.player.collision.shapeOffsets.box.vz = Q12(0.0f);
-                g_SysWork.playerWork.player.collision.shapeOffsets.cylinder.vx = Q12_MULT(temp_s0, Math_Sin(player->rotation.vy));
-                g_SysWork.playerWork.player.collision.shapeOffsets.cylinder.vz = Q12_MULT(temp_s0, Math_Cos(player->rotation.vy));
+                s32 pinFrame = player->model.anim.keyframeIdx - g_MapOverlayHdr.field_38[D_800AF220].time;
+
+#ifdef SH_PC_PORT
+                /* D_800AF1FC (item_screens_3.c) holds 8 entries, and pinFrame is
+                 * only inside them while the pin's OWN animation is playing.
+                 * When the map has no row for it — a spawned Romper, see
+                 * pc_grab_guard.c — func_8007FB94 leaves anim.status on whatever
+                 * was playing, and this indexes ~1-2 KB BEFORE the array. The
+                 * garbage lands in the collision offset, so the cylinder walks
+                 * off the player, the floor stops registering under them and
+                 * they drop out of the map. Keep the shape on the player. */
+                if (pinFrame < 0 || pinFrame >= 8)
+                {
+                    g_SysWork.playerWork.player.collision.shapeOffsets.box.vx      = Q12(0.0f);
+                    g_SysWork.playerWork.player.collision.shapeOffsets.box.vz      = Q12(0.0f);
+                    g_SysWork.playerWork.player.collision.shapeOffsets.cylinder.vx = Q12(0.0f);
+                    g_SysWork.playerWork.player.collision.shapeOffsets.cylinder.vz = Q12(0.0f);
+                }
+                else
+#endif
+                {
+                    temp_s0 = -D_800AF1FC[pinFrame];
+                    g_SysWork.playerWork.player.collision.shapeOffsets.box.vx = Q12(0.0f);
+                    g_SysWork.playerWork.player.collision.shapeOffsets.box.vz = Q12(0.0f);
+                    g_SysWork.playerWork.player.collision.shapeOffsets.cylinder.vx = Q12_MULT(temp_s0, Math_Sin(player->rotation.vy));
+                    g_SysWork.playerWork.player.collision.shapeOffsets.cylinder.vz = Q12_MULT(temp_s0, Math_Cos(player->rotation.vy));
+                }
             }
 
             if (ABS(headingAngle0) < Q12_ANGLE(11.25f))

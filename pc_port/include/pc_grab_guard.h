@@ -29,8 +29,12 @@
  * missing grab row, and only the release row is on the freezing path.
  *
  * @param attackReceived `s_SubCharacter::attackReceived` (45/56 torso, 49 legs,
- *                       66 neck). Anything else returns 1 — the Romper's pinned
- *                       grab (54) runs through its own start states.
+ *                       54 Romper pin, 66 neck). Anything else returns 1.
+ *                       The pin checks four links per side, not two: its *Start
+ *                       state has no mash timer, so a missing row wedges before
+ *                       the player can struggle, and its garbage collision
+ *                       offset drops them through the floor (bounded at
+ *                       player_control.c's D_800AF1FC read).
  * @param isFrontal      Non-zero when the grab comes from the front.
  * @return Non-zero when the grab is playable and stock behaviour should stand.
  */
