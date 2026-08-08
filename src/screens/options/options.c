@@ -205,10 +205,9 @@ static const s_PcOpt PCOPT_S[] = {
     { "Flashlight",       &g_PcConfig.flashlightMode,     "flashlight_mode",      VAL_FLMODE, 4, LBL_FLMODE, NULL,                        1, PCK_FLMODE },
     { "Beam_Intensity",   NULL, "flashlight_intensity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightIntensity, &g_PsyX_FlashlightIntensity, 0.0f, 3.0f, 0.1f },
     { "Beam_Size",        NULL, "flashlight_size",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightSize,      &g_PsyX_FlashlightSize,      0.0f, 3.0f, 0.1f },
-    /* Replaced the Disable_Culling row: that one is a dev toggle and now lives on
-     * the console (CULL). Fog strength is the one worth exposing -- 1.1 is the
-     * PSX-matched density, and lowering it reveals the extra reach that
-     * draw_distance_pct buys instead of just thinning the haze. */
+    /* 1.1 is the PSX-matched density. Lowering it reveals the extra reach that
+     * draw_distance_pct buys, rather than just thinning the haze -- the two are
+     * meant to be moved together, since either alone disappoints. */
     { "Fog_Strength",     NULL, "fog_strength",         NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fogStrength,         &g_PsyX_FogStrength,         0.0f, 2.0f, 0.05f },
     /* Preload_Chunks moved out: it needs a map reload to take effect and the
      * launcher already exposes it. Disable_Culling takes the slot back -- it
