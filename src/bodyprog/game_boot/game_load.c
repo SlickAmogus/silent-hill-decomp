@@ -29,6 +29,15 @@
 #include "screens/stream/stream.h"
 
 #ifdef SH_PC_PORT
+/* Minimum load-screen duration in frames. 60 is the retail constant, but it
+ * counts from the START of the transition and on PSX the CD read spent most of
+ * it, so players rarely saw it as dead black. PC loads at disk speed and would
+ * sit out the remainder, so half restores the behaviour rather than the number.
+ * Console TXNHOLD; 60 restores the literal constant. */
+s32 g_PcTxnHoldFrames = 30;
+#endif
+
+#ifdef SH_PC_PORT
 static void GameBoot_LoadingScreen(void);
 #endif
 
@@ -337,7 +346,19 @@ void GameBoot_GameStartup(void) // 0x80034964
             break;
 
         case 11:
+#ifdef SH_PC_PORT
+            /* counters_1C[0] ticks every vblank from the START of the transition,
+             * so on PSX the CD read spent most of these 60 frames itself and a
+             * room load usually arrived here already past the bound -- it is a
+             * MINIMUM load-screen duration, not an extra hold, and players rarely
+             * saw it. With PC loading at disk speed we arrive early and wait out
+             * the remainder as dead black, a second retail never actually showed.
+             * Honouring the number stopped honouring the behaviour. Console:
+             * TXNHOLD <frames>, 60 restores the literal constant. */
+            if (g_SysWork.counters_1C[0] >= g_PcTxnHoldFrames)
+#else
             if (g_SysWork.counters_1C[0] >= 60)
+#endif
             {
                 if (g_SysWork.processFlags == ProcessFlag_RoomTransition)
                 {

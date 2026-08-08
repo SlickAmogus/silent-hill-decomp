@@ -1224,6 +1224,12 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PgxpNearZ;
         if (arg[0]) { g_PgxpNearZ = (float)atof(arg); if (g_PgxpNearZ < 1.0f) g_PgxpNearZ = 1.0f; }
         cprintf("PGXP near-clip plane depth: %.1f gte-units", g_PgxpNearZ);
+    } else if (strcmp(cmd, "TXNHOLD") == 0) {
+        /* Minimum load-screen frames. 60 is retail's literal constant. */
+        extern s32 g_PcTxnHoldFrames;
+        if (arg[0]) g_PcTxnHoldFrames = atoi(arg);
+        cprintf("load-screen minimum: %d frames (%.2f s); retail constant is 60",
+                (int)g_PcTxnHoldFrames, (float)g_PcTxnHoldFrames / 60.0f);
     } else if (strcmp(cmd, "TXNFADE") == 0) {
         /* Door out-fade length in seconds. Retail's was however long the CD read
          * took, so there is no constant to match. */
