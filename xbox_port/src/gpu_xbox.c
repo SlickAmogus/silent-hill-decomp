@@ -785,6 +785,23 @@ static int ProcessDrawMode(P_TAG* tag)
     for (i = 0; i < n; i++)
         if ((w[i] >> 24) == 0xE1)               /* GP0(E1) = set draw mode (tpage) */
             s_curTpage = (int)(w[i] & 0x1FF);
+#ifdef SH_XBOX_PORT
+    /* [TXTPG] page-switch trace. PROVEN from the user's screenshot: the USA font
+     * puts each 21-column atlas row on its OWN tpage (rowsPerPage=1, tpages
+     * 16-19), and every wrong glyph is its own cell minus exactly 21 -- i.e. the
+     * glyph rendered from the PREVIOUS glyph's page, so the per-glyph page
+     * switch is not taking effect. Text emits DR_TPAGE + SPRT per glyph; this
+     * logs what the walker actually parsed, paired with the [TXSPR] line below,
+     * so one examine message shows whether the page changes are being SEEN. */
+    {
+        static unsigned s_tp;
+        if (s_tp < 40) {
+            s_tp++;
+            SH_DBG("[TXTPG] drawmode tagcode=0x%02x n=%d w0=0x%08X -> curTpage=%d",
+                   (unsigned)tag->code, n, (unsigned)w[0], s_curTpage);
+        }
+    }
+#endif
     return n;
 }
 
@@ -810,6 +827,20 @@ static int ProcessSprtTile(P_TAG* tag)
         u0 = p->u0; v0 = p->v0; clut = p->clut;
         w = fixedSz ? fixedSz : p->w;
         h = fixedSz ? fixedSz : p->h;
+#ifdef SH_XBOX_PORT
+        /* [TXSPR] paired with [TXTPG]: which page this glyph ACTUALLY samples.
+         * USA font glyphs are 12x16 at v=240, so a 12x16 SPRT at v0=240 is a
+         * text glyph. If curTpage stays constant across glyphs whose atlas rows
+         * differ, the per-glyph DR_TPAGE is being lost -- that is the garble. */
+        if (w == 12 && h == 16 && v0 >= 224) {
+            static unsigned s_ts;
+            if (s_ts < 40) {
+                s_ts++;
+                SH_DBG("[TXSPR] glyph u0=%d v0=%d clut=0x%X curTpage=%d (cell=%d)",
+                       u0, v0, (unsigned)clut, s_curTpage, u0 / 12);
+            }
+        }
+#endif
         if (s_diagSprtN < UIDIAG_SPRTS) {
             int* d = s_diagSprt[s_diagSprtN];
             d[0] = x0; d[1] = y0; d[2] = w; d[3] = h; d[4] = u0; d[5] = v0;
