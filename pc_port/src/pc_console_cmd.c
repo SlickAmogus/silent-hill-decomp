@@ -1224,6 +1224,17 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PgxpNearZ;
         if (arg[0]) { g_PgxpNearZ = (float)atof(arg); if (g_PgxpNearZ < 1.0f) g_PgxpNearZ = 1.0f; }
         cprintf("PGXP near-clip plane depth: %.1f gte-units", g_PgxpNearZ);
+    } else if (strcmp(cmd, "CULL") == 0) {
+        /* Retail gates each chunk's model buffers on a baked per-subcell PVS
+         * slice plus a frustum test; disable_culling skips both (exterior maps).
+         * Live toggle so a suspected leaked prim can be A/B'd on the spot
+         * instead of editing config.cfg and reloading the map. */
+        if (arg[0] == '1') g_PcConfig.disableCulling = 0;
+        else if (arg[0] == '0') g_PcConfig.disableCulling = 1;
+        else g_PcConfig.disableCulling = !g_PcConfig.disableCulling;
+        cprintf("chunk visibility culling: %s (disable_culling=%d)",
+                g_PcConfig.disableCulling ? "OFF (draw everything)" : "ON (retail PVS + frustum)",
+                g_PcConfig.disableCulling);
     } else if (strcmp(cmd, "POLYSIZECULL") == 0) {
         /* PSX GPU parity: hardware rejects triangles whose screen bbox exceeds
          * 1023x511; drawing them is the wedge-poly corruption. Off = A/B the
