@@ -127,6 +127,7 @@ static void PutVert(ShVertex* v, int x, int y, int r, int g, int b)
  * they index it 1:1) + PSX texel modulation, where colour 0x80 = 1.0, so we scale
  * the prim colour by 2 (clamped). Texel 0x0000 already decoded to transparent. */
 extern unsigned int* PsxVram_GetTexture(int tpage, int clut);
+extern void          PsxVram_DumpFontStrip(const char* tag);
 
 static void PutVertUV(ShVertex* v, int x, int y, int r, int g, int b, int u, int tv)
 {
@@ -841,6 +842,18 @@ static int ProcessSprtTile(P_TAG* tag)
          * USA font glyphs are 12x16 at v=240, so a 12x16 SPRT at v0=240 is a
          * text glyph. If curTpage stays constant across glyphs whose atlas rows
          * differ, the per-glyph DR_TPAGE is being lost -- that is the garble. */
+        if (w == 12 && h == 16 && v0 >= 224) {
+            /* Dump the atlas bitmap ONCE per state: at the menu (where text is
+             * correct) and again in-game (where it is garbled). Identical dumps
+             * mean the atlas is fine and the fault is in sampling; a diff names
+             * the clobber. */
+            static int s_dumped[2];
+            int which = g_XboxTextProbeArm ? 1 : 0;
+            if (!s_dumped[which]) {
+                s_dumped[which] = 1;
+                PsxVram_DumpFontStrip(which ? "INGAME" : "MENU");
+            }
+        }
         if (g_XboxTextProbeArm && w == 12 && h == 16 && v0 >= 224) {
             static unsigned s_ts;
             if (s_ts < 60) {

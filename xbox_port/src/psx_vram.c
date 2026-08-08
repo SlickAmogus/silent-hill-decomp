@@ -38,6 +38,7 @@ typedef struct {
 } TexEntry;
 static TexEntry s_cache[CACHE_N];
 static int      s_cacheReady;
+static int      s_cacheAlloc;   /* slots with real memory (<= CACHE_N) */
 static int      s_decodeTotal;
 
 extern int g_Nv2aFrameCount;  /* LRU clock (gpu_nv2a.c, ticks per frame) */
@@ -87,6 +88,49 @@ static void InvalidateRegion(int wx0, int wy0, int wx1, int wy1)
     /* Do NOT reset s_cacheNext: round-robin reuse still finds key==-1 slots. */
 }
 
+/* The USA font atlas is a 16-row strip at VRAM y=496..511, words x=0..255 (one
+ * 21-glyph row per tpage 16..19). The glyph prims reaching the GPU are provably
+ * correct -- their cell/page decode inverts the game's own atlas formula -- so
+ * the remaining suspect for garbled text is the atlas CONTENT. These two probes
+ * settle it: FONTCLOB names anyone writing into the strip, FONTDUMP prints the
+ * bitmap itself (once at the menu where text is correct, once in-game where it
+ * is garbled, so a clobber shows as a diff). */
+#define FONT_STRIP_Y0 496
+#define FONT_STRIP_Y1 512
+#define FONT_STRIP_X1 256
+
+static void FontStripWriteProbe(const char* what, int x, int y, int w, int h)
+{
+    static int s_n = 0;
+    if (s_n < 40 && x < FONT_STRIP_X1 && x + w > 0 &&
+        y < FONT_STRIP_Y1 && y + h > FONT_STRIP_Y0) {
+        s_n++;
+        SH_DBG("[FONTCLOB] %s x=%d y=%d w=%d h=%d", what, x, y, w, h);
+    }
+}
+
+void PsxVram_DumpFontStrip(const char* tag)
+{
+    int p, v, u;
+    char line[144];
+
+    for (p = 16; p <= 19; p++) {
+        int tx = (p & 0x0F) * 64;
+        SH_DBG("[FONTDUMP] %s tpage=%d words=%d..%d (21 glyphs, 6 cols each)",
+               tag, p, tx, tx + 63);
+        for (v = 0; v < 16; v++) {
+            const uint16_t* row = &s_vram[((FONT_STRIP_Y0 + v) & (VRAM_H - 1)) * VRAM_W];
+            int n = 0;
+            for (u = 0; u < 252; u += 2) {   /* 2:1 horizontal, 12px glyph -> 6 cols */
+                uint16_t word = row[(tx + (u >> 2)) & (VRAM_W - 1)];
+                line[n++] = (((word >> ((u & 3) * 4)) & 0x0F) != 0) ? '#' : '.';
+            }
+            line[n] = '\0';
+            SH_DBG("[FONTDUMP] %s %2d|%s", tag, v, line);
+        }
+    }
+}
+
 /* LoadImage: copy w*h 16-bit source pixels into VRAM at (x,y), row by row. */
 void PsxVram_Load(int x, int y, int w, int h, const uint16_t* src)
 {
@@ -96,6 +140,7 @@ void PsxVram_Load(int x, int y, int w, int h, const uint16_t* src)
         return;
 
     if (x + w > VRAM_W) w = VRAM_W - x;
+    FontStripWriteProbe("Load", x, y, w, h);
     yend = y;
     for (row = 0; row < h; row++) {
         int       vy = y + row;
@@ -130,6 +175,7 @@ void PsxVram_Move(int sx, int sy, int w, int h, int dx, int dy)
     if (dx + w > VRAM_W) w = VRAM_W - dx;
     if (w <= 0)
         return;
+    FontStripWriteProbe("Move", dx, dy, w, h);
 
     if (dy <= sy) {
         for (row = 0; row < h; row++) {
@@ -156,6 +202,7 @@ void PsxVram_Fill(int x, int y, int w, int h, uint16_t c)
     if (w <= 0 || h <= 0 || x < 0 || y < 0 || x >= VRAM_W || y >= VRAM_H)
         return;
     if (x + w > VRAM_W) w = VRAM_W - x;
+    FontStripWriteProbe("Fill", x, y, w, h);
     for (row = 0; row < h; row++) {
         int vy = y + row;
         uint16_t* d;
@@ -281,6 +328,7 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
             if (s_cache[i].argb) ok++;
         }
         s_cacheReady = 1;
+        s_cacheAlloc = ok;
         SH_DBG("[VRAM] texture cache: %d/%d slots (256KB each), free=%uKB after",
                ok, CACHE_N, Xbox_MemFreeKB());
         if (ok < CACHE_N)
@@ -337,7 +385,13 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
                 continue;                       /* already allocated */
             {
                 extern unsigned Xbox_MemFreeKB(void);
-                enum { GROW_RESERVE_KB = 8 * 1024, SLOT_KB = (TEX_DIM * TEX_DIM * 4) / 1024 };
+                /* 4MB, not the boot pass's 8MB. Growth happens AFTER the map's
+                 * allocations have landed, so it does not need the boot-time
+                 * margin — and at 8MB it never fired at all: the measured free
+                 * heap in the town was 8444KB against a 8192+256 threshold, so
+                 * the cache sat at 43 slots and drained the GPU instead. Each
+                 * slot bought here removes stalls AND decode thrash. */
+                enum { GROW_RESERVE_KB = 4 * 1024, SLOT_KB = (TEX_DIM * TEX_DIM * 4) / 1024 };
                 unsigned freeKB = Xbox_MemFreeKB();
                 if (!freeKB || freeKB < GROW_RESERVE_KB + SLOT_KB)
                     break;                      /* keep the reserve intact */
@@ -346,10 +400,12 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
                     break;                      /* allocator said no — stop asking */
                 s_cache[i].key     = -1;
                 s_cache[i].lastUse = 0;
+                s_cacheAlloc++;
                 {   /* rare: only fires while a scene is still growing its set */
                     static unsigned s_grown;
                     if ((++s_grown & 15) == 1)
-                        SH_DBG("[VRAM] cache grew to slot %d (free=%uKB)", i + 1, Xbox_MemFreeKB());
+                        SH_DBG("[VRAM] cache grew to %d slots (free=%uKB)",
+                               s_cacheAlloc, Xbox_MemFreeKB());
                 }
             }
             break;                              /* one slot per miss — gentle ramp */
@@ -362,12 +418,33 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
             if (s_cache[i].lastUse == thisFrame) continue;   /* in flight — not evictable */
             if (s_cache[i].lastUse < bestUse) { bestUse = s_cache[i].lastUse; best = i; }
         }
+        /* Out of evictable slots: every allocated slot was bound earlier in THIS
+         * frame. Stealing one anyway rewrites texels the GPU has not sampled yet,
+         * so the already-submitted prims pointing at that slot draw a DIFFERENT
+         * page — that is the garbled in-game text (all four font pages are
+         * fetched every frame, so a stolen font slot renders as another glyph
+         * row) and it got worse exactly where texture pressure is highest: the
+         * church cutscene. Drain the GPU instead. Once it is idle every slot has
+         * been consumed and is legal to reuse, so unpin them all and take the
+         * LRU. Costs a stall, but only when the working set genuinely exceeds
+         * capacity, and it is self-limiting: after a drain the whole cache is
+         * evictable again. */
         if (best < 0) {
-            static unsigned s_pinnedOut;
-            if ((++s_pinnedOut & 255) == 1)
-                SH_DBG("[VRAM] all %d slots in flight (#%u) — evicting anyway",
-                       CACHE_N, s_pinnedOut);
+            static unsigned s_drains;
+            static unsigned s_drainFrame = 0xFFFFFFFFu;
+            static int      s_drainThisFrame, s_drainWorst;
+            extern void GpuNv2a_DrainGpu(void);
+            GpuNv2a_DrainGpu();
+            for (i = 0; i < CACHE_N; i++)
+                s_cache[i].lastUse = 0;             /* consumed => unpinned */
             best = bestPinned;
+            /* Each drain is a full GPU stall, so track the per-frame worst case:
+             * that is the number to watch if a scene feels slow after this. */
+            if (thisFrame != s_drainFrame) { s_drainFrame = thisFrame; s_drainThisFrame = 0; }
+            if (++s_drainThisFrame > s_drainWorst) s_drainWorst = s_drainThisFrame;
+            if ((++s_drains & 63) == 1)
+                SH_DBG("[VRAM] out of slots -> GPU drain #%u (alloc=%d worstPerFrame=%d)",
+                       s_drains, s_cacheAlloc, s_drainWorst);
         }
         if (best < 0)
             return 0;                      /* cache never allocated */

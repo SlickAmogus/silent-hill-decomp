@@ -412,6 +412,18 @@ void GpuNv2a_FrameEnd(void)
  * when the current back buffer only holds a partial frame. Drains the GPU first
  * so every submitted draw has landed; the caller is rare-frame gated, so the
  * stall (and the slow uncached read of write-combined memory) is acceptable. */
+/* Submit everything pending and wait until the GPU has rasterized it. After this
+ * returns, every texture slot bound earlier in the frame has been CONSUMED, so
+ * its memory can be safely overwritten. The texture cache uses this as its
+ * out-of-slots backstop: without it, a forced eviction rewrites 256KB the GPU
+ * has not read yet and already-submitted prims sample the wrong page (the
+ * garbled-text bug). */
+void GpuNv2a_DrainGpu(void)
+{
+    GpuNv2a_FlushBatch();
+    while (pb_busy()) { }
+}
+
 const void* GpuNv2a_ReadbackSurface(int fromLastQueued, int* w, int* h, int* pitchBytes)
 {
     const void* fb;
