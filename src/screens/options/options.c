@@ -210,7 +210,10 @@ static const s_PcOpt PCOPT_S[] = {
      * PSX-matched density, and lowering it reveals the extra reach that
      * draw_distance_pct buys instead of just thinning the haze. */
     { "Fog_Strength",     NULL, "fog_strength",         NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fogStrength,         &g_PsyX_FogStrength,         0.0f, 2.0f, 0.05f },
-    { "Preload_Chunks",   &g_PcConfig.preloadChunks,  "preload_chunks",   VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
+    /* Preload_Chunks moved out: it needs a map reload to take effect and the
+     * launcher already exposes it. Disable_Culling takes the slot back -- it
+     * applies live, and it pairs with Fog_Strength above for seeing further. */
+    { "Disable_Culling",  &g_PcConfig.disableCulling, "disable_culling",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
     { "FPS_Limit",        &g_PcConfig.fpsCap,         "fps_cap",          VAL_FPS,   5, LBL_FPS,   NULL, 1, PCK_INT  },
     { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
     /* Moved here from the Camera page for the same reason as Map above. */
