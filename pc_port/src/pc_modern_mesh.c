@@ -114,6 +114,11 @@ typedef struct PcModernMeshEntry
     int             drawOffsetY;
     int             drawHiresWidth;
     int             drawHiresHeight;
+    /* Last source REPORTED, so a change of resolution between surfaces is
+     * logged. The old one-shot mask meant only the first surface to draw an
+     * item ever reported, which hid the take screen resolving differently from
+     * the carousel. */
+    unsigned        lastLoggedSource;
 } PcModernMeshEntry;
 
 static PcModernMeshEntry s_registry[PC_MODERN_MESH_REGISTRY_MAX];
@@ -1099,12 +1104,12 @@ int Pc_ModernMesh_Emit(void* object, void* orderingTable, int shift)
         entry->drawNativeWidth = entry->drawNativeHeight = 256;
         entry->drawOffsetX = entry->drawOffsetY = 0;
         entry->drawHiresWidth = entry->drawHiresHeight = 0;
-        if ((entry->mesh.loggedTextureSources & PcModernTextureSource_EmbeddedGlb) == 0)
+        if (entry->lastLoggedSource != PcModernTextureSource_EmbeddedGlb)
         {
             SH_DBG("[MODERN_MESH] item=%d texture source=embedded-glb texture=%u image=%dx%d",
                    (int)entry->mesh.fileIdx, (unsigned)entry->drawTexture,
                    entry->mesh.embeddedTextureWidth, entry->mesh.embeddedTextureHeight);
-            entry->mesh.loggedTextureSources |= PcModernTextureSource_EmbeddedGlb;
+            entry->lastLoggedSource = PcModernTextureSource_EmbeddedGlb;
         }
     }
     else if ((entry->drawTexture = HiresOverride_LookupByTpageClut(
@@ -1113,20 +1118,21 @@ int Pc_ModernMesh_Emit(void* object, void* orderingTable, int shift)
                   &entry->drawHiresWidth, &entry->drawHiresHeight)) != 0)
     {
         entry->drawFormat = TF_32_BIT_RGBA;
-        if ((entry->mesh.loggedTextureSources & PcModernTextureSource_InstalledOverride) == 0)
+        if (entry->lastLoggedSource != PcModernTextureSource_InstalledOverride)
         {
             SH_DBG("[MODERN_MESH] item=%d texture source=installed-override texture=%u",
                    (int)entry->mesh.fileIdx, (unsigned)entry->drawTexture);
-            entry->mesh.loggedTextureSources |= PcModernTextureSource_InstalledOverride;
+            entry->lastLoggedSource = PcModernTextureSource_InstalledOverride;
         }
     }
     else
     {
         entry->drawTexture = g_vramTexture;
-        if ((entry->mesh.loggedTextureSources & PcModernTextureSource_RetailVram) == 0)
+        if (entry->lastLoggedSource != PcModernTextureSource_RetailVram)
         {
-            SH_DBG("[MODERN_MESH] item=%d texture source=retail-vram", (int)entry->mesh.fileIdx);
-            entry->mesh.loggedTextureSources |= PcModernTextureSource_RetailVram;
+            SH_DBG("[MODERN_MESH] item=%d texture source=retail-vram (tpage=%d clut=%d)",
+                   (int)entry->mesh.fileIdx, tpage, clut);
+            entry->lastLoggedSource = PcModernTextureSource_RetailVram;
         }
     }
     bucket = 0;
