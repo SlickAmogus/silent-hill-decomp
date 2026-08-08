@@ -79,6 +79,7 @@ static void Player_CrashHandler(int sig) {
 #include "pc_combat.h"
 #include "pc_timing.h"
 #include "pc_config.h"
+#include "pc_grab_guard.h"
 #include "main/fileinfo.h" /* g_GameRegion — EUR overlay pointer rebase */
 
 extern int g_PcFpsCam;
@@ -9723,6 +9724,36 @@ void Player_ReceiveDamage(s_SubCharacter* player, s_PlayerExtra* extra) // 0x800
                 case 54: // Romper grab.
                 case 56: // Torso grab.
                 case 66:
+#ifdef SH_PC_PORT
+                    /* A console-SPAWNed or pool-placed monster can land a grab
+                     * in a map that never hosts it, and field_38 only carries
+                     * the grab/release rows its OWN natives need. With no row,
+                     * func_8007FB94 leaves controlState at 0 and D_800AF220
+                     * stale, so the release state waits on a keyframe from an
+                     * unrelated animation and the player is held for the rest of
+                     * the session. Substitute the ordinary torso reaction — or
+                     * drop the hit when the map cannot animate that either. */
+                    {
+                        int isFrontal = enemyRotY >= Q12_ANGLE(90.0f) &&
+                                        enemyRotY <  Q12_ANGLE(270.0f);
+
+                        if (!Pc_GrabGuard_GrabIsPlayable(player->attackReceived, isFrontal))
+                        {
+                            SH_DBG("[GRABGUARD] attack %d (%s) has no reaction rows in this map — no grab",
+                                   player->attackReceived, isFrontal ? "front" : "back");
+
+                            if (Pc_GrabGuard_DamageFallbackIsPlayable(isFrontal))
+                            {
+                                Player_ExtraStateSet(player, extra,
+                                                     isFrontal ? PlayerState_DamageTorsoFront
+                                                               : PlayerState_DamageTorsoBack);
+                            }
+
+                            player->attackReceived = NO_VALUE;
+                            break;
+                        }
+                    }
+#endif
                     if (enemyRotY >= Q12_ANGLE(90.0f) &&
                         enemyRotY <  Q12_ANGLE(270.0f))
                     {
