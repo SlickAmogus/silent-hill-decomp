@@ -3071,6 +3071,14 @@ void MainLoop(void) // 0x80032EE0
                              * selection-box borders in item_screens_3.c */
                             hi != 0x40 && hi != 0x50 &&
                             hi != 0x60 && hi != 0x70 && hi != 0xA0 &&
+                            /* 0xB_ is PsyCross's custom-packet family, not a PSX GPU
+                             * opcode: 0xB3 is DR_PSYX_MODERN_MESH, which carries a
+                             * replacement glTF item mesh. Stripping it made the take
+                             * screen — the ONE surface that emits through OT1 and gets
+                             * spliced into OT0 by GsSortOt, so the ONE that reaches this
+                             * walk — draw nothing, while the inventory carousel (OT0
+                             * direct, no sanitize pass) rendered the same mesh fine. */
+                            hi != 0xB0 &&
                             codeFull != 0xE1 &&
                             /* textured/quad poly types emitted by NTG3/NTG4/TG3/TG4 */
                             hi != 0x24 && hi != 0x28 && hi != 0x2C &&
