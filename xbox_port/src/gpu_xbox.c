@@ -420,6 +420,8 @@ static void ItemDepthApply(ShVertex* v, int n, const void* prim)
     }
 }
 
+int g_XboxTextProbeArm = 0;   /* set from game_main.c: probe only while in-game */
+
 static unsigned s_pgxpFull, s_pgxpMixed;   /* [PGXP] cov window counters */
 
 /* ALL-OR-NOTHING per poly (the gun-combat flicker fix): combat effect emitters
@@ -795,7 +797,14 @@ static int ProcessDrawMode(P_TAG* tag)
      * so one examine message shows whether the page changes are being SEEN. */
     {
         static unsigned s_tp;
-        if (s_tp < 40) {
+        /* Armed only in-game (game_main.c): the title menu -- which renders
+         * CORRECTLY -- otherwise consumes the whole cap. Log 037 proved that:
+         * the captured glyphs decoded to EXIT/OPTION/START with pages 17/18
+         * varying correctly, i.e. the page mechanism itself is sound and the
+         * garble lives somewhere the probe never reached. Only tpages in the
+         * font's range (16-19) are interesting here; everything else is other
+         * subsystems (log 037 was flooded with tpage 64). */
+        if (g_XboxTextProbeArm && s_tp < 60 && s_curTpage >= 16 && s_curTpage <= 19) {
             s_tp++;
             SH_DBG("[TXTPG] drawmode tagcode=0x%02x n=%d w0=0x%08X -> curTpage=%d",
                    (unsigned)tag->code, n, (unsigned)w[0], s_curTpage);
@@ -832,12 +841,21 @@ static int ProcessSprtTile(P_TAG* tag)
          * USA font glyphs are 12x16 at v=240, so a 12x16 SPRT at v0=240 is a
          * text glyph. If curTpage stays constant across glyphs whose atlas rows
          * differ, the per-glyph DR_TPAGE is being lost -- that is the garble. */
-        if (w == 12 && h == 16 && v0 >= 224) {
+        if (g_XboxTextProbeArm && w == 12 && h == 16 && v0 >= 224) {
             static unsigned s_ts;
-            if (s_ts < 40) {
+            if (s_ts < 60) {
                 s_ts++;
-                SH_DBG("[TXSPR] glyph u0=%d v0=%d clut=0x%X curTpage=%d (cell=%d)",
-                       u0, v0, (unsigned)clut, s_curTpage, u0 / 12);
+                /* row/char decode inline so the log reads as text: the USA atlas
+                 * is 21 columns with one row per tpage (16-19), cell = u0/12,
+                 * glyphIdx = (tpage-16)*21 + cell, char = glyphIdx + 0x27. */
+                {
+                    int cell = u0 / 12;
+                    int gi   = (s_curTpage - 16) * 21 + cell;
+                    int ch   = gi + 0x27;
+                    SH_DBG("[TXSPR] glyph cell=%2d tpage=%d -> idx=%2d char='%c'",
+                           cell, s_curTpage, gi,
+                           (ch >= 32 && ch < 127) ? (char)ch : '?');
+                }
             }
         }
 #endif

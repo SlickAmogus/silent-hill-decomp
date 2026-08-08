@@ -2120,6 +2120,11 @@ void MainLoop(void) // 0x80032EE0
                        g_GameWork.gameState, g_GameWork.gameStateSteps[0]);
                 s_xbLastState = g_GameWork.gameState;
             }
+            /* Arm the gpu_xbox.c text probes only once we are actually IN GAME:
+             * their caps otherwise fill up on the title menu (which renders
+             * correctly) and never reach the garbled examine/cutscene text. */
+            { extern int g_XboxTextProbeArm;
+              g_XboxTextProbeArm = (g_GameWork.gameState == GameState_InGame); }
         }
 #endif
 #ifdef SH_PC_PORT
