@@ -347,6 +347,112 @@ static void cmd_setflag(const char* arg)
     cprintf("flag %d = %d", n, v);
 }
 
+/* Area maps are savegame BITS in paperMapFlags, not inventory items, so they
+ * cannot go through cmd_give's Inventory_AddSpecialItem path — hence a command
+ * of their own. Indices and names mirror e_PaperMapIdx (game.h). */
+static const char* const PAPER_MAP_NAMES[] = {
+    "OtherPlaces",    "OldTown",        "FogCentralTown", "AltCentralTown",
+    "ResortTown",     "FogSchoolBF",    "FogSchool1F",    "FogSchool2F",
+    "FogSchoolRF",    "AltSchoolBF",    "AltSchool1F",    "AltSchool2F",
+    "AltSchoolRF",    "FogSewer1F",     "FogSewer2F",     "AltSewer",
+    "FogHospitalBF",  "FogHospital1F",  "FogHospital2F",  "FogHospital3F",
+    "AltHospitalBF",  "AltHospital1F",  "AltHospital2F",  "AltHospital3F",
+};
+#define PAPER_MAP_COUNT ((int)(sizeof(PAPER_MAP_NAMES) / sizeof(PAPER_MAP_NAMES[0])))
+
+static void paper_map_grant(int idx)
+{
+    ((u32*)&g_SavegamePtr->paperMapFlags)[idx / 32] |= (u32)1 << (idx % 32);
+}
+
+/* The dispatcher hands `arg` over already upper-cased, so a name match has to
+ * fold the mixed-case table rather than strcmp it. */
+static int paper_map_name_eq(const char* upperArg, const char* name)
+{
+    int i;
+    for (i = 0; upperArg[i] != '\0' && name[i] != '\0'; i++) {
+        char c = name[i];
+        if (c >= 'a' && c <= 'z')
+            c = (char)(c - 'a' + 'A');
+        if (upperArg[i] != c)
+            return 0;
+    }
+    return upperArg[i] == '\0' && name[i] == '\0';
+}
+
+static void cmd_givemap(const char* arg)
+{
+    int idx, n;
+
+    if (strcmp(arg, "LIST") == 0) {
+        char line[256];
+        int  used = 0;
+        line[0] = '\0';
+        for (idx = 0; idx < PAPER_MAP_COUNT; idx++) {
+            if (used + (int)strlen(PAPER_MAP_NAMES[idx]) + 8 >= 200) {
+                DbgOverlay_PushLine(line);
+                line[0] = '\0';
+                used    = 0;
+            }
+            used += snprintf(line + used, sizeof(line) - used, "%s%d:%s%s",
+                             used ? " " : "", idx, PAPER_MAP_NAMES[idx],
+                             HAS_MAP(idx) ? "*" : "");
+        }
+        if (used) DbgOverlay_PushLine(line);
+        cprintf("givemap list - * = already held");
+        return;
+    }
+
+    if (strcmp(arg, "ALL") == 0) {
+        int added = 0;
+        for (idx = 0; idx < PAPER_MAP_COUNT; idx++) {
+            if (HAS_MAP(idx))
+                continue;
+            paper_map_grant(idx);
+            added++;
+        }
+        cprintf("gave %d map(s) - all areas", added);
+        return;
+    }
+
+    if (arg[0] == '\0') {
+        /* Default: whatever area Harry is standing in. Every map point carries a
+         * paperMapIdx, and unmapped areas all tag OtherPlaces, which has no map
+         * of its own to hand over. */
+        idx = (int)g_SavegamePtr->paperMapIdx;
+        if (idx == PaperMapIdx_OtherPlaces) {
+            cprintf("this area has no map of its own (Other Places)");
+            return;
+        }
+        if (idx < 0 || idx >= PAPER_MAP_COUNT) {
+            cprintf("area has no valid map (paperMapIdx %d)", idx);
+            return;
+        }
+    } else if (sscanf(arg, "%d", &n) == 1) {
+        if (n < 0 || n >= PAPER_MAP_COUNT) {
+            cprintf("map index out of range (0-%d)", PAPER_MAP_COUNT - 1);
+            return;
+        }
+        idx = n;
+    } else {
+        for (idx = 0; idx < PAPER_MAP_COUNT; idx++) {
+            if (paper_map_name_eq(arg, PAPER_MAP_NAMES[idx]))
+                break;
+        }
+        if (idx >= PAPER_MAP_COUNT) {
+            cprintf("unknown map '%s' - try 'givemap list'", arg);
+            return;
+        }
+    }
+
+    if (HAS_MAP(idx)) {
+        cprintf("already have %s (%d)", PAPER_MAP_NAMES[idx], idx);
+        return;
+    }
+    paper_map_grant(idx);
+    cprintf("gave map: %s (%d)", PAPER_MAP_NAMES[idx], idx);
+}
+
 /* help / debug reference pages. The in-game console viewport shows
  * MAX_CONSOLE (20) lines and each line buffer is LINE_LEN (64) chars, so
  * pages stay under ~16 lines of <=63 chars and longer lists split into
@@ -359,6 +465,8 @@ static const char* const HELP_LINES[] = {
     " map            list all map names",
     " map <name>     new-game warp to a map",
     " give <item>    see 'help give' for the full list",
+    " givemap        area map for where Harry is standing",
+    " givemap list|all|<n|name>   list / grant all / grant one",
     " getflags       show ending flags",
     " setending <e>  bad | bad+ | good | good+",
     " setflag <n> 0|1  set any event flag",
@@ -376,6 +484,7 @@ static const char* const HELP_LINES[] = {
     " fmv            list movies (numbered)",
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
     " kf [n]         keyframe inspector: set/show frame (K key)",
+    " playas [name]  play as another character (bare = list)",
     " loga / logb    log Harry+camera pos/angles to SilentHill.log",
     "Quick Save: F6   Quick Load: F8 (work outside console)",
 };
@@ -421,10 +530,11 @@ static const char* const DEBUG_PAGE1[] = {
     " 7       invincibility toggle",
     " 8       +15 handgun bullets",
     " 9       no-target toggle (enemies ignore Harry)",
-    " -       give Hunting Rifle + 30 shells",
-    " =       give Shotgun + 30 shells",
+    " -       give Hunting Rifle + 30 shells (not in K view)",
+    " =       give Shotgun + 30 shells (not in K view)",
     " '       collision visualizer panel",
     " K       keyframe inspector; , . scrub (hold = faster)",
+    " - / =   in K view: cycle play-as character",
     " [ / ]   drop A/B position markers into the log",
     " ~       console open/close (game pauses; PgUp/PgDn scroll)",
     "type DEBUG 2 for the camera keys",
@@ -935,6 +1045,8 @@ void Pc_ConsoleExec(const char* line)
         cmd_map(arg);
     } else if (strcmp(cmd, "GIVE") == 0) {
         cmd_give(arg);
+    } else if (strcmp(cmd, "GIVEMAP") == 0) {
+        cmd_givemap(arg);
     } else if (strcmp(cmd, "KILL") == 0) {
         g_SysWork.playerWork.player.health = -Q12(1.0f);
         cprintf("killed Harry");
@@ -1058,6 +1170,49 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PgxpUseUnquantizedDepth = 0;
         else g_PgxpUseUnquantizedDepth = !g_PgxpUseUnquantizedDepth;
         cprintf("PGXP unquantized-depth W (distance-seam fix): %s", g_PgxpUseUnquantizedDepth ? "ON" : "OFF");
+    } else if (strcmp(cmd, "PGXPDEPTHSTATS") == 0) {
+        /* Opt-in [PGXPDEPTH] diagnostics dump (60-frame cadence, PGXP on). */
+        extern int g_PsxPgxpDepthStats;
+        if (arg[0] == '1') g_PsxPgxpDepthStats = 1;
+        else if (arg[0] == '0') g_PsxPgxpDepthStats = 0;
+        else g_PsxPgxpDepthStats = !g_PsxPgxpDepthStats;
+        cprintf("PGXP depth-channel stats dump: %s", g_PsxPgxpDepthStats ? "ON" : "OFF");
+    } else if (strcmp(cmd, "RAWHY") == 0) {
+        /* Dump an achievement's conditions + the values we return, to SilentHill.log. */
+        extern int Pc_Ra_Why(const char*);
+        int n = Pc_Ra_Why(arg);
+        cprintf(n ? "Dumped %d achievement trigger(s) to the log" : "No match (or no set loaded)", n);
+    } else if (strcmp(cmd, "RATOAST") == 0) {
+        /* Preview the achievement popup without earning anything. */
+        extern void Pc_RaToast_Show(const char*, const char*, const char*, unsigned);
+        extern int  Pc_Ra_PreviewFirst(void);
+        /* Prefer a real achievement (badge art included) when a set is loaded. */
+        if (arg[0] || !Pc_Ra_PreviewFirst())
+        {
+            Pc_RaToast_Show(arg[0] ? arg : "Welcome to Silent Hill",
+                            "Find the flashlight and survive your first encounter "
+                            "with the creatures in the alley.",
+                            "", 10);
+            cprintf("Achievement toast preview (placeholder art)");
+        }
+        else
+        {
+            cprintf("Achievement toast preview (real achievement + badge)");
+        }
+    } else if (strcmp(cmd, "PGXPWORLDDEPTH") == 0) {
+        /* Depth-channel kill-switch: OFF suppresses FLAT world promotion
+         * (GL_ALWAYS painter + viewZ flat depth), dropping depth behavior
+         * back to bucket+painter instantly. */
+        extern int g_PsxPgxpWorldDepth;
+        if (arg[0] == '1') g_PsxPgxpWorldDepth = 1;
+        else if (arg[0] == '0') g_PsxPgxpWorldDepth = 0;
+        else g_PsxPgxpWorldDepth = !g_PsxPgxpWorldDepth;
+        cprintf("PGXP world depth channel: %s", g_PsxPgxpWorldDepth ? "ON" : "OFF");
+    } else if (strcmp(cmd, "PGXPWALLBIAS") == 0) {
+        /* Writer-side far-push margin M (SZ units) on world geometry. */
+        extern int g_PsxPgxpWorldFarBias;
+        if (arg[0]) g_PsxPgxpWorldFarBias = atoi(arg);
+        cprintf("PGXP world far-bias M: %d SZ units", g_PsxPgxpWorldFarBias);
     } else if (strcmp(cmd, "PGXPNEARCLIP") == 0) {
         extern int g_PsxPgxpNearClip;
         if (arg[0] == '1') g_PsxPgxpNearClip = 1;
@@ -1069,6 +1224,47 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PgxpNearZ;
         if (arg[0]) { g_PgxpNearZ = (float)atof(arg); if (g_PgxpNearZ < 1.0f) g_PgxpNearZ = 1.0f; }
         cprintf("PGXP near-clip plane depth: %.1f gte-units", g_PgxpNearZ);
+    } else if (strcmp(cmd, "FASTLOAD") == 0) {
+        /* Blocking loads otherwise advance one queue state per vblank and copy
+         * one 2048 byte sector per call -- ~120 KiB/s regardless of the storage,
+         * which is the multi-second black hold on a door. */
+        extern int g_PcFastBlockingLoads;
+        if (arg[0] == '1') g_PcFastBlockingLoads = 1;
+        else if (arg[0] == '0') g_PcFastBlockingLoads = 0;
+        else g_PcFastBlockingLoads = !g_PcFastBlockingLoads;
+        cprintf("fast blocking loads: %s", g_PcFastBlockingLoads ? "ON (disk speed)" : "OFF (PSX CD pace)");
+    } else if (strcmp(cmd, "FBDAMP") == 0) {
+        /* Gain of the framebuffer-feedback loop that produces the door out-fade
+         * and the loading-screen trail. 0.5 = shipped; ~0.996 (255/256) is
+         * retail-length decay but diverged to a grey field last time it was
+         * tried, so it is tunable here rather than baked in. */
+        extern float g_PsxFeedbackDamp;
+        if (arg[0]) g_PsxFeedbackDamp = (float)atof(arg);
+        cprintf("framebuffer feedback damp: %.4f (0.5=shipped, 0.996=retail-length fade)",
+                g_PsxFeedbackDamp);
+    } else if (strcmp(cmd, "CULL") == 0) {
+        /* Retail gates each chunk's model buffers on a baked per-subcell PVS
+         * slice plus a frustum test; disable_culling skips both (exterior maps).
+         * Live toggle so a suspected leaked prim can be A/B'd on the spot
+         * instead of editing config.cfg and reloading the map. */
+        if (arg[0] == '1') g_PcConfig.disableCulling = 0;
+        else if (arg[0] == '0') g_PcConfig.disableCulling = 1;
+        else g_PcConfig.disableCulling = !g_PcConfig.disableCulling;
+        cprintf("chunk visibility culling: %s (disable_culling=%d)",
+                g_PcConfig.disableCulling ? "OFF (draw everything)" : "ON (retail PVS + frustum)",
+                g_PcConfig.disableCulling);
+    } else if (strcmp(cmd, "POLYSIZECULL") == 0) {
+        /* PSX GPU parity: hardware rejects triangles whose screen bbox exceeds
+         * 1023x511; drawing them is the wedge-poly corruption. Off = A/B the
+         * old behavior (and an escape hatch if a load-bearing oversize quad
+         * turns up, e.g. the flashlight glow-mask borders). */
+        extern int g_PsxPolySizeCull;
+        if (arg[0] == '1') g_PsxPolySizeCull = 1;
+        else if (arg[0] == '0') g_PsxPolySizeCull = 0;
+        else g_PsxPolySizeCull = !g_PsxPolySizeCull;
+        g_PcConfig.psxPolySizeCull = g_PsxPolySizeCull;
+        PcConfig_SaveKeyValue("psx_poly_size_cull", g_PsxPolySizeCull ? "1" : "0");
+        cprintf("PSX oversize-poly cull (bbox >1023x511 rejected): %s", g_PsxPolySizeCull ? "ON" : "OFF");
     } else if (strcmp(cmd, "PGXPFARW") == 0) {
         /* Beyond this view depth (SZ units, 256 = 1 world unit) perspective
          * interpolation fades to affine — kills the distant grazing-angle
@@ -1311,6 +1507,31 @@ void Pc_ConsoleExec(const char* line)
         } else {
             cprintf("keyframe %d / %d (view %s)", g_DebugAnimKf, maxKf,
                     g_DebugAnimKfView ? "ON" : "OFF");
+        }
+    } else if (strcmp(cmd, "PLAYAS") == 0) {
+        extern int         Pc_PlayAs_SetByName(const char* name, int save);
+        extern int         Pc_PlayAs_Current(void);
+        extern const char* Pc_PlayAs_Label(int idx);
+        if (arg[0] != '\0') {
+            if (Pc_PlayAs_SetByName(arg, 1)) {
+                cprintf("playing as %s", Pc_PlayAs_Label(Pc_PlayAs_Current()));
+            } else {
+                extern int         Pc_PlayAs_Count(void);
+                extern const char* Pc_PlayAs_Name(int idx);
+                int _i;
+                cprintf("unknown character. playas <name>:");
+                for (_i = 0; _i < Pc_PlayAs_Count(); _i += 4) {
+                    char _line[80];
+                    int  _j, _n = 0;
+                    _line[0] = '\0';
+                    for (_j = _i; _j < _i + 4 && _j < Pc_PlayAs_Count(); _j++)
+                        _n += snprintf(_line + _n, sizeof(_line) - _n, "%s%s",
+                                       _n ? " " : "  ", Pc_PlayAs_Name(_j));
+                    cprintf("%s", _line);
+                }
+            }
+        } else {
+            cprintf("playing as %s (playas <name> to change)", Pc_PlayAs_Label(Pc_PlayAs_Current()));
         }
     } else if (strcmp(cmd, "FLINTENSITY") == 0 || strcmp(cmd, "FLINT") == 0) {
         extern float g_PsyX_FlashlightIntensity, g_PsyX_FlashlightIntensityFps;
