@@ -2621,3 +2621,84 @@ Verified headlessly against the real `ConfigManager`: warns on `0`; "Yes" writes
 `1` and leaves `texpack_budget_mb` and the rest intact, then stops warning;
 "Don't ask again" writes the suppression key, leaves `resident_textures = 0`
 untouched (choice respected), and the suppression sticks on reload.
+
+## PsyCross PR triage — 5 open upstream PRs (2026-08-07, PsyCross `a228215`, `7a33ffe`, `05fc558`)
+
+Three adapted, two closed as superseded.
+
+**#9 `include/psx` shadowing POSIX `<strings.h>`** (`a228215`). `include/psx/strings.h`
+is a guard-only stub that declares nothing, and `include/psx` was on
+`psycross_static`'s PUBLIC include path — so it resolved ahead of the POSIX header
+for every TU built against the archive. That, not the feature-test-macro ordering
+the old `#ifdef __GNUC__` comment claimed, is why `strcasecmp` came up undeclared
+on glibc. Dropped from PUBLIC and the workaround deleted. Safe because every
+consumer that needs bare `<libgpu.h>`-style includes adds the directory itself
+(exe `CMakeLists.txt:334`, map DLLs `maps/CMakeLists.txt:21`, big-TMD test, and
+PsyCross's own audio tests). Took `#else` rather than the PR's
+`#elif defined(__unix__)` — Apple defines `__APPLE__`/`__MACH__`, not `__unix__`.
+Remaining: the host re-adds `include/psx`, so a few host TUs still get the stub;
+renaming/deleting it would close that for good.
+
+**#15 DualSense SDL hints** (`7a33ffe`). Taken as an explicit pin, NOT a fix:
+`SDL_HIDAPI_DEFAULT` is unconditionally `SDL_TRUE` and the PS5 driver resolves its
+hint against it in 2.0.14 / 2.0.20 / 2.28 alike, so both hints are already "1"
+everywhere. The one non-obvious constraint (recorded in the comment) is ordering —
+they must precede the `SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER)` in the same
+function. The real DualSense bug is elsewhere and still open:
+`PsyX_Pad_Event_ControllerRemoved` compares a stored SDL *device index* against
+`event.cdevice.which`, which is a joystick *instance ID* for
+`SDL_CONTROLLERDEVICEREMOVED`, so disconnects often fail to free the slot.
+
+**#12 VRAM decode via CPU-baked LUT** (`05fc558`). `samplePSX` now returns the two
+raw VRAM bytes; `lut()` indexes a 256x256 table (`GR_InitRG8LUT`, texture unit 2)
+built once with integer bit math. Two corrections were required against the PR as
+written, both mandatory to keep the image where it is:
+
+- the PR sampled the table's `v<<3` bytes straight out, a uniform 256/255 gain.
+  Not sub-visible: `GPU_LIT_TAIL` multiplies by `v_color` (`bright = 2` on textured
+  prims) and the dither offset is added *before* the 5-bit quantize, so the gain
+  crosses a band boundary and moves dithered pixels a full 8/255. Recovering the
+  integer byte and scaling by 1/256 reproduces `v/32` exactly.
+- the PR applied `1.0 - w` AFTER the bilinear mix. Table alpha is 0 for both an
+  opaque texel and a colour-0 texel, so holes read opaque and every 4/8-bit cutout
+  edge gained a dark fringe. Alpha is now resolved per texel inside `lut()`,
+  keeping `decodeRG`'s colour-0 case, landing on exactly 0.0 / 0.5 / 1.0
+  (`BM_AVERAGE` feeds it to `GL_SRC_ALPHA`).
+
+**Root cause is unproven for this tree** — worth remembering before chasing it
+again. The byte-snap in `GPU_FETCH_VRAM_FUNC` is present on BOTH `VRAM_FORMAT`
+branches, and with a snapped input every `floor()` in the old `decodeRG` had
+>= 0.128 of fp32 headroom (worst case C=32767 -> 32767.129/32768), so it was
+already provably exact on any IEEE-754 GPU including Mesa. If the Steam Deck tint
+was real, the likelier culprit is the CLUT *index* arithmetic bundled into the same
+hunks (`c_PackRange` -> `255.0`, `floor(v)` -> `floor(v + 0.001)`), which was kept.
+
+**#5 hi-res override hook** — closed, already implemented as `7ffe8b9` ("Port of
+PR #5 onto current master"), and since extended (8-param lookup feeding
+`u_hiresHalf`, DR_PSYX_TEX restore on miss, `0bc5fca`'s floor/clamp tc replacing
+the PR's `+ texelSize * 0.5`, which bled into the neighbouring atlas cell).
+
+**#6 SPU rung-out sustain / loop stacking** — closed. Fix 1 is superseded by
+`251091d` (4-state `SpuGetKeyStatus`): a rung-out decreasing sustain reports
+`SPU_ON_ENV_OFF`, which is what `SdAutoKeyOffCheck` needs to key off AND run the
+bookkeeping that clears the SFX-to-voice table; forcing `ENV_OFF` reports `SPU_OFF`
+and skips both. Fix 2's hunk no longer applies (`90df050` removed the
+`voice->looping` gate) and is inert now that ADSR is engaged for any voice that
+programmed one. The genuinely open gap is neither: an orphaned looping voice with
+a NON-decreasing sustain never reaches level 0, stays `SPU_ON` forever, and is
+invisible to both `SdAutoKeyOffCheck` and `voice_check`.
+
+### Verification harness (reusable)
+
+GLSL only compiles at runtime, so a clean C++ build proves nothing about shader
+edits. Two throwaway gates in the scratchpad caught/settled this one:
+
+1. **Shader compile check** — `g++ -E` on `PsyX_render.cpp`, strip cpp linemarkers
+   (`^# \d+ "..."` — otherwise the filename string gets scooped into the GLSL),
+   pull the `gte_shader_*` literals, prepend the same `GLSL_HEADER_*` +
+   `AFFINE_VARYING`/`BILINEAR_FILTER` defines `GR_Shader_Compile` uses, and compile
+   all variants in a hidden SDL GL window. All 8 linked; `gte_shader_32_rgba`
+   reports `s_rgLut = -1`, confirming the sampler assignment is a no-op there.
+2. **Decode equivalence** — one fragment per (highByte, lowByte), running the old
+   `decodeRG(packRG(rg))` and the new `lut(rg)` side by side and flagging any
+   disagreement. 65536 values, 0 rgb and 0 alpha mismatches on the real driver.
