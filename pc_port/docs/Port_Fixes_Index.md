@@ -1983,6 +1983,53 @@ Known cosmetic limits: proportion stretch at neck/shoulders/ankles (worst:
 Kaufmann's ankles — his ILM has no shin↔foot weld), no per-weapon grip hand
 variants on skins, demo attract mode plays with the active skin.
 
+### Held forever by a spawned monster's grab — the map had no reaction animations (2026-08-08)
+
+A Grey Child spawned by the console `SPAWN` command into map0_s01 grabbed the
+player, and after release the player was stuck in place playing a walk animation
+for the rest of the session. Reproduced as Harry, so unrelated to PLAY AS.
+
+A grab drives the player through Harry reaction animations that live in the
+**map's own keyframe bank** (`HB_M<map>.ANM`, loaded to `FS_BUFFER_4` by
+`GameFs_PlayerMapAnimLoad`), indexed by rows in the overlay header's `field_38`
+table. **Each map carries only the rows its native monsters need.** With
+`ANIM_STATUS(id, active) == (id << 1) | active`, the leg grab needs rows 0xEC
+(grab, from behind) and 0xF6 (release). `map0_s00`, where Grey Children live, has
+0xEB/0xEC/0xF5/0xF6. `map0_s01` has none of them — it carries 0xF2 (`DamageHead`)
+for its own dogs and birds instead.
+
+On a miss, `func_8007FB94` leaves `controlState` at 0 **and leaves `D_800AF220`
+pointing at whatever row was looked up last**. The release state's exit gate is
+then `keyframeIdx == field_38[D_800AF220].keyframeIdx_6` — an exact equality
+against an unrelated animation's end frame — which never arrives.
+
+**Fix**: `pc_port/src/pc_grab_guard.c`, called from the grab choke point
+(`player_control.c`, the `case 49/54/56/66` where all grabs dispatch). It
+requires rows for **both** the grab animation and the release animation it hands
+over to — a missing release row wedges just as hard, and only that one is on the
+freezing path — and otherwise substitutes the ordinary torso reaction. That
+substitute needs its own check, because `DamageTorso` goes through the same table
+(`ANIM_STATUS(105, ...)` = 0xD2/0xD3) and `map1_s04` ships a table holding only
+the sentinel row. If neither is playable the hit is dropped.
+
+Verified against both town maps: `map0_s00` still permits the Grey Child's leg
+grab, so stock behaviour is untouched wherever the monster is native;
+`map0_s01` refuses it and plays the torso reaction.
+
+Two traps worth recording. The row scan stops at the all-zero terminator rather
+than the engine's fixed `i < 40` — real tables hold 1 to 21 rows, so the vanilla
+loop reads past the end, and refusing on garbage is the safe direction. And
+`case 49` sits *inside* the `default:` of the outer state switch, **above** the
+existing `pc_default_damage_path:` label, so a backward `goto` there re-enters
+the same dispatch and loops forever; the damage state is set directly instead.
+
+**Not a fix: adding rows without keyframes.** 36 maps once shared map0_s00's
+table through a linker accident and Harry visibly *shook* through animations
+whose indices meant something else in his own bank. Making a foreign grab
+actually play requires importing the keyframe data too — feasible, since every
+map's rows start at keyframe 0x2A4 and run upward so appending needs no index
+remap, but that is a separate feature and this guard remains its fallback.
+
 ### Rainbow enemies map-wide after selecting Puppet Nurse — skin TIM overran the CLUT shelf (2026-08-07)
 
 Selecting the Puppet Nurse turned **every enemy in the map** rainbow (and the
