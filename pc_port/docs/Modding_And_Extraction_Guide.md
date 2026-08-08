@@ -269,6 +269,12 @@ including VAB. Logging tags: `[LOOSE]` (hit), `[LOOSE/MISS]`, `[LOOSE/HIRES]` (o
 TIM → hi-res texture override), `[LOOSE/INIT]`, `[LOOSE/SUMMARY]`. Set env
 `SH_LOOSE_VERBOSE=1` to log every miss.
 
+**Modern inventory-item geometry:** unique `ITEM/UNQ*.TMD` models can instead use a
+self-contained glTF 2.0 Binary file beside the retail name, for example
+`gamedata/load/ITEM/UNQ21.glb` for the Health Drink. This path supports modern geometry,
+optional embedded PNG texture, automatic stock-scale normalization, and safe fallback to
+the retail model. See [Modern inventory-item models (glTF / GLB)](Modern_Item_GLTF_Modding_Guide.md).
+
 **Constraint:** the byte-replace copies into the buffer the engine sized for the *original*
 file. A loose replacement that is **larger than the original** is only handled for
 oversized **TIM** textures (deferred to the hi-res override path). A larger **VAB / BIN /

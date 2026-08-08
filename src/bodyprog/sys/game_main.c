@@ -2025,6 +2025,20 @@ void MainLoop(void) // 0x80032EE0
         Joy_ControllerDataUpdate();
 
 #ifdef SH_PC_PORT
+        /* Env-gated capture harness (pc_port/src/pc_autopilot.c). Total no-op
+         * unless SH_AUTOPILOT is set in the environment — the tick function
+         * returns on its first line when the env var is absent, so the stock
+         * input path below is byte-for-byte unchanged for every normal run.
+         * Placed here so a synthetic pad edge lands after the real pad parse
+         * refills g_Controller0 and before any game logic reads it, exactly
+         * like the console-input suppression immediately below. */
+        {
+            extern void Pc_Autopilot_Tick(void);
+            Pc_Autopilot_Tick();
+        }
+#endif
+
+#ifdef SH_PC_PORT
         /* Console input mode: suppress controller input HERE, after the pad
          * parse refills g_Controller0 and before game logic reads it — zeroing
          * later in the loop gets overwritten by the next frame's parse before
@@ -2113,7 +2127,6 @@ void MainLoop(void) // 0x80032EE0
         }
 
 #endif
-
         if (MainLoop_ShouldWarmReset() == 2)
         {
             Game_WarmBoot();
@@ -2600,6 +2613,7 @@ void MainLoop(void) // 0x80032EE0
             static long long s_prevCumQ12   = -1;
             static s32       s_cutsceneDebt = 0;
 
+            extern int GsDeterministicClockEnabled(void);
             long long cumQ12 = GsGetCumulativeQ12();
             s32       dtTrue;
             s32       dtRaw;
@@ -2626,6 +2640,12 @@ void MainLoop(void) // 0x80032EE0
                 dtTrue = 0;
             }
 
+            if (GsDeterministicClockEnabled())
+            {
+                /* Harness-only fixed simulation step. The gate is explicit
+                 * nonzero and therefore SH_DETERMINISTIC_CLOCK=0 stays inert. */
+                dtTrue = PC_DT_STEP_30FPS;
+            }
             dtRaw    = MIN(dtTrue, PC_DT_STEP_15FPS);
             dtCapped = MIN(dtRaw, PC_DT_STEP_30FPS);
 
@@ -2946,6 +2966,17 @@ void MainLoop(void) // 0x80032EE0
         GsSortClear(g_GameWork.background2dColor.r, g_GameWork.background2dColor.g, g_GameWork.background2dColor.b, &g_OrderingTable0[g_ActiveBufferIdx]);
         ML_TRACE("post-GsSortClear");
 #ifdef SH_PC_PORT
+        /* Env-gated capture harness, draw half (pc_port/src/pc_autopilot.c).
+         * Total no-op unless SH_AUTOPILOT is set. Placed immediately after
+         * GsSortClear so a synthetic item submission lands in the OT that is
+         * about to be drawn, matching where Gfx_PickupItemAnimate normally
+         * runs from (inside the event update, ahead of the paused world block). */
+        {
+            extern void Pc_Autopilot_Draw(void);
+            Pc_Autopilot_Draw();
+        }
+#endif
+#ifdef SH_PC_PORT
         if (g_GameWork.gameState == 11) {
             /* Sanitize InGame OT0 — only allow known-safe rendering primitives.
              * Strip DR_MODE (0xE0) which crashes PsyCross ProcessDrawEnv,
@@ -3072,6 +3103,23 @@ void MainLoop(void) // 0x80032EE0
                             hi != 0x40 && hi != 0x50 &&
                             hi != 0x60 && hi != 0x70 && hi != 0xA0 &&
                             codeFull != 0xE1 &&
+                            /* DR_PSYX_MODERN_MESH (0xB3) — the modern item-mesh
+                             * dispatch packet emitted by Pc_ModernMesh_Emit
+                             * (pc_modern_mesh.c:905) and consumed by PsyCross
+                             * ProcessPsyXPrims case 0x03 (PsyX_GPU.cpp:3224).
+                             * This sanitizer runs ONLY under GameState_InGame,
+                             * which is exactly the world item-pickup screen —
+                             * the inventory carousel runs under
+                             * GameState_InventoryScreen and never reaches here.
+                             * Without this exemption the packet fell through to
+                             * setlen(cur, 0), which ParsePrimitivesLinkedList
+                             * treats as an OT bucket boundary rather than a
+                             * prim, so the modern mesh was silently dropped
+                             * during pickup while rendering fine in the
+                             * carousel. Other 0xB_ Psy-X codes (0xB1 DR_PSYX_TEX,
+                             * 0xB2 debug marker) are deliberately NOT exempted —
+                             * stock rendering does not depend on them here. */
+                            codeFull != 0xB3 &&
                             /* textured/quad poly types emitted by NTG3/NTG4/TG3/TG4 */
                             hi != 0x24 && hi != 0x28 && hi != 0x2C &&
                             hi != 0x34 && hi != 0x38 && hi != 0x3C)) {

@@ -60,8 +60,10 @@ static long gs_last_ls_t[3] = {0, 0, 0}; /* last translation from GsSetLsMatrix 
 /* VCount emulation - simulate PSX H-blank counter using real time */
 #include <SDL.h>
 #define H_BLANKS_PER_SECOND 15780
+#define H_BLANKS_PER_FRAME 263
 static Uint64 gs_vcount_start = 0;
-static int gs_vcount_active = 0;
+static Uint64 gs_frame_count = 0, gs_vcount_frame = 0;
+static int gs_vcount_active = 0, gs_deterministic_clock = 0;
 
 void GsInitGraph(int x, int y, int mode, int a, int b)
 {
@@ -168,10 +170,29 @@ void GsInit3D(void)
 
 static Uint64 gs_cum_epoch = 0;
 
+static int gs_env_nonzero(const char* name)
+{
+    const char* value = getenv(name);
+
+    return value != NULL && value[0] != '\0' && value[0] != '0';
+}
+
+int GsDeterministicClockEnabled(void)
+{
+    return gs_deterministic_clock;
+}
+
+unsigned long long GsDeterministicFrameCount(void)
+{
+    return gs_frame_count;
+}
+
 void GsInitVcount(void)
 {
     gs_vcount_start = SDL_GetPerformanceCounter();
     gs_cum_epoch = gs_vcount_start;
+    gs_frame_count = gs_vcount_frame = 0;
+    gs_deterministic_clock = gs_env_nonzero("SH_DETERMINISTIC_CLOCK");
     gs_vcount_active = 1;
 }
 
@@ -193,6 +214,7 @@ long long GsGetCumulativeQ12(void)
     {
         return 0;
     }
+    if (gs_deterministic_clock) return (long long)((gs_frame_count * H_BLANKS_PER_FRAME * 4096ull) / H_BLANKS_PER_SECOND);
     now  = SDL_GetPerformanceCounter();
     freq = SDL_GetPerformanceFrequency();
     return (long long)(((now - gs_cum_epoch) * 4096ull) / freq);
@@ -201,6 +223,7 @@ long long GsGetCumulativeQ12(void)
 int GsGetVcount(void)
 {
     if (!gs_vcount_active) return 0;
+    if (gs_deterministic_clock) return (int)((gs_frame_count - gs_vcount_frame) * H_BLANKS_PER_FRAME);
     Uint64 now = SDL_GetPerformanceCounter();
     Uint64 freq = SDL_GetPerformanceFrequency();
     /* Convert elapsed time to H-blank count (15780 per second on PSX) */
@@ -209,7 +232,8 @@ int GsGetVcount(void)
 
 void GsClearVcount(void)
 {
-    gs_vcount_start = SDL_GetPerformanceCounter();
+    if (gs_deterministic_clock) gs_vcount_frame = gs_frame_count;
+    else gs_vcount_start = SDL_GetPerformanceCounter();
 }
 
 void GsDrawOt_ResetFrameCount(void);
@@ -217,6 +241,7 @@ void GsDrawOt_ResetFrameCount(void);
 void GsSwapDispBuff(void)
 {
     gs_active_buff = gs_active_buff ? 0 : 1;
+    if (gs_deterministic_clock) gs_frame_count++;
     GsDrawOt_ResetFrameCount();
 
     /* Sync background color from GsDRAWENV (game modifies this global).

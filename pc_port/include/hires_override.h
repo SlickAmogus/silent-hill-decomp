@@ -53,6 +53,11 @@ void HiresOverride_SetForceNearestUpload(int on);
 int HiresOverride_DecodeToRGBA(const unsigned char* data, unsigned int size,
                                unsigned char** outRGBA, int* outW, int* outH);
 
+/* Upload standalone RGBA8 pixels with the same defensive allocation/upload
+ * policy used by hi-res overrides. The returned GL texture is process-owned by
+ * the caller; zero means the upload failed and must be treated as a miss. */
+unsigned int HiresOverride_CreateTextureRGBA(const unsigned char* rgba, int w, int h);
+
 /* Register a hi-res override.
  *   timPath:     loose-file path (used only for log messages)
  *   timData:     raw TIM file bytes (will be parsed; not retained after return)

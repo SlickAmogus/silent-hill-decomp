@@ -57,6 +57,14 @@ static int Mc_Enabled(void)
 {
     if (!g_PcConfig.mouseCursor)
         return 0;
+    /* Autopilot capture: the arrow sprite draws on the overlay OT above the
+     * inventory carousel and sits right over the item under validation, with
+     * no human present to move it. Suppress while a capture is driving. */
+    {
+        extern int Pc_Autopilot_SuppressCursor(void);
+        if (Pc_Autopilot_SuppressCursor())
+            return 0;
+    }
     /* Only when the OS cursor is free. In TPS/OTS/FPS the pointer is captured
      * for camera look, so its absolute position is meaningless. */
     if (SDL_GetRelativeMouseMode() == SDL_TRUE)

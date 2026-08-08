@@ -686,11 +686,16 @@ static void ParseArgs(int argc, char* argv[])
             g_GameDataPath[sizeof(g_GameDataPath) - 1] = '\0';
             i++;
         }
+        else if (strcmp(argv[i], "-skiptogame") == 0)
+        {
+            s_SkipToGameArg = 1;
+        }
         else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("Usage: SilentHillPC [options]\n");
             printf("Options:\n");
             printf("  -data <path>    Path to game data directory or CD image\n");
+            printf("  -skiptogame     Skip intros and boot straight into gameplay\n");
             printf("  -h, --help      Show this help\n");
             exit(0);
         }

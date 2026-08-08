@@ -1,5 +1,9 @@
 # Character Model Modding (ILM ↔ OBJ)
 
+> Looking for modern inventory or pickup-item replacements? See
+> [Modern inventory-item models (glTF / GLB)](Modern_Item_GLTF_Modding_Guide.md).
+> This guide covers animated character `.ILM` files instead.
+
 Silent Hill characters are `.ILM` **rigid-part** models: a skeleton of named parts,
 each welded to one bone (no vertex skinning). Export one to OBJ, edit it in Blender,
 and fold it back into a new ILM. With no part-list changes the round-trip is lossless.
