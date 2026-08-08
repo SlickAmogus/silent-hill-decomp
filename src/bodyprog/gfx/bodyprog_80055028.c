@@ -32,6 +32,16 @@ extern float g_PsxPixelAspect;
  * fog visually obscure it instead of culling geometry. */
 #define FOG_FAR_DIST() (g_PcConfig.disableCulling ? 0x7FFFFFFF : g_WorldEnvWork.fog.farDistance)
 
+/* Per-poly far drop. The base 0x79C shifted by (shift+2) is ~61u, and it -- not
+ * chunk residency, not the cull predicate -- is what actually ends the view:
+ * with preload_chunks the whole grid is already in memory. draw_distance_pct
+ * scales it, so 200 reaches ~122u. Do not exceed ~210, where view-space Z (Q8
+ * in an s16 scratch) wraps past 128u. Past ~64u everything shares the last OT
+ * bucket and sorts by submission order, so distant blocks can trade places --
+ * acceptable for seeing further with fog turned down, and why this is opt-in. */
+#define SH_FAR_BASE(b)                                                          \
+    ((s32)((b) * ((g_PcConfig.drawDistancePct <= 0) ? 100 : g_PcConfig.drawDistancePct) / 100))
+
 /* On PC, zero the fog depth parameter for dpcl/dpcs vertex color
  * computation. Shader fog via p1/p2/p3 handles all distance fog.
  * This prevents double-fogging and seam lines at face boundaries. */
@@ -1697,7 +1707,7 @@ void Gfx_FogOverlayQuadDraw(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s3
     var_a3_2 = CLAMP_HIGH(temp_s5, (g_GameWork.gsScreenHeight >> 1) + 1);
     temp_s5  = var_a3_2;
 
-    temp_a0_2 = 0x79C << (arg7 + 2);
+    temp_a0_2 = SH_FAR_BASE(0x79C) << (arg7 + 2);
 
     if (g_WorldEnvWork.isFogEnabled)
     {
@@ -2420,7 +2430,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
     PsyX_SetOtViewZShift((s32)arg3 + 2);
 #endif
 
-    temp_v1 = 0x79C << (arg3 + 2);
+    temp_v1 = SH_FAR_BASE(0x79C) << (arg3 + 2);
 
     if (!g_WorldEnvWork.isFogEnabled)
     {
@@ -3623,7 +3633,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
             break;
     }
 
-    temp_v1 = 0x79C << (arg3 + 2);
+    temp_v1 = SH_FAR_BASE(0x79C) << (arg3 + 2);
     var_t9  = g_WorldEnvWork.isFogEnabled ? MIN(temp_v1, FOG_FAR_DIST()) : temp_v1;
     SH_WHOLEMAP_FARCAP(var_t9);
 
@@ -4167,7 +4177,7 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
     var_a3              = g_WorldEnvWork.field_0;
     scratchData->u.s_1.field_8 = g_WorldEnvWork.field_14C << 16;
 
-    temp_a0 = 0x79C << (arg3 + 2);
+    temp_a0 = SH_FAR_BASE(0x79C) << (arg3 + 2);
     var_t9  = g_WorldEnvWork.isFogEnabled ? MIN(temp_a0, FOG_FAR_DIST()) : temp_a0;
     SH_WHOLEMAP_FARCAP(var_t9);
 
@@ -4816,7 +4826,7 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
     sp4A8   = temp_fp->field_8 | (temp_fp->field_B << 8);
     sp498   = ReadGeomScreen();
 
-    temp_v1 = 0x79C << (arg5 + 2);
+    temp_v1 = SH_FAR_BASE(0x79C) << (arg5 + 2);
     sp494   = g_WorldEnvWork.isFogEnabled ? MIN(temp_v1, FOG_FAR_DIST()) : temp_v1;
     SH_WHOLEMAP_FARCAP(sp494);
     Vw_WorldScreenMatrixAtPositionGet(&matrix_sp18[0], posX, posY, posZ);

@@ -41,6 +41,7 @@ typedef struct {
     int fullscreen;      /* 0 = windowed, 1 = exclusive fullscreen, 2 = borderless (desktop) */
     int confineCursor;   /* keep the pointer inside the window while focused, fullscreen/borderless only (config key: confine_cursor) */
     int disableCulling;  /* 1 = render all objects regardless of view angle */
+    int drawDistancePct; /* per-poly far cap as a % of vanilla ~61u; 200 = ~122u. Worth raising with fog turned down */
     int preloadChunks;   /* 1 = load all IPD chunks at map init instead of streaming */
     int vsync;           /* 0 = off (uncapped), 1 = on, -1 = adaptive */
     int refreshRate;     /* target refresh rate in hz (0 = display default); fullscreen only */
@@ -148,6 +149,7 @@ typedef struct {
                              * derive it the other way (pp+shadows = Modern + Shadows). */
     int perPixelFlashlight; /* DERIVED from flashlightMode (legacy key: per_pixel_flashlight). */
     int flashlightShadows;  /* DERIVED from flashlightMode (legacy key: flashlight_shadows). */
+    float fogStrength;          /* distance-fog density scale, 0..2; 1.1 = PSX-matched. Lower to see further (config key: fog_strength) */
     float flashlightIntensity;  /* per-pixel flashlight cone brightness scale, 0..3 (config key: flashlight_intensity) */
     float flashlightSize;       /* per-pixel flashlight cone coverage multiplier, 0..3 (config key: flashlight_size) */
     float flashlightIntensityFps; /* per-pixel flashlight brightness in FPS mode, 0..3 (config key: flashlight_intensity_fps) */

@@ -2165,7 +2165,21 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
         return;
     }
 
-    q19_12 _matDist = (g_PcConfig.preloadChunks && g_DebugCamEnabled && !g_DebugFogDisabled) ? Q12(35.0f) : Q12(0.0f);
+    /* Chunks farther than this drop their materials, and an untextured chunk is
+     * skipped by the draw gate -- so this window IS the draw distance for
+     * scenery. Widen it in step with draw_distance_pct, or the extra reach the
+     * per-poly cap allows would land on untextured (invisible) chunks. Note
+     * paddedDistanceToEdge is Q8 (256/u), not Q12. */
+    q19_12 _matDist = (g_PcConfig.preloadChunks && g_DebugCamEnabled && !g_DebugFogDisabled)
+                          ? Q12(35.0f)
+                          : Q12(0.0f);
+    if (g_PcConfig.drawDistancePct > 100 && _matDist == Q12(0.0f))
+    {
+        /* Reach of the widened far cap, less one cell span: a claimed cell
+         * already covers 40u past its own near edge. */
+        s32 _reach = ((0x79C << 3) * g_PcConfig.drawDistancePct) / 100 - Q12_TO_Q8(CHUNK_CELL_SIZE);
+        _matDist = (_reach > 0) ? (q19_12)_reach : Q12(0.0f);
+    }
 #else
     #define _matDist Q12(0.0f)
 #endif

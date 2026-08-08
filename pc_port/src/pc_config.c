@@ -12,6 +12,7 @@ s_PcConfig g_PcConfig = {
     .fullscreen     = 0,
     .confineCursor  = 1, /* borderless/fullscreen pointer trap; alt-tab still releases it */
     .disableCulling = 1,
+    .drawDistancePct = 100, /* 100 = vanilla ~61u; 200 doubles it (worth it with fog turned down) */
     .preloadChunks  = 1,
     .vsync          = 0,
     .refreshRate    = 0,
@@ -43,6 +44,7 @@ s_PcConfig g_PcConfig = {
     .flashlightMode = 0, /* 0=Classic (PSX), 1=Classic+Shadows, 2=Modern, 3=Modern+Shadows */
     .perPixelFlashlight = 0, /* DERIVED from flashlightMode */
     .flashlightShadows  = 1, /* per-pixel flashlight casts real-time shadows (on by default; only visible when perPixelFlashlight is on) */
+    .fogStrength          = 1.10f, /* PSX-matched density; lower reveals more of the widened draw distance */
     .flashlightIntensity  = 1.20f, /* per-pixel flashlight cone brightness scale, 0..3 */
     .flashlightSize       = 3.00f, /* per-pixel flashlight cone coverage multiplier */
     .flashlightIntensityFps = 2.10f, /* FPS-mode brightness (head-mounted) */
@@ -417,6 +419,21 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "disable_culling") == 0)
         {
             g_PcConfig.disableCulling = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "fog_strength") == 0)
+        {
+            float f = (float)atof(value);
+            if (f < 0.0f) f = 0.0f;
+            if (f > 2.0f) f = 2.0f;
+            g_PcConfig.fogStrength = f;
+        }
+        else if (strcmp(key, "draw_distance_pct") == 0)
+        {
+            /* Above ~210 the view-space Z (Q8 in an s16 scratch) wraps past 128u. */
+            int pct = atoi(value);
+            if (pct < 100) pct = 100;
+            if (pct > 200) pct = 200;
+            g_PcConfig.drawDistancePct = pct;
         }
         else if (strcmp(key, "preload_chunks") == 0)
         {

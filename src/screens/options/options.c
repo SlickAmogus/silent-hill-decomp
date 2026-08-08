@@ -90,6 +90,7 @@ extern void PsyX_ApplyVsync(int vsync);
 
 /* Per-pixel flashlight beam live floats (PsyCross); mirrored by the sliders. */
 extern float g_PsyX_FlashlightIntensity;
+extern float g_PsyX_FogStrength;
 extern float g_PsyX_FlashlightSize;
 
 /* FMV movie (SDL PCM) live volume, 0..1; mirrored by the FMV Movie slider.
@@ -204,7 +205,11 @@ static const s_PcOpt PCOPT_S[] = {
     { "Flashlight",       &g_PcConfig.flashlightMode,     "flashlight_mode",      VAL_FLMODE, 4, LBL_FLMODE, NULL,                        1, PCK_FLMODE },
     { "Beam_Intensity",   NULL, "flashlight_intensity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightIntensity, &g_PsyX_FlashlightIntensity, 0.0f, 3.0f, 0.1f },
     { "Beam_Size",        NULL, "flashlight_size",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightSize,      &g_PsyX_FlashlightSize,      0.0f, 3.0f, 0.1f },
-    { "Disable_Culling",  &g_PcConfig.disableCulling, "disable_culling",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+    /* Replaced the Disable_Culling row: that one is a dev toggle and now lives on
+     * the console (CULL). Fog strength is the one worth exposing -- 1.1 is the
+     * PSX-matched density, and lowering it reveals the extra reach that
+     * draw_distance_pct buys instead of just thinning the haze. */
+    { "Fog_Strength",     NULL, "fog_strength",         NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fogStrength,         &g_PsyX_FogStrength,         0.0f, 2.0f, 0.05f },
     { "Preload_Chunks",   &g_PcConfig.preloadChunks,  "preload_chunks",   VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
     { "FPS_Limit",        &g_PcConfig.fpsCap,         "fps_cap",          VAL_FPS,   5, LBL_FPS,   NULL, 1, PCK_INT  },
     { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
