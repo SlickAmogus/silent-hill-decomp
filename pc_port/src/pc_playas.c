@@ -48,8 +48,10 @@ typedef struct
     u8          charaId;
     /* Embedded prop/variant meshes to hide so the skin looks like a bare
      * playable body: in-hand guns, bag, key, Flauros, duplicate hand
-     * variants. NULL-terminated; exact 8-char ILM part names. */
-    const char* hideParts[6];
+     * variants, alternate faces. NULL-terminated; exact 8-char ILM part names.
+     * Sized with slack — a table filled to exactly the bound would leave the
+     * terminator nowhere to go and the lookup would walk off the end. */
+    const char* hideParts[8];
     u8          female; /* drives the optional voice-pitch shift (SFX only) */
 } PcPlayAsChara;
 
@@ -69,8 +71,15 @@ static const PcPlayAsChara s_playable[] = {
     { "alessa",      "ALESSA",      Chara_Alessa,     { NULL }, 1 },
     { "ghostalessa", "GHOST ALESSA", Chara_GhostChildAlessa, { NULL }, 1 },
     { "bloodylisa",  "BLOODY LISA", Chara_BloodyLisa, { NULL }, 1 },
-    { "nurse",       "PUPPET NURSE", Chara_PuppetNurse, { "10RHAND2", NULL }, 1 },
-    { "doctor",      "PUPPET DOCTOR", Chara_PuppetDoctor, { "10RHAND2", NULL }, 0 },
+    /* PRS/PRSD carry three interchangeable faces on bone 2 (head+neck pairs
+     * 1/2/3) that the engine picks between in func_8003E4A0/func_8003E544 from
+     * the spawn entry's variant index — which never runs for the player, since
+     * a skin is worn on Harry's row. Left alone all three draw at once and
+     * intersect. Keep pair 1, the selector's first. */
+    { "nurse",       "PUPPET NURSE", Chara_PuppetNurse,
+      { "10RHAND2", "02HEAD2", "02HEAD3", "02NECK2", "02NECK3", NULL }, 1 },
+    { "doctor",      "PUPPET DOCTOR", Chara_PuppetDoctor,
+      { "10RHAND2", "02HEAD2", "02HEAD3", "02NECK2", "02NECK3", NULL }, 0 },
     { "ghostdoctor", "GHOST DOCTOR", Chara_GhostDoctor, { NULL }, 0 },
     { "monstercybil", "MONSTER CYBIL", Chara_MonsterCybil, { "06LGUN", "10RGUN", NULL }, 1 },
     /* The Incubator's outer sleeve segments bind bones 22-23; 23 is past the
