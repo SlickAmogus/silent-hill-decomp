@@ -1135,7 +1135,26 @@ int Pc_ModernMesh_Emit(void* object, void* orderingTable, int shift)
             entry->lastLoggedSource = PcModernTextureSource_RetailVram;
         }
     }
+    /* Feed the frame SZ maximum this mesh will later be normalized against.
+     *
+     * Pc_ModernDepth_Apply divides by PsyX_GetItemDepthSzMax() — the maximum SZ
+     * of the frame, which the STOCK drawer fed via PsyX_SetNextPrimSzExact once
+     * per prim during GsSortObject4J. Emitting instead of sorting skipped that
+     * feed. In the carousel the neighbouring stock items still fed it, so the
+     * divisor stayed item-scaled and the replacement drew correctly; the world
+     * TAKE screen sorts exactly ONE model, so with that model replaced NOTHING
+     * fed the maximum. GsDrawOt then swapped a zero into g_szMaxPrevFrame, the
+     * getter floored it to 1.0, and every vertex clamped to z = -1: one flat
+     * depth plane, on which LEQUAL lets each back face paint over the front face
+     * already there. That is the fully see-through pickup model. */
     bucket = 0;
+    {
+        unsigned short szMax = 0;
+        for (i = 0; i < entry->drawCount; i++)
+            if (entry->drawSz[i] > szMax)
+                szMax = entry->drawSz[i];
+        PsyX_NoteItemDepthSz(szMax);
+    }
     for (i = 0; i < entry->drawCount; i++)
         bucket += entry->drawSz[i] >> (shift + 2);
     bucket /= entry->drawCount;
