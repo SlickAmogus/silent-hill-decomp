@@ -90,9 +90,10 @@ static u8*    s_playerIlmBuf;
 static size_t s_playerIlmCap;
 
 /* HERO.TIM registered once in virtual texture slot 256+Chara_Harry so the
- * HERO-textured weapon PLMs keep sampling Harry's sheet after the VRAM parcel
- * is overwritten by the skin's TIM. Slot 257 is free: the pool uses 256+id
- * for ids 2..43 only. */
+ * HERO-textured weapon PLMs keep sampling Harry's sheet while the skin owns the
+ * player material. Still needed now that the skin bypasses VRAM entirely: on a
+ * cold boot straight into a skin, HERO.TIM is never uploaded anywhere at all.
+ * Slot 257 is free: the pool uses 256+id for ids 2..43 only. */
 static int           s_heroTimSlotQueued;
 static s_FsImageDesc s_heroTimVirtualDesc;
 
@@ -658,6 +659,38 @@ void Pc_PlayAs_PlayerAnimTick(void)
     {
         g_SysWork.unkCoords_E30[i].flg = 0;
     }
+}
+
+void Pc_PlayAs_PlayerImageDesc(void* imageDesc)
+{
+    s_FsImageDesc* image  = (s_FsImageDesc*)imageDesc;
+    s32            slotId = HIRES_POOL_PLAYAS_SLOT;
+
+    /* Keyed on the FILE, not the roster, so every retarget path is covered —
+     * same test Pc_PlayAs_PlayerLmRedirect uses for the ILM. Stock Harry keeps
+     * the vanilla parcel, so normal play is byte-identical. */
+    if (CHARA_FILE_INFOS[Chara_Harry].textureFileIdx == FILE_CHARA_HERO_TIM)
+    {
+        return;
+    }
+
+    /* Chara_FsImageCalc hands the player tPage 27 at (704,256) with the chara
+     * CLUT shelf directly below it, sized for HERO.TIM's 192 rows and 15-row
+     * palette. Skins are bigger: PRS/PRSD are 256 rows, which reaches down over
+     * the whole four-slot monster CLUT band at y464..479 and turns every enemy
+     * in the map rainbow, and PRS's 48-row palette runs off the bottom of VRAM.
+     * Hand the skin a virtual pool slot instead — Fs_QueuePostLoadTim skips both
+     * LoadImage calls for clutY >= HIRES_POOL_CLUT_ROW_BASE and decodes straight
+     * to GL, so no size can overrun anything. Geometry-agnostic by construction:
+     * MOTH/BOS/BIG can join the roster with no further work. */
+    image->tPage[0] = 0;
+    image->tPage[1] = 28; /* GL override path keys off the clut word only */
+    image->u        = 0;  /* must not be UCHAR_MAX or the virtual-slot gate fails */
+    image->v        = 0;
+    image->clutX    = (s16)((slotId % 64) * 16);
+    image->clutY    = (s16)(HIRES_POOL_CLUT_ROW_BASE + (slotId / 64) * HIRES_POOL_MAX_ROWS);
+
+    HiresOverride_CharaPoolSlotReset(slotId);
 }
 
 static void PlayAs_EnsureHeroTimSlot(void)

@@ -1060,6 +1060,10 @@ void WorldGfx_HarryCharaLoad(void) // 0x8003D160
     /* A play-as retarget must never read a non-HERO ILM into the HERO-sized
      * slab (sector-granular reads overrun HELD_ITEM_LM_BUFFER). */
     harryLmHdr = (s_LmHeader*)Pc_PlayAs_PlayerLmRedirect(CHARA_FILE_INFOS[Chara_Harry].modelFileIdx, harryLmHdr);
+    /* ...and a non-HERO player TIM must never land in the HERO-sized VRAM parcel:
+     * it overruns onto the chara CLUT shelf below it. Mutating `image` here
+     * covers both the upload and the material bake — they share this desc. */
+    Pc_PlayAs_PlayerImageDesc(&image);
 #endif
     Fs_QueueStartRead(CHARA_FILE_INFOS[Chara_Harry].modelFileIdx, harryLmHdr);
     queueIdx = Fs_QueueStartReadTim(CHARA_FILE_INFOS[Chara_Harry].textureFileIdx, FS_BUFFER_1, &image);

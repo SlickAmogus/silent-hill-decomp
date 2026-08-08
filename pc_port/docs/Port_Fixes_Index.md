@@ -1983,6 +1983,68 @@ Known cosmetic limits: proportion stretch at neck/shoulders/ankles (worst:
 Kaufmann's ankles — his ILM has no shin↔foot weld), no per-weapon grip hand
 variants on skins, demo attract mode plays with the active skin.
 
+### Rainbow enemies map-wide after selecting Puppet Nurse — skin TIM overran the CLUT shelf (2026-08-07)
+
+Selecting the Puppet Nurse turned **every enemy in the map** rainbow (and the
+player figure with them), persisting until a map load. An out-of-bounds VRAM
+write, and the oversized thing was the **pixel block**, not the palette.
+
+`Chara_FsImageCalc` sizes the player's parcel for `HERO.TIM`: tPage 27 → VRAM
+word origin `(704,256)`, and Harry's sheet is 64×**192** words, so it ends at row
+447. Directly below sits the four-slot chara **CLUT shelf** — the monster branch
+of the same function puts every enemy palette at `clutY = 464`,
+`clutX = modelIdx*16 + 704`, i.e. `(704..767, 464..479)`. Harry stops 16 rows
+short of it. That 16-row gap is the only slack in the page.
+
+`Fs_QueuePostLoadTim` takes the destination x/y from the `s_FsImageDesc` but
+**w/h verbatim from the TIM header** (`fsqueue_3.c:1206`/`:1252`) — the descriptor
+carries no dimensions at all, and `fsqueue.h` documents "there are no size
+checks". `PRS.TIM` is 64×**256** words, so the play-as upload covered
+`(704..767, 256..511)` and swallowed the whole shelf, giving all four enemy
+groups nurse *texels* as their palette. Nothing re-uploads them
+(`WorldGfx_CharaModelLoad` early-returns on an unchanged charaId+lmHdr+desc), so
+it stuck. The player's own body corrupts by the same overrun: pixels load
+*before* the CLUT (`:1238` then `:1267`), so PRS's palette and the re-queued
+held-item TIM land inside her own sheet's rows 224..255.
+
+PRS's 48-row CLUT at `(736,480)` also runs 16 rows past the bottom of VRAM, but
+that is **causally inert** — `GR_CopyVRAM` clamps rather than wraps
+(`PsyX_render.cpp:4141`), and PRS's prims only ever address CLUT rows 0..13, so
+the lost rows are never sampled. Fixing the palette alone would have changed
+nothing visible.
+
+**Fix**: `Pc_PlayAs_PlayerImageDesc` (called from the existing `SH_PC_PORT` block
+in `WorldGfx_HarryCharaLoad`) hands any non-HERO player texture a **virtual pool
+slot** instead of the VRAM parcel — `clutY >= HIRES_POOL_CLUT_ROW_BASE` makes
+`Fs_QueuePostLoadTim` skip *both* `LoadImage` calls and decode the TIM straight
+into per-CLUT-row GL textures. No VRAM byte is written, so no size can overrun
+anything, and the fix is geometry-agnostic: `MOTH`/`BOS`/`BIG` (also 256 rows)
+can join the roster with no further work. One interception point suffices because
+the same local `image` feeds both the queued read and `harryModel.texture`, whose
+material bake (`Lm_MaterialFileIdxApply`) is purely desc-driven. Keyed on
+`textureFileIdx == FILE_CHARA_HERO_TIM` so stock Harry is byte-identical.
+
+Slot id is a dedicated `HIRES_POOL_PLAYAS_SLOT 300`, not `256 + skinCharaId`: the
+global chara pool resets and re-reads that slot when it spawns the chara you are
+wearing, which would blank the player body. 300 sits just past the chara range
+(`Chara_Count` 44 → 256..299) and its row spills (364, 428) fall between the
+chara slots' own spill sets (320..363, 384..427). Chunk slots below 256 are
+hard-capped at 16 rows, so nothing spills up into it.
+
+Free side effects: non-HERO held items (`PIPE`/`CSAW`/`KATANA`) stop being
+stomped at `(752,480)`/`(736,498)`, and the enemy shelf now survives a mid-map
+swap. **Failure signature if the slot ever fails to register**: the player body
+goes *invisible* rather than mis-coloured (prims with a virtual clut word are
+dropped by `ShouldDropForClut`) — check the log for `[POOLTEX] slot 300` and
+`[CLUTDROP]`.
+
+**Latent stock hazard, deliberately not touched**: a real 48-row PRS monster in
+chara group slot 2 or 3 (`clutX` 736/752, rows 464..511) would stomp Harry's own
+CLUT home and the held-item CLUT in the *unmodified* game. Shipped map data
+always pairs the nurse/doctor in group slot 0 with a textureless
+`Chara_DummyNurse`/`DummyDoctor`, so stock never reaches it — but the console
+`SPAWN` command and the global chara pool can place charas freely.
+
 ## Bigger item TMDs — oversized loose UNQ close-ups AND per-map IT packs (2026-08-03, adapted from PR #88 by keylimesoda)
 
 **Feature, PC-only.** `pc_port/src/pc_big_tmd.c` — the item-model twin of

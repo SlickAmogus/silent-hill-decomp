@@ -39,6 +39,13 @@ int Pc_PlayAs_Cycle(int step);                       /* wraps; returns new index
  * Loose/v7 redirects (already-owned pointers) pass through untouched. */
 void* Pc_PlayAs_PlayerLmRedirect(int modelFileIdx, void* lmHdr);
 
+/* Same place, on the image desc: a skin TIM is larger than the parcel
+ * Chara_FsImageCalc sizes for HERO.TIM, and the overrun lands on the chara CLUT
+ * shelf below it (rainbow enemies map-wide). Route non-HERO player textures to a
+ * virtual pool slot so they never touch VRAM. Must run BEFORE the queued read —
+ * the same desc feeds both the upload and harryModel.texture's material bake. */
+void Pc_PlayAs_PlayerImageDesc(void* imageDesc /* s_FsImageDesc* */);
+
 /* After WorldGfx_CharaModelProcessLoad(&harryModel): hide the skin's embedded
  * prop meshes (guns/bag/key/extra hands), set up Lisa's hair coords, and
  * register HERO.TIM in a virtual texture slot for the HERO-textured weapons. */

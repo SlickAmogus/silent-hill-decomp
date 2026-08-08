@@ -138,6 +138,13 @@ void HiresOverride_LogStats(void);
 #define HIRES_POOL_SLOT_MAX       512
 #define HIRES_POOL_MAX_ROWS       16
 #define HIRES_POOL_CHARA_SLOT_BASE 256
+
+/* Play-as player body TIM (pc_playas.c) — first id past the chara range
+ * (Chara_Count == 44 -> 256..299), deliberately NOT 256+skinCharaId: the pool
+ * resets and re-reads that slot when it spawns the same chara you are wearing,
+ * which would blank the player. Its spills land at 364/428, between the chara
+ * slots' own spill sets (320..363, 384..427), so it aliases nothing. */
+#define HIRES_POOL_PLAYAS_SLOT    300
 /* Bullet-decal texture (pc_decals.c) — last chunk-range id, excluded from the
  * Texture_Get claim list. Named so the chunk-pool bound can't drift when
  * HIRES_POOL_SLOT_MAX grows (it did: 256->512 for the chara range). */
