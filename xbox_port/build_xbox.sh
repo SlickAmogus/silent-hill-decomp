@@ -57,6 +57,16 @@ build_host_tool tools/fp20compiler fp20compiler CXX="$HOST_CXX"
 # would add many minutes for zero safety gain). Set SH_NO_CLEAN=1 to skip.
 if [ -z "$SH_NO_CLEAN" ]; then
     echo "[ CLEAN    ] removing bin/ + all game objects (guaranteed-fresh build)"
+    # Hardware logs are uploaded INTO bin/ and are the only record of a test run
+    # -- a run costs real play time and cannot be reproduced. Wiping bin/ once
+    # destroyed them. Preserve logs (and the map archive) across the clean; the
+    # point of the wipe is stale BUILD OUTPUT, not test evidence.
+    if [ -d "$SCRIPT_DIR/bin" ]; then
+        mkdir -p "$SCRIPT_DIR/logs"
+        find "$SCRIPT_DIR/bin" -maxdepth 1 \
+             \( -name 'silenthill_*.log' -o -name 'shlog_idx.txt' -o -name 'default.map.*' \) \
+             -exec mv -f {} "$SCRIPT_DIR/logs/" \; 2>/dev/null
+    fi
     rm -rf "$SCRIPT_DIR/bin"
     mkdir -p "$SCRIPT_DIR/bin"   # linker writes bin/default.map into it
     find "$SCRIPT_DIR/../src" "$SCRIPT_DIR/../pc_port/src" "$SCRIPT_DIR/src" \
