@@ -2480,3 +2480,48 @@ anything else), and `_semi` was parsed off the material name but never re-applie
 so every semi-transparent prim rebuilt opaque.
 
 **Still unverified: in game.** All of the above is offline.
+
+## Launcher was clobbering config.cfg settings it does not own (2026-08-07, launcher 2026.8.7.3)
+
+**Report:** "my config keeps setting resident_textures back to 0, and I think it
+removed my 512mb texture line." Correctly diagnosed by the reporter as editing
+config.cfg with the launcher open, then pressing Play.
+
+`ConfigManager` read `_lines` and `_values` **once, in its constructor** — i.e. at
+launcher startup — and `Save()` wrote that snapshot back wholesale. Two distinct
+losses followed:
+
+- `_values` holds EVERY key parsed from the file, not only the ones the launcher
+  has UI for, and `Save()` rewrote all of them. `resident_textures` was read as
+  `0` at startup, so Save put `0` back over a hand-edited `1`.
+- A line added *after* startup was never in the stale `_lines`, so
+  `File.WriteAllLines` simply dropped it. That deleted `texpack_budget_mb = 512`
+  outright.
+
+The launcher knows neither key — `grep` finds no reference to `resident_textures`,
+`texpack_budget_mb`, `texpack_cache_mb` or `texpack_lazy_ms` anywhere in it. It
+was resetting one and deleting the other purely as collateral. `Form1.cs:903`
+already documented the intended contract ("Save() rewrites only keys it holds, so
+a user's existing value is preserved untouched") — the code just never honoured
+it.
+
+This also silently fought the GAME: `PcConfig_SaveKeyValue` (pc_config.c) writes
+`control_style`, `language`, `use_pgxp`, `post_process`, `tonemap` and the
+flashlight keys at runtime, and any of those written while the launcher sat open
+were reverted on the next Play.
+
+**Fix:** `Set()` records the key in a `_dirty` set, and `Save()` re-reads the file
+from disk immediately before writing and applies **only the dirty keys**. Every
+other line passes through byte-for-byte, comments and ordering included; keys the
+launcher never set are now genuinely untouched. `EnsureLauncherSection()` became a
+flag applied after the re-read (it used to mutate the stale list, which the
+re-read would discard). Line splitting moved to the first `=` only, so a value
+containing `=` is no longer silently unparseable.
+
+**Verified both directions** with a harness that replays the exact scenario
+(launcher starts → user changes a launcher setting → file hand-edited to flip
+`resident_textures` and add `texpack_budget_mb` → Save):
+- pre-fix `ConfigManager` (from git): `resident_textures` reverted 1→0 and the
+  `texpack_budget_mb` line was gone — the report reproduced exactly.
+- post-fix: both hand edits survive and the launcher's own `fullscreen` change is
+  applied.
