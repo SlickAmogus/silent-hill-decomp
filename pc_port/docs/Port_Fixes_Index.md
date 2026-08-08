@@ -2807,3 +2807,79 @@ match.
 
 Diagnosis line, one per item: `[MODERN_MESH] item=N texture source=embedded-glb |
 installed-override | retail-vram`.
+
+---
+
+## glTF item models: the take screen drew nothing (OT0 sanitizer) — `6a5357ce2`
+
+A replaced item rendered correctly in the inventory carousel and was completely
+invisible on the take/pickup screen. Neither transform nor texture: the
+per-surface `texture source=` diagnostic showed exactly one line for the item and
+it was `embedded-glb`, so every surface was resolving the embedded PNG and the
+packet was being emitted.
+
+`game_main.c` walks OT0 before `GsDrawOt` and calls `setlen(cur, 0)` on any
+primitive whose code is not in a hardcoded whitelist. A zero-length tag makes
+`DrawOTag` step over the payload — no crash, no log, the geometry is simply
+absent. `DR_PSYX_MODERN_MESH` is code `0xB3`, PsyCross's custom-packet family,
+which was not in the list.
+
+Why only one surface: `func_8004BD74`'s `arg2 == 2` path is the only item draw
+that emits into `g_OrderingTable1` and lets `GsSortOt` splice it into OT0, so it
+is the only one that reaches that walk. The carousel goes into OT0 directly from
+a menu state that never runs the pass.
+
+Fix whitelists the whole `hi == 0xB0` family. `0xB_` is not a PSX GPU opcode range
+at all (polygons `0x2_`/`0x3_`, lines `0x4_`/`0x5_`, sprites `0x6_`/`0x7_`, env
+`0xE_`), so nothing legitimate can be lost. Same class as the DR_MODE note in
+`bodyprog_80055028.c`. Note the separate `len > 32` gate: a custom packet longer
+than 32 longs is stripped even with an accepted code.
+
+OT2 keeps its own narrower whitelist — it carries 2D overlays and never sees an
+item model.
+
+Two hypotheses that looked right and were not, recorded so they are not retried:
+`Pc_ModernMesh_Emit` does **not** need `drawObject->coord2` (`GsSetLsMatrix` calls
+`SetRotMatrix`/`SetTransMatrix`, so the GTE C2 registers it reads already carry
+the object transform including the pickup scale, and `GsSortObject4J` never
+reloads them); and the item on the FLOOR cannot show modern geometry at all,
+because it is a `BG_ITEM.PLM` world object rather than a TMD.
+
+---
+
+## Character OBJ export: UVs scale by the character's own TIM — `97f873822`
+
+Characters exported to OBJ arrived in Blender with their UV islands squashed into
+a corner of the texture. The exporter divided both axes by 256, but a prim's U/V
+are texel coordinates into the character's **own** `.TIM` — which is what
+`ClutComposer` rasterises them onto when it builds the reference sheet.
+
+Measured over all 43 `CHARA` `.ILM`/`.TIM` pairs: zero UVs reach their TIM's width
+or height, and 41 of them touch exactly `W-1`/`H-1`. Only 5 of 49 characters are
+actually 256x256 — 24 are 128x128, 15 are 256x128, HERO is 256x192 — so 44 of them
+were mis-scaled. DOG landed in the top-left quarter; HERO in the top three
+quarters.
+
+- Export scales by the TIM's real texel size and records `textureWidth` /
+  `textureHeight` in the `.ilmmeta.json`; import reads them back. An OBJ exported
+  before the field existed still decodes at 256x256, and an import no longer needs
+  the `.TIM` on hand.
+- `FormatRational` replaces `FormatQ12` for UVs: `(2u+1)/(2W)` is only a multiple of
+  1/4096 when `W` is a power of two, and `HERO.TIM` is 192 tall. Same half-to-even
+  rule, byte-identical output at `W = 256`.
+- The `.TIM` is resolved by the ILM's **material** name, which is not always the
+  filename: `BIRD.ILM` draws `REBIRD.TIM`, `MTH.ILM` draws `MOTH.TIM`, `WRM.ILM`
+  draws `WORM.TIM`, `MAN.ILM` draws `DEV.TIM`. Matching on the filename alone found
+  nothing for those four and silently fell back to 256x256.
+- `AtlasPrep`'s `native/256` pre-scale existed only to cancel the fixed-256
+  quantiser. With the quantiser correct the pre-scale is the error, so it is gone
+  and the sheet size travels explicitly through `ImportOptions.SheetW/SheetH`
+  rather than depending on the age of a meta the user carried over.
+
+Gates: 49/49 characters export+import byte-identical; 49/49 keep every prim UV
+through a `Replace` import; UV-over-sheet renders for HERO and DOG show the islands
+landing on the art only after the fix.
+
+TMD is a different convention and was deliberately not changed — a TMD prim carries
+an explicit tpage and its U/V are page-relative within a 256-wide 4bpp page, which
+is why `TmdObjConverter`'s `/256` and the viewer's `page.YOffset` atlas are right.
