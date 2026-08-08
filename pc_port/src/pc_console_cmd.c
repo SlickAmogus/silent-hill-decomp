@@ -1224,6 +1224,15 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PgxpNearZ;
         if (arg[0]) { g_PgxpNearZ = (float)atof(arg); if (g_PgxpNearZ < 1.0f) g_PgxpNearZ = 1.0f; }
         cprintf("PGXP near-clip plane depth: %.1f gte-units", g_PgxpNearZ);
+    } else if (strcmp(cmd, "FASTLOAD") == 0) {
+        /* Blocking loads otherwise advance one queue state per vblank and copy
+         * one 2048 byte sector per call -- ~120 KiB/s regardless of the storage,
+         * which is the multi-second black hold on a door. */
+        extern int g_PcFastBlockingLoads;
+        if (arg[0] == '1') g_PcFastBlockingLoads = 1;
+        else if (arg[0] == '0') g_PcFastBlockingLoads = 0;
+        else g_PcFastBlockingLoads = !g_PcFastBlockingLoads;
+        cprintf("fast blocking loads: %s", g_PcFastBlockingLoads ? "ON (disk speed)" : "OFF (PSX CD pace)");
     } else if (strcmp(cmd, "FBDAMP") == 0) {
         /* Gain of the framebuffer-feedback loop that produces the door out-fade
          * and the loading-screen trail. 0.5 = shipped; ~0.996 (255/256) is

@@ -61,6 +61,10 @@ bool Fs_QueueChunksLoad(void)
 }
 
 #ifdef SH_PC_PORT
+/* Drain blocking loads at disk speed instead of one 2048 byte sector per vblank.
+ * Console FASTLOAD; 0 restores the PSX CD-paced behaviour for A/B. */
+int g_PcFastBlockingLoads = 1;
+
 void Fs_QueueDrainNow(void)
 {
     /* Fs_QueueWaitForEmpty below advances the queue by exactly one state per
@@ -90,6 +94,21 @@ void Fs_QueueWaitForEmpty(void)
     {
         extern int g_TickCount;
         int waitCount = 0;
+
+        /* The loop below advances the queue by one state per VSync and PsyCross
+         * copies one 2048 byte sector per CdReadSync, so a blocking wait runs at
+         * ~120 KiB/s no matter what the storage can do -- that is the multi-second
+         * black hold on a door. Drain it as fast as the disk allows first; the
+         * stock loop then finds the queue empty and falls straight through, and
+         * still runs unchanged if the drain hit its bound. Nothing is skipped:
+         * Fs_QueueDrainNow ticks the same state machine, running every entry's
+         * full read and post-load, unlike the timeout branch further down which
+         * advances the cursors past entries that were never read.
+         * Console: FASTLOAD 0 restores the vblank-paced behaviour. */
+        if (g_PcFastBlockingLoads)
+        {
+            Fs_QueueDrainNow();
+        }
 #endif
     while (true)
     {
