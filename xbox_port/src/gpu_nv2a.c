@@ -291,6 +291,19 @@ void GpuNv2a_FrameBegin(void)
     s_frameW = pb_back_buffer_width();
     s_frameH = pb_back_buffer_height();
 
+    /* First frame: claim the freeze-frame buffer while the heap is still empty.
+     * The texture cache fills on the first textured prim (the boot logo, drawn
+     * later THIS frame) and the map allocates after that, so this is the last
+     * moment a multi-megabyte reservation is guaranteed to succeed. */
+    {
+        static int s_freezeReserved = 0;
+        if (!s_freezeReserved) {
+            extern void GpuNv2a_FreezeReserve(void);
+            s_freezeReserved = 1;
+            GpuNv2a_FreezeReserve();
+        }
+    }
+
     pb_erase_depth_stencil_buffer(0, 0, s_frameW, s_frameH);
     /* Clear to the PSX draw-env isbg background — in-game GsSortClear sets it
      * to the FOG colour (game_main.c background2dColor = fog.color), so the
@@ -460,35 +473,57 @@ const void* GpuNv2a_ReadbackSurface(int fromLastQueued, int* w, int* h, int* pit
  * which is fast. Allocation failure degrades to the old grey, never a crash. */
 static void* s_freezeBuf;
 static int   s_freezeH, s_freezePitch;
+static int   s_freezeValid;                    /* buffer holds a captured frame */
+
+/* RESERVE THE BUFFER ONCE, ON THE FIRST FRAME. It used to be malloc'd on each
+ * pause and freed on each unpause, which only worked while the heap was roomy:
+ * at 720p the buffer is 1280*720*4 = ~3.6MB but in-game free memory bottoms out
+ * near 2.5MB once the map and its chunk buffers are in, so the re-allocation
+ * failed and pause/pickup fell back to the grey clear. Taking it up front —
+ * before the map loads and before the texture cache fills — makes the feature
+ * resolution-independent; the cache simply fills to the same reserve floor with
+ * correspondingly fewer slots. */
+void GpuNv2a_FreezeReserve(void)
+{
+    extern unsigned Xbox_MemFreeKB(void);
+    int    h     = (int)pb_back_buffer_height();
+    int    pitch = (int)pb_back_buffer_pitch();
+    size_t bytes;
+
+    if (s_freezeBuf || h <= 0 || pitch <= 0)
+        return;
+    bytes         = (size_t)pitch * (size_t)h;
+    s_freezeBuf   = malloc(bytes);
+    s_freezeH     = h;
+    s_freezePitch = pitch;
+    SH_DBG("[FREEZE] reserve %s: %dKB (h=%d pitch=%d) free=%uKB",
+           s_freezeBuf ? "ok" : "FAILED", (int)(bytes / 1024), h, pitch, Xbox_MemFreeKB());
+}
 
 int GpuNv2a_FreezeCapture(void)
 {
     int         w = 0, h = 0, pitch = 0;
     const void* fb = GpuNv2a_ReadbackSurface(1 /* last COMPLETED frame */, &w, &h, &pitch);
-    size_t      bytes;
 
     if (!fb || w <= 0 || h <= 0 || pitch <= 0)
         return 0;
-    bytes = (size_t)pitch * (size_t)h;
-    if (s_freezeBuf && (h != s_freezeH || pitch != s_freezePitch)) {
+    if (!s_freezeBuf || h != s_freezeH || pitch != s_freezePitch) {
+        /* Late/mismatched (resolution changed): re-reserve at the new size. */
         free(s_freezeBuf);
-        s_freezeBuf = 0;                       /* resolution changed */
-    }
-    if (!s_freezeBuf) {
-        s_freezeBuf = malloc(bytes);
-        if (!s_freezeBuf)
+        s_freezeBuf = 0;
+        GpuNv2a_FreezeReserve();
+        if (!s_freezeBuf || h != s_freezeH || pitch != s_freezePitch)
             return 0;
     }
-    memcpy(s_freezeBuf, fb, bytes);
-    s_freezeH     = h;
-    s_freezePitch = pitch;
+    memcpy(s_freezeBuf, fb, (size_t)pitch * (size_t)h);
+    s_freezeValid = 1;
     return 1;
 }
 
 void GpuNv2a_FreezeBlit(void)
 {
     void* bb;
-    if (!s_freezeBuf)
+    if (!s_freezeBuf || !s_freezeValid)
         return;
     GpuNv2a_FlushBatch();                      /* nothing pending over the copy */
     bb = (void*)pb_back_buffer();
@@ -499,10 +534,7 @@ void GpuNv2a_FreezeBlit(void)
 
 void GpuNv2a_FreezeRelease(void)
 {
-    if (s_freezeBuf) {
-        free(s_freezeBuf);
-        s_freezeBuf = 0;
-    }
+    s_freezeValid = 0;                         /* keep the buffer: see FreezeReserve */
 }
 
 /* Millisecond clock for the readback's took= probe (KeTickCount is the kernel's
