@@ -177,8 +177,40 @@ void GameState_InGame_Update(void) // 0x80038BD4
          * g_DeltaTime -- when no enemy is alive, and otherwise relies on
          * g_DeltaTime already being 0 to keep monsters frozen while an enemy lives.
          * The blanket raw override broke that, so monsters kept moving during a
-         * memo. Hand ReadMessage 0 like PSX and let its own handler decide. */
-        g_DeltaTime = (g_SysWork.sysState == SysState_ReadMessage) ? Q12(0.0f) : g_DeltaTimeRaw;
+         * memo. Hand ReadMessage 0 like PSX and let its own handler decide.
+         *
+         * Handing it 0 is not enough on its own for a player-initiated examine.
+         * SysState_ReadMessage_Update restores g_DeltaTimeCpy whenever the event
+         * carries EventParamUnkState_0 (101 of the 513 ReadMessage map events do,
+         * inconsistently -- in map0_s01 the pinball machine has it clear and the
+         * radio has it set) or when no enemy is alive, so most flavor-text
+         * objects never held the frame. Retail holds a frozen frame behind every
+         * examine, so neutralise the restore at its source rather than editing
+         * the PSX handler. Safe to clobber: g_DeltaTimeCpy is file-static, its
+         * only readers on a ReadMessage frame are those two restores, and it is
+         * rebuilt from the frame clock every tick a few lines above. Zero is
+         * framerate-independent by construction, and the message box runs on
+         * g_DeltaTimeRaw (map_msg_display.c), so roll-out, page timers and
+         * dismissal are unaffected.
+         *
+         * Button-activated events ONLY. map1_s04, map2_s03 and map4_s00 each
+         * carry a TriggerType_None ReadMessage (eventParam 15, flags_8_13 = 1,
+         * activationType None) with no event-flag gates, which Event_Update
+         * re-arms every frame -- those maps sit in this state permanently and are
+         * script-driven, not examines, so they must keep their PSX clock. */
+        if (g_SysWork.sysState == SysState_ReadMessage)
+        {
+            g_DeltaTime = Q12(0.0f);
+
+            if (g_MapEventData != NULL && g_MapEventData->activationType == TriggerActivationType_Button)
+            {
+                g_DeltaTimeCpy = Q12(0.0f);
+            }
+        }
+        else
+        {
+            g_DeltaTime = g_DeltaTimeRaw;
+        }
 #else
         g_DeltaTime = Q12(0.0f);
 #endif
@@ -208,6 +240,18 @@ void GameState_InGame_Update(void) // 0x80038BD4
 
             if (g_MapEventSysState != SysState_Invalid)
             {
+#ifdef SH_PC_PORT
+                /* Second door path -- see the transition out-fade note in
+                 * SysState_Gameplay_Update. SysWork_StateSetNext sets sysState
+                 * immediately, so this site and that one are mutually exclusive
+                 * halves of the same transition, not a primary plus a fallback. */
+                if (g_MapEventSysState == SysState_LoadRoom ||
+                    g_MapEventSysState == SysState_LoadOverlay)
+                {
+                    extern int g_PsxFeedbackStoreAllowed;
+                    g_PsxFeedbackStoreAllowed = 2;
+                }
+#endif
                 SysWork_StateSetNext(g_MapEventSysState);
             }
         }
@@ -387,6 +431,23 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
 #ifdef SH_PC_PORT
         SH_DBG("[GP-STATE-TXN] Gameplay -> sysState=%d (param=%d)",
                (int)g_MapEventSysState, (int)g_MapEventParam);
+
+        /* Door/area transition out-fade. PSX left the last gameplay frame in the
+         * other framebuffer and Screen_BackgroundMotionBlur decayed THAT image
+         * for the whole load -- the slow darkening under the door-open SFX.
+         * PsyCross blanks both display-buffer rects on every present the blur is
+         * not drawing (GR_ClearAllFeedbackRects), and the blur only arms the
+         * store from its own first frame, so the transition started from an empty
+         * rect and cut straight to black. This tick is the last one that still
+         * renders the world -- SysState_LoadArea_Update sets BgmStatusFlag_Pause
+         * on the NEXT tick -- so arm the store for this frame's present. Same
+         * entry-tick idiom as the pause freeze below. */
+        if (g_MapEventSysState == SysState_LoadRoom ||
+            g_MapEventSysState == SysState_LoadOverlay)
+        {
+            extern int g_PsxFeedbackStoreAllowed;
+            g_PsxFeedbackStoreAllowed = 2;
+        }
 #endif
         SysWork_StateSetNext(g_MapEventSysState);
     }
