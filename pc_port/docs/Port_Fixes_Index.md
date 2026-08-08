@@ -2741,6 +2741,38 @@ it, and drops the now-unnecessary `--allow-multiple-definition`.
 **Builds clean:** `SilentHillPC.exe` + all 43 map DLLs; `cgltf`/`UNIFIEDITEM`
 strings confirmed present in the binary.
 
+**SCOPE — it is keyed on the ITEM, not the file, so it already covers the
+TMD-drawn items.** The `.glb` files are *named* after the UNQ index, which makes
+this read like a UNQ-close-ups-only feature. It is not.
+`Pc_ItemUnq_TakeRequestedItemId` falls back to
+`g_MapOverlayHdr.loadableItems[loadableItemIdx]` — the bank slot's real item id —
+so when `Gfx_Items_Display` is called with `FS_BUFFER_8` (the `IT_00x` bank) the
+modern link fires too. The stock TMD object is still linked first, purely as the
+transform/texture-binding carrier; `Pc_ModernMesh_LinkObject` then replaces its
+geometry. All three item surfaces are covered, and all three emit through
+`Pc_ModernMesh_Emit` in `func_8004BD74`:
+
+| Surface | Path | Covered |
+|---|---|---|
+| Inventory carousel | `Gfx_Items_Display(FS_BUFFER_8, …)` — the bank | yes |
+| Take / pickup screen | `func_80054A04` -> `D_800C3E08` | yes |
+| Close-up examine | `UNQ*` via `FS_BUFFER_5` | yes |
+
+**Genuinely NOT covered**, and the reasons differ:
+- **The item lying on the floor** — a world object from `BG_ITEM.PLM`, i.e.
+  LM/PLM geometry on the `TIM00`/`BG_ETC` materials. Not a TMD at all, different
+  draw path, no hook.
+- **Non-inventory TMDs** — `FOOK.TMD` (map5_s01 meat hook) and the `TEST/*.TMD`
+  room models. They have no item id to key on.
+- **Items absent from the `s_PcItemUnqTable`** — `Pc_ItemUnq_FromItemId` returns
+  `FILE_ITEM_UNQ20_TMD` as its DEFAULT, so a file named `UNQ20.glb` silently
+  replaces every unmapped item rather than just its own. Footgun when naming a
+  test file.
+
+So this and the TMD↔OBJ converters overlap far more than first recorded: the
+converters' remaining niche is editing stock geometry in place, the floor props,
+and the non-item TMDs — not "the bank items".
+
 **Two caveats.** The PsyCross submodule now points at a LOCAL commit (`b20b150`)
 — PsyCross must be pushed before this tree is cloned elsewhere. And none of this
 is verified in game: the feature is opt-in behind `allow_loose_files = 1` and a
