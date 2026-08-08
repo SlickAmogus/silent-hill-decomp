@@ -476,11 +476,14 @@ static int ModernMesh_CheckPrimitive(const cgltf_primitive* primitive,
                 return ModernMesh_Fail(error, errorCapacity,
                                        "UV is outside 0..1 by more than the authoring tolerance "
                                        "(tiled/wrapped UVs cannot be drawn by a clamped sampler)");
-            /* Within tolerance the UV is clamped, not rejected — matching what
-             * GL_CLAMP_TO_EDGE does at sample time. Clamp the local copy too so
-             * the UV-area test below sees the geometry that will actually draw. */
-            t[corner][0] = ModernMesh_ClampUv(t[corner][0]);
-            t[corner][1] = ModernMesh_ClampUv(t[corner][1]);
+            /* Deliberately NOT clamped here. Clamping before the UV-area test
+             * below COLLAPSES any triangle whose corners all sit just outside
+             * the same edge — they land on one line and the test then rejects
+             * the whole model for "zero UV area". Measured on a real export:
+             * 0 degenerate triangles in the authored UVs, 58 after clamping.
+             * The area test is about degenerate AUTHORING, so it must see what
+             * the author actually made; the clamp is a sampling concern and
+             * belongs at emit. */
         }
         for (axis = 0; axis < 3; axis++)
         {
