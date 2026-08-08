@@ -2038,6 +2038,32 @@ goes *invisible* rather than mis-coloured (prims with a virtual clut word are
 dropped by `ShouldDropForClut`) — check the log for `[POOLTEX] slot 300` and
 `[CLUTDROP]`.
 
+### Puppet Nurse / Doctor drew all three faces at once (2026-08-08)
+
+`PRS.ILM`/`PRSD.ILM` carry **three interchangeable head+neck pairs** on bone 2 —
+`02HEAD1/2/3` and `02NECK1/2/3`, models 2..7. The engine picks one in
+`func_8003E4A0` (nurse) / `func_8003E544` (doctor): hide models 2..7, then
+re-show the pair named by the spawn entry's variant index. That dispatch is the
+`switch (charaId)` in `WorldGfx_HeldItemAttach` — **keyed on the chara id**, and a
+play-as skin is worn on *Harry's row*, so it never runs for the player. All three
+pairs stayed visible and intersected.
+
+Fixed by hiding `02HEAD2`/`02HEAD3`/`02NECK2`/`02NECK3` from the skin visibility
+table, keeping pair 1 (the selector's own first choice). It rides the existing
+`Pc_PlayAs_ApplySkinVisibility` pass, so it is self-healing across equip/unequip
+like the other embedded-prop hides. `hideParts` widened 6 → 8 at the same time:
+Kaufmann's five names plus the NULL terminator already filled it exactly, so the
+next addition would have walked off the end.
+
+All 49 chara ILMs were audited for duplicate-part-per-bone groups; **only PRS and
+PRSD have a face group**. `DARIA`/`KAU`/`MSB`/`SIBYL`/`HERO`/`FAT` have prop or
+hand groups instead — Cybil's and Kaufmann's selectors only toggle gun/hand
+models the roster already hides by name, and the `SIBYL`/`MSB` bone-11 hip trio
+(`11HIP2_T`/`11HIP_TC`/`11HOLDER`) appears in no selector list, so all three draw
+in stock too. General rule when extending the roster: any chara with a
+`case Chara_X:` in `WorldGfx_HeldItemAttach` may have variant logic that will not
+run for the player — check its selector's hide-list against the ILM part dump.
+
 **Latent stock hazard, deliberately not touched**: a real 48-row PRS monster in
 chara group slot 2 or 3 (`clutX` 736/752, rows 464..511) would stomp Harry's own
 CLUT home and the held-item CLUT in the *unmodified* game. Shipped map data
