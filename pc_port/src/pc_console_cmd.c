@@ -1224,6 +1224,15 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PgxpNearZ;
         if (arg[0]) { g_PgxpNearZ = (float)atof(arg); if (g_PgxpNearZ < 1.0f) g_PgxpNearZ = 1.0f; }
         cprintf("PGXP near-clip plane depth: %.1f gte-units", g_PgxpNearZ);
+    } else if (strcmp(cmd, "FBDAMP") == 0) {
+        /* Gain of the framebuffer-feedback loop that produces the door out-fade
+         * and the loading-screen trail. 0.5 = shipped; ~0.996 (255/256) is
+         * retail-length decay but diverged to a grey field last time it was
+         * tried, so it is tunable here rather than baked in. */
+        extern float g_PsxFeedbackDamp;
+        if (arg[0]) g_PsxFeedbackDamp = (float)atof(arg);
+        cprintf("framebuffer feedback damp: %.4f (0.5=shipped, 0.996=retail-length fade)",
+                g_PsxFeedbackDamp);
     } else if (strcmp(cmd, "CULL") == 0) {
         /* Retail gates each chunk's model buffers on a baked per-subcell PVS
          * slice plus a frustum test; disable_culling skips both (exterior maps).
