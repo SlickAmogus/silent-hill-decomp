@@ -110,6 +110,7 @@ typedef struct {
     int      hiresW, hiresH;     /* actual pixel dimensions of decoded RGBA */
     int      sourceBitDepth;     /* TIM mode of the loose file itself */
     unsigned packBytes;          /* GL bytes charged to the pack budget (0 = uncounted) */
+    unsigned tick;               /* pump tick this entry was last SAMPLED (LRU key) */
     unsigned long long contentHash; /* TexPack_LastComposeHash of the resident texture; 0 = unknown/always re-upload */
 } HiresEntry;
 
@@ -268,6 +269,24 @@ int HiresOverride_PackBudgetExceeded(void)
     return g_packBytesLive >= cap;
 }
 
+/* Eviction target: 7/8 of the cap, NOT the cap itself.
+ *
+ * Evicting only until `PackBudgetExceeded` clears settles the run at exactly
+ * the cap, which has two costs. It leaves ZERO headroom for the OTHER consumer
+ * of this budget — the VRAM-entry path (charas, items, HUD, 2D backgrounds)
+ * composes eagerly at PostLoadTim and simply gives up when the budget is spent,
+ * so a pool path parked on the line starves it permanently. And it recycles one
+ * row per pump forever: free 5 MB, compose 5 MB, exceed, repeat (measured: 69
+ * consecutive "evicted 1 cold row(s)" hovering at 510/512 MB). Freeing a slab
+ * at a time gives both a working margin. */
+int HiresOverride_PackBudgetOverTarget(void)
+{
+    long long cap = (long long)g_PcConfig.texpackBudgetMb << 20;
+    if (cap <= 0)
+        return 0;
+    return g_packBytesLive > cap - (cap >> 3);
+}
+
 long long HiresOverride_PackBytesLive(void) { return g_packBytesLive; }
 
 /* ---- Chunk-pool virtual slots (resident_textures) -------------------------
@@ -347,18 +366,70 @@ int HiresOverride_EvictColdestPackRow(unsigned minAgeTicks,
         }
     }
 
-    if (bestSlot < 0) return 0;
-
+    if (bestSlot >= 0)
     {
         PoolSlotEntry* s = &g_poolSlots[bestSlot];
         glDeleteTextures(1, &s->glTexture[bestRow]);
         s->glTexture[bestRow] = 0;
         s->rowHash[bestRow]   = 0;
         pack_credit(&s->rowPackBytes[bestRow]);
+
+        if (outSlot) *outSlot = bestSlot;
+        if (outRow)  *outRow  = bestRow;
+        return 1;
     }
 
-    if (outSlot) *outSlot = bestSlot;
-    if (outRow)  *outRow  = bestRow;
+    /* LAST RESORT: a cold VRAM-entry override (chara / item / HUD / 2D
+     * background pack row).
+     *
+     * These are charged to the same budget but were never eviction candidates,
+     * so they were a permanent floor under it. Measured on a 512 MB budget: 104
+     * VRAM-entry pack registrations, 78 of them 1024x1024 (5.6 MB each with
+     * mips) — enough that no pool row could be freed to make room, the pump
+     * logged "the hot set fills it", and world pack textures stopped for the
+     * rest of the map ("they all suddenly unloaded").
+     *
+     * Ranked BELOW pool rows deliberately, and only reached once no pool row is
+     * evictable, because the two recover differently: a pool row is recomposed
+     * on demand by the very next TexPackLazy pump that sees a prim want it,
+     * whereas the VRAM path only composes inside PostLoadTim, so an evicted
+     * VRAM entry keeps native art until its TIM is uploaded again. Dropping one
+     * is nonetheless SAFE — with no entry the prim samples real VRAM, which
+     * still holds the native art. That is exactly what HiresOverride_-
+     * InvalidateVramRect already does when the game rewrites a rect. */
+    {
+        int      bestEntry = -1;
+        unsigned bestEntryAge = 0;
+
+        for (i = 0; i < g_numEntries; i++)
+        {
+            HiresEntry* e = &g_entries[i];
+            unsigned    age;
+
+            if (e->packBytes == 0 || e->glTexture == 0) continue;
+            age = g_hiresTick - e->tick;
+            if (age < minAgeTicks) continue;
+            if (bestEntry < 0 || age > bestEntryAge)
+            {
+                bestEntryAge = age;
+                bestEntry    = i;
+            }
+        }
+
+        if (bestEntry < 0) return 0;
+
+        {
+            HiresEntry* e = &g_entries[bestEntry];
+            glDeleteTextures(1, &e->glTexture);
+            pack_credit(&e->packBytes);
+            g_entries[bestEntry] = g_entries[--g_numEntries];
+        }
+    }
+
+    /* Slot -1 tells the caller there is no pool row to restore: the entry is
+     * gone and native VRAM is already the fallback. */
+    if (outSlot) *outSlot = -1;
+    if (outRow)  *outRow  = -1;
     return 1;
 }
 
@@ -1058,6 +1129,12 @@ int HiresOverride_PoolSlotRegisterRGBAKeyed(int slotId, int row,
     s->rowH[row] = (unsigned short)h;
     s->nativeW = nativePixelW;
     s->nativeH = nativePixelH;
+    /* Stamp the row live NOW, or it is born cold and the next eviction pass
+     * frees it before a prim ever samples it — a compose/evict loop, because
+     * the want that triggered this compose fires again immediately. The
+     * lookup's sample stamp lands on `useRow`, which is row 0 while this row is
+     * still empty, so it never reaches the row actually being built. */
+    s->rowTick[row] = g_hiresTick;
     return 0;
 }
 
@@ -1130,6 +1207,7 @@ int HiresOverride_PoolSlotRegisterDdsKeyed(int slotId, int row,
     s->rowH[row] = (unsigned short)h;
     s->nativeW = nativePixelW;
     s->nativeH = nativePixelH;
+    s->rowTick[row] = g_hiresTick; /* see the RGBA twin */
     return 0;
 }
 
@@ -1203,6 +1281,10 @@ int HiresOverride_RegisterRGBAKeyed(const char* label,
     }
     pack_charge(&e->packBytes, w, h);
     e->contentHash = contentHash;
+    /* Stamp it live NOW. Leaving tick at 0 makes a just-registered entry look
+     * maximally cold to the evictor, which would free it before a single prim
+     * ever sampled it. */
+    e->tick = g_hiresTick;
 
     e->vramX = targetVramX;
     e->vramY = targetVramY;
@@ -1298,6 +1380,7 @@ int HiresOverride_RegisterDdsKeyed(const char* label,
     }
     pack_charge(&e->packBytes, (w + 3) / 4, h);
     e->contentHash = contentHash;
+    e->tick = g_hiresTick; /* see the RGBA twin */
 
     e->vramX = targetVramX;
     e->vramY = targetVramY;
@@ -1640,6 +1723,7 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
             if (outHiresW)       *outHiresW       = e->hiresW;
             if (outHiresH)       *outHiresH       = e->hiresH;
         }
+        e->tick = g_hiresTick; /* LRU key: sampled now */
         return (unsigned int)e->glTexture;
     }
     return 0;

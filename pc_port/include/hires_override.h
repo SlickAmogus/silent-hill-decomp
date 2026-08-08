@@ -252,6 +252,10 @@ void HiresOverride_InvalidateVramRect(int x, int y, int w, int h);
  * past the cap keep native disc art. Frees credit the budget back. Guards
  * the whole-town texture-all path against multi-GB pack blowups. */
 int HiresOverride_PackBudgetExceeded(void);
+/* True above the eviction TARGET (7/8 of the cap). Admission still gates on
+ * PackBudgetExceeded; only the evictor uses this, so it frees a margin instead
+ * of parking the run exactly on the cap. */
+int HiresOverride_PackBudgetOverTarget(void);
 
 /* Live pack-composed GL bytes, for logging/telemetry. */
 long long HiresOverride_PackBytesLive(void);

@@ -290,24 +290,34 @@ void TexPackLazy_Pump(void)
     if (HiresOverride_PackBudgetExceeded())
     {
         int evicted = 0;
+        int vramEvicted = 0;
 
-        while (evicted < LAZY_EVICT_MAX_PER_PUMP && HiresOverride_PackBudgetExceeded())
+        /* Evict down to the TARGET, not merely back under the cap — see
+         * HiresOverride_PackBudgetOverTarget. Stopping the moment the cap
+         * clears leaves no room for the eager VRAM-entry path and recycles one
+         * row per pump indefinitely. */
+        while (evicted < LAZY_EVICT_MAX_PER_PUMP && HiresOverride_PackBudgetOverTarget())
         {
             int slotId = -1, row = -1;
             if (!HiresOverride_EvictColdestPackRow(LAZY_EVICT_MIN_AGE, Lazy_CanRestore,
                                                    &slotId, &row))
                 break;
-            /* Mandatory: an evicted row left empty resolves to ROW 0's palette
-             * in the lookup, not to native art. */
-            TexPackLazy_RestoreNativeRow(slotId, row);
+            /* Mandatory for a POOL row: left empty it resolves to ROW 0's
+             * palette in the lookup, not to native art. slotId < 0 means the
+             * evictor fell through to a VRAM entry, which needs no restore —
+             * with the entry gone the prim samples real VRAM. */
+            if (slotId >= 0)
+                TexPackLazy_RestoreNativeRow(slotId, row);
+            else
+                vramEvicted++;
             evicted++;
         }
 
         if (evicted > 0 && g_pumpLogs < 256)
         {
             g_pumpLogs++;
-            SH_DBG("[TEXPACK/LRU] evicted %d cold row(s), %lld MB pack GL live",
-                   evicted, HiresOverride_PackBytesLive() >> 20);
+            SH_DBG("[TEXPACK/LRU] evicted %d cold row(s) (%d VRAM-entry), %lld MB pack GL live",
+                   evicted, vramEvicted, HiresOverride_PackBytesLive() >> 20);
         }
 
         if (HiresOverride_PackBudgetExceeded())
