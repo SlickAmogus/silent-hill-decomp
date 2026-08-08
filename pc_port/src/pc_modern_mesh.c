@@ -52,6 +52,12 @@
 #include "pc_modern_vertex.h"
 #include "sh_log.h"
 
+/* The header mirrors MAX_VERTEX_BUFFER_SIZE to derive the geometry caps without
+ * including PsyX_render.h. If PsyCross ever resizes its buffer, fail the build
+ * here rather than silently accepting a mesh the uploader will reject. */
+static_assert(PC_MODERN_MESH_VERTEX_BUFFER_SIZE == MAX_VERTEX_BUFFER_SIZE,
+              "PC_MODERN_MESH_VERTEX_BUFFER_SIZE is out of sync with PsyCross");
+
 #define PC_MODERN_MESH_REGISTRY_MAX 64
 #define PC_MODERN_MESH_PATH_MAX     176
 #define PC_MODERN_AREA_EPSILON      1.0e-30

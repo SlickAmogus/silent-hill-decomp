@@ -14,8 +14,32 @@ extern "C" {
 
 #define PC_MODERN_MESH_MAX_FILE_BYTES (16u * 1024u * 1024u)
 #define PC_MODERN_MESH_MAX_NODE_DEPTH 64u
-#define PC_MODERN_MESH_MAX_VERTICES   0x2000u
-#define PC_MODERN_MESH_MAX_TRIANGLES  0x2000u
+/* Geometry ceiling.
+ *
+ * These were 0x2000 (8192) each, which was a conservative profile number rather
+ * than anything the renderer required — and it defeated the point of the modern
+ * path by refusing ordinary modern assets (a real replacement measured 6262
+ * vertices / 11984 triangles and was rejected on triangles alone).
+ *
+ * The ONE hard constraint is the flattened draw buffer. Pc_ModernMesh_Emit
+ * expands to a non-indexed triangle list of triangleCount*3 vertices, and
+ * Pc_ModernVertex_Upload refuses count >= MAX_VERTEX_BUFFER_SIZE. That buffer
+ * is the modern path's OWN dedicated VBO (pc_modern_vertex.c allocates
+ * sizeof(GrModernVertex) * MAX_VERTEX_BUFFER_SIZE up front), NOT PsyCross's
+ * shared g_vertexBuffer — so a dense item cannot starve the world render, and
+ * the allocation is already paid whatever the caps say.
+ *
+ * So the triangle cap IS the buffer bound, derived rather than guessed. The
+ * vertex cap gets the same figure: a source vertex only counts once it is
+ * referenced, so it can never exceed the flattened output, and
+ * PC_MODERN_MESH_MAX_FILE_BYTES still bounds the file itself.
+ *
+ * MAX_VERTEX_BUFFER_SIZE lives in PsyX_render.h, which this header does not
+ * include (it is consumed by plain C game code); the value is mirrored with a
+ * compile-time check in pc_modern_mesh.c that it still matches. */
+#define PC_MODERN_MESH_VERTEX_BUFFER_SIZE (1u << 18)
+#define PC_MODERN_MESH_MAX_TRIANGLES  ((PC_MODERN_MESH_VERTEX_BUFFER_SIZE - 1u) / 3u)
+#define PC_MODERN_MESH_MAX_VERTICES   (PC_MODERN_MESH_VERTEX_BUFFER_SIZE - 1u)
 
 /* Target world extent for an imported item, in PSX model units.
  * Measured from the stock health-drink model UNQ21.TMD (flags=0, nobj=1,
