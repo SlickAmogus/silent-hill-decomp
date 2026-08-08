@@ -284,6 +284,26 @@ void Audio_XboxPump(void)
     if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(s_buf, &play, &write))) {
         avail = (s_write <= play) ? (play - s_write)
                                   : (DS_BUFFER_SIZE - s_write + play);
+
+        /* UNDERRUN RESYNC. The pump is frame-tied, so a scene heavy enough to
+         * drop the frame rate far enough lets the hardware play cursor run PAST
+         * s_write -- and with nothing to notice that, the DAC keeps re-playing
+         * whatever is still in the ring. That is heard as dialogue stuttering
+         * and repeating parts of a sentence during a laggy cutscene. In steady
+         * state avail is about one frame's worth; only an overrun makes it
+         * approach a whole buffer, so treat that as "the cursor lapped us" and
+         * snap s_write to just ahead of the cursor. Costs a brief gap instead of
+         * an audible stutter loop, and self-corrects the moment the frame rate
+         * recovers. */
+        if (avail > (DS_BUFFER_SIZE - (DS_BUFFER_SIZE / 4))) {
+            static unsigned s_resync;
+            s_write = (play + 2048u) % DS_BUFFER_SIZE;
+            s_write &= ~(DWORD)(DS_BLOCK_ALIGN - 1);
+            avail   = 0;
+            if ((++s_resync & 31) == 1)
+                SH_DBG("[SH_AUDIO] ring underrun resync (#%u) - fps starved the pump", s_resync);
+        }
+
         if (avail > DS_PUMP_MAX)            /* bound the per-frame mix -> no stall spiral */
             avail = DS_PUMP_MAX;
         if (avail >= 1024) {

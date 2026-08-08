@@ -795,6 +795,41 @@ unsigned int Pc_UsaOverlayLinkBase(const void* ovl, int mapIdx)
  * unparseable data keeps the compiled English text. */
 static void UsaPatchMapMessages(int mapIdx)
 {
+#ifdef SH_XBOX_PORT
+    /* DISABLED ON XBOX -- this is the garbled map-message text.
+     *
+     * What it does: re-reads the map overlay straight off the disc image with
+     * its own raw-sector arithmetic (ReadDiscFile: fopen the disc path, seek
+     * sector*RAW_SECTOR_SIZE + SECTOR_DATA_OFF), compares the on-disc strings
+     * with the compiled ones and, on ANY difference, allocates a new pool and
+     * REWRITES g_pMapOverlayHeader->mapMessages to point into it. It exists
+     * purely to support fan-translated discs, and on a stock disc it is meant
+     * to be a no-op.
+     *
+     * Why it misfires here: this path bypasses the port's own CD layer
+     * (cd_xbox.c) and re-derives sector offsets itself, so it does not
+     * necessarily read the same bytes the game loaded. Anything it reads that
+     * is not byte-exact reads as "the disc was translated", and it installs a
+     * pool built from those bytes -- which renders as cleanly-drawn but WRONG
+     * characters, in map messages ONLY (examine text, cutscene subtitles),
+     * while every other string in the game is untouched. That is exactly the
+     * observed symptom. ReadDiscFile also mallocs the whole overlay per map
+     * load without checking for failure.
+     *
+     * A stock USA disc needs nothing from this, so skipping it restores the
+     * compiled English text and removes a per-map disc read + allocation.
+     * Fan-translation support on Xbox would need to go through cd_xbox.c
+     * instead; that is a feature, not a fix. */
+    (void)mapIdx;
+    {
+        static int s_logged;
+        if (!s_logged) {
+            s_logged = 1;
+            SH_DBG("[LANG] USA disc-patch skipped on Xbox (compiled text kept)");
+        }
+    }
+    return;
+#else
     const s_FileInfo* fe;
     unsigned char*    ovl;
     unsigned int      ovlSize;
@@ -918,6 +953,7 @@ static void UsaPatchMapMessages(int mapIdx)
 
     free(ovl);
     SH_LOG("[FANPATCH] map %d: %d translated messages installed", mapIdx, srcCount);
+#endif /* SH_XBOX_PORT */
 }
 
 void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
