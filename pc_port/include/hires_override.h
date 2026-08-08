@@ -95,6 +95,14 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
                                               int* outHiresW,
                                               int* outHiresH);
 
+/* Upload standalone RGBA8 pixels with the same defensive allocation/upload
+ * policy used by hi-res overrides (zero-prefill, delete-on-any-GL-error). The
+ * returned GL texture is owned by the CALLER, not by the override tables — it
+ * is never evicted, invalidated or freed here. Zero means the upload failed and
+ * must be treated as a miss. Used by the modern glTF item path, whose meshes
+ * carry their own base-colour image rather than a PSX CLUT. */
+unsigned int HiresOverride_CreateTextureRGBA(const unsigned char* rgba, int w, int h);
+
 void HiresOverride_LogStats(void);
 
 /* ---- Chunk-pool virtual slots (resident_textures) ----

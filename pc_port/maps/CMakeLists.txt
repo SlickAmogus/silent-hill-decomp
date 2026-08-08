@@ -113,22 +113,16 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
     endif()
 
     if(WIN32)
-        # Link against the main executable's import library.
-        # Map DLL functions call back into game code (g_SysWork, etc.),
-        # so they need the exe's exported symbols to resolve at load time.
-        target_link_libraries(${MAP_NAME} PRIVATE SilentHillPC psycross_static)
+        # Link only against the main executable's import library. The executable
+        # exports both game code and the one initialized PsyCross instance.
+        # Linking psycross_static here as well creates a second copy of PsyCross
+        # in every map DLL and, for the modern-mesh renderer, also pulls render
+        # objects whose Pc_Modern* callbacks cannot resolve from the archive.
+        # The import library already exports those callbacks, so it is both the
+        # complete link surface and the required single-instance architecture.
+        target_link_libraries(${MAP_NAME} PRIVATE SilentHillPC)
 
-        # Map DLLs pull PsyCross symbols from BOTH the static psycross_static
-        # archive AND the exe's import lib (which re-exports PsyCross via the
-        # exe's --export-all-symbols). Pre-USE_PGXP=1 the linker silently
-        # picked one copy; turning PGXP on emitted PGXP_GetIndex (and pulled
-        # in extra libgpu/libapi symbols by reference) which triggered hard
-        # multiple-definition errors. Allow the linker to pick whichever copy
-        # comes first — both are byte-identical since they came from the same
-        # static archive originally. Long-term cleanup: drop psycross_static
-        # from this link and rely solely on the exe's import lib. */
         target_link_options(${MAP_NAME} PRIVATE
-            "LINKER:--allow-multiple-definition"
             # WINDOWS_EXPORT_ALL_SYMBOLS (set below) is *supposed* to emit a
             # generated .def listing every global, but on this CMake/MinGW
             # combo it silently does nothing for the map DLLs — the resulting

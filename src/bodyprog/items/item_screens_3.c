@@ -12,6 +12,8 @@
 #include "bodyprog/text/text_draw.h"
 #include "main/rng.h"
 #ifdef SH_PC_PORT
+#include "pc_modern_mesh.h"
+#include "pc_item_unq.h" /* Pc_ItemUnq_FromItemId: itemId -> UNQ file index */
 #include "sh_log.h"
 #include "pc_big_tmd.h" /* Pc_BigTmd_Resolve at the FS_BUFFER_5/8 consumers */
 #endif
@@ -3201,6 +3203,11 @@ void func_800539A4(s32 scrollDirection, s32 arg1) // 0x800539A4
 
     if (g_SavegamePtr->items[arg1].id_0 != (u8)InvItemId_Empty)
     {
+#ifdef SH_PC_PORT
+        /* Consumed only by the modern-mesh fallback below; guarded so the PSX
+         * build sees this loop exactly as it shipped. */
+        bool found = false;
+#endif
         for (i = 0; i < INV_ITEM_COUNT_MAX; i++)
         {
             if (g_SavegamePtr->items[arg1].id_0 == g_Item_MapLoadableItems[i])
@@ -3211,9 +3218,38 @@ void func_800539A4(s32 scrollDirection, s32 arg1) // 0x800539A4
                 Gfx_Items_Display(FS_BUFFER_8, var_s0, i);
 #endif
                 func_8005487C(var_s0);
+#ifdef SH_PC_PORT
+                found = true;
+#endif
                 i = INV_ITEM_COUNT_MAX;
             }
         }
+#ifdef SH_PC_PORT
+        /* Cheat-granted items may be absent from this map's pack list. They
+         * still have a canonical UNQ file identity, so let a valid loose GLB
+         * occupy the carousel slot without guessing or reusing a pack index.
+         * Gfx_Items_Display first links pack object 0 only as the retail
+         * transform/texture binding carrier; Pc_ModernMesh_LinkObject then
+         * replaces its geometry. Missing/rejected GLBs fail closed to blank. */
+        if (!found)
+        {
+            if (Pc_ModernMesh_Find(Pc_ItemUnq_FromItemId(g_SavegamePtr->items[arg1].id_0)) != NULL)
+            {
+                Pc_ItemUnq_SetRequestedItemId(g_SavegamePtr->items[arg1].id_0);
+                Gfx_Items_Display(FS_BUFFER_8, var_s0, 0);
+                func_8005487C(var_s0);
+                SH_DBG("[UNIFIEDITEM] carousel fallback source=modern-unq slot=%d item=%u",
+                       (int)var_s0, (unsigned)g_SavegamePtr->items[arg1].id_0);
+            }
+            else
+            {
+                g_Items_ItemsModelData[var_s0].id = 0;
+                g_Items_ItemsModelData[var_s0].tmd = NULL;
+                SH_DBG("[UNIFIEDITEM] carousel fallback source=none slot=%d item=%u",
+                       (int)var_s0, (unsigned)g_SavegamePtr->items[arg1].id_0);
+            }
+        }
+#endif
     }
 
     for (i = 0; i < ARRAY_SIZE(sp10); i++)
@@ -3249,9 +3285,14 @@ void func_800539A4(s32 scrollDirection, s32 arg1) // 0x800539A4
  * allow_loose_files off (the default) it is one boolean test that returns the
  * incoming pointer, so the slab the read lands in is FS_BUFFER_5 as before.
  *
+ * Pc_ModernMesh_SelectRead is layered inside the same interception: it gets
+ * first refusal on the read so an item with a modern glTF replacement can
+ * divert to its own buffer, and is likewise an identity for every id without
+ * one — so the big-TMD verdict above is reached unchanged in that case.
+ *
  * #undef'd immediately after the function so no other call site is affected. */
 #define Fs_QueueStartRead(fileIdx_, dest_) \
-    Fs_QueueStartRead((fileIdx_), Pc_BigTmd_Redirect((fileIdx_), (dest_)))
+    Fs_QueueStartRead((fileIdx_), Pc_BigTmd_Redirect((fileIdx_), Pc_ModernMesh_SelectRead((fileIdx_), (dest_))))
 #endif
 
 void GameFs_UniqueItemModelLoad(u8 itemId) // 0x80053B08
@@ -4038,6 +4079,12 @@ void Gfx_Items_Display(s_TmdFile* tmd, s32 displayItemIdx, s32 loadableItemIdx)
     struct TMD_STRUCT* models;
 
 #ifdef SH_PC_PORT
+    /* Every relink attempt owns the modern-handle disposition, including a
+     * failed/out-of-range stock-pack lookup. Otherwise a slot that previously
+     * held a modern mesh can retain its non-zero id after ->tmd is cleared and
+     * re-emit the previous item's geometry with stale carousel state. */
+    g_Items_ItemsModelData[displayItemIdx].id = 0;
+
     /* s_TmdFile is a raw TMD file image: id/flags/nobj followed by
      * object table (each object 28 bytes on disk, 7×u32). PSX code
      * passed &models[loadableItemIdx] because TMD_STRUCT matched the
@@ -4064,7 +4111,22 @@ void Gfx_Items_Display(s_TmdFile* tmd, s32 displayItemIdx, s32 loadableItemIdx)
             }
         }
         if (obj != NULL) {
+            u8 modernItemId = Pc_ItemUnq_TakeRequestedItemId(loadableItemIdx);
+
             GsLinkObject4_PC(obj, &g_Items_ItemsModelData[displayItemIdx]);
+            if (modernItemId != InvItemId_Unequipped &&
+                Pc_ModernMesh_LinkObject(Pc_ItemUnq_FromItemId(modernItemId),
+                                         &g_Items_ItemsModelData[displayItemIdx]))
+            {
+                SH_DBG("[UNIFIEDITEM] carousel link source=modern slot=%d item=%u file=%d",
+                       (int)displayItemIdx, (unsigned)modernItemId,
+                       (int)Pc_ItemUnq_FromItemId(modernItemId));
+            }
+            else
+            {
+                SH_DBG("[UNIFIEDITEM] carousel link source=stock-pack slot=%d item=%u loadableIdx=%d",
+                       (int)displayItemIdx, (unsigned)modernItemId, (int)loadableItemIdx);
+            }
         } else {
             /* loadableItemIdx has no model in the loaded TMD — e.g. a cheat-added
              * item that isn't in this map's loadableItems, or idx >= nobj.
@@ -4298,7 +4360,9 @@ void func_80054A04(u8 itemId) // 0x80054A04
                 }
             }
             if (_obj != NULL) {
+                D_800C3E08.id = 0;
                 GsLinkObject4_PC(_obj, &D_800C3E08);
+                Pc_ModernMesh_LinkObject(Pc_ItemUnq_FromItemId(D_800AE187), &D_800C3E08);
             } else {
             }
         }
@@ -4542,4 +4606,3 @@ void Items_AmmoReloadCalculation(s32* currentAmmo, s32* availableAmmo, u8 gunIdx
 // `bodyprog_80055028.c` directly.
 const s32 rodataPad_80028524 = 0;
 const s32 rodataPad_80028528 = 0;
- 

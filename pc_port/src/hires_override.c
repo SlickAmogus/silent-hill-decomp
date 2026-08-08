@@ -996,6 +996,16 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
     return 0;
 }
 
+unsigned int HiresOverride_CreateTextureRGBA(const unsigned char* rgba, int w, int h)
+{
+    GLuint texture = 0;
+
+    if (!g_initialized) HiresOverride_Init();
+    if (upload_rgba(&texture, rgba, w, h, 0) != 0)
+        return 0;
+    return (unsigned int)texture;
+}
+
 int HiresOverride_PoolSlotRegisterRGBAKeyed(int slotId, int row,
                                             const unsigned char* rgba, int w, int h,
                                             int nativePixelW, int nativePixelH,

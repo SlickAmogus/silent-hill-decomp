@@ -9,6 +9,7 @@
 #include "bodyprog/math/math.h"
 
 #ifdef SH_PC_PORT
+#include "pc_modern_mesh.h"
 #include "sh_log.h"
 #include <PsyX/PsyX_public.h>
 /* Inventory item-preview aspect: 0 = PSX-faithful (raw 4:3-display look,
@@ -351,10 +352,16 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
     {
         GsClearOt(0, 0, &g_OrderingTable1[g_ActiveBufferIdx]);
         GsSortOt(&g_OrderingTable1[g_ActiveBufferIdx], &g_OrderingTable0[g_ActiveBufferIdx]);
+#ifdef SH_PC_PORT
+        if (!Pc_ModernMesh_Emit(arg1, &g_OrderingTable1[g_ActiveBufferIdx], 1))
+#endif
         GsSortObject4J(arg1, &g_OrderingTable1[g_ActiveBufferIdx], 1, (u32*)PSX_SCRATCH);
     }
     else
     {
+#ifdef SH_PC_PORT
+        if (!Pc_ModernMesh_Emit(arg1, &g_OrderingTable0[g_ActiveBufferIdx], 1))
+#endif
         GsSortObject4J(arg1, &g_OrderingTable0[g_ActiveBufferIdx], 1, (u32*)PSX_SCRATCH);
     }
 
