@@ -938,6 +938,63 @@ void SysState_LoadArea_Update(void) // 0x80039C40
         return;
     }
     fflush(g_ShDebugLog);
+
+    /* Everything below runs to completion inside THIS single tick, and its
+     * blocking parts (GameBoot_MapLoad -> GameFs_PlayerMapAnimLoad ->
+     * Fs_QueueWaitForEmpty) only spin on VSync: they never return to MainLoop's
+     * Screen_FadeUpdate / GsSwapDispBuff / PsyX_EndScene, so not one frame is
+     * presented for the whole multi-second stall and the window keeps showing
+     * the last gameplay frame. Retail's door fade is Screen_BackgroundMotionBlur's
+     * framebuffer feedback, which advances one step per PRESENTED frame, so on
+     * this path it gets a single frame -- "barely fades, then freezes". Run a
+     * real fade to black to completion FIRST, over its own presented frames, and
+     * enter the blocking work only once the screen is already black. Same shape
+     * SysState_Fmv_Update uses: fade out, wait for ScreenFade_IsFinished(), then
+     * block. The far side is untouched -- GameBoot_GameStartup case 11 still
+     * holds 60 vblanks and fires the door-shut SFX, and GameState_InGame_Update
+     * step 0 still fades in. */
+    if (g_SysWork.sysStateSteps[0] == 0)
+    {
+        g_SysWork.sysStateSteps[0] = 1;
+        g_SysWork.sysStateSteps[1] = 0;
+        g_SysWork.sfxPairIdx_2283  = g_MapEventData->sfxPairIdx_8_19;
+
+        /* Retail plays the door-open SFX under the fade, not after it. */
+        SD_Call(SFX_PAIRS[g_SysWork.sfxPairIdx_2283].sfx_0);
+
+        /* Attract demos consume one recorded input entry per frame, so extra
+         * frames desync the recording -- they keep today's presentation and must
+         * not get a fade nothing waits for. A scripted scene that already handed
+         * over on black must not be re-faded, or the world pops back into view.
+         * reset=false so an in-flight fade continues from its current level
+         * instead of snapping, and the colour bit carries over so a scene's
+         * white fade does not turn black. */
+        if (!(g_SysWork.sysFlags & SysFlag_DemoActive) && !ScreenFade_IsFinished())
+        {
+            ScreenFade_Start(false, false, IS_SCREEN_FADE_WHITE(g_Screen_FadeStatus) != 0);
+            g_ScreenFadeTimestep = Q12(0.8f);
+        }
+    }
+
+    /* Budget is accumulated REAL TIME, not a frame count: Screen_FadeUpdate steps
+     * by timestep*dt, so the fade lands in ~1.25 s at 30, 60 and 240 fps alike,
+     * whereas a frame count would only be right while MainLoop happens to pin
+     * this state to 60 Hz. It exists purely so a door can never hang --
+     * ScreenFade_IsFinished() is false in ScreenFadeState_None, which a fade
+     * hijacked mid-transition can leave behind. g_DeltaTimeRaw is substituted
+     * when a deliberate freeze has zeroed it, so the budget always advances. */
+    if (!ScreenFade_IsFinished() && !(g_SysWork.sysFlags & SysFlag_DemoActive) &&
+        g_SysWork.sysStateSteps[1] < Q12(3.0f))
+    {
+        g_SysWork.sysStateSteps[1] += (g_DeltaTimeRaw > Q12(0.0f)) ? g_DeltaTimeRaw : TIMESTEP_60_FPS;
+
+        /* Hold the world still under the fade the way retail's decaying frozen
+         * frame does. The fade runs off g_DeltaTimeRaw and is unaffected, and
+         * BgmStatusFlag_Pause is deliberately NOT set so the world still renders
+         * beneath the fade tile. */
+        g_DeltaTime = Q12(0.0f);
+        return;
+    }
 #endif
 
     g_SysWork.unused_229C            = 0;
@@ -945,7 +1002,9 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     g_SysWork.sfxPairIdx_2283       = g_MapEventData->sfxPairIdx_8_19;
     g_SysWork.field_2282            = g_MapEventData->flags_8_13;
 
+#ifndef SH_PC_PORT
     SD_Call(SFX_PAIRS[g_SysWork.sfxPairIdx_2283].sfx_0);
+#endif
 
     if (g_SysWork.sfxPairIdx_2283 == SfxPairIdx_7)
     {
