@@ -57,6 +57,29 @@
 #define PC_MODERN_AREA_EPSILON      1.0e-30
 #define PC_MODERN_UV_AREA_EPSILON   1.0e-15
 
+/* How far outside 0..1 a UV may stray and still be accepted (then clamped).
+ *
+ * A hard 0..1 reject threw away whole models over authoring slop: a real Blender
+ * export measured V up to 1.0116 on 41 of 6262 vertices (0.65%) -- about three
+ * texels past the edge of a 256 page -- and lost the entire mesh for it. The
+ * embedded texture is uploaded GL_CLAMP_TO_EDGE, so those samples clamp to the
+ * edge texel anyway; rejecting produced a WORSE result (the stock item) than
+ * simply honouring what the sampler would already do.
+ *
+ * It is a tolerance rather than an unconditional clamp because a model authored
+ * to TILE (UVs running 0..2 or 0..4) cannot be honoured by a clamped sampler at
+ * all, and silently flattening its whole second copy onto the edge row is worse
+ * than refusing with a message. 1/32 is ~8 texels of slack at 256 -- generous
+ * for unwrap overhang, nowhere near the 2.0 that signals intended tiling. */
+#define PC_MODERN_UV_TOLERANCE      0.03125f
+
+static float ModernMesh_ClampUv(float uv)
+{
+    if (uv < 0.0f) return 0.0f;
+    if (uv > 1.0f) return 1.0f;
+    return uv;
+}
+
 typedef struct PcModernMeshEntry
 {
     PcModernMesh mesh;
@@ -448,8 +471,16 @@ static int ModernMesh_CheckPrimitive(const cgltf_primitive* primitive,
             p[corner][0] = matrix[0] * raw[0] + matrix[4] * raw[1] + matrix[8] * raw[2] + matrix[12];
             p[corner][1] = matrix[1] * raw[0] + matrix[5] * raw[1] + matrix[9] * raw[2] + matrix[13];
             p[corner][2] = matrix[2] * raw[0] + matrix[6] * raw[1] + matrix[10] * raw[2] + matrix[14];
-            if (t[corner][0] < 0.0f || t[corner][0] > 1.0f || t[corner][1] < 0.0f || t[corner][1] > 1.0f)
-                return ModernMesh_Fail(error, errorCapacity, "UV is outside the closed 0..1 range");
+            if (t[corner][0] < -PC_MODERN_UV_TOLERANCE || t[corner][0] > 1.0f + PC_MODERN_UV_TOLERANCE ||
+                t[corner][1] < -PC_MODERN_UV_TOLERANCE || t[corner][1] > 1.0f + PC_MODERN_UV_TOLERANCE)
+                return ModernMesh_Fail(error, errorCapacity,
+                                       "UV is outside 0..1 by more than the authoring tolerance "
+                                       "(tiled/wrapped UVs cannot be drawn by a clamped sampler)");
+            /* Within tolerance the UV is clamped, not rejected — matching what
+             * GL_CLAMP_TO_EDGE does at sample time. Clamp the local copy too so
+             * the UV-area test below sees the geometry that will actually draw. */
+            t[corner][0] = ModernMesh_ClampUv(t[corner][0]);
+            t[corner][1] = ModernMesh_ClampUv(t[corner][1]);
         }
         for (axis = 0; axis < 3; axis++)
         {
@@ -979,8 +1010,10 @@ static int ModernMesh_Expand(PcModernMeshEntry* entry, int tpage, int clut)
             vertex->y = (float)(C2_OFY / 65536.0 + y * C2_H / z) + drawOffsetY;
             vertex->page = (float)(tpage & 0x1f);
             vertex->clut = (float)clut;
-            vertex->u = texcoord[0] * 256.0f;
-            vertex->v = texcoord[1] * 256.0f;
+            /* Clamped for the same reason the validator tolerates: the sampler is
+             * CLAMP_TO_EDGE, so this is what the hardware would do regardless. */
+            vertex->u = ModernMesh_ClampUv(texcoord[0]) * 256.0f;
+            vertex->v = ModernMesh_ClampUv(texcoord[1]) * 256.0f;
             vertex->r = (unsigned char)(rgba[0] * 128.0f + 0.5f);
             vertex->g = (unsigned char)(rgba[1] * 128.0f + 0.5f);
             vertex->b = (unsigned char)(rgba[2] * 128.0f + 0.5f);
