@@ -1224,6 +1224,16 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PgxpNearZ;
         if (arg[0]) { g_PgxpNearZ = (float)atof(arg); if (g_PgxpNearZ < 1.0f) g_PgxpNearZ = 1.0f; }
         cprintf("PGXP near-clip plane depth: %.1f gte-units", g_PgxpNearZ);
+    } else if (strcmp(cmd, "TXNFADE") == 0) {
+        /* Door out-fade length in seconds. Retail's was however long the CD read
+         * took, so there is no constant to match. */
+        extern s32 g_PcTxnFadeTimestep;
+        if (arg[0]) {
+            float secs = (float)atof(arg);
+            if (secs < 0.05f) secs = 0.05f;
+            g_PcTxnFadeTimestep = (s32)(4096.0f / secs);
+        }
+        cprintf("door out-fade: %.2f s", 4096.0f / (float)g_PcTxnFadeTimestep);
     } else if (strcmp(cmd, "FASTLOAD") == 0) {
         /* Blocking loads otherwise advance one queue state per vblank and copy
          * one 2048 byte sector per call -- ~120 KiB/s regardless of the storage,

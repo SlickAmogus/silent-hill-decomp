@@ -2,6 +2,14 @@
 
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+#ifdef SH_PC_PORT
+#include <time.h>
+/* Transition timing probe; see the [TXNTIME] log in SysState_LoadArea_Update. */
+int g_PcTxnStartMs = 0;
+int g_PcTxnFadeEndMs = 0;
+/* Door out-fade rate, 1/seconds in Q12. Q12(1.6f) ~= 0.63 s. Console TXNFADE. */
+s32 g_PcTxnFadeTimestep = Q12(1.6f);
+#endif
 #include <stdio.h>
 #endif
 
@@ -447,6 +455,7 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
         {
             extern int g_PsxFeedbackStoreAllowed;
             g_PsxFeedbackStoreAllowed = 2;
+            g_PcTxnStartMs = (int)(clock() * 1000 / CLOCKS_PER_SEC);
         }
 #endif
         SysWork_StateSetNext(g_MapEventSysState);
@@ -972,7 +981,11 @@ void SysState_LoadArea_Update(void) // 0x80039C40
         if (!(g_SysWork.sysFlags & SysFlag_DemoActive) && !ScreenFade_IsFinished())
         {
             ScreenFade_Start(false, false, IS_SCREEN_FADE_WHITE(g_Screen_FadeStatus) != 0);
-            g_ScreenFadeTimestep = Q12(0.8f);
+            /* Timestep is 1/seconds. Retail's out-fade lasted as long as the CD
+             * read, so there is no constant to match -- this is chosen to read as
+             * a deliberate fade without dominating a transition whose load is now
+             * fast. Console: TXNFADE <seconds>. */
+            g_ScreenFadeTimestep = g_PcTxnFadeTimestep;
         }
     }
 
@@ -987,6 +1000,7 @@ void SysState_LoadArea_Update(void) // 0x80039C40
         g_SysWork.sysStateSteps[1] < Q12(3.0f))
     {
         g_SysWork.sysStateSteps[1] += (g_DeltaTimeRaw > Q12(0.0f)) ? g_DeltaTimeRaw : TIMESTEP_60_FPS;
+        g_PcTxnFadeEndMs = (int)(clock() * 1000 / CLOCKS_PER_SEC);
 
         /* Hold the world still under the fade the way retail's decaying frozen
          * frame does. The fade runs off g_DeltaTimeRaw and is unaffected, and
@@ -995,6 +1009,14 @@ void SysState_LoadArea_Update(void) // 0x80039C40
         g_DeltaTime = Q12(0.0f);
         return;
     }
+#endif
+
+#ifdef SH_PC_PORT
+    /* Transition timing probe: brackets the blocking work so the black hold can
+     * be attributed to the fade, the queue drain, or the 60-vblank load-screen
+     * hold rather than guessed at. */
+    SH_DBG("[TXNTIME] fade done, blocking work begins (fade took %d ms)",
+           g_PcTxnFadeEndMs - g_PcTxnStartMs);
 #endif
 
     g_SysWork.unused_229C            = 0;
