@@ -2702,3 +2702,48 @@ edits. Two throwaway gates in the scratchpad caught/settled this one:
 2. **Decode equivalence** — one fragment per (highByte, lowByte), running the old
    `decodeRG(packRG(rg))` and the new `lut(rg)` side by side and flagging any
    disagreement. 65536 values, 0 rgb and 0 alpha mismatches on the real driver.
+
+## Modern glTF item models — adaptation completed (2026-08-07, commit `66a498f66`)
+
+The blocker recorded earlier (PR #97's PsyCross half unpublished) is resolved:
+`SlickAmogus/PsyCross` PR #16 supplies `GrModernVertex`, `DR_PSYX_MODERN_MESH`,
+`PsyX_GetItemDepthSzMax` and `PsyX_GetDrawEnvOffset`.
+
+**Cherry-pick gotcha:** a plain `git cherry-pick` produced ONE whole-file conflict
+spanning all 9263 lines of `PsyX_render.cpp`. That is the line-ending signature,
+not a content clash — our HEAD had converted the file to LF while the PR and its
+base (`09aa645`) are CRLF, so every line read as changed. `-Xrenormalize` applies
+it cleanly. Worth remembering for any future PsyCross pick.
+
+**Taken:** cgltf, `pc_modern_{mesh,vertex,shader,depth}`, `pc_item_unq`, the
+`item_screens_3` / `item_screens_cam` hooks, the modding guide, three unit tests,
+and `HiresOverride_CreateTextureRGBA` — that last one ported by hand rather than
+checked out, because our `hires_override.c` has diverged too far (LRU eviction,
+native-restore, the budget derivation) to take the PR's copy of the file.
+
+**Not taken**, and nothing left references them: `pc_autopilot.c` (1326 lines of
+env-gated capture harness) plus its hooks in `main_pc.c` / `game_main.c` /
+`pc_mouse_cursor.c`; the Harry native-read status plumbing
+(`pc_fsqueue_read_status` + `fsqueue_1/2/3` + three tests + CMake targets); and
+the `libgs_stub` deterministic-clock change, which rewrites the vcount path this
+game's timing depends on. The autopilot's one diagnostic call in
+`Gfx_ItemScreens_DrawInit` was removed by hand.
+
+**`maps/CMakeLists.txt` IS taken** — and it is a real fix, not scope creep. Map
+DLLs linked `psycross_static` *and* the exe's import library, giving every DLL a
+second PsyCross copy, with `--allow-multiple-definition` papering over the
+duplicate. That collapses the moment PsyCross calls back into `Pc_Modern*`: the
+archive copy cannot resolve callbacks that live in the exe, and all 43 DLLs fail
+to link. The pre-existing comment already named "drop psycross_static from this
+link and rely solely on the exe's import lib" as the intended cleanup; this does
+it, and drops the now-unnecessary `--allow-multiple-definition`.
+
+**Builds clean:** `SilentHillPC.exe` + all 43 map DLLs; `cgltf`/`UNIFIEDITEM`
+strings confirmed present in the binary.
+
+**Two caveats.** The PsyCross submodule now points at a LOCAL commit (`b20b150`)
+— PsyCross must be pushed before this tree is cloned elsewhere. And none of this
+is verified in game: the feature is opt-in behind `allow_loose_files = 1` and a
+sibling `ITEM/UNQ*.glb`, and falls back to the retail model on anything missing
+or unsupported, so the risk of leaving it untested is contained to the glTF path
+itself.
