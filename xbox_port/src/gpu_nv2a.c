@@ -60,6 +60,8 @@ static uint32_t* s_whiteTex;  /* opaque white, for untextured prims */
  * so this buffer stays intact for two more frames — long enough for the gated
  * framebuffer->PSX-VRAM readback (gpu_xbox.c) to read it mid-walk. */
 static const void* s_lastQueuedFb;
+static int         s_freezePending;   /* freeze capture requested; runs at FrameBegin */
+static void        FreezeRunPending(void);
 
 static int s_frameW, s_frameH;
 
@@ -304,6 +306,13 @@ void GpuNv2a_FrameBegin(void)
         }
     }
 
+    /* A capture requested since the last FrameBegin runs HERE: the pushbuffer has
+     * just been reset and the back buffer is the target, which is the state the
+     * retarget/restore pair expects. It also runs before the clear below, and
+     * before the FreezeBlit that will read it later this frame. */
+    if (s_freezePending)
+        FreezeRunPending();
+
     pb_erase_depth_stencil_buffer(0, 0, s_frameW, s_frameH);
     /* Clear to the PSX draw-env isbg background — in-game GsSortClear sets it
      * to the FOG colour (game_main.c background2dColor = fog.color), so the
@@ -484,15 +493,21 @@ const void* GpuNv2a_ReadbackSurface(int fromLastQueued, int* w, int* h, int* pit
  * gameplay render), then blit it under each subsequent frame so only that
  * state's UI draws on top.
  *
- * Why capture-once + CPU blit rather than re-presenting the old buffer: the
- * buffers alternate and get cleared, and the UI (a rotating pickup model) must
- * compose over a CLEAN copy each frame or it smears. The one-time readback of
- * write-combined memory is the known ~20ms cost (never per-frame, and only at
- * the moment of pausing); the per-frame direction is a plain RAM->WC write,
- * which is fast. Allocation failure degrades to the old grey, never a crash. */
-static void* s_freezeBuf;                      /* GPU-visible R5G6B5, w*h*2 */
+ * Why capture-once rather than re-presenting the old buffer: the buffers rotate
+ * and get cleared, and the UI (a rotating pickup model) must compose over a CLEAN
+ * copy each frame or it smears.
+ *
+ * The copy is done BY THE GPU into a pbkit extra render target. It used to be a
+ * CPU readback of the framebuffer, which measured 165ms at 720p -- CPU reads of
+ * write-combined memory run about 20MB/s, so 3.6MB is a hard floor no amount of
+ * loop tuning beats, and every pause/pickup/map-message paid it (long enough to
+ * starve the VSync-driven audio pump, which is what made dialogue stutter). The
+ * GPU reads the same memory at video-bandwidth: bind the last completed frame as
+ * a texture, draw one 1:1 quad into the extra buffer. Point sampling and matching
+ * size make it an exact copy, not a resample. */
 static int   s_freezeW, s_freezeH;
-static int   s_freezeValid;                    /* buffer holds a captured frame */
+static int   s_freezeValid;                    /* extra buffer holds a captured frame */
+static int   s_freezeReady;                    /* pb_extra_buffers(1) succeeded */
 
 /* Defined below this point; the freeze path is the first caller. */
 static void BindTextureBpp(const void* addr, int w, int h, int bpp);
@@ -501,78 +516,14 @@ void  GpuNv2a_BindWhite(void);
 void  GpuNv2a_EmitTris(const ShVertex* verts, int count);
 void* GpuNv2a_AllocTexMem(int bytes);
 
-/* RESERVE THE BUFFER ONCE, ON THE FIRST FRAME. It used to be malloc'd on each
- * pause and freed on each unpause, which only worked while the heap was roomy:
- * at 720p the buffer is 1280*720*4 = ~3.6MB but in-game free memory bottoms out
- * near 2.5MB once the map and its chunk buffers are in, so the re-allocation
- * failed and pause/pickup fell back to the grey clear. Taking it up front —
- * before the map loads and before the texture cache fills — makes the feature
- * resolution-independent; the cache simply fills to the same reserve floor with
- * correspondingly fewer slots. */
-void GpuNv2a_FreezeReserve(void)
-{
-    extern unsigned Xbox_MemFreeKB(void);
-    int    w = (int)pb_back_buffer_width();
-    int    h = (int)pb_back_buffer_height();
-    size_t bytes;
-
-    if (s_freezeBuf || w <= 0 || h <= 0)
-        return;
-    bytes       = (size_t)w * (size_t)h * 2;
-    s_freezeBuf = GpuNv2a_AllocTexMem((int)bytes);
-    s_freezeW   = w;
-    s_freezeH   = h;
-    SH_DBG("[FREEZE] reserve %s: %dKB (%dx%d R5G6B5) free=%uKB",
-           s_freezeBuf ? "ok" : "FAILED", (int)(bytes / 1024), w, h, Xbox_MemFreeKB());
-}
-
-int GpuNv2a_FreezeCapture(void)
-{
-    int         w = 0, h = 0, pitch = 0;
-    const void* fb = GpuNv2a_ReadbackSurface(1 /* last COMPLETED frame */, &w, &h, &pitch);
-    int         y, x, t0 = GpuNv2a_Ms();
-
-    if (!fb || w <= 0 || h <= 0 || pitch <= 0)
-        return 0;
-    if (!s_freezeBuf || w != s_freezeW || h != s_freezeH)
-        return 0;                              /* reserved at a different size */
-
-    /* A8R8G8B8 -> R5G6B5. The source read (uncached write-combined memory) is
-     * what costs; the shift/pack rides along free. Storing 16-bit halves both
-     * the footprint and the GPU's per-frame texture fetch. */
-    for (y = 0; y < h; y++) {
-        const uint32_t* srow = (const uint32_t*)((const uint8_t*)fb + (size_t)y * pitch);
-        uint16_t*       drow = (uint16_t*)s_freezeBuf + (size_t)y * w;
-        for (x = 0; x < w; x++) {
-            uint32_t c = srow[x];
-            drow[x] = (uint16_t)((((c >> 16) & 0xF8) << 8)
-                                 | (((c >> 8) & 0xFC) << 3)
-                                 | ((c & 0xF8) >> 3));
-        }
-    }
-    __asm__ __volatile__("sfence" ::: "memory");   /* publish to the GPU */
-    s_freezeValid = 1;
-    SH_DBG("[FREEZE] capture %dx%d in %dms", w, h, GpuNv2a_Ms() - t0);
-    return 1;
-}
-
-/* Re-present the frozen frame as a fullscreen textured quad. This replaces a
- * per-frame CPU memcpy of the whole framebuffer (3.6MB at 720p, into
- * write-combined memory — the reason pause/pickup felt sluggish) with one draw
- * the GPU does in parallel. 1:1 texel-to-pixel with point sampling, so the
- * result is pixel-exact, not a resample. */
-void GpuNv2a_FreezeBlit(void)
+/* Draw a 1:1 fullscreen quad sampling `src` (A8R8G8B8, w x h) into the CURRENT
+ * render target. Point sampling + matching size => an exact copy. Depth off:
+ * both users are painter's-order background passes. */
+static void FreezeCopyQuad(const void* src, int w, int h)
 {
     ShVertex v[6];
-    float    fw, fh;
+    float    fw = (float)w, fh = (float)h;
     int      i;
-
-    if (!s_freezeBuf || !s_freezeValid || s_freezeW <= 0 || s_freezeH <= 0)
-        return;
-    /* Cover the ENTIRE framebuffer, pillarboxing included — the capture is the
-     * whole back buffer, not just the 4:3 content rect. */
-    fw = (float)s_freezeW;
-    fh = (float)s_freezeH;
 
     memset(v, 0, sizeof(v));
     for (i = 0; i < 6; i++) {
@@ -586,16 +537,75 @@ void GpuNv2a_FreezeBlit(void)
     v[4].pos[0] = fw;   v[4].pos[1] = fh;   v[4].tex[0] = fw;   v[4].tex[1] = fh;
     v[5] = v[2];
 
-    /* Painter's order: the UI draws over this later in the frame. Depth off so
-     * the quad neither tests nor writes Z (the item-pickup depth bracket runs
-     * later and sets its own state). */
     GpuNv2a_SetDepthTest(0);
     GpuNv2a_SetDepthWrite(0);
     GpuNv2a_SetBlendMode(0);
     GpuNv2a_SetScissor(0, 0, 0, 0);            /* game's next PutDrawEnv restores it */
-    BindTextureBpp(s_freezeBuf, s_freezeW, s_freezeH, 2);
+    BindTextureBpp(src, w, h, 4);
     GpuNv2a_EmitTris(v, 6);
-    GpuNv2a_FlushBatch();                      /* draw it NOW, under everything else */
+    GpuNv2a_FlushBatch();                      /* must land before the target changes */
+}
+
+/* The extra buffer is allocated inside pb_init (see pb_extra_buffers(1) in
+ * main_xbox.c), so there is nothing to reserve here -- just latch the geometry
+ * and confirm the target exists. Kept as a function because FrameBegin calls it
+ * once and the log line is the evidence that the feature is live. */
+void GpuNv2a_FreezeReserve(void)
+{
+    int w = (int)pb_back_buffer_width();
+    int h = (int)pb_back_buffer_height();
+
+    if (s_freezeW || w <= 0 || h <= 0)
+        return;
+    s_freezeW     = w;
+    s_freezeH     = h;
+    s_freezeReady = (pb_extra_buffer(0) != NULL);
+    SH_DBG("[FREEZE] target %s: %dx%d (GPU copy, no CPU readback)",
+           s_freezeReady ? "ok" : "MISSING", w, h);
+}
+
+/* Perform a pending capture. Called from FrameBegin, AFTER pb_reset() and
+ * pb_target_back_buffer() -- i.e. inside a normal frame's pushbuffer state.
+ * FreezeCapture itself runs between FrameEnd and FrameBegin, where the
+ * pushbuffer has not been reset yet, so it only records the request. */
+static void FreezeRunPending(void)
+{
+    const void* src = s_lastQueuedFb;          /* the last COMPLETED frame */
+
+    s_freezePending = 0;
+    if (!src)
+        return;
+    /* Retarget the colour buffer to the extra surface, let the GPU copy the
+     * frame into it, then restore. No pb_busy() spin and no CPU read of video
+     * memory -- that is the entire 165ms. set_draw_buffer moves only the colour
+     * target, so the depth buffer and all other state stay as they are. */
+    pb_target_extra_buffer(0);
+    FreezeCopyQuad(src, s_freezeW, s_freezeH);
+    pb_target_back_buffer();
+    GpuNv2a_BindWhite();
+    s_freezeValid = 1;
+}
+
+int GpuNv2a_FreezeCapture(void)
+{
+    if (!s_freezeReady || !s_lastQueuedFb || s_freezeW <= 0 || s_freezeH <= 0)
+        return 0;
+    s_freezePending = 1;                       /* runs at the next FrameBegin */
+    return 1;
+}
+
+/* Re-present the frozen frame under this frame's UI. One quad; the GPU does it
+ * in parallel with the CPU instead of a per-frame multi-megabyte memcpy. */
+void GpuNv2a_FreezeBlit(void)
+{
+    const void* src;
+
+    if (!s_freezeReady || !s_freezeValid || s_freezeW <= 0 || s_freezeH <= 0)
+        return;
+    src = (const void*)pb_extra_buffer(0);
+    if (!src)
+        return;
+    FreezeCopyQuad(src, s_freezeW, s_freezeH);
     GpuNv2a_BindWhite();
 }
 

@@ -218,6 +218,14 @@ int main(void)
 
     Gte_SelfTest();
 
+    /* One extra render target for the freeze-frame (pause / item pickup / map
+     * messages). MUST precede pb_init -- pb_extra_buffers only records the count
+     * and the allocation happens inside pb_init. The GPU copies the last frame
+     * into it, replacing a CPU readback of the framebuffer that measured 165ms at
+     * 720p (uncached reads of write-combined memory run ~20MB/s, so 3.6MB is a
+     * hard floor no loop can beat). Same size/pitch/format as the back buffer. */
+    pb_extra_buffers(1);
+
     int status = pb_init();
     if (status) {
         debugPrint("pb_init failed: %d\n", status);
