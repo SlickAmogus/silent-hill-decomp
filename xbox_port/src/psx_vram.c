@@ -32,6 +32,7 @@ typedef struct {
     uint32_t* argb;
     unsigned  lastUse;        /* frame of last GetTexture hit (LRU eviction) */
     unsigned  seq;            /* monotonic bind order; > s_drainedSeq => GPU may still read it */
+    unsigned  hits;           /* aged use count: protects every-frame pages from churn */
     /* Source-VRAM footprint of this decoded page, in 16-bit words, [x0,x1) x
      * [y0,y1). Page rect and CLUT rect are tracked separately so a CLUT-only
      * write still invalidates an indexed page that samples it. */
@@ -44,6 +45,7 @@ static int      s_cacheAlloc;   /* slots with real memory (<= CACHE_N) */
 static int      s_memoSlot = -1;/* last slot returned; re-checked against key before reuse */
 static unsigned s_bindSeq;      /* increments on every bind (hit or fill) */
 static unsigned s_drainedSeq;   /* s_bindSeq at the last GPU drain: everything <= this is consumed */
+static unsigned s_ageFrame;     /* last frame the hit counts were halved */
 static int      s_decodeTotal;
 static int      s_stpLogged;    /* [STP] census: only the first 12 decodes are logged */
 unsigned        g_PsxDecodeMs;  /* ms spent in DecodePage this frame (gpu_nv2a.c reports it) */
@@ -429,6 +431,7 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
         if (s_cache[i].key == key && s_cache[i].argb) {
             s_cache[i].lastUse = (unsigned)g_Nv2aFrameCount;
             s_cache[i].seq     = ++s_bindSeq;
+            if (s_cache[i].hits < 0xFFFF) s_cache[i].hits++;
             s_memoSlot         = i;
             return s_cache[i].argb;
         }
@@ -464,7 +467,18 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
     {
         int      best = -1, bestPinned = -1;
         unsigned bestUse = 0xFFFFFFFFu, bestPinnedUse = 0xFFFFFFFFu;
+        unsigned bestHits = 0xFFFFFFFFu;
         unsigned thisFrame = (unsigned)g_Nv2aFrameCount;
+
+        /* Age every count periodically. Without decay an early-scene page keeps a
+         * high score forever and becomes unevictable long after the room changed;
+         * halving lets the ranking follow the CURRENT scene. */
+        if (thisFrame != s_ageFrame && (thisFrame & 255) == 0) {
+            int k;
+            s_ageFrame = thisFrame;
+            for (k = 0; k < CACHE_N; k++)
+                s_cache[k].hits >>= 1;
+        }
 
         /* GROW ON DEMAND before considering eviction. The cache is sized ONCE,
          * on the first textured prim (the boot logo) — long before any map is
@@ -521,7 +535,20 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
              * so those slots are legal again WITHOUT losing their LRU age. */
             if (s_cache[i].lastUse == thisFrame && s_cache[i].seq > s_drainedSeq)
                 continue;                                    /* in flight — not evictable */
-            if (s_cache[i].lastUse < bestUse) { bestUse = s_cache[i].lastUse; best = i; }
+            /* Pick the COLDEST page, not merely the oldest. Log 048's miss
+             * classifier reads evict=78501 inval=150: the working set genuinely
+             * exceeds the 42 slots 720p leaves us, and under that pressure plain
+             * LRU is the worst possible policy -- it keeps throwing out the pages
+             * drawn EVERY frame (font, UI, the room's own walls) because they are
+             * touched early in the frame and so look "old" by the end of it. Rank
+             * by aged use-count first, oldest as tie-break, so pages that keep
+             * proving useful survive and one-shot pages absorb the churn. */
+            if (s_cache[i].hits < bestHits ||
+                (s_cache[i].hits == bestHits && s_cache[i].lastUse < bestUse)) {
+                bestHits = s_cache[i].hits;
+                bestUse  = s_cache[i].lastUse;
+                best     = i;
+            }
         }
         /* Out of evictable slots: every allocated slot was bound earlier in THIS
          * frame. Stealing one anyway rewrites texels the GPU has not sampled yet,
@@ -593,6 +620,10 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
     s_cache[i].key     = key;
     s_cache[i].lastUse = (unsigned)g_Nv2aFrameCount;
     s_cache[i].seq     = ++s_bindSeq;
+    /* Seed at 1, not 0: a page we just paid 256KB to decode must not be the very
+     * next victim, or every miss evicts the previous miss and the cache degrades
+     * into a one-slot ring. It earns its keep from here by being hit again. */
+    s_cache[i].hits    = 1;
     s_memoSlot         = i;
 
     /* WHY this miss happened. The cafe fight burns 20ms/frame decoding (36
