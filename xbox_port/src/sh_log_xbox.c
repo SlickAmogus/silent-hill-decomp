@@ -29,11 +29,22 @@ int g_XboxLogDiag = 0;
 int Sh_LogAllow(const char* fmt)
 {
     static const char* const GATED[] = {
-        "[SH_AUDIO]", "[SH_BGM]", "[UIDIAG]", "[FT]", "[UPD]", "[UPD2]", "[POST]",
+        "[SH_AUDIO]", "[SH_BGM]", "[UIDIAG]", "[UPD]", "[UPD2]", "[POST]",
         "[OTT]", "[OTS]", "[FOGST]", "[FOGPAD]", "[ABR]", "[WALLSTOP]",
         "[WALL-HIT]", "[RAIN]", "[FSQ]", "[SS]", "[FXDROP]", "[BATCH]", "[STORE]",
+        "[BIGPRIM]",
         /* NOT gated: [MEM] (RAM tick every ~10s -- the leak/creep diagnostic;
-         * gating it hid the exact data needed to chase a progressive slowdown). */
+         * gating it hid the exact data needed to chase a progressive slowdown).
+         *
+         * NOT gated: [FT]. It was gated, and that is why four sessions of
+         * slowdown reports carried no frame timing at all -- every perf theory
+         * had to be inferred from side effects. It is one line per 120 frames
+         * (~4/minute); the flood it was grouped with was per-frame probes.
+         *
+         * GATED: [BIGPRIM]. It is rate-limited 1/32 and still produced 11725 of
+         * log 042's 16731 lines -- 70% of the file -- crowding out the data that
+         * mattered. It has already told us what it can (the cafe draws ~6400
+         * screen-sized prims); re-enable with log_diag=1 if needed again. */
     };
     int i;
     if (g_XboxLogDiag)          return 1;   /* diag on: keep everything */

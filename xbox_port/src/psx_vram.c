@@ -43,6 +43,9 @@ static int      s_cacheAlloc;   /* slots with real memory (<= CACHE_N) */
 static unsigned s_bindSeq;      /* increments on every bind (hit or fill) */
 static unsigned s_drainedSeq;   /* s_bindSeq at the last GPU drain: everything <= this is consumed */
 static int      s_decodeTotal;
+static int      s_stpLogged;    /* [STP] census: only the first 12 decodes are logged */
+unsigned        g_PsxDecodeMs;  /* ms spent in DecodePage this frame (gpu_nv2a.c reports it) */
+unsigned        g_PsxDecodeCount;
 
 extern int g_Nv2aFrameCount;  /* LRU clock (gpu_nv2a.c, ticks per frame) */
 
@@ -263,23 +266,61 @@ static void DecodePage(int tpage, int clut, uint32_t* out)
     int u, v;
     int zeroCount = 0, stp1Count = 0;
 
-    for (v = 0; v < TEX_DIM; v++) {
-        const uint16_t* row = &s_vram[((ty + v) & (VRAM_H - 1)) * VRAM_W];
-        uint32_t*       o   = &out[v * TEX_DIM];
-        for (u = 0; u < TEX_DIM; u++) {
-            uint16_t texel;
-            if (tp == 0) {                        /* 4-bit indexed */
-                uint16_t word = row[(tx + (u >> 2)) & (VRAM_W - 1)];
-                texel = clutRow[(word >> ((u & 3) * 4)) & 0x0F];
-            } else if (tp == 1) {                 /* 8-bit indexed */
-                uint16_t word = row[(tx + (u >> 1)) & (VRAM_W - 1)];
-                texel = clutRow[(word >> ((u & 1) * 8)) & 0xFF];
-            } else {                              /* 16-bit direct */
-                texel = row[(tx + u) & (VRAM_W - 1)];
+    /* Log 043 measured 7680 page decodes in one short session, densely clustered
+     * in the cafe fight -- 65536 texels each. The old loop ran the tp test AND a
+     * full BGR555->ARGB conversion PER TEXEL (16.7M conversions there). Indexed
+     * pages only ever reference 16 or 256 distinct colours, so convert the CLUT
+     * once and make the inner loop a table lookup, with the format branch hoisted
+     * out of the loops entirely. Byte-identical output, a fraction of the work.
+     * The transparent/STP census is diagnostic and only consumed for the first
+     * 12 decodes, so it is gated instead of running per texel forever. */
+    {
+        const int census = (s_decodeTotal > 60 && s_stpLogged < 12);
+        uint32_t  pal[256];
+        int       palN = (tp == 0) ? 16 : (tp == 1) ? 256 : 0;
+
+        for (u = 0; u < palN; u++) {
+            uint16_t c = clutRow[u];
+            pal[u] = Psx16ToArgb(c);
+            if (census) {
+                if (c == 0)          zeroCount++;
+                else if (c & 0x8000) stp1Count++;
             }
-            if (texel == 0)          zeroCount++;
-            else if (texel & 0x8000) stp1Count++;
-            o[u] = Psx16ToArgb(texel);
+        }
+
+        for (v = 0; v < TEX_DIM; v++) {
+            const uint16_t* row = &s_vram[((ty + v) & (VRAM_H - 1)) * VRAM_W];
+            uint32_t*       o   = &out[v * TEX_DIM];
+
+            /* The word index still wraps (an 8-bit page is 128 words wide and a
+             * high tpage x would walk past the row end), but now once per word
+             * instead of once per texel. */
+            if (tp == 0) {                        /* 4-bit: one word feeds 4 texels */
+                int i = 0;
+                for (u = 0; u < TEX_DIM; u += 4, i++) {
+                    uint16_t w = row[(tx + i) & (VRAM_W - 1)];
+                    o[u    ] = pal[w & 0x0F];
+                    o[u + 1] = pal[(w >> 4) & 0x0F];
+                    o[u + 2] = pal[(w >> 8) & 0x0F];
+                    o[u + 3] = pal[(w >> 12) & 0x0F];
+                }
+            } else if (tp == 1) {                 /* 8-bit: one word feeds 2 texels */
+                int i = 0;
+                for (u = 0; u < TEX_DIM; u += 2, i++) {
+                    uint16_t w = row[(tx + i) & (VRAM_W - 1)];
+                    o[u    ] = pal[w & 0xFF];
+                    o[u + 1] = pal[(w >> 8) & 0xFF];
+                }
+            } else {                              /* 16-bit direct: no palette */
+                for (u = 0; u < TEX_DIM; u++) {
+                    uint16_t texel = row[(tx + u) & (VRAM_W - 1)];
+                    if (census) {
+                        if (texel == 0)          zeroCount++;
+                        else if (texel & 0x8000) stp1Count++;
+                    }
+                    o[u] = Psx16ToArgb(texel);
+                }
+            }
         }
     }
     __asm__ __volatile__("sfence" ::: "memory");  /* flush write-combined texels */
@@ -289,7 +330,6 @@ static void DecodePage(int tpage, int clut, uint32_t* out)
      * per-texel semi-transparency is in use (stp1>0). First 12 pages decoded
      * past the boot/menu churn only. */
     {
-        static int s_stpLogged = 0;
         if (s_decodeTotal > 60 && s_stpLogged < 12) {
             s_stpLogged++;
             SH_DBG("[STP] tpage=0x%x clut=0x%x zero=%d stp1=%d", tpage, clut, zeroCount, stp1Count);
@@ -481,7 +521,14 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
     if (((tpage >> 7) & 3) >= 2 &&
         GpuXbox_FbRegionOverlap(s_cache[i].px0, s_cache[i].py0, s_cache[i].px1, s_cache[i].py1))
         GpuXbox_FbReadbackForTexture();
-    DecodePage(tpage, clut, s_cache[i].argb);
+    {   /* charge the decode to this frame so [FRAME] can separate CPU decode
+         * cost from submission cost from GPU wait -- the cafe question. */
+        extern int GpuNv2a_Ms(void);
+        int t0 = GpuNv2a_Ms();
+        DecodePage(tpage, clut, s_cache[i].argb);
+        g_PsxDecodeMs += (unsigned)(GpuNv2a_Ms() - t0);
+        g_PsxDecodeCount++;
+    }
     s_cache[i].key     = key;
     s_cache[i].lastUse = (unsigned)g_Nv2aFrameCount;
     s_cache[i].seq     = ++s_bindSeq;

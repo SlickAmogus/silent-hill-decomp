@@ -406,12 +406,31 @@ void GpuNv2a_FrameEnd(void)
      * frames); swapWait = ms blocked in pb_finished (GPU behind = fill/draw
      * bound); a large swapWait vs frame => GPU-bound, small => CPU-bound. */
     {
+        extern unsigned g_PsxDecodeMs, g_PsxDecodeCount;   /* psx_vram.c */
         static unsigned s_dbgFrame, s_lastEnd;
+        static unsigned s_accMs, s_accDec, s_accDecMs, s_accDraws, s_worstMs;
+        unsigned        dt = s_lastEnd ? (tNow - s_lastEnd) : 0;
+
+        /* Accumulate over the reporting window so one line describes 120 frames
+         * rather than whichever single frame happened to land on the modulo --
+         * a spike scene is about the AVERAGE and the WORST, not a sample. */
+        s_accMs    += dt;
+        s_accDec   += g_PsxDecodeCount;
+        s_accDecMs += g_PsxDecodeMs;
+        s_accDraws += s_flushCount;
+        if (dt > s_worstMs) s_worstMs = dt;
+
         if ((++s_dbgFrame % 120) == 0) {
-            SH_DBG("[FT] frame=%ums swapWait=%ums flushMs=%ums draws=%u verts=%d",
-                   s_lastEnd ? (tNow - s_lastEnd) : 0, tNow - tSwap, tSwap - tFlush,
-                   s_flushCount, s_batchUsed);
+            /* avgMs vs worstMs = steady cost vs hitches. decMs is CPU time inside
+             * DecodePage; swapWait is time blocked waiting on the GPU. decMs high
+             * => texture thrash (capacity); swapWait high => fill/draw bound (the
+             * overdraw theory); neither => the cost is elsewhere in the game tick. */
+            SH_DBG("[FT] avgMs=%u worstMs=%u swapWait=%ums flushMs=%ums draws=%u decodes=%u decMs=%u",
+                   s_accMs / 120, s_worstMs, tNow - tSwap, tSwap - tFlush,
+                   s_accDraws / 120, s_accDec, s_accDecMs);
+            s_accMs = s_accDec = s_accDecMs = s_accDraws = s_worstMs = 0;
         }
+        g_PsxDecodeMs = g_PsxDecodeCount = 0;   /* per-frame counters */
         s_lastEnd = tNow;
     }
     s_flushCount = 0;
