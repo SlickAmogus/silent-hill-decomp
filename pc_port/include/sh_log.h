@@ -101,4 +101,30 @@ int        Sh_LogAllow(const char* fmt);
     } \
 } while (0)
 
+#ifdef SH_XBOX_PORT
+/* Item-TMD sanity gate (Xbox). Log 042 ended in an access violation inside
+ * Inventory_PlayerItemScroll reading 0x28280000 -- a wild pointer produced by
+ * GsMapModelingData walking a FS_BUFFER_8 that did not hold a valid TMD (the
+ * queued read had not landed, or the slab was reused under it). The buffer
+ * ADDRESS is a fixed PSX-RAM slab and is always safe to read; only its CONTENTS
+ * go bad, so this checks the header rather than the pointer -- no pointer
+ * magnitude cap is involved (those fold to no-ops or eat live data on 32-bit).
+ * A bad buffer skips the draw for that frame instead of crashing, and says so. */
+static inline int Xbox_TmdBufferValid(const void* buf, const char* who)
+{
+    const int* h = (const int*)buf;
+    static int s_tmdWarned = 0;
+
+    if (buf != 0 && h[0] == 0x41 && h[2] > 0 && h[2] <= 512)
+        return 1;
+    if (s_tmdWarned < 8)
+    {
+        s_tmdWarned++;
+        SH_DBG("[TMDGUARD] %s: FS_BUFFER_8 is not a TMD (id=0x%X models=%d) - draw skipped",
+               who, buf ? (unsigned)h[0] : 0u, buf ? h[2] : 0);
+    }
+    return 0;
+}
+#endif /* SH_XBOX_PORT */
+
 #endif /* SH_LOG_H */

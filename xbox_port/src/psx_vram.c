@@ -30,6 +30,7 @@ typedef struct {
     int       key;
     uint32_t* argb;
     unsigned  lastUse;        /* frame of last GetTexture hit (LRU eviction) */
+    unsigned  seq;            /* monotonic bind order; > s_drainedSeq => GPU may still read it */
     /* Source-VRAM footprint of this decoded page, in 16-bit words, [x0,x1) x
      * [y0,y1). Page rect and CLUT rect are tracked separately so a CLUT-only
      * write still invalidates an indexed page that samples it. */
@@ -39,6 +40,8 @@ typedef struct {
 static TexEntry s_cache[CACHE_N];
 static int      s_cacheReady;
 static int      s_cacheAlloc;   /* slots with real memory (<= CACHE_N) */
+static unsigned s_bindSeq;      /* increments on every bind (hit or fill) */
+static unsigned s_drainedSeq;   /* s_bindSeq at the last GPU drain: everything <= this is consumed */
 static int      s_decodeTotal;
 
 extern int g_Nv2aFrameCount;  /* LRU clock (gpu_nv2a.c, ticks per frame) */
@@ -339,6 +342,7 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
     for (i = 0; i < CACHE_N; i++)
         if (s_cache[i].key == key && s_cache[i].argb) {
             s_cache[i].lastUse = (unsigned)g_Nv2aFrameCount;
+            s_cache[i].seq     = ++s_bindSeq;
             return s_cache[i].argb;
         }
 
@@ -415,7 +419,11 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
             if (!s_cache[i].argb) continue;
             if (s_cache[i].key == -1) { best = i; break; }
             if (s_cache[i].lastUse < bestPinnedUse) { bestPinnedUse = s_cache[i].lastUse; bestPinned = i; }
-            if (s_cache[i].lastUse == thisFrame) continue;   /* in flight — not evictable */
+            /* In flight = bound this frame AND not yet consumed by a drain. Once a
+             * drain has happened, everything bound before it has been rasterized,
+             * so those slots are legal again WITHOUT losing their LRU age. */
+            if (s_cache[i].lastUse == thisFrame && s_cache[i].seq > s_drainedSeq)
+                continue;                                    /* in flight — not evictable */
             if (s_cache[i].lastUse < bestUse) { bestUse = s_cache[i].lastUse; best = i; }
         }
         /* Out of evictable slots: every allocated slot was bound earlier in THIS
@@ -432,19 +440,29 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
         if (best < 0) {
             static unsigned s_drains;
             static unsigned s_drainFrame = 0xFFFFFFFFu;
-            static int      s_drainThisFrame, s_drainWorst;
+            static int      s_drainThisFrame, s_drainWorst, s_drainMsTotal;
             extern void GpuNv2a_DrainGpu(void);
+            extern int  GpuNv2a_Ms(void);
+            int         td = GpuNv2a_Ms();
             GpuNv2a_DrainGpu();
-            for (i = 0; i < CACHE_N; i++)
-                s_cache[i].lastUse = 0;             /* consumed => unpinned */
+            s_drainMsTotal += GpuNv2a_Ms() - td;   /* what the stalls actually cost */
+            /* Mark everything bound so far as consumed. This used to zero every
+             * slot's lastUse, which unpinned them but ALSO destroyed the LRU
+             * ages -- afterwards every slot looked equally old, so the next
+             * evictions picked near-arbitrary victims, threw out hot pages, and
+             * caused more misses, which caused more drains. That feedback loop is
+             * why the drains arrived in dense bursts (all 2049 of log 042 fell in
+             * one stretch: the cafe fight) instead of tapering off. Recording the
+             * bind counter unpins without touching the ages. */
+            s_drainedSeq = s_bindSeq;
             best = bestPinned;
             /* Each drain is a full GPU stall, so track the per-frame worst case:
              * that is the number to watch if a scene feels slow after this. */
             if (thisFrame != s_drainFrame) { s_drainFrame = thisFrame; s_drainThisFrame = 0; }
             if (++s_drainThisFrame > s_drainWorst) s_drainWorst = s_drainThisFrame;
             if ((++s_drains & 63) == 1)
-                SH_DBG("[VRAM] out of slots -> GPU drain #%u (alloc=%d worstPerFrame=%d)",
-                       s_drains, s_cacheAlloc, s_drainWorst);
+                SH_DBG("[VRAM] out of slots -> GPU drain #%u (alloc=%d worstPerFrame=%d totalMs=%d)",
+                       s_drains, s_cacheAlloc, s_drainWorst, s_drainMsTotal);
         }
         if (best < 0)
             return 0;                      /* cache never allocated */
@@ -466,6 +484,7 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
     DecodePage(tpage, clut, s_cache[i].argb);
     s_cache[i].key     = key;
     s_cache[i].lastUse = (unsigned)g_Nv2aFrameCount;
+    s_cache[i].seq     = ++s_bindSeq;
     /* A miss = a 256x256 decode. After the cache fills this should go quiet; if it
      * keeps climbing the working set exceeds CACHE_N (thrashing -> slow). */
     if ((++s_decodeTotal & 511) == 0)

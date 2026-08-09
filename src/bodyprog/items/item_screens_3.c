@@ -2592,6 +2592,10 @@ void Inventory_PlayerItemScroll(u32* selectedItemId) // 0x800523D8
                 {
                     if (g_SavegamePtr->items[D_800C3E18[7]].id_0 == g_Item_MapLoadableItems[k])
                     {
+#ifdef SH_XBOX_PORT
+                        if (!Xbox_TmdBufferValid((const void*)FS_BUFFER_8, "inv7"))
+                            break;
+#endif
                         Gfx_Items_Display((s_TmdFile*)FS_BUFFER_8, 7, k);
                         func_8005487C(7);
                         k = INV_ITEM_COUNT_MAX;
@@ -3189,6 +3193,10 @@ void func_800539A4(s32 scrollDirection, s32 arg1) // 0x800539A4
         {
             if (g_SavegamePtr->items[arg1].id_0 == g_Item_MapLoadableItems[i])
             {
+#ifdef SH_XBOX_PORT
+                if (!Xbox_TmdBufferValid((const void*)FS_BUFFER_8, "invN"))
+                    break;
+#endif
                 Gfx_Items_Display(FS_BUFFER_8, var_s0, i);
                 func_8005487C(var_s0);
                 i = INV_ITEM_COUNT_MAX;
