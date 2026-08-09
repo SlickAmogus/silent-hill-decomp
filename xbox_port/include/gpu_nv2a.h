@@ -53,7 +53,10 @@ unsigned int GpuXbox_GetClearColor(void);
 const void* GpuNv2a_ReadbackSurface(int fromLastQueued, int* w, int* h, int* pitchBytes);
 int   GpuNv2a_Ms(void);
 int   GpuXbox_FbRegionOverlap(int x0, int y0, int x1, int y1);
-void  GpuXbox_FbReadbackForTexture(void); /* psx_vram.c: 16-bit page decode over the fb */
+/* psx_vram.c: 16-bit page decode over the fb. The rect is the requesting page's
+ * VRAM footprint -- only framebuffer pages it actually samples are written back,
+ * so unrelated cached pages sharing those rows are not invalidated. */
+void  GpuXbox_FbReadbackForTexture(int px0, int py0, int px1, int py1);
 void  GpuXbox_FbReadbackForStore(void);   /* psx_libgpu_xbox.c StoreImage: fb-rect grab */
 void  GpuXbox_FbStoreFrameTick(void);     /* psx_libgpu_xbox.c VSync: per-frame gate reset */
 

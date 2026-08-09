@@ -145,30 +145,51 @@ void PsxVram_DumpFontStrip(const char* tag)
 /* LoadImage: copy w*h 16-bit source pixels into VRAM at (x,y), row by row. */
 void PsxVram_Load(int x, int y, int w, int h, const uint16_t* src)
 {
-    int row, yend, changed = 0;
+    int row;
+    int cx0 = w, cx1 = -1, cy0 = -1, cy1 = -1;   /* exact changed sub-rect */
 
     if (!src || w <= 0 || h <= 0 || x < 0 || y < 0 || x >= VRAM_W || y >= VRAM_H)
         return;
 
     if (x + w > VRAM_W) w = VRAM_W - x;
     FontStripWriteProbe("Load", x, y, w, h);
-    yend = y;
+
+    /* Invalidate the sub-rect that ACTUALLY changed, not the whole upload.
+     *
+     * This was a boolean: any differing word anywhere dirtied the entire write
+     * rect, killing every cached page overlapping it. The game uploads CLUTs in
+     * blocks, so one changed palette threw out every page whose palette merely
+     * shared the block -- each costing a 256KB re-decode. Log 047 measured 20ms
+     * per frame (~36 decodes) inside DecodePage during the cafe fight, with only
+     * 961 drains against 25088 decodes: the working set FITS in the cache, so
+     * those decodes were not capacity, they were pages being invalidated and
+     * immediately wanted again. Narrowing to the true changed extent is exact --
+     * regions provably identical cannot need invalidating -- so it cannot serve
+     * stale texels. */
     for (row = 0; row < h; row++) {
-        int       vy = y + row;
-        uint16_t* d;
+        int             vy = y + row;
+        uint16_t*       d;
+        const uint16_t* s;
+        int             a, b;
+
         if (vy >= VRAM_H) break;
         d = &s_vram[vy * VRAM_W + x];
-        /* Only rows that actually CHANGE dirty the cache. The game re-uploads
-         * identical CLUTs constantly (per-frame character transparency toggles,
-         * repeated palette sets in cutscenes); invalidating on those forced
-         * full page re-decodes every frame — a major thrash source. */
-        if (!changed && memcmp(d, &src[row * w], (size_t)w * 2) != 0)
-            changed = 1;
-        memcpy(d, &src[row * w], (size_t)w * 2);
-        yend = vy + 1;
+        s = &src[row * w];
+
+        a = 0;
+        b = w - 1;
+        while (a <= b && d[a] == s[a]) a++;
+        if (a <= b) {
+            while (b > a && d[b] == s[b]) b--;
+            if (a < cx0) cx0 = a;
+            if (b > cx1) cx1 = b;
+            if (cy0 < 0)  cy0 = vy;
+            cy1 = vy + 1;
+        }
+        memcpy(d, s, (size_t)w * 2);
     }
-    if (changed)
-        InvalidateRegion(x, y, x + w, yend);   /* selective, not nuke-all */
+    if (cy0 >= 0)
+        InvalidateRegion(x + cx0, cy0, x + cx1 + 1, cy1);
 }
 
 /* MoveImage / DR_MOVE: VRAM->VRAM rectangle copy (water refraction, copy-based
@@ -208,7 +229,8 @@ void PsxVram_Move(int sx, int sy, int w, int h, int dx, int dy)
  * Repeated identical fills (per-frame interlaced clears) don't dirty the cache. */
 void PsxVram_Fill(int x, int y, int w, int h, uint16_t c)
 {
-    int row, col, changed = 0;
+    int row, col;
+    int cx0 = w, cx1 = -1, cy0 = -1, cy1 = -1;   /* exact changed sub-rect */
 
     if (w <= 0 || h <= 0 || x < 0 || y < 0 || x >= VRAM_W || y >= VRAM_H)
         return;
@@ -220,11 +242,17 @@ void PsxVram_Fill(int x, int y, int w, int h, uint16_t c)
         if (vy >= VRAM_H) break;
         d = &s_vram[vy * VRAM_W + x];
         for (col = 0; col < w; col++) {
-            if (d[col] != c) { d[col] = c; changed = 1; }
+            if (d[col] != c) {
+                d[col] = c;
+                if (col < cx0) cx0 = col;
+                if (col > cx1) cx1 = col;
+                if (cy0 < 0)   cy0 = vy;
+                cy1 = vy + 1;
+            }
         }
     }
-    if (changed)
-        InvalidateRegion(x, y, x + w, y + h);
+    if (cy0 >= 0)
+        InvalidateRegion(x + cx0, cy0, x + cx1 + 1, cy1);
 }
 
 /* StoreImage: read VRAM back out (rarely used; provided for completeness). */
@@ -549,8 +577,11 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
      * these rows via PsxVram_Load, whose memcmp only invalidates on change —
      * a static screen settles into cache hits with zero further readbacks. */
     if (((tpage >> 7) & 3) >= 2 &&
-        GpuXbox_FbRegionOverlap(s_cache[i].px0, s_cache[i].py0, s_cache[i].px1, s_cache[i].py1))
-        GpuXbox_FbReadbackForTexture();
+        GpuXbox_FbRegionOverlap(s_cache[i].px0, s_cache[i].py0, s_cache[i].px1, s_cache[i].py1)) {
+        extern void GpuXbox_FbReadbackForTexture(int px0, int py0, int px1, int py1);
+        GpuXbox_FbReadbackForTexture(s_cache[i].px0, s_cache[i].py0,
+                                     s_cache[i].px1, s_cache[i].py1);
+    }
     {   /* charge the decode to this frame so [FRAME] can separate CPU decode
          * cost from submission cost from GPU wait -- the cafe question. */
         extern int GpuNv2a_Ms(void);

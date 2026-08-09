@@ -1269,6 +1269,8 @@ static int s_fbGateLatch;                  /* gate as of the last present: the w
 static int s_fbReadbackFrame = -1;         /* frame id of the last readback (dedup) */
 static int s_fbLastDrainMs = 0;            /* ms in the GPU drain of the last readback */
 static int s_fbConsumerFrame = -1000;      /* frame id a framebuffer consumer was last seen */
+static int s_fbRestrict[4];                /* requester's VRAM bbox: only overlapping pages load */
+static int s_fbRestrictOn;
 static unsigned short s_fbReadbackBuf[640 * 448]; /* one page image (max 640-wide credits) */
 
 /* PSX framebuffer page rects for the CURRENT display env (see block comment).
@@ -1380,8 +1382,13 @@ static void FbReadback(int fromLastQueued, int minSpacing)
      * content actually changed — that is what makes static screens (pause)
      * settle: identical readback -> no invalidation -> cache hit -> no new
      * decode -> no new readback. */
-    for (n = 0; n < pages; n++)
+    for (n = 0; n < pages; n++) {
+        if (s_fbRestrictOn &&
+            !(s_fbRestrict[0] < pr[n][0] + pr[n][2] && pr[n][0] < s_fbRestrict[2] &&
+              s_fbRestrict[1] < pr[n][1] + pr[n][3] && pr[n][1] < s_fbRestrict[3]))
+            continue;                             /* page this requester never samples */
         PsxVram_Load(pr[n][0], pr[n][1], pageW, pageH, s_fbReadbackBuf);
+    }
 
     {
         static int s_rbCount = 0;
@@ -1405,10 +1412,19 @@ static void FbReadback(int fromLastQueued, int minSpacing)
  * feedback effects. Mid-OT-walk the back buffer holds a PARTIAL frame, so read
  * the last completed one — exactly what the PSX effect would sample (what the
  * previous frame left in VRAM). */
-void GpuXbox_FbReadbackForTexture(void)
+void GpuXbox_FbReadbackForTexture(int px0, int py0, int px1, int py1)
 {
     s_fbConsumerFrame = g_Nv2aFrameCount;
+    /* Write back ONLY the framebuffer page this texture actually samples. It used
+     * to load BOTH pages every time, and the framebuffer changes every frame, so
+     * the unrelated page's rows were rewritten too -- invalidating every cached
+     * texture page sharing those VRAM rows and forcing a 256KB re-decode each.
+     * That is invalidation churn with no consumer. */
+    s_fbRestrict[0] = px0; s_fbRestrict[1] = py0;
+    s_fbRestrict[2] = px1; s_fbRestrict[3] = py1;
+    s_fbRestrictOn  = 1;
     FbReadback(1, 3);
+    s_fbRestrictOn  = 0;
 }
 
 /* psx_libgpu_xbox.c StoreImage, on a grab overlapping the framebuffer: the
