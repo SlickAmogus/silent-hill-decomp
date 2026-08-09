@@ -28,6 +28,7 @@ static uint16_t s_vram[VRAM_W * VRAM_H];
 
 typedef struct {
     int       key;
+    int       lastKey;        /* key before an invalidation cleared it (miss-cause probe) */
     uint32_t* argb;
     unsigned  lastUse;        /* frame of last GetTexture hit (LRU eviction) */
     unsigned  seq;            /* monotonic bind order; > s_drainedSeq => GPU may still read it */
@@ -89,8 +90,11 @@ static void InvalidateRegion(int wx0, int wy0, int wx1, int wy1)
         TexEntry* e = &s_cache[i];
         if (e->key == -1) continue;
         if (RectsOverlap(e->px0, e->py0, e->px1, e->py1, wx0, wy0, wx1, wy1) ||
-            RectsOverlap(e->cx0, e->cy0, e->cx1, e->cy1, wx0, wy0, wx1, wy1))
-            e->key = -1;
+            RectsOverlap(e->cx0, e->cy0, e->cx1, e->cy1, wx0, wy0, wx1, wy1)) {
+            e->lastKey = e->key;   /* survives the kill: lets a later miss say WHY */
+            e->key     = -1;
+            if (i == s_memoSlot) s_memoSlot = -1;
+        }
     }
     /* Do NOT reset s_cacheNext: round-robin reuse still finds key==-1 slots. */
 }
@@ -344,6 +348,7 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
 {
     int key = ((tpage & 0xFFFF) << 16) | (clut & 0xFFFF);
     int i;
+    int missWasInvalidated = 0, missTookLiveSlot = 0;
 
     if (!s_cacheReady) {
         /* The cache fills on the FIRST textured prim (the boot logo) — long before
@@ -398,6 +403,16 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
             s_cache[i].seq     = ++s_bindSeq;
             s_memoSlot         = i;
             return s_cache[i].argb;
+        }
+
+    /* Classify the miss BEFORE any slot is overwritten. A dead slot still
+     * carrying this key in lastKey means the page WAS cached and something wrote
+     * its source VRAM (animated CLUT) -- capacity cannot fix that. */
+    missWasInvalidated = 0;
+    for (i = 0; i < CACHE_N; i++)
+        if (s_cache[i].key == -1 && s_cache[i].lastKey == key && s_cache[i].argb) {
+            missWasInvalidated = 1;
+            break;
         }
 
     /* Miss: fill a free slot, else evict the least-recently-used. (The old
@@ -522,6 +537,7 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
             return 0;                      /* cache never allocated */
         i = best;
     }
+    missTookLiveSlot = (s_cache[i].key != -1);     /* threw out a live page => capacity */
     TexEntry_SetBBox(&s_cache[i], tpage, clut);   /* record VRAM footprint for selective invalidation */
     /* Framebuffer feedback: a 16-bit direct page overlapping the framebuffer
      * rows is the pause/save background, crossfade or window-crash distortion
@@ -547,6 +563,24 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
     s_cache[i].lastUse = (unsigned)g_Nv2aFrameCount;
     s_cache[i].seq     = ++s_bindSeq;
     s_memoSlot         = i;
+
+    /* WHY this miss happened. The cafe fight burns 20ms/frame decoding (36
+     * decodes/frame) and the two causes need OPPOSITE fixes:
+     *   evict = the working set exceeds the 42 slots we can afford at 720p
+     *           -> capacity (paletted pages: 64KB/tpage instead of 256KB per
+     *              tpage+clut) or fewer GPU surfaces.
+     *   inval = the source VRAM changed under a cached page (animated CLUTs)
+     *           -> capacity does NOTHING; only CLUT/page separation helps.
+     * Guessing between them has already cost two wrong fixes this session. */
+    {
+        static unsigned s_missEvict, s_missInval, s_missCold;
+        if (missWasInvalidated)   s_missInval++;
+        else if (missTookLiveSlot) s_missEvict++;
+        else                       s_missCold++;
+        if ((s_decodeTotal & 511) == 1)
+            SH_DBG("[VRAM] miss cause: evict=%u inval=%u cold=%u (alloc=%d)",
+                   s_missEvict, s_missInval, s_missCold, s_cacheAlloc);
+    }
     /* A miss = a 256x256 decode. After the cache fills this should go quiet; if it
      * keeps climbing the working set exceeds CACHE_N (thrashing -> slow). */
     if ((++s_decodeTotal & 511) == 0)
