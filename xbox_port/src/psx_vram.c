@@ -40,6 +40,7 @@ typedef struct {
 static TexEntry s_cache[CACHE_N];
 static int      s_cacheReady;
 static int      s_cacheAlloc;   /* slots with real memory (<= CACHE_N) */
+static int      s_memoSlot = -1;/* last slot returned; re-checked against key before reuse */
 static unsigned s_bindSeq;      /* increments on every bind (hit or fill) */
 static unsigned s_drainedSeq;   /* s_bindSeq at the last GPU drain: everything <= this is consumed */
 static int      s_decodeTotal;
@@ -379,10 +380,23 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
                    HEAP_RESERVE_KB / 1024);
     }
 
+    /* One-entry memo. This is called PER PRIMITIVE and used to linear-scan up to
+     * 96 slots every time; the cafe fight submits several hundred prims a frame.
+     * Adjacent prims almost always share (tpage,clut) -- that is exactly why the
+     * draw batcher can merge them -- so the previous slot hits most of the time.
+     * Validated against the live key before use, so an evicted or re-keyed slot
+     * falls through to the full scan. */
+    if (s_memoSlot >= 0 && s_cache[s_memoSlot].key == key && s_cache[s_memoSlot].argb) {
+        s_cache[s_memoSlot].lastUse = (unsigned)g_Nv2aFrameCount;
+        s_cache[s_memoSlot].seq     = ++s_bindSeq;
+        return s_cache[s_memoSlot].argb;
+    }
+
     for (i = 0; i < CACHE_N; i++)
         if (s_cache[i].key == key && s_cache[i].argb) {
             s_cache[i].lastUse = (unsigned)g_Nv2aFrameCount;
             s_cache[i].seq     = ++s_bindSeq;
+            s_memoSlot         = i;
             return s_cache[i].argb;
         }
 
@@ -532,6 +546,7 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
     s_cache[i].key     = key;
     s_cache[i].lastUse = (unsigned)g_Nv2aFrameCount;
     s_cache[i].seq     = ++s_bindSeq;
+    s_memoSlot         = i;
     /* A miss = a 256x256 decode. After the cache fills this should go quiet; if it
      * keeps climbing the working set exceeds CACHE_N (thrashing -> slow). */
     if ((++s_decodeTotal & 511) == 0)

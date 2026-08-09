@@ -61,6 +61,7 @@ static uint32_t* s_whiteTex;  /* opaque white, for untextured prims */
  * framebuffer->PSX-VRAM readback (gpu_xbox.c) to read it mid-walk. */
 static const void* s_lastQueuedFb;
 static int         s_freezePending;   /* freeze capture requested; runs at FrameBegin */
+static unsigned    s_frameBeginMs;    /* ms at FrameBegin; splits game tick vs submission */
 static void        FreezeRunPending(void);
 
 static int s_frameW, s_frameH;
@@ -289,6 +290,7 @@ void GpuNv2a_FrameBegin(void)
     pb_target_back_buffer();
 
     g_Nv2aFrameCount++;
+    s_frameBeginMs = (unsigned)KeTickCount;   /* splits game tick from submission in [FT] */
 
     s_frameW = pb_back_buffer_width();
     s_frameH = pb_back_buffer_height();
@@ -418,7 +420,16 @@ void GpuNv2a_FrameEnd(void)
         extern unsigned g_PsxDecodeMs, g_PsxDecodeCount;   /* psx_vram.c */
         static unsigned s_dbgFrame, s_lastEnd;
         static unsigned s_accMs, s_accDec, s_accDecMs, s_accDraws, s_worstMs;
+        static unsigned s_accGame, s_accDraw;
         unsigned        dt = s_lastEnd ? (tNow - s_lastEnd) : 0;
+
+        /* Split the frame at FrameBegin. gameMs = the game's own tick (AI,
+         * animation, collision, OT build) which runs between frames; drawMs =
+         * OT walk + prim build + submission. The cafe fight is 53-82ms/frame with
+         * swapWait=0 (never GPU-bound) and negligible decode, so the cost is one
+         * of these two and they need different fixes. */
+        s_accGame += s_lastEnd ? (s_frameBeginMs - s_lastEnd) : 0;
+        s_accDraw += (tNow - s_frameBeginMs);
 
         /* Accumulate over the reporting window so one line describes 120 frames
          * rather than whichever single frame happened to land on the modulo --
@@ -434,10 +445,11 @@ void GpuNv2a_FrameEnd(void)
              * DecodePage; swapWait is time blocked waiting on the GPU. decMs high
              * => texture thrash (capacity); swapWait high => fill/draw bound (the
              * overdraw theory); neither => the cost is elsewhere in the game tick. */
-            SH_DBG("[FT] avgMs=%u worstMs=%u swapWait=%ums flushMs=%ums draws=%u decodes=%u decMs=%u",
-                   s_accMs / 120, s_worstMs, tNow - tSwap, tSwap - tFlush,
-                   s_accDraws / 120, s_accDec, s_accDecMs);
+            SH_DBG("[FT] avgMs=%u worstMs=%u gameMs=%u drawMs=%u swapWait=%ums draws=%u decodes=%u decMs=%u",
+                   s_accMs / 120, s_worstMs, s_accGame / 120, s_accDraw / 120,
+                   tNow - tSwap, s_accDraws / 120, s_accDec, s_accDecMs);
             s_accMs = s_accDec = s_accDecMs = s_accDraws = s_worstMs = 0;
+            s_accGame = s_accDraw = 0;
         }
         g_PsxDecodeMs = g_PsxDecodeCount = 0;   /* per-frame counters */
         s_lastEnd = tNow;
@@ -579,10 +591,16 @@ static void FreezeRunPending(void)
      * frame into it, then restore. No pb_busy() spin and no CPU read of video
      * memory -- that is the entire 165ms. set_draw_buffer moves only the colour
      * target, so the depth buffer and all other state stay as they are. */
-    pb_target_extra_buffer(0);
-    FreezeCopyQuad(src, s_freezeW, s_freezeH);
-    pb_target_back_buffer();
-    GpuNv2a_BindWhite();
+    {   /* The 165ms CPU readback this replaced was the largest single stall in
+         * the game; keep it measured so the comparison stays honest. */
+        int t0 = GpuNv2a_Ms();
+        pb_target_extra_buffer(0);
+        FreezeCopyQuad(src, s_freezeW, s_freezeH);
+        pb_target_back_buffer();
+        GpuNv2a_BindWhite();
+        SH_DBG("[FREEZE] capture %dx%d in %dms (gpu, was 165ms cpu)",
+               s_freezeW, s_freezeH, GpuNv2a_Ms() - t0);
+    }
     s_freezeValid = 1;
 }
 
