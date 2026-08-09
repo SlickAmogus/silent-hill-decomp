@@ -32,7 +32,7 @@ int Sh_LogAllow(const char* fmt)
         "[SH_AUDIO]", "[SH_BGM]", "[UIDIAG]", "[UPD]", "[UPD2]", "[POST]",
         "[OTT]", "[OTS]", "[FOGST]", "[FOGPAD]", "[ABR]", "[WALLSTOP]",
         "[WALL-HIT]", "[RAIN]", "[FSQ]", "[SS]", "[FXDROP]", "[BATCH]", "[STORE]",
-        "[BIGPRIM]",
+        "[BIGPRIM]", "[ZETA]", "[ITEMZ]", "[FLEX]", "[FONTDUMP]", "[TXTPG]", "[TXSPR]",
         /* NOT gated: [MEM] (RAM tick every ~10s -- the leak/creep diagnostic;
          * gating it hid the exact data needed to chase a progressive slowdown).
          *

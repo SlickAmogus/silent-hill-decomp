@@ -313,7 +313,17 @@ void PsyX_ForceItemDepthEnd(void)
      * land). The zeta buffer is plain RAM: idle the GPU and sample a 8x6 grid.
      * wrote>0 with sane min/max = writes land -> the failure is the COMPARE
      * (func/range); wrote==0 = the depth state/binding never took effect. */
-    if (doLog && s_izHit > 0) {
+    /* OFF unless log_diag=1. This probe costs a FULL GPU DRAIN (pb_busy spin)
+     * plus uncached zeta reads, and it ran roughly once a second: log 044's [FT]
+     * shows avgMs=17 (~58fps) with worstMs=45-54 in EVERY window, and this is
+     * that hitch. It is also dead weight -- the NV2A Z-compresses the zeta buffer
+     * (see the block comment above), so the readback cannot be believed, and its
+     * output has been a constant wrote=0/6 min=16777215 max=0. Kept behind the
+     * diag flag rather than deleted so the question is still answerable, but the
+     * default path must never stall the GPU for a diagnostic. */
+    {
+    extern int g_XboxLogDiag;   /* sh_log_xbox.c (config log_diag) */
+    if (g_XboxLogDiag && doLog && s_izHit > 0) {
         extern unsigned int pb_depth_stencil_addr(void);
         extern unsigned int pb_depth_stencil_pitch(void);
         extern int          pb_busy(void);
@@ -347,6 +357,7 @@ void PsyX_ForceItemDepthEnd(void)
                    s_izBbX0, s_izBbY0, s_izBbX1, s_izBbY1,
                    raw[0], raw[1], raw[2], raw[3], raw[4], raw[5]);
         }
+    }
     }
     /* Hand this bracket's SZ range to the next one for normalization. */
     if (s_izHit > 0 && s_izZMax > s_izZMin) {
