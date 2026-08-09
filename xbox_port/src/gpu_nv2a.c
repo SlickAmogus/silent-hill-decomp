@@ -471,9 +471,16 @@ const void* GpuNv2a_ReadbackSurface(int fromLastQueued, int* w, int* h, int* pit
  * write-combined memory is the known ~20ms cost (never per-frame, and only at
  * the moment of pausing); the per-frame direction is a plain RAM->WC write,
  * which is fast. Allocation failure degrades to the old grey, never a crash. */
-static void* s_freezeBuf;
-static int   s_freezeH, s_freezePitch;
+static void* s_freezeBuf;                      /* GPU-visible R5G6B5, w*h*2 */
+static int   s_freezeW, s_freezeH;
 static int   s_freezeValid;                    /* buffer holds a captured frame */
+
+/* Defined below this point; the freeze path is the first caller. */
+static void BindTextureBpp(const void* addr, int w, int h, int bpp);
+int   GpuNv2a_Ms(void);
+void  GpuNv2a_BindWhite(void);
+void  GpuNv2a_EmitTris(const ShVertex* verts, int count);
+void* GpuNv2a_AllocTexMem(int bytes);
 
 /* RESERVE THE BUFFER ONCE, ON THE FIRST FRAME. It used to be malloc'd on each
  * pause and freed on each unpause, which only worked while the heap was roomy:
@@ -486,50 +493,91 @@ static int   s_freezeValid;                    /* buffer holds a captured frame 
 void GpuNv2a_FreezeReserve(void)
 {
     extern unsigned Xbox_MemFreeKB(void);
-    int    h     = (int)pb_back_buffer_height();
-    int    pitch = (int)pb_back_buffer_pitch();
+    int    w = (int)pb_back_buffer_width();
+    int    h = (int)pb_back_buffer_height();
     size_t bytes;
 
-    if (s_freezeBuf || h <= 0 || pitch <= 0)
+    if (s_freezeBuf || w <= 0 || h <= 0)
         return;
-    bytes         = (size_t)pitch * (size_t)h;
-    s_freezeBuf   = malloc(bytes);
-    s_freezeH     = h;
-    s_freezePitch = pitch;
-    SH_DBG("[FREEZE] reserve %s: %dKB (h=%d pitch=%d) free=%uKB",
-           s_freezeBuf ? "ok" : "FAILED", (int)(bytes / 1024), h, pitch, Xbox_MemFreeKB());
+    bytes       = (size_t)w * (size_t)h * 2;
+    s_freezeBuf = GpuNv2a_AllocTexMem((int)bytes);
+    s_freezeW   = w;
+    s_freezeH   = h;
+    SH_DBG("[FREEZE] reserve %s: %dKB (%dx%d R5G6B5) free=%uKB",
+           s_freezeBuf ? "ok" : "FAILED", (int)(bytes / 1024), w, h, Xbox_MemFreeKB());
 }
 
 int GpuNv2a_FreezeCapture(void)
 {
     int         w = 0, h = 0, pitch = 0;
     const void* fb = GpuNv2a_ReadbackSurface(1 /* last COMPLETED frame */, &w, &h, &pitch);
+    int         y, x, t0 = GpuNv2a_Ms();
 
     if (!fb || w <= 0 || h <= 0 || pitch <= 0)
         return 0;
-    if (!s_freezeBuf || h != s_freezeH || pitch != s_freezePitch) {
-        /* Late/mismatched (resolution changed): re-reserve at the new size. */
-        free(s_freezeBuf);
-        s_freezeBuf = 0;
-        GpuNv2a_FreezeReserve();
-        if (!s_freezeBuf || h != s_freezeH || pitch != s_freezePitch)
-            return 0;
+    if (!s_freezeBuf || w != s_freezeW || h != s_freezeH)
+        return 0;                              /* reserved at a different size */
+
+    /* A8R8G8B8 -> R5G6B5. The source read (uncached write-combined memory) is
+     * what costs; the shift/pack rides along free. Storing 16-bit halves both
+     * the footprint and the GPU's per-frame texture fetch. */
+    for (y = 0; y < h; y++) {
+        const uint32_t* srow = (const uint32_t*)((const uint8_t*)fb + (size_t)y * pitch);
+        uint16_t*       drow = (uint16_t*)s_freezeBuf + (size_t)y * w;
+        for (x = 0; x < w; x++) {
+            uint32_t c = srow[x];
+            drow[x] = (uint16_t)((((c >> 16) & 0xF8) << 8)
+                                 | (((c >> 8) & 0xFC) << 3)
+                                 | ((c & 0xF8) >> 3));
+        }
     }
-    memcpy(s_freezeBuf, fb, (size_t)pitch * (size_t)h);
+    __asm__ __volatile__("sfence" ::: "memory");   /* publish to the GPU */
     s_freezeValid = 1;
+    SH_DBG("[FREEZE] capture %dx%d in %dms", w, h, GpuNv2a_Ms() - t0);
     return 1;
 }
 
+/* Re-present the frozen frame as a fullscreen textured quad. This replaces a
+ * per-frame CPU memcpy of the whole framebuffer (3.6MB at 720p, into
+ * write-combined memory — the reason pause/pickup felt sluggish) with one draw
+ * the GPU does in parallel. 1:1 texel-to-pixel with point sampling, so the
+ * result is pixel-exact, not a resample. */
 void GpuNv2a_FreezeBlit(void)
 {
-    void* bb;
-    if (!s_freezeBuf || !s_freezeValid)
+    ShVertex v[6];
+    float    fw, fh;
+    int      i;
+
+    if (!s_freezeBuf || !s_freezeValid || s_freezeW <= 0 || s_freezeH <= 0)
         return;
-    GpuNv2a_FlushBatch();                      /* nothing pending over the copy */
-    bb = (void*)pb_back_buffer();
-    if (!bb || (int)pb_back_buffer_pitch() != s_freezePitch)
-        return;
-    memcpy(bb, s_freezeBuf, (size_t)s_freezePitch * (size_t)s_freezeH);
+    /* Cover the ENTIRE framebuffer, pillarboxing included — the capture is the
+     * whole back buffer, not just the 4:3 content rect. */
+    fw = (float)s_freezeW;
+    fh = (float)s_freezeH;
+
+    memset(v, 0, sizeof(v));
+    for (i = 0; i < 6; i++) {
+        v[i].col[0] = v[i].col[1] = v[i].col[2] = v[i].col[3] = 1.0f;
+        v[i].pos[3] = 1.0f;                    /* affine W (0 => div-by-0 quad) */
+    }
+    v[0].pos[0] = 0.0f; v[0].pos[1] = 0.0f; v[0].tex[0] = 0.0f; v[0].tex[1] = 0.0f;
+    v[1].pos[0] = fw;   v[1].pos[1] = 0.0f; v[1].tex[0] = fw;   v[1].tex[1] = 0.0f;
+    v[2].pos[0] = 0.0f; v[2].pos[1] = fh;   v[2].tex[0] = 0.0f; v[2].tex[1] = fh;
+    v[3] = v[1];
+    v[4].pos[0] = fw;   v[4].pos[1] = fh;   v[4].tex[0] = fw;   v[4].tex[1] = fh;
+    v[5] = v[2];
+
+    /* Painter's order: the UI draws over this later in the frame. Depth off so
+     * the quad neither tests nor writes Z (the item-pickup depth bracket runs
+     * later and sets its own state). */
+    GpuNv2a_SetDepthTest(0);
+    GpuNv2a_SetDepthWrite(0);
+    GpuNv2a_SetBlendMode(0);
+    GpuNv2a_SetScissor(0, 0, 0, 0);            /* game's next PutDrawEnv restores it */
+    BindTextureBpp(s_freezeBuf, s_freezeW, s_freezeH, 2);
+    GpuNv2a_EmitTris(v, 6);
+    GpuNv2a_FlushBatch();                      /* draw it NOW, under everything else */
+    GpuNv2a_BindWhite();
 }
 
 void GpuNv2a_FreezeRelease(void)
@@ -560,14 +608,19 @@ static void SetAttribPointer(unsigned index, unsigned size, const void* data)
     pb_end(p);
 }
 
-/* Bind a linear A8R8G8B8 texture (texel coords, clamp, bilinear) to stage 0. */
-void GpuNv2a_BindTexture(const void* addr, int w, int h)
+/* Bind a linear texture (texel coords, clamp, point-sampled) to stage 0.
+ * bpp = 4 -> A8R8G8B8 (the decoded-page format), bpp = 2 -> R5G6B5 (the
+ * freeze-frame buffer: half the memory, and the NV2A samples it natively so no
+ * CPU conversion is needed). The format dword's COLOR field (bits 8..15) is the
+ * only difference: 0x12 = LU_IMAGE_A8R8G8B8, 0x11 = LU_IMAGE_R5G6B5. */
+static void BindTextureBpp(const void* addr, int w, int h, int bpp)
 {
     uint32_t* p;
+    uint32_t  fmt = (bpp == 2) ? 0x0001112a : 0x0001122a;
     GpuNv2a_FlushBatch();   /* pending run drew with the OLD texture bound */
     p = pb_begin();
-    p = pb_push2(p, NV20_TCL_PRIMITIVE_3D_TX_OFFSET(0), (DWORD)addr & 0x03ffffff, 0x0001122a);
-    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_NPOT_PITCH(0), (w * 4) << 16);
+    p = pb_push2(p, NV20_TCL_PRIMITIVE_3D_TX_OFFSET(0), (DWORD)addr & 0x03ffffff, fmt);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_NPOT_PITCH(0), (w * bpp) << 16);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_NPOT_SIZE(0), (w << 16) | h);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_WRAP(0), 0x00030303);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(0), 0x4003ffc0);
@@ -580,6 +633,11 @@ void GpuNv2a_BindTexture(const void* addr, int w, int h)
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(2), 0x0003ffc0);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(3), 0x0003ffc0);
     pb_end(p);
+}
+
+void GpuNv2a_BindTexture(const void* addr, int w, int h)
+{
+    BindTextureBpp(addr, w, h, 4);
 }
 
 /* Restore the 1x1-white default texture (untextured prims -> colour passes through). */
