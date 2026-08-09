@@ -10,6 +10,8 @@
 #include "pc_combat.h"
 #include "pc_config.h"
 #include "bodyprog/item_screens.h"
+#include "dbg_overlay.h" /* DbgOverlay_ToastLine — quick-heal result line */
+#include <stdio.h>
 #include "bodyprog/sound/sound_system.h"
 
 extern const unsigned char* g_sdlKeyboardState;
@@ -297,6 +299,21 @@ void Pc_CycleWeapons(void)
     }
 }
 
+/* Quantity in the first slot holding this id, 0 if absent.
+ *
+ * Pc_FindItemSlot matches on id_0 alone, which is right for weapons (a knife
+ * legitimately carries count 0) but wrong here: a healing slot whose count has
+ * been spent keeps its id until the slot is reused, so quick heal read it as
+ * owned, healed off it, and flashed green with nothing in the inventory. */
+static s32 Pc_HealItemCount(u8 id)
+{
+    s32 i;
+    for (i = 0; i < INV_ITEM_COUNT_MAX; i++)
+        if (g_SavegamePtr->items[i].id_0 == id)
+            return g_SavegamePtr->items[i].count_1;
+    return 0;
+}
+
 /* Auto-use the most sensible OWNED healing item for the current health. */
 void Pc_QuickHeal(void)
 {
@@ -308,9 +325,9 @@ void Pc_QuickHeal(void)
 
     if (hp <= 0 || hp >= 100) return; /* dead or already full */
 
-    drink = Pc_FindItemSlot(InvItemId_HealthDrink);
-    kit   = Pc_FindItemSlot(InvItemId_FirstAidKit);
-    amp   = Pc_FindItemSlot(InvItemId_Ampoule);
+    drink = (Pc_HealItemCount(InvItemId_HealthDrink) > 0) ? Pc_FindItemSlot(InvItemId_HealthDrink) : NO_VALUE;
+    kit   = (Pc_HealItemCount(InvItemId_FirstAidKit) > 0) ? Pc_FindItemSlot(InvItemId_FirstAidKit) : NO_VALUE;
+    amp   = (Pc_HealItemCount(InvItemId_Ampoule)     > 0) ? Pc_FindItemSlot(InvItemId_Ampoule)     : NO_VALUE;
 
     if (hp < 10) {
         /* critical: strongest available (ampoule also refills the regen buffer) */
@@ -339,6 +356,22 @@ void Pc_QuickHeal(void)
     Sd_PlaySfx(Sfx_Unk1325, -0x40, 0x40); /* same feedback SFX as the inventory heal */
     Player_ItemRemove(chosen, 1);
     g_PcHealFlashTimer = Q12(0.35f); /* brief green heal pulse (drawn by Pc_HealFlashUpdate) */
+
+    /* Report what was spent and what is left, since quick heal picks the item for
+     * you and the inventory is not open to see the result. Counts are read AFTER
+     * the removal so the line shows the remaining stock. */
+    {
+        const char* name = (chosen == InvItemId_FirstAidKit) ? "First Aid Kit"
+                         : (chosen == InvItemId_HealthDrink) ? "Health Drink"
+                                                             : "Ampoule";
+        char line[96];
+        snprintf(line, sizeof(line), "Used %s  -  Kits %d, Drinks %d, Ampoules %d",
+                 name,
+                 (int)Pc_HealItemCount(InvItemId_FirstAidKit),
+                 (int)Pc_HealItemCount(InvItemId_HealthDrink),
+                 (int)Pc_HealItemCount(InvItemId_Ampoule));
+        DbgOverlay_ToastLine(line);
+    }
 }
 
 /* Per-frame draw for the Quick Heal green pulse: an additive full-screen green TILE
