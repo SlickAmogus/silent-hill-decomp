@@ -484,6 +484,22 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
     }
     else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.item)
     {
+#ifdef SH_PC_PORT
+        /* Present the captured last gameplay frame on the entry tick, like the
+         * pause branch above. SysState_StatusMenu_Update re-renders the world
+         * live rather than holding a frozen frame, and the alternate-camera
+         * solve lives on the gameplay path -- so the first inventory frame drew
+         * the world through the classic camera before the alt view was
+         * re-established, which is the one-frame snap. One tick only: unlike the
+         * map branch below, nothing holds this across the screen, so it cannot
+         * leak the held frame into the sky/VRAM feedback. */
+        {
+            extern int g_PsxPresentLastFrame;
+            extern int g_PcFreezeReleasePending;
+            g_PsxPresentLastFrame    = 1;
+            g_PcFreezeReleasePending = 0;
+        }
+#endif
         SysWork_StateSetNext(SysState_StatusMenu);
     }
     else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.map)
