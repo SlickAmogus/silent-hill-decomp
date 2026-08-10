@@ -3492,6 +3492,59 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     break;
             }
 
+#ifdef SH_PC_PORT
+            /* The same net the DamageTorso and DamageFeet block below already
+             * carries, for the release and get-up family. Every one of these
+             * states exits only on keyframeIdx == field_38[D_800AF220].
+             * keyframeIdx_6, so a map with no row for the animation can never
+             * satisfy it and the player is held for the rest of the session.
+             * pc_grab_guard.c refuses the grabs that lead here, but it only sees
+             * the four grab attacks; this catches every other way in (the Cybil
+             * throw's get-up chain, Unk17/Unk18, DamageHead) without having to
+             * enumerate them.
+             *
+             * FallForward/FallBackward are deliberately excluded: they set
+             * anim.status directly and exit against HARRY_BASE_ANIM_INFOS rather
+             * than the map table, so they are never stuck, and a long fall can
+             * legitimately outlast the timeout. */
+            if (playerExtra.state != PlayerState_FallForward &&
+                playerExtra.state != PlayerState_FallBackward)
+            {
+                static q19_12 s_relStateTime = 0;
+                static s32    s_relPrevState = -1;
+                s32           relCurState    = (s32)g_SysWork.playerWork.extra.state;
+
+                if (relCurState != s_relPrevState)
+                {
+                    s_relStateTime = 0;
+                    s_relPrevState = relCurState;
+                }
+                else
+                {
+                    s_relStateTime += g_DeltaTime;
+                }
+
+                if (s_relStateTime > Q12(0.5f))
+                {
+                    SH_DBG("[GRABGUARD] state %d never reached its end keyframe - force-exiting", relCurState);
+
+                    g_SysWork.targetNpcIdx = NO_VALUE;
+                    playerProps.flags &= ~PlayerFlag_DamageReceived;
+                    Player_ExtraStateSet(player, extra, PlayerState_None);
+                    playerProps.moveSpeed = Q12(0.0f);
+
+                    player->collision.cylinder.radius = Q12(0.3f);
+                    g_SysWork.playerWork.player.collision.shapeOffsets.cylinder.vx = Q12(0.0f);
+                    g_SysWork.playerWork.player.collision.shapeOffsets.cylinder.vz = Q12(0.0f);
+                    g_SysWork.playerWork.player.collision.shapeOffsets.box.vx = Q12(0.0f);
+                    g_SysWork.playerWork.player.collision.shapeOffsets.box.vz = Q12(0.0f);
+
+                    s_relStateTime = 0;
+                    s_relPrevState = -1;
+                }
+            }
+#endif
+
             player->attackReceived = NO_VALUE;
             break;
 
