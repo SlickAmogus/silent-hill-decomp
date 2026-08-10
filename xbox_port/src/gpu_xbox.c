@@ -107,6 +107,34 @@ static void TrackBB(const ShVertex* v)
     if (sy > s_bbMaxY) s_bbMaxY = sy;
 }
 
+extern unsigned int* PsxVram_GetTexture(int tpage, int clut);
+
+/* Cycle counter. KeTickCount's 1ms granularity cannot resolve per-primitive work
+ * (a whole prim is ~1-20us), so the render-phase split uses rdtsc: ~30 cycles to
+ * read, negligible against the phases being measured. 733000 cycles = 1ms. */
+static inline unsigned long long shx_rdtsc(void)
+{
+    unsigned lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((unsigned long long)hi << 32) | lo;
+}
+
+/* Render-phase accumulators, reset per frame with s_walkCycles. */
+static unsigned long long s_texCycles;    /* PsxVram_GetTexture (lookup + any decode) */
+static unsigned long long s_emitCycles;   /* vertex build + batch append */
+static unsigned           s_primCount;    /* prims that reached the emit path */
+
+/* Timed wrapper around the texture-cache lookup. It is called PER PRIMITIVE and
+ * can trigger a 256KB decode, so it is the first thing to rule in or out when
+ * accounting for the half of drawMs that is not GPU submission. */
+static inline unsigned int* TexLookup(int tpage, int clut)
+{
+    unsigned long long t0 = shx_rdtsc();
+    unsigned int*      r  = PsxVram_GetTexture(tpage, clut);
+    s_texCycles += shx_rdtsc() - t0;
+    return r;
+}
+
 static void PutVert(ShVertex* v, int x, int y, int r, int g, int b)
 {
     v->pos[0] = ((float)x + s_ofsX) * s_scaleX + (float)g_Nv2aContentX;
@@ -509,17 +537,23 @@ static void ApplyFog(ShVertex* v, int pad)
  * off, so winding does not matter. */
 static void EmitTri(ShVertex* a, ShVertex* b, ShVertex* c)
 {
+    unsigned long long t0 = shx_rdtsc();
     ShVertex tri[3];
     tri[0] = *a; tri[1] = *b; tri[2] = *c;
     GpuNv2a_EmitTris(tri, 3);
+    s_emitCycles += shx_rdtsc() - t0;
+    s_primCount++;
 }
 
 static void EmitQuad(ShVertex* v0, ShVertex* v1, ShVertex* v2, ShVertex* v3)
 {
+    unsigned long long t0 = shx_rdtsc();
     ShVertex q[6];
     q[0] = *v0; q[1] = *v1; q[2] = *v2;
     q[3] = *v1; q[4] = *v2; q[5] = *v3;
     GpuNv2a_EmitTris(q, 6);
+    s_emitCycles += shx_rdtsc() - t0;
+    s_primCount++;
 }
 
 /* code bit flags for polygon primitives (0x20-0x3F) */
@@ -607,7 +641,7 @@ static int ProcessPoly(P_TAG* tag)
                 d[0] = p->x0; d[1] = p->y0; d[2] = p->x3; d[3] = p->y3;
             }
         }
-        texAddr = PsxVram_GetTexture(p->tpage, p->clut);
+        texAddr = TexLookup(p->tpage, p->clut);
         PutVertUV(&v[0], p->x0, p->y0, p->r0, p->g0, p->b0, p->u0, p->v0);
         PutVertUV(&v[1], p->x1, p->y1, p->r0, p->g0, p->b0, p->u1, p->v1);
         PutVertUV(&v[2], p->x2, p->y2, p->r0, p->g0, p->b0, p->u2, p->v2);
@@ -639,7 +673,7 @@ static int ProcessPoly(P_TAG* tag)
                 const VERTTYPE xy[8] = { p4->x0, p4->y0, p4->x1, p4->y1, p4->x2, p4->y2, p4->x3, p4->y3 };
                 if (PolyOversized(xy, 2, 4)) return primLen;
             }
-            texAddr = PsxVram_GetTexture(p4->tpage, p4->clut);
+            texAddr = TexLookup(p4->tpage, p4->clut);
             PutVertUV(&v[0], p4->x0, p4->y0, p4->r0, p4->g0, p4->b0, p4->u0, p4->v0);
             PutVertUV(&v[1], p4->x1, p4->y1, p4->r1, p4->g1, p4->b1, p4->u1, p4->v1);
             PutVertUV(&v[2], p4->x2, p4->y2, p4->r2, p4->g2, p4->b2, p4->u2, p4->v2);
@@ -658,7 +692,7 @@ static int ProcessPoly(P_TAG* tag)
                 const VERTTYPE xy[6] = { p3->x0, p3->y0, p3->x1, p3->y1, p3->x2, p3->y2 };
                 if (PolyOversized(xy, 2, 3)) return primLen;
             }
-            texAddr = PsxVram_GetTexture(p3->tpage, p3->clut);
+            texAddr = TexLookup(p3->tpage, p3->clut);
             PutVertUV(&v[0], p3->x0, p3->y0, p3->r0, p3->g0, p3->b0, p3->u0, p3->v0);
             PutVertUV(&v[1], p3->x1, p3->y1, p3->r1, p3->g1, p3->b1, p3->u1, p3->v1);
             PutVertUV(&v[2], p3->x2, p3->y2, p3->r2, p3->g2, p3->b2, p3->u2, p3->v2);
@@ -902,7 +936,7 @@ static int ProcessSprtTile(P_TAG* tag)
         uw = w; vh = h;
         if (u0 + uw > 255) uw = 255 - u0;
         if (v0 + vh > 255) vh = 255 - v0;
-        texAddr = PsxVram_GetTexture(s_curTpage, clut);
+        texAddr = TexLookup(s_curTpage, clut);
         PutVertUV(&v[0], x0,     y0,     r, g, b, u0,      v0);
         PutVertUV(&v[1], x0 + w, y0,     r, g, b, u0 + uw, v0);
         PutVertUV(&v[2], x0,     y0 + h, r, g, b, u0,      v0 + vh);
@@ -1079,12 +1113,6 @@ static int s_otLog = 1; /* one-shot OT-walk trace */
  * prim parse/transform cost. Both are per-frame, logged in [OTS] then reset. */
 extern unsigned long long g_Nv2aDrawCycles;    /* set in gpu_nv2a.c FlushBatch */
 static unsigned long long s_walkCycles = 0;    /* this frame's DrawOTag walk time */
-static inline unsigned long long shx_rdtsc(void)
-{
-    unsigned lo, hi;
-    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
-    return ((unsigned long long)hi << 32) | lo;
-}
 
 void DrawOTag(u_long* p)
 {
@@ -1100,7 +1128,9 @@ void DrawOTag(u_long* p)
      * %180 [BB] sampler aliased onto the same call slot every frame (2 calls
      * per frame, 180%2==0) and never measured the world OT. */
     if (g_Nv2aFrameCount != s_cnFrame) {
-        if (s_cnFrame >= 0 && (s_cnFrame % 600) == 0 && s_cnPrims > 0) {
+        /* Every 120 frames so the render-phase split lines up 1:1 with [FT]'s
+         * window and the two can be read against each other. */
+        if (s_cnFrame >= 0 && (s_cnFrame % 120) == 0 && s_cnPrims > 0) {
             SH_DBG("[OTS] f=%d calls=%d n0=%d n1=%d prims=%d bb=%d,%d,%d,%d",
                    s_cnFrame, s_cnCallsMax, s_cnNodes[0], s_cnNodes[1], s_cnPrims,
                    s_bbMinX, s_bbMaxX, s_bbMinY, s_bbMaxY);
@@ -1112,10 +1142,27 @@ void DrawOTag(u_long* p)
              * transform + emit + submit); draw = just the GPU-command submission
              * (FlushBatch); parse ~= walk - draw. One frame's totals (reset each
              * frame just below). If walk is small, the cost is OUTSIDE the walk. */
-            SH_DBG("[OTT] walkMs=%d drawMs=%d parseMs=%d",
-                   (int)(s_walkCycles / 733000ULL),
-                   (int)(g_Nv2aDrawCycles / 733000ULL),
-                   (int)((s_walkCycles > g_Nv2aDrawCycles ? s_walkCycles - g_Nv2aDrawCycles : 0) / 733000ULL));
+            /* Cycle-accurate account of ONE frame's render cost, in microseconds
+             * (ms was too coarse -- whole phases round to 0). The phases are
+             * disjoint and sum to walk:
+             *   tex   = texture-cache lookup + any 256KB decode it triggered
+             *   emit  = vertex build + batch append (the transform work)
+             *   submitClamped = GPU command submission (FlushBatch)
+             *   other = walk - the above: OT traversal + primitive parsing
+             * usPerPrim says whether the cost is per-primitive at all; if `other`
+             * dominates, the OT walk/parse is the target, if `emit` does it is the
+             * vertex path, and if `tex` does it is still the texture cache. */
+            {
+                unsigned long long sub  = g_Nv2aDrawCycles;
+                unsigned long long acct = s_texCycles + s_emitCycles + sub;
+                unsigned long long oth  = s_walkCycles > acct ? s_walkCycles - acct : 0;
+                unsigned           pr   = s_primCount ? s_primCount : 1;
+                SH_DBG("[OTT] walkUs=%d texUs=%d emitUs=%d submitUs=%d otherUs=%d prims=%u usPerPrim=%d",
+                       (int)(s_walkCycles / 733ULL), (int)(s_texCycles / 733ULL),
+                       (int)(s_emitCycles / 733ULL), (int)(sub / 733ULL),
+                       (int)(oth / 733ULL), s_primCount,
+                       (int)(s_walkCycles / 733ULL / pr));
+            }
             s_cnPrims = 0; s_cnGt = 0; s_cnFogged = 0;
             s_cnPadMin = 999; s_cnPadMax = -1;
             s_cnAbr[0] = s_cnAbr[1] = s_cnAbr[2] = s_cnAbr[3] = 0;
@@ -1125,6 +1172,8 @@ void DrawOTag(u_long* p)
         /* Per-frame reset: these hold ONE frame's totals for the snapshot above. */
         s_walkCycles = 0;
         g_Nv2aDrawCycles = 0;
+        s_texCycles = s_emitCycles = 0;
+        s_primCount = 0;
         s_cnFrame = g_Nv2aFrameCount;
         s_cnCallIdx = 0;
     }

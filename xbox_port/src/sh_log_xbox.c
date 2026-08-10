@@ -30,7 +30,7 @@ int Sh_LogAllow(const char* fmt)
 {
     static const char* const GATED[] = {
         "[SH_AUDIO]", "[SH_BGM]", "[UIDIAG]", "[UPD]", "[UPD2]", "[POST]",
-        "[OTT]", "[OTS]", "[FOGST]", "[FOGPAD]", "[ABR]", "[WALLSTOP]",
+        "[FOGST]", "[FOGPAD]", "[ABR]", "[WALLSTOP]",
         "[WALL-HIT]", "[RAIN]", "[FSQ]", "[SS]", "[FXDROP]", "[BATCH]", "[STORE]",
         "[BIGPRIM]", "[ZETA]", "[ITEMZ]", "[FLEX]", "[FONTDUMP]", "[TXTPG]", "[TXSPR]",
         /* NOT gated: [MEM] (RAM tick every ~10s -- the leak/creep diagnostic;
@@ -44,7 +44,12 @@ int Sh_LogAllow(const char* fmt)
          * GATED: [BIGPRIM]. It is rate-limited 1/32 and still produced 11725 of
          * log 042's 16731 lines -- 70% of the file -- crowding out the data that
          * mattered. It has already told us what it can (the cafe draws ~6400
-         * screen-sized prims); re-enable with log_diag=1 if needed again. */
+         * screen-sized prims); re-enable with log_diag=1 if needed again.
+         *
+         * NOT gated: [OTT] / [OTS]. The cycle-accurate split of the render frame
+         * (walk / texture / submit / parse) was gated for the same reason [FT]
+         * was, and left the second half of drawMs unexplained. Both are
+         * per-window summaries, not per-frame floods. */
     };
     int i;
     if (g_XboxLogDiag)          return 1;   /* diag on: keep everything */
