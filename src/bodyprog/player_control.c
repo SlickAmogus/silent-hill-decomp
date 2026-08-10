@@ -47,7 +47,18 @@ extern void vwGetViewPosition(VECTOR3* pos);
 /* OTS/TPS forward + strafe RUN speed target (q19_12 world units/30fps-frame),
  * faster than the classic Q12(3.0). Used for both the forward run (D_800C4550)
  * and the run-strafe so left/right run at the SAME speed as forward. */
+/* Fixed (classic) camera look yaw: the 2D screen-relative basis.
+ * Bearing-to-Harry was the old, wrong source (closed orbit -> the drift). */
+extern void vwGetViewAngle(SVECTOR* ang);
+
 #define PC_OTS_RUN_SPEED Q12(4.5f)
+
+/* The authored PSX run speeds, mirrored from GET_MOVE_SPEED in
+ * Player_LowerBodyUpdate (function-local there, so the shim cannot reuse it).
+ * The shim ran a flat Q12(3.0) -- 25% under the Normal-zone speed and 40% under
+ * Fast. Harmless while only the debug cam used the shim, but 2D control routes
+ * ordinary play through it, so enabling 2D quietly cost that much run speed. */
+#define PC_SHIM_RUN_SPEED(zoneType)                       (((zoneType) == SpeedZoneType_Fast) ? Q12(5.0f) :      ((zoneType) == SpeedZoneType_Slow) ? Q12(3.5f) : Q12(4.0f))
 
 static void Player_CrashHandler(int sig) {
     if (s_PlayerCrashGuardActive) {
@@ -1542,40 +1553,12 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * directions and Harry turns to face the move direction. Active
                  * for any non-FPS camera style when enabled, EXCEPT while aiming
                  * (aiming keeps the classic/TPS behaviour). */
+                /* A demo replays recorded input against the authored movement
+                 * machine. 2D control retargets that input to the camera basis,
+                 * so leaving it on makes the playback drift apart. */
                 int pc2dActive = g_PcConfig.control2d && !g_PcFpsCam &&
-                                 !g_SysWork.playerCombat.isAiming;
-
-                /* Quick Turn in the camera-snap shim (TPS/OTS/FPS): smoothly pan the
-                 * orbit yaw 180 over the turn at the native rate; the body-snap below
-                 * follows it. 2D / classic-fallback drop the request (their body yaw
-                 * is input-driven; the native path handles quick-turn when it runs). */
-                {
-                    extern int g_PcQuickTurnRequest;
-                    static u8  s_qtActive = 0;
-                    static s32 s_qtAccum  = 0;
-                    int qtSnap = g_DebugThirdPersonCam && !pc2dActive;
-                    if (g_PcQuickTurnRequest)
-                    {
-                        g_PcQuickTurnRequest = 0;
-                        if (qtSnap && !s_qtActive) { s_qtActive = 1; s_qtAccum = 0; }
-                    }
-                    if (s_qtActive && qtSnap)
-                    {
-                        s32 step = (s32)(g_DeltaTime * 24) >> 4;
-                        if (step < 1) step = 1;
-                        if (s_qtAccum + step >= Q12_ANGLE(180.0f))
-                        {
-                            step = Q12_ANGLE(180.0f) - s_qtAccum;
-                            s_qtActive = 0;
-                        }
-                        s_qtAccum += step;
-                        g_TpsCamYaw = Q12_ANGLE_NORM_U(g_TpsCamYaw + step + Q12_ANGLE(360.0f));
-                    }
-                    else
-                    {
-                        s_qtActive = 0;
-                    }
-                }
+                                 !g_SysWork.playerCombat.isAiming &&
+                                 !(g_SysWork.sysFlags & SysFlag_DemoActive);
 
                 /* TPS mode: Harry's body always tracks the camera yaw, so
                  * WASD is always relative to Harry (== relative to camera).
@@ -1583,12 +1566,10 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * Mouse rotates the camera, body follows automatically. */
                 if (pc2dActive) {
                     /* === 2D screen-relative movement ===
-                     * Map the 8-way digital input to camera-relative directions,
-                     * turn Harry to face the resulting world direction, and run him
-                     * forward along his facing (so he always plays the forward
-                     * walk/run cycle rather than moon-walking). Works under the
-                     * fixed classic camera (the authentic SH "2D control type") and
-                     * under the TPS/OTS orbit camera (twin-stick style). */
+                     * Map the stick/8-way input into the CAMERA's screen frame, travel
+                     * along the resulting world direction immediately, and slew the mesh
+                     * to face it. Works under the fixed classic camera (the authentic SH
+                     * "2D control type") and under the TPS/OTS orbit camera (twin-stick). */
                     s32  held  = g_Controller0->heldBtnFlags;
                     int  fwd   = (g_sdlKeyboardState[SDL_SCANCODE_W] != 0) || (held & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp));
                     int  back  = (g_sdlKeyboardState[SDL_SCANCODE_S] != 0) || (held & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown));
@@ -1598,95 +1579,206 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     int  inZ   = (fwd   ? 1 : 0) - (back ? 1 : 0);
                     int  anyInput = (inX != 0) || (inZ != 0);
                     /* Full-360 analog: past a small deadzone the left stick drives a
-                     * continuous direction (keyboard/D-pad stay inherently 8-way).
-                     * forward = -leftY, right = +leftX (joy.c ControllerData_AnalogToDigital). */
+                     * continuous direction (keyboard/D-pad stay inherently 8-way,
+                     * authentic to the PS2 d-pad).
+                     * forward = -leftY, right = +leftX (joy.c ControllerData_AnalogToDigital).
+                     * Deadzone radius 24 of the 128-unit stick (~19%): this scheme steers
+                     * purely by ABSOLUTE stick angle, so a fat gate (the old 40, ~31%)
+                     * eats exactly the fine angle-cutting it depends on. */
                     s32  a2dX   = (s32)g_Controller0->analogController.leftX - 128;
                     s32  a2dY   = (s32)g_Controller0->analogController.leftY - 128;
-                    int  a2dUse = (a2dX * a2dX + a2dY * a2dY) >= (40 * 40);
+                    int  a2dUse = (a2dX * a2dX + a2dY * a2dY) >= (24 * 24);
                     s32  inXv   = a2dUse ?  a2dX : inX;
                     s32  inZv   = a2dUse ? -a2dY : inZ;
+                    q3_12 move2dYaw   = 0;  /* WORLD heading Harry should TRAVEL along (stick relative to camera) */
+                    int   have2dMove  = 0;
                     if (a2dUse) anyInput = 1;
 
                     /* Camera "into the screen" yaw (world Q12 angle). Orbit cam =
-                     * g_TpsCamYaw directly; fixed classic cam = the yaw from the
-                     * camera toward Harry (its horizontal look direction). */
-                    q3_12 camYaw = g_TpsCamYaw;
-                    int   camValid = 1;
-                    int   camCut   = 0; /* a real fixed-cam room CUT happened this frame */
-                    if (!g_DebugThirdPersonCam) {
-                        static VECTOR3 s_2dPrevCamPos  = { 0, 0, 0 };
-                        static int     s_2dHavePrevCam = 0;
-                        VECTOR3 camPos;
-                        s32     dx, dz;
-                        vwGetViewPosition(&camPos);
-                        dx = player->position.vx - camPos.vx;
-                        dz = player->position.vz - camPos.vz;
-                        if (ABS(dx) < Q12(0.1f) && ABS(dz) < Q12(0.1f))
-                            camValid = 0; /* camera ~overhead: horizontal dir undefined */
-                        else
-                            camYaw = ratan2(dx, dz);
+                     * g_TpsCamYaw directly; fixed classic cam = the camera's OWN world
+                     * look yaw, vwGetViewAngle() -> worldang.vy.
+                     *
+                     * NOT the camera->Harry bearing this used to compute. The bearing is
+                     * not the screen axis: travelling along a bearing-derived basis makes
+                     * Harry's velocity permanently perpendicular to the camera->Harry
+                     * radius, so dR/dt is identically 0 and dtheta/dt = v/R — a closed
+                     * orbit centred on the camera (~8.4 s per lap at R=4). That, not lag,
+                     * was the "runs in circles" report, and it also made shot changes
+                     * nearly undetectable, because SH1 changes shots mostly by changing
+                     * the look ANGLE with little camera translation.
+                     *
+                     * worldang.vy is the yaw whose (sin, cos) is the camera FORWARD axis
+                     * — same sense as the old bearing, so no 180 offset. Proofs:
+                     * Vw_SetLookAtMatrix stores ratan2(target-cam) and vwMatrixToAngleYXZ
+                     * reads it back out of column 2; vwAngleToVector builds (sin,cos) and
+                     * vcMakeNormalWatchTgtPos places the FIX_ANG watch target at
+                     * cam_pos + 0.25*dir(fix_ang_y); the debug fly-cam steps forward along
+                     * +(sin,cos) of cam_ang.vy (vc_util.c:336-337).
+                     *
+                     * For a fixed-angle shot this is a per-shot WORLD CONSTANT straight
+                     * out of the road data, independent of Harry — so a held direction is
+                     * a straight world line, and a shot change is directly visible as a
+                     * discontinuity in this yaw. */
+                    static VECTOR3 s_2dPrevCamPos  = { 0, 0, 0 };
+                    static q3_12   s_2dPrevCamYaw  = 0;
+                    static int     s_2dHavePrevCam = 0;
+                    /* Steering-window lock (see the block below). */
+                    static int     s_2dLocked      = 0;
+                    static q3_12   s_2dLockHeading = 0;
+                    static q3_12   s_2dLockStick   = 0;
+                    static q3_12   s_2dTravelYaw   = 0; /* world heading he travelled last frame */
+                    static int     s_2dHaveTravel  = 0;
+                    static Uint32  s_2dLastRunMs   = 0;
+                    static s8      s_2dPrevMapIdx  = -1;
+                    static s8      s_2dPrevRoomIdx = -1;
+                    q3_12 camYaw  = g_TpsCamYaw;
+                    int   camSnap = 0; /* the fixed cam changed SHOT this frame (teleport OR yaw jump) */
 
-                        /* Detect a room cut from the camera POSITION teleporting (>3 units
-                         * in one frame), NOT from the bearing swinging. When Harry CIRCLES
-                         * (holding left/right) his own motion swings ratan2(HarryPos-camPos)
-                         * fast even under a perfectly static camera; that used to false-trip
-                         * the basis hold (>45deg/frame) and freeze a stale "forward", so the
-                         * next press turned him. The camera only jumps far on an actual cut. */
-                        if (s_2dHavePrevCam) {
-                            s32 cdx = camPos.vx - s_2dPrevCamPos.vx;
-                            s32 cdz = camPos.vz - s_2dPrevCamPos.vz;
-                            if ((s64)cdx * cdx + (s64)cdz * cdz > (s64)Q12(3.0f) * Q12(3.0f))
-                                camCut = 1;
+                    /* This path stops running while aiming, in scripted scenes
+                     * (g_Player_DisableControl skips Player_LogicUpdate) and in menus.
+                     * After such a gap all camera history is stale — a lock would steer
+                     * by a camera from before the scene. Drop everything and re-sample
+                     * live. Same on a room/map change (R10): the new room's basis is
+                     * unrelated to the old one. Short gaps (a few frames' hitch) keep
+                     * state, so a shot change spanning a brief aim tap still locks. */
+                    {
+                        Uint32 nowMs   = SDL_GetTicks();
+                        s8     mapIdx  = (g_SavegamePtr != NULL) ? g_SavegamePtr->mapIdx     : (s8)-1;
+                        s8     roomIdx = (g_SavegamePtr != NULL) ? g_SavegamePtr->mapRoomIdx : (s8)-1;
+                        if ((Uint32)(nowMs - s_2dLastRunMs) > 300 ||
+                            mapIdx != s_2dPrevMapIdx || roomIdx != s_2dPrevRoomIdx) {
+                            s_2dLocked      = 0;
+                            s_2dHavePrevCam = 0;
+                            s_2dHaveTravel  = 0;
                         }
-                        s_2dPrevCamPos  = camPos;
-                        s_2dHavePrevCam = 1;
+                        s_2dLastRunMs   = nowMs;
+                        s_2dPrevMapIdx  = mapIdx;
+                        s_2dPrevRoomIdx = roomIdx;
                     }
 
-                    /* Camera-cut handling (option b): follow gradual pans, but hold
-                     * the basis across a hard cut while a direction is pressed, so a
-                     * room change never flips Harry mid-run. Re-samples on release. */
-                    {
-                        static q3_12 s_2dBasisYaw = 0;
-                        static int   s_2dValid    = 0;
+                    if (!g_DebugThirdPersonCam) {
+                        VECTOR3 camPos;
+                        SVECTOR camAng; // Q3.12
+                        vwGetViewAngle(&camAng);
+                        vwGetViewPosition(&camPos);
+                        camYaw = Q12_ANGLE_NORM_U(camAng.vy + Q12_ANGLE(360.0f));
 
-                        if (camValid) {
-                            /* Track the live camera so "forward" is always the CURRENT
-                             * camera's into-screen — EXCEPT hold the basis across a real
-                             * room CUT (camera position teleported, camCut) while a
-                             * direction is held, so a room change can't flip Harry mid-run;
-                             * re-syncs on release. Orbit cam never cuts, so it always
-                             * tracks. (Circling is NOT a cut now — the old >45deg bearing
-                             * test mistook Harry's own motion for one and turned him.) */
-                            int   track = !anyInput || !s_2dValid || g_DebugThirdPersonCam || !camCut;
-                            if (track) {
-                                s_2dBasisYaw = camYaw;
-                                s_2dValid    = 1;
+                        /* Shot change, detected from the CAMERA alone: (a) its position
+                         * teleporting — the classic hard cut; (b) its own look yaw jumping
+                         * faster than any dolly/pan could swing it. Harry's position is
+                         * not an input to either test, so his running cannot false-trip
+                         * it (the pre-R0 bearing detector could — see d3bc008d2). A pan,
+                         * however fast it eases, stays far under 25 deg per 30fps frame
+                         * (= 750 deg/s). */
+                        if (s_2dHavePrevCam) {
+                            s32   cdx   = camPos.vx - s_2dPrevCamPos.vx;
+                            s32   cdz   = camPos.vz - s_2dPrevCamPos.vz;
+                            q3_12 swing = Math_AngleNormalizeSigned(camYaw - s_2dPrevCamYaw);
+                            if ((s64)cdx * cdx + (s64)cdz * cdz > (s64)Q12(3.0f) * Q12(3.0f) ||
+                                ABS(swing) > TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(25.0f))) {
+                                camSnap = 1;
                             }
                         }
+                        s_2dPrevCamPos  = camPos;
+                        s_2dPrevCamYaw  = camYaw;
+                        s_2dHavePrevCam = 1;
+                    } else {
+                        /* Orbit cam: the player drives it, it never changes shot. Drop the
+                         * fixed-cam history so toggling back to classic doesn't read the
+                         * gap as a snap. */
+                        s_2dHavePrevCam = 0;
+                        s_2dLocked      = 0;
+                    }
 
-                        if (anyInput && s_2dValid) {
-                            /* world move dir = inZ*forward + inX*right,
-                             * forward=(sin,cos), right=(cos,-sin) of the basis yaw. */
-                            s32   sfwd = Math_Sin(s_2dBasisYaw);
-                            s32   cfwd = Math_Cos(s_2dBasisYaw);
-                            s32   moveX = inZv * sfwd + inXv * cfwd;
-                            s32   moveZ = inZv * cfwd - inXv * sfwd;
-                            q3_12 targetYaw = ratan2(moveX, moveZ);
-                            if (g_PcConfig.control2dSnap) {
-                                /* snap: face the input direction immediately */
-                                player->rotation.vy = Q12_ANGLE_NORM_U(targetYaw + Q12_ANGLE(360.0f));
+                    /* Shot-change handling — the SH2(:EE) 2D-control rule, in two clearly
+                     * separate halves. Do NOT collapse them back together:
+                     *
+                     *  PAN  (the normal case): the basis TRACKS LIVE every frame, so
+                     *       "forward" is always the current shot's into-screen. Holding
+                     *       left/right under a following/panning camera therefore sweeps
+                     *       a broad arc — that is correct SH behaviour and is the thing
+                     *       both 0d2ae1514 (basis-lock-while-held) and 1c369c3c0
+                     *       (heading-lock-on-input-change) destroyed. Both locked on
+                     *       INPUT, which cannot tell a pan from a cut. Neither may come
+                     *       back.
+                     *
+                     *  SNAP (the shot actually changed, camSnap): with a direction held,
+                     *       LOCK. Harry keeps the world line he is already on instead of
+                     *       being re-mapped into a basis that may point back the way he
+                     *       came — re-mapping is what walks the player back into the
+                     *       trigger they just left and ping-pongs between two shots.
+                     *
+                     * WHILE LOCKED the stick still steers, +/-45 deg relative to the
+                     * stick angle held at lock time, applied to HARRY's heading — the
+                     * camera is free to pan without touching him. Pushing outside that
+                     * window is the deliberate escape valve back to live tracking, so the
+                     * lock can never trap you (this is the mechanism the port was missing
+                     * entirely). Neutral input also releases it; the next press re-samples
+                     * the current shot. Orbit cam never snaps, so it always tracks. */
+                    if (anyInput) {
+                        /* Stick angle in the screen frame (0 = into the screen, + = right).
+                         * world dir = basis + stick: identical to the old
+                         * inZ*forward + inX*right combination, since
+                         * inZ*(sin b, cos b) + inX*(cos b, -sin b) = r*(sin(b+s), cos(b+s))
+                         * for s = ratan2(inX, inZ). One ratan2 instead of two. */
+                        q3_12 stickYaw = ratan2(inXv, inZv);
+                        q3_12 targetYaw;
+
+                        if (camSnap && s_2dHaveTravel && !s_2dLocked) {
+                            s_2dLocked      = 1;
+                            s_2dLockHeading = s_2dTravelYaw;
+                            s_2dLockStick   = stickYaw;
+                            SH_DBG("[2DSNAP] locked heading %d (stick %d, live cam %d)",
+                                   (int)s_2dLockHeading, (int)stickYaw, (int)camYaw);
+                        }
+
+                        if (s_2dLocked) {
+                            q3_12 delta = Math_AngleNormalizeSigned(stickYaw - s_2dLockStick);
+                            if (ABS(delta) <= Q12_ANGLE(45.0f)) {
+                                targetYaw = Q12_ANGLE_NORM_U(s_2dLockHeading + delta + Q12_ANGLE(360.0f));
                             } else {
-                                q3_12 diff = Math_AngleNormalizeSigned(targetYaw - player->rotation.vy);
-                                q3_12 turn2d = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(10.0f));
-                                if (diff >  turn2d) diff =  turn2d;
-                                if (diff < -turn2d) diff = -turn2d;
-                                player->rotation.vy = Q12_ANGLE_NORM_U(player->rotation.vy + diff + Q12_ANGLE(360.0f));
+                                s_2dLocked = 0;
+                                targetYaw  = Q12_ANGLE_NORM_U(camYaw + stickYaw + Q12_ANGLE(360.0f));
+                                SH_DBG("[2DSNAP] steering window exited (delta %d), tracking live", (int)delta);
                             }
+                        } else {
+                            targetYaw = Q12_ANGLE_NORM_U(camYaw + stickYaw + Q12_ANGLE(360.0f));
                         }
+
+                        move2dYaw      = targetYaw; /* travel this way regardless of facing */
+                        have2dMove     = 1;
+                        s_2dTravelYaw  = targetYaw;
+                        s_2dHaveTravel = 1;
+
+                        if (g_PcConfig.control2dSnap) {
+                            /* snap: face the input direction immediately */
+                            player->rotation.vy = Q12_ANGLE_NORM_U(targetYaw + Q12_ANGLE(360.0f));
+                        } else {
+                            /* COSMETIC ONLY: the mesh slews toward the travel direction at
+                             * ~900 deg/s so a reversal reads as a spin rather than a pop.
+                             * It must never gate movement — see the g_Player_IsMovingForward
+                             * assignment below. */
+                            q3_12 diff   = Math_AngleNormalizeSigned(targetYaw - player->rotation.vy);
+                            q3_12 turn2d = TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12_ANGLE(30.0f));
+                            q3_12 step   = diff;
+                            if (step >  turn2d) step =  turn2d;
+                            if (step < -turn2d) step = -turn2d;
+                            player->rotation.vy = Q12_ANGLE_NORM_U(player->rotation.vy + step + Q12_ANGLE(360.0f));
+                        }
+                    } else {
+                        s_2dLocked     = 0;
+                        s_2dHaveTravel = 0;
                     }
 
                     /* Reuse the shim's forward walk/run anim + speed by flagging a
-                     * forward move; Harry travels straight along his (turning) facing. */
+                     * forward move. Harry TRAVELS along the move vector (set via the
+                     * heading offset below), not his turning facing.
+                     *
+                     * NO alignment gate: 2D Type moves the instant you push, in whatever
+                     * direction you push, and the body catches up visually. Withholding
+                     * this bit until the mesh had swung within ~45 deg made Harry stop
+                     * and pivot before every direction change — the "heavy / fighting
+                     * you" feel. The mesh slew above is decoration. */
                     g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | (anyInput ? 1 : 0);
                     g_Player_IsMovingBackward    = 0;
                     g_Player_IsSteppingLeftHold  = 0;
@@ -1962,7 +2054,10 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         if (g_Player_IsRunning &&
                             !(g_DebugThirdPersonCam && g_Player_IsAiming &&
                               g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)))
-                            D_800C4550 = g_DebugThirdPersonCam ? PC_OTS_RUN_SPEED : Q12(3.0f);
+                            D_800C4550 = g_DebugThirdPersonCam
+                                             ? PC_OTS_RUN_SPEED
+                                             : PC_SHIM_RUN_SPEED(Map_SpeedZoneTypeGet(player->position.vx,
+                                                                                      player->position.vz));
                         else
                             D_800C4550 = Q12(1.5f);
 #else
@@ -1975,6 +2070,37 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     }
 
                     jumpBackActive = (bool)s_jumpBackActive;
+                }
+
+                /* Quick Turn (bound button) — shim path (2D / TPS / OTS / classic-
+                 * fallback). Overrides the shim's finalized body yaw with a smooth 180
+                 * at the native rate; syncs the orbit yaw so the TPS/OTS camera follows.
+                 * Runs after every branch yaw writer, so it works in all shim modes
+                 * (classic tank uses the native animated quick-turn instead). */
+                {
+                    extern int g_PcQuickTurnRequest;
+                    static u8  s_qtActive = 0;
+                    static s32 s_qtStart  = 0;
+                    static s32 s_qtAccum  = 0;
+                    if (g_PcQuickTurnRequest)
+                    {
+                        g_PcQuickTurnRequest = 0;
+                        if (!s_qtActive && !jumpBackActive)
+                        {
+                            s_qtActive = 1;
+                            s_qtStart  = player->rotation.vy;
+                            s_qtAccum  = 0;
+                        }
+                    }
+                    if (s_qtActive)
+                    {
+                        s32 step = (s32)(g_DeltaTime * 24) >> 4;
+                        if (step < 1) step = 1;
+                        if (s_qtAccum + step >= Q12_ANGLE(180.0f)) { step = Q12_ANGLE(180.0f) - s_qtAccum; s_qtActive = 0; }
+                        s_qtAccum += step;
+                        player->rotation.vy = Q12_ANGLE_NORM_U(s_qtStart + s_qtAccum + Q12_ANGLE(360.0f));
+                        if (g_DebugThirdPersonCam) g_TpsCamYaw = player->rotation.vy;
+                    }
                 }
 
                 /* Set walk/run animation on lower body (player) and, when not
