@@ -181,8 +181,22 @@ void smf_vsync(void) // 0x800A6F14
         ticks       = s_smfCarry / 10000;
         s_smfCarry -= ticks * 10000;
 
+        /* Match smf_timer's cadence exactly: on PSX the timer ran the modulation
+         * and key-off pass every 12 sequencer ticks (sd_timer_sync >= 11), ON TOP
+         * of the per-vblank pass at the end of this function. Xbox never runs
+         * smf_timer, so that source was simply missing -- vibrato and note
+         * release were being driven at 60Hz instead of 60Hz + ~48Hz. */
         while (ticks-- > 0)
+        {
             midi_smf_main();
+            if (sd_timer_sync >= 11)
+            {
+                midi_vsync();
+                SdAutoKeyOffCheck();
+                sd_timer_sync = 0;
+            }
+            sd_timer_sync++;
+        }
     }
 #else
 #ifdef SH_PC_PORT

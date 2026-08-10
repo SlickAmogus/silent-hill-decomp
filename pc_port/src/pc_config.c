@@ -68,7 +68,7 @@ s_PcConfig g_PcConfig = {
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
-    .xboxPalettedTex     = 0,    /* Xbox: 0 = ARGB cache (safe default); 1/2 = paletted, DMA variant */
+    .xboxPalettedTex     = 2,    /* Xbox: paletted cache, palette DMA bit CLEAR (log 054 proved the palette samples on this variant) */
     .xboxVideo720p       = 0,    /* Xbox: 480p by default (720p costs texture-cache RAM) */
     .logDiag             = 0,    /* Xbox: quiet log by default (per-frame diag probes gated; log_diag=1 restores) */
     .cutsceneLineGapMs   = 300,  /* min ms between cutscene voice lines (PSX inter-line pause); tune down if it re-desyncs */

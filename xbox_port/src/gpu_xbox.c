@@ -557,12 +557,31 @@ static void ApplyFog(ShVertex* v, int pad)
  * GpuNv2a_EmitTris then memcpy'd in, so every vertex crossed the
  * CPU->write-combined boundary twice; that staging was 59% of the render walk in
  * log 049's warm-cache frames. */
+/* SWIZZLED textures sample in NORMALISED uv (0..1); the linear path samples in
+ * TEXELS (0..255). Everything upstream builds texel uv, so a paletted (swizzled)
+ * page must be scaled here or every fetch clamps to a single texel -- which is
+ * exactly what log 054's screenshots showed: intact geometry with each surface
+ * flat-filled from ONE palette entry, vertex-lit. Scaling at emit time keeps it
+ * in one place, after all vertices are built and after TexLookup has decided
+ * which path this primitive uses. */
+#define PAL_UV_SCALE (1.0f / 256.0f)
+
+static void ScalePalUv(ShVertex* d, int n)
+{
+    int i;
+    for (i = 0; i < n; i++) {
+        d[i].tex[0] *= PAL_UV_SCALE;
+        d[i].tex[1] *= PAL_UV_SCALE;
+    }
+}
+
 static void EmitTri(ShVertex* a, ShVertex* b, ShVertex* c)
 {
     unsigned long long t0 = shx_rdtsc();
     ShVertex* d = GpuNv2a_BatchAlloc(3);
     if (d) {
         d[0] = *a; d[1] = *b; d[2] = *c;
+        if (s_pendingPal) ScalePalUv(d, 3);
         s_primCount++;
     }
     s_emitCycles += shx_rdtsc() - t0;
@@ -575,6 +594,7 @@ static void EmitQuad(ShVertex* v0, ShVertex* v1, ShVertex* v2, ShVertex* v3)
     if (d) {
         d[0] = *v0; d[1] = *v1; d[2] = *v2;
         d[3] = *v1; d[4] = *v2; d[5] = *v3;
+        if (s_pendingPal) ScalePalUv(d, 6);
         s_primCount++;
     }
     s_emitCycles += shx_rdtsc() - t0;
