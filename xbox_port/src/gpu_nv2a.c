@@ -78,6 +78,7 @@ static const void* s_lastQueuedFb;
 static int         s_freezePending;   /* freeze capture requested; runs at FrameBegin */
 static unsigned    s_frameBeginMs;    /* ms at FrameBegin; splits game tick vs submission */
 static void        FreezeRunPending(void);
+void               GpuNv2a_PaletteSelfTest(void);
 
 static int s_frameW, s_frameH;
 
@@ -329,6 +330,10 @@ void GpuNv2a_FrameBegin(void)
      * before the FreezeBlit that will read it later this frame. */
     if (s_freezePending)
         FreezeRunPending();
+
+    /* Once, after the scratch surface exists: find out whether this console's
+     * palette register works the way we program it, instead of shipping a guess. */
+    GpuNv2a_PaletteSelfTest();
 
     pb_erase_depth_stencil_buffer(0, 0, s_frameW, s_frameH);
     /* Clear to the PSX draw-env isbg background — in-game GsSortClear sets it
@@ -713,6 +718,12 @@ void GpuNv2a_BindTexture(const void* addr, int w, int h)
  *              the NPOT pitch/size registers, which must be left alone.
  * The palette register takes a 64-byte-aligned offset (every palette is a
  * separate 1KB contiguous allocation, so alignment holds) with LENGTH_256. */
+/* Which DMA context the palette register selects is the one thing here that
+ * cannot be derived from the headers: the field is a single bit and nxdk ships
+ * no example using it. Rather than spend hardware runs on a coin flip, the
+ * self-test below tries both and latches whichever actually samples. */
+static DWORD s_palDmaBit = NV097_SET_TEXTURE_PALETTE_CONTEXT_DMA;
+
 void GpuNv2a_BindPaletted(const void* page, const void* palette)
 {
     uint32_t* p;
@@ -726,7 +737,7 @@ void GpuNv2a_BindPaletted(const void* page, const void* palette)
     p = pb_push1(p, NV097_SET_TEXTURE_PALETTE,      /* stage 0; not an indexed macro */
                  ((DWORD)palette & 0x03ffffc0)
                  | (NV097_SET_TEXTURE_PALETTE_LENGTH_256 << 2)
-                 | NV097_SET_TEXTURE_PALETTE_CONTEXT_DMA);
+                 | s_palDmaBit);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_WRAP(0), 0x00030303);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(0), 0x4003ffc0);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_FILTER(0), 0x01014000);  /* point, as PSX */
@@ -734,6 +745,105 @@ void GpuNv2a_BindPaletted(const void* page, const void* palette)
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(2), 0x0003ffc0);
     p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(3), 0x0003ffc0);
     pb_end(p);
+}
+
+/* Small solid quad at the origin of the CURRENT target, for the self-test. */
+static void PaletteTestQuad(float r, float g, float b)
+{
+    ShVertex v[6];
+    int      i;
+
+    memset(v, 0, sizeof(v));
+    for (i = 0; i < 6; i++) {
+        v[i].col[0] = r; v[i].col[1] = g; v[i].col[2] = b; v[i].col[3] = 1.0f;
+        v[i].pos[3] = 1.0f;
+    }
+    v[0].pos[0] =  0.0f; v[0].pos[1] =  0.0f;
+    v[1].pos[0] = 16.0f; v[1].pos[1] =  0.0f;
+    v[2].pos[0] =  0.0f; v[2].pos[1] = 16.0f;
+    v[3] = v[1];
+    v[4].pos[0] = 16.0f; v[4].pos[1] = 16.0f;
+    v[5] = v[2];
+    /* All UVs stay 0 => texel (0,0) => palette index 0. */
+    GpuNv2a_EmitTris(v, 6);
+    GpuNv2a_FlushBatch();
+}
+
+/* Does the paletted texture path actually sample on THIS console?
+ *
+ * Log 051 showed the cache side working perfectly (texUs 20645 -> 10) while the
+ * screen filled with grey: a palette that reads back as zeros gives every texel
+ * alpha 0, the alpha test discards the primitive, and the grey fog behind it is
+ * what you see. The only unverifiable part is the palette register's DMA-context
+ * bit, so instead of guessing, render a known paletted texel into the scratch
+ * surface and look at the result. Draw RED untextured first, then the paletted
+ * quad whose palette entry 0 is GREEN: green means the palette was sampled, red
+ * means it was not. Try both DMA bits and keep the one that works; if neither
+ * does, the paletted path stays off and the ARGB cache is used, so the worst
+ * case is the previous build's behaviour rather than a broken screen. */
+int g_Nv2aPaletteOk = 0;
+
+void GpuNv2a_PaletteSelfTest(void)
+{
+    static int s_done = 0;
+    uint8_t*   page;
+    uint32_t*  pal;
+    int        attempt;
+
+    if (s_done || !s_freezeReady || s_frameW <= 0)
+        return;                     /* needs the extra buffer as a scratch target */
+    s_done = 1;
+
+    page = (uint8_t*)GpuNv2a_AllocTexMem(256 * 256);
+    pal  = (uint32_t*)GpuNv2a_AllocTexMem(256 * 4);
+    if (!page || !pal) {
+        SH_DBG("[VRAM] palette self-test: no memory, using ARGB cache");
+        return;
+    }
+    memset(page, 0, 256 * 256);                       /* every texel = index 0 */
+    { int i; for (i = 0; i < 256; i++) pal[i] = 0xFF000000; }
+    pal[0] = 0xFF00FF00;                              /* opaque green */
+    __asm__ __volatile__("sfence" ::: "memory");
+
+    for (attempt = 0; attempt < 2 && !g_Nv2aPaletteOk; attempt++) {
+        const uint32_t* fb;
+        uint32_t        px = 0;
+
+        s_palDmaBit = attempt ? 0 : NV097_SET_TEXTURE_PALETTE_CONTEXT_DMA;
+
+        GpuNv2a_FlushBatch();
+        pb_target_extra_buffer(0);
+        GpuNv2a_SetDepthTest(0);
+        GpuNv2a_SetDepthWrite(0);
+        GpuNv2a_SetBlendMode(0);
+        GpuNv2a_SetScissor(0, 0, 0, 0);
+
+        GpuNv2a_BindWhite();
+        PaletteTestQuad(1.0f, 0.0f, 0.0f);            /* known-bad marker: red */
+        GpuNv2a_BindPaletted(page, pal);
+        PaletteTestQuad(1.0f, 1.0f, 1.0f);            /* modulate 1 => palette colour */
+
+        while (pb_busy()) { }
+        pb_target_back_buffer();
+        GpuNv2a_BindWhite();
+
+        fb = (const uint32_t*)pb_extra_buffer(0);
+        if (fb) {
+            unsigned stride = pb_back_buffer_pitch() / 4;
+            px = fb[4 * stride + 4];                  /* inside the test rect */
+        }
+        /* green high and red low => palette entry 0 reached the framebuffer */
+        if (((px >> 8) & 0xFF) > 0x80 && ((px >> 16) & 0xFF) < 0x40)
+            g_Nv2aPaletteOk = 1;
+        SH_DBG("[VRAM] palette self-test dma=%d -> px=%08X %s",
+               attempt ? 0 : 1, (unsigned)px, g_Nv2aPaletteOk ? "OK" : "no");
+    }
+
+    if (!g_Nv2aPaletteOk)
+        SH_DBG("[VRAM] paletted path unavailable on this console; using ARGB cache");
+
+    MmFreeContiguousMemory(page);
+    MmFreeContiguousMemory(pal);
 }
 
 /* Restore the 1x1-white default texture (untextured prims -> colour passes through). */

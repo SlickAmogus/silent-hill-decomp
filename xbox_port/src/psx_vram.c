@@ -788,6 +788,13 @@ const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
      * off-console). */
     if (!g_PcConfig.xboxPalettedTex)
         return 0;
+    {   /* Verified on THIS console at boot (GpuNv2a_PaletteSelfTest). If the
+         * palette register does not sample, fall back rather than render the
+         * grey the alpha test leaves behind when every texel reads as zero. */
+        extern int g_Nv2aPaletteOk;
+        if (!g_Nv2aPaletteOk)
+            return 0;
+    }
 
     if (!s_palPathReady) {
         extern unsigned Xbox_MemFreeKB(void);
