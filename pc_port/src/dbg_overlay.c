@@ -13,6 +13,7 @@
 #include "bodyprog/bodyprog.h"
 #include "sh_log.h"
 #include "dbg_overlay.h"
+#include "screens/options.h" /* OptionsMenuState_* — Escape backs out of the brightness screen */
 #include "pc_config.h"
 
 #include <PsyX/common/glad.h>
@@ -1799,7 +1800,16 @@ void DbgOverlay_Update(void)
         static int s_prev_exit = 0;
         int cur_exit = Dbg_GfxBindActive(ks, g_PcConfig.keyExitGame);
         if (cur_exit && !s_prev_exit && !g_PcConsoleInputActive) {
-            if (g_GameWork.gameState == GameState_MainMenu) {
+            /* The brightness screen owns the whole display (its calibration bar is
+             * drawn outside the normal menu path), so warm-resetting out of it left
+             * the bar on screen over the title. Back out to the options list the
+             * same way its own cancel does instead of exiting. */
+            if (g_GameWork.gameState == GameState_OptionScreen &&
+                (g_GameWork.gameStateSteps[0] == OptionsMenuState_Brightness ||
+                 g_GameWork.gameStateSteps[0] == OptionsMenuState_EnterBrightness)) {
+                extern int g_cfg_calibBar; g_cfg_calibBar = 0;
+		g_GameWork.gameStateSteps[0] = OptionsMenuState_LeaveBrightness;
+            } else if (g_GameWork.gameState == GameState_MainMenu) {
                 exit(0);
             } else {
                 g_SysWork.sysFlags |= SysFlag_DoWarmReset;

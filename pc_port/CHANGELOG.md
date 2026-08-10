@@ -1,5 +1,22 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.08.10.1 -- 2026-08-10
+- Quick heal: No longer works or flashes green without health items. It also notifies you what was used.
+- Levels: Can now load larger IPD files for map editing purposes.
+- Launcher: Fixed small issue where it added extra empty launcher blocks to the config.
+- Fixed fog strength setting in config not being applied until adjusting the fog ingame.
+- Fixed issue where a single frame of the classic camera would show when opening the inventory while using an alternate camera.
+- Fixed issue where pressing warm reset key (default esc) while in brightness menu kept brightness bar on screen.
+
+Commit summaries:
+- quick heal: require a real healing item, and report what was used
+- ipd: load loose map chunks bigger than the original file
+- fix: apply fog_strength at boot, and stop the launcher stacking empty blocks
+- launcher 2026.8.10.1 — stop stacking empty "## Launcher" blocks
+- inventory: no classic-camera frame when opening on an alternate camera
+- Revert "inventory: no classic-camera frame when opening on an alternate camera"
+- inventory: carve the screen gameStates out of the alt-camera stand-down
+
 ## beta-2026.08.08.1 -- 2026-08-08
 - Door transitions now properly fade to black. Loading is  also much faster.
 - Examining things now pauses the game the way it does on PSX. Before this only memos and
