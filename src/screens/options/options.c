@@ -347,7 +347,20 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
         return buf;
     }
     if (e->kind == PCK_SLIDER) {
+#ifdef SH_XBOX_PORT
+        /* nxdk's printf implements no %f -- "%.2f" produced an EMPTY string, so
+         * every slider row (Minimap Scale/Opacity) drew a blank value. Format the
+         * two decimals by hand. Whole numbers print bare so percentages read as
+         * "100" rather than "100.00". */
+        float fv    = e->ffield ? *e->ffield : 0.0f;
+        int   whole = (int)fv;
+        int   frac  = (int)((fv - (float)whole) * 100.0f + 0.5f);
+        if (frac >= 100) { whole++; frac -= 100; }
+        if (frac) snprintf(buf, bufsz, "%d.%02d", whole, frac);
+        else      snprintf(buf, bufsz, "%d", whole);
+#else
         snprintf(buf, bufsz, "%.2f", e->ffield ? *e->ffield : 0.0f);
+#endif
         return buf;
     }
     if (e->kind == PCK_MAP) {
@@ -686,7 +699,14 @@ static void Options_PcOptionsMenu_ConfigDraw(void)
      * 109px) must still end before the 320px clip (its labels end by ~196, so
      * 204 clears both ways). Controls and Camera hold only short values (numbers
      * and On/Off), so they can afford 240. */
+#ifdef SH_XBOX_PORT
+    /* Xbox page 2 carries the longest labels on either page ("Minimap Corner",
+     * "Minimap Opacity"), and 204 put the value hard against them -- the value
+     * overlapped the label instead of sitting in its own column. */
+    int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : 248;
+#else
     int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : (g_PcOptionsMenu_Page == 1) ? 204 : 240;
+#endif
 
     Gfx_StringSetColor(StringColorId_White);
     for (i = 0; i < count; i++) {
