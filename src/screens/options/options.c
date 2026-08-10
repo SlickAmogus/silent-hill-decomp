@@ -252,7 +252,6 @@ static const s_PcOpt PCOPT_T[] = {
  * per-draw); RetroAchievements is an action row that toasts login state. */
 static const s_PcOpt PCOPT_X[] = {
     { "Camera",          &g_PcConfig.controlStyle,      "control_style",       VAL_CAM,     4, LBL_CAM,     &g_ControlStyle, 1, PCK_CAMSTYLE },
-    { "2D_Controls",     &g_PcConfig.control2d,         "control_2d",          VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Invert_Pad_Y",    &g_PcConfig.invertControllerY, "invert_controller_y", VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Crosshair",       &g_PcConfig.crosshair,         "crosshair",           VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Crosshair_Style", &g_PcConfig.crosshairStyle,    "crosshair_style",     VAL_CHSTYLE, 4, LBL_CHSTYLE, NULL,            1, PCK_INT      },
@@ -271,12 +270,12 @@ static const s_PcOpt PCOPT_X[] = {
  * hidden until the area's paper map is found (the faithful default); turn it Off
  * to always show it. */
 static const s_PcOpt PCOPT_X2[] = {
+    { "2D_Controls",     &g_PcConfig.control2d,         "control_2d",          VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "2D_Snap_Turn",    &g_PcConfig.control2dSnap,     "control_2d_snap",     VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Minimap",         &g_PcConfig.minimap,           "minimap",             VAL_MMMODE,  3, LBL_MMMODE,  NULL,            1, PCK_INT      },
     { "Minimap_Corner",  &g_PcConfig.minimapCorner,     "minimap_corner",      VAL_MMCNR,   4, LBL_MMCNR,   NULL,            1, PCK_INT      },
     { "Minimap_Scale",   NULL, "minimap_scale",   NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapScale,   NULL, MINIMAP_SCALE_MIN, MINIMAP_SCALE_MAX, 5.0f },
     { "Minimap_Opacity", NULL, "minimap_opacity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapOpacity, NULL, 0.0f, 100.0f, 5.0f },
-    { "Minimap_Needs_Map",&g_PcConfig.minimapRequireMap,"minimap_require_map", VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Prev_Page",       NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_PREV     },
     { "Back",            NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_BACK     },
 };

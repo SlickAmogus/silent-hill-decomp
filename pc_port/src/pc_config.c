@@ -1029,6 +1029,20 @@ void PcConfig_SaveKeyValue(const char* cfgKey, const char* cfgValue)
         return;
     for (i = 0; i < n; i++)
         fputs(lines[i], f);
+#ifdef SH_XBOX_PORT
+    /* A file whose last line has no trailing newline (hand-edited configs
+     * usually do not) made the appended key land ON that line:
+     *     log_diag=0control_2d = 1
+     * and the damage compounds -- that merged line now parses as key
+     * "log_diag", so control_2d is never found again and every later save
+     * appends ANOTHER duplicate. Terminate the last preserved line first. */
+    if (!found && n > 0)
+    {
+        size_t last = strlen(lines[n - 1]);
+        if (last == 0 || lines[n - 1][last - 1] != '\n')
+            fputc('\n', f);
+    }
+#endif
     if (!found)
         fprintf(f, "%s = %s\n", cfgKey, cfgValue);
     fclose(f);

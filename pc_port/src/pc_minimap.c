@@ -30,6 +30,7 @@
 #include "pc_config.h"
 #include "hires_override.h"
 #ifdef SH_XBOX_PORT
+#include <stdlib.h>   /* malloc/free for the TIM decode below */
 /* The minimap's CORE is the original game's system: it loads the area's paper-map
  * TIM through the normal Fs queue and draws it with PSX primitives. Everything
  * below is the PC custom-asset OVERRIDE layer (texture packs / hi-res
@@ -37,9 +38,76 @@
  * when no pack is present, so these paths are dead here -- they only need to
  * LINK. Stubbed rather than #ifdef'd around every use site so the loader stays
  * one code path and stays diffable against the PC original. */
+/* Decode the area's paper-map TIM to RGBA. On PC this entry point runs the
+ * override decoders (PNG/JPEG/DDS) because a loose file may have replaced the
+ * art; on Xbox the buffer is always the DISC TIM, so decode that directly. This
+ * is the minimap's only image source here -- stubbing it out is what left the
+ * circle empty. Layout: u32 magic 0x10, u32 flags (bpp in bits 0-1, CLUT in bit
+ * 3), optional CLUT block, then the pixel block; both blocks are
+ * u32 size + u16 x,y,w,h, and w counts 16-bit WORDS, so 4bpp packs 4 px per word
+ * and 8bpp packs 2. */
 int HiresOverride_DecodeToRGBA(const unsigned char* d, unsigned int n,
                                unsigned char** outRgba, int* outW, int* outH)
-{ (void)d; (void)n; if (outRgba) *outRgba = 0; if (outW) *outW = 0; if (outH) *outH = 0; return -1; }
+{
+    const unsigned char* p = d;
+    unsigned  flags, bpp;
+    const unsigned short* clut = 0;
+    int       w, h, px, py, x, y;
+    unsigned char* rgba;
+
+    if (outRgba) *outRgba = 0;
+    if (outW) *outW = 0;
+    if (outH) *outH = 0;
+    if (!d || n < 20) return -1;
+    if (*(const unsigned*)p != 0x00000010u) return -1;      /* TIM magic */
+    flags = *(const unsigned*)(p + 4);
+    bpp   = flags & 3;                                       /* 0=4bit 1=8bit 2=16bit */
+    p += 8;
+
+    if (flags & 8)                                           /* CLUT block */
+    {
+        unsigned csz = *(const unsigned*)p;
+        clut = (const unsigned short*)(p + 12);
+        if (csz < 12 || (unsigned)(p - d) + csz > n) return -1;
+        p += csz;
+    }
+    if ((unsigned)(p - d) + 12 > n) return -1;
+    px = *(const unsigned short*)(p + 8);                    /* w, in 16-bit words */
+    py = *(const unsigned short*)(p + 10);
+    p += 12;
+
+    w = (bpp == 0) ? px * 4 : (bpp == 1) ? px * 2 : px;
+    h = py;
+    if (w <= 0 || h <= 0 || w > 1024 || h > 1024) return -1;
+    if ((unsigned)((const unsigned char*)p - d) + (unsigned)(px * h * 2) > n) return -1;
+
+    rgba = (unsigned char*)malloc((size_t)w * h * 4);
+    if (!rgba) return -1;
+
+    for (y = 0; y < h; y++)
+    {
+        const unsigned short* row = (const unsigned short*)p + (size_t)y * px;
+        for (x = 0; x < w; x++)
+        {
+            unsigned short t;
+            unsigned char* o = rgba + ((size_t)y * w + x) * 4;
+
+            if (bpp == 0)      t = clut ? clut[(row[x >> 2] >> ((x & 3) * 4)) & 0x0F] : 0;
+            else if (bpp == 1) t = clut ? clut[(row[x >> 1] >> ((x & 1) * 8)) & 0xFF] : 0;
+            else               t = row[x];
+
+            /* PSX 1-5-5-5 (STP,B,G,R); 0x0000 is fully transparent. */
+            o[0] = (unsigned char)(( t        & 0x1F) << 3);
+            o[1] = (unsigned char)(((t >>  5) & 0x1F) << 3);
+            o[2] = (unsigned char)(((t >> 10) & 0x1F) << 3);
+            o[3] = (unsigned char)(t ? 0xFF : 0x00);
+        }
+    }
+    if (outRgba) *outRgba = rgba; else free(rgba);
+    if (outW) *outW = w;
+    if (outH) *outH = h;
+    return 0;
+}
 int HiresOverride_PoolSlotRegisterDdsKeyed(int slot, int row, const unsigned char* dds,
                                            size_t size, int nw, int nh, unsigned long long key)
 { (void)slot; (void)row; (void)dds; (void)size; (void)nw; (void)nh; (void)key; return -1; }
