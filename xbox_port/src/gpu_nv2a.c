@@ -331,9 +331,6 @@ void GpuNv2a_FrameBegin(void)
     if (s_freezePending)
         FreezeRunPending();
 
-    /* Once, after the scratch surface exists: find out whether this console's
-     * palette register works the way we program it, instead of shipping a guess. */
-    GpuNv2a_PaletteSelfTest();
 
     pb_erase_depth_stencil_buffer(0, 0, s_frameW, s_frameH);
     /* Clear to the PSX draw-env isbg background — in-game GsSortClear sets it
@@ -427,6 +424,12 @@ void GpuNv2a_FrameEnd(void)
      * at vblank and only blocks when we're >2 frames ahead (the triple-buffer table
      * is full) — correct backpressure that lets the CPU build frame N+1 while the
      * GPU rasterizes frame N. */
+    /* Palette probe runs HERE, not in FrameBegin: the first version drew nothing
+     * because it ran before the frame's render state and vertex attribute
+     * pointers were set, so even its RED baseline never appeared (px=FB000000 in
+     * log 052) and the result was inconclusive rather than a verdict. */
+    GpuNv2a_PaletteSelfTest();
+
     tSwap = (unsigned)KeTickCount;
     while (pb_finished()) { }
     tNow = (unsigned)KeTickCount;
@@ -807,7 +810,7 @@ void GpuNv2a_PaletteSelfTest(void)
 
     for (attempt = 0; attempt < 2 && !g_Nv2aPaletteOk; attempt++) {
         const uint32_t* fb;
-        uint32_t        px = 0;
+        uint32_t        px = 0, pxRed = 0;
 
         s_palDmaBit = attempt ? 0 : NV097_SET_TEXTURE_PALETTE_CONTEXT_DMA;
 
@@ -820,23 +823,36 @@ void GpuNv2a_PaletteSelfTest(void)
 
         GpuNv2a_BindWhite();
         PaletteTestQuad(1.0f, 0.0f, 0.0f);            /* known-bad marker: red */
+        while (pb_busy()) { }
+        fb = (const uint32_t*)pb_extra_buffer(0);
+        if (fb) {
+            unsigned stride = pb_back_buffer_pitch() / 4;
+            pxRed = fb[4 * stride + 4];               /* baseline: did we draw at all? */
+        }
+
         GpuNv2a_BindPaletted(page, pal);
         PaletteTestQuad(1.0f, 1.0f, 1.0f);            /* modulate 1 => palette colour */
-
         while (pb_busy()) { }
         pb_target_back_buffer();
         GpuNv2a_BindWhite();
 
-        fb = (const uint32_t*)pb_extra_buffer(0);
         if (fb) {
             unsigned stride = pb_back_buffer_pitch() / 4;
             px = fb[4 * stride + 4];                  /* inside the test rect */
         }
+        /* Sanity FIRST: the red baseline must be visible, or the probe itself is
+         * not drawing and any conclusion about the palette is meaningless. */
+        if (((pxRed >> 16) & 0xFF) < 0x80) {
+            SH_DBG("[VRAM] palette self-test INCONCLUSIVE (baseline px=%08X) - probe did not draw",
+                   (unsigned)pxRed);
+            break;
+        }
         /* green high and red low => palette entry 0 reached the framebuffer */
         if (((px >> 8) & 0xFF) > 0x80 && ((px >> 16) & 0xFF) < 0x40)
             g_Nv2aPaletteOk = 1;
-        SH_DBG("[VRAM] palette self-test dma=%d -> px=%08X %s",
-               attempt ? 0 : 1, (unsigned)px, g_Nv2aPaletteOk ? "OK" : "no");
+        SH_DBG("[VRAM] palette self-test dma=%d red=%08X pal=%08X -> %s",
+               attempt ? 0 : 1, (unsigned)pxRed, (unsigned)px,
+               g_Nv2aPaletteOk ? "OK (paletted cache ACTIVE)" : "no");
     }
 
     if (!g_Nv2aPaletteOk)

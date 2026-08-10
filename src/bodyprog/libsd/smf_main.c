@@ -141,6 +141,45 @@ void smf_vsync(void) // 0x800A6F14
 
     sd_int_flag2 = true;
 
+#if defined(SH_XBOX_PORT)
+    /* CLOCK THE SEQUENCE BY REAL TIME, NOT BY FRAMES.
+     *
+     * Xbox has no RCnt2 hardware timer -- g_rcnt2_timer_active is a permanent 0
+     * stub (xbox_compat_globals.c) -- so the per-VSync advance below IS the
+     * sequence clock. Ten ticks per frame equals 600Hz only while the frame rate
+     * holds 60; when the air-screamer fight halves it the MUSIC PLAYS AT HALF
+     * SPEED. That is why a heavy scene felt like the whole game had slowed down
+     * rather than merely gone choppy: the score slowed with it.
+     *
+     * Advancing by elapsed milliseconds keeps tempo independent of frame rate.
+     * 600 ticks/sec reproduces today's behaviour exactly at 60fps, so a good
+     * frame rate sounds unchanged and only the drop case is corrected. The carry
+     * keeps the fractional remainder so tempo does not drift. Long gaps (map
+     * loads) are clamped instead of fast-forwarding the song to catch up. */
+    if (smf_start_flag)
+    {
+        extern int      GpuNv2a_Ms(void);
+        static unsigned s_smfLastMs = 0;
+        static int      s_smfCarry  = 0;
+        unsigned        now = (unsigned)GpuNv2a_Ms();
+        unsigned        dt;
+        int             ticks;
+
+        if (s_smfLastMs == 0)
+            s_smfLastMs = now;
+        dt = now - s_smfLastMs;
+        if (dt > 250)
+            dt = 250;                       /* after a hitch, resume — don't sprint */
+        s_smfLastMs = now;
+
+        s_smfCarry += (int)dt * 600;        /* 600 ticks per 1000 ms */
+        ticks       = s_smfCarry / 1000;
+        s_smfCarry -= ticks * 1000;
+
+        while (ticks-- > 0)
+            midi_smf_main();
+    }
+#else
 #ifdef SH_PC_PORT
     /* BGM-slightly-fast + cutscene note-buzz ROOT: the sequencer is driven by
      * BOTH the RCnt2 hardware timer (smf_timer @ ~577.8Hz, started because
@@ -167,6 +206,7 @@ void smf_vsync(void) // 0x800A6F14
         midi_smf_main();
         midi_smf_main();
     }
+#endif /* SH_XBOX_PORT */
 
     midi_vsync();
     SdAutoKeyOffCheck();
