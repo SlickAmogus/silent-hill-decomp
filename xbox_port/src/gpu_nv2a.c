@@ -40,7 +40,16 @@ unsigned long long g_Nv2aDrawCycles = 0;
  * frame and EmitTris silently DROPPED the rest of the scene — and since DrawOTag
  * walks far->near, the dropped remainder was the near-camera geometry (Harry + his
  * surroundings), leaving the clear colour as a "grey void". 65536 verts = ~2.3 MB. */
-#define MAX_BATCH_VERTS 65536
+/* Sized for the heaviest frame measured plus ~2x headroom, not for a round
+ * number. The busiest cafe frame in the logs is ~1400 primitives = ~8400 verts;
+ * at 65536 the pool reserved 4MB of contiguous memory to hold ~8k verts, and
+ * that memory comes out of the SAME pool the texture cache draws from. With
+ * texture thrash now the dominant cost (log 050: texUs=20645 of a 31757us walk)
+ * those 3MB are worth ~12 more cache slots -- a 28% larger cache -- which is a
+ * far better use of them. Overflow is not a failure: GpuNv2a_BatchAlloc draws
+ * the pending run, drains, and recycles from 0, so a bigger frame just costs one
+ * extra flush. [NV2A] logs the peak so this stays honest. */
+#define MAX_BATCH_VERTS 16384
 
 /* NV2A linear/NPOT textures need an aligned pitch (>= 64 bytes); a 1x1 (pitch 4)
  * triggers a GPU "invalid data error". Use 64x64 (pitch 256), proven-good. */
@@ -804,6 +813,15 @@ ShVertex* GpuNv2a_BatchAlloc(int count)
     }
     p = s_batch + s_batchUsed;
     s_batchUsed += count;          /* sfence deferred to FlushBatch (per draw) */
+    {   /* Peak watermark: proves the pool is still comfortably oversized after
+         * being cut, or says plainly that it is not. */
+        static int s_peak = 0;
+        if (s_batchUsed > s_peak) {
+            s_peak = s_batchUsed;
+            if ((s_peak & 1023) == 0 || s_peak > MAX_BATCH_VERTS - 2048)
+                SH_DBG("[NV2A] vertex pool peak %d/%d verts", s_peak, MAX_BATCH_VERTS);
+        }
+    }
     return p;
 }
 
