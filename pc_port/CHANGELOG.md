@@ -1,5 +1,100 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.08.08.1 -- 2026-08-08
+- Door transitions now properly fade to black. Loading is  also much faster.
+- Examining things now pauses the game the way it does on PSX. Before this only memos and
+  item pickups froze the world.
+- New Fog Strength slider in the in-game options (PC Options) so that it doesn't need the console.
+- Added a draw distance setting to go with it — `draw_distance_pct` in config.cfg, 100 is
+  vanilla and 200 roughly doubles how far you can see. Lower the fog and raise this
+  together, either one on its own won't do much. At higher settings
+  distant buildings can occasionally sort in front of each other.
+- Play as: nine more characters, 14 total. Each one uses its own body proportions now
+  instead of being stretched onto Harry's skeleton, characters with extra bones sit
+  correctly, and the female characters have an optional voice pitch shift (sound effects
+  only, on by default). 
+- Item models can be replaced with modern glTF models now — full colour, no PSX vertex
+  limits. A texture embedded in the model takes priority over a texture pack, slightly
+  out-of-range UVs get clamped instead of the model being rejected, and the size limit
+  comes from the file itself. Also fixed the models rendering
+  see-through on the pickup and take screens.
+- Mod Manager: TMD <-> OBJ converters added, so item models can be edited in Blender and
+  converted back. Added a TMD replace path that works out the correct texture bank itself
+  instead of asking you. Fixed character OBJ exports coming out with wrong UV scaling —
+  they were being scaled to a fixed 256x256 instead of the character's own texture.
+- Texture packs: the VRAM limit is worked out from your actual GPU now, textures you
+  haven't used get evicted instead of the budget filling up, and zip readers are cached.
+  Fixed a bug where the budget could deadlock and leave you stuck on native textures for
+  the rest of the session.
+- Fixed monsters grabbing you in a map that doesn't have their reaction animations and
+  freezing you in place permanently — mostly hit when spawning monsters into maps they
+  don't belong in. Also fixed the Romper pin dropping you through the floor.
+- Fixed the alt cameras (FPS/TPS/OTS) dropping back to the classic camera whenever you
+  opened a menu or examined something.
+- Fixed the minimap running off the edge of the screen when pillarboxed.
+- Preload Chunks moved out of the in-game options since it needs a map reload anyway and
+  the launcher still has it; Disable Culling took its place.
+- Launcher no longer overwrites settings in config.cfg that it doesn't own. It was
+  reverting things like resident_textures and deleting keys you'd added by hand.
+- Launcher will warn you if resident_textures is set to 0, which can cause graphical glitches (like rainbow bars in a couple of cutscenes) and is recommended to be 1 unless you have issues with it on.
+
+Commit summaries:
+- clear: only use the fog color on a frame that actually drew the world
+- alt cameras: stop standing down for menus and examines
+- texpack: derive the VRAM budget from the GPU, evict LRU, cache zip readers
+- docs: record the texpack budget/LRU/zip-reader fixes
+- minimap: keep the panel inside the frame when pillarboxed
+- playas: give each swapped character its own skeleton proportions
+- playas: restore Harry's own skeleton on swap-back, and cover the load screen
+- map7_s03: record that the lightning off-screen branch is retail-faithful
+- tools: verify the reconstructed map7_s03 boss tables against the retail disc
+- overlay: target core-profile GLSL, and stop shader failures being silent
+- playas: nine more characters, and generic support for extra bones
+- playas: mark which characters are female
+- playas: seat extra bones at their authored pose, and un-ghost the player
+- playas: optional voice-pitch shift for the female characters (SFX only)
+- playas: default the female voice pitch on
+- playas: lift the female voice further, but not the breathing with it
+- playas: raise the female voiced pitch to 140, hold breath at 118
+- Bump PsyCross: arm/lapse logging for the cutscene rainbow bar
+- texpack: report live pack GL bytes against the budget in the cache stats line
+- launcher: TMD <-> OBJ converters — item models are editable
+- launcher: TMD replace path + derive the page-14 bank instead of asking
+- launcher: stop clobbering config.cfg settings the launcher does not own
+- launcher: warn at Play when resident_textures is off
+- playas: stop an oversized skin TIM overrunning the chara CLUT shelf
+- docs: record the PsyCross PR triage (5 PRs: 3 adapted, 2 closed)
+- items: modern glTF item models (adapted from PR #97 + PsyCross PR #16)
+- docs: record the completed glTF adaptation
+- docs: correct the glTF item scope -- it already covers the bank TMDs
+- items: an embedded glTF texture now outranks a pack override
+- items: tolerate and clamp small UV overhang instead of rejecting the model
+- items: run the UV-area test on authored UVs, not clamped ones
+- items: derive the glTF geometry cap from the buffer, not a guessed 8192
+- items: report the glTF texture source per surface, not once per item
+- ILM->OBJ: scale UVs by the character's own TIM, not a fixed 256x256
+- launcher 2026.8.8.1 - ILM->OBJ UV scaling fix
+- items: stop the OT0 sanitizer stripping the glTF modern-mesh packet
+- docs: index the OT0 sanitizer packet-whitelist fix and the chara UV scaling fix
+- PsyCross: modern item mesh depth-comparison fix (see-through back faces)
+- console: CULL toggles chunk visibility culling live
+- items: fix the fully see-through glTF model on the pickup take screen
+- playas: draw one face on the puppet nurse and doctor, not all three
+- docs: record the puppet nurse/doctor triple-face fix
+- texpack: stop the pack budget deadlocking into permanent native art
+- combat: don't enter a grab the current map has no reaction anims for
+- docs: record the foreign-monster grab freeze and its guard
+- combat: guard the Romper pin too, and stop it dropping you through the floor
+- fix: freeze the world for every examine, and stop doors cutting to black
+- console: FBDAMP tunes the framebuffer-feedback gain live
+- fix: fade doors to black BEFORE the blocking load, not during it
+- perf: drain blocking loads at disk speed, not one sector per vblank
+- transitions: halve the door out-fade, make it tunable, add a timing probe
+- transitions: halve the load-screen minimum hold (60 -> 30 frames)
+- options: draw-distance scale + Fog Strength row (replaces Disable Culling)
+- options: swap Preload_Chunks for Disable_Culling on the System page
+- options: correct the Fog_Strength comment — Disable_Culling is back on the page
+
 ## beta-2026.08.05.1 -- 2026-08-05
 - Fix flickering when opening map or pausing, and also reduced time to open map.
 - Allow hopping backwards when sprint + back is pushed in tps and ots camera modes

@@ -4,29 +4,49 @@ The PC port can replace Silent Hill's inventory, examine, and world-pickup item 
 
 If the GLB is missing or unsupported, the game automatically uses the original model from the disc. Removing the GLB restores stock behavior.
 
-## Quick start: replace the Health Drink
+## Quick version
 
-1. Export or download a rigid glTF 2.0 model that follows the profile below.
-2. Name it `UNQ21.glb`.
-3. Put it here, beside the game executable:
+Blender's defaults are fine except for one setting.
 
-   ```text
-   gamedata/load/ITEM/UNQ21.glb
-   ```
+**In Blender**
 
-4. In `config.cfg`, enable loose files:
+1. One mesh object. No armature, animation, or shape keys.
+2. UVs inside the 0–1 square.
+3. Material: Principled BSDF, Blend Mode **Opaque**, no emission — and tick
+   **Backface Culling** (Material Properties → Settings). This is the one
+   default you must change: without it Blender marks the material
+   double-sided and the game rejects the file.
+4. `File → Export → glTF 2.0`, set **Format: glTF Binary (.glb)**, and leave
+   everything else alone. (If the scene holds other objects, tick *Selected
+   Objects* too.)
 
-   ```ini
-   allow_loose_files = 1
-   ```
+**In the game folder**
 
-5. Start the game and inspect or pick up a Health Drink.
+5. Rename it to the item you're replacing — `UNQ21.glb` is the Health Drink —
+   and drop it in `gamedata/load/ITEM/`, beside `SilentHillPC.exe`.
+6. Set `allow_loose_files = 1` in `config.cfg`.
+7. Launch and pick up or examine that item.
 
-The current launcher Mod Manager does not stage GLB item models yet, so install this file manually. The port uniformly rescales each accepted model to the stock item's approximate inventory footprint; you do not need to author in PSX units.
+Size doesn't matter: the game rescales your model to the stock item's
+footprint. Stay under 8,192 vertices, 8,192 triangles, and 16 MiB. Textures
+are optional — embed a single PNG base colour, or ship no texture at all and
+inherit the retail one.
 
-The Khronos glTF Sample Assets **Duck** GLB is a known-good test file. It was used to verify the real Health Drink pickup and inventory carousel paths on Windows:
+If nothing changes, set `enable_debug_log = 1` and search the newest
+`SilentHill_*.log` for `[MODERN_MESH]`; it names the exact reason. A bad file
+is never fatal — the original item is drawn instead, and deleting the `.glb`
+uninstalls it.
 
+The Khronos **Duck** GLB is a known-good test file:
 <https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Duck/glTF-Binary>
+
+The launcher's Mod Manager does not stage GLB item models yet, so install the
+file manually.
+
+---
+
+Everything below is reference detail — the full accepted profile, texture
+workflows, packaging, and troubleshooting. Most people won't need it.
 
 ## File naming
 
