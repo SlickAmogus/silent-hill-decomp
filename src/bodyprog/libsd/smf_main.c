@@ -172,9 +172,14 @@ void smf_vsync(void) // 0x800A6F14
             dt = 250;                       /* after a hitch, resume — don't sprint */
         s_smfLastMs = now;
 
-        s_smfCarry += (int)dt * 600;        /* 600 ticks per 1000 ms */
-        ticks       = s_smfCarry / 1000;
-        s_smfCarry -= ticks * 1000;
+        /* 577.8Hz -- the rate of the RCnt2 timer that IS the sequence clock when
+         * sd_tick_mode==1, which is the mode this game uses. The 10-per-frame
+         * path was PSX's ALTERNATE clock for tick_mode 0/>=4 and works out to
+         * 600Hz at 60fps: 3.8% sharp, which is the "something still sounds a
+         * little off" left after the frame-rate coupling was fixed. */
+        s_smfCarry += (int)dt * 5778;       /* 577.8 ticks per 1000 ms */
+        ticks       = s_smfCarry / 10000;
+        s_smfCarry -= ticks * 10000;
 
         while (ticks-- > 0)
             midi_smf_main();

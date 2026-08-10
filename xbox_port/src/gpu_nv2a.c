@@ -424,12 +424,6 @@ void GpuNv2a_FrameEnd(void)
      * at vblank and only blocks when we're >2 frames ahead (the triple-buffer table
      * is full) — correct backpressure that lets the CPU build frame N+1 while the
      * GPU rasterizes frame N. */
-    /* Palette probe runs HERE, not in FrameBegin: the first version drew nothing
-     * because it ran before the frame's render state and vertex attribute
-     * pointers were set, so even its RED baseline never appeared (px=FB000000 in
-     * log 052) and the result was inconclusive rather than a verdict. */
-    GpuNv2a_PaletteSelfTest();
-
     tSwap = (unsigned)KeTickCount;
     while (pb_finished()) { }
     tNow = (unsigned)KeTickCount;
@@ -725,7 +719,17 @@ void GpuNv2a_BindTexture(const void* addr, int w, int h)
  * cannot be derived from the headers: the field is a single bit and nxdk ships
  * no example using it. Rather than spend hardware runs on a coin flip, the
  * self-test below tries both and latches whichever actually samples. */
-static DWORD s_palDmaBit = NV097_SET_TEXTURE_PALETTE_CONTEXT_DMA;
+DWORD s_palDmaBit = NV097_SET_TEXTURE_PALETTE_CONTEXT_DMA;
+
+/* Selected by texture_paletted in silenthill.cfg: 1 = DMA bit set, 2 = clear.
+ * The render-probe that was supposed to decide this never drew (px=FB000000
+ * twice), so it is retired rather than debugged further -- a config value lets
+ * BOTH be tried with a text edit and no rebuild, which is cheaper than another
+ * probe iteration. */
+void GpuNv2a_SetPaletteDmaVariant(int variant)
+{
+    s_palDmaBit = (variant == 2) ? 0 : NV097_SET_TEXTURE_PALETTE_CONTEXT_DMA;
+}
 
 void GpuNv2a_BindPaletted(const void* page, const void* palette)
 {

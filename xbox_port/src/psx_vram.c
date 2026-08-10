@@ -788,13 +788,7 @@ const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
      * off-console). */
     if (!g_PcConfig.xboxPalettedTex)
         return 0;
-    {   /* Verified on THIS console at boot (GpuNv2a_PaletteSelfTest). If the
-         * palette register does not sample, fall back rather than render the
-         * grey the alpha test leaves behind when every texel reads as zero. */
-        extern int g_Nv2aPaletteOk;
-        if (!g_Nv2aPaletteOk)
-            return 0;
-    }
+
 
     if (!s_palPathReady) {
         extern unsigned Xbox_MemFreeKB(void);
@@ -819,6 +813,10 @@ const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
             if (s_pals[i].data) okp++;
         }
         s_palPathReady = 1;
+        {   /* which palette DMA variant to program (config-selected) */
+            extern void GpuNv2a_SetPaletteDmaVariant(int variant);
+            GpuNv2a_SetPaletteDmaVariant(g_PcConfig.xboxPalettedTex);
+        }
         SH_DBG("[VRAM] paletted cache: %d/%d pages (64KB) + %d/%d palettes, free=%uKB",
                ok, PAGE_N, okp, PAL_N, Xbox_MemFreeKB());
     }
