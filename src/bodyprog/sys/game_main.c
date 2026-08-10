@@ -271,6 +271,28 @@ int Pc_ScriptOwnsScene(void)
             break;
     }
 
+    /* The inventory is a gameState change, not a lingering sysState: on its entry
+     * tick SysState_StatusMenu_Update sets gameState = GameState_LoadStatusScreen
+     * and immediately bounces sysState BACK to Gameplay. The switch above was
+     * therefore live for almost no time, and that frame fell through to the test
+     * below -- which is true, because opening the menu freezes control while the
+     * room-entry camera still has VC_USER_* raised. That is the one classic-camera
+     * frame on the way into the inventory. Pause and the map screen stay in their
+     * own sysState, which is why neither of them shows it. */
+    switch (g_GameWork.gameState)
+    {
+        case GameState_LoadStatusScreen:
+        case GameState_InventoryScreen:
+        case GameState_LoadMapScreen:
+        case GameState_PaperMapScreen:
+        case GameState_SaveScreen:
+        case GameState_OptionScreen:
+            return 0;
+
+        default:
+            break;
+    }
+
     return (vcWork.flags & (VC_USER_CAM_F | VC_USER_WATCH_F)) && g_Player_DisableControl;
 }
 
