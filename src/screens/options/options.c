@@ -156,6 +156,10 @@ static const char* const LBL_CHSTYLE[]  = { "Cross", "Dot", "Circle", "Dashes" }
 static const char* const LBL_VIDEO[]    = { "480p", "720p" };
 static const int         VAL_FR[]       = { 30, 60 };
 static const char* const LBL_FR[]       = { "30_fps", "60_fps" };
+static const int         VAL_MMMODE[]   = { 0, 1, 2 };
+static const int         VAL_MMCNR[]    = { 0, 1, 2, 3 };
+static const char* const LBL_MMMODE[]   = { "Off", "Square", "Circle" };
+static const char* const LBL_MMCNR[]    = { "Top_L", "Top_R", "Bottom_L", "Bottom_R" };
 extern int g_ControlStyle;   /* live camera style (R3 also updates it) */
 #endif
 static const char* const LBL_AA[]    = { "Off", "2x", "4x", "8x" };
@@ -257,6 +261,23 @@ static const s_PcOpt PCOPT_X[] = {
     { "RetroAchievements",NULL,                         NULL,                  NULL,        0, NULL,        NULL,            0, PCK_RASTATUS },
     { "Framerate",       &g_PcConfig.refreshRate,       "refresh_rate",        VAL_FR,      2, LBL_FR,      NULL,            1, PCK_INT      },
     { "Exit_To_Menu",    NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_EXITMENU },
+    { "Next_Page",       NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_NEXT     },
+    { "Back",            NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_BACK     },
+};
+
+/* Page 2: the movement/HUD settings that would not fit above. The minimap is the
+ * game's own paper-map art drawn as PSX prims, so every row here drives shared
+ * code that genuinely runs on this port. Minimap_Needs_Map=On keeps the map
+ * hidden until the area's paper map is found (the faithful default); turn it Off
+ * to always show it. */
+static const s_PcOpt PCOPT_X2[] = {
+    { "2D_Snap_Turn",    &g_PcConfig.control2dSnap,     "control_2d_snap",     VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
+    { "Minimap",         &g_PcConfig.minimap,           "minimap",             VAL_MMMODE,  3, LBL_MMMODE,  NULL,            1, PCK_INT      },
+    { "Minimap_Corner",  &g_PcConfig.minimapCorner,     "minimap_corner",      VAL_MMCNR,   4, LBL_MMCNR,   NULL,            1, PCK_INT      },
+    { "Minimap_Scale",   NULL, "minimap_scale",   NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapScale,   NULL, MINIMAP_SCALE_MIN, MINIMAP_SCALE_MAX, 5.0f },
+    { "Minimap_Opacity", NULL, "minimap_opacity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapOpacity, NULL, 0.0f, 100.0f, 5.0f },
+    { "Minimap_Needs_Map",&g_PcConfig.minimapRequireMap,"minimap_require_map", VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
+    { "Prev_Page",       NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_PREV     },
     { "Back",            NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_BACK     },
 };
 #endif
@@ -292,8 +313,12 @@ static void PcMouse_InjectDir(int dir)
 static const s_PcOpt* PcOpt_Page(int* count)
 {
 #ifdef SH_XBOX_PORT
-    /* Single page; PCOPT_X has no NEXT/PREV rows, so g_PcOptionsMenu_Page
-     * can never leave 0. */
+    /* Two pages: PCOPT_X ends in NEXT, PCOPT_X2 ends in PREV, so the page index
+     * only ever reaches 0 or 1. */
+    if (g_PcOptionsMenu_Page != 0) {
+        *count = (int)(sizeof(PCOPT_X2) / sizeof(PCOPT_X2[0]));
+        return PCOPT_X2;
+    }
     *count = (int)(sizeof(PCOPT_X) / sizeof(PCOPT_X[0]));
     return PCOPT_X;
 #else
