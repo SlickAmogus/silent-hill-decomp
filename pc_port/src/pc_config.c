@@ -68,6 +68,12 @@ s_PcConfig g_PcConfig = {
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
+    .minimap                 = 0, /* minimap overlay off by default */
+    .minimapCorner           = 0, /* top-left */
+    .minimapShape            = 1, /* deprecated; only feeds the old-config migration */
+    .minimapScale            = 100.0f,
+    .minimapRequireMap       = 1, /* the map only appears once Harry has found it */
+    .minimapOpacity          = 100.0f,
     .xboxPalettedTex     = 2,    /* Xbox: paletted cache, palette DMA bit CLEAR (log 054 proved the palette samples on this variant) */
     .xboxVideo720p       = 0,    /* Xbox: 480p by default (720p costs texture-cache RAM) */
     .logDiag             = 0,    /* Xbox: quiet log by default (per-frame diag probes gated; log_diag=1 restores) */
@@ -240,6 +246,12 @@ static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
 
 /* Remembered at load time so PcConfig_SaveMapName writes the same file. */
 static char s_configPath[512] = "config.cfg";
+
+/* Migration flags for the minimap keys: `minimap_shape` was folded into
+ * `minimap`, so an old config that sets only the former is still honoured, and
+ * a new config that sets `minimap` wins over it regardless of file order. */
+static int s_minimapSeen      = 0;
+static int s_minimapShapeSeen = 0;
 
 static void TrimWhitespace(char* s)
 {
@@ -708,6 +720,45 @@ void PcConfig_Load(const char* path)
             if (v < 0) v = 0;
             if (v > 3) v = 3;
             g_PcConfig.crosshairStyle = v;
+        }
+        else if (strcmp(key, "minimap") == 0)
+        {
+            /* 0 = off, 1 = square, 2 = circle. Older configs only ever wrote
+             * 0/1 here and kept the shape in minimap_shape, so a bare 1 is
+             * promoted below once both keys have been seen. */
+            int v = atoi(value);
+            g_PcConfig.minimap = (v < 0) ? 0 : ((v > 2) ? 2 : v);
+            s_minimapSeen = 1;
+        }
+        else if (strcmp(key, "minimap_require_map") == 0)
+        {
+            g_PcConfig.minimapRequireMap = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "minimap_scale") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < MINIMAP_SCALE_MIN) v = MINIMAP_SCALE_MIN;
+            if (v > MINIMAP_SCALE_MAX) v = MINIMAP_SCALE_MAX;
+            g_PcConfig.minimapScale = v;
+        }
+        else if (strcmp(key, "minimap_corner") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.minimapCorner = (v < 0) ? 0 : ((v > 3) ? 3 : v);
+        }
+        else if (strcmp(key, "minimap_shape") == 0)
+        {
+            /* Deprecated: the shape now lives in `minimap` itself. Still read so
+             * an existing config keeps the shape the player had. */
+            g_PcConfig.minimapShape = (atoi(value) != 0);
+            s_minimapShapeSeen = 1;
+        }
+        else if (strcmp(key, "minimap_opacity") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.0f)   v = 0.0f;
+            if (v > 100.0f) v = 100.0f;
+            g_PcConfig.minimapOpacity = v;
         }
         else if (strcmp(key, "texture_paletted") == 0)
         {

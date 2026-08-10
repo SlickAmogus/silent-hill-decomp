@@ -2110,6 +2110,13 @@ void MainLoop(void) // 0x80032EE0
 
         g_SysWork.bgmStatusFlags = BgmStatusFlag_None;
 
+#ifdef SH_XBOX_PORT
+        /* Minimap: loads the area's paper-map TIM on the GAME side (the Fs queue
+         * must not be touched from a draw path) and emits its own prims. Runs
+         * after GsClearOt so the ordering table is live. Self-gated on
+         * g_PcConfig.minimap, so it costs nothing when off. */
+        { extern void Pc_MinimapUpdate(void); Pc_MinimapUpdate(); }
+#endif
         PC_OT_SCAN("pre-GameStateUpdate");
 #ifdef SH_XBOX_PORT
         {   /* Log boot/title state transitions so we can see how far the game

@@ -1,6 +1,10 @@
 #ifndef PC_CONFIG_H
 #define PC_CONFIG_H
 
+/* Minimap size percentage bounds (config key: minimap_scale). */
+#define MINIMAP_SCALE_MIN 60.0f
+#define MINIMAP_SCALE_MAX 120.0f
+
 /* One full control scheme: keyboard primary + alternate, controller primary +
  * alternate. Keyboard values are SDL scancode names ("C","Up","Left Shift","[")
  * or "MouseN"; controller values are SDL game-controller names ("a",
@@ -127,6 +131,12 @@ typedef struct {
     int disableDpadMovement; /* 1 = the controller D-pad no longer drives movement, freeing those D-pad inputs to be bound to other actions (config key: disable_dpad_movement); default 0 */
     int menuFilter;          /* 1 = bilinear-filter menus / 2D screens, independent of the in-game texture Filtering mode; default 0 (config key: menu_filter) */
     int   adsr;             /* 1 = SPU ADSR envelopes (instrument attack/release fades in sequenced BGM); default 1 (config key: adsr) */
+    int minimap;             /* minimap overlay: 0 = off, 1 = square, 2 = circle (config key: minimap); default 0 */
+    int minimapCorner;       /* minimap screen corner: 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right (config key: minimap_corner); default 0 */
+    int minimapShape;        /* DEPRECATED, folded into `minimap`; still read to migrate old configs (config key: minimap_shape) */
+    float minimapScale;      /* minimap size percentage, MINIMAP_SCALE_MIN..MAX (config key: minimap_scale); default 100 */
+    int minimapRequireMap;   /* 1 = only draw the map once the area's paper map has been found; 0 = always draw it (config-only key: minimap_require_map); default 1 */
+    float minimapOpacity;    /* minimap opacity percentage, 0..100 (config key: minimap_opacity); default 100 */
     int   xboxPalettedTex; /* Xbox only: 1 = cache index pages + GPU palettes (default, ~4x texture capacity); 0 = the old per-(tpage,clut) ARGB cache. Config key: texture_paletted. Escape hatch if the paletted path misbehaves -- no rebuild needed. */
     int   xboxVideo720p;    /* Xbox only: 0 = 480p (default), 1 = 1280x720 pillarboxed 4:3 (config key: video_720p; applied at boot, reboot to change) */
     int   logDiag;          /* Xbox only: 0 = quiet log (default; per-frame diag probes gated), 1 = full diagnostic stream (config key: log_diag) */
