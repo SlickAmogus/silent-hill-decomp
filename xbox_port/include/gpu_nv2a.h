@@ -35,6 +35,8 @@ void GpuNv2a_EmitTris(const ShVertex* verts, int count);
 /* Reserve `count` pool vertices and write them in place (avoids staging them in
  * a local array and copying into write-combined memory a second time). */
 ShVertex* GpuNv2a_BatchAlloc(int count);
+/* Bind a 256x256 swizzled 8-bit indexed page + its 256-entry palette. */
+void GpuNv2a_BindPaletted(const void* page, const void* palette);
 
 /* Texture binding for the PSX VRAM path (psx_vram.c). BindTexture binds an
  * ARGB8888 buffer of w*h texels; BindWhite restores the 1x1-white default for

@@ -14,6 +14,7 @@
 #include <string.h>
 #include "gpu_nv2a.h"
 #include "sh_log.h"
+#include "pc_config.h"    /* texture_paletted escape hatch */
 
 #define VRAM_W   1024
 #define VRAM_H   512
@@ -39,6 +40,51 @@ typedef struct {
     int px0, py0, px1, py1;   /* texture-page rect */
     int cx0, cy0, cx1, cy1;   /* CLUT rect (empty for 16-bit direct) */
 } TexEntry;
+/* ---- Paletted texture path -------------------------------------------------
+ * An indexed PSX page is cached ONCE per tpage as 8-bit indices (64KB) and its
+ * CLUT becomes a GPU palette (1KB). The ARGB path below caches every
+ * (tpage,clut) PAIR as a full 256KB decode, so a page drawn with five palettes
+ * cost 1.25MB and five decodes; log 050 measured that as 20.6ms of a 31.8ms
+ * render walk, and log 048 showed 99.5% of misses were capacity evictions.
+ * 64KB per page instead of 256KB per pair is ~4x the effective capacity, and the
+ * CLUT no longer forces a re-decode at all.
+ *
+ * QUALITY IS UNCHANGED. Palette entries are the same full A8R8G8B8 values
+ * Psx16ToArgb already produces, including all three PSX alpha levels (0 =
+ * transparent, 0x80 = STP semi-transparent, 0xFF = opaque). This is a memory
+ * layout change, not a precision one.
+ *
+ * The NV2A's only palettized format is SWIZZLED (SZ_I8_A8R8G8B8), so indices are
+ * stored Morton-interleaved. The scatter runs in a CACHED scratch buffer and is
+ * copied out sequentially -- scattering straight into write-combined memory
+ * would hit the very partial-line eviction cost that made vertex staging slow
+ * (7c62ad599). 16-bit direct pages cannot be palettized and still use the ARGB
+ * cache below; they are the rare framebuffer-feedback textures. */
+#define PAGE_N      64                        /* 64 * 64KB = 4MB of index pages */
+#define PAL_N       128                       /* 128 * 1KB  = 128KB of palettes */
+#define PAGE_BYTES  (TEX_DIM * TEX_DIM)
+#define PAL_ENTRIES 256
+
+typedef struct {
+    int       key;                            /* tpage, or -1 */
+    uint8_t*  data;                           /* swizzled indices */
+    unsigned  lastUse, seq, hits;
+    int       px0, py0, px1, py1;             /* source page rect (invalidation) */
+} PageEntry;
+
+typedef struct {
+    int       key;                            /* clut, or -1 */
+    uint32_t* data;                           /* PAL_ENTRIES A8R8G8B8 */
+    unsigned  lastUse, seq;
+    int       cx0, cy0, cx1, cy1;             /* source CLUT rect (invalidation) */
+} PalEntry;
+
+static PageEntry s_pages[PAGE_N];
+static PalEntry  s_pals[PAL_N];
+static int       s_palPathReady;
+static unsigned  s_swzX[TEX_DIM], s_swzY[TEX_DIM];
+static uint8_t   s_swzScratch[PAGE_BYTES];    /* cached staging for the scatter */
+
 static TexEntry s_cache[CACHE_N];
 static int      s_cacheReady;
 static int      s_cacheAlloc;   /* slots with real memory (<= CACHE_N) */
@@ -97,6 +143,22 @@ static void InvalidateRegion(int wx0, int wy0, int wx1, int wy1)
             e->key     = -1;
             if (i == s_memoSlot) s_memoSlot = -1;
         }
+    }
+    /* Paletted caches. The point of splitting them is that a CLUT write no longer
+     * touches the index page and a texel write no longer touches the palette --
+     * the animated-palette churn that cost a 256KB re-decode now costs a 1KB
+     * palette rebuild. */
+    for (i = 0; i < PAGE_N; i++) {
+        PageEntry* e = &s_pages[i];
+        if (e->key == -1) continue;
+        if (RectsOverlap(e->px0, e->py0, e->px1, e->py1, wx0, wy0, wx1, wy1))
+            e->key = -1;
+    }
+    for (i = 0; i < PAL_N; i++) {
+        PalEntry* e = &s_pals[i];
+        if (e->key == -1) continue;
+        if (RectsOverlap(e->cx0, e->cy0, e->cx1, e->cy1, wx0, wy0, wx1, wy1))
+            e->key = -1;
     }
     /* Do NOT reset s_cacheNext: round-robin reuse still finds key==-1 slots. */
 }
@@ -288,6 +350,57 @@ static uint32_t Psx16ToArgb(uint16_t c)
     g = ((c >> 5) & 0x1F) << 3;
     b = ((c >> 10) & 0x1F) << 3;
     return a | ((uint32_t)r << 16) | ((uint32_t)g << 8) | (uint32_t)b;
+}
+
+/* Expand an indexed page to 8-bit indices in NV2A swizzle (Morton) order. */
+static void PageDecodeIndices(int tpage, uint8_t* out)
+{
+    const int tx = (tpage & 0x0F) * 64;
+    const int ty = ((tpage >> 4) & 1) * 256;
+    const int tp = (tpage >> 7) & 3;          /* 0 = 4bit, 1 = 8bit */
+    int u, v;
+
+    for (v = 0; v < TEX_DIM; v++) {
+        const uint16_t* row = &s_vram[((ty + v) & (VRAM_H - 1)) * VRAM_W];
+        unsigned        sy  = s_swzY[v];
+        int             i   = 0;
+
+        if (tp == 0) {                        /* one VRAM word feeds 4 texels */
+            for (u = 0; u < TEX_DIM; u += 4, i++) {
+                uint16_t w = row[(tx + i) & (VRAM_W - 1)];
+                s_swzScratch[s_swzX[u]     | sy] = (uint8_t)( w        & 0x0F);
+                s_swzScratch[s_swzX[u + 1] | sy] = (uint8_t)((w >>  4) & 0x0F);
+                s_swzScratch[s_swzX[u + 2] | sy] = (uint8_t)((w >>  8) & 0x0F);
+                s_swzScratch[s_swzX[u + 3] | sy] = (uint8_t)((w >> 12) & 0x0F);
+            }
+        } else {                              /* one VRAM word feeds 2 texels */
+            for (u = 0; u < TEX_DIM; u += 2, i++) {
+                uint16_t w = row[(tx + i) & (VRAM_W - 1)];
+                s_swzScratch[s_swzX[u]     | sy] = (uint8_t)( w       & 0xFF);
+                s_swzScratch[s_swzX[u + 1] | sy] = (uint8_t)((w >> 8) & 0xFF);
+            }
+        }
+    }
+    memcpy(out, s_swzScratch, PAGE_BYTES);    /* sequential: write-combines cleanly */
+    __asm__ __volatile__("sfence" ::: "memory");
+}
+
+/* Build a 256-entry GPU palette from the CLUT at `clut`. A 4-bit CLUT only
+ * occupies 16 VRAM words; the rest are never indexed, but must not read past the
+ * row. Same Psx16ToArgb conversion the ARGB path uses, so colour and all three
+ * alpha levels are bit-identical. */
+static void PaletteBuild(int clut, uint32_t* out)
+{
+    const int cx  = (clut & 0x3F) * 16;
+    const int cy  = (clut >> 6) & 0x1FF;
+    const uint16_t* row = &s_vram[(cy & (VRAM_H - 1)) * VRAM_W];
+    int i;
+
+    for (i = 0; i < PAL_ENTRIES; i++) {
+        int sx = cx + i;
+        out[i] = (sx < VRAM_W) ? Psx16ToArgb(row[sx]) : 0;
+    }
+    __asm__ __volatile__("sfence" ::: "memory");
 }
 
 static void DecodePage(int tpage, int clut, uint32_t* out)
@@ -648,4 +761,141 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
     if ((++s_decodeTotal & 511) == 0)
         SH_DBG("[VRAM] decode #%d", s_decodeTotal);
     return s_cache[i].argb;
+}
+
+/* ---- Paletted lookup -------------------------------------------------------
+ * Returns the swizzled index page for `tpage` and, via palOut, the palette for
+ * `clut`. Returns 0 for 16-bit direct pages (not palettizable -- the caller
+ * falls back to PsxVram_GetTexture) or if the allocation failed, so a failure
+ * degrades to the old path rather than to a black screen.
+ *
+ * Both caches carry the same in-flight rule as the ARGB cache: the NV2A is
+ * handed a raw pointer and reads it asynchronously, so an entry bound this frame
+ * and not yet consumed by a drain must never be overwritten -- that is exactly
+ * the bug 09202d93e fixed, and it applies to index pages and palettes too. */
+const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
+{
+    const int tp = (tpage >> 7) & 3;
+    unsigned  thisFrame = (unsigned)g_Nv2aFrameCount;
+    int       i, best;
+
+    if (palOut) *palOut = 0;
+    if (tp >= 2)
+        return 0;                              /* 16-bit direct: ARGB path */
+    /* Escape hatch: texture_paletted=0 in silenthill.cfg falls back to the ARGB
+     * cache without a rebuild, in case this path misbehaves on hardware (it
+     * programs a texture format and a palette register that cannot be verified
+     * off-console). */
+    if (!g_PcConfig.xboxPalettedTex)
+        return 0;
+
+    if (!s_palPathReady) {
+        extern unsigned Xbox_MemFreeKB(void);
+        int b, ok = 0, okp = 0;
+        for (i = 0; i < TEX_DIM; i++) {        /* Morton spread tables */
+            unsigned x = 0, y = 0;
+            for (b = 0; b < 8; b++) {
+                x |= (unsigned)((i >> b) & 1) << (2 * b);
+                y |= (unsigned)((i >> b) & 1) << (2 * b + 1);
+            }
+            s_swzX[i] = x;
+            s_swzY[i] = y;
+        }
+        for (i = 0; i < PAGE_N; i++) {
+            s_pages[i].key  = -1;
+            s_pages[i].data = (uint8_t*)GpuNv2a_AllocTexMem(PAGE_BYTES);
+            if (s_pages[i].data) ok++;
+        }
+        for (i = 0; i < PAL_N; i++) {
+            s_pals[i].key  = -1;
+            s_pals[i].data = (uint32_t*)GpuNv2a_AllocTexMem(PAL_ENTRIES * 4);
+            if (s_pals[i].data) okp++;
+        }
+        s_palPathReady = 1;
+        SH_DBG("[VRAM] paletted cache: %d/%d pages (64KB) + %d/%d palettes, free=%uKB",
+               ok, PAGE_N, okp, PAL_N, Xbox_MemFreeKB());
+    }
+
+    /* --- index page, keyed by tpage alone (the CLUT no longer matters) --- */
+    best = -1;
+    for (i = 0; i < PAGE_N; i++)
+        if (s_pages[i].key == tpage && s_pages[i].data) { best = i; break; }
+
+    if (best < 0) {
+        int      victim = -1, pinned = -1;
+        unsigned bh = 0xFFFFFFFFu, bu = 0xFFFFFFFFu, pu = 0xFFFFFFFFu;
+        for (i = 0; i < PAGE_N; i++) {
+            if (!s_pages[i].data) continue;
+            if (s_pages[i].key == -1) { victim = i; break; }
+            if (s_pages[i].lastUse < pu) { pu = s_pages[i].lastUse; pinned = i; }
+            if (s_pages[i].lastUse == thisFrame && s_pages[i].seq > s_drainedSeq)
+                continue;                      /* GPU may still be reading it */
+            if (s_pages[i].hits < bh || (s_pages[i].hits == bh && s_pages[i].lastUse < bu)) {
+                bh = s_pages[i].hits; bu = s_pages[i].lastUse; victim = i;
+            }
+        }
+        if (victim < 0) {                      /* all in flight: drain, then reuse */
+            extern void GpuNv2a_DrainGpu(void);
+            GpuNv2a_DrainGpu();
+            s_drainedSeq = s_bindSeq;
+            victim = pinned;
+        }
+        if (victim < 0) return 0;
+        {   /* record the source rect so texel writes invalidate this page */
+            int px = (tpage & 0x0F) * 64;
+            int py = ((tpage >> 4) & 1) * 256;
+            s_pages[victim].px0 = px;
+            s_pages[victim].py0 = py;
+            s_pages[victim].px1 = px + ((tp == 0) ? 64 : 128);
+            s_pages[victim].py1 = py + 256;
+        }
+        PageDecodeIndices(tpage, s_pages[victim].data);
+        s_pages[victim].key  = tpage;
+        s_pages[victim].hits = 1;
+        best = victim;
+    }
+    s_pages[best].lastUse = thisFrame;
+    s_pages[best].seq     = ++s_bindSeq;
+    if (s_pages[best].hits < 0xFFFF) s_pages[best].hits++;
+
+    /* --- palette, keyed by clut alone --- */
+    {
+        int p = -1;
+        for (i = 0; i < PAL_N; i++)
+            if (s_pals[i].key == clut && s_pals[i].data) { p = i; break; }
+        if (p < 0) {
+            int      victim = -1, pinned = -1;
+            unsigned bu = 0xFFFFFFFFu, pu = 0xFFFFFFFFu;
+            for (i = 0; i < PAL_N; i++) {
+                if (!s_pals[i].data) continue;
+                if (s_pals[i].key == -1) { victim = i; break; }
+                if (s_pals[i].lastUse < pu) { pu = s_pals[i].lastUse; pinned = i; }
+                if (s_pals[i].lastUse == thisFrame && s_pals[i].seq > s_drainedSeq)
+                    continue;
+                if (s_pals[i].lastUse < bu) { bu = s_pals[i].lastUse; victim = i; }
+            }
+            if (victim < 0) {
+                extern void GpuNv2a_DrainGpu(void);
+                GpuNv2a_DrainGpu();
+                s_drainedSeq = s_bindSeq;
+                victim = pinned;
+            }
+            if (victim < 0) return 0;
+            {
+                int cx = (clut & 0x3F) * 16;
+                int cy = (clut >> 6) & 0x1FF;
+                s_pals[victim].cx0 = cx;
+                s_pals[victim].cy0 = cy;
+                s_pals[victim].cx1 = cx + ((tp == 0) ? 16 : 256);
+                s_pals[victim].cy1 = cy + 1;
+            }
+            PaletteBuild(clut, s_pals[victim].data);
+            s_pals[victim].key = clut;
+            p = victim;
+        }
+        s_pals[p].lastUse = thisFrame;
+        s_pals[p].seq     = ++s_bindSeq;
+        if (palOut) *palOut = s_pals[p].data;
+    }
+    return s_pages[best].data;
 }

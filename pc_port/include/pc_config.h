@@ -127,6 +127,7 @@ typedef struct {
     int disableDpadMovement; /* 1 = the controller D-pad no longer drives movement, freeing those D-pad inputs to be bound to other actions (config key: disable_dpad_movement); default 0 */
     int menuFilter;          /* 1 = bilinear-filter menus / 2D screens, independent of the in-game texture Filtering mode; default 0 (config key: menu_filter) */
     int   adsr;             /* 1 = SPU ADSR envelopes (instrument attack/release fades in sequenced BGM); default 1 (config key: adsr) */
+    int   xboxPalettedTex; /* Xbox only: 1 = cache index pages + GPU palettes (default, ~4x texture capacity); 0 = the old per-(tpage,clut) ARGB cache. Config key: texture_paletted. Escape hatch if the paletted path misbehaves -- no rebuild needed. */
     int   xboxVideo720p;    /* Xbox only: 0 = 480p (default), 1 = 1280x720 pillarboxed 4:3 (config key: video_720p; applied at boot, reboot to change) */
     int   logDiag;          /* Xbox only: 0 = quiet log (default; per-frame diag probes gated), 1 = full diagnostic stream (config key: log_diag) */
     int   cutsceneLineGapMs; /* minimum silence (ms) between cutscene voice lines so they don't run together; 0 = off, 300 = default (config key: cutscene_line_gap_ms) */

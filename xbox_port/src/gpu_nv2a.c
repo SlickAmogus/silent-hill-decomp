@@ -702,6 +702,40 @@ void GpuNv2a_BindTexture(const void* addr, int w, int h)
     BindTextureBpp(addr, w, h, 4);
 }
 
+/* Bind a 256x256 SWIZZLED 8-bit indexed page plus its 256-entry palette. This is
+ * the NV2A's only palettized format, hence the Morton-order index data.
+ *
+ * Format word mirrors the linear one except for COLOR and the size fields:
+ *   0x2a       dma=2, border=1, dimensionality=2   (same as the linear path)
+ *   0x0B << 8  COLOR = SZ_I8_A8R8G8B8
+ *   1 << 16    one mipmap level
+ *   8 << 20/24 BASE_SIZE_U/V = log2(256); swizzled formats size via these, NOT
+ *              the NPOT pitch/size registers, which must be left alone.
+ * The palette register takes a 64-byte-aligned offset (every palette is a
+ * separate 1KB contiguous allocation, so alignment holds) with LENGTH_256. */
+void GpuNv2a_BindPaletted(const void* page, const void* palette)
+{
+    uint32_t* p;
+
+    if (!page || !palette)
+        return;
+    GpuNv2a_FlushBatch();   /* pending run drew with the OLD texture bound */
+    p = pb_begin();
+    p = pb_push2(p, NV20_TCL_PRIMITIVE_3D_TX_OFFSET(0),
+                 (DWORD)page & 0x03ffffff, 0x08810B2A);
+    p = pb_push1(p, NV097_SET_TEXTURE_PALETTE,      /* stage 0; not an indexed macro */
+                 ((DWORD)palette & 0x03ffffc0)
+                 | (NV097_SET_TEXTURE_PALETTE_LENGTH_256 << 2)
+                 | NV097_SET_TEXTURE_PALETTE_CONTEXT_DMA);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_WRAP(0), 0x00030303);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(0), 0x4003ffc0);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_FILTER(0), 0x01014000);  /* point, as PSX */
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(1), 0x0003ffc0);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(2), 0x0003ffc0);
+    p = pb_push1(p, NV20_TCL_PRIMITIVE_3D_TX_ENABLE(3), 0x0003ffc0);
+    pb_end(p);
+}
+
 /* Restore the 1x1-white default texture (untextured prims -> colour passes through). */
 void GpuNv2a_BindWhite(void)
 {

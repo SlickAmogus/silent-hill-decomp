@@ -68,6 +68,7 @@ s_PcConfig g_PcConfig = {
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
+    .xboxPalettedTex     = 1,    /* Xbox: paletted texture cache on by default */
     .xboxVideo720p       = 0,    /* Xbox: 480p by default (720p costs texture-cache RAM) */
     .logDiag             = 0,    /* Xbox: quiet log by default (per-frame diag probes gated; log_diag=1 restores) */
     .cutsceneLineGapMs   = 300,  /* min ms between cutscene voice lines (PSX inter-line pause); tune down if it re-desyncs */
@@ -707,6 +708,10 @@ void PcConfig_Load(const char* path)
             if (v < 0) v = 0;
             if (v > 3) v = 3;
             g_PcConfig.crosshairStyle = v;
+        }
+        else if (strcmp(key, "texture_paletted") == 0)
+        {
+            g_PcConfig.xboxPalettedTex = (atoi(value) != 0);
         }
         else if (strcmp(key, "video_720p") == 0)
         {

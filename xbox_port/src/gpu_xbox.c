@@ -60,6 +60,7 @@ extern int g_Nv2aFbW, g_Nv2aFbH, g_Nv2aContentX, g_Nv2aContentW, g_Nv2aContentH;
 /* Currently-bound NV2A texture (bind-dedup in ProcessPoly); reset each DrawOTag.
  * -1 = unknown, forcing a bind on the first prim of the walk. */
 static const void* s_curTex = (const void*)-1;
+static const void* s_curPal = (const void*)-1;  /* palette bound with s_curTex */
 static int         s_curBlend = -1;   /* current blend-enable state (dedup) */
 /* Current PSX texture page for SPRT sprites — they carry no tpage of their own and
  * inherit it from the most recent DR_TPAGE the game prepends into the OT bucket.
@@ -108,6 +109,9 @@ static void TrackBB(const ShVertex* v)
 }
 
 extern unsigned int* PsxVram_GetTexture(int tpage, int clut);
+/* Paletted path: 64KB index page per tpage + a 1KB palette per clut.
+ * Returns 0 for 16-bit direct pages (caller falls back to the ARGB cache). */
+extern const void*   PsxVram_GetPaletted(int tpage, int clut, const void** palOut);
 
 /* Cycle counter. KeTickCount's 1ms granularity cannot resolve per-primitive work
  * (a whole prim is ~1-20us), so the render-phase split uses rdtsc: ~30 cycles to
@@ -127,10 +131,24 @@ static unsigned           s_primCount;    /* prims that reached the emit path */
 /* Timed wrapper around the texture-cache lookup. It is called PER PRIMITIVE and
  * can trigger a 256KB decode, so it is the first thing to rule in or out when
  * accounting for the half of drawMs that is not GPU submission. */
+/* Palette for the page TexLookup just returned (0 = ARGB page, no palette). */
+static const void* s_pendingPal;
+
 static inline unsigned int* TexLookup(int tpage, int clut)
 {
     unsigned long long t0 = shx_rdtsc();
-    unsigned int*      r  = PsxVram_GetTexture(tpage, clut);
+    unsigned int*      r;
+    const void*        pal = 0;
+
+    /* Prefer the paletted cache: one 64KB index page per tpage, shared by every
+     * CLUT. Falls back to the ARGB cache for 16-bit direct pages (not
+     * palettizable) or if its allocation failed. */
+    r = (unsigned int*)PsxVram_GetPaletted(tpage, clut, &pal);
+    if (!r) {
+        pal = 0;
+        r   = PsxVram_GetTexture(tpage, clut);
+    }
+    s_pendingPal = pal;
     s_texCycles += shx_rdtsc() - t0;
     return r;
 }
@@ -804,12 +822,15 @@ static int ProcessPoly(P_TAG* tag)
     /* Bind this prim's texture (or restore white for untextured), but only when it
      * actually changes — re-binding on every prim (incl. untextured) was the main
      * texture-pipeline slowdown. s_curTex is reset per DrawOTag. */
-    if (texAddr != s_curTex) {
-        if (texAddr)
-            GpuNv2a_BindTexture(texAddr, 256, 256);
-        else
+    if (texAddr != s_curTex || s_pendingPal != s_curPal) {
+        if (texAddr) {
+            if (s_pendingPal) GpuNv2a_BindPaletted(texAddr, s_pendingPal);
+            else              GpuNv2a_BindTexture(texAddr, 256, 256);
+        } else {
             GpuNv2a_BindWhite();
+        }
         s_curTex = texAddr;
+        s_curPal = s_pendingPal;
     }
 
     if (quad)
@@ -971,12 +992,15 @@ static int ProcessSprtTile(P_TAG* tag)
             s_curBlend = wantBlend;
         }
     }
-    if (texAddr != s_curTex) {
-        if (texAddr)
-            GpuNv2a_BindTexture(texAddr, 256, 256);
-        else
+    if (texAddr != s_curTex || s_pendingPal != s_curPal) {
+        if (texAddr) {
+            if (s_pendingPal) GpuNv2a_BindPaletted(texAddr, s_pendingPal);
+            else              GpuNv2a_BindTexture(texAddr, 256, 256);
+        } else {
             GpuNv2a_BindWhite();
+        }
         s_curTex = texAddr;
+        s_curPal = s_pendingPal;
     }
 
     EmitQuad(&v[0], &v[1], &v[2], &v[3]);
@@ -1029,6 +1053,7 @@ static int ProcessLine(P_TAG* tag)
     if (s_curTex != 0) {
         GpuNv2a_BindWhite();
         s_curTex = 0;
+        s_curPal = 0;
     }
 
     if (!gouraud) {
@@ -1185,6 +1210,7 @@ void DrawOTag(u_long* p)
     }
 
     s_curTex   = (const void*)-1; /* force a texture bind on the first prim */
+    s_curPal   = (const void*)-1;
     s_curBlend = -1;              /* force a blend-state set on the first prim */
     s_curTpage = g_activeDrawEnv.tpage; /* SPRTs use this until a DR_TPAGE updates it */
 
@@ -1700,6 +1726,7 @@ void GpuXbox_ClearRectOnScreen(int x, int y, int w, int h, int r, int g, int b)
     GpuNv2a_BindWhite();
     s_curBlend = 0;
     s_curTex   = 0;
+    s_curPal   = 0;
     /* ClearImage rects are absolute VRAM coords; the screen transform expects
      * draw-offset-relative ones, so strip the active offset first. */
     PutVert(&v[0], x - (int)s_ofsX,     y - (int)s_ofsY,     r, g, b);
