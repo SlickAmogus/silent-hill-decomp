@@ -95,6 +95,9 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     static s32  newGameSelectedDifficultyIdx = 1;
     static s32  prevSavegameCount            = 0;
 #ifdef SH_PC_PORT
+    bool        browserOpen                  = false;
+#endif
+#ifdef SH_PC_PORT
     /* skip_intros=2 drives the stock New Game path rather than duplicating it:
      * arm on the first menu frame, synthesise START, then NORMAL, then retarget
      * the hand-off past the opening movie. Consumed at hand-off so a later warm
@@ -212,26 +215,40 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 #ifdef SH_PC_PORT
             /* Achievement browser: the Map button has no meaning on the title
              * screen, so it opens the list here. While the panel is up it owns
-             * the pad entirely -- the flags are cleared so the menu underneath
-             * does not also move its selection or start a game. */
+             * the pad -- the flags are cleared so the menu underneath does not
+             * also move its selection or start a game.
+             *
+             * Deliberately does NOT return: the menu's own drawing (background,
+             * entry text and the mouse cursor) lives past the end of this
+             * switch, and returning here left the whole screen black behind the
+             * panel with no cursor. Everything below reads the flags this just
+             * zeroed, so falling through is inert. */
             {
                 extern void Pc_RaBrowser_Open(void);
                 extern int  Pc_RaBrowser_IsOpen(void);
-                extern void Pc_RaBrowser_Update(unsigned padDown);
+                extern void Pc_RaBrowser_Update(int closeRequested, int up, int down);
 
                 if (Pc_RaBrowser_IsOpen())
                 {
-                    Pc_RaBrowser_Update((unsigned)g_Controller0->heldBtnFlags);
-                    g_Controller0->clickedBtnFlags = 0;
-                    g_Controller0->pulsedBtnFlags  = 0;
-                    return;
+                    /* Resolved here, against the player's own bindings, so the
+                     * browser needs no knowledge of the controller config. */
+                    u16 closeBtns = g_GameWorkPtr->config.controllerConfig.cancel |
+                                    g_GameWorkPtr->config.controllerConfig.map;
+                    Pc_RaBrowser_Update(
+                        (g_Controller0->clickedBtnFlags & closeBtns) != 0,
+                        (g_Controller0->heldBtnFlags & ControllerFlag_LStickUp) != 0,
+                        (g_Controller0->heldBtnFlags & ControllerFlag_LStickDown) != 0);
+                    browserOpen = true;
                 }
-                if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.map)
+                else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.map)
                 {
                     Pc_RaBrowser_Open();
+                    browserOpen = true;
+                }
+                if (browserOpen)
+                {
                     g_Controller0->clickedBtnFlags = 0;
                     g_Controller0->pulsedBtnFlags  = 0;
-                    return;
                 }
             }
 #endif
@@ -251,7 +268,11 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             g_MainMenu_SelectedEntry %= MainMenuEntry_Count;
 
 #ifdef SH_PC_PORT
-            /* Mouse: hover a visible row to select it, left-click to confirm. */
+            /* Mouse: hover a visible row to select it, left-click to confirm.
+             * Suppressed while the achievement panel is up — it reads the mouse
+             * directly, and this block would otherwise keep re-selecting menu
+             * rows (and synthesising Enter) under the panel. */
+            if (!browserOpen)
             {
                 extern int Pc_MouseCursor_MenuRowHover(int, int, int, unsigned int, int*);
                 extern int Pc_MouseCursor_Moved(void);

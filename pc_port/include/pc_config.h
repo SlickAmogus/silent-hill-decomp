@@ -297,6 +297,10 @@ typedef struct {
     int  retroAchievements;
     char raUsername[64];
     char raToken[96];
+    /* Which unlock cue the toast plays: "xbox" | "playstation" | "steam",
+     * mapping to achievement.wav / trophy.wav / steam.wav. Written by the
+     * launcher's RetroAchievements page. (config key: ra_sfx) */
+    char raSfx[16];
     /* 1 = spectator mode: achievements evaluate and toast locally but are never
      * submitted. Testing aid only — every region submits for real by default now
      * that a live session proved the address map resolves the official set's

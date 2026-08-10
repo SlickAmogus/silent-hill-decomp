@@ -36,6 +36,7 @@
 #include "pc_ra_browser.h"
 #include "pc_config.h"
 #include "pc_mouse_cursor.h"
+#include "pc_ui_sound.h"
 #include "sh_log.h"
 
 /* stb_image is vendored for the texture-pack loader; the badge PNGs come
@@ -53,7 +54,6 @@ extern int HiresOverride_DecodeToRGBA(const unsigned char* bytes, unsigned int l
 typedef struct
 {
     PcRaAch  ach;
-    GLuint   texBadge;
     GLuint   texName;    /* baked title */
     GLuint   texDesc;    /* baked description */
     GLuint   texPts;     /* baked "10 pts" */
@@ -65,24 +65,51 @@ typedef struct
 
 static s_RabRow s_rows[RAB_MAX_ACH];
 static int      s_rowCount;
-static int      s_open;
+
+/* Open/close are ANIMATED, so "is the panel up" is a phase, not a flag. The
+ * menu keeps yielding input for the whole of CLOSING, or the pad would drive
+ * the title screen while the panel is still sliding off. */
+enum { RAB_CLOSED = 0, RAB_OPENING, RAB_SHOWN, RAB_CLOSING };
+static int    s_phase;
+static Uint32 s_phaseStart;
+#define RAB_OPEN_MS  360u
+#define RAB_CLOSE_MS 300u
+
+/* Badge art, cached for the whole session and keyed by name.
+ *
+ * This used to hang off the row and be freed whenever the list was rebuilt,
+ * while the request de-dup was permanent -- so the second time the panel opened
+ * nothing was re-requested and every row stayed blank. Requests are also issued
+ * ONCE, for the entire set, at the first open: asking per visible row meant a
+ * scroll re-asked continuously and overran the arrival queue, which is why rows
+ * went blank progressively from the top as they scrolled. */
+typedef struct
+{
+    char   name[16];
+    GLuint tex;
+} s_RabBadge;
+
+static s_RabBadge s_badges[RAB_MAX_ACH];
+static int        s_badgeCount;
+static int        s_badgesRequested;
+
+static PcUiSound* s_sndOpen;
+static PcUiSound* s_sndClose;
+static int        s_soundsTried;
 
 /* Scroll position in pixels, and where the content ends. */
 static float s_scroll;
 static float s_scrollMax;
 static float s_velocity;      /* px/sec, for release-flick and key repeat */
 
-/* Viewport pixels per UI pixel. Pc_MouseCursor_UiPos reports in the 224-tall
- * text-authoring space while the panel is laid out in viewport pixels, so a
- * drag delta has to be converted. Published by Draw; the default covers the
- * first frame, before Draw has ever run. */
-static float s_dragScale = 4.0f;
+/* Viewport height in pixels, published by Draw so the drag can turn a
+ * normalized pointer delta into the same pixels the layout uses. The default
+ * covers the first frame, before Draw has ever run. */
+static float s_viewH = 1080.0f;
 
 /* Drag tracking. */
 static int   s_dragging;
-static int   s_dragLastY;
-static float s_dragScrollAtGrab;
-static int   s_dragMovedPx;
+static float s_dragLastY;
 
 /* Close is edge-triggered on a RELEASE-then-PRESS so the Map button that opened
  * the panel cannot also dismiss it on the same press. */
@@ -97,8 +124,9 @@ static Uint32 s_lastTick;
 static GLuint s_prog, s_vao, s_vbo;
 static GLint  s_locTex, s_locColor;
 static int    s_glReady;
-static GLuint s_texPanel, s_texWhite;
+static GLuint s_texPanel, s_texWhite, s_texCursor;
 static int    s_panelW, s_panelH;
+static int    s_cursorW, s_cursorH;
 
 static GLuint s_garbage[RAB_GARBAGE];
 static int    s_garbageCount;
@@ -112,7 +140,10 @@ typedef struct
     size_t         len;
 } s_RabPendBadge;
 
-#define RAB_PEND_MAX 16
+/* Sized for a whole set arriving at once: every badge is requested up front, so
+ * a 16-slot queue silently dropped ~50 of them and those rows -- never
+ * re-requested -- stayed blank for the session. */
+#define RAB_PEND_MAX 512
 static s_RabPendBadge s_pend[RAB_PEND_MAX];
 static int            s_pendCount;
 
@@ -485,6 +516,53 @@ static void rab_build_panel(int w, int h)
     free(px);
 }
 
+/* Classic arrow, built once. The game's own cursor is drawn by the menu into
+ * the captured frame, so the panel — which draws after the capture — covers it.
+ * Drawing our own on top is the only way it stays visible over the panel. */
+static void rab_build_cursor(void)
+{
+    enum { CW = 12, CH = 19 };
+    /* 0 = transparent, 1 = white fill, 2 = black edge. */
+    static const char art[CH][CW + 1] = {
+        "2...........",
+        "22..........",
+        "212.........",
+        "2112........",
+        "21112.......",
+        "211112......",
+        "2111112.....",
+        "21111112....",
+        "211111112...",
+        "2111111112..",
+        "21111111112.",
+        "211111222222",
+        "21112112....",
+        "2112.2112...",
+        "212..2112...",
+        "22....2112..",
+        "2......2112.",
+        "........212.",
+        ".........22.",
+    };
+    unsigned char px[CH][CW][4];
+    int x, y;
+
+    if (s_texCursor)
+        return;
+    for (y = 0; y < CH; y++)
+    {
+        for (x = 0; x < CW; x++)
+        {
+            char c = art[y][x];
+            unsigned char v = (c == '1') ? 255 : 0;
+            px[y][x][0] = v; px[y][x][1] = v; px[y][x][2] = v;
+            px[y][x][3] = (c == '.') ? 0 : 255;
+        }
+    }
+    s_texCursor = rab_upload_rgba(&px[0][0][0], CW, CH);
+    s_cursorW = CW; s_cursorH = CH;
+}
+
 static void rab_build_white(void)
 {
     unsigned char one[4] = { 255, 255, 255, 255 };
@@ -516,7 +594,8 @@ static void rab_free_rows(void)
     int i;
     for (i = 0; i < s_rowCount; i++)
     {
-        rab_retire(s_rows[i].texBadge);
+        /* Badge textures live in the session cache and are deliberately NOT
+         * retired here — they outlive any one opening of the panel. */
         rab_retire(s_rows[i].texName);
         rab_retire(s_rows[i].texDesc);
         rab_retire(s_rows[i].texPts);
@@ -549,19 +628,42 @@ static void rab_build_list(void)
 /* Badges                                                              */
 /* ------------------------------------------------------------------ */
 
+/* Session badge cache. Entries are created when the set is first snapshotted
+ * and never removed, so reopening the panel reuses the art already downloaded. */
+static s_RabBadge* rab_badge_find(const char* name)
+{
+    int i;
+    if (!name || !name[0])
+        return NULL;
+    for (i = 0; i < s_badgeCount; i++)
+    {
+        if (strcmp(s_badges[i].name, name) == 0)
+            return &s_badges[i];
+    }
+    return NULL;
+}
+
+static s_RabBadge* rab_badge_intern(const char* name)
+{
+    s_RabBadge* e = rab_badge_find(name);
+    if (e || !name || !name[0] || s_badgeCount >= RAB_MAX_ACH)
+        return e;
+    e = &s_badges[s_badgeCount++];
+    memset(e, 0, sizeof(*e));
+    strncpy(e->name, name, sizeof(e->name) - 1);
+    return e;
+}
+
 void Pc_RaBrowser_ProvideBadge(const char* badgeName, const unsigned char* png, size_t len)
 {
+    s_RabBadge* e;
     int i;
 
     if (!badgeName || !badgeName[0] || !png || !len || s_pendCount >= RAB_PEND_MAX)
         return;
-    /* Only keep bytes for a row that is actually in the list and still bare. */
-    for (i = 0; i < s_rowCount; i++)
-    {
-        if (s_rows[i].texBadge == 0 && strcmp(s_rows[i].ach.badge, badgeName) == 0)
-            break;
-    }
-    if (i >= s_rowCount)
+    /* Only keep bytes for a badge this panel knows about and has not decoded. */
+    e = rab_badge_find(badgeName);
+    if (!e || e->tex != 0)
         return;
     for (i = 0; i < s_pendCount; i++)
     {
@@ -600,20 +702,13 @@ static void rab_drain_badges(void)
 
         if (tex)
         {
-            /* One decode serves every row sharing the badge, but each row owns
-             * its own name so a per-row texture would be freed twice. Assign to
-             * the first bare match and retire nothing. */
-            for (i = 0; i < s_rowCount; i++)
-            {
-                if (s_rows[i].texBadge == 0 && strcmp(s_rows[i].ach.badge, s_pend[p].badge) == 0)
-                {
-                    s_rows[i].texBadge = tex;
-                    tex = 0;
-                    break;
-                }
-            }
-            if (tex)
-                rab_retire(tex);   /* nobody wanted it after all */
+            /* One texture per badge NAME, shared by every row that uses it —
+             * a per-row copy would be deleted more than once. */
+            s_RabBadge* e = rab_badge_find(s_pend[p].badge);
+            if (e && e->tex == 0)
+                e->tex = tex;
+            else
+                rab_retire(tex);
         }
     }
     s_pendCount = 0;
@@ -623,59 +718,103 @@ static void rab_drain_badges(void)
 /* Open / close / input                                                */
 /* ------------------------------------------------------------------ */
 
+static void rab_sounds_init(void)
+{
+    if (s_soundsTried)
+        return;
+    s_soundsTried = 1;
+    s_sndOpen  = PcUiSound_Load("gamedata/sound/swish.wav");
+    s_sndClose = PcUiSound_Load("gamedata/sound/backout.wav");
+}
+
 void Pc_RaBrowser_Open(void)
 {
-    if (s_open)
+    int i;
+
+    if (s_phase == RAB_OPENING || s_phase == RAB_SHOWN)
         return;
+
     rab_build_list();
     if (s_rowCount == 0)
     {
         SH_DBG("[RABROWSE] no achievement set loaded - not opening");
         return;
     }
-    s_open      = 1;
-    s_scroll    = 0.0f;
-    s_velocity  = 0.0f;
-    s_dragging  = 0;
-    s_armClose  = 0;
-    s_lastTick  = SDL_GetTicks();
+
+    /* Request every badge ONCE per session, here rather than per visible row.
+     * Per-row requesting re-asked on every frame of a scroll, which overran the
+     * arrival queue and left rows permanently blank. */
+    for (i = 0; i < s_rowCount; i++)
+        rab_badge_intern(s_rows[i].ach.badge);
+    if (!s_badgesRequested)
+    {
+        s_badgesRequested = 1;
+        for (i = 0; i < s_badgeCount; i++)
+            Pc_Ra_RequestBadge(s_badges[i].name);
+        SH_DBG("[RABROWSE] requested %d badge images", s_badgeCount);
+    }
+
+    rab_sounds_init();
+    PcUiSound_Play(s_sndOpen);
+
+    s_phase      = RAB_OPENING;
+    s_phaseStart = SDL_GetTicks();
+    s_scroll     = 0.0f;
+    s_velocity   = 0.0f;
+    s_dragging   = 0;
+    s_armClose   = 0;
+    s_lastTick   = SDL_GetTicks();
 }
 
 int Pc_RaBrowser_IsOpen(void)
 {
-    return s_open;
+    /* True through CLOSING as well: the panel is still on screen and the menu
+     * underneath must keep yielding input until it has slid away. */
+    return s_phase != RAB_CLOSED;
 }
 
-static void rab_close(void)
+static void rab_begin_close(void)
 {
     int i;
 
-    s_open     = 0;
+    if (s_phase == RAB_CLOSING || s_phase == RAB_CLOSED)
+        return;
+
+    rab_sounds_init();
+    PcUiSound_Play(s_sndClose);
+
+    s_phase      = RAB_CLOSING;
+    s_phaseStart = SDL_GetTicks();
+    s_dragging   = 0;
+    s_velocity   = 0.0f;
+
+    /* Badge bytes are drained by Draw. Draw keeps running through CLOSING, so
+     * anything still queued is fine; only a hard close needs the sweep. */
+    (void)i;
+}
+
+static void rab_finish_close(void)
+{
+    int i;
+
+    s_phase    = RAB_CLOSED;
     s_dragging = 0;
-    s_velocity = 0.0f;
-    /* Badge bytes are drained by Draw, which stops running the moment this
-     * returns — anything still queued would leak. */
     for (i = 0; i < s_pendCount; i++)
         free(s_pend[i].png);
     s_pendCount = 0;
-    /* Rows keep their textures: reopening is common and the badge art would
-     * otherwise be re-downloaded. They are released only when the list is
-     * rebuilt, which happens on the next open. */
+    /* Rows and cached badge art are kept: reopening is common, and the art
+     * must never be re-downloaded. */
 }
-
-/* padDown = the raw held-button mask from the caller. Passed in rather than
- * read here so this TU stays free of the game headers — the toast's sibling
- * modules that pulled in game.h alongside <windows.h>-adjacent code are exactly
- * where this project's header collisions live. */
-void Pc_RaBrowser_Update(unsigned padDown)
+/* Input signals are resolved by the caller against the player's own bindings
+ * (see the header), so this TU needs no game headers. */
+void Pc_RaBrowser_Update(int closeRequested, int up, int down)
 {
     const Uint8* keys;
     Uint32 now;
     float  dt;
-    int    anyDown = 0;
-    int    mx, my;
+    float  fx, fy;
 
-    if (!s_open)
+    if (s_phase == RAB_CLOSED)
         return;
 
     now = SDL_GetTicks();
@@ -684,18 +823,33 @@ void Pc_RaBrowser_Update(unsigned padDown)
     if (dt <= 0.0f)  dt = 1.0f / 60.0f;
     if (dt > 0.25f)  dt = 0.25f;   /* a load hitch must not fling the list */
 
+    if (s_phase == RAB_CLOSING)
+    {
+        if (now - s_phaseStart >= RAB_CLOSE_MS)
+            rab_finish_close();
+        return;   /* no input while it slides away */
+    }
+    if (s_phase == RAB_OPENING && now - s_phaseStart >= RAB_OPEN_MS)
+        s_phase = RAB_SHOWN;
+
     keys = SDL_GetKeyboardState(NULL);
 
-    /* Arrow keys scroll continuously while held. */
-    if (keys)
+    /* Scroll: the game's own movement bindings, plus the raw arrows/PgUp/PgDn
+     * so a player who rebound the pad still has something obvious that works. */
     {
         const float KEY_SPEED = 620.0f;
-        if (keys[SDL_SCANCODE_UP])   s_scroll -= KEY_SPEED * dt;
-        if (keys[SDL_SCANCODE_DOWN]) s_scroll += KEY_SPEED * dt;
-        if (keys[SDL_SCANCODE_PAGEUP])   s_scroll -= KEY_SPEED * 3.0f * dt;
-        if (keys[SDL_SCANCODE_PAGEDOWN]) s_scroll += KEY_SPEED * 3.0f * dt;
-        if (keys[SDL_SCANCODE_HOME]) s_scroll = 0.0f;
-        if (keys[SDL_SCANCODE_END])  s_scroll = s_scrollMax;
+        int kUp   = up   || (keys && keys[SDL_SCANCODE_UP]);
+        int kDown = down || (keys && keys[SDL_SCANCODE_DOWN]);
+
+        if (kUp)   s_scroll -= KEY_SPEED * dt;
+        if (kDown) s_scroll += KEY_SPEED * dt;
+        if (keys)
+        {
+            if (keys[SDL_SCANCODE_PAGEUP])   s_scroll -= KEY_SPEED * 3.0f * dt;
+            if (keys[SDL_SCANCODE_PAGEDOWN]) s_scroll += KEY_SPEED * 3.0f * dt;
+            if (keys[SDL_SCANCODE_HOME]) s_scroll = 0.0f;
+            if (keys[SDL_SCANCODE_END])  s_scroll = s_scrollMax;
+        }
     }
 
     /* Wheel: one notch ~= a third of a page. */
@@ -708,30 +862,28 @@ void Pc_RaBrowser_Update(unsigned padDown)
         }
     }
 
-    /* Drag. The grab anchor is kept in content space so the row under the
-     * cursor stays under the cursor however far the pointer travels. */
-    if (Pc_MouseCursor_UiPos(&mx, &my))
+    /* Drag. Uses the NORMALIZED pointer, not the authoring-space one: that
+     * space is 448 tall on the interlaced title screen and 224 in game, so a
+     * fixed conversion factor made the list run at half or double speed
+     * depending on which screen you opened it from. */
+    if (Pc_MouseCursor_ViewportPos(&fx, &fy))
     {
+        float my = fy * s_viewH;
         if (Pc_MouseCursor_LeftHeld())
         {
             if (!s_dragging)
             {
-                s_dragging         = 1;
-                s_dragLastY        = my;
-                s_dragScrollAtGrab = s_scroll;
-                s_dragMovedPx      = 0;
-                s_velocity         = 0.0f;
+                s_dragging  = 1;
+                s_dragLastY = my;
+                s_velocity  = 0.0f;
             }
             else
             {
-                int delta = my - s_dragLastY;
-                if (delta > 0 || delta < 0)
+                float delta = my - s_dragLastY;
+                if (delta != 0.0f)
                 {
-                    s_dragMovedPx += (delta < 0) ? -delta : delta;
-                    /* UI pixels are the 320x240 virtual space; the panel is laid
-                     * out in viewport pixels, so scale by the ratio the draw used. */
-                    s_scroll  -= (float)delta * s_dragScale;
-                    s_velocity = -(float)delta * s_dragScale / dt;
+                    s_scroll  -= delta;
+                    s_velocity = -delta / dt;
                 }
                 s_dragLastY = my;
             }
@@ -760,39 +912,22 @@ void Pc_RaBrowser_Update(unsigned padDown)
     if (s_scroll < 0.0f)         s_scroll = 0.0f;
     if (s_scroll > s_scrollMax)  s_scroll = s_scrollMax;
 
-    /* Close on any button that is not a scroll control. Edge-triggered through
-     * s_armClose: the Map press that opened the panel is still down on this
-     * first frame, and without the arm it would close instantly. */
-    if (padDown != 0)
-        anyDown = 1;
-    if (keys)
-    {
-        int sc;
-        for (sc = SDL_SCANCODE_A; sc < SDL_NUM_SCANCODES; sc++)
-        {
-            if (sc == SDL_SCANCODE_UP || sc == SDL_SCANCODE_DOWN ||
-                sc == SDL_SCANCODE_PAGEUP || sc == SDL_SCANCODE_PAGEDOWN ||
-                sc == SDL_SCANCODE_HOME || sc == SDL_SCANCODE_END ||
-                sc == SDL_SCANCODE_LEFT || sc == SDL_SCANCODE_RIGHT)
-                continue;
-            if (keys[sc]) { anyDown = 1; break; }
-        }
-    }
-
+    /* Close is DELIBERATELY narrow: Cancel or Map on the pad (resolved by the
+     * caller), Escape, or a right-click. "Any button" dismissed the panel the
+     * moment a player touched anything -- including the keys they were trying
+     * to scroll with. s_armClose still gates the first frames, because the Map
+     * press that opened the panel is normally still held. */
     if (!s_armClose)
     {
-        if (!anyDown)
-            s_armClose = 1;   /* everything released — arm the close */
-    }
-    else if (anyDown)
-    {
-        rab_close();
+        if (!closeRequested && !(keys && keys[SDL_SCANCODE_ESCAPE]))
+            s_armClose = 1;
         return;
     }
-
-    /* A click that did not drag also dismisses, matching "press anything". */
-    if (s_armClose && Pc_MouseCursor_RightClicked())
-        rab_close();
+    if (closeRequested || (keys && keys[SDL_SCANCODE_ESCAPE]) ||
+        Pc_MouseCursor_RightClicked())
+    {
+        rab_begin_close();
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -831,6 +966,7 @@ void Pc_RaBrowser_Draw(void)
     GLint vp[4];
     float vpW, vpH;
     float panelW, panelH, panelL, panelR, panelT, panelB;
+    float slide = 0.0f, dim = 1.0f;
     float pad, headH, listT, listB, listH, rowH, rowGap, badgeS, textL, textW;
     int   i, first, last;
 
@@ -841,7 +977,7 @@ void Pc_RaBrowser_Draw(void)
     GLint  prevEqRgb = GL_FUNC_ADD, prevEqA = GL_FUNC_ADD;
     GLboolean prevBlend, prevDepth, prevCull;
 
-    if (!s_open)
+    if (s_phase == RAB_CLOSED)
         return;
 
     glGetIntegerv(GL_VIEWPORT, vp);
@@ -892,6 +1028,34 @@ void Pc_RaBrowser_Draw(void)
     panelB = (vpH - panelH) * 0.5f;
     panelT = panelB + panelH;
 
+    /* Slide in from below the screen and back out the same way. Wall clock, not
+     * the game clock: the hook runs post-capture and the title screen may be
+     * sitting on a held frame. */
+    {
+        Uint32 age = SDL_GetTicks() - s_phaseStart;
+        float  travel = panelT + 8.0f;   /* far enough to clear the top edge */
+        float  t, e;
+
+        if (s_phase == RAB_OPENING)
+        {
+            t = (float)age / (float)RAB_OPEN_MS;
+            if (t > 1.0f) t = 1.0f;
+            e = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);   /* out-cubic */
+            slide = (1.0f - e) * travel;
+            dim   = e;
+        }
+        else if (s_phase == RAB_CLOSING)
+        {
+            t = (float)age / (float)RAB_CLOSE_MS;
+            if (t > 1.0f) t = 1.0f;
+            e = t * t * t;                                      /* in-cubic */
+            slide = e * travel;
+            dim   = 1.0f - t;
+        }
+        panelB -= slide;
+        panelT -= slide;
+    }
+
     pad    = panelW * 0.045f;
     headH  = panelH * 0.075f;
     listT  = panelT - headH;
@@ -905,7 +1069,7 @@ void Pc_RaBrowser_Draw(void)
     textL  = panelL + pad + badgeS + pad * 0.6f;
     textW  = (int)(panelR - pad - textL) > 8 ? (panelR - pad - textL) : 8.0f;
 
-    s_dragScale  = vpH / 224.0f;
+    s_viewH      = vpH;
     s_scrollMax  = (float)s_rowCount * (rowH + rowGap) - listH;
     if (s_scrollMax < 0.0f) s_scrollMax = 0.0f;
     if (s_scroll > s_scrollMax) s_scroll = s_scrollMax;
@@ -913,6 +1077,7 @@ void Pc_RaBrowser_Draw(void)
 
     rab_build_panel((int)panelW, (int)panelH);
     rab_build_white();
+    rab_build_cursor();
 
     glUseProgram(s_prog);
     glBindVertexArray(s_vao);
@@ -930,6 +1095,13 @@ void Pc_RaBrowser_Draw(void)
 #define NX(px_) (-1.0f + 2.0f * (px_) / vpW)
 #define NY(py_) (-1.0f + 2.0f * (py_) / vpH)
 
+    /* Darken the title screen instead of hiding it. The menu behind is drawn by
+     * the game into the captured frame; this is a translucent wash over the
+     * whole viewport, faded with the slide so the screen brightens back as the
+     * panel leaves. */
+    rab_quad_uv(s_texWhite, NX(0.0f), NY(vpH), NX(vpW), NY(0.0f),
+                0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.72f * dim);
+
     rab_quad(s_texPanel, NX(panelL), NY(panelT), NX(panelR), NY(panelB), 1.0f);
 
     /* Only the rows intersecting the viewport are baked and drawn — the set can
@@ -946,6 +1118,7 @@ void Pc_RaBrowser_Draw(void)
         float rowBot = rowTop - rowH;
         float badgeT, badgeB2, tint;
         float clipT, clipB;
+        GLuint badgeTex;
 
         /* Clip against the list window by trimming the quad and its UVs; the
          * panel has no scissor of its own and a partial row must not spill over
@@ -965,7 +1138,12 @@ void Pc_RaBrowser_Draw(void)
         clipB   = (rowBot > listB) ? rowBot : listB;
 
         /* Badge, or a placeholder block until its PNG lands. */
-        if (r->texBadge)
+        badgeTex = 0;
+        {
+            const s_RabBadge* be = rab_badge_find(r->ach.badge);
+            if (be) badgeTex = be->tex;
+        }
+        if (badgeTex)
         {
             float t = (badgeT < clipT) ? badgeT : clipT;
             float b = (badgeB2 > clipB) ? badgeB2 : clipB;
@@ -973,7 +1151,7 @@ void Pc_RaBrowser_Draw(void)
             {
                 float v0 = (badgeT - t) / badgeS;
                 float v1 = (badgeT - b) / badgeS;
-                rab_quad_uv(r->texBadge, NX(panelL + pad), NY(t),
+                rab_quad_uv(badgeTex, NX(panelL + pad), NY(t),
                             NX(panelL + pad + badgeS), NY(b),
                             0.0f, v0, 1.0f, v1, tint, tint, tint, 1.0f);
             }
@@ -986,8 +1164,7 @@ void Pc_RaBrowser_Draw(void)
                 rab_quad_uv(s_texWhite, NX(panelL + pad), NY(t),
                             NX(panelL + pad + badgeS), NY(b),
                             0.0f, 0.0f, 1.0f, 1.0f, 0.16f, 0.15f, 0.17f, 1.0f);
-            /* Ask for the art now that the row is actually on screen. */
-            Pc_Ra_RequestBadge(r->ach.badge);
+            /* No request here: the whole set is asked for once at open. */
         }
 
         /* Name on top, description under it. */
@@ -1094,6 +1271,24 @@ void Pc_RaBrowser_Draw(void)
                     0.0f, 0.0f, 1.0f, 1.0f, 0.22f, 0.20f, 0.22f, 1.0f);
         rab_quad_uv(s_texWhite, NX(trackL), NY(thumbT), NX(trackL + trackW), NY(thumbT - thumbH),
                     0.0f, 0.0f, 1.0f, 1.0f, 0.55f, 0.20f, 0.15f, 1.0f);
+    }
+
+    /* Pointer, last of all. UiPos is the 224-tall authoring space; the viewport
+     * is the presented picture, so both axes scale by the same factor the drag
+     * already uses. */
+    if (s_texCursor && s_phase != RAB_CLOSING)
+    {
+        float fx, fy;
+        if (Pc_MouseCursor_ViewportPos(&fx, &fy))
+        {
+            float scale = vpH / 400.0f;   /* ~19px arrow at 1080p */
+            float sx = fx * vpW;
+            float sy = vpH - fy * vpH;
+            float w  = (float)s_cursorW * scale;
+            float h  = (float)s_cursorH * scale;
+            rab_quad_uv(s_texCursor, NX(sx), NY(sy), NX(sx + w), NY(sy - h),
+                        0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+        }
     }
 
 #undef NX

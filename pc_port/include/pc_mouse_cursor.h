@@ -47,6 +47,11 @@ int Pc_MouseCursor_Moved(void);
  * Pc_MouseCursor_MenuRowHover. */
 int Pc_MouseCursor_UiPos(int* outX, int* outY);
 
+/* Normalized 0..1 position inside the presented picture. For overlays that draw
+ * in the post-capture GL hook and think in viewport pixels rather than in the
+ * game's (mode-dependent) text-authoring space. */
+int Pc_MouseCursor_ViewportPos(float* outX, float* outY);
+
 /* Left-button press edge / held state / right-button press edge this frame
  * (0 while disabled or outside the viewport). */
 int Pc_MouseCursor_LeftClicked(void);

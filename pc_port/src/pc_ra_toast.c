@@ -29,6 +29,7 @@
 #include "sh_log.h"
 #include "pc_config.h"
 #include "pc_ra_toast.h"
+#include "pc_ui_sound.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -562,86 +563,33 @@ static void toast_build_panel(int w, int h)
 /* Sound                                                               */
 /* ------------------------------------------------------------------ */
 
-enum { SND_UNINIT = 0, SND_AL, SND_SDL, SND_DISABLED };
-static int             s_sndState;
-static ALuint          s_alBuf, s_alSrc;
-static SDL_AudioDeviceID s_sdlDev;
-static Uint8*          s_sdlWav;
-static Uint32          s_sdlLen;
+/* Unlock cue. Which WAV is config-driven (ra_sfx, written by the launcher):
+ * xbox -> achievement.wav, playstation -> trophy.wav, steam -> steam.wav.
+ * The AL/SDL machinery moved to pc_ui_sound.c when the browser needed cues of
+ * its own; the alcGetCurrentContext() gate documented there still applies. */
+static PcUiSound* s_cue;
+static int        s_cueTried;
 
 static void toast_sound_init(void)
 {
-    SDL_AudioSpec spec;
-    Uint8* wav = NULL;
-    Uint32 len = 0;
+    const char* path = "gamedata/sound/trophy.wav";
 
-    if (s_sndState != SND_UNINIT)
+    if (s_cueTried)
         return;
+    s_cueTried = 1;
 
-    if (!SDL_LoadWAV("gamedata/sound/trophy.wav", &spec, &wav, &len))
-    {
-        SH_DBG("[RATOAST] trophy.wav: %s - unlock sound disabled", SDL_GetError());
-        s_sndState = SND_DISABLED;
-        return;
-    }
-    if (spec.format != AUDIO_S16LSB || spec.channels < 1 || spec.channels > 2)
-    {
-        SH_DBG("[RATOAST] trophy.wav must be 16-bit PCM mono/stereo - sound disabled");
-        SDL_FreeWAV(wav);
-        s_sndState = SND_DISABLED;
-        return;
-    }
+    if (strcmp(g_PcConfig.raSfx, "xbox") == 0)
+        path = "gamedata/sound/achievement.wav";
+    else if (strcmp(g_PcConfig.raSfx, "steam") == 0)
+        path = "gamedata/sound/steam.wav";
 
-    /* The SPU can be running the software renderer, in which case OpenAL was
-     * never initialised and alGen* would just raise AL_INVALID_OPERATION. */
-    if (alcGetCurrentContext())
-    {
-        alGenBuffers(1, &s_alBuf);
-        alGenSources(1, &s_alSrc);
-        alBufferData(s_alBuf, spec.channels == 2 ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16,
-                     wav, (ALsizei)len, spec.freq);
-        SDL_FreeWAV(wav);                       /* AL copied it */
-        alSourcei(s_alSrc, AL_BUFFER, (ALint)s_alBuf);
-        alSourcei(s_alSrc, AL_SOURCE_RELATIVE, AL_TRUE);
-        alSource3f(s_alSrc, AL_POSITION, 0.0f, 0.0f, 0.0f);
-        s_sndState = SND_AL;
-    }
-    else
-    {
-        SDL_AudioSpec want = spec;
-        want.samples  = 1024;
-        want.callback = NULL;
-        if (!SDL_WasInit(SDL_INIT_AUDIO))
-            SDL_InitSubSystem(SDL_INIT_AUDIO);
-        s_sdlDev = SDL_OpenAudioDevice(NULL, 0, &want, NULL, 0);
-        if (!s_sdlDev)
-        {
-            SH_DBG("[RATOAST] SDL audio: %s", SDL_GetError());
-            SDL_FreeWAV(wav);
-            s_sndState = SND_DISABLED;
-            return;
-        }
-        s_sdlWav = wav;                          /* kept for every replay */
-        s_sdlLen = len;
-        SDL_PauseAudioDevice(s_sdlDev, 0);
-        s_sndState = SND_SDL;
-    }
+    s_cue = PcUiSound_Load(path);
 }
 
 static void toast_sound_play(void)
 {
     toast_sound_init();
-    if (s_sndState == SND_AL)
-    {
-        alSourcef(s_alSrc, AL_GAIN, 1.0f);
-        alSourceStop(s_alSrc);
-        alSourcePlay(s_alSrc);
-    }
-    else if (s_sndState == SND_SDL)
-    {
-        SDL_ClearQueuedAudio(s_sdlDev);
-        SDL_QueueAudio(s_sdlDev, s_sdlWav, s_sdlLen);
-    }
+    PcUiSound_Play(s_cue);
 }
 
 /* ------------------------------------------------------------------ */

@@ -158,6 +158,7 @@ s_PcConfig g_PcConfig = {
     .retroAchievements   = 0,  /* opt-in; needs a launcher sign-in to do anything */
     .raUsername          = "",
     .raToken             = "", /* connect token from the launcher — never the password */
+    .raSfx               = "playstation", /* trophy.wav, the cue this port shipped with */
     .raSpectator         = 0,  /* 1 = evaluate + toast locally but never submit (testing) */
     .mapName        = "map0_s00"
 };
@@ -966,6 +967,14 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "ra_spectator") == 0)
         {
             g_PcConfig.raSpectator = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "ra_sfx") == 0)
+        {
+            if (strlen(value) < sizeof(g_PcConfig.raSfx))
+            {
+                strncpy(g_PcConfig.raSfx, value, sizeof(g_PcConfig.raSfx) - 1);
+                g_PcConfig.raSfx[sizeof(g_PcConfig.raSfx) - 1] = '\0';
+            }
         }
         else if (strcmp(key, "control_styles") == 0)
         {

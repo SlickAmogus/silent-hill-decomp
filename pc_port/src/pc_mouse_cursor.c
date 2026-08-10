@@ -35,6 +35,7 @@
 
 /* Per-frame pointer state, in logical 320x240 coords. */
 static float s_gx, s_gy, s_prevGx, s_prevGy;
+static float s_vx, s_vy;   /* normalized 0..1 inside the presented picture */
 static int   s_inView;
 static int   s_leftDown, s_prevLeft, s_leftEdge;
 static int   s_rightDown, s_prevRight, s_rightEdge;
@@ -92,6 +93,20 @@ int Pc_MouseCursor_UiPos(int* outX, int* outY)
         *outX = (int)s_gx;
     if (outY != NULL)
         *outY = (int)s_gy;
+    return 1;
+}
+
+/* Normalized position inside the presented picture. Anything drawing in the
+ * post-capture GL hook wants THIS, not UiPos: the authoring space UiPos reports
+ * in is the live framebuffer (448 tall for the interlaced menus, 224 in game,
+ * and different again on PAL), so reconstructing viewport pixels from it needs
+ * knowledge this side does not have. */
+int Pc_MouseCursor_ViewportPos(float* outX, float* outY)
+{
+    if (!Mc_Enabled() || !s_inView)
+        return 0;
+    if (outX != NULL) *outX = s_vx;
+    if (outY != NULL) *outY = s_vy;
     return 1;
 }
 
@@ -166,6 +181,8 @@ void Pc_MouseCursor_FrameUpdate(void)
     s_prevGx = s_gx;
     s_prevGy = s_gy;
     s_inView = PsyX_MapWindowToViewport(mx, my, &fx, &fy);
+    s_vx = fx;
+    s_vy = fy;
     /* Mouse -> menu text-authoring space. Height differs by framebuffer mode:
      * 448 (interlaced menus) / 224 (progressive in-game), read live. */
     s_gx = fx * (float)g_GameWork.gsScreenWidth;

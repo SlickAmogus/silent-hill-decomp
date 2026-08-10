@@ -29,6 +29,7 @@ namespace SilentHillPC_Launcher
         private Button _btnSignIn;
         private Button _btnSignOut;
         private Label _lblStatus;
+        private ComboBox _cboSfx;
         private Button _btnClose;
 
         private static readonly HttpClient _http = CreateHttpClient();
@@ -112,14 +113,23 @@ namespace SilentHillPC_Launcher
                 Text = ""
             };
 
-            var lblPrivacy = new Label
+            // Replaces the old "only a connect token is saved" note: the same
+            // point is already made by the intro text, and this row is the only
+            // free space on the page.
+            var lblSfx = new Label
             {
-                Location = new Point(15, 198),
-                Size = new Size(305, 15),
-                ForeColor = SystemColors.GrayText,
-                Font = new Font(Font.FontFamily, 7.5f),
-                Text = "Only a connect token is saved, never your password."
+                Location = new Point(15, 197),
+                Size = new Size(105, 20),
+                Text = "Achievement SFX:"
             };
+
+            _cboSfx = new ComboBox
+            {
+                Location = new Point(120, 194),
+                Size = new Size(120, 21),
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            _cboSfx.Items.AddRange(new object[] { "Xbox", "PlayStation", "Steam" });
 
             _btnClose = new Button
             {
@@ -133,7 +143,7 @@ namespace SilentHillPC_Launcher
             Controls.AddRange(new Control[]
             {
                 lblIntro, _chkEnable, lblUser, _txtUser, lblPass, _txtPass,
-                _btnSignIn, _btnSignOut, _lblStatus, lblPrivacy, _btnClose
+                _btnSignIn, _btnSignOut, _lblStatus, lblSfx, _cboSfx, _btnClose
             });
 
             AcceptButton = _btnSignIn;
@@ -144,6 +154,13 @@ namespace SilentHillPC_Launcher
         {
             _chkEnable.Checked = _config.Get("retroachievements", "0") == "1";
             _txtUser.Text = _config.Get("ra_username", "");
+
+            switch (_config.Get("ra_sfx", "playstation"))
+            {
+                case "xbox":  _cboSfx.SelectedIndex = 0; break;
+                case "steam": _cboSfx.SelectedIndex = 2; break;
+                default:      _cboSfx.SelectedIndex = 1; break;
+            }
 
             bool signedIn = !string.IsNullOrEmpty(_config.Get("ra_token", ""));
             SetSignedInUi(signedIn);
@@ -169,7 +186,20 @@ namespace SilentHillPC_Launcher
         private void SaveEnableFlag()
         {
             _config.Set("retroachievements", _chkEnable.Checked ? "1" : "0");
+            _config.Set("ra_sfx", SelectedSfxKey());
             _config.Save();
+        }
+
+        // The game reads these three names; keep them in step with the
+        // ra_sfx handling in pc_config.c / pc_ra_toast.c.
+        private string SelectedSfxKey()
+        {
+            switch (_cboSfx.SelectedIndex)
+            {
+                case 0:  return "xbox";
+                case 2:  return "steam";
+                default: return "playstation";
+            }
         }
 
         private void SignOut()

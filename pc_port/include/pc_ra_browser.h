@@ -46,11 +46,13 @@ void Pc_RaBrowser_Open(void);
 /* 1 while the panel owns input. The menu must not act on the pad in that case. */
 int  Pc_RaBrowser_IsOpen(void);
 
-/* Per-frame input: scrolling and the close edge. Game thread.
- * `padDown` is the caller's raw held-button mask — passed in so this module
- * needs no game headers. Any non-zero value closes the panel, once every
- * button seen at open time has been released. */
-void Pc_RaBrowser_Update(unsigned padDown);
+/* Per-frame input. Game thread.
+ *
+ * The caller resolves all three signals against the player's own bindings and
+ * passes them in, so this module needs neither game headers nor knowledge of
+ * the controller config: `closeRequested` is a press edge on Cancel or Map,
+ * `up`/`down` are the held movement directions. */
+void Pc_RaBrowser_Update(int closeRequested, int up, int down);
 
 /* Per-frame draw from the post-capture hook. Cheap no-op while closed. */
 void Pc_RaBrowser_Draw(void);
