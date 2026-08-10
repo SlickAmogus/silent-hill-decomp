@@ -209,6 +209,33 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 }
             }
 
+#ifdef SH_PC_PORT
+            /* Achievement browser: the Map button has no meaning on the title
+             * screen, so it opens the list here. While the panel is up it owns
+             * the pad entirely -- the flags are cleared so the menu underneath
+             * does not also move its selection or start a game. */
+            {
+                extern void Pc_RaBrowser_Open(void);
+                extern int  Pc_RaBrowser_IsOpen(void);
+                extern void Pc_RaBrowser_Update(unsigned padDown);
+
+                if (Pc_RaBrowser_IsOpen())
+                {
+                    Pc_RaBrowser_Update((unsigned)g_Controller0->heldBtnFlags);
+                    g_Controller0->clickedBtnFlags = 0;
+                    g_Controller0->pulsedBtnFlags  = 0;
+                    return;
+                }
+                if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.map)
+                {
+                    Pc_RaBrowser_Open();
+                    g_Controller0->clickedBtnFlags = 0;
+                    g_Controller0->pulsedBtnFlags  = 0;
+                    return;
+                }
+            }
+#endif
+
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp)
             {
                 g_MainMenu_SelectedEntry += MainMenuEntry_Count;

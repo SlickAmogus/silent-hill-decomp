@@ -1918,6 +1918,10 @@ void DbgOverlay_Render(void)
      * it would never run during normal gameplay. */
     { extern void Pc_RaToast_Draw(void); Pc_RaToast_Draw(); }
 
+    /* Main-menu achievement browser — same self-contained-GL arrangement as the
+     * toast above, and drawn after it so an unlock popup stays on top. */
+    { extern void Pc_RaBrowser_Draw(void); Pc_RaBrowser_Draw(); }
+
     /* Console is hidden once fully slid off-screen (toggled by `~`); the ring
      * buffer keeps filling while hidden. The collision panel draws whenever it's
      * toggled on (`'`), independent of the console. The anim panel draws while the
