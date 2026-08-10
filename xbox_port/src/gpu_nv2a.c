@@ -47,6 +47,12 @@ unsigned long long g_Nv2aDrawCycles = 0;
 #define WHITE_TEX_DIM 64
 
 static ShVertex* s_batch;     /* contiguous staging pool for vertex submission */
+
+/* The write-combining win depends on the stride being exactly one cache line;
+ * a silent change here would quietly restore the partial-line evictions (and a
+ * wrong stride garbles geometry, since the NV2A reads attributes at
+ * sizeof(ShVertex)). Fail the build instead of the hardware run. */
+typedef char ShVertex_must_be_one_cache_line[(sizeof(ShVertex) == 64) ? 1 : -1];
 static int       s_batchUsed; /* running offset into the pool (this frame) */
 static int       s_runStart;  /* start of the pending un-drawn run [s_runStart,
                                * s_batchUsed): adjacent same-state prims accumulate
@@ -774,6 +780,33 @@ static void GpuNv2a_FlushBatch(void)
  * contiguous, so the run is a plain sequential triangle list. Per-frame draw
  * state (render state, vertex program, attribute arrays) was set once in
  * FrameBegin; texture/blend/scissor are set between runs by gpu_xbox.c. */
+/* Reserve `count` vertices in the pool and hand back a pointer to write them
+ * IN PLACE. Callers used to fill a local array and have EmitTris memcpy it in,
+ * so every vertex crossed the CPU->write-combined boundary twice. Writing
+ * directly halves that traffic; with the 64-byte stride each vertex is now a
+ * single aligned line. Returns 0 if the request cannot be satisfied. */
+ShVertex* GpuNv2a_BatchAlloc(int count)
+{
+    ShVertex* p;
+
+    if (count <= 0 || count > MAX_BATCH_VERTS)
+        return 0;
+    if (s_batchUsed + count > MAX_BATCH_VERTS) {
+        static int s_allocFlushLogged = 0;
+        if (!s_allocFlushLogged) {
+            SH_DBG("[NV2A] vertex pool flush (> %d verts/frame)", MAX_BATCH_VERTS);
+            s_allocFlushLogged = 1;
+        }
+        GpuNv2a_FlushBatch();
+        while (pb_busy()) { }      /* attribute base is fixed at s_batch[0] */
+        s_batchUsed = 0;
+        s_runStart  = 0;
+    }
+    p = s_batch + s_batchUsed;
+    s_batchUsed += count;          /* sfence deferred to FlushBatch (per draw) */
+    return p;
+}
+
 void GpuNv2a_EmitTris(const ShVertex* verts, int count)
 {
     int start;

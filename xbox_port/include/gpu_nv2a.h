@@ -15,6 +15,15 @@ typedef struct {
     float col[4];
     float tex[2];
     float spec[4];
+    /* Pad 56 -> 64 bytes. The pool lives in WRITE-COMBINED memory, which only
+     * combines efficiently on whole 64-byte lines; at a 56-byte stride no vertex
+     * was line-aligned, so every per-primitive write straddled lines and forced
+     * slow partial-line evictions. Log 049 measured emit at 7.5ms of a 12.7ms
+     * render walk -- 6.5us (~4700 cycles) to stage ONE primitive, roughly 14
+     * cycles per byte, which is eviction cost and not copy cost. Appended AFTER
+     * spec so every existing attribute byte offset is unchanged; the NV2A stride
+     * comes from sizeof(ShVertex) and updates itself. */
+    float pad[2];
 } ShVertex;
 #pragma pack()
 
@@ -23,6 +32,9 @@ void GpuNv2a_FrameBegin(void);
 void GpuNv2a_FrameEnd(void);
 void GpuNv2a_WaitVbl(void);
 void GpuNv2a_EmitTris(const ShVertex* verts, int count);
+/* Reserve `count` pool vertices and write them in place (avoids staging them in
+ * a local array and copying into write-combined memory a second time). */
+ShVertex* GpuNv2a_BatchAlloc(int count);
 
 /* Texture binding for the PSX VRAM path (psx_vram.c). BindTexture binds an
  * ARGB8888 buffer of w*h texels; BindWhite restores the 1x1-white default for

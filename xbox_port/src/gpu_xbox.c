@@ -535,25 +535,31 @@ static void ApplyFog(ShVertex* v, int pad)
 
 /* PSX quad verts are in a Z/strip order (0,1,2,3) -> two triangles. Culling is
  * off, so winding does not matter. */
+/* Write straight into the vertex pool. The old form filled a local array which
+ * GpuNv2a_EmitTris then memcpy'd in, so every vertex crossed the
+ * CPU->write-combined boundary twice; that staging was 59% of the render walk in
+ * log 049's warm-cache frames. */
 static void EmitTri(ShVertex* a, ShVertex* b, ShVertex* c)
 {
     unsigned long long t0 = shx_rdtsc();
-    ShVertex tri[3];
-    tri[0] = *a; tri[1] = *b; tri[2] = *c;
-    GpuNv2a_EmitTris(tri, 3);
+    ShVertex* d = GpuNv2a_BatchAlloc(3);
+    if (d) {
+        d[0] = *a; d[1] = *b; d[2] = *c;
+        s_primCount++;
+    }
     s_emitCycles += shx_rdtsc() - t0;
-    s_primCount++;
 }
 
 static void EmitQuad(ShVertex* v0, ShVertex* v1, ShVertex* v2, ShVertex* v3)
 {
     unsigned long long t0 = shx_rdtsc();
-    ShVertex q[6];
-    q[0] = *v0; q[1] = *v1; q[2] = *v2;
-    q[3] = *v1; q[4] = *v2; q[5] = *v3;
-    GpuNv2a_EmitTris(q, 6);
+    ShVertex* d = GpuNv2a_BatchAlloc(6);
+    if (d) {
+        d[0] = *v0; d[1] = *v1; d[2] = *v2;
+        d[3] = *v1; d[4] = *v2; d[5] = *v3;
+        s_primCount++;
+    }
     s_emitCycles += shx_rdtsc() - t0;
-    s_primCount++;
 }
 
 /* code bit flags for polygon primitives (0x20-0x3F) */
