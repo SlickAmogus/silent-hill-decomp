@@ -14,6 +14,7 @@
 #include "texpack_lazy.h"
 #include "pc_big_lm.h"
 #include "pc_big_tmd.h"   /* Pc_BigTmd_DestCapacity — oversized loose ITEM TMDs */
+#include "pc_big_ipd.h"   /* Pc_BigIpd_DestCapacity — oversized loose map chunks */
 #include "lang_pack.h"    /* Pc_LangPackActive — FONT16 Polish glyph patch */
 #include "font_region.h"  /* Font_PatchPolishGlyphs */
 #include "sh_log.h"
@@ -816,6 +817,15 @@ bool Fs_QueueTickRead(s_FsQueueEntry* entry)
                  * for FS_BUFFER_5 and every other unregistered pointer, so the
                  * stock item path keeps the exact table-size gate. */
                 bigCap = Pc_BigTmd_DestCapacity(entry->data);
+                if (bigCap > bufSize)
+                {
+                    bufSize = bigCap;
+                }
+                /* Same lift for oversized map chunks (pc_big_ipd.c). The slot
+                 * was already grown by Ipd_LoadStart, so this reports the real
+                 * destination size; unregistered pointers return 0 and keep the
+                 * table-size gate. */
+                bigCap = Pc_BigIpd_DestCapacity(entry->data);
                 if (bigCap > bufSize)
                 {
                     bufSize = bigCap;

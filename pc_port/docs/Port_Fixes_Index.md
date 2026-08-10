@@ -2956,3 +2956,53 @@ landing on the art only after the fix.
 TMD is a different convention and was deliberately not changed — a TMD prim carries
 an explicit tpage and its U/V are page-relative within a 256-wide 4bpp page, which
 is why `TmdObjConverter`'s `/256` and the viewer's `page.YOffset` atlas are right.
+
+## Oversized loose map chunks — level-editor geometry can exceed the original (2026-08-09)
+
+New: `pc_port/src/pc_big_ipd.c` + `pc_port/include/pc_big_ipd.h`.
+Touched: `Ipd_LoadStart` and `Ipd_ActiveChunksClear` (`bodyprog_80040B74.c`),
+the loose gate in `Fs_QueueTickRead` (`fsqueue_3.c`), the validation ceiling in
+`IpdHeader_FixOffsets_PC` (`ipd_reformat.c`).
+
+A loose `.IPD` larger than its slot could not be byte-replaced: `Fs_QueueTickRead`
+sizes the destination from the compiled-in file table
+(`ALIGN(blockCount*256, 2048)`), so a bigger file failed the gate and the disc
+version loaded instead — an edited map silently did nothing. That is the ceiling
+the TrenchBroom level editor hits the moment it *adds* geometry rather than only
+moving it; in-place edits (retexture, UV, vertex moves) were unaffected because
+they never change size.
+
+Same shape as the existing oversized-asset loaders (`pc_big_lm.c` for ILM,
+`pc_big_tmd.c` for item TMD): a registry of destination buffers with their real
+capacities, and a `Pc_BigIpd_DestCapacity` hook in the queue's gate.
+
+- `Ipd_ActiveChunksClear` registers every slot it assigns with the capacity that
+  slot actually has — `step` for the shared-buffer slices, `indivSize` for the
+  per-slot callocs. Re-registration keeps the SMALLER claim, because the same
+  shared pointer is re-sliced with a different step when the active-chunk count
+  changes between maps.
+- `Ipd_LoadStart` calls `Pc_BigIpd_EnsureCapacity` before enqueueing the read.
+  If the loose file for that index exceeds where the chunk currently points, it
+  swaps in a PC-owned buffer (+16B slack) and caches it against the slot that
+  needed it, so a map change resetting the slot neither leaks nor re-allocates.
+  It resolves through an already-grown buffer too: the streamer recycles slots
+  without going through `Ipd_ActiveChunksClear`, so a later, even larger cell in
+  the same slot still has to grow.
+- The reformatter's `maxIpd` ceiling was a hardcoded `0x2C000`; it now uses the
+  real destination capacity when the buffer is a known chunk destination, or a
+  legitimately larger chunk would be rejected as corrupt by the header validation
+  added in `f9caf3432`.
+
+Growing also tightens safety rather than loosening it: an oversized read into a
+shared slice would have run into the neighbouring slice, and
+`Fs_QueueDoBuffersOverlap` sizes entries from the file table so it could not have
+seen that coming. A grown buffer overlaps nothing.
+
+Additive throughout — with no oversized loose file present every lookup misses
+and the stock path runs untouched. Structural validation is unchanged and still
+happens after load, rejecting a bad chunk into the caller's designed retry path.
+
+Editor side: `map2ipd --full` output is no longer capped at the original file
+size; `sh1/tools/chunk_budget.py` reports which threshold a compiled cell
+crosses, and `validate_port_compat.py` mirrors the header validation so a
+rejected file is diagnosed instead of looking like "my edit did nothing".

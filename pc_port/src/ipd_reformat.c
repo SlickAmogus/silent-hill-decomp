@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "sh_log.h"
+#include "pc_big_ipd.h"
 
 #include "bodyprog/bodyprog.h"
 
@@ -302,9 +303,13 @@ bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
      * self-heals the genuinely-still-loading case. */
     {
         /* No chunk file can exceed the slot it is read into; the shared chunk
-         * buffer (the largest slot) is 0x2C000. */
-        const u32   maxIpd = 0x2C000;
-        const char* bad    = NULL;
+         * buffer (the largest slot) is 0x2C000. An edited chunk may have been
+         * grown past that into a PC-owned buffer (pc_big_ipd.c) — bound-check
+         * against the real destination when this is one, so a legitimately
+         * larger map chunk is not rejected as corrupt. */
+        const size_t destCap = Pc_BigIpd_DestCapacity(raw);
+        const u32    maxIpd  = (destCap > 0x2C000) ? (u32)destCap : 0x2C000;
+        const char*  bad     = NULL;
 
         if (lmHdrOff < 0x188 || lmHdrOff > maxIpd - 2)
             bad = "lmHdrOff";

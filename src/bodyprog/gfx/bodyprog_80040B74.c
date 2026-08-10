@@ -7,6 +7,7 @@
 #include "bodyprog/gfx/world.h"
 #include "sh_log.h"
 #include "hires_override.h"
+#include "pc_big_ipd.h"
 /* Max IPD chunk slots on PC. Largest maps (map0_s00) have ~129 chunks.
  * PSX uses 1-4 slots with streaming. PC can hold all chunks in memory. */
 #define PC_MAX_IPD_CHUNKS 256
@@ -922,14 +923,17 @@ void Ipd_ActiveChunksClear(s_MapTerrain* map, s32 arg1) // 0x80042300
             {
                 curChunk->ipdHdr = ipdHdr0;
                 *(u8**)&ipdHdr0 += step;
+                Pc_BigIpd_RegisterSlot(curChunk->ipdHdr, (size_t)step);
             }
             else
             {
+                s32 ownedSize = indivSize > 0 ? indivSize : 65536;
                 if (s_pcSlotOwnedBuf[i] == NULL)
                 {
-                    s_pcSlotOwnedBuf[i] = (s_IpdHeader*)calloc(1, indivSize > 0 ? indivSize : 65536);
+                    s_pcSlotOwnedBuf[i] = (s_IpdHeader*)calloc(1, ownedSize);
                 }
                 curChunk->ipdHdr = s_pcSlotOwnedBuf[i];
+                Pc_BigIpd_RegisterSlot(curChunk->ipdHdr, (size_t)ownedSize);
             }
         }
     }
@@ -2333,6 +2337,13 @@ s32 Ipd_LoadStart(s_Chunk* chunk, e_FsFile fileIdx, s32 cellX, s32 cellZ, q19_12
 
     chunk->cellX    = cellX;
     chunk->cellZ    = cellZ;
+#ifdef SH_PC_PORT
+    /* An edited chunk can be larger than the slot the map system handed us;
+     * point it at a big enough PC-owned buffer before the read is enqueued,
+     * or the queue's size gate would drop the loose file and load the disc
+     * version instead (a silently unmodded map). */
+    Pc_BigIpd_EnsureCapacity((void**)&chunk->ipdHdr, (s32)fileIdx);
+#endif
     chunk->queueIdx = Fs_QueueStartRead(fileIdx, chunk->ipdHdr);
 
     Ipd_DistanceToEdgeCalc(chunk, posX0, posZ0, posX1, posZ1, isExterior);
