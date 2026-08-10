@@ -116,8 +116,12 @@ public class ConfigManager
             }
         }
 
+        // StartsWith, not Equals: the header we write carries a trailing comment
+        // ("## Launcher (managed by the launcher ...)"), so an exact match never
+        // recognised our own output and appended a fresh empty block on every
+        // save. Existing configs accumulated one per launcher run.
         if (_wantLauncherSection &&
-            !_lines.Any(l => l.Trim().Equals("## Launcher", StringComparison.OrdinalIgnoreCase)))
+            !_lines.Any(l => l.Trim().StartsWith("## Launcher", StringComparison.OrdinalIgnoreCase)))
         {
             _lines.Add("");
             _lines.Add("# ===========================================================================");

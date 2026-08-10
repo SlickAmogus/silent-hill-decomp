@@ -1185,6 +1185,13 @@ int main(int argc, char* argv[])
         g_PsyX_FlashlightIntensity = g_PcConfig.flashlightIntensity;
         g_cfg_postProcessIntensity = g_PcConfig.postProcessIntensity;
         g_cfg_tonemapIntensity     = g_PcConfig.tonemapIntensity;
+        /* Without this fog_strength only took effect once the options slider was
+         * touched, because the slider writes g_PsyX_FogStrength directly and
+         * nothing pushed the parsed config value at boot. */
+        {
+            extern float g_PsyX_FogStrength;
+            g_PsyX_FogStrength = g_PcConfig.fogStrength;
+        }
         {
             extern float g_cfg_brightness, g_cfg_contrast, g_cfg_saturation;
             g_cfg_brightness = g_PcConfig.brightness;
