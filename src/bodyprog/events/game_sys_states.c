@@ -729,6 +729,23 @@ void SysState_StatusMenu_Update(void) // 0x80039568
 {
     e_GameState gameState;
 
+#ifdef SH_PC_PORT
+    /* Cover the screen before handing over, the way SysState_MapScreen_Update
+     * does (ScreenFade_Start + a zero timestep = an instant cut, then the state
+     * switch on a later tick). Everything below runs in ONE tick, so without
+     * this the world got drawn once more with nothing over it -- and because the
+     * alternate-camera solve lives on the gameplay path, that frame came out on
+     * the classic camera. That is the one-frame snap opening the inventory on
+     * FPS/TPS/OTS. Costs one tick, already black, so nothing is visible. */
+    if (g_SysWork.sysStateSteps[0] == 0)
+    {
+        ScreenFade_Start(true, false, false);
+        g_ScreenFadeTimestep = Q12(0.0f);
+        g_SysWork.sysStateSteps[0]++;
+        return;
+    }
+#endif
+
     gameState = g_GameWork.gameState;
 
     g_GameWork.gameState = GameState_LoadStatusScreen;

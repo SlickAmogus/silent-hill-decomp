@@ -1808,7 +1808,10 @@ void DbgOverlay_Update(void)
                 (g_GameWork.gameStateSteps[0] == OptionsMenuState_Brightness ||
                  g_GameWork.gameStateSteps[0] == OptionsMenuState_EnterBrightness)) {
                 extern int g_cfg_calibBar; g_cfg_calibBar = 0;
-		g_GameWork.gameStateSteps[0] = OptionsMenuState_LeaveBrightness;
+                /* Same cancel feedback the menu's own back-out plays, so leaving
+                 * by this key is not silent. */
+                Sd_PlaySfx(Sfx_MenuCancel, 0, Q8(0.25f));
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_LeaveBrightness;
             } else if (g_GameWork.gameState == GameState_MainMenu) {
                 exit(0);
             } else {
