@@ -181,22 +181,17 @@ void smf_vsync(void) // 0x800A6F14
         ticks       = s_smfCarry / 10000;
         s_smfCarry -= ticks * 10000;
 
-        /* Match smf_timer's cadence exactly: on PSX the timer ran the modulation
-         * and key-off pass every 12 sequencer ticks (sd_timer_sync >= 11), ON TOP
-         * of the per-vblank pass at the end of this function. Xbox never runs
-         * smf_timer, so that source was simply missing -- vibrato and note
-         * release were being driven at 60Hz instead of 60Hz + ~48Hz. */
+        /* REVERTED: adding smf_timer's every-12-ticks midi_vsync +
+         * SdAutoKeyOffCheck here made the music noticeably WORSE -- "like half
+         * the instruments are missing". The reason it is not free: this port
+         * already runs that pass once per vblank at the end of smf_vsync, so the
+         * extra source nearly doubled its rate, and the envelope/key-off logic
+         * advances PER CALL rather than by elapsed time. Doubling the call rate
+         * therefore halves note length, cutting sustained voices short until the
+         * arrangement sounds gutted. The per-vblank pass alone is the rate this
+         * port is built around; leave it as the only one. */
         while (ticks-- > 0)
-        {
             midi_smf_main();
-            if (sd_timer_sync >= 11)
-            {
-                midi_vsync();
-                SdAutoKeyOffCheck();
-                sd_timer_sync = 0;
-            }
-            sd_timer_sync++;
-        }
     }
 #else
 #ifdef SH_PC_PORT

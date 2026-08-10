@@ -977,13 +977,15 @@ ShVertex* GpuNv2a_BatchAlloc(int count)
     }
     p = s_batch + s_batchUsed;
     s_batchUsed += count;          /* sfence deferred to FlushBatch (per draw) */
-    {   /* Peak watermark: proves the pool is still comfortably oversized after
-         * being cut, or says plainly that it is not. */
+    /* Peak watermark: proves the pool is still comfortably oversized after being
+     * cut, or says plainly that it is not. Only checked when the pool is getting
+     * genuinely full -- this runs PER PRIMITIVE inside the measured emit path,
+     * and the answer below 75% is never interesting. */
+    if (s_batchUsed > (MAX_BATCH_VERTS * 3) / 4) {
         static int s_peak = 0;
         if (s_batchUsed > s_peak) {
             s_peak = s_batchUsed;
-            if ((s_peak & 1023) == 0 || s_peak > MAX_BATCH_VERTS - 2048)
-                SH_DBG("[NV2A] vertex pool peak %d/%d verts", s_peak, MAX_BATCH_VERTS);
+            SH_DBG("[NV2A] vertex pool peak %d/%d verts", s_peak, MAX_BATCH_VERTS);
         }
     }
     return p;

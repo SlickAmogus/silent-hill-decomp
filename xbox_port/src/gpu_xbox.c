@@ -566,12 +566,17 @@ static void ApplyFog(ShVertex* v, int pad)
  * which path this primitive uses. */
 #define PAL_UV_SCALE (1.0f / 256.0f)
 
-static void ScalePalUv(ShVertex* d, int n)
+/* Scale the SOURCE vertices (ordinary cached memory), never the copies already
+ * written into the pool: the pool is write-combined, and a read-modify-write
+ * there costs an uncached read per component -- 12 of them per quad, which is
+ * why emit stayed at ~4.3us/prim in log 055 after the stride fix. Scaling the
+ * source also touches 4 verts per quad instead of 6, since two are duplicated. */
+static void ScalePalUvSrc(ShVertex** v, int n)
 {
     int i;
     for (i = 0; i < n; i++) {
-        d[i].tex[0] *= PAL_UV_SCALE;
-        d[i].tex[1] *= PAL_UV_SCALE;
+        v[i]->tex[0] *= PAL_UV_SCALE;
+        v[i]->tex[1] *= PAL_UV_SCALE;
     }
 }
 
@@ -580,8 +585,8 @@ static void EmitTri(ShVertex* a, ShVertex* b, ShVertex* c)
     unsigned long long t0 = shx_rdtsc();
     ShVertex* d = GpuNv2a_BatchAlloc(3);
     if (d) {
+        if (s_pendingPal) { ShVertex* sv[3]; sv[0]=a; sv[1]=b; sv[2]=c; ScalePalUvSrc(sv, 3); }
         d[0] = *a; d[1] = *b; d[2] = *c;
-        if (s_pendingPal) ScalePalUv(d, 3);
         s_primCount++;
     }
     s_emitCycles += shx_rdtsc() - t0;
@@ -592,9 +597,9 @@ static void EmitQuad(ShVertex* v0, ShVertex* v1, ShVertex* v2, ShVertex* v3)
     unsigned long long t0 = shx_rdtsc();
     ShVertex* d = GpuNv2a_BatchAlloc(6);
     if (d) {
+        if (s_pendingPal) { ShVertex* sv[4]; sv[0]=v0; sv[1]=v1; sv[2]=v2; sv[3]=v3; ScalePalUvSrc(sv, 4); }
         d[0] = *v0; d[1] = *v1; d[2] = *v2;
         d[3] = *v1; d[4] = *v2; d[5] = *v3;
-        if (s_pendingPal) ScalePalUv(d, 6);
         s_primCount++;
     }
     s_emitCycles += shx_rdtsc() - t0;
