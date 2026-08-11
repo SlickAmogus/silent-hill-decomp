@@ -27,6 +27,8 @@ struct PcUiSound
     SDL_AudioDeviceID dev;
     Uint8*           wav;   /* kept for every replay on the SDL path */
     Uint32           len;
+    Uint8*           scaled;      /* one cached attenuated copy (SDL path) */
+    float            scaledGain;
 };
 
 PcUiSound* PcUiSound_Load(const char* path)
@@ -97,19 +99,51 @@ PcUiSound* PcUiSound_Load(const char* path)
     return snd;
 }
 
-void PcUiSound_Play(PcUiSound* snd)
+void PcUiSound_PlayGain(PcUiSound* snd, float gain)
 {
     if (!snd)
         return;
+    if (gain < 0.0f) gain = 0.0f;
+    if (gain > 1.0f) gain = 1.0f;
+
     if (snd->kind == SND_AL)
     {
-        alSourcef(snd->alSrc, AL_GAIN, 1.0f);
+        alSourcef(snd->alSrc, AL_GAIN, gain);
         alSourceStop(snd->alSrc);
         alSourcePlay(snd->alSrc);
     }
     else if (snd->kind == SND_SDL)
     {
+        const Uint8* play = snd->wav;
+
+        /* No per-source gain on a raw queue, so an attenuated copy is scaled
+         * once and kept. Only one alternate gain is cached, which is all a
+         * cue needs: callers use a fixed value per site. */
+        if (gain < 0.999f)
+        {
+            if (!snd->scaled || snd->scaledGain != gain)
+            {
+                Uint32 i, samples = snd->len / 2;   /* validated AUDIO_S16LSB */
+                if (!snd->scaled)
+                    snd->scaled = (Uint8*)malloc(snd->len);
+                if (snd->scaled)
+                {
+                    const Sint16* src = (const Sint16*)snd->wav;
+                    Sint16*       dst = (Sint16*)snd->scaled;
+                    for (i = 0; i < samples; i++)
+                        dst[i] = (Sint16)((float)src[i] * gain);
+                    snd->scaledGain = gain;
+                }
+            }
+            if (snd->scaled)
+                play = snd->scaled;
+        }
         SDL_ClearQueuedAudio(snd->dev);
-        SDL_QueueAudio(snd->dev, snd->wav, snd->len);
+        SDL_QueueAudio(snd->dev, play, snd->len);
     }
+}
+
+void PcUiSound_Play(PcUiSound* snd)
+{
+    PcUiSound_PlayGain(snd, 1.0f);
 }

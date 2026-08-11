@@ -93,9 +93,10 @@ static s_RabBadge s_badges[RAB_MAX_ACH];
 static int        s_badgeCount;
 static int        s_badgesRequested;
 
-static PcUiSound* s_sndOpen;
-static PcUiSound* s_sndClose;
+/* One clip for both halves: the close is the same swish, quieter. */
+static PcUiSound* s_sndSwish;
 static int        s_soundsTried;
+#define RAB_CLOSE_GAIN 0.75f
 
 /* Scroll position in pixels, and where the content ends. */
 static float s_scroll;
@@ -723,8 +724,7 @@ static void rab_sounds_init(void)
     if (s_soundsTried)
         return;
     s_soundsTried = 1;
-    s_sndOpen  = PcUiSound_Load("gamedata/sound/swish.wav");
-    s_sndClose = PcUiSound_Load("gamedata/sound/backout.wav");
+    s_sndSwish = PcUiSound_Load("gamedata/sound/swish.wav");
 }
 
 void Pc_RaBrowser_Open(void)
@@ -755,7 +755,7 @@ void Pc_RaBrowser_Open(void)
     }
 
     rab_sounds_init();
-    PcUiSound_Play(s_sndOpen);
+    PcUiSound_Play(s_sndSwish);
 
     s_phase      = RAB_OPENING;
     s_phaseStart = SDL_GetTicks();
@@ -781,7 +781,7 @@ static void rab_begin_close(void)
         return;
 
     rab_sounds_init();
-    PcUiSound_Play(s_sndClose);
+    PcUiSound_PlayGain(s_sndSwish, RAB_CLOSE_GAIN);
 
     s_phase      = RAB_CLOSING;
     s_phaseStart = SDL_GetTicks();

@@ -23,6 +23,10 @@ PcUiSound* PcUiSound_Load(const char* path);
 /* Restart the cue from the beginning. No-op on NULL. */
 void PcUiSound_Play(PcUiSound* snd);
 
+/* As above at a relative gain (1.0 = as authored). Lets one loaded clip serve
+ * both halves of an open/close pair without a second file. */
+void PcUiSound_PlayGain(PcUiSound* snd, float gain);
+
 #ifdef __cplusplus
 }
 #endif
