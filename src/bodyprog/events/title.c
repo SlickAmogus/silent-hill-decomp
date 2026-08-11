@@ -95,6 +95,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
     static s32  newGameSelectedDifficultyIdx = 1;
     static s32  prevSavegameCount            = 0;
 #ifdef SH_PC_PORT
+    extern int  Pc_RaBrowser_IsOpen(void);
     bool        browserOpen                  = false;
 #endif
 #ifdef SH_PC_PORT
@@ -123,7 +124,15 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
      * PsyCross reports idle pads as 0xFFFF so the any-button exit works. Left
      * off historically because it had never been exercised; config-gated so it
      * can be turned off without a rebuild. */
-    playInGameDemo = g_PcConfig.attractDemos && (((g_Demo_ReproducedCount + 1) % 3) != 0);
+    /* Read before playInGameDemo so the achievement panel suppresses the whole
+     * attract pipeline: reflects last frame's state, which is enough because the
+     * idle counter is also pinned below. */
+    browserOpen = Pc_RaBrowser_IsOpen();
+
+    /* Neither the gameplay demo nor the intro FMV may take the screen while the
+     * achievement panel is up -- the player is reading, not idle. */
+    playInGameDemo = g_PcConfig.attractDemos && !browserOpen &&
+                     (((g_Demo_ReproducedCount + 1) % 3) != 0);
 #else
     playInGameDemo = ((g_Demo_ReproducedCount + 1) % 3) != 0;
 #endif
@@ -576,6 +585,15 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
         g_SysWork.counters_1C[1] = 0;
     }
 
+#ifdef SH_PC_PORT
+    /* Hold the idle timer at zero while the panel is up. Scrolling a list is not
+     * idling, and at 1740 this loads STREAM.BIN and cuts to the intro movie. */
+    if (browserOpen)
+    {
+        g_SysWork.counters_1C[1] = 0;
+    }
+#endif
+
     if (!playInGameDemo)
     {
         switch (g_GameWork.gameStateSteps[0])
@@ -622,6 +640,10 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
         {
             MainMenu_MainTextDraw();
 #ifdef SH_PC_PORT
+            /* The achievement panel draws its own pointer over the top, so the
+             * game's would just be a second cursor tracking the same mouse
+             * underneath it. */
+            if (!browserOpen)
             { extern void Pc_MouseCursor_Draw(void); Pc_MouseCursor_Draw(); }
 #endif
             return;
@@ -629,6 +651,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
 
         MainMenu_DifficultyTextDraw(newGameSelectedDifficultyIdx);
 #ifdef SH_PC_PORT
+        if (!browserOpen)
         { extern void Pc_MouseCursor_Draw(void); Pc_MouseCursor_Draw(); }
 #endif
         return;
