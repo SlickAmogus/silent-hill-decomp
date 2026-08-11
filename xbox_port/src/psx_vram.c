@@ -15,6 +15,8 @@
 #include "gpu_nv2a.h"
 #include "sh_log.h"
 #include "pc_config.h"    /* texture_paletted escape hatch */
+#include "hires_override.h" /* HIRES_POOL_* virtual-slot clut encoding */
+#include "xbox_respool.h"   /* resident chunk textures (resident_textures) */
 
 #define VRAM_W   1024
 #define VRAM_H   512
@@ -382,6 +384,63 @@ static void PageDecodeIndices(int tpage, uint8_t* out)
         }
     }
     memcpy(out, s_swzScratch, PAGE_BYTES);    /* sequential: write-combines cleanly */
+    __asm__ __volatile__("sfence" ::: "memory");
+}
+
+/* Same scatter, but sourced from a RESIDENT pool slab instead of s_vram (see
+ * xbox_respool.c). The slab holds the TIM's word block verbatim, so the only
+ * differences from the s_vram path are the base pointer, the row pitch and the
+ * fact that a slab can be narrower or shorter than a full page — the rows and
+ * columns past its extent are left at index 0 rather than wrapping into a
+ * neighbour, since there IS no neighbour. */
+static void PageDecodeIndicesResident(const uint16_t* src, const s_XbResidentDesc* d,
+                                      uint8_t* out)
+{
+    int u, v;
+
+    memset(s_swzScratch, 0, PAGE_BYTES);
+    for (v = 0; v < TEX_DIM && v < d->h; v++) {
+        const uint16_t* row = src + (size_t)v * d->pitchWords;
+        unsigned        sy  = s_swzY[v];
+        int             i   = 0;
+
+        if (d->bpp == 4) {
+            for (u = 0; u < TEX_DIM && i < d->pitchWords; u += 4, i++) {
+                uint16_t w = row[i];
+                s_swzScratch[s_swzX[u]     | sy] = (uint8_t)( w        & 0x0F);
+                s_swzScratch[s_swzX[u + 1] | sy] = (uint8_t)((w >>  4) & 0x0F);
+                s_swzScratch[s_swzX[u + 2] | sy] = (uint8_t)((w >>  8) & 0x0F);
+                s_swzScratch[s_swzX[u + 3] | sy] = (uint8_t)((w >> 12) & 0x0F);
+            }
+        } else {
+            for (u = 0; u < TEX_DIM && i < d->pitchWords; u += 2, i++) {
+                uint16_t w = row[i];
+                s_swzScratch[s_swzX[u]     | sy] = (uint8_t)( w       & 0xFF);
+                s_swzScratch[s_swzX[u + 1] | sy] = (uint8_t)((w >> 8) & 0xFF);
+            }
+        }
+    }
+    memcpy(out, s_swzScratch, PAGE_BYTES);
+    __asm__ __volatile__("sfence" ::: "memory");
+}
+
+/* Palette row `row` of a resident slab. Rows past what the TIM shipped fall back
+ * to row 0, matching the PC pool's behaviour for a missing row. */
+static void PaletteBuildResident(const s_XbResidentDesc* d, int row, uint32_t* out)
+{
+    const uint16_t* src;
+    int i;
+
+    if (!d->clut || d->rows <= 0) {
+        for (i = 0; i < PAL_ENTRIES; i++) out[i] = 0;
+        __asm__ __volatile__("sfence" ::: "memory");
+        return;
+    }
+    if (row < 0 || row >= d->rows) row = 0;
+    src = d->clut + (size_t)row * 256;
+
+    for (i = 0; i < PAL_ENTRIES; i++)
+        out[i] = Psx16ToArgb(src[i]);
     __asm__ __volatile__("sfence" ::: "memory");
 }
 
@@ -775,11 +834,36 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
  * the bug 09202d93e fixed, and it applies to index pages and palettes too. */
 const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
 {
-    const int tp = (tpage >> 7) & 3;
+    int       tp = (tpage >> 7) & 3;
     unsigned  thisFrame = (unsigned)g_Nv2aFrameCount;
     int       i, best;
+    /* Resident (virtual) chunk-pool slot: the clut word carries a slot id and a
+     * palette row instead of VRAM coordinates, and the pixels live in a private
+     * slab rather than s_vram. Everything below — the page LRU, the palette LRU,
+     * the eviction and drain logic — is shared with real pages; only the decode
+     * source and the cache KEYS differ. The keys must be disjoint from real
+     * tpage/clut values (a virtual tpage aliases a real page, and two slots can
+     * share one), hence the high-bit tags. */
+    const uint16_t*  resWords = 0;
+    s_XbResidentDesc resDesc;
+    int              pageKey = tpage, palKey = clut;
 
     if (palOut) *palOut = 0;
+    {
+        int vrow = (clut >> 6) & 0x3FF;
+        if (vrow >= HIRES_POOL_CLUT_ROW_BASE) {
+            int slot = ((vrow - HIRES_POOL_CLUT_ROW_BASE) / HIRES_POOL_MAX_ROWS) * 64
+                     + (clut & 0x3F);
+            int row  = (vrow - HIRES_POOL_CLUT_ROW_BASE) % HIRES_POOL_MAX_ROWS;
+
+            resWords = Xbox_ResidentPoolGet(slot, &resDesc);
+            if (!resWords)
+                return 0;                      /* not resident: RGBA table / skip */
+            tp      = (resDesc.bpp == 4) ? 0 : 1;
+            pageKey = 0x40000000 | slot;
+            palKey  = 0x20000000 | (slot << 5) | row;
+        }
+    }
     if (tp >= 2)
         return 0;                              /* 16-bit direct: ARGB path */
     /* Escape hatch: texture_paletted=0 in silenthill.cfg falls back to the ARGB
@@ -824,7 +908,7 @@ const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
     /* --- index page, keyed by tpage alone (the CLUT no longer matters) --- */
     best = -1;
     for (i = 0; i < PAGE_N; i++)
-        if (s_pages[i].key == tpage && s_pages[i].data) { best = i; break; }
+        if (s_pages[i].key == pageKey && s_pages[i].data) { best = i; break; }
 
     if (best < 0) {
         int      victim = -1, pinned = -1;
@@ -846,16 +930,25 @@ const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
             victim = pinned;
         }
         if (victim < 0) return 0;
-        {   /* record the source rect so texel writes invalidate this page */
-            int px = (tpage & 0x0F) * 64;
-            int py = ((tpage >> 4) & 1) * 256;
-            s_pages[victim].px0 = px;
-            s_pages[victim].py0 = py;
-            s_pages[victim].px1 = px + ((tp == 0) ? 64 : 128);
-            s_pages[victim].py1 = py + 256;
+        if (resWords) {
+            /* A resident slab is private: no VRAM write can reach it, so the
+             * invalidation rect is deliberately empty. That is the whole point
+             * of the mode — this page cannot be stolen or overwritten. */
+            s_pages[victim].px0 = s_pages[victim].px1 = 0;
+            s_pages[victim].py0 = s_pages[victim].py1 = 0;
+            PageDecodeIndicesResident(resWords, &resDesc, s_pages[victim].data);
+        } else {
+            {   /* record the source rect so texel writes invalidate this page */
+                int px = (tpage & 0x0F) * 64;
+                int py = ((tpage >> 4) & 1) * 256;
+                s_pages[victim].px0 = px;
+                s_pages[victim].py0 = py;
+                s_pages[victim].px1 = px + ((tp == 0) ? 64 : 128);
+                s_pages[victim].py1 = py + 256;
+            }
+            PageDecodeIndices(tpage, s_pages[victim].data);
         }
-        PageDecodeIndices(tpage, s_pages[victim].data);
-        s_pages[victim].key  = tpage;
+        s_pages[victim].key  = pageKey;
         s_pages[victim].hits = 1;
         best = victim;
     }
@@ -867,7 +960,7 @@ const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
     {
         int p = -1;
         for (i = 0; i < PAL_N; i++)
-            if (s_pals[i].key == clut && s_pals[i].data) { p = i; break; }
+            if (s_pals[i].key == palKey && s_pals[i].data) { p = i; break; }
         if (p < 0) {
             int      victim = -1, pinned = -1;
             unsigned bu = 0xFFFFFFFFu, pu = 0xFFFFFFFFu;
@@ -886,16 +979,22 @@ const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
                 victim = pinned;
             }
             if (victim < 0) return 0;
-            {
-                int cx = (clut & 0x3F) * 16;
-                int cy = (clut >> 6) & 0x1FF;
-                s_pals[victim].cx0 = cx;
-                s_pals[victim].cy0 = cy;
-                s_pals[victim].cx1 = cx + ((tp == 0) ? 16 : 256);
-                s_pals[victim].cy1 = cy + 1;
+            if (resWords) {
+                s_pals[victim].cx0 = s_pals[victim].cx1 = 0;   /* private: never invalidated */
+                s_pals[victim].cy0 = s_pals[victim].cy1 = 0;
+                PaletteBuildResident(&resDesc, palKey & 0x1F, s_pals[victim].data);
+            } else {
+                {
+                    int cx = (clut & 0x3F) * 16;
+                    int cy = (clut >> 6) & 0x1FF;
+                    s_pals[victim].cx0 = cx;
+                    s_pals[victim].cy0 = cy;
+                    s_pals[victim].cx1 = cx + ((tp == 0) ? 16 : 256);
+                    s_pals[victim].cy1 = cy + 1;
+                }
+                PaletteBuild(clut, s_pals[victim].data);
             }
-            PaletteBuild(clut, s_pals[victim].data);
-            s_pals[victim].key = clut;
+            s_pals[victim].key = palKey;
             p = victim;
         }
         s_pals[p].lastUse = thisFrame;

@@ -264,6 +264,7 @@ XBOX_SRCS = \
 	$(XBOX_PORT)/src/xbox_compat_stubs.c \
 	$(XBOX_PORT)/src/xbox_compat_globals.c \
 	$(XBOX_PORT)/src/xbox_pcfeature_stubs.c \
+	$(XBOX_PORT)/src/xbox_respool.c \
 	$(XBOX_PORT)/src/map_xbox.c \
 	$(XBOX_PORT)/src/map7_s03_boss_motion.c \
 	$(XBOX_PORT)/src/libc_compat_xbox.c \

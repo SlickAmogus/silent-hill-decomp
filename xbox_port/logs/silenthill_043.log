@@ -1,0 +1,1581 @@
+[CFG] key='control_style'(13) value='tps'
+[CFG] key='invert_controller_y'(19) value='0'
+[CFG] key='crosshair'(9) value='1'
+[CFG] key='crosshair_style'(15) value='3'
+[CFG] key='refresh_rate'(12) value='60'
+[CFG] key='retroachievements'(17) value='1'
+[CFG] >> retroachievements branch: atoi=1 -> retroAchievements=1
+[CFG] key='ra_username'(11) value='KushAstronaut'
+[CFG] key='ra_password'(11) value='101F66d283,,'
+[CFG] key='use_pgxp'(8) value='0'
+[CFG] key='cutscene_line_gap_ms'(20) value='300'
+[CFG] key='video_720p'(10) value='1'
+[CFG] key='log_diag'(8) value='0control_2d = 1'
+[CFG] key='control_2d'(10) value='1'
+[SH-XBOX] SEH crash logger installed (frame=0xd0032c60 handler=0x2f1210)
+[SH-XBOX] build ee5e3a21e+wt id=0809-014857 (2026-08-09 01:48:57)
+[FS] D: -> '\Device\Harddisk0\Partition1\Apps\SH\' (wasMounted=1 remap=ok)
+[SH-XBOX] boot: video 1280x720x32 (720p, pillarboxed 4:3)
+[GTE] RotTransPers v(64,32,512) -> sx=352 sy=256 sz=128 flag=0x1000 (expect sx=352 sy=256)
+[SH-XBOX] pbkit initialised
+[CD] xbe dir = '\Device\Harddisk0\Partition1\Apps\SH\' (mounted Q:)
+[CD] disc image: Q:\Silent Hill (USA).bin
+[CD] BIN: Q:\Silent Hill (USA).bin
+[SH-XBOX] NV2A fb 1280x720, content 960x720 at x=160
+[SH-XBOX] NV2A backend ready (batch=65536 verts)
+[SH-XBOX] USB pad init done
+[MCRD] card path = E:\UDATA\SH010000\0.MCD
+[SH-XBOX] PSX RAM @ 0xdca0fc
+[SH-XBOX] game data initialised
+[SH-XBOX] subsystems up; entering MainLoop
+[RA] init: enabled=1 user='KushAstronaut' token=none passwordLen=12
+[NET] up, DHCP IP 192.168.1.123
+[RA] syswork native: npcs=0x1A0 bones=0x26A0 tailA=0x91D0 targetNpc=0x92A8 light=0x92B0 sizeof=38588
+[FREEZE] reserve ok: 1800KB (1280x720 R5G6B5) free=22276KB
+[FOGST-GPU] clear=0xff000000
+[SH-XBOX] layout check ok: sizeof(s_SysWork)=38588 sizeof(s_GameWork)=1496
+[XA] SetVolume L=0 R=0
+[ARENA] buf0=0x7fdd0008 buf1=0x7fbc0008
+[SH-XBOX] GameState -> 0 (step 0)
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (253 bytes)
+[RA] http -> status=200 bodyLen=253 body='{"Success":true,"User":"KushAstronaut","AvatarUrl":"https:\/'
+[RA] logged in as KushAstronaut
+RA: signed in as KushAstronaut
+[RA] disc hash 469d5cf1428d3f6f2234aa5be058f3ec
+[MCFSM] state=0 step=0 (was -1/-1 after 0 f)
+[OT] DrawOTag head=0xd4ceac (walking; per-node trace off)
+[OT] walk done after 2048 nodes (cap hit=0)
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (136272 bytes)
+[RA] http -> status=200 bodyLen=136272 body='{"Success":true,"GameId":11252,"Title":"Silent Hill","ImageI'
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=0 -> IOE (n=1)
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (200 bytes)
+[RA] http -> status=200 bodyLen=200 body='{"Success":true,"ServerNow":1786258489,"HardcoreUnlocks":[],'
+[RA] set reads 0x800BCAD8 (mapped)
+[RA] set reads 0x800BCC7E (mapped)
+[RA] set reads 0x800BCBA2 (mapped)
+[RA] set reads 0x800BC0C8 (mapped)
+[RA] set reads 0x800BC26E (mapped)
+[RA] set reads 0x800BC192 (mapped)
+[RA] set reads 0x800B2214 (mapped)
+[RA] set reads 0x800BC6A8 (mapped)
+[RA] achievement read of unmapped PSX address 0x800BCD6C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C168C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C0C7C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C125C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C6F2D - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C651D - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C6AFD - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C4476 - needs a translation entry
+[RA] matched game 11252 "Silent Hill"
+[RA] worklist UNMAPPED 0x800BCD6C (memsize=0)
+[RA] worklist UNMAPPED 0x800C168C (memsize=1)
+[RA] worklist UNMAPPED 0x800C0C7C (memsize=1)
+[RA] worklist UNMAPPED 0x800C125C (memsize=1)
+[RA] worklist UNMAPPED 0x800C6F2D (memsize=0)
+[RA] worklist UNMAPPED 0x800C651D (memsize=0)
+[RA] worklist UNMAPPED 0x800C6AFD (memsize=0)
+[RA] worklist UNMAPPED 0x800C4476 (memsize=1)
+[RA] worklist UNMAPPED 0x800C4472 (memsize=0)
+[RA] worklist UNMAPPED 0x800C4470 (memsize=0)
+[RA] worklist: 352 memrefs total, 10 unserved, 10 distinct-unmapped listed
+[RA] culprit: achiev id=83576 'Wounds That Won't Heal' reads unmapped 0x800BCD6C
+[RA] culprit: achiev id=86517 'What Is Keeping That Child Alive?' reads unmapped 0x800C168C
+[RA] culprit: achiev id=86517 'What Is Keeping That Child Alive?' reads unmapped 0x800C0C7C
+[RA] culprit: achiev id=86517 'What Is Keeping That Child Alive?' reads unmapped 0x800C125C
+[RA] culprit: achiev id=86663 'Scary Harry I' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86663 'Scary Harry I' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86663 'Scary Harry I' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86664 'Scary Harry II' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86664 'Scary Harry II' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86664 'Scary Harry II' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86665 'Scary Harry III' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86665 'Scary Harry III' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86665 'Scary Harry III' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86666 'Scary Harry IV' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86666 'Scary Harry IV' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86666 'Scary Harry IV' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86667 'Scary Harry V' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86667 'Scary Harry V' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86667 'Scary Harry V' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86668 'Scary Harry VI' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86668 'Scary Harry VI' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86668 'Scary Harry VI' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86422 'Harry the Swift' reads unmapped 0x800C4476
+[RA] culprit: achiev id=86422 'Harry the Swift' reads unmapped 0x800C4472
+[RA] culprit: achiev id=86423 'Daring Harry' reads unmapped 0x800C4470
+[RA] culprit: achiev id=86427 'Harry the Best' reads unmapped 0x800C4472
+[RA] culprit: achiev id=86427 'Harry the Best' reads unmapped 0x800C4470
+[RA] trace 84008: not in runtime (already unlocked?)
+[RA] ach lock id=84002 5p 'Keys for Eclipse'
+[RA] ach lock id=84005 5p 'Old Man's Hand'
+[RA] ach lock id=84007 5p 'Broken Notes'
+[RA] ach lock id=85474 5p 'Harry in Wonderland'
+[RA] ach lock id=85476 5p 'Loneliness'
+[RA] ach lock id=86028 5p 'Sand Castles'
+[RA] ach lock id=86080 10p 'I'll Kill You'
+[RA] ach lock id=86340 5p 'Eww Eww Eww'
+[RA] ach lock id=86506 10p 'Paging Dr. Kaufmann'
+[RA] ach lock id=86341 5p 'Our Little Secret'
+[RA] ach lock id=86342 10p 'Pour Some Sugar On Me, Baby'
+[RA] ach lock id=86343 10p 'Merry-Go-Down'
+[RA] ach lock id=86344 5p 'Grim Reaper's List'
+[RA] ach lock id=86345 5p 'The Stone of Time'
+[RA] ach lock id=83576 10p 'Wounds That Won't Heal'
+[RA] ach lock id=86347 5p 'Illuminating the Darkness'
+[RA] ach lock id=86517 10p 'What Is Keeping That Child Alive?'
+[RA] ach lock id=86348 3p 'What's Going On with That Refrigerator?'
+[RA] ach lock id=86428 10p 'My Heaven'
+[RA] ach lock id=86518 10p 'Awakening'
+[RA] ach lock id=86503 10p 'The Archer and the Beast'
+[RA] ach lock id=86504 10p 'The Pit of Calamity'
+[RA] ach lock id=86505 10p 'Erratic'
+[RA] ach lock id=86513 10p 'Sifod'
+[RA] ach lock id=86519 10p 'Thank You...'
+[RA] ach lock id=86023 5p 'Target Practice'
+[RA] ach lock id=86022 10p 'Triggered'
+[RA] ach lock id=86024 25p 'Gun Control: Alessa's New Nightmare'
+[RA] ach lock id=86026 10p 'Fa-fa-fa-fa, Fa-fa-fa-fa-fa, Fa, Better'
+[RA] ach lock id=86027 25p 'Hammerin' Harry'
+[RA] ach lock id=86346 10p 'Doomsday Prepper'
+[RA] ach lock id=86349 10p 'Drillin' Like a Villain'
+[RA] ach lock id=84003 10p 'Harry the Weeb'
+[RA] ach lock id=84004 10p 'Silent Hill Chainsaw Massacre'
+[RA] ach lock id=86520 10p 'A Gift from Outer Space'
+[RA] ach lock id=86507 10p 'Like the Back of My Hand I'
+[RA] ach lock id=86508 10p 'Like the Back of My Hand II'
+[RA] ach lock id=86509 10p 'Like the Back of My Hand III'
+[RA] ach lock id=86510 10p 'Like the Back of My Hand IV'
+[RA] ach lock id=86516 5p 'Like the Back of My Hand V'
+[RA] ach lock id=86663 5p 'Scary Harry I'
+[RA] ach lock id=86664 10p 'Scary Harry II'
+[RA] ach lock id=86665 10p 'Scary Harry III'
+[RA] ach lock id=86666 10p 'Scary Harry IV'
+[RA] ach lock id=86667 10p 'Scary Harry V'
+[RA] ach lock id=86668 10p 'Scary Harry VI'
+[RA] ach lock id=86422 25p 'Harry the Swift'
+[RA] ach lock id=86423 25p 'Daring Harry'
+[RA] ach lock id=86424 5p 'Harry the Okay'
+[RA] ach lock id=86425 10p 'Harry the Good'
+[RA] ach lock id=86426 25p 'Harry the Great'
+[RA] ach lock id=86427 50p 'Harry the Best'
+[RA] ach lock id=86662 5p 'That Light...'
+[RA] ach lock id=86502 5p 'UFO Sighting I'
+[RA] ach lock id=86511 5p 'UFO Sighting II'
+[RA] ach lock id=86512 5p 'UFO Sighting III'
+[RA] ach lock id=86514 5p 'UFO Sighting IV'
+[RA] ach lock id=86515 5p 'UFO Sighting V'
+[RA] ach lock id=86429 25p 'Tears of...'
+[RA] ach lock id=86430 10p 'Killing Time'
+[RA] ach lock id=86431 10p 'She'
+[RA] ach lock id=86432 10p 'Esperandote'
+[RA] ach lock id=86433 10p 'Ayyy'
+[RA] ach UNLK id=101000001 0p 'Warning: Unknown Emulator'
+[RA] ach UNLK id=86483 3p 'What a Nightmare...'
+[RA] ach UNLK id=84008 10p 'Who's Afraid of a Reptile?'
+[RA] ach UNLK id=86025 5p 'Knife to Meet You'
+[RA] roster: 63 locked, 4 unlocked (67 total)
+RetroAchievements: 3/66 (18 pts)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=0 -> IOE (n=2)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=0 -> IOE (n=1)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=0 -> IOE (n=1)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=0 (n=1)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[MCFSM] state=6 step=0 (was 0/0 after 0 f)
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCFSM] state=7 step=0 (was 6/0 after 0 f)
+[MCFSM] state=7 step=2 (was 7/0 after 0 f)
+[MCRD] read h=1 dir=1 ofs=512 len=256 ok
+[LOOSE/INIT] allow_loose_files=0  base=gamedata/load/  verbose=no
+[MCFSM] state=7 step=3 (was 7/2 after 0 f)
+[MCFSM] state=0 step=0 (was 7/3 after 0 f)
+[BOOT0/TIM] PostLoadTim file=6 'FONT16.TIM' ss=0x287 img.u=0 img.v=240 tPage=0,16 clutX=304 clutY=511
+[BOOT0/TIM] post ReadTIM: prect=0xfac734 caddr=0xfac710 paddr=0xfac73c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(0,496 256x16)
+[FONTCLOB] Load x=0 y=496 w=256 h=16
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,511 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=1 -> IOE (n=3)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=8 'KONAMI.TIM' ss=0x28e img.u=0 img.v=0 tPage=0,12 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfac734 caddr=0xfac710 paddr=0xfac73c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 96x384)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=1 -> IOE (n=4)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=1 -> IOE (n=2)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=1 -> IOE (n=2)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=1 (n=2)
+[SH-XBOX] GameState -> 1 (step 0)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[VRAM] texture cache: 36/96 slots (256KB each), free=8432KB after
+[VRAM] cache capped by 8MB heap reserve (expect decode thrash)
+[VRAM] cache grew to 37 slots (free=8176KB)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=2 -> IOE (n=5)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=9 'KONAMI2.TIM' ss=0x2b3 img.u=0 img.v=0 tPage=0,14 clutX=0 clutY=1
+[BOOT0/TIM] post ReadTIM: prect=0xfac734 caddr=0xfac710 paddr=0xfac73c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(896,0 104x160)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,1 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=2 -> IOE (n=6)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=2 -> IOE (n=3)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=2 -> IOE (n=3)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=2 (n=3)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=1423 'HERO.TIM' ss=0x5a6a img.u=0 img.v=0 tPage=0,27 clutX=736 clutY=480
+[BOOT0/TIM] post ReadTIM: prect=0xfac8f4 caddr=0xfac710 paddr=0xfac8fc mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,256 64x192)
+[BOOT0/TIM] pre CLUT LoadImage rect=(736,480 16x15)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=3 -> IOE (n=7)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=3 -> IOE (n=8)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=3 -> IOE (n=4)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=3 -> IOE (n=4)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=1802 'BLD.TIM' ss=0x795b img.u=0 img.v=0 tPage=0,11 clutX=304 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb7114 caddr=0xfb6f10 paddr=0xfb711c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=3 (n=4)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=16 -> IOE (n=9)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=16 -> IOE (n=10)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=16 -> IOE (n=5)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=16 -> IOE (n=5)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=8 (n=5)
+[MCRD] open 'bu10:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=512 len=256 ok
+[MCRD] card_info chan=17 -> IOE (n=11)
+[MCRD] card_info chan=17 -> IOE (n=12)
+[MCRD] card_clear chan=17 -> IOE (n=6)
+[MCRD] card_load chan=17 -> IOE (n=6)
+[MCRD] dir scan chan=9 (n=6)
+[MCRD] card_info chan=18 -> IOE (n=13)
+[MCRD] card_info chan=18 -> IOE (n=14)
+[MCRD] card_clear chan=18 -> IOE (n=7)
+[MCRD] card_load chan=18 -> IOE (n=7)
+[MCRD] dir scan chan=10 (n=7)
+[MCRD] card_info chan=19 -> IOE (n=15)
+[MCRD] card_info chan=19 -> IOE (n=16)
+[MCRD] card_clear chan=19 -> IOE (n=8)
+[MCRD] card_load chan=19 -> IOE (n=8)
+[MCRD] dir scan chan=11 (n=8)
+[SH-XBOX] GameState -> 2 (step 0)
+[BOOT0/TIM] PostLoadTim file=1799 'BG_ETC.TIM' ss=0x7906 img.u=0 img.v=0 tPage=0,12 clutX=192 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfac874 caddr=0xfac710 paddr=0xfac87c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(192,0 16x11)
+[BOOT0/TIM] PostLoadTim done
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=768 len=128 ok
+[BOOT0/TIM] PostLoadTim file=1980 'TITLE_E.TIM' ss=0x90b7 img.u=32 img.v=0 tPage=1,13 clutX=224 clutY=15
+[BOOT0/TIM] post ReadTIM: prect=0xf7c914 caddr=0xf7c710 paddr=0xf7c91c mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 160x480)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,15 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 6 (step 0)
+[SH] open_main: playing FMV (file=2053 frames=0)
+[FMV] no avi for C1_20670 (checked D:\fmv, D:\gamedata\fmv) -> MDEC
+[FMV] start C1_20670 file_idx=2053 base=133127 sectors=20670 maxFrames=0 (15fps)
+[XA] fmv stream open: 37800Hz stereo coding=0x01
+[FMV] video 320x208, 9 sectors/frame
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[FMV] skipped at frame 22
+[XA] fmv stream end: 27 sectors fed, 1792 ring frames discarded
+[FMV] end C1_20670: 22 frames (2 dropped, 0 decode fails, 35 presents)
+[SH] open_main: FMV_Play returned
+[SH-XBOX] GameState -> 7 (step 0)
+[BOOT-STEP] GameStartup step=0 qlen=0
+[TRANSITION] GameStartup step=0: processFlags=0x20 (BootDemo) sizeof(s_WorldGfxWork)=11708
+[FONTDUMP] MENU tpage=16 words=0..63 (21 glyphs, 6 cols each)
+[FONTDUMP] MENU  0|#...........#..........................................##..........##....##......#...###....##...###...###...##...............
+[FONTDUMP] MENU  1|##.....##....#....................................#....###....##...###...###.....#...####..###...####..###...###..............
+[FONTDUMP] MENU  2|##.....#.....#....................................#....#.#....##..####..##.#....##...###...##...#####..#.##.##.#..............
+[FONTDUMP] MENU  3|.#.....#.....#............#......................##...##.##..###.....##....#....##...##....#........#..#.##.##.##.............
+[FONTDUMP] MENU  4|.#.....#.....#............#......................#....##.##...##.....##...##...###..###...###......##..###..##.##.#.....#.....
+[FONTDUMP] MENU  5|......##.....##...#####...#......................#....##.##...##.....##...##...###...###..####.....#....##..##.##.##....##....
+[FONTDUMP] MENU  6|......##.....##....####...#......................#....##.##...##.....#....##..##.#.....#..##.#.....#...###...#.##..#.....#....
+[FONTDUMP] MENU  7|......##.....##.........#####........###.........#....##.##...##....##.....##.####.....#..##.##....#...###...####.............
+[FONTDUMP] MENU  8|......##.....##..........####........####........#....##.##...##....#......##..####....#..##.##...##...#.##...###.............
+[FONTDUMP] MENU  9|......##.....##...#####...#.....................##.....#.##...##...##...#..##....#..#..#..##.##...#....#.##....#..............
+[FONTDUMP] MENU 10|.......#.....##....####...#...#...........#.....#......#.#....##...####.##.##....#..##.#...#.##...#....#.##...##..#.....#.....
+[FONTDUMP] MENU 11|.......#.....#............#...##..........##....#......###...###..#####..###.....#...###...###....#....####..###..##....##....
+[FONTDUMP] MENU 12|.......#.....#.................#...........#............##....###..###...###.....#...##.....##....#.....##...##....#.....#....
+[FONTDUMP] MENU 13|.......#.....#.................#.........................................................................................#....
+[FONTDUMP] MENU 14|........#...##................##........................................................................................##....
+[FONTDUMP] MENU 15|........#.....................................................................................................................
+[FONTDUMP] MENU tpage=17 words=64..127 (21 glyphs, 6 cols each)
+[FONTDUMP] MENU  0|...................##......#........####....##.#####..#####.#####...##..##..##.##....###..##.##.##....##..####..##..##..###...
+[FONTDUMP] MENU  1|..................###......#.....#...####..#####.####..####..####..#####.##.##..##....##...##.##.##....#..##.#...#.####..###..
+[FONTDUMP] MENU  2|..................####.....#....##...#..#..##..#.#..#..#..#..#..#..##.##.#..##..#.....##...#.##..#.....#..##.##..#.##.#..#..#.
+[FONTDUMP] MENU  3|...................###.....#....##...#..##.#...#.#..##.#.....#.....#...#.#..##..#.....##...#.#...#.....#.###.##..#.#..##.#..#.
+[FONTDUMP] MENU  4|...#........#.......##....##....##...#..####.....#...#.#.....#....##...#.#..##..#.....##...###...#.....#####.##..###...#.#..#.
+[FONTDUMP] MENU  5|..###........#......##..######..###..####.##.....#...#.####..####.##..##.#####..#.....##...##....#.....#####.###.###...#.#.##.
+[FONTDUMP] MENU  6|.###.........##.....#....#####.##.#..####.##.....#...#.####..####.##..##.#####..#.....##...##....#.....#####.#.#.###...#.####.
+[FONTDUMP] MENU  7|###...######..##...##....####..####..#..#.##.....#...#.#..#..#..#.##..##.#..##..#.....##...##....#.....#####.#.#####...#.###..
+[FONTDUMP] MENU  8|.#.....#####..###..#......###..####..#..##.#.....#..##.#.....#.....#..##.#..##..#.....##...#.#...#.....#####.#..##.#..##.#....
+[FONTDUMP] MENU  9|.##..........###..........###..#..#..#..##.#...#.#..##.#..#..#.....#..##.#..##..#...#.##...#.#...#..##.#####.#..##.#..##.#....
+[FONTDUMP] MENU 10|..##........###....#.....####.##..##.#..##.#...#.#..##.#..#..#.....#..##.#..##..#...####...#..#..#..##.#.###.#..##.#..##.#....
+[FONTDUMP] MENU 11|...##........#.....##....##.#.#...#######...#########.#####.###.....###.##..##.##....###..##.###########.#####...#..###.##....
+[FONTDUMP] MENU 12|....................#....#...#.#..##.###....###..###...####..##.....###..##.##..##...##....##.##.####..#.###.#...#..##...##...
+[FONTDUMP] MENU 13|..............................................................................................................................
+[FONTDUMP] MENU 14|..............................................................................................................................
+[FONTDUMP] MENU 15|..............................................................................................................................
+[FONTDUMP] MENU tpage=18 words=128..191 (21 glyphs, 6 cols each)
+[FONTDUMP] MENU  0|..##..###....##...#####.##..####..##########..#.##..#.#####...#....#....#.#.....##........#............#.............#........
+[FONTDUMP] MENU  1|.####..###...####.######.##..####..#####.#.##.##.##.###########....#....###.....##........#...........##............##........
+[FONTDUMP] MENU  2|.##.#..#..#.##.##.####.#.#...#.#...#####.#.##.#..##.#.##.##.###....#.....##.....###.......##...........#.............#........
+[FONTDUMP] MENU  3|.#..##.#..#.##..#...##.#.#...#.##.##.###.#.####..##.#....##.###....#....###.....###.......##...........#.............#........
+[FONTDUMP] MENU  4|##...#.#..#.##..#...##...#...#.##.#..#####..##....###....##..##....#......#.....##.........#.....##....##....##....#.#...##...
+[FONTDUMP] MENU  5|##...#.#.##..##.....##...#...#.##.#..####...##....##....##.........#...........#####............###....###...###...###...##...
+[FONTDUMP] MENU  6|##...#.####..###....##...#...#..#.#..####...##....##....##.........#...........#####............####...###..##.#..##.#..##.#..
+[FONTDUMP] MENU  7|##...#.###....##....##...#...#..###..####...##....##....##.........#..........######.............###...#.##.##.#..##.#..####..
+[FONTDUMP] MENU  8|.#..##.#.#..#..##...##...#...#..##...####..###....##...##..........#..........##.##..............###...#.##.##....##.#..####..
+[FONTDUMP] MENU  9|.#..##.#.#..#..##...##...#..##..##...####..#.##...##...##.....................##.###............####...#.##.##.#..##.#..##.#..
+[FONTDUMP] MENU 10|.#..##.#..#.##.##...##...##.##...#....#.#..#..#...##...##.##.......#..........##.###............####...#.##..#.#...###...###..
+[FONTDUMP] MENU 11|..###.###.######....##....###....#....#.#.##.##...##..######.......#...........#####.............####..###...###...###...###..
+[FONTDUMP] MENU 12|...#...##..#..##....##....###....#....#.#..#..##..##...#####.......#...........##.##.............#.#....##....##....#.....#...
+[FONTDUMP] MENU 13|...#..........................................................................................................................
+[FONTDUMP] MENU 14|....#.........................................................................................................................
+[FONTDUMP] MENU 15|....##........................................................................................................................
+[FONTDUMP] MENU tpage=19 words=192..255 (21 glyphs, 6 cols each)
+[FONTDUMP] MENU  0|.##..........#.....#.....#.....#.....#........................................................................................
+[FONTDUMP] MENU  1|.##.........##.....#.....#....##....##........................................................................................
+[FONTDUMP] MENU  2|.#.#.........#.....#.....#.....#.....#...............................................#........................................
+[FONTDUMP] MENU  3|.#...........#.................#.....#...............................................#........................................
+[FONTDUMP] MENU  4|###....####..###...#.....#.....###...#......#.#..###...##....##....###....#....##...##....##.#..##.##.########.#..##.##.###...
+[FONTDUMP] MENU  5|.##....####..###..##....##.....####..#....##########...###..####...###..####..###....##....#.##..##.#..###.#.####..##.#.####..
+[FONTDUMP] MENU  6|.#.....#.##..####..#.....#.....###...#.....#.#.#.####.##.#...###..##.#...#.#..##.#...#.....#.##..####..#.#.#.#.#...#..#...##..
+[FONTDUMP] MENU  7|.#.....#.##..#.##..#.....#.....##....#.....#.#.#.#.##.##.##..#.##.##.#...#.....#.#...#.....#.##..###...#####..##...####..##...
+[FONTDUMP] MENU  8|.#.....#.##..#.##..#.....#.....##....#.....#.#.#.#.##.##.##..#.##.##.#...#.....##....#.....#.##...##...####...#....###...##...
+[FONTDUMP] MENU  9|.#.....####..#.##..#.....#.....#.#...#.....#.#.#.#.##.##.##..#.##.##.#...#....#.#....#.....#.##...##...####..##.....##...##...
+[FONTDUMP] MENU 10|.#.....###...#.##..#.....#.....#.#...#.....#.#.#.#.##..#.##..####..###...#....#.##...##....#.##...##....#.#..#.#....##..##....
+[FONTDUMP] MENU 11|##.....###..##.##.##.....#....##.##.##....########.##..###...###...###..##.....###...##....####...#.....#.#.####....##..####..
+[FONTDUMP] MENU 12|.##...####...####..##....#.....####..##....#.#.#.####...##...#.#....##...##....##.....#.....#.#.........#.#..#.##...#....###..
+[FONTDUMP] MENU 13|.......#.##..............#...................................#.......#............................................#.#.........
+[FONTDUMP] MENU 14|.......###..............##..................................##......##............................................###.........
+[FONTDUMP] MENU 15|........##...............#...................................##......##............................................#..........
+[BOOT-STEP] GameStartup step=1 qlen=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1281 (Sfx_Base+1) vol=0
+[BOOT0/TIM] PostLoadTim file=1939 'SAVELOAD.TIM' ss=0x8ced img.u=0 img.v=16 tPage=1,5 clutX=224 clutY=14
+[BOOT0/TIM] post ReadTIM: prect=0xfac914 caddr=0xfac710 paddr=0xfac91c mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(320,16 160x240)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,14 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 8 (step 0)
+[SH-XBOX] vblank 600
+[MEM] tick: free=4320KB (1080 pages)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[MCRD] card_info chan=2 -> IOE (n=256)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=0
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=896 len=640 ok
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=768 len=128 ok
+[CHARA-TEX] charaId=1 matCount=1 modelCount=23
+[CHARA-TEX] mat[0] name='HERO' field_C=1 E=0x3b F=0x3b clut=0x782e UV=0x0000 tex=0
+[CHARA-TEX] prim0: f0=0x135b(UV0) f2=0x7a6e(clut) f4=0x1651(UV1) f6=0x003b(tpage) f8=0x1251(UV2) fA=0x0000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,27] u=0 v=0 clutXY=(736,480)
+[AUTO-EQUIP-CHECK] mapIdx=1 processFlags=0x8 inventorySlotCount=8 equippedWeapon=0
+[MAP-LOAD] GameBoot_MapLoad mapIdx=1 (map0_s01) fileIdx=1996 linked=1 procFlags=0x8
+[MAP-LOAD] MapRegistry_Load(1)=map0_s01 linked=1 header=00596af0
+[MEM] after map-load: free=4320KB (1080 pages)
+[LANG] USA disc-patch skipped on Xbox (compiled text kept)
+[SH-XBOX] vblank 1200
+[MEM] tick: free=4320KB (1080 pages)
+[BOOT0/TIM] PostLoadTim file=1849 'GLASS.TIM' ss=0x7ec3 img.u=0 img.v=0 tPage=0,13 clutX=224 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfbe734 caddr=0xfbe710 paddr=0xfbe73c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(832,0 16x64)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,0 16x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 10 (step 0)
+[BOOT-STEP] GameStartup step=0 qlen=0
+[TRANSITION] GameStartup step=0: processFlags=0x8 (LoadSave) sizeof(s_WorldGfxWork)=11708
+[BOOT-STEP] GameStartup step=3 qlen=0
+[BOOT-STEP] GameStartup step=4 qlen=0
+[BOOT-STEP] GameStartup step=5 qlen=0
+[BOOT-STEP] GameStartup step=7 qlen=0
+[TRANSITION] GameStartup step=7: processFlags=0x8 playerPos=(18814,819,1088367) func_80039F90=0x0
+[IPD-INIT] Ipd_MapFileInfoSet: mapTag='THR' activeIpdCount=4 isExterior=1 plmIdx=1370 ipdFileIdx=0 textureFileIdx=0 curSize=0 willRebuildGrid=1
+[MEM] after chunk-buffers: free=2784KB (696 pages)
+[TRANSITION] GameStartup step=7 post-init: playerPos=(18814,819,1088367) mapTag='THR'
+[BOOT-STEP] GameStartup step=8 qlen=8
+[BOOT0/TIM] PostLoadTim file=1073 'THR0001F.TIM' ss=0x45d8 img.u=0 img.v=0 tPage=0,8 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb67d4 caddr=0xfb6710 paddr=0xfb67dc mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x6)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (512,0 64x256) hits PINNED pool slot 0 'THR0001F' (512,0)
+[BOOT0/TIM] PostLoadTim file=1077 'THR0003F.TIM' ss=0x4625 img.u=0 img.v=0 tPage=0,9 clutX=16 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb68d4 caddr=0xfb6710 paddr=0xfb68dc mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(16,0 16x14)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (576,0 64x256) hits PINNED pool slot 1 'THR0003F' (576,0)
+[BOOT0/TIM] PostLoadTim file=1075 'THR0002F.TIM' ss=0x45fe img.u=0 img.v=0 tPage=0,10 clutX=32 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb6854 caddr=0xfb6710 paddr=0xfb685c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(640,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(32,0 16x10)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (640,0 64x256) hits PINNED pool slot 2 'THR0002F' (640,0)
+[BOOT0/TIM] PostLoadTim file=1079 'THR0004F.TIM' ss=0x4644 img.u=0 img.v=0 tPage=0,21 clutX=48 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb6914 caddr=0xfb6710 paddr=0xfb691c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(320,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(48,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (320,256 64x256) hits PINNED pool slot 3 'THR0004F' (320,256)
+[BOOT0/TIM] PostLoadTim file=1269 'THRCF3.TIM' ss=0x51fa img.u=0 img.v=0 tPage=0,22 clutX=64 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb68f4 caddr=0xfb6710 paddr=0xfb68fc mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(384,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(64,0 16x15)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (384,256 64x256) hits PINNED pool slot 4 'THRCF3' (384,256)
+[BOOT0/TIM] PostLoadTim file=1268 'THRCF2.TIM' ss=0x51e9 img.u=0 img.v=0 tPage=0,23 clutX=80 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb68f4 caddr=0xfb6710 paddr=0xfb68fc mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(448,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(80,0 16x15)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (448,256 64x256) hits PINNED pool slot 5 'THRCF2' (448,256)
+[BOOT0/TIM] PostLoadTim file=1270 'THRCF4.TIM' ss=0x520b img.u=0 img.v=0 tPage=0,24 clutX=96 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb67b4 caddr=0xfb6710 paddr=0xfb67bc mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(96,0 16x5)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (512,256 64x256) hits PINNED pool slot 6 'THRCF4' (512,256)
+[BOOT0/TIM] PostLoadTim file=1267 'THRCF1.TIM' ss=0x51d8 img.u=0 img.v=0 tPage=0,25 clutX=112 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb68f4 caddr=0xfb6710 paddr=0xfb68fc mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(112,0 16x15)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (576,256 64x256) hits PINNED pool slot 7 'THRCF1' (576,256)
+[TEXVRAM] 'THR0001F' tPage=[0,8] clutXY=(0,0) uv=(0,0)
+[TEXVRAM] 'THR0003F' tPage=[0,9] clutXY=(16,0) uv=(0,0)
+[TEXVRAM] 'THR0002F' tPage=[0,10] clutXY=(32,0) uv=(0,0)
+[TEXVRAM] 'THR0004F' tPage=[0,21] clutXY=(48,0) uv=(0,0)
+[TEXVRAM] 'THRCF3' tPage=[0,22] clutXY=(64,0) uv=(0,0)
+[TEXVRAM] 'THRCF2' tPage=[0,23] clutXY=(80,0) uv=(0,0)
+[TEXVRAM] 'THRCF4' tPage=[0,24] clutXY=(96,0) uv=(0,0)
+[TEXVRAM] 'THRCF1' tPage=[0,25] clutXY=(112,0) uv=(0,0)
+[BOOT-STEP] GameStartup step=9 qlen=0
+[BOOT-STEP] GameStartup step=10 qlen=0
+[SH_AMB] Sd_AmbientSfxSet idx=3 -> loadCmd=171
+[SH_AMB] Sd_VabLoad ambient cmd=171 type=2 dedup=0
+[BOOT-STEP] GameStartup step=11 qlen=0
+[BOOT0/TIM] PostLoadTim file=1449 'REBIRD.TIM' ss=0x5b2c img.u=0 img.v=0 tPage=0,28 clutX=704 clutY=464
+[BOOT0/TIM] post ReadTIM: prect=0xfac7d4 caddr=0xfac710 paddr=0xfac7dc mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,256 32x128)
+[BOOT0/TIM] pre CLUT LoadImage rect=(704,464 16x6)
+[BOOT0/TIM] PostLoadTim done
+[CHARA-TEX] charaId=2 matCount=1 modelCount=16
+[CHARA-TEX] mat[0] name='REBIRD' field_C=1 E=0x5c F=0x5c clut=0x742c UV=0x0000 tex=0
+[CHARA-TEX] prim0: f0=0x2971(UV0) f2=0x74ac(clut) f4=0x1d6a(UV1) f6=0x005c(tpage) f8=0x2077(UV2) fA=0x0000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,28] u=0 v=0 clutXY=(704,464)
+[MEM] dms-load: free=2784KB (696 pages)
+[SFX] Sd_SfxStop: sfxId=1300 (Sfx_Base+20)
+[SFX] Sd_SfxStop: sfxId=1302 (Sfx_Base+22)
+[SFX] Sd_SfxStop: sfxId=1301 (Sfx_Base+21)
+[SFX] Sd_SfxStop: sfxId=1303 (Sfx_Base+23)
+[SFX] Sd_SfxStop: sfxId=1321 (Sfx_Base+41)
+[SFX] Sd_SfxStop: sfxId=1322 (Sfx_Base+42)
+[WOBJ] resolved 'RADIO_HI' lmIdx=3
+[WOBJ] resolved 'KNIFE_HI' lmIdx=3
+[WOBJ] resolved 'IN1_HIDE' lmIdx=4
+[WOBJ] resolved 'IN_BLD1_' lmIdx=4
+[WOBJ] resolved 'DRINK_NE' lmIdx=1
+[BOOT0/TIM] PostLoadTim file=1505 'TIM00.TIM' ss=0x5dcb img.u=0 img.v=0 tPage=0,15 clutX=176 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfac914 caddr=0xfac710 paddr=0xfac91c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(960,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(176,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[BOOT-STEP] GameStartup step=12 qlen=2
+[SH-XBOX] GameState -> 11 (step 0)
+[FOGST-GPU] clear=0xff6c6474
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[STP] tpage=0x37 clut=0xc5 zero=0 stp1=65536
+[STP] tpage=0x37 clut=0x205 zero=0 stp1=65536
+[STP] tpage=0x2c clut=0x19b0 zero=41801 stp1=23735
+[STP] tpage=0x2c clut=0x1970 zero=41801 stp1=23735
+[STP] tpage=0x39 clut=0x2c7 zero=0 stp1=65536
+[STP] tpage=0x37 clut=0x1c5 zero=0 stp1=65536
+[STP] tpage=0x39 clut=0x287 zero=0 stp1=65536
+[STP] tpage=0x2c clut=0x1930 zero=41801 stp1=23735
+[STP] tpage=0x38 clut=0x46 zero=0 stp1=65536
+[STP] tpage=0x2c clut=0x18f0 zero=41801 stp1=23735
+[STP] tpage=0x2c clut=0x18b0 zero=41801 stp1=23735
+[STP] tpage=0x2c clut=0x1830 zero=41801 stp1=23735
+[VRAM] out of slots -> GPU drain #1 (alloc=49 worstPerFrame=1 totalMs=0)
+[BOOT0/TIM] PostLoadTim file=1514 'TIM07.TIM' ss=0x5e64 img.u=32 img.v=0 tPage=0,13 clutX=240 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfac814 caddr=0xfac710 paddr=0xfac81c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(240,0 16x8)
+[BOOT0/TIM] PostLoadTim done
+[BIGPRIM] code=0x3c tp=0x2c span=1626x1111 at(-3002,-903)
+[BOOT0/TIM] PostLoadTim file=1509 'TIM02.TIM' ss=0x5e0f img.u=0 img.v=0 tPage=0,14 clutX=160 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfac914 caddr=0xfac710 paddr=0xfac91c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(896,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(160,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[BIGPRIM] code=0x3c tp=0x39 span=1533x482 at(-266,1044)
+[BIGPRIM] code=0x3c tp=0x39 span=1212x395 at(-800,649)
+[BIGPRIM] code=0x3c tp=0x39 span=1533x768 at(-266,-1555)
+[BIGPRIM] code=0x3c tp=0x2c span=1188x945 at(-3026,-1465)
+[BIGPRIM] code=0x3c tp=0x39 span=1812x768 at(1015,-1555)
+[BIGPRIM] code=0x3c tp=0x2c span=1050x970 at(-2291,-845)
+[BIGPRIM] code=0x3c tp=0x2c span=1584x1356 at(-3224,-2410)
+[BIGPRIM] code=0x3c tp=0x39 span=504x874 at(799,-1002)
+[BIGPRIM] code=0x3c tp=0x2c span=1392x1285 at(-3128,-1661)
+[BIGPRIM] code=0x3c tp=0x39 span=450x801 at(790,-916)
+[BIGPRIM] code=0x3c tp=0x39 span=960x286 at(-530,617)
+[BIGPRIM] code=0x3c tp=0x2c span=1206x1112 at(-3035,-1391)
+[BIGPRIM] code=0x3c tp=0x2c span=1272x1093 at(-3068,-1880)
+[BIGPRIM] code=0x3c tp=0x39 span=2067x1132 at(1006,-1594)
+[BIGPRIM] code=0x3c tp=0x39 span=1533x1132 at(-20,-1594)
+[BIGPRIM] code=0x3c tp=0x39 span=1158x659 at(1003,829)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x2c span=960x880 at(-1997,-739)
+[BIGPRIM] code=0x3c tp=0x2c span=966x886 at(-2015,-745)
+[BIGPRIM] code=0x3c tp=0x2c span=1464x996 at(-2609,-781)
+[BIGPRIM] code=0x3c tp=0x2c span=1272x1176 at(-3068,-1491)
+[BIGPRIM] code=0x3c tp=0x37 span=186x739 at(16,1186)
+[BIGPRIM] code=0x3c tp=0x37 span=921x826 at(-200,1099)
+[BIGPRIM] code=0x3c tp=0x39 span=2148x1286 at(-1328,1134)
+[BIGPRIM] code=0x3c tp=0x39 span=1461x1357 at(823,1063)
+[BIGPRIM] code=0x3c tp=0x39 span=1608x771 at(-1334,-662)
+[BIGPRIM] code=0x3c tp=0x39 span=1248x1000 at(1051,803)
+[BIGPRIM] code=0x3c tp=0x2c span=1098x924 at(-1256,-716)
+[BIGPRIM] code=0x3c tp=0x39 span=1221x1067 at(1045,-1192)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x39 span=2181x161 at(-170,-662)
+[BIGPRIM] code=0x3c tp=0x37 span=1494x389 at(-788,797)
+[BIGPRIM] code=0x3c tp=0x39 span=2151x637 at(-1352,-662)
+[BIGPRIM] code=0x3c tp=0x39 span=2160x1010 at(919,2638)
+[BIGPRIM] code=0x3c tp=0x38 span=1551x1135 at(-1328,594)
+[BIGPRIM] code=0x3c tp=0x37 span=699x765 at(973,565)
+[BIGPRIM] code=0x3c tp=0x38 span=1524x1145 at(-1328,446)
+[BIGPRIM] code=0x3c tp=0x39 span=1074x479 at(571,-813)
+[BIGPRIM] code=0x3c tp=0x39 span=705x762 at(-392,684)
+[BIGPRIM] code=0x3c tp=0x39 span=612x742 at(313,527)
+[BIGPRIM] code=0x3c tp=0x39 span=1122x408 at(-674,-758)
+[BIGPRIM] code=0x3c tp=0x39 span=1206x659 at(-974,494)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x39 span=2157x508 at(-1232,3140)
+[BIGPRIM] code=0x3c tp=0x39 span=2160x903 at(907,2745)
+[BIGPRIM] code=0x3c tp=0x38 span=1572x1163 at(-1388,620)
+[BIGPRIM] code=0x3c tp=0x39 span=2160x624 at(835,3024)
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (16 bytes)
+[RA] http -> status=200 bodyLen=16 body='{"Success":true}'
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x39 span=2160x534 at(787,3114)
+[BIGPRIM] code=0x3c tp=0x39 span=1356x405 at(-998,-771)
+[BIGPRIM] code=0x3c tp=0x39 span=1479x1601 at(28,-2108)
+[BIGPRIM] code=0x3c tp=0x39 span=651x756 at(892,523)
+[BIGPRIM] code=0x3c tp=0x39 span=2160x502 at(739,3146)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x39 span=1623x759 at(-1478,562)
+[BIGPRIM] code=0x3c tp=0x39 span=654x758 at(889,527)
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1639 at(-1028,-2089)
+[BIGPRIM] code=0x3c tp=0x39 span=1479x1598 at(28,-2102)
+[BIGPRIM] code=0x3c tp=0x39 span=1344x434 at(-968,-797)
+[BIGPRIM] code=0x3c tp=0x39 span=630x794 at(280,543)
+[BIGPRIM] code=0x3c tp=0x39 span=609x742 at(313,527)
+[BIGPRIM] code=0x3c tp=0x38 span=1500x1109 at(-1256,424)
+[BIGPRIM] code=0x3c tp=0x38 span=987x495 at(-818,363)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x39 span=2157x142 at(304,3506)
+[BIGPRIM] code=0x3c tp=0x39 span=132x1536 at(613,-1896)
+[BIGPRIM] code=0x3c tp=0x39 span=1881x643 at(58,-2115)
+[BIGPRIM] code=0x3c tp=0x39 span=24x797 at(232,-1414)
+[BIGPRIM] code=0x3c tp=0x39 span=675x800 at(877,543)
+[BIGPRIM] code=0x3c tp=0x39 span=1881x922 at(292,-2307)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x39 span=129x1039 at(721,-1366)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x39 span=132x1003 at(733,-1327)
+[BIGPRIM] code=0x3c tp=0x38 span=438x765 at(-188,1269)
+[BIGPRIM] code=0x3c tp=0x39 span=24x797 at(520,-1645)
+[BIGPRIM] code=0x3c tp=0x39 span=1314x691 at(-1109,511)
+[BIGPRIM] code=0x3c tp=0x39 span=624x778 at(292,536)
+[BIGPRIM] code=0x3c tp=0x39 span=138x958 at(745,-1279)
+[BIGPRIM] code=0x3c tp=0x38 span=1533x1173 at(-1364,456)
+[BIGPRIM] code=0x3c tp=0x39 span=1620x1285 at(958,768)
+[BIGPRIM] code=0x3c tp=0x39 span=588x1044 at(-365,-1227)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x2c span=1344x1028 at(2461,-829)
+[BIGPRIM] code=0x3c tp=0x39 span=510x951 at(-269,-1150)
+[BIGPRIM] code=0x3c tp=0x39 span=1032x729 at(922,588)
+[BIGPRIM] code=0x3c tp=0x39 span=1896x993 at(-1430,-2063)
+[BIGPRIM] code=0x3c tp=0x39 span=1896x1103 at(-1418,-2115)
+[BIGPRIM] code=0x3c tp=0x2c span=1446x1369 at(2986,-1350)
+[BIGPRIM] code=0x3c tp=0x2c span=1884x1253 at(2767,-1102)
+[BIGPRIM] code=0x3c tp=0x39 span=18x894 at(781,-1716)
+[BIGPRIM] code=0x3c tp=0x2c span=1638x1511 at(2890,-1565)
+[BIGPRIM] code=0x3c tp=0x39 span=1914x1642 at(1081,-2230)
+[BIGPRIM] code=0x3c tp=0x39 span=12x900 at(817,-1877)
+[BIGPRIM] code=0x3c tp=0x2c span=1392x1286 at(3013,-1803)
+[BIGPRIM] code=0x3c tp=0x2c span=1122x765 at(1822,-675)
+[BIGPRIM] code=0x3c tp=0x39 span=480x872 at(-293,-1035)
+[BIGPRIM] code=0x3c tp=0x2c span=1020x681 at(2140,-556)
+[BIGPRIM] code=0x3c tp=0x39 span=1527x1424 at(46,-2147)
+[BIGPRIM] code=0x3c tp=0x39 span=1689x1260 at(913,768)
+[BIGPRIM] code=0x3c tp=0x39 span=1533x839 at(-8,-1832)
+[BIGPRIM] code=0x3c tp=0x39 span=39x842 at(715,-1263)
+[BIGPRIM] code=0x3c tp=0x39 span=2007x1610 at(-1574,893)
+[BIGPRIM] code=0x3c tp=0x39 span=1719x1241 at(901,822)
+[BIGPRIM] code=0x3c tp=0x39 span=1881x1315 at(1126,1446)
+[BIGPRIM] code=0x3c tp=0x39 span=993x13 at(-32,-655)
+[BIGPRIM] code=0x3c tp=0x39 span=1980x1630 at(-1580,951)
+[BIGPRIM] code=0x3c tp=0x38 span=672x849 at(-506,896)
+[BIGPRIM] code=0x3c tp=0x39 span=1851x1527 at(1012,-2108)
+[BIGPRIM] code=0x3c tp=0x39 span=1395x1591 at(46,774)
+[BIGPRIM] code=0x3c tp=0x39 span=1605x1209 at(-1178,-1986)
+[BIGPRIM] code=0x3c tp=0x39 span=1398x1209 at(988,-1845)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=1059x341 at(-533,684)
+[BIGPRIM] code=0x3c tp=0x39 span=1980x1610 at(940,765)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x39 span=993x39 at(-92,-842)
+[BIGPRIM] code=0x3c tp=0x39 span=2025x1405 at(-1796,-2147)
+[BIGPRIM] code=0x3c tp=0x39 span=981x77 at(-158,-842)
+[BIGPRIM] code=0x3c tp=0x39 span=2040x1427 at(-1856,-2108)
+[BIGPRIM] code=0x3c tp=0x39 span=1866x682 at(-1502,2516)
+[BIGPRIM] code=0x3c tp=0x39 span=1341x1556 at(-464,-2050)
+[BIGPRIM] code=0x3c tp=0x39 span=1944x624 at(-1466,2548)
+[BIGPRIM] code=0x3c tp=0x39 span=2073x1388 at(-1904,-1918)
+[BIGPRIM] code=0x3c tp=0x39 span=1740x602 at(-251,-1800)
+[BIGPRIM] code=0x3c tp=0x39 span=1827x1578 at(-1526,1067)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x39 span=1902x1520 at(1069,1157)
+[BIGPRIM] code=0x3c tp=0x39 span=1773x482 at(-68,-1954)
+[BIGPRIM] code=0x3c tp=0x39 span=1959x1620 at(1084,-1960)
+[BIGPRIM] code=0x3c tp=0x39 span=1152x1151 at(-569,-1562)
+[BIGPRIM] code=0x3c tp=0x39 span=1740x331 at(-1586,-1828)
+[BIGPRIM] code=0x3c tp=0x39 span=24x945 at(751,-1755)
+[BIGPRIM] code=0x3c tp=0x39 span=999x39 at(-2,-874)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[VRAM] decode #512
+[BIGPRIM] code=0x3c tp=0x38 span=1071x347 at(-569,620)
+[BIGPRIM] code=0x3c tp=0x39 span=1674x1189 at(-1292,-1973)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=975x318 at(-281,662)
+[BIGPRIM] code=0x3c tp=0x39 span=1101x514 at(-929,-999)
+[BIGPRIM] code=0x3c tp=0x39 span=60x723 at(775,-1047)
+[BIGPRIM] code=0x3c tp=0x39 span=9x761 at(601,-1092)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x39 span=1038x1327 at(424,-2037)
+[BIGPRIM] code=0x3c tp=0x39 span=1866x1141 at(-1610,-1947)
+[BIGPRIM] code=0x3c tp=0x39 span=2088x225 at(961,-520)
+[BIGPRIM] code=0x3c tp=0x39 span=1968x251 at(835,-546)
+[BIGPRIM] code=0x3c tp=0x39 span=1044x502 at(-839,-980)
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=6)
+[SYSSTATE] dispatch sysState=10 mapEventData=0x596960
+[ITEMPICK] unique-item link: id=0x41 nobj=1 obj=ok
+[ITEMPICK] unique-item link: id=0x41 nobj=1 obj=ok
+[ITEMPICK] draw SKIPPED: slot=9 reason=scale 0 (arg2=2)
+[FREEZE] capture 1280x720 in 165ms
+[ITEMZ] tagged=0 hit=0 szmin=1000000000 szmax=-1000000000 otzSpan=0
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[FONTDUMP] INGAME tpage=16 words=0..63 (21 glyphs, 6 cols each)
+[FONTDUMP] INGAME  0|#...........#..........................................##..........##....##......#...###....##...###...###...##...............
+[FONTDUMP] INGAME  1|##.....##....#....................................#....###....##...###...###.....#...####..###...####..###...###..............
+[FONTDUMP] INGAME  2|##.....#.....#....................................#....#.#....##..####..##.#....##...###...##...#####..#.##.##.#..............
+[FONTDUMP] INGAME  3|.#.....#.....#............#......................##...##.##..###.....##....#....##...##....#........#..#.##.##.##.............
+[FONTDUMP] INGAME  4|.#.....#.....#............#......................#....##.##...##.....##...##...###..###...###......##..###..##.##.#.....#.....
+[FONTDUMP] INGAME  5|......##.....##...#####...#......................#....##.##...##.....##...##...###...###..####.....#....##..##.##.##....##....
+[FONTDUMP] INGAME  6|......##.....##....####...#......................#....##.##...##.....#....##..##.#.....#..##.#.....#...###...#.##..#.....#....
+[FONTDUMP] INGAME  7|......##.....##.........#####........###.........#....##.##...##....##.....##.####.....#..##.##....#...###...####.............
+[FONTDUMP] INGAME  8|......##.....##..........####........####........#....##.##...##....#......##..####....#..##.##...##...#.##...###.............
+[FONTDUMP] INGAME  9|......##.....##...#####...#.....................##.....#.##...##...##...#..##....#..#..#..##.##...#....#.##....#..............
+[FONTDUMP] INGAME 10|.......#.....##....####...#...#...........#.....#......#.#....##...####.##.##....#..##.#...#.##...#....#.##...##..#.....#.....
+[FONTDUMP] INGAME 11|.......#.....#............#...##..........##....#......###...###..#####..###.....#...###...###....#....####..###..##....##....
+[FONTDUMP] INGAME 12|.......#.....#.................#...........#............##....###..###...###.....#...##.....##....#.....##...##....#.....#....
+[FONTDUMP] INGAME 13|.......#.....#.................#.........................................................................................#....
+[FONTDUMP] INGAME 14|........#...##................##........................................................................................##....
+[FONTDUMP] INGAME 15|........#.....................................................................................................................
+[FONTDUMP] INGAME tpage=17 words=64..127 (21 glyphs, 6 cols each)
+[FONTDUMP] INGAME  0|...................##......#........####....##.#####..#####.#####...##..##..##.##....###..##.##.##....##..####..##..##..###...
+[FONTDUMP] INGAME  1|..................###......#.....#...####..#####.####..####..####..#####.##.##..##....##...##.##.##....#..##.#...#.####..###..
+[FONTDUMP] INGAME  2|..................####.....#....##...#..#..##..#.#..#..#..#..#..#..##.##.#..##..#.....##...#.##..#.....#..##.##..#.##.#..#..#.
+[FONTDUMP] INGAME  3|...................###.....#....##...#..##.#...#.#..##.#.....#.....#...#.#..##..#.....##...#.#...#.....#.###.##..#.#..##.#..#.
+[FONTDUMP] INGAME  4|...#........#.......##....##....##...#..####.....#...#.#.....#....##...#.#..##..#.....##...###...#.....#####.##..###...#.#..#.
+[FONTDUMP] INGAME  5|..###........#......##..######..###..####.##.....#...#.####..####.##..##.#####..#.....##...##....#.....#####.###.###...#.#.##.
+[FONTDUMP] INGAME  6|.###.........##.....#....#####.##.#..####.##.....#...#.####..####.##..##.#####..#.....##...##....#.....#####.#.#.###...#.####.
+[FONTDUMP] INGAME  7|###...######..##...##....####..####..#..#.##.....#...#.#..#..#..#.##..##.#..##..#.....##...##....#.....#####.#.#####...#.###..
+[FONTDUMP] INGAME  8|.#.....#####..###..#......###..####..#..##.#.....#..##.#.....#.....#..##.#..##..#.....##...#.#...#.....#####.#..##.#..##.#....
+[FONTDUMP] INGAME  9|.##..........###..........###..#..#..#..##.#...#.#..##.#..#..#.....#..##.#..##..#...#.##...#.#...#..##.#####.#..##.#..##.#....
+[FONTDUMP] INGAME 10|..##........###....#.....####.##..##.#..##.#...#.#..##.#..#..#.....#..##.#..##..#...####...#..#..#..##.#.###.#..##.#..##.#....
+[FONTDUMP] INGAME 11|...##........#.....##....##.#.#...#######...#########.#####.###.....###.##..##.##....###..##.###########.#####...#..###.##....
+[FONTDUMP] INGAME 12|....................#....#...#.#..##.###....###..###...####..##.....###..##.##..##...##....##.##.####..#.###.#...#..##...##...
+[FONTDUMP] INGAME 13|..............................................................................................................................
+[FONTDUMP] INGAME 14|..............................................................................................................................
+[FONTDUMP] INGAME 15|..............................................................................................................................
+[FONTDUMP] INGAME tpage=18 words=128..191 (21 glyphs, 6 cols each)
+[FONTDUMP] INGAME  0|..##..###....##...#####.##..####..##########..#.##..#.#####...#....#....#.#.....##........#............#.............#........
+[FONTDUMP] INGAME  1|.####..###...####.######.##..####..#####.#.##.##.##.###########....#....###.....##........#...........##............##........
+[FONTDUMP] INGAME  2|.##.#..#..#.##.##.####.#.#...#.#...#####.#.##.#..##.#.##.##.###....#.....##.....###.......##...........#.............#........
+[FONTDUMP] INGAME  3|.#..##.#..#.##..#...##.#.#...#.##.##.###.#.####..##.#....##.###....#....###.....###.......##...........#.............#........
+[FONTDUMP] INGAME  4|##...#.#..#.##..#...##...#...#.##.#..#####..##....###....##..##....#......#.....##.........#.....##....##....##....#.#...##...
+[FONTDUMP] INGAME  5|##...#.#.##..##.....##...#...#.##.#..####...##....##....##.........#...........#####............###....###...###...###...##...
+[FONTDUMP] INGAME  6|##...#.####..###....##...#...#..#.#..####...##....##....##.........#...........#####............####...###..##.#..##.#..##.#..
+[FONTDUMP] INGAME  7|##...#.###....##....##...#...#..###..####...##....##....##.........#..........######.............###...#.##.##.#..##.#..####..
+[FONTDUMP] INGAME  8|.#..##.#.#..#..##...##...#...#..##...####..###....##...##..........#..........##.##..............###...#.##.##....##.#..####..
+[FONTDUMP] INGAME  9|.#..##.#.#..#..##...##...#..##..##...####..#.##...##...##.....................##.###............####...#.##.##.#..##.#..##.#..
+[FONTDUMP] INGAME 10|.#..##.#..#.##.##...##...##.##...#....#.#..#..#...##...##.##.......#..........##.###............####...#.##..#.#...###...###..
+[FONTDUMP] INGAME 11|..###.###.######....##....###....#....#.#.##.##...##..######.......#...........#####.............####..###...###...###...###..
+[FONTDUMP] INGAME 12|...#...##..#..##....##....###....#....#.#..#..##..##...#####.......#...........##.##.............#.#....##....##....#.....#...
+[FONTDUMP] INGAME 13|...#..........................................................................................................................
+[FONTDUMP] INGAME 14|....#.........................................................................................................................
+[FONTDUMP] INGAME 15|....##........................................................................................................................
+[FONTDUMP] INGAME tpage=19 words=192..255 (21 glyphs, 6 cols each)
+[FONTDUMP] INGAME  0|.##..........#.....#.....#.....#.....#........................................................................................
+[FONTDUMP] INGAME  1|.##.........##.....#.....#....##....##........................................................................................
+[FONTDUMP] INGAME  2|.#.#.........#.....#.....#.....#.....#...............................................#........................................
+[FONTDUMP] INGAME  3|.#...........#.................#.....#...............................................#........................................
+[FONTDUMP] INGAME  4|###....####..###...#.....#.....###...#......#.#..###...##....##....###....#....##...##....##.#..##.##.########.#..##.##.###...
+[FONTDUMP] INGAME  5|.##....####..###..##....##.....####..#....##########...###..####...###..####..###....##....#.##..##.#..###.#.####..##.#.####..
+[FONTDUMP] INGAME  6|.#.....#.##..####..#.....#.....###...#.....#.#.#.####.##.#...###..##.#...#.#..##.#...#.....#.##..####..#.#.#.#.#...#..#...##..
+[FONTDUMP] INGAME  7|.#.....#.##..#.##..#.....#.....##....#.....#.#.#.#.##.##.##..#.##.##.#...#.....#.#...#.....#.##..###...#####..##...####..##...
+[FONTDUMP] INGAME  8|.#.....#.##..#.##..#.....#.....##....#.....#.#.#.#.##.##.##..#.##.##.#...#.....##....#.....#.##...##...####...#....###...##...
+[FONTDUMP] INGAME  9|.#.....####..#.##..#.....#.....#.#...#.....#.#.#.#.##.##.##..#.##.##.#...#....#.#....#.....#.##...##...####..##.....##...##...
+[FONTDUMP] INGAME 10|.#.....###...#.##..#.....#.....#.#...#.....#.#.#.#.##..#.##..####..###...#....#.##...##....#.##...##....#.#..#.#....##..##....
+[FONTDUMP] INGAME 11|##.....###..##.##.##.....#....##.##.##....########.##..###...###...###..##.....###...##....####...#.....#.#.####....##..####..
+[FONTDUMP] INGAME 12|.##...####...####..##....#.....####..##....#.#.#.####...##...#.#....##...##....##.....#.....#.#.........#.#..#.##...#....###..
+[FONTDUMP] INGAME 13|.......#.##..............#...................................#.......#............................................#.#.........
+[FONTDUMP] INGAME 14|.......###..............##..................................##......##............................................###.........
+[FONTDUMP] INGAME 15|........##...............#...................................##......##............................................#..........
+[TXSPR] glyph cell= 3 tpage=18 -> idx=45 char='T'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 2 tpage=19 -> idx=65 char='h'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell= 3 tpage=18 -> idx=45 char='T'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=20 tpage=18 -> idx=62 char='e'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 2 tpage=19 -> idx=65 char='h'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell= 3 tpage=18 -> idx=45 char='T'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell=12 tpage=19 -> idx=75 char='r'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=20 tpage=18 -> idx=62 char='e'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 2 tpage=19 -> idx=65 char='h'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell= 3 tpage=18 -> idx=45 char='T'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell=12 tpage=19 -> idx=75 char='r'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=20 tpage=18 -> idx=62 char='e'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 2 tpage=19 -> idx=65 char='h'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell= 3 tpage=18 -> idx=45 char='T'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=20 tpage=18 -> idx=62 char='e'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell=12 tpage=19 -> idx=75 char='r'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=20 tpage=18 -> idx=62 char='e'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 2 tpage=19 -> idx=65 char='h'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell= 3 tpage=18 -> idx=45 char='T'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell=13 tpage=19 -> idx=76 char='s'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 3 tpage=19 -> idx=66 char='i'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=20 tpage=18 -> idx=62 char='e'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell=12 tpage=19 -> idx=75 char='r'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=20 tpage=18 -> idx=62 char='e'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 2 tpage=19 -> idx=65 char='h'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell= 3 tpage=18 -> idx=45 char='T'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell=13 tpage=19 -> idx=76 char='s'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 3 tpage=19 -> idx=66 char='i'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=20 tpage=18 -> idx=62 char='e'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell=12 tpage=19 -> idx=75 char='r'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=20 tpage=18 -> idx=62 char='e'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 2 tpage=19 -> idx=65 char='h'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell= 3 tpage=18 -> idx=45 char='T'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000611 -> curTpage=17
+[TXSPR] glyph cell=15 tpage=17 -> idx=36 char='K'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=16 tpage=18 -> idx=58 char='a'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell=13 tpage=19 -> idx=76 char='s'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 3 tpage=19 -> idx=66 char='i'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=20 tpage=18 -> idx=62 char='e'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell=12 tpage=19 -> idx=75 char='r'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=20 tpage=18 -> idx=62 char='e'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 2 tpage=19 -> idx=65 char='h'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell= 3 tpage=18 -> idx=45 char='T'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 3 tpage=19 -> idx=66 char='i'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000611 -> curTpage=17
+[TXSPR] glyph cell=15 tpage=17 -> idx=36 char='K'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=16 tpage=18 -> idx=58 char='a'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell=13 tpage=19 -> idx=76 char='s'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 3 tpage=19 -> idx=66 char='i'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=20 tpage=18 -> idx=62 char='e'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell=12 tpage=19 -> idx=75 char='r'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=20 tpage=18 -> idx=62 char='e'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 2 tpage=19 -> idx=65 char='h'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell= 3 tpage=18 -> idx=45 char='T'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell=14 tpage=19 -> idx=77 char='t'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 3 tpage=19 -> idx=66 char='i'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000611 -> curTpage=17
+[TXSPR] glyph cell=15 tpage=17 -> idx=36 char='K'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=16 tpage=18 -> idx=58 char='a'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell=13 tpage=19 -> idx=76 char='s'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell= 3 tpage=19 -> idx=66 char='i'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000612 -> curTpage=18
+[TXSPR] glyph cell=20 tpage=18 -> idx=62 char='e'
+[TXTPG] drawmode tagcode=0xe1 n=1 w0=0xE1000613 -> curTpage=19
+[TXSPR] glyph cell=12 tpage=19 -> idx=75 char='r'
+[ITEMZ] tagged=36 hit=36 szmin=1760 szmax=1958 otzSpan=1920
+[ZETA] wrote=0/6 min=16777215 max=0 fedZ=1692904 bbox=535,350..727,543 raw=FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[BIGPRIM] code=0x3c tp=0x38 span=1236x414 at(-1082,511)
+[BIGPRIM] code=0x3c tp=0x39 span=513x1610 at(310,-1979)
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=2)
+[ITEMPICK] unique-item link: id=0x41 nobj=1 obj=ok
+[ITEMPICK] unique-item link: id=0x41 nobj=1 obj=ok
+[ITEMPICK] draw SKIPPED: slot=9 reason=scale 0 (arg2=2)
+[FREEZE] capture 1280x720 in 164ms
+[SH-XBOX] vblank 1800
+[MEM] tick: free=2784KB (696 pages)
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[BIGPRIM] code=0x3c tp=0x39 span=1047x502 at(-842,-980)
+[BIGPRIM] code=0x3c tp=0x38 span=1236x414 at(-1082,511)
+[BIGPRIM] code=0x3c tp=0x39 span=483x1633 at(478,-1999)
+[BIGPRIM] code=0x3c tp=0x38 span=981x367 at(-608,488)
+[BIGPRIM] code=0x3c tp=0x39 span=2196x212 at(1069,-507)
+[BIGPRIM] code=0x3c tp=0x39 span=1059x1356 at(202,-2076)
+[BIGPRIM] code=0x3c tp=0x39 span=975x489 at(-719,-967)
+[BIGPRIM] code=0x3c tp=0x39 span=27x765 at(574,-1102)
+[BIGPRIM] code=0x3c tp=0x38 span=960x312 at(-236,658)
+[BIGPRIM] code=0x3c tp=0x39 span=1542x1369 at(844,-2008)
+[BIGPRIM] code=0x3c tp=0x38 span=636x778 at(-482,829)
+[BIGPRIM] code=0x3c tp=0x39 span=1005x212 at(-110,-932)
+[BIGPRIM] code=0x3c tp=0x39 span=1287x1537 at(898,-1877)
+[BIGPRIM] code=0x3c tp=0x38 span=843x894 at(-641,777)
+[BIGPRIM] code=0x3c tp=0x39 span=24x958 at(799,-1729)
+[BIGPRIM] code=0x3c tp=0x39 span=975x1395 at(-773,-1459)
+[BIGPRIM] code=0x3c tp=0x2c span=822x758 at(2470,-880)
+[BIGPRIM] code=0x3c tp=0x39 span=1035x762 at(985,-967)
+[BIGPRIM] code=0x3c tp=0x39 span=1533x620 at(-32,-1703)
+[BIGPRIM] code=0x3c tp=0x39 span=2121x1591 at(910,945)
+[BIGPRIM] code=0x3c tp=0x38 span=423x727 at(1045,1073)
+[BIGPRIM] code=0x3c tp=0x39 span=1761x614 at(-266,-1819)
+[BIGPRIM] code=0x3c tp=0x39 span=1824x726 at(-353,-1796)
+[BIGPRIM] code=0x3c tp=0x39 span=1077x1388 at(724,755)
+[BIGPRIM] code=0x3c tp=0x39 span=1323x984 at(-1103,703)
+[BIGPRIM] code=0x3c tp=0x39 span=2061x1044 at(-680,-1947)
+[BIGPRIM] code=0x3c tp=0x39 span=561x781 at(409,-883)
+[BIGPRIM] code=0x3c tp=0x39 span=1518x407 at(1090,-337)
+[BIGPRIM] code=0x3c tp=0x39 span=1047x907 at(1108,819)
+[BIGPRIM] code=0x3c tp=0x39 span=1002x765 at(1066,935)
+[BIGPRIM] code=0x3c tp=0x39 span=567x804 at(247,-903)
+[BIGPRIM] code=0x3c tp=0x39 span=681x923 at(478,671)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x39 span=954x1100 at(-533,700)
+[BIGPRIM] code=0x3c tp=0x39 span=630x881 at(73,-977)
+[BIGPRIM] code=0x3c tp=0x39 span=2043x1235 at(-1763,-1742)
+[BIGPRIM] code=0x3c tp=0x39 span=2127x457 at(-638,-1787)
+[BIGPRIM] code=0x3c tp=0x2c span=1752x1485 at(2833,-1125)
+[BIGPRIM] code=0x3c tp=0x39 span=699x794 at(-236,-896)
+[BIGPRIM] code=0x3c tp=0x2c span=1110x990 at(3154,-1028)
+[BIGPRIM] code=0x3c tp=0x39 span=1098x1620 at(-107,-1877)
+[BIGPRIM] code=0x3c tp=0x39 span=2043x495 at(-1064,-1870)
+[SYSSTATE] dispatch sysState=2 mapEventData=0
+[FOGST-GPU] clear=0xff000000
+[SH-XBOX] GameState -> 19 (step 0)
+[BOOT0/TIM] PostLoadTim file=1485 'HEROPIC2.TIM' ss=0x5bb6 img.u=12 img.v=103 tPage=1,31 clutX=224 clutY=13
+[BOOT0/TIM] post ReadTIM: prect=0xfac914 caddr=0xfac710 paddr=0xfac91c mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(972,359 52x152)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,13 256x1)
+[BOOT0/TIM] PostLoadTim done
+[ITEMZ] tagged=0 hit=0 szmin=1000000000 szmax=-1000000000 otzSpan=1920
+[SH-XBOX] GameState -> 14 (step 0)
+[ITEMPICK] map-pack link: slot=3 loadableIdx=0 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=4 loadableIdx=8 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=5 loadableIdx=3 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=6 loadableIdx=15 nobj=34 obj=ok
+[BIGPRIM] code=0x28 tp=0x40 span=960x3 at(160,0)
+[ITEMZ] tagged=251 hit=251 szmin=9042 szmax=13098 otzSpan=1920
+[ZETA] wrote=0/6 min=16777215 max=0 fedZ=854663 bbox=568,292..1018,454 raw=FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00
+[BIGPRIM] code=0x28 tp=0x12 span=960x3 at(160,0)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[ITEMZ] tagged=247 hit=247 szmin=9111 szmax=13098 otzSpan=1920
+[ZETA] wrote=0/6 min=16777215 max=0 fedZ=843596 bbox=550,292..1018,454 raw=FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00
+[BIGPRIM] code=0x28 tp=0x12 span=960x3 at(160,0)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[ITEMZ] tagged=248 hit=248 szmin=9006 szmax=13098 otzSpan=1920
+[ZETA] wrote=0/6 min=16777215 max=0 fedZ=838860 bbox=562,290..1018,453 raw=FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[BOOT0/TIM] PostLoadTim file=1919 'OPTION.TIM' ss=0x8a38 img.u=0 img.v=16 tPage=1,5 clutX=224 clutY=14
+[BOOT0/TIM] post ReadTIM: prect=0xfac914 caddr=0xfac710 paddr=0xfac91c mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(320,16 160x240)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,14 256x1)
+[BOOT0/TIM] PostLoadTim done
+[BIGPRIM] code=0x28 tp=0x40 span=960x3 at(160,0)
+[SH-XBOX] GameState -> 18 (step 0)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+2D_Controls: Off
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1306 (Sfx_Base+26) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SH-XBOX] vblank 2400
+[MEM] tick: free=2592KB (648 pages)
+[SFX] Sd_PlaySfx: sfxId=1306 (Sfx_Base+26) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SH-XBOX] GameState -> 14 (step 0)
+[ITEMPICK] map-pack link: slot=3 loadableIdx=0 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=4 loadableIdx=8 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=5 loadableIdx=3 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=6 loadableIdx=15 nobj=34 obj=ok
+[ITEMZ] tagged=248 hit=248 szmin=8976 szmax=13098 otzSpan=1920
+[ZETA] wrote=0/6 min=16777215 max=0 fedZ=839776 bbox=598,292..1018,456 raw=FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00
+[BIGPRIM] code=0x28 tp=0x12 span=960x3 at(160,0)
+[ITEMZ] tagged=249 hit=249 szmin=9054 szmax=13098 otzSpan=1920
+[ZETA] wrote=0/6 min=16777215 max=0 fedZ=853781 bbox=562,292..1018,454 raw=FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00
+[SFX] Sd_PlaySfx: sfxId=1306 (Sfx_Base+26) vol=64
+[SFX] Sd_PlaySfx: sfxId=1306 (Sfx_Base+26) vol=64
+[BIGPRIM] code=0x28 tp=0x40 span=960x3 at(160,0)
+[ITEMZ] tagged=248 hit=248 szmin=9108 szmax=13098 otzSpan=1920
+[ZETA] wrote=0/6 min=16777215 max=0 fedZ=838860 bbox=550,292..1018,454 raw=FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00
+[SH-XBOX] GameState -> 11 (step 0)
+[BIGPRIM] code=0x3c tp=0x2c span=888x758 at(2734,-514)
+[BIGPRIM] code=0x3c tp=0x39 span=1998x1411 at(673,1465)
+[BIGPRIM] code=0x3c tp=0x39 span=1014x238 at(-374,-765)
+[BIGPRIM] code=0x3c tp=0x39 span=1452x787 at(1057,-848)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x1289 at(1030,745)
+[BIGPRIM] code=0x3c tp=0x39 span=1503x1563 at(160,1198)
+[FOGST-GPU] clear=0xff6c6474
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[BIGPRIM] code=0x3c tp=0x39 span=1458x907 at(1036,716)
+[BIGPRIM] code=0x3c tp=0x39 span=1710x546 at(-1352,2632)
+[BIGPRIM] code=0x3c tp=0x39 span=990x58 at(-536,-668)
+[BIGPRIM] code=0x3c tp=0x39 span=1806x540 at(-1508,2593)
+[BIGPRIM] code=0x3c tp=0x39 span=1488x1501 at(673,-1902)
+[BIGPRIM] code=0x3c tp=0x39 span=1482x1495 at(769,-1890)
+[BIGPRIM] code=0x3c tp=0x39 span=1791x1594 at(-1034,1096)
+[BIGPRIM] code=0x3c tp=0x39 span=1269x1527 at(-869,-1732)
+[BIGPRIM] code=0x3c tp=0x2c span=1182x809 at(3118,-498)
+[BIGPRIM] code=0x3c tp=0x39 span=1593x1452 at(946,-1857)
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=5)
+[BIGPRIM] code=0x3c tp=0x39 span=2454x1633 at(-2246,973)
+[SYSSTATE] dispatch sysState=10 mapEventData=0x596918
+[SFX] Sd_PlaySfx: sfxId=1321 (Sfx_Base+41) vol=0
+[SFX] Sd_PlaySfx: sfxId=1322 (Sfx_Base+42) vol=0
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[VRAM] out of slots -> GPU drain #65 (alloc=49 worstPerFrame=1 totalMs=6)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[XA] Play xaIdx=42 file=1 sector=1889 sectors=21 stereo 37800Hz bits=4 filter=(6,1)
+[XA] primed ring=20481 frames
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[VRAM] decode #1024
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[XA] channel ended early xaIdx=42 (remaining=1/21)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[XA] finished xaIdx=42 (drained)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[VRAM] decode #1536
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[VRAM] out of slots -> GPU drain #129 (alloc=49 worstPerFrame=1 totalMs=6)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[XA] Play xaIdx=4 file=1 sector=3 sectors=78 stereo 37800Hz bits=4 filter=(1,3)
+[XA] primed ring=20481 frames
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[VRAM] decode #2048
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[VRAM] decode #2560
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[VRAM] out of slots -> GPU drain #193 (alloc=49 worstPerFrame=1 totalMs=7)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[XA] channel ended early xaIdx=4 (remaining=1/78)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[XA] finished xaIdx=4 (drained)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[VRAM] decode #3072
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[VRAM] decode #3584
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[VRAM] out of slots -> GPU drain #257 (alloc=49 worstPerFrame=1 totalMs=9)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[VRAM] decode #4096
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[BIGPRIM] code=0x3c tp=0x39 span=1524x977 at(757,-1176)
+[BIGPRIM] code=0x3c tp=0x39 span=1365x1253 at(916,-1202)
+[BIGPRIM] code=0x3c tp=0x2c span=834x770 at(1432,-639)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x913 at(-386,-1163)
+[BIGPRIM] code=0x3c tp=0x39 span=1521x1205 at(-386,707)
+[BIGPRIM] code=0x3c tp=0x39 span=1767x937 at(916,-880)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x38 span=546x768 at(1081,880)
+[WOBJ] resolved 'OUT1_HID' lmIdx=3
+[WOBJ] resolved 'OUT_BLD_' lmIdx=3
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x51 at(130,0)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x51 at(130,0)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x2c span=1284x1015 at(2245,-1600)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x51 at(130,0)
+[BIGPRIM] code=0x3c tp=0x39 span=1440x1523 at(-722,-1555)
+[BIGPRIM] code=0x3c tp=0x39 span=969x193 at(-590,626)
+[BIGPRIM] code=0x3c tp=0x36 span=1473x1191 at(1066,-1073)
+[BIGPRIM] code=0x3c tp=0x38 span=285x739 at(919,787)
+[BIGPRIM] code=0x3c tp=0x39 span=1602x1385 at(-1256,-1366)
+[VRAM] decode #4608
+[BIGPRIM] code=0x3c tp=0x39 span=1581x733 at(-836,800)
+[BIGPRIM] code=0x3c tp=0x2c span=1068x816 at(1567,-450)
+[BIGPRIM] code=0x3c tp=0x2c span=1446x1337 at(2641,-1732)
+[BIGPRIM] code=0x3c tp=0x2c span=1098x932 at(1234,-781)
+[BIGPRIM] code=0x3c tp=0x2c span=1284x1015 at(2245,-1600)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x51 at(130,0)
+[BIGPRIM] code=0x3c tp=0x39 span=1440x1523 at(-722,-1555)
+[BIGPRIM] code=0x3c tp=0x39 span=969x193 at(-590,626)
+[VRAM] out of slots -> GPU drain #321 (alloc=49 worstPerFrame=1 totalMs=9)
+[BIGPRIM] code=0x3c tp=0x36 span=1473x1191 at(1066,-1073)
+[BIGPRIM] code=0x3c tp=0x38 span=285x739 at(919,787)
+[BIGPRIM] code=0x3c tp=0x39 span=1602x1385 at(-1256,-1366)
+[BIGPRIM] code=0x3c tp=0x39 span=1581x733 at(-836,800)
+[BIGPRIM] code=0x3c tp=0x2c span=1068x816 at(1567,-450)
+[BIGPRIM] code=0x3c tp=0x2c span=1446x1337 at(2641,-1732)
+[BIGPRIM] code=0x3c tp=0x2c span=1098x932 at(1234,-781)
+[BIGPRIM] code=0x3c tp=0x2c span=1284x1015 at(2245,-1600)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x51 at(130,0)
+[BIGPRIM] code=0x3c tp=0x39 span=1440x1523 at(-722,-1555)
+[BIGPRIM] code=0x3c tp=0x39 span=969x193 at(-590,626)
+[VRAM] decode #5120
+[BIGPRIM] code=0x3c tp=0x36 span=1473x1191 at(1066,-1073)
+[BIGPRIM] code=0x3c tp=0x38 span=285x739 at(919,787)
+[BIGPRIM] code=0x3c tp=0x39 span=1602x1385 at(-1256,-1366)
+[BIGPRIM] code=0x3c tp=0x39 span=1581x733 at(-836,800)
+[BIGPRIM] code=0x3c tp=0x2c span=1068x816 at(1567,-450)
+[BIGPRIM] code=0x3c tp=0x2c span=1446x1337 at(2641,-1732)
+[BIGPRIM] code=0x3c tp=0x2c span=1098x932 at(1234,-781)
+[BIGPRIM] code=0x3c tp=0x2c span=1284x1015 at(2245,-1600)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x51 at(130,0)
+[BIGPRIM] code=0x3c tp=0x39 span=1440x1523 at(-722,-1555)
+[BIGPRIM] code=0x3c tp=0x39 span=969x193 at(-590,626)
+[BIGPRIM] code=0x3c tp=0x36 span=1473x1191 at(1066,-1073)
+[BIGPRIM] code=0x3c tp=0x38 span=285x739 at(919,787)
+[BIGPRIM] code=0x3c tp=0x39 span=1602x1385 at(-1256,-1366)
+[BIGPRIM] code=0x3c tp=0x39 span=1581x733 at(-836,800)
+[BIGPRIM] code=0x3c tp=0x2c span=1068x816 at(1567,-450)
+[BIGPRIM] code=0x3c tp=0x2c span=1446x1337 at(2641,-1732)
+[BIGPRIM] code=0x3c tp=0x2c span=1098x932 at(1234,-781)
+[BIGPRIM] code=0x3c tp=0x2c span=1284x1015 at(2245,-1600)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x51 at(130,0)
+[SFX] Sd_PlaySfx: sfxId=1373 (Sfx_Base+93) vol=127
+[COLL-MISS] cell(0,0) pos(0,0) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[BIGPRIM] code=0x3c tp=0x39 span=1440x1523 at(-722,-1555)
+[VRAM] decode #5632
+[BIGPRIM] code=0x3c tp=0x39 span=969x193 at(-590,626)
+[BIGPRIM] code=0x3c tp=0x36 span=1473x1191 at(1066,-1073)
+[COLL-MISS] cell(0,0) pos(0,0) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[BIGPRIM] code=0x3c tp=0x38 span=285x739 at(919,787)
+[BIGPRIM] code=0x3c tp=0x39 span=1602x1385 at(-1256,-1366)
+[COLL-MISS] cell(0,-1) pos(0,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[BIGPRIM] code=0x3c tp=0x39 span=1581x733 at(-836,800)
+[BIGPRIM] code=0x3c tp=0x2c span=1068x816 at(1567,-450)
+[BIGPRIM] code=0x3c tp=0x2c span=1446x1337 at(2641,-1732)
+[COLL-MISS] cell(0,0) pos(0,0) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[BIGPRIM] code=0x3c tp=0x2c span=1098x932 at(1234,-781)
+[BIGPRIM] code=0x3c tp=0x2c span=1284x1015 at(2245,-1600)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x51 at(130,0)
+[COLL-MISS] cell(0,0) pos(0,0) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[BIGPRIM] code=0x3c tp=0x39 span=1440x1523 at(-722,-1555)
+[BIGPRIM] code=0x3c tp=0x39 span=969x193 at(-590,626)
+[VRAM] out of slots -> GPU drain #385 (alloc=49 worstPerFrame=1 totalMs=9)
+[BIGPRIM] code=0x3c tp=0x36 span=1473x1191 at(1066,-1073)
+[BIGPRIM] code=0x3c tp=0x38 span=285x739 at(919,787)
+[COLL-MISS] cell(0,-1) pos(1,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[BIGPRIM] code=0x3c tp=0x39 span=1602x1385 at(-1256,-1366)
+[BIGPRIM] code=0x3c tp=0x39 span=1581x733 at(-836,800)
+[BIGPRIM] code=0x3c tp=0x2c span=1068x816 at(1567,-450)
+[BIGPRIM] code=0x3c tp=0x2c span=1446x1337 at(2641,-1732)
+[VRAM] decode #6144
+[BIGPRIM] code=0x3c tp=0x2c span=1098x932 at(1234,-781)
+[BIGPRIM] code=0x3c tp=0x2c span=1284x1015 at(2245,-1600)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x51 at(130,0)
+[BIGPRIM] code=0x3c tp=0x39 span=1440x1523 at(-722,-1555)
+[BIGPRIM] code=0x3c tp=0x39 span=969x193 at(-590,626)
+[BIGPRIM] code=0x3c tp=0x36 span=1473x1191 at(1066,-1073)
+[BIGPRIM] code=0x3c tp=0x38 span=285x739 at(919,787)
+[BIGPRIM] code=0x3c tp=0x39 span=1602x1385 at(-1256,-1366)
+[BIGPRIM] code=0x3c tp=0x39 span=1581x733 at(-836,800)
+[BIGPRIM] code=0x3c tp=0x2c span=1068x816 at(1567,-450)
+[BIGPRIM] code=0x3c tp=0x2c span=1446x1337 at(2641,-1732)
+[BIGPRIM] code=0x3c tp=0x2c span=1098x932 at(1234,-781)
+[BIGPRIM] code=0x3c tp=0x2c span=1284x1015 at(2245,-1600)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x51 at(130,0)
+[BIGPRIM] code=0x3c tp=0x39 span=1440x1523 at(-722,-1555)
+[SH-XBOX] vblank 3000
+[MEM] tick: free=2592KB (648 pages)
+[BIGPRIM] code=0x3c tp=0x39 span=969x193 at(-590,626)
+[SFX] Sd_PlaySfx: sfxId=1374 (Sfx_Base+94) vol=184
+[SFX] Sd_PlaySfx: sfxId=1375 (Sfx_Base+95) vol=184
+[BIGPRIM] code=0x3c tp=0x36 span=1473x1191 at(1066,-1073)
+[BIGPRIM] code=0x3c tp=0x38 span=285x739 at(919,787)
+[COLL-MISS] cell(0,-1) pos(0,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[SFX] Sd_PlaySfx: sfxId=1382 (Sfx_Base+102) vol=0
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[COLL-MISS] cell(0,-1) pos(0,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[VRAM] decode #6656
+[BIGPRIM] code=0x3c tp=0x39 span=1602x1385 at(-1256,-1366)
+[BIGPRIM] code=0x3c tp=0x39 span=2610x816 at(-2348,755)
+[COLL-MISS] cell(0,-1) pos(0,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[BIGPRIM] code=0x3c tp=0x38 span=1122x462 at(961,691)
+[COLL-MISS] cell(0,-1) pos(0,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[COLL-MISS] cell(0,-1) pos(1,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[BIGPRIM] code=0x3c tp=0x39 span=2610x816 at(-2348,755)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x52 at(130,668)
+[SFX] Sd_PlaySfx: sfxId=1382 (Sfx_Base+102) vol=0
+[COLL-MISS] cell(0,-1) pos(0,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[BIGPRIM] code=0x3c tp=0x2c span=1380x1305 at(2230,-1125)
+[BIGPRIM] code=0x3c tp=0x39 span=969x206 at(-590,613)
+[WOBJ] resolved 'BRK_BLD1' lmIdx=4
+[WOBJ] resolved 'BRK_GLS1' lmIdx=4
+[WOBJ] resolved 'BRK_GLS2' lmIdx=4
+[BGM] ChannelSet bgmIdx=30 cmd=798
+[SFX] Sd_PlaySfx: sfxId=1317 (Sfx_Base+37) vol=191
+[COLL-MISS] cell(0,-1) pos(0,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[SH_DRIP] key_on song=0 ch=1 prog=0 note=63 bank=127 vabId=3 tones=1 match=1 vab2match=1
+[SH_DRIP] key_on song=0 ch=2 prog=1 note=70 bank=127 vabId=3 tones=1 match=1 vab2match=0
+[SH_DRIP] key_on song=0 ch=3 prog=4 note=60 bank=127 vabId=3 tones=1 match=1 vab2match=0
+[SH_DRIP] key_on song=0 ch=5 prog=2 note=55 bank=127 vabId=3 tones=1 match=1 vab2match=1
+[SFX] Sd_PlaySfx: sfxId=1379 (Sfx_Base+99) vol=44
+[COLL-MISS] cell(0,0) pos(1,0) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[SH_DRIP] key_on song=0 ch=6 prog=1 note=70 bank=127 vabId=3 tones=1 match=1 vab2match=0
+[BIGPRIM] code=0x3c tp=0x39 span=762x938 at(685,1025)
+[COLL-MISS] cell(0,0) pos(0,0) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[BIGPRIM] code=0x3c tp=0x39 span=1380x453 at(-1064,51)
+[BIGPRIM] code=0x3c tp=0x39 span=762x955 at(697,1012)
+[BIGPRIM] code=0x3c tp=0x2c span=2088x1387 at(-3476,-626)
+[COLL-MISS] cell(0,-1) pos(0,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[BIGPRIM] code=0x3a tp=0x40 span=1020x51 at(130,0)
+[VRAM] decode #7168
+[BIGPRIM] code=0x3c tp=0x39 span=1587x501 at(742,-591)
+[BIGPRIM] code=0x3c tp=0x39 span=738x942 at(709,980)
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=62
+[VRAM] out of slots -> GPU drain #449 (alloc=49 worstPerFrame=2 totalMs=9)
+[BIGPRIM] code=0x3c tp=0x2c span=1320x1221 at(-2366,-752)
+[BIGPRIM] code=0x3c tp=0x2c span=2058x1407 at(-3134,-684)
+[BIGPRIM] code=0x3c tp=0x37 span=990x154 at(1105,2838)
+[BIGPRIM] code=0x3a tp=0x40 span=1020x51 at(130,0)
+[BIGPRIM] code=0x3c tp=0x39 span=1215x425 at(-869,12)
+[BIGPRIM] code=0x3c tp=0x39 span=1581x485 at(754,-610)
+[BIGPRIM] code=0x3c tp=0x39 span=1581x486 at(754,-617)
+[BIGPRIM] code=0x3c tp=0x2c span=1794x1195 at(-3329,-549)
+[BIGPRIM] code=0x3c tp=0x39 span=1131x703 at(-320,-610)
+[BIGPRIM] code=0x3c tp=0x2c span=1296x1195 at(-2303,-752)
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=93
+[BIGPRIM] code=0x3c tp=0x39 span=1206x424 at(-860,3)
+[BIGPRIM] code=0x3c tp=0x39 span=1185x1003 at(1060,980)
+[BIGPRIM] code=0x3a tp=0xa span=1020x770 at(130,-25)
+[BIGPRIM] code=0x3c tp=0x39 span=687x858 at(709,935)
+[BIGPRIM] code=0x3c tp=0x37 span=990x173 at(1105,2825)
+[VRAM] decode #7680
+[BIGPRIM] code=0x3c tp=0x39 span=570x736 at(142,896)
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=86
+[BIGPRIM] code=0x3c tp=0x2c span=2034x1614 at(-3449,-2041)
+[BIGPRIM] code=0x3c tp=0x39 span=1062x354 at(-869,234)
+[BIGPRIM] code=0x3c tp=0x2c span=2010x1375 at(-3047,-678)
+[BIGPRIM] code=0x3c tp=0x39 span=1125x710 at(-308,-617)
+[BIGPRIM] code=0x3c tp=0x39 span=702x887 at(715,938)
+[BIGPRIM] code=0x3c tp=0x39 span=1314x1154 at(1087,996)
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=86
+[BIGPRIM] code=0x3c tp=0x2c span=1506x1196 at(-3185,-1478)
+[BIGPRIM] code=0x3c tp=0x39 span=996x370 at(-584,12)
+[BIGPRIM] code=0x3c tp=0x2c span=990x912 at(-1553,-546)
+[BIGPRIM] code=0x3c tp=0x39 span=549x762 at(211,867)
+[BIGPRIM] code=0x3c tp=0x39 span=780x1057 at(742,948)
+[BIGPRIM] code=0x3c tp=0x2c span=1206x1111 at(-2549,-1070)
+[VRAM] out of slots -> GPU drain #513 (alloc=49 worstPerFrame=2 totalMs=11)
+[BIGPRIM] code=0x3c tp=0x2c span=1494x1413 at(-2924,-912)
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=89
+[BIGPRIM] code=0x3c tp=0x39 span=1599x886 at(-704,-604)
+[BIGPRIM] code=0x3c tp=0x2c span=2040x1561 at(-3452,-703)
+[BIGPRIM] code=0x3c tp=0x37 span=1062x199 at(1015,2838)
+[BIGPRIM] code=0x3c tp=0x39 span=1020x707 at(-125,-617)
+[BIGPRIM] code=0x3c tp=0x39 span=549x762 at(217,864)
+[SYSSTATE] dispatch sysState=2 mapEventData=0
+[FOGST-GPU] clear=0xff000000
+[SH-XBOX] GameState -> 19 (step 0)
+[BOOT0/TIM] PostLoadTim file=1485 'HEROPIC2.TIM' ss=0x5bb6 img.u=12 img.v=103 tPage=1,31 clutX=224 clutY=13
+[BOOT0/TIM] post ReadTIM: prect=0xfac914 caddr=0xfac710 paddr=0xfac91c mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(972,359 52x152)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,13 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 14 (step 0)
+[ITEMPICK] map-pack link: slot=3 loadableIdx=0 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=4 loadableIdx=8 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=5 loadableIdx=3 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=6 loadableIdx=15 nobj=34 obj=ok
+[BIGPRIM] code=0x28 tp=0x40 span=960x3 at(160,0)
+[ITEMZ] tagged=251 hit=251 szmin=9013 szmax=13098 otzSpan=1920
+[ZETA] wrote=0/6 min=16777215 max=0 fedZ=851786 bbox=577,292..1018,454 raw=FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00
+[BIGPRIM] code=0x28 tp=0x12 span=960x3 at(160,0)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[ITEMZ] tagged=249 hit=249 szmin=9102 szmax=13098 otzSpan=1920
+[ZETA] wrote=0/6 min=16777215 max=0 fedZ=845470 bbox=553,292..1018,454 raw=FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x28 tp=0x12 span=960x3 at(160,0)
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[BOOT0/TIM] PostLoadTim file=1919 'OPTION.TIM' ss=0x8a38 img.u=0 img.v=16 tPage=1,5 clutX=224 clutY=14
+[BOOT0/TIM] post ReadTIM: prect=0xfac914 caddr=0xfac710 paddr=0xfac91c mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(320,16 160x240)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,14 256x1)
+[BOOT0/TIM] PostLoadTim done
+[ITEMZ] tagged=243 hit=243 szmin=9033 szmax=13098 otzSpan=1920
+[ZETA] wrote=0/6 min=16777215 max=0 fedZ=838860 bbox=556,290..1018,453 raw=FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00 FFFFFF00
+[BIGPRIM] code=0x28 tp=0x40 span=960x3 at(160,0)
+[SH-XBOX] GameState -> 18 (step 0)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[EXITMENU] pressed gameStatePrev=14 gameState=18
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[XA] SetVolume L=0 R=0
+[SH_AMB] Sd_AmbientSfxSet idx=1 -> loadCmd=162
+[BOOT0/TIM] PostLoadTim file=1980 'TITLE_E.TIM' ss=0x90b7 img.u=32 img.v=0 tPage=1,13 clutX=224 clutY=15
+[BOOT0/TIM] post ReadTIM: prect=0xf7c914 caddr=0xf7c710 paddr=0xf7c91c mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 160x480)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,15 256x1)
+[BOOT0/TIM] PostLoadTim done
+[BIGPRIM] code=0x3a tp=0x40 span=960x129 at(160,591)
+[SH-XBOX] GameState -> 7 (step 0)
+[BOOT-STEP] GameStartup step=0 qlen=0
+[TRANSITION] GameStartup step=0: processFlags=0x20 (BootDemo) sizeof(s_WorldGfxWork)=11708
+[BOOT-STEP] GameStartup step=1 qlen=0
+[SH-XBOX] vblank 3600
+[MEM] tick: free=2592KB (648 pages)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0

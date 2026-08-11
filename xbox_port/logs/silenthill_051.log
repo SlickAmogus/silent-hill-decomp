@@ -1,0 +1,369 @@
+[CFG] key='control_style'(13) value='classic'
+[CFG] key='invert_controller_y'(19) value='0'
+[CFG] key='crosshair'(9) value='1'
+[CFG] key='crosshair_style'(15) value='3'
+[CFG] key='refresh_rate'(12) value='60'
+[CFG] key='retroachievements'(17) value='1'
+[CFG] >> retroachievements branch: atoi=1 -> retroAchievements=1
+[CFG] key='ra_username'(11) value='KushAstronaut'
+[CFG] key='ra_password'(11) value='101F66d283,,'
+[CFG] key='use_pgxp'(8) value='0'
+[CFG] key='cutscene_line_gap_ms'(20) value='300'
+[CFG] key='video_720p'(10) value='1'
+[CFG] key='log_diag'(8) value='0control_2d = 1'
+[CFG] key='control_2d'(10) value='0'
+[SH-XBOX] SEH crash logger installed (frame=0xd0032c60 handler=0x2f1220)
+[SH-XBOX] build b57661e15+wt id=0810-043343 (2026-08-10 04:33:44)
+[FS] D: -> '\Device\Harddisk0\Partition1\Apps\SH\' (wasMounted=1 remap=ok)
+[SH-XBOX] boot: video 1280x720x32 (720p, pillarboxed 4:3)
+[GTE] RotTransPers v(64,32,512) -> sx=352 sy=256 sz=128 flag=0x1000 (expect sx=352 sy=256)
+[SH-XBOX] pbkit initialised
+[CD] xbe dir = '\Device\Harddisk0\Partition1\Apps\SH\' (mounted Q:)
+[CD] disc image: Q:\Silent Hill (USA).bin
+[CD] BIN: Q:\Silent Hill (USA).bin
+[SH-XBOX] NV2A fb 1280x720, content 960x720 at x=160
+[SH-XBOX] NV2A backend ready (batch=16384 verts)
+[SH-XBOX] USB pad init done
+[MCRD] card path = E:\UDATA\SH010000\0.MCD
+[SH-XBOX] PSX RAM @ 0xddd584
+[SH-XBOX] game data initialised
+[SH-XBOX] subsystems up; entering MainLoop
+[RA] init: enabled=1 user='KushAstronaut' token=none passwordLen=12
+[NET] up, DHCP IP 192.168.1.123
+[RA] syswork native: npcs=0x1A0 bones=0x26A0 tailA=0x91D0 targetNpc=0x92A8 light=0x92B0 sizeof=38588
+[FREEZE] target ok: 1280x720 (GPU copy, no CPU readback)
+[FOGST-GPU] clear=0xff000000
+[SH-XBOX] layout check ok: sizeof(s_SysWork)=38588 sizeof(s_GameWork)=1496
+[XA] SetVolume L=0 R=0
+[ARENA] buf0=0x7fdd0008 buf1=0x7fbc0008
+[SH-XBOX] GameState -> 0 (step 0)
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (253 bytes)
+[RA] http -> status=200 bodyLen=253 body='{"Success":true,"User":"KushAstronaut","AvatarUrl":"https:\/'
+[RA] logged in as KushAstronaut
+RA: signed in as KushAstronaut
+[RA] disc hash 469d5cf1428d3f6f2234aa5be058f3ec
+[MCFSM] state=0 step=0 (was -1/-1 after 0 f)
+[OT] DrawOTag head=0xd60334 (walking; per-node trace off)
+[OT] walk done after 2048 nodes (cap hit=0)
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (136273 bytes)
+[RA] http -> status=200 bodyLen=136273 body='{"Success":true,"GameId":11252,"Title":"Silent Hill","ImageI'
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=0 -> IOE (n=1)
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (200 bytes)
+[RA] http -> status=200 bodyLen=200 body='{"Success":true,"ServerNow":1786352968,"HardcoreUnlocks":[],'
+[RA] set reads 0x800BCAD8 (mapped)
+[RA] set reads 0x800BCC7E (mapped)
+[RA] set reads 0x800BCBA2 (mapped)
+[RA] set reads 0x800BC0C8 (mapped)
+[RA] set reads 0x800BC26E (mapped)
+[RA] set reads 0x800BC192 (mapped)
+[RA] set reads 0x800B2214 (mapped)
+[RA] set reads 0x800BC6A8 (mapped)
+[RA] achievement read of unmapped PSX address 0x800BCD6C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C168C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C0C7C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C125C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C6F2D - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C651D - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C6AFD - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C4476 - needs a translation entry
+[RA] matched game 11252 "Silent Hill"
+[RA] worklist UNMAPPED 0x800BCD6C (memsize=0)
+[RA] worklist UNMAPPED 0x800C168C (memsize=1)
+[RA] worklist UNMAPPED 0x800C0C7C (memsize=1)
+[RA] worklist UNMAPPED 0x800C125C (memsize=1)
+[RA] worklist UNMAPPED 0x800C6F2D (memsize=0)
+[RA] worklist UNMAPPED 0x800C651D (memsize=0)
+[RA] worklist UNMAPPED 0x800C6AFD (memsize=0)
+[RA] worklist UNMAPPED 0x800C4476 (memsize=1)
+[RA] worklist UNMAPPED 0x800C4472 (memsize=0)
+[RA] worklist UNMAPPED 0x800C4470 (memsize=0)
+[RA] worklist: 352 memrefs total, 10 unserved, 10 distinct-unmapped listed
+[RA] culprit: achiev id=83576 'Wounds That Won't Heal' reads unmapped 0x800BCD6C
+[RA] culprit: achiev id=86517 'What Is Keeping That Child Alive?' reads unmapped 0x800C168C
+[RA] culprit: achiev id=86517 'What Is Keeping That Child Alive?' reads unmapped 0x800C0C7C
+[RA] culprit: achiev id=86517 'What Is Keeping That Child Alive?' reads unmapped 0x800C125C
+[RA] culprit: achiev id=86663 'Scary Harry I' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86663 'Scary Harry I' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86663 'Scary Harry I' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86664 'Scary Harry II' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86664 'Scary Harry II' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86664 'Scary Harry II' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86665 'Scary Harry III' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86665 'Scary Harry III' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86665 'Scary Harry III' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86666 'Scary Harry IV' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86666 'Scary Harry IV' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86666 'Scary Harry IV' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86667 'Scary Harry V' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86667 'Scary Harry V' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86667 'Scary Harry V' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86668 'Scary Harry VI' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86668 'Scary Harry VI' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86668 'Scary Harry VI' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86422 'Harry the Swift' reads unmapped 0x800C4476
+[RA] culprit: achiev id=86422 'Harry the Swift' reads unmapped 0x800C4472
+[RA] culprit: achiev id=86423 'Daring Harry' reads unmapped 0x800C4470
+[RA] culprit: achiev id=86427 'Harry the Best' reads unmapped 0x800C4472
+[RA] culprit: achiev id=86427 'Harry the Best' reads unmapped 0x800C4470
+[RA] trace 84008: not in runtime (already unlocked?)
+[RA] ach lock id=84002 5p 'Keys for Eclipse'
+[RA] ach lock id=84005 5p 'Old Man's Hand'
+[RA] ach lock id=84007 5p 'Broken Notes'
+[RA] ach lock id=85474 5p 'Harry in Wonderland'
+[RA] ach lock id=85476 5p 'Loneliness'
+[RA] ach lock id=86028 5p 'Sand Castles'
+[RA] ach lock id=86080 10p 'I'll Kill You'
+[RA] ach lock id=86340 5p 'Eww Eww Eww'
+[RA] ach lock id=86506 10p 'Paging Dr. Kaufmann'
+[RA] ach lock id=86341 5p 'Our Little Secret'
+[RA] ach lock id=86342 10p 'Pour Some Sugar On Me, Baby'
+[RA] ach lock id=86343 10p 'Merry-Go-Down'
+[RA] ach lock id=86344 5p 'Grim Reaper's List'
+[RA] ach lock id=86345 5p 'The Stone of Time'
+[RA] ach lock id=83576 10p 'Wounds That Won't Heal'
+[RA] ach lock id=86347 5p 'Illuminating the Darkness'
+[RA] ach lock id=86517 10p 'What Is Keeping That Child Alive?'
+[RA] ach lock id=86348 3p 'What's Going On with That Refrigerator?'
+[RA] ach lock id=86428 10p 'My Heaven'
+[RA] ach lock id=86518 10p 'Awakening'
+[RA] ach lock id=86503 10p 'The Archer and the Beast'
+[RA] ach lock id=86504 10p 'The Pit of Calamity'
+[RA] ach lock id=86505 10p 'Erratic'
+[RA] ach lock id=86513 10p 'Sifod'
+[RA] ach lock id=86519 10p 'Thank You...'
+[RA] ach lock id=86023 5p 'Target Practice'
+[RA] ach lock id=86022 10p 'Triggered'
+[RA] ach lock id=86024 25p 'Gun Control: Alessa's New Nightmare'
+[RA] ach lock id=86026 10p 'Fa-fa-fa-fa, Fa-fa-fa-fa-fa, Fa, Better'
+[RA] ach lock id=86027 25p 'Hammerin' Harry'
+[RA] ach lock id=86346 10p 'Doomsday Prepper'
+[RA] ach lock id=86349 10p 'Drillin' Like a Villain'
+[RA] ach lock id=84003 10p 'Harry the Weeb'
+[RA] ach lock id=84004 10p 'Silent Hill Chainsaw Massacre'
+[RA] ach lock id=86520 10p 'A Gift from Outer Space'
+[RA] ach lock id=86507 10p 'Like the Back of My Hand I'
+[RA] ach lock id=86508 10p 'Like the Back of My Hand II'
+[RA] ach lock id=86509 10p 'Like the Back of My Hand III'
+[RA] ach lock id=86510 10p 'Like the Back of My Hand IV'
+[RA] ach lock id=86516 5p 'Like the Back of My Hand V'
+[RA] ach lock id=86663 5p 'Scary Harry I'
+[RA] ach lock id=86664 10p 'Scary Harry II'
+[RA] ach lock id=86665 10p 'Scary Harry III'
+[RA] ach lock id=86666 10p 'Scary Harry IV'
+[RA] ach lock id=86667 10p 'Scary Harry V'
+[RA] ach lock id=86668 10p 'Scary Harry VI'
+[RA] ach lock id=86422 25p 'Harry the Swift'
+[RA] ach lock id=86423 25p 'Daring Harry'
+[RA] ach lock id=86424 5p 'Harry the Okay'
+[RA] ach lock id=86425 10p 'Harry the Good'
+[RA] ach lock id=86426 25p 'Harry the Great'
+[RA] ach lock id=86427 50p 'Harry the Best'
+[RA] ach lock id=86662 5p 'That Light...'
+[RA] ach lock id=86502 5p 'UFO Sighting I'
+[RA] ach lock id=86511 5p 'UFO Sighting II'
+[RA] ach lock id=86512 5p 'UFO Sighting III'
+[RA] ach lock id=86514 5p 'UFO Sighting IV'
+[RA] ach lock id=86515 5p 'UFO Sighting V'
+[RA] ach lock id=86429 25p 'Tears of...'
+[RA] ach lock id=86430 10p 'Killing Time'
+[RA] ach lock id=86431 10p 'She'
+[RA] ach lock id=86432 10p 'Esperandote'
+[RA] ach lock id=86433 10p 'Ayyy'
+[RA] ach UNLK id=101000001 0p 'Warning: Unknown Emulator'
+[RA] ach UNLK id=86483 3p 'What a Nightmare...'
+[RA] ach UNLK id=84008 10p 'Who's Afraid of a Reptile?'
+[RA] ach UNLK id=86025 5p 'Knife to Meet You'
+[RA] roster: 63 locked, 4 unlocked (67 total)
+RetroAchievements: 3/66 (18 pts)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=0 -> IOE (n=2)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=0 -> IOE (n=1)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=0 -> IOE (n=1)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=0 (n=1)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[MCFSM] state=6 step=0 (was 0/0 after 0 f)
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCFSM] state=7 step=0 (was 6/0 after 0 f)
+[MCFSM] state=7 step=2 (was 7/0 after 0 f)
+[MCRD] read h=1 dir=1 ofs=512 len=256 ok
+[LOOSE/INIT] allow_loose_files=0  base=gamedata/load/  verbose=no
+[MCFSM] state=7 step=3 (was 7/2 after 0 f)
+[MCFSM] state=0 step=0 (was 7/3 after 0 f)
+[BOOT0/TIM] PostLoadTim file=6 'FONT16.TIM' ss=0x287 img.u=0 img.v=240 tPage=0,16 clutX=304 clutY=511
+[BOOT0/TIM] post ReadTIM: prect=0xfbfbbc caddr=0xfbfb98 paddr=0xfbfbc4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(0,496 256x16)
+[FONTCLOB] Load x=0 y=496 w=256 h=16
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,511 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=1 -> IOE (n=3)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=8 'KONAMI.TIM' ss=0x28e img.u=0 img.v=0 tPage=0,12 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfbfbbc caddr=0xfbfb98 paddr=0xfbfbc4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 96x384)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=1 -> IOE (n=4)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=1 -> IOE (n=2)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=1 -> IOE (n=2)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=1 (n=2)
+[SH-XBOX] GameState -> 1 (step 0)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[VRAM] paletted cache: 64/64 pages (64KB) + 128/128 palettes, free=13724KB
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=2 -> IOE (n=5)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=9 'KONAMI2.TIM' ss=0x2b3 img.u=0 img.v=0 tPage=0,14 clutX=0 clutY=1
+[BOOT0/TIM] post ReadTIM: prect=0xfbfbbc caddr=0xfbfb98 paddr=0xfbfbc4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(896,0 104x160)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,1 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=2 -> IOE (n=6)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=2 -> IOE (n=3)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=2 -> IOE (n=3)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=2 (n=3)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=1423 'HERO.TIM' ss=0x5a6a img.u=0 img.v=0 tPage=0,27 clutX=736 clutY=480
+[BOOT0/TIM] post ReadTIM: prect=0xfbfd7c caddr=0xfbfb98 paddr=0xfbfd84 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,256 64x192)
+[BOOT0/TIM] pre CLUT LoadImage rect=(736,480 16x15)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=3 -> IOE (n=7)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=3 -> IOE (n=8)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=3 -> IOE (n=4)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=3 -> IOE (n=4)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=1802 'BLD.TIM' ss=0x795b img.u=0 img.v=0 tPage=0,11 clutX=304 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfca59c caddr=0xfca398 paddr=0xfca5a4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=3 (n=4)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=16 -> IOE (n=9)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=16 -> IOE (n=10)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=16 -> IOE (n=5)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=16 -> IOE (n=5)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=8 (n=5)
+[MCRD] open 'bu10:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=512 len=256 ok
+[MCRD] card_info chan=17 -> IOE (n=11)
+[MCRD] card_info chan=17 -> IOE (n=12)
+[MCRD] card_clear chan=17 -> IOE (n=6)
+[MCRD] card_load chan=17 -> IOE (n=6)
+[MCRD] dir scan chan=9 (n=6)
+[SH-XBOX] GameState -> 2 (step 0)
+[MCRD] card_info chan=18 -> IOE (n=13)
+[MCRD] card_info chan=18 -> IOE (n=14)
+[BOOT0/TIM] PostLoadTim file=1799 'BG_ETC.TIM' ss=0x7906 img.u=0 img.v=0 tPage=0,12 clutX=192 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfbfcfc caddr=0xfbfb98 paddr=0xfbfd04 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(192,0 16x11)
+[BOOT0/TIM] PostLoadTim done
+[MCRD] card_clear chan=18 -> IOE (n=7)
+[MCRD] card_load chan=18 -> IOE (n=7)
+[MCRD] dir scan chan=10 (n=7)
+[MCRD] card_info chan=19 -> IOE (n=15)
+[MCRD] card_info chan=19 -> IOE (n=16)
+[MCRD] card_clear chan=19 -> IOE (n=8)
+[MCRD] card_load chan=19 -> IOE (n=8)
+[MCRD] dir scan chan=11 (n=8)
+[FT] avgMs=30 worstMs=558 gameMs=13 drawMs=21 swapWait=0ms draws=3 decodes=0 decMs=0
+[OTS] f=120 calls=2 n0=23 n1=18 prims=861 bb=-320,3520,-411,1131
+[OTT] walkUs=47 texUs=3 emitUs=4 submitUs=14 otherUs=24 prims=4 usPerPrim=11
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=768 len=128 ok
+[BOOT0/TIM] PostLoadTim file=1980 'TITLE_E.TIM' ss=0x90b7 img.u=32 img.v=0 tPage=1,13 clutX=224 clutY=15
+[BOOT0/TIM] post ReadTIM: prect=0xf8fd9c caddr=0xf8fb98 paddr=0xf8fda4 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 160x480)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,15 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 6 (step 0)
+[SH] open_main: playing FMV (file=2053 frames=0)
+[FMV] no avi for C1_20670 (checked D:\fmv, D:\gamedata\fmv) -> MDEC
+[FMV] start C1_20670 file_idx=2053 base=133127 sectors=20670 maxFrames=0 (15fps)
+[XA] fmv stream open: 37800Hz stereo coding=0x01
+[FMV] video 320x208, 9 sectors/frame
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[FMV] skipped at frame 24
+[XA] fmv stream end: 29 sectors fed, 576 ring frames discarded
+[FT] avgMs=27 worstMs=218 gameMs=13 drawMs=13 swapWait=0ms draws=1 decodes=0 decMs=0
+[FMV] end C1_20670: 24 frames (2 dropped, 0 decode fails, 41 presents)
+[SH] open_main: FMV_Play returned
+[SH-XBOX] GameState -> 7 (step 0)
+[BOOT-STEP] GameStartup step=0 qlen=0
+[TRANSITION] GameStartup step=0: processFlags=0x20 (BootDemo) sizeof(s_WorldGfxWork)=11708
+[BOOT-STEP] GameStartup step=1 qlen=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[FT] avgMs=16 worstMs=55 gameMs=13 drawMs=3 swapWait=0ms draws=20 decodes=0 decMs=0
+[OTS] f=360 calls=2 n0=2056 n1=295 prims=33635 bb=-320,3520,-411,1542
+[OTT] walkUs=2148 texUs=10 emitUs=1016 submitUs=179 otherUs=941 prims=253 usPerPrim=8
+[SFX] Sd_PlaySfx: sfxId=1281 (Sfx_Base+1) vol=0
+[FT] avgMs=17 worstMs=51 gameMs=13 drawMs=3 swapWait=0ms draws=22 decodes=0 decMs=0
+[OTS] f=480 calls=2 n0=2056 n1=295 prims=34440 bb=-35,1120,-25,797
+[OTT] walkUs=2446 texUs=10 emitUs=1045 submitUs=153 otherUs=1237 prims=253 usPerPrim=9
+[BOOT0/TIM] PostLoadTim file=1939 'SAVELOAD.TIM' ss=0x8ced img.u=0 img.v=16 tPage=1,5 clutX=224 clutY=14
+[BOOT0/TIM] post ReadTIM: prect=0xfbfd9c caddr=0xfbfb98 paddr=0xfbfda4 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(320,16 160x240)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,14 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 8 (step 0)
+[SFX] Sd_PlaySfx: sfxId=1306 (Sfx_Base+26) vol=0
+[SH-XBOX] vblank 600
+[MEM] tick: free=12940KB (3235 pages)
+[FT] avgMs=18 worstMs=138 gameMs=13 drawMs=5 swapWait=0ms draws=71 decodes=0 decMs=0
+[OTS] f=600 calls=2 n0=2052 n1=314 prims=34291 bb=-320,3520,-411,1542
+[OTT] walkUs=1860 texUs=26 emitUs=187 submitUs=250 otherUs=1395 prims=188 usPerPrim=9
+[SH-XBOX] GameState -> 7 (step 0)
+[BOOT-STEP] GameStartup step=0 qlen=0
+[TRANSITION] GameStartup step=0: processFlags=0x20 (BootDemo) sizeof(s_WorldGfxWork)=11708
+[BOOT-STEP] GameStartup step=1 qlen=0

@@ -1,0 +1,2060 @@
+[CFG] key='control_style'(13) value='classic'
+[CFG] key='invert_controller_y'(19) value='0'
+[CFG] key='crosshair'(9) value='1'
+[CFG] key='crosshair_style'(15) value='3'
+[CFG] key='refresh_rate'(12) value='60'
+[CFG] key='retroachievements'(17) value='1'
+[CFG] >> retroachievements branch: atoi=1 -> retroAchievements=1
+[CFG] key='ra_username'(11) value='KushAstronaut'
+[CFG] key='ra_password'(11) value='101F66d283,,'
+[CFG] key='use_pgxp'(8) value='0'
+[CFG] key='cutscene_line_gap_ms'(20) value='300'
+[CFG] key='video_720p'(10) value='1'
+[CFG] key='log_diag'(8) value='0control_2d = 1'
+[CFG] key='control_2d'(10) value='0'
+[SH-XBOX] SEH crash logger installed (frame=0xd0032c60 handler=0x2f1220)
+[SH-XBOX] build 4aadd6d1d+wt id=0809-232205 (2026-08-09 23:22:05)
+[FS] D: -> '\Device\Harddisk0\Partition1\Apps\SH\' (wasMounted=1 remap=ok)
+[SH-XBOX] boot: video 1280x720x32 (720p, pillarboxed 4:3)
+[GTE] RotTransPers v(64,32,512) -> sx=352 sy=256 sz=128 flag=0x1000 (expect sx=352 sy=256)
+[SH-XBOX] pbkit initialised
+[CD] xbe dir = '\Device\Harddisk0\Partition1\Apps\SH\' (mounted Q:)
+[CD] disc image: Q:\Silent Hill (USA).bin
+[CD] BIN: Q:\Silent Hill (USA).bin
+[SH-XBOX] NV2A fb 1280x720, content 960x720 at x=160
+[SH-XBOX] NV2A backend ready (batch=65536 verts)
+[SH-XBOX] USB pad init done
+[MCRD] card path = E:\UDATA\SH010000\0.MCD
+[SH-XBOX] PSX RAM @ 0xdca46c
+[SH-XBOX] game data initialised
+[SH-XBOX] subsystems up; entering MainLoop
+[RA] init: enabled=1 user='KushAstronaut' token=none passwordLen=12
+[NET] up, DHCP IP 192.168.1.123
+[RA] syswork native: npcs=0x1A0 bones=0x26A0 tailA=0x91D0 targetNpc=0x92A8 light=0x92B0 sizeof=38588
+[FREEZE] target ok: 1280x720 (GPU copy, no CPU readback)
+[FOGST-GPU] clear=0xff000000
+[SH-XBOX] layout check ok: sizeof(s_SysWork)=38588 sizeof(s_GameWork)=1496
+[XA] SetVolume L=0 R=0
+[ARENA] buf0=0x7fdd0008 buf1=0x7fbc0008
+[SH-XBOX] GameState -> 0 (step 0)
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (253 bytes)
+[RA] http -> status=200 bodyLen=253 body='{"Success":true,"User":"KushAstronaut","AvatarUrl":"https:\/'
+[RA] logged in as KushAstronaut
+RA: signed in as KushAstronaut
+[RA] disc hash 469d5cf1428d3f6f2234aa5be058f3ec
+[MCFSM] state=0 step=0 (was -1/-1 after 0 f)
+[OT] DrawOTag head=0xd4d21c (walking; per-node trace off)
+[OT] walk done after 2048 nodes (cap hit=0)
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (136279 bytes)
+[RA] http -> status=200 bodyLen=136279 body='{"Success":true,"GameId":11252,"Title":"Silent Hill","ImageI'
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=0 -> IOE (n=1)
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (200 bytes)
+[RA] http -> status=200 bodyLen=200 body='{"Success":true,"ServerNow":1786337713,"HardcoreUnlocks":[],'
+[RA] set reads 0x800BCAD8 (mapped)
+[RA] set reads 0x800BCC7E (mapped)
+[RA] set reads 0x800BCBA2 (mapped)
+[RA] set reads 0x800BC0C8 (mapped)
+[RA] set reads 0x800BC26E (mapped)
+[RA] set reads 0x800BC192 (mapped)
+[RA] set reads 0x800B2214 (mapped)
+[RA] set reads 0x800BC6A8 (mapped)
+[RA] achievement read of unmapped PSX address 0x800BCD6C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C168C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C0C7C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C125C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C6F2D - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C651D - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C6AFD - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C4476 - needs a translation entry
+[RA] matched game 11252 "Silent Hill"
+[RA] worklist UNMAPPED 0x800BCD6C (memsize=0)
+[RA] worklist UNMAPPED 0x800C168C (memsize=1)
+[RA] worklist UNMAPPED 0x800C0C7C (memsize=1)
+[RA] worklist UNMAPPED 0x800C125C (memsize=1)
+[RA] worklist UNMAPPED 0x800C6F2D (memsize=0)
+[RA] worklist UNMAPPED 0x800C651D (memsize=0)
+[RA] worklist UNMAPPED 0x800C6AFD (memsize=0)
+[RA] worklist UNMAPPED 0x800C4476 (memsize=1)
+[RA] worklist UNMAPPED 0x800C4472 (memsize=0)
+[RA] worklist UNMAPPED 0x800C4470 (memsize=0)
+[RA] worklist: 352 memrefs total, 10 unserved, 10 distinct-unmapped listed
+[RA] culprit: achiev id=83576 'Wounds That Won't Heal' reads unmapped 0x800BCD6C
+[RA] culprit: achiev id=86517 'What Is Keeping That Child Alive?' reads unmapped 0x800C168C
+[RA] culprit: achiev id=86517 'What Is Keeping That Child Alive?' reads unmapped 0x800C0C7C
+[RA] culprit: achiev id=86517 'What Is Keeping That Child Alive?' reads unmapped 0x800C125C
+[RA] culprit: achiev id=86663 'Scary Harry I' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86663 'Scary Harry I' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86663 'Scary Harry I' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86664 'Scary Harry II' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86664 'Scary Harry II' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86664 'Scary Harry II' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86665 'Scary Harry III' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86665 'Scary Harry III' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86665 'Scary Harry III' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86666 'Scary Harry IV' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86666 'Scary Harry IV' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86666 'Scary Harry IV' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86667 'Scary Harry V' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86667 'Scary Harry V' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86667 'Scary Harry V' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86668 'Scary Harry VI' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86668 'Scary Harry VI' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86668 'Scary Harry VI' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86422 'Harry the Swift' reads unmapped 0x800C4476
+[RA] culprit: achiev id=86422 'Harry the Swift' reads unmapped 0x800C4472
+[RA] culprit: achiev id=86423 'Daring Harry' reads unmapped 0x800C4470
+[RA] culprit: achiev id=86427 'Harry the Best' reads unmapped 0x800C4472
+[RA] culprit: achiev id=86427 'Harry the Best' reads unmapped 0x800C4470
+[RA] trace 84008: not in runtime (already unlocked?)
+[RA] ach lock id=84002 5p 'Keys for Eclipse'
+[RA] ach lock id=84005 5p 'Old Man's Hand'
+[RA] ach lock id=84007 5p 'Broken Notes'
+[RA] ach lock id=85474 5p 'Harry in Wonderland'
+[RA] ach lock id=85476 5p 'Loneliness'
+[RA] ach lock id=86028 5p 'Sand Castles'
+[RA] ach lock id=86080 10p 'I'll Kill You'
+[RA] ach lock id=86340 5p 'Eww Eww Eww'
+[RA] ach lock id=86506 10p 'Paging Dr. Kaufmann'
+[RA] ach lock id=86341 5p 'Our Little Secret'
+[RA] ach lock id=86342 10p 'Pour Some Sugar On Me, Baby'
+[RA] ach lock id=86343 10p 'Merry-Go-Down'
+[RA] ach lock id=86344 5p 'Grim Reaper's List'
+[RA] ach lock id=86345 5p 'The Stone of Time'
+[RA] ach lock id=83576 10p 'Wounds That Won't Heal'
+[RA] ach lock id=86347 5p 'Illuminating the Darkness'
+[RA] ach lock id=86517 10p 'What Is Keeping That Child Alive?'
+[RA] ach lock id=86348 3p 'What's Going On with That Refrigerator?'
+[RA] ach lock id=86428 10p 'My Heaven'
+[RA] ach lock id=86518 10p 'Awakening'
+[RA] ach lock id=86503 10p 'The Archer and the Beast'
+[RA] ach lock id=86504 10p 'The Pit of Calamity'
+[RA] ach lock id=86505 10p 'Erratic'
+[RA] ach lock id=86513 10p 'Sifod'
+[RA] ach lock id=86519 10p 'Thank You...'
+[RA] ach lock id=86023 5p 'Target Practice'
+[RA] ach lock id=86022 10p 'Triggered'
+[RA] ach lock id=86024 25p 'Gun Control: Alessa's New Nightmare'
+[RA] ach lock id=86026 10p 'Fa-fa-fa-fa, Fa-fa-fa-fa-fa, Fa, Better'
+[RA] ach lock id=86027 25p 'Hammerin' Harry'
+[RA] ach lock id=86346 10p 'Doomsday Prepper'
+[RA] ach lock id=86349 10p 'Drillin' Like a Villain'
+[RA] ach lock id=84003 10p 'Harry the Weeb'
+[RA] ach lock id=84004 10p 'Silent Hill Chainsaw Massacre'
+[RA] ach lock id=86520 10p 'A Gift from Outer Space'
+[RA] ach lock id=86507 10p 'Like the Back of My Hand I'
+[RA] ach lock id=86508 10p 'Like the Back of My Hand II'
+[RA] ach lock id=86509 10p 'Like the Back of My Hand III'
+[RA] ach lock id=86510 10p 'Like the Back of My Hand IV'
+[RA] ach lock id=86516 5p 'Like the Back of My Hand V'
+[RA] ach lock id=86663 5p 'Scary Harry I'
+[RA] ach lock id=86664 10p 'Scary Harry II'
+[RA] ach lock id=86665 10p 'Scary Harry III'
+[RA] ach lock id=86666 10p 'Scary Harry IV'
+[RA] ach lock id=86667 10p 'Scary Harry V'
+[RA] ach lock id=86668 10p 'Scary Harry VI'
+[RA] ach lock id=86422 25p 'Harry the Swift'
+[RA] ach lock id=86423 25p 'Daring Harry'
+[RA] ach lock id=86424 5p 'Harry the Okay'
+[RA] ach lock id=86425 10p 'Harry the Good'
+[RA] ach lock id=86426 25p 'Harry the Great'
+[RA] ach lock id=86427 50p 'Harry the Best'
+[RA] ach lock id=86662 5p 'That Light...'
+[RA] ach lock id=86502 5p 'UFO Sighting I'
+[RA] ach lock id=86511 5p 'UFO Sighting II'
+[RA] ach lock id=86512 5p 'UFO Sighting III'
+[RA] ach lock id=86514 5p 'UFO Sighting IV'
+[RA] ach lock id=86515 5p 'UFO Sighting V'
+[RA] ach lock id=86429 25p 'Tears of...'
+[RA] ach lock id=86430 10p 'Killing Time'
+[RA] ach lock id=86431 10p 'She'
+[RA] ach lock id=86432 10p 'Esperandote'
+[RA] ach lock id=86433 10p 'Ayyy'
+[RA] ach UNLK id=101000001 0p 'Warning: Unknown Emulator'
+[RA] ach UNLK id=86483 3p 'What a Nightmare...'
+[RA] ach UNLK id=84008 10p 'Who's Afraid of a Reptile?'
+[RA] ach UNLK id=86025 5p 'Knife to Meet You'
+[RA] roster: 63 locked, 4 unlocked (67 total)
+RetroAchievements: 3/66 (18 pts)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=0 -> IOE (n=2)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=0 -> IOE (n=1)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=0 -> IOE (n=1)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=0 (n=1)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[MCFSM] state=6 step=0 (was 0/0 after 0 f)
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCFSM] state=7 step=0 (was 6/0 after 0 f)
+[MCFSM] state=7 step=2 (was 7/0 after 0 f)
+[MCRD] read h=1 dir=1 ofs=512 len=256 ok
+[LOOSE/INIT] allow_loose_files=0  base=gamedata/load/  verbose=no
+[MCFSM] state=7 step=3 (was 7/2 after 0 f)
+[MCFSM] state=0 step=0 (was 7/3 after 0 f)
+[BOOT0/TIM] PostLoadTim file=6 'FONT16.TIM' ss=0x287 img.u=0 img.v=240 tPage=0,16 clutX=304 clutY=511
+[BOOT0/TIM] post ReadTIM: prect=0xfacaa4 caddr=0xfaca80 paddr=0xfacaac mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(0,496 256x16)
+[FONTCLOB] Load x=0 y=496 w=256 h=16
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,511 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=1 -> IOE (n=3)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=8 'KONAMI.TIM' ss=0x28e img.u=0 img.v=0 tPage=0,12 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfacaa4 caddr=0xfaca80 paddr=0xfacaac mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 96x384)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=1 -> IOE (n=4)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=1 -> IOE (n=2)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=1 -> IOE (n=2)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=1 (n=2)
+[SH-XBOX] GameState -> 1 (step 0)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[VRAM] texture cache: 27/96 slots (256KB each), free=8424KB after
+[VRAM] cache capped by 8MB heap reserve (expect decode thrash)
+[VRAM] cache grew to 28 slots (free=8168KB)
+[VRAM] miss cause: evict=0 inval=0 cold=2 (alloc=29)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=2 -> IOE (n=5)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=9 'KONAMI2.TIM' ss=0x2b3 img.u=0 img.v=0 tPage=0,14 clutX=0 clutY=1
+[BOOT0/TIM] post ReadTIM: prect=0xfacaa4 caddr=0xfaca80 paddr=0xfacaac mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(896,0 104x160)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,1 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=2 -> IOE (n=6)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=2 -> IOE (n=3)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=2 -> IOE (n=3)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=2 (n=3)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=1423 'HERO.TIM' ss=0x5a6a img.u=0 img.v=0 tPage=0,27 clutX=736 clutY=480
+[BOOT0/TIM] post ReadTIM: prect=0xfacc64 caddr=0xfaca80 paddr=0xfacc6c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,256 64x192)
+[BOOT0/TIM] pre CLUT LoadImage rect=(736,480 16x15)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=3 -> IOE (n=7)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=3 -> IOE (n=8)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=3 -> IOE (n=4)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=3 -> IOE (n=4)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=1802 'BLD.TIM' ss=0x795b img.u=0 img.v=0 tPage=0,11 clutX=304 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb7484 caddr=0xfb7280 paddr=0xfb748c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=3 (n=4)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=16 -> IOE (n=9)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=16 -> IOE (n=10)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=16 -> IOE (n=5)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=16 -> IOE (n=5)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=8 (n=5)
+[MCRD] open 'bu10:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=512 len=256 ok
+[MCRD] card_info chan=17 -> IOE (n=11)
+[MCRD] card_info chan=17 -> IOE (n=12)
+[MCRD] card_clear chan=17 -> IOE (n=6)
+[MCRD] card_load chan=17 -> IOE (n=6)
+[MCRD] dir scan chan=9 (n=6)
+[MCRD] card_info chan=18 -> IOE (n=13)
+[MCRD] card_info chan=18 -> IOE (n=14)
+[MCRD] card_clear chan=18 -> IOE (n=7)
+[MCRD] card_load chan=18 -> IOE (n=7)
+[MCRD] dir scan chan=10 (n=7)
+[MCRD] card_info chan=19 -> IOE (n=15)
+[MCRD] card_info chan=19 -> IOE (n=16)
+[MCRD] card_clear chan=19 -> IOE (n=8)
+[MCRD] card_load chan=19 -> IOE (n=8)
+[MCRD] dir scan chan=11 (n=8)
+[FT] avgMs=27 worstMs=539 gameMs=13 drawMs=17 swapWait=0ms draws=4 decodes=4 decMs=3
+[OTS] f=120 calls=2 n0=27 n1=18 prims=984 bb=-320,3520,-411,1131
+[OTT] walkUs=58 texUs=2 emitUs=3 submitUs=18 otherUs=33 prims=6 usPerPrim=9
+[FT] avgMs=17 worstMs=50 gameMs=15 drawMs=1 swapWait=0ms draws=6 decodes=0 decMs=0
+[OTS] f=240 calls=1 n0=27 n1=18 prims=1320 bb=160,2080,-25,745
+[OTT] walkUs=591 texUs=2 emitUs=3 submitUs=18 otherUs=566 prims=6 usPerPrim=98
+[FT] avgMs=17 worstMs=49 gameMs=15 drawMs=1 swapWait=0ms draws=5 decodes=0 decMs=0
+[OTS] f=360 calls=1 n0=27 n1=18 prims=1314 bb=160,2080,-25,745
+[OTT] walkUs=609 texUs=2 emitUs=4 submitUs=18 otherUs=583 prims=6 usPerPrim=101
+[FT] avgMs=17 worstMs=81 gameMs=15 drawMs=1 swapWait=0ms draws=6 decodes=0 decMs=0
+[OTS] f=480 calls=1 n0=27 n1=18 prims=1320 bb=160,2080,-25,745
+[OTT] walkUs=410 texUs=2 emitUs=3 submitUs=21 otherUs=381 prims=6 usPerPrim=68
+[FT] avgMs=17 worstMs=49 gameMs=15 drawMs=1 swapWait=1ms draws=6 decodes=0 decMs=0
+[SH-XBOX] vblank 600
+[MEM] tick: free=7392KB (1848 pages)
+[OTS] f=600 calls=1 n0=27 n1=18 prims=1320 bb=160,2080,-25,745
+[OTT] walkUs=152 texUs=2 emitUs=3 submitUs=21 otherUs=125 prims=6 usPerPrim=25
+[SH-XBOX] GameState -> 2 (step 0)
+[BOOT0/TIM] PostLoadTim file=1799 'BG_ETC.TIM' ss=0x7906 img.u=0 img.v=0 tPage=0,12 clutX=192 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfacbe4 caddr=0xfaca80 paddr=0xfacbec mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(192,0 16x11)
+[BOOT0/TIM] PostLoadTim done
+[FT] avgMs=17 worstMs=51 gameMs=15 drawMs=2 swapWait=0ms draws=5 decodes=2 decMs=0
+[OTS] f=720 calls=2 n0=23 n1=18 prims=1097 bb=160,2080,-25,745
+[OTT] walkUs=303 texUs=2 emitUs=2 submitUs=14 otherUs=285 prims=4 usPerPrim=75
+[FT] avgMs=16 worstMs=47 gameMs=15 drawMs=1 swapWait=0ms draws=4 decodes=0 decMs=0
+[OTS] f=840 calls=1 n0=23 n1=18 prims=840 bb=160,2080,-25,745
+[OTT] walkUs=40 texUs=2 emitUs=2 submitUs=12 otherUs=23 prims=4 usPerPrim=10
+[MCRD] card_info chan=19 -> IOE (n=256)
+[FT] avgMs=17 worstMs=50 gameMs=15 drawMs=1 swapWait=0ms draws=4 decodes=0 decMs=0
+[OTS] f=960 calls=1 n0=23 n1=18 prims=840 bb=160,2080,-25,745
+[OTT] walkUs=175 texUs=2 emitUs=2 submitUs=13 otherUs=156 prims=4 usPerPrim=43
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=768 len=128 ok
+[FT] avgMs=17 worstMs=67 gameMs=15 drawMs=2 swapWait=0ms draws=3 decodes=0 decMs=0
+[OTS] f=1080 calls=1 n0=23 n1=18 prims=734 bb=160,2080,-25,745
+[OTT] walkUs=44 texUs=2 emitUs=2 submitUs=14 otherUs=24 prims=4 usPerPrim=11
+[FT] avgMs=17 worstMs=50 gameMs=15 drawMs=1 swapWait=0ms draws=4 decodes=0 decMs=0
+[SH-XBOX] vblank 1200
+[MEM] tick: free=6880KB (1720 pages)
+[OTS] f=1200 calls=1 n0=23 n1=18 prims=840 bb=160,2080,-25,745
+[OTT] walkUs=49 texUs=2 emitUs=4 submitUs=14 otherUs=27 prims=4 usPerPrim=12
+[FT] avgMs=17 worstMs=52 gameMs=15 drawMs=1 swapWait=0ms draws=4 decodes=0 decMs=0
+[OTS] f=1320 calls=1 n0=23 n1=18 prims=840 bb=160,2080,-25,745
+[OTT] walkUs=287 texUs=1 emitUs=3 submitUs=13 otherUs=268 prims=4 usPerPrim=71
+[BOOT0/TIM] PostLoadTim file=1980 'TITLE_E.TIM' ss=0x90b7 img.u=32 img.v=0 tPage=1,13 clutX=224 clutY=15
+[BOOT0/TIM] post ReadTIM: prect=0xf7cc84 caddr=0xf7ca80 paddr=0xf7cc8c mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 160x480)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,15 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 6 (step 0)
+[SH] open_main: playing FMV (file=2053 frames=0)
+[FMV] no avi for C1_20670 (checked D:\fmv, D:\gamedata\fmv) -> MDEC
+[FMV] start C1_20670 file_idx=2053 base=133127 sectors=20670 maxFrames=0 (15fps)
+[XA] fmv stream open: 37800Hz stereo coding=0x01
+[FMV] video 320x208, 9 sectors/frame
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[FT] avgMs=38 worstMs=191 gameMs=11 drawMs=26 swapWait=0ms draws=0 decodes=2 decMs=0
+[FT] avgMs=39 worstMs=96 gameMs=9 drawMs=29 swapWait=0ms draws=1 decodes=0 decMs=0
+[FMV] frame=150 dropped=1 fails=0 ring=1536 fed=187
+[FMV] skipped at frame 172
+[XA] fmv stream end: 214 sectors fed, 448 ring frames discarded
+[FMV] end C1_20670: 172 frames (2 dropped, 0 decode fails, 291 presents)
+[SH] open_main: FMV_Play returned
+[SH-XBOX] GameState -> 7 (step 0)
+[BOOT-STEP] GameStartup step=0 qlen=0
+[TRANSITION] GameStartup step=0: processFlags=0x20 (BootDemo) sizeof(s_WorldGfxWork)=11708
+[BOOT-STEP] GameStartup step=1 qlen=0
+[FT] avgMs=29 worstMs=103 gameMs=11 drawMs=18 swapWait=0ms draws=8 decodes=6 decMs=4
+[OTS] f=1680 calls=2 n0=2056 n1=295 prims=12678 bb=-320,3520,-411,1542
+[OTT] walkUs=1961 texUs=8 emitUs=1014 submitUs=85 otherUs=853 prims=253 usPerPrim=7
+[FT] avgMs=17 worstMs=64 gameMs=13 drawMs=3 swapWait=0ms draws=21 decodes=0 decMs=0
+[SH-XBOX] vblank 1800
+[MEM] tick: free=4312KB (1078 pages)
+[OTS] f=1800 calls=2 n0=2056 n1=295 prims=34440 bb=-35,1120,-25,797
+[OTT] walkUs=2001 texUs=7 emitUs=1015 submitUs=81 otherUs=896 prims=253 usPerPrim=7
+[FT] avgMs=17 worstMs=46 gameMs=13 drawMs=3 swapWait=0ms draws=21 decodes=0 decMs=0
+[OTS] f=1920 calls=2 n0=2056 n1=295 prims=34440 bb=-35,1120,-25,797
+[OTT] walkUs=2474 texUs=7 emitUs=1012 submitUs=527 otherUs=925 prims=253 usPerPrim=9
+[MCRD] card_info chan=19 -> IOE (n=512)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1281 (Sfx_Base+1) vol=0
+[BOOT0/TIM] PostLoadTim file=1939 'SAVELOAD.TIM' ss=0x8ced img.u=0 img.v=16 tPage=1,5 clutX=224 clutY=14
+[BOOT0/TIM] post ReadTIM: prect=0xfacc84 caddr=0xfaca80 paddr=0xfacc8c mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(320,16 160x240)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,14 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 8 (step 0)
+[FT] avgMs=19 worstMs=138 gameMs=14 drawMs=5 swapWait=0ms draws=38 decodes=4 decMs=3
+[OTS] f=2040 calls=2 n0=2052 n1=312 prims=33499 bb=-320,3520,-411,1542
+[OTT] walkUs=1957 texUs=18 emitUs=190 submitUs=368 otherUs=1380 prims=187 usPerPrim=10
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=0
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=896 len=640 ok
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=768 len=128 ok
+[CHARA-TEX] charaId=1 matCount=1 modelCount=23
+[CHARA-TEX] mat[0] name='HERO' field_C=1 E=0x3b F=0x3b clut=0x782e UV=0x0000 tex=0
+[CHARA-TEX] prim0: f0=0x135b(UV0) f2=0x7a6e(clut) f4=0x1651(UV1) f6=0x003b(tpage) f8=0x1251(UV2) fA=0x0000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,27] u=0 v=0 clutXY=(736,480)
+[AUTO-EQUIP-CHECK] mapIdx=1 processFlags=0x8 inventorySlotCount=8 equippedWeapon=0
+[MAP-LOAD] GameBoot_MapLoad mapIdx=1 (map0_s01) fileIdx=1996 linked=1 procFlags=0x8
+[MAP-LOAD] MapRegistry_Load(1)=map0_s01 linked=1 header=00596af0
+[MEM] after map-load: free=4312KB (1078 pages)
+[LANG] USA disc-patch skipped on Xbox (compiled text kept)
+[BOOT0/TIM] PostLoadTim file=1849 'GLASS.TIM' ss=0x7ec3 img.u=0 img.v=0 tPage=0,13 clutX=224 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfbeaa4 caddr=0xfbea80 paddr=0xfbeaac mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(832,0 16x64)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,0 16x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 10 (step 0)
+[BOOT-STEP] GameStartup step=0 qlen=0
+[TRANSITION] GameStartup step=0: processFlags=0x8 (LoadSave) sizeof(s_WorldGfxWork)=11708
+[BOOT-STEP] GameStartup step=3 qlen=0
+[BOOT-STEP] GameStartup step=4 qlen=0
+[BOOT-STEP] GameStartup step=5 qlen=0
+[BOOT-STEP] GameStartup step=7 qlen=0
+[TRANSITION] GameStartup step=7: processFlags=0x8 playerPos=(18814,819,1088367) func_80039F90=0x0
+[IPD-INIT] Ipd_MapFileInfoSet: mapTag='THR' activeIpdCount=4 isExterior=1 plmIdx=1370 ipdFileIdx=0 textureFileIdx=0 curSize=0 willRebuildGrid=1
+[MEM] after chunk-buffers: free=2776KB (694 pages)
+[TRANSITION] GameStartup step=7 post-init: playerPos=(18814,819,1088367) mapTag='THR'
+[BOOT-STEP] GameStartup step=8 qlen=8
+[BOOT0/TIM] PostLoadTim file=1073 'THR0001F.TIM' ss=0x45d8 img.u=0 img.v=0 tPage=0,8 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb6b44 caddr=0xfb6a80 paddr=0xfb6b4c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x6)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (512,0 64x256) hits PINNED pool slot 0 'THR0001F' (512,0)
+[BOOT0/TIM] PostLoadTim file=1077 'THR0003F.TIM' ss=0x4625 img.u=0 img.v=0 tPage=0,9 clutX=16 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb6c44 caddr=0xfb6a80 paddr=0xfb6c4c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(16,0 16x14)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (576,0 64x256) hits PINNED pool slot 1 'THR0003F' (576,0)
+[BOOT0/TIM] PostLoadTim file=1075 'THR0002F.TIM' ss=0x45fe img.u=0 img.v=0 tPage=0,10 clutX=32 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb6bc4 caddr=0xfb6a80 paddr=0xfb6bcc mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(640,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(32,0 16x10)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (640,0 64x256) hits PINNED pool slot 2 'THR0002F' (640,0)
+[BOOT0/TIM] PostLoadTim file=1079 'THR0004F.TIM' ss=0x4644 img.u=0 img.v=0 tPage=0,21 clutX=48 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb6c84 caddr=0xfb6a80 paddr=0xfb6c8c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(320,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(48,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (320,256 64x256) hits PINNED pool slot 3 'THR0004F' (320,256)
+[BOOT0/TIM] PostLoadTim file=1269 'THRCF3.TIM' ss=0x51fa img.u=0 img.v=0 tPage=0,22 clutX=64 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb6c64 caddr=0xfb6a80 paddr=0xfb6c6c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(384,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(64,0 16x15)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (384,256 64x256) hits PINNED pool slot 4 'THRCF3' (384,256)
+[BOOT0/TIM] PostLoadTim file=1268 'THRCF2.TIM' ss=0x51e9 img.u=0 img.v=0 tPage=0,23 clutX=80 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb6c64 caddr=0xfb6a80 paddr=0xfb6c6c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(448,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(80,0 16x15)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (448,256 64x256) hits PINNED pool slot 5 'THRCF2' (448,256)
+[BOOT0/TIM] PostLoadTim file=1270 'THRCF4.TIM' ss=0x520b img.u=0 img.v=0 tPage=0,24 clutX=96 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb6b24 caddr=0xfb6a80 paddr=0xfb6b2c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(96,0 16x5)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (512,256 64x256) hits PINNED pool slot 6 'THRCF4' (512,256)
+[BOOT0/TIM] PostLoadTim file=1267 'THRCF1.TIM' ss=0x51d8 img.u=0 img.v=0 tPage=0,25 clutX=112 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfb6c64 caddr=0xfb6a80 paddr=0xfb6c6c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(112,0 16x15)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (576,256 64x256) hits PINNED pool slot 7 'THRCF1' (576,256)
+[TEXVRAM] 'THR0001F' tPage=[0,8] clutXY=(0,0) uv=(0,0)
+[TEXVRAM] 'THR0003F' tPage=[0,9] clutXY=(16,0) uv=(0,0)
+[TEXVRAM] 'THR0002F' tPage=[0,10] clutXY=(32,0) uv=(0,0)
+[TEXVRAM] 'THR0004F' tPage=[0,21] clutXY=(48,0) uv=(0,0)
+[TEXVRAM] 'THRCF3' tPage=[0,22] clutXY=(64,0) uv=(0,0)
+[TEXVRAM] 'THRCF2' tPage=[0,23] clutXY=(80,0) uv=(0,0)
+[TEXVRAM] 'THRCF4' tPage=[0,24] clutXY=(96,0) uv=(0,0)
+[TEXVRAM] 'THRCF1' tPage=[0,25] clutXY=(112,0) uv=(0,0)
+[BOOT-STEP] GameStartup step=9 qlen=0
+[BOOT-STEP] GameStartup step=10 qlen=0
+[SH_AMB] Sd_AmbientSfxSet idx=3 -> loadCmd=171
+[SH_AMB] Sd_VabLoad ambient cmd=171 type=2 dedup=0
+[BOOT-STEP] GameStartup step=11 qlen=0
+[FT] avgMs=24 worstMs=658 gameMs=12 drawMs=11 swapWait=0ms draws=49 decodes=12 decMs=15
+[OTS] f=2160 calls=2 n0=2052 n1=18 prims=20570 bb=-320,3520,-411,1131
+[OTT] walkUs=131 texUs=3 emitUs=3 submitUs=9 otherUs=114 prims=3 usPerPrim=43
+[BOOT0/TIM] PostLoadTim file=1449 'REBIRD.TIM' ss=0x5b2c img.u=0 img.v=0 tPage=0,28 clutX=704 clutY=464
+[BOOT0/TIM] post ReadTIM: prect=0xfacb44 caddr=0xfaca80 paddr=0xfacb4c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,256 32x128)
+[BOOT0/TIM] pre CLUT LoadImage rect=(704,464 16x6)
+[BOOT0/TIM] PostLoadTim done
+[CHARA-TEX] charaId=2 matCount=1 modelCount=16
+[CHARA-TEX] mat[0] name='REBIRD' field_C=1 E=0x5c F=0x5c clut=0x742c UV=0x0000 tex=0
+[CHARA-TEX] prim0: f0=0x2971(UV0) f2=0x74ac(clut) f4=0x1d6a(UV1) f6=0x005c(tpage) f8=0x2077(UV2) fA=0x0000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,28] u=0 v=0 clutXY=(704,464)
+[MEM] dms-load: free=2776KB (694 pages)
+[SFX] Sd_SfxStop: sfxId=1300 (Sfx_Base+20)
+[SFX] Sd_SfxStop: sfxId=1302 (Sfx_Base+22)
+[SFX] Sd_SfxStop: sfxId=1301 (Sfx_Base+21)
+[SFX] Sd_SfxStop: sfxId=1303 (Sfx_Base+23)
+[SFX] Sd_SfxStop: sfxId=1321 (Sfx_Base+41)
+[SFX] Sd_SfxStop: sfxId=1322 (Sfx_Base+42)
+[WOBJ] resolved 'RADIO_HI' lmIdx=3
+[WOBJ] resolved 'KNIFE_HI' lmIdx=3
+[WOBJ] resolved 'IN1_HIDE' lmIdx=4
+[WOBJ] resolved 'IN_BLD1_' lmIdx=4
+[WOBJ] resolved 'DRINK_NE' lmIdx=1
+[BOOT0/TIM] PostLoadTim file=1505 'TIM00.TIM' ss=0x5dcb img.u=0 img.v=0 tPage=0,15 clutX=176 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfacc84 caddr=0xfaca80 paddr=0xfacc8c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(960,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(176,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[BOOT-STEP] GameStartup step=12 qlen=2
+[SH-XBOX] GameState -> 11 (step 0)
+[FOGST-GPU] clear=0xff6c6474
+[BOOT0/TIM] PostLoadTim file=1514 'TIM07.TIM' ss=0x5e64 img.u=32 img.v=0 tPage=0,13 clutX=240 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfacb84 caddr=0xfaca80 paddr=0xfacb8c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(240,0 16x8)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1509 'TIM02.TIM' ss=0x5e0f img.u=0 img.v=0 tPage=0,14 clutX=160 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfacc84 caddr=0xfaca80 paddr=0xfacc8c mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(896,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(160,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[FT] avgMs=19 worstMs=89 gameMs=9 drawMs=9 swapWait=0ms draws=56 decodes=18 decMs=11
+[OTS] f=2280 calls=4 n0=2321 n1=16 prims=17502 bb=-1448,3520,-2134,3648
+[OTT] walkUs=2736 texUs=41 emitUs=1112 submitUs=269 otherUs=1313 prims=270 usPerPrim=10
+[SH-XBOX] vblank 2400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=108 decodes=3 decMs=2
+[OTS] f=2400 calls=2 n0=2332 n1=16 prims=32926 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2750 texUs=43 emitUs=1129 submitUs=294 otherUs=1282 prims=281 usPerPrim=9
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=2520 calls=2 n0=2320 n1=16 prims=33730 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2763 texUs=42 emitUs=1090 submitUs=291 otherUs=1338 prims=269 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=101 decodes=0 decMs=0
+[OTS] f=2640 calls=2 n0=2323 n1=16 prims=32527 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2745 texUs=40 emitUs=1116 submitUs=246 otherUs=1341 prims=272 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=106 decodes=0 decMs=0
+[OTS] f=2760 calls=2 n0=2326 n1=16 prims=33021 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2861 texUs=43 emitUs=1111 submitUs=373 otherUs=1332 prims=275 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=1 decMs=0
+[OTS] f=2880 calls=2 n0=2326 n1=16 prims=33655 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2887 texUs=44 emitUs=1103 submitUs=302 otherUs=1436 prims=275 usPerPrim=10
+[SH-XBOX] vblank 3000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=125 decodes=0 decMs=0
+[OTS] f=3000 calls=2 n0=2327 n1=16 prims=33480 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3066 texUs=45 emitUs=1111 submitUs=313 otherUs=1596 prims=276 usPerPrim=11
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=117 decodes=0 decMs=0
+[OTS] f=3120 calls=2 n0=2318 n1=16 prims=32657 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2957 texUs=43 emitUs=1086 submitUs=288 otherUs=1539 prims=267 usPerPrim=11
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=109 decodes=0 decMs=0
+[OTS] f=3240 calls=2 n0=2322 n1=16 prims=33120 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2905 texUs=40 emitUs=1110 submitUs=252 otherUs=1501 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=104 decodes=0 decMs=0
+[OTS] f=3360 calls=2 n0=2327 n1=16 prims=33093 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3101 texUs=43 emitUs=1115 submitUs=327 otherUs=1614 prims=276 usPerPrim=11
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=3480 calls=2 n0=2321 n1=16 prims=33621 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3161 texUs=43 emitUs=1088 submitUs=299 otherUs=1729 prims=270 usPerPrim=11
+[SH-XBOX] vblank 3600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=17 worstMs=73 gameMs=6 drawMs=10 swapWait=0ms draws=126 decodes=0 decMs=0
+[OTS] f=3600 calls=2 n0=2331 n1=16 prims=33678 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2970 texUs=46 emitUs=1136 submitUs=317 otherUs=1471 prims=280 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=3720 calls=2 n0=2327 n1=16 prims=32841 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2719 texUs=44 emitUs=1115 submitUs=417 otherUs=1141 prims=276 usPerPrim=9
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=107 decodes=0 decMs=0
+[OTS] f=3840 calls=2 n0=2312 n1=16 prims=32719 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2582 texUs=39 emitUs=1075 submitUs=243 otherUs=1223 prims=261 usPerPrim=9
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=105 decodes=0 decMs=0
+[OTS] f=3960 calls=2 n0=2328 n1=16 prims=33205 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2941 texUs=43 emitUs=1108 submitUs=379 otherUs=1409 prims=277 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=4080 calls=2 n0=2326 n1=16 prims=33475 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2838 texUs=44 emitUs=1101 submitUs=302 otherUs=1389 prims=275 usPerPrim=10
+[SH-XBOX] vblank 4200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=4200 calls=2 n0=2323 n1=16 prims=33007 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2860 texUs=45 emitUs=1096 submitUs=319 otherUs=1399 prims=272 usPerPrim=10
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=1ms draws=121 decodes=0 decMs=0
+[OTS] f=4320 calls=2 n0=2321 n1=16 prims=33088 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3013 texUs=43 emitUs=1110 submitUs=293 otherUs=1564 prims=270 usPerPrim=11
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=109 decodes=0 decMs=0
+[OTS] f=4440 calls=2 n0=2320 n1=16 prims=32647 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2673 texUs=41 emitUs=1092 submitUs=263 otherUs=1275 prims=269 usPerPrim=9
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=4560 calls=2 n0=2321 n1=16 prims=32940 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2857 texUs=42 emitUs=1098 submitUs=280 otherUs=1436 prims=270 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=4680 calls=2 n0=2323 n1=16 prims=33247 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2916 texUs=44 emitUs=1092 submitUs=309 otherUs=1469 prims=272 usPerPrim=10
+[SH-XBOX] vblank 4800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=4800 calls=2 n0=2332 n1=16 prims=33055 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2934 texUs=46 emitUs=1124 submitUs=447 otherUs=1316 prims=281 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=125 decodes=0 decMs=0
+[OTS] f=4920 calls=2 n0=2313 n1=16 prims=33392 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2946 texUs=42 emitUs=1069 submitUs=303 otherUs=1531 prims=262 usPerPrim=11
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=112 decodes=0 decMs=0
+[OTS] f=5040 calls=2 n0=2323 n1=16 prims=32681 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3084 texUs=42 emitUs=1101 submitUs=280 otherUs=1660 prims=272 usPerPrim=11
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=1ms draws=99 decodes=0 decMs=0
+[OTS] f=5160 calls=2 n0=2329 n1=16 prims=32599 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2982 texUs=42 emitUs=1118 submitUs=273 otherUs=1548 prims=278 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=117 decodes=0 decMs=0
+[OTS] f=5280 calls=2 n0=2332 n1=16 prims=33827 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2643 texUs=45 emitUs=1118 submitUs=513 otherUs=966 prims=281 usPerPrim=9
+[SH-XBOX] vblank 5400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=5400 calls=2 n0=2322 n1=16 prims=32992 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2610 texUs=44 emitUs=1095 submitUs=312 otherUs=1158 prims=271 usPerPrim=9
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=5520 calls=2 n0=2327 n1=16 prims=32965 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2869 texUs=46 emitUs=1114 submitUs=292 otherUs=1415 prims=276 usPerPrim=10
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=114 decodes=0 decMs=0
+[OTS] f=5640 calls=2 n0=2320 n1=16 prims=32777 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2557 texUs=41 emitUs=1089 submitUs=272 otherUs=1152 prims=269 usPerPrim=9
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=101 decodes=0 decMs=0
+[OTS] f=5760 calls=2 n0=2320 n1=16 prims=32853 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2818 texUs=40 emitUs=1111 submitUs=255 otherUs=1411 prims=269 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=5880 calls=2 n0=2334 n1=16 prims=33718 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3195 texUs=46 emitUs=1128 submitUs=334 otherUs=1686 prims=283 usPerPrim=11
+[SH-XBOX] vblank 6000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=6000 calls=2 n0=2329 n1=16 prims=33553 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2946 texUs=46 emitUs=1110 submitUs=347 otherUs=1441 prims=278 usPerPrim=10
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=125 decodes=0 decMs=0
+[OTS] f=6120 calls=2 n0=2324 n1=16 prims=33309 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2784 texUs=43 emitUs=1104 submitUs=322 otherUs=1314 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=112 decodes=0 decMs=0
+[OTS] f=6240 calls=2 n0=2321 n1=16 prims=32451 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2725 texUs=43 emitUs=1094 submitUs=289 otherUs=1298 prims=270 usPerPrim=10
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=101 decodes=0 decMs=0
+[OTS] f=6360 calls=2 n0=2321 n1=16 prims=32723 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2748 texUs=41 emitUs=1103 submitUs=261 otherUs=1341 prims=270 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=108 decodes=0 decMs=0
+[OTS] f=6480 calls=2 n0=2323 n1=16 prims=33118 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2917 texUs=44 emitUs=1092 submitUs=294 otherUs=1486 prims=272 usPerPrim=10
+[SH-XBOX] vblank 6600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=6600 calls=2 n0=2327 n1=16 prims=33362 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3145 texUs=43 emitUs=1107 submitUs=342 otherUs=1651 prims=276 usPerPrim=11
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=127 decodes=0 decMs=0
+[OTS] f=6720 calls=2 n0=2322 n1=16 prims=33705 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2809 texUs=45 emitUs=1099 submitUs=403 otherUs=1261 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=112 decodes=0 decMs=0
+[OTS] f=6840 calls=2 n0=2312 n1=16 prims=32331 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2821 texUs=41 emitUs=1057 submitUs=273 otherUs=1447 prims=261 usPerPrim=10
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=101 decodes=0 decMs=0
+[OTS] f=6960 calls=2 n0=2321 n1=16 prims=32493 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2873 texUs=41 emitUs=1108 submitUs=266 otherUs=1457 prims=270 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=108 decodes=0 decMs=0
+[OTS] f=7080 calls=2 n0=2332 n1=16 prims=33260 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2970 texUs=45 emitUs=1125 submitUs=299 otherUs=1500 prims=281 usPerPrim=10
+[SH-XBOX] vblank 7200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=7200 calls=2 n0=2327 n1=16 prims=33515 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3148 texUs=44 emitUs=1099 submitUs=329 otherUs=1673 prims=276 usPerPrim=11
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=125 decodes=0 decMs=0
+[OTS] f=7320 calls=2 n0=2322 n1=16 prims=33543 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3164 texUs=45 emitUs=1092 submitUs=306 otherUs=1721 prims=271 usPerPrim=11
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=7440 calls=2 n0=2323 n1=16 prims=32384 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2651 texUs=43 emitUs=1109 submitUs=357 otherUs=1140 prims=272 usPerPrim=9
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=104 decodes=0 decMs=0
+[OTS] f=7560 calls=2 n0=2315 n1=16 prims=32540 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2513 texUs=40 emitUs=1073 submitUs=312 otherUs=1088 prims=264 usPerPrim=9
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=106 decodes=0 decMs=0
+[OTS] f=7680 calls=2 n0=2330 n1=16 prims=33281 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2762 texUs=45 emitUs=1123 submitUs=295 otherUs=1298 prims=279 usPerPrim=9
+[SH-XBOX] vblank 7800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=7800 calls=2 n0=2325 n1=16 prims=33631 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2859 texUs=44 emitUs=1099 submitUs=317 otherUs=1398 prims=274 usPerPrim=10
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=7920 calls=2 n0=2328 n1=16 prims=33162 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2933 texUs=45 emitUs=1126 submitUs=330 otherUs=1430 prims=277 usPerPrim=10
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=8040 calls=2 n0=2324 n1=16 prims=32946 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2720 texUs=43 emitUs=1107 submitUs=282 otherUs=1287 prims=273 usPerPrim=9
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=107 decodes=0 decMs=0
+[OTS] f=8160 calls=2 n0=2325 n1=16 prims=32665 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2720 texUs=41 emitUs=1105 submitUs=376 otherUs=1196 prims=274 usPerPrim=9
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=8280 calls=2 n0=2321 n1=16 prims=32902 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2633 texUs=45 emitUs=1090 submitUs=342 otherUs=1154 prims=270 usPerPrim=9
+[SH-XBOX] vblank 8400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=1ms draws=117 decodes=0 decMs=0
+[OTS] f=8400 calls=2 n0=2323 n1=16 prims=33318 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2786 texUs=43 emitUs=1081 submitUs=296 otherUs=1365 prims=272 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=8520 calls=2 n0=2329 n1=16 prims=33496 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3022 texUs=46 emitUs=1113 submitUs=347 otherUs=1515 prims=278 usPerPrim=10
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (16 bytes)
+[RA] http -> status=200 bodyLen=16 body='{"Success":true}'
+[FT] avgMs=20 worstMs=427 gameMs=6 drawMs=14 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=8640 calls=2 n0=2325 n1=16 prims=33138 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3108 texUs=44 emitUs=1107 submitUs=348 otherUs=1607 prims=274 usPerPrim=11
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=110 decodes=0 decMs=0
+[OTS] f=8760 calls=2 n0=2323 n1=16 prims=32775 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2564 texUs=42 emitUs=1102 submitUs=268 otherUs=1151 prims=272 usPerPrim=9
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=99 decodes=0 decMs=0
+[OTS] f=8880 calls=2 n0=2318 n1=16 prims=32537 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2799 texUs=41 emitUs=1091 submitUs=336 otherUs=1329 prims=267 usPerPrim=10
+[SH-XBOX] vblank 9000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=117 decodes=0 decMs=0
+[OTS] f=9000 calls=2 n0=2327 n1=16 prims=33502 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2863 texUs=45 emitUs=1106 submitUs=319 otherUs=1392 prims=276 usPerPrim=10
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=1ms draws=123 decodes=0 decMs=0
+[OTS] f=9120 calls=2 n0=2328 n1=16 prims=33622 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2897 texUs=46 emitUs=1110 submitUs=462 otherUs=1278 prims=277 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=9240 calls=2 n0=2315 n1=16 prims=32955 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2885 texUs=43 emitUs=1084 submitUs=299 otherUs=1458 prims=264 usPerPrim=10
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=112 decodes=0 decMs=0
+[OTS] f=9360 calls=2 n0=2321 n1=16 prims=32698 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3035 texUs=42 emitUs=1094 submitUs=489 otherUs=1410 prims=270 usPerPrim=11
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=99 decodes=0 decMs=0
+[OTS] f=9480 calls=2 n0=2325 n1=16 prims=32677 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2786 texUs=42 emitUs=1113 submitUs=412 otherUs=1218 prims=274 usPerPrim=10
+[SH-XBOX] vblank 9600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=116 decodes=0 decMs=0
+[OTS] f=9600 calls=2 n0=2324 n1=16 prims=33717 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2877 texUs=45 emitUs=1091 submitUs=313 otherUs=1427 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=9720 calls=2 n0=2325 n1=16 prims=33256 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2975 texUs=45 emitUs=1100 submitUs=554 otherUs=1274 prims=274 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=9840 calls=2 n0=2321 n1=16 prims=33055 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2779 texUs=43 emitUs=1107 submitUs=352 otherUs=1277 prims=270 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=1ms draws=112 decodes=0 decMs=0
+[OTS] f=9960 calls=2 n0=2323 n1=16 prims=32508 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2888 texUs=43 emitUs=1100 submitUs=310 otherUs=1433 prims=272 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=10080 calls=2 n0=2320 n1=16 prims=32900 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2543 texUs=42 emitUs=1099 submitUs=306 otherUs=1095 prims=269 usPerPrim=9
+[SH-XBOX] vblank 10200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=110 decodes=0 decMs=0
+[OTS] f=10200 calls=2 n0=2326 n1=16 prims=33125 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3103 texUs=46 emitUs=1108 submitUs=622 otherUs=1326 prims=275 usPerPrim=11
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=10320 calls=2 n0=2328 n1=16 prims=33013 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2758 texUs=45 emitUs=1111 submitUs=465 otherUs=1136 prims=277 usPerPrim=9
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=126 decodes=0 decMs=0
+[OTS] f=10440 calls=2 n0=2320 n1=16 prims=33495 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2608 texUs=44 emitUs=1078 submitUs=300 otherUs=1185 prims=269 usPerPrim=9
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=1ms draws=114 decodes=0 decMs=0
+[OTS] f=10560 calls=2 n0=2320 n1=16 prims=32598 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2847 texUs=43 emitUs=1092 submitUs=280 otherUs=1430 prims=269 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=66 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=10680 calls=2 n0=2322 n1=16 prims=32829 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2773 texUs=42 emitUs=1092 submitUs=285 otherUs=1353 prims=271 usPerPrim=10
+[SH-XBOX] vblank 10800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=1ms draws=111 decodes=0 decMs=0
+[OTS] f=10800 calls=2 n0=2331 n1=16 prims=33331 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2725 texUs=45 emitUs=1129 submitUs=381 otherUs=1170 prims=280 usPerPrim=9
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=10920 calls=2 n0=2324 n1=16 prims=33436 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2863 texUs=45 emitUs=1095 submitUs=313 otherUs=1409 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=125 decodes=0 decMs=0
+[OTS] f=11040 calls=2 n0=2318 n1=16 prims=33381 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2842 texUs=45 emitUs=1079 submitUs=433 otherUs=1284 prims=267 usPerPrim=10
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=116 decodes=0 decMs=0
+[OTS] f=11160 calls=2 n0=2313 n1=16 prims=32849 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2783 texUs=42 emitUs=1068 submitUs=568 otherUs=1103 prims=262 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=105 decodes=0 decMs=0
+[OTS] f=11280 calls=2 n0=2321 n1=16 prims=32847 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2887 texUs=41 emitUs=1103 submitUs=297 otherUs=1445 prims=270 usPerPrim=10
+[SH-XBOX] vblank 11400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=107 decodes=0 decMs=0
+[OTS] f=11400 calls=2 n0=2325 n1=16 prims=33149 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2812 texUs=44 emitUs=1101 submitUs=292 otherUs=1372 prims=274 usPerPrim=10
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=11520 calls=2 n0=2325 n1=16 prims=33282 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3000 texUs=45 emitUs=1102 submitUs=317 otherUs=1534 prims=274 usPerPrim=10
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=1ms draws=123 decodes=0 decMs=0
+[OTS] f=11640 calls=2 n0=2325 n1=16 prims=33313 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3062 texUs=45 emitUs=1105 submitUs=311 otherUs=1599 prims=274 usPerPrim=11
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=11760 calls=2 n0=2324 n1=16 prims=32974 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2944 texUs=44 emitUs=1106 submitUs=409 otherUs=1383 prims=273 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=105 decodes=0 decMs=0
+[OTS] f=11880 calls=2 n0=2319 n1=16 prims=32742 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2803 texUs=41 emitUs=1086 submitUs=265 otherUs=1409 prims=268 usPerPrim=10
+[SH-XBOX] vblank 12000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=106 decodes=0 decMs=0
+[OTS] f=12000 calls=2 n0=2326 n1=16 prims=33351 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2702 texUs=44 emitUs=1102 submitUs=291 otherUs=1264 prims=275 usPerPrim=9
+[FT] avgMs=16 worstMs=54 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=12120 calls=2 n0=2328 n1=16 prims=33831 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3012 texUs=44 emitUs=1109 submitUs=301 otherUs=1557 prims=277 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=12240 calls=2 n0=2330 n1=16 prims=33244 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2598 texUs=48 emitUs=1124 submitUs=374 otherUs=1051 prims=279 usPerPrim=9
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=117 decodes=0 decMs=0
+[OTS] f=12360 calls=2 n0=2319 n1=16 prims=32695 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2683 texUs=43 emitUs=1094 submitUs=287 otherUs=1258 prims=268 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=108 decodes=0 decMs=0
+[OTS] f=12480 calls=2 n0=2319 n1=16 prims=32793 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2616 texUs=40 emitUs=1095 submitUs=239 otherUs=1240 prims=268 usPerPrim=9
+[SH-XBOX] vblank 12600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=105 decodes=0 decMs=0
+[OTS] f=12600 calls=2 n0=2325 n1=16 prims=33197 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2699 texUs=43 emitUs=1101 submitUs=369 otherUs=1183 prims=274 usPerPrim=9
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=12720 calls=2 n0=2322 n1=16 prims=33567 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2746 texUs=44 emitUs=1091 submitUs=306 otherUs=1304 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=12840 calls=2 n0=2323 n1=16 prims=32846 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3029 texUs=44 emitUs=1094 submitUs=473 otherUs=1417 prims=272 usPerPrim=11
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=12960 calls=2 n0=2324 n1=16 prims=32858 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2864 texUs=44 emitUs=1108 submitUs=303 otherUs=1407 prims=273 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=111 decodes=0 decMs=0
+[OTS] f=13080 calls=2 n0=2322 n1=16 prims=32781 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2820 texUs=42 emitUs=1102 submitUs=273 otherUs=1402 prims=271 usPerPrim=10
+[SH-XBOX] vblank 13200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=100 decodes=0 decMs=0
+[OTS] f=13200 calls=2 n0=2322 n1=16 prims=32672 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2731 texUs=41 emitUs=1101 submitUs=263 otherUs=1324 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=13320 calls=2 n0=2326 n1=16 prims=33286 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2987 texUs=46 emitUs=1102 submitUs=320 otherUs=1518 prims=275 usPerPrim=10
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=13440 calls=2 n0=2324 n1=16 prims=33271 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2988 texUs=45 emitUs=1104 submitUs=377 otherUs=1461 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=1ms draws=121 decodes=0 decMs=0
+[OTS] f=13560 calls=2 n0=2317 n1=16 prims=32936 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2996 texUs=43 emitUs=1083 submitUs=296 otherUs=1572 prims=266 usPerPrim=11
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=13680 calls=2 n0=2323 n1=16 prims=33155 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2992 texUs=43 emitUs=1104 submitUs=302 otherUs=1541 prims=272 usPerPrim=11
+[SH-XBOX] vblank 13800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=98 decodes=0 decMs=0
+[OTS] f=13800 calls=2 n0=2320 n1=16 prims=32471 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2607 texUs=42 emitUs=1091 submitUs=267 otherUs=1207 prims=269 usPerPrim=9
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=114 decodes=0 decMs=0
+[OTS] f=13920 calls=2 n0=2325 n1=16 prims=33330 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2655 texUs=45 emitUs=1104 submitUs=303 otherUs=1202 prims=274 usPerPrim=9
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=14040 calls=2 n0=2328 n1=16 prims=33503 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2894 texUs=46 emitUs=1108 submitUs=321 otherUs=1418 prims=277 usPerPrim=10
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=124 decodes=0 decMs=0
+[OTS] f=14160 calls=2 n0=2320 n1=16 prims=33275 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2683 texUs=43 emitUs=1092 submitUs=311 otherUs=1235 prims=269 usPerPrim=9
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=45 gameMs=6 drawMs=10 swapWait=1ms draws=114 decodes=0 decMs=0
+[OTS] f=14280 calls=2 n0=2324 n1=16 prims=32726 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2750 texUs=43 emitUs=1101 submitUs=270 otherUs=1335 prims=273 usPerPrim=10
+[SH-XBOX] vblank 14400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=101 decodes=0 decMs=0
+[OTS] f=14400 calls=2 n0=2323 n1=16 prims=32772 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2900 texUs=42 emitUs=1108 submitUs=262 otherUs=1488 prims=272 usPerPrim=10
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=109 decodes=0 decMs=0
+[OTS] f=14520 calls=2 n0=2324 n1=16 prims=33157 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2650 texUs=45 emitUs=1104 submitUs=321 otherUs=1179 prims=273 usPerPrim=9
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=14640 calls=2 n0=2330 n1=16 prims=33561 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2818 texUs=46 emitUs=1110 submitUs=324 otherUs=1336 prims=279 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=124 decodes=0 decMs=0
+[OTS] f=14760 calls=2 n0=2319 n1=16 prims=33230 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2811 texUs=45 emitUs=1086 submitUs=405 otherUs=1274 prims=268 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=113 decodes=0 decMs=0
+[OTS] f=14880 calls=2 n0=2318 n1=16 prims=32487 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2606 texUs=42 emitUs=1084 submitUs=353 otherUs=1125 prims=267 usPerPrim=9
+[SH-XBOX] vblank 15000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=15000 calls=2 n0=2324 n1=16 prims=32824 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2784 texUs=42 emitUs=1099 submitUs=282 otherUs=1359 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=108 decodes=0 decMs=0
+[OTS] f=15120 calls=2 n0=2330 n1=16 prims=33202 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3072 texUs=43 emitUs=1125 submitUs=520 otherUs=1382 prims=279 usPerPrim=11
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=15240 calls=2 n0=2320 n1=16 prims=33252 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2672 texUs=45 emitUs=1085 submitUs=309 otherUs=1232 prims=269 usPerPrim=9
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=15360 calls=2 n0=2320 n1=16 prims=33269 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2955 texUs=45 emitUs=1085 submitUs=313 otherUs=1511 prims=269 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=116 decodes=0 decMs=0
+[OTS] f=15480 calls=2 n0=2328 n1=16 prims=32659 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3029 texUs=44 emitUs=1120 submitUs=295 otherUs=1569 prims=277 usPerPrim=10
+[SH-XBOX] vblank 15600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=103 decodes=0 decMs=0
+[OTS] f=15600 calls=2 n0=2318 n1=16 prims=32614 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2752 texUs=40 emitUs=1098 submitUs=422 otherUs=1190 prims=267 usPerPrim=10
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (16 bytes)
+[RA] http -> status=200 bodyLen=16 body='{"Success":true}'
+[FT] avgMs=18 worstMs=224 gameMs=6 drawMs=12 swapWait=1ms draws=106 decodes=0 decMs=0
+[OTS] f=15720 calls=2 n0=2325 n1=16 prims=33062 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2717 texUs=44 emitUs=1108 submitUs=281 otherUs=1283 prims=274 usPerPrim=9
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=15840 calls=2 n0=2321 n1=16 prims=33515 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2712 texUs=44 emitUs=1092 submitUs=296 otherUs=1279 prims=270 usPerPrim=10
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=15960 calls=2 n0=2327 n1=16 prims=33150 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2727 texUs=45 emitUs=1111 submitUs=316 otherUs=1255 prims=276 usPerPrim=9
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=16080 calls=2 n0=2324 n1=16 prims=32895 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2862 texUs=44 emitUs=1107 submitUs=298 otherUs=1412 prims=273 usPerPrim=10
+[SH-XBOX] vblank 16200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=107 decodes=0 decMs=0
+[OTS] f=16200 calls=2 n0=2323 n1=16 prims=33014 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2712 texUs=42 emitUs=1101 submitUs=432 otherUs=1136 prims=272 usPerPrim=9
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=1ms draws=102 decodes=0 decMs=0
+[OTS] f=16320 calls=2 n0=2322 n1=16 prims=32759 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2877 texUs=42 emitUs=1101 submitUs=342 otherUs=1390 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=116 decodes=0 decMs=0
+[OTS] f=16440 calls=2 n0=2326 n1=16 prims=33124 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2876 texUs=44 emitUs=1105 submitUs=293 otherUs=1431 prims=275 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=16560 calls=2 n0=2331 n1=16 prims=33308 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3036 texUs=47 emitUs=1129 submitUs=343 otherUs=1515 prims=280 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=16680 calls=2 n0=2325 n1=16 prims=32876 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2850 texUs=43 emitUs=1110 submitUs=318 otherUs=1377 prims=274 usPerPrim=10
+[SH-XBOX] vblank 16800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=108 decodes=0 decMs=0
+[OTS] f=16800 calls=2 n0=2324 n1=16 prims=32851 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2863 texUs=41 emitUs=1103 submitUs=249 otherUs=1468 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=104 decodes=0 decMs=0
+[OTS] f=16920 calls=2 n0=2323 n1=16 prims=33116 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2671 texUs=42 emitUs=1102 submitUs=272 otherUs=1254 prims=272 usPerPrim=9
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=117 decodes=0 decMs=0
+[OTS] f=17040 calls=2 n0=2324 n1=16 prims=33279 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2947 texUs=44 emitUs=1097 submitUs=303 otherUs=1501 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=1ms draws=121 decodes=0 decMs=0
+[OTS] f=17160 calls=2 n0=2322 n1=16 prims=33261 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3071 texUs=44 emitUs=1095 submitUs=318 otherUs=1612 prims=271 usPerPrim=11
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=45 gameMs=6 drawMs=10 swapWait=1ms draws=120 decodes=0 decMs=0
+[OTS] f=17280 calls=2 n0=2326 n1=16 prims=32916 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3170 texUs=44 emitUs=1106 submitUs=300 otherUs=1719 prims=275 usPerPrim=11
+[SH-XBOX] vblank 17400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=113 decodes=0 decMs=0
+[OTS] f=17400 calls=2 n0=2326 n1=16 prims=33079 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2849 texUs=43 emitUs=1106 submitUs=278 otherUs=1420 prims=275 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=98 decodes=0 decMs=0
+[OTS] f=17520 calls=2 n0=2323 n1=16 prims=32526 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2672 texUs=42 emitUs=1105 submitUs=278 otherUs=1245 prims=272 usPerPrim=9
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=17640 calls=2 n0=2321 n1=16 prims=33392 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2967 texUs=45 emitUs=1090 submitUs=793 otherUs=1038 prims=270 usPerPrim=10
+[FT] avgMs=17 worstMs=74 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=17760 calls=2 n0=2328 n1=16 prims=33399 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2982 texUs=45 emitUs=1111 submitUs=314 otherUs=1510 prims=277 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=17880 calls=2 n0=2315 n1=16 prims=33197 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2781 texUs=43 emitUs=1079 submitUs=287 otherUs=1371 prims=264 usPerPrim=10
+[SH-XBOX] vblank 18000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=111 decodes=0 decMs=0
+[OTS] f=18000 calls=2 n0=2320 n1=16 prims=32649 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2721 texUs=42 emitUs=1104 submitUs=265 otherUs=1309 prims=269 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=100 decodes=0 decMs=0
+[OTS] f=18120 calls=2 n0=2321 n1=16 prims=32658 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2898 texUs=42 emitUs=1092 submitUs=284 otherUs=1479 prims=270 usPerPrim=10
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=18240 calls=2 n0=2325 n1=16 prims=33517 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2746 texUs=47 emitUs=1099 submitUs=415 otherUs=1184 prims=274 usPerPrim=10
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=18360 calls=2 n0=2323 n1=16 prims=33044 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2865 texUs=44 emitUs=1097 submitUs=304 otherUs=1418 prims=272 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=125 decodes=0 decMs=0
+[OTS] f=18480 calls=2 n0=2327 n1=16 prims=33369 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2947 texUs=44 emitUs=1121 submitUs=288 otherUs=1493 prims=276 usPerPrim=10
+[SH-XBOX] vblank 18600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=111 decodes=0 decMs=0
+[OTS] f=18600 calls=2 n0=2322 n1=16 prims=32490 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2719 texUs=41 emitUs=1105 submitUs=264 otherUs=1308 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=100 decodes=0 decMs=0
+[OTS] f=18720 calls=2 n0=2322 n1=16 prims=32602 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2896 texUs=42 emitUs=1117 submitUs=272 otherUs=1464 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=111 decodes=0 decMs=0
+[OTS] f=18840 calls=2 n0=2322 n1=16 prims=33345 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3154 texUs=47 emitUs=1099 submitUs=353 otherUs=1654 prims=271 usPerPrim=11
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=1ms draws=120 decodes=0 decMs=0
+[OTS] f=18960 calls=2 n0=2328 n1=16 prims=33240 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3056 texUs=45 emitUs=1115 submitUs=620 otherUs=1274 prims=277 usPerPrim=11
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=125 decodes=0 decMs=0
+[OTS] f=19080 calls=2 n0=2316 n1=16 prims=33288 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2427 texUs=43 emitUs=1067 submitUs=301 otherUs=1014 prims=265 usPerPrim=9
+[SH-XBOX] vblank 19200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=114 decodes=0 decMs=0
+[OTS] f=19200 calls=2 n0=2324 n1=16 prims=32627 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2658 texUs=43 emitUs=1108 submitUs=292 otherUs=1214 prims=273 usPerPrim=9
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=104 decodes=0 decMs=0
+[OTS] f=19320 calls=2 n0=2323 n1=16 prims=33043 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2798 texUs=42 emitUs=1096 submitUs=282 otherUs=1377 prims=272 usPerPrim=10
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=109 decodes=0 decMs=0
+[OTS] f=19440 calls=2 n0=2327 n1=16 prims=33222 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2784 texUs=43 emitUs=1114 submitUs=285 otherUs=1340 prims=276 usPerPrim=10
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=19560 calls=2 n0=2323 n1=16 prims=33331 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3146 texUs=44 emitUs=1097 submitUs=414 otherUs=1589 prims=272 usPerPrim=11
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=126 decodes=0 decMs=0
+[OTS] f=19680 calls=2 n0=2318 n1=16 prims=33576 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3054 texUs=44 emitUs=1081 submitUs=437 otherUs=1490 prims=267 usPerPrim=11
+[SH-XBOX] vblank 19800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=116 decodes=0 decMs=0
+[OTS] f=19800 calls=2 n0=2322 n1=16 prims=32694 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2664 texUs=43 emitUs=1099 submitUs=285 otherUs=1236 prims=271 usPerPrim=9
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=107 decodes=0 decMs=0
+[OTS] f=19920 calls=2 n0=2326 n1=16 prims=33093 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2747 texUs=42 emitUs=1112 submitUs=273 otherUs=1319 prims=275 usPerPrim=9
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=106 decodes=0 decMs=0
+[OTS] f=20040 calls=2 n0=2324 n1=16 prims=33099 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2614 texUs=43 emitUs=1111 submitUs=287 otherUs=1171 prims=273 usPerPrim=9
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=116 decodes=0 decMs=0
+[OTS] f=20160 calls=2 n0=2322 n1=16 prims=33046 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2749 texUs=44 emitUs=1100 submitUs=302 otherUs=1301 prims=271 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=124 decodes=0 decMs=0
+[OTS] f=20280 calls=2 n0=2329 n1=16 prims=33420 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2948 texUs=45 emitUs=1113 submitUs=322 otherUs=1466 prims=278 usPerPrim=10
+[SH-XBOX] vblank 20400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=20400 calls=2 n0=2320 n1=16 prims=32751 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2978 texUs=43 emitUs=1107 submitUs=283 otherUs=1544 prims=269 usPerPrim=11
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=103 decodes=0 decMs=0
+[OTS] f=20520 calls=2 n0=2318 n1=16 prims=32422 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2698 texUs=40 emitUs=1090 submitUs=249 otherUs=1317 prims=267 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=106 decodes=0 decMs=0
+[OTS] f=20640 calls=2 n0=2324 n1=16 prims=33225 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2998 texUs=43 emitUs=1106 submitUs=281 otherUs=1566 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=117 decodes=0 decMs=0
+[OTS] f=20760 calls=2 n0=2323 n1=16 prims=33263 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2928 texUs=44 emitUs=1106 submitUs=295 otherUs=1482 prims=272 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=54 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=20880 calls=2 n0=2332 n1=16 prims=33304 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3098 texUs=47 emitUs=1131 submitUs=332 otherUs=1587 prims=281 usPerPrim=11
+[SH-XBOX] vblank 21000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=21000 calls=2 n0=2319 n1=16 prims=32818 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2945 texUs=43 emitUs=1093 submitUs=287 otherUs=1520 prims=268 usPerPrim=10
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=1ms draws=107 decodes=0 decMs=0
+[OTS] f=21120 calls=2 n0=2319 n1=16 prims=32587 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3023 texUs=39 emitUs=1097 submitUs=232 otherUs=1653 prims=268 usPerPrim=11
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=100 decodes=0 decMs=0
+[OTS] f=21240 calls=2 n0=2326 n1=16 prims=32728 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2900 texUs=43 emitUs=1109 submitUs=279 otherUs=1468 prims=275 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=21360 calls=2 n0=2322 n1=16 prims=33547 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2675 texUs=43 emitUs=1088 submitUs=316 otherUs=1226 prims=271 usPerPrim=9
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=21480 calls=2 n0=2327 n1=16 prims=33263 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2820 texUs=45 emitUs=1107 submitUs=412 otherUs=1253 prims=276 usPerPrim=10
+[SH-XBOX] vblank 21600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=21600 calls=2 n0=2321 n1=16 prims=33048 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2872 texUs=43 emitUs=1097 submitUs=307 otherUs=1424 prims=270 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=110 decodes=0 decMs=0
+[OTS] f=21720 calls=2 n0=2320 n1=16 prims=32612 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2735 texUs=41 emitUs=1096 submitUs=261 otherUs=1336 prims=269 usPerPrim=10
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=99 decodes=0 decMs=0
+[OTS] f=21840 calls=2 n0=2327 n1=16 prims=32700 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2640 texUs=45 emitUs=1117 submitUs=264 otherUs=1212 prims=276 usPerPrim=9
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=114 decodes=0 decMs=0
+[OTS] f=21960 calls=2 n0=2324 n1=16 prims=33271 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2845 texUs=44 emitUs=1104 submitUs=329 otherUs=1367 prims=273 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=22080 calls=2 n0=2328 n1=16 prims=33254 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2807 texUs=44 emitUs=1114 submitUs=315 otherUs=1332 prims=277 usPerPrim=10
+[SH-XBOX] vblank 22200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=1ms draws=122 decodes=0 decMs=0
+[OTS] f=22200 calls=2 n0=2315 n1=16 prims=33056 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2670 texUs=43 emitUs=1071 submitUs=431 otherUs=1125 prims=264 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=109 decodes=0 decMs=0
+[OTS] f=22320 calls=2 n0=2321 n1=16 prims=32317 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2760 texUs=43 emitUs=1094 submitUs=295 otherUs=1326 prims=270 usPerPrim=10
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=99 decodes=0 decMs=0
+[OTS] f=22440 calls=2 n0=2321 n1=16 prims=32624 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2743 texUs=42 emitUs=1095 submitUs=275 otherUs=1330 prims=270 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=22560 calls=2 n0=2332 n1=16 prims=33540 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3020 texUs=46 emitUs=1121 submitUs=315 otherUs=1537 prims=281 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (16 bytes)
+[RA] http -> status=200 bodyLen=16 body='{"Success":true}'
+[FT] avgMs=20 worstMs=392 gameMs=6 drawMs=13 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=22680 calls=2 n0=2322 n1=16 prims=33345 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2955 texUs=45 emitUs=1089 submitUs=336 otherUs=1483 prims=271 usPerPrim=10
+[SH-XBOX] vblank 22800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=124 decodes=0 decMs=0
+[OTS] f=22800 calls=2 n0=2324 n1=16 prims=33328 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2716 texUs=44 emitUs=1106 submitUs=293 otherUs=1272 prims=273 usPerPrim=9
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=22920 calls=2 n0=2327 n1=16 prims=33288 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2795 texUs=43 emitUs=1116 submitUs=274 otherUs=1361 prims=276 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=104 decodes=0 decMs=0
+[OTS] f=23040 calls=2 n0=2322 n1=16 prims=33097 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2779 texUs=42 emitUs=1102 submitUs=370 otherUs=1264 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=23160 calls=2 n0=2334 n1=16 prims=33845 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2908 texUs=47 emitUs=1126 submitUs=333 otherUs=1400 prims=283 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=23280 calls=2 n0=2323 n1=16 prims=33369 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2900 texUs=44 emitUs=1107 submitUs=308 otherUs=1439 prims=272 usPerPrim=10
+[SH-XBOX] vblank 23400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=124 decodes=0 decMs=0
+[OTS] f=23400 calls=2 n0=2325 n1=16 prims=33177 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3175 texUs=45 emitUs=1103 submitUs=426 otherUs=1600 prims=274 usPerPrim=11
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=23520 calls=2 n0=2319 n1=16 prims=32742 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2824 texUs=43 emitUs=1091 submitUs=333 otherUs=1355 prims=268 usPerPrim=10
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=103 decodes=0 decMs=0
+[OTS] f=23640 calls=2 n0=2325 n1=16 prims=32874 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2960 texUs=42 emitUs=1112 submitUs=382 otherUs=1422 prims=274 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=111 decodes=0 decMs=0
+[OTS] f=23760 calls=2 n0=2329 n1=16 prims=33509 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3016 texUs=44 emitUs=1113 submitUs=307 otherUs=1550 prims=278 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=23880 calls=2 n0=2316 n1=16 prims=33213 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2882 texUs=43 emitUs=1076 submitUs=419 otherUs=1343 prims=265 usPerPrim=10
+[SH-XBOX] vblank 24000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=126 decodes=0 decMs=0
+[OTS] f=24000 calls=2 n0=2322 n1=16 prims=33522 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3121 texUs=45 emitUs=1107 submitUs=327 otherUs=1642 prims=271 usPerPrim=11
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=114 decodes=0 decMs=0
+[OTS] f=24120 calls=2 n0=2322 n1=16 prims=32484 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3069 texUs=42 emitUs=1103 submitUs=329 otherUs=1594 prims=271 usPerPrim=11
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=24240 calls=2 n0=2319 n1=16 prims=32534 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2480 texUs=40 emitUs=1097 submitUs=247 otherUs=1095 prims=268 usPerPrim=9
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=107 decodes=0 decMs=0
+[OTS] f=24360 calls=2 n0=2325 n1=16 prims=33214 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2718 texUs=43 emitUs=1116 submitUs=278 otherUs=1279 prims=274 usPerPrim=9
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=24480 calls=2 n0=2321 n1=16 prims=33450 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2593 texUs=42 emitUs=1085 submitUs=310 otherUs=1155 prims=270 usPerPrim=9
+[SH-XBOX] vblank 24600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=126 decodes=0 decMs=0
+[OTS] f=24600 calls=2 n0=2329 n1=16 prims=33574 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2977 texUs=45 emitUs=1128 submitUs=540 otherUs=1262 prims=278 usPerPrim=10
+[FT] avgMs=17 worstMs=71 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=24720 calls=2 n0=2323 n1=16 prims=32855 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2685 texUs=43 emitUs=1104 submitUs=300 otherUs=1237 prims=272 usPerPrim=9
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=1ms draws=107 decodes=0 decMs=0
+[OTS] f=24840 calls=2 n0=2318 n1=16 prims=32815 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2639 texUs=40 emitUs=1089 submitUs=460 otherUs=1048 prims=267 usPerPrim=9
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=104 decodes=0 decMs=0
+[OTS] f=24960 calls=2 n0=2328 n1=16 prims=33042 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2852 texUs=44 emitUs=1117 submitUs=297 otherUs=1392 prims=277 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=52 gameMs=6 drawMs=10 swapWait=1ms draws=120 decodes=0 decMs=0
+[OTS] f=25080 calls=2 n0=2328 n1=16 prims=33579 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2853 texUs=43 emitUs=1111 submitUs=300 otherUs=1397 prims=277 usPerPrim=10
+[SH-XBOX] vblank 25200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=25200 calls=2 n0=2330 n1=16 prims=33259 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2961 texUs=45 emitUs=1136 submitUs=324 otherUs=1454 prims=279 usPerPrim=10
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=25320 calls=2 n0=2320 n1=16 prims=32776 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3041 texUs=42 emitUs=1094 submitUs=284 otherUs=1619 prims=269 usPerPrim=11
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=111 decodes=0 decMs=0
+[OTS] f=25440 calls=2 n0=2317 n1=16 prims=33044 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2743 texUs=41 emitUs=1078 submitUs=270 otherUs=1352 prims=266 usPerPrim=10
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=100 decodes=0 decMs=0
+[OTS] f=25560 calls=2 n0=2330 n1=16 prims=32760 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2943 texUs=42 emitUs=1122 submitUs=300 otherUs=1478 prims=279 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=25680 calls=2 n0=2326 n1=16 prims=33470 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3064 texUs=44 emitUs=1104 submitUs=501 otherUs=1413 prims=275 usPerPrim=11
+[SH-XBOX] vblank 25800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=25800 calls=2 n0=2323 n1=16 prims=33265 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3033 texUs=45 emitUs=1092 submitUs=318 otherUs=1577 prims=272 usPerPrim=11
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=1ms draws=122 decodes=0 decMs=0
+[OTS] f=25920 calls=2 n0=2318 n1=16 prims=33203 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3087 texUs=43 emitUs=1088 submitUs=361 otherUs=1593 prims=267 usPerPrim=11
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=109 decodes=0 decMs=0
+[OTS] f=26040 calls=2 n0=2320 n1=16 prims=32509 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2974 texUs=41 emitUs=1092 submitUs=286 otherUs=1554 prims=269 usPerPrim=11
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=99 decodes=0 decMs=0
+[OTS] f=26160 calls=2 n0=2322 n1=16 prims=32645 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2638 texUs=42 emitUs=1090 submitUs=286 otherUs=1218 prims=271 usPerPrim=9
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=117 decodes=0 decMs=0
+[OTS] f=26280 calls=2 n0=2326 n1=16 prims=33630 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2818 texUs=45 emitUs=1100 submitUs=321 otherUs=1350 prims=275 usPerPrim=10
+[SH-XBOX] vblank 26400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=26400 calls=2 n0=2322 n1=16 prims=33352 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2718 texUs=44 emitUs=1092 submitUs=305 otherUs=1275 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=26520 calls=2 n0=2322 n1=16 prims=32956 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2835 texUs=43 emitUs=1092 submitUs=323 otherUs=1375 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=113 decodes=0 decMs=0
+[OTS] f=26640 calls=2 n0=2326 n1=16 prims=32818 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2693 texUs=43 emitUs=1117 submitUs=294 otherUs=1238 prims=275 usPerPrim=9
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=1ms draws=104 decodes=0 decMs=0
+[OTS] f=26760 calls=2 n0=2327 n1=16 prims=33217 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2738 texUs=43 emitUs=1108 submitUs=273 otherUs=1313 prims=276 usPerPrim=9
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=116 decodes=0 decMs=0
+[OTS] f=26880 calls=2 n0=2332 n1=16 prims=33660 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2931 texUs=45 emitUs=1124 submitUs=312 otherUs=1448 prims=281 usPerPrim=10
+[SH-XBOX] vblank 27000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=27000 calls=2 n0=2321 n1=16 prims=33129 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2800 texUs=43 emitUs=1084 submitUs=502 otherUs=1169 prims=270 usPerPrim=10
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=127 decodes=0 decMs=0
+[OTS] f=27120 calls=2 n0=2321 n1=16 prims=33606 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2829 texUs=44 emitUs=1096 submitUs=616 otherUs=1072 prims=270 usPerPrim=10
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=114 decodes=0 decMs=0
+[OTS] f=27240 calls=2 n0=2324 n1=16 prims=32863 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2986 texUs=43 emitUs=1108 submitUs=391 otherUs=1443 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=1ms draws=100 decodes=0 decMs=0
+[OTS] f=27360 calls=2 n0=2326 n1=16 prims=32659 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2715 texUs=45 emitUs=1110 submitUs=434 otherUs=1126 prims=275 usPerPrim=9
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=46 gameMs=6 drawMs=10 swapWait=1ms draws=111 decodes=0 decMs=0
+[OTS] f=27480 calls=2 n0=2333 n1=16 prims=33490 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3051 texUs=45 emitUs=1137 submitUs=332 otherUs=1535 prims=282 usPerPrim=10
+[SH-XBOX] vblank 27600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=27600 calls=2 n0=2325 n1=16 prims=33469 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3130 texUs=44 emitUs=1102 submitUs=301 otherUs=1680 prims=274 usPerPrim=11
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=126 decodes=0 decMs=0
+[OTS] f=27720 calls=2 n0=2325 n1=16 prims=33414 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2925 texUs=44 emitUs=1111 submitUs=509 otherUs=1259 prims=274 usPerPrim=10
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=113 decodes=0 decMs=0
+[OTS] f=27840 calls=2 n0=2323 n1=16 prims=32494 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3128 texUs=43 emitUs=1104 submitUs=284 otherUs=1695 prims=272 usPerPrim=11
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=104 decodes=0 decMs=0
+[OTS] f=27960 calls=2 n0=2323 n1=16 prims=32866 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3014 texUs=42 emitUs=1099 submitUs=485 otherUs=1387 prims=272 usPerPrim=11
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=109 decodes=0 decMs=0
+[OTS] f=28080 calls=2 n0=2329 n1=16 prims=33276 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2645 texUs=44 emitUs=1120 submitUs=290 otherUs=1189 prims=278 usPerPrim=9
+[SH-XBOX] vblank 28200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=28200 calls=2 n0=2322 n1=16 prims=33490 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2869 texUs=44 emitUs=1095 submitUs=303 otherUs=1425 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=28320 calls=2 n0=2317 n1=16 prims=33228 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3055 texUs=44 emitUs=1076 submitUs=299 otherUs=1635 prims=266 usPerPrim=11
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=28440 calls=2 n0=2324 n1=16 prims=32566 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2816 texUs=43 emitUs=1111 submitUs=281 otherUs=1380 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=106 decodes=0 decMs=0
+[OTS] f=28560 calls=2 n0=2322 n1=16 prims=32979 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2696 texUs=41 emitUs=1107 submitUs=258 otherUs=1288 prims=271 usPerPrim=9
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=109 decodes=0 decMs=0
+[OTS] f=28680 calls=2 n0=2329 n1=16 prims=33487 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2814 texUs=43 emitUs=1116 submitUs=305 otherUs=1348 prims=278 usPerPrim=10
+[SH-XBOX] vblank 28800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=28800 calls=2 n0=2325 n1=16 prims=33595 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2861 texUs=45 emitUs=1097 submitUs=426 otherUs=1292 prims=274 usPerPrim=10
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=1ms draws=123 decodes=0 decMs=0
+[OTS] f=28920 calls=2 n0=2324 n1=16 prims=33216 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2969 texUs=44 emitUs=1099 submitUs=385 otherUs=1439 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=29040 calls=2 n0=2319 n1=16 prims=32764 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2843 texUs=43 emitUs=1091 submitUs=392 otherUs=1315 prims=268 usPerPrim=10
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=106 decodes=0 decMs=0
+[OTS] f=29160 calls=2 n0=2316 n1=16 prims=32769 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2719 texUs=40 emitUs=1085 submitUs=443 otherUs=1150 prims=265 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=101 decodes=0 decMs=0
+[OTS] f=29280 calls=2 n0=2325 n1=16 prims=32757 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2786 texUs=42 emitUs=1110 submitUs=290 otherUs=1342 prims=274 usPerPrim=10
+[SH-XBOX] vblank 29400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=117 decodes=0 decMs=0
+[OTS] f=29400 calls=2 n0=2328 n1=16 prims=33265 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3035 texUs=44 emitUs=1111 submitUs=296 otherUs=1583 prims=277 usPerPrim=10
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=29520 calls=2 n0=2323 n1=16 prims=33297 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2970 texUs=44 emitUs=1097 submitUs=320 otherUs=1506 prims=272 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=29640 calls=2 n0=2317 n1=16 prims=33043 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2863 texUs=42 emitUs=1093 submitUs=276 otherUs=1450 prims=266 usPerPrim=10
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (16 bytes)
+[RA] http -> status=200 bodyLen=16 body='{"Success":true}'
+[FT] avgMs=19 worstMs=311 gameMs=6 drawMs=12 swapWait=0ms draws=111 decodes=0 decMs=0
+[OTS] f=29760 calls=2 n0=2317 n1=16 prims=33134 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2729 texUs=41 emitUs=1084 submitUs=254 otherUs=1348 prims=266 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=51 gameMs=6 drawMs=10 swapWait=1ms draws=102 decodes=0 decMs=0
+[OTS] f=29880 calls=2 n0=2326 n1=16 prims=32968 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2785 texUs=42 emitUs=1111 submitUs=275 otherUs=1356 prims=275 usPerPrim=10
+[SH-XBOX] vblank 30000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=30000 calls=2 n0=2329 n1=16 prims=33591 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3043 texUs=44 emitUs=1110 submitUs=312 otherUs=1575 prims=278 usPerPrim=10
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=30120 calls=2 n0=2320 n1=16 prims=33187 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2743 texUs=44 emitUs=1088 submitUs=333 otherUs=1277 prims=269 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=30240 calls=2 n0=2320 n1=16 prims=32753 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2862 texUs=43 emitUs=1092 submitUs=294 otherUs=1432 prims=269 usPerPrim=10
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=111 decodes=0 decMs=0
+[OTS] f=30360 calls=2 n0=2324 n1=16 prims=32729 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2731 texUs=42 emitUs=1108 submitUs=270 otherUs=1310 prims=273 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=30480 calls=2 n0=2319 n1=16 prims=32865 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2707 texUs=42 emitUs=1087 submitUs=286 otherUs=1290 prims=268 usPerPrim=10
+[SH-XBOX] vblank 30600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=116 decodes=0 decMs=0
+[OTS] f=30600 calls=2 n0=2323 n1=16 prims=33438 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2966 texUs=44 emitUs=1103 submitUs=307 otherUs=1511 prims=272 usPerPrim=10
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=30720 calls=2 n0=2326 n1=16 prims=33537 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3135 texUs=45 emitUs=1112 submitUs=319 otherUs=1658 prims=275 usPerPrim=11
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=125 decodes=0 decMs=0
+[OTS] f=30840 calls=2 n0=2326 n1=16 prims=33428 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2987 texUs=44 emitUs=1100 submitUs=334 otherUs=1507 prims=275 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=113 decodes=0 decMs=0
+[OTS] f=30960 calls=2 n0=2320 n1=16 prims=32689 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3051 texUs=42 emitUs=1103 submitUs=270 otherUs=1634 prims=269 usPerPrim=11
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=99 decodes=0 decMs=0
+[OTS] f=31080 calls=2 n0=2327 n1=16 prims=32659 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2564 texUs=45 emitUs=1115 submitUs=259 otherUs=1144 prims=276 usPerPrim=9
+[SH-XBOX] vblank 31200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=113 decodes=0 decMs=0
+[OTS] f=31200 calls=2 n0=2329 n1=16 prims=33354 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2829 texUs=46 emitUs=1117 submitUs=333 otherUs=1332 prims=278 usPerPrim=10
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=31320 calls=2 n0=2334 n1=16 prims=33517 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3043 texUs=47 emitUs=1125 submitUs=328 otherUs=1541 prims=283 usPerPrim=10
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=126 decodes=0 decMs=0
+[OTS] f=31440 calls=2 n0=2317 n1=16 prims=33516 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3129 texUs=44 emitUs=1069 submitUs=525 otherUs=1490 prims=266 usPerPrim=11
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=114 decodes=0 decMs=0
+[OTS] f=31560 calls=2 n0=2323 n1=16 prims=32675 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2700 texUs=42 emitUs=1106 submitUs=277 otherUs=1273 prims=272 usPerPrim=9
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=101 decodes=0 decMs=0
+[OTS] f=31680 calls=2 n0=2323 n1=16 prims=32787 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2665 texUs=41 emitUs=1104 submitUs=345 otherUs=1174 prims=272 usPerPrim=9
+[SH-XBOX] vblank 31800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=17 worstMs=74 gameMs=6 drawMs=10 swapWait=0ms draws=109 decodes=0 decMs=0
+[OTS] f=31800 calls=2 n0=2333 n1=16 prims=33214 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2977 texUs=47 emitUs=1124 submitUs=550 otherUs=1254 prims=282 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=31920 calls=2 n0=2329 n1=16 prims=33299 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2834 texUs=45 emitUs=1117 submitUs=312 otherUs=1359 prims=278 usPerPrim=10
+[FT] avgMs=16 worstMs=54 gameMs=6 drawMs=10 swapWait=0ms draws=126 decodes=0 decMs=0
+[OTS] f=32040 calls=2 n0=2325 n1=16 prims=33528 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2716 texUs=44 emitUs=1103 submitUs=327 otherUs=1239 prims=274 usPerPrim=9
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=114 decodes=0 decMs=0
+[OTS] f=32160 calls=2 n0=2318 n1=16 prims=32489 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2841 texUs=42 emitUs=1091 submitUs=283 otherUs=1424 prims=267 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=32280 calls=2 n0=2321 n1=16 prims=32656 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2892 texUs=41 emitUs=1096 submitUs=264 otherUs=1490 prims=270 usPerPrim=10
+[SH-XBOX] vblank 32400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=110 decodes=0 decMs=0
+[OTS] f=32400 calls=2 n0=2326 n1=16 prims=33475 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2979 texUs=43 emitUs=1122 submitUs=395 otherUs=1418 prims=275 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=117 decodes=0 decMs=0
+[OTS] f=32520 calls=2 n0=2320 n1=16 prims=33133 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2767 texUs=43 emitUs=1088 submitUs=307 otherUs=1328 prims=269 usPerPrim=10
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=32640 calls=2 n0=2323 n1=16 prims=33284 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3010 texUs=45 emitUs=1093 submitUs=322 otherUs=1549 prims=272 usPerPrim=11
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=32760 calls=2 n0=2320 n1=16 prims=32937 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2884 texUs=42 emitUs=1099 submitUs=326 otherUs=1415 prims=269 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=103 decodes=0 decMs=0
+[OTS] f=32880 calls=2 n0=2320 n1=16 prims=32673 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2894 texUs=41 emitUs=1094 submitUs=263 otherUs=1495 prims=269 usPerPrim=10
+[SH-XBOX] vblank 33000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=106 decodes=0 decMs=0
+[OTS] f=33000 calls=2 n0=2323 n1=16 prims=33069 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2640 texUs=42 emitUs=1094 submitUs=280 otherUs=1221 prims=272 usPerPrim=9
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=33120 calls=2 n0=2319 n1=16 prims=33414 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2880 texUs=43 emitUs=1085 submitUs=287 otherUs=1464 prims=268 usPerPrim=10
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=33240 calls=2 n0=2323 n1=16 prims=32964 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2552 texUs=44 emitUs=1095 submitUs=293 otherUs=1119 prims=272 usPerPrim=9
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=33360 calls=2 n0=2317 n1=16 prims=32827 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2647 texUs=42 emitUs=1087 submitUs=280 otherUs=1236 prims=266 usPerPrim=9
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=104 decodes=0 decMs=0
+[OTS] f=33480 calls=2 n0=2314 n1=16 prims=32422 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2586 texUs=39 emitUs=1075 submitUs=244 otherUs=1226 prims=263 usPerPrim=9
+[SH-XBOX] vblank 33600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=33600 calls=2 n0=2330 n1=16 prims=32845 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2692 texUs=44 emitUs=1122 submitUs=302 otherUs=1223 prims=279 usPerPrim=9
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=33720 calls=2 n0=2332 n1=16 prims=34017 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2866 texUs=45 emitUs=1132 submitUs=304 otherUs=1383 prims=281 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=33840 calls=2 n0=2326 n1=16 prims=33135 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2990 texUs=44 emitUs=1106 submitUs=301 otherUs=1537 prims=275 usPerPrim=10
+[FT] avgMs=16 worstMs=54 gameMs=6 drawMs=10 swapWait=1ms draws=119 decodes=0 decMs=0
+[OTS] f=33960 calls=2 n0=2322 n1=16 prims=32940 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2687 texUs=42 emitUs=1097 submitUs=296 otherUs=1251 prims=271 usPerPrim=9
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=111 decodes=0 decMs=0
+[OTS] f=34080 calls=2 n0=2316 n1=16 prims=32961 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2638 texUs=41 emitUs=1075 submitUs=290 otherUs=1230 prims=265 usPerPrim=9
+[SH-XBOX] vblank 34200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=34200 calls=2 n0=2329 n1=16 prims=32961 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2823 texUs=43 emitUs=1124 submitUs=269 otherUs=1386 prims=278 usPerPrim=10
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=117 decodes=0 decMs=0
+[OTS] f=34320 calls=2 n0=2325 n1=16 prims=33394 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2837 texUs=44 emitUs=1108 submitUs=306 otherUs=1378 prims=274 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=1ms draws=121 decodes=0 decMs=0
+[OTS] f=34440 calls=2 n0=2326 n1=16 prims=33341 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3069 texUs=45 emitUs=1109 submitUs=341 otherUs=1573 prims=275 usPerPrim=11
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=34560 calls=2 n0=2317 n1=16 prims=33227 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3055 texUs=42 emitUs=1076 submitUs=310 otherUs=1626 prims=266 usPerPrim=11
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=108 decodes=0 decMs=0
+[OTS] f=34680 calls=2 n0=2320 n1=16 prims=32396 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2821 texUs=41 emitUs=1092 submitUs=267 otherUs=1419 prims=269 usPerPrim=10
+[SH-XBOX] vblank 34800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=34800 calls=2 n0=2322 n1=16 prims=32965 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2953 texUs=43 emitUs=1093 submitUs=280 otherUs=1535 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=116 decodes=0 decMs=0
+[OTS] f=34920 calls=2 n0=2326 n1=16 prims=33395 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2635 texUs=45 emitUs=1108 submitUs=302 otherUs=1179 prims=275 usPerPrim=9
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=1ms draws=120 decodes=0 decMs=0
+[OTS] f=35040 calls=2 n0=2324 n1=16 prims=33236 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2839 texUs=45 emitUs=1098 submitUs=347 otherUs=1348 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=35160 calls=2 n0=2321 n1=16 prims=33075 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2709 texUs=42 emitUs=1095 submitUs=297 otherUs=1274 prims=270 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=35280 calls=2 n0=2318 n1=16 prims=33035 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2679 texUs=41 emitUs=1090 submitUs=266 otherUs=1280 prims=267 usPerPrim=10
+[SH-XBOX] vblank 35400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=99 decodes=0 decMs=0
+[OTS] f=35400 calls=2 n0=2319 n1=16 prims=32530 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2887 texUs=43 emitUs=1091 submitUs=254 otherUs=1497 prims=268 usPerPrim=10
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=1ms draws=114 decodes=0 decMs=0
+[OTS] f=35520 calls=2 n0=2336 n1=16 prims=33507 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2736 texUs=46 emitUs=1144 submitUs=470 otherUs=1075 prims=285 usPerPrim=9
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=35640 calls=2 n0=2323 n1=16 prims=33412 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2768 texUs=44 emitUs=1096 submitUs=359 otherUs=1268 prims=272 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=127 decodes=0 decMs=0
+[OTS] f=35760 calls=2 n0=2318 n1=16 prims=33612 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2737 texUs=50 emitUs=1084 submitUs=313 otherUs=1289 prims=267 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=112 decodes=0 decMs=0
+[OTS] f=35880 calls=2 n0=2321 n1=16 prims=32603 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2641 texUs=42 emitUs=1099 submitUs=351 otherUs=1147 prims=270 usPerPrim=9
+[SH-XBOX] vblank 36000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=101 decodes=0 decMs=0
+[OTS] f=36000 calls=2 n0=2323 n1=16 prims=32792 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2767 texUs=41 emitUs=1109 submitUs=272 otherUs=1342 prims=272 usPerPrim=10
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=107 decodes=0 decMs=0
+[OTS] f=36120 calls=2 n0=2326 n1=16 prims=32983 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3058 texUs=44 emitUs=1110 submitUs=288 otherUs=1615 prims=275 usPerPrim=11
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=36240 calls=2 n0=2330 n1=16 prims=33484 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2878 texUs=45 emitUs=1126 submitUs=311 otherUs=1394 prims=279 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=1ms draws=124 decodes=0 decMs=0
+[OTS] f=36360 calls=2 n0=2322 n1=16 prims=33369 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3008 texUs=44 emitUs=1095 submitUs=311 otherUs=1557 prims=271 usPerPrim=11
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=114 decodes=0 decMs=0
+[OTS] f=36480 calls=2 n0=2314 n1=16 prims=32513 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2805 texUs=41 emitUs=1078 submitUs=257 otherUs=1429 prims=263 usPerPrim=10
+[SH-XBOX] vblank 36600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=101 decodes=0 decMs=0
+[OTS] f=36600 calls=2 n0=2314 n1=16 prims=32691 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2844 texUs=40 emitUs=1073 submitUs=418 otherUs=1312 prims=263 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=107 decodes=0 decMs=0
+[OTS] f=36720 calls=2 n0=2327 n1=16 prims=33089 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3074 texUs=44 emitUs=1110 submitUs=407 otherUs=1512 prims=276 usPerPrim=11
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (16 bytes)
+[RA] http -> status=200 bodyLen=16 body='{"Success":true}'
+[FT] avgMs=19 worstMs=354 gameMs=6 drawMs=13 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=36840 calls=2 n0=2326 n1=16 prims=33213 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2796 texUs=46 emitUs=1097 submitUs=324 otherUs=1327 prims=275 usPerPrim=10
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=125 decodes=0 decMs=0
+[OTS] f=36960 calls=2 n0=2326 n1=16 prims=33537 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2822 texUs=44 emitUs=1109 submitUs=330 otherUs=1338 prims=275 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=116 decodes=0 decMs=0
+[OTS] f=37080 calls=2 n0=2318 n1=16 prims=32597 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2729 texUs=46 emitUs=1092 submitUs=274 otherUs=1316 prims=267 usPerPrim=10
+[SH-XBOX] vblank 37200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=104 decodes=0 decMs=0
+[OTS] f=37200 calls=2 n0=2324 n1=16 prims=32635 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2850 texUs=41 emitUs=1176 submitUs=248 otherUs=1383 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=37320 calls=2 n0=2321 n1=16 prims=32694 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2855 texUs=42 emitUs=1097 submitUs=277 otherUs=1437 prims=270 usPerPrim=10
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=37440 calls=2 n0=2330 n1=16 prims=33491 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3098 texUs=44 emitUs=1117 submitUs=357 otherUs=1578 prims=279 usPerPrim=11
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=37560 calls=2 n0=2331 n1=16 prims=33014 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2853 texUs=45 emitUs=1125 submitUs=336 otherUs=1345 prims=280 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=37680 calls=2 n0=2320 n1=16 prims=33056 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2978 texUs=43 emitUs=1094 submitUs=436 otherUs=1403 prims=269 usPerPrim=11
+[SH-XBOX] vblank 37800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=104 decodes=0 decMs=0
+[OTS] f=37800 calls=2 n0=2318 n1=16 prims=32414 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2924 texUs=40 emitUs=1099 submitUs=248 otherUs=1536 prims=267 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=104 decodes=0 decMs=0
+[OTS] f=37920 calls=2 n0=2326 n1=16 prims=33111 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2723 texUs=44 emitUs=1110 submitUs=299 otherUs=1269 prims=275 usPerPrim=9
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=38040 calls=2 n0=2323 n1=16 prims=33408 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2973 texUs=43 emitUs=1095 submitUs=296 otherUs=1537 prims=272 usPerPrim=10
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=38160 calls=2 n0=2327 n1=16 prims=33119 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3185 texUs=45 emitUs=1115 submitUs=316 otherUs=1708 prims=276 usPerPrim=11
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=117 decodes=0 decMs=0
+[OTS] f=38280 calls=2 n0=2317 n1=16 prims=32669 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2883 texUs=42 emitUs=1096 submitUs=288 otherUs=1456 prims=266 usPerPrim=10
+[SH-XBOX] vblank 38400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=1ms draws=109 decodes=0 decMs=0
+[OTS] f=38400 calls=2 n0=2316 n1=16 prims=32737 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2465 texUs=40 emitUs=1078 submitUs=246 otherUs=1100 prims=265 usPerPrim=9
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=101 decodes=0 decMs=0
+[OTS] f=38520 calls=2 n0=2329 n1=16 prims=32768 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2728 texUs=42 emitUs=1120 submitUs=276 otherUs=1288 prims=278 usPerPrim=9
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=38640 calls=2 n0=2328 n1=16 prims=33628 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2678 texUs=45 emitUs=1106 submitUs=317 otherUs=1209 prims=277 usPerPrim=9
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=38760 calls=2 n0=2324 n1=16 prims=32928 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2760 texUs=44 emitUs=1099 submitUs=339 otherUs=1277 prims=273 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=72 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=38880 calls=2 n0=2320 n1=16 prims=33075 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2888 texUs=43 emitUs=1092 submitUs=484 otherUs=1268 prims=269 usPerPrim=10
+[SH-XBOX] vblank 39000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=1ms draws=111 decodes=0 decMs=0
+[OTS] f=39000 calls=2 n0=2322 n1=16 prims=32573 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2750 texUs=41 emitUs=1114 submitUs=265 otherUs=1328 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=99 decodes=0 decMs=0
+[OTS] f=39120 calls=2 n0=2323 n1=16 prims=32680 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2807 texUs=42 emitUs=1106 submitUs=293 otherUs=1364 prims=272 usPerPrim=10
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=39240 calls=2 n0=2333 n1=16 prims=33404 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3066 texUs=46 emitUs=1125 submitUs=365 otherUs=1530 prims=282 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=39360 calls=2 n0=2325 n1=16 prims=33506 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3208 texUs=44 emitUs=1104 submitUs=418 otherUs=1640 prims=274 usPerPrim=11
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=39480 calls=2 n0=2327 n1=16 prims=32847 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2901 texUs=44 emitUs=1114 submitUs=338 otherUs=1405 prims=276 usPerPrim=10
+[SH-XBOX] vblank 39600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=1ms draws=112 decodes=0 decMs=0
+[OTS] f=39600 calls=2 n0=2322 n1=16 prims=32576 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2750 texUs=40 emitUs=1106 submitUs=267 otherUs=1336 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=97 decodes=0 decMs=0
+[OTS] f=39720 calls=2 n0=2324 n1=16 prims=32403 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2958 texUs=41 emitUs=1109 submitUs=403 otherUs=1403 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=111 decodes=0 decMs=0
+[OTS] f=39840 calls=2 n0=2333 n1=16 prims=33218 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3018 texUs=45 emitUs=1128 submitUs=334 otherUs=1509 prims=282 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=39960 calls=2 n0=2325 n1=16 prims=33112 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3041 texUs=43 emitUs=1109 submitUs=338 otherUs=1551 prims=274 usPerPrim=11
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=40080 calls=2 n0=2318 n1=16 prims=32968 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2782 texUs=42 emitUs=1080 submitUs=301 otherUs=1357 prims=267 usPerPrim=10
+[SH-XBOX] vblank 40200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=40200 calls=2 n0=2325 n1=16 prims=32704 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3011 texUs=43 emitUs=1108 submitUs=411 otherUs=1448 prims=274 usPerPrim=10
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=40320 calls=2 n0=2316 n1=16 prims=32936 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2552 texUs=40 emitUs=1083 submitUs=383 otherUs=1044 prims=265 usPerPrim=9
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=109 decodes=0 decMs=0
+[OTS] f=40440 calls=2 n0=2328 n1=16 prims=33158 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2728 texUs=44 emitUs=1110 submitUs=298 otherUs=1274 prims=277 usPerPrim=9
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=40560 calls=2 n0=2327 n1=16 prims=33381 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2915 texUs=44 emitUs=1111 submitUs=345 otherUs=1413 prims=276 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=127 decodes=0 decMs=0
+[OTS] f=40680 calls=2 n0=2321 n1=16 prims=33658 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2718 texUs=43 emitUs=1092 submitUs=292 otherUs=1289 prims=270 usPerPrim=10
+[SH-XBOX] vblank 40800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=114 decodes=0 decMs=0
+[OTS] f=40800 calls=2 n0=2319 n1=16 prims=32479 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2769 texUs=42 emitUs=1092 submitUs=283 otherUs=1351 prims=268 usPerPrim=10
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=1ms draws=100 decodes=0 decMs=0
+[OTS] f=40920 calls=2 n0=2318 n1=16 prims=32423 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2918 texUs=41 emitUs=1084 submitUs=261 otherUs=1530 prims=267 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=107 decodes=0 decMs=0
+[OTS] f=41040 calls=2 n0=2321 n1=16 prims=33060 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2720 texUs=44 emitUs=1092 submitUs=354 otherUs=1229 prims=270 usPerPrim=10
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=1ms draws=121 decodes=0 decMs=0
+[OTS] f=41160 calls=2 n0=2327 n1=16 prims=33580 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3073 texUs=45 emitUs=1111 submitUs=319 otherUs=1597 prims=276 usPerPrim=11
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=124 decodes=0 decMs=0
+[OTS] f=41280 calls=2 n0=2326 n1=16 prims=33321 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3039 texUs=45 emitUs=1106 submitUs=335 otherUs=1552 prims=275 usPerPrim=11
+[SH-XBOX] vblank 41400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=41400 calls=2 n0=2316 n1=16 prims=32962 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2874 texUs=42 emitUs=1075 submitUs=372 otherUs=1383 prims=265 usPerPrim=10
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=106 decodes=0 decMs=0
+[OTS] f=41520 calls=2 n0=2325 n1=16 prims=32916 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2917 texUs=40 emitUs=1113 submitUs=253 otherUs=1509 prims=274 usPerPrim=10
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=104 decodes=0 decMs=0
+[OTS] f=41640 calls=2 n0=2322 n1=16 prims=32979 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3022 texUs=42 emitUs=1102 submitUs=287 otherUs=1590 prims=271 usPerPrim=11
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=1ms draws=118 decodes=0 decMs=0
+[OTS] f=41760 calls=2 n0=2324 n1=16 prims=33360 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2954 texUs=43 emitUs=1100 submitUs=376 otherUs=1434 prims=273 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=41880 calls=2 n0=2333 n1=16 prims=33105 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2561 texUs=44 emitUs=1138 submitUs=308 otherUs=1070 prims=282 usPerPrim=9
+[SH-XBOX] vblank 42000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=117 decodes=0 decMs=0
+[OTS] f=42000 calls=2 n0=2318 n1=16 prims=32701 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2844 texUs=41 emitUs=1095 submitUs=278 otherUs=1428 prims=267 usPerPrim=10
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=108 decodes=0 decMs=0
+[OTS] f=42120 calls=2 n0=2315 n1=16 prims=32848 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2486 texUs=39 emitUs=1078 submitUs=594 otherUs=773 prims=264 usPerPrim=9
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=1ms draws=104 decodes=0 decMs=0
+[OTS] f=42240 calls=2 n0=2329 n1=16 prims=33090 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2682 texUs=43 emitUs=1117 submitUs=282 otherUs=1237 prims=278 usPerPrim=9
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=42360 calls=2 n0=2321 n1=16 prims=33486 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3108 texUs=44 emitUs=1084 submitUs=300 otherUs=1678 prims=270 usPerPrim=11
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=42480 calls=2 n0=2323 n1=16 prims=33248 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3038 texUs=44 emitUs=1094 submitUs=315 otherUs=1584 prims=272 usPerPrim=11
+[SH-XBOX] vblank 42600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=42600 calls=2 n0=2322 n1=16 prims=33065 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2587 texUs=43 emitUs=1104 submitUs=340 otherUs=1099 prims=271 usPerPrim=9
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=113 decodes=0 decMs=0
+[OTS] f=42720 calls=2 n0=2322 n1=16 prims=33062 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2722 texUs=41 emitUs=1100 submitUs=402 otherUs=1178 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=1ms draws=102 decodes=0 decMs=0
+[OTS] f=42840 calls=2 n0=2324 n1=16 prims=32947 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2846 texUs=42 emitUs=1104 submitUs=388 otherUs=1310 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=118 decodes=0 decMs=0
+[OTS] f=42960 calls=2 n0=2326 n1=16 prims=33565 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2884 texUs=45 emitUs=1102 submitUs=506 otherUs=1229 prims=275 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=54 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=43080 calls=2 n0=2333 n1=16 prims=33407 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3133 texUs=46 emitUs=1135 submitUs=336 otherUs=1614 prims=282 usPerPrim=11
+[SH-XBOX] vblank 43200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=43200 calls=2 n0=2320 n1=16 prims=32998 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3100 texUs=43 emitUs=1096 submitUs=303 otherUs=1656 prims=269 usPerPrim=11
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=111 decodes=0 decMs=0
+[OTS] f=43320 calls=2 n0=2320 n1=16 prims=32662 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2841 texUs=41 emitUs=1092 submitUs=652 otherUs=1054 prims=269 usPerPrim=10
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=43440 calls=2 n0=2327 n1=16 prims=33077 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2869 texUs=43 emitUs=1115 submitUs=266 otherUs=1444 prims=276 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=114 decodes=0 decMs=0
+[OTS] f=43560 calls=2 n0=2329 n1=16 prims=33385 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2956 texUs=44 emitUs=1119 submitUs=326 otherUs=1467 prims=278 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=43680 calls=2 n0=2329 n1=16 prims=33417 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3029 texUs=45 emitUs=1113 submitUs=426 otherUs=1444 prims=278 usPerPrim=10
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (16 bytes)
+[RA] http -> status=200 bodyLen=16 body='{"Success":true}'
+[SH-XBOX] vblank 43800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=20 worstMs=372 gameMs=6 drawMs=13 swapWait=0ms draws=122 decodes=0 decMs=0
+[OTS] f=43800 calls=2 n0=2326 n1=16 prims=33021 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2877 texUs=43 emitUs=1118 submitUs=469 otherUs=1245 prims=275 usPerPrim=10
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=114 decodes=0 decMs=0
+[OTS] f=43920 calls=2 n0=2326 n1=16 prims=32817 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3012 texUs=42 emitUs=1117 submitUs=347 otherUs=1504 prims=275 usPerPrim=10
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=1ms draws=102 decodes=0 decMs=0
+[OTS] f=44040 calls=2 n0=2324 n1=16 prims=32873 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2756 texUs=42 emitUs=1107 submitUs=473 otherUs=1133 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=114 decodes=0 decMs=0
+[OTS] f=44160 calls=2 n0=2330 n1=16 prims=33592 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3083 texUs=45 emitUs=1122 submitUs=322 otherUs=1591 prims=279 usPerPrim=11
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=124 decodes=0 decMs=0
+[OTS] f=44280 calls=2 n0=2335 n1=16 prims=33741 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3128 texUs=47 emitUs=1129 submitUs=337 otherUs=1614 prims=284 usPerPrim=11
+[SH-XBOX] vblank 44400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=44400 calls=2 n0=2323 n1=16 prims=33142 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2980 texUs=44 emitUs=1104 submitUs=326 otherUs=1504 prims=272 usPerPrim=10
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=110 decodes=0 decMs=0
+[OTS] f=44520 calls=2 n0=2322 n1=16 prims=32234 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2962 texUs=46 emitUs=1106 submitUs=281 otherUs=1528 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=102 decodes=0 decMs=0
+[OTS] f=44640 calls=2 n0=2323 n1=16 prims=32947 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3024 texUs=42 emitUs=1108 submitUs=261 otherUs=1612 prims=272 usPerPrim=11
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=110 decodes=0 decMs=0
+[OTS] f=44760 calls=2 n0=2323 n1=16 prims=33359 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2908 texUs=44 emitUs=1102 submitUs=298 otherUs=1463 prims=272 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=44880 calls=2 n0=2325 n1=16 prims=33174 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2620 texUs=44 emitUs=1102 submitUs=316 otherUs=1157 prims=274 usPerPrim=9
+[SH-XBOX] vblank 45000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=124 decodes=0 decMs=0
+[OTS] f=45000 calls=2 n0=2327 n1=16 prims=33211 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2744 texUs=44 emitUs=1115 submitUs=307 otherUs=1276 prims=276 usPerPrim=9
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=1ms draws=117 decodes=0 decMs=0
+[OTS] f=45120 calls=2 n0=2319 n1=16 prims=32889 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2845 texUs=43 emitUs=1092 submitUs=397 otherUs=1311 prims=268 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=104 decodes=0 decMs=0
+[OTS] f=45240 calls=2 n0=2328 n1=16 prims=32909 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2702 texUs=44 emitUs=1119 submitUs=282 otherUs=1255 prims=277 usPerPrim=9
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=108 decodes=0 decMs=0
+[OTS] f=45360 calls=2 n0=2326 n1=16 prims=33143 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2664 texUs=43 emitUs=1110 submitUs=293 otherUs=1215 prims=275 usPerPrim=9
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=45480 calls=2 n0=2325 n1=16 prims=33356 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2861 texUs=44 emitUs=1099 submitUs=348 otherUs=1369 prims=274 usPerPrim=10
+[SH-XBOX] vblank 45600
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=49 gameMs=6 drawMs=10 swapWait=0ms draws=126 decodes=0 decMs=0
+[OTS] f=45600 calls=2 n0=2327 n1=16 prims=33588 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2830 texUs=45 emitUs=1110 submitUs=412 otherUs=1262 prims=276 usPerPrim=10
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=45720 calls=2 n0=2316 n1=16 prims=32954 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2762 texUs=42 emitUs=1092 submitUs=277 otherUs=1350 prims=265 usPerPrim=10
+[FT] avgMs=17 worstMs=74 gameMs=6 drawMs=10 swapWait=1ms draws=103 decodes=0 decMs=0
+[OTS] f=45840 calls=2 n0=2320 n1=16 prims=32403 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2707 texUs=40 emitUs=1101 submitUs=258 otherUs=1306 prims=269 usPerPrim=10
+[FT] avgMs=16 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=105 decodes=0 decMs=0
+[OTS] f=45960 calls=2 n0=2329 n1=16 prims=33049 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2814 texUs=44 emitUs=1119 submitUs=294 otherUs=1355 prims=278 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=46080 calls=2 n0=2325 n1=16 prims=33594 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2910 texUs=44 emitUs=1098 submitUs=313 otherUs=1454 prims=274 usPerPrim=10
+[SH-XBOX] vblank 46200
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=123 decodes=0 decMs=0
+[OTS] f=46200 calls=2 n0=2327 n1=16 prims=33224 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3037 texUs=46 emitUs=1123 submitUs=368 otherUs=1499 prims=276 usPerPrim=11
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=46320 calls=2 n0=2327 n1=16 prims=33122 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3073 texUs=44 emitUs=1114 submitUs=306 otherUs=1608 prims=276 usPerPrim=11
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=112 decodes=0 decMs=0
+[OTS] f=46440 calls=2 n0=2321 n1=16 prims=33255 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2901 texUs=41 emitUs=1100 submitUs=263 otherUs=1496 prims=270 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=106 decodes=0 decMs=0
+[OTS] f=46560 calls=2 n0=2325 n1=16 prims=33409 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3037 texUs=43 emitUs=1108 submitUs=278 otherUs=1606 prims=274 usPerPrim=11
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=117 decodes=0 decMs=0
+[OTS] f=46680 calls=2 n0=2318 n1=16 prims=33248 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3087 texUs=46 emitUs=1076 submitUs=312 otherUs=1652 prims=267 usPerPrim=11
+[SH-XBOX] vblank 46800
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=46800 calls=2 n0=2324 n1=16 prims=33193 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2789 texUs=44 emitUs=1100 submitUs=553 otherUs=1091 prims=273 usPerPrim=10
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=46920 calls=2 n0=2318 n1=16 prims=32879 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2625 texUs=42 emitUs=1089 submitUs=291 otherUs=1202 prims=267 usPerPrim=9
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=108 decodes=0 decMs=0
+[OTS] f=47040 calls=2 n0=2317 n1=16 prims=32541 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2789 texUs=40 emitUs=1086 submitUs=320 otherUs=1342 prims=266 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=99 decodes=0 decMs=0
+[OTS] f=47160 calls=2 n0=2322 n1=16 prims=32574 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2616 texUs=42 emitUs=1099 submitUs=364 otherUs=1108 prims=271 usPerPrim=9
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=47280 calls=2 n0=2328 n1=16 prims=33726 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2915 texUs=44 emitUs=1104 submitUs=316 otherUs=1449 prims=277 usPerPrim=10
+[SH-XBOX] vblank 47400
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=1ms draws=122 decodes=0 decMs=0
+[OTS] f=47400 calls=2 n0=2329 n1=16 prims=33411 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2812 texUs=45 emitUs=1124 submitUs=334 otherUs=1308 prims=278 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=121 decodes=0 decMs=0
+[OTS] f=47520 calls=2 n0=2318 n1=16 prims=32982 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2808 texUs=43 emitUs=1089 submitUs=302 otherUs=1372 prims=267 usPerPrim=10
+[FT] avgMs=16 worstMs=44 gameMs=6 drawMs=10 swapWait=0ms draws=111 decodes=0 decMs=0
+[OTS] f=47640 calls=2 n0=2322 n1=16 prims=32626 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2847 texUs=43 emitUs=1104 submitUs=296 otherUs=1402 prims=271 usPerPrim=10
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=104 decodes=0 decMs=0
+[OTS] f=47760 calls=2 n0=2328 n1=16 prims=33160 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3023 texUs=42 emitUs=1117 submitUs=279 otherUs=1583 prims=277 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=17 worstMs=47 gameMs=6 drawMs=10 swapWait=0ms draws=116 decodes=0 decMs=0
+[OTS] f=47880 calls=2 n0=2331 n1=16 prims=33531 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2917 texUs=45 emitUs=1120 submitUs=308 otherUs=1443 prims=280 usPerPrim=10
+[SH-XBOX] vblank 48000
+[MEM] tick: free=2776KB (694 pages)
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=119 decodes=0 decMs=0
+[OTS] f=48000 calls=2 n0=2323 n1=16 prims=33068 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2752 texUs=43 emitUs=1096 submitUs=311 otherUs=1299 prims=272 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=126 decodes=0 decMs=0
+[OTS] f=48120 calls=2 n0=2333 n1=16 prims=33527 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3077 texUs=45 emitUs=1132 submitUs=329 otherUs=1569 prims=282 usPerPrim=10
+[STP] tpage=0x2c clut=0x1930 zero=12 stp1=4
+[STP] tpage=0x2c clut=0x1970 zero=12 stp1=4
+[STP] tpage=0x2c clut=0x1930 zero=12 stp1=4
+[STP] tpage=0x28 clut=0x0 zero=0 stp1=16
+[STP] tpage=0x2c clut=0x19b0 zero=12 stp1=4
+[STP] tpage=0x2c clut=0x1970 zero=12 stp1=4
+[STP] tpage=0x2c clut=0x1930 zero=12 stp1=4
+[STP] tpage=0x39 clut=0x247 zero=0 stp1=16
+[STP] tpage=0x2c clut=0x19f0 zero=12 stp1=4
+[STP] tpage=0x2c clut=0x1970 zero=12 stp1=4
+[STP] tpage=0x39 clut=0x247 zero=0 stp1=16
+[STP] tpage=0x37 clut=0x345 zero=0 stp1=16
+[FT] avgMs=17 worstMs=46 gameMs=6 drawMs=11 swapWait=0ms draws=143 decodes=25 decMs=14
+[OTS] f=48240 calls=2 n0=2572 n1=16 prims=35446 bb=-1838,3721,-2404,3661
+[OTT] walkUs=6614 texUs=1795 emitUs=1983 submitUs=651 otherUs=2183 prims=521 usPerPrim=12
+[VRAM] out of slots -> GPU drain #1 (alloc=40 worstPerFrame=1 totalMs=0)
+[WALLANIM] pathB kf=43 travel=446 intended=474 runStepSfx=8 spdProp=14336 pos=(16171,1120461)
+[VRAM] decode #512
+[VRAM] miss cause: evict=453 inval=7 cold=54 (alloc=40)
+[VRAM] out of slots -> GPU drain #65 (alloc=40 worstPerFrame=1 totalMs=4)
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=2)
+[SYSSTATE] dispatch sysState=10 mapEventData=0x5968e8
+[ITEMPICK] unique-item link: id=0x41 nobj=1 obj=ok
+[ITEMPICK] unique-item link: id=0x41 nobj=1 obj=ok
+[ITEMPICK] draw SKIPPED: slot=9 reason=scale 0 (arg2=2)
+[FREEZE] capture 1280x720 in 0ms (gpu, was 165ms cpu)
+[FT] avgMs=29 worstMs=63 gameMs=9 drawMs=20 swapWait=0ms draws=421 decodes=792 decMs=430
+[OTS] f=48360 calls=2 n0=2619 n1=80 prims=102614 bb=-1862,4741,-2761,3538
+[OTT] walkUs=776 texUs=15 emitUs=154 submitUs=123 otherUs=482 prims=91 usPerPrim=8
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[VRAM] decode #1024
+[VRAM] miss cause: evict=965 inval=7 cold=54 (alloc=40)
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=6)
+[ITEMPICK] unique-item link: id=0x41 nobj=1 obj=ok
+[ITEMPICK] unique-item link: id=0x41 nobj=1 obj=ok
+[ITEMPICK] draw SKIPPED: slot=9 reason=scale 0 (arg2=2)
+[FREEZE] capture 1280x720 in 0ms (gpu, was 165ms cpu)
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[VRAM] out of slots -> GPU drain #129 (alloc=40 worstPerFrame=1 totalMs=6)
+[FT] avgMs=27 worstMs=62 gameMs=10 drawMs=16 swapWait=0ms draws=341 decodes=611 decMs=331
+[OTS] f=48480 calls=4 n0=3247 n1=16 prims=86564 bb=-1838,3403,-2127,2131
+[OTT] walkUs=18372 texUs=8445 emitUs=4642 submitUs=1378 otherUs=3906 prims=1199 usPerPrim=15
+[VRAM] decode #1536
+[VRAM] miss cause: evict=1477 inval=7 cold=54 (alloc=40)
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=5)
+[SFX] Sd_PlaySfx: sfxId=1321 (Sfx_Base+41) vol=0
+[SFX] Sd_PlaySfx: sfxId=1322 (Sfx_Base+42) vol=0
+[VRAM] decode #2048
+[VRAM] miss cause: evict=1989 inval=7 cold=54 (alloc=40)
+[VRAM] out of slots -> GPU drain #193 (alloc=40 worstPerFrame=1 totalMs=10)
+[VRAM] decode #2560
+[VRAM] miss cause: evict=2501 inval=7 cold=54 (alloc=40)
+[XA] Play xaIdx=42 file=1 sector=1889 sectors=21 stereo 37800Hz bits=4 filter=(6,1)
+[XA] primed ring=20481 frames
+[VRAM] decode #3072
+[VRAM] miss cause: evict=3013 inval=7 cold=54 (alloc=40)
+[XA] channel ended early xaIdx=42 (remaining=1/21)
+[VRAM] decode #3584
+[VRAM] miss cause: evict=3525 inval=7 cold=54 (alloc=40)
+[XA] finished xaIdx=42 (drained)
+[VRAM] decode #4096
+[VRAM] miss cause: evict=4037 inval=7 cold=54 (alloc=40)
+[VRAM] out of slots -> GPU drain #257 (alloc=40 worstPerFrame=2 totalMs=11)
+[SH-XBOX] vblank 48600
+[MEM] tick: free=2776KB (694 pages)
+[VRAM] decode #4608
+[VRAM] miss cause: evict=4549 inval=7 cold=54 (alloc=40)
+[FT] avgMs=46 worstMs=159 gameMs=6 drawMs=39 swapWait=0ms draws=672 decodes=3252 decMs=1818
+[OTS] f=48600 calls=2 n0=3347 n1=19 prims=138322 bb=-1928,3721,-2282,3661
+[OTT] walkUs=31757 texUs=20645 emitUs=5325 submitUs=1680 otherUs=4105 prims=1301 usPerPrim=24
+[VRAM] decode #5120
+[VRAM] miss cause: evict=5061 inval=7 cold=54 (alloc=40)
+[XA] Play xaIdx=4 file=1 sector=3 sectors=78 stereo 37800Hz bits=4 filter=(1,3)
+[XA] primed ring=20481 frames
+[VRAM] decode #5632
+[VRAM] miss cause: evict=5573 inval=7 cold=54 (alloc=40)
+[VRAM] out of slots -> GPU drain #321 (alloc=40 worstPerFrame=2 totalMs=12)
+[VRAM] decode #6144
+[VRAM] miss cause: evict=6085 inval=7 cold=54 (alloc=40)
+[VRAM] decode #6656
+[VRAM] miss cause: evict=6597 inval=7 cold=54 (alloc=40)
+[VRAM] decode #7168
+[VRAM] miss cause: evict=7109 inval=7 cold=54 (alloc=40)
+[VRAM] out of slots -> GPU drain #385 (alloc=40 worstPerFrame=2 totalMs=14)
+[VRAM] decode #7680
+[VRAM] miss cause: evict=7621 inval=7 cold=54 (alloc=40)
+[XA] channel ended early xaIdx=4 (remaining=1/78)
+[VRAM] decode #8192
+[VRAM] miss cause: evict=8133 inval=7 cold=54 (alloc=40)
+[XA] finished xaIdx=4 (drained)
+[VRAM] decode #8704
+[VRAM] miss cause: evict=8645 inval=7 cold=54 (alloc=40)
+[VRAM] out of slots -> GPU drain #449 (alloc=40 worstPerFrame=2 totalMs=14)
+[VRAM] decode #9216
+[VRAM] miss cause: evict=9157 inval=7 cold=54 (alloc=40)

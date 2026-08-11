@@ -1,0 +1,1827 @@
+[CFG] key='control_style'(13) value='classic'
+[CFG] key='invert_controller_y'(19) value='0'
+[CFG] key='crosshair'(9) value='1'
+[CFG] key='crosshair_style'(15) value='3'
+[CFG] key='refresh_rate'(12) value='60'
+[CFG] key='retroachievements'(17) value='1'
+[CFG] >> retroachievements branch: atoi=1 -> retroAchievements=1
+[CFG] key='ra_username'(11) value='KushAstronaut'
+[CFG] key='ra_password'(11) value='101F66d283,,'
+[CFG] key='use_pgxp'(8) value='0'
+[CFG] key='cutscene_line_gap_ms'(20) value='300'
+[CFG] key='video_720p'(10) value='1'
+[CFG] key='log_diag'(8) value='0control_2d = 1'
+[CFG] key='control_2d'(10) value='0'
+[SH-XBOX] SEH crash logger installed (frame=0xd0032c60 handler=0x2f1220)
+[SH-XBOX] build 6fc02e02f+wt id=0810-051717 (2026-08-10 05:17:17)
+[FS] D: -> '\Device\Harddisk0\Partition1\Apps\SH\' (wasMounted=1 remap=ok)
+[SH-XBOX] boot: video 1280x720x32 (720p, pillarboxed 4:3)
+[GTE] RotTransPers v(64,32,512) -> sx=352 sy=256 sz=128 flag=0x1000 (expect sx=352 sy=256)
+[SH-XBOX] pbkit initialised
+[CD] xbe dir = '\Device\Harddisk0\Partition1\Apps\SH\' (mounted Q:)
+[CD] disc image: Q:\Silent Hill (USA).bin
+[CD] BIN: Q:\Silent Hill (USA).bin
+[SH-XBOX] NV2A fb 1280x720, content 960x720 at x=160
+[SH-XBOX] NV2A backend ready (batch=16384 verts)
+[SH-XBOX] USB pad init done
+[MCRD] card path = E:\UDATA\SH010000\0.MCD
+[SH-XBOX] PSX RAM @ 0xddd594
+[SH-XBOX] game data initialised
+[SH-XBOX] subsystems up; entering MainLoop
+[RA] init: enabled=1 user='KushAstronaut' token=none passwordLen=12
+[NET] up, DHCP IP 192.168.1.123
+[RA] syswork native: npcs=0x1A0 bones=0x26A0 tailA=0x91D0 targetNpc=0x92A8 light=0x92B0 sizeof=38588
+[FREEZE] target ok: 1280x720 (GPU copy, no CPU readback)
+[VRAM] palette self-test dma=1 -> px=FB000000 no
+[VRAM] palette self-test dma=0 -> px=FB000000 no
+[VRAM] paletted path unavailable on this console; using ARGB cache
+[FOGST-GPU] clear=0xff000000
+[SH-XBOX] layout check ok: sizeof(s_SysWork)=38588 sizeof(s_GameWork)=1496
+[XA] SetVolume L=0 R=0
+[ARENA] buf0=0x7fdd0008 buf1=0x7fbc0008
+[SH-XBOX] GameState -> 0 (step 0)
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (253 bytes)
+[RA] http -> status=200 bodyLen=253 body='{"Success":true,"User":"KushAstronaut","AvatarUrl":"https:\/'
+[RA] logged in as KushAstronaut
+RA: signed in as KushAstronaut
+[RA] disc hash 469d5cf1428d3f6f2234aa5be058f3ec
+[MCFSM] state=0 step=0 (was -1/-1 after 0 f)
+[OT] DrawOTag head=0xd60344 (walking; per-node trace off)
+[OT] walk done after 2048 nodes (cap hit=0)
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (136273 bytes)
+[RA] http -> status=200 bodyLen=136273 body='{"Success":true,"GameId":11252,"Title":"Silent Hill","ImageI'
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=0 -> IOE (n=1)
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (200 bytes)
+[RA] http -> status=200 bodyLen=200 body='{"Success":true,"ServerNow":1786354288,"HardcoreUnlocks":[],'
+[RA] set reads 0x800BCAD8 (mapped)
+[RA] set reads 0x800BCC7E (mapped)
+[RA] set reads 0x800BCBA2 (mapped)
+[RA] set reads 0x800BC0C8 (mapped)
+[RA] set reads 0x800BC26E (mapped)
+[RA] set reads 0x800BC192 (mapped)
+[RA] set reads 0x800B2214 (mapped)
+[RA] set reads 0x800BC6A8 (mapped)
+[RA] achievement read of unmapped PSX address 0x800BCD6C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C168C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C0C7C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C125C - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C6F2D - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C651D - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C6AFD - needs a translation entry
+[RA] achievement read of unmapped PSX address 0x800C4476 - needs a translation entry
+[RA] matched game 11252 "Silent Hill"
+[RA] worklist UNMAPPED 0x800BCD6C (memsize=0)
+[RA] worklist UNMAPPED 0x800C168C (memsize=1)
+[RA] worklist UNMAPPED 0x800C0C7C (memsize=1)
+[RA] worklist UNMAPPED 0x800C125C (memsize=1)
+[RA] worklist UNMAPPED 0x800C6F2D (memsize=0)
+[RA] worklist UNMAPPED 0x800C651D (memsize=0)
+[RA] worklist UNMAPPED 0x800C6AFD (memsize=0)
+[RA] worklist UNMAPPED 0x800C4476 (memsize=1)
+[RA] worklist UNMAPPED 0x800C4472 (memsize=0)
+[RA] worklist UNMAPPED 0x800C4470 (memsize=0)
+[RA] worklist: 352 memrefs total, 10 unserved, 10 distinct-unmapped listed
+[RA] culprit: achiev id=83576 'Wounds That Won't Heal' reads unmapped 0x800BCD6C
+[RA] culprit: achiev id=86517 'What Is Keeping That Child Alive?' reads unmapped 0x800C168C
+[RA] culprit: achiev id=86517 'What Is Keeping That Child Alive?' reads unmapped 0x800C0C7C
+[RA] culprit: achiev id=86517 'What Is Keeping That Child Alive?' reads unmapped 0x800C125C
+[RA] culprit: achiev id=86663 'Scary Harry I' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86663 'Scary Harry I' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86663 'Scary Harry I' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86664 'Scary Harry II' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86664 'Scary Harry II' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86664 'Scary Harry II' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86665 'Scary Harry III' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86665 'Scary Harry III' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86665 'Scary Harry III' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86666 'Scary Harry IV' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86666 'Scary Harry IV' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86666 'Scary Harry IV' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86667 'Scary Harry V' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86667 'Scary Harry V' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86667 'Scary Harry V' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86668 'Scary Harry VI' reads unmapped 0x800C6F2D
+[RA] culprit: achiev id=86668 'Scary Harry VI' reads unmapped 0x800C651D
+[RA] culprit: achiev id=86668 'Scary Harry VI' reads unmapped 0x800C6AFD
+[RA] culprit: achiev id=86422 'Harry the Swift' reads unmapped 0x800C4476
+[RA] culprit: achiev id=86422 'Harry the Swift' reads unmapped 0x800C4472
+[RA] culprit: achiev id=86423 'Daring Harry' reads unmapped 0x800C4470
+[RA] culprit: achiev id=86427 'Harry the Best' reads unmapped 0x800C4472
+[RA] culprit: achiev id=86427 'Harry the Best' reads unmapped 0x800C4470
+[RA] trace 84008: not in runtime (already unlocked?)
+[RA] ach lock id=84002 5p 'Keys for Eclipse'
+[RA] ach lock id=84005 5p 'Old Man's Hand'
+[RA] ach lock id=84007 5p 'Broken Notes'
+[RA] ach lock id=85474 5p 'Harry in Wonderland'
+[RA] ach lock id=85476 5p 'Loneliness'
+[RA] ach lock id=86028 5p 'Sand Castles'
+[RA] ach lock id=86080 10p 'I'll Kill You'
+[RA] ach lock id=86340 5p 'Eww Eww Eww'
+[RA] ach lock id=86506 10p 'Paging Dr. Kaufmann'
+[RA] ach lock id=86341 5p 'Our Little Secret'
+[RA] ach lock id=86342 10p 'Pour Some Sugar On Me, Baby'
+[RA] ach lock id=86343 10p 'Merry-Go-Down'
+[RA] ach lock id=86344 5p 'Grim Reaper's List'
+[RA] ach lock id=86345 5p 'The Stone of Time'
+[RA] ach lock id=83576 10p 'Wounds That Won't Heal'
+[RA] ach lock id=86347 5p 'Illuminating the Darkness'
+[RA] ach lock id=86517 10p 'What Is Keeping That Child Alive?'
+[RA] ach lock id=86348 3p 'What's Going On with That Refrigerator?'
+[RA] ach lock id=86428 10p 'My Heaven'
+[RA] ach lock id=86518 10p 'Awakening'
+[RA] ach lock id=86503 10p 'The Archer and the Beast'
+[RA] ach lock id=86504 10p 'The Pit of Calamity'
+[RA] ach lock id=86505 10p 'Erratic'
+[RA] ach lock id=86513 10p 'Sifod'
+[RA] ach lock id=86519 10p 'Thank You...'
+[RA] ach lock id=86023 5p 'Target Practice'
+[RA] ach lock id=86022 10p 'Triggered'
+[RA] ach lock id=86024 25p 'Gun Control: Alessa's New Nightmare'
+[RA] ach lock id=86026 10p 'Fa-fa-fa-fa, Fa-fa-fa-fa-fa, Fa, Better'
+[RA] ach lock id=86027 25p 'Hammerin' Harry'
+[RA] ach lock id=86346 10p 'Doomsday Prepper'
+[RA] ach lock id=86349 10p 'Drillin' Like a Villain'
+[RA] ach lock id=84003 10p 'Harry the Weeb'
+[RA] ach lock id=84004 10p 'Silent Hill Chainsaw Massacre'
+[RA] ach lock id=86520 10p 'A Gift from Outer Space'
+[RA] ach lock id=86507 10p 'Like the Back of My Hand I'
+[RA] ach lock id=86508 10p 'Like the Back of My Hand II'
+[RA] ach lock id=86509 10p 'Like the Back of My Hand III'
+[RA] ach lock id=86510 10p 'Like the Back of My Hand IV'
+[RA] ach lock id=86516 5p 'Like the Back of My Hand V'
+[RA] ach lock id=86663 5p 'Scary Harry I'
+[RA] ach lock id=86664 10p 'Scary Harry II'
+[RA] ach lock id=86665 10p 'Scary Harry III'
+[RA] ach lock id=86666 10p 'Scary Harry IV'
+[RA] ach lock id=86667 10p 'Scary Harry V'
+[RA] ach lock id=86668 10p 'Scary Harry VI'
+[RA] ach lock id=86422 25p 'Harry the Swift'
+[RA] ach lock id=86423 25p 'Daring Harry'
+[RA] ach lock id=86424 5p 'Harry the Okay'
+[RA] ach lock id=86425 10p 'Harry the Good'
+[RA] ach lock id=86426 25p 'Harry the Great'
+[RA] ach lock id=86427 50p 'Harry the Best'
+[RA] ach lock id=86662 5p 'That Light...'
+[RA] ach lock id=86502 5p 'UFO Sighting I'
+[RA] ach lock id=86511 5p 'UFO Sighting II'
+[RA] ach lock id=86512 5p 'UFO Sighting III'
+[RA] ach lock id=86514 5p 'UFO Sighting IV'
+[RA] ach lock id=86515 5p 'UFO Sighting V'
+[RA] ach lock id=86429 25p 'Tears of...'
+[RA] ach lock id=86430 10p 'Killing Time'
+[RA] ach lock id=86431 10p 'She'
+[RA] ach lock id=86432 10p 'Esperandote'
+[RA] ach lock id=86433 10p 'Ayyy'
+[RA] ach UNLK id=101000001 0p 'Warning: Unknown Emulator'
+[RA] ach UNLK id=86483 3p 'What a Nightmare...'
+[RA] ach UNLK id=84008 10p 'Who's Afraid of a Reptile?'
+[RA] ach UNLK id=86025 5p 'Knife to Meet You'
+[RA] roster: 63 locked, 4 unlocked (67 total)
+RetroAchievements: 3/66 (18 pts)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=0 -> IOE (n=2)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=0 -> IOE (n=1)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=0 -> IOE (n=1)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=0 (n=1)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[MCFSM] state=6 step=0 (was 0/0 after 0 f)
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCFSM] state=7 step=0 (was 6/0 after 0 f)
+[MCFSM] state=7 step=2 (was 7/0 after 0 f)
+[MCRD] read h=1 dir=1 ofs=512 len=256 ok
+[LOOSE/INIT] allow_loose_files=0  base=gamedata/load/  verbose=no
+[MCFSM] state=7 step=3 (was 7/2 after 0 f)
+[MCFSM] state=0 step=0 (was 7/3 after 0 f)
+[BOOT0/TIM] PostLoadTim file=6 'FONT16.TIM' ss=0x287 img.u=0 img.v=240 tPage=0,16 clutX=304 clutY=511
+[BOOT0/TIM] post ReadTIM: prect=0xfbfbcc caddr=0xfbfba8 paddr=0xfbfbd4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(0,496 256x16)
+[FONTCLOB] Load x=0 y=496 w=256 h=16
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,511 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=1 -> IOE (n=3)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=8 'KONAMI.TIM' ss=0x28e img.u=0 img.v=0 tPage=0,12 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfbfbcc caddr=0xfbfba8 paddr=0xfbfbd4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 96x384)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=1 -> IOE (n=4)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=1 -> IOE (n=2)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=1 -> IOE (n=2)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=1 (n=2)
+[SH-XBOX] GameState -> 1 (step 0)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[VRAM] texture cache: 39/96 slots (256KB each), free=8348KB after
+[VRAM] cache capped by 8MB heap reserve (expect decode thrash)
+[VRAM] cache grew to 40 slots (free=8092KB)
+[VRAM] miss cause: evict=0 inval=0 cold=2 (alloc=41)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=2 -> IOE (n=5)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=9 'KONAMI2.TIM' ss=0x2b3 img.u=0 img.v=0 tPage=0,14 clutX=0 clutY=1
+[BOOT0/TIM] post ReadTIM: prect=0xfbfbcc caddr=0xfbfba8 paddr=0xfbfbd4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(896,0 104x160)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,1 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=2 -> IOE (n=6)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=2 -> IOE (n=3)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=2 -> IOE (n=3)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=2 (n=3)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=1423 'HERO.TIM' ss=0x5a6a img.u=0 img.v=0 tPage=0,27 clutX=736 clutY=480
+[BOOT0/TIM] post ReadTIM: prect=0xfbfd8c caddr=0xfbfba8 paddr=0xfbfd94 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,256 64x192)
+[BOOT0/TIM] pre CLUT LoadImage rect=(736,480 16x15)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=3 -> IOE (n=7)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=3 -> IOE (n=8)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=3 -> IOE (n=4)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=3 -> IOE (n=4)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=1802 'BLD.TIM' ss=0x795b img.u=0 img.v=0 tPage=0,11 clutX=304 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfca5ac caddr=0xfca3a8 paddr=0xfca5b4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=3 (n=4)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=16 -> IOE (n=9)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=16 -> IOE (n=10)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=16 -> IOE (n=5)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=16 -> IOE (n=5)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=8 (n=5)
+[MCRD] open 'bu10:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=512 len=256 ok
+[MCRD] card_info chan=17 -> IOE (n=11)
+[MCRD] card_info chan=17 -> IOE (n=12)
+[MCRD] card_clear chan=17 -> IOE (n=6)
+[MCRD] card_load chan=17 -> IOE (n=6)
+[MCRD] dir scan chan=9 (n=6)
+[MCRD] card_info chan=18 -> IOE (n=13)
+[MCRD] card_info chan=18 -> IOE (n=14)
+[MCRD] card_clear chan=18 -> IOE (n=7)
+[MCRD] card_load chan=18 -> IOE (n=7)
+[MCRD] dir scan chan=10 (n=7)
+[MCRD] card_info chan=19 -> IOE (n=15)
+[MCRD] card_info chan=19 -> IOE (n=16)
+[MCRD] card_clear chan=19 -> IOE (n=8)
+[MCRD] card_load chan=19 -> IOE (n=8)
+[MCRD] dir scan chan=11 (n=8)
+[FT] avgMs=28 worstMs=657 gameMs=13 drawMs=18 swapWait=0ms draws=4 decodes=4 decMs=0
+[OTS] f=120 calls=2 n0=27 n1=18 prims=984 bb=-320,3520,-411,1131
+[OTT] walkUs=230 texUs=2 emitUs=3 submitUs=20 otherUs=203 prims=6 usPerPrim=38
+[FT] avgMs=16 worstMs=44 gameMs=15 drawMs=1 swapWait=0ms draws=6 decodes=0 decMs=0
+[OTS] f=240 calls=1 n0=27 n1=18 prims=1320 bb=160,2080,-25,745
+[OTT] walkUs=62 texUs=4 emitUs=5 submitUs=19 otherUs=32 prims=6 usPerPrim=10
+[FT] avgMs=17 worstMs=48 gameMs=15 drawMs=1 swapWait=0ms draws=5 decodes=0 decMs=0
+[OTS] f=360 calls=1 n0=27 n1=18 prims=1314 bb=160,2080,-25,745
+[OTT] walkUs=64 texUs=3 emitUs=6 submitUs=21 otherUs=33 prims=6 usPerPrim=10
+[FT] avgMs=17 worstMs=84 gameMs=15 drawMs=1 swapWait=0ms draws=6 decodes=0 decMs=0
+[OTS] f=480 calls=1 n0=27 n1=18 prims=1320 bb=160,2080,-25,745
+[OTT] walkUs=62 texUs=3 emitUs=4 submitUs=21 otherUs=33 prims=6 usPerPrim=10
+[FT] avgMs=17 worstMs=51 gameMs=15 drawMs=1 swapWait=0ms draws=6 decodes=0 decMs=0
+[SH-XBOX] vblank 600
+[MEM] tick: free=7316KB (1829 pages)
+[OTS] f=600 calls=1 n0=27 n1=18 prims=1320 bb=160,2080,-25,745
+[OTT] walkUs=484 texUs=3 emitUs=4 submitUs=20 otherUs=457 prims=6 usPerPrim=80
+[SH-XBOX] GameState -> 2 (step 0)
+[BOOT0/TIM] PostLoadTim file=1799 'BG_ETC.TIM' ss=0x7906 img.u=0 img.v=0 tPage=0,12 clutX=192 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfbfd0c caddr=0xfbfba8 paddr=0xfbfd14 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(192,0 16x11)
+[BOOT0/TIM] PostLoadTim done
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=768 len=128 ok
+[BOOT0/TIM] PostLoadTim file=1980 'TITLE_E.TIM' ss=0x90b7 img.u=32 img.v=0 tPage=1,13 clutX=224 clutY=15
+[BOOT0/TIM] post ReadTIM: prect=0xf8fdac caddr=0xf8fba8 paddr=0xf8fdb4 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 160x480)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,15 256x1)
+[BOOT0/TIM] PostLoadTim done
+[FT] avgMs=18 worstMs=103 gameMs=15 drawMs=3 swapWait=0ms draws=4 decodes=2 decMs=0
+[SH-XBOX] GameState -> 6 (step 0)
+[SH] open_main: playing FMV (file=2053 frames=0)
+[FMV] no avi for C1_20670 (checked D:\fmv, D:\gamedata\fmv) -> MDEC
+[FMV] start C1_20670 file_idx=2053 base=133127 sectors=20670 maxFrames=0 (15fps)
+[XA] fmv stream open: 37800Hz stereo coding=0x01
+[FMV] video 320x208, 9 sectors/frame
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[mdec] hdr n_bytes=5776 first8=06 e0 38 00 00 01 00 02 qscale=1 version=2 ctx=320x208
+[FT] avgMs=39 worstMs=182 gameMs=11 drawMs=27 swapWait=0ms draws=0 decodes=2 decMs=2
+[FT] avgMs=38 worstMs=102 gameMs=10 drawMs=28 swapWait=0ms draws=1 decodes=0 decMs=0
+[FMV] frame=150 dropped=3 fails=0 ring=1792 fed=187
+[FT] avgMs=41 worstMs=137 gameMs=10 drawMs=30 swapWait=0ms draws=1 decodes=0 decMs=0
+[FT] avgMs=38 worstMs=96 gameMs=10 drawMs=28 swapWait=0ms draws=1 decodes=0 decMs=0
+[SH-XBOX] vblank 1200
+[MEM] tick: free=5516KB (1379 pages)
+[FMV] frame=300 dropped=7 fails=0 ring=643 fed=374
+[FT] avgMs=39 worstMs=146 gameMs=10 drawMs=29 swapWait=0ms draws=1 decodes=0 decMs=0
+[FT] avgMs=38 worstMs=105 gameMs=10 drawMs=28 swapWait=0ms draws=1 decodes=0 decMs=0
+[FMV] frame=450 dropped=9 fails=0 ring=1448 fed=562
+[FT] avgMs=40 worstMs=148 gameMs=10 drawMs=30 swapWait=0ms draws=1 decodes=0 decMs=0
+[FT] avgMs=38 worstMs=117 gameMs=10 drawMs=28 swapWait=0ms draws=1 decodes=0 decMs=0
+[FMV] frame=600 dropped=13 fails=0 ring=750 fed=749
+[FT] avgMs=38 worstMs=111 gameMs=10 drawMs=28 swapWait=0ms draws=1 decodes=0 decMs=0
+[SH-XBOX] vblank 1800
+[MEM] tick: free=5516KB (1379 pages)
+[FT] avgMs=39 worstMs=159 gameMs=10 drawMs=29 swapWait=0ms draws=1 decodes=0 decMs=0
+[FMV] frame=750 dropped=16 fails=0 ring=2355 fed=937
+[FT] avgMs=39 worstMs=138 gameMs=10 drawMs=29 swapWait=0ms draws=1 decodes=0 decMs=0
+[FT] avgMs=38 worstMs=125 gameMs=10 drawMs=28 swapWait=0ms draws=1 decodes=0 decMs=0
+[FMV] frame=900 dropped=17 fails=0 ring=857 fed=1124
+[FT] avgMs=40 worstMs=97 gameMs=10 drawMs=30 swapWait=0ms draws=1 decodes=0 decMs=0
+[FT] avgMs=40 worstMs=92 gameMs=10 drawMs=29 swapWait=0ms draws=1 decodes=0 decMs=0
+[SH-XBOX] vblank 2400
+[MEM] tick: free=5516KB (1379 pages)
+[FMV] frame=1050 dropped=18 fails=0 ring=2463 fed=1312
+[FT] avgMs=40 worstMs=101 gameMs=10 drawMs=30 swapWait=0ms draws=1 decodes=0 decMs=0
+[FT] avgMs=38 worstMs=91 gameMs=10 drawMs=28 swapWait=0ms draws=1 decodes=0 decMs=0
+[FMV] frame=1200 dropped=18 fails=0 ring=196 fed=1499
+[FT] avgMs=38 worstMs=91 gameMs=10 drawMs=27 swapWait=0ms draws=1 decodes=0 decMs=0
+[FT] avgMs=39 worstMs=115 gameMs=10 drawMs=29 swapWait=0ms draws=1 decodes=0 decMs=0
+[FT] avgMs=39 worstMs=94 gameMs=10 drawMs=29 swapWait=0ms draws=1 decodes=0 decMs=0
+[SH-XBOX] vblank 3000
+[MEM] tick: free=5516KB (1379 pages)
+[FMV] frame=1350 dropped=20 fails=0 ring=1770 fed=1687
+[FT] avgMs=41 worstMs=127 gameMs=10 drawMs=30 swapWait=0ms draws=1 decodes=0 decMs=0
+[FT] avgMs=38 worstMs=141 gameMs=10 drawMs=27 swapWait=0ms draws=1 decodes=0 decMs=0
+[FMV] frame=1500 dropped=26 fails=0 ring=815 fed=1874
+[FT] avgMs=38 worstMs=125 gameMs=10 drawMs=28 swapWait=0ms draws=1 decodes=0 decMs=0
+[FT] avgMs=39 worstMs=141 gameMs=10 drawMs=29 swapWait=0ms draws=1 decodes=0 decMs=0
+[FMV] frame=1650 dropped=30 fails=0 ring=1653 fed=2062
+[FT] avgMs=40 worstMs=150 gameMs=10 drawMs=29 swapWait=0ms draws=1 decodes=0 decMs=0
+[SH-XBOX] vblank 3600
+[MEM] tick: free=5516KB (1379 pages)
+[FT] avgMs=40 worstMs=99 gameMs=10 drawMs=29 swapWait=0ms draws=1 decodes=0 decMs=0
+[FMV] skipped at frame 1782
+[XA] fmv stream end: 2227 sectors fed, 2266 ring frames discarded
+[FMV] end C1_20670: 1782 frames (33 dropped, 0 decode fails, 3004 presents)
+[SH] open_main: FMV_Play returned
+[SH-XBOX] GameState -> 7 (step 0)
+[BOOT-STEP] GameStartup step=0 qlen=0
+[TRANSITION] GameStartup step=0: processFlags=0x20 (BootDemo) sizeof(s_WorldGfxWork)=11708
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[BOOT-STEP] GameStartup step=1 qlen=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[FT] avgMs=20 worstMs=113 gameMs=12 drawMs=7 swapWait=0ms draws=17 decodes=6 decMs=5
+[OTS] f=3840 calls=2 n0=2056 n1=295 prims=29699 bb=-320,3520,-411,1542
+[OTT] walkUs=2367 texUs=9 emitUs=1041 submitUs=83 otherUs=1232 prims=253 usPerPrim=9
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[MCRD] card_info chan=19 -> IOE (n=256)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[FT] avgMs=16 worstMs=46 gameMs=13 drawMs=3 swapWait=0ms draws=20 decodes=0 decMs=0
+[OTS] f=3960 calls=2 n0=2056 n1=295 prims=34440 bb=-35,1120,-25,797
+[OTT] walkUs=1783 texUs=8 emitUs=1016 submitUs=88 otherUs=669 prims=253 usPerPrim=7
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[FT] avgMs=17 worstMs=49 gameMs=13 drawMs=3 swapWait=0ms draws=19 decodes=0 decMs=0
+[OTS] f=4080 calls=2 n0=2056 n1=295 prims=34440 bb=-35,1120,-25,797
+[OTT] walkUs=1801 texUs=9 emitUs=1016 submitUs=125 otherUs=649 prims=253 usPerPrim=7
+[FT] avgMs=16 worstMs=43 gameMs=13 drawMs=3 swapWait=0ms draws=19 decodes=0 decMs=0
+[SH-XBOX] vblank 4200
+[MEM] tick: free=4236KB (1059 pages)
+[OTS] f=4200 calls=2 n0=2056 n1=295 prims=34440 bb=-35,1120,-25,797
+[OTT] walkUs=1878 texUs=9 emitUs=1018 submitUs=134 otherUs=716 prims=253 usPerPrim=7
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[FT] avgMs=17 worstMs=50 gameMs=13 drawMs=3 swapWait=1ms draws=20 decodes=0 decMs=0
+[OTS] f=4320 calls=2 n0=2056 n1=295 prims=34440 bb=-35,1120,-25,797
+[OTT] walkUs=1604 texUs=9 emitUs=1015 submitUs=142 otherUs=436 prims=253 usPerPrim=6
+[SFX] Sd_PlaySfx: sfxId=1281 (Sfx_Base+1) vol=0
+[BOOT0/TIM] PostLoadTim file=1939 'SAVELOAD.TIM' ss=0x8ced img.u=0 img.v=16 tPage=1,5 clutX=224 clutY=14
+[BOOT0/TIM] post ReadTIM: prect=0xfbfdac caddr=0xfbfba8 paddr=0xfbfdb4 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(320,16 160x240)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,14 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 8 (step 0)
+[FT] avgMs=18 worstMs=138 gameMs=13 drawMs=4 swapWait=0ms draws=65 decodes=4 decMs=3
+[OTS] f=4440 calls=2 n0=2052 n1=312 prims=34127 bb=-320,3520,-411,1542
+[OTT] walkUs=1749 texUs=22 emitUs=186 submitUs=358 otherUs=1182 prims=187 usPerPrim=9
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=0
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=896 len=640 ok
+[FT] avgMs=17 worstMs=62 gameMs=13 drawMs=4 swapWait=0ms draws=87 decodes=0 decMs=0
+[OTS] f=4560 calls=2 n0=2052 n1=294 prims=35910 bb=157,1117,-25,745
+[OTT] walkUs=1809 texUs=21 emitUs=184 submitUs=228 otherUs=1374 prims=178 usPerPrim=10
+[MCRD] open 'bu00:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=768 len=128 ok
+[CHARA-TEX] charaId=1 matCount=1 modelCount=23
+[CHARA-TEX] mat[0] name='HERO' field_C=1 E=0x3b F=0x3b clut=0x782e UV=0x0000 tex=0
+[CHARA-TEX] prim0: f0=0x135b(UV0) f2=0x7a6e(clut) f4=0x1651(UV1) f6=0x003b(tpage) f8=0x1251(UV2) fA=0x0000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,27] u=0 v=0 clutXY=(736,480)
+[AUTO-EQUIP-CHECK] mapIdx=1 processFlags=0x8 inventorySlotCount=8 equippedWeapon=0
+[MAP-LOAD] GameBoot_MapLoad mapIdx=1 (map0_s01) fileIdx=1996 linked=1 procFlags=0x8
+[MAP-LOAD] MapRegistry_Load(1)=map0_s01 linked=1 header=00597af0
+[MEM] after map-load: free=4236KB (1059 pages)
+[LANG] USA disc-patch skipped on Xbox (compiled text kept)
+[BOOT0/TIM] PostLoadTim file=1849 'GLASS.TIM' ss=0x7ec3 img.u=0 img.v=0 tPage=0,13 clutX=224 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfd1bcc caddr=0xfd1ba8 paddr=0xfd1bd4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(832,0 16x64)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,0 16x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 10 (step 0)
+[BOOT-STEP] GameStartup step=0 qlen=0
+[TRANSITION] GameStartup step=0: processFlags=0x8 (LoadSave) sizeof(s_WorldGfxWork)=11708
+[BOOT-STEP] GameStartup step=3 qlen=0
+[BOOT-STEP] GameStartup step=4 qlen=0
+[BOOT-STEP] GameStartup step=5 qlen=0
+[BOOT-STEP] GameStartup step=7 qlen=0
+[TRANSITION] GameStartup step=7: processFlags=0x8 playerPos=(18814,819,1088367) func_80039F90=0x0
+[IPD-INIT] Ipd_MapFileInfoSet: mapTag='THR' activeIpdCount=4 isExterior=1 plmIdx=1370 ipdFileIdx=0 textureFileIdx=0 curSize=0 willRebuildGrid=1
+[MEM] after chunk-buffers: free=2700KB (675 pages)
+[TRANSITION] GameStartup step=7 post-init: playerPos=(18814,819,1088367) mapTag='THR'
+[BOOT-STEP] GameStartup step=8 qlen=8
+[BOOT0/TIM] PostLoadTim file=1073 'THR0001F.TIM' ss=0x45d8 img.u=0 img.v=0 tPage=0,8 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9c6c caddr=0xfc9ba8 paddr=0xfc9c74 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x6)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (512,0 64x256) hits PINNED pool slot 0 'THR0001F' (512,0)
+[BOOT0/TIM] PostLoadTim file=1077 'THR0003F.TIM' ss=0x4625 img.u=0 img.v=0 tPage=0,9 clutX=16 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9d6c caddr=0xfc9ba8 paddr=0xfc9d74 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(16,0 16x14)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (576,0 64x256) hits PINNED pool slot 1 'THR0003F' (576,0)
+[BOOT0/TIM] PostLoadTim file=1075 'THR0002F.TIM' ss=0x45fe img.u=0 img.v=0 tPage=0,10 clutX=32 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9cec caddr=0xfc9ba8 paddr=0xfc9cf4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(640,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(32,0 16x10)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (640,0 64x256) hits PINNED pool slot 2 'THR0002F' (640,0)
+[BOOT0/TIM] PostLoadTim file=1079 'THR0004F.TIM' ss=0x4644 img.u=0 img.v=0 tPage=0,21 clutX=48 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9dac caddr=0xfc9ba8 paddr=0xfc9db4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(320,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(48,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (320,256 64x256) hits PINNED pool slot 3 'THR0004F' (320,256)
+[BOOT0/TIM] PostLoadTim file=1269 'THRCF3.TIM' ss=0x51fa img.u=0 img.v=0 tPage=0,22 clutX=64 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9d8c caddr=0xfc9ba8 paddr=0xfc9d94 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(384,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(64,0 16x15)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (384,256 64x256) hits PINNED pool slot 4 'THRCF3' (384,256)
+[BOOT0/TIM] PostLoadTim file=1268 'THRCF2.TIM' ss=0x51e9 img.u=0 img.v=0 tPage=0,23 clutX=80 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9d8c caddr=0xfc9ba8 paddr=0xfc9d94 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(448,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(80,0 16x15)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (448,256 64x256) hits PINNED pool slot 5 'THRCF2' (448,256)
+[BOOT0/TIM] PostLoadTim file=1270 'THRCF4.TIM' ss=0x520b img.u=0 img.v=0 tPage=0,24 clutX=96 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9c4c caddr=0xfc9ba8 paddr=0xfc9c54 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(96,0 16x5)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (512,256 64x256) hits PINNED pool slot 6 'THRCF4' (512,256)
+[BOOT0/TIM] PostLoadTim file=1267 'THRCF1.TIM' ss=0x51d8 img.u=0 img.v=0 tPage=0,25 clutX=112 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9d8c caddr=0xfc9ba8 paddr=0xfc9d94 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(112,0 16x15)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (576,256 64x256) hits PINNED pool slot 7 'THRCF1' (576,256)
+[TEXVRAM] 'THR0001F' tPage=[0,8] clutXY=(0,0) uv=(0,0)
+[TEXVRAM] 'THR0003F' tPage=[0,9] clutXY=(16,0) uv=(0,0)
+[TEXVRAM] 'THR0002F' tPage=[0,10] clutXY=(32,0) uv=(0,0)
+[TEXVRAM] 'THR0004F' tPage=[0,21] clutXY=(48,0) uv=(0,0)
+[TEXVRAM] 'THRCF3' tPage=[0,22] clutXY=(64,0) uv=(0,0)
+[TEXVRAM] 'THRCF2' tPage=[0,23] clutXY=(80,0) uv=(0,0)
+[TEXVRAM] 'THRCF4' tPage=[0,24] clutXY=(96,0) uv=(0,0)
+[TEXVRAM] 'THRCF1' tPage=[0,25] clutXY=(112,0) uv=(0,0)
+[BOOT-STEP] GameStartup step=9 qlen=0
+[BOOT-STEP] GameStartup step=10 qlen=0
+[SH_AMB] Sd_AmbientSfxSet idx=3 -> loadCmd=171
+[SH_AMB] Sd_VabLoad ambient cmd=171 type=2 dedup=0
+[BOOT-STEP] GameStartup step=11 qlen=0
+[BOOT0/TIM] PostLoadTim file=1449 'REBIRD.TIM' ss=0x5b2c img.u=0 img.v=0 tPage=0,28 clutX=704 clutY=464
+[BOOT0/TIM] post ReadTIM: prect=0xfbfc6c caddr=0xfbfba8 paddr=0xfbfc74 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,256 32x128)
+[BOOT0/TIM] pre CLUT LoadImage rect=(704,464 16x6)
+[BOOT0/TIM] PostLoadTim done
+[CHARA-TEX] charaId=2 matCount=1 modelCount=16
+[CHARA-TEX] mat[0] name='REBIRD' field_C=1 E=0x5c F=0x5c clut=0x742c UV=0x0000 tex=0
+[CHARA-TEX] prim0: f0=0x2971(UV0) f2=0x74ac(clut) f4=0x1d6a(UV1) f6=0x005c(tpage) f8=0x2077(UV2) fA=0x0000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,28] u=0 v=0 clutXY=(704,464)
+[FT] avgMs=25 worstMs=642 gameMs=14 drawMs=11 swapWait=0ms draws=21 decodes=12 decMs=15
+[MEM] dms-load: free=2700KB (675 pages)
+[SFX] Sd_SfxStop: sfxId=1300 (Sfx_Base+20)
+[SFX] Sd_SfxStop: sfxId=1302 (Sfx_Base+22)
+[SFX] Sd_SfxStop: sfxId=1301 (Sfx_Base+21)
+[SFX] Sd_SfxStop: sfxId=1303 (Sfx_Base+23)
+[SFX] Sd_SfxStop: sfxId=1321 (Sfx_Base+41)
+[SFX] Sd_SfxStop: sfxId=1322 (Sfx_Base+42)
+[WOBJ] resolved 'RADIO_HI' lmIdx=3
+[WOBJ] resolved 'KNIFE_HI' lmIdx=3
+[WOBJ] resolved 'IN1_HIDE' lmIdx=4
+[WOBJ] resolved 'IN_BLD1_' lmIdx=4
+[WOBJ] resolved 'DRINK_NE' lmIdx=1
+[BOOT0/TIM] PostLoadTim file=1505 'TIM00.TIM' ss=0x5dcb img.u=0 img.v=0 tPage=0,15 clutX=176 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfbfdac caddr=0xfbfba8 paddr=0xfbfdb4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(960,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(176,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[BOOT-STEP] GameStartup step=12 qlen=2
+[SH-XBOX] GameState -> 11 (step 0)
+[FOGST-GPU] clear=0xff6c6474
+[BOOT0/TIM] PostLoadTim file=1514 'TIM07.TIM' ss=0x5e64 img.u=32 img.v=0 tPage=0,13 clutX=240 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfbfcac caddr=0xfbfba8 paddr=0xfbfcb4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(240,0 16x8)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1509 'TIM02.TIM' ss=0x5e0f img.u=0 img.v=0 tPage=0,14 clutX=160 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfbfdac caddr=0xfbfba8 paddr=0xfbfdb4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(896,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(160,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] vblank 4800
+[MEM] tick: free=2700KB (675 pages)
+[FT] avgMs=19 worstMs=108 gameMs=7 drawMs=11 swapWait=0ms draws=91 decodes=19 decMs=12
+[OTS] f=4800 calls=4 n0=2319 n1=16 prims=37092 bb=-1448,3721,-2134,3661
+[OTT] walkUs=2870 texUs=51 emitUs=1098 submitUs=277 otherUs=1443 prims=268 usPerPrim=10
+[FT] avgMs=16 worstMs=42 gameMs=6 drawMs=10 swapWait=0ms draws=113 decodes=2 decMs=1
+[OTS] f=4920 calls=2 n0=2329 n1=16 prims=33467 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2956 texUs=55 emitUs=1130 submitUs=339 otherUs=1430 prims=278 usPerPrim=10
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=113 decodes=0 decMs=0
+[OTS] f=5040 calls=2 n0=2320 n1=16 prims=33381 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2916 texUs=52 emitUs=1101 submitUs=262 otherUs=1499 prims=269 usPerPrim=10
+[FT] avgMs=16 worstMs=45 gameMs=6 drawMs=10 swapWait=0ms draws=99 decodes=0 decMs=0
+[OTS] f=5160 calls=2 n0=2323 n1=16 prims=32520 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2761 texUs=52 emitUs=1109 submitUs=380 otherUs=1218 prims=272 usPerPrim=10
+[FT] avgMs=16 worstMs=52 gameMs=6 drawMs=10 swapWait=0ms draws=115 decodes=0 decMs=0
+[OTS] f=5280 calls=2 n0=2329 n1=16 prims=33601 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3150 texUs=56 emitUs=1119 submitUs=327 otherUs=1646 prims=278 usPerPrim=11
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[SH-XBOX] vblank 5400
+[MEM] tick: free=2700KB (675 pages)
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=122 decodes=1 decMs=1
+[OTS] f=5400 calls=2 n0=2332 n1=16 prims=33558 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3241 texUs=56 emitUs=1123 submitUs=596 otherUs=1463 prims=281 usPerPrim=11
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=126 decodes=0 decMs=0
+[OTS] f=5520 calls=2 n0=2317 n1=16 prims=33583 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2641 texUs=54 emitUs=1078 submitUs=298 otherUs=1209 prims=266 usPerPrim=9
+[FT] avgMs=16 worstMs=51 gameMs=6 drawMs=10 swapWait=0ms draws=113 decodes=0 decMs=0
+[OTS] f=5640 calls=2 n0=2325 n1=16 prims=32534 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2614 texUs=53 emitUs=1108 submitUs=286 otherUs=1165 prims=274 usPerPrim=9
+[FT] avgMs=16 worstMs=46 gameMs=6 drawMs=10 swapWait=0ms draws=100 decodes=0 decMs=0
+[OTS] f=5760 calls=2 n0=2314 n1=16 prims=32599 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2634 texUs=49 emitUs=1106 submitUs=355 otherUs=1122 prims=263 usPerPrim=10
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=107 decodes=0 decMs=0
+[OTS] f=5880 calls=2 n0=2326 n1=16 prims=32938 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2860 texUs=54 emitUs=1120 submitUs=295 otherUs=1389 prims=275 usPerPrim=10
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[SH-XBOX] vblank 6000
+[MEM] tick: free=2700KB (675 pages)
+[FT] avgMs=16 worstMs=50 gameMs=6 drawMs=10 swapWait=0ms draws=120 decodes=0 decMs=0
+[OTS] f=6000 calls=2 n0=2330 n1=16 prims=33324 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2967 texUs=56 emitUs=1121 submitUs=315 otherUs=1474 prims=279 usPerPrim=10
+[FT] avgMs=16 worstMs=18 gameMs=6 drawMs=10 swapWait=0ms draws=125 decodes=0 decMs=0
+[OTS] f=6120 calls=2 n0=2325 n1=16 prims=33596 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2717 texUs=54 emitUs=1121 submitUs=285 otherUs=1255 prims=274 usPerPrim=9
+[FT] avgMs=16 worstMs=53 gameMs=6 drawMs=10 swapWait=0ms draws=111 decodes=0 decMs=0
+[OTS] f=6240 calls=2 n0=2329 n1=16 prims=33344 bb=-1448,3721,-2070,3661
+[OTT] walkUs=3053 texUs=54 emitUs=1134 submitUs=472 otherUs=1390 prims=278 usPerPrim=10
+[FT] avgMs=16 worstMs=48 gameMs=6 drawMs=10 swapWait=0ms draws=112 decodes=0 decMs=0
+[OTS] f=6360 calls=2 n0=2326 n1=16 prims=33363 bb=-1448,3721,-2070,3661
+[OTT] walkUs=2786 texUs=54 emitUs=1123 submitUs=284 otherUs=1324 prims=275 usPerPrim=10
+[FT] avgMs=16 worstMs=43 gameMs=6 drawMs=10 swapWait=0ms draws=111 decodes=1 decMs=1
+[OTS] f=6480 calls=2 n0=2318 n1=16 prims=32789 bb=-1475,3721,-2127,3661
+[OTT] walkUs=2787 texUs=54 emitUs=1102 submitUs=318 otherUs=1311 prims=264 usPerPrim=10
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=35 map=1/36
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[STP] tpage=0x39 clut=0x247 zero=0 stp1=16
+[STP] tpage=0x37 clut=0x345 zero=0 stp1=16
+[STP] tpage=0x39 clut=0x147 zero=0 stp1=16
+[STP] tpage=0x28 clut=0x100 zero=0 stp1=16
+[STP] tpage=0x38 clut=0xc6 zero=0 stp1=16
+[NV2A] vertex pool peak 3072/16384 verts
+[STP] tpage=0x39 clut=0x347 zero=0 stp1=16
+[STP] tpage=0x36 clut=0x44 zero=0 stp1=16
+[STP] tpage=0x39 clut=0x387 zero=0 stp1=16
+[STP] tpage=0x37 clut=0x185 zero=1 stp1=0
+[STP] tpage=0x28 clut=0x40 zero=0 stp1=16
+[STP] tpage=0x39 clut=0x307 zero=0 stp1=16
+[STP] tpage=0x28 clut=0xc0 zero=0 stp1=16
+[SH-XBOX] vblank 6600
+[MEM] tick: free=2700KB (675 pages)
+[FT] avgMs=19 worstMs=64 gameMs=6 drawMs=12 swapWait=0ms draws=225 decodes=27 decMs=15
+[OTS] f=6600 calls=2 n0=3014 n1=16 prims=52270 bb=-1838,4741,-2796,3661
+[OTT] walkUs=9109 texUs=212 emitUs=3673 submitUs=1704 otherUs=3519 prims=964 usPerPrim=9
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=2)
+[SYSSTATE] dispatch sysState=10 mapEventData=0x5978e8
+[ITEMPICK] unique-item link: id=0x41 nobj=1 obj=ok
+[ITEMPICK] unique-item link: id=0x41 nobj=1 obj=ok
+[ITEMPICK] draw SKIPPED: slot=9 reason=scale 0 (arg2=2)
+[FREEZE] capture 1280x720 in 0ms (gpu, was 165ms cpu)
+[FT] avgMs=27 worstMs=66 gameMs=13 drawMs=13 swapWait=1ms draws=335 decodes=47 decMs=22
+[OTS] f=6720 calls=2 n0=2618 n1=80 prims=84041 bb=-1904,3991,-2282,3603
+[OTT] walkUs=993 texUs=21 emitUs=150 submitUs=109 otherUs=712 prims=90 usPerPrim=11
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=6)
+[ITEMPICK] unique-item link: id=0x41 nobj=1 obj=ok
+[ITEMPICK] unique-item link: id=0x41 nobj=1 obj=ok
+[ITEMPICK] draw SKIPPED: slot=9 reason=scale 0 (arg2=2)
+[FREEZE] capture 1280x720 in 1ms (gpu, was 165ms cpu)
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[FT] avgMs=26 worstMs=68 gameMs=13 drawMs=13 swapWait=0ms draws=313 decodes=11 decMs=3
+[OTS] f=6840 calls=4 n0=3249 n1=16 prims=80936 bb=-1862,3403,-2089,1224
+[OTT] walkUs=10522 texUs=808 emitUs=4609 submitUs=1327 otherUs=3776 prims=1201 usPerPrim=8
+[NV2A] vertex pool peak 6144/16384 verts
+[WALLANIM] pathB kf=34 travel=473 intended=474 runStepSfx=8 spdProp=14336 pos=(13624,1112424)
+[FT] avgMs=33 worstMs=64 gameMs=13 drawMs=20 swapWait=0ms draws=550 decodes=52 decMs=34
+[OTS] f=6960 calls=2 n0=3009 n1=16 prims=127383 bb=-1826,3721,-2224,3378
+[OTT] walkUs=10258 texUs=1886 emitUs=3823 submitUs=1302 otherUs=3245 prims=960 usPerPrim=10
+[FT] avgMs=29 worstMs=61 gameMs=10 drawMs=18 swapWait=0ms draws=478 decodes=41 decMs=22
+[OTS] f=7080 calls=2 n0=2669 n1=16 prims=110977 bb=-1862,4384,-2446,3140
+[OTT] walkUs=5789 texUs=122 emitUs=2292 submitUs=808 otherUs=2566 prims=621 usPerPrim=9
+[SH-XBOX] vblank 7200
+[MEM] tick: free=2700KB (675 pages)
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=16 worstMs=45 gameMs=4 drawMs=12 swapWait=0ms draws=234 decodes=1 decMs=1
+[OTS] f=7200 calls=2 n0=2869 n1=16 prims=55636 bb=-1676,4840,-2764,3648
+[OTT] walkUs=7561 texUs=172 emitUs=2962 submitUs=1048 otherUs=3378 prims=818 usPerPrim=9
+[FT] avgMs=32 worstMs=45 gameMs=12 drawMs=20 swapWait=0ms draws=536 decodes=27 decMs=17
+[OTS] f=7320 calls=2 n0=3205 n1=16 prims=126515 bb=-1862,3721,-2282,3648
+[OTT] walkUs=9570 texUs=237 emitUs=4411 submitUs=1289 otherUs=3631 prims=1156 usPerPrim=8
+[FT] avgMs=33 worstMs=69 gameMs=12 drawMs=21 swapWait=0ms draws=539 decodes=22 decMs=15
+[OTS] f=7440 calls=2 n0=3050 n1=16 prims=136142 bb=-1856,3721,-2237,3371
+[OTT] walkUs=9498 texUs=210 emitUs=4056 submitUs=1348 otherUs=3882 prims=999 usPerPrim=9
+[WALLANIM] pathB kf=33 travel=240 intended=240 runStepSfx=13 spdProp=14336 pos=(17459,1093574)
+[FT] avgMs=27 worstMs=60 gameMs=11 drawMs=16 swapWait=0ms draws=385 decodes=18 decMs=11
+[OTS] f=7560 calls=2 n0=2315 n1=16 prims=85490 bb=-2120,3721,-2391,3661
+[OTT] walkUs=2761 texUs=53 emitUs=1078 submitUs=337 otherUs=1291 prims=262 usPerPrim=10
+[FT] avgMs=17 worstMs=45 gameMs=5 drawMs=11 swapWait=0ms draws=183 decodes=0 decMs=0
+[OTS] f=7680 calls=2 n0=2740 n1=16 prims=45445 bb=-1838,4813,-2982,3648
+[OTT] walkUs=6544 texUs=141 emitUs=2635 submitUs=1005 otherUs=2762 prims=689 usPerPrim=9
+[SH-XBOX] vblank 7800
+[MEM] tick: free=2700KB (675 pages)
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=30 worstMs=62 gameMs=10 drawMs=20 swapWait=0ms draws=522 decodes=20 decMs=11
+[OTS] f=7800 calls=2 n0=3206 n1=16 prims=124807 bb=-1850,4711,-2751,3648
+[OTT] walkUs=9530 texUs=243 emitUs=4427 submitUs=1290 otherUs=3569 prims=1157 usPerPrim=8
+[FT] avgMs=33 worstMs=59 gameMs=13 drawMs=20 swapWait=0ms draws=555 decodes=32 decMs=17
+[OTS] f=7920 calls=2 n0=2852 n1=16 prims=127033 bb=-2000,3721,-2172,3268
+[OTT] walkUs=7248 texUs=170 emitUs=2949 submitUs=1052 otherUs=3076 prims=803 usPerPrim=9
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=5)
+[SFX] Sd_PlaySfx: sfxId=1321 (Sfx_Base+41) vol=0
+[SFX] Sd_PlaySfx: sfxId=1322 (Sfx_Base+42) vol=0
+[VRAM] out of slots -> GPU drain #1 (alloc=52 worstPerFrame=1 totalMs=0)
+[XA] Play xaIdx=42 file=1 sector=1889 sectors=21 stereo 37800Hz bits=4 filter=(6,1)
+[XA] primed ring=20481 frames
+[VRAM] decode #512
+[VRAM] miss cause: evict=441 inval=7 cold=66 (alloc=52)
+[XA] channel ended early xaIdx=42 (remaining=1/21)
+[XA] finished xaIdx=42 (drained)
+[VRAM] out of slots -> GPU drain #65 (alloc=52 worstPerFrame=1 totalMs=14)
+[XA] Play xaIdx=4 file=1 sector=3 sectors=78 stereo 37800Hz bits=4 filter=(1,3)
+[XA] primed ring=20481 frames
+[VRAM] decode #1024
+[VRAM] miss cause: evict=953 inval=7 cold=66 (alloc=52)
+[FT] avgMs=43 worstMs=161 gameMs=8 drawMs=34 swapWait=0ms draws=735 decodes=929 decMs=502
+[OTS] f=8040 calls=2 n0=3348 n1=93 prims=152431 bb=-2234,4669,-2018,3076
+[OTT] walkUs=19092 texUs=7075 emitUs=5322 submitUs=1799 otherUs=4895 prims=1339 usPerPrim=14
+[VRAM] decode #1536
+[VRAM] miss cause: evict=1465 inval=7 cold=66 (alloc=52)
+[VRAM] out of slots -> GPU drain #129 (alloc=52 worstPerFrame=1 totalMs=30)
+[XA] channel ended early xaIdx=4 (remaining=1/78)
+[XA] finished xaIdx=4 (drained)
+[VRAM] decode #2048
+[VRAM] miss cause: evict=1977 inval=7 cold=66 (alloc=52)
+[VRAM] out of slots -> GPU drain #193 (alloc=52 worstPerFrame=1 totalMs=42)
+[VRAM] decode #2560
+[VRAM] miss cause: evict=2489 inval=7 cold=66 (alloc=52)
+[FT] avgMs=41 worstMs=95 gameMs=5 drawMs=35 swapWait=0ms draws=790 decodes=1373 decMs=743
+[OTS] f=8160 calls=2 n0=3348 n1=19 prims=164418 bb=-1916,3385,-1237,1931
+[OTT] walkUs=14689 texUs=3224 emitUs=5313 submitUs=1737 otherUs=4414 prims=1302 usPerPrim=11
+[WOBJ] resolved 'OUT1_HID' lmIdx=3
+[WOBJ] resolved 'OUT_BLD_' lmIdx=3
+[FT] avgMs=33 worstMs=70 gameMs=13 drawMs=20 swapWait=0ms draws=515 decodes=227 decMs=121
+[OTS] f=8280 calls=2 n0=3295 n1=19 prims=111143 bb=-2348,4087,-1732,2340
+[OTT] walkUs=19386 texUs=7966 emitUs=5257 submitUs=1685 otherUs=4477 prims=1246 usPerPrim=15
+[VRAM] out of slots -> GPU drain #257 (alloc=52 worstPerFrame=1 totalMs=51)
+[VRAM] decode #3072
+[VRAM] miss cause: evict=3001 inval=7 cold=66 (alloc=52)
+[VRAM] decode #3584
+[VRAM] miss cause: evict=3513 inval=7 cold=66 (alloc=52)
+[SFX] Sd_PlaySfx: sfxId=1373 (Sfx_Base+93) vol=127
+[COLL-MISS] cell(0,0) pos(0,0) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS] cell(0,0) pos(0,0) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[VRAM] out of slots -> GPU drain #321 (alloc=52 worstPerFrame=1 totalMs=51)
+[COLL-MISS] cell(0,-1) pos(0,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS] cell(0,0) pos(0,0) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS] cell(0,-1) pos(1,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[VRAM] decode #4096
+[COLL-MISS] cell(0,-1) pos(1,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[VRAM] miss cause: evict=4025 inval=7 cold=66 (alloc=52)
+[SFX] Sd_PlaySfx: sfxId=1374 (Sfx_Base+94) vol=184
+[SFX] Sd_PlaySfx: sfxId=1375 (Sfx_Base+95) vol=184
+[COLL-MISS] cell(0,-1) pos(0,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[SH-XBOX] vblank 8400
+[MEM] tick: free=2700KB (675 pages)
+[COLL-MISS] cell(0,-1) pos(0,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[VRAM] decode #4608
+[VRAM] miss cause: evict=4537 inval=7 cold=66 (alloc=52)
+[COLL-MISS] cell(0,-1) pos(0,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[COLL-MISS] cell(0,-1) pos(0,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS] cell(0,0) pos(0,0) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[FT] avgMs=40 worstMs=61 gameMs=7 drawMs=33 swapWait=0ms draws=794 decodes=1884 decMs=1050
+[OTS] f=8400 calls=2 n0=3668 n1=19 prims=161808 bb=-2348,4087,-1732,2340
+[OTT] walkUs=28442 texUs=14679 emitUs=6706 submitUs=2020 otherUs=5036 prims=1619 usPerPrim=17
+[SFX] Sd_PlaySfx: sfxId=1382 (Sfx_Base+102) vol=0
+[COLL-MISS] cell(0,0) pos(1,0) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS] cell(0,-1) pos(1,-1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[WOBJ] resolved 'BRK_BLD1' lmIdx=4
+[WOBJ] resolved 'BRK_GLS1' lmIdx=4
+[WOBJ] resolved 'BRK_GLS2' lmIdx=4
+[BGM] ChannelSet bgmIdx=30 cmd=798
+[SFX] Sd_PlaySfx: sfxId=1317 (Sfx_Base+37) vol=191
+[NV2A] vertex pool peak 9216/16384 verts
+[NV2A] vertex pool peak 12288/16384 verts
+[NV2A] vertex pool peak 14340/16384 verts
+[NV2A] vertex pool peak 14343/16384 verts
+[NV2A] vertex pool peak 14349/16384 verts
+[NV2A] vertex pool peak 14355/16384 verts
+[NV2A] vertex pool peak 14358/16384 verts
+[NV2A] vertex pool peak 14361/16384 verts
+[NV2A] vertex pool peak 14367/16384 verts
+[NV2A] vertex pool peak 14370/16384 verts
+[NV2A] vertex pool peak 14376/16384 verts
+[NV2A] vertex pool peak 14379/16384 verts
+[NV2A] vertex pool peak 14382/16384 verts
+[NV2A] vertex pool peak 14388/16384 verts
+[NV2A] vertex pool peak 14394/16384 verts
+[NV2A] vertex pool peak 14400/16384 verts
+[NV2A] vertex pool peak 14406/16384 verts
+[NV2A] vertex pool peak 14412/16384 verts
+[NV2A] vertex pool peak 14418/16384 verts
+[NV2A] vertex pool peak 14424/16384 verts
+[NV2A] vertex pool peak 14430/16384 verts
+[NV2A] vertex pool peak 14436/16384 verts
+[NV2A] vertex pool peak 14442/16384 verts
+[NV2A] vertex pool peak 14448/16384 verts
+[NV2A] vertex pool peak 14454/16384 verts
+[NV2A] vertex pool peak 14457/16384 verts
+[NV2A] vertex pool peak 14463/16384 verts
+[NV2A] vertex pool peak 14469/16384 verts
+[NV2A] vertex pool peak 14472/16384 verts
+[NV2A] vertex pool peak 14475/16384 verts
+[NV2A] vertex pool peak 14481/16384 verts
+[NV2A] vertex pool peak 14487/16384 verts
+[NV2A] vertex pool peak 14493/16384 verts
+[NV2A] vertex pool peak 14496/16384 verts
+[NV2A] vertex pool peak 14502/16384 verts
+[NV2A] vertex pool peak 14508/16384 verts
+[NV2A] vertex pool peak 14514/16384 verts
+[NV2A] vertex pool peak 14517/16384 verts
+[NV2A] vertex pool peak 14523/16384 verts
+[NV2A] vertex pool peak 14529/16384 verts
+[NV2A] vertex pool peak 14535/16384 verts
+[NV2A] vertex pool peak 14541/16384 verts
+[NV2A] vertex pool peak 14547/16384 verts
+[NV2A] vertex pool peak 14553/16384 verts
+[NV2A] vertex pool peak 14559/16384 verts
+[NV2A] vertex pool peak 14565/16384 verts
+[NV2A] vertex pool peak 14571/16384 verts
+[NV2A] vertex pool peak 14577/16384 verts
+[NV2A] vertex pool peak 14580/16384 verts
+[NV2A] vertex pool peak 14583/16384 verts
+[NV2A] vertex pool peak 14586/16384 verts
+[NV2A] vertex pool peak 14592/16384 verts
+[NV2A] vertex pool peak 14598/16384 verts
+[NV2A] vertex pool peak 14604/16384 verts
+[NV2A] vertex pool peak 14610/16384 verts
+[NV2A] vertex pool peak 14616/16384 verts
+[NV2A] vertex pool peak 14622/16384 verts
+[NV2A] vertex pool peak 14628/16384 verts
+[NV2A] vertex pool peak 14634/16384 verts
+[NV2A] vertex pool peak 14637/16384 verts
+[NV2A] vertex pool peak 14640/16384 verts
+[NV2A] vertex pool peak 14643/16384 verts
+[NV2A] vertex pool peak 14646/16384 verts
+[NV2A] vertex pool peak 14649/16384 verts
+[NV2A] vertex pool peak 14652/16384 verts
+[NV2A] vertex pool peak 14658/16384 verts
+[NV2A] vertex pool peak 14664/16384 verts
+[NV2A] vertex pool peak 14667/16384 verts
+[NV2A] vertex pool peak 14670/16384 verts
+[NV2A] vertex pool peak 14673/16384 verts
+[NV2A] vertex pool peak 14676/16384 verts
+[NV2A] vertex pool peak 14679/16384 verts
+[NV2A] vertex pool peak 14682/16384 verts
+[NV2A] vertex pool peak 14688/16384 verts
+[NV2A] vertex pool peak 14694/16384 verts
+[NV2A] vertex pool peak 14700/16384 verts
+[NV2A] vertex pool peak 14706/16384 verts
+[NV2A] vertex pool peak 14712/16384 verts
+[NV2A] vertex pool peak 14718/16384 verts
+[NV2A] vertex pool peak 14721/16384 verts
+[NV2A] vertex pool peak 14724/16384 verts
+[NV2A] vertex pool peak 14730/16384 verts
+[NV2A] vertex pool peak 14736/16384 verts
+[NV2A] vertex pool peak 14742/16384 verts
+[NV2A] vertex pool peak 14748/16384 verts
+[NV2A] vertex pool peak 14754/16384 verts
+[NV2A] vertex pool peak 14760/16384 verts
+[NV2A] vertex pool peak 14763/16384 verts
+[NV2A] vertex pool peak 14766/16384 verts
+[NV2A] vertex pool peak 14769/16384 verts
+[NV2A] vertex pool peak 14772/16384 verts
+[NV2A] vertex pool peak 14775/16384 verts
+[NV2A] vertex pool peak 14778/16384 verts
+[NV2A] vertex pool peak 14781/16384 verts
+[NV2A] vertex pool peak 14787/16384 verts
+[NV2A] vertex pool peak 14793/16384 verts
+[NV2A] vertex pool peak 14799/16384 verts
+[NV2A] vertex pool peak 14802/16384 verts
+[NV2A] vertex pool peak 14808/16384 verts
+[NV2A] vertex pool peak 14814/16384 verts
+[NV2A] vertex pool peak 14820/16384 verts
+[NV2A] vertex pool peak 14826/16384 verts
+[NV2A] vertex pool peak 14832/16384 verts
+[NV2A] vertex pool peak 14835/16384 verts
+[NV2A] vertex pool peak 14838/16384 verts
+[NV2A] vertex pool peak 14844/16384 verts
+[NV2A] vertex pool peak 14850/16384 verts
+[NV2A] vertex pool peak 14856/16384 verts
+[NV2A] vertex pool peak 14862/16384 verts
+[NV2A] vertex pool peak 14868/16384 verts
+[NV2A] vertex pool peak 14874/16384 verts
+[NV2A] vertex pool peak 14880/16384 verts
+[NV2A] vertex pool peak 14883/16384 verts
+[NV2A] vertex pool peak 14886/16384 verts
+[NV2A] vertex pool peak 14892/16384 verts
+[NV2A] vertex pool peak 14898/16384 verts
+[NV2A] vertex pool peak 14904/16384 verts
+[NV2A] vertex pool peak 14910/16384 verts
+[NV2A] vertex pool peak 14916/16384 verts
+[NV2A] vertex pool peak 14922/16384 verts
+[NV2A] vertex pool peak 14928/16384 verts
+[NV2A] vertex pool peak 14934/16384 verts
+[NV2A] vertex pool peak 14940/16384 verts
+[NV2A] vertex pool peak 14943/16384 verts
+[NV2A] vertex pool peak 14949/16384 verts
+[NV2A] vertex pool peak 14955/16384 verts
+[NV2A] vertex pool peak 14961/16384 verts
+[NV2A] vertex pool peak 14967/16384 verts
+[NV2A] vertex pool peak 14973/16384 verts
+[NV2A] vertex pool peak 14979/16384 verts
+[NV2A] vertex pool peak 14985/16384 verts
+[NV2A] vertex pool peak 14991/16384 verts
+[NV2A] vertex pool peak 14997/16384 verts
+[NV2A] vertex pool peak 15000/16384 verts
+[NV2A] vertex pool peak 15006/16384 verts
+[NV2A] vertex pool peak 15012/16384 verts
+[NV2A] vertex pool peak 15018/16384 verts
+[NV2A] vertex pool peak 15021/16384 verts
+[NV2A] vertex pool peak 15027/16384 verts
+[NV2A] vertex pool peak 15033/16384 verts
+[NV2A] vertex pool peak 15036/16384 verts
+[NV2A] vertex pool peak 15042/16384 verts
+[NV2A] vertex pool peak 15045/16384 verts
+[NV2A] vertex pool peak 15051/16384 verts
+[NV2A] vertex pool peak 15057/16384 verts
+[NV2A] vertex pool peak 15060/16384 verts
+[NV2A] vertex pool peak 15066/16384 verts
+[NV2A] vertex pool peak 15072/16384 verts
+[NV2A] vertex pool peak 15078/16384 verts
+[NV2A] vertex pool peak 15084/16384 verts
+[NV2A] vertex pool peak 15090/16384 verts
+[NV2A] vertex pool peak 15096/16384 verts
+[NV2A] vertex pool peak 15102/16384 verts
+[NV2A] vertex pool peak 15108/16384 verts
+[NV2A] vertex pool peak 15114/16384 verts
+[NV2A] vertex pool peak 15120/16384 verts
+[NV2A] vertex pool peak 15126/16384 verts
+[NV2A] vertex pool peak 15132/16384 verts
+[NV2A] vertex pool peak 15138/16384 verts
+[NV2A] vertex pool peak 15141/16384 verts
+[NV2A] vertex pool peak 15147/16384 verts
+[NV2A] vertex pool peak 15153/16384 verts
+[NV2A] vertex pool peak 15159/16384 verts
+[NV2A] vertex pool peak 15162/16384 verts
+[NV2A] vertex pool peak 15165/16384 verts
+[NV2A] vertex pool peak 15171/16384 verts
+[NV2A] vertex pool peak 15177/16384 verts
+[NV2A] vertex pool peak 15183/16384 verts
+[NV2A] vertex pool peak 15189/16384 verts
+[NV2A] vertex pool peak 15192/16384 verts
+[NV2A] vertex pool peak 15198/16384 verts
+[NV2A] vertex pool peak 15204/16384 verts
+[NV2A] vertex pool peak 15210/16384 verts
+[NV2A] vertex pool peak 15216/16384 verts
+[NV2A] vertex pool peak 15222/16384 verts
+[NV2A] vertex pool peak 15228/16384 verts
+[NV2A] vertex pool peak 15234/16384 verts
+[NV2A] vertex pool peak 15237/16384 verts
+[NV2A] vertex pool peak 15243/16384 verts
+[NV2A] vertex pool peak 15249/16384 verts
+[NV2A] vertex pool peak 15255/16384 verts
+[NV2A] vertex pool peak 15261/16384 verts
+[NV2A] vertex pool peak 15267/16384 verts
+[NV2A] vertex pool peak 15273/16384 verts
+[NV2A] vertex pool peak 15279/16384 verts
+[NV2A] vertex pool peak 15285/16384 verts
+[NV2A] vertex pool peak 15291/16384 verts
+[NV2A] vertex pool peak 15297/16384 verts
+[NV2A] vertex pool peak 15303/16384 verts
+[NV2A] vertex pool peak 15309/16384 verts
+[NV2A] vertex pool peak 15315/16384 verts
+[NV2A] vertex pool peak 15318/16384 verts
+[NV2A] vertex pool peak 15321/16384 verts
+[NV2A] vertex pool peak 15324/16384 verts
+[NV2A] vertex pool peak 15327/16384 verts
+[NV2A] vertex pool peak 15333/16384 verts
+[NV2A] vertex pool peak 15339/16384 verts
+[NV2A] vertex pool peak 15345/16384 verts
+[NV2A] vertex pool peak 15351/16384 verts
+[NV2A] vertex pool peak 15357/16384 verts
+[NV2A] vertex pool peak 15363/16384 verts
+[NV2A] vertex pool peak 15369/16384 verts
+[NV2A] vertex pool peak 15375/16384 verts
+[NV2A] vertex pool peak 15378/16384 verts
+[NV2A] vertex pool peak 15384/16384 verts
+[NV2A] vertex pool peak 15390/16384 verts
+[NV2A] vertex pool peak 15396/16384 verts
+[NV2A] vertex pool peak 15399/16384 verts
+[NV2A] vertex pool peak 15405/16384 verts
+[NV2A] vertex pool peak 15411/16384 verts
+[NV2A] vertex pool peak 15417/16384 verts
+[NV2A] vertex pool peak 15423/16384 verts
+[NV2A] vertex pool peak 15429/16384 verts
+[NV2A] vertex pool peak 15432/16384 verts
+[NV2A] vertex pool peak 15438/16384 verts
+[NV2A] vertex pool peak 15444/16384 verts
+[NV2A] vertex pool peak 15450/16384 verts
+[NV2A] vertex pool peak 15453/16384 verts
+[NV2A] vertex pool peak 15459/16384 verts
+[NV2A] vertex pool peak 15465/16384 verts
+[NV2A] vertex pool peak 15471/16384 verts
+[NV2A] vertex pool peak 15477/16384 verts
+[NV2A] vertex pool peak 15483/16384 verts
+[NV2A] vertex pool peak 15489/16384 verts
+[NV2A] vertex pool peak 15495/16384 verts
+[NV2A] vertex pool peak 15501/16384 verts
+[NV2A] vertex pool peak 15507/16384 verts
+[NV2A] vertex pool peak 15513/16384 verts
+[NV2A] vertex pool peak 15519/16384 verts
+[NV2A] vertex pool peak 15525/16384 verts
+[NV2A] vertex pool peak 15531/16384 verts
+[NV2A] vertex pool peak 15537/16384 verts
+[NV2A] vertex pool peak 15543/16384 verts
+[NV2A] vertex pool peak 15546/16384 verts
+[NV2A] vertex pool peak 15549/16384 verts
+[NV2A] vertex pool peak 15552/16384 verts
+[NV2A] vertex pool peak 15558/16384 verts
+[NV2A] vertex pool peak 15561/16384 verts
+[NV2A] vertex pool peak 15567/16384 verts
+[NV2A] vertex pool peak 15573/16384 verts
+[NV2A] vertex pool peak 15579/16384 verts
+[NV2A] vertex pool peak 15585/16384 verts
+[NV2A] vertex pool peak 15591/16384 verts
+[NV2A] vertex pool peak 15597/16384 verts
+[NV2A] vertex pool peak 15603/16384 verts
+[NV2A] vertex pool peak 15609/16384 verts
+[NV2A] vertex pool peak 15615/16384 verts
+[NV2A] vertex pool peak 15621/16384 verts
+[NV2A] vertex pool peak 15627/16384 verts
+[NV2A] vertex pool peak 15633/16384 verts
+[NV2A] vertex pool peak 15639/16384 verts
+[NV2A] vertex pool peak 15645/16384 verts
+[NV2A] vertex pool peak 15651/16384 verts
+[NV2A] vertex pool peak 15657/16384 verts
+[NV2A] vertex pool peak 15663/16384 verts
+[NV2A] vertex pool peak 15669/16384 verts
+[NV2A] vertex pool peak 15675/16384 verts
+[NV2A] vertex pool peak 15681/16384 verts
+[NV2A] vertex pool peak 15687/16384 verts
+[NV2A] vertex pool peak 15693/16384 verts
+[NV2A] vertex pool peak 15699/16384 verts
+[NV2A] vertex pool peak 15705/16384 verts
+[NV2A] vertex pool peak 15711/16384 verts
+[NV2A] vertex pool peak 15717/16384 verts
+[NV2A] vertex pool peak 15723/16384 verts
+[NV2A] vertex pool peak 15729/16384 verts
+[NV2A] vertex pool peak 15735/16384 verts
+[NV2A] vertex pool peak 15741/16384 verts
+[NV2A] vertex pool peak 15747/16384 verts
+[NV2A] vertex pool peak 15753/16384 verts
+[NV2A] vertex pool peak 15759/16384 verts
+[NV2A] vertex pool peak 15765/16384 verts
+[NV2A] vertex pool peak 15771/16384 verts
+[NV2A] vertex pool peak 15777/16384 verts
+[NV2A] vertex pool peak 15783/16384 verts
+[NV2A] vertex pool peak 15789/16384 verts
+[NV2A] vertex pool peak 15795/16384 verts
+[NV2A] vertex pool peak 15801/16384 verts
+[NV2A] vertex pool peak 15807/16384 verts
+[NV2A] vertex pool peak 15813/16384 verts
+[NV2A] vertex pool peak 15819/16384 verts
+[NV2A] vertex pool peak 15825/16384 verts
+[NV2A] vertex pool peak 15831/16384 verts
+[NV2A] vertex pool peak 15837/16384 verts
+[NV2A] vertex pool peak 15843/16384 verts
+[NV2A] vertex pool peak 15849/16384 verts
+[NV2A] vertex pool peak 15855/16384 verts
+[NV2A] vertex pool peak 15861/16384 verts
+[NV2A] vertex pool peak 15867/16384 verts
+[NV2A] vertex pool peak 15873/16384 verts
+[NV2A] vertex pool peak 15879/16384 verts
+[NV2A] vertex pool peak 15885/16384 verts
+[NV2A] vertex pool peak 15891/16384 verts
+[NV2A] vertex pool peak 15897/16384 verts
+[NV2A] vertex pool peak 15903/16384 verts
+[NV2A] vertex pool peak 15909/16384 verts
+[NV2A] vertex pool peak 15915/16384 verts
+[NV2A] vertex pool peak 15921/16384 verts
+[NV2A] vertex pool peak 15927/16384 verts
+[NV2A] vertex pool peak 15933/16384 verts
+[NV2A] vertex pool peak 15939/16384 verts
+[NV2A] vertex pool peak 15945/16384 verts
+[NV2A] vertex pool peak 15951/16384 verts
+[NV2A] vertex pool peak 15957/16384 verts
+[NV2A] vertex pool peak 15963/16384 verts
+[NV2A] vertex pool peak 15969/16384 verts
+[NV2A] vertex pool peak 15975/16384 verts
+[NV2A] vertex pool peak 15981/16384 verts
+[NV2A] vertex pool peak 15987/16384 verts
+[NV2A] vertex pool peak 15993/16384 verts
+[NV2A] vertex pool peak 15999/16384 verts
+[NV2A] vertex pool peak 16005/16384 verts
+[NV2A] vertex pool peak 16011/16384 verts
+[NV2A] vertex pool peak 16017/16384 verts
+[NV2A] vertex pool peak 16023/16384 verts
+[NV2A] vertex pool peak 16029/16384 verts
+[NV2A] vertex pool peak 16035/16384 verts
+[NV2A] vertex pool peak 16041/16384 verts
+[NV2A] vertex pool peak 16047/16384 verts
+[NV2A] vertex pool peak 16053/16384 verts
+[NV2A] vertex pool peak 16059/16384 verts
+[NV2A] vertex pool peak 16065/16384 verts
+[NV2A] vertex pool peak 16071/16384 verts
+[NV2A] vertex pool peak 16077/16384 verts
+[NV2A] vertex pool peak 16083/16384 verts
+[NV2A] vertex pool peak 16089/16384 verts
+[NV2A] vertex pool peak 16095/16384 verts
+[NV2A] vertex pool peak 16101/16384 verts
+[NV2A] vertex pool peak 16107/16384 verts
+[NV2A] vertex pool peak 16113/16384 verts
+[NV2A] vertex pool peak 16119/16384 verts
+[NV2A] vertex pool peak 16125/16384 verts
+[NV2A] vertex pool peak 16131/16384 verts
+[NV2A] vertex pool peak 16137/16384 verts
+[NV2A] vertex pool peak 16143/16384 verts
+[NV2A] vertex pool peak 16149/16384 verts
+[NV2A] vertex pool peak 16155/16384 verts
+[NV2A] vertex pool peak 16161/16384 verts
+[NV2A] vertex pool peak 16167/16384 verts
+[NV2A] vertex pool peak 16173/16384 verts
+[NV2A] vertex pool peak 16179/16384 verts
+[NV2A] vertex pool peak 16185/16384 verts
+[NV2A] vertex pool peak 16191/16384 verts
+[NV2A] vertex pool peak 16197/16384 verts
+[NV2A] vertex pool peak 16203/16384 verts
+[NV2A] vertex pool peak 16209/16384 verts
+[NV2A] vertex pool peak 16215/16384 verts
+[NV2A] vertex pool peak 16221/16384 verts
+[NV2A] vertex pool peak 16227/16384 verts
+[NV2A] vertex pool peak 16233/16384 verts
+[NV2A] vertex pool peak 16239/16384 verts
+[NV2A] vertex pool peak 16245/16384 verts
+[NV2A] vertex pool peak 16251/16384 verts
+[NV2A] vertex pool peak 16257/16384 verts
+[NV2A] vertex pool peak 16263/16384 verts
+[NV2A] vertex pool peak 16269/16384 verts
+[NV2A] vertex pool peak 16275/16384 verts
+[NV2A] vertex pool peak 16281/16384 verts
+[NV2A] vertex pool peak 16287/16384 verts
+[NV2A] vertex pool peak 16293/16384 verts
+[NV2A] vertex pool peak 16299/16384 verts
+[NV2A] vertex pool peak 16305/16384 verts
+[NV2A] vertex pool peak 16311/16384 verts
+[NV2A] vertex pool peak 16317/16384 verts
+[NV2A] vertex pool peak 16323/16384 verts
+[NV2A] vertex pool peak 16329/16384 verts
+[NV2A] vertex pool peak 16335/16384 verts
+[NV2A] vertex pool peak 16341/16384 verts
+[NV2A] vertex pool peak 16347/16384 verts
+[NV2A] vertex pool peak 16353/16384 verts
+[NV2A] vertex pool peak 16359/16384 verts
+[NV2A] vertex pool peak 16365/16384 verts
+[NV2A] vertex pool peak 16371/16384 verts
+[NV2A] vertex pool peak 16377/16384 verts
+[NV2A] vertex pool peak 16383/16384 verts
+[NV2A] vertex pool flush (> 16384 verts/frame)
+[SH_DRIP] key_on song=0 ch=1 prog=0 note=63 bank=127 vabId=3 tones=1 match=1 vab2match=1
+[SH_DRIP] key_on song=0 ch=2 prog=1 note=70 bank=127 vabId=3 tones=1 match=1 vab2match=0
+[SH_DRIP] key_on song=0 ch=3 prog=4 note=60 bank=127 vabId=3 tones=1 match=1 vab2match=0
+[SH_DRIP] key_on song=0 ch=5 prog=2 note=55 bank=127 vabId=3 tones=1 match=1 vab2match=1
+[SFX] Sd_PlaySfx: sfxId=1379 (Sfx_Base+99) vol=44
+[COLL-MISS] cell(0,0) pos(1,1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[SH_DRIP] key_on song=0 ch=6 prog=1 note=70 bank=127 vabId=3 tones=1 match=1 vab2match=0
+[COLL-MISS] cell(0,0) pos(1,1) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[VRAM] out of slots -> GPU drain #385 (alloc=52 worstPerFrame=2 totalMs=53)
+[COLL-MISS] cell(0,0) pos(1,0) activeCount=4
+[COLL-MISS]   slot cell(-1,6) qIdx=21 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,6) qIdx=22 loadState=2 isLoaded=1
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[COLL-MISS]   slot cell(0,0) qIdx=-1 loadState=0 isLoaded=0
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=62
+[VRAM] decode #5120
+[VRAM] miss cause: evict=5049 inval=7 cold=66 (alloc=52)
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=93
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=91
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=84
+[VRAM] out of slots -> GPU drain #449 (alloc=52 worstPerFrame=2 totalMs=53)
+[VRAM] decode #5632
+[VRAM] miss cause: evict=5561 inval=7 cold=66 (alloc=52)
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=96
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=104
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=107
+[FT] avgMs=51 worstMs=119 gameMs=12 drawMs=38 swapWait=1ms draws=773 decodes=1184 decMs=608
+[OTS] f=8520 calls=4 n0=3253 n1=16 prims=160383 bb=-3665,4087,-2044,3648
+[OTT] walkUs=15630 texUs=4690 emitUs=5049 submitUs=1724 otherUs=4165 prims=1203 usPerPrim=12
+[VRAM] decode #6144
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=111
+[VRAM] miss cause: evict=6073 inval=7 cold=66 (alloc=52)
+[VRAM] out of slots -> GPU drain #513 (alloc=52 worstPerFrame=2 totalMs=54)
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=130
+[SFX] Sd_PlaySfx: sfxId=1378 (Sfx_Base+98) vol=136
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=125
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=95
+[SYSSTATE] dispatch sysState=2 mapEventData=0
+[FOGST-GPU] clear=0xff000000
+[SH-XBOX] GameState -> 19 (step 0)
+[BOOT0/TIM] PostLoadTim file=1485 'HEROPIC2.TIM' ss=0x5bb6 img.u=12 img.v=103 tPage=1,31 clutX=224 clutY=13
+[BOOT0/TIM] post ReadTIM: prect=0xfbfdac caddr=0xfbfba8 paddr=0xfbfdb4 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(972,359 52x152)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,13 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 14 (step 0)
+[ITEMPICK] map-pack link: slot=3 loadableIdx=0 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=4 loadableIdx=8 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=5 loadableIdx=3 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=6 loadableIdx=15 nobj=34 obj=ok
+[FT] avgMs=34 worstMs=125 gameMs=8 drawMs=25 swapWait=0ms draws=458 decodes=703 decMs=381
+[OTS] f=8640 calls=2 n0=2327 n1=274 prims=110347 bb=-3665,3697,-2050,3648
+[OTT] walkUs=2174 texUs=66 emitUs=740 submitUs=308 otherUs=1059 prims=419 usPerPrim=5
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[ITEMPICK] map-pack link: slot=7 loadableIdx=8 nobj=34 obj=ok
+[SFX] Sd_PlaySfx: sfxId=1306 (Sfx_Base+26) vol=64
+[SFX] Sd_PlaySfx: sfxId=1306 (Sfx_Base+26) vol=64
+[WEP_DBG] handgun pre-copy D_800AFBF4[6]: sfx0=1283 sfx2=1284 sfx4=1285 aim6=66 att7=72 hold8=61 f9=37 fA=37 fB=0 sizeof=12
+[WEP_DBG] handgun post-copy g_Player_EquippedWeaponInfo: sfx0=1283 sfx2=1284 sfx4=1285 aim6=66 att7=72 hold8=61 f9=37 fA=37 fB=0 sizeof=12
+[RELOAD_KF] weap=32 blendStart=-1 blendEnd=605 activeEnd=658
+[WEP_LOAD] weaponAttack=32 FS_BUFFER_12=0xefd748 — queuing weapon ANM
+[WEP_LOAD] post-load FS_BUFFER_12 first 16 bytes: 00 fa 00 7f ff fd 01 7f fe 03 02 7f 7f 01 01 ff
+[WEP_LOAD] HARRY_BASE_ANIM_INFOS[56] status=56 hasVar=0 link=57 sk=-1 ek=570
+[WEP_LOAD] HARRY_BASE_ANIM_INFOS[57] status=57 hasVar=0 link=57 sk=570 ek=579
+[WEP_LOAD] g_Player_EquippedWeaponInfo: attackSfx=1283 animStop=66 animAttack=72 animHold=61 sizeof=12
+[FT] avgMs=17 worstMs=54 gameMs=8 drawMs=9 swapWait=0ms draws=79 decodes=0 decMs=0
+[SH-XBOX] GameState -> 11 (step 0)
+[SFX] Sd_PlaySfx: sfxId=1321 (Sfx_Base+41) vol=0
+[SFX] Sd_PlaySfx: sfxId=1322 (Sfx_Base+42) vol=0
+[VRAM] decode #6656
+[VRAM] miss cause: evict=6583 inval=7 cold=68 (alloc=52)
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=69
+[SFX] Sd_PlaySfx: sfxId=1283 (Sfx_Base+3) vol=0
+[MUZZLE] depth150=716 size160=5 f158=0 f2C=224 xy=(5,-35) rgb=(157,253,55) fieldB=0
+[MUZZLE] depth150=717 size160=4 f158=0 f2C=224 xy=(9,-36) rgb=(45,48,51) fieldB=1
+[MUZZLE] depth150=712 size160=5 f158=0 f2C=224 xy=(9,-34) rgb=(45,48,51) fieldB=2
+[MUZZLE] depth150=717 size160=5 f158=135 f2C=224 xy=(6,-35) rgb=(157,253,55) fieldB=0
+[MUZZLE] depth150=718 size160=5 f158=155 f2C=224 xy=(10,-35) rgb=(85,90,97) fieldB=1
+[MUZZLE] depth150=713 size160=5 f158=134 f2C=224 xy=(9,-33) rgb=(90,96,103) fieldB=2
+[MUZZLE] depth150=717 size160=6 f158=281 f2C=224 xy=(7,-35) rgb=(241,255,196) fieldB=0
+[MUZZLE] depth150=718 size160=6 f158=273 f2C=224 xy=(11,-35) rgb=(94,100,107) fieldB=1
+[MUZZLE] depth150=712 size160=6 f158=287 f2C=224 xy=(10,-34) rgb=(94,100,107) fieldB=2
+[MUZZLE] depth150=718 size160=6 f158=433 f2C=224 xy=(7,-35) rgb=(0,0,3) fieldB=0
+[MUZZLE] depth150=718 size160=6 f158=384 f2C=224 xy=(11,-35) rgb=(84,89,95) fieldB=1
+[MUZZLE] depth150=713 size160=6 f158=407 f2C=224 xy=(10,-34) rgb=(86,92,99) fieldB=2
+[MUZZLE] depth150=718 size160=7 f158=564 f2C=224 xy=(8,-35) rgb=(1,0,4) fieldB=0
+[MUZZLE] depth150=718 size160=7 f158=502 f2C=224 xy=(11,-35) rgb=(74,79,85) fieldB=1
+[MUZZLE] depth150=713 size160=7 f158=548 f2C=224 xy=(10,-34) rgb=(79,84,90) fieldB=2
+[MUZZLE] depth150=718 size160=8 f158=704 f2C=224 xy=(8,-35) rgb=(0,0,5) fieldB=0
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=47
+[RA] http POST http://retroachievements.org/dorequest.php
+[NET] POST retroachievements.org -> 200 (16 bytes)
+[RA] http -> status=200 bodyLen=16 body='{"Success":true}'
+[ATTACK-DONE] st=61 lookupSt=61 kf=604 -> pcAttackDone
+[VRAM] decode #7168
+[VRAM] miss cause: evict=7095 inval=7 cold=68 (alloc=52)
+[FOGST-GPU] clear=0xff6c6474
+[SFX] Sd_PlaySfx: sfxId=1283 (Sfx_Base+3) vol=0
+[SFX] Sd_PlaySfx: sfxId=1286 (Sfx_Base+6) vol=0
+[SFX] Sd_PlaySfx: sfxId=1377 (Sfx_Base+97) vol=0
+[SFX] Sd_PlaySfx: sfxId=1377 (Sfx_Base+97) vol=0
+[VRAM] out of slots -> GPU drain #577 (alloc=52 worstPerFrame=2 totalMs=55)
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=20
+[ATTACK-DONE] st=61 lookupSt=61 kf=604 -> pcAttackDone
+[VRAM] decode #7680
+[VRAM] miss cause: evict=7607 inval=7 cold=68 (alloc=52)
+[SFX] Sd_PlaySfx: sfxId=1283 (Sfx_Base+3) vol=0
+[SFX] Sd_PlaySfx: sfxId=1286 (Sfx_Base+6) vol=0
+[ATTACK-DONE] st=61 lookupSt=61 kf=604 -> pcAttackDone
+[VRAM] decode #8192
+[VRAM] miss cause: evict=8119 inval=7 cold=68 (alloc=52)
+[SFX] Sd_PlaySfx: sfxId=1283 (Sfx_Base+3) vol=0
+[SFX] Sd_PlaySfx: sfxId=1286 (Sfx_Base+6) vol=0
+[SFX] Sd_PlaySfx: sfxId=1377 (Sfx_Base+97) vol=0
+[SFX] Sd_PlaySfx: sfxId=1377 (Sfx_Base+97) vol=0
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=16
+[ATTACK-DONE] st=61 lookupSt=61 kf=604 -> pcAttackDone
+[VRAM] decode #8704
+[VRAM] miss cause: evict=8631 inval=7 cold=68 (alloc=52)
+[SFX] Sd_PlaySfx: sfxId=1283 (Sfx_Base+3) vol=0
+[SFX] Sd_PlaySfx: sfxId=1286 (Sfx_Base+6) vol=0
+[ATTACK-DONE] st=61 lookupSt=61 kf=604 -> pcAttackDone
+[ATTACK-DONE] st=61 lookupSt=61 kf=604 -> pcAttackDone
+[VRAM] decode #9216
+[VRAM] miss cause: evict=9143 inval=7 cold=68 (alloc=52)
+[SFX] Sd_PlaySfx: sfxId=1283 (Sfx_Base+3) vol=0
+[SFX] Sd_PlaySfx: sfxId=1286 (Sfx_Base+6) vol=0
+[SFX] Sd_SfxStop: sfxId=1376 (Sfx_Base+96)
+[SFX] Sd_PlaySfx: sfxId=1380 (Sfx_Base+100) vol=0
+[VRAM] out of slots -> GPU drain #641 (alloc=52 worstPerFrame=2 totalMs=55)
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=56
+[SFX] Sd_PlaySfx: sfxId=1381 (Sfx_Base+101) vol=49
+[ATTACK-DONE] st=61 lookupSt=61 kf=604 -> pcAttackDone
+[FT] avgMs=60 worstMs=462 gameMs=9 drawMs=51 swapWait=0ms draws=744 decodes=3021 decMs=1674
+[OTS] f=8880 calls=2 n0=3202 n1=16 prims=209964 bb=-2432,3721,-2513,3648
+[OTT] walkUs=23557 texUs=13468 emitUs=4716 submitUs=1658 otherUs=3714 prims=1154 usPerPrim=20
+[VRAM] decode #9728
+[VRAM] miss cause: evict=9655 inval=7 cold=68 (alloc=52)
+[SFX] Sd_PlaySfx: sfxId=1316 (Sfx_Base+36) vol=0
+[VRAM] decode #10240
+[VRAM] miss cause: evict=10167 inval=7 cold=68 (alloc=52)
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=11)
+[SYSSTATE] dispatch sysState=10 mapEventData=0x597924
+[XA] Play xaIdx=5 file=1 sector=4 sectors=77 stereo 37800Hz bits=4 filter=(1,4)
+[XA] primed ring=20481 frames
+[VRAM] out of slots -> GPU drain #705 (alloc=52 worstPerFrame=2 totalMs=55)
+[VRAM] decode #10752
+[VRAM] miss cause: evict=10679 inval=7 cold=68 (alloc=52)
+[XA] channel ended early xaIdx=5 (remaining=1/77)
+[XA] finished xaIdx=5 (drained)
+[VRAM] out of slots -> GPU drain #769 (alloc=52 worstPerFrame=2 totalMs=55)
+[SH-XBOX] vblank 9000
+[MEM] tick: free=2508KB (627 pages)
+[FT] avgMs=50 worstMs=179 gameMs=9 drawMs=40 swapWait=0ms draws=621 decodes=1542 decMs=813
+[OTS] f=9000 calls=2 n0=3169 n1=104 prims=134044 bb=-2336,3721,-2513,3082
+[OTT] walkUs=15890 texUs=5838 emitUs=4428 submitUs=1537 otherUs=4086 prims=1165 usPerPrim=13
+[VRAM] decode #11264
+[VRAM] miss cause: evict=11191 inval=7 cold=68 (alloc=52)
+[VRAM] out of slots -> GPU drain #833 (alloc=52 worstPerFrame=2 totalMs=58)
+[VRAM] decode #11776
+[VRAM] miss cause: evict=11703 inval=7 cold=68 (alloc=52)
+[VRAM] decode #12288
+[VRAM] miss cause: evict=12215 inval=7 cold=68 (alloc=52)
+[FT] avgMs=39 worstMs=69 gameMs=8 drawMs=30 swapWait=0ms draws=781 decodes=1274 decMs=667
+[OTS] f=9120 calls=4 n0=3405 n1=16 prims=150852 bb=-1880,3721,-2037,3339
+[OTT] walkUs=21942 texUs=9705 emitUs=5365 submitUs=1862 otherUs=5008 prims=1355 usPerPrim=16
+[RA] watch 84008: state=2 unlocked=1786116799 flags[4B4]=00 flags[4A1]=00 word4=0x00000000 setbits=42 map=1/36
+[WALLANIM] pathB kf=33 travel=226 intended=474 runStepSfx=6 spdProp=14336 pos=(16364,1123815)
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[FT] avgMs=33 worstMs=67 gameMs=11 drawMs=22 swapWait=0ms draws=574 decodes=132 decMs=65
+[OTS] f=9240 calls=2 n0=3235 n1=16 prims=140490 bb=-2210,3721,-2288,3371
+[OTT] walkUs=9732 texUs=238 emitUs=4570 submitUs=1325 otherUs=3598 prims=1186 usPerPrim=8
+[FT] avgMs=33 worstMs=69 gameMs=12 drawMs=21 swapWait=0ms draws=571 decodes=1 decMs=0
+[OTS] f=9360 calls=2 n0=3247 n1=16 prims=141911 bb=-1802,3397,-2089,1227
+[OTT] walkUs=9884 texUs=239 emitUs=4634 submitUs=1421 otherUs=3589 prims=1198 usPerPrim=8
+[FT] avgMs=33 worstMs=61 gameMs=12 drawMs=21 swapWait=0ms draws=576 decodes=0 decMs=0
+[OTS] f=9480 calls=2 n0=3214 n1=16 prims=140865 bb=-1802,3391,-2070,1125
+[OTT] walkUs=9867 texUs=237 emitUs=4450 submitUs=1342 otherUs=3837 prims=1164 usPerPrim=8
+[SH-XBOX] vblank 9600
+[MEM] tick: free=2508KB (627 pages)
+[FT] avgMs=33 worstMs=69 gameMs=12 drawMs=21 swapWait=1ms draws=579 decodes=0 decMs=0
+[OTS] f=9600 calls=2 n0=3231 n1=16 prims=141402 bb=-1721,3391,-2089,1227
+[OTT] walkUs=9900 texUs=237 emitUs=4559 submitUs=1289 otherUs=3813 prims=1182 usPerPrim=8
+[GP-STATE-TXN] Gameplay -> sysState=10 (param=9)
+[ITEMPICK] unique-item link: id=0x41 nobj=1 obj=ok
+[ITEMPICK] unique-item link: id=0x41 nobj=1 obj=ok
+[ITEMPICK] draw SKIPPED: slot=9 reason=scale 0 (arg2=2)
+[FREEZE] capture 1280x720 in 0ms (gpu, was 165ms cpu)
+[FT] avgMs=29 worstMs=61 gameMs=12 drawMs=17 swapWait=0ms draws=429 decodes=6 decMs=3
+[OTS] f=9720 calls=2 n0=2578 n1=50 prims=108474 bb=-1721,3403,-2127,1112
+[OTT] walkUs=394 texUs=11 emitUs=51 submitUs=106 otherUs=225 prims=35 usPerPrim=11
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[CHNK] n=4 s0=-1,6,st3 s1=0,6,st3 s2=0,0,st0 s3=0,0,st0
+[VRAM] out of slots -> GPU drain #897 (alloc=52 worstPerFrame=2 totalMs=60)
+[VRAM] decode #12800
+[VRAM] miss cause: evict=12727 inval=7 cold=68 (alloc=52)
+[FT] avgMs=31 worstMs=66 gameMs=11 drawMs=20 swapWait=0ms draws=519 decodes=277 decMs=154
+[OTS] f=9840 calls=4 n0=3310 n1=16 prims=120859 bb=-1850,3721,-2288,3384
+[OTT] walkUs=20519 texUs=8567 emitUs=5149 submitUs=1885 otherUs=4916 prims=1260 usPerPrim=16
+[SYSSTATE] dispatch sysState=2 mapEventData=0
+[FOGST-GPU] clear=0xff000000
+[SH-XBOX] GameState -> 19 (step 0)
+[BOOT0/TIM] PostLoadTim file=1485 'HEROPIC2.TIM' ss=0x5bb6 img.u=12 img.v=103 tPage=1,31 clutX=224 clutY=13
+[BOOT0/TIM] post ReadTIM: prect=0xfbfdac caddr=0xfbfba8 paddr=0xfbfdb4 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(972,359 52x152)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,13 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 14 (step 0)
+[ITEMPICK] map-pack link: slot=2 loadableIdx=0 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=3 loadableIdx=8 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=4 loadableIdx=3 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=5 loadableIdx=15 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=6 loadableIdx=16 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=7 loadableIdx=8 nobj=34 obj=ok
+[FT] avgMs=32 worstMs=118 gameMs=11 drawMs=20 swapWait=0ms draws=551 decodes=262 decMs=158
+[OTS] f=9960 calls=2 n0=2449 n1=220 prims=121628 bb=-1886,3721,-2057,3468
+[OTT] walkUs=2943 texUs=77 emitUs=1028 submitUs=250 otherUs=1586 prims=514 usPerPrim=5
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[BOOT0/TIM] PostLoadTim file=1919 'OPTION.TIM' ss=0x8a38 img.u=0 img.v=16 tPage=1,5 clutX=224 clutY=14
+[BOOT0/TIM] post ReadTIM: prect=0xfbfdac caddr=0xfbfba8 paddr=0xfbfdb4 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(320,16 160x240)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,14 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 18 (step 0)
+[FT] avgMs=18 worstMs=153 gameMs=11 drawMs=6 swapWait=0ms draws=76 decodes=2 decMs=1
+[OTS] f=10080 calls=2 n0=2055 n1=373 prims=61496 bb=-320,3520,-411,1131
+[OTT] walkUs=2461 texUs=23 emitUs=594 submitUs=199 otherUs=1644 prims=251 usPerPrim=9
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SH-XBOX] vblank 10200
+[MEM] tick: free=2508KB (627 pages)
+[FT] avgMs=17 worstMs=53 gameMs=13 drawMs=4 swapWait=0ms draws=64 decodes=0 decMs=0
+[OTS] f=10200 calls=2 n0=2055 n1=371 prims=43450 bb=-320,3520,-411,1131
+[OTT] walkUs=2401 texUs=23 emitUs=589 submitUs=211 otherUs=1576 prims=250 usPerPrim=9
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[FT] avgMs=17 worstMs=48 gameMs=13 drawMs=3 swapWait=0ms draws=86 decodes=0 decMs=0
+[OTS] f=10320 calls=2 n0=2055 n1=367 prims=43218 bb=-320,3520,-411,1131
+[OTT] walkUs=2305 texUs=34 emitUs=180 submitUs=442 otherUs=1647 prims=202 usPerPrim=11
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[FT] avgMs=17 worstMs=48 gameMs=13 drawMs=3 swapWait=0ms draws=100 decodes=0 decMs=0
+[OTS] f=10440 calls=2 n0=2055 n1=367 prims=42960 bb=157,1120,-25,745
+[OTT] walkUs=2242 texUs=33 emitUs=181 submitUs=288 otherUs=1738 prims=202 usPerPrim=11
+[EXITMENU] pressed gameStatePrev=14 gameState=18
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[XA] SetVolume L=0 R=0
+[SH_AMB] Sd_AmbientSfxSet idx=1 -> loadCmd=162
+[BOOT0/TIM] PostLoadTim file=1980 'TITLE_E.TIM' ss=0x90b7 img.u=32 img.v=0 tPage=1,13 clutX=224 clutY=15
+[BOOT0/TIM] post ReadTIM: prect=0xf8fdac caddr=0xf8fba8 paddr=0xf8fdb4 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 160x480)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,15 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 7 (step 0)
+[BOOT-STEP] GameStartup step=0 qlen=0
+[TRANSITION] GameStartup step=0: processFlags=0x20 (BootDemo) sizeof(s_WorldGfxWork)=11708
+[BOOT-STEP] GameStartup step=1 qlen=0
+[FT] avgMs=18 worstMs=100 gameMs=14 drawMs=4 swapWait=0ms draws=38 decodes=6 decMs=5
+[OTS] f=10560 calls=2 n0=2056 n1=295 prims=26698 bb=-320,3520,-411,1542
+[OTT] walkUs=1820 texUs=11 emitUs=1012 submitUs=88 otherUs=708 prims=253 usPerPrim=7
+[SFX] Sd_PlaySfx: sfxId=1281 (Sfx_Base+1) vol=0
+[BOOT0/TIM] PostLoadTim file=1939 'SAVELOAD.TIM' ss=0x8ced img.u=0 img.v=16 tPage=1,5 clutX=224 clutY=14
+[BOOT0/TIM] post ReadTIM: prect=0xfbfdac caddr=0xfbfba8 paddr=0xfbfdb4 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(320,16 160x240)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,14 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 8 (step 0)
+[MCRD] card_info chan=2 -> IOE (n=512)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[FT] avgMs=18 worstMs=155 gameMs=13 drawMs=5 swapWait=0ms draws=64 decodes=2 decMs=2
+[OTS] f=10680 calls=2 n0=2052 n1=316 prims=34287 bb=-320,3520,-411,1542
+[OTT] walkUs=1938 texUs=26 emitUs=184 submitUs=252 otherUs=1474 prims=189 usPerPrim=10
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SH-XBOX] vblank 10800
+[MEM] tick: free=2508KB (627 pages)
+[FT] avgMs=17 worstMs=47 gameMs=13 drawMs=3 swapWait=0ms draws=88 decodes=0 decMs=0
+[OTS] f=10800 calls=2 n0=2052 n1=322 prims=36400 bb=157,1117,-25,745
+[OTT] walkUs=1951 texUs=26 emitUs=187 submitUs=256 otherUs=1480 prims=192 usPerPrim=10
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[FT] avgMs=17 worstMs=49 gameMs=13 drawMs=3 swapWait=0ms draws=89 decodes=0 decMs=0
+[OTS] f=10920 calls=2 n0=2052 n1=312 prims=36814 bb=157,1117,-25,745
+[OTT] walkUs=2086 texUs=27 emitUs=185 submitUs=273 otherUs=1600 prims=187 usPerPrim=11
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[FT] avgMs=17 worstMs=48 gameMs=13 drawMs=3 swapWait=0ms draws=88 decodes=0 decMs=0
+[OTS] f=11040 calls=2 n0=2052 n1=316 prims=36272 bb=157,1117,-25,745
+[OTT] walkUs=2045 texUs=26 emitUs=186 submitUs=513 otherUs=1318 prims=189 usPerPrim=10
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[FT] avgMs=16 worstMs=47 gameMs=13 drawMs=3 swapWait=0ms draws=88 decodes=0 decMs=0
+[OTS] f=11160 calls=2 n0=2052 n1=312 prims=36412 bb=157,1117,-25,745
+[OTT] walkUs=2062 texUs=26 emitUs=189 submitUs=251 otherUs=1594 prims=187 usPerPrim=11
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[FT] avgMs=17 worstMs=48 gameMs=13 drawMs=3 swapWait=0ms draws=88 decodes=0 decMs=0
+[OTS] f=11280 calls=2 n0=2052 n1=312 prims=36216 bb=157,1117,-25,745
+[OTT] walkUs=2222 texUs=26 emitUs=184 submitUs=317 otherUs=1694 prims=187 usPerPrim=11
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[MCRD] card_info chan=2 -> IOE (n=768)
+[SH-XBOX] vblank 11400
+[MEM] tick: free=2508KB (627 pages)
+[FT] avgMs=17 worstMs=49 gameMs=13 drawMs=3 swapWait=0ms draws=89 decodes=0 decMs=0
+[OTS] f=11400 calls=2 n0=2052 n1=322 prims=36882 bb=157,1117,-25,745
+[OTT] walkUs=1863 texUs=27 emitUs=187 submitUs=253 otherUs=1394 prims=192 usPerPrim=9
+[FT] avgMs=16 worstMs=44 gameMs=13 drawMs=3 swapWait=0ms draws=90 decodes=0 decMs=0
+[OTS] f=11520 calls=2 n0=2052 n1=322 prims=37200 bb=157,1117,-25,745
+[OTT] walkUs=1757 texUs=28 emitUs=189 submitUs=254 otherUs=1285 prims=192 usPerPrim=9
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[FT] avgMs=17 worstMs=50 gameMs=13 drawMs=3 swapWait=0ms draws=90 decodes=0 decMs=0
+[OTS] f=11640 calls=2 n0=2052 n1=322 prims=37200 bb=157,1117,-25,745
+[OTT] walkUs=1845 texUs=27 emitUs=191 submitUs=248 otherUs=1378 prims=192 usPerPrim=9
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=0
+[MCRD] open 'bu10:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=5376 len=640 ok
+[MCRD] open 'bu10:BASLUS-00707SILENT00' flags=0x8001 -> h=1 dir=1 size=8192
+[MCRD] read h=1 dir=1 ofs=768 len=128 ok
+[AUTO-EQUIP-CHECK] mapIdx=10 processFlags=0x8 inventorySlotCount=10 equippedWeapon=162
+[MAP-LOAD] GameBoot_MapLoad mapIdx=10 (map2_s00) fileIdx=2005 linked=1 procFlags=0x8
+[MAP-LOAD] MapRegistry_Load(10)=map2_s00 linked=1 header=005b3b94
+[MEM] after map-load: free=2508KB (627 pages)
+[SH-XBOX] GameState -> 10 (step 0)
+[BOOT-STEP] GameStartup step=0 qlen=0
+[TRANSITION] GameStartup step=0: processFlags=0x8 (LoadSave) sizeof(s_WorldGfxWork)=11708
+[BOOT-STEP] GameStartup step=3 qlen=0
+[BOOT-STEP] GameStartup step=4 qlen=0
+[BOOT-STEP] GameStartup step=5 qlen=0
+[BOOT-STEP] GameStartup step=6 qlen=5
+[BOOT0/TIM] PostLoadTim file=1449 'REBIRD.TIM' ss=0x5b2c img.u=0 img.v=0 tPage=0,28 clutX=704 clutY=464
+[BOOT0/TIM] post ReadTIM: prect=0xfbfc6c caddr=0xfbfba8 paddr=0xfbfc74 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,256 32x128)
+[BOOT0/TIM] pre CLUT LoadImage rect=(704,464 16x6)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1415 'DOG.TIM' ss=0x5a47 img.u=0 img.v=128 tPage=0,28 clutX=720 clutY=464
+[BOOT0/TIM] post ReadTIM: prect=0xfbfc4c caddr=0xfbfba8 paddr=0xfbfc54 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,384 32x128)
+[BOOT0/TIM] pre CLUT LoadImage rect=(720,464 16x5)
+[BOOT0/TIM] PostLoadTim done
+[BOOT-STEP] GameStartup step=7 qlen=0
+[TRANSITION] GameStartup step=7: processFlags=0x8 playerPos=(-181758,819,1416001) func_80039F90=0x0
+[IPD-INIT] Ipd_MapFileInfoSet: mapTag='THR' activeIpdCount=4 isExterior=1 plmIdx=1370 ipdFileIdx=0 textureFileIdx=0 curSize=0 willRebuildGrid=1
+[MEM] after chunk-buffers: free=2508KB (627 pages)
+[TRANSITION] GameStartup step=7 post-init: playerPos=(-181758,819,1416001) mapTag='THR'
+[BOOT-STEP] GameStartup step=8 qlen=8
+[BOOT0/TIM] PostLoadTim file=1073 'THR0001F.TIM' ss=0x45d8 img.u=0 img.v=0 tPage=0,8 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9c6c caddr=0xfc9ba8 paddr=0xfc9c74 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x6)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (512,0 64x256) hits PINNED pool slot 0 'THR0001F' (512,0)
+[BOOT0/TIM] PostLoadTim file=1077 'THR0003F.TIM' ss=0x4625 img.u=0 img.v=0 tPage=0,9 clutX=16 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9d6c caddr=0xfc9ba8 paddr=0xfc9d74 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(16,0 16x14)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (576,0 64x256) hits PINNED pool slot 1 'THR0003F' (576,0)
+[BOOT0/TIM] PostLoadTim file=1075 'THR0002F.TIM' ss=0x45fe img.u=0 img.v=0 tPage=0,10 clutX=32 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9cec caddr=0xfc9ba8 paddr=0xfc9cf4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(640,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(32,0 16x10)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (640,0 64x256) hits PINNED pool slot 2 'THR0002F' (640,0)
+[BOOT0/TIM] PostLoadTim file=1079 'THR0004F.TIM' ss=0x4644 img.u=0 img.v=0 tPage=0,21 clutX=48 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9dac caddr=0xfc9ba8 paddr=0xfc9db4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(320,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(48,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (320,256 64x256) hits PINNED pool slot 3 'THR0004F' (320,256)
+[BOOT0/TIM] PostLoadTim file=1271 'THRCT21F.TIM' ss=0x521c img.u=0 img.v=0 tPage=0,22 clutX=64 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9d2c caddr=0xfc9ba8 paddr=0xfc9d34 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(384,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(64,0 16x12)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (384,256 64x256) hits PINNED pool slot 4 'THRCT21F' (384,256)
+[BOOT0/TIM] PostLoadTim file=1272 'THRCT22F.TIM' ss=0x522d img.u=0 img.v=0 tPage=0,23 clutX=80 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9d2c caddr=0xfc9ba8 paddr=0xfc9d34 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(448,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(80,0 16x12)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (448,256 64x256) hits PINNED pool slot 5 'THRCT22F' (448,256)
+[BOOT0/TIM] PostLoadTim file=1274 'THRCT23H.TIM' ss=0x5247 img.u=0 img.v=0 tPage=0,26 clutX=128 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9d6c caddr=0xfc9ba8 paddr=0xfc9d74 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(640,256 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(128,0 16x14)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (640,256 32x256) hits PINNED pool slot 8 'THRCT23H' (640,256)
+[BOOT0/TIM] PostLoadTim file=1266 'THRC101F.TIM' ss=0x51c7 img.u=0 img.v=0 tPage=0,24 clutX=96 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfc9c4c caddr=0xfc9ba8 paddr=0xfc9c54 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(96,0 16x5)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (512,256 64x256) hits PINNED pool slot 6 'THRC101F' (512,256)
+[TEXVRAM] 'THRCT23H' tPage=[0,26] clutXY=(128,0) uv=(0,0)
+[TEXVRAM] 'THRCT21F' tPage=[0,22] clutXY=(64,0) uv=(0,0)
+[TEXVRAM] 'THRCT22F' tPage=[0,23] clutXY=(80,0) uv=(0,0)
+[TEXVRAM] 'THRC101F' tPage=[0,24] clutXY=(96,0) uv=(0,0)
+[BOOT-STEP] GameStartup step=9 qlen=0
+[BOOT-STEP] GameStartup step=10 qlen=0
+[SH_AMB] Sd_AmbientSfxSet idx=11 -> loadCmd=178
+[SH_AMB] Sd_VabLoad ambient cmd=178 type=2 dedup=0
+[FT] avgMs=25 worstMs=592 gameMs=11 drawMs=13 swapWait=0ms draws=62 decodes=21 decMs=29
+[OTS] f=11760 calls=2 n0=2052 n1=18 prims=25818 bb=-320,3520,-411,1131
+[OTT] walkUs=267 texUs=4 emitUs=4 submitUs=12 otherUs=245 prims=3 usPerPrim=89
+[BOOT-STEP] GameStartup step=11 qlen=0
+[CHARA-TEX] charaId=2 matCount=1 modelCount=16
+[CHARA-TEX] mat[0] name='REBIRD' field_C=1 E=0x5c F=0x5c clut=0x742c UV=0x0000 tex=0
+[CHARA-TEX] prim0: f0=0x2971(UV0) f2=0x74ac(clut) f4=0x1d6a(UV1) f6=0x005c(tpage) f8=0x2077(UV2) fA=0x0000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,28] u=0 v=0 clutXY=(704,464)
+[CHARA-TEX] charaId=4 matCount=1 modelCount=22
+[CHARA-TEX] mat[0] name='DOG' field_C=1 E=0x5c F=0x5c clut=0x742d UV=0x8000 tex=0
+[CHARA-TEX] prim0: f0=0xce2b(UV0) f2=0x742d(clut) f4=0xc02e(UV1) f6=0x005c(tpage) f8=0xcd2f(UV2) fA=0x8000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,28] u=0 v=128 clutXY=(720,464)
+[WOBJ] resolved 'AXIS1_HI' lmIdx=4
+[WOBJ] resolved 'AXIS2_BA' lmIdx=4
+[WOBJ] resolved 'PAD_NEAR' lmIdx=1
+[RELOAD_KF] weap=34 blendStart=-1 blendEnd=605 activeEnd=641
+[WEP_LOAD] weaponAttack=34 FS_BUFFER_12=0xefd748 — queuing weapon ANM
+[WEP_LOAD] post-load FS_BUFFER_12 first 16 bytes: 00 fa 00 7f ff fd 01 7f fe 03 02 7f 7f 01 01 ff
+[WEP_LOAD] HARRY_BASE_ANIM_INFOS[56] status=56 hasVar=0 link=57 sk=-1 ek=570
+[WEP_LOAD] HARRY_BASE_ANIM_INFOS[57] status=57 hasVar=0 link=57 sk=570 ek=579
+[WEP_LOAD] g_Player_EquippedWeaponInfo: attackSfx=1287 animStop=66 animAttack=72 animHold=61 sizeof=12
+[BOOT0/TIM] PostLoadTim file=1505 'TIM00.TIM' ss=0x5dcb img.u=0 img.v=0 tPage=0,15 clutX=176 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfbfdac caddr=0xfbfba8 paddr=0xfbfdb4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(960,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(176,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[BOOT-STEP] GameStartup step=12 qlen=2
+[RACOND] *** KILL-FRAME EDGE: flagByte 00 -> FC, mapIdx=10 room=40 (set wants mapIdx=8 room=2)
+[SH-XBOX] GameState -> 11 (step 0)
+[BGM] ChannelSet bgmIdx=6 cmd=773
+[FOGST-GPU] clear=0xff6c6474
+[BOOT0/TIM] PostLoadTim file=1514 'TIM07.TIM' ss=0x5e64 img.u=32 img.v=0 tPage=0,13 clutX=240 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfbfcac caddr=0xfbfba8 paddr=0xfbfcb4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(240,0 16x8)
+[BOOT0/TIM] PostLoadTim done
+[SH_DRIP] key_on song=0 ch=8 prog=5 note=53 bank=127 vabId=3 tones=1 match=1 vab2match=0
+[SH_DRIP] key_on song=0 ch=7 prog=4 note=45 bank=127 vabId=3 tones=1 match=1 vab2match=0
+[BOOT0/TIM] PostLoadTim file=1509 'TIM02.TIM' ss=0x5e0f img.u=0 img.v=0 tPage=0,14 clutX=160 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0xfbfdac caddr=0xfbfba8 paddr=0xfbfdb4 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(896,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(160,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[SH_DRIP] key_on song=0 ch=4 prog=2 note=63 bank=127 vabId=3 tones=1 match=1 vab2match=0
+[SH_DRIP] key_on song=0 ch=2 prog=0 note=49 bank=127 vabId=3 tones=1 match=1 vab2match=1
+[FT] avgMs=32 worstMs=100 gameMs=13 drawMs=18 swapWait=0ms draws=252 decodes=51 decMs=44
+[OTS] f=11880 calls=4 n0=2870 n1=16 prims=77354 bb=-2432,3520,-1118,3661
+[OTT] walkUs=6941 texUs=163 emitUs=3175 submitUs=815 otherUs=2785 prims=822 usPerPrim=8
+[SH_DRIP] key_on song=0 ch=5 prog=3 note=66 bank=127 vabId=3 tones=1 match=1 vab2match=0
+[SH-XBOX] vblank 12000
+[MEM] tick: free=2508KB (627 pages)
+[FT] avgMs=33 worstMs=66 gameMs=14 drawMs=19 swapWait=1ms draws=316 decodes=1 decMs=1
+[OTS] f=12000 calls=2 n0=2563 n1=16 prims=96405 bb=-2432,2995,-1118,3661
+[OTT] walkUs=4590 texUs=102 emitUs=2078 submitUs=480 otherUs=1928 prims=513 usPerPrim=8
+[GP-STATE-TXN] Gameplay -> sysState=7 (param=43)
+[SYSSTATE] dispatch sysState=7 mapEventData=0x5b2f90
+[FT] avgMs=29 worstMs=67 gameMs=6 drawMs=22 swapWait=0ms draws=421 decodes=52 decMs=34
+[OTS] f=12120 calls=2 n0=3452 n1=32 prims=128812 bb=-2432,3721,-1494,3661
+[OTT] walkUs=11631 texUs=270 emitUs=5888 submitUs=1595 otherUs=3877 prims=1410 usPerPrim=8
+[SYSSTATE] dispatch sysState=2 mapEventData=0
+[FOGST-GPU] clear=0xff000000
+[SH-XBOX] GameState -> 19 (step 0)
+[BOOT0/TIM] PostLoadTim file=1485 'HEROPIC2.TIM' ss=0x5bb6 img.u=12 img.v=103 tPage=1,31 clutX=224 clutY=13
+[BOOT0/TIM] post ReadTIM: prect=0xfbfdac caddr=0xfbfba8 paddr=0xfbfdb4 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(972,359 52x152)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,13 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 14 (step 0)
+[ITEMPICK] map-pack link: slot=0 loadableIdx=4 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=1 loadableIdx=15 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=2 loadableIdx=16 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=3 loadableIdx=0 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=4 loadableIdx=1 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=5 loadableIdx=2 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=6 loadableIdx=8 nobj=34 obj=ok
+[ITEMPICK] map-pack link: slot=7 loadableIdx=10 nobj=34 obj=ok
+[VRAM] decode #13312
+[VRAM] miss cause: evict=13180 inval=38 cold=96 (alloc=52)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[FT] avgMs=22 worstMs=116 gameMs=7 drawMs=15 swapWait=0ms draws=262 decodes=15 decMs=12
+[OTS] f=12240 calls=4 n0=2505 n1=143 prims=101969 bb=-371,3721,-388,3365
+[OTT] walkUs=3503 texUs=89 emitUs=1125 submitUs=538 otherUs=1750 prims=530 usPerPrim=6
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[BOOT0/TIM] PostLoadTim file=1919 'OPTION.TIM' ss=0x8a38 img.u=0 img.v=16 tPage=1,5 clutX=224 clutY=14
+[BOOT0/TIM] post ReadTIM: prect=0xfbfdac caddr=0xfbfba8 paddr=0xfbfdb4 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(320,16 160x240)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,14 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 18 (step 0)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[FT] avgMs=19 worstMs=153 gameMs=10 drawMs=9 swapWait=0ms draws=100 decodes=2 decMs=2
+[OTS] f=12360 calls=2 n0=2055 n1=371 prims=54568 bb=-320,3520,-411,1131
+[OTT] walkUs=2082 texUs=31 emitUs=595 submitUs=203 otherUs=1252 prims=250 usPerPrim=8
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[FT] avgMs=17 worstMs=48 gameMs=11 drawMs=5 swapWait=1ms draws=64 decodes=0 decMs=0
+[OTS] f=12480 calls=2 n0=2055 n1=371 prims=43440 bb=157,1120,-25,745
+[OTT] walkUs=2487 texUs=31 emitUs=591 submitUs=195 otherUs=1668 prims=250 usPerPrim=9
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[SH-XBOX] vblank 12600
+[MEM] tick: free=2508KB (627 pages)
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[FT] avgMs=17 worstMs=58 gameMs=11 drawMs=5 swapWait=0ms draws=74 decodes=0 decMs=0
+[OTS] f=12600 calls=2 n0=2055 n1=367 prims=43382 bb=-320,3520,-411,1131
+[OTT] walkUs=2351 texUs=44 emitUs=181 submitUs=349 otherUs=1776 prims=202 usPerPrim=11
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=64
+[FT] avgMs=17 worstMs=52 gameMs=11 drawMs=5 swapWait=0ms draws=100 decodes=0 decMs=0
+[OTS] f=12720 calls=2 n0=2055 n1=367 prims=42960 bb=157,1120,-25,745
+[OTT] walkUs=1953 texUs=44 emitUs=181 submitUs=516 otherUs=1210 prims=202 usPerPrim=9
+[EXITMENU] pressed gameStatePrev=14 gameState=18
+[SFX] Sd_PlaySfx: sfxId=1307 (Sfx_Base+27) vol=64
+[XA] SetVolume L=0 R=0
+[SH_AMB] Sd_AmbientSfxSet idx=1 -> loadCmd=162
+[BOOT0/TIM] PostLoadTim file=1980 'TITLE_E.TIM' ss=0x90b7 img.u=32 img.v=0 tPage=1,13 clutX=224 clutY=15
+[BOOT0/TIM] post ReadTIM: prect=0xf8fdac caddr=0xf8fba8 paddr=0xf8fdb4 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 160x480)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,15 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 7 (step 0)
+[BOOT-STEP] GameStartup step=0 qlen=0
+[TRANSITION] GameStartup step=0: processFlags=0x20 (BootDemo) sizeof(s_WorldGfxWork)=11708
+[BOOT-STEP] GameStartup step=1 qlen=0
+[FT] avgMs=18 worstMs=102 gameMs=12 drawMs=5 swapWait=0ms draws=49 decodes=6 decMs=6
+[OTS] f=12840 calls=2 n0=2056 n1=295 prims=26757 bb=-320,3520,-411,1542
+[OTT] walkUs=2428 texUs=13 emitUs=1017 submitUs=139 otherUs=1257 prims=253 usPerPrim=9
+[SFX] Sd_PlaySfx: sfxId=1305 (Sfx_Base+25) vol=0
+[FT] avgMs=17 worstMs=49 gameMs=13 drawMs=3 swapWait=0ms draws=21 decodes=0 decMs=0
+[OTS] f=12960 calls=2 n0=2056 n1=295 prims=34440 bb=-35,1120,-25,797
+[OTT] walkUs=1983 texUs=13 emitUs=1012 submitUs=85 otherUs=872 prims=253 usPerPrim=7
+[FT] avgMs=16 worstMs=47 gameMs=13 drawMs=3 swapWait=0ms draws=21 decodes=0 decMs=0
+[OTS] f=13080 calls=2 n0=2056 n1=295 prims=34440 bb=-35,1120,-25,797
+[OTT] walkUs=2088 texUs=12 emitUs=1011 submitUs=87 otherUs=976 prims=253 usPerPrim=8

@@ -171,7 +171,28 @@ static inline unsigned int* TexLookup(int tpage, int clut)
                                                        int* outNativeW, int* outNativeH);
             int slot = ((row - 512) / 16) * 64 + (clut & 63);
             int pw = 0, ph = 0, nw = 0, nh = 0;
-            const unsigned* tex = Xbox_PoolSlotLookup(slot, &pw, &ph, &nw, &nh);
+            const unsigned* tex;
+
+            /* RESIDENT chunk texture first: those slots hold a PSX word block
+             * and decode through the ordinary paletted cache, so they come back
+             * as an index page + palette exactly like a real VRAM page. Only if
+             * the slot is not resident does the RGBA table (the minimap's
+             * pre-decoded images) get a look. */
+            {
+                const void* pal = 0;
+                unsigned int* res = (unsigned int*)PsxVram_GetPaletted(tpage, clut, &pal);
+                if (res) {
+                    s_pendingPal  = pal;
+                    s_pendingTexW = 256;
+                    s_pendingTexH = 256;
+                    s_pendingUvX  = PAL_UV_SCALE;
+                    s_pendingUvY  = PAL_UV_SCALE;
+                    s_texCycles  += shx_rdtsc() - t0;
+                    return res;
+                }
+            }
+
+            tex = Xbox_PoolSlotLookup(slot, &pw, &ph, &nw, &nh);
             s_pendingPal  = 0;
             s_pendingTexW = pw ? pw : 256;
             s_pendingTexH = ph ? ph : 256;

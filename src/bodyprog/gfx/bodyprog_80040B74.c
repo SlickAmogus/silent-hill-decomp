@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_XBOX_PORT
+#include "xbox_respool.h"
+#endif
 #include "inline_no_dmpsx.h"
 #ifdef SH_PC_PORT
 #include <stdlib.h>
@@ -586,12 +589,25 @@ void Ipd_TexturesInit(void) // 0x80041D48
     if (g_PcConfig.residentTextures)
     {
         s32 k;
+#ifdef SH_XBOX_PORT
+        /* Xbox backs a virtual slot with a 32KB private copy of the TIM's PSX
+         * word block (xbox_respool.c), not PC's decoded RGBA rows, so the count
+         * it can afford on 64MB is a fraction of PC's 192+64. Offer exactly what
+         * was reserved: an offered slot that cannot be backed renders BROKEN,
+         * because Fs_QueuePostLoadTim has already skipped its VRAM upload by the
+         * time registration runs. */
+        const s32 fullExtra = Xbox_ResidentFullSlots();
+        const s32 halfExtra = Xbox_ResidentHalfSlots();
+#else
+        const s32 fullExtra = PC_TEXPOOL_FULL_EXTRA;
+        const s32 halfExtra = PC_TEXPOOL_HALF_EXTRA;
+#endif
 
         /* Virtual slot id -> synthetic clut coords (hires_override.h): the
          * id is split across the clut X bits (per-prim +64*row palette
          * deltas never touch them) and 16-row-spaced Y groups, so multi-row
          * chunk TIMs (school ships 6-12 palette rows) stay disambiguable. */
-        for (k = 0; k < PC_TEXPOOL_FULL_EXTRA; k++)
+        for (k = 0; k < fullExtra; k++)
         {
             Texture_Init(&g_Map.chunkTextures.fullPageTextures[8 + k], 0,
                          0, 8, 0, 0,
@@ -600,7 +616,7 @@ void Ipd_TexturesInit(void) // 0x80041D48
             g_Map.chunkTextures.fullPage.textures[g_Map.chunkTextures.fullPage.count++] =
                 &g_Map.chunkTextures.fullPageTextures[8 + k];
         }
-        for (k = 0; k < PC_TEXPOOL_HALF_EXTRA; k++)
+        for (k = 0; k < halfExtra; k++)
         {
             s32 id = PC_TEXPOOL_FULL_EXTRA + k;
             Texture_Init(&g_Map.chunkTextures.halfPageTextures[2 + k], 0,
@@ -710,8 +726,15 @@ void Ipd_TexturesRefClear(void) // 0x8004201C
     s_Texture* curTex;
 
 #ifdef SH_PC_PORT
+#ifdef SH_XBOX_PORT
+    /* Must match what Map_ChunkTexturesInit actually OFFERED (the reserved
+     * slab count), not PC's compile-time capacity. */
+    s32 fullBound = 8 + (g_PcConfig.residentTextures ? Xbox_ResidentFullSlots() : 0);
+    s32 halfBound = 2 + (g_PcConfig.residentTextures ? Xbox_ResidentHalfSlots() : 0);
+#else
     s32 fullBound = 8 + (g_PcConfig.residentTextures ? PC_TEXPOOL_FULL_EXTRA : 0);
     s32 halfBound = 2 + (g_PcConfig.residentTextures ? PC_TEXPOOL_HALF_EXTRA : 0);
+#endif
 #else
     #define fullBound 8
     #define halfBound 2

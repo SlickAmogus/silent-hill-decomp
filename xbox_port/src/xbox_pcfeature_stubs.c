@@ -28,6 +28,7 @@
  */
 #include <stddef.h> /* NULL */
 #include "sh_log.h" /* pool-slot registration logs which image landed where */
+#include "xbox_respool.h" /* resident chunk-texture backing store */
 
 /* =============================================================================
  * libc gap: pdclib (nxdk) ships stdlib.h's `double atof(const char*);`
@@ -511,18 +512,19 @@ int   g_PsxBarInner       = 96;
  * VRAM directly and never consult this lookup table (that consumption only
  * happens in the excluded GL AddSplit hook in PsyX_render.cpp).
  * ========================================================================= */
+/* RESIDENT CHUNK TEXTURES. Fs_QueuePostLoadTim hands a virtual pool slot's disc
+ * TIM here INSTEAD of uploading it to VRAM, so this is the whole backing store
+ * for resident_textures — see xbox_respool.c for why Xbox keeps the PSX word
+ * block rather than PC's decoded RGBA rows. Failure is reported so the
+ * [RESPOOL] log names any slot that ends up unbacked. */
 int HiresOverride_PoolSlotRegister(int slotId, const unsigned char* data, unsigned int size, int nativePixelW, int nativePixelH)
 {
-    (void)slotId;
-    (void)data;
-    (void)size;
-    (void)nativePixelW;
-    (void)nativePixelH;
-    return -1;
+    return Xbox_ResidentPoolRegisterTim(slotId, data, size, nativePixelW, nativePixelH);
 }
 
 void HiresOverride_PoolSlotsReset(void)
 {
+    Xbox_ResidentPoolReset();
 }
 
 void HiresOverride_CharaPoolSlotReset(int slotId)
