@@ -541,10 +541,17 @@ void HiresOverride_CharaPoolSlotReset(int slotId)
  *
  * Only the few slots the Xbox port actually uses are backed, hence the small
  * table: the minimap takes the top two (511 map, 510 markings). */
-typedef struct { int slot, w, h; unsigned* argb; } s_XbPoolTex;
+/* nw/nh is the UV DENOMINATOR the caller's prims address the slot in, which is
+ * NOT the image's own size: the minimap registers a 320x480 paper map but emits
+ * uv in 0..255 (u8 prim fields cannot reach 320 anyway), so PC's shader maps
+ * uv/native across the whole texture. Sampling those uv as raw texels showed the
+ * top-left 256x256 corner of the map -- the image appeared, but always at the
+ * wrong place. gpu_xbox.c scales by w/nw, h/nh at emit to reproduce it. */
+typedef struct { int slot, w, h, nw, nh; unsigned* argb; } s_XbPoolTex;
 static s_XbPoolTex s_xbPool[4];
 
-const unsigned* Xbox_PoolSlotLookup(int slot, int* outW, int* outH)
+const unsigned* Xbox_PoolSlotLookup(int slot, int* outW, int* outH,
+                                    int* outNativeW, int* outNativeH)
 {
     int i;
     for (i = 0; i < (int)(sizeof(s_xbPool) / sizeof(s_xbPool[0])); i++)
@@ -552,6 +559,8 @@ const unsigned* Xbox_PoolSlotLookup(int slot, int* outW, int* outH)
         {
             if (outW) *outW = s_xbPool[i].w;
             if (outH) *outH = s_xbPool[i].h;
+            if (outNativeW) *outNativeW = s_xbPool[i].nw;
+            if (outNativeH) *outNativeH = s_xbPool[i].nh;
             return s_xbPool[i].argb;
         }
     return 0;
@@ -562,7 +571,7 @@ int HiresOverride_PoolSlotRegisterRGBA(int slotId, int row, const unsigned char*
     extern void* GpuNv2a_AllocTexMem(int bytes);
     int i, free_i = -1, n = (int)(sizeof(s_xbPool) / sizeof(s_xbPool[0]));
 
-    (void)row; (void)nativePixelW; (void)nativePixelH;
+    (void)row;
     if (!rgba || w <= 0 || h <= 0 || w > 1024 || h > 1024)
         return -1;
 
@@ -595,7 +604,10 @@ int HiresOverride_PoolSlotRegisterRGBA(int slotId, int row, const unsigned char*
     s_xbPool[free_i].slot = slotId;
     s_xbPool[free_i].w    = w;
     s_xbPool[free_i].h    = h;
-    SH_DBG("[POOLTEX] slot %d registered %dx%d", slotId, w, h);
+    s_xbPool[free_i].nw   = (nativePixelW > 0) ? nativePixelW : w;
+    s_xbPool[free_i].nh   = (nativePixelH > 0) ? nativePixelH : h;
+    SH_DBG("[POOLTEX] slot %d registered %dx%d (uv denom %dx%d)",
+           slotId, w, h, s_xbPool[free_i].nw, s_xbPool[free_i].nh);
     return 0;
 }
 

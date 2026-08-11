@@ -220,6 +220,18 @@ void GameState_PaperMapScreen_Update(void) // 0x80066EB0
         case 0:
             Screen_Refresh(SCREEN_WIDTH, true);
 
+#ifdef SH_PC_PORT
+            /* The paper map is a fullscreen 2D screen, but it never reset the
+             * clear color, so GsSortClear kept painting the room's fog color
+             * behind it and any frame that did not fully cover the screen -- the
+             * open, the fades, a page change -- flashed grey. The inventory
+             * screen has always zeroed this on entry (item_screens_2.c); the map
+             * screen is the one 2D screen that was missed. */
+            g_GameWork.background2dColor.r = 0;
+            g_GameWork.background2dColor.g = 0;
+            g_GameWork.background2dColor.b = 0;
+#endif
+
             activeMarkingFileIdx = g_PaperMapMarkingFileIdxs[g_SavegamePtr->paperMapIdx];
             paperMapIdx = g_SavegamePtr->paperMapIdx;
             screenPosX = NO_VALUE;
@@ -898,6 +910,26 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
     }
 
     temp_s4 = (mapCoordIdxZ << 16) + var_a3;
+#ifdef SH_PC_PORT
+    /* Minimap query: return Harry's map cell WITHOUT drawing the paper-map
+     * arrow/markings below. Mirrors the existing L1/R1 early-out, but driven by
+     * the caller instead of held buttons so the overlay can poll it each frame.
+     * Missing this is what drew the paper map's full-size green player arrow over
+     * the world every frame the minimap was on.
+     *
+     * `angle` is exported too: several areas lay their paper map out on rotated or
+     * mirrored world axes (the sewers put map-X on world -Z; the Alt Sewer inverts
+     * both), and the per-area offsets applied to `angle` in the switch above are
+     * the ONLY record of that. The marker heading must use this, not the raw
+     * rotation.vy, or it points 90/180 degrees wrong in exactly those areas. */
+    {
+        extern int   g_PcMapQueryOnly;
+        extern q3_12 g_PcMapQueryAngle;
+
+        g_PcMapQueryAngle = angle;
+        if (g_PcMapQueryOnly) return temp_s4;
+    }
+#endif
     if (g_Controller0->heldBtnFlags & (ControllerFlag_L1 | ControllerFlag_R1))
     {
         return temp_s4;

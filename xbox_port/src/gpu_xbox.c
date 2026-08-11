@@ -138,6 +138,20 @@ static const void* s_pendingPal;
  * a pool-slot image is whatever it was registered at. */
 static int s_pendingTexW = 256, s_pendingTexH = 256;
 
+/* SWIZZLED textures sample in NORMALISED uv (0..1); the linear path samples in
+ * TEXELS (0..255). Everything upstream builds texel uv, so a paletted (swizzled)
+ * page must be scaled or every fetch clamps to a single texel -- which is
+ * exactly what log 054's screenshots showed: intact geometry with each surface
+ * flat-filled from ONE palette entry, vertex-lit. */
+#define PAL_UV_SCALE (1.0f / 256.0f)
+
+/* Per-axis factor taking the prim's uv into the units the BOUND texture samples
+ * in. 1.0 for an ordinary linear PSX page (texel uv, 256x256); PAL_UV_SCALE for
+ * a swizzled paletted page; image/denominator for a pool slot. Latched by
+ * TexLookup and applied at emit, once all vertices are built and the primitive's
+ * texture path is known. */
+static float s_pendingUvX = 1.0f, s_pendingUvY = 1.0f;
+
 static inline unsigned int* TexLookup(int tpage, int clut)
 {
     unsigned long long t0 = shx_rdtsc();
@@ -153,19 +167,28 @@ static inline unsigned int* TexLookup(int tpage, int clut)
     {
         int row = (clut >> 6) & 0x3FF;              /* unmasked: may exceed 511 */
         if (row >= 512) {
-            extern const unsigned* Xbox_PoolSlotLookup(int slot, int* outW, int* outH);
+            extern const unsigned* Xbox_PoolSlotLookup(int slot, int* outW, int* outH,
+                                                       int* outNativeW, int* outNativeH);
             int slot = ((row - 512) / 16) * 64 + (clut & 63);
-            int pw = 0, ph = 0;
-            const unsigned* tex = Xbox_PoolSlotLookup(slot, &pw, &ph);
+            int pw = 0, ph = 0, nw = 0, nh = 0;
+            const unsigned* tex = Xbox_PoolSlotLookup(slot, &pw, &ph, &nw, &nh);
             s_pendingPal  = 0;
             s_pendingTexW = pw ? pw : 256;
             s_pendingTexH = ph ? ph : 256;
+            /* The prim addresses the slot in the denominator it was registered
+             * with, not in image texels -- the minimap emits uv 0..255 over a
+             * 320x480 map. Without this the sampler only ever reached the
+             * top-left 256x256 of it: right image, wrong part of the map. */
+            s_pendingUvX = (nw > 0) ? ((float)s_pendingTexW / (float)nw) : 1.0f;
+            s_pendingUvY = (nh > 0) ? ((float)s_pendingTexH / (float)nh) : 1.0f;
             s_texCycles  += shx_rdtsc() - t0;
             return (unsigned int*)tex;              /* 0 => prim is skipped */
         }
     }
     s_pendingTexW = 256;
     s_pendingTexH = 256;
+    s_pendingUvX  = 1.0f;
+    s_pendingUvY  = 1.0f;
 
     /* Prefer the paletted cache: one 64KB index page per tpage, shared by every
      * CLUT. Falls back to the ARGB cache for 16-bit direct pages (not
@@ -176,6 +199,7 @@ static inline unsigned int* TexLookup(int tpage, int clut)
         r   = PsxVram_GetTexture(tpage, clut);
     }
     s_pendingPal = pal;
+    if (pal) { s_pendingUvX = PAL_UV_SCALE; s_pendingUvY = PAL_UV_SCALE; }
     s_texCycles += shx_rdtsc() - t0;
     return r;
 }
@@ -584,15 +608,6 @@ static void ApplyFog(ShVertex* v, int pad)
  * GpuNv2a_EmitTris then memcpy'd in, so every vertex crossed the
  * CPU->write-combined boundary twice; that staging was 59% of the render walk in
  * log 049's warm-cache frames. */
-/* SWIZZLED textures sample in NORMALISED uv (0..1); the linear path samples in
- * TEXELS (0..255). Everything upstream builds texel uv, so a paletted (swizzled)
- * page must be scaled here or every fetch clamps to a single texel -- which is
- * exactly what log 054's screenshots showed: intact geometry with each surface
- * flat-filled from ONE palette entry, vertex-lit. Scaling at emit time keeps it
- * in one place, after all vertices are built and after TexLookup has decided
- * which path this primitive uses. */
-#define PAL_UV_SCALE (1.0f / 256.0f)
-
 /* Scale the SOURCE vertices (ordinary cached memory), never the copies already
  * written into the pool: the pool is write-combined, and a read-modify-write
  * there costs an uncached read per component -- 12 of them per quad, which is
@@ -602,17 +617,19 @@ static void ScalePalUvSrc(ShVertex** v, int n)
 {
     int i;
     for (i = 0; i < n; i++) {
-        v[i]->tex[0] *= PAL_UV_SCALE;
-        v[i]->tex[1] *= PAL_UV_SCALE;
+        v[i]->tex[0] *= s_pendingUvX;
+        v[i]->tex[1] *= s_pendingUvY;
     }
 }
+
+#define UV_NEEDS_SCALE() (s_pendingUvX != 1.0f || s_pendingUvY != 1.0f)
 
 static void EmitTri(ShVertex* a, ShVertex* b, ShVertex* c)
 {
     unsigned long long t0 = shx_rdtsc();
     ShVertex* d = GpuNv2a_BatchAlloc(3);
     if (d) {
-        if (s_pendingPal) { ShVertex* sv[3]; sv[0]=a; sv[1]=b; sv[2]=c; ScalePalUvSrc(sv, 3); }
+        if (UV_NEEDS_SCALE()) { ShVertex* sv[3]; sv[0]=a; sv[1]=b; sv[2]=c; ScalePalUvSrc(sv, 3); }
         d[0] = *a; d[1] = *b; d[2] = *c;
         s_primCount++;
     }
@@ -624,7 +641,7 @@ static void EmitQuad(ShVertex* v0, ShVertex* v1, ShVertex* v2, ShVertex* v3)
     unsigned long long t0 = shx_rdtsc();
     ShVertex* d = GpuNv2a_BatchAlloc(6);
     if (d) {
-        if (s_pendingPal) { ShVertex* sv[4]; sv[0]=v0; sv[1]=v1; sv[2]=v2; sv[3]=v3; ScalePalUvSrc(sv, 4); }
+        if (UV_NEEDS_SCALE()) { ShVertex* sv[4]; sv[0]=v0; sv[1]=v1; sv[2]=v2; sv[3]=v3; ScalePalUvSrc(sv, 4); }
         d[0] = *v0; d[1] = *v1; d[2] = *v2;
         d[3] = *v1; d[4] = *v2; d[5] = *v3;
         s_primCount++;
