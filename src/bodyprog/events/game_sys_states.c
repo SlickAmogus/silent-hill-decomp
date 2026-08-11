@@ -2,6 +2,9 @@
 
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+/* Door out-fade rate, 1/seconds in Q12. Q12(1.6f) ~= 0.63 s. See the fade-first
+ * block in SysState_LoadArea_Update. */
+s32 g_PcTxnFadeTimestep = Q12(1.6f);
 #include <stdio.h>
 #endif
 
@@ -177,8 +180,43 @@ void GameState_InGame_Update(void) // 0x80038BD4
          * g_DeltaTime -- when no enemy is alive, and otherwise relies on
          * g_DeltaTime already being 0 to keep monsters frozen while an enemy lives.
          * The blanket raw override broke that, so monsters kept moving during a
-         * memo. Hand ReadMessage 0 like PSX and let its own handler decide. */
-        g_DeltaTime = (g_SysWork.sysState == SysState_ReadMessage) ? Q12(0.0f) : g_DeltaTimeRaw;
+         * memo. Hand ReadMessage 0 like PSX and let its own handler decide.
+         *
+         * Handing it 0 is not enough on its own for a player-initiated examine.
+         * SysState_ReadMessage_Update restores g_DeltaTimeCpy whenever the event
+         * carries EventParamUnkState_0 (101 of the 513 ReadMessage map events do,
+         * inconsistently -- in map0_s01 the pinball machine has it clear and the
+         * radio has it set) or when no enemy is alive, so most flavor-text
+         * objects never held the frame: the world kept running under the text and
+         * vcMoveAndSetCamera kept easing the fixed camera, which reads as the view
+         * sliding to a slightly different angle and sitting there for as long as
+         * the message is up. Retail holds a frozen frame behind every examine, so
+         * neutralise the restore at its source rather than editing the PSX
+         * handler. Safe to clobber: g_DeltaTimeCpy is file-static, its only
+         * readers on a ReadMessage frame are those two restores, and it is rebuilt
+         * from the frame clock every tick a few lines above. Zero is
+         * framerate-independent by construction, and the message box runs on
+         * g_DeltaTimeRaw (map_msg_display.c), so roll-out, page timers and
+         * dismissal are unaffected.
+         *
+         * Button-activated events ONLY. map1_s04, map2_s03 and map4_s00 each
+         * carry a TriggerType_None ReadMessage (eventParam 15, flags_8_13 = 1,
+         * activationType None) with no event-flag gates, which Event_Update
+         * re-arms every frame -- those maps sit in this state permanently and are
+         * script-driven, not examines, so they must keep their PSX clock. */
+        if (g_SysWork.sysState == SysState_ReadMessage)
+        {
+            g_DeltaTime = Q12(0.0f);
+
+            if (g_MapEventData != NULL && g_MapEventData->activationType == TriggerActivationType_Button)
+            {
+                g_DeltaTimeCpy = Q12(0.0f);
+            }
+        }
+        else
+        {
+            g_DeltaTime = g_DeltaTimeRaw;
+        }
 #else
         g_DeltaTime = Q12(0.0f);
 #endif
@@ -876,12 +914,76 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     }
 #endif
 
+#ifdef SH_PC_PORT
+    /* Everything below runs to completion inside THIS single tick, and its
+     * blocking parts (GameBoot_MapLoad -> GameFs_PlayerMapAnimLoad ->
+     * Fs_QueueWaitForEmpty) only spin on VSync: they never return to MainLoop's
+     * Screen_FadeUpdate / GsSwapDispBuff / present, so not one frame is presented
+     * for the whole multi-second stall and the screen keeps showing the last
+     * gameplay frame. Retail's door fade is Screen_BackgroundMotionBlur's
+     * framebuffer feedback, which advances one step per PRESENTED frame, so on
+     * this path it gets a single frame -- "barely fades, then freezes". Run a
+     * real fade to black to completion FIRST, over its own presented frames, and
+     * enter the blocking work only once the screen is already black. Same shape
+     * SysState_Fmv_Update uses: fade out, wait for ScreenFade_IsFinished(), then
+     * block. The far side is untouched -- GameBoot_GameStartup case 11 still
+     * holds 60 vblanks and fires the door-shut SFX, and GameState_InGame_Update
+     * step 0 still fades in. */
+    if (g_SysWork.sysStateSteps[0] == 0)
+    {
+        g_SysWork.sysStateSteps[0] = 1;
+        g_SysWork.sysStateSteps[1] = 0;
+        g_SysWork.sfxPairIdx_2283  = g_MapEventData->sfxPairIdx_8_19;
+
+        /* Retail plays the door-open SFX under the fade, not after it. */
+        SD_Call(SFX_PAIRS[g_SysWork.sfxPairIdx_2283].sfx_0);
+
+        /* Attract demos consume one recorded input entry per frame, so extra
+         * frames desync the recording -- they keep today's presentation and must
+         * not get a fade nothing waits for. A scripted scene that already handed
+         * over on black must not be re-faded, or the world pops back into view.
+         * reset=false so an in-flight fade continues from its current level
+         * instead of snapping, and the colour bit carries over so a scene's
+         * white fade does not turn black. */
+        if (!(g_SysWork.sysFlags & SysFlag_DemoActive) && !ScreenFade_IsFinished())
+        {
+            ScreenFade_Start(false, false, IS_SCREEN_FADE_WHITE(g_Screen_FadeStatus) != 0);
+            /* Timestep is 1/seconds. Retail's out-fade lasted as long as the CD
+             * read, so there is no constant to match -- this reads as a deliberate
+             * fade without dominating a transition whose load is fast. */
+            g_ScreenFadeTimestep = g_PcTxnFadeTimestep;
+        }
+    }
+
+    /* Budget is accumulated REAL TIME, not a frame count: Screen_FadeUpdate steps
+     * by timestep*dt, so the fade lands in the same wall time at 20, 30 or 60 fps,
+     * whereas a frame count would only be right at one rate. It exists purely so
+     * a door can never hang -- ScreenFade_IsFinished() is false in
+     * ScreenFadeState_None, which a fade hijacked mid-transition can leave behind.
+     * g_DeltaTimeRaw is substituted when a deliberate freeze has zeroed it, so the
+     * budget always advances. */
+    if (!ScreenFade_IsFinished() && !(g_SysWork.sysFlags & SysFlag_DemoActive) &&
+        g_SysWork.sysStateSteps[1] < Q12(3.0f))
+    {
+        g_SysWork.sysStateSteps[1] += (g_DeltaTimeRaw > Q12(0.0f)) ? g_DeltaTimeRaw : TIMESTEP_60_FPS;
+
+        /* Hold the world still under the fade the way retail's decaying frozen
+         * frame does. The fade runs off g_DeltaTimeRaw and is unaffected, and
+         * BgmStatusFlag_Pause is deliberately NOT set so the world still renders
+         * beneath the fade tile. */
+        g_DeltaTime = Q12(0.0f);
+        return;
+    }
+#endif
+
     g_SysWork.unused_229C            = 0;
     g_SysWork.loadingScreenIdx = D_800BCDB0.loadingScreenId;
     g_SysWork.sfxPairIdx_2283       = g_MapEventData->sfxPairIdx_8_19;
     g_SysWork.field_2282            = g_MapEventData->flags_8_13;
 
+#ifndef SH_PC_PORT
     SD_Call(SFX_PAIRS[g_SysWork.sfxPairIdx_2283].sfx_0);
+#endif
 
     if (g_SysWork.sfxPairIdx_2283 == SfxPairIdx_7)
     {

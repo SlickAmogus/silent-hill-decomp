@@ -1161,6 +1161,31 @@ void Event_ItemTake(e_InvItemId itemId, s32 itemCount, e_EventFlag eventFlagIdx,
             SysWork_StateStepIncrement(1);
 
         case EventState_LoadItemModel:
+#ifdef SH_PC_PORT
+            /* Engage the world-pickup freeze the instant the interaction starts,
+             * not when Gfx_PickupItemAnimate first runs several frames later (once
+             * the model finishes its async load). Otherwise the world keeps
+             * rendering live through the load window, and vcMoveAndSetCamera
+             * (game_sys_states.c, gated on !BgmStatusFlag_Pause) eases the fixed
+             * camera toward its target across those frames; the freeze then
+             * snapshots the camera MID-EASE, so the take-screen backdrop shows a
+             * shifted, "stuck" angle. Pausing here holds the pre-examine frame the
+             * player was already looking at. The load still completes — the Fs pump
+             * (Fs_QueueChunksLoad) runs outside the pause gate. OT0 is empty while
+             * paused-and-not-yet-loaded, so arming g_PcPickupItemActive early only
+             * makes the release edge (game_main.c) cover the whole interaction; the
+             * see-through depth bracket has no item prims to touch until the model
+             * actually draws in Gfx_PickupItemAnimate, so that fix never reaches the
+             * world. Common (Event_ItemTake) pickups only — the special key pickups
+             * play a scripted reach animation first and keep their own timing. */
+            {
+                extern int g_PsxPresentLastFrame;
+                extern int g_PcPickupItemActive;
+                g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
+                g_PsxPresentLastFrame     = 1;
+                g_PcPickupItemActive      = 1;
+            }
+#endif
             Event_InvItemCmd(InvItemCmd_AwaitLoad, itemId, 0, true);
             break;
 

@@ -347,20 +347,16 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
         return buf;
     }
     if (e->kind == PCK_SLIDER) {
-#ifdef SH_XBOX_PORT
         /* nxdk's printf implements no %f -- "%.2f" produced an EMPTY string, so
-         * every slider row (Minimap Scale/Opacity) drew a blank value. Format the
-         * two decimals by hand. Whole numbers print bare so percentages read as
-         * "100" rather than "100.00". */
+         * every slider row (Minimap Scale/Opacity) drew a blank value.
+         * PcConfig_FormatFloat builds the digits by hand there. Whole numbers
+         * print bare so percentages read as "100" rather than "100.00". */
         float fv    = e->ffield ? *e->ffield : 0.0f;
         int   whole = (int)fv;
         int   frac  = (int)((fv - (float)whole) * 100.0f + 0.5f);
         if (frac >= 100) { whole++; frac -= 100; }
-        if (frac) snprintf(buf, bufsz, "%d.%02d", whole, frac);
+        if (frac) PcConfig_FormatFloat(buf, bufsz, fv, 2);
         else      snprintf(buf, bufsz, "%d", whole);
-#else
-        snprintf(buf, bufsz, "%.2f", e->ffield ? *e->ffield : 0.0f);
-#endif
         return buf;
     }
     if (e->kind == PCK_MAP) {
@@ -400,8 +396,14 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
         if (v > e->fmax) v = e->fmax;
         if (e->ffield) *e->ffield = v;
         if (e->flive)  *e->flive  = v;
-        if (e->key) { char fb[16]; snprintf(fb, sizeof(fb), "%.3f", v); PcConfig_SaveKeyValue(e->key, fb); }
-        SH_DBG_ECHO("%s: %.2f", e->name, v);
+        /* The SAME nxdk %f hole as the label above, but in the SAVE path: the
+         * value reached the config file as an EMPTY string, so minimap scale and
+         * opacity could be changed in the menu and were back to their defaults on
+         * the next launch. */
+        { char fb[16];
+          PcConfig_FormatFloat(fb, sizeof(fb), v, 3);
+          if (e->key) PcConfig_SaveKeyValue(e->key, fb);
+          SH_DBG_ECHO("%s: %s", e->name, fb); }
         return;
     }
     if (e->kind == PCK_MAP) {

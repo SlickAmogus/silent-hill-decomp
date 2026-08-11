@@ -329,9 +329,9 @@ void Pc_FlashlightModeApply(int mode, int persist)
         PcConfig_SaveKeyValue("flashlight_shadows", shadows ? "1" : "0");
         if (swapped)
         {
-            snprintf(b, sizeof(b), "%.2f", g_PcConfig.flashlightIntensity);
+            PcConfig_FormatFloat(b, sizeof(b), g_PcConfig.flashlightIntensity, 2);
             PcConfig_SaveKeyValue("flashlight_intensity", b);
-            snprintf(b, sizeof(b), "%.2f", g_PcConfig.flashlightSize);
+            PcConfig_FormatFloat(b, sizeof(b), g_PcConfig.flashlightSize, 2);
             PcConfig_SaveKeyValue("flashlight_size", b);
         }
     }
@@ -956,6 +956,36 @@ void PcConfig_Load(const char* path)
             g_PcConfig.fullscreen, g_PcConfig.disableCulling, g_PcConfig.mapName);
 }
 
+/* nxdk's printf implements NO %f conversion — "%.3f" produces an EMPTY string,
+ * not a malformed one. Every config float written through snprintf therefore
+ * saved as nothing, so the key read back as its default on the next launch: the
+ * minimap scale and opacity rows could be changed but never persisted. Build the
+ * digits by hand so the same call works on both ports. */
+void PcConfig_FormatFloat(char* buf, int cap, float v, int decimals)
+{
+#ifdef SH_XBOX_PORT
+    int   neg = (v < 0.0f);
+    int   scale = 1, whole, frac, i;
+    float av = neg ? -v : v;
+
+    if (decimals < 0) decimals = 0;
+    if (decimals > 4) decimals = 4;
+    for (i = 0; i < decimals; i++) scale *= 10;
+
+    whole = (int)av;
+    frac  = (int)(((av - (float)whole) * (float)scale) + 0.5f);
+    if (frac >= scale) { whole++; frac -= scale; }
+
+    if (!decimals)      snprintf(buf, cap, "%s%d", neg ? "-" : "", whole);
+    else if (decimals == 1) snprintf(buf, cap, "%s%d.%01d", neg ? "-" : "", whole, frac);
+    else if (decimals == 2) snprintf(buf, cap, "%s%d.%02d", neg ? "-" : "", whole, frac);
+    else if (decimals == 3) snprintf(buf, cap, "%s%d.%03d", neg ? "-" : "", whole, frac);
+    else                    snprintf(buf, cap, "%s%d.%04d", neg ? "-" : "", whole, frac);
+#else
+    snprintf(buf, cap, "%.*f", decimals, (double)v);
+#endif
+}
+
 /* Rewrite (or append) a single `key = value` line in the loaded config file,
  * preserving every other line and comment. */
 void PcConfig_SaveKeyValue(const char* cfgKey, const char* cfgValue)
@@ -1055,7 +1085,7 @@ void PcConfig_ApplyXaVolume(float norm)
     if (norm > 1.0f) norm = 1.0f;
     g_PcConfig.xaVolume = norm;
     XaPlayer_SetMasterVolume(norm); /* sets g_PcXaVolume + live source gain */
-    snprintf(buf, sizeof(buf), "%.3f", norm);
+    PcConfig_FormatFloat(buf, sizeof(buf), norm, 3);
     PcConfig_SaveKeyValue("xa_volume", buf);
 }
 

@@ -229,6 +229,13 @@ void PcConfig_SaveMapName(const char* mapName);
  * launcher reflects whatever the installed build supports. */
 void PcConfig_SaveKeyValue(const char* key, const char* value);
 
+/* Format a float for a config value / display. nxdk's printf implements no %f at
+ * all -- "%.3f" yields an EMPTY string, so every float written through
+ * PcConfig_SaveKeyValue was silently stored as nothing and read back as the
+ * default on the next launch (minimap scale and opacity would not persist).
+ * Use this instead of snprintf("%f") anywhere a config float is stringified. */
+void PcConfig_FormatFloat(char* buf, int cap, float v, int decimals);
+
 /* Set the FMV/voice (XA) master volume [0,1]: clamps, updates g_PcConfig +
  * the live XA source gain, and persists `xa_volume`. Used by the options menu
  * and the `xavolume` console command. */
