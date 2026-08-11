@@ -27,6 +27,7 @@
  * here, so this is ABI-identical to the real headers' declarations.
  */
 #include <stddef.h> /* NULL */
+#include "sh_log.h" /* pool-slot registration logs which image landed where */
 
 /* =============================================================================
  * libc gap: pdclib (nxdk) ships stdlib.h's `double atof(const char*);`
@@ -529,16 +530,73 @@ void HiresOverride_CharaPoolSlotReset(int slotId)
     (void)slotId;
 }
 
+/* ---- Pool slots are REAL on Xbox now (the minimap needs them) --------------
+ * A pool slot is a PC-side texture addressed purely through a prim's CLUT word:
+ * the encoding puts row = HIRES_POOL_CLUT_ROW_BASE(512) + (slot/64)*16 into the
+ * clut's Y field. Real PSX VRAM only reaches y=511, so a pool clut is
+ * unambiguous -- but psx_vram.c masks cy with 0x1FF, which folded 512 back to 0
+ * and made the minimap sample real VRAM at y=0 (garbage where the map should be,
+ * and a marker atlas full of nonsense). gpu_xbox.c now detects the pool range
+ * before that mask and binds the texture registered here instead.
+ *
+ * Only the few slots the Xbox port actually uses are backed, hence the small
+ * table: the minimap takes the top two (511 map, 510 markings). */
+typedef struct { int slot, w, h; unsigned* argb; } s_XbPoolTex;
+static s_XbPoolTex s_xbPool[4];
+
+const unsigned* Xbox_PoolSlotLookup(int slot, int* outW, int* outH)
+{
+    int i;
+    for (i = 0; i < (int)(sizeof(s_xbPool) / sizeof(s_xbPool[0])); i++)
+        if (s_xbPool[i].argb && s_xbPool[i].slot == slot)
+        {
+            if (outW) *outW = s_xbPool[i].w;
+            if (outH) *outH = s_xbPool[i].h;
+            return s_xbPool[i].argb;
+        }
+    return 0;
+}
+
 int HiresOverride_PoolSlotRegisterRGBA(int slotId, int row, const unsigned char* rgba, int w, int h, int nativePixelW, int nativePixelH)
 {
-    (void)slotId;
-    (void)row;
-    (void)rgba;
-    (void)w;
-    (void)h;
-    (void)nativePixelW;
-    (void)nativePixelH;
-    return -1;
+    extern void* GpuNv2a_AllocTexMem(int bytes);
+    int i, free_i = -1, n = (int)(sizeof(s_xbPool) / sizeof(s_xbPool[0]));
+
+    (void)row; (void)nativePixelW; (void)nativePixelH;
+    if (!rgba || w <= 0 || h <= 0 || w > 1024 || h > 1024)
+        return -1;
+
+    for (i = 0; i < n; i++)
+    {
+        if (s_xbPool[i].argb && s_xbPool[i].slot == slotId) { free_i = i; break; }
+        if (!s_xbPool[i].argb && free_i < 0) free_i = i;
+    }
+    if (free_i < 0) return -1;
+
+    /* One allocation per slot, sized for the largest image it ever holds. The
+     * allocator has no free, so re-registration reuses the buffer when it fits. */
+    if (!s_xbPool[free_i].argb || s_xbPool[free_i].w * s_xbPool[free_i].h < w * h)
+    {
+        unsigned* buf = (unsigned*)GpuNv2a_AllocTexMem(w * h * 4);
+        if (!buf) return -1;
+        s_xbPool[free_i].argb = buf;
+    }
+    {   /* RGBA8 -> A8R8G8B8, the format the NV2A bind expects. */
+        int      px = w * h;
+        unsigned* d = s_xbPool[free_i].argb;
+        for (i = 0; i < px; i++)
+        {
+            const unsigned char* p = rgba + (size_t)i * 4;
+            d[i] = ((unsigned)p[3] << 24) | ((unsigned)p[0] << 16) |
+                   ((unsigned)p[1] << 8)  |  (unsigned)p[2];
+        }
+        __asm__ __volatile__("sfence" ::: "memory");
+    }
+    s_xbPool[free_i].slot = slotId;
+    s_xbPool[free_i].w    = w;
+    s_xbPool[free_i].h    = h;
+    SH_DBG("[POOLTEX] slot %d registered %dx%d", slotId, w, h);
+    return 0;
 }
 
 int HiresOverride_PoolSlotRegisterRGBAKeyed(int slotId, int row, const unsigned char* rgba, int w, int h,

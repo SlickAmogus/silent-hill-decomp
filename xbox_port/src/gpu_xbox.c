@@ -134,11 +134,38 @@ static unsigned           s_primCount;    /* prims that reached the emit path */
 /* Palette for the page TexLookup just returned (0 = ARGB page, no palette). */
 static const void* s_pendingPal;
 
+/* Size of the texture TexLookup last returned. 256x256 for a decoded PSX page;
+ * a pool-slot image is whatever it was registered at. */
+static int s_pendingTexW = 256, s_pendingTexH = 256;
+
 static inline unsigned int* TexLookup(int tpage, int clut)
 {
     unsigned long long t0 = shx_rdtsc();
     unsigned int*      r;
     const void*        pal = 0;
+
+    /* POOL SLOT: a PC-side image addressed purely through the clut word. The
+     * encoding puts row = 512 + (slot/64)*16 in the clut's Y field, and real PSX
+     * VRAM stops at y=511, so the range is unambiguous -- but psx_vram.c masks cy
+     * with 0x1FF, folding 512 back to 0 and sampling real VRAM at the top of the
+     * page. That is why the minimap drew garbage instead of the map. Catch it
+     * here, BEFORE the mask. */
+    {
+        int row = (clut >> 6) & 0x3FF;              /* unmasked: may exceed 511 */
+        if (row >= 512) {
+            extern const unsigned* Xbox_PoolSlotLookup(int slot, int* outW, int* outH);
+            int slot = ((row - 512) / 16) * 64 + (clut & 63);
+            int pw = 0, ph = 0;
+            const unsigned* tex = Xbox_PoolSlotLookup(slot, &pw, &ph);
+            s_pendingPal  = 0;
+            s_pendingTexW = pw ? pw : 256;
+            s_pendingTexH = ph ? ph : 256;
+            s_texCycles  += shx_rdtsc() - t0;
+            return (unsigned int*)tex;              /* 0 => prim is skipped */
+        }
+    }
+    s_pendingTexW = 256;
+    s_pendingTexH = 256;
 
     /* Prefer the paletted cache: one 64KB index page per tpage, shared by every
      * CLUT. Falls back to the ARGB cache for 16-bit direct pages (not
@@ -850,7 +877,7 @@ static int ProcessPoly(P_TAG* tag)
     if (texAddr != s_curTex || s_pendingPal != s_curPal) {
         if (texAddr) {
             if (s_pendingPal) GpuNv2a_BindPaletted(texAddr, s_pendingPal);
-            else              GpuNv2a_BindTexture(texAddr, 256, 256);
+            else              GpuNv2a_BindTexture(texAddr, s_pendingTexW, s_pendingTexH);
         } else {
             GpuNv2a_BindWhite();
         }
@@ -1020,7 +1047,7 @@ static int ProcessSprtTile(P_TAG* tag)
     if (texAddr != s_curTex || s_pendingPal != s_curPal) {
         if (texAddr) {
             if (s_pendingPal) GpuNv2a_BindPaletted(texAddr, s_pendingPal);
-            else              GpuNv2a_BindTexture(texAddr, 256, 256);
+            else              GpuNv2a_BindTexture(texAddr, s_pendingTexW, s_pendingTexH);
         } else {
             GpuNv2a_BindWhite();
         }
