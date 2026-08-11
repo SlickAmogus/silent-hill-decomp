@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <SDL.h>
 #include <PsyX/common/glad.h>
@@ -107,10 +108,30 @@ static float s_velocity;      /* px/sec, for release-flick and key repeat */
  * normalized pointer delta into the same pixels the layout uses. The default
  * covers the first frame, before Draw has ever run. */
 static float s_viewH = 1080.0f;
+static float s_viewW = 1920.0f;
 
-/* Drag tracking. */
+/* Drag tracking. s_dragMoved separates a click from a drag: releasing after a
+ * scroll must not also open whatever row happened to be under the cursor. */
 static int   s_dragging;
 static float s_dragLastY;
+static float s_dragMoved;
+
+/* Scrollbar thumb drag: grabbing the bar maps pointer travel onto the whole
+ * scroll range, unlike a content drag which is 1:1. */
+static int   s_barDragging;
+static float s_barGrabY;
+static float s_barGrabScroll;
+
+/* Row under the pointer, and the row opened for detail (-1 = none/list view). */
+static int   s_hoverRow = -1;
+static int   s_detailRow = -1;
+
+/* Geometry published by Draw for Update to hit-test against: the two run in
+ * different places (game thread vs post-capture hook) and only Draw knows the
+ * viewport. All in viewport pixels, y up. */
+static float s_geoListT, s_geoListB, s_geoRowPitch, s_geoRowH;
+static float s_geoPanelL, s_geoPanelR;
+static float s_geoBarL, s_geoBarR;
 
 /* Close is edge-triggered on a RELEASE-then-PRESS so the Map button that opened
  * the panel cannot also dismiss it on the same press. */
@@ -480,6 +501,151 @@ static GLuint rab_bake_line(int fontIdx, const char* text, float px, int maxW,
     return tex;
 }
 
+/* Word-wrap `text` to `maxW` and rasterize the lot into one texture. Built on
+ * the same coverage/max-blend pass as rab_bake_line; the only new part is
+ * choosing the break points, which is done by measuring candidate substrings
+ * rather than guessing an average glyph width. */
+static GLuint rab_bake_wrapped(int fontIdx, const char* text, float px, int maxW,
+                               int maxLines, int* outW, int* outH)
+{
+    char  lines[12][256];
+    int   lineCount = 0;
+    const char* p = text;
+    char  cur[256];
+    int   curLen = 0;
+    GLuint tex;
+    int   i, W, H, pad = 1;
+    unsigned char *cov, *rgba, *scratch;
+    float scale;
+    int   asc, desc, gap;
+
+    if (!s_fontOk[fontIdx] || !text || !text[0] || px < 4.0f || maxW < 16)
+        return 0;
+    if (maxLines > 12) maxLines = 12;
+
+    scale = stbtt_ScaleForPixelHeight(&s_font[fontIdx], px);
+    stbtt_GetFontVMetrics(&s_font[fontIdx], &asc, &desc, &gap);
+
+    cur[0] = ' ';
+    while (*p && lineCount < maxLines)
+    {
+        const char* wordStart = p;
+        char        trial[256];
+        int         wordLen;
+        float       w = 0.0f;
+        const char* q;
+        int         prev = 0, cp;
+
+        while (*p && *p != ' ') p++;
+        wordLen = (int)(p - wordStart);
+        while (*p == ' ') p++;
+        if (wordLen <= 0 || wordLen >= (int)sizeof(trial))
+            continue;
+
+        /* Candidate = current line + this word. */
+        if (curLen + (curLen ? 1 : 0) + wordLen >= (int)sizeof(cur))
+            break;
+        memcpy(trial, cur, (size_t)curLen);
+        if (curLen) trial[curLen] = ' ';
+        memcpy(trial + curLen + (curLen ? 1 : 0), wordStart, (size_t)wordLen);
+        trial[curLen + (curLen ? 1 : 0) + wordLen] = ' ';
+
+        for (q = trial; (cp = rab_utf8_next(&q)) != 0; )
+        {
+            int adv, lsb;
+            stbtt_GetCodepointHMetrics(&s_font[fontIdx], cp, &adv, &lsb);
+            if (prev) w += stbtt_GetCodepointKernAdvance(&s_font[fontIdx], prev, cp) * scale;
+            w += adv * scale;
+            prev = cp;
+        }
+
+        if (w > (float)maxW && curLen > 0)
+        {
+            memcpy(lines[lineCount++], cur, (size_t)curLen + 1);
+            curLen = wordLen;
+            memcpy(cur, wordStart, (size_t)wordLen);
+            cur[curLen] = ' ';
+        }
+        else
+        {
+            curLen = (int)strlen(trial);
+            memcpy(cur, trial, (size_t)curLen + 1);
+        }
+    }
+    if (curLen > 0 && lineCount < maxLines)
+        memcpy(lines[lineCount++], cur, (size_t)curLen + 1);
+    if (lineCount == 0)
+        return 0;
+
+    W = maxW + 2 * pad;
+    H = (int)ceilf(px * 1.32f) * lineCount + 2 * pad;
+    if (W <= 0 || H <= 0 || W > 4096 || H > 2048)
+        return 0;
+
+    cov     = (unsigned char*)calloc((size_t)W * H, 1);
+    rgba    = (unsigned char*)calloc((size_t)W * H, 4);
+    scratch = (unsigned char*)malloc((size_t)W * H);
+    if (!cov || !rgba || !scratch)
+    {
+        free(cov); free(rgba); free(scratch);
+        return 0;
+    }
+
+    for (i = 0; i < lineCount; i++)
+    {
+        const char* t = lines[i];
+        float penX = (float)pad;
+        float baseY = (float)pad + (float)i * ceilf(px * 1.32f) + asc * scale;
+        int   prev = 0, cp;
+
+        while ((cp = rab_utf8_next(&t)) != 0)
+        {
+            int   gx0, gy0, gx1, gy1, gw, gh, adv, lsb, sx, sy;
+            float shiftX;
+
+            if (prev)
+                penX += stbtt_GetCodepointKernAdvance(&s_font[fontIdx], prev, cp) * scale;
+            shiftX = penX - floorf(penX);
+            stbtt_GetCodepointBitmapBoxSubpixel(&s_font[fontIdx], cp, scale, scale,
+                                                shiftX, 0.0f, &gx0, &gy0, &gx1, &gy1);
+            gw = gx1 - gx0; gh = gy1 - gy0;
+            if (gw > 0 && gh > 0 && gw <= W && gh <= H)
+            {
+                memset(scratch, 0, (size_t)gw * gh);
+                stbtt_MakeCodepointBitmapSubpixel(&s_font[fontIdx], scratch, gw, gh, gw,
+                                                  scale, scale, shiftX, 0.0f, cp);
+                for (sy = 0; sy < gh; sy++)
+                {
+                    int dy = (int)baseY + gy0 + sy;
+                    if (dy < 0 || dy >= H) continue;
+                    for (sx = 0; sx < gw; sx++)
+                    {
+                        int dx = (int)penX + gx0 + sx;
+                        unsigned char v;
+                        if (dx < 0 || dx >= W) continue;
+                        v = scratch[sy * gw + sx];
+                        if (v > cov[dy * W + dx]) cov[dy * W + dx] = v;
+                    }
+                }
+            }
+            stbtt_GetCodepointHMetrics(&s_font[fontIdx], cp, &adv, &lsb);
+            penX += adv * scale;
+            prev = cp;
+        }
+    }
+
+    for (i = 0; i < W * H; i++)
+    {
+        rgba[i * 4 + 0] = 255; rgba[i * 4 + 1] = 255; rgba[i * 4 + 2] = 255;
+        rgba[i * 4 + 3] = cov[i];
+    }
+    tex = rab_upload_rgba(rgba, W, H);
+    if (outW) *outW = W;
+    if (outH) *outH = H;
+    free(cov); free(rgba); free(scratch);
+    return tex;
+}
+
 /* Flat panel: near-black, slightly lighter down the page, with a rust rule top
  * and bottom. Opaque, per the request — the title art must not read through. */
 static void rab_build_panel(int w, int h)
@@ -835,7 +1001,10 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down)
     keys = SDL_GetKeyboardState(NULL);
 
     /* Scroll: the game's own movement bindings, plus the raw arrows/PgUp/PgDn
-     * so a player who rebound the pad still has something obvious that works. */
+     * so a player who rebound the pad still has something obvious that works.
+     * Suppressed while a detail card is open — the list behind it must not move
+     * out from under the card. */
+    if (s_detailRow < 0)
     {
         const float KEY_SPEED = 620.0f;
         int kUp   = up   || (keys && keys[SDL_SCANCODE_UP]);
@@ -853,6 +1022,7 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down)
     }
 
     /* Wheel: one notch ~= a third of a page. */
+    if (s_detailRow < 0)
     {
         int step = Pc_MouseCursor_WheelStep();
         if (step)
@@ -862,44 +1032,106 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down)
         }
     }
 
-    /* Drag. Uses the NORMALIZED pointer, not the authoring-space one: that
-     * space is 448 tall on the interlaced title screen and 224 in game, so a
-     * fixed conversion factor made the list run at half or double speed
-     * depending on which screen you opened it from. */
+    /* Pointer: hover, content drag, scrollbar drag, and the click that opens a
+     * row's detail card.
+     *
+     * Content drag is PC-direction, NOT phone-direction: dragging DOWN moves the
+     * view DOWN. The first cut inverted it (grab-the-paper style), which reads
+     * wrong next to a scrollbar and against the wheel. */
     if (Pc_MouseCursor_ViewportPos(&fx, &fy))
     {
-        float my = fy * s_viewH;
-        if (Pc_MouseCursor_LeftHeld())
+        float px = fx * s_viewW;
+        float py = s_viewH - fy * s_viewH;   /* viewport pixels, y up */
+        int   overBar = (px >= s_geoBarL && px <= s_geoBarR &&
+                         py <= s_geoListT && py >= s_geoListB);
+
+        /* Hover only inside the list, and never mid-drag. */
+        s_hoverRow = -1;
+        if (s_detailRow < 0 && !s_dragging && !s_barDragging &&
+            px >= s_geoPanelL && px <= s_geoPanelR &&
+            py <= s_geoListT && py >= s_geoListB && s_geoRowPitch > 0.0f)
         {
-            if (!s_dragging)
+            float within = (s_geoListT - py) + s_scroll;
+            int   idx    = (int)(within / s_geoRowPitch);
+            /* The gap between rows is not part of either. */
+            if (idx >= 0 && idx < s_rowCount &&
+                (within - (float)idx * s_geoRowPitch) <= s_geoRowH)
+                s_hoverRow = idx;
+        }
+
+        if (Pc_MouseCursor_LeftHeld() && s_detailRow < 0)
+        {
+            if (!s_dragging && !s_barDragging)
             {
-                s_dragging  = 1;
-                s_dragLastY = my;
-                s_velocity  = 0.0f;
+                if (overBar && s_scrollMax > 1.0f)
+                {
+                    s_barDragging   = 1;
+                    s_barGrabY      = py;
+                    s_barGrabScroll = s_scroll;
+                }
+                else
+                {
+                    s_dragging  = 1;
+                    s_dragLastY = py;
+                    s_dragMoved = 0.0f;
+                }
+                s_velocity = 0.0f;
+            }
+            else if (s_barDragging)
+            {
+                /* Thumb travel covers (list height - thumb height) of screen for
+                 * the whole scroll range, so the content moves proportionally
+                 * further than the pointer. */
+                float listH  = s_geoListT - s_geoListB;
+                float frac   = listH / (listH + s_scrollMax);
+                float thumbH = listH * frac;
+                float travel = listH - thumbH;
+                if (travel > 1.0f)
+                    s_scroll = s_barGrabScroll + (s_barGrabY - py) * (s_scrollMax / travel);
             }
             else
             {
-                float delta = my - s_dragLastY;
+                float delta = py - s_dragLastY;
                 if (delta != 0.0f)
                 {
-                    s_scroll  -= delta;
-                    s_velocity = -delta / dt;
+                    s_dragMoved += (delta < 0.0f) ? -delta : delta;
+                    s_scroll   += delta;          /* down drags down */
+                    s_velocity  = delta / dt;
                 }
-                s_dragLastY = my;
+                s_dragLastY = py;
             }
         }
-        else if (s_dragging)
+        else
         {
-            s_dragging = 0;   /* release: keep s_velocity for the flick */
+            /* Release. A press that never travelled is a click: open the row it
+             * landed on, or dismiss an open detail card. */
+            if ((s_dragging && s_dragMoved < 4.0f) || (!s_dragging && !s_barDragging))
+            {
+                if (Pc_MouseCursor_LeftClicked())
+                {
+                    if (s_detailRow >= 0)
+                        s_detailRow = -1;
+                    else if (s_hoverRow >= 0)
+                        s_detailRow = s_hoverRow;
+                }
+            }
+            if (s_dragging && s_dragMoved < 4.0f)
+                s_velocity = 0.0f;   /* a tap must not flick */
+            s_dragging    = 0;
+            s_barDragging = 0;
         }
     }
     else
     {
-        s_dragging = 0;
+        s_dragging    = 0;
+        s_barDragging = 0;
+        s_hoverRow    = -1;
     }
 
-    /* Flick decay. */
-    if (!s_dragging && (s_velocity > 1.0f || s_velocity < -1.0f))
+    /* Flick decay. Frozen behind an open card for the same reason as the wheel. */
+    if (s_detailRow >= 0)
+        s_velocity = 0.0f;
+    else if (!s_dragging && (s_velocity > 1.0f || s_velocity < -1.0f))
     {
         s_scroll   += s_velocity * dt;
         s_velocity -= s_velocity * 6.0f * dt;
@@ -926,7 +1158,12 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down)
     if (closeRequested || (keys && keys[SDL_SCANCODE_ESCAPE]) ||
         Pc_MouseCursor_RightClicked())
     {
-        rab_begin_close();
+        /* Back out one level at a time: a detail card closes to the list, and
+         * only then does the panel itself close. */
+        if (s_detailRow >= 0)
+            s_detailRow = -1;
+        else
+            rab_begin_close();
     }
 }
 
@@ -1069,7 +1306,14 @@ void Pc_RaBrowser_Draw(void)
     textL  = panelL + pad + badgeS + pad * 0.6f;
     textW  = (int)(panelR - pad - textL) > 8 ? (panelR - pad - textL) : 8.0f;
 
-    s_viewH      = vpH;
+    s_viewH       = vpH;
+    s_viewW       = vpW;
+    s_geoListT    = listT;
+    s_geoListB    = listB;
+    s_geoRowPitch = rowH + rowGap;
+    s_geoRowH     = rowH;
+    s_geoPanelL   = panelL;
+    s_geoPanelR   = panelR;
     s_scrollMax  = (float)s_rowCount * (rowH + rowGap) - listH;
     if (s_scrollMax < 0.0f) s_scrollMax = 0.0f;
     if (s_scroll > s_scrollMax) s_scroll = s_scrollMax;
@@ -1127,6 +1371,16 @@ void Pc_RaBrowser_Draw(void)
             continue;
 
         rab_bake_row(r, (int)rowH, (int)textW);
+
+        /* Hover plate. Drawn first so the row's own art sits on top of it. */
+        if (i == s_hoverRow && s_detailRow < 0)
+        {
+            float t = (rowTop < listT) ? rowTop : listT;
+            float b = (rowBot > listB) ? rowBot : listB;
+            if (t > b)
+                rab_quad_uv(s_texWhite, NX(panelL + 3.0f), NY(t), NX(panelR - 3.0f), NY(b),
+                            0.0f, 0.0f, 1.0f, 1.0f, 0.42f, 0.16f, 0.12f, 0.55f);
+        }
 
         /* Locked rows are dimmed rather than hidden: the description is the
          * hint, so it has to stay readable. */
@@ -1257,11 +1511,17 @@ void Pc_RaBrowser_Draw(void)
         }
     }
 
+    s_geoBarL = s_geoBarR = -1.0f;   /* no bar unless the block below sets one */
+
     /* Scrollbar, only when there is something to scroll. */
     if (s_scrollMax > 1.0f)
     {
+        /* Wider than it looks so the thumb is actually grabbable; the visible
+         * bar stays slim. */
         float trackW = panelW * 0.010f;
         float trackL = panelR - trackW - 2.0f;
+        s_geoBarL = trackL - panelW * 0.012f;
+        s_geoBarR = panelR;
         float frac   = listH / (listH + s_scrollMax);
         float thumbH = listH * frac;
         float thumbT;
@@ -1271,6 +1531,106 @@ void Pc_RaBrowser_Draw(void)
                     0.0f, 0.0f, 1.0f, 1.0f, 0.22f, 0.20f, 0.22f, 1.0f);
         rab_quad_uv(s_texWhite, NX(trackL), NY(thumbT), NX(trackL + trackW), NY(thumbT - thumbH),
                     0.0f, 0.0f, 1.0f, 1.0f, 0.55f, 0.20f, 0.15f, 1.0f);
+    }
+
+    /* Detail card: covers the list (not the header) with the full description,
+     * points and, for an earned one, when it was unlocked. Rebuilt only when the
+     * selected row or the layout changes — this rasterizes several wrapped lines
+     * and must not run every frame. */
+    if (s_detailRow >= 0 && s_detailRow < s_rowCount)
+    {
+        static GLuint s_dTitle, s_dDesc, s_dMeta;
+        static int    s_dTitleW, s_dTitleH, s_dDescW, s_dDescH, s_dMetaW, s_dMetaH;
+        static int    s_dForRow = -1, s_dForH = -1;
+
+        const s_RabRow* r  = &s_rows[s_detailRow];
+        float cardT = listT - pad * 0.4f;
+        float cardB = listB + pad * 0.4f;
+        float cardL = panelL + pad * 0.5f;
+        float cardR = panelR - pad * 0.5f;
+        float innerW = cardR - cardL - 2.0f * pad;
+        float bigS   = panelH * 0.16f;
+        float y;
+
+        if (s_dForRow != s_detailRow || s_dForH != (int)panelH)
+        {
+            char meta[128];
+
+            rab_retire(s_dTitle); rab_retire(s_dDesc); rab_retire(s_dMeta);
+            s_dTitle = s_dDesc = s_dMeta = 0;
+
+            s_dTitle = rab_bake_wrapped(RAB_FONT_NAME, r->ach.title, panelH * 0.040f,
+                                        (int)innerW, 3, &s_dTitleW, &s_dTitleH);
+            s_dDesc  = rab_bake_wrapped(RAB_FONT_BODY, r->ach.desc, panelH * 0.030f,
+                                        (int)innerW, 10, &s_dDescW, &s_dDescH);
+
+            if (r->ach.unlocked && r->ach.unlockTime > 0)
+            {
+                time_t     tt = (time_t)r->ach.unlockTime;
+                struct tm* lt = localtime(&tt);
+                if (lt)
+                    snprintf(meta, sizeof(meta), "%u points   -   Unlocked %04d-%02d-%02d %02d:%02d",
+                             r->ach.points, lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
+                             lt->tm_hour, lt->tm_min);
+                else
+                    snprintf(meta, sizeof(meta), "%u points   -   Unlocked", r->ach.points);
+            }
+            else if (r->ach.unlocked)
+            {
+                /* Earned, but the server did not give a timestamp — say so
+                 * rather than inventing one. */
+                snprintf(meta, sizeof(meta), "%u points   -   Unlocked", r->ach.points);
+            }
+            else
+            {
+                snprintf(meta, sizeof(meta), "%u points   -   Locked", r->ach.points);
+            }
+            s_dMeta = rab_bake_wrapped(RAB_FONT_BODY, meta, panelH * 0.026f,
+                                       (int)innerW, 2, &s_dMetaW, &s_dMetaH);
+            s_dForRow = s_detailRow;
+            s_dForH   = (int)panelH;
+        }
+
+        /* Opaque card over the list. */
+        rab_quad_uv(s_texWhite, NX(cardL), NY(cardT), NX(cardR), NY(cardB),
+                    0.0f, 0.0f, 1.0f, 1.0f, 0.055f, 0.051f, 0.059f, 1.0f);
+        rab_quad_uv(s_texWhite, NX(cardL), NY(cardT), NX(cardR), NY(cardT - 2.0f),
+                    0.0f, 0.0f, 1.0f, 1.0f, 0.47f, 0.11f, 0.08f, 1.0f);
+
+        y = cardT - pad;
+        {
+            const s_RabBadge* be = rab_badge_find(r->ach.badge);
+            float bx = cardL + (cardR - cardL - bigS) * 0.5f;
+            float tint = r->ach.unlocked ? 1.0f : 0.5f;
+            if (be && be->tex)
+                rab_quad_uv(be->tex, NX(bx), NY(y), NX(bx + bigS), NY(y - bigS),
+                            0.0f, 0.0f, 1.0f, 1.0f, tint, tint, tint, 1.0f);
+            else
+                rab_quad_uv(s_texWhite, NX(bx), NY(y), NX(bx + bigS), NY(y - bigS),
+                            0.0f, 0.0f, 1.0f, 1.0f, 0.16f, 0.15f, 0.17f, 1.0f);
+            y -= bigS + pad * 0.8f;
+        }
+        if (s_dTitle)
+        {
+            float tx = cardL + (cardR - cardL - (float)s_dTitleW) * 0.5f;
+            rab_quad_uv(s_dTitle, NX(tx), NY(y), NX(tx + (float)s_dTitleW), NY(y - (float)s_dTitleH),
+                        0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+            y -= (float)s_dTitleH + pad * 0.4f;
+        }
+        if (s_dMeta)
+        {
+            float tx = cardL + (cardR - cardL - (float)s_dMetaW) * 0.5f;
+            float g  = r->ach.unlocked ? 0.90f : 0.55f;
+            rab_quad_uv(s_dMeta, NX(tx), NY(y), NX(tx + (float)s_dMetaW), NY(y - (float)s_dMetaH),
+                        0.0f, 0.0f, 1.0f, 1.0f, g, g * 0.82f, g * 0.42f, 1.0f);
+            y -= (float)s_dMetaH + pad * 0.8f;
+        }
+        if (s_dDesc)
+        {
+            rab_quad_uv(s_dDesc, NX(cardL + pad), NY(y),
+                        NX(cardL + pad + (float)s_dDescW), NY(y - (float)s_dDescH),
+                        0.0f, 0.0f, 1.0f, 1.0f, 0.86f, 0.86f, 0.86f, 1.0f);
+        }
     }
 
     /* Pointer, last of all. UiPos is the 224-tall authoring space; the viewport

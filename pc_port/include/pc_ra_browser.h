@@ -31,6 +31,7 @@ typedef struct PcRaAch
     char     badge[16];
     unsigned points;
     int      unlocked;
+    long long unlockTime;   /* unix seconds; 0 when unknown or still locked */
 } PcRaAch;
 
 /* Fill `out` with the loaded set. Returns the count written, 0 when no set is
