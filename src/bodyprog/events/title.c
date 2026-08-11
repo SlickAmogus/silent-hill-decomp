@@ -259,12 +259,17 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 }
                 if (browserOpen)
                 {
-                    /* Total isolation: everything downstream this frame reads a
-                     * dead pad, including heldBtnFlags (the difficulty screen
-                     * and the idle-timer reset both consult it). */
-                    g_Controller0->clickedBtnFlags = 0;
-                    g_Controller0->pulsedBtnFlags  = 0;
-                    g_Controller0->heldBtnFlags     = 0;
+                    /* Clear the DERIVED per-frame events only.
+                     *
+                     * heldBtnFlags must NOT be cleared: Joy_ControllerDataUpdate
+                     * keeps last frame's value as prevBtnsHeld and derives
+                     * clicked = ~prev & held from it. Zeroing it made every
+                     * frame look like a fresh press, so a held button "clicked"
+                     * continuously (Enter flickering a detail card open and
+                     * shut) and pulseTicks reset every frame, which pinned
+                     * pulsed to clicked and raced the list past at frame rate. */
+                    g_Controller0->clickedBtnFlags   = 0;
+                    g_Controller0->pulsedBtnFlags    = 0;
                     g_Controller0->releasedBtnFlags  = 0;
                     g_Controller0->pulsedGuiBtnFlags = 0;
                 }

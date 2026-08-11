@@ -1020,24 +1020,40 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm)
         if (keys)
         {
             static Uint32 s_repeatAt;
+            static int    s_padOwnsNav;
             int rawUp   = keys[SDL_SCANCODE_UP];
             int rawDown = keys[SDL_SCANCODE_DOWN];
 
+            /* The arrows are the DEFAULT d-pad binding, so with a stock config
+             * they already arrive as pad pulses and this raw path would step a
+             * second time at its own rate. Once a pad pulse is seen for the
+             * current key-press, the pad owns navigation until the key is
+             * released; a player who rebound the d-pad never produces one, so
+             * the raw path drives instead. */
             if (!rawUp && !rawDown)
             {
-                s_repeatAt = 0;
+                s_repeatAt   = 0;
+                s_padOwnsNav = 0;
             }
-            else if (s_repeatAt == 0)
+            else if (up || down)
             {
-                s_repeatAt = now + 400;      /* initial delay */
-                if (rawUp)   stepUp = 1;
-                if (rawDown) stepDown = 1;
+                s_padOwnsNav = 1;
             }
-            else if (now >= s_repeatAt)
+
+            if (!s_padOwnsNav)
             {
-                s_repeatAt = now + 60;       /* repeat rate */
-                if (rawUp)   stepUp = 1;
-                if (rawDown) stepDown = 1;
+                if (s_repeatAt == 0)
+                {
+                    s_repeatAt = now + 400;      /* initial delay */
+                    if (rawUp)   stepUp = 1;
+                    if (rawDown) stepDown = 1;
+                }
+                else if (now >= s_repeatAt)
+                {
+                    s_repeatAt = now + 90;       /* repeat rate */
+                    if (rawUp)   stepUp = 1;
+                    if (rawDown) stepDown = 1;
+                }
             }
         }
 
