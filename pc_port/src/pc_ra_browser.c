@@ -122,9 +122,13 @@ static int   s_barDragging;
 static float s_barGrabY;
 static float s_barGrabScroll;
 
-/* Row under the pointer, and the row opened for detail (-1 = none/list view). */
-static int   s_hoverRow = -1;
+/* Row under the pointer, the highlighted row (keys or mouse), the row a press
+ * landed on, and the row opened for detail (-1 = none / list view). */
+static int   s_hoverRow  = -1;
+static int   s_selRow    = 0;
+static int   s_pressRow  = -1;
 static int   s_detailRow = -1;
+static int   s_prevHeld;
 
 /* Geometry published by Draw for Update to hit-test against: the two run in
  * different places (game thread vs post-capture hook) and only Draw knows the
@@ -925,6 +929,10 @@ void Pc_RaBrowser_Open(void)
 
     s_phase      = RAB_OPENING;
     s_phaseStart = SDL_GetTicks();
+    s_selRow     = 0;
+    s_detailRow  = -1;
+    s_hoverRow   = -1;
+    s_prevHeld   = 0;
     s_scroll     = 0.0f;
     s_velocity   = 0.0f;
     s_dragging   = 0;
@@ -973,7 +981,7 @@ static void rab_finish_close(void)
 }
 /* Input signals are resolved by the caller against the player's own bindings
  * (see the header), so this TU needs no game headers. */
-void Pc_RaBrowser_Update(int closeRequested, int up, int down)
+void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm)
 {
     const Uint8* keys;
     Uint32 now;
@@ -1000,24 +1008,76 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down)
 
     keys = SDL_GetKeyboardState(NULL);
 
-    /* Scroll: the game's own movement bindings, plus the raw arrows/PgUp/PgDn
-     * so a player who rebound the pad still has something obvious that works.
-     * Suppressed while a detail card is open — the list behind it must not move
-     * out from under the card. */
-    if (s_detailRow < 0)
+    /* Navigation. up/down arrive PULSED from the caller (the game's own repeat),
+     * and the raw arrows get an equivalent repeat here so a rebound pad is never
+     * the only way in. Movement steps the HIGHLIGHT rather than scrolling
+     * freely: with a selection the confirm button has something to open, which
+     * is what makes the list usable without a mouse. */
     {
-        const float KEY_SPEED = 620.0f;
-        int kUp   = up   || (keys && keys[SDL_SCANCODE_UP]);
-        int kDown = down || (keys && keys[SDL_SCANCODE_DOWN]);
+        int stepUp   = up;
+        int stepDown = down;
 
-        if (kUp)   s_scroll -= KEY_SPEED * dt;
-        if (kDown) s_scroll += KEY_SPEED * dt;
         if (keys)
         {
-            if (keys[SDL_SCANCODE_PAGEUP])   s_scroll -= KEY_SPEED * 3.0f * dt;
-            if (keys[SDL_SCANCODE_PAGEDOWN]) s_scroll += KEY_SPEED * 3.0f * dt;
-            if (keys[SDL_SCANCODE_HOME]) s_scroll = 0.0f;
-            if (keys[SDL_SCANCODE_END])  s_scroll = s_scrollMax;
+            static Uint32 s_repeatAt;
+            int rawUp   = keys[SDL_SCANCODE_UP];
+            int rawDown = keys[SDL_SCANCODE_DOWN];
+
+            if (!rawUp && !rawDown)
+            {
+                s_repeatAt = 0;
+            }
+            else if (s_repeatAt == 0)
+            {
+                s_repeatAt = now + 400;      /* initial delay */
+                if (rawUp)   stepUp = 1;
+                if (rawDown) stepDown = 1;
+            }
+            else if (now >= s_repeatAt)
+            {
+                s_repeatAt = now + 60;       /* repeat rate */
+                if (rawUp)   stepUp = 1;
+                if (rawDown) stepDown = 1;
+            }
+        }
+
+        if (s_detailRow < 0)
+        {
+            if (stepUp)   s_selRow--;
+            if (stepDown) s_selRow++;
+            if (s_selRow < 0)            s_selRow = 0;
+            if (s_selRow >= s_rowCount)  s_selRow = s_rowCount - 1;
+
+            /* Keep the highlight on screen. Only nudges when it would fall off,
+             * so paging with the mouse does not yank the view around. */
+            if ((stepUp || stepDown) && s_geoRowPitch > 0.0f)
+            {
+                float top    = (float)s_selRow * s_geoRowPitch;
+                float bottom = top + s_geoRowH;
+                float viewH  = s_geoListT - s_geoListB;
+
+                if (top < s_scroll)                 s_scroll = top;
+                else if (bottom > s_scroll + viewH) s_scroll = bottom - viewH;
+            }
+
+            if (keys)
+            {
+                float page = (s_geoListT - s_geoListB);
+                if (keys[SDL_SCANCODE_HOME]) { s_selRow = 0; s_scroll = 0.0f; }
+                if (keys[SDL_SCANCODE_END])  { s_selRow = s_rowCount - 1; s_scroll = s_scrollMax; }
+                if (keys[SDL_SCANCODE_PAGEUP])   s_scroll -= page * 2.0f * dt;
+                if (keys[SDL_SCANCODE_PAGEDOWN]) s_scroll += page * 2.0f * dt;
+            }
+        }
+
+        /* Confirm opens the highlighted row; on an open card it backs out, so
+         * the same button both enters and leaves. */
+        if (confirm)
+        {
+            if (s_detailRow >= 0)
+                s_detailRow = -1;
+            else if (s_selRow >= 0 && s_selRow < s_rowCount)
+                s_detailRow = s_selRow;
         }
     }
 
@@ -1036,32 +1096,52 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down)
      * row's detail card.
      *
      * Content drag is PC-direction, NOT phone-direction: dragging DOWN moves the
-     * view DOWN. The first cut inverted it (grab-the-paper style), which reads
-     * wrong next to a scrollbar and against the wheel. */
+     * view DOWN.
+     *
+     * The press/release edges are tracked HERE, off LeftHeld, rather than using
+     * Pc_MouseCursor_LeftClicked(): that reports the press edge, which by
+     * definition only ever fires on a frame where the button is DOWN. The first
+     * cut tested it inside the released branch, so the click could never fire at
+     * all -- clicking a row did nothing however fast or slow. */
     if (Pc_MouseCursor_ViewportPos(&fx, &fy))
     {
         float px = fx * s_viewW;
         float py = s_viewH - fy * s_viewH;   /* viewport pixels, y up */
+        int   held = Pc_MouseCursor_LeftHeld();
         int   overBar = (px >= s_geoBarL && px <= s_geoBarR &&
                          py <= s_geoListT && py >= s_geoListB);
+        int   row = -1;
 
-        /* Hover only inside the list, and never mid-drag. */
-        s_hoverRow = -1;
-        if (s_detailRow < 0 && !s_dragging && !s_barDragging &&
+        if (s_geoRowPitch > 0.0f &&
             px >= s_geoPanelL && px <= s_geoPanelR &&
-            py <= s_geoListT && py >= s_geoListB && s_geoRowPitch > 0.0f)
+            py <= s_geoListT && py >= s_geoListB)
         {
             float within = (s_geoListT - py) + s_scroll;
             int   idx    = (int)(within / s_geoRowPitch);
-            /* The gap between rows is not part of either. */
+            /* The gap between rows belongs to neither. */
             if (idx >= 0 && idx < s_rowCount &&
                 (within - (float)idx * s_geoRowPitch) <= s_geoRowH)
-                s_hoverRow = idx;
+                row = idx;
         }
 
-        if (Pc_MouseCursor_LeftHeld() && s_detailRow < 0)
+        /* Moving the mouse takes over the highlight from the keys. */
+        if (s_detailRow < 0 && !s_dragging && !s_barDragging)
         {
-            if (!s_dragging && !s_barDragging)
+            s_hoverRow = row;
+            if (row >= 0 && Pc_MouseCursor_Moved())
+                s_selRow = row;
+        }
+        else
+        {
+            s_hoverRow = -1;
+        }
+
+        if (held && !s_prevHeld)            /* press edge */
+        {
+            s_pressRow  = row;
+            s_dragMoved = 0.0f;
+            s_velocity  = 0.0f;
+            if (s_detailRow < 0)
             {
                 if (overBar && s_scrollMax > 1.0f)
                 {
@@ -1073,11 +1153,12 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down)
                 {
                     s_dragging  = 1;
                     s_dragLastY = py;
-                    s_dragMoved = 0.0f;
                 }
-                s_velocity = 0.0f;
             }
-            else if (s_barDragging)
+        }
+        else if (held)                      /* holding */
+        {
+            if (s_barDragging)
             {
                 /* Thumb travel covers (list height - thumb height) of screen for
                  * the whole scroll range, so the content moves proportionally
@@ -1089,7 +1170,7 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down)
                 if (travel > 1.0f)
                     s_scroll = s_barGrabScroll + (s_barGrabY - py) * (s_scrollMax / travel);
             }
-            else
+            else if (s_dragging)
             {
                 float delta = py - s_dragLastY;
                 if (delta != 0.0f)
@@ -1101,31 +1182,32 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down)
                 s_dragLastY = py;
             }
         }
-        else
+        else if (s_prevHeld)                /* release edge */
         {
-            /* Release. A press that never travelled is a click: open the row it
-             * landed on, or dismiss an open detail card. */
-            if ((s_dragging && s_dragMoved < 4.0f) || (!s_dragging && !s_barDragging))
+            /* A press that barely travelled is a click, not a drag. */
+            if (s_dragMoved < 4.0f && !s_barDragging)
             {
-                if (Pc_MouseCursor_LeftClicked())
+                s_velocity = 0.0f;          /* a tap must not flick */
+                if (s_detailRow >= 0)
+                    s_detailRow = -1;
+                else if (s_pressRow >= 0 && s_pressRow == row)
                 {
-                    if (s_detailRow >= 0)
-                        s_detailRow = -1;
-                    else if (s_hoverRow >= 0)
-                        s_detailRow = s_hoverRow;
+                    s_detailRow = s_pressRow;
+                    s_selRow    = s_pressRow;
                 }
             }
-            if (s_dragging && s_dragMoved < 4.0f)
-                s_velocity = 0.0f;   /* a tap must not flick */
             s_dragging    = 0;
             s_barDragging = 0;
+            s_pressRow    = -1;
         }
+        s_prevHeld = held;
     }
     else
     {
         s_dragging    = 0;
         s_barDragging = 0;
         s_hoverRow    = -1;
+        s_prevHeld    = 0;
     }
 
     /* Flick decay. Frozen behind an open card for the same reason as the wheel. */
@@ -1372,8 +1454,10 @@ void Pc_RaBrowser_Draw(void)
 
         rab_bake_row(r, (int)rowH, (int)textW);
 
-        /* Hover plate. Drawn first so the row's own art sits on top of it. */
-        if (i == s_hoverRow && s_detailRow < 0)
+        /* Highlight plate. Drawn first so the row's own art sits on top of it.
+         * Follows the selection, which the mouse also drives on hover, so the
+         * keyboard and the pointer never disagree about what is picked. */
+        if (i == s_selRow && s_detailRow < 0)
         {
             float t = (rowTop < listT) ? rowTop : listT;
             float b = (rowBot > listB) ? rowBot : listB;

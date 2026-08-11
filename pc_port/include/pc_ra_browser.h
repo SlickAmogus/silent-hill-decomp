@@ -52,8 +52,9 @@ int  Pc_RaBrowser_IsOpen(void);
  * The caller resolves all three signals against the player's own bindings and
  * passes them in, so this module needs neither game headers nor knowledge of
  * the controller config: `closeRequested` is a press edge on Cancel or Map,
- * `up`/`down` are the held movement directions. */
-void Pc_RaBrowser_Update(int closeRequested, int up, int down);
+ * `up`/`down` are PULSED movement (one step per press, with the game's repeat),
+ * and `confirm` is a press edge on the accept button. */
+void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm);
 
 /* Per-frame draw from the post-capture hook. Cheap no-op while closed. */
 void Pc_RaBrowser_Draw(void);

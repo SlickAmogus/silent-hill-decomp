@@ -235,7 +235,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
             {
                 extern void Pc_RaBrowser_Open(void);
                 extern int  Pc_RaBrowser_IsOpen(void);
-                extern void Pc_RaBrowser_Update(int closeRequested, int up, int down);
+                extern void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm);
 
                 if (Pc_RaBrowser_IsOpen())
                 {
@@ -245,8 +245,11 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                                     g_GameWorkPtr->config.controllerConfig.map;
                     Pc_RaBrowser_Update(
                         (g_Controller0->clickedBtnFlags & closeBtns) != 0,
-                        (g_Controller0->heldBtnFlags & ControllerFlag_LStickUp) != 0,
-                        (g_Controller0->heldBtnFlags & ControllerFlag_LStickDown) != 0);
+                        (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp) != 0,
+                        (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickDown) != 0,
+                        (g_Controller0->clickedBtnFlags &
+                         (g_GameWorkPtr->config.controllerConfig.enter |
+                          g_GameWorkPtr->config.controllerConfig.action)) != 0);
                     browserOpen = true;
                 }
                 else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.map)
@@ -256,8 +259,14 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                 }
                 if (browserOpen)
                 {
+                    /* Total isolation: everything downstream this frame reads a
+                     * dead pad, including heldBtnFlags (the difficulty screen
+                     * and the idle-timer reset both consult it). */
                     g_Controller0->clickedBtnFlags = 0;
                     g_Controller0->pulsedBtnFlags  = 0;
+                    g_Controller0->heldBtnFlags     = 0;
+                    g_Controller0->releasedBtnFlags  = 0;
+                    g_Controller0->pulsedGuiBtnFlags = 0;
                 }
             }
 #endif
