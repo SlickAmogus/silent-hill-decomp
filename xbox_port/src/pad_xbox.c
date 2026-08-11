@@ -27,6 +27,8 @@ static unsigned char* s_padBuf  = 0;
 static xid_dev_t*     s_xid      = 0;
 static xid_gamepad_in s_report;
 static int            s_haveReport = 0;
+/* Set once a stick has been observed inside its deadzone — see Pad_Poll. */
+static int            s_lStickArmed = 0, s_rStickArmed = 0;
 
 /* Rumble target set by PadSetAct (game loop), sent by Pad_Poll (USB-safe). */
 static unsigned s_wantRumbleL = 0, s_wantRumbleH = 0;
@@ -42,17 +44,38 @@ static void Pad_FillIdle(unsigned char* b)
 }
 
 /* USB interrupt-read completion: copy the gamepad report and re-arm. nxdk's USB
- * is polling-based, so this fires synchronously from usbh_pooling_hubs(). */
+ * is polling-based, so this fires synchronously from usbh_pooling_hubs().
+ *
+ * The report is VALIDATED before it is accepted. xid_driver.c allocates the
+ * transfer buffer with usbh_alloc_mem and never clears it, so until the pad
+ * actually fills it the buffer holds whatever junk was last in the USB heap --
+ * and a completion that reports a full length hands us that junk as a
+ * controller state. Read as a report its stick fields are arbitrary, which is
+ * why the main menu sometimes flew upwards from the moment it appeared and
+ * stopped the instant the stick was touched (the first real state change finally
+ * overwrote the buffer). Every genuine XID gamepad report self-describes with
+ * startByte 0 and bLength 20, which junk essentially never satisfies. */
 static void Pad_ReadCb(UTR_T* utr)
 {
-    if (utr->status < 0)
-        return;
-    {
-        unsigned len = utr->xfer_len;
-        if (len > sizeof(s_report))
-            len = sizeof(s_report);
-        memcpy(&s_report, utr->buff, len);
-        s_haveReport = 1;
+    if (utr->status >= 0 && utr->xfer_len >= sizeof(s_report)) {
+        const xid_gamepad_in* in = (const xid_gamepad_in*)utr->buff;
+
+        if (in->startByte == 0 && in->bLength == sizeof(s_report)) {
+            memcpy(&s_report, in, sizeof(s_report));
+            if (!s_haveReport)
+                SH_DBG("[PAD] first report: lx=%d ly=%d rx=%d ry=%d",
+                       (int)s_report.leftStickX,  (int)s_report.leftStickY,
+                       (int)s_report.rightStickX, (int)s_report.rightStickY);
+            s_haveReport = 1;
+        } else {
+            static int s_badLogged = 0;
+            if (!s_badLogged) {
+                s_badLogged = 1;
+                SH_DBG("[PAD] rejected malformed report: start=%u len=%u xfer=%u",
+                       (unsigned)in->startByte, (unsigned)in->bLength,
+                       (unsigned)utr->xfer_len);
+            }
+        }
     }
     utr->xfer_len        = 0;
     utr->bIsTransferDone = 0;
@@ -74,6 +97,7 @@ static void Pad_DisconnCb(xid_dev_t* dev, int param)
     if (dev == s_xid) {
         s_xid = 0;
         s_haveReport = 0;
+        s_lStickArmed = s_rStickArmed = 0;   /* re-arm against the new pad */
     }
 }
 
@@ -186,10 +210,23 @@ void Pad_Poll(void)
          * options the moment the menu appeared. Raised to ~40% so typical drift
          * stays firmly below the threshold; a real push still walks/navigates. */
         #define STICK_DZ 13000
-        if (s_report.leftStickY >  STICK_DZ) PRESS(4);   /* up    -> forward */
-        if (s_report.leftStickY < -STICK_DZ) PRESS(6);   /* down  -> back    */
-        if (s_report.leftStickX < -STICK_DZ) PRESS(7);   /* left  -> turn L  */
-        if (s_report.leftStickX >  STICK_DZ) PRESS(5);   /* right -> turn R  */
+        /* A stick is not trusted until it has been seen AT REST at least once.
+         * A pad that comes up reporting a deflected stick (see Pad_ReadCb, and
+         * pads whose ADC reads stale until first moved) would otherwise hold a
+         * direction from boot, which the menu's hold-repeat turns into an
+         * endless scroll. Arming costs nothing in the normal case: a stick at
+         * rest arms on the very first report. */
+        if (!s_lStickArmed &&
+            s_report.leftStickX > -STICK_DZ && s_report.leftStickX < STICK_DZ &&
+            s_report.leftStickY > -STICK_DZ && s_report.leftStickY < STICK_DZ) {
+            s_lStickArmed = 1;
+        }
+        if (s_lStickArmed) {
+            if (s_report.leftStickY >  STICK_DZ) PRESS(4);   /* up    -> forward */
+            if (s_report.leftStickY < -STICK_DZ) PRESS(6);   /* down  -> back    */
+            if (s_report.leftStickX < -STICK_DZ) PRESS(7);   /* left  -> turn L  */
+            if (s_report.leftStickX >  STICK_DZ) PRESS(5);   /* right -> turn R  */
+        }
         #undef STICK_DZ
         #undef PRESS
         s_padBuf[0] = 0x00;
@@ -216,6 +253,15 @@ void Pad_Poll(void)
             int rawx = (int)s_report.rightStickX;
             int rawy = (int)s_report.rightStickY;
             int rxb, ryb;
+            /* Same arming rule as the left stick, for the same reason: an
+             * untrusted right stick reports dead centre, so no camera motion and
+             * no analog->digital menu pulses. */
+            if (!s_rStickArmed &&
+                rawx > -RSTICK_DZ && rawx < RSTICK_DZ &&
+                rawy > -RSTICK_DZ && rawy < RSTICK_DZ) {
+                s_rStickArmed = 1;
+            }
+            if (!s_rStickArmed) { rawx = 0; rawy = 0; }
             if      (rawx >  RSTICK_DZ) rawx -= RSTICK_DZ;
             else if (rawx < -RSTICK_DZ) rawx += RSTICK_DZ;
             else                        rawx  = 0;
