@@ -21,8 +21,7 @@ Covered:
 | `pc_port/launcher/` | The launcher application |
 | `pc_port/docs/` | Port documentation |
 | `pc_port/assets/gamedata/lang/*.lang` (format + tooling) | The language-pack **format**, loader and import tooling |
-| `tools/` | Tooling written for this project |
-| `docs/` | Documentation written for this project |
+| `tools/` | Certain tooling written for this project, only things that were added by this fork |
 | Every `#ifdef SH_PC_PORT` block in `src/` and `include/` | Port-specific code added to decompiled sources |
 
 This work is free software: you may redistribute it and/or modify it under the
