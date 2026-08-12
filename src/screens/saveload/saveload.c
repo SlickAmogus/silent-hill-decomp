@@ -2027,6 +2027,22 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
                         MemCard_SysDisable();
                         Game_StateSetNext(GameState_InGame);
                     }
+#ifdef SH_PC_PORT
+                    /* Backing out of the LOAD screen went to the title unconditionally,
+                     * because on PSX that screen is only reachable FROM the title. The
+                     * port's quick-load opens it from gameplay, so cancelling
+                     * teleported the player to a main menu that had never run its own
+                     * init -- hence the garbage over the title art (SAVELOAD.TIM still
+                     * owns that VRAM) and the wrong SFX bank under OPTION. This is the
+                     * only route into GameState_MainMenu that does not come from the
+                     * boot/attract path in stream.c, so honouring where we came from
+                     * closes all three symptoms at once. */
+                    else if (g_GameWork.gameStatePrev == GameState_InGame)
+                    {
+                        MemCard_SysDisable();
+                        Game_StateSetNext(GameState_InGame);
+                    }
+#endif
                     else
                     {
                         Game_StateSetNext(GameState_MainMenu);

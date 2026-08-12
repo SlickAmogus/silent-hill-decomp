@@ -368,6 +368,25 @@ static int mm_image_register(int slot, int nativeW, int nativeH, const char* wha
 
     if (mm_pack_register(slot, nativeW, nativeH, what)) return 1;
 
+#ifdef SH_XBOX_PORT
+    /* Decode the disc TIM straight into the slot. The generic path below goes
+     * through a full-image RGBA8 heap block, which for a 320x480 paper map is a
+     * 614KB malloc PER AREA CHANGE — and late in a long session free RAM reaches
+     * ~600KB, at which point it fails, the decode reports an error with no log
+     * line, and the minimap silently falls back to its "no map" disc for the rest
+     * of the run (log 067). In place there is no allocation to fail. */
+    {
+        extern int Xbox_PoolSlotRegisterTimDirect(int slotId, const unsigned char* tim,
+                                                  unsigned int size, int nw, int nh);
+        if (Xbox_PoolSlotRegisterTimDirect(slot, s_rawBuf, s_rawSize, nativeW, nativeH) == 0)
+        {
+            SH_DBG("[MINIMAP] %s -> slot %d registered (in place)", what, slot);
+            return 1;
+        }
+        SH_DBG("[MINIMAP] %s: in-place decode failed — trying the generic path", what);
+    }
+#endif
+
     if (HiresOverride_DecodeToRGBA(s_rawBuf, s_rawSize, &rgba, &w, &h) == 0 && rgba != NULL)
     {
         ok = (HiresOverride_PoolSlotRegisterRGBA(slot, 0, rgba, w, h,

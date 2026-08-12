@@ -613,6 +613,96 @@ int HiresOverride_PoolSlotRegisterRGBA(int slotId, int row, const unsigned char*
     return 0;
 }
 
+/* Decode a disc TIM STRAIGHT into the slot's A8R8G8B8 buffer.
+ *
+ * The minimap used to decode to an intermediate RGBA8 heap block and hand that
+ * to PoolSlotRegisterRGBA, which converted and copied it again. The paper maps
+ * are 320x480, so that intermediate was a 614KB malloc PER AREA CHANGE — and
+ * late in a long session, with the resident-texture pool and map data resident,
+ * free RAM reaches ~600KB. The malloc then fails, HiresOverride_DecodeToRGBA
+ * returns an error with no log line, s_mapReady goes 0, and the minimap draws
+ * its "no map" disc in areas whose map the player is holding. Log 067 caught it
+ * exactly: three map reads queued with no registration, at free=596KB.
+ *
+ * Decoding in place removes the allocation entirely (the slot buffer is
+ * allocated once and reused), and drops a full-image copy + convert pass with
+ * it. Layout notes are in the TIM decoder in pc_minimap.c. */
+int Xbox_PoolSlotRegisterTimDirect(int slotId, const unsigned char* tim, unsigned int size,
+                                   int nativePixelW, int nativePixelH)
+{
+    extern void* GpuNv2a_AllocTexMem(int bytes);
+    const unsigned char*  p = tim;
+    const unsigned short* clut = 0;
+    unsigned  flags, bpp;
+    int       i, free_i = -1, n = (int)(sizeof(s_xbPool) / sizeof(s_xbPool[0]));
+    int       w, h, px, py, x, y;
+    unsigned* dst;
+
+    if (!tim || size < 20 || *(const unsigned*)p != 0x00000010u)
+        return -1;
+    flags = *(const unsigned*)(p + 4);
+    bpp   = flags & 3;                                   /* 0=4bit 1=8bit 2=16bit */
+    p += 8;
+
+    if (flags & 8) {                                     /* CLUT block */
+        unsigned csz = *(const unsigned*)p;
+        if (csz < 12 || (unsigned)(p - tim) + csz > size) return -1;
+        clut = (const unsigned short*)(p + 12);
+        p += csz;
+    }
+    if ((unsigned)(p - tim) + 12 > size) return -1;
+    px = *(const unsigned short*)(p + 8);                /* width in 16-bit words */
+    py = *(const unsigned short*)(p + 10);
+    p += 12;
+
+    w = (bpp == 0) ? px * 4 : (bpp == 1) ? px * 2 : px;
+    h = py;
+    if (w <= 0 || h <= 0 || w > 1024 || h > 1024) return -1;
+    if ((unsigned)(p - tim) + (unsigned)(px * h * 2) > size) return -1;
+
+    for (i = 0; i < n; i++) {
+        if (s_xbPool[i].argb && s_xbPool[i].slot == slotId) { free_i = i; break; }
+        if (!s_xbPool[i].argb && free_i < 0) free_i = i;
+    }
+    if (free_i < 0) return -1;
+
+    if (!s_xbPool[free_i].argb || s_xbPool[free_i].w * s_xbPool[free_i].h < w * h) {
+        unsigned* buf = (unsigned*)GpuNv2a_AllocTexMem(w * h * 4);
+        if (!buf) return -1;
+        s_xbPool[free_i].argb = buf;
+    }
+    dst = s_xbPool[free_i].argb;
+
+    for (y = 0; y < h; y++) {
+        const unsigned short* row = (const unsigned short*)p + (size_t)y * px;
+        unsigned*             o   = dst + (size_t)y * w;
+
+        for (x = 0; x < w; x++) {
+            unsigned short t;
+
+            if (bpp == 0)      t = clut ? clut[(row[x >> 2] >> ((x & 3) * 4)) & 0x0F] : 0;
+            else if (bpp == 1) t = clut ? clut[(row[x >> 1] >> ((x & 1) * 8)) & 0xFF] : 0;
+            else               t = row[x];
+
+            /* PSX 1-5-5-5 (STP,B,G,R) -> A8R8G8B8; 0x0000 is fully transparent. */
+            o[x] = (t ? 0xFF000000u : 0u)
+                 | ((unsigned)(( t        & 0x1F) << 3) << 16)
+                 | ((unsigned)(((t >>  5) & 0x1F) << 3) << 8)
+                 |  (unsigned)(((t >> 10) & 0x1F) << 3);
+        }
+    }
+    __asm__ __volatile__("sfence" ::: "memory");
+
+    s_xbPool[free_i].slot = slotId;
+    s_xbPool[free_i].w    = w;
+    s_xbPool[free_i].h    = h;
+    s_xbPool[free_i].nw   = (nativePixelW > 0) ? nativePixelW : w;
+    s_xbPool[free_i].nh   = (nativePixelH > 0) ? nativePixelH : h;
+    SH_DBG("[POOLTEX] slot %d decoded in place %dx%d (uv denom %dx%d)",
+           slotId, w, h, s_xbPool[free_i].nw, s_xbPool[free_i].nh);
+    return 0;
+}
+
 int HiresOverride_PoolSlotRegisterRGBAKeyed(int slotId, int row, const unsigned char* rgba, int w, int h,
                                             int nativePixelW, int nativePixelH, unsigned long long contentHash)
 {

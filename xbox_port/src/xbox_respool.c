@@ -64,8 +64,14 @@
  * BEFORE the adaptive ARGB texture cache grows into what remains, so that cache
  * sizes itself around this rather than fighting it. 48 would put 8 vanilla + 40
  * full pages in play against vanilla's 8. */
-#define RES_SLABS_MAX      48
-#define RES_FREE_FLOOR_KB  6144
+/* 48 was too greedy. Log 067 (a long session) ended at 204KB free and the
+ * minimap's paper-map decode had already started failing at ~600KB — the pool's
+ * ~2MB was most of the headroom that used to absorb map data. 32 slabs is 1.3MB
+ * and still puts 8 + ~27 full pages in play against vanilla's 8, which is where
+ * nearly all of the page-stealing win is. The floor rises with it so the reserve
+ * stops earlier on a map that is already tight. */
+#define RES_SLABS_MAX      32
+#define RES_FREE_FLOOR_KB  8192
 
 typedef struct {
     unsigned short* words;      /* pixel block, PSX VRAM word layout */

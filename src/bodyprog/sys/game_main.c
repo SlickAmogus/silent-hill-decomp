@@ -2893,8 +2893,21 @@ void MainLoop(void) // 0x80032EE0
                 s_heldWorldOfy = ofy;
             }
             else if (g_GameWork.gameState == GameState_InGame &&
-                     (g_SysWork.sysState == SysState_ReadMessage || g_PcPickupItemActive))
+                     (g_SysWork.sysState == SysState_ReadMessage   ||
+                      g_SysWork.sysState == SysState_EventCallback ||
+                      g_SysWork.sysState == SysState_EventSetFlag  ||
+                      g_SysWork.sysState == SysState_EventPlaySound ||
+                      g_SysWork.sysState == SysState_GamePaused    ||
+                      g_PcPickupItemActive))
             {
+                /* Every in-game state that KEEPS RENDERING THE WORLD, not just
+                 * read-message. Puzzle objects and scripted examines run as
+                 * SysState_EventCallback (and its SetFlag/PlaySound siblings),
+                 * which still fell through to offset 0 and so still shifted the
+                 * view — the residual "some examines" jump. The 2D states
+                 * (options, status, map, save, FMV, load, game over) are
+                 * deliberately NOT here: they draw no world and must keep the
+                 * clean (0,0) baseline the assert below exists for. */
                 /* Frozen interactions — examine/read-message text and the item-pickup
                  * animation — keep re-rendering the SAME fixed-cam frame (vcMoveAndSetCamera
                  * still runs every frame) and snapshot it for the frozen backdrop. The
@@ -2902,7 +2915,13 @@ void MainLoop(void) // 0x80032EE0
                  * the interaction; hold the gameplay offset here instead of recomputing it,
                  * so the shift can't jump the instant text/pickup appears (any display
                  * camera, since the shift is at the GTE projection center). */
-                ofy = s_heldWorldOfy;
+                /* Cutscenes frame via letterbox bars and must stay at 0. Normally
+                 * s_heldWorldOfy is already 0 by the time one runs, because the
+                 * gameplay branch above zeroes it as soon as g_PsxCutsceneActive
+                 * goes true — but a cutscene that enters its event state on the
+                 * SAME tick never gets that frame, and would inherit the 20-unit
+                 * gameplay shift for its whole run. */
+                ofy = g_PsxCutsceneActive ? 0 : s_heldWorldOfy;
             }
 
             SetGeomOffset(0, ofy);
