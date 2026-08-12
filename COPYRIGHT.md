@@ -78,6 +78,22 @@ Each keeps its own license. None of them are covered by §1.
 | 7-Zip components | as used by the launcher | `pc_port/assets/licenses/LICENSE-7zip.txt` |
 | SDL2, OpenAL Soft | linked at build time, not vendored | zlib / LGPL respectively |
 
+### GPL-compatible derivations inside §1
+
+Three files under `pc_port/src/fmv/` carry a GPL-3.0 SPDX tag because the
+combined work is GPL, but they are **adaptations of other people's code**, not
+original to this project. Their upstream licenses (BSD, LGPL) permit
+redistribution under the GPL, and the original attributions are preserved in
+each file header:
+
+| File | Derived from |
+|---|---|
+| `mdec.c` | FFmpeg `libavcodec/mdec.c` (LGPL) — MPEG-1 RL VLC tables and IDCT |
+| `ReadAVI.h` | REDRIVER2 (olegvedi@gmail.com, 2018), originally Michael Kohn (2004-2013) |
+| `fmv_player.h` | REDRIVER2's VideoPlayer design (BSD) |
+
+Do not strip those attribution headers.
+
 ---
 
 ## 4. Bundled assets that are NOT covered by §1
