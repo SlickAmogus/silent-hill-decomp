@@ -263,15 +263,18 @@ namespace SilentHillPC_Launcher
             return new string(chars);
         }
 
-        /// <summary>Block flag 1 = loop end, 2 = loop-and-repeat, 3 = loop start,
-        /// 7 = end of sample. Anything with a repeat or start marker is a sustained
-        /// sound rather than a one-shot.</summary>
+        // Block flag BITS, matching PsyCross's decoder (PsyX_SPUAL.cpp): the values
+        // are combined, not enumerated, so tests must be bitwise. Treating them as
+        // whole numbers ("flag == 7") misses every ordinary end block.
+        public const int FlagLoopEnd = 1 << 0;   // sample stops here
+        public const int FlagRepeat = 1 << 1;    // ...and jumps to the loop start
+        public const int FlagLoopStart = 1 << 2;
+
         private static bool ScanForLoop(byte[] d, VabVag vag)
         {
             for (int b = 0; b < vag.BlockCount; b++)
             {
-                int flag = d[vag.Offset + b * 16 + 1];
-                if (flag == 2 || flag == 3 || flag == 6) return true;
+                if ((d[vag.Offset + b * 16 + 1] & FlagRepeat) != 0) return true;
             }
             return false;
         }
@@ -295,8 +298,6 @@ namespace SilentHillPC_Launcher
                 int shift = _data[p] & 0x0F;
                 int filter = (_data[p] >> 4) & 0x0F;
                 int flag = _data[p + 1];
-
-                if (flag == 7) break; // end marker: nothing after it is audio
 
                 if (filter > 3) filter = 3;
                 // A shift of 13..15 is not meaningful; hardware treats it as a mute.
@@ -328,6 +329,11 @@ namespace SilentHillPC_Launcher
                         outBuf[w++] = (short)s;
                     }
                 }
+
+                // The terminating block's audio is part of the sample — PsyCross
+                // finishes decoding it and only then stops, so stopping first would
+                // clip the tail off every preview.
+                if ((flag & FlagLoopEnd) != 0) break;
             }
 
             if (w == outBuf.Length) return outBuf;
