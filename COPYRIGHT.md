@@ -105,6 +105,9 @@ These ship in the repository but are **not** this project's to license:
   with Microsoft, Valve and Sony respectively. Included as unlock cues; no
   ownership is claimed and no license is granted. *Scheduled for replacement
   with original audio.*
+- **`pc_port/assets/gamedata/sound/swish.wav`** — UI cue for the achievement
+  panel, from a third-party source. No ownership is claimed and no license is
+  granted. *Scheduled for replacement with original audio.*
 - **`pc_port/assets/gamedata/ra/sym.*.txt`** — symbol maps derived from the
   decompilation project's `configs/`. See §2.
 - **`pc_port/assets/gamedata/lang/*.lang` (translated text)** — fan
