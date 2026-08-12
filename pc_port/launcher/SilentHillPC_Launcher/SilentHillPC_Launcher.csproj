@@ -93,6 +93,7 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="VabFile.cs" />
+    <Compile Include="SfxTable.cs" />
     <Compile Include="AudioToolForm.cs">
       <SubType>Form</SubType>
     </Compile>

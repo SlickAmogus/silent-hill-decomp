@@ -22,6 +22,87 @@ namespace SilentHillPC_Launcher
         public bool Loops;
     }
 
+    /// <summary>The SPU's note-to-pitch conversion, mirroring Note2Pitch in
+    /// libsd/smf_io.c. Pitch 0x1000 is unity, and PsyCross uploads every sample at
+    /// 44100 Hz then scales by pitch/4096 — so the audible rate is
+    /// 44100 * pitch / 4096.
+    ///
+    /// The engine reads a baked PitchTbl[12][128]; this computes it instead, which
+    /// is bit-exact: all 1536 entries reproduce as
+    /// floor(4096 * 2^((semitone*128 + cent)/1536)).</summary>
+    internal static class PsxPitch
+    {
+        public const int Unity = 0x1000;
+        public const int BaseRate = 44100;
+
+        private static readonly ushort[,] Tbl = BuildTable();
+
+        private static ushort[,] BuildTable()
+        {
+            var t = new ushort[12, 128];
+            for (int s = 0; s < 12; s++)
+                for (int c = 0; c < 128; c++)
+                    t[s, c] = (ushort)Math.Floor(4096.0 * Math.Pow(2.0, (s * 128.0 + c) / 1536.0));
+            return t;
+        }
+
+        public static int Note2Pitch(int note, int cent, int sampleNote, int sampleCent)
+        {
+            int totalCent = cent + sampleCent;
+            int steps = (totalCent < 0 ? totalCent + 127 : totalCent) >> 7;
+            int finalNote = note + steps;
+            int centOffset = totalCent - (steps << 7);
+            if (centOffset < 0) centOffset = 0;
+            if (centOffset > 127) centOffset = 127;
+
+            int diff = finalNote - sampleNote;
+            if (diff >= 0)
+            {
+                int shift = diff / 12;
+                // A big upward interval would shift the 16-bit pitch into nothing;
+                // the hardware register saturates rather than wrapping to silence.
+                if (shift > 3) return 0x3FFF;
+                int p = Tbl[diff % 12, centOffset] << shift;
+                return p > 0x3FFF ? 0x3FFF : p;
+            }
+
+            int abs = -diff;
+            return Tbl[(12 - (abs % 12)) % 12, centOffset] >> ((abs + 11) / 12);
+        }
+
+        public static double RateHz(int pitch)
+        {
+            return BaseRate * (double)pitch / Unity;
+        }
+    }
+
+    /// <summary>A sound id that plays a given sample, and the rate it plays at.</summary>
+    internal sealed class SfxMatch
+    {
+        public SfxRow Row;
+        public int Pitch;          // SPU pitch register value; 0x1000 is unity
+        public double RateHz;
+
+        public string Label
+        {
+            get { return Row.Name ?? ("sfx " + Row.Id); }
+        }
+
+        /// <summary>Slot names from e_AudioType. 0 and 2 each have two spellings in the
+        /// enum (base/music-key, ambient/special-screen); the broader one is used.</summary>
+        public static string SlotName(int slot)
+        {
+            switch (slot)
+            {
+                case 0: return "base";
+                case 1: return "weapon";
+                case 2: return "ambient";
+                case 3: return "music";
+                default: return "slot " + slot;
+            }
+        }
+    }
+
     internal sealed class VabTone
     {
         public int Program;        // owning program index
@@ -284,6 +365,53 @@ namespace SilentHillPC_Launcher
                 bw.Flush();
                 return ms.ToArray();
             }
+        }
+
+        /// <summary>Which tone a program plays for a given note. Every tone in these
+        /// banks has a one-note range (48..48, 49..49, ...), so the note identifies the
+        /// tone exactly — there is deliberately NO fallback. Returning "some tone in the
+        /// program" instead made every sound id match every bank.</summary>
+        public VabTone ResolveTone(int program, int note)
+        {
+            foreach (VabTone t in Tones)
+            {
+                if (t.Program == program && note >= t.MinNote && note <= t.MaxNote) return t;
+            }
+            return null;
+        }
+
+        /// <summary>The sound-table rows that land on a given sample in this bank, with
+        /// the exact rate each plays at.
+        ///
+        /// A bank file does not record which slot it gets loaded into — the weapon slot
+        /// holds PISTOL/SHOTGUN/RIFEL/SAW depending on what Harry carries, and the
+        /// ambient slot changes per map — so a row is matched on program + note and the
+        /// slot is reported rather than assumed. Two independent constraints have to
+        /// agree: the note must land in a tone's range, AND the row's own tone index
+        /// must be that tone's slot. Either alone lets rows from other slots through.
+        ///
+        /// Pass a slot to restrict further, or -1 for any.</summary>
+        public List<SfxMatch> MatchesFor(int vagIndex, int slotFilter)
+        {
+            var hits = new List<SfxMatch>();
+            foreach (SfxRow row in SfxTable.Rows)
+            {
+                if (row.Id == SfxTable.SfxBase) continue;
+                if (slotFilter >= 0 && row.Slot != slotFilter) continue;
+
+                VabTone tone = ResolveTone(row.Program, row.Note);
+                if (tone == null || tone.Vag != vagIndex) continue;
+                if (tone.Slot != row.VabIndex) continue;
+
+                int pitch = PsxPitch.Note2Pitch(row.Note, 0, tone.CenterNote, tone.CenterFine);
+                hits.Add(new SfxMatch
+                {
+                    Row = row,
+                    Pitch = pitch,
+                    RateHz = PsxPitch.RateHz(pitch),
+                });
+            }
+            return hits;
         }
 
         /// <summary>Raw ADPCM body, for users who want to edit or re-inject the exact

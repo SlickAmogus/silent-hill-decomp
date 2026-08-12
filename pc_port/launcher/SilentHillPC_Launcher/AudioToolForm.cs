@@ -23,10 +23,12 @@ namespace SilentHillPC_Launcher
         private readonly Button _btnAll = new Button();
         private readonly Button _btnVag = new Button();
         private readonly ComboBox _rate = new ComboBox();
+        private readonly ComboBox _slot = new ComboBox();
 
         private VabFile _vab;
         private SoundPlayer _player;
         private string _lastDir;
+        private readonly Dictionary<int, List<SfxMatch>> _matches = new Dictionary<int, List<SfxMatch>>();
 
         public static void ShowTool(IWin32Window owner, string startDir)
         {
@@ -80,9 +82,10 @@ namespace SilentHillPC_Launcher
             _list.Columns.Add("Samples", 78, HorizontalAlignment.Right);
             _list.Columns.Add("Length", 70, HorizontalAlignment.Right);
             _list.Columns.Add("Loops", 52, HorizontalAlignment.Center);
-            _list.Columns.Add("Programs", 90, HorizontalAlignment.Left);
+            _list.Columns.Add("In-game rate", 88, HorizontalAlignment.Right);
+            _list.Columns.Add("Sound ids", 240, HorizontalAlignment.Left);
+            _list.Columns.Add("Programs", 76, HorizontalAlignment.Left);
             _list.Columns.Add("Centre note", 82, HorizontalAlignment.Right);
-            _list.Columns.Add("Used by tones", 100, HorizontalAlignment.Right);
             _list.SelectedIndexChanged += (s, e) => UpdateButtons();
             _list.DoubleClick += (s, e) => PlaySelected();
             Controls.Add(_list);
@@ -100,6 +103,23 @@ namespace SilentHillPC_Launcher
             SetupButton(_btnVag, "Export raw VAG…", new Point(300, y), (s, e) => ExportSelected(true));
             SetupButton(_btnAll, "Export all…", new Point(430, y), (s, e) => ExportAll());
 
+            var sl = new Label
+            {
+                Text = "Bank slot:",
+                Location = new Point(548, y - 24),
+                Size = new Size(78, 20),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Left
+            };
+            Controls.Add(sl);
+            _slot.DropDownStyle = ComboBoxStyle.DropDownList;
+            _slot.Location = new Point(628, y - 28);
+            _slot.Size = new Size(88, 22);
+            _slot.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            _slot.Items.AddRange(new object[] { "Any", "base", "weapon", "ambient", "music" });
+            _slot.SelectedIndex = 0;
+            _slot.SelectedIndexChanged += (s, e) => { if (_vab != null) Open(_vab.Path); };
+            Controls.Add(_slot);
+
             var rl = new Label
             {
                 Text = "Preview rate:",
@@ -112,8 +132,13 @@ namespace SilentHillPC_Launcher
             _rate.Location = new Point(628, y + 2);
             _rate.Size = new Size(88, 22);
             _rate.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            _rate.Items.AddRange(new object[] { "44100 Hz", "32000 Hz", "22050 Hz", "16000 Hz", "11025 Hz", "8000 Hz" });
+            _rate.Items.AddRange(new object[] { AutoRate, "44100 Hz", "32000 Hz", "22050 Hz", "16000 Hz", "11025 Hz", "8000 Hz" });
             _rate.SelectedIndex = 0;
+            _rate.SelectedIndexChanged += (s, e) =>
+            {
+                // Durations and the rate column are both derived from it.
+                if (_vab != null) Open(_vab.Path);
+            };
             Controls.Add(_rate);
 
             DragEnter += (s, e) =>
@@ -140,16 +165,47 @@ namespace SilentHillPC_Launcher
             Controls.Add(b);
         }
 
-        private int PreviewRate
+        private const string AutoRate = "Auto — in-game";
+
+        /// <summary>Slot to restrict sound-id matching to, or -1 for any. A bank file does
+        /// not record its own slot, so this is the user's call.</summary>
+        private int SlotFilter
+        {
+            get { return _slot.SelectedIndex <= 0 ? -1 : _slot.SelectedIndex - 1; }
+        }
+
+        /// <summary>Fixed rate the user picked, or 0 for "use each sample's own in-game
+        /// rate". Guessing a single rate for a whole bank is what the sound table lets
+        /// us stop doing.</summary>
+        private int ChosenRate
         {
             get
             {
                 string s = _rate.SelectedItem as string;
-                if (s == null) return VabFile.UnityRate;
+                if (s == null || s == AutoRate) return 0;
                 int sp = s.IndexOf(' ');
                 int r;
                 return int.TryParse(sp > 0 ? s.Substring(0, sp) : s, out r) ? r : VabFile.UnityRate;
             }
+        }
+
+        /// <summary>The rate to render a given sample at: its real in-game rate when the
+        /// sound table identifies it, otherwise the SPU's unity rate. A sample used at
+        /// more than one pitch has no single answer, so the lowest is used — it is the
+        /// longest and least likely to sound comically fast.</summary>
+        private double RateFor(VabVag vag)
+        {
+            int fixedRate = ChosenRate;
+            if (fixedRate > 0) return fixedRate;
+
+            List<SfxMatch> hits;
+            if (_matches.TryGetValue(vag.Index, out hits) && hits.Count > 0)
+            {
+                double lo = double.MaxValue;
+                foreach (SfxMatch m in hits) if (m.RateHz < lo) lo = m.RateHz;
+                if (lo > 1.0) return lo;
+            }
+            return VabFile.UnityRate;
         }
 
         private void PickAndOpen()
@@ -178,8 +234,10 @@ namespace SilentHillPC_Launcher
             _lastDir = Path.GetDirectoryName(path);
             Text = "Audio — " + Path.GetFileName(path);
 
+            _matches.Clear();
             _list.BeginUpdate();
             _list.Items.Clear();
+            int identified = 0;
             foreach (VabVag vag in v.Vags)
             {
                 var progs = new List<int>();
@@ -191,17 +249,40 @@ namespace SilentHillPC_Launcher
                 }
                 progs.Sort();
 
+                List<SfxMatch> hits = v.MatchesFor(vag.Index, SlotFilter);
+                _matches[vag.Index] = hits;
+                if (hits.Count > 0) identified++;
+
+                // Duration follows the rate it actually plays at, so a sound pitched
+                // down reads as the longer sound the player hears.
+                double rate = RateFor(vag);
                 int samples = vag.BlockCount * 28;
-                double secs = samples / (double)VabFile.UnityRate;
+                double secs = samples / rate;
+
+                var names = new List<string>();
+                var rates = new List<string>();
+                foreach (SfxMatch m in hits)
+                {
+                    // The slot is part of the identity when the filter is off: the same
+                    // program/note pair exists in banks loaded into different slots.
+                    string label = SlotFilter >= 0
+                        ? m.Label
+                        : m.Label + " (" + SfxMatch.SlotName(m.Row.Slot) + ")";
+                    if (!names.Contains(label)) names.Add(label);
+                    string r = Math.Round(m.RateHz).ToString("N0");
+                    if (!rates.Contains(r)) rates.Add(r);
+                }
 
                 var it = new ListViewItem(vag.Index.ToString());
                 it.SubItems.Add(vag.Length.ToString("N0"));
                 it.SubItems.Add(samples.ToString("N0"));
                 it.SubItems.Add(secs.ToString("0.00") + "s");
                 it.SubItems.Add(vag.Loops ? "yes" : "");
+                it.SubItems.Add(rates.Count == 0 ? "-" :
+                    (rates.Count == 1 ? rates[0] + " Hz" : string.Join(" / ", rates.ToArray()) + " Hz"));
+                it.SubItems.Add(names.Count == 0 ? "" : string.Join(", ", names.ToArray()));
                 it.SubItems.Add(progs.Count == 0 ? "(unused)" : string.Join(", ", progs.ConvertAll(x => x.ToString()).ToArray()));
                 it.SubItems.Add(centre < 0 ? "-" : centre.ToString());
-                it.SubItems.Add(vag.Tones.Count.ToString());
                 it.Tag = vag;
                 if (progs.Count == 0) it.ForeColor = SystemColors.GrayText;
                 _list.Items.Add(it);
@@ -210,8 +291,9 @@ namespace SilentHillPC_Launcher
 
             _info.Text = string.Format(
                 "{0} samples, {1} programs, {2} tones — bank id {3}, {4:N0} bytes. " +
-                "Length and preview assume the SPU's unity rate ({5} Hz); the game re-pitches each sound per note.",
-                v.VagCount, v.ProgramCount, v.Tones.Count, v.VabId, v.DeclaredSize, VabFile.UnityRate);
+                "{5} identified from the game's sound table; the rest are in the bank but no " +
+                "sound id in this slot reaches them.",
+                v.VagCount, v.ProgramCount, v.Tones.Count, v.VabId, v.DeclaredSize, identified);
 
             if (_list.Items.Count > 0) _list.Items[0].Selected = true;
             UpdateButtons();
@@ -247,7 +329,7 @@ namespace SilentHillPC_Launcher
                         "Audio", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
-                byte[] wav = VabFile.BuildWav(pcm, PreviewRate);
+                byte[] wav = VabFile.BuildWav(pcm, (int)Math.Round(RateFor(vag)));
                 _player = new SoundPlayer(new MemoryStream(wav));
                 _player.Play();
             }
@@ -334,7 +416,7 @@ namespace SilentHillPC_Launcher
                 else
                 {
                     short[] pcm = _vab.Decode(vag.Index);
-                    File.WriteAllBytes(path, VabFile.BuildWav(pcm, PreviewRate));
+                    File.WriteAllBytes(path, VabFile.BuildWav(pcm, (int)Math.Round(RateFor(vag))));
                 }
                 return true;
             }
