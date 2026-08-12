@@ -51,14 +51,14 @@ s_CollStateDbg g_CollStateDbg = { 0 };
 void XboxConfig_ApplyOverrides(void)
 {
     /* --- Memory: the non-negotiable ones (PC defaults would exhaust 64MB). --- */
-    /* Resident chunk textures: ON, but backed by the Xbox store (xbox_respool.c),
-     * which keeps a virtual slot's PSX word block (32KB) instead of PC's decoded
-     * RGBA rows (256KB EACH, up to 12 per slot — that is what made this
-     * unaffordable here). The offered slot count comes from the slabs actually
-     * reserved, so it self-limits to what the console has. This is the fix for
-     * chunk-pool page STEALING: with only 8 full pages, a view holding more
-     * distinct materials overwrites a page still being drawn from. */
-    g_PcConfig.residentTextures = 1;   /* PC 1: expanded chunk-texture pool */
+    /* residentTextures is deliberately NOT pinned. It is backed on Xbox by
+     * xbox_respool.c (a virtual slot's PSX word block, 32KB, instead of PC's
+     * decoded RGBA rows at 256KB EACH), so PC's default of 1 is right here and
+     * the slab reserve self-limits to what the console has free. Pinning it
+     * silently disabled the `resident_textures` config key — the override runs
+     * AFTER PcConfig_Load, so it stomped whatever the file asked for, and
+     * resident_textures=0 appeared to do nothing at all. Leaving it unpinned is
+     * what makes that key a real escape hatch. */
     g_PcConfig.texturePacks     = 0;   /* PC 1: HD DuckStation packs */
     g_PcConfig.texpackCacheMb   = 0;   /* PC 2048 (MB) */
     g_PcConfig.texpackBudgetMb  = 0;   /* PC 6144 (MB) */

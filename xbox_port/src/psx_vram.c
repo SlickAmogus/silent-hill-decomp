@@ -832,6 +832,38 @@ uint32_t* PsxVram_GetTexture(int tpage, int clut)
  * handed a raw pointer and reads it asynchronously, so an entry bound this frame
  * and not yet consumed by a drain must never be overwritten -- that is exactly
  * the bug 09202d93e fixed, and it applies to index pages and palettes too. */
+/* Drop every decoded page and palette belonging to a resident slot.
+ *
+ * REQUIRED whenever a slab's CONTENT changes, which the engine does constantly:
+ * it recycles pool slot ids as chunks stream, re-registering the same id with a
+ * different TIM ("replacing in place on engine slot reuse", hires_override.h).
+ * The decoded page is keyed by SLOT, so without this it keeps serving the
+ * PREVIOUS occupant's texels forever -- the room you walk into gets the room you
+ * left, drawn on geometry whose UVs were authored for something else, which
+ * reads as garbled/tiled/misaligned. Real VRAM pages never needed this because
+ * their key is the page address and the write itself invalidates by rect; a
+ * private slab has no rect to overlap, which is exactly why it was missed.
+ *
+ * Marked dead (-2) rather than free (-1) deliberately: -1 is the victim scan's
+ * fast path and bypasses the in-flight check, which would hand the GPU's
+ * still-referenced page straight to the next decode. -2 never matches a lookup,
+ * and zeroing hits makes it the preferred victim through the NORMAL path, where
+ * the lastUse/seq in-flight guard still applies. */
+void PsxVram_InvalidateResidentSlot(int slot)
+{
+    const int pageKey = 0x40000000 | slot;
+    const int palBase = 0x20000000 | (slot << 5);
+    int i;
+
+    if (!s_palPathReady)
+        return;
+    for (i = 0; i < PAGE_N; i++)
+        if (s_pages[i].key == pageKey) { s_pages[i].key = -2; s_pages[i].hits = 0; }
+    for (i = 0; i < PAL_N; i++)
+        if ((s_pals[i].key & ~0x1F) == palBase && s_pals[i].key != -1)
+            s_pals[i].key = -2;
+}
+
 const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
 {
     int       tp = (tpage >> 7) & 3;

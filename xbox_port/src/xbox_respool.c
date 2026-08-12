@@ -77,9 +77,10 @@ typedef struct {
     int             slot;       /* owning slot id, or -1 when free */
 } ResSlab;
 
-static ResSlab s_slabs[RES_SLABS_MAX];
-static int     s_slabCount;                 /* slabs actually reserved */
-static int     s_inited;
+static ResSlab  s_slabs[RES_SLABS_MAX];
+static int      s_slabCount;                /* slabs actually reserved */
+static int      s_inited;
+static unsigned s_reRegisters;              /* slot reuses seen this map */
 
 /* slot id -> slab index, or -1. Covers the chunk range only (0..255); the chara
  * range and the minimap's own slots go through the RGBA table in
@@ -160,10 +161,16 @@ void Xbox_ResidentPoolReset(void)
 
     if (!s_inited)
         return;
-    for (i = 0; i < s_slabCount; i++)
+    for (i = 0; i < s_slabCount; i++) {
+        if (s_slabs[i].slot >= 0)
+            PsxVram_InvalidateResidentSlot(s_slabs[i].slot);
         s_slabs[i].slot = -1;
+    }
     for (i = 0; i < RES_SLOT_MAX; i++)
         s_slotSlab[i] = -1;
+    if (s_reRegisters)
+        SH_DBG("[RESPOOL] map reset: %u slot re-registrations this map", s_reRegisters);
+    s_reRegisters = 0;
 }
 
 /* Claim (or re-claim) the slab for `slot`. Engine slot reuse re-registers the
@@ -243,6 +250,19 @@ int Xbox_ResidentPoolRegisterTim(int slot, const unsigned char* tim, unsigned si
     if (!sl) {
         SH_DBG("[RESPOOL] slot %d: no free slab (%d in use)", slot, s_slabCount);
         return -1;
+    }
+
+    /* The slab's CONTENT is about to change. The paletted cache keys its decoded
+     * page and palettes by SLOT, so anything already decoded for this id is now
+     * the previous occupant's texels and must go — the engine recycles slot ids
+     * constantly as chunks stream, and serving the stale decode is what put the
+     * last room's textures on this room's geometry. */
+    if (sl->pitchWords > 0) {
+        PsxVram_InvalidateResidentSlot(slot);
+        if (!s_reRegisters)
+            SH_DBG("[RESPOOL] slot %d re-registered — stale decode dropped "
+                   "(engine slot reuse is live)", slot);
+        s_reRegisters++;
     }
 
     for (y = 0; y < ph; y++)

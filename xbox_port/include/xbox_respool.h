@@ -27,4 +27,8 @@ const unsigned short* Xbox_ResidentPoolGet(int slot, s_XbResidentDesc* out);
 
 unsigned Xbox_MemFreeKB(void);
 
+/* Drop the decoded page/palettes cached for a slot (psx_vram.c). Must be called
+ * whenever a slab's content changes or is released — see the note there. */
+void PsxVram_InvalidateResidentSlot(int slot);
+
 #endif /* XBOX_RESPOOL_H */
