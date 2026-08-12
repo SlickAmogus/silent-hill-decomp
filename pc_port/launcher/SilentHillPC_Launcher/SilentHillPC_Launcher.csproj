@@ -94,6 +94,7 @@
     </Compile>
     <Compile Include="VabFile.cs" />
     <Compile Include="SfxTable.cs" />
+    <Compile Include="VagEncoder.cs" />
     <Compile Include="AudioToolForm.cs">
       <SubType>Form</SubType>
     </Compile>

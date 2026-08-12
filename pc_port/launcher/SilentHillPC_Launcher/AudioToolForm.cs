@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -22,8 +23,15 @@ namespace SilentHillPC_Launcher
         private readonly Button _btnWav = new Button();
         private readonly Button _btnAll = new Button();
         private readonly Button _btnVag = new Button();
+        private readonly Button _btnRep = new Button();
+        private readonly Button _btnRevert = new Button();
+        private readonly Button _btnSave = new Button();
         private readonly ComboBox _rate = new ComboBox();
         private readonly ComboBox _slot = new ComboBox();
+
+        /// <summary>Staged sample replacements, applied only when the bank is saved, so
+        /// the user can audition and back out without touching the original file.</summary>
+        private readonly Dictionary<int, byte[]> _pending = new Dictionary<int, byte[]>();
 
         private VabFile _vab;
         private SoundPlayer _player;
@@ -102,6 +110,9 @@ namespace SilentHillPC_Launcher
             SetupButton(_btnWav, "Export WAV…", new Point(188, y), (s, e) => ExportSelected(false));
             SetupButton(_btnVag, "Export raw VAG…", new Point(300, y), (s, e) => ExportSelected(true));
             SetupButton(_btnAll, "Export all…", new Point(430, y), (s, e) => ExportAll());
+            SetupButton(_btnRep, "Replace…", new Point(12, y + 30), (s, e) => ReplaceSelected());
+            SetupButton(_btnRevert, "Revert", new Point(100, y + 30), (s, e) => RevertSelected());
+            SetupButton(_btnSave, "Save bank as…", new Point(188, y + 30), (s, e) => SaveBank());
 
             var sl = new Label
             {
@@ -230,6 +241,14 @@ namespace SilentHillPC_Launcher
                 return;
             }
 
+            // Reopening the SAME bank is how the rate and slot pickers refresh, so staged
+            // replacements have to survive it — only a genuinely different file discards
+            // them.
+            bool sameFile = _vab != null &&
+                            string.Equals(Path.GetFullPath(_vab.Path), Path.GetFullPath(path),
+                                StringComparison.OrdinalIgnoreCase);
+            if (!sameFile) _pending.Clear();
+
             _vab = v;
             _lastDir = Path.GetDirectoryName(path);
             Text = "Audio — " + Path.GetFileName(path);
@@ -296,7 +315,7 @@ namespace SilentHillPC_Launcher
                 v.VagCount, v.ProgramCount, v.Tones.Count, v.VabId, v.DeclaredSize, identified);
 
             if (_list.Items.Count > 0) _list.Items[0].Selected = true;
-            UpdateButtons();
+            MarkPending();
         }
 
         private void UpdateButtons()
@@ -307,6 +326,170 @@ namespace SilentHillPC_Launcher
             _btnVag.Enabled = any;
             _btnAll.Enabled = _vab != null;
             _btnStop.Enabled = _player != null;
+            _btnRep.Enabled = any && _list.SelectedItems.Count == 1;
+            _btnRevert.Enabled = any && SelectedHasPending();
+            _btnSave.Enabled = _vab != null && _pending.Count > 0;
+        }
+
+        private bool SelectedHasPending()
+        {
+            foreach (ListViewItem it in _list.SelectedItems)
+                if (_pending.ContainsKey(((VabVag)it.Tag).Index)) return true;
+            return false;
+        }
+
+        /// <summary>Import a replacement for the selected sample. A .vag goes in as-is;
+        /// a .wav is resampled to the rate the tone will play it at and re-encoded,
+        /// because the sample carries no rate of its own — dropping in 44.1 kHz audio
+        /// unchanged makes it play at whatever speed the tone dictates.</summary>
+        private void ReplaceSelected()
+        {
+            VabVag vag = Selected;
+            if (_vab == null || vag == null) return;
+
+            using (var d = new OpenFileDialog())
+            {
+                d.Title = "Replace sample " + vag.Index;
+                d.Filter = "Audio (*.wav;*.vag)|*.wav;*.vag|WAV audio (*.wav)|*.wav|Raw PSX ADPCM (*.vag)|*.vag";
+                if (!string.IsNullOrEmpty(_lastDir)) d.InitialDirectory = _lastDir;
+                if (d.ShowDialog(this) != DialogResult.OK) return;
+
+                byte[] body;
+                string note;
+
+                if (d.FileName.EndsWith(".vag", StringComparison.OrdinalIgnoreCase))
+                {
+                    try { body = File.ReadAllBytes(d.FileName); }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(this, ex.Message, "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+                    if ((body.Length & 0x0F) != 0)
+                    {
+                        MessageBox.Show(this,
+                            "That .vag is " + body.Length + " bytes, which is not a whole number of " +
+                            "16-byte ADPCM blocks. It is probably not raw PSX ADPCM — a .vag with a " +
+                            "48-byte header needs that header stripped first.",
+                            "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+                    note = "raw ADPCM, " + body.Length.ToString("N0") + " bytes";
+                }
+                else
+                {
+                    int srcRate;
+                    string err;
+                    short[] pcm = VagEncoder.ReadWav(d.FileName, out srcRate, out err);
+                    if (pcm == null)
+                    {
+                        MessageBox.Show(this, err, "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+
+                    int target = (int)Math.Round(RateFor(vag));
+                    short[] resampled = VagEncoder.Resample(pcm, srcRate, target);
+
+                    var opt = new VagEncoder.Options { Loop = vag.Loops };
+                    body = VagEncoder.Encode(resampled, opt);
+
+                    note = string.Format("{0} Hz WAV resampled to {1} Hz, {2:N0} bytes{3}",
+                        srcRate, target, body.Length, vag.Loops ? ", looping" : "");
+                }
+
+                if (body.Length > VabFile.MaxVagBytes)
+                {
+                    MessageBox.Show(this,
+                        "That would be " + body.Length.ToString("N0") + " bytes. A single sample " +
+                        "cannot exceed " + VabFile.MaxVagBytes.ToString("N0") + " — the bank stores " +
+                        "each length as length/8 in 16 bits.",
+                        "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                _pending[vag.Index] = body;
+                _lastDir = Path.GetDirectoryName(d.FileName);
+                _info.Text = "Sample " + vag.Index + " staged: " + note +
+                             " (was " + vag.Length.ToString("N0") + "). Save bank as… to write it out.";
+                MarkPending();
+            }
+        }
+
+        private void RevertSelected()
+        {
+            foreach (ListViewItem it in _list.SelectedItems)
+                _pending.Remove(((VabVag)it.Tag).Index);
+            _info.Text = _pending.Count == 0
+                ? "All replacements reverted."
+                : _pending.Count + " replacement(s) still staged.";
+            MarkPending();
+        }
+
+        /// <summary>Bold + a marker on rows with a staged replacement, so it is obvious
+        /// what will change before the bank is written.</summary>
+        private void MarkPending()
+        {
+            foreach (ListViewItem it in _list.Items)
+            {
+                var vag = (VabVag)it.Tag;
+                bool staged = _pending.ContainsKey(vag.Index);
+                it.Font = new Font(_list.Font, staged ? FontStyle.Bold : FontStyle.Regular);
+                if (staged)
+                {
+                    it.SubItems[1].Text = _pending[vag.Index].Length.ToString("N0") + " *";
+                }
+                else if (it.SubItems[1].Text.EndsWith(" *"))
+                {
+                    it.SubItems[1].Text = vag.Length.ToString("N0");
+                }
+            }
+            UpdateButtons();
+        }
+
+        private void SaveBank()
+        {
+            if (_vab == null || _pending.Count == 0) return;
+
+            string err;
+            byte[] rebuilt = _vab.Rebuild(_pending, out err);
+            if (rebuilt == null)
+            {
+                MessageBox.Show(this, err, "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            using (var d = new SaveFileDialog())
+            {
+                d.Title = "Save sound bank";
+                d.Filter = "PSX sound banks (*.vab)|*.vab";
+                d.FileName = Path.GetFileName(_vab.Path);
+                if (!string.IsNullOrEmpty(_lastDir)) d.InitialDirectory = _lastDir;
+                if (d.ShowDialog(this) != DialogResult.OK) return;
+
+                // Overwriting the bank being read would invalidate every offset the
+                // open view still points at.
+                if (string.Equals(Path.GetFullPath(d.FileName), Path.GetFullPath(_vab.Path),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    if (MessageBox.Show(this,
+                            "That is the bank currently open. Overwrite it and reload?",
+                            "Audio", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
+                        return;
+                }
+
+                try { File.WriteAllBytes(d.FileName, rebuilt); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, "Could not write:\n" + d.FileName + "\n\n" + ex.Message,
+                        "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                int n = _pending.Count;
+                _pending.Clear();
+                Open(d.FileName);
+                _info.Text = "Wrote " + Path.GetFileName(d.FileName) + " with " + n + " replaced sample(s).";
+            }
         }
 
         private VabVag Selected

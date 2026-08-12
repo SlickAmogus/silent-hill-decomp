@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -428,6 +429,82 @@ namespace SilentHillPC_Launcher
             var b = new byte[vag.Length];
             Array.Copy(_data, vag.Offset, b, 0, vag.Length);
             return b;
+        }
+
+        /// <summary>Largest a single sample can be: the size table stores length/8 in a
+        /// u16, so 65535 * 8 is the hard ceiling regardless of anything else.</summary>
+        public const int MaxVagBytes = 65535 * 8;
+
+        /// <summary>Write the bank back out with some samples replaced.
+        ///
+        /// Bodies are stored back to back and addressed by a running sum, so replacing
+        /// one sample with a different-sized one moves every sample after it. That is
+        /// why this rebuilds the whole file rather than patching in place: the size
+        /// table (one-based, length/8) and the header's own size field both have to
+        /// agree with the new layout or the engine walks into the wrong sample.</summary>
+        public byte[] Rebuild(Dictionary<int, byte[]> replacements, out string error)
+        {
+            error = null;
+            if (replacements == null) replacements = new Dictionary<int, byte[]>();
+
+            var bodies = new List<byte[]>(VagCount);
+            int total = 0;
+            foreach (VabVag vag in Vags)
+            {
+                byte[] body;
+                if (!replacements.TryGetValue(vag.Index, out body) || body == null)
+                {
+                    body = RawVag(vag.Index);
+                }
+
+                if ((body.Length & 0x0F) != 0)
+                {
+                    error = "Sample " + vag.Index + " is " + body.Length +
+                            " bytes, which is not a whole number of 16-byte ADPCM blocks.";
+                    return null;
+                }
+                if (body.Length > MaxVagBytes)
+                {
+                    error = "Sample " + vag.Index + " is " + body.Length.ToString("N0") +
+                            " bytes; the bank format cannot store more than " +
+                            MaxVagBytes.ToString("N0") + " per sample.";
+                    return null;
+                }
+
+                bodies.Add(body);
+                total += body.Length;
+            }
+
+            int toneTable = HeaderSize + ProgramTableSize;
+            int toneBytes = ProgramCount * TonesPerProgram * ToneEntrySize;
+            int sizeTable = toneTable + toneBytes;
+            int bodiesOff = sizeTable + SizeTableEntries * 2;
+
+            var outBuf = new byte[bodiesOff + total];
+            Array.Copy(_data, 0, outBuf, 0, bodiesOff);
+
+            // Rewrite the whole size table rather than only the changed rows: a stale
+            // entry past VagCount would be read as a real length by anything that
+            // trusts the table over the header.
+            for (int i = 0; i < SizeTableEntries; i++)
+            {
+                ushort v = 0;
+                if (i >= 1 && i <= bodies.Count) v = (ushort)(bodies[i - 1].Length / 8);
+                outBuf[sizeTable + i * 2] = (byte)(v & 0xFF);
+                outBuf[sizeTable + i * 2 + 1] = (byte)(v >> 8);
+            }
+
+            int w = bodiesOff;
+            foreach (byte[] b in bodies)
+            {
+                Array.Copy(b, 0, outBuf, w, b.Length);
+                w += b.Length;
+            }
+
+            byte[] fsize = BitConverter.GetBytes(outBuf.Length);
+            Array.Copy(fsize, 0, outBuf, 12, 4);
+
+            return outBuf;
         }
     }
 }
