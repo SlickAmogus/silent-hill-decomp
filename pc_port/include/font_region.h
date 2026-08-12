@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef FONT_REGION_H
 #define FONT_REGION_H
 

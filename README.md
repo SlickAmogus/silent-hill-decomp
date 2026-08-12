@@ -5,6 +5,16 @@
   Project Website: https://sh1pc.com/ <br/>
   Discord: https://discord.gg/JWuNzVsQbr
 
+## Licensing at a glance
+
+**The PC port is GPL-3.0.** That covers `pc_port/` (engine, launcher, tooling, docs) and every `SH_PC_PORT` addition to the decompiled sources. Files carrying an `SPDX-License-Identifier: GPL-3.0-or-later` header are the ones being licensed here.
+
+**The decompilation is not licensed by this project.** `src/`, `include/`, `configs/`, `asm/`, `lib/` and `rom/` are a decompilation of Konami's Silent Hill, and remain the work of the [silent-hill-decomp](https://github.com/shdecompilations/silent-hill-decomp) contributors. This project asserts no copyright over that material and grants no rights to it — the GitHub license badge above refers to the port only.
+
+**No game data is included.** Silent Hill is © Konami. A legally obtained copy of the PlayStation disc is required to play; nothing from it ships here or in any release.
+
+Full breakdown, including bundled third-party components: [COPYRIGHT.md](COPYRIGHT.md).
+
 ## Status
 
 The port is playable start to finish — the full game can be completed, and none of the remaining glitches are progression-blocking. Where it stands today:

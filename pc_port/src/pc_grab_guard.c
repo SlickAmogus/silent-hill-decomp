@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* See pc_grab_guard.h for why a foreign monster's grab wedges the player. */
 
 #include "game.h"

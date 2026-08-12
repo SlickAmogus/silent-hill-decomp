@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * math_impl.c - Implementations of PSX math functions for PC port
  *

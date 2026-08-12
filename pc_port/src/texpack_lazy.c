@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Demand-driven texture-pack compose for pool slots. See texpack_lazy.h for
  * why this exists and what the pop-in trade rests on. */
 

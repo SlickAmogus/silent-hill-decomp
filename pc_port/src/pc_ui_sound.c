@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * pc_ui_sound.c - one-shot WAV cues for port UI.
  *

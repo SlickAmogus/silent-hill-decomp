@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * dll_loader.c — OS-specific shared library loading.
  *

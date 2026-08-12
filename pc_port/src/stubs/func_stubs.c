@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Auto-generated function stubs for unresolved symbols */
 
 #include <libgte.h>

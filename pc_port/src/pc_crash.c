@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Crash telemetry. The SH_DBG log is fully buffered (64 KB), so on an
  * access violation the last lines — the ones that matter — die with the
  * process. This SEH filter writes the faulting address as module+offset

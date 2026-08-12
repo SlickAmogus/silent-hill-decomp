@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * libds_stub.c - CD-ROM library (alternate) stub implementations
  *

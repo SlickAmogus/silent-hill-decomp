@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* warning_screen.c — PC-port "violent and disturbing images" warning.
  *
  * Renders the 2ZANKO_E warning image full-screen with a fade-in, mirroring

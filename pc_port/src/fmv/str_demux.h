@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* str_demux.h — Silent Hill FMV stream demuxer.
  *
  * Silent Hill stores its FMV files (C1, C2, M1..ME, Z1..ZZ) inside the

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Interactive console command execution (see dbg_overlay.c for the input
  * mode itself). Commands arrive as a single uppercase line ("GIVE SHOTGUN");
  * output goes back through DbgOverlay_PushLine.

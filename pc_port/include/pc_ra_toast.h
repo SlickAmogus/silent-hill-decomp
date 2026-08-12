@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * pc_ra_toast.h - animated achievement-unlock toast.
  *

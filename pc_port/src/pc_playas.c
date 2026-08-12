@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Play as another character — groundwork for character selection.
  *
  * Route: retarget CHARA_FILE_INFOS[Chara_Harry].modelFileIdx/textureFileIdx

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef CONTROL_STYLE_H
 #define CONTROL_STYLE_H
 

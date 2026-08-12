@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef PC_PORT_XA_PLAYER_H
 #define PC_PORT_XA_PLAYER_H
 

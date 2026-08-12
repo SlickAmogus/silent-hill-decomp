@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Quick Save / Quick Load keys (default F6/F8; rebindable via config
  * key_quicksave/key_quickload). Always active — not gated behind
  * allow_debug_controls. Opens the original save/load screens through the

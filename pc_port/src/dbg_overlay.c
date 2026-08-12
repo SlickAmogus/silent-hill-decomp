@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "game.h"
 
 #ifdef SH_PC_PORT

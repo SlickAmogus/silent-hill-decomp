@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Oversized loose character models — Stage 1 loader.
  *
  * Registry of oversized gamedata/load/ ILM replacements, keyed by

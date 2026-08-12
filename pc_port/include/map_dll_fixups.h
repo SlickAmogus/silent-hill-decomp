@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * map_dll_fixups.h — Workarounds for Windows DLL initializer limitations.
  *

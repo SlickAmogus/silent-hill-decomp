@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Oversized loose ITEM TMDs — the item-model twin of pc_big_lm.c.
  *
  * GameFs_UniqueItemModelLoad (item_screens_3.c) reads EVERY unique

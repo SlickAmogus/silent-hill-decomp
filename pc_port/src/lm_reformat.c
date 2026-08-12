@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * lm_reformat.c - Reformat PSX 32-bit binary structs to 64-bit PC layout
  *

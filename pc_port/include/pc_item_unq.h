@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef PC_ITEM_UNQ_H
 #define PC_ITEM_UNQ_H
 

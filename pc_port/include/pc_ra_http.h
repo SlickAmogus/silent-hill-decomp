@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * pc_ra_http.h - blocking HTTP used by the RetroAchievements client.
  *

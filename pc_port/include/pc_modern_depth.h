@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef PC_MODERN_DEPTH_H
 #define PC_MODERN_DEPTH_H
 

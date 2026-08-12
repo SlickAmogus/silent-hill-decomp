@@ -50,7 +50,7 @@ originally developed and published by **Konami**.
   content are © Konami. Konami is not affiliated with this project and has not
   endorsed it.
 - The decompiled sources originate with the
-  [silent-hill-decomp](https://github.com/Vatuu/silent-hill-decomp) project and
+  [silent-hill-decomp](https://github.com/shdecompilations/silent-hill-decomp) project and
   its contributors, whose work is gratefully acknowledged.
 - **This project asserts no copyright over, and grants no license to, that
   material.** It is present because the port is built on it. Nothing in §1

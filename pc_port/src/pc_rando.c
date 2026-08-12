@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Randomizer gamemode. Config key `randomizer` (default 0); every entry point
  * is a no-op when it is off, so vanilla play is untouched.
  *

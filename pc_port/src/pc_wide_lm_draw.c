@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* v7 high-poly ILM — wide drawer.
  *
  * A faithful clone of the stock LIT character chain (func_8005A21C: the

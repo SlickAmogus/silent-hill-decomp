@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "xa_player.h"
 #include "pc_audio_config.h"
 

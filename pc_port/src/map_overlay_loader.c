@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * map_overlay_loader.c — Dynamic map overlay loading via DLLs
  *

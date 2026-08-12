@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* mdec.h — PSX MDEC (Motion Decoder) for STR FMV decoding.
  *
  * Decodes a complete VLC-compressed MDEC bitstream (as produced by

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * sh_log.h - Simple logging for Silent Hill PC port
  */

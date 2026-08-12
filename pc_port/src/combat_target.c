@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* func_8005CD38 - target acquisition + vertical aim angle.
  *
  * Original was MIPS asm (INCLUDE_ASM at bodyprog_combat_8005BF38.c:169).

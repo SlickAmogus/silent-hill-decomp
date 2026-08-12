@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * dms_reformat.c - Reformat PSX 32-bit DMS binary data to 64-bit PC layout
  *

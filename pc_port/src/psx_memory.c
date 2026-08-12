@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * psx_memory.c - PSX memory layout emulation for PC port
  *

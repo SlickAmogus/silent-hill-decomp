@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * libapi_stub.c - PSX kernel API stubs (PC-specific shims only)
  *

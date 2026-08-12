@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* as_rodata_reformat.c — translate the Air Screamer per-keyframe AI rodata
  * from PSX layout to PC layout at startup.
  *

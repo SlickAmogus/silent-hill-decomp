@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "pc_item_unq.h"
 
 #ifdef SH_PC_PORT

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef PC_DISCORD_IPC_H
 #define PC_DISCORD_IPC_H
 

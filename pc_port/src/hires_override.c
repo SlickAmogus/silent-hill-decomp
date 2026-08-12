@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "hires_override.h"
 #include "dds_load.h"
 #include "texpack_lazy.h"

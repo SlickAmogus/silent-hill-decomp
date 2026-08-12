@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* BC7 .dds upload for texture mods.
  *
  * A pack texture costs 4 bytes/texel as RGBA8, plus a third again for the mip

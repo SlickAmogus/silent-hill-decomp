@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * libsnd_stub.c - Sound library stub implementations
  *

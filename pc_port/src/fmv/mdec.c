@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* mdec.c — PSX MDEC decoder (intra-only MPEG-1 variant).
  *
  * Pipeline per macroblock:

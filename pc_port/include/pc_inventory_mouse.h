@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef PC_INVENTORY_MOUSE_H
 #define PC_INVENTORY_MOUSE_H
 

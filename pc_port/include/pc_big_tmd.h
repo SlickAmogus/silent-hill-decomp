@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef PC_BIG_TMD_H
 #define PC_BIG_TMD_H
 

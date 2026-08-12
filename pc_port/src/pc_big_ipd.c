@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Oversized loose map chunks (the .IPD files under BG).
  *
  * A chunk slot is a fixed destination buffer: either a slice of the shared

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef TEX_PACK_H
 #define TEX_PACK_H
 

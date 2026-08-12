@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Config-only PC minimap overlay (corner/shape/opacity configurable).
  *
  * Drawn with PSX PRIMITIVES into the game's own display list — the same path

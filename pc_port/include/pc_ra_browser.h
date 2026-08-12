@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * pc_ra_browser.h - the main-menu achievement browser.
  *

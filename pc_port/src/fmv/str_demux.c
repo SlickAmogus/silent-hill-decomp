@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* str_demux.c — Silent Hill FMV stream demuxer.
  *
  * Reads consecutive Mode 2 Form 2 data sectors from the disc image at a

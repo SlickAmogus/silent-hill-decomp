@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "map_registry.h"
 #include "map_overlay_loader.h"
 #include "pc_config.h"

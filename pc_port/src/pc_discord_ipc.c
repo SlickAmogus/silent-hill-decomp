@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Discord IPC transport (see pc_discord_ipc.h). Isolated TU: the Windows path
  * pulls in <windows.h>, whose `byte` typedef clashes with the decomp's, so no
  * game/decomp headers may be included here (same split as pc_crash.c).

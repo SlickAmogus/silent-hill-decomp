@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* v7 high-poly ILM — detection + parse + registry + lifetime (no draw yet).
  *
  * Pc_WideLm_Parse is the v7 arm of LmHeader_FixOffsets_PC: it reformats the

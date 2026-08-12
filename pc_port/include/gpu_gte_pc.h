@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * gpu_gte_pc.h - PC replacements for Silent Hill's custom GTE inline assembly macros
  *

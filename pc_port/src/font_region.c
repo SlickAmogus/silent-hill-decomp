@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "font_region.h"
 
 #include <string.h> /* memcpy */

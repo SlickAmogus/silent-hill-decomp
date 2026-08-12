@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Camera / control-style system — see control_style.h.
  *
  * Replaces the old debug-only Numpad-2 TPS toggle. The active style comes from

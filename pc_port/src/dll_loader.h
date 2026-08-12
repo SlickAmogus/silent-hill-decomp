@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * dll_loader.h — Thin OS abstraction for loading shared libraries.
  *

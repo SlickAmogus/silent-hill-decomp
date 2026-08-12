@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Bullet-hole decals — see pc_decals.h for the system overview.
  *
  * Render path mirrors the blood-splat drawer (func_80062708): world-space

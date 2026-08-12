@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * main_pc.c - Silent Hill PC Port entry point
  *

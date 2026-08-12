@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * libgs_stub.c - GS (Graphics System) library stub implementations
  *

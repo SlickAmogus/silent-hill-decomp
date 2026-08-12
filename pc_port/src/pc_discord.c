@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Discord Rich Presence for the PC port. Shows the player's current Silent Hill
  * area (from g_SavegamePtr->mapIdx) on their Discord profile, with the project's
  * "cheryl" art asset as the large image.

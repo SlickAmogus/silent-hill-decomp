@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* PC port: mouse control for the inventory screen.
  *
  * Same contract as the other menu mouse layers (options, save/load, title):

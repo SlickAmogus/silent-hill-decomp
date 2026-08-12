@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * ipd_reformat.c - Reformat PSX 32-bit IPD binary to 64-bit PC struct layout
  *

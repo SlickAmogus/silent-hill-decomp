@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef MAP_REGISTRY_H
 #define MAP_REGISTRY_H
 

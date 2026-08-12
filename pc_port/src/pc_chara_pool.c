@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Global character/asset pool — any monster spawnable in any map.
  *
  * A monster is visible/functional only when three per-charaId registries are

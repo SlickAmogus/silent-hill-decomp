@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef static_assert
 #define static_assert _Static_assert
 #endif

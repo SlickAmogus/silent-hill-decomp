@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "game.h"
 #include "bodyprog/math/fixed_point.h"
 #include "bodyprog/screen/screen_data.h"

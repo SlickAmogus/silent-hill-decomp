@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 #ifndef DBG_OVERLAY_H
 #define DBG_OVERLAY_H
 

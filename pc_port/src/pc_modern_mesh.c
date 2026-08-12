@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Modern loose ITEM mesh loader and registry.
  *
  * Resolves a retail file-table index to the sibling

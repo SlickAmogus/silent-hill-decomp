@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Center crosshair drawn while aiming in TPS / OTS (always in FPS), gated by the
  * `crosshair` config option; `crosshair_style` selects the shape. A small
  * translucent white 2D overlay, modeled on the cutscene-border draw: centered

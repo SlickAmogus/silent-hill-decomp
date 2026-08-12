@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Auto-generated data stubs for unresolved symbols */
 #include <string.h>
 

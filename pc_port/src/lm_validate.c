@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* lm_validate.c - raw ILM/PLM validator shared by pc_big_lm.c, lm_reformat.c,
  * the offline harness and the converter's Python twin (the rule table in the
  * Stage 1 spec is normative for both languages).

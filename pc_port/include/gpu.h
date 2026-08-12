@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
  * gpu.h - PC port override for the decomp's gpu.h
  *

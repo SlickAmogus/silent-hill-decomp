@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
 /* PC port: mouse control for cursor-driven puzzles + a clickable main menu.
  * See pc_mouse_cursor.h for the design. */
 #include "game.h"
