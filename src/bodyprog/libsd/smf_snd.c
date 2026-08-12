@@ -8,6 +8,10 @@
 
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/libsd.h"
+#ifdef SH_PC_PORT
+#include "bodyprog/sound/sound_system.h" /* g_Sd_VabTargetLoad — the bank's sector */
+#include "pc_sfx_override.h"
+#endif
 
 VAB_H        vab_h[SD_VAB_SLOTS];
 u8           sd_vb_malloc_rec[136];
@@ -789,6 +793,20 @@ s16 SdVabTransBody(u8* addr, s16 vabid) // 0x8009FD38
 #ifdef SH_PC_PORT
             SH_DBG("[SH_AUDIO] SdVabTransBody: vabid=%d size=%d spu_addr=0x%x OK",
                     vabid, vab_h[vabid].vb_size_14, vab_h[vabid].vb_start_addr_10);
+            /* The body has just landed in SPU RAM, so every sample's address is
+             * now known — the only moment loose replacements can be bound to
+             * the addresses voices will actually play from. */
+            {
+                /* sound_system.h only declares this inside BSS_HACK_SD_CALL_C,
+                 * so it is visible in sd_call.c and nowhere else; the global
+                 * itself is ordinary. */
+                extern s_AudioItemData* g_Sd_VabTargetLoad;
+
+                Pc_SfxOverride_OnBankLoaded(vab_h[vabid].vh_addr_4,
+                                            vab_h[vabid].vb_start_addr_10,
+                                            g_Sd_VabTargetLoad != NULL
+                                                ? g_Sd_VabTargetLoad->fileOffset_8 : 0);
+            }
 #endif
             return vab_h_id;
         }
