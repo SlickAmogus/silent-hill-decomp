@@ -150,16 +150,17 @@ namespace SilentHillPC_Launcher
             // window for the same extract flow (OnDragDrop).
             var btnEx = new Button { Text = "Extract BIN…", Location = new Point(510, 194), Size = new Size(78, 28) };
             var btnVw = new Button { Text = "Model Viewer", Location = new Point(510, 226), Size = new Size(78, 28) };
-            var btnTp = new Button { Text = "TIM → PNG…",   Location = new Point(510, 258), Size = new Size(78, 28) };
-            var btnBp = new Button { Text = "Bulk → PNG…",  Location = new Point(510, 290), Size = new Size(78, 28) };
-            var btnRef = new Button { Text = "Reference ▾", Location = new Point(510, 322), Size = new Size(78, 28) };
-            var btnReb = new Button { Text = "Rebuild…",    Location = new Point(510, 354), Size = new Size(78, 28) };
+            var btnAu = new Button { Text = "Audio",        Location = new Point(510, 258), Size = new Size(78, 28) };
+            var btnTp = new Button { Text = "TIM → PNG…",   Location = new Point(510, 290), Size = new Size(78, 28) };
+            var btnBp = new Button { Text = "Bulk → PNG…",  Location = new Point(510, 322), Size = new Size(78, 28) };
+            var btnRef = new Button { Text = "Reference ▾", Location = new Point(510, 354), Size = new Size(78, 28) };
+            var btnReb = new Button { Text = "Rebuild…",    Location = new Point(510, 386), Size = new Size(78, 28) };
             // Characters and item models are different formats with different rules,
             // so each direction is a dropdown rather than a button per combination —
             // the tool column has no room left, and the DDS button below already
             // establishes the pattern.
-            var btnMo = new Button { Text = "Model → OBJ ▾", Location = new Point(510, 386), Size = new Size(78, 28) };
-            var btnOm = new Button { Text = "OBJ → Model ▾", Location = new Point(510, 418), Size = new Size(78, 28) };
+            var btnMo = new Button { Text = "Model → OBJ ▾", Location = new Point(510, 418), Size = new Size(78, 28) };
+            var btnOm = new Button { Text = "OBJ → Model ▾", Location = new Point(510, 450), Size = new Size(78, 28) };
             var moMenu = new ContextMenuStrip();
             moMenu.Items.Add("Character (.ILM / .PLM)…", null, (s, e) => OnExportModel());
             moMenu.Items.Add("Item model (.TMD)…",       null, (s, e) => ConverterActions.ExportTmd(this, _gameRoot));
@@ -168,7 +169,7 @@ namespace SilentHillPC_Launcher
             omMenu.Items.Add("Character — simple…",    null, (s, e) => ConverterActions.SimpleImport(this, _gameRoot));
             omMenu.Items.Add("Item model (.TMD) — reshape…", null, (s, e) => ConverterActions.ImportTmd(this, _gameRoot));
             omMenu.Items.Add("Item model (.TMD) — replace…", null, (s, e) => ConverterActions.RebuildTmd(this, _gameRoot));
-            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 450), Size = new Size(78, 28) };
+            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 482), Size = new Size(78, 28) };
             _btnTips = new ToolTip();
             _btnTips.SetToolTip(btnEx, "Unpack a Silent Hill .bin disc image into the loose asset tree.");
             _btnTips.SetToolTip(btnTp, "Convert individual .TIM texture files to .png.");
@@ -191,6 +192,9 @@ namespace SilentHillPC_Launcher
             _btnTips.SetToolTip(btnVw, "Model Viewer: a 3D window for .ILM characters (with .ANM animation playback), " +
                 ".PLM props, .TMD items and edited .obj files — textured with their real in-game palettes. " +
                 "Open models from its File menu or drag & drop them onto it.");
+            _btnTips.SetToolTip(btnAu, "Audio: browse a .VAB sound bank, play the sounds inside it, and export them " +
+                "as .wav or raw .vag. The banks live in SND/ inside an extracted disc. " +
+                "Open a bank from its File menu or drag & drop one onto it.");
             _btnTips.SetToolTip(btnHelp, "How to make and install loose-file texture mods.");
             btnEx.Click += (s, e) => OnExtractBin();
             btnTp.Click += (s, e) => OnConvertTim();
@@ -203,6 +207,7 @@ namespace SilentHillPC_Launcher
             btnMo.Click += (s, e) => moMenu.Show(btnMo, new Point(0, btnMo.Height));
             btnOm.Click += (s, e) => omMenu.Show(btnOm, new Point(0, btnOm.Height));
             btnVw.Click += (s, e) => OnViewModel();
+            btnAu.Click += (s, e) => OnAudioTool();
             btnHelp.Click += (s, e) => ShowLooseModHelp();
             Controls.Add(btnEx);
             Controls.Add(btnTp);
@@ -212,11 +217,12 @@ namespace SilentHillPC_Launcher
             Controls.Add(btnMo);
             Controls.Add(btnOm);
             Controls.Add(btnVw);
+            Controls.Add(btnAu);
             Controls.Add(btnHelp);
 
             // BC7 .dds tooling (texconv). One button, a dropdown of actions —
             // like the OBJ pair, but grouped since they share the same converter.
-            var btnDds = new Button { Text = "DDS ▾", Location = new Point(510, 482), Size = new Size(78, 28) };
+            var btnDds = new Button { Text = "DDS ▾", Location = new Point(510, 514), Size = new Size(78, 28) };
             var ddsMenu = new ContextMenuStrip();
             ddsMenu.Items.Add("PNG → BC7 DDS…",       null, (s, e) => OnDdsEncode());
             ddsMenu.Items.Add("DDS → PNG…",           null, (s, e) => OnDdsDecode());
@@ -264,7 +270,7 @@ namespace SilentHillPC_Launcher
             CancelButton = btnClose;
 
             FitToolColumn(
-                new[] { btnUp, btnDn, btnRe, btnOp, btnEx, btnVw, btnTp, btnBp,
+                new[] { btnUp, btnDn, btnRe, btnOp, btnEx, btnVw, btnAu, btnTp, btnBp,
                         btnRef, btnReb, btnMo, btnOm, btnHelp, btnDds },
                 new[] { btnApply, btnClose },
                 new Control[] { help, _ffmpegRow });
@@ -1263,6 +1269,13 @@ namespace SilentHillPC_Launcher
         private void OnViewModel()
         {
             ConverterActions.OpenModelViewer(this, _gameRoot);
+        }
+
+        /// <summary>"Audio" button: show the reusable sound-bank window, empty — banks
+        /// open from its File menu or by drag &amp; drop, same as the Model Viewer.</summary>
+        private void OnAudioTool()
+        {
+            ConverterActions.OpenAudioTool(this, _gameRoot);
         }
 
         /// <summary>Best-effort guess of the texture or model a reference PNG came from

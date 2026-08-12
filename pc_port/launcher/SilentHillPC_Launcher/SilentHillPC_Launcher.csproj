@@ -92,6 +92,10 @@
     <Compile Include="ModelViewerForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="VabFile.cs" />
+    <Compile Include="AudioToolForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="ControlsForm.cs">
       <SubType>Form</SubType>
     </Compile>

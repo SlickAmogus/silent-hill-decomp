@@ -623,6 +623,37 @@ namespace SilentHillPC_Launcher
             ModelViewerForm.Open(owner, null, gameRoot);
         }
 
+        /// <summary>Sound-bank browser. Starts in the extracted SND/ folder when one is
+        /// findable, since that is where all 90 banks live and hunting for it by hand is
+        /// the first thing every user would otherwise have to do.</summary>
+        public static void OpenAudioTool(IWin32Window owner, string gameRoot)
+        {
+            AudioToolForm.ShowTool(owner, GuessSoundDir(gameRoot));
+        }
+
+        private static string GuessSoundDir(string gameRoot)
+        {
+            if (string.IsNullOrEmpty(gameRoot)) return null;
+
+            string data = Path.Combine(gameRoot, "gamedata");
+            if (!Directory.Exists(data)) return Directory.Exists(gameRoot) ? gameRoot : null;
+
+            // An extract is named after the disc, so the SND/ folder sits under a
+            // sibling whose name we cannot predict — take the first one that has it.
+            try
+            {
+                foreach (string sub in Directory.GetDirectories(data))
+                {
+                    string snd = Path.Combine(sub, "SND");
+                    if (Directory.Exists(snd)) return snd;
+                }
+            }
+            catch { }
+
+            string load = Path.Combine(data, "load");
+            return Directory.Exists(load) ? load : data;
+        }
+
         // ---- helpers moved verbatim from ModManagerForm -------------------------
 
         /// <summary>Delete a scratch file, ignoring anything that goes wrong — the caller is
