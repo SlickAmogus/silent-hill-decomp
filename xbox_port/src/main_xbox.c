@@ -175,7 +175,20 @@ int main(void)
          * game drive is how a user tunes anything; absent, PC's defaults apply.
          * Xbox overrides run AFTER, pinning the settings the console cannot
          * afford (see XboxConfig_ApplyOverrides). */
-        PcConfig_Load("D:\\silenthill.cfg");
+        /* Q: (the xbe's own directory) rather than D:. D: is whatever the
+         * DASHBOARD left it pointing at — the launch dir if the remap above took,
+         * the empty DVD tray otherwise — and on the tray the config reads as
+         * absent (settings silently revert to defaults) while every write from
+         * the options menu fails (nothing persists). pc_config remembers the load
+         * path and saves back to it, so pointing the LOAD at Q: fixes both halves.
+         * Falls back to D: only if Q: could not be mounted at all. */
+        {
+            extern int  Cd_XboxMountHome(void);   /* cd_xbox.c */
+            const char* cfgPath = Cd_XboxMountHome() ? "Q:\\silenthill.cfg"
+                                                     : "D:\\silenthill.cfg";
+            SH_DBG("[CFG] config file: %s", cfgPath);
+            PcConfig_Load(cfgPath);
+        }
         XboxConfig_ApplyOverrides();
 
         /* Video mode chosen HERE, after the config is parsed, so the persisted

@@ -66,6 +66,37 @@ static void Cd_SetStreamBuffer(void)
         setvbuf(s_bin, s_binStdioBuf, _IOFBF, sizeof(s_binStdioBuf));
 }
 
+/* Mount Q: = the XBE's OWN directory. Idempotent, independent of D:, and safe to
+ * call before anything else is up — it is only a filesystem mapping.
+ *
+ * Split out of Cd_XboxInit so the CONFIG can use it too. silenthill.cfg was read
+ * from "D:\\", and D: is whatever the DASHBOARD left it pointing at: the launch
+ * dir if XboxFs_MountHomeDrive's remap took, the empty DVD tray otherwise. When
+ * it is the tray the config silently reads as absent (every setting reverts to
+ * defaults) AND every write from the options menu fails (nothing persists) —
+ * exactly the "wrong settings / didn't save" pair. The BIN already moved to Q:
+ * for this reason; the config had been left behind. */
+int Cd_XboxMountHome(void)
+{
+    static int s_mounted = -1;
+
+    if (s_mounted >= 0)
+        return s_mounted;
+    {
+        char  home[MAX_PATH];
+        char* ls;
+
+        nxGetCurrentXbeNtPath(home);
+        ls = strrchr(home, '\\');
+        if (ls) *(ls + 1) = '\0';
+        if (!nxIsDriveMounted('Q'))
+            nxMountDrive('Q', home);
+        s_mounted = nxIsDriveMounted('Q') ? 1 : 0;
+        SH_DBG("[CD] xbe dir = '%s' (Q: %s)", home, s_mounted ? "mounted" : "MOUNT FAILED");
+    }
+    return s_mounted;
+}
+
 void Cd_XboxInit(void)
 {
     /* Q: = the XBE's OWN directory, mounted here to a PRIVATE drive letter via
@@ -93,17 +124,7 @@ void Cd_XboxInit(void)
     if (s_bin)
         return;
 
-    /* Mount Q: to the launch dir (idempotent; independent of D:). */
-    {
-        char home[MAX_PATH];
-        char* ls;
-        nxGetCurrentXbeNtPath(home);
-        ls = strrchr(home, '\\');
-        if (ls) *(ls + 1) = '\0';
-        if (!nxIsDriveMounted('Q'))
-            nxMountDrive('Q', home);
-        SH_DBG("[CD] xbe dir = '%s' (mounted Q:)", home);
-    }
+    Cd_XboxMountHome();
 
     for (i = 0; i < sizeof(names) / sizeof(names[0]); i++) {
         s_bin = fopen(names[i], "rb");

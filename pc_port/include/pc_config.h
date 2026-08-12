@@ -128,6 +128,9 @@ typedef struct {
     int immersiveFpsHeadTracking; /* 1 = FPS view direction follows Harry's animated head-bone rotation (idle sway/lean), mouse layered on top (config key: immersive_fps_head_tracking) */
     int control2d;          /* 1 = 2D screen-relative movement (input aligns with the camera; Harry turns to face the move direction) under ALL non-FPS camera styles (config key: control_2d) — an Experiment, off by default */
     int control2dSnap;      /* 1 = 2D control snaps Harry instantly to the input direction instead of turning into it (config key: control_2d_snap); default 0 */
+    int bwQuickSave;        /* Xbox: 1 = the BLACK/WHITE buttons run quick save / quick load
+                             * instead of their normal step-left/step-right (L1/R1) mapping;
+                             * 0 = keep stepping (config key: bw_quick_save); default 0 */
     int disableDpadMovement; /* 1 = the controller D-pad no longer drives movement, freeing those D-pad inputs to be bound to other actions (config key: disable_dpad_movement); default 0 */
     int menuFilter;          /* 1 = bilinear-filter menus / 2D screens, independent of the in-game texture Filtering mode; default 0 (config key: menu_filter) */
     int   adsr;             /* 1 = SPU ADSR envelopes (instrument attack/release fades in sequenced BGM); default 1 (config key: adsr) */

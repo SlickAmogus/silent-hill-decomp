@@ -65,6 +65,7 @@ s_PcConfig g_PcConfig = {
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .control2dSnap           = 0, /* 2D control turns into the direction (0), doesn't snap */
+    .bwQuickSave             = 0, /* black/white keep their step-left/right mapping */
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
@@ -847,6 +848,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "control_2d_snap") == 0)
         {
             g_PcConfig.control2dSnap = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "bw_quick_save") == 0)
+        {
+            g_PcConfig.bwQuickSave = (atoi(value) != 0);
         }
         else if (strcmp(key, "disable_dpad_movement") == 0)
         {

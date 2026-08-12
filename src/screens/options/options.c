@@ -106,7 +106,7 @@ static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Cont
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_CAMSTYLE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_EXITMENU, PCK_RASTATUS };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_CAMSTYLE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_EXITMENU, PCK_RASTATUS, PCK_QSAVE, PCK_QLOAD };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -271,11 +271,13 @@ static const s_PcOpt PCOPT_X[] = {
  * to always show it. */
 static const s_PcOpt PCOPT_X2[] = {
     { "2D_Controls",     &g_PcConfig.control2d,         "control_2d",          VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
-    { "2D_Snap_Turn",    &g_PcConfig.control2dSnap,     "control_2d_snap",     VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Minimap",         &g_PcConfig.minimap,           "minimap",             VAL_MMMODE,  3, LBL_MMMODE,  NULL,            1, PCK_INT      },
     { "Minimap_Corner",  &g_PcConfig.minimapCorner,     "minimap_corner",      VAL_MMCNR,   4, LBL_MMCNR,   NULL,            1, PCK_INT      },
     { "Minimap_Scale",   NULL, "minimap_scale",   NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapScale,   NULL, MINIMAP_SCALE_MIN, MINIMAP_SCALE_MAX, 5.0f },
     { "Minimap_Opacity", NULL, "minimap_opacity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapOpacity, NULL, 0.0f, 100.0f, 5.0f },
+    { "Quick_Save",      NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_QSAVE    },
+    { "Quick_Load",      NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_QLOAD    },
+    { "B/W_Quick_Save/Load", &g_PcConfig.bwQuickSave,   "bw_quick_save",       VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Prev_Page",       NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_PREV     },
     { "Back",            NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_BACK     },
 };
@@ -629,6 +631,25 @@ void Options_PcOptionsMenu_Control(void)
                     return;
                 }
                 Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
+            } else if (sel->kind == PCK_QSAVE || sel->kind == PCK_QLOAD) {
+                /* Queue the request and leave the menu the way Back does. The
+                 * transition itself is NOT done here: quicksave_xbox.c runs it
+                 * from the main loop, in gameplay with the fs queue idle, which
+                 * is the state the PC port proved for this sequence. Options is
+                 * reached in-game through the inventory, so it fires as soon as
+                 * those close; from the main menu the request simply never
+                 * matches its gameplay gate and is dropped. */
+                extern void Xbox_QuickSaveRequest(void);
+                extern void Xbox_QuickLoadRequest(void);
+                if (sel->kind == PCK_QSAVE) Xbox_QuickSaveRequest();
+                else                        Xbox_QuickLoadRequest();
+                Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                ScreenFade_Start(true, false, false);
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_LeavePcOptions;
+                g_SysWork.counters_1C[1]     = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
+                return;
             } else if (sel->kind == PCK_RASTATUS) {
                 /* RA status / notification self-test. Pc_Ra_StatusToast OWNS the
                  * sound for this row: when signed in it fires the full mock unlock

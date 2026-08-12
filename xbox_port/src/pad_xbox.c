@@ -22,6 +22,7 @@
 #include <xid_driver.h>
 #include <hal/xbox.h>   /* XLaunchXBE / XReboot for the soft reset */
 #include "sh_log.h"
+#include "pc_config.h"   /* bw_quick_save: black/white become quick save/load */
 
 static unsigned char* s_padBuf  = 0;
 static xid_dev_t*     s_xid      = 0;
@@ -193,8 +194,14 @@ void Pad_Poll(void)
         if (s_report.b     > 0x20) PRESS(13);  /* B     -> Circle   */
         if (s_report.x     > 0x20) PRESS(15);  /* X     -> Square   */
         if (s_report.y     > 0x20) PRESS(12);  /* Y     -> Triangle */
-        if (s_report.white > 0x20) PRESS(10);  /* White -> L1       */
-        if (s_report.black > 0x20) PRESS(11);  /* Black -> R1       */
+        /* White/Black normally map to L1/R1 = step left / step right. With
+         * bw_quick_save on they become quick save / quick load
+         * (quicksave_xbox.c) and must STOP emitting L1/R1, or every quick save
+         * would sidestep at the same time. */
+        if (!g_PcConfig.bwQuickSave) {
+            if (s_report.white > 0x20) PRESS(10);  /* White -> L1       */
+            if (s_report.black > 0x20) PRESS(11);  /* Black -> R1       */
+        }
         if (s_report.l     > 0x20) PRESS(8);   /* LTrig -> L2       */
         if (s_report.r     > 0x20) PRESS(9);   /* RTrig -> R2       */
         /* Left analog stick -> d-pad directions: walk/turn with the stick in
@@ -280,6 +287,21 @@ void Pad_Poll(void)
     } else {
         Pad_FillIdle(s_padBuf);
     }
+}
+
+/* Raw BLACK/WHITE analog-button state, for quicksave_xbox.c. Reported straight
+ * from the pad rather than through the PSX button word because with
+ * bw_quick_save on these deliberately no longer appear there. Same 0x20
+ * threshold the button mapping uses. Returns 0 when no pad has reported. */
+int Pad_XboxBlackWhite(int* black, int* white)
+{
+    if (black) *black = 0;
+    if (white) *white = 0;
+    if (!s_xid || !s_haveReport)
+        return 0;
+    if (black) *black = (s_report.black > 0x20);
+    if (white) *white = (s_report.white > 0x20);
+    return 1;
 }
 
 /* Raw PSX digitalButtons (active-low, bit layout above) for pollers that run

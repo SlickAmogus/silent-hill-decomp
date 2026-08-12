@@ -53,7 +53,7 @@ void HiresOverride_RegisterFromTim(void){ }
 void Pc_ConsoleApplyPendingFlags(void)  { }
 void Pc_ConsoleFmvUpdate(void)          { }
 void Pc_PlayWarningScreen(void)         { }
-void Pc_QuickSaveLoadUpdate(void)       { }
+/* Pc_QuickSaveLoadUpdate: real implementation in quicksave_xbox.c. */
 int  PC_PlayerManualReloadRequested(void){ return 0; }
 /* PC_Tick30HzReady: real implementation now comes from pc_timing.c — the old
  * return-0 stub silently broke the combat attack latch (tap=slash/hold=jab),
