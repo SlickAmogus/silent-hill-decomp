@@ -31,9 +31,12 @@ static int            s_haveReport = 0;
 /* Set once a stick has been observed inside its deadzone — see Pad_Poll. */
 static int            s_lStickArmed = 0, s_rStickArmed = 0;
 
-/* Rumble target set by PadSetAct (game loop), sent by Pad_Poll (USB-safe). */
-static unsigned s_wantRumbleL = 0, s_wantRumbleH = 0;
-static int      s_rumbleValid = 0;
+/* Rumble target sampled per frame by Pad_Poll (USB-safe) out of the PSX actuator
+ * buffer PadSetAct registered. */
+static unsigned       s_wantRumbleL = 0, s_wantRumbleH = 0;
+static int            s_rumbleValid = 0;
+static unsigned char* s_actTable    = 0;   /* live PSX actuator bytes */
+static int            s_actLen      = 0;
 
 static void Pad_FillIdle(unsigned char* b)
 {
@@ -161,6 +164,25 @@ void Pad_Poll(void)
      * on a change. */
     if (s_rumbleValid && s_xid) {
         static unsigned s_lastL = 0xFFFFFFFFu, s_lastH = 0xFFFFFFFFu;
+
+        /* Sample the PSX actuator buffer LIVE — the engine writes into it every
+         * frame without re-calling PadSetAct (see there). table[0] = small
+         * (high-freq) motor 0/1, table[1] = large (low-freq) motor 0-255.
+         * usbh_xid_rumble(l, h) takes 0..65535, so *255, with PsyCross's
+         * minimal-shake clamp so a barely-nonzero value still moves the motor. */
+        {
+            unsigned h = 0, l = 0;
+
+            if (s_actTable && s_actLen > 0) {
+                h = (unsigned)s_actTable[0] * 255u;
+                if (s_actLen > 1) l = (unsigned)s_actTable[1] * 255u;
+                if (l != 0 && l < 4096) l = 4096;
+                if (h != 0 && h < 4096) h = 4096;
+            }
+            s_wantRumbleL = l;
+            s_wantRumbleH = h;
+        }
+
         if (s_wantRumbleL != s_lastL || s_wantRumbleH != s_lastH) {
             static int s_firstBuzz = 0;
             if ((s_wantRumbleL || s_wantRumbleH) && !s_firstBuzz) {
@@ -330,23 +352,30 @@ int PadChkVsync(void)      { return 1; }
 
 void PadSetAct(int socket, unsigned char* table, int len)
 {
-    /* PSX actuator bytes: table[0] = small (high-freq) motor 0/1, table[1] =
-     * large (low-freq) motor 0-255. usbh_xid_rumble(l,h): l = low/large motor,
-     * h = high/small motor, 0..65535. Mirror PsyCross's *255 scale + minimal-
-     * shake clamp. The motor state HOLDS until set again, so an idle {0,0}
-     * (which the engine sends every frame with no active effect) stops it;
-     * only touch the USB bus on a change. */
-    unsigned h = (table && len > 0) ? (unsigned)table[0] * 255u : 0u;
-    unsigned l = (table && len > 1) ? (unsigned)table[1] * 255u : 0u;
+    /* REGISTER THE BUFFER, do not sample it.
+     *
+     * On PSX this hands libpad a POINTER that the pad DMA re-sends every frame:
+     * the engine then just writes new actuator bytes into that buffer and the
+     * hardware picks them up, WITHOUT calling PadSetAct again. func_8009E61C
+     * relies on exactly that — its `field_0_23` latch means PadSetAct is called
+     * only on configuration edges, not per effect. Sampling table[] here
+     * therefore captured whatever the buffer held at that one instant (zero) and
+     * held it forever, which is why rumble never fired once in a 65k-line
+     * session with combat: not one [VIB] line. Pad_Poll now reads the live bytes
+     * out of this buffer each frame.
+     *
+     * The buffer is &g_SysWork.field_2514.actuatorData_4 — a persistent global,
+     * so the pointer stays valid. len 0 means "actuators off" on PSX. */
     (void)socket;
-    if (l != 0 && l < 4096) l = 4096;
-    if (h != 0 && h < 4096) h = 4096;
-    /* Do NOT touch USB here. PadSetAct runs from the game loop (vibration engine
-     * pump), which is NOT the USB-polling context — usbh_xid_write from here can
-     * submit a transfer that only completes when usbh_pooling_hubs runs (in
-     * Pad_Poll), a cross-context stall. Just record the target; Pad_Poll sends it
-     * from the safe context. Change-detected there (motor state holds). */
-    s_wantRumbleL = l;
-    s_wantRumbleH = h;
+    s_actTable    = table;
+    s_actLen      = len;
     s_rumbleValid = 1;
+    {
+        static int s_logged = 0;
+        if (!s_logged) {
+            s_logged = 1;
+            SH_DBG("[VIB] PadSetAct registered: table=%p len=%d (buffer is polled live)",
+                   (void*)table, len);
+        }
+    }
 }

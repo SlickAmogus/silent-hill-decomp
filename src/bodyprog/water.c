@@ -700,6 +700,20 @@ void func_8008E5B4(void) // 0x8008E5B4
     s32              temp_v0;
     s_func_8008E5B4* packet;
 
+#ifdef SH_XBOX_PORT
+    /* This composites the scrolling tpage-45 caustic into an OFFSCREEN VRAM
+     * scratch (D_800AFDA4 = RECT 832,224 = tpage 13) via a private DrawOTag, and
+     * the water surface then samples tpage 13. The NV2A renders to a real
+     * surface, not into the emulated VRAM array, so there is no offscreen
+     * render-to-VRAM here: the generation quads leak straight onto the screen as
+     * the small animated grey square, permanently, for as long as water is in
+     * view. (At 720p it is squarely visible — VRAM x=832 falls inside a
+     * 1280-wide framebuffer.) Skip it, exactly as the PC port did before it grew
+     * an offscreen FBO path (46daf37f8): the VISIBLE reflection is
+     * func_8008E794, which samples tpage 45 directly and is unaffected. */
+    return;
+#endif
+
     GetDrawEnv(&drawEnv);
     packet         = GsOUT_PACKET_P;
     GsOUT_PACKET_P = &packet[1];

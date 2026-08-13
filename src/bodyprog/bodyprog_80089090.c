@@ -84,6 +84,21 @@ s32 func_80089128(void) // 0x80089128
         func_800890B8();
     }
 
+#ifdef SH_XBOX_PORT
+    /* The other thing that can silence rumble besides the pad plumbing: this
+     * gate. It is the in-game Options "Vibration" row, it defaults ON
+     * (settings_reset.c) but is part of g_GameWork.config, which a loaded save
+     * restores — so a save made before rumble worked can carry it OFF. Logged on
+     * every change so one run says which of the two it was. */
+    {
+        static int s_lastVib = -1;
+        if ((int)g_GameWork.config.vibrationEnabled != s_lastVib) {
+            s_lastVib = (int)g_GameWork.config.vibrationEnabled;
+            SH_DBG("[VIB] vibrationEnabled = %d (0 = off; Options 'Vibration' row)", s_lastVib);
+        }
+    }
+#endif
+
     if (g_GameWork.config.vibrationEnabled)
     {
         func_8009E2A0(var_s2);
