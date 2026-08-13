@@ -1,6 +1,10 @@
-# Silent Hill AI-Assisted PC Port
+# Silent Hill — Native PC Port
 
-  This project started out as an experimental PC port built on top of the PSX decompilation, and has blossomed into a fully functional PC port with many new features, QoL enhancements, built-in mod support, an active community, and fan translation\multilingual support. It was built using PsyCross (PsyQ SDK Compatibility Layer originally for REDRIVER2), which we [now have our own fork of](https://github.com/SlickAmogus/PsyCross). The code for this PC port was built with heavy AI-Assistance from Claude Opus 4.6, 4.7, and the newer Fable model. However, care has been taken to leave the original game code intact everywhere possible, and to work around it where needed for the sake of the PC port. <br/>
+  **A native PC port built on the Silent Hill PSX decompilation.** The game runs as a real Windows/Linux executable compiled from decompiled C source — it is **not an emulator**, and it is **not a static recompilation**: no part of the original binary is translated by a tool. Working from human-decompiled source is what makes the deeper changes below possible at all, since features like widescreen, 60fps, alternate cameras, free aim, mod support and model replacement require editing the game's actual logic rather than working around translated machine code.
+
+  What started as an experiment has become a fully playable port with a large feature set, built-in mod support, an active community, and fan translation / multilingual support. It uses PsyCross (a PsyQ SDK compatibility layer originally written for REDRIVER2) as its hardware abstraction layer, which we [now maintain our own fork of](https://github.com/SlickAmogus/PsyCross); PsyCross reimplements the PSX libraries the game calls — libgpu, libgs, libspu — on top of SDL2, OpenGL and OpenAL. Care has been taken to leave the original game code intact wherever possible and to work around it where the port requires it, so game logic and feel still match the PSX original.
+
+  **Development is heavily AI-assisted** (Claude Opus 4.6, 4.7 and the newer Fable model), and we're open about that. It is not automated translation of the game: every change is a reviewed, hand-directed edit to real source, tested against the original behaviour.
 
   Project Website: https://sh1pc.com/ <br/>
   Discord: https://discord.gg/JWuNzVsQbr

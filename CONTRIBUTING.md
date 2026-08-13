@@ -1,6 +1,9 @@
 # Contributing
 
-Thanks for your interest in the **Silent Hill AI-Assisted PC Port**.
+Thanks for your interest in the **Silent Hill Native PC Port** — a PC port built on the
+Silent Hill PSX decompilation. It is not an emulator and not a static recompilation:
+the game is compiled from decompiled C source, so contributions are ordinary source
+changes to real code. Development is heavily AI-assisted, and we say so openly.
 
 ## Ownership & Governance
 
