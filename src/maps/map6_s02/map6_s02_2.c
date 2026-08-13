@@ -1516,6 +1516,29 @@ void func_800D2364(void) // 0x800D2364
 
     otIdx = 3;
 
+#ifdef SH_XBOX_PORT
+    /* THE LIGHTHOUSE WHITE-OUT (progression blocker).
+     *
+     * These two loops add SIX fullscreen TILEs -- 256x224 and 64x224 side by
+     * side, i.e. the whole 320-wide frame, twice over -- whose only purpose is to
+     * write the PSX MASK/STP BIT, which the pass below then tests. SetDrawStp
+     * (psx_libgpu_xbox.c) only stamps a valid OT tag here; the NV2A has no
+     * emulation of the PSX framebuffer's per-pixel STP bit, so nothing masks
+     * anything and all six rects simply PAINT -- a solid pair of blended
+     * rectangles covering the screen, forever, since they are re-added every
+     * frame. That is the reported "solid white in two pieces", and the flicker is
+     * ptr->field_68 flipping the pair's tpage every frame once EventFlag_412 is
+     * set. Skipping them costs the glow overlay and nothing else: the particle
+     * geometry below is ordinary prims and still draws, and the packet
+     * bookkeeping stays consistent because field_0/field_C simply start where
+     * field_4 did. Implementing the real STP bit is the proper fix and is a
+     * renderer-level project; this unblocks the ending. */
+    ptr->field_0 = ptr->field_4;
+    if (Savegame_EventFlagGet(EventFlag_412))
+    {
+        ptr->field_68 ^= 1;
+    }
+#else
     for (j = 0; j < 4; j++)
     {
         i = j & 1;
@@ -1562,6 +1585,7 @@ void func_800D2364(void) // 0x800D2364
         ptr->field_8++;
         ptr->field_0 = ptr->field_8;
     }
+#endif
 
     ptr->field_C = ptr->field_0;
 
