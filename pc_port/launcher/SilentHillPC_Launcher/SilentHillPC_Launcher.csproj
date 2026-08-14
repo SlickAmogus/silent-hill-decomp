@@ -106,6 +106,9 @@
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="UpdateChecker.cs" />
+    <Compile Include="LanguageDialog.cs" />
+    <Compile Include="Loc.cs" />
+    <Compile Include="Loc.Strings.cs" />
     <Compile Include="LauncherSettings.cs" />
     <Compile Include="ChangelogViewer.cs" />
     <Compile Include="BuildSettingsForm.cs">

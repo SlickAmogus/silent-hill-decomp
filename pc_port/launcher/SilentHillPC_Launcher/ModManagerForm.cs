@@ -51,6 +51,12 @@ namespace SilentHillPC_Launcher
             // Extraction/indexing happens after the window is up (with a progress
             // window) so opening the manager never freezes on a big archive.
             Shown += OnShownInitialLoad;
+
+            // Localize whatever Loc knows; anything it does not know keeps its
+            // English text, so this is safe to run over the whole window.
+            Loc.Apply(this);
+            Loc.Changed += OnLangChanged;
+            FormClosed += (s2, e2) => Loc.Changed -= OnLangChanged;
         }
 
         private void OnShownInitialLoad(object sender, EventArgs e)
@@ -94,6 +100,8 @@ namespace SilentHillPC_Launcher
                 "Mod Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
                 MessageBoxDefaultButton.Button2) == DialogResult.Yes;
         }
+
+        private void OnLangChanged() { Loc.Apply(this); }
 
         private void BuildUi()
         {

@@ -319,7 +319,7 @@ partial class Form1
             // 
             this.progUpdate.Location = new System.Drawing.Point(208, 456);
             this.progUpdate.Name = "progUpdate";
-            this.progUpdate.Size = new System.Drawing.Size(205, 16);
+            this.progUpdate.Size = new System.Drawing.Size(176, 16);
             this.progUpdate.TabIndex = 15;
             this.progUpdate.Visible = false;
             this.progUpdate.Click += new System.EventHandler(this.progUpdate_Click);

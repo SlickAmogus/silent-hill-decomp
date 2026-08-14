@@ -93,6 +93,7 @@ public partial class Form1 : Form
         PopulateDisplayOptions();
         LoadConfig();
         SetupTooltips();
+        SetupLanguageButton();
         this.Shown += (s, e) =>
         {
             CleanupOldFiles();
@@ -101,6 +102,73 @@ public partial class Form1 : Form
             FfmpegCheck.WarnIfNeeded(this, AppDomain.CurrentDomain.BaseDirectory);
             SilentAutoCheckForUpdates();
         };
+    }
+
+
+    // ---- launcher language -------------------------------------------------
+
+    private Button btnLang;
+    private readonly ToolTip _langTip = new ToolTip();
+
+    /// <summary>
+    /// The flag button in the bottom-right corner, sitting in the space the
+    /// update progress bar gave up. Clicking it opens the language picker; the
+    /// flag itself is the current language's, so the setting is readable at a
+    /// glance without opening anything.
+    /// </summary>
+    private void SetupLanguageButton()
+    {
+        try { Loc.Current = LauncherSettings.Load(config).Language; }
+        catch { Loc.Current = LauncherLang.English; }
+
+        btnLang = new Button
+        {
+            // Right of the (now narrower) progress bar, on its row.
+            Location = new System.Drawing.Point(390, 454),
+            Size = new System.Drawing.Size(29, 20),
+            // Segoe UI Emoji renders the regional-indicator pair as a flag; the
+            // default UI font would draw two letters instead.
+            Font = new System.Drawing.Font("Segoe UI Emoji", 9f),
+            Text = Loc.Flag(Loc.Current),
+            FlatStyle = FlatStyle.System,
+            TabStop = false
+        };
+        btnLang.Click += btnLang_Click;
+        Controls.Add(btnLang);
+        btnLang.BringToFront();
+        _langTip.SetToolTip(btnLang, Loc.T("Launcher language"));
+
+        Loc.Changed += OnLanguageChanged;
+        if (Loc.Current != LauncherLang.English) OnLanguageChanged();
+    }
+
+    private void OnLanguageChanged()
+    {
+        Loc.Apply(this);
+        if (btnLang != null)
+        {
+            btnLang.Text = Loc.Flag(Loc.Current);
+            _langTip.SetToolTip(btnLang, Loc.T("Launcher language"));
+        }
+    }
+
+    private void btnLang_Click(object sender, EventArgs e)
+    {
+        var before = Loc.Current;
+        using (var dlg = new LanguageDialog(Loc.Current))
+        {
+            dlg.ShowDialog(this);
+            Loc.Set(dlg.Selected);
+        }
+        if (Loc.Current == before) return;
+
+        try
+        {
+            var st = LauncherSettings.Load(config);
+            st.Language = Loc.Current;
+            st.Save(config);
+        }
+        catch { /* config not writable - the choice still applies this session */ }
     }
 
     /// <summary>
