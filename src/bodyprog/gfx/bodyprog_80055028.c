@@ -1,5 +1,12 @@
 #include "game.h"
 #include "inline_no_dmpsx.h"
+
+/* Called earlier in this file than it is defined. Without a prototype the call
+ * creates an implicit `int f()` declaration that then conflicts with the real
+ * definition -- GCC tolerates that, Clang (the Android NDK compiler) rejects
+ * it. */
+void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
+
 #ifdef SH_PC_PORT
 #include "pc_config.h"
 /* PsyCross runtime horizontal PAR. main_pc.c bakes this to 15/14 (320x224 -> 4:3)

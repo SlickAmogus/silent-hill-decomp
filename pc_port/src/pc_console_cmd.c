@@ -1178,6 +1178,7 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PsxPgxpDepthStats = 0;
         else g_PsxPgxpDepthStats = !g_PsxPgxpDepthStats;
         cprintf("PGXP depth-channel stats dump: %s", g_PsxPgxpDepthStats ? "ON" : "OFF");
+#if defined(SH_RETROACHIEVEMENTS)
     } else if (strcmp(cmd, "RAWHY") == 0) {
         /* Dump an achievement's conditions + the values we return, to SilentHill.log. */
         extern int Pc_Ra_Why(const char*);
@@ -1200,6 +1201,10 @@ void Pc_ConsoleExec(const char* line)
         {
             cprintf("Achievement toast preview (real achievement + badge)");
         }
+/* RAWHY/RATOAST reach into pc_retroachievements.c, which compiles to nothing
+ * when the rcheevos build is off (Android: no libcurl), so the commands go with
+ * it rather than leaving undefined references at link. */
+#endif
     } else if (strcmp(cmd, "PGXPWORLDDEPTH") == 0) {
         /* Depth-channel kill-switch: OFF suppresses FLAT world promotion
          * (GL_ALWAYS painter + viewZ flat depth), dropping depth behavior

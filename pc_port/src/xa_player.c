@@ -181,7 +181,9 @@ static XaPlayerState g_XaPlayer = {0};
  * menu. Applied on top of the game-driven per-track gain. s_XaGameGain caches
  * the last game-driven gain so a live master-volume change can be re-applied to
  * an already-playing source without waiting for the next Sd_SetVolXa. */
-float g_PcXaVolume = 1.0f;
+/* g_PcXaVolume now lives in xa_player_dispatch.c. Both renderers read it and
+ * xa_player_software.c externs it, so leaving it here made the software path
+ * depend on this OpenAL-only TU being compiled -- which it is not on Android. */
 static float s_XaGameGain = 1.0f;
 
 // Clamp s32 to s16

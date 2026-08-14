@@ -23,6 +23,13 @@
 #include "bodyprog/sound/sound_system.h"
 #include "main/fsqueue.h"
 
+/* Each of these is called earlier in this file than it is defined. Without a
+ * prototype the call creates an implicit `int f()` declaration that then
+ * conflicts with the real definition -- GCC tolerates that, Clang (the Android
+ * NDK compiler) rejects it. */
+void func_8003B560(void);
+void MainMenu_FogUpdate(void);
+
 #ifdef SH_PC_PORT
 /* Forward declarations for static functions used before definition */
 static void MainMenu_MainTextDraw(void);

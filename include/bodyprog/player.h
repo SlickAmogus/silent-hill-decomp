@@ -619,10 +619,12 @@ void Player_UpperBodyStateUpdate(s_PlayerExtra* extra, e_PlayerUpperBodyState up
 /** @brief Triggers animations and actions performed by the player's upper body. */
 void Player_UpperBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra);
 
-/** @brief Updates animations and status related to player attacks.
- * Returns `true` if animations where succefully finished and if performing a multitap attack.
- */
-bool Player_CombatAnimUpdate(void);
+/* Player_CombatAnimUpdate was declared here, but it is now a file-scope static
+ * in player_control.c (it used to be a GCC nested function, which Clang cannot
+ * compile) and takes the state it used to capture as parameters. Nothing
+ * outside that translation unit calls it, so the prototype is gone rather than
+ * updated -- a non-static declaration here would clash with the static
+ * definition. */
 
 /** @brief Main animation and state handler for the player's upper body.
  * Returns `true` if combat animations where completed or if the player's health is >60%.

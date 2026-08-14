@@ -16,6 +16,12 @@
 #include "pc_item_unq.h" /* Pc_ItemUnq_FromItemId: itemId -> UNQ file index */
 #include "sh_log.h"
 #include "pc_big_tmd.h" /* Pc_BigTmd_Resolve at the FS_BUFFER_5/8 consumers */
+
+/* Each of these is called earlier in this file than it is defined. Without a
+ * prototype the call creates an implicit `int f()` declaration that then
+ * conflicts with the real definition -- GCC tolerates that, Clang (the Android
+ * NDK compiler) rejects it. */
+void Gfx_Inventory_2dBackgroundDraw(s32* arg0);
 #endif
 
 const s32 pad_rodata_800262F8 = 0;

@@ -2,6 +2,12 @@
 #include "xa_player.h"
 #include "pc_audio_config.h"
 
+/* Shared by both XA renderers (and set from config load / the console), so it
+ * belongs in the dispatch rather than in either backend. It used to live in
+ * xa_player.c, which meant the software renderer could not link without the
+ * OpenAL one. */
+float g_PcXaVolume = 1.0f;
+
 /* SH_NO_OPENAL platforms (Android) never build xa_player.c, so there is no
  * legacy renderer to choose between — every entry point below resolves
  * straight to the software one. Declaring the PcLegacyXa_* symbols here
