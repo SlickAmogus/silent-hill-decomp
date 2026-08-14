@@ -894,8 +894,19 @@ int Pc_LangMenuRowActive(void)
         return 0;
     }
 
-    /* And on NTSC-J, where it picks Japanese or Chinese. */
-    return (g_GameRegion == Region_EUR || g_GameRegion == Region_JPN ||
+    /* NTSC-J keeps the row in-game as well. The title-screen restriction exists
+     * because a PAL switch rebinds the file table and reloads item text, which
+     * would strand whatever the current map already extracted; the NTSC-J
+     * switch only picks a glyph set, so it is safe at any time. Nothing is lost
+     * by taking the slot: Auto Load is read once, at the Konami logo
+     * (b_konami.c), so its row does nothing in-game anyway and is still
+     * reachable from the title screen where it takes effect. */
+    if (g_GameRegion == Region_JPN)
+    {
+        return 1;
+    }
+
+    return (g_GameRegion == Region_EUR ||
             (g_GameRegion == Region_USA && s_FanTextActive)) &&
            g_GameWork.gameStatePrev == GameState_MainMenu;
 }
