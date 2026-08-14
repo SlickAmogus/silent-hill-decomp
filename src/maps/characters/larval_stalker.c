@@ -25,6 +25,39 @@ void LarvalStalker_Update(s_SubCharacter* larvalStalker, s_AnmHeader* anmHdr, Gs
     sharedFunc_800D1524_1_s00(larvalStalker, anmHdr, coords);
     sharedFunc_800D1DBC_1_s00(larvalStalker);
 
+#ifdef SH_PC_PORT
+    /* "They fall down twice and then never disappear." The vanish is a chain of
+     * four gates and this says which one is stuck:
+     *   timer_10A  must reach Q12(3.5) — only accumulates in Control_8 (8) and
+     *              TripOver (9), never resets;
+     *   timer_C6   then ramps 0 -> Q12(1.0) at 0.25/s (that IS the fade-out);
+     *   ctrl       becomes 1, where a 1-in-32 per-frame roll sets health = -1.
+     * field_EA (0..2) is the trip counter and gates re-entry to Control_8 on the
+     * player's move speed (> 0.5 / 2.0 / 3.5). One line per second per stalker. */
+    {
+        static q19_12 s_nextLog[NPC_COUNT_MAX];
+        static s32    s_lines = 0;
+        s32 _i = Chara_NpcIdxGet(larvalStalker);
+        if (_i >= 0 && _i < NPC_COUNT_MAX && s_lines < 48)
+        {
+            s_nextLog[_i] -= g_DeltaTime;
+            if (s_nextLog[_i] <= 0)
+            {
+                s_nextLog[_i] = Q12(1.0f);
+                s_lines++;
+                SH_DBG("[LARVAL] idx=%d ctrl=%d fallCount=%d t10A=%d/%d t_C6=%d/%d t_F0=%d flags=0x%X hp=%d playerSpeed=%d",
+                       (int)_i, (int)larvalStalker->model.controlState,
+                       (int)larvalStalkerProps.field_EA,
+                       (int)larvalStalkerProps.timer_10A, (int)Q12(3.5f),
+                       (int)larvalStalker->timer_C6, (int)Q12(1.0f),
+                       (int)larvalStalkerProps.timer_F0, (unsigned)larvalStalkerProps.flags,
+                       (int)larvalStalker->health,
+                       (int)g_SysWork.playerWork.player.moveSpeed);
+            }
+        }
+    }
+#endif
+
     if (larvalStalkerProps.timer_10A < Q12(3.5f))
     {
         return;
