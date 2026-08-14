@@ -2937,22 +2937,27 @@ void MainLoop(void) // 0x80032EE0
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
         }
-        else if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled &&
-                 (g_PcWorldDrawnThisFrame || g_PsxPresentLastFrame)) {
+        else if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled) {
             /* Fullscreen 2D background screens (eclipse/plates doors, item
              * inspection) must clear to the game's own color (black) — on PSX
              * the fog void isn't the clear color, so these screens were never
              * fog-tinted. bg2dHeld (maintained unconditionally above) is the
              * time-based "2D background drawn within the last 300ms" signal that
              * bridges the few-frame TIM-swap gaps during puzzle interactions. */
-            if (bg2dHeld) {
-                g_GameWork.background2dColor.r = 0;
-                g_GameWork.background2dColor.g = 0;
-                g_GameWork.background2dColor.b = 0;
-            } else {
+            /* The fog clear only makes sense as the sky BEHIND a drawn world; on a
+             * world-less frame it IS the whole image (the grey flash 4b3213962
+             * fixed). That test has to gate the fog assignment, NOT this whole
+             * branch -- the eclipse/plates door screens draw a 2D background and
+             * no world, so gating the branch skipped the bg2dHeld black below and
+             * left them on the stale fog grey. */
+            if (!bg2dHeld && (g_PcWorldDrawnThisFrame || g_PsxPresentLastFrame)) {
                 g_GameWork.background2dColor.r = PC_WorldEnvWork.fog.color.r;
                 g_GameWork.background2dColor.g = PC_WorldEnvWork.fog.color.g;
                 g_GameWork.background2dColor.b = PC_WorldEnvWork.fog.color.b;
+            } else {
+                g_GameWork.background2dColor.r = 0;
+                g_GameWork.background2dColor.g = 0;
+                g_GameWork.background2dColor.b = 0;
             }
             g_PsyX_FogColor[0] = PC_WorldEnvWork.fog.color.r / 255.0f;
             g_PsyX_FogColor[1] = PC_WorldEnvWork.fog.color.g / 255.0f;
