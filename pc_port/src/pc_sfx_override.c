@@ -23,19 +23,23 @@ typedef struct
     int    spuAddr;      /* address the voice will be pointed at */
     short* pcm;          /* PC-owned, any length */
     int    sampleCount;
-    int    bankSector;   /* so a slot reload can drop just its own entries */
+    int    spuBase;      /* base of the slot this entry belongs to */
 } PcSfxOverride;
 
 static PcSfxOverride s_overrides[SFX_OVERRIDE_MAX];
 static int           s_count;
 
-static void SfxOverride_DropBank(int bankSector)
+/* Invalidate by SLOT, not by bank: the game reuses one SPU address per bank
+ * slot, so every weapon bank lands at the same base (0x21490 in a US build).
+ * Keyed on the bank instead, a previous occupant's entries survive the swap and
+ * keep matching by address — the shotgun would play the pistol's replacement. */
+static void SfxOverride_DropSlot(int spuBase)
 {
     int i, w = 0;
 
     for (i = 0; i < s_count; i++)
     {
-        if (s_overrides[i].bankSector == bankSector)
+        if (s_overrides[i].spuBase == spuBase)
         {
             free(s_overrides[i].pcm);
             continue;
@@ -166,6 +170,84 @@ static short* SfxOverride_LoadWav(const char* path, int* outCount)
     return pcm;
 }
 
+/* PSX ADPCM -> 16-bit PCM. Mirrors PsyCross's decoder, including the flag bits
+ * (LoopEnd = 1) that end a sample: the terminating block's audio is part of it. */
+static const int s_adpcmF0[4] = { 0, 60, 115, 98 };
+static const int s_adpcmF1[4] = { 0, 0, -52, -55 };
+
+static short* SfxOverride_DecodeAdpcm(const unsigned char* src, int len, int* outCount)
+{
+    int    blocks = len / 16;
+    short* out;
+    int    w = 0, b, i, prev1 = 0, prev2 = 0;
+
+    *outCount = 0;
+    if (blocks <= 0)
+    {
+        return NULL;
+    }
+
+    out = (short*)malloc((size_t)blocks * 28 * sizeof(short));
+    if (out == NULL)
+    {
+        return NULL;
+    }
+
+    for (b = 0; b < blocks; b++)
+    {
+        const unsigned char* p = src + b * 16;
+        int shift = p[0] & 0x0F;
+        int filter = (p[0] >> 4) & 0x0F;
+        int flag = p[1];
+        int mute = shift > 12;
+
+        if (filter > 3)
+        {
+            filter = 3;
+        }
+
+        for (i = 0; i < 14; i++)
+        {
+            int half;
+
+            for (half = 0; half < 2; half++)
+            {
+                int nib = (half == 0) ? (p[2 + i] & 0x0F) : (p[2 + i] >> 4);
+                int s;
+
+                if (nib > 7)
+                {
+                    nib -= 16;
+                }
+
+                if (mute)
+                {
+                    s = 0;
+                }
+                else
+                {
+                    s = (nib << 12) >> shift;
+                    s += (prev1 * s_adpcmF0[filter] + prev2 * s_adpcmF1[filter]) >> 6;
+                    if (s > 32767) s = 32767;
+                    if (s < -32768) s = -32768;
+                }
+
+                prev2 = prev1;
+                prev1 = s;
+                out[w++] = (short)s;
+            }
+        }
+
+        if (flag & 1)
+        {
+            break;
+        }
+    }
+
+    *outCount = w;
+    return out;
+}
+
 /* Recover the bank's file name from the sector it was read from. g_AudioData
  * seeks by absolute sector rather than by file index, so this is the only handle
  * on the bank's identity at load time. */
@@ -209,12 +291,77 @@ static int SfxOverride_BankName(int discSector, char* out, int outSize)
     return 0;
 }
 
+/* Load a whole replacement bank, if the modder installed one. */
+static unsigned char* SfxOverride_LoadBank(const char* bank, long* outSize)
+{
+    char           path[256];
+    unsigned char* d;
+
+    *outSize = 0;
+    snprintf(path, sizeof(path), "gamedata/load/SND/%s.VAB", bank);
+
+    d = Pc_LooseSlurp(path, outSize);
+    if (d == NULL)
+    {
+        return NULL;
+    }
+
+    if (*outSize < 32 + (128 * 16) || d[0] != 'p' || d[1] != 'B' || d[2] != 'A' || d[3] != 'V')
+    {
+        SH_DBG("[SFXMOD] %s: not a VAB sound bank, ignored", path);
+        free(d);
+        *outSize = 0;
+        return NULL;
+    }
+
+    SH_DBG("[SFXMOD] whole-bank replacement: %s (%ld bytes)", path, *outSize);
+    return d;
+}
+
+/* Body of sample n inside a loose bank. The size table is ONE-BASED and stores
+ * length/8, and bodies are packed in order, so an offset is the running sum. */
+static const unsigned char* SfxOverride_BankSample(const unsigned char* d, long size, int n, int* outLen)
+{
+    int programCount = (int)(short)(d[18] | (d[19] << 8));
+    int vagCount     = (int)(short)(d[22] | (d[23] << 8));
+    int sizeTable, bodies, running, i;
+
+    *outLen = 0;
+    if (programCount <= 0 || programCount > 128 || n < 1 || n > vagCount)
+    {
+        return NULL;
+    }
+
+    sizeTable = 32 + (128 * 16) + (programCount * 16 * 32);
+    bodies    = sizeTable + 256 * 2;
+    if (bodies > size)
+    {
+        return NULL;
+    }
+
+    running = 0;
+    for (i = 1; i < n; i++)
+    {
+        running += (d[sizeTable + i * 2] | (d[sizeTable + i * 2 + 1] << 8)) * 8;
+    }
+
+    *outLen = (d[sizeTable + n * 2] | (d[sizeTable + n * 2 + 1] << 8)) * 8;
+    if (*outLen <= 0 || bodies + running + *outLen > size)
+    {
+        *outLen = 0;
+        return NULL;
+    }
+    return d + bodies + running;
+}
+
 void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSector)
 {
     const unsigned char* vh = (const unsigned char*)vabHeader;
     char                 bank[24];
     int                  programCount, vagCount;
     int                  sizeTable, running, n, installed = 0;
+    unsigned char*       looseBank = NULL;
+    long                 looseBankSize = 0;
 
     /* Arm the mixer hook here rather than at startup: this is the earliest point
      * that runs before any voice can play, and it is idempotent. */
@@ -232,7 +379,7 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
         return;
     }
 
-    SfxOverride_DropBank(discSector);
+    SfxOverride_DropSlot(spuBase);
 
     if (!SfxOverride_BankName(discSector, bank, (int)sizeof(bank)))
     {
@@ -250,6 +397,14 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
      * libsd/smf_io.c's own "vh + ps*512 + 2080". */
     sizeTable = 32 + (128 * 16) + (programCount * 16 * 32);
 
+    /* A whole repacked bank dropped in as SND/<BANK>.VAB. The sound system seeks
+     * VABs by absolute disc sector, so such a file is invisible to the normal
+     * read path — but its samples can be lifted out here and registered exactly
+     * like per-sound files, which makes the obvious workflow work with no
+     * surgery on the CD path. Addresses still come from the ORIGINAL bank,
+     * because that is what is actually resident in SPU RAM. */
+    looseBank = SfxOverride_LoadBank(bank, &looseBankSize);
+
     running = 0;
     for (n = 1; n <= vagCount; n++)
     {
@@ -257,35 +412,56 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
         int  addr = spuBase + running;
         char path[256];
         int  count = 0;
-        short* pcm;
+        short* pcm = NULL;
+        const char* src = NULL;
 
         running += len;
 
         if (s_count >= SFX_OVERRIDE_MAX)
         {
-            SH_DBG("[SFXMOD] override table full (%d) — %s.%03d and later ignored",
+            SH_DBG("[SFXMOD] override table full (%d) - %s.%03d and later ignored",
                    SFX_OVERRIDE_MAX, bank, n);
             break;
         }
 
+        /* A per-sound file is the more specific statement, so it wins over the
+         * whole-bank file for that one sample. */
         snprintf(path, sizeof(path), "gamedata/load/SND/%s.%03d.wav", bank, n);
-
         pcm = SfxOverride_LoadWav(path, &count);
-        if (pcm == NULL)
+        if (pcm != NULL)
         {
+            src = path;
+        }
+        else if (looseBank != NULL)
+        {
+            int adpcmLen = 0;
+            const unsigned char* body = SfxOverride_BankSample(looseBank, looseBankSize, n, &adpcmLen);
+
+            if (body != NULL)
+            {
+                pcm = SfxOverride_DecodeAdpcm(body, adpcmLen, &count);
+                src = "loose bank";
+            }
+        }
+
+        if (pcm == NULL || count <= 0)
+        {
+            free(pcm);
             continue;
         }
 
         s_overrides[s_count].spuAddr     = addr;
         s_overrides[s_count].pcm         = pcm;
         s_overrides[s_count].sampleCount = count;
-        s_overrides[s_count].bankSector  = discSector;
+        s_overrides[s_count].spuBase     = spuBase;
         s_count++;
         installed++;
 
         SH_DBG("[SFXMOD] %s sample %d <- %s (%d samples, was %d ADPCM bytes) spu=0x%x",
-               bank, n, path, count, len, addr);
+               bank, n, src, count, len, addr);
     }
+
+    free(looseBank);
 
     if (installed > 0)
     {
