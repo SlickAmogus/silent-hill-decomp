@@ -722,6 +722,13 @@ int main(int argc, char* argv[])
      * permission and no scoped-storage handling. Anchoring the CWD there once
      * keeps all of the existing path code unchanged.
      *     /sdcard/Android/data/com.silenthill.port/files/ */
+    /* SDL calls setRequestedOrientation itself when it creates the window and
+     * derives the choice from that window's proportions, which overrides
+     * android:screenOrientation in the manifest. A 4:3 window on a device whose
+     * rotation is locked to portrait ends up portrait, letterboxed top and
+     * bottom. The game is landscape, so say so explicitly before SDL_Init. */
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+
     {
         const char* dataDir = SDL_AndroidGetExternalStoragePath();
         if (dataDir == NULL || chdir(dataDir) != 0)
