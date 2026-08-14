@@ -34,6 +34,9 @@
 #include "hires_override.h"
 #include "dll_loader.h"
 #include "sh_log.h"
+#ifdef SH_STATIC_MAPS
+#include "map_static_registry.h"
+#endif
 
 typedef struct
 {
@@ -384,6 +387,16 @@ void Pc_CharaGlobal_Open(void)
         return;
     }
 
+#ifdef SH_STATIC_MAPS
+    /* Linked into the exe like every other overlay, so there is no handle to
+     * keep alive and the lifetime concern below does not arise. */
+    (void)dll;
+    s_globalHdr = MapStatic_Find("chara_global");
+    if (s_globalHdr == NULL)
+    {
+        SH_DBG("[POOL] chara_global not linked in — no AI backfill");
+    }
+#else
     /* Own handle, never closed: MapOverlay_Load's single-slot handle would
      * FreeLibrary it on the next transition, killing live fn ptrs. */
 #if defined(_WIN32)
@@ -404,6 +417,7 @@ void Pc_CharaGlobal_Open(void)
     {
         SH_DBG("[POOL] chara_global.dll: header symbol missing");
     }
+#endif
 }
 
 void Pc_CharaGlobal_Backfill(void)
