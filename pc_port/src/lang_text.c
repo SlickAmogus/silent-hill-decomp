@@ -98,6 +98,12 @@ static const s_LangMsgSplit s_MsgSplits[] = {
 /* NTSC-J: US->JAP message index mapping for the maps whose tables differ. */
 #include "lang_jpn_msgmap.inc"
 
+/* NTSC-J inventory text. The decomp carries the Japanese tables but selects them
+ * with VERSION_REGION_IS(NTSCJ) at COMPILE time; the port builds one binary and
+ * picks the region at runtime, so they are compiled alongside the English ones
+ * and installed for Region_JPN below. */
+#include "lang_jpn_items.inc"
+
 int Pc_LangActive(void)
 {
     /* Any language INCLUDING English: PAL-EN is its own retranslation
@@ -495,6 +501,22 @@ void Pc_LangInit(void)
     if (g_GameRegion == Region_USA)
     {
         FanTextInit();
+        return;
+    }
+
+    /* NTSC-J ships Japanese item names/descriptions; retail selects them at
+     * compile time, so install the compiled JP tables here instead. Story text
+     * is handled separately by the SJIS map-message path. */
+    if (g_GameRegion == Region_JPN)
+    {
+        int i;
+
+        for (i = 0; i < ITEM_TEXT_COUNT; i++)
+        {
+            s_ItemNames[i] = INVENTORY_ITEM_NAMES_JPN[i];
+            s_ItemDescs[i] = ITEM_DESCRIPTIONS_JPN[i];
+        }
+        SH_LOG("[LANG] NTSC-J inventory text installed (%d entries)", ITEM_TEXT_COUNT);
         return;
     }
 
