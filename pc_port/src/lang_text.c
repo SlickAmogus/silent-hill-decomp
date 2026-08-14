@@ -15,6 +15,7 @@
 #include "bodyprog/text/text_draw.h" /* MAP_MSG_CODE_PAGE */
 #include "font_region.h"      /* g_FontLayout, Font_SetGlyphWidths (fan-patch kerning) */
 #include "lang_pack.h"        /* PC-side language packs (gamedata/lang) */
+#include "lang_ru.h"          /* Russian fan-patch detection + menu text */
 #include "main/fsqueue.h"     /* Fs_QueueStartReadTim, FS_BUFFER_1 */
 #include "main/fileinfo.h"    /* g_GameRegion, Fs_EurFileLookup */
 #include "pc_config.h"
@@ -46,6 +47,15 @@ extern const char* PcPort_GetGameDiscPath(void);
 #define USA_ITEM_NAME_ADDR 0x800ADB60u /* INVENTORY_ITEM_NAMES, 195 ptrs */
 #define USA_ITEM_DESC_ADDR 0x800ADE6Cu /* g_ItemDescriptions, 195 ptrs */
 #define USA_WIDTHS_ADDR    0x80025D6Cu /* FONT_12X16_GLYPH_WIDTHS, 84 bytes */
+
+/* Same idea one region over. A PAL fan patch (consolgames.ru) repaints the
+ * 126-cell EUR atlas with Cyrillic and retunes the kerning table to match — 52
+ * of the 120 advances differ from retail — so rendering it with the compiled
+ * retail widths mis-spaces every line of text on the disc, subtitles included.
+ * Addresses from configs/EUR/bodyprog.yaml; the widths sit at the same file
+ * offset as the US table by coincidence, not by construction. */
+#define EUR_BODY_VRAM      0x80025690u
+#define EUR_WIDTHS_ADDR    0x8002689Cu /* FONT_12X16_GLYPH_WIDTHS, 120 bytes */
 /* Must cover the largest per-map message table: MAP7_S02 has 159 US entries.
  * (Was 96 — the replaced pointer array under-covered MAP4_S01/MAP7_S01/
  * MAP7_S02 on PAL, sending reads past it.) */
@@ -124,7 +134,7 @@ int Pc_FanTextActive(void)
 }
 
 /* Read a whole file out of the raw-sector disc image. Caller frees. */
-static unsigned char* ReadDiscFile(unsigned int sector, unsigned int size)
+unsigned char* Pc_LangReadDiscFile(unsigned int sector, unsigned int size)
 {
     const char*    path = PcPort_GetGameDiscPath();
     FILE*          f;
@@ -382,7 +392,7 @@ static void FanTextInit(void)
     static const unsigned char* s_compiledWidths;
 
     unsigned int   size = (unsigned int)g_FileTable[FILE_1ST_BODYPROG_BIN].blockCount << 8;
-    unsigned char* bin  = ReadDiscFile(g_FileTable[FILE_1ST_BODYPROG_BIN].startSector, size);
+    unsigned char* bin  = Pc_LangReadDiscFile(g_FileTable[FILE_1ST_BODYPROG_BIN].startSector, size);
     unsigned int   brBase;
     unsigned int   brNameOff;
     int            i;
@@ -439,7 +449,7 @@ static void FanTextInit(void)
 
     if (memcmp(bin + (USA_WIDTHS_ADDR - USA_BODY_VRAM), s_compiledWidths, 84) != 0)
     {
-        Font_SetGlyphWidths(bin + (USA_WIDTHS_ADDR - USA_BODY_VRAM));
+        Font_SetGlyphWidths(bin + (USA_WIDTHS_ADDR - USA_BODY_VRAM), 84);
         s_FanTextActive = 1;
         SH_LOG("[FANPATCH] modified FONT16 kerning table adopted from disc");
     }
@@ -462,6 +472,68 @@ static void FanTextInit(void)
     free(bin);
 }
 
+/* Adopt a PAL fan patch's retuned FONT16 kerning table. Mirrors the USA branch
+ * of FanTextInit: the widths are only taken when they differ from the compiled
+ * retail table (so a stock EUR disc is a guaranteed no-op) and only when they
+ * are plausible advances for a 16px cell, which is what separates an in-place
+ * patch from a rebuilt BODYPROG whose tables moved. Item and story text need
+ * nothing extra here — both already come off the disc on EUR. */
+static void EurFanFontInit(void)
+{
+    static const unsigned char* s_compiledWidths;
+
+    unsigned int   size = (unsigned int)g_FileTable[FILE_1ST_BODYPROG_BIN].blockCount << 8;
+    unsigned int   off  = EUR_WIDTHS_ADDR - EUR_BODY_VRAM;
+    unsigned char* bin;
+    int            count;
+    int            i;
+
+    if (s_compiledWidths == NULL)
+        s_compiledWidths = g_FontLayout->glyphWidths;
+
+    if (size < off + FONT_ATLAS_CELL_MAX)
+        return;
+
+    bin = Pc_LangReadDiscFile(g_FileTable[FILE_1ST_BODYPROG_BIN].startSector, size);
+    if (bin == NULL)
+        return;
+
+    DecryptOverlay(bin, size);
+
+    /* Real advances never exceed the 16px cell. Garbage here means BODYPROG was
+     * rebuilt and its tables moved, so nothing at this offset can be trusted. */
+    for (i = 0; i < FONT_ATLAS_CELL_MAX; i++)
+    {
+        if (bin[off + i] > 16)
+        {
+            SH_WARN("[FANPATCH] EUR BODYPROG not retail-linked — keeping compiled font widths");
+            free(bin);
+            return;
+        }
+    }
+
+    /* A non-zero advance in one of retail's six blank cells is the disc telling
+     * us it painted glyphs there (consolgames.ru puts ъ ы ь э ю я in them). */
+    count = 120;
+    for (i = 120; i < FONT_ATLAS_CELL_MAX; i++)
+    {
+        if (bin[off + i] != 0)
+        {
+            count = FONT_ATLAS_CELL_MAX;
+            break;
+        }
+    }
+
+    if (count != g_FontLayout->glyphCount ||
+        memcmp(bin + off, s_compiledWidths, 120) != 0)
+    {
+        Font_SetGlyphWidths(bin + off, count);
+        SH_LOG("[FANPATCH] modified EUR FONT16 kerning table adopted from disc (%d glyphs)", count);
+    }
+
+    free(bin);
+}
+
 void Pc_LangInit(void)
 {
     unsigned int   sector;
@@ -477,12 +549,33 @@ void Pc_LangInit(void)
     free(s_ItemPool);
     s_ItemPool = NULL;
 
+    /* A PAL fan patch's retuned kerning has to be in before anything measures
+     * a string. (The USA equivalent rides along with item text in FanTextInit.) */
+    if (g_GameRegion == Region_EUR)
+    {
+        EurFanFontInit();
+    }
+
+    /* Russian patches repaint the font's Latin cells with Cyrillic, which turns
+     * every compiled English menu string into nonsense. Detect them and swap in
+     * the port's own Russian text, encoded in that patch's charset. */
+    Pc_RuInit();
+
     /* A PC-side pack language (no disc carries it) serves item and story text
      * from gamedata/lang instead of the disc. EUR only: the glyphs for its
      * extra letters are built into the EUR FONT16 atlas (font_region.c), and
      * the US atlas has no accent cells to hold them. The per-map English
      * overlay walk (still EUR) supplies the count and untranslated fallback,
      * so the disc path below is left entirely alone. */
+    /* A PC-side pack on a Russian disc would fight it: the pack's byte window
+     * (0xA2-0xB3) is Cyrillic letters there, and Font_PatchPolishGlyphs paints
+     * its letterforms over atlas cells the repaint already uses. The disc wins,
+     * so fall back to the disc's own language slot before anything indexes on it. */
+    if (Pc_RuActive() && g_PcConfig.language >= LANG_PACK_FIRST)
+    {
+        g_PcConfig.language = 0;
+    }
+
     if (g_PcConfig.language >= LANG_PACK_FIRST)
     {
         if (g_GameRegion == Region_EUR && Pc_LangPackLoad(s_LangIds[g_PcConfig.language]))
@@ -537,7 +630,7 @@ void Pc_LangInit(void)
     }
 
     size = blocks << 8;
-    bin  = ReadDiscFile(sector, size);
+    bin  = Pc_LangReadDiscFile(sector, size);
     if (bin == NULL)
     {
         SH_WARN("[LANG] failed to read %s from the disc image", s_ItemBinNames[g_PcConfig.language]);
@@ -612,7 +705,14 @@ int Pc_LangMenuRowActive(void)
 {
     /* Also on fan-translated USA discs: there the row only switches the
      * port's menu translations (story/item text stays whatever language the
-     * disc patch carries). */
+     * disc patch carries). Not on a Russian patch though — its font has no
+     * Latin letters, so every other language on the row is unreadable and the
+     * menus are already Russian; the slot goes back to retail's Auto Load. */
+    if (Pc_RuActive())
+    {
+        return 0;
+    }
+
     return (g_GameRegion == Region_EUR ||
             (g_GameRegion == Region_USA && s_FanTextActive)) &&
            g_GameWork.gameStatePrev == GameState_MainMenu;
@@ -898,7 +998,7 @@ static void UsaPatchMapMessages(int mapIdx)
     ovlSize = (unsigned int)fe->blockCount << 8;
     if (ovlSize < 0x40)
         return;
-    ovl = ReadDiscFile(fe->startSector, ovlSize);
+    ovl = Pc_LangReadDiscFile(fe->startSector, ovlSize);
     if (ovl == NULL)
         return;
 

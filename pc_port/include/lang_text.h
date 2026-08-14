@@ -46,6 +46,12 @@ void Pc_LangSetLanguage(int lang);
 /* Load + parse ITEM_<lang>.BIN once (call after Fs_InitFileTableForRegion). */
 void Pc_LangInit(void);
 
+/* Read a whole file out of the mounted raw-sector disc image (2352-byte
+ * sectors, 2048 data bytes at +24), given a file-table sector and byte size.
+ * Returns a malloc'd buffer the caller frees, or NULL when no disc is bound or
+ * the read ran short. */
+unsigned char* Pc_LangReadDiscFile(unsigned int sector, unsigned int size);
+
 /* Localized item text for inventory index 0..194, or NULL to use the US
  * string (PAL leaves some entries untranslated/NULL — English fallback). */
 const char* Pc_LangItemName(int itemIdx);

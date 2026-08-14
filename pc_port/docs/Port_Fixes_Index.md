@@ -3006,3 +3006,50 @@ Editor side: `map2ipd --full` output is no longer capped at the original file
 size; `sh1/tools/chunk_budget.py` reports which threshold a compiled cell
 crosses, and `validate_port_compat.py` mirrors the header validation so a
 rejected file is diagnosed instead of looking like "my edit did nothing".
+
+## Russian fan translations (SLUS-00707 + SLES-01514)
+
+Ten-odd Russian patches circulate for SH1. They translate everything the DISC
+owns and repaint FONT16 so its Latin cells draw Cyrillic. The port already
+re-reads item text (`FanTextInit`/`AdoptItemArrays`) and map messages
+(`UsaPatchMapMessages`, or the EUR overlay walk), so story and inventory text
+came out correct — but menus, options, pause, save/load and the inventory
+labels are COMPILED INTO the port and stayed English ASCII, which a Cyrillic
+atlas renders as nonsense. The port also adds option rows no disc ever had, so
+adopting the disc's own menu strings could not have covered them.
+
+- **Russian menu layer** (`pc_port/src/lang_ru.c`, `lang_ru_menu.inc`): the port
+  carries its own Russian UI text, keyed by the exact compiled US literal, and
+  encodes it into whatever byte-to-glyph mapping the mounted patch uses. Charset
+  tables are selected by an FNV-1a hash of that disc's FONT16.TIM; an
+  unrecognized font logs its hash and keeps English, so a new patch is one table
+  (33 uppercase + 33 lowercase bytes) plus one hash. Shipped charsets:
+  `vitco` (ViT Co / Metallist / Team Raccoon 2021-2022, all three variants share
+  one font), `consolgames` (consolgames.ru v1.1 2011, PAL), `kudos`, `vitotiv`
+  (ViToTiV/VovaMal 2006, PAL). Every table was derived by decoding that disc's
+  own item and message text back to fluent Russian, then round-trip verified
+  against the atlas cell map.
+- **EUR atlas is 126 cells, not 120** (`font_region.c`, `lang_text.c`): retail
+  PAL declares 120 glyphs but its grid is 21x6, and consolgames fills the six
+  spare cells with `ъ ы ь э ю я` and extends the BODYPROG kerning table to match.
+  At the retail count those six letters failed `Font_MapChar`'s range check and
+  vanished from every line of PAL Russian text, subtitles included.
+  `Font_SetGlyphWidths` now takes the glyph count from the disc alongside the
+  widths, and `EurFanFontInit` adopts both (52 of 120 advances differ on that
+  disc — rendering it with retail widths mis-spaced everything). Retail EUR
+  leaves those cells at width 0, which is the signal used to tell the two apart.
+- **Glyph range in the drawer** (`text_draw.c`, `lang_menu.c`): `Gfx_StringDraw`
+  stopped at `'z'`, the last cell of the 84-glyph US strip. Bytes 0x7B-0x7F are
+  EUR cells 84-88 (`Ъ Ы Ь Э Ю` on a Cyrillic repaint) and were silently dropped.
+  `Font_MapChar` already range-checks against the active layout, so US/NTSC-J
+  emit nothing for them exactly as before.
+- The Language row stands down on a Russian disc (no other language is legible
+  in that font), and a PC-side pack is refused there — the pack's 0xA2-0xB3 byte
+  window is Cyrillic letters on those discs and `Font_PatchPolishGlyphs` would
+  paint over cells the repaint uses.
+
+Not covered: the seven 1999-2003 SLUS repacks (FireCross, Golden Leon, Paradox,
+Playbox, RGR Studio, Sacson, Русские Версии). Each uses its own transliteration
+charset and needs its own table. Their story text IS reachable — all seven
+rebuild the disc, and `UsaDetectOverlayBase` locks onto their relinked overlays
+(base 0x800C9148, clean run 21) — so only the charset is missing.
