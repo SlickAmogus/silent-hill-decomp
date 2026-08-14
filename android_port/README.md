@@ -64,28 +64,45 @@ with `adb push <file> /sdcard/Android/data/com.silenthill.port/files/`.
 | Feature | State | Reason |
 |---|---|---|
 | OpenAL (legacy SPU + XA) | compiled out | No OpenAL on Android. `PsyX_SPUSoftware` + `xa_player_software.c` render the SPU in software and push through SDL2's AAudio/OpenSL sink. `SH_NO_OPENAL` / `PSYX_NO_OPENAL` collapse both dispatchers onto the software path. |
-| Map overlay `.so`s | off (the default) — **see the map limitation below** | Android `dlopen()`s reliably only from the APK's own extracted lib dir, and the loader currently builds a relative `maps/<name>.so` path. |
+| Map overlay `.so`s | off — replaced by `SH_STATIC_MAPS` (auto-on for Android) | Android `dlopen()`s only from the APK's own extracted lib dir, and the loader builds a relative `maps/<name>.so` path. See the static-maps section below. |
 | MJPG AVI FMV overrides | compiled out (`SH_FMV_MJPEG` unset) | No system libjpeg. The disc's own STR/MDEC FMVs are unaffected — `IdentifyCodec` reports MJPG unsupported, which already falls back to the disc STR. |
 | ffmpeg FMV fallback | off | Runtime-`dlopen`ed shared libs, not available here. |
 | RetroAchievements | off | Needs libcurl. |
 | Launcher | n/a | C#/.NET. |
 
-## Known outstanding — only map0_s00 is in the binary
+## All 43 maps are in the binary (`SH_STATIC_MAPS`)
 
-`SH_BUILD_MAP_DLLS=OFF` does **not** mean "all maps linked statically". Per the
-comment above `MAP_SOURCES` in `pc_port/CMakeLists.txt`, linking every map at
-once produces 500+ symbol collisions (the shared AI/particle/player code is
-`#include`d into each overlay), so the static build compiles **only the starting
-map, `map0_s00`**. Every other area is an overlay that `map_overlay_loader.c`
-`dlopen()`s at `maps/<mapname>.so`.
+Android auto-enables `SH_STATIC_MAPS`, the same path iOS uses. Plain
+`SH_BUILD_MAP_DLLS=OFF` would leave **only `map0_s00`** compiled in — linking
+every overlay naively collides on 500+ symbols, because each one `#include`s its
+own copy of the shared AI/particle/player code (PSX overlay semantics). Android
+cannot take the `dlopen` route either: it loads only from the APK's own
+extracted lib dir, and the loader builds a relative `maps/<name>.so` path.
 
-So this build boots and plays the opening area, and nothing beyond it. Getting
-the full game on Android needs the overlays built for `arm64-v8a` and reachable
-by `dlopen`, which on Android means shipping them as `lib*.so` inside
-`lib/arm64-v8a/` (the manifest already sets `extractNativeLibs="true"`, so they
-land in a real extracted directory) and teaching the loader to resolve there
-instead of the relative `maps/` path. `nativeLibraryDir` is the value to build
-the path from.
+`SH_STATIC_MAPS` renames each overlay's *defined* symbols to `<map>_<sym>` with
+`llvm-objcopy --redefine-syms`, archives them, force-loads all 43, and resolves
+headers through a generated registry instead of `dlsym`. `SH_SYM_PREFIX` is
+empty on ELF (Mach-O needs the leading underscore). The NDK ships `llvm-nm` and
+`llvm-objcopy` but does not put them on `PATH`, so the build hints at
+`ANDROID_TOOLCHAIN_ROOT/bin`.
+
+**Memory is the real cost, and it matters more here than on a phone.** Every
+overlay reserves its own `.bss` (chara/particle/anim working buffers) and all 43
+coexist permanently rather than one at a time. Measured on this build:
+
+| section | size |
+|---|---|
+| `.bss` | **194.65 MB** |
+| `.text` | 3.47 MB |
+| `.rodata` | 0.67 MB |
+| `.data` | 0.80 MB |
+
+So code size is a non-issue; the reservation is not. It is demand-zero, so
+nothing is paid until a map is actually visited and Android's low-memory killer
+scores on RSS rather than VSZ — but nothing releases it afterwards either, so
+RSS climbs monotonically across a long session. On a 1 GB MT8163 cabinet that is
+the thing most likely to get the process killed mid-run. Worth measuring RSS on
+the cabinet after a few map transitions before assuming it is fine.
 
 ## Known outstanding — GLES3 shader gap
 

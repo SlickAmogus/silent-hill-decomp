@@ -7,6 +7,15 @@
 #include "maps/characters/larval_stalker.h"
 #include "sh_log.h"
 
+/* Called earlier in this file than they are defined. Without prototypes each
+ * call creates an implicit `int f()` that then conflicts with the real
+ * definition -- GCC tolerates it, Clang (Android NDK / Apple) rejects it.
+ * This file is #included into every map overlay that uses the character, so
+ * the error reproduces once per overlay. */
+void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker);
+void Ai_LarvalStalker_Init(s_SubCharacter* larvalStalker);
+void sharedFunc_800D1DBC_1_s00(s_SubCharacter* larvalStalker);
+
 #define larvalStalkerProps larvalStalker->properties.larvalStalker
 
 void LarvalStalker_Update(s_SubCharacter* larvalStalker, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)

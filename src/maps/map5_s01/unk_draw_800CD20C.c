@@ -4,6 +4,11 @@
 #include "bodyprog/sound/sound_system.h"
 #include "maps/map5/map5_s01.h"
 
+/* Called earlier in this file than it is defined. Without a prototype the call
+ * creates an implicit `int f()` that then conflicts with the real definition --
+ * GCC tolerates it, Clang (Android NDK / Apple) rejects it. */
+void func_800CDA8C(void);
+
 s16 func_800CD20C(void) // 0x800CD20C
 {
     s32      i;

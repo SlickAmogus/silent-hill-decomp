@@ -8,6 +8,16 @@
 #include "maps/shared.h"
 #include "maps/characters/cybil.h"
 
+/* Called earlier in this file than they are defined. Without prototypes each
+ * call creates an implicit `int f()` that then conflicts with the real
+ * definition -- GCC tolerates it, Clang (Android NDK / Apple) rejects it.
+ * This file is #included into every map overlay that uses the character, so
+ * the error reproduces once per overlay. */
+void Ai_Cybil_AnimUpdate(s_SubCharacter* chara, s_AnmHeader* animHdr, GsCOORDINATE2* coords);
+void Ai_Cybil_MovementUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords);
+void Ai_Cybil_AnimStateUpdate(s_SubCharacter* chara, GsCOORDINATE2* coords);
+void Ai_Cybil_Init(s_SubCharacter* chara);
+
 /** AI code for `Chara_Cybil`
  *
  * Included in:

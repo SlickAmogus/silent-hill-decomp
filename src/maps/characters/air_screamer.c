@@ -5,6 +5,14 @@
 #include "main/rng.h"
 #include "maps/shared.h"
 #include "maps/characters/air_screamer.h"
+
+/* Called earlier in this file than they are defined. Without prototypes each
+ * call creates an implicit `int f()` that then conflicts with the real
+ * definition -- GCC tolerates it, Clang (Android NDK / Apple) rejects it.
+ * This file is #included into every map overlay that uses the character, so
+ * the error reproduces once per overlay. */
+void Ai_AirScreamer_GroundWarp(s_SubCharacter* airScreamer);
+void Ai_AirScreamer_Control_0(s_SubCharacter* airScreamer);
 bool Ai_AirScreamer_Control(s_SubCharacter* airScreamer);bool Ai_AirScreamer_Init(s_SubCharacter* airScreamer);
 
 // NOTES:
