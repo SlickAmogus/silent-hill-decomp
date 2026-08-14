@@ -318,3 +318,23 @@ void Pc_ControlStyleUpdate(void)
         PsyX_UpdateMouseConfinement();
     }
 }
+
+/* Is any SDL game controller attached? Used by the title screen to decide
+ * whether a button hint should name the pad bind as well as the key one. Not a
+ * "which device is active" signal -- SDL has no cheap answer for that -- so
+ * callers that need one show both binds and let the player read the relevant
+ * half. */
+int Pc_ControllerAttached(void)
+{
+    int i;
+    int n = SDL_NumJoysticks();
+
+    for (i = 0; i < n; i++)
+    {
+        if (SDL_IsGameController(i))
+        {
+            return 1;
+        }
+    }
+    return 0;
+}

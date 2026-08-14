@@ -26,6 +26,7 @@
 #ifdef SH_PC_PORT
 /* Forward declarations for static functions used before definition */
 static void MainMenu_MainTextDraw(void);
+static void MainMenu_AchievementHintDraw(void);
 static void MainMenu_DifficultyTextDraw(s32 idx);
 static void MainMenu_BackgroundDraw(void);
 static void func_8003BCF4(void);
@@ -654,6 +655,7 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
         {
             MainMenu_MainTextDraw();
 #ifdef SH_PC_PORT
+            MainMenu_AchievementHintDraw();
             /* The achievement panel draws its own pointer over the top, so the
              * game's would just be a second cursor tracking the same mouse
              * underneath it. */
@@ -697,6 +699,79 @@ void MainMenu_SelectedOptionIdxReset(void) // 0x8003B550
 }
 
 void func_8003B560(void) {} // 0x8003B560
+
+#ifdef SH_PC_PORT
+/* Bottom-left hint naming the button that opens the achievement browser.
+ *
+ * Drawn through the game's own text system rather than a GL overlay, which buys
+ * three things: the game's glyphs, and a coordinate space that is already mapped
+ * into the picture area -- so pillarboxing and widescreen are handled by the
+ * same path every other menu string goes through, with nothing to get wrong
+ * here. */
+static void MainMenu_AchievementHintDraw(void)
+{
+    /* Authoring space on this screen runs y -112 (top) .. 336 (bottom), x 0 ..
+     * 320; the menu column sits at x158, y184..264. These two put the hint in
+     * the lower-left, clear of the column and off the bottom edge -- nudge them
+     * if it wants moving. */
+    #define ACH_HINT_POS_X 18
+    #define ACH_HINT_POS_Y 286
+
+    extern const char* PcConfig_BindName(unsigned short, int, int, int);
+    extern int         Pc_ControllerAttached(void);
+
+    char        line[64];
+    char        bind[40];
+    const char* key;
+    const char* pad;
+    s32         i;
+    u16         mapBtn;
+
+    if (!g_PcConfig.retroAchievements)
+    {
+        return;
+    }
+
+    /* Whatever the player bound Map to -- the browser opens on that, so the
+     * hint has to read it rather than assume a key. Scheme 0 (classic): the
+     * title screen has no camera mode to disagree about. */
+    mapBtn = g_GameWorkPtr->config.controllerConfig.map;
+    key    = PcConfig_BindName(mapBtn, 0, 0, 0);
+    pad    = PcConfig_BindName(mapBtn, 1, 0, 0);
+
+    if (Pc_ControllerAttached() && pad[0] != '\0' && key[0] != '\0')
+    {
+        snprintf(bind, sizeof(bind), "%s/%s", key, pad);
+    }
+    else if (Pc_ControllerAttached() && pad[0] != '\0')
+    {
+        snprintf(bind, sizeof(bind), "%s", pad);
+    }
+    else if (key[0] != '\0')
+    {
+        snprintf(bind, sizeof(bind), "%s", key);
+    }
+    else
+    {
+        return; /* unbound — a hint naming no button helps nobody */
+    }
+
+    snprintf(line, sizeof(line), "[%s]_Achievements", bind);
+
+    /* The renderer prints '_' as a space, so a bind whose own name contains a
+     * real space ("Left Shift") has to be converted or the words run together. */
+    for (i = 0; line[i] != '\0'; i++)
+    {
+        if (line[i] == ' ')
+        {
+            line[i] = '_';
+        }
+    }
+
+    Gfx_StringSetPosition(ACH_HINT_POS_X, ACH_HINT_POS_Y);
+    Gfx_StringDraw(line, DEFAULT_MAP_MESSAGE_LENGTH);
+}
+#endif
 
 static void MainMenu_MainTextDraw(void) // 0x8003B568
 {
