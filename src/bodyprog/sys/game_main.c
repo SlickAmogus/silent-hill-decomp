@@ -341,6 +341,8 @@ int Pc_ScriptOwnsShot(void)
  * Called on BOTH exits of Pc_TpsCamera_Apply, including the stand-down path: the
  * restore has to run even when the camera body is skipped, or the FOV stays
  * clamped onto the scripted shot for the whole scene. */
+static int Pc_AltCamStateOk(void);
+
 static void Pc_CameraFov_Update(int standDown)
 {
     static int s_fovApplied = 0;
@@ -353,8 +355,7 @@ static void Pc_CameraFov_Update(int standDown)
      * the game projection for the whole fade-in. Restricting to SysState_Gameplay
      * would be wrong for the same reason: examine (SysState_ReadMessage) and item
      * pickup keep the alt camera rendering, so pinning the FOV there pops it. */
-    if (g_GameWork.gameState == GameState_InGame &&
-        !standDown)
+    if (Pc_AltCamStateOk() && !standDown)
     {
         if (g_PcFpsCam)
             fov = g_PcConfig.fpsFov;
@@ -385,6 +386,19 @@ static void Pc_CameraFov_Update(int standDown)
         SetGeomScreen(vcWork.geom_screen_dist);
         s_fovApplied = 0;
     }
+}
+
+/* gameStates the alternate camera must keep being applied on. InGame is the
+ * obvious one; the inventory ALSO matters because SysState_StatusMenu_Update
+ * switches gameState to LoadStatusScreen while the world is still being drawn
+ * (no BgmStatusFlag_Pause), so gating purely on InGame stopped applying the alt
+ * camera for that frame and the world appeared through the game's own classic
+ * camera -- the one-frame snap on opening the inventory. */
+static int Pc_AltCamStateOk(void)
+{
+    return g_GameWork.gameState == GameState_InGame ||
+           g_GameWork.gameState == GameState_LoadStatusScreen ||
+           g_GameWork.gameState == GameState_InventoryScreen;
 }
 
 static void Pc_TpsCamera_Apply(void)
@@ -1109,7 +1123,7 @@ void DebugCamera_Update(void)
             /* TPS is a normal (non-debug) camera now: apply it even with dev
              * keys off, then skip the dev-key handlers below. Classic just
              * lets the game camera stand. */
-            if (g_GameWork.gameState == GameState_InGame && !g_DebugCamEnabled && g_DebugThirdPersonCam)
+            if (Pc_AltCamStateOk() && !g_DebugCamEnabled && g_DebugThirdPersonCam)
                 Pc_TpsCamera_Apply();
             return;
         }
@@ -1125,7 +1139,7 @@ void DebugCamera_Update(void)
              * at instead of snapping back to the default game camera. The look
              * input is held still inside Pc_TpsCamera_Apply (frozen), so the
              * angle doesn't drift while you type. */
-            if (g_GameWork.gameState == GameState_InGame && !g_DebugCamEnabled && g_DebugThirdPersonCam)
+            if (Pc_AltCamStateOk() && !g_DebugCamEnabled && g_DebugThirdPersonCam)
                 Pc_TpsCamera_Apply();
             return;
         }
