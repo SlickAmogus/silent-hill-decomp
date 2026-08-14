@@ -13,8 +13,20 @@
 #include <dirent.h>
 #include <time.h>
 
+/* Android is the one platform where SDL must own the entry point: there is no
+ * process main() to reach: SDLActivity's Java shim dlopen()s libmain.so and
+ * calls SDL_main inside it, and SDL_main.h only redirects main -> SDL_main
+ * while SDL_MAIN_HANDLED is absent. Everywhere else the port keeps the real
+ * C entry (the MinGW link relies on it — see -emainCRTStartup in CMakeLists). */
+#ifndef __ANDROID__
 #define SDL_MAIN_HANDLED
+#endif
 #include <SDL.h>
+#include <SDL_main.h>
+#ifdef __ANDROID__
+#include <SDL_system.h>   /* SDL_AndroidGetExternalStoragePath */
+#include <unistd.h>       /* chdir */
+#endif
 
 #include "common.h"
 #include "game.h"
@@ -700,6 +712,29 @@ static void ParseArgs(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
+#ifdef __ANDROID__
+    /* An APK's process starts with the working directory at "/", which is not
+     * writable and holds none of the game data, so every relative path the port
+     * uses (config.cfg, gamedata/, the disc image, SilentHill.log) would miss.
+     * SDLActivity has already set up the JNI by the time it calls SDL_main, so
+     * the app's external files dir is resolvable here — that is the one
+     * location readable and writable at every API level with no storage
+     * permission and no scoped-storage handling. Anchoring the CWD there once
+     * keeps all of the existing path code unchanged.
+     *     /sdcard/Android/data/com.silenthill.port/files/ */
+    {
+        const char* dataDir = SDL_AndroidGetExternalStoragePath();
+        if (dataDir == NULL || chdir(dataDir) != 0)
+        {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                         "Could not enter the game data directory (%s) - the disc image "
+                         "and config.cfg cannot be found.",
+                         dataDir ? dataDir : "unavailable");
+            return 1;
+        }
+    }
+#endif
+
     /* Log file is NOT opened until after config load. SH_DBG calls before
      * that point are silently no-ops (the macro short-circuits on a NULL
      * handle). Avoids creating SilentHill.log when enable_debug_log=0. */

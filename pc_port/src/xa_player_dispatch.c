@@ -2,6 +2,11 @@
 #include "xa_player.h"
 #include "pc_audio_config.h"
 
+/* SH_NO_OPENAL platforms (Android) never build xa_player.c, so there is no
+ * legacy renderer to choose between — every entry point below resolves
+ * straight to the software one. Declaring the PcLegacyXa_* symbols here
+ * anyway would leave them undefined at link. */
+#if !defined(SH_NO_OPENAL)
 void PcLegacyXa_PlayWithParams(uint16_t, uint16_t, uint32_t, uint32_t);
 void PcLegacyXa_Play(uint16_t);
 void PcLegacyXa_Stop(void);
@@ -11,6 +16,7 @@ void PcLegacyXa_SetPauseHold(int);
 int PcLegacyXa_IsVoiceAudioDraining(void);
 int PcLegacyXa_VoiceGapHold(void);
 void PcLegacyXa_SetMasterVolume(float);
+#endif
 
 void PcSoftwareXa_PlayWithParams(uint16_t, uint16_t, uint32_t, uint32_t);
 void PcSoftwareXa_Play(uint16_t);
@@ -22,11 +28,16 @@ int PcSoftwareXa_IsVoiceAudioDraining(void);
 int PcSoftwareXa_VoiceGapHold(void);
 void PcSoftwareXa_SetMasterVolume(float);
 
+#if defined(SH_NO_OPENAL)
+#define XA_DISPATCH_VOID(publicName, legacyName, softwareName, args, callargs) \
+    void publicName args { softwareName callargs; }
+#else
 #define XA_DISPATCH_VOID(publicName, legacyName, softwareName, args, callargs) \
     void publicName args { \
         if (PcAudioConfig_UsesSoftwareSpu()) softwareName callargs; \
         else legacyName callargs; \
     }
+#endif
 
 XA_DISPATCH_VOID(XaPlayer_PlayWithParams, PcLegacyXa_PlayWithParams,
                  PcSoftwareXa_PlayWithParams,
@@ -45,14 +56,22 @@ XA_DISPATCH_VOID(XaPlayer_SetMasterVolume, PcLegacyXa_SetMasterVolume,
 
 int Xa_IsVoiceAudioDraining(void)
 {
+#if defined(SH_NO_OPENAL)
+    return PcSoftwareXa_IsVoiceAudioDraining();
+#else
     return PcAudioConfig_UsesSoftwareSpu()
         ? PcSoftwareXa_IsVoiceAudioDraining()
         : PcLegacyXa_IsVoiceAudioDraining();
+#endif
 }
 
 int Xa_VoiceGapHold(void)
 {
+#if defined(SH_NO_OPENAL)
+    return PcSoftwareXa_VoiceGapHold();
+#else
     return PcAudioConfig_UsesSoftwareSpu()
         ? PcSoftwareXa_VoiceGapHold()
         : PcLegacyXa_VoiceGapHold();
+#endif
 }

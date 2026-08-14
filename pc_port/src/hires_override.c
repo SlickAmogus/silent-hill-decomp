@@ -977,6 +977,16 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
      * upload reports a COMPRESSED internal format here (a sub-image into it
      * would fail), so only GL's own answer is trustworthy. */
     int reuseStorage;
+#if defined(__ANDROID__)
+    /* glGetTexLevelParameteriv is ES 3.1; the NDK's <GLES3/gl3.h> is ES 3.0, so
+     * the current storage cannot be queried and the reuse fast path cannot be
+     * proven safe (the BC7-compressed-format case it guards against would make
+     * a sub-image fail). Always take the reallocating path below — the same one
+     * every genuine (re)allocation already uses, so this is correct, only
+     * slower. Restoring the fast path here means moving to <GLES3/gl31.h>,
+     * which would also raise the device requirement to ES 3.1. */
+    reuseStorage = 0;
+#else
     {
         GLint curW = 0, curH = 0, curFmt = 0;
         glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &curW);
@@ -985,6 +995,7 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
         reuseStorage = (curW == w && curH == h &&
                         (curFmt == GL_RGBA || curFmt == GL_RGBA8));
     }
+#endif
 
     if (reuseStorage)
     {

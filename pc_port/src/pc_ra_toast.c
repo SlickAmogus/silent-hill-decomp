@@ -24,8 +24,6 @@
 
 #include <SDL.h>
 #include <PsyX/common/glad.h>
-#include <AL/al.h>
-#include <AL/alc.h>
 
 #include "sh_log.h"
 #include "pc_config.h"

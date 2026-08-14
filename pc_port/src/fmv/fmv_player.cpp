@@ -25,7 +25,13 @@
 #include <psx/libgpu.h>
 #include <psx/libetc.h>
 
+/* MJPG AVI overrides are a desktop convenience feature layered on top of the
+ * disc FMVs; the game's own STR/MDEC path below needs no libjpeg. Android has
+ * no system libjpeg, so the decoder compiles out there and IdentifyCodec
+ * reports MJPG as unsupported, which already falls back to the disc STR. */
+#if defined(SH_FMV_MJPEG)
 #include <jpeglib.h>
+#endif
 #include <SDL.h>
 
 #include <stdio.h>
@@ -152,6 +158,7 @@ static int EnsureDecodeBuffer(size_t bytes)
     return 0;
 }
 
+#if defined(SH_FMV_MJPEG)
 /* libjpeg's default error handler exit()s the process on a corrupt frame —
  * longjmp back out and drop the frame instead. */
 #include <setjmp.h>
@@ -211,6 +218,7 @@ static int UnpackJPEG(unsigned char* src, unsigned src_len, int* out_w, int* out
     jpeg_destroy_decompress(&cinfo);
     return 0;
 }
+#endif /* SH_FMV_MJPEG */
 
 /* Raw GL fullscreen quad - bypasses PsyCross vertex format */
 static GLuint s_fmvVAO = 0;
@@ -440,9 +448,11 @@ static FmvCodec IdentifyCodec(const ReadAVI::stream_format_t* fmt)
 {
     const char* cc = fmt->compression_type;
 
+#if defined(SH_FMV_MJPEG)
     if (FourccIs(cc, "MJPG") || FourccIs(cc, "DMB1") ||
         FourccIs(cc, "JPEG") || FourccIs(cc, "AVI1"))
         return FMV_CODEC_MJPEG;
+#endif
 
     /* BI_RGB has a zeroed compression field; some writers tag "DIB ". */
     if ((cc[0] == 0 || FourccIs(cc, "DIB ")) &&
@@ -565,8 +575,10 @@ static int DecodeVideoFrame(FmvCodec codec, unsigned char* buf, unsigned len,
     int top_down = fmt->image_height < 0;
 
     switch (codec) {
+#if defined(SH_FMV_MJPEG)
         case FMV_CODEC_MJPEG:
             return UnpackJPEG(buf, len, out_w, out_h);
+#endif
         case FMV_CODEC_RGB:
             if (UnpackRGB(buf, len, w, h, fmt->bits_per_pixel, top_down) != 0) return -1;
             break;

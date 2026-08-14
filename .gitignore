@@ -48,3 +48,10 @@ pc_port/launcher/**/obj/
 pc_port/launcher/**/bin/
 *.user
 .claude/worktrees/
+
+# Android port build artifacts
+android_port/.gradle/
+android_port/build/
+android_port/app/build/
+android_port/app/.cxx/
+android_port/local.properties

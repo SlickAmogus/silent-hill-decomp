@@ -6,8 +6,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* SH_NO_OPENAL builds (Android) compile no legacy AL renderer, so the
+ * PSX-accurate 44.1 kHz software one is the only backend that exists and has
+ * to be the default here. */
 PcAudioConfig g_PcAudioConfig = {
-    PC_SPU_RENDERER_LEGACY, 0, 0, 0, 0, 1, 0, 0
+#if defined(SH_NO_OPENAL)
+    PC_SPU_RENDERER_AUTHENTIC,
+#else
+    PC_SPU_RENDERER_LEGACY,
+#endif
+    0, 0, 0, 0, 1, 0, 0
 };
 
 static char* Trim(char* text)
@@ -102,5 +110,11 @@ void PcAudioConfig_Load(const char* path)
 
 int PcAudioConfig_UsesSoftwareSpu(void)
 {
+#if defined(SH_NO_OPENAL)
+    /* A config.cfg carrying `spu_renderer = legacy` must not be able to select
+     * a backend this build does not contain. */
+    return 1;
+#else
     return g_PcAudioConfig.renderer != PC_SPU_RENDERER_LEGACY;
+#endif
 }

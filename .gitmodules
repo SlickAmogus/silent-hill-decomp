@@ -16,3 +16,6 @@
 [submodule "pc_port/third_party/rcheevos"]
 	path = pc_port/third_party/rcheevos
 	url = https://github.com/RetroAchievements/rcheevos.git
+[submodule "android_port/app/jni/SDL"]
+	path = android_port/app/jni/SDL
+	url = https://github.com/libsdl-org/SDL.git

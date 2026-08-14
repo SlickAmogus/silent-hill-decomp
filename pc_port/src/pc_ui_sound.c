@@ -13,8 +13,14 @@
 #include <string.h>
 
 #include <SDL.h>
+/* SH_NO_OPENAL (Android) has no OpenAL at all, so alcGetCurrentContext() below
+ * could never return a context and the SDL branch — this file's own fully
+ * implemented fallback, already used whenever spu_renderer != legacy — is the
+ * only reachable path. Compiling the AL half out costs no functionality. */
+#if !defined(SH_NO_OPENAL)
 #include <AL/al.h>
 #include <AL/alc.h>
+#endif
 
 #include "pc_ui_sound.h"
 #include "sh_log.h"
@@ -24,7 +30,9 @@ enum { SND_AL = 1, SND_SDL };
 struct PcUiSound
 {
     int              kind;
+#if !defined(SH_NO_OPENAL)
     ALuint           alBuf, alSrc;
+#endif
     SDL_AudioDeviceID dev;
     Uint8*           wav;   /* kept for every replay on the SDL path */
     Uint32           len;
@@ -61,6 +69,7 @@ PcUiSound* PcUiSound_Load(const char* path)
         return NULL;
     }
 
+#if !defined(SH_NO_OPENAL)
     if (alcGetCurrentContext())
     {
         alGenBuffers(1, &snd->alBuf);
@@ -76,6 +85,7 @@ PcUiSound* PcUiSound_Load(const char* path)
         snd->kind = SND_AL;
     }
     else
+#endif
     {
         SDL_AudioSpec want = spec;
         want.samples  = 1024;
@@ -107,13 +117,16 @@ void PcUiSound_PlayGain(PcUiSound* snd, float gain)
     if (gain < 0.0f) gain = 0.0f;
     if (gain > 1.0f) gain = 1.0f;
 
+#if !defined(SH_NO_OPENAL)
     if (snd->kind == SND_AL)
     {
         alSourcef(snd->alSrc, AL_GAIN, gain);
         alSourceStop(snd->alSrc);
         alSourcePlay(snd->alSrc);
     }
-    else if (snd->kind == SND_SDL)
+    else
+#endif
+    if (snd->kind == SND_SDL)
     {
         const Uint8* play = snd->wav;
 
