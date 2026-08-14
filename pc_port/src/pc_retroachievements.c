@@ -49,6 +49,7 @@
 #include "sh_log.h"
 #include "dbg_overlay.h"
 #include "pc_ra_http.h"
+#include "map_registry.h"   /* RAWHY names the map index an operand compares */
 #include "pc_ra_toast.h"
 
 extern const char* PcPort_GetGameDiscPath(void);
@@ -966,23 +967,111 @@ int Pc_Ra_PreviewFirst(void)
 /* RAWHY: dump what an achievement's conditions actually read, next to the value
  * we hand back. Turns "why didn't it unlock" into a direct comparison against
  * the condition published on the achievement's page. */
-static const char* Pc_RaOperandDesc(const rc_operand_t* op, char* buf, size_t cap)
+
+/* savegame.mapIdx, the field almost every SH1 achievement gates on:
+ * g_GameWork (0x0BC728) + savegame (0x30C) + mapIdx (0xA4). */
+#define RA_MAPIDX_ADDR (RA_GAMEWORK_BASE + 0x30Cu + 0xA4u)
+
+/* Assemble the bytes the way THIS operand reads them.
+ *
+ * The dump used to print a 4-byte little-endian assembly for every operand
+ * regardless of memsize, which is actively misleading twice over: a big-endian
+ * probe looked like a mismatch when it matched (the boot-serial region gate
+ * read "SULS"/1398099027 instead of "SLUS"/1397511507), and an 8-bit field
+ * looked like a wild number when it was correct (mapIdx 37 printed as 293,
+ * because the read ran on into mapRoomIdx). Both cost real debugging time. */
+static uint32_t Pc_RaDecodeOperand(const uint8_t* b, uint8_t size, const char** outKind)
 {
+    const char* kind = "u32";
+    uint32_t    value;
+
+    switch (size)
+    {
+    case RC_MEMSIZE_8_BITS:     kind = "u8";    value = b[0]; break;
+    case RC_MEMSIZE_16_BITS:    kind = "u16";   value = (uint32_t)(b[0] | (b[1] << 8)); break;
+    case RC_MEMSIZE_24_BITS:    kind = "u24";   value = (uint32_t)(b[0] | (b[1] << 8) | (b[2] << 16)); break;
+    case RC_MEMSIZE_16_BITS_BE: kind = "u16be"; value = (uint32_t)((b[0] << 8) | b[1]); break;
+    case RC_MEMSIZE_24_BITS_BE: kind = "u24be"; value = (uint32_t)((b[0] << 16) | (b[1] << 8) | b[2]); break;
+    case RC_MEMSIZE_32_BITS_BE: kind = "u32be";
+        value = ((uint32_t)b[0] << 24) | ((uint32_t)b[1] << 16) | ((uint32_t)b[2] << 8) | b[3]; break;
+    case RC_MEMSIZE_LOW:        kind = "lo4";   value = b[0] & 0x0Fu; break;
+    case RC_MEMSIZE_HIGH:       kind = "hi4";   value = (b[0] >> 4) & 0x0Fu; break;
+    case RC_MEMSIZE_BITCOUNT:   kind = "bits";
+    {
+        int      n = 0;
+        unsigned v = b[0];
+        while (v) { n += (int)(v & 1u); v >>= 1; }
+        value = (uint32_t)n;
+        break;
+    }
+    default:
+        if (size >= RC_MEMSIZE_BIT_0 && size <= RC_MEMSIZE_BIT_7)
+        {
+            static const char* const bitKinds[8] = {
+                "bit0", "bit1", "bit2", "bit3", "bit4", "bit5", "bit6", "bit7"
+            };
+            const int bit = (int)size - (int)RC_MEMSIZE_BIT_0;
+            kind  = bitKinds[bit];
+            value = (uint32_t)((b[0] >> bit) & 1u);
+        }
+        else
+        {
+            value = (uint32_t)(b[0] | (b[1] << 8) | (b[2] << 16) | ((uint32_t)b[3] << 24));
+        }
+        break;
+    }
+    if (outKind)
+        *outKind = kind;
+    return value;
+}
+
+/* " (MAP5_S00 \"Sewers - lower and upper levels\")" for a map index, else "".
+ * Nearly every SH1 achievement compares mapIdx against a bare number, and
+ * decoding those by hand against the enum is where this investigation kept
+ * going wrong. */
+static const char* Pc_RaMapNote(uint32_t mapIdx, char* buf, size_t cap)
+{
+    const char* name;
+    const char* desc;
+
+    buf[0] = '\0';
+    if (mapIdx > (uint32_t)MapIdx_MAPX_S00)
+        return buf;
+    name = MapRegistry_GetName((e_MapIdx)mapIdx);
+    desc = MapRegistry_GetDescription((e_MapIdx)mapIdx);
+    if (name == NULL && desc == NULL)
+        return buf;
+    snprintf(buf, cap, " (%s%s%s%s)",
+             name ? name : "",
+             desc ? " \"" : "", desc ? desc : "", desc ? "\"" : "");
+    return buf;
+}
+
+static const char* Pc_RaOperandDesc(const rc_operand_t* op, int mapIdxContext,
+                                    char* buf, size_t cap)
+{
+    char note[96];
+
     if (op->type == RC_OPERAND_ADDRESS || op->type == RC_OPERAND_DELTA ||
         op->type == RC_OPERAND_PRIOR)
     {
-        uint32_t addr = op->value.memref->address;
-        uint8_t  bytes[4] = { 0, 0, 0, 0 };
-        uint32_t got = Pc_RaReadMemory(addr, bytes, 4, NULL);
-        snprintf(buf, cap, "%s0x80%06X%s=%u",
+        uint32_t    addr    = op->value.memref->address;
+        uint8_t     bytes[4] = { 0, 0, 0, 0 };
+        uint32_t    got     = Pc_RaReadMemory(addr, bytes, 4, NULL);
+        const char* kind    = "u32";
+        uint32_t    value   = Pc_RaDecodeOperand(bytes, op->size, &kind);
+
+        snprintf(buf, cap, "%s0x80%06X%s.%s=%u%s",
                  (op->type == RC_OPERAND_DELTA) ? "delta " :
                  (op->type == RC_OPERAND_PRIOR) ? "prior " : "",
-                 addr, got ? "" : "(UNMAPPED)",
-                 (unsigned)(bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | ((uint32_t)bytes[3] << 24)));
+                 addr, got ? "" : "(UNMAPPED)", kind, (unsigned)value,
+                 (addr == RA_MAPIDX_ADDR) ? Pc_RaMapNote(value, note, sizeof(note)) : "");
     }
     else
     {
-        snprintf(buf, cap, "t%u:%u", (unsigned)op->type, (unsigned)op->value.num);
+        /* A bare number next to a mapIdx read is a map index; name it. */
+        snprintf(buf, cap, "t%u:%u%s", (unsigned)op->type, (unsigned)op->value.num,
+                 mapIdxContext ? Pc_RaMapNote(op->value.num, note, sizeof(note)) : "");
     }
     return buf;
 }
@@ -1053,12 +1142,25 @@ int Pc_Ra_Why(const char* filter)
                         SH_DBG("[RAWHY]   -- %s group %d --", grp ? "ALT" : "CORE", setIdx);
                         for (c = set->conditions; c; c = c->next)
                         {
-                            char a[64], bb[64];
+                            char a[192], bb[192];
+                            /* Either side may be the mapIdx read; the other side
+                             * is then a map index worth naming. */
+                            const int op1IsMap =
+                                (c->operand1.type == RC_OPERAND_ADDRESS ||
+                                 c->operand1.type == RC_OPERAND_DELTA ||
+                                 c->operand1.type == RC_OPERAND_PRIOR) &&
+                                c->operand1.value.memref->address == RA_MAPIDX_ADDR;
+                            const int op2IsMap =
+                                (c->operand2.type == RC_OPERAND_ADDRESS ||
+                                 c->operand2.type == RC_OPERAND_DELTA ||
+                                 c->operand2.type == RC_OPERAND_PRIOR) &&
+                                c->operand2.value.memref->address == RA_MAPIDX_ADDR;
+
                             SH_DBG("[RAWHY]   c%-2d type%u %s  op%u  %s   hits %u/%u",
                                    condIdx++, (unsigned)c->type,
-                                   Pc_RaOperandDesc(&c->operand1, a, sizeof(a)),
+                                   Pc_RaOperandDesc(&c->operand1, op2IsMap, a, sizeof(a)),
                                    (unsigned)c->oper,
-                                   Pc_RaOperandDesc(&c->operand2, bb, sizeof(bb)),
+                                   Pc_RaOperandDesc(&c->operand2, op1IsMap, bb, sizeof(bb)),
                                    (unsigned)c->current_hits, (unsigned)c->required_hits);
                             if (condIdx > 40) break;
                         }
