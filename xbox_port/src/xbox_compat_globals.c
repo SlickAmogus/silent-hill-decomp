@@ -68,8 +68,13 @@ void XboxConfig_ApplyOverrides(void)
     g_PcConfig.randomizer       = 0;   /* would re-force globalCharaPool=1 if the
                                         * rando init were ever wired up here */
 
-    /* --- Untested-on-Xbox I/O paths. --- */
-    g_PcConfig.allowLooseFiles  = 0;   /* fsqueue loose-file probe per read */
+    /* allowLooseFiles is deliberately NOT pinned any more — it is the asset
+     * replacement switch ("Asset_Overrides" on Xbox Options page 3). PC's
+     * default is 0, so it stays off unless a config or the menu turns it on, and
+     * costs nothing when off. It was pinned while Loose_FOpen still did a
+     * RELATIVE fopen, which can never resolve on Xbox; that is fixed (it
+     * resolves against Q:, the xbe's own directory), so the switch now does
+     * something. */
 
     /* --- Performance: the 733MHz CPU / 233MHz NV2A cannot absorb these. --- */
     g_PcConfig.disableCulling = 0;     /* PC 1: keep the PSX subcell PVS on */

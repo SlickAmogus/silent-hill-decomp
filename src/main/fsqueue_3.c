@@ -293,16 +293,48 @@ static int Loose_ResolveCase(const char* path, char* out, size_t outSize)
  * compiled out / never taken. */
 static FILE* Loose_FOpen(const char* path, const char* mode)
 {
-    FILE* f = fopen(path, mode);
-#ifndef _WIN32
-    if (f == NULL)
+#ifdef SH_XBOX_PORT
+    /* Every loose path in this file is RELATIVE ("gamedata/load/CHARA/DOB.TIM").
+     * There is no useful current directory on Xbox -- it is whatever the
+     * dashboard left it as -- so a relative fopen simply never finds anything,
+     * which is why the whole loose-file layer was dead here regardless of
+     * allow_loose_files. Resolve against Q:, the xbe's OWN directory (mounted by
+     * Cd_XboxMountHome), the same fix the config file needed, and swap to
+     * backslashes for FATX. */
     {
-        char resolved[300];
-        if (Loose_ResolveCase(path, resolved, sizeof(resolved)))
-            f = fopen(resolved, mode);
+        char  q[300];
+        FILE* qf;
+        int   d = 3;
+        int   s = 0;
+
+        q[0] = 'Q';
+        q[1] = ':';
+        q[2] = '\\';
+        while (path[s] != '\0' && d < (int)sizeof(q) - 1)
+        {
+            q[d] = (path[s] == '/') ? '\\' : path[s];
+            d++;
+            s++;
+        }
+        q[d] = '\0';
+
+        qf = fopen(q, mode);
+        if (qf != NULL)
+            return qf;
     }
 #endif
-    return f;
+    {
+        FILE* f = fopen(path, mode);
+#ifndef _WIN32
+        if (f == NULL)
+        {
+            char resolved[300];
+            if (Loose_ResolveCase(path, resolved, sizeof(resolved)))
+                f = fopen(resolved, mode);
+        }
+#endif
+        return f;
+    }
 }
 
 /* Read a whole loose file. Returns malloc'd bytes (caller frees) or NULL

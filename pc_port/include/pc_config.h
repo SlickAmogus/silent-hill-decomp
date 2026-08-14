@@ -128,6 +128,11 @@ typedef struct {
     int immersiveFpsHeadTracking; /* 1 = FPS view direction follows Harry's animated head-bone rotation (idle sway/lean), mouse layered on top (config key: immersive_fps_head_tracking) */
     int control2d;          /* 1 = 2D screen-relative movement (input aligns with the camera; Harry turns to face the move direction) under ALL non-FPS camera styles (config key: control_2d) — an Experiment, off by default */
     int control2dSnap;      /* 1 = 2D control snaps Harry instantly to the input direction instead of turning into it (config key: control_2d_snap); default 0 */
+    int hiResTextures;      /* Xbox: 1 = use hi-res replacement textures when they EXIST
+                             * on the drive; 0 = always native-res art. Separate from
+                             * allow_loose_files, which is the master asset-replacement
+                             * switch: hi-res costs permanent texture-cache slots, so it
+                             * has to be refusable on its own (config key: hires_textures) */
     int bwQuickSave;        /* Xbox: 1 = the BLACK/WHITE buttons run quick save / quick load
                              * instead of their normal step-left/step-right (L1/R1) mapping;
                              * 0 = keep stepping (config key: bw_quick_save); default 0 */

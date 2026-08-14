@@ -279,6 +279,16 @@ static const s_PcOpt PCOPT_X2[] = {
     { "Quick_Load",      NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_QLOAD    },
     { "B/W_Quick_Save/Load", &g_PcConfig.bwQuickSave,   "bw_quick_save",       VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Prev_Page",       NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_PREV     },
+    { "Next_Page",       NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_NEXT     },
+    { "Back",            NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_BACK     },
+};
+
+/* Page 3: asset replacement. Every row here is inert unless the player has
+ * actually put files on the drive, so the defaults cost nothing. */
+static const s_PcOpt PCOPT_X3[] = {
+    { "Asset_Overrides", &g_PcConfig.allowLooseFiles,   "allow_loose_files",   VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
+    { "Hi_Res_Textures", &g_PcConfig.hiResTextures,     "hires_textures",      VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
+    { "Prev_Page",       NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_PREV     },
     { "Back",            NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_BACK     },
 };
 #endif
@@ -314,8 +324,12 @@ static void PcMouse_InjectDir(int dir)
 static const s_PcOpt* PcOpt_Page(int* count)
 {
 #ifdef SH_XBOX_PORT
-    /* Two pages: PCOPT_X ends in NEXT, PCOPT_X2 ends in PREV, so the page index
-     * only ever reaches 0 or 1. */
+    /* Three pages. PCOPT_X ends in NEXT, PCOPT_X2 has PREV+NEXT, PCOPT_X3 ends
+     * in PREV, so the page index only ever reaches 0, 1 or 2. */
+    if (g_PcOptionsMenu_Page >= 2) {
+        *count = (int)(sizeof(PCOPT_X3) / sizeof(PCOPT_X3[0]));
+        return PCOPT_X3;
+    }
     if (g_PcOptionsMenu_Page != 0) {
         *count = (int)(sizeof(PCOPT_X2) / sizeof(PCOPT_X2[0]));
         return PCOPT_X2;
