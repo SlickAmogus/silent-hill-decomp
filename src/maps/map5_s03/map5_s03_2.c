@@ -688,8 +688,13 @@ void Map_WorldObjectsInit(void) // 0x800D2A04
      * The find-fail log dedupes by NAME, so every unnamed object in the map
      * collapsed into a single "name=''" line rather than one per item, which is
      * why it read as one stray object instead of three. */
+    /* D_800A99E4[5..7] are BULLET_N / SHELL_NE / SHOT_NEA, in the same order as
+     * InvItemId_HandgunBullets(192) / RifleShells(193) / ShotgunShells(194) --
+     * so SHELL_NE is the RIFLE ammo and the shotgun's is SHOT_NEA. Picking
+     * SHELL_NE here drew rifle ammo on the shelf for a pickup that gives
+     * shotgun shells. */
     WorldObject_ModelNameSet(&g_WorldObject_HealthDrink,   D_800A99E4[3]); /* DRINK_NE */
-    WorldObject_ModelNameSet(&g_WorldObject_ShotgunShells, D_800A99E4[6]); /* SHELL_NE */
+    WorldObject_ModelNameSet(&g_WorldObject_ShotgunShells, D_800A99E4[7]); /* SHOT_NEA */
 #endif
 }
 
