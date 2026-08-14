@@ -56,8 +56,27 @@ at the top of `pc_port/src/main_pc.c`). Everything relative — `config.cfg`,
 ```
 
 That path needs **no storage permission at any API level** and is not subject to
-scoped storage, which is why it was chosen over `/sdcard/SilentHill/`. Push data
-with `adb push <file> /sdcard/Android/data/com.silenthill.port/files/`.
+scoped storage, which is why it was chosen over `/sdcard/SilentHill/`.
+
+### What ships vs what you supply
+
+**The APK contains no game content and is not meant to.** It carries the native
+libraries, the dex, resources, and twelve redistributable asset files
+(`decal.png`, the OFL-licensed Barlow/Oswald fonts, the Polish language pack, RA
+symbol tables, port UI sounds). `SilentHillActivity` unpacks those to the data
+directory at launch, skipping any that already exist so local edits survive.
+
+You supply your own disc dump and its extracted data:
+
+```
+adb push "Silent Hill (USA).bin" /sdcard/Android/data/com.silenthill.port/files/
+adb push gamedata                /sdcard/Android/data/com.silenthill.port/files/
+```
+
+`fs_pc.c` resolves `./gamedata` and `PcPort_GetGameDiscPath()` resolves the BIN,
+both against that directory — the XA/CD-audio path reads BIN sectors directly
+(`xa_player_software.c`), so the image itself has to be present, not just the
+extracted files.
 
 ## What is disabled on Android, and why
 
