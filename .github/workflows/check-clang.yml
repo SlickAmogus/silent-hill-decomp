@@ -87,3 +87,18 @@ jobs:
           bash pc_port/tools/check-clang.sh \
             --target arm64-apple-ios \
             --sysroot "$(xcrun --sdk iphoneos --show-sdk-path)"
+
+      # PsyCross's platform chain has to pick GLES on iOS rather than desktop
+      # GL, reach Apple's OpenGLES/ES3 headers rather than the Khronos ones,
+      # and skip EGL, which iOS does not have. None of that can be checked off
+      # an Apple SDK, so verify it here against the real iPhoneOS headers.
+      - name: Check the PsyCross iOS render path resolves
+        run: |
+          echo '#include "PsyX/PsyX_render.h"' > "$RUNNER_TEMP/psyx_ios.c"
+          clang -fsyntax-only \
+            --target=arm64-apple-ios \
+            -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" \
+            -Ipc_port/PsyCross/include \
+            -Ipc_port/PsyCross/include/psx \
+            "$RUNNER_TEMP/psyx_ios.c"
+          echo "PsyX_render.h resolves for arm64-apple-ios"
