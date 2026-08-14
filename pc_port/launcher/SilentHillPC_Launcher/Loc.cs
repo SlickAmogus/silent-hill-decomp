@@ -174,6 +174,11 @@ namespace SilentHillPC_Launcher
 
             foreach (Control c in root.Controls)
             {
+                // Owner-drawn combos paint their text through T() at draw time,
+                // so a repaint is all a language switch needs.
+                var cb = c as ComboBox;
+                if (cb != null && cb.DrawMode == DrawMode.OwnerDrawFixed) cb.Invalidate();
+
                 var ts = c as ToolStrip;
                 if (ts != null) ApplyMenu(ts.Items);
 
@@ -187,6 +192,38 @@ namespace SilentHillPC_Launcher
 
             if (root.ContextMenuStrip != null)
                 ApplyMenu(root.ContextMenuStrip.Items);
+        }
+
+
+        /// <summary>
+        /// Show a DropDownList's items translated while leaving the items
+        /// themselves English.
+        ///
+        /// This is the only safe way to translate these: the launcher reads the
+        /// selection back with SelectedItem.ToString() and writes it straight to
+        /// config.cfg (resolution, fps_cap, map, and the value lists here), so
+        /// replacing the item objects would change what gets saved. Owner-draw
+        /// changes only what is painted. Every combo on the form is
+        /// DropDownList, so this covers the closed box as well as the open list.
+        /// </summary>
+        public static void LocalizeItems(ComboBox cb)
+        {
+            if (cb == null) return;
+            cb.DrawMode = DrawMode.OwnerDrawFixed;
+            cb.DrawItem += (s, e) =>
+            {
+                e.DrawBackground();
+                if (e.Index >= 0 && e.Index < cb.Items.Count)
+                {
+                    var text = T(Convert.ToString(cb.Items[e.Index]));
+                    TextRenderer.DrawText(e.Graphics, text, e.Font ?? cb.Font, e.Bounds,
+                        e.ForeColor,
+                        TextFormatFlags.Left | TextFormatFlags.VerticalCenter |
+                        TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
+                }
+                e.DrawFocusRectangle();
+            };
+            cb.Invalidate();
         }
 
         public static void ApplyMenu(ToolStripItemCollection items)

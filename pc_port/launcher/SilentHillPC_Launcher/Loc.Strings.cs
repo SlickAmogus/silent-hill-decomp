@@ -18,38 +18,46 @@ namespace SilentHillPC_Launcher
             new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
             // ---- main window: actions ----
+            // These land on fixed-width buttons (104px for the update pair, 98
+            // for Build Settings, 70 for Report Bug, 53 for Reset, 39 for Help),
+            // and WinForms clips button text mid-word rather than wrapping it.
+            // Every column below was measured against its button — keep new ones
+            // at or under the English string's width.
             { "Play",              new[]{ "Jugar", "Jogar", "Jouer", "Spielen", "Gioca", "プレイ", "开始游戏", "Играть", "Graj" } },
-            { "Check for Updates", new[]{ "Buscar actualizaciones", "Procurar atualizações", "Rechercher des mises à jour", "Nach Updates suchen", "Cerca aggiornamenti", "更新を確認", "检查更新", "Проверить обновления", "Sprawdź aktualizacje" } },
-            { "Changelog",         new[]{ "Novedades", "Novidades", "Journal des modifications", "Änderungsprotokoll", "Novità", "変更履歴", "更新日志", "Список изменений", "Lista zmian" } },
+            { "Check for Updates", new[]{ "Actualizaciones", "Atualizações", "Mises à jour", "Updates suchen", "Aggiornamenti", "更新を確認", "检查更新", "Обновления", "Aktualizacje" } },
+            { "Changelog",         new[]{ "Novedades", "Novidades", "Changements", "Änderungen", "Novità", "変更履歴", "更新日志", "Изменения", "Lista zmian" } },
             { "View Changelog",    new[]{ "Ver novedades", "Ver novidades", "Voir les modifications", "Änderungen ansehen", "Vedi novità", "変更履歴を見る", "查看更新日志", "Показать изменения", "Zobacz zmiany" } },
             { "Controls",          new[]{ "Controles", "Controles", "Commandes", "Steuerung", "Comandi", "操作設定", "控制设置", "Управление", "Sterowanie" } },
-            { "Build Settings",    new[]{ "Ajustes de compilación", "Config. da build", "Paramètres de build", "Build-Einstellungen", "Impostazioni build", "ビルド設定", "版本设置", "Настройки сборки", "Ustawienia kompilacji" } },
-            { "Download Build",    new[]{ "Descargar compilación", "Baixar build", "Télécharger la build", "Build herunterladen", "Scarica build", "ビルドをダウンロード", "下载版本", "Скачать сборку", "Pobierz kompilację" } },
-            { "Redownload Build",  new[]{ "Volver a descargar", "Baixar novamente", "Retélécharger", "Erneut herunterladen", "Riscarica build", "再ダウンロード", "重新下载", "Скачать заново", "Pobierz ponownie" } },
-            { "Help",              new[]{ "Ayuda", "Ajuda", "Aide", "Hilfe", "Aiuto", "ヘルプ", "帮助", "Справка", "Pomoc" } },
-            { "Report Bug",        new[]{ "Reportar error", "Reportar erro", "Signaler un bug", "Fehler melden", "Segnala bug", "バグを報告", "报告问题", "Сообщить об ошибке", "Zgłoś błąd" } },
-            { "Reset",             new[]{ "Restablecer", "Redefinir", "Réinitialiser", "Zurücksetzen", "Ripristina", "リセット", "重置", "Сброс", "Resetuj" } },
+            { "Build Settings",    new[]{ "Compilación", "Config. build", "Réglages build", "Build-Optionen", "Impostazioni", "ビルド設定", "版本设置", "Опции сборки", "Ustawienia" } },
+            { "Download Build",    new[]{ "Descargar build", "Baixar build", "Télécharger build", "Build laden", "Scarica build", "ビルド取得", "下载版本", "Скачать сборку", "Pobierz build" } },
+            { "Redownload Build",  new[]{ "Redescargar", "Baixar de novo", "Retélécharger", "Erneut laden", "Riscarica", "再ダウンロード", "重新下载", "Скачать заново", "Pobierz ponownie" } },
+            // 39px button, so the usable text width is ~33px: any language whose
+            // word for Help is wider gets "?" instead, because a clipped "Pom"
+            // is worse than the universal glyph.
+            { "Help",              new[]{ "?", "?", "Aide", "Hilfe", "Aiuto", "?", "帮助", "?", "?" } },
+            { "Report Bug",        new[]{ "Reportar", "Reportar", "Signaler", "Fehler", "Segnala", "バグ報告", "报告问题", "Ошибка", "Zgłoś błąd" } },
+            { "Reset",             new[]{ "Reiniciar", "Repor", "Réinit.", "Zurück", "Reset", "リセット", "重置", "Сброс", "Resetuj" } },
 
             // ---- main window: setting labels ----
-            { "Skip Intros:",      new[]{ "Saltar intros:", "Pular intros:", "Passer les intros :", "Intros überspringen:", "Salta intro:", "イントロをスキップ:", "跳过开场:", "Пропуск заставок:", "Pomiń intra:" } },
+            { "Skip Intros:",      new[]{ "Saltar intros:", "Pular intros:", "Intros :", "Intros:", "Salta intro:", "イントロ:", "跳过开场:", "Заставки:", "Pomiń intra:" } },
             { "Display:",          new[]{ "Pantalla:", "Tela:", "Écran :", "Anzeige:", "Schermo:", "ディスプレイ:", "显示器:", "Дисплей:", "Ekran:" } },
             { "VSync:",            new[]{ "VSync:", "VSync:", "VSync :", "VSync:", "VSync:", "垂直同期:", "垂直同步:", "Вертик. синхр.:", "VSync:" } },
             { "Resolution:",       new[]{ "Resolución:", "Resolução:", "Résolution :", "Auflösung:", "Risoluzione:", "解像度:", "分辨率:", "Разрешение:", "Rozdzielczość:" } },
-            { "Pillarboxing:",     new[]{ "Bandas laterales:", "Barras laterais:", "Bandes latérales :", "Seitenbalken:", "Bande laterali:", "ピラーボックス:", "黑边显示:", "Боковые поля:", "Pasy boczne:" } },
-            { "FPS Limit:",        new[]{ "Límite de FPS:", "Limite de FPS:", "Limite FPS :", "FPS-Limit:", "Limite FPS:", "FPS制限:", "帧率限制:", "Лимит кадров:", "Limit FPS:" } },
-            { "Preload Chunks:",   new[]{ "Precargar bloques:", "Pré-carregar blocos:", "Préchargement :", "Vorladen:", "Precarica blocchi:", "事前読み込み:", "预加载区块:", "Предзагрузка:", "Wstępne ładowanie:" } },
+            { "Pillarboxing:",     new[]{ "Bandas lat.:", "Barras laterais:", "Bandes lat. :", "Seitenbalken:", "Bande laterali:", "ピラーボックス:", "黑边显示:", "Боковые поля:", "Pasy boczne:" } },
+            { "FPS Limit:",        new[]{ "Límite FPS:", "Limite FPS:", "Limite FPS :", "FPS-Limit:", "Limite FPS:", "FPS制限:", "帧率限制:", "Лимит FPS:", "Limit FPS:" } },
+            { "Preload Chunks:",   new[]{ "Precargar:", "Pré-carregar:", "Préchargement :", "Vorladen:", "Precarica:", "事前読み込み:", "预加载区块:", "Предзагрузка:", "Wstępne ład.:" } },
             { "Filtering:",        new[]{ "Filtrado:", "Filtragem:", "Filtrage :", "Filterung:", "Filtro:", "フィルタ:", "纹理过滤:", "Фильтрация:", "Filtrowanie:" } },
-            { "Use PGXP:",         new[]{ "Usar PGXP:", "Usar PGXP:", "Utiliser PGXP :", "PGXP verwenden:", "Usa PGXP:", "PGXPを使う:", "启用 PGXP:", "Использовать PGXP:", "Użyj PGXP:" } },
+            { "Use PGXP:",         new[]{ "Usar PGXP:", "Usar PGXP:", "Utiliser PGXP :", "PGXP nutzen:", "Usa PGXP:", "PGXPを使う:", "启用 PGXP:", "Исп. PGXP:", "Użyj PGXP:" } },
             { "Enable Logging:",   new[]{ "Registro:", "Registro:", "Journalisation :", "Protokollierung:", "Log:", "ログ出力:", "启用日志:", "Вести журнал:", "Logowanie:" } },
-            { "External Console:", new[]{ "Consola externa:", "Console externo:", "Console externe :", "Externe Konsole:", "Console esterna:", "外部コンソール:", "外部控制台:", "Внешняя консоль:", "Konsola zewnętrzna:" } },
+            { "External Console:", new[]{ "Consola externa:", "Console externo:", "Console ext. :", "Ext. Konsole:", "Console esterna:", "外部コンソール:", "外部控制台:", "Внеш. консоль:", "Konsola zewn.:" } },
             { "Antialiasing:",     new[]{ "Suavizado:", "Suavização:", "Anticrénelage :", "Kantenglättung:", "Antialiasing:", "アンチエイリアス:", "抗锯齿:", "Сглаживание:", "Antialiasing:" } },
-            { "Post Effect:",      new[]{ "Postproceso:", "Pós-efeito:", "Post-traitement :", "Nachbearbeitung:", "Post-effetto:", "ポストエフェクト:", "后期效果:", "Постобработка:", "Efekt końcowy:" } },
-            { "Tone Map:",         new[]{ "Mapeo tonal:", "Mapa de tons:", "Mappage tonal :", "Tone Mapping:", "Mappatura toni:", "トーンマップ:", "色调映射:", "Тонмаппинг:", "Mapowanie tonów:" } },
+            { "Post Effect:",      new[]{ "Postproceso:", "Pós-efeito:", "Post-traitem. :", "Post-Effekt:", "Post-effetto:", "ポストエフェクト:", "后期效果:", "Постобраб.:", "Efekt końcowy:" } },
+            { "Tone Map:",         new[]{ "Mapeo tonal:", "Mapa de tons:", "Mappage tonal:", "Tone Mapping:", "Mappatura toni:", "トーンマップ:", "色调映射:", "Тонмаппинг:", "Mapow. tonów:" } },
             { "Flashlight:",       new[]{ "Linterna:", "Lanterna:", "Lampe torche :", "Taschenlampe:", "Torcia:", "懐中電灯:", "手电筒:", "Фонарик:", "Latarka:" } },
-            { "Disk Image:",       new[]{ "Imagen de disco:", "Imagem de disco:", "Image disque :", "Datenträgerabbild:", "Immagine disco:", "ディスクイメージ:", "光盘镜像:", "Образ диска:", "Obraz płyty:" } },
-            { "Audio Out:",        new[]{ "Salida de audio:", "Saída de áudio:", "Sortie audio :", "Audioausgabe:", "Uscita audio:", "音声出力:", "音频输出:", "Вывод звука:", "Wyjście audio:" } },
+            { "Disk Image:",       new[]{ "Imagen disco:", "Imagem disco:", "Image disque :", "Disk-Image:", "Immagine disco:", "ディスクイメージ:", "光盘镜像:", "Образ диска:", "Obraz płyty:" } },
+            { "Audio Out:",        new[]{ "Salida audio:", "Saída áudio:", "Sortie audio :", "Audio:", "Uscita audio:", "音声出力:", "音频输出:", "Вывод звука:", "Wyjście audio:" } },
             { "Level:",            new[]{ "Nivel:", "Nível:", "Niveau :", "Level:", "Livello:", "レベル:", "关卡:", "Уровень:", "Poziom:" } },
-            { "Menus:",            new[]{ "Menús:", "Menus:", "Menus :", "Menüs:", "Menu:", "メニュー:", "菜单:", "Меню:", "Menu:" } },
+            { "Menus:",            new[]{ "Menús:", "Menus:", "Menus:", "Menüs:", "Menu:", "メニュー:", "菜单:", "Меню:", "Menu:" } },
 
             // ---- common values / buttons ----
             { "Yes",    new[]{ "Sí", "Sim", "Oui", "Ja", "Sì", "はい", "是", "Да", "Tak" } },
@@ -64,7 +72,9 @@ namespace SilentHillPC_Launcher
 
             // ---- main window: status ----
             { "Checking for updates...",       new[]{ "Buscando actualizaciones...", "Procurando atualizações...", "Recherche de mises à jour...", "Suche nach Updates...", "Ricerca aggiornamenti...", "更新を確認中...", "正在检查更新...", "Проверка обновлений...", "Sprawdzanie aktualizacji..." } },
-            { "Update available!",             new[]{ "¡Actualización disponible!", "Atualização disponível!", "Mise à jour disponible !", "Update verfügbar!", "Aggiornamento disponibile!", "更新があります!", "有可用更新!", "Доступно обновление!", "Dostępna aktualizacja!" } },
+            // Goes on the 104px update button, not the status line — hence the
+            // short forms.
+            { "Update available!",             new[]{ "¡Disponible!", "Disponível!", "Disponible !", "Verfügbar!", "Disponibile!", "更新あり!", "有更新!", "Обновление!", "Dostępna!" } },
             { "Update failed (see message).",  new[]{ "Fallo al actualizar (ver mensaje).", "Falha ao atualizar (ver mensagem).", "Échec de la mise à jour (voir message).", "Update fehlgeschlagen (siehe Meldung).", "Aggiornamento fallito (vedi messaggio).", "更新に失敗しました(メッセージ参照)", "更新失败(见提示)。", "Не удалось обновить (см. сообщение).", "Aktualizacja nieudana (zobacz komunikat)." } },
             { "Checking selected build...",    new[]{ "Comprobando la compilación...", "Verificando a build...", "Vérification de la build...", "Build wird geprüft...", "Controllo della build...", "ビルドを確認中...", "正在检查版本...", "Проверка сборки...", "Sprawdzanie kompilacji..." } },
             { "Download cancelled.",           new[]{ "Descarga cancelada.", "Download cancelado.", "Téléchargement annulé.", "Download abgebrochen.", "Download annullato.", "ダウンロードを中止しました。", "下载已取消。", "Загрузка отменена.", "Pobieranie anulowane." } },
@@ -75,6 +85,60 @@ namespace SilentHillPC_Launcher
             { "Language",                      new[]{ "Idioma", "Idioma", "Langue", "Sprache", "Lingua", "言語", "语言", "Язык", "Język" } },
             { "Launcher language",             new[]{ "Idioma del lanzador", "Idioma do inicializador", "Langue du lanceur", "Launcher-Sprache", "Lingua del launcher", "ランチャーの言語", "启动器语言", "Язык лаунчера", "Język launchera" } },
 
+
+            // {0} is a build/version number, so it stays put in every language.
+            { "Update available: {0}",   new[]{ "Actualización disponible: {0}", "Atualização disponível: {0}", "Mise à jour disponible : {0}", "Update verfügbar: {0}", "Aggiornamento disponibile: {0}", "更新があります: {0}", "有可用更新: {0}", "Доступно обновление: {0}", "Dostępna aktualizacja: {0}" } },
+            { "Up to date ({0}).",       new[]{ "Actualizado ({0}).", "Atualizado ({0}).", "À jour ({0}).", "Aktuell ({0}).", "Aggiornato ({0}).", "最新です ({0})。", "已是最新 ({0})。", "Обновлений нет ({0}).", "Aktualne ({0})." } },
+            { "Update {0} skipped.",     new[]{ "Actualización {0} omitida.", "Atualização {0} ignorada.", "Mise à jour {0} ignorée.", "Update {0} übersprungen.", "Aggiornamento {0} saltato.", "更新 {0} をスキップしました。", "已跳过更新 {0}。", "Обновление {0} пропущено.", "Pominięto aktualizację {0}." } },
+            { "Build {0} is installed.", new[]{ "La compilación {0} ya está instalada.", "A build {0} já está instalada.", "La build {0} est déjà installée.", "Build {0} ist bereits installiert.", "La build {0} è già installata.", "ビルド {0} はインストール済みです。", "版本 {0} 已安装。", "Сборка {0} уже установлена.", "Kompilacja {0} jest zainstalowana." } },
+            { "Build {0} installed.",    new[]{ "Compilación {0} instalada.", "Build {0} instalada.", "Build {0} installée.", "Build {0} installiert.", "Build {0} installata.", "ビルド {0} をインストールしました。", "已安装版本 {0}。", "Сборка {0} установлена.", "Zainstalowano kompilację {0}." } },
+            { "Installing files...",     new[]{ "Instalando archivos...", "Instalando arquivos...", "Installation des fichiers...", "Dateien werden installiert...", "Installazione file...", "ファイルをインストール中...", "正在安装文件...", "Установка файлов...", "Instalowanie plików..." } },
+            { "Downloading update...",   new[]{ "Descargando actualización...", "Baixando atualização...", "Téléchargement de la mise à jour...", "Update wird heruntergeladen...", "Download aggiornamento...", "更新をダウンロード中...", "正在下载更新...", "Загрузка обновления...", "Pobieranie aktualizacji..." } },
+            { "Extracting + verifying...", new[]{ "Extrayendo y verificando...", "Extraindo e verificando...", "Extraction et vérification...", "Entpacken + Prüfen...", "Estrazione e verifica...", "展開・検証中...", "正在解压和校验...", "Распаковка и проверка...", "Rozpakowywanie i weryfikacja..." } },
+            // Verbatim strings here: the trailing path separator would otherwise
+            // have to be double-escaped in ten places.
+            { @"No disc image found in gamedata\", new[]{ @"No hay imagen de disco en gamedata\", @"Nenhuma imagem de disco em gamedata\", @"Aucune image disque dans gamedata\", @"Kein Datenträgerabbild in gamedata\", @"Nessuna immagine disco in gamedata\", @"gamedata\ にディスクイメージがありません", @"gamedata\ 中未找到光盘镜像", @"В gamedata\ нет образа диска", @"Brak obrazu płyty w gamedata\" } },
+
+            // ---- dropdown values (the items stay English; only the painted
+            // text changes -- see Loc.LocalizeItems). Acronyms and proper nouns
+            // are absent on purpose: CRT, PSX Retro, Reinhard, ACES, 2x/4x/8x.
+            { "Fullscreen",        new[]{ "Pantalla completa", "Tela cheia", "Plein écran", "Vollbild", "Schermo intero", "フルスクリーン", "全屏", "Полный экран", "Pełny ekran" } },
+            { "Windowed",          new[]{ "En ventana", "Em janela", "Fenêtré", "Fenster", "Finestra", "ウィンドウ", "窗口", "В окне", "W oknie" } },
+            { "Borderless",        new[]{ "Sin bordes", "Sem bordas", "Sans bordure", "Randlos", "Senza bordi", "ボーダーレス", "无边框", "Без рамки", "Bez ramki" } },
+            { "Don't Skip",        new[]{ "No saltar", "Não pular", "Ne pas passer", "Nicht überspringen", "Non saltare", "スキップしない", "不跳过", "Не пропускать", "Nie pomijaj" } },
+            { "Skip to Menu",      new[]{ "Saltar al menú", "Pular para o menu", "Aller au menu", "Zum Menü", "Vai al menu", "メニューへ", "跳到菜单", "К меню", "Do menu" } },
+            { "Skip to Game",      new[]{ "Saltar al juego", "Pular para o jogo", "Aller au jeu", "Zum Spiel", "Vai al gioco", "ゲームへ", "跳到游戏", "К игре", "Do gry" } },
+            { "Menus Only",        new[]{ "Solo menús", "Somente menus", "Menus seulement", "Nur Menüs", "Solo menu", "メニューのみ", "仅菜单", "Только меню", "Tylko menu" } },
+            { "Off",               new[]{ "Desactivado", "Desligado", "Désactivé", "Aus", "Disattivato", "オフ", "关闭", "Выкл.", "Wył." } },
+            { "On",                new[]{ "Activado", "Ligado", "Activé", "Ein", "Attivato", "オン", "开启", "Вкл.", "Wł." } },
+            { "Auto",              new[]{ "Automático", "Automático", "Auto", "Automatisch", "Automatico", "自動", "自动", "Авто", "Auto" } },
+            { "Dithering",         new[]{ "Tramado", "Pontilhado", "Tramage", "Dithering", "Dithering", "ディザリング", "抖动", "Дизеринг", "Dithering" } },
+            { "Bilinear",          new[]{ "Bilineal", "Bilinear", "Bilinéaire", "Bilinear", "Bilineare", "バイリニア", "双线性", "Билинейная", "Dwuliniowe" } },
+            { "Scanlines",         new[]{ "Líneas de barrido", "Linhas de varredura", "Lignes de balayage", "Scanlines", "Scanline", "走査線", "扫描线", "Строки развёртки", "Linie skan." } },
+            { "Vignette",          new[]{ "Viñeta", "Vinheta", "Vignettage", "Vignette", "Vignettatura", "ビネット", "暗角", "Виньетка", "Winieta" } },
+            { "Color Grade",       new[]{ "Corrección de color", "Correção de cor", "Étalonnage", "Farbkorrektur", "Correzione colore", "カラーグレーディング", "调色", "Цветокоррекция", "Korekcja koloru" } },
+            { "Film Grain",        new[]{ "Grano de película", "Granulação", "Grain argentique", "Filmkorn", "Grana pellicola", "フィルムグレイン", "胶片颗粒", "Зернистость", "Ziarno filmowe" } },
+            { "Sharpen",           new[]{ "Nitidez", "Nitidez", "Netteté", "Schärfen", "Nitidezza", "シャープ", "锐化", "Резкость", "Wyostrzanie" } },
+            { "Cinematic",         new[]{ "Cinematográfico", "Cinematográfico", "Cinématique", "Filmisch", "Cinematografico", "シネマティック", "电影感", "Кинематографический", "Filmowy" } },
+            { "Filmic",            new[]{ "Fílmico", "Fílmico", "Filmique", "Filmisch", "Filmico", "フィルム調", "胶片", "Плёночный", "Filmowy" } },
+            { "Classic",           new[]{ "Clásico", "Clássico", "Classique", "Klassisch", "Classico", "クラシック", "经典", "Классический", "Klasyczny" } },
+            { "Classic + Shadows", new[]{ "Clásico + sombras", "Clássico + sombras", "Classique + ombres", "Klassisch + Schatten", "Classico + ombre", "クラシック+影", "经典+阴影", "Классический + тени", "Klasyczny + cienie" } },
+            { "Modern",            new[]{ "Moderno", "Moderno", "Moderne", "Modern", "Moderno", "モダン", "现代", "Современный", "Nowoczesny" } },
+            { "Modern + Shadows",  new[]{ "Moderno + sombras", "Moderno + sombras", "Moderne + ombres", "Modern + Schatten", "Moderno + ombre", "モダン+影", "现代+阴影", "Современный + тени", "Nowoczesny + cienie" } },
+            { "Stereo",            new[]{ "Estéreo", "Estéreo", "Stéréo", "Stereo", "Stereo", "ステレオ", "立体声", "Стерео", "Stereo" } },
+            { "Quad",              new[]{ "Cuadrafónico", "Quadrifônico", "Quadriphonie", "Quadro", "Quadrifonico", "4チャンネル", "四声道", "Квадро", "Kwadrofonia" } },
+            { "5.1 Surround",      new[]{ "Envolvente 5.1", "Surround 5.1", "Surround 5.1", "5.1 Surround", "Surround 5.1", "5.1サラウンド", "5.1 环绕", "5.1 объёмный", "Dźwięk 5.1" } },
+            { "7.1 Surround",      new[]{ "Envolvente 7.1", "Surround 7.1", "Surround 7.1", "7.1 Surround", "Surround 7.1", "7.1サラウンド", "7.1 环绕", "7.1 объёмный", "Dźwięk 7.1" } },
+            { "HRTF (Headphones)", new[]{ "HRTF (auriculares)", "HRTF (fones)", "HRTF (casque)", "HRTF (Kopfhörer)", "HRTF (cuffie)", "HRTF (ヘッドホン)", "HRTF (耳机)", "HRTF (наушники)", "HRTF (słuchawki)" } },
+
+            // ---- mod manager: converter menus (file-format names stay put) ----
+            { "Character (.ILM / .PLM)…",     new[]{ "Personaje (.ILM / .PLM)…", "Personagem (.ILM / .PLM)…", "Personnage (.ILM / .PLM)…", "Charakter (.ILM / .PLM)…", "Personaggio (.ILM / .PLM)…", "キャラクター (.ILM / .PLM)…", "角色 (.ILM / .PLM)…", "Персонаж (.ILM / .PLM)…", "Postać (.ILM / .PLM)…" } },
+            { "Item model (.TMD)…",           new[]{ "Modelo de objeto (.TMD)…", "Modelo de item (.TMD)…", "Modèle d'objet (.TMD)…", "Gegenstandsmodell (.TMD)…", "Modello oggetto (.TMD)…", "アイテムモデル (.TMD)…", "物品模型 (.TMD)…", "Модель предмета (.TMD)…", "Model przedmiotu (.TMD)…" } },
+            { "Character — high-poly…",       new[]{ "Personaje — alta densidad…", "Personagem — alta densidade…", "Personnage — haute densité…", "Charakter — High-Poly…", "Personaggio — high-poly…", "キャラクター — ハイポリ…", "角色 — 高模…", "Персонаж — высокополигональный…", "Postać — high-poly…" } },
+            { "Character — simple…",          new[]{ "Personaje — simple…", "Personagem — simples…", "Personnage — simple…", "Charakter — einfach…", "Personaggio — semplice…", "キャラクター — シンプル…", "角色 — 简易…", "Персонаж — простой…", "Postać — prosta…" } },
+            { "Item model (.TMD) — reshape…", new[]{ "Modelo de objeto (.TMD) — remodelar…", "Modelo de item (.TMD) — remodelar…", "Modèle d'objet (.TMD) — remodeler…", "Gegenstandsmodell (.TMD) — umformen…", "Modello oggetto (.TMD) — rimodella…", "アイテムモデル (.TMD) — 形状変更…", "物品模型 (.TMD) — 改形…", "Модель предмета (.TMD) — изменить форму…", "Model przedmiotu (.TMD) — przekształć…" } },
+            { "Item model (.TMD) — replace…", new[]{ "Modelo de objeto (.TMD) — reemplazar…", "Modelo de item (.TMD) — substituir…", "Modèle d'objet (.TMD) — remplacer…", "Gegenstandsmodell (.TMD) — ersetzen…", "Modello oggetto (.TMD) — sostituisci…", "アイテムモデル (.TMD) — 置き換え…", "物品模型 (.TMD) — 替换…", "Модель предмета (.TMD) — заменить…", "Model przedmiotu (.TMD) — zamień…" } },
+            { "Convert folder → BC7…",        new[]{ "Convertir carpeta → BC7…", "Converter pasta → BC7…", "Convertir le dossier → BC7…", "Ordner konvertieren → BC7…", "Converti cartella → BC7…", "フォルダを変換 → BC7…", "转换文件夹 → BC7…", "Конвертировать папку → BC7…", "Konwertuj folder → BC7…" } },
             // ---- mod manager: buttons ----
             { "Edit Mod",           new[]{ "Editar mod", "Editar mod", "Modifier le mod", "Mod bearbeiten", "Modifica mod", "Modを編集", "编辑模组", "Изменить мод", "Edytuj mod" } },
             { "Extract Disc Image", new[]{ "Extraer imagen de disco", "Extrair imagem de disco", "Extraire l'image disque", "Datenträgerabbild entpacken", "Estrai immagine disco", "ディスクイメージを展開", "解包光盘镜像", "Извлечь образ диска", "Wypakuj obraz płyty" } },
