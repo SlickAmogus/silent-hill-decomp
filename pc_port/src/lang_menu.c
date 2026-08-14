@@ -3,6 +3,7 @@
 #include "lang_pack.h"
 #include "lang_ru.h"
 #include "lang_jpn.h"
+#include "pc_kanji.h"
 
 #include <string.h>
 
@@ -326,6 +327,15 @@ int Pc_LangMenuTextWidth(const char* str)
         }
         if (c < 0x08)
             continue; /* color codes */
+
+        /* NTSC-J draws SJIS pairs as one 12px kanji cell (Gfx_StringDraw), so
+         * measuring their bytes separately would roughly double the width. */
+        if (g_GameRegion == Region_JPN && Pc_KanjiIsLead(c) && str[1] != '\0')
+        {
+            width += FONT_12X16_GLYPH_SIZE_X;
+            str++;
+            continue;
+        }
 
         if (c == '!')
             c = '\\';
