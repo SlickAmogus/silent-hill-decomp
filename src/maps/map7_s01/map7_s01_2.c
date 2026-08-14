@@ -1,4 +1,5 @@
 #include "bodyprog/bodyprog.h"
+#include "sh_log.h"
 #include "bodyprog/dms.h"
 #include "bodyprog/events/bodyprog_data_800A99B4.h"
 #include "bodyprog/gfx/map_effects.h"
@@ -2184,6 +2185,34 @@ void Map_WorldObjectsUpdate(void) // 0x800DDCD4
     {
         projCellZ0 = cellZ0 + 15;
     }
+
+
+#ifdef SH_PC_PORT
+    /* Elevator-door diagnosis ("no doors once you're inside"). The six DR*
+     * models are only submitted from the two cases below, so this says which
+     * of the two possible failures it is: the player's cell never selects the
+     * case (nothing prints), or it does and the doors are parked somewhere
+     * else (position far from the player). Capped, so it costs one burst. */
+    {
+        static int s_elevProbe = 0;
+        if (s_elevProbe < 12 &&
+            g_SysWork.playerWork.player.position.vx < Q12(-80.0f) &&
+            g_SysWork.playerWork.player.position.vx > Q12(-125.0f) &&
+            g_SysWork.playerWork.player.position.vz < Q12(-40.0f) &&
+            g_SysWork.playerWork.player.position.vz > Q12(-85.0f))
+        {
+            SH_DBG("[ELEV] cell=(%d,%d) player=(%d,%d) dr0=(%d,%d,%d) dr5=(%d,%d,%d)",
+                   (int)projCellX0, (int)projCellZ0,
+                   (int)g_SysWork.playerWork.player.position.vx,
+                   (int)g_SysWork.playerWork.player.position.vz,
+                   (int)g_WorldObject_Dr[0].position.vx, (int)g_WorldObject_Dr[0].position.vy,
+                   (int)g_WorldObject_Dr[0].position.vz,
+                   (int)g_WorldObject_Dr[5].position.vx, (int)g_WorldObject_Dr[5].position.vy,
+                   (int)g_WorldObject_Dr[5].position.vz);
+            s_elevProbe++;
+        }
+    }
+#endif
 
     switch (CELL_XZ(projCellX0, projCellZ0))
     {
