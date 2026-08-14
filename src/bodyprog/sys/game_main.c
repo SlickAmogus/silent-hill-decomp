@@ -1145,7 +1145,21 @@ void DebugCamera_Update(void)
         }
     }
 #endif
-    if (g_GameWork.gameState != GameState_InGame) return;
+    if (g_GameWork.gameState != GameState_InGame)
+    {
+#ifdef SH_PC_PORT
+        /* With allow_debug_controls on, the two early-return blocks above are
+         * skipped and the alternate camera is applied further down (past this
+         * gate). The inventory hands gameState to LoadStatusScreen while the
+         * world is STILL being drawn, so this return stopped applying it for
+         * that frame and the world rendered through the game's classic camera --
+         * the one-frame snap. Apply the camera here too, but keep the debug-key
+         * handlers below gated on InGame as before. */
+        if (Pc_AltCamStateOk() && !g_DebugCamEnabled && g_DebugThirdPersonCam)
+            Pc_TpsCamera_Apply();
+#endif
+        return;
+    }
 
     /* (Esc warm-reboot / title quit moved to DbgOverlay_Update so it works without
      * debug controls and in every game state, including the title menu.) */
