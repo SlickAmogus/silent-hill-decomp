@@ -64,11 +64,28 @@ with `adb push <file> /sdcard/Android/data/com.silenthill.port/files/`.
 | Feature | State | Reason |
 |---|---|---|
 | OpenAL (legacy SPU + XA) | compiled out | No OpenAL on Android. `PsyX_SPUSoftware` + `xa_player_software.c` render the SPU in software and push through SDL2's AAudio/OpenSL sink. `SH_NO_OPENAL` / `PSYX_NO_OPENAL` collapse both dispatchers onto the software path. |
-| Map overlay DLLs | off (already the default) | Android only `dlopen()`s from the APK's own lib dir. Maps link statically. |
+| Map overlay `.so`s | off (the default) — **see the map limitation below** | Android `dlopen()`s reliably only from the APK's own extracted lib dir, and the loader currently builds a relative `maps/<name>.so` path. |
 | MJPG AVI FMV overrides | compiled out (`SH_FMV_MJPEG` unset) | No system libjpeg. The disc's own STR/MDEC FMVs are unaffected — `IdentifyCodec` reports MJPG unsupported, which already falls back to the disc STR. |
 | ffmpeg FMV fallback | off | Runtime-`dlopen`ed shared libs, not available here. |
 | RetroAchievements | off | Needs libcurl. |
 | Launcher | n/a | C#/.NET. |
+
+## Known outstanding — only map0_s00 is in the binary
+
+`SH_BUILD_MAP_DLLS=OFF` does **not** mean "all maps linked statically". Per the
+comment above `MAP_SOURCES` in `pc_port/CMakeLists.txt`, linking every map at
+once produces 500+ symbol collisions (the shared AI/particle/player code is
+`#include`d into each overlay), so the static build compiles **only the starting
+map, `map0_s00`**. Every other area is an overlay that `map_overlay_loader.c`
+`dlopen()`s at `maps/<mapname>.so`.
+
+So this build boots and plays the opening area, and nothing beyond it. Getting
+the full game on Android needs the overlays built for `arm64-v8a` and reachable
+by `dlopen`, which on Android means shipping them as `lib*.so` inside
+`lib/arm64-v8a/` (the manifest already sets `extractNativeLibs="true"`, so they
+land in a real extracted directory) and teaching the loader to resolve there
+instead of the relative `maps/` path. `nativeLibraryDir` is the value to build
+the path from.
 
 ## Known outstanding — GLES3 shader gap
 
