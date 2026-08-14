@@ -645,13 +645,42 @@ static void ScalePalUvSrc(ShVertex** v, int n)
 
 #define UV_NEEDS_SCALE() (s_pendingUvX != 1.0f || s_pendingUvY != 1.0f)
 
+/* Copy one vertex into the write-combined pool as 16 sequential DWORD stores.
+ *
+ * `*d = *s` on a 64-byte struct compiles to `call _memcpy` even at -O2 (verified
+ * in gpu_xbox.obj), and the ONLY _memcpy in the link is nxdk pdclib's
+ * `while (n--) *dest++ = *src++;` -- a BYTE-AT-A-TIME loop. Every vertex was
+ * therefore 64 iterations of a byte loop writing into write-combined memory,
+ * which is both ~16x the instructions and the worst possible WC access pattern:
+ * byte stores cannot coalesce, so the buffer flushes in partial lines. At 2000
+ * prims that is ~768KB/frame through that loop, which is what [OTT] emitUs
+ * 5000-9000us actually was.
+ *
+ * ShVertex is exactly 64 bytes (there is a compile-time assert on it in
+ * gpu_nv2a.h), i.e. one full WC line, so 16 ascending dword stores fill exactly
+ * one line and let the write-combine buffer commit it in a single burst. */
+/* `dw` is deliberately VOLATILE. Without it clang's loop-idiom pass recognises
+ * 16 consecutive dword copies and folds them straight back into `call _memcpy`,
+ * reinstating the exact byte loop this exists to avoid. volatile also matches
+ * what the destination really is -- write-combined memory the GPU will read --
+ * so the stores must not be reordered or elided. */
+static inline void ShVertexCopy(ShVertex* d, const ShVertex* s)
+{
+    volatile unsigned* dw = (volatile unsigned*)d;
+    const unsigned*    sw = (const unsigned*)s;
+    dw[0]  = sw[0];  dw[1]  = sw[1];  dw[2]  = sw[2];  dw[3]  = sw[3];
+    dw[4]  = sw[4];  dw[5]  = sw[5];  dw[6]  = sw[6];  dw[7]  = sw[7];
+    dw[8]  = sw[8];  dw[9]  = sw[9];  dw[10] = sw[10]; dw[11] = sw[11];
+    dw[12] = sw[12]; dw[13] = sw[13]; dw[14] = sw[14]; dw[15] = sw[15];
+}
+
 static void EmitTri(ShVertex* a, ShVertex* b, ShVertex* c)
 {
     unsigned long long t0 = shx_rdtsc();
     ShVertex* d = GpuNv2a_BatchAlloc(3);
     if (d) {
         if (UV_NEEDS_SCALE()) { ShVertex* sv[3]; sv[0]=a; sv[1]=b; sv[2]=c; ScalePalUvSrc(sv, 3); }
-        d[0] = *a; d[1] = *b; d[2] = *c;
+        ShVertexCopy(&d[0], a); ShVertexCopy(&d[1], b); ShVertexCopy(&d[2], c);
         s_primCount++;
     }
     s_emitCycles += shx_rdtsc() - t0;
@@ -663,8 +692,8 @@ static void EmitQuad(ShVertex* v0, ShVertex* v1, ShVertex* v2, ShVertex* v3)
     ShVertex* d = GpuNv2a_BatchAlloc(6);
     if (d) {
         if (UV_NEEDS_SCALE()) { ShVertex* sv[4]; sv[0]=v0; sv[1]=v1; sv[2]=v2; sv[3]=v3; ScalePalUvSrc(sv, 4); }
-        d[0] = *v0; d[1] = *v1; d[2] = *v2;
-        d[3] = *v1; d[4] = *v2; d[5] = *v3;
+        ShVertexCopy(&d[0], v0); ShVertexCopy(&d[1], v1); ShVertexCopy(&d[2], v2);
+        ShVertexCopy(&d[3], v1); ShVertexCopy(&d[4], v2); ShVertexCopy(&d[5], v3);
         s_primCount++;
     }
     s_emitCycles += shx_rdtsc() - t0;
