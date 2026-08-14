@@ -561,8 +561,20 @@ static void Console_Paste(void)
  * failure was SILENT, leaving the console and cursor as solid white rectangles
  * (reported on a Radeon HD 7290, Crimson 16.2.1, GL 3.3 core). 140 matches what
  * PsyCross's own desktop shaders already declare, so it is proven to compile on
- * the hardware that hit this. */
-#define OVERLAY_GLSL "#version 140\n"
+ * the hardware that hit this.
+ *
+ * GLES needs its own header: `#version 140` does not exist there at all, and a
+ * GLSL ES 300 FRAGMENT shader must declare a default float precision or it
+ * fails to compile (the vertex stage defaults to highp, so it does not). The
+ * bodies are already in/out + texture() + explicit fragColor, which is valid in
+ * both dialects, so only the preamble differs. */
+#if defined(RENDERER_OGLES)
+#   define OVERLAY_GLSL_VS "#version 300 es\n"
+#   define OVERLAY_GLSL_FS "#version 300 es\nprecision mediump float;\n"
+#else
+#   define OVERLAY_GLSL_VS "#version 140\n"
+#   define OVERLAY_GLSL_FS "#version 140\n"
+#endif
 
 /* Never silent again, on any driver: a shader that will not build says so in
  * the log with the driver's own message, whether or not this build is a debug
@@ -611,7 +623,7 @@ static void overlay_gl_init(void)
 {
     GLuint vs, fs;
     static const char* vs_src =
-        OVERLAY_GLSL
+        OVERLAY_GLSL_VS
         "in vec2 a_pos;\n"
         "in vec2 a_uv;\n"
         "out vec2 v_uv;\n"
@@ -620,7 +632,7 @@ static void overlay_gl_init(void)
         "    gl_Position = vec4(a_pos, 0.0, 1.0);\n"
         "}\n";
     static const char* fs_src =
-        OVERLAY_GLSL
+        OVERLAY_GLSL_FS
         "in vec2 v_uv;\n"
         "out vec4 fragColor;\n"
         "uniform sampler2D u_tex;\n"
@@ -775,13 +787,13 @@ static void overlay_gl_init(void)
     /* Colored-line program for the collision wireframe (a_pos = NDC, a_col = RGB). */
     {
         static const char* lvs_src =
-            OVERLAY_GLSL
+            OVERLAY_GLSL_VS
             "in vec2 a_pos;\n"
             "in vec3 a_col;\n"
             "out vec3 v_col;\n"
             "void main() { v_col = a_col; gl_Position = vec4(a_pos, 0.0, 1.0); }\n";
         static const char* lfs_src =
-            OVERLAY_GLSL
+            OVERLAY_GLSL_FS
             "in vec3 v_col;\n"
             "out vec4 fragColor;\n"
             "void main() { fragColor = vec4(v_col, 1.0); }\n";

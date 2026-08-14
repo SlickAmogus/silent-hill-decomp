@@ -66,17 +66,37 @@ libraries, the dex, resources, and twelve redistributable asset files
 symbol tables, port UI sounds). `SilentHillActivity` unpacks those to the data
 directory at launch, skipping any that already exist so local edits survive.
 
-You supply your own disc dump and its extracted data:
+You supply one file: your own disc dump. Nothing else — everything the game
+loads (maps, models, audio, FMV) is read out of the image, and the loose files
+it wants are the ones staged from the APK above.
 
 ```
-adb push "Silent Hill (USA).bin" /sdcard/Android/data/com.silenthill.port/files/
-adb push gamedata                /sdcard/Android/data/com.silenthill.port/files/
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+
+# Launch ONCE so the app creates its own directories, THEN push.
+adb shell am start -n com.silenthill.port/.SilentHillActivity
+
+adb push "Silent Hill (USA).bin" \
+  /sdcard/Android/data/com.silenthill.port/files/gamedata/
 ```
 
-`fs_pc.c` resolves `./gamedata` and `PcPort_GetGameDiscPath()` resolves the BIN,
-both against that directory — the XA/CD-audio path reads BIN sectors directly
-(`xa_player_software.c`), so the image itself has to be present, not just the
-extracted files.
+**Do not `adb shell mkdir` those directories.** Android's FUSE layer synthesizes
+ownership per package: a directory created over adb belongs to `shell`, and the
+app is then denied access to its own data dir. The symptom is a window titled
+"Silent Hill - no disc image found" plus `EACCES` staging the bundled assets.
+Let the app create the tree and push files into it — `shell` can write into an
+app-owned directory through the `ext_data_rw` group, just not the reverse.
+
+Push to the *directory*, not to a full destination path: the stock filenames
+contain parentheses, and a path spelled out in an `adb shell` argument gets
+re-parsed by the device's shell.
+
+The filename matters. `PcPort_GetGameDiscPath()` (`main_pc.c`) auto-detects
+against a known-names list — `Silent Hill (USA).bin`, `Silent Hill (PAL).bin`,
+`Silent Hill (Europe) (En,Fr,De,Es,It).bin`, `Silent Hill (Japan).bin` — or set
+`disc_image` in `config.cfg` for anything else. `fs_pc.c` resolves `./gamedata`
+against the same directory, and `xa_player_software.c` reads BIN sectors
+directly for XA/CD audio, so the image itself has to be there.
 
 ## What is disabled on Android, and why
 

@@ -225,8 +225,21 @@ static GLuint s_fmvVAO = 0;
 static GLuint s_fmvVBO = 0;
 static GLuint s_fmvProgram = 0;
 
+/* These two shaders bypass PsyCross's GR_Shader_Compile, so they also miss the
+ * per-renderer version header it prepends. `#version 140` is desktop-only: on a
+ * GLES target both fail to COMPILE at runtime and the movie never draws, which
+ * looks like the game hanging on a black screen after the Konami logos.
+ * The bodies below are already valid GLSL ES 3.00 (in/out, texture(), an
+ * explicit fragColor, and a float precision in the fragment stage), so only the
+ * version line has to change. */
+#if defined(RENDERER_OGLES)
+#   define SH_FMV_GLSL_VERSION "#version 300 es\n"
+#else
+#   define SH_FMV_GLSL_VERSION "#version 140\n"
+#endif
+
 static const char* s_fmvVertSrc =
-    "#version 140\n"
+    SH_FMV_GLSL_VERSION
     "in vec2 a_pos;\n"
     "in vec2 a_uv;\n"
     "out vec2 v_uv;\n"
@@ -236,7 +249,7 @@ static const char* s_fmvVertSrc =
     "}\n";
 
 static const char* s_fmvFragSrc =
-    "#version 140\n"
+    SH_FMV_GLSL_VERSION
     "precision highp float;\n"
     "in vec2 v_uv;\n"
     "out vec4 fragColor;\n"
