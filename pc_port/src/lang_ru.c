@@ -132,11 +132,119 @@ static const s_RuCharset s_Charset_ViToTiV = {
        0x78, 0x67, 0x68, 0xE1, 0x6B, 0x5E, 0x71, 0xE8, 0x72, 0x6D, 0x62 }
 };
 
+/* --- The 1999-2003 SLUS repacks -------------------------------------------
+ * Seven discs, five fonts (Paradox and Sacson ship the same one). Unlike the
+ * modern patches these REBUILD the disc, so the port reaches their text through
+ * Fs_RemapFromDiscTable and the relinked-overlay scan rather than the in-place
+ * paths — that part already worked; only the charset was missing.
+ *
+ * Each is a transliteration scheme: Latin letters stand in for the Cyrillic
+ * they resemble, and whatever is left over gets repainted. Most of the fonts
+ * carry a SINGLE case, so both halves of those tables hold the same bytes and
+ * mixed-case menu text renders in whatever case the disc uses — again matching
+ * the disc's own text. Every mapping below was recovered by decoding that
+ * disc's own map messages back to readable Russian.
+ *
+ * Й, Щ, Ъ and Ё are missing from several of these atlases; the translators
+ * substitute И, Ш and Ь, which is what the fallback chain does. */
+
+/* Golden Leon. Single case. */
+#define RU_GOLDENLEON_BYTES \
+    /* А     Б     В     Г     Д     Е     Ё     Ж     З     И     Й */ \
+    {  0x61, 0x53, 0x62, 0x6C, 0x64, 0x66, 0x00, 0x6D, 0x52, 0x75, 0x45, \
+    /* К     Л     М     Н     О     П     Р     С     Т     У     Ф */ \
+       0x6B, 0x7A, 0x67, 0x68, 0x6F, 0x50, 0x72, 0x63, 0x74, 0x79, 0x54, \
+    /* Х     Ц     Ч     Ш     Щ     Ъ     Ы     Ь     Э     Ю     Я */ \
+       0x78, 0x4A, 0x46, 0x70, 0x00, 0x76, 0x6E, 0x73, 0x65, 0x77, 0x71 }
+
+static const s_RuCharset s_Charset_GoldenLeon = {
+    "goldenleon", 0x50BEF390u, RU_GOLDENLEON_BYTES, RU_GOLDENLEON_BYTES
+};
+
+/* FireCross. Uppercase only. */
+#define RU_FIRECROSS_BYTES \
+    /* А     Б     В     Г     Д     Е     Ё     Ж     З     И     Й */ \
+    {  0x41, 0x62, 0x42, 0x46, 0x6D, 0x45, 0x00, 0x57, 0x53, 0x56, 0x77, \
+    /* К     Л     М     Н     О     П     Р     С     Т     У     Ф */ \
+       0x4B, 0x76, 0x4D, 0x48, 0x4F, 0x6E, 0x50, 0x43, 0x54, 0x59, 0x51, \
+    /* Х     Ц     Ч     Ш     Щ     Ъ     Ы     Ь     Э     Ю     Я */ \
+       0x58, 0x4C, 0x68, 0x55, 0x44, 0x00, 0x47, 0x63, 0x5A, 0x4E, 0x52 }
+
+static const s_RuCharset s_Charset_FireCross = {
+    "firecross", 0x838B6C35u, RU_FIRECROSS_BYTES, RU_FIRECROSS_BYTES
+};
+
+/* Paradox and Sacson: same font, same text, one table. Single case. */
+#define RU_PARADOX_BYTES \
+    /* А     Б     В     Г     Д     Е     Ё     Ж     З     И     Й */ \
+    {  0x61, 0x62, 0x76, 0x67, 0x64, 0x65, 0x00, 0x55, 0x7A, 0x75, 0x54, \
+    /* К     Л     М     Н     О     П     Р     С     Т     У     Ф */ \
+       0x6B, 0x5A, 0x6D, 0x6E, 0x6F, 0x70, 0x72, 0x63, 0x53, 0x51, 0x71, \
+    /* Х     Ц     Ч     Ш     Щ     Ъ     Ы     Ь     Э     Ю     Я */ \
+       0x68, 0x78, 0x50, 0x4F, 0x4E, 0x00, 0x57, 0x79, 0x73, 0x58, 0x52 }
+
+static const s_RuCharset s_Charset_Paradox = {
+    "paradox", 0x40568158u, RU_PARADOX_BYTES, RU_PARADOX_BYTES
+};
+
+/* RGR Studio. The only one of the seven with a real two-case atlas: 24 letters
+ * pair up Latin lowercase/uppercase exactly (a/A, b/B, ... v/V), so Ю and Ы —
+ * the last two, and the last two unassigned Latin capitals — follow that same
+ * pairing. О is the '^' cell, which is where the disc's own text puts it (it
+ * writes '&', and the drawer remaps '&' to '^' before the glyph lookup). */
+static const s_RuCharset s_Charset_Rgr = {
+    "rgr", 0x8C558473u,
+    /* А     Б     В     Г     Д     Е     Ё     Ж     З     И     Й */
+    {  0x41, 0x4F, 0x42, 0x46, 0x44, 0x45, 0x00, 0x47, 0x33, 0x55, 0x00,
+    /* К     Л     М     Н     О     П     Р     С     Т     У     Ф */
+       0x4B, 0x4C, 0x4D, 0x4E, 0x30, 0x48, 0x50, 0x43, 0x54, 0x59, 0x51,
+    /* Х     Ц     Ч     Ш     Щ     Ъ     Ы     Ь     Э     Ю     Я */
+       0x58, 0x56, 0x34, 0x57, 0x00, 0x00, 0x4A, 0x49, 0x53, 0x5A, 0x52 },
+    /* а     б     в     г     д     е     ё     ж     з     и     й */
+    {  0x61, 0x6F, 0x62, 0x66, 0x64, 0x65, 0x00, 0x67, 0x33, 0x75, 0x00,
+    /* к     л     м     н     о     п     р     с     т     у     ф */
+       0x6B, 0x6C, 0x6D, 0x6E, 0x5E, 0x68, 0x70, 0x63, 0x74, 0x79, 0x71,
+    /* х     ц     ч     ш     щ     ъ     ы     ь     э     ю     я */
+       0x78, 0x76, 0x34, 0x77, 0x00, 0x00, 0x6A, 0x69, 0x73, 0x7A, 0x72 }
+};
+
+/* Playbox. Uppercase only. */
+#define RU_PLAYBOX_BYTES \
+    /* А     Б     В     Г     Д     Е     Ё     Ж     З     И     Й */ \
+    {  0x41, 0x36, 0x42, 0x4A, 0x44, 0x45, 0x00, 0x57, 0x33, 0x4E, 0x00, \
+    /* К     Л     М     Н     О     П     Р     С     Т     У     Ф */ \
+       0x4B, 0x4C, 0x4D, 0x48, 0x30, 0x5A, 0x50, 0x43, 0x54, 0x59, 0x51, \
+    /* Х     Ц     Ч     Ш     Щ     Ъ     Ы     Ь     Э     Ю     Я */ \
+       0x58, 0x46, 0x34, 0x4F, 0x00, 0x00, 0x55, 0x53, 0x47, 0x56, 0x52 }
+
+static const s_RuCharset s_Charset_Playbox = {
+    "playbox", 0x632C0E4Bu, RU_PLAYBOX_BYTES, RU_PLAYBOX_BYTES
+};
+
+/* Русские Версии. Uppercase only; the only one of the seven with its own Й. */
+#define RU_RUSVERSII_BYTES \
+    /* А     Б     В     Г     Д     Е     Ё     Ж     З     И     Й */ \
+    {  0x41, 0x47, 0x42, 0x49, 0x44, 0x45, 0x00, 0x57, 0x33, 0x3C, 0x3E, \
+    /* К     Л     М     Н     О     П     Р     С     Т     У     Ф */ \
+       0x4B, 0x4C, 0x4D, 0x48, 0x30, 0x4E, 0x50, 0x43, 0x54, 0x59, 0x46, \
+    /* Х     Ц     Ч     Ш     Щ     Ъ     Ы     Ь     Э     Ю     Я */ \
+       0x58, 0x53, 0x34, 0x55, 0x56, 0x00, 0x51, 0x4A, 0x5A, 0x4F, 0x52 }
+
+static const s_RuCharset s_Charset_RusVersii = {
+    "rusversii", 0x28235232u, RU_RUSVERSII_BYTES, RU_RUSVERSII_BYTES
+};
+
 static const s_RuCharset* const s_Charsets[] = {
     &s_Charset_ViTCo,
     &s_Charset_ConsolGames,
     &s_Charset_Kudos,
-    &s_Charset_ViToTiV
+    &s_Charset_ViToTiV,
+    &s_Charset_GoldenLeon,
+    &s_Charset_FireCross,
+    &s_Charset_Paradox,
+    &s_Charset_Rgr,
+    &s_Charset_Playbox,
+    &s_Charset_RusVersii
 };
 
 static const s_RuCharset* s_Active;

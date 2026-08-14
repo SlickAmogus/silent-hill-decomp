@@ -3048,8 +3048,22 @@ adopting the disc's own menu strings could not have covered them.
   window is Cyrillic letters on those discs and `Font_PatchPolishGlyphs` would
   paint over cells the repaint uses.
 
-Not covered: the seven 1999-2003 SLUS repacks (FireCross, Golden Leon, Paradox,
-Playbox, RGR Studio, Sacson, Русские Версии). Each uses its own transliteration
-charset and needs its own table. Their story text IS reachable — all seven
-rebuild the disc, and `UsaDetectOverlayBase` locks onto their relinked overlays
-(base 0x800C9148, clean run 21) — so only the charset is missing.
+The seven 1999-2003 SLUS repacks (FireCross, Golden Leon, Paradox, Playbox,
+RGR Studio, Sacson, Русские Версии) are covered too, as five more charsets
+(Paradox and Sacson ship the same font). These rebuild the disc rather than
+patching in place, so their text arrives through `Fs_RemapFromDiscTable` and the
+relinked-overlay scan — that already worked; only the charset was missing. Each
+is a transliteration scheme (Latin letters standing in for the Cyrillic they
+resemble) and most of the fonts carry a single case, so both halves of those
+tables hold the same bytes.
+
+One of them needed a code fix as well: `BrazilFindItemArray` required EVERY item
+pointer to start on a string boundary, and FireCross's string pool is missing one
+terminator, so its "РУЖЬЕ" entry legitimately points into the middle of the
+preceding name. That single aliased pointer rejected the whole array, and the
+disc fell through to the decrypt path and kept compiled English item names — on a
+Cyrillic font. The boundary rule now has to hold for 15 of every 16 pointers
+instead of all of them, which still pins the link base exactly (at a wrong base
+essentially none of them land on a boundary) while tolerating a patch's own
+malformed pool. Verified against all ten discs: FireCross starts matching at the
+same base/offset the others already used, and no other disc's result changes.

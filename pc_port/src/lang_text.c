@@ -299,16 +299,13 @@ static int AdoptItemArrays(const unsigned char* bin, unsigned int size,
 }
 
 /* 1 if bin[so..] is a clean single-line item name: printable ASCII, non-empty,
- * NUL-terminated within maxLen, and starting on a string boundary (the byte
- * before it is a NUL). Rejects pointers that land mid-string, which is what
- * separates the true link base from off-by-a-few neighbours. */
+ * NUL-terminated within maxLen. Says nothing about where the string starts —
+ * see IsNameBoundary. */
 static int IsPlaintextName(const unsigned char* bin, unsigned int size, unsigned int so, unsigned int maxLen)
 {
     unsigned int j;
 
     if (so >= size)
-        return 0;
-    if (so > 0 && bin[so - 1] != 0)
         return 0;
     for (j = 0; j < maxLen && so + j < size; j++)
     {
@@ -322,14 +319,29 @@ static int IsPlaintextName(const unsigned char* bin, unsigned int size, unsigned
     return 0;
 }
 
+/* 1 if the pointer lands on a string boundary (the byte before it is a NUL).
+ * This is what pins the link base: at an off-by-a-few base every name still
+ * reads as printable text but lands mid-string. Counted rather than required
+ * per pointer, because a patch's own pool can legitimately alias — FireCross
+ * dropped the terminator between two item names, so one entry points into the
+ * middle of its neighbour and every other entry is clean. */
+static int IsNameBoundary(const unsigned char* bin, unsigned int so)
+{
+    return so == 0 || bin[so - 1] == 0;
+}
+
 /* Locate a relinked, UNENCRYPTED item-name pointer array in a rebuilt disc's
  * BODYPROG (Brazilian re-translation). The item set is unchanged from US, so
- * the array's set/empty slot pattern matches the compiled build exactly; every
- * non-empty pointer must resolve to a clean name that starts on a string
- * boundary. An encrypted vanilla/in-place disc has no such array in the raw
- * bytes (both requirements fail on random data), so this returns 0 for them
- * and the caller decrypts as before. On success, writes the detected link base
- * and name-array file offset. */
+ * the array's set/empty slot pattern matches the compiled build exactly, and
+ * every non-empty pointer must resolve to a clean name; nearly all of them must
+ * also start on a string boundary, which is what pins `base` exactly (a base
+ * off by a few bytes still yields printable text, but from mid-string, so the
+ * boundary count collapses). An encrypted vanilla/in-place disc has no such
+ * array in the raw bytes (all of it fails on random data), so this returns 0
+ * for them and the caller decrypts as before. On success, writes the detected
+ * link base and name-array file offset. */
+#define ITEM_BOUNDARY_NUM 15 /* accept at 15/16 clean: see IsNameBoundary */
+#define ITEM_BOUNDARY_DEN 16
 static int BrazilFindItemArray(const unsigned char* bin, unsigned int size,
                                unsigned int* outBase, unsigned int* outNameOff)
 {
@@ -350,7 +362,9 @@ static int BrazilFindItemArray(const unsigned char* bin, unsigned int size,
     {
         for (nameOff = offLo; nameOff <= offHi && nameOff + ITEM_TEXT_COUNT * 4 <= size; nameOff += 4)
         {
-            int ok = 1;
+            int ok       = 1;
+            int setCount = 0;
+            int onBound  = 0;
 
             for (i = 0; i < ITEM_TEXT_COUNT; i++)
             {
@@ -370,6 +384,12 @@ static int BrazilFindItemArray(const unsigned char* bin, unsigned int size,
                     ok = 0;
                     break;
                 }
+                setCount++;
+                onBound += IsNameBoundary(bin, p - base);
+            }
+            if (ok && onBound * ITEM_BOUNDARY_DEN < setCount * ITEM_BOUNDARY_NUM)
+            {
+                ok = 0;
             }
             if (ok)
             {
