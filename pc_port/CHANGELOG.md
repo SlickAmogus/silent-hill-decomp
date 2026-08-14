@@ -1,5 +1,51 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.08.14.1 -- 2026-08-14
+- inventory: cover the screen before handing over, like the map screen does
+- combat: time-exit the release and get-up states like DamageTorso already does
+- achievements: browse the whole set from the title screen with Map
+- achievements: fix the browser's black backdrop, badges, close and polish
+- achievements: hold off the attract reel and the game cursor while browsing
+- achievements: close the panel with the same swish, 25% quieter
+- achievements: hover, click-through detail cards, PC-direction scrolling
+- achievements: make clicking work, and navigate the list without a mouse
+- achievements: stop the panel re-firing every input, every frame
+- launcher: Audio tool — browse, preview and export sounds from a VAB bank
+- launcher: show each sound's real in-game pitch instead of guessing 44100
+- Added GPL 3.0 LICENSE file and COPYRIGHT.md detailing parts of the repo that are copyrighted and licensed and by whom.
+- Fixed copyright.md to reflect ownership of tools correctly.
+- licensing: SPDX headers on port code, licensing summary at the top of README
+- licensing: document the GPL-compatible FMV derivations
+- assets: commit the achievement UI/unlock cues
+- launcher: replace and repack samples in a VAB sound bank
+- audio: replace individual sounds with loose files, no repacking needed
+- docs: say plainly that this is a port, not a recompilation
+- Revise README for clarity on project features
+- Update README with details on game executable and AI use
+- Fix formatting in README title
+- docs: align CONTRIBUTING and SUMMARY with the README
+- docs: name the decompilation in the CONTRIBUTING opening again
+- Fix formatting in README.md introduction
+- Refine README content for better readability
+- NTSC-J: Japanese inventory names and descriptions
+- achievements: never toast RA's informational pseudo-achievements
+- NTSC-J: the item-text getters rejected the Japanese tables
+- audio: invalidate sound overrides by SPU slot, and honour a loose whole bank
+- achievements: fix the RA_MAP capacity guard dropping every entry
+- achievements: optional disc-hash override so unmatched discs can load a set
+- achievements: add the verified USA hash alias
+- clear: gate the FOG assignment on a drawn world, not the whole branch
+- docs: TrenchBroom level editor - port support, data model, trigger reference
+- inventory: keep applying the alt camera across the gameState handover
+- achievements: make the RAWHY dump read what the condition actually reads
+- title: show which button opens the achievement browser
+- title: drop the achievement hint below the copyright line
+- launcher: RA hash-bypass toggle, no sign-in prompt, and detect ultrawide modes
+- map5_s03: name the shelf pickups so they are not invisible
+- items: scale the inventory Y nudge to the framebuffer, not a fixed 50
+- map5_s03: the shelf shotgun ammo used the rifle model
+
+
 ## beta-2026.08.10.1 -- 2026-08-10
 - Quick heal: No longer works or flashes green without health items. It also notifies you what was used.
 - Levels: Can now load larger IPD files for map editing purposes.
