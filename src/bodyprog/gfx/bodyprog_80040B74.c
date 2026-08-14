@@ -22,6 +22,13 @@
 #include "main/fsqueue.h"
 #include "types.h"
 
+/* Called above their definitions. Without a prototype in scope Clang
+ * synthesises `int f()` at the call site and then rejects the real
+ * definition as a conflicting type; GCC only warns. */
+void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCount,
+                          s_ActiveChunkTextures* fullPageActiveTexs,
+                          s_ActiveChunkTextures* halfPageActiveTexs, e_FsFile fileIdx);
+
 /** Known contents:
  * - Map loading funcs
  * - Animation funcs

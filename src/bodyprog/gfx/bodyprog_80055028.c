@@ -26,6 +26,11 @@ extern float g_PsxPixelAspect;
 #include "pc_config.h"
 #include "hires_override.h"
 #include "pc_wide_lm.h"
+
+/* Called above their definitions. Without a prototype in scope Clang
+ * synthesises `int f()` at the call site and then rejects the real
+ * definition as a conflicting type; GCC only warns. */
+void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
 /* When culling is disabled, ignore fog-based draw distance clamp.
  * PSX uses fogFarDistance as a draw distance optimization (don't render
  * what fog fully hides). On PC we want everything to render and let

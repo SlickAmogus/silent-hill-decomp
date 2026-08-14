@@ -1,0 +1,89 @@
+name: Clang front-end check (macOS / iOS)
+
+# Every shipping build uses GCC: MinGW on Windows, GCC on Linux, and build.sh
+# deliberately picks Homebrew GCC on macOS because AppleClang is stricter. So
+# nothing else in CI ever puts the decomp through a Clang front end.
+#
+# iOS has no such choice. Homebrew GCC cannot target arm64-apple-ios, so the
+# Apple toolchain is Clang or nothing, and a Clang-only breakage would otherwise
+# only surface once someone tried to build the iOS port. This job is the guard.
+#
+# It is a syntax check, not a build: it catches GCC extensions Clang does not
+# implement (nested functions above all, which no flag can rescue) and missing
+# prototypes that Clang turns into conflicting-type errors. Warning-vs-error
+# differences are suppressed on purpose — the real builds suppress them too.
+
+on:
+  push:
+    branches: [pc-port, ios-port]
+    paths:
+      - 'src/**'
+      - 'include/**'
+      - 'pc_port/tools/check-clang.sh'
+      - '.github/workflows/check-clang.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'include/**'
+  workflow_dispatch:
+
+jobs:
+  clang-macos:
+    name: AppleClang (host)
+    if: github.repository == 'SlickAmogus/silent-hill-decomp'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Only the headers are needed; a few decomp TUs include SDL_timer.h and
+      # SDL_scancode.h directly. Nothing is linked.
+      - name: Install SDL2 headers
+        run: brew install sdl2
+
+      - name: Clang version
+        run: clang --version
+
+      - name: Syntax-check the decomp (USA)
+        run: bash pc_port/tools/check-clang.sh
+
+      # JAP1/JAP2 share USA's file tables and are clean. EUR and JAP0 are
+      # deliberately absent: both have pre-existing region-specific decomp gaps
+      # (EUR is missing a set of FILE_* enum constants, JAP0 references a
+      # _CollisionSurface member that does not exist in its layout). Neither is
+      # Clang-related — they fail under GCC too — so gating on them here would
+      # only produce a permanently red check.
+      - name: Syntax-check the decomp (JAP1, JAP2)
+        run: |
+          for v in JAP1 JAP2; do
+            echo "=== VER_$v ==="
+            SH_VERSION="$v" bash pc_port/tools/check-clang.sh
+          done
+
+  clang-ios:
+    name: AppleClang (arm64-apple-ios)
+    if: github.repository == 'SlickAmogus/silent-hill-decomp'
+    runs-on: macos-15
+    # Informational for now: this cross-checks the decomp against the real
+    # iPhoneOS SDK headers, which nothing has ever done. The host job above is
+    # the one that gates.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install SDL2 headers
+        run: brew install sdl2
+
+      - name: Show iOS SDK
+        run: |
+          xcrun --sdk iphoneos --show-sdk-path
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Syntax-check for arm64-apple-ios
+        run: |
+          bash pc_port/tools/check-clang.sh \
+            --target arm64-apple-ios \
+            --sysroot "$(xcrun --sdk iphoneos --show-sdk-path)"

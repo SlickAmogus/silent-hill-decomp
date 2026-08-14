@@ -34,6 +34,13 @@ static void func_8003BCF4(void);
 #include "main/rng.h"
 #include "screens/stream/stream.h"
 
+/* Called above their definitions. Without a prototype in scope Clang
+ * synthesises `int f()` at the call site and then rejects the real
+ * definition as a conflicting type; GCC only warns. */
+void func_8003B560(void);
+
+void MainMenu_FogUpdate(void);
+
 #define MAIN_MENU_FOG_COUNT 21
 
 #ifndef PAD_HACK_IGNORE
