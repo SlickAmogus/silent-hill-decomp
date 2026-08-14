@@ -491,7 +491,12 @@ void SysState_GamePaused_Update(void) // 0x800391E8
      * paused scene is pixel-identical to the moment of pausing. */
     {
         extern int g_PsxPresentLastFrame;
+        extern int g_PcFreezeReleasePending;
         g_PsxPresentLastFrame = 1;
+        /* Re-arming beats a release still pending from a freeze that ended on
+         * this same tick, which MainLoop would otherwise honour after this arm
+         * and drop the freeze on the first paused frame. */
+        g_PcFreezeReleasePending = 0;
     }
 #endif
 
@@ -532,8 +537,8 @@ void SysState_GamePaused_Update(void) // 0x800391E8
         g_MapEventParam = 0;
 #ifdef SH_PC_PORT
         {
-            extern int g_PsxPresentLastFrame;
-            g_PsxPresentLastFrame = 0;
+            extern int g_PcFreezeReleasePending;
+            g_PcFreezeReleasePending = 1;
         }
 #endif
         SysWork_StateSetNext(SysState_SaveMenu1);
@@ -547,8 +552,8 @@ void SysState_GamePaused_Update(void) // 0x800391E8
         SD_Call(4);
 #ifdef SH_PC_PORT
         {
-            extern int g_PsxPresentLastFrame;
-            g_PsxPresentLastFrame = 0;
+            extern int g_PcFreezeReleasePending;
+            g_PcFreezeReleasePending = 1;
         }
 #endif
         SysWork_StateSetNext(SysState_Gameplay);
@@ -747,8 +752,8 @@ void SysState_MapScreen_Update(void) // 0x800396D4
         {
 #ifdef SH_PC_PORT
             {
-                extern int g_PsxPresentLastFrame;
-                g_PsxPresentLastFrame = 0;
+                extern int g_PcFreezeReleasePending;
+                g_PcFreezeReleasePending = 1;
             }
 #endif
             SysWork_StateSetNext(SysState_Gameplay);
@@ -770,8 +775,8 @@ void SysState_MapScreen_Update(void) // 0x800396D4
         {
 #ifdef SH_PC_PORT
             {
-                extern int g_PsxPresentLastFrame;
-                g_PsxPresentLastFrame = 0;
+                extern int g_PcFreezeReleasePending;
+                g_PcFreezeReleasePending = 1;
             }
 #endif
             SysWork_StateSetNext(SysState_Gameplay);

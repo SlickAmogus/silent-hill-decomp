@@ -224,8 +224,28 @@ void Pad_Poll(void)
             if (s_report.white > 0x20) PRESS(10);  /* White -> L1       */
             if (s_report.black > 0x20) PRESS(11);  /* Black -> R1       */
         }
-        if (s_report.l     > 0x20) PRESS(8);   /* LTrig -> L2       */
-        if (s_report.r     > 0x20) PRESS(9);   /* RTrig -> R2       */
+        /* STANDARD (modern shooter) binds while a NON-CLASSIC camera is active:
+         * hold LT to aim, press RT to fire. A stays Cross, so RT and A both fire
+         * when aiming and both "use" when not — the game only ever tests Cross.
+         *
+         * Done at the INPUT layer on purpose. The alternative is editing
+         * g_GameWork.config.controllerConfig (.aim/.action), which is savegame
+         * state and is re-read by every screen; remapping here is a pure
+         * translation with nothing downstream to keep in sync, and it reverts the
+         * instant the style goes back to Classic. Classic keeps the PSX binds
+         * exactly (RT aim, A fire) because tank controls depend on them. */
+        {
+            extern int g_ControlStyle;
+            int modern = g_PcConfig.stdAltCamControls && g_ControlStyle != 0;
+
+            if (modern) {
+                if (s_report.l > 0x20) PRESS(9);   /* LT -> R2    = aim (hold) */
+                if (s_report.r > 0x20) PRESS(14);  /* RT -> Cross = fire / use */
+            } else {
+                if (s_report.l > 0x20) PRESS(8);   /* LTrig -> L2 */
+                if (s_report.r > 0x20) PRESS(9);   /* RTrig -> R2 */
+            }
+        }
         /* Left analog stick -> d-pad directions: walk/turn with the stick in
          * the classic tank scheme (up = forward, left/right = turn), ORed with
          * the real d-pad. XID sticks are s16, Y+ = up / X+ = right; ~25%

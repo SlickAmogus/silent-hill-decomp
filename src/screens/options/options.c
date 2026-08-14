@@ -252,6 +252,7 @@ static const s_PcOpt PCOPT_T[] = {
  * per-draw); RetroAchievements is an action row that toasts login state. */
 static const s_PcOpt PCOPT_X[] = {
     { "Camera",          &g_PcConfig.controlStyle,      "control_style",       VAL_CAM,     4, LBL_CAM,     &g_ControlStyle, 1, PCK_CAMSTYLE },
+    { "Standard_Controls",&g_PcConfig.stdAltCamControls,"standard_controls",   VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Invert_Pad_Y",    &g_PcConfig.invertControllerY, "invert_controller_y", VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Crosshair",       &g_PcConfig.crosshair,         "crosshair",           VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Crosshair_Style", &g_PcConfig.crosshairStyle,    "crosshair_style",     VAL_CHSTYLE, 4, LBL_CHSTYLE, NULL,            1, PCK_INT      },

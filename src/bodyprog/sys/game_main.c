@@ -42,6 +42,9 @@ extern int g_PcHorPlusEnabled;
 extern int g_PsxSkipFramebufferStore;
 extern int g_PcAllowDebugControls;
 int g_PcMapScreenActive = 0; /* set while paper-map overlay is displayed */
+/* Set by a freeze-frame state (pause, map messages) when it hands control back,
+ * instead of dropping g_PsxPresentLastFrame on the spot. See the release below. */
+int g_PcFreezeReleasePending = 0;
 #include <stdio.h>
 #include <SDL_scancode.h>
 #include <SDL_mouse.h>
@@ -286,8 +289,49 @@ int Pc_ScriptOwnsScene(void)
         g_SysWork.cutsceneBorderState != CutsceneBorderState_None)
         return 1;
 
-    if (g_SysWork.sysState == SysState_ReadMessage)
-        return 0;
+    /* States the PLAYER opened, not a script: reading a message, examining an
+     * item, the inventory / map / options / save screens, pause. They all freeze
+     * control, and the room-entry camera leaves VC_USER_* raised for the whole
+     * room, so the test below saw "a script owns the view" and stood the
+     * alternate camera down -- a one-frame snap to the classic camera on the way
+     * into and out of every examine and every menu. A real cutscene is caught by
+     * the branch above, so nothing here can hide one. */
+    switch (g_SysWork.sysState)
+    {
+        case SysState_ReadMessage:
+        case SysState_StatusMenu:
+        case SysState_MapScreen:
+        case SysState_OptionsMenu:
+        case SysState_SaveMenu0:
+        case SysState_SaveMenu1:
+        case SysState_GamePaused:
+            return 0;
+
+        default:
+            break;
+    }
+
+    /* The inventory is a gameState change, not a lingering sysState: on its entry
+     * tick SysState_StatusMenu_Update sets gameState = GameState_LoadStatusScreen
+     * and immediately bounces sysState BACK to Gameplay. The switch above was
+     * therefore live for almost no time, and that frame fell through to the test
+     * below -- which is true, because opening the menu freezes control while the
+     * room-entry camera still has VC_USER_* raised. That is the one classic-camera
+     * frame on the way into the inventory. Pause and the map screen stay in their
+     * own sysState, which is why neither of them shows it. */
+    switch (g_GameWork.gameState)
+    {
+        case GameState_LoadStatusScreen:
+        case GameState_InventoryScreen:
+        case GameState_LoadMapScreen:
+        case GameState_PaperMapScreen:
+        case GameState_SaveScreen:
+        case GameState_OptionScreen:
+            return 0;
+
+        default:
+            break;
+    }
 
     return (vcWork.flags & (VC_USER_CAM_F | VC_USER_WATCH_F)) && g_Player_DisableControl;
 }
@@ -320,7 +364,13 @@ static void Pc_CameraFov_Update(void)
      * and item pickup, even though the alt camera keeps rendering — a visible FOV pop.
      * The stand-down exit calls this too, where Pc_ScriptOwnsScene() is true, so the
      * game FOV is correctly restored for scripted scenes/cutscenes. */
-    if (g_GameWork.gameState == GameState_InGame &&
+    /* Gating purely on InGame stopped applying the alt-cam FOV for the frame
+     * SysState_StatusMenu_Update switches gameState to LoadStatusScreen while the
+     * world is STILL being drawn (no BgmStatusFlag_Pause) — the other half of the
+     * one-frame classic-camera snap on opening the inventory. */
+    if ((g_GameWork.gameState == GameState_InGame ||
+         g_GameWork.gameState == GameState_LoadStatusScreen ||
+         g_GameWork.gameState == GameState_InventoryScreen) &&
         !Pc_ScriptOwnsScene())
     {
         if (g_PcFpsCam)
@@ -2254,6 +2304,23 @@ void MainLoop(void) // 0x80032EE0
             if (s_pcPickupWas && !g_PcPickupItemActive)
                 g_PsxPresentLastFrame = 0;
             s_pcPickupWas = g_PcPickupItemActive;
+
+            /* Deferred release of the pause / map-message freeze. Those handlers
+             * set BgmStatusFlag_Pause at the top of their tick, which gates the
+             * whole world draw off for that entire tick, and SysWork_StateSetNext
+             * writes sysState immediately but the new state's handler only runs
+             * next tick. Dropping the freeze inside the handler therefore left one
+             * frame with no world behind it and no capture presented: the bare
+             * fog-colored clear seen as a grey flash on leaving pause or the
+             * "I don't have a map" / "too dark" messages. Hold the freeze until a
+             * tick that actually drew something. */
+            if (g_PcFreezeReleasePending &&
+                (g_GameWork.gameState != GameState_InGame ||
+                 !(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause)))
+            {
+                g_PsxPresentLastFrame    = 0;
+                g_PcFreezeReleasePending = 0;
+            }
         }
 #endif
 

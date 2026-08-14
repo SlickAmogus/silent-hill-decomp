@@ -128,6 +128,10 @@ typedef struct {
     int immersiveFpsHeadTracking; /* 1 = FPS view direction follows Harry's animated head-bone rotation (idle sway/lean), mouse layered on top (config key: immersive_fps_head_tracking) */
     int control2d;          /* 1 = 2D screen-relative movement (input aligns with the camera; Harry turns to face the move direction) under ALL non-FPS camera styles (config key: control_2d) — an Experiment, off by default */
     int control2dSnap;      /* 1 = 2D control snaps Harry instantly to the input direction instead of turning into it (config key: control_2d_snap); default 0 */
+    int stdAltCamControls;  /* Xbox: 1 (default) = modern shooter binds while a
+                             * NON-CLASSIC camera is active — hold LT to aim, RT to
+                             * fire, A also fires/uses. 0 = the PSX binds in every
+                             * style (config key: standard_controls) */
     int playAsL3;           /* Xbox: 1 = clicking L3 in gameplay cycles the play-as
                              * character. Off by default — a swap is a synchronous
                              * reload, so an accidental stick click would hitch

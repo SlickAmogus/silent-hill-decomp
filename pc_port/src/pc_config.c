@@ -65,6 +65,7 @@ s_PcConfig g_PcConfig = {
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .control2dSnap           = 0, /* 2D control turns into the direction (0), doesn't snap */
+    .stdAltCamControls       = 1, /* modern binds in the alt cameras */
     .playAsL3                = 0, /* L3 character switch: opt-in */
     .playerCharacter         = "harry",
     .hiResTextures           = 0, /* opt-in: costs texture-cache slots */
@@ -851,6 +852,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "control_2d_snap") == 0)
         {
             g_PcConfig.control2dSnap = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "standard_controls") == 0)
+        {
+            g_PcConfig.stdAltCamControls = (atoi(value) != 0);
         }
         else if (strcmp(key, "character_switch_l3") == 0)
         {
