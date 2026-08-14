@@ -130,6 +130,18 @@ real table into `pc_port/src/<name>_anim_infos.c` and init it at startup
   Larval [`554b38e90`](https://github.com/SlickAmogus/silent-hill-decomp/commit/554b38e90),
   Creeper+Hanged [`675fdbaf7`](https://github.com/SlickAmogus/silent-hill-decomp/commit/675fdbaf7).
 
+- **`D_800DB238` — Twinfeeler stayed fully visible underground.** The worm's
+  burrow has two halves and only one of them had been fixed. `func_800D59EC`
+  clears bit 0 of all 56 bones each frame and re-sets it on the segments listed
+  in this table for the current burrow-anim frame; bit 0 zeroes that bone's whole
+  view-matrix rotation ([`bodyprog_bone_80044F14.c:371`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/src/bodyprog/gfx/bodyprog_bone_80044F14.c)),
+  collapsing the segment to a point — that IS how the game buries the body. With
+  the table zeroed nothing was ever collapsed, so the whole worm drew through the
+  ground, and `idx == 0` wrote the bit into `bones[-1]` six times a row. Real
+  `s8[11][6]` (PSX `0x800DB238`, 0x44 B, -1 terminated) extracted from
+  `MAP4_S03.BIN`. The earlier `D_800DB1D8..F8` batch made it SINK; this made it
+  HIDE. commit [`365970af1`](https://github.com/SlickAmogus/silent-hill-decomp/commit/365970af1)
+
 ## 3. IPD chunk streaming & buffer sizing
 
 The map chunk pipeline was reworked for PC (synchronous reads, wider Hor+ view,
@@ -3212,3 +3224,61 @@ Still English: the option ROW labels. On the JP disc those are full sentences
 differently-shaped JP options screen, not short labels for the US-shaped one the
 port draws, and the JP and CN sentences do not share field boundaries, so they
 cannot be sliced into labels the way the values can.
+
+## Item models drew semi-transparent primitives opaque (2026-08-14, commit `365970af1`)
+
+Every item model that goes through `GsSortObject4J` — the inventory carousel, the
+world-pickup preview, the puzzle-item view — rendered its semi-transparent
+primitives solid.
+
+The port's sixteen `GsTMDfast*` emitters in
+[`libgs_stub.c`](https://github.com/SlickAmogus/silent-hill-decomp/blob/pc-port/pc_port/src/stubs/libgs_stub.c) build each
+output packet with `setPoly*()`, which writes the **opaque base code**
+(0x20/0x24/0x30/0x34/…), and never carried across the TMD mode byte's ABE bit.
+PsyCross decides blending on `polyTag->code & 2` alone, so the bit has to be
+there. Fix: `setSemiTrans(poly, (prim->cd >> 1) & 1)` after every `setPoly*`
+(17 sites — the NG3 handler emits from two).
+
+The TMD mode byte is byte 3 of every primitive header, named `cd` in the psyq
+structs (`out, in, dummy, cd`) and `mode` in the port-local `TMD_P_NTG3_SH`.
+Bits: 0 = TGE, 1 = ABE, 2 = TME, 3 = QUAD, 4 = IIP.
+
+Reported as "the bottle with liquid does not appear to contain any liquid".
+`ITEM/UNQ66.TMD` (item 102, Unknown liquid) is 220 primitives: 212 of mode 0x36
+(ABE set — the bottle shell) wrapped around **8 of mode 0x34** (opaque — the
+liquid). An opaque shell hides the liquid completely. `UNQ65.TMD`, the empty
+Plastic Bottle, is the same model with 184 primitives and no opaque group, which
+is how the two were told apart offline. Useful fact for the next one: the item id
+IS the UNQ number (`InvItemId_UnknownLiquid` 102 = 0x66 → `UNQ66`).
+
+## Alternate cameras: footsteps while aiming, forward sprint that moves (2026-08-14, commit `572eb740f`)
+
+Both affect only the alternate cameras; classic is untouched.
+
+**Silent while moving and aiming.** The PC shim pins `extra->lowerBodyState` to
+plain `PlayerLowerBodyState_Aim` the moment a weapon goes up, and the block that
+derives the movement state for the footstep dispatcher was gated
+`if (!g_Player_IsAiming …)` — so walking, running or strafing with a weapon out
+matched the dispatcher's standing-still case and played nothing.
+
+The game already encodes "this movement, but aiming" as the movement state plus
+`PlayerLowerBodyState_Aim` (20) — see the literal `+=` / `-=` pairs in
+`player_control.c`. WalkForward(1) → AimWalkForward(21), SidestepLeft(6) →
+AimSidestepLeft(26), and so on. The shim now derives the movement state exactly
+as before and adds that offset.
+
+`func_8007B924`'s switch has cases for AimWalkForward/Backward and
+AimQuickTurn\* but none for AimRunForward(22), AimRunRight(27), AimRunLeft(28),
+AimSidestepRight(25) or AimSidestepLeft(26). Added, reusing the non-aiming
+keyframes, because aiming does not change the LEG animation. Gated on
+`g_DebugThirdPersonCam`: classic sets AimSidestep\* too, and on PSX that
+combination genuinely plays no footstep — faithful, so don't "fix" it there.
+
+**Forward sprint ran in place.** Speed was clamped to walk whenever a gun was up
+(a deliberate no-sprint-while-aiming choice), but the leg animation is chosen
+from `g_Player_IsRunning` alone — so the run cycle played over 1.5 movement and
+Harry scrubbed. Strafing never had the clamp (its position comes from the anim
+keyframes), which is why sideways sprint always worked. Clamp dropped so forward
+matches, and the aim-run states joined the exhaustion group so sprinting with a
+weapon up tires him at the usual rate.
+
