@@ -123,6 +123,74 @@ static s_RaRegion* s_map;
 static int         s_mapCap;
 static int        s_mapCount;
 
+/* ra_hash_override: report a different disc hash than the mounted image has.
+ *
+ * RA keys the achievement set on the disc hash alone, so a disc it has no entry
+ * for loads nothing -- an NTSC-J image lands in RA's "Unsupported Game Version"
+ * bucket at 0/0, and a fan-translated image hashes to something RA has never
+ * seen at all. The achievement LOGIC is region-agnostic here: the port compiles
+ * one struct layout whatever disc is mounted, and it already synthesises the
+ * USA boot serial at 0x024C10 so the set's region gate opens regardless. Only
+ * the reported hash stands between those discs and a working set.
+ *
+ * OFF BY DEFAULT, and deliberately opt-in: with this set, unlocks post to the
+ * player's real account under a hash that is not the disc they are running.
+ * That is the player's call to make on their own account -- this build is
+ * softcore-only, so nothing here touches hardcore leaderboards -- but it is not
+ * a decision the port should make for anyone silently.
+ *
+ * Accepts a literal 32-char MD5, or an alias below. Aliases are only ever added
+ * from a hash OBSERVED loading the real set, never guessed: a wrong constant
+ * would fail to match and read as a bug rather than as a bad value. */
+typedef struct
+{
+    const char* name;
+    const char* hash;
+} s_RaHashAlias;
+
+static const s_RaHashAlias s_raHashAliases[] = {
+    /* Verified loading game 11252 "Silent Hill" with the full 66-achievement
+     * set. Add further entries only from a log line that did the same. */
+    { "pal", "e6f638d44f54d7498a17244453722eb5" },
+};
+
+static int Pc_RaIsMd5(const char* text)
+{
+    int i;
+
+    if (text == NULL)
+        return 0;
+    for (i = 0; i < 32; i++)
+    {
+        if (!isxdigit((unsigned char)text[i]))
+            return 0;
+    }
+    return text[32] == '\0';
+}
+
+/* NULL = report the real hash (the default). */
+static const char* Pc_RaResolveHashOverride(void)
+{
+    const char* value = g_PcConfig.raHashOverride;
+    size_t      i;
+
+    if (value == NULL || value[0] == '\0')
+        return NULL;
+    for (i = 0; i < sizeof(s_raHashAliases) / sizeof(s_raHashAliases[0]); i++)
+    {
+        /* SDL_strcasecmp, not _stricmp: the latter is an MSVC spelling and this
+         * build also targets Linux. */
+        if (SDL_strcasecmp(value, s_raHashAliases[i].name) == 0)
+            return s_raHashAliases[i].hash;
+    }
+    if (Pc_RaIsMd5(value))
+        return value;
+
+    SH_DBG("[RA] ra_hash_override '%s' is neither a known alias nor a 32-char "
+           "MD5 - ignored, reporting the real disc hash", value);
+    return NULL;
+}
+
 /* Grow the map by one slot. The only reason RA_MAP may decline is a failed
  * allocation. */
 static int Pc_RaMapReserve(void)
@@ -730,8 +798,9 @@ static void RC_CCONV Pc_RaLoginCallback(int result, const char* error_message,
         return;
     }
 
-    /* The player's own dump is what's running, so this hash is the genuine
-     * article -- no spoofing involved. */
+    /* By default the player's own dump is what's running, so this hash is the
+     * genuine article and nothing is misreported. ra_hash_override changes
+     * that deliberately -- see Pc_RaResolveHashOverride. */
     if (!rc_hash_generate_from_file(hash, RC_CONSOLE_PLAYSTATION, disc))
     {
         SH_DBG("[RA] could not hash disc image '%s'", disc);
@@ -739,6 +808,15 @@ static void RC_CCONV Pc_RaLoginCallback(int result, const char* error_message,
     }
 
     SH_DBG("[RA] disc hash %s", hash);
+    {
+        const char* forced = Pc_RaResolveHashOverride();
+        if (forced != NULL)
+        {
+            SH_DBG("[RA] ra_hash_override active: reporting %s instead of the "
+                   "mounted disc's own hash", forced);
+            snprintf(hash, sizeof(hash), "%s", forced);
+        }
+    }
     rc_client_begin_load_game(client, hash, Pc_RaLoadGameCallback, NULL);
 }
 

@@ -969,6 +969,15 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.raSpectator = (atoi(value) != 0);
         }
+        else if (strcmp(key, "ra_hash_override") == 0)
+        {
+            if (strlen(value) < sizeof(g_PcConfig.raHashOverride))
+            {
+                strncpy(g_PcConfig.raHashOverride, value,
+                        sizeof(g_PcConfig.raHashOverride) - 1);
+                g_PcConfig.raHashOverride[sizeof(g_PcConfig.raHashOverride) - 1] = ' ';
+            }
+        }
         else if (strcmp(key, "ra_sfx") == 0)
         {
             if (strlen(value) < sizeof(g_PcConfig.raSfx))

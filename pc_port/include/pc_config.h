@@ -302,6 +302,12 @@ typedef struct {
      * mapping to achievement.wav / trophy.wav / steam.wav. Written by the
      * launcher's RetroAchievements page. (config key: ra_sfx) */
     char raSfx[16];
+    /* Report a DIFFERENT disc hash to RetroAchievements than the mounted image
+     * actually has, so a disc RA has no set for can load the set of one it
+     * does. Empty (default) = report the real hash and change nothing.
+     * Accepts a 32-char MD5, or a name from the alias table in
+     * pc_retroachievements.c. (config key: ra_hash_override) */
+    char raHashOverride[40];
     /* 1 = spectator mode: achievements evaluate and toast locally but are never
      * submitted. Testing aid only — every region submits for real by default now
      * that a live session proved the address map resolves the official set's
