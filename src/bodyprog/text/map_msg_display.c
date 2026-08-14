@@ -325,7 +325,54 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
              * ~J timer already exceeds the gap is unaffected (Flauros-safe). */
             extern int Xa_VoiceGapHold(void);
 #endif
+            /* J2 single-audio-file cutscenes (VHS tape: map3_s03 msgs 27-39,
+             * map7_s02 msgs 32-44): ONE ~35s XA clip spans ALL pages, which are
+             * authored to advance on their ~J timers WHILE it plays (PSX has no
+             * voice gate on this path, and J2 advances fire no SD_Call - the
+             * J2 early-return below). pcVoiceHold pinned the blank ~J0 lead
+             * page for the whole tape, so subtitles only began AFTER the
+             * audio. Exempt: (a) a page whose own tag parsed to J2; (b) a
+             * chaining page (no ~E, so the engine itself will index idx+1
+             * next) whose NEXT page is ~J2 - the lead-in that fired the clip.
+             * Per-page-voice scenes (Flauros/Lisa/Kaufmann) satisfy neither.
+             * Only computed while a ~J page is active (ALB != 0): the gates
+             * below ignore pcVoiceHold otherwise, and selection pages without
+             * ~E (e.g. map1_s06 Take_it?) never auto-chain, so peeking idx+1
+             * for them would be an out-of-bounds read. */
+            int pcSingleFileAudio = (g_MapMsg_AudioLoadBlock == MapMsgAudioLoadBlock_J2);
+            if (!pcSingleFileAudio && g_MapMsg_AudioLoadBlock != MapMsgAudioLoadBlock_None)
+            {
+                const u8* p      = (const u8*)g_MapOverlayHdr.mapMessages[g_MapMsg_CurrentIdx];
+                int       hasEnd = 0;
+
+                for (; *p != '\0'; p++)
+                {
+                    if (p[0] == MAP_MSG_CODE_MARKER && p[1] == MAP_MSG_CODE_END)
+                    {
+                        hasEnd = 1;
+                        break;
+                    }
+                }
+
+                if (!hasEnd)
+                {
+                    const u8* n = (const u8*)g_MapOverlayHdr.mapMessages[g_MapMsg_CurrentIdx + 1];
+
+                    for (; *n != '\0'; n++)
+                    {
+                        if (*n == ' ' || *n == '\t')
+                        {
+                            continue;
+                        }
+
+                        pcSingleFileAudio = (n[0] == MAP_MSG_CODE_MARKER &&
+                                             n[1] == MAP_MSG_CODE_JUMP && n[2] == '2');
+                        break;
+                    }
+                }
+            }
             const int pcVoiceHold =
+                !pcSingleFileAudio &&
                 (g_SysWork.bgmStatusFlags & BgmStatusFlag_VoiceDialog) &&
                 (Xa_IsVoiceAudioDraining()
 #ifdef SH_XBOX_PORT
