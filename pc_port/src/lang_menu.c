@@ -2,6 +2,7 @@
 #include "lang_text.h"
 #include "lang_pack.h"
 #include "lang_ru.h"
+#include "lang_jpn.h"
 
 #include <string.h>
 
@@ -245,6 +246,14 @@ const char* Pc_LangMenuText(const char* str)
 
     if (str == NULL)
         return str;
+
+    /* NTSC-J serves these from the disc's own overlays — Japanese on a retail
+     * disc (which is what retail draws), Chinese on the fan-translated one. */
+    if (g_GameRegion == Region_JPN)
+    {
+        const char* jp = Pc_JpnMenuText(str);
+        return jp ? jp : str;
+    }
 
     /* A Russian fan-translated disc wins over the language setting: its font
      * has no Latin letters left, so English (or German, or Polish) menus are

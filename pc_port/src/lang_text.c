@@ -17,6 +17,7 @@
 #include "lang_pack.h"        /* PC-side language packs (gamedata/lang) */
 #include "lang_ru.h"          /* Russian fan-patch detection + menu text */
 #include "pc_kanji.h"         /* Pc_KanjiSetChinese (NTSC-J glyph set) */
+#include "lang_jpn.h"         /* NTSC-J menu text from the disc overlays */
 #include "main/fsqueue.h"     /* Fs_QueueStartReadTim, FS_BUFFER_1 */
 #include "main/fileinfo.h"    /* g_GameRegion, Fs_EurFileLookup */
 #include "pc_config.h"
@@ -719,6 +720,7 @@ void Pc_LangInit(void)
         /* A fan-translated JP disc (the Chinese patch) rewrites those same
          * arrays; adopting them replaces the pointers just installed. */
         JpnFanTextInit();
+        Pc_JpnMenuInit();
         return;
     }
 

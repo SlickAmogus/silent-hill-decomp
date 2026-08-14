@@ -3171,3 +3171,44 @@ the glyphs against system CJK fonts does not identify them (best distance 51, no
 a missing feature rather than a regression. Finishing it needs the Chinese-patched
 disc image: its own menu strings can either be adopted directly or used to derive
 the character map.
+
+### NTSC-J menu text off the disc (and with it, the Chinese menus)
+
+The note above said Chinese menu text was blocked on a character map. It was not
+— the answer was in the patch itself. `SLPM_861.92` is a **PPF2 disc patch**, and
+parsing it showed it rewrites `VIN/OPTION.BIN` and `VIN/SAVELOAD.BIN` among 361
+sectors. So the translation *does* cover the menus, and a PPF can only replace
+bytes in place, so its strings sit at exactly the offsets the Japanese ones do.
+
+That also exposed a plain bug: retail NTSC-J draws its option and save/load text
+**in Japanese**, from those two overlays. The port compiles the decomp's US
+branch, so it drew the compiled English literals there instead — wrong for a
+stock Japanese disc, never mind a translated one. `lang_jpn.c` reads the strings
+back off the mounted disc, which fixes Japanese and gets Chinese for free; which
+language appears is simply whatever disc is mounted, and the Japanese/Chinese
+setting only picks the glyph set.
+
+`lang_jpn_menu.inc` maps each compiled literal to (overlay, offset, length).
+Length 0 is a NUL-terminated string; a non-zero length is a fixed-width field
+inside a longer blob, because the game slices several values out of one string —
+and the field boundaries are identical in both languages, the shorter one padding
+with the SJIS ideographic space (0x8140). Currently 40 entries: all 25 save
+locations (their order in the overlay is the exact reverse of
+`g_Savegame_SaveLocationNames`, which is what pins the mapping), the option
+values (On/Off/Stereo/Monaural, Press/Switch, Reverse/Normal/Green/Violet/Black/
+Self_View) and the save-slot chrome.
+
+Two things the extraction has to get right, both verified against the stock and
+patched discs together:
+- The overlays write colour markup as `~Cn`, not the `\x0n` the port's drawer
+  wants, so it is converted on the way in.
+- **The walk must be SJIS-pair-aware.** A trail byte may legally be 0x7E ('~') or
+  0x81, so a byte-at-a-time scan lets the second half of a kanji masquerade as
+  markup or as padding — two of the Chinese location names do contain a 0x7E
+  trail byte.
+
+Still English: the option ROW labels. On the JP disc those are full sentences
+("画面の明るさを調節します" — *adjusts the screen brightness*) belonging to a
+differently-shaped JP options screen, not short labels for the US-shaped one the
+port draws, and the JP and CN sentences do not share field boundaries, so they
+cannot be sliced into labels the way the values can.
