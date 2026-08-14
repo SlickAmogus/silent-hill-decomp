@@ -104,14 +104,20 @@ RSS climbs monotonically across a long session. On a 1 GB MT8163 cabinet that is
 the thing most likely to get the process killed mid-run. Worth measuring RSS on
 the cabinet after a few map transitions before assuming it is fine.
 
-## Known outstanding — GLES3 shader gap
+## Affine texture warping is gone on GLES (fixed, with a cost)
 
-`PsyCross/src/render/PsyX_render.cpp` emits `noperspective` for the
-`g_cfg_affineTextures` path. **`noperspective` does not exist in GLES3** — ES
-has only `smooth`, `flat` and `centroid`. The existing `SH_TC_CENTROID` guard
-covers ES2 but nothing guards the ES3 case, so affine texturing will fail to
-compile the shader *at runtime*, not at build time. This is exactly the trap the
-project's shader-gate rule warns about: a clean build does not mean valid GLSL.
+`PsyX_render.cpp` used to emit `noperspective` for the `g_cfg_affineTextures`
+path. **`noperspective` does not exist in GLSL ES** — it has only `smooth`,
+`flat` and `centroid` through 3.2 — so every shader failed to *compile at
+runtime*: clean build, black game. The guard now covers both ES paths.
+
+The cost is that UVs interpolate perspective-correct, so the PSX's affine
+texture warping is absent and steeply angled surfaces look too clean. The
+renderer logs a one-time warning so `affine_textures = 1` does not look like it
+took effect. Restoring the warp means premultiplying the varying by `w` in the
+vertex shader and undoing it in the fragment shader, which works on any GLES
+device — left undone deliberately, because it is shader maths that has to be
+checked against a rendered frame rather than reasoned about.
 
 ## Performance notes for the cabinet
 
