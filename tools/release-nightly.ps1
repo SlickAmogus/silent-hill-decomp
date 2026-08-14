@@ -270,7 +270,15 @@ function Resolve-CrossPlatformArtifacts {
                     } else {
                         Write-Host "  Waiting for $($t.Workflow) (run $($entry.RunId)) to finish -- Ctrl+C aborts the release..." -ForegroundColor Cyan
                         $ok = $false
-                        try { gh run watch $entry.RunId --repo $sourceSlug --interval 15 --exit-status; $ok = ($LASTEXITCODE -eq 0) }
+                        # Out-Host, not bare: `gh run watch` streams progress to
+                        # stdout, and inside a function that stdout becomes part of
+                        # the RETURN VALUE -- the caller then gets an array instead
+                        # of the result hashtable and `$xplat.Proceed` throws under
+                        # StrictMode. Only happens when a build is still running,
+                        # which is why a second run right after succeeded.
+                        # Out-Host keeps the live progress visible and leaves
+                        # $LASTEXITCODE intact.
+                        try { gh run watch $entry.RunId --repo $sourceSlug --interval 15 --exit-status | Out-Host; $ok = ($LASTEXITCODE -eq 0) }
                         catch { $ok = $false }
                         $entry.State = if ($ok) { 'ok' } else { 'failed' }
                     }
@@ -376,7 +384,10 @@ function Resolve-CrossPlatformArtifacts {
                     Write-Host "  Couldn't find a git remote for $sourceSlug -- push manually, then choose R." -ForegroundColor Red
                 } else {
                     Write-Host "  Pushing '$CrossPlatformBranch' to $pr..." -ForegroundColor Cyan
-                    try { git push $pr $CrossPlatformBranch } catch { Write-Host "  Push error: $_" -ForegroundColor Red }
+                    # Out-Host for the same reason as `gh run watch` above: this is
+                    # inside Resolve-CrossPlatformArtifacts, so bare native output
+                    # would ride out as part of the returned object.
+                    try { git push $pr $CrossPlatformBranch | Out-Host } catch { Write-Host "  Push error: $_" -ForegroundColor Red }
                     if ($LASTEXITCODE -ne 0) {
                         Write-Host "  Push failed -- resolve and choose R to re-check." -ForegroundColor Red
                     } else {
