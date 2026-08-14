@@ -149,9 +149,18 @@ typedef struct
 } s_RaHashAlias;
 
 static const s_RaHashAlias s_raHashAliases[] = {
-    /* Verified loading game 11252 "Silent Hill" with the full 66-achievement
-     * set. Add further entries only from a log line that did the same. */
-    { "pal", "e6f638d44f54d7498a17244453722eb5" },
+    /* Both verified loading game 11252 "Silent Hill" with the full
+     * 66-achievement set. Add further entries only from a log line that did
+     * the same.
+     *
+     * `usa` is the one to prefer. The port always presents itself to the
+     * achievement logic AS the USA build -- one compiled struct layout, the USA
+     * symbol map, and a synthesised USA boot serial at 0x024C10 -- so the USA
+     * disc is the only configuration where the code, the addresses and the
+     * disc's own data all agree. */
+    { "usa",  "469d5cf1428d3f6f2234aa5be058f3ec" },
+    { "ntsc-u", "469d5cf1428d3f6f2234aa5be058f3ec" },
+    { "pal",  "e6f638d44f54d7498a17244453722eb5" },
 };
 
 static int Pc_RaIsMd5(const char* text)
