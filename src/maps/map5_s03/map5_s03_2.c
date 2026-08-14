@@ -675,6 +675,22 @@ void Map_WorldObjectsInit(void) // 0x800D2A04
     WorldObject_ModelNameSet(&g_CommonWorldObjects[3], D_800A99E4[5]);
     WorldObject_ModelNameSet(&g_CommonWorldObjects[4], D_800A99E4[6]);
     WorldObject_ModelNameSet(&g_CommonWorldObjects[5], D_800A99E4[7]);
+
+#ifdef SH_PC_PORT
+    /* The two shelf pickups this map draws are NOT g_CommonWorldObjects
+     * entries -- Map_WorldObjectsUpdate submits the dedicated
+     * g_WorldObject_HealthDrink / g_WorldObject_ShotgunShells symbols, which
+     * nothing ever named. They are zero-init storage, so their model name was
+     * the empty string, Lm_ModelFind could not match it against BG_ITEM.PLM,
+     * and WorldGfx_ObjectAdd bailed before submitting them: both drinks and the
+     * shells were invisible on the shelf.
+     *
+     * The find-fail log dedupes by NAME, so every unnamed object in the map
+     * collapsed into a single "name=''" line rather than one per item, which is
+     * why it read as one stray object instead of three. */
+    WorldObject_ModelNameSet(&g_WorldObject_HealthDrink,   D_800A99E4[3]); /* DRINK_NE */
+    WorldObject_ModelNameSet(&g_WorldObject_ShotgunShells, D_800A99E4[6]); /* SHELL_NE */
+#endif
 }
 
 void Map_WorldObjectsUpdate(void) // 0x800D2B68
