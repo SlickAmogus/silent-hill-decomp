@@ -246,10 +246,11 @@ u8 D_800DB054[256] = {0};
 u8 D_800DB055[256] = {0};
 u8 D_800DB064[256] = {0};
 /* D_800DB1D8/E0/E8/F0/F8 (twinfeeler emerge tables: bone scale, Y positions,
- * X/Y rotations, sfx id+vol) now defined with real binary-extracted values in
- * map4_s03_extracted_data.c. Zero-stubs here would shadow the DLL copies
- * (= worm never submerges + sfx id 0 looping at full volume). */
-u8 D_800DB238[256] = {0};
+ * X/Y rotations, sfx id+vol) and D_800DB238 (the per-segment bone-hide lists
+ * that bury the worm's body as it burrows) now have real binary-extracted
+ * values in map4_s03_extracted_data.c. Zero-stubs here would shadow the DLL
+ * copies (= worm never submerges, stays fully drawn underground, and sfx id 0
+ * loops at full volume). */
 u8 D_800DB898[256] = {0};
 u8 D_800DB89A[256] = {0};
 u8 D_800DB89C[256] = {0};

@@ -445,6 +445,13 @@ extern int g_PsxUsePgxp;
         Shadow_Copy(&(pl)->x3, &(a3)); \
     } } while (0)
  
+/* Every emitter below carries the TMD mode byte's ABE bit (`cd` bit 1) into the
+ * output packet, because setPoly*() writes the OPAQUE base code and PsyCross
+ * blends on `code & 2` alone. Without it every semi-transparent primitive in an
+ * item model drew solid — most visibly the "Unknown liquid" bottle (UNQ66),
+ * whose 212 shell triangles are ABE and whose 8 opaque ones are the liquid
+ * inside: an opaque shell hid the liquid completely. */
+
 /* Flat-shaded triangle — lit + fog */
 void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, GsOT* ot, unsigned long* scratch)
 {
@@ -473,6 +480,7 @@ void GsTMDfastF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
  
         poly = (POLY_F3*)GsOUT_PACKET_P;
         setPolyF3(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, col_out.r, col_out.g, col_out.b);
         *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
         TMD_PGXP3(poly, sxy0, sxy1, sxy2);
@@ -510,6 +518,7 @@ void GsTMDfastG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
  
         poly = (POLY_G3*)GsOUT_PACKET_P;
         setPolyG3(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, c0.r, c0.g, c0.b);
         setRGB1(poly, c1.r, c1.g, c1.b);
         setRGB2(poly, c2.r, c2.g, c2.b);
@@ -549,6 +558,7 @@ void GsTMDfastF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
  
         poly = (POLY_F4*)GsOUT_PACKET_P;
         setPolyF4(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, col_out.r, col_out.g, col_out.b);
         *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1;
         *(int*)&poly->x2 = sxy2; *(int*)&poly->x3 = sxy3;
@@ -588,6 +598,7 @@ void GsTMDfastG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift, 
  
         poly = (POLY_G4*)GsOUT_PACKET_P;
         setPolyG4(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, c0.r, c0.g, c0.b);
         setRGB1(poly, c1.r, c1.g, c1.b);
         setRGB2(poly, c2.r, c2.g, c2.b);
@@ -631,6 +642,7 @@ void GsTMDfastTF3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
 
         poly = (POLY_FT3*)GsOUT_PACKET_P;
         setPolyFT3(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, col_out.r, col_out.g, col_out.b);
         setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
         poly->tpage = prim->tpage;
@@ -671,6 +683,7 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
 
         poly = (POLY_GT3*)GsOUT_PACKET_P;
         setPolyGT3(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, c0.r, c0.g, c0.b);
         setRGB1(poly, c1.r, c1.g, c1.b);
         setRGB2(poly, c2.r, c2.g, c2.b);
@@ -714,6 +727,7 @@ void GsTMDfastTF4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
 
         poly = (POLY_FT4*)GsOUT_PACKET_P;
         setPolyFT4(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, col_out.r, col_out.g, col_out.b);
         setUV4(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1,
                      prim->tu2, prim->tv2, prim->tu3, prim->tv3);
@@ -757,6 +771,7 @@ void GsTMDfastTG4LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
 
         poly = (POLY_GT4*)GsOUT_PACKET_P;
         setPolyGT4(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, c0.r, c0.g, c0.b);
         setRGB1(poly, c1.r, c1.g, c1.b);
         setRGB2(poly, c2.r, c2.g, c2.b);
@@ -796,6 +811,7 @@ void GsTMDfastNF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
  
         poly = (POLY_F3*)GsOUT_PACKET_P;
         setPolyF3(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
         TMD_PGXP3(poly, sxy0, sxy1, sxy2);
@@ -840,6 +856,7 @@ void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
 
             poly = (POLY_F3*)GsOUT_PACKET_P;
             setPolyF3(poly);
+            setSemiTrans(poly, (gp->cd >> 1) & 1);
             setRGB0(poly, ITEMDIM(gp->r0), ITEMDIM(gp->g0), ITEMDIM(gp->b0));
             *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1; *(int*)&poly->x2 = sxy2;
             TMD_PGXP3(poly, sxy0, sxy1, sxy2);
@@ -864,6 +881,7 @@ void GsTMDfastNG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
  
         poly = (POLY_G3*)GsOUT_PACKET_P;
         setPolyG3(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         setRGB1(poly, ITEMDIM(prim->r1), ITEMDIM(prim->g1), ITEMDIM(prim->b1));
         setRGB2(poly, ITEMDIM(prim->r2), ITEMDIM(prim->g2), ITEMDIM(prim->b2));
@@ -898,6 +916,7 @@ void GsTMDfastNF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
  
         poly = (POLY_F4*)GsOUT_PACKET_P;
         setPolyF4(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         *(int*)&poly->x0 = sxy0; *(int*)&poly->x1 = sxy1;
         *(int*)&poly->x2 = sxy2; *(int*)&poly->x3 = sxy3;
@@ -931,6 +950,7 @@ void GsTMDfastNG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, un
  
         poly = (POLY_G4*)GsOUT_PACKET_P;
         setPolyG4(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         setRGB1(poly, ITEMDIM(prim->r1), ITEMDIM(prim->g1), ITEMDIM(prim->b1));
         setRGB2(poly, ITEMDIM(prim->r2), ITEMDIM(prim->g2), ITEMDIM(prim->b2));
@@ -970,6 +990,7 @@ void GsTMDfastNTF3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
 
         poly = (POLY_FT3*)GsOUT_PACKET_P;
         setPolyFT3(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
         poly->tpage = prim->tpage;
@@ -1058,6 +1079,7 @@ void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
 
         poly = (POLY_GT3*)GsOUT_PACKET_P;
         setPolyGT3(poly);
+        setSemiTrans(poly, (prim->mode >> 1) & 1);
         /* No per-vertex colours in data; use neutral 0x80 (= 100% modulation). */
         setRGB0(poly, ITEMDIM(0x80), ITEMDIM(0x80), ITEMDIM(0x80));
         setRGB1(poly, ITEMDIM(0x80), ITEMDIM(0x80), ITEMDIM(0x80));
@@ -1098,6 +1120,7 @@ void GsTMDfastNTF4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
 
         poly = (POLY_FT4*)GsOUT_PACKET_P;
         setPolyFT4(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         setUV4(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1,
                      prim->tu2, prim->tv2, prim->tu3, prim->tv3);
@@ -1136,6 +1159,7 @@ void GsTMDfastNTG4(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
 
         poly = (POLY_GT4*)GsOUT_PACKET_P;
         setPolyGT4(poly);
+        setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, ITEMDIM(prim->r0), ITEMDIM(prim->g0), ITEMDIM(prim->b0));
         setRGB1(poly, ITEMDIM(prim->r1), ITEMDIM(prim->g1), ITEMDIM(prim->b1));
         setRGB2(poly, ITEMDIM(prim->r2), ITEMDIM(prim->g2), ITEMDIM(prim->b2));
