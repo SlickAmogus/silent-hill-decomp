@@ -287,6 +287,7 @@ static const s_PcOpt PCOPT_X2[] = {
  * actually put files on the drive, so the defaults cost nothing. */
 static const s_PcOpt PCOPT_X3[] = {
     { "Character",       NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_PLAYAS   },
+    { "Character_Switch_On_L3", &g_PcConfig.playAsL3,   "character_switch_l3", VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Asset_Overrides", &g_PcConfig.allowLooseFiles,   "allow_loose_files",   VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Hi_Res_Textures", &g_PcConfig.hiResTextures,     "hires_textures",      VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Prev_Page",       NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_PREV     },

@@ -368,12 +368,27 @@ void Xbox_ApplyControlStyle(int s)
 }
 void Pc_ControlStyleUpdate(void)
 {
-    static int inited = 0, prevR3 = 0;
+    static int inited = 0, prevR3 = 0, prevL3 = 0;
     int inGameplay = (g_GameWork.gameState == GameState_InGame &&
                       g_SysWork.sysState   == SysState_Gameplay);
     int curR3;
+    int curL3;
 
     if (!inited) { Xbox_ApplyControlStyle(g_PcConfig.controlStyle); inited = 1; }
+
+    /* L3 -> cycle the play-as character. Opt-in (character_switch_l3, default
+     * off) because a swap is a SYNCHRONOUS model + skin reload off the disc
+     * image: in gameplay that is a visible hitch, and an accidental stick click
+     * mid-combat would be an unpleasant surprise. Rising edge only, gameplay
+     * only, and never while a script owns the scene — a swap during a cutscene
+     * would reload the player model out from under the DMS animation. */
+    curL3 = (g_Controller0->heldBtnFlags & ControllerFlag_L3) != 0;
+    if (g_PcConfig.playAsL3 && inGameplay && curL3 && !prevL3 && !Pc_ScriptOwnsScene())
+    {
+        extern int Pc_PlayAs_Cycle(int step);
+        Pc_PlayAs_Cycle(+1);
+    }
+    prevL3 = curL3;
 
     curR3 = (g_Controller0->heldBtnFlags & ControllerFlag_R3) != 0;
     if (inGameplay && curR3 && !prevR3) {
