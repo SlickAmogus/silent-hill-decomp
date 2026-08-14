@@ -60,12 +60,14 @@ static const s_RuCharset s_Charset_ViTCo = {
  * 95-125) plus a handful of duplicates at 90-94. Byte = cell + 0x27 again, so
  * the lowercase run is 0x86-0xA4.
  *
- * Three of those bytes are unusable: Font_MapChar reproduces retail PAL's
- * special cases for 0x96 (en dash), 0x9C (oe) and 0xA1 (inverted !), which
- * would send с, ч and ь to the wrong cells. The patch hits the same wall and
- * solves it the same way — с takes the Latin 'c' cell (identical glyph, same
- * 9px advance) and ч/ь take the duplicate cells 92/93 — so these substitutions
- * are exactly what the disc's own text already uses. */
+ * Four of the lowercase letters do not use their slot in that run. Three are
+ * forced: Font_MapChar reproduces retail PAL's special cases for 0x96 (en
+ * dash), 0x9C (oe) and 0xA1 (inverted !), which would send с, ч and ь to the
+ * wrong cells — the patch hits the same wall and solves it the same way, с
+ * taking the Latin 'c' cell (identical glyph, identical advance) and ч/ь the
+ * duplicate cells 92/93. The fourth is о: this repaint never painted one,
+ * because Latin 'o' already draws it, and cell 108 holds something else
+ * entirely. Every substitution here is a byte the disc's own text uses. */
 static const s_RuCharset s_Charset_ConsolGames = {
     "consolgames", 0x7D67AF89u,
     /* А     Б     В     Г     Д     Е     Ё     Ж     З     И     Й */
@@ -77,7 +79,7 @@ static const s_RuCharset s_Charset_ConsolGames = {
     /* а     б     в     г     д     е     ё     ж     з     и     й */
     {  0x86, 0x87, 0x88, 0x89, 0x8A, 0x65, 0x00, 0x8B, 0x8C, 0x8D, 0x8E,
     /* к     л     м     н     о     п     р     с     т     у     ф */
-       0x8F, 0x90, 0x91, 0x92, 0x93, 0x94, 0x95, 0x63, 0x97, 0x98, 0x99,
+       0x8F, 0x90, 0x91, 0x92, 0x6F, 0x94, 0x95, 0x63, 0x97, 0x98, 0x99,
     /* х     ц     ч     ш     щ     ъ     ы     ь     э     ю     я */
        0x9A, 0x9B, 0x83, 0x9D, 0x9E, 0x9F, 0xA0, 0x84, 0xA2, 0xA3, 0xA4 }
 };
