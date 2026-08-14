@@ -2259,20 +2259,8 @@ void MainLoop(void) // 0x80032EE0
          * OT is drawn; reset paths (menus, fades) simply leave it 0. */
         {
             extern int g_PsyX_ShadowsAllowed;
-            /* SysWork_StateSetNext sets sysState IMMEDIATELY, so the pause-entry
-             * tick already reads GamePaused here -- but that tick still renders
-             * the world (BgmStatusFlag_Pause is not set until the next one). On
-             * that one frame the shadow map switched off and the flashlight lit
-             * the scene unoccluded: the one-frame grey sky when pausing with the
-             * flashlight on. Keep shadows for a paused frame that actually drew
-             * the world; the frames that follow draw none, so they stand down as
-             * before. Deliberately narrow -- the inventory/map/options states
-             * still lose shadows, which is what the white-flash and dropped-face
-             * fixes rely on. */
             g_PsyX_ShadowsAllowed = (g_GameWork.gameState == GameState_InGame &&
-                                     (g_SysWork.sysState == SysState_Gameplay ||
-                                      (g_SysWork.sysState == SysState_GamePaused &&
-                                       g_PcWorldDrawnThisFrame)) &&
+                                     g_SysWork.sysState == SysState_Gameplay &&
                                      ScreenFade_IsNone()) ? 1 : 0;
         }
 
