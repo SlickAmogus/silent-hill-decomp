@@ -288,10 +288,23 @@ void func_8004BD74(s32 displayItemIdx, GsDOBJ2* arg1, s32 arg2)  // 0x8004BD74
          * gate the nudges out of in-game rendering. World pickups use idx 9. */
         if (g_GameWork.gameState != GameState_InGame)
         {
+            /* Scale the nudge to the framebuffer instead of applying it raw.
+             *
+             * Both values were tuned against the 448-tall INTERLACED menu
+             * framebuffer, but gsScreenHeight is 224 on the progressive one --
+             * so the same constant is twice the intended fraction of the frame
+             * there and drops the model down into the description text. A
+             * fraction of the frame height lands in the same place at any
+             * framebuffer size, which is what the tuning actually meant. */
+            #define INV_Y_OFF_REF_H 448 /* height the offsets were tuned at */
+
+            s32 frameH = (g_GameWork.gsScreenHeight > 0) ? g_GameWork.gsScreenHeight
+                                                         : INV_Y_OFF_REF_H;
+
             if (displayItemIdx == 7)
-                localToScreenMat.t[1] += g_PcInvEquipYOff;
+                localToScreenMat.t[1] += (g_PcInvEquipYOff * frameH) / INV_Y_OFF_REF_H;
             else if (displayItemIdx < 7)
-                localToScreenMat.t[1] += g_PcInvCarouselYOff;
+                localToScreenMat.t[1] += (g_PcInvCarouselYOff * frameH) / INV_Y_OFF_REF_H;
         }
     }
 #endif
