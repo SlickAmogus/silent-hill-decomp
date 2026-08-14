@@ -41,6 +41,16 @@ android {
             // the SDL submodule so they can never drift from the native SDL2
             // this links against.
             java.srcDirs += 'jni/SDL/android-project/app/src/main/java'
+
+            // The port's OWN runtime assets -- decal.png, the OFL-licensed
+            // fonts, the language pack, UI sounds. All redistributable; none of
+            // it comes off the disc. On desktop CMake copies this tree next to
+            // the executable, so Android has to carry it some other way.
+            // SilentHillActivity unpacks it to the external files dir at
+            // startup, next to where the user's own BIN goes.
+            // Relative paths here resolve against app/, not the project root,
+            // so anchor on rootProject (android_port/) explicitly.
+            assets.srcDirs += "${rootProject.projectDir}/../pc_port/assets"
         }
     }
 
