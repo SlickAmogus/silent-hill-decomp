@@ -191,6 +191,12 @@ int main(void)
         }
         XboxConfig_ApplyOverrides();
 
+        /* Play-as: resolve the saved player_character token into the live
+         * CHARA_FILE_INFOS retarget. Must run AFTER the config is parsed and
+         * BEFORE the boot-time WorldGfx_HarryCharaLoad, or the first player model
+         * loads as Harry and the swap only takes on the next area. */
+        { extern void Pc_PlayAs_Init(void); Pc_PlayAs_Init(); }
+
         /* Video mode chosen HERE, after the config is parsed, so the persisted
          * video_720p toggle (Xbox Options "Display") drives it. XVideoSetMode
          * validates against the encoder (XVideoListModes), so SDTV/composite falls

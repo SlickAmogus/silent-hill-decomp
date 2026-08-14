@@ -128,6 +128,10 @@ void HiresOverride_LogStats(void);
  * Texture_Get claim list. Named so the chunk-pool bound can't drift when
  * HIRES_POOL_SLOT_MAX grows (it did: 256->512 for the chara range). */
 #define HIRES_POOL_DECAL_SLOT     (HIRES_POOL_CHARA_SLOT_BASE - 1)
+/* Play-as: the swapped player's SKIN. Deliberately outside the chara range
+ * (256+id covers ids 2..43), because the player's own body must not collide with
+ * the same character loaded as an NPC. */
+#define HIRES_POOL_PLAYAS_SLOT    300
 
 int  HiresOverride_PoolSlotRegister(int slotId,
                                     const unsigned char* data, unsigned int size,

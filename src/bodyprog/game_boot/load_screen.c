@@ -135,6 +135,17 @@ void GameBoot_LoadScreen_PlayerRun(void) // 0x80035BE0
     }
 #endif
 
+#ifdef SH_PC_PORT
+    /* The load screen animates the player OUTSIDE Player_Update, and
+     * GameBoot_PlayerInit's Anim_BoneInit has just reset every bone to Harry's
+     * offsets — so a swapped character would run this screen with Harry's
+     * proportions AND the skin's root-height compensation (feet through the
+     * floor). Re-assert the retarget here too. */
+    {
+        extern void Pc_PlayAs_PlayerAnimTick(void);
+        Pc_PlayAs_PlayerAnimTick();
+    }
+#endif
     Anim_PlaybackLoop(model, (s_Skeleton*)FS_BUFFER_0, boneCoords, &D_800A998C);
     vcMoveAndSetCamera(true, false, false, false, false, false, false, false);
     Gfx_FlashlightUpdate();

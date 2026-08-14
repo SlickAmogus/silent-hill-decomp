@@ -1,6 +1,7 @@
 #include "game.h"
 #ifdef SH_PC_PORT
 #include <stdio.h>
+#include <string.h>   /* strcmp — the play-as held-item "HERO" texture test */
 #include "sh_log.h"
 #include "pc_config.h"
 #ifdef SH_PC_PORT
@@ -1088,6 +1089,18 @@ void WorldGfx_HeldItemDraw(void) // 0x8003D058
         if (!lmHdr->isLoaded)
         {
             LmHeader_FixOffsets(lmHdr);
+#ifdef SH_PC_PORT
+            /* Play-as: knife/hammer/axe/handgun/rifle/shotgun PLMs are
+             * textured from HERO.TIM, but Harry's VRAM parcel now holds the
+             * skin's sheet — bake against the virtual-slot copy instead.
+             * Patched here (not at HeldItemSet) so it holds no matter which
+             * load path filled the desc. */
+            if (heldItem->textureName != NULL && strcmp(heldItem->textureName, "HERO") == 0)
+            {
+                extern void Pc_PlayAs_HeldItemImageDesc(void* imageDesc);
+                Pc_PlayAs_HeldItemImageDesc(&heldItem->imageDesc);
+            }
+#endif
             Lm_MaterialFsImageApply1(lmHdr, heldItem->textureName, &heldItem->imageDesc, BlendMode_Additive);
             Lm_MaterialFlagsApply(lmHdr);
             Bone_ModelAssign(&heldItem->bone, heldItem->lmHdr, 0);
@@ -1118,6 +1131,24 @@ void WorldGfx_HarryCharaLoad(void) // 0x8003D160
     harryModel                                        = &worldGfxWork->harryModel;
     g_WorldGfxWork.registeredCharaModels[Chara_Harry] = harryModel;
 
+#ifdef SH_PC_PORT
+    {
+        extern void* Pc_PlayAs_PlayerLmRedirect(int modelFileIdx, void* lmHdr);
+        extern void  Pc_PlayAs_PlayerImageDesc(void* imageDesc);
+
+        /* A play-as retarget must never read a non-HERO ILM into the HERO-sized
+         * slab: disc reads are sector-granular and HELD_ITEM_LM_BUFFER sits only
+         * 14592 bytes above HARRY_LM_BUFFER, so the read would overrun into the
+         * equipped weapon's PLM window. */
+        harryLmHdr = (s_LmHeader*)Pc_PlayAs_PlayerLmRedirect(
+            CHARA_FILE_INFOS[Chara_Harry].modelFileIdx, harryLmHdr);
+        /* ...and a non-HERO player TIM must never land in the HERO-sized VRAM
+         * parcel: it overruns onto the chara CLUT shelf below it and turns every
+         * enemy in the map rainbow. Mutating `image` here covers both the upload
+         * and the material bake — they share this desc. */
+        Pc_PlayAs_PlayerImageDesc(&image);
+    }
+#endif
     Fs_QueueStartRead(CHARA_FILE_INFOS[Chara_Harry].modelFileIdx, harryLmHdr);
     queueIdx = Fs_QueueStartReadTim(CHARA_FILE_INFOS[Chara_Harry].textureFileIdx, FS_BUFFER_1, &image);
 
@@ -1438,6 +1469,9 @@ s32 WorldGfx_CharaModelLoad(e_CharaId charaId, s32 modelIdx, s_LmHeader* lmHdr, 
 void WorldGfx_PlayerModelProcessLoad(void) // 0x8003D938
 {
     WorldGfx_CharaModelProcessLoad(&g_WorldGfxWork.harryModel);
+#ifdef SH_PC_PORT
+    { extern void Pc_PlayAs_OnPlayerModelLoaded(void); Pc_PlayAs_OnPlayerModelLoaded(); }
+#endif
 }
 
 void WorldGfx_CharaModelProcessAllLoads(void) // 0x8003D95C
@@ -1656,6 +1690,20 @@ void WorldGfx_HeldItemAttach(e_CharaId charaId, s32 arg1) // 0x8003DD80
     switch (charaId)
     {
         case Chara_Harry:
+#ifdef SH_PC_PORT
+            /* func_8003DE60's hand-variant lists are hard-coded HERO part
+             * indices — on a play-as skin every equip would hide/show the
+             * wrong meshes. Re-assert the skin's own table instead. */
+            {
+                extern int  Pc_PlayAs_SuppressHarryHandVariants(void);
+                extern void Pc_PlayAs_ApplySkinVisibility(void);
+                if (Pc_PlayAs_SuppressHarryHandVariants())
+                {
+                    Pc_PlayAs_ApplySkinVisibility();
+                    break;
+                }
+            }
+#endif
             func_8003DE60(&model->skeleton, arg1);
             break;
 

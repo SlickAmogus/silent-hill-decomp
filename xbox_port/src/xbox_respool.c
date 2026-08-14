@@ -45,6 +45,7 @@
 #include "xbox_respool.h"
 #include "sh_log.h"
 #include "pc_config.h"   /* texture_paletted gates the decode path we depend on */
+#include "hires_override.h" /* HIRES_POOL_CHARA_SLOT_BASE — the partition line */
 
 /* One slab = one PSX full tpage of 16-bit words (64 words x 256 rows). Half-page
  * materials use half of one and waste the rest; there are far fewer of them. */
@@ -70,7 +71,13 @@
  * and still puts 8 + ~27 full pages in play against vanilla's 8, which is where
  * nearly all of the page-stealing win is. The floor rises with it so the reserve
  * stops earlier on a map that is already tight. */
-#define RES_SLABS_MAX      32
+/* +2 over the 32 chunk slabs for play-as (skin slot 300 and HERO.TIM slot 257).
+ * They are claimed only when a swap is active, and Xbox_ResidentFullSlots /
+ * HalfSlots deliberately do NOT count them, so the chunk pool still offers
+ * exactly what it did before and a swap cannot starve it. */
+#define RES_SLABS_CHUNK    32
+#define RES_SLABS_PLAYAS   2
+#define RES_SLABS_MAX      (RES_SLABS_CHUNK + RES_SLABS_PLAYAS)
 #define RES_FREE_FLOOR_KB  8192
 
 typedef struct {
@@ -91,7 +98,14 @@ static unsigned s_reRegisters;              /* slot reuses seen this map */
 /* slot id -> slab index, or -1. Covers the chunk range only (0..255); the chara
  * range and the minimap's own slots go through the RGBA table in
  * xbox_pcfeature_stubs.c instead. */
-#define RES_SLOT_MAX 256
+/* 0..255 is the map-chunk range. 256+ is the chara range, of which play-as uses
+ * exactly two: HIRES_POOL_PLAYAS_SLOT (300, the swapped player's skin) and
+ * HIRES_POOL_CHARA_SLOT_BASE + Chara_Harry (257, HERO.TIM re-registered so a
+ * weapon PLM whose texture is "HERO" still resolves). Capping at 256 made both
+ * of those fall through Xbox_ResidentPoolGet to the 4-entry RGBA table, which is
+ * minimap-owned — the player would simply not render. 320 covers them; the table
+ * is `short`, so the widening costs 128 bytes of BSS. */
+#define RES_SLOT_MAX 320
 static short   s_slotSlab[RES_SLOT_MAX];
 
 static void ResInit(void)
@@ -142,20 +156,33 @@ static void ResInit(void)
 /* How many virtual FULL-page slots the chunk pool may offer. The half-page
  * extras come out of the same slabs, so the split below keeps a few back for
  * them rather than letting full pages claim everything. */
+static int ResChunkSlabs(void)
+{
+    /* Only the CHUNK partition is offered to the map pool; the play-as reserve
+     * at the top of the array is invisible to it, so enabling a swap can never
+     * shrink the chunk pool and a busy map can never starve a swap. */
+    int n = s_slabCount - RES_SLABS_PLAYAS;
+    return (n > 0) ? n : 0;
+}
+
 int Xbox_ResidentFullSlots(void)
 {
+    int n;
     ResInit();
-    if (s_slabCount <= 8)
+    n = ResChunkSlabs();
+    if (n <= 8)
         return 0;                              /* not worth the bookkeeping */
-    return s_slabCount - (s_slabCount / 6);
+    return n - (n / 6);
 }
 
 int Xbox_ResidentHalfSlots(void)
 {
+    int n;
     ResInit();
-    if (s_slabCount <= 8)
+    n = ResChunkSlabs();
+    if (n <= 8)
         return 0;
-    return s_slabCount / 6;
+    return n / 6;
 }
 
 /* Map init. The chunk range is per-map, so every slab returns to the free list;
@@ -190,11 +217,21 @@ static ResSlab* ResSlabFor(int slot)
     if (s_slotSlab[slot] >= 0)
         return &s_slabs[s_slotSlab[slot]];
 
-    for (i = 0; i < s_slabCount; i++) {
-        if (s_slabs[i].slot < 0) {
-            s_slabs[i].slot  = slot;
-            s_slotSlab[slot] = (short)i;
-            return &s_slabs[i];
+    /* Partitioned: chunk slots (< 256) draw from the low slabs, play-as slots
+     * (>= 256, i.e. 257 and 300) from the reserved pair at the top. Without this
+     * a texture-heavy map would consume every slab and the swapped player would
+     * silently lose its skin -- the same "offered but unbackable" failure the
+     * chunk pool is carefully sized to avoid. */
+    {
+        int lo = (slot >= HIRES_POOL_CHARA_SLOT_BASE) ? ResChunkSlabs() : 0;
+        int hi = (slot >= HIRES_POOL_CHARA_SLOT_BASE) ? s_slabCount : ResChunkSlabs();
+
+        for (i = lo; i < hi; i++) {
+            if (s_slabs[i].slot < 0) {
+                s_slabs[i].slot  = slot;
+                s_slotSlab[slot] = (short)i;
+                return &s_slabs[i];
+            }
         }
     }
     return 0;

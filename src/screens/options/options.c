@@ -106,7 +106,7 @@ static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Cont
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_CAMSTYLE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_EXITMENU, PCK_RASTATUS, PCK_QSAVE, PCK_QLOAD };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_CAMSTYLE, PCK_PLAYAS, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_EXITMENU, PCK_RASTATUS, PCK_QSAVE, PCK_QLOAD };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -286,6 +286,7 @@ static const s_PcOpt PCOPT_X2[] = {
 /* Page 3: asset replacement. Every row here is inert unless the player has
  * actually put files on the drive, so the defaults cost nothing. */
 static const s_PcOpt PCOPT_X3[] = {
+    { "Character",       NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_PLAYAS   },
     { "Asset_Overrides", &g_PcConfig.allowLooseFiles,   "allow_loose_files",   VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Hi_Res_Textures", &g_PcConfig.hiResTextures,     "hires_textures",      VAL_ONOFF,   2, LBL_ONOFF,   NULL,            1, PCK_INT      },
     { "Prev_Page",       NULL,                          NULL,                  NULL,        0, NULL,        NULL,            0, PCK_PREV     },
@@ -375,6 +376,11 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
         else      snprintf(buf, bufsz, "%d", whole);
         return buf;
     }
+    if (e->kind == PCK_PLAYAS) {
+        extern const char* Pc_PlayAs_Label(int idx);
+        extern int         Pc_PlayAs_Current(void);
+        return Pc_PlayAs_Label(Pc_PlayAs_Current());
+    }
     if (e->kind == PCK_MAP) {
         return g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
     }
@@ -393,6 +399,11 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
     char buf[24];
     char vbuf[24];
 
+    if (e->kind == PCK_PLAYAS) {
+        extern int Pc_PlayAs_Cycle(int step);
+        Pc_PlayAs_Cycle(dir);   /* persists itself via PcConfig_SaveKeyValue */
+        return;
+    }
     if (e->kind == PCK_RES) {
         int i, idx = 0;
         for (i = 0; i < PC_RES_COUNT; i++)
@@ -591,7 +602,22 @@ void Options_PcOptionsMenu_Control(void)
 
         /* Every value row (INT/RES/FILTER/WINMODE/VSYNC/SLIDER) adjusts on
          * left/right; only the action rows (NEXT/PREV/BACK) are excluded. */
-        if (sel->kind < PCK_NEXT) {
+        if (sel->kind == PCK_PLAYAS) {
+            /* Rising edge ONLY. pulsedBtnFlags auto-repeats, and every cycle here
+             * is a SYNCHRONOUS model + skin reload off the disc image — a held
+             * stick would queue them back to back and stall the options screen
+             * for seconds. The toggles elsewhere in this file use clickedBtnFlags
+             * for the same reason. */
+            if (g_Controller0->clickedBtnFlags & ControllerFlag_LStickRight) {
+                Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                PcOpt_Adjust(sel, +1);
+            }
+            if (g_Controller0->clickedBtnFlags & ControllerFlag_LStickLeft) {
+                Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                PcOpt_Adjust(sel, -1);
+            }
+        }
+        else if (sel->kind < PCK_NEXT) {
             if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickRight) {
                 Sd_PlaySfx(Sfx_MenuMove, 0, 64);
                 PcOpt_Adjust(sel, +1);

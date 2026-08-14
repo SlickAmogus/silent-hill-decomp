@@ -408,7 +408,7 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
              * bar — so keep the whole arm chain intact. Fog bbox below still runs. */
             {
                 int _hb = (u8)curBone->bone.idx;
-                if (!(g_PcHideHarryFpsBody && _hb == 2))
+                if (!(g_PcHideHarryFpsBody && (_hb == 2 || _hb >= 18)))
                 {
                     func_80057090(&curBone->bone.modelInfo, ot, arg2, &viewMat, &worldMat, arg5);
                 }
