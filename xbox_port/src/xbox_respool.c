@@ -194,13 +194,25 @@ void Xbox_ResidentPoolReset(void)
 
     if (!s_inited)
         return;
+
+    /* CHUNK RANGE ONLY (slot < 256). This is the documented contract —
+     * hires_override.h: "PoolSlotsReset frees everything below the chara range;
+     * called on map (re)init" — and it is the entire reason play-as puts the
+     * player skin at slot 300 rather than in the chunk range.
+     *
+     * Freeing everything here dropped the swapped player's skin and HERO.TIM on
+     * every map init. The retarget survived (CHARA_FILE_INFOS is untouched), so
+     * the model still loaded — with no texture. Cycling with L3 re-ran
+     * WorldGfx_HarryCharaLoad and re-registered the slot, which is exactly why
+     * the skin appeared correct after a swap and went untextured again in the
+     * next room. */
     for (i = 0; i < s_slabCount; i++) {
-        if (s_slabs[i].slot >= 0)
+        if (s_slabs[i].slot >= 0 && s_slabs[i].slot < HIRES_POOL_CHARA_SLOT_BASE) {
             PsxVram_InvalidateResidentSlot(s_slabs[i].slot);
-        s_slabs[i].slot = -1;
+            s_slotSlab[s_slabs[i].slot] = -1;
+            s_slabs[i].slot = -1;
+        }
     }
-    for (i = 0; i < RES_SLOT_MAX; i++)
-        s_slotSlab[i] = -1;
     if (s_reRegisters)
         SH_DBG("[RESPOOL] map reset: %u slot re-registrations this map", s_reRegisters);
     s_reRegisters = 0;
