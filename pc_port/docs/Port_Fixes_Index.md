@@ -3006,3 +3006,168 @@ Editor side: `map2ipd --full` output is no longer capped at the original file
 size; `sh1/tools/chunk_budget.py` reports which threshold a compiled cell
 crosses, and `validate_port_compat.py` mirrors the header validation so a
 rejected file is diagnosed instead of looking like "my edit did nothing".
+
+## Russian fan translations (SLUS-00707 + SLES-01514)
+
+Ten-odd Russian patches circulate for SH1. They translate everything the DISC
+owns and repaint FONT16 so its Latin cells draw Cyrillic. The port already
+re-reads item text (`FanTextInit`/`AdoptItemArrays`) and map messages
+(`UsaPatchMapMessages`, or the EUR overlay walk), so story and inventory text
+came out correct — but menus, options, pause, save/load and the inventory
+labels are COMPILED INTO the port and stayed English ASCII, which a Cyrillic
+atlas renders as nonsense. The port also adds option rows no disc ever had, so
+adopting the disc's own menu strings could not have covered them.
+
+- **Russian menu layer** (`pc_port/src/lang_ru.c`, `lang_ru_menu.inc`): the port
+  carries its own Russian UI text, keyed by the exact compiled US literal, and
+  encodes it into whatever byte-to-glyph mapping the mounted patch uses. Charset
+  tables are selected by an FNV-1a hash of that disc's FONT16.TIM; an
+  unrecognized font logs its hash and keeps English, so a new patch is one table
+  (33 uppercase + 33 lowercase bytes) plus one hash. Shipped charsets:
+  `vitco` (ViT Co / Metallist / Team Raccoon 2021-2022, all three variants share
+  one font), `consolgames` (consolgames.ru v1.1 2011, PAL), `kudos`, `vitotiv`
+  (ViToTiV/VovaMal 2006, PAL). Every table was derived by decoding that disc's
+  own item and message text back to fluent Russian, then round-trip verified
+  against the atlas cell map.
+- **EUR atlas is 126 cells, not 120** (`font_region.c`, `lang_text.c`): retail
+  PAL declares 120 glyphs but its grid is 21x6, and consolgames fills the six
+  spare cells with `ъ ы ь э ю я` and extends the BODYPROG kerning table to match.
+  At the retail count those six letters failed `Font_MapChar`'s range check and
+  vanished from every line of PAL Russian text, subtitles included.
+  `Font_SetGlyphWidths` now takes the glyph count from the disc alongside the
+  widths, and `EurFanFontInit` adopts both (52 of 120 advances differ on that
+  disc — rendering it with retail widths mis-spaced everything). Retail EUR
+  leaves those cells at width 0, which is the signal used to tell the two apart.
+- **Glyph range in the drawer** (`text_draw.c`, `lang_menu.c`): `Gfx_StringDraw`
+  stopped at `'z'`, the last cell of the 84-glyph US strip. Bytes 0x7B-0x7F are
+  EUR cells 84-88 (`Ъ Ы Ь Э Ю` on a Cyrillic repaint) and were silently dropped.
+  `Font_MapChar` already range-checks against the active layout, so US/NTSC-J
+  emit nothing for them exactly as before.
+- The Language row stands down on a Russian disc (no other language is legible
+  in that font), and a PC-side pack is refused there — the pack's 0xA2-0xB3 byte
+  window is Cyrillic letters on those discs and `Font_PatchPolishGlyphs` would
+  paint over cells the repaint uses.
+
+The seven 1999-2003 SLUS repacks (FireCross, Golden Leon, Paradox, Playbox,
+RGR Studio, Sacson, Русские Версии) are covered too, as five more charsets
+(Paradox and Sacson ship the same font). These rebuild the disc rather than
+patching in place, so their text arrives through `Fs_RemapFromDiscTable` and the
+relinked-overlay scan — that already worked; only the charset was missing. Each
+is a transliteration scheme (Latin letters standing in for the Cyrillic they
+resemble) and most of the fonts carry a single case, so both halves of those
+tables hold the same bytes.
+
+One of them needed a code fix as well: `BrazilFindItemArray` required EVERY item
+pointer to start on a string boundary, and FireCross's string pool is missing one
+terminator, so its "РУЖЬЕ" entry legitimately points into the middle of the
+preceding name. That single aliased pointer rejected the whole array, and the
+disc fell through to the decrypt path and kept compiled English item names — on a
+Cyrillic font. The boundary rule now has to hold for 15 of every 16 pointers
+instead of all of them, which still pins the link base exactly (at a wrong base
+essentially none of them land on a boundary) while tolerating a patch's own
+malformed pool. Verified against all ten discs: FireCross starts matching at the
+same base/offset the others already used, and no other disc's result changes.
+
+## Apple-toolchain prep: GCC nested functions and Mach-O symbol aliases (2026-08-14)
+
+Groundwork for the iOS port, landed on `pc-port` because it also fixes a live
+macOS bug and unblocks Android.
+
+### The decomp's four GCC nested functions
+
+`build.sh` refuses AppleClang and selects Homebrew GCC on macOS, on the grounds
+that "AppleClang rejects the PSX decomp C". That is far more alarming than the
+reality, and it matters because iOS has no such escape hatch: Homebrew GCC cannot
+target `arm64-apple-ios` at all, so the Apple toolchain is Clang or nothing.
+
+Measured rather than assumed, with `clang -fsyntax-only` over the real source
+list using the real build defines (`-DSH_PC_PORT -DSKIP_ASM -DVER_<region>
+-Dstatic_assert=_Static_assert`): the tree compiles under Clang with nothing but
+`-Wno-` flags, except for GCC's nested-function extension, which no flag can
+rescue. There were exactly four uses, identical across all five regional builds:
+
+| File | Function | Captured parent locals |
+|---|---|---|
+| `events_main.c` | `Event_ItemTriggersClear` | none |
+| `cutscene_border.c` | `Screen_BlackBorderDraw` | none (all by parameter) |
+| `npc_main.c` | `func_800382B0` | `field_0[]` |
+| `npc_main.c` | `func_800382EC` | `field_0[]`, `field_40` |
+
+All four are now file-scope statics. The two in `npc_main.c` take their captured
+state explicitly, `field_40` by pointer because `func_800382EC` writes to it, and
+the `s_func_800382EC_0` typedef moves out with them since both signatures name
+it. `bodyprog.h` carried a stale one-argument `func_800382B0` prototype that
+never had an external definition; it is removed, and nothing else referenced it.
+
+This mirrors what `xbox-port` already did (nxdk's compiler is also Clang), so the
+two branches now agree. `src/main/memcpy.c` needs nothing: it holds MIPS inline
+asm with an invalid `"r="` constraint, but it is excluded from the build by
+`list(FILTER MAIN_SOURCES EXCLUDE REGEX "(main|memcpy)\.c$")`.
+
+Verified: zero nested functions remain under all five region defines, the three
+touched files are Clang-error-free, and the MinGW GCC build still links.
+
+### `map7_s03_boss_motion.c` aliases were invisible on Mach-O
+
+The generated boss-projectile pool defines `D_800EC5A8`, `D_800EC614`,
+`D_800EC680` and `D_800EC6EC` as exact offset aliases into `D_800EC53C` using
+raw `__asm__(".global ...\n.set ...")` directives, because the five symbols must
+stay contiguous for the boss to index across their bounds.
+
+Those directives spelled the names bare. Mach-O prefixes C symbols with an
+underscore, so on macOS the assembler defined `D_800EC680` while the C side in
+`map7_s03_2.c` referenced `_D_800EC680`. Nothing catches this at build time,
+which is why CI stayed green: the main binary links, and the failure surfaces
+when `map7_s03` is loaded and the final boss attacks.
+
+An `SH_SYM()` macro now supplies the platform prefix (`"_"` under `__APPLE__`,
+empty elsewhere). The fix is in both the generated file and
+`gen_map7_s03_boss_motion.py`, so a regeneration keeps it. ELF and x86_64 COFF
+are unaffected: the preprocessed directives are byte-identical to before, and
+`nm` confirms the four aliases still land at their 24-byte strides.
+
+## Chinese on NTSC-J (font selection + language row)
+
+The Chinese fan translation of SH1 runs on a patched NTSC-J disc plus a patched
+PSX BIOS: the disc's text keeps the Japanese script's JIS **kuten codes** and the
+BIOS's kanji ROM is rewritten so those codes draw Chinese glyphs. The port has no
+BIOS — it rasterizes from its own embedded Shinonome JIS font — so the same disc
+came out as mojibake: right codes, wrong glyphs. A fan
+(`SH1PC_CN_Font_Patch_Beta`) worked out the BIOS font's layout and got Chinese
+rendering by overwriting `pc_port/src/kanji_font.inc` wholesale, which forks the
+build and loses Japanese.
+
+- **Both fonts, switched at runtime.** Only ku 16..47 is redefined, and every
+  glyph that touches lands in one contiguous run of the port's glyph blob
+  (524..3488), so `kanji_font_cn.inc` carries that run alone — 2965 glyphs,
+  ~93KB — and `GlyphBits` picks between it and the Japanese blob. The kuten
+  index table is shared unchanged. `pc_port/tools/make_kanji_font_cn.py`
+  regenerates the block from the extracted BIOS font; its output is byte-identical
+  to the fan's working build over that range.
+- **Language row on NTSC-J.** `Pc_LangMenuRowActive` now covers NTSC-J, so the
+  title-screen options menu shows Language in place of Auto Load and cycles
+  Japanese/Chinese. The row was rewritten to work in **slots** —
+  `Pc_LangSlotCount/Current/Set/Name/NameX` — so the screen no longer knows which
+  languages a region offers, and the PAL name/x tables moved out of options.c.
+  Chinese is its own config key (`jp_language` = ja/zh), deliberately not an id in
+  the PAL `language` list: the two share no code path, since the PAL setting picks
+  which localized files to read and this one only picks a glyph set.
+- **Item text off the disc on NTSC-J.** Story text already came from the disc, but
+  item names and descriptions were the compiled Japanese tables, so a Chinese disc
+  showed Chinese subtitles and Japanese inventory. `JpnFanTextInit` reads them from
+  BODYPROG the way the USA fan path does, adopting only when they differ from the
+  compiled tables — a guaranteed no-op on a stock JP disc, whose text the
+  decompile matches byte for byte. Addresses from `configs/JAP1/sym.bodyprog.txt`
+  (load base 0x80024B60, same as US; names 0x800B0044, descs 0x800B0350).
+  `AdoptItemArrays` takes the comparison tables as parameters now instead of
+  hardcoding the US ones.
+
+Not done: **Chinese menu text.** The translation's font is not a standard charset
+— it holds only the ~2965 characters the translators needed, at kuten slots of
+their own choosing — so authoring new Chinese strings needs a kuten-to-character
+map that neither the font nor the port can supply on its own. Template-matching
+the glyphs against system CJK fonts does not identify them (best distance 51, not
+0). NTSC-J menus are English in retail and stay readable English here, so this is
+a missing feature rather than a regression. Finishing it needs the Chinese-patched
+disc image: its own menu strings can either be adopted directly or used to derive
+the character map.

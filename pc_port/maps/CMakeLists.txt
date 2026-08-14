@@ -22,13 +22,18 @@ set(MAP_INCLUDE_DIRS
     "${CMAKE_SOURCE_DIR}/PsyCross/include"
 )
 
-# Common compile definitions for all map DLLs
+# Common compile definitions for all map overlays
 set(MAP_COMMON_DEFS
     VER_USA
     SH_PC_PORT
     SKIP_ASM
-    SH_MAP_DLL          # Flag indicating this is built as a DLL
 )
+if(SH_STATIC_MAPS)
+    # Statically linked overlay (iOS and anything else that cannot dlopen).
+    list(APPEND MAP_COMMON_DEFS SH_MAP_STATIC)
+else()
+    list(APPEND MAP_COMMON_DEFS SH_MAP_DLL)
+endif()
 
 # =============================================================================
 # Function to create a map overlay DLL target
@@ -57,8 +62,13 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
         list(APPEND MAP_SOURCES "${EXTRACTED_DATA}")
     endif()
 
-    # Create shared library target
-    add_library(${MAP_NAME} SHARED ${MAP_SOURCES})
+    # Create the overlay target. Static overlays are archives that get symbol
+    # prefixed below and force-loaded into the exe; DLL overlays are dlopen'd.
+    if(SH_STATIC_MAPS)
+        add_library(${MAP_NAME} STATIC ${MAP_SOURCES})
+    else()
+        add_library(${MAP_NAME} SHARED ${MAP_SOURCES})
+    endif()
 
     target_compile_definitions(${MAP_NAME} PRIVATE
         ${MAP_COMMON_DEFS}
@@ -112,7 +122,32 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
         )
     endif()
 
-    if(WIN32)
+    if(SH_STATIC_MAPS)
+        # Every overlay carries its own copy of the shared AI/particle/player
+        # code it #includes, so linking all 43 into one binary collides on 500+
+        # globals. Rename this overlay's DEFINED symbols to <map>_<sym> right
+        # after the archive is built; undefined references are untouched, so map
+        # code still binds to the single engine copy. This is PSX overlay
+        # semantics — a private copy of the shared code per overlay — expressed
+        # at link time instead of by swapping a module in and out.
+        add_custom_command(TARGET ${MAP_NAME} POST_BUILD
+            COMMAND ${Python3_EXECUTABLE}
+                    "${CMAKE_SOURCE_DIR}/tools/prefix_map_syms.py"
+                    --nm "${SH_LLVM_NM}"
+                    --objcopy "${SH_LLVM_OBJCOPY}"
+                    --archive "$<TARGET_FILE:${MAP_NAME}>"
+                    --map-name "${MAP_NAME}"
+                    --sym-prefix "${SH_SYM_PREFIX}"
+            COMMENT "Prefixing ${MAP_NAME} overlay symbols"
+            VERBATIM
+        )
+        # The exe force-loads these (see ../CMakeLists.txt): a map's event
+        # tables and constructor-patched anim_info objects are reached only
+        # through the header's pointers, so lazy archive semantics would drop
+        # them.
+        set_property(GLOBAL APPEND PROPERTY SH_STATIC_MAP_TARGETS ${MAP_NAME})
+        message(STATUS "Map ${MAP_NAME}: static overlay target created")
+    elseif(WIN32)
         # Link only against the main executable's import library. The executable
         # exports both game code and the one initialized PsyCross instance.
         # Linking psycross_static here as well creates a second copy of PsyCross
@@ -197,13 +232,15 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
         endif()
     endif()
 
+    if(NOT SH_STATIC_MAPS)
     set_target_properties(${MAP_NAME} PROPERTIES
         PREFIX ""                        # No "lib" prefix
         OUTPUT_NAME "${MAP_NAME}"        # maps/map0_s01.dll | maps/map0_s01.so
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/maps"
         LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/maps"
     )
-    if(WIN32)
+    endif()
+    if(WIN32 AND NOT SH_STATIC_MAPS)
         # Export the g_MapOverlayHeader_<name> symbol from the DLL.
         # WINDOWS_EXPORT_ALL_SYMBOLS would auto-generate a .def file on
         # MinGW/MSVC in theory; in practice we use --export-all-symbols
@@ -212,7 +249,9 @@ function(add_map_overlay MAP_NAME MAP_DEFINE)
         set_target_properties(${MAP_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
     endif()
 
-    message(STATUS "Map ${MAP_NAME}: DLL target created")
+    if(NOT SH_STATIC_MAPS)
+        message(STATUS "Map ${MAP_NAME}: DLL target created")
+    endif()
 endfunction()
 
 # =============================================================================

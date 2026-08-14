@@ -10,6 +10,9 @@
 #include "dll_loader.h"
 #include "sh_log.h"
 #include <string.h>
+#ifdef SH_STATIC_MAPS
+#include "map_static_registry.h"
+#endif
 
 #ifdef _WIN32
 #define DLL_EXT ".dll"
@@ -49,14 +52,27 @@ s_MapOverlayHdr* MapOverlay_Load(e_MapIdx id)
         return &g_MapOverlayHeader_map0_s00;
     }
 
-    /* Build DLL path: maps/<mapname>.dll */
-    snprintf(dllPath, sizeof(dllPath), "maps/%s%s", mapName, DLL_EXT);
-
     /* Build symbol name: g_MapOverlayHeader_<mapname> */
     snprintf(symbolName, sizeof(symbolName), "g_MapOverlayHeader_%s", mapName);
 
-    /* Unload previous overlay */
+    /* Drop the previous overlay. Harmless in the static build (no handle is
+     * ever open); it still clears the current-name bookkeeping. */
     MapOverlay_Unload();
+
+#ifdef SH_STATIC_MAPS
+    /* Every overlay is linked in, its defined symbols renamed <map>_<sym> so
+     * the 43 copies of the shared code do not collide. The generated registry
+     * maps a name back to its header; there is no module to open or close. */
+    snprintf(dllPath, sizeof(dllPath), "<static>");
+    header = MapStatic_Find(mapName);
+    if (!header)
+    {
+        SH_DBG("[MapOverlay] No static overlay linked for '%s'", mapName);
+        return NULL;
+    }
+#else
+    /* Build DLL path: maps/<mapname>.dll */
+    snprintf(dllPath, sizeof(dllPath), "maps/%s%s", mapName, DLL_EXT);
 
     /* Load the DLL */
     s_currentDll = DllLoader_Open(dllPath);
@@ -76,6 +92,7 @@ s_MapOverlayHdr* MapOverlay_Load(e_MapIdx id)
         s_currentDll = NULL;
         return NULL;
     }
+#endif
 
     /* Sanitize raw PSX addresses in the header. Many map headers have
      * un-decompiled function pointers stored as raw 0x800XXXXX values.

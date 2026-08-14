@@ -11,6 +11,11 @@ typedef struct { int field_0; void* next_4; int field_8; } sh_scr; /* s_800F3D48
 #endif
 #define SH_STR2(x) #x
 #define SH_STR(x) SH_STR2(x)
+#if defined(__APPLE__)
+#define SH_SYM(n) "_" n
+#else
+#define SH_SYM(n) n
+#endif
 _Static_assert(sizeof(sh_scr) == SH_SCR_SZ, "sh_scr size must match SH_SCR_SZ for the pool offset aliases");
 _Static_assert(sizeof(sh_vel16) == 16, "sh_vel16 must be 16B");
 
@@ -175,10 +180,10 @@ sh_scr D_800EC53C[45] = {
 
 /* Offset aliases into the single pool array (exact, no padding). The byte
  * stride is SH_SCR_SZ (sizeof sh_scr) so this is correct on LP64 and ILP32. */
-__asm__(".global D_800EC5A8\n.set D_800EC5A8, D_800EC53C+" SH_STR(9*SH_SCR_SZ) "\n");
-__asm__(".global D_800EC614\n.set D_800EC614, D_800EC53C+" SH_STR(18*SH_SCR_SZ) "\n");
-__asm__(".global D_800EC680\n.set D_800EC680, D_800EC53C+" SH_STR(27*SH_SCR_SZ) "\n");
-__asm__(".global D_800EC6EC\n.set D_800EC6EC, D_800EC53C+" SH_STR(36*SH_SCR_SZ) "\n");
+__asm__(".global " SH_SYM("D_800EC5A8") "\n.set " SH_SYM("D_800EC5A8") ", " SH_SYM("D_800EC53C") "+" SH_STR(9*SH_SCR_SZ) "\n");
+__asm__(".global " SH_SYM("D_800EC614") "\n.set " SH_SYM("D_800EC614") ", " SH_SYM("D_800EC53C") "+" SH_STR(18*SH_SCR_SZ) "\n");
+__asm__(".global " SH_SYM("D_800EC680") "\n.set " SH_SYM("D_800EC680") ", " SH_SYM("D_800EC53C") "+" SH_STR(27*SH_SCR_SZ) "\n");
+__asm__(".global " SH_SYM("D_800EC6EC") "\n.set " SH_SYM("D_800EC6EC") ", " SH_SYM("D_800EC53C") "+" SH_STR(36*SH_SCR_SZ) "\n");
 
 /* The 3 boss-attack script entry points (func_800DA9F8 copies these into a
  * local and assigns ptr->ptr_0 = D_800CAE30[arg1]). PSX rodata held

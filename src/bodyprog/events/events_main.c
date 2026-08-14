@@ -11,12 +11,10 @@
 #include "bodyprog/math/math.h"
 #include "sh_log.h"
 
-/* Was written as a GCC nested function inside Event_Update. GCC accepts that;
- * Clang (which the Android NDK uses) rejects it outright. It captures nothing
- * from the enclosing scope — its own `i`, and otherwise only globals — so
- * file scope is behaviourally identical, and the 0x80037388 address says it
- * was a standalone function in the original anyway. */
-static void Event_ItemTriggersClear() // 0x80037388
+// 0x80037388 — un-nested from Event_Update: Clang has no GCC nested-function
+// extension, so every Apple toolchain rejects the original form. Nothing was
+// captured from the parent frame, so a file-scope static is behaviour-identical.
+static void Event_ItemTriggersClear(void)
 {
     s32 i;
 

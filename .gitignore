@@ -1,6 +1,8 @@
 asm/
 /assets/
 build/
+# Alternate configure dirs (e.g. pc_port/build-smaps for the SH_STATIC_MAPS build)
+build-*/
 rom/
 linkers/
 .vscode/

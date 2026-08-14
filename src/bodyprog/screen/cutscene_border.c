@@ -145,9 +145,9 @@ static q19_12 g_BlackBorderShade = Q12(0.0f);
 // CUTSCENE BORDERS
 // ========================================
 
-/* Was a GCC nested function inside Screen_CutsceneCameraStateUpdate. Clang (the
- * Android NDK compiler) rejects nested functions outright. Everything it touches
- * arrives through its parameters, so file scope is behaviourally identical. */
+// Un-nested from Screen_CutsceneCameraStateUpdate: Clang has no GCC
+// nested-function extension. Everything this touches arrives by parameter, so a
+// file-scope static is behaviour-identical.
 static void Screen_BlackBorderDraw(POLY_G4* poly, s32 color)
 {
     s32 i;

@@ -74,10 +74,16 @@ void Font_ApplyRegionPatches(void);
 void Font_PatchPolishGlyphs(void* pixels, int widthWords, int height);
 void Font_UsePolishLayout(void);
 
-/* Replace the active layout's kerning table (fan-translation discs retune the
- * BODYPROG widths to match their repainted FONT16 glyphs). Copies the first
- * glyphCount entries; call after Font_ApplyRegionPatches. */
-void Font_SetGlyphWidths(const unsigned char* widths);
+/* Widest atlas the drawer supports: retail PAL's 21x6 grid. Retail declares
+ * only 120 of those cells; a fan repaint can fill all 126. */
+#define FONT_ATLAS_CELL_MAX 126
+
+/* Replace the active layout's kerning table AND glyph count (fan-translation
+ * discs retune the BODYPROG widths to match their repainted FONT16 glyphs, and
+ * a Cyrillic PAL repaint also claims the six cells retail leaves blank).
+ * Copies `count` entries, clamped to FONT_ATLAS_CELL_MAX; call after
+ * Font_ApplyRegionPatches. */
+void Font_SetGlyphWidths(const unsigned char* widths, int count);
 
 /* Implemented in text_draw.c (the color table is file-local there): replaces
  * StringColorId_LightGrey — retail EUR dims it (100,100,100)->(64,64,64). */

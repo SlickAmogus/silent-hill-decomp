@@ -330,7 +330,13 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
          * With the USA layout the emitted prim words are bit-identical to the
          * hardcoded originals kept in the #else. Bytes >= 0x80 are the PAL
          * accents (up to 2 emissions: combining mark + base letter). */
-        else if ((charCode >= GLYPH_TABLE_ASCII_OFFSET && charCode <= 'z') || charCode >= 0x80)
+        /* No 'z' upper bound: 'z' is the last cell of the 84-glyph US strip, but
+         * the 126-cell EUR atlas keeps going — bytes 0x7B-0x7F are its cells
+         * 84-88, which a Cyrillic PAL repaint uses for Ъ Ы Ь Э Ю. Font_MapChar
+         * range-checks against the active layout's glyphCount, so on the US
+         * atlas those bytes still emit nothing and US/NTSC-J rendering is
+         * unchanged; no retail or port string contains 0x7B-0x7F either way. */
+        else if (charCode >= GLYPH_TABLE_ASCII_OFFSET)
         {
             s_GlyphEmit emits[2];
             s32         emitCount;

@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "kanji_font.inc"
+#include "kanji_font_cn.inc"
 
 /* Atlas geometry. Cells are 12x16 pixels = 3 VRAM halfwords wide at 4bpp.
  * A cell never straddles a 64-halfword texture page: each page column holds
@@ -30,6 +31,7 @@ extern void GR_CopyVRAM(unsigned short* src, int x, int y, int w, int h, int dst
 static unsigned short s_CellSjis[CELL_COUNT];
 static int            s_CellCount = 0;
 static int            s_ClutUploaded = 0;
+static int            s_UseChinese = 0;
 
 int Pc_KanjiIsLead(unsigned char c)
 {
@@ -73,7 +75,30 @@ static const unsigned char* GlyphBits(unsigned short sjis)
     if (g == 0xFFFF)
         return 0;
 
+    /* The Chinese translation keeps the kuten codes and redefines the glyphs at
+     * ku 16..47, so only that run of the blob differs; everything else (kana,
+     * punctuation, the kanji outside the run) stays Japanese either way. */
+    if (s_UseChinese && g >= KANJI_CN_FIRST && g < KANJI_CN_FIRST + KANJI_CN_COUNT)
+        return &KANJI_FONT_BITS_CN[(g - KANJI_CN_FIRST) * 32];
+
     return &KANJI_FONT_BITS[g * 32];
+}
+
+void Pc_KanjiSetChinese(int useChinese)
+{
+    useChinese = (useChinese != 0);
+    if (useChinese == s_UseChinese)
+        return;
+
+    s_UseChinese = useChinese;
+    /* Cached cells hold glyphs rasterized from the other font. Drop them (but
+     * not the CLUT, which is font-independent) so they re-rasterize on demand. */
+    s_CellCount = 0;
+}
+
+int Pc_KanjiChineseActive(void)
+{
+    return s_UseChinese;
 }
 
 static void CellCoords(int cell, int* vramX, int* vramY, unsigned int* page, int* u, int* v)

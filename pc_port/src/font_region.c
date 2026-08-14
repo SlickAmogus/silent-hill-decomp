@@ -55,6 +55,12 @@ static const s_FontLayout s_FontLayout_EUR_PL = { 126, 128, 6, 0x0C, 0x3FF3, 31,
 
 const s_FontLayout* g_FontLayout = &s_FontLayout_USA;
 
+/* The Polish pack's byte window (0xA2-0xB3) overlaps letters a Cyrillic PAL
+ * repaint puts in the same range, so the pack's decode branch is keyed on the
+ * pack actually being active rather than on a wide glyph count — a fan disc
+ * that extends the atlas to 126 cells reaches the same count. */
+static int s_PolishLayoutActive;
+
 /* == FONT_12X16_LINE_COUNT_MAX (see font_region.h). Region-independent default
  * so USA and NTSC-J evaluate every site exactly as before; Font_ApplyRegionPatches
  * raises it to retail PAL's ten. */
@@ -105,15 +111,27 @@ static const s_PolishChar s_PolishChars[] = {
 
 /* Fan-translation patches repaint FONT16 glyphs on the disc and retune the
  * BODYPROG kerning table to match (e.g. the Spanish fandub turns ';' into a
- * full-width 'á'). Swap in the disc's widths, everything else unchanged. */
-void Font_SetGlyphWidths(const unsigned char* widths)
+ * full-width 'á'). Swap in the disc's widths, everything else unchanged.
+ *
+ * `count` comes from the disc too, because a patch can also make the atlas
+ * BIGGER: retail PAL declares 120 glyphs but its grid is 21x6, and the Russian
+ * consolgames.ru repaint fills the six spare cells (120-125) with ъ ы ь э ю я
+ * and extends the kerning table to match. Rendered at the retail count those
+ * six letters fail Font_MapChar's range check and vanish from every line of
+ * text on the disc. */
+void Font_SetGlyphWidths(const unsigned char* widths, int count)
 {
     static s_FontLayout  s_overrideLayout;
-    static unsigned char s_overrideWidths[120];
-    int                  count = g_FontLayout->glyphCount;
+    static unsigned char s_overrideWidths[FONT_ATLAS_CELL_MAX];
 
-    memcpy(s_overrideWidths, widths, (count <= 120) ? count : 120);
+    if (count < 1)
+        return;
+    if (count > FONT_ATLAS_CELL_MAX)
+        count = FONT_ATLAS_CELL_MAX;
+
+    memcpy(s_overrideWidths, widths, (size_t)count);
     s_overrideLayout             = *g_FontLayout;
+    s_overrideLayout.glyphCount  = count;
     s_overrideLayout.glyphWidths = s_overrideWidths;
     g_FontLayout                 = &s_overrideLayout;
 }
@@ -162,7 +180,7 @@ int Font_MapChar(unsigned int charCode, s_GlyphEmit emits[2])
         /* Polish, when its pack is active. Ahead of the retail scheme because
          * these bytes would otherwise fall into the 0x80-0xBF arithmetic and
          * be dropped. */
-        if (layout->glyphCount > 120 && charCode >= 0xA2 && charCode <= 0xB3)
+        if (s_PolishLayoutActive && charCode >= 0xA2 && charCode <= 0xB3)
         {
             const s_PolishChar* pc = &s_PolishChars[charCode - 0xA2];
             int                 base;
@@ -369,12 +387,15 @@ void Font_UsePolishLayout(void)
 {
     if (g_FontLayout == &s_FontLayout_EUR)
     {
-        g_FontLayout = &s_FontLayout_EUR_PL;
+        g_FontLayout         = &s_FontLayout_EUR_PL;
+        s_PolishLayoutActive = 1;
     }
 }
 
 void Font_ApplyRegionPatches(void)
 {
+    s_PolishLayoutActive = 0;
+
     if (g_GameRegion != Region_EUR)
     {
         return;

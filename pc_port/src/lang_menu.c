@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "lang_text.h"
 #include "lang_pack.h"
+#include "lang_ru.h"
 
 #include <string.h>
 
@@ -245,6 +246,16 @@ const char* Pc_LangMenuText(const char* str)
     if (str == NULL)
         return str;
 
+    /* A Russian fan-translated disc wins over the language setting: its font
+     * has no Latin letters left, so English (or German, or Polish) menus are
+     * unreadable on it no matter what the config says. */
+    if (Pc_RuActive())
+    {
+        const char* ru = Pc_RuMenuText(str);
+        if (ru != NULL)
+            return ru;
+    }
+
     /* PC-side pack language (Polish): menu strings come from the pack, keyed
      * by this same US literal. A key the pack lacks keeps English. */
     if (Pc_LangPackActive())
@@ -312,7 +323,9 @@ int Pc_LangMenuTextWidth(const char* str)
         else if (c == '&')
             c = '^';
 
-        if (c >= GLYPH_TABLE_ASCII_OFFSET && (c <= 'z' || c >= 0x80))
+        /* Same range as the drawer (see Gfx_StringDraw): the EUR atlas has cells
+         * past the US strip's 'z', so measuring must not stop there either. */
+        if (c >= GLYPH_TABLE_ASCII_OFFSET)
         {
             count = Font_MapChar(c, emits);
             for (k = 0; k < count; k++)

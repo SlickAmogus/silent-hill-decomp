@@ -89,6 +89,15 @@ def main():
     out.append("#endif\n")
     out.append("#define SH_STR2(x) #x\n")
     out.append("#define SH_STR(x) SH_STR2(x)\n")
+    # Mach-O prefixes C symbols with an underscore; ELF and x86_64 COFF do not.
+    # The aliases below are declared in raw asm, so the prefix has to be spelled
+    # out or .set defines a name the C side never looks for -- which links fine
+    # and then fails when map7_s03 is loaded.
+    out.append("#if defined(__APPLE__)\n")
+    out.append("#define SH_SYM(n) \"_\" n\n")
+    out.append("#else\n")
+    out.append("#define SH_SYM(n) n\n")
+    out.append("#endif\n")
     out.append("_Static_assert(sizeof(sh_scr) == SH_SCR_SZ, \"sh_scr size must match SH_SCR_SZ for the pool offset aliases\");\n")
     out.append("_Static_assert(sizeof(sh_vel16) == 16, \"sh_vel16 must be 16B\");\n\n")
 
@@ -144,7 +153,7 @@ def main():
         if a == POOL:
             continue
         entry = (a - POOL) // 12          # PSX entry index
-        out.append('__asm__(".global %s\\n.set %s, D_800EC53C+" SH_STR(%d*SH_SCR_SZ) "\\n");\n' % (nm, nm, entry))
+        out.append('__asm__(".global " SH_SYM("%s") "\\n.set " SH_SYM("%s") ", " SH_SYM("D_800EC53C") "+" SH_STR(%d*SH_SCR_SZ) "\\n");\n' % (nm, nm, entry))
     out.append("\n")
 
     OUT.write_text("".join(out), encoding="utf-8")

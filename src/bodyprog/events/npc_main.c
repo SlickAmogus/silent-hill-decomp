@@ -415,10 +415,11 @@ static bool Pc_ActorIdleClipGet(s32 charaId, s16* outStartKf, s16* outEndKf, q19
 }
 #endif
 
-/* Was declared inside Game_NpcUpdate, alongside the two GCC nested functions
- * below that operate on it. Both had to move to file scope for Clang (the
- * Android NDK compiler rejects nested functions), so the type they take has to
- * be visible here too. */
+// Un-nested from Game_NpcUpdate: Clang has no GCC nested-function extension, so
+// every Apple toolchain rejects the original form. The captured parent locals
+// (field_0[], field_40) are threaded through explicitly, which is why field_40
+// arrives by pointer — func_800382EC writes to it. The typedef moves out with
+// them because both signatures name it.
 typedef struct
 {
     s8      bitIdx_0;
@@ -427,12 +428,7 @@ typedef struct
     VECTOR3 field_8;
 } s_func_800382EC_0;
 
-/* These two were GCC nested functions reading — and in func_800382EC's case
- * writing — Game_NpcUpdate's `field_0` array and `field_40` bitmask directly
- * off the parent frame. Clang has no equivalent, so the captured state is now
- * passed explicitly. Behaviour is unchanged: same reads, same write-back
- * through the pointer. */
-static s32 func_800382B0(const s_func_800382EC_0* field_0, s32 arg0) // 0x800382B0
+static s32 func_800382B0(const s_func_800382EC_0* field_0, s32 arg0)
 {
     s32 i;
 
@@ -447,7 +443,7 @@ static s32 func_800382B0(const s_func_800382EC_0* field_0, s32 arg0) // 0x800382
     return NO_VALUE;
 }
 
-static s32 func_800382EC(const s_func_800382EC_0* field_0, u32* field_40) // 0x800382EC
+static s32 func_800382EC(const s_func_800382EC_0* field_0, u32* field_40)
 {
     s32 i;
 
