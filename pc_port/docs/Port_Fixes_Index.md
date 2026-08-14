@@ -3067,3 +3067,61 @@ instead of all of them, which still pins the link base exactly (at a wrong base
 essentially none of them land on a boundary) while tolerating a patch's own
 malformed pool. Verified against all ten discs: FireCross starts matching at the
 same base/offset the others already used, and no other disc's result changes.
+
+## Apple-toolchain prep: GCC nested functions and Mach-O symbol aliases (2026-08-14)
+
+Groundwork for the iOS port, landed on `pc-port` because it also fixes a live
+macOS bug and unblocks Android.
+
+### The decomp's four GCC nested functions
+
+`build.sh` refuses AppleClang and selects Homebrew GCC on macOS, on the grounds
+that "AppleClang rejects the PSX decomp C". That is far more alarming than the
+reality, and it matters because iOS has no such escape hatch: Homebrew GCC cannot
+target `arm64-apple-ios` at all, so the Apple toolchain is Clang or nothing.
+
+Measured rather than assumed, with `clang -fsyntax-only` over the real source
+list using the real build defines (`-DSH_PC_PORT -DSKIP_ASM -DVER_<region>
+-Dstatic_assert=_Static_assert`): the tree compiles under Clang with nothing but
+`-Wno-` flags, except for GCC's nested-function extension, which no flag can
+rescue. There were exactly four uses, identical across all five regional builds:
+
+| File | Function | Captured parent locals |
+|---|---|---|
+| `events_main.c` | `Event_ItemTriggersClear` | none |
+| `cutscene_border.c` | `Screen_BlackBorderDraw` | none (all by parameter) |
+| `npc_main.c` | `func_800382B0` | `field_0[]` |
+| `npc_main.c` | `func_800382EC` | `field_0[]`, `field_40` |
+
+All four are now file-scope statics. The two in `npc_main.c` take their captured
+state explicitly, `field_40` by pointer because `func_800382EC` writes to it, and
+the `s_func_800382EC_0` typedef moves out with them since both signatures name
+it. `bodyprog.h` carried a stale one-argument `func_800382B0` prototype that
+never had an external definition; it is removed, and nothing else referenced it.
+
+This mirrors what `xbox-port` already did (nxdk's compiler is also Clang), so the
+two branches now agree. `src/main/memcpy.c` needs nothing: it holds MIPS inline
+asm with an invalid `"r="` constraint, but it is excluded from the build by
+`list(FILTER MAIN_SOURCES EXCLUDE REGEX "(main|memcpy)\.c$")`.
+
+Verified: zero nested functions remain under all five region defines, the three
+touched files are Clang-error-free, and the MinGW GCC build still links.
+
+### `map7_s03_boss_motion.c` aliases were invisible on Mach-O
+
+The generated boss-projectile pool defines `D_800EC5A8`, `D_800EC614`,
+`D_800EC680` and `D_800EC6EC` as exact offset aliases into `D_800EC53C` using
+raw `__asm__(".global ...\n.set ...")` directives, because the five symbols must
+stay contiguous for the boss to index across their bounds.
+
+Those directives spelled the names bare. Mach-O prefixes C symbols with an
+underscore, so on macOS the assembler defined `D_800EC680` while the C side in
+`map7_s03_2.c` referenced `_D_800EC680`. Nothing catches this at build time,
+which is why CI stayed green: the main binary links, and the failure surfaces
+when `map7_s03` is loaded and the final boss attacks.
+
+An `SH_SYM()` macro now supplies the platform prefix (`"_"` under `__APPLE__`,
+empty elsewhere). The fix is in both the generated file and
+`gen_map7_s03_boss_motion.py`, so a regeneration keeps it. ELF and x86_64 COFF
+are unaffected: the preprocessed directives are byte-identical to before, and
+`nm` confirms the four aliases still land at their 24-byte strides.
