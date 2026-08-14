@@ -1,6 +1,6 @@
 # Silent Hill - Native PC Port
 
-  **A native PC port built on the Silent Hill PSX decompilation.** What started as an experiment has become a fully playable port with a large feature set, built-in mod support, an active community, and fan translation / multilingual support. It uses PsyCross (a PsyQ SDK compatibility layer originally written for REDRIVER2) as its hardware abstraction layer, which we [now maintain our own fork of](https://github.com/SlickAmogus/PsyCross). Care has been taken to leave the original game code intact wherever possible and to work around it where the port requires it, so game logic and feel still match the PSX original. 
+  **A native PC port built on the Silent Hill PSX decompilation.** What started as an experiment has become a fully playable port with a large feature set, built-in mod support, an active community, and fan translation/multilingual support. It uses PsyCross (a PsyQ SDK compatibility layer originally written for REDRIVER2) as its hardware abstraction layer, which we [now maintain our own fork of](https://github.com/SlickAmogus/PsyCross).  Care has been taken to leave the original game code intact wherever possible and to work around it where needed, so game logic and feel still match the PSX original. Most if not all enhancements are optional, and always will be.
   
   The game runs as a real Windows/Linux executable compiled from decompiled C source — it is **not an emulator**, and it is **not a static recompilation**: no part of the original binary is translated by a tool.
 
