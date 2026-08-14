@@ -12,7 +12,7 @@ namespace SilentHillPC_Launcher
     public class LanguageDialog : Form
     {
         readonly ComboBox _combo;
-        readonly Label _flag;
+        readonly Panel _flag;
 
         public LauncherLang Selected { get; private set; }
 
@@ -27,16 +27,10 @@ namespace SilentHillPC_Launcher
             ShowInTaskbar = false;
             ClientSize = new Size(268, 96);
 
-            _flag = new Label
-            {
-                Location = new Point(12, 14),
-                Size = new Size(38, 30),
-                TextAlign = ContentAlignment.MiddleCenter,
-                // Segoe UI Emoji is what renders the regional-indicator pairs as
-                // flags on Windows; the default UI font draws two letters.
-                Font = new Font("Segoe UI Emoji", 15f),
-                Text = Loc.Flag(current)
-            };
+            // Painted, not typed -- see FlagIcon for why emoji flags cannot work here.
+            _flag = new Panel { Location = new Point(12, 16), Size = new Size(34, 22) };
+            _flag.Paint += (s, e) =>
+                FlagIcon.Draw(e.Graphics, new Rectangle(0, 0, _flag.Width, _flag.Height), Selected);
 
             _combo = new ComboBox
             {
@@ -52,7 +46,7 @@ namespace SilentHillPC_Launcher
             {
                 if (_combo.SelectedIndex < 0) return;
                 Selected = Loc.All[_combo.SelectedIndex];
-                _flag.Text = Loc.Flag(Selected);
+                _flag.Invalidate();
                 Loc.Set(Selected);      // live: the launcher behind updates now
                 Text = Loc.T("Launcher language");
                 Loc.Apply(this);

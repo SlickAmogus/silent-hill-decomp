@@ -124,14 +124,18 @@ public partial class Form1 : Form
         btnLang = new Button
         {
             // Right of the (now narrower) progress bar, on its row.
-            Location = new System.Drawing.Point(390, 454),
-            Size = new System.Drawing.Size(29, 20),
-            // Segoe UI Emoji renders the regional-indicator pair as a flag; the
-            // default UI font would draw two letters instead.
-            Font = new System.Drawing.Font("Segoe UI Emoji", 9f),
-            Text = Loc.Flag(Loc.Current),
-            FlatStyle = FlatStyle.System,
+            Location = new System.Drawing.Point(388, 452),
+            Size = new System.Drawing.Size(30, 22),
+            Text = "",
+            FlatStyle = FlatStyle.Standard,
             TabStop = false
+        };
+        // The flag is PAINTED, not typed: emoji flags are regional-indicator
+        // pairs that only DirectWrite ligates, so GDI would draw "US".
+        btnLang.Paint += (s2, e2) =>
+        {
+            var box = new System.Drawing.Rectangle(4, 4, btnLang.Width - 9, btnLang.Height - 9);
+            FlagIcon.Draw(e2.Graphics, box, Loc.Current);
         };
         btnLang.Click += btnLang_Click;
         Controls.Add(btnLang);
@@ -147,7 +151,7 @@ public partial class Form1 : Form
         Loc.Apply(this);
         if (btnLang != null)
         {
-            btnLang.Text = Loc.Flag(Loc.Current);
+            btnLang.Invalidate();
             _langTip.SetToolTip(btnLang, Loc.T("Launcher language"));
         }
     }
