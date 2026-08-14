@@ -1,6 +1,20 @@
 # Silent Hill PC Port — Changelog
 
 ## beta-2026.08.14.1 -- 2026-08-14
+- Added achievement viewer to main menu, press map key 
+- Added text to main menu to show achievement button (only visible when they're enabled)
+- Fixed inventory text to be in Japanese in NTSC-J
+- Fixed issues where items were invisible in some cases (may be more, please report)
+- Fixed regression that caused gray puzzle screen for eclipse door
+- Finally actually fixed single frame of classic camera being visible when opening the inventory while in another camera mode
+- Fixed single flame flickering of gray when pausing while it's dark outside
+- Hash spoof option to support achievements in fan translations\NTSC-J0
+- Added audio editing support in the Mod Manager, supports editing and playing audio in VAB files, full VAB replacements, and individual WAV replacements
+- Move inventory pickups based on resolution and not by a fixed amount
+- Fixed resolution detection in launcher and sorted from highest to lowest
+- Released Trenchbroom fork level editor in Discord and game now supports map editing and replacements (maps go in gamedata\load\BG, only replacements work for now)
+
+Commit summaries:
 - inventory: cover the screen before handing over, like the map screen does
 - combat: time-exit the release and get-up states like DamageTorso already does
 - achievements: browse the whole set from the title screen with Map
@@ -12,20 +26,10 @@
 - achievements: stop the panel re-firing every input, every frame
 - launcher: Audio tool — browse, preview and export sounds from a VAB bank
 - launcher: show each sound's real in-game pitch instead of guessing 44100
-- Added GPL 3.0 LICENSE file and COPYRIGHT.md detailing parts of the repo that are copyrighted and licensed and by whom.
-- Fixed copyright.md to reflect ownership of tools correctly.
-- licensing: SPDX headers on port code, licensing summary at the top of README
-- licensing: document the GPL-compatible FMV derivations
 - assets: commit the achievement UI/unlock cues
 - launcher: replace and repack samples in a VAB sound bank
 - audio: replace individual sounds with loose files, no repacking needed
 - docs: say plainly that this is a port, not a recompilation
-- Revise README for clarity on project features
-- Update README with details on game executable and AI use
-- Fix formatting in README title
-- docs: align CONTRIBUTING and SUMMARY with the README
-- docs: name the decompilation in the CONTRIBUTING opening again
-- Fix formatting in README.md introduction
 - Refine README content for better readability
 - NTSC-J: Japanese inventory names and descriptions
 - achievements: never toast RA's informational pseudo-achievements
@@ -44,7 +48,11 @@
 - map5_s03: name the shelf pickups so they are not invisible
 - items: scale the inventory Y nudge to the framebuffer, not a fixed 50
 - map5_s03: the shelf shotgun ammo used the rifle model
-
+- inventory: apply the alt camera on the debug-controls path too
+- Bump PsyCross: pause-entry grey flash (shadow gate latched at BeginScene)
+- shadows: keep them on the pause-entry frame, which still draws the world
+- Revert "shadows: keep them on the pause-entry frame, which still draws the world"
+- pause: don't arm the freeze on a tick that still renders the world
 
 ## beta-2026.08.10.1 -- 2026-08-10
 - Quick heal: No longer works or flashes green without health items. It also notifies you what was used.
