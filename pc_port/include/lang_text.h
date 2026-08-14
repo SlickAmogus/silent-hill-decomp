@@ -35,13 +35,25 @@ int Pc_FanTextActive(void);
  * menu entered from the title screen). */
 int Pc_LangMenuRowActive(void);
 
-/* Number of languages the Language row cycles: LANG_COUNT on EUR (disc five
- * plus PC-side packs), LANG_PACK_FIRST elsewhere (packs need the EUR font). */
-int Pc_LangSelectableCount(void);
+/* Options-menu Language row, in SLOTS (0..Pc_LangSlotCount()-1) so the menu
+ * needs no region knowledge: EUR cycles the disc's five languages plus the
+ * PC-side packs, NTSC-J cycles Japanese and Chinese (a separate config key —
+ * the two lists share no ids), USA cycles the five for its menu translations.
+ * Pc_LangSlotName/NameX give the label to draw and its left edge. */
+int         Pc_LangSlotCount(void);
+int         Pc_LangSlotCurrent(void);
+void        Pc_LangSlotSet(int slot);
+const char* Pc_LangSlotName(int slot);
+int         Pc_LangSlotNameX(int slot);
 
 /* Live language switch (0=en 1=de 2=fr 3=es 4=it): persists the config key,
  * rebinds the file table, reloads item text. Title-screen options only. */
 void Pc_LangSetLanguage(int lang);
+
+/* Live NTSC-J language switch (0=Japanese 1=Chinese): persists the config key
+ * and swaps the kanji rasterizer's glyph set. Nothing on the disc is rebound —
+ * the Chinese fan translation reuses the Japanese script's kuten codes. */
+void Pc_LangSetJpLanguage(int lang);
 
 /* Load + parse ITEM_<lang>.BIN once (call after Fs_InitFileTableForRegion). */
 void Pc_LangInit(void);

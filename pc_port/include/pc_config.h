@@ -242,6 +242,15 @@ typedef struct {
      * disc is active — story/item text then comes from the disc itself. */
     int language;
 
+    /* Text language for NTSC-J discs: 0=Japanese, 1=Chinese (config key:
+     * jp_language, values "ja"/"zh"). Kept apart from `language` above because
+     * the two share no ids and no code path — the PAL setting picks which of
+     * the disc's own localized files to read, while this one only picks which
+     * glyph set the kanji rasterizer draws (see pc_kanji.h) and which menu
+     * text the port supplies. Chinese needs a disc carrying the fan
+     * translation; on a stock JP disc it changes nothing but the menus. */
+    int jpLanguage;
+
     /* Preferred disc region when several discs are in gamedata/: 0=auto
      * (USA wins, then PAL, then NTSC-J), 1=usa, 2=pal, 3=jap (config key:
      * region; the launcher's Region dropdown writes it). Missing preferred

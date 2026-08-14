@@ -149,6 +149,7 @@ s_PcConfig g_PcConfig = {
     .keyExitGame = "Escape",
 
     .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it — PAL-disc text language; USA: menu translations on fan-patched discs */
+    .jpLanguage     = 0, /* 0=ja 1=zh — NTSC-J text language (Chinese needs a fan-translated JP disc) */
     .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal 3=jap — preferred disc when several are present */
     .discImage      = "", /* exact .bin in gamedata/ (launcher Disc dropdown); empty = auto */
     .uncensored     = 0, /* 0=retail PAL Mumblers (default); 1=restore Grey Children on EUR (matches US) */
@@ -716,6 +717,11 @@ void PcConfig_Load(const char* path)
             else if (strcmp(value, "it") == 0) g_PcConfig.language = 4;
             else if (strcmp(value, "pl") == 0) g_PcConfig.language = 5; /* PC-side pack (gamedata/lang/pl.lang) */
             else                               g_PcConfig.language = 0;
+        }
+        else if (strcmp(key, "jp_language") == 0)
+        {
+            /* NTSC-J text language. Unknown -> Japanese. */
+            g_PcConfig.jpLanguage = (strcmp(value, "zh") == 0) ? 1 : 0;
         }
         else if (strcmp(key, "region") == 0)
         {

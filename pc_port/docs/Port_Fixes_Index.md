@@ -3125,3 +3125,49 @@ empty elsewhere). The fix is in both the generated file and
 `gen_map7_s03_boss_motion.py`, so a regeneration keeps it. ELF and x86_64 COFF
 are unaffected: the preprocessed directives are byte-identical to before, and
 `nm` confirms the four aliases still land at their 24-byte strides.
+
+## Chinese on NTSC-J (font selection + language row)
+
+The Chinese fan translation of SH1 runs on a patched NTSC-J disc plus a patched
+PSX BIOS: the disc's text keeps the Japanese script's JIS **kuten codes** and the
+BIOS's kanji ROM is rewritten so those codes draw Chinese glyphs. The port has no
+BIOS — it rasterizes from its own embedded Shinonome JIS font — so the same disc
+came out as mojibake: right codes, wrong glyphs. A fan
+(`SH1PC_CN_Font_Patch_Beta`) worked out the BIOS font's layout and got Chinese
+rendering by overwriting `pc_port/src/kanji_font.inc` wholesale, which forks the
+build and loses Japanese.
+
+- **Both fonts, switched at runtime.** Only ku 16..47 is redefined, and every
+  glyph that touches lands in one contiguous run of the port's glyph blob
+  (524..3488), so `kanji_font_cn.inc` carries that run alone — 2965 glyphs,
+  ~93KB — and `GlyphBits` picks between it and the Japanese blob. The kuten
+  index table is shared unchanged. `pc_port/tools/make_kanji_font_cn.py`
+  regenerates the block from the extracted BIOS font; its output is byte-identical
+  to the fan's working build over that range.
+- **Language row on NTSC-J.** `Pc_LangMenuRowActive` now covers NTSC-J, so the
+  title-screen options menu shows Language in place of Auto Load and cycles
+  Japanese/Chinese. The row was rewritten to work in **slots** —
+  `Pc_LangSlotCount/Current/Set/Name/NameX` — so the screen no longer knows which
+  languages a region offers, and the PAL name/x tables moved out of options.c.
+  Chinese is its own config key (`jp_language` = ja/zh), deliberately not an id in
+  the PAL `language` list: the two share no code path, since the PAL setting picks
+  which localized files to read and this one only picks a glyph set.
+- **Item text off the disc on NTSC-J.** Story text already came from the disc, but
+  item names and descriptions were the compiled Japanese tables, so a Chinese disc
+  showed Chinese subtitles and Japanese inventory. `JpnFanTextInit` reads them from
+  BODYPROG the way the USA fan path does, adopting only when they differ from the
+  compiled tables — a guaranteed no-op on a stock JP disc, whose text the
+  decompile matches byte for byte. Addresses from `configs/JAP1/sym.bodyprog.txt`
+  (load base 0x80024B60, same as US; names 0x800B0044, descs 0x800B0350).
+  `AdoptItemArrays` takes the comparison tables as parameters now instead of
+  hardcoding the US ones.
+
+Not done: **Chinese menu text.** The translation's font is not a standard charset
+— it holds only the ~2965 characters the translators needed, at kuten slots of
+their own choosing — so authoring new Chinese strings needs a kuten-to-character
+map that neither the font nor the port can supply on its own. Template-matching
+the glyphs against system CJK fonts does not identify them (best distance 51, not
+0). NTSC-J menus are English in retail and stay readable English here, so this is
+a missing feature rather than a regression. Finishing it needs the Chinese-patched
+disc image: its own menu strings can either be adopted directly or used to derive
+the character map.

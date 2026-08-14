@@ -16,6 +16,7 @@
 #include "font_region.h"      /* g_FontLayout, Font_SetGlyphWidths (fan-patch kerning) */
 #include "lang_pack.h"        /* PC-side language packs (gamedata/lang) */
 #include "lang_ru.h"          /* Russian fan-patch detection + menu text */
+#include "pc_kanji.h"         /* Pc_KanjiSetChinese (NTSC-J glyph set) */
 #include "main/fsqueue.h"     /* Fs_QueueStartReadTim, FS_BUFFER_1 */
 #include "main/fileinfo.h"    /* g_GameRegion, Fs_EurFileLookup */
 #include "pc_config.h"
@@ -56,6 +57,17 @@ extern const char* PcPort_GetGameDiscPath(void);
  * offset as the US table by coincidence, not by construction. */
 #define EUR_BODY_VRAM      0x80025690u
 #define EUR_WIDTHS_ADDR    0x8002689Cu /* FONT_12X16_GLYPH_WIDTHS, 120 bytes */
+
+/* And once more for NTSC-J, where the Chinese fan translation lives. Its item
+ * names and descriptions are rewritten in BODYPROG exactly like a USA fan
+ * patch's are, so the same adopt-when-it-differs read applies — on a stock JP
+ * disc the compiled tables and the disc agree (matching decompile) and nothing
+ * happens. Addresses from configs/JAP1/sym.bodyprog.txt; the load base is the
+ * same 0x80024B60 the US overlay uses. */
+#define JPN_BODY_VRAM      0x80024B60u
+#define JPN_ITEM_NAME_ADDR 0x800B0044u /* INVENTORY_ITEM_NAMES, 195 ptrs */
+#define JPN_ITEM_DESC_ADDR 0x800B0350u /* g_ItemDescriptions, 195 ptrs */
+#define JPN_WIDTHS_ADDR    0x80025D64u /* FONT_12X16_GLYPH_WIDTHS, 84 bytes */
 /* Must cover the largest per-map message table: MAP7_S02 has 159 US entries.
  * (Was 96 — the replaced pointer array under-covered MAP4_S01/MAP7_S01/
  * MAP7_S02 on PAL, sending reads past it.) */
@@ -67,6 +79,10 @@ extern const char* PcPort_GetGameDiscPath(void);
 #define SECTOR_DATA_LEN 2048
 
 static const char* s_ItemBinNames[5] = { "ITEM_ENG", "ITEM_GER", "ITEM_FRN", "ITEM_SPN", "ITEM_ITL" };
+
+/* The compiled item tables a disc's own text is compared against. */
+extern const char* INVENTORY_ITEM_NAMES[];
+extern const char* g_ItemDescriptions[];
 
 /* Language ids in options-menu order. 0-4 are the PAL disc's own languages;
  * from LANG_PACK_FIRST on they are PC-side packs (gamedata/lang/<id>.lang),
@@ -202,11 +218,9 @@ static void DecryptOverlay(unsigned char* data, unsigned int size)
  * parse cleanly before anything is installed. Returns 1 if adopted, 0 if the
  * text matched the compiled originals (vanilla no-op), -1 on a parse error. */
 static int AdoptItemArrays(const unsigned char* bin, unsigned int size,
-                           unsigned int base, unsigned int nameOff, unsigned int descOff)
+                           unsigned int base, unsigned int nameOff, unsigned int descOff,
+                           const char* const* cmpNames, const char* const* cmpDescs)
 {
-    extern const char* INVENTORY_ITEM_NAMES[];
-    extern const char* g_ItemDescriptions[];
-
     const char*  fanNames[ITEM_TEXT_COUNT];
     const char*  fanDescs[ITEM_TEXT_COUNT];
     unsigned int poolBytes = 0;
@@ -245,13 +259,13 @@ static int AdoptItemArrays(const unsigned char* bin, unsigned int size,
             poolBytes += (unsigned int)strlen(fanDescs[i]) + 1;
         }
 
-        compiled = INVENTORY_ITEM_NAMES[i];
+        compiled = cmpNames[i];
         if ((compiled == NULL) != (fanNames[i] == NULL) ||
             (compiled != NULL && strcmp(compiled, fanNames[i]) != 0))
         {
             diff = 1;
         }
-        compiled = g_ItemDescriptions[i];
+        compiled = cmpDescs[i];
         if ((compiled == NULL) != (fanDescs[i] == NULL) ||
             (compiled != NULL && strcmp(compiled, fanDescs[i]) != 0))
         {
@@ -345,8 +359,6 @@ static int IsNameBoundary(const unsigned char* bin, unsigned int so)
 static int BrazilFindItemArray(const unsigned char* bin, unsigned int size,
                                unsigned int* outBase, unsigned int* outNameOff)
 {
-    extern const char* INVENTORY_ITEM_NAMES[];
-
     unsigned char sig[ITEM_TEXT_COUNT];
     unsigned int  usNameOff = USA_ITEM_NAME_ADDR - USA_BODY_VRAM;
     unsigned int  offLo     = (usNameOff > 0x800) ? usNameOff - 0x800 : 0;
@@ -433,7 +445,8 @@ static void FanTextInit(void)
      * translate through UsaPatchMapMessages. */
     if (BrazilFindItemArray(bin, size, &brBase, &brNameOff))
     {
-        int r = AdoptItemArrays(bin, size, brBase, brNameOff, brNameOff + ITEM_TEXT_COUNT * 4);
+        int r = AdoptItemArrays(bin, size, brBase, brNameOff, brNameOff + ITEM_TEXT_COUNT * 4,
+                                INVENTORY_ITEM_NAMES, g_ItemDescriptions);
 
         if (r == 1)
         {
@@ -476,7 +489,8 @@ static void FanTextInit(void)
 
     switch (AdoptItemArrays(bin, size, USA_BODY_VRAM,
                             USA_ITEM_NAME_ADDR - USA_BODY_VRAM,
-                            USA_ITEM_DESC_ADDR - USA_BODY_VRAM))
+                            USA_ITEM_DESC_ADDR - USA_BODY_VRAM,
+                            INVENTORY_ITEM_NAMES, g_ItemDescriptions))
     {
         case 1:
             s_FanTextActive = 1;
@@ -549,6 +563,68 @@ static void EurFanFontInit(void)
     {
         Font_SetGlyphWidths(bin + off, count);
         SH_LOG("[FANPATCH] modified EUR FONT16 kerning table adopted from disc (%d glyphs)", count);
+    }
+
+    free(bin);
+}
+
+/* Adopt a fan-translated NTSC-J disc's item text and kerning. Mirrors the USA
+ * branch of FanTextInit against the JP symbol addresses and the compiled JP
+ * tables: the Chinese translation rewrites BODYPROG in place (it keeps the
+ * game's own kuten codes and only redefines the glyphs drawn at them), so the
+ * arrays are still JP-linked and only their strings differ. Map/story text
+ * needs nothing here — that already comes off the disc on NTSC-J. */
+static void JpnFanTextInit(void)
+{
+    static const unsigned char* s_compiledWidths;
+
+    unsigned int   size = (unsigned int)g_FileTable[FILE_1ST_BODYPROG_BIN].blockCount << 8;
+    unsigned char* bin;
+    int            i;
+
+    if (s_compiledWidths == NULL)
+        s_compiledWidths = g_FontLayout->glyphWidths;
+
+    if (size < (JPN_ITEM_DESC_ADDR - JPN_BODY_VRAM) + ITEM_TEXT_COUNT * 4)
+        return;
+
+    bin = Pc_LangReadDiscFile(g_FileTable[FILE_1ST_BODYPROG_BIN].startSector, size);
+    if (bin == NULL)
+        return;
+
+    DecryptOverlay(bin, size);
+
+    /* Real FONT_12X16 advances never exceed the 16px cell; garbage here means
+     * this BODYPROG is not JP-linked and nothing at these offsets is safe. */
+    for (i = 0; i < 84; i++)
+    {
+        if (bin[(JPN_WIDTHS_ADDR - JPN_BODY_VRAM) + i] > 16)
+        {
+            SH_WARN("[FANPATCH] NTSC-J BODYPROG not JP-linked — keeping compiled font/item text");
+            free(bin);
+            return;
+        }
+    }
+
+    if (memcmp(bin + (JPN_WIDTHS_ADDR - JPN_BODY_VRAM), s_compiledWidths, 84) != 0)
+    {
+        Font_SetGlyphWidths(bin + (JPN_WIDTHS_ADDR - JPN_BODY_VRAM), 84);
+        SH_LOG("[FANPATCH] modified NTSC-J FONT16 kerning table adopted from disc");
+    }
+
+    switch (AdoptItemArrays(bin, size, JPN_BODY_VRAM,
+                            JPN_ITEM_NAME_ADDR - JPN_BODY_VRAM,
+                            JPN_ITEM_DESC_ADDR - JPN_BODY_VRAM,
+                            INVENTORY_ITEM_NAMES_JPN, ITEM_DESCRIPTIONS_JPN))
+    {
+        case 1:
+            SH_LOG("[FANPATCH] modified NTSC-J item text adopted from disc");
+            break;
+        case -1:
+            SH_WARN("[FANPATCH] NTSC-J BODYPROG item arrays did not parse — keeping compiled item text");
+            break;
+        default:
+            break;
     }
 
     free(bin);
@@ -629,6 +705,9 @@ void Pc_LangInit(void)
     {
         int i;
 
+        /* Chinese draws from a second glyph set over the same kuten codes. */
+        Pc_KanjiSetChinese(g_PcConfig.jpLanguage);
+
         for (i = 0; i < ITEM_TEXT_COUNT; i++)
         {
             s_ItemNames[i] = INVENTORY_ITEM_NAMES_JPN[i];
@@ -636,6 +715,10 @@ void Pc_LangInit(void)
         }
         s_ItemTextReady = 1;
         SH_LOG("[LANG] NTSC-J inventory text installed (%d entries)", ITEM_TEXT_COUNT);
+
+        /* A fan-translated JP disc (the Chinese patch) rewrites those same
+         * arrays; adopting them replaces the pointers just installed. */
+        JpnFanTextInit();
         return;
     }
 
@@ -718,6 +801,84 @@ void Pc_LangSetLanguage(int lang)
     SH_LOG("[LANG] language switched to '%s'", s_LangIds[lang]);
 }
 
+/* NTSC-J text language: 0 Japanese, 1 Chinese. Nothing on the disc is rebound —
+ * the Chinese fan translation writes the same JIS kuten codes the Japanese
+ * script does and only redefines the glyphs drawn at them — so this just swaps
+ * the rasterizer's glyph set and the port's own menu text. */
+void Pc_LangSetJpLanguage(int lang)
+{
+    lang = (lang != 0);
+
+    g_PcConfig.jpLanguage = lang;
+    PcConfig_SaveKeyValue("jp_language", lang ? "zh" : "ja");
+    Pc_KanjiSetChinese(lang);
+
+    SH_LOG("[LANG] NTSC-J language switched to '%s'", lang ? "zh" : "ja");
+}
+
+/* ---- Options-menu Language row -------------------------------------------
+ * The row works in SLOTS (0..count-1) so it needs no region knowledge of its
+ * own: PAL cycles the disc's five languages plus the PC-side packs, NTSC-J
+ * cycles Japanese and Chinese. The two lists share no ids and no config key. */
+
+int Pc_LangSlotCount(void)
+{
+    if (g_GameRegion == Region_JPN)
+        return 2;
+
+    /* PC-side packs need the EUR font atlas, so they are offered on EUR only;
+     * elsewhere the row stops at the five disc languages. */
+    return (g_GameRegion == Region_EUR) ? LANG_COUNT : LANG_PACK_FIRST;
+}
+
+int Pc_LangSlotCurrent(void)
+{
+    return (g_GameRegion == Region_JPN) ? g_PcConfig.jpLanguage : g_PcConfig.language;
+}
+
+void Pc_LangSlotSet(int slot)
+{
+    if (g_GameRegion == Region_JPN)
+    {
+        Pc_LangSetJpLanguage(slot);
+        return;
+    }
+    Pc_LangSetLanguage(slot);
+}
+
+const char* Pc_LangSlotName(int slot)
+{
+    /* Names in the retail PAL option-menu order (= config language index).
+     * Index LANG_PACK_FIRST and up are PC-side packs, labelled by the pack's
+     * own `!menu` field (e.g. "POLISH"). */
+    static const char* const s_PalNames[LANG_PACK_FIRST] = {
+        "English", "German", "French", "Spanish", "Italian"
+    };
+
+    if (g_GameRegion == Region_JPN)
+        return slot ? "Chinese" : "Japanese";
+
+    if (slot < 0 || slot >= LANG_PACK_FIRST)
+        return Pc_LangPackName();
+
+    return s_PalNames[slot];
+}
+
+/* Left edge for the value name, nudged per word length the way the retail
+ * On/Off values are (the row draws right-aligned-ish against fixed arrows). */
+int Pc_LangSlotNameX(int slot)
+{
+    static const unsigned char s_PalX[LANG_PACK_FIRST] = { 198, 204, 204, 198, 198 };
+
+    if (g_GameRegion == Region_JPN)
+        return slot ? 198 : 192;
+
+    if (slot < 0 || slot >= LANG_PACK_FIRST)
+        return 200;
+
+    return s_PalX[slot];
+}
+
 /* The options menu shows the Language row only on EUR discs and only when
  * entered from the title screen (mirrors how retail applied language at the
  * front end; in-game the row stays Auto Load). */
@@ -733,17 +894,10 @@ int Pc_LangMenuRowActive(void)
         return 0;
     }
 
-    return (g_GameRegion == Region_EUR ||
+    /* And on NTSC-J, where it picks Japanese or Chinese. */
+    return (g_GameRegion == Region_EUR || g_GameRegion == Region_JPN ||
             (g_GameRegion == Region_USA && s_FanTextActive)) &&
            g_GameWork.gameStatePrev == GameState_MainMenu;
-}
-
-/* How many languages the Language row cycles through. PC-side packs need the
- * EUR font atlas, so they are offered on EUR discs only; elsewhere the row
- * stops at the five disc languages. */
-int Pc_LangSelectableCount(void)
-{
-    return (g_GameRegion == Region_EUR) ? LANG_COUNT : LANG_PACK_FIRST;
 }
 
 const char* Pc_LangItemName(int itemIdx)

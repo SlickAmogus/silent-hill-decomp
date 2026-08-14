@@ -24,4 +24,12 @@ int Pc_KanjiCell(unsigned short sjis, unsigned int* outPage, int* outU, int* out
  * cheap, and guards against anything having scribbled the margin strips. */
 void Pc_KanjiAtlasReset(void);
 
+/* Draw the Chinese fan translation's glyphs instead of the Japanese ones.
+ * That patch keeps the JIS kuten codes and only redefines what is drawn at
+ * them (ku 16..47, see kanji_font_cn.inc), so this swaps one contiguous run of
+ * the glyph blob and leaves kana and punctuation alone. Cached cells are
+ * dropped so they re-rasterize from the newly selected font. */
+void Pc_KanjiSetChinese(int useChinese);
+int  Pc_KanjiChineseActive(void);
+
 #endif /* PC_KANJI_H */
