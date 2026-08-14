@@ -711,11 +711,13 @@ void func_8003B560(void) {} // 0x8003B560
 static void MainMenu_AchievementHintDraw(void)
 {
     /* Authoring space on this screen runs y -112 (top) .. 336 (bottom), x 0 ..
-     * 320; the menu column sits at x158, y184..264. These two put the hint in
-     * the lower-left, clear of the column and off the bottom edge -- nudge them
-     * if it wants moving. */
+     * 320; the menu column sits at x158, y184..264.
+     *
+     * Y sits BELOW the copyright line baked into the title art, which lands
+     * around y286 -- drawing there put the hint straight through it. The band
+     * under it is empty, so this is the one clean strip left at the bottom. */
     #define ACH_HINT_POS_X 18
-    #define ACH_HINT_POS_Y 286
+    #define ACH_HINT_POS_Y 310
 
     extern const char* PcConfig_BindName(unsigned short, int, int, int);
     extern int         Pc_ControllerAttached(void);
