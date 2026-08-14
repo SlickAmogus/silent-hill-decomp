@@ -29,6 +29,7 @@ namespace SilentHillPC_Launcher
         private Button _btnSignIn;
         private Button _btnSignOut;
         private Label _lblStatus;
+        private CheckBox _chkHashBypass;
         private ComboBox _cboSfx;
         private Button _btnClose;
 
@@ -60,12 +61,12 @@ namespace SilentHillPC_Launcher
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(430, 229);
+            ClientSize = new Size(600, 229);
 
             var lblIntro = new Label
             {
                 Location = new Point(12, 12),
-                Size = new Size(406, 46),
+                Size = new Size(576, 46),
                 Text = "Earn achievements on your real RetroAchievements account while " +
                        "playing this port. Your disc image identifies the game, so the " +
                        "official Silent Hill set is used.\r\n" +
@@ -75,9 +76,29 @@ namespace SilentHillPC_Launcher
             _chkEnable = new CheckBox
             {
                 Location = new Point(15, 66),
-                Size = new Size(220, 20),
+                Size = new Size(175, 20),
                 Text = "Enable RetroAchievements"
             };
+
+            _chkHashBypass = new CheckBox
+            {
+                Location = new Point(196, 66),
+                Size = new Size(390, 20),
+                Text = "Hash bypass for NTSC-J/Fan translations"
+            };
+
+            var tip = new ToolTip { AutoPopDelay = 30000, InitialDelay = 400, ReshowDelay = 100 };
+            tip.SetToolTip(_chkHashBypass,
+                "RetroAchievements identifies the game purely by your disc hash, and it " +
+                "has no entry for the Japanese release or for fan-translated discs, so " +
+                "those load zero achievements.\r\n\r\n" +
+                "With this on, the USA disc hash is reported instead and the set loads.\r\n\r\n" +
+                "This is technically spoofing: RetroAchievements is told you are running " +
+                "a disc you are not. The game itself is functionally identical, since " +
+                "this port compiles one codebase whatever disc is mounted and already " +
+                "presents itself to the achievement logic as the USA build, so the " +
+                "achievements evaluate exactly the same. Unlocks are softcore only.\r\n\r\n" +
+                "Ignored on a USA or PAL disc, which RetroAchievements supports natively.");
 
             var lblUser = new Label { Location = new Point(15, 98), Size = new Size(70, 20), Text = "Username" };
             _txtUser = new TextBox { Location = new Point(90, 95), Size = new Size(200, 22) };
@@ -92,7 +113,7 @@ namespace SilentHillPC_Launcher
 
             _btnSignIn = new Button
             {
-                Location = new Point(300, 94),
+                Location = new Point(470, 94),
                 Size = new Size(110, 25),
                 Text = "Sign in"
             };
@@ -100,7 +121,7 @@ namespace SilentHillPC_Launcher
 
             _btnSignOut = new Button
             {
-                Location = new Point(300, 124),
+                Location = new Point(470, 124),
                 Size = new Size(110, 25),
                 Text = "Sign out"
             };
@@ -109,7 +130,7 @@ namespace SilentHillPC_Launcher
             _lblStatus = new Label
             {
                 Location = new Point(15, 158),
-                Size = new Size(400, 30),
+                Size = new Size(570, 30),
                 Text = ""
             };
 
@@ -133,7 +154,7 @@ namespace SilentHillPC_Launcher
 
             _btnClose = new Button
             {
-                Location = new Point(330, 192),
+                Location = new Point(500, 192),
                 Size = new Size(85, 25),
                 Text = "Close",
                 DialogResult = DialogResult.OK
@@ -143,7 +164,7 @@ namespace SilentHillPC_Launcher
             Controls.AddRange(new Control[]
             {
                 lblIntro, _chkEnable, lblUser, _txtUser, lblPass, _txtPass,
-                _btnSignIn, _btnSignOut, _lblStatus, lblSfx, _cboSfx, _btnClose
+                _btnSignIn, _btnSignOut, _lblStatus, lblSfx, _cboSfx, _chkHashBypass, _btnClose
             });
 
             AcceptButton = _btnSignIn;
@@ -154,6 +175,8 @@ namespace SilentHillPC_Launcher
         {
             _chkEnable.Checked = _config.Get("retroachievements", "0") == "1";
             _txtUser.Text = _config.Get("ra_username", "");
+
+            _chkHashBypass.Checked = _config.Get("ra_hash_override", "") == "usa";
 
             switch (_config.Get("ra_sfx", "playstation"))
             {
@@ -187,6 +210,9 @@ namespace SilentHillPC_Launcher
         {
             _config.Set("retroachievements", _chkEnable.Checked ? "1" : "0");
             _config.Set("ra_sfx", SelectedSfxKey());
+            // The game ignores this whenever the mounted disc already hashes to
+            // something RA supports, so it is inert on USA/PAL.
+            _config.Set("ra_hash_override", _chkHashBypass.Checked ? "usa" : "");
             _config.Save();
         }
 

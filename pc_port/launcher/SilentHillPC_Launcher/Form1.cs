@@ -686,17 +686,30 @@ public partial class Form1 : Form
     {
         var modes = DisplayModes.GetModes();
 
-        // Unique resolutions
-        var resolutions = new HashSet<string>();
+        // Unique resolutions, LARGEST FIRST. A HashSet enumerates in whatever
+        // order it likes, so this list used to arrive scrambled -- with ~40
+        // entries that is enough on its own for someone to conclude their
+        // resolution isn't there.
+        var seen = new HashSet<string>();
+        var resolutions = new List<(int w, int h)>();
         foreach (var m in modes)
-            resolutions.Add($"{m.width}x{m.height}");
+        {
+            if (seen.Add($"{m.width}x{m.height}"))
+                resolutions.Add((m.width, m.height));
+        }
+        resolutions.Sort((a, b) => a.w != b.w ? b.w.CompareTo(a.w) : b.h.CompareTo(a.h));
 
-        comboResolution.Items.AddRange(resolutions.ToArray());
+        foreach (var r in resolutions)
+            comboResolution.Items.Add($"{r.w}x{r.h}");
 
-        // Unique refresh rates
-        var refreshRates = new HashSet<int>();
+        // Unique refresh rates, highest first.
+        var refreshRates = new List<int>();
         foreach (var m in modes)
-            refreshRates.Add(m.hz);
+        {
+            if (m.hz > 0 && !refreshRates.Contains(m.hz))
+                refreshRates.Add(m.hz);
+        }
+        refreshRates.Sort((a, b) => b.CompareTo(a));
 
         foreach (var hz in refreshRates)
             comboRefresh.Items.Add(hz.ToString());
@@ -1794,20 +1807,9 @@ public partial class Form1 : Form
 
     private void btnRA_Click(object sender, EventArgs e)
     {
-        // Already signed in: say so and confirm before reopening the dialog,
-        // which is where sign-out / switching accounts happens.
-        if (!string.IsNullOrEmpty(config.Get("ra_token", "")))
-        {
-            var choice = MessageBox.Show(this,
-                "You are signed in to RetroAchievements as " +
-                config.Get("ra_username", "") + ".\r\n\r\n" +
-                "Do you want to sign out or switch accounts?",
-                "RetroAchievements",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-            if (choice != DialogResult.Yes)
-                return;
-        }
-
+        // Straight to the dialog whether signed in or not. It already reports
+        // the signed-in account and carries sign-out, so the confirm prompt
+        // only stood between the user and the other settings on that page.
         using (var dlg = new RetroAchievementsForm(config))
         {
             dlg.ShowDialog(this);

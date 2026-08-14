@@ -178,14 +178,32 @@ static int Pc_RaIsMd5(const char* text)
     return text[32] == '\0';
 }
 
-/* NULL = report the real hash (the default). */
-static const char* Pc_RaResolveHashOverride(void)
+/* NULL = report the real hash (the default).
+ *
+ * `realHash` is the mounted disc's own hash. An override is SKIPPED when that
+ * already matches a hash RA supports, so the launcher's "hash bypass" toggle
+ * can be left on permanently: it does nothing on a USA or PAL disc and only
+ * engages for the discs that actually need it (NTSC-J, fan translations).
+ * Deciding this here rather than in the launcher is deliberate -- it depends on
+ * which disc is mounted right now, which the launcher cannot know. */
+static const char* Pc_RaResolveHashOverride(const char* realHash)
 {
     const char* value = g_PcConfig.raHashOverride;
     size_t      i;
 
     if (value == NULL || value[0] == '\0')
         return NULL;
+
+    for (i = 0; i < sizeof(s_raHashAliases) / sizeof(s_raHashAliases[0]); i++)
+    {
+        if (realHash != NULL && SDL_strcasecmp(realHash, s_raHashAliases[i].hash) == 0)
+        {
+            SH_DBG("[RA] ra_hash_override ignored: this disc (%s) is already one "
+                   "RetroAchievements supports", s_raHashAliases[i].name);
+            return NULL;
+        }
+    }
+
     for (i = 0; i < sizeof(s_raHashAliases) / sizeof(s_raHashAliases[0]); i++)
     {
         /* SDL_strcasecmp, not _stricmp: the latter is an MSVC spelling and this
@@ -819,7 +837,7 @@ static void RC_CCONV Pc_RaLoginCallback(int result, const char* error_message,
 
     SH_DBG("[RA] disc hash %s", hash);
     {
-        const char* forced = Pc_RaResolveHashOverride();
+        const char* forced = Pc_RaResolveHashOverride(hash);
         if (forced != NULL)
         {
             SH_DBG("[RA] ra_hash_override active: reporting %s instead of the "
