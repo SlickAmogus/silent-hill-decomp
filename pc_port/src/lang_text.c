@@ -65,6 +65,10 @@ static const char* s_ItemBinNames[5] = { "ITEM_ENG", "ITEM_GER", "ITEM_FRN", "IT
 const char* const s_LangIds[LANG_COUNT] = { "en", "de", "fr", "es", "it", "pl" };
 
 static char*       s_ItemPool;
+/* "item text has been installed" sentinel. Was s_ItemPool != NULL, but the
+ * NTSC-J path installs pointers to COMPILED tables and allocates no pool, so
+ * the pool alone would report the Japanese text as absent. */
+static int         s_ItemTextReady;
 static const char* s_ItemNames[ITEM_TEXT_COUNT];
 static const char* s_ItemDescs[ITEM_TEXT_COUNT];
 
@@ -256,6 +260,7 @@ static int AdoptItemArrays(const unsigned char* bin, unsigned int size,
     if (s_ItemPool == NULL)
         return -1;
     out = s_ItemPool;
+    s_ItemTextReady = 1;
     for (i = 0; i < ITEM_TEXT_COUNT; i++)
     {
         /* Already US dialect (underscores, \n\t layout) — copy verbatim. */
@@ -516,6 +521,7 @@ void Pc_LangInit(void)
             s_ItemNames[i] = INVENTORY_ITEM_NAMES_JPN[i];
             s_ItemDescs[i] = ITEM_DESCRIPTIONS_JPN[i];
         }
+        s_ItemTextReady = 1;
         SH_LOG("[LANG] NTSC-J inventory text installed (%d entries)", ITEM_TEXT_COUNT);
         return;
     }
@@ -541,6 +547,7 @@ void Pc_LangInit(void)
     /* Translated strings can only grow by the NUL per entry; 2x is plenty. */
     s_ItemPool = (char*)malloc(size * 2);
     out        = s_ItemPool;
+    s_ItemTextReady = 1;
 
     for (i = 0; i < ITEM_TEXT_COUNT; i++)
     {
@@ -624,7 +631,7 @@ const char* Pc_LangItemName(int itemIdx)
     if (Pc_LangPackActive())
         return Pc_LangPackItemName(itemIdx);
 
-    if (s_ItemPool == NULL || itemIdx < 0 || itemIdx >= ITEM_TEXT_COUNT)
+    if (!s_ItemTextReady || itemIdx < 0 || itemIdx >= ITEM_TEXT_COUNT)
         return NULL;
     /* Empty strings mean "untranslated" on the disc — fall back to English. */
     return (s_ItemNames[itemIdx] && s_ItemNames[itemIdx][0]) ? s_ItemNames[itemIdx] : NULL;
@@ -635,7 +642,7 @@ const char* Pc_LangItemDesc(int itemIdx)
     if (Pc_LangPackActive())
         return Pc_LangPackItemDesc(itemIdx);
 
-    if (s_ItemPool == NULL || itemIdx < 0 || itemIdx >= ITEM_TEXT_COUNT)
+    if (!s_ItemTextReady || itemIdx < 0 || itemIdx >= ITEM_TEXT_COUNT)
         return NULL;
     return (s_ItemDescs[itemIdx] && s_ItemDescs[itemIdx][0]) ? s_ItemDescs[itemIdx] : NULL;
 }
