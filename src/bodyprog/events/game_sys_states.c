@@ -422,12 +422,24 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
     else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.pause)
     {
 #ifdef SH_PC_PORT
-        /* Arm the freeze on the entry tick so PsyCross captures THIS
-         * frame (the last gameplay render) and the first paused frame
-         * already presents it — no one-frame background flash. */
+        /* Do NOT arm the freeze here. This tick still renders the world, and
+         * PsyX_BeginScene runs at DRAW time (from DrawOTag) -- i.e. AFTER this
+         * update -- so arming now made BeginScene blit the previous capture and
+         * then draw the world over it, leaving the captured frame showing
+         * through wherever the world draws nothing: the one-frame grey sky on
+         * every pause. It also forced the flashlight shadow map off for that
+         * rendered frame.
+         *
+         * The arm was never needed for the capture: GR_CaptureLastFrame runs at
+         * EndScene on any frame that did not present, so this frame is captured
+         * either way. The flag only drives PRESENT, and the first frame that
+         * should present is the next one -- SysState_GamePaused_Update arms it
+         * itself. Clearing a pending release is still right. */
         {
             extern int g_PsxPresentLastFrame;
             g_PsxPresentLastFrame = 1;
+            extern int g_PcFreezeReleasePending;
+            g_PcFreezeReleasePending = 0;
         }
 #endif
         SysWork_StateSetNext(SysState_GamePaused);
