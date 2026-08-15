@@ -31,6 +31,12 @@ endif()
 # through the NDK's default flags.
 add_compile_options(-Wno-error=format-security)
 
+# Apple deprecated OpenGL ES in iOS 12 and has not removed it in the eight years
+# since; PPSSPP still ships GL as its primary iOS backend. Every GL call in
+# PsyCross and SDL would otherwise emit a deprecation warning, burying real
+# diagnostics in thousands of lines of noise.
+add_compile_definitions(GLES_SILENCE_DEPRECATION)
+
 # -----------------------------------------------------------------------------
 # SDL2
 # -----------------------------------------------------------------------------
