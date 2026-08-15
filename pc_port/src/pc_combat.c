@@ -278,6 +278,34 @@ static void Pc_EquipWeapon(u8 invItemId, s32 slot)
     Gfx_PlayerHeldItemAttach(g_SysWork.playerCombat.weaponAttack);
     WorldGfx_PlayerPrevHeldItem(&g_SysWork.playerCombat);
     func_8003D01C();
+
+    /* Shut the gas weapons down when switching off one.
+     *
+     * The chainsaw and the rock drill keep running state while equipped --
+     * gasWeaponPowerTimer, which player_control counts down every frame, and
+     * field_44.field_0 -- and that is what feeds the drill's smoke. The
+     * inventory clears both on its way out (Inventory_ExitAnimEquippedItemUpdate,
+     * item_screens_1.c:53), so switching there stops the effect; cycling with the
+     * bound key never ran that path, and the smoke carried on until the player
+     * opened the inventory and switched by hand.
+     *
+     * Same two conditions as the original rather than a blanket clear, so a
+     * switch that lands back on the same gas weapon leaves it running. Reads
+     * g_Player_WeaponAttack for the OUTGOING weapon exactly as the inventory
+     * does -- it lags the combat struct, which is why it still holds the old one
+     * here. */
+    {
+        u8 prevId = WEAPON_ATTACK_ID_GET(g_Player_WeaponAttack);
+
+        if ((prevId == EquippedWeaponId_Chainsaw &&
+             g_SysWork.playerCombat.weaponAttack != prevId) ||
+            (prevId == EquippedWeaponId_RockDrill &&
+             g_SysWork.playerCombat.weaponAttack != WEAPON_ATTACK(prevId, AttackInputType_Tap)))
+        {
+            g_SysWork.playerWork.player.field_44.field_0 = 0;
+            g_SysWork.playerWork.player.properties.player.gasWeaponPowerTimer = Q12(0.0f);
+        }
+    }
 }
 
 /* Cycle to the next OWNED weapon in acquisition/enum order (wraps). */
