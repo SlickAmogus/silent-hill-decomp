@@ -87,8 +87,9 @@ visible; without them there is no way to get a file in at all.
 
 ## Status
 
-The build path and scaffold are in place and CI-verified as far as compiling and
-linking. Nothing has been run on a device yet, so every rendering and
-performance question is still open. Touch controls are unwritten; a paired
-controller flows through PsyCross's existing `SDL_GameController` path with no
-new code.
+Builds and links. CI produces a real arm64 iOS binary (Mach-O, LC_BUILD_VERSION
+platform 2, minos 13.0) with all 43 map overlays linked in, a compiled launch
+storyboard and the assets bundled, packaged as an unsigned .ipa. Nothing has run
+on a device, so every rendering and performance question is still open. Touch
+controls are unwritten; a paired controller flows through PsyCross's existing
+SDL_GameController path with no new code.

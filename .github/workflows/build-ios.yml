@@ -79,3 +79,63 @@ jobs:
           path: build-ios/SilentHill-unsigned.ipa
           if-no-files-found: error
           retention-days: 90
+
+  # Launches the app in the iOS Simulator to see how far startup gets, with no
+  # device, no Apple ID and no signing. It exercises the parts that are brand
+  # new and otherwise completely untested: the chdir into Documents, the asset
+  # staging out of the read-only bundle, and config load.
+  #
+  # Informational, and it will NOT reach a rendered frame: OpenGL ES is broken
+  # in the Simulator on Apple Silicon (apps die inside glDrawElements_ES2Exec,
+  # confirmed by Apple DTS in 2024 and still unfixed), and every GitHub runner
+  # is Apple Silicon. Rendering can only be answered on a real device. What this
+  # catches is a crash BEFORE GL init, which would otherwise look identical to
+  # the known GL failure once someone finally installed it.
+  simulator-smoke:
+    name: Simulator startup smoke test
+    if: github.repository == 'SlickAmogus/silent-hill-decomp'
+    runs-on: macos-15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build tools
+        run: brew install cmake ninja llvm
+
+      - name: Put Homebrew LLVM on PATH
+        run: echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+
+      - name: Build for the Simulator
+        run: |
+          chmod +x ios_port/build_ios.sh
+          ./ios_port/build_ios.sh simulator
+
+      - name: Boot a simulator, install, launch
+        run: |
+          set -x
+          DEV=$(xcrun simctl create sh-smoke "iPhone 16" 2>/dev/null \
+                || xcrun simctl list devices available | grep -m1 -oE '[0-9A-F-]{36}')
+          xcrun simctl boot "$DEV" || true
+          xcrun simctl bootstatus "$DEV" -b || true
+
+          APP="$(find build-ios-sim -maxdepth 4 -name 'SilentHill.app' -type d | head -1)"
+          xcrun simctl install "$DEV" "$APP"
+
+          # --console streams stdout/stderr; SDL routes the port's SH_DBG output
+          # there. Time-boxed because a successful launch never exits on its own.
+          xcrun simctl launch --console-pty "$DEV" com.silenthill.port &
+          LAUNCH_PID=$!
+          sleep 45
+          kill $LAUNCH_PID 2>/dev/null || true
+
+          echo "=== did it write a log into the container? ==="
+          CONTAINER=$(xcrun simctl get_app_container "$DEV" com.silenthill.port data 2>/dev/null || true)
+          if [ -n "$CONTAINER" ]; then
+            ls -la "$CONTAINER/Documents" || true
+            for f in "$CONTAINER/Documents"/*.log "$CONTAINER/Documents/SilentHill.log"; do
+              [ -f "$f" ] && { echo "--- $f ---"; tail -60 "$f"; }
+            done
+          fi
+          xcrun simctl shutdown "$DEV" || true
