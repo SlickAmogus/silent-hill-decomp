@@ -67,7 +67,7 @@ void Pc_SfxOverride_Reset(void)
 /* Minimal RIFF/PCM reader. Deliberately strict: a wrong guess about the data
  * chunk is inaudible as an error and audible as noise, so anything unexpected
  * is refused with a log line rather than played. */
-static short* SfxOverride_LoadWav(const char* path, int* outCount)
+static short* SfxOverride_LoadWav(const char* path, int* outCount, int* outRate)
 {
     unsigned char* d;
     long           size = 0;
@@ -77,6 +77,7 @@ static short* SfxOverride_LoadWav(const char* path, int* outCount)
     short*         pcm;
 
     *outCount = 0;
+    if (outRate != NULL) *outRate = 0;
 
     d = Pc_LooseSlurp(path, &size);
     if (d == NULL)
@@ -121,6 +122,11 @@ static short* SfxOverride_LoadWav(const char* path, int* outCount)
     format   = d[fmtOff] | (d[fmtOff + 1] << 8);
     channels = d[fmtOff + 2] | (d[fmtOff + 3] << 8);
     bits     = d[fmtOff + 14] | (d[fmtOff + 15] << 8);
+    if (outRate != NULL)
+    {
+        *outRate = (int)(d[fmtOff + 4] | (d[fmtOff + 5] << 8) |
+                         (d[fmtOff + 6] << 16) | ((unsigned)d[fmtOff + 7] << 24));
+    }
 
     if (format != 1 || (bits != 8 && bits != 16) || channels < 1 || channels > 2)
     {
@@ -412,6 +418,7 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
         int  addr = spuBase + running;
         char path[256];
         int  count = 0;
+        int  wavRate = 0;
         short* pcm = NULL;
         const char* src = NULL;
 
@@ -427,7 +434,18 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
         /* A per-sound file is the more specific statement, so it wins over the
          * whole-bank file for that one sample. */
         snprintf(path, sizeof(path), "gamedata/load/SND/%s.%03d.wav", bank, n);
-        pcm = SfxOverride_LoadWav(path, &count);
+        pcm = SfxOverride_LoadWav(path, &count, &wavRate);
+        if (pcm == NULL)
+        {
+            /* BANK_NNN.wav is what the launcher's Audio tool names its exports,
+             * so the obvious round trip -- export a sound, edit it, drop it in --
+             * produced a file the loader never looked for. Both spellings are
+             * built from the bank name we already know rather than parsed, so a
+             * bank whose own name contains an underscore (MAP001_2) stays
+             * unambiguous either way. */
+            snprintf(path, sizeof(path), "gamedata/load/SND/%s_%03d.wav", bank, n);
+            pcm = SfxOverride_LoadWav(path, &count, &wavRate);
+        }
         if (pcm != NULL)
         {
             src = path;
@@ -457,8 +475,15 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
         s_count++;
         installed++;
 
-        SH_DBG("[SFXMOD] %s sample %d <- %s (%d samples, was %d ADPCM bytes) spu=0x%x",
-               bank, n, src, count, len, addr);
+        /* The rate is reported, never acted on: the mixer uploads the
+         * replacement at a fixed 44100 and lets the voice pitch scale it exactly
+         * as it scaled the original, so a file authored at some other rate plays
+         * proportionally faster or slower. Printing it is what lets someone
+         * compare against the rate the Audio tool shows for that sample -- the
+         * usual cause of a replacement that plays at the wrong speed, and far
+         * more noticeable on the low-rate map banks. */
+        SH_DBG("[SFXMOD] %s sample %d <- %s (%d samples @ %d Hz, was %d ADPCM bytes) spu=0x%x",
+               bank, n, src, count, wavRate, len, addr);
     }
 
     free(looseBank);
