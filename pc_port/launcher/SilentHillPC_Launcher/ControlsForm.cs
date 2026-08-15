@@ -779,7 +779,7 @@ public class ControlsForm : Form
         Controls.Add(chkBulletDecals);
         tips.SetToolTip(chkBulletDecals,
             "Leaves a bullet hole on walls and other world geometry where your gunfire lands. Not in the original " +
-            "game, so it is off by default. Also on the Graphics page of the in-game PC Options menu.");
+            "game, so it is off by default. Also on the Controls page of the in-game PC Options menu.");
 
         tips.SetToolTip(chkAimAssist,
             "Thirdperson / Over-the-Shoulder free-aim only (NOT first person): when the reticle is over an enemy " +

@@ -794,7 +794,7 @@ partial class Form1
             // 
             // checkBox1
             // 
-            this.checkBox1.Location = new System.Drawing.Point(216, 245);
+            this.checkBox1.Location = new System.Drawing.Point(218, 245);
             this.checkBox1.Name = "checkBox1";
             this.checkBox1.Size = new System.Drawing.Size(18, 17);
             this.checkBox1.TabIndex = 69;
@@ -823,7 +823,7 @@ partial class Form1
             // lblMenu
             // 
             this.lblMenu.AutoSize = true;
-            this.lblMenu.Location = new System.Drawing.Point(172, 245);
+            this.lblMenu.Location = new System.Drawing.Point(174, 245);
             this.lblMenu.Name = "lblMenu";
             this.lblMenu.Size = new System.Drawing.Size(42, 13);
             this.lblMenu.TabIndex = 70;
