@@ -199,6 +199,25 @@ list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "map_overlay_stub\\.c$")
 # (src/bodyprog/bodyprog_combat_8005BF38.c) now provides target selection.
 list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "combat_target\\.c$")
 
+# Clang at -O2 deletes `case 0:` of the switch in GameState_ItemScreens_Update
+# (item_screens_2.c) as unreachable. Proven, not inferred: nothing added inside
+# that case survives to the object file, while pre-existing string literals
+# elsewhere in the same translation unit do, and a #error at the end of the file
+# still fires (so the right file is being compiled with the right flags).
+#
+# At runtime that leaves the inventory entering its own gameState with
+# gameStateSteps[1] == 0 and no case body to run: the step never advances to 1,
+# so the screen never clears, never draws its contents and never reads input —
+# a grey screen you cannot exit. GCC on the desktop build keeps the case, which
+# is why this is Android-only.
+#
+# The underlying cause is UB earlier in that function letting Clang conclude the
+# step cannot be 0. Until that is found and fixed at the source, drop this ONE
+# file to -O0 so the case survives. Scoped per-file; the rest keeps -O2.
+set_source_files_properties(
+    "${DECOMP_DIR}/src/bodyprog/items/item_screens_2.c"
+    PROPERTIES COMPILE_OPTIONS "-O0")
+
 # Android ships no OpenAL, so the legacy AL renderer is left out of the build
 # entirely and the software stack (xa_player_software.c + PsyX_SPUSoftware,
 # both SDL-sinked) becomes the only audio path. SH_NO_OPENAL collapses
