@@ -89,10 +89,17 @@ set_target_properties(SilentHillPC PROPERTIES
 # ios_bootstrap.m stages these into Documents on first run, because the bundle
 # itself is read-only. Nothing copyrighted is here — the disc image stays the
 # user's to supply.
+#
+# Copied wholesale after the link rather than listed as sources: the tree is
+# nested and MACOSX_PACKAGE_LOCATION flattens, so the gamedata/ and licenses/
+# structure ios_bootstrap.m walks would be lost.
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../pc_port/assets")
-    target_sources(SilentHillPC PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../pc_port/assets")
-    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/../pc_port/assets"
-        PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+    add_custom_command(TARGET SilentHillPC POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/../pc_port/assets"
+                "$<TARGET_BUNDLE_CONTENT_DIR:SilentHillPC>"
+        COMMENT "Bundling the port's shipped assets"
+        VERBATIM)
 endif()
 
 # A launch storyboard has to be compiled, not copied: iOS looks for

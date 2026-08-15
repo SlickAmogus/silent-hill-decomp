@@ -809,6 +809,27 @@ if(SH_STATIC_MAPS)
     if(ANDROID AND ANDROID_TOOLCHAIN_ROOT)
         set(SH_LLVM_HINTS "${ANDROID_TOOLCHAIN_ROOT}/bin")
     endif()
+    # Apple is the same story for a different reason: Xcode carries an LLVM
+    # toolchain but does not put llvm-* on PATH, and its objcopy in particular
+    # is not always present at all. Look inside the active toolchain first, then
+    # at a Homebrew llvm, which always has both.
+    if(APPLE)
+        execute_process(COMMAND xcode-select -p
+                        OUTPUT_VARIABLE SH_XCODE_DEV
+                        OUTPUT_STRIP_TRAILING_WHITESPACE
+                        ERROR_QUIET)
+        if(SH_XCODE_DEV)
+            list(APPEND SH_LLVM_HINTS
+                 "${SH_XCODE_DEV}/Toolchains/XcodeDefault.xctoolchain/usr/bin")
+        endif()
+        execute_process(COMMAND brew --prefix llvm
+                        OUTPUT_VARIABLE SH_BREW_LLVM
+                        OUTPUT_STRIP_TRAILING_WHITESPACE
+                        ERROR_QUIET)
+        if(SH_BREW_LLVM)
+            list(APPEND SH_LLVM_HINTS "${SH_BREW_LLVM}/bin")
+        endif()
+    endif()
     find_program(SH_LLVM_NM      NAMES llvm-nm      llvm-nm-18 llvm-nm-17      HINTS ${SH_LLVM_HINTS})
     find_program(SH_LLVM_OBJCOPY NAMES llvm-objcopy llvm-objcopy-18 llvm-objcopy-17 HINTS ${SH_LLVM_HINTS})
     if(NOT SH_LLVM_NM OR NOT SH_LLVM_OBJCOPY)

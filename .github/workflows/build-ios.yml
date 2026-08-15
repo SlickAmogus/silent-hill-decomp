@@ -33,11 +33,15 @@ jobs:
           submodules: recursive
 
       - name: Install build tools
-        # Only cmake and ninja. Everything else the iOS build needs — clang, the
-        # iPhoneOS SDK, ibtool, llvm-nm and llvm-objcopy for the map overlay
-        # symbol prefixing — ships with Xcode. Nothing is brew-installed for the
-        # target, because a Homebrew package is built for the host, not for iOS.
-        run: brew install cmake ninja
+        # cmake and ninja to drive the build; llvm for llvm-nm and llvm-objcopy,
+        # which the map overlay symbol prefixing needs. Xcode carries an LLVM
+        # toolchain but does not put llvm-* on PATH and does not reliably ship
+        # objcopy at all. These are host tools that rewrite object files — they
+        # are not linked into the app, so a Homebrew build of them is fine.
+        run: brew install cmake ninja llvm
+
+      - name: Put Homebrew LLVM on PATH
+        run: echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
 
       - name: Toolchain versions
         run: |
