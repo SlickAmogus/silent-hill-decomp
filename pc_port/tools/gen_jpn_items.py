@@ -49,6 +49,61 @@ def extract(start_idx, name_new):
     return body, i
 
 
+
+HEXDIGITS = '0123456789abcdefABCDEF'
+
+
+def to_sjis(body):
+    r"""Rewrite every string literal's non-ASCII text as Shift-JIS \xNN escapes.
+
+    The decomp keeps these sources in UTF-8 and the PSX build transcodes the
+    preprocessed file (Makefile: iconv_sjis_wrapper.py -f UTF-8 -t SHIFT-JIS)
+    before assembling, so the shipped bytes are Shift-JIS. The PC port compiles
+    one binary straight from UTF-8 sources, so without this the literals stay
+    UTF-8 -- and the game's text drawer reads them as Shift-JIS, where 0xE0..0xEF
+    is a legal lead byte. Every 3-byte UTF-8 kanji was consumed as a 2-byte SJIS
+    pair plus a stray, drawing a wrong glyph and drifting out of phase: the
+    garbled inventory text. Escapes keep the .inc itself encoding-independent.
+    """
+    out = []
+    i = 0
+    in_str = False
+    prev_was_hex = False
+    while i < len(body):
+        c = body[i]
+        if not in_str:
+            out.append(c)
+            if c == '"':
+                in_str = True
+                prev_was_hex = False
+            i += 1
+            continue
+        if c == '\\':                      # existing escape: copy verbatim
+            out.append(body[i:i + 2])
+            prev_was_hex = False
+            i += 2
+            continue
+        if c == '"':
+            out.append(c)
+            in_str = False
+            i += 1
+            continue
+        if ord(c) < 128:
+            # A hex escape swallows every hex digit that follows it, so break
+            # the literal in two when plain text would extend one.
+            if prev_was_hex and c in HEXDIGITS:
+                out.append('" "')
+            out.append(c)
+            prev_was_hex = False
+            i += 1
+            continue
+        for b in bytearray(c.encode('shift_jis')):
+            out.append('\\x%02X' % b)
+        prev_was_hex = True
+        i += 1
+    return ''.join(out)
+
+
 # find the two arrays
 ni = next(k for k, L in enumerate(lines) if L.startswith('const char* INVENTORY_ITEM_NAMES[]'))
 di = next(k for k, L in enumerate(lines) if L.startswith('const char* g_ItemDescriptions[]'))
@@ -77,11 +132,16 @@ w.write(' * INVENTORY_ITEM_NAMES / g_ItemDescriptions. The decomp selects those 
 w.write(' * time via VERSION_REGION_IS(NTSCJ); the PC port builds one binary and picks the\n')
 w.write(' * region at RUNTIME, so the Japanese tables have to be compiled alongside the\n')
 w.write(' * English ones and installed when g_GameRegion == Region_JPN.\n')
-w.write(' * Regenerate with pc_port/tools/gen_jpn_items.py if the decomp tables change. */\n\n')
+w.write(" * Regenerate with pc_port/tools/gen_jpn_items.py if the decomp tables change.\n"
+        " *\n"
+        " * Text is SHIFT-JIS, written as escapes. The decomp sources are UTF-8 and the\n"
+        " * PSX build transcodes them (Makefile: iconv_sjis_wrapper.py); the PC port has\n"
+        " * no such step, and the drawer reads Shift-JIS -- where 0xE0..0xEF is a legal\n"
+        " * lead byte, so UTF-8 kanji rendered as garbage. */\n\n")
 w.write('static const char* const INVENTORY_ITEM_NAMES_JPN[] = {\n')
-w.write(nbody.rstrip() + '\n};\n\n')
+w.write(to_sjis(nbody).rstrip() + '\n};\n\n')
 w.write('static const char* const ITEM_DESCRIPTIONS_JPN[] = {\n')
-w.write(dbody.rstrip() + '\n};\n')
+w.write(to_sjis(dbody).rstrip() + '\n};\n')
 w.close()
 print('names entries  ~%d' % count_entries(nbody))
 print('descs entries  ~%d' % count_entries(dbody))
