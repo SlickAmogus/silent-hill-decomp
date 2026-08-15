@@ -2900,27 +2900,24 @@ void MainLoop(void) // 0x80032EE0
                 }
                 s_heldWorldOfy = ofy;
             }
-            else if (g_GameWork.gameState == GameState_InGame &&
-                     (g_SysWork.sysState == SysState_ReadMessage   ||
-                      g_SysWork.sysState == SysState_EventCallback ||
-                      g_SysWork.sysState == SysState_EventSetFlag  ||
-                      g_SysWork.sysState == SysState_EventPlaySound ||
-                      g_PcPickupItemActive))
+            else if (g_GameWork.gameState == GameState_InGame)
             {
-                /* Interactions that keep re-rendering the gameplay world — examine and
-                 * read-message text, an event callback (locked doors, puzzles, putting an
-                 * item into a slot), and the item-pickup animation — run vcMoveAndSetCamera
-                 * every frame just like gameplay. The original has no per-state offset at
-                 * all, so it looks identical before and during; hold the gameplay offset
-                 * instead of recomputing it, or the shift jumps the instant the
-                 * interaction starts (visible under any display camera, since the shift is
-                 * at the GTE projection center).
+                /* Every other InGame state holds the gameplay offset rather than
+                 * recomputing it. The original has no per-state offset at all, so the
+                 * framing has to stay put across an examine, a door, the inventory, the
+                 * pause screen — anything that keeps the world on screen while something
+                 * runs over it.
                  *
-                 * ReadMessage alone was not enough: most examines dispatch through
-                 * EventCallback, which is why "certain objects or doors or puzzles" still
-                 * jumped after that was fixed for memos. Menus, the map screen and the
-                 * load/FMV states are deliberately absent — they are not the gameplay
-                 * view, and the inventory projects its own item models. */
+                 * Enumerating states was the wrong shape and kept missing one: gating on
+                 * Gameplay alone jumped on every examine, adding ReadMessage still jumped
+                 * on the event-callback examines (locked doors, puzzles, key items), and
+                 * fixing those left the inventory and door transitions jumping. They are
+                 * all the same bug — a non-gameplay state that still renders the world.
+                 *
+                 * Safe to hold here because this offset only ever describes the WORLD
+                 * render: every screen that projects its own 3D sets its own centre
+                 * first (the inventory carousel in item_screens_cam.c, the effect passes
+                 * in bodyprog_80055028.c), so none of them inherit this value. */
                 ofy = s_heldWorldOfy;
             }
 
