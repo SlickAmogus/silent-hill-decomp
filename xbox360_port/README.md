@@ -86,6 +86,33 @@ network-protocol headers (BSD `ip.h`): **reverse the member order of every
 disc-overlaying bitfield struct under `#if BIG_ENDIAN`, then byteswap the storage
 unit.** With both applied the fields land where the LE data put them.
 
+3. **Type-punned multi-field stores, and this is the big one.** The decomp is
+   faithful to MIPS, so it inherits the PSX trick of writing several sub-word
+   fields with one wide store:
+
+   ```c
+   *(s32*)&(*poly)->u1 = (((ptr->field_164 << 5) + ptr->field_16C) << 8)
+                       + 0x2B0000 + ((ptr->field_150 << 5) + ptr->field_158);
+   ```
+
+   That composes `u1`, `v1` and a packed halfword in **little-endian field order**
+   and drops them in with one word. On big-endian every byte lands in the wrong
+   field. Census: **548 `*(u32*)&`-class stores and 120 `*(u16*)&`-class**, ~668
+   sites. Far larger than the bitfield surface, and it fails silently — garbage
+   geometry and UVs, not a crash.
+
+   These are tractable precisely *because* they are uniform. Every one composes
+   its value assuming LE field order, so a single macro fixes the whole class:
+
+   ```c
+   #define PSX_STORE32(p, v)  (*(u32*)(p) = SH_BSWAP32(v))   /* BE only */
+   ```
+
+   On BE, storing the byte-reversed word puts the LSB at byte 0, which is exactly
+   where the LE layout wanted it. So this is one macro plus a mechanical sweep,
+   not 668 individual judgement calls — but the sweep has to be **complete**,
+   because a missed site is invisible until something renders wrong.
+
 ### Strategy: swap at the load chokepoint, per format
 
 Keep vanilla little-endian discs. Swap on load, in place, format-aware. No
@@ -160,7 +187,16 @@ stops being load-bearing.
 
 ## Milestones
 
-1. **Compile the tree for PPC BE.** Every TU to object, zero errors. No linking.
+1. **Compile the tree for PPC BE.** ✅ **167/167, zero errors** (`./ppc_gate.sh`).
+   Covers `src/main`, `src/bodyprog`, `src/screens`, the reused `pc_port/src`, the
+   PSX HAL stubs and `map0_s00`. Excludes what `xbox_port/Makefile.nxdk` excludes:
+   MIPS-asm bodies (`main.c`, `memcpy.c`) and `PCPORT_HAL_EXCLUDE`, the pc_port
+   sources a console replaces wholesale. The other 400 map TUs are still out.
+
+   What it took: three x86 `rdtsc` sites re-pointed at libXenon's `mftb()`, one
+   `case 35:` label that gcc 9 rejects at the end of a compound statement, one
+   local named `_P` colliding with newlib's `<ctype.h>` character-class macro, and
+   a `libgs_stub.c` timer branch that assumed nxdk's `xboxkrnl.h`.
 2. **libXenon toolchain + link + boot to a logged black screen** on hardware.
 3. **Endian swappers** for the 12 formats, validated under QEMU against the x86 build.
 4. **Software GTE + one textured triangle** through the Xenos driver.

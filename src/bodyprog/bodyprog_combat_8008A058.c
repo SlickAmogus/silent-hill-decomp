@@ -1333,6 +1333,9 @@ void func_8008B664(VECTOR3* pos, u32 caseVar) // 0x8008B664
             break;
 
         case 35:
+            /* Empty case, and a label may not end a compound statement before
+             * C23. Falling out of the switch is what it already did. */
+            break;
     }
 
     if (sfxId != 0)

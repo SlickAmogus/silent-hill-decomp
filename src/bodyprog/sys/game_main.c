@@ -7,11 +7,20 @@
  * two prime suspects in the main loop: the whole GameState update (sim + world
  * draw / OT build) and DrawSync (which triggers the framebuffer readback), and
  * log them on any slow frame so there is no sampling doubt. */
+#ifdef SH_XBOX360_PORT
+#include <ppc/timebase.h>
+#endif
 static inline unsigned long long ShxLoopRdtsc(void)
 {
+#ifdef SH_XBOX360_PORT
+    /* Xenon has no rdtsc, and the time base runs at PPC_TIMEBASE_FREQ
+     * (~49.875 MHz), so the 733MHz divisor above does not apply on 360. */
+    return mftb();
+#else
     unsigned lo, hi;
     __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
     return ((unsigned long long)hi << 32) | lo;
+#endif
 }
 /* Per-phase cycle counters filled by world_draw.c, read+reset each frame here. */
 extern unsigned long long g_XbWorldDrawCycles;   /* Gfx_WorldObjectsDraw (props)      */
