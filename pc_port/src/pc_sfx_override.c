@@ -23,6 +23,7 @@ typedef struct
     int    spuAddr;      /* address the voice will be pointed at */
     short* pcm;          /* PC-owned, any length */
     int    sampleCount;
+    int    rate;         /* the WAV's own rate; 0 if it could not be read */
     int    spuBase;      /* base of the slot this entry belongs to */
 } PcSfxOverride;
 
@@ -471,6 +472,7 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
         s_overrides[s_count].spuAddr     = addr;
         s_overrides[s_count].pcm         = pcm;
         s_overrides[s_count].sampleCount = count;
+        s_overrides[s_count].rate        = wavRate;
         s_overrides[s_count].spuBase     = spuBase;
         s_count++;
         installed++;
@@ -494,7 +496,7 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
     }
 }
 
-int Pc_SfxOverride_Lookup(int spuAddr, const short** outPcm, int* outSampleCount)
+int Pc_SfxOverride_Lookup(int spuAddr, const short** outPcm, int* outSampleCount, int* outRate)
 {
     int i;
 
@@ -504,6 +506,10 @@ int Pc_SfxOverride_Lookup(int spuAddr, const short** outPcm, int* outSampleCount
         {
             *outPcm         = s_overrides[i].pcm;
             *outSampleCount = s_overrides[i].sampleCount;
+            if (outRate != NULL)
+            {
+                *outRate = s_overrides[i].rate;
+            }
             return 1;
         }
     }

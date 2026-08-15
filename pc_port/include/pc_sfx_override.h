@@ -49,7 +49,7 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
 /* Playback-time lookup by the SPU address a voice was pointed at. Returns 1 and
  * fills the outputs when that address is an overridden sample. The samples are
  * owned by this module and stay valid until the bank is replaced. */
-int Pc_SfxOverride_Lookup(int spuAddr, const short** outPcm, int* outSampleCount);
+int Pc_SfxOverride_Lookup(int spuAddr, const short** outPcm, int* outSampleCount, int* outRate);
 
 /* Drop everything (map teardown / shutdown). */
 void Pc_SfxOverride_Reset(void);
