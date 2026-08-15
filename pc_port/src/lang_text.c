@@ -575,23 +575,25 @@ static void EurFanFontInit(void)
  * game's own kuten codes and only redefines the glyphs drawn at them), so the
  * arrays are still JP-linked and only their strings differ. Map/story text
  * needs nothing here — that already comes off the disc on NTSC-J. */
-static void JpnFanTextInit(void)
+/* Returns 1 only if the disc's own item text replaced the compiled tables. */
+static int JpnFanTextInit(void)
 {
     static const unsigned char* s_compiledWidths;
 
     unsigned int   size = (unsigned int)g_FileTable[FILE_1ST_BODYPROG_BIN].blockCount << 8;
     unsigned char* bin;
     int            i;
+    int            adopted;
 
     if (s_compiledWidths == NULL)
         s_compiledWidths = g_FontLayout->glyphWidths;
 
     if (size < (JPN_ITEM_DESC_ADDR - JPN_BODY_VRAM) + ITEM_TEXT_COUNT * 4)
-        return;
+        return 0;
 
     bin = Pc_LangReadDiscFile(g_FileTable[FILE_1ST_BODYPROG_BIN].startSector, size);
     if (bin == NULL)
-        return;
+        return 0;
 
     DecryptOverlay(bin, size);
 
@@ -603,7 +605,7 @@ static void JpnFanTextInit(void)
         {
             SH_WARN("[FANPATCH] NTSC-J BODYPROG not JP-linked — keeping compiled font/item text");
             free(bin);
-            return;
+            return 0;
         }
     }
 
@@ -613,6 +615,7 @@ static void JpnFanTextInit(void)
         SH_LOG("[FANPATCH] modified NTSC-J FONT16 kerning table adopted from disc");
     }
 
+    adopted = 0;
     switch (AdoptItemArrays(bin, size, JPN_BODY_VRAM,
                             JPN_ITEM_NAME_ADDR - JPN_BODY_VRAM,
                             JPN_ITEM_DESC_ADDR - JPN_BODY_VRAM,
@@ -620,6 +623,7 @@ static void JpnFanTextInit(void)
     {
         case 1:
             SH_LOG("[FANPATCH] modified NTSC-J item text adopted from disc");
+            adopted = 1;
             break;
         case -1:
             SH_WARN("[FANPATCH] NTSC-J BODYPROG item arrays did not parse — keeping compiled item text");
@@ -629,6 +633,7 @@ static void JpnFanTextInit(void)
     }
 
     free(bin);
+    return adopted;
 }
 
 void Pc_LangInit(void)
@@ -719,7 +724,19 @@ void Pc_LangInit(void)
 
         /* A fan-translated JP disc (the Chinese patch) rewrites those same
          * arrays; adopting them replaces the pointers just installed. */
-        JpnFanTextInit();
+        if (!JpnFanTextInit() && g_PcConfig.jpLanguage)
+        {
+            /* Chinese is a GLYPH swap over unchanged kuten codes, so it only
+             * spells Chinese if the disc supplied Chinese strings. Left on over
+             * the compiled Japanese text every code draws some unrelated
+             * character — reported as "text is corrupted when CN is selected",
+             * which is what a retail JP disc (or a CN disc whose BODYPROG did
+             * not parse) does. Japanese glyphs over Japanese text at least
+             * reads correctly. */
+            Pc_KanjiSetChinese(0);
+            SH_WARN("[LANG] Chinese selected but this disc carries no Chinese text — "
+                    "using Japanese glyphs (a Chinese-patched NTSC-J disc is required)");
+        }
         Pc_JpnMenuInit();
         return;
     }
