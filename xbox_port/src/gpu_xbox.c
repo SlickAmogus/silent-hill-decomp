@@ -18,6 +18,7 @@
 
 #include "gpu_nv2a.h"
 #include "sh_log.h"
+#include "sh_hwperf.h"
 
 /* Active environments + display state (PSX libgpu bookkeeping). Frame present is
  * driven by GpuNv2a_FrameBegin/End; these are wired to the present when the game
@@ -114,14 +115,11 @@ extern unsigned int* PsxVram_GetTexture(int tpage, int clut);
 extern const void*   PsxVram_GetPaletted(int tpage, int clut, const void** palOut);
 
 /* Cycle counter. KeTickCount's 1ms granularity cannot resolve per-primitive work
- * (a whole prim is ~1-20us), so the render-phase split uses rdtsc: ~30 cycles to
- * read, negligible against the phases being measured. 733000 cycles = 1ms. */
-static inline unsigned long long shx_rdtsc(void)
-{
-    unsigned lo, hi;
-    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
-    return ((unsigned long long)hi << 32) | lo;
-}
+ * (a whole prim is ~1-20us), so the render-phase split uses a free-running
+ * counter: ~30 cycles to read, negligible against the phases being measured.
+ * On Xbox that is rdtsc and 733000 cycles = 1ms; on 360 it is the time base at
+ * ~49.875 MHz, so the divisor differs and only ratios compare across the two. */
+static inline unsigned long long shx_rdtsc(void) { return SH_CYCLES(); }
 
 /* Render-phase accumulators, reset per frame with s_walkCycles. */
 static unsigned long long s_texCycles;    /* PsxVram_GetTexture (lookup + any decode) */

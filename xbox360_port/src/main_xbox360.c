@@ -20,10 +20,16 @@
 #include <ppc/timebase.h>
 
 #include "sh_log.h"
+#include "fs_xbox360.h"
 
 /* Both live in sh_log_xbox360.c: port-specific, so not in the shared sh_log.h. */
 extern const char* g_ShLogPath;
 extern void        SH_DebugLogFlush(void);
+
+/* cd_xbox360.c */
+extern char  g_CdBinPath[];
+extern void  Cd_XboxInit(void);
+extern int   Cd_XboxSelfTest(char* idOut, int idOutSize);
 
 int main(void)
 {
@@ -49,6 +55,27 @@ int main(void)
 
     SH_DBG("[BOOT] Silent Hill 360 alive, timebase=%llu", (unsigned long long)bootTb);
     SH_DBG("[BOOT] fat=%d log=%s", fatOk, g_ShLogPath);
+
+    /* Locate and open the disc image, and actually pull a sector through the
+     * cooked path. Finding the file proves nothing on its own -- a wrong sector
+     * size or a truncated rip both survive fopen and only fail on read. */
+    {
+        int  haveBin = Sh360Fs_Init();
+        char pvd[8];
+
+        Cd_XboxInit();
+        printf("bin: %s\n", g_CdBinPath);
+        SH_DBG("[BOOT] root='%s' bin='%s' path='%s' found=%d",
+               Sh360Fs_DataRoot(), Sh360Fs_BinName(), g_CdBinPath, haveBin);
+
+        if (Cd_XboxSelfTest(pvd, sizeof(pvd))) {
+            SH_DBG("[BOOT] PVD id='%s' (expect CD001)", pvd);
+            printf("PVD id: %s (expect CD001)\n", pvd);
+        } else {
+            SH_DBG("[BOOT] BIN not open - game data unavailable");
+            printf("bin: NOT OPEN - game data unavailable\n");
+        }
+    }
     SH_DebugLogFlush();
 
     printf("Boot test running. Press eject/power to exit.\n");

@@ -14,6 +14,7 @@
 #include <string.h>
 #include "gpu_nv2a.h"
 #include "sh_log.h"
+#include "sh_hwperf.h"
 #include "pc_config.h"    /* texture_paletted escape hatch */
 #include "hires_override.h" /* HIRES_POOL_* virtual-slot clut encoding */
 #include "xbox_respool.h"   /* resident chunk textures (resident_textures) */
@@ -384,7 +385,7 @@ static void PageDecodeIndices(int tpage, uint8_t* out)
         }
     }
     memcpy(out, s_swzScratch, PAGE_BYTES);    /* sequential: write-combines cleanly */
-    __asm__ __volatile__("sfence" ::: "memory");
+    SH_STORE_BARRIER();
 }
 
 /* Same scatter, but sourced from a RESIDENT pool slab instead of s_vram (see
@@ -421,7 +422,7 @@ static void PageDecodeIndicesResident(const uint16_t* src, const s_XbResidentDes
         }
     }
     memcpy(out, s_swzScratch, PAGE_BYTES);
-    __asm__ __volatile__("sfence" ::: "memory");
+    SH_STORE_BARRIER();
 }
 
 /* Palette row `row` of a resident slab. Rows past what the TIM shipped fall back
@@ -433,7 +434,7 @@ static void PaletteBuildResident(const s_XbResidentDesc* d, int row, uint32_t* o
 
     if (!d->clut || d->rows <= 0) {
         for (i = 0; i < PAL_ENTRIES; i++) out[i] = 0;
-        __asm__ __volatile__("sfence" ::: "memory");
+        SH_STORE_BARRIER();
         return;
     }
     if (row < 0 || row >= d->rows) row = 0;
@@ -441,7 +442,7 @@ static void PaletteBuildResident(const s_XbResidentDesc* d, int row, uint32_t* o
 
     for (i = 0; i < PAL_ENTRIES; i++)
         out[i] = Psx16ToArgb(src[i]);
-    __asm__ __volatile__("sfence" ::: "memory");
+    SH_STORE_BARRIER();
 }
 
 /* Build a 256-entry GPU palette from the CLUT at `clut`. A 4-bit CLUT only
@@ -459,7 +460,7 @@ static void PaletteBuild(int clut, uint32_t* out)
         int sx = cx + i;
         out[i] = (sx < VRAM_W) ? Psx16ToArgb(row[sx]) : 0;
     }
-    __asm__ __volatile__("sfence" ::: "memory");
+    SH_STORE_BARRIER();
 }
 
 static void DecodePage(int tpage, int clut, uint32_t* out)
@@ -530,7 +531,7 @@ static void DecodePage(int tpage, int clut, uint32_t* out)
             }
         }
     }
-    __asm__ __volatile__("sfence" ::: "memory");  /* flush write-combined texels */
+    SH_STORE_BARRIER();  /* flush write-combined texels */
 
     /* Probe: transparent-texel + STP census — proves the alpha-test fix is
      * load-bearing (zero>0 = pages that painted black cut-out boxes) and that

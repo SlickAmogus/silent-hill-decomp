@@ -162,6 +162,32 @@ not need a console:
 
 Only the Xenos backend genuinely needs a 360.
 
+## The Xbox HAL splits cleanly
+
+Triaging all 36 `xbox_port/src` files by whether they include an nxdk header:
+
+- **22 include none.** They are compiled **straight out of `xbox_port/src`**, not
+  copied, so the two console ports cannot drift. This is where the leverage is:
+  `gpu_xbox.c` (1856 lines of OT walking and PSX primitive decode), `psx_vram.c`
+  (1037, PSX VRAM emulation), `psx_libgpu_xbox.c`, `xbox_pcfeature_stubs.c`,
+  `mcard_xbox.c`, `map_xbox.c`, `xbox_respool.c`.
+- **14 are nxdk-bound** and need 360 versions: `gpu_nv2a.c`, `pad_xbox.c`,
+  `cd_xbox.c`, `fs_xbox.c`, `xa_xbox.c`, `dsound_*`, `crash_xbox.c`,
+  `main_xbox.c`, `sh_log_xbox.c`, `dbg_overlay_xbox.c`, `net_xbox.c`, `ra_*`.
+- **2 are dropped rather than ported:** `msvc_compat.c` (`_except_handler3`,
+  `_fpclass` -- shims for nxdk's MSVC-ABI clang, which xenon-gcc does not need)
+  and `fmv_xbox.c` (pulls nxdk's `windows.h`; FMV needs its own 360 decoder and
+  is not on the path to a first boot).
+
+So the renderer split is favourable: the hardware-agnostic half of the GPU code
+carries over, and only `gpu_nv2a.c` genuinely becomes `gpu_xenos.c`.
+
+Two instructions blocked the reuse, both open-coded x86 asm in nine places:
+`sfence` and `rdtsc`. They now live behind `SH_STORE_BARRIER()` / `SH_CYCLES()`
+in `pc_port/include/sh_hwperf.h` (PPC: `eieio` / `mftb`). Note that `SH_CYCLES()`
+is **not** cycles on 360 -- the time base runs at ~49.875 MHz, not core clock, so
+any absolute "cycles -> ms" divisor is x86-only and only ratios travel.
+
 ## Reuse / replace
 
 **Reuse from `xbox_port/` (platform-agnostic or trivially portable):** the OT walker

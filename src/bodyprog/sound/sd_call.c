@@ -2089,21 +2089,8 @@ void Sd_TaskPoolExecute(void) // 0x800485D8
  * timers. Lives here (not game_main.c) because g_Sd_TaskPool /
  * g_Sd_AudioWork are static to this file. */
 #ifdef SH_XBOX_PORT
-#ifdef SH_XBOX360_PORT
-#include <ppc/timebase.h>
-#endif
-static inline unsigned long long ShxSdRdtsc(void)
-{
-#ifdef SH_XBOX360_PORT
-    /* Xenon has no rdtsc; the time base counts at ~50 MHz, not core clock, so
-     * these stop being cycles on 360 and only stay comparable to each other. */
-    return mftb();
-#else
-    unsigned lo, hi;
-    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
-    return ((unsigned long long)hi << 32) | lo;
-#endif
-}
+#include "sh_hwperf.h"
+static inline unsigned long long ShxSdRdtsc(void) { return SH_CYCLES(); }
 #endif
 
 void Sd_TaskPoolDrain(void)

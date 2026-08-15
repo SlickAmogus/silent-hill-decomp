@@ -94,6 +94,25 @@ collect_srcs() {
     # map TUs come once the overlay mechanism is proven on PPC.
     find "$DECOMP/src/maps/map0_s00" -name '*.c'
     ls "$PCPORT/build_gen/extracted_data/map0_s00_extracted_data.c" 2>/dev/null
+    # Xbox HAL files that pull in NO nxdk headers. Compiled straight out of
+    # xbox_port/src rather than copied, so the two console ports cannot drift.
+    # The excluded ones are the genuinely nxdk-bound HAL (GPU/pad/CD/FS/audio/
+    # crash/log) plus RetroAchievements, which needs the rcheevos include path.
+    for f in "$DECOMP"/xbox_port/src/*.c; do
+        case "$(basename "$f")" in
+            crash_xbox.c|dbg_overlay_xbox.c|dsound_bridge.c|dsound_xbox.c|\
+            gpu_nv2a.c|net_xbox.c|pad_xbox.c|ra_badge_xbox.c|sdl_compat_xbox.c|\
+            sh_log_xbox.c|xa_xbox.c|cd_xbox.c|fs_xbox.c|main_xbox.c|\
+            ra_xbox.c|\
+            msvc_compat.c|\
+            fmv_xbox.c) ;;
+            # msvc_compat.c: _except_handler3/_fpclass, shims for nxdk's
+            #   MSVC-ABI clang. xenon-gcc needs none of it.
+            # fmv_xbox.c: pulls nxdk's windows.h. FMV is not on the path to a
+            #   first boot; it needs a 360 decoder of its own later.
+            *) echo "$f" ;;
+        esac
+    done
     # GTE_SRCS from xbox_port/Makefile.nxdk: the software GTE. Portable C/C++,
     # and the one piece of PsyCross a bare-metal console keeps.
     echo "$PSYCROSS/src/psx/inline_c.c"

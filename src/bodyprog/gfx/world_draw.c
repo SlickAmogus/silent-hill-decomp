@@ -462,21 +462,8 @@ unsigned long long g_XbCharaCycles      = 0;   /* func_8003DA9C: Harry + all NPC
 unsigned           g_XbFsQueueIters     = 0;
 unsigned           g_XbWorldObjCount    = 0;
 unsigned           g_XbCharaCount       = 0;   /* character draws this frame (Harry + monsters) */
-#ifdef SH_XBOX360_PORT
-#include <ppc/timebase.h>
-#endif
-static inline unsigned long long ShxWdRdtsc(void)
-{
-#ifdef SH_XBOX360_PORT
-    /* Xenon has no rdtsc; the time base counts at ~50 MHz, not core clock, so
-     * these stop being cycles on 360 and only stay comparable to each other. */
-    return mftb();
-#else
-    unsigned lo, hi;
-    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
-    return ((unsigned long long)hi << 32) | lo;
-#endif
-}
+#include "sh_hwperf.h"
+static inline unsigned long long ShxWdRdtsc(void) { return SH_CYCLES(); }
 #endif
 
 void Gfx_InGameDraw(bool arg0) // 0x8003C878

@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <malloc.h>
+#include <unistd.h>   /* fsync -- libxenon provides it, newlib does not */
 
 #include "sh_log.h"
 
@@ -96,8 +97,15 @@ void SH_DebugLogInit(void)
 
 void SH_DebugLogFlush(void)
 {
-    if (g_ShDebugLog)
-        fflush(g_ShDebugLog);
+    if (!g_ShDebugLog)
+        return;
+    /* fflush alone produced a log file of size ZERO on the first hardware boot.
+     * It only pushes the stdio buffer down to libfat; the FAT directory entry,
+     * which is where the file's SIZE lives, is not rewritten until fsync or
+     * close. A test session always ends by powering the console off, so there is
+     * never a clean fclose -- without the fsync every run reads back empty. */
+    fflush(g_ShDebugLog);
+    fsync(fileno(g_ShDebugLog));
 }
 
 /* Heap headroom. The Xbox version reads free PHYSICAL pages via MmQueryStatistics;

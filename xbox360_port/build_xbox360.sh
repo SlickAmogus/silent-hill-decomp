@@ -35,8 +35,7 @@ INCS="-I$SCRIPT_DIR/include -I$PCPORT/include -I$PCPORT/include/psyq_compat -I$P
       -I$DECOMP/xbox_port/include
       -I$DK/usr/include"
 
-SRCS="$SCRIPT_DIR/src/main_xbox360.c
-      $SCRIPT_DIR/src/sh_log_xbox360.c"
+SRCS="$(ls "$SCRIPT_DIR"/src/*.c)"
 
 OBJS=""
 for f in $SRCS; do

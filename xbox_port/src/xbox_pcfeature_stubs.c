@@ -28,6 +28,7 @@
  */
 #include <stddef.h> /* NULL */
 #include "sh_log.h" /* pool-slot registration logs which image landed where */
+#include "sh_hwperf.h"
 #include "xbox_respool.h" /* resident chunk-texture backing store */
 
 /* =============================================================================
@@ -601,7 +602,7 @@ int HiresOverride_PoolSlotRegisterRGBA(int slotId, int row, const unsigned char*
             d[i] = ((unsigned)p[3] << 24) | ((unsigned)p[0] << 16) |
                    ((unsigned)p[1] << 8)  |  (unsigned)p[2];
         }
-        __asm__ __volatile__("sfence" ::: "memory");
+        SH_STORE_BARRIER();
     }
     s_xbPool[free_i].slot = slotId;
     s_xbPool[free_i].w    = w;
@@ -691,7 +692,7 @@ int Xbox_PoolSlotRegisterTimDirect(int slotId, const unsigned char* tim, unsigne
                  |  (unsigned)(((t >> 10) & 0x1F) << 3);
         }
     }
-    __asm__ __volatile__("sfence" ::: "memory");
+    SH_STORE_BARRIER();
 
     s_xbPool[free_i].slot = slotId;
     s_xbPool[free_i].w    = w;
