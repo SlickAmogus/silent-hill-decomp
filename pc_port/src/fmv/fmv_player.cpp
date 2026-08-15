@@ -19,6 +19,7 @@
 
 #include <PsyX/PsyX_public.h>
 #include <PsyX/PsyX_render.h>
+#include <PsyX/PsyX_audio.h>   /* PsyX_AudioPushXaFrames — FMV audio via the mixer */
 #include <PsyX/util/timer.h>
 #include <PsyX/common/glad.h>
 
@@ -718,6 +719,10 @@ typedef struct {
     int               sampleRate;
     int               isStereo;
     int               isOpen;
+    /* Set when this platform will not hand out a second output device (Android:
+     * SDL exposes one and the software SPU holds it). Decoded XA then goes to
+     * PsyX_AudioPushXaFrames, the same mixer path in-game voices use. */
+    int               useEngineMixer;
     int32_t           lastSamples[2][2]; /* [channel][prev0=newer, prev1=older] */
     int               sectorsDecoded;
 } FmvAudioState;
@@ -879,26 +884,52 @@ static void FmvAudio_OnSector(const uint8_t* sector, void* user)
         want.channels = (Uint8)(isStereo ? 2 : 1);
         want.samples  = 4096;
 
-        st->dev = SDL_OpenAudioDevice(NULL, 0, &want, &got, 0);
-        if (st->dev == 0) {
-            printf("[FMV] SDL_OpenAudioDevice failed: %s\n", SDL_GetError());
-            return;
+        /* A second SDL output device is a desktop luxury. SDL's Android backend
+         * exposes ONE, and the software SPU already owns it, so this failed with
+         * "Audio device already open" and every movie played silent — the whole
+         * time, in the log, because printf goes nowhere on that platform.
+         *
+         * The engine already has a mixer-side path for exactly this shape of
+         * data: PsyX_AudioPushXaFrames, which is what xa_player_software.c uses
+         * for in-game voices. Push through it instead of opening anything. */
+        if (!st->useEngineMixer) {
+            st->dev = SDL_OpenAudioDevice(NULL, 0, &want, &got, 0);
+            if (st->dev == 0) {
+                SH_DBG("[FMV] SDL_OpenAudioDevice failed (%s) — routing FMV audio "
+                       "through the engine mixer instead", SDL_GetError());
+                st->useEngineMixer = 1;
+            }
         }
-        st->sampleRate = got.freq;
-        st->isStereo   = (got.channels == 2);
-        st->isOpen     = 1;
-        SDL_PauseAudioDevice(st->dev, 0);
-        printf("[FMV] XA audio opened: %d Hz %s (coding=0x%02X)\n",
-               sampleRate, isStereo ? "stereo" : "mono", coding);
+
+        if (st->useEngineMixer) {
+            st->sampleRate = sampleRate;
+            st->isStereo   = isStereo ? 1 : 0;
+            st->isOpen     = 1;
+            SH_DBG("[FMV] XA audio via engine mixer: %d Hz %s (coding=0x%02X)",
+                   sampleRate, isStereo ? "stereo" : "mono", coding);
+        } else {
+            st->sampleRate = got.freq;
+            st->isStereo   = (got.channels == 2);
+            st->isOpen     = 1;
+            SDL_PauseAudioDevice(st->dev, 0);
+            SH_DBG("[FMV] XA audio opened: %d Hz %s (coding=0x%02X)",
+                   sampleRate, isStereo ? "stereo" : "mono", coding);
+        }
     }
 
-    if (st->dev == 0) return;
+    if (st->dev == 0 && !st->useEngineMixer) return;
 
     int16_t pcm[FMV_XA_SAMPLES_PER_SECTOR];
     int     n = FmvDecodeXaSector(sector, pcm);
     if (n > 0) {
         FmvApplyVolume(pcm, n * (int)sizeof(int16_t), AUDIO_S16LSB);
-        SDL_QueueAudio(st->dev, pcm, (Uint32)(n * (int)sizeof(int16_t)));
+        if (st->useEngineMixer) {
+            const int ch = st->isStereo ? 2 : 1;
+            PsyX_AudioPushXaFrames(pcm, (uint32_t)(n / ch),
+                                   (uint32_t)st->sampleRate, (uint32_t)ch);
+        } else {
+            SDL_QueueAudio(st->dev, pcm, (Uint32)(n * (int)sizeof(int16_t)));
+        }
         st->sectorsDecoded++;
     }
 }

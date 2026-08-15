@@ -18,12 +18,14 @@ android {
                 // static STL would give each .so its own copy.
                 arguments '-DANDROID_STL=c++_shared',
                           '-DCMAKE_BUILD_TYPE=RelWithDebInfo'
-                // arm64 only for now: the Arcade1Up target board is a 64-bit
-                // MT8163 BSP and the phone is arm64 as well. Adding
-                // 'armeabi-v7a' here is the only change a 32-bit cabinet needs,
-                // but it doubles native build time so it stays off until one
-                // actually turns up.
-                abiFilters 'arm64-v8a'
+                // Both ABIs. arm64-v8a is the phone and any 64-bit Android build;
+                // armeabi-v7a is there because plenty of MT8163 devices (the
+                // Arcade1Up board) ship a 32-bit Android userspace on a 64-bit
+                // capable chip, and a 64-bit-only APK simply refuses to install
+                // there. Costs native build time; cheaper than finding out at
+                // the cabinet. `adb shell getprop ro.product.cpu.abilist` on the
+                // cabinet says which one it will actually use.
+                abiFilters 'arm64-v8a', 'armeabi-v7a'
             }
         }
     }
