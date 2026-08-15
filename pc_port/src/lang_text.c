@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "lang_text.h"
+#include "lang_zh.h"        /* Chinese text pack for NTSC-J */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -148,6 +149,16 @@ static int s_FanTextActive;
 /* Set once the disc's item text is recognised as the Chinese patch. Until then
  * nothing may claim this disc can render Chinese. */
 static int s_JpnDiscIsChinese;
+
+/* Set when zh.pack is supplying the words instead. Read by the map-message
+ * installer, which must then take its strings from the pack and not the
+ * overlay — the disc is Japanese in that case. */
+static int s_ZhPackActive;
+
+int Pc_LangZhPackActive(void)
+{
+    return s_ZhPackActive;
+}
 
 int Pc_LangJpnDiscIsChinese(void)
 {
@@ -782,7 +793,41 @@ void Pc_LangInit(void)
         /* A fan-translated JP disc (the Chinese patch) rewrites those same
          * arrays; adopting them replaces the pointers just installed. */
         JpnFanTextInit();
-        if (g_PcConfig.jpLanguage && !s_JpnDiscIsChinese)
+
+        /* Chinese wanted, but this disc is not the Chinese release: take the
+         * words from zh.pack instead. That is the whole point of the pack —
+         * the port already has the glyphs, so with the text supplied a RETAIL
+         * Japanese disc can show Chinese and switch to it in game. */
+        s_ZhPackActive = 0;
+        if (g_PcConfig.jpLanguage && !s_JpnDiscIsChinese && Pc_LangZhAvailable())
+        {
+            int installed = 0;
+
+            for (i = 0; i < ITEM_TEXT_COUNT; i++)
+            {
+                const char* nm = Pc_LangZhItemName(i);
+                const char* ds = Pc_LangZhItemDesc(i);
+
+                /* Only over entries the pack actually carries: the JP tables
+                 * are mostly NULL (78 of 195 are real items) and a NULL there
+                 * is meaningful — it is what the inventory tests. */
+                if (nm != NULL)
+                {
+                    s_ItemNames[i] = nm;
+                    installed++;
+                }
+                if (ds != NULL)
+                {
+                    s_ItemDescs[i] = ds;
+                }
+            }
+            s_ItemTextReady = 1;
+            s_ZhPackActive  = 1;
+            SH_LOG("[LANG-ZH] Chinese text pack installed (%d inventory entries) — "
+                   "no disc patch needed", installed);
+        }
+
+        if (g_PcConfig.jpLanguage && !s_JpnDiscIsChinese && !s_ZhPackActive)
         {
             /* Chinese is a GLYPH swap over unchanged kuten codes, so it only
              * spells Chinese if the disc supplied Chinese strings. Left on over
@@ -792,10 +837,8 @@ void Pc_LangInit(void)
              * not parse) does. Japanese glyphs over Japanese text at least
              * reads correctly. */
             Pc_KanjiSetChinese(0);
-            SH_WARN("[LANG] Chinese selected but this disc carries no Chinese text — "
-                    "using Japanese glyphs. Chinese needs the NTSC-J disc patched with "
-                    "the Chinese translation's PPF; the port supplies the glyphs, the "
-                    "disc has to supply the words.");
+            SH_WARN("[LANG] Chinese selected but neither this disc nor gamedata/lang/"
+                    "zh.pack carries Chinese text — using Japanese glyphs.");
         }
         Pc_JpnMenuInit();
         return;
@@ -1522,9 +1565,22 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
             }
             else
             {
-                size_t len = strlen((const char*)bytes + srcPtrs[jpIdx]);
+                /* Pack first when it is driving: the overlay under us is the
+                 * Japanese disc's, so its strings are Japanese and would draw
+                 * as nonsense through the Chinese glyph set. Index with jpIdx,
+                 * because the pack stores the disc's own JP order and the map
+                 * above has already been applied. */
+                const char* src = s_ZhPackActive
+                                      ? Pc_LangZhMapMessage(mapIdx, jpIdx)
+                                      : NULL;
+                size_t      len;
 
-                memcpy(out, bytes + srcPtrs[jpIdx], len + 1);
+                if (src == NULL)
+                {
+                    src = (const char*)bytes + srcPtrs[jpIdx];
+                }
+                len = strlen(src);
+                memcpy(out, src, len + 1);
                 s_MsgPtrs[usIdx] = out;
                 out += len + 1;
             }
