@@ -11,7 +11,7 @@
 - Fixed items with see-through parts drawing solid, the unknown liquid bottle has liquid in it again
 - Fixed no footsteps when moving while aiming in the alternate cameras
 - You can sprint forward while aiming in the alternate cameras now, he used to run in place
-- Added bullet decal option to launcher controls menu and in game PC options menu
+- Added bullet decal option to launcher controls menu and in game PC options menu                     
 - Fixed the beam of light in the amusement park going over Alessa's head instead of striking her
 - Fixed Larval Stalkers never disappearing, they faded out fine on classic flashlight but every other mode kept lighting them back up
 - Fixed the camera jumping when examining doors, puzzles and key items, and when opening the inventory or going through a door
@@ -25,6 +25,7 @@
 - Main menu, options, map screens and puzzles run at your FPS setting instead of being locked to 60, inventory and cutscenes stay at 60 (set menu_fps_unlock = 0 in config.cfg to put it back)
 - Groundwork for iOS, Android, and Xbox 360 ports which now all have branches in the repo. OG Xbox port is fully playable with minimal glitches.
 
+Commit summaries:
 - release: stop `gh run watch` output riding out as the return value
 - Russian fan-translation support: menu text, PAL atlas + kerning
 - Fix lowercase o on the consolgames PAL charset
@@ -69,6 +70,8 @@
 - feat: expose bullet decals in the launcher and the in-game PC options
 - launcher: translate the Controls window and the alt-cam help dialog
 - launcher: nudge checkBox1 2px right on the main window
+- fix: move Bullet_Decals to the Controls page — Graphics overflowed
+- fix: bullet decals no longer show through Harry — OT bucket was on blood's scale
 
 ## beta-2026.08.14.1 -- 2026-08-14
 - Added achievement viewer to main menu, press map key 
