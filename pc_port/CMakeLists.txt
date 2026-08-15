@@ -975,6 +975,19 @@ if(IOS AND SH_IOS_PORT_DIR)
             COMMENT "Bundling the port's shipped assets"
             VERBATIM)
     endif()
+
+    # config.cfg sits beside the sources rather than inside assets/, so the copy
+    # above misses it and the game fell back to built-in defaults on first run
+    # (found by the Simulator smoke test). ios_bootstrap.m stages it across only
+    # when Documents has none, so a user's edited copy is never overwritten.
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/config.cfg")
+        add_custom_command(TARGET SilentHillPC POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy
+                    "${CMAKE_CURRENT_SOURCE_DIR}/config.cfg"
+                    "$<TARGET_BUNDLE_CONTENT_DIR:SilentHillPC>/config.cfg"
+            COMMENT "Bundling config.cfg"
+            VERBATIM)
+    endif()
 endif()
 
 # =============================================================================
