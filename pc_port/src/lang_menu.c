@@ -193,6 +193,9 @@ static const s_MenuTranslation s_MenuTr[] = {
     { "Antialiasing",      { NULL,                 "Anticr\xE9nelage",    "Antialias",          "Antialias"      } },
     { "Post_Process",      { "Nachbearbeitung",    "Post-traitement",     "Postproceso",        "Post-processo"  } },
     { "Tone_Mapping",      { NULL,                 NULL,                  "Mapeo_tonal",        NULL             } },
+    /* Graphics page: its value column sits at x=196, so a label has ~132px from
+     * x=64 — kept at or under "Texture_Filter", the widest English row there. */
+    { "Bullet_Decals",     { "Kugell\xF6" "cher",  "Impacts_balles",      "Marcas_de_bala",     "Fori_proiett."  } },
     { "Next_Page",         { "N\xE4" "chste_Seite", "Page_suivante",      "Sig._p\xE1gina",     "Pagina_succ."   } },
     { "Prev_Page",         { "Vorherige_Seite",    "Page_pr\xE9" "c.",    "P\xE1gina_ant.",     "Pagina_prec."   } },
     { "Back",              { "Zur\xFC" "ck",       "Retour",              "Atr\xE1s",           "Indietro"       } },

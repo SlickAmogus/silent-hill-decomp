@@ -189,6 +189,7 @@ static const s_PcOpt PCOPT_G[] = {
     { "Antialiasing",   &g_PcConfig.msaaSamples,        "msaa",                 VAL_AA,    4, LBL_AA,    NULL,                          0, PCK_INT    },
     { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
+    { "Bullet_Decals",  &g_PcConfig.bulletDecals,       "bullet_decals",        VAL_ONOFF, 2, LBL_ONOFF, NULL,                          1, PCK_INT    },
     /* New-Game start map. Moved here from the Camera page, which had run to 12
      * rows (the practical maximum) while this page had room to spare. */
     { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },

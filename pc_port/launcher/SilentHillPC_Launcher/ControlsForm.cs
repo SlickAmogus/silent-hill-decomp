@@ -183,6 +183,7 @@ public class ControlsForm : Form
     private CheckBox chkButtonSprint;
     private CheckBox chkTpsCameraCollision;
     private CheckBox chkDisableDpad;
+    private CheckBox chkBulletDecals;
     private NumericUpDown numMouseSens;
     private NumericUpDown numControllerSens;
     private NumericUpDown numFpsFov;
@@ -766,6 +767,19 @@ public class ControlsForm : Form
             "The D-pad still navigates menus and the inventory, and keyboard arrow keys are unaffected. " +
             "Off = the D-pad moves Harry as usual.");
 
+        chkBulletDecals = new CheckBox
+        {
+            Text = "Bullet decals",
+            Left = colPadX,
+            Top = chkY + 264,
+            Width = 210,
+            ForeColor = TextColor,
+        };
+        Controls.Add(chkBulletDecals);
+        tips.SetToolTip(chkBulletDecals,
+            "Leaves a bullet hole on walls and other world geometry where your gunfire lands. Not in the original " +
+            "game, so it is off by default. Also on the Graphics page of the in-game PC Options menu.");
+
         tips.SetToolTip(chkAimAssist,
             "Thirdperson / Over-the-Shoulder free-aim only (NOT first person): when the reticle is over an enemy " +
             "(mouse) or near one (controller), the shot is redirected onto the enemy's body so it connects instead of " +
@@ -1165,6 +1179,7 @@ public class ControlsForm : Form
         chkButtonSprint.Checked = config.Get("altcam_button_sprint", "0") == "1";
         chkTpsCameraCollision.Checked = config.Get("tps_camera_collision", "1") == "1";
         chkDisableDpad.Checked = config.Get("disable_dpad_movement", "0") == "1";
+        chkBulletDecals.Checked = config.Get("bullet_decals", "0") == "1";
         numMouseSens.Value = ClampSens(config.Get("mouse_sensitivity", "1.0"));
         numControllerSens.Value = ClampSens(config.Get("controller_sensitivity", "1.0"));
         numFpsFov.Value = ClampFov(config.Get("fps_fov", "71.1"));
@@ -1211,6 +1226,7 @@ public class ControlsForm : Form
         chkButtonSprint.Checked = false;
         chkTpsCameraCollision.Checked = true;
         chkDisableDpad.Checked = false;
+        chkBulletDecals.Checked = false;
         numMouseSens.Value = 1.0m;
         numControllerSens.Value = 1.0m;
         numFpsFov.Value = 71.1m;
@@ -1346,6 +1362,7 @@ public class ControlsForm : Form
         config.Set("altcam_button_sprint", chkButtonSprint.Checked ? "1" : "0");
         config.Set("tps_camera_collision", chkTpsCameraCollision.Checked ? "1" : "0");
         config.Set("disable_dpad_movement", chkDisableDpad.Checked ? "1" : "0");
+        config.Set("bullet_decals", chkBulletDecals.Checked ? "1" : "0");
         config.Set("mouse_sensitivity",
             ((double)numMouseSens.Value).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture));
         config.Set("controller_sensitivity",

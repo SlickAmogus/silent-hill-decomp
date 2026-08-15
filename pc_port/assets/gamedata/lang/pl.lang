@@ -1416,6 +1416,7 @@ MENU.PGXP=PGXP
 MENU.Antialiasing=Antialiasing
 MENU.Post_Process=Post_Process
 MENU.Tone_Mapping=Tone_Mapping
+MENU.Bullet_Decals=Ślady_kul
 MENU.Flashlight=Latarka
 MENU.Third_Person_FOV=3-cio_Osobowy_FOV
 MENU.Aim_Zoom=Zoom_podczas_cel.
