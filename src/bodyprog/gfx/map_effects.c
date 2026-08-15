@@ -95,6 +95,9 @@ void func_8003E740(void) // 0x8003E740
     s32       sp40[4];
     SVECTOR   sp50;
     DVECTOR   sp58;
+#ifdef SH_PC_PORT
+    DVECTOR   sp5C_ofs = { 0, 0 }; /* projected quad centre; the constant to remove */
+#endif
     s32       sp60;
     s32       temp_a0;
     s32       temp_s6;
@@ -176,34 +179,77 @@ void func_8003E740(void) // 0x8003E740
         SetTransMatrix(&GsIDMATRIX);
 
         sp50.vz = temp_s6;
+#ifdef SH_PC_PORT
+        /* The corner projections below are only used as a screen-space SIZE, added
+         * to sp10 (the hand position, already projected). Every RotTransPers adds
+         * the projection centre, so the sum counts it twice -- harmless on PSX,
+         * where it is always 0, but the port shifts it down by g_PsxWorldVShift on
+         * a fixed-angle camera. That is the alley match flame sitting below Harry's
+         * hand: correct through the letterboxed scene (cutscenes zero the shift),
+         * offset the moment the letterbox ends and gameplay's fixed cam restores
+         * it, and correct again at the next camera angle that is not FIX_ANG.
+         *
+         * The matrices here are identity and the depth is constant, so projecting
+         * the quad centre gives exactly the constant both corners carry; subtracting
+         * it leaves the pure size. Zero offset makes this projection (0,0), so the
+         * arithmetic is unchanged where the original ran. */
+        {
+            SVECTOR ctr;
+            ctr.vx = 0;
+            ctr.vy = 0;
+            ctr.vz = temp_s6;
+            ctr.pad = 0;
+            RotTransPers(&ctr, &sp5C_ofs, &sp60, &sp60);
+        }
+#endif
         sp50.vx = sp40[0] - 51;
         sp50.vy = sp40[2] - 51;
 
         RotTransPers(&sp50, &sp58, &sp60, &sp60);
 
+#ifdef SH_PC_PORT
+        poly->x0 = sp10.vx + (sp58.vx - sp5C_ofs.vx);
+        poly->y0 = sp10.vy + (sp58.vy - sp5C_ofs.vy);
+#else
         poly->x0 = sp10.vx + sp58.vx;
         poly->y0 = sp10.vy + sp58.vy;
+#endif
         sp50.vx  = sp40[1] + 51;
         sp50.vy  = sp40[3] - 51;
 
         RotTransPers(&sp50, &sp58, &sp60, &sp60);
 
+#ifdef SH_PC_PORT
+        poly->x1 = sp10.vx + (sp58.vx - sp5C_ofs.vx);
+        poly->y1 = sp10.vy + (sp58.vy - sp5C_ofs.vy);
+#else
         poly->x1 = sp10.vx + sp58.vx;
         poly->y1 = sp10.vy + sp58.vy;
+#endif
         sp50.vx  = -51 - sp40[1];
         sp50.vy  = 51 - sp40[3];
 
         RotTransPers(&sp50, &sp58, &sp60, &sp60);
 
+#ifdef SH_PC_PORT
+        poly->x2 = sp10.vx + (sp58.vx - sp5C_ofs.vx);
+        poly->y2 = sp10.vy + (sp58.vy - sp5C_ofs.vy);
+#else
         poly->x2 = sp10.vx + sp58.vx;
         poly->y2 = sp10.vy + sp58.vy;
+#endif
         sp50.vx  = 51 - sp40[0];
         sp50.vy  = 51 - sp40[2];
 
         RotTransPers(&sp50, &sp58, &sp60, &sp60);
 
+#ifdef SH_PC_PORT
+        poly->x3 = sp10.vx + (sp58.vx - sp5C_ofs.vx);
+        poly->y3 = sp10.vy + (sp58.vy - sp5C_ofs.vy);
+#else
         poly->x3 = sp10.vx + sp58.vx;
         poly->y3 = sp10.vy + sp58.vy;
+#endif
 
 #ifdef SH_PC_PORT
         /* PAL FLAME sits at u=0 of its own tpage instead of u=128 of BG_ETC's. */
