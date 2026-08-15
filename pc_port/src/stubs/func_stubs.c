@@ -56,11 +56,12 @@ TIM_IMAGE* ReadTIM(TIM_IMAGE* timimg)
 
 /* SDL_main - SDL2main.a calls this; redirect to our actual main.
  *
- * Not on Android: there main_pc.c deliberately leaves SDL_MAIN_HANDLED undefined
- * and includes SDL_main.h, which already renames its main() to SDL_main so
- * SDLActivity can call it. Defining the shim as well would be a second
- * SDL_main, and there is no plain main() left for it to forward to. */
-#ifndef __ANDROID__
+ * Not on either mobile target: there main_pc.c deliberately leaves
+ * SDL_MAIN_HANDLED undefined and includes SDL_main.h, which already renames its
+ * main() to SDL_main so SDLActivity (Android) or SDL_uikit_main's
+ * UIApplicationMain (iOS) can call it. Defining the shim as well would be a
+ * second SDL_main, and there is no plain main() left for it to forward to. */
+#if !defined(__ANDROID__) && !defined(SH_IOS)
 extern int main(int argc, char* argv[]);
 int SDL_main(int argc, char* argv[]) { return main(argc, argv); }
 #endif
