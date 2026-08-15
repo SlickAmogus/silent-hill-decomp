@@ -3066,6 +3066,23 @@ void MainLoop(void) // 0x80032EE0
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
         }
+        else if (g_GameWork.gameState == GameState_InventoryScreen) {
+            /* One-frame WHITE FLASH on opening the inventory.
+             *
+             * Every branch here is gated on gameState, and the inventory's is
+             * not 11, so on its first frame none of them ran and
+             * background2dColor still held the value gameplay left there — the
+             * FOG colour. GsSortClear then filled the whole screen with it, and
+             * Silent Hill's fog is nearly white, so it read as a white flash
+             * until the inventory got far enough to set its own black.
+             *
+             * Same bug the paper map had ("the pillarbox bars kept the stale
+             * gameplay fog color") and the same fix: state the colour rather
+             * than inherit it. PSX cleared menus to black. */
+            g_GameWork.background2dColor.r = 0;
+            g_GameWork.background2dColor.g = 0;
+            g_GameWork.background2dColor.b = 0;
+        }
         else if (g_GameWork.gameState == 11 && g_SysWork.sysState == SysState_GameOver) {
             /* GAME OVER renders its own death scene; the sky is meant to be black there.
              *
