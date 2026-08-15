@@ -1090,6 +1090,43 @@ static int MsgCleanRun(const unsigned char* ovl, unsigned int ovlSize, unsigned 
     return i;
 }
 
+/* A dub-only release (ViT Co / Metallist) strips the words out of every voiced
+ * line and leaves the "~J0(seconds)" timing command behind, so the scene still
+ * paces to the dubbed audio but draws nothing. That is what the disc says and
+ * what real hardware shows, so it is not corrected here — only reported, since
+ * it reads as a port bug ("no subtitles") every time someone runs one. */
+static int MsgIsVoicedButBlank(const char* s)
+{
+    int visible = 0;
+
+    if (strstr(s, "~J0(") == NULL)
+        return 0;
+
+    for (; *s != '\0'; s++)
+    {
+        if (*s == '~')
+        {
+            /* Commands are ~ + letter + optional index digits + optional
+             * "(2.0)" argument: ~E, ~C2, ~J0(6.0). */
+            if (s[1] != '\0')
+                s++;
+            while (s[1] >= '0' && s[1] <= '9')
+                s++;
+            if (s[1] == '(')
+            {
+                while (s[1] != '\0' && s[1] != ')')
+                    s++;
+                if (s[1] == ')')
+                    s++;
+            }
+            continue;
+        }
+        if (*s != ' ' && *s != '\t' && *s != '\n' && *s != '\r' && *s != '_')
+            visible = 1;
+    }
+    return !visible;
+}
+
 static unsigned int UsaDetectOverlayBase(const unsigned char* ovl, unsigned int ovlSize)
 {
     static unsigned int s_rebuiltBase = 0; /* cache: a disc has ONE overlay base */
@@ -1173,6 +1210,7 @@ static void UsaPatchMapMessages(int mapIdx)
     char*             newPool;
     char*             out;
     const char**      origMsgs;
+    int               dubbed;
     extern s_MapOverlayHdr* g_pMapOverlayHeader;
 
     if (mapIdx < 0 || mapIdx >= 45 || g_pMapOverlayHeader == NULL)
@@ -1259,13 +1297,18 @@ static void UsaPatchMapMessages(int mapIdx)
     s_MsgPool = newPool;
     out       = s_MsgPool;
 
+    dubbed = 0;
     for (i = 0; i < MSG_COUNT_MAX; i++)
     {
         if (i < srcCount)
         {
-            size_t len = strlen((const char*)ovl + srcPtrs[i]);
+            const char* src = (const char*)ovl + srcPtrs[i];
+            size_t      len = strlen(src);
 
-            memcpy(out, ovl + srcPtrs[i], len + 1);
+            if (MsgIsVoicedButBlank(src))
+                dubbed++;
+
+            memcpy(out, src, len + 1);
             s_MsgPtrs[i] = out;
             out += len + 1;
         }
@@ -1281,6 +1324,12 @@ static void UsaPatchMapMessages(int mapIdx)
 
     free(ovl);
     SH_LOG("[FANPATCH] map %d: %d translated messages installed", mapIdx, srcCount);
+    if (dubbed > 0)
+    {
+        SH_LOG("[FANPATCH] map %d: %d voiced lines have no subtitle text on this disc "
+               "(dub release — the patch removed the words and kept the timing)",
+               mapIdx, dubbed);
+    }
 }
 
 void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
