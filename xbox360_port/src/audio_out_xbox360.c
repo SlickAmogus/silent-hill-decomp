@@ -14,6 +14,7 @@
  * around a software SPU that is not reentrant.
  */
 #include <string.h>
+#include <stdint.h>   /* xenon_sound/sound.h uses uint32_t without including it */
 
 #include <xenon_sound/sound.h>
 
@@ -41,8 +42,9 @@ void Audio360_Init(void)
     SH_DBG("[AUD] xenon_sound up: %d Hz stereo, %d-frame chunks", OUT_HZ, CHUNK_FRAMES);
 }
 
-/* Call once per frame. Renders and submits until the queue is topped up. */
-void Audio360_Pump(void)
+/* Call once per frame. Renders and submits until the queue is topped up.
+ * Keeps the Xbox port's name: audio_xbox.c already calls Audio_XboxPump. */
+void Audio_XboxPump(void)
 {
     int guard = 0;
 

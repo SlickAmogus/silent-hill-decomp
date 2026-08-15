@@ -65,6 +65,11 @@ if [ "$FLAVOUR" = clang ]; then
 else
     # libXenon's own MACHDEP, verbatim from $DEVKITXENON/rules.
     TARGETFLAGS="-DXENON -m32 -maltivec -fno-pic -mpowerpc64 -mhard-float"
+    # PsyCross declares helpers like fst_min/fst_max as plain `inline`. Under
+    # C99 semantics that emits NO out-of-line definition, so they link as
+    # undefined; gnu89 semantics (what the PC and Xbox builds effectively use)
+    # emit one. Cheaper and safer than patching a submodule.
+    TARGETFLAGS="$TARGETFLAGS -fgnu89-inline"
     INCS="$INCS -I${DEVKITXENON:-/usr/local/xenon}/usr/include"
 fi
 

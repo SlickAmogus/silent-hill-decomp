@@ -48,6 +48,15 @@ static unsigned s_scissorChanges;
 static ShVertex s_pool[GPU_POOL_VERTS];
 static int      s_poolUsed;
 
+/* State gpu_xbox.c reads directly. The content rect is the drawable area inside
+ * the framebuffer (the Xbox port uses it for widescreen pillarboxing); full
+ * surface until there is a real surface to inset. */
+int                g_Nv2aFrameCount;
+int                g_Nv2aContentX = 0;
+int                g_Nv2aContentW = 640;
+int                g_Nv2aContentH = 480;
+unsigned long long g_Nv2aDrawCycles;
+
 void GpuNv2a_Init(void)
 {
     /* xenos_init() already ran in main_xbox360.c to bring the console up before
@@ -60,6 +69,9 @@ void GpuNv2a_Init(void)
 
 void GpuNv2a_FrameBegin(void)
 {
+    /* Doubles as psx_vram.c's texture-cache LRU clock, so it has to tick even
+     * with no rendering behind it or every cached page looks equally stale. */
+    g_Nv2aFrameCount++;
     s_poolUsed            = 0;
     s_trisThisFrame       = 0;
     s_batchVertsThisFrame = 0;
@@ -158,16 +170,20 @@ const void* GpuNv2a_ReadbackSurface(int fromLastQueued, int* w, int* h, int* pit
 
 int GpuNv2a_Ms(void) { return 0; }
 
-int GpuXbox_FbRegionOverlap(int x0, int y0, int x1, int y1)
-{
-    (void)x0; (void)y0; (void)x1; (void)y1;
-    return 0;                          /* nothing in the fb to overlap yet */
-}
+/* The GpuXbox_Fb* entry points are NOT defined here: gpu_xbox.c owns them (it
+ * holds the draw/display envs and the screen transform), and it is compiled into
+ * this build unchanged. Defining them here too is what the first full link
+ * caught. */
 
-void GpuXbox_FbReadbackForTexture(int px0, int py0, int px1, int py1)
-{
-    (void)px0; (void)py0; (void)px1; (void)py1;
-}
+/* Nothing is queued, so the drain is already complete. */
+void GpuNv2a_DrainGpu(void) { }
 
-void GpuXbox_FbReadbackForStore(void) { }
-void GpuXbox_FbStoreFrameTick(void)   { }
+void GpuNv2a_SetDepthWrite(int enable)        { (void)enable; }
+void GpuNv2a_SetPaletteDmaVariant(int variant) { (void)variant; }
+
+/* Freeze-frame capture (pause/save backgrounds). 0 = "no frame captured", so
+ * callers fall back to drawing the scene live instead of blitting a buffer that
+ * was never filled -- which would show as a black pane. */
+int  GpuNv2a_FreezeCapture(void) { return 0; }
+void GpuNv2a_FreezeBlit(void)    { }
+void GpuNv2a_FreezeRelease(void) { }

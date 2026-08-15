@@ -42,6 +42,10 @@
 #define PSX_CROSS   14
 #define PSX_SQUARE  15
 
+/* From psyq/libpad.h. Defined locally rather than including that header, which
+ * drags in decomp types this TU has no other reason to see. */
+#define PadStateStable 6
+
 static unsigned char* s_padBuf = 0;
 static int            s_haveCtrl = 0;
 /* Set once a stick has been observed inside its deadzone -- see Pad_Poll. */
@@ -171,6 +175,18 @@ unsigned short Pad_XboxButtons(void)
 {
     return s_lastButtons;
 }
+
+/* ---- libpad surface the game links against -------------------------------
+ * The port drives the pad through PadInitDirect + Pad_Poll, so these exist to
+ * satisfy the PSX API rather than to do work. PadGetState reports Stable
+ * unconditionally: the game polls it before accepting input, and reporting a
+ * transient state would make it discard perfectly good pad reports. */
+int  PadChkVsync(void)                                 { return 0; }
+void PadStartCom(void)                                 { }
+int  PadGetState(int socket)                           { (void)socket; return PadStateStable; }
+int  PadInfoMode(int socket, int term, int offs)       { (void)socket; (void)term; (void)offs; return 0; }
+int  PadSetActAlign(int socket, unsigned char* a)      { (void)socket; (void)a; return 1; }
+int  PadSetMainMode(int socket, int offs, int lock)    { (void)socket; (void)offs; (void)lock; return 1; }
 
 /* PSX actuator bytes -> pad rumble. table[0]/[1] are the small/large motors. */
 void PadSetAct(int socket, unsigned char* table, int len)
