@@ -16,7 +16,9 @@
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
 #endif
-#if defined(__APPLE__) && TARGET_OS_IPHONE
+/* Normally supplied by the build (pc_port/CMakeLists.txt defines it for IOS);
+ * derived here as well so this file is correct on its own. */
+#if defined(__APPLE__) && TARGET_OS_IPHONE && !defined(SH_IOS)
 #define SH_IOS 1
 #endif
 

@@ -977,14 +977,15 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
      * upload reports a COMPRESSED internal format here (a sub-image into it
      * would fail), so only GL's own answer is trustworthy. */
     int reuseStorage;
-#if defined(__ANDROID__)
-    /* glGetTexLevelParameteriv is ES 3.1; the NDK's <GLES3/gl3.h> is ES 3.0, so
-     * the current storage cannot be queried and the reuse fast path cannot be
-     * proven safe (the BC7-compressed-format case it guards against would make
-     * a sub-image fail). Always take the reallocating path below — the same one
-     * every genuine (re)allocation already uses, so this is correct, only
-     * slower. Restoring the fast path here means moving to <GLES3/gl31.h>,
-     * which would also raise the device requirement to ES 3.1. */
+#if defined(__ANDROID__) || defined(SH_IOS)
+    /* glGetTexLevelParameteriv is ES 3.1, and neither mobile target has it: the
+     * NDK's <GLES3/gl3.h> is ES 3.0, and Apple's OpenGLES framework stops at ES
+     * 3.0 as well (iOS never shipped 3.1). So the current storage cannot be
+     * queried and the reuse fast path cannot be proven safe (the
+     * BC7-compressed-format case it guards against would make a sub-image
+     * fail). Always take the reallocating path below — the same one every
+     * genuine (re)allocation already uses, so this is correct, only slower.
+     * Restoring the fast path means moving to ES 3.1, which iOS cannot do. */
     reuseStorage = 0;
 #else
     {

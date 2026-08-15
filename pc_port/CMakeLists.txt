@@ -359,6 +359,8 @@ target_compile_definitions(SilentHillPC PRIVATE
     SH_PC_PORT
     SKIP_ASM
     $<$<OR:$<BOOL:${ANDROID}>,$<BOOL:${IOS}>>:SH_NO_OPENAL>
+    # Saves every iOS-conditional TU repeating the TargetConditionals dance.
+    $<$<BOOL:${IOS}>:SH_IOS>
 )
 
 # static_assert -> _Static_assert only for C files (breaks C++ std headers)
