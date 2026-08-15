@@ -343,6 +343,55 @@ int Pc_ScriptOwnsShot(void)
  * clamped onto the scripted shot for the whole scene. */
 static int Pc_AltCamStateOk(void);
 
+#ifdef SH_PC_PORT
+/* Screens that may run at the user's fps cap instead of the hard one-vblank wait
+ * every non-gameplay state takes.
+ *
+ * Deliberately a short list rather than "anything that isn't gameplay". These
+ * are the screens with nothing running underneath them: no animation stepping,
+ * no DMS, no world simulation — just a cursor and some 2D. The INVENTORY is
+ * excluded on purpose even though it looks like a menu: it spins live item
+ * models and rides the same carousel timing gameplay does. Cutscenes are
+ * excluded twice over — they never reach here, and Pc_ScriptOwnsShot clamps
+ * them to 60 inside the pacing block anyway.
+ *
+ * menu_fps_unlock = 0 puts all of it back. */
+static int Pc_ScreenFpsUnlocked(void)
+{
+    extern int Pc_MouseCursor_PuzzleActive(void);
+
+    if (!g_PcConfig.menuFpsUnlock)
+    {
+        return 0;
+    }
+
+    switch (g_GameWork.gameState)
+    {
+        case GameState_MainMenu:
+        case GameState_OptionScreen:
+        case GameState_PaperMapScreen:
+            return 1;
+
+        case GameState_InGame:
+            /* In-game options and the map screen only; the inventory
+               (SysState_StatusMenu) is intentionally absent. */
+            if (g_SysWork.sysState == SysState_OptionsMenu ||
+                g_SysWork.sysState == SysState_MapScreen)
+            {
+                return 1;
+            }
+            break;
+
+        default:
+            break;
+    }
+
+    /* Cursor puzzles run over a frozen world and already scale their cursor by
+     * dt, so they are safe to let loose. */
+    return Pc_MouseCursor_PuzzleActive() ? 1 : 0;
+}
+#endif
+
 static void Pc_CameraFov_Update(int standDown)
 {
     static int s_fovApplied = 0;
@@ -2410,7 +2459,11 @@ void MainLoop(void) // 0x80032EE0
         }
         else
         {
+#ifdef SH_PC_PORT
+            if (g_SysWork.sysState != SysState_Gameplay && !Pc_ScreenFpsUnlocked())
+#else
             if (g_SysWork.sysState != SysState_Gameplay)
+#endif
             {
                 ML_TRACE("VSync-nonGameplay");
                 g_VBlanks     = VSync(SyncMode_Count) - g_PrevVBlanks;
@@ -2443,7 +2496,7 @@ void MainLoop(void) // 0x80032EE0
                 {
                     static Uint64 s_lastFrameTime = 0;
                     int effectiveMin = g_IntervalVBlanks;
-                    if (g_GameWork.gameState == GameState_InGame)
+                    if (g_GameWork.gameState == GameState_InGame || Pc_ScreenFpsUnlocked())
                     {
                         int effectiveFps;
 

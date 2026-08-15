@@ -32,6 +32,7 @@ s_PcConfig g_PcConfig = {
     .texpackLazyMs = 4, /* per-frame wall-clock budget for the on-demand pack composer (pop-in speed vs frame cost) */
     .dumpTextures = 0, /* 1=write every decoded texture upload to gamedata/dump/ as a pack-named PNG (modding aid) */
     .attractDemos = 1,
+    .menuFpsUnlock = 1, /* menus/map/puzzles follow fps_cap; inventory and cutscenes do not */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
@@ -538,6 +539,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "attract_demos") == 0)
         {
             g_PcConfig.attractDemos = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "menu_fps_unlock") == 0)
+        {
+            g_PcConfig.menuFpsUnlock = (atoi(value) != 0);
         }
         else if (strcmp(key, "bullet_decals") == 0)
         {
