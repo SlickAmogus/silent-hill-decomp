@@ -198,6 +198,25 @@ stops being load-bearing.
    local named `_P` colliding with newlib's `<ctype.h>` character-class macro, and
    a `libgs_stub.c` timer branch that assumed nxdk's `xboxkrnl.h`.
 2. **libXenon toolchain + link + boot to a logged black screen** on hardware.
+   Link chain proven end to end, producing `ELF 32-bit MSB executable, PowerPC`,
+   which is the format XeLL loads:
+
+   ```sh
+   MACHDEP="-DXENON -m32 -maltivec -fno-pic -mpowerpc64 -mhard-float \
+            -L$DEVKITXENON/xenon/lib/32"
+   xenon-gcc $MACHDEP -c src/main_xbox360.c -o m.o
+   xenon-gcc $MACHDEP -n -T $DEVKITXENON/app.lds m.o \
+             -L$DEVKITXENON/usr/lib -lxenon -lm -o a.elf
+   xenon-objcopy -O elf32-powerpc --adjust-vma 0x80000000 a.elf xenon.elf
+   xenon-strip xenon.elf
+   ```
+
+   The `-L$DEVKITXENON/xenon/lib/32` is load-bearing and easy to miss: without it
+   the linker finds the 64-bit newlib and reports `skipping incompatible libc.a`,
+   then `cannot find -lc`. It is part of libXenon's `MACHDEP`, not the link flags.
+
+   Deployment is USB: `xenon.elf` at the stick's root, launched by XeLL after
+   BadUpdate -> FreeMyXe. No LAN loader assumed.
 3. **Endian swappers** for the 12 formats, validated under QEMU against the x86 build.
 4. **Software GTE + one textured triangle** through the Xenos driver.
 5. **Load `map0_s00` and render one frame.**

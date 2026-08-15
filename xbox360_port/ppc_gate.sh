@@ -94,6 +94,12 @@ collect_srcs() {
     # map TUs come once the overlay mechanism is proven on PPC.
     find "$DECOMP/src/maps/map0_s00" -name '*.c'
     ls "$PCPORT/build_gen/extracted_data/map0_s00_extracted_data.c" 2>/dev/null
+    # GTE_SRCS from xbox_port/Makefile.nxdk: the software GTE. Portable C/C++,
+    # and the one piece of PsyCross a bare-metal console keeps.
+    echo "$PSYCROSS/src/psx/inline_c.c"
+    echo "$PSYCROSS/src/psx/libgte.c"
+    echo "$PSYCROSS/src/psx/abs.c"
+    echo "$PSYCROSS/src/gte/PsyX_GTE.cpp"
 }
 
 pass=0; fail=0
@@ -106,7 +112,12 @@ while IFS= read -r f; do
         */maps/map0_s00/*|*map0_s00_extracted_data.c) EXTRA="-DMAP0_S00 -DSH_MAP_NAME=map0_s00" ;;
         *) EXTRA="" ;;
     esac
-    if err=$("$CC" $TARGETFLAGS $DEFS $INCS $WARN $EXTRA -c "$f" -o "$obj" 2>&1); then
+    # PsyX_GTE.cpp is the only C++ TU in scope.
+    case "$f" in
+        *.cpp) TOOL="${CXX:-${CC%gcc}g++}"; [ "$FLAVOUR" = clang ] && TOOL="$CC" ;;
+        *)     TOOL="$CC" ;;
+    esac
+    if err=$("$TOOL" $TARGETFLAGS $DEFS $INCS $WARN $EXTRA -c "$f" -o "$obj" 2>&1); then
         pass=$((pass+1))
     else
         fail=$((fail+1))
