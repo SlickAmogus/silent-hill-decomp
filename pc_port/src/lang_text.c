@@ -145,6 +145,15 @@ int Pc_LangActive(void)
 
 static int s_FanTextActive;
 
+/* Set once the disc's item text is recognised as the Chinese patch. Until then
+ * nothing may claim this disc can render Chinese. */
+static int s_JpnDiscIsChinese;
+
+int Pc_LangJpnDiscIsChinese(void)
+{
+    return s_JpnDiscIsChinese;
+}
+
 int Pc_FanTextActive(void)
 {
     return s_FanTextActive;
@@ -575,6 +584,41 @@ static void EurFanFontInit(void)
  * game's own kuten codes and only redefines the glyphs drawn at them), so the
  * arrays are still JP-linked and only their strings differ. Map/story text
  * needs nothing here — that already comes off the disc on NTSC-J. */
+/* Fingerprint of the adopted NTSC-J item text: FNV-1a over item names 0..7,
+ * each NUL-terminated. Measured offline from the discs themselves —
+ *
+ *   0x5FE7A885  retail SLPM-86192 (栄養剤 / 携帯用救急キット / アンプル)
+ *   0xECCF3760  the goro / 十三月 2006 Chinese patch (PPF applied to that disc)
+ *
+ * The Chinese patch does not write Chinese; it writes JIS kuten codes whose
+ * GLYPHS its custom BIOS redefines. Its item names come out as runs like
+ * 0x89B3 0x89B4 0x89B5 — sequential nonsense as Japanese, which is exactly what
+ * makes them a reliable signature. */
+#define JPN_ITEMS_FNV_CHINESE 0xECCF3760u
+
+static unsigned int JpnItemTextFingerprint(void)
+{
+    unsigned int h = 2166136261u;
+    int          i;
+
+    for (i = 0; i < 8; i++)
+    {
+        const char* p = s_ItemNames[i];
+
+        if (p != NULL)
+        {
+            for (; *p != '\0'; p++)
+            {
+                h ^= (unsigned char)*p;
+                h *= 16777619u;
+            }
+        }
+        h ^= 0u;
+        h *= 16777619u;
+    }
+    return h;
+}
+
 /* Returns 1 only if the disc's own item text replaced the compiled tables. */
 static int JpnFanTextInit(void)
 {
@@ -624,6 +668,19 @@ static int JpnFanTextInit(void)
         case 1:
             SH_LOG("[FANPATCH] modified NTSC-J item text adopted from disc");
             adopted = 1;
+            if (JpnItemTextFingerprint() == JPN_ITEMS_FNV_CHINESE)
+            {
+                /* The disc IS the Chinese release, so turn its glyph set on
+                 * without making the player find the language row: on this disc
+                 * Japanese glyphs would render the same codes as gibberish, so
+                 * Chinese is not a preference here, it is the correct reading. */
+                s_JpnDiscIsChinese = 1;
+                if (!g_PcConfig.jpLanguage)
+                {
+                    g_PcConfig.jpLanguage = 1;
+                    SH_LOG("[LANG] Chinese-patched NTSC-J disc detected — selecting Chinese");
+                }
+            }
             break;
         case -1:
             SH_WARN("[FANPATCH] NTSC-J BODYPROG item arrays did not parse — keeping compiled item text");
@@ -724,7 +781,8 @@ void Pc_LangInit(void)
 
         /* A fan-translated JP disc (the Chinese patch) rewrites those same
          * arrays; adopting them replaces the pointers just installed. */
-        if (!JpnFanTextInit() && g_PcConfig.jpLanguage)
+        JpnFanTextInit();
+        if (g_PcConfig.jpLanguage && !s_JpnDiscIsChinese)
         {
             /* Chinese is a GLYPH swap over unchanged kuten codes, so it only
              * spells Chinese if the disc supplied Chinese strings. Left on over
@@ -735,7 +793,9 @@ void Pc_LangInit(void)
              * reads correctly. */
             Pc_KanjiSetChinese(0);
             SH_WARN("[LANG] Chinese selected but this disc carries no Chinese text — "
-                    "using Japanese glyphs (a Chinese-patched NTSC-J disc is required)");
+                    "using Japanese glyphs. Chinese needs the NTSC-J disc patched with "
+                    "the Chinese translation's PPF; the port supplies the glyphs, the "
+                    "disc has to supply the words.");
         }
         Pc_JpnMenuInit();
         return;
