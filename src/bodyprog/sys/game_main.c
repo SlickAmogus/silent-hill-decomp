@@ -2917,8 +2917,28 @@ void MainLoop(void) // 0x80032EE0
                  * Safe to hold here because this offset only ever describes the WORLD
                  * render: every screen that projects its own 3D sets its own centre
                  * first (the inventory carousel in item_screens_cam.c, the effect passes
-                 * in bodyprog_80055028.c), so none of them inherit this value. */
-                ofy = s_heldWorldOfy;
+                 * in bodyprog_80055028.c), so none of them inherit this value.
+                 *
+                 * EXCEPT during a cutscene, which owns its own framing. The Gameplay
+                 * branch above has always zeroed the shift for those (g_PsxCutsceneActive)
+                 * and the hold has to agree, or a cutscene that runs outside
+                 * SysState_Gameplay keeps the last gameplay shift and moves the world out
+                 * from under the letterbox bars — the bars are 2D at fixed screen Y and do
+                 * not move with it. That is the exact fault 161b950d4 fixed for the alley
+                 * match scene ("drew its letterbox bars shifted up by the gameplay
+                 * fixed-cam vshift, revealing the scene's own bar underneath"), and
+                 * generalising the hold reintroduced it for the map6_s04 Cybil scene.
+                 * Border state counts as well as the cutscene flag, so a cinematic zoom
+                 * letterbox is covered the same way that fix gated it. */
+                if (g_PsxCutsceneActive ||
+                    g_SysWork.cutsceneBorderState != CutsceneBorderState_None)
+                {
+                    ofy = 0;
+                }
+                else
+                {
+                    ofy = s_heldWorldOfy;
+                }
             }
 
             SetGeomOffset(0, ofy);
