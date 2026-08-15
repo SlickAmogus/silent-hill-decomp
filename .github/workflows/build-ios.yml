@@ -1,0 +1,77 @@
+name: Build iOS Port (arm64)
+
+# Produces an UNSIGNED SilentHill.ipa for sideloading. There is no way to build
+# this off macOS: only Apple's clang emits arm64-apple-ios, and the Homebrew GCC
+# that pc_port/build.sh selects for the desktop macOS build cannot target iOS at
+# all. GitHub's macOS runners are free and unmetered for a public repository,
+# which is what makes this practical without owning a Mac.
+#
+# Signing is deliberately NOT done here. A CI runner has no keychain, no Apple
+# ID and no provisioning profile, and it does not need one: an unsigned .ipa is
+# re-signed on the way onto the device by Sideloadly or AltServer on Windows,
+# using a free Apple ID.
+
+on:
+  push:
+    branches: [ios-port]
+    paths-ignore:
+      - '**.md'
+      - 'pc_port/launcher/**'
+  pull_request:
+    branches: [ios-port]
+  workflow_dispatch:
+
+jobs:
+  build:
+    if: github.repository == 'SlickAmogus/silent-hill-decomp'
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout (with SDL + PsyCross submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build tools
+        # Only cmake and ninja. Everything else the iOS build needs — clang, the
+        # iPhoneOS SDK, ibtool, llvm-nm and llvm-objcopy for the map overlay
+        # symbol prefixing — ships with Xcode. Nothing is brew-installed for the
+        # target, because a Homebrew package is built for the host, not for iOS.
+        run: brew install cmake ninja
+
+      - name: Toolchain versions
+        run: |
+          clang --version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcrun --sdk iphoneos --show-sdk-path
+          cmake --version | head -1
+          ninja --version
+
+      - name: Build + package
+        run: |
+          chmod +x ios_port/build_ios.sh
+          ./ios_port/build_ios.sh
+
+      - name: Report what was built
+        run: |
+          set -o pipefail
+          APP="$(find build-ios -maxdepth 4 -name 'SilentHill.app' -type d | head -1)"
+          echo "=== bundle contents ==="
+          ls -la "$APP"
+          echo "=== binary ==="
+          file "$APP/SilentHill"
+          echo "=== architectures ==="
+          lipo -info "$APP/SilentHill" || true
+          echo "=== confirm it really is an iOS binary, not a host build ==="
+          otool -l "$APP/SilentHill" | grep -A4 LC_BUILD_VERSION | head -12
+          echo "=== size ==="
+          du -sh "$APP"
+          ls -la build-ios/SilentHill-unsigned.ipa
+
+      - name: Upload unsigned .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: SilentHill-ios-unsigned
+          path: build-ios/SilentHill-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 90

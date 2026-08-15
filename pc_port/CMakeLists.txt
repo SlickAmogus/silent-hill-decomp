@@ -43,7 +43,7 @@ option(SH_ASAN "Enable AddressSanitizer for memory corruption detection" OFF)
 # shared objects on a search path, a writable CWD next to the binary). None of
 # those hold inside an APK, so they default off for Android and stay on
 # everywhere else. Explicit -D on the command line still wins.
-if(ANDROID)
+if(ANDROID OR IOS)
     set(SH_DESKTOP_FEATURE_DEFAULT OFF)
 else()
     set(SH_DESKTOP_FEATURE_DEFAULT ON)
@@ -218,11 +218,12 @@ set_source_files_properties(
     "${DECOMP_DIR}/src/bodyprog/items/item_screens_2.c"
     PROPERTIES COMPILE_OPTIONS "-O0")
 
-# Android ships no OpenAL, so the legacy AL renderer is left out of the build
+# Neither mobile target ships OpenAL — Android never had it, and Apple removed
+# its OpenAL framework — so the legacy AL renderer is left out of the build
 # entirely and the software stack (xa_player_software.c + PsyX_SPUSoftware,
 # both SDL-sinked) becomes the only audio path. SH_NO_OPENAL collapses
 # xa_player_dispatch.c onto it — see the comment there.
-if(ANDROID)
+if(ANDROID OR IOS)
     list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "xa_player\\.c$")
 endif()
 
@@ -292,6 +293,20 @@ if(ANDROID)
     )
     # SDLActivity's default getLibraries() loads "main".
     set_target_properties(SilentHillPC PROPERTIES OUTPUT_NAME "main")
+elseif(IOS)
+    # iOS does have a real executable entry point, unlike Android, but it has to
+    # be inside an .app bundle for the loader to accept it. SDL2's UIKit backend
+    # provides UIApplicationMain and calls the game's main() from it, so the
+    # sources are unchanged. Info.plist is configured by ios_port/CMakeLists.txt,
+    # which owns the bundle metadata.
+    add_executable(SilentHillPC MACOSX_BUNDLE
+        ${PC_PORT_SOURCES}
+        ${MAIN_SOURCES}
+        ${BODYPROG_SOURCES}
+        ${SCREEN_SOURCES}
+        ${MAP_SOURCES}
+        ${SH_IOS_SOURCES}
+    )
 else()
 add_executable(SilentHillPC
     ${PC_PORT_SOURCES}
@@ -343,7 +358,7 @@ target_compile_definitions(SilentHillPC PRIVATE
     VER_${SH_VERSION}
     SH_PC_PORT
     SKIP_ASM
-    $<$<BOOL:${ANDROID}>:SH_NO_OPENAL>
+    $<$<OR:$<BOOL:${ANDROID}>,$<BOOL:${IOS}>>:SH_NO_OPENAL>
 )
 
 # static_assert -> _Static_assert only for C files (breaks C++ std headers)
@@ -494,8 +509,8 @@ endif()
 # SH_FMV_MJPEG drives the libjpeg-backed AVI override decoder in fmv_player.cpp.
 # The disc's own STR/MDEC FMVs never touch it, so a platform without libjpeg
 # (Android) just loses the override and still plays every cutscene.
-if(ANDROID)
-    message(STATUS "libjpeg: skipped (Android) — MJPG AVI overrides disabled, disc STR FMVs unaffected")
+if(ANDROID OR IOS)
+    message(STATUS "libjpeg: skipped (mobile) — MJPG AVI overrides disabled, disc STR FMVs unaffected")
 elseif(JPEG_LIBRARY)
     target_link_libraries(SilentHillPC PRIVATE ${JPEG_LIBRARY})
     target_compile_definitions(SilentHillPC PRIVATE SH_FMV_MJPEG)
@@ -624,6 +639,24 @@ elseif(ANDROID)
     # the GL entry points come from libGLESv3. android/log is what SH_DBG's
     # eprintf maps to on this platform.
     target_link_libraries(SilentHillPC PRIVATE GLESv3 EGL android log m)
+elseif(IOS)
+    # Also GLES (PsyX_render.h selects RENDERER_OGLES on TARGET_OS_IPHONE), but
+    # reached through a framework rather than a library, and with no EGL — SDL
+    # creates the context via EAGL. The rest are what SDL2's UIKit, CoreAudio
+    # and MFi-controller backends pull in.
+    target_link_libraries(SilentHillPC PRIVATE
+        "-framework OpenGLES"
+        "-framework UIKit"
+        "-framework Foundation"
+        "-framework QuartzCore"
+        "-framework CoreGraphics"
+        "-framework CoreMotion"
+        "-framework AudioToolbox"
+        "-framework AVFoundation"
+        "-framework GameController"
+        "-framework Metal"
+        m
+    )
 elseif(UNIX)
     find_package(OpenGL REQUIRED)
     target_link_libraries(SilentHillPC PRIVATE OpenGL::GL)

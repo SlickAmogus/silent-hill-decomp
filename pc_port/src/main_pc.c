@@ -13,19 +13,37 @@
 #include <dirent.h>
 #include <time.h>
 
-/* Android is the one platform where SDL must own the entry point: there is no
- * process main() to reach: SDLActivity's Java shim dlopen()s libmain.so and
- * calls SDL_main inside it, and SDL_main.h only redirects main -> SDL_main
- * while SDL_MAIN_HANDLED is absent. Everywhere else the port keeps the real
- * C entry (the MinGW link relies on it — see -emainCRTStartup in CMakeLists). */
-#ifndef __ANDROID__
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+#define SH_IOS 1
+#endif
+
+/* The two mobile targets are where SDL must own the entry point. On Android
+ * there is no process main() to reach at all: SDLActivity's Java shim
+ * dlopen()s libmain.so and calls SDL_main inside it. On iOS there is a real
+ * entry point, but it has to be UIApplicationMain — SDL's UIKit backend
+ * supplies that and calls the game's main() from inside the app delegate.
+ * SDL_main.h only redirects main -> SDL_main while SDL_MAIN_HANDLED is absent.
+ * Everywhere else the port keeps the real C entry (the MinGW link relies on it
+ * — see -emainCRTStartup in CMakeLists). */
+#if !defined(__ANDROID__) && !defined(SH_IOS)
 #define SDL_MAIN_HANDLED
 #endif
 #include <SDL.h>
 #include <SDL_main.h>
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SH_IOS)
 #include <SDL_system.h>   /* SDL_AndroidGetExternalStoragePath */
 #include <unistd.h>       /* chdir */
+#endif
+#ifdef SH_IOS
+/* ios_paths.m — Documents is the one directory Files.app exposes, so it is
+ * where the user's disc image arrives and where saves have to live.
+ * ios_bootstrap.m — copies the port's own shipped assets out of the read-only
+ * bundle on first run, the counterpart of the Android activity's asset staging. */
+const char* Ios_DocumentsPath(void);
+void        Ios_StageBundledAssets(void);
 #endif
 
 #include "common.h"
@@ -742,6 +760,39 @@ int main(int argc, char* argv[])
     }
 #endif
 
+#ifdef SH_IOS
+    /* Same problem as Android, different directory. An iOS app starts with the
+     * working directory at the bundle root, which is read-only and signed, so
+     * config.cfg, saves and SilentHill.log all fail to write there. Documents is
+     * the only place that is writable AND visible to the user: with
+     * UIFileSharingEnabled and LSSupportsOpeningDocumentsInPlace set (see
+     * ios_port/Resources/Info.plist.in) it appears in Files.app, which is how
+     * the user's disc image gets onto the device in the first place. Anchoring
+     * the CWD there keeps every relative path in the port working unchanged.
+     *
+     * The container survives re-signing as long as the bundle ID does not
+     * change, which matters on a free provisioning profile — the app is
+     * re-signed weekly and a ~700 MB disc image should not have to come back
+     * across each time. */
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+
+    {
+        const char* dataDir = Ios_DocumentsPath();
+        if (dataDir == NULL || chdir(dataDir) != 0)
+        {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                         "Could not enter the game data directory (%s) - the disc image "
+                         "and config.cfg cannot be found.",
+                         dataDir ? dataDir : "unavailable");
+            return 1;
+        }
+    }
+
+    /* After the chdir, before the config is read: config.cfg is one of the
+     * files staged, and it is only written when absent. */
+    Ios_StageBundledAssets();
+#endif
+
     /* Log file is NOT opened until after config load. SH_DBG calls before
      * that point are silently no-ops (the macro short-circuits on a NULL
      * handle). Avoids creating SilentHill.log when enable_debug_log=0. */
@@ -1035,11 +1086,12 @@ int main(int argc, char* argv[])
 
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SH_IOS)
     /* On desktop the config IS the window size, so the five per-poly visibility
      * bounds that divide by g_PcConfig.windowWidth/Height agree with what is on
-     * screen. Android has no say in it — the surface size comes from the device
-     * — so those bounds were still being computed from the 640x480 defaults:
+     * screen. Neither mobile target has any say in it — the surface size comes
+     * from the device — so those bounds were still being computed from the
+     * 640x480 defaults:
      *
      *   224 * 640 / (2*480)  * 1.09375 ~= 163   (bound actually used)
      *   224 * 2340 / (2*1080)* 1.09375 ~= 265   (bound 2340x1080 needs)
