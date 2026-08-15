@@ -733,8 +733,16 @@ endif()
 # the APK's own extracted lib dir, and the loader builds a relative maps/<name>.so
 # path that resolves nowhere inside an app sandbox. Without this the binary
 # contains map0_s00 and nothing else.
-if(ANDROID AND NOT SH_BUILD_MAP_DLLS)
+if(ANDROID AND NOT SH_BUILD_MAP_DLLS AND NOT DEFINED SH_ANDROID_NO_STATIC_MAPS)
     set(SH_STATIC_MAPS ON CACHE BOOL "" FORCE)
+endif()
+# -DSH_ANDROID_NO_STATIC_MAPS=1 falls back to the built-in map0_s00 only, which
+# is what the desktop build ships. Used to isolate whether the 43-overlay
+# symbol-prefixed link is responsible for a rendering fault: with it off, the
+# binary contains exactly one copy of the shared world-draw code.
+if(ANDROID AND SH_ANDROID_NO_STATIC_MAPS)
+    set(SH_STATIC_MAPS OFF CACHE BOOL "" FORCE)
+    message(STATUS "SH_STATIC_MAPS disabled — built-in map0_s00 only (isolation build)")
 endif()
 if(SH_BUILD_MAP_DLLS AND SH_STATIC_MAPS)
     message(FATAL_ERROR "SH_BUILD_MAP_DLLS and SH_STATIC_MAPS are mutually exclusive.")

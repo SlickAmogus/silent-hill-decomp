@@ -7,6 +7,7 @@ project(SilentHillAndroid C CXX)
 # a warning or the whole audio/render layer fails to build.
 add_compile_options(-Wno-error=format-security)
 
+
 # SDL2 first: PsyCross and the game both link the SDL2 target, and pc_port's
 # CMakeLists looks for it by target name (not find_package) when ANDROID is set.
 # SDL_SHARED is what SDLActivity's default getLibraries() expects to load.

@@ -1987,6 +1987,25 @@ void GameState_Boot_Update(void) // 0x80032D1C
 extern void GsSortOt_GetSubrootBounds(uintptr_t* lo, uintptr_t* hi);
 #endif
 
+/* Upper bound on a user-space pointer. 0x7FFF'FFFF'FFFF is a WINDOWS fact: it
+ * is where its user address space ends. Android's allocator (Scudo) hands back
+ * heap pointers like 0xB400007AE07C4070, and arm64 additionally permits the top
+ * byte to carry pointer tags, so on that platform every legitimate primitive
+ * looked like a wild pointer here. This walk does not merely skip such a node —
+ * it TRUNCATES the chain at it — so the first world primitive ended the OT and
+ * every map draw after it was discarded before GsDrawOt ever saw it. No crash,
+ * no log, no geometry: the in-game world rendered as nothing while characters
+ * and 2D (reached through other buckets) drew normally.
+ *
+ * The identical ceiling existed in PsyCross's ParsePrimitivesLinkedList and was
+ * fixed there; these are the remaining copies. The low check still earns its
+ * keep, and the bounded node counters below are what stop a runaway chain. */
+#if defined(_WIN32)
+#define SH_OT_PTR_CEILING ((uintptr_t)0x7FFFFFFFFFFF)
+#else
+#define SH_OT_PTR_CEILING (UINTPTR_MAX)
+#endif
+
 void MainLoop(void) // 0x80032EE0
 {
     #define TICKS_PER_SECOND_MIN (TICKS_PER_SECOND / 4)
@@ -3146,7 +3165,7 @@ void MainLoop(void) // 0x80032EE0
                      * it the new chain terminator instead of just zeroing its
                      * length (the old behaviour left cur->addr pointing at the
                      * wild target, so DrawOTag would still chase it). */
-                    if (next && ((uintptr_t)next < 0x1000 || (uintptr_t)next > (uintptr_t)0x7FFFFFFFFFFF)) {
+                    if (next && ((uintptr_t)next < 0x1000 || (uintptr_t)next > SH_OT_PTR_CEILING)) {
                         static int s_badNextDumped = 0;
                         if (!s_badNextDumped) {
                             s_badNextDumped = 1;
@@ -3248,7 +3267,7 @@ void MainLoop(void) // 0x80032EE0
                 /* Accept heap packet buffer, OT array, OR any static/BSS primitive
                  * (e.g. screen fade DR_MODE/TILE in D_800A8E5C/D_800A8E74).
                  * Only reject null, very-low, or kernel-space addresses. */
-                int curOk2 = (curAddr2 >= 0x1000 && curAddr2 <= (uintptr_t)0x7FFFFFFFFFFF);
+                int curOk2 = (curAddr2 >= 0x1000 && curAddr2 <= SH_OT_PTR_CEILING);
                 if (!curOk2) {
                     static int s_ot2DumpedOnce = 0;
                     if (!s_ot2DumpedOnce) {
@@ -3272,7 +3291,7 @@ void MainLoop(void) // 0x80032EE0
                     }
                 }
                 OT_TAG* next2 = (OT_TAG*)nextPrim(cur2);
-                if (next2 && ((uintptr_t)next2 < 0x1000 || (uintptr_t)next2 > (uintptr_t)0x7FFFFFFFFFFF)) {
+                if (next2 && ((uintptr_t)next2 < 0x1000 || (uintptr_t)next2 > SH_OT_PTR_CEILING)) {
                     static int s_ot2BadNextDumped = 0;
                     if (!s_ot2BadNextDumped) {
                         s_ot2BadNextDumped = 1;
