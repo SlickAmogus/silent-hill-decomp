@@ -1035,6 +1035,33 @@ int main(int argc, char* argv[])
 
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
 
+#ifdef __ANDROID__
+    /* On desktop the config IS the window size, so the five per-poly visibility
+     * bounds that divide by g_PcConfig.windowWidth/Height agree with what is on
+     * screen. Android has no say in it — the surface size comes from the device
+     * — so those bounds were still being computed from the 640x480 defaults:
+     *
+     *   224 * 640 / (2*480)  * 1.09375 ~= 163   (bound actually used)
+     *   224 * 2340 / (2*1080)* 1.09375 ~= 265   (bound 2340x1080 needs)
+     *
+     * a window far narrower than the frame, which culls real geometry at the
+     * left and right edges. Publish the surface PsyCross actually got so the
+     * cull maths, the Hor+ ortho and the config all describe the same screen. */
+    {
+        extern int g_windowWidth, g_windowHeight;
+        if (g_windowWidth > 0 && g_windowHeight > 0 &&
+            (g_windowWidth != g_PcConfig.windowWidth ||
+             g_windowHeight != g_PcConfig.windowHeight))
+        {
+            SH_LOG("Window size from device surface: %dx%d (config had %dx%d)",
+                   g_windowWidth, g_windowHeight,
+                   g_PcConfig.windowWidth, g_PcConfig.windowHeight);
+            g_PcConfig.windowWidth  = g_windowWidth;
+            g_PcConfig.windowHeight = g_windowHeight;
+        }
+    }
+#endif
+
     /* Needs the GL context, so it runs here rather than beside the system-RAM
      * clamp above. Same rule as that one: only ever lowers. */
     HiresOverride_ClampBudgetToVram();
