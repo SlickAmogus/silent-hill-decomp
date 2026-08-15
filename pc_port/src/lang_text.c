@@ -923,17 +923,42 @@ void Pc_LangSetLanguage(int lang)
     SH_LOG("[LANG] language switched to '%s'", s_LangIds[lang]);
 }
 
-/* NTSC-J text language: 0 Japanese, 1 Chinese. Nothing on the disc is rebound —
- * the Chinese fan translation writes the same JIS kuten codes the Japanese
- * script does and only redefines the glyphs drawn at them — so this just swaps
- * the rasterizer's glyph set and the port's own menu text. */
+/* NTSC-J text language: 0 Japanese, 1 Chinese.
+ *
+ * This used to swap only the rasterizer's glyph set, which was the whole job
+ * back when the words could only come from a Chinese-patched disc — the codes
+ * were already on the disc and only the glyphs drawn at them changed. With
+ * zh.pack supplying the words for an unpatched disc that is now half the job:
+ * swapping glyphs alone left every string Japanese, so the switch appeared to
+ * do nothing. Reinstall the text too, the same way Pc_LangSetLanguage does for
+ * PAL. Pc_LangInit picks the glyph set itself (and stands it back down if
+ * neither the disc nor the pack has Chinese), so it is not set here. */
 void Pc_LangSetJpLanguage(int lang)
 {
     lang = (lang != 0);
 
     g_PcConfig.jpLanguage = lang;
     PcConfig_SaveKeyValue("jp_language", lang ? "zh" : "ja");
-    Pc_KanjiSetChinese(lang);
+    Pc_LangInit();
+
+    /* Inventory text is reinstalled above, but story text is installed per map
+     * at load time, so the map already loaded would keep the old language until
+     * the next door. g_OvlDynamic still holds this map's overlay, which is the
+     * same pointer game_boot.c passes, so re-running the installer against it
+     * refreshes the current map in place. Only in game: at the title there is
+     * no map loaded and nothing to re-patch. */
+    if (g_GameRegion == Region_JPN && g_GameWork.gameState == GameState_InGame &&
+        g_OvlDynamic != NULL && g_SavegamePtr != NULL)
+    {
+        int mapIdx = (int)g_SavegamePtr->mapIdx;
+
+        if (mapIdx >= 0 && mapIdx < 45)
+        {
+            Pc_LangPatchMapMessages(
+                mapIdx, g_OvlDynamic,
+                (unsigned int)g_FileTable[FILE_VIN_MAP0_S00_BIN + mapIdx].blockCount << 8);
+        }
+    }
 
     SH_LOG("[LANG] NTSC-J language switched to '%s'", lang ? "zh" : "ja");
 }
