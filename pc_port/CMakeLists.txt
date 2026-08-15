@@ -915,7 +915,53 @@ endif()
 # =============================================================================
 # Install
 # =============================================================================
-install(TARGETS SilentHillPC RUNTIME DESTINATION bin)
+if(IOS)
+    # A MACOSX_BUNDLE target has no RUNTIME artifact, and CMake refuses the
+    # install() outright without a bundle destination. Nothing installs this
+    # anyway — build_ios.sh packages the .app straight into an .ipa.
+    install(TARGETS SilentHillPC BUNDLE DESTINATION .)
+else()
+    install(TARGETS SilentHillPC RUNTIME DESTINATION bin)
+endif()
+
+# =============================================================================
+# iOS bundle post-processing
+# =============================================================================
+# These have to live here, not in ios_port/CMakeLists.txt: add_custom_command
+# in TARGET form only works in the directory that created the target.
+if(IOS AND SH_IOS_PORT_DIR)
+    # A launch storyboard has to be compiled, not copied — iOS looks for
+    # LaunchScreen.storyboardc and ignores the .storyboard source. The Xcode
+    # generator would run ibtool implicitly; under Ninja it is an explicit step,
+    # and without it iOS runs the app letterboxed in a 320x480 compatibility box.
+    find_program(SH_IBTOOL ibtool)
+    if(SH_IBTOOL)
+        add_custom_command(TARGET SilentHillPC POST_BUILD
+            COMMAND ${SH_IBTOOL}
+                    --errors --warnings --notices
+                    --output-format human-readable-text
+                    --compile "$<TARGET_BUNDLE_CONTENT_DIR:SilentHillPC>/LaunchScreen.storyboardc"
+                    "${SH_IOS_PORT_DIR}/Resources/LaunchScreen.storyboard"
+            COMMENT "Compiling LaunchScreen.storyboard"
+            VERBATIM)
+    else()
+        message(WARNING
+            "ibtool not found — the launch storyboard will not be compiled into "
+            "the bundle, and iOS will run the app letterboxed at 320x480.")
+    endif()
+
+    # The port's own shipped assets. Copied wholesale after the link rather than
+    # listed as sources, because MACOSX_PACKAGE_LOCATION flattens and would
+    # destroy the gamedata/ and licenses/ structure ios_bootstrap.m walks.
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets")
+        add_custom_command(TARGET SilentHillPC POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+                    "$<TARGET_BUNDLE_CONTENT_DIR:SilentHillPC>"
+            COMMENT "Bundling the port's shipped assets"
+            VERBATIM)
+    endif()
+endif()
 
 # =============================================================================
 # Tests (-DBUILD_TESTING=ON, then ctest)

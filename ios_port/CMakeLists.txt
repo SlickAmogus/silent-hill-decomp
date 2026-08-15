@@ -59,6 +59,12 @@ set(SH_IOS_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ios_bootstrap.m"
     CACHE INTERNAL "iOS platform sources compiled into the game target")
 
+# pc_port owns the bundle POST_BUILD steps (ibtool, asset copy) because
+# add_custom_command in TARGET form only works in the directory that created the
+# target. It needs to find Resources/ from there.
+set(SH_IOS_PORT_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
+    CACHE INTERNAL "ios_port source directory")
+
 # -----------------------------------------------------------------------------
 # The game
 # -----------------------------------------------------------------------------
@@ -85,42 +91,10 @@ set_target_properties(SilentHillPC PROPERTIES
     XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO"
 )
 
-# The port's own shipped assets (decal.png, fonts, language pack, UI sounds).
-# ios_bootstrap.m stages these into Documents on first run, because the bundle
-# itself is read-only. Nothing copyrighted is here — the disc image stays the
-# user's to supply.
-#
-# Copied wholesale after the link rather than listed as sources: the tree is
-# nested and MACOSX_PACKAGE_LOCATION flattens, so the gamedata/ and licenses/
-# structure ios_bootstrap.m walks would be lost.
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../pc_port/assets")
-    add_custom_command(TARGET SilentHillPC POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_CURRENT_SOURCE_DIR}/../pc_port/assets"
-                "$<TARGET_BUNDLE_CONTENT_DIR:SilentHillPC>"
-        COMMENT "Bundling the port's shipped assets"
-        VERBATIM)
-endif()
-
-# A launch storyboard has to be compiled, not copied: iOS looks for
-# LaunchScreen.storyboardc in the bundle and ignores the .storyboard source.
-# The Xcode generator would run ibtool for us; under Ninja it is an explicit
-# step. Without it the app runs letterboxed in a 320x480 compatibility box.
-find_program(SH_IBTOOL ibtool)
-if(SH_IBTOOL)
-    add_custom_command(TARGET SilentHillPC POST_BUILD
-        COMMAND ${SH_IBTOOL}
-                --errors --warnings --notices
-                --output-format human-readable-text
-                --compile "$<TARGET_BUNDLE_CONTENT_DIR:SilentHillPC>/LaunchScreen.storyboardc"
-                "${CMAKE_CURRENT_SOURCE_DIR}/Resources/LaunchScreen.storyboard"
-        COMMENT "Compiling LaunchScreen.storyboard"
-        VERBATIM)
-else()
-    message(WARNING
-        "ibtool not found — the launch storyboard will not be compiled into the "
-        "bundle, and iOS will run the app letterboxed at 320x480.")
-endif()
+# The bundle POST_BUILD steps (ibtool for the launch storyboard, and copying
+# the port's shipped assets in) live in pc_port/CMakeLists.txt under if(IOS),
+# because add_custom_command in TARGET form only works in the directory that
+# created the target.
 
 message(STATUS "iOS bundle: ${SH_IOS_BUNDLE_ID} (arch ${CMAKE_OSX_ARCHITECTURES}, "
                "min iOS ${CMAKE_OSX_DEPLOYMENT_TARGET})")
