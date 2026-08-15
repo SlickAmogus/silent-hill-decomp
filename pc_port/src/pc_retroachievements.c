@@ -1132,7 +1132,23 @@ int Pc_Ra_Why(const char* filter)
                 if (!found)
                     continue;
             }
-            if (shown >= 3)
+            /* No filter: list the whole set, one line each, so the titles are
+             * discoverable (that is how you find the name to pass back in).
+             * A filter dumps full conditions for what it matched. Dumping
+             * conditions for everything is thousands of lines. */
+            if (!(filter && filter[0]))
+            {
+                SH_DBG("[RAWHY] %-44s id %-6u %s", pub->title, pub->id,
+                       pub->state == RC_CLIENT_ACHIEVEMENT_STATE_UNLOCKED ? "UNLOCKED" :
+                       pub->state == RC_CLIENT_ACHIEVEMENT_STATE_ACTIVE   ? "active"   :
+                       pub->state == RC_CLIENT_ACHIEVEMENT_STATE_INACTIVE ? "inactive" :
+                       pub->state == RC_CLIENT_ACHIEVEMENT_STATE_DISABLED ? "DISABLED" : "?");
+                shown++;
+                continue;
+            }
+            /* Was a hard cap of 3 with no way to raise it, which is why repeated
+             * runs kept dumping the same three achievements. */
+            if (shown >= 12)
                 break;
             shown++;
 
@@ -1180,9 +1196,9 @@ int Pc_Ra_Why(const char* filter)
                                    (unsigned)c->oper,
                                    Pc_RaOperandDesc(&c->operand2, op1IsMap, bb, sizeof(bb)),
                                    (unsigned)c->current_hits, (unsigned)c->required_hits);
-                            if (condIdx > 40) break;
+                            if (condIdx > 400) break;
                         }
-                        if (condIdx > 40) break;
+                        if (condIdx > 400) break;
                     }
                 }
             }
