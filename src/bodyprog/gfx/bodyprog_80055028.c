@@ -195,6 +195,27 @@ void WorldEnv_Init(void) // 0x80055028
     WorldEnv_FogDistanceSet(Q12(32.0f), Q12(34.0f));
 }
 
+#ifdef SH_PC_PORT
+/* "This room is lit by the flashlight rather than by its own lighting."
+ *
+ * Not a PC invention — it is the game's own dark-room test, lifted verbatim
+ * from the two places that ask the same question (events_main.c:217 gating
+ * button events, game_sys_states.c:835 gating the map screen), minus their
+ * shared `&& !isFlashlightOn_15` term, which asks something different: those
+ * two want "dark AND unlit", this wants "dark" on its own.
+ *
+ * field_1C[0]/[1] are the two light slots; either one in dynamic mode means the
+ * room is driven by the flashlight. Deliberately NOT field_2 (the per-room
+ * glow-halo enable) — that reads 0 in genuinely dark rooms like map3_s05, which
+ * is the trap the comment at the call site warns about. */
+static int RoomIsFlashlightLit(void)
+{
+    return (g_SysWork.field_2388.field_154.effectsInfo_0.field_0.s_field_0.field_0 & (1 << 1)) &&
+           ((g_SysWork.field_2388.field_1C[0].effectsInfo_0.field_0.s_field_0.field_0 & (1 << 0)) ||
+            (g_SysWork.field_2388.field_1C[1].effectsInfo_0.field_0.s_field_0.field_0 & (1 << 0)));
+}
+#endif
+
 void Gfx_2dEffectsDraw(void) // 0x800550D0
 {
     s32      color0;
@@ -248,8 +269,17 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
          * the dim while the camera had already stood down for them. One predicate
          * means the camera and the lighting hand back on the same frame. Falls
          * back to the game's normal PSX flashlight rendering (glow halo below). */
+        /* ...and on the ROOM being dark, using the game's own test for it — the
+         * same one events_main.c:217 and game_sys_states.c:835 use to decide the
+         * map is too dark to read. Without this the *= 0.15 dim fires in rooms
+         * the game lit itself, so simply having the flashlight out turned a lit
+         * room to night: reported against the Unknown Liquid pickup in the
+         * hospital director's office (map3_s01, "Hospital - 1F and basement
+         * after Kaufmann"), which is a daylit room. On PSX the flashlight never
+         * darkened its surroundings, it only added a glow; the fall-through
+         * below is that original glow-halo path. */
         if (g_PsyX_UsePerPixelFlashlight && g_SysWork.field_2388.isFlashlightOn_15
-            && !Pc_ScriptOwnsShot())
+            && !Pc_ScriptOwnsShot() && RoomIsFlashlightLit())
         {
             s32 lx = Q12_TO_Q8(g_WorldEnvWork.field_60.vx);
             s32 ly = Q12_TO_Q8(g_WorldEnvWork.field_60.vy);
