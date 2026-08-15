@@ -1332,21 +1332,53 @@ void Pc_Ra_Update(void)
         Pc_RaJobFree(done);
     }
 
-    /* Evaluate only during live gameplay: menus, FMV and load fades don't
-     * hold coherent world state, and the same gate already guards the
-     * flashlight shadow pass. */
-    if (s_active &&
-        g_GameWork.gameState == GameState_InGame &&
-        g_SysWork.sysState == SysState_Gameplay &&
-        /* An attract demo drives real gameplay state from recorded input and
-         * would otherwise unlock achievements nobody played for. */
-        !(g_SysWork.sysFlags & SysFlag_DemoActive))
+    /* Evaluate for the whole of a live SESSION, not just the frames that are
+     * literally gameplay.
+     *
+     * Gating on GameState_InGame + SysState_Gameplay missed every achievement
+     * whose condition is only true on a screen. The star/rank row is the clear
+     * case: func_8008F94C fills the ranking block (0x800C48A0) from the
+     * savegame as the results screen opens, and that screen is its own game
+     * state (GameState_ItemScreens_Update, index 14) — so the one moment those
+     * values exist is a moment this gate was idling through. A capture shows it
+     * exactly: score 60 against a >= 30 threshold, clear count 1 against >= 1,
+     * both conditions satisfied, and 0 hits because nothing ever evaluated them.
+     *
+     * The session latch is what keeps that safe. Menus reached from a running
+     * game hold the same savegame and event flags gameplay does — the world is
+     * frozen, not incoherent — so evaluating there is sound. What is NOT sound
+     * is evaluating on the title/boot chain, where the savegame buffer can
+     * still hold the previous session and an achievement like "cleared once"
+     * would fire off stale memory. So: the session opens on the first real
+     * gameplay frame and closes when we drop back to the pre-game states.
+     *
+     * The attract demo never opens a session, since it is excluded from the
+     * frame that sets the latch — it drives real gameplay state from recorded
+     * input and would otherwise unlock achievements nobody played for. */
     {
-        rc_client_do_frame(s_client);
-    }
-    else
-    {
-        rc_client_idle(s_client);
+        static int s_sessionLive = 0;
+        const int  isDemo = (g_SysWork.sysFlags & SysFlag_DemoActive) != 0;
+
+        if (g_GameWork.gameState < GameState_MainLoadScreen)
+        {
+            /* Boot, logos, title, save picker, intro movies: no session. */
+            s_sessionLive = 0;
+        }
+        else if (!isDemo &&
+                 g_GameWork.gameState == GameState_InGame &&
+                 g_SysWork.sysState == SysState_Gameplay)
+        {
+            s_sessionLive = 1;
+        }
+
+        if (s_active && s_sessionLive && !isDemo)
+        {
+            rc_client_do_frame(s_client);
+        }
+        else
+        {
+            rc_client_idle(s_client);
+        }
     }
 }
 
