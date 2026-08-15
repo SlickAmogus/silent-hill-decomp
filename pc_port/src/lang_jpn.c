@@ -9,6 +9,7 @@
 #include "main/fileinfo.h"  /* g_FileTable */
 #include "main/fsqueue.h"   /* FILE_VIN_OPTION_BIN, FILE_VIN_SAVELOAD_BIN */
 #include "pc_kanji.h"       /* Pc_KanjiIsLead (SJIS pair walk) */
+#include "lang_zh.h"
 #include "sh_log.h"
 
 /* NTSC-J menu text comes off the disc rather than out of the binary.
@@ -162,8 +163,35 @@ void Pc_JpnMenuInit(void)
     {
         const s_JpnMenuEntry* e = &s_JpnMenu[i];
 
+        const unsigned char* packed;
+        int                  packedLen = 0;
+
         s_Text[i] = out;
-        out = CopyEntry(out, ovl[e->file], size[e->file], e->off, e->len);
+        /* zh.pack first when it is driving. The overlays read above are the
+         * RETAIL disc's, so they are Japanese, and with the Chinese glyph set
+         * active they would draw as unrelated characters — which is what left
+         * the options screen in Japanese after switching. The pack stores the
+         * same fixed-width field the overlay holds, so CopyEntry does the same
+         * padding trim and ~Cn fold either way. */
+        packed = Pc_LangZhPackActive() ? Pc_LangZhMenuEntry(i, &packedLen) : NULL;
+        if (packed != NULL)
+        {
+            out = CopyEntry(out, packed, (unsigned int)packedLen, 0, e->len);
+        }
+        else if (Pc_LangZhPackActive())
+        {
+            /* Chinese is active but the pack has nothing for this one. The
+             * disc's string is Japanese and would draw as unrelated characters
+             * through the Chinese glyphs, so drop to the port's own English
+             * literal — NULL means exactly that to Pc_JpnMenuText. Readable
+             * beats wrong. */
+            s_Text[i] = NULL;
+            continue;
+        }
+        else
+        {
+            out = CopyEntry(out, ovl[e->file], size[e->file], e->off, e->len);
+        }
         /* An offset that landed on nothing keeps the compiled literal. */
         if (s_Text[i][0] == '\0')
             s_Text[i] = NULL;
@@ -172,7 +200,8 @@ void Pc_JpnMenuInit(void)
     free(ovl[0]);
     free(ovl[1]);
     s_Active = 1;
-    SH_LOG("[LANG-JP] %d menu strings read from the disc's own overlays", JPN_MENU_COUNT);
+    SH_LOG("[LANG-JP] %d menu strings installed (%s)", JPN_MENU_COUNT,
+           Pc_LangZhPackActive() ? "zh.pack" : "the disc's own overlays");
 }
 
 const char* Pc_JpnMenuText(const char* us)

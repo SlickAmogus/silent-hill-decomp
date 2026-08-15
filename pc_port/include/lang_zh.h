@@ -23,4 +23,12 @@ const char* Pc_LangZhItemDesc(int idx);
 int         Pc_LangZhMapMessageCount(int mapIdx);
 const char* Pc_LangZhMapMessage(int mapIdx, int msgIdx);
 
+/** One options/save-screen string, as the raw fixed-width field the disc would
+ * have supplied (lang_jpn_menu.inc order). NULL if the pack has no entry. */
+const unsigned char* Pc_LangZhMenuEntry(int idx, int* outLen);
+
+/** 1 while zh.pack is supplying the text instead of the disc. Defined in
+ * lang_text.c, which owns the decision. */
+int Pc_LangZhPackActive(void);
+
 #endif /* PC_LANG_ZH_H */

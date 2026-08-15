@@ -29,12 +29,12 @@
 #include "sh_log.h"
 
 #define ZH_MAGIC   0x485A4853u /* 'SHZH' little-endian */
-#define ZH_VERSION 1
+#define ZH_VERSION 2
 #define ZH_NO_STR  0xFFFFFFFFu
 
 /* Header, then itemCount name offsets, itemCount desc offsets, mapCount map
- * table offsets; each map table is a count followed by that many offsets; all
- * offsets index the string blob. */
+ * table offsets, menuCount (offset,length) pairs; each map table is a count
+ * followed by that many offsets; all offsets index the string blob. */
 typedef struct
 {
     unsigned int magic;
@@ -43,6 +43,7 @@ typedef struct
     unsigned int mapCount;
     unsigned int blobOff;
     unsigned int blobSize;
+    unsigned int menuCount;
 } s_ZhHeader;
 
 static unsigned char* s_pack;
@@ -138,10 +139,12 @@ int Pc_LangZhAvailable(void)
     memcpy(&h, s_pack, sizeof(h));
     /* The directory has to fit before the blob can, so check the whole shape
      * once here and let every accessor assume it afterwards. */
-    need = (unsigned int)sizeof(s_ZhHeader) + h.itemCount * 8 + h.mapCount * 4;
+    need = (unsigned int)sizeof(s_ZhHeader) + h.itemCount * 8 + h.mapCount * 4 +
+           h.menuCount * 8;
     if (h.magic != ZH_MAGIC || h.version != ZH_VERSION ||
         h.itemCount == 0 || h.itemCount > 4096 ||
         h.mapCount == 0 || h.mapCount > 256 ||
+        h.menuCount > 1024 ||
         need > s_packSize || h.blobOff > s_packSize ||
         h.blobSize > s_packSize - h.blobOff)
     {
@@ -152,8 +155,9 @@ int Pc_LangZhAvailable(void)
         return 0;
     }
 
-    SH_LOG("[LANG-ZH] zh.pack loaded (%u items, %u maps, %u bytes of text)",
-           h.itemCount, h.mapCount, h.blobSize);
+    SH_LOG("[LANG-ZH] zh.pack loaded (%u items, %u maps, %u menu strings, "
+           "%u bytes of text)",
+           h.itemCount, h.mapCount, h.menuCount, h.blobSize);
     return 1;
 }
 
@@ -225,4 +229,44 @@ const char* Pc_LangZhMapMessage(int mapIdx, int msgIdx)
     h = ZhHeader();
     tableOff = ZhU32((unsigned int)sizeof(s_ZhHeader) + h->itemCount * 8 + (unsigned int)mapIdx * 4);
     return ZhString(ZhU32(tableOff + 4 + (unsigned int)msgIdx * 4));
+}
+
+/* Menu strings are FIXED-WIDTH FIELDS out of OPTION.BIN / SAVELOAD.BIN, not
+ * NUL-terminated ones, so the length is stored and returned: the caller feeds
+ * both to the same CopyEntry that trims padding and folds ~Cn when reading a
+ * disc, and that has to see the identical span. */
+const unsigned char* Pc_LangZhMenuEntry(int idx, int* outLen)
+{
+    const s_ZhHeader* h;
+    unsigned int      dir;
+    unsigned int      off;
+    unsigned int      len;
+
+    if (outLen != NULL)
+    {
+        *outLen = 0;
+    }
+    if (!Pc_LangZhAvailable())
+    {
+        return NULL;
+    }
+    h = ZhHeader();
+    if (idx < 0 || (unsigned int)idx >= h->menuCount)
+    {
+        return NULL;
+    }
+
+    dir = (unsigned int)sizeof(s_ZhHeader) + h->itemCount * 8 + h->mapCount * 4 +
+          (unsigned int)idx * 8;
+    off = ZhU32(dir);
+    len = ZhU32(dir + 4);
+    if (off == ZH_NO_STR || len == 0 || len > h->blobSize || off > h->blobSize - len)
+    {
+        return NULL;
+    }
+    if (outLen != NULL)
+    {
+        *outLen = (int)len;
+    }
+    return (const unsigned char*)(s_pack + h->blobOff + off);
 }

@@ -24,6 +24,8 @@ Sources on the disc
                            0x80024B60
   map messages             VIN/MAP*.BIN, pointer table at overlay offset 0x34,
                            link base 0x800CBBD0 (JPN_OVL_BASE)
+  menu strings             VIN/OPTION.BIN and VIN/SAVELOAD.BIN at the fixed
+                           offsets pc_port/src/lang_jpn_menu.inc already lists
 
 The map tables are emitted in the disc's own (JP) order. The port's existing
 US->JP index map (lang_jpn_msgmap.inc) is applied at install time, so this file
@@ -50,7 +52,7 @@ ITEM_COUNT    = 195
 MSG_COUNT_MAX = 176
 
 MAGIC   = b'SHZH'
-VERSION = 1
+VERSION = 2
 NO_STR  = 0xFFFFFFFF
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -150,6 +152,38 @@ def item_arrays(body):
     return names, descs
 
 
+def menu_entries():
+    """(file, off, len) per menu string, read from the port's own table.
+
+    lang_jpn_menu.inc is where those offsets are already maintained for reading
+    Japanese off a retail disc; the Chinese patch edits the same overlays in
+    place, so the same offsets hold the Chinese. Parsing that file rather than
+    restating the offsets means the two can never drift apart.
+    """
+    path = os.path.join(REPO, 'pc_port', 'src', 'lang_jpn_menu.inc')
+    text = io.open(path, encoding='utf-8', errors='surrogateescape').read()
+    out = []
+    for m in re.finditer(r'\{\s*"(?:[^"\\]|\\.)*"\s*,\s*(\d+)\s*,\s*'
+                         r'(0x[0-9A-Fa-f]+|\d+)\s*,\s*(\d+)\s*\}', text):
+        out.append((int(m.group(1)), int(m.group(2), 0), int(m.group(3))))
+    return out
+
+
+def menu_slice(ovl, off, length):
+    """The raw bytes the port's CopyEntry would read, so it can run unchanged."""
+    if ovl is None or off >= len(ovl):
+        return None
+    if length:
+        end = off + length
+        if end > len(ovl):
+            return None
+        return ovl[off:end]
+    end = ovl.find(b'\x00', off)
+    if end < 0:
+        return None
+    return ovl[off:end]
+
+
 class Blob(object):
     def __init__(self):
         self.buf = bytearray()
@@ -179,7 +213,8 @@ def main():
         sys.exit('error: no BODYPROG entry in %s' % args.filetable)
 
     names = descs = None
-    raw = read_disc_file(args.disc, body_ft[0], body_ft[1] * 256)
+    disc_path = args.disc
+    raw = read_disc_file(disc_path, body_ft[0], body_ft[1] * 256)
     if raw is None:
         sys.exit('error: could not read BODYPROG (is this a raw 2352-byte image?)')
     names, descs = item_arrays(fs_decrypt_overlay(raw))
@@ -204,6 +239,24 @@ def main():
         msgs = overlay_messages(ovl, ent[1] * 256)
         map_msgs.append(msgs)
 
+    menu_ft = {}
+    text_ft = io.open(os.path.join(REPO, 'src', 'main', args.filetable),
+                      encoding='utf-8', errors='surrogateescape').read()
+    for key, tag in ((0, 'OPTION'), (1, 'SAVELOAD')):
+        mm = re.search(r'\{\s*(0x[0-9a-fA-F]+),\s*(\d+),.*?//\s*VIN/%s\.BIN' % tag, text_ft)
+        if mm:
+            menu_ft[key] = (int(mm.group(1), 16), int(mm.group(2)))
+
+    menu_ovl = {}
+    for key, ent in menu_ft.items():
+        menu_ovl[key] = read_disc_file(disc_path, ent[0], ent[1] * 256)
+
+    menu = []
+    for fileIdx, off, length in menu_entries():
+        menu.append(menu_slice(menu_ovl.get(fileIdx), off, length))
+    print('menu       : %d of %d strings read from OPTION/SAVELOAD'
+          % (sum(1 for m in menu if m), len(menu)))
+
     got = sum(1 for m in map_msgs if m)
     total = sum(len(m) for m in map_msgs if m)
     print('maps       : %d of %d carry a message table (%d messages)'
@@ -217,9 +270,10 @@ def main():
             map_tables.append([blob.add(s) for s in msgs])
 
     # ---- serialise -------------------------------------------------------
-    map_count = len(order)
-    head = struct.calcsize('<4sIIIII')
-    dir_size = ITEM_COUNT * 4 * 2 + map_count * 4
+    map_count  = len(order)
+    menu_count = len(menu)
+    head = struct.calcsize('<4sIIIIII')
+    dir_size = ITEM_COUNT * 4 * 2 + map_count * 4 + menu_count * 8
     cursor = head + dir_size
 
     map_dir, tables = [], bytearray()
@@ -231,13 +285,25 @@ def main():
         tables += struct.pack('<I', len(t))
         tables += struct.pack('<%dI' % len(t), *t)
 
+    # Menu slices carry an explicit length: they are fixed-width fields, not
+    # NUL-terminated strings, and CopyEntry needs the same span it would have
+    # read out of the overlay.
+    menu_dir = []
+    for sl in menu:
+        if sl is None:
+            menu_dir.append((NO_STR, 0))
+        else:
+            menu_dir.append((blob.add(sl), len(sl)))
+
     blob_off = cursor + len(tables)
     out = bytearray()
-    out += struct.pack('<4sIIIII', MAGIC, VERSION, ITEM_COUNT, map_count,
-                       blob_off, len(blob.buf))
+    out += struct.pack('<4sIIIIII', MAGIC, VERSION, ITEM_COUNT, map_count,
+                       blob_off, len(blob.buf), menu_count)
     out += struct.pack('<%dI' % ITEM_COUNT, *item_name_off)
     out += struct.pack('<%dI' % ITEM_COUNT, *item_desc_off)
     out += struct.pack('<%dI' % map_count, *map_dir)
+    for off, ln in menu_dir:
+        out += struct.pack('<II', off, ln)
     out += tables
     out += blob.buf
 
