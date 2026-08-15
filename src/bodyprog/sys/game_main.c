@@ -2901,15 +2901,26 @@ void MainLoop(void) // 0x80032EE0
                 s_heldWorldOfy = ofy;
             }
             else if (g_GameWork.gameState == GameState_InGame &&
-                     (g_SysWork.sysState == SysState_ReadMessage || g_PcPickupItemActive))
+                     (g_SysWork.sysState == SysState_ReadMessage   ||
+                      g_SysWork.sysState == SysState_EventCallback ||
+                      g_SysWork.sysState == SysState_EventSetFlag  ||
+                      g_SysWork.sysState == SysState_EventPlaySound ||
+                      g_PcPickupItemActive))
             {
-                /* Frozen interactions — examine/read-message text and the item-pickup
-                 * animation — keep re-rendering the SAME fixed-cam frame (vcMoveAndSetCamera
-                 * still runs every frame) and snapshot it for the frozen backdrop. The
-                 * original has no per-state offset, so it looks identical before and during
-                 * the interaction; hold the gameplay offset here instead of recomputing it,
-                 * so the shift can't jump the instant text/pickup appears (any display
-                 * camera, since the shift is at the GTE projection center). */
+                /* Interactions that keep re-rendering the gameplay world — examine and
+                 * read-message text, an event callback (locked doors, puzzles, putting an
+                 * item into a slot), and the item-pickup animation — run vcMoveAndSetCamera
+                 * every frame just like gameplay. The original has no per-state offset at
+                 * all, so it looks identical before and during; hold the gameplay offset
+                 * instead of recomputing it, or the shift jumps the instant the
+                 * interaction starts (visible under any display camera, since the shift is
+                 * at the GTE projection center).
+                 *
+                 * ReadMessage alone was not enough: most examines dispatch through
+                 * EventCallback, which is why "certain objects or doors or puzzles" still
+                 * jumped after that was fixed for memos. Menus, the map screen and the
+                 * load/FMV states are deliberately absent — they are not the gameplay
+                 * view, and the inventory projects its own item models. */
                 ofy = s_heldWorldOfy;
             }
 
