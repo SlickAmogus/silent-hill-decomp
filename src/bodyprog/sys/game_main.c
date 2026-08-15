@@ -2273,25 +2273,65 @@ void MainLoop(void) // 0x80032EE0
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState == GameState_InGame) {
-            /* Canary checks after InGame state update */
-            /* --- Canary checks after game state update --- */
+            /* Packet-arena overrun check.
+             *
+             * This used to compute the answer and throw it away — both arms
+             * were `if (!canaryOk) { }` — so the one condition that produces
+             * BOTH of the port's worst-looking artifact families was detected
+             * and never reported. Overrunning this arena writes packets over
+             * ones already linked into OT0, which reads on screen as
+             * primitives with garbage vertices (wedges anchored to whatever was
+             * drawn near them, streaking to the frame edge), garbage tpage/clut
+             * (bands of unrelated texture), and objects that simply are not
+             * drawn because their packet was overwritten before DrawOTag walked
+             * it. Reported repeatedly against Nowhere with no way to confirm.
+             *
+             * Reported once per session per buffer so a long session cannot
+             * flood the log, plus the high-water mark, which is the number that
+             * says how close a machine is running to the 16MB. */
             {
-                PACKET* pktEnd0 = s_PcPacketBufEnds[0];
-                PACKET* pktEnd1 = s_PcPacketBufEnds[1];
-                PACKET* pktStart = s_PcPacketBufs[g_ActiveBufferIdx];
-                ptrdiff_t pktUsed = GsOUT_PACKET_P - pktStart;
-                int canaryOk = 1;
-                int i;
-                for (i = 0; i < PC_CANARY_SIZE; i++) {
-                    if (pktEnd0[i] != PC_CANARY_VAL) { canaryOk = 0; break; }
+                PACKET*         pktStart = s_PcPacketBufs[g_ActiveBufferIdx];
+                ptrdiff_t       pktUsed  = GsOUT_PACKET_P - pktStart;
+                static ptrdiff_t s_pktPeak;
+                static int      s_pktPeakLogged;
+                static int      s_canaryReported[2];
+                int             b;
+
+                if (pktUsed > s_pktPeak)
+                {
+                    s_pktPeak = pktUsed;
                 }
-                if (!canaryOk) {
+
+                for (b = 0; b < 2; b++)
+                {
+                    PACKET* end = s_PcPacketBufEnds[b];
+                    int     i;
+
+                    for (i = 0; i < PC_CANARY_SIZE; i++)
+                    {
+                        if (end[i] != PC_CANARY_VAL)
+                        {
+                            if (!s_canaryReported[b])
+                            {
+                                s_canaryReported[b] = 1;
+                                SH_WARN("[PKTARENA] buffer %d OVERRUN — packets past the %d-byte arena "
+                                        "(this frame used %ld, peak %ld). Expect garbage or missing "
+                                        "geometry; map %d",
+                                        b, PC_PKTBUF_SIZE, (long)pktUsed, (long)s_pktPeak,
+                                        (int)g_SavegamePtr->mapIdx);
+                            }
+                            break;
+                        }
+                    }
                 }
-                canaryOk = 1;
-                for (i = 0; i < PC_CANARY_SIZE; i++) {
-                    if (pktEnd1[i] != PC_CANARY_VAL) { canaryOk = 0; break; }
-                }
-                if (!canaryOk) {
+
+                /* One line when the arena first passes half, so a log shows the
+                 * headroom even on a session that never actually overruns. */
+                if (!s_pktPeakLogged && s_pktPeak > (PC_PKTBUF_SIZE / 2))
+                {
+                    s_pktPeakLogged = 1;
+                    SH_LOG("[PKTARENA] high-water %ld of %d bytes (map %d)",
+                           (long)s_pktPeak, PC_PKTBUF_SIZE, (int)g_SavegamePtr->mapIdx);
                 }
             }
         }
