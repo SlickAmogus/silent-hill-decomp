@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using SilentHillPC_Launcher;   /* Loc — this file is in the global namespace */
 
 /// <summary>
 /// Separate window for editing keyboard + controller bindings. Code-generated
@@ -391,9 +392,9 @@ public class ControlsForm : Form
             FlatStyle = FlatStyle.Flat,
         };
         btnAltCamHelp.Click += (s, e) => MessageBox.Show(this,
-            "Leave the box unchecked to set classic controls, check it to set controls for modern TPS/OTS modes. " +
-            "Each control style also has alternates so that you can use more than one button for the same action.",
-            "Alternate Camera Controls", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Loc.T("Leave the box unchecked to set classic controls, check it to set controls for modern TPS/OTS modes. " +
+                  "Each control style also has alternates so that you can use more than one button for the same action."),
+            Loc.T("Alternate Camera Controls"), MessageBoxButtons.OK, MessageBoxIcon.Information);
         Controls.Add(btnAltCamHelp);
 
         // Keyboard PSX binds — each gets a hidden secondary box (shown when the
@@ -837,6 +838,12 @@ public class ControlsForm : Form
         Controls.Add(btnCancel);
         AcceptButton = btnSave;
         CancelButton = btnCancel;
+
+        // Before SetupResizable, so the AutoSize labels (the two column headers,
+        // "Experimental", the "Press Del to unbind" hint) are captured at their
+        // translated width rather than the English one. The bind boxes and the
+        // value combos are left alone by the walker — their text is config data.
+        Loc.Apply(this);
 
         SetupResizable();
     }
