@@ -94,6 +94,7 @@ collect_srcs() {
     # map TUs come once the overlay mechanism is proven on PPC.
     find "$DECOMP/src/maps/map0_s00" -name '*.c'
     ls "$PCPORT/build_gen/extracted_data/map0_s00_extracted_data.c" 2>/dev/null
+    find "$SCRIPT_DIR/src" -name '*.c'
     # Xbox HAL files that pull in NO nxdk headers. Compiled straight out of
     # xbox_port/src rather than copied, so the two console ports cannot drift.
     # The excluded ones are the genuinely nxdk-bound HAL (GPU/pad/CD/FS/audio/
