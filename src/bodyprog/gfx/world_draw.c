@@ -1600,6 +1600,13 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
      * pre-pass (monsters still cast). Set here (build time) so the GTE captures it
      * per-vertex; cleared right after. */
     { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = (charaId == Chara_Harry) ? 1 : 0; }
+    /* Hand the same fade the block above applied to this character's LIGHTING to
+     * the per-pixel flashlight, which adds its light on top of the TEXTURE and so
+     * would otherwise relight a character the game has already faded to nothing.
+     * That is a Larval Stalker's whole vanish: it fades out, and on Classic (no
+     * per-pixel light) it duly disappears, while every Modern/shadow mode kept it
+     * lit and standing there forever. Rides the view-space FIFO per vertex. */
+    { extern float g_PsyX_CharaFade; g_PsyX_CharaFade = (float)timer / 4096.0f; }
     /* [CHARAPRIM]: the draw chain below (func_80057090 -> func_8005AC50) only ever
      * sees a model header, never a chara, so the probe's subject is stamped here —
      * the one place both are in scope. */
@@ -1612,6 +1619,7 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
     { extern int g_PcCharaPrimProbeActive; g_PcCharaPrimProbeActive = 0; }
     { extern int g_PcHideHarryFpsBody; g_PcHideHarryFpsBody = 0; }
     { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 0; }
+    { extern float g_PsyX_CharaFade; g_PsyX_CharaFade = 0.0f; }
 #endif
 
     if (timer != Q12(0.0f))
