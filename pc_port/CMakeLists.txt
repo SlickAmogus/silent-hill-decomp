@@ -642,6 +642,18 @@ elseif(ANDROID)
     # eprintf maps to on this platform.
     target_link_libraries(SilentHillPC PRIVATE GLESv3 EGL android log m)
 elseif(IOS)
+    # SDL owns the entry point here. main_pc.c leaves SDL_MAIN_HANDLED undefined
+    # on iOS, so SDL_main.h renames the game's main() to SDL_main, and the real
+    # main() — the one that calls UIApplicationMain and stands up the app
+    # delegate — lives in SDL_uikit_main.c inside SDL2main. Without linking it
+    # the binary has no entry point at all ("Undefined symbols: _main").
+    if(TARGET SDL2main)
+        target_link_libraries(SilentHillPC PRIVATE SDL2main)
+    else()
+        message(FATAL_ERROR
+            "SDL2main target not found. iOS needs it for UIApplicationMain — "
+            "check that ios_port/CMakeLists.txt added the SDL submodule first.")
+    endif()
     # Also GLES (PsyX_render.h selects RENDERER_OGLES on TARGET_OS_IPHONE), but
     # reached through a framework rather than a library, and with no EGL — SDL
     # creates the context via EAGL. The rest are what SDL2's UIKit, CoreAudio
