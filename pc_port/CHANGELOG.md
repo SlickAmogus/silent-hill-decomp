@@ -1,5 +1,71 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.08.15.1 -- 2026-08-15
+- Russian fan translations now work, covers 10 releases including ViT Co, Metallist, Consolgames, Kudos, Golden Leon, FireCross, Paradox, RGR, Playbox and Rusversii
+- Chinese language support when running NTSC-J, pick it in the language selector where Auto Load used to be
+- NTSC-J menus and save locations are read off the disc now so they're actually in Japanese
+- Fixed Japanese inventory text being garbled, it was showing unrelated kanji (also fixes Chinese on an unpatched Japanese disc)
+- Russian and Polish translations for the PC options menu, and Polish save names are centered properly now
+- Launcher is translated into 10 languages, click the flag in the bottom right to change it, the Mod Manager is translated too
+- Fixed Twinfeeler still being visible while he's underground
+- Fixed items with see-through parts drawing solid, the unknown liquid bottle has liquid in it again
+- Fixed no footsteps when moving while aiming in the alternate cameras
+- You can sprint forward while aiming in the alternate cameras now, he used to run in place
+- Fixed the beam of light in the amusement park going over Alessa's head instead of striking her
+- Fixed Larval Stalkers never disappearing, they faded out fine on classic flashlight but every other mode kept lighting them back up
+- Fixed the camera jumping when examining doors, puzzles and key items, and when opening the inventory or going through a door
+- Fixed the match in Harry's hand being offset after the alley cutscene, it only happened on fixed camera angles
+- Star/ranking achievements (Harry the Okay/Good/Great/Best) unlock now, they were reading the wrong memory and were never being checked on the results screen anyway
+- Achievements are checked on menus and screens now instead of only during gameplay, this should fix others that unlock on a screen
+- rawhy console command lists every achievement and dumps real conditions instead of the same 3 every time
+- Sound replacements play at whatever sample rate your wav is, no need to match the original anymore (big deal for the low rate MAP sounds)
+- Sound replacements also accept the filename the Audio tool exports, so MAP000_005.wav works as well as MAP000.005.wav
+- Fixed rock drill smoke and chainsaw sound carrying on after using the quick weapon switch key
+- Main menu, options, map screens and puzzles run at your FPS setting instead of being locked to 60, inventory and cutscenes stay at 60 (set menu_fps_unlock = 0 in config.cfg to put it back)
+- Groundwork for iOS and Android, the whole tree builds with Clang now and there's CI to keep it that way
+
+Commit summaries:
+- release: stop `gh run watch` output riding out as the return value
+- Russian fan-translation support: menu text, PAL atlas + kerning
+- Fix lowercase o on the consolgames PAL charset
+- Russian: charsets for the seven 1999-2003 repacks, and FireCross item text
+- decomp: un-nest the four GCC nested functions so Clang can build the tree
+- map7_s03: give the boss-pool asm aliases the Mach-O underscore prefix
+- Chinese on NTSC-J: runtime font selection, language row, disc item text
+- maps: add SH_STATIC_MAPS, overlays linked in via per-map symbol prefixing
+- Keep the Language row available in-game on NTSC-J
+- decomp: make the tree Clang-clean, and add a CI gate to keep it that way
+- NTSC-J menu text from the disc: Japanese fixed, Chinese for free
+- psycross: bump to 193a45f (iOS GLES selection + GLES noperspective guard)
+- ci: fix the PsyCross iOS header check, and assert it really picked GLES
+- Fan PC-options translations (RU/PL), and centre save text by measuring it
+- Launcher: pick its UI language from a flag button
+- Launcher: draw the flags instead of typing them
+- launcher: translate dropdown values, fit every language to its control
+- fix: hide Twinfeeler's buried segments, and stop item TMDs drawing opaque
+- fix(altcam): footsteps while aiming, and forward sprint that actually moves
+- diag: capture the inputs for the Alessa beam and the Nowhere elevator doors
+- docs: index this batch's fixes
+- fix(map6_s04): Alessa's beam struck above her head — MulRotMatrix transposed
+- diag: find which gate stops Larval Stalkers vanishing
+- diag: track the Larval Stalker vanish by transition, not by sample
+- diag: does the Larval Stalker fade actually reach the draw?
+- fix: Larval Stalkers now vanish under every flashlight mode
+- fix: Japanese item names and descriptions were UTF-8, not Shift-JIS
+- fix: hold the fixed-cam vshift through event callbacks too, not just memos
+- ra: make rawhy usable, and resolve the msgIdx read the set was missing
+- fix: stop enumerating states for the fixed-cam vshift — hold it across all of InGame
+- ra: name the D_<address> globals so the star achievements can read their score
+- sfxmod: accept the Audio tool's own export name, and report the WAV rate
+- sfxmod: play a replacement at its own sample rate
+- ra: evaluate for a whole session, not only the frames that are gameplay
+- fix: keep the fixed-cam vshift off during cutscenes — regression from bca9303ff
+- fix: match flame no longer sits below Harry's hand on a fixed-angle camera
+- fix: quick weapon switch shuts the gas weapons down, so drill smoke stops
+- fix: quick weapon switch silences the outgoing weapon's sound too
+- fps: let the menus, map and puzzle screens follow the fps cap
+- config: document menu_fps_unlock in the shipped template
+
 ## beta-2026.08.14.1 -- 2026-08-14
 - Added achievement viewer to main menu, press map key 
 - Added text to main menu to show achievement button (only visible when they're enabled)
