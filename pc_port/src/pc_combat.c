@@ -255,6 +255,19 @@ static int Pc_ActionSafe(void)
 static void Pc_EquipWeapon(u8 invItemId, s32 slot)
 {
     s32 groupId = INV_ITEM_GROUP(invItemId);
+
+    /* Silence the outgoing weapon, the way opening the inventory does.
+     *
+     * A quick switch is the whole of "open inventory, pick a weapon, close", and
+     * the OPEN half is what stops weapon audio: item_screens_3.c calls
+     * func_8004C564(0, NO_VALUE), whose NO_VALUE case runs func_8008B398 to take
+     * all four weapon sound channels to zero. Cycling with the bound key skipped
+     * it, so the chainsaw kept running audibly until the player opened the
+     * inventory by hand -- and the same would hold for anything else holding a
+     * weapon channel. Calling the game's own entry point rather than stopping
+     * SFX ids by hand keeps the fade state machine (D_800C3960..63) consistent
+     * with what the rest of the weapon-sound code expects to find. */
+    func_8004C564(0, NO_VALUE);
     g_Inventory_EquippedItem                  = invItemId;
     g_SavegamePtr->equippedWeapon             = invItemId;
     g_SysWork.playerCombat.weaponAttack       = invItemId + InvItemId_KitchenKnife; /* +0x80; s8 truncates to EquippedWeaponId */
@@ -289,8 +302,10 @@ static void Pc_EquipWeapon(u8 invItemId, s32 slot)
      * bound key never ran that path, and the smoke carried on until the player
      * opened the inventory and switched by hand.
      *
-     * Same two conditions as the original rather than a blanket clear, so a
-     * switch that lands back on the same gas weapon leaves it running. Reads
+     * Same two conditions as the original, mirroring the inventory's EXIT half.
+     * gasWeaponPowerTimer is already zeroed by the silence above (its open half
+     * does it unconditionally, exactly as the inventory would); what this uniquely
+     * clears is field_44.field_0, which only the exit path touches. Reads
      * g_Player_WeaponAttack for the OUTGOING weapon exactly as the inventory
      * does -- it lags the combat struct, which is why it still holds the old one
      * here. */
