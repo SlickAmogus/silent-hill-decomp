@@ -51,6 +51,14 @@
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 
+	<!-- The port has real mouse/pointer paths (cursor puzzles, the clickable
+	     main menu). Without this key UIKit withholds indirect pointer events and
+	     logs "You need UIApplicationSupportsIndirectInputEvents in your
+	     Info.plist for mouse support", so a paired trackpad or mouse does
+	     nothing. Touch is unaffected either way. -->
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>

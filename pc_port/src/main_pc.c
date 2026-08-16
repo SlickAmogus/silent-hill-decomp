@@ -836,6 +836,12 @@ int main(int argc, char* argv[])
      * across each time. */
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
 
+    /* SDL exposes the iOS accelerometer as a joystick by default, and it shows
+     * up as device 0 ("iOS Accelerometer", isGameController=0). Left on, tilting
+     * the phone feeds analog axes into the pad — and device 0 is exactly the
+     * slot the touch controls inject into. Nothing here wants tilt input. */
+    SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
+
     {
         const char* dataDir = Ios_DocumentsPath();
         if (dataDir == NULL || chdir(dataDir) != 0)
