@@ -44,6 +44,7 @@
 #include "map_registry.h"
 #include "pc_config.h"
 #include "pc_rando.h"
+#include "pc_rando_config.h"
 #include "pc_rando_data.h"
 #include "sh_log.h"
 
@@ -371,7 +372,7 @@ static void door_roll(s_RandoDoor* d, int isExitDoor)
     int r;
 
     /* Past the area budget every door is the way out. */
-    if (s_run.areasEntered >= g_PcConfig.randoAreasToBoss)
+    if (s_run.areasEntered >= g_RandoConfig.areasToBoss)
     {
         d->kind    = DOOR_BOSS;
         d->destMap = RANDO_BOSS_MAP;
@@ -616,7 +617,7 @@ static void build_events(const s_EventData* src, int mapIdx)
                 door_make_area(&s_doors[entryIdx]);
 
             s_run.entryDoor      = entryIdx;
-            s_run.entryLockTimer = (q19_12)((s32)g_PcConfig.randoEntryLockSec << 12);
+            s_run.entryLockTimer = (q19_12)((s32)g_RandoConfig.entryLockSec << 12);
             s_run.forceContent   = 1; /* the room you were funnelled into gets content */
 
             {
@@ -805,14 +806,14 @@ static void place_monsters(void)
     }
     else
     {
-        int base = (nCand * g_PcConfig.randoSpawnDensity) / 100;
+        int base = (nCand * g_RandoConfig.spawnDensity) / 100;
         if (base < 1)
             base = 1;
         want = base - rnd_below(base / 4 + 1); /* [ceil(3*base/4) .. base] -- dense */
         if (want < 1)
             want = 1;
-        if (want > g_PcConfig.randoMonsterMax)
-            want = g_PcConfig.randoMonsterMax;
+        if (want > g_RandoConfig.monsterMax)
+            want = g_RandoConfig.monsterMax;
     }
 
     /* A one-door dead-end room must never be empty (its door is only shut for 10 s,
@@ -1370,7 +1371,7 @@ void Pc_Rando_OnMapLoad(s32 mapIdx)
     s_run.headerInstalled = 1;
 
     SH_LOG("[RANDO] area %d/%d: %s -- %d doors, monsters:%s, score %d",
-           s_run.areasEntered, g_PcConfig.randoAreasToBoss, MapRegistry_GetName((e_MapIdx)mapIdx),
+           s_run.areasEntered, g_RandoConfig.areasToBoss, MapRegistry_GetName((e_MapIdx)mapIdx),
            s_run.doorCount, s_run.monstersWanted ? "yes" : "no", rando_score());
 }
 
@@ -1412,7 +1413,7 @@ void Pc_Rando_Update(void)
  * mode happens to be enabled must not top up its ammo. */
 int Pc_Rando_ExtraHandgunAmmo(void)
 {
-    return Pc_Rando_Active() ? g_PcConfig.randoExtraHandgunAmmo : 0;
+    return Pc_Rando_Active() ? g_RandoConfig.extraAmmo : 0;
 }
 
 /* Player weapon-damage scale. Called at the single player-attack damage site
@@ -1424,7 +1425,7 @@ s32 Pc_Rando_ScaleWeaponDamage(s32 damageAmount, int targetIsPlayer)
     int pct;
     if (!Pc_Rando_Active() || targetIsPlayer)
         return damageAmount;
-    pct = g_PcConfig.randoWeaponDamagePct;
+    pct = g_RandoConfig.weaponDamagePct;
     if (pct == 100)
         return damageAmount;
     return (s32)(((s64)damageAmount * pct) / 100);
@@ -1453,7 +1454,7 @@ void Pc_Rando_ScaleEnemyHealth(void* npcVoid, int slot)
     if (s_healthScaled[slot] || npc->health <= 0)
         return;
 
-    pct = g_PcConfig.randoEnemyHealthPct;
+    pct = g_RandoConfig.enemyHealthPct;
     if (pct != 100)
         npc->health = (q19_12)(((s64)npc->health * pct) / 100);
     s_healthScaled[slot] = 1;
@@ -1480,6 +1481,10 @@ void Pc_Rando_Init(void)
     s_enabled = g_PcConfig.randomizer != 0;
     if (!s_enabled)
         return;
+
+    /* Load the run's tunables from gamedata/randomizer.cfg (defaults stand if the
+     * file doesn't exist yet). */
+    Pc_RandoConfig_Load();
 
     /* Seeded from the wall clock so a run differs every time. */
     s_rng = (u32)time(NULL) * 2654435761u;

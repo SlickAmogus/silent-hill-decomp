@@ -35,14 +35,6 @@ s_PcConfig g_PcConfig = {
     .menuFpsUnlock = 1, /* menus/map/puzzles follow fps_cap; inventory and cutscenes do not */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
-    /* Randomizer tunables — defaults reproduce the original hardcoded behaviour. */
-    .randoSpawnDensity    = 100,
-    .randoMonsterMax      = 30,
-    .randoAreasToBoss     = 10,
-    .randoEntryLockSec    = 10,
-    .randoEnemyHealthPct  = 100,
-    .randoWeaponDamagePct = 100,
-    .randoExtraHandgunAmmo = 30,
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
     .itemDepthProbe = 0, /* 1=one-shot [ITEMDEPTH] depth dump per item-screen entry (diagnostic) */
@@ -951,55 +943,6 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "randomizer") == 0)
         {
             g_PcConfig.randomizer = (atoi(value) != 0);
-        }
-        else if (strcmp(key, "rando_spawn_density") == 0)
-        {
-            int v = atoi(value);
-            if (v < 0) v = 0;
-            if (v > 100) v = 100;
-            g_PcConfig.randoSpawnDensity = v;
-        }
-        else if (strcmp(key, "rando_monster_max") == 0)
-        {
-            int v = atoi(value);
-            if (v < 1) v = 1;
-            if (v > 32) v = 32;
-            g_PcConfig.randoMonsterMax = v;
-        }
-        else if (strcmp(key, "rando_areas_to_boss") == 0)
-        {
-            int v = atoi(value);
-            if (v < 1) v = 1;
-            if (v > 50) v = 50;
-            g_PcConfig.randoAreasToBoss = v;
-        }
-        else if (strcmp(key, "rando_entry_lock_sec") == 0)
-        {
-            int v = atoi(value);
-            if (v < 0) v = 0;
-            if (v > 60) v = 60;
-            g_PcConfig.randoEntryLockSec = v;
-        }
-        else if (strcmp(key, "rando_enemy_health") == 0)
-        {
-            int v = atoi(value);
-            if (v < 10) v = 10;
-            if (v > 1000) v = 1000;
-            g_PcConfig.randoEnemyHealthPct = v;
-        }
-        else if (strcmp(key, "rando_weapon_damage") == 0)
-        {
-            int v = atoi(value);
-            if (v < 10) v = 10;
-            if (v > 1000) v = 1000;
-            g_PcConfig.randoWeaponDamagePct = v;
-        }
-        else if (strcmp(key, "rando_extra_ammo") == 0)
-        {
-            int v = atoi(value);
-            if (v < 0) v = 0;
-            if (v > 300) v = 300;
-            g_PcConfig.randoExtraHandgunAmmo = v;
         }
         else if (strcmp(key, "discord_rich_presence") == 0)
         {
