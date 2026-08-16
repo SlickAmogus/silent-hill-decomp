@@ -23,16 +23,17 @@
 
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/sys/joy.h"
+#include "screens/options.h" /* OptionsMenuState_Brightness */
 
 #define TC_MAX_FINGERS 8
 
 /* Roles a contact can take, decided once when it lands and held until release:
  * a thumb that starts on the movement side must keep steering even if it slides
  * across the middle. */
-enum { TR_NONE = 0, TR_MOVE, TR_LOOK, TR_BUTTON };
+enum { TR_NONE = 0, TR_MOVE, TR_LOOK, TR_BUTTON, TR_ADVANCE };
 
 /* Actions the on-screen buttons drive. Indices into s_Buttons. */
-enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_COUNT };
+enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_COUNT };
 
 typedef struct
 {
@@ -60,6 +61,10 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
     /* TB_ITEM  */ { 0.760f, 0.830f, 0.070f, 0 },
     /* TB_MAP   */ { 0.905f, 0.510f, 0.070f, 0 },
     /* TB_START */ { 0.955f, 0.075f, 0.055f, 0 },
+    /* TB_RUN   */ { 0.665f, 0.760f, 0.065f, 0 },
+    /* TB_BACK is only ever drawn in the corner escape slot, so its own
+     * position is never used -- it exists to carry a glyph and a binding. */
+    /* TB_BACK  */ { 0.955f, 0.075f, 0.055f, 0 },
 };
 
 typedef struct
@@ -86,6 +91,9 @@ static int            s_StickActive;
 static float          s_StickOx, s_StickOy, s_StickKx, s_StickKy;
 static int            s_Running;
 static int            s_ActionFrames;  /* tap pulse, in pad updates */
+static int            s_AdvanceHeld;   /* a finger is down during an advance state */
+static int            s_PadAttached;   /* an SDL game controller is plugged in */
+static int            s_PhysicalInput; /* a pad/keyboard was the last thing used */
 static Uint32         s_LastTouchMs;
 
 /* Movement stick geometry, in height units. The radius is a thumb's comfortable
@@ -129,22 +137,112 @@ static float Tc_LookGain(void)
     return s;
 }
 
-/* Settled gameplay only. Everywhere else -- menus, inventory, cutscenes, the
- * map screen -- touch already works as a pointer through pc_mouse_cursor, and
- * injecting a pad on top of that would fight it. */
-static int Tc_InGameplay(void)
-{
-    if (g_GameWork.gameState != GameState_InGame)
-        return 0;
-    if (g_SysWork.sysState != SysState_Gameplay)
-        return 0;
+static int Tc_Enabled(void);
 
-    return 1;
+enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_ADVANCE, TC_MODE_BACK };
+
+/* Gameplay gets the full scheme. Pause gets Start ALONE -- nothing else on that
+ * screen responds to a pointer, so hiding the controls there left no way back
+ * out of a pause once one had been opened by touch. Everywhere else (menus,
+ * inventory, the map) touch already works through pc_mouse_cursor and a pad on
+ * top of it would fight it. */
+static int Tc_Mode(void)
+{
+    if (!Tc_Enabled())
+        return TC_MODE_OFF;
+
+    /* The boot logos and the intro movies are GAME states, not sys states, so
+     * the checks below never saw them and the Konami/KCET screens could not be
+     * skipped by touch the way Start skips them on a pad. */
+    if (g_GameWork.gameState == GameState_KonamiLogo ||
+        g_GameWork.gameState == GameState_KcetLogo ||
+        g_GameWork.gameState == GameState_MovieIntroFadeIn ||
+        g_GameWork.gameState == GameState_MovieIntroAlternate ||
+        g_GameWork.gameState == GameState_MovieIntro ||
+        g_GameWork.gameState == GameState_MovieOpening ||
+        g_GameWork.gameState == GameState_ExitMovie)
+        return TC_MODE_ADVANCE;
+
+    /* The brightness screen is a slider with no pointer support, so touch could
+     * open it and then had no way out. It leaves on enter|cancel; Back sends
+     * cancel, which leaves the setting as it was. */
+    if (g_GameWork.gameState == GameState_OptionScreen &&
+        g_GameWork.gameStateSteps[0] == OptionsMenuState_Brightness)
+        return TC_MODE_BACK;
+
+    if (g_GameWork.gameState != GameState_InGame)
+        return TC_MODE_OFF;
+    if (g_SysWork.sysState == SysState_Gameplay)
+        return TC_MODE_GAMEPLAY;
+    if (g_SysWork.sysState == SysState_GamePaused)
+        return TC_MODE_PAUSE;
+    if (g_SysWork.sysState == SysState_MapScreen)
+        return TC_MODE_MAP;
+
+    /* States that are just waiting to be advanced or skipped: message and
+     * examine text, scripted scenes, the FMV hand-off, the game-over screen.
+     * A pad presses Start or Cross here; a touchscreen had no way to say it,
+     * so cutscenes could not be skipped and text could not be advanced.
+     *
+     * EXCEPT while a free-cursor puzzle is up: those are already driven as a
+     * pointer by pc_mouse_cursor, and injecting a confirm underneath would
+     * fire twice on every tap. */
+    if (g_SysWork.sysState == SysState_ReadMessage ||
+        g_SysWork.sysState == SysState_EventCallback ||
+        g_SysWork.sysState == SysState_Fmv ||
+        g_SysWork.sysState == SysState_GameOver)
+    {
+        extern int Pc_MouseCursor_PuzzleActive(void);
+
+        if (Pc_MouseCursor_PuzzleActive())
+            return TC_MODE_OFF;
+
+        return TC_MODE_ADVANCE;
+    }
+
+    return TC_MODE_OFF;
+}
+
+/* Full-screen states that a pad closes with one specific button, and that no
+ * pointer can dismiss (unlike the inventory and options screens, which
+ * pc_mouse_cursor already drives). Each keeps exactly that button alive so
+ * touch always has a way back out -- opening one with no way to leave it is
+ * how the pause screen trapped the player. Drawn in the corner slot whatever
+ * the action, so "get out of here" is always in the same place. */
+static int Tc_SoloButton(int mode)
+{
+    if (mode == TC_MODE_PAUSE)
+        return TB_START;   /* pause exits on the pause bind */
+    if (mode == TC_MODE_MAP)
+        return TB_MAP;     /* the map screen exits on the map bind */
+    if (mode == TC_MODE_BACK)
+        return TB_BACK;    /* brightness and friends leave on cancel */
+
+    return -1;
+}
+
+/* Real hardware wins. Two tests, because one is not enough here: SDL opens a
+ * pad as a GameController on most platforms, but on Android it frequently never
+ * enumerates one at all -- this project's own GameSir arrives purely as key
+ * events, with SDL reporting no joysticks but the accelerometer. So also treat
+ * ANY keyboard/pad button as proof that something physical is in use.
+ *
+ * Touching the screen hands control back, so a pad left connected and idle
+ * does not permanently lock out a player who puts it down. */
+void Pc_Touch_NoteOtherInput(int padAttached, int keyWord)
+{
+    s_PadAttached = (padAttached != 0);
+
+    if (keyWord != 0xFFFF)
+        s_PhysicalInput = 1;
 }
 
 static int Tc_Enabled(void)
 {
-    return g_PcConfig.touchControls != 0;
+    if (!g_PcConfig.touchControls)
+        return 0;
+
+    return !(s_PadAttached || s_PhysicalInput);
 }
 
 static unsigned char Tc_AxisByte(float v)
@@ -233,6 +331,7 @@ static void Tc_Reset(void)
     s_LeftX = s_LeftY = s_RightX = s_RightY = 128;
     s_StickActive = 0;
     s_Running     = 0;
+    s_AdvanceHeld = 0;
 }
 
 void Pc_Touch_Update(void)
@@ -240,12 +339,13 @@ void Pc_Touch_Update(void)
     SDL_TouchID dev;
     Uint32      now;
     float       aspect;
-    int         nDev, nFingers, i, d;
+    int         nDev, nFingers, i, d, mode;
     int         seen[TC_MAX_FINGERS];
     float       lookDx = 0.0f, lookDy = 0.0f;
     int         winW = 0, winH = 0;
 
-    if (!Tc_Enabled())
+    mode = Tc_Mode();
+    if (mode == TC_MODE_OFF)
     {
         Tc_Reset();
         return;
@@ -265,7 +365,8 @@ void Pc_Touch_Update(void)
     for (i = 0; i < TC_MAX_FINGERS; i++)
         seen[i] = 0;
 
-    s_PadWord = 0xFFFF;
+    s_PadWord     = 0xFFFF;
+    s_AdvanceHeld = 0;
     for (i = 0; i < TB_COUNT; i++)
     {
         s_Buttons[i].held = 0;
@@ -316,6 +417,8 @@ void Pc_Touch_Update(void)
             if (t == NULL)
                 continue;
 
+            s_PhysicalInput = 0; /* last input wins: the screen is in use again */
+
             t->dev       = dev;
             t->id        = f->id;
             t->active    = 1;
@@ -334,7 +437,27 @@ void Pc_Touch_Update(void)
             {
                 int b = Tc_HitButton(vx, vy, aspect);
 
-                if (b >= 0)
+                if (mode == TC_MODE_ADVANCE)
+                {
+                    /* Anywhere on the screen, with no target to find: there is
+                     * nothing else to touch during a scene or a wall of text. */
+                    t->role      = TR_ADVANCE;
+                    t->buttonIdx = -1;
+                }
+                else if (mode != TC_MODE_GAMEPLAY)
+                {
+                    /* One live control, in the corner slot; a stray thumb
+                     * anywhere else must not steer a frozen world. */
+                    int   solo = Tc_SoloButton(mode);
+                    float sdx  = (vx - s_Buttons[TB_START].cx) * aspect;
+                    float sdy  = (vy - s_Buttons[TB_START].cy);
+                    float sr   = s_Buttons[TB_START].r * 1.25f;
+                    int   onIt = (((sdx * sdx) + (sdy * sdy)) <= (sr * sr));
+
+                    t->role      = (onIt && solo >= 0) ? TR_BUTTON : TR_NONE;
+                    t->buttonIdx = (onIt && solo >= 0) ? solo : -1;
+                }
+                else if (b >= 0)
                 {
                     t->role      = TR_BUTTON;
                     t->buttonIdx = b;
@@ -367,6 +490,10 @@ void Pc_Touch_Update(void)
 
         switch (t->role)
         {
+            case TR_ADVANCE:
+                s_AdvanceHeld = 1;
+                break;
+
             case TR_BUTTON:
                 if (t->buttonIdx >= 0 && t->buttonIdx < TB_COUNT)
                 {
@@ -424,7 +551,13 @@ void Pc_Touch_Update(void)
                     s_LeftX = s_LeftY = 128;
                 }
 
-                s_Running = (mag >= TC_RUN_THRESHOLD);
+                /* Pushing the stick fully BACK used to trip this too, and
+                 * Run + Back is the quick back-jump -- so every backward step
+                 * became a lurch. Auto-run is for going forward; a deliberate
+                 * back-jump is still available by holding the Run button, which
+                 * is how a pad does it. dy is screen-down-positive, and the
+                 * margin keeps a run alive while turning hard. */
+                s_Running = (mag >= TC_RUN_THRESHOLD) && (dy < (0.35f * len));
                 break;
             }
 
@@ -449,7 +582,7 @@ void Pc_Touch_Update(void)
         if (!t->active || seen[i])
             continue;
 
-        if (t->role != TR_BUTTON && !t->movedFar &&
+        if (mode == TC_MODE_GAMEPLAY && t->role != TR_BUTTON && !t->movedFar &&
             (now - t->startMs) <= TC_TAP_MS)
         {
             s_ActionFrames = TC_ACTION_FRAMES;
@@ -486,9 +619,13 @@ void Pc_Touch_Update(void)
         if (s_Buttons[TB_ITEM].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->item);
         if (s_Buttons[TB_MAP].holdFrames   > 0) Tc_PressAction(&s_PadWord, cfg->map);
         if (s_Buttons[TB_START].holdFrames > 0) Tc_PressAction(&s_PadWord, cfg->pause);
+        if (s_Buttons[TB_BACK].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->cancel);
 
-        if (s_Running)
+        if (s_Running || s_Buttons[TB_RUN].holdFrames > 0)
             Tc_PressAction(&s_PadWord, cfg->run);
+
+        if (s_AdvanceHeld)
+            Tc_PressAction(&s_PadWord, cfg->enter);
 
         if (s_ActionFrames > 0)
         {
@@ -505,7 +642,7 @@ int Pc_Touch_Active(void)
     if (SDL_GetNumTouchDevices() <= 0)
         return 0;
 
-    return Tc_InGameplay();
+    return Tc_Mode() != TC_MODE_OFF;
 }
 
 void Pc_Touch_GetPad(unsigned short* word,
@@ -517,6 +654,27 @@ void Pc_Touch_GetPad(unsigned short* word,
     if (rightY != NULL) *rightY = s_RightY;
     if (leftX  != NULL) *leftX  = s_LeftX;
     if (leftY  != NULL) *leftY  = s_LeftY;
+}
+
+/* Any finger on the glass right now, whatever the game state. The FMV player
+ * runs its own input loop outside the state machine and has to ask directly.
+ * Honors the touch-controls setting, so someone on a gamepad can rest a hand
+ * on the screen without skipping every movie. */
+int Pc_Touch_AnyContact(void)
+{
+    int n, d;
+
+    if (!Tc_Enabled())
+        return 0;
+
+    n = SDL_GetNumTouchDevices();
+    for (d = 0; d < n; d++)
+    {
+        if (SDL_GetNumTouchFingers(SDL_GetTouchDevice(d)) > 0)
+            return 1;
+    }
+
+    return 0;
 }
 
 int Pc_Touch_UsedRecently(void)
@@ -619,11 +777,10 @@ void Pc_Touch_Draw(void)
 
     s_TcBatch batch;
     GsOT*     ot;
-    int       buf, i, halfW;
+    int       buf, i, halfW, mode;
 
-    if (!Tc_Enabled())
-        return;
-    if (!Tc_InGameplay())
+    mode = Tc_Mode();
+    if (mode == TC_MODE_OFF)
         return;
     if (SDL_GetNumTouchDevices() <= 0)
         return;
@@ -660,7 +817,7 @@ void Pc_Touch_Draw(void)
     /* Movement stick: only while a thumb is down. A permanently drawn stick is
      * clutter on a screen this small, and the floating origin means a fixed
      * one would be lying about where it is anyway. */
-    if (s_StickActive)
+    if (s_StickActive && mode == TC_MODE_GAMEPLAY)
     {
         int ox = TC_UX(s_StickOx), oy = TC_UY(s_StickOy);
         int kx = TC_UX(s_StickKx), ky = TC_UY(s_StickKy);
@@ -670,11 +827,36 @@ void Pc_Touch_Draw(void)
         Tc_Octagon(&batch, kx, ky, (rr * 38) / 100, s_Running ? 255 : 190);
     }
 
+    if (mode == TC_MODE_ADVANCE)
+    {
+        /* Deliberately draws nothing. The whole screen is the control, and a
+         * button here would cover the very text it exists to advance. */
+        if (batch.used <= 0)
+            return;
+    }
+
     for (i = 0; i < TB_COUNT; i++)
     {
-        int cx = TC_UX(s_Buttons[i].cx);
-        int cy = TC_UY(s_Buttons[i].cy);
-        int r  = TC_UR(s_Buttons[i].r);
+        float bcx = s_Buttons[i].cx, bcy = s_Buttons[i].cy, br = s_Buttons[i].r;
+        int   cx;
+
+        if (mode == TC_MODE_ADVANCE)
+            continue;
+
+        if (mode != TC_MODE_GAMEPLAY)
+        {
+            if (i != Tc_SoloButton(mode))
+                continue;
+
+            bcx = s_Buttons[TB_START].cx;
+            bcy = s_Buttons[TB_START].cy;
+            br  = s_Buttons[TB_START].r;
+        }
+
+        cx = TC_UX(bcx);
+        {
+        int cy = TC_UY(bcy);
+        int r  = TC_UR(br);
         int lum = (s_Buttons[i].holdFrames > 0) ? 255 : 140;
 
         Tc_Ring(&batch, cx, cy, r, (r * 82) / 100, lum);
@@ -710,6 +892,30 @@ void Pc_Touch_Draw(void)
                 Tc_Quad(&batch, cx + g - w, cy - h, cx + g + w, cy - h, cx + g - w, cy + h, cx + g + w, cy + h, lum);
                 break;
             }
+            case TB_BACK:
+            {
+                /* Left chevron: two slanted bars meeting at the point. */
+                int a = (r * 34) / 100, t = (r * 11) / 100;
+
+                Tc_Quad(&batch, cx + a, cy - a, cx + a + t, cy - a + t,
+                                cx - a, cy,     cx - a + t, cy + t,       lum);
+                Tc_Quad(&batch, cx - a, cy,     cx - a + t, cy - t,
+                                cx + a, cy + a, cx + a + t, cy + a - t,   lum);
+                break;
+            }
+            case TB_RUN:
+            {
+                /* Three stacked speed lines -- distinct at a glance from
+                 * Start's two upright bars. */
+                int h = (r * 7) / 100, g = (r * 26) / 100;
+                int w0 = (r * 46) / 100, w1 = (r * 34) / 100, w2 = (r * 22) / 100;
+
+                Tc_Quad(&batch, cx - w0, cy - g - h, cx + w0, cy - g - h, cx - w0, cy - g + h, cx + w0, cy - g + h, lum);
+                Tc_Quad(&batch, cx - w1, cy - h,     cx + w1, cy - h,     cx - w1, cy + h,     cx + w1, cy + h,     lum);
+                Tc_Quad(&batch, cx - w2, cy + g - h, cx + w2, cy + g - h, cx - w2, cy + g + h, cx + w2, cy + g + h, lum);
+                break;
+            }
+        }
         }
     }
 

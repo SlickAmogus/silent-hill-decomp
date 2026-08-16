@@ -1090,6 +1090,19 @@ static void FmvQuitNow(const char* where)
     PsyX_Exit();
 }
 
+/* A movie has no on-screen UI and a touchscreen has no Start button, so any
+ * finger on the glass counts as the skip control. This feeds the SAME predicate
+ * the keys use, which matters: the skip-arming below only trusts it once it has
+ * seen everything released, so the tap that skipped one movie cannot run
+ * straight through the next one. Gated on the touch-controls setting so a
+ * player on a gamepad can rest a hand on the screen. */
+extern "C" int Pc_Touch_AnyContact(void);
+
+static int FmvTouchHeld(void)
+{
+    return Pc_Touch_AnyContact();
+}
+
 /* Poll skip keys, drain SDL events, and return 1 if the user wants to bail. */
 static int PollSkipOrQuit(int* out_quit)
 {
@@ -1108,7 +1121,8 @@ static int PollSkipOrQuit(int* out_quit)
     return (keystate[SDL_SCANCODE_RETURN] ||
             keystate[SDL_SCANCODE_ESCAPE] ||
             keystate[SDL_SCANCODE_SPACE] ||
-            PsyX_Pad_SkipButtonHeld());
+            PsyX_Pad_SkipButtonHeld() ||
+            FmvTouchHeld());
 }
 
 /* Play an FMV directly from the BIN disc image using the MDEC software
@@ -1255,7 +1269,8 @@ static int PlayFromBin(int table_idx, int max_frames)
             SDL_PumpEvents();
             const Uint8* ks = SDL_GetKeyboardState(NULL);
             if (!ks[SDL_SCANCODE_RETURN] && !ks[SDL_SCANCODE_ESCAPE] &&
-                !ks[SDL_SCANCODE_SPACE] && !PsyX_Pad_SkipButtonHeld())
+                !ks[SDL_SCANCODE_SPACE] && !PsyX_Pad_SkipButtonHeld() &&
+                !FmvTouchHeld())
                 break;
             SDL_Delay(16);
             wait_frames++;
@@ -1707,7 +1722,8 @@ static int FfmpegSkipHeld(void)
     SDL_PumpEvents();
     const Uint8* ks = SDL_GetKeyboardState(NULL);
     return ks[SDL_SCANCODE_RETURN] || ks[SDL_SCANCODE_ESCAPE] ||
-           ks[SDL_SCANCODE_SPACE] || PsyX_Pad_SkipButtonHeld();
+           ks[SDL_SCANCODE_SPACE] || PsyX_Pad_SkipButtonHeld() ||
+           FmvTouchHeld();
 }
 
 /* ===== Decode-ahead pipeline =====
@@ -2451,7 +2467,8 @@ static int FMV_PlayImpl(int file_idx, int max_frames)
         SDL_PumpEvents();
         const Uint8* keystate = SDL_GetKeyboardState(NULL);
         int skipHeld = keystate[SDL_SCANCODE_RETURN] || keystate[SDL_SCANCODE_ESCAPE] ||
-                       keystate[SDL_SCANCODE_SPACE] || PsyX_Pad_SkipButtonHeld();
+                       keystate[SDL_SCANCODE_SPACE] || PsyX_Pad_SkipButtonHeld() ||
+                       FmvTouchHeld();
         if (!skip_armed) {
             if (!skipHeld)
                 skip_armed = 1;
@@ -2545,7 +2562,8 @@ done:
             SDL_PumpEvents();
             const Uint8* ks = SDL_GetKeyboardState(NULL);
             if (!ks[SDL_SCANCODE_RETURN] && !ks[SDL_SCANCODE_ESCAPE] &&
-                !ks[SDL_SCANCODE_SPACE] && !PsyX_Pad_SkipButtonHeld())
+                !ks[SDL_SCANCODE_SPACE] && !PsyX_Pad_SkipButtonHeld() &&
+                !FmvTouchHeld())
                 break;
             SDL_Delay(16);
             wait_frames++;

@@ -24,6 +24,11 @@
 extern "C" {
 #endif
 
+/** Report whether a physical controller is attached, and the current keyboard/
+ *  pad button word, so on-screen controls can stand aside for real hardware.
+ *  Called from the pad update just before Pc_Touch_Update. */
+void Pc_Touch_NoteOtherInput(int padAttached, int keyWord);
+
 /** Poll fingers and rebuild the virtual pad. Called once per pad update, from
  *  PsyX_Pad_InternalPadUpdates, so it cannot land out of order with the read. */
 void Pc_Touch_Update(void);
@@ -37,6 +42,10 @@ int Pc_Touch_Active(void);
 void Pc_Touch_GetPad(unsigned short* word,
                      unsigned char* rightX, unsigned char* rightY,
                      unsigned char* leftX,  unsigned char* leftY);
+
+/** 1 while any finger is on the screen, in any game state. For input loops that
+ *  run outside the state machine (the FMV player). */
+int Pc_Touch_AnyContact(void);
 
 /** 1 if a finger has touched the screen recently. Used to suppress the drawn
  *  mouse cursor, which represents a pointer a touchscreen does not have. */
