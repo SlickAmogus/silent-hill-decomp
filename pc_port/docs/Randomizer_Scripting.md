@@ -51,44 +51,58 @@ touch your machine.
 | `rando.log(msg)` | — | write to the game log |
 | `rando.player_has(itemId)` | bool | is that item in the inventory |
 | `rando.spawn_monster(id, x, z [, state])` | slot / -1 | live-spawn a monster at world coords (q19_12, the map's own units) |
+| `rando.give_item(id [, count])` | — | add an item straight to the inventory |
+| `rando.spawn_item(id, x, z [, radius [, count]])` | idx / -1 | a **proximity pickup** at world coords: walking within `radius` (q19_12, default ~2 units) grants the item and fires `on_item(id)` |
 
-A script may define two globals the engine calls for you:
+A script may define these globals and the engine calls them for you:
 
 - `on_load()` — once, right after the script loads.
 - `on_update()` — once per gameplay frame while you're in that area.
+- `on_item(itemId)` — when the player reaches a `spawn_item` pickup.
+
+> `spawn_item` has no world *model* yet (that's the next add), so the pickup is
+> invisible — pair it with a `spawn_monster` at the same spot as a visible marker,
+> or log the coordinates. The grant + `on_item` trigger work now.
 
 ### Example — the resort gets meaner
 
 `gamedata/scripts/map5_s01.lua`:
 
 ```lua
--- 30% of the time the resort becomes a longer, harder detour, and drops a
+-- 30% of the time the resort becomes a longer, harder detour that drops a
 -- shotgun by the fountain; grabbing it wakes something up.
-local armed = false
+local SHOTGUN, SPLIT_HEAD = 9, 20   -- ids from the item / Chara_* enums
+local FOUNTAIN_X, FOUNTAIN_Z = 0, 0 -- q19_12 coords, e.g. read off the map editor
 
 function on_load()
   if rando.chance(30) then
     rando.set("areas_to_boss", rando.get("areas_to_boss") + 3)   -- longer run
     rando.set("enemy_health",  rando.get("enemy_health") + 100)  -- tougher
+    rando.spawn_monster(SPLIT_HEAD, FOUNTAIN_X, FOUNTAIN_Z)      -- visible guardian
+    rando.spawn_item(SHOTGUN, FOUNTAIN_X, FOUNTAIN_Z)           -- the reward
     rando.log("resort event: the long way round")
-    armed = true
   end
 end
 
-function on_update()
-  -- when the player picks up the shotgun, spawn a Split Head at the arena.
-  if armed and rando.player_has(9 --[[ shotgun ]]) then
-    armed = false
-    rando.spawn_monster(20 --[[ Split Head ]], 0, 0)   -- coords in q19_12 units
-    rando.log("resort event: the guardian wakes")
+function on_item(id)
+  if id == SHOTGUN then
+    -- picking up the shotgun spawns a second boss right where you stand
+    rando.spawn_monster(SPLIT_HEAD, FOUNTAIN_X, FOUNTAIN_Z)
+    rando.log("resort event: it wasn't alone")
   end
 end
 ```
 
+### Reload area
+
+Changing spawn density/count in the settings panel takes effect on the next area
+by default; the panel's **Reload area** action re-applies them to the area you're
+in right now (it re-rolls and respawns the monsters in place). Weapon damage is
+already live; enemy-health changes apply to newly spawned enemies.
+
 ### Roadmap
 
-This is the first cut. `spawn_item(id, x, z)` (place a pickup at coordinates) and
-cutscene/event hooks are the next additions — the pieces are structured so those
-slot in without changing what's here. Chara and item ids come from
-`include/bodyprog/chara/chara.h` (`Chara_*`) and the item enums; the TrenchBroom
-SH1 editor is the easiest way to read exact world coordinates off a map.
+Next: a visible world **model** for `spawn_item`, and cutscene / event hooks. The
+pieces are structured so those slot in without changing what's here. Chara and item
+ids come from `include/bodyprog/chara/chara.h` (`Chara_*`) and the item enums; the
+TrenchBroom SH1 editor is the easiest way to read exact world coordinates off a map.
