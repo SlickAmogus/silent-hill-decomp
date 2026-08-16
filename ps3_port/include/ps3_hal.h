@@ -2,21 +2,30 @@
 /*
  * ps3_hal.h - the PS3 HAL surface, declared WITHOUT PSL1GHT types.
  *
- * THE RULE THIS HEADER EXISTS TO ENFORCE: PSL1GHT headers and decomp headers
- * may never meet in one translation unit.
+ * THE RULE THIS HEADER EXISTS TO ENFORCE: PSL1GHT headers and the decomp's
+ * include/decomp/types.h may never meet in one translation unit.
  *
  * PSL1GHT's <ppu-types.h> -- pulled in transitively by essentially every lv2/
- * sys/rsx header via ppu-lv2.h -- typedefs u8..u64 and s8..s64. The decomp's
- * include/decomp/types.h defines those same names. They are NOT compatible on
- * the PPU: LP64 makes uint64_t `unsigned long`, while the decomp's u64 is
- * `unsigned long long`. Same width, different type, so the TU dies with
- * "conflicting types for 'u64'". Widths matching is what makes this nasty --
- * it is a pure type-identity clash, so it cannot be papered over with a cast.
+ * sys/rsx header via ppu-lv2.h -- typedefs u8..u64 and s8..s64. types.h defines
+ * those same names. They are NOT compatible on the PPU: LP64 makes uint64_t
+ * `unsigned long`, while the decomp's u64 is `unsigned long long`. Same width,
+ * different type, so the TU dies with "conflicting types for 'u64'" (plus a
+ * `bool` clash). Widths matching is what makes this nasty -- it is a pure
+ * type-identity clash, so it cannot be papered over with a cast.
  *
- * The seam: shared game code and pc_port stubs include THIS header, which uses
- * plain C types only. Only sources under ps3_port/src that include NO decomp
- * headers may include PSL1GHT. Every HAL entry point therefore crosses the
- * boundary as plain C.
+ * The boundary was measured, not assumed, because guessing it too wide costs
+ * real capability. What actually conflicts is types.h and therefore anything
+ * pulling it: common.h, game.h, and the decomp game headers generally.
+ * What does NOT conflict, and is free to sit beside PSL1GHT in a HAL file:
+ *
+ *     sh_log.h        (only needs <stdio.h>)   -> HAL files CAN use SH_DBG
+ *     psx_memory.h
+ *     gpu_nv2a.h      (plain float/unsigned)
+ *
+ * So the seam is: HAL sources may include PSL1GHT and may log, but must not
+ * reach for the decomp's game types. Anything needing both is split, with the
+ * PSL1GHT half behind a declaration in this header, which uses plain C types
+ * only. Ps3_TimebaseFreq() is the pattern.
  */
 #ifndef PS3_HAL_H
 #define PS3_HAL_H
@@ -30,6 +39,12 @@ extern "C" {
  * divisor. Pairs with SH_CYCLES() in sh_hwperf.h, which reads the base with a
  * bare mftb and so needs no PSL1GHT header of its own. */
 unsigned long long Ps3_TimebaseFreq(void);
+
+/* Yields to lv2 for approximately `ms`. Unlike the 360, which busy-waits on the
+ * time base because a bare-metal libXenon app has no scheduler, the PS3 runs
+ * under GameOS and can actually sleep -- spinning here would starve the audio
+ * and pad service threads lv2 runs on our behalf. */
+void Ps3_SleepMs(unsigned ms);
 
 #ifdef __cplusplus
 }

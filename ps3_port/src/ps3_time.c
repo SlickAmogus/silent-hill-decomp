@@ -14,3 +14,11 @@ unsigned long long Ps3_TimebaseFreq(void)
 {
     return (unsigned long long)sysGetTimebaseFrequency();
 }
+
+void Ps3_SleepMs(unsigned ms)
+{
+    if (ms)
+        sysUsleep(ms * 1000u);
+    else
+        sysUsleep(0);   /* plain yield */
+}

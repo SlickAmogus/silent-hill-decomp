@@ -437,9 +437,10 @@ void PsyX_ForceItemDepthEnd(void)
      * output has been a constant wrote=0/6 min=16777215 max=0. Kept behind the
      * diag flag rather than deleted so the question is still answerable, but the
      * default path must never stall the GPU for a diagnostic. */
-#ifndef SH_XBOX360_PORT   /* pbkit is nxdk/NV2A; the Xenos zeta buffer is not
-                           * plain RAM at a pb_ address, so this probe has no
-                           * 360 equivalent and its question is NV2A-specific. */
+/* pbkit is nxdk/NV2A. Neither the Xenos nor the RSX depth buffer is plain RAM
+ * at a pb_ address, so this probe has no equivalent on either console and its
+ * question is NV2A-specific. */
+#if !defined(SH_XBOX360_PORT) && !defined(SH_PS3_PORT)
     {
     extern int g_XboxLogDiag;   /* sh_log_xbox.c (config log_diag) */
     if (g_XboxLogDiag && doLog && s_izHit > 0) {
@@ -478,7 +479,7 @@ void PsyX_ForceItemDepthEnd(void)
         }
     }
     }
-#endif /* !SH_XBOX360_PORT */
+#endif /* !SH_XBOX360_PORT && !SH_PS3_PORT */
     /* Hand this bracket's SZ range to the next one for normalization. */
     if (s_izHit > 0 && s_izZMax > s_izZMin) {
         s_izPrevMin = s_izZMin;
@@ -1356,7 +1357,14 @@ void DrawOTag(u_long* p)
          * never completed on hardware). The one-shot summary below is enough to
          * confirm the walk terminates. */
         next = getaddr(base);
-        if (next == (uintptr_t)0xffffffff || next < 0x10000)
+        /* BOTH widths of "all bits set", because the terminator is written as
+         * (uintptr_t)-1 (prim_terminator, above) while this test was written as
+         * the 32-bit literal. On an ILP32 console those are the same value, so
+         * the mismatch was invisible on Xbox and 360; on the PS3's 64-bit PPU
+         * -1 is 0xFFFFFFFFFFFFFFFF and 0x00000000FFFFFFFF does not match it, so
+         * the walk stepped ONTO the terminator, took its addr as the next node,
+         * and read getlen at -1 + 8 == 0x7. That was the first PS3 boot crash. */
+        if (next == (uintptr_t)-1 || next == 0xffffffffu || next < 0x10000)
             break;
         base = next;
     }
