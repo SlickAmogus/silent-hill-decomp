@@ -12,12 +12,39 @@ layers `SH_XBOX360_PORT` on top of `SH_XBOX_PORT` and `SH_PC_PORT`.
 
 | Milestone | State |
 |---|---|
-| 0. Toolchain + bootable-artifact chain | **done** — `EBOOT.BIN` builds, RPCS3 reports `emulation is running` |
-| 1. Compile the tree for 64-bit BE PowerPC | **done — 191/191, zero errors** (`ppu_gate.sh`) |
-| 2. Link `EBOOT.BIN` against the full object set | not started |
-| 3. Endian swappers for the formats that are not walked | not started |
-| 4. RSX backend + one textured triangle | not started |
-| 5. Load `map0_s00`, render one frame | not started |
+| 0. Toolchain + bootable-artifact chain | **done** — `EBOOT.BIN` builds and boots |
+| 1. Compile the tree for 64-bit BE PowerPC | **done — 201/201, zero errors** (`ppu_gate.sh`) |
+| 2. Link `EBOOT.BIN` against the full object set | **done** — 3.9 MB ELF, 808 KB EBOOT |
+| 3. Endian swappers for the formats that are not walked | TIM done; the ~496-site type-pun sweep is the open one |
+| 4. RSX backend + one textured triangle | not started (`gpu_rsx.c` is a counting no-op) |
+| 5. Load `map0_s00`, render one frame | game reaches its render loop and parses 1320 prims/frame |
+
+The port **boots and runs**: 2800+ frames under RPCS3 at ~63 fps, heap flat at
+4097 KB, loading real files off a real disc image, with no fault. Verified live
+rather than assumed:
+
+```
+[GTE]  RotTransPers v(64,32,512) -> sx=352 sy=256   (expected values)
+[CD]   PVD id='CD001'            -- sector size, payload offset, BCD maths
+[TIM]  FONT16 mode=8 rect=(0,496 256x16)  -- the endian swapper works
+[PAD]  ioPadInit ok        [AUD] lv2 port up, 2 ch, 8 blocks
+[OTS]  prims=1320 per frame, unk=0
+```
+
+### What is left before something is on screen
+
+1. **The type-pun sweep**, ~496 sites (259 of them touching x/y/u/v directly).
+   These are the stores described under "The real work" below, e.g.
+   `*(s32*)&(*poly)->u1 = (v1 << 8) + 0x2B0000 + u1`, composing three fields in
+   little-endian order. They corrupt UVs and tpages on big-endian. Each site
+   needs classifying first: a *composition* has to be fixed, a straight
+   *copy* between two identically-laid-out structs is already fine.
+2. **The RSX backend.** Until it exists nothing can be looked at, and some
+   questions cannot be settled without looking. The OT census currently reports
+   a screen-space bounding box of x 0..1280 against a 640-wide framebuffer while
+   y stays a tight -17..497. That is either off-screen geometry that a real
+   renderer would clip, or a residual coordinate problem; the counting backend
+   cannot tell the two apart, so it is recorded rather than diagnosed.
 
 ## Why `xbox360-port` is the base
 
@@ -261,6 +288,33 @@ the x64 generated sources wherever a 32-bit and 64-bit variant both exist.
 **Replace (PSL1GHT):** `gpu_nv2a.c` -> `gpu_rsx.c` on `librsx`; audio ->
 `libaudio`; pad -> `libio`; filesystem and CD/BIN reading -> lv2 `sysFs`;
 log sink, crash handler, main.
+
+## Bugs this port found in shared code
+
+Both were latent in code the Xbox ports run every day, and both took booting to
+find. They are recorded here because the pattern generalises: **PS3 is the first
+64-bit consumer of the console renderer, and the second big-endian one.**
+
+1. **The OT walk ran off the end of every ordering table.** `termPrim` points a
+   node's `addr` at `prim_terminator`, whose own `addr` is `(uintptr_t)-1`, but
+   the walk tested `next == (uintptr_t)0xffffffff`. On ILP32 those are the same
+   value; on the 64-bit PPU `0x00000000FFFFFFFF` does not match
+   `0xFFFFFFFFFFFFFFFF`, so the walk stepped onto the terminator, took its addr
+   as the next node, and read `getlen` at `-1 + 8 == 0x7`. Fixed in
+   `gpu_xbox.c`; harmless on 32-bit, where the added test is redundant.
+
+2. **The primitive command byte moves on big-endian.** See `PSX_PRIM_CMD` in
+   PsyCross's `libgpu.h`. `DrawOTag` dispatches on `P_TAG.code`, which the
+   structs place at the last byte of the first data word -- only the PSX command
+   byte on little-endian. The `DR_*` family builds that word as a `u_int`, so on
+   big-endian its command sits at the FIRST byte and the two families disagreed.
+   Symptom: a stream of `[PRIM?] code=0x1c`, which is a font tpage, not a
+   command. **This one applies to the 360 exactly as much as to the PS3.**
+
+3. **`main` never applied the console config overrides.** `XboxConfig_ApplyOverrides()`
+   is called right after `PcConfig_Load` on Xbox and was missing here, so the
+   frame cap, PGXP disable and log gate were all skipped. `main_xbox360.c` is
+   missing it too.
 
 ## Open risks
 
