@@ -580,6 +580,17 @@ static int BuildDiscSearchRoots(char roots[][1024], int maxRoots)
     }
 #endif
 
+#if defined(SH_IOS)
+    /* iOS has no equivalent of Android's unreachable-data-dir problem: the
+     * working directory IS Documents, and UIFileSharingEnabled publishes it to
+     * Files.app directly. What it does have is the same user mistake the drop
+     * dir accounts for — Files.app shows this app as a single "Silent Hill"
+     * folder, so dropping the .bin straight into it rather than into gamedata/
+     * is the obvious thing to try. Accept both. */
+    if (n < maxRoots)
+        snprintf(roots[n++], 1024, ".");
+#endif
+
     return n;
 }
 
@@ -1445,6 +1456,18 @@ int main(int argc, char* argv[])
                          (drop != NULL && drop[0] != '\0') ? drop : PcPort_GetGameDataPath(),
                          PcPort_GetGameDataPath());
             }
+#elif defined(SH_IOS)
+            /* Name it the way the user sees it in Files.app, not as a
+             * filesystem path — the container path is a UUID they cannot type
+             * and would never recognise. */
+            snprintf(msg, sizeof(msg),
+                     "No Silent Hill disc image was found.\n\n"
+                     "Open the Files app and go to:\n"
+                     "  On My iPhone > Silent Hill\n\n"
+                     "Copy your own disc rip (a .bin file) into the gamedata\n"
+                     "folder there, or just drop it in that folder directly.\n\n"
+                     "USA, PAL and NTSC-J discs all work, and the file can keep\n"
+                     "whatever name it has. No .cue file is needed.");
 #else
             snprintf(msg, sizeof(msg),
                      "No Silent Hill disc image was found.\n\n"
