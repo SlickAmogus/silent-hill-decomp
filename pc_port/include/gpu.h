@@ -108,9 +108,72 @@ typedef struct
 #define getTPageN(tp, abr, xn, yn) \
     ((((tp) & 0x3) << 7) | (((abr) & 0x3) << 5) | (((yn) & 0x1) << 4) | ((xn) & 0xF))
 
+/* ---------------------------------------------------------------------------
+ * "Fast" primitive setters: one wide store covering several narrow fields.
+ *
+ * Each of these composes a word in LITTLE-ENDIAN FIELD ORDER (first field in the
+ * low bits) and stores it over adjacent shorts or bytes. That is only the same
+ * thing as writing the fields on a little-endian host. On big-endian the first
+ * field lands in the HIGH bits, so every one of them silently swaps its fields.
+ *
+ * Xbox 360, first boot with a working GTE: 1320 primitives parsed per frame and
+ * exactly ONE emitted. setXY*Fast had swapped x with y in every 2D primitive, so
+ * the spans came out enormous (census bounding box 0..1280 on a 640-wide screen)
+ * and PolyOversized -- correctly -- rejected nearly all of them.
+ *
+ * The big-endian variants below write the fields directly, which is what the
+ * wide store was always shorthand for. The little-endian definitions are left
+ * byte-for-byte unchanged so PC and Xbox codegen does not move at all.
+ * ------------------------------------------------------------------------- */
+#if defined(__BIG_ENDIAN__) || \
+    (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#define SH_PRIM_FIELDWISE 1
+#endif
+
+#ifdef SH_PRIM_FIELDWISE
+
+#define setRECTFast(r, x, y, w, h) \
+    ((r)->x = (s16)(x), (r)->y = (s16)(y), (r)->w = (s16)(w), (r)->h = (s16)(h))
+
+#else
+
 #define setRECTFast(r, x, y, w, h)        \
     ((u32*)(r))[0] = ((x) | ((y) << 16)), \
     ((u32*)(r))[1] = ((w) | ((h) << 16))
+
+#endif
+
+#ifdef SH_PRIM_FIELDWISE
+
+#define setXY0Fast(p, x, y)  ((p)->x0 = (s16)(x), (p)->y0 = (s16)(y))
+#define setXY1Fast(p, x, y)  ((p)->x1 = (s16)(x), (p)->y1 = (s16)(y))
+#define setXY2Fast(p, x, y)  ((p)->x2 = (s16)(x), (p)->y2 = (s16)(y))
+#define setXY3Fast(p, x, y)  ((p)->x3 = (s16)(x), (p)->y3 = (s16)(y))
+
+#define setWHFast(p, _w, _h) ((p)->w = (s16)(_w), (p)->h = (s16)(_h))
+
+#define setUV0AndClut(p, u, v, cx, cy)     ((p)->u0 = (u8)(u), (p)->v0 = (u8)(v),      (p)->clut = (u16)((((cy) << 6) | (((cx) >> 4) & 0x3F))))
+
+#define setUV0AndClutSum(p, u, v, clut)     ((p)->u0 = (u8)(u), (p)->v0 = (u8)(v), (p)->clut = (u16)(clut))
+
+#define setUV1AndTPageSum(p, u, v, tpage)     ((p)->u1 = (u8)(u), (p)->v1 = (u8)(v), (p)->tpage = (u16)(tpage))
+
+#define setUV2Sum(p, u, v)   ((p)->u2 = (u8)(u), (p)->v2 = (u8)(v))
+#define setUV3Sum(p, u, v)   ((p)->u3 = (u8)(u), (p)->v3 = (u8)(v))
+
+#define setCodeWord(p, code, rgb24)     ((p)->r0 = (u8)((rgb24) & 0xFF), (p)->g0 = (u8)(((rgb24) >> 8) & 0xFF),      (p)->b0 = (u8)(((rgb24) >> 16) & 0xFF), (p)->code = (u8)(code))
+
+#define setRGBC0(prim, r, g, b, code)     ((prim)->r0 = (u8)(r), (prim)->g0 = (u8)(g), (prim)->b0 = (u8)(b), (prim)->code = (u8)(code))
+#define setRGBC1(prim, r, g, b, code)     ((prim)->r1 = (u8)(r), (prim)->g1 = (u8)(g), (prim)->b1 = (u8)(b), (prim)->pad1 = (u8)(code))
+#define setRGBC2(prim, r, g, b, code)     ((prim)->r2 = (u8)(r), (prim)->g2 = (u8)(g), (prim)->b2 = (u8)(b), (prim)->pad2 = (u8)(code))
+#define setRGBC3(prim, r, g, b, code)     ((prim)->r3 = (u8)(r), (prim)->g3 = (u8)(g), (prim)->b3 = (u8)(b), (prim)->pad3 = (u8)(code))
+
+#define setRGB0Fast(p, r, g, b) ((p)->r0 = (u8)(r), (p)->g0 = (u8)(g), (p)->b0 = (u8)(b))
+#define setRGB1Fast(p, r, g, b) ((p)->r1 = (u8)(r), (p)->g1 = (u8)(g), (p)->b1 = (u8)(b))
+#define setRGB2Fast(p, r, g, b) ((p)->r2 = (u8)(r), (p)->g2 = (u8)(g), (p)->b2 = (u8)(b))
+#define setRGB3Fast(p, r, g, b) ((p)->r3 = (u8)(r), (p)->g3 = (u8)(g), (p)->b3 = (u8)(b))
+
+#else
 
 #define setXY0Fast(p, x, y) \
     *(u32*)(&(p)->x0) = (((x) & 0xFFFF) + ((y) << 16))
@@ -168,6 +231,8 @@ typedef struct
 
 #define setRGB3Fast(p, r, g, b) \
     (*(u16*)&(p)->r3 = (r) + ((g) << 8), (p)->b3 = (b))
+
+#endif /* SH_PRIM_FIELDWISE */
 
 #define addPrimFast(ot, p, _len) \
     (setlen(p, _len), addPrim(ot, p))

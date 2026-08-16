@@ -36,6 +36,7 @@
 static unsigned s_frame;
 static unsigned s_trisThisFrame;
 static unsigned s_batchVertsThisFrame;
+static unsigned s_batchCalls;
 static unsigned s_texBindsThisFrame;
 static unsigned s_blendChanges;
 static unsigned s_scissorChanges;
@@ -75,6 +76,7 @@ void GpuNv2a_FrameBegin(void)
     s_poolUsed            = 0;
     s_trisThisFrame       = 0;
     s_batchVertsThisFrame = 0;
+    s_batchCalls          = 0;
     s_texBindsThisFrame   = 0;
     s_blendChanges        = 0;
     s_scissorChanges      = 0;
@@ -85,8 +87,13 @@ void GpuNv2a_FrameEnd(void)
     /* One line per 60 frames: enough to see the renderer is being fed and the
      * counts are stable, without turning a USB-backed log into the bottleneck. */
     if ((s_frame % 60) == 0) {
-        SH_DBG("[GPU] frame=%u tris=%u verts=%u texbind=%u blend=%u scissor=%u",
-               s_frame, s_trisThisFrame, s_batchVertsThisFrame,
+        /* verts/prims come from BatchAlloc, which is the path gpu_xbox.c
+         * actually uses. An earlier version reported triangles counted in
+         * EmitTris -- which NOTHING calls -- so it read a constant zero and
+         * looked like a rendering failure when it was a dead counter. */
+        SH_DBG("[GPU] frame=%u prims=%u verts=%u (tris~%u) texbind=%u blend=%u scissor=%u",
+               s_frame, s_batchCalls, s_batchVertsThisFrame,
+               s_batchVertsThisFrame / 3,
                s_texBindsThisFrame, s_blendChanges, s_scissorChanges);
     }
     s_frame++;
@@ -131,6 +138,7 @@ ShVertex* GpuNv2a_BatchAlloc(int count)
     p = &s_pool[s_poolUsed];
     s_poolUsed += count;
     s_batchVertsThisFrame += (unsigned)count;
+    s_batchCalls++;
     return p;
 }
 
