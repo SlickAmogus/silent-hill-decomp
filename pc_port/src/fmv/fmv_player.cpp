@@ -1090,6 +1090,19 @@ static void FmvQuitNow(const char* where)
     PsyX_Exit();
 }
 
+/* A movie has no on-screen UI and a touchscreen has no Start button, so any
+ * finger on the glass counts as the skip control. This feeds the SAME predicate
+ * the keys use, which matters: the skip-arming below only trusts it once it has
+ * seen everything released, so the tap that skipped one movie cannot run
+ * straight through the next one. Gated on the touch-controls setting so a
+ * player on a gamepad can rest a hand on the screen. */
+extern "C" int Pc_Touch_AnyContact(void);
+
+static int FmvTouchHeld(void)
+{
+    return Pc_Touch_AnyContact();
+}
+
 /* Poll skip keys, drain SDL events, and return 1 if the user wants to bail. */
 static int PollSkipOrQuit(int* out_quit)
 {
@@ -1108,7 +1121,8 @@ static int PollSkipOrQuit(int* out_quit)
     return (keystate[SDL_SCANCODE_RETURN] ||
             keystate[SDL_SCANCODE_ESCAPE] ||
             keystate[SDL_SCANCODE_SPACE] ||
-            PsyX_Pad_SkipButtonHeld());
+            PsyX_Pad_SkipButtonHeld() ||
+            FmvTouchHeld());
 }
 
 /* Play an FMV directly from the BIN disc image using the MDEC software
@@ -1255,7 +1269,8 @@ static int PlayFromBin(int table_idx, int max_frames)
             SDL_PumpEvents();
             const Uint8* ks = SDL_GetKeyboardState(NULL);
             if (!ks[SDL_SCANCODE_RETURN] && !ks[SDL_SCANCODE_ESCAPE] &&
-                !ks[SDL_SCANCODE_SPACE] && !PsyX_Pad_SkipButtonHeld())
+                !ks[SDL_SCANCODE_SPACE] && !PsyX_Pad_SkipButtonHeld() &&
+                !FmvTouchHeld())
                 break;
             SDL_Delay(16);
             wait_frames++;
@@ -1707,7 +1722,8 @@ static int FfmpegSkipHeld(void)
     SDL_PumpEvents();
     const Uint8* ks = SDL_GetKeyboardState(NULL);
     return ks[SDL_SCANCODE_RETURN] || ks[SDL_SCANCODE_ESCAPE] ||
-           ks[SDL_SCANCODE_SPACE] || PsyX_Pad_SkipButtonHeld();
+           ks[SDL_SCANCODE_SPACE] || PsyX_Pad_SkipButtonHeld() ||
+           FmvTouchHeld();
 }
 
 /* ===== Decode-ahead pipeline =====
@@ -2320,7 +2336,23 @@ cleanup:
 #undef swr_get_out_samples
 #endif /* SH_FMV_FFMPEG */
 
+extern "C" void Joy_SwallowNextEdges(void);
+
+static int FMV_PlayImpl(int file_idx, int max_frames);
+
+/* Every exit from playback — finished, skipped, override failed, file missing
+ * — leaves whatever button the user was holding still down. Swallow the edge
+ * here, once, rather than in each playback path's release-wait: those wait on
+ * a timeout and on a pad check that is dead on Android, so a press held longer
+ * than 480ms bled a Confirm into the title screen. */
 extern "C" int FMV_Play(int file_idx, int max_frames)
+{
+    int rc = FMV_PlayImpl(file_idx, max_frames);
+    Joy_SwallowNextEdges();
+    return rc;
+}
+
+static int FMV_PlayImpl(int file_idx, int max_frames)
 {
     int table_idx = file_idx - FIRST_XA_FILE_IDX;
     if (table_idx < 0 || table_idx >= (int)FMV_FILE_COUNT) {
@@ -2435,7 +2467,8 @@ extern "C" int FMV_Play(int file_idx, int max_frames)
         SDL_PumpEvents();
         const Uint8* keystate = SDL_GetKeyboardState(NULL);
         int skipHeld = keystate[SDL_SCANCODE_RETURN] || keystate[SDL_SCANCODE_ESCAPE] ||
-                       keystate[SDL_SCANCODE_SPACE] || PsyX_Pad_SkipButtonHeld();
+                       keystate[SDL_SCANCODE_SPACE] || PsyX_Pad_SkipButtonHeld() ||
+                       FmvTouchHeld();
         if (!skip_armed) {
             if (!skipHeld)
                 skip_armed = 1;
@@ -2529,7 +2562,8 @@ done:
             SDL_PumpEvents();
             const Uint8* ks = SDL_GetKeyboardState(NULL);
             if (!ks[SDL_SCANCODE_RETURN] && !ks[SDL_SCANCODE_ESCAPE] &&
-                !ks[SDL_SCANCODE_SPACE] && !PsyX_Pad_SkipButtonHeld())
+                !ks[SDL_SCANCODE_SPACE] && !PsyX_Pad_SkipButtonHeld() &&
+                !FmvTouchHeld())
                 break;
             SDL_Delay(16);
             wait_frames++;

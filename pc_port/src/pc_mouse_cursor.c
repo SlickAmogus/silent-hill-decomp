@@ -289,6 +289,24 @@ void Pc_MouseCursor_Draw(void)
     if (!Mc_Enabled() || !s_inView)
         return;
 
+    /* Touch drives menus through this same hover/click path (SDL synthesizes
+     * mouse events from taps), but an arrow sprite parked wherever the last tap
+     * landed represents a pointer a touchscreen does not have. Keep the input
+     * behaviour, drop the drawing. Recency-based rather than compile-time so a
+     * device with both a touchscreen and a mouse follows whichever is in use. */
+    {
+        extern int Pc_Touch_UsedRecently(void);
+        if (Pc_Touch_UsedRecently())
+            return;
+    }
+#if defined(__ANDROID__)
+    /* Before the first touch there is nothing to be "recent" yet, and on a
+     * phone the pointer starts parked at 0,0. Nothing here has a mouse unless
+     * one is plugged in, so stay hidden until a real one moves the pointer. */
+    if (!s_moved)
+        return;
+#endif
+
     cx = (s32)s_gx - MC_OFFSET_X;
     cy = (s32)s_gy - MC_OFFSET_Y;
 

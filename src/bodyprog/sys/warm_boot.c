@@ -117,6 +117,17 @@ void Game_WarmBoot(void) // 0x80034264
         VSync(SyncMode_Wait);
     }
 
+#ifdef SH_PC_PORT
+    /* The radio interference loop is a LOOPING sfx and nothing above stops it:
+     * SD_Call(19/20), sd_work_init and Sd_AmbientSfxSet handle streaming and
+     * ambient audio, while every screen that needs silence calls this
+     * explicitly (item_screens_2, options, game_load, map5_s01). A warm boot out
+     * of the attract demo therefore carried radio static onto the title screen
+     * and into the new game that followed. Warm boot is the return-to-clean-
+     * state path, so stop it once here rather than at each caller. */
+    Game_RadioSoundStop();
+#endif
+
     if (g_SysWork.sysFlags & SysFlag_DemoActive)
     {
         Demo_Stop();
