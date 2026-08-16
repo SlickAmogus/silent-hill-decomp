@@ -46,6 +46,27 @@ unsigned long long Ps3_TimebaseFreq(void);
  * and pad service threads lv2 runs on our behalf. */
 void Ps3_SleepMs(unsigned ms);
 
+/* ---- RSX display layer (rsx_video.c) -------------------------------------
+ * Everything that touches libgcm lives behind these, because gpu_rsx.c needs
+ * the decomp's ShVertex and therefore cannot include PSL1GHT at all. */
+
+/* Brings up the RSX, picks up the console's CURRENT video mode rather than
+ * forcing one, and allocates the double-buffered colour + Z24S8 depth
+ * surfaces. Returns non-zero on success; everything else no-ops if it failed,
+ * so a display that cannot be configured degrades to "runs, draws nothing"
+ * instead of hanging. */
+int  Ps3Rsx_Init(void);
+int  Ps3Rsx_Ready(void);
+int  Ps3Rsx_Width(void);
+int  Ps3Rsx_Height(void);
+
+/* Bind the back buffer and clear it to `clearArgb` (0xAARRGGBB). */
+void Ps3Rsx_FrameBegin(unsigned int clearArgb);
+/* Queue the flip and swap buffers. */
+void Ps3Rsx_FrameEnd(void);
+/* Block until the queued flip has retired. */
+void Ps3Rsx_WaitFlip(void);
+
 #ifdef __cplusplus
 }
 #endif

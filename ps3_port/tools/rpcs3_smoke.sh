@@ -84,7 +84,14 @@ echo "=== booting $(basename "$EBOOT") under RPCS3 (${TIMEOUT}s budget, renderer
 # emulator alive -- so waiting for the process is waiting for the full timeout,
 # every run. Poll the logs instead and stop as soon as the verdict is in. That
 # turns a fixed 45s per iteration into about a second.
-"$RPCS3_EXE" --headless --stdout \
+# --headless is only legal with the Null renderer ("Headless mode can only be
+# used with the Null video renderer"), so a graphics run has to fall back to
+# --no-gui, which opens a real window. That is the point of -g: you are asking
+# to look at something.
+MODE=--headless
+[ "$GRAPHICS" -eq 1 ] && MODE=--no-gui
+
+"$RPCS3_EXE" "$MODE" --stdout \
         --config "$(win "$SMOKE_CFG")" "$(win "$EBOOT")" \
         > "$RUNLOG" 2>&1 &
 pid=$!

@@ -79,8 +79,18 @@ unsigned long long g_Nv2aDrawCycles;
 void GpuNv2a_Init(void)
 {
     s_frame = 0;
-    SH_DBG("[GPU] rsx backend: counting no-op, %d-vertex pool, %d B/vertex",
-           GPU_POOL_VERTS, (int)sizeof(ShVertex));
+    if (Ps3Rsx_Init()) {
+        /* The framebuffer is whatever mode the console is in, so the content
+         * rect follows it instead of the 640x480 the Xbox ports assume.
+         * gpu_xbox.c derives its whole screen transform from these. */
+        g_Nv2aContentX = 0;
+        g_Nv2aContentW = Ps3Rsx_Width();
+        g_Nv2aContentH = Ps3Rsx_Height();
+        SH_DBG("[GPU] rsx up: %dx%d, %d-vertex pool, %d B/vertex",
+               g_Nv2aContentW, g_Nv2aContentH, GPU_POOL_VERTS, (int)sizeof(ShVertex));
+    } else {
+        SH_DBG("[GPU] rsx INIT FAILED - counting only, nothing will be presented");
+    }
 }
 
 void GpuNv2a_FrameBegin(void)
@@ -96,6 +106,13 @@ void GpuNv2a_FrameBegin(void)
     s_scissorChanges      = 0;
     s_bbValid             = 0;
     s_pendStart           = -1;
+
+    /* gpu_xbox.c owns the PSX draw env, so the clear colour is the game's own
+     * background (the fog colour in-game) rather than anything chosen here.
+     * Opaque alpha: the surface is X8R8G8B8 and a zero alpha reads as a black
+     * frame on some display paths. */
+    if (Ps3Rsx_Ready())
+        Ps3Rsx_FrameBegin(0xFF000000u | (GpuXbox_GetClearColor() & 0x00FFFFFFu));
 }
 
 void GpuNv2a_FrameEnd(void)
@@ -119,6 +136,9 @@ void GpuNv2a_FrameEnd(void)
         }
     }
     s_frame++;
+
+    if (Ps3Rsx_Ready())
+        Ps3Rsx_FrameEnd();
 }
 
 void GpuNv2a_WaitVbl(void)
@@ -133,8 +153,19 @@ void GpuNv2a_WaitVbl(void)
      * audio and pad service threads, and a busy-wait here would starve them. */
     static unsigned long long s_next;
     static unsigned long long s_period;
-    unsigned long long        now = SH_CYCLES();
+    unsigned long long        now;
 
+    /* With a real display up, the flip IS the vblank: gcmSetFlipMode(VSYNC)
+     * retires it on the scanout, so waiting on it paces the loop exactly and
+     * costs no PPU. The time-base fallback below only runs when the RSX failed
+     * to initialise, where free-running would otherwise reach millions of
+     * frames and make every timing line in the log meaningless. */
+    if (Ps3Rsx_Ready()) {
+        Ps3Rsx_WaitFlip();
+        return;
+    }
+
+    now = SH_CYCLES();
     if (!s_period)
         s_period = Ps3_TimebaseFreq() / 60;
 
