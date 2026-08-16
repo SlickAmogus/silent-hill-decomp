@@ -6,6 +6,31 @@
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/sys/joy.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#include <SDL.h>
+#endif
+
+#ifdef SH_PC_PORT
+/* An FMV runs its own input loop, so the button that skipped it is still down
+ * when the game resumes and the next update reads 0->held as a brand new
+ * press — one tap skips the intro AND confirms on the title (loading a save).
+ * The FMV code tries to wait for release, but that wait leans on
+ * PsyX_Pad_SkipButtonHeld, which only inspects SDL_GameController handles and
+ * so is permanently 0 on Android, where no controller is ever opened and every
+ * button arrives as a key. That left only a 480ms timeout, which a normal-
+ * length press outlives.
+ *
+ * Swallowing the edge is the fix that does not care how long the button is
+ * held or which layer delivered it: take the current state as the previous
+ * state for one update, so a held button reads as held rather than pressed. */
+static bool s_SwallowEdges = false;
+
+void Joy_SwallowNextEdges(void)
+{
+    s_SwallowEdges = true;
+}
+#endif
 
 void Joy_Init(void) // 0x8003441C
 {
@@ -86,6 +111,48 @@ void Joy_ControllerDataUpdate(void) // 0x80034494
         cont->clickedBtnFlags  = ~prevBtnsHeld & cont->heldBtnFlags;
         cont->releasedBtnFlags =  prevBtnsHeld & ~cont->heldBtnFlags;
 
+#ifdef SH_PC_PORT
+        if (s_SwallowEdges)
+        {
+            cont->clickedBtnFlags  = ControllerFlag_None;
+            cont->releasedBtnFlags = ControllerFlag_None;
+
+            /* Also restart the auto-repeat timer. It is read a few lines below
+             * and has been sitting untouched for the whole movie, so a stale
+             * value past the threshold would fire the held button as a pulse
+             * on this very frame — the same phantom confirm by another route. */
+            cont->pulseTicks = 0;
+        }
+#endif
+
+#ifdef SH_PC_PORT
+        /* One physical press is being consumed twice (Start on the title screen
+         * also starts a new game). Two candidates look identical from outside:
+         * the pad state flickering pressed->released->pressed so this line makes
+         * TWO rising edges — plausible on Android, where the pad presents two
+         * kernel devices and a button also arrives as a KeyEvent — or ONE edge
+         * surviving a state transition and being read again by the next screen.
+         * Log every Start edge with its timestamp: two edges milliseconds apart
+         * is the former, a single edge is the latter. */
+        if (i == CONTROLLER_COUNT) /* first iteration = player 1 (loop counts down) */
+        {
+            static u32 s_lastStartEdgeMs = 0;
+            if (cont->clickedBtnFlags & ControllerFlag_Start)
+            {
+                u32 nowMs = (u32)SDL_GetTicks();
+                SH_DBG("[INPUT] Start EDGE t=%ums (+%ums) held=0x%X prev=0x%X",
+                       nowMs, nowMs - s_lastStartEdgeMs,
+                       (unsigned)cont->heldBtnFlags, (unsigned)prevBtnsHeld);
+                s_lastStartEdgeMs = nowMs;
+            }
+            if (cont->releasedBtnFlags & ControllerFlag_Start)
+            {
+                SH_DBG("[INPUT] Start RELEASE t=%ums held=0x%X",
+                       (unsigned)SDL_GetTicks(), (unsigned)cont->heldBtnFlags);
+            }
+        }
+#endif
+
         // Update pulse ticks.
         pulseTicks = cont->pulseTicks;
         if (cont->heldBtnFlags != prevBtnsHeld)
@@ -130,6 +197,11 @@ void Joy_ControllerDataUpdate(void) // 0x80034494
             cont->pulsedGuiBtnFlags &= ~(ControllerFlag_LStickRight | ControllerFlag_LStickLeft);
         }
     }
+
+#ifdef SH_PC_PORT
+    /* Cleared after every controller has been folded in, not inside the loop. */
+    s_SwallowEdges = false;
+#endif
 }
 
 void ControllerData_AnalogToDigital(s_ControllerData* cont, bool arg1) // 0x80034670

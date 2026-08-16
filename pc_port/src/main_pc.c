@@ -543,34 +543,158 @@ static void Pc_ApplyDiscRegion(const char* discPath, e_GameRegion region)
            (discPath && discPath[0]) ? discPath : "(none)");
 }
 
-/* Locate the disc image and select the matching region tables. Priority:
- * USA, then PAL, then the long European name (US wins if several exist). If
- * none of those names match but some .bin is present, autodetect by region. */
-const char* PcPort_GetGameDiscPath(void)
+static const struct { const char* name; int region; } s_knownDiscs[] = {
+    { "Silent Hill (USA).bin",                        Region_USA },
+    { "Silent Hill (PAL).bin",                        Region_EUR },
+    { "Silent Hill (Europe) (En,Fr,De,Es,It).bin",    Region_EUR },
+    { "Silent Hill (Japan).bin",                      Region_JPN },
+};
+
+#define DISC_ROOT_MAX 4
+
+/* Directories searched for a disc image, highest priority first.
+ *
+ * gamedata/ beside the game is the canonical spot on every platform. Android
+ * adds the drop dir published by SilentHillActivity (Android/media/<pkg>):
+ * from Android 11 on, Android/data — where gamedata/ lives — is unreachable to
+ * file-manager apps, so a user without adb or a built-in Files app has no way
+ * to deliver their disc at all. Android/media carries no such restriction and
+ * needs no permission. Both the drop dir itself and a gamedata/ inside it are
+ * accepted, because both are things a user will reasonably try. */
+static int BuildDiscSearchRoots(char roots[][1024], int maxRoots)
 {
-    static const struct { const char* name; int region; } s_known[] = {
-        { "Silent Hill (USA).bin",                        Region_USA },
-        { "Silent Hill (PAL).bin",                        Region_EUR },
-        { "Silent Hill (Europe) (En,Fr,De,Es,It).bin",    Region_EUR },
-        { "Silent Hill (Japan).bin",                      Region_JPN },
-    };
+    int n = 0;
+
+    if (n < maxRoots)
+        snprintf(roots[n++], 1024, "%s", g_GameDataPath);
+
+#if defined(__ANDROID__)
+    {
+        const char* drop = getenv("SH_DISC_DROP_DIR");
+
+        if (drop != NULL && drop[0] != '\0')
+        {
+            if (n < maxRoots) snprintf(roots[n++], 1024, "%s", drop);
+            if (n < maxRoots) snprintf(roots[n++], 1024, "%s/gamedata", drop);
+        }
+    }
+#endif
+
+    return n;
+}
+
+/* Apply the name rules then the autodetect rule within a single root. `want`
+ * is a required region, or -1 for any; `byPreference` only colors the log
+ * line. Returns 1 having resolved g_GameDiscPath and the region. */
+static int FindDiscInRoot(const char* root, int want, int byPreference)
+{
     char path[1024];
     int  i;
     DIR* dir;
+
+    for (i = 0; i < (int)(sizeof(s_knownDiscs) / sizeof(s_knownDiscs[0])); i++)
+    {
+        FILE* f;
+        snprintf(path, sizeof(path), "%s/%s", root, s_knownDiscs[i].name);
+        f = fopen(path, "rb");
+        if (f)
+        {
+            /* Trust the boot serial over the filename — a renamed disc
+             * must select the region its data actually has (and the
+             * launcher's serial-based display then always agrees).
+             * The name's region is only the fallback for odd rips. */
+            int probed = Pc_DetectRegionFromBin(path);
+
+            fclose(f);
+            if (probed < 0)
+                probed = s_knownDiscs[i].region;
+            if (want >= 0 && probed != want)
+                continue;
+
+            snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", path);
+            Pc_ApplyDiscRegion(g_GameDiscPath, (e_GameRegion)probed);
+            SH_LOG("Disc: %s (region %s%s)", path,
+                   probed == Region_EUR ? "EUR/PAL"
+                 : probed == Region_JPN ? "NTSC-J"  : "USA",
+                   byPreference ? ", by config preference" : "");
+            return 1;
+        }
+    }
+
+    /* Autodetect any other .bin by its ISO boot serial. */
+    dir = opendir(root);
+    if (dir)
+    {
+        struct dirent* ent;
+        /* One found-path bucket per region (Region_USA/EUR/JPN). */
+        char regionPath[3][1024] = { { 0 }, { 0 }, { 0 } };
+        int  use;
+
+        while ((ent = readdir(dir)) != NULL)
+        {
+            const char* nm = ent->d_name;
+            size_t      l  = strlen(nm);
+            if (l > 4 && (strcmp(nm + l - 4, ".bin") == 0 || strcmp(nm + l - 4, ".BIN") == 0))
+            {
+                int r;
+                snprintf(path, sizeof(path), "%s/%s", root, nm);
+                r = Pc_DetectRegionFromBin(path);
+                if (r >= Region_USA && r <= Region_JPN && !regionPath[r][0])
+                    snprintf(regionPath[r], sizeof(regionPath[r]), "%s", path);
+            }
+        }
+        closedir(dir);
+
+        if (want >= 0 && !regionPath[want][0])
+            return 0; /* preferred region absent here — caller tries the next root */
+
+        /* Auto priority: USA, then PAL, then NTSC-J. */
+        use = (want >= 0)               ? want
+            : regionPath[Region_USA][0] ? Region_USA
+            : regionPath[Region_EUR][0] ? Region_EUR
+            : regionPath[Region_JPN][0] ? Region_JPN
+                                        : -1;
+        if (use >= 0)
+        {
+            snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", regionPath[use]);
+            Pc_ApplyDiscRegion(g_GameDiscPath, (e_GameRegion)use);
+            SH_LOG("Disc autodetected: %s (region %s%s)", g_GameDiscPath,
+                   use == Region_EUR ? "EUR/PAL"
+                 : use == Region_JPN ? "NTSC-J"  : "USA",
+                   byPreference ? ", by config preference" : "");
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+/* Locate the disc image and select the matching region tables. Priority:
+ * USA, then PAL, then the long European name (US wins if several exist). If
+ * none of those names match but some .bin is present, autodetect by region.
+ * Every rule is applied across all search roots before the next rule. */
+const char* PcPort_GetGameDiscPath(void)
+{
+    char roots[DISC_ROOT_MAX][1024];
+    char path[1024];
+    int  nroots;
+    int  r;
 
     if (g_DiscResolved)
         return g_GameDiscPath;
     g_DiscResolved = 1;
 
+    nroots = BuildDiscSearchRoots(roots, DISC_ROOT_MAX);
+
     /* Config `disc_image` (launcher Disc dropdown): an exact filename beats
      * every auto rule — this is how fan-translated / modified images get
      * selected over the vanilla name-priority order. Region still comes from
      * the disc's own boot serial. Missing file falls through to auto. */
-    if (g_PcConfig.discImage[0] != '\0')
+    for (r = 0; g_PcConfig.discImage[0] != '\0' && r < nroots; r++)
     {
         FILE* f;
 
-        snprintf(path, sizeof(path), "%s/%s", g_GameDataPath, g_PcConfig.discImage);
+        snprintf(path, sizeof(path), "%s/%s", roots[r], g_PcConfig.discImage);
         f = fopen(path, "rb");
         if (f)
         {
@@ -589,9 +713,9 @@ const char* PcPort_GetGameDiscPath(void)
             SH_WARN("disc_image %s: no PSX boot serial found — falling back to auto disc pick",
                     g_PcConfig.discImage);
         }
-        else
+        else if (r == nroots - 1)
         {
-            SH_WARN("disc_image %s not found in gamedata/ — falling back to auto disc pick",
+            SH_WARN("disc_image %s not found in any search root — falling back to auto disc pick",
                     g_PcConfig.discImage);
         }
     }
@@ -615,85 +739,19 @@ const char* PcPort_GetGameDiscPath(void)
             if (pass == 0 && prefer < 0)
                 continue;
 
-            for (i = 0; i < (int)(sizeof(s_known) / sizeof(s_known[0])); i++)
+            for (r = 0; r < nroots; r++)
             {
-                FILE* f;
-                snprintf(path, sizeof(path), "%s/%s", g_GameDataPath, s_known[i].name);
-                f = fopen(path, "rb");
-                if (f)
-                {
-                    /* Trust the boot serial over the filename — a renamed disc
-                     * must select the region its data actually has (and the
-                     * launcher's serial-based display then always agrees).
-                     * The name's region is only the fallback for odd rips. */
-                    int probed = Pc_DetectRegionFromBin(path);
-
-                    fclose(f);
-                    if (probed < 0)
-                        probed = s_known[i].region;
-                    if (want >= 0 && probed != want)
-                        continue;
-
-                    snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", path);
-                    Pc_ApplyDiscRegion(g_GameDiscPath, (e_GameRegion)probed);
-                    SH_LOG("Disc: %s (region %s%s)", s_known[i].name,
-                           probed == Region_EUR ? "EUR/PAL"
-                         : probed == Region_JPN ? "NTSC-J"  : "USA",
-                           pass == 0 ? ", by config preference" : "");
+                if (FindDiscInRoot(roots[r], want, pass == 0))
                     return g_GameDiscPath;
-                }
-            }
-
-            /* Autodetect any other .bin by its ISO boot serial. */
-            dir = opendir(g_GameDataPath);
-            if (dir)
-            {
-                struct dirent* ent;
-                /* One found-path bucket per region (Region_USA/EUR/JPN). */
-                char regionPath[3][1024] = { { 0 }, { 0 }, { 0 } };
-                int  use;
-
-                while ((ent = readdir(dir)) != NULL)
-                {
-                    const char* nm = ent->d_name;
-                    size_t      l  = strlen(nm);
-                    if (l > 4 && (strcmp(nm + l - 4, ".bin") == 0 || strcmp(nm + l - 4, ".BIN") == 0))
-                    {
-                        int r;
-                        snprintf(path, sizeof(path), "%s/%s", g_GameDataPath, nm);
-                        r = Pc_DetectRegionFromBin(path);
-                        if (r >= Region_USA && r <= Region_JPN && !regionPath[r][0])
-                            snprintf(regionPath[r], sizeof(regionPath[r]), "%s", path);
-                    }
-                }
-                closedir(dir);
-
-                if (want >= 0 && !regionPath[want][0])
-                    continue; /* preferred region absent — auto fallback pass */
-
-                /* Auto priority: USA, then PAL, then NTSC-J. */
-                use = (want >= 0)              ? want
-                    : regionPath[Region_USA][0] ? Region_USA
-                    : regionPath[Region_EUR][0] ? Region_EUR
-                    : regionPath[Region_JPN][0] ? Region_JPN
-                                                : -1;
-                if (use >= 0)
-                {
-                    snprintf(g_GameDiscPath, sizeof(g_GameDiscPath), "%s", regionPath[use]);
-                    Pc_ApplyDiscRegion(g_GameDiscPath, (e_GameRegion)use);
-                    SH_LOG("Disc autodetected: %s (region %s%s)", g_GameDiscPath,
-                           use == Region_EUR ? "EUR/PAL"
-                         : use == Region_JPN ? "NTSC-J"  : "USA",
-                           pass == 0 ? ", by config preference" : "");
-                    return g_GameDiscPath;
-                }
             }
         }
     }
 
     Fs_InitFileTableForRegion(Region_USA); /* keep g_FileTable populated even with no disc */
     g_GameDiscPath[0] = '\0';
-    SH_WARN("No Silent Hill disc image (.bin) found in %s", g_GameDataPath);
+    for (r = 0; r < nroots; r++)
+        SH_WARN("No Silent Hill disc image (.bin) found in %s", roots[r]);
+
     return g_GameDiscPath;
 }
 
@@ -1365,6 +1423,23 @@ int main(int argc, char* argv[])
              * cleanly rather than crashing further in. */
             char msg[768];
             SH_WARN("Game will not be able to load assets without a disc image.");
+#if defined(__ANDROID__)
+            /* Name the drop dir first: it is the only one of the two a file
+             * manager can still open from Android 11 on. */
+            {
+                const char* drop = getenv("SH_DISC_DROP_DIR");
+
+                snprintf(msg, sizeof(msg),
+                         "No Silent Hill disc image was found.\n\n"
+                         "Copy your own disc rip (a .bin file) into:\n  %s\n\n"
+                         "USA, PAL and NTSC-J discs all work, and the file can keep\n"
+                         "whatever name it has. No .cue file is needed.\n\n"
+                         "That folder is reachable from any file manager. This also\n"
+                         "works if you can reach it:\n  %s",
+                         (drop != NULL && drop[0] != '\0') ? drop : PcPort_GetGameDataPath(),
+                         PcPort_GetGameDataPath());
+            }
+#else
             snprintf(msg, sizeof(msg),
                      "No Silent Hill disc image was found.\n\n"
                      "Put one in:\n  %s\n\n"
@@ -1372,6 +1447,7 @@ int main(int argc, char* argv[])
                      "discs all work. A .bin/.cue rip of your own disc is what\n"
                      "this expects; the launcher can extract its contents for you.",
                      PcPort_GetGameDataPath());
+#endif
             SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,
                                      "Silent Hill - no disc image found", msg, NULL);
             PsyX_Shutdown();

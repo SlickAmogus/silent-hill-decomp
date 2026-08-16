@@ -2320,7 +2320,23 @@ cleanup:
 #undef swr_get_out_samples
 #endif /* SH_FMV_FFMPEG */
 
+extern "C" void Joy_SwallowNextEdges(void);
+
+static int FMV_PlayImpl(int file_idx, int max_frames);
+
+/* Every exit from playback — finished, skipped, override failed, file missing
+ * — leaves whatever button the user was holding still down. Swallow the edge
+ * here, once, rather than in each playback path's release-wait: those wait on
+ * a timeout and on a pad check that is dead on Android, so a press held longer
+ * than 480ms bled a Confirm into the title screen. */
 extern "C" int FMV_Play(int file_idx, int max_frames)
+{
+    int rc = FMV_PlayImpl(file_idx, max_frames);
+    Joy_SwallowNextEdges();
+    return rc;
+}
+
+static int FMV_PlayImpl(int file_idx, int max_frames)
 {
     int table_idx = file_idx - FIRST_XA_FILE_IDX;
     if (table_idx < 0 || table_idx >= (int)FMV_FILE_COUNT) {

@@ -74,6 +74,15 @@ s_PcConfig g_PcConfig = {
     .crosshairStyle      = 0, /* 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap */
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
+#if defined(__ANDROID__) || defined(SH_IOS)
+    /* On by default only where the touchscreen IS the controller. A desktop
+     * with a touch-capable monitor still has a mouse and a pad, and drawing
+     * thumb controls over its picture uninvited would be wrong. */
+    .touchControls       = 1,
+#else
+    .touchControls       = 0,
+#endif
+    .touchLookSensitivity = 1.0f,
     .altButtonSprint     = 0, /* alt cams sprint from the run control only (off = full stick push also sprints) */
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
@@ -828,6 +837,17 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "mouse_cursor") == 0)
         {
             g_PcConfig.mouseCursor = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "touch_controls") == 0)
+        {
+            g_PcConfig.touchControls = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "touch_look_sensitivity") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.1f) v = 0.1f;
+            if (v > 4.0f) v = 4.0f;
+            g_PcConfig.touchLookSensitivity = v;
         }
         else if (strcmp(key, "aim_assist") == 0)
         {

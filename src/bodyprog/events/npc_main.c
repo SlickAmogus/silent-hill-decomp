@@ -873,6 +873,26 @@ void Game_NpcUpdate(void) // 0x80038354
 
     if (!(g_SavegamePtr->itemToggleFlags & ItemToggleFlag_RadioOn))
     {
+#ifdef SH_PC_PORT
+        /* Returning here with a voice still keyed on orphans it forever: the
+         * stop branch at the bottom of this function is the ONLY caller of
+         * Sd_SfxStop for these voices, and field_0 is left >= 0 so the keyon
+         * branch never runs again either. Both writers of this flag can fire
+         * while a voice is live — the inventory radio toggle, and map0_s01's
+         * cutscene trigger — which leaves static playing with the radio
+         * switched off. Radio off means no radio, so stop on the way out and
+         * put the slots back in the not-playing state. The field_0 guard makes
+         * this a one-shot rather than a stop call every frame. */
+        for (l = 0; l < ARRAY_SIZE(D_800BCDA8); l++)
+        {
+            if (D_800BCDA8[l].field_0 != NO_VALUE)
+            {
+                Sd_SfxStop(Sfx_RadioInterferenceLoop + l);
+                D_800BCDA8[l].field_0 = NO_VALUE;
+                D_800BCDA8[l].field_1 = NO_VALUE;
+            }
+        }
+#endif
         return;
     }
 
@@ -924,18 +944,30 @@ void Game_NpcUpdate(void) // 0x80038354
     for (l = 0; l < ARRAY_SIZE(D_800BCDA8); l++)
     {
 #ifdef SH_PC_PORT
-        /* One-shot per-slot keyon diagnostic so we can verify the radio
-         * voice actually starts when an enemy first enters range. */
-        static s8 _radioKeyonLogged[2] = { 0, 0 };
-        if (l < 2 && !_radioKeyonLogged[l] &&
-            D_800BCDA8[l].field_0 == NO_VALUE && D_800BCDA8[l].field_1 >= 0) {
-            _radioKeyonLogged[l] = 1;
-        }
-        /* Throttled state-snapshot â€” every ~1s log the actual D_800BCDA8 values
-         * so we can confirm whether field_0 is stuck at non-NO_VALUE. */
+        /* Static that never stops: log every slot transition, plus a slow
+         * heartbeat while a voice is live. That separates a slot wedged by an
+         * enemy the range test never releases (field_1 pinned >= 0) from a
+         * voice orphaned because this update stopped running at all (no
+         * heartbeat, no transitions). */
         {
-            static u32 _radStateTickCnt = 0;
-            if (l == 0 && (++_radStateTickCnt % 60) == 0) {
+            static s32 _radPrevField1[ARRAY_SIZE(D_800BCDA8)] = { NO_VALUE, NO_VALUE };
+            static u32 _radTick = 0;
+
+            if (_radPrevField1[l] != D_800BCDA8[l].field_1)
+            {
+                SH_DBG("[RADIO] slot %d: field_0=%d field_1=%d (was %d) radioOn=%d",
+                       (int)l, (int)D_800BCDA8[l].field_0, (int)D_800BCDA8[l].field_1,
+                       (int)_radPrevField1[l],
+                       (g_SavegamePtr->itemToggleFlags & ItemToggleFlag_RadioOn) ? 1 : 0);
+                _radPrevField1[l] = D_800BCDA8[l].field_1;
+            }
+
+            if (l == 0 && (++_radTick % 180) == 0 &&
+                (D_800BCDA8[0].field_0 != NO_VALUE || D_800BCDA8[1].field_0 != NO_VALUE))
+            {
+                SH_DBG("[RADIO] playing: s0(f0=%d,f1=%d) s1(f0=%d,f1=%d)",
+                       (int)D_800BCDA8[0].field_0, (int)D_800BCDA8[0].field_1,
+                       (int)D_800BCDA8[1].field_0, (int)D_800BCDA8[1].field_1);
             }
         }
 #endif

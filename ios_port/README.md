@@ -83,13 +83,19 @@ visible; without them there is no way to get a file in at all.
 | Entry point | SDL owns it (`UIApplicationMain`), as on Android |
 | Working dir | `Documents`, set by `chdir` in `main_pc.c` |
 | ffmpeg / libjpeg / RetroAchievements | off, via `SH_DESKTOP_FEATURE_DEFAULT` |
-| Touch controls | not written yet — a paired MFi/Bluetooth controller needs no new code |
+| Touch controls | `pc_touch.c`, shared with Android and ungated; on by default here |
+| Controller | paired MFi/Bluetooth works through PsyCross's `SDL_GameController` path |
 
 ## Status
 
 Builds and links. CI produces a real arm64 iOS binary (Mach-O, LC_BUILD_VERSION
 platform 2, minos 13.0) with all 43 map overlays linked in, a compiled launch
 storyboard and the assets bundled, packaged as an unsigned .ipa. Nothing has run
-on a device, so every rendering and performance question is still open. Touch
-controls are unwritten; a paired controller flows through PsyCross's existing
-SDL_GameController path with no new code.
+on a device, so every rendering and performance question is still open.
+
+Touch controls came across from Android, where they are reported to work well.
+`pc_touch.c` is plain SDL touch with no platform conditionals — a floating left
+thumbstick, right-side drag to look, tap to act — presented to the engine as an
+ordinary analog pad, so nothing below libpad knows a finger is involved. It is
+enabled by default here for the same reason as Android: the touchscreen *is* the
+controller. Untested on an iPhone.
