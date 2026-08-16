@@ -39,6 +39,12 @@ bash "$SCRIPT_DIR/ppu_gate.sh"
 
 ls "$GATE"/*.o >/dev/null 2>&1 || { echo "no objects to link"; exit 1; }
 
+echo
+echo "=== map overlays ==="
+bash "$SCRIPT_DIR/build_maps.sh" || exit 1
+MAPLIBS=$(ls "$SCRIPT_DIR"/build/maps/*.a 2>/dev/null | tr '
+' ' ')
+
 # PSL1GHT's own MACHDEP, verbatim from $PS3DEV/ppu_rules.
 MACHDEP="-mhard-float -fmodulo-sched -ffunction-sections -fdata-sections"
 
@@ -47,7 +53,11 @@ LIBS="-lrsx -lgcm_sys -lsysutil -lsysmodule -laudio -lio -lnet -lsysfs -llv2 -lm
 
 echo
 echo "=== link ($(ls "$GATE"/*.o | wc -l) objects) ==="
+# --whole-archive: some map objects are reached only through constructors
+# and data tables, never by a symbol the linker is already looking for, so
+# lazy archive semantics would silently drop them.
 if ! ppu-gcc $MACHDEP -o "$OUT/sh.elf" "$GATE"/*.o "$SHD"/sh_vp.o "$SHD"/sh_fp.o \
+        -Wl,--whole-archive $MAPLIBS -Wl,--no-whole-archive \
         -L"$PS3DEV/ppu/lib" $LIBS \
         -Wl,-Map,"$OUT/sh.map" 2> "$SCRIPT_DIR/build/link.log"; then
     echo "LINK FAILED - undefined symbols by count:"
