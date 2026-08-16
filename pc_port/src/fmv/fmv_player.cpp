@@ -25,6 +25,7 @@
 
 #include <psx/libgpu.h>
 #include <psx/libetc.h>
+#include <psx/libspu.h>   /* SpuSetCommonAttr — open the CD input for FMV audio */
 
 /* MJPG AVI overrides are a desktop convenience feature layered on top of the
  * disc FMVs; the game's own STR/MDEC path below needs no libjpeg. Android has
@@ -905,8 +906,43 @@ static void FmvAudio_OnSector(const uint8_t* sector, void* user)
             st->sampleRate = sampleRate;
             st->isStereo   = isStereo ? 1 : 0;
             st->isOpen     = 1;
-            SH_DBG("[FMV] XA audio via engine mixer: %d Hz %s (coding=0x%02X)",
-                   sampleRate, isStereo ? "stereo" : "mono", coding);
+            /* The mixer's XA stream is left stopped/drained by whatever voice
+             * played last (the log shows [XA] Stop right before a movie starts),
+             * so pushing frames into it produces nothing. Open it the same way
+             * xa_player_software.c does before its own pushes: reset the stream,
+             * set the gain, make sure it is not paused. Without these three the
+             * fallback path is silent even though every frame is queued. */
+            PsyX_AudioResetXa();
+            PsyX_AudioSetXaMasterGain((double)g_PcFmvVolume);
+            PsyX_AudioSetXaPaused(0);
+
+            /* XA reaches the output only through the SPU's CD input, and that
+             * has two gates the master gain above does NOT cover: SPU_COMMON_CDMIX
+             * (m_cdEnable) and the CD volume (m_cdVolL/R). Both default to
+             * off/zero, and the mixer applies the master gain BEFORE the CD
+             * volume, so gain 1.0 x volume 0 is still silence. The game opens
+             * these when it starts an XA voice (SdSetSerialVol / SdSetSerialAttr
+             * in smf_snd.c) but never for a movie, because on desktop movie audio
+             * never goes near the SPU. Open them here, the same way voices do.
+             *
+             * Measured before this: pushes returned ret=1 and the queue drained
+             * (2352 -> 2656 -> 2352 frames), i.e. decoded, accepted and mixed —
+             * and inaudible, because it was multiplied by a zero CD volume. */
+            {
+                SpuCommonAttr cdAttr;
+                memset(&cdAttr, 0, sizeof(cdAttr));
+                cdAttr.mask   = SPU_COMMON_CDMIX;
+                cdAttr.cd.mix = SPU_ON;
+                SpuSetCommonAttr(&cdAttr);
+
+                memset(&cdAttr, 0, sizeof(cdAttr));
+                cdAttr.mask             = SPU_COMMON_CDVOLL | SPU_COMMON_CDVOLR;
+                cdAttr.cd.volume.left   = 0x3FFF;
+                cdAttr.cd.volume.right  = 0x3FFF;
+                SpuSetCommonAttr(&cdAttr);
+            }
+            SH_DBG("[FMV] XA audio via engine mixer: %d Hz %s (coding=0x%02X) gain=%.2f",
+                   sampleRate, isStereo ? "stereo" : "mono", coding, (double)g_PcFmvVolume);
         } else {
             st->sampleRate = got.freq;
             st->isStereo   = (got.channels == 2);
