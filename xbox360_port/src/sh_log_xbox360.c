@@ -108,18 +108,30 @@ void SH_DebugLogFlush(void)
     fsync(fileno(g_ShDebugLog));
 }
 
-/* Heap headroom. The Xbox version reads free PHYSICAL pages via MmQueryStatistics;
- * libXenon has no equivalent, so this reports free bytes inside the newlib heap
- * instead. Different quantity, same use: watching it trend downward across chunk
- * streaming is what catches a leak. */
-unsigned Xbox_MemFreeKB(void)
+/* Heap use. The Xbox version reads free PHYSICAL pages via MmQueryStatistics;
+ * libXenon has no equivalent.
+ *
+ * This reports bytes IN USE, not "free". The first version returned
+ * mallinfo().fordblks -- free space in the current arena -- which read a
+ * constant 6KB from the first tick of the first boot and looked alarming. It was
+ * meaningless: newlib grows the arena on demand via sbrk, so free-inside-arena
+ * stays near zero no matter how much memory is available. Bytes in use is what
+ * actually answers the question this probe exists for, which is whether
+ * something leaks across chunk streaming. */
+unsigned Xbox_MemUsedKB(void)
 {
     struct mallinfo mi = mallinfo();
-    return (unsigned)(mi.fordblks / 1024);
+    return (unsigned)(mi.uordblks / 1024);
+}
+
+unsigned Xbox_MemFreeKB(void)
+{
+    return Xbox_MemUsedKB();   /* name kept for the shared callers */
 }
 
 void Xbox_MemReport(const char* tag)
 {
-    unsigned freeKB = Xbox_MemFreeKB();
-    SH_DBG("[MEM] %s: heap-free=%uKB", tag ? tag : "", freeKB);
+    struct mallinfo mi = mallinfo();
+    SH_DBG("[MEM] %s: used=%uKB arena=%uKB", tag ? tag : "",
+           (unsigned)(mi.uordblks / 1024), (unsigned)(mi.arena / 1024));
 }

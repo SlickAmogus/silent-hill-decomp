@@ -94,8 +94,22 @@ void GpuNv2a_FrameEnd(void)
 
 void GpuNv2a_WaitVbl(void)
 {
-    /* No swap chain yet, so there is no vblank to wait on. Returning immediately
-     * means the game free-runs; frame pacing arrives with the real backend. */
+    /* There is no swap chain yet, so there is no real vblank to wait on -- but
+     * returning immediately let the loop free-run to TEN MILLION frames in one
+     * session. That makes every timing-dependent behaviour in the log
+     * meaningless and buries the few useful lines under per-frame spam, so pace
+     * to 60 Hz off the time base until the real backend can block on a flip. */
+    static unsigned long long s_next;
+    const unsigned long long  period = PPC_TIMEBASE_FREQ / 60;
+    unsigned long long        now    = mftb();
+
+    /* Resync rather than sprint to catch up: a blocking CD load stalls the loop
+     * for many frames, and replaying them at full speed is worse than dropping. */
+    if (s_next == 0 || now > s_next + period * 8)
+        s_next = now;
+
+    s_next += period;
+    while (mftb() < s_next) { }
 }
 
 void GpuNv2a_EmitTris(const ShVertex* verts, int count)
