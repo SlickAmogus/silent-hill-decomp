@@ -400,6 +400,18 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
         return;
     }
 
+    /* Say which bank just loaded, every time, whether or not anything replaced.
+     * Until now the only output was "N of M samples replaced", printed solely
+     * when N > 0, so a mod that matched nothing produced complete silence in
+     * the log and left no way to tell a wrong FILENAME from a wrong BANK. The
+     * second is the more common mistake and the harder one to guess: seven of
+     * the game's ninety SND banks (MAP000, MAP100..MAP103, MAP502, MAP604) are
+     * never loaded through this path at all, so a replacement aimed at one of
+     * them can never fire no matter how it is named. */
+    SH_LOG("[SFXMOD] bank '%s' loaded: %d samples — replace as "
+           "gamedata/load/SND/%s.001.wav .. %s.%03d.wav (or %s_001.wav)",
+           bank, vagCount, bank, bank, vagCount, bank);
+
     /* 32-byte header + 128 program entries of 16 + the tone table. Matches
      * libsd/smf_io.c's own "vh + ps*512 + 2080". */
     sizeTable = 32 + (128 * 16) + (programCount * 16 * 32);
