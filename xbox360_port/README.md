@@ -16,12 +16,17 @@ console game", and every bit of it applies here:
 |---|---|---|---|
 | PsyCross (SDL2 + OpenGL + OpenAL) | required | already stripped, bare-metal HAL | bare metal |
 | Map overlays | Windows DLLs | static link + objcopy symbol renaming | no dynamic loading |
-| PSX 32-bit struct layout | widened to 64-bit at load (`lm_reformat.c`, `ipd_reformat.c`) | native 32-bit path already gated `#ifdef SH_XBOX_PORT` | native 32-bit |
 | File I/O / audio / pad / crash / log | SDL + host OS | 36-file console HAL | console HAL |
 
-libXenon is 32-bit PowerPC, so the `SH_XBOX_PORT` 32-bit-native paths in the
-reformat walkers are exactly what we want. Starting from `pc-port` would mean
-redoing all four rows.
+Starting from `pc-port` would mean redoing all three rows.
+
+**Correction (2026-08-16).** An earlier version of this table claimed a fourth
+row: that `#ifdef SH_XBOX_PORT` in `lm_reformat.c` / `ipd_reformat.c` selects a
+"native 32-bit struct layout". That is wrong, and the PS3 port caught it. Those
+blocks are `LmTrack_FreePrior` / `LmTrack_Record` -- a **64 MB heap-leak fix**
+for a console with 64 MB of RAM, nothing to do with pointer width. The base
+decision still stands on the three rows above, which were verified independently,
+but it never rested on that fourth one.
 
 Cost of this choice: `xbox-port` is 473 commits behind `pc-port` (and 178 ahead).
 That delta is a **separate, later** merge, using the existing `sync/pc-merge-dryrun`
@@ -125,13 +130,27 @@ asset type the game loads:
 .TIM .VAB .BIN .DMS .ANM .PLM .IPD .ILM .TMD .DAT .KDT .CMP
 ```
 
-Twelve formats, and **the project already has a field-by-field walker for the hard
-ones**. `lm_reformat.c`, `ipd_reformat.c`, `dms_reformat.c` and `as_rodata_reformat.c`
-exist because the 64-bit PC port had to widen PSX 32-bit structs, so they already
-traverse these formats correctly and are already debugged. On 360 there is no
-widening to do (32-bit host, PSX layout is native) — those same walkers become the
-byteswap pass. The traversal logic, which is the knowledge-intensive part, is
-written.
+Twelve formats -- but **four of them are already endian-correct and need nothing
+at all**. `lm_reformat.c`, `ipd_reformat.c`, `dms_reformat.c` and
+`as_rodata_reformat.c` do not cast structs over the disc buffer; they read every
+field through explicit little-endian byte readers:
+
+```c
+static inline u32 rd32(const u8* p) { return p[0] | (p[1]<<8) | (p[2]<<16) | (p[3]<<24); }
+```
+
+Byte-wise assembly with shifts produces the correct little-endian value on ANY
+host, at any pointer width. So LM, IPD, DMS and AS-rodata cost this port zero.
+(Found by the PS3 port, which corrected an earlier claim here that these walkers
+would need to "become the byteswap pass". They do not.)
+
+`.TIM` is the format that genuinely needed one, because `ReadTIM` does the
+opposite -- it points `prect`/`paddr` straight into the raw file buffer instead
+of parsing it. See `src/tim_endian_xbox360.c`.
+
+The remaining formats (`.TMD`, `.ANM`, `.PLM`, `.VAB`, `.DAT`, `.KDT`, `.CMP`)
+are consumed by the decompiled game code through PSX-faithful struct overlays and
+have **not** been audited yet.
 
 Beyond that, format specs already exist in-tree from the modding tooling: a complete
 ANM byte-layout spec, TMD/ILM/OBJ converters, TIM extraction covering 995/996 files.
