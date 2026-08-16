@@ -34,6 +34,7 @@ extern int  Cd_XboxSelfTest(char* idOut, int idOutSize);
 /* Declared locally rather than by including the game headers, matching
  * main_xbox.c: this TU only needs the entry points, not the decomp's types. */
 extern void PcConfig_Load(const char* path);
+extern void XboxConfig_ApplyOverrides(void);   /* xbox_compat_globals.c */
 extern void Gte_SelfTest(void);
 extern void GpuNv2a_Init(void);
 extern void GpuNv2a_FrameBegin(void);
@@ -166,6 +167,12 @@ int main(void)
     snprintf(cfgPath, sizeof(cfgPath), "%ssilenthill.cfg", Sh3Fs_DataRoot());
     SH_DBG("[CFG] config file: %s", cfgPath);
     PcConfig_Load(cfgPath);
+    /* The console-appropriate overrides on top of whatever the cfg said: frame
+     * cap, PGXP off, the GL-shader features that have no console implementation,
+     * and the log-verbosity gate. main_xbox.c calls this immediately after the
+     * load for the same reason. Without it log_diag=1 parses but never reaches
+     * g_XboxLogDiag, which is how it was noticed. */
+    XboxConfig_ApplyOverrides();
 
     /* Fixed-point/GTE sanity before anything depends on it. On a new
      * architecture this is the single most likely thing to be silently wrong,
