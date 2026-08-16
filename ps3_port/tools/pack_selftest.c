@@ -25,6 +25,7 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/map/map.h"
 #include "maps/shared.h"
+#include "lib_unk.h"
 
 static int s_fail;
 
@@ -109,6 +110,30 @@ int main(void)
         memset(&sd, 0, sizeof(sd));
         sd.field_14C.flags = 1u;
         chk("bf b0 from flags", (int)sd.field_14C.bits32.field_14C_0, 1);
+    }
+
+    /* The other aliasing union: lib_unk.h s_8002AC04.field_4, where a plain
+     * u8 field_5 in one variant shares storage with a 7+1 bitfield split in
+     * another, and a u32 field_C shares with a 16/12/3/1 split. Same naming
+     * convention, so same machine-check. */
+    {
+        s_8002AC04 u;
+        memset(&u, 0, sizeof(u));
+        u.field_4.func_80089BB8_data.field_5_7 = 1;
+        chk("bf f5_7", (int)u.field_4.func_8008973C_data.field_5, 0x80);
+        memset(&u, 0, sizeof(u));
+        u.field_4.func_80089BB8_data.field_5 = 0x7F;
+        chk("bf f5_lo", (int)u.field_4.func_8008973C_data.field_5, 0x7F);
+        /* NOT cross-checked against func_8008973C_data.field_C, and the reason
+         * is worth recording: func_80089DF0_data declares `u8* field_8` where
+         * its sibling declares `s32 field_8`. On PSX both were 4 bytes and the
+         * variants aliased exactly; on ANY LP64 build the pointer is 8, so
+         * everything after it shifts and the two field_C members no longer
+         * overlap at all. That is a 64-bit divergence rather than an endian
+         * one -- it is equally true of the PC port -- so a cross-variant
+         * assertion here would be testing a layout the language never
+         * promised. The field_C_* bit order is still reversed for big-endian
+         * above; it is simply not observable through the sibling. */
     }
 
     printf("[PACK] %s (%d failures)\n", s_fail ? "FAILED" : "ALL PASS", s_fail);

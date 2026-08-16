@@ -32,6 +32,22 @@ public class Win {
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
   [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr pid);
+  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
+  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+  // Windows refuses SetForegroundWindow from a process that does not already
+  // own the focus. Attaching to the foreground thread's input queue is the
+  // documented way round it, and without it this silently fails and the
+  // capture grabs whatever else is on top.
+  public static bool ForceForeground(IntPtr h) {
+    IntPtr fg = GetForegroundWindow();
+    uint tFg = GetWindowThreadProcessId(fg, IntPtr.Zero);
+    uint tMe = GetCurrentThreadId();
+    if (tFg != tMe) AttachThreadInput(tMe, tFg, true);
+    ShowWindow(h, 9); BringWindowToTop(h); SetForegroundWindow(h);
+    if (tFg != tMe) AttachThreadInput(tMe, tFg, false);
+    return GetForegroundWindow() == h;
+  }
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
   [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
   // The game window is the one whose title RPCS3 stamps with the FPS counter.
@@ -84,11 +100,8 @@ if ($h -eq [IntPtr]::Zero) {
     # screenshot because it looks like a real frame. Verify, retry, and say so.
     $raised = $false
     for ($i = 0; $i -lt 8; $i++) {
-        [Win]::ShowWindow($h, 9) | Out-Null      # SW_RESTORE
-        [Win]::BringWindowToTop($h) | Out-Null
-        [Win]::SetForegroundWindow($h) | Out-Null
+        if ([Win]::ForceForeground($h)) { $raised = $true; break }
         Start-Sleep -Milliseconds 350
-        if ([Win]::GetForegroundWindow() -eq $h) { $raised = $true; break }
     }
     if (-not $raised) {
         Write-Output "ERROR: could not raise the RPCS3 window; refusing to capture another window"

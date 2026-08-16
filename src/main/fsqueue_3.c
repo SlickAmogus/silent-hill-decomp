@@ -810,6 +810,21 @@ bool Fs_QueueUpdatePostLoad(s_FsQueueEntry* entry)
         case FsQueuePostLoadState_Exec:
             postLoad = entry->postLoad;
 
+            /* Endian-convert ANM headers by FILE TYPE, not by post-load type.
+             * Hooking Fs_QueuePostLoadAnm alone was not enough: Harry's base
+             * animation bank is issued as a plain Fs_QueueStartRead
+             * (FILE_ANIM_HB_BASE_ANM -> FS_BUFFER_0, game_main.c) with NO
+             * post-load at all, so it kept its on-disc little-endian header and
+             * the bone walk indexed with dataOffset 0x9401 instead of 404 --
+             * measured live as dataOfs=37889 kfSize=39936 kfCount=14338, which
+             * are exactly 404 / 156 / 568 byte-reversed. Keying on the file
+             * table's type catches every ANM however it was queued.
+             * Idempotent and self-validating; see anm_endian.c. */
+            if (entry->info != NULL && entry->info->type == FileType_Anm)
+            {
+                Anm_SwapForBigEndian((void*)entry->data);
+            }
+
             switch (postLoad)
             {
                 case FsQueuePostLoadType_None:

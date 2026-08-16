@@ -122,8 +122,20 @@ typedef struct _s_8002AC04
         struct
         {
             u8                  funcIdx_4;
+/* HAZARD 2. These share one storage unit with the plain `u8 field_5` of the
+ * sibling variants above, and the names state their positions -- field_5_7 is
+ * bit 7. Only true on little-endian, where the first-declared member takes the
+ * low bits; on big-endian it takes the high bits and every name inverts.
+ * Reversed under big-endian, with a single member type so the group cannot be
+ * split across two storage units. Measured on the PS3 for the sibling union in
+ * maps/shared.h: setting bit 0 produced 0x80000000. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+            u8                  field_5_7 : 1;
+            u8                  field_5   : 7;
+#else
             u8                  field_5   : 7;
             u32                 field_5_7 : 1;
+#endif
             u16                 field_6;
             struct _s_8002AC04* field_8;
             u32                 field_C;
@@ -135,18 +147,32 @@ typedef struct _s_8002AC04
             u8  field_5;
             u16 field_6;
             u8* field_8;
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+            u32 field_C_31 : 1;
+            u32 field_C_28 : 3;
+            u32 field_C_16 : 12;
+            u32 field_C_0  : 16;
+#else
             u32 field_C_0  : 16;
             u32 field_C_16 : 12;
             u32 field_C_28 : 3;
             u32 field_C_31 : 1;
+#endif
         } func_80089DF0_data;
         struct
         {
             u8  funcIdx_4;
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+            u8  field_5_7 : 1;
+            u8  field_5_6 : 1;
+            u8  field_5_5 : 1;
+            u8  field_5_0 : 5;
+#else
             u8  field_5_0 : 5;
             u32 field_5_5 : 1;
             u32 field_5_6 : 1;
             u32 field_5_7 : 1;
+#endif
             u16 field_6;
             s32 field_8;
             u32 field_C;
