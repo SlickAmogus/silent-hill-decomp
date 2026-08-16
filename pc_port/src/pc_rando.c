@@ -371,7 +371,7 @@ static void door_roll(s_RandoDoor* d, int isExitDoor)
     int r;
 
     /* Past the area budget every door is the way out. */
-    if (s_run.areasEntered >= RANDO_AREAS_TO_BOSS)
+    if (s_run.areasEntered >= g_PcConfig.randoAreasToBoss)
     {
         d->kind    = DOOR_BOSS;
         d->destMap = RANDO_BOSS_MAP;
@@ -616,7 +616,7 @@ static void build_events(const s_EventData* src, int mapIdx)
                 door_make_area(&s_doors[entryIdx]);
 
             s_run.entryDoor      = entryIdx;
-            s_run.entryLockTimer = Q12((float)RANDO_ENTRY_LOCK_S);
+            s_run.entryLockTimer = (q19_12)((s32)g_PcConfig.randoEntryLockSec << 12);
             s_run.forceContent   = 1; /* the room you were funnelled into gets content */
 
             {
@@ -805,14 +805,14 @@ static void place_monsters(void)
     }
     else
     {
-        int base = (nCand * RANDO_SPAWN_DENSITY) / 100;
+        int base = (nCand * g_PcConfig.randoSpawnDensity) / 100;
         if (base < 1)
             base = 1;
         want = base - rnd_below(base / 4 + 1); /* [ceil(3*base/4) .. base] -- dense */
         if (want < 1)
             want = 1;
-        if (want > RANDO_MONSTERS_MAX)
-            want = RANDO_MONSTERS_MAX;
+        if (want > g_PcConfig.randoMonsterMax)
+            want = g_PcConfig.randoMonsterMax;
     }
 
     /* A one-door dead-end room must never be empty (its door is only shut for 10 s,
@@ -1370,7 +1370,7 @@ void Pc_Rando_OnMapLoad(s32 mapIdx)
     s_run.headerInstalled = 1;
 
     SH_LOG("[RANDO] area %d/%d: %s -- %d doors, monsters:%s, score %d",
-           s_run.areasEntered, RANDO_AREAS_TO_BOSS, MapRegistry_GetName((e_MapIdx)mapIdx),
+           s_run.areasEntered, g_PcConfig.randoAreasToBoss, MapRegistry_GetName((e_MapIdx)mapIdx),
            s_run.doorCount, s_run.monstersWanted ? "yes" : "no", rando_score());
 }
 
@@ -1412,7 +1412,51 @@ void Pc_Rando_Update(void)
  * mode happens to be enabled must not top up its ammo. */
 int Pc_Rando_ExtraHandgunAmmo(void)
 {
-    return Pc_Rando_Active() ? RANDO_EXTRA_HANDGUN_AMMO : 0;
+    return Pc_Rando_Active() ? g_PcConfig.randoExtraHandgunAmmo : 0;
+}
+
+/* Player weapon-damage scale. Called at the single player-attack damage site
+ * (bodyprog_combat_8008A058.c). No-op (returns the amount unchanged) unless a
+ * run is live and the target is an enemy, so enemy->player damage is never
+ * touched and vanilla play is unaffected. */
+s32 Pc_Rando_ScaleWeaponDamage(s32 damageAmount, int targetIsPlayer)
+{
+    int pct;
+    if (!Pc_Rando_Active() || targetIsPlayer)
+        return damageAmount;
+    pct = g_PcConfig.randoWeaponDamagePct;
+    if (pct == 100)
+        return damageAmount;
+    return (s32)(((s64)damageAmount * pct) / 100);
+}
+
+/* Enemy HP scale. Each enemy sets its own health in its AI-init on the first
+ * frame it updates; this catches that 0->positive transition (per NPC slot) and
+ * multiplies once. s_healthScaled is cleared when the slot empties, so a
+ * respawn re-scales. No-op unless a run is live. */
+static u8 s_healthScaled[NPC_COUNT_MAX];
+
+void Pc_Rando_ScaleEnemyHealth(void* npcVoid, int slot)
+{
+    s_SubCharacter* npc = (s_SubCharacter*)npcVoid;
+    int pct;
+
+    if (slot < 0 || slot >= NPC_COUNT_MAX)
+        return;
+
+    if (!Pc_Rando_Active() || npc == NULL || npc->model.charaId == Chara_None)
+    {
+        s_healthScaled[slot] = 0;
+        return;
+    }
+
+    if (s_healthScaled[slot] || npc->health <= 0)
+        return;
+
+    pct = g_PcConfig.randoEnemyHealthPct;
+    if (pct != 100)
+        npc->health = (q19_12)(((s64)npc->health * pct) / 100);
+    s_healthScaled[slot] = 1;
 }
 
 void Pc_Rando_OnNewGame(void)

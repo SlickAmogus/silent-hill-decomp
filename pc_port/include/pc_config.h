@@ -181,6 +181,17 @@ typedef struct {
                              * map7_s03 boss with a score-picked ending. Forces global_chara_pool on and
                              * overrides `map`. 0 = off, byte-identical vanilla.
                              * (config key: randomizer; docs/Randomizer_Mode.md) */
+    /* Randomizer tunables — all INERT unless `randomizer` is on (pc_rando.c reads
+     * them, pc_rando_config.c enumerates them for the in-game settings panel and
+     * the Lua layer). Defaults reproduce the original hardcoded behaviour, so a
+     * config that predates these keys plays exactly as before. */
+    int randoSpawnDensity;    /* % of good candidate spots to populate, 0..100 (config key: rando_spawn_density) */
+    int randoMonsterMax;      /* per-area monster cap, 1..32 (config key: rando_monster_max) */
+    int randoAreasToBoss;     /* areas entered before the run ends at the boss, 1..50 (config key: rando_areas_to_boss) */
+    int randoEntryLockSec;    /* seconds the door you came in through stays shut, 0..60 (config key: rando_entry_lock_sec) */
+    int randoEnemyHealthPct;  /* enemy HP scale %, 10..1000 (config key: rando_enemy_health) */
+    int randoWeaponDamagePct; /* player weapon-damage scale %, 10..1000 (config key: rando_weapon_damage) */
+    int randoExtraHandgunAmmo;/* extra handgun rounds granted at run start, 0..300 (config key: rando_extra_ammo) */
     int controllerMovement; /* 0 = analog stick, 1 = d-pad, 2 = both (default) */
     int movementOriginal;   /* 1 = PSX lower-body movement state
                              * machine (accel/decel, wall smack, authored sidesteps)

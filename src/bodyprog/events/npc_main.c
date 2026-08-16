@@ -848,6 +848,14 @@ void Game_NpcUpdate(void) // 0x80038354
 #endif
             {
                 g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId](npc, g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr, boneCoords);
+#ifdef SH_PC_PORT
+                /* Randomizer enemy-HP scale: the AI update above sets an enemy's
+                 * health on its first tick; latch + multiply once (no-op off). */
+                {
+                    extern void Pc_Rando_ScaleEnemyHealth(void* npc, int slot);
+                    Pc_Rando_ScaleEnemyHealth(npc, (int)(npc - g_SysWork.npcs));
+                }
+#endif
 
                 Collision_FlagsUpdate();
                 func_80037E78(npc);

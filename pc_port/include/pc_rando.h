@@ -47,6 +47,13 @@ int  Pc_Rando_ExtraHandgunAmmo(void);
 void Pc_Rando_OnEnemyKilled(void);
 void Pc_Rando_OnDamageTaken(s32 amount); /* q19_12 HP actually deducted */
 
+/* Difficulty scaling, both no-ops unless a run is live (byte-identical vanilla
+ * when off). WeaponDamage scales player->enemy damage only (targetIsPlayer
+ * guards enemy->player); ScaleEnemyHealth latches per NPC slot and multiplies an
+ * enemy's HP once, the first frame its AI-init sets it positive. */
+s32  Pc_Rando_ScaleWeaponDamage(s32 damageAmount, int targetIsPlayer);
+void Pc_Rando_ScaleEnemyHealth(void* npc, int slot);
+
 /* Overlay: fills "Score: N". Returns 0 when the panel should not be drawn. */
 int  Pc_Rando_ScoreLine(char* buf, int cap);
 
