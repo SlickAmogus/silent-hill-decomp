@@ -3107,28 +3107,6 @@ void MainLoop(void) // 0x80032EE0
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
         }
-        else if (g_GameWork.gameState == 11 &&
-                 (g_SysWork.sysFlags & SysFlag_CutsceneActive)) {
-            /* Authored shots clear BLACK, like the hardware.
-             *
-             * The fog-coloured clear below is a PC addition: it stands in for a
-             * sky so distant geometry fades into something instead of a hard
-             * edge. That is right for open gameplay, and wrong the moment the
-             * shot frames a hole in the world — the clear is not a sky then, it
-             * is just what is visible through the hole, and PSX shows black
-             * there because black is all it ever cleared to.
-             *
-             * Reported on map3_s02's Alessa scene: through the antique shop's
-             * open door, and in the gaps around the threshold, the void reads
-             * fog-grey instead of black. Cutscenes are where this shows because
-             * they are the shots composed to look through doorways. */
-            g_GameWork.background2dColor.r = 0;
-            g_GameWork.background2dColor.g = 0;
-            g_GameWork.background2dColor.b = 0;
-            g_PsyX_FogColor[0] = PC_WorldEnvWork.fog.color.r / 255.0f;
-            g_PsyX_FogColor[1] = PC_WorldEnvWork.fog.color.g / 255.0f;
-            g_PsyX_FogColor[2] = PC_WorldEnvWork.fog.color.b / 255.0f;
-        }
         else if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled) {
             /* Fullscreen 2D background screens (eclipse/plates doors, item
              * inspection) must clear to the game's own color (black) — on PSX
