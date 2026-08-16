@@ -29,6 +29,12 @@
 static lua_State* s_L;
 static int        s_hasUpdate;
 
+/* Proximity pickups registered by rando.spawn_item, polled each frame. Reset per
+ * area (the interpreter is rebuilt per area). Coords/radius are q19_12 world units. */
+#define LUA_MAX_ITEMS 16
+static struct { int itemId, x, z, radius, count, active; } s_items[LUA_MAX_ITEMS];
+static int s_itemCount;
+
 /* Private RNG for rando.chance so it never disturbs the game's Rng_* streams. */
 static unsigned int s_seed;
 static unsigned int lua_rng(void)
@@ -107,6 +113,35 @@ static int l_spawn_monster(lua_State* L)
     return 1;
 }
 
+/* rando.give_item(itemId [, count]) - straight into the inventory. */
+static int l_give_item(lua_State* L)
+{
+    Pc_Rando_GiveItem((int)luaL_checkinteger(L, 1), (int)luaL_optinteger(L, 2, 1));
+    return 0;
+}
+
+/* rando.spawn_item(itemId, x, z [, radius [, count]]) - a proximity pickup at
+ * world coords (q19_12). When the player comes within radius it's added to the
+ * inventory and, if defined, global on_item(itemId) is called. Barebones: no
+ * world model yet, so pair it with a spawn_monster marker if you want it seen. */
+static int l_spawn_item(lua_State* L)
+{
+    if (s_itemCount >= LUA_MAX_ITEMS)
+    {
+        lua_pushinteger(L, -1);
+        return 1;
+    }
+    s_items[s_itemCount].itemId = (int)luaL_checkinteger(L, 1);
+    s_items[s_itemCount].x      = (int)luaL_checkinteger(L, 2);
+    s_items[s_itemCount].z      = (int)luaL_checkinteger(L, 3);
+    s_items[s_itemCount].radius = (int)luaL_optinteger(L, 4, 8192); /* ~2 units */
+    s_items[s_itemCount].count  = (int)luaL_optinteger(L, 5, 1);
+    s_items[s_itemCount].active = 1;
+    lua_pushinteger(L, s_itemCount);
+    s_itemCount++;
+    return 1;
+}
+
 static const luaL_Reg RANDO_FUNCS[] = {
     { "get",           l_get },
     { "set",           l_set },
@@ -116,6 +151,8 @@ static const luaL_Reg RANDO_FUNCS[] = {
     { "chance",        l_chance },
     { "player_has",    l_player_has },
     { "spawn_monster", l_spawn_monster },
+    { "give_item",     l_give_item },
+    { "spawn_item",    l_spawn_item },
     { NULL, NULL }
 };
 
@@ -129,6 +166,7 @@ static void lua_teardown(void)
         s_L = NULL;
     }
     s_hasUpdate = 0;
+    s_itemCount = 0;
 }
 
 static void open_safe_libs(lua_State* L)
@@ -198,9 +236,48 @@ void Pc_RandoLua_OnMapLoad(int mapIdx)
 
 void Pc_RandoLua_OnUpdate(void)
 {
-    if (s_L == NULL || !s_hasUpdate)
+    if (s_L == NULL)
         return;
     if (!Pc_Rando_Active() || g_GameWork.gameState != GameState_InGame)
+        return;
+
+    /* Proximity pickups (rando.spawn_item): give the item + fire on_item() when
+     * the player reaches one. */
+    if (s_itemCount > 0)
+    {
+        int px = g_SysWork.playerWork.player.position.vx;
+        int pz = g_SysWork.playerWork.player.position.vz;
+        int i;
+        for (i = 0; i < s_itemCount; i++)
+        {
+            long long dx, dz;
+            if (!s_items[i].active)
+                continue;
+            dx = (long long)px - s_items[i].x;
+            dz = (long long)pz - s_items[i].z;
+            if (dx * dx + dz * dz > (long long)s_items[i].radius * s_items[i].radius)
+                continue;
+
+            s_items[i].active = 0;
+            Pc_Rando_GiveItem(s_items[i].itemId, s_items[i].count);
+            lua_getglobal(s_L, "on_item");
+            if (lua_isfunction(s_L, -1))
+            {
+                lua_pushinteger(s_L, s_items[i].itemId);
+                if (lua_pcall(s_L, 1, 0, 0) != LUA_OK)
+                {
+                    SH_LOG("[SCRIPT] on_item error: %s", lua_tostring(s_L, -1));
+                    lua_pop(s_L, 1);
+                }
+            }
+            else
+            {
+                lua_pop(s_L, 1);
+            }
+        }
+    }
+
+    if (!s_hasUpdate)
         return;
 
     lua_getglobal(s_L, "on_update");

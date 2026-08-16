@@ -1513,6 +1513,59 @@ int Pc_Rando_ScriptSpawnMonster(int charaId, q19_12 x, q19_12 z, int stateStep)
     return slot;
 }
 
+/* "Reload area" (settings panel) / script use: re-apply the spawn settings to the
+ * CURRENT area without a map reload. Despawns what we placed, re-runs placement
+ * with the live density/count, and spawns the new set immediately (the rows are
+ * then cleared so per-room entry can't double them). Player position, doors and
+ * pickups are left as they are. No-op on a miniboss map (its boss is the point). */
+void Pc_Rando_RespawnArea(void)
+{
+    s_SpawnInfo* rows;
+    int i, spawned = 0;
+
+    if (!Pc_Rando_Active() || s_run.monstersWanted <= 0)
+        return;
+
+    for (i = 0; i < NPC_COUNT_MAX; i++)
+    {
+        if (g_SysWork.npcs[i].model.charaId != Chara_None)
+        {
+            g_SysWork.npcs[i].model.charaId = Chara_None;
+            g_SysWork.npcs[i].flags         = 0;
+            CLEAR_FLAG(&g_SysWork.npcFlags, i);
+            CLEAR_FLAG(g_SysWork.field_228C, i);
+            g_PcNpcDebugSpawned[i] = 0;
+        }
+        s_healthScaled[i] = 0;
+    }
+
+    s_run.monstersDone   = 0;
+    s_run.monstersPlaced = 0;
+    place_monsters(); /* writes fresh charaSpawnInfos rows from current settings */
+
+    rows = &g_MapOverlayHdr.charaSpawnInfos[0][0];
+    for (i = 0; i < 32; i++)
+    {
+        if (rows[i].charaId != Chara_None)
+        {
+            if (Pc_Rando_ScriptSpawnMonster(rows[i].charaId, rows[i].positionX, rows[i].positionZ,
+                                            (s8)rows[i].flags) >= 0)
+                spawned++;
+        }
+        rows[i].charaId = Chara_None;
+        rows[i].flags   = 0;
+    }
+    s_run.monstersPlaced = spawned;
+    SH_LOG("[RANDO] reload area: respawned %d monsters", spawned);
+}
+
+/* Direct inventory add, for the Lua give_item / spawn_item pickups. */
+void Pc_Rando_GiveItem(int itemId, int count)
+{
+    if (Pc_Rando_Active())
+        Inventory_AddSpecialItem((u8)itemId, (u8)count);
+}
+
 void Pc_Rando_OnNewGame(void)
 {
     if (!s_enabled)

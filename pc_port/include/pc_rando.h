@@ -63,5 +63,9 @@ int  Pc_Rando_CurrentMapIdx(void);   /* current MapIdx_* (-1 when off) */
 int  Pc_Rando_PlayerHasItem(int itemId);
 /* Live-spawn a pooled monster at world (x,z); stateStep < 0 = auto. Slot or -1. */
 int  Pc_Rando_ScriptSpawnMonster(int charaId, int x, int z, int stateStep);
+/* Re-apply spawn settings to the current area in place ("Reload area"). */
+void Pc_Rando_RespawnArea(void);
+/* Add an item straight to the inventory. */
+void Pc_Rando_GiveItem(int itemId, int count);
 
 #endif /* PC_RANDO_H */

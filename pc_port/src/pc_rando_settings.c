@@ -37,7 +37,7 @@
 #define RS_GARBAGE 32
 
 /* Action rows, after the tunables. */
-enum { RS_ACT_RESET = 0, RS_ACT_CLOSE, RS_ACT_COUNT };
+enum { RS_ACT_RELOAD = 0, RS_ACT_RESET, RS_ACT_CLOSE, RS_ACT_COUNT };
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -404,6 +404,15 @@ static void rs_activate_action(int act)
 {
     switch (act)
     {
+        case RS_ACT_RELOAD:
+        {
+            /* Re-apply spawn settings to the current area, then close so the
+             * player sees the result. */
+            extern void Pc_Rando_RespawnArea(void);
+            Pc_Rando_RespawnArea();
+            Pc_RandoSettings_Close();
+            break;
+        }
         case RS_ACT_RESET:
             Pc_RandoConfig_ResetDefaults();
             s_changed = 1;
@@ -680,7 +689,7 @@ void Pc_RandoSettings_Draw(void)
         else
         {
             /* Action row, centred. */
-            static const char* const ACT_LABELS[RS_ACT_COUNT] = { "Reset to defaults", "Close" };
+            static const char* const ACT_LABELS[RS_ACT_COUNT] = { "Reload area (apply now)", "Reset to defaults", "Close" };
             int a = i - nSet;
             if (!s_texLabel[i])
                 s_texLabel[i] = rs_bake(ACT_LABELS[a], (float)px, &s_labelW[i], &s_labelH[i]);
