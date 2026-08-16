@@ -223,10 +223,20 @@ static McFileHandle s_handles[16] = { 0 };
  * all-channels-connected model. TIMOUT stays only for the one Xbox-only
  * degradation PsyCross can't have: no writable save location at all. */
 
+/* nxdk takes Windows separators; libXenon's devoptab paths ("uda:/...") and
+ * lv2's ("/dev_hdd0/...") take POSIX ones, and a backslash there is a literal
+ * filename character rather than a separator -- so the open silently creates
+ * nothing and the card reads as absent. */
+#if defined(SH_PS3_PORT) || defined(SH_XBOX360_PORT)
+#define MC_SEP "/"
+#else
+#define MC_SEP "\\"
+#endif
+
 static const char* mc_path_for_channel(int chan)
 {
     static char buf[128];
-    snprintf(buf, sizeof(buf), "%s\\%d.MCD", s_saveDir, chan);
+    snprintf(buf, sizeof(buf), "%s" MC_SEP "%d.MCD", s_saveDir, chan);
     return buf;
 }
 
@@ -415,7 +425,7 @@ void Mcard_XboxInit(void)
         SH_DBG("[MCRD] init: NO writable save location; card reports not-connected");
         return;
     }
-    SH_DBG("[MCRD] card path = %s\\0.MCD", s_saveDir);
+    SH_DBG("[MCRD] card path = %s" MC_SEP "0.MCD", s_saveDir);
     mc_ensure_card(0);
 }
 

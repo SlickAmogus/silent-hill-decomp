@@ -2,31 +2,31 @@
 /*
  * gpu_rsx.c - the PS3 side of the PSX libgpu, replacing gpu_nv2a.c.
  *
- * PHASE 1: A COUNTING NO-OP. Nothing is drawn yet.
+ * Draws through the RSX (rsx_video.c) with a software-GTE-projected vertex
+ * stream: gpu_xbox.c walks the ordering table and decodes PSX primitives into
+ * screen-space vertices, and this file stages them into RSX-visible memory and
+ * issues the draws.
  *
- * That is deliberate, not a placeholder left by accident. gpu_xbox.c -- the half
- * of the renderer that walks the ordering table and decodes PSX primitives -- is
- * hardware-agnostic and compiles for the PPU unchanged, so the game can run its
- * entire boot, load its data, build its OTs and emit primitives with no GPU
- * behind them at all. Doing that first separates two very different failures:
+ * It began as a deliberate COUNTING NO-OP, and the counters are still here
+ * because they earned their place. gpu_xbox.c is hardware-agnostic and compiles
+ * for the PPU unchanged, so the game can run its whole boot with no GPU behind
+ * it at all, which separates two very different failures:
  *
  *   - the game does not reach the render loop      (game/HAL/endian problem)
  *   - the game emits primitives but nothing appears (RSX backend problem)
  *
- * Keeping them apart matters more than it sounds. The 360 shipped a GTE fix,
- * saw tris=0, and spent the effort on the renderer before noticing the counter
- * was dead and the real fault was in a shared header: the "Fast" primitive
- * setters composed a wide store in little-endian field order, so x and y were
- * swapped in every 2D primitive and PolyOversized correctly rejected them. A
- * phase that reports "OT walked, N primitives emitted, bounding box B" answers
- * that question before any GPU code exists to be blamed.
+ * Keeping them apart matters. The 360 shipped a GTE fix, saw tris=0, and spent
+ * effort on the renderer before noticing the counter was dead and the real
+ * fault was in a shared header: the "Fast" primitive setters composed a wide
+ * store in little-endian field order, so x and y were swapped in every 2D
+ * primitive and PolyOversized correctly rejected them. "OT walked, N primitives
+ * emitted, bounding box B" answers that question without blaming GPU code.
  *
- * When the real backend lands it goes here: the RSX is an NV47/G70 part, so it
- * is a much closer relative of the Xbox's NV2A than of the 360's Xenos -- both
- * are NVIDIA FIFO-pushbuffer designs programmed by writing class methods into a
- * command buffer. gpu_nv2a.c is therefore the template to follow, with librsx
- * calls in place of pbkit and cgcomp-built vertex/fragment programs in place of
- * the NV2A shaders.
+ * Batching rule: a run of vertices is drawn ONE BEHIND, because gpu_xbox.c fills
+ * a batch after BatchAlloc returns. Anything that changes GPU state -- texture,
+ * blend, scissor -- must therefore flush the staged run first, or the state
+ * change would retroactively apply to primitives already staged under the old
+ * state.
  */
 #include <stdio.h>
 #include <string.h>
@@ -64,8 +64,18 @@ static void FlushPendingBBox(void);
  * consumes it yet. It wraps rather than growing: the contents are discarded, and
  * a wrap must never look like an allocation failure to the caller. */
 #define GPU_POOL_VERTS 32768
-static ShVertex s_pool[GPU_POOL_VERTS];
-static int      s_poolUsed;
+/* Points at RSX-visible memory once the display is up, so the GPU can read the
+ * vertices straight out of it and nothing is copied twice. Falls back to this
+ * static array when the RSX failed, which keeps the counting phase working. */
+static ShVertex  s_poolFallback[GPU_POOL_VERTS];
+static ShVertex* s_pool = s_poolFallback;
+static int       s_poolUsed;
+/* First vertex of the run not yet handed to the GPU. gpu_xbox.c fills each
+ * batch AFTER BatchAlloc returns, so a batch can only be drawn once the next
+ * one is requested (or the frame ends) -- the same one-behind rule the bounding
+ * box tracker uses. */
+static int       s_drawnUpTo;
+static unsigned  s_wraps;
 
 /* State gpu_xbox.c reads directly. The content rect is the drawable area inside
  * the framebuffer (the Xbox port uses it for widescreen pillarboxing); full
@@ -80,6 +90,10 @@ void GpuNv2a_Init(void)
 {
     s_frame = 0;
     if (Ps3Rsx_Init()) {
+        ShVertex* p = (ShVertex*)Ps3Rsx_VertexPool(GPU_POOL_VERTS * sizeof(ShVertex),
+                                                   sizeof(ShVertex));
+        if (p)
+            s_pool = p;
         /* The framebuffer is whatever mode the console is in, so the content
          * rect follows it instead of the 640x480 the Xbox ports assume.
          * gpu_xbox.c derives its whole screen transform from these. */
@@ -106,6 +120,8 @@ void GpuNv2a_FrameBegin(void)
     s_scissorChanges      = 0;
     s_bbValid             = 0;
     s_pendStart           = -1;
+    s_drawnUpTo           = 0;
+    s_wraps               = 0;
 
     /* gpu_xbox.c owns the PSX draw env, so the clear colour is the game's own
      * background (the fog colour in-game) rather than anything chosen here.
@@ -125,9 +141,9 @@ void GpuNv2a_FrameEnd(void)
      * from field-swapped garbage. */
     if ((s_frame % 60) == 0) {
         if (s_bbValid) {
-            SH_DBG("[GPU] frame=%u tris=%u verts=%u texbind=%u blend=%u scissor=%u bbox=%d,%d..%d,%d",
+            SH_DBG("[GPU] frame=%u tris=%u verts=%u texbind=%u blend=%u scissor=%u wraps=%u bbox=%d,%d..%d,%d",
                    s_frame, s_trisThisFrame, s_batchVertsThisFrame,
-                   s_texBindsThisFrame, s_blendChanges, s_scissorChanges,
+                   s_texBindsThisFrame, s_blendChanges, s_scissorChanges, s_wraps,
                    s_bbX0, s_bbY0, s_bbX1, s_bbY1);
         } else {
             SH_DBG("[GPU] frame=%u tris=%u verts=%u texbind=%u blend=%u scissor=%u bbox=none",
@@ -217,11 +233,17 @@ static void TrackBBox(const ShVertex* v, int count)
     }
 }
 
+/* Hand the completed run to the GPU and measure it. Both have to wait until the
+ * caller has actually filled the vertices, which is why this is one-behind. */
 static void FlushPendingBBox(void)
 {
     if (s_pendStart >= 0) {
         TrackBBox(&s_pool[s_pendStart], s_pendCount);
         s_pendStart = -1;
+    }
+    if (Ps3Rsx_Ready() && s_poolUsed > s_drawnUpTo) {
+        Ps3Rsx_DrawTris((unsigned)s_drawnUpTo, (unsigned)(s_poolUsed - s_drawnUpTo));
+        s_drawnUpTo = s_poolUsed;
     }
 }
 
@@ -232,10 +254,18 @@ ShVertex* GpuNv2a_BatchAlloc(int count)
     if (count <= 0 || count > GPU_POOL_VERTS)
         return NULL;
 
-    FlushPendingBBox();
+    FlushPendingBBox();               /* draws + measures the previous run */
 
-    if (s_poolUsed + count > GPU_POOL_VERTS)
-        s_poolUsed = 0;               /* wrap; contents are discarded anyway */
+    if (s_poolUsed + count > GPU_POOL_VERTS) {
+        /* Wrapping recycles memory the GPU may still be reading, so the queued
+         * work has to retire first. Overflow is not a failure -- it costs one
+         * drain per wrap -- but it must not be silent, because a frame that
+         * wraps repeatedly is paying for it. */
+        Ps3Rsx_DrainGpu();
+        s_poolUsed  = 0;
+        s_drawnUpTo = 0;
+        s_wraps++;
+    }
 
     p = &s_pool[s_poolUsed];
     s_pendStart = s_poolUsed;
@@ -247,17 +277,28 @@ ShVertex* GpuNv2a_BatchAlloc(int count)
 
 void GpuNv2a_BindPaletted(const void* page, const void* palette)
 {
+    /* The paletted fast path is an NV2A feature (a palette register plus an
+     * 8-bit index page). Nothing on the RSX side consumes it yet, so this
+     * reports "not handled" by falling through to psx_vram.c's ARGB cache --
+     * gpu_xbox.c already treats a failed paletted bind that way. */
     (void)page; (void)palette;
     s_texBindsThisFrame++;
 }
 
 void GpuNv2a_BindTexture(const void* addr, int w, int h)
 {
-    (void)addr; (void)w; (void)h;
+    /* A bind changes state for everything queued after it, so whatever is
+     * already staged has to be drawn under the OLD texture first. */
+    FlushPendingBBox();
+    Ps3Rsx_BindTexture(addr, w, h);
     s_texBindsThisFrame++;
 }
 
-void GpuNv2a_BindWhite(void) { }
+void GpuNv2a_BindWhite(void)
+{
+    FlushPendingBBox();
+    Ps3Rsx_BindWhite();
+}
 
 /* psx_vram.c really uses this memory, so it must be a genuine allocation even in
  * the no-op phase. 128-byte aligned so the same pointers stay usable when the
@@ -267,17 +308,23 @@ void* GpuNv2a_AllocTexMem(int bytes)
     void* p;
     if (bytes <= 0)
         return NULL;
-    p = memalign(128, (size_t)bytes);
+    p = Ps3Rsx_AllocTexMem(bytes);
     if (!p)
         SH_DBG("[GPU] AllocTexMem(%d) FAILED", bytes);
     return p;
 }
 
-void GpuNv2a_SetBlendMode(int mode) { (void)mode; s_blendChanges++; }
+void GpuNv2a_SetBlendMode(int mode)
+{
+    FlushPendingBBox();
+    Ps3Rsx_SetBlend(mode);
+    s_blendChanges++;
+}
 
 void GpuNv2a_SetScissor(int x, int y, int w, int h)
 {
-    (void)x; (void)y; (void)w; (void)h;
+    FlushPendingBBox();
+    Ps3Rsx_SetScissorRect(x, y, w, h);
     s_scissorChanges++;
 }
 
@@ -300,8 +347,7 @@ int GpuNv2a_Ms(void) { return 0; }
  * this build unchanged. Defining them here too is what the 360's first full link
  * caught. */
 
-/* Nothing is queued, so the drain is already complete. */
-void GpuNv2a_DrainGpu(void) { }
+void GpuNv2a_DrainGpu(void) { Ps3Rsx_DrainGpu(); }
 
 void GpuNv2a_SetDepthWrite(int enable)         { (void)enable; }
 void GpuNv2a_SetPaletteDmaVariant(int variant) { (void)variant; }

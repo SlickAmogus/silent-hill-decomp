@@ -112,9 +112,36 @@ const char* Sh3Fs_SaveDir(void)
     return s_saveDir;
 }
 
-/* mcard_xbox.c calls this to find where memory-card images live. Same directory
- * as the rest of the save data. */
-const char* XboxFs_ResolveSaveDir(void)
+/* mcard_xbox.c calls this to find where memory-card images live.
+ *
+ * The SIGNATURE MATTERS and is not ours to choose: mcard_xbox.c declares
+ *     extern int XboxFs_ResolveSaveDir(char* out, int outSize);
+ * and this was first written as `const char* XboxFs_ResolveSaveDir(void)`.
+ * C links by name alone, so that built and linked cleanly and then read
+ * garbage arguments at run time: s_saveDir stayed empty, the card path came
+ * out as "/0.MCD", _card_load never succeeded, and the game's memory-card FSM
+ * wedged in MemCardWorkState_Load step 1 -- which stalled the whole boot
+ * before the title screen could draw.
+ *
+ * Returns non-zero if a writable location exists. No trailing separator: the
+ * caller appends one. */
+int XboxFs_ResolveSaveDir(char* out, int outSize)
 {
-    return Sh3Fs_SaveDir();
+    const char* dir;
+    int         n;
+
+    if (!out || outSize <= 0)
+        return 0;
+
+    dir = Sh3Fs_SaveDir();
+    if (!dir || !dir[0]) {
+        out[0] = '\0';
+        return 0;
+    }
+
+    snprintf(out, outSize, "%s", dir);
+    n = (int)strlen(out);
+    while (n > 1 && out[n - 1] == '/')
+        out[--n] = '\0';
+    return 1;
 }

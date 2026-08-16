@@ -67,6 +67,37 @@ void Ps3Rsx_FrameEnd(void);
 /* Block until the queued flip has retired. */
 void Ps3Rsx_WaitFlip(void);
 
+/* ---- RSX draw path -------------------------------------------------------
+ * The vertex pool has to live in RSX-visible memory, so it is allocated here
+ * and handed up rather than being a static array in gpu_rsx.c. `stride` is
+ * sizeof(ShVertex); it is passed in because this side must not include the
+ * decomp headers that define it. Returns NULL if the RSX is not up. */
+void* Ps3Rsx_VertexPool(unsigned bytes, unsigned stride);
+
+/* Draw `vertCount` vertices from the pool as a triangle list. */
+void  Ps3Rsx_DrawTris(unsigned firstVert, unsigned vertCount);
+
+/* 0 = opaque; 1..4 = the PSX ABR modes 0..3
+ * (0.5B+0.5F, B+F, B-F, B+0.25F). */
+void  Ps3Rsx_SetBlend(int mode);
+
+/* Bind an ARGB8888 image. The pixels must come from Ps3Rsx_AllocTexMem, since
+ * only RSX-visible memory can be sampled. */
+void  Ps3Rsx_BindTexture(const void* pixels, int w, int h);
+/* Restore the 1x1 white default, so untextured primitives collapse to their
+ * vertex colour through the same shader. */
+void  Ps3Rsx_BindWhite(void);
+
+void  Ps3Rsx_SetScissorRect(int x, int y, int w, int h);
+
+/* RSX-visible texture memory. Falls back to plain memalign when the RSX is
+ * down so psx_vram.c still gets real memory to decode into. */
+void* Ps3Rsx_AllocTexMem(int bytes);
+
+/* Block until the GPU has consumed everything queued. Needed before recycling
+ * memory it may still be reading. */
+void  Ps3Rsx_DrainGpu(void);
+
 #ifdef __cplusplus
 }
 #endif

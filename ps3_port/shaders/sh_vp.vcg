@@ -1,0 +1,39 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/*
+ * sh_vp.vcg - vertex program for the PSX primitive path.
+ *
+ * A window-space passthrough, because the vertices arriving here have ALREADY
+ * been projected: the software GTE does the 3D transform and gpu_xbox.c hands
+ * over screen pixels. So there is no model/view/projection here, only the
+ * pixels -> clip-space mapping the RSX needs.
+ *
+ * `screen` is (2/width, -2/height): x maps 0..w onto -1..+1, and y is negated
+ * because PSX screen space grows downward while clip space grows up.
+ *
+ * `texScale` is (1/texWidth, 1/texHeight). PSX UVs are TEXELS (0..255 into a
+ * decoded 256x256 page), and the RSX samples normalised, so the divide happens
+ * here rather than on the CPU -- gpu_xbox.c writes texel UVs and is shared with
+ * the Xbox ports, so it is not ours to change.
+ */
+void main
+(
+    float4 position  : POSITION,
+    float4 color     : COLOR,
+    float2 texcoord  : TEXCOORD0,
+
+    uniform float4 screen,
+    uniform float4 texScale,
+
+    out float4 oPosition : POSITION,
+    out float4 oColor    : COLOR,
+    out float2 oTexcoord : TEXCOORD0
+)
+{
+    oPosition.x = position.x * screen.x - 1.0f;
+    oPosition.y = position.y * screen.y + 1.0f;
+    oPosition.z = position.z;
+    oPosition.w = 1.0f;
+
+    oColor    = color;
+    oTexcoord = texcoord * texScale.xy;
+}

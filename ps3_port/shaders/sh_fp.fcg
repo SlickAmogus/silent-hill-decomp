@@ -1,0 +1,20 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/*
+ * sh_fp.fcg - fragment program for the PSX primitive path.
+ *
+ * texture * diffuse, which is the PSX's texel modulation. Untextured primitives
+ * bind a 1x1 white texture so the multiply collapses to the vertex colour and
+ * there is no second shader to keep in step.
+ *
+ * The x2 that PSX texel modulation implies (colour 0x80 == 1.0) is already
+ * applied per-vertex in gpu_xbox.c's PutVertUV, so it must NOT be repeated here.
+ */
+float4 main
+(
+    float4 color    : COLOR,
+    float2 texcoord : TEXCOORD0,
+    uniform sampler2D tex
+) : COLOR
+{
+    return tex2D(tex, texcoord) * color;
+}

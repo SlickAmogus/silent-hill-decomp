@@ -17,6 +17,23 @@ OUT="$SCRIPT_DIR/bin"
 GATE="$SCRIPT_DIR/build/gate"
 mkdir -p "$OUT"
 
+echo "=== shaders ==="
+# cgcomp is only a front end: it dlopen's NVIDIA's libCg.so and dies with
+# "Unable to load Cg, aborting" without it, so this needs the sh-ps3dev:cg image
+# (ps3dev_cg.dockerfile), not the stock toolchain image.
+SHD="$SCRIPT_DIR/build/shaders"
+mkdir -p "$SHD"
+command -v cgcomp >/dev/null 2>&1 || { echo "cgcomp not found"; exit 1; }
+cgcomp -v "$SCRIPT_DIR/shaders/sh_vp.vcg" "$SHD/sh_vp.vpo" || exit 1
+cgcomp -f "$SCRIPT_DIR/shaders/sh_fp.fcg" "$SHD/sh_fp.fpo" || exit 1
+# bin2s emits `.global <name>_vpo` / `<name>_fpo`, which is what rsx_video.c
+# declares extern. 64-byte aligned because the RSX wants its ucode aligned.
+( cd "$SHD" && bin2s -a 64 sh_vp.vpo > sh_vp.s && bin2s -a 64 sh_fp.fpo > sh_fp.s )
+ppu-gcc -c "$SHD/sh_vp.s" -o "$SHD/sh_vp.o" || exit 1
+ppu-gcc -c "$SHD/sh_fp.s" -o "$SHD/sh_fp.o" || exit 1
+ls -l "$SHD"/*.vpo "$SHD"/*.fpo
+
+echo
 echo "=== compile ==="
 bash "$SCRIPT_DIR/ppu_gate.sh"
 
@@ -30,7 +47,7 @@ LIBS="-lrsx -lgcm_sys -lsysutil -lsysmodule -laudio -lio -lnet -lsysfs -llv2 -lm
 
 echo
 echo "=== link ($(ls "$GATE"/*.o | wc -l) objects) ==="
-if ! ppu-gcc $MACHDEP -o "$OUT/sh.elf" "$GATE"/*.o \
+if ! ppu-gcc $MACHDEP -o "$OUT/sh.elf" "$GATE"/*.o "$SHD"/sh_vp.o "$SHD"/sh_fp.o \
         -L"$PS3DEV/ppu/lib" $LIBS \
         -Wl,-Map,"$OUT/sh.map" 2> "$SCRIPT_DIR/build/link.log"; then
     echo "LINK FAILED - undefined symbols by count:"
