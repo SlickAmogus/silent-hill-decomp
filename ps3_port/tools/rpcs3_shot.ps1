@@ -29,6 +29,9 @@ public class Win {
   [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out RECT r);
   [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr h, ref POINT p);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
   [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X, Y; }
   // The game window is the one whose title RPCS3 stamps with the FPS counter.
@@ -74,7 +77,24 @@ if ($h -eq [IntPtr]::Zero) {
     $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
     $x = $b.X; $y = $b.Y; $w = $b.Width; $hgt = $b.Height
 } else {
-    [Win]::SetForegroundWindow($h) | Out-Null
+    # Raising the window is NOT optional and NOT reliable on one try. Windows
+    # refuses foreground changes from a process that does not own the current
+    # focus, and a silent failure here does not produce an error -- it produces
+    # a screenshot of whatever ELSE was on top, which is worse than no
+    # screenshot because it looks like a real frame. Verify, retry, and say so.
+    $raised = $false
+    for ($i = 0; $i -lt 8; $i++) {
+        [Win]::ShowWindow($h, 9) | Out-Null      # SW_RESTORE
+        [Win]::BringWindowToTop($h) | Out-Null
+        [Win]::SetForegroundWindow($h) | Out-Null
+        Start-Sleep -Milliseconds 350
+        if ([Win]::GetForegroundWindow() -eq $h) { $raised = $true; break }
+    }
+    if (-not $raised) {
+        Write-Output "ERROR: could not raise the RPCS3 window; refusing to capture another window"
+        Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+        exit 2
+    }
     Start-Sleep -Milliseconds 400
     $r = New-Object Win+RECT
     [Win]::GetClientRect($h, [ref]$r) | Out-Null

@@ -169,6 +169,8 @@ int Ps3Rsx_Init(void)
     s_aPos      = rsxVertexProgramGetAttrib(s_vp, "position");
     s_aCol      = rsxVertexProgramGetAttrib(s_vp, "color");
     s_aTex      = rsxVertexProgramGetAttrib(s_vp, "texcoord");
+    printf("[SH-PS3][RSX] shader binds pos=%d col=%d tex=%d screen=%d texScale=%d\n",
+           (int)s_aPos, (int)s_aCol, (int)s_aTex, (int)s_cScreen, (int)s_cTexScale);
     if (s_aPos < 0 || s_aCol < 0 || s_aTex < 0 || s_cScreen < 0) {
         printf("[SH-PS3][RSX] shader binding failed pos=%d col=%d tex=%d screen=%d\n",
                (int)s_aPos, (int)s_aCol, (int)s_aTex, (int)s_cScreen);

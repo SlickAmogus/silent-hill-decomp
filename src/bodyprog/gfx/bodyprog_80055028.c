@@ -2527,12 +2527,12 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         gte_lddp(var_t3);
                         gte_ldrgb(&scratchData->field_380.s_0.field_C);
                         gte_dpcs();
-                        gte_strgb(&poly1->r0);
+                        PSX_ST_RGBC(poly1, MFC2(22));
                         VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_10] << 4);
                         gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_14] << 5);
                         gte_ldrgb(&scratchData->field_380.s_0.field_8);
                         gte_dpcl();
-                        gte_strgb(&poly3->r0);
+                        PSX_ST_RGBC(poly3, MFC2(22));
 
                         var_t3  = 0x1000 - scratchData->field_252[scratchData->field_380.s_0.field_11] * 16;
                         var_t3 -= scratchData->field_380.s_0.field_4;
@@ -2544,12 +2544,12 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         gte_lddp(var_t3);
                         gte_ldrgb(&scratchData->field_380.s_0.field_C);
                         gte_dpcs();
-                        gte_strgb(&poly1->r1);
+                        PSX_ST_RGB(poly1, r1, MFC2(22));
                         VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_11] << 4);
                         gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_15] << 5);
                         gte_ldrgb(&scratchData->field_380.s_0.field_8);
                         gte_dpcl();
-                        gte_strgb(&poly3->r1);
+                        PSX_ST_RGB(poly3, r1, MFC2(22));
 
                         var_t3  = 0x1000 - scratchData->field_252[scratchData->field_380.s_0.field_12] * 0x10;
                         var_t3 -= scratchData->field_380.s_0.field_4;
@@ -2561,12 +2561,12 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         gte_lddp(var_t3);
                         gte_ldrgb(&scratchData->field_380.s_0.field_C);
                         gte_dpcs();
-                        gte_strgb(&poly1->r2);
+                        PSX_ST_RGB(poly1, r2, MFC2(22));
                         VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_12] << 4);
                         gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_16] << 5);
                         gte_ldrgb(&scratchData->field_380.s_0.field_8);
                         gte_dpcl();
-                        gte_strgb(&poly3->r2);
+                        PSX_ST_RGB(poly3, r2, MFC2(22));
 
                         var_t3  = 0x1000 - scratchData->field_252[scratchData->field_380.s_0.field_13] * 0x10;
                         var_t3 -= scratchData->field_380.s_0.field_4;
@@ -2578,12 +2578,12 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                         gte_lddp(var_t3);
                         gte_ldrgb(&scratchData->field_380.s_0.field_C);
                         gte_dpcs();
-                        gte_strgb(&poly1->r3);
+                        PSX_ST_RGB(poly1, r3, MFC2(22));
                         VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_13] << 4);
                         gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_17] << 5);
                         gte_ldrgb(&scratchData->field_380.s_0.field_8);
                         gte_dpcl();
-                        gte_strgb(&poly3->r3);
+                        PSX_ST_RGB(poly3, r3, MFC2(22));
 
                         *(s32*)&poly3->u0 = *(s32*)&prim->field_0;
                         *(s32*)&poly3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
@@ -2766,25 +2766,25 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_14] << 5);
                     gte_ldrgb(&scratchData->field_380.s_0.field_8);
                     gte_dpcl();
-                    gte_strgb(&poly3->r0);
+                    PSX_ST_RGBC(poly3, MFC2(22));
 
                     VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_11] << 4);
                     gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_15] << 5);
                     gte_ldrgb(&scratchData->field_380.s_0.field_8);
                     gte_dpcl();
-                    gte_strgb(&poly3->r1);
+                    PSX_ST_RGB(poly3, r1, MFC2(22));
 
                     VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_12] << 4);
                     gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_16] << 5);
                     gte_ldrgb(&scratchData->field_380.s_0.field_8);
                     gte_dpcl();
-                    gte_strgb(&poly3->r2);
+                    PSX_ST_RGB(poly3, r2, MFC2(22));
 
                     VTXCOL_LDDP(scratchData->field_252[scratchData->field_380.s_0.field_13] << 4);
                     gte_ldsv_(scratchData->field_2B8[scratchData->field_380.s_0.field_17] << 5);
                     gte_ldrgb(&scratchData->field_380.s_0.field_8);
                     gte_dpcl();
-                    gte_strgb(&poly3->r3);
+                    PSX_ST_RGB(poly3, r3, MFC2(22));
 
                     *(s32*)&poly3->u0 = *(s32*)&prim->field_0;
                     *(s32*)&poly3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
@@ -2942,11 +2942,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 gte_lddp(var_t3_2);
                 gte_ldrgb(&scratchData->field_380.s_0.field_C);
                 gte_dpcs();
-                gte_strgb(&poly2->r0);
+                PSX_ST_RGBC(poly2, MFC2(22));
                 VTXCOL_LDDP(0x1000 - var_t3_2);
                 gte_ldrgb(&scratchData->field_380.s_0.field_8);
                 gte_dpcs();
-                gte_strgb(&poly3->r0);
+                PSX_ST_RGBC(poly3, MFC2(22));
 
                 temp4    = 0x1000 - scratchData->field_252[scratchData->field_380.s_0.field_11] * 0x10;
                 var_t3_2 = temp4 - scratchData->field_380.s_0.field_4;
@@ -2958,11 +2958,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 gte_lddp(var_t3_2);
                 gte_ldrgb(&scratchData->field_380.s_0.field_C);
                 gte_dpcs();
-                gte_strgb(&poly2->r1);
+                PSX_ST_RGB(poly2, r1, MFC2(22));
                 VTXCOL_LDDP(0x1000 - var_t3_2);
                 gte_ldrgb(&scratchData->field_380.s_0.field_8);
                 gte_dpcs();
-                gte_strgb(&poly3->r1);
+                PSX_ST_RGB(poly3, r1, MFC2(22));
 
                 temp4    = 0x1000 - scratchData->field_252[scratchData->field_380.s_0.field_12] * 0x10;
                 var_t3_2 = temp4 - scratchData->field_380.s_0.field_4;
@@ -2974,11 +2974,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 gte_lddp(var_t3_2);
                 gte_ldrgb(&scratchData->field_380.s_0.field_C);
                 gte_dpcs();
-                gte_strgb(&poly2->r2);
+                PSX_ST_RGB(poly2, r2, MFC2(22));
                 VTXCOL_LDDP(0x1000 - var_t3_2);
                 gte_ldrgb(&scratchData->field_380.s_0.field_8);
                 gte_dpcs();
-                gte_strgb(&poly3->r2);
+                PSX_ST_RGB(poly3, r2, MFC2(22));
 
                 temp4    = 0x1000 - scratchData->field_252[scratchData->field_380.s_0.field_13] * 0x10;
                 var_t3_2 = temp4 - scratchData->field_380.s_0.field_4;
@@ -2990,11 +2990,11 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 gte_lddp(var_t3_2);
                 gte_ldrgb(&scratchData->field_380.s_0.field_C);
                 gte_dpcs();
-                gte_strgb(&poly2->r3);
+                PSX_ST_RGB(poly2, r3, MFC2(22));
                 VTXCOL_LDDP(0x1000 - var_t3_2);
                 gte_ldrgb(&scratchData->field_380.s_0.field_8);
                 gte_dpcs();
-                gte_strgb(&poly3->r3);
+                PSX_ST_RGB(poly3, r3, MFC2(22));
 
                 *(s32*)&poly3->u0 = *(s32*)&prim->field_0;
                 *(s32*)&poly3->u1 = *(s32*)&prim->field_4 & 0xFFFFFF;
@@ -3197,7 +3197,7 @@ __block1530:
                 gte_lddp(0x1000 - (scratchData->field_2B8[scratchData->field_380.s_0.field_14] << 5));
                 gte_ldrgb(&scratchData->field_380.s_0.field_8);
                 gte_dpcs();
-                gte_strgb(&poly0->r0);
+                PSX_ST_RGBC(poly0, MFC2(22));
             }
             else
             {
@@ -3209,7 +3209,7 @@ __block1530:
                 gte_lddp(0x1000 - (scratchData->field_2B8[scratchData->field_380.s_0.field_15] << 5));
                 gte_ldrgb(&scratchData->field_380.s_0.field_8);
                 gte_dpcs();
-                gte_strgb(&poly0->r1);
+                PSX_ST_RGB(poly0, r1, MFC2(22));
             }
             else
             {
@@ -3221,7 +3221,7 @@ __block1530:
                 gte_lddp(0x1000 - (scratchData->field_2B8[scratchData->field_380.s_0.field_16] << 5));
                 gte_ldrgb(&scratchData->field_380.s_0.field_8);
                 gte_dpcs();
-                gte_strgb(&poly0->r2);
+                PSX_ST_RGB(poly0, r2, MFC2(22));
             }
             else
             {
@@ -3233,7 +3233,7 @@ __block1530:
                 gte_lddp(0x1000 - (scratchData->field_2B8[scratchData->field_380.s_0.field_17] << 5));
                 gte_ldrgb(&scratchData->field_380.s_0.field_8);
                 gte_dpcs();
-                gte_strgb(&poly0->r3);
+                PSX_ST_RGB(poly0, r3, MFC2(22));
             }
             else
             {

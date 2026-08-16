@@ -235,9 +235,23 @@ static void TrackBBox(const ShVertex* v, int count)
 
 /* Hand the completed run to the GPU and measure it. Both have to wait until the
  * caller has actually filled the vertices, which is why this is one-behind. */
+extern int g_XboxLogDiag;   /* sh_log_ps3.c (config log_diag) */
+static unsigned s_colLoggedFrame = 0xFFFFFFFFu;
+
 static void FlushPendingBBox(void)
 {
     if (s_pendStart >= 0) {
+        /* Vertex-colour probe, diag-gated. This is what identified the dark-red
+         * frame as the fog backdrop rather than a broken colour path: it prints
+         * the value the RSX actually receives, so a wrong colour can be traced
+         * back to the game data instead of guessed at from a screenshot. */
+        if (g_XboxLogDiag && (s_frame % 120) == 0 && s_colLoggedFrame != s_frame) {
+            const ShVertex* v = &s_pool[s_pendStart];
+            s_colLoggedFrame = s_frame;
+            SH_DBG("[VCOL] n=%d v0 rgb=%.3f,%.3f,%.3f a=%.2f uv=%.1f,%.1f pos=%.0f,%.0f",
+                   s_pendCount, v[0].col[0], v[0].col[1], v[0].col[2], v[0].col[3],
+                   v[0].tex[0], v[0].tex[1], v[0].pos[0], v[0].pos[1]);
+        }
         TrackBBox(&s_pool[s_pendStart], s_pendCount);
         s_pendStart = -1;
     }
