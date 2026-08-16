@@ -981,11 +981,20 @@ if(IOS AND SH_IOS_PORT_DIR)
     # (found by the Simulator smoke test). ios_bootstrap.m stages it across only
     # when Documents has none, so a user's edited copy is never overwritten.
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/config.cfg")
+        # Debug logging ships ON here, unlike desktop. A sideloaded app has no
+        # console anyone can read, so without SilentHill.log landing in Documents
+        # a failed launch gives literally nothing to go on — and nothing has ever
+        # run on an iOS device. The staged copy is user-editable through
+        # Files.app, so turning it back off is a one-line change.
+        file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config.cfg" SH_IOS_CFG)
+        string(REGEX REPLACE "enable_debug_log[ \t]*=[ \t]*0"
+                             "enable_debug_log = 1" SH_IOS_CFG "${SH_IOS_CFG}")
+        file(WRITE "${CMAKE_BINARY_DIR}/config.ios.cfg" "${SH_IOS_CFG}")
         add_custom_command(TARGET SilentHillPC POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy
-                    "${CMAKE_CURRENT_SOURCE_DIR}/config.cfg"
+                    "${CMAKE_BINARY_DIR}/config.ios.cfg"
                     "$<TARGET_BUNDLE_CONTENT_DIR:SilentHillPC>/config.cfg"
-            COMMENT "Bundling config.cfg"
+            COMMENT "Bundling config.cfg (debug log enabled)"
             VERBATIM)
     endif()
 endif()
