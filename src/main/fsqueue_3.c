@@ -15,6 +15,7 @@
 #include "psx_io_console.h"
 #include "hires_override.h"
 #include "tex_pack.h"
+#include "tim_endian.h"
 #include "sh_log.h"
 
 #ifndef _WIN32
@@ -864,6 +865,11 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
         (unsigned)entry->extra.image.tPage[0], (unsigned)entry->extra.image.tPage[1],
         (int)entry->extra.image.clutX, (int)entry->extra.image.clutY); fflush(g_ShDebugLog); } }
 #endif
+    /* TIMs are PSX data, so little-endian, and ReadTIM does not copy them -- it
+     * points prect/paddr straight into this buffer. Convert once here, before
+     * anything reads a field, so the whole downstream path sees native values.
+     * Idempotent via the magic word, and a no-op on little-endian hosts. */
+    Tim_SwapForBigEndian((void*)entry->externalData);
     OpenTIM((u64*)entry->externalData);
     ReadTIM(&tim);
 #ifdef SH_PC_PORT
