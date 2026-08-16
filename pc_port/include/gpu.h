@@ -12,6 +12,7 @@
 #include <psyq/libgte.h>
 #include <psyq/libgpu.h>
 #include <psyq/libgs.h>
+#include "psx_pack.h"
 
 #define LINE_VERT_COUNT 2
 #define RECT_VERT_COUNT 4

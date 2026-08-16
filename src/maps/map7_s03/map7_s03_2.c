@@ -294,10 +294,10 @@ void func_800D625C(void) // 0x800D625C
                 poly->x3 = (x + (j * 4)) + 4;
                 poly->y3 = (y + (i * 4)) + 4;
 
-                *(s32*)&poly->r0 = col0;
-                *(s32*)&poly->r1 = col1;
-                *(s32*)&poly->r2 = col2;
-                *(s32*)&poly->r3 = col3;
+                PSX_ST_RGBC(poly, col0);
+                PSX_ST_RGB(poly, r1, col1);
+                PSX_ST_RGB(poly, r2, col2);
+                PSX_ST_RGB(poly, r3, col3);
             }
             else
             {
@@ -310,10 +310,10 @@ void func_800D625C(void) // 0x800D625C
                 poly->x2 = (x + (j * 4)) + 4;
                 poly->y2 = (y + (i * 4)) + 4;
 
-                *(s32*)&poly->r0 = col1;
-                *(s32*)&poly->r1 = col0;
-                *(s32*)&poly->r2 = col3;
-                *(s32*)&poly->r3 = col2;
+                PSX_ST_RGBC(poly, col1);
+                PSX_ST_RGB(poly, r1, col0);
+                PSX_ST_RGB(poly, r2, col3);
+                PSX_ST_RGB(poly, r3, col2);
             }
 
             setPolyG4(poly);
@@ -673,10 +673,10 @@ void func_800D6C0C(void) // 0x800D6C0C
                 poly->x3 = (x + (j * 2)) + 2;
                 poly->y3 = (y + (i * 2)) + 2;
 
-                *(s32*)&poly->r0 = col0;
-                *(s32*)&poly->r1 = col1;
-                *(s32*)&poly->r2 = col2;
-                *(s32*)&poly->r3 = col3;
+                PSX_ST_RGBC(poly, col0);
+                PSX_ST_RGB(poly, r1, col1);
+                PSX_ST_RGB(poly, r2, col2);
+                PSX_ST_RGB(poly, r3, col3);
             }
             else
             {
@@ -689,10 +689,10 @@ void func_800D6C0C(void) // 0x800D6C0C
                 poly->x2 = (x + (j * 2)) + 2;
                 poly->y2 = (y + (i * 2)) + 2;
 
-                *(s32*)&poly->r0 = col1;
-                *(s32*)&poly->r1 = col0;
-                *(s32*)&poly->r2 = col3;
-                *(s32*)&poly->r3 = col2;
+                PSX_ST_RGBC(poly, col1);
+                PSX_ST_RGB(poly, r1, col0);
+                PSX_ST_RGB(poly, r2, col3);
+                PSX_ST_RGB(poly, r3, col2);
             }
 
             setPolyG4(poly);
@@ -1077,10 +1077,10 @@ void func_800D77E4(void) // 0x800D77E4
                 poly->x3 = (x + (j * 8)) + 8;
                 poly->y3 = (y + (i * 8)) + 8;
 
-                *(s32*)&poly->r0 = col0;
-                *(s32*)&poly->r1 = col1;
-                *(s32*)&poly->r2 = col2;
-                *(s32*)&poly->r3 = col3;
+                PSX_ST_RGBC(poly, col0);
+                PSX_ST_RGB(poly, r1, col1);
+                PSX_ST_RGB(poly, r2, col2);
+                PSX_ST_RGB(poly, r3, col3);
             }
             else
             {
@@ -1093,10 +1093,10 @@ void func_800D77E4(void) // 0x800D77E4
                 poly->x2 = (x + (j * 8)) + 8;
                 poly->y2 = (y + (i * 8)) + 8;
 
-                *(s32*)&poly->r0 = col1;
-                *(s32*)&poly->r1 = col0;
-                *(s32*)&poly->r2 = col3;
-                *(s32*)&poly->r3 = col2;
+                PSX_ST_RGBC(poly, col1);
+                PSX_ST_RGB(poly, r1, col0);
+                PSX_ST_RGB(poly, r2, col3);
+                PSX_ST_RGB(poly, r3, col2);
             }
 
             setPolyG4(poly);
@@ -1364,14 +1364,14 @@ void func_800D7F2C(GsOT_TAG* ot, s32 arg1, q19_12 angle, q19_12 dist0, q19_12 di
         x3 += x1;
         y3 += y1;
 
-        *(s32*)&poly->r0 = 0;
+        PSX_ST_RGBC(poly, 0);
 
         setPolyG4(poly);
         setSemiTrans(poly, 1);
 
-        *(s32*)&poly->r1 = arg7;
-        *(s32*)&poly->r2 = 0;
-        *(s32*)&poly->r3 = 0;
+        PSX_ST_RGB(poly, r1, arg7);
+        PSX_ST_RGB(poly, r2, 0);
+        PSX_ST_RGB(poly, r3, 0);
 
         setXY4(poly, x0, y0, x1, y1, x2, y2, x3, y3);
 
@@ -1489,12 +1489,12 @@ void func_800D8454(s32* arg0, s32 x, s32 y, s32 s) // 0x800D8454
             col0 = func_800D8438(FP_FROM(var_s1, Q12_SHIFT));
             col1 = func_800D8438(FP_FROM(var_s1 - sp34, Q12_SHIFT));
 
-            *(s32*)&poly->r0 = col0;
+            PSX_ST_RGBC(poly, col0);
 
             SetPolyG4(poly);
-            *(s32*)&poly->r1 = col1;
-            *(s32*)&poly->r2 = col0;
-            *(s32*)&poly->r3 = col1;
+            PSX_ST_RGB(poly, r1, col1);
+            PSX_ST_RGB(poly, r2, col0);
+            PSX_ST_RGB(poly, r3, col1);
 
             setSemiTrans(poly, 1);
 
@@ -1705,7 +1705,7 @@ void func_800D8954(s_800F3D48* arg0, s_800F3D48_0_0* arg1) // 0x800D8954
     setUV4(poly, arg1->field_0, arg1->field_2, arg1->field_0 + arg1->field_4, arg1->field_2,
            arg1->field_0, arg1->field_2 + arg1->field_6, arg1->field_0 + arg1->field_4, arg1->field_2 + arg1->field_6);
 
-    *(s32*)&poly->r0 = temp_s3;
+    PSX_ST_RGBC(poly, temp_s3);
     poly->tpage      = arg1->field_8;
     poly->clut       = arg1->field_A + arg0->field_4.field_E;
 
@@ -1825,7 +1825,7 @@ void func_800D8D90(s_800F3D48* arg0, s_800F3D48_0_0* arg1) // 0x800D8D90
     setUV4(poly, arg1->field_0, arg1->field_2, arg1->field_0 + arg1->field_4, arg1->field_2,
            arg1->field_0, arg1->field_2 + arg1->field_6, arg1->field_0 + arg1->field_4, arg1->field_2 + arg1->field_6);
 
-    *(s32*)&poly->r0 = arg0->field_4.field_3C * temp;
+    PSX_ST_RGBC(poly, arg0->field_4.field_3C * temp);
     poly->tpage      = arg1->field_8;
     poly->clut       = arg1->field_A;
 
@@ -2939,7 +2939,7 @@ void func_800DADE0(s_func_800DAD54* arg0, s_800F3D48_0_0* arg1) // 0x800DADE0
     setUV4(poly, arg1->field_0, arg1->field_2, arg1->field_0 + arg1->field_4, arg1->field_2,
            arg1->field_0, arg1->field_2 + arg1->field_6, arg1->field_0 + arg1->field_4, arg1->field_2 + arg1->field_6);
 
-    *(s32*)&poly->r0 = temp_s3;
+    PSX_ST_RGBC(poly, temp_s3);
     poly->tpage      = arg1->field_8;
     poly->clut       = arg1->field_A;
 
@@ -3523,10 +3523,10 @@ void func_800DBD94(s_800F3DAC* arg0, GsOT_TAG* ot) // 0x800DBD94
             continue;
         }
 
-        *(s32*)&poly->x0 = var_s6;
-        *(s32*)&poly->x1 = var_s5;
-        *(s32*)&poly->x2 = sp30;
-        *(s32*)&poly->x3 = sp34;
+        PSX_ST_XY(poly, x0, var_s6);
+        PSX_ST_XY(poly, x1, var_s5);
+        PSX_ST_XY(poly, x2, sp30);
+        PSX_ST_XY(poly, x3, sp34);
 
         var_a0  = (i & 1) ? 0 : 0x7F;
         temp_v1 = 0x40;
@@ -3541,7 +3541,7 @@ void func_800DBD94(s_800F3DAC* arg0, GsOT_TAG* ot) // 0x800DBD94
             *var_s3 -= sp38;
         }
 
-        *(s32*)&poly->r0 = *var_s3;
+        PSX_ST_RGBC(poly, *var_s3);
 
         setPolyFT4(poly);
         setSemiTrans(poly, 1);

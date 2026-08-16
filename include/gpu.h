@@ -7,6 +7,8 @@
 #include <psyq/libgpu.h>
 #include <psyq/libgs.h>
 
+#include "psx_pack.h"
+
 #ifdef SH_PC_PORT
 /* PsyCross uses dfe (draw-to-framebuffer-enable) to decide on-screen vs off-screen
  * rendering. On real PSX hardware, dfe only controls display during the draw phase

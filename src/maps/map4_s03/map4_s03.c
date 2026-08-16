@@ -453,10 +453,10 @@ void func_800D0FD4(s32* ord, void* arg1, u8* arg2, MATRIX* arg3, s32 arg4, s32 a
                 x = (j - 1) * w + xbase;
                 setXYWH(poly, x, y, w, h);
 
-                *(s32*)&poly->r0 = col0;
-                *(s32*)&poly->r1 = col1;
-                *(s32*)&poly->r2 = col2;
-                *(s32*)&poly->r3 = col3;
+                PSX_ST_RGBC(poly, col0);
+                PSX_ST_RGB(poly, r1, col1);
+                PSX_ST_RGB(poly, r2, col2);
+                PSX_ST_RGB(poly, r3, col3);
 
                 setPolyG4(poly);
                 setSemiTrans(poly, 1);

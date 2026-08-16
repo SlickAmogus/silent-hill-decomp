@@ -142,10 +142,10 @@ void* func_800DE380(GsOT_TAG* arg0, PACKET* arg1) // 0x800DE380
             poly->x3 = -166 + (12 * j);
             poly->y3 = ((i - 1) * 12) - 100;
 
-            *(s32*)&poly->r0 = temp_s0;
-            *(s32*)&poly->r1 = var_s7;
-            *(s32*)&poly->r2 = temp_s4;
-            *(s32*)&poly->r3 = var_a1;
+            PSX_ST_RGBC(poly, temp_s0);
+            PSX_ST_RGB(poly, r1, var_s7);
+            PSX_ST_RGB(poly, r2, temp_s4);
+            PSX_ST_RGB(poly, r3, var_a1);
 
             if ((temp_s0 << 8) != 0 || (var_s7 << 8) != 0 || (temp_s4 << 8) != 0 || (var_a1 << 8) != 0)
             {
@@ -806,10 +806,10 @@ PACKET* func_800DF6C4(GsOT_TAG* ot, PACKET* packet, MATRIX* mat) // 0x800DF6C4
             *(s32*)&poly->x2 = *(s32*)&sp48[2];
             *(s32*)&poly->x3 = *(s32*)&sp48[3];
 
-            *(s32*)&poly->r0 = temp_s0;
-            *(s32*)&poly->r1 = var_s6;
-            *(s32*)&poly->r2 = temp_s1;
-            *(s32*)&poly->r3 = var_s5;
+            PSX_ST_RGBC(poly, temp_s0);
+            PSX_ST_RGB(poly, r1, var_s6);
+            PSX_ST_RGB(poly, r2, temp_s1);
+            PSX_ST_RGB(poly, r3, var_s5);
 
             if ((temp_s0 << 8) != 0 ||
                 (var_s6 << 8) != 0 ||
@@ -1000,10 +1000,10 @@ void* func_800DFD3C(GsOT_TAG* ot, PACKET* packet, MATRIX* mat, s32 arg3, s32 arg
             *(s32*)&poly->x2 = *(s32*)&sp48[2];
             *(s32*)&poly->x3 = *(s32*)&sp48[3];
 
-            *(s32*)&poly->r0 = temp_s0;
-            *(s32*)&poly->r1 = var_s6;
-            *(s32*)&poly->r2 = temp_s1;
-            *(s32*)&poly->r3 = var_s5;
+            PSX_ST_RGBC(poly, temp_s0);
+            PSX_ST_RGB(poly, r1, var_s6);
+            PSX_ST_RGB(poly, r2, temp_s1);
+            PSX_ST_RGB(poly, r3, var_s5);
 
             if ((temp_s0 << 8) != 0 ||
                 (var_s6 << 8) != 0 ||
@@ -1386,10 +1386,10 @@ void func_800E08B8(void) // 0x800E08B8
                 poly->x3 = -152 + (j * 8);
                 poly->y3 = -88 + (i * 8);
 
-                *(s32*)&poly->r0 = color3;
-                *(s32*)&poly->r1 = color0;
-                *(s32*)&poly->r2 = color2;
-                *(s32*)&poly->r3 = color1;
+                PSX_ST_RGBC(poly, color3);
+                PSX_ST_RGB(poly, r1, color0);
+                PSX_ST_RGB(poly, r2, color2);
+                PSX_ST_RGB(poly, r3, color1);
             }
             else
             {
@@ -1402,10 +1402,10 @@ void func_800E08B8(void) // 0x800E08B8
                 poly->x2 = -152 + (j * 8);
                 poly->y2 = -88 + (i * 8);
 
-                *(s32*)&poly->r0 = color0;
-                *(s32*)&poly->r1 = color3;
-                *(s32*)&poly->r2 = color1;
-                *(s32*)&poly->r3 = color2;
+                PSX_ST_RGBC(poly, color0);
+                PSX_ST_RGB(poly, r1, color3);
+                PSX_ST_RGB(poly, r2, color1);
+                PSX_ST_RGB(poly, r3, color2);
             }
 
             setPolyG4(poly);

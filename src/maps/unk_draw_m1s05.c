@@ -113,8 +113,8 @@ bool sharedFunc_800CBF74_1_s05(POLY_FT4** poly, s32 idx)
     setXY2Fast(*poly, (u16)ptr->field_144.vx - (u16)ptr->field_148, ptr->field_144.vy + ptr->field_14C);
     setXY3Fast(*poly, (u16)ptr->field_144.vx + (u16)ptr->field_148, ptr->field_144.vy + ptr->field_14C);
 
-    *(u32*)&(*poly)->u0 = 0x530000;
-    *(u32*)&(*poly)->u1 = 0x6B001F;
+    PSX_ST_UV((*poly), u0, 0x530000);
+    PSX_ST_UV((*poly), u1, 0x6B001F);
     *(u16*)&(*poly)->u2 = 0x1F00;
     *(u16*)&(*poly)->u3 = 0x1F1F;
 
@@ -344,8 +344,8 @@ bool sharedFunc_800CC618_1_s05(POLY_FT4** poly, s32 idx)
         ptr->field_190 = 0;
     }
 
-    *(u32*)&(*poly)->u0 = ptr->field_16C + ptr->field_170 + ((ptr->field_180 + ptr->field_184) << 8) + 0x530000;
-    *(u32*)&(*poly)->u1 = ptr->field_16C + ptr->field_174 + ((ptr->field_180 + ptr->field_188) << 8) + 0x6B0000;
+    PSX_ST_UV((*poly), u0, ptr->field_16C + ptr->field_170 + ((ptr->field_180 + ptr->field_184) << 8) + 0x530000);
+    PSX_ST_UV((*poly), u1, ptr->field_16C + ptr->field_174 + ((ptr->field_180 + ptr->field_188) << 8) + 0x6B0000);
     *(u16*)&(*poly)->u2 = ptr->field_16C + ptr->field_178 + ((ptr->field_180 + ptr->field_18C) << 8);
     *(u16*)&(*poly)->u3 = ptr->field_16C + ptr->field_17C + ((ptr->field_180 + ptr->field_190) << 8);
 
@@ -490,8 +490,8 @@ bool sharedFunc_800CCF30_1_s05(POLY_FT4** poly, s32 idx)
     setXY2Fast(*poly, (u16)ptr->field_13C.vx + (u16)ptr->field_144.vx, ptr->field_13C.vy + ptr->field_144.vy);
     setXY3Fast(*poly, (u16)ptr->field_140.vx + (u16)ptr->field_144.vx, ptr->field_140.vy + ptr->field_144.vy);
 
-    *(u32*)&(*poly)->u0 = (sharedData_800DFB7C_0_s00[idx].field_B * 0xC00) + 0x010E4000;
-    *(u32*)&(*poly)->u1 = (sharedData_800DFB7C_0_s00[idx].field_B * 0xC00) + 0x6D407F;
+    PSX_ST_UV((*poly), u0, (sharedData_800DFB7C_0_s00[idx].field_B * 0xC00) + 0x010E4000);
+    PSX_ST_UV((*poly), u1, (sharedData_800DFB7C_0_s00[idx].field_B * 0xC00) + 0x6D407F);
     *(u16*)&(*poly)->u2 = (sharedData_800DFB7C_0_s00[idx].field_B * 0xC00) + 0x4B00;
     *(u16*)&(*poly)->u3 = (sharedData_800DFB7C_0_s00[idx].field_B * 0xC00) + 0x4B7F;
 

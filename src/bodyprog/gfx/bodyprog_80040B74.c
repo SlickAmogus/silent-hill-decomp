@@ -128,8 +128,8 @@ void func_80040BAC(void) // 0x80040BAC
             SetPolyF4(poly_f4);
             setSemiTrans(poly_f4, true);
 
-            *(s32*)&poly_f4->x2 = ptr[i % 16];
-            *(s32*)&poly_f4->x3 = ptr[i % 16 + 1];
+            PSX_ST_XY(poly_f4, x2, ptr[i % 16]);
+            PSX_ST_XY(poly_f4, x3, ptr[i % 16 + 1]);
         }
 
         poly_g4 = packet + (sizeof(DR_TPAGE) * 2) + (sizeof(POLY_G3) * 16);
@@ -177,10 +177,10 @@ void func_80040E7C(u8 arg0, u8 arg1, u8 arg2, u8 arg3, u8 arg4, u8 arg5) // 0x80
 
         for (j = 0; j < 16; j++, poly_g3++, poly_f4++)
         {
-            *(s32*)&poly_g3->r0 = color + (poly_g3->code << 24);
-            *(s32*)&poly_g3->r1 = colorTable[0];
-            *(s32*)&poly_g3->r2 = colorTable[0];
-            *(s32*)&poly_f4->r0 = colorTable[3] + (poly_f4->code << 24);
+            PSX_ST_RGBC(poly_g3, color + (poly_g3->code << 24));
+            PSX_ST_RGB(poly_g3, r1, colorTable[0]);
+            PSX_ST_RGB(poly_g3, r2, colorTable[0]);
+            PSX_ST_RGBC(poly_f4, colorTable[3] + (poly_f4->code << 24));
         }
 
         poly_g4 = packet + (sizeof(DR_TPAGE) * 2) + (sizeof(POLY_G3) * 16);
@@ -189,10 +189,10 @@ void func_80040E7C(u8 arg0, u8 arg1, u8 arg2, u8 arg3, u8 arg4, u8 arg5) // 0x80
         {
             for (j = 0; j < 16; j++, poly_g4++)
             {
-                *(s32*)&poly_g4->r0 = colorTable[k] + (poly_g4->code << 24);
-                *(s32*)&poly_g4->r1 = colorTable[k];
-                *(s32*)&poly_g4->r2 = colorTable[k + 1];
-                *(s32*)&poly_g4->r3 = colorTable[k + 1];
+                PSX_ST_RGBC(poly_g4, colorTable[k] + (poly_g4->code << 24));
+                PSX_ST_RGB(poly_g4, r1, colorTable[k]);
+                PSX_ST_RGB(poly_g4, r2, colorTable[k + 1]);
+                PSX_ST_RGB(poly_g4, r3, colorTable[k + 1]);
             }
         }
     }
@@ -393,16 +393,16 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
     {
         poly_g3->x0         = arg1->vx;
         poly_g3->y0         = arg1->vy;
-        *(s32*)&poly_g3->x1 = var_t0[j];
-        *(s32*)&poly_g3->x2 = var_t0[j + 1];
+        PSX_ST_XY(poly_g3, x1, var_t0[j]);
+        PSX_ST_XY(poly_g3, x2, var_t0[j + 1]);
 
 #ifdef SH_PC_PORT
         if (!g_PsyX_FlashlightActive)
 #endif
             addPrim(arg0->org, poly_g3);
 
-        *(s32*)&poly_f4->x0 = var_t0[j + 51];
-        *(s32*)&poly_f4->x1 = var_t0[j + 52];
+        PSX_ST_XY(poly_f4, x0, var_t0[j + 51]);
+        PSX_ST_XY(poly_f4, x1, var_t0[j + 52]);
 
         addPrim(&arg0->org[1], poly_f4);
     }
@@ -416,10 +416,10 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
 
         for (j = 0; j < 16; j++, poly_g4++)
         {
-            *(s32*)&poly_g4->x0 = var_a1_3[j];
-            *(s32*)&poly_g4->x1 = var_a1_3[j + 1];
-            *(s32*)&poly_g4->x2 = var_a1_3[17 + j];
-            *(s32*)&poly_g4->x3 = var_a1_3[(17 + j) + 1];
+            PSX_ST_XY(poly_g4, x0, var_a1_3[j]);
+            PSX_ST_XY(poly_g4, x1, var_a1_3[j + 1]);
+            PSX_ST_XY(poly_g4, x2, var_a1_3[17 + j]);
+            PSX_ST_XY(poly_g4, x3, var_a1_3[(17 + j) + 1]);
 
             addPrim(&arg0->org[1], poly_g4);
         }

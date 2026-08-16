@@ -1296,15 +1296,15 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
 
     if (g_GameWork.config.extraBloodColor == 14)
     {
-        *(s32*)&(*poly)->u1 = (((ptr->field_164 << 5) + ptr->field_16C) << 8) + 0x2B0000 + ((ptr->field_150 << 5) + ptr->field_158);
-        *(s32*)&(*poly)->u2 = (((ptr->field_164 << 5) + ptr->field_170) << 8) + ((ptr->field_150 << 5) + ptr->field_15C);
-        *(s32*)&(*poly)->u3 = (((ptr->field_164 << 5) + ptr->field_174) << 8) + ((ptr->field_150 << 5) + ptr->field_160);
+        PSX_ST_UV((*poly), u1, (((ptr->field_164 << 5) + ptr->field_16C) << 8) + 0x2B0000 + ((ptr->field_150 << 5) + ptr->field_158));
+        PSX_ST_UV((*poly), u2, (((ptr->field_164 << 5) + ptr->field_170) << 8) + ((ptr->field_150 << 5) + ptr->field_15C));
+        PSX_ST_UV((*poly), u3, (((ptr->field_164 << 5) + ptr->field_174) << 8) + ((ptr->field_150 << 5) + ptr->field_160));
     }
     else
     {
-        *(s32*)&(*poly)->u1 = (((ptr->field_164 << 5) + ptr->field_16C) << 8) + 0x4B0000 + ((ptr->field_150 << 5) + ptr->field_158);
-        *(s32*)&(*poly)->u2 = (((ptr->field_164 << 5) + ptr->field_170) << 8) + ((ptr->field_150 << 5) + ptr->field_15C);
-        *(s32*)&(*poly)->u3 = (((ptr->field_164 << 5) + ptr->field_174) << 8) + ((ptr->field_150 << 5) + ptr->field_160);
+        PSX_ST_UV((*poly), u1, (((ptr->field_164 << 5) + ptr->field_16C) << 8) + 0x4B0000 + ((ptr->field_150 << 5) + ptr->field_158));
+        PSX_ST_UV((*poly), u2, (((ptr->field_164 << 5) + ptr->field_170) << 8) + ((ptr->field_150 << 5) + ptr->field_15C));
+        PSX_ST_UV((*poly), u3, (((ptr->field_164 << 5) + ptr->field_174) << 8) + ((ptr->field_150 << 5) + ptr->field_160));
     }
 
     if (!(g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & 3))
@@ -1316,7 +1316,7 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
             (*poly)->b0         = ptr->field_130.b;
 
-            *(s32*)&(*poly)->u0 = (((ptr->field_164 << 5) + ptr->field_154) << 8) + 0x930000 + ((ptr->field_150 << 5) + ptr->field_168);
+            PSX_ST_UV((*poly), u0, (((ptr->field_164 << 5) + ptr->field_154) << 8) + 0x930000 + ((ptr->field_150 << 5) + ptr->field_168));
 
             *(*poly + 1) = **poly;
 
@@ -1361,7 +1361,7 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
             (*poly)->b0         = ptr->field_130.b;
 
-            *(s32*)&(*poly)->u0 = (((ptr->field_164 << 5) + ptr->field_154) << 8) + 0x930000 + ((ptr->field_150 << 5) + ptr->field_168);
+            PSX_ST_UV((*poly), u0, (((ptr->field_164 << 5) + ptr->field_154) << 8) + 0x930000 + ((ptr->field_150 << 5) + ptr->field_168));
 
 #ifdef SH_PC_PORT
             /* Layered spray: 2 ADDITIVE (tpage 43) + 2 SUBTRACTIVE (0x4B) so the
@@ -1451,7 +1451,7 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
         (*poly)->b0         = var_a2;
     }
 
-    *(s32*)&(*poly)->u0 = (((g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13) << 16) + (((ptr->field_164 << 5) + ptr->field_168) << 8) + ((ptr->field_150 << 5) + ptr->field_154);
+    PSX_ST_UV((*poly), u0, (((g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13) << 16) + (((ptr->field_164 << 5) + ptr->field_168) << 8) + ((ptr->field_150 << 5) + ptr->field_154));
 
 #ifdef SH_PC_PORT
     /* Same OOB-bucket fix as the if/else branches above. */
@@ -1820,15 +1820,15 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
         var_t0 = MAX(var_t0, 0);
     }
 
-    *(s32*)&(*poly)->u1 = ((ptr->field_190 + ptr->field_198) << 8) + 0x4B0000 + (ptr->field_17C + ptr->field_184);
-    *(s32*)&(*poly)->u2 = ((ptr->field_190 + ptr->field_19C) << 8) + (ptr->field_17C + ptr->field_188);
-    *(s32*)&(*poly)->u3 = ((ptr->field_190 + ptr->field_1A0) << 8) + (ptr->field_17C + ptr->field_18C);
+    PSX_ST_UV((*poly), u1, ((ptr->field_190 + ptr->field_198) << 8) + 0x4B0000 + (ptr->field_17C + ptr->field_184));
+    PSX_ST_UV((*poly), u2, ((ptr->field_190 + ptr->field_19C) << 8) + (ptr->field_17C + ptr->field_188));
+    PSX_ST_UV((*poly), u3, ((ptr->field_190 + ptr->field_1A0) << 8) + (ptr->field_17C + ptr->field_18C));
 
     setSemiTrans(*poly, true);
 
     if (!(g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & 0x3))
     {
-        *(s32*)&(*poly)->u0 = ((ptr->field_190 + ptr->field_194) << 8) + 0x930000 + (ptr->field_17C + ptr->field_180);
+        PSX_ST_UV((*poly), u0, ((ptr->field_190 + ptr->field_194) << 8) + 0x930000 + (ptr->field_17C + ptr->field_180));
         func_80055A90(&ptr->field_12C, &ptr->field_130, var_t0, ptr->field_158 * 16);
         *(u16*)&(*poly)->r0 = ptr->field_12C.r + (ptr->field_12C.g << 8);
         (*poly)->b0         = ptr->field_12C.b;
@@ -1895,8 +1895,8 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
     }
     else
     {
-        *(s32*)&(*poly)->u0 = (((g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13) << 16) +
-                              ((ptr->field_190 + ptr->field_194) << 8) + (ptr->field_17C + ptr->field_180);
+        PSX_ST_UV((*poly), u0, (((g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13) << 16) +
+                              ((ptr->field_190 + ptr->field_194) << 8) + (ptr->field_17C + ptr->field_180));
         *(u16*)&(*poly)->r0 = var_t0 + (var_t0 << 8);
         (*poly)->b0         = var_t0;
 
@@ -2182,13 +2182,13 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
             *(s32*)&(*poly)->x3 = *(s32*)&ptr->field_278[temp_a1_3 + 6];
 
             temp_s2             = (j * 8) + (i << 11) + ptr->field_210;
-            *(s32*)&(*poly)->u0 = (((g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_1 << 6) | 0x13) << 16) + temp_s2;
-            *(s32*)&(*poly)->u1 = temp_s2 + 0x4B0007;
+            PSX_ST_UV((*poly), u0, (((g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_1 << 6) | 0x13) << 16) + temp_s2);
+            PSX_ST_UV((*poly), u1, temp_s2 + 0x4B0007);
 
             setSemiTrans(*poly, true);
 
-            *(s32*)&(*poly)->u2 = temp_s2 + 0x700;
-            *(s32*)&(*poly)->u3 = temp_s2 + 0x707;
+            PSX_ST_UV((*poly), u2, temp_s2 + 0x700);
+            PSX_ST_UV((*poly), u3, temp_s2 + 0x707);
 
             if (ptr->field_208 > Q12(5.0f))
             {
@@ -2643,16 +2643,16 @@ bool func_80063A50(POLY_FT4** poly, s32 idx) // 0x80063A50
 
         if (!(g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & 3))
         {
-            *(s32*)&(*poly)->r0 = 0x2E103030;
+            PSX_ST_RGBC((*poly), 0x2E103030);
         }
         else
         {
-            *(s32*)&(*poly)->r0 = 0x2E406060;
+            PSX_ST_RGBC((*poly), 0x2E406060);
         }
 
-        *(s32*)&(*poly)->u0 = g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0xD380FF : 0xD380E0;
-        *(s32*)&(*poly)->u1 = (g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0xFF : 0xE0) +
-                              (g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0x2B7FE1 : 0x2B801F);
+        PSX_ST_UV((*poly), u0, g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0xD380FF : 0xD380E0);
+        PSX_ST_UV((*poly), u1, (g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0xFF : 0xE0) +
+                              (g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0x2B7FE1 : 0x2B801F));
         *(u16*)&(*poly)->u2 = g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0x9FFF : 0x9FE0;
         *(u16*)&(*poly)->u3 = (g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0xFF : 0xE0) -
                               (g_MapOverlayHdr.unkTable1_4C[idx].field_B ? 0x611F : 0x60E1);
@@ -2807,8 +2807,8 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
     setXY2Fast(*poly, (u16)ptr->field_154.vx - (u16)ptr->field_160, ptr->field_154.vy + ptr->field_160);
     setXY3Fast(*poly, (u16)ptr->field_154.vx + (u16)ptr->field_160, ptr->field_154.vy + ptr->field_160);
 
-    *(s32*)&(*poly)->u0 = (((g_MapOverlayHdr.unkTable1_4C[idx].field_B << 5) + 160) << 8) + 0x011300E0;
-    *(s32*)&(*poly)->u1 = (((g_MapOverlayHdr.unkTable1_4C[idx].field_B << 5) + 160) << 8) + 0x2B00FF;
+    PSX_ST_UV((*poly), u0, (((g_MapOverlayHdr.unkTable1_4C[idx].field_B << 5) + 160) << 8) + 0x011300E0);
+    PSX_ST_UV((*poly), u1, (((g_MapOverlayHdr.unkTable1_4C[idx].field_B << 5) + 160) << 8) + 0x2B00FF);
     *(u16*)&(*poly)->u2 = (((g_MapOverlayHdr.unkTable1_4C[idx].field_B << 5) + 191) << 8) + 0xE0;
     *(u16*)&(*poly)->u3 = (((g_MapOverlayHdr.unkTable1_4C[idx].field_B << 5) + 191) << 8) + 0xFF;
 
@@ -2996,8 +2996,8 @@ bool func_80064FC0(POLY_FT4** polys, s32 idx) // 0x80064FC0
 
     setSemiTrans((*polys), true);
 
-    *(u32*)&(*polys)->u0 = 0x018C0000;
-    *(u32*)&(*polys)->u1 = 0x2C003F;
+    PSX_ST_UV((*polys), u0, 0x018C0000);
+    PSX_ST_UV((*polys), u1, 0x2C003F);
     *(u16*)&(*polys)->u2 = 0x3F00;
     *(u16*)&(*polys)->u3 = 0x3F3F;
 

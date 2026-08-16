@@ -170,9 +170,9 @@ bool sharedFunc_800CB040_1_s05(POLY_FT4** poly, s32 idx)
 
     if (sharedData_800DFB7C_0_s00[idx].field_A == 8)
     {
-        *(s32*)&(*poly)->u0 = ((sharedData_800DFB7C_0_s00[idx].field_B >= 2) << 6) + ((sharedData_800DFB7C_0_s00[idx].field_B >= 3) ? 0x020EC000 : 0x020E8000);
+        PSX_ST_UV((*poly), u0, ((sharedData_800DFB7C_0_s00[idx].field_B >= 2) << 6) + ((sharedData_800DFB7C_0_s00[idx].field_B >= 3) ? 0x020EC000 : 0x020E8000));
 
-        *(s32*)&(*poly)->u1 = ((sharedData_800DFB7C_0_s00[idx].field_B >= 2) ? 0x7F : 0x3F) + (sharedData_800DFB7C_0_s00[idx].field_B >= 3 ? 0x6DC000 : 0x6D8000);
+        PSX_ST_UV((*poly), u1, ((sharedData_800DFB7C_0_s00[idx].field_B >= 2) ? 0x7F : 0x3F) + (sharedData_800DFB7C_0_s00[idx].field_B >= 3 ? 0x6DC000 : 0x6D8000));
 
         *(s16*)&(*poly)->u2 = ((sharedData_800DFB7C_0_s00[idx].field_B >= 2) << 6) | ((sharedData_800DFB7C_0_s00[idx].field_B >= 3) ? 0xFF00 : 0xBF00);
 
@@ -196,8 +196,8 @@ bool sharedFunc_800CB040_1_s05(POLY_FT4** poly, s32 idx)
     }
     else
     {
-        *(s32*)&(*poly)->u0 = 0x024E7800;
-        *(s32*)&(*poly)->u1 = 0x4D7807;
+        PSX_ST_UV((*poly), u0, 0x024E7800);
+        PSX_ST_UV((*poly), u1, 0x4D7807);
         *(u16*)&(*poly)->u2 = 0x7F00;
         *(u16*)&(*poly)->u3 = 0x7F07;
 
@@ -342,8 +342,8 @@ bool sharedFunc_800CB884_1_s05(POLY_FT4** poly, s32 idx) // 0x800CCF50
 
     if (sharedData_800DFB7C_0_s00[idx].field_A == 9)
     {
-        *(s32*)&(*poly)->u0 = 0x024EC000;
-        *(s32*)&(*poly)->u1 = 0x4DC03F;
+        PSX_ST_UV((*poly), u0, 0x024EC000);
+        PSX_ST_UV((*poly), u1, 0x4DC03F);
         *(u16*)&(*poly)->u2 = 0xFF00;
         *(u16*)&(*poly)->u3 = 0xFF3F;
 
@@ -355,8 +355,8 @@ bool sharedFunc_800CB884_1_s05(POLY_FT4** poly, s32 idx) // 0x800CCF50
     }
     else
     {
-        *(s32*)&(*poly)->u0 = 0x020E7800;
-        *(s32*)&(*poly)->u1 = 0xD7807;
+        PSX_ST_UV((*poly), u0, 0x020E7800);
+        PSX_ST_UV((*poly), u1, 0xD7807);
         *(u16*)&(*poly)->u2 = 0x7F00;
         *(u16*)&(*poly)->u3 = 0x7F07;
 

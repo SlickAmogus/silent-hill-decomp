@@ -443,10 +443,10 @@ bool sharedFunc_800CBDA8_1_s02(POLY_FT4** poly, s32 idx)
     *(s32*)&(*poly)->x3 = *(s32*)&ptr->field_14C;
 
     temp_v1_13          = sharedData_800DFB7C_0_s00[idx].field_C.s_1.field_0;
-    *(s32*)&(*poly)->u0 = ((temp_v1_13 & 0x2) * 16) + 0x40 + ((ptr->field_17C + ((temp_v1_13 & 0x1) << 6)) << 8) + 0xE0000;
+    PSX_ST_UV((*poly), u0, ((temp_v1_13 & 0x2) * 16) + 0x40 + ((ptr->field_17C + ((temp_v1_13 & 0x1) << 6)) << 8) + 0xE0000);
 
     temp_v1_14          = sharedData_800DFB7C_0_s00[idx].field_C.s_1.field_0;
-    *(s32*)&(*poly)->u1 = ((temp_v1_14 & 0x2) * 16) + 0x5F + ((ptr->field_17C + ((temp_v1_14 & 0x1) << 6)) << 8) + 0x2D0000;
+    PSX_ST_UV((*poly), u1, ((temp_v1_14 & 0x2) * 16) + 0x5F + ((ptr->field_17C + ((temp_v1_14 & 0x1) << 6)) << 8) + 0x2D0000);
 
     temp_v1_15          = sharedData_800DFB7C_0_s00[idx].field_C.s_1.field_0;
     *(u16*)&(*poly)->u2 = ((temp_v1_15 & 0x2) * 16) + 0x40 + ((ptr->field_17D + (ptr->field_17C + ((temp_v1_15 & 1) << 6))) << 8);
@@ -736,8 +736,8 @@ void sharedFunc_800CCE60_1_s02(void)
             setRGB2Fast(poly, ptr->field_23C[k + 1][0], ptr->field_23C[k + 1][0], ptr->field_23C[k + 1][0]);
             setRGB3Fast(poly, ptr->field_23C[k + 1][1], ptr->field_23C[k + 1][1], ptr->field_23C[k + 1][1]);
 
-            *(s32*)&poly->u0 = ((var_t2_2 << 8) + 64) + (ptr->field_260 << 16);
-            *(s32*)&poly->u1 = ((var_t2_2 << 8) + 95) + (ptr->field_262 << 16);
+            PSX_ST_UV(poly, u0, ((var_t2_2 << 8) + 64) + (ptr->field_260 << 16));
+            PSX_ST_UV(poly, u1, ((var_t2_2 << 8) + 95) + (ptr->field_262 << 16));
             *(u16*)&poly->u2 = ((var_t2_2 + var_t3_2) << 8) + 64;
             *(u16*)&poly->u3 = ((var_t2_2 + var_t3_2) << 8) + 95;
 

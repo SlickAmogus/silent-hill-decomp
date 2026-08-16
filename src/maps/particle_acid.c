@@ -143,8 +143,8 @@ bool sharedFunc_800CB1B0_4_s03(POLY_FT4** poly, s32 idx)
         setRGB0Fast(*poly, ptr->field_15C >> 2, ptr->field_15C >> 2, ptr->field_15C >> 2);
         setSemiTrans(*poly, 1);
 
-        *(s32*)&(*poly)->u0 = ((i & 1) << 6) + ((i & 2) ? 0xE4000 : 0xE0000);
-        *(s32*)&(*poly)->u1 = ((i & 1) ? 0x7F : 0x3F) + ((i & 2) ? 0x2D4000 : 0x2D0000);
+        PSX_ST_UV((*poly), u0, ((i & 1) << 6) + ((i & 2) ? 0xE4000 : 0xE0000));
+        PSX_ST_UV((*poly), u1, ((i & 1) ? 0x7F : 0x3F) + ((i & 2) ? 0x2D4000 : 0x2D0000));
         *(u16*)&(*poly)->u2 = (!(i & 1) ? 0 : 1 << 6) + ((i & 2) ? 0x7F00 : 0x3F00);
         *(u16*)&(*poly)->u3 = ((i & 1) ? 0x7F : 0x3F) + (!(i & 2) ? 0x3F00 : 0x7F00);
 
@@ -330,11 +330,11 @@ bool sharedFunc_800CC004_4_s03(POLY_FT4** poly, s32 idx)
     setRGB0Fast(*poly, ptr->field_140 >> 1, ptr->field_140 >> 1, ptr->field_140 >> 1);
     setSemiTrans(*poly, 1);
 
-    *(s32*)&(*poly)->u0 = (((sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 1) == 0) << 6) +
-                          (!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 2) ? 0xE4000 : 0xE0000);
+    PSX_ST_UV((*poly), u0, (((sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 1) == 0) << 6) +
+                          (!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 2) ? 0xE4000 : 0xE0000));
 
-    *(s32*)&(*poly)->u1 = (!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 1) ? 0x7F : 0x3F) +
-                          (!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 2) ? 0x2D4000 : 0x2D0000);
+    PSX_ST_UV((*poly), u1, (!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 1) ? 0x7F : 0x3F) +
+                          (!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 2) ? 0x2D4000 : 0x2D0000));
 
     *(u16*)&(*poly)->u2 = (((sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 1) == 0) << 6) |
                           (!(sharedData_800DFB7C_0_s00[idx].field_10.s_2.field_0 & 2) ? 0x7F00 : 0x3F00);

@@ -331,10 +331,10 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
         GsOUT_PACKET_P += sizeof(POLY_G4) + sizeof(DR_MODE);
 
         color0           = (g_WorldEnvWork.screenBrightness + (g_WorldEnvWork.screenBrightness << 8)) + (g_WorldEnvWork.screenBrightness << 16);
-        *(s32*)&poly->r3 = color0;
-        *(s32*)&poly->r2 = color0;
-        *(s32*)&poly->r1 = color0;
-        *(s32*)&poly->r0 = color0;
+        PSX_ST_RGB(poly, r3, color0);
+        PSX_ST_RGB(poly, r2, color0);
+        PSX_ST_RGB(poly, r1, color0);
+        PSX_ST_RGBC(poly, color0);
 
         setPolyG4(poly);
         setSemiTrans(poly, true);
@@ -370,10 +370,10 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
         GsOUT_PACKET_P += sizeof(POLY_G4);
 
         color2           = *(s32*)&g_WorldEnvWork.fog.color;
-        *(s32*)&poly->r3 = color2;
-        *(s32*)&poly->r2 = color2;
-        *(s32*)&poly->r1 = color2;
-        *(s32*)&poly->r0 = color2;
+        PSX_ST_RGB(poly, r3, color2);
+        PSX_ST_RGB(poly, r2, color2);
+        PSX_ST_RGB(poly, r1, color2);
+        PSX_ST_RGBC(poly, color2);
 
         SetPolyG4(poly);
         setSemiTrans(poly, true);
@@ -411,10 +411,10 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
     GsOUT_PACKET_P = packet + 0x30;
 
     color2           = *(s32*)&g_WorldEnvWork.fog.color;
-    *(s32*)&poly->r3 = color2;
-    *(s32*)&poly->r2 = color2;
-    *(s32*)&poly->r1 = color2;
-    *(s32*)&poly->r0 = color2;
+    PSX_ST_RGB(poly, r3, color2);
+    PSX_ST_RGB(poly, r2, color2);
+    PSX_ST_RGB(poly, r1, color2);
+    PSX_ST_RGBC(poly, color2);
 
     SetPolyG4(poly);
     setXY4(poly,
@@ -1724,10 +1724,10 @@ void Gfx_FogOverlayQuadDraw(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s3
 
         SetPolyG4(poly);
 
-        *(s32*)&poly->x0 = var_a3 + (var_v1 << 16);
-        *(s32*)&poly->x1 = temp_s6 + (var_v1 << 16);
-        *(s32*)&poly->x2 = var_a3 + (temp_s5 << 16);
-        *(s32*)&poly->x3 = temp_s6 + (temp_s5 << 16);
+        PSX_ST_XY(poly, x0, var_a3 + (var_v1 << 16));
+        PSX_ST_XY(poly, x1, temp_s6 + (var_v1 << 16));
+        PSX_ST_XY(poly, x2, var_a3 + (temp_s5 << 16));
+        PSX_ST_XY(poly, x3, temp_s6 + (temp_s5 << 16));
 
         setSemiTrans(poly, true);
         AddPrim(tag, poly);
@@ -2501,14 +2501,14 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                     if ((s16)temp_a2 + temp_a3 < temp_t0 || (s16)temp_a1 + temp_a3 < temp_t0 ||
                         (s16)temp_a0 + temp_a3 < temp_t0 || (s16)temp_v1_5 + temp_a3 < temp_t0)
                     {
-                        *(s32*)&poly3->x0 = temp_a2_2;
-                        *(s32*)&poly1->x0  = temp_a2_2;
-                        *(s32*)&poly3->x1 = temp_a1;
-                        *(s32*)&poly1->x1  = temp_a1;
-                        *(s32*)&poly3->x2 = temp_a0;
-                        *(s32*)&poly1->x2  = temp_a0;
-                        *(s32*)&poly3->x3 = temp_v1_5;
-                        *(s32*)&poly1->x3  = temp_v1_5;
+                        PSX_ST_XY(poly3, x0, temp_a2_2);
+                        PSX_ST_XY(poly1, x0, temp_a2_2);
+                        PSX_ST_XY(poly3, x1, temp_a1);
+                        PSX_ST_XY(poly1, x1, temp_a1);
+                        PSX_ST_XY(poly3, x2, temp_a0);
+                        PSX_ST_XY(poly1, x2, temp_a0);
+                        PSX_ST_XY(poly3, x3, temp_v1_5);
+                        PSX_ST_XY(poly1, x3, temp_v1_5);
 #ifdef SH_PC_PORT
                         SH_PGXP_PROP4(scratchData, poly3,
                             scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
@@ -2750,10 +2750,10 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
                 if ((s16)temp_a2_3 + temp_a3_2 < temp_t0_2 || (s16)temp_a1_2 + temp_a3_2 < temp_t0_2 ||
                     (s16)temp_a0_5 + temp_a3_2 < temp_t0_2 || (s16)temp_v1_11 + temp_a3_2 < temp_t0_2)
                 {
-                    *(s32*)&poly3->x0 = temp2;
-                    *(s32*)&poly3->x1 = temp_a1_2;
-                    *(s32*)&poly3->x2 = temp_a0_5;
-                    *(s32*)&poly3->x3 = temp_v1_11;
+                    PSX_ST_XY(poly3, x0, temp2);
+                    PSX_ST_XY(poly3, x1, temp_a1_2);
+                    PSX_ST_XY(poly3, x2, temp_a0_5);
+                    PSX_ST_XY(poly3, x3, temp_v1_11);
 #ifdef SH_PC_PORT
                     SH_PGXP_PROP4(scratchData, poly3,
                         scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
@@ -2918,14 +2918,14 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
             if ((s16)temp_a2_5 + temp_a3_4 < temp_t0_4 || (s16)temp_a1_4 + temp_a3_4 < temp_t0_4 ||
                 (s16)temp_a0_9 + temp_a3_4 < temp_t0_4 || (s16)temp_v1_21 + temp_a3_4 < temp_t0_4)
             {
-                *(s32*)&poly3->x0  = temp_a2_6;
-                *(s32*)&poly2->x0 = temp_a2_6;
-                *(s32*)&poly3->x1  = temp_a1_4;
-                *(s32*)&poly2->x1 = temp_a1_4;
-                *(s32*)&poly3->x2  = temp_a0_9;
-                *(s32*)&poly2->x2 = temp_a0_9;
-                *(s32*)&poly3->x3  = temp_v1_21;
-                *(s32*)&poly2->x3 = temp_v1_21;
+                PSX_ST_XY(poly3, x0, temp_a2_6);
+                PSX_ST_XY(poly2, x0, temp_a2_6);
+                PSX_ST_XY(poly3, x1, temp_a1_4);
+                PSX_ST_XY(poly2, x1, temp_a1_4);
+                PSX_ST_XY(poly3, x2, temp_a0_9);
+                PSX_ST_XY(poly2, x2, temp_a0_9);
+                PSX_ST_XY(poly3, x3, temp_v1_21);
+                PSX_ST_XY(poly2, x3, temp_v1_21);
 #ifdef SH_PC_PORT
                 SH_PGXP_PROP4(scratchData, poly3,
                     scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
@@ -3180,10 +3180,10 @@ __block1530:
         if ((s16)temp_a2_4 + temp_a3_3 < temp_t0_3 || (s16)temp_a1_3 + temp_a3_3 < temp_t0_3 ||
             (s16)temp_a0_7 + temp_a3_3 < temp_t0_3 || (s16)temp_v1_16 + temp_a3_3 < temp_t0_3)
         {
-            *(s32*)&poly0->x0 = temp3;
-            *(s32*)&poly0->x1 = temp_a1_3;
-            *(s32*)&poly0->x2 = temp_a0_7;
-            *(s32*)&poly0->x3 = temp_v1_16;
+            PSX_ST_XY(poly0, x0, temp3);
+            PSX_ST_XY(poly0, x1, temp_a1_3);
+            PSX_ST_XY(poly0, x2, temp_a0_7);
+            PSX_ST_XY(poly0, x3, temp_v1_16);
 #ifdef SH_PC_PORT
             SH_PGXP_PROP4(scratchData, poly0,
                 scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
@@ -3201,7 +3201,7 @@ __block1530:
             }
             else
             {
-                *(s32*)&poly0->r0 = 0x3C000000;
+                PSX_ST_RGBC(poly0, 0x3C000000);
             }
 
             if (scratchData->field_2B8[scratchData->field_380.s_0.field_15] >= 8)
@@ -3213,7 +3213,7 @@ __block1530:
             }
             else
             {
-                *(s32*)&poly0->r1 = 0x3C000000;
+                PSX_ST_RGB(poly0, r1, 0x3C000000);
             }
 
             if (scratchData->field_2B8[scratchData->field_380.s_0.field_16] >= 8)
@@ -3225,7 +3225,7 @@ __block1530:
             }
             else
             {
-                *(s32*)&poly0->r2 = 0x3C000000;
+                PSX_ST_RGB(poly0, r2, 0x3C000000);
             }
 
             if (scratchData->field_2B8[scratchData->field_380.s_0.field_17] >= 8)
@@ -3237,7 +3237,7 @@ __block1530:
             }
             else
             {
-                *(s32*)&poly0->r3 = 0x3C000000;
+                PSX_ST_RGB(poly0, r3, 0x3C000000);
             }
 
             *(s32*)&poly0->u0 = *(s32*)&prim->field_0;
@@ -3411,10 +3411,10 @@ __block19CC:
         if ((s16)temp_a2_7 + temp_a3_5 < temp_t0_5 || (s16)temp_a1_5 + temp_a3_5 < temp_t0_5 ||
             (s16)temp_a0_13 + temp_a3_5 < temp_t0_5 || (s16)temp_v1_27 + temp_a3_5 < temp_t0_5)
         {
-            *(s32*)&poly4->x0 = temp;
-            *(s32*)&poly4->x1 = temp_a1_5;
-            *(s32*)&poly4->x2 = temp_a0_13;
-            *(s32*)&poly4->x3 = temp_v1_27;
+            PSX_ST_XY(poly4, x0, temp);
+            PSX_ST_XY(poly4, x1, temp_a1_5);
+            PSX_ST_XY(poly4, x2, temp_a0_13);
+            PSX_ST_XY(poly4, x3, temp_v1_27);
 #ifdef SH_PC_PORT
             SH_PGXP_PROP4(scratchData, poly4,
                 scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
@@ -3618,17 +3618,17 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
             continue;
         }
 
-        *(s32*)&poly->x0 = x0;
-        *(s32*)&poly->x1 = x1;
-        *(s32*)&poly->x2 = x2;
-        *(s32*)&poly->x3 = x3;
+        PSX_ST_XY(poly, x0, x0);
+        PSX_ST_XY(poly, x1, x1);
+        PSX_ST_XY(poly, x2, x2);
+        PSX_ST_XY(poly, x3, x3);
 #ifdef SH_PC_PORT
         SH_PGXP_PROP4(scratchData, poly,
             scratchData->field_380.s_0.field_10, scratchData->field_380.s_0.field_11,
             scratchData->field_380.s_0.field_12, scratchData->field_380.s_0.field_13);
 #endif
 
-        *(s32*)&poly->r0 = packedColor;
+        PSX_ST_RGBC(poly, packedColor);
         *(s32*)&poly->u0 = *(s32*)&prim->field_0;
         *(s32*)&poly->u1 = ((*(u32*)&prim->field_4 & 0x1FFFFF) | (var_a2 << 16)); // Maybe `field_4` is bitfield
         *(u16*)&poly->u2 = prim->field_8;
@@ -4843,7 +4843,7 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
             poly_gt4->tpage = tpage;
 
             poly_gt4->clut       = clut;
-            *(s32*)&poly_gt4->r3 = temp_a0;
+            PSX_ST_RGB(poly_gt4, r3, temp_a0);
             *(s16*)&poly_gt4->u0 = *(s16*)&temp_fp->field_8;
             *(s16*)&poly_gt4->u1 = sp4A0;
             *(s16*)&poly_gt4->u2 = sp4A8;

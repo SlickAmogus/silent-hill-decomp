@@ -212,10 +212,10 @@ void func_800D5EE8(void) // 0x800D5EE8
                 poly->x3 = (x + (j * 2)) + 2;
                 poly->y3 = (y + (i * 2)) + 2;
 
-                *(s32*)&poly->r0 = col0;
-                *(s32*)&poly->r1 = col1;
-                *(s32*)&poly->r2 = col2;
-                *(s32*)&poly->r3 = col3;
+                PSX_ST_RGBC(poly, col0);
+                PSX_ST_RGB(poly, r1, col1);
+                PSX_ST_RGB(poly, r2, col2);
+                PSX_ST_RGB(poly, r3, col3);
             }
             else
             {
@@ -228,10 +228,10 @@ void func_800D5EE8(void) // 0x800D5EE8
                 poly->x2 = (x + (j * 2)) + 2;
                 poly->y2 = (y + (i * 2)) + 2;
 
-                *(s32*)&poly->r0 = col1;
-                *(s32*)&poly->r1 = col0;
-                *(s32*)&poly->r2 = col3;
-                *(s32*)&poly->r3 = col2;
+                PSX_ST_RGBC(poly, col1);
+                PSX_ST_RGB(poly, r1, col0);
+                PSX_ST_RGB(poly, r2, col3);
+                PSX_ST_RGB(poly, r3, col2);
             }
 
             setPolyG4(poly);

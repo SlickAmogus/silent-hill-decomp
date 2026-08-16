@@ -215,8 +215,8 @@ void func_80065B94(VECTOR3* arg0, s16 arg1) // 0x80065B94
 
     ptr->field_0 = (POLY_FT4*)GsOUT_PACKET_P;
     setPolyFT4(ptr->field_0);
-    *(s32*)&ptr->field_0->u0 = 0x014C4020;
-    *(s32*)&ptr->field_0->u1 = 0x2C403F;
+    PSX_ST_UV(ptr->field_0, u0, 0x014C4020);
+    PSX_ST_UV(ptr->field_0, u1, 0x2C403F);
     *(u16*)&ptr->field_0->u2 = 0x5F20;
     *(u16*)&ptr->field_0->u3 = 0x5F3F;
     setSemiTrans(ptr->field_0, true);
@@ -343,8 +343,8 @@ void func_80066184(void) // 0x80066184
     poly  = ptr->field_0 + 1;
     *poly = *ptr->field_0;
 
-    *(u32*)&ptr->field_0->u0 = 0xE0000;
-    *(u32*)&ptr->field_0->u1 = 0x2D003F;
+    PSX_ST_UV(ptr->field_0, u0, 0xE0000);
+    PSX_ST_UV(ptr->field_0, u1, 0x2D003F);
     *(u16*)&ptr->field_0->u2 = 0x3F00;
     *(u16*)&ptr->field_0->u3 = 0x3F3F;
 
@@ -352,8 +352,8 @@ void func_80066184(void) // 0x80066184
 
     ptr->field_0++;
 
-    *(u32*)&ptr->field_0->u0 = 0xE0000;
-    *(u32*)&ptr->field_0->u1 = 0x4D003F;
+    PSX_ST_UV(ptr->field_0, u0, 0xE0000);
+    PSX_ST_UV(ptr->field_0, u1, 0x4D003F);
     *(u16*)&ptr->field_0->u2 = 0x3F00;
     *(u16*)&ptr->field_0->u3 = 0x3F3F;
 
