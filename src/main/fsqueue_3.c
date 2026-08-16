@@ -9,9 +9,10 @@
 #include <string.h>
 #include <errno.h>
 #include "pc_config.h"
-/* Routes the PSX BIOS open()/close() below to PsxIo_* on 360. Function-like
- * macros, so g_FsQueue.read.idx is untouched. No-op elsewhere. */
-#include "psx_io_xbox360.h"
+/* Routes the PSX BIOS open()/close() below to PsxIo_* on the newlib consoles
+ * (360, PS3). Function-like macros, so g_FsQueue.read.idx is untouched.
+ * No-op elsewhere. */
+#include "psx_io_console.h"
 #include "hires_override.h"
 #include "tex_pack.h"
 #include "sh_log.h"

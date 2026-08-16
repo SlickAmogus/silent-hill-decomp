@@ -66,7 +66,15 @@ static unsigned long long gs_vcount_start = 0;
 static int gs_vcount_active = 0;
 
 /* High-resolution monotonic counter, abstracted per platform. */
-#if defined(SH_XBOX360_PORT)
+#if defined(SH_PS3_PORT)
+/* ps3_hal.h, not <sys/systime.h>: PSL1GHT's headers typedef u64/s64
+ * incompatibly with the decomp's, and this TU already has the decomp's. See
+ * ps3_hal.h for the boundary rule. */
+#include "sh_hwperf.h"
+#include "ps3_hal.h"
+static unsigned long long Gs_PerfCounter(void) { return SH_CYCLES(); }
+static unsigned long long Gs_PerfFreq(void)    { return Ps3_TimebaseFreq(); }
+#elif defined(SH_XBOX360_PORT)
 #include <ppc/timebase.h>
 static unsigned long long Gs_PerfCounter(void) { return mftb(); }
 static unsigned long long Gs_PerfFreq(void)    { return PPC_TIMEBASE_FREQ; }

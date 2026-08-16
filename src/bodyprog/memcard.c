@@ -3,7 +3,7 @@
 #include <psyq/libapi.h>
 /* Routes the PSX BIOS file calls below to PsxIo_* on 360, where newlib owns
  * open/read/write for stdio. No-op elsewhere. */
-#include "psx_io_xbox360.h"
+#include "psx_io_console.h"
 #include <psyq/limits.h>
 #include <psyq/strings.h>
 #include <psyq/sys/file.h>

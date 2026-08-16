@@ -40,7 +40,7 @@
 #include "sh_log.h"
 /* Renames the PSX open/close/read/write/lseek/rename DEFINITIONS below on 360,
  * where newlib already owns those symbols for stdio. No-op elsewhere. */
-#include "psx_io_xbox360.h"
+#include "psx_io_console.h"
 
 /* fs_xbox.c: mounts E:, creates E:\UDATA\SH010000 (+TitleMeta.xbx) or the
  * D:\SilentHill\save fallback; returns 0 if no location is writable. */

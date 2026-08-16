@@ -12,16 +12,35 @@
 
 #if defined(__powerpc__) || defined(__PPC__)
 
-#include <ppc/timebase.h>
-
 /* eieio orders device-memory stores, which is what sfence was doing here.
  * sync would also work but is a full pipeline flush. */
 #define SH_STORE_BARRIER() __asm__ __volatile__("eieio" ::: "memory")
 
-/* NOT cycles on 360: the Xenon time base ticks at PPC_TIMEBASE_FREQ
- * (~49.875 MHz), not core clock. Only RATIOS between readings carry across
- * platforms -- any absolute "cycles -> ms" divisor is x86-only. */
+#if defined(__PS3__)
+
+/* PS3 reads the time base directly rather than through a vendor header:
+ * <ppc/timebase.h> is libXenon's, and PSL1GHT ships no equivalent. mftb is a
+ * single 64-bit SPR read on the Cell PPU (a 64-bit core), so unlike the 32-bit
+ * Xenon it needs no hi/lo re-read loop to guard against a carry between halves. */
+static inline unsigned long long sh_cycles_(void)
+{
+    unsigned long long tb;
+    __asm__ __volatile__("mftb %0" : "=r"(tb));
+    return tb;
+}
+#define SH_CYCLES() sh_cycles_()
+
+#else
+
+#include <ppc/timebase.h>
 #define SH_CYCLES() ((unsigned long long)mftb())
+
+#endif
+
+/* NOT cycles on either console: the time base ticks at its own frequency
+ * (~49.875 MHz on Xenon, ~79.8 MHz on the Cell PPU), not core clock. Only
+ * RATIOS between readings carry across platforms -- any absolute
+ * "cycles -> ms" divisor is x86-only. */
 
 #elif defined(__i386__) || defined(__x86_64__)
 
