@@ -314,8 +314,46 @@ namespace SilentHillPC_Launcher
                 "sound id in this slot reaches them.",
                 v.VagCount, v.ProgramCount, v.Tones.Count, v.VabId, v.DeclaredSize, identified);
 
+            if (IsNeverLoadedBank(path))
+            {
+                _info.Text = "This bank is on the disc but the game NEVER LOADS IT — replacing "
+                           + "anything in it has no effect, however it is named. Whatever you hear "
+                           + "in that area comes from a bank that does load; run the game and read "
+                           + "the [SFXMOD] lines in SilentHill.log to see which.\r\n" + _info.Text;
+                _info.ForeColor = Color.FromArgb(255, 170, 90);
+            }
+            else
+            {
+                _info.ForeColor = ForeColor;
+            }
+
             if (_list.Items.Count > 0) _list.Items[0].Selected = true;
             MarkPending();
+        }
+
+        /* Seven SND banks exist on the disc but are absent from the sound system's
+         * own table (g_AudioData[].fileOffset_8), which is what identifies a bank
+         * when it loads. Nothing ever requests them, so a replacement aimed at one
+         * cannot fire however it is named or resampled — and this tool used to hand
+         * out an export name for them like any other, which is how MAP000_005.wav
+         * came to be a reasonable-looking file that did nothing.
+         *
+         * Derived by pairing every SND/*.VAB in filetable.c.USA.inc against that
+         * table: 83 of 90 are reachable, these are not. Names, not sectors, so it
+         * holds for every region. */
+        private static readonly string[] NeverLoadedBanks =
+        {
+            "MAP000", "MAP100", "MAP101", "MAP102", "MAP103", "MAP502", "MAP604",
+        };
+
+        private static bool IsNeverLoadedBank(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            string stem = Path.GetFileNameWithoutExtension(path);
+            foreach (string b in NeverLoadedBanks)
+                if (string.Equals(stem, b, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            return false;
         }
 
         private void UpdateButtons()
