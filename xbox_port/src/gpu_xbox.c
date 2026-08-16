@@ -97,6 +97,9 @@ static int s_cnGt = 0, s_cnFogged = 0;    /* GT prims / with nonzero fog pads */
 static int s_cnPadMin = 999, s_cnPadMax = -1;
 static int s_cnAbr[4];                    /* semi-trans prims per ABR mode */
 static int s_cnLines = 0, s_cnUnk = 0;    /* line prims / unknown-code skips */
+/* Prims rejected by PolyOversized. Nothing counted this, so "1320 parsed, 1
+ * emitted" gave no way to tell a cull from a decode failure. */
+static int s_cnOversize = 0;
 static int s_bbMinX = 99999, s_bbMaxX = -99999, s_bbMinY = 99999, s_bbMaxY = -99999;
 static int s_unkLogged = 0;               /* [PRIM?] one-shot budget per boot */
 
@@ -757,7 +760,7 @@ static int ProcessPoly(P_TAG* tag)
         /* POLY_F3 / POLY_F4 */
         POLY_F4* p = (POLY_F4*)tag;
         const VERTTYPE* xy = &p->x0;
-        if (PolyOversized(xy, 2, quad ? 4 : 3)) return primLen;
+        if (PolyOversized(xy, 2, quad ? 4 : 3)) { s_cnOversize++; return primLen; }
         for (i = 0; i < (quad ? 4 : 3); i++)
             PutVert(&v[i], xy[i * 2], xy[i * 2 + 1], p->r0, p->g0, p->b0);
     } else if (!gouraud && textured) {
@@ -774,7 +777,7 @@ static int ProcessPoly(P_TAG* tag)
         s_curTpage = blendTpage = p->tpage;   /* SPRTs inherit the latest tpage */
         {
             const VERTTYPE xy[8] = { p->x0, p->y0, p->x1, p->y1, p->x2, p->y2, p->x3, p->y3 };
-            if (PolyOversized(xy, 2, quad ? 4 : 3)) return primLen;
+            if (PolyOversized(xy, 2, quad ? 4 : 3)) { s_cnOversize++; return primLen; }
         }
         if (quad && s_diagFt4N < 2) {
             /* Glyph-sized FT4s only: the hi-res text path emits these. */
@@ -800,7 +803,7 @@ static int ProcessPoly(P_TAG* tag)
         POLY_G4* p = (POLY_G4*)tag;
         {
             const VERTTYPE xy[8] = { p->x0, p->y0, p->x1, p->y1, p->x2, p->y2, p->x3, p->y3 };
-            if (PolyOversized(xy, 2, quad ? 4 : 3)) return primLen;
+            if (PolyOversized(xy, 2, quad ? 4 : 3)) { s_cnOversize++; return primLen; }
         }
         PutVert(&v[0], p->x0, p->y0, p->r0, p->g0, p->b0);
         PutVert(&v[1], p->x1, p->y1, p->r1, p->g1, p->b1);
@@ -816,7 +819,7 @@ static int ProcessPoly(P_TAG* tag)
             s_curTpage = blendTpage = p4->tpage;
             {
                 const VERTTYPE xy[8] = { p4->x0, p4->y0, p4->x1, p4->y1, p4->x2, p4->y2, p4->x3, p4->y3 };
-                if (PolyOversized(xy, 2, 4)) return primLen;
+                if (PolyOversized(xy, 2, 4)) { s_cnOversize++; return primLen; }
             }
             texAddr = TexLookup(p4->tpage, p4->clut);
             PutVertUV(&v[0], p4->x0, p4->y0, p4->r0, p4->g0, p4->b0, p4->u0, p4->v0);
@@ -835,7 +838,7 @@ static int ProcessPoly(P_TAG* tag)
             s_curTpage = blendTpage = p3->tpage;
             {
                 const VERTTYPE xy[6] = { p3->x0, p3->y0, p3->x1, p3->y1, p3->x2, p3->y2 };
-                if (PolyOversized(xy, 2, 3)) return primLen;
+                if (PolyOversized(xy, 2, 3)) { s_cnOversize++; return primLen; }
             }
             texAddr = TexLookup(p3->tpage, p3->clut);
             PutVertUV(&v[0], p3->x0, p3->y0, p3->r0, p3->g0, p3->b0, p3->u0, p3->v0);
@@ -1288,8 +1291,8 @@ void DrawOTag(u_long* p)
                    s_bbMinX, s_bbMaxX, s_bbMinY, s_bbMaxY);
             SH_DBG("[FOGPAD] gt=%d fogged=%d padMin=%d padMax=%d",
                    s_cnGt, s_cnFogged, s_cnPadMin > 128 ? -1 : s_cnPadMin, s_cnPadMax);
-            SH_DBG("[ABR] avg=%d add=%d sub=%d q=%d lines=%d unk=%d",
-                   s_cnAbr[0], s_cnAbr[1], s_cnAbr[2], s_cnAbr[3], s_cnLines, s_cnUnk);
+            SH_DBG("[ABR] avg=%d add=%d sub=%d q=%d lines=%d unk=%d oversize=%d",
+                   s_cnAbr[0], s_cnAbr[1], s_cnAbr[2], s_cnAbr[3], s_cnLines, s_cnUnk, s_cnOversize);
             /* Where the render frame goes: walk = the whole DrawOTag(s) (parse +
              * transform + emit + submit); draw = just the GPU-command submission
              * (FlushBatch); parse ~= walk - draw. One frame's totals (reset each
@@ -1318,7 +1321,7 @@ void DrawOTag(u_long* p)
             s_cnPrims = 0; s_cnGt = 0; s_cnFogged = 0;
             s_cnPadMin = 999; s_cnPadMax = -1;
             s_cnAbr[0] = s_cnAbr[1] = s_cnAbr[2] = s_cnAbr[3] = 0;
-            s_cnLines = 0; s_cnUnk = 0; s_cnCallsMax = 0;
+            s_cnLines = 0; s_cnUnk = 0; s_cnCallsMax = 0; s_cnOversize = 0;
             s_bbMinX = 99999; s_bbMaxX = -99999; s_bbMinY = 99999; s_bbMaxY = -99999;
         }
         /* Per-frame reset: these hold ONE frame's totals for the snapshot above. */

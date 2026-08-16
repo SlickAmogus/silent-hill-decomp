@@ -114,6 +114,26 @@ static void* LoadFile(const char* path, int* sizeOut)
     return buf;
 }
 
+/* Cheap existence probe, run before Xe is brought up. */
+static int ShadersPresent(void)
+{
+    char  path[SH360_PATH_MAX * 2];
+    FILE* f;
+    int   ok = 0;
+
+    snprintf(path, sizeof(path), "%svs.vsu", Sh360Fs_DataRoot());
+    f = fopen(path, "rb");
+    if (f) { fclose(f); ok = 1; }
+    if (!ok)
+        return 0;
+
+    ok = 0;
+    snprintf(path, sizeof(path), "%sps.psu", Sh360Fs_DataRoot());
+    f = fopen(path, "rb");
+    if (f) { fclose(f); ok = 1; }
+    return ok;
+}
+
 static int LoadShaders(void)
 {
     char  path[SH360_PATH_MAX * 2];
@@ -150,13 +170,25 @@ void GpuNv2a_Init(void)
     s_scW = g_Nv2aContentW;
     s_scH = g_Nv2aContentH;
 
+    /* Check for shaders BEFORE touching Xe. Xe_Init takes ownership of the
+     * framebuffer, which is the surface libXenon's console -- and therefore the
+     * boot log the user is reading -- draws into in software. Without shaders
+     * we cannot render anything anyway, so bringing the device up would trade a
+     * readable console for a black screen and gain nothing. */
+    if (!ShadersPresent()) {
+        SH_DBG("[GPU] COUNT-ONLY MODE: no vs.vsu / ps.psu next to the disc image, "
+               "so Xe is left down and the console stays readable");
+        s_xe = NULL;
+        return;
+    }
+
     s_xe = &s_xeDev;
     memset(s_xe, 0, sizeof(*s_xe));
     Xe_Init(s_xe);
 
     s_fb = Xe_GetFramebufferSurface(s_xe);
     if (!s_fb) {
-        SH_DBG("[GPU] Xe_GetFramebufferSurface returned NULL - staying in count-only mode");
+        SH_DBG("[GPU] Xe_GetFramebufferSurface returned NULL - count-only mode");
         s_xe = NULL;
         return;
     }
@@ -164,10 +196,8 @@ void GpuNv2a_Init(void)
     SH_DBG("[GPU] Xe up: framebuffer %dx%d", s_fb->width, s_fb->height);
 
     s_ready = LoadShaders();
-    if (!s_ready) {
-        SH_DBG("[GPU] COUNT-ONLY MODE: put vs.vsu and ps.psu next to the disc "
-               "image to enable rendering (see gpu_xenos.c header)");
-    }
+    if (!s_ready)
+        SH_DBG("[GPU] shaders present but failed to load - count-only mode");
     SH_DBG("[GPU] xenos backend: %d-vertex pool, %d B/vertex",
            GPU_POOL_VERTS, (int)sizeof(ShVertex));
 }

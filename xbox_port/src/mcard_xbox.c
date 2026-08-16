@@ -223,10 +223,21 @@ static McFileHandle s_handles[16] = { 0 };
  * all-channels-connected model. TIMOUT stays only for the one Xbox-only
  * degradation PsyCross can't have: no writable save location at all. */
 
+/* Backslash is a path separator to the Xbox kernel, but on libfat/newlib it is
+ * an ORDINARY FILENAME CHARACTER. Building "…/save\0.MCD" there asks for a file
+ * literally called "save\0.MCD" in the parent directory, which cannot be
+ * created -- every card_info/card_clear returned IOE, and the memory-card state
+ * machine then wedged in state 3 forever, which is what stopped the boot. */
+#ifdef SH_XBOX360_PORT
+#define MC_PATH_SEP "/"
+#else
+#define MC_PATH_SEP "\\"
+#endif
+
 static const char* mc_path_for_channel(int chan)
 {
     static char buf[128];
-    snprintf(buf, sizeof(buf), "%s\\%d.MCD", s_saveDir, chan);
+    snprintf(buf, sizeof(buf), "%s" MC_PATH_SEP "%d.MCD", s_saveDir, chan);
     return buf;
 }
 
@@ -415,7 +426,7 @@ void Mcard_XboxInit(void)
         SH_DBG("[MCRD] init: NO writable save location; card reports not-connected");
         return;
     }
-    SH_DBG("[MCRD] card path = %s\\0.MCD", s_saveDir);
+    SH_DBG("[MCRD] card path = %s", mc_path_for_channel(0));
     mc_ensure_card(0);
 }
 

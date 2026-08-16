@@ -29,9 +29,13 @@ int Sh_LogAllow(const char* fmt)
 {
     static const char* const GATED[] = {
         "[SH_AUDIO]", "[SH_BGM]", "[UIDIAG]", "[UPD]", "[UPD2]", "[POST]",
-        "[FOGST]", "[FOGPAD]", "[ABR]", "[WALLSTOP]",
+        "[FOGST]", "[WALLSTOP]",
         "[WALL-HIT]", "[RAIN]", "[FSQ]", "[SS]", "[FXDROP]", "[BATCH]", "[STORE]",
         "[BIGPRIM]", "[ZETA]", "[ITEMZ]", "[FLEX]", "[FONTDUMP]", "[TXTPG]", "[TXSPR]",
+        /* NOT gated on 360: [ABR] and [FOGPAD]. They are per-120-frame window
+         * summaries, not per-frame floods, and [ABR] carries the line/unknown
+         * primitive counts -- the one number that says WHY primitives are being
+         * dropped. Gating them cost a hardware run's worth of diagnosis. */
     };
     int i;
     if (g_XboxLogDiag)          return 1;
