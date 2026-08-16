@@ -57,4 +57,11 @@ void Pc_Rando_ScaleEnemyHealth(void* npc, int slot);
 /* Overlay: fills "Score: N". Returns 0 when the panel should not be drawn. */
 int  Pc_Rando_ScoreLine(char* buf, int cap);
 
+/* Script layer (Lua) surface. */
+int  Pc_Rando_AreaNumber(void);      /* areas entered so far (0 when off) */
+int  Pc_Rando_CurrentMapIdx(void);   /* current MapIdx_* (-1 when off) */
+int  Pc_Rando_PlayerHasItem(int itemId);
+/* Live-spawn a pooled monster at world (x,z); stateStep < 0 = auto. Slot or -1. */
+int  Pc_Rando_ScriptSpawnMonster(int charaId, int x, int z, int stateStep);
+
 #endif /* PC_RANDO_H */

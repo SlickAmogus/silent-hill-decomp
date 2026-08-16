@@ -1460,6 +1460,59 @@ void Pc_Rando_ScaleEnemyHealth(void* npcVoid, int slot)
     s_healthScaled[slot] = 1;
 }
 
+/* ------------------------------------------------------------- script hooks */
+
+/* Run-state getters for the Lua layer. */
+int Pc_Rando_AreaNumber(void)    { return s_enabled ? s_run.areasEntered : 0; }
+int Pc_Rando_CurrentMapIdx(void) { return s_enabled ? (int)s_run.mapIdx : -1; }
+int Pc_Rando_PlayerHasItem(int itemId) { return inventory_has(itemId); }
+
+/* Live-spawn a monster at world (x,z), for the Lua `rando.spawn_monster`. Mirrors
+ * the console debug spawn; randomizer mode forces the global chara pool, so any
+ * pooled chara's model/anim/AI are resident. stateStep < 0 = auto (the pool
+ * table's value for a known chara, else 3). Returns the NPC slot, or -1. */
+extern unsigned char g_PcNpcDebugSpawned[];
+int Pc_Rando_ScriptSpawnMonster(int charaId, q19_12 x, q19_12 z, int stateStep)
+{
+    s_CollisionSurface surf;
+    int slot = -1, i;
+
+    if (!Pc_Rando_Active() || charaId <= Chara_None || charaId >= 256)
+        return -1;
+    if (g_MapOverlayHdr.charaUpdateFuncs[charaId] == NULL)
+        return -1; /* no AI resident here -> would spawn inert */
+
+    for (i = 0; i < NPC_COUNT_MAX; i++)
+        if (g_SysWork.npcs[i].model.charaId == Chara_None) { slot = i; break; }
+    if (slot < 0)
+        return -1;
+
+    if (stateStep < 0)
+    {
+        stateStep = 3;
+        for (i = 0; i < N_MONSTERS; i++)
+            if (RANDO_MONSTERS[i].charaId == charaId) { stateStep = RANDO_MONSTERS[i].stateStep; break; }
+    }
+
+    memset(&g_SysWork.npcs[slot], 0, sizeof(s_SubCharacter));
+    g_SysWork.npcs[slot].model.charaId      = (s8)charaId;
+    g_SysWork.npcs[slot].model.controlState = 0;
+    g_SysWork.npcs[slot].model.stateStep    = (u8)stateStep;
+    g_SysWork.npcs[slot].field_40           = (s8)slot;
+    g_SysWork.npcs[slot].position.vx        = x;
+    g_SysWork.npcs[slot].position.vz        = z;
+    Collision_SurfaceGet(&surf, x, z);
+    g_SysWork.npcs[slot].position.vy        = surf.groundHeight;
+    g_SysWork.npcs[slot].rotation.vy        = (s16)(rnd() & 0xFFF);
+    g_SysWork.npcs[slot].model.anim.flags  |= AnimFlag_Visible;
+    SET_FLAG(&g_SysWork.npcFlags, slot);
+    SET_FLAG(g_SysWork.field_228C, slot);
+    g_PcNpcDebugSpawned[slot] = 1;
+    if (g_SysWork.npcFlagsId < (u8)(slot + 1))
+        g_SysWork.npcFlagsId = (u8)(slot + 1);
+    return slot;
+}
+
 void Pc_Rando_OnNewGame(void)
 {
     if (!s_enabled)

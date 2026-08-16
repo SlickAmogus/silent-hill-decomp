@@ -2117,6 +2117,10 @@ void MainLoop(void) // 0x80032EE0
             extern void Pc_Rando_Update(void);
             Pc_Rando_Update();
         }
+        {
+            extern void Pc_RandoLua_OnUpdate(void);
+            Pc_RandoLua_OnUpdate();
+        }
 #endif
         // Update input.
         Joy_ReadP1();
