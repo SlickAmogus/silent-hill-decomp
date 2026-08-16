@@ -12,6 +12,16 @@
 
 #define RANDO_CFG_PATH "gamedata/randomizer.cfg"
 
+static const s_RandoConfig RANDO_DEFAULTS = {
+    .spawnDensity    = 100,
+    .monsterMax      = 30,
+    .areasToBoss     = 10,
+    .entryLockSec    = 10,
+    .enemyHealthPct  = 100,
+    .weaponDamagePct = 100,
+    .extraAmmo       = 30,
+};
+
 s_RandoConfig g_RandoConfig = {
     .spawnDensity    = 100,
     .monsterMax      = 30,
@@ -21,6 +31,11 @@ s_RandoConfig g_RandoConfig = {
     .weaponDamagePct = 100,
     .extraAmmo       = 30,
 };
+
+void Pc_RandoConfig_ResetDefaults(void)
+{
+    g_RandoConfig = RANDO_DEFAULTS;
+}
 
 /* Order here is the panel's row order. The count/density knobs top out at the
  * engine's limits (32 concurrent NPCs; 100% = every good spot); the scaling

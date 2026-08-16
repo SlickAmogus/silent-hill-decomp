@@ -40,6 +40,8 @@ const s_RandoSetting* Pc_RandoConfig_ByKey(const char* key);
 int  Pc_RandoConfig_Clamp(const s_RandoSetting* s, int v);
 /* Nudge setting i by dir*step, clamped. Returns the new value. */
 int  Pc_RandoConfig_Adjust(int i, int dir);
+/* Restore every tunable to its shipped default (the panel's "Reset defaults"). */
+void Pc_RandoConfig_ResetDefaults(void);
 
 /* gamedata/randomizer.cfg. Load sets defaults then overlays the file if present;
  * Save (re)writes it — called only when a value actually changes, so an untouched
