@@ -303,6 +303,22 @@ q19_12 Anim_DurationGet(s_Model* unused, s_AnimInfo* animInfo) // 0x800449AC
      * extra register arg is harmless on x86-64. */
     {
         typedef q19_12 (*variableFuncReal)(s_Model*, s_AnimInfo*);
+        /* as_rodata_reformat.c deliberately NULLs variableFunc for variable-
+         * duration entries (the PSX bytes hold a PSX address that means nothing
+         * here) and its comment says Anim_DurationGet "handles NULL". It did
+         * not -- there was no check at all. On PS3 that is not a jump to zero
+         * but a READ at zero, because an ELFv1 call loads the entry point out
+         * of a function descriptor first. Fall back to the constant, which is
+         * the same storage the walker left behind. */
+        if (animInfo->duration.variableFunc == NULL) {
+            static int s_nullLogged = 0;
+            if (s_nullLogged < 4) {
+                s_nullLogged++;
+                SH_DBG("[ANIMDUR] variableFunc NULL for animInfo=%p status=%u - using constant",
+                       (void*)animInfo, (unsigned)animInfo->status);
+            }
+            return animInfo->duration.constant;
+        }
         return ((variableFuncReal)animInfo->duration.variableFunc)(unused, animInfo);
     }
 #else

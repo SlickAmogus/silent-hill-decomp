@@ -67,6 +67,26 @@ for m in $EXTRA_MAPS; do
     [ -z "$srcs" ] && { echo "  $m: NO SOURCES"; continue; }
 
     mdir="$OUT/$m"; mkdir -p "$mdir/raw"
+
+    # Incremental: skip a map whose archive is newer than every one of its
+    # sources. Rebuilding all 42 unconditionally costs ~10 minutes a round,
+    # which is most of an iteration when the thing being changed is one line of
+    # shared game code.
+    if [ -f "$OUT/$m.a" ] && [ "${SH_MAPS_FORCE:-0}" != "1" ]; then
+        stale=0
+        for f in $srcs; do
+            [ "$f" -nt "$OUT/$m.a" ] && { stale=1; break; }
+        done
+        # A shared header the maps #include changes far more often than the map
+        # sources do, so the newest object in the main gate is the tiebreaker.
+        [ "$SCRIPT_DIR/build_maps.sh" -nt "$OUT/$m.a" ] && stale=1
+        if [ "$stale" -eq 0 ]; then
+            printf "  %-10s up to date\n" "$m"
+            libs=$((libs+1))
+            continue
+        fi
+    fi
+
     ok=0; fail=0
     for f in $srcs; do
         obj="$mdir/raw/$(basename "${f%.c}").o"

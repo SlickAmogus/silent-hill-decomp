@@ -16,6 +16,7 @@
 #include "hires_override.h"
 #include "tex_pack.h"
 #include "tim_endian.h"
+#include "anm_endian.h"
 #include "sh_log.h"
 
 #ifndef _WIN32
@@ -1261,6 +1262,11 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
 
 bool Fs_QueuePostLoadAnm(s_FsQueueEntry* entry)
 {
+    /* ANM has no reformat walker -- s_AnmHeader is overlaid straight onto this
+     * buffer -- so convert the header once here, before anything reads a field.
+     * Idempotent, and it validates before touching anything, because Harry's
+     * headerless HB_WEP and HB_M banks must be left alone. */
+    Anm_SwapForBigEndian((void*)entry->externalData);
     Fs_CharaAnimDataUpdate(entry->extra.anm.field_0, entry->extra.anm.charaId, entry->externalData, entry->extra.anm.coords_8);
     return true;
 }
