@@ -133,6 +133,11 @@ while IFS= read -r f; do
         pass=$((pass+1))
     else
         fail=$((fail+1))
+        # Delete the object. Without this a failed TU leaves the PREVIOUS
+        # build's .o in place and the link happily succeeds using stale code --
+        # the gate says "failed: 1" and you still get an EBOOT that boots,
+        # which is the worst possible combination.
+        rm -f "$obj"
         { echo "########## $f"; echo "$err"; } >> "$LOG"
     fi
 done < <(collect_srcs "${1:-}")

@@ -16,10 +16,15 @@
  *   ps3_port/tools/rpcs3_smoke.sh -m "PACK" pack_EBOOT.BIN
  */
 #include <stdio.h>
+#include <string.h>
 
 #include "psx/libgte.h"
 #include "psx/libgpu.h"
 #include "psx_pack.h"
+
+#include "bodyprog/bodyprog.h"
+#include "bodyprog/map/map.h"
+#include "maps/shared.h"
 
 static int s_fail;
 
@@ -82,6 +87,29 @@ int main(void)
     PSX_ST_XY(&p, x2, (0x0011u & 0xFFFFu) | ((unsigned)((int)-5 & 0xFFFF) << 16));
     chk("x2",   p.x2,   0x0011);
     chk("y2 -5", p.y2,  -5);
+
+    /* ---- hazard 2: bitfield allocation order -------------------------------
+     * These names encode their own bit positions -- field_14C_0 is bit 0 of the
+     * aliased `flags` word, field_14C_1 is bit 1 -- so the layout is
+     * machine-checkable rather than a matter of opinion. On little-endian the
+     * first-declared bitfield takes the LOW bits and the names are true; on
+     * big-endian it takes the HIGH bits and every one of them means its
+     * opposite, silently, with sizeof unchanged. */
+    {
+        s_sharedData_800E21D0_0_s01 sd;
+        memset(&sd, 0, sizeof(sd));
+        sd.field_14C.bits32.field_14C_0 = 1;
+        chk("bf flags b0", (int)sd.field_14C.flags, 1);
+        memset(&sd, 0, sizeof(sd));
+        sd.field_14C.bits32.field_14C_1 = 1;
+        chk("bf flags b1", (int)sd.field_14C.flags, 2);
+        memset(&sd, 0, sizeof(sd));
+        sd.field_14C.bits32.field_14C_3 = 1;
+        chk("bf flags b3", (int)sd.field_14C.flags, 8);
+        memset(&sd, 0, sizeof(sd));
+        sd.field_14C.flags = 1u;
+        chk("bf b0 from flags", (int)sd.field_14C.bits32.field_14C_0, 1);
+    }
 
     printf("[PACK] %s (%d failures)\n", s_fail ? "FAILED" : "ALL PASS", s_fail);
     return s_fail ? 1 : 0;

@@ -59,6 +59,10 @@ TARGETFLAGS="-D__PS3__ -D__PSL1GHT__ -mcpu=cell -mhard-float
 # map4_s02 -> MAP4_S02
 mapdef() { echo "$1" | tr 'a-z' 'A-Z'; }
 
+# Newest header anywhere the maps can see. One find, not 42.
+NEWEST_HDR=$(find "$DECOMP/include" "$PCPORT/include" "$PSYCROSS/include" \
+                  -name '*.h' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+
 total_ok=0; total_fail=0; libs=0
 for m in $EXTRA_MAPS; do
     srcs=$(ls "$DECOMP/src/maps/$m"/*.c 2>/dev/null)
@@ -77,8 +81,11 @@ for m in $EXTRA_MAPS; do
         for f in $srcs; do
             [ "$f" -nt "$OUT/$m.a" ] && { stale=1; break; }
         done
-        # A shared header the maps #include changes far more often than the map
-        # sources do, so the newest object in the main gate is the tiebreaker.
+        # Headers matter more than the map sources here: a map TU is mostly
+        # #included shared code, so a change to include/ or pc_port/include/ is
+        # the common reason to rebuild and comparing only .c files would happily
+        # serve stale archives. NEWEST_HDR is computed once, outside the loop.
+        [ -n "$NEWEST_HDR" ] && [ "$NEWEST_HDR" -nt "$OUT/$m.a" ] && stale=1
         [ "$SCRIPT_DIR/build_maps.sh" -nt "$OUT/$m.a" ] && stale=1
         if [ "$stale" -eq 0 ]; then
             printf "  %-10s up to date\n" "$m"

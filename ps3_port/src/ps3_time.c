@@ -15,6 +15,11 @@ unsigned long long Ps3_TimebaseFreq(void)
     return (unsigned long long)sysGetTimebaseFrequency();
 }
 
+void Ps3_SleepUs(unsigned us)
+{
+    sysUsleep(us);
+}
+
 void Ps3_SleepMs(unsigned ms)
 {
     if (ms)

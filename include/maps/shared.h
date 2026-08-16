@@ -138,6 +138,39 @@ typedef struct
     VECTOR3           field_140;
     union
     {
+/* HAZARD 2, MEASURED. These names state their own bit positions -- field_14C_0
+ * is bit 0 of the aliased `flags` word -- and a bitfield struct only honours
+ * that on a little-endian host, where the first-declared member takes the LOW
+ * bits. On big-endian it takes the HIGH bits, so every name means its opposite.
+ *
+ * It is silent: sizeof is unchanged and STATIC_ASSERT_SIZEOF still passes. The
+ * PS3 self-test measured it directly -- setting field_14C_0 produced
+ * flags == 0x80000000 instead of 0x1, and flags = 1 read back field_14C_0 == 0.
+ *
+ * The remedy is the standard one (BSD ip.h does the same): declare the members
+ * in reverse order under big-endian. The big-endian arm also uses u32 for every
+ * member so the whole group is one 32-bit storage unit; mixing u8 and u32
+ * bitfields lets the compiler start a new unit mid-group, which would put the
+ * bits somewhere else again. The little-endian arm is byte-for-byte unchanged,
+ * including its decomp-matching @hack, so no other port moves. */
+#if defined(__BIG_ENDIAN__) || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+        struct
+        {
+            u32 field_14C_4 : 28; // Unsure if used.
+            u32 field_14C_3 : 1;
+            u32 field_14C_2 : 1;
+            u32 field_14C_1 : 1;
+            u32 field_14C_0 : 1;
+        } bits;
+        struct
+        {
+            u32 field_14C_4 : 28;
+            u32 field_14C_3 : 1;
+            u32 field_14C_2 : 1;
+            u32 field_14C_1 : 1;
+            u32 field_14C_0 : 1;
+        } bits32;
+#else
         struct
         {
             u8  field_14C_0 : 1;
@@ -155,6 +188,7 @@ typedef struct
             u32 field_14C_3 : 1;
             u32 field_14C_4 : 28;
         } bits32;
+#endif
         u32 flags;
     } field_14C;
     q19_12 distance_150;

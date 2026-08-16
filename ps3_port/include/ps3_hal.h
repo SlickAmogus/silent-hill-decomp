@@ -46,6 +46,13 @@ unsigned long long Ps3_TimebaseFreq(void);
  * and pad service threads lv2 runs on our behalf. */
 void Ps3_SleepMs(unsigned ms);
 
+/* Microsecond sleep, for poll loops that must not spin. Ps3_SleepMs(0) is a
+ * bare yield and RPCS3's syscall census caught it costing 103 MILLION
+ * sys_timer_usleep calls in a 47-second run -- roughly 2 million a second, all
+ * of it the flip wait. A 200us granularity is invisible against a 16.6ms
+ * frame. */
+void Ps3_SleepUs(unsigned us);
+
 /* ---- RSX display layer (rsx_video.c) -------------------------------------
  * Everything that touches libgcm lives behind these, because gpu_rsx.c needs
  * the decomp's ShVertex and therefore cannot include PSL1GHT at all. */

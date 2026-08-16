@@ -471,7 +471,10 @@ void Ps3Rsx_WaitFlip(void)
 {
     if (!s_ready)
         return;
+    /* 200us, not a bare yield: RPCS3's syscall census measured 103 million
+     * sys_timer_usleep calls in 47 seconds with Ps3_SleepMs(0) here. The
+     * granularity is invisible against a 16.6ms frame. */
     while (gcmGetFlipStatus() != 0)
-        Ps3_SleepMs(0);
+        Ps3_SleepUs(200);
     gcmResetFlipStatus();
 }

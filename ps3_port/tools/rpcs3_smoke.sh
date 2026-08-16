@@ -24,11 +24,13 @@ RPCS3_EXE="$RPCS3_DIR/rpcs3.exe"
 TIMEOUT=90
 MARKER='\[SH-PS3\]'
 GRAPHICS=0
-while getopts "t:m:g" opt; do
+INTERP=0
+while getopts "t:m:gi" opt; do
     case "$opt" in
         t) TIMEOUT="$OPTARG" ;;
         m) MARKER="$OPTARG" ;;
         g) GRAPHICS=1 ;;
+        i) INTERP=1 ;;
         *) sed -n '2,14p' "$0"; exit 3 ;;
     esac
 done
@@ -60,6 +62,15 @@ sed -e 's/^\( *\)Music Handler: .*/\1Music Handler: "Null"/' \
     "$GLOBAL_CFG" > "$SMOKE_CFG"
 if [ "$GRAPHICS" -eq 0 ]; then
     sed -i 's/^\( *\)Renderer: Vulkan.*/\1Renderer: "Null"/' "$SMOKE_CFG"
+fi
+
+# -i: PPU INTERPRETER. The LLVM recompiler reports a fault PC that is only
+# approximate to the compiled block, which sent a whole debugging round down
+# the wrong function: three separate probes all showed valid pointers at the
+# address it named. The interpreter is slower but its CIA is the instruction
+# that actually faulted.
+if [ "$INTERP" -eq 1 ]; then
+    sed -i 's/^\( *\)PPU Decoder: .*/\1PPU Decoder: "Interpreter (precise)"/' "$SMOKE_CFG"
 fi
 
 # RPCS3 is a Windows binary: hand it Windows paths, not MSYS ones.
