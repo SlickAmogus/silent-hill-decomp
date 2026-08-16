@@ -99,6 +99,7 @@ static char* Png_Inflate(const char* buf, int len, int initialSize, int* outLen,
 #include "pc_config.h"
 
 #include <PsyX/common/glad.h>
+#include <PsyX/PsyX_backend.h>
 
 #define MAX_HIRES_OVERRIDES 256
 
@@ -977,6 +978,7 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
      * upload reports a COMPRESSED internal format here (a sub-image into it
      * would fail), so only GL's own answer is trustworthy. */
     int reuseStorage;
+    if (g_grCaps.texLevelParam)
     {
         GLint curW = 0, curH = 0, curFmt = 0;
         glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &curW);
@@ -984,6 +986,15 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
         glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, &curFmt);
         reuseStorage = (curW == w && curH == h &&
                         (curFmt == GL_RGBA || curFmt == GL_RGBA8));
+    }
+    else
+    {
+        /* ES 3.0 (the ANGLE-backed backends) has no glGetTexLevelParameteriv —
+         * it arrived in 3.1. With no trustworthy answer available, always take
+         * the full re-specification path: a glTexImage2D is valid whatever the
+         * slot previously held, whereas a sub-image into a mismatched or
+         * compressed level is the exact failure this check exists to avoid. */
+        reuseStorage = 0;
     }
 
     if (reuseStorage)

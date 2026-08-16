@@ -297,6 +297,33 @@ add_custom_command(TARGET SilentHillPC POST_BUILD
     COMMENT "Copying shipped runtime assets (pc_port/assets/)"
 )
 
+# ANGLE runtime, for the renderer=d3d11 / vulkan / d3d9 / software backends.
+# Optional by design: the game only loads these when the config asks for a
+# translated backend, and falls back to native OpenGL with a logged warning when
+# they are absent, so a build without them is complete and shippable.
+#
+# They are not vendored because ANGLE is ~15 MB of binary with its own release
+# cadence and license. Drop libEGL.dll + libGLESv2.dll (and d3dcompiler_47.dll
+# if your Windows lacks it) into pc_port/angle/ and they are deployed beside the
+# exe. Prebuilt weekly x64/arm64 Windows builds:
+#   https://github.com/mmozeiko/build-angle/releases/latest
+# An Electron release zip is an equally good source of the same two DLLs.
+# copy_directory rather than a file(GLOB) of *.dll: the glob is evaluated once at
+# configure time, so a DLL added to angle/ afterwards is silently never deployed,
+# and ANGLE's Vulkan backend needs companions that are not DLLs at all
+# (vk_swiftshader_icd.json). Copying the directory keeps the deployed set equal
+# to the source set without a reconfigure.
+if(WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/angle")
+    add_custom_command(TARGET SilentHillPC POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_SOURCE_DIR}/angle" "$<TARGET_FILE_DIR:SilentHillPC>"
+        COMMENT "Copying ANGLE runtime (D3D11/Vulkan backends)"
+    )
+    message(STATUS "ANGLE runtime found - D3D11/Vulkan render backends will be available")
+else()
+    message(STATUS "No pc_port/angle/ - only the native OpenGL backend will be selectable at runtime")
+endif()
+
 # Game-specific defines (only on our target, NOT PsyCross)
 target_compile_definitions(SilentHillPC PRIVATE
     VER_${SH_VERSION}

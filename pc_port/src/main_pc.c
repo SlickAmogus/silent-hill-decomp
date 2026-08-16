@@ -39,6 +39,7 @@
 
 /* PsyCross public API */
 #include <PsyX/PsyX_public.h>
+#include <PsyX/PsyX_backend.h>
 #include <PsyX/common/glad.h>
 
 /* Null device differs by platform: NUL on Windows, /dev/null on POSIX. */
@@ -983,6 +984,15 @@ int main(int argc, char* argv[])
      * g_cfg_msaaSamples back to 0. */
     g_cfg_msaaSamples = g_PcConfig.msaaSamples;
     SH_LOG("MSAA: %dx", g_cfg_msaaSamples);
+
+    /* Same rule as MSAA: the backend decides whether SDL builds a WGL or an EGL
+     * window, so it has to be set before PsyX_Initialise. Unknown names resolve
+     * to native GL rather than failing, and a translated backend with no ANGLE
+     * present falls back inside PsyCross — this cannot block startup. */
+    g_cfg_renderBackend = PsyX_Backend_FromName(g_PcConfig.renderer);
+    SH_LOG("Renderer: %s -> %s", g_PcConfig.renderer, PsyX_Backend_GetDescription(g_cfg_renderBackend));
+    if (PsyX_Backend_IsTranslated(g_cfg_renderBackend) && !PsyX_Backend_AngleAvailable())
+        SH_LOG("Renderer: ANGLE (libEGL.dll + libGLESv2.dll) not found next to the exe — falling back to native OpenGL");
 
     /* Before PsyX_Initialise: the window is confined as soon as it is created. */
     g_cfg_confineCursor = g_PcConfig.confineCursor;

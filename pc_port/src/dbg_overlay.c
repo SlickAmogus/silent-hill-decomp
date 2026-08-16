@@ -14,6 +14,7 @@
 #include "bodyprog/bodyprog.h"
 #include "sh_log.h"
 #include "dbg_overlay.h"
+#include <PsyX/PsyX_backend.h>
 #include "screens/options.h" /* OptionsMenuState_* — Escape backs out of the brightness screen */
 #include "pc_config.h"
 
@@ -561,8 +562,18 @@ static void Console_Paste(void)
  * failure was SILENT, leaving the console and cursor as solid white rectangles
  * (reported on a Radeon HD 7290, Crimson 16.2.1, GL 3.3 core). 140 matches what
  * PsyCross's own desktop shaders already declare, so it is proven to compile on
- * the hardware that hit this. */
-#define OVERLAY_GLSL "#version 140\n"
+ * the hardware that hit this.
+ *
+ * The version line itself is no longer baked in: with the D3D11/Vulkan
+ * backends the live context may be OpenGL ES 3.0 (ANGLE), where "#version 140"
+ * is not a legal directive at all. PsyX_Shader_Preamble supplies whichever of
+ * the two this context wants; the bodies below are in the in/out/texture()
+ * dialect that both accept. */
+static void overlay_shader_source(GLuint sh, const char* body, int fragmentStage)
+{
+    const char* src[2] = { PsyX_Shader_Preamble(fragmentStage, PSYX_GLSL_MODERN), body };
+    glShaderSource(sh, 2, src, NULL);
+}
 
 /* Never silent again, on any driver: a shader that will not build says so in
  * the log with the driver's own message, whether or not this build is a debug
@@ -611,7 +622,6 @@ static void overlay_gl_init(void)
 {
     GLuint vs, fs;
     static const char* vs_src =
-        OVERLAY_GLSL
         "in vec2 a_pos;\n"
         "in vec2 a_uv;\n"
         "out vec2 v_uv;\n"
@@ -620,7 +630,6 @@ static void overlay_gl_init(void)
         "    gl_Position = vec4(a_pos, 0.0, 1.0);\n"
         "}\n";
     static const char* fs_src =
-        OVERLAY_GLSL
         "in vec2 v_uv;\n"
         "out vec4 fragColor;\n"
         "uniform sampler2D u_tex;\n"
@@ -637,12 +646,12 @@ static void overlay_gl_init(void)
     }
 
     vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, 1, &vs_src, NULL);
+    overlay_shader_source(vs, vs_src, 0);
     glCompileShader(vs);
     overlay_shader_ok(vs, "text vertex");
 
     fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &fs_src, NULL);
+    overlay_shader_source(fs, fs_src, 1);
     glCompileShader(fs);
     overlay_shader_ok(fs, "text fragment");
 
@@ -775,20 +784,18 @@ static void overlay_gl_init(void)
     /* Colored-line program for the collision wireframe (a_pos = NDC, a_col = RGB). */
     {
         static const char* lvs_src =
-            OVERLAY_GLSL
-            "in vec2 a_pos;\n"
+                "in vec2 a_pos;\n"
             "in vec3 a_col;\n"
             "out vec3 v_col;\n"
             "void main() { v_col = a_col; gl_Position = vec4(a_pos, 0.0, 1.0); }\n";
         static const char* lfs_src =
-            OVERLAY_GLSL
-            "in vec3 v_col;\n"
+                "in vec3 v_col;\n"
             "out vec4 fragColor;\n"
             "void main() { fragColor = vec4(v_col, 1.0); }\n";
         GLuint lvs = glCreateShader(GL_VERTEX_SHADER);
         GLuint lfs = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(lvs, 1, &lvs_src, NULL); glCompileShader(lvs);
-        glShaderSource(lfs, 1, &lfs_src, NULL); glCompileShader(lfs);
+        overlay_shader_source(lvs, lvs_src, 0); glCompileShader(lvs);
+        overlay_shader_source(lfs, lfs_src, 1); glCompileShader(lfs);
         overlay_shader_ok(lvs, "line vertex");
         overlay_shader_ok(lfs, "line fragment");
         s_line_prog = glCreateProgram();

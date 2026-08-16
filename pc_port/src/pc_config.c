@@ -41,6 +41,7 @@ s_PcConfig g_PcConfig = {
     .charaPrimProbe = 0, /* 0=off, else e_CharaId to trace: one-shot [CHARAPRIM] per-model submit/reject dump */
     .psxPolySizeCull = 1, /* 1=PSX GPU parity: cull triangles with screen bbox >1023x511 (hardware never drew them) */
     .msaaSamples    = 0, /* 0=off, 2/4/8 = MSAA sample count */
+    .renderer       = "gl", /* native OpenGL — the long-tested path */
     .postProcess    = 0, /* 0=off, 1.. = post-process look */
     .tonemap        = 0, /* 0=off, 1=Reinhard, 2=ACES, 3=Filmic */
     .flashlightMode = 0, /* 0=Classic (PSX), 1=Classic+Shadows, 2=Modern, 3=Modern+Shadows */
@@ -579,6 +580,14 @@ void PcConfig_Load(const char* path)
             else if (v >= 2) v = 2;
             else             v = 0;
             g_PcConfig.msaaSamples = v;
+        }
+        else if (strcmp(key, "renderer") == 0)
+        {
+            /* Validated in main_pc.c against PsyX_Backend_FromName, which maps
+             * anything unrecognised back to "gl" — a typo here must never stop
+             * the game booting. */
+            strncpy(g_PcConfig.renderer, value, sizeof(g_PcConfig.renderer) - 1);
+            g_PcConfig.renderer[sizeof(g_PcConfig.renderer) - 1] = '\0';
         }
         else if (strcmp(key, "post_process") == 0)
         {

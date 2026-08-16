@@ -50,3 +50,9 @@ pc_port/launcher/**/obj/
 pc_port/launcher/**/bin/
 *.user
 .claude/worktrees/
+
+# ANGLE runtime for the D3D11/Vulkan render backends — third-party binaries with
+# their own release cadence, deployed by CMake if present. See
+# pc_port/docs/Render_Backends.md for where to get a build (and which builds
+# actually contain the Vulkan backend).
+pc_port/angle/

@@ -145,6 +145,12 @@ typedef struct {
                           * sits inside geometry (elevator doors/staircase). 0 = draw them (old behavior).
                           * (config key: psx_poly_size_cull; console: polysizecull) */
     int msaaSamples;     /* MSAA on the default framebuffer: 0 = off, 2/4/8 = sample count (config key: msaa) */
+    char renderer[16];   /* graphics backend (config key: renderer): "gl" (default, native OpenGL),
+                          * "d3d11", "vulkan", "d3d9", "software", "gles". Everything but "gl" runs the
+                          * same renderer against an OpenGL ES 3.0 context provided by ANGLE, so those
+                          * need libEGL.dll + libGLESv2.dll beside the exe; without them the game logs a
+                          * warning and falls back to "gl". Mostly of interest because overlay/capture
+                          * tools hook DXGI and Vulkan far more reliably than they hook opengl32. */
     int postProcess;     /* full-screen post-process look: 0 = off, 1.. = built-in filter (config key: post_process) */
     int tonemap;         /* tone-map operator: 0=off,1=Reinhard,2=ACES,3=Filmic (config key: tonemap) */
     int flashlightMode;     /* THE flashlight setting (config key: flashlight_mode):

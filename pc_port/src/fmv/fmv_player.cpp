@@ -21,6 +21,7 @@
 #include <PsyX/PsyX_render.h>
 #include <PsyX/util/timer.h>
 #include <PsyX/common/glad.h>
+#include <PsyX/PsyX_backend.h>
 
 #include <psx/libgpu.h>
 #include <psx/libetc.h>
@@ -217,8 +218,9 @@ static GLuint s_fmvVAO = 0;
 static GLuint s_fmvVBO = 0;
 static GLuint s_fmvProgram = 0;
 
+/* No #version here: PsyX_Shader_Preamble prepends the one the live context
+ * takes, so this body also builds on the ANGLE-backed ES 3.0 backends. */
 static const char* s_fmvVertSrc =
-    "#version 140\n"
     "in vec2 a_pos;\n"
     "in vec2 a_uv;\n"
     "out vec2 v_uv;\n"
@@ -228,8 +230,6 @@ static const char* s_fmvVertSrc =
     "}\n";
 
 static const char* s_fmvFragSrc =
-    "#version 140\n"
-    "precision highp float;\n"
     "in vec2 v_uv;\n"
     "out vec4 fragColor;\n"
     "uniform sampler2D s_texture;\n"
@@ -243,11 +243,13 @@ static void InitBlitResources(void)
         return;
 
     GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, 1, &s_fmvVertSrc, NULL);
+    { const char* src[2] = { PsyX_Shader_Preamble(0, PSYX_GLSL_MODERN), s_fmvVertSrc };
+      glShaderSource(vs, 2, src, NULL); }
     glCompileShader(vs);
 
     GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &s_fmvFragSrc, NULL);
+    { const char* src[2] = { PsyX_Shader_Preamble(1, PSYX_GLSL_MODERN), s_fmvFragSrc };
+      glShaderSource(fs, 2, src, NULL); }
     glCompileShader(fs);
 
     s_fmvProgram = glCreateProgram();
@@ -400,7 +402,13 @@ static void DrawVideoFrameEx(const unsigned char* pixels, int image_w, int image
 
     RestoreGLState(&saved);
 
-    SDL_GL_SwapWindow(g_window);
+    /* FMV presents its own frames outside the normal render loop, so it has to
+     * follow the same swap path the backend is using — SDL never sees the
+     * context on the ANGLE-backed backends. */
+    if (PsyX_Angle_Active())
+        PsyX_Angle_Swap();
+    else
+        SDL_GL_SwapWindow(g_window);
 }
 
 static void DrawVideoFrame(int image_w, int image_h)
