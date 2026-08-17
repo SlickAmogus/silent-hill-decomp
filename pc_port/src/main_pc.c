@@ -853,6 +853,11 @@ int main(int argc, char* argv[])
      * slot the touch controls inject into. Nothing here wants tilt input. */
     SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
 
+    /* 2 = hidden outright rather than dimmed-until-idle. The home bar sits over
+     * the bottom of the picture otherwise, and the game already draws its own
+     * touch controls down there. */
+    SDL_SetHint(SDL_HINT_IOS_HIDE_HOME_INDICATOR, "2");
+
     {
         const char* dataDir = Ios_DocumentsPath();
         if (dataDir == NULL || chdir(dataDir) != 0)
