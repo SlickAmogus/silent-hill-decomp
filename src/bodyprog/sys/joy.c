@@ -125,33 +125,6 @@ void Joy_ControllerDataUpdate(void) // 0x80034494
         }
 #endif
 
-#ifdef SH_PC_PORT
-        /* One physical press is being consumed twice (Start on the title screen
-         * also starts a new game). Two candidates look identical from outside:
-         * the pad state flickering pressed->released->pressed so this line makes
-         * TWO rising edges — plausible on Android, where the pad presents two
-         * kernel devices and a button also arrives as a KeyEvent — or ONE edge
-         * surviving a state transition and being read again by the next screen.
-         * Log every Start edge with its timestamp: two edges milliseconds apart
-         * is the former, a single edge is the latter. */
-        if (i == CONTROLLER_COUNT) /* first iteration = player 1 (loop counts down) */
-        {
-            static u32 s_lastStartEdgeMs = 0;
-            if (cont->clickedBtnFlags & ControllerFlag_Start)
-            {
-                u32 nowMs = (u32)SDL_GetTicks();
-                SH_DBG("[INPUT] Start EDGE t=%ums (+%ums) held=0x%X prev=0x%X",
-                       nowMs, nowMs - s_lastStartEdgeMs,
-                       (unsigned)cont->heldBtnFlags, (unsigned)prevBtnsHeld);
-                s_lastStartEdgeMs = nowMs;
-            }
-            if (cont->releasedBtnFlags & ControllerFlag_Start)
-            {
-                SH_DBG("[INPUT] Start RELEASE t=%ums held=0x%X",
-                       (unsigned)SDL_GetTicks(), (unsigned)cont->heldBtnFlags);
-            }
-        }
-#endif
 
         // Update pulse ticks.
         pulseTicks = cont->pulseTicks;

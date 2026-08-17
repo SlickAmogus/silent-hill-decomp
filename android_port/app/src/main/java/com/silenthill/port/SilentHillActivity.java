@@ -1,6 +1,8 @@
 package com.silenthill.port;
 
 import android.content.res.AssetManager;
+import android.system.ErrnoException;
+import android.system.Os;
 import android.util.Log;
 
 import org.libsdl.app.SDLActivity;
@@ -33,7 +35,42 @@ public class SilentHillActivity extends SDLActivity {
         // SDL_main. main() chdir()s to this same directory expecting the data
         // to already be in place.
         unpackBundledAssets();
+        publishDiscDropDir();
         super.onCreate(savedInstanceState);
+    }
+
+    /**
+     * Creates the folder users drop their disc image into, and hands the path
+     * to native code (BuildDiscSearchRoots reads SH_DISC_DROP_DIR).
+     *
+     * From Android 11 on, Android/data -- where the app's files dir and its
+     * gamedata/ live -- cannot be opened by file-manager apps, so a user with
+     * no adb and no built-in Files app cannot deliver a disc image at all.
+     * Android/media/<package> is exempt from that restriction and still needs
+     * no permission, which makes it the one location both sides can reach.
+     *
+     * Must run before super.onCreate: that starts SDL and therefore SDL_main,
+     * and the environment has to be in place before native code reads it.
+     */
+    private void publishDiscDropDir() {
+        File[] mediaDirs = getExternalMediaDirs();
+        if (mediaDirs == null || mediaDirs.length == 0 || mediaDirs[0] == null) {
+            Log.w(TAG, "No external media dir; disc image must go in the files dir.");
+            return;
+        }
+
+        File drop = mediaDirs[0];
+        if (!drop.isDirectory() && !drop.mkdirs()) {
+            Log.w(TAG, "Could not create disc drop dir: " + drop);
+            return;
+        }
+
+        try {
+            Os.setenv("SH_DISC_DROP_DIR", drop.getAbsolutePath(), true);
+            Log.i(TAG, "disc drop dir: " + drop.getAbsolutePath());
+        } catch (ErrnoException e) {
+            Log.w(TAG, "setenv SH_DISC_DROP_DIR failed: " + e.getMessage());
+        }
     }
 
     /**
