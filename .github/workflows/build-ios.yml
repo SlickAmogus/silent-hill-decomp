@@ -72,6 +72,27 @@ jobs:
           du -sh "$APP"
           ls -la build-ios/SilentHill-unsigned.ipa
 
+          # Xcode injects these; a CMake/Ninja build does not, and their absence
+          # is invisible until an installer refuses the bundle. Sideloadly failed
+          # with "This does not look like valid iOS app!" purely because
+          # CFBundleSupportedPlatforms was missing, and the build was green.
+          echo "=== bundle identity keys ==="
+          fail=0
+          for k in CFBundleSupportedPlatforms CFBundleExecutable CFBundleIdentifier \
+                   MinimumOSVersion DTPlatformName DTSDKName; do
+            if v=$(/usr/libexec/PlistBuddy -c "Print :$k" "$APP/Info.plist" 2>/dev/null); then
+              echo "  $k = $(echo "$v" | tr '\n' ' ')"
+            else
+              echo "  MISSING: $k"
+              fail=1
+            fi
+          done
+          [ "$fail" = "0" ] || { echo "Info.plist is missing keys an installer requires."; exit 1; }
+          # A device build claiming iPhoneSimulator would install nowhere.
+          plat=$(/usr/libexec/PlistBuddy -c "Print :CFBundleSupportedPlatforms:0" "$APP/Info.plist")
+          [ "$plat" = "iPhoneOS" ] || { echo "Expected iPhoneOS, got '$plat'"; exit 1; }
+          echo "Info.plist OK for device install"
+
       - name: Upload unsigned .ipa
         uses: actions/upload-artifact@v4
         with:

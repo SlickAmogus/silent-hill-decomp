@@ -87,11 +87,38 @@ add_subdirectory(
 # it stays the same. Matches the Android applicationId.
 set(SH_IOS_BUNDLE_ID "com.silenthill.port" CACHE STRING "iOS bundle identifier")
 
+# Configure the plist ourselves rather than leaning on CMake's
+# MACOSX_BUNDLE_INFO_PLIST substitution, which only promises to fill the
+# MACOSX_BUNDLE_* names. The keys that decide whether an installer accepts the
+# bundle at all are ours, so resolve them explicitly here.
+set(SH_IOS_EXECUTABLE "SilentHill")
+if(CMAKE_OSX_SYSROOT MATCHES "[Ss]imulator")
+    set(SH_IOS_PLATFORM      "iPhoneSimulator")
+    set(SH_IOS_PLATFORM_NAME "iphonesimulator")
+else()
+    set(SH_IOS_PLATFORM      "iPhoneOS")
+    set(SH_IOS_PLATFORM_NAME "iphoneos")
+endif()
+# The SDK version the bundle claims has to be the one it was actually built
+# against, so ask the toolchain instead of hardcoding a number that rots.
+execute_process(COMMAND xcrun --sdk "${SH_IOS_PLATFORM_NAME}" --show-sdk-version
+                OUTPUT_VARIABLE SH_IOS_SDK_VERSION
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET)
+if(NOT SH_IOS_SDK_VERSION)
+    set(SH_IOS_SDK_VERSION "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+endif()
+set(SH_IOS_SDK_NAME "${SH_IOS_PLATFORM_NAME}${SH_IOS_SDK_VERSION}")
+set(SH_IOS_DEPLOYMENT_TARGET "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/Resources/Info.plist.in"
+               "${CMAKE_CURRENT_BINARY_DIR}/Info.plist" @ONLY)
+
 set_target_properties(SilentHillPC PROPERTIES
     OUTPUT_NAME "SilentHill"
     MACOSX_BUNDLE_BUNDLE_NAME "Silent Hill"
     MACOSX_BUNDLE_GUI_IDENTIFIER "${SH_IOS_BUNDLE_ID}"
-    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Resources/Info.plist.in"
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_BINARY_DIR}/Info.plist"
     # Signed off-box; a CI build with no keychain cannot sign at all.
     XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED "NO"
     XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED "NO"

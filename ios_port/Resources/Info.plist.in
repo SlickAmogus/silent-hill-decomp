@@ -5,13 +5,13 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>${MACOSX_BUNDLE_EXECUTABLE_NAME}</string>
+	<string>@SH_IOS_EXECUTABLE@</string>
 	<key>CFBundleIdentifier</key>
-	<string>${MACOSX_BUNDLE_GUI_IDENTIFIER}</string>
+	<string>@SH_IOS_BUNDLE_ID@</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>${MACOSX_BUNDLE_BUNDLE_NAME}</string>
+	<string>Silent Hill</string>
 	<key>CFBundleDisplayName</key>
 	<string>Silent Hill</string>
 	<key>CFBundlePackageType</key>
@@ -20,6 +20,25 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+
+	<!-- Xcode injects these; a CMake/Ninja build does not, and without them
+	     installers reject the bundle outright. CFBundleSupportedPlatforms is the
+	     one that matters: Sideloadly reads it to tell an iOS app from a macOS
+	     one, and failed with "This does not look like valid iOS app!" when it
+	     was absent. The DT* keys are what codesign and the installd on-device
+	     check consult for the SDK a bundle was built against. -->
+	<key>CFBundleSupportedPlatforms</key>
+	<array>
+		<string>@SH_IOS_PLATFORM@</string>
+	</array>
+	<key>DTPlatformName</key>
+	<string>@SH_IOS_PLATFORM_NAME@</string>
+	<key>DTSDKName</key>
+	<string>@SH_IOS_SDK_NAME@</string>
+	<key>DTPlatformVersion</key>
+	<string>@SH_IOS_SDK_VERSION@</string>
+	<key>DTCompiler</key>
+	<string>com.apple.compilers.llvm.clang.1_0</string>
 
 	<!-- The user supplies their own disc image. These two keys are what put the
 	     app's Documents directory in Files.app, which is the only practical way
@@ -62,10 +81,9 @@
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>
-		<string>opengles-3</string>
 	</array>
 	<key>MinimumOSVersion</key>
-	<string>13.0</string>
+	<string>@SH_IOS_DEPLOYMENT_TARGET@</string>
 	<key>UIDeviceFamily</key>
 	<array>
 		<integer>1</integer>
