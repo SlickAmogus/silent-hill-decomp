@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -1487,9 +1487,9 @@ namespace SilentHillPC_Launcher
                 Populate(); // reflect enable/disable state changes
 
                 string msg = string.Format(
-                    "Applied.\n\nActive texture packs: {0}\nLoad-folder mods: {1}\nFMV mods: {2}\n" +
-                    "Loose file support: {3}",
-                    r.Texture, r.Load, r.Fmv, r.LooseEnabled ? "on" : "off");
+                    "Applied.\n\nActive texture packs: {0}\nData overlays (load/): {1}\nGameplay (Code / DLL) mods: {2}\nFMV video mods: {3}\nConfig presets: {4}\n" +
+                    "Loose file support: {5}",
+                    r.Texture, r.Load, r.Gameplay, r.Fmv, r.Preset, r.LooseEnabled ? "on" : "off");
                 if (r.Warnings.Count > 0)
                     msg += "\n\nWarnings:\n - " + string.Join("\n - ", r.Warnings);
 
