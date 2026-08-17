@@ -459,6 +459,37 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
             snprintf(path, sizeof(path), "gamedata/load/SND/%s_%03d.wav", bank, n);
             pcm = SfxOverride_LoadWav(path, &count, &wavRate);
         }
+        if (pcm == NULL && bank[1] == 'E' && bank[0] == 'M' && bank[2] == 'P')
+        {
+            /* MEP<n> is the bank the game actually loads; SND/ also carries a
+             * near-identical MAP<n> twin that nothing ever requests. Seven of
+             * them exist (MAP000/100/101/102/103/502/604) and their samples are
+             * mostly byte-identical to the MEP copy — MAP000 sample 5, the long
+             * ambient at the start of the game, is the same 15872 bytes in both.
+             *
+             * So the obvious workflow produced a file that could never load:
+             * open SND/MAP000.VAB in the Audio tool, export sample 5, edit,
+             * drop in MAP000_005.wav. Accept the twin's name rather than make
+             * anyone discover the MEP/MAP split, and say so when it is used. */
+            char twin[24];
+
+            memcpy(twin, bank, sizeof(twin) - 1);
+            twin[sizeof(twin) - 1] = '\0';
+            twin[1] = 'A';
+
+            snprintf(path, sizeof(path), "gamedata/load/SND/%s.%03d.wav", twin, n);
+            pcm = SfxOverride_LoadWav(path, &count, &wavRate);
+            if (pcm == NULL)
+            {
+                snprintf(path, sizeof(path), "gamedata/load/SND/%s_%03d.wav", twin, n);
+                pcm = SfxOverride_LoadWav(path, &count, &wavRate);
+            }
+            if (pcm != NULL)
+            {
+                SH_LOG("[SFXMOD] %s sample %d supplied by its %s twin (%s)",
+                       bank, n, twin, path);
+            }
+        }
         if (pcm != NULL)
         {
             src = path;

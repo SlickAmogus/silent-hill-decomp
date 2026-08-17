@@ -314,12 +314,13 @@ namespace SilentHillPC_Launcher
                 "sound id in this slot reaches them.",
                 v.VagCount, v.ProgramCount, v.Tones.Count, v.VabId, v.DeclaredSize, identified);
 
-            if (IsNeverLoadedBank(path))
+            string twin = LoadedTwinBank(path);
+            if (twin != null)
             {
-                _info.Text = "This bank is on the disc but the game NEVER LOADS IT — replacing "
-                           + "anything in it has no effect, however it is named. Whatever you hear "
-                           + "in that area comes from a bank that does load; run the game and read "
-                           + "the [SFXMOD] lines in SilentHill.log to see which.\r\n" + _info.Text;
+                _info.Text = "The game loads " + twin + " instead of this bank — same sounds, and "
+                           + "this one is never requested. The port accepts either name, so an "
+                           + "export from here still works; name it " + twin + "_005.wav to be "
+                           + "explicit.\r\n" + _info.Text;
                 _info.ForeColor = Color.FromArgb(255, 170, 90);
             }
             else
@@ -341,19 +342,20 @@ namespace SilentHillPC_Launcher
          * Derived by pairing every SND/*.VAB in filetable.c.USA.inc against that
          * table: 83 of 90 are reachable, these are not. Names, not sectors, so it
          * holds for every region. */
-        private static readonly string[] NeverLoadedBanks =
+        private static readonly string[] MapOnlyBanks =
         {
             "MAP000", "MAP100", "MAP101", "MAP102", "MAP103", "MAP502", "MAP604",
         };
 
-        private static bool IsNeverLoadedBank(string path)
+        /// <summary>The MEP twin the game loads in place of this bank, or null.</summary>
+        private static string LoadedTwinBank(string path)
         {
-            if (string.IsNullOrEmpty(path)) return false;
+            if (string.IsNullOrEmpty(path)) return null;
             string stem = Path.GetFileNameWithoutExtension(path);
-            foreach (string b in NeverLoadedBanks)
+            foreach (string b in MapOnlyBanks)
                 if (string.Equals(stem, b, StringComparison.OrdinalIgnoreCase))
-                    return true;
-            return false;
+                    return "MEP" + b.Substring(3);
+            return null;
         }
 
         private void UpdateButtons()
