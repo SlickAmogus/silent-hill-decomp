@@ -731,6 +731,23 @@ static int PolyOversized(const VERTTYPE* xy, int stridePairs, int n)
         if (y < minY) minY = y;
         if (y > maxY) maxY = y;
     }
+#ifdef SH_XBOX360_PORT
+    /* Name the coordinates rather than inferring them. 21507 of 31560 prims are
+     * being rejected here with a census bbox of -320..2240 on a 640-wide screen,
+     * and these values are computed at runtime by the software GTE -- there is
+     * no file to read them out of, so a bounded dump is the only way to see
+     * them. One-shot budget: this sits in the per-primitive hot path. */
+    {
+        static int s_dumped = 0;
+        if (s_dumped < 12 && ((maxX - minX) >= 1024 || (maxY - minY) >= 512)) {
+            s_dumped++;
+            SH_DBG("[OVERSIZE] n=%d span=(%d,%d) x=[%d..%d] y=[%d..%d] v0=(%d,%d) v1=(%d,%d)",
+                   n, maxX - minX, maxY - minY, minX, maxX, minY, maxY,
+                   (int)xy[0], (int)xy[1],
+                   (int)xy[stridePairs], (int)xy[stridePairs + 1]);
+        }
+    }
+#endif
     return (maxX - minX) >= 1024 || (maxY - minY) >= 512;
     /* REVERTED: a speculative "GTE-rail backstop" used to drop any prim with a
      * vertex exactly at the +-1023/-1024 saturation rail whose span exceeded

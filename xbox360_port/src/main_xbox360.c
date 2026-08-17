@@ -219,6 +219,12 @@ int main(void)
     SH_DebugLogFlush();
     printf("entering MainLoop\n");
 
+    /* Draw a known image before the game gets a chance to hand the renderer
+     * anything. Four data bugs in a row have looked identical on screen -- all
+     * garbage -- and none of them proved the Xenos path itself was sound. This
+     * does, or names the stage that is not. Runs ~4s, then the game boots. */
+    { extern void Gpu360_SelfTest(void); Gpu360_SelfTest(); }
+
     GpuNv2a_FrameBegin();
     MainLoop();
 
