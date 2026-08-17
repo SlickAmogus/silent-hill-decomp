@@ -7,6 +7,7 @@
 #include "bodyprog/screen/screen_draw.h"
 #include "main/fsqueue.h"
 #include "main/rng.h"
+#include "dat_endian.h"
 #ifdef SH_XBOX_PORT
 #include "sh_log.h"   /* SH_DBG for the [DEMO] attract-mode trace */
 #endif
@@ -21,6 +22,11 @@ s_DemoFrameData* g_Demo_CurFrameData;
 s32              g_Demo_DemoStep;
 s32              g_Demo_VideoPresentInterval;
 bool             g_Demo_IsLoadingChunks;
+/* Set when a PLAY****.DAT read is started, cleared once its frames have been
+ * converted. Not a PSX-era global -- Fs_QueueStartRead is asynchronous, so
+ * "the buffer now holds unconverted disc bytes" has to be remembered until
+ * something is ready to read it. */
+bool             g_Demo_PlaySwapPending;
 s32              g_Demo_DemoId   = 0;
 u16              g_Demo_RandSeed = 0;
 // 2 bytes of padding.
@@ -109,6 +115,7 @@ void Demo_PlayDataRead(void) // 0x8008F07C
     if (g_Demo_PlayFileIdx != NO_VALUE)
     {
         Fs_QueueStartRead(g_Demo_PlayFileIdx, g_Demo_PlayFileBufferPtr);
+        g_Demo_PlaySwapPending = true;
     }
 }
 
@@ -141,6 +148,14 @@ s32 Demo_PlayFileBufferSetup(void) // 0x8008F0BC
 
 void Demo_DemoFileSavegameUpdate(void) // 0x8008F13C
 {
+    /* DEMO****.DAT is raw PSX data overlaid on s_DemoWork with no reformat
+     * walker, so convert before the first field is read. This is the earliest
+     * consumer: the load is known complete here (the state machine waits on an
+     * empty FS queue), and Demo_PlayFileBufferSetup/GameGlobalsUpdate run after
+     * it. Idempotent by validation, which matters because a failed setup
+     * re-reads the file and re-enters this path. */
+    Demo_SwapWorkForBigEndian(DEMO_WORK());
+
     g_GameWork.savegame = DEMO_WORK()->savegame;
 }
 
@@ -332,6 +347,18 @@ bool Demo_Update(void) // 0x8008F5D8
     {
         g_Demo_CurFrameData = NULL;
         return false;
+    }
+
+    /* PLAY****.DAT is the other half: an array of s_DemoFrameData overlaid on
+     * raw PSX data. digitalButtons is a u16, so unconverted the demo replays a
+     * different set of button presses entirely and simply wanders. Done here
+     * rather than at Demo_PlayDataRead because that only STARTS an async read;
+     * by the time this runs the queue has drained. frameCount is already native
+     * (Demo_SwapWorkForBigEndian ran first) so it is a safe element count. */
+    if (g_Demo_PlaySwapPending)
+    {
+        g_Demo_PlaySwapPending = false;
+        Demo_SwapPlayForBigEndian(g_Demo_PlayFileBufferPtr, DEMO_WORK()->frameCount);
     }
 
     demoStep = g_Demo_DemoStep;

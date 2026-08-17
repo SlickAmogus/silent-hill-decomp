@@ -64,6 +64,20 @@ echo "--- BIG-endian (powerpc, qemu) ---"
 build_run_gte powerpc-linux-gnu-gcc powerpc-linux-gnu-g++ be qemu-ppc "-static"
 
 echo
+echo "################ dat_harness (demo .DAT swapper) ################"
+# Needs the decomp include order, PsyCross LAST: pc_port/include and
+# include/psyq both define MATRIX/VECTOR/SVECTOR, and PsyCross first wins the
+# wrong one.
+DATINC="-Ixbox360_port/include -Ipc_port/include -Ipc_port/include/psyq_compat -Ipc_port/src
+        -Iinclude -Iinclude/decomp -I$PSY/include/psx -I$PSY/include"
+DATDEF="$CDEFS -DSH_PC_PORT -DVER_USA -DSKIP_ASM"
+DATSRC="xbox360_port/tools/dat_harness.c pc_port/src/dat_endian.c"
+echo "--- little-endian (native x86-64) ---"
+gcc -w $DATDEF $DATINC $DATSRC -o /tmp/dat_le && /tmp/dat_le || fail=1
+echo "--- BIG-endian (powerpc, qemu) ---"
+powerpc-linux-gnu-gcc -w -static $DATDEF $DATINC $DATSRC -o /tmp/dat_be && qemu-ppc /tmp/dat_be || fail=1
+
+echo
 if [ -f ps3_port/tools/pack_selftest.c ]; then
     echo "################ pack_selftest (from the PS3 port) ################"
     # Cross-checks THIS branch's PsyCross against the PS3 branch's packing
