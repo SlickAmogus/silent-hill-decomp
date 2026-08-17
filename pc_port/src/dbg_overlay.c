@@ -1986,7 +1986,7 @@ void DbgOverlay_Render(void)
     if (!s_gl_inited)
         overlay_gl_init();
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, PSYX_DEFAULT_FBO);
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
