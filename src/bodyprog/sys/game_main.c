@@ -2628,7 +2628,33 @@ void MainLoop(void) // 0x80032EE0
 
             // Update V blanks.
             g_UncappedVBlanks = g_VBlanks;
+#ifdef SH_PC_PORT
+            /* The cap is 4 vblanks. A machine that cannot hold ~15fps therefore
+             * credits the clock less time than really passed, and everything
+             * driven by it -- screen fades, cutscene animation and DMS line
+             * pacing, menu transitions -- runs proportionally slow. Streamed
+             * voice audio is unaffected because it plays in real time, so the
+             * signature is a cutscene whose lines sound perfect with stretched
+             * silence between them.
+             *
+             * Relax it whenever the player is NOT in control. The cap exists to
+             * stop a slow frame handing PHYSICS an oversized step; in
+             * cutscenes, menus, message screens and the map the player is
+             * frozen and there is nothing to integrate. Interactive gameplay
+             * keeps the original 4 exactly, so movement and collision are
+             * untouched.
+             *
+             * A machine holding 15fps+ never reaches the cap and sees no
+             * change at all; this only becomes visible on hardware that was
+             * already struggling. */
+            if (g_GameWork.gameState != GameState_InGame ||
+                g_SysWork.sysState != SysState_Gameplay)
+                g_VBlanks = MIN(g_VBlanks, 16);
+            else
+                g_VBlanks = MIN(g_VBlanks, V_BLANKS_MAX);
+#else
             g_VBlanks         = MIN(g_VBlanks, V_BLANKS_MAX);
+#endif
 
 #ifdef SH_PC_PORT
             /* [PERF] wall-clock frame telemetry, one line per ~256 frames.
@@ -3086,6 +3112,31 @@ void MainLoop(void) // 0x80032EE0
             g_GameWork.background2dColor.r = 0;
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
+        }
+        else if (g_GameWork.gameState == 11 &&
+                 (g_SysWork.sysFlags & SysFlag_CutsceneActive) &&
+                 g_SavegamePtr != NULL && g_SavegamePtr->mapIdx == MapIdx_MAP3_S02) {
+            /* map3_s02's Alessa scene, and ONLY it.
+             *
+             * The clear colour is whatever shows where no geometry is drawn.
+             * The fog-coloured clear is a PC addition standing in for a sky,
+             * which is right looking outward and wrong looking INTO somewhere:
+             * this shot frames the antique shop's open door, and the void
+             * behind it came out fog-grey where the hardware puts black.
+             *
+             * 1ced8ee0c applied that reasoning to every cutscene and had to be
+             * reverted — it blacked the SKY in the opening street scene, which
+             * is the same "no geometry" case pointing the other way. Nothing at
+             * this point in the frame separates a doorway from a sky, so the
+             * choice cannot be made by rule; it is made by scene, for the one
+             * scene anyone has reported. Any other shot that needs it gets
+             * added here deliberately, having been looked at. */
+            g_GameWork.background2dColor.r = 0;
+            g_GameWork.background2dColor.g = 0;
+            g_GameWork.background2dColor.b = 0;
+            g_PsyX_FogColor[0] = PC_WorldEnvWork.fog.color.r / 255.0f;
+            g_PsyX_FogColor[1] = PC_WorldEnvWork.fog.color.g / 255.0f;
+            g_PsyX_FogColor[2] = PC_WorldEnvWork.fog.color.b / 255.0f;
         }
         else if (g_GameWork.gameState == 11 && g_SysWork.sysState == SysState_GameOver) {
             /* GAME OVER renders its own death scene; the sky is meant to be black there.
