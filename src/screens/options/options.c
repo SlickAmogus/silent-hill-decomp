@@ -120,7 +120,7 @@ static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Cont
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -181,8 +181,15 @@ static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
 #define PC_RES_COUNT ((int)(sizeof(RES_W) / sizeof(RES_W[0])))
 
 static const s_PcOpt PCOPT_G[] = {
+    /* Neither row means anything on a phone, and Resolution actively breaks it:
+     * the drawable is the panel's, published back into the config at startup
+     * (see GR_InitialiseGLContext), so picking a number here only desynchronises
+     * the viewport and cull bounds from the screen until the next launch.
+     * Window_Mode is moot too — the window is always fullscreen. */
+#if !defined(__ANDROID__) && !defined(SH_IOS)
     { "Resolution",     NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RES    },
     { "Window_Mode",    &g_PcConfig.fullscreen,         "fullscreen",           VAL_WIN,   3, LBL_WIN,   NULL,                          1, PCK_WINMODE },
+#endif
     { "VSync",          &g_PcConfig.vsync,              "vsync",                VAL_VSYNC, 2, LBL_VSYNC, NULL,                          1, PCK_VSYNC   },
     { "Texture_Filter", &g_PcConfig.psxDither,          "psx_dither",           VAL_FILT,  3, LBL_FILT,  NULL,                          1, PCK_FILTER },
     { "PGXP",           &g_PcConfig.usePgxp,            "use_pgxp",             VAL_ONOFF, 2, LBL_ONOFF, &g_PsxUsePgxp,                 1, PCK_INT    },
@@ -219,6 +226,12 @@ static const s_PcOpt PCOPT_S[] = {
     { "Crosshair",        &g_PcConfig.crosshair,      "crosshair",        VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_NEXT },
+#if defined(SH_IOS)
+    /* Restores the config.cfg the app shipped with, straight out of the bundle.
+     * There is no full config writer to rebuild one from the defaults in
+     * memory, and a phone has no text editor pointed at Documents. */
+    { "Reset_Settings",   NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_RESET },
+#endif
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
 
@@ -634,6 +647,19 @@ void Options_PcOptionsMenu_Control(void)
                 g_PcOptionsMenu_Page--; /* Camera -> Controls -> System -> Graphics */
                 g_PcOptionsMenu_SelectedEntry = 0;
                 g_Options_SelectionHighlightTimer = 0;
+#if defined(SH_IOS)
+            } else if (sel->kind == PCK_RESET) {
+                extern int  Ios_RestoreDefaultConfig(void);
+                extern void PcConfig_Load(const char* path);
+
+                if (Ios_RestoreDefaultConfig()) {
+                    PcConfig_Load("config.cfg");
+                    Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                } else {
+                    Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
+                }
+                g_Options_SelectionHighlightTimer = 0;
+#endif
             } else if (sel->kind == PCK_BACK) {
                 Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
                 ScreenFade_Start(true, false, false);
@@ -667,7 +693,11 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
     int            count, i;
     const s_PcOpt* tbl = PcOpt_Page(&count);
     DVECTOR        strPos  = { 100, 20 };
+#if defined(SH_IOS)
+    const char*    HEADING = "iOS_Options";
+#else
     const char*    HEADING = "PC_Options";
+#endif
 
     Gfx_StringSetColor(StringColorId_White);
     Gfx_StringSetPosition(strPos.vx, strPos.vy);
@@ -1880,7 +1910,9 @@ void Options_MainOptionsMenu_EntryStringsDraw(void) // 0x801E42EC
         "Exit",
         "Brightness_Level",
         "Controller_Config",
-#ifdef SH_PC_PORT
+#if defined(SH_IOS)
+        "iOS_Options",
+#elif defined(SH_PC_PORT)
         "PC_Options",
 #else
         "Screen_Position",

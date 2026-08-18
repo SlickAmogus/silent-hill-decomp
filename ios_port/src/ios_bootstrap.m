@@ -59,6 +59,54 @@ static void StageTree(NSFileManager* fm, NSString* srcRoot, NSString* dstRoot, N
     }
 }
 
+/* Factory reset for the settings. There is no full config writer in the port
+ * (only per-key saves), but iOS ships a pristine config.cfg inside the signed,
+ * read-only bundle, so restoring it is just a copy over the staged one --
+ * genuinely the file the app was built with, not a guess at what the defaults
+ * were. Returns 1 on success.
+ *
+ * The caller reloads afterwards; rows the menu marks as needing a restart still
+ * need one, exactly as they would after editing the file by hand. */
+int Ios_RestoreDefaultConfig(void)
+{
+    int ok = 0;
+
+    @autoreleasepool
+    {
+        const char* docs   = Ios_DocumentsPath();
+        const char* bundle = Ios_BundleResourcePath();
+        if (docs == NULL || bundle == NULL)
+        {
+            return 0;
+        }
+
+        NSFileManager* fm  = [NSFileManager defaultManager];
+        NSString*      src = [[fm stringWithFileSystemRepresentation:bundle length:strlen(bundle)]
+                                stringByAppendingPathComponent:@"config.cfg"];
+        NSString*      dst = [[fm stringWithFileSystemRepresentation:docs length:strlen(docs)]
+                                stringByAppendingPathComponent:@"config.cfg"];
+
+        if (![fm fileExistsAtPath:src])
+        {
+            NSLog(@"[SH] no bundled config.cfg to restore from");
+            return 0;
+        }
+
+        NSError* err = nil;
+        if ([fm fileExistsAtPath:dst])
+        {
+            [fm removeItemAtPath:dst error:&err];
+        }
+        ok = [fm copyItemAtPath:src toPath:dst error:&err] ? 1 : 0;
+        if (!ok)
+        {
+            NSLog(@"[SH] config restore failed: %@", err.localizedDescription);
+        }
+    }
+
+    return ok;
+}
+
 void Ios_StageBundledAssets(void)
 {
     @autoreleasepool
