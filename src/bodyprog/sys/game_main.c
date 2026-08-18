@@ -3150,8 +3150,17 @@ void MainLoop(void) // 0x80032EE0
             g_GameWork.background2dColor.b = 0;
         }
         else if (g_GameWork.gameState == 11 &&
-                 (g_SysWork.sysFlags & SysFlag_CutsceneActive)) {
-            /* Authored shots clear BLACK, like the hardware.
+                 (g_SysWork.sysFlags & SysFlag_CutsceneActive) &&
+                 g_SavegamePtr != NULL && g_SavegamePtr->mapIdx == MapIdx_MAP3_S02) {
+            /* map3_s02's Alessa scene, and ONLY it.
+             *
+             * Applying this to every cutscene blacked the SKY in the opening
+             * street scene, which is the same "no geometry" case pointing the
+             * other way: looking outward the clear IS the sky and must stay fog,
+             * looking into a doorway it is a void and must be black. Nothing in
+             * the frame distinguishes the two, so the scene is named instead.
+             *
+             * Authored shots clear BLACK, like the hardware.
              *
              * The fog-coloured clear below is a PC addition: it stands in for a
              * sky so distant geometry fades into something instead of a hard
