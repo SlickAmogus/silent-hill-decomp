@@ -308,6 +308,8 @@ static void PcMouse_InjectEnter(void)
     g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
 }
 
+extern int Pc_Touch_UsedRecently(void);
+
 static void PcMouse_InjectCancel(void)
 {
     g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;
@@ -2950,7 +2952,27 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
                     if (wheel != 0)
                         Pc_BrightnessRowAdjust(g_PcBrtRow, wheel);
                     else if (Pc_MouseCursor_LeftClicked())
-                        Pc_BrightnessRowAdjust(g_PcBrtRow, (mx < 160) ? -1 : +1);
+                    {
+                        /* Leaving was right-click only, and a touchscreen has no
+                         * second button -- so on a phone this screen could not be
+                         * left at all without a pad. A tap in the middle third
+                         * backs out; left and right still adjust, which is where
+                         * a finger naturally goes to change a value anyway.
+                         * Mouse behaviour is untouched. */
+                        if (Pc_Touch_UsedRecently() && mx >= 120 && mx <= 200)
+                        {
+                            /* Belt and braces: the Leave state clears this too,
+                             * but the bar is drawn by the post shader from a
+                             * global, so if any exit path ever misses it the bar
+                             * is left burned across the picture. */
+                            { extern int g_cfg_calibBar; g_cfg_calibBar = 0; }
+                            PcMouse_InjectCancel();
+                        }
+                        else
+                        {
+                            Pc_BrightnessRowAdjust(g_PcBrtRow, (mx < 160) ? -1 : +1);
+                        }
+                    }
 
                     if (Pc_MouseCursor_RightClicked())
                         PcMouse_InjectCancel();

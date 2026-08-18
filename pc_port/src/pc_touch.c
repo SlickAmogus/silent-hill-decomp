@@ -194,8 +194,15 @@ static int Tc_Mode(void)
     {
         extern int Pc_MouseCursor_PuzzleActive(void);
 
+        /* A free-cursor puzzle is already driven as a pointer by
+         * pc_mouse_cursor, so no confirm may be injected underneath -- it would
+         * fire twice on every tap. But OFF left the corner empty too, and these
+         * screens are cancel-only: with no pad there was no way out at all, so
+         * opening one on a phone was a softlock. Give it the same lone Back
+         * button the brightness screen gets. The drag still reaches the cursor;
+         * only that one corner slot is taken. */
         if (Pc_MouseCursor_PuzzleActive())
-            return TC_MODE_OFF;
+            return TC_MODE_BACK;
 
         return TC_MODE_ADVANCE;
     }
