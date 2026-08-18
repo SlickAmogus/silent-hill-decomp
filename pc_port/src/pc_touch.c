@@ -170,6 +170,13 @@ static int Tc_Mode(void)
         g_GameWork.gameStateSteps[0] == OptionsMenuState_Brightness)
         return TC_MODE_BACK;
 
+    /* The save/load screen is cancel-only in the same way, and it is reachable
+     * straight from the pause menu, so with no pad a player could get into it
+     * and not back out. */
+    if (g_GameWork.gameState == GameState_SaveScreen ||
+        g_GameWork.gameState == GameState_LoadSavegameScreen)
+        return TC_MODE_BACK;
+
     if (g_GameWork.gameState != GameState_InGame)
         return TC_MODE_OFF;
     if (g_SysWork.sysState == SysState_Gameplay)

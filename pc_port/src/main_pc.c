@@ -46,6 +46,7 @@
  * bundle on first run, the counterpart of the Android activity's asset staging. */
 const char* Ios_DocumentsPath(void);
 void        Ios_StageBundledAssets(void);
+void        Ios_EnsureMemoryCard(void);
 #endif
 
 #include "common.h"
@@ -873,6 +874,8 @@ int main(int argc, char* argv[])
     /* After the chdir, before the config is read: config.cfg is one of the
      * files staged, and it is only written when absent. */
     Ios_StageBundledAssets();
+    /* Before any save screen can ask whether a card is present. */
+    Ios_EnsureMemoryCard();
 #endif
 
     /* Log file is NOT opened until after config load. SH_DBG calls before

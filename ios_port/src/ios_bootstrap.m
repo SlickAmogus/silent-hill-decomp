@@ -129,3 +129,51 @@ void Ios_StageBundledAssets(void)
         StageTree(fm, srcRoot, dstRoot, @"config.cfg");
     }
 }
+
+/* A PSX memory card is a file, and nothing in the port ever creates one:
+ * MemCardFormat is an unimplemented stub, and MemCardExist just fopen()s
+ * "<chan>.MCD" relative to the working directory. With no card on disk the
+ * save screen sits on "checking the memory card" forever, because the check it
+ * is waiting on can never succeed.
+ *
+ * So lay down a blank formatted card on first run, the way a console ships with
+ * one in the slot. 128 KB = 1024 frames x 128 bytes; frame 0 carries the "MC"
+ * magic MemCardAccept tests for, and the rest stays zeroed, which is what an
+ * empty card looks like to the directory walk in MemCardOpen.
+ *
+ * Never overwrites an existing card -- that would erase the player's saves. */
+void Ios_EnsureMemoryCard(void)
+{
+    @autoreleasepool
+    {
+        const char* docs = Ios_DocumentsPath();
+        if (docs == NULL)
+        {
+            return;
+        }
+
+        NSFileManager* fm = [NSFileManager defaultManager];
+        NSString*      dir = [fm stringWithFileSystemRepresentation:docs length:strlen(docs)];
+
+        for (int chan = 0; chan < 2; chan++)
+        {
+            NSString* path = [dir stringByAppendingPathComponent:
+                                 [NSString stringWithFormat:@"%d.MCD", chan]];
+
+            if ([fm fileExistsAtPath:path])
+            {
+                continue;
+            }
+
+            NSMutableData* card = [NSMutableData dataWithLength:128 * 1024];
+            unsigned char* p    = (unsigned char*)card.mutableBytes;
+            p[0] = 'M';
+            p[1] = 'C';
+
+            if (![card writeToFile:path atomically:YES])
+            {
+                NSLog(@"[SH] could not create %@", path.lastPathComponent);
+            }
+        }
+    }
+}
