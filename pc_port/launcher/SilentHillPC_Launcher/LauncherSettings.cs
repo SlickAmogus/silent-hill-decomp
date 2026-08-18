@@ -30,6 +30,11 @@ namespace SilentHillPC_Launcher
         // build (bugs / save-corruption / back-up-your-saves warning).
         public bool OldBuildWarned = false;
 
+        // Launcher UI language (config key: launcher_language, "en"/"es"/... ).
+        // Separate from the game's own `language` key: this one only affects
+        // the launcher's own windows.
+        public LauncherLang Language = LauncherLang.English;
+
         public bool IsLatestBuild =>
             string.IsNullOrWhiteSpace(Build) || Build.Equals("latest", StringComparison.OrdinalIgnoreCase);
 
@@ -62,6 +67,7 @@ namespace SilentHillPC_Launcher
             var build = cfg.Get("launcher_build", "latest");
             s.Build = string.IsNullOrWhiteSpace(build) ? "latest" : build.Trim();
             s.OldBuildWarned = cfg.Get("launcher_old_build_warned", "0").Trim() == "1";
+            s.Language = Loc.FromCode(cfg.Get("launcher_language", "en"));
             return s;
         }
 
@@ -72,6 +78,7 @@ namespace SilentHillPC_Launcher
             cfg.Set("launcher_branch", Branch ?? "");
             cfg.Set("launcher_build", IsLatestBuild ? "latest" : Build.Trim());
             cfg.Set("launcher_old_build_warned", OldBuildWarned ? "1" : "0");
+            cfg.Set("launcher_language", Loc.Code(Language));
             cfg.Save();
         }
 

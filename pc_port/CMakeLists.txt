@@ -279,6 +279,25 @@ else()
     message(STATUS "RetroAchievements: disabled (rcheevos submodule missing — run: git submodule update --init --recursive)")
 endif()
 
+# Lua 5.4 — vendored under third_party/lua/src, compiled into a static lib for
+# the randomizer scripting layer. The standalone programs (lua.c/luac.c) and the
+# amalgamation/test files are not vendored, so a plain src/*.c glob is safe. The
+# generic ISO-C luaconf (no LUA_USE_* platform define) keeps it portable and
+# sandboxes out dynamic C-library loading, which user scripts must not do.
+set(SH_LUA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lua")
+if(EXISTS "${SH_LUA_DIR}/src/lua.h")
+    file(GLOB LUA_SOURCES "${SH_LUA_DIR}/src/*.c")
+    add_library(lua_static STATIC ${LUA_SOURCES})
+    target_include_directories(lua_static PUBLIC "${SH_LUA_DIR}/src")
+    if(NOT MSVC)
+        target_compile_options(lua_static PRIVATE -w)
+    endif()
+    set(SH_HAVE_LUA ON)
+else()
+    set(SH_HAVE_LUA OFF)
+    message(STATUS "Lua scripting: disabled (third_party/lua missing)")
+endif()
+
 # Android has no executable entry point available to an APK: SDLActivity's Java
 # shim dlopen()s a shared object and calls SDL_main inside it, so the same
 # sources have to link as libmain.so instead. Everything downstream keeps
@@ -441,6 +460,12 @@ find_path(JPEG_INCLUDE_DIR jpeglib.h)
 target_link_libraries(SilentHillPC PRIVATE
     psycross_static
 )
+
+# Lua scripting (randomizer): link the vendored interpreter + flag its presence.
+if(SH_HAVE_LUA)
+    target_link_libraries(SilentHillPC PRIVATE lua_static)
+    target_compile_definitions(SilentHillPC PRIVATE SH_LUA=1)
+endif()
 
 # RetroAchievements: the runtime plus the platform HTTP backend it posts through
 # (WinHTTP ships with Windows; libcurl is the Linux/macOS standard).

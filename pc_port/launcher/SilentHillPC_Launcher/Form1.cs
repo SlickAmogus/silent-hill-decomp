@@ -93,6 +93,7 @@ public partial class Form1 : Form
         PopulateDisplayOptions();
         LoadConfig();
         SetupTooltips();
+        SetupLanguageButton();
         this.Shown += (s, e) =>
         {
             CleanupOldFiles();
@@ -101,6 +102,162 @@ public partial class Form1 : Form
             FfmpegCheck.WarnIfNeeded(this, AppDomain.CurrentDomain.BaseDirectory);
             SilentAutoCheckForUpdates();
         };
+    }
+
+
+    // ---- launcher language -------------------------------------------------
+
+    private Button btnLang;
+    private readonly ToolTip _langTip = new ToolTip();
+
+    /// <summary>
+    /// The flag button in the bottom-right corner, sitting in the space the
+    /// update progress bar gave up. Clicking it opens the language picker; the
+    /// flag itself is the current language's, so the setting is readable at a
+    /// glance without opening anything.
+    /// </summary>
+    private void SetupLanguageButton()
+    {
+        try { Loc.Current = LauncherSettings.Load(config).Language; }
+        catch { Loc.Current = LauncherLang.English; }
+
+        LocalizeValueLists();
+
+        btnLang = new Button
+        {
+            // Right edge flush with the Level combo above it (446).
+            Location = new System.Drawing.Point(416, 452),
+            Size = new System.Drawing.Size(30, 22),
+            Text = "",
+            FlatStyle = FlatStyle.Standard,
+            TabStop = false
+        };
+        // The flag is PAINTED, not typed: emoji flags are regional-indicator
+        // pairs that only DirectWrite ligates, so GDI would draw "US".
+        btnLang.Paint += (s2, e2) =>
+        {
+            var box = new System.Drawing.Rectangle(4, 4, btnLang.Width - 9, btnLang.Height - 9);
+            FlagIcon.Draw(e2.Graphics, box, Loc.Current);
+        };
+        btnLang.Click += btnLang_Click;
+        Controls.Add(btnLang);
+        btnLang.BringToFront();
+        _langTip.SetToolTip(btnLang, Loc.T("Launcher language"));
+
+        Loc.Changed += OnLanguageChanged;
+        if (Loc.Current != LauncherLang.English) OnLanguageChanged();
+    }
+
+    private readonly Dictionary<Control, Func<string>> _dynText =
+        new Dictionary<Control, Func<string>>();
+
+    /// <summary>
+    /// Set a control's text from its English, and remember how to redo it.
+    ///
+    /// Loc.Apply can only restore the text a control was BORN with, so anything
+    /// the update flow rewrites at runtime ("Update available!", the status
+    /// line) would snap back to its designer text on a language switch. These
+    /// are re-applied after Apply instead.
+    /// </summary>
+    private void SetText(Control c, string english, params object[] args)
+    {
+        if (c == null) return;
+        Func<string> f = () => (args == null || args.Length == 0)
+            ? Loc.T(english)
+            : string.Format(Loc.T(english), args);
+        _dynText[c] = f;
+        c.Text = f();
+    }
+
+    /// <summary>
+    /// Combos whose items are words rather than data. Only these get owner-draw
+    /// translation — resolution, refresh rate, FPS cap, disc image and level are
+    /// left alone because their selected text is what gets written to config.cfg.
+    /// </summary>
+    private void LocalizeValueLists()
+    {
+        // "はい"/"いいえ" and "Nein" are wider than "Yes"/"No", and each of these
+        // sits at the end of its row with free space to the right.
+        foreach (var r in new[] { radioVsyncYes, radioVsyncNo, radioPreloadYes, radioPreloadNo,
+                                  pgxpYes, pgxpNo, loggingYes, loggingNo, consoleYes, consoleNo })
+            r.AutoSize = true;
+
+        Loc.LocalizeItems(comboFullscreen);
+        Loc.LocalizeItems(comboSkipIntros);
+        Loc.LocalizeItems(comboPillarbox);
+        Loc.LocalizeItems(comboFiltering);
+        Loc.LocalizeItems(comboAA);
+        Loc.LocalizeItems(comboPost);
+        Loc.LocalizeItems(comboTone);
+        Loc.LocalizeItems(comboFlash);
+        Loc.LocalizeItems(comboAudioOut);
+    }
+
+    private readonly Dictionary<Label, int> _labelHome = new Dictionary<Label, int>();
+
+    /// <summary>
+    /// Nudge a label left when its translation would otherwise run under the
+    /// control beside it — the labels are AutoSize, so a longer word grows to
+    /// the right and paints over the combo it belongs to.
+    ///
+    /// A label is never moved past whatever is to its left, and never past its
+    /// designed position, so this only ever consumes slack the row already had.
+    /// </summary>
+    private void FitLabels(Control root)
+    {
+        foreach (Control c in root.Controls)
+        {
+            var lbl = c as Label;
+            if (lbl == null) { FitLabels(c); continue; }
+
+            int home;
+            if (!_labelHome.TryGetValue(lbl, out home)) { home = lbl.Left; _labelHome[lbl] = home; }
+            lbl.Left = home;
+
+            int rightX = int.MaxValue, leftEdge = 4;
+            foreach (Control o in root.Controls)
+            {
+                if (ReferenceEquals(o, lbl) || Math.Abs(o.Top - lbl.Top) > 12) continue;
+                if (o.Left > home && o.Left < rightX) rightX = o.Left;
+                if (o.Right <= home && o.Right + 4 > leftEdge) leftEdge = o.Right + 4;
+            }
+            if (rightX == int.MaxValue) continue;
+
+            int w = TextRenderer.MeasureText(lbl.Text, lbl.Font).Width;
+            int want = rightX - 4 - w;
+            if (want < home) lbl.Left = Math.Max(leftEdge, want);
+        }
+    }
+
+    private void OnLanguageChanged()
+    {
+        Loc.Apply(this);
+        foreach (var kv in _dynText) kv.Key.Text = kv.Value();
+        FitLabels(this);
+        if (btnLang != null)
+        {
+            btnLang.Invalidate();
+            _langTip.SetToolTip(btnLang, Loc.T("Launcher language"));
+        }
+    }
+
+    private void btnLang_Click(object sender, EventArgs e)
+    {
+        var before = Loc.Current;
+        using (var dlg = new LanguageDialog(Loc.Current))
+        {
+            dlg.ShowDialog(this);
+            Loc.Set(dlg.Selected);
+        }
+        if (Loc.Current == before) return;
+
+        try
+        {
+            var st = LauncherSettings.Load(config);
+            st.Language = Loc.Current;
+            st.Save(config);
+        }
+        catch { /* config not writable - the choice still applies this session */ }
     }
 
     /// <summary>
@@ -151,7 +308,7 @@ public partial class Form1 : Form
         if (_discs.Count == 0)
         {
             _regionUiUpdating = false;
-            lblDisc.Text = "No disc image found in gamedata\\";
+            SetText(lblDisc, "No disc image found in gamedata\\");
             MessageBox.Show(this,
                 "No Silent Hill disc image found.\n\n" +
                 "Please put a Silent Hill .bin (USA or PAL/European release)\n" +
@@ -318,11 +475,11 @@ public partial class Form1 : Form
     {
         var settings = LauncherSettings.Load(config);
         string installDir = AppDomain.CurrentDomain.BaseDirectory;
-        btnUpdate.Text     = "Check for Updates";
-        downloadBuild.Text = "Download Build";
+        SetText(btnUpdate, "Check for Updates");
+        SetText(downloadBuild, "Download Build");
         try
         {
-            lblUpdateStatus.Text = "Checking for updates...";
+            SetText(lblUpdateStatus, "Checking for updates...");
             var plan = await UpdateChecker.CheckAsync(installDir, ForceLatest(settings));
 
             // If the install already matches the latest, remember that so it
@@ -332,14 +489,14 @@ public partial class Form1 : Form
             bool available = LauncherSettings.CompareVersions(plan.RemoteVersion, settings.GetSeen(config)) > 0;
             if (available)
             {
-                btnUpdate.Text = "Update available!";
+                SetText(btnUpdate, "Update available!");
                 lblUpdateStatus.ForeColor = Color.LightGreen;
-                lblUpdateStatus.Text = $"Update available: {plan.RemoteVersion}";
+                SetText(lblUpdateStatus, "Update available: {0}", plan.RemoteVersion);
             }
             else
             {
                 lblUpdateStatus.ForeColor = Color.LightGray;
-                lblUpdateStatus.Text = $"Up to date ({plan.RemoteVersion}).";
+                SetText(lblUpdateStatus, "Up to date ({0}).", plan.RemoteVersion);
             }
 
             // "Download Build" vs "Redownload Build": is the SELECTED build already
@@ -348,12 +505,12 @@ public partial class Form1 : Form
             bool selectedInstalled = settings.IsLatestBuild
                 ? !plan.HasUpdate
                 : !(await UpdateChecker.CheckAsync(installDir, settings)).HasUpdate;
-            downloadBuild.Text = selectedInstalled ? "Redownload Build" : "Download Build";
+            SetText(downloadBuild, selectedInstalled ? "Redownload Build" : "Download Build");
         }
         catch
         {
             // Silent — no internet, no nightly repo yet, etc.
-            lblUpdateStatus.Text = "";
+            SetText(lblUpdateStatus, "");
         }
     }
 
@@ -1140,7 +1297,7 @@ public partial class Form1 : Form
         var settings = LauncherSettings.Load(config);
 
         SetUpdateBusy(true);
-        lblUpdateStatus.Text = "Checking for updates...";
+        SetText(lblUpdateStatus, "Checking for updates...");
         progUpdate.Style   = ProgressBarStyle.Marquee;
         progUpdate.Visible = true;
         try
@@ -1151,8 +1308,8 @@ public partial class Form1 : Form
             bool available = LauncherSettings.CompareVersions(plan.RemoteVersion, settings.GetSeen(config)) > 0;
             if (!available)
             {
-                btnUpdate.Text = "Check for Updates";
-                lblUpdateStatus.Text = $"Up to date ({plan.RemoteVersion}).";
+                SetText(btnUpdate, "Check for Updates");
+                SetText(lblUpdateStatus, "Up to date ({0}).", plan.RemoteVersion);
                 progUpdate.Visible = false;
                 MessageBox.Show(this,
                     $"You're up to date!\n\nSource: {plan.RepoLabel}\nLatest: {plan.RemoteVersion}",
@@ -1160,7 +1317,7 @@ public partial class Form1 : Form
                 return;
             }
 
-            btnUpdate.Text = "Update available!";
+            SetText(btnUpdate, "Update available!");
             lblUpdateStatus.ForeColor = Color.LightGreen;
 
             // Always re-promptable: clicking the button offers the update every
@@ -1176,7 +1333,7 @@ public partial class Form1 : Form
                 plan.ChangelogUrl);
             if (!wantUpdate)
             {
-                lblUpdateStatus.Text = $"Update {plan.RemoteVersion} skipped.";
+                SetText(lblUpdateStatus, "Update {0} skipped.", plan.RemoteVersion);
                 progUpdate.Visible = false;
                 return;
             }
@@ -1189,20 +1346,20 @@ public partial class Form1 : Form
                     settings.Branch = plan.MigrateToBranch;   // auto-migrate alpha -> beta
                 settings.Save(config);
                 settings.RecordInstalled(config, plan.RemoteVersion);
-                btnUpdate.Text = "Check for Updates";
-                downloadBuild.Text = "Redownload Build"; // latest is now installed
+                SetText(btnUpdate, "Check for Updates");
+                SetText(downloadBuild, "Redownload Build"); // latest is now installed
                 lblUpdateStatus.ForeColor = Color.LightGray;
-                lblUpdateStatus.Text = $"Up to date ({plan.RemoteVersion}).";
+                SetText(lblUpdateStatus, "Up to date ({0}).", plan.RemoteVersion);
                 MessageBox.Show(this, "Update complete!", "Update", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
             {
-                lblUpdateStatus.Text = $"Update {plan.RemoteVersion} skipped.";
+                SetText(lblUpdateStatus, "Update {0} skipped.", plan.RemoteVersion);
             }
         }
         catch (Exception ex)
         {
-            lblUpdateStatus.Text = "Update failed (see message).";
+            SetText(lblUpdateStatus, "Update failed (see message).");
             MessageBox.Show(this, "Update failed:\n\n" + ex.Message, "Update error",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
@@ -1222,7 +1379,7 @@ public partial class Form1 : Form
         var settings = LauncherSettings.Load(config);
 
         SetUpdateBusy(true);
-        lblUpdateStatus.Text = "Checking selected build...";
+        SetText(lblUpdateStatus, "Checking selected build...");
         progUpdate.Style   = ProgressBarStyle.Marquee;
         progUpdate.Visible = true;
         try
@@ -1232,7 +1389,7 @@ public partial class Form1 : Form
             if (!plan.HasUpdate)
             {
                 progUpdate.Visible = false;
-                lblUpdateStatus.Text = $"Build {plan.RemoteVersion} is installed.";
+                SetText(lblUpdateStatus, "Build {0} is installed.", plan.RemoteVersion);
                 MessageBox.Show(this,
                     $"Build {plan.RemoteVersion} is already installed.\n\nSource: {plan.RepoLabel}",
                     "Download Build", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1271,7 +1428,7 @@ public partial class Form1 : Form
             if (MessageBox.Show(this, sb.ToString(), promptTitle,
                     MessageBoxButtons.YesNo, promptIcon) != DialogResult.Yes)
             {
-                lblUpdateStatus.Text = "Download cancelled.";
+                SetText(lblUpdateStatus, "Download cancelled.");
                 progUpdate.Visible = false;
                 return;
             }
@@ -1281,19 +1438,19 @@ public partial class Form1 : Form
             {
                 settings.RecordInstalled(config, plan.RemoteVersion);
                 lblUpdateStatus.ForeColor = Color.LightGray;
-                lblUpdateStatus.Text = $"Build {plan.RemoteVersion} installed.";
+                SetText(lblUpdateStatus, "Build {0} installed.", plan.RemoteVersion);
                 MessageBox.Show(this, $"Build {plan.RemoteVersion} installed!", "Download Build",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 SilentAutoCheckForUpdates(); // refresh the update indicator
             }
             else
             {
-                lblUpdateStatus.Text = "Download cancelled.";
+                SetText(lblUpdateStatus, "Download cancelled.");
             }
         }
         catch (Exception ex)
         {
-            lblUpdateStatus.Text = "Download failed (see message).";
+            SetText(lblUpdateStatus, "Download failed (see message).");
             MessageBox.Show(this, "Download failed:\n\n" + ex.Message, "Download error",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
@@ -1365,7 +1522,7 @@ public partial class Form1 : Form
             BeginInvoke((Action)(() =>
             {
                 if (frac >= 0 && frac <= 1) progUpdate.Value = (int)(frac * 100);
-                lblUpdateStatus.Text = msg ?? "";
+                lblUpdateStatus.Text = Loc.T(msg ?? "");
             }));
         });
 

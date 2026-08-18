@@ -20,12 +20,24 @@
  *
  * Naming, mirroring the texture convention:
  *     gamedata/load/SND/<BANK>.<NNN>.wav      e.g. SND/PISTOL.002.wav
- * where NNN is the one-based sample number the launcher's Audio tool shows.
+ * where NNN is the one-based sample number the launcher's Audio tool shows, and
+ * BANK is the bank's name on the disc -- MAP000, MAP001_2, PISTOL. The tool
+ * labels a sample "MAP000_005", which is bank MAP000 sample 5, NOT a bank
+ * called MAP000_005; the separator before the number is a dot here.
+ * <BANK>_<NNN>.wav is accepted too, because that is exactly what the tool names
+ * its exports, so an unedited round trip works either way.
  *
- * The WAV should be at the rate the Audio tool exported (the sound's real
- * in-game rate). The engine pitches the buffer exactly as it pitched the
- * original, so a file at that rate plays at the intended speed; a file at some
- * other rate plays proportionally faster or slower, like changing tape speed.
+ * The WAV must be at the rate the Audio tool shows for that sample (its real
+ * in-game rate). The mixer uploads the replacement at a fixed 44100 and the
+ * voice pitches it exactly as it pitched the original, so the file's own rate
+ * header is ignored: authoring at 44100 for a sample the tool reports at 8000
+ * plays it about five times too slow and two octaves down, like changing tape
+ * speed. This bites hardest on the map banks, several of which are authored
+ * very low. The [SFXMOD] log line prints the rate it read from each file so a
+ * mismatch is visible without guessing.
+ *
+ * (The tool's own "replace inside the VAB" path resamples for you; that applies
+ * to a repacked bank, not to these loose files.)
  */
 
 /* Called after a bank's sample data reaches SPU RAM. `vabHeader` is the parsed
@@ -37,7 +49,7 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
 /* Playback-time lookup by the SPU address a voice was pointed at. Returns 1 and
  * fills the outputs when that address is an overridden sample. The samples are
  * owned by this module and stay valid until the bank is replaced. */
-int Pc_SfxOverride_Lookup(int spuAddr, const short** outPcm, int* outSampleCount);
+int Pc_SfxOverride_Lookup(int spuAddr, const short** outPcm, int* outSampleCount, int* outRate);
 
 /* Drop everything (map teardown / shutdown). */
 void Pc_SfxOverride_Reset(void);

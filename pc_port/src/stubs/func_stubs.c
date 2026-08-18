@@ -101,7 +101,8 @@ void gte_stsxy3_g3() { }
 void gte_stsxy3c() { }
 void gte_stsz3c() { }
 void OuterProduct12() { }
-void SetMulRotMatrix(MATRIX* m) { (void)m; }
+/* SetMulRotMatrix is implemented for real in PsyCross (psx/libgte.c) — it was a
+ * no-op here, which dropped the caller's own rotation from the product. */
 VECTOR* Square0(VECTOR* v0, VECTOR* v1) {
     v1->vx = v0->vx * v0->vx;
     v1->vy = v0->vy * v0->vy;

@@ -106,6 +106,12 @@ typedef struct {
     int attractDemos;     /* 1 = play the PSX attract-mode gameplay demos after the title screen
                            * sits idle (the intro FMV still plays every third cycle either way)
                            * (config key: attract_demos) */
+    int menuFpsUnlock;    /* 1 = let the fps cap apply to screens that are not gameplay:
+                           * main menu, options (title and in-game), the map screens and
+                           * cursor puzzles. The inventory stays at 60 on purpose, and
+                           * cutscenes stay clamped by Pc_ScriptOwnsShot regardless.
+                           * Set 0 to put every non-gameplay screen back on the hard
+                           * one-vblank wait. (config key: menu_fps_unlock) */
     int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
                            * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
                            * (config key: bullet_decals) */
@@ -175,6 +181,9 @@ typedef struct {
                              * map7_s03 boss with a score-picked ending. Forces global_chara_pool on and
                              * overrides `map`. 0 = off, byte-identical vanilla.
                              * (config key: randomizer; docs/Randomizer_Mode.md) */
+    /* Randomizer tunables live in their OWN file (gamedata/randomizer.cfg), owned
+     * by pc_rando_config.c — NOT here — so config.cfg stays clean and the in-game
+     * panel / Lua layer read+write a single dedicated store (s_RandoConfig). */
     int controllerMovement; /* 0 = analog stick, 1 = d-pad, 2 = both (default) */
     int movementOriginal;   /* 1 = PSX lower-body movement state
                              * machine (accel/decel, wall smack, authored sidesteps)

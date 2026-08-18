@@ -80,6 +80,43 @@ static void ParseIpdModelBufferC(s_IpdModelInstance* dst, const u8* src)
     }
 }
 
+/* Point at `base + off`, unless that lands in the region the 64-bit
+ * s_IpdHeader is about to be written over, in which case hand back a heap copy
+ * taken now while the bytes are still intact. Sized by the caller because only
+ * it knows the element count.
+ *
+ * Allocation lifetime matches IpdColl_RelocateClobbered's: owned by the chunk
+ * until the buffer is reused. Only chunks whose sections actually start under
+ * the header ever allocate, which is a small minority. */
+static void* RescueClobbered(u8* base, u32 off, u32 bytes)
+{
+    void* heap;
+
+    if (off >= sizeof(s_IpdHeader) || bytes == 0)
+    {
+        return base + off;
+    }
+
+    heap = malloc(bytes);
+    if (heap == NULL)
+    {
+        return base + off;
+    }
+    memcpy(heap, base + off, bytes);
+
+    {
+        static int s_logged = 0;
+        if (s_logged < 8)
+        {
+            SH_DBG("[IPD-RELOC] model sub-array at +0x%X (%u bytes) was inside the "
+                   "header clobber window [0,0x%X) — relocated",
+                   off, bytes, (u32)sizeof(s_IpdHeader));
+            s_logged++;
+        }
+    }
+    return heap;
+}
+
 static void ParseIpdModelBuffer(s_IpdModelBuffer* dst, const u8* src, u8* base)
 {
     dst->modelInstanceCount      = src[0];
@@ -110,11 +147,26 @@ static void ParseIpdModelBuffer(s_IpdModelBuffer* dst, const u8* src, u8* base)
         dst->modelInstances = NULL;
     }
 
-    /* field_10: SVECTOR array, field_1 entries - raw data in buffer, no reformatting needed */
-    dst->field_10 = (SVECTOR*)(base + field10_off);
-
-    /* subcellPositions: SVECTOR bounding box array, field_2 entries */
-    dst->subcellPositions = (SVECTOR*)(base + field14_off);
+    /* field_10 and subcellPositions need no reformatting — SVECTOR is 8 bytes
+     * on disc and on LP64 alike — so they are used in place. That is only safe
+     * ABOVE the header clobber window: the caller writes the 64-bit
+     * s_IpdHeader over raw[0, sizeof(s_IpdHeader)) at the end of the reformat,
+     * and on 64-bit that header is 0x1D0 bytes where the PSX one was 0x20-odd.
+     * Any of this data sitting under that mark is zeroed after we point at it.
+     *
+     * subcellPositions is the per-subcell bounding box array, so zeroing it
+     * collapses every box to the origin and the subcell fails its position
+     * test — the model is silently never drawn. That is the missing Nowhere
+     * elevator door, and it is 64-bit-only, which is why the 32-bit Xbox 360
+     * build has never shown it.
+     *
+     * Rescued the same way IpdColl_RelocateClobbered rescues the collision
+     * sub-arrays, and for the same reason; the model side simply never got the
+     * equivalent. Copies happen HERE because this runs before the memset. */
+    dst->field_10         = (SVECTOR*)RescueClobbered(base, field10_off,
+                                                      (u32)dst->field_1 * sizeof(SVECTOR));
+    dst->subcellPositions = (SVECTOR*)RescueClobbered(base, field14_off,
+                                                      (u32)dst->subcellCount * sizeof(SVECTOR));
 }
 
 static void ParseIpdCollisionData(s_IpdCollisionData* dst, const u8* collraw, u8* collbase)
@@ -414,18 +466,21 @@ bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr)
 
     ipdHdr->modelOrderList = raw + modelOrderOff;
 
-    /* Sanity: the in-place header also clobbers [0x188, sizeof(s_IpdHeader))
-     * for NON-collision sections. The collision arrays are rescued above; if
-     * any model-side section ever starts that early too, surface it. */
+    /* Only modelOrderList is still read straight out of the raw buffer, so it
+     * is the only model-side offset the clobber window can still hurt.
+     *
+     * This used to warn on modelInfoOff/modelBuffersOff too, and did so
+     * constantly — both are parsed into calloc'd arrays well before the memset,
+     * so being under the header costs them nothing. Crying wolf on those hid
+     * the real casualties, which were the per-buffer SVECTOR arrays now rescued
+     * in RescueClobbered. */
     {
         static int s_modelClobLogged = 0;
-        if (s_modelClobLogged < 4 &&
-            ((modelInfoOff    && modelInfoOff    < sizeof(s_IpdHeader)) ||
-             (modelBuffersOff && modelBuffersOff < sizeof(s_IpdHeader)) ||
-             (modelOrderOff   && modelOrderOff   < sizeof(s_IpdHeader))))
+        if (s_modelClobLogged < 4 && modelOrderOff && modelOrderOff < sizeof(s_IpdHeader))
         {
-            SH_DBG("[IPD-RELOC] WARNING: model section in clobber window (info=0x%X bufs=0x%X order=0x%X hdr=0x%X)",
-                   modelInfoOff, modelBuffersOff, modelOrderOff, (u32)sizeof(s_IpdHeader));
+            SH_WARN("[IPD-RELOC] modelOrderList at +0x%X is inside the header clobber "
+                    "window [0,0x%X) and is used in place — expect missing geometry",
+                    modelOrderOff, (u32)sizeof(s_IpdHeader));
             s_modelClobLogged++;
         }
     }

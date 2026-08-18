@@ -343,6 +343,55 @@ int Pc_ScriptOwnsShot(void)
  * clamped onto the scripted shot for the whole scene. */
 static int Pc_AltCamStateOk(void);
 
+#ifdef SH_PC_PORT
+/* Screens that may run at the user's fps cap instead of the hard one-vblank wait
+ * every non-gameplay state takes.
+ *
+ * Deliberately a short list rather than "anything that isn't gameplay". These
+ * are the screens with nothing running underneath them: no animation stepping,
+ * no DMS, no world simulation — just a cursor and some 2D. The INVENTORY is
+ * excluded on purpose even though it looks like a menu: it spins live item
+ * models and rides the same carousel timing gameplay does. Cutscenes are
+ * excluded twice over — they never reach here, and Pc_ScriptOwnsShot clamps
+ * them to 60 inside the pacing block anyway.
+ *
+ * menu_fps_unlock = 0 puts all of it back. */
+static int Pc_ScreenFpsUnlocked(void)
+{
+    extern int Pc_MouseCursor_PuzzleActive(void);
+
+    if (!g_PcConfig.menuFpsUnlock)
+    {
+        return 0;
+    }
+
+    switch (g_GameWork.gameState)
+    {
+        case GameState_MainMenu:
+        case GameState_OptionScreen:
+        case GameState_PaperMapScreen:
+            return 1;
+
+        case GameState_InGame:
+            /* In-game options and the map screen only; the inventory
+               (SysState_StatusMenu) is intentionally absent. */
+            if (g_SysWork.sysState == SysState_OptionsMenu ||
+                g_SysWork.sysState == SysState_MapScreen)
+            {
+                return 1;
+            }
+            break;
+
+        default:
+            break;
+    }
+
+    /* Cursor puzzles run over a frozen world and already scale their cursor by
+     * dt, so they are safe to let loose. */
+    return Pc_MouseCursor_PuzzleActive() ? 1 : 0;
+}
+#endif
+
 static void Pc_CameraFov_Update(int standDown)
 {
     static int s_fovApplied = 0;
@@ -2087,6 +2136,10 @@ void MainLoop(void) // 0x80032EE0
             extern void Pc_Rando_Update(void);
             Pc_Rando_Update();
         }
+        {
+            extern void Pc_RandoLua_OnUpdate(void);
+            Pc_RandoLua_OnUpdate();
+        }
 #endif
         // Update input.
         Joy_ReadP1();
@@ -2243,25 +2296,65 @@ void MainLoop(void) // 0x80032EE0
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState == GameState_InGame) {
-            /* Canary checks after InGame state update */
-            /* --- Canary checks after game state update --- */
+            /* Packet-arena overrun check.
+             *
+             * This used to compute the answer and throw it away — both arms
+             * were `if (!canaryOk) { }` — so the one condition that produces
+             * BOTH of the port's worst-looking artifact families was detected
+             * and never reported. Overrunning this arena writes packets over
+             * ones already linked into OT0, which reads on screen as
+             * primitives with garbage vertices (wedges anchored to whatever was
+             * drawn near them, streaking to the frame edge), garbage tpage/clut
+             * (bands of unrelated texture), and objects that simply are not
+             * drawn because their packet was overwritten before DrawOTag walked
+             * it. Reported repeatedly against Nowhere with no way to confirm.
+             *
+             * Reported once per session per buffer so a long session cannot
+             * flood the log, plus the high-water mark, which is the number that
+             * says how close a machine is running to the 16MB. */
             {
-                PACKET* pktEnd0 = s_PcPacketBufEnds[0];
-                PACKET* pktEnd1 = s_PcPacketBufEnds[1];
-                PACKET* pktStart = s_PcPacketBufs[g_ActiveBufferIdx];
-                ptrdiff_t pktUsed = GsOUT_PACKET_P - pktStart;
-                int canaryOk = 1;
-                int i;
-                for (i = 0; i < PC_CANARY_SIZE; i++) {
-                    if (pktEnd0[i] != PC_CANARY_VAL) { canaryOk = 0; break; }
+                PACKET*         pktStart = s_PcPacketBufs[g_ActiveBufferIdx];
+                ptrdiff_t       pktUsed  = GsOUT_PACKET_P - pktStart;
+                static ptrdiff_t s_pktPeak;
+                static int      s_pktPeakLogged;
+                static int      s_canaryReported[2];
+                int             b;
+
+                if (pktUsed > s_pktPeak)
+                {
+                    s_pktPeak = pktUsed;
                 }
-                if (!canaryOk) {
+
+                for (b = 0; b < 2; b++)
+                {
+                    PACKET* end = s_PcPacketBufEnds[b];
+                    int     i;
+
+                    for (i = 0; i < PC_CANARY_SIZE; i++)
+                    {
+                        if (end[i] != PC_CANARY_VAL)
+                        {
+                            if (!s_canaryReported[b])
+                            {
+                                s_canaryReported[b] = 1;
+                                SH_WARN("[PKTARENA] buffer %d OVERRUN — packets past the %d-byte arena "
+                                        "(this frame used %ld, peak %ld). Expect garbage or missing "
+                                        "geometry; map %d",
+                                        b, PC_PKTBUF_SIZE, (long)pktUsed, (long)s_pktPeak,
+                                        (int)g_SavegamePtr->mapIdx);
+                            }
+                            break;
+                        }
+                    }
                 }
-                canaryOk = 1;
-                for (i = 0; i < PC_CANARY_SIZE; i++) {
-                    if (pktEnd1[i] != PC_CANARY_VAL) { canaryOk = 0; break; }
-                }
-                if (!canaryOk) {
+
+                /* One line when the arena first passes half, so a log shows the
+                 * headroom even on a session that never actually overruns. */
+                if (!s_pktPeakLogged && s_pktPeak > (PC_PKTBUF_SIZE / 2))
+                {
+                    s_pktPeakLogged = 1;
+                    SH_LOG("[PKTARENA] high-water %ld of %d bytes (map %d)",
+                           (long)s_pktPeak, PC_PKTBUF_SIZE, (int)g_SavegamePtr->mapIdx);
                 }
             }
         }
@@ -2429,7 +2522,11 @@ void MainLoop(void) // 0x80032EE0
         }
         else
         {
+#ifdef SH_PC_PORT
+            if (g_SysWork.sysState != SysState_Gameplay && !Pc_ScreenFpsUnlocked())
+#else
             if (g_SysWork.sysState != SysState_Gameplay)
+#endif
             {
                 ML_TRACE("VSync-nonGameplay");
                 g_VBlanks     = VSync(SyncMode_Count) - g_PrevVBlanks;
@@ -2462,7 +2559,7 @@ void MainLoop(void) // 0x80032EE0
                 {
                     static Uint64 s_lastFrameTime = 0;
                     int effectiveMin = g_IntervalVBlanks;
-                    if (g_GameWork.gameState == GameState_InGame)
+                    if (g_GameWork.gameState == GameState_InGame || Pc_ScreenFpsUnlocked())
                     {
                         int effectiveFps;
 
@@ -2919,17 +3016,45 @@ void MainLoop(void) // 0x80032EE0
                 }
                 s_heldWorldOfy = ofy;
             }
-            else if (g_GameWork.gameState == GameState_InGame &&
-                     (g_SysWork.sysState == SysState_ReadMessage || g_PcPickupItemActive))
+            else if (g_GameWork.gameState == GameState_InGame)
             {
-                /* Frozen interactions — examine/read-message text and the item-pickup
-                 * animation — keep re-rendering the SAME fixed-cam frame (vcMoveAndSetCamera
-                 * still runs every frame) and snapshot it for the frozen backdrop. The
-                 * original has no per-state offset, so it looks identical before and during
-                 * the interaction; hold the gameplay offset here instead of recomputing it,
-                 * so the shift can't jump the instant text/pickup appears (any display
-                 * camera, since the shift is at the GTE projection center). */
-                ofy = s_heldWorldOfy;
+                /* Every other InGame state holds the gameplay offset rather than
+                 * recomputing it. The original has no per-state offset at all, so the
+                 * framing has to stay put across an examine, a door, the inventory, the
+                 * pause screen — anything that keeps the world on screen while something
+                 * runs over it.
+                 *
+                 * Enumerating states was the wrong shape and kept missing one: gating on
+                 * Gameplay alone jumped on every examine, adding ReadMessage still jumped
+                 * on the event-callback examines (locked doors, puzzles, key items), and
+                 * fixing those left the inventory and door transitions jumping. They are
+                 * all the same bug — a non-gameplay state that still renders the world.
+                 *
+                 * Safe to hold here because this offset only ever describes the WORLD
+                 * render: every screen that projects its own 3D sets its own centre
+                 * first (the inventory carousel in item_screens_cam.c, the effect passes
+                 * in bodyprog_80055028.c), so none of them inherit this value.
+                 *
+                 * EXCEPT during a cutscene, which owns its own framing. The Gameplay
+                 * branch above has always zeroed the shift for those (g_PsxCutsceneActive)
+                 * and the hold has to agree, or a cutscene that runs outside
+                 * SysState_Gameplay keeps the last gameplay shift and moves the world out
+                 * from under the letterbox bars — the bars are 2D at fixed screen Y and do
+                 * not move with it. That is the exact fault 161b950d4 fixed for the alley
+                 * match scene ("drew its letterbox bars shifted up by the gameplay
+                 * fixed-cam vshift, revealing the scene's own bar underneath"), and
+                 * generalising the hold reintroduced it for the map6_s04 Cybil scene.
+                 * Border state counts as well as the cutscene flag, so a cinematic zoom
+                 * letterbox is covered the same way that fix gated it. */
+                if (g_PsxCutsceneActive ||
+                    g_SysWork.cutsceneBorderState != CutsceneBorderState_None)
+                {
+                    ofy = 0;
+                }
+                else
+                {
+                    ofy = s_heldWorldOfy;
+                }
             }
 
             SetGeomOffset(0, ofy);
@@ -2964,6 +3089,23 @@ void MainLoop(void) // 0x80032EE0
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
         }
+        else if (g_GameWork.gameState == GameState_InventoryScreen) {
+            /* One-frame WHITE FLASH on opening the inventory.
+             *
+             * Every branch here is gated on gameState, and the inventory's is
+             * not 11, so on its first frame none of them ran and
+             * background2dColor still held the value gameplay left there — the
+             * FOG colour. GsSortClear then filled the whole screen with it, and
+             * Silent Hill's fog is nearly white, so it read as a white flash
+             * until the inventory got far enough to set its own black.
+             *
+             * Same bug the paper map had ("the pillarbox bars kept the stale
+             * gameplay fog color") and the same fix: state the colour rather
+             * than inherit it. PSX cleared menus to black. */
+            g_GameWork.background2dColor.r = 0;
+            g_GameWork.background2dColor.g = 0;
+            g_GameWork.background2dColor.b = 0;
+        }
         else if (g_GameWork.gameState == 11 && g_SysWork.sysState == SysState_GameOver) {
             /* GAME OVER renders its own death scene; the sky is meant to be black there.
              *
@@ -2983,6 +3125,28 @@ void MainLoop(void) // 0x80032EE0
             g_GameWork.background2dColor.r = 0;
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
+        }
+        else if (g_GameWork.gameState == 11 &&
+                 (g_SysWork.sysFlags & SysFlag_CutsceneActive)) {
+            /* Authored shots clear BLACK, like the hardware.
+             *
+             * The fog-coloured clear below is a PC addition: it stands in for a
+             * sky so distant geometry fades into something instead of a hard
+             * edge. That is right for open gameplay, and wrong the moment the
+             * shot frames a hole in the world — the clear is not a sky then, it
+             * is just what is visible through the hole, and PSX shows black
+             * there because black is all it ever cleared to.
+             *
+             * Reported on map3_s02's Alessa scene: through the antique shop's
+             * open door, and in the gaps around the threshold, the void reads
+             * fog-grey instead of black. Cutscenes are where this shows because
+             * they are the shots composed to look through doorways. */
+            g_GameWork.background2dColor.r = 0;
+            g_GameWork.background2dColor.g = 0;
+            g_GameWork.background2dColor.b = 0;
+            g_PsyX_FogColor[0] = PC_WorldEnvWork.fog.color.r / 255.0f;
+            g_PsyX_FogColor[1] = PC_WorldEnvWork.fog.color.g / 255.0f;
+            g_PsyX_FogColor[2] = PC_WorldEnvWork.fog.color.b / 255.0f;
         }
         else if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled) {
             /* Fullscreen 2D background screens (eclipse/plates doors, item

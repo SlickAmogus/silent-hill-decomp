@@ -22,11 +22,12 @@
 #include "main/fsqueue.h"
 #include "types.h"
 
-/* Each of these is called earlier in this file than it is defined. Without a
- * prototype the call creates an implicit `int f()` declaration that then
- * conflicts with the real definition -- GCC tolerates that, Clang (the Android
- * NDK compiler) rejects it. */
-void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCount, s_ActiveChunkTextures* fullPageActiveTexs, s_ActiveChunkTextures* halfPageActiveTexs, e_FsFile fileIdx);
+/* Called above their definitions. Without a prototype in scope Clang
+ * synthesises `int f()` at the call site and then rejects the real
+ * definition as a conflicting type; GCC only warns. */
+void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCount,
+                          s_ActiveChunkTextures* fullPageActiveTexs,
+                          s_ActiveChunkTextures* halfPageActiveTexs, e_FsFile fileIdx);
 
 /** Known contents:
  * - Map loading funcs

@@ -853,6 +853,23 @@ s16 SdVabTransBodyPartly(u8* addr, u32 bufsize, s16 vabid) // 0x8009FDDC
 
 #ifdef SH_PC_PORT
         SH_DBG("[SH_AUDIO] SdVabTransBodyPartly: vabid=%d complete, total=%d", vabid, body_partly_size);
+        /* Same binding SdVabTransBody does, and it has to be here too: this is
+         * the path every bank over VAB_BUFFER_LIMIT (0xC800) takes, which is
+         * every SND/MAP*.VAB — MAP000 alone is 148992 bytes. Weapon banks are
+         * all under the limit, so loose replacements worked for guns and
+         * silently did nothing for map/town sounds.
+         *
+         * Bound at COMPLETION rather than per chunk: this runs once per bank,
+         * whereas the -2 early-out above can fire many times, and each call
+         * re-reads every replacement WAV off disk. */
+        {
+            extern s_AudioItemData* g_Sd_VabTargetLoad;
+
+            Pc_SfxOverride_OnBankLoaded(vab_h[vabid].vh_addr_4,
+                                        vab_h[vabid].vb_start_addr_10,
+                                        g_Sd_VabTargetLoad != NULL
+                                            ? g_Sd_VabTargetLoad->fileOffset_8 : 0);
+        }
 #endif
         return vab_h_id; // Maybe was meant to be return retval but devs just returned vab_h_id?
     }

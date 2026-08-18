@@ -2,6 +2,8 @@
 #include "lang_text.h"
 #include "lang_pack.h"
 #include "lang_ru.h"
+#include "lang_jpn.h"
+#include "pc_kanji.h"
 
 #include <string.h>
 
@@ -191,6 +193,9 @@ static const s_MenuTranslation s_MenuTr[] = {
     { "Antialiasing",      { NULL,                 "Anticr\xE9nelage",    "Antialias",          "Antialias"      } },
     { "Post_Process",      { "Nachbearbeitung",    "Post-traitement",     "Postproceso",        "Post-processo"  } },
     { "Tone_Mapping",      { NULL,                 NULL,                  "Mapeo_tonal",        NULL             } },
+    /* Graphics page: its value column sits at x=196, so a label has ~132px from
+     * x=64 — kept at or under "Texture_Filter", the widest English row there. */
+    { "Bullet_Decals",     { "Kugell\xF6" "cher",  "Impacts_balles",      "Marcas_de_bala",     "Fori_proiett."  } },
     { "Next_Page",         { "N\xE4" "chste_Seite", "Page_suivante",      "Sig._p\xE1gina",     "Pagina_succ."   } },
     { "Prev_Page",         { "Vorherige_Seite",    "Page_pr\xE9" "c.",    "P\xE1gina_ant.",     "Pagina_prec."   } },
     { "Back",              { "Zur\xFC" "ck",       "Retour",              "Atr\xE1s",           "Indietro"       } },
@@ -245,6 +250,14 @@ const char* Pc_LangMenuText(const char* str)
 
     if (str == NULL)
         return str;
+
+    /* NTSC-J serves these from the disc's own overlays — Japanese on a retail
+     * disc (which is what retail draws), Chinese on the fan-translated one. */
+    if (g_GameRegion == Region_JPN)
+    {
+        const char* jp = Pc_JpnMenuText(str);
+        return jp ? jp : str;
+    }
 
     /* A Russian fan-translated disc wins over the language setting: its font
      * has no Latin letters left, so English (or German, or Polish) menus are
@@ -317,6 +330,15 @@ int Pc_LangMenuTextWidth(const char* str)
         }
         if (c < 0x08)
             continue; /* color codes */
+
+        /* NTSC-J draws SJIS pairs as one 12px kanji cell (Gfx_StringDraw), so
+         * measuring their bytes separately would roughly double the width. */
+        if (g_GameRegion == Region_JPN && Pc_KanjiIsLead(c) && str[1] != '\0')
+        {
+            width += FONT_12X16_GLYPH_SIZE_X;
+            str++;
+            continue;
+        }
 
         if (c == '!')
             c = '\\';

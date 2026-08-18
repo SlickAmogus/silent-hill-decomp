@@ -229,14 +229,28 @@ static const s_PcOpt PCOPT_C[] = {
     /* control_2d_snap is config-only now — the default turn-into-the-direction 2D
      * control is what players expect, so the in-game toggle was dropped. The key
      * still loads from config.cfg (pc_config.c) for anyone who wants instant snap. */
+    /* 11 rows is this page's hard ceiling (see Bullet_Decals below), and the
+     * touch rows would take it to 13. The two mouse rows are what give way on a
+     * phone, because there is no mouse there to invert or set a speed for.
+     * Both keys still load from config.cfg for anyone pairing one over USB-C. */
+#if !defined(__ANDROID__) && !defined(SH_IOS)
     { "Mouse_Sensitivity", NULL, "mouse_sensitivity",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.mouseSensitivity,      NULL, 0.1f, 4.0f, 0.1f },
+#endif
     { "Pad_Sensitivity",   NULL, "controller_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.controllerSensitivity, NULL, 0.1f, 4.0f, 0.1f },
     { "First_Person_FOV",  NULL, "fps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fpsFov,                NULL, 55.0f, 110.0f, 1.0f },
     { "Third_Person_FOV",  NULL, "tps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsFov,                NULL, 55.0f, 110.0f, 1.0f },
+#if !defined(__ANDROID__) && !defined(SH_IOS)
     { "Invert_Mouse_Y",    &g_PcConfig.invertMouseY,      "invert_mouse_y",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+#endif
     { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+#if defined(__ANDROID__) || defined(SH_IOS)
     { "Touch_Controls",    &g_PcConfig.touchControls,     "touch_controls",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Touch_Look_Speed",  NULL, "touch_look_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.touchLookSensitivity, NULL, 0.1f, 4.0f, 0.1f },
+#endif
+    /* A graphics option living on the Controls page purely for room: 11 rows is
+     * the real ceiling, not the 12 the Graphics comment above assumes, and this
+     * page is the shortest. Adding it to Graphics pushed that page off-screen. */
+    { "Bullet_Decals",     &g_PcConfig.bulletDecals,      "bullet_decals",          VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },

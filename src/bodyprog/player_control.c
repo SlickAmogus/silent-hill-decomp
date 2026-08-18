@@ -88,6 +88,11 @@ static void Player_CrashHandler(int sig) {
 #include "pc_grab_guard.h"
 #include "main/fileinfo.h" /* g_GameRegion — EUR overlay pointer rebase */
 
+/* Called above their definitions. Without a prototype in scope Clang
+ * synthesises `int f()` at the call site and then rejects the real
+ * definition as a conflicting type; GCC only warns. */
+void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* coords);
+
 extern int g_PcFpsCam;
 
 /* Alt-camera fire button state (SDL mouse/bind), published by the TPS input
@@ -2107,14 +2112,15 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         D_800C4550 = Q12(0.0f);
                     } else if (g_Player_IsMovingForward) {
 #ifdef SH_PC_PORT
-                        /* Free-aim (OTS/TPS): no sprint while a ranged weapon is up
-                         * (Dead Space feel). Force walk speed when aiming a gun so the
-                         * Run leg anim is never selected — this is how move+aim+shoot
-                         * avoids the sprint-in-place bug instead of cancelling aim.
-                         * Classic camera (g_DebugThirdPersonCam==0) is unchanged. */
-                        if (g_Player_IsRunning &&
-                            !(g_DebugThirdPersonCam && g_Player_IsAiming &&
-                              g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)))
+                        /* Sprint forward while aiming (alternate cameras). This used to
+                         * clamp to walk speed whenever a gun was up, but the leg anim
+                         * below still picks RunForward from g_Player_IsRunning alone —
+                         * so the run cycle played over 1.5 movement and Harry scrubbed
+                         * in place. Strafing while aiming never had the clamp (its
+                         * position comes from the anim keyframes), so sideways sprint
+                         * already worked; matching forward to it is what the run anim
+                         * was asking for anyway. Classic camera is unchanged. */
+                        if (g_Player_IsRunning)
                             D_800C4550 = g_DebugThirdPersonCam
                                              ? PC_OTS_RUN_SPEED
                                              : PC_SHIM_RUN_SPEED(Map_SpeedZoneTypeGet(player->position.vx,
@@ -2542,7 +2548,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * whose keyframe pattern never matches the hop anim -- so the
                  * landing was silent in TPS/OTS while classic, which does not run
                  * this shim, kept its sound. */
-                if (!g_Player_IsAiming && !jumpBackActive) {
+                if (!jumpBackActive) {
                     /* Strafe footsteps (PC): the sidestep / strafe-run anim is driven
                      * by the stepping globals, not IsMovingForward/Backward, so without
                      * these branches every strafe fell through to None and the dispatcher
@@ -2552,18 +2558,40 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     bool stepRight = g_Player_IsSteppingRightHold || g_Player_IsSteppingRightTap;
                     bool runStrafe = g_DebugThirdPersonCam && g_Player_IsRunning &&
                                      (g_Player_IsSteppingLeftHold || g_Player_IsSteppingRightHold);
+                    s32 moveState;
+
                     if (g_Player_IsMovingForward && g_Player_IsRunning)
-                        extra->lowerBodyState = PlayerLowerBodyState_RunForward;
+                        moveState = PlayerLowerBodyState_RunForward;
                     else if (g_Player_IsMovingForward)
-                        extra->lowerBodyState = PlayerLowerBodyState_WalkForward;
+                        moveState = PlayerLowerBodyState_WalkForward;
                     else if (g_Player_IsMovingBackward)
-                        extra->lowerBodyState = PlayerLowerBodyState_WalkBackward;
+                        moveState = PlayerLowerBodyState_WalkBackward;
                     else if (stepLeft)
-                        extra->lowerBodyState = runStrafe ? PlayerLowerBodyState_RunLeft : PlayerLowerBodyState_SidestepLeft;
+                        moveState = runStrafe ? PlayerLowerBodyState_RunLeft : PlayerLowerBodyState_SidestepLeft;
                     else if (stepRight)
-                        extra->lowerBodyState = runStrafe ? PlayerLowerBodyState_RunRight : PlayerLowerBodyState_SidestepRight;
+                        moveState = runStrafe ? PlayerLowerBodyState_RunRight : PlayerLowerBodyState_SidestepRight;
                     else
-                        extra->lowerBodyState = PlayerLowerBodyState_None;
+                        moveState = PlayerLowerBodyState_None;
+
+                    if (g_DebugThirdPersonCam && g_Player_IsAiming) {
+                        /* Moving while aiming used to leave lowerBodyState pinned at
+                         * plain Aim (set above), so the footstep dispatcher matched its
+                         * standing-still case and the alternate cameras were silent
+                         * while walking, running or strafing with a weapon up. The
+                         * game's own encoding for "this movement, but aiming" is the
+                         * movement state + PlayerLowerBodyState_Aim (see the += / -=
+                         * pairs at 6547 / 6645), and the leg animation is unchanged by
+                         * aiming, so the aim variants dispatch the same footsteps.
+                         * Not over an active swing: Attack carries the swing's root
+                         * motion. */
+                        if (extra->lowerBodyState != PlayerLowerBodyState_Attack)
+                            extra->lowerBodyState = moveState + PlayerLowerBodyState_Aim;
+                    }
+                    else if (!g_Player_IsAiming) {
+                        extra->lowerBodyState = moveState;
+                    }
+                    /* Aiming outside the alternate cameras keeps whatever the
+                     * original path set — classic is not this shim's business. */
                 }
 
                 /* Trigger footstep sounds based on animation keyframes.
@@ -4472,14 +4500,19 @@ void Player_UpperBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 #define SH_AIM_KF_REACHED_P(kf) (player->model.anim.keyframeIdx == (kf))
 #endif
 
-/* Were function-scope statics of Player_UpperBodyMainUpdate. Player_CombatAnimUpdate
- * reads and writes all three and is no longer nested inside it, so they move to file
- * scope. Storage duration and zero-initialisation are unchanged; only visibility
- * within this translation unit widens. */
+/* Were function-statics of Player_UpperBodyMainUpdate. Player_CombatAnimUpdate
+ * (un-nested below) reads and writes them, and it now sits above its former
+ * parent, so they move to file scope. Still one instance with the same
+ * lifetime; only the visibility changes. */
 static s32 D_800C44D0;
 static s32 D_800C44D4;
+#ifdef SH_PC_PORT
 static int s_pcMtClickQueue = 0;
+#endif
 
+/* Un-nested from Player_UpperBodyMainUpdate: Clang has no GCC nested-function
+ * extension. It captured the parent's two parameters plus enemyAttackedIdx,
+ * which it both reads and writes, so that one travels by pointer. */
 static bool Player_CombatAnimUpdate(s_SubCharacter* player, s_PlayerExtra* extra, s32* enemyAttackedIdx) // 0x80074350 (un-nested from Player_UpperBodyMainUpdate)
 {
     s16 ssp20;
@@ -5345,7 +5378,6 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
         }
     }
 #endif
-
 
     enemyAttackedIdx = NO_VALUE;
 
@@ -9043,6 +9075,14 @@ void func_8007B924(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8007B924
         case PlayerLowerBodyState_RunForward:
         case PlayerLowerBodyState_RunRight:
         case PlayerLowerBodyState_RunLeft:
+#ifdef SH_PC_PORT
+        /* Sprinting with a weapon up (alternate cameras only) tires Harry at the
+         * same rate as sprinting without one. These three are unused by the
+         * original, so classic reaches them never. */
+        case PlayerLowerBodyState_Unk22:     /* AimRunForward */
+        case PlayerLowerBodyState_AimRunRight:
+        case PlayerLowerBodyState_AimRunLeft:
+#endif
             if (ANIM_STATUS_IS_ACTIVE(player->model.anim.status) && player->model.anim.status >= ANIM_STATUS(HarryAnim_RunForward, true))
             {
                 player->properties.player.exhaustionTimer += g_DeltaTime;
@@ -9129,6 +9169,46 @@ void func_8007B924(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8007B924
             Player_FootstepSfxPlay(ANIM_STATUS(HarryAnim_WalkForward, true), player, 18, 6, sfxId, pitch0);
             playerProps.flags |= PlayerFlag_Moving;
             break;
+
+#ifdef SH_PC_PORT
+        /* Aim variants (movement state + PlayerLowerBodyState_Aim). The
+         * original has no case for these, so moving while aiming was silent;
+         * the alternate cameras now set them (player_control.c ~2560) and the
+         * leg anim is the same as the non-aiming state, so the same keyframes
+         * apply. Gated on the alternate cameras: classic sets AimSidestep*
+         * too, and on PSX that combination genuinely plays no footstep.
+         * AimRunForward/AimRunLeft/AimRunRight are unused by the original. */
+        case PlayerLowerBodyState_Unk22:     /* AimRunForward  */
+        case PlayerLowerBodyState_AimRunRight:
+        case PlayerLowerBodyState_AimRunLeft:
+        case PlayerLowerBodyState_AimSidestepRight:
+        case PlayerLowerBodyState_AimSidestepLeft:
+            if (!g_DebugThirdPersonCam) break;
+            /* fallthrough to the matching movement case below */
+            switch (g_SysWork.playerWork.extra.lowerBodyState)
+            {
+                case PlayerLowerBodyState_Unk22:
+                    if (Player_FootstepSfxPlay(ANIM_STATUS(HarryAnim_RunForward, true), player, 31, 41, sfxId, pitch1))
+                        player->properties.player.runStepSfxCount++;
+                    break;
+                case PlayerLowerBodyState_AimRunRight:
+                    if (Player_FootstepSfxPlay(ANIM_STATUS(HarryAnim_RunRight, true), player, 145, 139, sfxId, pitch1))
+                        player->properties.player.runStepSfxCount++;
+                    break;
+                case PlayerLowerBodyState_AimRunLeft:
+                    if (Player_FootstepSfxPlay(ANIM_STATUS(HarryAnim_RunLeft, true), player, 131, 125, sfxId, pitch1))
+                        player->properties.player.runStepSfxCount++;
+                    break;
+                case PlayerLowerBodyState_AimSidestepRight:
+                    Player_FootstepSfxPlay(ANIM_STATUS(HarryAnim_SidestepRight, true), player, 118, 108, sfxId, pitch0);
+                    break;
+                default:
+                    Player_FootstepSfxPlay(ANIM_STATUS(HarryAnim_SidestepLeft, true), player, 93, 83, sfxId, pitch0);
+                    break;
+            }
+            playerProps.flags |= PlayerFlag_Moving;
+            break;
+#endif
 
         case PlayerLowerBodyState_RunForward:
             if (Player_FootstepSfxPlay(ANIM_STATUS(HarryAnim_RunForward, true), player, 31, 41, sfxId, pitch1))
