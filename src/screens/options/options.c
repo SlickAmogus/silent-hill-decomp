@@ -200,6 +200,11 @@ static const s_PcOpt PCOPT_G[] = {
      * rows (the practical maximum) while this page had room to spare. */
     { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
     { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
+#if defined(__ANDROID__) || defined(SH_IOS)
+    /* Back on the Graphics page on a phone: the Controls page is full of touch
+     * rows there, and this one lost Resolution and Window_Mode. */
+    { "Bullet_Decals",  &g_PcConfig.bulletDecals,       "bullet_decals",        VAL_ONOFF, 2, LBL_ONOFF, NULL,                          1, PCK_INT    },
+#endif
 #if defined(SH_IOS)
     /* Lives on this page rather than System purely for room: System is already
      * at the 11-row ceiling, and this page has two spare rows on a phone now
@@ -262,11 +267,16 @@ static const s_PcOpt PCOPT_C[] = {
 #if defined(__ANDROID__) || defined(SH_IOS)
     { "Touch_Controls",    &g_PcConfig.touchControls,     "touch_controls",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Touch_Look_Speed",  NULL, "touch_look_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.touchLookSensitivity, NULL, 0.1f, 4.0f, 0.1f },
+    { "One_Button_Combat", &g_PcConfig.oneButtonCombat,  "one_button_combat",      VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
 #endif
-    /* A graphics option living on the Controls page purely for room: 11 rows is
+    /* A graphics option parked on the Controls page purely for room: 11 rows is
      * the real ceiling, not the 12 the Graphics comment above assumes, and this
-     * page is the shortest. Adding it to Graphics pushed that page off-screen. */
+     * page is the shortest. On a phone the balance flips -- the touch rows land
+     * here while Graphics loses Resolution and Window_Mode -- so it goes back
+     * where it belongs there. */
+#if !defined(__ANDROID__) && !defined(SH_IOS)
     { "Bullet_Decals",     &g_PcConfig.bulletDecals,      "bullet_decals",          VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+#endif
     { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },

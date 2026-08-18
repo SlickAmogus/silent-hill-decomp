@@ -84,6 +84,7 @@ s_PcConfig g_PcConfig = {
     .touchControls       = 0,
 #endif
     .touchLookSensitivity = 1.0f,
+    .oneButtonCombat      = 0, /* off: Aim holds, a separate Fire button shoots */
     .altButtonSprint     = 0, /* alt cams sprint from the run control only (off = full stick push also sprints) */
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
@@ -846,6 +847,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "touch_controls") == 0)
         {
             g_PcConfig.touchControls = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "one_button_combat") == 0)
+        {
+            g_PcConfig.oneButtonCombat = (atoi(value) != 0);
         }
         else if (strcmp(key, "touch_look_sensitivity") == 0)
         {
