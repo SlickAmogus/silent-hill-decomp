@@ -881,7 +881,7 @@ public partial class Form1 : Form
          * what PsyX_Backend_FromName parses. */
         comboRender.Items.Clear();
         comboRender.Items.AddRange(new object[] {
-            "Automatic", "OpenGL (native)", "OpenGL ES 3.0", "Direct3D 11 (ANGLE)",
+            "OpenGL (native)", "OpenGL ES 3.0", "Direct3D 11 (ANGLE)",
             "Vulkan (ANGLE)", "Direct3D 11 WARP (CPU)", "Software (SwiftShader)" });
 
         var modes = DisplayModes.GetModes();
@@ -1092,7 +1092,12 @@ public partial class Form1 : Form
              * can act on. Clamping costs nothing and the worst case is a
              * dropdown showing the wrong entry. */
             int ri = Array.IndexOf(RendererValues, config.Get("renderer", "gl").Trim().ToLowerInvariant());
-            if (ri < 0) ri = 1;                                  // unknown -> OpenGL, same as the game
+            /* Unknown, or the retired "auto" — both mean OpenGL. GR_ResolveBackend
+             * maps PSYX_BACKEND_AUTO straight to PSYX_BACKEND_GL with no probing
+             * of any kind, so "Automatic" was a second name for the entry below
+             * it and is no longer offered. A config that still says auto lands
+             * here and shows what it actually gets. */
+            if (ri < 0) ri = 0;
             if (ri >= comboRender.Items.Count) ri = 0;
             comboRender.SelectedIndex = comboRender.Items.Count > 0 ? ri : -1;
         }
@@ -1963,7 +1968,7 @@ public partial class Form1 : Form
      * so re-ordering one without the other silently writes the wrong backend. */
     private static readonly string[] RendererValues =
     {
-        "auto", "gl", "gles", "d3d11", "vulkan", "warp", "software",
+        "gl", "gles", "d3d11", "vulkan", "warp", "software",
     };
 
     private void radioPreloadYes_CheckedChanged(object sender, EventArgs e)
