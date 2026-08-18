@@ -183,18 +183,6 @@ public partial class Form1 : Form
             r.AutoSize = true;
 
         Loc.LocalizeItems(comboFullscreen);
-        /* Renderer backends, display text paired with the config value by index
-         * so the value written to config.cfg never depends on the label — the
-         * labels are the descriptions PsyX_Backend prints, the values are what
-         * PsyX_Backend_FromName parses. Anything unrecognised falls back to
-         * "gl" in main_pc.c, so a hand-edited config cannot stop the game
-         * booting. d3d11 / vulkan / warp / software go through ANGLE and are
-         * the reason this is worth exposing: they are an escape hatch for
-         * machines whose OpenGL driver is the problem. */
-        comboRender.Items.Clear();
-        comboRender.Items.AddRange(new object[] {
-            "Automatic", "OpenGL (native)", "OpenGL ES 3.0", "Direct3D 11 (ANGLE)",
-            "Vulkan (ANGLE)", "Direct3D 11 WARP (CPU)", "Software (SwiftShader)" });
         Loc.LocalizeItems(comboSkipIntros);
         Loc.LocalizeItems(comboPillarbox);
         Loc.LocalizeItems(comboFiltering);
@@ -876,6 +864,22 @@ public partial class Form1 : Form
 
     private void PopulateDisplayOptions()
     {
+        /* Renderer backends. Filled HERE because the constructor runs
+         * PopulateDisplayOptions() before LoadConfig(), and LoadConfig sets
+         * comboRender.SelectedIndex — an empty combo makes that throw
+         * ArgumentOutOfRangeException and the launcher never opens. It first
+         * lived in LocalizeValueLists(), which runs after LoadConfig, and did
+         * exactly that.
+         *
+         * Display text is paired with the config value by INDEX through
+         * RendererValues, so what lands in config.cfg never depends on the
+         * label: the labels are PsyX_Backend's descriptions, the values are
+         * what PsyX_Backend_FromName parses. */
+        comboRender.Items.Clear();
+        comboRender.Items.AddRange(new object[] {
+            "Automatic", "OpenGL (native)", "OpenGL ES 3.0", "Direct3D 11 (ANGLE)",
+            "Vulkan (ANGLE)", "Direct3D 11 WARP (CPU)", "Software (SwiftShader)" });
+
         var modes = DisplayModes.GetModes();
 
         // Unique resolutions, LARGEST FIRST. A HashSet enumerates in whatever
@@ -1077,8 +1081,16 @@ public partial class Form1 : Form
         radioDecalsYes.Checked = config.Get("bullet_decals", "0") == "1";
         radioDecalsNo.Checked = !radioDecalsYes.Checked;
         {
+            /* Never assign SelectedIndex without checking the item count. A
+             * combo that is empty (or shorter than expected) throws, and a
+             * throw in LoadConfig happens in the constructor, so the launcher
+             * dies before it draws a window — no UI, no log, nothing the user
+             * can act on. Clamping costs nothing and the worst case is a
+             * dropdown showing the wrong entry. */
             int ri = Array.IndexOf(RendererValues, config.Get("renderer", "gl").Trim().ToLowerInvariant());
-            comboRender.SelectedIndex = ri >= 0 ? ri : 1; // unknown -> OpenGL, same as the game
+            if (ri < 0) ri = 1;                                  // unknown -> OpenGL, same as the game
+            if (ri >= comboRender.Items.Count) ri = 0;
+            comboRender.SelectedIndex = comboRender.Items.Count > 0 ? ri : -1;
         }
         radioPreloadYes.Checked = config.Get("preload_chunks", "1") == "1";
         radioPreloadNo.Checked = !radioPreloadYes.Checked;
