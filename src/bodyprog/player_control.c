@@ -4327,6 +4327,26 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
                 s_state    = PcGun_Fire;
                 s_stuckTmr = 0;
             }
+            else if (fireEdge && ammo == 0)
+            {
+                /* Dry fire. Reaching here means the reload branch above declined
+                 * it — no reserve left — so this is the genuinely empty click,
+                 * and the native path plays it (Player_CombatAnimUpdate, the
+                 * else of the same ammo test). This FSM replaces that function
+                 * wholesale for the alternate cameras, so without this the gun
+                 * was simply silent when empty: fire did nothing at all, which
+                 * reads as the input being dropped rather than the gun being
+                 * out.
+                 *
+                 * field_10C is the noise value the native branch sets for the
+                 * same event, so enemies react to the click exactly as they do
+                 * in classic. No keyframe work: PcGun_Aim re-pins the hold pose
+                 * every frame, so a pose set here would be overwritten, and the
+                 * repeat is already bounded because fireEdge needs the button
+                 * released first. */
+                func_8005DC1C(g_Player_EquippedWeaponInfo.outOfAmmoSfx, &player->position, Q8(0.5f), 0);
+                player->properties.player.field_10C = 32;
+            }
             break;
         }
 
