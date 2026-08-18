@@ -456,6 +456,15 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                         SD_Call(Sfx_MenuMove);
                     }
                 }
+                else if (Pc_MouseCursor_LeftClicked())
+                {
+                    /* A click that lands on no row backs out. Cancel already had
+                     * a mouse route (right-click), but touch has no second
+                     * button -- so on a touchscreen this screen could only be
+                     * left by starting a game. Empty space is free here: the
+                     * three rows above are the only thing a tap can hit. */
+                    g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;
+                }
                 if (Pc_MouseCursor_RightClicked())
                 {
                     g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;

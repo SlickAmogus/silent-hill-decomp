@@ -169,6 +169,12 @@ void Pc_MouseCursor_FrameUpdate(void)
     }
 
     btn         = SDL_GetMouseState(&mx, &my);
+    /* SDL hands these back in window points, including the ones it
+     * synthesises from touch. PsyX_MapWindowToViewport reasons in drawable
+     * pixels, so on a high-DPI iPhone an unscaled pointer lands at a third
+     * of its true position -- touch the centre of the menu, the cursor
+     * appears in the top-left corner. No-op everywhere else. */
+    PsyX_ScaleWindowToDrawable(&mx, &my);
     s_moved     = (mx != s_prevMx || my != s_prevMy);
     s_prevMx    = mx;
     s_prevMy    = my;

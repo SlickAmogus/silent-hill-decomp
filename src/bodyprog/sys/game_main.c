@@ -2055,6 +2055,85 @@ extern void GsSortOt_GetSubrootBounds(uintptr_t* lo, uintptr_t* hi);
 #define SH_OT_PTR_CEILING (UINTPTR_MAX)
 #endif
 
+/* OT entries visited by the sanitize walk this reporting period. Outside the
+ * platform #if on purpose -- it is diagnostics, not a pointer bound. */
+unsigned g_ShOtWalk = 0;
+
+#ifdef SH_PC_PORT
+/* Per-phase frame timing, reusing the trace points MainLoop already has at each
+ * major step. Six draws a frame at 150ms says the cost is not rendering, and
+ * every counter that could be read from outside (draws, VRAM uploads, OT walk,
+ * file loads, log volume) came back clean -- so the only way left to find it is
+ * to time the phases from inside. Tags are string literals, so identity compare
+ * is enough to bucket them. */
+#define ML_MAX_TAGS 24
+static const char* s_mlTag[ML_MAX_TAGS];
+static unsigned    s_mlMs[ML_MAX_TAGS];
+static int         s_mlTagCount = 0;
+static unsigned    s_mlPrevMs   = 0;
+static int         s_mlPrevIdx  = -1;
+
+static void Ml_Trace(const char* tag)
+{
+    unsigned now = (unsigned)SDL_GetTicks();
+    int      i;
+
+    if (s_mlPrevIdx >= 0)
+        s_mlMs[s_mlPrevIdx] += (now - s_mlPrevMs);
+
+    for (i = 0; i < s_mlTagCount; i++)
+    {
+        if (s_mlTag[i] == tag)
+            break;
+    }
+
+    if (i == s_mlTagCount)
+    {
+        if (s_mlTagCount < ML_MAX_TAGS)
+        {
+            s_mlTag[s_mlTagCount] = tag;
+            s_mlTagCount++;
+        }
+        else
+        {
+            i = -1;
+        }
+    }
+
+    s_mlPrevIdx = i;
+    s_mlPrevMs  = now;
+}
+
+/* Worst phases since the last call, then reset. */
+static void Ml_TraceReport(unsigned frames)
+{
+    int i, k;
+
+    for (k = 0; k < 4; k++)
+    {
+        int best = -1;
+
+        for (i = 0; i < s_mlTagCount; i++)
+        {
+            if (s_mlMs[i] > 0 && (best < 0 || s_mlMs[i] > s_mlMs[best]))
+                best = i;
+        }
+
+        if (best < 0)
+            break;
+
+        SH_DBG("[PHASE] %-24s %6u ms total  %.1f ms/frame",
+               s_mlTag[best], s_mlMs[best],
+               frames ? (double)s_mlMs[best] / (double)frames : 0.0);
+        s_mlMs[best] = 0;
+    }
+
+    for (i = 0; i < s_mlTagCount; i++)
+        s_mlMs[i] = 0;
+}
+
+#endif
+
 void MainLoop(void) // 0x80032EE0
 {
     #define TICKS_PER_SECOND_MIN (TICKS_PER_SECOND / 4)
@@ -2416,7 +2495,34 @@ void MainLoop(void) // 0x80032EE0
             continue;
         }
 
+#ifdef SH_PC_PORT
+#define ML_TRACE(tag) Ml_Trace(tag)
+#else
 #define ML_TRACE(tag) ((void)0)
+#endif
+#ifdef SH_PC_PORT
+        /* The radio interference loop must never survive into the front end.
+         * Game_WarmBoot stops it, but that only covers a demo that times out --
+         * a demo that ends on its own, or any other route back to the title,
+         * skips it and the static rides into the menus.
+         *
+         * Stop it on any transition OUT of gameplay instead. That is the
+         * invariant that actually holds (no gameplay, no radio), rather than
+         * one more individual path. One-shot per state change, so it costs a
+         * comparison per frame. */
+        {
+            extern void Game_RadioSoundStop(void);
+            static s32 s_pcPrevGameState = -1;
+
+            if ((s32)g_GameWork.gameState != s_pcPrevGameState)
+            {
+                s_pcPrevGameState = (s32)g_GameWork.gameState;
+
+                if (g_GameWork.gameState != GameState_InGame)
+                    Game_RadioSoundStop();
+            }
+        }
+#endif
         ML_TRACE("Screen_FadeUpdate");
         Screen_FadeUpdate();
 #ifdef SH_PC_PORT
@@ -2647,7 +2753,36 @@ void MainLoop(void) // 0x80032EE0
 
             // Update V blanks.
             g_UncappedVBlanks = g_VBlanks;
+#ifdef SH_PC_PORT
+            /* The cap exists so a slow frame cannot hand physics a huge step.
+             * Menus and other 2D screens have no physics -- but they DO drive
+             * fades and cursor animations from this clock, so on a device where
+             * a frame costs 8+ vblanks the cap made the game's clock run at
+             * under half real speed and a ~1.5s fade took 4-5 seconds. Outside
+             * gameplay, credit the real elapsed time (bounded well above the
+             * gameplay cap, so a load stall still cannot produce an enormous
+             * step). Gameplay keeps the original cap exactly. */
+            /* The cap is 4 vblanks. A device spending ~9 vblanks per frame
+             * therefore credits the clock less than half the time that really
+             * passed, so everything driven by it -- fades, cutscene animation
+             * and DMS line pacing, menu transitions -- runs at under half
+             * speed. Streamed voice audio is unaffected (it plays in real
+             * time), which is why cutscene lines sound perfect but the gaps
+             * between them stretch out.
+             *
+             * Relax it whenever the player is NOT in control. The cap exists to
+             * stop a slow frame handing PHYSICS a huge step, and in cutscenes,
+             * menus, message screens and the map the player is frozen and there
+             * is no integration to tunnel through geometry. Interactive
+             * gameplay keeps the original 4 exactly. */
+            if (g_GameWork.gameState != GameState_InGame ||
+                g_SysWork.sysState != SysState_Gameplay)
+                g_VBlanks = MIN(g_VBlanks, 16);
+            else
+                g_VBlanks = MIN(g_VBlanks, V_BLANKS_MAX);
+#else
             g_VBlanks         = MIN(g_VBlanks, V_BLANKS_MAX);
+#endif
 
 #ifdef SH_PC_PORT
             /* [PERF] wall-clock frame telemetry, one line per ~256 frames.
@@ -2667,7 +2802,39 @@ void MainLoop(void) // 0x80032EE0
                     s_perfVbAccum += (u32)g_UncappedVBlanks;
                     if (++s_perfFrames >= 256)
                     {
-                        SH_DBG("[PERF] avg=%.1fms (%.1f fps) worst=%lums vblanks/frame=%.2f over %lu frames",
+                        {
+                        /* Per-frame GPU work, alongside the timing. A full VRAM
+                         * upload is 1MB and cannot be batched away; if uploads
+                         * approach the frame count, that -- not pixel fill -- is
+                         * what a low-end device is spending its time on. */
+                        extern unsigned g_PsyX_VramUploads, g_PsyX_DrawCalls, g_PsyX_OtNodes;
+                        extern unsigned g_PsyX_MsParse, g_PsyX_MsSubmit, g_PsyX_OtPrims;
+                        /* gameState/sysState included so a sample can be told
+                         * apart at a glance: "menus are slow" is unanswerable
+                         * when every sample looks alike. g_ShOtWalk counts the
+                         * per-frame ordering-table sanitize walk, which scales
+                         * with OT SIZE -- 2D screens use a far bigger table than
+                         * gameplay, so if that is the cost it shows up here and
+                         * nowhere else. */
+                        SH_DBG("[PERF2] gs=%d ss=%d vram_uploads=%u draws=%u otwalk=%u otnodes=%u over %lu frames (%.0f draws/frame, %.0f otnodes/frame)",
+                               (int)g_GameWork.gameState, (int)g_SysWork.sysState,
+                               g_PsyX_VramUploads, g_PsyX_DrawCalls, g_ShOtWalk, g_PsyX_OtNodes,
+                               (unsigned long)s_perfFrames,
+                               (double)g_PsyX_DrawCalls / (double)s_perfFrames,
+                               (double)g_PsyX_OtNodes   / (double)s_perfFrames);
+                        g_PsyX_VramUploads = 0;
+                        g_PsyX_DrawCalls   = 0;
+                        g_ShOtWalk         = 0;
+                        g_PsyX_OtNodes     = 0;
+                        SH_DBG("[PERF3] parse=%ums submit=%ums prims=%u (%.1f ms parse/frame, %.1f ms submit/frame, %.0f prims/frame)",
+                               g_PsyX_MsParse, g_PsyX_MsSubmit, g_PsyX_OtPrims,
+                               (double)g_PsyX_MsParse  / (double)s_perfFrames,
+                               (double)g_PsyX_MsSubmit / (double)s_perfFrames,
+                               (double)g_PsyX_OtPrims  / (double)s_perfFrames);
+                        g_PsyX_MsParse = g_PsyX_MsSubmit = g_PsyX_OtPrims = 0;
+                        Ml_TraceReport((unsigned)s_perfFrames);
+                    }
+                    SH_DBG("[PERF] avg=%.1fms (%.1f fps) worst=%lums vblanks/frame=%.2f over %lu frames",
                                (double)s_perfAccumMs / s_perfFrames,
                                1000.0 * s_perfFrames / (double)s_perfAccumMs,
                                (unsigned long)s_perfWorstMs,
@@ -3329,6 +3496,7 @@ void MainLoop(void) // 0x80032EE0
                      * it the new chain terminator instead of just zeroing its
                      * length (the old behaviour left cur->addr pointing at the
                      * wild target, so DrawOTag would still chase it). */
+                    g_ShOtWalk++;
                     if (next && ((uintptr_t)next < 0x1000 || (uintptr_t)next > SH_OT_PTR_CEILING)) {
                         static int s_badNextDumped = 0;
                         if (!s_badNextDumped) {
@@ -3431,6 +3599,7 @@ void MainLoop(void) // 0x80032EE0
                 /* Accept heap packet buffer, OT array, OR any static/BSS primitive
                  * (e.g. screen fade DR_MODE/TILE in D_800A8E5C/D_800A8E74).
                  * Only reject null, very-low, or kernel-space addresses. */
+                g_ShOtWalk++;
                 int curOk2 = (curAddr2 >= 0x1000 && curAddr2 <= SH_OT_PTR_CEILING);
                 if (!curOk2) {
                     static int s_ot2DumpedOnce = 0;
