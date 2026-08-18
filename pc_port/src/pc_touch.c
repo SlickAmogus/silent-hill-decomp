@@ -100,7 +100,12 @@ static Uint32         s_LastTouchMs;
  * travel, not a screen fraction that would balloon on a tablet. */
 #define TC_STICK_RADIUS   0.150f
 #define TC_STICK_DEADZONE 0.150f  /* fraction of the radius */
-#define TC_RUN_THRESHOLD  0.850f  /* deflection past this also holds Run */
+/* Engage high enough that a normal walk does not trip it, release much
+ * lower so the run survives the dips a thumb makes while steering. One
+ * threshold for both meant 0.850 had to be reachable AND holdable: it was
+ * a long drag to start and dropped the moment the thumb eased off. */
+#define TC_RUN_THRESHOLD  0.680f  /* deflection past this starts a run */
+#define TC_RUN_RELEASE    0.480f  /* below this it stops -- hysteresis */
 
 /* A contact is a tap if it is released quickly without travelling far. The slop
  * is generous: thumbs roll, and a tap that gets misread as a drag reads to the
@@ -571,7 +576,10 @@ void Pc_Touch_Update(void)
                  * back-jump is still available by holding the Run button, which
                  * is how a pad does it. dy is screen-down-positive, and the
                  * margin keeps a run alive while turning hard. */
-                s_Running = (mag >= TC_RUN_THRESHOLD) && (dy < (0.35f * len));
+                {
+                    const float engage = s_Running ? TC_RUN_RELEASE : TC_RUN_THRESHOLD;
+                    s_Running = (mag >= engage) && (dy < (0.35f * len));
+                }
                 break;
             }
 
