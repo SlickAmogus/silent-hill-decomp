@@ -125,8 +125,12 @@ public partial class Form1 : Form
 
         btnLang = new Button
         {
-            // Right edge flush with the Level combo above it (446).
-            Location = new System.Drawing.Point(416, 452),
+            /* BELOW the Level row, right edges flush. The combo occupies
+             * y 447..468, so the old 452 sat on top of it and clipped the
+             * dropdown's right side. Created in code rather than the designer
+             * (the flag is custom-painted), which is why it cannot be nudged
+             * from the VS design surface. */
+            Location = new System.Drawing.Point(416, 472),
             Size = new System.Drawing.Size(30, 22),
             Text = "",
             FlatStyle = FlatStyle.Standard,

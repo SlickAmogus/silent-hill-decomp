@@ -154,6 +154,8 @@ namespace SilentHillPC_Launcher
             { "Every texture…",     new[]{ "Todas las texturas…", "Todas as texturas…", "Toutes les textures…", "Alle Texturen…", "Tutte le texture…", "すべてのテクスチャ…", "所有纹理…", "Все текстуры…", "Wszystkie tekstury…" } },
             { "Enable loose file support (required for load-folder mods)",
                                     new[]{ "Activar archivos sueltos (necesario para mods de carpeta)", "Ativar arquivos avulsos (necessário para mods de pasta)", "Activer les fichiers libres (requis pour les mods de dossier)", "Lose Dateien aktivieren (für Ordner-Mods nötig)", "Abilita file sciolti (necessario per i mod da cartella)", "ルーズファイルを有効化(フォルダMODに必要)", "启用松散文件(文件夹模组必需)", "Включить свободные файлы (нужно для модов из папки)", "Włącz luźne pliki (wymagane dla modów z folderu)" } },
+            { "Renderer:",      new[]{ "Renderizador:", "Renderizador:", "Rendu :", "Renderer:", "Renderer:", "レンダラー:", "渲染器:", "Рендерер:", "Renderer:" } },
+            { "Bullet Decals:", new[]{ "Marcas de bala:", "Marcas de bala:", "Impacts :", "Kugellöcher:", "Fori proiettili:", "弾痕:", "弹孔:", "Следы от пуль:", "Ślady po kulach:" } },
             // ---- controls window ----
             { "Keyboard Controls",                    new[]{ "Teclado", "Teclado", "Clavier", "Tastatur", "Tastiera", "キーボード", "键盘控制", "Клавиатура", "Klawiatura" } },
             { "Controller Controls",                  new[]{ "Mando", "Controle", "Manette", "Controller", "Controller", "コントローラー", "手柄控制", "Геймпад", "Kontroler" } },
