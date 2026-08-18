@@ -1935,6 +1935,10 @@ void DbgOverlay_Render(void)
      * toast above, and drawn after it so an unlock popup stays on top. */
     { extern void Pc_RaBrowser_Draw(void); Pc_RaBrowser_Draw(); }
 
+    /* In-game randomizer settings panel — same self-contained-GL arrangement,
+     * opened by tapping the Map button during a run. */
+    { extern void Pc_RandoSettings_Draw(void); Pc_RandoSettings_Draw(); }
+
     /* Console is hidden once fully slid off-screen (toggled by `~`); the ring
      * buffer keeps filling while hidden. The collision panel draws whenever it's
      * toggled on (`'`), independent of the console. The anim panel draws while the
@@ -1986,7 +1990,7 @@ void DbgOverlay_Render(void)
     if (!s_gl_inited)
         overlay_gl_init();
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, PSYX_DEFAULT_FBO);
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

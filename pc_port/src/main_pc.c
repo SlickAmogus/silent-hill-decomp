@@ -13,19 +13,40 @@
 #include <dirent.h>
 #include <time.h>
 
-/* Android is the one platform where SDL must own the entry point: there is no
- * process main() to reach: SDLActivity's Java shim dlopen()s libmain.so and
- * calls SDL_main inside it, and SDL_main.h only redirects main -> SDL_main
- * while SDL_MAIN_HANDLED is absent. Everywhere else the port keeps the real
- * C entry (the MinGW link relies on it — see -emainCRTStartup in CMakeLists). */
-#ifndef __ANDROID__
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+/* Normally supplied by the build (pc_port/CMakeLists.txt defines it for IOS);
+ * derived here as well so this file is correct on its own. */
+#if defined(__APPLE__) && TARGET_OS_IPHONE && !defined(SH_IOS)
+#define SH_IOS 1
+#endif
+
+/* The two mobile targets are where SDL must own the entry point. On Android
+ * there is no process main() to reach at all: SDLActivity's Java shim
+ * dlopen()s libmain.so and calls SDL_main inside it. On iOS there is a real
+ * entry point, but it has to be UIApplicationMain — SDL's UIKit backend
+ * supplies that and calls the game's main() from inside the app delegate.
+ * SDL_main.h only redirects main -> SDL_main while SDL_MAIN_HANDLED is absent.
+ * Everywhere else the port keeps the real C entry (the MinGW link relies on it
+ * — see -emainCRTStartup in CMakeLists). */
+#if !defined(__ANDROID__) && !defined(SH_IOS)
 #define SDL_MAIN_HANDLED
 #endif
 #include <SDL.h>
 #include <SDL_main.h>
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SH_IOS)
 #include <SDL_system.h>   /* SDL_AndroidGetExternalStoragePath */
 #include <unistd.h>       /* chdir */
+#endif
+#ifdef SH_IOS
+/* ios_paths.m — Documents is the one directory Files.app exposes, so it is
+ * where the user's disc image arrives and where saves have to live.
+ * ios_bootstrap.m — copies the port's own shipped assets out of the read-only
+ * bundle on first run, the counterpart of the Android activity's asset staging. */
+const char* Ios_DocumentsPath(void);
+void        Ios_StageBundledAssets(void);
+void        Ios_EnsureMemoryCard(void);
 #endif
 
 #include "common.h"
@@ -679,6 +700,17 @@ static int BuildDiscSearchRoots(char roots[][1024], int maxRoots)
     }
 #endif
 
+#if defined(SH_IOS)
+    /* iOS has no equivalent of Android's unreachable-data-dir problem: the
+     * working directory IS Documents, and UIFileSharingEnabled publishes it to
+     * Files.app directly. What it does have is the same user mistake the drop
+     * dir accounts for — Files.app shows this app as a single "Silent Hill"
+     * folder, so dropping the .bin straight into it rather than into gamedata/
+     * is the obvious thing to try. Accept both. */
+    if (n < maxRoots)
+        snprintf(roots[n++], 1024, ".");
+#endif
+
     return n;
 }
 
@@ -917,6 +949,52 @@ int main(int argc, char* argv[])
             return 1;
         }
     }
+#endif
+
+#ifdef SH_IOS
+    /* Same problem as Android, different directory. An iOS app starts with the
+     * working directory at the bundle root, which is read-only and signed, so
+     * config.cfg, saves and SilentHill.log all fail to write there. Documents is
+     * the only place that is writable AND visible to the user: with
+     * UIFileSharingEnabled and LSSupportsOpeningDocumentsInPlace set (see
+     * ios_port/Resources/Info.plist.in) it appears in Files.app, which is how
+     * the user's disc image gets onto the device in the first place. Anchoring
+     * the CWD there keeps every relative path in the port working unchanged.
+     *
+     * The container survives re-signing as long as the bundle ID does not
+     * change, which matters on a free provisioning profile — the app is
+     * re-signed weekly and a ~700 MB disc image should not have to come back
+     * across each time. */
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+
+    /* SDL exposes the iOS accelerometer as a joystick by default, and it shows
+     * up as device 0 ("iOS Accelerometer", isGameController=0). Left on, tilting
+     * the phone feeds analog axes into the pad — and device 0 is exactly the
+     * slot the touch controls inject into. Nothing here wants tilt input. */
+    SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
+
+    /* 2 = hidden outright rather than dimmed-until-idle. The home bar sits over
+     * the bottom of the picture otherwise, and the game already draws its own
+     * touch controls down there. */
+    SDL_SetHint(SDL_HINT_IOS_HIDE_HOME_INDICATOR, "2");
+
+    {
+        const char* dataDir = Ios_DocumentsPath();
+        if (dataDir == NULL || chdir(dataDir) != 0)
+        {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                         "Could not enter the game data directory (%s) - the disc image "
+                         "and config.cfg cannot be found.",
+                         dataDir ? dataDir : "unavailable");
+            return 1;
+        }
+    }
+
+    /* After the chdir, before the config is read: config.cfg is one of the
+     * files staged, and it is only written when absent. */
+    Ios_StageBundledAssets();
+    /* Before any save screen can ask whether a card is present. */
+    Ios_EnsureMemoryCard();
 #endif
 
     /* Log file is NOT opened until after config load. SH_DBG calls before
@@ -1276,11 +1354,12 @@ int main(int argc, char* argv[])
 
     SH_LOG("PsyCross initialized. Window: %dx%d", windowWidth, windowHeight);
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) || defined(SH_IOS)
     /* On desktop the config IS the window size, so the five per-poly visibility
      * bounds that divide by g_PcConfig.windowWidth/Height agree with what is on
-     * screen. Android has no say in it — the surface size comes from the device
-     * — so those bounds were still being computed from the 640x480 defaults:
+     * screen. Neither mobile target has any say in it — the surface size comes
+     * from the device — so those bounds were still being computed from the
+     * 640x480 defaults:
      *
      *   224 * 640 / (2*480)  * 1.09375 ~= 163   (bound actually used)
      *   224 * 2340 / (2*1080)* 1.09375 ~= 265   (bound 2340x1080 needs)
@@ -1568,6 +1647,18 @@ int main(int argc, char* argv[])
                          (drop != NULL && drop[0] != '\0') ? drop : PcPort_GetGameDataPath(),
                          PcPort_GetGameDataPath());
             }
+#elif defined(SH_IOS)
+            /* Name it the way the user sees it in Files.app, not as a
+             * filesystem path — the container path is a UUID they cannot type
+             * and would never recognise. */
+            snprintf(msg, sizeof(msg),
+                     "No Silent Hill disc image was found.\n\n"
+                     "Open the Files app and go to:\n"
+                     "  On My iPhone > Silent Hill\n\n"
+                     "Copy your own disc rip (a .bin file) into the gamedata\n"
+                     "folder there, or just drop it in that folder directly.\n\n"
+                     "USA, PAL and NTSC-J discs all work, and the file can keep\n"
+                     "whatever name it has. No .cue file is needed.");
 #else
             snprintf(msg, sizeof(msg),
                      "No Silent Hill disc image was found.\n\n"

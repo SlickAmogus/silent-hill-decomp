@@ -33,7 +33,7 @@
 enum { TR_NONE = 0, TR_MOVE, TR_LOOK, TR_BUTTON, TR_ADVANCE };
 
 /* Actions the on-screen buttons drive. Indices into s_Buttons. */
-enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_COUNT };
+enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_FIRE, TB_COUNT };
 
 typedef struct
 {
@@ -65,6 +65,11 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
     /* TB_BACK is only ever drawn in the corner escape slot, so its own
      * position is never used -- it exists to carry a glyph and a binding. */
     /* TB_BACK  */ { 0.955f, 0.075f, 0.055f, 0 },
+    /* Mirror of Aim on the other thumb, and only while Aim is held: firing
+     * meant tapping the steering half of the screen, which fights the stick
+     * the same thumb is holding. Hidden the rest of the time so it never eats
+     * a movement drag. */
+    /* TB_FIRE  */ { 0.095f, 0.760f, 0.105f, 0 },
 };
 
 typedef struct
@@ -100,7 +105,12 @@ static Uint32         s_LastTouchMs;
  * travel, not a screen fraction that would balloon on a tablet. */
 #define TC_STICK_RADIUS   0.150f
 #define TC_STICK_DEADZONE 0.150f  /* fraction of the radius */
-#define TC_RUN_THRESHOLD  0.850f  /* deflection past this also holds Run */
+/* Engage high enough that a normal walk does not trip it, release much
+ * lower so the run survives the dips a thumb makes while steering. One
+ * threshold for both meant 0.850 had to be reachable AND holdable: it was
+ * a long drag to start and dropped the moment the thumb eased off. */
+#define TC_RUN_THRESHOLD  0.680f  /* deflection past this starts a run */
+#define TC_RUN_RELEASE    0.480f  /* below this it stops -- hysteresis */
 
 /* A contact is a tap if it is released quickly without travelling far. The slop
  * is generous: thumbs roll, and a tap that gets misread as a drag reads to the
@@ -170,6 +180,13 @@ static int Tc_Mode(void)
         g_GameWork.gameStateSteps[0] == OptionsMenuState_Brightness)
         return TC_MODE_BACK;
 
+    /* The save/load screen is cancel-only in the same way, and it is reachable
+     * straight from the pause menu, so with no pad a player could get into it
+     * and not back out. */
+    if (g_GameWork.gameState == GameState_SaveScreen ||
+        g_GameWork.gameState == GameState_LoadSavegameScreen)
+        return TC_MODE_BACK;
+
     if (g_GameWork.gameState != GameState_InGame)
         return TC_MODE_OFF;
     if (g_SysWork.sysState == SysState_Gameplay)
@@ -194,8 +211,15 @@ static int Tc_Mode(void)
     {
         extern int Pc_MouseCursor_PuzzleActive(void);
 
+        /* A free-cursor puzzle is already driven as a pointer by
+         * pc_mouse_cursor, so no confirm may be injected underneath -- it would
+         * fire twice on every tap. But OFF left the corner empty too, and these
+         * screens are cancel-only: with no pad there was no way out at all, so
+         * opening one on a phone was a softlock. Give it the same lone Back
+         * button the brightness screen gets. The drag still reaches the cursor;
+         * only that one corner slot is taken. */
         if (Pc_MouseCursor_PuzzleActive())
-            return TC_MODE_OFF;
+            return TC_MODE_BACK;
 
         return TC_MODE_ADVANCE;
     }
@@ -557,7 +581,10 @@ void Pc_Touch_Update(void)
                  * back-jump is still available by holding the Run button, which
                  * is how a pad does it. dy is screen-down-positive, and the
                  * margin keeps a run alive while turning hard. */
-                s_Running = (mag >= TC_RUN_THRESHOLD) && (dy < (0.35f * len));
+                {
+                    const float engage = s_Running ? TC_RUN_RELEASE : TC_RUN_THRESHOLD;
+                    s_Running = (mag >= engage) && (dy < (0.35f * len));
+                }
                 break;
             }
 
@@ -616,6 +643,11 @@ void Pc_Touch_Update(void)
         const s_ControllerConfig* cfg = &g_GameWorkPtr->config.controllerConfig;
 
         if (s_Buttons[TB_AIM].holdFrames   > 0) Tc_PressAction(&s_PadWord, cfg->aim);
+        /* Fire only counts while the gun is up. One-button combat folds it into
+         * Aim itself, for players who would rather not hold two things at once. */
+        if (s_Buttons[TB_AIM].holdFrames > 0 &&
+            (g_PcConfig.oneButtonCombat || s_Buttons[TB_FIRE].holdFrames > 0))
+            Tc_PressAction(&s_PadWord, cfg->action);
         if (s_Buttons[TB_ITEM].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->item);
         if (s_Buttons[TB_MAP].holdFrames   > 0) Tc_PressAction(&s_PadWord, cfg->map);
         if (s_Buttons[TB_START].holdFrames > 0) Tc_PressAction(&s_PadWord, cfg->pause);
@@ -843,6 +875,18 @@ void Pc_Touch_Draw(void)
         if (mode == TC_MODE_ADVANCE)
             continue;
 
+        /* TB_BACK carries a glyph and a binding for the corner escape slot; its
+         * own position is a copy of Start's. Drawing it in gameplay too put the
+         * back mark and the pause bars inside the same ring. */
+        if (mode == TC_MODE_GAMEPLAY && i == TB_BACK)
+            continue;
+
+        /* Fire appears with the gun and goes away with it. */
+        if (i == TB_FIRE &&
+            (mode != TC_MODE_GAMEPLAY || g_PcConfig.oneButtonCombat ||
+             s_Buttons[TB_AIM].holdFrames <= 0))
+            continue;
+
         if (mode != TC_MODE_GAMEPLAY)
         {
             if (i != Tc_SoloButton(mode))
@@ -865,6 +909,14 @@ void Pc_Touch_Draw(void)
          * without a font: crosshair, square, folded sheet, two bars. */
         switch (i)
         {
+            case TB_FIRE:
+            {
+                int d = (r * 34) / 100;
+                Tc_Quad(&batch, cx - d, cy - d, cx + d, cy - d, cx - d, cy + d, cx + d, cy + d, lum);
+                Tc_Quad(&batch, cx - (d * 3) / 2, cy, cx, cy - (d * 3) / 2,
+                                cx, cy + (d * 3) / 2, cx + (d * 3) / 2, cy, lum);
+                break;
+            }
             case TB_AIM:
             {
                 int t = (r * 9) / 100, l = (r * 46) / 100;

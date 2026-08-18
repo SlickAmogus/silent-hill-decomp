@@ -585,7 +585,13 @@ namespace SilentHillPC_Launcher
         /// with the bank name so exports from several banks can share one folder.</summary>
         private string SoundFileName(VabVag vag, bool raw)
         {
-            return BaseName + "_" + vag.Index.ToString("000") + (raw ? ".vag" : ".wav");
+            /* A dot before the number, so an exported .wav is already named the
+             * way the loose-file loader looks for it (gamedata/load/SND/) and an
+             * export -> edit -> drop-in round trip just works. The runtime still
+             * accepts the old underscore form, so files exported before this
+             * keep loading. The .vag export is not a loose-file name, but it is
+             * kept consistent so both halves of the tool read the same. */
+            return BaseName + "." + vag.Index.ToString("000") + (raw ? ".vag" : ".wav");
         }
 
         private bool WriteOne(VabVag vag, string path, bool raw)

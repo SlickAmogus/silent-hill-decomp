@@ -977,14 +977,15 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
      * upload reports a COMPRESSED internal format here (a sub-image into it
      * would fail), so only GL's own answer is trustworthy. */
     int reuseStorage;
-#if defined(__ANDROID__)
-    /* glGetTexLevelParameteriv is ES 3.1; the NDK's <GLES3/gl3.h> is ES 3.0, so
-     * the current storage cannot be queried and the reuse fast path cannot be
-     * proven safe (the BC7-compressed-format case it guards against would make
-     * a sub-image fail). Always take the reallocating path below — the same one
-     * every genuine (re)allocation already uses, so this is correct, only
-     * slower. Restoring the fast path here means moving to <GLES3/gl31.h>,
-     * which would also raise the device requirement to ES 3.1. */
+#if defined(__ANDROID__) || defined(SH_IOS)
+    /* glGetTexLevelParameteriv is ES 3.1, and neither mobile target has it: the
+     * NDK's <GLES3/gl3.h> is ES 3.0, and Apple's OpenGLES framework stops at ES
+     * 3.0 as well (iOS never shipped 3.1). So the current storage cannot be
+     * queried and the reuse fast path cannot be proven safe (the
+     * BC7-compressed-format case it guards against would make a sub-image
+     * fail). Always take the reallocating path below — the same one every
+     * genuine (re)allocation already uses, so this is correct, only slower.
+     * Restoring the fast path means moving to ES 3.1, which iOS cannot do. */
     reuseStorage = 0;
 #else
     {
@@ -1055,12 +1056,97 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
         GLenum uploadErr = glGetError();
         if (uploadErr != GL_NO_ERROR)
         {
-            static int s_oomLog = 0;
-            if (s_oomLog < 8) { SH_DBG("[POOLTEX] GL error 0x%X on %dx%d upload — keeping native art", (unsigned)uploadErr, w, h); s_oomLog++; }
-            glBindTexture(GL_TEXTURE_2D, 0);
-            glDeleteTextures(1, tex);
-            *tex = 0;
-            return -1;
+            /* Shrink and retry before giving up.
+             *
+             * Losing the texture here does NOT degrade to native art, which is
+             * what the old comment assumed. The material's prim clut has
+             * already been rebased onto this virtual slot, and a virtual slot
+             * with no GL texture is an UNBACKED bit-15 clut — exactly what
+             * PsyX_GPU.cpp's ClutHasNoPalette drops on sight, because drawing
+             * it folds a negative V onto an arbitrary VRAM palette (permanent
+             * rainbow). So the prim is discarded outright and the object is
+             * simply absent: the missing Nowhere elevator door, reported only
+             * ever from low-VRAM machines, where a big resident-texture working
+             * set is what makes these uploads fail in the first place.
+             *
+             * Halving until it fits keeps the slot BACKED, so nothing is
+             * dropped and nothing can rainbow — the object is drawn, at worst
+             * softer than the pack intended. That is a real graceful degrade,
+             * and it is strictly better than invisible on the machines that hit
+             * it. Downscale is a box filter done in place (dst index never
+             * passes src index at 2:1), so it needs one scratch buffer. */
+            static unsigned char* s_shrink = NULL;
+            static int            s_shrinkBytes = 0;
+            const unsigned char*  src = rgba;
+            int                   sw = w, sh = h;
+            int                   recovered = 0;
+
+            while (sw >= 2 && sh >= 2 && (sw > 32 || sh > 32))
+            {
+                int dw = sw >> 1, dh = sh >> 1;
+                int need = dw * dh * 4, x, y, c;
+
+                if (need > s_shrinkBytes)
+                {
+                    unsigned char* nb = (unsigned char*)realloc(s_shrink, (size_t)need);
+                    if (nb == NULL)
+                        break;
+                    s_shrink = nb;
+                    s_shrinkBytes = need;
+                }
+
+                for (y = 0; y < dh; y++)
+                {
+                    for (x = 0; x < dw; x++)
+                    {
+                        const unsigned char* a = src + (((y * 2) * sw) + x * 2) * 4;
+                        const unsigned char* b = a + 4;
+                        const unsigned char* d = a + sw * 4;
+                        const unsigned char* e = d + 4;
+
+                        for (c = 0; c < 4; c++)
+                            s_shrink[((y * dw) + x) * 4 + c] =
+                                (unsigned char)(((int)a[c] + b[c] + d[c] + e[c]) >> 2);
+                    }
+                }
+
+                src = s_shrink;
+                sw  = dw;
+                sh  = dh;
+
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sw, sh, 0,
+                             GL_RGBA, GL_UNSIGNED_BYTE, s_shrink);
+                if (glGetError() == GL_NO_ERROR)
+                {
+                    recovered = 1;
+                    break;
+                }
+            }
+
+            {
+                static int s_oomLog = 0;
+                if (s_oomLog < 8)
+                {
+                    if (recovered)
+                        SH_WARN("[POOLTEX] GL error 0x%X on %dx%d upload — recovered at %dx%d",
+                                (unsigned)uploadErr, w, h, sw, sh);
+                    else
+                        SH_WARN("[POOLTEX] GL error 0x%X on %dx%d upload and every shrink — "
+                                "slot left unbacked, its prims will be dropped",
+                                (unsigned)uploadErr, w, h);
+                    s_oomLog++;
+                }
+            }
+
+            if (!recovered)
+            {
+                glBindTexture(GL_TEXTURE_2D, 0);
+                glDeleteTextures(1, tex);
+                *tex = 0;
+                return -1;
+            }
+            w = sw;
+            h = sh;
         }
     }
     if (!nearest && glGenerateMipmap != NULL)

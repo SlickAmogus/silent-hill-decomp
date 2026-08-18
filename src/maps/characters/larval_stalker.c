@@ -34,6 +34,58 @@ void LarvalStalker_Update(s_SubCharacter* larvalStalker, s_AnmHeader* anmHdr, Gs
     sharedFunc_800D1524_1_s00(larvalStalker, anmHdr, coords);
     sharedFunc_800D1DBC_1_s00(larvalStalker);
 
+#ifdef SH_PC_PORT
+    /* "They fall down twice and then never disappear." The vanish is a chain of
+     * four gates and this says which one is stuck:
+     *   timer_10A  must reach Q12(3.5) — only accumulates in Control_8 (8) and
+     *              TripOver (9), never resets;
+     *   timer_C6   then ramps 0 -> Q12(1.0) at 0.25/s (that IS the fade-out);
+     *   ctrl       becomes 1, where a 1-in-32 per-frame roll sets health = -1.
+     * field_EA (0..2) is the trip counter and gates re-entry to Control_8 on the
+     * player's move speed (> 0.5 / 2.0 / 3.5). One line per second per stalker. */
+    {
+        static q19_12 s_nextLog[NPC_COUNT_MAX];
+        static s8     s_prevCtrl[NPC_COUNT_MAX];
+        static s32    s_lines = 0;
+        s32 _i = Chara_NpcIdxGet(larvalStalker);
+        if (_i >= 0 && _i < NPC_COUNT_MAX && s_lines < 400)
+        {
+            s32  _ctrl    = larvalStalker->model.controlState;
+            bool _changed = (_ctrl != s_prevCtrl[_i]);
+
+            s_nextLog[_i] -= g_DeltaTime;
+            if (_changed || s_nextLog[_i] <= 0)
+            {
+                s_prevCtrl[_i] = (s8)_ctrl;
+                s_nextLog[_i]  = Q12(2.0f);
+                s_lines++;
+                SH_DBG("[LARVAL] idx=%d ctrl=%d%s fallCount=%d t10A=%d/%d t_C6=%d/%d t_F0=%d flags=0x%X hp=%d playerSpeed=%d",
+                       (int)_i, (int)_ctrl, _changed ? "*" : " ",
+                       (int)larvalStalkerProps.field_EA,
+                       (int)larvalStalkerProps.timer_10A, (int)Q12(3.5f),
+                       (int)larvalStalker->timer_C6, (int)Q12(1.0f),
+                       (int)larvalStalkerProps.timer_F0, (unsigned)larvalStalkerProps.flags,
+                       (int)larvalStalker->health,
+                       (int)g_SysWork.playerWork.player.moveSpeed);
+            }
+        }
+    }
+
+    /* One-shot markers for the two gates that only ever pass once, so a stall
+     * is visible as a missing line rather than something to infer from a
+     * sampled ramp. */
+    {
+        static u8 s_hitFull[NPC_COUNT_MAX];
+        s32 _i = Chara_NpcIdxGet(larvalStalker);
+        if (_i >= 0 && _i < NPC_COUNT_MAX && !s_hitFull[_i] &&
+            larvalStalkerProps.timer_10A >= Q12(3.5f))
+        {
+            s_hitFull[_i] = 1;
+            SH_DBG("[LARVAL] idx=%d GATE1 t10A full — fade-out starts (4s at 0.25/s)", (int)_i);
+        }
+    }
+#endif
+
     if (larvalStalkerProps.timer_10A < Q12(3.5f))
     {
         return;
@@ -50,6 +102,18 @@ void LarvalStalker_Update(s_SubCharacter* larvalStalker, s_AnmHeader* anmHdr, Gs
 
     larvalStalker->timer_C6               = Q12(1.0f);
     larvalStalker->model.controlState = LarvalStalkerControl_1;
+
+#ifdef SH_PC_PORT
+    {
+        static u8 s_gate2[NPC_COUNT_MAX];
+        s32 _i = Chara_NpcIdxGet(larvalStalker);
+        if (_i >= 0 && _i < NPC_COUNT_MAX && !s_gate2[_i])
+        {
+            s_gate2[_i] = 1;
+            SH_DBG("[LARVAL] idx=%d GATE2 faded out — now in ctrl 1, 1-in-32/frame to remove", (int)_i);
+        }
+    }
+#endif
 
     if (*mapOverlayPtr == 37 || !Rng_GenerateInt(0, 3)) // 1 in 4 chance.
     {
@@ -151,6 +215,10 @@ void Ai_LarvalStalker_ControlUpdate(s_SubCharacter* larvalStalker)
             if (!Rng_GenerateInt(0, 31)) // 1 in 32 chance.
             {
                 larvalStalker->health = NO_VALUE;
+#ifdef SH_PC_PORT
+                SH_DBG("[LARVAL] idx=%d GATE3 health = NO_VALUE — if it is still on screen after this, the removal is what is broken",
+                       (int)Chara_NpcIdxGet(larvalStalker));
+#endif
             }
             break;
 

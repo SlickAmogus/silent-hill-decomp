@@ -19,3 +19,7 @@
 [submodule "android_port/app/jni/SDL"]
 	path = android_port/app/jni/SDL
 	url = https://github.com/libsdl-org/SDL.git
+[submodule "ios_port/SDL"]
+	path = ios_port/SDL
+	url = https://github.com/libsdl-org/SDL.git
+	branch = main

@@ -5,6 +5,7 @@
 extern void PsyX_EndScene(void);
 extern const unsigned char* g_sdlKeyboardState;
 extern int PsyX_Pad_SkipButtonHeld(void);
+extern int Pc_Touch_AnyContact(void);
 
 /* QOL boot-logo skip. The stock logo loops only react to heldBtnFlags, but neither the
  * keyboard nor the gamepad is wired into the game's controller flags this early in boot
@@ -27,6 +28,11 @@ static int BootSkip_Pressed(void)
         return 1;
     }
 
+
+    /* A touchscreen has no confirm key and no Start button, so without this the
+     * logos can only be waited out. Same predicate the FMV skip uses. */
+    if (Pc_Touch_AnyContact())
+        return 1;
     return PsyX_Pad_SkipButtonHeld();
 }
 #endif

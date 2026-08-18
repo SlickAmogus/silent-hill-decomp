@@ -134,7 +134,8 @@ int Pc_ExitToMenuRowActive(void)
     return g_GameWork.gameState == GameState_InGame;
 }
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK };
+
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -195,8 +196,15 @@ static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
 #define PC_RES_COUNT ((int)(sizeof(RES_W) / sizeof(RES_W[0])))
 
 static const s_PcOpt PCOPT_G[] = {
+    /* Neither row means anything on a phone, and Resolution actively breaks it:
+     * the drawable is the panel's, published back into the config at startup
+     * (see GR_InitialiseGLContext), so picking a number here only desynchronises
+     * the viewport and cull bounds from the screen until the next launch.
+     * Window_Mode is moot too — the window is always fullscreen. */
+#if !defined(__ANDROID__) && !defined(SH_IOS)
     { "Resolution",     NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RES    },
     { "Window_Mode",    &g_PcConfig.fullscreen,         "fullscreen",           VAL_WIN,   3, LBL_WIN,   NULL,                          1, PCK_WINMODE },
+#endif
     { "VSync",          &g_PcConfig.vsync,              "vsync",                VAL_VSYNC, 2, LBL_VSYNC, NULL,                          1, PCK_VSYNC   },
     { "Texture_Filter", &g_PcConfig.psxDither,          "psx_dither",           VAL_FILT,  3, LBL_FILT,  NULL,                          1, PCK_FILTER },
     { "PGXP",           &g_PcConfig.usePgxp,            "use_pgxp",             VAL_ONOFF, 2, LBL_ONOFF, &g_PsxUsePgxp,                 1, PCK_INT    },
@@ -207,6 +215,20 @@ static const s_PcOpt PCOPT_G[] = {
      * rows (the practical maximum) while this page had room to spare. */
     { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
     { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
+#if defined(__ANDROID__) || defined(SH_IOS)
+    /* Back on the Graphics page on a phone: the Controls page is full of touch
+     * rows there, and this one lost Resolution and Window_Mode. */
+    { "Bullet_Decals",  &g_PcConfig.bulletDecals,       "bullet_decals",        VAL_ONOFF, 2, LBL_ONOFF, NULL,                          1, PCK_INT    },
+#endif
+#if defined(SH_IOS)
+    /* Lives on this page rather than System purely for room: System is already
+     * at the 11-row ceiling, and this page has two spare rows on a phone now
+     * that Resolution and Window_Mode are gone. Restores the config.cfg the app
+     * shipped with, straight out of the signed bundle -- there is no full config
+     * writer to rebuild one from the defaults in memory, and a phone has no text
+     * editor pointed at Documents. */
+    { "Reset_Settings", NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RESET  },
+#endif
     { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
 };
 
@@ -243,14 +265,33 @@ static const s_PcOpt PCOPT_C[] = {
     /* control_2d_snap is config-only now — the default turn-into-the-direction 2D
      * control is what players expect, so the in-game toggle was dropped. The key
      * still loads from config.cfg (pc_config.c) for anyone who wants instant snap. */
+    /* 11 rows is this page's hard ceiling (see Bullet_Decals below), and the
+     * touch rows would take it to 13. The two mouse rows are what give way on a
+     * phone, because there is no mouse there to invert or set a speed for.
+     * Both keys still load from config.cfg for anyone pairing one over USB-C. */
+#if !defined(__ANDROID__) && !defined(SH_IOS)
     { "Mouse_Sensitivity", NULL, "mouse_sensitivity",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.mouseSensitivity,      NULL, 0.1f, 4.0f, 0.1f },
+#endif
     { "Pad_Sensitivity",   NULL, "controller_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.controllerSensitivity, NULL, 0.1f, 4.0f, 0.1f },
     { "First_Person_FOV",  NULL, "fps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fpsFov,                NULL, 55.0f, 110.0f, 1.0f },
     { "Third_Person_FOV",  NULL, "tps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsFov,                NULL, 55.0f, 110.0f, 1.0f },
+#if !defined(__ANDROID__) && !defined(SH_IOS)
     { "Invert_Mouse_Y",    &g_PcConfig.invertMouseY,      "invert_mouse_y",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+#endif
     { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+#if defined(__ANDROID__) || defined(SH_IOS)
     { "Touch_Controls",    &g_PcConfig.touchControls,     "touch_controls",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Touch_Look_Speed",  NULL, "touch_look_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.touchLookSensitivity, NULL, 0.1f, 4.0f, 0.1f },
+    { "One_Button_Combat", &g_PcConfig.oneButtonCombat,  "one_button_combat",      VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+#endif
+    /* A graphics option parked on the Controls page purely for room: 11 rows is
+     * the real ceiling, not the 12 the Graphics comment above assumes, and this
+     * page is the shortest. On a phone the balance flips -- the touch rows land
+     * here while Graphics loses Resolution and Window_Mode -- so it goes back
+     * where it belongs there. */
+#if !defined(__ANDROID__) && !defined(SH_IOS)
+    { "Bullet_Decals",     &g_PcConfig.bulletDecals,      "bullet_decals",          VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+#endif
     { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -291,6 +332,8 @@ static void PcMouse_InjectEnter(void)
 {
     g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
 }
+
+extern int Pc_Touch_UsedRecently(void);
 
 static void PcMouse_InjectCancel(void)
 {
@@ -639,6 +682,19 @@ void Options_PcOptionsMenu_Control(void)
                 g_PcOptionsMenu_Page--; /* Camera -> Controls -> System -> Graphics */
                 g_PcOptionsMenu_SelectedEntry = 0;
                 g_Options_SelectionHighlightTimer = 0;
+#if defined(SH_IOS)
+            } else if (sel->kind == PCK_RESET) {
+                extern int  Ios_RestoreDefaultConfig(void);
+                extern void PcConfig_Load(const char* path);
+
+                if (Ios_RestoreDefaultConfig()) {
+                    PcConfig_Load("config.cfg");
+                    Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                } else {
+                    Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
+                }
+                g_Options_SelectionHighlightTimer = 0;
+#endif
             } else if (sel->kind == PCK_BACK) {
                 Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
                 ScreenFade_Start(true, false, false);
@@ -672,7 +728,11 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
     int            count, i;
     const s_PcOpt* tbl = PcOpt_Page(&count);
     DVECTOR        strPos  = { 100, 20 };
+#if defined(SH_IOS)
+    const char*    HEADING = "iOS_Options";
+#else
     const char*    HEADING = "PC_Options";
+#endif
 
     Gfx_StringSetColor(StringColorId_White);
     Gfx_StringSetPosition(strPos.vx, strPos.vy);
@@ -1915,7 +1975,9 @@ void Options_MainOptionsMenu_EntryStringsDraw(void) // 0x801E42EC
         "Exit",
         "Brightness_Level",
         "Controller_Config",
-#ifdef SH_PC_PORT
+#if defined(SH_IOS)
+        "iOS_Options",
+#elif defined(SH_PC_PORT)
         "PC_Options",
 #else
         "Screen_Position",
@@ -2959,7 +3021,27 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
                     if (wheel != 0)
                         Pc_BrightnessRowAdjust(g_PcBrtRow, wheel);
                     else if (Pc_MouseCursor_LeftClicked())
-                        Pc_BrightnessRowAdjust(g_PcBrtRow, (mx < 160) ? -1 : +1);
+                    {
+                        /* Leaving was right-click only, and a touchscreen has no
+                         * second button -- so on a phone this screen could not be
+                         * left at all without a pad. A tap in the middle third
+                         * backs out; left and right still adjust, which is where
+                         * a finger naturally goes to change a value anyway.
+                         * Mouse behaviour is untouched. */
+                        if (Pc_Touch_UsedRecently() && mx >= 120 && mx <= 200)
+                        {
+                            /* Belt and braces: the Leave state clears this too,
+                             * but the bar is drawn by the post shader from a
+                             * global, so if any exit path ever misses it the bar
+                             * is left burned across the picture. */
+                            { extern int g_cfg_calibBar; g_cfg_calibBar = 0; }
+                            PcMouse_InjectCancel();
+                        }
+                        else
+                        {
+                            Pc_BrightnessRowAdjust(g_PcBrtRow, (mx < 160) ? -1 : +1);
+                        }
+                    }
 
                     if (Pc_MouseCursor_RightClicked())
                         PcMouse_InjectCancel();

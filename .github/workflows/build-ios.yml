@@ -1,0 +1,162 @@
+name: Build iOS Port (arm64)
+
+# Produces an UNSIGNED SilentHill.ipa for sideloading. There is no way to build
+# this off macOS: only Apple's clang emits arm64-apple-ios, and the Homebrew GCC
+# that pc_port/build.sh selects for the desktop macOS build cannot target iOS at
+# all. GitHub's macOS runners are free and unmetered for a public repository,
+# which is what makes this practical without owning a Mac.
+#
+# Signing is deliberately NOT done here. A CI runner has no keychain, no Apple
+# ID and no provisioning profile, and it does not need one: an unsigned .ipa is
+# re-signed on the way onto the device by Sideloadly or AltServer on Windows,
+# using a free Apple ID.
+
+on:
+  push:
+    branches: [ios-port]
+    paths-ignore:
+      - '**.md'
+      - 'pc_port/launcher/**'
+  pull_request:
+    branches: [ios-port]
+  workflow_dispatch:
+
+jobs:
+  build:
+    if: github.repository == 'SlickAmogus/silent-hill-decomp'
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout (with SDL + PsyCross submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build tools
+        # cmake and ninja to drive the build; llvm for llvm-nm and llvm-objcopy,
+        # which the map overlay symbol prefixing needs. Xcode carries an LLVM
+        # toolchain but does not put llvm-* on PATH and does not reliably ship
+        # objcopy at all. These are host tools that rewrite object files — they
+        # are not linked into the app, so a Homebrew build of them is fine.
+        run: brew install cmake ninja llvm
+
+      - name: Put Homebrew LLVM on PATH
+        run: echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+
+      - name: Toolchain versions
+        run: |
+          clang --version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcrun --sdk iphoneos --show-sdk-path
+          cmake --version | head -1
+          ninja --version
+
+      - name: Build + package
+        run: |
+          chmod +x ios_port/build_ios.sh
+          ./ios_port/build_ios.sh
+
+      - name: Report what was built
+        run: |
+          set -o pipefail
+          APP="$(find build-ios -maxdepth 4 -name 'SilentHill.app' -type d | head -1)"
+          echo "=== bundle contents ==="
+          ls -la "$APP"
+          echo "=== binary ==="
+          file "$APP/SilentHill"
+          echo "=== architectures ==="
+          lipo -info "$APP/SilentHill" || true
+          echo "=== confirm it really is an iOS binary, not a host build ==="
+          otool -l "$APP/SilentHill" | grep -A4 LC_BUILD_VERSION | head -12
+          echo "=== size ==="
+          du -sh "$APP"
+          ls -la build-ios/SilentHill-unsigned.ipa
+
+          # Xcode injects these; a CMake/Ninja build does not, and their absence
+          # is invisible until an installer refuses the bundle. Sideloadly failed
+          # with "This does not look like valid iOS app!" purely because
+          # CFBundleSupportedPlatforms was missing, and the build was green.
+          echo "=== bundle identity keys ==="
+          fail=0
+          for k in CFBundleSupportedPlatforms CFBundleExecutable CFBundleIdentifier \
+                   MinimumOSVersion DTPlatformName DTSDKName; do
+            if v=$(/usr/libexec/PlistBuddy -c "Print :$k" "$APP/Info.plist" 2>/dev/null); then
+              echo "  $k = $(echo "$v" | tr '\n' ' ')"
+            else
+              echo "  MISSING: $k"
+              fail=1
+            fi
+          done
+          [ "$fail" = "0" ] || { echo "Info.plist is missing keys an installer requires."; exit 1; }
+          # A device build claiming iPhoneSimulator would install nowhere.
+          plat=$(/usr/libexec/PlistBuddy -c "Print :CFBundleSupportedPlatforms:0" "$APP/Info.plist")
+          [ "$plat" = "iPhoneOS" ] || { echo "Expected iPhoneOS, got '$plat'"; exit 1; }
+          echo "Info.plist OK for device install"
+
+      - name: Upload unsigned .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: SilentHill-ios-unsigned
+          path: build-ios/SilentHill-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 90
+
+  # Launches the app in the iOS Simulator to see how far startup gets, with no
+  # device, no Apple ID and no signing. It exercises the parts that are brand
+  # new and otherwise completely untested: the chdir into Documents, the asset
+  # staging out of the read-only bundle, and config load.
+  #
+  # Informational, and it will NOT reach a rendered frame: OpenGL ES is broken
+  # in the Simulator on Apple Silicon (apps die inside glDrawElements_ES2Exec,
+  # confirmed by Apple DTS in 2024 and still unfixed), and every GitHub runner
+  # is Apple Silicon. Rendering can only be answered on a real device. What this
+  # catches is a crash BEFORE GL init, which would otherwise look identical to
+  # the known GL failure once someone finally installed it.
+  simulator-smoke:
+    name: Simulator startup smoke test
+    if: github.repository == 'SlickAmogus/silent-hill-decomp'
+    runs-on: macos-15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build tools
+        run: brew install cmake ninja llvm
+
+      - name: Put Homebrew LLVM on PATH
+        run: echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+
+      - name: Build for the Simulator
+        run: |
+          chmod +x ios_port/build_ios.sh
+          ./ios_port/build_ios.sh simulator
+
+      - name: Boot a simulator, install, launch
+        run: |
+          set -x
+          DEV=$(xcrun simctl create sh-smoke "iPhone 16" 2>/dev/null \
+                || xcrun simctl list devices available | grep -m1 -oE '[0-9A-F-]{36}')
+          xcrun simctl boot "$DEV" || true
+          xcrun simctl bootstatus "$DEV" -b || true
+
+          APP="$(find build-ios-sim -maxdepth 4 -name 'SilentHill.app' -type d | head -1)"
+          xcrun simctl install "$DEV" "$APP"
+
+          # --console streams stdout/stderr; SDL routes the port's SH_DBG output
+          # there. Time-boxed because a successful launch never exits on its own.
+          xcrun simctl launch --console-pty "$DEV" com.silenthill.port &
+          LAUNCH_PID=$!
+          sleep 45
+          kill $LAUNCH_PID 2>/dev/null || true
+
+          echo "=== did it write a log into the container? ==="
+          CONTAINER=$(xcrun simctl get_app_container "$DEV" com.silenthill.port data 2>/dev/null || true)
+          if [ -n "$CONTAINER" ]; then
+            ls -la "$CONTAINER/Documents" || true
+            for f in "$CONTAINER/Documents"/*.log "$CONTAINER/Documents/SilentHill.log"; do
+              [ -f "$f" ] && { echo "--- $f ---"; tail -60 "$f"; }
+            done
+          fi
+          xcrun simctl shutdown "$DEV" || true

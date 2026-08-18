@@ -32,6 +32,7 @@ s_PcConfig g_PcConfig = {
     .texpackLazyMs = 4, /* per-frame wall-clock budget for the on-demand pack composer (pop-in speed vs frame cost) */
     .dumpTextures = 0, /* 1=write every decoded texture upload to gamedata/dump/ as a pack-named PNG (modding aid) */
     .attractDemos = 1,
+    .menuFpsUnlock = 1, /* menus/map/puzzles follow fps_cap; inventory and cutscenes do not */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
@@ -78,7 +79,7 @@ s_PcConfig g_PcConfig = {
     .crosshairStyle      = 0, /* 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap */
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
-#if defined(__ANDROID__)
+#if defined(__ANDROID__) || defined(SH_IOS)
     /* On by default only where the touchscreen IS the controller. A desktop
      * with a touch-capable monitor still has a mouse and a pad, and drawing
      * thumb controls over its picture uninvited would be wrong. */
@@ -89,6 +90,7 @@ s_PcConfig g_PcConfig = {
     .touchLookSensitivity = 1.0f,
     .renderScale         = 1.0f,
     .lowEndMode          = 0,
+    .oneButtonCombat      = 0, /* off: Aim holds, a separate Fire button shoots */
     .altButtonSprint     = 0, /* alt cams sprint from the run control only (off = full stick push also sprints) */
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
@@ -554,6 +556,10 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.attractDemos = (atoi(value) != 0);
         }
+        else if (strcmp(key, "menu_fps_unlock") == 0)
+        {
+            g_PcConfig.menuFpsUnlock = (atoi(value) != 0);
+        }
         else if (strcmp(key, "bullet_decals") == 0)
         {
             g_PcConfig.bulletDecals = (atoi(value) != 0);
@@ -859,6 +865,10 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.touchControls = (atoi(value) != 0);
         }
+        else if (strcmp(key, "one_button_combat") == 0)
+        {
+            g_PcConfig.oneButtonCombat = (atoi(value) != 0);
+        }
         else if (strcmp(key, "touch_look_sensitivity") == 0)
         {
             float v = (float)atof(value);
@@ -1018,7 +1028,7 @@ void PcConfig_Load(const char* path)
             {
                 strncpy(g_PcConfig.raHashOverride, value,
                         sizeof(g_PcConfig.raHashOverride) - 1);
-                g_PcConfig.raHashOverride[sizeof(g_PcConfig.raHashOverride) - 1] = ' ';
+                g_PcConfig.raHashOverride[sizeof(g_PcConfig.raHashOverride) - 1] = '\0';
             }
         }
         else if (strcmp(key, "ra_sfx") == 0)

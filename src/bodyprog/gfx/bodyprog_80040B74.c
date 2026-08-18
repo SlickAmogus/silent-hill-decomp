@@ -22,11 +22,12 @@
 #include "main/fsqueue.h"
 #include "types.h"
 
-/* Each of these is called earlier in this file than it is defined. Without a
- * prototype the call creates an implicit `int f()` declaration that then
- * conflicts with the real definition -- GCC tolerates that, Clang (the Android
- * NDK compiler) rejects it. */
-void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCount, s_ActiveChunkTextures* fullPageActiveTexs, s_ActiveChunkTextures* halfPageActiveTexs, e_FsFile fileIdx);
+/* Called above their definitions. Without a prototype in scope Clang
+ * synthesises `int f()` at the call site and then rejects the real
+ * definition as a conflicting type; GCC only warns. */
+void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCount,
+                          s_ActiveChunkTextures* fullPageActiveTexs,
+                          s_ActiveChunkTextures* halfPageActiveTexs, e_FsFile fileIdx);
 
 /** Known contents:
  * - Map loading funcs
@@ -2756,15 +2757,39 @@ bool Ipd_CellPositionMatchCheck(s_Chunk* chunk, s_MapTerrain* map)
             if (dx >= -2 && dx <= 2 && dz >= -2 && dz <= 2 &&
                 g_MapOverlayHdr.mapRoomIdxGet != NULL)
             {
+                /* Sample the cell the way the room TABLE above does, at five
+                 * points rather than the centre alone. One sample is not enough
+                 * and that builder already says so: a small room's geometry
+                 * spills into a neighbouring cell whose CENTRE lands in the dead
+                 * gap between rooms, or in the next room along, so a
+                 * centre-only test rejects the very cell holding this room's
+                 * own walls. The cafe is the case that shows it -- edges culled
+                 * there and nowhere else, because bigger rooms happen to have a
+                 * neighbour centre that does match.
+                 *
+                 * Still requires a room MATCH, so other rooms across the gaps
+                 * stay hidden; this only widens where inside the cell the
+                 * question is asked. */
+                static const s32 CELL_SAMPLE[5][2] = {
+                    { 0, 0 },
+                    { -Q12(14.0f), -Q12(14.0f) }, { -Q12(14.0f), Q12(14.0f) },
+                    {  Q12(14.0f), -Q12(14.0f) }, {  Q12(14.0f), Q12(14.0f) },
+                };
                 s32 half       = CHUNK_CELL_SIZE / 2;
                 u8  playerRoom = g_MapOverlayHdr.mapRoomIdxGet(
                     (s32)map->cellX * CHUNK_CELL_SIZE + half,
                     (s32)map->cellZ * CHUNK_CELL_SIZE + half);
-                u8  chunkRoom  = g_MapOverlayHdr.mapRoomIdxGet(
-                    (s32)chunk->cellX * CHUNK_CELL_SIZE + half,
-                    (s32)chunk->cellZ * CHUNK_CELL_SIZE + half);
-                if (chunkRoom == playerRoom)
-                    return true;
+                s32 i;
+
+                for (i = 0; i < 5; i++)
+                {
+                    u8 chunkRoom = g_MapOverlayHdr.mapRoomIdxGet(
+                        (s32)chunk->cellX * CHUNK_CELL_SIZE + half + CELL_SAMPLE[i][0],
+                        (s32)chunk->cellZ * CHUNK_CELL_SIZE + half + CELL_SAMPLE[i][1]);
+
+                    if (chunkRoom == playerRoom)
+                        return true;
+                }
             }
         }
         return false;

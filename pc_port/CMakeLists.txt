@@ -43,7 +43,7 @@ option(SH_ASAN "Enable AddressSanitizer for memory corruption detection" OFF)
 # shared objects on a search path, a writable CWD next to the binary). None of
 # those hold inside an APK, so they default off for Android and stay on
 # everywhere else. Explicit -D on the command line still wins.
-if(ANDROID)
+if(ANDROID OR IOS)
     set(SH_DESKTOP_FEATURE_DEFAULT OFF)
 else()
     set(SH_DESKTOP_FEATURE_DEFAULT ON)
@@ -218,11 +218,12 @@ set_source_files_properties(
     "${DECOMP_DIR}/src/bodyprog/items/item_screens_2.c"
     PROPERTIES COMPILE_OPTIONS "-O0")
 
-# Android ships no OpenAL, so the legacy AL renderer is left out of the build
+# Neither mobile target ships OpenAL — Android never had it, and Apple removed
+# its OpenAL framework — so the legacy AL renderer is left out of the build
 # entirely and the software stack (xa_player_software.c + PsyX_SPUSoftware,
 # both SDL-sinked) becomes the only audio path. SH_NO_OPENAL collapses
 # xa_player_dispatch.c onto it — see the comment there.
-if(ANDROID)
+if(ANDROID OR IOS)
     list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "xa_player\\.c$")
 endif()
 
@@ -278,6 +279,33 @@ else()
     message(STATUS "RetroAchievements: disabled (rcheevos submodule missing — run: git submodule update --init --recursive)")
 endif()
 
+# Lua 5.4 — vendored under third_party/lua/src, compiled into a static lib for
+# the randomizer scripting layer. The standalone programs (lua.c/luac.c) and the
+# amalgamation/test files are not vendored, so a plain src/*.c glob is safe. The
+# generic ISO-C luaconf (no LUA_USE_* platform define) keeps it portable and
+# sandboxes out dynamic C-library loading, which user scripts must not do.
+set(SH_LUA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lua")
+# Not on iOS: loslib.c implements os.execute with system(), which the iPhoneOS
+# SDK marks unavailable, so the library will not compile at all there. Lua only
+# backs the randomizer's optional scripting layer, and running shell commands is
+# something a sandboxed app could not do even if it built. SH_HAVE_LUA OFF is an
+# already-supported configuration (it is what a missing submodule produces).
+if(IOS)
+    set(SH_HAVE_LUA OFF)
+    message(STATUS "Lua scripting: disabled (iOS — loslib needs system(), which the SDK forbids)")
+elseif(EXISTS "${SH_LUA_DIR}/src/lua.h")
+    file(GLOB LUA_SOURCES "${SH_LUA_DIR}/src/*.c")
+    add_library(lua_static STATIC ${LUA_SOURCES})
+    target_include_directories(lua_static PUBLIC "${SH_LUA_DIR}/src")
+    if(NOT MSVC)
+        target_compile_options(lua_static PRIVATE -w)
+    endif()
+    set(SH_HAVE_LUA ON)
+else()
+    set(SH_HAVE_LUA OFF)
+    message(STATUS "Lua scripting: disabled (third_party/lua missing)")
+endif()
+
 # Android has no executable entry point available to an APK: SDLActivity's Java
 # shim dlopen()s a shared object and calls SDL_main inside it, so the same
 # sources have to link as libmain.so instead. Everything downstream keeps
@@ -292,6 +320,20 @@ if(ANDROID)
     )
     # SDLActivity's default getLibraries() loads "main".
     set_target_properties(SilentHillPC PROPERTIES OUTPUT_NAME "main")
+elseif(IOS)
+    # iOS does have a real executable entry point, unlike Android, but it has to
+    # be inside an .app bundle for the loader to accept it. SDL2's UIKit backend
+    # provides UIApplicationMain and calls the game's main() from it, so the
+    # sources are unchanged. Info.plist is configured by ios_port/CMakeLists.txt,
+    # which owns the bundle metadata.
+    add_executable(SilentHillPC MACOSX_BUNDLE
+        ${PC_PORT_SOURCES}
+        ${MAIN_SOURCES}
+        ${BODYPROG_SOURCES}
+        ${SCREEN_SOURCES}
+        ${MAP_SOURCES}
+        ${SH_IOS_SOURCES}
+    )
 else()
 add_executable(SilentHillPC
     ${PC_PORT_SOURCES}
@@ -343,7 +385,9 @@ target_compile_definitions(SilentHillPC PRIVATE
     VER_${SH_VERSION}
     SH_PC_PORT
     SKIP_ASM
-    $<$<BOOL:${ANDROID}>:SH_NO_OPENAL>
+    $<$<OR:$<BOOL:${ANDROID}>,$<BOOL:${IOS}>>:SH_NO_OPENAL>
+    # Saves every iOS-conditional TU repeating the TargetConditionals dance.
+    $<$<BOOL:${IOS}>:SH_IOS>
 )
 
 # static_assert -> _Static_assert only for C files (breaks C++ std headers)
@@ -425,6 +469,12 @@ target_link_libraries(SilentHillPC PRIVATE
     psycross_static
 )
 
+# Lua scripting (randomizer): link the vendored interpreter + flag its presence.
+if(SH_HAVE_LUA)
+    target_link_libraries(SilentHillPC PRIVATE lua_static)
+    target_compile_definitions(SilentHillPC PRIVATE SH_LUA=1)
+endif()
+
 # RetroAchievements: the runtime plus the platform HTTP backend it posts through
 # (WinHTTP ships with Windows; libcurl is the Linux/macOS standard).
 if(SH_HAVE_RETROACHIEVEMENTS)
@@ -494,8 +544,8 @@ endif()
 # SH_FMV_MJPEG drives the libjpeg-backed AVI override decoder in fmv_player.cpp.
 # The disc's own STR/MDEC FMVs never touch it, so a platform without libjpeg
 # (Android) just loses the override and still plays every cutscene.
-if(ANDROID)
-    message(STATUS "libjpeg: skipped (Android) — MJPG AVI overrides disabled, disc STR FMVs unaffected")
+if(ANDROID OR IOS)
+    message(STATUS "libjpeg: skipped (mobile) — MJPG AVI overrides disabled, disc STR FMVs unaffected")
 elseif(JPEG_LIBRARY)
     target_link_libraries(SilentHillPC PRIVATE ${JPEG_LIBRARY})
     target_compile_definitions(SilentHillPC PRIVATE SH_FMV_MJPEG)
@@ -624,6 +674,36 @@ elseif(ANDROID)
     # the GL entry points come from libGLESv3. android/log is what SH_DBG's
     # eprintf maps to on this platform.
     target_link_libraries(SilentHillPC PRIVATE GLESv3 EGL android log m)
+elseif(IOS)
+    # SDL owns the entry point here. main_pc.c leaves SDL_MAIN_HANDLED undefined
+    # on iOS, so SDL_main.h renames the game's main() to SDL_main, and the real
+    # main() — the one that calls UIApplicationMain and stands up the app
+    # delegate — lives in SDL_uikit_main.c inside SDL2main. Without linking it
+    # the binary has no entry point at all ("Undefined symbols: _main").
+    if(TARGET SDL2main)
+        target_link_libraries(SilentHillPC PRIVATE SDL2main)
+    else()
+        message(FATAL_ERROR
+            "SDL2main target not found. iOS needs it for UIApplicationMain — "
+            "check that ios_port/CMakeLists.txt added the SDL submodule first.")
+    endif()
+    # Also GLES (PsyX_render.h selects RENDERER_OGLES on TARGET_OS_IPHONE), but
+    # reached through a framework rather than a library, and with no EGL — SDL
+    # creates the context via EAGL. The rest are what SDL2's UIKit, CoreAudio
+    # and MFi-controller backends pull in.
+    target_link_libraries(SilentHillPC PRIVATE
+        "-framework OpenGLES"
+        "-framework UIKit"
+        "-framework Foundation"
+        "-framework QuartzCore"
+        "-framework CoreGraphics"
+        "-framework CoreMotion"
+        "-framework AudioToolbox"
+        "-framework AVFoundation"
+        "-framework GameController"
+        "-framework Metal"
+        m
+    )
 elseif(UNIX)
     find_package(OpenGL REQUIRED)
     target_link_libraries(SilentHillPC PRIVATE OpenGL::GL)
@@ -776,6 +856,27 @@ if(SH_STATIC_MAPS)
     if(ANDROID AND ANDROID_TOOLCHAIN_ROOT)
         set(SH_LLVM_HINTS "${ANDROID_TOOLCHAIN_ROOT}/bin")
     endif()
+    # Apple is the same story for a different reason: Xcode carries an LLVM
+    # toolchain but does not put llvm-* on PATH, and its objcopy in particular
+    # is not always present at all. Look inside the active toolchain first, then
+    # at a Homebrew llvm, which always has both.
+    if(APPLE)
+        execute_process(COMMAND xcode-select -p
+                        OUTPUT_VARIABLE SH_XCODE_DEV
+                        OUTPUT_STRIP_TRAILING_WHITESPACE
+                        ERROR_QUIET)
+        if(SH_XCODE_DEV)
+            list(APPEND SH_LLVM_HINTS
+                 "${SH_XCODE_DEV}/Toolchains/XcodeDefault.xctoolchain/usr/bin")
+        endif()
+        execute_process(COMMAND brew --prefix llvm
+                        OUTPUT_VARIABLE SH_BREW_LLVM
+                        OUTPUT_STRIP_TRAILING_WHITESPACE
+                        ERROR_QUIET)
+        if(SH_BREW_LLVM)
+            list(APPEND SH_LLVM_HINTS "${SH_BREW_LLVM}/bin")
+        endif()
+    endif()
     find_program(SH_LLVM_NM      NAMES llvm-nm      llvm-nm-18 llvm-nm-17      HINTS ${SH_LLVM_HINTS})
     find_program(SH_LLVM_OBJCOPY NAMES llvm-objcopy llvm-objcopy-18 llvm-objcopy-17 HINTS ${SH_LLVM_HINTS})
     if(NOT SH_LLVM_NM OR NOT SH_LLVM_OBJCOPY)
@@ -861,7 +962,75 @@ endif()
 # =============================================================================
 # Install
 # =============================================================================
-install(TARGETS SilentHillPC RUNTIME DESTINATION bin)
+if(IOS)
+    # A MACOSX_BUNDLE target has no RUNTIME artifact, and CMake refuses the
+    # install() outright without a bundle destination. Nothing installs this
+    # anyway — build_ios.sh packages the .app straight into an .ipa.
+    install(TARGETS SilentHillPC BUNDLE DESTINATION .)
+else()
+    install(TARGETS SilentHillPC RUNTIME DESTINATION bin)
+endif()
+
+# =============================================================================
+# iOS bundle post-processing
+# =============================================================================
+# These have to live here, not in ios_port/CMakeLists.txt: add_custom_command
+# in TARGET form only works in the directory that created the target.
+if(IOS AND SH_IOS_PORT_DIR)
+    # A launch storyboard has to be compiled, not copied — iOS looks for
+    # LaunchScreen.storyboardc and ignores the .storyboard source. The Xcode
+    # generator would run ibtool implicitly; under Ninja it is an explicit step,
+    # and without it iOS runs the app letterboxed in a 320x480 compatibility box.
+    find_program(SH_IBTOOL ibtool)
+    if(SH_IBTOOL)
+        add_custom_command(TARGET SilentHillPC POST_BUILD
+            COMMAND ${SH_IBTOOL}
+                    --errors --warnings --notices
+                    --output-format human-readable-text
+                    --compile "$<TARGET_BUNDLE_CONTENT_DIR:SilentHillPC>/LaunchScreen.storyboardc"
+                    "${SH_IOS_PORT_DIR}/Resources/LaunchScreen.storyboard"
+            COMMENT "Compiling LaunchScreen.storyboard"
+            VERBATIM)
+    else()
+        message(WARNING
+            "ibtool not found — the launch storyboard will not be compiled into "
+            "the bundle, and iOS will run the app letterboxed at 320x480.")
+    endif()
+
+    # The port's own shipped assets. Copied wholesale after the link rather than
+    # listed as sources, because MACOSX_PACKAGE_LOCATION flattens and would
+    # destroy the gamedata/ and licenses/ structure ios_bootstrap.m walks.
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets")
+        add_custom_command(TARGET SilentHillPC POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+                    "$<TARGET_BUNDLE_CONTENT_DIR:SilentHillPC>"
+            COMMENT "Bundling the port's shipped assets"
+            VERBATIM)
+    endif()
+
+    # config.cfg sits beside the sources rather than inside assets/, so the copy
+    # above misses it and the game fell back to built-in defaults on first run
+    # (found by the Simulator smoke test). ios_bootstrap.m stages it across only
+    # when Documents has none, so a user's edited copy is never overwritten.
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/config.cfg")
+        # Debug logging ships ON here, unlike desktop. A sideloaded app has no
+        # console anyone can read, so without SilentHill.log landing in Documents
+        # a failed launch gives literally nothing to go on — and nothing has ever
+        # run on an iOS device. The staged copy is user-editable through
+        # Files.app, so turning it back off is a one-line change.
+        file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config.cfg" SH_IOS_CFG)
+        string(REGEX REPLACE "enable_debug_log[ \t]*=[ \t]*0"
+                             "enable_debug_log = 1" SH_IOS_CFG "${SH_IOS_CFG}")
+        file(WRITE "${CMAKE_BINARY_DIR}/config.ios.cfg" "${SH_IOS_CFG}")
+        add_custom_command(TARGET SilentHillPC POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy
+                    "${CMAKE_BINARY_DIR}/config.ios.cfg"
+                    "$<TARGET_BUNDLE_CONTENT_DIR:SilentHillPC>/config.cfg"
+            COMMENT "Bundling config.cfg (debug log enabled)"
+            VERBATIM)
+    endif()
+endif()
 
 # =============================================================================
 # Tests (-DBUILD_TESTING=ON, then ctest)

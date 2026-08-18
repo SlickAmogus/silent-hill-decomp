@@ -27,6 +27,7 @@
 extern void PsyX_EndScene(void); /* forward decl — defined in PsyX_main.cpp */
 extern const unsigned char* g_sdlKeyboardState;
 extern int PsyX_Pad_SkipButtonHeld(void);
+extern int Pc_Touch_AnyContact(void);
 
 /* QOL: any confirm/start key or gamepad A/Start skips the warning. Read raw SDL
  * directly — the controller mapping isn't wired up this early in boot, so the game's
@@ -45,6 +46,11 @@ static int Warn_SkipPressed(void)
         return 1;
     }
 
+
+    /* A touchscreen has no confirm key and no Start button, so without this the
+     * logos can only be waited out. Same predicate the FMV skip uses. */
+    if (Pc_Touch_AnyContact())
+        return 1;
     return PsyX_Pad_SkipButtonHeld();
 }
 

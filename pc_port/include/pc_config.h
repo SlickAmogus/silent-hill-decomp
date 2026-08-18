@@ -106,6 +106,12 @@ typedef struct {
     int attractDemos;     /* 1 = play the PSX attract-mode gameplay demos after the title screen
                            * sits idle (the intro FMV still plays every third cycle either way)
                            * (config key: attract_demos) */
+    int menuFpsUnlock;    /* 1 = let the fps cap apply to screens that are not gameplay:
+                           * main menu, options (title and in-game), the map screens and
+                           * cursor puzzles. The inventory stays at 60 on purpose, and
+                           * cutscenes stay clamped by Pc_ScriptOwnsShot regardless.
+                           * Set 0 to put every non-gameplay screen back on the hard
+                           * one-vblank wait. (config key: menu_fps_unlock) */
     int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
                            * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
                            * (config key: bullet_decals) */
@@ -177,6 +183,9 @@ typedef struct {
                              * map7_s03 boss with a score-picked ending. Forces global_chara_pool on and
                              * overrides `map`. 0 = off, byte-identical vanilla.
                              * (config key: randomizer; docs/Randomizer_Mode.md) */
+    /* Randomizer tunables live in their OWN file (gamedata/randomizer.cfg), owned
+     * by pc_rando_config.c — NOT here — so config.cfg stays clean and the in-game
+     * panel / Lua layer read+write a single dedicated store (s_RandoConfig). */
     int controllerMovement; /* 0 = analog stick, 1 = d-pad, 2 = both (default) */
     int movementOriginal;   /* 1 = PSX lower-body movement state
                              * machine (accel/decel, wall smack, authored sidesteps)
@@ -193,7 +202,8 @@ typedef struct {
     int aimAssist;          /* 1 = OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) (config key: aim_assist) */
     int mouseCursor;        /* 1 = mouse controls cursor puzzles + clickable main menu (config key: mouse_cursor) */
     int touchControls;      /* 1 = on-screen touch controls during gameplay: floating movement stick on the left, drag to look on the right, tap for Action, plus Aim/Item/Map/Start buttons (config key: touch_controls); defaults on where a touchscreen is the only input */
-    float touchLookSensitivity; /* touch look speed multiplier, 0.1..4.0 (config key: touch_look_sensitivity); default 1.0 */
+    float touchLookSensitivity;
+    int   oneButtonCombat;  /* 1 = Aim also fires, so combat is one thumb (config key: one_button_combat) */ /* touch look speed multiplier, 0.1..4.0 (config key: touch_look_sensitivity); default 1.0 */
     int altButtonSprint;    /* "Always use button based sprinting": 1 = walk by default, sprint ONLY while the bound run control is held — applies to alt cameras (TPS/OTS/FPS) AND 2D control under any camera; 0 = a near-full stick push also sprints (config key: altcam_button_sprint) */
     int immersiveFpsHeadTracking; /* 1 = FPS view direction follows Harry's animated head-bone rotation (idle sway/lean), mouse layered on top (config key: immersive_fps_head_tracking) */
     int control2d;          /* 1 = 2D screen-relative movement (input aligns with the camera; Harry turns to face the move direction) under ALL non-FPS camera styles (config key: control_2d) — an Experiment, off by default */

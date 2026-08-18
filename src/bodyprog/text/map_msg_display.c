@@ -40,6 +40,16 @@ s8             g_MapMsg_SelectCancelIdx;
     #define Gfx_StringSetColor Gfx_StringSetColor_JP
 #endif
 
+#ifdef SH_PC_PORT
+/* PSX 0x800BCD6C. File-scope and exported for the RetroAchievements address
+ * map, which resolves each name in configs/USA/sym.*.txt at runtime: a
+ * function-local static is the same object but carries no name to look up, so
+ * this was one of the set's unmapped reads ("needs a translation entry") and
+ * any condition touching it read nothing. A function-local static already had
+ * static lifetime -- only linkage changes, and only for the PC build. */
+s32 msgIdx;
+#endif
+
 s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
 {
 #ifdef SH_PC_PORT
@@ -67,7 +77,9 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
     static s32 stateMachineIdx0;
     static s32 stateMachineIdx1;
     static s32 msgDisplayLength;
+#ifndef SH_PC_PORT
     static s32 msgIdx;
+#endif
     static s32 msgDisplayInc;
     static s32 D_800BCD74;
 

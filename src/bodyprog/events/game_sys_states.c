@@ -393,6 +393,30 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
 
     player = &g_SysWork.playerWork.player;
 
+#ifdef SH_PC_PORT
+    /* Randomizer settings panel (opened by tapping Map): while it is up, freeze
+     * the world and hand it input. Returning here skips Event_Update + every
+     * transition below, so nothing ticks and no state change fires. */
+    {
+        extern int  Pc_RandoSettings_IsOpen(void);
+        extern void Pc_RandoSettings_Update(int, int, int, int, int, int);
+        if (Pc_RandoSettings_IsOpen())
+        {
+            const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
+            Pc_RandoSettings_Update(
+                (g_Controller0->pulsedBtnFlags  & ControllerFlag_LStickUp)    != 0,
+                (g_Controller0->pulsedBtnFlags  & ControllerFlag_LStickDown)  != 0,
+                (g_Controller0->pulsedBtnFlags  & ControllerFlag_LStickLeft)  != 0,
+                (g_Controller0->pulsedBtnFlags  & ControllerFlag_LStickRight) != 0,
+                (g_Controller0->clickedBtnFlags & (cc->enter | cc->action))   != 0,
+                (g_Controller0->clickedBtnFlags & (cc->cancel | cc->map))     != 0);
+            g_Controller0->clickedBtnFlags = 0;
+            g_Controller0->pulsedBtnFlags  = 0;
+            return;
+        }
+    }
+#endif
+
     Event_Update(player->attackReceived != NO_VALUE);
     Game_MapRoomIdxUpdate();
 
@@ -434,6 +458,29 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
     {
         Game_FlashlightToggle();
     }
+
+#ifdef SH_PC_PORT
+    /* Randomizer: the Map button opens the settings panel on a quick TAP and the
+     * real map on a HOLD (the map screen self-gates on HAS_MAP, so "no map yet"
+     * just bounces). Poll every frame for the hold timer, then swallow the Map
+     * edge so the vanilla map branch below never also fires. */
+    {
+        extern int Pc_Rando_Active(void);
+        extern int Pc_RandoSettings_MapButtonArbiter(int, int);
+        if (Pc_Rando_Active())
+        {
+            u16 mapBtn     = g_GameWorkPtr->config.controllerConfig.map;
+            int mapClicked = (g_Controller0->clickedBtnFlags & mapBtn) != 0;
+            int mapHeld    = (g_Controller0->heldBtnFlags & mapBtn) != 0;
+            if (Pc_RandoSettings_MapButtonArbiter(mapClicked, mapHeld) == 2 /* RANDO_MAP_WANT_MAP */)
+            {
+                SysWork_StateSetNext(SysState_MapScreen);
+                g_SysWork.isMgsStringSet = false;
+            }
+            g_Controller0->clickedBtnFlags &= ~(e_ControllerFlags)mapBtn;
+        }
+    }
+#endif
 
     if (g_MapEventSysState != SysState_Invalid)
     {

@@ -165,18 +165,18 @@ partial class Form1
             "Fullscreen",
             "Windowed",
             "Borderless"});
-            this.comboFullscreen.Location = new System.Drawing.Point(80, 123);
+            this.comboFullscreen.Location = new System.Drawing.Point(94, 123);
             this.comboFullscreen.Name = "comboFullscreen";
-            this.comboFullscreen.Size = new System.Drawing.Size(120, 21);
+            this.comboFullscreen.Size = new System.Drawing.Size(135, 21);
             this.comboFullscreen.TabIndex = 16;
             // 
             // vsyncPanel
             // 
             this.vsyncPanel.Controls.Add(this.radioVsyncYes);
             this.vsyncPanel.Controls.Add(this.radioVsyncNo);
-            this.vsyncPanel.Location = new System.Drawing.Point(80, 176);
+            this.vsyncPanel.Location = new System.Drawing.Point(94, 176);
             this.vsyncPanel.Name = "vsyncPanel";
-            this.vsyncPanel.Size = new System.Drawing.Size(120, 30);
+            this.vsyncPanel.Size = new System.Drawing.Size(135, 30);
             this.vsyncPanel.TabIndex = 17;
             // 
             // radioVsyncYes
@@ -198,9 +198,9 @@ partial class Form1
             // skipIntrosPanel
             // 
             this.skipIntrosPanel.Controls.Add(this.comboSkipIntros);
-            this.skipIntrosPanel.Location = new System.Drawing.Point(290, 117);
+            this.skipIntrosPanel.Location = new System.Drawing.Point(309, 117);
             this.skipIntrosPanel.Name = "skipIntrosPanel";
-            this.skipIntrosPanel.Size = new System.Drawing.Size(120, 30);
+            this.skipIntrosPanel.Size = new System.Drawing.Size(152, 30);
             this.skipIntrosPanel.TabIndex = 18;
             // 
             // comboSkipIntros
@@ -210,16 +210,16 @@ partial class Form1
             "Don\'t Skip",
             "Skip to Menu",
             "Skip to Game"});
-            this.comboSkipIntros.Location = new System.Drawing.Point(0, 6);
+            this.comboSkipIntros.Location = new System.Drawing.Point(2, 7);
             this.comboSkipIntros.Name = "comboSkipIntros";
-            this.comboSkipIntros.Size = new System.Drawing.Size(120, 21);
+            this.comboSkipIntros.Size = new System.Drawing.Size(138, 21);
             this.comboSkipIntros.TabIndex = 2;
             // 
             // preloadPanel
             // 
             this.preloadPanel.Controls.Add(this.radioPreloadYes);
             this.preloadPanel.Controls.Add(this.radioPreloadNo);
-            this.preloadPanel.Location = new System.Drawing.Point(300, 148);
+            this.preloadPanel.Location = new System.Drawing.Point(331, 148);
             this.preloadPanel.Name = "preloadPanel";
             this.preloadPanel.Size = new System.Drawing.Size(100, 30);
             this.preloadPanel.TabIndex = 20;
@@ -245,9 +245,9 @@ partial class Form1
             // pillarboxPanel
             // 
             this.pillarboxPanel.Controls.Add(this.comboPillarbox);
-            this.pillarboxPanel.Location = new System.Drawing.Point(80, 207);
+            this.pillarboxPanel.Location = new System.Drawing.Point(94, 207);
             this.pillarboxPanel.Name = "pillarboxPanel";
-            this.pillarboxPanel.Size = new System.Drawing.Size(120, 30);
+            this.pillarboxPanel.Size = new System.Drawing.Size(135, 30);
             this.pillarboxPanel.TabIndex = 21;
             this.pillarboxPanel.Paint += new System.Windows.Forms.PaintEventHandler(this.pillarboxPanel_Paint);
             // 
@@ -269,7 +269,7 @@ partial class Form1
             this.btnManager.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Zoom;
             this.btnManager.FlatAppearance.BorderSize = 0;
             this.btnManager.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnManager.Location = new System.Drawing.Point(208, 273);
+            this.btnManager.Location = new System.Drawing.Point(246, 272);
             this.btnManager.Name = "btnManager";
             this.btnManager.Size = new System.Drawing.Size(203, 49);
             this.btnManager.TabIndex = 11;
@@ -281,7 +281,7 @@ partial class Form1
             // 
             // btnPlay
             // 
-            this.btnPlay.Location = new System.Drawing.Point(314, 388);
+            this.btnPlay.Location = new System.Drawing.Point(352, 387);
             this.btnPlay.Name = "btnPlay";
             this.btnPlay.Size = new System.Drawing.Size(97, 23);
             this.btnPlay.TabIndex = 12;
@@ -290,7 +290,7 @@ partial class Form1
             // 
             // btnUpdate
             // 
-            this.btnUpdate.Location = new System.Drawing.Point(206, 331);
+            this.btnUpdate.Location = new System.Drawing.Point(244, 330);
             this.btnUpdate.Name = "btnUpdate";
             this.btnUpdate.Size = new System.Drawing.Size(104, 23);
             this.btnUpdate.TabIndex = 13;
@@ -300,7 +300,7 @@ partial class Form1
             // 
             // btnChangelog
             // 
-            this.btnChangelog.Location = new System.Drawing.Point(206, 360);
+            this.btnChangelog.Location = new System.Drawing.Point(244, 359);
             this.btnChangelog.Name = "btnChangelog";
             this.btnChangelog.Size = new System.Drawing.Size(104, 23);
             this.btnChangelog.TabIndex = 16;
@@ -312,14 +312,14 @@ partial class Form1
             // 
             this.lblUpdateStatus.Location = new System.Drawing.Point(209, 482);
             this.lblUpdateStatus.Name = "lblUpdateStatus";
-            this.lblUpdateStatus.Size = new System.Drawing.Size(206, 15);
+            this.lblUpdateStatus.Size = new System.Drawing.Size(237, 15);
             this.lblUpdateStatus.TabIndex = 14;
             // 
             // progUpdate
             // 
-            this.progUpdate.Location = new System.Drawing.Point(208, 456);
+            this.progUpdate.Location = new System.Drawing.Point(227, 456);
             this.progUpdate.Name = "progUpdate";
-            this.progUpdate.Size = new System.Drawing.Size(205, 16);
+            this.progUpdate.Size = new System.Drawing.Size(176, 16);
             this.progUpdate.TabIndex = 15;
             this.progUpdate.Visible = false;
             this.progUpdate.Click += new System.EventHandler(this.progUpdate_Click);
@@ -327,9 +327,9 @@ partial class Form1
             // comboResolution
             // 
             this.comboResolution.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboResolution.Location = new System.Drawing.Point(80, 151);
+            this.comboResolution.Location = new System.Drawing.Point(94, 151);
             this.comboResolution.Name = "comboResolution";
-            this.comboResolution.Size = new System.Drawing.Size(120, 21);
+            this.comboResolution.Size = new System.Drawing.Size(135, 21);
             this.comboResolution.TabIndex = 0;
             this.comboResolution.SelectedIndexChanged += new System.EventHandler(this.comboResolution_SelectedIndexChanged);
             // 
@@ -341,7 +341,7 @@ partial class Form1
             this.banner.Image = global::SilentHillPC_Launcher.Properties.Resources.launcher;
             this.banner.Location = new System.Drawing.Point(0, 0);
             this.banner.Name = "banner";
-            this.banner.Size = new System.Drawing.Size(421, 111);
+            this.banner.Size = new System.Drawing.Size(461, 111);
             this.banner.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.banner.TabIndex = 6;
             this.banner.TabStop = false;
@@ -350,7 +350,7 @@ partial class Form1
             // skipIntrosLabel
             // 
             this.skipIntrosLabel.AutoSize = true;
-            this.skipIntrosLabel.Location = new System.Drawing.Point(214, 127);
+            this.skipIntrosLabel.Location = new System.Drawing.Point(235, 127);
             this.skipIntrosLabel.Name = "skipIntrosLabel";
             this.skipIntrosLabel.Size = new System.Drawing.Size(60, 13);
             this.skipIntrosLabel.TabIndex = 0;
@@ -395,7 +395,7 @@ partial class Form1
             // fpsLabel
             // 
             this.fpsLabel.AutoSize = true;
-            this.fpsLabel.Location = new System.Drawing.Point(214, 216);
+            this.fpsLabel.Location = new System.Drawing.Point(235, 216);
             this.fpsLabel.Name = "fpsLabel";
             this.fpsLabel.Size = new System.Drawing.Size(54, 13);
             this.fpsLabel.TabIndex = 30;
@@ -404,7 +404,7 @@ partial class Form1
             // chunksLabel
             // 
             this.chunksLabel.AutoSize = true;
-            this.chunksLabel.Location = new System.Drawing.Point(214, 157);
+            this.chunksLabel.Location = new System.Drawing.Point(235, 157);
             this.chunksLabel.Name = "chunksLabel";
             this.chunksLabel.Size = new System.Drawing.Size(85, 13);
             this.chunksLabel.TabIndex = 1;
@@ -419,9 +419,9 @@ partial class Form1
             "60",
             "120",
             "240"});
-            this.comboFps.Location = new System.Drawing.Point(288, 212);
+            this.comboFps.Location = new System.Drawing.Point(311, 212);
             this.comboFps.Name = "comboFps";
-            this.comboFps.Size = new System.Drawing.Size(120, 21);
+            this.comboFps.Size = new System.Drawing.Size(138, 21);
             this.comboFps.TabIndex = 31;
             // 
             // filteringLabel
@@ -440,9 +440,9 @@ partial class Form1
             "Off",
             "Dithering",
             "Bilinear"});
-            this.comboFiltering.Location = new System.Drawing.Point(80, 241);
+            this.comboFiltering.Location = new System.Drawing.Point(94, 241);
             this.comboFiltering.Name = "comboFiltering";
-            this.comboFiltering.Size = new System.Drawing.Size(63, 21);
+            this.comboFiltering.Size = new System.Drawing.Size(78, 21);
             this.comboFiltering.TabIndex = 41;
             // 
             // pgxpLabel
@@ -458,9 +458,9 @@ partial class Form1
             // 
             this.pgxpPanel.Controls.Add(this.pgxpYes);
             this.pgxpPanel.Controls.Add(this.pgxpNo);
-            this.pgxpPanel.Location = new System.Drawing.Point(80, 266);
+            this.pgxpPanel.Location = new System.Drawing.Point(94, 266);
             this.pgxpPanel.Name = "pgxpPanel";
-            this.pgxpPanel.Size = new System.Drawing.Size(120, 30);
+            this.pgxpPanel.Size = new System.Drawing.Size(135, 30);
             this.pgxpPanel.TabIndex = 49;
             // 
             // pgxpYes
@@ -483,7 +483,7 @@ partial class Form1
             // loggingLabel
             // 
             this.loggingLabel.AutoSize = true;
-            this.loggingLabel.Location = new System.Drawing.Point(214, 187);
+            this.loggingLabel.Location = new System.Drawing.Point(235, 187);
             this.loggingLabel.Name = "loggingLabel";
             this.loggingLabel.Size = new System.Drawing.Size(84, 13);
             this.loggingLabel.TabIndex = 32;
@@ -493,7 +493,7 @@ partial class Form1
             // 
             this.loggingPanel.Controls.Add(this.loggingYes);
             this.loggingPanel.Controls.Add(this.loggingNo);
-            this.loggingPanel.Location = new System.Drawing.Point(300, 178);
+            this.loggingPanel.Location = new System.Drawing.Point(331, 178);
             this.loggingPanel.Name = "loggingPanel";
             this.loggingPanel.Size = new System.Drawing.Size(100, 30);
             this.loggingPanel.TabIndex = 35;
@@ -566,9 +566,9 @@ partial class Form1
             "2x",
             "4x",
             "8x"});
-            this.comboAA.Location = new System.Drawing.Point(80, 303);
+            this.comboAA.Location = new System.Drawing.Point(94, 303);
             this.comboAA.Name = "comboAA";
-            this.comboAA.Size = new System.Drawing.Size(120, 21);
+            this.comboAA.Size = new System.Drawing.Size(135, 21);
             this.comboAA.TabIndex = 58;
             // 
             // postLabel
@@ -593,9 +593,9 @@ partial class Form1
             "Sharpen",
             "PSX Retro",
             "Cinematic"});
-            this.comboPost.Location = new System.Drawing.Point(80, 333);
+            this.comboPost.Location = new System.Drawing.Point(94, 333);
             this.comboPost.Name = "comboPost";
-            this.comboPost.Size = new System.Drawing.Size(120, 21);
+            this.comboPost.Size = new System.Drawing.Size(135, 21);
             this.comboPost.TabIndex = 59;
             // 
             // toneLabel
@@ -615,9 +615,9 @@ partial class Form1
             "Reinhard",
             "ACES",
             "Filmic"});
-            this.comboTone.Location = new System.Drawing.Point(80, 363);
+            this.comboTone.Location = new System.Drawing.Point(94, 363);
             this.comboTone.Name = "comboTone";
-            this.comboTone.Size = new System.Drawing.Size(120, 21);
+            this.comboTone.Size = new System.Drawing.Size(135, 21);
             this.comboTone.TabIndex = 60;
             // 
             // flashLabel
@@ -637,9 +637,9 @@ partial class Form1
             "Classic + Shadows",
             "Modern",
             "Modern + Shadows"});
-            this.comboFlash.Location = new System.Drawing.Point(80, 393);
+            this.comboFlash.Location = new System.Drawing.Point(94, 393);
             this.comboFlash.Name = "comboFlash";
-            this.comboFlash.Size = new System.Drawing.Size(120, 21);
+            this.comboFlash.Size = new System.Drawing.Size(135, 21);
             this.comboFlash.TabIndex = 61;
             // 
             // regionLabel
@@ -656,7 +656,7 @@ partial class Form1
             // 
             this.comboMap.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboMap.DropDownWidth = 400;
-            this.comboMap.Location = new System.Drawing.Point(247, 423);
+            this.comboMap.Location = new System.Drawing.Point(285, 422);
             this.comboMap.Name = "comboMap";
             this.comboMap.Size = new System.Drawing.Size(161, 21);
             this.comboMap.TabIndex = 63;
@@ -665,9 +665,9 @@ partial class Form1
             // 
             this.comboDisc.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboDisc.DropDownWidth = 320;
-            this.comboDisc.Location = new System.Drawing.Point(80, 423);
+            this.comboDisc.Location = new System.Drawing.Point(94, 423);
             this.comboDisc.Name = "comboDisc";
-            this.comboDisc.Size = new System.Drawing.Size(121, 21);
+            this.comboDisc.Size = new System.Drawing.Size(136, 21);
             this.comboDisc.TabIndex = 64;
             this.comboDisc.SelectedIndexChanged += new System.EventHandler(this.comboDisc_SelectedIndexChanged);
             // 
@@ -682,7 +682,7 @@ partial class Form1
             // audioLabel
             // 
             this.audioLabel.AutoSize = true;
-            this.audioLabel.Location = new System.Drawing.Point(215, 246);
+            this.audioLabel.Location = new System.Drawing.Point(236, 246);
             this.audioLabel.Name = "audioLabel";
             this.audioLabel.Size = new System.Drawing.Size(57, 13);
             this.audioLabel.TabIndex = 67;
@@ -699,14 +699,14 @@ partial class Form1
             "5.1 Surround",
             "7.1 Surround",
             "HRTF (Headphones)"});
-            this.comboAudioOut.Location = new System.Drawing.Point(287, 242);
+            this.comboAudioOut.Location = new System.Drawing.Point(311, 242);
             this.comboAudioOut.Name = "comboAudioOut";
-            this.comboAudioOut.Size = new System.Drawing.Size(121, 21);
+            this.comboAudioOut.Size = new System.Drawing.Size(138, 21);
             this.comboAudioOut.TabIndex = 68;
             // 
             // btnControls
             // 
-            this.btnControls.Location = new System.Drawing.Point(315, 331);
+            this.btnControls.Location = new System.Drawing.Point(353, 330);
             this.btnControls.Name = "btnControls";
             this.btnControls.Size = new System.Drawing.Size(97, 23);
             this.btnControls.TabIndex = 50;
@@ -716,7 +716,7 @@ partial class Form1
             // 
             // btnBuildSettings
             // 
-            this.btnBuildSettings.Location = new System.Drawing.Point(314, 360);
+            this.btnBuildSettings.Location = new System.Drawing.Point(352, 359);
             this.btnBuildSettings.Name = "btnBuildSettings";
             this.btnBuildSettings.Size = new System.Drawing.Size(98, 23);
             this.btnBuildSettings.TabIndex = 51;
@@ -726,7 +726,7 @@ partial class Form1
             // 
             // downloadBuild
             // 
-            this.downloadBuild.Location = new System.Drawing.Point(205, 388);
+            this.downloadBuild.Location = new System.Drawing.Point(243, 387);
             this.downloadBuild.Name = "downloadBuild";
             this.downloadBuild.Size = new System.Drawing.Size(104, 23);
             this.downloadBuild.TabIndex = 52;
@@ -767,7 +767,7 @@ partial class Form1
             // comboRefresh
             // 
             this.comboRefresh.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboRefresh.Location = new System.Drawing.Point(258, 269);
+            this.comboRefresh.Location = new System.Drawing.Point(296, 268);
             this.comboRefresh.Name = "comboRefresh";
             this.comboRefresh.Size = new System.Drawing.Size(120, 21);
             this.comboRefresh.TabIndex = 1;
@@ -777,7 +777,7 @@ partial class Form1
             // label1
             // 
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(210, 426);
+            this.label1.Location = new System.Drawing.Point(248, 425);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(36, 13);
             this.label1.TabIndex = 66;
@@ -785,7 +785,7 @@ partial class Form1
             // 
             // chkRandomizer
             // 
-            this.chkRandomizer.Location = new System.Drawing.Point(394, 425);
+            this.chkRandomizer.Location = new System.Drawing.Point(432, 424);
             this.chkRandomizer.Name = "chkRandomizer";
             this.chkRandomizer.Size = new System.Drawing.Size(16, 17);
             this.chkRandomizer.TabIndex = 66;
@@ -794,9 +794,9 @@ partial class Form1
             // 
             // checkBox1
             // 
-            this.checkBox1.Location = new System.Drawing.Point(186, 245);
+            this.checkBox1.Location = new System.Drawing.Point(218, 245);
             this.checkBox1.Name = "checkBox1";
-            this.checkBox1.Size = new System.Drawing.Size(16, 17);
+            this.checkBox1.Size = new System.Drawing.Size(18, 17);
             this.checkBox1.TabIndex = 69;
             this.checkBox1.UseVisualStyleBackColor = true;
             this.checkBox1.CheckedChanged += new System.EventHandler(this.checkBox1_CheckedChanged);
@@ -823,7 +823,7 @@ partial class Form1
             // lblMenu
             // 
             this.lblMenu.AutoSize = true;
-            this.lblMenu.Location = new System.Drawing.Point(143, 245);
+            this.lblMenu.Location = new System.Drawing.Point(174, 245);
             this.lblMenu.Name = "lblMenu";
             this.lblMenu.Size = new System.Drawing.Size(42, 13);
             this.lblMenu.TabIndex = 70;
@@ -841,7 +841,7 @@ partial class Form1
             // 
             // Form1
             // 
-            this.ClientSize = new System.Drawing.Size(421, 502);
+            this.ClientSize = new System.Drawing.Size(461, 502);
             this.Controls.Add(this.btnRA);
             this.Controls.Add(this.lblMenu);
             this.Controls.Add(this.lblUncensored);

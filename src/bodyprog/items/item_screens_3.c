@@ -84,6 +84,11 @@ GsCOORDINATE2 g_Items_Coords[DISPLAYED_ITEM_COUNT_MAX]; // 0x800C3E48
 
 #include "item_rotations.h"
 
+/* Called above their definitions. Without a prototype in scope Clang
+ * synthesises `int f()` at the call site and then rejects the real
+ * definition as a conflicting type; GCC only warns. */
+void Gfx_Inventory_2dBackgroundDraw(s32* arg0);
+
 #ifdef SH_PC_PORT
 /* Non-static under the PC port so the manual-reload request gate
  * (pc_combat.c, PC_PlayerManualReloadRequested) can read a gun's clip capacity

@@ -44,6 +44,7 @@
 #include "map_registry.h"
 #include "pc_config.h"
 #include "pc_rando.h"
+#include "pc_rando_config.h"
 #include "pc_rando_data.h"
 #include "sh_log.h"
 
@@ -371,7 +372,7 @@ static void door_roll(s_RandoDoor* d, int isExitDoor)
     int r;
 
     /* Past the area budget every door is the way out. */
-    if (s_run.areasEntered >= RANDO_AREAS_TO_BOSS)
+    if (s_run.areasEntered >= g_RandoConfig.areasToBoss)
     {
         d->kind    = DOOR_BOSS;
         d->destMap = RANDO_BOSS_MAP;
@@ -616,7 +617,7 @@ static void build_events(const s_EventData* src, int mapIdx)
                 door_make_area(&s_doors[entryIdx]);
 
             s_run.entryDoor      = entryIdx;
-            s_run.entryLockTimer = Q12((float)RANDO_ENTRY_LOCK_S);
+            s_run.entryLockTimer = (q19_12)((s32)g_RandoConfig.entryLockSec << 12);
             s_run.forceContent   = 1; /* the room you were funnelled into gets content */
 
             {
@@ -805,14 +806,14 @@ static void place_monsters(void)
     }
     else
     {
-        int base = (nCand * RANDO_SPAWN_DENSITY) / 100;
+        int base = (nCand * g_RandoConfig.spawnDensity) / 100;
         if (base < 1)
             base = 1;
         want = base - rnd_below(base / 4 + 1); /* [ceil(3*base/4) .. base] -- dense */
         if (want < 1)
             want = 1;
-        if (want > RANDO_MONSTERS_MAX)
-            want = RANDO_MONSTERS_MAX;
+        if (want > g_RandoConfig.monsterMax)
+            want = g_RandoConfig.monsterMax;
     }
 
     /* A one-door dead-end room must never be empty (its door is only shut for 10 s,
@@ -1370,7 +1371,7 @@ void Pc_Rando_OnMapLoad(s32 mapIdx)
     s_run.headerInstalled = 1;
 
     SH_LOG("[RANDO] area %d/%d: %s -- %d doors, monsters:%s, score %d",
-           s_run.areasEntered, RANDO_AREAS_TO_BOSS, MapRegistry_GetName((e_MapIdx)mapIdx),
+           s_run.areasEntered, g_RandoConfig.areasToBoss, MapRegistry_GetName((e_MapIdx)mapIdx),
            s_run.doorCount, s_run.monstersWanted ? "yes" : "no", rando_score());
 }
 
@@ -1412,7 +1413,157 @@ void Pc_Rando_Update(void)
  * mode happens to be enabled must not top up its ammo. */
 int Pc_Rando_ExtraHandgunAmmo(void)
 {
-    return Pc_Rando_Active() ? RANDO_EXTRA_HANDGUN_AMMO : 0;
+    return Pc_Rando_Active() ? g_RandoConfig.extraAmmo : 0;
+}
+
+/* Player weapon-damage scale. Called at the single player-attack damage site
+ * (bodyprog_combat_8008A058.c). No-op (returns the amount unchanged) unless a
+ * run is live and the target is an enemy, so enemy->player damage is never
+ * touched and vanilla play is unaffected. */
+s32 Pc_Rando_ScaleWeaponDamage(s32 damageAmount, int targetIsPlayer)
+{
+    int pct;
+    if (!Pc_Rando_Active() || targetIsPlayer)
+        return damageAmount;
+    pct = g_RandoConfig.weaponDamagePct;
+    if (pct == 100)
+        return damageAmount;
+    return (s32)(((s64)damageAmount * pct) / 100);
+}
+
+/* Enemy HP scale. Each enemy sets its own health in its AI-init on the first
+ * frame it updates; this catches that 0->positive transition (per NPC slot) and
+ * multiplies once. s_healthScaled is cleared when the slot empties, so a
+ * respawn re-scales. No-op unless a run is live. */
+static u8 s_healthScaled[NPC_COUNT_MAX];
+
+void Pc_Rando_ScaleEnemyHealth(void* npcVoid, int slot)
+{
+    s_SubCharacter* npc = (s_SubCharacter*)npcVoid;
+    int pct;
+
+    if (slot < 0 || slot >= NPC_COUNT_MAX)
+        return;
+
+    if (!Pc_Rando_Active() || npc == NULL || npc->model.charaId == Chara_None)
+    {
+        s_healthScaled[slot] = 0;
+        return;
+    }
+
+    if (s_healthScaled[slot] || npc->health <= 0)
+        return;
+
+    pct = g_RandoConfig.enemyHealthPct;
+    if (pct != 100)
+        npc->health = (q19_12)(((s64)npc->health * pct) / 100);
+    s_healthScaled[slot] = 1;
+}
+
+/* ------------------------------------------------------------- script hooks */
+
+/* Run-state getters for the Lua layer. */
+int Pc_Rando_AreaNumber(void)    { return s_enabled ? s_run.areasEntered : 0; }
+int Pc_Rando_CurrentMapIdx(void) { return s_enabled ? (int)s_run.mapIdx : -1; }
+int Pc_Rando_PlayerHasItem(int itemId) { return inventory_has(itemId); }
+
+/* Live-spawn a monster at world (x,z), for the Lua `rando.spawn_monster`. Mirrors
+ * the console debug spawn; randomizer mode forces the global chara pool, so any
+ * pooled chara's model/anim/AI are resident. stateStep < 0 = auto (the pool
+ * table's value for a known chara, else 3). Returns the NPC slot, or -1. */
+extern unsigned char g_PcNpcDebugSpawned[];
+int Pc_Rando_ScriptSpawnMonster(int charaId, q19_12 x, q19_12 z, int stateStep)
+{
+    s_CollisionSurface surf;
+    int slot = -1, i;
+
+    if (!Pc_Rando_Active() || charaId <= Chara_None || charaId >= 256)
+        return -1;
+    if (g_MapOverlayHdr.charaUpdateFuncs[charaId] == NULL)
+        return -1; /* no AI resident here -> would spawn inert */
+
+    for (i = 0; i < NPC_COUNT_MAX; i++)
+        if (g_SysWork.npcs[i].model.charaId == Chara_None) { slot = i; break; }
+    if (slot < 0)
+        return -1;
+
+    if (stateStep < 0)
+    {
+        stateStep = 3;
+        for (i = 0; i < N_MONSTERS; i++)
+            if (RANDO_MONSTERS[i].charaId == charaId) { stateStep = RANDO_MONSTERS[i].stateStep; break; }
+    }
+
+    memset(&g_SysWork.npcs[slot], 0, sizeof(s_SubCharacter));
+    g_SysWork.npcs[slot].model.charaId      = (s8)charaId;
+    g_SysWork.npcs[slot].model.controlState = 0;
+    g_SysWork.npcs[slot].model.stateStep    = (u8)stateStep;
+    g_SysWork.npcs[slot].field_40           = (s8)slot;
+    g_SysWork.npcs[slot].position.vx        = x;
+    g_SysWork.npcs[slot].position.vz        = z;
+    Collision_SurfaceGet(&surf, x, z);
+    g_SysWork.npcs[slot].position.vy        = surf.groundHeight;
+    g_SysWork.npcs[slot].rotation.vy        = (s16)(rnd() & 0xFFF);
+    g_SysWork.npcs[slot].model.anim.flags  |= AnimFlag_Visible;
+    SET_FLAG(&g_SysWork.npcFlags, slot);
+    SET_FLAG(g_SysWork.field_228C, slot);
+    g_PcNpcDebugSpawned[slot] = 1;
+    if (g_SysWork.npcFlagsId < (u8)(slot + 1))
+        g_SysWork.npcFlagsId = (u8)(slot + 1);
+    return slot;
+}
+
+/* "Reload area" (settings panel) / script use: re-apply the spawn settings to the
+ * CURRENT area without a map reload. Despawns what we placed, re-runs placement
+ * with the live density/count, and spawns the new set immediately (the rows are
+ * then cleared so per-room entry can't double them). Player position, doors and
+ * pickups are left as they are. No-op on a miniboss map (its boss is the point). */
+void Pc_Rando_RespawnArea(void)
+{
+    s_SpawnInfo* rows;
+    int i, spawned = 0;
+
+    if (!Pc_Rando_Active() || s_run.monstersWanted <= 0)
+        return;
+
+    for (i = 0; i < NPC_COUNT_MAX; i++)
+    {
+        if (g_SysWork.npcs[i].model.charaId != Chara_None)
+        {
+            g_SysWork.npcs[i].model.charaId = Chara_None;
+            g_SysWork.npcs[i].flags         = 0;
+            CLEAR_FLAG(&g_SysWork.npcFlags, i);
+            CLEAR_FLAG(g_SysWork.field_228C, i);
+            g_PcNpcDebugSpawned[i] = 0;
+        }
+        s_healthScaled[i] = 0;
+    }
+
+    s_run.monstersDone   = 0;
+    s_run.monstersPlaced = 0;
+    place_monsters(); /* writes fresh charaSpawnInfos rows from current settings */
+
+    rows = &g_MapOverlayHdr.charaSpawnInfos[0][0];
+    for (i = 0; i < 32; i++)
+    {
+        if (rows[i].charaId != Chara_None)
+        {
+            if (Pc_Rando_ScriptSpawnMonster(rows[i].charaId, rows[i].positionX, rows[i].positionZ,
+                                            (s8)rows[i].flags) >= 0)
+                spawned++;
+        }
+        rows[i].charaId = Chara_None;
+        rows[i].flags   = 0;
+    }
+    s_run.monstersPlaced = spawned;
+    SH_LOG("[RANDO] reload area: respawned %d monsters", spawned);
+}
+
+/* Direct inventory add, for the Lua give_item / spawn_item pickups. */
+void Pc_Rando_GiveItem(int itemId, int count)
+{
+    if (Pc_Rando_Active())
+        Inventory_AddSpecialItem((u8)itemId, (u8)count);
 }
 
 void Pc_Rando_OnNewGame(void)
@@ -1436,6 +1587,10 @@ void Pc_Rando_Init(void)
     s_enabled = g_PcConfig.randomizer != 0;
     if (!s_enabled)
         return;
+
+    /* Load the run's tunables from gamedata/randomizer.cfg (defaults stand if the
+     * file doesn't exist yet). */
+    Pc_RandoConfig_Load();
 
     /* Seeded from the wall clock so a run differs every time. */
     s_rng = (u32)time(NULL) * 2654435761u;

@@ -42,20 +42,30 @@
     (u16)((((HIRES_POOL_CLUT_ROW_BASE + (DECAL_POOL_SLOT / 64) * HIRES_POOL_MAX_ROWS)) << 6) | \
           (DECAL_POOL_SLOT % 64))
 
-/* Depth handling mirrors the game's own blood-splat drawer (func_80062708):
- * accumulate RAW RotTransPers SZ (no <<2), push one blood-bias step toward FAR
- * (blood's var_s7 = 256), and draw the decal SEMI-TRANSPARENT.
+/* Depth handling is in two halves, and BOTH are needed:
  *
- * The semi-transparency is the load-bearing part: like blood, the decal then
- * never depth-tests, so it CANNOT win the depth buffer against a character
- * standing in front of the wall — it just blends onto the scene and anything
- * drawn nearer paints over it (no more see-through-objects). The far push keeps
- * it from over-drawing foreground in painter order; the DECAL_OFFSET normal lift
- * keeps it in front of its own host surface. This replaces the previous OPAQUE
- * quad pulled one bucket FORWARD, which won the depth test against — and drew
- * over — characters/objects near the wall (the reported bug). Bump toward 0 if a
- * decal dips behind a grazing wall. */
-#define DECAL_BLOOD_BIAS 256 /* == blood-splat var_s7 (func_80062708) */
+ *   1. SEMI-TRANSPARENT, like the blood splats (setSemiTrans in func_80062708),
+ *      so the quad never wins the depth buffer against a character in front of
+ *      the wall.
+ *   2. Bucketed on OT0's own scale (DECAL_OT_SHIFT), so it never wins PAINTER
+ *      order against him either.
+ *
+ * Getting only (1) is what shipped first and it was not enough: the quad was
+ * also copying blood's >>3 bucketing, which is a different scale from the rest
+ * of OT0, and a semi-transparent prim in a nearer bucket still paints last. */
+/* OT0 bucket scale. func_80057090's shift argument is 1 at every character and
+ * held-item call site (world_draw.c:746, :1034), and Ipd_ChunkDraw passes a
+ * bool, so nothing in this table is coarser than >>1. The decal has to use the
+ * same scale as the characters it must lose to — blood's >>3 does not, which is
+ * why bullet holes drew over Harry's head while blood on the floor looks fine
+ * (blood is only ever compared against things standing ON it). */
+#define DECAL_OT_SHIFT 1
+
+/* One bucket NEARER than the surface it sits on, so it still beats its own host
+ * wall in painter order. DECAL_OFFSET already lifts it along the normal, but at
+ * this shift the lift can round into the same bucket as the wall, and within a
+ * bucket the draw order is list order, not depth. */
+#define DECAL_OT_LIFT 1
 
 typedef struct {
     VECTOR3 center; /* Q19.12 world, already offset along the normal */
@@ -335,12 +345,19 @@ void Pc_DecalsDraw(GsOT* ot)
             continue;
         }
 
-        /* Blood-splat bucketing (func_80062708): (avgSZ + var_s7) >> 3. The far
-         * push (DECAL_BLOOD_BIAS) is what lets foreground paint over the decal. */
-        bucket = ((bucketSum >> 2) + DECAL_BLOOD_BIAS) >> 3;
-        if (bucket < 0)
+        /* Bucket on the SAME scale as everything else in OT0, which is what the
+         * blood-splat copy got wrong: blood's >>3 produced an index ~4x too
+         * SMALL, and a smaller index is NEARER, so the decal sorted in front of
+         * a character standing between the camera and the wall and painted over
+         * him. Semi-transparency stops it winning the depth test; it does not
+         * stop it winning painter order. */
+        bucket = (bucketSum >> 2) >> DECAL_OT_SHIFT;
+        bucket -= DECAL_OT_LIFT;
+        if (bucket < 1)
         {
-            bucket = 0;
+            /* The game's own sorters drop otz <= 0 outright, so never hand
+             * DrawOTag bucket 0. */
+            bucket = 1;
         }
         if (bucket >= ORDERING_TABLE_SIZE)
         {

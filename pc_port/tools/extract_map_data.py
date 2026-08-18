@@ -380,6 +380,13 @@ EXTRA_SYMBOLS = {
                  ("D_800DB1E8", 0x800DB1E8, 8),
                  ("D_800DB1F0", 0x800DB1F0, 8),
                  ("D_800DB1F8", 0x800DB1F8, 24),
+                 # s8[11][6] of bone indices, -1 terminated (func_800D59EC).
+                 # Bit 0 of each listed bone's modelInfo is the "skip drawing"
+                 # flag, set per burrow-animation frame so the worm's segments
+                 # vanish as they go under. Zeroed = no bone ever hidden, so the
+                 # whole worm stayed drawn through the ground; index 0 also read
+                 # bones[-1].
+                 ("D_800DB238", 0x800DB238, 0x44),
                  # remaining twinfeeler ROM tables (sizes = next-symbol delta)
                  ("D_800DAA44", 0x800DAA44, 4), ("D_800DAA48", 0x800DAA48, 4),
                  ("D_800DAA4C", 0x800DAA4C, 4), ("D_800DAA50", 0x800DAA50, 4),
