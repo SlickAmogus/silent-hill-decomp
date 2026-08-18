@@ -200,6 +200,15 @@ static const s_PcOpt PCOPT_G[] = {
      * rows (the practical maximum) while this page had room to spare. */
     { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
     { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
+#if defined(SH_IOS)
+    /* Lives on this page rather than System purely for room: System is already
+     * at the 11-row ceiling, and this page has two spare rows on a phone now
+     * that Resolution and Window_Mode are gone. Restores the config.cfg the app
+     * shipped with, straight out of the signed bundle -- there is no full config
+     * writer to rebuild one from the defaults in memory, and a phone has no text
+     * editor pointed at Documents. */
+    { "Reset_Settings", NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RESET  },
+#endif
     { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
 };
 
@@ -226,12 +235,6 @@ static const s_PcOpt PCOPT_S[] = {
     { "Crosshair",        &g_PcConfig.crosshair,      "crosshair",        VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_NEXT },
-#if defined(SH_IOS)
-    /* Restores the config.cfg the app shipped with, straight out of the bundle.
-     * There is no full config writer to rebuild one from the defaults in
-     * memory, and a phone has no text editor pointed at Documents. */
-    { "Reset_Settings",   NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_RESET },
-#endif
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
 

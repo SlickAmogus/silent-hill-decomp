@@ -285,7 +285,15 @@ endif()
 # generic ISO-C luaconf (no LUA_USE_* platform define) keeps it portable and
 # sandboxes out dynamic C-library loading, which user scripts must not do.
 set(SH_LUA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lua")
-if(EXISTS "${SH_LUA_DIR}/src/lua.h")
+# Not on iOS: loslib.c implements os.execute with system(), which the iPhoneOS
+# SDK marks unavailable, so the library will not compile at all there. Lua only
+# backs the randomizer's optional scripting layer, and running shell commands is
+# something a sandboxed app could not do even if it built. SH_HAVE_LUA OFF is an
+# already-supported configuration (it is what a missing submodule produces).
+if(IOS)
+    set(SH_HAVE_LUA OFF)
+    message(STATUS "Lua scripting: disabled (iOS — loslib needs system(), which the SDK forbids)")
+elseif(EXISTS "${SH_LUA_DIR}/src/lua.h")
     file(GLOB LUA_SOURCES "${SH_LUA_DIR}/src/*.c")
     add_library(lua_static STATIC ${LUA_SOURCES})
     target_include_directories(lua_static PUBLIC "${SH_LUA_DIR}/src")
