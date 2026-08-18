@@ -3,6 +3,7 @@ package com.silenthill.port;
 import android.content.res.AssetManager;
 import android.system.ErrnoException;
 import android.system.Os;
+import android.os.Environment;
 import android.util.Log;
 
 import org.libsdl.app.SDLActivity;
@@ -53,15 +54,36 @@ public class SilentHillActivity extends SDLActivity {
      * and the environment has to be in place before native code reads it.
      */
     private void publishDiscDropDir() {
+        File drop = null;
+
         File[] mediaDirs = getExternalMediaDirs();
-        if (mediaDirs == null || mediaDirs.length == 0 || mediaDirs[0] == null) {
-            Log.w(TAG, "No external media dir; disc image must go in the files dir.");
-            return;
+        if (mediaDirs != null && mediaDirs.length > 0 && mediaDirs[0] != null) {
+            File d = mediaDirs[0];
+            if ((d.isDirectory() || d.mkdirs()) && d.canWrite()) {
+                drop = d;
+            } else {
+                Log.w(TAG, "media dir unusable: " + d);
+            }
+        } else {
+            Log.w(TAG, "no external media dir on this device");
         }
 
-        File drop = mediaDirs[0];
-        if (!drop.isDirectory() && !drop.mkdirs()) {
-            Log.w(TAG, "Could not create disc drop dir: " + drop);
+        if (drop == null) {
+            /* Older devices (and some vendor builds) either have no media dir or
+             * refuse to create one, and the private files dir this used to fall
+             * back to is invisible to the user -- which is how a cabinet ended up
+             * with no findable log or config at all. A plain folder on internal
+             * storage is browsable everywhere and writable without permission on
+             * the API levels where the media dir is missing. */
+            File pub = new File(Environment.getExternalStorageDirectory(), "SilentHill");
+            if ((pub.isDirectory() || pub.mkdirs()) && pub.canWrite()) {
+                drop = pub;
+                Log.i(TAG, "using public fallback dir: " + pub);
+            }
+        }
+
+        if (drop == null) {
+            Log.w(TAG, "no user-visible dir available; log/config stay in the app's files dir.");
             return;
         }
 

@@ -237,15 +237,134 @@ void (*g_ShOverlayToastLine)(const char* line) = NULL;
 /* Per-run timestamped log path so a new run never overwrites the previous log.
  * Computed once on the first call and cached, so the main log handle and the
  * stdout/stderr freopen all target the same file for this run. */
+/* Which config file was actually loaded, for the startup announcement. */
+static char s_ConfigPathUsed[512] = {0};
+
+static int Pc_FileExists(const char* path)
+{
+    FILE* f = fopen(path, "rb");
+
+    if (f == NULL)
+        return 0;
+
+    fclose(f);
+    return 1;
+}
+
+/* Best effort: a missing source just means there is nothing to migrate. */
+static void Pc_CopyFile(const char* src, const char* dst)
+{
+    FILE*  in = fopen(src, "rb");
+    FILE*  out;
+    char   buf[4096];
+    size_t n;
+
+    if (in == NULL)
+        return;
+
+    out = fopen(dst, "wb");
+    if (out == NULL)
+    {
+        fclose(in);
+        return;
+    }
+
+    while ((n = fread(buf, 1, sizeof(buf), in)) > 0)
+        fwrite(buf, 1, n, out);
+
+    fclose(in);
+    fclose(out);
+}
+
+/* Write a documented starter config when none exists.
+ *
+ * Nothing ever created one: the loader tolerates a missing file and the writer
+ * only fires when an in-game option changes. So a fresh install had no file to
+ * edit -- and on hardware whose buttons do not match the default key map, the
+ * settings that would fix that are exactly the ones you cannot reach. Values
+ * come from the live config so this always reflects the real defaults. */
+static void Pc_WriteStarterConfig(const char* path)
+{
+    FILE* f = fopen(path, "w");
+
+    if (f == NULL)
+        return;
+
+    fprintf(f, "# Silent Hill - configuration\n");
+    fprintf(f, "# Edit with any text editor. Lines starting with # are ignored.\n\n");
+    fprintf(f, "# --- diagnostics ---\n");
+    fprintf(f, "enable_debug_log = %d\n\n", g_PcConfig.enableDebugLog);
+    fprintf(f, "# --- performance ---\n");
+    fprintf(f, "# render_scale: internal resolution as a fraction of the screen.\n");
+    fprintf(f, "# The big lever on weak hardware - 0.5 renders a quarter of the pixels.\n");
+    fprintf(f, "render_scale = %.2f\n", (double)g_PcConfig.renderScale);
+    fprintf(f, "msaa = %d               # 0/2/4/8 - expensive, use 0 on weak GPUs\n", g_PcConfig.msaaSamples);
+    fprintf(f, "fps_cap = %d            # 0 = uncapped, 30 = PSX-accurate\n", g_PcConfig.fpsCap);
+    fprintf(f, "disable_culling = %d    # 1 draws everything - leave at 0\n", g_PcConfig.disableCulling);
+    fprintf(f, "use_pgxp = %d           # vertex precision; costs CPU\n", g_PcConfig.usePgxp);
+    fprintf(f, "post_process = %d\n", g_PcConfig.postProcess);
+    fprintf(f, "widescreen_mode = %d    # 0 = 4:3 pillarbox (fewest pixels), 1 = Hor+, 2 = stretch\n", g_PcConfig.widescreenMode);
+    fprintf(f, "resident_textures = %d  # costs memory; drop it on small devices\n", g_PcConfig.residentTextures);
+    fprintf(f, "preload_chunks = %d\n\n", g_PcConfig.preloadChunks);
+    fprintf(f, "# --- touch ---\n");
+    fprintf(f, "touch_controls = %d\n", g_PcConfig.touchControls);
+    fprintf(f, "touch_look_sensitivity = %.2f\n\n", (double)g_PcConfig.touchLookSensitivity);
+    fprintf(f, "# --- keyboard bindings ---\n");
+    fprintf(f, "# SDL key names. The log prints every key this machine produces as\n");
+    fprintf(f, "#   [KEY] scancode N = 'Name'\n");
+    fprintf(f, "# so press a button, then copy its name here. NONE unbinds.\n");
+    fprintf(f, "key_up = %s\n", g_PcConfig.classic.keyUp);
+    fprintf(f, "key_down = %s\n", g_PcConfig.classic.keyDown);
+    fprintf(f, "key_left = %s\n", g_PcConfig.classic.keyLeft);
+    fprintf(f, "key_right = %s\n", g_PcConfig.classic.keyRight);
+    fprintf(f, "key_cross = %s\n", g_PcConfig.classic.keyCross);
+    fprintf(f, "key_circle = %s\n", g_PcConfig.classic.keyCircle);
+    fprintf(f, "key_triangle = %s\n", g_PcConfig.classic.keyTriangle);
+    fprintf(f, "key_square = %s\n", g_PcConfig.classic.keySquare);
+    fprintf(f, "key_start = %s\n", g_PcConfig.classic.keyStart);
+    fprintf(f, "key_select = %s\n", g_PcConfig.classic.keySelect);
+    fprintf(f, "key_l1 = %s\n", g_PcConfig.classic.keyL1);
+    fprintf(f, "key_r1 = %s\n", g_PcConfig.classic.keyR1);
+    fprintf(f, "key_l2 = %s\n", g_PcConfig.classic.keyL2);
+    fprintf(f, "key_r2 = %s\n", g_PcConfig.classic.keyR2);
+
+    fclose(f);
+}
+
+/* Android: the folder a file manager can actually open (Android/media/<pkg>),
+ * published by SilentHillActivity. NULL everywhere else, and NULL on Android if
+ * the activity could not create it. */
+const char* Pc_UserVisibleDir(void)
+{
+#if defined(__ANDROID__)
+    const char* drop = getenv("SH_DISC_DROP_DIR");
+
+    if (drop != NULL && drop[0] != '\0')
+        return drop;
+#endif
+    return NULL;
+}
+
 const char* SH_LogPath(void)
 {
-    static char s_logPath[64] = {0};
+    static char s_logPath[512] = {0};
     if (!s_logPath[0]) {
+        char        stamp[64];
+        const char* dir = Pc_UserVisibleDir();
         time_t now = time(NULL);
         struct tm* lt = localtime(&now);
-        if (!lt || strftime(s_logPath, sizeof(s_logPath), "SilentHill_%Y%m%d_%H%M%S.log", lt) == 0) {
-            snprintf(s_logPath, sizeof(s_logPath), "SilentHill.log");
+
+        if (!lt || strftime(stamp, sizeof(stamp), "SilentHill_%Y%m%d_%H%M%S.log", lt) == 0) {
+            snprintf(stamp, sizeof(stamp), "SilentHill.log");
         }
+
+        /* Put logs where the user can reach them. The working directory is
+         * inside Android/data, which no file manager can open from Android 11
+         * on -- so "send me the log" meant "install adb" until now. */
+        if (dir != NULL)
+            snprintf(s_logPath, sizeof(s_logPath), "%s/%s", dir, stamp);
+        else
+            snprintf(s_logPath, sizeof(s_logPath), "%s", stamp);
     }
     return s_logPath;
 }
@@ -809,9 +928,54 @@ int main(int argc, char* argv[])
     PrintBanner();
     ParseArgs(argc, argv);
 
-    /* Load config file */
-    PcConfig_Load("config.cfg");
-    PcAudioConfig_Load("config.cfg");
+    /* Load config file.
+     *
+     * On Android prefer a config in the user-visible folder, and seed it from
+     * the private one on first run. The working directory lives under
+     * Android/data, which a file manager cannot open from Android 11 on, so a
+     * config only kept there is one the player can never edit -- and editing it
+     * is exactly what a low-powered device needs (resolution, MSAA, effects).
+     * PcConfig_Load remembers the path it used, so in-game option changes are
+     * written back to the same file. */
+    {
+        const char* dir = Pc_UserVisibleDir();
+        char        cfgPath[512];
+        const char* chosen = "config.cfg";
+
+        if (dir != NULL)
+        {
+            snprintf(cfgPath, sizeof(cfgPath), "%s/config.cfg", dir);
+
+            if (!Pc_FileExists(cfgPath))
+                Pc_CopyFile("config.cfg", cfgPath); /* migrate, best effort */
+
+            /* Target the visible path even when nothing is there yet -- the
+             * starter file below is about to create it. Requiring it to exist
+             * first was a chicken-and-egg: a fresh install could never get a
+             * config anywhere the player could see, so the file was written
+             * into the app's private folder and might as well not exist. */
+            chosen = cfgPath;
+        }
+
+        PcConfig_Load(chosen);
+        PcAudioConfig_Load(chosen);
+
+        /* First run anywhere: leave the player a file to edit. If the visible
+         * location refuses the write, fall back to the private one rather than
+         * running with no config file at all. */
+        if (!Pc_FileExists(chosen))
+        {
+            Pc_WriteStarterConfig(chosen);
+
+            if (!Pc_FileExists(chosen))
+            {
+                chosen = "config.cfg";
+                Pc_WriteStarterConfig(chosen);
+            }
+        }
+
+        snprintf(s_ConfigPathUsed, sizeof(s_ConfigPathUsed), "%s", chosen);
+    }
 
     /* After the config load, or the parsed skip_intros would clobber it.
      * map0_s00 is the compiled-in default, so a config still naming it counts as
@@ -837,6 +1001,17 @@ int main(int argc, char* argv[])
              * Generated fresh each build by cmake/gen_build_info.cmake. */
             #include "sh_build_info.h"
             SH_DBG("[SH] build " SH_BUILD_GIT_HASH " (" SH_BUILD_STAMP ")");
+        }
+        /* Say WHERE this log and the config actually are. The log is the one
+         * thing a remote user is asked to find, and when it silently lands in a
+         * private folder (no media dir on the device) the answer is invisible
+         * from both sides -- which is exactly what happened on an arcade
+         * cabinet. Now the file names its own location. */
+        SH_DBG("[SH] log:    %s", SH_LogPath());
+        SH_DBG("[SH] config: %s", s_ConfigPathUsed[0] ? s_ConfigPathUsed : "config.cfg");
+        {
+            const char* drop = Pc_UserVisibleDir();
+            SH_DBG("[SH] user-visible dir: %s", (drop != NULL) ? drop : "(none - using the app's private files dir)");
         }
         /* One-line render-config fingerprint: these are the axes every remote
          * corruption report gets bisected on — stop having to ask for the cfg. */
@@ -1082,6 +1257,14 @@ int main(int argc, char* argv[])
      * If the driver can't honor it, PsyCross retries without MSAA and clears
      * g_cfg_msaaSamples back to 0. */
     g_cfg_msaaSamples = g_PcConfig.msaaSamples;
+    {
+        /* Seeded before the window exists so the very first frame already
+         * renders at the requested size. */
+        extern float g_cfg_renderScale;
+        extern int   g_cfg_lowEnd;
+        g_cfg_renderScale = g_PcConfig.renderScale;
+        g_cfg_lowEnd      = g_PcConfig.lowEndMode;
+    }
     SH_LOG("MSAA: %dx", g_cfg_msaaSamples);
 
     /* Before PsyX_Initialise: the window is confined as soon as it is created. */

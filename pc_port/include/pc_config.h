@@ -138,6 +138,8 @@ typedef struct {
                           * like real hardware — kills the screen-crossing wedge polys when the camera
                           * sits inside geometry (elevator doors/staircase). 0 = draw them (old behavior).
                           * (config key: psx_poly_size_cull; console: polysizecull) */
+    int lowEndMode;      /* 1 = trade quality for frame time on weak GPUs: the freeze-frame capture (a full-screen blit) runs every few frames instead of every frame, and per-frame GL error polling stops. Does not change gameplay (config key: low_end); default 0 */
+    float renderScale;   /* internal render resolution as a fraction of the display, 0.25..1.0 (config key: render_scale); default 1.0. The only setting that lowers PIXEL COUNT rather than per-pixel work, so it is the big lever on a weak GPU. Upscaled with linear filtering on present; UI and input are unaffected. */
     int msaaSamples;     /* MSAA on the default framebuffer: 0 = off, 2/4/8 = sample count (config key: msaa) */
     int postProcess;     /* full-screen post-process look: 0 = off, 1.. = built-in filter (config key: post_process) */
     int tonemap;         /* tone-map operator: 0=off,1=Reinhard,2=ACES,3=Filmic (config key: tonemap) */

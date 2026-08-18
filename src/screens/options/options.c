@@ -120,6 +120,20 @@ static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Cont
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
+/* In-game, the Auto Load row becomes Exit to Menu.
+ *
+ * Auto Load only means anything from the title screen (it decides whether
+ * booting jumps straight into the last save), and a player who has paused
+ * mid-game had no way back to the title short of killing the process --
+ * particularly on a touchscreen or a cabinet with no keyboard. The row is
+ * retitled rather than added because a page fits a fixed number of lines, and
+ * this is the one row that is dead weight in-game. Same trick PAL already uses
+ * to show Language here on the title screen. */
+int Pc_ExitToMenuRowActive(void)
+{
+    return g_GameWork.gameState == GameState_InGame;
+}
+
 enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
@@ -463,7 +477,12 @@ void Options_PcOptionsMenu_Control(void)
     if ((LINE_CURSOR_TIMER_MAX - 1) < g_Options_SelectionHighlightTimer)
         g_Options_SelectionHighlightTimer = LINE_CURSOR_TIMER_MAX;
     else
-        g_Options_SelectionHighlightTimer++;
+        /* Advance by ELAPSED vblanks, not one per frame. This gates input until
+         * the highlight animation finishes, so on a slow device a fixed 8-frame
+         * animation became 8 * frame-time -- over a second before the next
+         * option could be selected. At 60fps g_VBlanks is 1 and this is
+         * identical to the original. */
+        g_Options_SelectionHighlightTimer += (g_VBlanks > 0) ? g_VBlanks : 1;
 
     if (g_Options_SelectionHighlightTimer == LINE_CURSOR_TIMER_MAX)
     {
@@ -1048,7 +1067,12 @@ void Options_ExtraOptionsMenu_Control(void) // 0x801E318C
     }
     else
     {
-        g_Options_SelectionHighlightTimer++;
+        /* Advance by ELAPSED vblanks, not one per frame. This gates input until
+         * the highlight animation finishes, so on a slow device a fixed 8-frame
+         * animation became 8 * frame-time -- over a second before the next
+         * option could be selected. At 60fps g_VBlanks is 1 and this is
+         * identical to the original. */
+        g_Options_SelectionHighlightTimer += (g_VBlanks > 0) ? g_VBlanks : 1;
     }
 
     if (g_Options_SelectionHighlightTimer == LINE_CURSOR_TIMER_MAX)
@@ -1311,7 +1335,12 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
     }
     else
     {
-        g_Options_SelectionHighlightTimer++;
+        /* Advance by ELAPSED vblanks, not one per frame. This gates input until
+         * the highlight animation finishes, so on a slow device a fixed 8-frame
+         * animation became 8 * frame-time -- over a second before the next
+         * option could be selected. At 60fps g_VBlanks is 1 and this is
+         * identical to the original. */
+        g_Options_SelectionHighlightTimer += (g_VBlanks > 0) ? g_VBlanks : 1;
     }
 
     if (g_Options_SelectionHighlightTimer != LINE_CURSOR_TIMER_MAX)
@@ -1353,9 +1382,12 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
             {
                 int wheel = Pc_MouseCursor_WheelStep();
 
-                if (row <= MainOptionsMenuEntry_ScreenPosition)
+                if (row <= MainOptionsMenuEntry_ScreenPosition ||
+                    (row == MainOptionsMenuEntry_AutoLoad && Pc_ExitToMenuRowActive()))
                 {
-                    /* Exit / Brightness / Controller / PC Options. */
+                    /* Exit / Brightness / Controller / PC Options, plus the
+                     * in-game Exit to Menu row -- all activate on Confirm
+                     * rather than cycling a value with left/right. */
                     if (Pc_MouseCursor_LeftClicked())
                         PcMouse_InjectEnter();
                 }
@@ -1528,6 +1560,23 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
                 {
                     Sd_PlaySfx(Sfx_MenuMove, 0, 64);
                     Pc_LangSlotSet((slot + langCount - 1) % langCount);
+                }
+                break;
+            }
+#endif
+#ifdef SH_PC_PORT
+            if (Pc_ExitToMenuRowActive())
+            {
+                if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
+                {
+                    Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+
+                    /* Warm boot IS the return-to-title path: it tears down
+                     * streaming audio, the radio loop and the sys work area,
+                     * then lands on the main menu. Requesting it by flag lets
+                     * the main loop reach it at a frame boundary instead of
+                     * unwinding the menu from underneath itself. */
+                    g_SysWork.sysFlags |= SysFlag_DoWarmReset;
                 }
                 break;
             }
@@ -1886,6 +1935,10 @@ void Options_MainOptionsMenu_EntryStringsDraw(void) // 0x801E42EC
     if (Pc_LangMenuRowActive())
     {
         ENTRY_STRS[MainOptionsMenuEntry_AutoLoad] = "Language";
+    }
+    else if (Pc_ExitToMenuRowActive())
+    {
+        ENTRY_STRS[MainOptionsMenuEntry_AutoLoad] = "Exit_to_Menu";
     }
 #endif
 
@@ -2475,6 +2528,11 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
                     Gfx_StringDraw(Pc_LangSlotName(slot), 10);
                     break;
                 }
+#endif
+#ifdef SH_PC_PORT
+                /* Exit to Menu is an action, not a toggle: no On/Off value. */
+                if (Pc_ExitToMenuRowActive())
+                    break;
 #endif
                 strPosX = !g_GameWork.config.autoLoad ? 214 : 216;
                 Gfx_StringSetPosition(strPosX, 136);

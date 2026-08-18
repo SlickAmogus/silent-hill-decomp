@@ -58,7 +58,11 @@ s_PcConfig g_PcConfig = {
     .xaVolume             = 1.0f, /* XA cutscene-voice volume, 0..1; 1.0 = unchanged */
     .fmvVolume            = 1.0f, /* FMV movie (SDL PCM) volume, 0..1; 1.0 = unchanged */
     .fmvPsxVolume         = 1,    /* PSX-faithful 80/128 movie-audio attenuation (SsSetSerialVol) */
-    .enableDebugLog = 0, /* 0=no SilentHill.log, 1=write SilentHill.log (debug builds) */
+    /* ON during the alpha. Off by default meant a device with no config file
+     * never produced a log at all -- which is exactly when one is needed, since
+     * a fresh install on unfamiliar hardware is the case you cannot debug from
+     * here. Worth revisiting before a wider release. */
+    .enableDebugLog = 1, /* 0=no SilentHill.log, 1=write SilentHill.log */
     .glVerbose      = 0, /* 1 = log GL/GLSL details + shader info logs on success; failures always log */
     .allowDebugControls = 0, /* 0=off (default), 1=enable dev/cheat keys */
     .controllerMovement = 2, /* 0=analog, 1=dpad, 2=both */
@@ -83,6 +87,8 @@ s_PcConfig g_PcConfig = {
     .touchControls       = 0,
 #endif
     .touchLookSensitivity = 1.0f,
+    .renderScale         = 1.0f,
+    .lowEndMode          = 0,
     .altButtonSprint     = 0, /* alt cams sprint from the run control only (off = full stick push also sprints) */
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
@@ -837,6 +843,17 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "mouse_cursor") == 0)
         {
             g_PcConfig.mouseCursor = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "low_end") == 0)
+        {
+            g_PcConfig.lowEndMode = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "render_scale") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.25f) v = 0.25f;
+            if (v > 1.0f)  v = 1.0f;
+            g_PcConfig.renderScale = v;
         }
         else if (strcmp(key, "touch_controls") == 0)
         {
