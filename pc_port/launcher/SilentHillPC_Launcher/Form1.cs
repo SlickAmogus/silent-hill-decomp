@@ -178,11 +178,23 @@ public partial class Form1 : Form
     {
         // "はい"/"いいえ" and "Nein" are wider than "Yes"/"No", and each of these
         // sits at the end of its row with free space to the right.
-        foreach (var r in new[] { radioVsyncYes, radioVsyncNo, radioPreloadYes, radioPreloadNo,
+        foreach (var r in new[] { radioVsyncYes, radioVsyncNo, radioDecalsYes, radioDecalsNo, radioPreloadYes, radioPreloadNo,
                                   pgxpYes, pgxpNo, loggingYes, loggingNo, consoleYes, consoleNo })
             r.AutoSize = true;
 
         Loc.LocalizeItems(comboFullscreen);
+        /* Renderer backends, display text paired with the config value by index
+         * so the value written to config.cfg never depends on the label — the
+         * labels are the descriptions PsyX_Backend prints, the values are what
+         * PsyX_Backend_FromName parses. Anything unrecognised falls back to
+         * "gl" in main_pc.c, so a hand-edited config cannot stop the game
+         * booting. d3d11 / vulkan / warp / software go through ANGLE and are
+         * the reason this is worth exposing: they are an escape hatch for
+         * machines whose OpenGL driver is the problem. */
+        comboRender.Items.Clear();
+        comboRender.Items.AddRange(new object[] {
+            "Automatic", "OpenGL (native)", "OpenGL ES 3.0", "Direct3D 11 (ANGLE)",
+            "Vulkan (ANGLE)", "Direct3D 11 WARP (CPU)", "Software (SwiftShader)" });
         Loc.LocalizeItems(comboSkipIntros);
         Loc.LocalizeItems(comboPillarbox);
         Loc.LocalizeItems(comboFiltering);
@@ -596,6 +608,29 @@ public partial class Form1 : Form
             "             skips the opening movie.";
         Set(skipIntrosLabel,  skipIntrosTip);
         Set(comboSkipIntros,  skipIntrosTip);
+
+        const string decalsTip =
+            "Leaves a bullet hole on walls and other world geometry where your\n" +
+            "gunfire lands. Not in the original game, so it is off by default.\n" +
+            "Also on the Controls page of the in-game PC Options menu.";
+        Set(decalsLabel,      decalsTip);
+        Set(radioDecalsYes,   decalsTip);
+        Set(radioDecalsNo,    decalsTip);
+
+        const string renderTip =
+            "Which graphics API the game renders through.\n" +
+            "Automatic = let the port choose.\n" +
+            "OpenGL (native) = the default and the most tested path.\n" +
+            "The rest go through ANGLE, which translates to another API:\n" +
+            "Direct3D 11 and Vulkan are worth trying if your OpenGL driver\n" +
+            "misbehaves (integrated graphics especially). WARP and Software\n" +
+            "render on the CPU — very slow, but they run without a working\n" +
+            "GPU driver at all.\n" +
+            "ANGLE needs libEGL.dll and libGLESv2.dll next to the exe; if they\n" +
+            "are missing the game falls back to native OpenGL and says so in\n" +
+            "the log.";
+        Set(lblRender,        renderTip);
+        Set(comboRender,      renderTip);
 
         const string preloadTip =
             "Preload all map chunks at level start instead of streaming\n" +
@@ -1038,6 +1073,13 @@ public partial class Form1 : Form
         comboSkipIntros.SelectedIndex = skipIntrosLevel;
 
         // preload_chunks (recommended: Yes — matches engine default)
+        // bullet_decals — off by default, matching the engine default.
+        radioDecalsYes.Checked = config.Get("bullet_decals", "0") == "1";
+        radioDecalsNo.Checked = !radioDecalsYes.Checked;
+        {
+            int ri = Array.IndexOf(RendererValues, config.Get("renderer", "gl").Trim().ToLowerInvariant());
+            comboRender.SelectedIndex = ri >= 0 ? ri : 1; // unknown -> OpenGL, same as the game
+        }
         radioPreloadYes.Checked = config.Get("preload_chunks", "1") == "1";
         radioPreloadNo.Checked = !radioPreloadYes.Checked;
 
@@ -1075,6 +1117,8 @@ public partial class Form1 : Form
         config.Set("skip_intros", comboSkipIntros.SelectedIndex.ToString());
 
         // preload_chunks
+        config.Set("bullet_decals", radioDecalsYes.Checked ? "1" : "0");
+        config.Set("renderer", RendererValues[comboRender.SelectedIndex >= 0 ? comboRender.SelectedIndex : 1]);
         config.Set("preload_chunks", radioPreloadYes.Checked ? "1" : "0");
 
         // enable debug logging
@@ -1899,6 +1943,13 @@ public partial class Form1 : Form
         }
     }
 
+    /* Parallel to comboRender's items. Index is the only link between the two,
+     * so re-ordering one without the other silently writes the wrong backend. */
+    private static readonly string[] RendererValues =
+    {
+        "auto", "gl", "gles", "d3d11", "vulkan", "warp", "software",
+    };
+
     private void radioPreloadYes_CheckedChanged(object sender, EventArgs e)
     {
 
@@ -2141,6 +2192,11 @@ public partial class Form1 : Form
     }
 
     private void chkUncensored_CheckedChanged(object sender, EventArgs e)
+    {
+
+    }
+
+    private void label2_Click(object sender, EventArgs e)
     {
 
     }
