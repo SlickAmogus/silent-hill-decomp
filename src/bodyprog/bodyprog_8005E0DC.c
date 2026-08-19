@@ -25,6 +25,22 @@
 #include "sh_log.h"
 /* Fades the additive blood layers toward black with world fog (bodyprog_80055028.c). */
 extern int Pc_BloodFogKeep(s32 z);
+
+#ifdef SH_PC_PORT
+/* Fade a blood prim's source colour with world fog.
+ *
+ * BOTH blood blend modes vanish as their source goes to zero: additive
+ * (dest + src) adds nothing, subtractive (dest - src) removes nothing. So
+ * scaling by the same fogRamp the world uses makes blood recede into fog at the
+ * world's own rate, which is what the additive layers already did.
+ *
+ * The SUBTRACTIVE layers are why splatters and pools stayed bright against the
+ * fog, and they were worse than merely unfogged: func_80055A90 tints toward the
+ * FOG colour, which BRIGHTENS the source, and a brighter source under
+ * subtractive blending removes MORE from the floor. Distant blood was getting
+ * stronger the thicker the fog got. */
+#define PC_BLOOD_FOG_FADE(p, z)                        do {                                                   POLY_FT4* _p = (p);                                int       _k = Pc_BloodFogKeep(z);                 _p->r0 = (_p->r0 * _k) >> 8;                       _p->g0 = (_p->g0 * _k) >> 8;                       _p->b0 = (_p->b0 * _k) >> 8;                   } while (0)
+#endif
 #endif
 
 s_800C42E8     D_800C42E8[24];
@@ -1375,6 +1391,9 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             *(*poly + 3) = *(*poly + 2) = *(*poly + 1) = **poly;
             *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + (ptr->field_134.g << 8);
             (*poly + 1)->b0         = ptr->field_134.b;
+#ifdef SH_PC_PORT
+            PC_BLOOD_FOG_FADE(*poly + 1, ptr->field_140);
+#endif
             (*poly)->tpage          = 43;
             (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
             (*poly + 3)->tpage      = 43;
@@ -1414,6 +1433,9 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
 
             *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + (ptr->field_134.g << 8);
             (*poly + 1)->b0         = ptr->field_134.b;
+#ifdef SH_PC_PORT
+            PC_BLOOD_FOG_FADE(*poly + 1, ptr->field_140);
+#endif
             (*poly)->tpage          = 43;
             (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
             (*poly + 3)->tpage      = 43;
@@ -1815,6 +1837,8 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
         (*poly)->b0         = ptr->field_12C.b;
 
 #ifdef SH_PC_PORT
+        PC_BLOOD_FOG_FADE(*poly, ptr->field_158);
+
         /* Red-bias + tpage fix for the ground-decal blood. Two issues
          * the PSX 3-prim emit hid that surface in our single-prim PC
          * simplification:
@@ -2189,6 +2213,9 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                 (*poly)->clut           = (*poly + 2)->clut = 147;
                 *(u16*)&(*poly + 1)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
                 (*poly + 1)->b0         = ptr->field_130.b;
+#ifdef SH_PC_PORT
+                PC_BLOOD_FOG_FADE(*poly + 1, ptr->field_20C);
+#endif
 
                 /* Cap the ADDITIVE layer color (poly[0]) so a bright per-map
                  * fog-tint can't blow the soft edge to white (see BLOOD_ADD_MAX). */
@@ -2817,6 +2844,10 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
 
         *(u16*)&(*poly + 1)->r0 = ptr->field_134.r + (ptr->field_134.g << 8);
         (*poly + 1)->b0         = ptr->field_134.b;
+#ifdef SH_PC_PORT
+        PC_BLOOD_FOG_FADE(*poly, ptr->field_150);
+        PC_BLOOD_FOG_FADE(*poly + 1, ptr->field_150);
+#endif
 
         ptr->field_12C = (PACKET*)(*poly) + 0x50;
 
