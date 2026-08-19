@@ -3185,34 +3185,6 @@ void MainLoop(void) // 0x80032EE0
             g_PsyX_FogColor[2] = PC_WorldEnvWork.fog.color.b / 255.0f;
         }
 #endif
-        /* PC port: the fog-coloured full-screen flicker in the streets.
-         * The clear IS the whole image on any frame that draws no world, so a
-         * single frame clearing to fog without the world behind it reads as the
-         * screen flashing that colour. This reports the CHANGES only — the
-         * frame the pattern flips and back — so one run shows whether the
-         * flicker frames are world-less, and what the clear was on them. */
-        {
-            static int s_prevKey = -1;
-            static int s_reported = 0;
-            int key = (g_PcWorldDrawnThisFrame ? 1 : 0) |
-                      (bg2dHeld ? 2 : 0) |
-                      (g_PsxPresentLastFrame ? 4 : 0) |
-                      ((g_GameWork.background2dColor.r > 8 ||
-                        g_GameWork.background2dColor.g > 8 ||
-                        g_GameWork.background2dColor.b > 8) ? 8 : 0);
-
-            if (key != s_prevKey && s_reported < 60 &&
-                g_GameWork.gameState == GameState_InGame)
-            {
-                s_prevKey = key;
-                s_reported++;
-                SH_DBG("[CLEARDIAG] world=%d bg2d=%d freeze=%d clear=(%d,%d,%d) state=%d",
-                       g_PcWorldDrawnThisFrame, bg2dHeld, g_PsxPresentLastFrame,
-                       g_GameWork.background2dColor.r, g_GameWork.background2dColor.g,
-                       g_GameWork.background2dColor.b, (int)g_SysWork.sysState);
-            }
-        }
-
         ML_TRACE("GsSortClear");
 #ifdef SH_PC_PORT
         /* Stack canary — detect if anything corrupted our stack frame */

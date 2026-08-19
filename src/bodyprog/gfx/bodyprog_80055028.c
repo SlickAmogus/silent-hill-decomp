@@ -208,11 +208,51 @@ void WorldEnv_Init(void) // 0x80055028
  * room is driven by the flashlight. Deliberately NOT field_2 (the per-room
  * glow-halo enable) — that reads 0 in genuinely dark rooms like map3_s05, which
  * is the trap the comment at the call site warns about. */
-static int RoomIsFlashlightLit(void)
+static int RoomIsFlashlightLitRaw(void)
 {
     return (g_SysWork.field_2388.field_154.effectsInfo_0.field_0.s_field_0.field_0 & (1 << 1)) &&
            ((g_SysWork.field_2388.field_1C[0].effectsInfo_0.field_0.s_field_0.field_0 & (1 << 0)) ||
             (g_SysWork.field_2388.field_1C[1].effectsInfo_0.field_0.s_field_0.field_0 & (1 << 0)));
+}
+
+/* Whether a room lights itself is a property of the ROOM. It must not be able
+ * to change between one frame and the next, because it gates a BINARY
+ * whole-scene dim (the fragment shader multiplies the entire frame by 0.15
+ * while the cone is active). One frame where the raw bits happen to disagree
+ * therefore lights the whole scene for exactly that frame, which is the
+ * "everything goes lighter and greyer for a frame" flicker over the sky. It
+ * shows up worst with the console open because the console re-presents frames
+ * without the environment update that maintains those bits having run.
+ *
+ * So hold the last stable answer and only adopt a new one once it has agreed
+ * with itself for several consecutive frames. Transients cannot reach the dim;
+ * a genuine room change still takes effect well inside its own fade. */
+static int RoomIsFlashlightLit(void)
+{
+    static int s_state = -1;
+    static int s_cand  = -1;
+    static int s_agree = 0;
+
+    int raw = RoomIsFlashlightLitRaw();
+
+    if (s_state < 0)
+    {
+        s_state = raw;
+        s_cand  = raw;
+        s_agree = 0;
+    }
+    else if (raw != s_cand)
+    {
+        s_cand  = raw;
+        s_agree = 0;
+    }
+    else if (raw != s_state && ++s_agree >= 6)
+    {
+        s_state = raw;
+        s_agree = 0;
+    }
+
+    return s_state;
 }
 #endif
 
@@ -278,8 +318,29 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
          * after Kaufmann"), which is a daylit room. On PSX the flashlight never
          * darkened its surroundings, it only added a glow; the fall-through
          * below is that original glow-halo path. */
-        if (g_PsyX_UsePerPixelFlashlight && g_SysWork.field_2388.isFlashlightOn_15
-            && !Pc_ScriptOwnsShot() && RoomIsFlashlightLit())
+        int roomLit = RoomIsFlashlightLit();
+        int dimOn   = g_PsyX_UsePerPixelFlashlight && g_SysWork.field_2388.isFlashlightOn_15
+                      && !Pc_ScriptOwnsShot() && roomLit;
+
+        /* Reports every flip of the whole-scene dim, term by term, so a single
+         * run names which one is unstable if any still is. */
+        {
+            static int s_prevDim = -1;
+            static int s_dimLogs = 0;
+
+            if (dimOn != s_prevDim && s_dimLogs < 40)
+            {
+                s_dimLogs++;
+                SH_DBG("[FLICKER] dim=%d master=%d flashlight=%d scripted=%d roomlit=%d raw=%d",
+                       dimOn, g_PsyX_UsePerPixelFlashlight,
+                       (int)g_SysWork.field_2388.isFlashlightOn_15,
+                       Pc_ScriptOwnsShot(), roomLit, RoomIsFlashlightLitRaw());
+            }
+
+            s_prevDim = dimOn;
+        }
+
+        if (dimOn)
         {
             s32 lx = Q12_TO_Q8(g_WorldEnvWork.field_60.vx);
             s32 ly = Q12_TO_Q8(g_WorldEnvWork.field_60.vy);
