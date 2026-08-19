@@ -3194,6 +3194,70 @@ void MainLoop(void) // 0x80032EE0
             g_PsyX_FogColor[1] = PC_WorldEnvWork.fog.color.g / 255.0f;
             g_PsyX_FogColor[2] = PC_WorldEnvWork.fog.color.b / 255.0f;
         }
+        /* [ENVDIAG] -- the whole-scene "lighter and greyer for a frame" flicker.
+         *
+         * Two instruments aimed at GATES (the flashlight dim, the shadow pass)
+         * both came back with no transitions at all while the flicker was
+         * happening, which rules those out and says the cause is not a gate. So
+         * this one is aimed at the OUTPUT instead: every value that can change
+         * how bright the scene renders, reported whenever ANY of them moves.
+         * Whatever makes the frame greyer has to move one of these -- or none
+         * of them, which is itself the answer (it would mean the env is stable
+         * and the cause is geometry//texture side, not lighting).
+         *
+         * fogRamp is sampled rather than hashed in full: it is derived from
+         * near/far, so a handful of points across it moves whenever it does. */
+        {
+            static u32 s_envKey  = 0xFFFFFFFFu;
+            static s32 s_envLogs = 0;
+
+            u32 key = (u32)PC_WorldEnvWork.fog.nearDistance * 2654435761u
+                    ^ (u32)PC_WorldEnvWork.fog.farDistance * 2246822519u
+                    ^ (u32)PC_WorldEnvWork.field_20 * 3266489917u
+                    ^ (u32)PC_WorldEnvWork.screenBrightness * 668265263u
+                    ^ (u32)PC_WorldEnvWork.field_2C.m[0][0] * 374761393u
+                    ^ (u32)(PC_WorldEnvWork.fog.color.r
+                            | (PC_WorldEnvWork.fog.color.g << 8)
+                            | (PC_WorldEnvWork.fog.color.b << 16))
+                    ^ (u32)(PC_WorldEnvWork.field_0
+                            | (PC_WorldEnvWork.isFogEnabled << 1)
+                            | (PC_WorldEnvWork.field_2 << 2)
+                            | (PC_WorldEnvWork.field_3 << 8))
+                    ^ (u32)(PC_WorldEnvWork.worldTintColor.r
+                            | (PC_WorldEnvWork.worldTintColor.g << 8)
+                            | (PC_WorldEnvWork.worldTintColor.b << 16)) * 2135587861u
+                    ^ (u32)(PC_WorldEnvWork.fogRamp[0]
+                            | (PC_WorldEnvWork.fogRamp[32] << 8)
+                            | (PC_WorldEnvWork.fogRamp[64] << 16)
+                            | (PC_WorldEnvWork.fogRamp[127] << 24));
+
+            if (key != s_envKey && s_envLogs < 100 && g_GameWork.gameState == 11)
+            {
+                s_envKey = key;
+                s_envLogs++;
+                SH_DBG("[ENVDIAG] fog=%d near=%d far=%d col=(%d,%d,%d) lgt=%d bri=%d "
+                       "f0=%d f2=%d f3=%d mat00=%d tint=(%d,%d,%d) ramp=%d/%d/%d/%d",
+                       (int)PC_WorldEnvWork.isFogEnabled,
+                       (int)PC_WorldEnvWork.fog.nearDistance,
+                       (int)PC_WorldEnvWork.fog.farDistance,
+                       (int)PC_WorldEnvWork.fog.color.r,
+                       (int)PC_WorldEnvWork.fog.color.g,
+                       (int)PC_WorldEnvWork.fog.color.b,
+                       (int)PC_WorldEnvWork.field_20,
+                       (int)PC_WorldEnvWork.screenBrightness,
+                       (int)PC_WorldEnvWork.field_0,
+                       (int)PC_WorldEnvWork.field_2,
+                       (int)PC_WorldEnvWork.field_3,
+                       (int)PC_WorldEnvWork.field_2C.m[0][0],
+                       (int)PC_WorldEnvWork.worldTintColor.r,
+                       (int)PC_WorldEnvWork.worldTintColor.g,
+                       (int)PC_WorldEnvWork.worldTintColor.b,
+                       (int)PC_WorldEnvWork.fogRamp[0],
+                       (int)PC_WorldEnvWork.fogRamp[32],
+                       (int)PC_WorldEnvWork.fogRamp[64],
+                       (int)PC_WorldEnvWork.fogRamp[127]);
+            }
+        }
 #endif
         ML_TRACE("GsSortClear");
 #ifdef SH_PC_PORT
