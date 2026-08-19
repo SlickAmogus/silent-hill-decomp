@@ -566,7 +566,18 @@ void Romper_ControlWalkForward(s_SubCharacter* romper)
             romperProps.field_10C = 18;
         }
 
+#ifdef SH_PC_PORT
+        /* romperProps.flags, not romper->flags. A RomperFlag written into the
+         * s_SubCharacter flags sets e_CharaFlags bit 2, which is CharaFlag_Hit
+         * -- it marked a Romper that had merely started running as having taken
+         * a recoil-causing hit, and left the RomperFlag_2 latch that
+         * sharedFunc_800E6420_2_s02 reads (:390) and writes (:394) permanently
+         * clear, so that function re-ran its jump-stun transition every time it
+         * was asked. Every other write in this block targets romperProps. */
+        romperProps.flags |= RomperFlag_2;
+#else
         romper->flags |= RomperFlag_2;
+#endif
     }
 }
 
