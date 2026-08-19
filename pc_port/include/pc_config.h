@@ -36,6 +36,22 @@ typedef struct {
     char keyRearLook[24], padRearLook[24];          /* rear look, HELD; TPS/OTS only */
 } ControlScheme;
 
+/* touch_controls. The numbers are the original boolean's: an existing config
+ * saying 0 or 1 keeps meaning exactly what it did, since "on" always meant
+ * "on unless a real controller is driving".
+ *
+ * Off does NOT mean "no touch input at all". The escape affordances -- tap to
+ * advance a logo or a line of text, and the lone corner button that leaves a
+ * pause, map or save screen -- stay alive while nothing else can play the game,
+ * because a phone set to Off with no pad paired has no way to reach this
+ * setting again. See pc_touch.c. */
+typedef enum
+{
+    TouchControls_Off  = 0,
+    TouchControls_Auto = 1, /* shown when nothing else is driving; stands aside for a pad */
+    TouchControls_On   = 2  /* shown even with a controller attached */
+} e_TouchControlsMode;
+
 typedef struct {
     int windowWidth;
     int windowHeight;
@@ -201,9 +217,9 @@ typedef struct {
     int crosshairStyle;     /* reticle shape: 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap (config key: crosshair_style) */
     int aimAssist;          /* 1 = OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) (config key: aim_assist) */
     int mouseCursor;        /* 1 = mouse controls cursor puzzles + clickable main menu (config key: mouse_cursor) */
-    int touchControls;      /* 1 = on-screen touch controls during gameplay: floating movement stick on the left, drag to look on the right, tap for Action, plus Aim/Item/Map/Start buttons (config key: touch_controls); defaults on where a touchscreen is the only input */
-    float touchLookSensitivity;
-    int   oneButtonCombat;  /* 1 = Aim also fires, so combat is one thumb (config key: one_button_combat) */ /* touch look speed multiplier, 0.1..4.0 (config key: touch_look_sensitivity); default 1.0 */
+    int touchControls;      /* on-screen touch controls during gameplay -- floating movement stick on the left, drag to look on the right, tap for Action, plus Aim/Fire/Item/Map/Start buttons. e_TouchControlsMode (config key: touch_controls); defaults to Automatic where a touchscreen is the only input */
+    float touchLookSensitivity; /* touch look speed multiplier, 0.1..4.0 (config key: touch_look_sensitivity); default 1.0 */
+    int   oneButtonCombat;  /* 1 = Aim also fires, so combat is one thumb (config key: one_button_combat) */
     int altButtonSprint;    /* "Always use button based sprinting": 1 = walk by default, sprint ONLY while the bound run control is held — applies to alt cameras (TPS/OTS/FPS) AND 2D control under any camera; 0 = a near-full stick push also sprints (config key: altcam_button_sprint) */
     int immersiveFpsHeadTracking; /* 1 = FPS view direction follows Harry's animated head-bone rotation (idle sway/lean), mouse layered on top (config key: immersive_fps_head_tracking) */
     int control2d;          /* 1 = 2D screen-relative movement (input aligns with the camera; Harry turns to face the move direction) under ALL non-FPS camera styles (config key: control_2d) — an Experiment, off by default */

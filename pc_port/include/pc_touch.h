@@ -26,15 +26,21 @@ extern "C" {
 
 /** Report whether a physical controller is attached, and the current keyboard/
  *  pad button word, so on-screen controls can stand aside for real hardware.
- *  Called from the pad update just before Pc_Touch_Update. */
+ *  Called from the pad update just before Pc_Touch_Update.
+ *
+ *  Neither argument latches. Touching the screen hands control straight back,
+ *  and the attached flag only decides matters before anything at all has been
+ *  used -- see touch_controls in pc_config.h. The controls can never end up
+ *  permanently gone on a device with nothing else to play the game with. */
 void Pc_Touch_NoteOtherInput(int padAttached, int keyWord);
 
 /** Poll fingers and rebuild the virtual pad. Called once per pad update, from
  *  PsyX_Pad_InternalPadUpdates, so it cannot land out of order with the read. */
 void Pc_Touch_Update(void);
 
-/** 1 when touch is enabled, present, and the game is in settled gameplay --
- *  i.e. when the virtual pad should be driving. Menus stay on the mouse path. */
+/** 1 when touch is present and driving the virtual pad -- settled gameplay, or
+ *  one of the screens that keeps a single button so it can be left. Menus stay
+ *  on the mouse path. */
 int Pc_Touch_Active(void);
 
 /** Virtual pad state. `word` is an active-low PSX button word (a bit CLEAR is

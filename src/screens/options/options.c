@@ -174,6 +174,10 @@ static const int VAL_FPS[]   = { 0, 30, 60, 120, 240 };
 static const int VAL_FLMODE[] = { 0, 1, 2, 3 };
 static const int VAL_MMCNR[]  = { 0, 1, 2, 3 };
 static const int VAL_MMMODE[] = { 0, 1, 2 };
+/* Cycle order, not numeric order: the values are e_TouchControlsMode and have to
+ * keep the meanings an existing config.cfg already wrote, while Automatic is
+ * what the row should open on. */
+static const int VAL_TOUCH[]  = { TouchControls_Auto, TouchControls_On, TouchControls_Off };
 
 static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
 static const char* const LBL_VSYNC[] = { "Off", "On" };
@@ -190,6 +194,7 @@ static const char* const LBL_FLMODE[] = { "Classic", "C_+_Shadows", "Modern", "M
  * right edge of the value column. */
 static const char* const LBL_MMCNR[]  = { "Top_L", "Top_R", "Bottom_L", "Bottom_R" };
 static const char* const LBL_MMMODE[] = { "Off", "Square", "Circle" };
+static const char* const LBL_TOUCH[]  = { "Automatic", "Always_On", "Always_Off" };
 
 static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
 static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
@@ -280,9 +285,16 @@ static const s_PcOpt PCOPT_C[] = {
 #endif
     { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
 #if defined(__ANDROID__) || defined(SH_IOS)
-    { "Touch_Controls",    &g_PcConfig.touchControls,     "touch_controls",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    /* Automatic stands aside for a controller and comes back the moment the
+     * screen is touched; Always_On keeps the controls up alongside a pad;
+     * Always_Off drops the stick and the buttons but keeps the taps that leave a
+     * screen, so this row stays reachable (see pc_touch.c). */
+    { "Touch_Controls",    &g_PcConfig.touchControls,     "touch_controls",         VAL_TOUCH, 3, LBL_TOUCH, NULL, 1, PCK_INT },
     { "Touch_Look_Speed",  NULL, "touch_look_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.touchLookSensitivity, NULL, 0.1f, 4.0f, 0.1f },
-    { "One_Button_Combat", &g_PcConfig.oneButtonCombat,  "one_button_combat",      VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    /* Named for the row width, not the feature: "One_Button_Combat" is the
+     * longest name on this page and pushed the value column past where
+     * Touch_Controls' "Always_Off" could finish before the 320px clip. */
+    { "One_Button_Fire",   &g_PcConfig.oneButtonCombat,  "one_button_combat",      VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
 #endif
     /* A graphics option parked on the Controls page purely for room: 11 rows is
      * the real ceiling, not the 12 the Graphics comment above assumes, and this
@@ -368,6 +380,27 @@ static int PcOpt_ValIndex(const s_PcOpt* e)
     for (i = 0; i < e->nVals; i++)
         if (e->vals[i] == v) return i;
     return 0;
+}
+
+/* x for the value column: past the longest name, clamped to the band the pages
+ * were laid out in. LINE_BASE_X is 64 in both draws. */
+static int PcOpt_ValueColumnX(const s_PcOpt* tbl, int count)
+{
+    int i, widest = 0, x;
+
+    for (i = 0; i < count; i++)
+    {
+        int w = Pc_LangMenuTextWidth(tbl[i].name);
+
+        if (w > widest)
+            widest = w;
+    }
+
+    x = 64 + widest + 8;
+    if (x < 196) x = 196;
+    if (x > 240) x = 240;
+
+    return x;
 }
 
 static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
@@ -760,13 +793,14 @@ static void Options_PcOptionsMenu_ConfigDraw(void)
     int            count, i;
     const s_PcOpt* tbl = PcOpt_Page(&count);
     char           buf[24];
-    /* System's and Controls'/Camera's labels run long ("Disable Culling",
-     * "Mouse Sensitivity", "Camera Collision"), so push their value column right
-     * to clear them — but no further: System's widest value ("C_+_Shadows",
-     * 109px) must still end before the 320px clip (its labels end by ~196, so
-     * 204 clears both ways). Controls and Camera hold only short values (numbers
-     * and On/Off), so they can afford 240. */
-    int            valX = (g_PcOptionsMenu_Page == 0) ? 196 : (g_PcOptionsMenu_Page == 1) ? 204 : 240;
+    /* Value column: clear of the widest row name on THIS page, measured, rather
+     * than a constant per page. Three things move it that a constant cannot
+     * follow — the mobile builds compile rows out, a translated name is not the
+     * width of the English one, and Touch_Controls' three-way values are wider
+     * than the On/Off the Controls page was measured for. Clamped at both ends
+     * so a page of short names keeps the old look and a long one still leaves
+     * its widest value inside the 320px clip. */
+    int            valX = PcOpt_ValueColumnX(tbl, count);
 
     Gfx_StringSetColor(StringColorId_White);
     for (i = 0; i < count; i++) {

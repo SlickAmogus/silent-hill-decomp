@@ -98,8 +98,15 @@ static int            s_Running;
 static int            s_ActionFrames;  /* tap pulse, in pad updates */
 static int            s_AdvanceHeld;   /* a finger is down during an advance state */
 static int            s_PadAttached;   /* an SDL game controller is plugged in */
-static int            s_PhysicalInput; /* a pad/keyboard was the last thing used */
 static Uint32         s_LastTouchMs;
+
+/* Which kind of input was used LAST. The attached flag alone cannot decide it:
+ * a controller left plugged in and idle must not lock a player out of the
+ * screen, and Android enumerates a phantom device on hardware carrying no pad
+ * at all. TS_NONE is the state before anything has been used, where an attached
+ * controller is the only evidence there is. */
+enum { TS_NONE = 0, TS_TOUCH, TS_PHYSICAL };
+static int            s_LastSource;
 
 /* Movement stick geometry, in height units. The radius is a thumb's comfortable
  * travel, not a screen fraction that would balloon on a tablet. */
@@ -147,9 +154,24 @@ static float Tc_LookGain(void)
     return s;
 }
 
-static int Tc_Enabled(void);
+static int Tc_Level(void);
 
-enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_ADVANCE, TC_MODE_BACK };
+/* How much of the scheme is live.
+ *
+ * ESCAPE is the floor, and it is the answer to a player who turned the controls
+ * off on a phone with no pad paired: the taps that skip a logo or advance a line
+ * of text, and the lone corner button that leaves a pause, map, save or
+ * brightness screen. Those are not controls, they are the route back to the
+ * setting -- with them gone the boot logos could not be dismissed, so the
+ * options menu holding the setting could never be reached again and the only
+ * fix was reinstalling the app.
+ *
+ * So Off takes away the stick, the buttons and the tap-to-Action, and keeps the
+ * way out. Once something else can genuinely play the game -- a pad attached or
+ * a physical button pressed -- Off means off. */
+enum { TC_LEVEL_NONE = 0, TC_LEVEL_ESCAPE, TC_LEVEL_FULL };
+
+enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_ADVANCE, TC_MODE_BACK, TC_MODE_ESCAPE };
 
 /* Gameplay gets the full scheme. Pause gets Start ALONE -- nothing else on that
  * screen responds to a pointer, so hiding the controls there left no way back
@@ -158,7 +180,9 @@ enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_AD
  * top of it would fight it. */
 static int Tc_Mode(void)
 {
-    if (!Tc_Enabled())
+    int level = Tc_Level();
+
+    if (level == TC_LEVEL_NONE)
         return TC_MODE_OFF;
 
     /* The boot logos and the intro movies are GAME states, not sys states, so
@@ -190,7 +214,12 @@ static int Tc_Mode(void)
     if (g_GameWork.gameState != GameState_InGame)
         return TC_MODE_OFF;
     if (g_SysWork.sysState == SysState_Gameplay)
-        return TC_MODE_GAMEPLAY;
+    {
+        /* Escape level keeps only the corner Start, so a player already inside
+         * a save when the controls were turned off can still open the pause
+         * menu rather than having to relaunch to reach the options. */
+        return (level == TC_LEVEL_FULL) ? TC_MODE_GAMEPLAY : TC_MODE_ESCAPE;
+    }
     if (g_SysWork.sysState == SysState_GamePaused)
         return TC_MODE_PAUSE;
     if (g_SysWork.sysState == SysState_MapScreen)
@@ -235,8 +264,8 @@ static int Tc_Mode(void)
  * the action, so "get out of here" is always in the same place. */
 static int Tc_SoloButton(int mode)
 {
-    if (mode == TC_MODE_PAUSE)
-        return TB_START;   /* pause exits on the pause bind */
+    if (mode == TC_MODE_PAUSE || mode == TC_MODE_ESCAPE)
+        return TB_START;   /* pause opens and exits on the same bind */
     if (mode == TC_MODE_MAP)
         return TB_MAP;     /* the map screen exits on the map bind */
     if (mode == TC_MODE_BACK)
@@ -258,15 +287,45 @@ void Pc_Touch_NoteOtherInput(int padAttached, int keyWord)
     s_PadAttached = (padAttached != 0);
 
     if (keyWord != 0xFFFF)
-        s_PhysicalInput = 1;
+        s_LastSource = TS_PHYSICAL;
 }
 
-static int Tc_Enabled(void)
+/* A finger on the glass, asked WITHOUT the enable gate -- this is what decides
+ * the gate. Pc_Touch_AnyContact cannot serve here: it honours the setting, and
+ * the whole point is to notice the screen being used while touch is standing
+ * aside. */
+static int Tc_ContactPresent(void)
 {
-    if (!g_PcConfig.touchControls)
-        return 0;
+    int n = SDL_GetNumTouchDevices();
+    int d;
 
-    return !(s_PadAttached || s_PhysicalInput);
+    for (d = 0; d < n; d++)
+    {
+        if (SDL_GetNumTouchFingers(SDL_GetTouchDevice(d)) > 0)
+            return 1;
+    }
+
+    return 0;
+}
+
+static int Tc_Level(void)
+{
+    /* Nothing else can drive the game: no pad attached, and no physical button
+     * ever pressed. */
+    int soleInput = (s_LastSource != TS_PHYSICAL) && !s_PadAttached;
+
+    if (g_PcConfig.touchControls == TouchControls_On)
+        return TC_LEVEL_FULL;
+
+    if (g_PcConfig.touchControls == TouchControls_Off)
+        return soleInput ? TC_LEVEL_ESCAPE : TC_LEVEL_NONE;
+
+    /* Automatic: last input wins. A pad left connected and idle only decides it
+     * while nothing at all has been used yet. */
+    if (s_LastSource == TS_TOUCH)
+        return TC_LEVEL_FULL;
+
+    return soleInput ? TC_LEVEL_FULL : TC_LEVEL_NONE;
 }
 
 static unsigned char Tc_AxisByte(float v)
@@ -368,6 +427,16 @@ void Pc_Touch_Update(void)
     float       lookDx = 0.0f, lookDy = 0.0f;
     int         winW = 0, winH = 0;
 
+    /* BEFORE the mode gate, not inside the per-finger loop below. That loop only
+     * runs once touch is already enabled, so the clear it used to hold could
+     * never fire: one keyboard or pad byte latched the controls off and no
+     * amount of touching the screen brought them back -- the permanent
+     * disappearance players were reinstalling the app to undo. Setting it here
+     * also means the tap that hands control back is the one that acts, rather
+     * than being swallowed to arm the next. */
+    if (Tc_ContactPresent())
+        s_LastSource = TS_TOUCH;
+
     mode = Tc_Mode();
     if (mode == TC_MODE_OFF)
     {
@@ -441,8 +510,6 @@ void Pc_Touch_Update(void)
             if (t == NULL)
                 continue;
 
-            s_PhysicalInput = 0; /* last input wins: the screen is in use again */
-
             t->dev       = dev;
             t->id        = f->id;
             t->active    = 1;
@@ -514,6 +581,15 @@ void Pc_Touch_Update(void)
 
         switch (t->role)
         {
+            /* The role the corner-slot branch above hands a thumb that landed
+             * anywhere else. It has to be listed: TR_LOOK is the switch default,
+             * so falling through fed the look rate and a stray thumb spun the
+             * camera behind a frozen pause screen -- and would have steered the
+             * world outright in the escape-only level, where the controls are
+             * meant to be gone. */
+            case TR_NONE:
+                break;
+
             case TR_ADVANCE:
                 s_AdvanceHeld = 1;
                 break;
@@ -669,8 +745,6 @@ void Pc_Touch_Update(void)
 
 int Pc_Touch_Active(void)
 {
-    if (!Tc_Enabled())
-        return 0;
     if (SDL_GetNumTouchDevices() <= 0)
         return 0;
 
@@ -694,19 +768,11 @@ void Pc_Touch_GetPad(unsigned short* word,
  * on the screen without skipping every movie. */
 int Pc_Touch_AnyContact(void)
 {
-    int n, d;
-
-    if (!Tc_Enabled())
+    /* Escape level counts: skipping a movie is a way out, not a control. */
+    if (Tc_Level() == TC_LEVEL_NONE)
         return 0;
 
-    n = SDL_GetNumTouchDevices();
-    for (d = 0; d < n; d++)
-    {
-        if (SDL_GetNumTouchFingers(SDL_GetTouchDevice(d)) > 0)
-            return 1;
-    }
-
-    return 0;
+    return Tc_ContactPresent();
 }
 
 int Pc_Touch_UsedRecently(void)

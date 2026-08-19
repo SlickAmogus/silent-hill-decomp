@@ -328,6 +328,9 @@ static void Pc_WriteStarterConfig(const char* path)
     fprintf(f, "resident_textures = %d  # costs memory; drop it on small devices\n", g_PcConfig.residentTextures);
     fprintf(f, "preload_chunks = %d\n\n", g_PcConfig.preloadChunks);
     fprintf(f, "# --- touch ---\n");
+    fprintf(f, "# touch_controls: 1 = automatic (stands aside for a controller),\n");
+    fprintf(f, "#   2 = always on, 0 = always off. Off still leaves the taps that skip\n");
+    fprintf(f, "#   a logo or leave a pause screen, so a phone can always reach this menu.\n");
     fprintf(f, "touch_controls = %d\n", g_PcConfig.touchControls);
     fprintf(f, "touch_look_sensitivity = %.2f\n\n", (double)g_PcConfig.touchLookSensitivity);
     fprintf(f, "# --- keyboard bindings ---\n");

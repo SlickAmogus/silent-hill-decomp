@@ -80,12 +80,12 @@ s_PcConfig g_PcConfig = {
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
 #if defined(__ANDROID__) || defined(SH_IOS)
-    /* On by default only where the touchscreen IS the controller. A desktop
-     * with a touch-capable monitor still has a mouse and a pad, and drawing
-     * thumb controls over its picture uninvited would be wrong. */
-    .touchControls       = 1,
+    /* Automatic by default only where the touchscreen IS the controller. A
+     * desktop with a touch-capable monitor still has a mouse and a pad, and
+     * drawing thumb controls over its picture uninvited would be wrong. */
+    .touchControls       = TouchControls_Auto,
 #else
-    .touchControls       = 0,
+    .touchControls       = TouchControls_Off,
 #endif
     .touchLookSensitivity = 1.0f,
     .renderScale         = 1.0f,
@@ -863,7 +863,15 @@ void PcConfig_Load(const char* path)
         }
         else if (strcmp(key, "touch_controls") == 0)
         {
-            g_PcConfig.touchControls = (atoi(value) != 0);
+            int v = atoi(value);
+
+            /* Anything unrecognised lands on Automatic rather than Off. A
+             * garbled value must not be able to take the controls away from a
+             * device that has no others. */
+            if (v < TouchControls_Off || v > TouchControls_On)
+                v = TouchControls_Auto;
+
+            g_PcConfig.touchControls = v;
         }
         else if (strcmp(key, "one_button_combat") == 0)
         {
