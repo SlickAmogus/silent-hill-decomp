@@ -16,13 +16,7 @@ typedef enum _RomperFlags
     RomperFlag_8       = 1 << 8,
     RomperFlag_9       = 1 << 9,
     RomperFlag_10      = 1 << 10,
-    RomperFlag_11      = 1 << 11, // Jumping?
-#ifdef SH_PC_PORT
-    /* PC only: "this hop has already launched". High bit so it cannot collide
-     * with a game flag that is still undiscovered -- everything the original
-     * uses lives in the low bits. See the hop launch in Romper_ControlJump. */
-    RomperFlag_PcHopLaunched = 1 << 30
-#endif
+    RomperFlag_11      = 1 << 11 // Jumping?
 } e_RomperFlags;
 
 /** @brief Romper character control states. */
