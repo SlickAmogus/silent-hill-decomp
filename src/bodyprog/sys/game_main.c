@@ -3009,6 +3009,7 @@ void MainLoop(void) // 0x80032EE0
             extern int   g_PsxFixedCamActive;
             extern int   g_PsxCutsceneActive;
             extern float g_PsxWorldVShift;
+            extern float g_PsxCutsceneVShift;
             extern int   g_PcPickupItemActive;
             static s32   s_heldWorldOfy = 0;
             s32 ofy = 0;
@@ -3017,7 +3018,11 @@ void MainLoop(void) // 0x80032EE0
                 g_SysWork.sysState == SysState_Gameplay &&
                 !g_PcPickupItemActive)
             {
-                if (g_PsxFixedCamActive && !g_PsxCutsceneActive && !g_DebugThirdPersonCam)
+                if (g_PsxCutsceneActive)
+                {
+                    ofy = (s32)g_PsxCutsceneVShift;
+                }
+                else if (g_PsxFixedCamActive && !g_DebugThirdPersonCam)
                 {
                     ofy = (s32)g_PsxWorldVShift;
                 }
@@ -3056,7 +3061,12 @@ void MainLoop(void) // 0x80032EE0
                 if (g_PsxCutsceneActive ||
                     g_SysWork.cutsceneBorderState != CutsceneBorderState_None)
                 {
-                    ofy = 0;
+                    /* Zero baseline, plus whatever `cutshift` dials in. It stays 0
+                     * by default, so the letterbox agreement described above is
+                     * unchanged: a non-zero value moves the world AND is the thing
+                     * being measured, so the bars are re-checked at whatever value
+                     * gets baked in. */
+                    ofy = (s32)g_PsxCutsceneVShift;
                 }
                 else
                 {

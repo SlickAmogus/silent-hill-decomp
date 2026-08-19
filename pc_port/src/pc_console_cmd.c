@@ -1137,6 +1137,10 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PsxWorldVShift;
         if (arg[0]) g_PsxWorldVShift = (float)atof(arg);
         cprintf("world vertical view shift: %.1f psx-units (+ = view up; 0=off)", g_PsxWorldVShift);
+    } else if (strcmp(cmd, "CUTSHIFT") == 0) {
+        extern float g_PsxCutsceneVShift;
+        if (arg[0]) g_PsxCutsceneVShift = (float)atof(arg);
+        cprintf("cutscene vertical view shift: %.1f psx-units (+ = view up; 0=off)", g_PsxCutsceneVShift);
     } else if (strcmp(cmd, "MSGSHIFT") == 0) {
         extern int g_PsxMsgVShift;
         if (arg[0]) g_PsxMsgVShift = atoi(arg);
