@@ -983,7 +983,18 @@ void Pc_Touch_Draw(void)
     if (batch.used <= 0)
         return;
 
-    ot = &g_OtTags0[buf][4];
+    /* OT0 is drawn first and OT2 after it. In gameplay OT0 is right -- the
+     * controls sit over the world exactly like the crosshair. But the map, save
+     * and item screens draw their fullscreen 2D into OT2, which then paints
+     * straight over anything left in OT0: the lone escape button was being
+     * submitted every frame and buried, so the corner was tappable with nothing
+     * visible in it. Put the solo-button modes in OT2 so the way out is drawn
+     * on top of the screen it is meant to leave. */
+    if (mode != TC_MODE_GAMEPLAY)
+        ot = &g_OrderingTable2[g_ActiveBufferIdx];
+    else
+        ot = &g_OtTags0[buf][4];
+
     for (i = 0; i < batch.used; i++)
         AddPrim(ot, &batch.p[i]);
     AddPrim(ot, &s_drMode[buf]);
