@@ -8,6 +8,25 @@
 
 #define romperProps romper->properties.romper
 
+/* "The animation clock is on frame N."
+ *
+ * The Romper is the only character that tests anim.time for exact equality,
+ * and every one of those tests is a once-per-playback event: an anim segment
+ * transition, or the hop launch. That worked on PSX because the clock advanced
+ * by exactly one keyframe per tick (g_DeltaTime is one frame at 30fps), so it
+ * landed squarely on the integer being compared.
+ *
+ * On PC g_DeltaTime comes from hblank counts and tracks the real frame rate,
+ * so the clock sweeps continuously and steps straight OVER those integers.
+ * Every one of these events silently stopped firing. Testing the frame the
+ * clock is on -- the half-open window [N, N+1) -- restores them, and is
+ * identical on PSX, where the clock only ever sits on integers. */
+#ifdef SH_PC_PORT
+    #define ANIM_TIME_AT(time, frame) (FP_FROM((time), Q12_SHIFT) == (frame))
+#else
+    #define ANIM_TIME_AT(time, frame) ((time) == Q12((float)(frame)))
+#endif
+
 void Romper_Update(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
 {
     if (romper->model.controlState == 0)
@@ -397,6 +416,13 @@ void Romper_ControlUpdate(s_SubCharacter* romper)
     if (romper->model.controlState != RomperControl_Jump)
     {
         romper->field_44.field_0 = 0;
+#ifdef SH_PC_PORT
+        /* Leaving the jump state always disarms the hop latch, so entering it
+         * again cannot inherit a set latch and skip its launch -- the in-state
+         * re-arm below depends on the clock starting under the launch frame,
+         * which a state re-entry is not obliged to do. */
+        romperProps.flags &= ~RomperFlag_PcHopLaunched;
+#endif
     }
 
     // Handle control state.
@@ -946,6 +972,16 @@ void Romper_ControlJump(s_SubCharacter* romper)
     }
     else if (romper->model.anim.status == ANIM_STATUS(RomperAnim_RunToJump, true))
     {
+#ifdef SH_PC_PORT
+        /* Re-arm the launch latch below for each hop, before the clock reaches
+         * the launch frame. The segment restarts here every hop, so this also
+         * covers a Romper that hops repeatedly without leaving the state. */
+        if (romper->model.anim.time < Q12(2.0f))
+        {
+            romperProps.flags &= ~RomperFlag_PcHopLaunched;
+        }
+#endif
+
         unkAngle1 = Math_AngleNormalizeSigned(temp_v0_3 - romper->rotation.vy);
         if (TIMESTEP_ANGLE(1, 4) < ABS(unkAngle1))
         {
@@ -959,7 +995,23 @@ void Romper_ControlJump(s_SubCharacter* romper)
             }
         }
 
+        /* THE HOP. This block is the entire launch: it sets fallSpeed (the
+         * vertical impulse) and the hop's moveSpeed. Unlike the transitions
+         * above it does NOT reassign anim.time, so a plain window test would
+         * re-launch on every tick the window covers, re-deriving both speeds
+         * from a target that has since moved. Fire on the first tick at or
+         * past the launch frame instead, exactly once per hop.
+         *
+         * When this never ran -- which is what an exact == did at PC frame
+         * rates -- fallSpeed stayed unset so the Romper never left the ground,
+         * while the falling branch further down kept driving moveSpeed. That
+         * is the "slides wildly across the map instead of hopping" report. */
+#ifdef SH_PC_PORT
+        if (romper->model.anim.time >= Q12(2.0f) &&
+            !(romperProps.flags & RomperFlag_PcHopLaunched))
+#else
         if (romper->model.anim.time == Q12(2.0f))
+#endif
         {
             temp_v1_5 = Math_Vector2MagCalcSafeQ6(romperProps.targetPositionX_FC - romper->position.vx,
                                             romperProps.targetPositionZ_100 - romper->position.vz);
@@ -972,6 +1024,9 @@ void Romper_ControlJump(s_SubCharacter* romper)
 
             romper->fallSpeed  = (temp << 1) - Q12(2.45f);
             romperProps.flags &= ~RomperFlag_9;
+#ifdef SH_PC_PORT
+            romperProps.flags |= RomperFlag_PcHopLaunched;
+#endif
         }
         else if (FP_FROM(romper->model.anim.time, Q12_SHIFT) == 5 ||
                  FP_FROM(romper->model.anim.time, Q12_SHIFT) == 6)
@@ -1312,7 +1367,7 @@ void sharedFunc_800E8A40_2_s02(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCO
     {
         case ANIM_STATUS(RomperAnim_WalkToRunForwardRightEnd, false):
             romper->model.controlState = RomperControl_6;
-            if (romper->model.anim.time == Q12(127.0f))
+            if (ANIM_TIME_AT(romper->model.anim.time, 127))
             {
                 romper->model.anim.status = ANIM_STATUS(RomperAnim_WalkToRunForwardRightEnd, true);
                 romper->model.anim.time   = Q12(39.0f);
@@ -1321,7 +1376,7 @@ void sharedFunc_800E8A40_2_s02(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCO
 
         case ANIM_STATUS(RomperAnim_WalkToRunForwardLeftEnd, false):
             romper->model.controlState = RomperControl_6;
-            if (romper->model.anim.time == Q12(116.0f))
+            if (ANIM_TIME_AT(romper->model.anim.time, 116))
             {
                 romper->model.anim.status = ANIM_STATUS(RomperAnim_WalkToRunForwardLeftEnd, true);
                 romper->model.anim.time   = Q12(50.0f);
@@ -1338,7 +1393,7 @@ void sharedFunc_800E8A40_2_s02(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCO
             romper->model.controlState        = RomperControl_3;
             romperProps.field_F4 = Q12(22.0f) - 1;
 
-            if (romper->model.anim.time == Q12(49.0f))
+            if (ANIM_TIME_AT(romper->model.anim.time, 49))
             {
                 romper->model.anim.status       = ANIM_STATUS(RomperAnim_RunForwardLoop, true);
                 romperProps.field_F4 = Q12_CLAMPED(1.0f);
@@ -1346,7 +1401,7 @@ void sharedFunc_800E8A40_2_s02(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCO
                 romperProps.field_F0 = 1143;
                 romper->moveSpeed                  = Q12(0.0f);
             }
-            else if (romper->model.anim.time == Q12(60.0f))
+            else if (ANIM_TIME_AT(romper->model.anim.time, 60))
             {
                 romper->model.anim.status       = ANIM_STATUS(RomperAnim_RunForwardLoop, true);
                 romperProps.field_F4 = Q12(11.0f) - 1;
