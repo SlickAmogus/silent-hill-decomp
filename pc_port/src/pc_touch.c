@@ -201,13 +201,22 @@ static int Tc_Mode(void)
      * A pad presses Start or Cross here; a touchscreen had no way to say it,
      * so cutscenes could not be skipped and text could not be advanced.
      *
+     * The save menus belong here too. They open with Harry talking, and with
+     * neither state listed the whole block fell through to OFF -- no advance,
+     * no escape, nothing to tap at the first save point.
+     *
      * EXCEPT while a free-cursor puzzle is up: those are already driven as a
      * pointer by pc_mouse_cursor, and injecting a confirm underneath would
-     * fire twice on every tap. */
+     * fire twice on every tap. That test carries the save menus correctly too,
+     * because the slot list draws a cursor and the dialogue before it does not:
+     * the talking part advances on a tap, and once the slots are up the pointer
+     * drives them with the corner Back button for a way out. */
     if (g_SysWork.sysState == SysState_ReadMessage ||
         g_SysWork.sysState == SysState_EventCallback ||
         g_SysWork.sysState == SysState_Fmv ||
-        g_SysWork.sysState == SysState_GameOver)
+        g_SysWork.sysState == SysState_GameOver ||
+        g_SysWork.sysState == SysState_SaveMenu0 ||
+        g_SysWork.sysState == SysState_SaveMenu1)
     {
         extern int Pc_MouseCursor_PuzzleActive(void);
 
