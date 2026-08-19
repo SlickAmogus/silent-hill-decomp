@@ -519,7 +519,19 @@ void Romper_ControlWalkForward(s_SubCharacter* romper)
     }
 
     romperProps.field_F0 += sharedFunc_800E939C_2_s02(romper);
+#ifdef SH_PC_PORT
+    /* field_F0 is a per-TICK acceleration: the loop below it ran once per frame
+     * on PSX, at a fixed 30fps. sharedFunc_800E939C/800E94B4 integrate their
+     * rate curves over ANIM time (they difference against field_F4), so those
+     * are already frame-rate independent -- but this addition is not. Uncapped,
+     * it lands hundreds of times a second instead of thirty and the speed runs
+     * away, which is the Romper skating across the floor while it roams. Every
+     * other speed change in this file is delta-scaled; this one was missed.
+     * TIMESTEP_SCALE_30_FPS is exactly the original value at 30fps. */
+    romper->moveSpeed += TIMESTEP_SCALE_30_FPS(g_DeltaTime, romperProps.field_F0);
+#else
     romper->moveSpeed += romperProps.field_F0;
+#endif
 
     flags = g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & ((1 << 0) | (1 << 1));
     if (flags == 0)
@@ -573,7 +585,12 @@ void Romper_Control_3(s_SubCharacter* romper)
     s_SubCharacter* player;
 
     romperProps.field_F0 += sharedFunc_800E94B4_2_s02(romper);
+#ifdef SH_PC_PORT
+    /* Same per-tick acceleration as the walk state above. */
+    romper->moveSpeed    += TIMESTEP_SCALE_30_FPS(g_DeltaTime, romperProps.field_F0);
+#else
     romper->moveSpeed    += romperProps.field_F0;
+#endif
 
     temp_v1_2 = g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & 3;
     if (temp_v1_2 == 0)
