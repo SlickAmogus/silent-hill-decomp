@@ -21,6 +21,7 @@
 #include <PsyX/common/glad.h>
 
 extern int g_windowWidth;
+extern GLuint GR_ScreenFBO(void);
 extern int g_windowHeight;
 extern void vcGetNowCamPos(VECTOR3* cam_pos);
 extern void Collision_SurfaceGet(s_CollisionSurface* coll, q19_12 posX, q19_12 posZ);
@@ -1985,7 +1986,14 @@ void DbgOverlay_Render(void)
     if (!s_gl_inited)
         overlay_gl_init();
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    /* The SCENE target, not the window. In borderless the scene renders into an
+     * internal target that is stretched to the window at present, and that blit
+     * covers the whole window -- so an overlay drawn straight to framebuffer 0
+     * here was being painted over a moment later and never appeared. Drawing
+     * into the scene target puts the console and toasts back in the frame, and
+     * they scale with it. GR_ScreenFBO() is 0 in every other mode, so this is
+     * the same bind it always was. */
+    glBindFramebuffer(GL_FRAMEBUFFER, GR_ScreenFBO());
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
