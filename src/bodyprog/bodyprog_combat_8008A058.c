@@ -170,6 +170,43 @@ s32 func_8008A0E4(s32 arg0, s32 weaponAttack, s_SubCharacter* chara, VECTOR3* po
     }
 
     chara->field_44.field_2 = weaponAttack;
+
+#ifdef SH_PC_PORT
+    /* Re-arm the one-hit-per-swing latch on a genuinely new swing.
+     *
+     * The latch lives in field_8 and is cleared below only on the frame field_0
+     * goes 0->1. That is fragile for NPCs, in two independent ways:
+     *
+     *   - Attackers that register only inside their attack state never see a
+     *     frame with the anim's active bit low, so the first branch never runs
+     *     (the Puppet Nurse: its knife scored once and then zero forever).
+     *   - Attackers that force field_44.field_0 = 1 right before calling in
+     *     (Bloodsucker, Creeper) make var_t1 non-zero, so the second branch
+     *     never runs either.
+     *
+     * Both leave a latched field_8 across swings, and against the PLAYER sp10 is
+     * -1, so one landed hit sets every bit and all later hits score nothing.
+     *
+     * A new swing is what actually matters, and the animation states it: either
+     * the status changed, or the clock restarted. Tracked in the struct's own
+     * padding, so nothing grows. Within a swing the status holds and time only
+     * advances, so this never fires mid-swing and the player's melee -- which
+     * the existing path already handles correctly -- is unaffected. */
+    {
+        u8 animSt = (u8)modelAnim->status;
+        u8 animTm = (u8)FP_FROM(modelAnim->time, Q12_SHIFT);
+
+        if ((u8)chara->field_44.__pad_5[0] != animSt ||
+            (u8)chara->field_44.__pad_5[1] > animTm)
+        {
+            chara->field_44.field_8 = 0;
+        }
+
+        chara->field_44.__pad_5[0] = (s8)animSt;
+        chara->field_44.__pad_5[1] = (s8)animTm;
+    }
+#endif
+
     if (!(modelAnim->status & (1 << 0)))
     {
         chara->field_44.field_0 = 0;
