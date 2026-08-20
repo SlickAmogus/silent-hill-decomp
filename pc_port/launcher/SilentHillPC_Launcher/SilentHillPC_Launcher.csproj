@@ -107,7 +107,9 @@
     <Compile Include="Program.cs" />
     <Compile Include="UpdateChecker.cs" />
     <Compile Include="FlagIcon.cs" />
-    <Compile Include="LanguageDialog.cs" />
+    <Compile Include="LanguageDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Loc.cs" />
     <Compile Include="Loc.Strings.cs" />
     <Compile Include="LauncherSettings.cs" />

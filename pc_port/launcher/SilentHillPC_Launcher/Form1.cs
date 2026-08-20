@@ -125,12 +125,16 @@ public partial class Form1 : Form
 
         btnLang = new Button
         {
-            /* BELOW the Level row, right edges flush. The combo occupies
-             * y 447..468, so the old 452 sat on top of it and clipped the
-             * dropdown's right side. Created in code rather than the designer
-             * (the flag is custom-painted), which is why it cannot be nudged
-             * from the VS design surface. */
-            Location = new System.Drawing.Point(416, 472),
+            /* The right column is full from y 469 down: comboMap 469..490,
+             * progUpdate 503..526, lblUpdateStatus 533..548 -- so 416,472 landed
+             * ON TOP of the Level dropdown and the randomizer checkbox once the
+             * new options moved in. Back on the right edge, one row lower: the
+             * only things it shares that band with are progUpdate and
+             * chkRandomizer, both Visible=false in normal use (the progress bar
+             * appears during a download). Created in code rather than the designer (the flag
+             * is custom-painted), so it cannot be nudged from the design surface;
+             * re-check this against Form1.Designer.cs after any layout change. */
+            Location = new System.Drawing.Point(416, 504),
             Size = new System.Drawing.Size(30, 22),
             Text = "",
             FlatStyle = FlatStyle.Standard,
@@ -236,6 +240,7 @@ public partial class Form1 : Form
     private void OnLanguageChanged()
     {
         Loc.Apply(this);
+        SetupTooltips();
         foreach (var kv in _dynText) kv.Key.Text = kv.Value();
         FitLabels(this);
         if (btnLang != null)
@@ -534,9 +539,15 @@ public partial class Form1 : Form
             ShowAlways   = true,
         };
 
+        /* Tooltips are localized here rather than at each call site: the English
+         * text IS the dictionary key, so every Set() below stays readable and a
+         * missing translation falls through to English on its own. SetupTooltips
+         * is re-run by OnLanguageChanged, because a ToolTip's text is not a
+         * control property and Loc.Apply cannot reach it. */
         void Set(Control c, string text)
         {
             if (c == null) return;
+            text = Loc.T(text);
             tip.SetToolTip(c, text);
             // Radio buttons sit inside panels; attach to the panel too so
             // hovering between buttons doesn't drop the tooltip.

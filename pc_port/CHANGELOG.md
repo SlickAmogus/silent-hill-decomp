@@ -1,5 +1,92 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.08.19.1 -- 2026-08-19
+- Fixed regression that caused parts of sky to get dark in certain cutscenes (and sorry for leaving that one for so long!)
+- Fixed one potential cause of the invisible elevator doors issue
+- Added new rendering options, please try a different one if you experience any odd graphical issues
+- Fixed sound replacements so that all sounds should be able to be replaced properly now
+- Added bullet decals to launcher options (still need some work, but they look alright)
+- Fixed empty weapons not clicking in alternate cameras
+- Fixed puppet doctors and puppet nurses dealing no damage
+- Attempted to fix romper animation and sliding issues, some work may still be needed
+- Framerate fixes to make enemies more framerate independent 
+- Added config menu to randomizer mode (map key) and basic lua scripting layer for randomizer, but both are unfinished! (randomizer=1 in config if you want to test it)
+
+Commit summaries:
+- ipd: guard the used-in-place model arrays, and stop the clobber warning crying wolf
+- fix: a failed hi-res upload no longer makes geometry vanish (invisible elevator)
+- rando: runtime-tunable knobs + enemy-HP / weapon-damage scaling
+- rando: move tunables to their own gamedata/randomizer.cfg + raise caps
+- rando: in-game settings panel, opened by the Map button (tap = settings)
+- rando: barebones Lua 5.4 scripting layer (randomizer only)
+- docs: randomizer settings panel + Lua scripting guide
+- rando: "Reload area" action + Lua spawn_item / give_item pickups
+- docs: scripting guide — spawn_item/give_item/on_item + Reload area
+- Update README with Linux and Mac support information
+- render: renderer= config option for the D3D11/Vulkan backends
+- Revert "fix: cutscenes clear to black, so voids stop reading as fog grey"
+- sfxmod: every bank load says what it is, so a mod can be aimed correctly
+- launcher: warn when a sound bank is one the game never loads
+- sfxmod: MAP000_005.wav now works — SND ships MAP/MEP twins and the game loads MEP
+- fix: black clear for the map3_s02 Alessa scene, gated to that scene alone
+- fix: Puppet Nurse and Doctor grabs deal no damage — drain read the grab slot
+- launcher: renderer selection and a Bullet Decals row
+- fix: launcher crashed on launch — comboRender populated after LoadConfig
+- launcher: move the flag under the Level row, translate Renderer and Bullet Decals
+- fix: empty weapon clicks in the alternate cameras
+- launcher: drop the Automatic renderer entry — it was a second name for OpenGL
+- psycross: bump for the GLES GL-error diagnostic
+- psycross: bump for the GLES MSAA fix (black screen)
+- diag: report the clear colour on frames that draw no world (street fog flicker)
+- fix: whole-scene lighting flicker, and ambience that looped forever
+- cutscene: live vertical framing knob (`cutshift`)
+- fix(romper): restore the hop -- five anim events that stopped firing on PC
+- fix(romper): delta-scale the roam acceleration -- the actual slide
+- fix(romper): write RomperFlag_2 to romperProps, not the chara flags
+- diag: watch the env OUTPUT for the rare remaining lighting flicker
+- revert: RomperFlag_2 does belong in the chara flags -- the asm says so
+- fix(romper): per-frame dice rolls are frame-rate dependent
+
+## beta-2026.08.15.2 -- 2026-08-15
+- Fixed Chinese so that you do not need the fan translation patch for it to work, it now works in NTSC-J out of the box. Set the language in options. If you see issues you can always still use the fan translation. Original translation is by goro / 十三月
+- Fixed issue where sound replacements were not working with MAP banks (level sounds)
+- Fixed issue with flashlight during hospital bottle liquid scene
+- Nowhere: Reports of corruption issues coming back but it is hardware specific. Please share your log if you ecounter this. New logging has been added to help identify the issue.
+- Fixed gray void instead of black in transparent areas of some cutscenes
+- Fixed one frame white flash that happened when opening the inventory 
+
+Commit summaries:
+- fix: loose sound replacements now work for MAP banks (every town/map sound)
+- fix: per-pixel flashlight no longer turns lit rooms to night
+- fix: Chinese stands down when the disc carries no Chinese text
+- diag: the packet-arena overrun check was dead code — make it report
+- lang: detect the Chinese-patched NTSC-J disc instead of trusting the menu
+- fix: cutscenes clear to black, so voids stop reading as fog grey
+- lang: ship the Chinese text, so NTSC-J switches to it with no disc patch
+- fix: switching to Chinese in the options menu now changes the text
+- fix: one-frame white flash when opening the inventory
+- lang: the options and save screens follow Chinese too (zh.pack v2)
+
+## beta-2026.08.15.2 -- 2026-08-15
+- Fixed Chinese so that you do not need the fan translation patch for it to work, it now works in NTSC-J out of the box. Set the language in options. If you see issues you can always still use the fan translation. Original translation is by goro / 十三月
+- Fixed issue where sound replacements were not working with MAP banks (level sounds)
+- Fixed issue with flashlight during hospital bottle liquid scene
+- Nowhere: Reports of corruption issues coming back but it is hardware specific. Please share your log if you ecounter this. New logging has been added to help identify the issue.
+- Fixed gray void instead of black in transparent areas of some cutscenes
+- Fixed one frame white flash that happened when opening the inventory 
+
+Commit summaries:
+- fix: loose sound replacements now work for MAP banks (every town/map sound)
+- fix: per-pixel flashlight no longer turns lit rooms to night
+- fix: Chinese stands down when the disc carries no Chinese text
+- diag: the packet-arena overrun check was dead code — make it report
+- lang: detect the Chinese-patched NTSC-J disc instead of trusting the menu
+- fix: cutscenes clear to black, so voids stop reading as fog grey
+- lang: ship the Chinese text, so NTSC-J switches to it with no disc patch
+- fix: switching to Chinese in the options menu now changes the text
+- fix: one-frame white flash when opening the inventory
+- lang: the options and save screens follow Chinese too (zh.pack v2)
+
 ## beta-2026.08.15.1 -- 2026-08-15
 - Russian fan translations now work, covers 10 releases including ViT Co, Metallist, Consolgames, Kudos, Golden Leon, FireCross, Paradox, RGR, Playbox and Rusversii. May still have issues, have not been thoroughly tested!
 - Chinese language support when running NTSC-J (pick it in options) - Thanks to catabridge for the foundation
