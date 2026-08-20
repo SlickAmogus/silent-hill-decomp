@@ -847,13 +847,19 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                  * in the swing the hit lands. (Using the partial sp28-var_s0_2
                  * here made a hit that landed at window-open — e.g. the 1st of the
                  * knife's two slashes — deal ~0 while the 2nd, landing later, hit.)
-                 * Player only — enemy attack balance is left as-is. */
-                if (chara == &g_SysWork.playerWork.player)
-                {
-                    sp5C = (var_s0_2 < sp2C) ? (sp2C - var_s0_2) / (var_a0 * 4) : 0;
-                }
-                else
-#endif
+                 * Applies to ENEMIES too, which it originally did not.
+                 * "Enemy balance left as-is" sounded conservative but it left
+                 * enemy blades with the identical defect: a Puppet Nurse knife
+                 * measured base=102400 arriving as dmg=132, because sp5C came
+                 * out around 5 -- one frame's sweep at PC frame rates -- and
+                 * D_800AD4C8[57].field_10 == 1 puts that attack in exactly the
+                 * class scaled by it (func_8008B714 multiplies by this when
+                 * field_10 == 1). Enemies whose attacks are not field_10 == 1
+                 * skip the multiply entirely, which is why only the nurse's
+                 * knife read as doing nothing while everything else hurt.
+                 * The grab drain is a separate path and was never affected. */
+                sp5C = (var_s0_2 < sp2C) ? (sp2C - var_s0_2) / (var_a0 * 4) : 0;
+#else
                 if (i < sp28)
                 {
                     sp5C = (sp28 - i) / (var_a0 * 4);
@@ -862,6 +868,7 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                 {
                     sp5C = 0;
                 }
+#endif
             }
             else
             {
