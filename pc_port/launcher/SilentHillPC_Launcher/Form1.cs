@@ -611,7 +611,6 @@ public partial class Form1 : Form
 
         const string renderTip =
             "Which graphics API the game renders through.\n" +
-            "Automatic = let the port choose.\n" +
             "OpenGL (native) = the default and the most tested path.\n" +
             "The rest go through ANGLE, which translates to another API:\n" +
             "Direct3D 11 and Vulkan are worth trying if your OpenGL driver\n" +
@@ -623,6 +622,20 @@ public partial class Form1 : Form
             "the log.";
         Set(lblRender,        renderTip);
         Set(comboRender,      renderTip);
+
+        const string shadowTip =
+            "Flashlight shadow map size. Higher is sharper and costs more\n" +
+            "GPU time. Only used by the shadow flashlight modes.\n" +
+            "Console: shadowres <size>";
+        Set(lblShadow,        shadowTip);
+        Set(comboShadow,      shadowTip);
+
+        const string minimapTip =
+            "On-screen minimap: shape and which corner it sits in.\n" +
+            "Size and opacity stay in the in-game options.\n" +
+            "Console: minimap";
+        Set(lblMinimap,       minimapTip);
+        Set(comboMinimap,     minimapTip);
 
         const string preloadTip =
             "Preload all map chunks at level start instead of streaming\n" +
@@ -884,6 +897,21 @@ public partial class Form1 : Form
             "OpenGL (native)", "OpenGL ES 3.0", "Direct3D 11 (ANGLE)",
             "Vulkan (ANGLE)", "Direct3D 11 WARP (CPU)", "Software (SwiftShader)" });
 
+        /* Same index-pairing rule as the renderer: the visible text is localized,
+         * the config value comes from the parallel array, so a translation can
+         * never change what is written to config.cfg. */
+        comboShadow.Items.Clear();
+        comboShadow.Items.AddRange(new object[] {
+            "256 x 256", "512 x 512", "1024 x 1024", "2048 x 2048", "4096 x 4096" });
+
+        comboMinimap.Items.Clear();
+        comboMinimap.Items.AddRange(new object[] {
+            Loc.T("Off"),
+            Loc.T("Circle + Top Left"),     Loc.T("Circle + Top Right"),
+            Loc.T("Circle + Bottom Left"),  Loc.T("Circle + Bottom Right"),
+            Loc.T("Square + Top Left"),     Loc.T("Square + Top Right"),
+            Loc.T("Square + Bottom Left"),  Loc.T("Square + Bottom Right") });
+
         var modes = DisplayModes.GetModes();
 
         // Unique resolutions, LARGEST FIRST. A HashSet enumerates in whatever
@@ -1101,6 +1129,26 @@ public partial class Form1 : Form
             if (ri >= comboRender.Items.Count) ri = 0;
             comboRender.SelectedIndex = comboRender.Items.Count > 0 ? ri : -1;
         }
+        {
+            int si = Array.IndexOf(ShadowResValues, config.Get("shadow_resolution", "1024").Trim());
+            if (si < 0 || si >= comboShadow.Items.Count) si = 2; /* 1024 */
+            comboShadow.SelectedIndex = comboShadow.Items.Count > 0 ? si : -1;
+        }
+        {
+            /* One dropdown over two keys: `minimap` is 0 off / 1 square / 2 circle,
+             * `minimap_corner` is 0..3. Off collapses both. */
+            int shape  = ParseIntOr(config.Get("minimap", "0"), 0);
+            int corner = ParseIntOr(config.Get("minimap_corner", "0"), 0);
+            if (corner < 0 || corner > 3) corner = 0;
+
+            int mi;
+            if (shape == 2)      mi = 1 + corner;   /* circle */
+            else if (shape == 1) mi = 5 + corner;   /* square */
+            else                 mi = 0;            /* off */
+
+            if (mi >= comboMinimap.Items.Count) mi = 0;
+            comboMinimap.SelectedIndex = comboMinimap.Items.Count > 0 ? mi : -1;
+        }
         radioPreloadYes.Checked = config.Get("preload_chunks", "1") == "1";
         radioPreloadNo.Checked = !radioPreloadYes.Checked;
 
@@ -1140,6 +1188,13 @@ public partial class Form1 : Form
         // preload_chunks
         config.Set("bullet_decals", radioDecalsYes.Checked ? "1" : "0");
         config.Set("renderer", RendererValues[comboRender.SelectedIndex >= 0 ? comboRender.SelectedIndex : 1]);
+        config.Set("shadow_resolution", ShadowResValues[comboShadow.SelectedIndex >= 0 ? comboShadow.SelectedIndex : 2]);
+        {
+            int mi = comboMinimap.SelectedIndex;
+            if (mi < 0) mi = 0;
+            config.Set("minimap",        mi == 0 ? "0" : (mi <= 4 ? "2" : "1"));
+            config.Set("minimap_corner", mi == 0 ? "0" : ((mi <= 4 ? mi - 1 : mi - 5)).ToString());
+        }
         config.Set("preload_chunks", radioPreloadYes.Checked ? "1" : "0");
 
         // enable debug logging
@@ -1970,6 +2025,18 @@ public partial class Form1 : Form
     {
         "gl", "gles", "d3d11", "vulkan", "warp", "software",
     };
+
+    /* Parallel to comboShadow's items, same contract as RendererValues. */
+    private static readonly string[] ShadowResValues =
+    {
+        "256", "512", "1024", "2048", "4096",
+    };
+
+    private static int ParseIntOr(string s, int fallback)
+    {
+        int v;
+        return int.TryParse((s ?? "").Trim(), out v) ? v : fallback;
+    }
 
     private void radioPreloadYes_CheckedChanged(object sender, EventArgs e)
     {

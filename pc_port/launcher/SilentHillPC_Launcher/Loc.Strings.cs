@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace SilentHillPC_Launcher
@@ -155,6 +155,20 @@ namespace SilentHillPC_Launcher
             { "Enable loose file support (required for load-folder mods)",
                                     new[]{ "Activar archivos sueltos (necesario para mods de carpeta)", "Ativar arquivos avulsos (necessário para mods de pasta)", "Activer les fichiers libres (requis pour les mods de dossier)", "Lose Dateien aktivieren (für Ordner-Mods nötig)", "Abilita file sciolti (necessario per i mod da cartella)", "ルーズファイルを有効化(フォルダMODに必要)", "启用松散文件(文件夹模组必需)", "Включить свободные файлы (нужно для модов из папки)", "Włącz luźne pliki (wymagane dla modów z folderu)" } },
             { "Renderer:",      new[]{ "Renderizador:", "Renderizador:", "Rendu :", "Renderer:", "Renderer:", "レンダラー:", "渲染器:", "Рендерер:", "Renderer:" } },
+            // comboShadow items are pure numbers ("1024 x 1024") so they are not
+            // listed; comboMinimap pairs its label to the config value by INDEX
+            // (ShadowResValues / the minimap mapping in SaveConfig), so translating
+            // these cannot change what is written to config.cfg.
+            { "Shadow Res:",                       new[]{ "Sombras:", "Sombras:", "Ombres :", "Schatten:", "Ombre:", "影の解像度:", "阴影分辨率:", "Тени:", "Cienie:" } },
+            { "Minimap:",                          new[]{ "Minimapa:", "Minimapa:", "Minicarte :", "Minikarte:", "Minimappa:", "ミニマップ:", "小地图:", "Миникарта:", "Minimapa:" } },
+            { "Circle + Top Left",                 new[]{ "Círculo + sup. izq.", "Círculo + sup. esq.", "Cercle + h. gauche", "Kreis + oben links", "Cerchio + alto sx", "円 + 左上", "圆形 + 左上", "Круг + сверху-слева", "Koło + lewy górny" } },
+            { "Circle + Top Right",                new[]{ "Círculo + sup. der.", "Círculo + sup. dir.", "Cercle + h. droite", "Kreis + oben rechts", "Cerchio + alto dx", "円 + 右上", "圆形 + 右上", "Круг + сверху-справа", "Koło + prawy górny" } },
+            { "Circle + Bottom Left",              new[]{ "Círculo + inf. izq.", "Círculo + inf. esq.", "Cercle + b. gauche", "Kreis + unten links", "Cerchio + basso sx", "円 + 左下", "圆形 + 左下", "Круг + снизу-слева", "Koło + lewy dolny" } },
+            { "Circle + Bottom Right",             new[]{ "Círculo + inf. der.", "Círculo + inf. dir.", "Cercle + b. droite", "Kreis + unten rechts", "Cerchio + basso dx", "円 + 右下", "圆形 + 右下", "Круг + снизу-справа", "Koło + prawy dolny" } },
+            { "Square + Top Left",                 new[]{ "Cuadrado + sup. izq.", "Quadrado + sup. esq.", "Carré + h. gauche", "Quadrat + oben links", "Quadrato + alto sx", "四角 + 左上", "方形 + 左上", "Квадрат + сверху-слева", "Kwadrat + lewy górny" } },
+            { "Square + Top Right",                new[]{ "Cuadrado + sup. der.", "Quadrado + sup. dir.", "Carré + h. droite", "Quadrat + oben rechts", "Quadrato + alto dx", "四角 + 右上", "方形 + 右上", "Квадрат + сверху-справа", "Kwadrat + prawy górny" } },
+            { "Square + Bottom Left",              new[]{ "Cuadrado + inf. izq.", "Quadrado + inf. esq.", "Carré + b. gauche", "Quadrat + unten links", "Quadrato + basso sx", "四角 + 左下", "方形 + 左下", "Квадрат + снизу-слева", "Kwadrat + lewy dolny" } },
+            { "Square + Bottom Right",             new[]{ "Cuadrado + inf. der.", "Quadrado + inf. dir.", "Carré + b. droite", "Quadrat + unten rechts", "Quadrato + basso dx", "四角 + 右下", "方形 + 右下", "Квадрат + снизу-справа", "Kwadrat + prawy dolny" } },
             { "Bullet Decals:", new[]{ "Marcas de bala:", "Marcas de bala:", "Impacts :", "Kugellöcher:", "Fori proiettili:", "弾痕:", "弹孔:", "Следы от пуль:", "Ślady po kulach:" } },
             // ---- controls window ----
             { "Keyboard Controls",                    new[]{ "Teclado", "Teclado", "Clavier", "Tastatur", "Tastiera", "キーボード", "键盘控制", "Клавиатура", "Klawiatura" } },

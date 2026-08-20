@@ -1210,6 +1210,12 @@ int main(int argc, char* argv[])
             g_cfg_saturation = g_PcConfig.saturation;
         }
         g_PsyX_FlashlightSize      = g_PcConfig.flashlightSize;
+        {
+            /* Shadow-map resolution. GR_EnsureShadowTarget clamps and rebuilds
+             * the target, so this is safe to set before any GL work. */
+            extern int g_PsyX_ShadowMapSize;
+            g_PsyX_ShadowMapSize = g_PcConfig.shadowMapSize;
+        }
         g_PsyX_FlashlightIntensityFps = g_PcConfig.flashlightIntensityFps;
         g_PsyX_FlashlightSizeFps      = g_PcConfig.flashlightSizeFps;
         SH_LOG("Effect intensity: flashlight %.2f, post %.2f, tonemap %.2f; flashlight size %.2f",

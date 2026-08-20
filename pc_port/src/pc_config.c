@@ -81,6 +81,7 @@ s_PcConfig g_PcConfig = {
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .control2dSnap           = 0, /* 2D control turns into the direction (0), doesn't snap */
     .minimap                 = 0, /* minimap overlay off by default */
+    .shadowMapSize           = 1024,
     .minimapCorner           = 0, /* top-left */
     .minimapShape            = 1, /* deprecated; only feeds the old-config migration */
     .minimapScale            = 100.0f,
@@ -907,6 +908,11 @@ void PcConfig_Load(const char* path)
             if (v < MINIMAP_SCALE_MIN) v = MINIMAP_SCALE_MIN;
             if (v > MINIMAP_SCALE_MAX) v = MINIMAP_SCALE_MAX;
             g_PcConfig.minimapScale = v;
+        }
+        else if (strcmp(key, "shadow_resolution") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.shadowMapSize = (v < 256) ? 256 : ((v > 4096) ? 4096 : v);
         }
         else if (strcmp(key, "minimap_corner") == 0)
         {
