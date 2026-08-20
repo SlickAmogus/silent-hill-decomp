@@ -936,6 +936,16 @@ public partial class Form1 : Form
             if (seen.Add($"{m.width}x{m.height}"))
                 resolutions.Add((m.width, m.height));
         }
+        /* PSX-native and its doubles, which no monitor reports as a display mode
+         * but which people ask for by name. Harmless in exclusive fullscreen --
+         * SDL_GetClosestDisplayMode picks the nearest real mode -- and exact in
+         * windowed. Added only if the driver did not already list them. */
+        foreach (var r in new[] { (320, 240), (640, 480), (960, 720) })
+        {
+            if (seen.Add($"{r.Item1}x{r.Item2}"))
+                resolutions.Add((r.Item1, r.Item2));
+        }
+
         resolutions.Sort((a, b) => a.w != b.w ? b.w.CompareTo(a.w) : b.h.CompareTo(a.h));
 
         foreach (var r in resolutions)
