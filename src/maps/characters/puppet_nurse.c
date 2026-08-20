@@ -1511,29 +1511,6 @@ void sharedFunc_800D02E4_3_s03(s_SubCharacter* nurse, GsCOORDINATE2* boneCoords)
             localNurseProps.flags_122 |= PuppetNurseFlag_0;
         }
     }
-#ifdef SH_PC_PORT
-    else
-    {
-        /* Re-arm the one-hit-per-swing latch between swings.
-         *
-         * That guard is a PC addition: at 30fps an enemy's hitbox was live for a
-         * couple of frames, but uncapped it spans the whole swing, so damage was
-         * re-applied every frame. It latches in field_44.field_8, and against the
-         * PLAYER sp10 is -1, so one landed hit sets every bit.
-         *
-         * field_8 is only cleared by func_8008A0E4 on the frame field_0 goes 0->1,
-         * and field_0 is only cleared there when the anim's active bit is low --
-         * which never happens for the nurse, because the attack is registered ONLY
-         * while controlState is 1 or 5. So the latch survived the swing and every
-         * later knife hit scored zero. The two existing field_0 resets are in other
-         * control states and do not cover the swing boundary.
-         *
-         * Clearing it whenever the nurse is not swinging is the same thing the
-         * Romper does for its hop (Romper_ControlUpdate), and it costs nothing:
-         * func_8008A0E4 re-arms field_8 on the first frame of the next swing. */
-        nurse->field_44.field_0 = 0;
-    }
-#endif
 }
 
 void sharedFunc_800D03E4_3_s03(s_SubCharacter* nurse)

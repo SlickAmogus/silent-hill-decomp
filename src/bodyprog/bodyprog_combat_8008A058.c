@@ -171,42 +171,6 @@ s32 func_8008A0E4(s32 arg0, s32 weaponAttack, s_SubCharacter* chara, VECTOR3* po
 
     chara->field_44.field_2 = weaponAttack;
 
-#ifdef SH_PC_PORT
-    /* Re-arm the one-hit-per-swing latch on a genuinely new swing.
-     *
-     * The latch lives in field_8 and is cleared below only on the frame field_0
-     * goes 0->1. That is fragile for NPCs, in two independent ways:
-     *
-     *   - Attackers that register only inside their attack state never see a
-     *     frame with the anim's active bit low, so the first branch never runs
-     *     (the Puppet Nurse: its knife scored once and then zero forever).
-     *   - Attackers that force field_44.field_0 = 1 right before calling in
-     *     (Bloodsucker, Creeper) make var_t1 non-zero, so the second branch
-     *     never runs either.
-     *
-     * Both leave a latched field_8 across swings, and against the PLAYER sp10 is
-     * -1, so one landed hit sets every bit and all later hits score nothing.
-     *
-     * A new swing is what actually matters, and the animation states it: either
-     * the status changed, or the clock restarted. Tracked in the struct's own
-     * padding, so nothing grows. Within a swing the status holds and time only
-     * advances, so this never fires mid-swing and the player's melee -- which
-     * the existing path already handles correctly -- is unaffected. */
-    {
-        u8 animSt = (u8)modelAnim->status;
-        u8 animTm = (u8)FP_FROM(modelAnim->time, Q12_SHIFT);
-
-        if ((u8)chara->field_44.__pad_5[0] != animSt ||
-            (u8)chara->field_44.__pad_5[1] > animTm)
-        {
-            chara->field_44.field_8 = 0;
-        }
-
-        chara->field_44.__pad_5[0] = (s8)animSt;
-        chara->field_44.__pad_5[1] = (s8)animTm;
-    }
-#endif
-
     if (!(modelAnim->status & (1 << 0)))
     {
         chara->field_44.field_0 = 0;
@@ -1695,6 +1659,24 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     /* [MELEEDMG] diagnostic: player melee hit on an enemy. base = table damage
      * (D_800AD4C8[weaponAttack].field_4); dmg = after the one-hit-per-swing guard.
      * base>0 with dmg==0 and alreadyHit=1 means the per-swing bitmask zeroed it. */
+    /* The same numbers for a hit ON the player. The nurse knife reaches here with
+     * a correct id (57/58) and a non-zero table damage (field_4 0x19/0x21), so if
+     * the player still takes nothing this says which step drops it -- and if the
+     * line never appears at all, the hit is not reaching this function and the
+     * fault is in detection, not damage. */
+    if (target == &g_SysWork.playerWork.player)
+    {
+        static int s_plrDmgLogs = 0;
+
+        if (s_plrDmgLogs < 40)
+        {
+            s_plrDmgLogs++;
+            SH_DBG("[PLRDMG] wa=%d base=%d dmg=%d sp14=0x%X sp10=0x%X alreadyHit=%d attacker=%d",
+                   weaponAttack, (int)var_s0, (int)damageAmount, (unsigned)sp14, (unsigned)sp10,
+                   (int)((sp14 & sp10) != 0), attacker->model.charaId);
+        }
+    }
+
     if (target != &g_SysWork.playerWork.player && (u8)weaponAttack < 30u)
         SH_DBG("[MELEEDMG] wa=%d base=%d dmg=%d sp14=0x%X sp10=0x%X alreadyHit=%d chara=%d\n",
                weaponAttack, (int)var_s0, (int)damageAmount, (unsigned)sp14, (unsigned)sp10,
