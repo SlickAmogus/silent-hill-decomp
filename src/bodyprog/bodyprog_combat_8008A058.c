@@ -171,6 +171,37 @@ s32 func_8008A0E4(s32 arg0, s32 weaponAttack, s_SubCharacter* chara, VECTOR3* po
 
     chara->field_44.field_2 = weaponAttack;
 
+#ifdef SH_PC_PORT
+    /* Re-arm the one-hit-per-swing latch on a genuinely new swing.
+     *
+     * Confirmed by [PLRDMG] against a Puppet Nurse: the first knife hit lands
+     * (sp14=0x0, dmg=132) and every hit after it reads sp14=0xFFFFFFFF, dmg=0,
+     * across eight separate swings. Against the PLAYER sp10 is -1, so
+     * `sp14 |= sp10` sets every bit, and neither clearing branch below ever runs
+     * for this attacker: it registers only inside its attack state, so no call
+     * lands on an anim with the active bit low, and field_0 stays 1 once set, so
+     * the swing-start branch never fires either.
+     *
+     * A new swing is what actually matters, and the animation states it: either
+     * the status changed, or the clock restarted. Tracked in the struct's
+     * existing padding, so nothing grows. Within a swing the status holds and
+     * time only advances, so this cannot fire mid-swing -- the player's melee,
+     * which the existing path already handles correctly, is untouched. */
+    {
+        u8 animSt = (u8)modelAnim->status;
+        u8 animTm = (u8)FP_FROM(modelAnim->time, Q12_SHIFT);
+
+        if ((u8)chara->field_44.__pad_5[0] != animSt ||
+            (u8)chara->field_44.__pad_5[1] > animTm)
+        {
+            chara->field_44.field_8 = 0;
+        }
+
+        chara->field_44.__pad_5[0] = (s8)animSt;
+        chara->field_44.__pad_5[1] = (s8)animTm;
+    }
+#endif
+
     if (!(modelAnim->status & (1 << 0)))
     {
         chara->field_44.field_0 = 0;
