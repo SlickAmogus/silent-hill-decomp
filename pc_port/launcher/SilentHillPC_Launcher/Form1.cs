@@ -585,7 +585,7 @@ public partial class Form1 : Form
             "Trilinear = bilinear plus mip blending; only affects\n" +
             "  replacement textures that carry mip levels.\n" +
             "Anisotropic = sharpens surfaces seen at grazing angles\n" +
-            "  (distant floors, walls). Strength: aniso_level in config.cfg.\n" +
+            "  (distant floors, walls). Higher = sharper, slightly more GPU.\n" +
             "Dithering and the filters are mutually exclusive.";
         Set(filteringLabel, filteringTip);
         Set(comboFiltering, filteringTip);
@@ -1048,12 +1048,25 @@ public partial class Form1 : Form
         else
             comboFps.SelectedItem = "30";
 
-        // Filtering: int in config <-> dropdown index.
-        // 0 = Off, 1 = Dithering, 2 = Bilinear, 3 = Trilinear, 4 = Anisotropic
-        int filterIdx;
-        if (!int.TryParse(config.Get("psx_dither", "1"), out filterIdx))
-            filterIdx = 1; // default to dithering
-        if (filterIdx < 0 || filterIdx > 4) filterIdx = 1;
+        /* Filtering. The config keeps the MODE (psx_dither 0..4) and the
+         * anisotropic STRENGTH (aniso_level) separately, because the in-game row
+         * and the console use them that way. The dropdown flattens the four
+         * useful anisotropic strengths into their own entries so nobody has to
+         * hand-edit config.cfg for the one setting they are most likely to
+         * change. Index 4..7 all mean mode 4, differing only in level. */
+        int filterMode;
+        if (!int.TryParse(config.Get("psx_dither", "1"), out filterMode))
+            filterMode = 1; // default to dithering
+        if (filterMode < 0 || filterMode > 4) filterMode = 1;
+
+        int filterIdx = filterMode;
+        if (filterMode == 4)
+        {
+            int lvl = ParseIntOr(config.Get("aniso_level", "8"), 8);
+            filterIdx = Array.IndexOf(AnisoLevels, lvl);
+            filterIdx = (filterIdx < 0) ? 6 : (4 + filterIdx);   // default 8x
+        }
+        if (filterIdx < 0 || filterIdx >= comboFiltering.Items.Count) filterIdx = 1;
         comboFiltering.SelectedIndex = filterIdx;
 
         // "Menus:" checkbox — also bilinear-filter menu/2D screens (config key menu_filter)
@@ -1238,7 +1251,21 @@ public partial class Form1 : Form
 
         // Filtering: dropdown index (0=Off, 1=Dithering, 2=Bilinear) -> int
         if (comboFiltering.SelectedIndex >= 0)
-            config.Set("psx_dither", comboFiltering.SelectedIndex.ToString());
+        {
+            int fi = comboFiltering.SelectedIndex;
+
+            /* Entries 4..7 are the anisotropic strengths: all mode 4, and the
+             * level is what distinguishes them. */
+            if (fi >= 4)
+            {
+                config.Set("psx_dither", "4");
+                config.Set("aniso_level", AnisoLevels[fi - 4].ToString());
+            }
+            else
+            {
+                config.Set("psx_dither", fi.ToString());
+            }
+        }
         config.Set("menu_filter", checkBox1.Checked ? "1" : "0");
 
         // Antialiasing (MSAA): dropdown index 0..3 -> msaa 0/2/4/8
@@ -2053,6 +2080,9 @@ public partial class Form1 : Form
     };
 
     /* Parallel to comboShadow's items, same contract as RendererValues. */
+    /* Parallel to comboFiltering's anisotropic entries (indices 4..7). */
+    private static readonly int[] AnisoLevels = { 2, 4, 8, 16 };
+
     private static readonly string[] ShadowResValues =
     {
         "256", "512", "1024", "2048", "4096",
