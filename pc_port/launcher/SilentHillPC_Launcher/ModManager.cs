@@ -820,6 +820,17 @@ namespace SilentHillPC_Launcher
 
             bool loose = looseFileSupport || loadMods.Count > 0 || codeMods.Count > 0;
             _config.Set("allow_loose_files", loose ? "1" : "0");
+
+            // A mod that ships plugins/*.dll needs the runtime plugin loader,
+            // which is opt-in (enable_plugins defaults 0). The user consented
+            // at install; arm it here so the applied mod actually runs. Set-only:
+            // never flipped back to 0, so a hand-enabled config survives Apply.
+            bool anyPlugins = codeMods.Any(m =>
+            {
+                string pd = Path.Combine(m.LibraryPath, "plugins");
+                return Directory.Exists(pd) && Directory.GetFiles(pd, "*.dll").Length > 0;
+            });
+            if (anyPlugins) _config.Set("enable_plugins", "1");
             _config.Save();
             result.LooseEnabled = loose;
 

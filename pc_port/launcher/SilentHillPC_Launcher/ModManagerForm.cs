@@ -69,6 +69,12 @@ namespace SilentHillPC_Launcher
         /// (cancellable), then re-index and repopulate.</summary>
         private void ExtractThenScan()
         {
+            // Names known before this pass, so the post-extraction DLL screen
+            // below only fires for mods that just appeared (closes the rar/7z
+            // hole: those archives can't be peeked at drop time, but once
+            // extracted their DLLs are ordinary files).
+            var known = new HashSet<string>(_mgr.Mods.Select(m => m.Name ?? ""));
+
             var pending = _mgr.PendingWork();
             if (pending.Count > 0)
             {
@@ -84,6 +90,37 @@ namespace SilentHillPC_Launcher
                         (r, cancelled) => _mgr.Prepare(todo, r, cancelled));
             }
             _mgr.Scan();
+
+            foreach (var m in _mgr.Mods.ToList())
+            {
+                if (known.Contains(m.Name ?? "")) continue;
+                if (m.Type != ModType.Gameplay && m.Type != ModType.TotalConversion) continue;
+                if (string.IsNullOrEmpty(m.LibraryPath) || !Directory.Exists(m.LibraryPath)) continue;
+
+                var suspicious = PeImports.ScanModForSuspiciousDlls(m.LibraryPath);
+                if (suspicious.Count == 0) continue;
+
+                string extra = "This mod contains DLLs that do NOT look like edited game code " +
+                               "(edited maps only use the game and the C runtime):\n\n - " +
+                               string.Join("\n - ", suspicious.Take(5)) +
+                               (suspicious.Count > 5 ? "\n - ..." : "") +
+                               "\n\nOnly continue if you trust this mod completely. " +
+                               "Cancel removes it from the library.";
+                var choice = DllWarningDialog.Show(this, extra);
+                if (choice == DllWarningDialog.Result.Cancel)
+                {
+                    try { Directory.Delete(m.LibraryPath, true); } catch { }
+                    _mgr.Scan();
+                }
+                else if (choice == DllWarningDialog.Result.DontShowAgain)
+                {
+                    // The generic notice can be silenced; a NAMED suspicious-import
+                    // alarm intentionally cannot -- treat it as Continue.
+                    _mgr.DllWarningAck = true;
+                    _mgr.SaveState();
+                }
+            }
+
             Populate();
         }
 
