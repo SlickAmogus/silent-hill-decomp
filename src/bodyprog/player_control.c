@@ -4299,7 +4299,12 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
              * cycle (the FSM only re-enters Aim after the recoil ends), with the
              * wall-time refire floor as the rate cap. All other guns stay
              * semi-auto (release-required rising edge) and need ammo. */
-            if (isHyperBlaster ? (fireHeld && s_refireT <= 0) : (fireEdge && ammo > 0))
+            /* The aim requirement matters now that the gate also holds during a
+             * recoil: without it, clicking fire again after releasing aim (but
+             * before the recoil ends) would loose an un-aimed shot from inside
+             * the FSM. Raw input OR'd in so an isAiming blip can't drop a shot. */
+            if ((g_SysWork.playerCombat.isAiming || g_Player_IsAiming) &&
+                (isHyperBlaster ? (fireHeld && s_refireT <= 0) : (fireEdge && ammo > 0)))
             {
                 /* Fire: the existing (working) damage trigger + ammo + SFX. */
                 s_refireT = PC_GUN_REFIRE_SEC;
@@ -4440,7 +4445,15 @@ void Player_UpperBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
              /* Reloads are uninterruptible on PSX: keep the FSM owning an
               * in-flight reload even if aim drops, so the PSX case Reload
               * never runs a frame of it (double-SFX + anim restart). */
-             g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Reload) &&
+             g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Reload ||
+             /* A recoil in flight must finish under the FSM too. Releasing aim
+              * right after a shot handed the mid-recoil Attack state to the PSX
+              * path, whose controlState==0 attack entry cleared
+              * PlayerFlag_Shooting and (instant-fire block) jumped back to the
+              * damage window — a SECOND bullet fired and deducted per shot.
+              * With a ranged weapon equipped the Attack state can only be this
+              * FSM's own recoil, so melee is unaffected. */
+             g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Attack) &&
             g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
         {
             bool fresh = !s_pcGunWasAiming;
