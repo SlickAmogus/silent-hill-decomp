@@ -392,12 +392,20 @@ void Pc_DecalsDraw(GsOT* ot)
              * that had already faded. bucketSum >> 2 is the average corner SZ,
              * the same depth measure blood passes in. */
             {
-                extern int Pc_BloodFogKeep(s32 z);
+                extern int  Pc_BloodFogKeep(s32 z);
+                extern void Pc_FogColorGet(int* r, int* g, int* b);
                 int keep = Pc_BloodFogKeep(bucketSum >> 2);
+                int fr, fg, fb;
 
-                lr = (lr * keep) >> 8;
-                lg = (lg * keep) >> 8;
-                lb = (lb * keep) >> 8;
+                /* The decal is AVERAGE-blended (tpage 0 -> ABR 0): it shows
+                 * (background + F)/2, so fading F to ZERO makes it a permanent
+                 * half-darkening -- the solid black hole at any distance. To
+                 * dissolve into fog, F must approach the FOG COLOUR, matching
+                 * the fogged wall behind it. Mix toward it by the same ramp. */
+                Pc_FogColorGet(&fr, &fg, &fb);
+                lr = (lr * keep + fr * (256 - keep)) >> 8;
+                lg = (lg * keep + fg * (256 - keep)) >> 8;
+                lb = (lb * keep + fb * (256 - keep)) >> 8;
             }
 
             setRGB0(poly, (u8)lr, (u8)lg, (u8)lb);

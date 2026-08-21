@@ -1412,6 +1412,12 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             (*poly + 1)->b0         = ptr->field_134.b;
 #ifdef SH_PC_PORT
             PC_BLOOD_FOG_FADE(*poly + 1, ptr->field_140);
+            /* poly+2 is the SECOND subtractive layer, cloned from poly0 BEFORE
+             * any cap or fade -- and poly0's colour is the fog glow, which
+             * GROWS toward the fog colour with distance. An unfaded subtractive
+             * of near-fog-grey against a fogged background is what read as
+             * pitch black spray at range. */
+            PC_BLOOD_FOG_FADE(*poly + 2, ptr->field_140);
 
             /* [BLOODDIAG] what the spray actually draws: the additive layer
              * (poly0) and subtractive layer (poly1) colours AFTER tint+fade,
@@ -1491,6 +1497,12 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             (*poly + 1)->b0         = ptr->field_134.b;
 #ifdef SH_PC_PORT
             PC_BLOOD_FOG_FADE(*poly + 1, ptr->field_140);
+            /* poly+2 is the SECOND subtractive layer, cloned from poly0 BEFORE
+             * any cap or fade -- and poly0's colour is the fog glow, which
+             * GROWS toward the fog colour with distance. An unfaded subtractive
+             * of near-fog-grey against a fogged background is what read as
+             * pitch black spray at range. */
+            PC_BLOOD_FOG_FADE(*poly + 2, ptr->field_140);
 #endif
             (*poly)->tpage          = 43;
             (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
@@ -2278,6 +2290,9 @@ bool func_80062708(POLY_FT4** poly, s32 idx) // 0x80062708
                 (*poly + 1)->b0         = ptr->field_130.b;
 #ifdef SH_PC_PORT
                 PC_BLOOD_FOG_FADE(*poly + 1, ptr->field_20C);
+                /* Same unfaded-clone fault as the spray: poly+2 kept poly0's
+                 * raw fog-glow colours and is SUBTRACTIVE. */
+                PC_BLOOD_FOG_FADE(*poly + 2, ptr->field_20C);
 #endif
 
                 /* Cap the ADDITIVE layer color (poly[0]) so a bright per-map

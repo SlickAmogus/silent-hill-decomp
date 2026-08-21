@@ -946,6 +946,18 @@ u8 func_80055A50(s32 arg0) // 0x80055A50
  * func_80055A90 already applies — so distant blood stays vivid while the world around it
  * grays out. Multiplying the additive layer color by this (>>8) fades it toward black at
  * the SAME rate as world geometry (same fogRamp), so it disappears into the fog. */
+/* Fog colour for AVERAGE-blended PC prims (the bullet decals). An average
+ * blend shows (background + F)/2, so at distance "invisible" means F matching
+ * the fogged background -- the FOG COLOUR -- not F going to zero, which turns
+ * the prim into a permanent half-darkening: the solid unchangeable black hole
+ * the decals showed at any range. */
+void Pc_FogColorGet(int* r, int* g, int* b)
+{
+    *r = g_WorldEnvWork.fog.color.r;
+    *g = g_WorldEnvWork.fog.color.g;
+    *b = g_WorldEnvWork.fog.color.b;
+}
+
 int Pc_BloodFogKeep(s32 z)
 {
     s32 idx;
