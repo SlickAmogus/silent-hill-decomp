@@ -1252,6 +1252,15 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PsxPgxpForceAffine = 0;
         else g_PsxPgxpForceAffine = !g_PsxPgxpForceAffine;
         cprintf("PGXP force-affine: %s", g_PsxPgxpForceAffine ? "ON (precise path suppressed)" : "OFF");
+    } else if (strcmp(cmd, "PGXPMINSPAN") == 0) {
+        /* Screen-span threshold (px) under which polys skip precise projection.
+         * 0 disables the guard entirely; 8 is the default. */
+        extern int g_PsxPgxpMinSpanPx;
+        if (arg[0]) {
+            int v = atoi(arg);
+            g_PsxPgxpMinSpanPx = (v < 0) ? 0 : ((v > 64) ? 64 : v);
+        }
+        cprintf("PGXP min precise span: %d px (0=off)", g_PsxPgxpMinSpanPx);
     } else if (strcmp(cmd, "PGXPWORLDDEPTH") == 0) {
         /* Depth-channel kill-switch: OFF suppresses FLAT world promotion
          * (GL_ALWAYS painter + viewZ flat depth), dropping depth behavior
