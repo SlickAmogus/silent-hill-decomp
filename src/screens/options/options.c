@@ -763,9 +763,16 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
     DVECTOR        strPos  = { 100, 20 };
 #if defined(SH_IOS)
     const char*    HEADING = "iOS_Options";
+#elif defined(__ANDROID__)
+    const char*    HEADING = "Android_Options";
 #else
     const char*    HEADING = "PC_Options";
 #endif
+
+    /* Hold the centre "PC_Options" sits at, rather than its left edge. A longer
+     * heading -- "Android_Options" is 42px wider -- then grows both ways from
+     * where the short one was instead of sliding right off its own column. */
+    strPos.vx = 148 - (Pc_LangMenuTextWidth(HEADING) / 2);
 
     Gfx_StringSetColor(StringColorId_White);
     Gfx_StringSetPosition(strPos.vx, strPos.vy);
@@ -2011,6 +2018,8 @@ void Options_MainOptionsMenu_EntryStringsDraw(void) // 0x801E42EC
         "Controller_Config",
 #if defined(SH_IOS)
         "iOS_Options",
+#elif defined(__ANDROID__)
+        "Android_Options",
 #elif defined(SH_PC_PORT)
         "PC_Options",
 #else

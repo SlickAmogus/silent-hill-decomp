@@ -187,6 +187,10 @@ static const s_MenuTranslation s_MenuTr[] = {
     /* --- PC Options (port-added screens — translated per user request; the
      * value labels shared with retail rows reuse the entries above) --- */
     { "PC_Options",        { "PC-Optionen",        "Options_PC",          "Opciones_PC",        "Opzioni_PC"     } },
+    /* The mobile ports retitle the row and the page heading, so the same entry
+     * needs its own key or a translated build falls back to English there. */
+    { "Android_Options",   { "Android-Optionen",   "Options_Android",     "Opciones_Android",   "Opzioni_Android" } },
+    { "iOS_Options",       { "iOS-Optionen",       "Options_iOS",         "Opciones_iOS",       "Opzioni_iOS"    } },
     { "Resolution",        { "Aufl\xF6sung",       "R\xE9solution",       "Resoluci\xF3n",      "Risoluzione"    } },
     { "Window_Mode",       { "Fenstermodus",       "Mode_fen\xEAtre",     "Modo_ventana",       "Modo_finestra"  } },
     { "Texture_Filter",    { "Texturfilter",       "Filtre_texture",      "Filtro_textura",     "Filtro_texture" } },
