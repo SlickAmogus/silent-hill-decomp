@@ -26,12 +26,11 @@ DllHandle DllLoader_Open(const char* path)
      * the plugin loader re-audits with the contract check on top. */
     {
         char reason[256] = {0};
-        /* plugins/ DLLs are arbitrary code (opt-in): blacklist screening only
-         * here; the plugin loader adds the export-contract pass. Everything
-         * else the game opens is a map/chara overlay = edited game code, held
-         * to the strict fingerprint. */
-        int mode = (strstr(path, "plugins") != NULL) ? DLL_AUDIT_PLUGIN : DLL_AUDIT_MAP;
-        if (DllSecurity_AuditPlugin(path, mode, reason, sizeof(reason)) != DLL_SECURITY_OK)
+        /* Everything the game opens is a map/chara overlay = edited game
+         * code, held to the strict fingerprint. (The runtime plugin channel
+         * was reviewed and cut; DLL_AUDIT_PLUGIN exists only as a reserved
+         * audit mode.) */
+        if (DllSecurity_AuditPlugin(path, DLL_AUDIT_MAP, reason, sizeof(reason)) != DLL_SECURITY_OK)
         {
             snprintf(s_errorBuf, sizeof(s_errorBuf), "blocked by static check: %s", reason);
             return NULL;
@@ -62,29 +61,6 @@ void DllLoader_Close(DllHandle handle)
         FreeLibrary((HMODULE)handle);
 }
 
-int DllLoader_ListPlugins(char paths[][260], int maxCount)
-{
-    WIN32_FIND_DATAA fd;
-    HANDLE           h;
-    int              n = 0;
-
-    h = FindFirstFileA("plugins\*.dll", &fd);
-    if (h == INVALID_HANDLE_VALUE)
-    {
-        return 0;
-    }
-    do
-    {
-        if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && n < maxCount)
-        {
-            snprintf(paths[n], 260, "plugins\%s", fd.cFileName);
-            n++;
-        }
-    } while (n < maxCount && FindNextFileA(h, &fd));
-    FindClose(h);
-    return n;
-}
-
 const char* DllLoader_GetError(void)
 {
     return s_errorBuf;
@@ -113,12 +89,6 @@ const char* DllLoader_GetError(void)
 {
     const char* e = dlerror();
     return e ? e : "";
-}
-
-int DllLoader_ListPlugins(char paths[][260], int maxCount)
-{
-    (void)paths; (void)maxCount;
-    return 0; /* plugin scan is Windows-only for now */
 }
 
 #endif

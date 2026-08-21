@@ -26,8 +26,10 @@ typedef enum
      * refused (config allow_unrecognized_dlls=1 downgrades ONLY the
      * unknown-import case to a logged warning). */
     DLL_AUDIT_MAP = 0,
-    /* Plugins are arbitrary code by design (opt-in via enable_plugins):
-     * blacklist of network/shell import names + SH_Plugin_* export contract. */
+    /* Reserved: a runtime plugin channel was reviewed and cut (no consumer,
+     * pure attack surface). If one is ever justified, this mode is its audit:
+     * import blacklist + SH_Plugin_* export contract. Nothing passes
+     * DLL_AUDIT_PLUGIN today. */
     DLL_AUDIT_PLUGIN = 1
 } DllAuditMode;
 

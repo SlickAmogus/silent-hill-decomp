@@ -523,13 +523,6 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                         extern void Pc_Rando_OnNewGame(void);
                         Pc_Rando_OnNewGame();
                     }
-
-                    /* Gameplay plugins: same timing rationale as the randomizer
-                     * hook above. No-op with zero plugins loaded. */
-                    {
-                        extern void Pc_Plugins_OnNewGame(void);
-                        Pc_Plugins_OnNewGame();
-                    }
                 }
 #else
                 GameBoot_SavegameInitialize(0, newGameSelectedDifficultyIdx - 1);

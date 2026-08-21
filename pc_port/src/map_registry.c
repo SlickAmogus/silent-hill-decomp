@@ -249,10 +249,6 @@ void MapRegistry_Load(e_MapIdx id)
     SH_LOG("[MapRegistry] Active map: %s (overlay %d, mapType %d)",
         MapRegistry_GetName(id), id,
         (int)(g_pMapOverlayHeader->mapInfo - MAP_INFOS));
-
-    /* Gameplay plugins: notify after the overlay is live. No-op with zero
-     * plugins (enable_plugins defaults off). */
-    { extern void Pc_Plugins_OnMapLoad(int mapIdx); Pc_Plugins_OnMapLoad((int)id); }
 }
 
 int MapRegistry_FindByName(const char* name)

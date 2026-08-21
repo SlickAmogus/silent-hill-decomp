@@ -2425,16 +2425,6 @@ void MainLoop(void) // 0x80032EE0
              * frame's world state is settled; self-gated to live gameplay and
              * to being signed in. */
             { extern void Pc_Ra_Update(void); Pc_Ra_Update(); }
-
-            /* Gameplay plugins: per-frame hooks after the frame's game state is
-             * settled. Both are no-op loops over zero plugins unless the user
-             * enabled enable_plugins and dropped DLLs in plugins/. */
-            {
-                extern void Pc_Plugins_OnUpdate(void);
-                extern void Pc_Plugins_OnRender(void);
-                Pc_Plugins_OnUpdate();
-                Pc_Plugins_OnRender();
-            }
         }
 #endif
         ML_TRACE("MemCard_Update");

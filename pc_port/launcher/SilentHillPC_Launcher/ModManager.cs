@@ -821,16 +821,6 @@ namespace SilentHillPC_Launcher
             bool loose = looseFileSupport || loadMods.Count > 0 || codeMods.Count > 0;
             _config.Set("allow_loose_files", loose ? "1" : "0");
 
-            // A mod that ships plugins/*.dll needs the runtime plugin loader,
-            // which is opt-in (enable_plugins defaults 0). The user consented
-            // at install; arm it here so the applied mod actually runs. Set-only:
-            // never flipped back to 0, so a hand-enabled config survives Apply.
-            bool anyPlugins = codeMods.Any(m =>
-            {
-                string pd = Path.Combine(m.LibraryPath, "plugins");
-                return Directory.Exists(pd) && Directory.GetFiles(pd, "*.dll").Length > 0;
-            });
-            if (anyPlugins) _config.Set("enable_plugins", "1");
             _config.Save();
             result.LooseEnabled = loose;
 
@@ -888,7 +878,6 @@ namespace SilentHillPC_Launcher
             PruneEmptyDirs(LoadDir);
             PruneEmptyDirs(FmvDir);
             PruneEmptyDirs(Path.Combine(_gameRoot, "maps"));
-            PruneEmptyDirs(Path.Combine(_gameRoot, "plugins"));
         }
 
         private void WriteManifest(List<string> manifest)
@@ -947,10 +936,11 @@ namespace SilentHillPC_Launcher
             return true;
         }
 
-        /// <summary>Deploy a gameplay mod's DLLs. WHITELISTED: only maps/*.dll and
-        /// plugins/*.dll ever reach the game folder -- a gameplay mod must never be
-        /// able to overwrite the game or launcher executables, config, or anything
-        /// else in the root. load/ and FMV/ content is deployed by its own tracked
+        /// <summary>Deploy a gameplay mod's DLLs. WHITELISTED: only maps/*.dll ever
+        /// reaches the game folder -- a gameplay mod must never be able to overwrite
+        /// the game or launcher executables, config, or anything else in the root.
+        /// (A plugins/ runtime channel was reviewed and cut: no consumer, pure
+        /// attack surface.) load/ and FMV/ content is deployed by its own tracked
         /// copiers; everything not on the whitelist is skipped and reported.</summary>
         private int CopyGameplayTracked(string src, string dstRoot, List<string> manifest, List<string> warnings)
         {
@@ -966,12 +956,11 @@ namespace SilentHillPC_Launcher
                 if (relLower.StartsWith("load/") || relLower.StartsWith("fmv/"))
                     continue; // deployed by the load/FMV copiers
 
-                bool inMaps    = relLower.StartsWith("maps/");
-                bool inPlugins = relLower.StartsWith("plugins/");
-                bool isDll     = relLower.EndsWith(".dll");
-                if (relLower.Contains("..") || !(inMaps || inPlugins) || !isDll)
+                bool inMaps = relLower.StartsWith("maps/");
+                bool isDll  = relLower.EndsWith(".dll");
+                if (relLower.Contains("..") || !inMaps || !isDll)
                 {
-                    warnings.Add("skipped (not maps/*.dll or plugins/*.dll): " + rel);
+                    warnings.Add("skipped (only maps/*.dll deploys): " + rel);
                     continue;
                 }
                 if (relLower.Count(c => c == '/') != 1)

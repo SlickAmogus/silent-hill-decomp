@@ -21,10 +21,6 @@ void* DllLoader_GetSymbol(DllHandle handle, const char* name);
 void DllLoader_Close(DllHandle handle);
 
 /* Return a human-readable error string for the last failure. */
-/* Enumerate plugins/*.dll into paths (each 260 bytes). Windows-only; returns
- * 0 elsewhere and when the folder is absent. */
-int DllLoader_ListPlugins(char paths[][260], int maxCount);
-
 const char* DllLoader_GetError(void);
 
 #endif /* DLL_LOADER_H */
