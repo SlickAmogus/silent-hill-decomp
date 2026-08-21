@@ -303,6 +303,9 @@ typedef struct {
     unsigned short rowH[HIRES_POOL_MAX_ROWS];   /* the shader's footprint clamp */
     unsigned long long rowHash[HIRES_POOL_MAX_ROWS]; /* TexPack_LastComposeHash of each resident row; 0 = unknown */
     unsigned rowTick[HIRES_POOL_MAX_ROWS];      /* pump tick this row was last SAMPLED (LRU key) */
+    short  nativeClutX, nativeClutY; /* disc TIM's real CLUT rect origin; -1 = unknown.
+                                      * Needed to map ABSOLUTE prim cluts onto slot rows
+                                      * (see HiresOverride_RestampValidate). */
 } PoolSlotEntry;
 
 static PoolSlotEntry g_poolSlots[HIRES_POOL_SLOT_MAX];
@@ -435,6 +438,17 @@ int HiresOverride_EvictColdestPackRow(unsigned minAgeTicks,
     return 1;
 }
 
+/* Record the disc TIM's real CLUT origin for a slot (PostLoadTim knows it;
+ * nothing else does). Lets the restamp path relate a prim's ABSOLUTE native
+ * clut to this slot's rows. */
+void HiresOverride_PoolSlotSetNativeClut(int slotId, int clutX, int clutY)
+{
+    if (!g_initialized) HiresOverride_Init();
+    if (slotId < 0 || slotId >= HIRES_POOL_SLOT_MAX) return;
+    g_poolSlots[slotId].nativeClutX = (short)clutX;
+    g_poolSlots[slotId].nativeClutY = (short)clutY;
+}
+
 /* A restamped prim clut must encode a BACKED pool slot. The rebase in
  * Model_MaterialFlagsApply is pure arithmetic -- field_10 + (prim - field_12)
  * -- and whenever a prim's carried base disagrees with field_12 (reload /
@@ -479,8 +493,18 @@ unsigned short HiresOverride_RestampValidate(unsigned short newClut,
             /* oldClut/oldBase expose WHICH state generations crossed: a native
              * oldClut against a virtual oldBase (or two different virtual
              * generations) is the reload/bookkeeping desync in one line. */
-            SH_DBG("[RESTAMP] mat '%.8s': %04X = new base %04X + (prim %04X - old base %04X) -> slot %d row %d unbacked-at-stamp",
-                   (matName != NULL) ? matName : "?", newClut, baseClut, oldClut, oldBase, slotId, row);
+            {
+                int nx = -1, ny = -1;
+                int bq = ((baseClut >> 6) & 0x3FF) - HIRES_POOL_CLUT_ROW_BASE;
+                int bslot = (bq >= 0) ? (bq / HIRES_POOL_MAX_ROWS) * 64 + (baseClut & 0x3F) : -1;
+                if (bslot >= 0 && bslot < HIRES_POOL_SLOT_MAX)
+                {
+                    nx = g_poolSlots[bslot].nativeClutX;
+                    ny = g_poolSlots[bslot].nativeClutY;
+                }
+                SH_DBG("[RESTAMP] mat '%.8s': %04X = new base %04X + (prim %04X - old base %04X) -> slot %d row %d unbacked-at-stamp (base slot %d native clut=(%d,%d))",
+                       (matName != NULL) ? matName : "?", newClut, baseClut, oldClut, oldBase, slotId, row, bslot, nx, ny);
+            }
         }
     }
     /* DIAGNOSTIC ONLY -- the value passes through. Clamping here was tried and
@@ -557,8 +581,15 @@ int HiresOverride_PoolSlotRestoreNativeRow(int slotId, int row,
 
 void HiresOverride_Init(void)
 {
+    int i;
+
     if (g_initialized) return;
     g_numEntries = 0;
+    for (i = 0; i < HIRES_POOL_SLOT_MAX; i++)
+    {
+        g_poolSlots[i].nativeClutX = -1;
+        g_poolSlots[i].nativeClutY = -1;
+    }
     g_initialized = 1;
     SH_DBG("[HIRES] override system initialized (capacity=%d)",
            MAX_HIRES_OVERRIDES);
