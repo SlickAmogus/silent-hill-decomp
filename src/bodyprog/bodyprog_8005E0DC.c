@@ -2894,6 +2894,17 @@ bool func_80064334(POLY_FT4** poly, s32 idx) // 0x80064334
         *(u16*)&(*poly)->r0 = ptr->field_130.r + (ptr->field_130.g << 8);
         (*poly)->b0         = ptr->field_130.b;
 
+#ifdef SH_PC_PORT
+        /* The far branch of this drawer -- a single cheap poly where the near
+         * branch draws the faded two-layer pair. It was the ONE remaining blood
+         * emit with no fog fade, which is why one pool per pair of corpses
+         * stayed at full strength however thick the fog: the floating pitch
+         * black blob in the distance, hanging where its fully-fogged corpse is
+         * no longer even visible. Same fade, same depth field as its sibling
+         * branch. */
+        PC_BLOOD_FOG_FADE(*poly, ptr->field_150);
+#endif
+
         {
             s32 _bucket = ptr->field_150 >> 3;
             if (_bucket < 0) _bucket = 0;
