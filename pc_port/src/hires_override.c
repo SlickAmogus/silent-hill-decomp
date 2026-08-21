@@ -485,6 +485,21 @@ unsigned short HiresOverride_RestampValidate(unsigned short newClut,
     if (backed)
         return newClut;
 
+    /* A result decoding PAST the pool entirely (slot beyond the table) can
+     * only be crossed-generation arithmetic -- the poison birth itself. Rare,
+     * so it gets its own budget: the per-material cap below starves exactly
+     * these (the door material burns its lines on benign load stamps). */
+    if (slotId >= HIRES_POOL_SLOT_MAX || q < 0)
+    {
+        static int s_wildLog = 0;
+        if (s_wildLog < 16)
+        {
+            s_wildLog++;
+            SH_DBG("[RESTAMP-WILD] mat '%.8s': %04X = new base %04X + (prim %04X - old base %04X) -> slot %d row %d PAST-POOL",
+                   (matName != NULL) ? matName : "?", newClut, baseClut, oldClut, oldBase, slotId, row);
+        }
+    }
+
     {
         /* Per-MATERIAL cap: a global cap burned entirely on one chatty
          * material's load-time noise (SC2FC2H x24) and the door material --
