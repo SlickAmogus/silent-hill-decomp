@@ -1422,6 +1422,12 @@ void GsMapModelingData(unsigned long *p)
     size_t copy_size;
 
     if (!p) return;
+    /* TMD is raw little-endian disc data and every caller lands here before
+     * any field is read, so this is the one conversion point (big-endian
+     * no-op elsewhere). Idempotent by validation on nobj, which matters:
+     * the inventory re-registers the same resident buffer per carousel
+     * open, and a second swap would undo the first. */
+    { extern void Tmd_SwapForBigEndian(void*); Tmd_SwapForBigEndian(p); }
     /* p[0] = flags, p[1] = nobj */
     nobj = p[1];
     if (nobj == 0 || nobj > GS_TMD_MAX_OBJS) return;

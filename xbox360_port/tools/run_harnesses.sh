@@ -78,6 +78,15 @@ echo "--- BIG-endian (powerpc, qemu) ---"
 powerpc-linux-gnu-gcc -w -static $DATDEF $DATINC $DATSRC -o /tmp/dat_be && qemu-ppc /tmp/dat_be || fail=1
 
 echo
+echo "################ tmd_harness (TMD model swapper) ################"
+TMDINC="-Ipc_port/include -Iinclude"
+TMDSUP='-DSH_LOG_H -include stdio.h -DSH_DBG(...)=(void)0'
+echo "--- little-endian (native x86-64) ---"
+gcc -w $TMDINC $TMDSUP xbox360_port/tools/tmd_harness.c pc_port/src/tmd_endian.c -o /tmp/tmd_le && /tmp/tmd_le || fail=1
+echo "--- BIG-endian (powerpc, qemu) ---"
+powerpc-linux-gnu-gcc -w -static $TMDINC $TMDSUP xbox360_port/tools/tmd_harness.c pc_port/src/tmd_endian.c -o /tmp/tmd_be && qemu-ppc /tmp/tmd_be || fail=1
+
+echo
 if [ -f ps3_port/tools/pack_selftest.c ]; then
     echo "################ pack_selftest (from the PS3 port) ################"
     # Cross-checks THIS branch's PsyCross against the PS3 branch's packing
