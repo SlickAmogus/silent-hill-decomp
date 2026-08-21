@@ -767,9 +767,11 @@ void func_8003CC7C(s_WorldObjectModel* model, MATRIX* viewMat, MATRIX* worldMat)
                     (((((_c >> 6) & 0x3FF) - 512) / 16) * 64 + (_c & 0x3F)) >= 512)
                 {
                     s_poisonLog++;
-                    SH_DBG("[WOBJ-POISON] '%.8s' lmIdx=%d modelHdr=%p mesh0 prim%d clut=0x%04X primCnt=%d",
+                    SH_DBG("[WOBJ-POISON] '%.8s' lmIdx=%d modelHdr=%p mesh0 prim%d clut=0x%04X primCnt=%d prims=%p verts=%p p0clut=0x%04X",
                            model->metadata.name.str, (int)lmIdx, (void*)modelHdr,
-                           (int)_pi, (unsigned)_c, (int)_mh->primitiveCount);
+                           (int)_pi, (unsigned)_c, (int)_mh->primitiveCount,
+                           (void*)_mh->primitives, (void*)_mh->verticesXy,
+                           (unsigned)(u16)_mh->primitives[0].field_2);
                     break;
                 }
             }

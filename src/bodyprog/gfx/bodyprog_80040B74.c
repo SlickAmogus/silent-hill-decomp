@@ -2815,6 +2815,14 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
             return; /* already reformatted, lmHdr still our heap copy */
         }
 
+        /* [IPDREF] every reformat with its registry verdict: hit-mismatch means
+         * this buffer was reformatted before and its lmHdr bytes changed (fresh
+         * read = expected; anything else = the double-fixup entry). */
+        SH_DBG("[IPDREF] hdr=%p registry=%s lmBytes=%p",
+               (void*)ipdHdr,
+               (slot < 0) ? "MISS" : "HIT-MISMATCH",
+               (void*)ipdHdr->lmHdr);
+
         extern bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr);
         if (!IpdHeader_FixOffsets_PC(ipdHdr)) {
             /* Buffer is not a valid IPD (stale/overlapping reuse, or still
@@ -2831,6 +2839,28 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
         ipdHdr->isLoaded = true;
         /* LmHeader_FixOffsets now uses PC reformatter */
         LmHeader_FixOffsets(ipdHdr->lmHdr);
+        /* [IPDREF-DR] door models' prim state AT REFORMAT EXIT: poisoned here
+         * means the reformat made it; clean here + poisoned at draw means a
+         * post-reformat stomp of the prim allocation. */
+        {
+            s_LmHeader* _lm = ipdHdr->lmHdr;
+            s32 _m;
+            for (_m = 0; _m < _lm->modelCount; _m++)
+            {
+                s_ModelHeader* _md = &_lm->modelHdrs[_m];
+                if (memcmp(&_md->name, "DR", 2) != 0) continue;
+                if (_md->meshCount > 0)
+                {
+                    s_MeshHeader* _mh = &_md->meshHdrs[0];
+                    SH_DBG("[IPDREF-DR] '%.8s' prims=%p verts=%p cnt=%d clut0=0x%04X clut1=0x%04X clut3=0x%04X",
+                           _md->name.str, (void*)_mh->primitives, (void*)_mh->verticesXy,
+                           (int)_mh->primitiveCount,
+                           (unsigned)(u16)_mh->primitives[0].field_2,
+                           (_mh->primitiveCount > 1) ? (unsigned)(u16)_mh->primitives[1].field_2 : 0u,
+                           (_mh->primitiveCount > 3) ? (unsigned)(u16)_mh->primitives[3].field_2 : 0u);
+                }
+            }
+        }
         {
             /* lmHdr lives in PSX RAM — subsequent chunk loads at overlapping
              * addresses overwrite the fixed-up modelHdrs/materials pointers.
