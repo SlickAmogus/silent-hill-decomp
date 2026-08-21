@@ -520,13 +520,12 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
         s_count++;
         installed++;
 
-        /* The rate is reported, never acted on: the mixer uploads the
-         * replacement at a fixed 44100 and lets the voice pitch scale it exactly
-         * as it scaled the original, so a file authored at some other rate plays
-         * proportionally faster or slower. Printing it is what lets someone
-         * compare against the rate the Audio tool shows for that sample -- the
-         * usual cause of a replacement that plays at the wrong speed, and far
-         * more noticeable on the low-rate map banks. */
+        /* The mixer (PsyX_SPUAL UpdateVoiceSample) uploads the replacement at
+         * this rate and treats the key-on pitch as its 1.0 baseline, so the file
+         * plays at the speed it was authored at -- whatever rate the author's
+         * tool saved. rate=0 means the header could not be read and the old
+         * fixed-44100 behaviour applies (speed then depends on the original
+         * sample's rate); the printed rate is the tell. */
         SH_DBG("[SFXMOD] %s sample %d <- %s (%d samples @ %d Hz, was %d ADPCM bytes) spu=0x%x",
                bank, n, src, count, wavRate, len, addr);
     }
