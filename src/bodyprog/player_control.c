@@ -2365,12 +2365,22 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         }
                     }
                 } else {
-                    if (player->model.anim.status != ANIM_STATUS(HarryAnim_Idle, true) &&
-                        player->model.anim.status != ANIM_STATUS(HarryAnim_Idle, false)) {
-                        player->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
+                    /* Same exertion pick as the native idle (7190): the tired
+                     * idle is what carries the heavy-breath SFX (its keyframe
+                     * 551 fires it via case PlayerUpperBodyState_None), so
+                     * forcing plain Idle here stomped the native selection and
+                     * Harry never panted after sprinting in the alt cameras.
+                     * The exhaustion timer itself already accumulates. */
+                    s32 idleAnim = (player->properties.player.exhaustionTimer >= Q12(10.0f) ||
+                                    player->health < Q12(30.0f))
+                                       ? HarryAnim_IdleExhausted
+                                       : HarryAnim_Idle;
+                    if (player->model.anim.status != ANIM_STATUS(idleAnim, true) &&
+                        player->model.anim.status != ANIM_STATUS(idleAnim, false)) {
+                        player->model.anim.status = ANIM_STATUS(idleAnim, false);
                         player->model.stateStep = 0;
                         if (!aimingNow && !inGunAttack) {
-                            extra->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
+                            extra->model.anim.status = ANIM_STATUS(idleAnim, false);
                             extra->model.stateStep = 0;
                         }
                     }
