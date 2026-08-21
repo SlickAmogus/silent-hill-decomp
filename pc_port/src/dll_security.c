@@ -14,6 +14,13 @@
 #include <string.h>
 #include <ctype.h>
 
+/* Config override (allow_unrecognized_dlls): downgrades ONLY the
+ * unknown-import verdict to a logged pass. Flagrant functions, blacklisted
+ * libraries and invalid binaries always block. Defined for BOTH platforms
+ * (pc_config.c references it unconditionally; the POSIX audit is a no-op
+ * but the symbol must still exist to link). */
+int g_DllAllowUnrecognized = 0;
+
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -158,11 +165,6 @@ static const char* s_flagrantKernel32Both[] = {
     "QueueUserAPC",
     NULL
 };
-
-/* Config override (allow_unrecognized_dlls): downgrades ONLY the
- * unknown-import verdict to a logged pass. Flagrant functions, blacklisted
- * libraries and invalid binaries always block. Set from pc_config.c. */
-int g_DllAllowUnrecognized = 0;
 
 DllSecurityResult DllSecurity_AuditPlugin(const char* path, int mode, char* outReason, int maxReasonLen)
 {
