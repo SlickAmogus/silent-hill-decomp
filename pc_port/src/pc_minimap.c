@@ -608,6 +608,21 @@ void Pc_MinimapUpdate(void)
     int       markCount = 0;
     GsOT_TAG* ot;
 
+    /* [MMGATE] above every gate: absence of even this line means the CALLER
+     * never runs in this map, which is a different fault from a failed gate. */
+    {
+        static int s_gateCtr;
+
+        if (++s_gateCtr >= 120)
+        {
+            s_gateCtr = 0;
+            SH_DBG("[MMGATE] cfg=%d state=%d sys=%d op=%d paperIdx=%d",
+                   g_PcConfig.minimap, (int)g_GameWork.gameState,
+                   (int)g_SysWork.sysState, (int)g_PcConfig.minimapOpacity,
+                   (int)g_SavegamePtr->paperMapIdx);
+        }
+    }
+
     if (!g_PcConfig.minimap) return;
     if (g_GameWork.gameState != GameState_InGame ||
         g_SysWork.sysState   != SysState_Gameplay) return;
