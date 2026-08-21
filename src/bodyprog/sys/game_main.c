@@ -3068,6 +3068,14 @@ void MainLoop(void) // 0x80032EE0
                      * gets baked in. */
                     ofy = (s32)g_PsxCutsceneVShift;
                 }
+                else if (g_PcPickupItemActive)
+                {
+                    /* The pickup/take screen stages its own 3D framing (like a
+                     * cutscene, not like the frozen world states the hold exists
+                     * for) — holding the gameplay shift here framed the picked-up
+                     * item visibly low under a non-zero `vshift`. */
+                    ofy = 0;
+                }
                 else
                 {
                     ofy = s_heldWorldOfy;
