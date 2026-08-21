@@ -536,6 +536,25 @@ void func_8005E89C(void) // 0x8005E89C
 
     for (i = 0; i < g_MapOverlayHdr.unkTable1Count_50; i++)
     {
+#ifdef SH_PC_PORT
+        /* [FXDIAG] one line per effect TYPE per session, with its position, to
+         * identify which drawer owns the black fog-immune pool under corpses.
+         * Guessing across the per-map func_XX tables is exactly the theory
+         * chain that has failed before; the type number maps straight to a
+         * dispatch case and from there to one function. */
+        {
+            static unsigned s_seenTypes = 0;
+            int _t = g_MapOverlayHdr.unkTable1_4C[i].field_A;
+
+            if (_t >= 0 && _t < 32 && !(s_seenTypes & (1u << _t)))
+            {
+                s_seenTypes |= (1u << _t);
+                SH_DBG("[FXDIAG] effect type=%d idx=%d pos=(%d, %d)", _t, i,
+                       (int)g_MapOverlayHdr.unkTable1_4C[i].field_0.vx_0,
+                       (int)g_MapOverlayHdr.unkTable1_4C[i].field_4.vz_4);
+            }
+        }
+#endif
         switch (g_MapOverlayHdr.unkTable1_4C[i].field_A)
         {
             case 0:
