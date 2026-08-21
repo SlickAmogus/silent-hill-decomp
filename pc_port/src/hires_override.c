@@ -486,10 +486,31 @@ unsigned short HiresOverride_RestampValidate(unsigned short newClut,
         return newClut;
 
     {
-        static int s_restampLog = 0;
-        if (s_restampLog < 24)
+        /* Per-MATERIAL cap: a global cap burned entirely on one chatty
+         * material's load-time noise (SC2FC2H x24) and the door material --
+         * the one under investigation -- never got a line. */
+        static struct { char name[8]; int n; } s_seen[24];
+        static int s_seenCount = 0;
+        int _k = 0, _log = 0;
+
+        if (matName != NULL)
         {
-            s_restampLog++;
+            for (_k = 0; _k < s_seenCount; _k++)
+                if (memcmp(s_seen[_k].name, matName, 8) == 0) break;
+            if (_k == s_seenCount && s_seenCount < 24)
+            {
+                memcpy(s_seen[s_seenCount].name, matName, 8);
+                s_seen[s_seenCount].n = 0;
+                s_seenCount++;
+            }
+            if (_k < s_seenCount && s_seen[_k].n < 2)
+            {
+                s_seen[_k].n++;
+                _log = 1;
+            }
+        }
+        if (_log)
+        {
             /* oldClut/oldBase expose WHICH state generations crossed: a native
              * oldClut against a virtual oldBase (or two different virtual
              * generations) is the reload/bookkeeping desync in one line. */
