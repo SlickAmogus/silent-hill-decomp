@@ -1245,32 +1245,6 @@ void Pc_ConsoleExec(const char* line)
         {
             cprintf("Achievement toast preview (real achievement + badge)");
         }
-    } else if (strcmp(cmd, "PGXPAFFINE") == 0) {
-        /* Bisect: PGXP on, but every poly takes the whole-poly affine path. */
-        extern int g_PsxPgxpForceAffine;
-        if (arg[0] == '1') g_PsxPgxpForceAffine = 1;
-        else if (arg[0] == '0') g_PsxPgxpForceAffine = 0;
-        else g_PsxPgxpForceAffine = !g_PsxPgxpForceAffine;
-        cprintf("PGXP force-affine: %s", g_PsxPgxpForceAffine ? "ON (precise path suppressed)" : "OFF");
-    } else if (strcmp(cmd, "PGXPSNAP") == 0) {
-        /* World units where the world-mesh position snap starts (full at 2x).
-         * Lower = seams gone sooner but more PSX wobble; 0 disables the snap. */
-        extern int g_PsxPgxpSnapStartSz;
-        if (arg[0]) {
-            int v = atoi(arg);
-            g_PsxPgxpSnapStartSz = (v < 0) ? 0 : ((v > 200) ? 200 : v) * 256;
-        }
-        cprintf("PGXP world snap start: %d units (full at %d; 0=off)",
-                g_PsxPgxpSnapStartSz / 256, g_PsxPgxpSnapStartSz / 128);
-    } else if (strcmp(cmd, "PGXPMINSPAN") == 0) {
-        /* Screen-span threshold (px) under which polys skip precise projection.
-         * 0 disables the guard entirely; 8 is the default. */
-        extern int g_PsxPgxpMinSpanPx;
-        if (arg[0]) {
-            int v = atoi(arg);
-            g_PsxPgxpMinSpanPx = (v < 0) ? 0 : ((v > 64) ? 64 : v);
-        }
-        cprintf("PGXP min precise span: %d px (0=off)", g_PsxPgxpMinSpanPx);
     } else if (strcmp(cmd, "PGXPWORLDDEPTH") == 0) {
         /* Depth-channel kill-switch: OFF suppresses FLAT world promotion
          * (GL_ALWAYS painter + viewZ flat depth), dropping depth behavior
