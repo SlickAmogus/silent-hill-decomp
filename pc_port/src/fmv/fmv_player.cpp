@@ -312,6 +312,8 @@ static void RestoreGLState(const FmvGLState* s)
  * a per-frame glTexImage2D realloc stalls some drivers hard at 4K. */
 static int s_fmvTexW = 0, s_fmvTexH = 0, s_fmvTexRgba = -1;
 
+extern "C" GLuint GR_ScreenFBO(void);
+
 static void DrawVideoFrameEx(const unsigned char* pixels, int image_w, int image_h, int rgba)
 {
     int windowWidth, windowHeight;
@@ -354,6 +356,14 @@ static void DrawVideoFrameEx(const unsigned char* pixels, int image_w, int image
 
     FmvGLState saved;
     SaveGLState(&saved);
+
+    /* Draw into the SCENE target, not whatever happens to be bound. In
+     * borderless the scene renders into an internal target that is stretched
+     * over the whole window at present, and that blit would paint straight over
+     * a movie drawn to the window -- which is why FMVs went black as soon as the
+     * borderless resolution differed from the desktop. GR_ScreenFBO() is 0 in
+     * every other mode, so this is the same target it always used. */
+    glBindFramebuffer(GL_FRAMEBUFFER, GR_ScreenFBO());
 
     glViewport(0, 0, windowWidth, windowHeight);
     glClearColor(0, 0, 0, 1);

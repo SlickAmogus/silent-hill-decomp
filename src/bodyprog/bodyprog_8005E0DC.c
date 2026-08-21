@@ -1906,6 +1906,13 @@ bool func_800611C0(POLY_FT4** poly, s32 idx) // 0x800611C0
         (*poly)->b0         = var_t0;
 
 #ifdef SH_PC_PORT
+        /* The ground decal's OTHER branch -- the blood pools. Unlike the branch
+         * above it never calls func_80055A90, so it gets no fog treatment at
+         * all: a pool stayed at full strength however far away or however thick
+         * the fog, which is the puddle still standing out after the splatters
+         * were fixed. Same depth field as its sibling. */
+        PC_BLOOD_FOG_FADE(*poly, ptr->field_158);
+
         /* Same off-by-one bound clamp as the if-branch above. */
         {
             s32 _bucket = ptr->field_158 >> 3;
