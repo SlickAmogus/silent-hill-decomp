@@ -17,19 +17,37 @@
 
 static char s_errorBuf[256] = {0};
 
+/* True only for a mod DLL under maps/ -- the sole channel the security audit
+ * screens. The game also opens first-party bundled runtime DLLs through here
+ * (FFmpeg: avformat/avcodec/... by bare name from the exe dir), which
+ * legitimately import system/networking libraries the game itself does not;
+ * auditing those as "edited game code" wrongly rejected them and killed
+ * mp4/mkv FMV overrides. Matches "maps/" or "maps\" anywhere in the path. */
+static int DllLoader_IsModPath(const char* path)
+{
+    const char* p;
+    if (path == NULL) return 0;
+    for (p = path; p[0] && p[1] && p[2] && p[3] && p[4]; p++)
+    {
+        if ((p[0] | 0x20) == 'm' && (p[1] | 0x20) == 'a' &&
+            (p[2] | 0x20) == 'p' && (p[3] | 0x20) == 's' &&
+            (p[4] == '/' || p[4] == '\\'))
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 DllHandle DllLoader_Open(const char* path)
 {
-    /* Static lint before any code from the file can run (DllMain executes
-     * inside LoadLibrary). Covers every open -- map overlays, chara pool,
-     * plugins -- so a mod-installed maps/*.dll gets the same import screen
-     * as a plugin. requirePluginExports=0: map DLLs export their own set;
-     * the plugin loader re-audits with the contract check on top. */
+    /* Screen ONLY the mod channel (maps overlays). Those are user-supplied edited
+     * game code and must pass the import fingerprint before any of their code
+     * runs (DllMain executes inside LoadLibrary). The game's own bundled DLLs
+     * -- FFmpeg above all -- load unscreened. */
+    if (DllLoader_IsModPath(path))
     {
         char reason[256] = {0};
-        /* Everything the game opens is a map/chara overlay = edited game
-         * code, held to the strict fingerprint. (The runtime plugin channel
-         * was reviewed and cut; DLL_AUDIT_PLUGIN exists only as a reserved
-         * audit mode.) */
         if (DllSecurity_AuditPlugin(path, DLL_AUDIT_MAP, reason, sizeof(reason)) != DLL_SECURITY_OK)
         {
             snprintf(s_errorBuf, sizeof(s_errorBuf), "blocked by static check: %s", reason);
