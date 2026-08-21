@@ -1,0 +1,41 @@
+[BOOT] Silent Hill 360, timebase=1275999603
+[BOOT] root='uda:/silenthill/' bin='Silent Hill (USA).bin' found=1
+[CRASH] console tee armed (libXenon exception reports will be logged)
+[CFG] config file: uda:/silenthill/silenthill.cfg
+[CFG] key='control_style'(13) value='tps'
+[GTE] RotTransPers v(64,32,512) -> sx=352 sy=256 sz=128 flag=0x1000 (expect sx=352 sy=256)
+[CD] bin open: 'uda:/silenthill/Silent Hill (USA).bin'
+[CD] BIN: uda:/silenthill/Silent Hill (USA).bin
+[CD] PVD id='CD001' (expect CD001)
+[GPU] Xe up: framebuffer 1280x720
+[GPU] using embedded shaders (vs=392 ps=420 bytes)
+[GPU] shaders loaded and instantiated
+[GPU] textures ready, renderer ARMED
+[GPU] xenos backend: 32768-vertex pool, 64 B/vertex
+[PAD] libxenon usb up
+[MCRD] card path = uda:/silenthill/save/0.MCD
+[BOOT] PSX RAM @ 0x812c2180
+[BOOT] game data initialised
+[AUD] xenon_sound up: 48000 Hz stereo, 256-frame chunks
+[BOOT] subsystems up; entering MainLoop
+[SELFTEST] start: 640x480 content, 64x64 checker
+[GPU] frame=0 prims=0 verts=0 draws=0 texbind=0 blend=0 scissor=0 ready=1
+
+======== CRASH ========
+[CRASH] libXenon exception handler entered. Register dump follows.
+[CRASH] Addresses are absolute; the image is linked at 0x80000000, so
+[CRASH] resolve sr0 directly against xenon.debug.elf (xenon-nm / addr2line).
+[CRASH] Segmentation fault!
+[CRASH] pir=0000000000000000 dar=000000001e1c2a00
+[CRASH] sr0=00000000805097c0 sr1=1000000002003030 lr=000000008014b2e8
+[CRASH] 00=0000000080149848 08=0000000081a1e088 16=0000000000000000 24=0000000087f7ffff
+[CRASH] 01=000000009ddffe00 09=000000001e1c2a00 17=0000000000000000 25=0000000087f81e6f
+[CRASH] 02=800000001c04a590 10=000000001e000000 18=0000000080001e70 26=000000000a000000
+[CRASH] 03=0000000000000000 11=000000009ddffe60 19=0000000000001e70 27=000000000d000000
+[CRASH] 04=0000000000000080 12=0000000048000842 20=000000000000087c 28=0000000020000000
+[CRASH] 05=000000001e1c2a00 13=0000000002000000 21=000000009ddffd11 29=00000000807c1b38
+[CRASH] 06=000000000000072f 14=0000000000000000 22=000000009ddffd20 30=00000000819ee86c
+[CRASH] 07=000000000000008a 15=0000000000000000 23=00000000006e1bc0 31=000000009ddffe00
+[CRASH] STACK DUMP:
+[CRASH] 0x805097c0 --> 0x8014b2e8 --> 0x80001f30 --> 0x805062f4
+[CRASH] On uart: 'x'=Xell, 'h'=Halt, 'r'=Reboot

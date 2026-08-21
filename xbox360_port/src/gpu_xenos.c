@@ -415,7 +415,15 @@ void GpuXenos_DebugFbProbe(const char* tag)
     }
     {
         volatile unsigned* scanreg = (volatile unsigned*)0xec806110;
-        unsigned char*     base    = (unsigned char*)s_fb->base;
+        /* surface->base is the RAW PHYSICAL address -- libXenon sets
+         * default_fb.base = (void*)ptr, and ptr is what the scanout register
+         * holds (0x1e000000 on this console). The GPU wants it that way; the
+         * CPU must go through the 0x80000000 alias, exactly as console.c does
+         * with (ai->base | 0x80000000). Dereferencing the physical address is
+         * what log 036's segfault was: dar=0x1e1c2a00 = ptr + this function's
+         * own offset arithmetic, faulting inside memdcbf -- the probe crashed
+         * the machine two frames before the green phase it existed to verify. */
+        unsigned char*     base    = (unsigned char*)(0x80000000u | (unsigned)s_fb->ptr);
         unsigned           off     = (unsigned)(s_fb->wpitch * (s_fb->height / 2)
                                                 + (s_fb->width / 2) * 4);
         unsigned           px[4];
