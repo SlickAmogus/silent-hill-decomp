@@ -123,6 +123,59 @@ static int s_pendKind    = 0;   /* in-flight read: 0 none, 1 map image, 2 markin
 static int s_pendFileIdx = -1;  /* file the in-flight read is for (override lookup) */
 static int s_idleFrames  = 0;
 static int s_mapReady    = 0;   /* pool slot holds this area's map */
+
+/* The paper-map index the minimap should use. Normally the savegame's own --
+ * but the INTRO street (map0_s00 and friends) carries PaperMapIdx_OtherPlaces
+ * because no paper map is ever obtainable there, even though its layout IS the
+ * town's. When the minimap is set to always draw (minimap_require_map = 0),
+ * probe the town paper maps and adopt whichever one's placement tables actually
+ * resolve Harry's position: func_80067914 in query mode returns 0 for an index
+ * that does not recognise the coordinates, so the right town map self-selects
+ * with no per-area table. Cached until the probe stops resolving (area left).
+ * With minimap_require_map = 1 nothing changes: OtherPlaces stays unmapped. */
+
+static int s_otherPlacesIdx = -1;
+
+static int mm_effective_map_idx(void)
+{
+    int idx = (int)g_SavegamePtr->paperMapIdx;
+
+    if (idx != 0 /* PaperMapIdx_OtherPlaces */ || g_PcConfig.minimapRequireMap)
+    {
+        s_otherPlacesIdx = -1;
+        return idx;
+    }
+
+    /* Save/restore rather than set/clear: this helper runs inside the draw
+     * path's own query-only bracket (argument evaluation at the 607 call), and
+     * clearing the flag there would flip the REAL query into draw mode. */
+    {
+    s32 prevQueryOnly = g_PcMapQueryOnly;
+
+    g_PcMapQueryOnly = 1;
+
+    if (s_otherPlacesIdx < 0 ||
+        func_80067914((s32)s_otherPlacesIdx, 0, 0, (u16)Q12(1.0f)) == 0)
+    {
+        int c;
+
+        s_otherPlacesIdx = -1;
+        /* 1..4 are the four town maps (OldTown, FogCentralTown,
+         * AltCentralTown, ResortTown). */
+        for (c = 1; c <= 4; c++)
+        {
+            if (func_80067914((s32)c, 0, 0, (u16)Q12(1.0f)) != 0)
+            {
+                s_otherPlacesIdx = c;
+                break;
+            }
+        }
+    }
+
+    g_PcMapQueryOnly = prevQueryOnly;
+    }
+    return (s_otherPlacesIdx >= 0) ? s_otherPlacesIdx : idx;
+}
 static int s_markFileLoaded = NO_VALUE; /* marking TIM idx read into MM_MARK_SLOT */
 static int s_markReady      = 0;
 
@@ -381,7 +434,7 @@ static POLY_FT4 s_markPrim[2][MM_MARK_MAX];
 static int mm_markers_build(int buf, const s_MmView* vw)
 {
     const s_800AEDBC* tbl;
-    int idx = (int)g_SavegamePtr->paperMapIdx;
+    int idx = mm_effective_map_idx();
     int uw  = vw->u1 - vw->u0;
     int vh  = vw->v1 - vw->v0;
     int n, i, j, count = 0;
@@ -528,7 +581,7 @@ void Pc_MinimapUpdate(void)
     lum  = (128 * op) / 100;
     if (lum < 1) lum = 1;
 
-    mm_map_load_tick((int)g_SavegamePtr->paperMapIdx);
+    mm_map_load_tick(mm_effective_map_idx());
 
     buf   = g_ActiveBufferIdx;
     ot    = &g_OtTags0[buf][4];
@@ -604,7 +657,7 @@ void Pc_MinimapUpdate(void)
      * bails before exporting one) still get a sane arrow. */
     g_PcMapQueryAngle = g_SysWork.playerWork.player.rotation.vy;
     g_PcMapQueryOnly  = 1;
-    packed = func_80067914((s32)g_SavegamePtr->paperMapIdx, 0, 0, (u16)Q12(1.0f));
+    packed = func_80067914((s32)mm_effective_map_idx(), 0, 0, (u16)Q12(1.0f));
     g_PcMapQueryOnly  = 0;
 
     /* The paper map is only drawn once Harry has actually found it -- HAS_MAP is
@@ -613,7 +666,7 @@ void Pc_MinimapUpdate(void)
     haveMap = (s_mapReady && packed != 0);
     if (haveMap && g_PcConfig.minimapRequireMap)
     {
-        int mi = (int)g_SavegamePtr->paperMapIdx;
+        int mi = mm_effective_map_idx();
         if (mi < 0 || mi >= MM_PAPER_MAP_COUNT || !HAS_MAP(mi)) haveMap = 0;
     }
 
