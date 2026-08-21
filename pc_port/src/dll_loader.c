@@ -9,6 +9,7 @@
 #include "dll_loader.h"
 #include "dll_security.h"
 #include <stdio.h>
+#include <string.h>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -25,7 +26,12 @@ DllHandle DllLoader_Open(const char* path)
      * the plugin loader re-audits with the contract check on top. */
     {
         char reason[256] = {0};
-        if (DllSecurity_AuditPlugin(path, 0, reason, sizeof(reason)) != DLL_SECURITY_OK)
+        /* plugins/ DLLs are arbitrary code (opt-in): blacklist screening only
+         * here; the plugin loader adds the export-contract pass. Everything
+         * else the game opens is a map/chara overlay = edited game code, held
+         * to the strict fingerprint. */
+        int mode = (strstr(path, "plugins") != NULL) ? DLL_AUDIT_PLUGIN : DLL_AUDIT_MAP;
+        if (DllSecurity_AuditPlugin(path, mode, reason, sizeof(reason)) != DLL_SECURITY_OK)
         {
             snprintf(s_errorBuf, sizeof(s_errorBuf), "blocked by static check: %s", reason);
             return NULL;

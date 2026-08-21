@@ -52,7 +52,7 @@ void Pc_Plugins_Init(void)
 
         /* Pre-execution static binary security audit */
         char auditReason[256] = {0};
-        DllSecurityResult secResult = DllSecurity_AuditPlugin(path, 1, auditReason, sizeof(auditReason));
+        DllSecurityResult secResult = DllSecurity_AuditPlugin(path, DLL_AUDIT_PLUGIN, auditReason, sizeof(auditReason));
         if (secResult != DLL_SECURITY_OK)
         {
             SH_LOG("[PLUGINS] rejected '%s': %s", path, auditReason);

@@ -13,7 +13,9 @@ namespace SilentHillPC_Launcher
     {
         public enum Result { Continue, Cancel, DontShowAgain }
 
-        public static Result Show(IWin32Window owner)
+        public static Result Show(IWin32Window owner) { return Show(owner, null); }
+
+        public static Result Show(IWin32Window owner, string extraWarning)
         {
             using (var f = new Form())
             {
@@ -23,7 +25,8 @@ namespace SilentHillPC_Launcher
                 f.MinimizeBox     = false;
                 f.MaximizeBox     = false;
                 f.ShowInTaskbar   = false;
-                f.ClientSize      = new Size(480, 170);
+                bool tall = !string.IsNullOrEmpty(extraWarning);
+                f.ClientSize      = new Size(480, tall ? 280 : 170);
 
                 var icon = new PictureBox
                 {
@@ -43,17 +46,30 @@ namespace SilentHillPC_Launcher
                 };
                 f.Controls.Add(lbl);
 
+                if (tall)
+                {
+                    var lbl2 = new Label
+                    {
+                        Text      = extraWarning,
+                        ForeColor = Color.Firebrick,
+                        Bounds    = new Rectangle(64, 112, 402, 106),
+                        AutoSize  = false
+                    };
+                    f.Controls.Add(lbl2);
+                }
+
                 Result result = Result.Cancel;
 
-                var btnContinue = new Button { Text = "Continue", Bounds = new Rectangle(120, 122, 90, 30) };
+                int by = tall ? 232 : 122;
+                var btnContinue = new Button { Text = "Continue", Bounds = new Rectangle(120, by, 90, 30) };
                 btnContinue.Click += (s, e) => { result = Result.Continue; f.DialogResult = DialogResult.OK; };
                 f.Controls.Add(btnContinue);
 
-                var btnCancel = new Button { Text = "Cancel", Bounds = new Rectangle(218, 122, 90, 30) };
+                var btnCancel = new Button { Text = "Cancel", Bounds = new Rectangle(218, by, 90, 30) };
                 btnCancel.Click += (s, e) => { result = Result.Cancel; f.DialogResult = DialogResult.Cancel; };
                 f.Controls.Add(btnCancel);
 
-                var btnNever = new Button { Text = "Don't show me again", Bounds = new Rectangle(316, 122, 150, 30) };
+                var btnNever = new Button { Text = "Don't show me again", Bounds = new Rectangle(316, by, 150, 30) };
                 btnNever.Click += (s, e) => { result = Result.DontShowAgain; f.DialogResult = DialogResult.OK; };
                 f.Controls.Add(btnNever);
 

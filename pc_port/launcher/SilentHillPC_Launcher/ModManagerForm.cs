@@ -527,14 +527,43 @@ namespace SilentHillPC_Launcher
                 var t = ModManager.DetectDroppedType(p);
                 return t == ModType.Gameplay || t == ModType.TotalConversion;
             });
-            if (anyDllMod && !_mgr.DllWarningAck)
+            if (anyDllMod)
             {
-                var choice = DllWarningDialog.Show(this);
-                if (choice == DllWarningDialog.Result.Cancel) return;
-                if (choice == DllWarningDialog.Result.DontShowAgain)
+                // Import screening (PeImports mirrors the game's fingerprint):
+                // a DLL that doesn't look like edited game code gets NAMED in
+                // the dialog, and that stronger warning shows even after
+                // "Don't show me again" -- it is a different, targeted alarm.
+                var suspicious = new List<string>();
+                foreach (var mp in others)
                 {
-                    _mgr.DllWarningAck = true;
-                    _mgr.SaveState();
+                    var t = ModManager.DetectDroppedType(mp);
+                    if (t != ModType.Gameplay && t != ModType.TotalConversion) continue;
+                    string mext = Path.GetExtension(mp).ToLowerInvariant();
+                    if (mext == ".rar" || mext == ".7z")
+                        suspicious.Add(Path.GetFileName(mp) + " (archive can't be pre-screened; its DLLs are checked by the game at load)");
+                    else
+                        suspicious.AddRange(PeImports.ScanModForSuspiciousDlls(mp));
+                }
+
+                string extra = null;
+                if (suspicious.Count > 0)
+                {
+                    extra = "This mod contains DLLs that do NOT look like edited game code " +
+                            "(edited maps only use the game and the C runtime):\n\n - " +
+                            string.Join("\n - ", suspicious.Take(5)) +
+                            (suspicious.Count > 5 ? "\n - ..." : "") +
+                            "\n\nOnly continue if you trust this mod completely.";
+                }
+
+                if (extra != null || !_mgr.DllWarningAck)
+                {
+                    var choice = DllWarningDialog.Show(this, extra);
+                    if (choice == DllWarningDialog.Result.Cancel) return;
+                    if (choice == DllWarningDialog.Result.DontShowAgain)
+                    {
+                        _mgr.DllWarningAck = true;
+                        _mgr.SaveState();
+                    }
                 }
             }
 

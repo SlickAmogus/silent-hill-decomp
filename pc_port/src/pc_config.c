@@ -907,6 +907,14 @@ else if (strcmp(key, "enable_plugins") == 0)
         {
             g_PcConfig.enablePlugins = (atoi(value) != 0);
         }
+        else if (strcmp(key, "allow_unrecognized_dlls") == 0)
+        {
+            /* Downgrades ONLY the map-DLL unknown-import verdict to a logged
+             * pass (toolchain-drift escape hatch). Flagrant imports and
+             * invalid binaries always block. */
+            extern int g_DllAllowUnrecognized;
+            g_DllAllowUnrecognized = (atoi(value) != 0);
+        }
         else if (strcmp(key, "minimap_require_map") == 0)
         {
             g_PcConfig.minimapRequireMap = (atoi(value) != 0);
