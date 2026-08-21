@@ -520,8 +520,16 @@ void BootScreen_ImageSegmentDraw(s_FsImageDesc* image, s32 otz, s32 vramX, s32 v
     vramX = vramX & 0xFF;
     vramY = vramY & 0xFF;
 
-    //setUV0AndClut(prim, vramX, vramY, image->clutX, image->clutY);
+#ifdef SH_PC_PORT
+    /* The packed store below writes a WORD through &prim->u0. That is 4-aligned
+     * in the PSX's SPRT and is not in this port's larger one, where u0 lands at
+     * offset 11 -- and MIPS traps a misaligned sw rather than fixing it up, so
+     * on N64 it is an immediate CPU exception in the Konami logo. The macro
+     * writes u0/v0/clut as their own fields for exactly the same result. */
+    setUV0AndClut(prim, vramX, vramY, image->clutX, image->clutY);
+#else
     *(u32*)(&prim->u0) = vramX + (vramY << 8) + (((image->clutY << 6) | ((image->clutX >> 4) & 0x3F)) << 16);
+#endif
 
     setXY0Fast(prim, (u16)x, y);
 

@@ -109,11 +109,11 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A61C
 
     // TODO: This only works for one case. There may originally have been some other generic macro.
     #define setSprtUvClut(glyphSprt, idx, clut)                                                                                                     \
-    *((u32*)&(glyphSprt)->u0) = (((idx) % FONT_12X16_ATLAS_COLUMN_COUNT) * FONT_12X16_GLYPH_SIZE_X) + /* `u0`:   Column in atlas. */            \
+    setUV0ClutWord(glyphSprt, (((idx) % FONT_12X16_ATLAS_COLUMN_COUNT) * FONT_12X16_GLYPH_SIZE_X) + /* `u0`:   Column in atlas. */            \
                                 (ATLAS_BASE_Y << 8)                                                 + /* `v0`:   Row 0 in atlas with offset. */ \
                                 ((clut) << 16)                                                        /* `clut`: Packed magic value. */
 
-    s32       posX;
+    s32       posX);
     s32       posY;
     s32       u0;
     s32       sizeCpy;
@@ -206,10 +206,10 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A61C
 
                 u0 = (glyphIdx % FONT_12X16_ATLAS_COLUMN_COUNT) * FONT_12X16_GLYPH_SIZE_X;
 
-                *((u32*)&glyphPoly->u0) = u0 + (0xF000 + (0x7FD3 << 16));                                                    // `u0`, `v0`, `clut`.
-                *((u32*)&glyphPoly->u1) = u0 + (((((glyphIdx / FONT_12X16_ATLAS_COLUMN_COUNT) & 0xF) | 16) << 16) | 0xFF00); // `u1`, `v1`, `page`.
-                *((u16*)&glyphPoly->u2) = u0 - 0xFF4;                                                                        // `u2`, `v2`.
-                *((u16*)&glyphPoly->u3) = u0 - 0xF4;                                                                         // `u3`, `v3`.
+                setUV0ClutWord(glyphPoly, u0 + (0xF000 + (0x7FD3 << 16)));                                                    // `u0`, `v0`, `clut`.
+                setUV1TPageWord(glyphPoly, u0 + (((((glyphIdx / FONT_12X16_ATLAS_COLUMN_COUNT) & 0xF) | 16) << 16) | 0xFF00)); // `u1`, `v1`, `page`.
+                setUV2Word(glyphPoly, u0 - 0xFF4);                                                                        // `u2`, `v2`.
+                setUV3Word(glyphPoly, u0 - 0xF4);                                                                         // `u3`, `v3`.
 
                 addPrim(ot, glyphPoly);
                 GsOUT_PACKET_P = (u8*)glyphPoly + sizeof(POLY_FT4);
@@ -219,14 +219,14 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A61C
                 posXCpy = (u16)posX;
 
                 glyphSprt              = (SPRT*)packet;
-                *((u32*)&glyphSprt->w) = 0x10000C;
+                setWHWord(glyphSprt, 0x10000C);
 
                 glyphIdx = charCode - GLYPH_TABLE_ASCII_OFFSET;
                 posX    += FONT_12X16_GLYPH_WIDTHS[glyphIdx];
 
                 addPrimFast(ot, glyphSprt, 4);
-                *((u32*)&glyphSprt->r0)   = glyphColor;
-                *((u32*)(&glyphSprt->x0)) = posXCpy + (posY << 16);
+                setRGBCWord0(glyphSprt, glyphColor);
+                setXY0Word(glyphSprt, posXCpy + (posY << 16));
 
                 setSprtUvClut(glyphSprt, glyphIdx, 0x7FD3); // TODO: Demagic CLUT arg.
                 //*((u32*)&glyphSprt->u0) = ((glyphIdx % FONT_12X16_ATLAS_COLUMN_COUNT) * FONT_12X16_GLYPH_SIZE_X) + 0xF000 + (0x7FD3 << 16); // `u0`, `v0`, `clut`.
@@ -268,7 +268,7 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A61C
     }
 
     // Reset base string position?
-    *((u32*)&g_StringPosition) = (posX & 0xFFFF) + (posY << 16);
+    (g_StringPosition.vx = (s16)(posX), g_StringPosition.vy = (s16)(posY));
 
     return result;
 

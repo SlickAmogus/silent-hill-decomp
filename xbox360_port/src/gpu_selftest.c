@@ -85,6 +85,9 @@ static void Quad(float x0, float y0, float x1, float y1,
     }
 }
 
+extern void GpuXenos_DebugClearOverride(unsigned argb, int enable);
+extern void GpuXenos_DebugFbProbe(const char* tag);
+
 void Gpu360_SelfTest(void)
 {
     unsigned* tex;
@@ -113,6 +116,22 @@ void Gpu360_SelfTest(void)
     }
 
     SH_DBG("[SELFTEST] start: %dx%d content, %dx%d checker", W, H, TEST_TEX_DIM, TEST_TEX_DIM);
+    SH_DebugLogFlush();
+
+    /* PHASE 0, ~2s: draw NOTHING with the clear forced to bright green. This
+     * splits the pipeline at the resolve: a green screen proves EDRAM clear ->
+     * resolve -> scanout with no draw, no shader and no vertex fetch involved.
+     * Log 034 strongly suggested exactly this split (the screen went to the
+     * black CLEAR colour while 6 prims/frame went nowhere), and one green
+     * screen turns that inference into fact. */
+    GpuXenos_DebugClearOverride(0xFF00FF00u, 1);
+    for (frame = 0; frame < 120; frame++) {
+        GpuNv2a_FrameBegin();
+        GpuNv2a_FrameEnd();
+        GpuNv2a_WaitVbl();
+        if (frame == 2)
+            GpuXenos_DebugFbProbe("green-clear");   /* want 0xFF00FF00 x4 */
+    }
     SH_DebugLogFlush();
 
     for (frame = 0; frame < 240; frame++) {   /* ~4s at 60Hz */
@@ -146,12 +165,16 @@ void Gpu360_SelfTest(void)
         GpuNv2a_FrameEnd();
         GpuNv2a_WaitVbl();
 
+        if (frame == 2)
+            GpuXenos_DebugFbProbe("bars");   /* centre sits in the checker quad */
+
         if ((frame % 60) == 0) {
             SH_DBG("[SELFTEST] frame %d drawn", frame);
             SH_DebugLogFlush();
         }
     }
 
-    SH_DBG("[SELFTEST] done - if bars+checker appeared, the Xenos path is proven");
+    GpuXenos_DebugClearOverride(0, 0);
+    SH_DBG("[SELFTEST] done - green screen = resolve works; bars = draws work");
     SH_DebugLogFlush();
 }

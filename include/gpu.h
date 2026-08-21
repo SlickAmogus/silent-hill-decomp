@@ -144,10 +144,105 @@ typedef struct _PrimColor
 #define getTPageN(tp, abr, xn, yn) \
     ((((tp) & 0x3) << 7) | (((abr) & 0x3) << 5) | (((yn) & 0x1) << 4) | ((xn) & 0xF))
 
+/* ---------------------------------------------------------------------------
+ * SH_PRIM_FIELDWISE
+ *
+ * The "Fast" macros below pack two or four fields into one wide store. That is
+ * only ever valid on a little-endian target whose primitive structs have the
+ * PSX's exact layout, and it is wrong TWICE over anywhere else:
+ *
+ *   - Byte order. `(x & 0xFFFF) + (y << 16)` puts y in the HIGH half, which on
+ *     a big-endian machine is where x0 lives. The Xbox 360 port hit exactly
+ *     this: 1320 primitives parsed per frame and one emitted, because every 2D
+ *     primitive had x swapped with y and the oversize check rejected them.
+ *
+ *   - Alignment. This port's primitives are larger than the PSX's, so a field
+ *     the PSX had 4-aligned may not be. &SPRT.r0 lands at offset 11 here, and
+ *     MIPS does not fix up a misaligned sw -- it traps. On N64 that is an
+ *     immediate CPU exception in the Konami logo, which is how this was found.
+ *
+ * pc_port/include/gpu.h already carried this fix, but it is a DIFFERENT header:
+ * include/game.h does #include "gpu.h", and a quoted include searches the
+ * includer's own directory first, so all of src/ gets THIS file. Every game TU
+ * was therefore still using the packed versions.
+ *
+ * The little-endian definitions are left byte-for-byte unchanged so PC codegen
+ * does not move at all.
+ * ------------------------------------------------------------------------- */
+#if !defined(SH_PRIM_FIELDWISE) && \
+    (defined(__BIG_ENDIAN__) || \
+     (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__))
+#define SH_PRIM_FIELDWISE 1
+#endif
+
 /** @brief Same as `setRECT`, but uses 2x 32-bit stores instead of 4x 16-bit stores. */
+#ifdef SH_PRIM_FIELDWISE
+/* Parameters are _x/_y/_w/_h: named x/y/w/h they get substituted into the field
+ * accesses (r)->x ... and turn every call into (r)-><whatever was passed>. */
+#define setRECTFast(r, _x, _y, _w, _h) \
+    ((r)->x = (s16)(_x), (r)->y = (s16)(_y), (r)->w = (s16)(_w), (r)->h = (s16)(_h))
+#else
 #define setRECTFast(r, x, y, w, h)        \
     ((u32*)(r))[0] = ((x) | ((y) << 16)), \
     ((u32*)(r))[1] = ((w) | ((h) << 16))
+#endif
+
+#ifdef SH_PRIM_FIELDWISE
+
+#define setXY0Fast(p, x, y)  ((p)->x0 = (s16)(x), (p)->y0 = (s16)(y))
+#define setXY1Fast(p, x, y)  ((p)->x1 = (s16)(x), (p)->y1 = (s16)(y))
+#define setXY2Fast(p, x, y)  ((p)->x2 = (s16)(x), (p)->y2 = (s16)(y))
+#define setXY3Fast(p, x, y)  ((p)->x3 = (s16)(x), (p)->y3 = (s16)(y))
+
+#define setWHFast(p, _w, _h) ((p)->w = (s16)(_w), (p)->h = (s16)(_h))
+
+#define setUV0AndClut(p, u, v, cx, cy) \
+    ((p)->u0 = (u8)(u), (p)->v0 = (u8)(v), \
+     (p)->clut = (u16)((((cy) << 6) | (((cx) >> 4) & 0x3F))))
+
+/* _clut / _tpage for the same reason: a parameter named clut turns the field
+ * access (p)->clut into (p)->getClut(...) at every call site that passes one. */
+#define setUV0AndClutSum(p, u, v, _clut) \
+    ((p)->u0 = (u8)(u), (p)->v0 = (u8)(v), (p)->clut = (u16)(_clut))
+
+#define setUV1AndTPageSum(p, u, v, _tpage) \
+    ((p)->u1 = (u8)(u), (p)->v1 = (u8)(v), (p)->tpage = (u16)(_tpage))
+
+#define setUV2Sum(p, u, v)   ((p)->u2 = (u8)(u), (p)->v2 = (u8)(v))
+#define setUV3Sum(p, u, v)   ((p)->u3 = (u8)(u), (p)->v3 = (u8)(v))
+
+/* The parameter is _code, NOT code: a macro parameter is substituted even after
+ * `->`, so a parameter named `code` turns the field access `(p)->code` into
+ * `(p)->PRIM_RECT|RECT_TEXTURE` at every call site. pc_port/include/gpu.h has
+ * the same latent bug in its copy; it just never gets exercised, because these
+ * callers all resolve to THIS header. */
+#define setCodeWord(p, _code, rgb24)                      \
+    ((p)->r0 = (u8)((rgb24) & 0xFF),                      \
+     (p)->g0 = (u8)(((rgb24) >> 8) & 0xFF),               \
+     (p)->b0 = (u8)(((rgb24) >> 16) & 0xFF),              \
+     (p)->code = (u8)(_code))
+
+#define setRGBC0(prim, r, g, b, _code) \
+    ((prim)->r0 = (u8)(r), (prim)->g0 = (u8)(g), (prim)->b0 = (u8)(b), (prim)->code = (u8)(_code))
+/* The fourth byte of each colour quad is written POSITIONALLY, not by name. It
+ * is padding, and the primitives disagree on what to call it: POLY_G4 says
+ * pad1/pad2/pad3, LINE_G2 and POLY_GT4 say p1/p2/p3. A byte store also cannot
+ * trap, and on this target address order is field order, which is precisely
+ * what the PSX's little-endian packed store produced. */
+#define setRGBC1(prim, r, g, b, _code) \
+    ((prim)->r1 = (u8)(r), (prim)->g1 = (u8)(g), (prim)->b1 = (u8)(b), \
+     ((u8*)&(prim)->r1)[3] = (u8)(_code))
+#define setRGBC2(prim, r, g, b, _code) \
+    ((prim)->r2 = (u8)(r), (prim)->g2 = (u8)(g), (prim)->b2 = (u8)(b), \
+     ((u8*)&(prim)->r2)[3] = (u8)(_code))
+#define setRGBC3(prim, r, g, b, _code) \
+    ((prim)->r3 = (u8)(r), (prim)->g3 = (u8)(g), (prim)->b3 = (u8)(b), \
+     ((u8*)&(prim)->r3)[3] = (u8)(_code))
+
+#define setRGB0Fast(p, r, g, b) \
+    ((p)->r0 = (u8)(r), (p)->g0 = (u8)(g), (p)->b0 = (u8)(b))
+
+#else /* !SH_PRIM_FIELDWISE */
 
 /** @brief Same as `setXY0`, but uses 1x 32-bit store instead of 2x 16-bit stores. */
 #define setXY0Fast(p, x, y) \
@@ -217,6 +312,56 @@ typedef struct _PrimColor
 /** @brief Slightly faster `setRGB0`. */
 #define setRGB0Fast(p, r, g, b) \
     (*(u16*)&(p)->r0 = (r) + ((g) << 8), (p)->b0 = (b))
+
+#endif /* SH_PRIM_FIELDWISE */
+
+/* ---------------------------------------------------------------------------
+ * PACKED-WORD writers.
+ *
+ * The decomp writes primitive field GROUPS as one 32-bit store in ~50 places,
+ * e.g. `*(u32*)&poly->r0 = color` or `*(u32*)&sprt->u0 = u | (v<<8) | (clut<<16)`.
+ * That is the PSX's own idiom and it is exact on a little-endian machine whose
+ * primitives have the PSX's layout. It is wrong TWICE anywhere else:
+ *
+ *   - Byte order. On big-endian the low byte of the word lands at the HIGHEST
+ *     address, so a colour word puts `code` where `r0` lives and a UV word puts
+ *     the CLUT where `u0` lives. Every texture coordinate comes out garbage,
+ *     which is what "the logos draw white and untextured" actually was.
+ *
+ *   - Alignment. This port's primitives are larger than the PSX's, so a field
+ *     the PSX had 4-aligned may not be. &POLY_G4.r0 sits at offset 11 here, and
+ *     MIPS traps a misaligned sw rather than fixing it up -- an immediate CPU
+ *     exception in the title screen's fog.
+ *
+ * These decompose the packed word into the same bytes the little-endian store
+ * would have produced, then write them as fields. Use them instead of the cast.
+ *
+ * The word argument is evaluated more than once, which is safe for every call
+ * site in the tree today -- they are all side-effect-free arithmetic on locals.
+ * Check that before using one on anything with a side effect.
+ * ------------------------------------------------------------------------- */
+
+/** @brief `*(u32*)&p->r0 = w`, portably: r0,g0,b0,code. */
+#define setRGBCWord0(p, w)     setRGBC0(p, (w) & 0xFF, ((w) >> 8) & 0xFF, ((w) >> 16) & 0xFF, ((w) >> 24) & 0xFF)
+#define setRGBCWord1(p, w)     setRGBC1(p, (w) & 0xFF, ((w) >> 8) & 0xFF, ((w) >> 16) & 0xFF, ((w) >> 24) & 0xFF)
+#define setRGBCWord2(p, w)     setRGBC2(p, (w) & 0xFF, ((w) >> 8) & 0xFF, ((w) >> 16) & 0xFF, ((w) >> 24) & 0xFF)
+#define setRGBCWord3(p, w)     setRGBC3(p, (w) & 0xFF, ((w) >> 8) & 0xFF, ((w) >> 16) & 0xFF, ((w) >> 24) & 0xFF)
+
+/** @brief `*(u32*)&p->u0 = w`, portably: u0,v0,clut (clut is the upper 16). */
+#define setUV0ClutWord(p, w)     setUV0AndClutSum(p, (w) & 0xFF, ((w) >> 8) & 0xFF, ((w) >> 16) & 0xFFFF)
+
+/** @brief `*(u32*)&p->u1 = w`, portably: u1,v1,tpage (tpage is the upper 16). */
+#define setUV1TPageWord(p, w)     setUV1AndTPageSum(p, (w) & 0xFF, ((w) >> 8) & 0xFF, ((w) >> 16) & 0xFFFF)
+
+/** @brief `*(u32*)&p->w = w`, portably: w = low half, h = high half. */
+#define setWHWord(p, _w) setWHFast(p, (_w) & 0xFFFF, ((_w) >> 16) & 0xFFFF)
+
+/** @brief `*(u32*)&p->x0 = w`, portably: x0 = low half, y0 = high half. */
+#define setXY0Word(p, _w) setXY0Fast(p, (s16)((_w) & 0xFFFF), (s16)(((_w) >> 16) & 0xFFFF))
+
+/** @brief `*(u16*)&p->u2 = w` / `u3`, portably. */
+#define setUV2Word(p, w) setUV2Sum(p, (w) & 0xFF, ((w) >> 8) & 0xFF)
+#define setUV3Word(p, w) setUV3Sum(p, (w) & 0xFF, ((w) >> 8) & 0xFF)
 
 #define setRGB1Fast(p, r, g, b) \
     (*(u16*)&(p)->r1 = (r) + ((g) << 8), (p)->b1 = (b))

@@ -63,8 +63,18 @@ typedef struct {
  * would hit the very partial-line eviction cost that made vertex staging slow
  * (7c62ad599). 16-bit direct pages cannot be palettized and still use the ARGB
  * cache below; they are the rare framebuffer-feedback textures. */
+#if defined(SH_N64_PORT)
+/* An N64 has 8 MB in total and roughly 900 KB of heap left after the static
+ * image, so the Xbox's 4 MB of index pages is not a tuning choice here, it is
+ * the whole machine twice over. Four pages is 256 KB and still holds the
+ * working set of a single room's tpages; the LRU in this file was written to
+ * thrash gracefully and now gets to prove it. */
+#define PAGE_N      4                         /* 4 * 64KB = 256KB of index pages */
+#define PAL_N       16                        /* 16 * 1KB  = 16KB of palettes */
+#else
 #define PAGE_N      64                        /* 64 * 64KB = 4MB of index pages */
 #define PAL_N       128                       /* 128 * 1KB  = 128KB of palettes */
+#endif
 #define PAGE_BYTES  (TEX_DIM * TEX_DIM)
 #define PAL_ENTRIES 256
 
@@ -911,6 +921,22 @@ const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
         extern unsigned Xbox_MemFreeKB(void);
         int b, ok = 0, okp = 0;
         for (i = 0; i < TEX_DIM; i++) {        /* Morton spread tables */
+#if defined(SH_N64_PORT) || defined(SH_XBOX360_PORT)
+            /* IDENTITY, not Morton: the swizzle is an NV2A texture-memory
+             * requirement, and the RDP wants plain linear rows. Feeding it the
+             * Morton layout produced a picture of horizontally-shredded noise
+             * -- indices scattered across rows, sampling into the wrong
+             * palette entries -- that read as "texture decode broken" when the
+             * decode was fine and only the ADDRESSING was foreign. Identity
+             * tables keep the decode loop itself byte-for-byte shared.
+             * The Xbox 360 takes this branch too: gpu_xenos uploads through
+             * Xe_Surface_LockRect row-by-row, i.e. LINEAR, and Xenos does its
+             * own tiling internally -- NV2A's Morton order is exactly as
+             * foreign to it as to the RDP (the N64 session flagged this). */
+            s_swzX[i] = (unsigned)i;
+            s_swzY[i] = (unsigned)i << 8;      /* v * TEX_DIM, as an OR term */
+            (void)b;
+#else
             unsigned x = 0, y = 0;
             for (b = 0; b < 8; b++) {
                 x |= (unsigned)((i >> b) & 1) << (2 * b);
@@ -918,6 +944,7 @@ const void* PsxVram_GetPaletted(int tpage, int clut, const void** palOut)
             }
             s_swzX[i] = x;
             s_swzY[i] = y;
+#endif
         }
         for (i = 0; i < PAGE_N; i++) {
             s_pages[i].key  = -1;

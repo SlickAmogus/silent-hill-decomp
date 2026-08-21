@@ -86,12 +86,12 @@ void Screen_BackgroundImgDraw(s_FsImageDesc* image) // 0x800314EC
             if (y == 0)
             {
                 setWH(sprt, tileW, 256 - texOffsetY);
-                *((u32*)&sprt->u0) = (texOffsetY << 8) + (getClut(image->clutX, image->clutY) << 16);
+                setUV0AndClutSum(sprt, 0, texOffsetY, getClut(image->clutX, image->clutY));
             }
             else
             {
                 setWH(sprt, tileW, 256);
-                *((u32*)&sprt->u0) = getClut(image->clutX, image->clutY) << 16;
+                setUV0AndClutSum(sprt, 0, 0, getClut(image->clutX, image->clutY));
             }
 
             tileX = x << 8;
@@ -242,19 +242,19 @@ void Screen_BackgroundImgTransition(s_FsImageDesc* image0, s_FsImageDesc* image1
             setXY2Fast(poly, -160 + offsetX, 120);
             setXY3Fast(poly, offsetX + ((j != 2) ? -32 : -96), 120);
 
-            *((u32*)&poly->u0) = (image->v << 8) + (getClut(image->clutX, image->clutY) << 16);
+            setUV0AndClutSum(poly, 0, image->v, getClut(image->clutX, image->clutY));
 
             tPageY = image->tPage[1];
 
-            *((u32*)&poly->u1) = (image->v << 8) + ((j != 2) ? 128 : 64) +
-                                 (getTPage(image->tPage[0], i + 1, (image->tPage[1] + j) << 6, (tPageY << 4) & 0x100) << 16);
+            setUV1AndTPageSum(poly, (j != 2) ? 128 : 64, image->v,
+                              getTPage(image->tPage[0], i + 1, (image->tPage[1] + j) << 6, (tPageY << 4) & 0x100));
 
-            *((u16*)&poly->u2) = (image->v + 239) << 8;
-            *((u16*)&poly->u3) = ((image->v + 239) << 8) + ((j != 2) ? 128 : 64);
+            setUV2Sum(poly, 0, image->v + 239);
+            setUV3Sum(poly, (j != 2) ? 128 : 64, image->v + 239);
 
             setSemiTrans(poly, i < 2);
 
-            *((u16*)&poly->r0) = color + (color << 8);
+            (poly->r0 = (u8)(color), poly->g0 = (u8)(color));
             poly->b0           = color;
 
             addPrim(g_OrderingTable0[g_ActiveBufferIdx].org, poly);
@@ -291,19 +291,19 @@ void Screen_BackgroundImgDrawAlt(s_FsImageDesc* image) // 0x80031AAC
         setXY2Fast(poly, -160 + xOffset, 120);
         setXY3Fast(poly, xOffset + (i == 2 ? -96 : -32), 120);
 
-        *((u32*)&poly->u0) = (image->v << 8) + (getClut(image->clutX, image->clutY) << 16);
+        setUV0AndClutSum(poly, 0, image->v, getClut(image->clutX, image->clutY));
 
         tPageY = image->tPage[1];
 
-        *((u32*)&poly->u1) = (image->v << 8) + ((i == 2) ? 64 : 128) +
-                             (getTPage(image->tPage[0], 0, (image->tPage[1] + i) << 6, (tPageY << 4) & 0x100) << 16);
+        setUV1AndTPageSum(poly, (i == 2) ? 64 : 128, image->v,
+                          getTPage(image->tPage[0], 0, (image->tPage[1] + i) << 6, (tPageY << 4) & 0x100));
 
-        *((u16*)&poly->u2) = (image->v + 239) << 8;
-        *((u16*)&poly->u3) = ((image->v + 239) << 8) + ((i == 2) ? 64 : 128);
+        setUV2Sum(poly, 0, image->v + 239);
+        setUV3Sum(poly, (i == 2) ? 64 : 128, image->v + 239);
 
         setSemiTrans(poly, false);
 
-        *((u16*)&poly->r0) = g_Screen_BackgroundImgGamma + (g_Screen_BackgroundImgGamma << 8);
+        (poly->r0 = (u8)g_Screen_BackgroundImgGamma, poly->g0 = (u8)g_Screen_BackgroundImgGamma);
         poly->b0           = g_Screen_BackgroundImgGamma;
 
         addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[2], poly);
@@ -388,7 +388,7 @@ bool Screen_BackgroundMotionBlur(s32 vBlanks) // 0x80031CCC
 #else
             setWH(sprt, 256, 224);
 #endif
-            *((u32*)&sprt->u0) = texOffsetY << 8;
+            setUV0AndClutSum(sprt, 0, texOffsetY, 0);
 
             setXY0Fast(sprt, (-g_GameWork.gsScreenWidth / 2) + (j << 8), offsetY);
 

@@ -26,6 +26,7 @@
 #include <xenos/xe.h>
 #include <xenos/xenos.h>
 #include <console/console.h>
+#include <ppc/cache.h>     /* memdcbf: the fb probe must invalidate before reading */
 
 #include "gpu_nv2a.h"
 #include "sh_log.h"
@@ -388,6 +389,47 @@ static void FlushBatch(void)
     s_flushStart = s_poolUsed;
 }
 
+/* --- selftest probes ------------------------------------------------------ */
+
+/* Forcing a known clear colour makes the EDRAM->framebuffer resolve visible on
+ * its own: if the screen turns this colour, resolve and scanout are proven with
+ * no draw involved. */
+static unsigned s_clearOverride;
+static int      s_clearOverrideOn;
+
+void GpuXenos_DebugClearOverride(unsigned argb, int enable)
+{
+    s_clearOverride   = argb;
+    s_clearOverrideOn = enable;
+}
+
+/* Read pixels back from the framebuffer THE CPU WAY, so the log can say
+ * whether the GPU's resolve actually wrote memory. The dcbf is load-bearing:
+ * the console has this region cached, and without the invalidate the CPU reads
+ * its own stale copy and the probe lies. */
+void GpuXenos_DebugFbProbe(const char* tag)
+{
+    if (!s_fb) {
+        SH_DBG("[FBPROBE] %s: no framebuffer surface", tag);
+        return;
+    }
+    {
+        volatile unsigned* scanreg = (volatile unsigned*)0xec806110;
+        unsigned char*     base    = (unsigned char*)s_fb->base;
+        unsigned           off     = (unsigned)(s_fb->wpitch * (s_fb->height / 2)
+                                                + (s_fb->width / 2) * 4);
+        unsigned           px[4];
+        int                i;
+        memdcbf(base + off, 128);
+        for (i = 0; i < 4; i++)
+            px[i] = ((unsigned*)(base + off))[i];
+        SH_DBG("[FBPROBE] %s: scan=0x%08x fb.ptr=0x%08x base=%p %dx%d pitch=%d centre=%08x %08x %08x %08x",
+               tag, *scanreg, (unsigned)s_fb->ptr, (void*)base,
+               s_fb->width, s_fb->height, s_fb->wpitch,
+               px[0], px[1], px[2], px[3]);
+    }
+}
+
 void GpuNv2a_FrameBegin(void)
 {
     /* Doubles as psx_vram.c's texture-cache LRU clock, so it has to tick even
@@ -404,7 +446,8 @@ void GpuNv2a_FrameBegin(void)
 
     if (s_xe) {
         Xe_InvalidateState(s_xe);
-        Xe_SetClearColor(s_xe, GpuXbox_GetClearColor());
+        Xe_SetClearColor(s_xe, s_clearOverrideOn ? s_clearOverride
+                                                 : GpuXbox_GetClearColor());
         /* Re-assert everything AFTER the invalidate. The Set* entry points below
          * early-return when their cached value is unchanged, so without this the
          * per-frame invalidate could drop state that the game never sets again
@@ -485,13 +528,39 @@ ShVertex* GpuNv2a_BatchAlloc(int count)
     return p;
 }
 
+/* Composed ARGB copy of the current paletted page. static, not stack: 256KB. */
+static unsigned s_palComposed[GPU_TEX_MAX * GPU_TEX_MAX];
+
 void GpuNv2a_BindPaletted(const void* page, const void* palette)
 {
-    (void)page; (void)palette;
-    /* The paletted path decodes through psx_vram's cache before reaching us, so
-     * there is nothing to bind separately until that cache hands over a
-     * XenosSurface. Counted so the log still shows the path is exercised. */
-    s_texBindsThisFrame++;
+    /* This used to be a stub that COUNTED the bind and bound nothing, which is
+     * worse than either alternative: the batch kept drawing with whatever was
+     * bound before, and the census said texturing was exercised when it never
+     * was. Xenos has no NV2A-style palette stage in this backend, so compose
+     * CPU-side: the page is 256x256 8-bit indices -- LINEAR now, psx_vram's
+     * Morton tables are identity on this port -- and the palette is 256 ARGB
+     * words, exactly what the ARGB upload path already takes.
+     *
+     * Composed on EVERY call rather than memoised on the pointers: psx_vram's
+     * caches reuse slot memory on eviction, so "same pointers" does not imply
+     * "same content". The call site in gpu_xbox.c already suppresses
+     * per-primitive rebinds, so this runs once per texture CHANGE, not per
+     * prim. */
+    const unsigned char* idx = (const unsigned char*)page;
+    const unsigned*      pal = (const unsigned*)palette;
+    int i;
+
+    if (!page || !palette) {
+        GpuNv2a_BindWhite();
+        return;
+    }
+    for (i = 0; i < GPU_TEX_MAX * GPU_TEX_MAX; i++)
+        s_palComposed[i] = pal[idx[i]];
+
+    /* Force the upload even if the last bind was also this buffer: the compose
+     * above may have produced different pixels at the same address. */
+    s_texAddr = NULL;
+    GpuNv2a_BindTexture(s_palComposed, GPU_TEX_MAX, GPU_TEX_MAX);
 }
 
 void GpuNv2a_BindTexture(const void* addr, int w, int h)

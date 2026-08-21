@@ -1,0 +1,675 @@
+[BOOT] Silent Hill 360, timebase=1273508663
+[BOOT] root='uda:/silenthill/' bin='Silent Hill (USA).bin' found=1
+[CRASH] console tee armed (libXenon exception reports will be logged)
+[CFG] config file: uda:/silenthill/silenthill.cfg
+[CFG] key='control_style'(13) value='tps'
+[GTE] RotTransPers v(64,32,512) -> sx=352 sy=256 sz=128 flag=0x1000 (expect sx=352 sy=256)
+[CD] bin open: 'uda:/silenthill/Silent Hill (USA).bin'
+[CD] BIN: uda:/silenthill/Silent Hill (USA).bin
+[CD] PVD id='CD001' (expect CD001)
+[GPU] Xe up: framebuffer 1280x720
+[GPU] using embedded shaders (vs=392 ps=420 bytes)
+[GPU] shaders loaded and instantiated
+[GPU] textures ready, renderer ARMED
+[GPU] xenos backend: 32768-vertex pool, 64 B/vertex
+[PAD] libxenon usb up
+[MCRD] card path = uda:/silenthill/save/0.MCD
+[BOOT] PSX RAM @ 0x81280200
+[BOOT] game data initialised
+[AUD] xenon_sound up: 48000 Hz stereo, 256-frame chunks
+[BOOT] subsystems up; entering MainLoop
+[SELFTEST] start: 640x480 content, 64x64 checker
+[GPU] frame=0 prims=6 verts=36 draws=3 texbind=1 blend=0 scissor=0 ready=1
+[SELFTEST] frame 0 drawn
+[GPU] frame=60 prims=6 verts=36 draws=3 texbind=1 blend=0 scissor=0 ready=1
+[SELFTEST] frame 60 drawn
+[GPU] frame=120 prims=6 verts=36 draws=3 texbind=1 blend=0 scissor=0 ready=1
+[SELFTEST] frame 120 drawn
+[GPU] frame=180 prims=6 verts=36 draws=3 texbind=1 blend=0 scissor=0 ready=1
+[SELFTEST] frame 180 drawn
+[SELFTEST] done - if bars+checker appeared, the Xenos path is proven
+[SH-XBOX] layout check ok: sizeof(s_SysWork)=38584 sizeof(s_GameWork)=1496
+[PAD] PadInitDirect buf=0x815998e4
+[ARENA] buf0=0x82111188 buf1=0x823111d0
+[SH-XBOX] GameState -> 0 (step 0)
+[MCFSM] state=0 step=0 (was -1/-1 after 0 f)
+[VIB] vibrationEnabled = 0 (0 = off; Options 'Vibration' row)
+[PAD] buttons=F1FF
+[GPU] frame=240 prims=0 verts=0 draws=0 texbind=0 blend=0 scissor=0 ready=1
+[OT] DrawOTag head=0x8158f12f (walking; per-node trace off)
+[OT] walk done after 2048 nodes (cap hit=0)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=0 -> IOE (n=1)
+[PAD] buttons=FFFF
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=0 -> IOE (n=2)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=0 -> IOE (n=1)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=0 -> IOE (n=1)
+[PAD] buttons=FF3F
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[LOOSE/INIT] allow_loose_files=0  base=gamedata/load/  verbose=no
+[PAD] buttons=FFFF
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=0 (n=1)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=6 'FONT16.TIM' ss=0x287 img.u=0 img.v=240 tPage=0,16 clutX=304 clutY=511
+[BOOT0/TIM] post ReadTIM: prect=0x81462838 caddr=0x81462814 paddr=0x81462840 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(0,496 256x16)
+[FONTCLOB] Load x=0 y=496 w=256 h=16
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,511 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=1 -> IOE (n=3)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[BOOT0/TIM] PostLoadTim file=8 'KONAMI.TIM' ss=0x28e img.u=0 img.v=0 tPage=0,12 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0x81462838 caddr=0x81462814 paddr=0x81462840 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 96x384)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=1 -> IOE (n=4)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=1 -> IOE (n=2)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=1 -> IOE (n=2)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=1 (n=2)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[SH-XBOX] GameState -> 1 (step 0)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=2 -> IOE (n=5)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=2 -> IOE (n=6)
+[BOOT0/TIM] PostLoadTim file=9 'KONAMI2.TIM' ss=0x2b3 img.u=0 img.v=0 tPage=0,14 clutX=0 clutY=1
+[BOOT0/TIM] post ReadTIM: prect=0x81462838 caddr=0x81462814 paddr=0x81462840 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(896,0 104x160)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,1 16x1)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=2 -> IOE (n=3)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=2 -> IOE (n=3)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=2 (n=3)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=3 -> IOE (n=7)
+[BOOT0/TIM] PostLoadTim file=1423 'HERO.TIM' ss=0x5a6a img.u=0 img.v=0 tPage=0,27 clutX=736 clutY=480
+[BOOT0/TIM] post ReadTIM: prect=0x814629f8 caddr=0x81462814 paddr=0x81462a00 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,256 64x192)
+[BOOT0/TIM] pre CLUT LoadImage rect=(736,480 16x15)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=3 -> IOE (n=8)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=3 -> IOE (n=4)
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=3 -> IOE (n=4)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=3 (n=4)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[BOOT0/TIM] PostLoadTim file=1802 'BLD.TIM' ss=0x795b img.u=0 img.v=0 tPage=0,11 clutX=304 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0x8146d218 caddr=0x8146d014 paddr=0x8146d220 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(704,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(304,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=16 -> IOE (n=9)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=16 -> IOE (n=10)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=2 step=0 (was 1/2 after 0 f)
+[MCRD] card_clear chan=16 -> IOE (n=5)
+[GPU] frame=300 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[MCFSM] state=2 step=2 (was 2/0 after 0 f)
+[MCFSM] state=3 step=0 (was 2/2 after 0 f)
+[MCRD] card_load chan=16 -> IOE (n=5)
+[MCFSM] state=3 step=2 (was 3/0 after 0 f)
+[MCFSM] state=4 step=0 (was 3/2 after 0 f)
+[MCRD] dir scan chan=8 (n=5)
+[MCFSM] state=0 step=0 (was 4/0 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=17 -> IOE (n=11)
+[MCFSM] state=1 step=2 (was 1/0 after 0 f)
+[MCFSM] state=0 step=0 (was 1/2 after 0 f)
+[MCFSM] state=1 step=0 (was 0/0 after 0 f)
+[MCRD] card_info chan=17 -> IOE (n=12)
+[MCRD] card_clear chan=17 -> IOE (n=6)
+[MCRD] card_load chan=17 -> IOE (n=6)
+[MCRD] dir scan chan=9 (n=6)
+[MCRD] card_info chan=18 -> IOE (n=13)
+[MCRD] card_info chan=18 -> IOE (n=14)
+[MCRD] card_clear chan=18 -> IOE (n=7)
+[MCRD] card_load chan=18 -> IOE (n=7)
+[MCRD] dir scan chan=10 (n=7)
+[MCRD] card_info chan=19 -> IOE (n=15)
+[MCRD] card_info chan=19 -> IOE (n=16)
+[MCRD] card_clear chan=19 -> IOE (n=8)
+[MCRD] card_load chan=19 -> IOE (n=8)
+[MCRD] dir scan chan=11 (n=8)
+[OTS] f=360 calls=2 n0=27 n1=18 prims=1041 bb=-320,2240,-274,754
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=111 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=0 texUs=0 emitUs=0 submitUs=0 otherUs=0 prims=1 usPerPrim=0
+[GPU] frame=360 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=420 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=480 calls=1 n0=27 n1=18 prims=1320 bb=0,1280,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=120 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=1 texUs=0 emitUs=0 submitUs=0 otherUs=0 prims=1 usPerPrim=1
+[GPU] frame=480 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=540 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=600 calls=1 n0=27 n1=18 prims=1314 bb=0,1280,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=117 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=0 texUs=0 emitUs=0 submitUs=0 otherUs=0 prims=1 usPerPrim=0
+[GPU] frame=600 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=660 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=720 calls=1 n0=27 n1=18 prims=1320 bb=0,1280,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=120 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=0 texUs=0 emitUs=0 submitUs=0 otherUs=0 prims=1 usPerPrim=0
+[GPU] frame=720 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=780 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[SH-XBOX] vblank 600
+[MEM] tick: used=9608KB arena=14028KB
+[OTS] f=840 calls=1 n0=27 n1=18 prims=1320 bb=0,1280,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=120 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=0 texUs=0 emitUs=0 submitUs=0 otherUs=0 prims=1 usPerPrim=0
+[GPU] frame=840 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=900 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[SH-XBOX] GameState -> 2 (step 0)
+[BOOT0/TIM] PostLoadTim file=1799 'BG_ETC.TIM' ss=0x7906 img.u=0 img.v=0 tPage=0,12 clutX=192 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0x81462978 caddr=0x81462814 paddr=0x81462980 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,0 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(192,0 16x11)
+[BOOT0/TIM] PostLoadTim done
+[OTS] f=960 calls=2 n0=23 n1=18 prims=1077 bb=0,1280,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=118 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=0 texUs=0 emitUs=0 submitUs=0 otherUs=0 prims=1 usPerPrim=0
+[GPU] frame=960 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=1020 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[MCRD] card_info chan=19 -> IOE (n=256)
+[OTS] f=1080 calls=1 n0=23 n1=18 prims=840 bb=0,1280,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=120 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=0 texUs=0 emitUs=0 submitUs=0 otherUs=0 prims=1 usPerPrim=0
+[GPU] frame=1080 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=1140 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=1200 calls=1 n0=23 n1=18 prims=840 bb=0,1280,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=120 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=0 texUs=0 emitUs=0 submitUs=0 otherUs=0 prims=1 usPerPrim=0
+[GPU] frame=1200 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[VIB] vibrationEnabled = 128 (0 = off; Options 'Vibration' row)
+[GPU] frame=1260 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=1320 calls=1 n0=23 n1=18 prims=811 bb=0,1280,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=113 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=0 texUs=0 emitUs=0 submitUs=0 otherUs=0 prims=1 usPerPrim=0
+[GPU] frame=1320 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=1380 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[SH-XBOX] vblank 1200
+[MEM] tick: used=9862KB arena=16396KB
+[OTS] f=1440 calls=1 n0=23 n1=18 prims=840 bb=0,1280,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=120 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=0 texUs=0 emitUs=0 submitUs=0 otherUs=0 prims=1 usPerPrim=0
+[GPU] frame=1440 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=1500 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[BOOT0/TIM] PostLoadTim file=1980 'TITLE_E.TIM' ss=0x90b7 img.u=32 img.v=0 tPage=1,13 clutX=224 clutY=15
+[BOOT0/TIM] post ReadTIM: prect=0x81432a18 caddr=0x81432814 paddr=0x81432a20 mode=9
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 160x480)
+[BOOT0/TIM] pre CLUT LoadImage rect=(224,15 256x1)
+[BOOT0/TIM] PostLoadTim done
+[SH-XBOX] GameState -> 6 (step 0)
+[SH] open_main: playing FMV (file=2053 frames=0)
+[GPU] frame=1560 prims=0 verts=0 draws=0 texbind=0 blend=0 scissor=0 ready=1
+[FMV] stub: movie 2053 skipped, no 360 decoder yet
+[SH] open_main: FMV_Play returned
+[OTS] f=1560 calls=2 n0=2048 n1=18 prims=744 bb=-320,2240,-274,754
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=107 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=9 texUs=0 emitUs=0 submitUs=0 otherUs=9 prims=1 usPerPrim=9
+[SH-XBOX] GameState -> 7 (step 0)
+[BOOT-STEP] GameStartup step=0 qlen=0
+[TRANSITION] GameStartup step=0: processFlags=0x20 (BootDemo) sizeof(s_WorldGfxWork)=zu
+[OVERSIZE] n=4 span=(24773,19712) x=[144..24917] y=[248..19960] v0=(24917,19960) v1=(160,248)
+[OVERSIZE] n=4 span=(19913,16384) x=[128..20041] y=[248..16632] v0=(20041,16632) v1=(144,248)
+[OVERSIZE] n=4 span=(21982,17664) x=[112..22094] y=[248..17912] v0=(22094,17912) v1=(128,248)
+[OVERSIZE] n=4 span=(24308,19200) x=[96..24404] y=[248..19448] v0=(24404,19448) v1=(112,248)
+[OVERSIZE] n=4 span=(20730,16896) x=[80..20810] y=[248..17144] v0=(20810,17144) v1=(96,248)
+[OVERSIZE] n=4 span=(17153,14592) x=[64..17217] y=[248..14840] v0=(17217,14840) v1=(80,248)
+[OVERSIZE] n=4 span=(19993,16384) x=[48..20041] y=[248..16632] v0=(20041,16632) v1=(64,248)
+[OVERSIZE] n=4 span=(21035,16896) x=[32..21067] y=[248..17144] v0=(21067,17144) v1=(48,248)
+[OVERSIZE] n=4 span=(19254,15872) x=[16..19270] y=[248..16120] v0=(19270,16120) v1=(32,248)
+[OVERSIZE] n=4 span=(19527,16128) x=[0..19527] y=[248..16376] v0=(19527,16376) v1=(16,248)
+[OVERSIZE] n=4 span=(19543,16128) x=[-16..19527] y=[248..16376] v0=(19527,16376) v1=(0,248)
+[OVERSIZE] n=4 span=(25719,20224) x=[-32..25687] y=[248..20472] v0=(25687,20472) v1=(-16,248)
+[BOOT-STEP] GameStartup step=1 qlen=0
+[GPU] frame=1620 prims=67 verts=402 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=1680 calls=2 n0=2056 n1=271 prims=30542 bb=-320,2240,-274,1028
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=17 q=0 lines=0 unk=0 oversize=17761
+[OTT] walkUs=30 texUs=0 emitUs=2 submitUs=0 otherUs=28 prims=39 usPerPrim=0
+[GPU] frame=1680 prims=39 verts=234 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=1740 prims=41 verts=246 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=1800 calls=2 n0=2056 n1=271 prims=31560 bb=0,834,248,600
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=0 q=0 lines=0 unk=0 oversize=21507
+[OTT] walkUs=31 texUs=0 emitUs=2 submitUs=0 otherUs=28 prims=42 usPerPrim=0
+[GPU] frame=1800 prims=42 verts=252 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[MCRD] card_info chan=19 -> IOE (n=512)
+[GPU] frame=1860 prims=42 verts=252 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=1920 calls=2 n0=2056 n1=271 prims=31560 bb=0,834,248,600
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=0 q=0 lines=0 unk=0 oversize=21494
+[OTT] walkUs=31 texUs=0 emitUs=2 submitUs=0 otherUs=28 prims=43 usPerPrim=0
+[GPU] frame=1920 prims=43 verts=258 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=1980 prims=43 verts=258 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[SH-XBOX] vblank 1800
+[MEM] tick: used=18397KB arena=26404KB
+[OTS] f=2040 calls=2 n0=2056 n1=271 prims=31560 bb=0,834,248,574
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=0 q=0 lines=0 unk=0 oversize=21410
+[OTT] walkUs=30 texUs=0 emitUs=2 submitUs=0 otherUs=28 prims=38 usPerPrim=0
+[GPU] frame=2040 prims=38 verts=228 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=2100 prims=38 verts=228 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=2160 calls=2 n0=2056 n1=271 prims=31560 bb=0,834,248,600
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=0 q=0 lines=0 unk=0 oversize=21990
+[OTT] walkUs=27 texUs=0 emitUs=1 submitUs=0 otherUs=26 prims=28 usPerPrim=0
+[GPU] frame=2160 prims=28 verts=168 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=2220 prims=28 verts=168 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=2280 calls=2 n0=2056 n1=271 prims=31560 bb=0,834,248,574
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=0 q=0 lines=0 unk=0 oversize=22562
+[OTT] walkUs=31 texUs=0 emitUs=2 submitUs=0 otherUs=28 prims=41 usPerPrim=0
+[GPU] frame=2280 prims=41 verts=246 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=2340 prims=31 verts=186 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=2400 calls=2 n0=2056 n1=271 prims=31560 bb=0,834,248,574
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=0 q=0 lines=0 unk=0 oversize=22454
+[OTT] walkUs=29 texUs=0 emitUs=1 submitUs=0 otherUs=27 prims=32 usPerPrim=0
+[GPU] frame=2400 prims=32 verts=192 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=2460 prims=32 verts=192 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=2520 calls=2 n0=2056 n1=271 prims=31560 bb=0,834,248,548
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=0 q=0 lines=0 unk=0 oversize=22530
+[OTT] walkUs=30 texUs=0 emitUs=2 submitUs=0 otherUs=28 prims=37 usPerPrim=0
+[GPU] frame=2520 prims=37 verts=222 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=2580 prims=37 verts=222 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[MCRD] card_info chan=19 -> IOE (n=768)
+[SH-XBOX] vblank 2400
+[MEM] tick: used=26099KB arena=35416KB
+[OTS] f=2640 calls=2 n0=2056 n1=271 prims=31560 bb=0,834,248,548
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=0 q=0 lines=0 unk=0 oversize=22015
+[OTT] walkUs=29 texUs=0 emitUs=1 submitUs=0 otherUs=27 prims=32 usPerPrim=0
+[GPU] frame=2640 prims=32 verts=192 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=2700 prims=27 verts=162 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=2760 calls=2 n0=2056 n1=271 prims=31560 bb=0,834,248,548
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=0 add=0 sub=0 q=0 lines=0 unk=0 oversize=22865
+[OTT] walkUs=29 texUs=0 emitUs=1 submitUs=0 otherUs=27 prims=32 usPerPrim=0
+[GPU] frame=2760 prims=32 verts=192 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[RESPOOL] reserved 34/34 slabs (1088KB pixels + 272KB cluts), free=28828KB
+[CHARA-TEX] charaId=1 matCount=1 modelCount=23
+[CHARA-TEX] mat[0] name='HERO' field_C=1 E=0x3b F=0x3b clut=0x782e UV=0x0000 tex=0x0
+[CHARA-TEX] prim0: f0=0x5b13(UV0) f2=0xb830(clut) f4=0x5116(UV1) f6=0x3b00(tpage) f8=0x5112(UV2) fA=0x0000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,27] u=0 v=0 clutXY=(736,480)
+[AUTO-EQUIP-CHECK] mapIdx=10 processFlags=0x20 inventorySlotCount=8 equippedWeapon=160
+[MAP-LOAD] GameBoot_MapLoad mapIdx=10 (map2_s00) fileIdx=2005 linked=1 procFlags=0x20
+[MAP-LOAD] map2_s00: nulled 1 raw PSX addrs in overlay header
+[MAP-LOAD] MapRegistry_Load(10)=map2_s00 linked=1 header=8057252c
+[MEM] after map-load: used=28829KB arena=38316KB
+[LANG] USA disc-patch skipped on Xbox (compiled text kept)
+[BOOT-STEP] GameStartup step=2 qlen=1
+[BOOT-STEP] GameStartup step=3 qlen=1
+[BOOT-STEP] GameStartup step=4 qlen=0
+[BOOT-STEP] GameStartup step=5 qlen=0
+[BOOT-STEP] GameStartup step=6 qlen=6
+[BOOT0/TIM] PostLoadTim file=1449 'REBIRD.TIM' ss=0x5b2c img.u=0 img.v=0 tPage=0,28 clutX=704 clutY=464
+[BOOT0/TIM] post ReadTIM: prect=0x814628d8 caddr=0x81462814 paddr=0x814628e0 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,256 32x128)
+[BOOT0/TIM] pre CLUT LoadImage rect=(704,464 16x6)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1415 'DOG.TIM' ss=0x5a47 img.u=0 img.v=128 tPage=0,28 clutX=720 clutY=464
+[BOOT0/TIM] post ReadTIM: prect=0x814628b8 caddr=0x81462814 paddr=0x814628c0 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(768,384 32x128)
+[BOOT0/TIM] pre CLUT LoadImage rect=(720,464 16x5)
+[BOOT0/TIM] PostLoadTim done
+[GPU] frame=2820 prims=51 verts=306 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[BOOT-STEP] GameStartup step=7 qlen=0
+[TRANSITION] GameStartup step=7: processFlags=0x20 playerPos=(638949,0,529306) func_80039F90=0x0
+[IPD-INIT] Ipd_MapFileInfoSet: mapTag='THR' activeIpdCount=4 isExterior=1 plmIdx=1370 ipdFileIdx=0 textureFileIdx=0 curSize=0 willRebuildGrid=1
+[MEM] after chunk-buffers: used=31313KB arena=40892KB
+[TRANSITION] GameStartup step=7 post-init: playerPos=(638949,0,529306) mapTag='THR'
+[BOOT-STEP] GameStartup step=8 qlen=7
+[BOOT0/TIM] PostLoadTim file=1073 'THR0001F.TIM' ss=0x45d8 img.u=0 img.v=0 tPage=0,8 clutX=0 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0x8146c8d8 caddr=0x8146c814 paddr=0x8146c8e0 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,0 16x6)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (512,0 64x256) hits PINNED pool slot 0 'THR0001F' (512,0)
+[BOOT0/TIM] PostLoadTim file=1077 'THR0003F.TIM' ss=0x4625 img.u=0 img.v=0 tPage=0,9 clutX=16 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0x8146c9d8 caddr=0x8146c814 paddr=0x8146c9e0 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(576,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(16,0 16x14)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (576,0 64x256) hits PINNED pool slot 1 'THR0003F' (576,0)
+[BOOT0/TIM] PostLoadTim file=1075 'THR0002F.TIM' ss=0x45fe img.u=0 img.v=0 tPage=0,10 clutX=32 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0x8146c958 caddr=0x8146c814 paddr=0x8146c960 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(640,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(32,0 16x10)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (640,0 64x256) hits PINNED pool slot 2 'THR0002F' (640,0)
+[BOOT0/TIM] PostLoadTim file=1079 'THR0004F.TIM' ss=0x4644 img.u=0 img.v=0 tPage=0,21 clutX=48 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0x8146ca18 caddr=0x8146c814 paddr=0x8146ca20 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(320,256 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(48,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[POOLSTOMP] upload (320,256 64x256) hits PINNED pool slot 3 'THR0004F' (320,256)
+[BOOT0/TIM] PostLoadTim file=1171 'THR3901F.TIM' ss=0x4c48 img.u=0 img.v=0 tPage=0,8 clutX=0 clutY=512
+[BOOT0/TIM] post ReadTIM: prect=0x8146c898 caddr=0x8146c814 paddr=0x8146c8a0 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,512 16x4)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1165 'THR3501F.TIM' ss=0x4bf2 img.u=0 img.v=0 tPage=0,8 clutX=16 clutY=512
+[BOOT0/TIM] post ReadTIM: prect=0x8146ca18 caddr=0x8146c814 paddr=0x8146ca20 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(16,512 16x16)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1200 'THR6501F.TIM' ss=0x4df5 img.u=0 img.v=0 tPage=0,8 clutX=32 clutY=512
+[BOOT0/TIM] post ReadTIM: prect=0x8146c8b8 caddr=0x8146c814 paddr=0x8146c8c0 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(32,512 16x5)
+[BOOT0/TIM] PostLoadTim done
+[TEXVRAM] 'THR0001F' tPage=[0,8] clutXY=(0,0) uv=(0,0)
+[TEXVRAM] 'THR0003F' tPage=[0,9] clutXY=(16,0) uv=(0,0)
+[TEXVRAM] 'THR0002F' tPage=[0,10] clutXY=(32,0) uv=(0,0)
+[TEXVRAM] 'THR0004F' tPage=[0,21] clutXY=(48,0) uv=(0,0)
+[TEXVRAM] 'THR3901F' tPage=[0,8] clutXY=(0,512) uv=(0,0)
+[TEXVRAM] 'THR3501F' tPage=[0,8] clutXY=(16,512) uv=(0,0)
+[TEXVRAM] 'THR6501F' tPage=[0,8] clutXY=(32,512) uv=(0,0)
+[BOOT-STEP] GameStartup step=9 qlen=0
+[SH-XBOX] GameState -> 10 (step 10)
+[BOOT-STEP] GameStartup step=10 qlen=0
+[DEMO] start: demoId=0 playFile=1618 interval=0
+[VIB] vibrationEnabled = 0 (0 = off; Options 'Vibration' row)
+[SH_AMB] Sd_AmbientSfxSet idx=4 -> loadCmd=204
+[SH_AMB] Sd_VabLoad ambient cmd=204 type=2 dedup=0
+[BOOT-STEP] GameStartup step=11 qlen=0
+[CHARA-TEX] charaId=2 matCount=1 modelCount=16
+[CHARA-TEX] mat[0] name='REBIRD' field_C=1 E=0x5c F=0x5c clut=0x742c UV=0x0000 tex=0x0
+[CHARA-TEX] prim0: f0=0x7129(UV0) f2=0xf42c(clut) f4=0x6a1d(UV1) f6=0x5c00(tpage) f8=0x7720(UV2) fA=0x0000(UV3)
+[CHARA-TEX] texDesc: tPage=[0,28] u=0 v=0 clutXY=(704,464)
+[CHARA-TEX] charaId=4 matCount=1 modelCount=22
+[CHARA-TEX] mat[0] name='DOG' field_C=1 E=0x5c F=0x5c clut=0x742d UV=0x0080 tex=0x0
+[CHARA-TEX] prim0: f0=0x2bce(UV0) f2=0x742d(clut) f4=0x2ec0(UV1) f6=0x5c00(tpage) f8=0x2fcd(UV2) fA=0x0080(UV3)
+[CHARA-TEX] texDesc: tPage=[0,28] u=0 v=128 clutXY=(720,464)
+[SFX] Sd_SfxStop: sfxId=1300 (Sfx_Base+20)
+[SFX] Sd_SfxStop: sfxId=1302 (Sfx_Base+22)
+[SFX] Sd_SfxStop: sfxId=1301 (Sfx_Base+21)
+[SFX] Sd_SfxStop: sfxId=1303 (Sfx_Base+23)
+[SFX] Sd_SfxStop: sfxId=1321 (Sfx_Base+41)
+[SFX] Sd_SfxStop: sfxId=1322 (Sfx_Base+42)
+[WEP_DBG] handgun pre-copy D_800AFBF4[6]: sfx0=1283 sfx2=1284 sfx4=1285 aim6=66 att7=72 hold8=61 f9=37 fA=37 fB=0 sizeof=12
+[WEP_DBG] handgun post-copy g_Player_EquippedWeaponInfo: sfx0=1283 sfx2=1284 sfx4=1285 aim6=66 att7=72 hold8=61 f9=37 fA=37 fB=0 sizeof=12
+[RELOAD_KF] weap=32 blendStart=-1 blendEnd=605 activeEnd=658
+[WEP_LOAD] weaponAttack=32 FS_BUFFER_12=0x813a03b4 — queuing weapon ANM
+[WEP_LOAD] post-load FS_BUFFER_12 first 16 bytes: 00 fa 00 7f ff fd 01 7f fe 03 02 7f 7f 01 01 ff
+[WEP_LOAD] HARRY_BASE_ANIM_INFOS[56] status=56 hasVar=0 link=57 sk=-1 ek=570
+[WEP_LOAD] HARRY_BASE_ANIM_INFOS[57] status=57 hasVar=0 link=57 sk=570 ek=579
+[WEP_LOAD] g_Player_EquippedWeaponInfo: attackSfx=1283 animStop=66 animAttack=72 animHold=61 sizeof=12
+[BOOT0/TIM] PostLoadTim file=1505 'TIM00.TIM' ss=0x5dcb img.u=0 img.v=0 tPage=0,15 clutX=176 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0x81462a18 caddr=0x81462814 paddr=0x81462a20 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(960,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(176,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[BOOT-STEP] GameStartup step=12 qlen=2
+[SH-XBOX] GameState -> 11 (step 0)
+[BOOT0/TIM] PostLoadTim file=1514 'TIM07.TIM' ss=0x5e64 img.u=32 img.v=0 tPage=0,13 clutX=240 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0x81462918 caddr=0x81462814 paddr=0x81462920 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(864,0 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(240,0 16x8)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1509 'TIM02.TIM' ss=0x5e0f img.u=0 img.v=0 tPage=0,14 clutX=160 clutY=0
+[BOOT0/TIM] post ReadTIM: prect=0x81462a18 caddr=0x81462814 paddr=0x81462a20 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(896,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(160,0 16x16)
+[BOOT0/TIM] PostLoadTim done
+[BGM] ChannelSet bgmIdx=6 cmd=773
+[BOOT0/TIM] PostLoadTim file=1198 'THR6401F.TIM' ss=0x4ddb img.u=0 img.v=0 tPage=0,8 clutX=48 clutY=512
+[BOOT0/TIM] post ReadTIM: prect=0x8146c9b8 caddr=0x8146c814 paddr=0x8146c9c0 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(48,512 16x13)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1199 'THR6402H.TIM' ss=0x4dec img.u=0 img.v=0 tPage=0,26 clutX=0 clutY=560
+[BOOT0/TIM] post ReadTIM: prect=0x8146c938 caddr=0x8146c814 paddr=0x8146c940 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(640,256 32x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(0,560 16x9)
+[BOOT0/TIM] PostLoadTim done
+[TEXVRAM] 'THR6401F' tPage=[0,8] clutXY=(48,512) uv=(0,0)
+[TEXVRAM] 'THR6402H' tPage=[0,26] clutXY=(0,560) uv=(0,0)
+[OTS] f=2880 calls=2 n0=2049 n1=16 prims=14802 bb=-320,2240,-274,754
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=28 add=0 sub=11 q=0 lines=0 unk=0 oversize=9927
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=2880 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=2940 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=3000 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=3000 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[SFX] Sd_PlaySfx: sfxId=1283 (Sfx_Base+3) vol=0
+[GPU] frame=3060 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=3120 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=3120 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=3180 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[SH-XBOX] vblank 3600
+[MEM] tick: used=31619KB arena=42464KB
+[OTS] f=3240 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=3240 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=3300 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=3360 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=3360 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=3420 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[CHNK] n=4 s0=3,2,st2 s1=3,3,st3 s2=4,3,st2 s3=4,2,st2
+[OTS] f=3480 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=3480 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=3540 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[IPD-DRAW] VOID playerCellDrawn=0 total=4 loaded=0 cellMatch=0 mapCell=(3,4) tag=THR
+[IPD-DRAW]   slot=0 cell=(3,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=1 cell=(3,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=2 cell=(4,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=3 cell=(4,2) loadState=2 qState=2 isLoaded=1
+[SH-XBOX] vblank 4800
+[MEM] tick: used=31792KB arena=44064KB
+[OTS] f=3600 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=3600 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[IPD-DRAW] VOID playerCellDrawn=0 total=4 loaded=0 cellMatch=0 mapCell=(3,4) tag=THR
+[IPD-DRAW]   slot=0 cell=(3,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=1 cell=(3,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=2 cell=(4,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=3 cell=(4,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW] VOID playerCellDrawn=0 total=4 loaded=0 cellMatch=0 mapCell=(3,4) tag=THR
+[IPD-DRAW]   slot=0 cell=(3,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=1 cell=(3,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=2 cell=(4,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=3 cell=(4,2) loadState=2 qState=2 isLoaded=1
+[GPU] frame=3660 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[IPD-DRAW] VOID playerCellDrawn=0 total=4 loaded=0 cellMatch=0 mapCell=(3,4) tag=THR
+[IPD-DRAW]   slot=0 cell=(3,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=1 cell=(3,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=2 cell=(4,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=3 cell=(4,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW] VOID playerCellDrawn=0 total=4 loaded=0 cellMatch=0 mapCell=(3,4) tag=THR
+[IPD-DRAW]   slot=0 cell=(3,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=1 cell=(3,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=2 cell=(4,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=3 cell=(4,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW] VOID playerCellDrawn=0 total=4 loaded=0 cellMatch=0 mapCell=(3,4) tag=THR
+[IPD-DRAW]   slot=0 cell=(3,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=1 cell=(3,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=2 cell=(4,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=3 cell=(4,2) loadState=2 qState=2 isLoaded=1
+[OTS] f=3720 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=3720 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[IPD-DRAW] VOID playerCellDrawn=0 total=4 loaded=0 cellMatch=0 mapCell=(3,4) tag=THR
+[IPD-DRAW]   slot=0 cell=(3,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=1 cell=(3,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=2 cell=(4,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=3 cell=(4,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW] VOID playerCellDrawn=0 total=4 loaded=0 cellMatch=0 mapCell=(3,4) tag=THR
+[IPD-DRAW]   slot=0 cell=(3,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=1 cell=(3,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=2 cell=(4,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=3 cell=(4,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW] VOID playerCellDrawn=0 total=4 loaded=0 cellMatch=0 mapCell=(3,4) tag=THR
+[IPD-DRAW]   slot=0 cell=(3,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=1 cell=(3,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=2 cell=(4,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=3 cell=(4,2) loadState=2 qState=2 isLoaded=1
+[GPU] frame=3780 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[IPD-DRAW] VOID playerCellDrawn=0 total=4 loaded=0 cellMatch=0 mapCell=(3,4) tag=THR
+[IPD-DRAW]   slot=0 cell=(3,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=1 cell=(3,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=2 cell=(4,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=3 cell=(4,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW] VOID playerCellDrawn=0 total=4 loaded=0 cellMatch=0 mapCell=(3,4) tag=THR
+[IPD-DRAW]   slot=0 cell=(3,2) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=1 cell=(3,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=2 cell=(4,3) loadState=2 qState=2 isLoaded=1
+[IPD-DRAW]   slot=3 cell=(3,5) loadState=2 qState=2 isLoaded=1
+[BOOT0/TIM] PostLoadTim file=1106 'THR02HMF.TIM' ss=0x484f img.u=0 img.v=0 tPage=0,8 clutX=64 clutY=512
+[BOOT0/TIM] post ReadTIM: prect=0x8146c978 caddr=0x8146c814 paddr=0x8146c980 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(64,512 16x11)
+[BOOT0/TIM] PostLoadTim done
+[BOOT0/TIM] PostLoadTim file=1105 'THR02H2F.TIM' ss=0x483e img.u=0 img.v=0 tPage=0,8 clutX=80 clutY=512
+[BOOT0/TIM] post ReadTIM: prect=0x8146ca18 caddr=0x8146c814 paddr=0x8146ca20 mode=8
+[BOOT0/TIM] pre pixel LoadImage rect=(512,0 64x256)
+[BOOT0/TIM] pre CLUT LoadImage rect=(80,512 16x16)
+[BOOT0/TIM] PostLoadTim done
+[TEXVRAM] 'THR02HMF' tPage=[0,8] clutXY=(64,512) uv=(0,0)
+[TEXVRAM] 'THR02H2F' tPage=[0,8] clutXY=(80,512) uv=(0,0)
+[OTS] f=3840 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=3840 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=3900 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=3960 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=3960 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=4020 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[CHNK] n=4 s0=3,2,st2 s1=3,3,st2 s2=4,3,st2 s3=3,5,st3
+[OTS] f=4080 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=4080 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=4140 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=4200 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=4200 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=4260 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[WOBJ] find-fail name='JO0A_HID' itemLmMagic=0x30 lmIdx=0 cell=(8,12)
+[WOBJ] find-fail name='JO0B_HID' itemLmMagic=0x30 lmIdx=0 cell=(8,12)
+[WOBJ] find-fail name='JO0C_HID' itemLmMagic=0x30 lmIdx=0 cell=(8,12)
+[WOBJ] resolved 'PAD_NEAR' lmIdx=1
+[WOBJ] resolved 'AIDKIT_N' lmIdx=1
+[OTS] f=4320 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=4320 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=4380 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=4440 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=4440 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[WOBJ] resolved 'JO0A_HID' lmIdx=3
+[WOBJ] resolved 'JO0B_HID' lmIdx=3
+[WOBJ] resolved 'JO0C_HID' lmIdx=3
+[WOBJ] resolved 'JO0A_HID' lmIdx=3
+[WOBJ] resolved 'JO0B_HID' lmIdx=3
+[WOBJ] resolved 'JO0C_HID' lmIdx=3
+[WOBJ] resolved 'JO0A_HID' lmIdx=3
+[WOBJ] resolved 'JO0B_HID' lmIdx=3
+[WOBJ] resolved 'JO0C_HID' lmIdx=3
+[WOBJ] resolved 'JO0A_HID' lmIdx=3
+[WOBJ] resolved 'JO0B_HID' lmIdx=3
+[WOBJ] resolved 'JO0C_HID' lmIdx=3
+[WOBJ] resolved 'JO0A_HID' lmIdx=3
+[WOBJ] resolved 'JO0B_HID' lmIdx=3
+[WOBJ] resolved 'JO0C_HID' lmIdx=3
+[WOBJ] resolved 'JO0A_HID' lmIdx=3
+[WOBJ] resolved 'JO0B_HID' lmIdx=3
+[WOBJ] resolved 'JO0C_HID' lmIdx=3
+[WOBJ] resolved 'JO0A_HID' lmIdx=3
+[WOBJ] resolved 'JO0B_HID' lmIdx=3
+[WOBJ] resolved 'JO0C_HID' lmIdx=3
+[WOBJ] resolved 'JO0A_HID' lmIdx=3
+[GPU] frame=4500 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[OTS] f=4560 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=4560 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[GPU] frame=4620 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1
+[CHNK] n=4 s0=2,5,st2 s1=3,3,st2 s2=4,3,st2 s3=3,5,st3
+[OTS] f=4680 calls=2 n0=2049 n1=16 prims=120 bb=-20,660,-17,497
+[FOGPAD] gt=0 fogged=0 padMin=-1 padMax=-1
+[ABR] avg=120 add=0 sub=0 q=0 lines=0 unk=0 oversize=0
+[OTT] walkUs=10 texUs=0 emitUs=0 submitUs=0 otherUs=10 prims=1 usPerPrim=10
+[GPU] frame=4680 prims=1 verts=6 draws=1 texbind=0 blend=0 scissor=0 ready=1

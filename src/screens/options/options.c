@@ -3196,9 +3196,9 @@ void Options_Selection_ArrowDraw(const s_Triangle2d* arrow, bool isFlashing, boo
     if (isFlashing)
     {
         // Base color is blue. `* 0x700` Shifts green component into place.
-        *((u32*)&arrowPoly->r0) = (colorEnd   * 0x700) + COLOR_RGBC(0, 0, 255, PRIM_POLY | RECT_SIZE_8);
-        *((u32*)&arrowPoly->r1) = (colorStart * 0x700) + COLOR_RGBC(0, 0, 255, PRIM_POLY | RECT_SIZE_8);
-        *((u32*)&arrowPoly->r2) = (colorStart * 0x700) + COLOR_RGBC(0, 0, 255, PRIM_POLY | RECT_SIZE_8);
+        setRGBCWord0(arrowPoly, (colorEnd   * 0x700) + COLOR_RGBC(0, 0, 255, PRIM_POLY | RECT_SIZE_8));
+        setRGBCWord1(arrowPoly, (colorStart * 0x700) + COLOR_RGBC(0, 0, 255, PRIM_POLY | RECT_SIZE_8));
+        setRGBCWord2(arrowPoly, (colorStart * 0x700) + COLOR_RGBC(0, 0, 255, PRIM_POLY | RECT_SIZE_8));
     }
     // Set solid cyan color.
     else
@@ -3866,8 +3866,16 @@ void Options_ControllerMenu_ButtonIconsDraw(s32 baseX, s32 baseY, u16 config) //
         setXY0Fast(prim, posX, baseY);
         posX += ICON_OFFSET_X;
 
-        // setUV0AndClut(prim, 0xF4, v0, clutY, clutX);
+#ifdef SH_PC_PORT
+        /* Same misaligned-word store as b_konami.c: &prim->u0 is 4-aligned in
+         * the PSX SPRT and is not here, and MIPS traps rather than fixing up.
+         * Note the argument order -- the old comment had cx/cy swapped; the
+         * macro is (p, u, v, clutX, clutY) and the packed expression shifts
+         * clutY by 6, so clutX is the fourth argument. */
+        setUV0AndClut(prim, 244, v0, clutX, clutY);
+#else
         *(u32*)(&prim->u0) = 244 + (v0 << 8) + (((clutY << 6) | ((clutX >> 4) & 0x3F)) << 16);
+#endif
 
         packet = (u8*)prim + sizeof(SPRT);
         tpage  = (DR_TPAGE*)packet;

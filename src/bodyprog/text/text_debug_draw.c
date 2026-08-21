@@ -43,9 +43,9 @@ void Text_Debug_Draw(char* str) // 0x80031F40
     #define ATLAS_BASE_Y 240
 
     #define SET_SPRT_U_V_CLUT(sprt, charIdx, clut)                                                                                           \
-        *((u32*)&(sprt)->u0) = (((charIdx) & 0x1F) * GLYPH_SIZE_X)                       + /* `u0`:   column in 32-column atlas. */          \
+        setUV0ClutWord(sprt, (((charIdx) & 0x1F) * GLYPH_SIZE_X)                       + /* `u0`:   column in 32-column atlas. */          \
                                (((((charIdx) >> 5) * GLYPH_SIZE_Y) + ATLAS_BASE_Y) << 8) + /* `v0`:   row in 32-column atlas with offset. */ \
-                               ((clut) << 16)                                              /* `clut`: packed magic value. */
+                               ((clut) << 16))                                              /* `clut`: packed magic value. */
 
     s32       posX;
     s32       posY;
@@ -98,7 +98,7 @@ void Text_Debug_Draw(char* str) // 0x80031F40
         packet += sizeof(SPRT_8);
     }
 
-    *((u32*)&g_Text_Debug_PositionSet1) = (posX & 0xFFFF) + (posY << 16);
+    (g_Text_Debug_PositionSet1.vx = (s16)(posX), g_Text_Debug_PositionSet1.vy = (s16)(posY));
     tPage                               = (DR_TPAGE*)packet;
 
     setDrawTPage(tPage, 0, 1, getTPageN(0, 0, 4, 1));

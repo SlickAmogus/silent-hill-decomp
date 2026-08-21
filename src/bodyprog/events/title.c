@@ -714,8 +714,8 @@ static void Pc_TitleLogoDrawEur(void)
                  g_Screen_BackgroundImgGamma, PRIM_RECT | RECT_TEXTURE);
         setWH(sprt, STRIPS[i].w, STRIPS[i].h);
         setXY0Fast(sprt, STRIPS[i].x, STRIPS[i].y);
-        *((u32*)&sprt->u0) = STRIPS[i].u + (STRIPS[i].v << 8) +
-                             (getClut(g_TitleImg.clutX, g_TitleImg.clutY) << 16);
+        setUV0AndClutSum(sprt, STRIPS[i].u, STRIPS[i].v,
+                         getClut(g_TitleImg.clutX, g_TitleImg.clutY));
 
         packet += sizeof(SPRT);
         tPage   = (DR_TPAGE*)packet;
@@ -850,10 +850,16 @@ static PACKET* MainMenu_FogPacketGet(GsOT* ot, PACKET* packet) // 0x8003B838
                    -176 + (16 * j), yOffset - 184,
                    -160 + (16 * j), yOffset - 184);
 
-            *((u32*)&poly->r0) = color0;
-            *((u32*)&poly->r1) = color1;
-            *((u32*)&poly->r2) = color2;
-            *((u32*)&poly->r3) = color3;
+            /* These were four packed 32-bit stores. &POLY_G4.r0 sits at offset
+             * 11 in this port's primitive, so on MIPS that is a misaligned sw
+             * and an immediate CPU exception -- the title screen's fog was the
+             * first thing to hit it. The colour words also carry the primitive
+             * code in their top byte (0x3a = POLY_G4 | ABE), which a big-endian
+             * store would have put where r0 lives. */
+            setRGBCWord0(poly, color0);
+            setRGBCWord1(poly, color1);
+            setRGBCWord2(poly, color2);
+            setRGBCWord3(poly, color3);
 
             addPrim(ot, poly);
             packet += sizeof(POLY_G4);

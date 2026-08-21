@@ -1715,12 +1715,19 @@ void Gfx_FogOverlayQuadDraw(s16 arg0, s16 arg1, s16 arg2, s16 arg3, s32 arg4, s3
         poly           = (POLY_G4*)(packet + 0xC);
         GsOUT_PACKET_P = (PACKET*)poly;
 
-        *(u32*)&poly->r0 =
-        *(u32*)&poly->r1 =
-        *(u32*)&poly->r2 =
-        *(u32*)&poly->r3 = Q12_MULT(g_WorldEnvWork.fog.color.r, var_s0)       +
-                          (Q12_MULT(g_WorldEnvWork.fog.color.g, var_s0) << 8) +
-                          (Q12_MULT(g_WorldEnvWork.fog.color.b, var_s0) << 16);
+        {
+            /* Was a chain of four packed 32-bit stores. &POLY_G4.r1 is not
+             * 4-aligned in this port's primitive, so on MIPS the chain traps;
+             * on any big-endian target it also put the (zero) code byte where
+             * r0 belongs and the red channel where the code belongs. */
+            u32 fogRgb = Q12_MULT(g_WorldEnvWork.fog.color.r, var_s0)       +
+                        (Q12_MULT(g_WorldEnvWork.fog.color.g, var_s0) << 8) +
+                        (Q12_MULT(g_WorldEnvWork.fog.color.b, var_s0) << 16);
+            setRGBCWord0(poly, fogRgb);
+            setRGBCWord1(poly, fogRgb);
+            setRGBCWord2(poly, fogRgb);
+            setRGBCWord3(poly, fogRgb);
+        }
 
         SetPolyG4(poly);
 
