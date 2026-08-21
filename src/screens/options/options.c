@@ -259,6 +259,10 @@ static const s_PcOpt PCOPT_T[] = {
     { "Minimap_Scale",     NULL, "minimap_scale",          NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapScale, NULL, MINIMAP_SCALE_MIN, MINIMAP_SCALE_MAX, 5.0f },
     { "Minimap_Corner",    &g_PcConfig.minimapCorner,      "minimap_corner",        VAL_MMCNR, 4, LBL_MMCNR, NULL, 1, PCK_INT },
     { "Minimap_Opacity",   NULL, "minimap_opacity",        NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapOpacity, NULL, 0.0f, 100.0f, 5.0f },
+    /* pc_minimap.c reads this live, so the toggle applies instantly. On = only
+     * draw the minimap once the area's paper map is found (the default); Off =
+     * always draw it. Was config-only (minimap_require_map). */
+    { "Minimap_Reqs_Map",  &g_PcConfig.minimapRequireMap,  "minimap_require_map",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Aim_Assist",        &g_PcConfig.aimAssist,          "aim_assist",            VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     /* 0..200 to match the config loader, the TPSAIMZOOM console command and the
      * pc_config.h contract — 100 is the original full zoom, 200 a deeper 2x.
