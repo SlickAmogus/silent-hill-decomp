@@ -580,8 +580,13 @@ public partial class Form1 : Form
 
         const string filteringTip =
             "Off = crisp PSX pixels, no smoothing.\n" +
-            "Dithering = recreates the PSX 24→15-bit dither pattern (recommended).\n" +
-            "Bilinear = blurs textures; can hide pixel-art detail.";
+            "Dithering = recreates the PSX 24->15-bit dither pattern.\n" +
+            "Bilinear = smooths texture magnification.\n" +
+            "Trilinear = bilinear plus mip blending; only affects\n" +
+            "  replacement textures that carry mip levels.\n" +
+            "Anisotropic = sharpens surfaces seen at grazing angles\n" +
+            "  (distant floors, walls). Strength: aniso_level in config.cfg.\n" +
+            "Dithering and the filters are mutually exclusive.";
         Set(filteringLabel, filteringTip);
         Set(comboFiltering, filteringTip);
 
@@ -1043,12 +1048,12 @@ public partial class Form1 : Form
         else
             comboFps.SelectedItem = "30";
 
-        // Filtering: int in config (0/1/2) <-> dropdown index
-        // 0 = Off, 1 = Dithering, 2 = Bilinear
+        // Filtering: int in config <-> dropdown index.
+        // 0 = Off, 1 = Dithering, 2 = Bilinear, 3 = Trilinear, 4 = Anisotropic
         int filterIdx;
         if (!int.TryParse(config.Get("psx_dither", "1"), out filterIdx))
             filterIdx = 1; // default to dithering
-        if (filterIdx < 0 || filterIdx > 2) filterIdx = 1;
+        if (filterIdx < 0 || filterIdx > 4) filterIdx = 1;
         comboFiltering.SelectedIndex = filterIdx;
 
         // "Menus:" checkbox — also bilinear-filter menu/2D screens (config key menu_filter)

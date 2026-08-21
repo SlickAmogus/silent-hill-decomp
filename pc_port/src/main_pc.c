@@ -1080,18 +1080,26 @@ int main(int argc, char* argv[])
      * dither, 2 = bilinear. Mutually exclusive — bilinear softens
      * everything while dither keeps the original look but masks the
      * texture-page seam artifacts and adds the authentic PSX noise. */
+    { extern int g_cfg_textureFilter, g_cfg_anisoLevel; }
     switch (g_PcConfig.psxDither) {
-    case 1:  g_cfg_psxDither = 1; g_cfg_bilinearFiltering = 0; break;
-    case 2:  g_cfg_psxDither = 0; g_cfg_bilinearFiltering = 1; break;
-    default: g_cfg_psxDither = 0; g_cfg_bilinearFiltering = 0; break;
+    case 1:  g_cfg_psxDither = 1; g_cfg_textureFilter = 0; break;
+    case 2:  g_cfg_psxDither = 0; g_cfg_textureFilter = 1; break;
+    case 3:  g_cfg_psxDither = 0; g_cfg_textureFilter = 2; break;
+    case 4:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; break;
+    default: g_cfg_psxDither = 0; g_cfg_textureFilter = 0; break;
     }
+    g_cfg_bilinearFiltering = (g_cfg_textureFilter > 0);
+    g_cfg_anisoLevel        = g_PcConfig.anisoLevel;
     /* Menus / 2D-only frames (g_PsxDitherSuppressed) get bilinear if enabled,
      * independent of the 3D psx_dither mode above. */
     g_cfg_menuFilter = g_PcConfig.menuFilter ? 1 : 0;
     g_cfg_disableDpadMovement = 0; /* driven per-frame by gameplay state (game_main.c) so the D-pad still navigates menus */
-    SH_LOG("Filtering: %s",
-           g_cfg_psxDither ? "PSX dither" :
-           g_cfg_bilinearFiltering ? "bilinear" : "off");
+    SH_LOG("Filtering: %s%s",
+           g_cfg_psxDither     ? "PSX dither" :
+           g_cfg_textureFilter == 1 ? "bilinear" :
+           g_cfg_textureFilter == 2 ? "trilinear" :
+           g_cfg_textureFilter == 3 ? "anisotropic" : "off",
+           g_cfg_textureFilter >= 3 ? " (max taps set by aniso_level)" : "");
 
     /* PGXP master gate: PsyCross is compiled with USE_PGXP=1, but the
      * runtime path is opt-in via config.cfg use_pgxp. When 0, prim emit

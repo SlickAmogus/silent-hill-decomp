@@ -492,10 +492,12 @@ partial class Form1
             this.comboFiltering.Items.AddRange(new object[] {
             "Off",
             "Dithering",
-            "Bilinear"});
+            "Bilinear",
+            "Trilinear",
+            "Anisotropic"});
             this.comboFiltering.Location = new System.Drawing.Point(94, 260);
             this.comboFiltering.Name = "comboFiltering";
-            this.comboFiltering.Size = new System.Drawing.Size(78, 21);
+            this.comboFiltering.Size = new System.Drawing.Size(94, 21);
             this.comboFiltering.TabIndex = 41;
             // 
             // pgxpLabel
