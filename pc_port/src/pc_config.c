@@ -903,6 +903,10 @@ void PcConfig_Load(const char* path)
             g_PcConfig.minimap = (v < 0) ? 0 : ((v > 2) ? 2 : v);
             s_minimapSeen = 1;
         }
+else if (strcmp(key, "enable_plugins") == 0)
+        {
+            g_PcConfig.enablePlugins = (atoi(value) != 0);
+        }
         else if (strcmp(key, "minimap_require_map") == 0)
         {
             g_PcConfig.minimapRequireMap = (atoi(value) != 0);

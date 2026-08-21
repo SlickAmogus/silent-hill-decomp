@@ -1336,6 +1336,10 @@ int main(int argc, char* argv[])
      * unless enabled and signed in. */
     { extern void Pc_Ra_Init(void); Pc_Ra_Init(); }
 
+    /* Gameplay plugins (plugins/*.dll). Self-gated on config enable_plugins,
+     * which defaults OFF -- the scan never runs unless the user opted in. */
+    { extern void Pc_Plugins_Init(void); Pc_Plugins_Init(); }
+
     SH_LOG("All subsystems initialized. Entering MainLoop...");
 
     /* The graphic-content warning ("There are violent and disturbing
@@ -1356,6 +1360,7 @@ int main(int argc, char* argv[])
     /* Cleanup */
     SH_DBG("[SH] MainLoop exited normally. Shutting down...");
     { extern void Pc_Ra_Shutdown(void); Pc_Ra_Shutdown(); }
+    { extern void Pc_Plugins_Shutdown(void); Pc_Plugins_Shutdown(); }
     Pc_Discord_Shutdown();
     PsyX_Shutdown();
 

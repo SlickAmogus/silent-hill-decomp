@@ -8,7 +8,7 @@ using System.Runtime.Serialization.Json;
 
 namespace SilentHillPC_Launcher
 {
-    public enum ModType   { Unknown, Texturemods, Load, Fmv }
+    public enum ModType   { Unknown, Texturemods, Load, Fmv, Gameplay, TotalConversion }
     public enum ModSource { Library, TextureMods }
 
     public class ModEntry
@@ -45,9 +45,11 @@ namespace SilentHillPC_Launcher
                              : IsInPlaceZip ? "Texture pack (.zip, in place)"
                              : IsArchive    ? "Texture pack (.zip)"
                                             : "Texture pack (folder)";
-                    case ModType.Load:        return "Load folder";
-                    case ModType.Fmv:         return "FMV";
-                    default:                  return "Unrecognized";
+                    case ModType.Load:            return "Data Overlay (load/)";
+                    case ModType.Fmv:             return "FMV Video";
+                    case ModType.Gameplay:        return "Gameplay (Code / DLL)";
+                    case ModType.TotalConversion: return "Total Conversion";
+                    default:                      return "Unrecognized";
                 }
             }
         }
@@ -71,6 +73,7 @@ namespace SilentHillPC_Launcher
     public class ModStateFile
     {
         [DataMember] public List<ModStateDto> Mods;
+        [DataMember] public bool DllWarningAck; /* "Don't show me again" on the DLL-mod install warning */
     }
 
     /// <summary>
@@ -102,8 +105,12 @@ namespace SilentHillPC_Launcher
         private string StatePath       { get { return Path.Combine(ModsDir, "modmanager.json"); } }
         private string ManifestPath    { get { return Path.Combine(ModsDir, "deployed.txt"); } }
         private string LoadOrderPath   { get { return Path.Combine(TexturemodsDir, "loadorder.txt"); } }
+        public  string BackupDir       { get { return Path.Combine(ModsDir, ".backup"); } }
 
         public List<ModEntry> Mods = new List<ModEntry>();
+
+        /// <summary>"Don't show me again" on the DLL-mod install warning (persisted).</summary>
+        public bool DllWarningAck;
 
         public ModManager(string gameRoot, ConfigManager config)
         {
@@ -276,6 +283,7 @@ namespace SilentHillPC_Launcher
         {
             Directory.CreateDirectory(ModsDir);
             var state  = LoadState();
+            DllWarningAck = state.DllWarningAck;
             var byName = new Dictionary<string, ModStateDto>(StringComparer.OrdinalIgnoreCase);
             foreach (var s in state.Mods) if (s.Name != null) byName[s.Name] = s;
 
@@ -424,7 +432,8 @@ namespace SilentHillPC_Launcher
                 Mods = Mods.Select(m => new ModStateDto
                 {
                     Name = m.Name, Enabled = m.Enabled, DisplayName = m.DisplayName, Description = m.Description
-                }).ToList()
+                }).ToList(),
+                DllWarningAck = DllWarningAck
             };
             using (var fs = File.Create(StatePath))
                 new DataContractJsonSerializer(typeof(ModStateFile)).WriteObject(fs, f);
@@ -447,48 +456,73 @@ namespace SilentHillPC_Launcher
 
         private static ModType DetectType(string dir)
         {
-            bool hasVideo = false, hasFile = false;
+            bool hasDll = false, hasVideo = false, hasTexture = false, hasLoad = false, hasFile = false;
             foreach (var f in SafeFiles(dir))
             {
                 hasFile = true;
                 string n = Path.GetFileName(f).ToLowerInvariant();
-                if (n.EndsWith(".png") && (n.StartsWith("texupload-") || n.StartsWith("texpage-"))) return ModType.Texturemods;
-                if (n == "config.yaml") return ModType.Texturemods;
+                string ext = Path.GetExtension(f).ToLowerInvariant();
+
+                if (ext == ".dll") hasDll = true;
+                if (n.EndsWith(".png") && (n.StartsWith("texupload-") || n.StartsWith("texpage-"))) hasTexture = true;
+                if (n == "config.yaml") hasTexture = true;
                 if (IsVideoFile(n)) hasVideo = true;
+                if (f.Replace('\\', '/').ToLowerInvariant().Contains("/load/")) hasLoad = true;
             }
-            if (hasVideo) return ModType.Fmv;
-            if (FindDirNamed(dir, "load") != null) return ModType.Load;
-            if (hasFile) return ModType.Load;
+
+            if (FindDirNamed(dir, "load") != null) hasLoad = true;
+            if (FindDirNamed(dir, "maps") != null) hasDll = true;
+            if (FindDirNamed(dir, "plugins") != null) hasDll = true;
+
+            if (hasDll && (hasLoad || hasTexture || hasVideo)) return ModType.TotalConversion;
+            if (hasDll) return ModType.Gameplay;
+            if (hasVideo && !hasLoad && !hasTexture) return ModType.Fmv;
+            if (hasTexture && !hasLoad && !hasVideo) return ModType.Texturemods;
+            if (hasLoad || hasFile) return ModType.Load;
             return ModType.Unknown;
         }
 
-        /// <summary>Detect a dropped path's type, peeking inside .zip archives. .rar and
-        /// .7z aren't peeked here so they're assumed a texture pack (the common case).</summary>
-        private static ModType DetectDroppedType(string path)
+        /// <summary>Detect a dropped path's type, peeking inside .zip archives.</summary>
+        internal static ModType DetectDroppedType(string path)
         {
             if (Directory.Exists(path)) return DetectType(path);
             string ext = Path.GetExtension(path).ToLowerInvariant();
-            if (ext == ".rar" || ext == ".7z") return ModType.Texturemods;
+            if (ext == ".rar" || ext == ".7z")
+            {
+                string fn = Path.GetFileName(path).ToLowerInvariant();
+                if (fn.Contains("gameplay") || fn.Contains("plugin") || fn.Contains("code") || fn.Contains("dll"))
+                    return ModType.Gameplay;
+                return ModType.Texturemods;
+            }
             if (ext == ".zip")
             {
                 try
                 {
                     using (var za = ZipFile.OpenRead(path))
                     {
-                        bool hasVideo = false;
+                        bool hasDll = false, hasVideo = false, hasTexture = false, hasLoad = false;
                         foreach (var en in za.Entries)
                         {
                             string n = Path.GetFileName(en.FullName).ToLowerInvariant();
-                            if (n.EndsWith(".png") && (n.StartsWith("texupload-") || n.StartsWith("texpage-"))) return ModType.Texturemods;
-                            if (n == "config.yaml") return ModType.Texturemods;
+                            string e = Path.GetExtension(en.FullName).ToLowerInvariant();
+
+                            if (e == ".dll") hasDll = true;
+                            if (n.EndsWith(".png") && (n.StartsWith("texupload-") || n.StartsWith("texpage-"))) hasTexture = true;
+                            if (n == "config.yaml") hasTexture = true;
                             if (IsVideoFile(n)) hasVideo = true;
-                            if (en.FullName.Replace('\\', '/').ToLowerInvariant().Contains("load/")) return ModType.Load;
+                                        if (en.FullName.Replace('\\', '/').ToLowerInvariant().Contains("load/")) hasLoad = true;
+                            if (en.FullName.Replace('\\', '/').ToLowerInvariant().Contains("maps/")) hasDll = true;
                         }
-                        if (hasVideo) return ModType.Fmv;
+
+                        if (hasDll && (hasLoad || hasTexture || hasVideo)) return ModType.TotalConversion;
+                        if (hasDll) return ModType.Gameplay;
+                        if (hasVideo && !hasLoad && !hasTexture) return ModType.Fmv;
+                        if (hasTexture && !hasLoad && !hasVideo) return ModType.Texturemods;
+                        if (hasLoad) return ModType.Load;
                     }
                 }
                 catch { }
-                return ModType.Texturemods; // default: a .zip is usually a texture pack
+                return ModType.Texturemods; // default
             }
             return ModType.Unknown;
         }
@@ -688,7 +722,7 @@ namespace SilentHillPC_Launcher
 
         public class ApplyResult
         {
-            public int Texture, Load, Fmv, Files;
+            public int Texture, Load, Fmv, Gameplay, Files;
             public bool LooseEnabled;
             public List<string> Warnings = new List<string>();
         }
@@ -707,9 +741,6 @@ namespace SilentHillPC_Launcher
                     if (report != null) report(0, 0, "Enabling " + m.Label);
                     if (!EnableTexture(m, report, cancelled))
                     {
-                        // Leave it OFF: a pack whose unpack failed or was cancelled has no
-                        // .extracted folder, and listing it in loadorder.txt would point the
-                        // game at a directory that isn't there.
                         m.Enabled = false;
                         result.Warnings.Add(m.Label + (cancelled != null && cancelled()
                                                        ? ": unpack cancelled, left off"
@@ -737,26 +768,57 @@ namespace SilentHillPC_Launcher
                 try { File.Delete(LoadOrderPath); } catch { }
             }
 
-            // 3) Deploy load/FMV from the library (wipe + redeploy via manifest).
-            if (report != null) report(0, 0, "Deploying load/FMV mods…");
+            // 3) Deploy library mods (Gameplay, Load, FMV, TotalConversion, Preset)
+            if (report != null) report(0, 0, "Deploying mods…");
             Undeploy();
             var manifest = new List<string>();
 
+            // Gameplay & TotalConversion Mods (Code & DLLs)
+            var codeMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled && 
+                                         (m.Type == ModType.Gameplay || m.Type == ModType.TotalConversion)).ToList();
+            foreach (var m in Enumerable.Reverse(codeMods))
+            {
+                try
+                {
+                    result.Files += CopyGameplayTracked(m.LibraryPath, _gameRoot, manifest, result.Warnings);
+                    result.Gameplay++;
+
+                    string loadSub = FindDirNamed(m.LibraryPath, "load");
+                    if (loadSub != null && Directory.Exists(loadSub))
+                    {
+                        result.Files += CopyTreeTracked(loadSub, LoadDir, manifest);
+                        result.Load++;
+                    }
+
+                    string fmvSub = FindDirNamed(m.LibraryPath, "FMV");
+                    if (fmvSub != null && Directory.Exists(fmvSub))
+                    {
+                        result.Files += CopyVideosFlat(fmvSub, FmvDir, manifest);
+                        result.Fmv++;
+                    }
+                }
+                catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
+            }
+
+            // Data Overlay (Load) Mods
             var loadMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled && m.Type == ModType.Load).ToList();
             foreach (var m in Enumerable.Reverse(loadMods))
             {
                 try { result.Files += CopyTreeTracked(DeploySourceRoot(m.LibraryPath, ModType.Load), LoadDir, manifest); result.Load++; }
                 catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
+
+            // FMV Mods
             var fmvMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled && m.Type == ModType.Fmv).ToList();
             foreach (var m in Enumerable.Reverse(fmvMods))
             {
                 try { result.Files += CopyVideosFlat(m.LibraryPath, FmvDir, manifest); result.Fmv++; }
                 catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
+
             WriteManifest(manifest);
 
-            bool loose = looseFileSupport || loadMods.Count > 0;
+            bool loose = looseFileSupport || loadMods.Count > 0 || codeMods.Count > 0;
             _config.Set("allow_loose_files", loose ? "1" : "0");
             _config.Save();
             result.LooseEnabled = loose;
@@ -765,7 +827,7 @@ namespace SilentHillPC_Launcher
             return result;
         }
 
-        // --- deploy plumbing (load/FMV) --------------------------------------
+        // --- deploy plumbing (load/FMV/gameplay) -----------------------------
 
         private void Undeploy()
         {
@@ -774,18 +836,48 @@ namespace SilentHillPC_Launcher
                 foreach (var line in File.ReadAllLines(ManifestPath))
                 {
                     if (line.Length < 3 || line[1] != '|') continue;
-                    string full = Path.Combine(_gameRoot, line.Substring(2));
+                    char op = line[0];
+                    string rel = line.Substring(2);
+                    string full = Path.Combine(_gameRoot, rel);
                     try
                     {
-                        if (line[0] == 'D' && Directory.Exists(full)) Directory.Delete(full, true);
-                        else if (line[0] == 'F' && File.Exists(full))  File.Delete(full);
+                        if (op == 'D' && Directory.Exists(full))
+                        {
+                            Directory.Delete(full, true);
+                        }
+                        else if (op == 'F' && File.Exists(full))
+                        {
+                            File.Delete(full);
+                        }
+                        else if (op == 'B') // Backed up file: restore from .backup/
+                        {
+                            string backupFile = Path.Combine(BackupDir, rel);
+                            if (File.Exists(backupFile))
+                            {
+                                Directory.CreateDirectory(Path.GetDirectoryName(full));
+                                File.Copy(backupFile, full, true);
+                                File.Delete(backupFile);
+                            }
+                            else if (File.Exists(full))
+                            {
+                                File.Delete(full);
+                            }
+                        }
                     }
                     catch { }
                 }
                 try { File.Delete(ManifestPath); } catch { }
             }
+
+            if (Directory.Exists(BackupDir))
+            {
+                try { Directory.Delete(BackupDir, true); } catch { }
+            }
+
             PruneEmptyDirs(LoadDir);
             PruneEmptyDirs(FmvDir);
+            PruneEmptyDirs(Path.Combine(_gameRoot, "maps"));
+            PruneEmptyDirs(Path.Combine(_gameRoot, "plugins"));
         }
 
         private void WriteManifest(List<string> manifest)
@@ -842,6 +934,63 @@ namespace SilentHillPC_Launcher
                 File.Copy(files[i], files[i].Replace(src, dst), true);
             }
             return true;
+        }
+
+        /// <summary>Deploy a gameplay mod's DLLs. WHITELISTED: only maps/*.dll and
+        /// plugins/*.dll ever reach the game folder -- a gameplay mod must never be
+        /// able to overwrite the game or launcher executables, config, or anything
+        /// else in the root. load/ and FMV/ content is deployed by its own tracked
+        /// copiers; everything not on the whitelist is skipped and reported.</summary>
+        private int CopyGameplayTracked(string src, string dstRoot, List<string> manifest, List<string> warnings)
+        {
+            int n = 0;
+            Directory.CreateDirectory(BackupDir);
+            foreach (var file in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
+            {
+                string rel = file.Substring(src.Length).TrimStart('\\', '/');
+                string relLower = rel.ToLowerInvariant().Replace('\\', '/');
+
+                if (relLower == "modmanager.json" || relLower == "mod.json" || relLower == "readme.txt")
+                    continue;
+                if (relLower.StartsWith("load/") || relLower.StartsWith("fmv/"))
+                    continue; // deployed by the load/FMV copiers
+
+                bool inMaps    = relLower.StartsWith("maps/");
+                bool inPlugins = relLower.StartsWith("plugins/");
+                bool isDll     = relLower.EndsWith(".dll");
+                if (relLower.Contains("..") || !(inMaps || inPlugins) || !isDll)
+                {
+                    warnings.Add("skipped (not maps/*.dll or plugins/*.dll): " + rel);
+                    continue;
+                }
+                if (relLower.Count(c => c == '/') != 1)
+                {
+                    warnings.Add("skipped (nested path): " + rel);
+                    continue;
+                }
+
+                string dst = Path.Combine(dstRoot, rel);
+                Directory.CreateDirectory(Path.GetDirectoryName(dst));
+
+                if (File.Exists(dst))
+                {
+                    string backupFile = Path.Combine(BackupDir, rel);
+                    if (!File.Exists(backupFile))
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(backupFile));
+                        File.Copy(dst, backupFile, true);
+                    }
+                    manifest.Add("B|" + Rel(dst));
+                }
+                else
+                {
+                    manifest.Add("F|" + Rel(dst));
+                }
+
+                File.Copy(file, dst, true);
+                n++;
+            }
+            return n;
         }
 
         private int CopyTreeTracked(string src, string dstRoot, List<string> manifest)
