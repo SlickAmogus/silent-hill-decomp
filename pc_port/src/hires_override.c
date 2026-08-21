@@ -435,6 +435,52 @@ int HiresOverride_EvictColdestPackRow(unsigned minAgeTicks,
     return 1;
 }
 
+/* A restamped prim clut must encode a BACKED pool slot. The rebase in
+ * Model_MaterialFlagsApply is pure arithmetic -- field_10 + (prim - field_12)
+ * -- and whenever a prim's carried base disagrees with field_12 (reload /
+ * completion-order desyncs seen only on low-spec machines; deltas of 46, 58
+ * and 505 palette rows in the 2026-08-21 Nowhere logs) the sum encodes a slot
+ * nothing owns. Such a prim is either dropped by the CLUT sanitizer (the
+ * invisible Nowhere elevator) or, where the guard cannot apply, drawn as
+ * palette garbage (the rainbow triangle). Clamping to the material's own base
+ * keeps the object drawn with its row-0 palette, and the log line names the
+ * material so the upstream desync stays visible in user logs. */
+unsigned short HiresOverride_RestampValidate(unsigned short newClut,
+                                             unsigned short baseClut,
+                                             const char* matName)
+{
+    int q, slotId, row, r, backed;
+
+    if ((newClut & 0x8000) == 0)
+        return newClut; /* native clut: real VRAM semantics, nothing to check */
+
+    q      = ((newClut >> 6) & 0x3FF) - HIRES_POOL_CLUT_ROW_BASE;
+    slotId = (q / HIRES_POOL_MAX_ROWS) * 64 + (newClut & 0x3F);
+    row    = q % HIRES_POOL_MAX_ROWS;
+    backed = 0;
+    if (q >= 0 && slotId >= 0 && slotId < HIRES_POOL_SLOT_MAX)
+    {
+        PoolSlotEntry* ps = &g_poolSlots[slotId];
+        for (r = 0; r < HIRES_POOL_MAX_ROWS; r++)
+        {
+            if (ps->glTexture[r] != 0) { backed = 1; break; }
+        }
+    }
+    if (backed)
+        return newClut;
+
+    {
+        static int s_restampLog = 0;
+        if (s_restampLog < 16)
+        {
+            s_restampLog++;
+            SH_DBG("[RESTAMP] mat '%.8s': clut 0x%04X -> slot %d row %d UNBACKED, clamped to base 0x%04X",
+                   (matName != NULL) ? matName : "?", newClut, slotId, row, baseClut);
+        }
+    }
+    return baseClut;
+}
+
 /* Expand one CLUT row of a raw TIM pixel+palette block to RGBA8 at native
  * resolution and install it as this slot row's texture, UNCHARGED against the
  * pack budget (native rows never were). Restores an evicted row to correct art

@@ -1686,7 +1686,17 @@ void Model_MaterialFlagsApply(s_ModelHeader* modelHdr, s32 arg1, const s_Materia
                 }
                 if (matFlags & MaterialFlag_1)
                 {
+#ifdef SH_PC_PORT
+                    /* The sum below encodes an unowned pool slot whenever the
+                     * prim's carried base disagrees with field_12 (invisible
+                     * Nowhere elevator + rainbow triangle); validate against
+                     * the pool and clamp to the material's own base. */
+                    curPrim->field_2 = HiresOverride_RestampValidate(
+                        (u16)(mat->field_10 + (curPrim->field_2 - mat->field_12)),
+                        mat->field_10, (const char*)&mat->name);
+#else
                     curPrim->field_2 = mat->field_10 + (curPrim->field_2 - mat->field_12);
+#endif
                 }
                 if (matFlags & MaterialFlag_2)
                 {

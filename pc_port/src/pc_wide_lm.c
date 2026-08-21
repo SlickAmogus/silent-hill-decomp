@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include "game.h"
+#include "hires_override.h"
 #include "bodyprog/bodyprog.h"
 
 #include "pc_wide_lm.h"
@@ -715,7 +716,9 @@ void Pc_WideLm_ApplyMaterial(const s_ModelHeader* modelHdr, s32 matIdx, const s_
                 }
                 if (matFlags & MaterialFlag_1)
                 {
-                    prim->clut = (u16)(mat->field_10 + (prim->clut - mat->field_12));
+                    prim->clut = HiresOverride_RestampValidate(
+                        (u16)(mat->field_10 + (prim->clut - mat->field_12)),
+                        mat->field_10, (const char*)&mat->name); /* same restamp validation as Model_MaterialFlagsApply */
                 }
                 if (matFlags & MaterialFlag_2)
                 {
