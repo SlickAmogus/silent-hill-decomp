@@ -613,9 +613,12 @@ void Pc_MinimapUpdate(void)
     {
         static int s_gateCtr;
 
-        if (++s_gateCtr >= 120)
+        static int s_gateShots;
+
+        if (++s_gateCtr >= 120 && s_gateShots < 8)
         {
             s_gateCtr = 0;
+            s_gateShots++;
             SH_DBG("[MMGATE] cfg=%d state=%d sys=%d op=%d paperIdx=%d",
                    g_PcConfig.minimap, (int)g_GameWork.gameState,
                    (int)g_SysWork.sysState, (int)g_PcConfig.minimapOpacity,
@@ -720,6 +723,23 @@ void Pc_MinimapUpdate(void)
      * the same savegame bit the map screen gates on. minimap_require_map=0
      * restores the old always-visible behaviour. */
     haveMap = (s_mapReady && packed != 0);
+
+    /* [MMDRAW] the draw decision itself. [MMGATE] proved the gates pass and the
+     * savegame already holds paperIdx=1 in the intro, so the failure is HERE:
+     * either the Old Town image never becomes ready in map0_s00, or the query
+     * cannot place the intro coordinates on it. */
+    {
+        static int s_drawCtr, s_drawShots;
+
+        if (++s_drawCtr >= 120 && s_drawShots < 8)
+        {
+            s_drawCtr = 0;
+            s_drawShots++;
+            SH_DBG("[MMDRAW] idx=%d packed=%08X ready=%d haveMap=%d req=%d",
+                   mm_effective_map_idx(), (unsigned)packed, s_mapReady,
+                   haveMap, g_PcConfig.minimapRequireMap);
+        }
+    }
     if (haveMap && g_PcConfig.minimapRequireMap)
     {
         int mi = mm_effective_map_idx();
