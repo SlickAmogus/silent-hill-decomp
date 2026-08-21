@@ -20,11 +20,22 @@ namespace SilentHillPC_Launcher
         // allowlist is DERIVED from the installed game exe's own imports (see
         // SetGameExe) so it matches whatever libraries that build links --
         // version-proof, matching the game's own dll_security.c.
+        // The game's known runtime dependency set -- so a DLL importing any
+        // standard game library is accepted even when the game exe can't be
+        // read (e.g. the launcher run from a folder without SilentHillPC.exe
+        // beside it). The exe-derived set below still adds anything extra a
+        // given build links, keeping it version-proof.
         static readonly string[] Baseline =
         {
             "silenthillpc.exe", "kernel32.dll", "msvcrt.dll", "ucrtbase.dll",
             "libgcc_s_seh-1.dll", "libwinpthread-1.dll", "libssp-0.dll",
-            "libstdc++-6.dll"
+            "libstdc++-6.dll",
+            // The port's actual direct dependency set (objdump of the exe):
+            // SDL2, OpenAL, ole32 (COM, via SDL), AVRT (audio thread prio),
+            // libjpeg, shell32 (SDL), winhttp (achievements). Notably absent --
+            // and therefore still flagged -- are ws2_32/wsock32/wininet/urlmon.
+            "sdl2.dll", "libopenal-1.dll", "openal32.dll", "ole32.dll",
+            "avrt.dll", "libjpeg-8.dll", "shell32.dll", "winhttp.dll"
         };
 
         static HashSet<string> s_exeImports;
