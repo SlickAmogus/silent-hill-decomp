@@ -9,22 +9,46 @@ namespace SilentHillPC_Launcher
     /// <summary>
     /// Minimal PE import-table reader for install-time screening of DLL mods.
     /// Mirrors the game's dll_security.c fingerprint: edited game code (map
-    /// overlay DLLs) imports only the game executable and the C runtime, so
-    /// anything else is worth naming in the install warning. This is a lint
-    /// for the consent dialog, not a safety proof.
+    /// overlay DLLs) imports only libraries the game itself already loads.
+    /// The allowlist is derived from the installed game exe (SetGameExe), so
+    /// a DLL importing anything the game does NOT use is worth naming in the
+    /// install warning. This is a lint for the consent dialog, not a proof.
     /// </summary>
     public static class PeImports
     {
-        static readonly string[] AllowedForGameCode =
+        // Baseline always allowed even if the game exe can't be read; the real
+        // allowlist is DERIVED from the installed game exe's own imports (see
+        // SetGameExe) so it matches whatever libraries that build links --
+        // version-proof, matching the game's own dll_security.c.
+        static readonly string[] Baseline =
         {
             "silenthillpc.exe", "kernel32.dll", "msvcrt.dll", "ucrtbase.dll",
-            "libgcc_s_seh-1.dll", "libwinpthread-1.dll", "libssp-0.dll"
+            "libgcc_s_seh-1.dll", "libwinpthread-1.dll", "libssp-0.dll",
+            "libstdc++-6.dll"
         };
+
+        static HashSet<string> s_exeImports;
+
+        /// <summary>Point the screen at the installed game exe so the allowlist
+        /// reflects exactly what that build loads (SDL2, OpenAL, ole32, ...).
+        /// Call once before scanning; safe to call with a missing path.</summary>
+        public static void SetGameExe(string exePath)
+        {
+            try
+            {
+                if (!File.Exists(exePath)) { s_exeImports = null; return; }
+                var imp = GetImportedDlls(File.ReadAllBytes(exePath));
+                s_exeImports = imp == null ? null
+                    : new HashSet<string>(imp.Select(d => d.ToLowerInvariant()));
+            }
+            catch { s_exeImports = null; }
+        }
 
         static bool IsAllowed(string dll)
         {
             string d = dll.ToLowerInvariant();
-            if (AllowedForGameCode.Contains(d)) return true;
+            if (Baseline.Contains(d)) return true;
+            if (s_exeImports != null && s_exeImports.Contains(d)) return true;
             return d.StartsWith("api-ms-win-crt-");
         }
 

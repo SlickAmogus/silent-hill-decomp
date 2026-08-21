@@ -61,24 +61,78 @@ static const char* s_blockedDlls[] = {
  * imports exactly these three; the CRT alternates cover reasonable toolchain
  * drift (ucrt builds, shared libgcc) so a future rebuild doesn't brick
  * modding. Verified with objdump across the 42 map DLLs + chara_global. */
-static const char* s_mapAllowedDlls[] = {
-    "silenthillpc.exe",
-    "kernel32.dll",
-    "msvcrt.dll",
-    "ucrtbase.dll",
-    "libgcc_s_seh-1.dll",
-    "libwinpthread-1.dll",
-    "libssp-0.dll",
-    NULL
-};
+/* The edited-game-code allowlist is DERIVED from the running executable's own
+ * import table: a map DLL is edited game code iff every library it imports is
+ * one the game itself already loads into the process (plus the exe and the C
+ * runtime). This is version-proof -- an older build that linked SDL2/OpenAL/
+ * ole32/etc. straight into its map DLLs is accepted because the exe of that
+ * era imported the same libraries -- and self-consistent: the game uses
+ * winhttp (achievements) and shell32 (SDL), so a map DLL using them adds no
+ * capability the process lacks. Anything the game does NOT import (ws2_32,
+ * wininet, urlmon, a random user DLL) still stands out. */
+#define MAX_EXE_IMPORTS 128
+static char  s_exeImports[MAX_EXE_IMPORTS][64];
+static int   s_exeImportCount = 0;
+static int   s_exeImportsBuilt = 0;
 
-/* api-ms-win-crt-*.dll forwarders (ucrt builds) are allowed by prefix. */
+static void BuildExeAllowlist(void)
+{
+    HMODULE hExe;
+    unsigned char* base;
+    IMAGE_DOS_HEADER* dos;
+    IMAGE_NT_HEADERS* nt;
+    IMAGE_DATA_DIRECTORY* dir;
+    IMAGE_IMPORT_DESCRIPTOR* imp;
+
+    if (s_exeImportsBuilt) return;
+    s_exeImportsBuilt = 1; /* even on failure: fall back to the static minimum */
+
+    hExe = GetModuleHandleW(NULL);
+    if (!hExe) return;
+    base = (unsigned char*)hExe;
+    dos  = (IMAGE_DOS_HEADER*)base;
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) return;
+    nt = (IMAGE_NT_HEADERS*)(base + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE) return;
+    if (nt->OptionalHeader.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_IMPORT) return;
+    dir = &nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+    if (dir->VirtualAddress == 0) return;
+
+    /* In a loaded module RVAs are already offsets from the base. */
+    imp = (IMAGE_IMPORT_DESCRIPTOR*)(base + dir->VirtualAddress);
+    while (imp->Name != 0 && s_exeImportCount < MAX_EXE_IMPORTS)
+    {
+        const char* name = (const char*)(base + imp->Name);
+        int n = 0;
+        while (name[n] && n < 63) { s_exeImports[s_exeImportCount][n] = name[n]; n++; }
+        s_exeImports[s_exeImportCount][n] = 0;
+        s_exeImportCount++;
+        imp++;
+    }
+}
+
+/* api-ms-win-crt-*.dll forwarders (ucrt builds) are allowed by prefix; the exe
+ * name and the base CRT/runtime libs are always allowed even if the exe walk
+ * failed, so a map DLL is never rejected purely because the allowlist is
+ * empty. */
 static int MapImportAllowed(const char* dllName)
 {
+    static const char* s_baseline[] = {
+        "silenthillpc.exe", "kernel32.dll", "msvcrt.dll", "ucrtbase.dll",
+        "libgcc_s_seh-1.dll", "libwinpthread-1.dll", "libssp-0.dll",
+        "libstdc++-6.dll", NULL
+    };
     int i;
-    for (i = 0; s_mapAllowedDlls[i] != NULL; i++)
+
+    BuildExeAllowlist();
+
+    for (i = 0; i < s_exeImportCount; i++)
     {
-        if (StrCaseEqual(dllName, s_mapAllowedDlls[i])) return 1;
+        if (StrCaseEqual(dllName, s_exeImports[i])) return 1;
+    }
+    for (i = 0; s_baseline[i] != NULL; i++)
+    {
+        if (StrCaseEqual(dllName, s_baseline[i])) return 1;
     }
     {
         static const char pfx[] = "api-ms-win-crt-";
@@ -92,22 +146,16 @@ static int MapImportAllowed(const char* dllName)
     return 0;
 }
 
-/* kernel32 functions no edited map DLL ever imports (the shipped set is
- * critical sections / TLS / VirtualProtect+Query / codepage helpers / Sleep).
- * Process creation and injection are flagrant in BOTH modes; dynamic API
- * resolution (LoadLibrary/GetProcAddress) is flagrant for MAP mode only --
- * it is the standard bypass for import screening, and plain edited game code
- * has no use for it. */
+/* Process-creation and injection primitives: never present in edited game
+ * code, and the exe does not import them either, so their appearance in a map
+ * DLL is a hard block (both audit modes). Dynamic resolution
+ * (LoadLibrary/GetProcAddress) is intentionally NOT flagged -- the game
+ * imports it itself and edited code has direct access regardless. */
 static const char* s_flagrantKernel32Both[] = {
     "CreateProcessA", "CreateProcessW", "WinExec",
     "OpenProcess", "WriteProcessMemory", "ReadProcessMemory",
     "CreateRemoteThread", "VirtualAllocEx", "SetThreadContext",
     "QueueUserAPC",
-    NULL
-};
-static const char* s_flagrantKernel32MapOnly[] = {
-    "LoadLibraryA", "LoadLibraryW", "LoadLibraryExA", "LoadLibraryExW",
-    "GetProcAddress",
     NULL
 };
 
@@ -305,13 +353,6 @@ DllSecurityResult DllSecurity_AuditPlugin(const char* path, int mode, char* outR
                                         {
                                             if (StrCaseEqual(fn, s_flagrantKernel32Both[b])) hit = fn;
                                         }
-                                        if (mode == DLL_AUDIT_MAP)
-                                        {
-                                            for (int b = 0; hit == NULL && s_flagrantKernel32MapOnly[b] != NULL; b++)
-                                            {
-                                                if (StrCaseEqual(fn, s_flagrantKernel32MapOnly[b])) hit = fn;
-                                            }
-                                        }
                                         if (hit != NULL)
                                         {
                                             free(sections);
@@ -337,15 +378,37 @@ DllSecurityResult DllSecurity_AuditPlugin(const char* path, int mode, char* outR
         }
     }
 
-    /* A delay-load directory is itself dynamic-resolution machinery; edited
-     * game code has none (verified: zero across all shipped map DLLs). */
+    /* Delay-load directory: name-check its DLLs against the same allowlist
+     * rather than refusing outright (some toolchains delay-load CRT bits). */
     if (mode == DLL_AUDIT_MAP && delayRva != 0 && !g_DllAllowUnrecognized)
     {
-        free(sections);
-        fclose(f);
-        if (outReason)
-            snprintf(outReason, maxReasonLen, "has a delay-load import directory, which edited game code never uses");
-        return DLL_SECURITY_ERR_UNKNOWN_IMPORT;
+        DWORD delayOff = RvaToFileOffset(delayRva, sections, numSections);
+        if (delayOff != 0 && fseek(f, delayOff, SEEK_SET) == 0)
+        {
+            IMAGE_DELAYLOAD_DESCRIPTOR dd;
+            int di = 0;
+            while (di < 64 && fread(&dd, sizeof(dd), 1, f) == 1 && dd.DllNameRVA != 0)
+            {
+                long dpos = ftell(f);
+                DWORD nOff = RvaToFileOffset(dd.DllNameRVA, sections, numSections);
+                char dn[128] = {0};
+                if (nOff != 0 && fseek(f, nOff, SEEK_SET) == 0 && fread(dn, 1, sizeof(dn) - 1, f) > 0)
+                {
+                    dn[sizeof(dn) - 1] = 0;
+                    if (!MapImportAllowed(dn))
+                    {
+                        free(sections);
+                        fclose(f);
+                        if (outReason)
+                            snprintf(outReason, maxReasonLen,
+                                     "delay-loads '%s', which the game itself does not use", dn);
+                        return DLL_SECURITY_ERR_UNKNOWN_IMPORT;
+                    }
+                }
+                fseek(f, dpos, SEEK_SET);
+                di++;
+            }
+        }
     }
 
     /* 2. Audit Export Table for valid Silent Hill plugin symbols */
