@@ -1,5 +1,25 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.08.20.1 -- 2026-08-20
+- Fixed N appearing in Japanese inventory descriptions
+- Blood partially fixed and affected by fog (still need to do blood puddles)
+- Borderless: Now stretches chosen resolution to your desktop resolution instead of just running at your desktop resolution. The resolution setting is now effectively the rendering resolution as well. 
+- Pillarboxing: Selecting YES for pillarboxing will now cause 4:3 resolutions stretched to desktop size to have the correct aspect ratio and pillarboxing. For example, if you select a 4:3 resolution and set borderless/fullscreen with a 16:9 desktop, with pillarboxing YES the game will take up your whole screen but have black bars, OFF will strech
+Note: Menus only should still be the default when playing with a widescreen (16:9+) resolution! This will prevent menus from stretching but allow the world to render natively widescreen.
+- 320x240 has been added as a resolution option, works best Windowed/Borderless
+
+Still trying to fix bilinear, will get it in with more bug fixes next update.
+
+Commit summaries:
+- fix: Japanese item-description N, for real this time; PSX-native resolutions
+- psycross: bilinear via the real 3D marker; borderless internal resolution (unfixed)
+- psycross: borderless honours the chosen render resolution, MSAA included
+- psycross: pillarbox the borderless stretch when pillarboxing is on
+- psycross: fix MSAA+borderless black screen (single-sampled scene target)
+- psycross: fix MSAA+borderless black screen (multisample default framebuffer)
+- fix: console and toasts were invisible in borderless
+- launcher: last tooltip translated; psycross MSAA in borderless
+
 ## beta-2026.08.19.2 -- 2026-08-19
 - More Romper fixes
 - Finally actually fixed Nurse\Doctor damage and other NPC damage
