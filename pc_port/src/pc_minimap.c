@@ -190,6 +190,31 @@ static int mm_effective_map_idx(void)
 
     g_PcMapQueryOnly = prevQueryOnly;
     }
+
+    /* [MMDIAG] the whole substitution chain, once a second, so the next dead
+     * end is named by data instead of read from theory. */
+    {
+        static int s_frameCtr;
+
+        /* Once every ~60 calls rather than a real clock -- this file has no
+         * SDL include and the cadence only needs to be "rarely". */
+        if (++s_frameCtr >= 60)
+        {
+            s32 p1, p2, p3, p4;
+
+            s_frameCtr = 0;
+            g_PcMapQueryOnly = 1;
+            p1 = mm_query_at(1); p2 = mm_query_at(2);
+            p3 = mm_query_at(3); p4 = mm_query_at(4);
+            g_PcMapQueryOnly = 0;
+            SH_DBG("[MMDIAG] paperIdx=%d sel=%d probes=%08X/%08X/%08X/%08X ready=%d req=%d pos=(%d,%d)",
+                   (int)g_SavegamePtr->paperMapIdx, s_otherPlacesIdx,
+                   (unsigned)p1, (unsigned)p2, (unsigned)p3, (unsigned)p4,
+                   s_mapReady, g_PcConfig.minimapRequireMap,
+                   (int)g_SysWork.playerWork.player.position.vx,
+                   (int)g_SysWork.playerWork.player.position.vz);
+        }
+    }
     return (s_otherPlacesIdx >= 0) ? s_otherPlacesIdx : idx;
 }
 static int s_markFileLoaded = NO_VALUE; /* marking TIM idx read into MM_MARK_SLOT */
