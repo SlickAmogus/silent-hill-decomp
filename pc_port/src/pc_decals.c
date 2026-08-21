@@ -298,6 +298,7 @@ void Pc_DecalsDraw(GsOT* ot)
         s32              bucket;
         int              k;
         int              ok = 1;
+        int              decalKeep = 256;
 
         Vw_WorldScreenMatrixAtPositionGet(&mat, d->center.vx, d->center.vy, d->center.vz);
         SetRotMatrix(&mat);
@@ -371,9 +372,21 @@ void Pc_DecalsDraw(GsOT* ot)
          * fog -- so past the point where fog should have swallowed the hole,
          * colour maths cannot hide it. Skipping is the only correct occlusion. */
         {
-            extern int Pc_BloodFogKeep(s32 z);
+            /* The keep must track what the fog LOOKS like, not the raw ramp:
+             * the shader multiplies fog by g_PsyX_FogStrength (typically >1),
+             * so the scene whites out faster than the unscaled ramp says. An
+             * unscaled fade left the decal outliving the wall it sits on -- a
+             * lone dark dot in blank fog. Scale the fade by the same strength,
+             * then skip once it is nearly gone. */
+            extern int   Pc_BloodFogKeep(s32 z);
+            extern float g_PsyX_FogStrength;
+            int fade = 256 - Pc_BloodFogKeep(bucketSum >> 2);
 
-            if (Pc_BloodFogKeep(bucketSum >> 2) < 48)
+            fade = (int)(fade * (g_PsyX_FogStrength > 0.0f ? g_PsyX_FogStrength : 1.0f));
+            if (fade > 256) fade = 256;
+            decalKeep = 256 - fade;
+
+            if (decalKeep < 64)
                 continue;
         }
 
@@ -411,11 +424,12 @@ void Pc_DecalsDraw(GsOT* ot)
                  * darkens because the texture itself is dark. BM_AVERAGE is
                  * genuine SRC_ALPHA blending on PC, so the per-prim alpha
                  * channel fades the decal to actually invisible, with the art
-                 * and the near look untouched. */
-                extern int  Pc_BloodFogKeep(s32 z);
+                 * and the near look untouched. decalKeep is the strength-scaled
+                 * keep computed at the skip above, so the fade tracks the fog
+                 * as it is actually rendered. */
                 extern void PsyX_SetNextPrimAlpha(int a);
 
-                PsyX_SetNextPrimAlpha(Pc_BloodFogKeep(bucketSum >> 2));
+                PsyX_SetNextPrimAlpha(decalKeep);
             }
 
             setRGB0(poly, (u8)lr, (u8)lg, (u8)lb);
