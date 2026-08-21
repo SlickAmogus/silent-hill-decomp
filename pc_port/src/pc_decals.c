@@ -380,7 +380,15 @@ void Pc_DecalsDraw(GsOT* ot)
              * then skip once it is nearly gone. */
             extern int   Pc_BloodFogKeep(s32 z);
             extern float g_PsyX_FogStrength;
-            int fade = 256 - Pc_BloodFogKeep(bucketSum >> 2);
+            /* bucketSum accumulates RotTransPers RETURN values, and RotTransPers
+             * returns OTZ = SZ >> 2 -- so bucketSum >> 2 is a QUARTER of the true
+             * average depth, and the keep was being evaluated as if every decal
+             * were four times closer than it is: barely any fade at any range,
+             * which is why the previous two fixes changed nothing visible. The
+             * sum of the four quartered corners IS the average SZ, so the ramp
+             * gets bucketSum itself. (The OT bucketing below is unaffected: its
+             * >>1 shift was calibrated against the quartered otz.) */
+            int fade = 256 - Pc_BloodFogKeep(bucketSum);
 
             fade = (int)(fade * (g_PsyX_FogStrength > 0.0f ? g_PsyX_FogStrength : 1.0f));
             if (fade > 256) fade = 256;
