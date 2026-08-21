@@ -230,13 +230,22 @@ static int Tc_Mode(void)
      * A pad presses Start or Cross here; a touchscreen had no way to say it,
      * so cutscenes could not be skipped and text could not be advanced.
      *
+     * The save menus belong here too. They open with Harry talking, and with
+     * neither state listed the whole block fell through to OFF -- no advance,
+     * no escape, nothing to tap at the first save point.
+     *
      * EXCEPT while a free-cursor puzzle is up: those are already driven as a
      * pointer by pc_mouse_cursor, and injecting a confirm underneath would
-     * fire twice on every tap. */
+     * fire twice on every tap. That test carries the save menus correctly too,
+     * because the slot list draws a cursor and the dialogue before it does not:
+     * the talking part advances on a tap, and once the slots are up the pointer
+     * drives them with the corner Back button for a way out. */
     if (g_SysWork.sysState == SysState_ReadMessage ||
         g_SysWork.sysState == SysState_EventCallback ||
         g_SysWork.sysState == SysState_Fmv ||
-        g_SysWork.sysState == SysState_GameOver)
+        g_SysWork.sysState == SysState_GameOver ||
+        g_SysWork.sysState == SysState_SaveMenu0 ||
+        g_SysWork.sysState == SysState_SaveMenu1)
     {
         extern int Pc_MouseCursor_PuzzleActive(void);
 
@@ -1040,7 +1049,18 @@ void Pc_Touch_Draw(void)
     if (batch.used <= 0)
         return;
 
-    ot = &g_OtTags0[buf][4];
+    /* OT0 is drawn first and OT2 after it. In gameplay OT0 is right -- the
+     * controls sit over the world exactly like the crosshair. But the map, save
+     * and item screens draw their fullscreen 2D into OT2, which then paints
+     * straight over anything left in OT0: the lone escape button was being
+     * submitted every frame and buried, so the corner was tappable with nothing
+     * visible in it. Put the solo-button modes in OT2 so the way out is drawn
+     * on top of the screen it is meant to leave. */
+    if (mode != TC_MODE_GAMEPLAY)
+        ot = &g_OrderingTable2[g_ActiveBufferIdx];
+    else
+        ot = &g_OtTags0[buf][4];
+
     for (i = 0; i < batch.used; i++)
         AddPrim(ot, &batch.p[i]);
     AddPrim(ot, &s_drMode[buf]);
