@@ -1423,6 +1423,23 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
                 if (s_bdLogs < 12)
                 {
                     s_bdLogs++;
+                    /* [BLOODCLUT] the palette those layers multiply. Blood is
+                     * red ONLY because the texture is CYAN and subtraction
+                     * removes it; if this row is not cyan-dominant (g/b high,
+                     * r low), the subtract takes everything and the spray reads
+                     * black -- with perfectly correct layer colours, which is
+                     * exactly what [BLOODDIAG] showed. */
+                    {
+                        extern unsigned short vram[];
+                        int cw   = (*poly + 1)->clut;
+                        int cx   = (cw & 0x3F) << 4;
+                        int cy   = (cw >> 6) & 0x1FF;
+                        unsigned short* row = &vram[cy * 1024 + cx];
+                        SH_DBG("[BLOODCLUT] (%d,%d): %04X %04X %04X %04X %04X %04X %04X %04X",
+                               cx, cy, row[0], row[1], row[2], row[3],
+                               row[4], row[5], row[6], row[7]);
+                    }
+
                     SH_DBG("[BLOODDIAG] add=(%d,%d,%d) sub=(%d,%d,%d) z=%d clut=0x%04X u1=0x%08X bloodCfg=%d",
                            (*poly)->r0, (*poly)->g0, (*poly)->b0,
                            (*poly + 1)->r0, (*poly + 1)->g0, (*poly + 1)->b0,
