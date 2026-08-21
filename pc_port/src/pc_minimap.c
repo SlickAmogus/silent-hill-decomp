@@ -136,6 +136,23 @@ static int s_mapReady    = 0;   /* pool slot holds this area's map */
 
 static int s_otherPlacesIdx = -1;
 
+/* Query wrapper: func_80067914's FIRST gate is
+ *     if (g_SavegamePtr->paperMapIdx != paperMapIdx) return 0;
+ * so probing a candidate index -- or querying a substituted one at draw time --
+ * is rejected outright unless the savegame momentarily agrees. Override for
+ * the duration of the one call and restore; same frame, same thread, nothing
+ * else reads the field in between. */
+static s32 mm_query_at(int idx)
+{
+    u8  prev = (u8)g_SavegamePtr->paperMapIdx;
+    s32 packed;
+
+    g_SavegamePtr->paperMapIdx = (u8)idx;
+    packed = func_80067914((s32)idx, 0, 0, (u16)Q12(1.0f));
+    g_SavegamePtr->paperMapIdx = prev;
+    return packed;
+}
+
 static int mm_effective_map_idx(void)
 {
     int idx = (int)g_SavegamePtr->paperMapIdx;
@@ -154,8 +171,7 @@ static int mm_effective_map_idx(void)
 
     g_PcMapQueryOnly = 1;
 
-    if (s_otherPlacesIdx < 0 ||
-        func_80067914((s32)s_otherPlacesIdx, 0, 0, (u16)Q12(1.0f)) == 0)
+    if (s_otherPlacesIdx < 0 || mm_query_at(s_otherPlacesIdx) == 0)
     {
         int c;
 
@@ -164,7 +180,7 @@ static int mm_effective_map_idx(void)
          * AltCentralTown, ResortTown). */
         for (c = 1; c <= 4; c++)
         {
-            if (func_80067914((s32)c, 0, 0, (u16)Q12(1.0f)) != 0)
+            if (mm_query_at(c) != 0)
             {
                 s_otherPlacesIdx = c;
                 break;
@@ -657,7 +673,7 @@ void Pc_MinimapUpdate(void)
      * bails before exporting one) still get a sane arrow. */
     g_PcMapQueryAngle = g_SysWork.playerWork.player.rotation.vy;
     g_PcMapQueryOnly  = 1;
-    packed = func_80067914((s32)mm_effective_map_idx(), 0, 0, (u16)Q12(1.0f));
+    packed = mm_query_at(mm_effective_map_idx());
     g_PcMapQueryOnly  = 0;
 
     /* The paper map is only drawn once Harry has actually found it -- HAS_MAP is
