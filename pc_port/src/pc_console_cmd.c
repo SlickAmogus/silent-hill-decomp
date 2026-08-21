@@ -20,6 +20,7 @@
  *                          LOGA RESET / LOGB RESET restarts the counter
  */
 #include "game.h"
+#include "pc_mod_registry.h"
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/game_boot/game_boot.h"
 #include "bodyprog/game_boot/fs_chara_anim.h" /* g_CharaModelAnimsData (spawn anim-ready gate) */
@@ -1022,6 +1023,13 @@ void Pc_ConsoleExec(const char* line)
                 push_lines(HELP_GIVE_PAGE1, (int)(sizeof(HELP_GIVE_PAGE1) / sizeof(HELP_GIVE_PAGE1[0])));
         } else {
             push_lines(HELP_LINES, (int)(sizeof(HELP_LINES) / sizeof(HELP_LINES[0])));
+            {
+                const char* mn; const char* mh; int k = 0;
+                if (Pc_ModConsole_List(&mn, &mh, 0))
+                    DbgOverlay_PushLine("-- mod commands --");
+                while (Pc_ModConsole_List(&mn, &mh, k++))
+                    cprintf(" %s%s%s", mn, (mh && mh[0]) ? " - " : "", (mh && mh[0]) ? mh : "");
+            }
         }
     } else if (strcmp(cmd, "GETFLAGS") == 0) {
         cmd_getflags();
@@ -1644,7 +1652,15 @@ void Pc_ConsoleExec(const char* line)
             PcConfig_ApplyXaVolume(pct / 100.0f);
         }
         cprintf("xa (fmv/voice) volume: %.0f%% (0..100)", g_PcXaVolume * 100.0f);
+    } else if (Pc_ModConsole_Dispatch(cmd, arg)) {
+        /* handled by a mod-registered command */
     } else {
         DbgOverlay_PushLine("Command not found!");
     }
+}
+
+/* Exported for mod command handlers (pc_mod_registry.h). */
+void Pc_Console_Print(const char* text)
+{
+    if (text) DbgOverlay_PushLine(text);
 }

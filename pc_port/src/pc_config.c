@@ -1093,7 +1093,13 @@ else if (strcmp(key, "allow_unrecognized_dlls") == 0)
                 }
             }
             if (!matched)
-                fprintf(stderr, "[CONFIG] Unknown key: %s\n", key);
+                {
+                    /* Not a game key and not a keybind: keep it for mods so a map
+                     * DLL can read its own settings via Pc_ModConfig_Value. */
+                    extern void Pc_ModConfig_Store(const char* k, const char* v);
+                    Pc_ModConfig_Store(key, value);
+                    fprintf(stderr, "[CONFIG] key '%s' kept for mods\n", key);
+                }
         }
     }
 

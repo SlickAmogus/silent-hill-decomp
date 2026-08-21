@@ -130,6 +130,9 @@ void MapOverlay_Unload(void)
         DllLoader_Close(s_currentDll);
         s_currentDll = NULL;
     }
+    /* Overlay code is gone; drop console commands it registered so the
+     * dispatcher can never call a freed handler (persistent ones kept). */
+    { extern void Pc_ModConsole_ClearTransient(void); Pc_ModConsole_ClearTransient(); }
     s_currentName[0] = '\0';
 }
 
