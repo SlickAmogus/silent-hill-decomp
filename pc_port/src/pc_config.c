@@ -478,9 +478,13 @@ void PcConfig_Load(const char* path)
         }
         else if (strcmp(key, "psx_dither") == 0)
         {
+            /* 0..7: off, dither, bilinear, trilinear, aniso 2x/4x/8x/16x. The
+             * old 0..2 clamp outlived the filter rework and folded every mode
+             * above bilinear back to bilinear on each boot -- the setting saved
+             * fine and was destroyed on load. */
             int v = atoi(value);
             if (v < 0) v = 0;
-            if (v > 2) v = 2;
+            if (v > 7) v = 7;
             g_PcConfig.psxDither = v;
         }
         else if (strcmp(key, "menu_filter") == 0)
