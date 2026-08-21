@@ -191,30 +191,6 @@ static int mm_effective_map_idx(void)
     g_PcMapQueryOnly = prevQueryOnly;
     }
 
-    /* [MMDIAG] the whole substitution chain, once a second, so the next dead
-     * end is named by data instead of read from theory. */
-    {
-        static int s_frameCtr;
-
-        /* Once every ~60 calls rather than a real clock -- this file has no
-         * SDL include and the cadence only needs to be "rarely". */
-        if (++s_frameCtr >= 60)
-        {
-            s32 p1, p2, p3, p4;
-
-            s_frameCtr = 0;
-            g_PcMapQueryOnly = 1;
-            p1 = mm_query_at(1); p2 = mm_query_at(2);
-            p3 = mm_query_at(3); p4 = mm_query_at(4);
-            g_PcMapQueryOnly = 0;
-            SH_DBG("[MMDIAG] paperIdx=%d sel=%d probes=%08X/%08X/%08X/%08X ready=%d req=%d pos=(%d,%d)",
-                   (int)g_SavegamePtr->paperMapIdx, s_otherPlacesIdx,
-                   (unsigned)p1, (unsigned)p2, (unsigned)p3, (unsigned)p4,
-                   s_mapReady, g_PcConfig.minimapRequireMap,
-                   (int)g_SysWork.playerWork.player.position.vx,
-                   (int)g_SysWork.playerWork.player.position.vz);
-        }
-    }
     return (s_otherPlacesIdx >= 0) ? s_otherPlacesIdx : idx;
 }
 static int s_markFileLoaded = NO_VALUE; /* marking TIM idx read into MM_MARK_SLOT */
@@ -608,23 +584,6 @@ void Pc_MinimapUpdate(void)
     int       markCount = 0;
     GsOT_TAG* ot;
 
-    /* [MMGATE] above every gate: absence of even this line means the CALLER
-     * never runs in this map, which is a different fault from a failed gate. */
-    {
-        static int s_gateCtr;
-
-        static int s_gateShots;
-
-        if (++s_gateCtr >= 120 && s_gateShots < 8)
-        {
-            s_gateCtr = 0;
-            s_gateShots++;
-            SH_DBG("[MMGATE] cfg=%d state=%d sys=%d op=%d paperIdx=%d",
-                   g_PcConfig.minimap, (int)g_GameWork.gameState,
-                   (int)g_SysWork.sysState, (int)g_PcConfig.minimapOpacity,
-                   (int)g_SavegamePtr->paperMapIdx);
-        }
-    }
 
     if (!g_PcConfig.minimap) return;
     if (g_GameWork.gameState != GameState_InGame ||
@@ -724,22 +683,6 @@ void Pc_MinimapUpdate(void)
      * restores the old always-visible behaviour. */
     haveMap = (s_mapReady && packed != 0);
 
-    /* [MMDRAW] the draw decision itself. [MMGATE] proved the gates pass and the
-     * savegame already holds paperIdx=1 in the intro, so the failure is HERE:
-     * either the Old Town image never becomes ready in map0_s00, or the query
-     * cannot place the intro coordinates on it. */
-    {
-        static int s_drawCtr, s_drawShots;
-
-        if (++s_drawCtr >= 120 && s_drawShots < 8)
-        {
-            s_drawCtr = 0;
-            s_drawShots++;
-            SH_DBG("[MMDRAW] idx=%d packed=%08X ready=%d haveMap=%d req=%d",
-                   mm_effective_map_idx(), (unsigned)packed, s_mapReady,
-                   haveMap, g_PcConfig.minimapRequireMap);
-        }
-    }
     if (haveMap && g_PcConfig.minimapRequireMap)
     {
         int mi = mm_effective_map_idx();

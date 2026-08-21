@@ -536,25 +536,6 @@ void func_8005E89C(void) // 0x8005E89C
 
     for (i = 0; i < g_MapOverlayHdr.unkTable1Count_50; i++)
     {
-#ifdef SH_PC_PORT
-        /* [FXDIAG] one line per effect TYPE per session, with its position, to
-         * identify which drawer owns the black fog-immune pool under corpses.
-         * Guessing across the per-map func_XX tables is exactly the theory
-         * chain that has failed before; the type number maps straight to a
-         * dispatch case and from there to one function. */
-        {
-            static unsigned s_seenTypes = 0;
-            int _t = g_MapOverlayHdr.unkTable1_4C[i].field_A;
-
-            if (_t >= 0 && _t < 32 && !(s_seenTypes & (1u << _t)))
-            {
-                s_seenTypes |= (1u << _t);
-                SH_DBG("[FXDIAG] effect type=%d idx=%d pos=(%d, %d)", _t, i,
-                       (int)g_MapOverlayHdr.unkTable1_4C[i].field_0.vx_0,
-                       (int)g_MapOverlayHdr.unkTable1_4C[i].field_4.vz_4);
-            }
-        }
-#endif
         switch (g_MapOverlayHdr.unkTable1_4C[i].field_A)
         {
             case 0:
@@ -1419,42 +1400,6 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
              * pitch black spray at range. */
             PC_BLOOD_FOG_FADE(*poly + 2, ptr->field_140);
 
-            /* [BLOODDIAG] what the spray actually draws: the additive layer
-             * (poly0) and subtractive layer (poly1) colours AFTER tint+fade,
-             * plus clut/tpage words. Settles colour-path vs texture-path for
-             * the "pitch black blood out of enemies" report with one shot. */
-            {
-                static int s_bdLogs = 0;
-
-                if (s_bdLogs < 12)
-                {
-                    s_bdLogs++;
-                    /* [BLOODCLUT] the palette those layers multiply. Blood is
-                     * red ONLY because the texture is CYAN and subtraction
-                     * removes it; if this row is not cyan-dominant (g/b high,
-                     * r low), the subtract takes everything and the spray reads
-                     * black -- with perfectly correct layer colours, which is
-                     * exactly what [BLOODDIAG] showed. */
-                    {
-                        extern unsigned short vram[];
-                        int cw   = (*poly + 1)->clut;
-                        int cx   = (cw & 0x3F) << 4;
-                        int cy   = (cw >> 6) & 0x1FF;
-                        unsigned short* row = &vram[cy * 1024 + cx];
-                        SH_DBG("[BLOODCLUT] (%d,%d): %04X %04X %04X %04X %04X %04X %04X %04X",
-                               cx, cy, row[0], row[1], row[2], row[3],
-                               row[4], row[5], row[6], row[7]);
-                    }
-
-                    SH_DBG("[BLOODDIAG] add=(%d,%d,%d) sub=(%d,%d,%d) z=%d clut=0x%04X u1=0x%08X bloodCfg=%d",
-                           (*poly)->r0, (*poly)->g0, (*poly)->b0,
-                           (*poly + 1)->r0, (*poly + 1)->g0, (*poly + 1)->b0,
-                           (int)ptr->field_140,
-                           (unsigned)(*poly + 1)->clut,
-                           (unsigned)*(u32*)&(*poly)->u1,
-                           (int)g_GameWork.config.extraBloodColor);
-                }
-            }
 #endif
             (*poly)->tpage          = 43;
             (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
@@ -1499,21 +1444,6 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
                 (*poly + 2)->r0 = (_br > 255) ? 255 : (u8)_br;
                 (*poly + 2)->g0 = (_bg > 255) ? 255 : (u8)_bg;
                 (*poly + 2)->b0 = (_bb > 255) ? 255 : (u8)_bb;
-            }
-            /* [BLOOD4] all four layers as EMITTED -- after tpage/clut and the
-             * additive cap+fade, immediately before addPrim. */
-            {
-                static int s_b4Logs = 0;
-
-                if (s_b4Logs < 10)
-                {
-                    s_b4Logs++;
-                    SH_DBG("[BLOOD4] L0=(%d,%d,%d,c%04X,t%04X) L1=(%d,%d,%d,c%04X,t%04X) L2=(%d,%d,%d,c%04X,t%04X) L3=(%d,%d,%d,c%04X,t%04X)",
-                           (*poly)->r0,     (*poly)->g0,     (*poly)->b0,     (unsigned)(*poly)->clut,     (unsigned)(*poly)->tpage,
-                           (*poly + 1)->r0, (*poly + 1)->g0, (*poly + 1)->b0, (unsigned)(*poly + 1)->clut, (unsigned)(*poly + 1)->tpage,
-                           (*poly + 2)->r0, (*poly + 2)->g0, (*poly + 2)->b0, (unsigned)(*poly + 2)->clut, (unsigned)(*poly + 2)->tpage,
-                           (*poly + 3)->r0, (*poly + 3)->g0, (*poly + 3)->b0, (unsigned)(*poly + 3)->clut, (unsigned)(*poly + 3)->tpage);
-                }
             }
             {
                 s32 _bucketS = (ptr->field_140 - g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_3) >> 3;
