@@ -19,6 +19,7 @@
 
 #include <PsyX/PsyX_public.h>
 #include <PsyX/PsyX_render.h>
+#include <PsyX/PsyX_globals.h> /* g_windowWidth/Height = the scene-target size */
 #include <PsyX/util/timer.h>
 #include <PsyX/common/glad.h>
 #include <PsyX/PsyX_backend.h>
@@ -332,7 +333,13 @@ static void DrawVideoFrameEx(const unsigned char* pixels, int image_w, int image
         }
     }
 
-    PsyX_GetScreenSize(&windowWidth, &windowHeight);
+    /* Size of the SCENE TARGET, not the OS window: in borderless the scene
+     * renders into an internal target at the chosen resolution and the present
+     * blit stretches it over the window. Sizing the viewport by the window
+     * put only the bottom-left render-size corner of it inside the target.
+     * These globals ARE the window size whenever no internal target exists. */
+    windowWidth  = g_windowWidth;
+    windowHeight = g_windowHeight;
 
     float video_aspect = (float)image_w / (float)image_h;
     float window_aspect = (float)windowWidth / (float)windowHeight;
@@ -412,13 +419,14 @@ static void DrawVideoFrameEx(const unsigned char* pixels, int image_w, int image
 
     RestoreGLState(&saved);
 
-    /* FMV presents its own frames outside the normal render loop, so it has to
-     * follow the same swap path the backend is using — SDL never sees the
-     * context on the ANGLE-backed backends. */
-    if (PsyX_Angle_Active())
-        PsyX_Angle_Swap();
-    else
-        SDL_GL_SwapWindow(g_window);
+    /* FMV presents its own frames outside the normal render loop, but it must
+     * present through GR_SwapWindow like every other frame: that is where the
+     * internal target gets blitted onto the real window in borderless. The
+     * movie was drawn INTO that target above, so swapping the window directly
+     * showed only the stale black backbuffer — FMVs went dark exactly when the
+     * borderless resolution was below the desktop's. GR_SwapWindow also picks
+     * the right swap call for the backend (ANGLE never goes through SDL). */
+    GR_SwapWindow();
 }
 
 static void DrawVideoFrame(int image_w, int image_h)
