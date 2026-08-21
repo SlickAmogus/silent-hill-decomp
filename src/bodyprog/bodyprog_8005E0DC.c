@@ -1480,6 +1480,26 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
                     _add[_c]->b0 = (_add[_c]->b0 * _keep) >> 8;
                 }
             }
+
+            /* Glow balance. [BLOOD4] measured the emitted layers: TWO additive
+             * fog-glows (L0, L3) against ONE subtractive glow (L2), all the
+             * same colour -- a full additive haze left over every droplet cell,
+             * which is the pale/white square edging. On PSX the second additive
+             * was confined by the SetPriority DR_MODE mask packets the PC path
+             * drops as no-ops; they were the containment, not a no-op. Instead
+             * of emulating mask bits, make the subtractive glow the exact SUM
+             * of the two additive glows -- cancellation then holds whatever the
+             * caps and fades did to them, at every distance. The red layer (L1)
+             * is untouched. */
+            {
+                int _br = (*poly)->r0 + (*poly + 3)->r0;
+                int _bg = (*poly)->g0 + (*poly + 3)->g0;
+                int _bb = (*poly)->b0 + (*poly + 3)->b0;
+
+                (*poly + 2)->r0 = (_br > 255) ? 255 : (u8)_br;
+                (*poly + 2)->g0 = (_bg > 255) ? 255 : (u8)_bg;
+                (*poly + 2)->b0 = (_bb > 255) ? 255 : (u8)_bb;
+            }
             /* [BLOOD4] all four layers as EMITTED -- after tpage/clut and the
              * additive cap+fade, immediately before addPrim. */
             {
@@ -1523,6 +1543,26 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
             (*poly + 3)->tpage      = 43;
 
+
+            /* Glow balance. [BLOOD4] measured the emitted layers: TWO additive
+             * fog-glows (L0, L3) against ONE subtractive glow (L2), all the
+             * same colour -- a full additive haze left over every droplet cell,
+             * which is the pale/white square edging. On PSX the second additive
+             * was confined by the SetPriority DR_MODE mask packets the PC path
+             * drops as no-ops; they were the containment, not a no-op. Instead
+             * of emulating mask bits, make the subtractive glow the exact SUM
+             * of the two additive glows -- cancellation then holds whatever the
+             * caps and fades did to them, at every distance. The red layer (L1)
+             * is untouched. */
+            {
+                int _br = (*poly)->r0 + (*poly + 3)->r0;
+                int _bg = (*poly)->g0 + (*poly + 3)->g0;
+                int _bb = (*poly)->b0 + (*poly + 3)->b0;
+
+                (*poly + 2)->r0 = (_br > 255) ? 255 : (u8)_br;
+                (*poly + 2)->g0 = (_bg > 255) ? 255 : (u8)_bg;
+                (*poly + 2)->b0 = (_bb > 255) ? 255 : (u8)_bb;
+            }
             ptr->field_12C = (PACKET*)*poly + 0xA0;
             SetPriority(ptr->field_12C, 0, 0);
             SetPriority(ptr->field_12C + 0xC, 1, 1);

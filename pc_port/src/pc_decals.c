@@ -364,6 +364,19 @@ void Pc_DecalsDraw(GsOT* ot)
             bucket = ORDERING_TABLE_SIZE - 1;
         }
 
+        /* Fully fogged: stop drawing entirely, the way PSX drops world polys
+         * past the fog far plane. The bullet-hole texture is DARK, and an
+         * average-blended dark texture darkens the frame no matter what the
+         * vertex colour is mixed toward -- (fog + 0.2*fog)/2 is still below the
+         * fog -- so past the point where fog should have swallowed the hole,
+         * colour maths cannot hide it. Skipping is the only correct occlusion. */
+        {
+            extern int Pc_BloodFogKeep(s32 z);
+
+            if (Pc_BloodFogKeep(bucketSum >> 2) < 48)
+                continue;
+        }
+
         setPolyFT4(poly);
         /* Semi-transparent like the blood splats (setSemiTrans in func_80062708):
          * the decal then never depth-tests, so a character/object in front covers
