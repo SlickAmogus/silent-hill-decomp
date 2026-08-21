@@ -1245,6 +1245,13 @@ void Pc_ConsoleExec(const char* line)
         {
             cprintf("Achievement toast preview (real achievement + badge)");
         }
+    } else if (strcmp(cmd, "PGXPAFFINE") == 0) {
+        /* Bisect: PGXP on, but every poly takes the whole-poly affine path. */
+        extern int g_PsxPgxpForceAffine;
+        if (arg[0] == '1') g_PsxPgxpForceAffine = 1;
+        else if (arg[0] == '0') g_PsxPgxpForceAffine = 0;
+        else g_PsxPgxpForceAffine = !g_PsxPgxpForceAffine;
+        cprintf("PGXP force-affine: %s", g_PsxPgxpForceAffine ? "ON (precise path suppressed)" : "OFF");
     } else if (strcmp(cmd, "PGXPWORLDDEPTH") == 0) {
         /* Depth-channel kill-switch: OFF suppresses FLAT world promotion
          * (GL_ALWAYS painter + viewZ flat depth), dropping depth behavior
