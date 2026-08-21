@@ -1480,6 +1480,21 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
                     _add[_c]->b0 = (_add[_c]->b0 * _keep) >> 8;
                 }
             }
+            /* [BLOOD4] all four layers as EMITTED -- after tpage/clut and the
+             * additive cap+fade, immediately before addPrim. */
+            {
+                static int s_b4Logs = 0;
+
+                if (s_b4Logs < 10)
+                {
+                    s_b4Logs++;
+                    SH_DBG("[BLOOD4] L0=(%d,%d,%d,c%04X,t%04X) L1=(%d,%d,%d,c%04X,t%04X) L2=(%d,%d,%d,c%04X,t%04X) L3=(%d,%d,%d,c%04X,t%04X)",
+                           (*poly)->r0,     (*poly)->g0,     (*poly)->b0,     (unsigned)(*poly)->clut,     (unsigned)(*poly)->tpage,
+                           (*poly + 1)->r0, (*poly + 1)->g0, (*poly + 1)->b0, (unsigned)(*poly + 1)->clut, (unsigned)(*poly + 1)->tpage,
+                           (*poly + 2)->r0, (*poly + 2)->g0, (*poly + 2)->b0, (unsigned)(*poly + 2)->clut, (unsigned)(*poly + 2)->tpage,
+                           (*poly + 3)->r0, (*poly + 3)->g0, (*poly + 3)->b0, (unsigned)(*poly + 3)->clut, (unsigned)(*poly + 3)->tpage);
+                }
+            }
             {
                 s32 _bucketS = (ptr->field_140 - g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_3) >> 3;
                 if (_bucketS < 0) _bucketS = 0;
