@@ -1482,6 +1482,23 @@ void Lm_MaterialsLoadWithFilter(s_LmHeader* lmHdr, s_ActiveChunkTextures* active
 {
     s_Material* curMat;
 
+#ifdef SH_PC_PORT
+    /* Same stale-header guard as Lm_MaterialFlagsApply: this walk writes
+     * curMat->texture and stamps Material_FsImageApply through the materials
+     * pointer -- garbage bounds/pointer = heap stomp. */
+    if (lmHdr == NULL || lmHdr->magic != LM_HEADER_MAGIC)
+    {
+        static int s_lmGarbageLog2 = 0;
+        if (s_lmGarbageLog2 < 8)
+        {
+            s_lmGarbageLog2++;
+            SH_DBG("[LM-GARBAGE] Lm_MaterialsLoadWithFilter on invalid header %p (magic=0x%02X) -- skipped",
+                   (void*)lmHdr, lmHdr ? (unsigned)lmHdr->magic : 0u);
+        }
+        return;
+    }
+#endif
+
     for (curMat = &lmHdr->materials[0]; curMat < &lmHdr->materials[lmHdr->materialCount]; curMat++)
     {
         if (curMat->field_C == 0 && curMat->texture == NULL &&
@@ -1589,6 +1606,26 @@ void Lm_MaterialFlagsApply(s_LmHeader* lmHdr) // 0x80056954
     s32         j;
     s32         matFlags;
     s_Material* curMat;
+
+#ifdef SH_PC_PORT
+    /* The materials walk below trusts materialCount and the materials pointer.
+     * A stale/freed/reused lmHdr (registry eviction, buffer round-trip) hands
+     * this loop garbage BOUNDS and garbage POINTERS -- and the field_12 commit
+     * writes through them: a heap stomp that lands in whatever now owns that
+     * memory (the reformat's prim arrays among the candidates -- the Nowhere
+     * corruption class). Same guard Lm_MaterialRefCountDec already carries. */
+    if (lmHdr == NULL || lmHdr->magic != LM_HEADER_MAGIC)
+    {
+        static int s_lmGarbageLog = 0;
+        if (s_lmGarbageLog < 8)
+        {
+            s_lmGarbageLog++;
+            SH_DBG("[LM-GARBAGE] Lm_MaterialFlagsApply on invalid header %p (magic=0x%02X) -- skipped",
+                   (void*)lmHdr, lmHdr ? (unsigned)lmHdr->magic : 0u);
+        }
+        return;
+    }
+#endif
 
     for (i = 0, curMat = lmHdr->materials; i < lmHdr->materialCount; i++, curMat++)
     {
