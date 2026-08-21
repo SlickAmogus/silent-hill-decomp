@@ -718,7 +718,8 @@ void Pc_WideLm_ApplyMaterial(const s_ModelHeader* modelHdr, s32 matIdx, const s_
                 {
                     prim->clut = HiresOverride_RestampValidate(
                         (u16)(mat->field_10 + (prim->clut - mat->field_12)),
-                        mat->field_10, (const char*)&mat->name); /* same restamp validation as Model_MaterialFlagsApply */
+                        mat->field_10, prim->clut, mat->field_12,
+                        (const char*)&mat->name); /* same restamp validation as Model_MaterialFlagsApply */
                 }
                 if (matFlags & MaterialFlag_2)
                 {

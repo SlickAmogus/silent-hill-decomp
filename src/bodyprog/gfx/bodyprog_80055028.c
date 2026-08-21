@@ -1693,7 +1693,8 @@ void Model_MaterialFlagsApply(s_ModelHeader* modelHdr, s32 arg1, const s_Materia
                      * the pool and clamp to the material's own base. */
                     curPrim->field_2 = HiresOverride_RestampValidate(
                         (u16)(mat->field_10 + (curPrim->field_2 - mat->field_12)),
-                        mat->field_10, (const char*)&mat->name);
+                        mat->field_10, (u16)curPrim->field_2, mat->field_12,
+                        (const char*)&mat->name);
 #else
                     curPrim->field_2 = mat->field_10 + (curPrim->field_2 - mat->field_12);
 #endif

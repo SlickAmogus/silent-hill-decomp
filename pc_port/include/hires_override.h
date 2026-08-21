@@ -282,6 +282,8 @@ typedef int (*HiresRestorablePredicate)(int slotId, int row);
  * material's own registered base) so the prim stays drawable. */
 unsigned short HiresOverride_RestampValidate(unsigned short newClut,
                                              unsigned short baseClut,
+                                             unsigned short oldClut,
+                                             unsigned short oldBase,
                                              const char* matName);
 
 int HiresOverride_EvictColdestPackRow(unsigned minAgeTicks,

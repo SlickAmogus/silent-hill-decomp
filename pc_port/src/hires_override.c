@@ -447,6 +447,8 @@ int HiresOverride_EvictColdestPackRow(unsigned minAgeTicks,
  * material so the upstream desync stays visible in user logs. */
 unsigned short HiresOverride_RestampValidate(unsigned short newClut,
                                              unsigned short baseClut,
+                                             unsigned short oldClut,
+                                             unsigned short oldBase,
                                              const char* matName)
 {
     int q, slotId, row, r, backed;
@@ -474,8 +476,11 @@ unsigned short HiresOverride_RestampValidate(unsigned short newClut,
         if (s_restampLog < 16)
         {
             s_restampLog++;
-            SH_DBG("[RESTAMP] mat '%.8s': clut 0x%04X -> slot %d row %d UNBACKED, clamped to base 0x%04X",
-                   (matName != NULL) ? matName : "?", newClut, slotId, row, baseClut);
+            /* oldClut/oldBase expose WHICH state generations crossed: a native
+             * oldClut against a virtual oldBase (or two different virtual
+             * generations) is the reload/bookkeeping desync in one line. */
+            SH_DBG("[RESTAMP] mat '%.8s': %04X = new base %04X + (prim %04X - old base %04X) -> slot %d row %d UNBACKED, clamped",
+                   (matName != NULL) ? matName : "?", newClut, baseClut, oldClut, oldBase, slotId, row);
         }
     }
     return baseClut;
