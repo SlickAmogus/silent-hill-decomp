@@ -405,20 +405,17 @@ void Pc_DecalsDraw(GsOT* ot)
              * that had already faded. bucketSum >> 2 is the average corner SZ,
              * the same depth measure blood passes in. */
             {
+                /* True transparency fade. Neither colour direction works for an
+                 * average-blended DARK texture: toward zero it half-darkens
+                 * forever (the black hole), toward the fog colour it still
+                 * darkens because the texture itself is dark. BM_AVERAGE is
+                 * genuine SRC_ALPHA blending on PC, so the per-prim alpha
+                 * channel fades the decal to actually invisible, with the art
+                 * and the near look untouched. */
                 extern int  Pc_BloodFogKeep(s32 z);
-                extern void Pc_FogColorGet(int* r, int* g, int* b);
-                int keep = Pc_BloodFogKeep(bucketSum >> 2);
-                int fr, fg, fb;
+                extern void PsyX_SetNextPrimAlpha(int a);
 
-                /* The decal is AVERAGE-blended (tpage 0 -> ABR 0): it shows
-                 * (background + F)/2, so fading F to ZERO makes it a permanent
-                 * half-darkening -- the solid black hole at any distance. To
-                 * dissolve into fog, F must approach the FOG COLOUR, matching
-                 * the fogged wall behind it. Mix toward it by the same ramp. */
-                Pc_FogColorGet(&fr, &fg, &fb);
-                lr = (lr * keep + fr * (256 - keep)) >> 8;
-                lg = (lg * keep + fg * (256 - keep)) >> 8;
-                lb = (lb * keep + fb * (256 - keep)) >> 8;
+                PsyX_SetNextPrimAlpha(Pc_BloodFogKeep(bucketSum >> 2));
             }
 
             setRGB0(poly, (u8)lr, (u8)lg, (u8)lb);
