@@ -743,6 +743,40 @@ void func_8003CC7C(s_WorldObjectModel* model, MATRIX* viewMat, MATRIX* worldMat)
         return;
     }
 
+#ifdef SH_PC_PORT
+    /* Name the owner of any packet the CLUT sanitizer is about to discard.
+     * PsyCross sees only the packet (CLUTDROP can't say whose it was); a clut
+     * decoding past the pool (slot >= 512) cannot come from any stamp path --
+     * it is poisoned prim data, i.e. this model is being drawn from a
+     * reclaimed buffer even though its name still matches. Log the object,
+     * model address and prim so user logs identify the reclaimed file
+     * (Nowhere elevator: use elevator -> hall -> return). */
+    {
+        static int s_poisonLog = 0;
+
+        if (s_poisonLog < 8 && modelHdr->meshCount > 0)
+        {
+            s_MeshHeader* _mh = &modelHdr->meshHdrs[0];
+            s32           _pi;
+
+            for (_pi = 0; _pi < _mh->primitiveCount; _pi++)
+            {
+                u16 _c = (u16)_mh->primitives[_pi].field_2;
+
+                if ((_c & 0x8000) &&
+                    (((((_c >> 6) & 0x3FF) - 512) / 16) * 64 + (_c & 0x3F)) >= 512)
+                {
+                    s_poisonLog++;
+                    SH_DBG("[WOBJ-POISON] '%.8s' lmIdx=%d modelHdr=%p mesh0 prim%d clut=0x%04X primCnt=%d",
+                           model->metadata.name.str, (int)lmIdx, (void*)modelHdr,
+                           (int)_pi, (unsigned)_c, (int)_mh->primitiveCount);
+                    break;
+                }
+            }
+        }
+    }
+#endif
+
     func_80057090(&model->modelInfo, &g_OrderingTable0[g_ActiveBufferIdx], 1, viewMat, worldMat, 0);
 }
 
