@@ -1085,11 +1085,14 @@ int main(int argc, char* argv[])
     case 1:  g_cfg_psxDither = 1; g_cfg_textureFilter = 0; break;
     case 2:  g_cfg_psxDither = 0; g_cfg_textureFilter = 1; break;
     case 3:  g_cfg_psxDither = 0; g_cfg_textureFilter = 2; break;
-    case 4:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; break;
+    /* 4..7 = anisotropic 2x/4x/8x/16x: one value carries mode AND strength. */
+    case 4:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 2;  break;
+    case 5:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 4;  break;
+    case 6:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 8;  break;
+    case 7:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 16; break;
     default: g_cfg_psxDither = 0; g_cfg_textureFilter = 0; break;
     }
     g_cfg_bilinearFiltering = (g_cfg_textureFilter > 0);
-    g_cfg_anisoLevel        = g_PcConfig.anisoLevel;
     /* Menus / 2D-only frames (g_PsxDitherSuppressed) get bilinear if enabled,
      * independent of the 3D psx_dither mode above. */
     g_cfg_menuFilter = g_PcConfig.menuFilter ? 1 : 0;
@@ -1099,7 +1102,7 @@ int main(int argc, char* argv[])
            g_cfg_textureFilter == 1 ? "bilinear" :
            g_cfg_textureFilter == 2 ? "trilinear" :
            g_cfg_textureFilter == 3 ? "anisotropic" : "off",
-           g_cfg_textureFilter >= 3 ? " (max taps set by aniso_level)" : "");
+           g_cfg_textureFilter >= 3 ? " (see aniso taps in the mode)" : "");
 
     /* PGXP master gate: PsyCross is compiled with USE_PGXP=1, but the
      * runtime path is opt-in via config.cfg use_pgxp. When 0, prim emit

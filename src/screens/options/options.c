@@ -78,6 +78,7 @@ static s32 g_ExtraOptionsMenu_BulletMultMax;
 extern int g_cfg_psxDither;
 extern int g_cfg_textureFilter;
 extern int g_cfg_bilinearFiltering;
+extern int g_cfg_anisoLevel;
 extern int g_PsxUsePgxp;
 extern int g_cfg_postProcess;
 extern int g_cfg_tonemap;
@@ -150,7 +151,7 @@ typedef struct {
 
 static const int VAL_WIN[]   = { 0, 1, 2 };
 static const int VAL_VSYNC[] = { 0, 1 };
-static const int VAL_FILT[]  = { 0, 1, 2, 3, 4 };
+static const int VAL_FILT[]  = { 0, 1, 2, 3, 4, 5, 6, 7 };
 static const int VAL_ONOFF[] = { 0, 1 };
 static const int VAL_AA[]    = { 0, 2, 4, 8 };
 static const int VAL_POST[]  = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
@@ -163,7 +164,8 @@ static const int VAL_MMMODE[] = { 0, 1, 2 };
 
 static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
 static const char* const LBL_VSYNC[] = { "Off", "On" };
-static const char* const LBL_FILT[]  = { "Off", "Dither", "Bilinear", "Trilinear", "Anisotropic" };
+static const char* const LBL_FILT[]  = { "Off", "Dither", "Bilinear", "Trilinear",
+                                         "Aniso_2x", "Aniso_4x", "Aniso_8x", "Aniso_16x" };
 static const char* const LBL_ONOFF[] = { "Off", "On" };
 static const char* const LBL_AA[]    = { "Off", "2x", "4x", "8x" };
 static const char* const LBL_POST[]  = { "Off", "CRT", "Scanlines", "Vignette", "Color_Grade", "Film_Grain", "Sharpen", "PSX_Retro", "Cinematic" };
@@ -185,7 +187,7 @@ static const s_PcOpt PCOPT_G[] = {
     { "Resolution",     NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RES    },
     { "Window_Mode",    &g_PcConfig.fullscreen,         "fullscreen",           VAL_WIN,   3, LBL_WIN,   NULL,                          1, PCK_WINMODE },
     { "VSync",          &g_PcConfig.vsync,              "vsync",                VAL_VSYNC, 2, LBL_VSYNC, NULL,                          1, PCK_VSYNC   },
-    { "Texture_Filter", &g_PcConfig.psxDither,          "psx_dither",           VAL_FILT,  5, LBL_FILT,  NULL,                          1, PCK_FILTER },
+    { "Texture_Filter", &g_PcConfig.psxDither,          "psx_dither",           VAL_FILT,  8, LBL_FILT,  NULL,                          1, PCK_FILTER },
     { "PGXP",           &g_PcConfig.usePgxp,            "use_pgxp",             VAL_ONOFF, 2, LBL_ONOFF, &g_PsxUsePgxp,                 1, PCK_INT    },
     { "Antialiasing",   &g_PcConfig.msaaSamples,        "msaa",                 VAL_AA,    4, LBL_AA,    NULL,                          0, PCK_INT    },
     { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
@@ -435,7 +437,13 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
             case 1:  g_cfg_psxDither = 1; g_cfg_textureFilter = 0; break;
             case 2:  g_cfg_psxDither = 0; g_cfg_textureFilter = 1; break;
             case 3:  g_cfg_psxDither = 0; g_cfg_textureFilter = 2; break;
-            case 4:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; break;
+            /* 4..7 are anisotropic at 2x/4x/8x/16x. One value carries both the
+             * mode and the strength so the row, the launcher and config.cfg
+             * cannot disagree about what is selected. */
+            case 4:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 2;  break;
+            case 5:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 4;  break;
+            case 6:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 8;  break;
+            case 7:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 16; break;
             default: g_cfg_psxDither = 0; g_cfg_textureFilter = 0; break;
             }
             g_cfg_bilinearFiltering = (g_cfg_textureFilter > 0);

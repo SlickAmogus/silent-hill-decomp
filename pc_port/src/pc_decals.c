@@ -385,6 +385,21 @@ void Pc_DecalsDraw(GsOT* ot)
             if (lr > 128) lr = 128;
             if (lg > 128) lg = 128;
             if (lb > 128) lb = 128;
+            /* Fade with world fog, exactly as the blood prims do. A decal is
+             * semi-transparent, so it disappears as its source colour goes to
+             * zero -- without this a bullet hole stayed at full strength however
+             * far away or however thick the fog, standing out against a wall
+             * that had already faded. bucketSum >> 2 is the average corner SZ,
+             * the same depth measure blood passes in. */
+            {
+                extern int Pc_BloodFogKeep(s32 z);
+                int keep = Pc_BloodFogKeep(bucketSum >> 2);
+
+                lr = (lr * keep) >> 8;
+                lg = (lg * keep) >> 8;
+                lb = (lb * keep) >> 8;
+            }
+
             setRGB0(poly, (u8)lr, (u8)lg, (u8)lb);
         }
         /* tpage is irrelevant: the bit-15 clut alone keys the GL override

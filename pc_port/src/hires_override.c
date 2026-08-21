@@ -1158,6 +1158,16 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
     }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+
+    /* Tell the renderer this one is off-limits to the global filtering setting.
+     * Filtering is applied per BIND now, so without this the mode chosen above
+     * would be overwritten every frame and the gutterless font cells would bleed
+     * into each other again. */
+    if (nearest)
+    {
+        extern void GR_MarkTextureNearest(unsigned int tex);
+        GR_MarkTextureNearest(*tex);
+    }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
