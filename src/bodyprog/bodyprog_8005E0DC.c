@@ -1412,6 +1412,26 @@ bool func_80060044(POLY_FT4** poly, s32 idx) // 0x80060044
             (*poly + 1)->b0         = ptr->field_134.b;
 #ifdef SH_PC_PORT
             PC_BLOOD_FOG_FADE(*poly + 1, ptr->field_140);
+
+            /* [BLOODDIAG] what the spray actually draws: the additive layer
+             * (poly0) and subtractive layer (poly1) colours AFTER tint+fade,
+             * plus clut/tpage words. Settles colour-path vs texture-path for
+             * the "pitch black blood out of enemies" report with one shot. */
+            {
+                static int s_bdLogs = 0;
+
+                if (s_bdLogs < 12)
+                {
+                    s_bdLogs++;
+                    SH_DBG("[BLOODDIAG] add=(%d,%d,%d) sub=(%d,%d,%d) z=%d clut=0x%04X u1=0x%08X bloodCfg=%d",
+                           (*poly)->r0, (*poly)->g0, (*poly)->b0,
+                           (*poly + 1)->r0, (*poly + 1)->g0, (*poly + 1)->b0,
+                           (int)ptr->field_140,
+                           (unsigned)(*poly + 1)->clut,
+                           (unsigned)*(u32*)&(*poly)->u1,
+                           (int)g_GameWork.config.extraBloodColor);
+                }
+            }
 #endif
             (*poly)->tpage          = 43;
             (*poly + 1)->clut       = (g_MapOverlayHdr.unkTable1_4C[idx].field_C.s_1.field_2 << 6) | 0x13;
