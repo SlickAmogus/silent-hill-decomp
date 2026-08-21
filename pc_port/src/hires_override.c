@@ -473,17 +473,24 @@ unsigned short HiresOverride_RestampValidate(unsigned short newClut,
 
     {
         static int s_restampLog = 0;
-        if (s_restampLog < 16)
+        if (s_restampLog < 24)
         {
             s_restampLog++;
             /* oldClut/oldBase expose WHICH state generations crossed: a native
              * oldClut against a virtual oldBase (or two different virtual
              * generations) is the reload/bookkeeping desync in one line. */
-            SH_DBG("[RESTAMP] mat '%.8s': %04X = new base %04X + (prim %04X - old base %04X) -> slot %d row %d UNBACKED, clamped",
+            SH_DBG("[RESTAMP] mat '%.8s': %04X = new base %04X + (prim %04X - old base %04X) -> slot %d row %d unbacked-at-stamp",
                    (matName != NULL) ? matName : "?", newClut, baseClut, oldClut, oldBase, slotId, row);
         }
     }
-    return baseClut;
+    /* DIAGNOSTIC ONLY -- the value passes through. Clamping here was tried and
+     * destroyed LEGITIMATE early stamps: at load the stamp routinely lands
+     * before the slot's [POOLTEX] registration (THR4001F: slot 0 rows 3/4
+     * stamped moments before slot 0 registered), and clamping erased the row
+     * deltas, wrecking multi-row palettes. Unbacked-at-stamp is not an error;
+     * unbacked-at-DRAW is, and the parse-side CLUT sanitizer already handles
+     * that (drop, never rainbow). */
+    return newClut;
 }
 
 /* Expand one CLUT row of a raw TIM pixel+palette block to RGBA8 at native
