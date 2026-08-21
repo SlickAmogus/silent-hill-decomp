@@ -1137,6 +1137,39 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PsxWorldVShift;
         if (arg[0]) g_PsxWorldVShift = (float)atof(arg);
         cprintf("world vertical view shift: %.1f psx-units (+ = view up; 0=off)", g_PsxWorldVShift);
+    } else if (strcmp(cmd, "DRAWDIST") == 0) {
+        /* Live version of the config-only draw_distance_pct. Read every frame by
+         * the five SH_FAR_BASE sites and the chunk material window, so setting it
+         * takes effect immediately. 200 cap: past ~210 the Q8 view Z wraps. */
+        if (arg[0]) {
+            int v = atoi(arg);
+            g_PcConfig.drawDistancePct = (v < 25) ? 25 : ((v > 200) ? 200 : v);
+        }
+        cprintf("draw distance: %d%% (25..200; config key draw_distance_pct)", g_PcConfig.drawDistancePct);
+    } else if (strcmp(cmd, "FOGDIST") == 0) {
+        /* Push the fog planes out (or in). Indoors the fog is BLACK, so this is
+         * also the "see further in the sewers" knob: the wall of black is the fog
+         * far plane. Re-applies immediately via the remembered raw distances. */
+        extern int  g_PcFogDistScalePct;
+        extern void Pc_FogDistanceReapply(void);
+        if (arg[0]) {
+            int v = atoi(arg);
+            g_PcFogDistScalePct = (v < 50) ? 50 : ((v > 400) ? 400 : v);
+            Pc_FogDistanceReapply();
+        }
+        cprintf("fog distance: %d%% (50..400; 100=stock)", g_PcFogDistScalePct);
+    } else if (strcmp(cmd, "BRIGHT") == 0) {
+        /* Whole-image brightness, the same value the launcher's brightness
+         * setting drives (config key brightness). Applied in the post shader,
+         * so it works everywhere including menus. */
+        extern float g_cfg_brightness;
+        if (arg[0]) {
+            float v = (float)atof(arg);
+            if (v < 0.2f) v = 0.2f;
+            if (v > 4.0f) v = 4.0f;
+            g_cfg_brightness = v;
+        }
+        cprintf("brightness: %.2f (0.2..4.0; 1.0=stock; config key brightness)", g_cfg_brightness);
     } else if (strcmp(cmd, "SHADOWRES") == 0) {
         /* Flashlight shadow-map resolution. The target is rebuilt on the next
          * frame that needs it, so this takes effect immediately. Clamped to

@@ -793,6 +793,24 @@ void func_80055814(s32 arg0) // 0x80055814
     g_WorldEnvWork.fog.intensity = Q12(1.0f) - func_800559A8(arg0);
 }
 
+#ifdef SH_PC_PORT
+/* Fog-distance scale, console `fogdist`. 100 = stock. Applied INSIDE the one
+ * function every fog-distance write goes through, so it covers streets and the
+ * black indoor fog alike (a dark room's "wall of black" IS its fog far plane --
+ * the fog colour there is black). The raw arguments are remembered so a console
+ * change can re-run the setter immediately instead of waiting for the next room
+ * transition to call it. */
+int g_PcFogDistScalePct = 100;
+static q19_12 s_lastFogNearRaw = 0;
+static q19_12 s_lastFogFarRaw  = 0;
+
+void Pc_FogDistanceReapply(void)
+{
+    if (s_lastFogFarRaw > 0)
+        WorldEnv_FogDistanceSet(s_lastFogNearRaw, s_lastFogFarRaw);
+}
+#endif
+
 void WorldEnv_FogDistanceSet(q19_12 nearDist, q19_12 farDist) // 0x80055840
 {
     s32 temp_lo;
@@ -804,6 +822,17 @@ void WorldEnv_FogDistanceSet(q19_12 nearDist, q19_12 farDist) // 0x80055840
     s32 var_t0;
     s32 var_v1;
     s32 temp;
+
+#ifdef SH_PC_PORT
+    s_lastFogNearRaw = nearDist;
+    s_lastFogFarRaw  = farDist;
+
+    if (g_PcFogDistScalePct != 100 && g_PcFogDistScalePct > 0)
+    {
+        nearDist = (q19_12)(((s64)nearDist * g_PcFogDistScalePct) / 100);
+        farDist  = (q19_12)(((s64)farDist  * g_PcFogDistScalePct) / 100);
+    }
+#endif
 
     nearDist = Q12_TO_Q8(nearDist);
 

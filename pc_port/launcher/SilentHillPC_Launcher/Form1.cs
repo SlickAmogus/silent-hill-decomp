@@ -1410,6 +1410,25 @@ public partial class Form1 : Form
             var p = Process.Start(exePath);
             if (p != null)
             {
+                /* THE stale-settings bug. The launcher loads config.cfg once at
+                 * startup, and this handler saves the UI state before every
+                 * launch -- so: Play, change options in-game (the game writes
+                 * them to config.cfg correctly), quit, Play again... and this
+                 * SaveConfig() just overwrote the in-game changes with whatever
+                 * the launcher was showing from before. Reload the UI from disk
+                 * the moment the game exits, so the launcher always reflects the
+                 * most recent writer. */
+                try
+                {
+                    p.EnableRaisingEvents = true;
+                    p.Exited += (s2, e2) =>
+                    {
+                        try { BeginInvoke((Action)(() => LoadConfig())); }
+                        catch { /* launcher closing; nothing to refresh */ }
+                    };
+                }
+                catch { }
+
                 // Grant the child process permission to come to the foreground.
                 AllowSetForegroundWindow((uint)p.Id);
 
