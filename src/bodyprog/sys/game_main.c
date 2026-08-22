@@ -404,6 +404,20 @@ static void Pc_CameraFov_Update(int standDown)
      * the game projection for the whole fade-in. Restricting to SysState_Gameplay
      * would be wrong for the same reason: examine (SysState_ReadMessage) and item
      * pickup keep the alt camera rendering, so pinning the FOV there pops it. */
+    /* Item pickup stands the FOV down to the game's own projection. Unlike
+     * examine (ReadMessage, world live -> removing FOV would pop the view),
+     * Gfx_PickupItemAnimate PAUSES the world: OT0 holds only the item model over
+     * a frozen backdrop, so the only thing reprojected is the item itself. With
+     * the alt-cam FOV applied, the picked-up item was scaled/positioned by
+     * fps_fov/tps_fov (reported). Standing down draws it at the exact projection
+     * the pickup animation was authored for, and because the backdrop is frozen
+     * the player's view does not change at all. */
+    {
+        extern int g_PcPickupItemActive;
+        if (g_PcPickupItemActive)
+            standDown = 1;
+    }
+
     if (Pc_AltCamStateOk() && !standDown)
     {
         if (g_PcFpsCam)
