@@ -903,7 +903,11 @@ void PcConfig_Load(const char* path)
             g_PcConfig.minimap = (v < 0) ? 0 : ((v > 2) ? 2 : v);
             s_minimapSeen = 1;
         }
-else if (strcmp(key, "allow_unrecognized_dlls") == 0)
+else if (strcmp(key, "enable_plugins") == 0)
+        {
+            g_PcConfig.enablePlugins = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "allow_unrecognized_dlls") == 0)
         {
             /* Downgrades ONLY the map-DLL unknown-import verdict to a logged
              * pass (toolchain-drift escape hatch). Flagrant imports and

@@ -878,6 +878,7 @@ namespace SilentHillPC_Launcher
             PruneEmptyDirs(LoadDir);
             PruneEmptyDirs(FmvDir);
             PruneEmptyDirs(Path.Combine(_gameRoot, "maps"));
+            PruneEmptyDirs(Path.Combine(_gameRoot, "plugins"));
         }
 
         private void WriteManifest(List<string> manifest)
@@ -956,11 +957,12 @@ namespace SilentHillPC_Launcher
                 if (relLower.StartsWith("load/") || relLower.StartsWith("fmv/"))
                     continue; // deployed by the load/FMV copiers
 
-                bool inMaps = relLower.StartsWith("maps/");
-                bool isDll  = relLower.EndsWith(".dll");
-                if (relLower.Contains("..") || !inMaps || !isDll)
+                bool inMaps    = relLower.StartsWith("maps/");
+                bool inPlugins = relLower.StartsWith("plugins/");
+                bool isDll     = relLower.EndsWith(".dll");
+                if (relLower.Contains("..") || !(inMaps || inPlugins) || !isDll)
                 {
-                    warnings.Add("skipped (only maps/*.dll deploys): " + rel);
+                    warnings.Add("skipped (only maps/ and plugins/ DLLs deploy): " + rel);
                     continue;
                 }
                 if (relLower.Count(c => c == '/') != 1)

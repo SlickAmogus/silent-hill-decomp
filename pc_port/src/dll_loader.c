@@ -79,6 +79,29 @@ void DllLoader_Close(DllHandle handle)
         FreeLibrary((HMODULE)handle);
 }
 
+int DllLoader_ListPlugins(char paths[][260], int maxCount)
+{
+    WIN32_FIND_DATAA fd;
+    HANDLE           h;
+    int              n = 0;
+
+    h = FindFirstFileA("plugins\\*.dll", &fd);
+    if (h == INVALID_HANDLE_VALUE)
+    {
+        return 0;
+    }
+    do
+    {
+        if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && n < maxCount)
+        {
+            snprintf(paths[n], 260, "plugins\\%s", fd.cFileName);
+            n++;
+        }
+    } while (n < maxCount && FindNextFileA(h, &fd));
+    FindClose(h);
+    return n;
+}
+
 const char* DllLoader_GetError(void)
 {
     return s_errorBuf;
@@ -101,6 +124,12 @@ void DllLoader_Close(DllHandle handle)
 {
     if (handle)
         dlclose(handle);
+}
+
+int DllLoader_ListPlugins(char paths[][260], int maxCount)
+{
+    (void)paths; (void)maxCount;
+    return 0; /* plugin scan is Windows-only for now */
 }
 
 const char* DllLoader_GetError(void)
