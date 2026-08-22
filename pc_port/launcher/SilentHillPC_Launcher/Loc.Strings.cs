@@ -57,7 +57,7 @@ namespace SilentHillPC_Launcher
             { "Disk Image:",       new[]{ "Imagen disco:", "Imagem disco:", "Image disque :", "Disk-Image:", "Immagine disco:", "ディスクイメージ:", "光盘镜像:", "Образ диска:", "Obraz płyty:" } },
             { "Audio Out:",        new[]{ "Salida audio:", "Saída áudio:", "Sortie audio :", "Audio:", "Uscita audio:", "音声出力:", "音频输出:", "Вывод звука:", "Wyjście audio:" } },
             { "Level:",            new[]{ "Nivel:", "Nível:", "Niveau :", "Level:", "Livello:", "レベル:", "关卡:", "Уровень:", "Poziom:" } },
-            { "Menus:",            new[]{ "Menús:", "Menus:", "Menus:", "Menüs:", "Menu:", "メニュー:", "菜单:", "Меню:", "Menu:" } },
+            { "UI:",               new[]{ "IU:", "IU:", "IU:", "UI:", "IU:", "UI:", "界面:", "Интерфейс:", "Interfejs:" } },
 
             // ---- common values / buttons ----
             { "Yes",    new[]{ "Sí", "Sim", "Oui", "Ja", "Sì", "はい", "是", "Да", "Tak" } },

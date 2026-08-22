@@ -624,7 +624,15 @@ void Pc_MinimapUpdate(void)
          * PILLARBOXED wide window still draws 4:3, so widening here put the
          * panel inside (or past) the black bar. Same predicate the inventory
          * mouse hit-test uses for the same question. */
-        int   stretched = (g_PcHorPlusEnabled && g_PcWidescreenMode == 2) ||
+        /* Widen to the true screen edge whenever the gameplay pass fills a wide
+         * window: Hor+ (mode 1) AND stretch (mode 2) both do, so gate on
+         * "not pillarbox" (mode != 0), not just mode == 2. The old `== 2` left
+         * the panel at the 4:3 margin in the default 16:9 Hor+ mode and in
+         * menus-only pillarboxing (world still Hor+). Pillarbox (mode 0) draws
+         * 4:3 with bars, so it must NOT widen. The second clause covers the 2D
+         * screens (g_PcHorPlusEnabled == 0), which the minimap never reaches
+         * (it early-returns outside SysState_Gameplay) but is kept for parity. */
+        int   stretched = (g_PcHorPlusEnabled && g_PcWidescreenMode != 0) ||
                           (!g_PcHorPlusEnabled && !g_PcMenuPillarbox);
 
         /* Ask for the REAL backbuffer: the config width/height this used to read
