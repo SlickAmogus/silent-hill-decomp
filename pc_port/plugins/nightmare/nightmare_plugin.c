@@ -67,8 +67,6 @@ PLUGIN_EXPORT void SH_Plugin_Init(void)
 {
     SH_LOG("[NIGHTMARE_PLUGIN] Initialized Nightmare Overhaul Plugin.");
     g_PcConfig.nightmare = 1;
-    g_PcConfig.liveInventory = 1;
-    g_PcConfig.nightmareVignette = 1;
     g_PcConfig.revampedController = 1;
     ApplyShadowStalkerModelOverrides();
     Patch_HideHealthStatus();
@@ -253,8 +251,7 @@ PLUGIN_EXPORT int SH_Plugin_IsLiveInventory(void)
     if (!g_PcConfig.nightmare)
         return 0;
 
-    /* Live real-time world simulation during inventory/map screens in Nightmare Mode */
-    return 1;
+    return (g_PcConfig.liveInventory != 0);
 }
 
 /* Standalone PSX Vignette Renderer for standalone beta & dev builds */
@@ -430,10 +427,47 @@ PLUGIN_EXPORT int SH_Plugin_OverrideNpcSpawn(e_CharaId* charaId)
 
 PLUGIN_EXPORT void SH_Plugin_ModifyRadioVolume(s32* volume)
 {
-    if (volume && g_SysWork.playerWork.player.health <= Q12(35.0f))
+    if (!volume || !g_PcConfig.nightmare) return;
+    if (g_SysWork.playerWork.player.health <= Q12(35.0f))
     {
-        /* In Nightmare Mode, low health reduces radio signal strength/range by 60% */
-        *volume = (*volume * 4) / 10;
+        /* PSX Audio Driver uses Attenuation (0 = Max Loudness, 255 = Silent).
+         * Calculate true perceived loudness (255 - volume), attenuate by 60%,
+         * and convert back to attenuation byte. */
+        s32 loudness = 255 - *volume;
+        if (loudness > 0)
+        {
+            loudness = (loudness * 4) / 10;
+            *volume  = 255 - loudness;
+        }
+    }
+}
+
+PLUGIN_EXPORT void SH_Plugin_ModifyRadioAttributes(s32* volume, s32* pitch)
+{
+    if (!g_PcConfig.nightmare) return;
+
+    q19_12 hp = g_SysWork.playerWork.player.health;
+    if (hp <= Q12(35.0f))
+    {
+        /* 1. Attenuate perceived loudness */
+        if (volume)
+        {
+            s32 loudness = 255 - *volume;
+            if (loudness > 0)
+            {
+                loudness = (loudness * 4) / 10;
+                *volume  = 255 - loudness;
+            }
+        }
+
+        /* 2. Unstable distorted radio static pitch wobble */
+        if (pitch)
+        {
+            static q19_12 s_radioPhase = 0;
+            s_radioPhase += Q12(0.08f);
+            s32 wobble = (Math_Sin(s_radioPhase) >> 9); /* -8..+8 wobble */
+            *pitch = (hp <= Q12(15.0f)) ? (wobble * 3) : (wobble * 2);
+        }
     }
 }
 
