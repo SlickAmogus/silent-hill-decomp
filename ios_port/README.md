@@ -82,20 +82,61 @@ visible; without them there is no way to get a file in at all.
 | Map overlays | `SH_STATIC_MAPS` — iOS will not load a dylib outside the signed bundle |
 | Entry point | SDL owns it (`UIApplicationMain`), as on Android |
 | Working dir | `Documents`, set by `chdir` in `main_pc.c` |
-| ffmpeg / libjpeg / RetroAchievements | off, via `SH_DESKTOP_FEATURE_DEFAULT` |
+| ffmpeg / libjpeg | off, via `SH_DESKTOP_FEATURE_DEFAULT` |
+| RetroAchievements | **on** — `ios_ra_http.m` (NSURLSession) replaces `pc_ra_http.c` |
+| Lua / randomizer | off — `loslib.c` needs `system()`, which the SDK forbids |
 | Touch controls | `pc_touch.c`, shared with Android and ungated; on by default here |
 | Controller | paired MFi/Bluetooth works through PsyCross's `SDL_GameController` path |
 
+## RetroAchievements
+
+On by default, and the only port that signs in from inside the game. Everywhere
+else the launcher authenticates and leaves a connect token in `config.cfg`; an
+iPhone has no launcher, so **Options → System → Achievements** opens a native
+sign-in sheet instead. Your password is exchanged once for a token and is never
+written anywhere — the token is what lands in `config.cfg`, and selecting the
+row again signs out and clears it.
+
+Softcore only, as on every other port: the quick save/load, debug controls,
+alternate cameras and gamemodes rule out any hardcore ruleset.
+
+Two things are worth knowing about how this is built:
+
+- `pc_ra_http.c` has exactly two backends, WinHTTP and libcurl, and iOS has
+  neither — which is the only reason RA was ever in the desktop-only feature
+  bucket. `ios_ra_http.m` implements the same two entry points over
+  NSURLSession, which needs no third-party library and is what App Transport
+  Security is configured against, so `retroachievements.org` TLS works with no
+  bundled CA store. rcheevos itself is libc-only and always could have built.
+- The address map is rebuilt by `dlsym`ing the decomp's globals out of the
+  running image. Mach-O only resolves what the link left in the export table,
+  so this needs `-Wl,-export_dynamic`; the Windows build gets the same from
+  `--export-all-symbols`. Without it the map comes up empty and every
+  achievement reads zero.
+
 ## Status
 
-Builds and links. CI produces a real arm64 iOS binary (Mach-O, LC_BUILD_VERSION
+Runs on device. CI produces a real arm64 iOS binary (Mach-O, LC_BUILD_VERSION
 platform 2, minos 13.0) with all 43 map overlays linked in, a compiled launch
-storyboard and the assets bundled, packaged as an unsigned .ipa. Nothing has run
-on a device, so every rendering and performance question is still open.
+storyboard and the assets bundled, packaged as an unsigned .ipa.
 
-Touch controls came across from Android, where they are reported to work well.
-`pc_touch.c` is plain SDL touch with no platform conditionals — a floating left
-thumbstick, right-side drag to look, tap to act — presented to the engine as an
-ordinary analog pad, so nothing below libpad knows a finger is involved. It is
-enabled by default here for the same reason as Android: the touchscreen *is* the
-controller. Untested on an iPhone.
+Touch controls came across from Android. `pc_touch.c` is plain SDL touch with no
+platform conditionals — a floating left thumbstick, right-side drag to look, tap
+to act — presented to the engine as an ordinary analog pad, so nothing below
+libpad knows a finger is involved. It is enabled by default here for the same
+reason as Android: the touchscreen *is* the controller. iOS adds a separate fire
+button that appears while aiming, and a One Button Combat option that folds the
+two back together.
+
+Two iOS-specific traps are worth recording, because both cost a session:
+
+- **Framebuffer 0 is not the screen.** SDL's UIKit backend renders into a
+  framebuffer it builds around a `CAEAGLLayer`, and the driver picks its name.
+  Binding 0 selects a framebuffer that does not exist, so every draw is
+  discarded silently — the game runs, audio plays, the screen stays black. Both
+  `GR_ScreenFBO()` and `GR_ScreenReadFBO()` fall back to `PSYX_DEFAULT_FBO`,
+  captured once from `GL_FRAMEBUFFER_BINDING` in `GR_InitialiseGLExt`.
+- **Points are not pixels.** `SDL_GetWindowSize` reports points and
+  `SDL_GL_GetDrawableSize` reports pixels, three times apart under
+  `ALLOW_HIGHDPI`. There are two separate pointer paths — the touch stick and
+  the menu cursor — and fixing only one leaves the other visibly offset.
