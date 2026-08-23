@@ -569,9 +569,10 @@ static int PcOpt_KeyEdge(int sc)
  * the caller blocks the normal menu handling. */
 static int PcOpt_ResetConfirm_Run(void)
 {
-    /* Layer 4: in front of the menu rows (layer 8) but behind the dialog text
-     * (layer 2). Lower index draws in front (the vignette dim sits at 24). */
-    GsOT_TAG* ot = &g_OtTags0[g_ActiveBufferIdx][4];
+    /* HIGHER OT index draws in front here: the menu rows (index 8) sit over the
+     * selection highlight (LAYER_24 == index 6). So the modal must go ABOVE the
+     * menu -- panel at index 10 (covers the menu rows), prompt text at 12. */
+    GsOT_TAG* ot = &g_OtTags0[g_ActiveBufferIdx][10];
     POLY_F4*  poly;
 
     /* Open on R only from the PC Options page. */
@@ -620,8 +621,9 @@ static int PcOpt_ResetConfirm_Run(void)
     addPrim(ot, poly);
     GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
 
-    /* Text is top-left space; centred over the panel above. */
-    Gfx_Strings2dLayerIdxSet(2);
+    /* Text is top-left space; centred over the panel above. Index 12 > panel's
+     * 10 so the prompt draws on top. */
+    Gfx_Strings2dLayerIdxSet(12);
     Gfx_StringSetColor(StringColorId_White);
     Gfx_StringSetPosition(74, 102);
     Gfx_StringDraw("Reset_settings_to_defaults?", DEFAULT_MAP_MESSAGE_LENGTH);
