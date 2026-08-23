@@ -599,25 +599,35 @@ static int PcOpt_ResetConfirm_Run(void)
         return 1;
     }
 
-    /* --- draw: dark centered panel (semi-transparent black), ~200x60 4:3 --- */
+    /* --- draw: solid dark panel behind the prompt. OPAQUE on purpose: a
+     * semi-transparent prim with no explicit blend mode blended ADDITIVELY
+     * here (black + bg = bg = invisible), so the prompt floated over the menu.
+     * A slightly-lit near-black reads as a panel over any background. --- */
     poly = (POLY_F4*)GsOUT_PACKET_P;
     setPolyF4(poly);
-    setSemiTrans(poly, true);
-    setRGB0(poly, 0, 0, 0);
-    setXY4(poly, 60, 90, 260, 90, 60, 150, 260, 150);
+    setRGB0(poly, 12, 12, 18);
+    setXY4(poly, 44, 84, 276, 84, 44, 154, 276, 154);
+    addPrim(ot, poly);
+    GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
+
+    /* Thin lighter top edge so the panel doesn't read as a hole. */
+    poly = (POLY_F4*)GsOUT_PACKET_P;
+    setPolyF4(poly);
+    setRGB0(poly, 90, 40, 32); /* rust accent, matching the toast style */
+    setXY4(poly, 44, 84, 276, 84, 44, 86, 276, 86);
     addPrim(ot, poly);
     GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
 
     Gfx_Strings2dLayerIdxSet(2);
     Gfx_StringSetColor(StringColorId_White);
-    Gfx_StringSetPosition(78, 100);
+    Gfx_StringSetPosition(70, 100);
     Gfx_StringDraw("Reset_settings_to_defaults?", DEFAULT_MAP_MESSAGE_LENGTH);
 
     Gfx_StringSetColor(s_pcOptResetSel == 0 ? StringColorId_Red : StringColorId_White);
-    Gfx_StringSetPosition(120, 126);
+    Gfx_StringSetPosition(128, 128);
     Gfx_StringDraw("Yes", DEFAULT_MAP_MESSAGE_LENGTH);
     Gfx_StringSetColor(s_pcOptResetSel == 1 ? StringColorId_Red : StringColorId_White);
-    Gfx_StringSetPosition(170, 126);
+    Gfx_StringSetPosition(170, 128);
     Gfx_StringDraw("No", DEFAULT_MAP_MESSAGE_LENGTH);
     Gfx_StringsReset2dLayerIdx();
     return 1;
@@ -1737,6 +1747,30 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
             break;
 
         case MainOptionsMenuEntry_Sound:
+#ifdef SH_PC_PORT
+        {
+            /* PC: this row selects the SPEAKER LAYOUT (same audio_output the
+             * launcher writes), not the PSX stereo/mono mix. Internal mixing is
+             * forced Stereo so the spatial image the surround layouts need is
+             * never collapsed -- the vanilla Monaural option is dropped because
+             * it silently defeated 5.1/7.1. Cycle Auto/Stereo/Quad/5.1/7.1
+             * (0..4), skipping HRTF (5). */
+            int dir = (g_Controller0->clickedBtnFlags & ControllerFlag_LStickRight) ? 1
+                    : (g_Controller0->clickedBtnFlags & ControllerFlag_LStickLeft)  ? -1 : 0;
+            if (dir != 0)
+            {
+                extern void PsyX_SPUAL_SetOutputMode(int mode);
+                /* String ids exactly as the config parser + launcher use them. */
+                static const char* AUDIO_IDS[] = { "auto", "stereo", "quad", "51", "71", "hrtf" };
+                Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                g_PcConfig.audioOutput = (g_PcConfig.audioOutput + dir + 5) % 5;
+                PcConfig_SaveKeyValue("audio_output", AUDIO_IDS[g_PcConfig.audioOutput]);
+                PsyX_SPUAL_SetOutputMode(g_PcConfig.audioOutput);
+                g_GameWork.config.soundType = 0; /* keep the savegame at Stereo */
+                SD_Call(AudioMode_Stereo);
+            }
+        }
+#else
             if (g_Controller0->clickedBtnFlags & (ControllerFlag_LStickRight | ControllerFlag_LStickLeft))
             {
                 Sd_PlaySfx(Sfx_MenuMove, 0, 64);
@@ -1750,6 +1784,7 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
                 }
                 SD_Call(audioType);
             }
+#endif
             break;
 
         case MainOptionsMenuEntry_BgmVolume:
@@ -2681,11 +2716,25 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
                 break;
 
             case 2:
+#ifdef SH_PC_PORT
+            {
+                /* Speaker layout name, right-aligned to the old label's edge
+                 * (~6 px/glyph). Matches the launcher's audio_output values. */
+                static const char* LAY[] = { "Auto", "Stereo", "Quad", "5.1", "7.1", "HRTF" };
+                int m = g_PcConfig.audioOutput;
+                const char* nm;
+                if (m < 0 || m > 5) m = 0;
+                nm = LAY[m];
+                Gfx_StringSetPosition(242 - (int)strlen(nm) * 6, 152);
+                Gfx_StringDraw(nm, 10);
+            }
+#else
                 strPosX = g_GameWork.config.soundType ? 194 : 206;
                 Gfx_StringSetPosition(strPosX, 152);
 
                 strIdx = g_GameWork.config.soundType + 2;
                 Gfx_StringDraw(CONFIG_STRS[strIdx], 10);
+#endif
                 break;
         }
     }
