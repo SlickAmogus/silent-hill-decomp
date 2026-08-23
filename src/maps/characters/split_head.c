@@ -317,7 +317,7 @@ void SplitHead_Control_1(s_SubCharacter* splitHead)
                 splitHeadProps.flags |= SplitHeadFlag_3;
                 Chara_MoveSpeedUpdate(splitHead, chargeSpeed);
 
-                if (sharedFunc_800D4530_1_s05(splitHead) != false)
+                if (distToPlayer < Q12(2.8f) || sharedFunc_800D4530_1_s05(splitHead) != false)
                 {
                     splitHead->model.anim.status = ANIM_STATUS(SplitHeadAnim_BiteAttack, false);
                     Sfx_WithFlagsPlay(Sfx_Unk1475, &splitHead->position, Q8(0.5f), SfxFlag_None);
@@ -613,7 +613,7 @@ void SplitHead_Control_3(s_SubCharacter* splitHead)
                 splitHeadProps.flags |= SplitHeadFlag_3;
                 Chara_MoveSpeedUpdate(splitHead, Q12(16.0f));
 
-                if (sharedFunc_800D4530_1_s05(splitHead))
+                if (distToPlayer < Q12(2.8f) || sharedFunc_800D4530_1_s05(splitHead))
                 {
                     splitHead->model.anim.status = ANIM_STATUS(SplitHeadAnim_3, false);
                     Sfx_WithFlagsPlay(Sfx_Unk1471, &splitHead->position, Q8(0.5f), SfxFlag_None);
