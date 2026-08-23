@@ -363,6 +363,8 @@ const char* Pc_FlashlightModeLabel(int mode);
 
 /* Parse config.cfg from the executable's directory. Uses defaults if not found. */
 void PcConfig_Load(const char* path);
+/* Compile-time defaults captured before the config file was parsed. */
+const s_PcConfig* PcConfig_Defaults(void);
 
 /* Rewrite only the `map = ...` line in the loaded config file (preserves the
  * rest). Persists a runtime map change so the next New Game loads it. */

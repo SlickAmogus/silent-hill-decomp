@@ -302,6 +302,15 @@ static void PcMouse_InjectDir(int dir)
     g_Controller0->pulsedBtnFlags  |= flag;
 }
 
+const s_PcOpt* PcOpt_PageByIndex(int page, int* count)
+{
+    if (page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
+    if (page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
+    if (page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
+    *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0]));
+    return PCOPT_T;
+}
+
 static const s_PcOpt* PcOpt_Page(int* count)
 {
     if (g_PcOptionsMenu_Page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
@@ -467,6 +476,154 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
     }
 }
 
+/* Reset one options row to its captured compile-time default, applying the
+ * same side effects a manual change would. Resolution and window mode are
+ * skipped by the caller (their kinds) so the player is never bumped to 640x480
+ * or a different display mode. Actions/labels (no key) are skipped too. */
+static void PcOpt_ResetEntry(const s_PcOpt* e)
+{
+    extern const s_PcConfig* PcConfig_Defaults(void);
+    const s_PcConfig* d = PcConfig_Defaults();
+    char buf[32];
+
+    if (e->key == NULL) return;
+    if (e->kind == PCK_RES || e->kind == PCK_WINMODE ||
+        e->kind == PCK_NEXT || e->kind == PCK_PREV || e->kind == PCK_BACK ||
+        e->kind == PCK_MAP) return;
+
+    if (e->kind == PCK_SLIDER && e->ffield != NULL) {
+        float dv = *(const float*)((const char*)d + ((const char*)e->ffield - (const char*)&g_PcConfig));
+        *e->ffield = dv;
+        if (e->flive) *e->flive = dv;
+        snprintf(buf, sizeof(buf), "%.3f", dv);
+        PcConfig_SaveKeyValue(e->key, buf);
+        return;
+    }
+
+    if (e->field == NULL) return;
+    {
+        int dv = *(const int*)((const char*)d + ((const char*)e->field - (const char*)&g_PcConfig));
+        *e->field = dv;
+        snprintf(buf, sizeof(buf), "%d", dv);
+        PcConfig_SaveKeyValue(e->key, buf);
+
+        if (e->kind == PCK_FILTER) {
+            switch (dv) {
+            case 1:  g_cfg_psxDither = 1; g_cfg_textureFilter = 0; break;
+            case 2:  g_cfg_psxDither = 0; g_cfg_textureFilter = 1; break;
+            case 3:  g_cfg_psxDither = 0; g_cfg_textureFilter = 2; break;
+            case 4:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 2;  break;
+            case 5:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 4;  break;
+            case 6:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 8;  break;
+            case 7:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 16; break;
+            default: g_cfg_psxDither = 0; g_cfg_textureFilter = 0; break;
+            }
+            g_cfg_bilinearFiltering = (g_cfg_textureFilter > 0);
+        } else if (e->kind == PCK_VSYNC) {
+            PsyX_ApplyVsync(g_PcConfig.vsync);
+        } else if (e->kind == PCK_FLMODE) {
+            Pc_FlashlightModeApply(dv, 1);
+        } else if (e->live) {
+            *e->live = dv;
+        }
+    }
+}
+
+/* Restore every options-menu setting to its default, EXCLUDING resolution and
+ * window mode (skipped per-entry above). Iterates all four pages so the reset
+ * covers exactly what the menu exposes, nothing hidden. Persisted to
+ * config.cfg per key and applied live where the row supports it. */
+void Pc_Options_ResetToDefaults(void)
+{
+    extern const s_PcOpt* PcOpt_PageByIndex(int page, int* count);
+    int page, count, i;
+    for (page = 0; page <= 3; page++) {
+        const s_PcOpt* tbl = PcOpt_PageByIndex(page, &count);
+        for (i = 0; i < count; i++)
+            PcOpt_ResetEntry(&tbl[i]);
+    }
+    SH_DBG_ECHO("Settings reset to defaults (resolution and window mode kept).");
+}
+
+#ifdef SH_PC_PORT
+#include <SDL.h>
+
+/* Shared with the header draw + the control loop. */
+int g_PcOptResetConfirmActive = 0;
+static int s_pcOptResetSel     = 1; /* 0 = Yes, 1 = No (safe default) */
+
+/* One-shot rising edge for a scancode (own small history so it never fights the
+ * game pad path). */
+static int PcOpt_KeyEdge(int sc)
+{
+    static unsigned char s_prev[SDL_NUM_SCANCODES];
+    const unsigned char* ks = SDL_GetKeyboardState(NULL);
+    int down = ks ? ks[sc] : 0;
+    int edge = down && !s_prev[sc];
+    s_prev[sc] = (unsigned char)down;
+    return edge;
+}
+
+/* Dark panel + "Reset settings to defaults?" + Yes/No, styled like the PC-port
+ * overlays (centered dark quad, clean text). Returns 1 while it owns input, so
+ * the caller blocks the normal menu handling. */
+static int PcOpt_ResetConfirm_Run(void)
+{
+    /* Layer 4: in front of the menu rows (layer 8) but behind the dialog text
+     * (layer 2). Lower index draws in front (the vignette dim sits at 24). */
+    GsOT_TAG* ot = &g_OtTags0[g_ActiveBufferIdx][4];
+    POLY_F4*  poly;
+
+    /* Open on R only from the PC Options page. */
+    if (!g_PcOptResetConfirmActive) {
+        if (PcOpt_KeyEdge(SDL_SCANCODE_R)) {
+            g_PcOptResetConfirmActive = 1;
+            s_pcOptResetSel = 1;
+        }
+        /* keep edge state fresh even when closed */
+        PcOpt_KeyEdge(SDL_SCANCODE_LEFT);
+        PcOpt_KeyEdge(SDL_SCANCODE_RIGHT);
+        PcOpt_KeyEdge(SDL_SCANCODE_RETURN);
+        PcOpt_KeyEdge(SDL_SCANCODE_ESCAPE);
+        return 0;
+    }
+
+    /* --- input --- */
+    if (PcOpt_KeyEdge(SDL_SCANCODE_LEFT))  s_pcOptResetSel = 0;
+    if (PcOpt_KeyEdge(SDL_SCANCODE_RIGHT)) s_pcOptResetSel = 1;
+    if (PcOpt_KeyEdge(SDL_SCANCODE_R))     s_pcOptResetSel = !s_pcOptResetSel;
+    if (PcOpt_KeyEdge(SDL_SCANCODE_ESCAPE)) { g_PcOptResetConfirmActive = 0; return 1; }
+    if (PcOpt_KeyEdge(SDL_SCANCODE_RETURN)) {
+        if (s_pcOptResetSel == 0) Pc_Options_ResetToDefaults();
+        g_PcOptResetConfirmActive = 0;
+        return 1;
+    }
+
+    /* --- draw: dark centered panel (semi-transparent black), ~200x60 4:3 --- */
+    poly = (POLY_F4*)GsOUT_PACKET_P;
+    setPolyF4(poly);
+    setSemiTrans(poly, true);
+    setRGB0(poly, 0, 0, 0);
+    setXY4(poly, 60, 90, 260, 90, 60, 150, 260, 150);
+    addPrim(ot, poly);
+    GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
+
+    Gfx_Strings2dLayerIdxSet(2);
+    Gfx_StringSetColor(StringColorId_White);
+    Gfx_StringSetPosition(78, 100);
+    Gfx_StringDraw("Reset_settings_to_defaults?", DEFAULT_MAP_MESSAGE_LENGTH);
+
+    Gfx_StringSetColor(s_pcOptResetSel == 0 ? StringColorId_Red : StringColorId_White);
+    Gfx_StringSetPosition(120, 126);
+    Gfx_StringDraw("Yes", DEFAULT_MAP_MESSAGE_LENGTH);
+    Gfx_StringSetColor(s_pcOptResetSel == 1 ? StringColorId_Red : StringColorId_White);
+    Gfx_StringSetPosition(170, 126);
+    Gfx_StringDraw("No", DEFAULT_MAP_MESSAGE_LENGTH);
+    Gfx_StringsReset2dLayerIdx();
+    return 1;
+}
+#endif
+
 void Options_PcOptionsMenu_Control(void)
 {
     int            count;
@@ -481,6 +638,11 @@ void Options_PcOptionsMenu_Control(void)
 
     if (g_GameWork.gameStateSteps[0] != OptionsMenuState_PcOptions)
         return;
+
+#ifdef SH_PC_PORT
+    if (PcOpt_ResetConfirm_Run())
+        return; /* dialog owns input this frame */
+#endif
 
     if ((LINE_CURSOR_TIMER_MAX - 1) < g_Options_SelectionHighlightTimer)
         g_Options_SelectionHighlightTimer = LINE_CURSOR_TIMER_MAX;
@@ -681,6 +843,19 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
     Gfx_StringSetPosition(strPos.vx, strPos.vy);
     Gfx_Strings2dLayerIdxSet(8);
     Gfx_StringDraw(HEADING, DEFAULT_MAP_MESSAGE_LENGTH);
+
+#ifdef SH_PC_PORT
+    /* Reset hint, top-right by the heading (same layer). Highlighted while the
+     * confirm dialog is up. Underscores render as spaces: "[R] Reset". */
+    {
+        extern int g_PcOptResetConfirmActive;
+        Gfx_StringSetColor(g_PcOptResetConfirmActive ? StringColorId_Red : StringColorId_White);
+        Gfx_StringSetPosition(232, strPos.vy);
+        Gfx_Strings2dLayerIdxSet(8);
+        Gfx_StringDraw("[R]_Reset", DEFAULT_MAP_MESSAGE_LENGTH);
+        Gfx_StringSetColor(StringColorId_White);
+    }
+#endif
 
     for (i = 0; i < count; i++) {
         Gfx_StringSetPosition(LINE_BASE_X, LINE_BASE_Y + (i * LINE_OFFSET_Y));

@@ -359,8 +359,22 @@ const char* Pc_FlashlightModeLabel(int mode)
     return s_names[(mode >= 0 && mode <= 3) ? mode : 0];
 }
 
+/* Snapshot of the compile-time defaults, taken before any config file is
+ * parsed, so a runtime "reset to defaults" can restore them. */
+static s_PcConfig s_PcConfigDefaults;
+static int        s_defaultsCaptured = 0;
+
+const s_PcConfig* PcConfig_Defaults(void)
+{
+    if (!s_defaultsCaptured) { s_PcConfigDefaults = g_PcConfig; s_defaultsCaptured = 1; }
+    return &s_PcConfigDefaults;
+}
+
 void PcConfig_Load(const char* path)
 {
+    /* g_PcConfig still holds the static initializer here — capture it. */
+    if (!s_defaultsCaptured) { s_PcConfigDefaults = g_PcConfig; s_defaultsCaptured = 1; }
+
     if (path) {
         strncpy(s_configPath, path, sizeof(s_configPath) - 1);
         s_configPath[sizeof(s_configPath) - 1] = '\0';
