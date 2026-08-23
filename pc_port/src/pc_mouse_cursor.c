@@ -13,6 +13,8 @@
 
 #include <SDL.h>
 #include <PsyX/PsyX_public.h>
+#include <PsyX/PsyX_render.h> /* GR_ReadVRAM */
+#include "pc_confirm_dialog.h"
 #include <libgs.h>
 
 /* Menu rows are authored via Gfx_StringSetPosition(x, y), a center-origin space
@@ -288,6 +290,10 @@ void Pc_MouseCursor_Draw(void)
 
     if (!Mc_Enabled() || !s_inView)
         return;
+    /* A GL overlay dialog composites above this whole frame, so it draws the
+     * cursor itself (Pc_MouseCursor_SpriteRgba/GlRect); ours would sit under it. */
+    if (Pc_ConfirmDialog_IsOpen())
+        return;
 
     cx = (s32)s_gx - MC_OFFSET_X;
     cy = (s32)s_gy - MC_OFFSET_Y;
@@ -315,4 +321,60 @@ void Pc_MouseCursor_Draw(void)
      * cursor at layer 4 so it sits on top — same overlay the crosshair uses. */
     AddPrim(&g_OtTags0[g_ActiveBufferIdx][4], poly);
     GsOUT_PACKET_P = (PACKET*)(poly + 1);
+}
+
+int Pc_MouseCursor_SpriteRgba(unsigned char* out)
+{
+    /* Same sprite as Pc_MouseCursor_Draw: 32x32 4bpp at tpage VRAM (768,0),
+     * UV (0,64) -> halfword column 768, row 64, 8 halfwords per row; 16-entry
+     * CLUT at halfword (192,0). Texel 0x0000 is transparent on the PSX. */
+    unsigned short px[32 * 8];
+    unsigned short clut[16];
+    int x, y;
+
+    GR_ReadVRAM(px, 768, 64, 8, 32);
+    GR_ReadVRAM(clut, 192, 0, 16, 1);
+
+    /* BG_ETC not uploaded yet: an all-zero CLUT would decode to nothing. */
+    for (x = 0; x < 16; x++)
+        if (clut[x] != 0)
+            break;
+    if (x == 16)
+        return 0;
+
+    for (y = 0; y < 32; y++) {
+        for (x = 0; x < 32; x++) {
+            unsigned short w = px[y * 8 + (x >> 2)];
+            unsigned short c = clut[(w >> ((x & 3) * 4)) & 0xF];
+            unsigned char* o = out + (y * 32 + x) * 4;
+            o[0] = (unsigned char)((c & 0x1F) << 3);
+            o[1] = (unsigned char)(((c >> 5) & 0x1F) << 3);
+            o[2] = (unsigned char)(((c >> 10) & 0x1F) << 3);
+            o[3] = (c == 0) ? 0 : 255;
+        }
+    }
+    return 1;
+}
+
+int Pc_MouseCursor_GlRect(float vpW, float vpH, float* outX, float* outY, float* outW, float* outH)
+{
+    float w, h, fbH;
+
+    if (!Mc_Enabled() || !s_inView)
+        return 0;
+
+    /* The PSX draw is 16x16 framebuffer units; the framebuffer is 320 wide and
+     * gsScreenHeight tall (448 on the interlaced menus, 224 in-game), so the
+     * cursor is the same fraction of the picture here as it is there. */
+    fbH = (float)g_GameWork.gsScreenHeight;
+    if (fbH <= 0.0f)
+        fbH = 240.0f;
+    w = 16.0f / 320.0f * vpW;
+    h = 16.0f / fbH * vpH;
+
+    if (outX) *outX = s_vx * vpW;
+    if (outY) *outY = (1.0f - s_vy) * vpH; /* top edge; arrow tip at top-left */
+    if (outW) *outW = w;
+    if (outH) *outH = h;
+    return 1;
 }
