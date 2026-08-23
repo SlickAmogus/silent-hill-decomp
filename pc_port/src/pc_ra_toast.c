@@ -28,8 +28,11 @@
 /* The AL machinery this file used moved to pc_ui_sound.c; only a comment
  * referencing it is left. Keep the headers where they exist, but they cannot be
  * reached on a target built without OpenAL at all (iOS has no framework for it,
- * Android never had one) and nothing here calls into them. */
-#if !defined(PSYX_NO_OPENAL)
+ * Android never had one) and nothing here calls into them. Same SH_NO_OPENAL
+ * spelling as pc_ui_sound.c, which pc_port sets directly for both mobile
+ * targets -- rather than PsyCross's PSYX_NO_OPENAL, which only reaches here by
+ * propagating through a PUBLIC link dependency. */
+#if !defined(SH_NO_OPENAL)
 #include <AL/al.h>
 #include <AL/alc.h>
 #endif
