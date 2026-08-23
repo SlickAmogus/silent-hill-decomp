@@ -599,35 +599,38 @@ static int PcOpt_ResetConfirm_Run(void)
         return 1;
     }
 
-    /* --- draw: solid dark panel behind the prompt. OPAQUE on purpose: a
-     * semi-transparent prim with no explicit blend mode blended ADDITIVELY
-     * here (black + bg = bg = invisible), so the prompt floated over the menu.
-     * A slightly-lit near-black reads as a panel over any background. --- */
+    /* --- draw: solid dark panel behind the prompt. Options-screen POLYs go into
+     * g_OrderingTable2 in a CENTRE-ORIGIN space (see the bullet quads at
+     * {-120,-71}); the strings, by contrast, use a top-left space. Feeding
+     * top-left coords to the panel put it off the bottom-right. These are
+     * centre-origin: screen ~ (60,92)..(260,152). OPAQUE on purpose -- a
+     * semi-transparent prim with no blend mode blended additively (invisible). */
     poly = (POLY_F4*)GsOUT_PACKET_P;
     setPolyF4(poly);
     setRGB0(poly, 12, 12, 18);
-    setXY4(poly, 44, 84, 276, 84, 44, 154, 276, 154);
+    setXY4(poly, -100, -20, 100, -20, -100, 40, 100, 40);
     addPrim(ot, poly);
     GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
 
-    /* Thin lighter top edge so the panel doesn't read as a hole. */
+    /* Thin rust top edge (toast style) so it doesn't read as a hole. */
     poly = (POLY_F4*)GsOUT_PACKET_P;
     setPolyF4(poly);
-    setRGB0(poly, 90, 40, 32); /* rust accent, matching the toast style */
-    setXY4(poly, 44, 84, 276, 84, 44, 86, 276, 86);
+    setRGB0(poly, 90, 40, 32);
+    setXY4(poly, -100, -20, 100, -20, -100, -17, 100, -17);
     addPrim(ot, poly);
     GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
 
+    /* Text is top-left space; centred over the panel above. */
     Gfx_Strings2dLayerIdxSet(2);
     Gfx_StringSetColor(StringColorId_White);
-    Gfx_StringSetPosition(70, 100);
+    Gfx_StringSetPosition(74, 102);
     Gfx_StringDraw("Reset_settings_to_defaults?", DEFAULT_MAP_MESSAGE_LENGTH);
 
     Gfx_StringSetColor(s_pcOptResetSel == 0 ? StringColorId_Red : StringColorId_White);
-    Gfx_StringSetPosition(128, 128);
+    Gfx_StringSetPosition(134, 126);
     Gfx_StringDraw("Yes", DEFAULT_MAP_MESSAGE_LENGTH);
     Gfx_StringSetColor(s_pcOptResetSel == 1 ? StringColorId_Red : StringColorId_White);
-    Gfx_StringSetPosition(170, 128);
+    Gfx_StringSetPosition(172, 126);
     Gfx_StringDraw("No", DEFAULT_MAP_MESSAGE_LENGTH);
     Gfx_StringsReset2dLayerIdx();
     return 1;
