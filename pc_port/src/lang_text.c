@@ -1069,14 +1069,69 @@ const char* Pc_LangItemName(int itemIdx)
     return (s_ItemNames[itemIdx] && s_ItemNames[itemIdx][0]) ? s_ItemNames[itemIdx] : NULL;
 }
 
+/* "~N" is the MAP-MESSAGE newline, understood by the message drawer. Item text
+ * goes through Gfx_StringDraw, which knows only a literal newline -- and drops
+ * '~' outright, because 0x7E is past the 'z' its glyph range ends at, leaving
+ * the 'N' to draw as a letter. That is the stray N in the Japanese inventory.
+ *
+ * Normalising HERE rather than in the tables is deliberate: the Japanese text
+ * can arrive from three places -- the compiled table, a patched disc adopted by
+ * JpnFanTextInit, or zh.pack -- and fixing only the compiled one made it DIFFER
+ * from the disc, which is precisely the test JpnFanTextInit uses to decide a
+ * disc is patched. It then adopted the disc's own "~N" text and put the N
+ * straight back. One conversion at the exit covers every source.
+ *
+ * The caller (Gfx_Inventory_ItemDescriptionDraw) draws the string immediately
+ * and does not retain it, so one rotating buffer is enough for the two calls a
+ * frame; text without a "~N" is returned untouched. */
+static const char* NormalizeItemText(const char* s)
+{
+    static char s_buf[2][512];
+    static int  s_next;
+
+    const char* p;
+    char*       out;
+    char*       end;
+
+    if (s == NULL)
+        return NULL;
+
+    for (p = s; *p != '\0'; p++)
+    {
+        if (p[0] == '~' && p[1] == 'N')
+            break;
+    }
+
+    if (*p == '\0')
+        return s;
+
+    out    = s_buf[s_next];
+    s_next = (s_next + 1) & 1;
+    end    = out + sizeof(s_buf[0]) - 1;
+
+    for (p = s; *p != '\0' && out < end; p++)
+    {
+        if (p[0] == '~' && p[1] == 'N')
+        {
+            *out++ = '\n';
+            p++;
+            continue;
+        }
+        *out++ = *p;
+    }
+
+    *out = '\0';
+    return s_buf[(s_next + 1) & 1];
+}
+
 const char* Pc_LangItemDesc(int itemIdx)
 {
     if (Pc_LangPackActive())
-        return Pc_LangPackItemDesc(itemIdx);
+        return NormalizeItemText(Pc_LangPackItemDesc(itemIdx));
 
     if (!s_ItemTextReady || itemIdx < 0 || itemIdx >= ITEM_TEXT_COUNT)
         return NULL;
-    return (s_ItemDescs[itemIdx] && s_ItemDescs[itemIdx][0]) ? s_ItemDescs[itemIdx] : NULL;
+    return NormalizeItemText((s_ItemDescs[itemIdx] && s_ItemDescs[itemIdx][0]) ? s_ItemDescs[itemIdx] : NULL);
 }
 
 /* ------------------------------------------------------------------ */

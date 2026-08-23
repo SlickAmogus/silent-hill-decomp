@@ -20,8 +20,10 @@
 #include <PsyX/PsyX_public.h>
 #include <PsyX/PsyX_render.h>
 #include <PsyX/PsyX_audio.h>   /* PsyX_AudioPushXaFrames — FMV audio via the mixer */
+#include <PsyX/PsyX_globals.h> /* g_windowWidth/Height = the scene-target size */
 #include <PsyX/util/timer.h>
 #include <PsyX/common/glad.h>
+#include <PsyX/PsyX_backend.h>
 
 #include <psx/libgpu.h>
 #include <psx/libetc.h>
@@ -227,21 +229,9 @@ static GLuint s_fmvVAO = 0;
 static GLuint s_fmvVBO = 0;
 static GLuint s_fmvProgram = 0;
 
-/* These two shaders bypass PsyCross's GR_Shader_Compile, so they also miss the
- * per-renderer version header it prepends. `#version 140` is desktop-only: on a
- * GLES target both fail to COMPILE at runtime and the movie never draws, which
- * looks like the game hanging on a black screen after the Konami logos.
- * The bodies below are already valid GLSL ES 3.00 (in/out, texture(), an
- * explicit fragColor, and a float precision in the fragment stage), so only the
- * version line has to change. */
-#if defined(RENDERER_OGLES)
-#   define SH_FMV_GLSL_VERSION "#version 300 es\n"
-#else
-#   define SH_FMV_GLSL_VERSION "#version 140\n"
-#endif
-
+/* No #version here: PsyX_Shader_Preamble prepends the one the live context
+ * takes, so this body also builds on the ANGLE-backed ES 3.0 backends. */
 static const char* s_fmvVertSrc =
-    SH_FMV_GLSL_VERSION
     "in vec2 a_pos;\n"
     "in vec2 a_uv;\n"
     "out vec2 v_uv;\n"
@@ -251,8 +241,6 @@ static const char* s_fmvVertSrc =
     "}\n";
 
 static const char* s_fmvFragSrc =
-    SH_FMV_GLSL_VERSION
-    "precision highp float;\n"
     "in vec2 v_uv;\n"
     "out vec4 fragColor;\n"
     "uniform sampler2D s_texture;\n"
@@ -266,11 +254,13 @@ static void InitBlitResources(void)
         return;
 
     GLuint vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, 1, &s_fmvVertSrc, NULL);
+    { const char* src[2] = { PsyX_Shader_Preamble(0, PSYX_GLSL_MODERN), s_fmvVertSrc };
+      glShaderSource(vs, 2, src, NULL); }
     glCompileShader(vs);
 
     GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &s_fmvFragSrc, NULL);
+    { const char* src[2] = { PsyX_Shader_Preamble(1, PSYX_GLSL_MODERN), s_fmvFragSrc };
+      glShaderSource(fs, 2, src, NULL); }
     glCompileShader(fs);
 
     s_fmvProgram = glCreateProgram();
@@ -333,6 +323,8 @@ static void RestoreGLState(const FmvGLState* s)
  * a per-frame glTexImage2D realloc stalls some drivers hard at 4K. */
 static int s_fmvTexW = 0, s_fmvTexH = 0, s_fmvTexRgba = -1;
 
+extern "C" GLuint GR_ScreenFBO(void);
+
 static void DrawVideoFrameEx(const unsigned char* pixels, int image_w, int image_h, int rgba)
 {
     int windowWidth, windowHeight;
@@ -351,7 +343,13 @@ static void DrawVideoFrameEx(const unsigned char* pixels, int image_w, int image
         }
     }
 
-    PsyX_GetScreenSize(&windowWidth, &windowHeight);
+    /* Size of the SCENE TARGET, not the OS window: in borderless the scene
+     * renders into an internal target at the chosen resolution and the present
+     * blit stretches it over the window. Sizing the viewport by the window
+     * put only the bottom-left render-size corner of it inside the target.
+     * These globals ARE the window size whenever no internal target exists. */
+    windowWidth  = g_windowWidth;
+    windowHeight = g_windowHeight;
 
     float video_aspect = (float)image_w / (float)image_h;
     float window_aspect = (float)windowWidth / (float)windowHeight;
@@ -375,6 +373,14 @@ static void DrawVideoFrameEx(const unsigned char* pixels, int image_w, int image
 
     FmvGLState saved;
     SaveGLState(&saved);
+
+    /* Draw into the SCENE target, not whatever happens to be bound. In
+     * borderless the scene renders into an internal target that is stretched
+     * over the whole window at present, and that blit would paint straight over
+     * a movie drawn to the window -- which is why FMVs went black as soon as the
+     * borderless resolution differed from the desktop. GR_ScreenFBO() is 0 in
+     * every other mode, so this is the same target it always used. */
+    glBindFramebuffer(GL_FRAMEBUFFER, GR_ScreenFBO());
 
     glViewport(0, 0, windowWidth, windowHeight);
     glClearColor(0, 0, 0, 1);
@@ -423,7 +429,14 @@ static void DrawVideoFrameEx(const unsigned char* pixels, int image_w, int image
 
     RestoreGLState(&saved);
 
-    SDL_GL_SwapWindow(g_window);
+    /* FMV presents its own frames outside the normal render loop, but it must
+     * present through GR_SwapWindow like every other frame: that is where the
+     * internal target gets blitted onto the real window in borderless. The
+     * movie was drawn INTO that target above, so swapping the window directly
+     * showed only the stale black backbuffer — FMVs went dark exactly when the
+     * borderless resolution was below the desktop's. GR_SwapWindow also picks
+     * the right swap call for the backend (ANGLE never goes through SDL). */
+    GR_SwapWindow();
 }
 
 static void DrawVideoFrame(int image_w, int image_h)

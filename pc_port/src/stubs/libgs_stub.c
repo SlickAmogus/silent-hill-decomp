@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <SDL.h>
 #include <PsyX/common/glad.h>
+#include <PsyX/PsyX_backend.h>
 #include <PsyX/PsyX_render.h> /* GR_SetPsxDisplayBuffers */
 #include "sh_log.h"
 
@@ -26,7 +27,10 @@ void SH_TakeScreenshot(const char* filename)
     int w, h;
     SDL_GetWindowSize(g_window, &w, &h);
     unsigned char* px = (unsigned char*)malloc(w * h * 3);
-    glReadBuffer(GL_FRONT);
+    /* ES 3.0 accepts only GL_BACK or GL_NONE as the default framebuffer's read
+     * buffer — GL_FRONT is a desktop-GL spelling and raises GL_INVALID_ENUM on
+     * the ANGLE-backed backends, leaving the capture as uninitialised memory. */
+    glReadBuffer(g_grIsGLES ? GL_BACK : GL_FRONT);
     glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, px);
     /* Flip vertically (OpenGL reads bottom-up) */
     unsigned char* flipped = (unsigned char*)malloc(w * h * 3);
@@ -251,12 +255,11 @@ void GsDrawOt(GsOT *ot)
         g_currentOTBucketCount = 1 << ot->length;
         PsyX_ClearGteDepthTable();
 
-        /* GLES only has the float-suffixed form (same as PsyX_render.cpp does). */
-#ifdef RENDERER_OGLES
-        glClearDepthf(1.0f);
-#else
-        glClearDepth(1.0f);
-#endif
+        /* The double-precision form is desktop-only; ES 3.0 has glClearDepthf. */
+        if (g_grCaps.clearDepthDouble)
+            glClearDepth(1.0f);
+        else
+            glClearDepthf(1.0f);
         glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 #endif
         DrawOTag((u_long*)ot->tag);

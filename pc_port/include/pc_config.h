@@ -145,6 +145,12 @@ typedef struct {
                           * sits inside geometry (elevator doors/staircase). 0 = draw them (old behavior).
                           * (config key: psx_poly_size_cull; console: polysizecull) */
     int msaaSamples;     /* MSAA on the default framebuffer: 0 = off, 2/4/8 = sample count (config key: msaa) */
+    char renderer[16];   /* graphics backend (config key: renderer): "gl" (default, native OpenGL),
+                          * "d3d11", "vulkan", "d3d9", "software", "gles". Everything but "gl" runs the
+                          * same renderer against an OpenGL ES 3.0 context provided by ANGLE, so those
+                          * need libEGL.dll + libGLESv2.dll beside the exe; without them the game logs a
+                          * warning and falls back to "gl". Mostly of interest because overlay/capture
+                          * tools hook DXGI and Vulkan far more reliably than they hook opengl32. */
     int postProcess;     /* full-screen post-process look: 0 = off, 1.. = built-in filter (config key: post_process) */
     int tonemap;         /* tone-map operator: 0=off,1=Reinhard,2=ACES,3=Filmic (config key: tonemap) */
     int flashlightMode;     /* THE flashlight setting (config key: flashlight_mode):
@@ -209,9 +215,12 @@ typedef struct {
     int disableDpadMovement; /* 1 = the controller D-pad no longer drives movement, freeing those D-pad inputs to be bound to other actions (config key: disable_dpad_movement); default 0 */
     int menuFilter;          /* 1 = bilinear-filter menus / 2D screens, independent of the in-game texture Filtering mode; default 0 (config key: menu_filter) */
     int minimap;             /* minimap overlay: 0 = off, 1 = square, 2 = circle (config key: minimap); default 0 */
+    int anisoLevel;          /* max anisotropic taps, 1..16 (config key: aniso_level); default 8 */
+    int shadowMapSize;       /* flashlight shadow-map resolution, 256..4096 (config key: shadow_resolution); default 1024 */
     int minimapCorner;       /* minimap screen corner: 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right (config key: minimap_corner); default 0 */
     int minimapShape;        /* DEPRECATED, folded into `minimap`; still read to migrate old configs (config key: minimap_shape) */
     float minimapScale;      /* minimap size percentage, MINIMAP_SCALE_MIN..MAX (config key: minimap_scale); default 100 */
+    int enablePlugins;       /* 1 = load plugins/*.dll gameplay plugins at boot; 0 = never touch them (config-only key: enable_plugins); default 0 -- a DLL runs arbitrary code, so the surface is strictly opt-in */
     int minimapRequireMap;   /* 1 = only draw the map once the area's paper map has been found; 0 = always draw it (config-only key: minimap_require_map); default 1 */
     float minimapOpacity;    /* minimap opacity percentage, 0..100 (config key: minimap_opacity); default 100 */
     int   adsr;             /* 1 = SPU ADSR envelopes (instrument attack/release fades in sequenced BGM); default 1 (config key: adsr) */
@@ -357,6 +366,8 @@ const char* Pc_FlashlightModeLabel(int mode);
 
 /* Parse config.cfg from the executable's directory. Uses defaults if not found. */
 void PcConfig_Load(const char* path);
+/* Compile-time defaults captured before the config file was parsed. */
+const s_PcConfig* PcConfig_Defaults(void);
 
 /* Rewrite only the `map = ...` line in the loaded config file (preserves the
  * rest). Persists a runtime map change so the next New Game loads it. */

@@ -89,6 +89,16 @@ def to_sjis(body):
             i += 1
             continue
         if ord(c) < 128:
+            # "~N" is the MAP-MESSAGE newline, parsed by the message drawer.
+            # Item descriptions go through Gfx_StringDraw, which knows only a
+            # literal \\n -- and drops '~' outright, because 0x7E is above the
+            # 'z' its glyph range ends at, leaving the 'N' to draw as a letter.
+            # That is the stray N in the Japanese inventory descriptions.
+            if c == '~' and i + 1 < len(body) and body[i + 1] == 'N':
+                out.append('\\n')
+                prev_was_hex = False
+                i += 2
+                continue
             # A hex escape swallows every hex digit that follows it, so break
             # the literal in two when plain text would extend one.
             if prev_was_hex and c in HEXDIGITS:

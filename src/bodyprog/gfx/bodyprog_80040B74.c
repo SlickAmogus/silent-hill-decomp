@@ -1669,6 +1669,74 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
 static struct { s_IpdHeader* hdr; s_LmHeader* lm; } s_pcFixedIpd[PC_MAX_IPD_CHUNKS];
 static s32 s_pcFixedIpdCount = 0;
 
+/* Retire a dead LM generation the way PSX retired it: garble the model names.
+ * The heap model headers are never freed, so a world object that cached
+ * modelInfo.modelHdr keeps a header whose NAME still matches while its
+ * prim/vertex pointers dangle into the recycled chunk buffer -- the drawn
+ * prims are then whatever file now occupies those addresses (vertex bytes as
+ * cluts: the Nowhere elevator/birdcage corruption). On PSX the headers lived
+ * IN the buffer, so a reload garbled the name and the draw-site
+ * COMPARE_FILENAMES check forced a re-resolve; the PC heap copy defeated that
+ * check. Wiping the names restores it: the stale object mismatches, resets
+ * lmIdx, and re-resolves against the live generation next frame. */
+static void Pc_LmGenerationRetire(s_LmHeader* lm)
+{
+    s32 m;
+
+    if (lm == NULL || lm->modelHdrs == NULL)
+    {
+        return;
+    }
+    for (m = 0; m < lm->modelCount; m++)
+    {
+        memset(&lm->modelHdrs[m].name, 0xFF, sizeof(lm->modelHdrs[m].name));
+    }
+}
+
+/* Prim-array fingerprints, recorded at reformat exit for every model's mesh0
+ * and verified at the world-object draw. Three-way verdict on the Nowhere
+ * corruption: a draw-time pointer with NO record is not any reformat's output
+ * (double-fixup class); a record whose bytes changed is an in-place stomp; a
+ * matching record means the reformat itself emitted the bytes. Ring-buffered;
+ * lookups scan backward so the LATEST record for a pointer wins. */
+#define PC_PRIMHASH_MAX 2048
+static struct { const void* ptr; u32 len; u32 hash; } s_pcPrimHash[PC_PRIMHASH_MAX];
+static u32 s_pcPrimHashCursor = 0;
+
+static u32 Pc_PrimBytesHash(const void* ptr, u32 len)
+{
+    const u8* b = (const u8*)ptr;
+    u32       h = 2166136261u;
+    u32       i;
+    for (i = 0; i < len; i++) { h ^= b[i]; h *= 16777619u; }
+    return h;
+}
+
+void Pc_PrimHashRecord(const void* ptr, u32 len)
+{
+    u32 slot = s_pcPrimHashCursor++ % PC_PRIMHASH_MAX;
+    s_pcPrimHash[slot].ptr  = ptr;
+    s_pcPrimHash[slot].len  = len;
+    s_pcPrimHash[slot].hash = Pc_PrimBytesHash(ptr, len);
+}
+
+/* 0 = no record for ptr, 1 = match, 2 = MISMATCH (stomped in place) */
+int Pc_PrimHashCheck(const void* ptr, u32 len)
+{
+    u32 n = (s_pcPrimHashCursor < PC_PRIMHASH_MAX) ? s_pcPrimHashCursor : PC_PRIMHASH_MAX;
+    u32 i;
+    for (i = 0; i < n; i++)
+    {
+        u32 slot = (s_pcPrimHashCursor - 1 - i) % PC_PRIMHASH_MAX;
+        if (s_pcPrimHash[slot].ptr == ptr)
+        {
+            if (s_pcPrimHash[slot].len != len) return 2;
+            return (Pc_PrimBytesHash(ptr, len) == s_pcPrimHash[slot].hash) ? 1 : 2;
+        }
+    }
+    return 0;
+}
+
 bool IpdHeader_PC_IsReformatted(s_IpdHeader* ipdHdr)
 {
     s32 i;
@@ -2839,6 +2907,14 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
             return; /* already reformatted, lmHdr still our heap copy */
         }
 
+        /* [IPDREF] every reformat with its registry verdict: hit-mismatch means
+         * this buffer was reformatted before and its lmHdr bytes changed (fresh
+         * read = expected; anything else = the double-fixup entry). */
+        SH_DBG("[IPDREF] hdr=%p registry=%s lmBytes=%p",
+               (void*)ipdHdr,
+               (slot < 0) ? "MISS" : "HIT-MISMATCH",
+               (void*)ipdHdr->lmHdr);
+
         extern bool IpdHeader_FixOffsets_PC(s_IpdHeader* ipdHdr);
         if (!IpdHeader_FixOffsets_PC(ipdHdr)) {
             /* Buffer is not a valid IPD (stale/overlapping reuse, or still
@@ -2855,6 +2931,34 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
         ipdHdr->isLoaded = true;
         /* LmHeader_FixOffsets now uses PC reformatter */
         LmHeader_FixOffsets(ipdHdr->lmHdr);
+        /* [IPDREF-DR] door models' prim state AT REFORMAT EXIT: poisoned here
+         * means the reformat made it; clean here + poisoned at draw means a
+         * post-reformat stomp of the prim allocation. */
+        {
+            s_LmHeader* _lm = ipdHdr->lmHdr;
+            s32 _m;
+            for (_m = 0; _m < _lm->modelCount; _m++)
+            {
+                s_ModelHeader* _md = &_lm->modelHdrs[_m];
+                if (_md->meshCount > 0)
+                {
+                    s_MeshHeader* _fp = &_md->meshHdrs[0];
+                    Pc_PrimHashRecord(_fp->primitives,
+                                      (u32)_fp->primitiveCount * sizeof(s_Primitive));
+                }
+                if (memcmp(&_md->name, "DR", 2) != 0) continue;
+                if (_md->meshCount > 0)
+                {
+                    s_MeshHeader* _mh = &_md->meshHdrs[0];
+                    SH_DBG("[IPDREF-DR] '%.8s' prims=%p verts=%p cnt=%d clut0=0x%04X clut1=0x%04X clut3=0x%04X",
+                           _md->name.str, (void*)_mh->primitives, (void*)_mh->verticesXy,
+                           (int)_mh->primitiveCount,
+                           (unsigned)(u16)_mh->primitives[0].field_2,
+                           (_mh->primitiveCount > 1) ? (unsigned)(u16)_mh->primitives[1].field_2 : 0u,
+                           (_mh->primitiveCount > 3) ? (unsigned)(u16)_mh->primitives[3].field_2 : 0u);
+                }
+            }
+        }
         {
             /* lmHdr lives in PSX RAM — subsequent chunk loads at overlapping
              * addresses overwrite the fixed-up modelHdrs/materials pointers.
@@ -2884,6 +2988,7 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
                 }
                 if (!live)
                 {
+                    Pc_LmGenerationRetire(s_pcFixedIpd[ei].lm);
                     free(s_pcFixedIpd[ei].lm);
                     s_pcFixedIpd[ei].lm = NULL;
                     slot = ei;
@@ -2899,7 +3004,10 @@ void IpdHeader_FixOffsets(s_IpdHeader* ipdHdr, s_LmHeader** lmHdrs, s32 lmHdrCou
              * (the fresh file load already overwrote ipdHdr->lmHdr with raw
              * bytes) — free it or every chunk reload leaks one. */
             if (s_pcFixedIpd[slot].lm != NULL && s_pcFixedIpd[slot].lm != ipdHdr->lmHdr)
+            {
+                Pc_LmGenerationRetire(s_pcFixedIpd[slot].lm);
                 free(s_pcFixedIpd[slot].lm);
+            }
             s_pcFixedIpd[slot].hdr = ipdHdr; s_pcFixedIpd[slot].lm = ipdHdr->lmHdr;
         }
         {

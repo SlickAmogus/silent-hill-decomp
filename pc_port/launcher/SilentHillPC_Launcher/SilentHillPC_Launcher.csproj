@@ -63,6 +63,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DisplayModes.cs" />
+    <Compile Include="DllWarningDialog.cs" />
+    <Compile Include="PeImports.cs" />
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -107,7 +109,9 @@
     <Compile Include="Program.cs" />
     <Compile Include="UpdateChecker.cs" />
     <Compile Include="FlagIcon.cs" />
-    <Compile Include="LanguageDialog.cs" />
+    <Compile Include="LanguageDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Loc.cs" />
     <Compile Include="Loc.Strings.cs" />
     <Compile Include="LauncherSettings.cs" />

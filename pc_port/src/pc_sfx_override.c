@@ -400,6 +400,18 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
         return;
     }
 
+    /* Say which bank just loaded, every time, whether or not anything replaced.
+     * Until now the only output was "N of M samples replaced", printed solely
+     * when N > 0, so a mod that matched nothing produced complete silence in
+     * the log and left no way to tell a wrong FILENAME from a wrong BANK. The
+     * second is the more common mistake and the harder one to guess: seven of
+     * the game's ninety SND banks (MAP000, MAP100..MAP103, MAP502, MAP604) are
+     * never loaded through this path at all, so a replacement aimed at one of
+     * them can never fire no matter how it is named. */
+    SH_LOG("[SFXMOD] bank '%s' loaded: %d samples — replace as "
+           "gamedata/load/SND/%s.001.wav .. %s.%03d.wav (or %s_001.wav)",
+           bank, vagCount, bank, bank, vagCount, bank);
+
     /* 32-byte header + 128 program entries of 16 + the tone table. Matches
      * libsd/smf_io.c's own "vh + ps*512 + 2080". */
     sizeTable = 32 + (128 * 16) + (programCount * 16 * 32);
@@ -447,6 +459,37 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
             snprintf(path, sizeof(path), "gamedata/load/SND/%s_%03d.wav", bank, n);
             pcm = SfxOverride_LoadWav(path, &count, &wavRate);
         }
+        if (pcm == NULL && bank[1] == 'E' && bank[0] == 'M' && bank[2] == 'P')
+        {
+            /* MEP<n> is the bank the game actually loads; SND/ also carries a
+             * near-identical MAP<n> twin that nothing ever requests. Seven of
+             * them exist (MAP000/100/101/102/103/502/604) and their samples are
+             * mostly byte-identical to the MEP copy — MAP000 sample 5, the long
+             * ambient at the start of the game, is the same 15872 bytes in both.
+             *
+             * So the obvious workflow produced a file that could never load:
+             * open SND/MAP000.VAB in the Audio tool, export sample 5, edit,
+             * drop in MAP000_005.wav. Accept the twin's name rather than make
+             * anyone discover the MEP/MAP split, and say so when it is used. */
+            char twin[24];
+
+            memcpy(twin, bank, sizeof(twin) - 1);
+            twin[sizeof(twin) - 1] = '\0';
+            twin[1] = 'A';
+
+            snprintf(path, sizeof(path), "gamedata/load/SND/%s.%03d.wav", twin, n);
+            pcm = SfxOverride_LoadWav(path, &count, &wavRate);
+            if (pcm == NULL)
+            {
+                snprintf(path, sizeof(path), "gamedata/load/SND/%s_%03d.wav", twin, n);
+                pcm = SfxOverride_LoadWav(path, &count, &wavRate);
+            }
+            if (pcm != NULL)
+            {
+                SH_LOG("[SFXMOD] %s sample %d supplied by its %s twin (%s)",
+                       bank, n, twin, path);
+            }
+        }
         if (pcm != NULL)
         {
             src = path;
@@ -477,13 +520,12 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
         s_count++;
         installed++;
 
-        /* The rate is reported, never acted on: the mixer uploads the
-         * replacement at a fixed 44100 and lets the voice pitch scale it exactly
-         * as it scaled the original, so a file authored at some other rate plays
-         * proportionally faster or slower. Printing it is what lets someone
-         * compare against the rate the Audio tool shows for that sample -- the
-         * usual cause of a replacement that plays at the wrong speed, and far
-         * more noticeable on the low-rate map banks. */
+        /* The mixer (PsyX_SPUAL UpdateVoiceSample) uploads the replacement at
+         * this rate and treats the key-on pitch as its 1.0 baseline, so the file
+         * plays at the speed it was authored at -- whatever rate the author's
+         * tool saved. rate=0 means the header could not be read and the old
+         * fixed-44100 behaviour applies (speed then depends on the original
+         * sample's rate); the printed rate is the tell. */
         SH_DBG("[SFXMOD] %s sample %d <- %s (%d samples @ %d Hz, was %d ADPCM bytes) spu=0x%x",
                bank, n, src, count, wavRate, len, addr);
     }

@@ -20,7 +20,7 @@ come **only** from one of the following sources:
 - The official project website: <https://sh1pc.com/>
 - This **GitHub repository**
 - Chris's **YouTube channel** (KushAstronaut)
-- Chris's posts in the **project's thread in the PS1 Decompilation Discord**
+- Chris's posts in the **PS1 Decompilation Discord** or the **Official Port Discord** located here: https://discord.gg/JWuNzVsQbr
 
 If you see information about this project anywhere else, or attributed to anyone
 else as "official," please treat it as unofficial and unverified until confirmed

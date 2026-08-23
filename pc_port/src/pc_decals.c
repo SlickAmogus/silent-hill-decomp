@@ -298,6 +298,7 @@ void Pc_DecalsDraw(GsOT* ot)
         s32              bucket;
         int              k;
         int              ok = 1;
+        int              decalKeep = 256;
 
         Vw_WorldScreenMatrixAtPositionGet(&mat, d->center.vx, d->center.vy, d->center.vz);
         SetRotMatrix(&mat);
@@ -364,6 +365,39 @@ void Pc_DecalsDraw(GsOT* ot)
             bucket = ORDERING_TABLE_SIZE - 1;
         }
 
+        /* Fully fogged: stop drawing entirely, the way PSX drops world polys
+         * past the fog far plane. The bullet-hole texture is DARK, and an
+         * average-blended dark texture darkens the frame no matter what the
+         * vertex colour is mixed toward -- (fog + 0.2*fog)/2 is still below the
+         * fog -- so past the point where fog should have swallowed the hole,
+         * colour maths cannot hide it. Skipping is the only correct occlusion. */
+        {
+            /* The keep must track what the fog LOOKS like, not the raw ramp:
+             * the shader multiplies fog by g_PsyX_FogStrength (typically >1),
+             * so the scene whites out faster than the unscaled ramp says. An
+             * unscaled fade left the decal outliving the wall it sits on -- a
+             * lone dark dot in blank fog. Scale the fade by the same strength,
+             * then skip once it is nearly gone. */
+            extern int   Pc_BloodFogKeep(s32 z);
+            extern float g_PsyX_FogStrength;
+            /* bucketSum accumulates RotTransPers RETURN values, and RotTransPers
+             * returns OTZ = SZ >> 2 -- so bucketSum >> 2 is a QUARTER of the true
+             * average depth, and the keep was being evaluated as if every decal
+             * were four times closer than it is: barely any fade at any range,
+             * which is why the previous two fixes changed nothing visible. The
+             * sum of the four quartered corners IS the average SZ, so the ramp
+             * gets bucketSum itself. (The OT bucketing below is unaffected: its
+             * >>1 shift was calibrated against the quartered otz.) */
+            int fade = 256 - Pc_BloodFogKeep(bucketSum);
+
+            fade = (int)(fade * (g_PsyX_FogStrength > 0.0f ? g_PsyX_FogStrength : 1.0f));
+            if (fade > 256) fade = 256;
+            decalKeep = 256 - fade;
+
+            if (decalKeep < 64)
+                continue;
+        }
+
         setPolyFT4(poly);
         /* Semi-transparent like the blood splats (setSemiTrans in func_80062708):
          * the decal then never depth-tests, so a character/object in front covers
@@ -385,6 +419,27 @@ void Pc_DecalsDraw(GsOT* ot)
             if (lr > 128) lr = 128;
             if (lg > 128) lg = 128;
             if (lb > 128) lb = 128;
+            /* Fade with world fog, exactly as the blood prims do. A decal is
+             * semi-transparent, so it disappears as its source colour goes to
+             * zero -- without this a bullet hole stayed at full strength however
+             * far away or however thick the fog, standing out against a wall
+             * that had already faded. bucketSum >> 2 is the average corner SZ,
+             * the same depth measure blood passes in. */
+            {
+                /* True transparency fade. Neither colour direction works for an
+                 * average-blended DARK texture: toward zero it half-darkens
+                 * forever (the black hole), toward the fog colour it still
+                 * darkens because the texture itself is dark. BM_AVERAGE is
+                 * genuine SRC_ALPHA blending on PC, so the per-prim alpha
+                 * channel fades the decal to actually invisible, with the art
+                 * and the near look untouched. decalKeep is the strength-scaled
+                 * keep computed at the skip above, so the fade tracks the fog
+                 * as it is actually rendered. */
+                extern void PsyX_SetNextPrimAlpha(int a);
+
+                PsyX_SetNextPrimAlpha(decalKeep);
+            }
+
             setRGB0(poly, (u8)lr, (u8)lg, (u8)lb);
         }
         /* tpage is irrelevant: the bit-15 clut alone keys the GL override

@@ -404,6 +404,20 @@ static void Pc_CameraFov_Update(int standDown)
      * the game projection for the whole fade-in. Restricting to SysState_Gameplay
      * would be wrong for the same reason: examine (SysState_ReadMessage) and item
      * pickup keep the alt camera rendering, so pinning the FOV there pops it. */
+    /* Item pickup stands the FOV down to the game's own projection. Unlike
+     * examine (ReadMessage, world live -> removing FOV would pop the view),
+     * Gfx_PickupItemAnimate PAUSES the world: OT0 holds only the item model over
+     * a frozen backdrop, so the only thing reprojected is the item itself. With
+     * the alt-cam FOV applied, the picked-up item was scaled/positioned by
+     * fps_fov/tps_fov (reported). Standing down draws it at the exact projection
+     * the pickup animation was authored for, and because the backdrop is frozen
+     * the player's view does not change at all. */
+    {
+        extern int g_PcPickupItemActive;
+        if (g_PcPickupItemActive)
+            standDown = 1;
+    }
+
     if (Pc_AltCamStateOk() && !standDown)
     {
         if (g_PcFpsCam)
@@ -2467,6 +2481,16 @@ void MainLoop(void) // 0x80032EE0
              * frame's world state is settled; self-gated to live gameplay and
              * to being signed in. */
             { extern void Pc_Ra_Update(void); Pc_Ra_Update(); }
+
+            /* Gameplay plugins: per-frame hooks after the frame's game state is
+             * settled. Both are no-op loops over zero plugins unless the user
+             * enabled enable_plugins and dropped DLLs in plugins/. */
+            {
+                extern void Pc_Plugins_OnUpdate(void);
+                extern void Pc_Plugins_OnRender(void);
+                Pc_Plugins_OnUpdate();
+                Pc_Plugins_OnRender();
+            }
         }
 #endif
         ML_TRACE("MemCard_Update");
@@ -2670,7 +2694,33 @@ void MainLoop(void) // 0x80032EE0
 
             // Update V blanks.
             g_UncappedVBlanks = g_VBlanks;
+#ifdef SH_PC_PORT
+            /* The cap is 4 vblanks. A machine that cannot hold ~15fps therefore
+             * credits the clock less time than really passed, and everything
+             * driven by it -- screen fades, cutscene animation and DMS line
+             * pacing, menu transitions -- runs proportionally slow. Streamed
+             * voice audio is unaffected because it plays in real time, so the
+             * signature is a cutscene whose lines sound perfect with stretched
+             * silence between them.
+             *
+             * Relax it whenever the player is NOT in control. The cap exists to
+             * stop a slow frame handing PHYSICS an oversized step; in
+             * cutscenes, menus, message screens and the map the player is
+             * frozen and there is nothing to integrate. Interactive gameplay
+             * keeps the original 4 exactly, so movement and collision are
+             * untouched.
+             *
+             * A machine holding 15fps+ never reaches the cap and sees no
+             * change at all; this only becomes visible on hardware that was
+             * already struggling. */
+            if (g_GameWork.gameState != GameState_InGame ||
+                g_SysWork.sysState != SysState_Gameplay)
+                g_VBlanks = MIN(g_VBlanks, 16);
+            else
+                g_VBlanks = MIN(g_VBlanks, V_BLANKS_MAX);
+#else
             g_VBlanks         = MIN(g_VBlanks, V_BLANKS_MAX);
+#endif
 
 #ifdef SH_PC_PORT
             /* [PERF] wall-clock frame telemetry, one line per ~256 frames.
@@ -3025,6 +3075,7 @@ void MainLoop(void) // 0x80032EE0
             extern int   g_PsxFixedCamActive;
             extern int   g_PsxCutsceneActive;
             extern float g_PsxWorldVShift;
+            extern float g_PsxCutsceneVShift;
             extern int   g_PcPickupItemActive;
             static s32   s_heldWorldOfy = 0;
             s32 ofy = 0;
@@ -3033,7 +3084,11 @@ void MainLoop(void) // 0x80032EE0
                 g_SysWork.sysState == SysState_Gameplay &&
                 !g_PcPickupItemActive)
             {
-                if (g_PsxFixedCamActive && !g_PsxCutsceneActive && !g_DebugThirdPersonCam)
+                if (g_PsxCutsceneActive)
+                {
+                    ofy = (s32)g_PsxCutsceneVShift;
+                }
+                else if (g_PsxFixedCamActive && !g_DebugThirdPersonCam)
                 {
                     ofy = (s32)g_PsxWorldVShift;
                 }
@@ -3072,15 +3127,50 @@ void MainLoop(void) // 0x80032EE0
                 if (g_PsxCutsceneActive ||
                     g_SysWork.cutsceneBorderState != CutsceneBorderState_None)
                 {
-                    ofy = 0;
+                    /* Zero baseline, plus whatever `cutshift` dials in. It stays 0
+                     * by default, so the letterbox agreement described above is
+                     * unchanged: a non-zero value moves the world AND is the thing
+                     * being measured, so the bars are re-checked at whatever value
+                     * gets baked in. */
+                    ofy = (s32)g_PsxCutsceneVShift;
                 }
                 else
                 {
+                    /* Item pickup ALSO uses the held gameplay shift. The take
+                     * screen renders the item over a FROZEN backdrop captured
+                     * with the gameplay fixed-camera shift (+20); zeroing ofy
+                     * here drew the item 20 units below the scene it sits in.
+                     * Matching s_heldWorldOfy aligns the item with its backdrop
+                     * -- the earlier zero-baseline was the misframe, not the fix. */
                     ofy = s_heldWorldOfy;
                 }
             }
 
             SetGeomOffset(0, ofy);
+
+#ifdef SH_PC_PORT
+            /* [CUTDIAG] one line/second: which framing knobs are live, so a
+             * "cutscene squashed/shifted vs emulator" report names the cause
+             * (vshift ofy vs vscale crop vs HorPlus mode) instead of guessing. */
+            {
+                extern int   g_PcHorPlusEnabled;
+                extern int   g_PsxCutsceneActive;
+                extern int   g_PsxFixedCamActive;
+                extern float g_PsxWorldVScale;
+                extern float g_PsxCutsceneVScale;
+                static s32   s_cutDiagCtr = 0;
+                if (++s_cutDiagCtr >= 60)
+                {
+                    s_cutDiagCtr = 0;
+                    SH_DBG("[CUTDIAG] state=%d sys=%d cut=%d border=%d fixed=%d tpc=%d ofy=%d | horplus=%d vscale=%.3f cutvscale=%.3f wsmode=%d",
+                           (int)g_GameWork.gameState, (int)g_SysWork.sysState,
+                           (int)g_PsxCutsceneActive, (int)g_SysWork.cutsceneBorderState,
+                           (int)g_PsxFixedCamActive, (int)g_DebugThirdPersonCam, (int)ofy,
+                           (int)g_PcHorPlusEnabled, g_PsxWorldVScale, g_PsxCutsceneVScale,
+                           (int)g_PcConfig.widescreenMode);
+                }
+            }
+#endif
         }
 
         /* Suppress dither on 2D-only states (logos, menus, map screen,
@@ -3129,6 +3219,31 @@ void MainLoop(void) // 0x80032EE0
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
         }
+        else if (g_GameWork.gameState == 11 &&
+                 (g_SysWork.sysFlags & SysFlag_CutsceneActive) &&
+                 g_SavegamePtr != NULL && g_SavegamePtr->mapIdx == MapIdx_MAP3_S02) {
+            /* map3_s02's Alessa scene, and ONLY it.
+             *
+             * The clear colour is whatever shows where no geometry is drawn.
+             * The fog-coloured clear is a PC addition standing in for a sky,
+             * which is right looking outward and wrong looking INTO somewhere:
+             * this shot frames the antique shop's open door, and the void
+             * behind it came out fog-grey where the hardware puts black.
+             *
+             * 1ced8ee0c applied that reasoning to every cutscene and had to be
+             * reverted — it blacked the SKY in the opening street scene, which
+             * is the same "no geometry" case pointing the other way. Nothing at
+             * this point in the frame separates a doorway from a sky, so the
+             * choice cannot be made by rule; it is made by scene, for the one
+             * scene anyone has reported. Any other shot that needs it gets
+             * added here deliberately, having been looked at. */
+            g_GameWork.background2dColor.r = 0;
+            g_GameWork.background2dColor.g = 0;
+            g_GameWork.background2dColor.b = 0;
+            g_PsyX_FogColor[0] = PC_WorldEnvWork.fog.color.r / 255.0f;
+            g_PsyX_FogColor[1] = PC_WorldEnvWork.fog.color.g / 255.0f;
+            g_PsyX_FogColor[2] = PC_WorldEnvWork.fog.color.b / 255.0f;
+        }
         else if (g_GameWork.gameState == 11 && g_SysWork.sysState == SysState_GameOver) {
             /* GAME OVER renders its own death scene; the sky is meant to be black there.
              *
@@ -3148,37 +3263,6 @@ void MainLoop(void) // 0x80032EE0
             g_GameWork.background2dColor.r = 0;
             g_GameWork.background2dColor.g = 0;
             g_GameWork.background2dColor.b = 0;
-        }
-        else if (g_GameWork.gameState == 11 &&
-                 (g_SysWork.sysFlags & SysFlag_CutsceneActive) &&
-                 g_SavegamePtr != NULL && g_SavegamePtr->mapIdx == MapIdx_MAP3_S02) {
-            /* map3_s02's Alessa scene, and ONLY it.
-             *
-             * Applying this to every cutscene blacked the SKY in the opening
-             * street scene, which is the same "no geometry" case pointing the
-             * other way: looking outward the clear IS the sky and must stay fog,
-             * looking into a doorway it is a void and must be black. Nothing in
-             * the frame distinguishes the two, so the scene is named instead.
-             *
-             * Authored shots clear BLACK, like the hardware.
-             *
-             * The fog-coloured clear below is a PC addition: it stands in for a
-             * sky so distant geometry fades into something instead of a hard
-             * edge. That is right for open gameplay, and wrong the moment the
-             * shot frames a hole in the world — the clear is not a sky then, it
-             * is just what is visible through the hole, and PSX shows black
-             * there because black is all it ever cleared to.
-             *
-             * Reported on map3_s02's Alessa scene: through the antique shop's
-             * open door, and in the gaps around the threshold, the void reads
-             * fog-grey instead of black. Cutscenes are where this shows because
-             * they are the shots composed to look through doorways. */
-            g_GameWork.background2dColor.r = 0;
-            g_GameWork.background2dColor.g = 0;
-            g_GameWork.background2dColor.b = 0;
-            g_PsyX_FogColor[0] = PC_WorldEnvWork.fog.color.r / 255.0f;
-            g_PsyX_FogColor[1] = PC_WorldEnvWork.fog.color.g / 255.0f;
-            g_PsyX_FogColor[2] = PC_WorldEnvWork.fog.color.b / 255.0f;
         }
         else if (g_GameWork.gameState == 11 && PC_WorldEnvWork.isFogEnabled) {
             /* Fullscreen 2D background screens (eclipse/plates doors, item
@@ -3205,6 +3289,70 @@ void MainLoop(void) // 0x80032EE0
             g_PsyX_FogColor[0] = PC_WorldEnvWork.fog.color.r / 255.0f;
             g_PsyX_FogColor[1] = PC_WorldEnvWork.fog.color.g / 255.0f;
             g_PsyX_FogColor[2] = PC_WorldEnvWork.fog.color.b / 255.0f;
+        }
+        /* [ENVDIAG] -- the whole-scene "lighter and greyer for a frame" flicker.
+         *
+         * Two instruments aimed at GATES (the flashlight dim, the shadow pass)
+         * both came back with no transitions at all while the flicker was
+         * happening, which rules those out and says the cause is not a gate. So
+         * this one is aimed at the OUTPUT instead: every value that can change
+         * how bright the scene renders, reported whenever ANY of them moves.
+         * Whatever makes the frame greyer has to move one of these -- or none
+         * of them, which is itself the answer (it would mean the env is stable
+         * and the cause is geometry//texture side, not lighting).
+         *
+         * fogRamp is sampled rather than hashed in full: it is derived from
+         * near/far, so a handful of points across it moves whenever it does. */
+        {
+            static u32 s_envKey  = 0xFFFFFFFFu;
+            static s32 s_envLogs = 0;
+
+            u32 key = (u32)PC_WorldEnvWork.fog.nearDistance * 2654435761u
+                    ^ (u32)PC_WorldEnvWork.fog.farDistance * 2246822519u
+                    ^ (u32)PC_WorldEnvWork.field_20 * 3266489917u
+                    ^ (u32)PC_WorldEnvWork.screenBrightness * 668265263u
+                    ^ (u32)PC_WorldEnvWork.field_2C.m[0][0] * 374761393u
+                    ^ (u32)(PC_WorldEnvWork.fog.color.r
+                            | (PC_WorldEnvWork.fog.color.g << 8)
+                            | (PC_WorldEnvWork.fog.color.b << 16))
+                    ^ (u32)(PC_WorldEnvWork.field_0
+                            | (PC_WorldEnvWork.isFogEnabled << 1)
+                            | (PC_WorldEnvWork.field_2 << 2)
+                            | (PC_WorldEnvWork.field_3 << 8))
+                    ^ (u32)(PC_WorldEnvWork.worldTintColor.r
+                            | (PC_WorldEnvWork.worldTintColor.g << 8)
+                            | (PC_WorldEnvWork.worldTintColor.b << 16)) * 2135587861u
+                    ^ (u32)(PC_WorldEnvWork.fogRamp[0]
+                            | (PC_WorldEnvWork.fogRamp[32] << 8)
+                            | (PC_WorldEnvWork.fogRamp[64] << 16)
+                            | (PC_WorldEnvWork.fogRamp[127] << 24));
+
+            if (key != s_envKey && s_envLogs < 100 && g_GameWork.gameState == 11)
+            {
+                s_envKey = key;
+                s_envLogs++;
+                SH_DBG("[ENVDIAG] fog=%d near=%d far=%d col=(%d,%d,%d) lgt=%d bri=%d "
+                       "f0=%d f2=%d f3=%d mat00=%d tint=(%d,%d,%d) ramp=%d/%d/%d/%d",
+                       (int)PC_WorldEnvWork.isFogEnabled,
+                       (int)PC_WorldEnvWork.fog.nearDistance,
+                       (int)PC_WorldEnvWork.fog.farDistance,
+                       (int)PC_WorldEnvWork.fog.color.r,
+                       (int)PC_WorldEnvWork.fog.color.g,
+                       (int)PC_WorldEnvWork.fog.color.b,
+                       (int)PC_WorldEnvWork.field_20,
+                       (int)PC_WorldEnvWork.screenBrightness,
+                       (int)PC_WorldEnvWork.field_0,
+                       (int)PC_WorldEnvWork.field_2,
+                       (int)PC_WorldEnvWork.field_3,
+                       (int)PC_WorldEnvWork.field_2C.m[0][0],
+                       (int)PC_WorldEnvWork.worldTintColor.r,
+                       (int)PC_WorldEnvWork.worldTintColor.g,
+                       (int)PC_WorldEnvWork.worldTintColor.b,
+                       (int)PC_WorldEnvWork.fogRamp[0],
+                       (int)PC_WorldEnvWork.fogRamp[32],
+                       (int)PC_WorldEnvWork.fogRamp[64],
+                       (int)PC_WorldEnvWork.fogRamp[127]);
+            }
         }
 #endif
         ML_TRACE("GsSortClear");

@@ -7,6 +7,7 @@
 #include "pc_config.h"
 #include "map_registry.h"
 #include "lang_text.h" /* menu translations + width for recentred entries */
+#include "main/fileinfo.h" /* g_GameRegion: PAL repositions the achievements hint */
 #endif
 
 #include <psyq/libetc.h>
@@ -538,6 +539,13 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                         extern void Pc_Rando_OnNewGame(void);
                         Pc_Rando_OnNewGame();
                     }
+
+                    /* Gameplay plugins: same timing rationale as the randomizer
+                     * hook above. No-op with zero plugins loaded. */
+                    {
+                        extern void Pc_Plugins_OnNewGame(void);
+                        Pc_Plugins_OnNewGame();
+                    }
                 }
 #else
                 GameBoot_SavegameInitialize(0, newGameSelectedDifficultyIdx - 1);
@@ -738,9 +746,13 @@ static void MainMenu_AchievementHintDraw(void)
      *
      * Y sits BELOW the copyright line baked into the title art, which lands
      * around y286 -- drawing there put the hint straight through it. The band
-     * under it is empty, so this is the one clean strip left at the bottom. */
+     * under it is empty, so this is the one clean strip left at the bottom.
+     *
+     * EUR's copyright comes from Pc_TitleLogoDrawEur's strips instead and lands
+     * at ~y306-318, straight through the US position. 320 is as low as the band
+     * allows -- the glyphs end at the y336 bottom edge. */
     #define ACH_HINT_POS_X 18
-    #define ACH_HINT_POS_Y 310
+    #define ACH_HINT_POS_Y ((g_GameRegion == Region_EUR) ? 320 : 310)
 
     extern const char* PcConfig_BindName(unsigned short, int, int, int);
     extern int         Pc_ControllerAttached(void);

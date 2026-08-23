@@ -24,6 +24,15 @@
 
 #include <SDL.h>
 #include <PsyX/common/glad.h>
+#include <PsyX/PsyX_backend.h>
+/* The AL machinery this file used moved to pc_ui_sound.c; only a comment
+ * referencing it is left. Keep the headers where they exist, but they cannot be
+ * reached on a target built without OpenAL at all (iOS has no framework for it,
+ * Android never had one) and nothing here calls into them. */
+#if !defined(PSYX_NO_OPENAL)
+#include <AL/al.h>
+#include <AL/alc.h>
+#endif
 
 #include "sh_log.h"
 #include "pc_config.h"
@@ -105,7 +114,8 @@ static GLuint toast_make_shader(GLenum type, const char* src, const char* what)
 {
     GLuint sh = glCreateShader(type);
     GLint  ok = 0;
-    glShaderSource(sh, 1, &src, NULL);
+    const char* parts[2] = { PsyX_Shader_Preamble(type == GL_FRAGMENT_SHADER, PSYX_GLSL_LEGACY), src };
+    glShaderSource(sh, 2, parts, NULL);
     glCompileShader(sh);
     glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
     if (!ok)

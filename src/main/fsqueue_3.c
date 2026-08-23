@@ -1329,6 +1329,13 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
         s32 slotId = (((s32)entry->extra.image.clutY - HIRES_POOL_CLUT_ROW_BASE)
                       / HIRES_POOL_MAX_ROWS) * 64
                    + ((s32)entry->extra.image.clutX / 16);
+        /* Only PostLoadTim ever sees the disc TIM's real CLUT rect; record it
+         * so the restamp path can relate ABSOLUTE prim cluts to this slot. */
+        if (haveClut)
+        {
+            extern void HiresOverride_PoolSlotSetNativeClut(int, int, int);
+            HiresOverride_PoolSlotSetNativeClut(slotId, (int)clutRect.x, (int)clutRect.y);
+        }
         int nativeW = (discBitDepth == 4)  ? (int)pixelRect.w * 4 :
                       (discBitDepth == 8)  ? (int)pixelRect.w * 2 :
                       (discBitDepth == 24) ? ((int)pixelRect.w * 2) / 3 :

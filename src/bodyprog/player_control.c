@@ -2371,12 +2371,22 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         }
                     }
                 } else {
-                    if (player->model.anim.status != ANIM_STATUS(HarryAnim_Idle, true) &&
-                        player->model.anim.status != ANIM_STATUS(HarryAnim_Idle, false)) {
-                        player->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
+                    /* Same exertion pick as the native idle (7190): the tired
+                     * idle is what carries the heavy-breath SFX (its keyframe
+                     * 551 fires it via case PlayerUpperBodyState_None), so
+                     * forcing plain Idle here stomped the native selection and
+                     * Harry never panted after sprinting in the alt cameras.
+                     * The exhaustion timer itself already accumulates. */
+                    s32 idleAnim = (player->properties.player.exhaustionTimer >= Q12(10.0f) ||
+                                    player->health < Q12(30.0f))
+                                       ? HarryAnim_IdleExhausted
+                                       : HarryAnim_Idle;
+                    if (player->model.anim.status != ANIM_STATUS(idleAnim, true) &&
+                        player->model.anim.status != ANIM_STATUS(idleAnim, false)) {
+                        player->model.anim.status = ANIM_STATUS(idleAnim, false);
                         player->model.stateStep = 0;
                         if (!aimingNow && !inGunAttack) {
-                            extra->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
+                            extra->model.anim.status = ANIM_STATUS(idleAnim, false);
                             extra->model.stateStep = 0;
                         }
                     }
@@ -4305,7 +4315,12 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
              * cycle (the FSM only re-enters Aim after the recoil ends), with the
              * wall-time refire floor as the rate cap. All other guns stay
              * semi-auto (release-required rising edge) and need ammo. */
-            if (isHyperBlaster ? (fireHeld && s_refireT <= 0) : (fireEdge && ammo > 0))
+            /* The aim requirement matters now that the gate also holds during a
+             * recoil: without it, clicking fire again after releasing aim (but
+             * before the recoil ends) would loose an un-aimed shot from inside
+             * the FSM. Raw input OR'd in so an isAiming blip can't drop a shot. */
+            if ((g_SysWork.playerCombat.isAiming || g_Player_IsAiming) &&
+                (isHyperBlaster ? (fireHeld && s_refireT <= 0) : (fireEdge && ammo > 0)))
             {
                 /* Fire: the existing (working) damage trigger + ammo + SFX. */
                 s_refireT = PC_GUN_REFIRE_SEC;
@@ -4332,6 +4347,26 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
                 }
                 s_state    = PcGun_Fire;
                 s_stuckTmr = 0;
+            }
+            else if (fireEdge && ammo == 0)
+            {
+                /* Dry fire. Reaching here means the reload branch above declined
+                 * it — no reserve left — so this is the genuinely empty click,
+                 * and the native path plays it (Player_CombatAnimUpdate, the
+                 * else of the same ammo test). This FSM replaces that function
+                 * wholesale for the alternate cameras, so without this the gun
+                 * was simply silent when empty: fire did nothing at all, which
+                 * reads as the input being dropped rather than the gun being
+                 * out.
+                 *
+                 * field_10C is the noise value the native branch sets for the
+                 * same event, so enemies react to the click exactly as they do
+                 * in classic. No keyframe work: PcGun_Aim re-pins the hold pose
+                 * every frame, so a pose set here would be overwritten, and the
+                 * repeat is already bounded because fireEdge needs the button
+                 * released first. */
+                func_8005DC1C(g_Player_EquippedWeaponInfo.outOfAmmoSfx, &player->position, Q8(0.5f), 0);
+                player->properties.player.field_10C = 32;
             }
             break;
         }
@@ -4426,7 +4461,15 @@ void Player_UpperBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
              /* Reloads are uninterruptible on PSX: keep the FSM owning an
               * in-flight reload even if aim drops, so the PSX case Reload
               * never runs a frame of it (double-SFX + anim restart). */
-             g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Reload) &&
+             g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Reload ||
+             /* A recoil in flight must finish under the FSM too. Releasing aim
+              * right after a shot handed the mid-recoil Attack state to the PSX
+              * path, whose controlState==0 attack entry cleared
+              * PlayerFlag_Shooting and (instant-fire block) jumped back to the
+              * damage window — a SECOND bullet fired and deducted per shot.
+              * With a ranged weapon equipped the Attack state can only be this
+              * FSM's own recoil, so melee is unaffected. */
+             g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Attack) &&
             g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
         {
             bool fresh = !s_pcGunWasAiming;

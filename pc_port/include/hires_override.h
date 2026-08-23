@@ -277,6 +277,17 @@ void HiresOverride_Tick(void);
  * are never evicted — see the note in HiresOverride_EvictColdestPackRow. */
 typedef int (*HiresRestorablePredicate)(int slotId, int row);
 
+/* Validate a rebased prim clut against the pool: returns it unchanged when it
+ * is native or encodes a backed slot, otherwise logs and returns baseClut (the
+ * material's own registered base) so the prim stays drawable. */
+void HiresOverride_PoolSlotSetNativeClut(int slotId, int clutX, int clutY);
+
+unsigned short HiresOverride_RestampValidate(unsigned short newClut,
+                                             unsigned short baseClut,
+                                             unsigned short oldClut,
+                                             unsigned short oldBase,
+                                             const char* matName);
+
 int HiresOverride_EvictColdestPackRow(unsigned minAgeTicks,
                                       HiresRestorablePredicate canRestore,
                                       int* outSlot, int* outRow);

@@ -14,12 +14,14 @@
 #include "bodyprog/bodyprog.h"
 #include "sh_log.h"
 #include "dbg_overlay.h"
+#include <PsyX/PsyX_backend.h>
 #include "screens/options.h" /* OptionsMenuState_* — Escape backs out of the brightness screen */
 #include "pc_config.h"
 
 #include <PsyX/common/glad.h>
 
 extern int g_windowWidth;
+extern GLuint GR_ScreenFBO(void);
 extern int g_windowHeight;
 extern void vcGetNowCamPos(VECTOR3* cam_pos);
 extern void Collision_SurfaceGet(s_CollisionSurface* coll, q19_12 posX, q19_12 posZ);
@@ -563,18 +565,16 @@ static void Console_Paste(void)
  * PsyCross's own desktop shaders already declare, so it is proven to compile on
  * the hardware that hit this.
  *
- * GLES needs its own header: `#version 140` does not exist there at all, and a
- * GLSL ES 300 FRAGMENT shader must declare a default float precision or it
- * fails to compile (the vertex stage defaults to highp, so it does not). The
- * bodies are already in/out + texture() + explicit fragColor, which is valid in
- * both dialects, so only the preamble differs. */
-#if defined(RENDERER_OGLES)
-#   define OVERLAY_GLSL_VS "#version 300 es\n"
-#   define OVERLAY_GLSL_FS "#version 300 es\nprecision mediump float;\n"
-#else
-#   define OVERLAY_GLSL_VS "#version 140\n"
-#   define OVERLAY_GLSL_FS "#version 140\n"
-#endif
+ * The version line itself is no longer baked in: with the D3D11/Vulkan
+ * backends the live context may be OpenGL ES 3.0 (ANGLE), where "#version 140"
+ * is not a legal directive at all. PsyX_Shader_Preamble supplies whichever of
+ * the two this context wants; the bodies below are in the in/out/texture()
+ * dialect that both accept. */
+static void overlay_shader_source(GLuint sh, const char* body, int fragmentStage)
+{
+    const char* src[2] = { PsyX_Shader_Preamble(fragmentStage, PSYX_GLSL_MODERN), body };
+    glShaderSource(sh, 2, src, NULL);
+}
 
 /* Never silent again, on any driver: a shader that will not build says so in
  * the log with the driver's own message, whether or not this build is a debug
@@ -623,7 +623,6 @@ static void overlay_gl_init(void)
 {
     GLuint vs, fs;
     static const char* vs_src =
-        OVERLAY_GLSL_VS
         "in vec2 a_pos;\n"
         "in vec2 a_uv;\n"
         "out vec2 v_uv;\n"
@@ -632,7 +631,6 @@ static void overlay_gl_init(void)
         "    gl_Position = vec4(a_pos, 0.0, 1.0);\n"
         "}\n";
     static const char* fs_src =
-        OVERLAY_GLSL_FS
         "in vec2 v_uv;\n"
         "out vec4 fragColor;\n"
         "uniform sampler2D u_tex;\n"
@@ -649,12 +647,12 @@ static void overlay_gl_init(void)
     }
 
     vs = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vs, 1, &vs_src, NULL);
+    overlay_shader_source(vs, vs_src, 0);
     glCompileShader(vs);
     overlay_shader_ok(vs, "text vertex");
 
     fs = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fs, 1, &fs_src, NULL);
+    overlay_shader_source(fs, fs_src, 1);
     glCompileShader(fs);
     overlay_shader_ok(fs, "text fragment");
 
@@ -787,20 +785,18 @@ static void overlay_gl_init(void)
     /* Colored-line program for the collision wireframe (a_pos = NDC, a_col = RGB). */
     {
         static const char* lvs_src =
-            OVERLAY_GLSL_VS
-            "in vec2 a_pos;\n"
+                "in vec2 a_pos;\n"
             "in vec3 a_col;\n"
             "out vec3 v_col;\n"
             "void main() { v_col = a_col; gl_Position = vec4(a_pos, 0.0, 1.0); }\n";
         static const char* lfs_src =
-            OVERLAY_GLSL_FS
-            "in vec3 v_col;\n"
+                "in vec3 v_col;\n"
             "out vec4 fragColor;\n"
             "void main() { fragColor = vec4(v_col, 1.0); }\n";
         GLuint lvs = glCreateShader(GL_VERTEX_SHADER);
         GLuint lfs = glCreateShader(GL_FRAGMENT_SHADER);
-        glShaderSource(lvs, 1, &lvs_src, NULL); glCompileShader(lvs);
-        glShaderSource(lfs, 1, &lfs_src, NULL); glCompileShader(lfs);
+        overlay_shader_source(lvs, lvs_src, 0); glCompileShader(lvs);
+        overlay_shader_source(lfs, lfs_src, 1); glCompileShader(lfs);
         overlay_shader_ok(lvs, "line vertex");
         overlay_shader_ok(lfs, "line fragment");
         s_line_prog = glCreateProgram();
@@ -1939,6 +1935,10 @@ void DbgOverlay_Render(void)
      * opened by tapping the Map button during a run. */
     { extern void Pc_RandoSettings_Draw(void); Pc_RandoSettings_Draw(); }
 
+    /* Modal Yes/No message box (options-screen "reset to defaults") — same
+     * self-contained-GL arrangement; drawn last so it sits over every panel. */
+    { extern void Pc_ConfirmDialog_Draw(void); Pc_ConfirmDialog_Draw(); }
+
     /* Console is hidden once fully slid off-screen (toggled by `~`); the ring
      * buffer keeps filling while hidden. The collision panel draws whenever it's
      * toggled on (`'`), independent of the console. The anim panel draws while the
@@ -1990,7 +1990,14 @@ void DbgOverlay_Render(void)
     if (!s_gl_inited)
         overlay_gl_init();
 
-    glBindFramebuffer(GL_FRAMEBUFFER, PSYX_DEFAULT_FBO);
+    /* The SCENE target, not the window. In borderless the scene renders into an
+     * internal target that is stretched to the window at present, and that blit
+     * covers the whole window -- so an overlay drawn straight to framebuffer 0
+     * here was being painted over a moment later and never appeared. Drawing
+     * into the scene target puts the console and toasts back in the frame, and
+     * they scale with it. GR_ScreenFBO() is 0 in every other mode, so this is
+     * the same bind it always was. */
+    glBindFramebuffer(GL_FRAMEBUFFER, GR_ScreenFBO());
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

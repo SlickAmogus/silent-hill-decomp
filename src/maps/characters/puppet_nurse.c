@@ -794,7 +794,22 @@ void PuppetNurse_Control5(s_SubCharacter* nurse)
 
         if (nurseProps.field_104 >= Q12(1.5f))
         {
-            g_SysWork.playerWork.player.damage.amount += Q12(D_800AD4C8[EquippedWeaponId_Unk56].field_4);
+            /* Slot 57, not 56. 56 is the GRAB itself, and every grab slot
+             * carries field_4 = 0 / field_10 = 5 by design — it exists to
+             * trigger the reaction, not to damage. The per-tick drain lives in
+             * the slot AFTER the grab, which is what the other grabbers do:
+             *
+             *   Romper  grab 54 -> drains D_800AD4C8[55]  (field_4 0x0A)
+             *   Stalker grab 49 -> drains D_800AD4C8[50]  (field_4 0x0C)
+             *   Nurse   grab 56 -> drains D_800AD4C8[57]  (field_4 0x19)
+             *
+             * Reading 56 here added Q12(0) every tick, so a Puppet Nurse or
+             * Doctor could hold you indefinitely and never take any health.
+             * Slot 57 shares 56's charaId_9 and carries field_10 = 1 (damage),
+             * which is the same pairing 54/55 and 49/50 have. The zero at 56 is
+             * genuine retail data — verified against BODYPROG on the disc — so
+             * the table was never the problem, the index was. */
+            g_SysWork.playerWork.player.damage.amount += Q12(D_800AD4C8[EquippedWeaponId_Unk56 + 1].field_4);
             nurseProps.field_104                       = 0;
         }
     }

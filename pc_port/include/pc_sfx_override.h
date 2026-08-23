@@ -27,14 +27,16 @@
  * <BANK>_<NNN>.wav is accepted too, because that is exactly what the tool names
  * its exports, so an unedited round trip works either way.
  *
- * The WAV must be at the rate the Audio tool shows for that sample (its real
- * in-game rate). The mixer uploads the replacement at a fixed 44100 and the
- * voice pitches it exactly as it pitched the original, so the file's own rate
- * header is ignored: authoring at 44100 for a sample the tool reports at 8000
- * plays it about five times too slow and two octaves down, like changing tape
- * speed. This bites hardest on the map banks, several of which are authored
- * very low. The [SFXMOD] log line prints the rate it read from each file so a
- * mismatch is visible without guessing.
+ * The WAV plays at ITS OWN sample rate: what you hear in your audio editor is
+ * what plays in game, at any rate the editor saves. The mixer uploads the file
+ * at the rate its header declares and treats the pitch the game keys the voice
+ * with as 1.0, so the original sample's (often very low) authoring rate no
+ * longer matters. Pitch the game applies AFTER the trigger still scales
+ * relative to that baseline, so modulated sounds keep their modulation; what a
+ * replacement gives up is trigger-time pitch variation. If the RIFF header
+ * cannot be read the file falls back to the old fixed-44100 upload (speed then
+ * depends on the original sample's rate); the [SFXMOD] log line prints the
+ * rate it read from each file, and 0 there is the tell.
  *
  * (The tool's own "replace inside the VAB" path resamples for you; that applies
  * to a repacked bank, not to these loose files.)

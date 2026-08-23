@@ -215,11 +215,51 @@ void WorldEnv_Init(void) // 0x80055028
  * room is driven by the flashlight. Deliberately NOT field_2 (the per-room
  * glow-halo enable) — that reads 0 in genuinely dark rooms like map3_s05, which
  * is the trap the comment at the call site warns about. */
-static int RoomIsFlashlightLit(void)
+static int RoomIsFlashlightLitRaw(void)
 {
     return (g_SysWork.field_2388.field_154.effectsInfo_0.field_0.s_field_0.field_0 & (1 << 1)) &&
            ((g_SysWork.field_2388.field_1C[0].effectsInfo_0.field_0.s_field_0.field_0 & (1 << 0)) ||
             (g_SysWork.field_2388.field_1C[1].effectsInfo_0.field_0.s_field_0.field_0 & (1 << 0)));
+}
+
+/* Whether a room lights itself is a property of the ROOM. It must not be able
+ * to change between one frame and the next, because it gates a BINARY
+ * whole-scene dim (the fragment shader multiplies the entire frame by 0.15
+ * while the cone is active). One frame where the raw bits happen to disagree
+ * therefore lights the whole scene for exactly that frame, which is the
+ * "everything goes lighter and greyer for a frame" flicker over the sky. It
+ * shows up worst with the console open because the console re-presents frames
+ * without the environment update that maintains those bits having run.
+ *
+ * So hold the last stable answer and only adopt a new one once it has agreed
+ * with itself for several consecutive frames. Transients cannot reach the dim;
+ * a genuine room change still takes effect well inside its own fade. */
+static int RoomIsFlashlightLit(void)
+{
+    static int s_state = -1;
+    static int s_cand  = -1;
+    static int s_agree = 0;
+
+    int raw = RoomIsFlashlightLitRaw();
+
+    if (s_state < 0)
+    {
+        s_state = raw;
+        s_cand  = raw;
+        s_agree = 0;
+    }
+    else if (raw != s_cand)
+    {
+        s_cand  = raw;
+        s_agree = 0;
+    }
+    else if (raw != s_state && ++s_agree >= 6)
+    {
+        s_state = raw;
+        s_agree = 0;
+    }
+
+    return s_state;
 }
 #endif
 
@@ -285,8 +325,29 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
          * after Kaufmann"), which is a daylit room. On PSX the flashlight never
          * darkened its surroundings, it only added a glow; the fall-through
          * below is that original glow-halo path. */
-        if (g_PsyX_UsePerPixelFlashlight && g_SysWork.field_2388.isFlashlightOn_15
-            && !Pc_ScriptOwnsShot() && RoomIsFlashlightLit())
+        int roomLit = RoomIsFlashlightLit();
+        int dimOn   = g_PsyX_UsePerPixelFlashlight && g_SysWork.field_2388.isFlashlightOn_15
+                      && !Pc_ScriptOwnsShot() && roomLit;
+
+        /* Reports every flip of the whole-scene dim, term by term, so a single
+         * run names which one is unstable if any still is. */
+        {
+            static int s_prevDim = -1;
+            static int s_dimLogs = 0;
+
+            if (dimOn != s_prevDim && s_dimLogs < 40)
+            {
+                s_dimLogs++;
+                SH_DBG("[FLICKER] dim=%d master=%d flashlight=%d scripted=%d roomlit=%d raw=%d",
+                       dimOn, g_PsyX_UsePerPixelFlashlight,
+                       (int)g_SysWork.field_2388.isFlashlightOn_15,
+                       Pc_ScriptOwnsShot(), roomLit, RoomIsFlashlightLitRaw());
+            }
+
+            s_prevDim = dimOn;
+        }
+
+        if (dimOn)
         {
             s32 lx = Q12_TO_Q8(g_WorldEnvWork.field_60.vx);
             s32 ly = Q12_TO_Q8(g_WorldEnvWork.field_60.vy);
@@ -739,6 +800,24 @@ void func_80055814(s32 arg0) // 0x80055814
     g_WorldEnvWork.fog.intensity = Q12(1.0f) - func_800559A8(arg0);
 }
 
+#ifdef SH_PC_PORT
+/* Fog-distance scale, console `fogdist`. 100 = stock. Applied INSIDE the one
+ * function every fog-distance write goes through, so it covers streets and the
+ * black indoor fog alike (a dark room's "wall of black" IS its fog far plane --
+ * the fog colour there is black). The raw arguments are remembered so a console
+ * change can re-run the setter immediately instead of waiting for the next room
+ * transition to call it. */
+int g_PcFogDistScalePct = 100;
+static q19_12 s_lastFogNearRaw = 0;
+static q19_12 s_lastFogFarRaw  = 0;
+
+void Pc_FogDistanceReapply(void)
+{
+    if (s_lastFogFarRaw > 0)
+        WorldEnv_FogDistanceSet(s_lastFogNearRaw, s_lastFogFarRaw);
+}
+#endif
+
 void WorldEnv_FogDistanceSet(q19_12 nearDist, q19_12 farDist) // 0x80055840
 {
     s32 temp_lo;
@@ -750,6 +829,17 @@ void WorldEnv_FogDistanceSet(q19_12 nearDist, q19_12 farDist) // 0x80055840
     s32 var_t0;
     s32 var_v1;
     s32 temp;
+
+#ifdef SH_PC_PORT
+    s_lastFogNearRaw = nearDist;
+    s_lastFogFarRaw  = farDist;
+
+    if (g_PcFogDistScalePct != 100 && g_PcFogDistScalePct > 0)
+    {
+        nearDist = (q19_12)(((s64)nearDist * g_PcFogDistScalePct) / 100);
+        farDist  = (q19_12)(((s64)farDist  * g_PcFogDistScalePct) / 100);
+    }
+#endif
 
     nearDist = Q12_TO_Q8(nearDist);
 
@@ -863,6 +953,18 @@ u8 func_80055A50(s32 arg0) // 0x80055A50
  * func_80055A90 already applies — so distant blood stays vivid while the world around it
  * grays out. Multiplying the additive layer color by this (>>8) fades it toward black at
  * the SAME rate as world geometry (same fogRamp), so it disappears into the fog. */
+/* Fog colour for AVERAGE-blended PC prims (the bullet decals). An average
+ * blend shows (background + F)/2, so at distance "invisible" means F matching
+ * the fogged background -- the FOG COLOUR -- not F going to zero, which turns
+ * the prim into a permanent half-darkening: the solid unchangeable black hole
+ * the decals showed at any range. */
+void Pc_FogColorGet(int* r, int* g, int* b)
+{
+    *r = g_WorldEnvWork.fog.color.r;
+    *g = g_WorldEnvWork.fog.color.g;
+    *b = g_WorldEnvWork.fog.color.b;
+}
+
 int Pc_BloodFogKeep(s32 z)
 {
     s32 idx;
@@ -1387,6 +1489,23 @@ void Lm_MaterialsLoadWithFilter(s_LmHeader* lmHdr, s_ActiveChunkTextures* active
 {
     s_Material* curMat;
 
+#ifdef SH_PC_PORT
+    /* Same stale-header guard as Lm_MaterialFlagsApply: this walk writes
+     * curMat->texture and stamps Material_FsImageApply through the materials
+     * pointer -- garbage bounds/pointer = heap stomp. */
+    if (lmHdr == NULL || lmHdr->magic != LM_HEADER_MAGIC)
+    {
+        static int s_lmGarbageLog2 = 0;
+        if (s_lmGarbageLog2 < 8)
+        {
+            s_lmGarbageLog2++;
+            SH_DBG("[LM-GARBAGE] Lm_MaterialsLoadWithFilter on invalid header %p (magic=0x%02X) -- skipped",
+                   (void*)lmHdr, lmHdr ? (unsigned)lmHdr->magic : 0u);
+        }
+        return;
+    }
+#endif
+
     for (curMat = &lmHdr->materials[0]; curMat < &lmHdr->materials[lmHdr->materialCount]; curMat++)
     {
         if (curMat->field_C == 0 && curMat->texture == NULL &&
@@ -1495,6 +1614,26 @@ void Lm_MaterialFlagsApply(s_LmHeader* lmHdr) // 0x80056954
     s32         matFlags;
     s_Material* curMat;
 
+#ifdef SH_PC_PORT
+    /* The materials walk below trusts materialCount and the materials pointer.
+     * A stale/freed/reused lmHdr (registry eviction, buffer round-trip) hands
+     * this loop garbage BOUNDS and garbage POINTERS -- and the field_12 commit
+     * writes through them: a heap stomp that lands in whatever now owns that
+     * memory (the reformat's prim arrays among the candidates -- the Nowhere
+     * corruption class). Same guard Lm_MaterialRefCountDec already carries. */
+    if (lmHdr == NULL || lmHdr->magic != LM_HEADER_MAGIC)
+    {
+        static int s_lmGarbageLog = 0;
+        if (s_lmGarbageLog < 8)
+        {
+            s_lmGarbageLog++;
+            SH_DBG("[LM-GARBAGE] Lm_MaterialFlagsApply on invalid header %p (magic=0x%02X) -- skipped",
+                   (void*)lmHdr, lmHdr ? (unsigned)lmHdr->magic : 0u);
+        }
+        return;
+    }
+#endif
+
     for (i = 0, curMat = lmHdr->materials; i < lmHdr->materialCount; i++, curMat++)
     {
 #ifdef SH_PC_PORT
@@ -1591,7 +1730,18 @@ void Model_MaterialFlagsApply(s_ModelHeader* modelHdr, s32 arg1, const s_Materia
                 }
                 if (matFlags & MaterialFlag_1)
                 {
+#ifdef SH_PC_PORT
+                    /* The sum below encodes an unowned pool slot whenever the
+                     * prim's carried base disagrees with field_12 (invisible
+                     * Nowhere elevator + rainbow triangle); validate against
+                     * the pool and clamp to the material's own base. */
+                    curPrim->field_2 = HiresOverride_RestampValidate(
+                        (u16)(mat->field_10 + (curPrim->field_2 - mat->field_12)),
+                        mat->field_10, (u16)curPrim->field_2, mat->field_12,
+                        (const char*)&mat->name);
+#else
                     curPrim->field_2 = mat->field_10 + (curPrim->field_2 - mat->field_12);
+#endif
                 }
                 if (matFlags & MaterialFlag_2)
                 {

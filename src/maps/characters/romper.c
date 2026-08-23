@@ -8,6 +8,46 @@
 
 #define romperProps romper->properties.romper
 
+
+#ifdef SH_PC_PORT
+/* A 1-in-n roll that keeps its PSX rate per SECOND, not per frame.
+ *
+ * The original evaluated these once per 30fps tick, so a bare per-frame roll
+ * fires proportionally more often the faster the port runs -- at 200fps the
+ * 1-in-16 heading re-pick below goes off about 12 times a second instead of
+ * twice. The Romper then never commits to a direction: it re-aims constantly
+ * while turning at a smooth 30 deg/sec, which is the skating-around-and-
+ * hugging-walls behaviour, not a speed fault (every speed constant in this
+ * file was diffed against the overlay and matches).
+ *
+ * Scaling the denominator by the tick ratio keeps the per-second probability
+ * identical to 30fps, and is exactly the original roll when g_DeltaTime is a
+ * 30fps tick. Capped at 16 bits because the RNG is 16-bit. */
+static bool Romper_TickChance(s32 n)
+{
+    s64 scaled;
+
+    if (g_DeltaTime <= Q12(0.0f))
+    {
+        return false;
+    }
+
+    scaled = ((s64)n * TIMESTEP_30_FPS) / g_DeltaTime;
+
+    if (scaled < 1)
+    {
+        scaled = 1;
+    }
+
+    if (scaled > 0xFFFF)
+    {
+        scaled = 0xFFFF;
+    }
+
+    return Rng_GenerateUInt(0, (s32)scaled - 1) == 0;
+}
+#endif
+
 void Romper_Update(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
 {
     if (romper->model.controlState == 0)
@@ -437,7 +477,11 @@ void Romper_Control_1(s_SubCharacter* romper)
     romper->moveSpeed = MAX(newMoveSpeed, Q12(0.0f));
 
     if (romper->model.anim.status == ANIM_STATUS(RomperAnim_GrabAttack, true) &&
+#ifdef SH_PC_PORT
+        (Romper_TickChance(4096) || var))
+#else
         (Rng_GenerateUInt(0, 4095) == 0 || var)) // 1 in 4096 chance.
+#endif
     {
         romper->model.controlState = RomperControl_WalkForward;
         romper->model.anim.status  = ANIM_STATUS(RomperAnim_WalkForward, false);
@@ -475,7 +519,11 @@ void Romper_ControlWalkForward(s_SubCharacter* romper)
                                                                            romperProps.targetPositionZ_100 - romper->position.vz));
         if (ABS(angleDeltaToTarget) > Q12_ANGLE(15.0f))
         {
+#ifdef SH_PC_PORT
+            if (Romper_TickChance(16))
+#else
             if (!Rng_GenerateInt(0, 15)) // 1 in 16 chance.
+#endif
             {
                 romperProps.rotationY_F2 = Chara_HeadingAngleGet(romper, Q12(1.0f), romperProps.targetPositionX_FC,
                                                                                   romperProps.targetPositionZ_100, Q12_ANGLE(360.0f), true);
@@ -493,7 +541,19 @@ void Romper_ControlWalkForward(s_SubCharacter* romper)
     }
 
     romperProps.field_F0 += sharedFunc_800E939C_2_s02(romper);
+#ifdef SH_PC_PORT
+    /* field_F0 is a per-TICK acceleration: the loop below it ran once per frame
+     * on PSX, at a fixed 30fps. sharedFunc_800E939C/800E94B4 integrate their
+     * rate curves over ANIM time (they difference against field_F4), so those
+     * are already frame-rate independent -- but this addition is not. Uncapped,
+     * it lands hundreds of times a second instead of thirty and the speed runs
+     * away, which is the Romper skating across the floor while it roams. Every
+     * other speed change in this file is delta-scaled; this one was missed.
+     * TIMESTEP_SCALE_30_FPS is exactly the original value at 30fps. */
+    romper->moveSpeed += TIMESTEP_SCALE_30_FPS(g_DeltaTime, romperProps.field_F0);
+#else
     romper->moveSpeed += romperProps.field_F0;
+#endif
 
     flags = g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & ((1 << 0) | (1 << 1));
     if (flags == 0)
@@ -547,7 +607,12 @@ void Romper_Control_3(s_SubCharacter* romper)
     s_SubCharacter* player;
 
     romperProps.field_F0 += sharedFunc_800E94B4_2_s02(romper);
+#ifdef SH_PC_PORT
+    /* Same per-tick acceleration as the walk state above. */
+    romper->moveSpeed    += TIMESTEP_SCALE_30_FPS(g_DeltaTime, romperProps.field_F0);
+#else
     romper->moveSpeed    += romperProps.field_F0;
+#endif
 
     temp_v1_2 = g_SysWork.field_2388.field_154.effectsInfo_0.field_0.field_0 & 3;
     if (temp_v1_2 == 0)
@@ -638,7 +703,11 @@ void Romper_Control_3(s_SubCharacter* romper)
             temp_s0 = Los_CharaHitCheck(romper, 0x1AAA, romper->rotation.vy);
         }
 
+#ifdef SH_PC_PORT
+        if (romperProps.field_10E > Q12(1.0f) && Romper_TickChance(16))
+#else
         if (romperProps.field_10E > Q12(1.0f) && !Rng_GenerateUInt(0, 15))
+#endif
         {
             romper->model.controlState = RomperControl_1;
             romper->model.anim.status  = ANIM_STATUS(RomperAnim_GrabAttack, false);
@@ -1145,7 +1214,11 @@ void Romper_Control_10(s_SubCharacter* romper)
 void Romper_ControlGrabAttack(s_SubCharacter* romper)
 {
     if (romper->model.anim.status == ANIM_STATUS(RomperAnim_GrabAttack, true) &&
+#ifdef SH_PC_PORT
+        Romper_TickChance(8))
+#else
         !Rng_GenerateInt(0, 7)) // 1 in 8 chance.
+#endif
     {
         g_SysWork.charaGroupFlags[3] &= ~(CharaGroupFlag_0 | CharaGroupFlag_1);
         romper->model.controlState    = RomperControl_1;

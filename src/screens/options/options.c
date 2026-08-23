@@ -76,7 +76,9 @@ static s32 g_ExtraOptionsMenu_BulletMultMax;
 /* Live render globals mirrored for realtime settings (defined in PsyCross /
  * main_pc.c — the same ones main_pc.c seeds from g_PcConfig at boot). */
 extern int g_cfg_psxDither;
+extern int g_cfg_textureFilter;
 extern int g_cfg_bilinearFiltering;
+extern int g_cfg_anisoLevel;
 extern int g_PsxUsePgxp;
 extern int g_cfg_postProcess;
 extern int g_cfg_tonemap;
@@ -149,7 +151,7 @@ typedef struct {
 
 static const int VAL_WIN[]   = { 0, 1, 2 };
 static const int VAL_VSYNC[] = { 0, 1 };
-static const int VAL_FILT[]  = { 0, 1, 2 };
+static const int VAL_FILT[]  = { 0, 1, 2, 3, 4, 5, 6, 7 };
 static const int VAL_ONOFF[] = { 0, 1 };
 static const int VAL_AA[]    = { 0, 2, 4, 8 };
 static const int VAL_POST[]  = { 0, 1, 2, 3, 4, 5, 6, 7, 8 };
@@ -162,7 +164,8 @@ static const int VAL_MMMODE[] = { 0, 1, 2 };
 
 static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
 static const char* const LBL_VSYNC[] = { "Off", "On" };
-static const char* const LBL_FILT[]  = { "Off", "Dither", "Bilinear" };
+static const char* const LBL_FILT[]  = { "Off", "Dither", "Bilinear", "Trilinear",
+                                         "Aniso_2x", "Aniso_4x", "Aniso_8x", "Aniso_16x" };
 static const char* const LBL_ONOFF[] = { "Off", "On" };
 static const char* const LBL_AA[]    = { "Off", "2x", "4x", "8x" };
 static const char* const LBL_POST[]  = { "Off", "CRT", "Scanlines", "Vignette", "Color_Grade", "Film_Grain", "Sharpen", "PSX_Retro", "Cinematic" };
@@ -191,7 +194,7 @@ static const s_PcOpt PCOPT_G[] = {
     { "Window_Mode",    &g_PcConfig.fullscreen,         "fullscreen",           VAL_WIN,   3, LBL_WIN,   NULL,                          1, PCK_WINMODE },
 #endif
     { "VSync",          &g_PcConfig.vsync,              "vsync",                VAL_VSYNC, 2, LBL_VSYNC, NULL,                          1, PCK_VSYNC   },
-    { "Texture_Filter", &g_PcConfig.psxDither,          "psx_dither",           VAL_FILT,  3, LBL_FILT,  NULL,                          1, PCK_FILTER },
+    { "Texture_Filter", &g_PcConfig.psxDither,          "psx_dither",           VAL_FILT,  8, LBL_FILT,  NULL,                          1, PCK_FILTER },
     { "PGXP",           &g_PcConfig.usePgxp,            "use_pgxp",             VAL_ONOFF, 2, LBL_ONOFF, &g_PsxUsePgxp,                 1, PCK_INT    },
     { "Antialiasing",   &g_PcConfig.msaaSamples,        "msaa",                 VAL_AA,    4, LBL_AA,    NULL,                          0, PCK_INT    },
     { "Post_Process",   &g_PcConfig.postProcess,        "post_process",         VAL_POST,  9, LBL_POST,  &g_cfg_postProcess,            1, PCK_INT    },
@@ -294,6 +297,10 @@ static const s_PcOpt PCOPT_T[] = {
     { "Minimap_Scale",     NULL, "minimap_scale",          NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapScale, NULL, MINIMAP_SCALE_MIN, MINIMAP_SCALE_MAX, 5.0f },
     { "Minimap_Corner",    &g_PcConfig.minimapCorner,      "minimap_corner",        VAL_MMCNR, 4, LBL_MMCNR, NULL, 1, PCK_INT },
     { "Minimap_Opacity",   NULL, "minimap_opacity",        NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapOpacity, NULL, 0.0f, 100.0f, 5.0f },
+    /* pc_minimap.c reads this live, so the toggle applies instantly. On = only
+     * draw the minimap once the area's paper map is found (the default); Off =
+     * always draw it. Was config-only (minimap_require_map). */
+    { "Minimap_Reqs_Map",  &g_PcConfig.minimapRequireMap,  "minimap_require_map",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Aim_Assist",        &g_PcConfig.aimAssist,          "aim_assist",            VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     /* 0..200 to match the config loader, the TPSAIMZOOM console command and the
      * pc_config.h contract — 100 is the original full zoom, 200 a deeper 2x.
@@ -333,6 +340,15 @@ static void PcMouse_InjectDir(int dir)
 
     g_Controller0->clickedBtnFlags |= flag;
     g_Controller0->pulsedBtnFlags  |= flag;
+}
+
+const s_PcOpt* PcOpt_PageByIndex(int page, int* count)
+{
+    if (page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
+    if (page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
+    if (page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
+    *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0]));
+    return PCOPT_T;
 }
 
 static const s_PcOpt* PcOpt_Page(int* count)
@@ -467,10 +483,23 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
 
         if (e->kind == PCK_FILTER) {
             switch (*e->field) {
-            case 1:  g_cfg_psxDither = 1; g_cfg_bilinearFiltering = 0; break;
-            case 2:  g_cfg_psxDither = 0; g_cfg_bilinearFiltering = 1; break;
-            default: g_cfg_psxDither = 0; g_cfg_bilinearFiltering = 0; break;
+            /* 0 off, 1 dither, 2 bilinear, 3 trilinear, 4 anisotropic.
+             * g_cfg_textureFilter is the mode the renderer acts on;
+             * g_cfg_bilinearFiltering is kept as the derived "any filtering"
+             * flag its remaining callers expect. */
+            case 1:  g_cfg_psxDither = 1; g_cfg_textureFilter = 0; break;
+            case 2:  g_cfg_psxDither = 0; g_cfg_textureFilter = 1; break;
+            case 3:  g_cfg_psxDither = 0; g_cfg_textureFilter = 2; break;
+            /* 4..7 are anisotropic at 2x/4x/8x/16x. One value carries both the
+             * mode and the strength so the row, the launcher and config.cfg
+             * cannot disagree about what is selected. */
+            case 4:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 2;  break;
+            case 5:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 4;  break;
+            case 6:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 8;  break;
+            case 7:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 16; break;
+            default: g_cfg_psxDither = 0; g_cfg_textureFilter = 0; break;
             }
+            g_cfg_bilinearFiltering = (g_cfg_textureFilter > 0);
         } else if (e->kind == PCK_WINMODE) {
             PsyX_ApplyWindowState(g_PcConfig.windowWidth, g_PcConfig.windowHeight, g_PcConfig.fullscreen);
         } else if (e->kind == PCK_VSYNC) {
@@ -487,6 +516,150 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
     }
 }
 
+/* Reset one options row to its captured compile-time default, applying the
+ * same side effects a manual change would. Resolution and window mode are
+ * skipped by the caller (their kinds) so the player is never bumped to 640x480
+ * or a different display mode. Actions/labels (no key) are skipped too. */
+static void PcOpt_ResetEntry(const s_PcOpt* e)
+{
+    extern const s_PcConfig* PcConfig_Defaults(void);
+    const s_PcConfig* d = PcConfig_Defaults();
+    char buf[32];
+
+    if (e->key == NULL) return;
+    if (e->kind == PCK_RES || e->kind == PCK_WINMODE ||
+        e->kind == PCK_NEXT || e->kind == PCK_PREV || e->kind == PCK_BACK ||
+        e->kind == PCK_MAP) return;
+
+    if (e->kind == PCK_SLIDER && e->ffield != NULL) {
+        float dv = *(const float*)((const char*)d + ((const char*)e->ffield - (const char*)&g_PcConfig));
+        *e->ffield = dv;
+        if (e->flive) *e->flive = dv;
+        snprintf(buf, sizeof(buf), "%.3f", dv);
+        PcConfig_SaveKeyValue(e->key, buf);
+        return;
+    }
+
+    if (e->field == NULL) return;
+    {
+        int dv = *(const int*)((const char*)d + ((const char*)e->field - (const char*)&g_PcConfig));
+        *e->field = dv;
+        snprintf(buf, sizeof(buf), "%d", dv);
+        PcConfig_SaveKeyValue(e->key, buf);
+
+        if (e->kind == PCK_FILTER) {
+            switch (dv) {
+            case 1:  g_cfg_psxDither = 1; g_cfg_textureFilter = 0; break;
+            case 2:  g_cfg_psxDither = 0; g_cfg_textureFilter = 1; break;
+            case 3:  g_cfg_psxDither = 0; g_cfg_textureFilter = 2; break;
+            case 4:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 2;  break;
+            case 5:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 4;  break;
+            case 6:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 8;  break;
+            case 7:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 16; break;
+            default: g_cfg_psxDither = 0; g_cfg_textureFilter = 0; break;
+            }
+            g_cfg_bilinearFiltering = (g_cfg_textureFilter > 0);
+        } else if (e->kind == PCK_VSYNC) {
+            PsyX_ApplyVsync(g_PcConfig.vsync);
+        } else if (e->kind == PCK_FLMODE) {
+            Pc_FlashlightModeApply(dv, 1);
+        } else if (e->live) {
+            *e->live = dv;
+        }
+    }
+}
+
+/* Restore every options-menu setting to its default, EXCLUDING resolution and
+ * window mode (skipped per-entry above). Iterates all four pages so the reset
+ * covers exactly what the menu exposes, nothing hidden. Persisted to
+ * config.cfg per key and applied live where the row supports it. */
+void Pc_Options_ResetToDefaults(void)
+{
+    extern const s_PcOpt* PcOpt_PageByIndex(int page, int* count);
+    int page, count, i;
+    for (page = 0; page <= 3; page++) {
+        const s_PcOpt* tbl = PcOpt_PageByIndex(page, &count);
+        for (i = 0; i < count; i++)
+            PcOpt_ResetEntry(&tbl[i]);
+    }
+    SH_DBG_ECHO("Settings reset to defaults (resolution and window mode kept).");
+}
+
+#ifdef SH_PC_PORT
+#include <SDL.h>
+#include "pc_confirm_dialog.h"
+
+/* Shared with the header draw: 1 while the reset dialog is up (label turns red). */
+int g_PcOptResetConfirmActive = 0;
+
+/* One-shot rising edge for a scancode (own small history so it never fights the
+ * game pad path). */
+static int PcOpt_KeyEdge(int sc)
+{
+    static unsigned char s_prev[SDL_NUM_SCANCODES];
+    const unsigned char* ks = SDL_GetKeyboardState(NULL);
+    int down = ks ? ks[sc] : 0;
+    int edge = down && !s_prev[sc];
+    s_prev[sc] = (unsigned char)down;
+    return edge;
+}
+
+/* "Reset settings to defaults?" Yes/No box. Drawn by the pc_confirm_dialog GL
+ * overlay (the achievement/randomizer panel style, composited after the PSX
+ * frame so nothing in the ordering table can draw over it). Returns 1 while the
+ * dialog owns input, so the caller blocks the normal menu handling. */
+static int PcOpt_ResetConfirm_Run(void)
+{
+    const s_ControllerConfig* cfg = &g_GameWorkPtr->config.controllerConfig;
+    int left, right, confirm, cancel, res;
+
+    g_PcOptResetConfirmActive = Pc_ConfirmDialog_IsOpen();
+
+    if (!g_PcOptResetConfirmActive) {
+        if (PcOpt_KeyEdge(SDL_SCANCODE_R)) {
+            Pc_ConfirmDialog_Open("RESET SETTINGS", "Reset all PC options to their defaults?");
+            g_PcOptResetConfirmActive = 1;
+            Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+            return 1;
+        }
+        /* keep edge state fresh even when closed */
+        PcOpt_KeyEdge(SDL_SCANCODE_LEFT);
+        PcOpt_KeyEdge(SDL_SCANCODE_RIGHT);
+        PcOpt_KeyEdge(SDL_SCANCODE_RETURN);
+        PcOpt_KeyEdge(SDL_SCANCODE_ESCAPE);
+        return 0;
+    }
+
+    /* Keyboard edges OR the player's own pad bindings (the keyboard already
+     * feeds the pad flags too; a double hit is the same action in one frame). */
+    left    = PcOpt_KeyEdge(SDL_SCANCODE_LEFT) ||
+              (g_Controller0->pulsedBtnFlags & (ControllerFlag_DpadLeft | ControllerFlag_LStickLeft)) != 0;
+    right   = PcOpt_KeyEdge(SDL_SCANCODE_RIGHT) ||
+              (g_Controller0->pulsedBtnFlags & (ControllerFlag_DpadRight | ControllerFlag_LStickRight)) != 0;
+    confirm = PcOpt_KeyEdge(SDL_SCANCODE_RETURN) ||
+              (g_Controller0->clickedBtnFlags & cfg->enter) != 0;
+    cancel  = PcOpt_KeyEdge(SDL_SCANCODE_ESCAPE) || PcOpt_KeyEdge(SDL_SCANCODE_R) ||
+              (g_Controller0->clickedBtnFlags & cfg->cancel) != 0;
+
+    if (left || right)
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+
+    res = Pc_ConfirmDialog_Update(left, right, confirm, cancel);
+    if (res == PC_CONFIRM_YES) {
+        Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+        Pc_Options_ResetToDefaults();
+    } else if (res == PC_CONFIRM_NO) {
+        Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
+    }
+
+    /* Swallow this frame's pad presses so the menu underneath never sees the
+     * confirm/cancel that answered the dialog. */
+    g_Controller0->clickedBtnFlags = 0;
+    g_Controller0->pulsedBtnFlags  = 0;
+    return 1;
+}
+#endif
+
 void Options_PcOptionsMenu_Control(void)
 {
     int            count;
@@ -501,6 +674,11 @@ void Options_PcOptionsMenu_Control(void)
 
     if (g_GameWork.gameStateSteps[0] != OptionsMenuState_PcOptions)
         return;
+
+#ifdef SH_PC_PORT
+    if (PcOpt_ResetConfirm_Run())
+        return; /* dialog owns input this frame */
+#endif
 
     if ((LINE_CURSOR_TIMER_MAX - 1) < g_Options_SelectionHighlightTimer)
         g_Options_SelectionHighlightTimer = LINE_CURSOR_TIMER_MAX;
@@ -718,6 +896,19 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
     Gfx_StringSetPosition(strPos.vx, strPos.vy);
     Gfx_Strings2dLayerIdxSet(8);
     Gfx_StringDraw(HEADING, DEFAULT_MAP_MESSAGE_LENGTH);
+
+#ifdef SH_PC_PORT
+    /* Reset hint, top-right by the heading (same layer). Highlighted while the
+     * confirm dialog is up. Underscores render as spaces: "[R] Reset". */
+    {
+        extern int g_PcOptResetConfirmActive;
+        Gfx_StringSetColor(g_PcOptResetConfirmActive ? StringColorId_Red : StringColorId_White);
+        Gfx_StringSetPosition(232, strPos.vy);
+        Gfx_Strings2dLayerIdxSet(8);
+        Gfx_StringDraw("[R]_Reset", DEFAULT_MAP_MESSAGE_LENGTH);
+        Gfx_StringSetColor(StringColorId_White);
+    }
+#endif
 
     for (i = 0; i < count; i++) {
         Gfx_StringSetPosition(LINE_BASE_X, LINE_BASE_Y + (i * LINE_OFFSET_Y));
@@ -1599,6 +1790,30 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
             break;
 
         case MainOptionsMenuEntry_Sound:
+#ifdef SH_PC_PORT
+        {
+            /* PC: this row selects the SPEAKER LAYOUT (same audio_output the
+             * launcher writes), not the PSX stereo/mono mix. Internal mixing is
+             * forced Stereo so the spatial image the surround layouts need is
+             * never collapsed -- the vanilla Monaural option is dropped because
+             * it silently defeated 5.1/7.1. Cycle Auto/Stereo/Quad/5.1/7.1
+             * (0..4), skipping HRTF (5). */
+            int dir = (g_Controller0->clickedBtnFlags & ControllerFlag_LStickRight) ? 1
+                    : (g_Controller0->clickedBtnFlags & ControllerFlag_LStickLeft)  ? -1 : 0;
+            if (dir != 0)
+            {
+                extern void PsyX_SPUAL_SetOutputMode(int mode);
+                /* String ids exactly as the config parser + launcher use them. */
+                static const char* AUDIO_IDS[] = { "auto", "stereo", "quad", "51", "71", "hrtf" };
+                Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+                g_PcConfig.audioOutput = (g_PcConfig.audioOutput + dir + 5) % 5;
+                PcConfig_SaveKeyValue("audio_output", AUDIO_IDS[g_PcConfig.audioOutput]);
+                PsyX_SPUAL_SetOutputMode(g_PcConfig.audioOutput);
+                g_GameWork.config.soundType = 0; /* keep the savegame at Stereo */
+                SD_Call(AudioMode_Stereo);
+            }
+        }
+#else
             if (g_Controller0->clickedBtnFlags & (ControllerFlag_LStickRight | ControllerFlag_LStickLeft))
             {
                 Sd_PlaySfx(Sfx_MenuMove, 0, 64);
@@ -1612,6 +1827,7 @@ void Options_MainOptionsMenu_Control(void) // 0x801E3770
                 }
                 SD_Call(audioType);
             }
+#endif
             break;
 
         case MainOptionsMenuEntry_BgmVolume:
@@ -2545,11 +2761,25 @@ void Options_MainOptionsMenu_ConfigDraw(void) // 0x801E4FFC
                 break;
 
             case 2:
+#ifdef SH_PC_PORT
+            {
+                /* Speaker layout name, right-aligned to the old label's edge
+                 * (~6 px/glyph). Matches the launcher's audio_output values. */
+                static const char* LAY[] = { "Auto", "Stereo", "Quad", "5.1", "7.1", "HRTF" };
+                int m = g_PcConfig.audioOutput;
+                const char* nm;
+                if (m < 0 || m > 5) m = 0;
+                nm = LAY[m];
+                Gfx_StringSetPosition(242 - (int)strlen(nm) * 6, 152);
+                Gfx_StringDraw(nm, 10);
+            }
+#else
                 strPosX = g_GameWork.config.soundType ? 194 : 206;
                 Gfx_StringSetPosition(strPosX, 152);
 
                 strIdx = g_GameWork.config.soundType + 2;
                 Gfx_StringDraw(CONFIG_STRS[strIdx], 10);
+#endif
                 break;
         }
     }
