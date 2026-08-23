@@ -3,7 +3,6 @@ package com.silenthill.port;
 import android.content.res.AssetManager;
 import android.system.ErrnoException;
 import android.system.Os;
-import android.os.Environment;
 import android.util.Log;
 
 import org.libsdl.app.SDLActivity;
@@ -35,6 +34,7 @@ public class SilentHillActivity extends SDLActivity {
         // Before super.onCreate, which is what starts SDL and therefore
         // SDL_main. main() chdir()s to this same directory expecting the data
         // to already be in place.
+        publishDataRoot();
         unpackBundledAssets();
         publishDiscDropDir();
         super.onCreate(savedInstanceState);
@@ -53,34 +53,41 @@ public class SilentHillActivity extends SDLActivity {
      * Must run before super.onCreate: that starts SDL and therefore SDL_main,
      * and the environment has to be in place before native code reads it.
      */
+    /**
+     * The working directory the game anchors every relative path to -- the disc
+     * image, gamedata/, config.cfg, the memory cards, the log. main() reads
+     * SH_DATA_ROOT and chdir()s there.
+     *
+     * This used to be getExternalFilesDir(null) unconditionally, which from
+     * Android 11 no file manager can open: players could not deliver a disc or
+     * retrieve a save, and reported the game as keeping its data somewhere they
+     * could not reach. StorageLocations picks a volume the player chose, an SD
+     * card by default, and SetupActivity resolves the same answer -- they used
+     * to disagree, so a disc installed by setup could land where the game did
+     * not look.
+     */
+    private void publishDataRoot() {
+        File root = StorageLocations.resolve(this);
+        if (root == null) {
+            Log.w(TAG, "no data root resolved; falling back to the SDL default");
+            return;
+        }
+
+        try {
+            Os.setenv("SH_DATA_ROOT", root.getAbsolutePath(), true);
+            /* The in-game options row shows this. The path alone does not say
+             * which volume it is, and only this side knows. */
+            Os.setenv("SH_DATA_LABEL", StorageLocations.labelFor(this, root), true);
+            Log.i(TAG, "data root: " + root.getAbsolutePath());
+        } catch (ErrnoException e) {
+            Log.w(TAG, "setenv SH_DATA_ROOT failed: " + e.getMessage());
+        }
+    }
+
     private void publishDiscDropDir() {
-        File drop = null;
-
-        File[] mediaDirs = getExternalMediaDirs();
-        if (mediaDirs != null && mediaDirs.length > 0 && mediaDirs[0] != null) {
-            File d = mediaDirs[0];
-            if ((d.isDirectory() || d.mkdirs()) && d.canWrite()) {
-                drop = d;
-            } else {
-                Log.w(TAG, "media dir unusable: " + d);
-            }
-        } else {
-            Log.w(TAG, "no external media dir on this device");
-        }
-
-        if (drop == null) {
-            /* Older devices (and some vendor builds) either have no media dir or
-             * refuse to create one, and the private files dir this used to fall
-             * back to is invisible to the user -- which is how a cabinet ended up
-             * with no findable log or config at all. A plain folder on internal
-             * storage is browsable everywhere and writable without permission on
-             * the API levels where the media dir is missing. */
-            File pub = new File(Environment.getExternalStorageDirectory(), "SilentHill");
-            if ((pub.isDirectory() || pub.mkdirs()) && pub.canWrite()) {
-                drop = pub;
-                Log.i(TAG, "using public fallback dir: " + pub);
-            }
-        }
+        /* Same place the data lives. Two different answers here is what let a
+         * disc image sit in a directory the game never searched. */
+        File drop = StorageLocations.resolve(this);
 
         if (drop == null) {
             Log.w(TAG, "no user-visible dir available; log/config stay in the app's files dir.");
@@ -107,9 +114,9 @@ public class SilentHillActivity extends SDLActivity {
      * directory.
      */
     private void unpackBundledAssets() {
-        File target = getExternalFilesDir(null);
+        File target = StorageLocations.resolve(this);
         if (target == null) {
-            Log.e(TAG, "No external files dir; cannot stage bundled assets.");
+            Log.e(TAG, "No data root; cannot stage bundled assets.");
             return;
         }
         try {

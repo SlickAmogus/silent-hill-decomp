@@ -943,7 +943,17 @@ int main(int argc, char* argv[])
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
 
     {
-        const char* dataDir = SDL_AndroidGetExternalStoragePath();
+        /* SH_DATA_ROOT is the volume the player chose (SilentHillActivity /
+         * StorageLocations) -- an SD card by default where one is present. The
+         * SDL path below is Android/data/<pkg>/files, which from Android 11 no
+         * file manager can open: it is still a working directory, but a player
+         * cannot put a disc into it or take a save out of it, so it is the
+         * fallback rather than the answer. */
+        const char* dataDir = getenv("SH_DATA_ROOT");
+
+        if (dataDir == NULL || dataDir[0] == ' ')
+            dataDir = SDL_AndroidGetExternalStoragePath();
+
         if (dataDir == NULL || chdir(dataDir) != 0)
         {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,

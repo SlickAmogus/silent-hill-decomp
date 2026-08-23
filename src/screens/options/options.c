@@ -23,6 +23,7 @@
 #define LINE_CURSOR_TIMER_MAX 8
 #ifdef SH_PC_PORT
 #include <stdio.h>
+#include <stdlib.h> /* getenv: SH_DATA_LABEL */
 #include <string.h>
 #include "sh_log.h"
 #include "pc_config.h"
@@ -137,7 +138,7 @@ int Pc_ExitToMenuRowActive(void)
 }
 
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET, PCK_STORAGE };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -227,6 +228,15 @@ static const s_PcOpt PCOPT_G[] = {
     /* Back on the Graphics page on a phone: the Controls page is full of touch
      * rows there, and this one lost Resolution and Window_Mode. */
     { "Bullet_Decals",  &g_PcConfig.bulletDecals,       "bullet_decals",        VAL_ONOFF, 2, LBL_ONOFF, NULL,                          1, PCK_INT    },
+#endif
+#if defined(__ANDROID__)
+    /* Where the disc image, gamedata/, config.cfg, the memory cards and the log
+     * live. The default is an SD card where one is present, because the players
+     * who asked for this wanted a volume they could take out and read
+     * elsewhere. The row cannot move the data itself -- the disc alone is most
+     * of a gigabyte, and the location is fixed before the engine starts -- so it
+     * asks SetupActivity to put the chooser back up on the next launch. */
+    { "Game_Data",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_STORAGE },
 #endif
 #if defined(SH_IOS)
     /* Lives on this page rather than System purely for room: System is already
@@ -432,6 +442,14 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
     if (e->kind == PCK_MAP) {
         return g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
     }
+#if defined(__ANDROID__)
+    if (e->kind == PCK_STORAGE) {
+        /* Published by SilentHillActivity, which is the side that knows which
+         * volume this is -- the path alone does not say. */
+        const char* label = getenv("SH_DATA_LABEL");
+        return (label != NULL && label[0]) ? label : "Unknown";
+    }
+#endif
     if (e->field == NULL)
         return "";
     {
@@ -656,6 +674,29 @@ static int PcOpt_KeyEdge(int sc)
  * overlay (the achievement/randomizer panel style, composited after the PSX
  * frame so nothing in the ordering table can draw over it). Returns 1 while the
  * dialog owns input, so the caller blocks the normal menu handling. */
+/* Which action the open dialog is asking about. The box itself is generic; only
+ * the text and the Yes branch differ. */
+enum { PCOPT_CONFIRM_RESET = 0, PCOPT_CONFIRM_STORAGE };
+static int s_confirmAction = PCOPT_CONFIRM_RESET;
+
+#if defined(__ANDROID__)
+/* A marker in the working directory, read and deleted by SetupActivity on the
+ * next launch. Not JNI: by the time this runs the setup activity is gone, the
+ * choice cannot take effect until a restart anyway, and both sides already
+ * agree on this directory. */
+static void PcOpt_AskStorageNextLaunch(void)
+{
+    FILE* f = fopen(".ask_storage", "wb");
+
+    if (f != NULL) {
+        fclose(f);
+        SH_DBG_ECHO("Game data location will be asked on the next launch.");
+    } else {
+        SH_DBG_ECHO("Could not write .ask_storage - the data directory is not writable.");
+    }
+}
+#endif
+
 static int PcOpt_ResetConfirm_Run(void)
 {
     const s_ControllerConfig* cfg = &g_GameWorkPtr->config.controllerConfig;
@@ -665,6 +706,7 @@ static int PcOpt_ResetConfirm_Run(void)
 
     if (!g_PcOptResetConfirmActive) {
         if (PcOpt_KeyEdge(SDL_SCANCODE_R)) {
+            s_confirmAction = PCOPT_CONFIRM_RESET;
             Pc_ConfirmDialog_Open("RESET SETTINGS", "Reset all PC options to their defaults?");
             g_PcOptResetConfirmActive = 1;
             Sd_PlaySfx(Sfx_MenuMove, 0, 64);
@@ -695,7 +737,12 @@ static int PcOpt_ResetConfirm_Run(void)
     res = Pc_ConfirmDialog_Update(left, right, confirm, cancel);
     if (res == PC_CONFIRM_YES) {
         Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-        Pc_Options_ResetToDefaults();
+#if defined(__ANDROID__)
+        if (s_confirmAction == PCOPT_CONFIRM_STORAGE)
+            PcOpt_AskStorageNextLaunch();
+        else
+#endif
+            Pc_Options_ResetToDefaults();
     } else if (res == PC_CONFIRM_NO) {
         Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
     }
@@ -904,6 +951,15 @@ void Options_PcOptionsMenu_Control(void)
                 } else {
                     Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
                 }
+                g_Options_SelectionHighlightTimer = 0;
+#endif
+#if defined(__ANDROID__)
+            } else if (sel->kind == PCK_STORAGE) {
+                s_confirmAction = PCOPT_CONFIRM_STORAGE;
+                Pc_ConfirmDialog_Open("GAME DATA",
+                    "Pick a new location next time the game starts? Your files stay where they are.");
+                g_PcOptResetConfirmActive = 1;
+                Sd_PlaySfx(Sfx_MenuMove, 0, 64);
                 g_Options_SelectionHighlightTimer = 0;
 #endif
             } else if (sel->kind == PCK_BACK) {

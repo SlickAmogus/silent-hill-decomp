@@ -2,6 +2,8 @@ package com.silenthill.port;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -70,6 +72,66 @@ public class SetupActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        /* Before anything reads targetDir. Everything downstream -- the disc
+         * install, the asset unpack, the game's working directory -- hangs off
+         * this one answer. */
+        if (StorageLocations.worthAsking(this) || askAgainRequested()) {
+            askWhereToKeepData();
+            return;
+        }
+
+        continueSetup();
+    }
+
+    /**
+     * The in-game option writes this marker into the data root rather than
+     * calling back into Java: the game is a separate activity by then, the
+     * choice cannot take effect until the next launch anyway, and a file the
+     * setup screen already has a path to needs no JNI.
+     */
+    private boolean askAgainRequested() {
+        File flag = new File(StorageLocations.resolve(this), ".ask_storage");
+        if (!flag.isFile()) {
+            return false;
+        }
+        flag.delete();
+        StorageLocations.clear(this);
+        return true;
+    }
+
+    /**
+     * Removable first, and preselected: a card is the answer for the players who
+     * asked for this, and it is the one they can take out and read elsewhere.
+     * Not cancellable -- there is no sensible "neither".
+     */
+    private void askWhereToKeepData() {
+        final List<StorageLocations.Option> opts = StorageLocations.candidates(this);
+
+        if (opts.isEmpty()) {
+            continueSetup();
+            return;
+        }
+
+        String[] labels = new String[opts.size()];
+        for (int i = 0; i < opts.size(); i++) {
+            StorageLocations.Option o = opts.get(i);
+            labels[i] = o.label + "
+" + o.dir.getAbsolutePath();
+        }
+
+        new AlertDialog.Builder(this)
+            .setTitle("Where should the game keep its data?")
+            .setCancelable(false)
+            .setItems(labels, new DialogInterface.OnClickListener() {
+                @Override public void onClick(DialogInterface d, int which) {
+                    StorageLocations.store(SetupActivity.this, opts.get(which).dir);
+                    continueSetup();
+                }
+            })
+            .show();
+    }
+
+    private void continueSetup() {
         targetDir = resolveTargetDir();
 
         if (findInstalledDisc() != null) {
@@ -103,20 +165,7 @@ public class SetupActivity extends Activity {
     }
 
     private File resolveTargetDir() {
-        File[] mediaDirs = getExternalMediaDirs();
-        if (mediaDirs != null && mediaDirs.length > 0 && mediaDirs[0] != null) {
-            if (mediaDirs[0].isDirectory() || mediaDirs[0].mkdirs()) {
-                return mediaDirs[0];
-            }
-        }
-
-        // Fall back to the app's own files dir, which always exists.
-        File files = getExternalFilesDir(null);
-        File data  = new File(files, "gamedata");
-        if (!data.isDirectory()) {
-            data.mkdirs();
-        }
-        return data;
+        return StorageLocations.resolve(this);
     }
 
     // ---------------------------------------------------------------- UI ---
