@@ -20,7 +20,6 @@ typedef void           (*SH_Plugin_ScreenFadeFunc)(void);
 typedef int            (*SH_Plugin_NpcSpawnFunc)(e_CharaId* charaId);
 typedef void           (*SH_Plugin_RadioVolumeFunc)(s32* volume);
 typedef void           (*SH_Plugin_RadioAttributesFunc)(s32* volume, s32* pitch);
-typedef struct _VECTOR3 (*SH_Plugin_PredictTargetFunc)(struct _VECTOR3 from, struct _VECTOR3 to);
 typedef int            (*SH_Plugin_LiveInventoryFunc)(void);
 
 /* Core Engine Plugin Manager API */
@@ -36,7 +35,6 @@ void           Pc_Plugins_OnScreenFadeDraw(void);
 int            Pc_Plugins_OverrideNpcSpawn(e_CharaId* charaId);
 void           Pc_Plugins_ModifyRadioVolume(s32* volume);
 void           Pc_Plugins_ModifyRadioAttributes(s32* volume, s32* pitch);
-struct _VECTOR3 Pc_Plugins_PredictTargetPos(struct _VECTOR3 from, struct _VECTOR3 to);
 int            Pc_Plugins_IsLiveInventoryEnabled(void);
 int            Pc_Plugins_HasNightmarePlugin(void);
 

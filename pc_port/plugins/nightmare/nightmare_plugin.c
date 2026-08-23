@@ -470,9 +470,3 @@ PLUGIN_EXPORT void SH_Plugin_ModifyRadioAttributes(s32* volume, s32* pitch)
         }
     }
 }
-
-PLUGIN_EXPORT struct _VECTOR3 SH_Plugin_PredictTargetPos(struct _VECTOR3 from, struct _VECTOR3 to)
-{
-    /* Return actual true target position without distorting combat angles */
-    return to;
-}

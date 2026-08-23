@@ -135,8 +135,8 @@
  * @return Y axis angle between positions (Q19.12).
  */
 #define Math_AngleBetweenPositionsGet(from, to) \
-    ratan2(to.vx - from.vx,                     \
-           to.vz - from.vz)                     \
+    ratan2((to).vx - (from).vx,                 \
+           (to).vz - (from).vz)
 
 /** @brief Computes the square magnitude of a value in Q19.12, converting to Q25.6 to avoid overflow.
  *

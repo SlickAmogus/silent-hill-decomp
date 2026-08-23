@@ -24,7 +24,6 @@ typedef struct
     SH_Plugin_NpcSpawnFunc      npcSpawnFunc;
     SH_Plugin_RadioVolumeFunc     radioVolumeFunc;
     SH_Plugin_RadioAttributesFunc radioAttributesFunc;
-    SH_Plugin_PredictTargetFunc   predictTargetFunc;
     SH_Plugin_LiveInventoryFunc   liveInventoryFunc;
 } PluginEntry;
 
@@ -74,7 +73,6 @@ void Pc_Plugins_Init(void)
             p->npcSpawnFunc      = (SH_Plugin_NpcSpawnFunc)DllLoader_GetSymbol(handle, "SH_Plugin_OverrideNpcSpawn");
             p->radioVolumeFunc   = (SH_Plugin_RadioVolumeFunc)DllLoader_GetSymbol(handle, "SH_Plugin_ModifyRadioVolume");
             p->radioAttributesFunc = (SH_Plugin_RadioAttributesFunc)DllLoader_GetSymbol(handle, "SH_Plugin_ModifyRadioAttributes");
-            p->predictTargetFunc = (SH_Plugin_PredictTargetFunc)DllLoader_GetSymbol(handle, "SH_Plugin_PredictTargetPos");
             p->liveInventoryFunc = (SH_Plugin_LiveInventoryFunc)DllLoader_GetSymbol(handle, "SH_Plugin_IsLiveInventory");
 
             SH_LOG("[PLUGINS] Loaded plugin: %s", path);
@@ -225,18 +223,6 @@ void Pc_Plugins_ModifyRadioAttributes(s32* volume, s32* pitch)
             s_plugins[i].radioVolumeFunc(volume);
         }
     }
-}
-
-struct _VECTOR3 Pc_Plugins_PredictTargetPos(struct _VECTOR3 from, struct _VECTOR3 to)
-{
-    for (int i = 0; i < s_pluginCount; i++)
-    {
-        if (s_plugins[i].predictTargetFunc)
-        {
-            return s_plugins[i].predictTargetFunc(from, to);
-        }
-    }
-    return to;
 }
 
 int Pc_Plugins_IsLiveInventoryEnabled(void)
