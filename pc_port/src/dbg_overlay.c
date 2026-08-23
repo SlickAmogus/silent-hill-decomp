@@ -1935,6 +1935,10 @@ void DbgOverlay_Render(void)
      * opened by tapping the Map button during a run. */
     { extern void Pc_RandoSettings_Draw(void); Pc_RandoSettings_Draw(); }
 
+    /* Modal Yes/No message box (options-screen "reset to defaults") — same
+     * self-contained-GL arrangement; drawn last so it sits over every panel. */
+    { extern void Pc_ConfirmDialog_Draw(void); Pc_ConfirmDialog_Draw(); }
+
     /* Console is hidden once fully slid off-screen (toggled by `~`); the ring
      * buffer keeps filling while hidden. The collision panel draws whenever it's
      * toggled on (`'`), independent of the console. The anim panel draws while the

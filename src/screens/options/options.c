@@ -547,10 +547,10 @@ void Pc_Options_ResetToDefaults(void)
 
 #ifdef SH_PC_PORT
 #include <SDL.h>
+#include "pc_confirm_dialog.h"
 
-/* Shared with the header draw + the control loop. */
+/* Shared with the header draw: 1 while the reset dialog is up (label turns red). */
 int g_PcOptResetConfirmActive = 0;
-static int s_pcOptResetSel     = 1; /* 0 = Yes, 1 = No (safe default) */
 
 /* One-shot rising edge for a scancode (own small history so it never fights the
  * game pad path). */
@@ -564,22 +564,23 @@ static int PcOpt_KeyEdge(int sc)
     return edge;
 }
 
-/* Dark panel + "Reset settings to defaults?" + Yes/No, styled like the PC-port
- * overlays (centered dark quad, clean text). Returns 1 while it owns input, so
- * the caller blocks the normal menu handling. */
+/* "Reset settings to defaults?" Yes/No box. Drawn by the pc_confirm_dialog GL
+ * overlay (the achievement/randomizer panel style, composited after the PSX
+ * frame so nothing in the ordering table can draw over it). Returns 1 while the
+ * dialog owns input, so the caller blocks the normal menu handling. */
 static int PcOpt_ResetConfirm_Run(void)
 {
-    /* HIGHER OT index draws in front here: the menu rows (index 8) sit over the
-     * selection highlight (LAYER_24 == index 6). So the modal must go ABOVE the
-     * menu -- panel at index 10 (covers the menu rows), prompt text at 12. */
-    GsOT_TAG* ot = &g_OtTags0[g_ActiveBufferIdx][10];
-    POLY_F4*  poly;
+    const s_ControllerConfig* cfg = &g_GameWorkPtr->config.controllerConfig;
+    int left, right, confirm, cancel, res;
 
-    /* Open on R only from the PC Options page. */
+    g_PcOptResetConfirmActive = Pc_ConfirmDialog_IsOpen();
+
     if (!g_PcOptResetConfirmActive) {
         if (PcOpt_KeyEdge(SDL_SCANCODE_R)) {
+            Pc_ConfirmDialog_Open("RESET SETTINGS", "Reset all PC options to their defaults?");
             g_PcOptResetConfirmActive = 1;
-            s_pcOptResetSel = 1;
+            Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+            return 1;
         }
         /* keep edge state fresh even when closed */
         PcOpt_KeyEdge(SDL_SCANCODE_LEFT);
@@ -589,52 +590,32 @@ static int PcOpt_ResetConfirm_Run(void)
         return 0;
     }
 
-    /* --- input --- */
-    if (PcOpt_KeyEdge(SDL_SCANCODE_LEFT))  s_pcOptResetSel = 0;
-    if (PcOpt_KeyEdge(SDL_SCANCODE_RIGHT)) s_pcOptResetSel = 1;
-    if (PcOpt_KeyEdge(SDL_SCANCODE_R))     s_pcOptResetSel = !s_pcOptResetSel;
-    if (PcOpt_KeyEdge(SDL_SCANCODE_ESCAPE)) { g_PcOptResetConfirmActive = 0; return 1; }
-    if (PcOpt_KeyEdge(SDL_SCANCODE_RETURN)) {
-        if (s_pcOptResetSel == 0) Pc_Options_ResetToDefaults();
-        g_PcOptResetConfirmActive = 0;
-        return 1;
+    /* Keyboard edges OR the player's own pad bindings (the keyboard already
+     * feeds the pad flags too; a double hit is the same action in one frame). */
+    left    = PcOpt_KeyEdge(SDL_SCANCODE_LEFT) ||
+              (g_Controller0->pulsedBtnFlags & (ControllerFlag_DpadLeft | ControllerFlag_LStickLeft)) != 0;
+    right   = PcOpt_KeyEdge(SDL_SCANCODE_RIGHT) ||
+              (g_Controller0->pulsedBtnFlags & (ControllerFlag_DpadRight | ControllerFlag_LStickRight)) != 0;
+    confirm = PcOpt_KeyEdge(SDL_SCANCODE_RETURN) ||
+              (g_Controller0->clickedBtnFlags & cfg->enter) != 0;
+    cancel  = PcOpt_KeyEdge(SDL_SCANCODE_ESCAPE) || PcOpt_KeyEdge(SDL_SCANCODE_R) ||
+              (g_Controller0->clickedBtnFlags & cfg->cancel) != 0;
+
+    if (left || right)
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+
+    res = Pc_ConfirmDialog_Update(left, right, confirm, cancel);
+    if (res == PC_CONFIRM_YES) {
+        Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+        Pc_Options_ResetToDefaults();
+    } else if (res == PC_CONFIRM_NO) {
+        Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
     }
 
-    /* --- draw: solid dark panel behind the prompt. Options-screen POLYs go into
-     * g_OrderingTable2 in a CENTRE-ORIGIN space (see the bullet quads at
-     * {-120,-71}); the strings, by contrast, use a top-left space. Feeding
-     * top-left coords to the panel put it off the bottom-right. These are
-     * centre-origin: screen ~ (60,92)..(260,152). OPAQUE on purpose -- a
-     * semi-transparent prim with no blend mode blended additively (invisible). */
-    poly = (POLY_F4*)GsOUT_PACKET_P;
-    setPolyF4(poly);
-    setRGB0(poly, 12, 12, 18);
-    setXY4(poly, -100, -20, 100, -20, -100, 40, 100, 40);
-    addPrim(ot, poly);
-    GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
-
-    /* Thin rust top edge (toast style) so it doesn't read as a hole. */
-    poly = (POLY_F4*)GsOUT_PACKET_P;
-    setPolyF4(poly);
-    setRGB0(poly, 90, 40, 32);
-    setXY4(poly, -100, -20, 100, -20, -100, -17, 100, -17);
-    addPrim(ot, poly);
-    GsOUT_PACKET_P = (u8*)poly + sizeof(POLY_F4);
-
-    /* Text is top-left space; centred over the panel above. Index 12 > panel's
-     * 10 so the prompt draws on top. */
-    Gfx_Strings2dLayerIdxSet(12);
-    Gfx_StringSetColor(StringColorId_White);
-    Gfx_StringSetPosition(74, 102);
-    Gfx_StringDraw("Reset_settings_to_defaults?", DEFAULT_MAP_MESSAGE_LENGTH);
-
-    Gfx_StringSetColor(s_pcOptResetSel == 0 ? StringColorId_Red : StringColorId_White);
-    Gfx_StringSetPosition(134, 126);
-    Gfx_StringDraw("Yes", DEFAULT_MAP_MESSAGE_LENGTH);
-    Gfx_StringSetColor(s_pcOptResetSel == 1 ? StringColorId_Red : StringColorId_White);
-    Gfx_StringSetPosition(172, 126);
-    Gfx_StringDraw("No", DEFAULT_MAP_MESSAGE_LENGTH);
-    Gfx_StringsReset2dLayerIdx();
+    /* Swallow this frame's pad presses so the menu underneath never sees the
+     * confirm/cancel that answered the dialog. */
+    g_Controller0->clickedBtnFlags = 0;
+    g_Controller0->pulsedBtnFlags  = 0;
     return 1;
 }
 #endif
