@@ -943,7 +943,11 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
     Gfx_Strings2dLayerIdxSet(8);
     Gfx_StringDraw(HEADING, DEFAULT_MAP_MESSAGE_LENGTH);
 
-#ifdef SH_PC_PORT
+/* Not on iOS: there is no keyboard to press R on, so the hint would advertise
+ * something unreachable. The Reset_Settings row on the Graphics page is that
+ * platform's route, and it goes further -- it restores the config.cfg out of
+ * the signed bundle rather than resetting the values held in memory. */
+#if defined(SH_PC_PORT) && !defined(SH_IOS)
     /* Reset hint, top-right by the heading (same layer). Highlighted while the
      * confirm dialog is up. Underscores render as spaces: "[R] Reset". */
     {
