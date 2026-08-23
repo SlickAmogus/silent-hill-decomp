@@ -288,6 +288,16 @@ void SplitHead_Control_1(s_SubCharacter* splitHead)
     angleDeltaToPlayer = Math_AngleNormalizeSigned(Math_AngleBetweenPositionsGet(splitHead->position, g_SysWork.playerWork.player.position) -
                                        splitHead->rotation.vy);
 
+    /* If bite or lunge animation has finished playing, return to pursuit state */
+    if (splitHead->model.anim.status == ANIM_STATUS(SplitHeadAnim_BiteAttack, true) ||
+        splitHead->model.anim.status == ANIM_STATUS(SplitHeadAnim_14, true) ||
+        splitHead->model.anim.status == ANIM_STATUS(SplitHeadAnim_3, true))
+    {
+        splitHead->model.anim.status  = ANIM_STATUS(SplitHeadAnim_WalkForward, false);
+        splitHead->model.controlState = SplitHeadControl_5;
+        return;
+    }
+
     if (splitHead->model.anim.status == ANIM_STATUS(SplitHeadAnim_WalkForward, true))
     {
         q19_12 stalkSpeed = Q12(2.4f);
@@ -593,6 +603,14 @@ void SplitHead_Control_3(s_SubCharacter* splitHead)
                                              g_SysWork.playerWork.player.position.vz - splitHead->position.vz);
     angleDeltaToPlayer = Math_AngleNormalizeSigned(Math_AngleBetweenPositionsGet(splitHead->position, g_SysWork.playerWork.player.position) -
                                        splitHead->rotation.vy);
+
+    /* If attack animation finished, return to pursuit */
+    if (splitHead->model.anim.status == ANIM_STATUS(SplitHeadAnim_3, true))
+    {
+        splitHead->model.anim.status  = ANIM_STATUS(SplitHeadAnim_WalkForward, false);
+        splitHead->model.controlState = SplitHeadControl_2;
+        return;
+    }
 
     if (splitHead->model.anim.status == ANIM_STATUS(SplitHeadAnim_WalkForward, true))
     {
