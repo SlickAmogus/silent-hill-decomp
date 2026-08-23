@@ -198,6 +198,12 @@ list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "map_overlay_stub\\.c$")
 # PC PORT: drop the combat_target.c aiming shim; the real decompiled func_8005CD38
 # (src/bodyprog/bodyprog_combat_8005BF38.c) now provides target selection.
 list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "combat_target\\.c$")
+# iOS has neither of pc_ra_http.c's backends. ios_port/src/ios_ra_http.m
+# implements the same two entry points over NSURLSession; compiling both would
+# be a duplicate-symbol link error.
+if(IOS)
+    list(FILTER PC_PORT_SOURCES EXCLUDE REGEX "pc_ra_http\\.c$")
+endif()
 
 # Clang at -O2 deletes `case 0:` of the switch in GameState_ItemScreens_Update
 # (item_screens_2.c) as unreachable. Proven, not inferred: nothing added inside
@@ -252,7 +258,17 @@ endif()
 # Excluded: rc_libretro.c (needs libretro.h) and rc_client_raintegration.c
 # (Windows RAIntegration dev toolkit — not used by a player-facing client).
 set(SH_RCHEEVOS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/rcheevos")
-option(SH_ENABLE_RETROACHIEVEMENTS "Build RetroAchievements support (rcheevos)" ${SH_DESKTOP_FEATURE_DEFAULT})
+# iOS opts back in even though it is in the mobile bucket: what put RA behind
+# SH_DESKTOP_FEATURE_DEFAULT is the system-libcurl dependency of pc_ra_http.c,
+# and iOS replaces that whole file with an NSURLSession transport that needs no
+# third-party library. rcheevos itself is libc-only. Android has no equivalent
+# transport yet, so it stays off there.
+if(IOS)
+    set(SH_RA_DEFAULT ON)
+else()
+    set(SH_RA_DEFAULT ${SH_DESKTOP_FEATURE_DEFAULT})
+endif()
+option(SH_ENABLE_RETROACHIEVEMENTS "Build RetroAchievements support (rcheevos)" ${SH_RA_DEFAULT})
 if(SH_ENABLE_RETROACHIEVEMENTS AND EXISTS "${SH_RCHEEVOS_DIR}/src/rc_client.c")
     file(GLOB RCHEEVOS_SOURCES
         "${SH_RCHEEVOS_DIR}/src/rcheevos/*.c"
@@ -507,7 +523,17 @@ endif()
 if(SH_HAVE_RETROACHIEVEMENTS)
     target_link_libraries(SilentHillPC PRIVATE rcheevos_static)
     target_compile_definitions(SilentHillPC PRIVATE SH_RETROACHIEVEMENTS=1)
-    if(WIN32)
+    if(IOS)
+        # NSURLSession lives in Foundation, already linked for the rest of the
+        # iOS platform sources. Nothing else to pull in.
+        #
+        # -export_dynamic is not optional here: Pc_RaSymbolLookup rebuilds the
+        # PSX address map by dlsym'ing the decomp's globals out of the running
+        # image, and Mach-O only resolves what the link left in the export
+        # table. The PE build gets this from --export-all-symbols; without the
+        # equivalent the map comes up empty and every achievement reads zero.
+        target_link_options(SilentHillPC PRIVATE "-Wl,-export_dynamic")
+    elseif(WIN32)
         target_link_libraries(SilentHillPC PRIVATE winhttp)
     else()
         find_package(CURL)

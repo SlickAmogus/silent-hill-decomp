@@ -25,6 +25,14 @@
 #include <stdio.h>
 #include <string.h>
 #include "sh_log.h"
+
+#if defined(SH_IOS)
+#include "pc_retroachievements.h"
+/* ios_port/src/ios_ra_login.m. Declared here rather than in a header because
+ * ios_port owns no include directory and the other Ios_ entry points are
+ * declared the same way at their call sites. */
+extern int Ios_ShowRetroAchievementsLogin(void);
+#endif
 #include "pc_config.h"
 #include "pc_mouse_cursor.h"
 #include "map_registry.h"
@@ -122,7 +130,7 @@ static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Cont
  * which is the right behaviour for a pointer that is already there. */
 s32 g_PcOptions_HighlightSnap = 0;
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET, PCK_RALOGIN };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -241,6 +249,16 @@ static const s_PcOpt PCOPT_S[] = {
     { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
     /* Moved here from the Camera page for the same reason as Map above. */
     { "Crosshair",        &g_PcConfig.crosshair,      "crosshair",        VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+#if defined(SH_IOS)
+    /* Twelfth row, one past what the other pages carry. It fits: rows start at
+     * PCOPT_LINE_BASE_Y 40 and step 16, so this page now ends at y=216 --
+     * exactly where an 11-row page ended before the base moved up from 56.
+     *
+     * iOS only because it is the only target that can sign in from inside the
+     * game. Everywhere else the launcher owns the RetroAchievements account and
+     * the game just consumes the token it left in the config. */
+    { "Achievements",     NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_RALOGIN },
+#endif
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -384,6 +402,19 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
     if (e->kind == PCK_MAP) {
         return g_PcConfig.mapName[0] ? g_PcConfig.mapName : "map0_s00";
     }
+#if defined(SH_IOS)
+    if (e->kind == PCK_RALOGIN) {
+        if (Pc_Ra_LoginPending())
+            return "Signing_in";
+        if (!Pc_Ra_IsSignedIn())
+            return "Sign_In";
+        /* Truncated to what fits: the value column starts at 204 and the screen
+         * clips at 320, which is about 13 glyphs. RA allows longer names than
+         * that, and an overrun would draw off the edge rather than wrap. */
+        snprintf(buf, bufsz, "%.12s", g_PcConfig.raUsername);
+        return buf;
+    }
+#endif
     if (e->field == NULL)
         return "";
     {
@@ -847,6 +878,21 @@ void Options_PcOptionsMenu_Control(void)
 
                 if (Ios_RestoreDefaultConfig()) {
                     PcConfig_Load("config.cfg");
+                    Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                } else {
+                    Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
+                }
+                g_Options_SelectionHighlightTimer = 0;
+            } else if (sel->kind == PCK_RALOGIN) {
+                /* Signed in already? Then this is the sign-out. Otherwise open
+                 * the native sheet -- a password field is not something the
+                 * game's own 2D screens can offer (no text input, no keyboard,
+                 * no masking), which is why this one row leaves the engine's UI
+                 * entirely. */
+                if (Pc_Ra_IsSignedIn()) {
+                    Pc_Ra_SignOut();
+                    Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
+                } else if (Ios_ShowRetroAchievementsLogin()) {
                     Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
                 } else {
                     Sd_PlaySfx(Sfx_MenuCancel, 0, 64);

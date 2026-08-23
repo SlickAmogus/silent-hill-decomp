@@ -1216,6 +1216,58 @@ int Pc_Ra_Why(const char* filter)
     return shown;
 }
 
+/* Everything the client needs before ANY login can be attempted: the address
+ * map, the HTTP worker and rc_client itself. Split out of Pc_Ra_Init because
+ * interactive login (iOS, where there is no launcher to authenticate first)
+ * has to stand the same machinery up with no stored token to log in with.
+ * Idempotent: a second call with a live client is a no-op, so signing in from
+ * the options menu after a token login already ran does not restart the
+ * worker. */
+static int Pc_RaBringUpClient(void)
+{
+    if (s_client)
+        return 1;
+
+    Pc_RaBuildMap();
+
+    if (!s_queueLock) s_queueLock = SDL_CreateMutex();
+    if (!s_queueSem)  s_queueSem  = SDL_CreateSemaphore(0);
+    if (!s_queueLock || !s_queueSem)
+    {
+        SH_DBG("[RA] could not create worker primitives - disabled");
+        return 0;
+    }
+
+    if (!s_httpThread)
+        s_httpThread = SDL_CreateThread(Pc_RaHttpThread, "SH_RA_HTTP", NULL);
+    if (!s_httpThread)
+    {
+        SH_DBG("[RA] could not start HTTP worker - disabled");
+        return 0;
+    }
+
+    s_client = rc_client_create(Pc_RaReadMemory, Pc_RaServerCall);
+    if (!s_client)
+    {
+        SH_DBG("[RA] client creation failed - disabled");
+        return 0;
+    }
+
+    /* Softcore, permanently: see the file header. */
+    rc_client_set_hardcore_enabled(s_client, 0);
+    rc_client_set_event_handler(s_client, Pc_RaEventHandler);
+    if (s_spectator)
+    {
+        rc_client_set_spectator_mode_enabled(s_client, 1);
+        SH_DBG("[RA] non-USA disc: SPECTATOR mode - achievements evaluate and log "
+               "but nothing is submitted. Check the addresses logged below, then set "
+               "ra_unverified_region = 1 to submit for real.");
+    }
+
+    s_enabled = 1;
+    return 1;
+}
+
 void Pc_Ra_Init(void)
 {
     SH_DBG("[RA] init: enabled=%d user='%s' token=%s region=%d",
@@ -1247,42 +1299,9 @@ void Pc_Ra_Init(void)
         return;
     }
 
-    Pc_RaBuildMap();
-
-    s_queueLock = SDL_CreateMutex();
-    s_queueSem  = SDL_CreateSemaphore(0);
-    if (!s_queueLock || !s_queueSem)
-    {
-        SH_DBG("[RA] could not create worker primitives - disabled");
+    if (!Pc_RaBringUpClient())
         return;
-    }
 
-    s_httpThread = SDL_CreateThread(Pc_RaHttpThread, "SH_RA_HTTP", NULL);
-    if (!s_httpThread)
-    {
-        SH_DBG("[RA] could not start HTTP worker - disabled");
-        return;
-    }
-
-    s_client = rc_client_create(Pc_RaReadMemory, Pc_RaServerCall);
-    if (!s_client)
-    {
-        SH_DBG("[RA] client creation failed - disabled");
-        return;
-    }
-
-    /* Softcore, permanently: see the file header. */
-    rc_client_set_hardcore_enabled(s_client, 0);
-    rc_client_set_event_handler(s_client, Pc_RaEventHandler);
-    if (s_spectator)
-    {
-        rc_client_set_spectator_mode_enabled(s_client, 1);
-        SH_DBG("[RA] non-USA disc: SPECTATOR mode - achievements evaluate and log "
-               "but nothing is submitted. Check the addresses logged below, then set "
-               "ra_unverified_region = 1 to submit for real.");
-    }
-
-    s_enabled = 1;
     rc_client_begin_login_with_token(s_client, g_PcConfig.raUsername,
                                      g_PcConfig.raToken, Pc_RaLoginCallback, NULL);
 }
@@ -1427,6 +1446,123 @@ const char* Pc_Ra_StatusLine(void)
     return s_status;
 }
 
+/* Interactive sign-in: username + PASSWORD, exchanged once for a connect token
+ * that is what gets persisted. The password is never written anywhere -- it
+ * lives in this call and rc_client's request buffer and nowhere else, which is
+ * the same guarantee the launcher gives on PC.
+ *
+ * PC has no need for this (the launcher signs in before the game starts), but
+ * iOS has no launcher, so the game itself has to be able to authenticate. Built
+ * unconditionally rather than behind a platform gate: it is the same rcheevos
+ * call on every target, and a desktop caller would work identically. */
+static char s_loginResult[128];
+static int  s_loginPending = 0;
+
+static void RC_CCONV Pc_RaPasswordLoginCallback(int result, const char* error_message,
+                                                rc_client_t* client, void* userdata)
+{
+    const rc_client_user_t* user;
+    (void)userdata;
+
+    s_loginPending = 0;
+
+    if (result != RC_OK)
+    {
+        snprintf(s_loginResult, sizeof(s_loginResult), "%s",
+                 error_message ? error_message : "login failed");
+        SH_DBG("[RA] password login failed: %s", s_loginResult);
+        return;
+    }
+
+    user = rc_client_get_user_info(client);
+    if (!user || !user->token || !user->token[0])
+    {
+        snprintf(s_loginResult, sizeof(s_loginResult), "%s",
+                 "signed in but no token was returned");
+        SH_DBG("[RA] %s", s_loginResult);
+        return;
+    }
+
+    /* Persist BEFORE anything else can fail: a token that reached the config is
+     * one the player never has to type a password for again, even if the disc
+     * hash below turns out to match nothing. */
+    snprintf(g_PcConfig.raUsername, sizeof(g_PcConfig.raUsername), "%s",
+             user->username ? user->username : user->display_name);
+    snprintf(g_PcConfig.raToken, sizeof(g_PcConfig.raToken), "%s", user->token);
+    g_PcConfig.retroAchievements = 1;
+
+    PcConfig_SaveKeyValue("retroachievements", "1");
+    PcConfig_SaveKeyValue("ra_username", g_PcConfig.raUsername);
+    PcConfig_SaveKeyValue("ra_token",    g_PcConfig.raToken);
+
+    snprintf(s_loginResult, sizeof(s_loginResult), "Signed in as %s",
+             g_PcConfig.raUsername);
+    SH_DBG("[RA] %s - token stored", s_loginResult);
+
+    /* Same tail as a token login: hash the mounted disc and load the set. */
+    Pc_RaLoginCallback(RC_OK, NULL, client, NULL);
+}
+
+int Pc_Ra_BeginPasswordLogin(const char* username, const char* password)
+{
+    if (!username || !username[0] || !password || !password[0])
+    {
+        snprintf(s_loginResult, sizeof(s_loginResult), "%s",
+                 "Enter both a username and a password.");
+        return 0;
+    }
+
+    if (s_loginPending)
+        return 0;
+
+    /* Spectator is a config knob, not a login property, but the bring-up reads
+     * it -- so honour it here too rather than leaving it at whatever a previous
+     * Pc_Ra_Init left behind. */
+    s_spectator = g_PcConfig.raSpectator;
+
+    if (!Pc_RaBringUpClient())
+    {
+        snprintf(s_loginResult, sizeof(s_loginResult), "%s",
+                 "Could not start the achievement client.");
+        return 0;
+    }
+
+    s_loginPending = 1;
+    snprintf(s_loginResult, sizeof(s_loginResult), "%s", "Signing in...");
+    rc_client_begin_login_with_password(s_client, username, password,
+                                        Pc_RaPasswordLoginCallback, NULL);
+    return 1;
+}
+
+int Pc_Ra_LoginPending(void)
+{
+    return s_loginPending;
+}
+
+const char* Pc_Ra_LoginResult(void)
+{
+    return s_loginResult;
+}
+
+void Pc_Ra_SignOut(void)
+{
+    g_PcConfig.raUsername[0] = '\0';
+    g_PcConfig.raToken[0]    = '\0';
+    g_PcConfig.retroAchievements = 0;
+
+    PcConfig_SaveKeyValue("retroachievements", "0");
+    PcConfig_SaveKeyValue("ra_username", "");
+    PcConfig_SaveKeyValue("ra_token", "");
+
+    snprintf(s_loginResult, sizeof(s_loginResult), "%s", "Signed out.");
+    SH_DBG("[RA] signed out - token cleared");
+}
+
+int Pc_Ra_IsSignedIn(void)
+{
+    return (g_PcConfig.raUsername[0] && g_PcConfig.raToken[0]) ? 1 : 0;
+}
+
 #else /* !SH_RETROACHIEVEMENTS */
 
 void        Pc_Ra_Init(void)     {}
@@ -1435,6 +1571,11 @@ void        Pc_Ra_Shutdown(void) {}
 int         Pc_Ra_IsActive(void) { return 0; }
 const char* Pc_Ra_StatusLine(void) { return ""; }
 void        Pc_Ra_RequestBadge(const char* badgeName) { (void)badgeName; }
+int         Pc_Ra_BeginPasswordLogin(const char* u, const char* p) { (void)u; (void)p; return 0; }
+int         Pc_Ra_LoginPending(void)  { return 0; }
+const char* Pc_Ra_LoginResult(void)   { return "RetroAchievements is not built in."; }
+void        Pc_Ra_SignOut(void)       {}
+int         Pc_Ra_IsSignedIn(void)    { return 0; }
 int         Pc_Ra_SnapshotAchievements(PcRaAch* out, int max) { (void)out; (void)max; return 0; }
 
 #endif /* SH_RETROACHIEVEMENTS */
