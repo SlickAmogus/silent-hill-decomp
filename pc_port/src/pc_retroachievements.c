@@ -1546,6 +1546,19 @@ const char* Pc_Ra_LoginResult(void)
 
 void Pc_Ra_SignOut(void)
 {
+    /* Stop the live session too, not just the stored credentials. Clearing the
+     * config alone left the client logged in and still submitting for the rest
+     * of the run, so "signed out" would not have become true until a restart.
+     * The client itself is kept: signing back in reuses it through
+     * Pc_RaBringUpClient, which is idempotent. */
+    if (s_client)
+    {
+        rc_client_unload_game(s_client);
+        rc_client_logout(s_client);
+    }
+    s_active = 0;
+    s_status[0] = '\0';
+
     g_PcConfig.raUsername[0] = '\0';
     g_PcConfig.raToken[0]    = '\0';
     g_PcConfig.retroAchievements = 0;
