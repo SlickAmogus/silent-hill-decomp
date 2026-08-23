@@ -7,7 +7,14 @@
 void Settings_ScreenAndVolUpdate(void) // 0x800333CC
 {
     Screen_XyPositionSet(g_GameWork.config.screenPositionX, g_GameWork.config.screenPositionY);
+#ifdef SH_PC_PORT
+    /* PC: internal mixing is always Stereo -- the speaker layout (mono/quad/
+     * 5.1/7.1) is the launcher's audio_output, and collapsing to PSX Mono here
+     * would defeat the surround pipeline. The vanilla Monaural option is gone. */
+    SD_Call(AudioMode_Stereo);
+#else
     SD_Call((g_GameWork.config.soundType != 0) ? AudioMode_Mono : AudioMode_Stereo);
+#endif
     Sd_SetVolume(OPT_SOUND_VOLUME_MAX, g_GameWork.config.volumeBgm, g_GameWork.config.volumeSe);
 }
 

@@ -170,6 +170,38 @@ s32 func_8008A0E4(s32 arg0, s32 weaponAttack, s_SubCharacter* chara, VECTOR3* po
     }
 
     chara->field_44.field_2 = weaponAttack;
+
+#ifdef SH_PC_PORT
+    /* Re-arm the one-hit-per-swing latch on a genuinely new swing.
+     *
+     * Confirmed by [PLRDMG] against a Puppet Nurse: the first knife hit lands
+     * (sp14=0x0, dmg=132) and every hit after it reads sp14=0xFFFFFFFF, dmg=0,
+     * across eight separate swings. Against the PLAYER sp10 is -1, so
+     * `sp14 |= sp10` sets every bit, and neither clearing branch below ever runs
+     * for this attacker: it registers only inside its attack state, so no call
+     * lands on an anim with the active bit low, and field_0 stays 1 once set, so
+     * the swing-start branch never fires either.
+     *
+     * A new swing is what actually matters, and the animation states it: either
+     * the status changed, or the clock restarted. Tracked in the struct's
+     * existing padding, so nothing grows. Within a swing the status holds and
+     * time only advances, so this cannot fire mid-swing -- the player's melee,
+     * which the existing path already handles correctly, is untouched. */
+    {
+        u8 animSt = (u8)modelAnim->status;
+        u8 animTm = (u8)FP_FROM(modelAnim->time, Q12_SHIFT);
+
+        if ((u8)chara->field_44.__pad_5[0] != animSt ||
+            (u8)chara->field_44.__pad_5[1] > animTm)
+        {
+            chara->field_44.field_8 = 0;
+        }
+
+        chara->field_44.__pad_5[0] = (s8)animSt;
+        chara->field_44.__pad_5[1] = (s8)animTm;
+    }
+#endif
+
     if (!(modelAnim->status & (1 << 0)))
     {
         chara->field_44.field_0 = 0;
@@ -815,13 +847,19 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                  * in the swing the hit lands. (Using the partial sp28-var_s0_2
                  * here made a hit that landed at window-open — e.g. the 1st of the
                  * knife's two slashes — deal ~0 while the 2nd, landing later, hit.)
-                 * Player only — enemy attack balance is left as-is. */
-                if (chara == &g_SysWork.playerWork.player)
-                {
-                    sp5C = (var_s0_2 < sp2C) ? (sp2C - var_s0_2) / (var_a0 * 4) : 0;
-                }
-                else
-#endif
+                 * Applies to ENEMIES too, which it originally did not.
+                 * "Enemy balance left as-is" sounded conservative but it left
+                 * enemy blades with the identical defect: a Puppet Nurse knife
+                 * measured base=102400 arriving as dmg=132, because sp5C came
+                 * out around 5 -- one frame's sweep at PC frame rates -- and
+                 * D_800AD4C8[57].field_10 == 1 puts that attack in exactly the
+                 * class scaled by it (func_8008B714 multiplies by this when
+                 * field_10 == 1). Enemies whose attacks are not field_10 == 1
+                 * skip the multiply entirely, which is why only the nurse's
+                 * knife read as doing nothing while everything else hurt.
+                 * The grab drain is a separate path and was never affected. */
+                sp5C = (var_s0_2 < sp2C) ? (sp2C - var_s0_2) / (var_a0 * 4) : 0;
+#else
                 if (i < sp28)
                 {
                     sp5C = (sp28 - i) / (var_a0 * 4);
@@ -830,6 +868,7 @@ s32 func_8008A3E0(s_SubCharacter* chara) // 0x8008A3E0
                 {
                     sp5C = 0;
                 }
+#endif
             }
             else
             {
@@ -1658,6 +1697,24 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     /* [MELEEDMG] diagnostic: player melee hit on an enemy. base = table damage
      * (D_800AD4C8[weaponAttack].field_4); dmg = after the one-hit-per-swing guard.
      * base>0 with dmg==0 and alreadyHit=1 means the per-swing bitmask zeroed it. */
+    /* The same numbers for a hit ON the player. The nurse knife reaches here with
+     * a correct id (57/58) and a non-zero table damage (field_4 0x19/0x21), so if
+     * the player still takes nothing this says which step drops it -- and if the
+     * line never appears at all, the hit is not reaching this function and the
+     * fault is in detection, not damage. */
+    if (target == &g_SysWork.playerWork.player)
+    {
+        static int s_plrDmgLogs = 0;
+
+        if (s_plrDmgLogs < 40)
+        {
+            s_plrDmgLogs++;
+            SH_DBG("[PLRDMG] wa=%d base=%d dmg=%d sp14=0x%X sp10=0x%X alreadyHit=%d attacker=%d",
+                   weaponAttack, (int)var_s0, (int)damageAmount, (unsigned)sp14, (unsigned)sp10,
+                   (int)((sp14 & sp10) != 0), attacker->model.charaId);
+        }
+    }
+
     if (target != &g_SysWork.playerWork.player && (u8)weaponAttack < 30u)
         SH_DBG("[MELEEDMG] wa=%d base=%d dmg=%d sp14=0x%X sp10=0x%X alreadyHit=%d chara=%d\n",
                weaponAttack, (int)var_s0, (int)damageAmount, (unsigned)sp14, (unsigned)sp10,

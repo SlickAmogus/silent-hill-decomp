@@ -41,6 +41,7 @@ s_PcConfig g_PcConfig = {
     .charaPrimProbe = 0, /* 0=off, else e_CharaId to trace: one-shot [CHARAPRIM] per-model submit/reject dump */
     .psxPolySizeCull = 1, /* 1=PSX GPU parity: cull triangles with screen bbox >1023x511 (hardware never drew them) */
     .msaaSamples    = 0, /* 0=off, 2/4/8 = MSAA sample count */
+    .renderer       = "gl", /* native OpenGL — the long-tested path */
     .postProcess    = 0, /* 0=off, 1.. = post-process look */
     .tonemap        = 0, /* 0=off, 1=Reinhard, 2=ACES, 3=Filmic */
     .flashlightMode = 0, /* 0=Classic (PSX), 1=Classic+Shadows, 2=Modern, 3=Modern+Shadows */
@@ -96,6 +97,8 @@ s_PcConfig g_PcConfig = {
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .control2dSnap           = 0, /* 2D control turns into the direction (0), doesn't snap */
     .minimap                 = 0, /* minimap overlay off by default */
+    .anisoLevel              = 8,
+    .shadowMapSize           = 1024,
     .minimapCorner           = 0, /* top-left */
     .minimapShape            = 1, /* deprecated; only feeds the old-config migration */
     .minimapScale            = 100.0f,
@@ -372,8 +375,22 @@ const char* Pc_FlashlightModeLabel(int mode)
     return s_names[(mode >= 0 && mode <= 3) ? mode : 0];
 }
 
+/* Snapshot of the compile-time defaults, taken before any config file is
+ * parsed, so a runtime "reset to defaults" can restore them. */
+static s_PcConfig s_PcConfigDefaults;
+static int        s_defaultsCaptured = 0;
+
+const s_PcConfig* PcConfig_Defaults(void)
+{
+    if (!s_defaultsCaptured) { s_PcConfigDefaults = g_PcConfig; s_defaultsCaptured = 1; }
+    return &s_PcConfigDefaults;
+}
+
 void PcConfig_Load(const char* path)
 {
+    /* g_PcConfig still holds the static initializer here — capture it. */
+    if (!s_defaultsCaptured) { s_PcConfigDefaults = g_PcConfig; s_defaultsCaptured = 1; }
+
     if (path) {
         strncpy(s_configPath, path, sizeof(s_configPath) - 1);
         s_configPath[sizeof(s_configPath) - 1] = '\0';
@@ -491,9 +508,13 @@ void PcConfig_Load(const char* path)
         }
         else if (strcmp(key, "psx_dither") == 0)
         {
+            /* 0..7: off, dither, bilinear, trilinear, aniso 2x/4x/8x/16x. The
+             * old 0..2 clamp outlived the filter rework and folded every mode
+             * above bilinear back to bilinear on each boot -- the setting saved
+             * fine and was destroyed on load. */
             int v = atoi(value);
             if (v < 0) v = 0;
-            if (v > 2) v = 2;
+            if (v > 7) v = 7;
             g_PcConfig.psxDither = v;
         }
         else if (strcmp(key, "menu_filter") == 0)
@@ -595,6 +616,14 @@ void PcConfig_Load(const char* path)
             else if (v >= 2) v = 2;
             else             v = 0;
             g_PcConfig.msaaSamples = v;
+        }
+        else if (strcmp(key, "renderer") == 0)
+        {
+            /* Validated in main_pc.c against PsyX_Backend_FromName, which maps
+             * anything unrecognised back to "gl" — a typo here must never stop
+             * the game booting. */
+            strncpy(g_PcConfig.renderer, value, sizeof(g_PcConfig.renderer) - 1);
+            g_PcConfig.renderer[sizeof(g_PcConfig.renderer) - 1] = '\0';
         }
         else if (strcmp(key, "post_process") == 0)
         {
@@ -938,6 +967,18 @@ void PcConfig_Load(const char* path)
             g_PcConfig.minimap = (v < 0) ? 0 : ((v > 2) ? 2 : v);
             s_minimapSeen = 1;
         }
+else if (strcmp(key, "enable_plugins") == 0)
+        {
+            g_PcConfig.enablePlugins = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "allow_unrecognized_dlls") == 0)
+        {
+            /* Downgrades ONLY the map-DLL unknown-import verdict to a logged
+             * pass (toolchain-drift escape hatch). Flagrant imports and
+             * invalid binaries always block. */
+            extern int g_DllAllowUnrecognized;
+            g_DllAllowUnrecognized = (atoi(value) != 0);
+        }
         else if (strcmp(key, "minimap_require_map") == 0)
         {
             g_PcConfig.minimapRequireMap = (atoi(value) != 0);
@@ -948,6 +989,16 @@ void PcConfig_Load(const char* path)
             if (v < MINIMAP_SCALE_MIN) v = MINIMAP_SCALE_MIN;
             if (v > MINIMAP_SCALE_MAX) v = MINIMAP_SCALE_MAX;
             g_PcConfig.minimapScale = v;
+        }
+        else if (strcmp(key, "aniso_level") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.anisoLevel = (v < 1) ? 1 : ((v > 16) ? 16 : v);
+        }
+        else if (strcmp(key, "shadow_resolution") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.shadowMapSize = (v < 256) ? 256 : ((v > 4096) ? 4096 : v);
         }
         else if (strcmp(key, "minimap_corner") == 0)
         {
@@ -1110,7 +1161,13 @@ void PcConfig_Load(const char* path)
                 }
             }
             if (!matched)
-                fprintf(stderr, "[CONFIG] Unknown key: %s\n", key);
+                {
+                    /* Not a game key and not a keybind: keep it for mods so a map
+                     * DLL can read its own settings via Pc_ModConfig_Value. */
+                    extern void Pc_ModConfig_Store(const char* k, const char* v);
+                    Pc_ModConfig_Store(key, value);
+                    fprintf(stderr, "[CONFIG] key '%s' kept for mods\n", key);
+                }
         }
     }
 

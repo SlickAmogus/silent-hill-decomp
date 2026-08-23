@@ -32,6 +32,7 @@
 
 #include <SDL.h>
 #include <PsyX/common/glad.h>
+#include <PsyX/PsyX_backend.h>
 
 #include "stb_truetype.h"
 
@@ -178,7 +179,8 @@ static GLuint rab_make_shader(GLenum type, const char* src, const char* what)
 {
     GLuint sh = glCreateShader(type);
     GLint  ok = 0;
-    glShaderSource(sh, 1, &src, NULL);
+    const char* parts[2] = { PsyX_Shader_Preamble(type == GL_FRAGMENT_SHADER, PSYX_GLSL_LEGACY), src };
+    glShaderSource(sh, 2, parts, NULL);
     glCompileShader(sh);
     glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
     if (!ok)

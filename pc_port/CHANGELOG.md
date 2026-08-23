@@ -1,5 +1,180 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.08.21.1 -- 2026-08-21
+- psycross: [BILINDIAG] instrument the bilinear 3D marker
+- psycross: bilinear 3D marker is now per-primitive
+- psycross: correct the bilinear half-texel bias
+- psycross: [BILINDIAG] report primitive classification
+- fix: FMV black in borderless; blood pools ignore fog
+- filtering: Off / Dithering / Bilinear / Trilinear / Anisotropic
+- launcher: anisotropic strength picked from the dropdown
+- psycross: fix the fragment shader failing to compile (u_anisoTaps)
+- fix: bullet decals ignore fog; one value for filter mode + anisotropic strength
+- psycross: internal textures never filtered; gate instrumentation
+- psycross: remove the half-texel UV nudge corrupting glyphs under any filter
+- fix: launcher no longer clobbers in-game settings; drawdist/fogdist/bright
+- psycross: distant-road checkerboard fix (depth un-quantization gating)
+- console: PGXPAFFINE bisect knob
+- psycross: tiny-span polys skip precise projection (distant-road checkerboard)
+- psycross: tiny-span guard scoped to world mesh only
+- psycross: world-mesh xy snap, seam-free distant roads under PGXP
+- psycross: depth-ramped world snap + PGXPSNAP console knob
+- release prep: revert all session PGXP changes; drop duplicate decals row
+- psycross: clamp filter taps to per-poly UV bounds (pants-seam bleed)
+- diag: [FXDIAG] identify the drawer behind the fog-immune black corpse pool
+- fix: the last unfaded blood emit -- the far-LOD corpse pool
+- diag: [BLOODDIAG] dump the spray's drawn colours
+- diag: [BLOODCLUT] dump the palette the spray multiplies
+- fix: unfaded blood clone layers; decals fade toward fog, not black
+- diag: [BLOOD4] dump all four spray layers as emitted
+- fix: white spray edges (glow imbalance); decals skip when fully fogged
+- fix: bullet decals fade to genuinely invisible in fog
+- psycross: per-prim alpha survives the colour builders
+- fix(decals): fade against the fog as RENDERED, not the raw ramp
+- fix(decals): the fog keep was fed a QUARTER of the true depth
+- options: Minimap Reqs Map row on the last page
+- minimap: works in the intro street when set to always draw
+- fix(minimap): the placement query rejects any index the savegame disagrees with
+- diag: [MMDIAG] the intro-minimap substitution chain
+- diag: [MMGATE] above every minimap gate
+- diag: [MMDRAW] -- the intro carries paperIdx=1 and passes every gate
+- Minimap: place intro street (map0_s00) via map2_s00's Old Town case
+- sfxmod: replacements play at their authored rate for low-rate bank samples too
+- strip session diagnostics: [MMGATE]/[MMDRAW]/[MMDIAG]/[BLOOD4]/[BLOODDIAG]/[BLOODCLUT]/[FXDIAG]
+- fix: releasing aim mid-recoil fired and deducted a second bullet (TPS/OTS)
+- fix: PAL title achievements hint drew through the copyright line
+
+## beta-2026.08.20.1 -- 2026-08-20
+- Fixed N appearing in Japanese inventory descriptions
+- Blood partially fixed and affected by fog (still need to do blood puddles)
+- Borderless: Now stretches chosen resolution to your desktop resolution instead of just running at your desktop resolution. The resolution setting is now effectively the rendering resolution as well. 
+- Pillarboxing: Selecting YES for pillarboxing will now cause 4:3 resolutions stretched to desktop size to have the correct aspect ratio and pillarboxing. For example, if you select a 4:3 resolution and set borderless/fullscreen with a 16:9 desktop, with pillarboxing YES the game will take up your whole screen but have black bars, OFF will strech
+Note: Menus only should still be the default when playing with a widescreen (16:9+) resolution! This will prevent menus from stretching but allow the world to render natively widescreen.
+- 320x240 has been added as a resolution option, works best Windowed/Borderless
+
+Still trying to fix bilinear, will get it in with more bug fixes next update.
+
+Commit summaries:
+- fix: Japanese item-description N, for real this time; PSX-native resolutions
+- psycross: bilinear via the real 3D marker; borderless internal resolution (unfixed)
+- psycross: borderless honours the chosen render resolution, MSAA included
+- psycross: pillarbox the borderless stretch when pillarboxing is on
+- psycross: fix MSAA+borderless black screen (single-sampled scene target)
+- psycross: fix MSAA+borderless black screen (multisample default framebuffer)
+- fix: console and toasts were invisible in borderless
+- launcher: last tooltip translated; psycross MSAA in borderless
+
+## beta-2026.08.19.2 -- 2026-08-19
+- More Romper fixes
+- Finally actually fixed Nurse\Doctor damage and other NPC damage
+- Added shadow resolution setting in launcher and console command (shadowres)
+- Fixed flashlight brightness in alternate rendering modes
+- Fixed flashlight shadows disappearing when game is paused
+- Added minimap setting in Launcher
+- Translated launcher tooltips (still WIP, controls and mod manager tooltips not translated yet)
+
+Still WIP: Working on fixing N appearing in Japanese. Also fixing Bilinear. Will update again with these fixes soon.
+
+Commit summaries:
+- revert(romper): anim-time tests are exact == in the original -- restore them
+- fix: blood ignores fog; stray N in Japanese item descriptions
+- psycross: flashlight zero-direction NaN guard + [FLVAL]
+- fix(nurse): knife damage stopped after the first swing
+- fix(combat): re-arm the one-hit-per-swing latch on a genuinely new swing
+- revert: the swing-latch theory was wrong -- probe the nurse damage instead
+- console: shadowres, plus the PsyCross pause/resolution shadow fixes
+- fix(nurse): re-arm the swing latch -- confirmed by the damage probe
+- fix(nurse): the knife's damage scaler was frame-rate dependent for enemies
+- launcher: shadow-map resolution and minimap dropdowns
+- launcher updates, new shadow resolution and minimap settings. Also translated a lot of tooltips.
+
+## beta-2026.08.19.1 -- 2026-08-19
+- Fixed regression that caused parts of sky to get dark in certain cutscenes (and sorry for leaving that one for so long!)
+- Fixed one potential cause of the invisible elevator doors issue
+- Added new rendering options, please try a different one if you experience any odd graphical issues
+- Fixed sound replacements so that all sounds should be able to be replaced properly now
+- Added bullet decals to launcher options (still need some work, but they look alright)
+- Fixed empty weapons not clicking in alternate cameras
+- Fixed puppet doctors and puppet nurses dealing no damage
+- Attempted to fix romper animation and sliding issues, some work may still be needed
+- Framerate fixes to make enemies more framerate independent 
+- Added config menu to randomizer mode (map key) and basic lua scripting layer for randomizer, but both are unfinished! (randomizer=1 in config if you want to test it)
+
+Commit summaries:
+- ipd: guard the used-in-place model arrays, and stop the clobber warning crying wolf
+- fix: a failed hi-res upload no longer makes geometry vanish (invisible elevator)
+- rando: runtime-tunable knobs + enemy-HP / weapon-damage scaling
+- rando: move tunables to their own gamedata/randomizer.cfg + raise caps
+- rando: in-game settings panel, opened by the Map button (tap = settings)
+- rando: barebones Lua 5.4 scripting layer (randomizer only)
+- docs: randomizer settings panel + Lua scripting guide
+- rando: "Reload area" action + Lua spawn_item / give_item pickups
+- docs: scripting guide — spawn_item/give_item/on_item + Reload area
+- Update README with Linux and Mac support information
+- render: renderer= config option for the D3D11/Vulkan backends
+- Revert "fix: cutscenes clear to black, so voids stop reading as fog grey"
+- sfxmod: every bank load says what it is, so a mod can be aimed correctly
+- launcher: warn when a sound bank is one the game never loads
+- sfxmod: MAP000_005.wav now works — SND ships MAP/MEP twins and the game loads MEP
+- fix: black clear for the map3_s02 Alessa scene, gated to that scene alone
+- fix: Puppet Nurse and Doctor grabs deal no damage — drain read the grab slot
+- launcher: renderer selection and a Bullet Decals row
+- fix: launcher crashed on launch — comboRender populated after LoadConfig
+- launcher: move the flag under the Level row, translate Renderer and Bullet Decals
+- fix: empty weapon clicks in the alternate cameras
+- launcher: drop the Automatic renderer entry — it was a second name for OpenGL
+- psycross: bump for the GLES GL-error diagnostic
+- psycross: bump for the GLES MSAA fix (black screen)
+- diag: report the clear colour on frames that draw no world (street fog flicker)
+- fix: whole-scene lighting flicker, and ambience that looped forever
+- cutscene: live vertical framing knob (`cutshift`)
+- fix(romper): restore the hop -- five anim events that stopped firing on PC
+- fix(romper): delta-scale the roam acceleration -- the actual slide
+- fix(romper): write RomperFlag_2 to romperProps, not the chara flags
+- diag: watch the env OUTPUT for the rare remaining lighting flicker
+- revert: RomperFlag_2 does belong in the chara flags -- the asm says so
+- fix(romper): per-frame dice rolls are frame-rate dependent
+
+## beta-2026.08.15.2 -- 2026-08-15
+- Fixed Chinese so that you do not need the fan translation patch for it to work, it now works in NTSC-J out of the box. Set the language in options. If you see issues you can always still use the fan translation. Original translation is by goro / 十三月
+- Fixed issue where sound replacements were not working with MAP banks (level sounds)
+- Fixed issue with flashlight during hospital bottle liquid scene
+- Nowhere: Reports of corruption issues coming back but it is hardware specific. Please share your log if you ecounter this. New logging has been added to help identify the issue.
+- Fixed gray void instead of black in transparent areas of some cutscenes
+- Fixed one frame white flash that happened when opening the inventory 
+
+Commit summaries:
+- fix: loose sound replacements now work for MAP banks (every town/map sound)
+- fix: per-pixel flashlight no longer turns lit rooms to night
+- fix: Chinese stands down when the disc carries no Chinese text
+- diag: the packet-arena overrun check was dead code — make it report
+- lang: detect the Chinese-patched NTSC-J disc instead of trusting the menu
+- fix: cutscenes clear to black, so voids stop reading as fog grey
+- lang: ship the Chinese text, so NTSC-J switches to it with no disc patch
+- fix: switching to Chinese in the options menu now changes the text
+- fix: one-frame white flash when opening the inventory
+- lang: the options and save screens follow Chinese too (zh.pack v2)
+
+## beta-2026.08.15.2 -- 2026-08-15
+- Fixed Chinese so that you do not need the fan translation patch for it to work, it now works in NTSC-J out of the box. Set the language in options. If you see issues you can always still use the fan translation. Original translation is by goro / 十三月
+- Fixed issue where sound replacements were not working with MAP banks (level sounds)
+- Fixed issue with flashlight during hospital bottle liquid scene
+- Nowhere: Reports of corruption issues coming back but it is hardware specific. Please share your log if you ecounter this. New logging has been added to help identify the issue.
+- Fixed gray void instead of black in transparent areas of some cutscenes
+- Fixed one frame white flash that happened when opening the inventory 
+
+Commit summaries:
+- fix: loose sound replacements now work for MAP banks (every town/map sound)
+- fix: per-pixel flashlight no longer turns lit rooms to night
+- fix: Chinese stands down when the disc carries no Chinese text
+- diag: the packet-arena overrun check was dead code — make it report
+- lang: detect the Chinese-patched NTSC-J disc instead of trusting the menu
+- fix: cutscenes clear to black, so voids stop reading as fog grey
+- lang: ship the Chinese text, so NTSC-J switches to it with no disc patch
+- fix: switching to Chinese in the options menu now changes the text
+- fix: one-frame white flash when opening the inventory
+- lang: the options and save screens follow Chinese too (zh.pack v2)
+
 ## beta-2026.08.15.1 -- 2026-08-15
 - Russian fan translations now work, covers 10 releases including ViT Co, Metallist, Consolgames, Kudos, Golden Leon, FireCross, Paradox, RGR, Playbox and Rusversii. May still have issues, have not been thoroughly tested!
 - Chinese language support when running NTSC-J (pick it in options) - Thanks to catabridge for the foundation

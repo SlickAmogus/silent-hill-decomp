@@ -24,6 +24,10 @@
 
 #include <SDL.h>
 #include <PsyX/common/glad.h>
+/* PsyX_Shader_Preamble, for the #version the live context takes. The AL headers
+ * that used to sit beside it left with the cue machinery when it moved to
+ * pc_ui_sound.c; neither mobile target ships OpenAL at all. */
+#include <PsyX/PsyX_backend.h>
 
 #include "sh_log.h"
 #include "pc_config.h"
@@ -105,7 +109,8 @@ static GLuint toast_make_shader(GLenum type, const char* src, const char* what)
 {
     GLuint sh = glCreateShader(type);
     GLint  ok = 0;
-    glShaderSource(sh, 1, &src, NULL);
+    const char* parts[2] = { PsyX_Shader_Preamble(type == GL_FRAGMENT_SHADER, PSYX_GLSL_LEGACY), src };
+    glShaderSource(sh, 2, parts, NULL);
     glCompileShader(sh);
     glGetShaderiv(sh, GL_COMPILE_STATUS, &ok);
     if (!ok)

@@ -20,6 +20,7 @@
  *                          LOGA RESET / LOGB RESET restarts the counter
  */
 #include "game.h"
+#include "pc_mod_registry.h"
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/game_boot/game_boot.h"
 #include "bodyprog/game_boot/fs_chara_anim.h" /* g_CharaModelAnimsData (spawn anim-ready gate) */
@@ -1022,6 +1023,13 @@ void Pc_ConsoleExec(const char* line)
                 push_lines(HELP_GIVE_PAGE1, (int)(sizeof(HELP_GIVE_PAGE1) / sizeof(HELP_GIVE_PAGE1[0])));
         } else {
             push_lines(HELP_LINES, (int)(sizeof(HELP_LINES) / sizeof(HELP_LINES[0])));
+            {
+                const char* mn; const char* mh; int k = 0;
+                if (Pc_ModConsole_List(&mn, &mh, 0))
+                    DbgOverlay_PushLine("-- mod commands --");
+                while (Pc_ModConsole_List(&mn, &mh, k++))
+                    cprintf(" %s%s%s", mn, (mh && mh[0]) ? " - " : "", (mh && mh[0]) ? mh : "");
+            }
         }
     } else if (strcmp(cmd, "GETFLAGS") == 0) {
         cmd_getflags();
@@ -1127,6 +1135,13 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PsxWorldVScale;
         if (arg[0]) g_PsxWorldVScale = (float)atof(arg);
         cprintf("world vertical FOV scale: %.3f (1.0=off; ~0.872 matches DuckStation)", g_PsxWorldVScale);
+    } else if (strcmp(cmd, "CUTFOV") == 0) {
+        /* Vertical FOV scale for the 3D world DURING CUTSCENES only. Default 1.0
+         * = full vertical (matches DuckStation); the gameplay 0.872 crop
+         * over-zoomed cutscene shots and cut heads off the top. */
+        extern float g_PsxCutsceneVScale;
+        if (arg[0]) g_PsxCutsceneVScale = (float)atof(arg);
+        cprintf("cutscene vertical FOV scale: %.3f (1.0=full, matches DuckStation)", g_PsxCutsceneVScale);
     } else if (strcmp(cmd, "HFOV") == 0) {
         /* 3D-world horizontal scale (Hor+ only). 1.0 = current behaviour; >1 = wider
          * models, <1 = narrower. Pure tuning/preference knob, default neutral. */
@@ -1137,6 +1152,51 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PsxWorldVShift;
         if (arg[0]) g_PsxWorldVShift = (float)atof(arg);
         cprintf("world vertical view shift: %.1f psx-units (+ = view up; 0=off)", g_PsxWorldVShift);
+    } else if (strcmp(cmd, "DRAWDIST") == 0) {
+        /* Live version of the config-only draw_distance_pct. Read every frame by
+         * the five SH_FAR_BASE sites and the chunk material window, so setting it
+         * takes effect immediately. 200 cap: past ~210 the Q8 view Z wraps. */
+        if (arg[0]) {
+            int v = atoi(arg);
+            g_PcConfig.drawDistancePct = (v < 25) ? 25 : ((v > 200) ? 200 : v);
+        }
+        cprintf("draw distance: %d%% (25..200; config key draw_distance_pct)", g_PcConfig.drawDistancePct);
+    } else if (strcmp(cmd, "FOGDIST") == 0) {
+        /* Push the fog planes out (or in). Indoors the fog is BLACK, so this is
+         * also the "see further in the sewers" knob: the wall of black is the fog
+         * far plane. Re-applies immediately via the remembered raw distances. */
+        extern int  g_PcFogDistScalePct;
+        extern void Pc_FogDistanceReapply(void);
+        if (arg[0]) {
+            int v = atoi(arg);
+            g_PcFogDistScalePct = (v < 50) ? 50 : ((v > 400) ? 400 : v);
+            Pc_FogDistanceReapply();
+        }
+        cprintf("fog distance: %d%% (50..400; 100=stock)", g_PcFogDistScalePct);
+    } else if (strcmp(cmd, "BRIGHT") == 0) {
+        /* Whole-image brightness, the same value the launcher's brightness
+         * setting drives (config key brightness). Applied in the post shader,
+         * so it works everywhere including menus. */
+        extern float g_cfg_brightness;
+        if (arg[0]) {
+            float v = (float)atof(arg);
+            if (v < 0.2f) v = 0.2f;
+            if (v > 4.0f) v = 4.0f;
+            g_cfg_brightness = v;
+        }
+        cprintf("brightness: %.2f (0.2..4.0; 1.0=stock; config key brightness)", g_cfg_brightness);
+    } else if (strcmp(cmd, "SHADOWRES") == 0) {
+        /* Flashlight shadow-map resolution. The target is rebuilt on the next
+         * frame that needs it, so this takes effect immediately. Clamped to
+         * 256..4096 inside GR_EnsureShadowTarget. */
+        extern int g_PsyX_ShadowMapSize;
+        if (arg[0]) g_PsyX_ShadowMapSize = atoi(arg);
+        cprintf("flashlight shadow map: %dx%d (256..4096; default 1024)",
+                g_PsyX_ShadowMapSize, g_PsyX_ShadowMapSize);
+    } else if (strcmp(cmd, "CUTSHIFT") == 0) {
+        extern float g_PsxCutsceneVShift;
+        if (arg[0]) g_PsxCutsceneVShift = (float)atof(arg);
+        cprintf("cutscene vertical view shift: %.1f psx-units (+ = view up; 0=off)", g_PsxCutsceneVShift);
     } else if (strcmp(cmd, "MSGSHIFT") == 0) {
         extern int g_PsxMsgVShift;
         if (arg[0]) g_PsxMsgVShift = atoi(arg);
@@ -1604,7 +1664,15 @@ void Pc_ConsoleExec(const char* line)
             PcConfig_ApplyXaVolume(pct / 100.0f);
         }
         cprintf("xa (fmv/voice) volume: %.0f%% (0..100)", g_PcXaVolume * 100.0f);
+    } else if (Pc_ModConsole_Dispatch(cmd, arg)) {
+        /* handled by a mod-registered command */
     } else {
         DbgOverlay_PushLine("Command not found!");
     }
+}
+
+/* Exported for mod command handlers (pc_mod_registry.h). */
+void Pc_Console_Print(const char* text)
+{
+    if (text) DbgOverlay_PushLine(text);
 }
