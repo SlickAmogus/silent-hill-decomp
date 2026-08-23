@@ -288,33 +288,11 @@ void SplitHead_Control_1(s_SubCharacter* splitHead)
     angleDeltaToPlayer = Math_AngleNormalizeSigned(Math_AngleBetweenPositionsGet(splitHead->position, g_SysWork.playerWork.player.position) -
                                        splitHead->rotation.vy);
 
-    /* If bite or lunge animation has finished playing, return to pursuit state */
-    if (splitHead->model.anim.status == ANIM_STATUS(SplitHeadAnim_BiteAttack, true) ||
-        splitHead->model.anim.status == ANIM_STATUS(SplitHeadAnim_14, true) ||
-        splitHead->model.anim.status == ANIM_STATUS(SplitHeadAnim_3, true))
-    {
-        splitHead->model.anim.status  = ANIM_STATUS(SplitHeadAnim_WalkForward, false);
-        splitHead->model.controlState = SplitHeadControl_5;
-        return;
-    }
-
     if (splitHead->model.anim.status == ANIM_STATUS(SplitHeadAnim_WalkForward, true))
     {
-        q19_12 stalkSpeed = Q12(2.4f);
-        q19_12 chargeSpeed = Q12(4.8f);
-        q3_12 turnSpeed = Q12_ANGLE(45.0f);
-#ifdef SH_PC_PORT
-        extern int Pc_Plugins_HasNightmarePlugin(void);
-        if (Pc_Plugins_HasNightmarePlugin())
-        {
-            stalkSpeed  = Q12(3.5f);
-            chargeSpeed = Q12(6.2f);
-            turnSpeed   = Q12_ANGLE(70.0f);
-        }
-#endif
         if (distToPlayer > Q12(3.5f))
         {
-            Chara_MoveSpeedUpdate3(splitHead, stalkSpeed, stalkSpeed);
+            Chara_MoveSpeedUpdate3(splitHead, Q12(2.4f), Q12(2.4f));
         }
         else
         {
@@ -325,9 +303,9 @@ void SplitHead_Control_1(s_SubCharacter* splitHead)
             else
             {
                 splitHeadProps.flags |= SplitHeadFlag_3;
-                Chara_MoveSpeedUpdate(splitHead, chargeSpeed);
+                Chara_MoveSpeedUpdate(splitHead, Q12(4.8f));
 
-                if (distToPlayer < Q12(2.8f) || sharedFunc_800D4530_1_s05(splitHead) != false)
+                if (sharedFunc_800D4530_1_s05(splitHead) != false)
                 {
                     splitHead->model.anim.status = ANIM_STATUS(SplitHeadAnim_BiteAttack, false);
                     Sfx_WithFlagsPlay(Sfx_Unk1475, &splitHead->position, Q8(0.5f), SfxFlag_None);
@@ -339,11 +317,11 @@ void SplitHead_Control_1(s_SubCharacter* splitHead)
         {
             if (angleDeltaToPlayer > Q12_ANGLE(0.0f))
             {
-                splitHead->rotation.vy += Q12_MULT_PRECISE(g_DeltaTime, turnSpeed);
+                splitHead->rotation.vy += Q12_MULT_PRECISE(g_DeltaTime, Q12_ANGLE(45.0f));
             }
             else
             {
-                splitHead->rotation.vy -= Q12_MULT_PRECISE(g_DeltaTime, turnSpeed);
+                splitHead->rotation.vy -= Q12_MULT_PRECISE(g_DeltaTime, Q12_ANGLE(45.0f));
             }
         }
         else
@@ -560,13 +538,32 @@ void SplitHead_Control_2(s_SubCharacter* splitHead)
     angleDeltaToPlayer = ABS(Math_AngleNormalizeSigned(Math_AngleBetweenPositionsGet(splitHead->position, g_SysWork.playerWork.player.position) -
                                            splitHead->rotation.vy));
 
-    if (ABS(angleToPlayer - angleDeltaToPlayer) < Q12_ANGLE(30.0f))
+    if (ABS(angleToPlayer - angleDeltaToPlayer) < Q12_ANGLE(15.0f))
     {
-        Chara_MoveSpeedUpdate3(splitHead, Q12(1.5f), Q12(3.0f));
+        if (distToPlayer <= Q12(5.75f) && angleToPlayer < Q12_ANGLE(60.0f))
+        {
+            Chara_MoveSpeedUpdate3(splitHead, Q12(0.8f), Q12(-1.2f));
+        }
+        else if ((distToPlayer <= Q12(5.75f) && angleToPlayer > Q12_ANGLE(60.0f)) ||
+                 (distToPlayer >  Q12(5.75f) && angleToPlayer > Q12_ANGLE(90.0f)))
+        {
+            Chara_MoveSpeedUpdate(splitHead, Q12(0.8f));
+        }
+        else
+        {
+            Chara_MoveSpeedUpdate3(splitHead, Q12(0.8f), Q12(1.2f));
+        }
     }
     else
     {
-        Chara_MoveSpeedUpdate3(splitHead, Q12(1.5f), Q12(2.4f));
+        if (angleToPlayer < Q12_ANGLE(30.0f))
+        {
+            Chara_MoveSpeedUpdate3(splitHead, Q12(0.8f), Q12(1.2f));
+        }
+        else
+        {
+            Chara_MoveSpeedUpdate(splitHead, Q12(0.8f));
+        }
     }
 
     angleToPlayer2 = Math_AngleBetweenPositionsGet(splitHead->position, g_SysWork.playerWork.player.position);
@@ -576,11 +573,11 @@ void SplitHead_Control_2(s_SubCharacter* splitHead)
 
     Ray_LosHitCheck(&trace, &splitHead->position, &dir, splitHead);
 
-    if ((distToPlayer < Q12(8.5f) && angleDeltaToPlayer < Q12_ANGLE(45.0f)) ||
-        (distToPlayer < Q12(10.0f) && (!trace.hasHit || trace.character != NULL)))
+    if (distToPlayer < Q12(6.4f) &&
+        (angleDeltaToPlayer < Q12_ANGLE(7.5f) || distToPlayer > Q12(3.2f) && angleDeltaToPlayer < Q12_ANGLE(15.0f)) &&
+        (!trace.hasHit || trace.character != NULL))
     {
-        splitHead->model.controlState = SplitHeadControl_1;
-        splitHead->model.anim.status  = ANIM_STATUS(SplitHeadAnim_WalkForward, false);
+        splitHead->model.controlState = SplitHeadControl_3;
     }
 
     if (!Rng_GenerateUInt(0, 127))
@@ -604,14 +601,6 @@ void SplitHead_Control_3(s_SubCharacter* splitHead)
     angleDeltaToPlayer = Math_AngleNormalizeSigned(Math_AngleBetweenPositionsGet(splitHead->position, g_SysWork.playerWork.player.position) -
                                        splitHead->rotation.vy);
 
-    /* If attack animation finished, return to pursuit */
-    if (splitHead->model.anim.status == ANIM_STATUS(SplitHeadAnim_3, true))
-    {
-        splitHead->model.anim.status  = ANIM_STATUS(SplitHeadAnim_WalkForward, false);
-        splitHead->model.controlState = SplitHeadControl_2;
-        return;
-    }
-
     if (splitHead->model.anim.status == ANIM_STATUS(SplitHeadAnim_WalkForward, true))
     {
         if (distToPlayer > Q12(4.0f))
@@ -631,7 +620,7 @@ void SplitHead_Control_3(s_SubCharacter* splitHead)
                 splitHeadProps.flags |= SplitHeadFlag_3;
                 Chara_MoveSpeedUpdate(splitHead, Q12(16.0f));
 
-                if (distToPlayer < Q12(2.8f) || sharedFunc_800D4530_1_s05(splitHead))
+                if (sharedFunc_800D4530_1_s05(splitHead))
                 {
                     splitHead->model.anim.status = ANIM_STATUS(SplitHeadAnim_3, false);
                     Sfx_WithFlagsPlay(Sfx_Unk1471, &splitHead->position, Q8(0.5f), SfxFlag_None);
@@ -889,7 +878,19 @@ void SplitHead_Control_5(s_SubCharacter* splitHead)
 
     if (ABS(angleToPlayer - angle2) < Q12_ANGLE(15.0f))
     {
-        Chara_MoveSpeedUpdate3(splitHead, Q12(2.4f), Q12(2.4f));
+        if (distToPlayer <= Q12(4.8f) && angle2 > Q12_ANGLE(3.75f) && angleToPlayer < Q12_ANGLE(60.0f))
+        {
+            Chara_MoveSpeedUpdate3(splitHead, Q12(2.4f), Q12(-2.4f));
+        }
+        else if ((distToPlayer <= Q12(4.8f) && angleToPlayer > Q12_ANGLE(60.0f)) ||
+                 (distToPlayer >  Q12(4.8f) && angleToPlayer > Q12_ANGLE(90.0f)))
+        {
+            Chara_MoveSpeedUpdate(splitHead, Q12(2.4f));
+        }
+        else
+        {
+            Chara_MoveSpeedUpdate3(splitHead, Q12(2.4f), Q12(2.4f));
+        }
     }
     else
     {
@@ -911,12 +912,11 @@ void SplitHead_Control_5(s_SubCharacter* splitHead)
 
     Ray_LosHitCheck(&trace, &splitHead->position, &dir, splitHead);
 
-    if (distToPlayer < Q12(5.5f) &&
-        angle2 < Q12_ANGLE(45.0f) &&
+    if (distToPlayer > Q12(2.85f) && distToPlayer < Q12(4.0f) &&
+        angle2 < Q12_ANGLE(15.0f) &&
         (!trace.hasHit || trace.character != NULL))
     {
         splitHead->model.controlState = SplitHeadControl_1;
-        splitHead->model.anim.status  = ANIM_STATUS(SplitHeadAnim_WalkForward, false);
         if (!Rng_GenerateUInt(0, 7))
         {
             splitHeadProps.flags |= SplitHeadFlag_8;
@@ -1014,13 +1014,7 @@ void SplitHead_Control_8(s_SubCharacter* splitHead)
 {
     if (!Savegame_EventFlagGet(EventFlag_130))
     {
-        if (g_SysWork.sysState != SysState_Gameplay &&
-            Math_Vector2MagCalcSafeQ6(g_SysWork.playerWork.player.position.vx - splitHead->position.vx,
-                                      g_SysWork.playerWork.player.position.vz - splitHead->position.vz) > Q12(8.0f))
-        {
-            return;
-        }
-        Savegame_EventFlagSet(EventFlag_130);
+        return;
     }
 
     splitHead->model.controlState = SplitHeadControl_2;
