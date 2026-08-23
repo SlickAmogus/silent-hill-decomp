@@ -24,6 +24,7 @@
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/sys/joy.h"
 #include "screens/options.h" /* OptionsMenuState_Brightness */
+#include "pc_retroachievements.h" /* Pc_Ra_IsSignedIn */
 
 #define TC_MAX_FINGERS 8
 
@@ -149,7 +150,8 @@ static float Tc_LookGain(void)
 
 static int Tc_Enabled(void);
 
-enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_ADVANCE, TC_MODE_BACK };
+enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_ADVANCE, TC_MODE_BACK,
+       TC_MODE_TITLE };
 
 /* Gameplay gets the full scheme. Pause gets Start ALONE -- nothing else on that
  * screen responds to a pointer, so hiding the controls there left no way back
@@ -186,6 +188,19 @@ static int Tc_Mode(void)
     if (g_GameWork.gameState == GameState_SaveScreen ||
         g_GameWork.gameState == GameState_LoadSavegameScreen)
         return TC_MODE_BACK;
+
+    /* The title screen opens the achievement browser on the Map bind (there is
+     * no map to show there). With no pad and no such button on screen, signing
+     * in from the options menu left no way to ever look at the list.
+     *
+     * Self-gating rather than platform-gated, so this file keeps its property
+     * of having no platform conditionals: the button appears only once an
+     * account is actually on file, and Pc_Ra_IsSignedIn() is a stub returning 0
+     * wherever RetroAchievements is not compiled in. The menu underneath stays
+     * pointer-driven as before, and the browser itself takes drag and tap
+     * through the same cursor. */
+    if (g_GameWork.gameState == GameState_MainMenu && Pc_Ra_IsSignedIn())
+        return TC_MODE_TITLE;
 
     if (g_GameWork.gameState != GameState_InGame)
         return TC_MODE_OFF;
@@ -250,6 +265,8 @@ static int Tc_SoloButton(int mode)
         return TB_MAP;     /* the map screen exits on the map bind */
     if (mode == TC_MODE_BACK)
         return TB_BACK;    /* brightness and friends leave on cancel */
+    if (mode == TC_MODE_TITLE)
+        return TB_MAP;     /* opens the achievement browser, and closes it */
 
     return -1;
 }

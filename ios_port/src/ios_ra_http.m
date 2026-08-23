@@ -102,6 +102,14 @@ int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t*
 
         [task resume];
         dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
+
+        /* This target is built without ARC, so the create above has to be
+         * balanced by hand or every RA request leaks a semaphore. Guarded so
+         * the file still compiles if ARC is ever turned on, where the call is
+         * forbidden rather than merely unnecessary. */
+#if !__has_feature(objc_arc)
+        dispatch_release(done);
+#endif
     }
 
     if (body)

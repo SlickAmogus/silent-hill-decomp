@@ -102,7 +102,16 @@ int Ios_ShowRetroAchievementsLogin(void)
         field.returnKeyType          = UIReturnKeyDone;
     }];
 
-    __weak UIAlertController* weakAlert = alert;
+    /* __unsafe_unretained, not __weak: this target is built WITHOUT ARC, and a
+     * zeroing weak reference needs the ARC runtime to register it.
+     *
+     * It is not a plain capture either. Under MRC a block retains the object
+     * pointers it captures when it is copied, and the alert retains its actions
+     * which retain their handlers — capturing `alert` directly would be a
+     * retain cycle that leaks the sheet. This qualifier captures without
+     * retaining, and the reference cannot dangle: the only thing that runs this
+     * block is the alert's own action, so the alert is alive by construction. */
+    __unsafe_unretained UIAlertController* weakAlert = alert;
 
     [alert addAction:[UIAlertAction actionWithTitle:@"Sign In"
                                               style:UIAlertActionStyleDefault
