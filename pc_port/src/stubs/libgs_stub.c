@@ -255,11 +255,20 @@ void GsDrawOt(GsOT *ot)
         g_currentOTBucketCount = 1 << ot->length;
         PsyX_ClearGteDepthTable();
 
-        /* The double-precision form is desktop-only; ES 3.0 has glClearDepthf. */
+        /* The double-precision form is desktop-only; ES 3.0 has glClearDepthf.
+         * On a target built against real GLES headers the desktop spelling is a
+         * missing SYMBOL rather than a missing capability, so the runtime test
+         * cannot be the only guard -- g_grCaps.clearDepthDouble is false on
+         * every GLES context anyway. glad-backed builds keep the probe, which
+         * is what lets one binary serve both native GL and ANGLE. */
+#if defined(RENDERER_OGLES)
+        glClearDepthf(1.0f);
+#else
         if (g_grCaps.clearDepthDouble)
             glClearDepth(1.0f);
         else
             glClearDepthf(1.0f);
+#endif
         glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 #endif
         DrawOTag((u_long*)ot->tag);

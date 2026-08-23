@@ -1103,6 +1103,14 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
      * upload reports a COMPRESSED internal format here (a sub-image into it
      * would fail), so only GL's own answer is trustworthy. */
     int reuseStorage;
+/* On a target built against real GLES headers (iOS) glGetTexLevelParameteriv is
+ * not merely unavailable at runtime — the SYMBOL does not exist, so the
+ * capability test cannot be the only guard and the branch has to be dead at
+ * compile time. Nothing is lost: g_grCaps.texLevelParam is false on every GLES
+ * context anyway, so the else path below is what would have run regardless. */
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    {
+#else
     if (g_grCaps.texLevelParam)
     {
         GLint curW = 0, curH = 0, curFmt = 0;
@@ -1114,6 +1122,7 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
     }
     else
     {
+#endif
         /* ES 3.0 (the ANGLE-backed backends) has no glGetTexLevelParameteriv —
          * it arrived in 3.1. With no trustworthy answer available, always take
          * the full re-specification path: a glTexImage2D is valid whatever the
