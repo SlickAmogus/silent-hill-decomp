@@ -212,10 +212,85 @@ static const s_PcOpt PCOPT_S_VANILLA[] = {
     { "Back",             NULL,                          NULL,                  NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
 
+static const s_PcOpt PCOPT_S_NIGHTMARE[] = {
+    { "Flashlight",       &g_PcConfig.flashlightMode,     "flashlight_mode",      VAL_FLMODE, 4, LBL_FLMODE, NULL,                        1, PCK_FLMODE },
+    { "Beam_Intensity",   NULL, "flashlight_intensity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightIntensity, &g_PsyX_FlashlightIntensity, 0.0f, 3.0f, 0.1f },
+    { "Beam_Size",        NULL, "flashlight_size",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightSize,      &g_PsyX_FlashlightSize,      0.0f, 3.0f, 0.1f },
+    { "Disable_Culling",  &g_PcConfig.disableCulling, "disable_culling",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+    { "Preload_Chunks",   &g_PcConfig.preloadChunks,  "preload_chunks",   VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
+    { "FPS_Limit",        &g_PcConfig.fpsCap,         "fps_cap",          VAL_FPS,   5, LBL_FPS,   NULL, 1, PCK_INT  },
+    { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
+    { "Crosshair",        &g_PcConfig.crosshair,         "crosshair",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+    { "Live_Game",        &g_PcConfig.liveInventory,     "live_game",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+    { "Low_Health_FX",    &g_PcConfig.nightmareVignette, "nightmare_vignette",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+    { "Prev_Page",        NULL,                          NULL,                  NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Next_Page",        NULL,                          NULL,                  NULL,      0, NULL,      NULL, 0, PCK_NEXT },
+    { "Back",             NULL,                          NULL,                  NULL,      0, NULL,      NULL, 0, PCK_BACK },
+};
+
+/* Page 3 (Controls): the 2D screen-relative control toggles + look sensitivities
+ * and the invert toggles. (The New-Game start Map row now lives on page 4.) */
+static const s_PcOpt PCOPT_C[] = {
+    { "2D_Controls",       &g_PcConfig.control2d,        "control_2d",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Mouse_Sensitivity", NULL, "mouse_sensitivity",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.mouseSensitivity,      NULL, 0.1f, 4.0f, 0.1f },
+    { "Pad_Sensitivity",   NULL, "controller_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.controllerSensitivity, NULL, 0.1f, 4.0f, 0.1f },
+    { "First_Person_FOV",  NULL, "fps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fpsFov,                NULL, 55.0f, 110.0f, 1.0f },
+    { "Third_Person_FOV",  NULL, "tps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsFov,                NULL, 55.0f, 110.0f, 1.0f },
+    { "Invert_Mouse_Y",    &g_PcConfig.invertMouseY,      "invert_mouse_y",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
+    { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },
+};
+
+/* Page 4 (Camera): the aiming + alternate-camera options. */
+static const s_PcOpt PCOPT_T[] = {
+    { "Camera_Mode",       &g_PcConfig.controlStyle,       "control_style",         VAL_CS,     4, LBL_CS,     NULL, 1, PCK_CTRLSTYLE },
+    { "Minimap",           &g_PcConfig.minimap,            "minimap",               VAL_MMMODE, 3, LBL_MMMODE, NULL, 1, PCK_INT },
+    { "Minimap_Scale",     NULL, "minimap_scale",          NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapScale, NULL, MINIMAP_SCALE_MIN, MINIMAP_SCALE_MAX, 5.0f },
+    { "Minimap_Corner",    &g_PcConfig.minimapCorner,      "minimap_corner",        VAL_MMCNR, 4, LBL_MMCNR, NULL, 1, PCK_INT },
+    { "Minimap_Opacity",   NULL, "minimap_opacity",        NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapOpacity, NULL, 0.0f, 100.0f, 5.0f },
+    { "Aim_Assist",        &g_PcConfig.aimAssist,          "aim_assist",            VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Aim_Zoom",          NULL, "tps_aim_zoom_amount",    NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsAimZoom,  NULL, 0.0f, 200.0f, 5.0f },
+    { "OTS_Aim_In_TPS",    &g_PcConfig.tpsOtsAim,          "tps_ots_aim",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Camera_Collision",  &g_PcConfig.tpsCameraCollision, "tps_camera_collision",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Prev_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Back",              NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_BACK },
+};
+
+static void Options_PcOptionsMenu_EntryStringsDraw(void);
+static void Options_PcOptionsMenu_ConfigDraw(void);
+static void Options_PcOptionsMenu_SelectionHighlightDraw(void);
+
+static void PcMouse_InjectEnter(void)
+{
+    g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+}
+
+static void PcMouse_InjectCancel(void)
+{
+    g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;
+}
+
+static void PcMouse_InjectDir(int dir)
+{
+    u32 flag = (dir > 0) ? ControllerFlag_LStickRight : ControllerFlag_LStickLeft;
+    g_Controller0->clickedBtnFlags |= flag;
+    g_Controller0->pulsedBtnFlags  |= flag;
+}
+
 static const s_PcOpt* PcOpt_Page(int* count)
 {
     if (g_PcOptionsMenu_Page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
-    if (g_PcOptionsMenu_Page == 1) { *count = (int)(sizeof(PCOPT_S_VANILLA) / sizeof(PCOPT_S_VANILLA[0])); return PCOPT_S_VANILLA; }
+    if (g_PcOptionsMenu_Page == 1) {
+        extern int Pc_Plugins_HasNightmarePlugin(void);
+        if (g_PcConfig.nightmare != 0 || Pc_Plugins_HasNightmarePlugin()) {
+            *count = (int)(sizeof(PCOPT_S_NIGHTMARE) / sizeof(PCOPT_S_NIGHTMARE[0]));
+            return PCOPT_S_NIGHTMARE;
+        }
+        *count = (int)(sizeof(PCOPT_S_VANILLA) / sizeof(PCOPT_S_VANILLA[0]));
+        return PCOPT_S_VANILLA;
+    }
     if (g_PcOptionsMenu_Page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
     *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0]));
     return PCOPT_T;
@@ -3328,12 +3403,22 @@ extern const char* Pc_CaptureNextKeyBind(void);
 extern void        Pc_RestoreControlDefaults(void);
 extern void        Pc_ApplyControlConfig(const ControlScheme* s);
 extern void        PcConfig_SaveKeyValue(const char* cfgKey, const char* cfgValue);
+extern int         Pc_Plugins_HasNightmarePlugin(void);
 
 #endif
 
-void Options_ControllerMenu_Control(void) // 0x801E69BC
+static bool Pc_IsRevampedControllerEnabled(void)
 {
 #ifdef SH_PC_PORT
+    if (g_PcConfig.revampedController != 0 || g_PcConfig.nightmare != 0 || Pc_Plugins_HasNightmarePlugin())
+        return true;
+#endif
+    return false;
+}
+
+#ifdef SH_PC_PORT
+static void Options_ControllerMenu_Control_Revamped(void)
+{
     ControlScheme* activeScheme = &g_PcConfig.classic;
 
     if (g_GameWork.gameStateSteps[1] == ControllerMenuState_Leave)
@@ -3373,11 +3458,11 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
             {
                 /* Capturing Keyboard / Mouse key */
                 const char* newKey = Pc_CaptureNextKeyBind();
-                if (newKey && newKey[0] != '\0')
+                if (newKey && newKey[0] != ' ')
                 {
                     char* dstField = (char*)activeScheme + PC_CONTROL_ACTIONS[s_pcCtrlSelectedAction].keyOff;
                     strncpy(dstField, newKey, 23);
-                    dstField[23] = '\0';
+                    dstField[23] = ' ';
 
                     PcConfig_SaveKeyValue(PC_CONTROL_ACTIONS[s_pcCtrlSelectedAction].keyCfg, newKey);
                     Pc_ApplyControlConfig(activeScheme);
@@ -3392,11 +3477,11 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
                 if (PC_CONTROL_ACTIONS[s_pcCtrlSelectedAction].padOff != 0)
                 {
                     const char* newPad = Pc_CaptureNextPadBind(0);
-                    if (newPad && newPad[0] != '\0')
+                    if (newPad && newPad[0] != ' ')
                     {
                         char* dstField = (char*)activeScheme + PC_CONTROL_ACTIONS[s_pcCtrlSelectedAction].padOff;
                         strncpy(dstField, newPad, 23);
-                        dstField[23] = '\0';
+                        dstField[23] = ' ';
 
                         PcConfig_SaveKeyValue(PC_CONTROL_ACTIONS[s_pcCtrlSelectedAction].padCfg, newPad);
                         Pc_ApplyControlConfig(activeScheme);
@@ -3596,25 +3681,298 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
 
     Options_ControllerMenu_EntriesDraw(s_pcCtrlIsOnRightPane, s_pcCtrlLeftRow, s_pcCtrlSelectedAction, NO_VALUE);
     Pc_MouseCursor_Draw();
-
-#else
-
-    /* Retail PSX fallback */
-    (void)boundActionIdx;
-    (void)actionIdx;
-    (void)selectedEntries;
-
+}
 #endif
-}
 
-s32 Options_ControllerMenu_ConfigUpdate(s32 actionIdx)
+extern void Settings_RestoreControlDefaults(s32 configIdx);
+
+static void Options_ControllerMenu_Control_Vanilla(void)
 {
-    return NO_VALUE;
+    s32                                     boundActionIdx = NO_VALUE;
+    e_InputAction                           actionIdx;
+    static s_ControllerMenu_SelectedEntries selectedEntries;
+
+    // Handle controller config menu state.
+    switch (g_GameWork.gameStateSteps[1])
+    {
+        case ControllerMenuState_Exit:
+            ScreenFade_Start(false, true, false);
+            selectedEntries.preset = ControllerMenuState_Exit;
+
+            // Leave menu.
+            if (g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.enter |
+                                                 g_GameWorkPtr->config.controllerConfig.cancel))
+            {
+                SD_Call(Sfx_MenuCancel);
+
+                ScreenFade_Start(false, false, false);
+                g_GameWork.gameStateSteps[1] = ControllerMenuState_Leave;
+                g_GameWork.gameStateSteps[2] = 0;
+                break;
+            }
+
+            // Move selection cursor up/down.
+            if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickUp)
+            {
+                g_GameWork.gameStateSteps[1] = CONTROLLER_MENU_ROW_COUNT - 1;
+                g_GameWork.gameStateSteps[2] = 0;
+            }
+            else if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickDown)
+            {
+                g_GameWork.gameStateSteps[1] = ControllerMenuState_Type1;
+                g_GameWork.gameStateSteps[2] = 0;
+            }
+            // Move selection cursor left/right.
+            else if (g_Controller0->pulsedGuiBtnFlags & (ControllerFlag_LStickLeft | ControllerFlag_LStickRight))
+            {
+                g_GameWork.gameStateSteps[1] = ControllerMenuState_Actions;
+                g_GameWork.gameStateSteps[2] = 0;
+            }
+            break;
+
+        case ControllerMenuState_Type1:
+        case ControllerMenuState_Type2:
+        case ControllerMenuState_Type3:
+            selectedEntries.preset = g_GameWork.gameStateSteps[1];
+
+            // Set binding preset.
+            if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
+            {
+                SD_Call(Sfx_MenuConfirm);
+                Settings_RestoreControlDefaults(g_GameWork.gameStateSteps[1] - 1);
+            }
+            // Reset selection cursor.
+            else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel)
+            {
+                SD_Call(Sfx_MenuCancel);
+                g_GameWork.gameStateSteps[1] = ControllerMenuState_Exit;
+                g_GameWork.gameStateSteps[2] = 0;
+            }
+            // Move selection cursor.
+            else
+            {
+                // Move selection cursor up/down.
+                if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickUp)
+                {
+                    g_GameWork.gameStateSteps[1] = (g_GameWork.gameStateSteps[1] + (CONTROLLER_MENU_ROW_COUNT - 1)) % CONTROLLER_MENU_ROW_COUNT;
+                    g_GameWork.gameStateSteps[2] = 0;
+                }
+                else if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickDown)
+                {
+                    g_GameWork.gameStateSteps[1] = (g_GameWork.gameStateSteps[1] + 1) % CONTROLLER_MENU_ROW_COUNT;
+                    g_GameWork.gameStateSteps[2] = 0;
+                }
+                // Move selection cursor left/right.
+                else if (g_Controller0->pulsedGuiBtnFlags & (ControllerFlag_LStickLeft | ControllerFlag_LStickRight))
+                {
+                    g_GameWork.gameStateSteps[1] = ControllerMenuState_Actions;
+                    g_GameWork.gameStateSteps[2] = 0;
+                }
+            }
+            break;
+
+        case ControllerMenuState_Actions:
+            actionIdx = selectedEntries.action;
+
+            // Move selection cursor up/down.
+            if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickUp)
+            {
+                if (actionIdx != InputAction_Enter)
+                {
+                    selectedEntries.action = actionIdx - 1;
+                }
+                else
+                {
+                    selectedEntries.action = InputAction_Option;
+                }
+            }
+            else if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickDown)
+            {
+                if (actionIdx != InputAction_Option)
+                {
+                    selectedEntries.action = actionIdx + 1;
+                }
+                else
+                {
+                    selectedEntries.action = InputAction_Enter;
+                }
+            }
+            // Move selection cursor left/right.
+            else if (g_Controller0->pulsedGuiBtnFlags & (ControllerFlag_LStickLeft | ControllerFlag_LStickRight))
+            {
+                g_GameWork.gameStateSteps[2] = 0;
+                g_GameWork.gameStateSteps[1] = selectedEntries.preset;
+            }
+            // Bind button to input action.
+            else
+            {
+                boundActionIdx = Options_ControllerMenu_ConfigUpdate(actionIdx);
+            }
+            break;
+
+        case ControllerMenuState_Leave:
+            // Switch to previous menu.
+            if (ScreenFade_IsFinished())
+            {
+                ScreenFade_Start(true, true, false);
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_LeaveController;
+                g_SysWork.counters_1C[1]     = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
+            }
+            break;
+    }
+
+    if (g_GameWork.gameStateSteps[1] == ControllerMenuState_Actions)
+    {
+        g_ControllerMenu_IsOnActionsPane = true;
+    }
+    else
+    {
+        g_ControllerMenu_IsOnActionsPane = false;
+    }
+
+    // Play cursor navigation SFX.
+    if (g_Controller0->pulsedGuiBtnFlags & (ControllerFlag_LStickUp    |
+                                           ControllerFlag_LStickRight |
+                                           ControllerFlag_LStickDown  |
+                                           ControllerFlag_LStickLeft))
+    {
+        SD_Call(Sfx_MenuMove);
+    }
+
+    // Draw menu graphics.
+    Options_ControllerMenu_EntriesDraw(g_ControllerMenu_IsOnActionsPane, selectedEntries.preset, selectedEntries.action, boundActionIdx);
 }
 
+void Options_ControllerMenu_Control(void) // 0x801E69BC
+{
+#ifdef SH_PC_PORT
+    if (Pc_IsRevampedControllerEnabled())
+    {
+        Options_ControllerMenu_Control_Revamped();
+        return;
+    }
+#endif
+    Options_ControllerMenu_Control_Vanilla();
+}
+
+s32 Options_ControllerMenu_ConfigUpdate(s32 actionIdx) // 0x801E6CF4
+{
+    u16* bindings;
+    u16  boundBtnFlag;
+    u16  btnFlag;
+    s32  curActionIdx;
+    s32  boundActionIdx;
+    s32  i;
+    u32  j;
+
+    boundActionIdx = NO_VALUE;
+    bindings       = (u16*)&g_GameWorkPtr->config.controllerConfig;
+
+    // Run through all controller flags, excluding stick axes.
+    for (i = 0; i < 16; i++)
+    {
+        btnFlag = 1 << i;
+
+        if ((btnFlag & (ControllerFlag_DpadUp    |
+                        ControllerFlag_DpadRight |
+                        ControllerFlag_DpadDown  |
+                        ControllerFlag_DpadLeft)) ||
+            !(btnFlag & g_Controller0->clickedBtnFlags))
+        {
+            continue;
+        }
+
+        boundBtnFlag = bindings[actionIdx];
+
+        // Remove binding.
+        if (boundBtnFlag & btnFlag)
+        {
+            if ((actionIdx <  InputAction_Skip   ||
+                 actionIdx == InputAction_Action ||
+                 actionIdx == InputAction_Aim    ||
+                 actionIdx == InputAction_Item) &&
+                !(bindings[actionIdx] & ~btnFlag))
+            {
+                boundActionIdx = actionIdx;
+                SD_Call(Sfx_MenuError);
+            }
+            else
+            {
+                bindings[actionIdx] &= ~btnFlag;
+                SD_Call(Sfx_MenuConfirm);
+            }
+        }
+        else
+        {
+            curActionIdx = NO_VALUE;
+            switch (actionIdx)
+            {
+                case 0:
+                case 1:
+                    curActionIdx = actionIdx == 0;
+                    if (bindings[curActionIdx] & btnFlag)
+                    {
+                        if (!(bindings[curActionIdx] & ~btnFlag))
+                        {
+                            boundActionIdx = curActionIdx;
+                            SD_Call(Sfx_MenuError);
+                            break;
+                        }
+
+                        bindings[curActionIdx] &= ~btnFlag;
+                    }
+
+                    bindings[actionIdx] |= btnFlag;
+                    SD_Call(Sfx_MenuConfirm);
+                    break;
+
+                default:
+                    for (j = 0; j < (u32)InputAction_Count; j++)
+                    {
+                        if (bindings[j] & btnFlag)
+                        {
+                            curActionIdx = j;
+                            break;
+                        }
+                    }
+
+                    if (curActionIdx != NO_VALUE)
+                    {
+                        if ((curActionIdx <  InputAction_Skip   ||
+                             curActionIdx == InputAction_Action ||
+                             curActionIdx == InputAction_Aim    ||
+                             curActionIdx == InputAction_Item) &&
+                            !(bindings[curActionIdx] & ~btnFlag))
+                        {
+                            SD_Call(Sfx_MenuError);
+                            boundActionIdx = curActionIdx;
+                        }
+                        else
+                        {
+                            bindings[curActionIdx] &= ~btnFlag;
+                            bindings[actionIdx]    |= btnFlag;
+                            SD_Call(Sfx_MenuConfirm);
+                        }
+                    }
+                    else
+                    {
+                        bindings[actionIdx] |= btnFlag;
+                        SD_Call(Sfx_MenuConfirm);
+                    }
+                    break;
+            }
+        }
+    }
+
+    return boundActionIdx;
+}
+
+#ifdef SH_PC_PORT
 static const char* Pc_FormatBindName(const char* val, s32 targetMode)
 {
-    if (val == NULL || val[0] == '\0' || strcmp(val, "NONE") == 0)
+    if (val == NULL || val[0] == ' ' || strcmp(val, "NONE") == 0)
         return "---";
 
     if (targetMode == 1) /* Gamepad */
@@ -3637,9 +3995,8 @@ static const char* Pc_FormatBindName(const char* val, s32 targetMode)
     return val;
 }
 
-void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx, s32 actionsEntryIdx, s32 boundActionIdx)
+static void Options_ControllerMenu_EntriesDraw_Revamped(bool isOnRightPane, s32 presetsEntryIdx, s32 actionsEntryIdx, s32 boundActionIdx)
 {
-#ifdef SH_PC_PORT
     const ControlScheme* scheme = &g_PcConfig.classic;
     s32 i;
 
@@ -3674,7 +4031,7 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
         const char* padName = Pc_GetConnectedControllerName(0);
         Text_Debug_PositionSet(8, 135);
         Text_Debug_Draw("PAD:");
-        if (padName && padName[0] != '\0')
+        if (padName && padName[0] != ' ')
         {
             char line1[14] = {0};
             char line2[14] = {0};
@@ -3684,7 +4041,7 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
             {
                 s32 len1 = (s32)(space - padName);
                 strncpy(line1, padName, len1);
-                line1[len1] = '\0';
+                line1[len1] = ' ';
 
                 const char* rest = space + 1;
                 const char* space2 = strchr(rest, ' ');
@@ -3692,18 +4049,18 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
                 {
                     s32 len2 = (s32)(space2 - rest);
                     strncpy(line2, rest, len2);
-                    line2[len2] = '\0';
+                    line2[len2] = ' ';
                 }
                 else
                 {
                     strncpy(line2, rest, 12);
-                    line2[12] = '\0';
+                    line2[12] = ' ';
                 }
             }
             else
             {
                 strncpy(line1, padName, 12);
-                line1[12] = '\0';
+                line1[12] = ' ';
             }
 
             for (s32 n = 0; line1[n]; n++)
@@ -3719,7 +4076,7 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
 
             Text_Debug_PositionSet(8, 147);
             Text_Debug_Draw(line1);
-            if (line2[0] != '\0')
+            if (line2[0] != ' ')
             {
                 Text_Debug_PositionSet(8, 158);
                 Text_Debug_Draw(line2);
@@ -3780,12 +4137,12 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
 
             char buf[16];
             s32 n;
-            for (n = 0; n < (s32)sizeof(buf) - 1 && val[n] != '\0'; n++)
+            for (n = 0; n < (s32)sizeof(buf) - 1 && val[n] != ' '; n++)
             {
                 unsigned char c = (unsigned char)toupper((unsigned char)val[n]);
                 buf[n] = (c >= '*' && c <= 'i') ? (char)c : ' ';
             }
-            buf[n] = '\0';
+            buf[n] = ' ';
             Text_Debug_Draw(buf);
         }
 
@@ -3796,9 +4153,175 @@ void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx,
             Text_Debug_Draw(">");
         }
     }
-
-#endif
 }
+#endif
+
+static void Options_ControllerMenu_EntriesDraw_Vanilla(bool isOnRightPane, s32 presetsEntryIdx, s32 actionsEntryIdx, s32 boundActionIdx)
+{
+    #define STR_BASE_Y    22
+    #define STR_OFFSET_Y  20
+    #define ICON_SIZE_Y   12
+    #define ICON_OFFSET_X -12
+
+    s16      highlightY0;
+    s16      highlightY1;
+    s32      strYPos;
+    s32      i;
+    u16*     contConfig;
+    DR_MODE* drMode;
+    POLY_G4* poly;
+    GsOT*    ot;
+
+    static DR_MODE SELECTION_HIGHLIGHT_DRAW_MODES[2] = {
+        {
+#ifdef SH_PC_PORT
+            .len  = 3,
+#else
+            .tag  = 0x03000000,
+#endif
+            .code = { 0xE1000200, 0 }
+        },
+        {
+#ifdef SH_PC_PORT
+            .len  = 3,
+#else
+            .tag  = 0x03000000,
+#endif
+            .code = { 0xE1000200, 0 }
+        }
+    };
+
+    static POLY_G4 SELECTION_HIGHLIGHT_QUADS[2] = {
+        {
+#ifdef SH_PC_PORT
+            .len  = 8,
+#else
+            .tag  = 0x08000000,
+#endif
+            .r0   = 255,
+            .g0   = 255,
+            .b0   = 255,
+            .code = 0x3A,
+            .r3   = 255,
+            .g3   = 255,
+            .b3   = 255
+        },
+        {
+#ifdef SH_PC_PORT
+            .len  = 8,
+#else
+            .tag  = 0x08000000,
+#endif
+            .code = 0x3A,
+            .r1   = 255,
+            .g1   = 255,
+            .b1   = 255,
+            .r2   = 255,
+            .g2   = 255,
+            .b2   = 255
+        },
+    };
+
+    static const char* CONTROLLER_MENU_PRESETS_PANE_ENTRY_STRINGS[] = {
+        "EXIT",
+        "TYPE_1",
+        "TYPE_2",
+        "TYPE_3"
+    };
+
+    static const char* CONTROLLER_MENU_ACTIONS_PANE_ENTRY_STRINGS[] = {
+        "ENTER",
+        "CANCEL",
+        "SKIP",
+        "ACTION",
+        "AIM",
+        "LIGHT",
+        "RUN",
+        "VIEW",
+        "STEP L",
+        "STEP R",
+        "PAUSE",
+        "ITEM",
+        "MAP",
+        "OPTION"
+    };
+
+    ot     = &g_OtTags0[g_ActiveBufferIdx][15];
+    poly   = &SELECTION_HIGHLIGHT_QUADS[g_ActiveBufferIdx];
+    drMode = &SELECTION_HIGHLIGHT_DRAW_MODES[g_ActiveBufferIdx];
+
+    // Draw entry strings.
+    for (i = 0; i < CONTROLLER_MENU_ROW_COUNT; i++)
+    {
+        Gfx_StringSetPosition(24, STR_BASE_Y + (i * STR_OFFSET_Y));
+        Gfx_StringDraw(CONTROLLER_MENU_PRESETS_PANE_ENTRY_STRINGS[i], 20);
+    }
+
+    if (!isOnRightPane)
+    {
+        highlightY1 = presetsEntryIdx * STR_OFFSET_Y;
+        highlightY0 = highlightY1 - 91;
+        setXY4(poly,
+               -137, highlightY0,
+               -76,  highlightY0,
+               -137, highlightY1 - 76,
+               -76,  highlightY1 - 76);
+    }
+
+    strYPos     = STR_BASE_Y;
+    highlightY0 = -300;
+
+    // Draw controller config.
+    for (i = 0, contConfig = (u16*)&g_GameWorkPtr->config.controllerConfig; i < (u32)InputAction_Count; i++, contConfig++)
+    {
+        // Draw action string.
+        Text_Debug_PositionSet(96, strYPos);
+        Text_Debug_Draw(CONTROLLER_MENU_ACTIONS_PANE_ENTRY_STRINGS[i]);
+
+        // Draw button icon.
+        if (i != boundActionIdx)
+        {
+            Options_ControllerMenu_ButtonIconsDraw(ICON_OFFSET_X, strYPos - 114, *contConfig);
+        }
+
+        if (i == actionsEntryIdx)
+        {
+            highlightY0 = strYPos - 113;
+        }
+
+        strYPos = (strYPos + ICON_SIZE_Y) + ((i == 2) ? ICON_SIZE_Y : 0);
+    }
+
+    if (isOnRightPane == true)
+    {
+        setXY4(poly,
+               -65, highlightY0,
+               -15, highlightY0,
+               -65, highlightY0 + 10,
+               -15, highlightY0 + 10);
+    }
+
+    AddPrim(ot, poly);
+    AddPrim(ot, drMode);
+
+    #undef STR_BASE_Y
+    #undef STR_OFFSET_Y
+    #undef ICON_SIZE_Y
+    #undef ICON_OFFSET_X
+}
+
+void Options_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx, s32 actionsEntryIdx, s32 boundActionIdx)
+{
+#ifdef SH_PC_PORT
+    if (Pc_IsRevampedControllerEnabled())
+    {
+        Options_ControllerMenu_EntriesDraw_Revamped(isOnRightPane, presetsEntryIdx, actionsEntryIdx, boundActionIdx);
+        return;
+    }
+#endif
+    Options_ControllerMenu_EntriesDraw_Vanilla(isOnRightPane, presetsEntryIdx, actionsEntryIdx, boundActionIdx);
+}
+
 
 void Options_ControllerMenu_ButtonIconsDraw(s32 baseX, s32 baseY, u16 config) // 0x801E716C
 {
