@@ -4,7 +4,6 @@
 #include "sh_log.h"
 #include "pc_config.h"
 #include "pc_big_lm.h"
-#include "pc_playas.h"
 #ifdef SH_PC_PORT
 #include "main/fileinfo.h" /* g_GameRegion — PAL BG_ETC material-UV relocation */
 #endif
@@ -1014,17 +1013,6 @@ void WorldGfx_HeldItemDraw(void) // 0x8003D058
         if (!lmHdr->isLoaded)
         {
             LmHeader_FixOffsets(lmHdr);
-#ifdef SH_PC_PORT
-            /* Play-as: knife/hammer/axe/handgun/rifle/shotgun PLMs are
-             * textured from HERO.TIM, but Harry's VRAM parcel now holds the
-             * skin's sheet — bake against the virtual-slot copy instead.
-             * Patched here (not at HeldItemSet) so it holds no matter which
-             * load path filled the desc. */
-            if (heldItem->textureName != NULL && strcmp(heldItem->textureName, "HERO") == 0)
-            {
-                Pc_PlayAs_HeldItemImageDesc(&heldItem->imageDesc);
-            }
-#endif
             Lm_MaterialFsImageApply1(lmHdr, heldItem->textureName, &heldItem->imageDesc, BlendMode_Additive);
             Lm_MaterialFlagsApply(lmHdr);
             Bone_ModelAssign(&heldItem->bone, heldItem->lmHdr, 0);
@@ -1057,13 +1045,6 @@ void WorldGfx_HarryCharaLoad(void) // 0x8003D160
 
 #ifdef SH_PC_PORT
     harryLmHdr = Pc_BigLm_Redirect(CHARA_FILE_INFOS[Chara_Harry].modelFileIdx, harryLmHdr);
-    /* A play-as retarget must never read a non-HERO ILM into the HERO-sized
-     * slab (sector-granular reads overrun HELD_ITEM_LM_BUFFER). */
-    harryLmHdr = (s_LmHeader*)Pc_PlayAs_PlayerLmRedirect(CHARA_FILE_INFOS[Chara_Harry].modelFileIdx, harryLmHdr);
-    /* ...and a non-HERO player TIM must never land in the HERO-sized VRAM parcel:
-     * it overruns onto the chara CLUT shelf below it. Mutating `image` here
-     * covers both the upload and the material bake — they share this desc. */
-    Pc_PlayAs_PlayerImageDesc(&image);
 #endif
     Fs_QueueStartRead(CHARA_FILE_INFOS[Chara_Harry].modelFileIdx, harryLmHdr);
     queueIdx = Fs_QueueStartReadTim(CHARA_FILE_INFOS[Chara_Harry].textureFileIdx, FS_BUFFER_1, &image);
@@ -1407,9 +1388,6 @@ s32 WorldGfx_CharaModelLoad(e_CharaId charaId, s32 modelIdx, s_LmHeader* lmHdr, 
 void WorldGfx_PlayerModelProcessLoad(void) // 0x8003D938
 {
     WorldGfx_CharaModelProcessLoad(&g_WorldGfxWork.harryModel);
-#ifdef SH_PC_PORT
-    Pc_PlayAs_OnPlayerModelLoaded();
-#endif
 }
 
 void WorldGfx_CharaModelProcessAllLoads(void) // 0x8003D95C
@@ -1429,6 +1407,14 @@ void WorldGfx_CharaModelProcessAllLoads(void) // 0x8003D95C
         }
     }
 }
+
+static const char* s_CharaTagNames[] = {
+    "NONE", "HERO", "BIRD", "BD2", "DOG", "DG2", "CLD1", "CLD2", "CLD3", "CLD4",
+    "SLT", "COC", "JACK", "CKN", "FAT", "MTH", "PRS", "DUMMY", "PRSD", "DUMMY",
+    "WRM", "ROD", "BOS", "MAR", "MSB", "DEAD", "SIBYL", "SIBYL", "SRL", "CAT",
+    "DARIA", "DARIA", "LISA", "BLISA", "AR", "TAR", "MAR", "BAR", "KAU", "KAU",
+    "BFLU", "LITL", "DOC", "ICU", "PAD"
+};
 
 void WorldGfx_CharaModelProcessLoad(s_CharaModel* model) // 0x8003D9C8
 {
@@ -1521,33 +1507,6 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
                       Q12_MULT_PRECISE(Q12(1.0f) - timer, g_WorldEnvWork.worldTintColor.g) << 5,
                       Q12_MULT_PRECISE(Q12(1.0f) - timer, g_WorldEnvWork.worldTintColor.b) << 5,
                       g_WorldEnvWork.screenBrightness);
-
-#ifdef SH_PC_PORT
-        /* This IS the vanish for a Larval Stalker: timer is its timer_C6, and
-         * at Q12(1.0) the scaling above drives the world tint AND the per-vertex
-         * light matrix to zero, so the model should light to nothing. A capture
-         * shows the state machine completing (timer_C6 4096/4096, health -1) with
-         * the creature still plainly visible, so the question is whether the
-         * values really arrive at zero here or the PC lighting path lights it
-         * anyway. Logs the fade only near its end, once per second. */
-        {
-            static q19_12 s_next = 0;
-            static s32    s_lines = 0;
-            s_next -= g_DeltaTime;
-            if (timer > Q12(0.5f) && s_lines < 24 && s_next <= 0)
-            {
-                s_next = Q12(1.0f);
-                s_lines++;
-                SH_DBG("[FADE] chara=%d timer=%d/%d tintIn=(%d,%d,%d) tintOut=(%d,%d,%d) light00=%d mode=%d fog=%d",
-                       (int)charaId, (int)timer, (int)Q12(1.0f),
-                       (int)tintColor.r, (int)tintColor.g, (int)tintColor.b,
-                       (int)g_WorldEnvWork.worldTintColor.r, (int)g_WorldEnvWork.worldTintColor.g,
-                       (int)g_WorldEnvWork.worldTintColor.b,
-                       (int)g_WorldEnvWork.field_2C.m[0][0],
-                       (int)g_WorldEnvWork.field_0, (int)g_WorldEnvWork.isFogEnabled);
-            }
-        }
-#endif
     }
 
 #ifdef SH_PC_PORT
@@ -1600,13 +1559,6 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
      * pre-pass (monsters still cast). Set here (build time) so the GTE captures it
      * per-vertex; cleared right after. */
     { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = (charaId == Chara_Harry) ? 1 : 0; }
-    /* Hand the same fade the block above applied to this character's LIGHTING to
-     * the per-pixel flashlight, which adds its light on top of the TEXTURE and so
-     * would otherwise relight a character the game has already faded to nothing.
-     * That is a Larval Stalker's whole vanish: it fades out, and on Classic (no
-     * per-pixel light) it duly disappears, while every Modern/shadow mode kept it
-     * lit and standing there forever. Rides the view-space FIFO per vertex. */
-    { extern float g_PsyX_CharaFade; g_PsyX_CharaFade = (float)timer / 4096.0f; }
     /* [CHARAPRIM]: the draw chain below (func_80057090 -> func_8005AC50) only ever
      * sees a model header, never a chara, so the probe's subject is stamped here —
      * the one place both are in scope. */
@@ -1619,7 +1571,6 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
     { extern int g_PcCharaPrimProbeActive; g_PcCharaPrimProbeActive = 0; }
     { extern int g_PcHideHarryFpsBody; g_PcHideHarryFpsBody = 0; }
     { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 0; }
-    { extern float g_PsyX_CharaFade; g_PsyX_CharaFade = 0.0f; }
 #endif
 
     if (timer != Q12(0.0f))
@@ -1652,16 +1603,6 @@ void WorldGfx_HeldItemAttach(e_CharaId charaId, s32 arg1) // 0x8003DD80
     switch (charaId)
     {
         case Chara_Harry:
-#ifdef SH_PC_PORT
-            /* func_8003DE60's hand-variant lists are hard-coded HERO part
-             * indices — on a play-as skin every equip would hide/show the
-             * wrong meshes. Re-assert the skin's own table instead. */
-            if (Pc_PlayAs_SuppressHarryHandVariants())
-            {
-                Pc_PlayAs_ApplySkinVisibility();
-                break;
-            }
-#endif
             func_8003DE60(&model->skeleton, arg1);
             break;
 
