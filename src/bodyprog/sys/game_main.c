@@ -3092,21 +3092,43 @@ void MainLoop(void) // 0x80032EE0
                      * gets baked in. */
                     ofy = (s32)g_PsxCutsceneVShift;
                 }
-                else if (g_PcPickupItemActive)
-                {
-                    /* The pickup/take screen stages its own 3D framing (like a
-                     * cutscene, not like the frozen world states the hold exists
-                     * for) — holding the gameplay shift here framed the picked-up
-                     * item visibly low under a non-zero `vshift`. */
-                    ofy = 0;
-                }
                 else
                 {
+                    /* Item pickup ALSO uses the held gameplay shift. The take
+                     * screen renders the item over a FROZEN backdrop captured
+                     * with the gameplay fixed-camera shift (+20); zeroing ofy
+                     * here drew the item 20 units below the scene it sits in.
+                     * Matching s_heldWorldOfy aligns the item with its backdrop
+                     * -- the earlier zero-baseline was the misframe, not the fix. */
                     ofy = s_heldWorldOfy;
                 }
             }
 
             SetGeomOffset(0, ofy);
+
+#ifdef SH_PC_PORT
+            /* [CUTDIAG] one line/second: which framing knobs are live, so a
+             * "cutscene squashed/shifted vs emulator" report names the cause
+             * (vshift ofy vs vscale crop vs HorPlus mode) instead of guessing. */
+            {
+                extern int   g_PcHorPlusEnabled;
+                extern int   g_PsxCutsceneActive;
+                extern int   g_PsxFixedCamActive;
+                extern float g_PsxWorldVScale;
+                extern float g_PsxCutsceneVScale;
+                static s32   s_cutDiagCtr = 0;
+                if (++s_cutDiagCtr >= 60)
+                {
+                    s_cutDiagCtr = 0;
+                    SH_DBG("[CUTDIAG] state=%d sys=%d cut=%d border=%d fixed=%d tpc=%d ofy=%d | horplus=%d vscale=%.3f cutvscale=%.3f wsmode=%d",
+                           (int)g_GameWork.gameState, (int)g_SysWork.sysState,
+                           (int)g_PsxCutsceneActive, (int)g_SysWork.cutsceneBorderState,
+                           (int)g_PsxFixedCamActive, (int)g_DebugThirdPersonCam, (int)ofy,
+                           (int)g_PcHorPlusEnabled, g_PsxWorldVScale, g_PsxCutsceneVScale,
+                           (int)g_PcConfig.widescreenMode);
+                }
+            }
+#endif
         }
 
         /* Suppress dither on 2D-only states (logos, menus, map screen,
