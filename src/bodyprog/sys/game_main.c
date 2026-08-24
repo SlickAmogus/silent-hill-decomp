@@ -3015,6 +3015,16 @@ void MainLoop(void) // 0x80032EE0
                                    g_SysWork.cutsceneBorderState != CutsceneBorderState_None) ? 1 : 0;
         }
 
+        /* Same handover for the item take screen: its item is the only live 3D
+         * over a frozen backdrop, staged by its own camera, so PsyCross exempts
+         * it from the gameplay vfov crop exactly like a cutscene (it drew ~16
+         * PSX units low under Hor+ otherwise). */
+        {
+            extern int g_PsxItemTakeActive;
+            extern int g_PcPickupItemActive;
+            g_PsxItemTakeActive = g_PcPickupItemActive;
+        }
+
         /* Fixed-angle camera shots frame the top of the scene clipped vs PSX (e.g. a
          * medkit off the top of frame). Correct it by shifting the GTE projection
          * center down (world content moves down INSIDE the normal 224-line frame)
