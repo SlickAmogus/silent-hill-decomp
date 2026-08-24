@@ -89,6 +89,132 @@ static void Plugin_LoadNightmareConfig(void)
 
 
 
+#ifdef _WIN32
+static void InstallHook64(void* target, void* replacement)
+{
+    if (!target || !replacement) return;
+    DWORD oldProtect;
+    if (VirtualProtect(target, 14, PAGE_EXECUTE_READWRITE, &oldProtect))
+    {
+        unsigned char jmpCode[14] = {
+            0xFF, 0x25, 0x00, 0x00, 0x00, 0x00, /* jmp qword ptr [rip + 0] */
+            0, 0, 0, 0, 0, 0, 0, 0              /* 64-bit target address */
+        };
+        *(uintptr_t*)(&jmpCode[6]) = (uintptr_t)replacement;
+        memcpy(target, jmpCode, 14);
+        VirtualProtect(target, 14, oldProtect, &oldProtect);
+        FlushInstructionCache(GetCurrentProcess(), target, 14);
+    }
+}
+#endif
+
+extern void Options_Menu_VignetteDraw(void);
+extern void Screen_BackgroundImgDraw(void* img);
+extern void Pc_MouseCursor_Draw(void);
+
+static s32 s_pluginPcOptSelected = 0;
+
+static void Plugin_PcOptionsMenu_Control(void)
+{
+    Options_Menu_VignetteDraw();
+    Screen_BackgroundImgDraw(&g_ItemInspectionImg);
+    Pc_MouseCursor_Draw();
+
+    if (g_GameWork.gameStateSteps[0] != OptionsMenuState_PcOptions)
+        return;
+
+    /* Draw Header */
+    Gfx_StringSetColor(StringColorId_White);
+    Gfx_StringSetPosition(80, 24);
+    Gfx_Strings2dLayerIdxSet(8);
+    Gfx_StringDraw("Nightmare_Options", 32);
+
+    /* Draw Options */
+    static const char* const labels[3] = { "Live_Game", "Low_Health_FX", "Back" };
+    for (int i = 0; i < 3; i++)
+    {
+        if (s_pluginPcOptSelected == i)
+            Gfx_StringSetColor(StringColorId_Gold);
+        else
+            Gfx_StringSetColor(StringColorId_White);
+
+        Gfx_StringSetPosition(64, 60 + (i * 20));
+        Gfx_Strings2dLayerIdxSet(8);
+        Gfx_StringDraw((char*)labels[i], 32);
+
+        /* Value */
+        if (i == 0)
+        {
+            Gfx_StringSetPosition(200, 60 + (i * 20));
+            Gfx_StringDraw(g_PcConfig.liveInventory ? "On" : "Off", 8);
+        }
+        else if (i == 1)
+        {
+            Gfx_StringSetPosition(200, 60 + (i * 20));
+            Gfx_StringDraw(g_PcConfig.nightmareVignette ? "On" : "Off", 8);
+        }
+    }
+    Gfx_StringsReset2dLayerIdx();
+
+    /* Input Handling */
+    if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp)
+    {
+        SD_Call(Sfx_MenuMove);
+        s_pluginPcOptSelected = (s_pluginPcOptSelected + 2) % 3;
+    }
+    else if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickDown)
+    {
+        SD_Call(Sfx_MenuMove);
+        s_pluginPcOptSelected = (s_pluginPcOptSelected + 1) % 3;
+    }
+    else if (g_Controller0->pulsedBtnFlags & (ControllerFlag_LStickLeft | ControllerFlag_LStickRight))
+    {
+        if (s_pluginPcOptSelected == 0)
+        {
+            g_PcConfig.liveInventory = !g_PcConfig.liveInventory;
+            PcConfig_SaveKeyValue("live_game", g_PcConfig.liveInventory ? "1" : "0");
+            SD_Call(Sfx_MenuConfirm);
+        }
+        else if (s_pluginPcOptSelected == 1)
+        {
+            g_PcConfig.nightmareVignette = !g_PcConfig.nightmareVignette;
+            PcConfig_SaveKeyValue("low_health_fx", g_PcConfig.nightmareVignette ? "1" : "0");
+            SD_Call(Sfx_MenuConfirm);
+        }
+    }
+    else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
+    {
+        if (s_pluginPcOptSelected == 0)
+        {
+            g_PcConfig.liveInventory = !g_PcConfig.liveInventory;
+            PcConfig_SaveKeyValue("live_game", g_PcConfig.liveInventory ? "1" : "0");
+            SD_Call(Sfx_MenuConfirm);
+        }
+        else if (s_pluginPcOptSelected == 1)
+        {
+            g_PcConfig.nightmareVignette = !g_PcConfig.nightmareVignette;
+            PcConfig_SaveKeyValue("low_health_fx", g_PcConfig.nightmareVignette ? "1" : "0");
+            SD_Call(Sfx_MenuConfirm);
+        }
+        else if (s_pluginPcOptSelected == 2)
+        {
+            SD_Call(Sfx_MenuCancel);
+            g_GameWork.gameStateSteps[0] = OptionsMenuState_LeavePcOptions;
+            g_SysWork.counters_1C[1]     = 0;
+            g_GameWork.gameStateSteps[1] = 0;
+            g_GameWork.gameStateSteps[2] = 0;
+        }
+    }
+    else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel)
+    {
+        SD_Call(Sfx_MenuCancel);
+        g_GameWork.gameStateSteps[0] = OptionsMenuState_LeavePcOptions;
+        g_SysWork.counters_1C[1]     = 0;
+        g_GameWork.gameStateSteps[1] = 0;
+        g_GameWork.gameStateSteps[2] = 0;
+    }
+}
+
 PLUGIN_EXPORT const char* SH_Plugin_GetName(void)
 {
     return "Nightmare Mode Overhaul";
@@ -105,6 +231,15 @@ PLUGIN_EXPORT void SH_Plugin_Init(void)
     Plugin_LoadNightmareConfig();
     ApplyShadowStalkerModelOverrides();
     Patch_HideHealthStatus();
+
+#ifdef _WIN32
+    void* pPcOpt = (void*)GetProcAddress(GetModuleHandleA(NULL), "Options_PcOptionsMenu_Control");
+    if (pPcOpt)
+    {
+        InstallHook64(pPcOpt, (void*)Plugin_PcOptionsMenu_Control);
+        SH_LOG("[NIGHTMARE_PLUGIN] Hooked Options_PcOptionsMenu_Control -> Nightmare Options Menu");
+    }
+#endif
 }
 
 PLUGIN_EXPORT void SH_Plugin_OnNewGame(void)
