@@ -108,38 +108,44 @@ static void ProcessOverlayInput(void)
 
     if (!s_overlayOpen) return;
 
-    /* Consume input so background menu/game doesn't receive keystrokes */
+    /* Completely suppress controller input to prevent background game/menu interaction */
+    g_Controller0->heldBtnFlags      = 0;
     g_Controller0->clickedBtnFlags   = 0;
+    g_Controller0->releasedBtnFlags  = 0;
     g_Controller0->pulsedBtnFlags    = 0;
     g_Controller0->pulsedGuiBtnFlags = 0;
-    g_Controller0->heldBtnFlags      = 0;
 
-    if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
+    static int s_prevEsc = 0;
+    int escDown = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0 || (GetAsyncKeyState(VK_BACK) & 0x8000) != 0;
+    if (escDown && !s_prevEsc)
     {
         s_overlayOpen = 0;
         SD_Call(Sfx_MenuCancel);
+        s_prevEsc = escDown;
         return;
     }
+    s_prevEsc = escDown;
 
-    static int s_prevUp = 0, s_prevDown = 0, s_prevEnter = 0, s_prev1 = 0, s_prev2 = 0;
-    int upDown    = (GetAsyncKeyState(VK_UP) & 0x8000) != 0;
-    int downDown  = (GetAsyncKeyState(VK_DOWN) & 0x8000) != 0;
+    static int s_prevUp = 0, s_prevDown = 0, s_prevLeft = 0, s_prevRight = 0, s_prevEnter = 0, s_prev1 = 0, s_prev2 = 0;
+    int upDown    = (GetAsyncKeyState(VK_UP) & 0x8000) != 0 || (GetAsyncKeyState('W') & 0x8000) != 0;
+    int downDown  = (GetAsyncKeyState(VK_DOWN) & 0x8000) != 0 || (GetAsyncKeyState('S') & 0x8000) != 0;
+    int leftDown  = (GetAsyncKeyState(VK_LEFT) & 0x8000) != 0 || (GetAsyncKeyState('A') & 0x8000) != 0;
+    int rightDown = (GetAsyncKeyState(VK_RIGHT) & 0x8000) != 0 || (GetAsyncKeyState('D') & 0x8000) != 0;
     int enterDown = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0 || (GetAsyncKeyState(VK_SPACE) & 0x8000) != 0;
     int k1Down    = (GetAsyncKeyState('1') & 0x8000) != 0;
     int k2Down    = (GetAsyncKeyState('2') & 0x8000) != 0;
 
-    if (upDown && !s_prevUp)
-    {
-        s_overlaySelected = (s_overlaySelected + 1) % 2;
-        SD_Call(Sfx_MenuMove);
-    }
-    if (downDown && !s_prevDown)
+    /* Up / Down navigation */
+    if ((upDown && !s_prevUp) || (downDown && !s_prevDown))
     {
         s_overlaySelected = (s_overlaySelected + 1) % 2;
         SD_Call(Sfx_MenuMove);
     }
 
-    if ((enterDown && !s_prevEnter) || (k1Down && !s_prev1 && s_overlaySelected == 0))
+    /* Left / Right / Enter toggle */
+    int toggle = (leftDown && !s_prevLeft) || (rightDown && !s_prevRight) || (enterDown && !s_prevEnter);
+
+    if (toggle || (k1Down && !s_prev1 && s_overlaySelected == 0))
     {
         if (s_overlaySelected == 0)
         {
@@ -154,7 +160,7 @@ static void ProcessOverlayInput(void)
             SD_Call(Sfx_MenuConfirm);
         }
     }
-    else if ((enterDown && !s_prevEnter) || (k2Down && !s_prev2 && s_overlaySelected == 1))
+    else if (k2Down && !s_prev2 && s_overlaySelected == 1)
     {
         g_PcConfig.nightmareVignette = !g_PcConfig.nightmareVignette;
         PcConfig_SaveKeyValue("low_health_fx", g_PcConfig.nightmareVignette ? "1" : "0");
@@ -163,6 +169,8 @@ static void ProcessOverlayInput(void)
 
     s_prevUp    = upDown;
     s_prevDown  = downDown;
+    s_prevLeft  = leftDown;
+    s_prevRight = rightDown;
     s_prevEnter = enterDown;
     s_prev1     = k1Down;
     s_prev2     = k2Down;
@@ -178,28 +186,32 @@ static void DrawOverlayMenu(void)
 
     /* Draw Header with Silent Hill Gold Font */
     Gfx_StringSetColor(StringColorId_Gold);
-    Gfx_StringSetPosition(50, 40);
+    Gfx_StringSetPosition(70, 45);
     Gfx_Strings2dLayerIdxSet(8);
-    Gfx_StringDraw("=== NIGHTMARE SETTINGS ===", 32);
+    Gfx_StringDraw("NIGHTMARE_SETTINGS", 32);
 
     /* Row 0: Live Game */
     Gfx_StringSetColor(s_overlaySelected == 0 ? StringColorId_Gold : StringColorId_White);
-    Gfx_StringSetPosition(60, 70);
+    Gfx_StringSetPosition(60, 80);
     Gfx_StringDraw(s_overlaySelected == 0 ? "> Live_Game:" : "  Live_Game:", 24);
-    Gfx_StringSetPosition(200, 70);
-    Gfx_StringDraw(g_PcConfig.liveInventory ? "[ ON ]" : "[ OFF ]", 12);
+    Gfx_StringSetPosition(200, 80);
+    Gfx_StringDraw(g_PcConfig.liveInventory ? "ON" : "OFF", 8);
 
     /* Row 1: Low Health FX */
     Gfx_StringSetColor(s_overlaySelected == 1 ? StringColorId_Gold : StringColorId_White);
-    Gfx_StringSetPosition(60, 95);
+    Gfx_StringSetPosition(60, 105);
     Gfx_StringDraw(s_overlaySelected == 1 ? "> Low_Health_FX:" : "  Low_Health_FX:", 24);
-    Gfx_StringSetPosition(200, 95);
-    Gfx_StringDraw(g_PcConfig.nightmareVignette ? "[ ON ]" : "[ OFF ]", 12);
+    Gfx_StringSetPosition(200, 105);
+    Gfx_StringDraw(g_PcConfig.nightmareVignette ? "ON" : "OFF", 8);
 
     /* Instructions */
     Gfx_StringSetColor(StringColorId_White);
-    Gfx_StringSetPosition(40, 135);
-    Gfx_StringDraw("Press [ENTER] to Toggle | [N/ESC] Close", 48);
+    Gfx_StringSetPosition(50, 150);
+    Gfx_StringDraw("LEFT/RIGHT: Change", 32);
+    Gfx_StringSetPosition(50, 170);
+    Gfx_StringDraw("UP/DOWN: Select", 32);
+    Gfx_StringSetPosition(50, 190);
+    Gfx_StringDraw("N/ESC: Close", 32);
 
     Gfx_StringsReset2dLayerIdx();
 }
