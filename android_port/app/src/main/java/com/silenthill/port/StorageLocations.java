@@ -133,6 +133,46 @@ final class StorageLocations {
         return true;
     }
 
+    /**
+     * Where every install before this change kept its data, and where an
+     * upgrading player's disc image and saves still are. Android 11 made it
+     * unopenable by file managers, which is the whole complaint -- but it is
+     * still perfectly readable by the app, so nothing here may assume it is
+     * empty.
+     */
+    static File legacyRoot(Context ctx) {
+        return ctx.getExternalFilesDir(null);
+    }
+
+    /**
+     * Does this directory hold an install worth preserving? Any one of the four
+     * things a player would be upset to lose: their disc image, the extracted
+     * data, their saves, or their settings.
+     */
+    static boolean hasGameData(File dir) {
+        if (dir == null || !dir.isDirectory()) {
+            return false;
+        }
+        if (new File(dir, "gamedata").isDirectory() || new File(dir, "config.cfg").isFile()) {
+            return true;
+        }
+
+        File[] entries = dir.listFiles();
+        if (entries == null) {
+            return false;
+        }
+        for (File f : entries) {
+            if (!f.isFile()) {
+                continue;
+            }
+            String n = f.getName().toLowerCase();
+            if (n.endsWith(".mcd") || (n.endsWith(".bin") && f.length() >= 32L * 1024 * 1024)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The stored choice, or null if the player has not been asked yet. */
     static File stored(Context ctx) {
         SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
@@ -175,8 +215,18 @@ final class StorageLocations {
             return s;
         }
 
+        /* No choice recorded yet, and an existing install's data is in the
+         * legacy folder. Nothing may point away from it until the player has
+         * actually been asked -- and SilentHillActivity can start without the
+         * setup screen that does the asking (the USB intent filter), so the
+         * safe answer has to live here rather than only in the dialog. */
+        File legacy = legacyRoot(ctx);
+        if (hasGameData(legacy)) {
+            return legacy;
+        }
+
         List<Option> opts = candidates(ctx);
-        return opts.isEmpty() ? ctx.getExternalFilesDir(null) : opts.get(0).dir;
+        return opts.isEmpty() ? legacy : opts.get(0).dir;
     }
 
     /**
@@ -186,6 +236,11 @@ final class StorageLocations {
      */
     static String labelFor(Context ctx, File dir) {
         String want = dir.getAbsolutePath();
+
+        File legacy = legacyRoot(ctx);
+        if (legacy != null && legacy.getAbsolutePath().equals(want)) {
+            return "App";
+        }
 
         for (Option o : candidates(ctx)) {
             if (o.dir.getAbsolutePath().equals(want)) {

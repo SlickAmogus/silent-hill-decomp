@@ -74,13 +74,182 @@ public class SetupActivity extends Activity {
 
         /* Before anything reads targetDir. Everything downstream -- the disc
          * install, the asset unpack, the game's working directory -- hangs off
-         * this one answer. */
-        if (StorageLocations.worthAsking(this) || askAgainRequested()) {
+         * this one answer.
+         *
+         * Order matters: an upgrading install has to be recognised BEFORE the
+         * chooser runs, or the player is asked a question whose every answer
+         * silently abandons the disc image and saves they already have. */
+        boolean askAgain = askAgainRequested();
+
+        if (StorageLocations.stored(this) == null
+                && StorageLocations.hasGameData(StorageLocations.legacyRoot(this))) {
+            offerToMoveExistingData();
+            return;
+        }
+
+        if (StorageLocations.worthAsking(this) || askAgain) {
             askWhereToKeepData();
             return;
         }
 
         continueSetup();
+    }
+
+    /**
+     * An install from before the data location was a choice. Its files are in
+     * the app's own folder, which Android 11 stopped letting file managers open
+     * -- so the player cannot reach their saves, which is the complaint -- but
+     * the game reads them fine, and simply pointing somewhere else would look
+     * exactly like losing them.
+     *
+     * So: offer, never assume. Leaving them put is a legitimate answer and the
+     * game keeps working, which is why it is not phrased as a warning.
+     */
+    private void offerToMoveExistingData() {
+        final List<StorageLocations.Option> opts = StorageLocations.candidates(this);
+        final File legacy = StorageLocations.legacyRoot(this);
+
+        if (opts.isEmpty()) {
+            StorageLocations.store(this, legacy);
+            continueSetup();
+            return;
+        }
+
+        final StorageLocations.Option target = opts.get(0);
+
+        new AlertDialog.Builder(this)
+            .setTitle("Move your game data?")
+            .setCancelable(false)
+            .setMessage(
+                "Your disc image and saves are in a folder that Android no longer "
+              + "lets file managers open, so you cannot get at your saves.
+
+"
+              + "Move them to " + target.label + "?
+" + target.dir.getAbsolutePath()
+              + "
+
+The game works either way.")
+            .setPositiveButton("Move", new DialogInterface.OnClickListener() {
+                @Override public void onClick(DialogInterface d, int which) {
+                    migrateThen(legacy, target.dir);
+                }
+            })
+            .setNegativeButton("Leave it", new DialogInterface.OnClickListener() {
+                @Override public void onClick(DialogInterface d, int which) {
+                    StorageLocations.store(SetupActivity.this, legacy);
+                    continueSetup();
+                }
+            })
+            .show();
+    }
+
+    /**
+     * Move an install between volumes, then carry on.
+     *
+     * renameTo first, per entry: the old folder and the built-in media dir are
+     * on the same volume, so that is a directory-entry change and a 700 MB disc
+     * image moves instantly. It fails across volumes (to a real SD card), and
+     * only then is anything copied.
+     *
+     * Nothing at the destination is ever overwritten. The two locations could
+     * BOTH hold a disc -- setup used to install to one while the game ran from
+     * the other -- and the destination's copy is the newer answer.
+     */
+    private void migrateThen(final File from, final File to) {
+        buildUi();
+        setBusy(true);
+        setStatus("Moving your game data. This can take a while on an SD card.");
+
+        new Thread(new Runnable() {
+            @Override public void run() {
+                int moved = 0, kept = 0, failed = 0;
+                File[] entries = from.listFiles();
+
+                if (entries != null) {
+                    for (int i = 0; i < entries.length; i++) {
+                        File src = entries[i];
+                        File dst = new File(to, src.getName());
+
+                        setCopyProgress((i * 100) / entries.length);
+
+                        if (dst.exists()) {
+                            kept++;
+                            continue;
+                        }
+                        if (src.renameTo(dst)) {
+                            moved++;
+                            continue;
+                        }
+                        if (copyTree(src, dst)) {
+                            deleteTree(src);
+                            moved++;
+                        } else {
+                            failed++;
+                            Log.w(TAG, "could not move " + src.getAbsolutePath());
+                        }
+                    }
+                }
+
+                Log.i(TAG, "migrated " + moved + " entries, kept " + kept
+                         + " already at the destination, " + failed + " failed");
+
+                /* The new location even after a partial move: what did move is
+                 * there, and the alternative is data split across two roots
+                 * with the game reading the one the player cannot see. */
+                StorageLocations.store(SetupActivity.this, to);
+
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        setBusy(false);
+                        continueSetup();
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private boolean copyTree(File src, File dst) {
+        if (src.isDirectory()) {
+            if (!dst.isDirectory() && !dst.mkdirs()) {
+                return false;
+            }
+            File[] kids = src.listFiles();
+            if (kids != null) {
+                for (File k : kids) {
+                    if (!copyTree(k, new File(dst, k.getName()))) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        byte[] buf = new byte[64 * 1024];
+        try (InputStream in = new java.io.FileInputStream(src);
+             OutputStream out = new FileOutputStream(dst)) {
+            int n;
+            while ((n = in.read(buf)) > 0) {
+                out.write(buf, 0, n);
+            }
+            return true;
+        } catch (IOException e) {
+            Log.w(TAG, "copy failed: " + src + " -> " + dst + ": " + e.getMessage());
+            dst.delete();
+            return false;
+        }
+    }
+
+    private void deleteTree(File f) {
+        if (f.isDirectory()) {
+            File[] kids = f.listFiles();
+            if (kids != null) {
+                for (File k : kids) {
+                    deleteTree(k);
+                }
+            }
+        }
+        f.delete();
     }
 
     /**
