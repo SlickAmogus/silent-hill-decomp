@@ -224,12 +224,15 @@ PLUGIN_EXPORT void SH_Plugin_Init(void)
 }
 
 static s_MapOverlayHdr s_nightmareMapHdr;
-extern void Gfx_MapEffectsAssign(s_MapOverlayHdr* mapHdr);
+static s32            s_lastMapIdx = -1;
+extern void           Gfx_MapEffectsAssign(s_MapOverlayHdr* mapHdr);
+extern void           Game_TurnFlashlightOn(void);
 
 PLUGIN_EXPORT void SH_Plugin_OnNewGame(void)
 {
     Plugin_LoadNightmareConfig();
     s_running = 1;
+    s_lastMapIdx = -1;
     SH_LOG("[NIGHTMARE_PLUGIN] New Game started in Nightmare Mode.");
     ApplyShadowStalkerModelOverrides();
     Patch_HideHealthStatus();
@@ -276,11 +279,24 @@ PLUGIN_EXPORT void SH_Plugin_OnUpdate(void)
         (g_GameWork.gameState == GameState_InGame || g_GameWork.gameState == GameState_MapEvent) &&
         g_pMapOverlayHeader != NULL)
     {
-        if (g_pMapOverlayHeader->field_16 != 2 || g_pMapOverlayHeader->field_17 != 6)
+        if (s_lastMapIdx != g_SavegamePtr->mapIdx ||
+            g_pMapOverlayHeader->field_16 != 2 ||
+            g_pMapOverlayHeader->field_17 != 6 ||
+            g_SysWork.field_2388.field_84[0].effectsInfo_0.fogColor_14.r > 0 ||
+            g_SysWork.field_2388.field_84[0].effectsInfo_0.fogColor_14.g > 0)
         {
-            g_pMapOverlayHeader->field_16 = 2;
-            g_pMapOverlayHeader->field_17 = 6;
+            s_lastMapIdx = g_SavegamePtr->mapIdx;
+            s_nightmareMapHdr = *g_pMapOverlayHeader;
+            s_nightmareMapHdr.field_16 = 2; /* Dark Otherworld ambient */
+            s_nightmareMapHdr.field_17 = 6; /* Heavy rain & dark atmosphere */
+            g_pMapOverlayHeader = &s_nightmareMapHdr;
+
             Gfx_MapEffectsAssign(g_pMapOverlayHeader);
+            if (s_nightmareMapHdr.enviromentSet != NULL)
+            {
+                s_nightmareMapHdr.enviromentSet(6, 127);
+            }
+            Game_TurnFlashlightOn();
         }
 
         /* Nightmare Mode: Grey Children / Mumblers / Stalkers are rendered as translucent shadow stalkers */
@@ -385,8 +401,8 @@ PLUGIN_EXPORT int SH_Plugin_OverrideWeather(s32* ambient, s32* rain)
     if (!g_PcConfig.nightmare)
         return 0;
 
-    if (ambient) *ambient = 2; // Dark Otherworld ambient
-    if (rain)    *rain    = 6; // Heavy rain
+    if (ambient) *ambient = 6; // Dark Otherworld pitch-black ambient preset (MAP_EFFECTS_INFOS[6])
+    if (rain)    *rain    = 3; // Flashlight lit preset (MAP_EFFECTS_INFOS[3])
     return 1;
 }
 
