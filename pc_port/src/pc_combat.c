@@ -532,6 +532,7 @@ void Pc_RearLookUpdate(void)
     extern int          g_DebugThirdPersonCam;
     extern int          g_PcFpsCam;
     extern int          g_PcConsoleInputActive;
+    extern int          g_PcQuickOptionsActive;
     const Uint8*        keys;
     int                 sch, held;
 
@@ -555,7 +556,7 @@ void Pc_RearLookUpdate(void)
     g_PcRearLookActive = (held && g_DebugThirdPersonCam && !g_PcFpsCam &&
                           g_GameWork.gameState == GameState_InGame &&
                           g_SysWork.sysState   == SysState_Gameplay &&
-                          !g_PcConsoleInputActive) ? 1 : 0;
+                          !g_PcConsoleInputActive && !g_PcQuickOptionsActive) ? 1 : 0;
 }
 
 /* OTS/TPS free-aim aim assist.

@@ -476,6 +476,119 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
     }
 }
 
+#ifdef SH_PC_PORT
+/* ---- Quick options overlay (pc_quick_options.c, F9) ----
+ * The overlay drives the SAME rows as the PC Options screen through this
+ * opaque handle API, so labels, value cycling, config saving and live-apply
+ * side effects are this file's code and cannot drift. Looked up by config
+ * key; NULL if a key is not on any page. */
+const void* PcOpt_QuickFind(const char* key)
+{
+    int page, count, i;
+    if (key == NULL)
+        return NULL;
+    for (page = 0; page <= 3; page++) {
+        const s_PcOpt* tbl = PcOpt_PageByIndex(page, &count);
+        for (i = 0; i < count; i++)
+            if (tbl[i].key && strcmp(tbl[i].key, key) == 0)
+                return &tbl[i];
+    }
+    return NULL;
+}
+
+const char* PcOpt_QuickName(const void* h)     { return ((const s_PcOpt*)h)->name; }
+int         PcOpt_QuickRealtime(const void* h) { return ((const s_PcOpt*)h)->realtime; }
+
+const char* PcOpt_QuickLabel(const void* h, char* buf, int bufsz)
+{
+    return PcOpt_ValueLabel((const s_PcOpt*)h, buf, bufsz);
+}
+
+void PcOpt_QuickAdjust(const void* h, int dir)
+{
+    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+    PcOpt_Adjust((const s_PcOpt*)h, dir);
+}
+
+/* Rows the overlay wants that are not in the table: the shadow map size
+ * (launcher / console only until now), the speaker layout and the two PSX
+ * volumes (main Options menu rows). Same apply paths as those screens. */
+enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX };
+
+static const int         QO_SHADOW_SIZES[] = { 256, 512, 1024, 2048, 4096, 8192 };
+static const char* const QO_SPEAKER_LBL[]  = { "Auto", "Stereo", "Quad", "5.1", "7.1" };
+static const char* const QO_SPEAKER_IDS[]  = { "auto", "stereo", "quad", "51", "71" };
+
+const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
+{
+    switch (which) {
+    case QO_X_SHADOW:
+        snprintf(buf, bufsz, "%d x %d", g_PcConfig.shadowMapSize, g_PcConfig.shadowMapSize);
+        return buf;
+    case QO_X_SPEAKERS: {
+        int a = g_PcConfig.audioOutput;
+        return (a >= 0 && a < 5) ? QO_SPEAKER_LBL[a] : "HRTF";
+    }
+    case QO_X_BGM:
+        snprintf(buf, bufsz, "%d / 16", g_GameWork.config.volumeBgm / 8);
+        return buf;
+    case QO_X_SFX:
+        snprintf(buf, bufsz, "%d / 16", g_GameWork.config.volumeSe / 8);
+        return buf;
+    default:
+        return "";
+    }
+}
+
+void PcOpt_QuickExtraAdjust(int which, int dir)
+{
+    char buf[24];
+
+    switch (which) {
+    case QO_X_SHADOW: {
+        extern int g_PsyX_ShadowMapSize;
+        int n = (int)(sizeof(QO_SHADOW_SIZES) / sizeof(QO_SHADOW_SIZES[0]));
+        int i, idx = 2;
+        for (i = 0; i < n; i++)
+            if (QO_SHADOW_SIZES[i] == g_PcConfig.shadowMapSize) { idx = i; break; }
+        idx = (idx + dir + n) % n;
+        g_PcConfig.shadowMapSize = QO_SHADOW_SIZES[idx];
+        g_PsyX_ShadowMapSize     = QO_SHADOW_SIZES[idx]; /* target rebuilds on the next shadow frame */
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.shadowMapSize);
+        PcConfig_SaveKeyValue("shadow_resolution", buf);
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
+    case QO_X_SPEAKERS: {
+        /* Mirrors the main Options "Sound" row: Auto/Stereo/Quad/5.1/7.1,
+         * internal mix pinned to Stereo so surround layouts keep their image. */
+        extern void PsyX_SPUAL_SetOutputMode(int mode);
+        g_PcConfig.audioOutput = (g_PcConfig.audioOutput + dir + 5) % 5;
+        PcConfig_SaveKeyValue("audio_output", QO_SPEAKER_IDS[g_PcConfig.audioOutput]);
+        PsyX_SPUAL_SetOutputMode(g_PcConfig.audioOutput);
+        g_GameWork.config.soundType = 0;
+        SD_Call(AudioMode_Stereo);
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
+    case QO_X_BGM:
+    case QO_X_SFX: {
+        /* 16 notches of 8 over 0..128, exactly the main Options sliders. */
+        s32 vol = (which == QO_X_BGM) ? g_GameWork.config.volumeBgm : g_GameWork.config.volumeSe;
+        s32 nv  = CLAMP(vol + dir * 8, 0, OPT_SOUND_VOLUME_MAX);
+        if (nv == vol) { SD_Call(Sfx_MenuError); break; }
+        if (which == QO_X_BGM) g_GameWork.config.volumeBgm = nv;
+        else                   g_GameWork.config.volumeSe  = nv;
+        Sd_SetVolume(OPT_SOUND_VOLUME_MAX, g_GameWork.config.volumeBgm, g_GameWork.config.volumeSe);
+        SD_Call(Sfx_MenuMove);
+        break;
+    }
+    default:
+        break;
+    }
+}
+#endif
+
 /* Reset one options row to its captured compile-time default, applying the
  * same side effects a manual change would. Resolution and window mode are
  * skipped by the caller (their kinds) so the player is never bumped to 640x480

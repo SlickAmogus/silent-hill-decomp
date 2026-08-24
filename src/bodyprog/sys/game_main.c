@@ -580,7 +580,8 @@ static void Pc_TpsCamera_Apply(void)
          * the exact view you were looking at. Still drain the relative-mouse
          * accumulator (below) so the view doesn't jump when the console closes. */
         extern int g_PcConsoleInputActive;
-        int frozen = g_PcConsoleInputActive;
+        extern int g_PcQuickOptionsActive;
+        int frozen = g_PcConsoleInputActive || g_PcQuickOptionsActive;
 
         SDL_GetRelativeMouseState(&mdx, &mdy);
         if (frozen) { mdx = 0; mdy = 0; }
@@ -1196,7 +1197,8 @@ void DebugCamera_Update(void)
      * cover these direct SDL reads — block them all while typing. */
     {
         extern int g_PcConsoleInputActive;
-        if (g_PcConsoleInputActive) {
+        extern int g_PcQuickOptionsActive;
+        if (g_PcConsoleInputActive || g_PcQuickOptionsActive) {
             /* Keep the alternate (TPS/OTS/FPS) camera applied while the console
              * is open, so the frozen frame shows the exact view you were looking
              * at instead of snapping back to the default game camera. The look
@@ -2148,6 +2150,31 @@ void MainLoop(void) // 0x80032EE0
          * any consumer sees it. Swallow extends past input mode until the
          * submit/exit keys release, so Enter can't leak into the game as
          * Start. */
+        /* Quick options overlay (F9): hand it this frame's pad edges, then
+         * swallow them so nothing underneath reacts. Same spot as the console
+         * suppression below, for the same reason -- later zeroing is
+         * overwritten by the next parse before any consumer sees it. */
+        {
+            extern int  g_PcQuickOptionsActive;
+            extern void Pc_QuickOptions_Update(int, int, int, int, int, int, int, int);
+            if (g_PcQuickOptionsActive) {
+                const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
+                Pc_QuickOptions_Update(
+                    (g_Controller0->pulsedBtnFlags  & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp))    != 0,
+                    (g_Controller0->pulsedBtnFlags  & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown))  != 0,
+                    (g_Controller0->pulsedBtnFlags  & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft))  != 0,
+                    (g_Controller0->pulsedBtnFlags  & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
+                    (g_Controller0->clickedBtnFlags & (cc->enter | cc->action))  != 0,
+                    (g_Controller0->clickedBtnFlags & (cc->cancel | cc->option)) != 0,
+                    (g_Controller0->clickedBtnFlags & ControllerFlag_R1) != 0,
+                    (g_Controller0->clickedBtnFlags & ControllerFlag_L1) != 0);
+                g_Controller0->heldBtnFlags      = 0;
+                g_Controller0->clickedBtnFlags   = 0;
+                g_Controller0->releasedBtnFlags  = 0;
+                g_Controller0->pulsedBtnFlags    = 0;
+                g_Controller0->pulsedGuiBtnFlags = 0;
+            }
+        }
         {
             extern int g_PcConsoleInputActive;
             extern int g_PcConsoleSwallowInput;
@@ -2789,6 +2816,7 @@ void MainLoop(void) // 0x80032EE0
         {
             extern long long GsGetCumulativeQ12(void);
             extern int g_PcConsoleInputActive;
+            extern int g_PcQuickOptionsActive;
 
             #define PC_DT_STEP_30FPS     136 /* (526*1063)>>12: PSX 30fps step in Q12 seconds */
             #define PC_DT_STEP_15FPS     273 /* (1052*1063)>>12: PSX 15fps floor step */
@@ -2803,7 +2831,7 @@ void MainLoop(void) // 0x80032EE0
             s32       dtCapped;
             int       pcInCutscene = (g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
                                      g_SysWork.cutsceneBorderState != CutsceneBorderState_None;
-            int       pcConsoleFrozen = g_PcConsoleInputActive &&
+            int       pcConsoleFrozen = (g_PcConsoleInputActive || g_PcQuickOptionsActive) &&
                                         !(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause) &&
                                         !g_SysWork.isMgsStringSet;
 
@@ -2874,7 +2902,8 @@ void MainLoop(void) // 0x80032EE0
          * is true while a map-message is being displayed — leave dt alone then too. */
         {
             extern int g_PcConsoleInputActive;
-            if (g_PcConsoleInputActive &&
+            extern int g_PcQuickOptionsActive;
+            if ((g_PcConsoleInputActive || g_PcQuickOptionsActive) &&
                 !(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause) &&
                 !g_SysWork.isMgsStringSet) {
                 g_DeltaTime    = 0;

@@ -1745,6 +1745,19 @@ void DbgOverlay_Update(void)
         s_prev_f1 = cur_f1;
     }
 
+    /* F9 toggles the in-game quick options overlay (pc_quick_options.c). A
+     * user-facing menu like F1/F2, so not gated on g_PcAllowDebugControls;
+     * not while the console has the keyboard. */
+    {
+        static int s_prev_f9 = 0;
+        int cur_f9 = ks[SDL_SCANCODE_F9];
+        if (cur_f9 && !s_prev_f9 && !g_PcConsoleInputActive) {
+            extern void Pc_QuickOptions_Toggle(void);
+            Pc_QuickOptions_Toggle();
+        }
+        s_prev_f9 = cur_f9;
+    }
+
     /* F2 cycles the full-screen post-process look (0=Off..8). Like F1/PGXP this
      * is a user-facing graphics option, not a debug feature, so it is NOT gated
      * on g_PcAllowDebugControls. Order must match the post fragment shader. */
@@ -1934,6 +1947,10 @@ void DbgOverlay_Render(void)
     /* In-game randomizer settings panel — same self-contained-GL arrangement,
      * opened by tapping the Map button during a run. */
     { extern void Pc_RandoSettings_Draw(void); Pc_RandoSettings_Draw(); }
+
+    /* In-game quick options overlay (F9) -- same self-contained-GL arrangement,
+     * translucent so live setting changes show through it. */
+    { extern void Pc_QuickOptions_Draw(void); Pc_QuickOptions_Draw(); }
 
     /* Modal Yes/No message box (options-screen "reset to defaults") — same
      * self-contained-GL arrangement; drawn last so it sits over every panel. */
