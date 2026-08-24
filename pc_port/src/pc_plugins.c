@@ -89,6 +89,10 @@ void Pc_Plugins_Init(void)
     }
 
     SH_LOG("[PLUGINS] Active plugins: %d", s_pluginCount);
+    if (g_ShDebugLog && g_ShDebugLog != stdout)
+    {
+        fflush(g_ShDebugLog);
+    }
 }
 
 void Pc_Plugins_Shutdown(void)
