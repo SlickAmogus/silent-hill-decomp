@@ -231,10 +231,16 @@ static void Pc_ManualReloadSample(int sch)
 
 extern void GameFs_WeaponInfoUpdate(void); /* player.h — loads the equipped weapon model/anim */
 
+/* Only the LIVE slots count. The game itself (Player_ItemRemove, the inventory
+ * screen) never looks past inventorySlotCount; slots beyond it keep whatever
+ * a previous save or session left there. Scanning all INV_ITEM_COUNT_MAX
+ * found those ghosts: quick heal "used" a drink that was not in the
+ * inventory (heal + green flash + toast, nothing removed) and weapon cycling
+ * could pick a weapon that was no longer owned. */
 static s32 Pc_FindItemSlot(u8 id)
 {
     s32 i;
-    for (i = 0; i < INV_ITEM_COUNT_MAX; i++)
+    for (i = 0; i < g_SavegamePtr->inventorySlotCount && i < INV_ITEM_COUNT_MAX; i++)
         if (g_SavegamePtr->items[i].id_0 == id) return i;
     return NO_VALUE;
 }
@@ -352,7 +358,7 @@ void Pc_CycleWeapons(void)
 static s32 Pc_HealItemCount(u8 id)
 {
     s32 i;
-    for (i = 0; i < INV_ITEM_COUNT_MAX; i++)
+    for (i = 0; i < g_SavegamePtr->inventorySlotCount && i < INV_ITEM_COUNT_MAX; i++)
         if (g_SavegamePtr->items[i].id_0 == id)
             return g_SavegamePtr->items[i].count_1;
     return 0;
@@ -391,6 +397,14 @@ void Pc_QuickHeal(void)
     }
     if (chosen == InvItemId_Empty) return; /* nothing owned */
 
+    /* Spend the item FIRST, through the game's own removal, and heal only if it
+     * really came out of the inventory. Healing before removing is how a ghost
+     * slot produced a full heal with feedback and no inventory change. */
+    if (!Player_ItemRemove(chosen, 1)) {
+        SH_DBG("[QUICKHEAL] item %d looked owned but Player_ItemRemove found none -- no heal", (int)chosen);
+        return;
+    }
+
     switch (chosen) {
         case InvItemId_FirstAidKit: health += Q12(80.0f);  break;
         case InvItemId_HealthDrink: health += Q12(40.0f);  break;
@@ -398,7 +412,6 @@ void Pc_QuickHeal(void)
     }
     g_SysWork.playerWork.player.health = CLAMP(health, Q12(0.0f), Q12(100.0f));
     Sd_PlaySfx(Sfx_Unk1325, -0x40, 0x40); /* same feedback SFX as the inventory heal */
-    Player_ItemRemove(chosen, 1);
     g_PcHealFlashTimer = Q12(0.35f); /* brief green heal pulse (drawn by Pc_HealFlashUpdate) */
 
     /* Report what was spent and what is left, since quick heal picks the item for
