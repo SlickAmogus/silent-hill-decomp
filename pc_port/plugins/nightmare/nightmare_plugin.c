@@ -11,6 +11,10 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/map/map.h"
 #include "map_registry.h"
+#include "bodyprog/text/text_draw.h"
+#include "bodyprog/text/text_debug_draw.h"
+#include "bodyprog/sound/sound_system.h"
+#include "screens/options.h"
 
 #define SH_LOG(fmt, ...) printf("[NIGHTMARE] " fmt "\n", ##__VA_ARGS__)
 
@@ -83,6 +87,387 @@ static void Plugin_LoadNightmareConfig(void)
     fclose(f);
 }
 
+#ifdef _WIN32
+static void InstallHook64(void* target, void* replacement)
+{
+    if (!target || !replacement) return;
+    DWORD oldProtect;
+    if (VirtualProtect(target, 14, PAGE_EXECUTE_READWRITE, &oldProtect))
+    {
+        unsigned char jmpCode[14] = {
+            0xFF, 0x25, 0x00, 0x00, 0x00, 0x00, /* jmp qword ptr [rip + 0] */
+            0, 0, 0, 0, 0, 0, 0, 0              /* 64-bit target address */
+        };
+        *(uintptr_t*)(&jmpCode[6]) = (uintptr_t)replacement;
+        memcpy(target, jmpCode, 14);
+        VirtualProtect(target, 14, oldProtect, &oldProtect);
+        FlushInstructionCache(GetCurrentProcess(), target, 14);
+    }
+}
+#endif
+
+typedef struct {
+    const char* label;
+    const char* keyCfg;
+    const char* padCfg;
+    size_t      keyOff;
+    size_t      padOff;
+} Plugin_PcControlAction;
+
+#define CTRL_OFF_KEY(f) offsetof(ControlScheme, f)
+#define CTRL_OFF_PAD(f) offsetof(ControlScheme, f)
+
+static const Plugin_PcControlAction PLUGIN_CONTROL_ACTIONS[] = {
+    { "FORWARD",     "key_up",         "pad_up",         CTRL_OFF_KEY(keyUp),        0 },
+    { "BACKWARD",    "key_down",       "pad_down",       CTRL_OFF_KEY(keyDown),      0 },
+    { "TURN LEFT",   "key_left",       "pad_left",       CTRL_OFF_KEY(keyLeft),      0 },
+    { "TURN RIGHT",  "key_right",      "pad_right",      CTRL_OFF_KEY(keyRight),     0 },
+    { "STRAFE L",    "key_l1",         "pad_l1",         CTRL_OFF_KEY(keyL1),        CTRL_OFF_PAD(padL1) },
+    { "STRAFE R",    "key_r1",         "pad_r1",         CTRL_OFF_KEY(keyR1),        CTRL_OFF_PAD(padR1) },
+    { "ACTION",      "key_cross",      "pad_cross",      CTRL_OFF_KEY(keyCross),     CTRL_OFF_PAD(padCross) },
+    { "AIM",         "key_r2",         "pad_r2",         CTRL_OFF_KEY(keyR2),        CTRL_OFF_PAD(padR2) },
+    { "LIGHT",       "key_circle",     "pad_circle",     CTRL_OFF_KEY(keyCircle),    CTRL_OFF_PAD(padCircle) },
+    { "RUN",         "key_square",     "pad_square",     CTRL_OFF_KEY(keySquare),    CTRL_OFF_PAD(padSquare) },
+    { "VIEW",        "key_l2",         "pad_l2",         CTRL_OFF_KEY(keyL2),        CTRL_OFF_PAD(padL2) },
+    { "ITEM",        "key_select",     "pad_select",     CTRL_OFF_KEY(keySelect),    CTRL_OFF_PAD(padSelect) },
+    { "MAP",         "key_triangle",   "pad_triangle",   CTRL_OFF_KEY(keyTriangle),  CTRL_OFF_PAD(padTriangle) },
+    { "PAUSE",       "key_start",      "pad_start",      CTRL_OFF_KEY(keyStart),     CTRL_OFF_PAD(padStart) },
+    { "RELOAD",      "key_reload",     "pad_reload",     CTRL_OFF_KEY(keyReload),    CTRL_OFF_PAD(padReload) },
+    { "QUICK TURN",  "key_quick_turn", "pad_quick_turn", CTRL_OFF_KEY(keyQuickTurn), CTRL_OFF_PAD(padQuickTurn) },
+    { "QUICK HEAL",  "key_quick_heal", "pad_quick_heal", CTRL_OFF_KEY(keyQuickHeal), CTRL_OFF_PAD(padQuickHeal) }
+};
+
+#define PLUGIN_CONTROL_ACTION_COUNT ((s32)(sizeof(PLUGIN_CONTROL_ACTIONS) / sizeof(PLUGIN_CONTROL_ACTIONS[0])))
+
+static s32 s_pcCtrlTargetMode     = 0; /* 0 = Keyboard, 1 = Gamepad */
+static s32 s_pcCtrlSelectedAction = 0;
+static s32 s_pcCtrlLeftRow        = 0; /* 0 = Exit, 1 = Mode, 2 = Reset Defaults */
+static s32 s_pcCtrlIsOnRightPane  = 0;
+static s32 s_pcCtrlIsWaitingInput = 0;
+static s32 s_pcCtrlWaitTimer      = 0;
+
+static const char* Plugin_FormatBindName(const char* raw, int mode)
+{
+    if (!raw || raw[0] == '\0' || strcmp(raw, "NONE") == 0) return "---";
+    if (mode == 0)
+    {
+        if (strcmp(raw, "Return") == 0) return "ENTER";
+        if (strcmp(raw, "Left Shift") == 0) return "LSHIFT";
+        if (strcmp(raw, "Right Shift") == 0) return "RSHIFT";
+        if (strcmp(raw, "Left Ctrl") == 0) return "LCTRL";
+        if (strcmp(raw, "Right Ctrl") == 0) return "RCTRL";
+        if (strcmp(raw, "Left Alt") == 0) return "LALT";
+        if (strcmp(raw, "Right Alt") == 0) return "RALT";
+        if (strcmp(raw, "Space") == 0) return "SPACE";
+        if (strcmp(raw, "Up") == 0) return "UP ARROW";
+        if (strcmp(raw, "Down") == 0) return "DOWN ARROW";
+        if (strcmp(raw, "Left") == 0) return "LEFT ARROW";
+        if (strcmp(raw, "Right") == 0) return "RIGHT ARROW";
+    }
+    else
+    {
+        if (strcmp(raw, "a") == 0) return "A";
+        if (strcmp(raw, "b") == 0) return "B";
+        if (strcmp(raw, "x") == 0) return "X";
+        if (strcmp(raw, "y") == 0) return "Y";
+        if (strcmp(raw, "leftshoulder") == 0) return "LB";
+        if (strcmp(raw, "rightshoulder") == 0) return "RB";
+        if (strcmp(raw, "lefttrigger") == 0) return "LT";
+        if (strcmp(raw, "righttrigger") == 0) return "RT";
+        if (strcmp(raw, "back") == 0) return "BACK";
+        if (strcmp(raw, "start") == 0) return "START";
+        if (strcmp(raw, "leftstick") == 0) return "LS CLICK";
+        if (strcmp(raw, "rightstick") == 0) return "RS CLICK";
+        if (strcmp(raw, "dpup") == 0) return "D-PAD UP";
+        if (strcmp(raw, "dpdown") == 0) return "D-PAD DOWN";
+        if (strcmp(raw, "dpleft") == 0) return "D-PAD LEFT";
+        if (strcmp(raw, "dpright") == 0) return "D-PAD RIGHT";
+    }
+    return raw;
+}
+
+static const char* Plugin_CaptureKey(void)
+{
+#ifdef _WIN32
+    for (int vk = 1; vk < 256; vk++)
+    {
+        if (GetAsyncKeyState(vk) & 0x8000)
+        {
+            if (vk == VK_ESCAPE) return NULL;
+            if (vk == VK_RETURN) return "Return";
+            if (vk == VK_SPACE) return "Space";
+            if (vk == VK_LSHIFT) return "Left Shift";
+            if (vk == VK_RSHIFT) return "Right Shift";
+            if (vk == VK_LCONTROL) return "Left Ctrl";
+            if (vk == VK_RCONTROL) return "Right Ctrl";
+            if (vk == VK_LMENU) return "Left Alt";
+            if (vk == VK_RMENU) return "Right Alt";
+            if (vk == VK_UP) return "Up";
+            if (vk == VK_DOWN) return "Down";
+            if (vk == VK_LEFT) return "Left";
+            if (vk == VK_RIGHT) return "Right";
+            if (vk >= 'A' && vk <= 'Z')
+            {
+                static char s_keyChar[2] = {0};
+                s_keyChar[0] = (char)vk;
+                return s_keyChar;
+            }
+            if (vk >= '0' && vk <= '9')
+            {
+                static char s_numChar[2] = {0};
+                s_numChar[0] = (char)vk;
+                return s_numChar;
+            }
+        }
+    }
+#endif
+    return NULL;
+}
+
+static const char* Plugin_CapturePad(void)
+{
+    if (g_Controller0->pulsedBtnFlags & ControllerFlag_Cross) return "a";
+    if (g_Controller0->pulsedBtnFlags & ControllerFlag_Circle) return "b";
+    if (g_Controller0->pulsedBtnFlags & ControllerFlag_Square) return "x";
+    if (g_Controller0->pulsedBtnFlags & ControllerFlag_Triangle) return "y";
+    if (g_Controller0->pulsedBtnFlags & ControllerFlag_L1) return "leftshoulder";
+    if (g_Controller0->pulsedBtnFlags & ControllerFlag_R1) return "rightshoulder";
+    if (g_Controller0->pulsedBtnFlags & ControllerFlag_L2) return "lefttrigger";
+    if (g_Controller0->pulsedBtnFlags & ControllerFlag_R2) return "righttrigger";
+    if (g_Controller0->pulsedBtnFlags & ControllerFlag_Select) return "back";
+    if (g_Controller0->pulsedBtnFlags & ControllerFlag_Start) return "start";
+    return NULL;
+}
+
+static void Plugin_ControllerMenu_EntriesDraw(bool isOnRightPane, s32 presetsEntryIdx, s32 actionsEntryIdx, s32 boundActionIdx)
+{
+    const ControlScheme* scheme = &g_PcConfig.classic;
+    s32 i;
+
+    /* Left Pane */
+    const char* LEFT_LABELS[4] = { "EXIT", "KEYBOARD", "GAMEPAD", "RESET" };
+
+    for (i = 0; i < 4; i++)
+    {
+        if (!s_pcCtrlIsOnRightPane && s_pcCtrlLeftRow == i)
+            Gfx_StringSetColor(StringColorId_Gold);
+        else if ((i == 1 && s_pcCtrlTargetMode == 0) || (i == 2 && s_pcCtrlTargetMode == 1))
+            Gfx_StringSetColor(StringColorId_Gold);
+        else
+            Gfx_StringSetColor(StringColorId_White);
+
+        Gfx_StringSetPosition(8, 22 + (i * 22));
+        Gfx_StringDraw(LEFT_LABELS[i], 16);
+    }
+
+    /* Right Pane Actions List */
+    for (i = 0; i < PLUGIN_CONTROL_ACTION_COUNT; i++)
+    {
+        s32 y = 22 + (i * 11);
+        bool isRowSelected = (s_pcCtrlIsOnRightPane && s_pcCtrlSelectedAction == i);
+
+        Text_Debug_PositionSet(135, y);
+        Text_Debug_Draw(PLUGIN_CONTROL_ACTIONS[i].label);
+
+        Text_Debug_PositionSet(226, y);
+        if (isRowSelected && s_pcCtrlIsWaitingInput)
+        {
+            if ((g_SysWork.counters_1C[0] & 0x10) != 0)
+                Text_Debug_Draw(s_pcCtrlTargetMode == 0 ? "[PRESS KEY]" : "[PRESS BTN]");
+            else
+                Text_Debug_Draw("           ");
+        }
+        else
+        {
+            const char* rawVal = NULL;
+            if (s_pcCtrlTargetMode == 0)
+                rawVal = (const char*)scheme + PLUGIN_CONTROL_ACTIONS[i].keyOff;
+            else
+            {
+                if (PLUGIN_CONTROL_ACTIONS[i].padOff != 0)
+                    rawVal = (const char*)scheme + PLUGIN_CONTROL_ACTIONS[i].padOff;
+                else
+                    rawVal = "STICK/DPAD";
+            }
+
+            const char* val = Plugin_FormatBindName(rawVal, s_pcCtrlTargetMode);
+            char buf[16];
+            s32 n;
+            for (n = 0; n < (s32)sizeof(buf) - 1 && val[n] != '\0'; n++)
+            {
+                unsigned char c = (unsigned char)toupper((unsigned char)val[n]);
+                buf[n] = (c >= '*' && c <= 'i') ? (char)c : ' ';
+            }
+            buf[n] = '\0';
+            Text_Debug_Draw(buf);
+        }
+
+        if (isRowSelected && !s_pcCtrlIsWaitingInput)
+        {
+            Text_Debug_PositionSet(126, y);
+            Text_Debug_Draw(">");
+        }
+    }
+}
+
+static void Plugin_ControllerMenu_Control(void)
+{
+    ControlScheme* activeScheme = &g_PcConfig.classic;
+
+    if (g_GameWork.gameStateSteps[1] == ControllerMenuState_Leave)
+    {
+        g_GameWork.gameStateSteps[0] = OptionsMenuState_LeaveController;
+        g_SysWork.counters_1C[1]     = 0;
+        g_GameWork.gameStateSteps[1] = 0;
+        g_GameWork.gameStateSteps[2] = 0;
+        return;
+    }
+
+    if (s_pcCtrlIsWaitingInput)
+    {
+        if (s_pcCtrlWaitTimer > 0)
+        {
+            s_pcCtrlWaitTimer--;
+        }
+        else
+        {
+#ifdef _WIN32
+            if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
+            {
+                SD_Call(Sfx_MenuCancel);
+                s_pcCtrlIsWaitingInput = 0;
+                return;
+            }
+#endif
+
+            if (s_pcCtrlTargetMode == 0)
+            {
+                const char* newKey = Plugin_CaptureKey();
+                if (newKey && newKey[0] != '\0')
+                {
+                    char* dstField = (char*)activeScheme + PLUGIN_CONTROL_ACTIONS[s_pcCtrlSelectedAction].keyOff;
+                    strncpy(dstField, newKey, 23);
+                    dstField[23] = '\0';
+
+                    PcConfig_SaveKeyValue(PLUGIN_CONTROL_ACTIONS[s_pcCtrlSelectedAction].keyCfg, newKey);
+                    SD_Call(Sfx_MenuConfirm);
+                    s_pcCtrlIsWaitingInput = 0;
+                }
+            }
+            else
+            {
+                if (PLUGIN_CONTROL_ACTIONS[s_pcCtrlSelectedAction].padOff != 0)
+                {
+                    const char* newPad = Plugin_CapturePad();
+                    if (newPad && newPad[0] != '\0')
+                    {
+                        char* dstField = (char*)activeScheme + PLUGIN_CONTROL_ACTIONS[s_pcCtrlSelectedAction].padOff;
+                        strncpy(dstField, newPad, 23);
+                        dstField[23] = '\0';
+
+                        PcConfig_SaveKeyValue(PLUGIN_CONTROL_ACTIONS[s_pcCtrlSelectedAction].padCfg, newPad);
+                        SD_Call(Sfx_MenuConfirm);
+                        s_pcCtrlIsWaitingInput = 0;
+                    }
+                }
+                else
+                {
+                    SD_Call(Sfx_MenuMove);
+                    s_pcCtrlIsWaitingInput = 0;
+                }
+            }
+        }
+        Plugin_ControllerMenu_EntriesDraw(s_pcCtrlIsOnRightPane, s_pcCtrlLeftRow, s_pcCtrlSelectedAction, NO_VALUE);
+        return;
+    }
+
+    /* Navigation */
+    if (!s_pcCtrlIsOnRightPane)
+    {
+        if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickUp)
+        {
+            s_pcCtrlLeftRow = (s_pcCtrlLeftRow + 3) % 4;
+            if (s_pcCtrlLeftRow == 1) s_pcCtrlTargetMode = 0;
+            if (s_pcCtrlLeftRow == 2) s_pcCtrlTargetMode = 1;
+            SD_Call(Sfx_MenuMove);
+        }
+        else if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickDown)
+        {
+            s_pcCtrlLeftRow = (s_pcCtrlLeftRow + 1) % 4;
+            if (s_pcCtrlLeftRow == 1) s_pcCtrlTargetMode = 0;
+            if (s_pcCtrlLeftRow == 2) s_pcCtrlTargetMode = 1;
+            SD_Call(Sfx_MenuMove);
+        }
+        else if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickRight)
+        {
+            s_pcCtrlIsOnRightPane = 1;
+            SD_Call(Sfx_MenuMove);
+        }
+        else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
+        {
+            if (s_pcCtrlLeftRow == 0)
+            {
+                SD_Call(Sfx_MenuCancel);
+                g_GameWork.gameStateSteps[1] = ControllerMenuState_Leave;
+                g_GameWork.gameStateSteps[2] = 0;
+                return;
+            }
+            else if (s_pcCtrlLeftRow == 1)
+            {
+                s_pcCtrlTargetMode    = 0;
+                s_pcCtrlIsOnRightPane = 1;
+                SD_Call(Sfx_MenuConfirm);
+            }
+            else if (s_pcCtrlLeftRow == 2)
+            {
+                s_pcCtrlTargetMode    = 1;
+                s_pcCtrlIsOnRightPane = 1;
+                SD_Call(Sfx_MenuConfirm);
+            }
+        }
+        else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel)
+        {
+            SD_Call(Sfx_MenuCancel);
+            g_GameWork.gameStateSteps[1] = ControllerMenuState_Leave;
+            g_GameWork.gameStateSteps[2] = 0;
+            return;
+        }
+    }
+    else
+    {
+        if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickUp)
+        {
+            s_pcCtrlSelectedAction = (s_pcCtrlSelectedAction + PLUGIN_CONTROL_ACTION_COUNT - 1) % PLUGIN_CONTROL_ACTION_COUNT;
+            SD_Call(Sfx_MenuMove);
+        }
+        else if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickDown)
+        {
+            s_pcCtrlSelectedAction = (s_pcCtrlSelectedAction + 1) % PLUGIN_CONTROL_ACTION_COUNT;
+            SD_Call(Sfx_MenuMove);
+        }
+        else if (g_Controller0->pulsedGuiBtnFlags & ControllerFlag_LStickLeft)
+        {
+            s_pcCtrlIsOnRightPane = 0;
+            s_pcCtrlLeftRow       = (s_pcCtrlTargetMode == 0) ? 1 : 2;
+            SD_Call(Sfx_MenuMove);
+        }
+        else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
+        {
+            s_pcCtrlIsWaitingInput = 1;
+            s_pcCtrlWaitTimer      = 12;
+            SD_Call(Sfx_MenuConfirm);
+        }
+        else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel)
+        {
+            s_pcCtrlIsOnRightPane = 0;
+            s_pcCtrlLeftRow       = (s_pcCtrlTargetMode == 0) ? 1 : 2;
+            SD_Call(Sfx_MenuMove);
+        }
+    }
+
+    Plugin_ControllerMenu_EntriesDraw(s_pcCtrlIsOnRightPane, s_pcCtrlLeftRow, s_pcCtrlSelectedAction, NO_VALUE);
+}
+
 PLUGIN_EXPORT const char* SH_Plugin_GetName(void)
 {
     return "Nightmare Mode Overhaul";
@@ -99,6 +484,22 @@ PLUGIN_EXPORT void SH_Plugin_Init(void)
     Plugin_LoadNightmareConfig();
     ApplyShadowStalkerModelOverrides();
     Patch_HideHealthStatus();
+
+#ifdef _WIN32
+    void* pCtrl = (void*)GetProcAddress(GetModuleHandleA(NULL), "Options_ControllerMenu_Control");
+    if (pCtrl)
+    {
+        InstallHook64(pCtrl, (void*)Plugin_ControllerMenu_Control);
+        SH_LOG("[NIGHTMARE_PLUGIN] Hooked Options_ControllerMenu_Control -> Revamped UI");
+    }
+
+    void* pDraw = (void*)GetProcAddress(GetModuleHandleA(NULL), "Options_ControllerMenu_EntriesDraw");
+    if (pDraw)
+    {
+        InstallHook64(pDraw, (void*)Plugin_ControllerMenu_EntriesDraw);
+        SH_LOG("[NIGHTMARE_PLUGIN] Hooked Options_ControllerMenu_EntriesDraw -> Revamped UI");
+    }
+#endif
 }
 
 PLUGIN_EXPORT void SH_Plugin_OnNewGame(void)
