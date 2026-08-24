@@ -579,13 +579,44 @@ static void qo_activate(const QoRowDef* r, int dir)
     }
 }
 
+/* Directions arrive as HELD state and repeat on the wall clock here. The
+ * pad's own pulse repeat counts vblanks per rendered frame, so with an
+ * uncapped frame rate a held arrow stepped every few milliseconds. */
+#define QO_REPEAT_FIRST_MS 380u
+#define QO_REPEAT_MS       85u
+static int qo_repeat(int idx, int held)
+{
+    static int    s_wasHeld[4];
+    static Uint32 s_nextAt[4];
+    Uint32 now = SDL_GetTicks();
+    int fire = 0;
+
+    if (held && !s_wasHeld[idx])
+    {
+        fire = 1;
+        s_nextAt[idx] = now + QO_REPEAT_FIRST_MS;
+    }
+    else if (held && (Sint32)(now - s_nextAt[idx]) >= 0)
+    {
+        fire = 1;
+        s_nextAt[idx] = now + QO_REPEAT_MS;
+    }
+    s_wasHeld[idx] = held;
+    return fire;
+}
+
 void Pc_QuickOptions_Update(int up, int down, int left, int right,
                             int confirm, int close, int pageNext, int pagePrev)
 {
     int nRows;
     const QoRowDef* rows = qo_page_rows(s_page, &nRows);
-    int mMoved, mClick, wheel;
+    int mMoved, mClick, mRClick, wheel;
     float mx, my;
+
+    up    = qo_repeat(0, up);
+    down  = qo_repeat(1, down);
+    left  = qo_repeat(2, left);
+    right = qo_repeat(3, right);
 
     qo_phase_tick();
 
@@ -606,10 +637,12 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     if (up)   { s_sel = (s_sel + nRows - 1) % nRows; }
     if (down) { s_sel = (s_sel + 1) % nRows; }
 
-    /* Mouse: hover selects, wheel adjusts, click cycles a value / runs an action. */
-    mMoved = Pc_MouseCursor_Moved();
-    mClick = Pc_MouseCursor_LeftClicked();
-    wheel  = Pc_MouseCursor_WheelStep();
+    /* Mouse: hover selects, wheel adjusts, left click steps a value up (or
+     * runs an action), right click steps it down. */
+    mMoved  = Pc_MouseCursor_Moved();
+    mClick  = Pc_MouseCursor_LeftClicked();
+    mRClick = Pc_MouseCursor_RightClicked();
+    wheel   = Pc_MouseCursor_WheelStep();
     if (Pc_MouseCursor_ViewportPos(&mx, &my) && s_geoRowPitch > 0.0f)
     {
         float py  = (1.0f - my) * s_vpH; /* top-left norm -> bottom-left px */
@@ -620,6 +653,8 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         {
             if (mMoved) s_sel = row;
             if (mClick) { s_sel = row; qo_activate(&rows[row], +1); }
+            if (mRClick && (rows[row].kind == ROW_OPT || rows[row].kind == ROW_EXTRA))
+            { s_sel = row; qo_activate(&rows[row], -1); }
             if (wheel && (rows[row].kind == ROW_OPT || rows[row].kind == ROW_EXTRA))
                 qo_activate(&rows[row], wheel > 0 ? +1 : -1);
         }

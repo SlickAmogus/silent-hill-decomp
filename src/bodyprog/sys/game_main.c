@@ -2163,10 +2163,10 @@ void MainLoop(void) // 0x80032EE0
             if (g_PcQuickOptionsActive) {
                 const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
                 Pc_QuickOptions_Update(
-                    (g_Controller0->pulsedBtnFlags  & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp))    != 0,
-                    (g_Controller0->pulsedBtnFlags  & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown))  != 0,
-                    (g_Controller0->pulsedBtnFlags  & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft))  != 0,
-                    (g_Controller0->pulsedBtnFlags  & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
+                    (g_Controller0->heldBtnFlags    & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp))    != 0,
+                    (g_Controller0->heldBtnFlags    & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown))  != 0,
+                    (g_Controller0->heldBtnFlags    & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft))  != 0,
+                    (g_Controller0->heldBtnFlags    & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
                     (g_Controller0->clickedBtnFlags & (cc->enter | cc->action))  != 0,
                     (g_Controller0->clickedBtnFlags & (cc->cancel | cc->option)) != 0,
                     (g_Controller0->clickedBtnFlags & ControllerFlag_R1) != 0,
