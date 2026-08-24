@@ -30,6 +30,7 @@
 #include "pc_quick_options.h"
 #include "pc_mouse_cursor.h"
 #include "pc_config.h"
+#include "pc_cheats.h"
 #include "sh_log.h"
 
 /* options.c: the live-applying rows of the PC Options screen, by config key. */
@@ -45,21 +46,24 @@ extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 
 #define QO_GARBAGE  48
 #define QO_MAX_ROWS 16
-#define QO_PAGES    2
+#define QO_PAGES    4
 
 /* ------------------------------------------------------------------ */
 /* Rows                                                                */
 /* ------------------------------------------------------------------ */
 
-enum { ROW_OPT = 0, ROW_EXTRA, ROW_PAGE, ROW_CLOSE };
+enum { ROW_OPT = 0, ROW_EXTRA, ROW_PAGE, ROW_CLOSE, ROW_CHEAT };
 
 typedef struct
 {
     int         kind;   /* ROW_* */
     const char* key;    /* ROW_OPT: config key looked up in options.c */
-    int         extra;  /* ROW_EXTRA: QO_X_* */
+    int         extra;  /* ROW_EXTRA: QO_X_*; ROW_CHEAT: row index */
     const char* label;  /* ROW_EXTRA / ROW_PAGE / ROW_CLOSE display name */
+    int         cpage;  /* ROW_CHEAT: PC_CHEATS_PAGE_* */
 } QoRowDef;
+
+#define QO_IS_VALUE_ROW(k) ((k) == ROW_OPT || (k) == ROW_EXTRA || (k) == ROW_CHEAT)
 
 static const QoRowDef s_page0[] = {
     { ROW_OPT,   "psx_dither",           0, NULL },  /* Texture_Filter */
@@ -87,18 +91,49 @@ static const QoRowDef s_page1[] = {
     { ROW_EXTRA, NULL, QO_X_BGM,            "Music Volume" },
     { ROW_EXTRA, NULL, QO_X_SFX,            "Effects Volume" },
     { ROW_OPT,   "fmv_volume",           0, NULL },
-    { ROW_PAGE,  NULL, 0,                   "Next page  (Graphics)" },
+    { ROW_PAGE,  NULL, 0,                   "Next page  (Cheats)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
 };
+
+/* Pages 2/3 mirror pc_cheats.c's tables, built on first use. */
+static QoRowDef s_cheatRows[2][QO_MAX_ROWS];
+static int      s_cheatRowCount[2];
+
+static const QoRowDef* qo_cheat_page(int cpage, const char* nextLabel, int* count)
+{
+    if (s_cheatRowCount[cpage] == 0)
+    {
+        int n = Pc_Cheats_Count(cpage), i, k = 0;
+        if (n > QO_MAX_ROWS - 2) n = QO_MAX_ROWS - 2;
+        for (i = 0; i < n; i++)
+        {
+            s_cheatRows[cpage][k].kind  = ROW_CHEAT;
+            s_cheatRows[cpage][k].key   = NULL;
+            s_cheatRows[cpage][k].extra = i;
+            s_cheatRows[cpage][k].label = NULL;
+            s_cheatRows[cpage][k].cpage = cpage;
+            k++;
+        }
+        s_cheatRows[cpage][k].kind = ROW_PAGE;  s_cheatRows[cpage][k].label = nextLabel; k++;
+        s_cheatRows[cpage][k].kind = ROW_CLOSE; s_cheatRows[cpage][k].label = "Close";   k++;
+        s_cheatRowCount[cpage] = k;
+    }
+    *count = s_cheatRowCount[cpage];
+    return s_cheatRows[cpage];
+}
 
 static const QoRowDef* qo_page_rows(int page, int* count)
 {
     if (page == 1) { *count = (int)(sizeof(s_page1) / sizeof(s_page1[0])); return s_page1; }
+    if (page == 2) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
+    if (page == 3) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Graphics)", count);
     *count = (int)(sizeof(s_page0) / sizeof(s_page0[0]));
     return s_page0;
 }
 
-static const char* const s_pageTitles[QO_PAGES] = { "QUICK OPTIONS  -  GRAPHICS", "QUICK OPTIONS  -  HUD & AUDIO" };
+static const char* const s_pageTitles[QO_PAGES] = {
+    "QUICK OPTIONS  -  GRAPHICS", "QUICK OPTIONS  -  HUD & AUDIO",
+    "QUICK OPTIONS  -  CHEATS",   "QUICK OPTIONS  -  DEBUG" };
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -442,6 +477,8 @@ static void qo_row_name(const QoRowDef* r, char* out, int n)
         const void* h = PcOpt_QuickFind(r->key);
         src = h ? PcOpt_QuickName(h) : r->key;
     }
+    else if (r->kind == ROW_CHEAT)
+        src = Pc_Cheats_Name(r->cpage, r->extra);
     else
         src = r->label;
 
@@ -470,6 +507,10 @@ static void qo_row_value(const QoRowDef* r, char* out, int n)
     else if (r->kind == ROW_EXTRA)
     {
         snprintf(out, (size_t)n, "%s", PcOpt_QuickExtraLabel(r->extra, buf, (int)sizeof(buf)));
+    }
+    else if (r->kind == ROW_CHEAT)
+    {
+        snprintf(out, (size_t)n, "%s", Pc_Cheats_Label(r->cpage, r->extra, buf, (int)sizeof(buf)));
     }
 }
 
@@ -573,6 +614,7 @@ static void qo_activate(const QoRowDef* r, int dir)
             break;
         }
         case ROW_EXTRA: PcOpt_QuickExtraAdjust(r->extra, dir); break;
+        case ROW_CHEAT: Pc_Cheats_Adjust(r->cpage, r->extra, dir); break;
         case ROW_PAGE:  qo_set_page(s_page + 1); break;
         case ROW_CLOSE: Pc_QuickOptions_Close(); break;
         default: break;
@@ -653,14 +695,14 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         {
             if (mMoved) s_sel = row;
             if (mClick) { s_sel = row; qo_activate(&rows[row], +1); }
-            if (mRClick && (rows[row].kind == ROW_OPT || rows[row].kind == ROW_EXTRA))
+            if (mRClick && QO_IS_VALUE_ROW(rows[row].kind))
             { s_sel = row; qo_activate(&rows[row], -1); }
-            if (wheel && (rows[row].kind == ROW_OPT || rows[row].kind == ROW_EXTRA))
+            if (wheel && QO_IS_VALUE_ROW(rows[row].kind))
                 qo_activate(&rows[row], wheel > 0 ? +1 : -1);
         }
     }
 
-    if (rows[s_sel].kind == ROW_OPT || rows[s_sel].kind == ROW_EXTRA)
+    if (QO_IS_VALUE_ROW(rows[s_sel].kind))
     {
         if (left)  qo_activate(&rows[s_sel], -1);
         if (right) qo_activate(&rows[s_sel], +1);
@@ -826,7 +868,7 @@ void Pc_QuickOptions_Draw(void)
             s_texLabel[i] = qo_bake(txt, (float)px, &s_labelW[i], &s_labelH[i]);
         }
 
-        if (r->kind == ROW_OPT || r->kind == ROW_EXTRA)
+        if (QO_IS_VALUE_ROW(r->kind))
         {
             qo_row_value(r, txt, (int)sizeof(txt));
             if (s_texValue[i] == 0 || strcmp(txt, s_valueText[i]) != 0)

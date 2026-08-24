@@ -139,22 +139,21 @@ Require `allow_debug_controls = 1`. (In-game references: `debug` / `debug 2`.)
 | `K` / `,` `.` | Keyframe inspector; scrub (hold = faster). |
 | `L` | Log the FPS-camera eye offset (for baking `g_PcFpsOffset`). |
 
-**Debug camera** (numpad)
+**Free camera** (also the quick options menu's Cheats page, no dev controls needed there)
 
 | Key | Action |
 |---|---|
-| `Num *` | Free debug camera on/off. |
+| `Num *` | Free camera on/off. Harry stays where he was; his input is ignored while it is on. |
+| Mouse | Look (mouse sensitivity / invert follow the control settings). |
+| `W/A/S/D` | Fly forward / left / back / right, along the view direction. |
+| `Space` / `C` | Move up / down. |
+| `Shift` / `Ctrl` | Fast / slow. |
 | `Num 2` | Third-person chase cam (mouse look). |
-| `Num 8/5/4/6` | Fly forward / back / strafe left / right. |
-| `Num 7 / 9` | Turn left / right. |
-| `Num + / -` | Tilt up / down. |
-| `PgUp / PgDn` | Move up / down. |
-| `Num /` | Print camera coordinates to the log. |
 | `Num 3` | Reset cam nudge / in-game rescue teleport. |
 | `Num 0` | Raw cam mode (zero all nudges). |
 | `Num .` | Log Harry position. |
 
-With the debug cam **off**, the same numpad keys nudge the normal game camera
+With the free camera **off**, the numpad keys nudge the normal game camera
 (live camera-tuning aid).
 
 ---

@@ -1170,6 +1170,115 @@ static int Kf_HoldRepeat(int cur, int prev, Uint32* pressMs, Uint32* lastMs)
     return 0;
 }
 
+/* ---- Free camera (Numpad * / quick options "Free camera") -------------
+ * Mouse look + W/A/S/D, Space up, C down, Shift fast, Ctrl slow. Harry stays
+ * frozen where he was (his pad input is swallowed while it is on, see the
+ * pad-suppression block in MainLoop) so the keys fly the camera only. Shared
+ * by the key and the quick options row, and applied on every early-return
+ * path of DebugCamera_Update so it also works with debug keys off and holds
+ * its view while the quick options / console are open. */
+#define FC_MOVE_SPEED  192  /* Q12 units per 60 fps frame */
+#define FC_VERT_SPEED  128
+#define FC_MOUSE_YAW   6    /* Q12 angle units per mouse pixel */
+#define FC_MOUSE_PITCH 4
+#define FC_PITCH_MAX   900  /* ~79 degrees either way */
+
+void Pc_FreeCam_Set(int on)
+{
+    on = on ? 1 : 0;
+    if (on == g_DebugCamEnabled)
+        return;
+    g_DebugCamEnabled = on;
+    if (on) {
+        /* Start from the current camera so switching on is seamless. */
+        vcGetNowCamPos(&g_DebugCamPos);
+        g_DebugCamAngleY = g_SysWork.cameraAngleY;
+        g_DebugCamAngleX = 0;
+        g_DebugCamInited = 1;
+        g_DebugCamSavedHarryPos  = g_SysWork.playerWork.player.position;
+        g_DebugCamSavedHarryPosY = g_SysWork.playerWork.player.properties.player.groundHeight;
+        SDL_GetRelativeMouseState(NULL, NULL); /* drop travel accumulated before capture */
+        SH_DBG_ECHO("[FREECAM] on -- mouse look, W/A/S/D move, Space/C up/down, Shift fast, Ctrl slow");
+    } else {
+        g_SysWork.playerWork.player.position = g_DebugCamSavedHarryPos;
+        g_SysWork.playerWork.player.properties.player.groundHeight = g_DebugCamSavedHarryPosY;
+        g_SysWork.playerWork.player.model.anim.flags |= AnimFlag_Visible;
+        g_SysWork.playerWork.extra.model.anim.flags |= AnimFlag_Visible;
+        SH_DBG_ECHO("[FREECAM] off");
+    }
+}
+
+static void Pc_FreeCam_Input(void)
+{
+    const unsigned char* ks = g_sdlKeyboardState;
+    int   mdx = 0, mdy = 0;
+    float ms  = g_PcConfig.mouseSensitivity;
+    s32   spd, vspd, sinY, cosY, fwd, dy;
+
+    if (!ks)
+        return;
+
+    SDL_GetRelativeMouseState(&mdx, &mdy);
+    g_DebugCamAngleY = (g_DebugCamAngleY + (s32)(mdx * FC_MOUSE_YAW * ms)) & 0xFFF;
+    {
+        /* AngleX positive = looking down; mouse up (mdy < 0) looks up. */
+        s32 dp = (s32)(mdy * FC_MOUSE_PITCH * ms);
+        g_DebugCamAngleX += g_PcConfig.invertMouseY ? -dp : dp;
+        if (g_DebugCamAngleX >  FC_PITCH_MAX) g_DebugCamAngleX =  FC_PITCH_MAX;
+        if (g_DebugCamAngleX < -FC_PITCH_MAX) g_DebugCamAngleX = -FC_PITCH_MAX;
+    }
+
+    spd  = TIMESTEP_SCALE_60_FPS(g_DeltaTime, FC_MOVE_SPEED);
+    vspd = TIMESTEP_SCALE_60_FPS(g_DeltaTime, FC_VERT_SPEED);
+    if (ks[SDL_SCANCODE_LSHIFT] || ks[SDL_SCANCODE_RSHIFT]) { spd *= 3; vspd *= 3; }
+    if (ks[SDL_SCANCODE_LCTRL]) { spd >>= 2; vspd >>= 2; }
+
+    sinY = Math_Sin(g_DebugCamAngleY);
+    cosY = Math_Cos(g_DebugCamAngleY);
+    /* Fly along the view direction: forward carries the pitch too. */
+    fwd  = (s32)((s64)spd * Math_Cos(g_DebugCamAngleX) >> 12);
+    dy   = (s32)((s64)spd * Math_Sin(g_DebugCamAngleX) >> 12);
+
+    if (ks[SDL_SCANCODE_W]) {
+        g_DebugCamPos.vx += (s32)((s64)fwd * sinY >> 12);
+        g_DebugCamPos.vz += (s32)((s64)fwd * cosY >> 12);
+        g_DebugCamPos.vy += dy;
+    }
+    if (ks[SDL_SCANCODE_S]) {
+        g_DebugCamPos.vx -= (s32)((s64)fwd * sinY >> 12);
+        g_DebugCamPos.vz -= (s32)((s64)fwd * cosY >> 12);
+        g_DebugCamPos.vy -= dy;
+    }
+    if (ks[SDL_SCANCODE_A]) {
+        g_DebugCamPos.vx -= (s32)((s64)spd * cosY >> 12);
+        g_DebugCamPos.vz += (s32)((s64)spd * sinY >> 12);
+    }
+    if (ks[SDL_SCANCODE_D]) {
+        g_DebugCamPos.vx += (s32)((s64)spd * cosY >> 12);
+        g_DebugCamPos.vz -= (s32)((s64)spd * sinY >> 12);
+    }
+    if (ks[SDL_SCANCODE_SPACE]) g_DebugCamPos.vy -= vspd; /* PSX +Y is down */
+    if (ks[SDL_SCANCODE_C])     g_DebugCamPos.vy += vspd;
+}
+
+static void Pc_FreeCam_Apply(void)
+{
+    s32 sinY    = Math_Sin(g_DebugCamAngleY);
+    s32 cosY    = Math_Cos(g_DebugCamAngleY);
+    s32 forward = (s32)((s64)20480 * Math_Cos(g_DebugCamAngleX) >> 12);
+
+    /* Harry stays where he was when the camera came on: the world streams
+     * around his position and camera spots are marked relative to him. */
+    g_SysWork.playerWork.player.position = g_DebugCamSavedHarryPos;
+
+    g_DebugCamLookAt.vx = g_DebugCamPos.vx + (s32)((s64)forward * sinY >> 12);
+    g_DebugCamLookAt.vy = g_DebugCamPos.vy + (s32)((s64)20480 * Math_Sin(g_DebugCamAngleX) >> 12);
+    g_DebugCamLookAt.vz = g_DebugCamPos.vz + (s32)((s64)forward * cosY >> 12);
+
+    Vw_SetLookAtMatrix(&g_DebugCamPos, &g_DebugCamLookAt);
+    vwSetViewInfo();
+}
+
 void DebugCamera_Update(void)
 {
     #define DBG_CAM_MOVE_SPEED 128   /* Q12(0.03125) — slow enough to dial in the FPS-cam spot */
@@ -1184,6 +1293,13 @@ void DebugCamera_Update(void)
     {
         extern int g_PcAllowDebugControls;
         if (!g_PcAllowDebugControls) {
+            /* The free camera is a user feature (quick options row), so it
+             * flies with the dev keys off too. */
+            if (g_DebugCamEnabled && g_GameWork.gameState == GameState_InGame) {
+                Pc_FreeCam_Input();
+                Pc_FreeCam_Apply();
+                return;
+            }
             /* TPS is a normal (non-debug) camera now: apply it even with dev
              * keys off, then skip the dev-key handlers below. Classic just
              * lets the game camera stand. */
@@ -1204,6 +1320,11 @@ void DebugCamera_Update(void)
              * at instead of snapping back to the default game camera. The look
              * input is held still inside Pc_TpsCamera_Apply (frozen), so the
              * angle doesn't drift while you type. */
+            if (g_DebugCamEnabled) {
+                /* Hold the free camera's view (no input) under the panel. */
+                Pc_FreeCam_Apply();
+                return;
+            }
             if (Pc_AltCamStateOk() && !g_DebugCamEnabled && g_DebugThirdPersonCam)
                 Pc_TpsCamera_Apply();
             return;
@@ -1212,6 +1333,11 @@ void DebugCamera_Update(void)
 #endif
     if (g_GameWork.gameState != GameState_InGame)
     {
+#ifdef SH_PC_PORT
+        /* Leaving the game (death, warm reset, menus) ends the free camera. */
+        if (g_DebugCamEnabled)
+            Pc_FreeCam_Set(0);
+#endif
 #ifdef SH_PC_PORT
         /* With allow_debug_controls on, the two early-return blocks above are
          * skipped and the alternate camera is applied further down (past this
@@ -1232,29 +1358,8 @@ void DebugCamera_Update(void)
     /* Numpad *: toggle debug camera on/off (edge-triggered) */
     {
         int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_MULTIPLY];
-        if (cur && !g_DebugCamTogglePrev) {
-            g_DebugCamEnabled = !g_DebugCamEnabled;
-            if (g_DebugCamEnabled) {
-                /* Capture current camera as starting point */
-                vcGetNowCamPos(&g_DebugCamPos);
-                g_DebugCamAngleY = g_SysWork.cameraAngleY;
-                g_DebugCamAngleX = 0;
-                g_DebugCamInited = 1;
-                /* Save Harry's position to restore when debug cam is disabled */
-                g_DebugCamSavedHarryPos = g_SysWork.playerWork.player.position;
-                g_DebugCamSavedHarryPosY = g_SysWork.playerWork.player.properties.player.groundHeight;
-                /* Keep Harry visible at his original position so we can
-                 * see him while flying the debug cam — useful for
-                 * marking corrected camera positions relative to him.
-                 * (Was hidden + teleport-followed in the prior design.) */
-            } else {
-                /* Restore Harry's original position + visibility */
-                g_SysWork.playerWork.player.position = g_DebugCamSavedHarryPos;
-                g_SysWork.playerWork.player.properties.player.groundHeight = g_DebugCamSavedHarryPosY;
-                g_SysWork.playerWork.player.model.anim.flags |= AnimFlag_Visible;
-                g_SysWork.playerWork.extra.model.anim.flags |= AnimFlag_Visible;
-            }
-        }
+        if (cur && !g_DebugCamTogglePrev)
+            Pc_FreeCam_Set(!g_DebugCamEnabled);
         g_DebugCamTogglePrev = cur;
     }
 
@@ -1784,123 +1889,8 @@ void DebugCamera_Update(void)
         return;
     }
 
-    int moved = 0;
-    s32 sinY = Math_Sin(g_DebugCamAngleY);
-    s32 cosY = Math_Cos(g_DebugCamAngleY);
-
-    /* Frame-rate independence: TIMESTEP_SCALE_60_FPS preserves the 60fps
-     * base value (1×) and doubles at 30fps so wall-time speed is uniform.
-     * Without this, holding e.g. KP_8 at 30fps would move the debug cam
-     * half as fast as at 60fps. */
-    s32 dbgMoveSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, DBG_CAM_MOVE_SPEED);
-    s32 dbgTurnSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, DBG_CAM_TURN_SPEED);
-    s32 dbgVertSpeed = TIMESTEP_SCALE_60_FPS(g_DeltaTime, DBG_CAM_VERT_SPEED);
-
-    /* Hold Left-Ctrl for ultra-fine placement (quarter speed) when nudging the
-     * debug cam onto the exact between-the-arms FPS spot before pressing L. */
-    if (g_sdlKeyboardState[SDL_SCANCODE_LCTRL]) {
-        dbgMoveSpeed >>= 2;
-        dbgVertSpeed >>= 2;
-        dbgTurnSpeed >>= 2;
-        if (dbgTurnSpeed < 1) dbgTurnSpeed = 1;
-    }
-
-    /* Numpad 8: forward */
-    if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) {
-        g_DebugCamPos.vx += (s32)((s64)dbgMoveSpeed * sinY >> 12);
-        g_DebugCamPos.vz += (s32)((s64)dbgMoveSpeed * cosY >> 12);
-        moved = 1;
-    }
-    /* Numpad 5: backward */
-    if (g_sdlKeyboardState[SDL_SCANCODE_KP_5]) {
-        g_DebugCamPos.vx -= (s32)((s64)dbgMoveSpeed * sinY >> 12);
-        g_DebugCamPos.vz -= (s32)((s64)dbgMoveSpeed * cosY >> 12);
-        moved = 1;
-    }
-    /* Numpad 4: strafe left */
-    if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) {
-        g_DebugCamPos.vx -= (s32)((s64)dbgMoveSpeed * cosY >> 12);
-        g_DebugCamPos.vz += (s32)((s64)dbgMoveSpeed * sinY >> 12);
-        moved = 1;
-    }
-    /* Numpad 6: strafe right */
-    if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) {
-        g_DebugCamPos.vx += (s32)((s64)dbgMoveSpeed * cosY >> 12);
-        g_DebugCamPos.vz -= (s32)((s64)dbgMoveSpeed * sinY >> 12);
-        moved = 1;
-    }
-    /* Numpad 7: turn left */
-    if (g_sdlKeyboardState[SDL_SCANCODE_KP_7]) {
-        g_DebugCamAngleY -= dbgTurnSpeed;
-        moved = 1;
-    }
-    /* Numpad 9: turn right */
-    if (g_sdlKeyboardState[SDL_SCANCODE_KP_9]) {
-        g_DebugCamAngleY += dbgTurnSpeed;
-        moved = 1;
-    }
-    /* Page Up: move up (Y-, PSX Y is inverted) */
-    if (g_sdlKeyboardState[SDL_SCANCODE_PAGEUP]) {
-        g_DebugCamPos.vy -= dbgVertSpeed;
-        moved = 1;
-    }
-    /* Page Down: move down (Y+) */
-    if (g_sdlKeyboardState[SDL_SCANCODE_PAGEDOWN]) {
-        g_DebugCamPos.vy += dbgVertSpeed;
-        moved = 1;
-    }
-    /* Numpad +: tilt up (look upward) */
-    if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS]) {
-        g_DebugCamAngleX -= dbgTurnSpeed;
-        moved = 1;
-    }
-    /* Numpad -: tilt down (look downward) */
-    if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) {
-        g_DebugCamAngleX += dbgTurnSpeed;
-        moved = 1;
-    }
-    /* Numpad /: print debug camera coordinates to log */
-    {
-        static int dbg_slash_prev = 0;
-        int dbg_slash_cur = g_sdlKeyboardState[SDL_SCANCODE_KP_DIVIDE];
-        if (dbg_slash_cur && !dbg_slash_prev) {
-        }
-        dbg_slash_prev = dbg_slash_cur;
-    }
-
-    /* Keep Harry at his original position (do NOT teleport-follow the
-     * debug cam). This makes it possible to fly the debug cam around
-     * Harry and mark camera positions RELATIVE to where he actually is.
-     * Texture/IPD chunks near the saved Harry position remain loaded.
-     * Side effect: flying far away may show un-textured / un-loaded
-     * geometry, but that's a fair trade for being able to mark
-     * corrected-camera positions accurately. */
-    {
-        s_SubCharacter* hp = &g_SysWork.playerWork.player;
-        hp->position.vx = g_DebugCamSavedHarryPos.vx;
-        hp->position.vz = g_DebugCamSavedHarryPos.vz;
-        hp->position.vy = g_DebugCamSavedHarryPos.vy;
-    }
-
-    /* Set look-at point ahead of camera, incorporating pitch (AngleX).
-     * forward = distance projected onto XZ plane (cos(pitch) * 20480)
-     * Y offset = sin(pitch) * 20480 (positive = down in PSX Y-down coords) */
-    {
-        s32 forward = (s32)((s64)20480 * Math_Cos(g_DebugCamAngleX) >> 12);
-        g_DebugCamLookAt.vx = g_DebugCamPos.vx + (s32)((s64)forward * sinY >> 12);
-        g_DebugCamLookAt.vy = g_DebugCamPos.vy + (s32)((s64)20480 * Math_Sin(g_DebugCamAngleX) >> 12);
-        g_DebugCamLookAt.vz = g_DebugCamPos.vz + (s32)((s64)forward * cosY >> 12);
-    }
-
-    /* Override the camera view */
-    Vw_SetLookAtMatrix(&g_DebugCamPos, &g_DebugCamLookAt);
-    vwSetViewInfo();
-
-    if (moved) {
-        static int dbg_print_counter = 0;
-        if (++dbg_print_counter % 30 == 0) {
-        }
-    }
+    Pc_FreeCam_Input();
+    Pc_FreeCam_Apply();
 
     #undef DBG_CAM_MOVE_SPEED
     #undef DBG_CAM_TURN_SPEED
@@ -2171,6 +2161,19 @@ void MainLoop(void) // 0x80032EE0
                     (g_Controller0->clickedBtnFlags & (cc->cancel | cc->option)) != 0,
                     (g_Controller0->clickedBtnFlags & ControllerFlag_R1) != 0,
                     (g_Controller0->clickedBtnFlags & ControllerFlag_L1) != 0);
+                g_Controller0->heldBtnFlags      = 0;
+                g_Controller0->clickedBtnFlags   = 0;
+                g_Controller0->releasedBtnFlags  = 0;
+                g_Controller0->pulsedBtnFlags    = 0;
+                g_Controller0->pulsedGuiBtnFlags = 0;
+            }
+        }
+        /* Free camera: Harry is frozen in place and W/A/S/D fly the camera
+         * (the alt-cam scheme walks with the same keys), so none of his pad
+         * input may reach the game. */
+        {
+            extern int g_PcQuickOptionsActive;
+            if (g_DebugCamEnabled && !g_PcQuickOptionsActive) {
                 g_Controller0->heldBtnFlags      = 0;
                 g_Controller0->clickedBtnFlags   = 0;
                 g_Controller0->releasedBtnFlags  = 0;

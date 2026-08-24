@@ -170,6 +170,7 @@ void Pc_ControlStyleUpdate(void)
 
     extern int g_PcConsoleInputActive;
     extern int g_PcQuickOptionsActive;
+    extern int g_DebugCamEnabled;
 
     const Uint8* keys;
     int          curKey, curPad;
@@ -306,7 +307,7 @@ void Pc_ControlStyleUpdate(void)
      * not the 3D camera, regardless of the active camera mode). */
     {
         extern int Pc_MouseCursor_PuzzleActive(void);
-        wantCapture = (g_DebugThirdPersonCam && inGameplay && !Pc_MouseCursor_PuzzleActive());
+        wantCapture = ((g_DebugThirdPersonCam || g_DebugCamEnabled) && inGameplay && !Pc_MouseCursor_PuzzleActive());
     }
     if ((SDL_GetRelativeMouseMode() == SDL_TRUE) != (wantCapture != 0))
     {
