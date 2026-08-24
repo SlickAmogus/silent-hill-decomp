@@ -18,6 +18,7 @@ endif()
 # optimizer is free to exploit, and -O0 was masking it. These two flags cost
 # almost nothing and keep the generated code honest to what the source means.
 add_compile_options(-fno-strict-aliasing -fwrapv)
+add_compile_options($<$<COMPILE_LANGUAGE:C>:-std=gnu11>)
 
 # Build everything position-independent. On Linux the map overlays are .so
 # shared objects that link the static psycross_static archive; linking a
@@ -234,25 +235,6 @@ else()
     message(STATUS "RetroAchievements: disabled (rcheevos submodule missing — run: git submodule update --init --recursive)")
 endif()
 
-# Lua 5.4 — vendored under third_party/lua/src, compiled into a static lib for
-# the randomizer scripting layer. The standalone programs (lua.c/luac.c) and the
-# amalgamation/test files are not vendored, so a plain src/*.c glob is safe. The
-# generic ISO-C luaconf (no LUA_USE_* platform define) keeps it portable and
-# sandboxes out dynamic C-library loading, which user scripts must not do.
-set(SH_LUA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/lua")
-if(EXISTS "${SH_LUA_DIR}/src/lua.h")
-    file(GLOB LUA_SOURCES "${SH_LUA_DIR}/src/*.c")
-    add_library(lua_static STATIC ${LUA_SOURCES})
-    target_include_directories(lua_static PUBLIC "${SH_LUA_DIR}/src")
-    if(NOT MSVC)
-        target_compile_options(lua_static PRIVATE -w)
-    endif()
-    set(SH_HAVE_LUA ON)
-else()
-    set(SH_HAVE_LUA OFF)
-    message(STATUS "Lua scripting: disabled (third_party/lua missing)")
-endif()
-
 add_executable(SilentHillPC
     ${PC_PORT_SOURCES}
     ${MAIN_SOURCES}
@@ -284,7 +266,7 @@ if(MINGW)
     # main() is the real entry); force -emainCRTStartup because the windows
     # subsystem default entry is WinMainCRTStartup, which we don't provide.
     # External-console mode calls AllocConsole() at runtime (see main_pc.c).
-    target_link_options(SilentHillPC PRIVATE "-Wl,--subsystem,windows" "-Wl,-emainCRTStartup")
+    target_link_options(SilentHillPC PRIVATE "-Wl,--subsystem,windows" "-Wl,-emainCRTStartup" "-static-libgcc" "-static-libstdc++")
 endif()
 
 # Shipped runtime assets: pc_port/assets/ mirrors the game folder layout
@@ -382,12 +364,6 @@ find_path(JPEG_INCLUDE_DIR jpeglib.h)
 target_link_libraries(SilentHillPC PRIVATE
     psycross_static
 )
-
-# Lua scripting (randomizer): link the vendored interpreter + flag its presence.
-if(SH_HAVE_LUA)
-    target_link_libraries(SilentHillPC PRIVATE lua_static)
-    target_compile_definitions(SilentHillPC PRIVATE SH_LUA=1)
-endif()
 
 # RetroAchievements: the runtime plus the platform HTTP backend it posts through
 # (WinHTTP ships with Windows; libcurl is the Linux/macOS standard).
@@ -570,7 +546,7 @@ if(SH_FMV_FFMPEG)
 endif()
 
 if(WIN32)
-    target_link_libraries(SilentHillPC PRIVATE opengl32 winmm m)
+    target_link_libraries(SilentHillPC PRIVATE opengl32 winmm winhttp ws2_32 m)
 elseif(UNIX)
     find_package(OpenGL REQUIRED)
     target_link_libraries(SilentHillPC PRIVATE OpenGL::GL)
@@ -763,6 +739,35 @@ if(SH_STATIC_MAPS)
     endif()
 elseif(SH_BUILD_MAP_DLLS)
     add_subdirectory(maps)
+endif()
+
+# =============================================================================
+# Plugins
+# =============================================================================
+add_library(nightmare_mode SHARED
+    "${CMAKE_CURRENT_SOURCE_DIR}/plugins/nightmare/nightmare_plugin.c"
+)
+set_target_properties(nightmare_mode PROPERTIES
+    OUTPUT_NAME "nightmare_mode"
+    PREFIX ""
+)
+target_include_directories(nightmare_mode PRIVATE
+    "${CMAKE_BINARY_DIR}"
+    include
+    src
+    "${DECOMP_DIR}/include"
+    "${DECOMP_DIR}/include/decomp"
+    "${PSYCROSS_DIR}/include/psx"
+    "${PSYCROSS_DIR}/include"
+)
+target_compile_definitions(nightmare_mode PRIVATE
+    SH_PC_PORT
+    VER_USA
+    SKIP_ASM
+    static_assert=_Static_assert
+)
+if(WIN32)
+    target_link_libraries(nightmare_mode PRIVATE SilentHillPC)
 endif()
 
 # =============================================================================
