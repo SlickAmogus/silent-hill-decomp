@@ -232,21 +232,27 @@ static void ApplyNightmareDarkness(void)
     if (g_pMapOverlayHeader == NULL)
         return;
 
-    if (g_pMapOverlayHeader != &s_nightmareMapHdr ||
-        g_pMapOverlayHeader->field_16 != 2 ||
-        g_pMapOverlayHeader->field_17 != 6)
+    if (g_pMapOverlayHeader != &s_nightmareMapHdr)
     {
         s_nightmareMapHdr = *g_pMapOverlayHeader;
         s_nightmareMapHdr.field_16 = 2; /* Dark Otherworld ambient */
         s_nightmareMapHdr.field_17 = 6; /* Heavy rain & dark atmosphere */
         g_pMapOverlayHeader = &s_nightmareMapHdr;
+    }
+    else
+    {
+        s_nightmareMapHdr.field_16 = 2;
+        s_nightmareMapHdr.field_17 = 6;
+    }
+
+    if (g_pMapOverlayHeader->mapInfo != NULL)
+    {
         Gfx_MapEffectsAssign(g_pMapOverlayHeader);
         if (s_nightmareMapHdr.enviromentSet != NULL)
         {
             s_nightmareMapHdr.enviromentSet(6, 2);
         }
         Game_TurnFlashlightOn();
-        SH_LOG("[NIGHTMARE_PLUGIN] Enforced Otherworld dark ambient (field_16 = 2) & rain (field_17 = 6)");
     }
 }
 
