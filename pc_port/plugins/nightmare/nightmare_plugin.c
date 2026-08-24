@@ -53,6 +53,36 @@ static void Patch_HideHealthStatus(void)
 #endif
 }
 
+static void Plugin_LoadNightmareConfig(void)
+{
+    g_PcConfig.nightmare = 1;
+    g_PcConfig.revampedController = 1;
+    g_PcConfig.liveInventory = 1;
+    g_PcConfig.nightmareVignette = 1;
+
+    FILE* f = fopen("config.cfg", "r");
+    if (!f) return;
+
+    char line[256];
+    while (fgets(line, sizeof(line), f))
+    {
+        char key[64], val[64];
+        if (sscanf(line, " %63[^= ] = %63s", key, val) == 2 ||
+            sscanf(line, " %63[^= ] = \"%63[^\"]\"", key, val) == 2)
+        {
+            if (strcmp(key, "live_game") == 0 || strcmp(key, "live_inventory") == 0)
+            {
+                g_PcConfig.liveInventory = atoi(val);
+            }
+            else if (strcmp(key, "low_health_fx") == 0 || strcmp(key, "nightmare_vignette") == 0)
+            {
+                g_PcConfig.nightmareVignette = atoi(val);
+            }
+        }
+    }
+    fclose(f);
+}
+
 PLUGIN_EXPORT const char* SH_Plugin_GetName(void)
 {
     return "Nightmare Mode Overhaul";
@@ -66,16 +96,14 @@ PLUGIN_EXPORT s32 SH_Plugin_GetApiVersion(void)
 PLUGIN_EXPORT void SH_Plugin_Init(void)
 {
     SH_LOG("[NIGHTMARE_PLUGIN] Initialized Nightmare Overhaul Plugin.");
-    g_PcConfig.nightmare = 1;
-    g_PcConfig.revampedController = 1;
+    Plugin_LoadNightmareConfig();
     ApplyShadowStalkerModelOverrides();
     Patch_HideHealthStatus();
 }
 
 PLUGIN_EXPORT void SH_Plugin_OnNewGame(void)
 {
-    g_PcConfig.nightmare = 1;
-    g_PcConfig.revampedController = 1;
+    Plugin_LoadNightmareConfig();
     s_running = 1;
     SH_LOG("[NIGHTMARE_PLUGIN] New Game started in Nightmare Mode.");
     ApplyShadowStalkerModelOverrides();
@@ -84,7 +112,7 @@ PLUGIN_EXPORT void SH_Plugin_OnNewGame(void)
 
 PLUGIN_EXPORT void SH_Plugin_OnMapLoad(s32 mapIdx)
 {
-    g_PcConfig.nightmare = 1;
+    Plugin_LoadNightmareConfig();
     ApplyShadowStalkerModelOverrides();
     Patch_HideHealthStatus();
 
