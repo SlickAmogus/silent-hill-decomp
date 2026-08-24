@@ -24,13 +24,73 @@ the shape of every conflict between these two branches so far.
 | `172a09599` | Tap skips the boot logos and warning screen | `BootSkip_Pressed` / `Warn_SkipPressed` read raw SDL keyboard and pad only. |
 | `a6bc9e27d` (part) | Memory card | **Check Android first.** There is no `.MCD` anywhere in the tree, `MemCardFormat` is an unimplemented stub, and `MemCardExist` just `fopen`s `"<chan>.MCD"` against the CWD — so saving hangs on "checking the memory card" wherever no card happens to exist. The PsyCross half (NULL guards in `MemCardAccept`/`MemCardOpen`, which dereferenced the failed `fopen`) is worth taking regardless. The card-creation half is in `ios_port/src/ios_bootstrap.m`; Android needs its own equivalent in `SilentHillActivity`, writing 128 KB with `'M','C'` in the first two bytes. |
 
+## The pc-port merge: one trap that WILL hit Android
+
+`ios-port` has now merged `pc-port`, which moved four desktop-vs-GLES decisions
+from compile-time `#if` to a runtime capability probe (`g_grCaps`). That is the
+right call for ANGLE — one binary serving either a native GL or an ES context —
+but it assumes glad declares the whole enum table no matter what context is
+live. Android, like iOS, compiles against **real GLES headers**, where those
+tokens do not exist at all. A runtime test cannot rescue an identifier the
+preprocessor never saw, so the file simply fails to compile:
+
+```
+error: use of undeclared identifier 'GL_TEXTURE_WIDTH'
+error: use of undeclared identifier 'GL_CLAMP_TO_BORDER'
+error: use of undeclared identifier 'GL_TEXTURE_BORDER_COLOR'
+error: use of undeclared identifier 'glDrawBuffer'
+```
+
+The fix is in PsyCross `ios-port` and is not iOS-specific despite the guard
+name — widen `PSYX_IOS` to include `__ANDROID__` when you take it:
+
+- The three **enums** are defined to their registry values in `PsyX_render.h`
+  purely so the desktop half of each branch parses. Every one sits behind a
+  capability flag that is false on any GLES context, so none ever reaches the
+  driver.
+- `glDrawBuffer` is a **function**, not an enum — there is no symbol to link on
+  GLES, so the capability test cannot be the only guard. It keeps a compile-time
+  branch to the plural `glDrawBuffers` that ES 3.0 does have.
+
+Take `GR_ScreenFBO()` / `GR_ScreenReadFBO()` as they are on `pc-port`, though.
+They are pc-port's indirection for the borderless internal render target, and
+they already replaced 24 of the bare `glBindFramebuffer(.., 0)` sites — which
+means they are also the single place to redirect "the screen" on a platform
+where 0 is not it. Android does not need that redirect (its EGL surface really
+is FBO 0), so the fallback is a compile-time `0` there and nothing changes.
+
 ## Skip these — iOS-only
 
 `57b1a11ef` (Info.plist bundle keys), `70b6d31e9` (framebuffer 0 is not the screen
 on iOS — Android's EGL surface genuinely **is** FBO 0, so do not apply it),
 `427899f25` / `130067afe` (points-vs-pixels; Android has no high-DPI split),
 `3c1de6d00` (iOS Options naming), `e73c6d809` (Lua off because `loslib` needs
-`system()`).
+`system()`), and the RetroAchievements sign-in work below.
+
+**RetroAchievements** is iOS-only for now, but only for a missing piece Android
+could supply. RA sat in the desktop-only feature bucket purely because
+`pc_ra_http.c` has exactly two backends — WinHTTP and libcurl — and neither
+exists on a phone. rcheevos itself is libc-only. iOS added
+`ios_port/src/ios_ra_http.m`, ~110 lines implementing the same two entry points
+(`Pc_RaHttpRequest`, `Pc_RaSymbolLookup`) over NSURLSession, and flipped the
+CMake default on. Android needs the equivalent — an `HttpURLConnection` call
+through JNI, or bundling curl — plus:
+
+- `Pc_Ra_BeginPasswordLogin` in `pc_retroachievements.c` is already shared and
+  platform-neutral: it exchanges a password for a connect token, stores the
+  token via `PcConfig_SaveKeyValue`, and continues into the normal
+  disc-hash-and-load path. Nothing about it is iOS-specific.
+- The sign-in UI is not. iOS opens a `UIAlertController` because the game's own
+  2D screens have no text input, no keyboard and no masking; Android would want
+  an `AlertDialog` with two `EditText` fields, called the same fire-and-forget
+  way (SDL runs the game loop on the main thread, so blocking for the button
+  would stop the loop that has to service the dialog).
+- The options row is `PCK_RALOGIN`, gated `#if defined(SH_IOS)` — widen the
+  guard, but **recount the page first**: it is the twelfth row on System, one
+  past what every other page carries.
+- Mach-O needed `-Wl,-export_dynamic` so `dlsym` can still find the decomp's
+  globals for the address map. ELF gets this from `ENABLE_EXPORTS`/`-rdynamic`,
+  which Android already sets, so nothing to do there.
 
 ## Two conflicts to expect
 
@@ -52,3 +112,12 @@ capture** failing: when the blit succeeds you see the world, when it fails the
 fog clear becomes the whole image. Android's own commit already made that path
 report itself rather than claiming success — so reproduce it and read the log for
 `[FREEZE] capture ... FAILED err=`, which names the reason instead of guessing.
+
+On iOS one concrete cause has since been found and fixed, and it is worth ruling
+out on Android before chasing anything subtler: after the pc-port merge the
+capture reads through `GR_ScreenReadFBO()`, which returned `g_internalFBO` raw.
+That is 0 with no internal target — and 0 is not the screen on iOS, so the blit
+read a framebuffer that does not exist and produced nothing, which is exactly a
+flat grey field. Android's FBO 0 **is** its EGL surface, so this particular
+cause cannot apply there; if the grey survives the merge on Android, it is a
+different one.

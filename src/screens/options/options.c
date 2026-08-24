@@ -26,6 +26,14 @@
 #include <stdlib.h> /* getenv: SH_DATA_LABEL */
 #include <string.h>
 #include "sh_log.h"
+
+#if defined(SH_IOS)
+#include "pc_retroachievements.h"
+/* ios_port/src/ios_ra_login.m. Declared here rather than in a header because
+ * ios_port owns no include directory and the other Ios_ entry points are
+ * declared the same way at their call sites. */
+extern int Ios_ShowRetroAchievementsLogin(void);
+#endif
 #include "pc_config.h"
 #include "pc_mouse_cursor.h"
 #include "map_registry.h"
@@ -138,7 +146,7 @@ int Pc_ExitToMenuRowActive(void)
 }
 
 
-enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET, PCK_STORAGE };
+enum { PCK_INT, PCK_RES, PCK_FILTER, PCK_WINMODE, PCK_VSYNC, PCK_SLIDER, PCK_MAP, PCK_FLMODE, PCK_NEXT, PCK_PREV, PCK_BACK, PCK_RESET, PCK_STORAGE, PCK_RALOGIN };
 
 /* PC-options row origin. The heading sits at y=20 and the rows used to start at 56,
  * leaving a full empty row beneath it while the pages ran off the BOTTOM of the
@@ -271,6 +279,16 @@ static const s_PcOpt PCOPT_S[] = {
     { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
     /* Moved here from the Camera page for the same reason as Map above. */
     { "Crosshair",        &g_PcConfig.crosshair,      "crosshair",        VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+#if defined(SH_IOS) || defined(__ANDROID__)
+    /* Twelfth row, one past what the other pages carry. It fits: rows start at
+     * PCOPT_LINE_BASE_Y 40 and step 16, so this page now ends at y=216 --
+     * exactly where an 11-row page ended before the base moved up from 56.
+     *
+     * Mobile only, because a phone has no launcher. Everywhere else the launcher
+     * owns the RetroAchievements account and the game just consumes the token it
+     * left in the config. */
+    { "Achievements",     NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_RALOGIN },
+#endif
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -448,6 +466,19 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
          * volume this is -- the path alone does not say. */
         const char* label = getenv("SH_DATA_LABEL");
         return (label != NULL && label[0]) ? label : "Unknown";
+    }
+#endif
+#if defined(SH_IOS) || defined(__ANDROID__)
+    if (e->kind == PCK_RALOGIN) {
+        if (Pc_Ra_LoginPending())
+            return "Signing_in";
+        if (!Pc_Ra_IsSignedIn())
+            return "Sign_In";
+        /* Truncated to what fits: the value column starts at 204 and the screen
+         * clips at 320, which is about 13 glyphs. RA allows longer names than
+         * that, and an overrun would draw off the edge rather than wrap. */
+        snprintf(buf, bufsz, "%.12s", g_PcConfig.raUsername);
+        return buf;
     }
 #endif
     if (e->field == NULL)
@@ -953,6 +984,32 @@ void Options_PcOptionsMenu_Control(void)
                 }
                 g_Options_SelectionHighlightTimer = 0;
 #endif
+#if defined(SH_IOS) || defined(__ANDROID__)
+            } else if (sel->kind == PCK_RALOGIN) {
+                /* Signed in already? Then this is the sign-out. Otherwise open
+                 * the native sheet -- a password field is not something the
+                 * game's own 2D screens can offer (no text input, no keyboard,
+                 * no masking), which is why this one row leaves the engine's UI
+                 * entirely. */
+                if (Pc_Ra_IsSignedIn()) {
+                    Pc_Ra_SignOut();
+                    Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
+                } else {
+#if defined(__ANDROID__)
+                    /* Fire-and-forget: the dialog runs on the UI thread while
+                     * SDL keeps driving the game loop on this one. */
+                    extern void Android_ShowRetroAchievementsLogin(void);
+                    Android_ShowRetroAchievementsLogin();
+                    Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+#else
+                    if (Ios_ShowRetroAchievementsLogin())
+                        Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+                    else
+                        Sd_PlaySfx(Sfx_MenuCancel, 0, 64);
+#endif
+                }
+                g_Options_SelectionHighlightTimer = 0;
+#endif
 #if defined(__ANDROID__)
             } else if (sel->kind == PCK_STORAGE) {
                 s_confirmAction = PCOPT_CONFIRM_STORAGE;
@@ -1013,7 +1070,11 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
     Gfx_Strings2dLayerIdxSet(8);
     Gfx_StringDraw(HEADING, DEFAULT_MAP_MESSAGE_LENGTH);
 
-#ifdef SH_PC_PORT
+/* Not on iOS: there is no keyboard to press R on, so the hint would advertise
+ * something unreachable. The Reset_Settings row on the Graphics page is that
+ * platform's route, and it goes further -- it restores the config.cfg out of
+ * the signed bundle rather than resetting the values held in memory. */
+#if defined(SH_PC_PORT) && !defined(SH_IOS)
     /* Reset hint, top-right by the heading (same layer). Highlighted while the
      * confirm dialog is up. Underscores render as spaces: "[R] Reset". */
     {

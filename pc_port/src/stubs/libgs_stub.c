@@ -256,10 +256,12 @@ void GsDrawOt(GsOT *ot)
         PsyX_ClearGteDepthTable();
 
         /* The double-precision form is desktop-only; ES 3.0 has glClearDepthf.
-         * On a GLES build the symbol is not merely unresolved at runtime, it is
-         * not declared -- so the runtime cap sits inside a compile-time guard,
-         * exactly as PsyX_render.cpp does at its own glClearDepth. */
-#ifdef RENDERER_OGLES
+         * On a target built against real GLES headers the desktop spelling is a
+         * missing SYMBOL rather than a missing capability, so the runtime test
+         * cannot be the only guard -- g_grCaps.clearDepthDouble is false on
+         * every GLES context anyway. glad-backed builds keep the probe, which
+         * is what lets one binary serve both native GL and ANGLE. */
+#if defined(RENDERER_OGLES)
         glClearDepthf(1.0f);
 #else
         if (g_grCaps.clearDepthDouble)

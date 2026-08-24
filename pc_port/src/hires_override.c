@@ -1103,13 +1103,12 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
      * upload reports a COMPRESSED internal format here (a sub-image into it
      * would fail), so only GL's own answer is trustworthy. */
     int reuseStorage;
+/* On a target built against real GLES headers (iOS, Android) glGetTexLevelParameteriv is
+ * not merely unavailable at runtime — the SYMBOL does not exist, so the
+ * capability test cannot be the only guard and the branch has to be dead at
+ * compile time. Nothing is lost: g_grCaps.texLevelParam is false on every GLES
+ * context anyway, so the else path below is what would have run regardless. */
 #if defined(__ANDROID__) || defined(SH_IOS)
-    /* Not a runtime choice on the mobile targets, and not merely absent at
-     * runtime: glGetTexLevelParameteriv is ES 3.1 while the headers there are
-     * ES 3.0 -- the NDK's <GLES3/gl3.h> and Apple's OpenGLES framework both
-     * stop at 3.0 -- so the call would not compile. A compile-time guard around
-     * the runtime cap is the shape PsyX_render.cpp uses at its own
-     * glClearDepth. Falls through to the same answer the cap gives on ES. */
     {
 #else
     if (g_grCaps.texLevelParam)

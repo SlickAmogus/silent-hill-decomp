@@ -1,6 +1,12 @@
 package com.silenthill.port;
 
+import android.app.AlertDialog;
+import android.content.Context;
+import android.content.DialogInterface;
 import android.content.res.AssetManager;
+import android.text.InputType;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.system.ErrnoException;
 import android.system.Os;
 import android.util.Log;
@@ -66,6 +72,68 @@ public class SilentHillActivity extends SDLActivity {
      * to disagree, so a disc installed by setup could land where the game did
      * not look.
      */
+    /**
+     * RetroAchievements sign-in.
+     *
+     * Called from the options menu (PCK_RALOGIN) through JNI, and returns
+     * immediately: SDL runs the game loop on this thread, so blocking for the
+     * button would stop the very loop that has to service the dialog.
+     *
+     * The engine's own 2D screens cannot ask for this. They have no text input,
+     * no keyboard and no masking, and a password typed into a PSX menu with a
+     * D-pad would be its own kind of hostile -- so this one row leaves the
+     * game's UI entirely, the way the launcher does on desktop.
+     */
+    public static void showRetroAchievementsLogin() {
+        final Context ctx = getContext();
+        if (!(ctx instanceof SilentHillActivity)) {
+            Log.w(TAG, "no activity for the sign-in dialog");
+            return;
+        }
+
+        final SilentHillActivity act = (SilentHillActivity) ctx;
+
+        act.runOnUiThread(new Runnable() {
+            @Override public void run() {
+                final EditText user = new EditText(act);
+                user.setHint("RetroAchievements username");
+                user.setInputType(InputType.TYPE_CLASS_TEXT
+                                | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
+                user.setSingleLine(true);
+
+                final EditText pass = new EditText(act);
+                pass.setHint("Password");
+                pass.setInputType(InputType.TYPE_CLASS_TEXT
+                                | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+                pass.setSingleLine(true);
+
+                LinearLayout box = new LinearLayout(act);
+                box.setOrientation(LinearLayout.VERTICAL);
+                int pad = (int) (16 * act.getResources().getDisplayMetrics().density);
+                box.setPadding(pad, pad, pad, 0);
+                box.addView(user);
+                box.addView(pass);
+
+                new AlertDialog.Builder(act)
+                    .setTitle("RetroAchievements")
+                    .setMessage("Your password is exchanged once for a token and is "
+                              + "never stored. Softcore only.")
+                    .setView(box)
+                    .setPositiveButton("Sign in", new DialogInterface.OnClickListener() {
+                        @Override public void onClick(DialogInterface d, int which) {
+                            nativeRaLogin(user.getText().toString(),
+                                          pass.getText().toString());
+                        }
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+            }
+        });
+    }
+
+    /** Hands the credentials to Pc_Ra_BeginPasswordLogin, which does the rest. */
+    private static native void nativeRaLogin(String username, String password);
+
     private void publishDataRoot() {
         File root = StorageLocations.resolve(this);
         if (root == null) {

@@ -187,6 +187,163 @@ int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t*
     return (int)status;
 }
 
+#elif defined(__ANDROID__)
+
+/* The NDK ships neither WinHTTP nor libcurl, which is the only reason
+ * RetroAchievements was ever desktop-only -- rcheevos is libc-only. Java's
+ * HttpURLConnection needs no third-party library and brings the platform trust
+ * store with it, so retroachievements.org TLS works with nothing bundled.
+ *
+ * The class reference is cached in JNI_OnLoad and NOT looked up here. FindClass
+ * on a thread the JVM attached for native code resolves against the SYSTEM
+ * class loader, which cannot see an app's own classes -- and this runs on the
+ * RA worker thread, exactly such a thread. JNI_OnLoad runs while the app's
+ * loader is current, so that is where the lookup has to happen. */
+#include <jni.h>
+#include <SDL.h>
+
+static jclass    s_raHttpClass;
+static jmethodID s_raHttpRequest;
+
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
+{
+    JNIEnv* env = NULL;
+    jclass  local;
+
+    (void)reserved;
+
+    if ((*vm)->GetEnv(vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK)
+        return JNI_VERSION_1_6;
+
+    local = (*env)->FindClass(env, "com/silenthill/port/RaHttp");
+    if (local != NULL)
+    {
+        s_raHttpClass   = (jclass)(*env)->NewGlobalRef(env, local);
+        s_raHttpRequest = (*env)->GetStaticMethodID(
+            env, s_raHttpClass, "request",
+            "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+        (*env)->DeleteLocalRef(env, local);
+    }
+    else
+    {
+        (*env)->ExceptionClear(env);
+    }
+
+    return JNI_VERSION_1_6;
+}
+
+int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t* out_len)
+{
+    JNIEnv*     env;
+    jstring     jUrl, jPost, jResult;
+    const char* chars;
+    const char* split;
+    int         status = 0;
+
+    *out_body = NULL;
+    *out_len  = 0;
+
+    if (s_raHttpClass == NULL || s_raHttpRequest == NULL)
+        return 0;
+
+    /* Attaches this thread if it is not already, which the RA worker is not. */
+    env = (JNIEnv*)SDL_AndroidGetJNIEnv();
+    if (env == NULL)
+        return 0;
+
+    jUrl  = (*env)->NewStringUTF(env, url);
+    jPost = (post != NULL && post[0]) ? (*env)->NewStringUTF(env, post) : NULL;
+
+    jResult = (jstring)(*env)->CallStaticObjectMethod(env, s_raHttpClass,
+                                                      s_raHttpRequest, jUrl, jPost);
+
+    if ((*env)->ExceptionCheck(env))
+    {
+        (*env)->ExceptionClear(env);
+        jResult = NULL;
+    }
+
+    if (jUrl  != NULL) (*env)->DeleteLocalRef(env, jUrl);
+    if (jPost != NULL) (*env)->DeleteLocalRef(env, jPost);
+
+    if (jResult == NULL)
+        return 0;
+
+    chars = (*env)->GetStringUTFChars(env, jResult, NULL);
+    if (chars != NULL)
+    {
+        /* "<status>NEWLINE<body>", split on the FIRST newline only so a body
+         * containing newlines survives. */
+        split = strchr(chars, '\n');
+        if (split != NULL)
+        {
+            size_t len = strlen(split + 1);
+            char*  buf = (char*)malloc(len + 1);
+
+            status = atoi(chars);
+
+            if (buf != NULL)
+            {
+                memcpy(buf, split + 1, len);
+                buf[len] = '\0';
+                *out_body = buf;
+                *out_len  = len;
+            }
+        }
+
+        (*env)->ReleaseStringUTFChars(env, jResult, chars);
+    }
+
+    (*env)->DeleteLocalRef(env, jResult);
+    return status;
+}
+
+/* The options row calls this; it returns at once and the dialog runs on the UI
+ * thread, because SDL drives the game loop on the calling thread. */
+void Android_ShowRetroAchievementsLogin(void)
+{
+    JNIEnv*   env = (JNIEnv*)SDL_AndroidGetJNIEnv();
+    jclass    cls;
+    jmethodID mid;
+
+    if (env == NULL)
+        return;
+
+    cls = (*env)->FindClass(env, "com/silenthill/port/SilentHillActivity");
+    if (cls == NULL)
+    {
+        (*env)->ExceptionClear(env);
+        return;
+    }
+
+    mid = (*env)->GetStaticMethodID(env, cls, "showRetroAchievementsLogin", "()V");
+    if (mid != NULL)
+        (*env)->CallStaticVoidMethod(env, cls, mid);
+    else
+        (*env)->ExceptionClear(env);
+
+    (*env)->DeleteLocalRef(env, cls);
+}
+
+/* Called back from the dialog's Sign in button, on the UI thread. */
+JNIEXPORT void JNICALL
+Java_com_silenthill_port_SilentHillActivity_nativeRaLogin(JNIEnv* env, jclass cls,
+                                                          jstring jUser, jstring jPass)
+{
+    extern int Pc_Ra_BeginPasswordLogin(const char* username, const char* password);
+
+    const char* user = (jUser != NULL) ? (*env)->GetStringUTFChars(env, jUser, NULL) : NULL;
+    const char* pass = (jPass != NULL) ? (*env)->GetStringUTFChars(env, jPass, NULL) : NULL;
+
+    (void)cls;
+
+    if (user != NULL && pass != NULL)
+        Pc_Ra_BeginPasswordLogin(user, pass);
+
+    if (user != NULL) (*env)->ReleaseStringUTFChars(env, jUser, user);
+    if (pass != NULL) (*env)->ReleaseStringUTFChars(env, jPass, pass);
+}
+
 #else
 
 int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t* out_len)
