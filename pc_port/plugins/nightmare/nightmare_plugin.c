@@ -225,36 +225,6 @@ PLUGIN_EXPORT void SH_Plugin_Init(void)
 
 static s_MapOverlayHdr s_nightmareMapHdr;
 extern void Gfx_MapEffectsAssign(s_MapOverlayHdr* mapHdr);
-extern void Game_TurnFlashlightOn(void);
-
-static void ApplyNightmareDarkness(void)
-{
-    if (g_pMapOverlayHeader == NULL)
-        return;
-
-    if (g_pMapOverlayHeader != &s_nightmareMapHdr)
-    {
-        s_nightmareMapHdr = *g_pMapOverlayHeader;
-        s_nightmareMapHdr.field_16 = 2; /* Dark Otherworld ambient */
-        s_nightmareMapHdr.field_17 = 6; /* Heavy rain & dark atmosphere */
-        g_pMapOverlayHeader = &s_nightmareMapHdr;
-    }
-    else
-    {
-        s_nightmareMapHdr.field_16 = 2;
-        s_nightmareMapHdr.field_17 = 6;
-    }
-
-    if (g_pMapOverlayHeader->mapInfo != NULL)
-    {
-        Gfx_MapEffectsAssign(g_pMapOverlayHeader);
-        if (s_nightmareMapHdr.enviromentSet != NULL)
-        {
-            s_nightmareMapHdr.enviromentSet(6, 2);
-        }
-        Game_TurnFlashlightOn();
-    }
-}
 
 PLUGIN_EXPORT void SH_Plugin_OnNewGame(void)
 {
@@ -263,7 +233,6 @@ PLUGIN_EXPORT void SH_Plugin_OnNewGame(void)
     SH_LOG("[NIGHTMARE_PLUGIN] New Game started in Nightmare Mode.");
     ApplyShadowStalkerModelOverrides();
     Patch_HideHealthStatus();
-    ApplyNightmareDarkness();
 }
 
 PLUGIN_EXPORT void SH_Plugin_OnMapLoad(s32 mapIdx)
@@ -275,7 +244,13 @@ PLUGIN_EXPORT void SH_Plugin_OnMapLoad(s32 mapIdx)
     const char* mapName = MapRegistry_GetName((e_MapIdx)mapIdx);
     SH_LOG("[NIGHTMARE_PLUGIN] Map loaded: %d (%s)", mapIdx, mapName ? mapName : "map");
 
-    ApplyNightmareDarkness();
+    if (g_pMapOverlayHeader != NULL)
+    {
+        s_nightmareMapHdr = *g_pMapOverlayHeader;
+        s_nightmareMapHdr.field_16 = 2; /* Dark Otherworld ambient */
+        s_nightmareMapHdr.field_17 = 6; /* Heavy rain & dark atmosphere */
+        g_pMapOverlayHeader = &s_nightmareMapHdr;
+    }
 }
 
 static s_CharaModel* s_lastChildModel = NULL;
@@ -298,9 +273,15 @@ PLUGIN_EXPORT void SH_Plugin_OnUpdate(void)
 
     /* Enforce darkness & rain while in active gameplay across all maps */
     if (g_SysWork.sysState == SysState_Gameplay &&
-        (g_GameWork.gameState == GameState_InGame || g_GameWork.gameState == GameState_MapEvent))
+        (g_GameWork.gameState == GameState_InGame || g_GameWork.gameState == GameState_MapEvent) &&
+        g_pMapOverlayHeader != NULL)
     {
-        ApplyNightmareDarkness();
+        if (g_pMapOverlayHeader->field_16 != 2 || g_pMapOverlayHeader->field_17 != 6)
+        {
+            g_pMapOverlayHeader->field_16 = 2;
+            g_pMapOverlayHeader->field_17 = 6;
+            Gfx_MapEffectsAssign(g_pMapOverlayHeader);
+        }
 
         /* Nightmare Mode: Grey Children / Mumblers / Stalkers are rendered as translucent shadow stalkers */
         if (WorldGfx_IsCharaModelPresent(Chara_GreyChild))
