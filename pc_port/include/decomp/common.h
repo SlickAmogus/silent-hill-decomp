@@ -48,17 +48,16 @@ extern uint8_t g_PsxScratchpad[4096];
 #define ALIGN(x, a) \
     (((u32)(x) + ((a) - 1)) & ~((a) - 1))
 
-/* Section attribute - no-op on PC */
 #ifdef SH_PC_PORT
-#define SECTION(x)
+/* Struct sizes differ on 64-bit due to pointer size changes */
+#define STATIC_ASSERT(cond, msg)
+#define STATIC_ASSERT_SIZEOF(type, size)
 #else
-#define SECTION(x) __attribute__((section(x)))
-#endif
-
 #define STATIC_ASSERT(cond, msg) \
     typedef char static_assertion_##msg[(cond) ? 1 : -1]
 
 #define STATIC_ASSERT_SIZEOF(type, size) \
     typedef char static_assertion_sizeof_##type[(sizeof(type) == (size)) ? 1 : -1]
+#endif
 
 #endif
