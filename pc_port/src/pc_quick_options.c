@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
- * pc_quick_options.c - in-game quick options overlay (F9).
+ * pc_quick_options.c - in-game quick options overlay (key_quick_options, default F10).
  *
  * A sibling of pc_rando_settings.c and it repeats that file's hard-won GL
  * constraints deliberately rather than sharing code:
@@ -29,6 +29,7 @@
 
 #include "pc_quick_options.h"
 #include "pc_mouse_cursor.h"
+#include "pc_config.h"
 #include "sh_log.h"
 
 /* options.c: the live-applying rows of the PC Options screen, by config key. */
@@ -176,6 +177,9 @@ static void qo_gl_init(void)
         "varying vec2 v_uv;\n"
         "void main() { v_uv = a_uv; gl_Position = vec4(a_pos, 0.0, 1.0); }\n";
     static const char* fs_src =
+        "#ifdef GL_ES\n"
+        "precision mediump float;\n"
+        "#endif\n"
         "varying vec2 v_uv;\n"
         "uniform sampler2D u_tex;\n"
         "uniform vec4 u_color;\n"
@@ -504,6 +508,36 @@ void Pc_QuickOptions_Toggle(void)
         Pc_QuickOptions_Close();
 }
 
+/* Phase machine on the GAME thread, wall clock. It used to live in Draw, and a
+ * Draw that bailed (shader failed on ANGLE/ES) left the panel stuck in OPENING
+ * with the freeze flag set: game frozen, input swallowed, cursor gone, no way
+ * out. Draw only renders now; if GL is unusable the panel closes itself. */
+static float qo_phase_tick(void)
+{
+    Uint32 age = SDL_GetTicks() - s_phaseStart;
+    float  dim = 1.0f;
+
+    if (s_glReady < 0)
+    {
+        static int s_warned;
+        if (!s_warned) { s_warned = 1; SH_DBG("[QUICKOPT] GL unavailable -- quick options disabled for this run"); }
+        s_phase = QO_CLOSED;
+        g_PcQuickOptionsActive = 0;
+        return 0.0f;
+    }
+    if (s_phase == QO_OPENING)
+    {
+        dim = (float)age / (float)QO_OPEN_MS;
+        if (dim >= 1.0f) { dim = 1.0f; s_phase = QO_SHOWN; }
+    }
+    else if (s_phase == QO_CLOSING)
+    {
+        dim = 1.0f - (float)age / (float)QO_CLOSE_MS;
+        if (dim <= 0.0f) { dim = 0.0f; s_phase = QO_CLOSED; g_PcQuickOptionsActive = 0; }
+    }
+    return dim;
+}
+
 /* ------------------------------------------------------------------ */
 /* Input                                                               */
 /* ------------------------------------------------------------------ */
@@ -552,6 +586,8 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     const QoRowDef* rows = qo_page_rows(s_page, &nRows);
     int mMoved, mClick, wheel;
     float mx, my;
+
+    qo_phase_tick();
 
     /* Keyboard extras (arrows arrive through the pad emulation already). */
     if (qo_key_edge(SDL_SCANCODE_ESCAPE))   close    = 1;
@@ -651,23 +687,18 @@ void Pc_QuickOptions_Draw(void)
 
     qo_gl_pump();
 
-    /* Phase advance + fade. Wall clock: the hook runs post-capture. */
+    /* Fade only; the phase itself advances in Update (game thread). */
     {
         Uint32 age = SDL_GetTicks() - s_phaseStart;
         if (s_phase == QO_OPENING)
         {
             dim = (float)age / (float)QO_OPEN_MS;
-            if (dim >= 1.0f) { dim = 1.0f; s_phase = QO_SHOWN; }
+            if (dim > 1.0f) dim = 1.0f;
         }
         else if (s_phase == QO_CLOSING)
         {
             dim = 1.0f - (float)age / (float)QO_CLOSE_MS;
-            if (dim <= 0.0f)
-            {
-                s_phase = QO_CLOSED;
-                g_PcQuickOptionsActive = 0;
-                goto restore;
-            }
+            if (dim <= 0.0f) goto restore;
         }
     }
 
@@ -701,8 +732,13 @@ void Pc_QuickOptions_Draw(void)
     if (!s_texTitle)
         s_texTitle = qo_bake(s_pageTitles[s_page], (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
     if (!s_texHint)
-        s_texHint = qo_bake("Up/Down select   Left/Right adjust   PgUp/PgDn page   F9 or Esc close   * = restart",
-                            (float)(int)(hintH * 0.50f), &s_hintW, &s_hintH);
+    {
+        char hint[160];
+        snprintf(hint, sizeof(hint),
+                 "Up/Down select   Left/Right adjust   PgUp/PgDn page   %s or Esc close   * = restart",
+                 g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10");
+        s_texHint = qo_bake(hint, (float)(int)(hintH * 0.50f), &s_hintW, &s_hintH);
+    }
 
     /* Publish geometry for Update's mouse hit-test. */
     s_vpW = vpW; s_vpH = vpH;

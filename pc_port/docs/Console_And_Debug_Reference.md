@@ -179,6 +179,7 @@ Set in `config.cfg` (defaults shown), active in every camera mode:
 | `key_quicksave` | `F6` | Quick save. |
 | `key_quickload` | `F8` | Quick load. |
 | `key_change_cam` | `F9` | Cycle control style (Classic / TPS / OTS). |
+| `key_quick_options` | `F10` | Quick options overlay (in-game): live graphics / HUD / audio settings. |
 | `key_swap_shoulder` | `Mouse3` | Swap the OTS shoulder side. |
 | `key_console` | `` ` `` | Console open/close (tap) / type (hold). |
 

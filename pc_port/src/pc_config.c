@@ -145,6 +145,7 @@ s_PcConfig g_PcConfig = {
         .keyRearLook = "NONE", .padRearLook = "NONE",
     },
     .keyQuickSave = "F6", .keyQuickLoad = "F8",
+    .keyQuickOptions = "F10",
     .keySwapShoulder = "Mouse3",
     .keyConsole = "`",
     .keyGfxCycle = "\\",
@@ -255,6 +256,7 @@ static const struct { const char* key; size_t off; } s_SchemeBinds[] = {
 /* Global (scheme-independent) binds -> offset within s_PcConfig. */
 static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
     { "key_quicksave",     offsetof(s_PcConfig, keyQuickSave)    },
+    { "key_quick_options", offsetof(s_PcConfig, keyQuickOptions) },
     { "key_quickload",     offsetof(s_PcConfig, keyQuickLoad)    },
     { "key_swap_shoulder", offsetof(s_PcConfig, keySwapShoulder) },
     { "key_console",       offsetof(s_PcConfig, keyConsole)      },

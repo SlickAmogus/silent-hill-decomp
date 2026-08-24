@@ -240,6 +240,7 @@ typedef struct {
     /* Global (scheme-independent) binds. Change Camera / Reload / Cycle Weapons /
      * Quick Heal are per-scheme now — they live in ControlScheme above. */
     char keyQuickSave[24], keyQuickLoad[24]; /* PC-only: quick save/load screen hotkeys */
+    char keyQuickOptions[24]; /* PC-only: in-game quick options overlay hotkey (config key: key_quick_options); default F10 */
     char keySwapShoulder[24]; /* PC-only: swap OTS shoulder side (default Mouse3) */
     char keyConsole[24]; /* PC-only: dev console toggle key (default tilde "`"); keyboard-only */
     /* PC-only graphics-effect tuning keys (keyboard-only). keyGfxCycle switches

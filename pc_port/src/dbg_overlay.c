@@ -1745,17 +1745,27 @@ void DbgOverlay_Update(void)
         s_prev_f1 = cur_f1;
     }
 
-    /* F9 toggles the in-game quick options overlay (pc_quick_options.c). A
-     * user-facing menu like F1/F2, so not gated on g_PcAllowDebugControls;
-     * not while the console has the keyboard. */
+    /* key_quick_options (default F10 -- F9 is the camera-style cycle) toggles
+     * the in-game quick options overlay (pc_quick_options.c). A user-facing
+     * menu like F1/F2, so not gated on g_PcAllowDebugControls; in-game only
+     * (the title/main menu has the real Options screen), and not while the
+     * console has the keyboard. */
     {
-        static int s_prev_f9 = 0;
-        int cur_f9 = ks[SDL_SCANCODE_F9];
-        if (cur_f9 && !s_prev_f9 && !g_PcConsoleInputActive) {
+        static SDL_Scancode s_scQuick   = SDL_SCANCODE_UNKNOWN;
+        static int          s_quickRes  = 0;
+        static int          s_prevQuick = 0;
+        int curQuick;
+        if (!s_quickRes) {
+            s_scQuick  = SDL_GetScancodeFromName(g_PcConfig.keyQuickOptions);
+            s_quickRes = 1;
+        }
+        curQuick = (s_scQuick != SDL_SCANCODE_UNKNOWN) ? ks[s_scQuick] : 0;
+        if (curQuick && !s_prevQuick && !g_PcConsoleInputActive &&
+            g_GameWork.gameState == GameState_InGame) {
             extern void Pc_QuickOptions_Toggle(void);
             Pc_QuickOptions_Toggle();
         }
-        s_prev_f9 = cur_f9;
+        s_prevQuick = curQuick;
     }
 
     /* F2 cycles the full-screen post-process look (0=Off..8). Like F1/PGXP this

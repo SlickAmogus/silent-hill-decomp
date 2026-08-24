@@ -116,6 +116,9 @@ static void rs_gl_init(void)
         "varying vec2 v_uv;\n"
         "void main() { v_uv = a_uv; gl_Position = vec4(a_pos, 0.0, 1.0); }\n";
     static const char* fs_src =
+        "#ifdef GL_ES\n"
+        "precision mediump float;\n"
+        "#endif\n"
         "varying vec2 v_uv;\n"
         "uniform sampler2D u_tex;\n"
         "uniform vec4 u_color;\n"

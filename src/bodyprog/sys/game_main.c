@@ -2157,6 +2157,9 @@ void MainLoop(void) // 0x80032EE0
         {
             extern int  g_PcQuickOptionsActive;
             extern void Pc_QuickOptions_Update(int, int, int, int, int, int, int, int);
+            extern void Pc_QuickOptions_Close(void);
+            if (g_PcQuickOptionsActive && g_GameWork.gameState != GameState_InGame)
+                Pc_QuickOptions_Close();
             if (g_PcQuickOptionsActive) {
                 const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
                 Pc_QuickOptions_Update(

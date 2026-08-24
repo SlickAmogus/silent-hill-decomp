@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /*
- * pc_quick_options.h - in-game quick options overlay (F9).
+ * pc_quick_options.h - in-game quick options overlay (key_quick_options, default F10).
  *
  * A translucent GL panel modelled on the randomizer settings panel
  * (pc_rando_settings.c): own GL program + stb_truetype text, drawn from the
@@ -24,7 +24,7 @@ void Pc_QuickOptions_Toggle(void);
 void Pc_QuickOptions_Close(void);
 
 /* Per-frame input while open (game thread; pad-derived edges from the
- * player's own bindings). Keyboard (arrows via the pad emulation, Esc / F9 /
+ * player's own bindings). Keyboard (arrows via the pad emulation, Esc / the bound key /
  * PgUp / PgDn / Q / E) and the mouse are read internally. */
 void Pc_QuickOptions_Update(int up, int down, int left, int right,
                             int confirm, int close, int pageNext, int pagePrev);
