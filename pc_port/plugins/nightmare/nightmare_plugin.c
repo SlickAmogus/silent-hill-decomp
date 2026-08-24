@@ -115,17 +115,6 @@ static void ProcessOverlayInput(void)
     g_Controller0->pulsedBtnFlags    = 0;
     g_Controller0->pulsedGuiBtnFlags = 0;
 
-    static int s_prevEsc = 0;
-    int escDown = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0 || (GetAsyncKeyState(VK_BACK) & 0x8000) != 0;
-    if (escDown && !s_prevEsc)
-    {
-        s_overlayOpen = 0;
-        SD_Call(Sfx_MenuCancel);
-        s_prevEsc = escDown;
-        return;
-    }
-    s_prevEsc = escDown;
-
     static int s_prevUp = 0, s_prevDown = 0, s_prevLeft = 0, s_prevRight = 0, s_prevEnter = 0, s_prev1 = 0, s_prev2 = 0;
     int upDown    = (GetAsyncKeyState(VK_UP) & 0x8000) != 0 || (GetAsyncKeyState('W') & 0x8000) != 0;
     int downDown  = (GetAsyncKeyState(VK_DOWN) & 0x8000) != 0 || (GetAsyncKeyState('S') & 0x8000) != 0;
@@ -211,7 +200,7 @@ static void DrawOverlayMenu(void)
     Gfx_StringSetPosition(50, 170);
     Gfx_StringDraw("UP/DOWN: Select", 32);
     Gfx_StringSetPosition(50, 190);
-    Gfx_StringDraw("N/ESC: Close", 32);
+    Gfx_StringDraw("N: Close", 32);
 
     Gfx_StringsReset2dLayerIdx();
 }
