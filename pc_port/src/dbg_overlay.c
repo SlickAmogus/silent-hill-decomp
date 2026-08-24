@@ -1831,7 +1831,10 @@ void DbgOverlay_Update(void)
     {
         static int s_prev_exit = 0;
         int cur_exit = Dbg_GfxBindActive(ks, g_PcConfig.keyExitGame);
-        if (cur_exit && !s_prev_exit && !g_PcConsoleInputActive) {
+        /* The quick options overlay closes on Escape, the default exit bind:
+         * without this gate closing it also warm-reset the game to the title. */
+        extern int g_PcQuickOptionsActive;
+        if (cur_exit && !s_prev_exit && !g_PcConsoleInputActive && !g_PcQuickOptionsActive) {
             /* The brightness screen owns the whole display (its calibration bar is
              * drawn outside the normal menu path), so warm-resetting out of it left
              * the bar on screen over the title. Back out to the options list the
