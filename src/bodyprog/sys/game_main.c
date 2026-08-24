@@ -2452,7 +2452,9 @@ void MainLoop(void) // 0x80032EE0
          * the fade. Self-gated on its timer (no-op when not healing). */
         {
             extern void Pc_HealFlashUpdate(void);
+            extern void Pc_LowHealthGlowUpdate(void);
             Pc_HealFlashUpdate();
+            Pc_LowHealthGlowUpdate(); /* optional low-health red edge pulse, same window */
 
             /* Minimap: load the area's paper-map TIM here (game side) when it
              * changes — the Fs queue must not be touched from the GL hook that

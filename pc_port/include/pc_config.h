@@ -112,6 +112,7 @@ typedef struct {
                            * cutscenes stay clamped by Pc_ScriptOwnsShot regardless.
                            * Set 0 to put every non-gameplay screen back on the hard
                            * one-vblank wait. (config key: menu_fps_unlock) */
+    int lowHealthGlow;    /* 1 = pulsing red edge glow while health is low (config key: low_health_glow); off by default */
     int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
                            * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
                            * (config key: bullet_decals) */

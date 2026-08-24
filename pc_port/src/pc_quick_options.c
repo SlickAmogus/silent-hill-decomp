@@ -87,6 +87,7 @@ static const QoRowDef s_page1[] = {
     { ROW_OPT,   "minimap_opacity",      0, NULL },
     { ROW_OPT,   "minimap_require_map",  0, NULL },
     { ROW_OPT,   "crosshair",            0, NULL },
+    { ROW_OPT,   "low_health_glow",      0, NULL },
     { ROW_EXTRA, NULL, QO_X_SPEAKERS,       "Speaker Layout" },
     { ROW_EXTRA, NULL, QO_X_BGM,            "Music Volume" },
     { ROW_EXTRA, NULL, QO_X_SFX,            "Effects Volume" },
@@ -603,6 +604,10 @@ static void qo_set_page(int page)
     if (s_sel < 0)  s_sel = 0;
 }
 
+/* Confirm / click: cheat rows have their own confirm (the Spawn row fires
+ * its browsed entry); everything else steps up. */
+static void qo_confirm(const QoRowDef* r);
+
 static void qo_activate(const QoRowDef* r, int dir)
 {
     switch (r->kind)
@@ -694,7 +699,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         if (inX && row >= 0 && row < nRows)
         {
             if (mMoved) s_sel = row;
-            if (mClick) { s_sel = row; qo_activate(&rows[row], +1); }
+            if (mClick) { s_sel = row; qo_confirm(&rows[row]); }
             if (mRClick && QO_IS_VALUE_ROW(rows[row].kind))
             { s_sel = row; qo_activate(&rows[row], -1); }
             if (wheel && QO_IS_VALUE_ROW(rows[row].kind))
@@ -706,12 +711,20 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     {
         if (left)  qo_activate(&rows[s_sel], -1);
         if (right) qo_activate(&rows[s_sel], +1);
-        if (confirm) qo_activate(&rows[s_sel], +1);
+        if (confirm) qo_confirm(&rows[s_sel]);
     }
     else if (confirm)
     {
-        qo_activate(&rows[s_sel], +1);
+        qo_confirm(&rows[s_sel]);
     }
+}
+
+static void qo_confirm(const QoRowDef* r)
+{
+    if (r->kind == ROW_CHEAT)
+        Pc_Cheats_Confirm(r->cpage, r->extra);
+    else
+        qo_activate(r, +1);
 }
 
 /* ------------------------------------------------------------------ */

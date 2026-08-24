@@ -742,6 +742,34 @@ static int spawn_chara_anim_ready(s32 charaId)
            g_CharaModelAnimsData[idx].activeAnmHdr != NULL;
 }
 
+static void cmd_spawn(const char* arg);
+
+/* Quick options > Debug "Spawn" row: browse SPAWN_CHARAS and fire cmd_spawn
+ * for the pick, so the row and the console command are one code path. */
+int Pc_SpawnList_Count(void)
+{
+    return (int)(sizeof(SPAWN_CHARAS) / sizeof(SPAWN_CHARAS[0]));
+}
+
+const char* Pc_SpawnList_Name(int i)
+{
+    if (i < 0 || i >= Pc_SpawnList_Count()) return "";
+    return SPAWN_CHARAS[i].name;
+}
+
+int Pc_SpawnList_Ready(int i)
+{
+    if (i < 0 || i >= Pc_SpawnList_Count()) return 0;
+    return spawn_chara_model_ready(SPAWN_CHARAS[i].charaId) &&
+           spawn_chara_anim_ready(SPAWN_CHARAS[i].charaId);
+}
+
+void Pc_SpawnList_Spawn(int i)
+{
+    if (i < 0 || i >= Pc_SpawnList_Count()) return;
+    cmd_spawn(SPAWN_CHARAS[i].name);
+}
+
 static void cmd_spawn(const char* arg)
 {
     char nm[32];

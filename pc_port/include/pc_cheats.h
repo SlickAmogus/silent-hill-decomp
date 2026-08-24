@@ -12,5 +12,7 @@ int         Pc_Cheats_IsAction(int page, int idx);
 const char* Pc_Cheats_Label(int page, int idx, char* buf, int bufsz);
 /* dir: +1 / -1 (toggles ignore it; Play-as cycles by it). */
 void        Pc_Cheats_Adjust(int page, int idx, int dir);
+/* Confirm/click on a row (Spawn fires its browsed entry; others step up). */
+void        Pc_Cheats_Confirm(int page, int idx);
 
 #endif /* PC_CHEATS_H */

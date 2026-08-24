@@ -36,6 +36,11 @@ extern void Pc_FreeCam_Set(int on);
 extern int  g_PcAllowDebugControls;
 extern int  g_PcUnlimitedEnemies;
 extern int  g_CollVisEnabled;
+/* pc_console_cmd.c: the console SPAWN table, browsable. */
+extern int         Pc_SpawnList_Count(void);
+extern const char* Pc_SpawnList_Name(int i);
+extern int         Pc_SpawnList_Ready(int i);
+extern void        Pc_SpawnList_Spawn(int i);
 /* pc_playas.c */
 extern int         Pc_PlayAs_Count(void);
 extern int         Pc_PlayAs_Current(void);
@@ -43,7 +48,9 @@ extern const char* Pc_PlayAs_Label(int idx);
 extern const char* Pc_PlayAs_Name(int idx);
 extern int         Pc_PlayAs_SetByName(const char* name, int save);
 
-enum { CH_TOGGLE = 0, CH_ACTION, CH_PLAYAS, CH_FREECAM, CH_DEBUGKEYS };
+enum { CH_TOGGLE = 0, CH_ACTION, CH_PLAYAS, CH_FREECAM, CH_DEBUGKEYS, CH_SPAWN };
+
+static int s_spawnIdx; /* CH_SPAWN: the browsed entry; confirm spawns it */
 
 typedef struct
 {
@@ -55,10 +62,12 @@ typedef struct
 
 /* ---- actions (mirrors of the debug keys / console commands) ---------- */
 
+/* Live slots only: past inventorySlotCount the table keeps stale entries
+ * (the ghost-slot bug quick heal had), which would skip granting the gun. */
 static int has_item(u8 id)
 {
     int i;
-    for (i = 0; i < INV_ITEM_COUNT_MAX; i++)
+    for (i = 0; i < g_SavegamePtr->inventorySlotCount && i < INV_ITEM_COUNT_MAX; i++)
         if (g_SavegamePtr->items[i].id_0 == id)
             return 1;
     return 0;
@@ -143,7 +152,8 @@ static const CheatRow s_debug[] = {
     { "Debug keys (top row)", CH_DEBUGKEYS, NULL, NULL },
     { "Collision visualizer", CH_TOGGLE,  &g_CollVisEnabled,  NULL },
     { "Fog (free cam)",       CH_TOGGLE,  &g_DebugFogDisabled, NULL },
-    { "Keyframe inspector",   CH_TOGGLE,  &g_DebugAnimKfView, NULL },
+    { "Keyframe viewer (K)",  CH_TOGGLE,  &g_DebugAnimKfView, NULL },
+    { "Spawn",                CH_SPAWN,   NULL, NULL },
     { "Log Harry position",   CH_ACTION,  NULL, act_log_position },
     { "Kill Harry",           CH_ACTION,  NULL, act_kill_harry },
 };
@@ -188,9 +198,12 @@ const char* Pc_Cheats_Label(int page, int idx, char* buf, int bufsz)
         case CH_PLAYAS:    return Pc_PlayAs_Label(Pc_PlayAs_Current());
         case CH_FREECAM:   return g_DebugCamEnabled ? "On" : "Off";
         case CH_DEBUGKEYS: return g_PcAllowDebugControls ? "On" : "Off";
+        case CH_SPAWN:
+            snprintf(buf, bufsz, "< %s >%s", Pc_SpawnList_Name(s_spawnIdx),
+                     Pc_SpawnList_Ready(s_spawnIdx) ? "" : "  (not in this map)");
+            return buf;
         default:           return "";
     }
-    (void)buf; (void)bufsz;
 }
 
 void Pc_Cheats_Adjust(int page, int idx, int dir)
@@ -222,6 +235,13 @@ void Pc_Cheats_Adjust(int page, int idx, int dir)
             Pc_FreeCam_Set(!g_DebugCamEnabled);
             Sd_PlaySfx(g_DebugCamEnabled ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
             break;
+        case CH_SPAWN:
+        {
+            int n = Pc_SpawnList_Count();
+            if (n > 0) s_spawnIdx = (s_spawnIdx + (dir < 0 ? -1 : 1) + n) % n;
+            Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+            break;
+        }
         case CH_DEBUGKEYS:
             g_PcAllowDebugControls = !g_PcAllowDebugControls;
             g_PcConfig.allowDebugControls = g_PcAllowDebugControls;
@@ -232,4 +252,26 @@ void Pc_Cheats_Adjust(int page, int idx, int dir)
         default:
             break;
     }
+}
+
+/* Confirm on a row: the Spawn row fires its browsed entry; every other row
+ * behaves like a step up. */
+void Pc_Cheats_Confirm(int page, int idx)
+{
+    const CheatRow* r = row_at(page, idx, NULL);
+    if (!r) return;
+    if (r->kind == CH_SPAWN)
+    {
+        if (!Pc_SpawnList_Ready(s_spawnIdx))
+        {
+            Sd_PlaySfx(Sfx_MenuError, 0, 64);
+            SH_DBG_ECHO("[CHEAT] %s is not loaded in this map (see 'spawn list')", Pc_SpawnList_Name(s_spawnIdx));
+            return;
+        }
+        Pc_SpawnList_Spawn(s_spawnIdx);
+        Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
+        SH_DBG_ECHO("[CHEAT] Spawned %s", Pc_SpawnList_Name(s_spawnIdx));
+        return;
+    }
+    Pc_Cheats_Adjust(page, idx, +1);
 }
