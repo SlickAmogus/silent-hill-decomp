@@ -166,31 +166,36 @@ static void DrawOverlayMenu(void)
     if (!s_overlayOpen) return;
 
     /* Draw Header */
-    Gfx_StringSetColor(StringColorId_Gold);
-    Gfx_StringSetPosition(50, 40);
-    Gfx_Strings2dLayerIdxSet(8);
-    Gfx_StringDraw("=== NIGHTMARE SETTINGS ===", 32);
+    Text_Debug_PositionSet(40, 40);
+    Text_Debug_Draw("=== NIGHTMARE SETTINGS ===");
 
     /* Row 0: Live Game */
-    Gfx_StringSetColor(s_overlaySelected == 0 ? StringColorId_Gold : StringColorId_White);
-    Gfx_StringSetPosition(60, 70);
-    Gfx_StringDraw(s_overlaySelected == 0 ? "> Live_Game:" : "  Live_Game:", 24);
-    Gfx_StringSetPosition(200, 70);
-    Gfx_StringDraw(g_PcConfig.liveInventory ? "[ ON ]" : "[ OFF ]", 12);
+    Text_Debug_PositionSet(50, 60);
+    if (s_overlaySelected == 0)
+    {
+        Text_Debug_Draw("> LIVE GAME:     ");
+    }
+    else
+    {
+        Text_Debug_Draw("  LIVE GAME:     ");
+    }
+    Text_Debug_Draw(g_PcConfig.liveInventory ? "ON" : "OFF");
 
     /* Row 1: Low Health FX */
-    Gfx_StringSetColor(s_overlaySelected == 1 ? StringColorId_Gold : StringColorId_White);
-    Gfx_StringSetPosition(60, 95);
-    Gfx_StringDraw(s_overlaySelected == 1 ? "> Low_Health_FX:" : "  Low_Health_FX:", 24);
-    Gfx_StringSetPosition(200, 95);
-    Gfx_StringDraw(g_PcConfig.nightmareVignette ? "[ ON ]" : "[ OFF ]", 12);
+    Text_Debug_PositionSet(50, 75);
+    if (s_overlaySelected == 1)
+    {
+        Text_Debug_Draw("> LOW HEALTH FX: ");
+    }
+    else
+    {
+        Text_Debug_Draw("  LOW HEALTH FX: ");
+    }
+    Text_Debug_Draw(g_PcConfig.nightmareVignette ? "ON" : "OFF");
 
     /* Instructions */
-    Gfx_StringSetColor(StringColorId_White);
-    Gfx_StringSetPosition(40, 135);
-    Gfx_StringDraw("Press [ENTER] to Toggle | [N/ESC] Close", 48);
-
-    Gfx_StringsReset2dLayerIdx();
+    Text_Debug_PositionSet(30, 100);
+    Text_Debug_Draw("ENTER: TOGGLE | N/ESC: CLOSE");
 }
 
 PLUGIN_EXPORT const char* SH_Plugin_GetName(void)
