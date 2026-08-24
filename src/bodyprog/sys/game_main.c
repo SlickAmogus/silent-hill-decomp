@@ -3092,14 +3092,24 @@ void MainLoop(void) // 0x80032EE0
                      * gets baked in. */
                     ofy = (s32)g_PsxCutsceneVShift;
                 }
+                else if (g_PcPickupItemActive)
+                {
+                    /* The pickup/take screen gets the ZERO baseline -- do not
+                     * re-litigate this (it has flip-flopped twice):
+                     * 91d76eb07 set it to s_heldWorldOfy "to align with the
+                     * frozen backdrop", and users reported every fixed-angle
+                     * room's pickup item ~20 units too low. The +20 vshift is a
+                     * FIX_ANG WORLD-camera band-aid (f85505514: clipped "by the
+                     * projection, not the display; other camera modes are
+                     * unaffected"); the take screen stages its own camera and
+                     * projection (GsSetProjection(1000)), which never had the
+                     * quirk -- on PSX both world and item ran at offset 0. The
+                     * backdrop's +20 world render already reproduces the PSX
+                     * world image, so item-at-0 reproduces the PSX composite. */
+                    ofy = 0;
+                }
                 else
                 {
-                    /* Item pickup ALSO uses the held gameplay shift. The take
-                     * screen renders the item over a FROZEN backdrop captured
-                     * with the gameplay fixed-camera shift (+20); zeroing ofy
-                     * here drew the item 20 units below the scene it sits in.
-                     * Matching s_heldWorldOfy aligns the item with its backdrop
-                     * -- the earlier zero-baseline was the misframe, not the fix. */
                     ofy = s_heldWorldOfy;
                 }
             }
