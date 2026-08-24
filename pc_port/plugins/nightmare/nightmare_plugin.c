@@ -89,130 +89,119 @@ static void Plugin_LoadNightmareConfig(void)
 
 
 
-#ifdef _WIN32
-static void InstallHook64(void* target, void* replacement)
-{
-    if (!target || !replacement) return;
-    DWORD oldProtect;
-    if (VirtualProtect(target, 14, PAGE_EXECUTE_READWRITE, &oldProtect))
-    {
-        unsigned char jmpCode[14] = {
-            0xFF, 0x25, 0x00, 0x00, 0x00, 0x00, /* jmp qword ptr [rip + 0] */
-            0, 0, 0, 0, 0, 0, 0, 0              /* 64-bit target address */
-        };
-        *(uintptr_t*)(&jmpCode[6]) = (uintptr_t)replacement;
-        memcpy(target, jmpCode, 14);
-        VirtualProtect(target, 14, oldProtect, &oldProtect);
-        FlushInstructionCache(GetCurrentProcess(), target, 14);
-    }
-}
-#endif
-
 extern void Options_Menu_VignetteDraw(void);
-extern void Screen_BackgroundImgDraw(void* img);
-extern void Pc_MouseCursor_Draw(void);
 
-static s32 s_pluginPcOptSelected = 0;
+static s32 s_overlayOpen = 0;
+static s32 s_overlaySelected = 0;
 
-static void Plugin_PcOptionsMenu_Control(void)
+static void ProcessOverlayInput(void)
 {
-    Options_Menu_VignetteDraw();
-    Screen_BackgroundImgDraw(&g_ItemInspectionImg);
-    Pc_MouseCursor_Draw();
-
-    if (g_GameWork.gameStateSteps[0] != OptionsMenuState_PcOptions)
-        return;
-
-    /* Draw Header */
-    Gfx_StringSetColor(StringColorId_White);
-    Gfx_StringSetPosition(80, 24);
-    Gfx_Strings2dLayerIdxSet(8);
-    Gfx_StringDraw("Nightmare_Options", 32);
-
-    /* Draw Options */
-    static const char* const labels[3] = { "Live_Game", "Low_Health_FX", "Back" };
-    for (int i = 0; i < 3; i++)
+#ifdef _WIN32
+    static int s_prevN = 0;
+    int nDown = (GetAsyncKeyState('N') & 0x8000) != 0 || (GetAsyncKeyState(VK_F4) & 0x8000) != 0;
+    if (nDown && !s_prevN)
     {
-        if (s_pluginPcOptSelected == i)
-            Gfx_StringSetColor(StringColorId_Gold);
-        else
-            Gfx_StringSetColor(StringColorId_White);
-
-        Gfx_StringSetPosition(64, 60 + (i * 20));
-        Gfx_Strings2dLayerIdxSet(8);
-        Gfx_StringDraw((char*)labels[i], 32);
-
-        /* Value */
-        if (i == 0)
-        {
-            Gfx_StringSetPosition(200, 60 + (i * 20));
-            Gfx_StringDraw(g_PcConfig.liveInventory ? "On" : "Off", 8);
-        }
-        else if (i == 1)
-        {
-            Gfx_StringSetPosition(200, 60 + (i * 20));
-            Gfx_StringDraw(g_PcConfig.nightmareVignette ? "On" : "Off", 8);
-        }
+        s_overlayOpen = !s_overlayOpen;
+        SD_Call(s_overlayOpen ? Sfx_MenuConfirm : Sfx_MenuCancel);
     }
-    Gfx_StringsReset2dLayerIdx();
+    s_prevN = nDown;
 
-    /* Input Handling */
-    if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp)
+    if (!s_overlayOpen) return;
+
+    /* Consume input so background menu/game doesn't receive keystrokes */
+    g_Controller0->clickedBtnFlags   = 0;
+    g_Controller0->pulsedBtnFlags    = 0;
+    g_Controller0->pulsedGuiBtnFlags = 0;
+    g_Controller0->heldBtnFlags      = 0;
+
+    if (GetAsyncKeyState(VK_ESCAPE) & 0x8000)
     {
-        SD_Call(Sfx_MenuMove);
-        s_pluginPcOptSelected = (s_pluginPcOptSelected + 2) % 3;
-    }
-    else if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickDown)
-    {
-        SD_Call(Sfx_MenuMove);
-        s_pluginPcOptSelected = (s_pluginPcOptSelected + 1) % 3;
-    }
-    else if (g_Controller0->pulsedBtnFlags & (ControllerFlag_LStickLeft | ControllerFlag_LStickRight))
-    {
-        if (s_pluginPcOptSelected == 0)
-        {
-            g_PcConfig.liveInventory = !g_PcConfig.liveInventory;
-            PcConfig_SaveKeyValue("live_game", g_PcConfig.liveInventory ? "1" : "0");
-            SD_Call(Sfx_MenuConfirm);
-        }
-        else if (s_pluginPcOptSelected == 1)
-        {
-            g_PcConfig.nightmareVignette = !g_PcConfig.nightmareVignette;
-            PcConfig_SaveKeyValue("low_health_fx", g_PcConfig.nightmareVignette ? "1" : "0");
-            SD_Call(Sfx_MenuConfirm);
-        }
-    }
-    else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter)
-    {
-        if (s_pluginPcOptSelected == 0)
-        {
-            g_PcConfig.liveInventory = !g_PcConfig.liveInventory;
-            PcConfig_SaveKeyValue("live_game", g_PcConfig.liveInventory ? "1" : "0");
-            SD_Call(Sfx_MenuConfirm);
-        }
-        else if (s_pluginPcOptSelected == 1)
-        {
-            g_PcConfig.nightmareVignette = !g_PcConfig.nightmareVignette;
-            PcConfig_SaveKeyValue("low_health_fx", g_PcConfig.nightmareVignette ? "1" : "0");
-            SD_Call(Sfx_MenuConfirm);
-        }
-        else if (s_pluginPcOptSelected == 2)
-        {
-            SD_Call(Sfx_MenuCancel);
-            g_GameWork.gameStateSteps[0] = OptionsMenuState_LeavePcOptions;
-            g_SysWork.counters_1C[1]     = 0;
-            g_GameWork.gameStateSteps[1] = 0;
-            g_GameWork.gameStateSteps[2] = 0;
-        }
-    }
-    else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel)
-    {
+        s_overlayOpen = 0;
         SD_Call(Sfx_MenuCancel);
-        g_GameWork.gameStateSteps[0] = OptionsMenuState_LeavePcOptions;
-        g_SysWork.counters_1C[1]     = 0;
-        g_GameWork.gameStateSteps[1] = 0;
-        g_GameWork.gameStateSteps[2] = 0;
+        return;
     }
+
+    static int s_prevUp = 0, s_prevDown = 0, s_prevEnter = 0, s_prev1 = 0, s_prev2 = 0;
+    int upDown    = (GetAsyncKeyState(VK_UP) & 0x8000) != 0;
+    int downDown  = (GetAsyncKeyState(VK_DOWN) & 0x8000) != 0;
+    int enterDown = (GetAsyncKeyState(VK_RETURN) & 0x8000) != 0 || (GetAsyncKeyState(VK_SPACE) & 0x8000) != 0;
+    int k1Down    = (GetAsyncKeyState('1') & 0x8000) != 0;
+    int k2Down    = (GetAsyncKeyState('2') & 0x8000) != 0;
+
+    if (upDown && !s_prevUp)
+    {
+        s_overlaySelected = (s_overlaySelected + 1) % 2;
+        SD_Call(Sfx_MenuMove);
+    }
+    if (downDown && !s_prevDown)
+    {
+        s_overlaySelected = (s_overlaySelected + 1) % 2;
+        SD_Call(Sfx_MenuMove);
+    }
+
+    if ((enterDown && !s_prevEnter) || (k1Down && !s_prev1 && s_overlaySelected == 0))
+    {
+        if (s_overlaySelected == 0)
+        {
+            g_PcConfig.liveInventory = !g_PcConfig.liveInventory;
+            PcConfig_SaveKeyValue("live_game", g_PcConfig.liveInventory ? "1" : "0");
+            SD_Call(Sfx_MenuConfirm);
+        }
+        else
+        {
+            g_PcConfig.nightmareVignette = !g_PcConfig.nightmareVignette;
+            PcConfig_SaveKeyValue("low_health_fx", g_PcConfig.nightmareVignette ? "1" : "0");
+            SD_Call(Sfx_MenuConfirm);
+        }
+    }
+    else if ((enterDown && !s_prevEnter) || (k2Down && !s_prev2 && s_overlaySelected == 1))
+    {
+        g_PcConfig.nightmareVignette = !g_PcConfig.nightmareVignette;
+        PcConfig_SaveKeyValue("low_health_fx", g_PcConfig.nightmareVignette ? "1" : "0");
+        SD_Call(Sfx_MenuConfirm);
+    }
+
+    s_prevUp    = upDown;
+    s_prevDown  = downDown;
+    s_prevEnter = enterDown;
+    s_prev1     = k1Down;
+    s_prev2     = k2Down;
+#endif
+}
+
+static void DrawOverlayMenu(void)
+{
+    if (!s_overlayOpen) return;
+
+    /* Draw Background Dimming Vignette */
+    Options_Menu_VignetteDraw();
+
+    /* Draw Header with Silent Hill Gold Font */
+    Gfx_StringSetColor(StringColorId_Gold);
+    Gfx_StringSetPosition(50, 40);
+    Gfx_Strings2dLayerIdxSet(8);
+    Gfx_StringDraw("=== NIGHTMARE SETTINGS ===", 32);
+
+    /* Row 0: Live Game */
+    Gfx_StringSetColor(s_overlaySelected == 0 ? StringColorId_Gold : StringColorId_White);
+    Gfx_StringSetPosition(60, 70);
+    Gfx_StringDraw(s_overlaySelected == 0 ? "> Live_Game:" : "  Live_Game:", 24);
+    Gfx_StringSetPosition(200, 70);
+    Gfx_StringDraw(g_PcConfig.liveInventory ? "[ ON ]" : "[ OFF ]", 12);
+
+    /* Row 1: Low Health FX */
+    Gfx_StringSetColor(s_overlaySelected == 1 ? StringColorId_Gold : StringColorId_White);
+    Gfx_StringSetPosition(60, 95);
+    Gfx_StringDraw(s_overlaySelected == 1 ? "> Low_Health_FX:" : "  Low_Health_FX:", 24);
+    Gfx_StringSetPosition(200, 95);
+    Gfx_StringDraw(g_PcConfig.nightmareVignette ? "[ ON ]" : "[ OFF ]", 12);
+
+    /* Instructions */
+    Gfx_StringSetColor(StringColorId_White);
+    Gfx_StringSetPosition(40, 135);
+    Gfx_StringDraw("Press [ENTER] to Toggle | [N/ESC] Close", 48);
+
+    Gfx_StringsReset2dLayerIdx();
 }
 
 PLUGIN_EXPORT const char* SH_Plugin_GetName(void)
@@ -231,15 +220,6 @@ PLUGIN_EXPORT void SH_Plugin_Init(void)
     Plugin_LoadNightmareConfig();
     ApplyShadowStalkerModelOverrides();
     Patch_HideHealthStatus();
-
-#ifdef _WIN32
-    void* pPcOpt = (void*)GetProcAddress(GetModuleHandleA(NULL), "Options_PcOptionsMenu_Control");
-    if (pPcOpt)
-    {
-        InstallHook64(pPcOpt, (void*)Plugin_PcOptionsMenu_Control);
-        SH_LOG("[NIGHTMARE_PLUGIN] Hooked Options_PcOptionsMenu_Control -> Nightmare Options Menu");
-    }
-#endif
 }
 
 PLUGIN_EXPORT void SH_Plugin_OnNewGame(void)
@@ -279,6 +259,8 @@ PLUGIN_EXPORT void SH_Plugin_OnUpdate(void)
 {
     /* Always ensure nightmare mode is active when plugin is present */
     g_PcConfig.nightmare = 1;
+
+    ProcessOverlayInput();
 
     /* Patch health indicator in inventory */
     static int s_patchedHealth = 0;
@@ -570,11 +552,13 @@ static void Plugin_RenderLowHealthEffects(void)
 PLUGIN_EXPORT void SH_Plugin_OnRender(void)
 {
     Plugin_RenderLowHealthEffects();
+    DrawOverlayMenu();
 }
 
 PLUGIN_EXPORT void SH_Plugin_OnScreenFadeDraw(void)
 {
     Plugin_RenderLowHealthEffects();
+    DrawOverlayMenu();
 }
 
 PLUGIN_EXPORT int SH_Plugin_OverrideNpcSpawn(e_CharaId* charaId)
