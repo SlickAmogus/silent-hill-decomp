@@ -19,6 +19,7 @@
 
 #include <PsyX/PsyX_public.h>
 #include <PsyX/PsyX_render.h>
+#include <PsyX/PsyX_audio.h>   /* PsyX_AudioPushXaFrames - FMV audio via the mixer */
 #include <PsyX/PsyX_globals.h> /* g_windowWidth/Height = the scene-target size */
 #include <PsyX/util/timer.h>
 #include <PsyX/common/glad.h>

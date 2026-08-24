@@ -122,14 +122,9 @@ public class SetupActivity extends Activity {
             .setCancelable(false)
             .setMessage(
                 "Your disc image and saves are in a folder that Android no longer "
-              + "lets file managers open, so you cannot get at your saves.
-
-"
-              + "Move them to " + target.label + "?
-" + target.dir.getAbsolutePath()
-              + "
-
-The game works either way.")
+              + "lets file managers open, so you cannot get at your saves.\n\n"
+              + "Move them to " + target.label + "?\n" + target.dir.getAbsolutePath()
+              + "\n\nThe game works either way.")
             .setPositiveButton("Move", new DialogInterface.OnClickListener() {
                 @Override public void onClick(DialogInterface d, int which) {
                     migrateThen(legacy, target.dir);
@@ -284,8 +279,7 @@ The game works either way.")
         String[] labels = new String[opts.size()];
         for (int i = 0; i < opts.size(); i++) {
             StorageLocations.Option o = opts.get(i);
-            labels[i] = o.label + "
-" + o.dir.getAbsolutePath();
+            labels[i] = o.label + "\n" + o.dir.getAbsolutePath();
         }
 
         new AlertDialog.Builder(this)
