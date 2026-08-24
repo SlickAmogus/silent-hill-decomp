@@ -212,22 +212,6 @@ static const s_PcOpt PCOPT_S_VANILLA[] = {
     { "Back",             NULL,                          NULL,                  NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
 
-static const s_PcOpt PCOPT_S_NIGHTMARE[] = {
-    { "Flashlight",       &g_PcConfig.flashlightMode,     "flashlight_mode",      VAL_FLMODE, 4, LBL_FLMODE, NULL,                        1, PCK_FLMODE },
-    { "Beam_Intensity",   NULL, "flashlight_intensity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightIntensity, &g_PsyX_FlashlightIntensity, 0.0f, 3.0f, 0.1f },
-    { "Beam_Size",        NULL, "flashlight_size",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.flashlightSize,      &g_PsyX_FlashlightSize,      0.0f, 3.0f, 0.1f },
-    { "Disable_Culling",  &g_PcConfig.disableCulling, "disable_culling",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
-    { "Preload_Chunks",   &g_PcConfig.preloadChunks,  "preload_chunks",   VAL_ONOFF, 2, LBL_ONOFF, NULL, 0, PCK_INT  },
-    { "FPS_Limit",        &g_PcConfig.fpsCap,         "fps_cap",          VAL_FPS,   5, LBL_FPS,   NULL, 1, PCK_INT  },
-    { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
-    { "Crosshair",        &g_PcConfig.crosshair,         "crosshair",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
-    { "Live_Game",        &g_PcConfig.liveInventory,     "live_game",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
-    { "Low_Health_FX",    &g_PcConfig.nightmareVignette, "nightmare_vignette",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
-    { "Prev_Page",        NULL,                          NULL,                  NULL,      0, NULL,      NULL, 0, PCK_PREV },
-    { "Next_Page",        NULL,                          NULL,                  NULL,      0, NULL,      NULL, 0, PCK_NEXT },
-    { "Back",             NULL,                          NULL,                  NULL,      0, NULL,      NULL, 0, PCK_BACK },
-};
-
 /* Page 3 (Controls): the 2D screen-relative control toggles + look sensitivities
  * and the invert toggles. (The New-Game start Map row now lives on page 4.) */
 static const s_PcOpt PCOPT_C[] = {
@@ -243,7 +227,16 @@ static const s_PcOpt PCOPT_C[] = {
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
 
-/* Page 4 (Camera): the aiming + alternate-camera options. */
+/* Page 4 (Nightmare Options) */
+static const s_PcOpt PCOPT_NIGHTMARE[] = {
+    { "Live_Game",        &g_PcConfig.liveInventory,     "live_game",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+    { "Low_Health_FX",    &g_PcConfig.nightmareVignette, "nightmare_vignette",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+    { "Prev_Page",        NULL,                          NULL,                  NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Next_Page",        NULL,                          NULL,                  NULL,      0, NULL,      NULL, 0, PCK_NEXT },
+    { "Back",             NULL,                          NULL,                  NULL,      0, NULL,      NULL, 0, PCK_BACK },
+};
+
+/* Page 5 (Camera & Minimap) */
 static const s_PcOpt PCOPT_T[] = {
     { "Camera_Mode",       &g_PcConfig.controlStyle,       "control_style",         VAL_CS,     4, LBL_CS,     NULL, 1, PCK_CTRLSTYLE },
     { "Minimap",           &g_PcConfig.minimap,            "minimap",               VAL_MMMODE, 3, LBL_MMMODE, NULL, 1, PCK_INT },
@@ -282,16 +275,9 @@ static void PcMouse_InjectDir(int dir)
 static const s_PcOpt* PcOpt_Page(int* count)
 {
     if (g_PcOptionsMenu_Page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
-    if (g_PcOptionsMenu_Page == 1) {
-        extern int Pc_Plugins_HasNightmarePlugin(void);
-        if (g_PcConfig.nightmare != 0 || Pc_Plugins_HasNightmarePlugin()) {
-            *count = (int)(sizeof(PCOPT_S_NIGHTMARE) / sizeof(PCOPT_S_NIGHTMARE[0]));
-            return PCOPT_S_NIGHTMARE;
-        }
-        *count = (int)(sizeof(PCOPT_S_VANILLA) / sizeof(PCOPT_S_VANILLA[0]));
-        return PCOPT_S_VANILLA;
-    }
+    if (g_PcOptionsMenu_Page == 1) { *count = (int)(sizeof(PCOPT_S_VANILLA) / sizeof(PCOPT_S_VANILLA[0])); return PCOPT_S_VANILLA; }
     if (g_PcOptionsMenu_Page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
+    if (g_PcOptionsMenu_Page == 3) { *count = (int)(sizeof(PCOPT_NIGHTMARE) / sizeof(PCOPT_NIGHTMARE[0])); return PCOPT_NIGHTMARE; }
     *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0]));
     return PCOPT_T;
 }
@@ -580,13 +566,13 @@ void Options_PcOptionsMenu_Control(void)
          * the same PSX bits, so this works on keyboard too. */
         if (g_Controller0->clickedBtnFlags & ControllerFlag_R1) {
             Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-            g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 1) & 3; /* 4 pages */
+            g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 1) % 5; /* 5 pages */
             g_PcOptionsMenu_SelectedEntry     = 0;
             g_Options_SelectionHighlightTimer = 0;
         }
         if (g_Controller0->clickedBtnFlags & ControllerFlag_L1) {
             Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-            g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 3) & 3; /* -1 mod 4 */
+            g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 4) % 5; /* -1 mod 5 */
             g_PcOptionsMenu_SelectedEntry     = 0;
             g_Options_SelectionHighlightTimer = 0;
         }
@@ -609,12 +595,12 @@ void Options_PcOptionsMenu_Control(void)
         if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter) {
             if (sel->kind == PCK_NEXT) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-                g_PcOptionsMenu_Page++; /* Graphics -> System -> Controls -> Camera */
+                g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 1) % 5;
                 g_PcOptionsMenu_SelectedEntry = 0;
                 g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_PREV) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-                g_PcOptionsMenu_Page--; /* Camera -> Controls -> System -> Graphics */
+                g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 4) % 5;
                 g_PcOptionsMenu_SelectedEntry = 0;
                 g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_BACK) {
@@ -650,7 +636,14 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
     int            count, i;
     const s_PcOpt* tbl = PcOpt_Page(&count);
     DVECTOR        strPos  = { 100, 20 };
-    const char*    HEADING = "PC_Options";
+    static const char* const HEADINGS[5] = {
+        "PC_Graphics",
+        "PC_Display",
+        "PC_Controls",
+        "Nightmare_Options",
+        "PC_Camera"
+    };
+    const char* HEADING = HEADINGS[g_PcOptionsMenu_Page % 5];
 
     Gfx_StringSetColor(StringColorId_White);
     Gfx_StringSetPosition(strPos.vx, strPos.vy);
