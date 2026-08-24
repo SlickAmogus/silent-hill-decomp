@@ -1188,10 +1188,10 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "SHADOWRES") == 0) {
         /* Flashlight shadow-map resolution. The target is rebuilt on the next
          * frame that needs it, so this takes effect immediately. Clamped to
-         * 256..4096 inside GR_EnsureShadowTarget. */
+         * 256..8192 inside GR_EnsureShadowTarget. */
         extern int g_PsyX_ShadowMapSize;
         if (arg[0]) g_PsyX_ShadowMapSize = atoi(arg);
-        cprintf("flashlight shadow map: %dx%d (256..4096; default 1024)",
+        cprintf("flashlight shadow map: %dx%d (256..8192; default 1024)",
                 g_PsyX_ShadowMapSize, g_PsyX_ShadowMapSize);
     } else if (strcmp(cmd, "CUTSHIFT") == 0) {
         extern float g_PsxCutsceneVShift;

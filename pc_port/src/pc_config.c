@@ -948,7 +948,7 @@ else if (strcmp(key, "enable_plugins") == 0)
         else if (strcmp(key, "shadow_resolution") == 0)
         {
             int v = atoi(value);
-            g_PcConfig.shadowMapSize = (v < 256) ? 256 : ((v > 4096) ? 4096 : v);
+            g_PcConfig.shadowMapSize = (v < 256) ? 256 : ((v > 8192) ? 8192 : v);
         }
         else if (strcmp(key, "minimap_corner") == 0)
         {
