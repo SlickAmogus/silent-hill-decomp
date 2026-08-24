@@ -1136,12 +1136,12 @@ void Pc_ConsoleExec(const char* line)
         if (arg[0]) g_PsxWorldVScale = (float)atof(arg);
         cprintf("world vertical FOV scale: %.3f (1.0=off; ~0.872 matches DuckStation)", g_PsxWorldVScale);
     } else if (strcmp(cmd, "CUTFOV") == 0) {
-        /* Vertical FOV scale for the 3D world DURING CUTSCENES only. Default 1.0
-         * = full vertical (matches DuckStation); the gameplay 0.872 crop
-         * over-zoomed cutscene shots and cut heads off the top. */
+        /* EXPLICIT cutscene vertical scale override; 0 (default) = cutscenes
+         * follow the gameplay vfov crop. Defaulting this to 1.0 once shipped a
+         * squished-cutscene release -- it is a live-tuning knob only. */
         extern float g_PsxCutsceneVScale;
         if (arg[0]) g_PsxCutsceneVScale = (float)atof(arg);
-        cprintf("cutscene vertical FOV scale: %.3f (1.0=full, matches DuckStation)", g_PsxCutsceneVScale);
+        cprintf("cutscene vscale override: %.3f (0=follow vfov, the default)", g_PsxCutsceneVScale);
     } else if (strcmp(cmd, "HFOV") == 0) {
         /* 3D-world horizontal scale (Hor+ only). 1.0 = current behaviour; >1 = wider
          * models, <1 = narrower. Pure tuning/preference knob, default neutral. */
