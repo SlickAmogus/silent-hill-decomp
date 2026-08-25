@@ -7,6 +7,22 @@
  * Hor+ ortho uses. */
 extern float g_PsxPixelAspect;
 extern float g_PsxWorldHScale;
+
+/* Half-width for full-screen overlay quads (screenBrightness, fog colour).
+ * These used psxAspect=320/240 with no PAR and no hfov, giving halfW ~223 at
+ * 16:9 while the visible half is ~250 -- the additive brightness quad ended in
+ * plain sight as hard-edged dark side bands (user-measured cliff at +/-223.8).
+ * Same bound as the mesh cull / halo border, plus the PSX +10 edge pad. */
+static s16 Pc_OverlayQuadHalfW(void)
+{
+    const float hs = (g_PsxWorldHScale > 0.01f) ? g_PsxWorldHScale : 1.0f;
+    float halfW = (g_PcConfig.windowHeight > 0)
+        ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
+           (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect / hs
+        : 160.0f;
+    if (halfW < 160.0f) halfW = 160.0f;
+    return (s16)(halfW + 10.0f);
+}
 #endif
 
 #include <psyq/gtemac.h>
@@ -452,12 +468,7 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
         setSemiTrans(poly, true);
 #ifdef SH_PC_PORT
         {
-            const float psxAspect = 320.0f / 240.0f;
-            const float winAspect = g_PcConfig.windowHeight > 0
-                ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight
-                : psxAspect;
-            const float horScale  = winAspect / psxAspect;
-            const s16 halfW = (s16)(160.0f * horScale + 10.0f);
+            const s16 halfW = Pc_OverlayQuadHalfW();
             setXY4(poly, -halfW, -120, halfW, -120, -halfW, 120, halfW, 120);
         }
 #else
@@ -494,12 +505,7 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
          * uniform across the full window.  At 1920x1080 margin ≈ 53 PSX
          * units, requiring halfW ≈ 213 instead of the original 180. */
         {
-            const float psxAspect = 320.0f / 240.0f;
-            const float winAspect = g_PcConfig.windowHeight > 0
-                ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight
-                : psxAspect;
-            const float horScale  = winAspect / psxAspect;
-            const s16 halfW = (s16)(160.0f * horScale + 10.0f); /* +10 = PSX edge pad */
+            const s16 halfW = Pc_OverlayQuadHalfW();
             setXY4(poly, -halfW, -120, halfW, -120, -halfW, 120, halfW, 120);
         }
 #else
