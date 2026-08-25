@@ -6,6 +6,12 @@
  * at startup; the cull-bound math here must use the same value PsyCross uses for
  * its Hor+ ortho. */
 extern float g_PsxPixelAspect;
+/* Console `hfov`. PsyCross DIVIDES its Hor+ ortho half-width by this, so hfov<1
+ * shows MORE world horizontally than these cull bounds allowed -- geometry inside
+ * the widened view was frustum-culled at the screen edges. Bounds must widen the
+ * same way or edge models pop out (user-reported at the shipped hfov 0.872). */
+extern float g_PsxWorldHScale;
+#define SH_HFOV_CULL_DIV (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f)
 #endif
 
 #include <psyq/gtemac.h>
@@ -630,7 +636,7 @@ bool Vw_AabbVisibleInScreenCheck(s32 minX, s32 maxX, s32 minY, s32 maxY, s32 min
          * tight). 16 px @ 1920 wide is ~0.8% extra render — cheap. */
         /* 1.09375 = PSX_NTSC_PIXEL_ASPECT — matches PsyCross's hor+
          * ortho. +16 px safety margin for boundary truncation. */
-        screenCenterX = (s32)(psxHalfW * horScale * (winAspect / psxAspect) * g_PsxPixelAspect + 16.5f);
+        screenCenterX = (s32)(psxHalfW * horScale * (winAspect / psxAspect) * g_PsxPixelAspect / SH_HFOV_CULL_DIV + 16.5f);
     }
 #else
     screenCenterX = (g_GameWork.gsScreenWidth  / 2) + 2;
@@ -772,7 +778,7 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
                  * aren't truncation-culled (was producing the small
                  * disappearing triangles at screen edges while
                  * panning). */
-                const s32   fr_halfW   = (s32)((fr_psxW * 0.5f) * fr_horSc * (fr_winAsp / fr_psxAsp) * g_PsxPixelAspect + 16.5f);
+                const s32   fr_halfW   = (s32)((fr_psxW * 0.5f) * fr_horSc * (fr_winAsp / fr_psxAsp) * g_PsxPixelAspect / SH_HFOV_CULL_DIV + 16.5f);
                 const s32   fr_scaledX = (s32)(screenPos.vx * fr_horSc);
 
                 if (fr_scaledX >= -fr_halfW)
@@ -903,7 +909,7 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
                  * 722). Was missed when the pixel-aspect factor was
                  * added — caused the persistent edge-clipping the user
                  * has been chasing across multiple test passes. */
-                const s32   fr2_halfW   = (s32)((fr2_psxW * 0.5f) * fr2_horSc * (fr2_winAsp / fr2_psxAsp) * g_PsxPixelAspect + 16.5f);
+                const s32   fr2_halfW   = (s32)((fr2_psxW * 0.5f) * fr2_horSc * (fr2_winAsp / fr2_psxAsp) * g_PsxPixelAspect / SH_HFOV_CULL_DIV + 16.5f);
                 const s32   fr2_scaledX = (s32)(screenPoints->vx * fr2_horSc);
 
                 if (fr2_scaledX >= -fr2_halfW)

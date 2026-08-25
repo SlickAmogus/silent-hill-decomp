@@ -1162,21 +1162,7 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "VFOV") == 0) {
         extern float g_PsxWorldVScale;
         if (arg[0]) g_PsxWorldVScale = (float)atof(arg);
-        cprintf("world vertical FOV scale: %.3f (1.0=off; framing crop only — pair with hfov=1/vfov to keep shapes true)", g_PsxWorldVScale);
-    } else if (strcmp(cmd, "FOVZOOM") == 0) {
-        /* Uniform, shape-preserving zoom: sets vfov=z and hfov=1/z together.
-         * On-screen tallness = PAR/(vfov*hfov), so any lone vfov change distorts
-         * shapes; this pair keeps PAR exact at every zoom and window aspect. */
-        extern float g_PsxWorldVScale, g_PsxWorldHScale;
-        if (arg[0]) {
-            float z = (float)atof(arg);
-            if (z < 0.5f) z = 0.5f;
-            if (z > 1.5f) z = 1.5f;
-            g_PsxWorldVScale = z;
-            g_PsxWorldHScale = 1.0f / z;
-        }
-        cprintf("uniform zoom: vfov %.3f hfov %.3f (shape-true pair; 1.0 = full PSX frame)",
-                g_PsxWorldVScale, g_PsxWorldHScale);
+        cprintf("world vertical FOV scale: %.3f (1.0=off; vertical crop/zoom of the world)", g_PsxWorldVScale);
     } else if (strcmp(cmd, "CUTFOV") == 0) {
         /* EXPLICIT cutscene vertical scale override; 0 (default) = cutscenes
          * follow the gameplay vfov crop. Defaulting this to 1.0 once shipped a

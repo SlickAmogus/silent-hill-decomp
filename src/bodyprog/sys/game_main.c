@@ -3093,8 +3093,12 @@ void MainLoop(void) // 0x80032EE0
                 {
                     ofy = (s32)g_PsxCutsceneVShift;
                 }
-                else if (g_PsxFixedCamActive && !g_DebugThirdPersonCam)
+                else if (!g_DebugThirdPersonCam)
                 {
+                    /* Applies to EVERY gameplay camera, not just VC_MV_FIX_ANG.
+                     * The fixed/chase split made framing jump between camera
+                     * types (and "fixed" shots slide anyway), so one offset is
+                     * used throughout; alt cams replace the camera entirely. */
                     ofy = (s32)g_PsxWorldVShift;
                 }
                 s_heldWorldOfy = ofy;
