@@ -433,6 +433,27 @@ void Pc_CamSnapDump(void)
      * depth-grading -- so the divergence must be in the angle->matrix build or
      * later. Print the actual 3x3 + translation used for rendering; console
      * side reads at 0x800B9D68 (USA). */
+    {
+        /* GTE self-test: project (watch - cam) through the game's own GTE with
+         * the render matrix. The same integer math is replicated offline from
+         * the printed inputs (matrix, delta, H, OFY) as the console reference:
+         * if our GTE result differs, the GTE emulation is biased; if it
+         * matches but the on-screen picture still sits high, the raster/ortho
+         * mapping owns the offset. */
+        MATRIX  m = vcWork.cam_mat;
+        SVECTOR d;
+        DVECTOR scr;
+        s32     dummy0, dummy1, otz;
+        m.t[0] = m.t[1] = m.t[2] = 0;
+        d.vx = (s16)(vcWork.watch_tgt_pos.vx - vcWork.cam_pos.vx);
+        d.vy = (s16)(vcWork.watch_tgt_pos.vy - vcWork.cam_pos.vy);
+        d.vz = (s16)(vcWork.watch_tgt_pos.vz - vcWork.cam_pos.vz);
+        SetRotMatrix(&m);
+        SetTransMatrix(&m);
+        otz = RotTransPers(&d, (s32*)&scr, &dummy0, &dummy1);
+        SH_DBG_ECHO("[CAMSNAP] gteProbe d=(%d,%d,%d) -> scr=(%d,%d) otz=%ld",
+                    (int)d.vx, (int)d.vy, (int)d.vz, (int)scr.vx, (int)scr.vy, (long)otz);
+    }
     SH_DBG_ECHO("[CAMSNAP] camMat=[%d,%d,%d / %d,%d,%d / %d,%d,%d] t=(%ld,%ld,%ld)",
                 (int)vcWork.cam_mat.m[0][0], (int)vcWork.cam_mat.m[0][1], (int)vcWork.cam_mat.m[0][2],
                 (int)vcWork.cam_mat.m[1][0], (int)vcWork.cam_mat.m[1][1], (int)vcWork.cam_mat.m[1][2],
