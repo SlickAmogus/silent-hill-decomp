@@ -482,6 +482,15 @@ void Pc_CamSnapDump(void)
                 (int)vcWork.cam_mat.m[1][0], (int)vcWork.cam_mat.m[1][1], (int)vcWork.cam_mat.m[1][2],
                 (int)vcWork.cam_mat.m[2][0], (int)vcWork.cam_mat.m[2][1], (int)vcWork.cam_mat.m[2][2],
                 (long)vcWork.cam_mat.t[0], (long)vcWork.cam_mat.t[1], (long)vcWork.cam_mat.t[2]);
+    /* The FINAL render matrix, for offline internal-consistency audit:
+     * rotation must equal transpose(cam_mat)*diag(1,0.75,1) and t must equal
+     * that matrix applied to -campos(Q8). Any deviation IS the global vertical
+     * offset, quantified. */
+    SH_DBG_ECHO("[CAMSNAP] wsMat=[%d,%d,%d / %d,%d,%d / %d,%d,%d] t=(%ld,%ld,%ld)",
+                (int)GsWSMATRIX.m[0][0], (int)GsWSMATRIX.m[0][1], (int)GsWSMATRIX.m[0][2],
+                (int)GsWSMATRIX.m[1][0], (int)GsWSMATRIX.m[1][1], (int)GsWSMATRIX.m[1][2],
+                (int)GsWSMATRIX.m[2][0], (int)GsWSMATRIX.m[2][1], (int)GsWSMATRIX.m[2][2],
+                (long)GsWSMATRIX.t[0], (long)GsWSMATRIX.t[1], (long)GsWSMATRIX.t[2]);
 }
 
 void vcSetAllNpcDeadTimer(void) // 0x8008123C
