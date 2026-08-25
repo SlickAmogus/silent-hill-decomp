@@ -428,6 +428,16 @@ void Pc_CamSnapDump(void)
         SH_DBG_ECHO("[CAMSNAP] gteOfs=(%ld,%ld) drawOfs=(%d,%d)",
                     ofx, ofy, (int)GsDRAWENV.ofs[0], (int)GsDRAWENV.ofs[1]);
     }
+    /* The final comparable: camera pos/angles/geomH are proven bit-identical
+     * to console at the cafe FIX_ANG spot, yet the render sits high with
+     * depth-grading -- so the divergence must be in the angle->matrix build or
+     * later. Print the actual 3x3 + translation used for rendering; console
+     * side reads at 0x800B9D68 (USA). */
+    SH_DBG_ECHO("[CAMSNAP] camMat=[%d,%d,%d / %d,%d,%d / %d,%d,%d] t=(%ld,%ld,%ld)",
+                (int)vcWork.cam_mat.m[0][0], (int)vcWork.cam_mat.m[0][1], (int)vcWork.cam_mat.m[0][2],
+                (int)vcWork.cam_mat.m[1][0], (int)vcWork.cam_mat.m[1][1], (int)vcWork.cam_mat.m[1][2],
+                (int)vcWork.cam_mat.m[2][0], (int)vcWork.cam_mat.m[2][1], (int)vcWork.cam_mat.m[2][2],
+                (long)vcWork.cam_mat.t[0], (long)vcWork.cam_mat.t[1], (long)vcWork.cam_mat.t[2]);
 }
 
 void vcSetAllNpcDeadTimer(void) // 0x8008123C
