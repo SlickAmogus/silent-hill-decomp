@@ -8738,7 +8738,22 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 
             if (player->model.anim.status == ANIM_STATUS(HarryAnim_JumpBackward, true) && player->model.anim.keyframeIdx == 246)
             {
-                if (player->position.vy < player->properties.player.groundHeight)
+                if (
+#ifdef SH_PC_PORT
+                    /* THE "lands in the air, then falls backward every jump"
+                     * bug. This native landing check runs at keyframe 246 and
+                     * is the real trigger -- ahead of the PC hop wrapper's own
+                     * end. On flat ground the -2.0 leap has not fully settled at
+                     * kf246, so position.vy sits a sub-unit ABOVE groundHeight
+                     * (-Y is up) and the strict `< groundHeight` read it as
+                     * airborne and fired FallBackward on every hop. Require the
+                     * same 0.65 drop the generic ledge check uses (line ~9651),
+                     * so flat ground never falls but a real ledge still does. */
+                    player->properties.player.groundHeight - player->position.vy >= Q12(0.65f)
+#else
+                    player->position.vy < player->properties.player.groundHeight
+#endif
+                )
                 {
                     Player_ExtraStateSet(player, extra, PlayerState_FallBackward);
 
