@@ -454,6 +454,23 @@ void Pc_CamSnapDump(void)
         SH_DBG_ECHO("[CAMSNAP] gteProbe d=(%d,%d,%d) -> scr=(%d,%d) otz=%ld",
                     (int)d.vx, (int)d.vy, (int)d.vz, (int)scr.vx, (int)scr.vy, (long)otz);
     }
+    {
+        /* The raster anchor PsyCross actually uses: window position of a prim =
+         * prim coord + (activeDrawEnv.ofs - activeDispEnv.disp.xy) under dfe.
+         * If this nets to anything but (160,112) during gameplay, the global
+         * vertical offset is found arithmetically. */
+        extern DISPENV activeDispEnv;
+        extern DRAWENV activeDrawEnv;
+        SH_DBG_ECHO("[CAMSNAP] raster dfe=%d ofs=(%d,%d) disp=(%d,%d %dx%d) net=(%d,%d) clip=(%d,%d %dx%d)",
+                    (int)activeDrawEnv.dfe,
+                    (int)activeDrawEnv.ofs[0], (int)activeDrawEnv.ofs[1],
+                    (int)activeDispEnv.disp.x, (int)activeDispEnv.disp.y,
+                    (int)activeDispEnv.disp.w, (int)activeDispEnv.disp.h,
+                    (int)(activeDrawEnv.ofs[0] - activeDispEnv.disp.x),
+                    (int)(activeDrawEnv.ofs[1] - activeDispEnv.disp.y),
+                    (int)activeDrawEnv.clip.x, (int)activeDrawEnv.clip.y,
+                    (int)activeDrawEnv.clip.w, (int)activeDrawEnv.clip.h);
+    }
     SH_DBG_ECHO("[CAMSNAP] camMat=[%d,%d,%d / %d,%d,%d / %d,%d,%d] t=(%ld,%ld,%ld)",
                 (int)vcWork.cam_mat.m[0][0], (int)vcWork.cam_mat.m[0][1], (int)vcWork.cam_mat.m[0][2],
                 (int)vcWork.cam_mat.m[1][0], (int)vcWork.cam_mat.m[1][1], (int)vcWork.cam_mat.m[1][2],
