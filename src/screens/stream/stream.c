@@ -221,8 +221,14 @@ void movie_main(char* file_name, s32 f_size, s32 sector) // 0x801E2B9C
     do
     {
         disp.disp.y   = 256 - (m->dec.rectid * SCREEN_HEIGHT);
+#ifdef SH_PC_PORT
+        /* Screen Position pinned to default on PC (see Screen_DisplayEnvXySet). */
+        disp.screen.x = 0;
+        disp.screen.y = 8 + ((224 - m->height) / 2);
+#else
         disp.screen.x = g_GameWorkConst->config.screenPositionX;
         disp.screen.y = (8 + ((224 - m->height) / 2)) + g_GameWorkConst->config.screenPositionY;
+#endif
         disp.disp.y   = (disp.disp.y   <  16) ? 16 : ((disp.disp.y > 256)   ? 256 : disp.disp.y);
         disp.screen.h = (disp.screen.h <= 0)  ? 1  : ((disp.screen.h > 208) ? 208 : disp.screen.h);
 
