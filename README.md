@@ -24,17 +24,17 @@ Full breakdown, including bundled third-party components: [COPYRIGHT.md](COPYRIG
 **The game is fully playable start to finish.** Every map, boss, cutscene, ending, and system works — you can complete the full game today, and the remaining known bugs are minor. Enhancements are **optional and always will be**: at default-faithful settings the port plays like the original PSX game (same logic, same feel, same look), and everything beyond that is opt-in.
 
 - **Faithful core** — original decompiled game logic, PSX fixed-camera system 1:1, original movement/combat/AI behaviour; play it exactly like 1999, just natively.
-- **Graphics** — any resolution, widescreen 16:9/21:9+ (Hor+, pillarbox, or stretch), high refresh / uncapped FPS, optional rewritten PGXP perspective correction, MSAA, texture filtering, tone mapping and post-process looks (CRT, scanlines, film grain, and more).
+- **Graphics** — any resolution, widescreen 16:9/21:9+, high refresh / uncapped FPS, optional rewritten PGXP perspective correction, MSAA, texture filtering, tone mapping and post-process looks (CRT, scanlines, film grain, and more).
 - **Flashlight & lighting** — four flashlight modes (Classic / Modern, each with optional per-pixel shadow mapping up to 8192x8192).
 - **Cameras** — classic fixed cameras plus a full alternate suite: third-person, over-the-shoulder with free-aim, and first-person, each with FOV/aim options and its own control scheme; mouse-look free camera for exploring.
-- **Audio** — optional surround 5.1/7.1 with true 3D positional SFX, reverb and ADSR envelopes; XA cutscene voices streamed straight from the disc image; FMV playback with AVI override support.
+- **Audio** — optional surround 5.1/7.1 with true 3D positional SFX and reverb; XA cutscene voices streamed straight from the disc image; FMV playback with HD AVI & MP4 override support.
 - **Quality of life** — mouse-clickable menus, quick save/load, reload key, quick-heal, in-game **PC Options** menu and an **F10 quick-options overlay** (graphics / HUD / audio / cheats / debug, live while playing), minimap options, low-health screen glow (off by default), uncensored toggle.
 - **Cheats & tools** — in-game console (warps, spawns, god/noclip, live tuning of nearly everything), cheat menu, play as any of 14 characters, spawn any monster in any map (global monster pool), raised enemy cap, collision visualizer, keyframe inspector.
 - **Modding** — built-in Mod Manager (extract the disc, texture packs, loose-file replacement, DuckStation-style packs), character retextures, full character model replacement (ILM <-> OBJ / Blender), modern glTF inventory item models, VAB audio extraction/repacking, AVI FMV replacement. See [Game Files / Modding](#game-files--modding).
-- **Integrations** — RetroAchievements (in-game sign-in) and Discord Rich Presence.
+- **Integrations** — RetroAchievements and Discord Rich Presence.
 - **Experimental** — a Lua-scripted Randomizer mode, and a TrenchBroom-based level-editing pipeline in development.
 - **Languages & regions** — USA, PAL/EUR (English, French, German, Italian, Spanish) and NTSC-J (Japanese) discs all supported and auto-detected; **fan-translation discs work** via the launcher's disc picker; Russian and Polish translation packs; Chinese playable on NTSC-J; the launcher UI itself is localized into 10 languages.
-- **Multiplatform** — the same codebase runs on far more than PC. Windows is the primary target; Linux and macOS builds exist (WIP); and ports are running on **Xbox 360**, **PS3**, **PSP**, **iOS**, **Android**, and even an **N64 demake** (Expansion Pak required).
+- **Multiplatform** — the same codebase runs on far more than PC. Windows is the primary target; Linux and macOS builds exist (WIP); and ports are in development for **Xbox 360**, **PS3**, **PSP**, **iOS**, **Android**, and even an **N64 demake** (Expansion Pak required).
 
 Nightly builds: https://github.com/SlickAmogus/silent-hill-pc-nightly
 
