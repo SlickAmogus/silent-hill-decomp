@@ -417,6 +417,17 @@ void Pc_CamSnapDump(void)
                 (int)vcWork.cam_mat_ang.vx, (int)vcWork.cam_mat_ang.vy, (int)vcWork.cam_mat_ang.vz,
                 (int)vcWork.geom_screen_dist, (int)g_GameWork.gsScreenHeight,
                 g_PsxFixedCamActive, g_PsxWorldVShift);
+    {
+        /* The projection-centre chain: GTE offset (vshift lands here via
+         * game_main's SetGeomOffset) and the draw-env centre. With camera and
+         * geomH already proven identical to console, these are the remaining
+         * numbers that decide where the picture sits vertically. */
+        extern void ReadGeomOffset(long* ofx, long* ofy);
+        long ofx = 0, ofy = 0;
+        ReadGeomOffset(&ofx, &ofy);
+        SH_DBG_ECHO("[CAMSNAP] gteOfs=(%ld,%ld) drawOfs=(%d,%d)",
+                    ofx, ofy, (int)GsDRAWENV.ofs[0], (int)GsDRAWENV.ofs[1]);
+    }
 }
 
 void vcSetAllNpcDeadTimer(void) // 0x8008123C
