@@ -68,6 +68,92 @@ s_IpdCollisionData* D_800C1010[4];
 
 s_MapTerrain g_Map;
 
+#ifdef SH_PC_PORT
+extern float g_PsxPixelAspect;
+extern float g_PsxWorldHScale;
+
+/* The light-halo fill quads (POLY_F4) run from the glow's outer ring out to a
+ * screen border baked at +/-gsScreenWidth/2. In Hor+ widescreen the visible
+ * frame reaches +/-(psxH*winW/(2*winH))*PAR/hfov, so the fill stopped at the
+ * 4:3 edge and the revealed side strips got no tint at all -- the dark bands
+ * down both sides. Same bound the mesh cull uses, so fill and geometry agree.
+ * Rebuilt whenever the extent changes (window resize, live `hfov`/`par`). */
+static s32 s_pcRingHalfW = 0;
+
+static s32 Pc_ScreenRingHalfW(void)
+{
+    const s32 psxHalfW = g_GameWork.gsScreenWidth >> 1;
+    float     halfW;
+
+    if (g_PcConfig.windowHeight <= 0 || g_PcConfig.windowWidth <= 0)
+    {
+        return psxHalfW;
+    }
+
+    halfW = ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
+             (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect /
+            (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f);
+
+    return ((s32)halfW < psxHalfW) ? psxHalfW : (s32)halfW;
+}
+
+static void Pc_ScreenRingBuild(s32 halfW)
+{
+    DVECTOR   posTable[17];
+    POLY_F4*  poly_f4;
+    s32*      ptr;
+    s32       i;
+    s32       j;
+    const s32 step = halfW >> 1;
+    const s32 h2   = g_GameWork.gsScreenHeight >> 1;
+
+    for (i = 0; i < 17; i++)
+    {
+        if (i < 2)
+        {
+            posTable[i].vx = halfW;
+            posTable[i].vy = (g_GameWork.gsScreenHeight / 4) * i;
+        }
+        else if (i < 6)
+        {
+            posTable[i].vx = halfW - (step * (i - 2));
+            posTable[i].vy = h2;
+        }
+        else if (i < 10)
+        {
+            posTable[i].vx = -halfW;
+            posTable[i].vy = h2 - ((h2 >> 1) * (i - 6));
+        }
+        else if (i < 14)
+        {
+            posTable[i].vx = -halfW + (step * (i - 10));
+            posTable[i].vy = -h2;
+        }
+        else
+        {
+            posTable[i].vx = halfW;
+            posTable[i].vy = -h2 + ((g_GameWork.gsScreenHeight >> 2) * (i - 14));
+        }
+    }
+
+    for (j = 0; j < 2; j++)
+    {
+        poly_f4 = (POLY_F4*)&D_800BFBF0[j][(sizeof(DR_TPAGE) * 2) +
+                                           ((sizeof(POLY_G4) * 16) * 3) +
+                                           (sizeof(POLY_G3) * 16)];
+        ptr = (s32*)&posTable[0];
+
+        for (i = 0; i < 16; i++, poly_f4++)
+        {
+            *(s32*)&poly_f4->x2 = ptr[i % 16];
+            *(s32*)&poly_f4->x3 = ptr[i % 16 + 1];
+        }
+    }
+
+    s_pcRingHalfW = halfW;
+}
+#endif
+
 void func_80040BAC(void) // 0x80040BAC
 {
     DVECTOR   posTable[17];
@@ -144,6 +230,10 @@ void func_80040BAC(void) // 0x80040BAC
             }
         }
     }
+
+#ifdef SH_PC_PORT
+    Pc_ScreenRingBuild(Pc_ScreenRingHalfW());
+#endif
 }
 
 void func_80040E7C(u8 arg0, u8 arg1, u8 arg2, u8 arg3, u8 arg4, u8 arg5) // 0x80040E7C
@@ -384,6 +474,16 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
     }
 
     var_t0 = (u32*)PSX_SCRATCH;
+
+#ifdef SH_PC_PORT
+    {
+        const s32 pcHalfW = Pc_ScreenRingHalfW();
+        if (pcHalfW != s_pcRingHalfW)
+        {
+            Pc_ScreenRingBuild(pcHalfW);
+        }
+    }
+#endif
 
     poly_g3 = &D_800BFBF0[g_ActiveBufferIdx][sizeof(DR_TPAGE) * 2];
     poly_f4 = &D_800BFBF0[g_ActiveBufferIdx][(sizeof(DR_TPAGE) * 2) +
