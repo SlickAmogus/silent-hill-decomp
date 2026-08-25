@@ -340,7 +340,9 @@ s32 vcExecCamera(void) // 0x80080FBC
      * cutscene, sys state) lives there. Chase/settle/door/self-view cameras unset it. */
     {
         extern int g_PsxFixedCamActive;
+        extern int g_PcLastCamMvType;
         g_PsxFixedCamActive = (cur_cam_mv_type == VC_MV_FIX_ANG);
+        g_PcLastCamMvType   = (int)cur_cam_mv_type;
     }
 #endif
 
@@ -388,6 +390,33 @@ s32 vcExecCamera(void) // 0x80080FBC
     vcWork.flags                     &= ~(VC_WARP_CAM_F | VC_WARP_WATCH_F | VC_WARP_CAM_TGT_F);
 
     return vcRetSmoothCamMvF(&sv_old_cam_pos, &vcWork.cam_pos, &sv_old_cam_mat_ang, &vcWork.cam_mat_ang);
+}
+
+/* [CAMSNAP] one-line dump of everything that differs per camera shot, for the
+ * per-scene vertical framing riddle (some shots need vshift 11, others 0).
+ * Pressed by the user at a good spot and a bad spot; diffing the two lines --
+ * and the same fields in DuckStation RAM -- names the divergent input. */
+int g_PcLastCamMvType = -1;
+
+void Pc_CamSnapDump(void)
+{
+    extern float g_PsxWorldVShift;
+    extern int   g_PsxFixedCamActive;
+    const VC_ROAD_DATA* rd = vcWork.cur_near_road.road_p;
+
+    SH_DBG_ECHO("[CAMSNAP] map=%d room=%d camMv=%d rdFlags=0x%02X rdArea=%d rdCamMv=%d vcFlags=0x%08X",
+                (int)g_SavegamePtr->mapIdx, (int)g_SavegamePtr->mapRoomIdx,
+                g_PcLastCamMvType,
+                rd ? (int)rd->flags : -1, rd ? (int)rd->area_size_type : -1,
+                rd ? (int)rd->cam_mv_type : -1, (unsigned)vcWork.flags);
+    SH_DBG_ECHO("[CAMSNAP] camPos=(%ld,%ld,%ld) tgtPos=(%ld,%ld,%ld) watch=(%ld,%ld,%ld)",
+                (long)vcWork.cam_pos.vx, (long)vcWork.cam_pos.vy, (long)vcWork.cam_pos.vz,
+                (long)vcWork.cam_tgt_pos.vx, (long)vcWork.cam_tgt_pos.vy, (long)vcWork.cam_tgt_pos.vz,
+                (long)vcWork.watch_tgt_pos.vx, (long)vcWork.watch_tgt_pos.vy, (long)vcWork.watch_tgt_pos.vz);
+    SH_DBG_ECHO("[CAMSNAP] matAng=(%d,%d,%d) geomH=%d gsH=%d fixedCam=%d vshift=%.1f",
+                (int)vcWork.cam_mat_ang.vx, (int)vcWork.cam_mat_ang.vy, (int)vcWork.cam_mat_ang.vz,
+                (int)vcWork.geom_screen_dist, (int)g_GameWork.gsScreenHeight,
+                g_PsxFixedCamActive, g_PsxWorldVShift);
 }
 
 void vcSetAllNpcDeadTimer(void) // 0x8008123C

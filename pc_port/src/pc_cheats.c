@@ -124,6 +124,12 @@ static void act_kill_harry(void)
     SH_DBG_ECHO("[CHEAT] Killed Harry");
 }
 
+static void act_log_camera(void)
+{
+    extern void Pc_CamSnapDump(void);
+    Pc_CamSnapDump();
+}
+
 static void act_log_position(void)
 {
     s_SubCharacter* p = &g_SysWork.playerWork.player;
@@ -155,6 +161,7 @@ static const CheatRow s_debug[] = {
     { "Keyframe viewer (K)",  CH_TOGGLE,  &g_DebugAnimKfView, NULL },
     { "Spawn",                CH_SPAWN,   NULL, NULL },
     { "Log Harry position",   CH_ACTION,  NULL, act_log_position },
+    { "Log camera shot",      CH_ACTION,  NULL, act_log_camera },
     { "Kill Harry",           CH_ACTION,  NULL, act_kill_harry },
 };
 

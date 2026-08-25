@@ -1190,6 +1190,9 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PsxPixelAspect;
         if (arg[0]) g_PsxPixelAspect = (float)atof(arg);
         cprintf("pixel aspect compensation: %.4f (15/14 = 1.0714 is the 4:3 picture; 1.0 = square pixels)", g_PsxPixelAspect);
+    } else if (strcmp(cmd, "CAMSNAP") == 0) {
+        extern void Pc_CamSnapDump(void);
+        Pc_CamSnapDump();
     } else if (strcmp(cmd, "VSHIFT") == 0) {
         extern float g_PsxWorldVShift;
         if (arg[0]) g_PsxWorldVShift = (float)atof(arg);
