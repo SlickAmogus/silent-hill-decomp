@@ -1175,7 +1175,21 @@ void Pc_ConsoleExec(const char* line)
          * models, <1 = narrower. Pure tuning/preference knob, default neutral. */
         extern float g_PsxWorldHScale;
         if (arg[0]) g_PsxWorldHScale = (float)atof(arg);
-        cprintf("world horizontal scale: %.3f (1.0=off; >1 wider models, <1 narrower)", g_PsxWorldHScale);
+        cprintf("world horizontal scale: %.3f (1.0=off; >1 wider models, <1 narrower; all 3D modes)", g_PsxWorldHScale);
+    } else if (strcmp(cmd, "VCROPANCHOR") == 0) {
+        /* Where the vfov crop sits: 0 = keep the top rows (default, today's
+         * framing), 0.5 = centred like an overscan crop, 1 = keep the bottom. */
+        extern float g_PsxWorldVCropAnchor;
+        if (arg[0]) g_PsxWorldVCropAnchor = (float)atof(arg);
+        if (g_PsxWorldVCropAnchor < 0.0f) g_PsxWorldVCropAnchor = 0.0f;
+        if (g_PsxWorldVCropAnchor > 1.0f) g_PsxWorldVCropAnchor = 1.0f;
+        cprintf("vfov crop anchor: %.2f (0=top/default, 0.5=centred, 1=bottom)", g_PsxWorldVCropAnchor);
+    } else if (strcmp(cmd, "PAR") == 0) {
+        /* PsyCross pixel-aspect compensation (320x224 shown as 4:3 -> 15/14).
+         * Live for A/B only; main_pc.c bakes the correct value at boot. */
+        extern float g_PsxPixelAspect;
+        if (arg[0]) g_PsxPixelAspect = (float)atof(arg);
+        cprintf("pixel aspect compensation: %.4f (15/14 = 1.0714 is the 4:3 picture; 1.0 = square pixels)", g_PsxPixelAspect);
     } else if (strcmp(cmd, "VSHIFT") == 0) {
         extern float g_PsxWorldVShift;
         if (arg[0]) g_PsxWorldVShift = (float)atof(arg);
