@@ -3082,8 +3082,15 @@ void MainLoop(void) // 0x80032EE0
             extern float g_PsxWorldVShift;
             extern float g_PsxCutsceneVShift;
             extern int   g_PcPickupItemActive;
-            static s32   s_heldWorldOfy = 0;
-            s32 ofy = 0;
+            /* Console vertical anchor: real GsInit3D centres the projection on
+             * the 240-line SCREEN (OFY 120); PsyCross's draw offset carries
+             * 112, so every state needs +8 to land where the console did.
+             * This block runs every frame in every state, so the base lives
+             * here (the GsInit3D boot value is stomped by this assert). The
+             * knobs (vshift/cutshift) are deltas ON TOP of the anchor. */
+#define PC_GTE_BASE_OFY 8
+            static s32   s_heldWorldOfy = PC_GTE_BASE_OFY;
+            s32 ofy = PC_GTE_BASE_OFY;
 
             if (g_GameWork.gameState == GameState_InGame &&
                 g_SysWork.sysState == SysState_Gameplay &&
@@ -3091,7 +3098,7 @@ void MainLoop(void) // 0x80032EE0
             {
                 if (g_PsxCutsceneActive)
                 {
-                    ofy = (s32)g_PsxCutsceneVShift;
+                    ofy = PC_GTE_BASE_OFY + (s32)g_PsxCutsceneVShift;
                 }
                 else if (!g_DebugThirdPersonCam)
                 {
@@ -3099,7 +3106,7 @@ void MainLoop(void) // 0x80032EE0
                      * The fixed/chase split made framing jump between camera
                      * types (and "fixed" shots slide anyway), so one offset is
                      * used throughout; alt cams replace the camera entirely. */
-                    ofy = (s32)g_PsxWorldVShift;
+                    ofy = PC_GTE_BASE_OFY + (s32)g_PsxWorldVShift;
                 }
                 s_heldWorldOfy = ofy;
             }
@@ -3136,12 +3143,12 @@ void MainLoop(void) // 0x80032EE0
                 if (g_PsxCutsceneActive ||
                     g_SysWork.cutsceneBorderState != CutsceneBorderState_None)
                 {
-                    /* Zero baseline, plus whatever `cutshift` dials in. It stays 0
+                    /* Anchor baseline, plus whatever `cutshift` dials in. It stays 0
                      * by default, so the letterbox agreement described above is
                      * unchanged: a non-zero value moves the world AND is the thing
                      * being measured, so the bars are re-checked at whatever value
                      * gets baked in. */
-                    ofy = (s32)g_PsxCutsceneVShift;
+                    ofy = PC_GTE_BASE_OFY + (s32)g_PsxCutsceneVShift;
                 }
                 else if (g_PcPickupItemActive)
                 {
@@ -3156,7 +3163,12 @@ void MainLoop(void) // 0x80032EE0
                      * projection (GsSetProjection(1000)), which never had the
                      * quirk -- on PSX both world and item ran at offset 0. The
                      * backdrop's +20 world render already reproduces the PSX
-                     * world image, so item-at-0 reproduces the PSX composite. */
+                     * world image, so item-at-0 reproduces the PSX composite.
+                     * ANCHOR EXEMPTION (2026-08-25): the take screen keeps
+                     * literal 0 rather than PC_GTE_BASE_OFY -- its item/backdrop
+                     * layout was validated repeatedly under this value and the
+                     * backdrop is a screen-space capture that does not move
+                     * with the GTE anchor. Do not re-litigate. */
                     ofy = 0;
                 }
                 else
