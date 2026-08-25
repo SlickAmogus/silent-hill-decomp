@@ -19,39 +19,32 @@
 
 Full breakdown, including bundled third-party components: [COPYRIGHT.md](COPYRIGHT.md).
 
-## Status
+## Features
 
-The port is playable start to finish — the full game can be completed, and none of the remaining glitches are progression-blocking. Where it stands today:
+**The game is fully playable start to finish.** Every map, boss, cutscene, ending, and system works — you can complete the full game today, and the remaining known bugs are minor. Enhancements are **optional and always will be**: at default-faithful settings the port plays like the original PSX game (same logic, same feel, same look), and everything beyond that is opt-in.
 
-- **Main menu** — fully working and now mouse-clickable; logos, FMV intro, options, and save/load all display and respond.
-- **World rendering** — textured environments, fog, snow/particles, buildings and props all render; an experimental "whole-map" draw mode can show the whole town at once (off by default).
-- **Player movement** — runs the original PSX lower-body state machine by default: collision-based walk/run, sidestep, wall collision, floor height, and stairs.
-- **Combat** — handgun, hunting rifle, and shotgun fire reliably; melee connects; break-free, death, and grab all work. Free-aim, high-FPS double-fire, and phantom swings are fixed. Chainsaw and Rock Drill still have issues.
-- **Bosses** — Twinfeeler, Split Head, Floatstinger, the Cybil fight, and Incubus all run; a few late boss effects are still being polished.
-- **Cutscenes** — play in sync at any frame rate after a timing overhaul; a few per-scene pacing details remain (cosmetic, no freezes).
-- **Camera** — the PSX fixed-camera system is 1:1 with the original, plus a full alternate suite: third-person, over-the-shoulder, and first-person, with FOV and aim-zoom sliders and their own control scheme.
-- **Audio** — SFX, BGM, and voices all work; XA streams cutscene voices straight from the disc image. Optional surround 5.1/7.1 with true 3D positional SFX, reverb, and ADSR envelopes.
-- **Maps** — all 43 map sections build as runtime DLLs and load; room and door transitions work. Map editor currently being built.
-- **Enemies / AI** — full enemy AI. A global monster pool lets any enemy spawn in any map (on by default), and the concurrent-enemy cap can be raised past the original six.
-- **Saves** — memory-card save/load works; quick-save (F6) and quick-load (F8) are enabled.
-- **Graphics** — high resolutions, 16:9 (Hor+), high refresh rates, and uncapped FPS. Rewritten optional PGXP perspective correction (off is byte-identical to the original look). Four flashlight modes (Classic / +Shadows / Modern / +Shadows) with per-pixel lighting and shadow mapping, plus tone-mapping and post-process options.
-- **Regions** — PAL/EUR (five localized languages) and NTSC-J (Japanese, with kanji font and story text) are both supported and tested; fan-translation discs work via a disc picker in the launcher.
-- **Modding** — a built-in Mod Manager handles texture packs, loose-file replacement, DuckStation-style packs, and per-palette overrides, plus tools to compose and rebuild character textures.
-- **Updates** — the launcher can check for and install updates; nightly builds are published, with Linux/macOS being a WIP. They are included, but have many bugs. It's recommended to use the Windows version where possible.
+- **Faithful core** — original decompiled game logic, PSX fixed-camera system 1:1, original movement/combat/AI behaviour; play it exactly like 1999, just natively.
+- **Graphics** — any resolution, widescreen 16:9/21:9+ (Hor+, pillarbox, or stretch), high refresh / uncapped FPS, optional rewritten PGXP perspective correction, MSAA, texture filtering, tone mapping and post-process looks (CRT, scanlines, film grain, and more).
+- **Flashlight & lighting** — four flashlight modes (Classic / Modern, each with optional per-pixel shadow mapping up to 8192x8192).
+- **Cameras** — classic fixed cameras plus a full alternate suite: third-person, over-the-shoulder with free-aim, and first-person, each with FOV/aim options and its own control scheme; mouse-look free camera for exploring.
+- **Audio** — optional surround 5.1/7.1 with true 3D positional SFX, reverb and ADSR envelopes; XA cutscene voices streamed straight from the disc image; FMV playback with AVI override support.
+- **Quality of life** — mouse-clickable menus, quick save/load, reload key, quick-heal, in-game **PC Options** menu and an **F10 quick-options overlay** (graphics / HUD / audio / cheats / debug, live while playing), minimap options, low-health screen glow (off by default), uncensored toggle.
+- **Cheats & tools** — in-game console (warps, spawns, god/noclip, live tuning of nearly everything), cheat menu, play as any of 14 characters, spawn any monster in any map (global monster pool), raised enemy cap, collision visualizer, keyframe inspector.
+- **Modding** — built-in Mod Manager (extract the disc, texture packs, loose-file replacement, DuckStation-style packs), character retextures, full character model replacement (ILM <-> OBJ / Blender), modern glTF inventory item models, VAB audio extraction/repacking, AVI FMV replacement. See [Game Files / Modding](#game-files--modding).
+- **Integrations** — RetroAchievements (in-game sign-in) and Discord Rich Presence.
+- **Experimental** — a Lua-scripted Randomizer mode, and a TrenchBroom-based level-editing pipeline in development.
+- **Languages & regions** — USA, PAL/EUR (English, French, German, Italian, Spanish) and NTSC-J (Japanese) discs all supported and auto-detected; **fan-translation discs work** via the launcher's disc picker; Russian and Polish translation packs; Chinese playable on NTSC-J; the launcher UI itself is localized into 10 languages.
+- **Multiplatform** — the same codebase runs on far more than PC. Windows is the primary target; Linux and macOS builds exist (WIP); and ports are running on **Xbox 360**, **PS3**, **PSP**, **iOS**, **Android**, and even an **N64 demake** (Expansion Pak required).
 
 Nightly builds: https://github.com/SlickAmogus/silent-hill-pc-nightly
 
 ## Known Issues / Bugs
 
-The bigger items still being worked on (roughly by priority, no strict order):
+- Linux and macOS builds still have issues — Windows (or wine) is recommended where possible.
+- Visual glitches or artifacts can appear on certain systems/hardware (try the `renderer=` config option: d3d11 / vulkan / warp).
+- Some minor visual bugs and cosmetic issues remain.
 
-- PGXP can still show occasional seams at character joints (much improved since the rewrite)
-- Chainsaw and Rock Drill weapons are broken
-- Enemy AI needs another pass — some enemies jerk through the floor during combat
-- Monsters spawned outside their home map (global pool) play the wrong SFX or none
-- Menu re-entry can corrupt some screens on specific paths
-
-**Full tracked bug list:** https://github.com/SlickAmogus/silent-hill-decomp/issues/13
+Everything else that's known is tracked on the [issues page](https://github.com/SlickAmogus/silent-hill-decomp/issues).
 
 <!-- Screenshots go here -->
 
@@ -84,6 +77,9 @@ PC-only keys:
 | Reload | R |
 | Quick save / load | F6 / F8 |
 | Change camera style | F9 |
+| Quick options overlay | F10 |
+
+**Quick options (F10)** is a live in-game overlay with four pages — Graphics, HUD & Audio, Cheats, and Debug — navigable with keyboard or mouse (left-click raises a value, right-click lowers it). The Cheats page includes **Free camera**: once enabled, fly with the mouse + `W/A/S/D`, `Space`/`C` for up/down, `Shift` fast, `Ctrl` slow.
 
 **Rebinding:** open the launcher and click **Controls** to remap keys and controller buttons — click a bind box, then press the key (Esc or Backspace clears it). The alternate cameras (third-person / OTS / first-person) use a separate control scheme; toggle **"Alt. Cam Controls"** in that window to edit it. Everything is also stored as plain `key_*` lines in `config.cfg`. (Reload is fixed to `R`.)
 
@@ -123,7 +119,7 @@ Subsequent incremental builds: `cmake --build build`. `-DSH_BUILD_MAP_DLLS=ON` b
 
 > **Note:** close the game before rebuilding — the linker cannot overwrite a running `SilentHillPC.exe` (`cannot open output file SilentHillPC.exe: Permission denied`). `build.bat` detects this and tells you.
 
-## Game Files
+## Game Files / Modding
 
 The game's assets are packed into two archives (`SILENT.` and `HILL.`) on the disc — there is no real filesystem. They're indexed by a 2074-entry table with 6-bit-encoded names; the full enum with paths is in [`include/main/fileenum.h.USA.inc`](include/main/fileenum.h.USA.inc).
 
@@ -147,7 +143,18 @@ The game's assets are packed into two archives (`SILENT.` and `HILL.`) on the di
 - **Extract BIN…** unpacks a disc `.bin` into a loose asset tree (`<FOLDER>/<NAME>.<TYPE>`), the same result as the dev extract with no extra tools. Tick "Convert textures to PNG" to also dump every `.TIM` as a `.png`.
 - **TIM → PNG… / Bulk → PNG…** convert one texture or a whole folder to editable PNGs.
 - **Loose-file overrides** — enable loose files (the checkbox on the window) and drop replacements in `gamedata/load/<FOLDER>/<NAME>` (e.g. `gamedata/load/SND/MAP000.VAB`); the game swaps them in at load. Replacements must be ≤ the original's size (oversized textures excepted).
-- **Character textures** are one index sheet drawn through several palettes, so a single PNG only recolors part of the model. Use **Reference…** to build one correct composite from a character's model + texture, edit it in any image editor, then **Rebuild…** to slice it back into the per-row PNGs the game loads. See [`pc_port/docs/Modding_And_Extraction_Guide.md`](pc_port/docs/Modding_And_Extraction_Guide.md) for the full workflow.
+- **Character textures** are one index sheet drawn through several palettes, so a single PNG only recolors part of the model. Use **Reference…** to build one correct composite from a character's model + texture, edit it in any image editor, then **Rebuild…** to slice it back into the per-row PNGs the game loads.
+- **Texture packs** — loose PNG overrides, `.dds` (BC7) support, per-palette/per-CLUT-row overrides, and DuckStation-style replacement packs, all managed from the Mod Manager.
+
+**Beyond textures:**
+
+- **Character models (ILM)** — export any character to OBJ, edit or fully re-rig in Blender, and import back; the toolchain supports complete model replacement (a high-poly pipeline with automatic seam welding). See [`Model_Modding_Guide.md`](pc_port/docs/Model_Modding_Guide.md).
+- **Inventory item models (glTF/GLB)** — drop modern glTF models in to replace the rotating inventory/examine items, keyed by item ID. See [`Modern_Item_GLTF_Modding_Guide.md`](pc_port/docs/Modern_Item_GLTF_Modding_Guide.md).
+- **Audio (VAB)** — extract every SFX/instrument sample out of the game's VAB sound banks (vgmstream workflow documented in the guide), modify, and repack; loose-file VAB overrides load without touching the disc.
+- **FMVs** — drop `.avi` files in as movie overrides; no disc rebuild needed.
+- **Disc rebuild** — for changes that outgrow the loose-file size limits, the documented two-stage extract/rebuild produces a modified disc image with **no size ceiling**.
+
+Full workflows: [`Modding_And_Extraction_Guide.md`](pc_port/docs/Modding_And_Extraction_Guide.md).
 
 ## Console Commands
 
@@ -163,13 +170,15 @@ An in-game console for cheats, warps, and live tuning. Enable it with `allow_deb
 | `noclip` / `obst` / `god` | Walk through walls / round-obstacle collision / invincibility |
 | `getflags` · `setflag <n> <0\|1>` · `setending <bad\|bad+\|good\|good+>` | Inspect / force story flags and the ending (set before the ending) |
 | `pgxp [0\|1]` | Toggle PGXP perspective correction |
+| `cull` | Toggle world visibility culling (draw everything) |
+| `shadowres <n>` | Flashlight shadow-map resolution (up to 8192) |
 | `flmode <0-3>` · `shadows [0\|1]` · `fl`/`wl [color]` | Flashlight mode / shadows / flashlight & world-light tint |
 | `fov` · `tpsfov` · `tpsaimzoom` · `camcollide` | First-person / third-person FOV and camera feel |
 | `audioout <stereo\|quad\|51\|71\|hrtf>` · `xavol <0-100>` · `adsr [0\|1]` | Speaker layout / FMV volume / SPU envelopes |
 | `fmv [name]` | Play an intro / ending movie (bare `fmv` lists them) |
 | `quit` | Exit the game |
 
-Many values are also **live-tuning knobs** — run one with no argument to read the current value: `vfov`, `hfov`, `vshift`, `fogstr`, `pgxpedge`, `pgxpnearz`, `shadowbias`, `postint`, `tmint`, and the inventory `inv*` offsets. `debug 2` documents them.
+Many values are also **live-tuning knobs** — run one with no argument to read the current value: `vfov`, `hfov`, `vshift`, `cutshift`, `vcropanchor`, `par`, `drawdist`, `fogstr`, `pgxpedge`, `pgxpnearz`, `shadowbias`, `postint`, `tmint`, and the inventory `inv*` offsets. `debug 2` documents them.
 
 ## Debug Controls
 
@@ -201,20 +210,19 @@ Also requires `allow_debug_controls = 1`. Debug events echo to the per-run **`Si
 | `[` / `]` | Lower / raise the selected effect's intensity |
 | `\` | Choose which effect `[` / `]` adjusts |
 
-**Debug camera (numpad):**
+**Free camera** (also toggleable from the F10 quick-options Cheats page, no dev controls needed there):
 
 | Key | Action |
 |-----|--------|
-| Num `*` | Free debug camera on / off |
-| Num `8` / `5` / `4` / `6` | Fly forward / back / strafe left / right |
-| Num `7` / `9` | Turn left / right |
-| Num `+` / `-` | Tilt up / down |
-| PgUp / PgDn | Move up / down |
-| Num `/` | Print camera coordinates to the log |
+| Num `*` | Free camera on / off (Harry stays put; his input is ignored) |
+| Mouse | Look (follows your mouse sensitivity / invert settings) |
+| `W/A/S/D` | Fly forward / left / back / right along the view |
+| `Space` / `C` | Move up / down |
+| `Shift` / `Ctrl` | Fast / slow |
 | Num `3` | Reset cam nudge / in-game rescue teleport |
 | Num `.` | Log Harry's position |
 
-With the debug camera **off**, the same numpad keys nudge the normal game camera — a live camera-tuning aid. (Camera *styles* — third-person, OTS, first-person — are cycled with the Change Camera key, `F9` by default, not a debug key.)
+With the free camera **off**, the numpad keys nudge the normal game camera — a live camera-tuning aid. (Camera *styles* — third-person, OTS, first-person — are cycled with the Change Camera key, `F9` by default; the **F10 quick-options overlay** exposes most of the graphics/debug toggles below without memorizing keys.)
 
 ## Support
 
