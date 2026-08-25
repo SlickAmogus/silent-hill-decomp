@@ -97,6 +97,18 @@ static s32 Pc_ScreenRingHalfW(void)
     return ((s32)halfW < psxHalfW) ? psxHalfW : (s32)halfW;
 }
 
+/* X stretch for the glow/vignette compositor: its ring radii are authored for
+ * the 320-wide frame, and the gradient hits FULL darkness at the outer ring --
+ * which on PSX lay past the 4:3 frame edge, invisible. A widescreen view looks
+ * straight at it: darker side bands (user-reported, correctly diagnosed as an
+ * unscaled effect). Scaling the ring X extent about the light centre maps the
+ * 4:3-edge brightness to the new visible edge. */
+static float Pc_GlowXScale(void)
+{
+    const s32 psxHalfW = g_GameWork.gsScreenWidth >> 1;
+    return (psxHalfW > 0) ? ((float)Pc_ScreenRingHalfW() / (float)psxHalfW) : 1.0f;
+}
+
 static void Pc_ScreenRingBuild(s32 halfW)
 {
     DVECTOR   posTable[17];
@@ -466,6 +478,9 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
             temp_a1   = Math_Sin(j << 8);
 
             var_s1_2->vx = Q12_MULT_ALT(sp10[i], temp_s0_3) + sp20[i].vx;
+#ifdef SH_PC_PORT
+            var_s1_2->vx = arg1->vx + (s32)((var_s1_2->vx - arg1->vx) * Pc_GlowXScale());
+#endif
             var_s1_2->vx = CLAMP(var_s1_2->vx, Q12(-0.25f), Q12(0.25f) - 1);
 
             var_s1_2->vy = Q12_MULT_ALT(sp10[i], temp_a1) + sp20[i].vy;
