@@ -3300,18 +3300,24 @@ void MainLoop(void) // 0x80032EE0
                 g_GameWork.background2dColor.r = PC_WorldEnvWork.fog.color.r;
                 g_GameWork.background2dColor.g = PC_WorldEnvWork.fog.color.g;
                 g_GameWork.background2dColor.b = PC_WorldEnvWork.fog.color.b;
-                /* [GREYFLASH] the fog colour is about to fill the screen. On a
-                 * normal frame the world draws over it; a grey FLASH is a frame
-                 * where it does not. Log every fog-clear frame's deciding flags
-                 * so a foggy area-load reproduction names the flash frame:
-                 * worldDrawn/present chose the colour, freezeValid tells whether
-                 * the re-presented frame is real or empty. Capped. */
+                /* [GREYFLASH] v2. v1 logged EVERY fog-clear frame and burned its
+                 * cap on normal frames in seconds. The flash = a fog-coloured
+                 * clear presented while the world draws (almost) nothing, so
+                 * gate on the renderer's per-frame vertex tally instead: a real
+                 * world frame parses thousands of vertices, a flash frame
+                 * nearly none (one frame of lag -- the tally describes the
+                 * previous frame -- fine for detection). Re-arms over time so a
+                 * long session keeps capturing. */
                 {
-                    extern int g_freezeFrameValid;
+                    extern int g_freezeFrameValid, g_PsxLastFrameVerts;
                     static s32 s_gfLogs = 0;
-                    if (s_gfLogs < 120) {
+                    static u32 s_gfWindowMs = 0;
+                    u32 nowMs = SDL_GetTicks();
+                    if (nowMs - s_gfWindowMs > 10000) { s_gfWindowMs = nowMs; s_gfLogs = 0; }
+                    if (g_PsxLastFrameVerts < 900 && s_gfLogs < 8) {
                         s_gfLogs++;
-                        SH_DBG("[GREYFLASH] fogclear sys=%d worldDrawn=%d present=%d freezeValid=%d bg2dHeld=%d fog=(%d,%d,%d)",
+                        SH_DBG("[GREYFLASH] emptyframe verts=%d sys=%d worldDrawn=%d present=%d freezeValid=%d bg2dHeld=%d fog=(%d,%d,%d)",
+                               g_PsxLastFrameVerts,
                                (int)g_SysWork.sysState, (int)g_PcWorldDrawnThisFrame,
                                (int)g_PsxPresentLastFrame, (int)g_freezeFrameValid, (int)bg2dHeld,
                                (int)PC_WorldEnvWork.fog.color.r, (int)PC_WorldEnvWork.fog.color.g,
