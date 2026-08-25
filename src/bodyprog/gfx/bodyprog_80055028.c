@@ -6,6 +6,7 @@
  * at startup; the per-poly cull bounds here must track the same factor PsyCross's
  * Hor+ ortho uses. */
 extern float g_PsxPixelAspect;
+extern float g_PsxWorldHScale;
 #endif
 
 #include <psyq/gtemac.h>
@@ -2655,10 +2656,13 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
          * triangle" culling reported across multiple test sessions
          * since the pixel-aspect fix landed. */
         const s32   psxHalfW     = g_GameWork.gsScreenWidth >> 1;
-        const float visibleHalfW = (g_PcConfig.windowHeight > 0)
+        /* /hfov: PsyCross DIVIDES its Hor+ ortho half-width by g_PsxWorldHScale,
+         * so hfov<1 shows more world than this bound allowed and floor/wall polys
+         * were culled at the far screen edges (user-reported, recurring). */
+        const float visibleHalfW = ((g_PcConfig.windowHeight > 0)
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
                (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect
-            : (float)psxHalfW;
+            : (float)psxHalfW) / (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f);
         s32 halfW = (s32)(visibleHalfW + 16.5f);
         if (halfW < psxHalfW) halfW = psxHalfW;
         scratchData->field_380.s_0.field_0 = halfW;
@@ -3830,10 +3834,13 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
      * even with the other fix in place. */
     {
         const s32   psxHalfW     = g_GameWork.gsScreenWidth >> 1;
-        const float visibleHalfW = (g_PcConfig.windowHeight > 0)
+        /* /hfov: PsyCross DIVIDES its Hor+ ortho half-width by g_PsxWorldHScale,
+         * so hfov<1 shows more world than this bound allowed and floor/wall polys
+         * were culled at the far screen edges (user-reported, recurring). */
+        const float visibleHalfW = ((g_PcConfig.windowHeight > 0)
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
                (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect
-            : (float)psxHalfW;
+            : (float)psxHalfW) / (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f);
         s32 halfW = (s32)(visibleHalfW + 16.5f);
         if (halfW < psxHalfW) halfW = psxHalfW;
         scratchData->field_380.s_0.field_0 = halfW;
