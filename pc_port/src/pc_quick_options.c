@@ -709,12 +709,27 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         if (close) { s_ddRow = -1; return; }
         if (up)   s_ddSel = (s_ddSel + n - 1) % n;
         if (down) s_ddSel = (s_ddSel + 1) % n;
+        /* Keyboard steps the selection; the window follows it. */
+        if (s_ddSel < s_ddScroll) s_ddScroll = s_ddSel;
+        if (s_ddSel >= s_ddScroll + QO_DD_VISIBLE) s_ddScroll = s_ddSel - QO_DD_VISIBLE + 1;
+
+        /* The wheel scrolls the WINDOW (standard dropdown feel). It used to step
+         * the selection instead, which hover re-snapped to the line under the
+         * cursor on the next jitter -- so with the pointer resting over the
+         * list the wheel felt dead. */
         wheel2 = Pc_MouseCursor_WheelStep();
-        if (wheel2) s_ddSel = (s_ddSel + (wheel2 > 0 ? -1 : 1) + n) % n;
+        if (wheel2) s_ddScroll += (wheel2 > 0) ? -1 : 1;
+        {
+            int vis = (n < QO_DD_VISIBLE) ? n : QO_DD_VISIBLE;
+            if (s_ddScroll > n - vis) s_ddScroll = n - vis;
+            if (s_ddScroll < 0) s_ddScroll = 0;
+            if (s_ddSel < s_ddScroll) s_ddSel = s_ddScroll;
+            if (s_ddSel > s_ddScroll + vis - 1) s_ddSel = s_ddScroll + vis - 1;
+        }
 
         mMoved2 = Pc_MouseCursor_Moved();
         mClick2 = Pc_MouseCursor_LeftClicked();
-        if (s_ddShown && (mMoved2 || mClick2) && Pc_MouseCursor_ViewportPos(&mx2, &my2))
+        if (s_ddShown && (mMoved2 || mClick2 || wheel2) && Pc_MouseCursor_ViewportPos(&mx2, &my2))
         {
             float py  = (1.0f - my2) * s_vpH;
             float mpx = mx2 * s_vpW;
@@ -723,7 +738,8 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
             int   inside = mpx >= s_ddL && mpx <= s_ddR && py <= s_ddTop && py >= s_ddTop - vis * s_ddRowH;
             if (inside && line >= 0 && line < vis)
             {
-                if (mMoved2) s_ddSel = s_ddScroll + line;
+                /* highlight follows the pointer as the list moves under it */
+                if (mMoved2 || wheel2) s_ddSel = s_ddScroll + line;
                 if (mClick2) pick = s_ddScroll + line;
             }
             else if (mClick2)
@@ -733,11 +749,6 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
             }
         }
         if (confirm) pick = s_ddSel;
-
-        /* keep the selection in the visible window */
-        if (s_ddSel < s_ddScroll) s_ddScroll = s_ddSel;
-        if (s_ddSel >= s_ddScroll + QO_DD_VISIBLE) s_ddScroll = s_ddSel - QO_DD_VISIBLE + 1;
-        if (s_ddScroll < 0) s_ddScroll = 0;
 
         if (pick >= 0)
         {
