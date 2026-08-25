@@ -517,8 +517,8 @@ void Pc_LowHealthGlowUpdate(void)
         if (halfW > SCREEN_WIDTH) halfW = SCREEN_WIDTH;
         if (halfW < SCREEN_WIDTH / 2) halfW = SCREEN_WIDTH / 2;
     }
-    dy  = (halfH * 55) / 100;
-    dx  = (halfW * 40) / 100;
+    dy  = (halfH * 27) / 100; /* halved 2026-08-25: the 55/40 bands swallowed a third of the screen */
+    dx  = (halfW * 20) / 100;
     buf = g_ActiveBufferIdx;
 
     for (i = 0; i < 4; i++)
