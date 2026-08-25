@@ -189,4 +189,5 @@ Set in `config.cfg` (defaults shown), active in every camera mode:
 Many of these also exist as `config.cfg` keys and/or launcher options
 (resolution, vsync, filtering, PGXP, MSAA, post-process, tone-map, flashlight +
 shadows, FPS cap, control style, sensitivities, volumes). The in-game **PC
-Options** menu (3 pages) exposes the common ones live.
+Options** menu (5 pages) exposes the common ones live, and the **F10 quick
+options overlay** exposes the most-used ones without leaving gameplay.
