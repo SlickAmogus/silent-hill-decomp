@@ -275,3 +275,33 @@ void Pc_Cheats_Confirm(int page, int idx)
     }
     Pc_Cheats_Adjust(page, idx, +1);
 }
+
+/* List rows (Spawn): the overlay draws these as a button on the left and a
+ * browsable value on the right, and can open the list as a dropdown. */
+int Pc_Cheats_ListCount(int page, int idx)
+{
+    const CheatRow* r = row_at(page, idx, NULL);
+    return (r && r->kind == CH_SPAWN) ? Pc_SpawnList_Count() : 0;
+}
+
+const char* Pc_Cheats_ListName(int page, int idx, int i)
+{
+    const CheatRow* r = row_at(page, idx, NULL);
+    return (r && r->kind == CH_SPAWN) ? Pc_SpawnList_Name(i) : "";
+}
+
+int Pc_Cheats_ListGet(int page, int idx)
+{
+    const CheatRow* r = row_at(page, idx, NULL);
+    return (r && r->kind == CH_SPAWN) ? s_spawnIdx : 0;
+}
+
+void Pc_Cheats_ListSet(int page, int idx, int i)
+{
+    const CheatRow* r = row_at(page, idx, NULL);
+    if (r && r->kind == CH_SPAWN && i >= 0 && i < Pc_SpawnList_Count())
+    {
+        s_spawnIdx = i;
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+    }
+}

@@ -14,5 +14,11 @@ const char* Pc_Cheats_Label(int page, int idx, char* buf, int bufsz);
 void        Pc_Cheats_Adjust(int page, int idx, int dir);
 /* Confirm/click on a row (Spawn fires its browsed entry; others step up). */
 void        Pc_Cheats_Confirm(int page, int idx);
+/* List rows (Spawn): >0 entries means "button on the left, browsable value on
+ * the right, dropdown on click". */
+int         Pc_Cheats_ListCount(int page, int idx);
+const char* Pc_Cheats_ListName(int page, int idx, int i);
+int         Pc_Cheats_ListGet(int page, int idx);
+void        Pc_Cheats_ListSet(int page, int idx, int i);
 
 #endif /* PC_CHEATS_H */

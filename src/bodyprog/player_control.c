@@ -2000,7 +2000,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 {
                     static u16    s_prevBack = 0;
                     static u8     s_jumpBackActive = 0;
-                    static u16    s_jumpBackFrames = 0;
+                    static q19_12 s_jumpBackElapsed = 0; /* Q12 s of game time, not frames */
                     static q19_12 s_prevJumpBackTime = -1;
                     /* Require pure-backward input to start a jumpback: if
                      * forward is also held, other branches will stomp the
@@ -2034,7 +2034,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
 
                     if (backEdge && hopRunHeld && !s_jumpBackActive) {
                         s_jumpBackActive = 1;
-                        s_jumpBackFrames = 0;
+                        s_jumpBackElapsed = 0;
                         s_prevJumpBackTime = -1;
                         player->model.anim.status = ANIM_STATUS(HarryAnim_JumpBackward, false);
                         player->model.stateStep = 0;
@@ -2053,8 +2053,20 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * based on player input: once triggered the hop commits
                      * and plays to completion regardless of button release. */
                     if (s_jumpBackActive) {
-                        s_jumpBackFrames++;
                         bool animFinished = false;
+                        bool timedOut;
+                        /* The native hop is a real leap (fallSpeed -2.0 in the
+                         * JumpBackward lower-body handler) whose landing runs at
+                         * keyframe 246, and the generic ledge check deliberately
+                         * ignores the JumpBackward state until then. Ending this
+                         * wrapper while Harry was still airborne dropped that
+                         * state early, so the ledge check fired FallBackward on
+                         * flat ground -- "lands in the air, then falls backwards"
+                         * -- every time the 180-FRAME timeout beat the landing at
+                         * high frame rates. Time the safety net in game seconds
+                         * and hold the state until his feet are on the ground. */
+                        s_jumpBackElapsed += g_DeltaTime;
+                        timedOut = s_jumpBackElapsed > Q12(3.0f);
                         if (player->model.anim.status == ANIM_STATUS(HarryAnim_JumpBackward, true) &&
                             player->model.anim.status < 76)
                         {
@@ -2064,9 +2076,22 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                 animFinished = true;
                             }
                         }
-                        if (animFinished || s_jumpBackFrames > 180) {
+                        {
+                            /* PSX +Y is down: on or below the floor = grounded. */
+                            bool grounded = player->position.vy >= player->properties.player.groundHeight;
+                            if (animFinished && !grounded && !timedOut) {
+                                animFinished = false; /* still coming down: keep the hop alive */
+                            } else if ((animFinished || timedOut) && !grounded) {
+                                /* Genuinely over a drop at the end of the hop: the
+                                 * native landing's own answer. */
+                                Player_ExtraStateSet(player, extra, PlayerState_FallBackward);
+                            } else if (animFinished || timedOut) {
+                                player->fallSpeed = Q12(0.0f);
+                            }
+                        }
+                        if (animFinished || timedOut) {
                             s_jumpBackActive = 0;
-                            s_jumpBackFrames = 0;
+                            s_jumpBackElapsed = 0;
                             s_prevJumpBackTime = -1;
                             /* Hop done — drop body states back to None so the
                              * normal walk/idle anim assignments below take over

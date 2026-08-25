@@ -3418,6 +3418,14 @@ void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* delt
 
 #ifdef SH_PC_PORT
             localPart->position0_0.vz += TIMESTEP_SCALE_30_FPS(*deltaTime, g_Particle_SpeedZ) + deltaZCase1;
+            /* The tail is last frame's head, still expressed against last
+             * frame's origin. Both ends live in origin-relative space, so the
+             * tail needs the same origin shift as the head or the streak tilts
+             * by the camera's per-frame travel -- slanted rain while moving,
+             * blatant under the free camera. With it, a streak is the fall
+             * vector in world space regardless of how the camera moves. */
+            localPart->position1_C.vx += deltaXCase1;
+            localPart->position1_C.vz += deltaZCase1;
 #else
             localPart->position0_0.vz += TIMESTEP_SCALE_30_FPS(*deltaTime, g_Particle_SpeedZ + deltaZCase1);
 #endif

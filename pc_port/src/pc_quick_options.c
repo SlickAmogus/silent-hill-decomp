@@ -47,6 +47,8 @@ extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 #define QO_GARBAGE  48
 #define QO_MAX_ROWS 16
 #define QO_PAGES    4
+#define QO_DD_MAX     64  /* dropdown entries cached */
+#define QO_DD_VISIBLE 8
 
 /* ------------------------------------------------------------------ */
 /* Rows                                                                */
@@ -182,6 +184,21 @@ static int    s_bakedForPage = -1;
 static float s_vpW = 1920.0f, s_vpH = 1080.0f;
 static float s_geoListT, s_geoRowPitch, s_geoRowH, s_geoPanelL, s_geoPanelR;
 static int   s_geoRows;
+
+/* Dropdown over a list row (the Spawn row): open on clicking its value,
+ * navigated with Up/Down / wheel / hover, picked with confirm / click. */
+static int    s_ddRow = -1;   /* row index on the current page, -1 = closed */
+static int    s_ddSel;
+static int    s_ddScroll;
+static GLuint s_ddTex[QO_DD_MAX];
+static int    s_ddW[QO_DD_MAX], s_ddH[QO_DD_MAX];
+static float  s_ddL, s_ddR, s_ddTop, s_ddRowH; /* published for the hit-test */
+static int    s_ddShown;
+
+static int qo_row_is_list(const QoRowDef* r)
+{
+    return r->kind == ROW_CHEAT && Pc_Cheats_ListCount(r->cpage, r->extra) > 0;
+}
 
 /* ------------------------------------------------------------------ */
 /* GL primitives (mirrors pc_rando_settings.c)                         */
@@ -465,6 +482,10 @@ static void qo_free_text(void)
         qo_retire(s_texValue[i]); s_texValue[i] = 0;
         s_valueText[i][0] = 0;
     }
+    for (i = 0; i < QO_DD_MAX; i++)
+    {
+        qo_retire(s_ddTex[i]); s_ddTex[i] = 0;
+    }
 }
 
 /* Options-table names use underscores for spaces. */
@@ -536,6 +557,7 @@ static void qo_open(void)
 
 void Pc_QuickOptions_Close(void)
 {
+    s_ddRow = -1;
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
         return;
     s_phase      = QO_CLOSING;
@@ -598,6 +620,7 @@ static int qo_key_edge(int sc)
 static void qo_set_page(int page)
 {
     int n;
+    s_ddRow = -1;
     s_page = (page + QO_PAGES) % QO_PAGES;
     qo_page_rows(s_page, &n);
     if (s_sel >= n) s_sel = n - 1;
@@ -675,6 +698,56 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     if (s_phase != QO_SHOWN) /* ignore input while animating in/out */
         return;
 
+    /* Dropdown open: it owns every input until it closes. */
+    if (s_ddRow >= 0 && s_ddRow < nRows && qo_row_is_list(&rows[s_ddRow]))
+    {
+        const QoRowDef* r = &rows[s_ddRow];
+        int n = Pc_Cheats_ListCount(r->cpage, r->extra);
+        int pick = -1, mMoved2, mClick2, wheel2;
+        float mx2, my2;
+
+        if (close) { s_ddRow = -1; return; }
+        if (up)   s_ddSel = (s_ddSel + n - 1) % n;
+        if (down) s_ddSel = (s_ddSel + 1) % n;
+        wheel2 = Pc_MouseCursor_WheelStep();
+        if (wheel2) s_ddSel = (s_ddSel + (wheel2 > 0 ? -1 : 1) + n) % n;
+
+        mMoved2 = Pc_MouseCursor_Moved();
+        mClick2 = Pc_MouseCursor_LeftClicked();
+        if (s_ddShown && (mMoved2 || mClick2) && Pc_MouseCursor_ViewportPos(&mx2, &my2))
+        {
+            float py  = (1.0f - my2) * s_vpH;
+            float mpx = mx2 * s_vpW;
+            int   vis = (n < QO_DD_VISIBLE) ? n : QO_DD_VISIBLE;
+            int   line = (int)((s_ddTop - py) / s_ddRowH);
+            int   inside = mpx >= s_ddL && mpx <= s_ddR && py <= s_ddTop && py >= s_ddTop - vis * s_ddRowH;
+            if (inside && line >= 0 && line < vis)
+            {
+                if (mMoved2) s_ddSel = s_ddScroll + line;
+                if (mClick2) pick = s_ddScroll + line;
+            }
+            else if (mClick2)
+            {
+                s_ddRow = -1; /* clicked away */
+                return;
+            }
+        }
+        if (confirm) pick = s_ddSel;
+
+        /* keep the selection in the visible window */
+        if (s_ddSel < s_ddScroll) s_ddScroll = s_ddSel;
+        if (s_ddSel >= s_ddScroll + QO_DD_VISIBLE) s_ddScroll = s_ddSel - QO_DD_VISIBLE + 1;
+        if (s_ddScroll < 0) s_ddScroll = 0;
+
+        if (pick >= 0)
+        {
+            Pc_Cheats_ListSet(r->cpage, r->extra, pick);
+            s_ddRow = -1;
+        }
+        return;
+    }
+    s_ddRow = -1;
+
     if (close) { Pc_QuickOptions_Close(); return; }
 
     if (pageNext) qo_set_page(s_page + 1);
@@ -699,7 +772,21 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         if (inX && row >= 0 && row < nRows)
         {
             if (mMoved) s_sel = row;
-            if (mClick) { s_sel = row; qo_confirm(&rows[row]); }
+            if (mClick)
+            {
+                s_sel = row;
+                if (qo_row_is_list(&rows[row]) && mpx > (s_geoPanelL + s_geoPanelR) * 0.5f)
+                {
+                    /* Right half of a list row: open the dropdown on the value. */
+                    s_ddRow    = row;
+                    s_ddSel    = Pc_Cheats_ListGet(rows[row].cpage, rows[row].extra);
+                    s_ddScroll = s_ddSel - QO_DD_VISIBLE / 2;
+                    if (s_ddScroll < 0) s_ddScroll = 0;
+                    s_ddShown  = 0;
+                }
+                else
+                    qo_confirm(&rows[row]);
+            }
             if (mRClick && QO_IS_VALUE_ROW(rows[row].kind))
             { s_sel = row; qo_activate(&rows[row], -1); }
             if (wheel && QO_IS_VALUE_ROW(rows[row].kind))
@@ -825,7 +912,7 @@ void Pc_QuickOptions_Draw(void)
     {
         char hint[160];
         snprintf(hint, sizeof(hint),
-                 "Up/Down select   Left/Right adjust   PgUp/PgDn page   %s or Esc close   * = restart",
+                 "Up/Down select   Left/Right adjust   PgUp/PgDn page   %s or Esc close   * = restart   click a list value for a dropdown",
                  g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10");
         s_texHint = qo_bake(hint, (float)(int)(hintH * 0.50f), &s_hintW, &s_hintH);
     }
@@ -890,9 +977,22 @@ void Pc_QuickOptions_Draw(void)
                 snprintf(s_valueText[i], sizeof(s_valueText[i]), "%s", txt);
                 s_texValue[i] = qo_bake(txt, (float)px, &s_valueW[i], &s_valueH[i]);
             }
+            /* Label left. A list row's label is a BUTTON (the action lives on
+             * it; the value on the right only browses), drawn as a boxed pill. */
             if (s_texLabel[i])
             {
                 tH = (float)s_labelH[i]; tY = rowMid + tH * 0.5f;
+                if (qo_row_is_list(r))
+                {
+                    float bl = panelL + pad - 6.0f, br = panelL + pad + (float)s_labelW[i] + 6.0f;
+                    float bt = rowTop - rowH * 0.08f, bb = rowTop - rowH * 0.92f;
+                    float sel = (i == s_sel) ? 1.0f : 0.6f;
+                    qo_quad(s_texWhite, NX(bl), NY(bt), NX(br), NY(bb), 0.47f, 0.11f, 0.08f, 0.55f * sel * dim);
+                    qo_quad(s_texWhite, NX(bl), NY(bt), NX(br), NY(bt - 1.0f), 1.0f, 0.93f, 0.86f, 0.35f * dim);
+                    qo_quad(s_texWhite, NX(bl), NY(bb + 1.0f), NX(br), NY(bb), 1.0f, 0.93f, 0.86f, 0.35f * dim);
+                    qo_quad(s_texWhite, NX(bl), NY(bt), NX(bl + 1.0f), NY(bb), 1.0f, 0.93f, 0.86f, 0.35f * dim);
+                    qo_quad(s_texWhite, NX(br - 1.0f), NY(bt), NX(br), NY(bb), 1.0f, 0.93f, 0.86f, 0.35f * dim);
+                }
                 qo_quad(s_texLabel[i], NX(panelL + pad), NY(tY), NX(panelL + pad + s_labelW[i]), NY(tY - tH),
                         0.92f, 0.92f, 0.95f, dim);
             }
@@ -920,6 +1020,47 @@ void Pc_QuickOptions_Draw(void)
         float hx = panelL + (panelW - (float)s_hintW) * 0.5f;
         float hy = panelB + hintH * 0.72f;
         qo_quad(s_texHint, NX(hx), NY(hy), NX(hx + s_hintW), NY(hy - s_hintH), 0.7f, 0.7f, 0.75f, dim);
+    }
+
+    /* Dropdown list over the value column of its row, on top of the rows. */
+    s_ddShown = 0;
+    if (s_ddRow >= 0 && s_ddRow < nRows && qo_row_is_list(&rows[s_ddRow]))
+    {
+        const QoRowDef* r  = &rows[s_ddRow];
+        int   n   = Pc_Cheats_ListCount(r->cpage, r->extra);
+        int   vis = (n < QO_DD_VISIBLE) ? n : QO_DD_VISIBLE;
+        float ddL = panelL + panelW * 0.5f;
+        float ddR = panelR - 4.0f;
+        float ddTop = listT - (float)(s_ddRow + 1) * rowPitch + rowPitch * 0.08f;
+        float ddH = rowH;
+        int   k;
+
+        if (n > QO_DD_MAX) n = QO_DD_MAX;
+        if (s_ddScroll > n - vis) s_ddScroll = n - vis;
+        if (s_ddScroll < 0) s_ddScroll = 0;
+        /* Don't run off the panel bottom: open upward instead. */
+        if (ddTop - vis * ddH < panelB) ddTop = listT - (float)s_ddRow * rowPitch + vis * ddH;
+
+        qo_quad(s_texWhite, NX(ddL - 2.0f), NY(ddTop + 2.0f), NX(ddR + 2.0f), NY(ddTop - vis * ddH - 2.0f), 0.47f, 0.11f, 0.08f, dim);
+        qo_quad(s_texWhite, NX(ddL), NY(ddTop), NX(ddR), NY(ddTop - vis * ddH), 0.05f, 0.045f, 0.06f, 0.97f * dim);
+        for (k = 0; k < vis; k++)
+        {
+            int   e  = s_ddScroll + k;
+            float et = ddTop - (float)k * ddH;
+            if (e >= n) break;
+            if (e == s_ddSel)
+                qo_quad(s_texWhite, NX(ddL + 2.0f), NY(et), NX(ddR - 2.0f), NY(et - ddH), 0.42f, 0.16f, 0.12f, 0.75f * dim);
+            if (!s_ddTex[e])
+                s_ddTex[e] = qo_bake(Pc_Cheats_ListName(r->cpage, r->extra, e), (float)px, &s_ddW[e], &s_ddH[e]);
+            if (s_ddTex[e])
+            {
+                float ty = et - (ddH - (float)s_ddH[e]) * 0.5f;
+                qo_quad(s_ddTex[e], NX(ddL + 10.0f), NY(ty), NX(ddL + 10.0f + s_ddW[e]), NY(ty - s_ddH[e]),
+                        e == s_ddSel ? 1.0f : 0.85f, 0.9f, 0.9f, dim);
+            }
+        }
+        s_ddL = ddL; s_ddR = ddR; s_ddTop = ddTop; s_ddRowH = ddH;
+        s_ddShown = 1;
     }
 
     /* Mouse cursor last, so it rides above the panel (the PSX-drawn one is
