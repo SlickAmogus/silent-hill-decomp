@@ -2679,8 +2679,9 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
                (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect
             : (float)psxHalfW) / (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f);
-        s32 halfW = (s32)(visibleHalfW + 16.5f);
+        s32 halfW = (s32)(visibleHalfW + 64.5f); /* generous by policy */
         if (halfW < psxHalfW) halfW = psxHalfW;
+        if (g_PcConfig.disableCulling) halfW = 0x3FFF;
         scratchData->field_380.s_0.field_0 = halfW;
     }
 #else
@@ -3857,8 +3858,9 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
                (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect
             : (float)psxHalfW) / (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f);
-        s32 halfW = (s32)(visibleHalfW + 16.5f);
+        s32 halfW = (s32)(visibleHalfW + 64.5f); /* generous by policy */
         if (halfW < psxHalfW) halfW = psxHalfW;
+        if (g_PcConfig.disableCulling) halfW = 0x3FFF;
         scratchData->field_380.s_0.field_0 = halfW;
     }
 #else

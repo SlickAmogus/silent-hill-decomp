@@ -17,7 +17,13 @@ extern float g_PsxWorldHScale;
  * the vertical view, so bounds must stretch the same way or geometry culls in
  * bands at the top/bottom edges (Y edition of the hfov side-culling bug). */
 extern float g_PsxWorldVScale, g_PsxWorldVShift;
-#define SH_VCULL_HALF_H     ((s32)((float)(g_GameWork.gsScreenHeight >> 1) * (g_PsxWorldVScale > 1.0f ? g_PsxWorldVScale : 1.0f)            + (g_PsxWorldVShift < 0.0f ? -g_PsxWorldVShift : g_PsxWorldVShift) + 4.5f))
+/* Screen-edge cull policy: bounds are GENEROUS (+64 units past the exact
+ * visible edge), never exact-math-plus-tiny-pad -- every tight bound in this
+ * class has eventually shown up on screen after some view change. And the
+ * culling master toggle (g_PcConfig.disableCulling) bypasses screen-edge
+ * culling entirely, as its name promises. */
+#define SH_CULL_LOOSE (g_PcConfig.disableCulling ? 8192 : 64)
+#define SH_VCULL_HALF_H     ((s32)((float)(g_GameWork.gsScreenHeight >> 1) * (g_PsxWorldVScale > 1.0f ? g_PsxWorldVScale : 1.0f)            + (g_PsxWorldVShift < 0.0f ? -g_PsxWorldVShift : g_PsxWorldVShift) + 0.5f) + SH_CULL_LOOSE)
 #endif
 
 #include <psyq/gtemac.h>
@@ -642,7 +648,7 @@ bool Vw_AabbVisibleInScreenCheck(s32 minX, s32 maxX, s32 minY, s32 maxY, s32 min
          * tight). 16 px @ 1920 wide is ~0.8% extra render — cheap. */
         /* 1.09375 = PSX_NTSC_PIXEL_ASPECT — matches PsyCross's hor+
          * ortho. +16 px safety margin for boundary truncation. */
-        screenCenterX = (s32)(psxHalfW * horScale * (winAspect / psxAspect) * g_PsxPixelAspect / SH_HFOV_CULL_DIV + 16.5f);
+        screenCenterX = (s32)(psxHalfW * horScale * (winAspect / psxAspect) * g_PsxPixelAspect / SH_HFOV_CULL_DIV + 0.5f) + SH_CULL_LOOSE;
     }
 #else
     screenCenterX = (g_GameWork.gsScreenWidth  / 2) + 2;
@@ -788,7 +794,7 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
                  * aren't truncation-culled (was producing the small
                  * disappearing triangles at screen edges while
                  * panning). */
-                const s32   fr_halfW   = (s32)((fr_psxW * 0.5f) * fr_horSc * (fr_winAsp / fr_psxAsp) * g_PsxPixelAspect / SH_HFOV_CULL_DIV + 16.5f);
+                const s32   fr_halfW   = (s32)((fr_psxW * 0.5f) * fr_horSc * (fr_winAsp / fr_psxAsp) * g_PsxPixelAspect / SH_HFOV_CULL_DIV + 0.5f) + SH_CULL_LOOSE;
                 const s32   fr_scaledX = (s32)(screenPos.vx * fr_horSc);
 
                 if (fr_scaledX >= -fr_halfW)
@@ -919,7 +925,7 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
                  * 722). Was missed when the pixel-aspect factor was
                  * added — caused the persistent edge-clipping the user
                  * has been chasing across multiple test passes. */
-                const s32   fr2_halfW   = (s32)((fr2_psxW * 0.5f) * fr2_horSc * (fr2_winAsp / fr2_psxAsp) * g_PsxPixelAspect / SH_HFOV_CULL_DIV + 16.5f);
+                const s32   fr2_halfW   = (s32)((fr2_psxW * 0.5f) * fr2_horSc * (fr2_winAsp / fr2_psxAsp) * g_PsxPixelAspect / SH_HFOV_CULL_DIV + 0.5f) + SH_CULL_LOOSE;
                 const s32   fr2_scaledX = (s32)(screenPoints->vx * fr2_horSc);
 
                 if (fr2_scaledX >= -fr2_halfW)
