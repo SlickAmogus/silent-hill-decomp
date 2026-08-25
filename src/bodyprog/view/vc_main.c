@@ -440,10 +440,16 @@ void Pc_CamSnapDump(void)
          * if our GTE result differs, the GTE emulation is biased; if it
          * matches but the on-screen picture still sits high, the raster/ortho
          * mapping owns the offset. */
-        MATRIX  m = vcWork.cam_mat;
+        MATRIX  m;
         SVECTOR d;
         DVECTOR scr;
-        s32     dummy0, dummy1, otz;
+        s32     i, j, dummy0, dummy1, otz;
+        /* cam_mat is camera-to-world (columns = view basis; t = camera world
+         * pos in Q8) -- the untransposed feed projected a behind-camera point
+         * and saturated. The world-to-view rotation is its transpose. */
+        for (i = 0; i < 3; i++)
+            for (j = 0; j < 3; j++)
+                m.m[i][j] = vcWork.cam_mat.m[j][i];
         m.t[0] = m.t[1] = m.t[2] = 0;
         d.vx = (s16)(vcWork.watch_tgt_pos.vx - vcWork.cam_pos.vx);
         d.vy = (s16)(vcWork.watch_tgt_pos.vy - vcWork.cam_pos.vy);
