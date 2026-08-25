@@ -3296,6 +3296,24 @@ void MainLoop(void) // 0x80032EE0
                 g_GameWork.background2dColor.r = PC_WorldEnvWork.fog.color.r;
                 g_GameWork.background2dColor.g = PC_WorldEnvWork.fog.color.g;
                 g_GameWork.background2dColor.b = PC_WorldEnvWork.fog.color.b;
+                /* [GREYFLASH] the fog colour is about to fill the screen. On a
+                 * normal frame the world draws over it; a grey FLASH is a frame
+                 * where it does not. Log every fog-clear frame's deciding flags
+                 * so a foggy area-load reproduction names the flash frame:
+                 * worldDrawn/present chose the colour, freezeValid tells whether
+                 * the re-presented frame is real or empty. Capped. */
+                {
+                    extern int g_freezeFrameValid;
+                    static s32 s_gfLogs = 0;
+                    if (s_gfLogs < 120) {
+                        s_gfLogs++;
+                        SH_DBG("[GREYFLASH] fogclear sys=%d worldDrawn=%d present=%d freezeValid=%d bg2dHeld=%d fog=(%d,%d,%d)",
+                               (int)g_SysWork.sysState, (int)g_PcWorldDrawnThisFrame,
+                               (int)g_PsxPresentLastFrame, (int)g_freezeFrameValid, (int)bg2dHeld,
+                               (int)PC_WorldEnvWork.fog.color.r, (int)PC_WorldEnvWork.fog.color.g,
+                               (int)PC_WorldEnvWork.fog.color.b);
+                    }
+                }
             } else {
                 g_GameWork.background2dColor.r = 0;
                 g_GameWork.background2dColor.g = 0;
