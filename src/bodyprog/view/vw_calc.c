@@ -12,6 +12,12 @@ extern float g_PsxPixelAspect;
  * same way or edge models pop out (user-reported at the shipped hfov 0.872). */
 extern float g_PsxWorldHScale;
 #define SH_HFOV_CULL_DIV (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f)
+/* Vertical cull bound. The stock ±(gsScreenHeight>>1) assumes the view shows
+ * exactly rows 0..224; `vshift` moves the projection centre and vfov>1 widens
+ * the vertical view, so bounds must stretch the same way or geometry culls in
+ * bands at the top/bottom edges (Y edition of the hfov side-culling bug). */
+extern float g_PsxWorldVScale, g_PsxWorldVShift;
+#define SH_VCULL_HALF_H     ((s32)((float)(g_GameWork.gsScreenHeight >> 1) * (g_PsxWorldVScale > 1.0f ? g_PsxWorldVScale : 1.0f)            + (g_PsxWorldVShift < 0.0f ? -g_PsxWorldVShift : g_PsxWorldVShift) + 4.5f))
 #endif
 
 #include <psyq/gtemac.h>
@@ -641,7 +647,11 @@ bool Vw_AabbVisibleInScreenCheck(s32 minX, s32 maxX, s32 minY, s32 maxY, s32 min
 #else
     screenCenterX = (g_GameWork.gsScreenWidth  / 2) + 2;
 #endif
+#ifdef SH_PC_PORT
+    screenCenterY = SH_VCULL_HALF_H;
+#else
     screenCenterY = (g_GameWork.gsScreenHeight / 2) + 2;
+#endif
 
     if (screenMaxX < -screenCenterX || screenCenterX < screenMinX ||
         screenMaxY < -screenCenterY || screenCenterY < screenMinY)
@@ -808,9 +818,9 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
             }
 #endif
 
-            if (screenPos.vy >= -(g_GameWork.gsScreenHeight >> 1))
+            if (screenPos.vy >= -SH_VCULL_HALF_H)
             {
-                if ((g_GameWork.gsScreenHeight >> 1) < screenPos.vy)
+                if (SH_VCULL_HALF_H < screenPos.vy)
                 {
                     flag1Idx = 2;
                 }
@@ -939,9 +949,9 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
             }
 #endif
 
-            if (screenPoints->vy >= -(g_GameWork.gsScreenHeight >> 1))
+            if (screenPoints->vy >= -SH_VCULL_HALF_H)
             {
-                if ((g_GameWork.gsScreenHeight >> 1) < screenPoints->vy)
+                if (SH_VCULL_HALF_H < screenPoints->vy)
                 {
                     flag1Idx = 2;
                 }
@@ -956,9 +966,9 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
             }
 
 			// --- Y (unchanged) ---
-			if (screenPoints->vy >= -(g_GameWork.gsScreenHeight >> 1))
+			if (screenPoints->vy >= -SH_VCULL_HALF_H)
 			{
-				if ((g_GameWork.gsScreenHeight >> 1) < screenPoints->vy)
+				if (SH_VCULL_HALF_H < screenPoints->vy)
 				{
 					flag1Idx = 2;
 				}

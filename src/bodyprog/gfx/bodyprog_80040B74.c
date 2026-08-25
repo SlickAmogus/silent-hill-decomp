@@ -148,6 +148,19 @@ static void Pc_ScreenRingBuild(s32 halfW)
         }
     }
 
+    /* Stretch the border ring vertically the same way the overlay quads do, so
+     * the fill still reaches the top/bottom edges under vshift / vfov > 1. */
+    {
+        extern float g_PsxWorldVScale, g_PsxWorldVShift;
+        const float vs    = (g_PsxWorldVScale > 1.0f) ? g_PsxWorldVScale : 1.0f;
+        const float sh    = (g_PsxWorldVShift < 0.0f) ? -g_PsxWorldVShift : g_PsxWorldVShift;
+        const float halfH = (float)h2 * vs + sh + 8.0f;
+        for (i = 0; i < 17; i++)
+        {
+            posTable[i].vy = (s16)((float)posTable[i].vy * halfH / (float)(h2 > 0 ? h2 : 1));
+        }
+    }
+
     for (j = 0; j < 2; j++)
     {
         poly_f4 = (POLY_F4*)&D_800BFBF0[j][(sizeof(DR_TPAGE) * 2) +

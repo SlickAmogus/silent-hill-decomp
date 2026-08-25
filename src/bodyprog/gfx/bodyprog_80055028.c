@@ -13,6 +13,14 @@ extern float g_PsxWorldHScale;
  * 16:9 while the visible half is ~250 -- the additive brightness quad ended in
  * plain sight as hard-edged dark side bands (user-measured cliff at +/-223.8).
  * Same bound as the mesh cull / halo border, plus the PSX +10 edge pad. */
+static s16 Pc_OverlayQuadHalfH(void)
+{
+    extern float g_PsxWorldVScale, g_PsxWorldVShift;
+    const float vs = (g_PsxWorldVScale > 1.0f) ? g_PsxWorldVScale : 1.0f;
+    const float sh = (g_PsxWorldVShift < 0.0f) ? -g_PsxWorldVShift : g_PsxWorldVShift;
+    return (s16)(112.0f * vs + sh + 8.0f);
+}
+
 static s16 Pc_OverlayQuadHalfW(void)
 {
     const float hs = (g_PsxWorldHScale > 0.01f) ? g_PsxWorldHScale : 1.0f;
@@ -469,7 +477,8 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
 #ifdef SH_PC_PORT
         {
             const s16 halfW = Pc_OverlayQuadHalfW();
-            setXY4(poly, -halfW, -120, halfW, -120, -halfW, 120, halfW, 120);
+            const s16 halfH = Pc_OverlayQuadHalfH();
+            setXY4(poly, -halfW, -halfH, halfW, -halfH, -halfW, halfH, halfW, halfH);
         }
 #else
         setXY4(poly,
@@ -506,7 +515,8 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
          * units, requiring halfW ≈ 213 instead of the original 180. */
         {
             const s16 halfW = Pc_OverlayQuadHalfW();
-            setXY4(poly, -halfW, -120, halfW, -120, -halfW, 120, halfW, 120);
+            const s16 halfH = Pc_OverlayQuadHalfH();
+            setXY4(poly, -halfW, -halfH, halfW, -halfH, -halfW, halfH, halfW, halfH);
         }
 #else
         setXY4(poly,
