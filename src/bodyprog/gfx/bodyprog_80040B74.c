@@ -3465,6 +3465,14 @@ bool Gfx_ChunkSubcellVisibleCheck(s_IpdModelBuffer* modelBuf, q7_8 subcellX, q7_
     MATRIX        viewMat;
     SVECTOR*      curSubcellPos; // TODO: Subcell? Cell?
 
+#ifdef SH_PC_PORT
+    /* Console `CULL` promises "draw everything": include the subcell gate. */
+    if (g_PcConfig.disableCulling)
+    {
+        return true;
+    }
+#endif
+
     // Run through subcell positions.
     for (curSubcellPos = modelBuf->subcellPositions;
          curSubcellPos < &modelBuf->subcellPositions[modelBuf->subcellCount];

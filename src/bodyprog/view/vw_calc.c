@@ -846,15 +846,31 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
         }
     }
 
+    if (pointsOutsideNearPlaneCount == 8)
+    {
+        /* All corners beyond the far distance. (Decomp param names are swapped:
+         * "nearPlane"=Q8(25) is the FAR threshold, "farPlane"=224 the NEAR.) */
+        return false;
+    }
+
+#ifdef SH_PC_PORT
+    /* Retail rejected a subcell whose 8 corners are ALL within 224 view-units
+     * (near cull), and near corners are excluded from the screen-region
+     * classification below -- so bottom-edge subcells (floor decals right in
+     * front of the camera) culled visibly once the full 224-row frame is
+     * shown; CRT overscan used to hide those rows. Any near corner now means
+     * VISIBLE: near geometry is exactly what the bottom edge shows, and the
+     * per-model/per-poly stages downstream still cull rubbish. */
+    if (pointsOutsideFarClipCount > 0)
+    {
+        return true;
+    }
+#else
     if (pointsOutsideFarClipCount == 8)
     {
         return false;
     }
-
-    if (pointsOutsideNearPlaneCount == 8)
-    {
-        return false;
-    }
+#endif
 
     if (regionFlags.flags[1][1])
     {
