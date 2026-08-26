@@ -2745,15 +2745,14 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         extern int g_PsxWholeMapFar; /* PsyCross: gate the GTE far re-projection */
         extern int g_PsxWholeMapChunkSz; /* PsyCross: true depth for this chunk's saturated far polys */
         int drawCount = 0;
-        /* The 16-chunk debug-cam cap predates the OT depth clamps, and it is
-         * gone for plain flights too. This loop walks activeChunks in ARRAY
-         * (load) order, not nearest-first, and the free camera widens the scan
-         * to 100 cells -- so the cap kept whatever 16 chunks happened to load
-         * first, which routinely excluded the room the player is standing in.
-         * The result was an empty view at the same spot every time, reported as
-         * "free cam takes you to a void". Whole-town mode already had to exempt
-         * itself from this cap for the same reason. */
-        int drawLimit = PC_MAX_IPD_CHUNKS;
+        /* The cap stays: without it every resident chunk draws, which mixes
+         * other rooms and the outdoors into one scene and drops under 1 fps.
+         * The bug was never the cap, it was that this loop walks activeChunks
+         * in ARRAY (load) order, so a cap of 16 kept whichever chunks loaded
+         * first rather than the ones nearby -- routinely excluding the room the
+         * player stands in, which is the empty free-cam view. Room visibility
+         * below now does the selecting instead, so the 16 are the RIGHT 16. */
+        int drawLimit = (g_DebugCamEnabled && !Pc_WholeMapDrawActive()) ? 16 : PC_MAX_IPD_CHUNKS;
         int totalChunks = 0, loadedChunks = 0, cellMatchChunks = 0, culledChunks = 0;
         /* Whole-town mode: unclamp the GTE projection for far world vertices (see
          * PsyX_GTE.cpp). Scoped to this world-chunk loop so only the map geometry
@@ -2924,7 +2923,14 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 bool Ipd_CellPositionMatchCheck(s_Chunk* chunk, s_MapTerrain* map)
 {
 #ifdef SH_PC_PORT
-    if (g_DebugCamEnabled) return true;
+    /* Only whole-town mode may ignore room visibility: it has its own outdoor
+     * classification, cone culling and depth-sorted submission to cope with the
+     * result. A plain free-cam flight used to bypass it too, which made every
+     * resident chunk eligible -- other rooms, other floors, the outdoors -- and
+     * those crowded out the local room under the draw cap above, leaving an
+     * empty view at the same spot every time. Room visibility is the same rule
+     * gameplay uses, and it keeps the chunks near the player eligible. */
+    if (g_DebugCamEnabled && Pc_WholeMapDrawActive()) return true;
     /* NOTE: disable_culling must NOT bypass the interior check below — it is
      * ROOM VISIBILITY, not culling, and disable_culling=1 is the SHIPPED
      * DEFAULT (its old first-line bypass here is why the courtyard ghost
