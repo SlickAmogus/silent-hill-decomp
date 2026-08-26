@@ -151,20 +151,27 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
  * in the otherwise-unused pad2 texcoord short instead (PsyCross's GT4
  * parser reads it into v0's fog). Without this, v0 borrowed v1's fog,
  * giving every floor quad one wrong corner -> visible grid seams. */
+/* Fog 0..127 conversions round rather than truncate. The ramp saturates at
+ * 255 (func_80055A50 returns 255 past its range), so truncation produced 126,
+ * not 127: distant geometry kept ~0.8% of its own colour forever and read as a
+ * faint shape "one shade off" the fog instead of dissolving into it. PSX culled
+ * that geometry at the fog far distance so it never showed; the port draws
+ * further, which is what exposed it. Rounding makes the far end exactly full
+ * fog, so distant objects fade out completely. */
 #define PC_FACE_FOG_VERTS(sd) do { \
     s32 _fa; \
     _fa = (sd)->field_252[(sd)->field_380.s_0.field_10] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
-    poly3->pad2 = (u8)((_fa * 127) >> 12); \
+    poly3->pad2 = (u8)((_fa * 127 + 2048) >> 12); \
     _fa = (sd)->field_252[(sd)->field_380.s_0.field_11] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
-    poly3->p1 = (u8)((_fa * 127) >> 12); \
+    poly3->p1 = (u8)((_fa * 127 + 2048) >> 12); \
     _fa = (sd)->field_252[(sd)->field_380.s_0.field_12] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
-    poly3->p2 = (u8)((_fa * 127) >> 12); \
+    poly3->p2 = (u8)((_fa * 127 + 2048) >> 12); \
     _fa = (sd)->field_252[(sd)->field_380.s_0.field_13] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
-    poly3->p3 = (u8)((_fa * 127) >> 12); \
+    poly3->p3 = (u8)((_fa * 127 + 2048) >> 12); \
 } while(0)
 
 /* Compute fog factor (0-127) from a single screenZ value. Used for character
@@ -178,7 +185,7 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
         if (_idx < 0) _idx = 0; if (_idx > 127) _idx = 127; \
         _fb = g_WorldEnvWork.fogRamp[_idx]; \
     } else { _fb = 255; } \
-    (u8)((_fb * 127) >> 8); \
+    (u8)((_fb * 127 + 128) >> 8); \
 })
 #else
 #define FOG_FAR_DIST() (g_WorldEnvWork.fog.farDistance)
@@ -5235,7 +5242,7 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
                 {
                     s32 fogAmt = (func_80055A50(temp_v0_2 << 6) * 16) + g_WorldEnvWork.fog.intensity;
                     if (fogAmt > 0x1000) fogAmt = 0x1000;
-                    poly_gt4->p1 = (u8)((fogAmt * 127) >> 12);
+                    poly_gt4->p1 = (u8)((fogAmt * 127 + 2048) >> 12);
                     poly_gt4->p2 = poly_gt4->p1;
                     poly_gt4->p3 = poly_gt4->p1;
                 }
