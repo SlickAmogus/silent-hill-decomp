@@ -319,17 +319,32 @@ static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int neares
     return t;
 }
 
+/* Retiring a texture used to queue it for glDeleteTextures. It must not.
+ *
+ * A deleted GL name goes straight back to the driver's pool and the game takes
+ * it on its next texture create -- after which these quads sample whatever the
+ * game put there. That is the solid red/black block corruption: the [QOTEX]
+ * probe showed every upload is clean (right size, first texel 255,255,255,0,
+ * glErr 0), so the content is only wrong LATER, once the name is no longer
+ * ours. It also explains why the colour varied by area (whatever texture
+ * inherited the name) and why glIsTexture-based validation could not catch it
+ * -- the name is still a perfectly valid texture, just not ours.
+ *
+ * Retired names are therefore kept alive and simply abandoned. The caller has
+ * already zeroed its slot, so the next draw bakes a fresh texture. That leaks
+ * one small texture per re-bake (page switches and value edits only), which is
+ * a few MB across a long session -- the correct fix is to re-upload into the
+ * same name instead of allocating a new one, but that is a wider change than
+ * belongs in a release build. */
 static void qo_retire(GLuint tex)
 {
-    if (tex && s_garbageCount < QO_GARBAGE)
-        s_garbage[s_garbageCount++] = tex;
+    (void)tex;
 }
 
+/* Nothing is queued for deletion any more (see qo_retire); kept so the draw
+ * path is unchanged and a future in-place-reuse rewrite has a hook. */
 static void qo_gl_pump(void)
 {
-    int i;
-    for (i = 0; i < s_garbageCount; i++)
-        glDeleteTextures(1, &s_garbage[i]);
     s_garbageCount = 0;
 }
 
