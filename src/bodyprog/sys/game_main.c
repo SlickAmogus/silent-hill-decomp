@@ -18,6 +18,23 @@ int g_PcMapScreenActive = 0; /* set while paper-map overlay is displayed */
  * clear is only correct on a frame that actually drew the world behind it; on a
  * frame that drew nothing it IS the visible image, which is the grey flash. */
 int g_PcWorldDrawnThisFrame = 0;
+
+/* The framing the WORLD was last actually drawn with. HUD elements that lay
+ * themselves out earlier in the frame than the world is submitted (the minimap
+ * does, in Pc_MinimapUpdate) must follow this rather than the live
+ * g_PcHorPlusEnabled: that global is also driven to 0 for 2D screens, so a
+ * menu frame made the minimap re-lay-out for 4:3 and visibly snap back on the
+ * next world frame. Latched only where the world is submitted, so menus and
+ * transitions cannot move it. */
+int g_PcWorldHorPlus = 0;
+
+/* What the per-frame gate decided, i.e. the framing the 2D UI pass (OT2) wants.
+ * The world pass asserts Hor+ for itself at submission, which is right for the
+ * world but must NOT leak into the UI: on the frame the inventory opens, both
+ * passes run, and the UI -- authored for a 320-wide frame -- came out squished
+ * toward the centre when drawn through the widened world ortho. OT0 and OT2 are
+ * separate GsDrawOt calls, so each can use its own value. */
+int g_PcHorPlusGate = 0;
 /* Set by a freeze-frame state (pause, map messages) when it hands control back,
  * instead of dropping g_PsxPresentLastFrame on the spot. See the release below. */
 int g_PcFreezeReleasePending = 0;
@@ -2399,8 +2416,15 @@ void MainLoop(void) // 0x80032EE0
          * OT is drawn; reset paths (menus, fades) simply leave it 0. */
         {
             extern int g_PsyX_ShadowsAllowed;
+            /* GamePaused counts as settled too: the pause screen keeps
+             * rendering the live world behind its menu, so dropping the depth
+             * pre-pass there just made every flashlight shadow pop out of the
+             * scene the moment the player paused. It is a stable state with no
+             * fade -- none of the transition/menu hazards this gate exists for
+             * (room loads, map/inventory opens, the options screen) apply. */
             g_PsyX_ShadowsAllowed = (g_GameWork.gameState == GameState_InGame &&
-                                     g_SysWork.sysState == SysState_Gameplay &&
+                                     (g_SysWork.sysState == SysState_Gameplay ||
+                                      g_SysWork.sysState == SysState_GamePaused) &&
                                      ScreenFade_IsNone()) ? 1 : 0;
         }
 
@@ -3014,7 +3038,7 @@ void MainLoop(void) // 0x80032EE0
             bg2dHeld = (SDL_GetTicks() < s_bg2dHoldUntilMs) ? 1 : 0;
         }
         {
-            static int s_narrowFrames = 0;
+            static Uint32 s_narrowOffAtMs = 0;
             /* Fullscreen 2D background screens that run inside GameState_InGame
              * (keypad/dial/plate puzzles, the eclipse door, item-inspection and
              * death-tip images) draw via Screen_BackgroundImgDraw* and must use
@@ -3026,20 +3050,41 @@ void MainLoop(void) // 0x80032EE0
                                !g_PsxSkipFramebufferStore &&
                                !g_PcMapScreenActive &&
                                !bg2dHeld) ? 1 : 0;
+            /* The grace period below used to be a FRAME count (6), i.e. 200ms at
+             * 30fps but only 100ms at 60 and 42ms at 144 -- while the fade it
+             * exists to ride out takes a fixed wall-clock time. At high
+             * framerates the switch to 4:3 therefore landed DURING the fade with
+             * the world still on screen: the minimap snapped to its 4:3 corner
+             * and, on longer fades, the whole picture squished for a frame or
+             * two. Hold in wall-clock time so every framerate behaves like the
+             * original 6 frames at 30fps. */
+            #define PC_HORPLUS_HOLD_MS 200
             if (wantHorPlus)
             {
-                s_narrowFrames     = 0;
+                s_narrowOffAtMs    = 0;
                 g_PcHorPlusEnabled = 1;
             }
             else if (bg2dHeld)
             {
-                s_narrowFrames     = 6;
+                /* Stable 2D screens, not a transient: drop immediately, and keep
+                 * the deadline elapsed so a following non-bg2d frame stays 4:3. */
+                s_narrowOffAtMs    = 1;
                 g_PcHorPlusEnabled = 0;
             }
-            else if (++s_narrowFrames >= 6)
+            else
             {
-                g_PcHorPlusEnabled = 0;
+                const Uint32 nowMs = SDL_GetTicks();
+                if (s_narrowOffAtMs == 0)
+                {
+                    s_narrowOffAtMs = nowMs + PC_HORPLUS_HOLD_MS;
+                }
+                if (nowMs >= s_narrowOffAtMs)
+                {
+                    g_PcHorPlusEnabled = 0;
+                }
             }
+            /* The 2D UI pass uses this, not whatever the world asserted later. */
+            g_PcHorPlusGate = g_PcHorPlusEnabled;
         }
 
         /* Cutscenes get their vertical framing from the letterbox bars, so the gameplay
@@ -3713,9 +3758,20 @@ void MainLoop(void) // 0x80032EE0
          * bar off-screen. The world (OT0, drawn above) keeps the crop. */
         {
             extern int g_PsxUIOrthoPass;
-            g_PsxUIOrthoPass = 1;
+            extern int g_PcHorPlusGate;
+            /* Draw the UI with the framing the GATE chose. The world (OT0,
+             * above) asserts Hor+ for itself at submission so it can never be
+             * drawn 4:3 mid-transition; without swapping back here that assert
+             * also widened the UI ortho, and the inventory -- authored for a
+             * 320-wide frame -- rendered squished toward the centre for the
+             * frame it opened. Restored afterwards so nothing else sees it. */
+            const int savedHorPlus = g_PcHorPlusEnabled;
+
+            g_PcHorPlusEnabled = g_PcHorPlusGate;
+            g_PsxUIOrthoPass   = 1;
             GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
-            g_PsxUIOrthoPass = 0;
+            g_PsxUIOrthoPass   = 0;
+            g_PcHorPlusEnabled = savedHorPlus;
         }
 #else
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);

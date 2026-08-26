@@ -5504,7 +5504,33 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
 
             if (g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_None)
             {
+#ifdef SH_PC_PORT
+                /* In this state afkTimer is a FRAME count and the trigger below
+                 * is a raw `>= 300`: exactly 10s at the PSX's 30fps, but 5s at
+                 * 60 and ~2s at 144, so the AFK look-around fired after a couple
+                 * of seconds of standing still. Accumulate at the 30fps-
+                 * equivalent rate and only ever add whole steps, so the field
+                 * keeps its integer frame-count meaning (it is reused as a Q12
+                 * duration in other states) and the trigger stays ~10s at any
+                 * framerate. */
+                {
+                    static q19_12 s_afkFrac = 0;
+
+                    if (player->properties.player.afkTimer == Q12(0.0f))
+                    {
+                        s_afkFrac = 0;
+                    }
+
+                    s_afkFrac += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(1.0f));
+                    while (s_afkFrac >= Q12(1.0f))
+                    {
+                        s_afkFrac -= Q12(1.0f);
+                        player->properties.player.afkTimer++;
+                    }
+                }
+#else
                 player->properties.player.afkTimer++;
+#endif
 
 #ifdef SH_PC_PORT
                 /* FPS: never trip the AFK look-around — its head/body turning

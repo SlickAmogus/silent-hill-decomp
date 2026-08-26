@@ -296,20 +296,55 @@ static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int neares
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+
+    /* [QOTEX] the overlay's baked textures (labels, values, cursor) sometimes
+     * draw as solid red blocks while the 1x1 white panel texture is fine --
+     * i.e. the UPLOAD is corrupted, not the binding. Red with opaque alpha is
+     * what an RG8 sample looks like (blue 0, alpha forced 1), which is
+     * PsyCross's VRAM texture format, so the suspicion is GL texture-name
+     * reuse or a stray unpack state. Log the id, size, first texel and any GL
+     * error at upload time; capped so a session cannot be flooded. */
+    {
+        static int s_qoTexLogs = 0;
+        if (s_qoTexLogs < 24)
+        {
+            GLenum err = glGetError();
+            s_qoTexLogs++;
+            SH_DBG("[QOTEX] upload id=%u %dx%d first=(%u,%u,%u,%u) glErr=0x%x unpackAlign=1",
+                   (unsigned)t, w, h,
+                   (unsigned)rgba[0], (unsigned)rgba[1], (unsigned)rgba[2], (unsigned)rgba[3],
+                   (unsigned)err);
+        }
+    }
     return t;
 }
 
+/* Retiring a texture used to queue it for glDeleteTextures. It must not.
+ *
+ * A deleted GL name goes straight back to the driver's pool and the game takes
+ * it on its next texture create -- after which these quads sample whatever the
+ * game put there. That is the solid red/black block corruption: the [QOTEX]
+ * probe showed every upload is clean (right size, first texel 255,255,255,0,
+ * glErr 0), so the content is only wrong LATER, once the name is no longer
+ * ours. It also explains why the colour varied by area (whatever texture
+ * inherited the name) and why glIsTexture-based validation could not catch it
+ * -- the name is still a perfectly valid texture, just not ours.
+ *
+ * Retired names are therefore kept alive and simply abandoned. The caller has
+ * already zeroed its slot, so the next draw bakes a fresh texture. That leaks
+ * one small texture per re-bake (page switches and value edits only), which is
+ * a few MB across a long session -- the correct fix is to re-upload into the
+ * same name instead of allocating a new one, but that is a wider change than
+ * belongs in a release build. */
 static void qo_retire(GLuint tex)
 {
-    if (tex && s_garbageCount < QO_GARBAGE)
-        s_garbage[s_garbageCount++] = tex;
+    (void)tex;
 }
 
+/* Nothing is queued for deletion any more (see qo_retire); kept so the draw
+ * path is unchanged and a future in-place-reuse rewrite has a hook. */
 static void qo_gl_pump(void)
 {
-    int i;
-    for (i = 0; i < s_garbageCount; i++)
-        glDeleteTextures(1, &s_garbage[i]);
     s_garbageCount = 0;
 }
 
@@ -486,6 +521,47 @@ static void qo_free_text(void)
     {
         qo_retire(s_ddTex[i]); s_ddTex[i] = 0;
     }
+}
+
+/* The overlay's baked textures have twice been seen drawing as solid blocks
+ * -- red once, black once. The COLOUR VARYING is the tell: the quads sample
+ * whatever texture currently owns that GL name, i.e. the name was freed out
+ * from under us and handed to the game (the 1x1 white panel texture, created
+ * once at init, never shows it). Deletion is detectable, so verify every
+ * cached name before use and rebuild any that went stale, and say so once. */
+static void qo_validate(GLuint* t, const char* what)
+{
+    static int s_staleLogs = 0;
+
+    if (*t == 0 || glIsTexture(*t))
+        return;
+
+    if (s_staleLogs < 8)
+    {
+        s_staleLogs++;
+        SH_DBG("[QOTEX] stale texture name %u (%s) -- freed by something else; rebuilding",
+               (unsigned)*t, what);
+    }
+    *t = 0; /* forces a re-bake below */
+}
+
+static void qo_validate_cache(void)
+{
+    int i;
+
+    qo_validate(&s_texTitle,  "title");
+    qo_validate(&s_texHint,   "hint");
+    qo_validate(&s_texWhite,  "white");
+    qo_validate(&s_texCursor, "cursor");
+    for (i = 0; i < QO_MAX_ROWS; i++)
+    {
+        qo_validate(&s_texLabel[i], "label");
+        qo_validate(&s_texValue[i], "value");
+        if (s_texValue[i] == 0)
+            s_valueText[i][0] = 0; /* force the value string to re-bake too */
+    }
+    for (i = 0; i < QO_DD_MAX; i++)
+        qo_validate(&s_ddTex[i], "dropdown");
 }
 
 /* Options-table names use underscores for spaces. */
@@ -874,6 +950,7 @@ void Pc_QuickOptions_Draw(void)
     prevCull  = glIsEnabled(GL_CULL_FACE);
 
     qo_gl_pump();
+    qo_validate_cache();
 
     /* Fade only; the phase itself advances in Update (game thread). */
     {
@@ -919,14 +996,11 @@ void Pc_QuickOptions_Draw(void)
     }
     if (!s_texTitle)
         s_texTitle = qo_bake(s_pageTitles[s_page], (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
+    /* Short footer only. The long controls hint ran off-screen at some panel
+     * widths; the `*` marker (appended to any non-realtime value) still needs
+     * explaining, so keep just that. */
     if (!s_texHint)
-    {
-        char hint[160];
-        snprintf(hint, sizeof(hint),
-                 "Up/Down select   Left/Right adjust   PgUp/PgDn page   %s or Esc close   * = restart   click a list value for a dropdown",
-                 g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10");
-        s_texHint = qo_bake(hint, (float)(int)(hintH * 0.50f), &s_hintW, &s_hintH);
-    }
+        s_texHint = qo_bake("* req restart", (float)(int)(hintH * 0.50f), &s_hintW, &s_hintH);
 
     /* Publish geometry for Update's mouse hit-test. */
     s_vpW = vpW; s_vpH = vpH;

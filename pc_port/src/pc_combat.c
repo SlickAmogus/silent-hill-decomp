@@ -513,8 +513,20 @@ void Pc_LowHealthGlowUpdate(void)
     halfW = SCREEN_WIDTH / 2;
     if (g_PcHorPlusEnabled && g_PcConfig.windowHeight > 0)
     {
-        halfW = (halfH * g_PcConfig.windowWidth) / g_PcConfig.windowHeight;
-        if (halfW > SCREEN_WIDTH) halfW = SCREEN_WIDTH;
+        /* Same visible-extent bound the mesh cull and the overlay quads use:
+         * window aspect * PAR / hfov. The old `halfH * winW / winH` dropped
+         * both the pixel aspect and hfov, landing at ~199 units where the
+         * visible half-extent at 16:9 is ~286 -- so the glow stopped well
+         * short of the screen edges. See project_widescreen_frame_bound_class. */
+        extern float g_PsxPixelAspect;
+        extern float g_PsxWorldHScale;
+        const float hs = (g_PsxWorldHScale > 0.01f) ? g_PsxWorldHScale : 1.0f;
+        float       w  = (((float)halfH * (float)g_PcConfig.windowWidth) /
+                          (float)g_PcConfig.windowHeight) * g_PsxPixelAspect / hs;
+
+        halfW = (s32)(w + 0.5f);
+        /* Cap well past 32:9 but inside the s16 prim range. */
+        if (halfW > 512) halfW = 512;
         if (halfW < SCREEN_WIDTH / 2) halfW = SCREEN_WIDTH / 2;
     }
     dy  = (halfH * 27) / 100; /* halved 2026-08-25: the 55/40 bands swallowed a third of the screen */
