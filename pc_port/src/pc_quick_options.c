@@ -24,6 +24,7 @@
 
 #include <SDL.h>
 #include <PsyX/common/glad.h>
+#include <PsyX/PsyX_backend.h>
 
 #include "stb_truetype.h"
 
@@ -292,6 +293,8 @@ static void qo_gl_init(void)
     s_glReady = 1;
 }
 
+static void qo_reg_set(GLuint id, int w, int h);
+
 static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int nearest)
 {
     GLuint t = 0;
@@ -303,6 +306,7 @@ static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int neares
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    qo_reg_set(t, w, h);
 
     /* [QOTEX] the overlay's baked textures (labels, values, cursor) sometimes
      * draw as solid red blocks while the 1x1 white panel texture is fine --
@@ -536,20 +540,107 @@ static void qo_free_text(void)
  * from under us and handed to the game (the 1x1 white panel texture, created
  * once at init, never shows it). Deletion is detectable, so verify every
  * cached name before use and rebuild any that went stale, and say so once. */
+/* What we uploaded, per texture name. glIsTexture cannot tell that a name is
+ * still OURS -- only that it is a live texture -- so the size we put there is
+ * kept and checked against what the driver reports. Round-robin; a name that
+ * ages out simply stops being checked. */
+#define QO_TEXREG 256
+static GLuint s_regId[QO_TEXREG];
+static GLint  s_regW[QO_TEXREG], s_regH[QO_TEXREG];
+static int    s_regNext;
+
+static void qo_reg_set(GLuint id, int w, int h)
+{
+    int i;
+
+    if (id == 0)
+        return;
+    for (i = 0; i < QO_TEXREG; i++)
+    {
+        if (s_regId[i] == id)
+        {
+            s_regW[i] = w; s_regH[i] = h;
+            return;
+        }
+    }
+    s_regId[s_regNext] = id;
+    s_regW[s_regNext]  = w;
+    s_regH[s_regNext]  = h;
+    s_regNext = (s_regNext + 1) % QO_TEXREG;
+}
+
+static int qo_reg_get(GLuint id, GLint* w, GLint* h)
+{
+    int i;
+
+    for (i = 0; i < QO_TEXREG; i++)
+    {
+        if (s_regId[i] == id)
+        {
+            *w = s_regW[i]; *h = s_regH[i];
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void qo_validate(GLuint* t, const char* what)
 {
     static int s_staleLogs = 0;
 
-    if (*t == 0 || glIsTexture(*t))
+    if (*t == 0)
         return;
 
-    if (s_staleLogs < 8)
+    if (!glIsTexture(*t))
     {
-        s_staleLogs++;
-        SH_DBG("[QOTEX] stale texture name %u (%s) -- freed by something else; rebuilding",
-               (unsigned)*t, what);
+        if (s_staleLogs < 8)
+        {
+            s_staleLogs++;
+            SH_DBG("[QOTEX] stale texture name %u (%s) -- freed by something else; rebuilding",
+                   (unsigned)*t, what);
+        }
+        *t = 0;
+        return;
     }
-    *t = 0; /* forces a re-bake below */
+
+    /* Live, but is it still ours? A holder of a stale id can bind our name and
+     * glTexImage2D over it without ever deleting it -- the name stays valid, so
+     * glIsTexture is blind to it, and the quads then sample whatever was
+     * written there. That is the solid red/black blocks: red in an otherworld
+     * map, dark in a house, i.e. the CONTENT TRACKS THE MAP, which is screen or
+     * VRAM data and never a glyph. The uploads themselves are clean ([QOTEX]
+     * above), so the only thing left to check is whether the storage still
+     * matches what we put in it. Ask the driver, the way hires_override does --
+     * a side table cannot know. On a mismatch the name is abandoned, NOT
+     * re-uploaded into: it may belong to someone else now, and overwriting it
+     * would corrupt their texture instead. */
+    if (g_grCaps.texLevelParam)
+    {
+        GLint wantW = 0, wantH = 0;
+
+        if (qo_reg_get(*t, &wantW, &wantH))
+        {
+            GLint curW = 0, curH = 0;
+
+            glBindTexture(GL_TEXTURE_2D, *t);
+            glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH,  &curW);
+            glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &curH);
+
+            if (curW != wantW || curH != wantH)
+            {
+                if (s_staleLogs < 8)
+                {
+                    s_staleLogs++;
+                    SH_DBG("[QOTEX] texture %u (%s) was RE-SPECIFIED behind us: "
+                           "uploaded %dx%d, driver now reports %dx%d -- abandoning "
+                           "the name and re-baking",
+                           (unsigned)*t, what, (int)wantW, (int)wantH,
+                           (int)curW, (int)curH);
+                }
+                *t = 0;
+            }
+        }
+    }
 }
 
 static void qo_validate_cache(void)
