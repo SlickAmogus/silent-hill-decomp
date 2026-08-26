@@ -424,13 +424,31 @@ static unsigned qo_font_sig(const unsigned char* p, long n)
     return h ^ (unsigned)n;
 }
 
+/* Re-reads the font into a fresh buffer. The old one is abandoned, never freed:
+ * stbtt may still hold pointers into it, and whatever scribbled on it will keep
+ * doing so. */
+static int qo_font_reload(void)
+{
+    long           sz    = 0;
+    unsigned char* fresh = s_fontPath ? qo_read_file(s_fontPath, &sz) : NULL;
+
+    if (fresh && stbtt_InitFont(&s_font, fresh, stbtt_GetFontOffsetForIndex(fresh, 0)))
+    {
+        s_fontData = fresh;
+        s_fontSize = sz;
+        s_fontSig  = qo_font_sig(fresh, sz);
+        return 1;
+    }
+    if (fresh)
+        free(fresh);
+    return 0;
+}
+
 /* Returns non-zero when the font memory changed under us (and reloads it). */
 static int qo_font_check(void)
 {
     static int s_fontLogs = 0;
     unsigned   now;
-    long       sz = 0;
-    unsigned char* fresh;
 
     if (!s_fontOk || !s_fontData || s_fontSize <= 0)
         return 0;
@@ -448,19 +466,8 @@ static int qo_font_check(void)
                s_fontPath ? s_fontPath : "?");
     }
 
-    /* Reload into a fresh buffer. The old one is abandoned, never freed: stbtt
-     * may still hold pointers into it, and whatever scribbled on it will keep
-     * doing so. */
-    fresh = s_fontPath ? qo_read_file(s_fontPath, &sz) : NULL;
-    if (fresh && stbtt_InitFont(&s_font, fresh, stbtt_GetFontOffsetForIndex(fresh, 0)))
-    {
-        s_fontData = fresh;
-        s_fontSize = sz;
-        s_fontSig  = qo_font_sig(fresh, sz);
+    if (qo_font_reload())
         return 1;
-    }
-    if (fresh)
-        free(fresh);
     s_fontSig = now; /* cannot reload; stop re-reporting every frame */
     return 1;
 }
@@ -500,7 +507,7 @@ static void qo_fonts_init(void)
 
 /* Rasterize one line of ASCII to a white-coverage RGBA texture, trimmed to
  * the ink so right-alignment and centring use the real text width. */
-static GLuint qo_bake(const char* text, float px, int* outW, int* outH)
+static GLuint qo_bake_once(const char* text, float px, int* outW, int* outH, int* outInk)
 {
     const char* p;
     float scale, penX, baseY;
@@ -586,13 +593,52 @@ static GLuint qo_bake(const char* text, float px, int* outW, int* outH)
             if (rgba[k * 4 + 3] >= 32)
                 ink++;
         }
-        SH_DBG("[QOBAKE] \"%.24s\" %dx%d ink=%d%% px=%d fontOk=%d",
-               text, W, H, n ? (ink * 100 / n) : -1, (int)px, s_fontOk);
+        if (outInk)
+            *outInk = n ? (ink * 100 / n) : -1;
     }
     tex = qo_upload_rgba(rgba, W, H, 0);
     if (outW) *outW = W;
     if (outH) *outH = H;
     free(cov); free(rgba); free(scratch);
+    return tex;
+}
+
+/* Glyphs rasterized from bad font memory come out as filled boxes -- the solid
+ * blotches users hit. That is measurable: real text inks 12-21% of its box, a
+ * block ~100%. So a bake that comes back saturated is not shipped. The font is
+ * re-read and the string baked again; if it is still saturated nothing is
+ * returned, because a blank row is at least honest and the next frame retries.
+ * Single characters are exempt -- a glyph like a full block legitimately fills
+ * its box. */
+#define QO_INK_MAX 55
+
+static GLuint qo_bake(const char* text, float px, int* outW, int* outH)
+{
+    static int s_bakeLogs = 0;
+    int    ink = -1;
+    GLuint tex = qo_bake_once(text, px, outW, outH, &ink);
+
+    if (tex == 0 || ink < QO_INK_MAX || !text || !text[1])
+        return tex;
+
+    if (s_bakeLogs < 8)
+    {
+        s_bakeLogs++;
+        SH_DBG("[QOBAKE] \"%.24s\" baked SATURATED (ink=%d%%, normal is 12-21) -- "
+               "glyph data is bad; reloading the font and re-baking", text, ink);
+    }
+
+    qo_retire(tex);
+    if (!qo_font_reload())
+        return 0;
+
+    ink = -1;
+    tex = qo_bake_once(text, px, outW, outH, &ink);
+    if (tex && ink >= QO_INK_MAX)
+    {
+        qo_retire(tex);
+        return 0;
+    }
     return tex;
 }
 
