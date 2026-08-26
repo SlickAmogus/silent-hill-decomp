@@ -2460,26 +2460,6 @@ void MainLoop(void) // 0x80032EE0
         {
             extern void Pc_HealFlashUpdate(void);
             extern void Pc_LowHealthGlowUpdate(void);
-
-            /* Decide Hor+ BEFORE anything lays itself out against it. The world
-             * is submitted much later (the single Gfx_InGameDraw site, which
-             * asserts the same thing), but the minimap sizes itself here -- so
-             * with only the late assert it spent the first frame after an
-             * inventory close positioned for 4:3 and visibly snapped across.
-             * Predict the world draw with the same condition that gates the
-             * dispatch calling it; the later gate may still clear this for
-             * genuine 2D screens, and the draw-site assert restores it for the
-             * frames the world is actually submitted. */
-            {
-                extern int g_PcHorPlusEnabled, g_PcMapScreenActive, g_PsxSkipFramebufferStore;
-                if (g_GameWork.gameState == GameState_InGame &&
-                    g_SysWork.sysState  == SysState_Gameplay &&
-                    !g_PcMapScreenActive && !g_PsxSkipFramebufferStore)
-                {
-                    g_PcHorPlusEnabled = 1;
-                }
-            }
-
             Pc_HealFlashUpdate();
             Pc_LowHealthGlowUpdate(); /* optional low-health red edge pulse, same window */
 
