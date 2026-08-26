@@ -729,49 +729,7 @@ static void qo_reg_set(GLuint id, int w, int h, unsigned hash, int nearest)
  * filter can ever make it incomplete. Content, size and name all check out
  * clean, so the sampler state is what is left. Re-assert it every frame and say
  * so once if it had drifted. */
-static void qo_fix_filter(GLuint t, const char* what, int nearest)
-{
-    static int s_filterLogs = 0;
-    GLint minF = 0, magF = 0, baseL = 0, maxL = 1000;
-    GLint wantMin = nearest ? GL_NEAREST : GL_LINEAR;
 
-    glBindTexture(GL_TEXTURE_2D, t);
-    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &minF);
-    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &magF);
-    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, &baseL);
-    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL,  &maxL);
-
-    if (minF == wantMin && baseL == 0)
-        return;
-
-    if (s_filterLogs < 8)
-    {
-        s_filterLogs++;
-        SH_DBG("[QOTEX] texture %u (%s) sampler drifted: min=0x%x mag=0x%x base=%d "
-               "max=%d -- incomplete, sampling as opaque black; restoring",
-               (unsigned)t, what, (unsigned)minF, (unsigned)magF, (int)baseL, (int)maxL);
-    }
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, wantMin);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, wantMin);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL,  0);
-}
-
-static int qo_reg_get(GLuint id, GLint* w, GLint* h, unsigned* hash)
-{
-    int i;
-
-    for (i = 0; i < QO_TEXREG; i++)
-    {
-        if (s_regId[i] == id)
-        {
-            *w = s_regW[i]; *h = s_regH[i]; *hash = s_regHash[i];
-            return 1;
-        }
-    }
-    return 0;
-}
 
 static void qo_validate_ex(GLuint* t, const char* what, int deep);
 
@@ -784,9 +742,18 @@ static void qo_validate_ex(GLuint* t, const char* what, int deep)
 {
     static int s_staleLogs = 0;
 
+    (void)deep;
+
     if (*t == 0)
         return;
 
+    /* Only the cheap check survives. Four sessions of per-frame verification --
+     * dimensions, a full glGetTexImage readback of the pixels, and the sampler
+     * state -- came back clean every single time, while costing a pipeline
+     * stall and ~100 driver queries a frame, which is the hitch on open/close.
+     * The bake now validates its own output before shipping it, which catches
+     * the same failure earlier and for free. glIsTexture does not sync, so it
+     * stays. */
     if (!glIsTexture(*t))
     {
         if (s_staleLogs < 8)
@@ -796,102 +763,6 @@ static void qo_validate_ex(GLuint* t, const char* what, int deep)
                    (unsigned)*t, what);
         }
         *t = 0;
-        return;
-    }
-
-    /* Live, but is it still ours? A holder of a stale id can bind our name and
-     * glTexImage2D over it without ever deleting it -- the name stays valid, so
-     * glIsTexture is blind to it, and the quads then sample whatever was
-     * written there. That is the solid red/black blocks: red in an otherworld
-     * map, dark in a house, i.e. the CONTENT TRACKS THE MAP, which is screen or
-     * VRAM data and never a glyph. The uploads themselves are clean ([QOTEX]
-     * above), so the only thing left to check is whether the storage still
-     * matches what we put in it. Ask the driver, the way hires_override does --
-     * a side table cannot know. On a mismatch the name is abandoned, NOT
-     * re-uploaded into: it may belong to someone else now, and overwriting it
-     * would corrupt their texture instead. */
-    {
-        GLint  rw = 0, rh = 0;
-        unsigned rhash = 0;
-        int    i, nearest = 0;
-
-        for (i = 0; i < QO_TEXREG; i++)
-        {
-            if (s_regId[i] == *t) { nearest = s_regNearest[i]; break; }
-        }
-        (void)rw; (void)rh; (void)rhash;
-        qo_fix_filter(*t, what, nearest);
-    }
-
-    if (g_grCaps.texLevelParam)
-    {
-        GLint wantW = 0, wantH = 0;
-
-        unsigned wantHash = 0;
-
-        if (qo_reg_get(*t, &wantW, &wantH, &wantHash))
-        {
-            GLint curW = 0, curH = 0;
-
-            glBindTexture(GL_TEXTURE_2D, *t);
-            glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH,  &curW);
-            glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &curH);
-
-            if (curW != wantW || curH != wantH)
-            {
-                if (s_staleLogs < 8)
-                {
-                    s_staleLogs++;
-                    SH_DBG("[QOTEX] texture %u (%s) was RE-SPECIFIED behind us: "
-                           "uploaded %dx%d, driver now reports %dx%d -- abandoning "
-                           "the name and re-baking",
-                           (unsigned)*t, what, (int)wantW, (int)wantH,
-                           (int)curW, (int)curH);
-                }
-                *t = 0;
-            }
-            /* Dimensions can survive an in-place overwrite: glTexSubImage2D
-             * keeps them, and so does attaching the name to an FBO and
-             * rendering into it -- which is precisely what a screen/freeze
-             * capture does, and would paint the top-left of the frame into a
-             * glyph strip. Only the pixels can tell, so read one texture back
-             * per frame and compare it with what we uploaded. */
-            else if (deep && g_grCaps.getTexImage &&
-                     (size_t)curW * (size_t)curH * 4u <= (size_t)(1024 * 1024))
-            {
-                static unsigned char* scratch;
-                static size_t         scratchSize;
-                size_t                need = (size_t)curW * (size_t)curH * 4u;
-
-                if (need > scratchSize)
-                {
-                    unsigned char* p = (unsigned char*)realloc(scratch, need);
-                    if (p) { scratch = p; scratchSize = need; }
-                }
-                if (scratch && need <= scratchSize && need > 0)
-                {
-                    unsigned got;
-
-                    glPixelStorei(GL_PACK_ALIGNMENT, 1);
-                    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, scratch);
-                    got = qo_hash(scratch, need);
-                    if (got != wantHash)
-                    {
-                        if (s_staleLogs < 8)
-                        {
-                            s_staleLogs++;
-                            SH_DBG("[QOTEX] texture %u (%s) %dx%d CONTENT overwritten in "
-                                   "place: hash %08x -> %08x, corner rgba=(%u,%u,%u,%u) "
-                                   "-- abandoning the name and re-baking",
-                                   (unsigned)*t, what, (int)curW, (int)curH,
-                                   wantHash, got,
-                                   scratch[0], scratch[1], scratch[2], scratch[3]);
-                        }
-                        *t = 0;
-                    }
-                }
-            }
-        }
     }
 }
 
