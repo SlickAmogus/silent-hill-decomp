@@ -1691,7 +1691,14 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
     s32 scanMin = g_DebugCamEnabled ? -4 : (map->isExterior ? -1 : -2);
     s32 scanMax = g_DebugCamEnabled ? 5 : (map->isExterior ? 1 : 2);
     s32 loadsThisFrame = 0;
-    s32 maxLoadsPerFrame = g_DebugCamEnabled ? 2 : 9;
+    /* The free camera widens the scan above from +-1/+-2 cells to -4..5, which
+     * is 100 cells instead of 9, so cutting the per-frame load budget at the
+     * same time meant the window could never be satisfied: loads start far
+     * slower than the flight requests them and the world simply never appears.
+     * That is the "free cam shows a void" report -- Harry is fine and streaming
+     * is still anchored on him, there is just nothing loaded to draw yet. Free
+     * flight is not gameplay, so a load hitch is the cheaper trade. */
+    s32 maxLoadsPerFrame = g_DebugCamEnabled ? 16 : 9;
 #else
     s32 scanMin = -1;
     s32 scanMax = 1;
