@@ -215,6 +215,10 @@ static q3_12 g_DebugCamAngleY = 0;
 static q3_12 g_DebugCamAngleX = 0; /* pitch/tilt: positive = look down, negative = look up */
 static VECTOR3 g_DebugCamSavedHarryPos; /* Harry's position when debug cam was enabled */
 static s32 g_DebugCamSavedHarryPosY;    /* Separate Y for collision restore */
+/* Which room the snapshot above belongs to. A snapshot is only valid for the
+ * room it was taken in -- see Pc_FreeCam_Apply. */
+static s8  g_DebugCamSavedMapIdx  = -1;
+static s8  g_DebugCamSavedRoomIdx = -1;
 
 
 /* FPS eye position actually applied this frame; read by the L-key re-log so its
@@ -1200,6 +1204,15 @@ static int Kf_HoldRepeat(int cur, int prev, Uint32* pressMs, Uint32* lastMs)
 #define FC_MOUSE_PITCH 4
 #define FC_PITCH_MAX   900  /* ~79 degrees either way */
 
+/* The saved position is only meaningful in the room it was taken in. */
+static int Pc_FreeCam_SnapshotValid(void)
+{
+    if (g_GameWork.gameState != GameState_InGame || !g_SavegamePtr)
+        return 0;
+    return g_SavegamePtr->mapIdx     == g_DebugCamSavedMapIdx &&
+           g_SavegamePtr->mapRoomIdx == g_DebugCamSavedRoomIdx;
+}
+
 void Pc_FreeCam_Set(int on)
 {
     on = on ? 1 : 0;
@@ -1214,11 +1227,19 @@ void Pc_FreeCam_Set(int on)
         g_DebugCamInited = 1;
         g_DebugCamSavedHarryPos  = g_SysWork.playerWork.player.position;
         g_DebugCamSavedHarryPosY = g_SysWork.playerWork.player.properties.player.groundHeight;
+        g_DebugCamSavedMapIdx    = g_SavegamePtr ? g_SavegamePtr->mapIdx     : -1;
+        g_DebugCamSavedRoomIdx   = g_SavegamePtr ? g_SavegamePtr->mapRoomIdx : -1;
         SDL_GetRelativeMouseState(NULL, NULL); /* drop travel accumulated before capture */
         SH_DBG_ECHO("[FREECAM] on -- mouse look, W/A/S/D move, Space/C up/down, Shift fast, Ctrl slow");
     } else {
-        g_SysWork.playerWork.player.position = g_DebugCamSavedHarryPos;
-        g_SysWork.playerWork.player.properties.player.groundHeight = g_DebugCamSavedHarryPosY;
+        /* Only hand back a snapshot that still belongs to the room Harry is in
+         * (same test as Pc_FreeCam_Apply). Restoring another room's coordinates
+         * is what dropped him into a void. */
+        if (Pc_FreeCam_SnapshotValid())
+        {
+            g_SysWork.playerWork.player.position = g_DebugCamSavedHarryPos;
+            g_SysWork.playerWork.player.properties.player.groundHeight = g_DebugCamSavedHarryPosY;
+        }
         g_SysWork.playerWork.player.model.anim.flags |= AnimFlag_Visible;
         g_SysWork.playerWork.extra.model.anim.flags |= AnimFlag_Visible;
         SH_DBG_ECHO("[FREECAM] off");
@@ -1285,8 +1306,27 @@ static void Pc_FreeCam_Apply(void)
     s32 forward = (s32)((s64)20480 * Math_Cos(g_DebugCamAngleX) >> 12);
 
     /* Harry stays where he was when the camera came on: the world streams
-     * around his position and camera spots are marked relative to him. */
-    g_SysWork.playerWork.player.position = g_DebugCamSavedHarryPos;
+     * around his position and camera spots are marked relative to him.
+     *
+     * Only inside the room the snapshot came from, though. A room transition
+     * (or any scripted teleport) puts him somewhere new, and stamping the old
+     * room's coordinates back over that leaves him outside the new geometry --
+     * the "free cam teleports Harry to a void". Re-snapshot instead, so the pin
+     * follows the world rather than fighting it. */
+    if (g_GameWork.gameState == GameState_InGame)
+    {
+        if (Pc_FreeCam_SnapshotValid())
+        {
+            g_SysWork.playerWork.player.position = g_DebugCamSavedHarryPos;
+        }
+        else if (g_SavegamePtr)
+        {
+            g_DebugCamSavedHarryPos  = g_SysWork.playerWork.player.position;
+            g_DebugCamSavedHarryPosY = g_SysWork.playerWork.player.properties.player.groundHeight;
+            g_DebugCamSavedMapIdx    = g_SavegamePtr->mapIdx;
+            g_DebugCamSavedRoomIdx   = g_SavegamePtr->mapRoomIdx;
+        }
+    }
 
     g_DebugCamLookAt.vx = g_DebugCamPos.vx + (s32)((s64)forward * sinY >> 12);
     g_DebugCamLookAt.vy = g_DebugCamPos.vy + (s32)((s64)20480 * Math_Sin(g_DebugCamAngleX) >> 12);
@@ -1337,11 +1377,17 @@ void DebugCamera_Update(void)
              * at instead of snapping back to the default game camera. The look
              * input is held still inside Pc_TpsCamera_Apply (frozen), so the
              * angle doesn't drift while you type. */
-            if (g_DebugCamEnabled) {
+            if (g_DebugCamEnabled && g_GameWork.gameState == GameState_InGame) {
                 /* Hold the free camera's view (no input) under the panel. */
                 Pc_FreeCam_Apply();
                 return;
             }
+            /* Panel open but the game left InGame (load, death, warm reset):
+             * fall through to the gate below so the free camera is ended
+             * properly instead of being held across the transition. The free
+             * cam toggle lives in this very panel, so this is the common path. */
+            if (g_DebugCamEnabled)
+                Pc_FreeCam_Set(0);
             if (Pc_AltCamStateOk() && !g_DebugCamEnabled && g_DebugThirdPersonCam)
                 Pc_TpsCamera_Apply();
             return;
