@@ -293,7 +293,8 @@ static void qo_gl_init(void)
     s_glReady = 1;
 }
 
-static void qo_reg_set(GLuint id, int w, int h);
+static void qo_reg_set(GLuint id, int w, int h, unsigned hash);
+static unsigned qo_hash(const unsigned char* p, size_t n);
 
 static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int nearest)
 {
@@ -306,7 +307,7 @@ static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int neares
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-    qo_reg_set(t, w, h);
+    qo_reg_set(t, w, h, qo_hash(rgba, (size_t)w * (size_t)h * 4u));
 
     /* [QOTEX] the overlay's baked textures (labels, values, cursor) sometimes
      * draw as solid red blocks while the 1x1 white panel texture is fine --
@@ -545,11 +546,28 @@ static void qo_free_text(void)
  * kept and checked against what the driver reports. Round-robin; a name that
  * ages out simply stops being checked. */
 #define QO_TEXREG 256
-static GLuint s_regId[QO_TEXREG];
-static GLint  s_regW[QO_TEXREG], s_regH[QO_TEXREG];
-static int    s_regNext;
+static GLuint   s_regId[QO_TEXREG];
+static GLint    s_regW[QO_TEXREG], s_regH[QO_TEXREG];
+static unsigned s_regHash[QO_TEXREG];
+static int      s_regNext;
+/* One texture is content-checked per frame, rotating, so the readback stall
+ * stays off the per-frame path. */
+static int s_deepIdx, s_passSlot;
 
-static void qo_reg_set(GLuint id, int w, int h)
+static unsigned qo_hash(const unsigned char* p, size_t n)
+{
+    unsigned h = 2166136261u;
+    size_t   i;
+
+    for (i = 0; i < n; i++)
+    {
+        h ^= p[i];
+        h *= 16777619u;
+    }
+    return h;
+}
+
+static void qo_reg_set(GLuint id, int w, int h, unsigned hash)
 {
     int i;
 
@@ -559,17 +577,18 @@ static void qo_reg_set(GLuint id, int w, int h)
     {
         if (s_regId[i] == id)
         {
-            s_regW[i] = w; s_regH[i] = h;
+            s_regW[i] = w; s_regH[i] = h; s_regHash[i] = hash;
             return;
         }
     }
-    s_regId[s_regNext] = id;
-    s_regW[s_regNext]  = w;
-    s_regH[s_regNext]  = h;
+    s_regId[s_regNext]   = id;
+    s_regW[s_regNext]    = w;
+    s_regH[s_regNext]    = h;
+    s_regHash[s_regNext] = hash;
     s_regNext = (s_regNext + 1) % QO_TEXREG;
 }
 
-static int qo_reg_get(GLuint id, GLint* w, GLint* h)
+static int qo_reg_get(GLuint id, GLint* w, GLint* h, unsigned* hash)
 {
     int i;
 
@@ -577,14 +596,21 @@ static int qo_reg_get(GLuint id, GLint* w, GLint* h)
     {
         if (s_regId[i] == id)
         {
-            *w = s_regW[i]; *h = s_regH[i];
+            *w = s_regW[i]; *h = s_regH[i]; *hash = s_regHash[i];
             return 1;
         }
     }
     return 0;
 }
 
+static void qo_validate_ex(GLuint* t, const char* what, int deep);
+
 static void qo_validate(GLuint* t, const char* what)
+{
+    qo_validate_ex(t, what, s_passSlot++ == s_deepIdx);
+}
+
+static void qo_validate_ex(GLuint* t, const char* what, int deep)
 {
     static int s_staleLogs = 0;
 
@@ -618,7 +644,9 @@ static void qo_validate(GLuint* t, const char* what)
     {
         GLint wantW = 0, wantH = 0;
 
-        if (qo_reg_get(*t, &wantW, &wantH))
+        unsigned wantHash = 0;
+
+        if (qo_reg_get(*t, &wantW, &wantH, &wantHash))
         {
             GLint curW = 0, curH = 0;
 
@@ -639,6 +667,47 @@ static void qo_validate(GLuint* t, const char* what)
                 }
                 *t = 0;
             }
+            /* Dimensions can survive an in-place overwrite: glTexSubImage2D
+             * keeps them, and so does attaching the name to an FBO and
+             * rendering into it -- which is precisely what a screen/freeze
+             * capture does, and would paint the top-left of the frame into a
+             * glyph strip. Only the pixels can tell, so read one texture back
+             * per frame and compare it with what we uploaded. */
+            else if (deep && g_grCaps.getTexImage &&
+                     (size_t)curW * (size_t)curH * 4u <= (size_t)(1024 * 1024))
+            {
+                static unsigned char* scratch;
+                static size_t         scratchSize;
+                size_t                need = (size_t)curW * (size_t)curH * 4u;
+
+                if (need > scratchSize)
+                {
+                    unsigned char* p = (unsigned char*)realloc(scratch, need);
+                    if (p) { scratch = p; scratchSize = need; }
+                }
+                if (scratch && need <= scratchSize && need > 0)
+                {
+                    unsigned got;
+
+                    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+                    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, scratch);
+                    got = qo_hash(scratch, need);
+                    if (got != wantHash)
+                    {
+                        if (s_staleLogs < 8)
+                        {
+                            s_staleLogs++;
+                            SH_DBG("[QOTEX] texture %u (%s) %dx%d CONTENT overwritten in "
+                                   "place: hash %08x -> %08x, corner rgba=(%u,%u,%u,%u) "
+                                   "-- abandoning the name and re-baking",
+                                   (unsigned)*t, what, (int)curW, (int)curH,
+                                   wantHash, got,
+                                   scratch[0], scratch[1], scratch[2], scratch[3]);
+                        }
+                        *t = 0;
+                    }
+                }
+            }
         }
     }
 }
@@ -646,6 +715,8 @@ static void qo_validate(GLuint* t, const char* what)
 static void qo_validate_cache(void)
 {
     int i;
+
+    s_passSlot = 0;
 
     qo_validate(&s_texTitle,  "title");
     qo_validate(&s_texHint,   "hint");
@@ -660,6 +731,9 @@ static void qo_validate_cache(void)
     }
     for (i = 0; i < QO_DD_MAX; i++)
         qo_validate(&s_ddTex[i], "dropdown");
+
+    if (s_passSlot > 0)
+        s_deepIdx = (s_deepIdx + 1) % s_passSlot;
 }
 
 /* Options-table names use underscores for spaces. */
