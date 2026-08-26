@@ -3821,11 +3821,31 @@ void MainLoop(void) // 0x80032EE0
              * rather than testing "not gameplay": cutscenes are not Gameplay
              * either, and their letterbox bars DO need the widened ortho to
              * reach the screen edges. */
-            const int uiIsMenu = (g_SysWork.sysState == SysState_StatusMenu  ||
+            /* sysState alone was not enough: the inventory is a GAME state
+             * (InventoryScreen/LoadStatusScreen), and for the whole opening
+             * transition gameState is STILL InGame while the menu draws over
+             * the world -- so the Hor+ gate said "widen" and the menu rendered
+             * squished for ~12 frames. SysFlag_MenuActive is the one signal
+             * that is true from the very first frame (set the same frame the
+             * button is pressed) and stays set across the handoff, so it is
+             * what decides here.
+             *
+             * This only picks the UI pass's ortho aspect. Forcing the CLEAR
+             * COLOUR on MenuActive is a different thing entirely and is what
+             * caused the one-frame black-sky flash documented in the clear
+             * colour block below -- not re-armed here. */
+            const int uiIsMenu = (g_SysWork.sysFlags & SysFlag_MenuActive)     ||
+                                  g_GameWork.gameState == GameState_InventoryScreen  ||
+                                  g_GameWork.gameState == GameState_LoadStatusScreen  ||
+                                  g_GameWork.gameState == GameState_PaperMapScreen    ||
+                                  g_GameWork.gameState == GameState_SaveScreen        ||
+                                  g_GameWork.gameState == GameState_OptionScreen      ||
+                                  g_GameWork.gameState == GameState_LoadMapScreen     ||
+                                  g_SysWork.sysState == SysState_StatusMenu  ||
                                   g_SysWork.sysState == SysState_OptionsMenu ||
                                   g_SysWork.sysState == SysState_MapScreen   ||
                                   g_SysWork.sysState == SysState_SaveMenu0   ||
-                                  g_SysWork.sysState == SysState_SaveMenu1);
+                                  g_SysWork.sysState == SysState_SaveMenu1;
 
             g_PcHorPlusEnabled = uiIsMenu ? 0 : g_PcHorPlusGate;
             g_PsxUIOrthoPass   = 1;
