@@ -2745,10 +2745,15 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         extern int g_PsxWholeMapFar; /* PsyCross: gate the GTE far re-projection */
         extern int g_PsxWholeMapChunkSz; /* PsyCross: true depth for this chunk's saturated far polys */
         int drawCount = 0;
-        /* The 16-chunk debug-cam cap predates the OT depth clamps; with the
-         * whole-town mode active it was exactly what truncated the flycam view
-         * to a block of houses. Keep the cap only for plain debug flights. */
-        int drawLimit = (g_DebugCamEnabled && !Pc_WholeMapDrawActive()) ? 16 : PC_MAX_IPD_CHUNKS;
+        /* The 16-chunk debug-cam cap predates the OT depth clamps, and it is
+         * gone for plain flights too. This loop walks activeChunks in ARRAY
+         * (load) order, not nearest-first, and the free camera widens the scan
+         * to 100 cells -- so the cap kept whatever 16 chunks happened to load
+         * first, which routinely excluded the room the player is standing in.
+         * The result was an empty view at the same spot every time, reported as
+         * "free cam takes you to a void". Whole-town mode already had to exempt
+         * itself from this cap for the same reason. */
+        int drawLimit = PC_MAX_IPD_CHUNKS;
         int totalChunks = 0, loadedChunks = 0, cellMatchChunks = 0, culledChunks = 0;
         /* Whole-town mode: unclamp the GTE projection for far world vertices (see
          * PsyX_GTE.cpp). Scoped to this world-chunk loop so only the map geometry
