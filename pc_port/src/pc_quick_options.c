@@ -383,7 +383,7 @@ static void qo_quad(GLuint tex, float x0, float yTop, float x1, float yBot,
 /* Fonts                                                               */
 /* ------------------------------------------------------------------ */
 
-static unsigned char* qo_read_file(const char* path)
+static unsigned char* qo_read_file(const char* path, long* outSize)
 {
     FILE* f = fopen(path, "rb");
     long  n;
@@ -394,11 +394,75 @@ static unsigned char* qo_read_file(const char* path)
     n = ftell(f);
     fseek(f, 0, SEEK_SET);
     if (n <= 0) { fclose(f); return NULL; }
+    if (outSize) *outSize = n;
     buf = (unsigned char*)malloc((size_t)n);
     if (!buf) { fclose(f); return NULL; }
     if (fread(buf, 1, (size_t)n, f) != (size_t)n) { free(buf); fclose(f); return NULL; }
     fclose(f);
     return buf;
+}
+
+/* stb_truetype does not copy the font file -- it reads this buffer on every
+ * glyph. If it is corrupted, glyphs rasterize as filled boxes, which is exactly
+ * what the panel shows, and the texture checks all pass because the block is
+ * uploaded faithfully. A strided signature is cheap enough to verify per frame
+ * and catches a stray write into the buffer. */
+static const char* s_fontPath;
+static long        s_fontSize;
+static unsigned    s_fontSig;
+
+static unsigned qo_font_sig(const unsigned char* p, long n)
+{
+    unsigned h = 2166136261u;
+    long     i;
+
+    for (i = 0; i < n; i += 61)
+    {
+        h ^= p[i];
+        h *= 16777619u;
+    }
+    return h ^ (unsigned)n;
+}
+
+/* Returns non-zero when the font memory changed under us (and reloads it). */
+static int qo_font_check(void)
+{
+    static int s_fontLogs = 0;
+    unsigned   now;
+    long       sz = 0;
+    unsigned char* fresh;
+
+    if (!s_fontOk || !s_fontData || s_fontSize <= 0)
+        return 0;
+
+    now = qo_font_sig(s_fontData, s_fontSize);
+    if (now == s_fontSig)
+        return 0;
+
+    if (s_fontLogs < 8)
+    {
+        s_fontLogs++;
+        SH_DBG("[QOFONT] font memory CORRUPTED: sig %08x -> %08x (%ld bytes at %p, %s) "
+               "-- glyphs would rasterize as blocks; reloading",
+               s_fontSig, now, s_fontSize, (void*)s_fontData,
+               s_fontPath ? s_fontPath : "?");
+    }
+
+    /* Reload into a fresh buffer. The old one is abandoned, never freed: stbtt
+     * may still hold pointers into it, and whatever scribbled on it will keep
+     * doing so. */
+    fresh = s_fontPath ? qo_read_file(s_fontPath, &sz) : NULL;
+    if (fresh && stbtt_InitFont(&s_font, fresh, stbtt_GetFontOffsetForIndex(fresh, 0)))
+    {
+        s_fontData = fresh;
+        s_fontSize = sz;
+        s_fontSig  = qo_font_sig(fresh, sz);
+        return 1;
+    }
+    if (fresh)
+        free(fresh);
+    s_fontSig = now; /* cannot reload; stop re-reporting every frame */
+    return 1;
 }
 
 static void qo_fonts_init(void)
@@ -416,13 +480,17 @@ static void qo_fonts_init(void)
     s_fontsTried = 1;
     for (i = 0; i < (int)(sizeof(paths) / sizeof(paths[0])); i++)
     {
-        unsigned char* data = qo_read_file(paths[i]);
+        long           sz   = 0;
+        unsigned char* data = qo_read_file(paths[i], &sz);
         if (!data)
             continue;
         if (stbtt_InitFont(&s_font, data, stbtt_GetFontOffsetForIndex(data, 0)))
         {
             s_fontData = data; /* stbtt keeps pointers into this - never free */
             s_fontOk   = 1;
+            s_fontPath = paths[i];
+            s_fontSize = sz;
+            s_fontSig  = qo_font_sig(data, sz);
             return;
         }
         free(data);
@@ -503,6 +571,23 @@ static GLuint qo_bake(const char* text, float px, int* outW, int* outH)
     {
         rgba[i * 4 + 0] = 255; rgba[i * 4 + 1] = 255; rgba[i * 4 + 2] = 255;
         rgba[i * 4 + 3] = cov[(i / W) * stride + (i % W)];
+    }
+    {
+        /* Ink coverage of what was actually rasterized. This separates a bake
+         * that produced filled boxes (~100%) from a bake that is fine and a
+         * draw that samples something opaque -- the texture checks cannot tell
+         * those apart, because a faithfully-uploaded block passes every one. */
+        int    n   = W * H;
+        int    ink = 0;
+        int    k;
+
+        for (k = 0; k < n; k++)
+        {
+            if (rgba[k * 4 + 3] >= 32)
+                ink++;
+        }
+        SH_DBG("[QOBAKE] \"%.24s\" %dx%d ink=%d%% px=%d fontOk=%d",
+               text, W, H, n ? (ink * 100 / n) : -1, (int)px, s_fontOk);
     }
     tex = qo_upload_rgba(rgba, W, H, 0);
     if (outW) *outW = W;
@@ -769,6 +854,12 @@ static void qo_validate_cache(void)
     int i;
 
     s_passSlot = 0;
+
+    if (qo_font_check())
+    {
+        qo_free_text();   /* every cached label was baked from bad glyph data */
+        return;
+    }
 
     qo_validate(&s_texTitle,  "title");
     qo_validate(&s_texHint,   "hint");
