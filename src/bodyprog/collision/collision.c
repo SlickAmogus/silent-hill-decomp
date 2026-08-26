@@ -808,30 +808,14 @@ bool func_8006A4A8(s_CollisionResult* collResult, VECTOR3* moveOffset, const s_C
          * distance, rad = body radius, frac = swept crossing (Q12, kind 1).
          * kind 3=obstacle: a = obstacle XZ, b = (obstY, obstRadius), rad = body+obst
          * reach, dist = center distance, frac = swept crossing. */
-        {
-            s32 _wpdx = cylinder->position.vx - g_SysWork.playerWork.player.position.vx;
-            s32 _wpdz = cylinder->position.vz - g_SysWork.playerWork.player.position.vz;
-            static s32 s_lastStopLog = -1000;
-            if (g_WallStopDbg.active && (g_TickCount - s_lastStopLog) > 8 &&
-                ABS(_wpdx) < Q12(4.0f) && ABS(_wpdz) < Q12(4.0f))
-            {
-                s_lastStopLog = g_TickCount;
-                SH_DBG("[WALLSTOP] kind=%d sub=%d a=(%d,%d) b=(%d,%d) rad=%d dist=%d frac=%d sweepDist=%d spd=%d world=(%d,%d) head=%d",
-                       g_WallStopDbg.kind, g_WallStopDbg.sub,
-                       g_WallStopDbg.ax, g_WallStopDbg.az, g_WallStopDbg.bx, g_WallStopDbg.bz,
-                       g_WallStopDbg.rad, g_WallStopDbg.dist, g_WallStopDbg.frac,
-                       (int)state.charaState.distance,
-                       (int)g_SysWork.playerWork.player.moveSpeed,
-                       (int)g_SysWork.playerWork.player.position.vx, (int)g_SysWork.playerWork.player.position.vz,
-                       (int)g_SysWork.playerWork.player.rotation.vy);
-                SH_DBG("[WALLSTOP]   off=(%d,%d) full=(%d,%d) wrap=%d cellWH=(%d,%d) fall=%d hp=%d",
-                       g_WallStopDbg.offx, g_WallStopDbg.offz, g_WallStopDbg.fullx, g_WallStopDbg.fullz,
-                       (g_WallStopDbg.fullx != g_WallStopDbg.offx) || (g_WallStopDbg.fullz != g_WallStopDbg.offz),
-                       g_WallStopDbg.cellw, g_WallStopDbg.cellh,
-                       (int)g_SysWork.playerWork.player.fallSpeed,
-                       (int)g_SysWork.playerWork.player.health);
-            }
-        }
+        /* [WALLSTOP] logging REMOVED. It ran per collision test and its
+         * throttle counted GAME ticks, which stop advancing while the console
+         * or quick options freezes the game -- so while a panel was open it
+         * logged unthrottled at disk speed and stalled whole frames for
+         * seconds. It was 44% of every line in a normal session's log. The
+         * g_WallStopDbg capture above is kept for the collision visualizer,
+         * which reads it in memory and costs nothing. Do not reintroduce
+         * per-frame logging here. */
 
         /* [WALL-HIT] (#42 invisible walls): on cylinder contact, name the
          * face — subcell index, its EVENT CHANNEL vs the active trigger
