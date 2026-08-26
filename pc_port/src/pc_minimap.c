@@ -613,11 +613,7 @@ void Pc_MinimapUpdate(void)
      * the panel a touch. */
     {
         extern void PsyX_GetScreenSize(int* w, int* h);
-        /* The WORLD's framing, not the live flag: this function runs earlier
-         * in the frame than the world is submitted, so reading g_PcHorPlusEnabled
-         * picked up the 2D-screen value on menu frames and the panel jumped to
-         * the 4:3 spot for a frame on inventory close. */
-        extern int  g_PcWorldHorPlus;
+        extern int  g_PcHorPlusEnabled;
         extern int  g_PcMenuPillarbox;
         extern int  g_PcWidescreenMode;
 
@@ -636,8 +632,8 @@ void Pc_MinimapUpdate(void)
          * 4:3 with bars, so it must NOT widen. The second clause covers the 2D
          * screens (g_PcHorPlusEnabled == 0), which the minimap never reaches
          * (it early-returns outside SysState_Gameplay) but is kept for parity. */
-        int   stretched = (g_PcWorldHorPlus && g_PcWidescreenMode != 0) ||
-                          (!g_PcWorldHorPlus && !g_PcMenuPillarbox);
+        int   stretched = (g_PcHorPlusEnabled && g_PcWidescreenMode != 0) ||
+                          (!g_PcHorPlusEnabled && !g_PcMenuPillarbox);
 
         /* Ask for the REAL backbuffer: the config width/height this used to read
          * describe the windowed size and say nothing about the current
