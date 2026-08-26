@@ -2399,8 +2399,15 @@ void MainLoop(void) // 0x80032EE0
          * OT is drawn; reset paths (menus, fades) simply leave it 0. */
         {
             extern int g_PsyX_ShadowsAllowed;
+            /* GamePaused counts as settled too: the pause screen keeps
+             * rendering the live world behind its menu, so dropping the depth
+             * pre-pass there just made every flashlight shadow pop out of the
+             * scene the moment the player paused. It is a stable state with no
+             * fade -- none of the transition/menu hazards this gate exists for
+             * (room loads, map/inventory opens, the options screen) apply. */
             g_PsyX_ShadowsAllowed = (g_GameWork.gameState == GameState_InGame &&
-                                     g_SysWork.sysState == SysState_Gameplay &&
+                                     (g_SysWork.sysState == SysState_Gameplay ||
+                                      g_SysWork.sysState == SysState_GamePaused) &&
                                      ScreenFade_IsNone()) ? 1 : 0;
         }
 

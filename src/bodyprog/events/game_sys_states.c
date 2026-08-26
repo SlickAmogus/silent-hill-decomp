@@ -381,6 +381,20 @@ void GameState_InGame_Update(void) // 0x80038BD4
         /* The world is in the OT for this frame, so the fog-colored clear behind
          * it is correct. Without the world, that clear is the whole image. */
         { extern int g_PcWorldDrawnThisFrame; g_PcWorldDrawnThisFrame = 1; }
+        /* ...and it must be framed Hor+, decided HERE rather than in MainLoop's
+         * gate. That gate runs before this submission, so its 2D-background hold
+         * (300ms past the last 2D frame) was still set on the first frames the
+         * world came back after the inventory: the picture -- and the minimap
+         * with it -- rendered 4:3 for ~2 frames before snapping (measured from a
+         * user recording: the minimap jumps to the pillarbox x-offset for exactly
+         * frames 141-142 of the exit). Submitting the world and choosing its
+         * framing in the same place cannot lag. The non-transient gates still
+         * win: the map screen and the paper-map/pickup protect flag. */
+        {
+            extern int g_PcHorPlusEnabled, g_PcMapScreenActive, g_PsxSkipFramebufferStore;
+            if (!g_PcMapScreenActive && !g_PsxSkipFramebufferStore)
+                g_PcHorPlusEnabled = 1;
+        }
 #endif
         Demo_DemoRandSeedAdvance();
     }
