@@ -3834,7 +3834,22 @@ void MainLoop(void) // 0x80032EE0
              * COLOUR on MenuActive is a different thing entirely and is what
              * caused the one-frame black-sky flash documented in the clear
              * colour block below -- not re-armed here. */
-            const int uiIsMenu = (g_SysWork.sysFlags & SysFlag_MenuActive)     ||
+            /* ...but ONLY once the world has stopped being drawn.
+             *
+             * The screen fade is a full-frame prim in this same OT, so it is
+             * framed by whatever aspect this pass uses. While the world is
+             * still on screen the world is WIDE, so a 4:3 fade darkens only the
+             * middle and leaves full-brightness gameplay in the side bars --
+             * visible on the way in, and on the way out as the bars "suddenly
+             * disappear" while gameplay returns in a 4:3 window. Staying wide
+             * for those frames makes the fade cover the whole window at any
+             * aspect, 16:9 or wider.
+             *
+             * Once the world is gone the menu owns the screen and 4:3 is right,
+             * which is also what stops the items and the portrait from being
+             * drawn squished toward the centre over the black. */
+            const int uiWorldOnScreen = g_PcWorldDrawnThisFrame || g_PsxPresentLastFrame;
+            const int uiMenuState = (g_SysWork.sysFlags & SysFlag_MenuActive)     ||
                                   g_GameWork.gameState == GameState_InventoryScreen  ||
                                   g_GameWork.gameState == GameState_LoadStatusScreen  ||
                                   g_GameWork.gameState == GameState_PaperMapScreen    ||
@@ -3846,6 +3861,7 @@ void MainLoop(void) // 0x80032EE0
                                   g_SysWork.sysState == SysState_MapScreen   ||
                                   g_SysWork.sysState == SysState_SaveMenu0   ||
                                   g_SysWork.sysState == SysState_SaveMenu1;
+            const int uiIsMenu = uiMenuState && !uiWorldOnScreen;
 
             g_PcHorPlusEnabled = uiIsMenu ? 0 : g_PcHorPlusGate;
             g_PsxUIOrthoPass   = 1;
