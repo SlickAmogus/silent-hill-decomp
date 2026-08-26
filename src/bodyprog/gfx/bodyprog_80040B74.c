@@ -1688,17 +1688,19 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
      * widened draw window without a widened load window showed stale
      * resident chunks (other rooms/floors) and left visible neighbors
      * with no geometry or collision until walked into. */
-    s32 scanMin = g_DebugCamEnabled ? -4 : (map->isExterior ? -1 : -2);
-    s32 scanMax = g_DebugCamEnabled ? 5 : (map->isExterior ? 1 : 2);
+    /* Only whole-town mode widens the streaming window. A plain free-cam flight
+     * used to widen it too, from 9 cells to 100, which does not fit the texture
+     * budget the local room is sized for -- the room's pages get evicted by
+     * everything else being pulled in, and the world draws UNTEXTURED. Harry is
+     * pinned while flying, so streaming the ordinary gameplay window around him
+     * is both correct and stable, and it is what the camera used to do. */
+    s32 wideScan = g_DebugCamEnabled && Pc_WholeMapDrawActive();
+    s32 scanMin = wideScan ? -4 : (map->isExterior ? -1 : -2);
+    s32 scanMax = wideScan ? 5 : (map->isExterior ? 1 : 2);
     s32 loadsThisFrame = 0;
-    /* The free camera widens the scan above from +-1/+-2 cells to -4..5, which
-     * is 100 cells instead of 9, so cutting the per-frame load budget at the
-     * same time meant the window could never be satisfied: loads start far
-     * slower than the flight requests them and the world simply never appears.
-     * That is the "free cam shows a void" report -- Harry is fine and streaming
-     * is still anchored on him, there is just nothing loaded to draw yet. Free
-     * flight is not gameplay, so a load hitch is the cheaper trade. */
-    s32 maxLoadsPerFrame = g_DebugCamEnabled ? 16 : 9;
+    /* The wide window needs a budget to match, or it can never be satisfied.
+     * The ordinary window keeps the ordinary budget. */
+    s32 maxLoadsPerFrame = wideScan ? 16 : 9;
 #else
     s32 scanMin = -1;
     s32 scanMax = 1;
@@ -1708,7 +1710,7 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
         for (x = scanMin; x <= scanMax; x++)
         {
 #ifdef SH_PC_PORT
-            if (g_DebugCamEnabled || map->isExterior || (z >= -1 && z <= 1))
+            if (wideScan || map->isExterior || (z >= -1 && z <= 1))
 #else
             if (map->isExterior || (x == 0 && z == 0))
 #endif
@@ -1722,7 +1724,7 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
                     /* Interior neighbor cells are by definition outside the
                      * player's cell (distance > 0); the window itself is the
                      * load gate. */
-                    (g_DebugCamEnabled || !map->isExterior || Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior) <= Q12(0.0f)) &&
+                    (wideScan || !map->isExterior || Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior) <= Q12(0.0f)) &&
 #else
                     Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior) <= Q12(0.0f) &&
 #endif
