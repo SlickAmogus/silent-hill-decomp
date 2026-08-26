@@ -508,6 +508,47 @@ static void qo_free_text(void)
     }
 }
 
+/* The overlay's baked textures have twice been seen drawing as solid blocks
+ * -- red once, black once. The COLOUR VARYING is the tell: the quads sample
+ * whatever texture currently owns that GL name, i.e. the name was freed out
+ * from under us and handed to the game (the 1x1 white panel texture, created
+ * once at init, never shows it). Deletion is detectable, so verify every
+ * cached name before use and rebuild any that went stale, and say so once. */
+static void qo_validate(GLuint* t, const char* what)
+{
+    static int s_staleLogs = 0;
+
+    if (*t == 0 || glIsTexture(*t))
+        return;
+
+    if (s_staleLogs < 8)
+    {
+        s_staleLogs++;
+        SH_DBG("[QOTEX] stale texture name %u (%s) -- freed by something else; rebuilding",
+               (unsigned)*t, what);
+    }
+    *t = 0; /* forces a re-bake below */
+}
+
+static void qo_validate_cache(void)
+{
+    int i;
+
+    qo_validate(&s_texTitle,  "title");
+    qo_validate(&s_texHint,   "hint");
+    qo_validate(&s_texWhite,  "white");
+    qo_validate(&s_texCursor, "cursor");
+    for (i = 0; i < QO_MAX_ROWS; i++)
+    {
+        qo_validate(&s_texLabel[i], "label");
+        qo_validate(&s_texValue[i], "value");
+        if (s_texValue[i] == 0)
+            s_valueText[i][0] = 0; /* force the value string to re-bake too */
+    }
+    for (i = 0; i < QO_DD_MAX; i++)
+        qo_validate(&s_ddTex[i], "dropdown");
+}
+
 /* Options-table names use underscores for spaces. */
 static void qo_row_name(const QoRowDef* r, char* out, int n)
 {
@@ -894,6 +935,7 @@ void Pc_QuickOptions_Draw(void)
     prevCull  = glIsEnabled(GL_CULL_FACE);
 
     qo_gl_pump();
+    qo_validate_cache();
 
     /* Fade only; the phase itself advances in Update (game thread). */
     {
