@@ -939,8 +939,11 @@ void Pc_QuickOptions_Draw(void)
     }
     if (!s_texTitle)
         s_texTitle = qo_bake(s_pageTitles[s_page], (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
-    /* The bottom hint line was removed: it ran off-screen at some panel
-     * widths and the controls are self-evident in use. */
+    /* Short footer only. The long controls hint ran off-screen at some panel
+     * widths; the `*` marker (appended to any non-realtime value) still needs
+     * explaining, so keep just that. */
+    if (!s_texHint)
+        s_texHint = qo_bake("* req restart", (float)(int)(hintH * 0.50f), &s_hintW, &s_hintH);
 
     /* Publish geometry for Update's mouse hit-test. */
     s_vpW = vpW; s_vpH = vpH;
@@ -1040,6 +1043,12 @@ void Pc_QuickOptions_Draw(void)
         }
     }
 
+    if (s_texHint)
+    {
+        float hx = panelL + (panelW - (float)s_hintW) * 0.5f;
+        float hy = panelB + hintH * 0.72f;
+        qo_quad(s_texHint, NX(hx), NY(hy), NX(hx + s_hintW), NY(hy - s_hintH), 0.7f, 0.7f, 0.75f, dim);
+    }
 
     /* Dropdown list over the value column of its row, on top of the rows. */
     s_ddShown = 0;
