@@ -1316,6 +1316,26 @@ void Pc_QuickOptions_Draw(void)
     glUseProgram(s_prog);
     glBindVertexArray(s_vao);
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
+    /* Re-assert the vertex layout every draw instead of trusting the VAO to
+     * have preserved it.
+     *
+     * The shader is texture2D(u_tex, v_uv) * u_color, so everything depends on
+     * a_uv (attribute 1). If that array is left disabled or repointed by other
+     * GL code, v_uv collapses to a single value and every vertex samples ONE
+     * texel -- and when that texel sits inside a glyph, the quad paints a solid
+     * rectangle in u_color: the grey and red blotches, exactly the size of each
+     * label, with the geometry still perfect because a_pos (attribute 0) is
+     * unaffected.
+     *
+     * This is why every texture-side check came back clean: the name, size,
+     * pixels and sampler state were all genuinely correct. It is also why the
+     * panel background never showed it -- that quad samples a 1x1 texture,
+     * where ANY uv resolves to the same texel, so broken uvs are invisible on
+     * it and visible on everything else. */
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glBlendEquation(GL_FUNC_ADD);

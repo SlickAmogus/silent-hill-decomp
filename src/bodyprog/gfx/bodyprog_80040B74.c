@@ -2386,8 +2386,20 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
      * scenery. Widen it in step with draw_distance_pct, or the extra reach the
      * per-poly cap allows would land on untextured (invisible) chunks. Note
      * paddedDistanceToEdge is Q8 (256/u), not Q12. */
+    /* Q12(35.0f) here was a UNIT BUG: paddedDistanceToEdge is Q8 (256/u), so
+     * that constant did not mean 35 units, it meant 560 -- fourteen 40-unit
+     * cells. With preload_chunks the whole 304-cell grid is resident, so with
+     * the debug camera on, ~300 chunks all qualified and raced for the 200-slot
+     * pool in the ARRAY-ORDER loop below, which has no count cap and no
+     * nearest-first ordering. Whichever chunks came first won the pages; the
+     * losers never reach Loaded and an untextured chunk is skipped by the draw
+     * gate -- the free camera's untextured/invisible world. The interior path
+     * above was rewritten for exactly this ("nearest-first so the pool can
+     * never be exhausted before the player's own cell gets its pages"); this
+     * path never was. Two cells keeps the flight's surroundings textured while
+     * claiming a small fraction of the pool. */
     q19_12 _matDist = (g_PcConfig.preloadChunks && g_DebugCamEnabled && !g_DebugFogDisabled)
-                          ? Q12(35.0f)
+                          ? (q19_12)(2 * Q12_TO_Q8(CHUNK_CELL_SIZE))
                           : Q12(0.0f);
     if (g_PcConfig.drawDistancePct > 100 && _matDist == Q12(0.0f))
     {
