@@ -834,7 +834,11 @@ void Pc_Touch_Draw(void)
     static int     s_inited = 0;
 
     s_TcBatch batch;
-    GsOT*     ot;
+    /* A TAG, not the GsOT. AddPrim writes the prim's address into the low 24
+     * bits of whatever it is handed, so handing it a GsOT* clobbers that
+     * struct's `length` field -- see the assignment below. Declaring it as the
+     * GsOT* it is not was exactly what let that through unnoticed. */
+    GsOT_TAG* ot;
     int       buf, i, halfW, mode;
 
     mode = Tc_Mode();
@@ -1006,9 +1010,22 @@ void Pc_Touch_Draw(void)
      * straight over anything left in OT0: the lone escape button was being
      * submitted every frame and buried, so the corner was tappable with nothing
      * visible in it. Put the solo-button modes in OT2 so the way out is drawn
-     * on top of the screen it is meant to leave. */
+     * on top of the screen it is meant to leave.
+     *
+     * The index is into g_OtTags0, which despite the name IS OT2's tag array
+     * (g_OrderingTable2 is { 4, &g_OtTags0[buf][0], ... }; OT0 lives in
+     * g_OtTags1). Higher index draws in front -- the 2D screens put their fill
+     * at 6 and its border at 7 -- so 15 is on top of everything, and 4 in
+     * gameplay leaves the controls behind any screen that opens over them.
+     *
+     * This used to pass &g_OrderingTable2[buf], the GsOT STRUCT, where a tag
+     * belongs. AddPrim then wrote the prim's low 24 bits over the struct's
+     * first word, which is `length` (4). GsClearOt clears `1 << ot->length`
+     * entries, so the next frame cleared a garbage-sized span of memory and the
+     * process died -- only in the solo-button modes, because only they took
+     * this branch, which is why it presented as "pause crashes". */
     if (mode != TC_MODE_GAMEPLAY)
-        ot = &g_OrderingTable2[g_ActiveBufferIdx];
+        ot = &g_OtTags0[buf][15];
     else
         ot = &g_OtTags0[buf][4];
 
