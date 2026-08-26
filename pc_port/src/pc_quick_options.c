@@ -726,7 +726,7 @@ static void qo_activate(const QoRowDef* r, int dir)
         }
         case ROW_EXTRA: PcOpt_QuickExtraAdjust(r->extra, dir); break;
         case ROW_CHEAT: Pc_Cheats_Adjust(r->cpage, r->extra, dir); break;
-        case ROW_PAGE:  qo_set_page(s_page + 1); break;
+        case ROW_PAGE:  qo_set_page(s_page + (dir < 0 ? -1 : +1)); break;
         case ROW_CLOSE: Pc_QuickOptions_Close(); break;
         default: break;
     }
@@ -915,14 +915,16 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
                 else
                     qo_confirm(&rows[row]);
             }
-            if (mRClick && QO_IS_VALUE_ROW(rows[row].kind))
+            if (mRClick && (QO_IS_VALUE_ROW(rows[row].kind) || rows[row].kind == ROW_PAGE))
             { s_sel = row; qo_activate(&rows[row], -1); }
             if (wheel && QO_IS_VALUE_ROW(rows[row].kind))
                 qo_activate(&rows[row], wheel > 0 ? +1 : -1);
         }
     }
 
-    if (QO_IS_VALUE_ROW(rows[s_sel].kind))
+    /* The page row adjusts like a value: Left/right-click go back a page,
+     * Right/confirm go forward. */
+    if (QO_IS_VALUE_ROW(rows[s_sel].kind) || rows[s_sel].kind == ROW_PAGE)
     {
         if (left)  qo_activate(&rows[s_sel], -1);
         if (right) qo_activate(&rows[s_sel], +1);
