@@ -612,11 +612,21 @@ static GLuint qo_bake_once(const char* text, float px, int* outW, int* outH, int
  * its box. */
 #define QO_INK_MAX 55
 
+/* Slow-frame accounting. Only ever logged when something actually stalls, and
+ * split so it says WHERE: our own draw, the glyph bakes inside it, or the gap
+ * between draws (which is everything else -- the game's freeze/resume path). */
+static unsigned s_perfBakeMs, s_perfFontMs, s_perfT0, s_perfLastEnd, s_perfGapMs;
+static int      s_perfBakes;
+
 static GLuint qo_bake(const char* text, float px, int* outW, int* outH)
 {
     static int s_bakeLogs = 0;
+    Uint32 t0  = SDL_GetTicks();
     int    ink = -1;
     GLuint tex = qo_bake_once(text, px, outW, outH, &ink);
+
+    s_perfBakes++;
+    s_perfBakeMs += SDL_GetTicks() - t0;
 
     if (tex == 0 || ink < QO_INK_MAX || !text || !text[1])
         return tex;
@@ -772,10 +782,16 @@ static void qo_validate_cache(void)
 
     s_passSlot = 0;
 
-    if (qo_font_check())
     {
-        qo_free_text();   /* every cached label was baked from bad glyph data */
-        return;
+        Uint32 t0 = SDL_GetTicks();
+        int    changed = qo_font_check();
+
+        s_perfFontMs += SDL_GetTicks() - t0;
+        if (changed)
+        {
+            qo_free_text();   /* every cached label was baked from bad glyph data */
+            return;
+        }
     }
 
     qo_validate(&s_texTitle,  "title");
@@ -1190,6 +1206,12 @@ void Pc_QuickOptions_Draw(void)
     if (s_phase == QO_CLOSED)
         return;
 
+    s_perfT0     = SDL_GetTicks();
+    s_perfGapMs  = s_perfLastEnd ? (s_perfT0 - s_perfLastEnd) : 0;
+    s_perfBakeMs = 0;
+    s_perfFontMs = 0;
+    s_perfBakes  = 0;
+
     glGetIntegerv(GL_VIEWPORT, vp);
     if (vp[2] <= 0 || vp[3] <= 0)
         return;
@@ -1482,4 +1504,21 @@ restore:
     glUseProgram((GLuint)prevProg);
     glBindVertexArray((GLuint)prevVao);
     glBindBuffer(GL_ARRAY_BUFFER, (GLuint)prevBuf);
+
+    {
+        static int s_perfLogs = 0;
+        unsigned   drawMs = SDL_GetTicks() - s_perfT0;
+
+        /* gap = everything that is NOT this overlay (the game's frame, its
+         * freeze/resume path, audio, streaming). If a stall shows up there
+         * while drawMs stays small, the panel is the victim, not the cause. */
+        if ((drawMs > 100 || s_perfGapMs > 250) && s_perfLogs < 24)
+        {
+            s_perfLogs++;
+            SH_DBG("[QOPERF] SLOW: draw=%ums gap=%ums bakes=%d bakeMs=%u fontChk=%u phase=%d",
+                   drawMs, s_perfGapMs, s_perfBakes, s_perfBakeMs, s_perfFontMs,
+                   (int)s_phase);
+        }
+        s_perfLastEnd = SDL_GetTicks();
+    }
 }
