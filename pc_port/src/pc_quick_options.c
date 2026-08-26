@@ -183,6 +183,13 @@ static int    s_bakedForPage = -1;
 /* Geometry published by Draw for Update's mouse hit-test (viewport px, y up). */
 static float s_vpW = 1920.0f, s_vpH = 1080.0f;
 static float s_geoListT, s_geoRowPitch, s_geoRowH, s_geoPanelL, s_geoPanelR;
+/* Panel drag: grab the title bar and move it. Offsets are in viewport px and
+ * survive close/reopen within a session. The title-bar rect is published for
+ * Update's hit-test the same way the row geometry is. */
+static float s_panelOfsX, s_panelOfsY;
+static float s_geoTitleB, s_geoTitleT;
+static int   s_dragging;
+static float s_dragLastX, s_dragLastY;
 static int   s_geoRows;
 
 /* Dropdown over a list row (the Spawn row): open on clicking its value,
@@ -837,6 +844,40 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
 
     if (close) { Pc_QuickOptions_Close(); return; }
 
+    /* Title-bar drag. Held (not clicked) so it tracks continuously, and it is
+     * resolved before the row hit-test below so dragging never also activates
+     * whatever the cursor passes over. */
+    {
+        float dmx, dmy;
+
+        if (Pc_MouseCursor_LeftHeld() && Pc_MouseCursor_ViewportPos(&dmx, &dmy))
+        {
+            float px_ = dmx * s_vpW;
+            float py_ = (1.0f - dmy) * s_vpH;
+
+            if (!s_dragging &&
+                px_ >= s_geoPanelL && px_ <= s_geoPanelR &&
+                py_ >= s_geoTitleB && py_ <= s_geoTitleT)
+            {
+                s_dragging  = 1;
+                s_dragLastX = px_;
+                s_dragLastY = py_;
+            }
+            if (s_dragging)
+            {
+                s_panelOfsX += px_ - s_dragLastX;
+                s_panelOfsY += py_ - s_dragLastY;
+                s_dragLastX  = px_;
+                s_dragLastY  = py_;
+                return; /* the drag owns the mouse this frame */
+            }
+        }
+        else
+        {
+            s_dragging = 0;
+        }
+    }
+
     if (pageNext) qo_set_page(s_page + 1);
     if (pagePrev) qo_set_page(s_page - 1);
     rows = qo_page_rows(s_page, &nRows);
@@ -973,8 +1014,25 @@ void Pc_QuickOptions_Draw(void)
     panelW = 0.80f * panelH;
     if (panelW > 0.90f * vpW) panelW = 0.90f * vpW;
     panelL = vpW * 0.04f;
-    panelR = panelL + panelW;
     panelB = (vpH - panelH) * 0.5f;
+
+    /* User drag offset, clamped so a good part of the panel always stays on
+     * screen (never let it be dragged fully out of reach). */
+    {
+        const float minL = -panelW * 0.75f;
+        const float maxL = vpW - panelW * 0.25f;
+        const float minB = -panelH * 0.75f;
+        const float maxB = vpH - panelH * 0.25f;
+
+        panelL += s_panelOfsX;
+        panelB += s_panelOfsY;
+        if (panelL < minL) { s_panelOfsX += minL - panelL; panelL = minL; }
+        if (panelL > maxL) { s_panelOfsX += maxL - panelL; panelL = maxL; }
+        if (panelB < minB) { s_panelOfsY += minB - panelB; panelB = minB; }
+        if (panelB > maxB) { s_panelOfsY += maxB - panelB; panelB = maxB; }
+    }
+
+    panelR = panelL + panelW;
     panelT = panelB + panelH;
 
     pad      = panelW * 0.05f;
@@ -996,16 +1054,34 @@ void Pc_QuickOptions_Draw(void)
     }
     if (!s_texTitle)
         s_texTitle = qo_bake(s_pageTitles[s_page], (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
-    /* Short footer only. The long controls hint ran off-screen at some panel
-     * widths; the `*` marker (appended to any non-realtime value) still needs
-     * explaining, so keep just that. */
+    /* Controls footer. It used to run off-screen at some panel widths, so bake
+     * it once at the natural size and, if it overflows, re-bake once scaled to
+     * fit -- the text always ends up inside the panel whatever its width. */
     if (!s_texHint)
-        s_texHint = qo_bake("* req restart", (float)(int)(hintH * 0.50f), &s_hintW, &s_hintH);
+    {
+        char  hint[192];
+        float avail = panelW - 2.0f * pad;
+        int   hpx   = (int)(hintH * 0.42f);
+
+        if (hpx < 7) hpx = 7;
+        snprintf(hint, sizeof(hint),
+                 "Up/Down select   Left/Right adjust   PgUp/PgDn page   drag title to move   %s or Esc close   * req restart",
+                 g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10");
+        s_texHint = qo_bake(hint, (float)hpx, &s_hintW, &s_hintH);
+        if (s_texHint && s_hintW > avail && s_hintW > 0 && avail > 0.0f)
+        {
+            int fit = (int)((float)hpx * avail / (float)s_hintW);
+            if (fit < 6)   fit = 6;
+            if (fit > hpx) fit = hpx;
+            s_texHint = qo_bake(hint, (float)fit, &s_hintW, &s_hintH);
+        }
+    }
 
     /* Publish geometry for Update's mouse hit-test. */
     s_vpW = vpW; s_vpH = vpH;
     s_geoListT = listT; s_geoRowPitch = rowPitch; s_geoRowH = rowH;
     s_geoPanelL = panelL; s_geoPanelR = panelR; s_geoRows = nRows;
+    s_geoTitleT = panelT; s_geoTitleB = panelT - titleH;
 
     qo_build_white();
 

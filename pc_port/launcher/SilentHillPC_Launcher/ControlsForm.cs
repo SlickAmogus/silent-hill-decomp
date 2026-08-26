@@ -97,6 +97,7 @@ public class ControlsForm : Form
         { "key_l1", "A" }, { "key_r1", "D" }, { "key_l2", "Right Shift" }, { "key_r2", "Left Shift" },
         { "key_l3", "NONE" }, { "key_r3", "NONE" }, { "key_start", "Return" }, { "key_select", "Space" },
         { "key_quicksave", "F6" }, { "key_quickload", "F8" },
+        { "key_quick_options", "F10" },
         { "key_change_cam", "F9" }, { "pad_change_cam", "rightstick" },
         { "key_swap_shoulder", "Mouse3" }, { "key_console", "`" },
         { "key_gfx_cycle", "\\" }, { "key_gfx_prev", "[" }, { "key_gfx_next", "]" },
@@ -421,10 +422,17 @@ public class ControlsForm : Form
         tips.SetToolTip(inputs["key_console"],
             "Developer console toggle (needs Allow debug controls = Yes). Hold to show/hide it; tap while open to type a command.");
 
+        // Quick options overlay — in-game settings panel, keyboard-only like the
+        // console above it.
+        int quickOptY = consoleY + rowH;
+        AddKeyRow("Quick Options", "key_quick_options", colKbX, quickOptY, labelW, inputW, false);
+        tips.SetToolTip(inputs["key_quick_options"],
+            "In-game quick options overlay: graphics, HUD, audio, cheats and debug settings, changeable while you play. Drag its title bar to move it.");
+
         // Graphics-effect tuning keys (keyboard-only). Cycle picks which enabled
         // effect (flashlight / post-process / tonemap) is tuned; Prev/Next lower
         // and raise its intensity live. Defaults \ / [ / ].
-        int gfxCycleY = consoleY + rowH + 8;
+        int gfxCycleY = quickOptY + rowH + 8;
         AddKeyRow("Gfx: Cycle Effect", "key_gfx_cycle", colKbX, gfxCycleY, labelW, inputW, false);
         AddKeyRow("Gfx: Adjust Down",  "key_gfx_prev",  colKbX, gfxCycleY + rowH,     labelW, inputW, false);
         AddKeyRow("Gfx: Adjust Up",    "key_gfx_next",  colKbX, gfxCycleY + rowH * 2, labelW, inputW, false);
