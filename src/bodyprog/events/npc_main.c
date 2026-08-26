@@ -1,4 +1,4 @@
-﻿#include "game.h"
+#include "game.h"
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #include <stdio.h>
@@ -16,6 +16,7 @@
 #include "bodyprog/events/radio.h"
 #include "bodyprog/math/math.h"
 #include "bodyprog/player.h"
+#include "bodyprog/screen/cutscene_border.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/sound/sound_system.h"
 #include "main/fsqueue.h"
@@ -497,6 +498,35 @@ void Game_NpcUpdate(void) // 0x80038354
     posXShift6 = Q12_TO_Q6(g_SysWork.playerWork.player.position.vx);
     posZShift6 = Q12_TO_Q6(g_SysWork.playerWork.player.position.vz);
 
+#ifdef SH_PC_PORT
+    /* Fixed 30Hz simulation accumulator for NPC AI & state machines.
+     * PS1 ran gameplay simulation strictly at 30 FPS (Q12(1.0f / 30.0f) = 136).
+     * On PC (60 FPS+), running NPC steering, angular tracking, and attack decisions
+     * at native 30Hz eliminates 60FPS angular overshoot ("dancing"/jitter) while
+     * preserving 100% authentic PS1 enemy rhythms. Rendering (func_8003DA9C) still runs every frame. */
+    static q19_12 s_npcSimAccum     = 0;
+    bool          shouldSimulateNpc = false;
+#define NPC_FIXED_DT_30HZ Q12(1.0f / 30.0f)
+
+    if (g_DeltaTime == 0 || g_SysWork.cutsceneBorderState != CutsceneBorderState_None)
+    {
+        shouldSimulateNpc = true;
+    }
+    else
+    {
+        s_npcSimAccum += g_DeltaTime;
+        if (s_npcSimAccum >= NPC_FIXED_DT_30HZ)
+        {
+            s_npcSimAccum -= NPC_FIXED_DT_30HZ;
+            if (s_npcSimAccum > NPC_FIXED_DT_30HZ * 2)
+            {
+                s_npcSimAccum = 0;
+            }
+            shouldSimulateNpc = true;
+        }
+    }
+#endif
+
     Demo_DemoRandSeedBackup();
     Demo_DemoRandSeedRestore();
 
@@ -844,9 +874,14 @@ void Game_NpcUpdate(void) // 0x80038354
                  * still renders the posed skeleton. */
                 Pc_KeyframeViewerPoseNpc(g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr, boneCoords);
             }
-            else
-#endif
+            else if (shouldSimulateNpc)
             {
+                q19_12 savedDt = g_DeltaTime;
+                if (g_DeltaTime != 0 && g_SysWork.cutsceneBorderState == CutsceneBorderState_None)
+                {
+                    g_DeltaTime = NPC_FIXED_DT_30HZ;
+                }
+
                 g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId](npc, g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr, boneCoords);
 #ifdef SH_PC_PORT
                 /* Randomizer enemy-HP scale: the AI update above sets an enemy's
@@ -860,7 +895,17 @@ void Game_NpcUpdate(void) // 0x80038354
                 Collision_FlagsUpdate();
                 func_80037E78(npc);
                 func_8008A3AC(npc);
+
+                g_DeltaTime = savedDt;
             }
+#else
+            {
+                g_MapOverlayHdr.charaUpdateFuncs[npc->model.charaId](npc, g_CharaModelAnimsData[animDataInfoIdx].activeAnmHdr, boneCoords);
+                Collision_FlagsUpdate();
+                func_80037E78(npc);
+                func_8008A3AC(npc);
+            }
+#endif
 
             if (npc->model.anim.flags & AnimFlag_Visible)
             {
