@@ -27,6 +27,14 @@ int g_PcWorldDrawnThisFrame = 0;
  * next world frame. Latched only where the world is submitted, so menus and
  * transitions cannot move it. */
 int g_PcWorldHorPlus = 0;
+
+/* What the per-frame gate decided, i.e. the framing the 2D UI pass (OT2) wants.
+ * The world pass asserts Hor+ for itself at submission, which is right for the
+ * world but must NOT leak into the UI: on the frame the inventory opens, both
+ * passes run, and the UI -- authored for a 320-wide frame -- came out squished
+ * toward the centre when drawn through the widened world ortho. OT0 and OT2 are
+ * separate GsDrawOt calls, so each can use its own value. */
+int g_PcHorPlusGate = 0;
 /* Set by a freeze-frame state (pause, map messages) when it hands control back,
  * instead of dropping g_PsxPresentLastFrame on the spot. See the release below. */
 int g_PcFreezeReleasePending = 0;
@@ -3075,6 +3083,8 @@ void MainLoop(void) // 0x80032EE0
                     g_PcHorPlusEnabled = 0;
                 }
             }
+            /* The 2D UI pass uses this, not whatever the world asserted later. */
+            g_PcHorPlusGate = g_PcHorPlusEnabled;
         }
 
         /* Cutscenes get their vertical framing from the letterbox bars, so the gameplay
@@ -3748,9 +3758,20 @@ void MainLoop(void) // 0x80032EE0
          * bar off-screen. The world (OT0, drawn above) keeps the crop. */
         {
             extern int g_PsxUIOrthoPass;
-            g_PsxUIOrthoPass = 1;
+            extern int g_PcHorPlusGate;
+            /* Draw the UI with the framing the GATE chose. The world (OT0,
+             * above) asserts Hor+ for itself at submission so it can never be
+             * drawn 4:3 mid-transition; without swapping back here that assert
+             * also widened the UI ortho, and the inventory -- authored for a
+             * 320-wide frame -- rendered squished toward the centre for the
+             * frame it opened. Restored afterwards so nothing else sees it. */
+            const int savedHorPlus = g_PcHorPlusEnabled;
+
+            g_PcHorPlusEnabled = g_PcHorPlusGate;
+            g_PsxUIOrthoPass   = 1;
             GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
-            g_PsxUIOrthoPass = 0;
+            g_PsxUIOrthoPass   = 0;
+            g_PcHorPlusEnabled = savedHorPlus;
         }
 #else
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
