@@ -296,6 +296,26 @@ static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int neares
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+
+    /* [QOTEX] the overlay's baked textures (labels, values, cursor) sometimes
+     * draw as solid red blocks while the 1x1 white panel texture is fine --
+     * i.e. the UPLOAD is corrupted, not the binding. Red with opaque alpha is
+     * what an RG8 sample looks like (blue 0, alpha forced 1), which is
+     * PsyCross's VRAM texture format, so the suspicion is GL texture-name
+     * reuse or a stray unpack state. Log the id, size, first texel and any GL
+     * error at upload time; capped so a session cannot be flooded. */
+    {
+        static int s_qoTexLogs = 0;
+        if (s_qoTexLogs < 24)
+        {
+            GLenum err = glGetError();
+            s_qoTexLogs++;
+            SH_DBG("[QOTEX] upload id=%u %dx%d first=(%u,%u,%u,%u) glErr=0x%x unpackAlign=1",
+                   (unsigned)t, w, h,
+                   (unsigned)rgba[0], (unsigned)rgba[1], (unsigned)rgba[2], (unsigned)rgba[3],
+                   (unsigned)err);
+        }
+    }
     return t;
 }
 
