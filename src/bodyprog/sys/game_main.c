@@ -3766,8 +3766,22 @@ void MainLoop(void) // 0x80032EE0
              * 320-wide frame -- rendered squished toward the centre for the
              * frame it opened. Restored afterwards so nothing else sees it. */
             const int savedHorPlus = g_PcHorPlusEnabled;
+            /* Full-screen 2D MENUS are authored for the 320-wide frame and must
+             * draw 4:3. The gate alone does not know that -- it only watches
+             * gameState, the 2D-background ping and the framebuffer-protect
+             * flag, so while the inventory opens it still says Hor+ and the menu
+             * rendered squished toward the centre for the whole transition
+             * (~15 frames), not just a frame. Name the menu states explicitly
+             * rather than testing "not gameplay": cutscenes are not Gameplay
+             * either, and their letterbox bars DO need the widened ortho to
+             * reach the screen edges. */
+            const int uiIsMenu = (g_SysWork.sysState == SysState_StatusMenu  ||
+                                  g_SysWork.sysState == SysState_OptionsMenu ||
+                                  g_SysWork.sysState == SysState_MapScreen   ||
+                                  g_SysWork.sysState == SysState_SaveMenu0   ||
+                                  g_SysWork.sysState == SysState_SaveMenu1);
 
-            g_PcHorPlusEnabled = g_PcHorPlusGate;
+            g_PcHorPlusEnabled = uiIsMenu ? 0 : g_PcHorPlusGate;
             g_PsxUIOrthoPass   = 1;
             GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
             g_PsxUIOrthoPass   = 0;
