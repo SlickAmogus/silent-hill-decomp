@@ -18,6 +18,15 @@ int g_PcMapScreenActive = 0; /* set while paper-map overlay is displayed */
  * clear is only correct on a frame that actually drew the world behind it; on a
  * frame that drew nothing it IS the visible image, which is the grey flash. */
 int g_PcWorldDrawnThisFrame = 0;
+
+/* The framing the WORLD was last actually drawn with. HUD elements that lay
+ * themselves out earlier in the frame than the world is submitted (the minimap
+ * does, in Pc_MinimapUpdate) must follow this rather than the live
+ * g_PcHorPlusEnabled: that global is also driven to 0 for 2D screens, so a
+ * menu frame made the minimap re-lay-out for 4:3 and visibly snap back on the
+ * next world frame. Latched only where the world is submitted, so menus and
+ * transitions cannot move it. */
+int g_PcWorldHorPlus = 0;
 /* Set by a freeze-frame state (pause, map messages) when it hands control back,
  * instead of dropping g_PsxPresentLastFrame on the spot. See the release below. */
 int g_PcFreezeReleasePending = 0;

@@ -392,8 +392,12 @@ void GameState_InGame_Update(void) // 0x80038BD4
          * win: the map screen and the paper-map/pickup protect flag. */
         {
             extern int g_PcHorPlusEnabled, g_PcMapScreenActive, g_PsxSkipFramebufferStore;
+            extern int g_PcWorldHorPlus;
             if (!g_PcMapScreenActive && !g_PsxSkipFramebufferStore)
                 g_PcHorPlusEnabled = 1;
+            /* Record what the world is actually being drawn with, for HUD
+             * elements that lay out before this point in the frame. */
+            g_PcWorldHorPlus = g_PcHorPlusEnabled;
         }
 #endif
         Demo_DemoRandSeedAdvance();
