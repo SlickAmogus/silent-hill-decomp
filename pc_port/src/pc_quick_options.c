@@ -293,7 +293,7 @@ static void qo_gl_init(void)
     s_glReady = 1;
 }
 
-static void qo_reg_set(GLuint id, int w, int h, unsigned hash);
+static void qo_reg_set(GLuint id, int w, int h, unsigned hash, int nearest);
 static unsigned qo_hash(const unsigned char* p, size_t n);
 
 static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int nearest)
@@ -307,7 +307,7 @@ static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int neares
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-    qo_reg_set(t, w, h, qo_hash(rgba, (size_t)w * (size_t)h * 4u));
+    qo_reg_set(t, w, h, qo_hash(rgba, (size_t)w * (size_t)h * 4u), nearest);
 
     /* [QOTEX] the overlay's baked textures (labels, values, cursor) sometimes
      * draw as solid red blocks while the 1x1 white panel texture is fine --
@@ -549,6 +549,7 @@ static void qo_free_text(void)
 static GLuint   s_regId[QO_TEXREG];
 static GLint    s_regW[QO_TEXREG], s_regH[QO_TEXREG];
 static unsigned s_regHash[QO_TEXREG];
+static unsigned char s_regNearest[QO_TEXREG];
 static int      s_regNext;
 /* One texture is content-checked per frame, rotating, so the readback stall
  * stays off the per-frame path. */
@@ -567,7 +568,7 @@ static unsigned qo_hash(const unsigned char* p, size_t n)
     return h;
 }
 
-static void qo_reg_set(GLuint id, int w, int h, unsigned hash)
+static void qo_reg_set(GLuint id, int w, int h, unsigned hash, int nearest)
 {
     int i;
 
@@ -578,6 +579,7 @@ static void qo_reg_set(GLuint id, int w, int h, unsigned hash)
         if (s_regId[i] == id)
         {
             s_regW[i] = w; s_regH[i] = h; s_regHash[i] = hash;
+            s_regNearest[i] = (unsigned char)(nearest ? 1 : 0);
             return;
         }
     }
@@ -585,7 +587,44 @@ static void qo_reg_set(GLuint id, int w, int h, unsigned hash)
     s_regW[s_regNext]    = w;
     s_regH[s_regNext]    = h;
     s_regHash[s_regNext] = hash;
+    s_regNearest[s_regNext] = (unsigned char)(nearest ? 1 : 0);
     s_regNext = (s_regNext + 1) % QO_TEXREG;
+}
+
+/* A texture whose min filter wants mip levels it does not have is INCOMPLETE,
+ * and an incomplete texture samples as (0,0,0,1) -- a solid opaque black quad,
+ * exactly what the panel shows. This is why the 1x1 white background is immune
+ * while every baked label is not: at 1x1, level 0 IS the whole mip chain, so no
+ * filter can ever make it incomplete. Content, size and name all check out
+ * clean, so the sampler state is what is left. Re-assert it every frame and say
+ * so once if it had drifted. */
+static void qo_fix_filter(GLuint t, const char* what, int nearest)
+{
+    static int s_filterLogs = 0;
+    GLint minF = 0, magF = 0, baseL = 0, maxL = 1000;
+    GLint wantMin = nearest ? GL_NEAREST : GL_LINEAR;
+
+    glBindTexture(GL_TEXTURE_2D, t);
+    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, &minF);
+    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, &magF);
+    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, &baseL);
+    glGetTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL,  &maxL);
+
+    if (minF == wantMin && baseL == 0)
+        return;
+
+    if (s_filterLogs < 8)
+    {
+        s_filterLogs++;
+        SH_DBG("[QOTEX] texture %u (%s) sampler drifted: min=0x%x mag=0x%x base=%d "
+               "max=%d -- incomplete, sampling as opaque black; restoring",
+               (unsigned)t, what, (unsigned)minF, (unsigned)magF, (int)baseL, (int)maxL);
+    }
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, wantMin);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, wantMin);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL,  0);
 }
 
 static int qo_reg_get(GLuint id, GLint* w, GLint* h, unsigned* hash)
@@ -640,6 +679,19 @@ static void qo_validate_ex(GLuint* t, const char* what, int deep)
      * a side table cannot know. On a mismatch the name is abandoned, NOT
      * re-uploaded into: it may belong to someone else now, and overwriting it
      * would corrupt their texture instead. */
+    {
+        GLint  rw = 0, rh = 0;
+        unsigned rhash = 0;
+        int    i, nearest = 0;
+
+        for (i = 0; i < QO_TEXREG; i++)
+        {
+            if (s_regId[i] == *t) { nearest = s_regNearest[i]; break; }
+        }
+        (void)rw; (void)rh; (void)rhash;
+        qo_fix_filter(*t, what, nearest);
+    }
+
     if (g_grCaps.texLevelParam)
     {
         GLint wantW = 0, wantH = 0;
