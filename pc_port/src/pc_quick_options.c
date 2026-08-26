@@ -296,26 +296,6 @@ static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int neares
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-
-    /* [QOTEX] the overlay's baked textures (labels, values, cursor) sometimes
-     * draw as solid red blocks while the 1x1 white panel texture is fine --
-     * i.e. the UPLOAD is corrupted, not the binding. Red with opaque alpha is
-     * what an RG8 sample looks like (blue 0, alpha forced 1), which is
-     * PsyCross's VRAM texture format, so the suspicion is GL texture-name
-     * reuse or a stray unpack state. Log the id, size, first texel and any GL
-     * error at upload time; capped so a session cannot be flooded. */
-    {
-        static int s_qoTexLogs = 0;
-        if (s_qoTexLogs < 24)
-        {
-            GLenum err = glGetError();
-            s_qoTexLogs++;
-            SH_DBG("[QOTEX] upload id=%u %dx%d first=(%u,%u,%u,%u) glErr=0x%x unpackAlign=1",
-                   (unsigned)t, w, h,
-                   (unsigned)rgba[0], (unsigned)rgba[1], (unsigned)rgba[2], (unsigned)rgba[3],
-                   (unsigned)err);
-        }
-    }
     return t;
 }
 
@@ -939,8 +919,14 @@ void Pc_QuickOptions_Draw(void)
     }
     if (!s_texTitle)
         s_texTitle = qo_bake(s_pageTitles[s_page], (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
-    /* The bottom hint line was removed: it ran off-screen at some panel
-     * widths and the controls are self-evident in use. */
+    if (!s_texHint)
+    {
+        char hint[160];
+        snprintf(hint, sizeof(hint),
+                 "Up/Down select   Left/Right adjust   PgUp/PgDn page   %s or Esc close   * = restart   click a list value for a dropdown",
+                 g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10");
+        s_texHint = qo_bake(hint, (float)(int)(hintH * 0.50f), &s_hintW, &s_hintH);
+    }
 
     /* Publish geometry for Update's mouse hit-test. */
     s_vpW = vpW; s_vpH = vpH;
@@ -1040,6 +1026,12 @@ void Pc_QuickOptions_Draw(void)
         }
     }
 
+    if (s_texHint)
+    {
+        float hx = panelL + (panelW - (float)s_hintW) * 0.5f;
+        float hy = panelB + hintH * 0.72f;
+        qo_quad(s_texHint, NX(hx), NY(hy), NX(hx + s_hintW), NY(hy - s_hintH), 0.7f, 0.7f, 0.75f, dim);
+    }
 
     /* Dropdown list over the value column of its row, on top of the rows. */
     s_ddShown = 0;

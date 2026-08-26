@@ -3014,7 +3014,7 @@ void MainLoop(void) // 0x80032EE0
             bg2dHeld = (SDL_GetTicks() < s_bg2dHoldUntilMs) ? 1 : 0;
         }
         {
-            static Uint32 s_narrowOffAtMs = 0;
+            static int s_narrowFrames = 0;
             /* Fullscreen 2D background screens that run inside GameState_InGame
              * (keypad/dial/plate puzzles, the eclipse door, item-inspection and
              * death-tip images) draw via Screen_BackgroundImgDraw* and must use
@@ -3026,38 +3026,19 @@ void MainLoop(void) // 0x80032EE0
                                !g_PsxSkipFramebufferStore &&
                                !g_PcMapScreenActive &&
                                !bg2dHeld) ? 1 : 0;
-            /* The grace period below used to be a FRAME count (6), i.e. 200ms at
-             * 30fps but only 100ms at 60 and 42ms at 144 -- while the fade it
-             * exists to ride out takes a fixed wall-clock time. At high
-             * framerates the switch to 4:3 therefore landed DURING the fade with
-             * the world still on screen: the minimap snapped to its 4:3 corner
-             * and, on longer fades, the whole picture squished for a frame or
-             * two. Hold in wall-clock time so every framerate behaves like the
-             * original 6 frames at 30fps. */
-            #define PC_HORPLUS_HOLD_MS 200
             if (wantHorPlus)
             {
-                s_narrowOffAtMs    = 0;
+                s_narrowFrames     = 0;
                 g_PcHorPlusEnabled = 1;
             }
             else if (bg2dHeld)
             {
-                /* Stable 2D screens, not a transient: drop immediately, and keep
-                 * the deadline elapsed so a following non-bg2d frame stays 4:3. */
-                s_narrowOffAtMs    = 1;
+                s_narrowFrames     = 6;
                 g_PcHorPlusEnabled = 0;
             }
-            else
+            else if (++s_narrowFrames >= 6)
             {
-                const Uint32 nowMs = SDL_GetTicks();
-                if (s_narrowOffAtMs == 0)
-                {
-                    s_narrowOffAtMs = nowMs + PC_HORPLUS_HOLD_MS;
-                }
-                if (nowMs >= s_narrowOffAtMs)
-                {
-                    g_PcHorPlusEnabled = 0;
-                }
+                g_PcHorPlusEnabled = 0;
             }
         }
 
