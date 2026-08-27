@@ -772,8 +772,16 @@ static void qo_free_text(void)
     int i;
 
     /* Slots are recycled wholesale: the atlas itself is never freed, so
-     * there is no texture lifetime left to get wrong. */
+     * there is no texture lifetime left to get wrong.
+     *
+     * EVERY handle held outside this function has to be dropped with them,
+     * or it keeps pointing at a slot index that now belongs to a different
+     * image. The cursor is the one that is not in the loops below: after a
+     * page change it drew a label's pixels, then vanished once the index
+     * fell past the live slot count. Only slot 0, the white texel, survives
+     * a reset, because qo_atlas_reset re-claims it in place. */
     qo_atlas_reset();
+    s_texCursor = 0; /* re-uploaded on the next draw */
     qo_retire(s_texTitle); s_texTitle = 0;
     qo_retire(s_texHint);  s_texHint  = 0;
     for (i = 0; i < QO_MAX_ROWS; i++)
