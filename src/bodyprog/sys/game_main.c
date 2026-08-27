@@ -2179,6 +2179,17 @@ void MainLoop(void) // 0x80032EE0
         /* PsyCross requires explicit input polling — on PSX this happens
          * via hardware interrupt during VBlank. */
         PsyX_UpdateInput();
+
+        /* Claim the quick options glyph atlas on the first frame the GL context
+         * exists, long before a map load churns framebuffer targets. Allocated
+         * later it can be handed a recycled texture name that a framebuffer
+         * object still refers to, and that pass then renders the scene into the
+         * menu's glyphs. See Pc_QuickOptions_PreloadGL. */
+        {
+            extern void Pc_QuickOptions_PreloadGL(void);
+            static int s_qoPreloaded = 0;
+            if (!s_qoPreloaded) { s_qoPreloaded = 1; Pc_QuickOptions_PreloadGL(); }
+        }
         DbgOverlay_Update();
 
         /* Randomizer: per-area monster placement, entry-door relock timer.

@@ -1284,6 +1284,31 @@ static void qo_confirm(const QoRowDef* r)
 /* Draw                                                                */
 /* ------------------------------------------------------------------ */
 
+/* Claim the atlas EARLY, at startup, rather than on the first time the panel
+ * is opened.
+ *
+ * The atlas was being written over while alive: the text drew correctly for a
+ * frame and then went black, with the texture never deleted (glIsTexture never
+ * fails and the atlas is created exactly once). A live texture whose contents
+ * are replaced means something RENDERS INTO it -- and the way that happens is a
+ * recycled name. PsyCross creates and destroys framebuffer targets as the
+ * resolution and MSAA state settle (GR_DestroyInternalTarget frees the internal
+ * colour and resolve textures), and a framebuffer object elsewhere can still
+ * refer to a freed name. Allocating our atlas AFTER that churn means we can be
+ * handed such a name, and the next pass through that framebuffer paints the
+ * scene into our glyphs: black in the cafe, red in an otherworld map.
+ *
+ * Claiming the name before any of that churn happens means it is never in the
+ * free pool at a moment when a stale attachment could point at it. MSAA made
+ * this reliable rather than occasional because it adds another create/destroy
+ * pair to the same window. */
+void Pc_QuickOptions_PreloadGL(void)
+{
+    if (!s_glReady) qo_gl_init();
+    if (s_glReady != 1) return;
+    qo_atlas_ensure();
+    qo_build_white();
+}
 void Pc_QuickOptions_Draw(void)
 {
     GLint vp[4];
