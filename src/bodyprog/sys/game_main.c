@@ -18,6 +18,9 @@ int g_PcMapScreenActive = 0; /* set while paper-map overlay is displayed */
  * clear is only correct on a frame that actually drew the world behind it; on a
  * frame that drew nothing it IS the visible image, which is the grey flash. */
 int g_PcWorldDrawnThisFrame = 0;
+/* How many consecutive frames have drawn the world, sampled at the frame
+ * reset so the Hor+ gate can read it before this frame's draw happens. */
+int g_PcWorldDrawnStreak = 0;
 
 /* The framing the WORLD was last actually drawn with. HUD elements that lay
  * themselves out earlier in the frame than the world is submitted (the minimap
@@ -2419,6 +2422,7 @@ void MainLoop(void) // 0x80032EE0
         { extern int g_PcPuzzleItemDepth; g_PcPuzzleItemDepth = 0; }
         /* Re-armed by the single Gfx_InGameDraw call site during this frame's
          * state update, and read by the clear-color choice further down. */
+        g_PcWorldDrawnStreak = g_PcWorldDrawnThisFrame ? (g_PcWorldDrawnStreak + 1) : 0;
         g_PcWorldDrawnThisFrame = 0;
 #endif
 
@@ -3121,6 +3125,20 @@ void MainLoop(void) // 0x80032EE0
                 s_bg2dHoldUntilMs = SDL_GetTicks() + 300;
             }
             bg2dHeld = (SDL_GetTicks() < s_bg2dHoldUntilMs) ? 1 : 0;
+            /* ...but the hold exists to bridge the TIM-swap gaps WHILE a 2D
+             * screen is up. On the way out it kept forcing 4:3 for the rest
+             * of the 300ms with the world already back on screen, which
+             * stretched the picture for several frames after examining an
+             * object. Two consecutive world frames means the 2D screen is
+             * genuinely finished, not blinking between images, so end it.
+             * One frame is deliberately not enough: a single world frame can
+             * appear inside a swap gap, and that is the flash the hold is
+             * there to absorb. */
+            if (bg2dHeld && g_Pc2dBackgroundActive <= 0 && g_PcWorldDrawnStreak >= 2)
+            {
+                s_bg2dHoldUntilMs = 0;
+                bg2dHeld          = 0;
+            }
         }
         {
             static Uint32 s_narrowOffAtMs = 0;
