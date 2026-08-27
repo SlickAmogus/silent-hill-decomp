@@ -230,6 +230,8 @@ static GLuint qo_make_shader(GLenum type, const char* src)
     return sh;
 }
 
+static int qo_atlas_ensure(void);
+
 static void qo_gl_init(void)
 {
     static const char* vs_src =
@@ -275,6 +277,7 @@ static void qo_gl_init(void)
     }
     glUseProgram(s_prog);
     glUniform1i(glGetUniformLocation(s_prog, "u_tex"), 0);
+    qo_atlas_ensure(); /* one texture, created here, never recreated */
     s_locColor = glGetUniformLocation(s_prog, "u_color");
 
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
@@ -296,47 +299,140 @@ static void qo_gl_init(void)
 static void qo_reg_set(GLuint id, int w, int h, unsigned hash, int nearest);
 static unsigned qo_hash(const unsigned char* p, size_t n);
 
-static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int nearest)
+/* ---------------------------------------------------------------- *
+ * Glyph atlas.
+ *
+ * Everything the panel draws -- every label, value, title, footer and the
+ * solid-white quad behind the panel itself -- lives in ONE texture created
+ * once, at init, and never recreated.
+ *
+ * This is a rewrite of a design that repeatedly drew its text as solid
+ * coloured blocks. What forced it: the panel's own numbers make it
+ * impossible for those blocks to come from our own pixels. A baked string
+ * is white RGB with alpha = coverage, and real text measures 12-21% ink, so
+ * texture2D(...) * u_color can never yield a fully opaque rectangle. The
+ * blocks therefore meant we were not sampling our texture at all -- and
+ * every check written to prove otherwise (name alive, dimensions intact,
+ * pixels byte-identical, sampler state correct) passed, because the pixels
+ * were never the problem.
+ *
+ * The one object that never once failed across every report is s_texWhite,
+ * and what set it apart is that it was created at INIT. Everything that
+ * failed was created lazily, mid-frame, inside the game's own GL stream --
+ * where PsyCross keeps a redundant-bind cache (g_lastBoundTexture) that
+ * early-outs and skips glBindTexture, and where texture names are being
+ * created and destroyed constantly. So the fix is to stop making textures
+ * during a frame at all: one atlas, allocated up front, sub-image updates
+ * only.
+ *
+ * Slots are handed out by a shelf allocator and handed back as the same
+ * GLuint the old code passed around, so every caller and all the layout
+ * maths is untouched -- the value is now a slot index + 1 rather than a
+ * texture name. Padding keeps LINEAR filtering from bleeding between
+ * neighbours. */
+#define QO_ATLAS_W    2048
+#define QO_ATLAS_H    1024
+#define QO_ATLAS_PAD  2
+#define QO_SLOT_MAX   96
+
+static GLuint s_atlasTex;
+static int    s_atlasReady;
+static int    s_atlasX, s_atlasY, s_atlasRowH;
+static struct { int x, y, w, h; } s_slot[QO_SLOT_MAX];
+static int    s_slotCount;
+
+/* Slot 0 is the solid white texel and is PERMANENT: the panel background,
+ * the scrollbar and the row highlights all draw from it, and a reset that
+ * handed slot 0 to the next label would repaint those with a word. */
+static void qo_atlas_reset(void)
 {
-    GLuint t = 0;
-    glGenTextures(1, &t);
-    glBindTexture(GL_TEXTURE_2D, t);
+    s_atlasX    = QO_ATLAS_PAD;
+    s_atlasY    = QO_ATLAS_PAD;
+    s_atlasRowH = 0;
+    s_slotCount = 0;
+    if (s_atlasTex)
+    {
+        /* re-claim slot 0 in place, exactly as qo_atlas_ensure laid it out */
+        s_slot[0].x = QO_ATLAS_PAD; s_slot[0].y = QO_ATLAS_PAD;
+        s_slot[0].w = 1;            s_slot[0].h = 1;
+        s_slotCount = 1;
+        s_atlasX    = QO_ATLAS_PAD + 1 + QO_ATLAS_PAD;
+        s_atlasRowH = 1;
+    }
+}
+
+static int qo_atlas_ensure(void)
+{
+    if (s_atlasReady)
+        return s_atlasTex != 0;
+
+    s_atlasReady = 1;
+    glGenTextures(1, &s_atlasTex);
+    if (!s_atlasTex)
+        return 0;
+
+    glBindTexture(GL_TEXTURE_2D, s_atlasTex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
-    /* Declare the mip chain complete at level 0. A texture whose MIN filter
-     * asks for mip levels it does not have is INCOMPLETE, and sampling an
-     * incomplete texture returns (0,0,0,1) -- opaque black across the whole
-     * quad, which is exactly the black rectangles the panel shows. Pinning
-     * BASE/MAX level means no filter anyone sets can make these incomplete,
-     * and unlike forcing the filter it does not change how they sample. */
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    /* A MIN filter wanting mip levels that do not exist makes a texture
+     * INCOMPLETE, and an incomplete texture samples as (0,0,0,1): opaque
+     * black. Pinning the chain at level 0 puts that state out of reach no
+     * matter what filter anything else sets. */
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-    qo_reg_set(t, w, h, qo_hash(rgba, (size_t)w * (size_t)h * 4u), nearest);
-
-    /* [QOTEX] the overlay's baked textures (labels, values, cursor) sometimes
-     * draw as solid red blocks while the 1x1 white panel texture is fine --
-     * i.e. the UPLOAD is corrupted, not the binding. Red with opaque alpha is
-     * what an RG8 sample looks like (blue 0, alpha forced 1), which is
-     * PsyCross's VRAM texture format, so the suspicion is GL texture-name
-     * reuse or a stray unpack state. Log the id, size, first texel and any GL
-     * error at upload time; capped so a session cannot be flooded. */
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, QO_ATLAS_W, QO_ATLAS_H, 0,
+                 GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     {
-        static int s_qoTexLogs = 0;
-        if (s_qoTexLogs < 24)
-        {
-            GLenum err = glGetError();
-            s_qoTexLogs++;
-            SH_DBG("[QOTEX] upload id=%u %dx%d first=(%u,%u,%u,%u) glErr=0x%x unpackAlign=1",
-                   (unsigned)t, w, h,
-                   (unsigned)rgba[0], (unsigned)rgba[1], (unsigned)rgba[2], (unsigned)rgba[3],
-                   (unsigned)err);
-        }
+        /* Slot 0: one opaque white texel, written once and never reissued. */
+        const unsigned char one[4] = { 255, 255, 255, 255 };
+        glTexSubImage2D(GL_TEXTURE_2D, 0, QO_ATLAS_PAD, QO_ATLAS_PAD, 1, 1,
+                        GL_RGBA, GL_UNSIGNED_BYTE, one);
     }
-    return t;
+    qo_atlas_reset();
+    SH_DBG("[QOTEX] glyph atlas %dx%d id=%u", QO_ATLAS_W, QO_ATLAS_H, (unsigned)s_atlasTex);
+    return 1;
+}
+
+/* Returns a slot handle (index + 1), or 0 if it will not fit. */
+static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int nearest)
+{
+    int idx;
+
+    (void)nearest; /* one atlas, one filter; padding covers the bleed */
+
+    if (!qo_atlas_ensure() || w <= 0 || h <= 0 || s_slotCount >= QO_SLOT_MAX)
+        return 0;
+    if (w > QO_ATLAS_W - 2 * QO_ATLAS_PAD || h > QO_ATLAS_H - 2 * QO_ATLAS_PAD)
+        return 0;
+
+    if (s_atlasX + w + QO_ATLAS_PAD > QO_ATLAS_W)
+    {
+        s_atlasX     = QO_ATLAS_PAD;
+        s_atlasY    += s_atlasRowH + QO_ATLAS_PAD;
+        s_atlasRowH  = 0;
+    }
+    if (s_atlasY + h + QO_ATLAS_PAD > QO_ATLAS_H)
+        return 0; /* full: caller simply draws nothing this pass */
+
+    idx = s_slotCount++;
+    s_slot[idx].x = s_atlasX;
+    s_slot[idx].y = s_atlasY;
+    s_slot[idx].w = w;
+    s_slot[idx].h = h;
+
+    glBindTexture(GL_TEXTURE_2D, s_atlasTex);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, s_atlasX, s_atlasY, w, h,
+                    GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+
+    s_atlasX    += w + QO_ATLAS_PAD;
+    if (h > s_atlasRowH)
+        s_atlasRowH = h;
+
+    return (GLuint)(idx + 1);
 }
 
 /* Retiring a texture used to queue it for glDeleteTextures. It must not.
@@ -369,33 +465,33 @@ static void qo_gl_pump(void)
 }
 
 /* Quad in NDC (yTop > yBot). */
+/* `tex` is an atlas SLOT handle (index + 1), not a texture name. */
 static void qo_quad(GLuint tex, float x0, float yTop, float x1, float yBot,
                     float r, float g, float b, float a)
 {
     float v[6][4];
-    if (!tex)
+    float u0, v0, u1, v1;
+    int   idx = (int)tex - 1;
+
+    if (tex == 0 || idx < 0 || idx >= s_slotCount || !s_atlasTex)
         return;
-    v[0][0] = x0; v[0][1] = yTop; v[0][2] = 0; v[0][3] = 0;
-    v[1][0] = x0; v[1][1] = yBot; v[1][2] = 0; v[1][3] = 1;
-    v[2][0] = x1; v[2][1] = yTop; v[2][2] = 1; v[2][3] = 0;
-    v[3][0] = x1; v[3][1] = yTop; v[3][2] = 1; v[3][3] = 0;
-    v[4][0] = x0; v[4][1] = yBot; v[4][2] = 0; v[4][3] = 1;
-    v[5][0] = x1; v[5][1] = yBot; v[5][2] = 1; v[5][3] = 1;
+
+    /* Half-texel inset: with LINEAR filtering an edge tap would otherwise
+     * reach into the padding between neighbouring slots. */
+    u0 = ((float)s_slot[idx].x + 0.5f) / (float)QO_ATLAS_W;
+    v0 = ((float)s_slot[idx].y + 0.5f) / (float)QO_ATLAS_H;
+    u1 = ((float)(s_slot[idx].x + s_slot[idx].w) - 0.5f) / (float)QO_ATLAS_W;
+    v1 = ((float)(s_slot[idx].y + s_slot[idx].h) - 0.5f) / (float)QO_ATLAS_H;
+
+    v[0][0] = x0; v[0][1] = yTop; v[0][2] = u0; v[0][3] = v0;
+    v[1][0] = x0; v[1][1] = yBot; v[1][2] = u0; v[1][3] = v1;
+    v[2][0] = x1; v[2][1] = yTop; v[2][2] = u1; v[2][3] = v0;
+    v[3][0] = x1; v[3][1] = yTop; v[3][2] = u1; v[3][3] = v0;
+    v[4][0] = x0; v[4][1] = yBot; v[4][2] = u0; v[4][3] = v1;
+    v[5][0] = x1; v[5][1] = yBot; v[5][2] = u1; v[5][3] = v1;
+
     glUniform4f(s_locColor, r, g, b, a);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    /* Declare the mip chain complete at level 0 on every bind. A texture whose
-     * MIN filter asks for levels it does not have is INCOMPLETE, and sampling
-     * an incomplete texture returns (0,0,0,1) -- opaque black over the whole
-     * quad, which is the shape of the black-rectangle corruption. Two
-     * non-querying calls, so nothing stalls. Unlike forcing the filter this
-     * does not change how the texture samples when nothing is wrong. */
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
-    /* Re-pinned per bind, not just at upload: whatever drifts these settings
-     * does so between our draws (see qo_upload_rgba). Two glTexParameteri
-     * calls, no queries, so nothing stalls the pipeline. */
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+    glBindTexture(GL_TEXTURE_2D, s_atlasTex);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(v), v);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
@@ -666,14 +762,18 @@ static GLuint qo_bake(const char* text, float px, int* outW, int* outH)
 
 static void qo_build_white(void)
 {
-    unsigned char one[4] = { 255, 255, 255, 255 };
-    if (!s_texWhite)
-        s_texWhite = qo_upload_rgba(one, 1, 1, 0);
+    if (qo_atlas_ensure())
+        s_texWhite = 1; /* slot 0 handle */
+
 }
 
 static void qo_free_text(void)
 {
     int i;
+
+    /* Slots are recycled wholesale: the atlas itself is never freed, so
+     * there is no texture lifetime left to get wrong. */
+    qo_atlas_reset();
     qo_retire(s_texTitle); s_texTitle = 0;
     qo_retire(s_texHint);  s_texHint  = 0;
     for (i = 0; i < QO_MAX_ROWS; i++)
@@ -760,32 +860,13 @@ static void qo_validate(GLuint* t, const char* what)
     qo_validate_ex(t, what, s_passSlot++ == s_deepIdx);
 }
 
+/* Nothing to validate any more. These are atlas slot indices, not texture
+ * names, and the single atlas is created once and never deleted -- the
+ * lifetime problem this used to police no longer exists. */
 static void qo_validate_ex(GLuint* t, const char* what, int deep)
 {
-    static int s_staleLogs = 0;
+    (void)t; (void)what; (void)deep;
 
-    (void)deep;
-
-    if (*t == 0)
-        return;
-
-    /* Only the cheap check survives. Four sessions of per-frame verification --
-     * dimensions, a full glGetTexImage readback of the pixels, and the sampler
-     * state -- came back clean every single time, while costing a pipeline
-     * stall and ~100 driver queries a frame, which is the hitch on open/close.
-     * The bake now validates its own output before shipping it, which catches
-     * the same failure earlier and for free. glIsTexture does not sync, so it
-     * stays. */
-    if (!glIsTexture(*t))
-    {
-        if (s_staleLogs < 8)
-        {
-            s_staleLogs++;
-            SH_DBG("[QOTEX] stale texture name %u (%s) -- freed by something else; rebuilding",
-                   (unsigned)*t, what);
-        }
-        *t = 0;
-    }
 }
 
 static void qo_validate_cache(void)
@@ -1524,4 +1605,14 @@ restore:
     glUseProgram((GLuint)prevProg);
     glBindVertexArray((GLuint)prevVao);
     glBindBuffer(GL_ARRAY_BUFFER, (GLuint)prevBuf);
+
+    /* PsyCross keeps a redundant-bind cache and RETURNS EARLY from
+     * GR_SetTexture when it believes the texture is already bound. We just
+     * bound our own atlas behind that cache, so the binding it restores
+     * above is not necessarily what the cache thinks. Invalidate it and the
+     * next GR_SetTexture is forced to issue a real glBindTexture. */
+    {
+        extern unsigned int g_lastBoundTexture; /* PsyX TextureID */
+        g_lastBoundTexture = (unsigned int)-1;
+    }
 }
