@@ -303,6 +303,73 @@ void vcSetSubjChara(VECTOR3* chara_pos,
     vcWork.chara_watch_xz_r = chara_watch_xz_r;
 }
 
+#ifdef SH_PC_PORT
+/* Widescreen reframing for shots authored against the 4:3 edge.
+ *
+ * A fixed camera composed for 320x240 can have nothing built past the edge of
+ * that frame. Hor+ widens the ortho, so the extra picture on the left of this
+ * alley shot is void the artists never dressed -- while there is real scenery
+ * to the right that simply was not in frame.
+ *
+ * The rotation is not a tuned number: it is exactly the angle between the 4:3
+ * frame edge and the widened one, so the left edge of the widescreen picture
+ * lands where the 4:3 left edge used to be and every pixel Hor+ gained is spent
+ * on the right. The renderer reports both half-widths (they are the same
+ * expressions it builds the ortho from), and geom_screen_dist is the GTE
+ * projection distance, so screen x maps to an angle as atan(x / dist) --
+ * ratan2 being the engine's own version of that.
+ *
+ * Only while Hor+ is actually widening: GR_HorPlusHalfWidths returns 0 for the
+ * pillarboxed and stretched modes and for 4:3 windows, so the shot stays
+ * byte-identical to PSX there. Rotation only, never a position shift -- an XZ
+ * delta is meaningless to any shot but the one it was measured on. */
+static void Pc_WideShotYawFix(void)
+{
+    extern int GR_HorPlusHalfWidths(float* out43, float* outWide);
+
+    /* map10/room23 alley, the fixed shot looking up the street. */
+    #define WSF_MAP   10
+    #define WSF_ROOM  23
+    #define WSF_CAM_X (-769024)
+    #define WSF_CAM_Z (1243136)
+    #define WSF_TOL   Q12(1.0f)
+
+    float h43 = 0.0f, hWide = 0.0f;
+    s32   dist, a43, aWide, delta;
+
+    if (!g_SavegamePtr ||
+        g_SavegamePtr->mapIdx     != WSF_MAP ||
+        g_SavegamePtr->mapRoomIdx != WSF_ROOM)
+    {
+        return;
+    }
+    if (ABS(vcWork.cam_pos.vx - WSF_CAM_X) > WSF_TOL ||
+        ABS(vcWork.cam_pos.vz - WSF_CAM_Z) > WSF_TOL)
+    {
+        return;
+    }
+    if (!GR_HorPlusHalfWidths(&h43, &hWide) || hWide <= h43)
+    {
+        return;
+    }
+
+    dist = (s32)vcWork.geom_screen_dist;
+    if (dist <= 0)
+    {
+        return;
+    }
+
+    /* Q12 throughout so ratan2 keeps its precision; only the RATIO matters. */
+    a43   = ratan2((s32)(h43   * 4096.0f), dist * 4096);
+    aWide = ratan2((s32)(hWide * 4096.0f), dist * 4096);
+    delta = aWide - a43;
+
+    /* Increasing yaw turns right (the look vector is built from sin/cos of it,
+     * matching the free camera's mouse-right handling). */
+    vcWork.cam_mat_ang.vy = (s16)((vcWork.cam_mat_ang.vy + delta) & 0xFFF);
+}
+#endif
+
 s32 vcExecCamera(void) // 0x80080FBC
 {
     VECTOR3            sv_old_cam_pos;
@@ -384,6 +451,9 @@ s32 vcExecCamera(void) // 0x80080FBC
 
     /* Disabled-override table removed: the map0_s01 corner is fixed via
      * faithful fix_ang road data + the engine matrix/transpose/clamp fixes. */
+#ifdef SH_PC_PORT
+    Pc_WideShotYawFix();
+#endif
     vcSetDataToVwSystem(&vcWork, cur_cam_mv_type);
 
     vcWork.through_door_activate_init_f = false;
