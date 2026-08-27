@@ -1309,6 +1309,37 @@ void Pc_QuickOptions_Draw(void)
 
     if (!s_glReady) qo_gl_init();
     if (s_glReady != 1) return;
+
+    /* The atlas is created once and never deleted BY US -- but something else
+     * frees its name. Binding a freed name creates a brand new EMPTY texture
+     * object, and an empty texture samples as (0,0,0,1): opaque black over
+     * every quad. That is the block corruption, and it survived the rewrite
+     * because one texture can be lost exactly as easily as twenty-five.
+     *
+     * Checked BEFORE anything binds the atlas -- once a freed name is bound the
+     * object springs back as a valid but EMPTY texture and glIsTexture can no
+     * longer tell. One call per frame, and it does not stall.
+     *
+     * The panel background cannot show this by eye: it is drawn with a
+     * near-black low-alpha colour, so white and opaque-black give the same dark
+     * translucent panel. Only the text ever revealed it. */
+    if (s_atlasTex != 0 && !glIsTexture(s_atlasTex))
+    {
+        static int s_lostLogs = 0;
+        if (s_lostLogs < 8)
+        {
+            s_lostLogs++;
+            SH_DBG("[QOTEX] atlas texture %u was DELETED by something else -- recreating",
+                   (unsigned)s_atlasTex);
+        }
+        s_atlasTex   = 0;
+        s_atlasReady = 0;
+        qo_free_text();   /* every slot handle refers to the dead atlas */
+        s_texWhite   = 0;
+        s_texCursor  = 0;
+        qo_atlas_ensure();
+        qo_build_white();
+    }
     if (!s_fontsTried) qo_fonts_init();
 
     glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
