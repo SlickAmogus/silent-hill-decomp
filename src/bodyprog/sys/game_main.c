@@ -1805,13 +1805,9 @@ void DebugCamera_Update(void)
         prevL = curL;
     }
 
-    /* Per-frame cheat enforcement: god mode (health catch-all) + no-target */
-    if (g_GameWork.gameState == GameState_InGame) {
-        if (g_PcGodMode)
-            g_SysWork.playerWork.player.health = Q12(100.0f);
-        if (g_DebugNoTarget)
-            g_SysWork.playerWork.player.flags |= CharaFlag_Unk4;
-    }
+    /* Cheat enforcement moved to MainLoop (Pc_CheatsEnforce): everything
+     * above this point is gated on allow_debug_controls, but god mode and
+     * no-target are user-facing quick options rows. */
 
     /* Room-enter logging + Numpad 3 rescue-Y teleport.
      *
@@ -2207,6 +2203,33 @@ void MainLoop(void) // 0x80032EE0
          * swallow them so nothing underneath reacts. Same spot as the console
          * suppression below, for the same reason -- later zeroing is
          * overwritten by the next parse before any consumer sees it. */
+        /* Per-frame cheat enforcement. This lives in MainLoop, NOT in
+         * DebugCamera_Update: that function returns early unless
+         * allow_debug_controls is set, so both of these silently did
+         * nothing for anyone who had not enabled debug controls -- while
+         * still being offered as quick options rows.
+         *
+         * CharaFlag_Unk4 is the flag enemies test before committing to an
+         * attack (stalker, groaner, creeper, hanged scratcher, air
+         * screamer), and groaner also uses it to break off a chase. It is
+         * normally a TIMED state: player_control.c counts timer_110 up
+         * while it is set and clears the flag once the timer passes its
+         * limit. Setting the flag alone therefore kept expiring, so the
+         * cheat only held for part of each second and enemies still
+         * attacked. Hold the timer at zero so it cannot run out. */
+        {
+            extern int g_PcGodMode;
+            extern int g_DebugNoTarget;
+            if (g_GameWork.gameState == GameState_InGame) {
+                if (g_PcGodMode)
+                    g_SysWork.playerWork.player.health = Q12(100.0f);
+                if (g_DebugNoTarget) {
+                    g_SysWork.playerWork.player.flags |= CharaFlag_Unk4;
+                    g_SysWork.playerWork.player.properties.player.timer_110 = Q12(0.0f);
+                }
+            }
+        }
+
         {
             extern int  g_PcQuickOptionsActive;
             extern void Pc_QuickOptions_Update(int, int, int, int, int, int, int, int);
