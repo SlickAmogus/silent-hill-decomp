@@ -258,6 +258,7 @@ static const struct { const char* key; size_t off; } s_SchemeBinds[] = {
 static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
     { "key_quicksave",     offsetof(s_PcConfig, keyQuickSave)    },
     { "key_quick_options", offsetof(s_PcConfig, keyQuickOptions) },
+    { "pad_quick_options", offsetof(s_PcConfig, padQuickOptions) },
     { "key_quickload",     offsetof(s_PcConfig, keyQuickLoad)    },
     { "key_swap_shoulder", offsetof(s_PcConfig, keySwapShoulder) },
     { "key_console",       offsetof(s_PcConfig, keyConsole)      },

@@ -1760,16 +1760,29 @@ void DbgOverlay_Update(void)
      * (the title/main menu has the real Options screen), and not while the
      * console has the keyboard. */
     {
+        extern int  PsyX_LookupGameControllerMapping(const char* str, int default_value);
+        extern bool PC_RawControllerButtonClicked(int sdlButton);
         static SDL_Scancode s_scQuick   = SDL_SCANCODE_UNKNOWN;
+        static int          s_padQuick  = -1;
         static int          s_quickRes  = 0;
         static int          s_prevQuick = 0;
         int curQuick;
+        int padQuick;
         if (!s_quickRes) {
             s_scQuick  = SDL_GetScancodeFromName(g_PcConfig.keyQuickOptions);
+            /* Optional controller bind, unbound by default -- an empty string
+             * leaves it at -1 and nothing is polled. */
+            s_padQuick = (g_PcConfig.padQuickOptions[0] != ' ')
+                       ? (int)PsyX_LookupGameControllerMapping(g_PcConfig.padQuickOptions,
+                                                              -1)
+                       : -1;
             s_quickRes = 1;
         }
         curQuick = (s_scQuick != SDL_SCANCODE_UNKNOWN) ? ks[s_scQuick] : 0;
-        if (curQuick && !s_prevQuick && !ctrlHeld && !g_PcConsoleInputActive &&
+        /* Already edge-detected, so it is tested separately from the keyboard
+         * level below rather than folded into curQuick. */
+        padQuick = (s_padQuick >= 0) && PC_RawControllerButtonClicked(s_padQuick);
+        if (((curQuick && !s_prevQuick && !ctrlHeld) || padQuick) && !g_PcConsoleInputActive &&
             g_GameWork.gameState == GameState_InGame) {
             extern void Pc_QuickOptions_Toggle(void);
             Pc_QuickOptions_Toggle();
