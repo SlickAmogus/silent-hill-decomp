@@ -305,6 +305,14 @@ static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int neares
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+    /* Declare the mip chain complete at level 0. A texture whose MIN filter
+     * asks for mip levels it does not have is INCOMPLETE, and sampling an
+     * incomplete texture returns (0,0,0,1) -- opaque black across the whole
+     * quad, which is exactly the black rectangles the panel shows. Pinning
+     * BASE/MAX level means no filter anyone sets can make these incomplete,
+     * and unlike forcing the filter it does not change how they sample. */
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
     qo_reg_set(t, w, h, qo_hash(rgba, (size_t)w * (size_t)h * 4u), nearest);
@@ -375,6 +383,19 @@ static void qo_quad(GLuint tex, float x0, float yTop, float x1, float yBot,
     v[5][0] = x1; v[5][1] = yBot; v[5][2] = 1; v[5][3] = 1;
     glUniform4f(s_locColor, r, g, b, a);
     glBindTexture(GL_TEXTURE_2D, tex);
+    /* Declare the mip chain complete at level 0 on every bind. A texture whose
+     * MIN filter asks for levels it does not have is INCOMPLETE, and sampling
+     * an incomplete texture returns (0,0,0,1) -- opaque black over the whole
+     * quad, which is the shape of the black-rectangle corruption. Two
+     * non-querying calls, so nothing stalls. Unlike forcing the filter this
+     * does not change how the texture samples when nothing is wrong. */
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+    /* Re-pinned per bind, not just at upload: whatever drifts these settings
+     * does so between our draws (see qo_upload_rgba). Two glTexParameteri
+     * calls, no queries, so nothing stalls the pipeline. */
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
     glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(v), v);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
