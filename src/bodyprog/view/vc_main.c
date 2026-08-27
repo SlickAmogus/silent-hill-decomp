@@ -364,9 +364,31 @@ static void Pc_WideShotYawFix(void)
     aWide = ratan2((s32)(hWide * 4096.0f), dist * 4096);
     delta = aWide - a43;
 
-    /* Increasing yaw turns right (the look vector is built from sin/cos of it,
-     * matching the free camera's mouse-right handling). */
-    vcWork.cam_mat_ang.vy = (s16)((vcWork.cam_mat_ang.vy + delta) & 0xFFF);
+    /* Swing the LOOK-AT TARGET about the camera, and let the engine build the
+     * matrix from it as usual.
+     *
+     * Writing cam_mat_ang did nothing: the renderer is handed cam_mat
+     * (vwSetViewInfoDirectMatrix), which vcRenewalCamMatAng has already
+     * built by then, so the angle is an output rather than an input. This
+     * runs before that call instead and moves what it derives from, so
+     * cam_mat, cam_mat_ang and anything else downstream all agree.
+     *
+     * Direction convention matches vcGetNowWatchPos, which builds the watch
+     * point as (sin(yaw), cos(yaw)): increasing yaw turns right.
+     *
+     * Recomputed from the freshly-derived target every frame, so it sets an
+     * absolute offset rather than accumulating. */
+    {
+        s32 dx = vcWork.watch_tgt_pos.vx - vcWork.cam_pos.vx;
+        s32 dz = vcWork.watch_tgt_pos.vz - vcWork.cam_pos.vz;
+        s32 r  = Vc_VectorMagnitudeCalc(dx, 0, dz);
+        s32 y1 = (ratan2(dx, dz) + delta) & 0xFFF;
+
+        vcWork.watch_tgt_pos.vx = vcWork.cam_pos.vx +
+                                  Math_MulFixed(r, Math_Sin(y1), Q12_SHIFT);
+        vcWork.watch_tgt_pos.vz = vcWork.cam_pos.vz +
+                                  Math_MulFixed(r, Math_Cos(y1), Q12_SHIFT);
+    }
 
     /* Reported ONCE per session, not per frame: without it there is no way to
      * tell 'the shot did not match' from 'it matched but the angle is too
@@ -461,14 +483,14 @@ s32 vcExecCamera(void) // 0x80080FBC
         }
     }
 
+#ifdef SH_PC_PORT
+    Pc_WideShotYawFix();
+#endif
     vcRenewalCamMatAng(&vcWork, watch_mv_prm_p, cur_cam_mv_type,
                        vcWork.flags & VC_VISIBLE_CHARA_F);
 
     /* Disabled-override table removed: the map0_s01 corner is fixed via
      * faithful fix_ang road data + the engine matrix/transpose/clamp fixes. */
-#ifdef SH_PC_PORT
-    Pc_WideShotYawFix();
-#endif
     vcSetDataToVwSystem(&vcWork, cur_cam_mv_type);
 
     vcWork.through_door_activate_init_f = false;
