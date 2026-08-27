@@ -3117,6 +3117,20 @@ void MainLoop(void) // 0x80032EE0
                 s_narrowOffAtMs    = 1;
                 g_PcHorPlusEnabled = 0;
             }
+            else if (!g_PcWorldDrawnThisFrame)
+            {
+                /* The hold exists to ride out a fade WITH THE WORLD STILL ON
+                 * SCREEN, so it must end the moment the world stops being
+                 * drawn -- otherwise it outlives its purpose. Once the
+                 * inventory reaches its own gameState, OT0 holds only the item
+                 * model and OT2 the portrait and text, and the leftover hold
+                 * kept BOTH passes wide for the rest of the 200ms: the item and
+                 * portrait drew squished toward the centre for ~16 frames while
+                 * the menu faded in. Nothing of the world is left to keep wide,
+                 * so drop immediately and keep the deadline elapsed. */
+                s_narrowOffAtMs    = 1;
+                g_PcHorPlusEnabled = 0;
+            }
             else
             {
                 const Uint32 nowMs = SDL_GetTicks();
