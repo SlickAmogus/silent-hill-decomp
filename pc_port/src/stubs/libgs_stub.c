@@ -178,11 +178,24 @@ void GsInit3D(void)
 }
 
 static Uint64 gs_cum_epoch = 0;
+/* Fast-forward (PsyCross Ctrl+F5) scales GAME TIME, because the port paces
+ * the game from this wall clock, not from the PSX vblank counter. The old
+ * trick of inflating the vblank count is inert here, and skipping the vsync
+ * wait does nothing when the renderer already runs far above the refresh
+ * rate. Scaling the clock is what actually speeds the game up, and it feeds
+ * animation, physics and audio pacing consistently since they all derive
+ * from this one value. */
+#define GS_FASTFORWARD_SCALE 4
+extern int g_skipSwapInterval; /* PsyCross: held while Ctrl+F5 is down */
+static Uint64    gs_cum_last  = 0;
+static long long gs_cum_ticks = 0;
 
 void GsInitVcount(void)
 {
     gs_vcount_start = SDL_GetPerformanceCounter();
     gs_cum_epoch = gs_vcount_start;
+    gs_cum_last  = gs_vcount_start;
+    gs_cum_ticks = 0;
     gs_vcount_active = 1;
 }
 
@@ -206,7 +219,22 @@ long long GsGetCumulativeQ12(void)
     }
     now  = SDL_GetPerformanceCounter();
     freq = SDL_GetPerformanceFrequency();
-    return (long long)(((now - gs_cum_epoch) * 4096ull) / freq);
+
+    /* Accumulate elapsed COUNTER TICKS rather than measuring from a fixed
+     * epoch, so the scale can change mid-session without the whole history
+     * re-scaling and jumping the clock. At scale 1 this is exactly the old
+     * value: summing integer deltas telescopes to (now - epoch), and the
+     * single divide below keeps the same one-floor-per-read precision the
+     * cutscene/subtitle sync depends on. */
+    if (gs_cum_last == 0)
+    {
+        gs_cum_last = gs_cum_epoch;
+    }
+    gs_cum_ticks += (long long)(now - gs_cum_last) *
+                    (g_skipSwapInterval ? GS_FASTFORWARD_SCALE : 1);
+    gs_cum_last   = now;
+
+    return (long long)((gs_cum_ticks * 4096ll) / (long long)freq);
 }
 
 int GsGetVcount(void)
