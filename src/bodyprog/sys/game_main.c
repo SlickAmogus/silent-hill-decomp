@@ -18,9 +18,6 @@ int g_PcMapScreenActive = 0; /* set while paper-map overlay is displayed */
  * clear is only correct on a frame that actually drew the world behind it; on a
  * frame that drew nothing it IS the visible image, which is the grey flash. */
 int g_PcWorldDrawnThisFrame = 0;
-/* How many consecutive frames have drawn the world, sampled at the frame
- * reset so the Hor+ gate can read it before this frame's draw happens. */
-int g_PcWorldDrawnStreak = 0;
 
 /* The framing the WORLD was last actually drawn with. HUD elements that lay
  * themselves out earlier in the frame than the world is submitted (the minimap
@@ -2242,6 +2239,9 @@ void MainLoop(void) // 0x80032EE0
             if (g_GameWork.gameState == GameState_InGame) {
                 if (g_PcGodMode)
                     g_SysWork.playerWork.player.health = Q12(100.0f);
+                /* Mirror the toggle into PsyCross's vsync-skip flag so the
+                 * frame pacing and the game clock agree on one source. */
+                { extern int g_skipSwapInterval; g_skipSwapInterval = g_PcFastForward ? 1 : 0; }
                 if (g_DebugNoTarget) {
                     g_SysWork.playerWork.player.flags |= CharaFlag_Unk4;
                     g_SysWork.playerWork.player.properties.player.timer_110 = Q12(0.0f);
@@ -2422,7 +2422,6 @@ void MainLoop(void) // 0x80032EE0
         { extern int g_PcPuzzleItemDepth; g_PcPuzzleItemDepth = 0; }
         /* Re-armed by the single Gfx_InGameDraw call site during this frame's
          * state update, and read by the clear-color choice further down. */
-        g_PcWorldDrawnStreak = g_PcWorldDrawnThisFrame ? (g_PcWorldDrawnStreak + 1) : 0;
         g_PcWorldDrawnThisFrame = 0;
 #endif
 
@@ -3130,11 +3129,11 @@ void MainLoop(void) // 0x80032EE0
              * of the 300ms with the world already back on screen, which
              * stretched the picture for several frames after examining an
              * object. Two consecutive world frames means the 2D screen is
-             * genuinely finished, not blinking between images, so end it.
-             * One frame is deliberately not enough: a single world frame can
-             * appear inside a swap gap, and that is the flash the hold is
-             * there to absorb. */
-            if (bg2dHeld && g_Pc2dBackgroundActive <= 0 && g_PcWorldDrawnStreak >= 2)
+             * genuinely finished. This gate runs AFTER the state dispatch, so
+             * g_PcWorldDrawnThisFrame already reflects THIS frame -- the hold
+             * ends on the very first world frame and nothing is stretched at
+             * all. Waiting for a second frame left two stretched ones. */
+            if (bg2dHeld && g_Pc2dBackgroundActive <= 0 && g_PcWorldDrawnThisFrame)
             {
                 s_bg2dHoldUntilMs = 0;
                 bg2dHeld          = 0;

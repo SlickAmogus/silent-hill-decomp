@@ -367,6 +367,21 @@ static void Pc_WideShotYawFix(void)
     /* Increasing yaw turns right (the look vector is built from sin/cos of it,
      * matching the free camera's mouse-right handling). */
     vcWork.cam_mat_ang.vy = (s16)((vcWork.cam_mat_ang.vy + delta) & 0xFFF);
+
+    /* Reported ONCE per session, not per frame: without it there is no way to
+     * tell 'the shot did not match' from 'it matched but the angle is too
+     * small'. delta is Q12 (4096 = 360 degrees). */
+    {
+        static int s_reported = 0;
+        if (!s_reported)
+        {
+            s_reported = 1;
+            SH_DBG("[WIDESHOT] map=%d room=%d half43=%d halfWide=%d dist=%d delta=%d (%d.%02d deg)",
+                   (int)g_SavegamePtr->mapIdx, (int)g_SavegamePtr->mapRoomIdx,
+                   (int)h43, (int)hWide, (int)dist, (int)delta,
+                   (int)((delta * 360) / 4096), (int)((((delta * 360) % 4096) * 100) / 4096));
+        }
+    }
 }
 #endif
 
