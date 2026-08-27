@@ -1412,6 +1412,15 @@ void DbgOverlay_Update(void)
     extern int g_PcAllowDebugControls;
 
     const unsigned char* ks = SDL_GetKeyboardState(NULL);
+    /* PsyCross owns Ctrl+<key> for its renderer diagnostics (Ctrl+F1
+     * wireframe, Ctrl+F2 textureless, Ctrl+F5 fast-forward, Ctrl+F10 VRAM
+     * dump, Ctrl+F12 screenshot). The game-side binds below read the same raw
+     * key state, so without this every one of those shortcuts ALSO fired the
+     * game's action on the same key -- Ctrl+F1 toggled PGXP while it toggled
+     * wireframe. Suppress the ACTION only: the edge state below still tracks
+     * the physical key, so letting go of Ctrl while the key is still held
+     * cannot manufacture a fresh press. */
+    const int ctrlHeld = (SDL_GetModState() & KMOD_CTRL) ? 1 : 0;
     if (!ks) return;
 
     /* First Update runs inside MainLoop — arm the top-left message toast now so
@@ -1735,7 +1744,7 @@ void DbgOverlay_Update(void)
     {
         static int s_prev_f1 = 0;
         int cur_f1 = ks[SDL_SCANCODE_F1];
-        if (cur_f1 && !s_prev_f1) {
+        if (cur_f1 && !s_prev_f1 && !ctrlHeld) {
             extern int g_PsxUsePgxp;
             g_PsxUsePgxp = !g_PsxUsePgxp;
             g_PcConfig.usePgxp = g_PsxUsePgxp ? 1 : 0;
@@ -1760,7 +1769,7 @@ void DbgOverlay_Update(void)
             s_quickRes = 1;
         }
         curQuick = (s_scQuick != SDL_SCANCODE_UNKNOWN) ? ks[s_scQuick] : 0;
-        if (curQuick && !s_prevQuick && !g_PcConsoleInputActive &&
+        if (curQuick && !s_prevQuick && !ctrlHeld && !g_PcConsoleInputActive &&
             g_GameWork.gameState == GameState_InGame) {
             extern void Pc_QuickOptions_Toggle(void);
             Pc_QuickOptions_Toggle();
@@ -1774,7 +1783,7 @@ void DbgOverlay_Update(void)
     {
         static int s_prev_f2 = 0;
         int cur_f2 = ks[SDL_SCANCODE_F2];
-        if (cur_f2 && !s_prev_f2) {
+        if (cur_f2 && !s_prev_f2 && !ctrlHeld) {
             extern int g_cfg_postProcess;
             static const char* const s_postNames[] = {
                 "Off", "CRT", "Scanlines", "Vignette", "Color Grade",
@@ -1796,7 +1805,7 @@ void DbgOverlay_Update(void)
     {
         static int s_prev_f3 = 0;
         int cur_f3 = ks[SDL_SCANCODE_F3];
-        if (cur_f3 && !s_prev_f3) {
+        if (cur_f3 && !s_prev_f3 && !ctrlHeld) {
             extern int g_cfg_tonemap;
             static const char* const s_toneNames[] = { "Off", "Reinhard", "ACES", "Filmic" };
             const int count = (int)(sizeof(s_toneNames) / sizeof(s_toneNames[0]));
@@ -1814,7 +1823,7 @@ void DbgOverlay_Update(void)
     {
         static int s_prev_f4 = 0;
         int cur_f4 = ks[SDL_SCANCODE_F4];
-        if (cur_f4 && !s_prev_f4) {
+        if (cur_f4 && !s_prev_f4 && !ctrlHeld) {
             Pc_FlashlightModeApply((g_PcConfig.flashlightMode + 1) & 3, 1);
             SH_DBG_ECHO("F4 Flashlight: %s",
                         Pc_FlashlightModeLabel(g_PcConfig.flashlightMode));
