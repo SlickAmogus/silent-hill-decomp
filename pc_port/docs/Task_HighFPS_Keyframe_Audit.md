@@ -1,6 +1,6 @@
 # Task: audit exact-keyframe equality triggers for high-FPS multi-fire
 
-**Status:** not started. Self-contained — a fresh session can start here.
+**Status:** DONE 2026-08-26. All 19 sites classified; one fix made.
 **Owner:** unassigned. **Risk:** low (each fix is a latch, no behaviour change at 30 fps).
 
 ## The bug class, and why it is real
@@ -93,3 +93,29 @@ in PR #114.
 - `project_combat_status_jun2026` memory — the FPS decision-cadence class and the PR #114 rejection.
 - `project_freeaim_fsm_handoff_class` memory — the 2-bullets-per-shot precedent.
 - Grey Child commit-rate fix `7c6394556` — the *decision cadence* sibling of this class.
+
+## Result (2026-08-26)
+
+All 19 sites classified. **17 needed no change**, and the classification is why:
+
+- **Self-latching (9):** the block sets `controlState` / `anim.status` before it can be
+  re-entered -- cybil.c:337, dahlia.c:253/315, ghost_child_alessa.c:100, lisa.c:158,
+  monster_cybil.c:598, stalker.c:475, plus cybil.c:527 and romper.c:1045 which carry
+  their own one-shot flags (`sharedData_800E237C_0_s01`, `RomperFlag_9`).
+- **Idempotent (7):** an if/else that assigns a value, so re-running writes the same
+  thing -- hanged_scratcher.c:746/945/1238, monster_cybil.c:1720, stalker.c:385,
+  air_screamer.c:12912 (a duration getter), split_head.c:95 (range + `field_108[1]`).
+- **Compounding (2):**
+  - `monster_cybil.c:698` -- **FIXED**. Spawned a weapon attack via `func_8006342C`
+    with no guard and no state change: 2x at 60fps, 4x at 120. Cybil's sibling call
+    guards the same function with a one-shot flag; this one had nothing. Now fires on
+    the keyframe ENTRY edge.
+  - `split_head.c:386` -- **left alone, deliberately**. `func_8005F6B0` was verified
+    not to touch health anywhere in its body (it reads `extraBloodColor`); it is the
+    blood-decal routine, so double-firing is two splatters. All four `field_108[]`
+    latch slots are already used, so fixing it needs a new props field for a cosmetic
+    gain.
+
+**Scope note:** this audit covered exact-keyframe equality triggers only. It does not
+address other high-fps complaints -- decision cadence and frame counters are a separate
+class (see `project_combat_status_jun2026`).
