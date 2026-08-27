@@ -164,6 +164,11 @@ int g_PcGodMode = 0;             /* 1 = god mode: no combat damage + health held
 int g_DebugNoFloorCollision = 0; /* 0 = floor collision on, always on (toggle removed) */
 int g_DebugThirdPersonCam = 0;   /* 0 = game camera, 1 = static third-person follow cam */
 int g_DebugNoTarget = 0;         /* 0 = normal AI detection, 1 = enemies ignore Harry */
+/* Quick options fast-forward TOGGLE. Separate from PsyCross's
+ * g_skipSwapInterval, which the Ctrl+F5 hold owns and clears on key-up:
+ * sharing one variable would let a key release cancel a menu toggle. The
+ * game clock speeds up when EITHER is set. */
+int g_PcFastForward = 0;
 int g_DebugAnimKfView = 0;       /* 1 = freeze Harry's whole skeleton on g_DebugAnimKf for keyframe inspection */
 int g_DebugAnimKf = 588;         /* absolute keyframe index posed while g_DebugAnimKfView is on (588 = gun-forward) */
 int g_DebugAnimKfMax = 0;        /* keyframeCount of Harry's active anim header, published by Player_Update for the inspector panel */
@@ -2220,6 +2225,17 @@ void MainLoop(void) // 0x80032EE0
         {
             extern int g_PcGodMode;
             extern int g_DebugNoTarget;
+            extern int g_PcFastForward;
+            /* Fast-forward must not survive Harry dying -- running the death
+             * and game-over sequence at speed is disorienting and easy to
+             * leave switched on by accident. Checked outside the InGame
+             * guard below so it still clears once the state has moved on. */
+            if (g_PcFastForward &&
+                (g_SysWork.playerWork.player.health <= Q12(0.0f) ||
+                 g_SysWork.sysState == SysState_GameOver))
+            {
+                g_PcFastForward = 0;
+            }
             if (g_GameWork.gameState == GameState_InGame) {
                 if (g_PcGodMode)
                     g_SysWork.playerWork.player.health = Q12(100.0f);

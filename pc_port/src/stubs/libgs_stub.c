@@ -187,6 +187,7 @@ static Uint64 gs_cum_epoch = 0;
  * from this one value. */
 #define GS_FASTFORWARD_SCALE 4
 extern int g_skipSwapInterval; /* PsyCross: held while Ctrl+F5 is down */
+extern int g_PcFastForward;    /* quick options: sticky toggle */
 static Uint64    gs_cum_last  = 0;
 static long long gs_cum_ticks = 0;
 
@@ -231,7 +232,7 @@ long long GsGetCumulativeQ12(void)
         gs_cum_last = gs_cum_epoch;
     }
     gs_cum_ticks += (long long)(now - gs_cum_last) *
-                    (g_skipSwapInterval ? GS_FASTFORWARD_SCALE : 1);
+                    ((g_skipSwapInterval || g_PcFastForward) ? GS_FASTFORWARD_SCALE : 1);
     gs_cum_last   = now;
 
     return (long long)((gs_cum_ticks * 4096ll) / (long long)freq);

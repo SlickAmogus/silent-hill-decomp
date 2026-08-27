@@ -28,6 +28,9 @@
 extern int  g_PcGodMode;
 extern int  g_DebugNoWallCollision;
 extern int  g_DebugNoTarget;
+extern int  g_PcFastForward;      /* toggle; Ctrl+F5 hold is separate */
+extern int  g_dbg_wireframeMode;  /* PsyCross renderer debug (also Ctrl+F1) */
+extern int  g_dbg_texturelessMode;/* PsyCross renderer debug (also Ctrl+F2) */
 extern int  g_DebugAnimKfView;
 extern int  g_DebugCamEnabled;
 extern int  g_DebugFogDisabled;
@@ -159,6 +162,13 @@ static const CheatRow s_debug[] = {
     { "Collision visualizer", CH_TOGGLE,  &g_CollVisEnabled,  NULL },
     { "Fog (free cam)",       CH_TOGGLE,  &g_DebugFogDisabled, NULL },
     { "Keyframe viewer (K)",  CH_TOGGLE,  &g_DebugAnimKfView, NULL },
+    /* Also on Ctrl+F5 / Ctrl+F1 / Ctrl+F2. The key and the row drive the same
+     * state, except fast-forward, where the key is a HOLD and this row is a
+     * sticky toggle -- they use separate flags so releasing the key cannot
+     * cancel the toggle. The toggle clears itself if Harry dies. */
+    { "Fast forward (Ctrl+F5)", CH_TOGGLE, &g_PcFastForward,     NULL },
+    { "Wireframe (Ctrl+F1)",  CH_TOGGLE,  &g_dbg_wireframeMode,  NULL },
+    { "No textures (Ctrl+F2)", CH_TOGGLE, &g_dbg_texturelessMode, NULL },
     { "Spawn",                CH_SPAWN,   NULL, NULL },
     { "Log Harry position",   CH_ACTION,  NULL, act_log_position },
     { "Log camera shot",      CH_ACTION,  NULL, act_log_camera },
