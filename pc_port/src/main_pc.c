@@ -1192,10 +1192,20 @@ int main(int argc, char* argv[])
         SH_LOG("Display aspect: %s", g_PsxAspectRaw ? "raw (framebuffer par)" : "crt (stretched to 4:3)");
     }
 
+        {
+            /* Spatial output: the software SPU keeps its exact synthesis and
+             * reverb, but its per-voice taps are placed by OpenAL instead of
+             * being downmixed to stereo, so surround layouts finally get the
+             * accurate reverb. Ignored by the legacy backend. */
+            extern void PsyX_SPUAL_ConfigureSpatial(int enable, int speakers);
+            PsyX_SPUAL_ConfigureSpatial(
+                (PcAudioConfig_UsesSoftwareSpu() && g_PcAudioConfig.spatial) ? 1 : 0,
+                g_PcConfig.audioOutput);
+        }
         if (PcAudioConfig_UsesSoftwareSpu()) {
-            SH_LOG("Software SPU output: renderer=%d backend=%d mode=%d rate=%d bit-perfect=%d",
+            SH_LOG("Software SPU output: renderer=%d backend=%d mode=%d rate=%d bit-perfect=%d spatial=%d",
                    g_PcAudioConfig.renderer, g_PcAudioConfig.backend, g_PcAudioConfig.mode,
-                   g_PcAudioConfig.rate, g_PcAudioConfig.bitPerfect);
+                   g_PcAudioConfig.rate, g_PcAudioConfig.bitPerfect, g_PcAudioConfig.spatial);
         } else {
             extern void PsyX_SPUAL_SetAdsrEnabled(int on);
             extern void PsyX_SPUAL_SetReverbDepthScale(float scale);

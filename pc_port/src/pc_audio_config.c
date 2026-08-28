@@ -7,7 +7,7 @@
 #include <string.h>
 
 PcAudioConfig g_PcAudioConfig = {
-    PC_SPU_RENDERER_LEGACY, 0, 0, 0, 0, 1, 0, 0
+    PC_SPU_RENDERER_LEGACY, 0, 0, 0, 0, 1, 0, 0, 0
 };
 
 static char* Trim(char* text)
@@ -90,6 +90,8 @@ void PcAudioConfig_Load(const char* path)
                 rate == 44100 || rate == 88200 || rate == 176400 ||
                 rate == 352800 ? rate : 0;
         }
+        else if (strcmp(key, "audio_spatial") == 0)
+            g_PcAudioConfig.spatial = atoi(value) != 0;
         else if (strcmp(key, "audio_bit_perfect") == 0)
             g_PcAudioConfig.bitPerfect = atoi(value) != 0;
     }
