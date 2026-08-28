@@ -126,7 +126,10 @@ static const QoRowDef* qo_cheat_page(int cpage, const char* nextLabel, int* coun
     return s_cheatRows[cpage];
 }
 
-static const QoRowDef* qo_page_rows(int page, int* count)
+/* The desktop pages, which stay the source of truth for WHAT is offered and in
+ * what order. Mobile re-chunks these rather than keeping a second set of tables
+ * that would drift. */
+static const QoRowDef* qo_section_rows(int page, int* count)
 {
     if (page == 1) { *count = (int)(sizeof(s_page1) / sizeof(s_page1[0])); return s_page1; }
     if (page == 2) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
@@ -138,6 +141,123 @@ static const QoRowDef* qo_page_rows(int page, int* count)
 static const char* const s_pageTitles[QO_PAGES] = {
     "QUICK OPTIONS  -  GRAPHICS", "QUICK OPTIONS  -  HUD & AUDIO",
     "QUICK OPTIONS  -  CHEATS",   "QUICK OPTIONS  -  DEBUG" };
+
+/* ------------------------------------------------------------------ */
+/* Mobile pagination                                                   */
+/* ------------------------------------------------------------------ */
+/* A desktop page carries up to fourteen rows. Divided into a phone-height
+ * panel that is a ~50px stripe per row -- unreadable, and far below the ~44pt
+ * minimum a fingertip can reliably hit. So on a touch target the SAME row
+ * definitions are re-chunked into many short pages instead: five settings plus
+ * the two navigation rows, each row then getting a seventh of the list.
+ *
+ * Chunked WITHIN a section, never across one, so a page is never half Graphics
+ * and half Audio; the title carries "(2/3)" to say where you are inside it.
+ * The desktop tables stay the single source of truth for what is offered and in
+ * what order -- a parallel set of mobile tables would drift the first time
+ * someone added a row to one and not the other. */
+#if defined(SH_IOS) || defined(__ANDROID__)
+#define QO_MOBILE 1
+#endif
+
+#if defined(QO_MOBILE)
+
+#define QO_M_CONTENT 5   /* settings per page, before the two nav rows */
+
+static QoRowDef s_mRows[QO_M_CONTENT + 2];
+static char     s_mTitle[96];
+
+/* Every section ends with exactly ROW_PAGE then ROW_CLOSE (see the tables and
+ * qo_cheat_page), so the settings are everything before the last two. */
+static int qo_sec_content(int sec)
+{
+    int n;
+    (void)qo_section_rows(sec, &n);
+    return (n > 2) ? (n - 2) : 0;
+}
+
+static int qo_sec_chunks(int sec)
+{
+    const int c = qo_sec_content(sec);
+    return (c > 0) ? ((c + QO_M_CONTENT - 1) / QO_M_CONTENT) : 1;
+}
+
+static void qo_locate(int page, int* sec, int* chunk, int* chunks)
+{
+    int s, acc = 0;
+
+    for (s = 0; s < QO_PAGES; s++)
+    {
+        const int k = qo_sec_chunks(s);
+
+        if (page < acc + k)
+        {
+            *sec = s; *chunk = page - acc; *chunks = k;
+            return;
+        }
+        acc += k;
+    }
+
+    *sec = 0; *chunk = 0; *chunks = 1;
+}
+
+static int qo_page_count(void)
+{
+    int s, t = 0;
+
+    for (s = 0; s < QO_PAGES; s++)
+        t += qo_sec_chunks(s);
+
+    return (t > 0) ? t : 1;
+}
+
+static const QoRowDef* qo_page_rows(int page, int* count)
+{
+    const QoRowDef* src;
+    int n, sec, chunk, chunks, base, i, k = 0;
+
+    qo_locate(page, &sec, &chunk, &chunks);
+    src  = qo_section_rows(sec, &n);
+    base = chunk * QO_M_CONTENT;
+
+    for (i = 0; i < QO_M_CONTENT && (base + i) < (n - 2); i++)
+        s_mRows[k++] = src[base + i];
+
+    memset(&s_mRows[k], 0, sizeof(s_mRows[k]));
+    s_mRows[k].kind  = ROW_PAGE;
+    s_mRows[k].label = "Next page";
+    k++;
+
+    memset(&s_mRows[k], 0, sizeof(s_mRows[k]));
+    s_mRows[k].kind  = ROW_CLOSE;
+    s_mRows[k].label = "Close";
+    k++;
+
+    *count = k;
+    return s_mRows;
+}
+
+static const char* qo_page_title(int page)
+{
+    int sec, chunk, chunks;
+
+    qo_locate(page, &sec, &chunk, &chunks);
+    if (chunks > 1)
+        snprintf(s_mTitle, sizeof(s_mTitle), "%s  (%d/%d)",
+                 s_pageTitles[sec], chunk + 1, chunks);
+    else
+        snprintf(s_mTitle, sizeof(s_mTitle), "%s", s_pageTitles[sec]);
+
+    return s_mTitle;
+}
+
+#else /* desktop: the sections ARE the pages */
+
+#define qo_page_count()   QO_PAGES
+#define qo_page_rows      qo_section_rows
+#define qo_page_title(p)  (s_pageTitles[p])
+
+#endif
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -173,6 +293,12 @@ static int            s_fontsTried;
  * re-baked whenever their text changes. */
 static GLuint s_texTitle, s_texHint;
 static int    s_titleW, s_titleH, s_hintW, s_hintH;
+#if defined(QO_MOBILE)
+/* Stepper marks for the tap halves. Baked ONCE and reused by every row --
+ * two atlas slots for the whole panel, not two per row. */
+static GLuint s_texDec, s_texInc;
+static int    s_decW, s_decH, s_incW, s_incH;
+#endif
 static GLuint s_texLabel[QO_MAX_ROWS];
 static int    s_labelW[QO_MAX_ROWS], s_labelH[QO_MAX_ROWS];
 static GLuint s_texValue[QO_MAX_ROWS];
@@ -784,6 +910,10 @@ static void qo_free_text(void)
     s_texCursor = 0; /* re-uploaded on the next draw */
     qo_retire(s_texTitle); s_texTitle = 0;
     qo_retire(s_texHint);  s_texHint  = 0;
+#if defined(QO_MOBILE)
+    qo_retire(s_texDec); s_texDec = 0;
+    qo_retire(s_texInc); s_texInc = 0;
+#endif
     for (i = 0; i < QO_MAX_ROWS; i++)
     {
         qo_retire(s_texLabel[i]); s_texLabel[i] = 0;
@@ -1040,7 +1170,10 @@ static void qo_set_page(int page)
 {
     int n;
     s_ddRow = -1;
-    s_page = (page + QO_PAGES) % QO_PAGES;
+    {
+        const int nPages = qo_page_count();
+        s_page = ((page % nPages) + nPages) % nPages;
+    }
     qo_page_rows(s_page, &n);
     if (s_sel >= n) s_sel = n - 1;
     if (s_sel < 0)  s_sel = 0;
@@ -1248,6 +1381,19 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
                     if (s_ddScroll < 0) s_ddScroll = 0;
                     s_ddShown  = 0;
                 }
+#if defined(QO_MOBILE)
+                else if (QO_IS_VALUE_ROW(rows[row].kind))
+                {
+                    /* A finger has no right button and no wheel, so a value row
+                     * becomes a stepper: the half you tap is the direction it
+                     * moves, matching left/right on a pad. Without this a touch
+                     * player can only ever cycle a setting FORWARDS, which means
+                     * walking a slider all the way around to go back one step.
+                     * The chevrons drawn on the row say which half is which. */
+                    qo_activate(&rows[row],
+                                mpx < (s_geoPanelL + s_geoPanelR) * 0.5f ? -1 : +1);
+                }
+#endif
                 else
                     qo_confirm(&rows[row]);
             }
@@ -1402,6 +1548,17 @@ void Pc_QuickOptions_Draw(void)
         }
     }
 
+#if defined(QO_MOBILE)
+    /* Fills the screen. The desktop panel is a small left-anchored box you can
+     * drag aside to watch the scene while tuning; neither half of that makes
+     * sense on a phone, where there is no second place to look and no cursor to
+     * drag with. Centred, and deliberately not draggable -- a drag here is the
+     * page swipe. */
+    panelW = 0.94f * vpW;
+    panelH = 0.90f * vpH;
+    panelL = (vpW - panelW) * 0.5f;
+    panelB = (vpH - panelH) * 0.5f;
+#else
     /* Layout (viewport px, origin bottom-left). Left-anchored rather than
      * centred so the scene stays visible beside it while you tune. */
     panelH = 0.74f * vpH;
@@ -1425,6 +1582,7 @@ void Pc_QuickOptions_Draw(void)
         if (panelB < minB) { s_panelOfsY += minB - panelB; panelB = minB; }
         if (panelB > maxB) { s_panelOfsY += maxB - panelB; panelB = maxB; }
     }
+#endif
 
     panelR = panelL + panelW;
     panelT = panelB + panelH;
@@ -1439,6 +1597,18 @@ void Pc_QuickOptions_Draw(void)
     rowH     = rowPitch * 0.84f;
     px       = (int)(rowH * 0.52f);
     if (px < 8) px = 8;
+#if defined(QO_MOBILE)
+    /* Rows are enormous on a phone and 0.52 of one would ask for ~80px text.
+     * Every baked string shares ONE 2048x1024 atlas, and qo_upload_rgba returns
+     * 0 when it fills -- which draws nothing at all rather than complaining. At
+     * 80px a long cheat label is ~800x100, so a page of sixteen strings plus
+     * the title would not fit and labels would silently start vanishing.
+     *
+     * 56px is ~19pt on a 3x panel: comfortably readable, and it keeps a page
+     * inside about a quarter of the atlas. The touch TARGET is the row, which
+     * stays full height regardless of how tall the glyphs are. */
+    if (px > 56) px = 56;
+#endif
 
     if (s_bakedForPx != px || s_bakedForPage != s_page)
     {
@@ -1447,7 +1617,11 @@ void Pc_QuickOptions_Draw(void)
         s_bakedForPage = s_page;
     }
     if (!s_texTitle)
-        s_texTitle = qo_bake(s_pageTitles[s_page], (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
+        s_texTitle = qo_bake(qo_page_title(s_page), (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
+#if defined(QO_MOBILE)
+    if (!s_texDec) s_texDec = qo_bake("-", (float)px, &s_decW, &s_decH);
+    if (!s_texInc) s_texInc = qo_bake("+", (float)px, &s_incW, &s_incH);
+#endif
     /* Controls footer. It used to run off-screen at some panel widths, so bake
      * it once at the natural size and, if it overflows, re-bake once scaled to
      * fit -- the text always ends up inside the panel whatever its width. */
@@ -1579,6 +1753,25 @@ void Pc_QuickOptions_Draw(void)
                 qo_quad(s_texValue[i], NX(vr), NY(tY), NX(vr + s_valueW[i]), NY(tY - tH),
                         vg, vg * 0.85f, vg * 0.45f, dim);
             }
+#if defined(QO_MOBILE)
+            /* Say which half does what. The row is a stepper on touch: tap the
+             * left of it to go down, the right to go up. Drawn in the padding
+             * outside the label and the value so nothing overlaps, and dimmed
+             * on unselected rows so the page does not read as a wall of
+             * symbols. */
+            {
+                const float mg = (i == s_sel) ? 0.95f : 0.45f;
+
+                if (s_texDec)
+                    qo_quad(s_texDec, NX(panelL + pad * 0.12f), NY(rowMid + s_decH * 0.5f),
+                            NX(panelL + pad * 0.12f + s_decW), NY(rowMid - s_decH * 0.5f),
+                            mg, mg, mg, dim);
+                if (s_texInc)
+                    qo_quad(s_texInc, NX(panelR - pad * 0.12f - s_incW), NY(rowMid + s_incH * 0.5f),
+                            NX(panelR - pad * 0.12f), NY(rowMid - s_incH * 0.5f),
+                            mg, mg, mg, dim);
+            }
+#endif
         }
         else if (s_texLabel[i])
         {
