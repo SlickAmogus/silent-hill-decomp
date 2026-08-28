@@ -230,6 +230,10 @@ typedef struct {
      * does, the default), 1 = raw (the framebuffer at the `par` knob's pixel
      * aspect, faithful to the game's own numbers). */
     int   aspectRaw;
+    /* crt_aspect_trim: multiplies the 4:3 target of display_aspect = crt.
+     * 1.0 (or unset) is a textbook 4:3; below 1.0 gives taller, thinner
+     * figures. Console: crtaspect. */
+    float crtAspectTrim;
     float reverbScale;      /* reverb depth->wet mapping scale, 0 = leave PsyCross default (2.0) (config key: reverb_scale) */
     float mouseSensitivity;      /* mouse-look sensitivity multiplier for TPS/OTS/FPS cameras, 0.1..4.0; default 1.0 (config key: mouse_sensitivity) */
     float controllerSensitivity; /* right-stick look sensitivity multiplier for TPS/OTS/FPS cameras, 0.1..4.0; default 1.0 (config key: controller_sensitivity) */

@@ -1190,6 +1190,18 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PsxPixelAspect;
         if (arg[0]) g_PsxPixelAspect = (float)atof(arg);
         cprintf("pixel aspect compensation: %.4f (15/14 = 1.0714 is the 4:3 picture; 1.0 = square pixels)", g_PsxPixelAspect);
+    } else if (strcmp(cmd, "CRTASPECT") == 0) {
+        /* Trim on the 4:3 CRT picture (display_aspect = crt). 1.0 = textbook
+         * 4:3. The target assumes the 224-line frame fills the screen height,
+         * but a console puts 224 active lines inside a 240-line window and sets
+         * overscan differently, so the truth is a few percent either way. Judge
+         * it on Harry, not on a corridor: below 1.0 makes him taller/thinner. */
+        extern float g_PsxCrtAspectTrim;
+        if (arg[0]) g_PsxCrtAspectTrim = (float)atof(arg);
+        if (g_PsxCrtAspectTrim < 0.5f) g_PsxCrtAspectTrim = 0.5f;
+        if (g_PsxCrtAspectTrim > 1.5f) g_PsxCrtAspectTrim = 1.5f;
+        cprintf("crt aspect trim: %.4f (1.0 = 4:3; lower = taller/thinner figures)",
+                g_PsxCrtAspectTrim);
     } else if (strcmp(cmd, "CAMSNAP") == 0) {
         extern void Pc_CamSnapDump(void);
         Pc_CamSnapDump();

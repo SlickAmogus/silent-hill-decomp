@@ -900,6 +900,10 @@ void PcConfig_Load(const char* path)
             if (v > 110.0f) v = 110.0f;
             g_PcConfig.fpsFov = v;
         }
+        else if (strcmp(key, "crt_aspect_trim") == 0)
+        {
+            g_PcConfig.crtAspectTrim = (float)atof(value);
+        }
         else if (strcmp(key, "display_aspect") == 0)
         {
             g_PcConfig.aspectRaw = (strcmp(value, "raw") == 0 ||

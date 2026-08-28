@@ -1189,6 +1189,12 @@ int main(int argc, char* argv[])
          * keeps the framebuffer at the `par` pixel aspect instead. */
         extern int g_PsxAspectRaw;
         g_PsxAspectRaw = g_PcConfig.aspectRaw ? 1 : 0;
+        {
+            /* Unset (0) means no trim, not a zero-width picture. */
+            extern float g_PsxCrtAspectTrim;
+            if (g_PcConfig.crtAspectTrim > 0.0f)
+                g_PsxCrtAspectTrim = g_PcConfig.crtAspectTrim;
+        }
         SH_LOG("Display aspect: %s", g_PsxAspectRaw ? "raw (framebuffer par)" : "crt (stretched to 4:3)");
     }
 
