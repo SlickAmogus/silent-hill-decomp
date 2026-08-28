@@ -900,6 +900,11 @@ void PcConfig_Load(const char* path)
             if (v > 110.0f) v = 110.0f;
             g_PcConfig.fpsFov = v;
         }
+        else if (strcmp(key, "display_aspect") == 0)
+        {
+            g_PcConfig.aspectRaw = (strcmp(value, "raw") == 0 ||
+                                    strcmp(value, "accurate") == 0) ? 1 : 0;
+        }
         else if (strcmp(key, "reverb_scale") == 0)
         {
             g_PcConfig.reverbScale = (float)atof(value);

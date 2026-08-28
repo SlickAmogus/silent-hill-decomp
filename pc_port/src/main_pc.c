@@ -1183,6 +1183,15 @@ int main(int argc, char* argv[])
                                          g_PcAudioConfig.modernDither))
             SH_ERR("Invalid SPU renderer configuration; audio startup will fail");
 
+    {
+        /* A television scans the framebuffer out to 4:3 whatever its line
+         * count, which is the picture these games were composed on. raw
+         * keeps the framebuffer at the `par` pixel aspect instead. */
+        extern int g_PsxAspectRaw;
+        g_PsxAspectRaw = g_PcConfig.aspectRaw ? 1 : 0;
+        SH_LOG("Display aspect: %s", g_PsxAspectRaw ? "raw (framebuffer par)" : "crt (stretched to 4:3)");
+    }
+
         if (PcAudioConfig_UsesSoftwareSpu()) {
             SH_LOG("Software SPU output: renderer=%d backend=%d mode=%d rate=%d bit-perfect=%d",
                    g_PcAudioConfig.renderer, g_PcAudioConfig.backend, g_PcAudioConfig.mode,
