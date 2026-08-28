@@ -742,6 +742,34 @@ static int spawn_chara_anim_ready(s32 charaId)
            g_CharaModelAnimsData[idx].activeAnmHdr != NULL;
 }
 
+static void cmd_spawn(const char* arg);
+
+/* Quick options > Debug "Spawn" row: browse SPAWN_CHARAS and fire cmd_spawn
+ * for the pick, so the row and the console command are one code path. */
+int Pc_SpawnList_Count(void)
+{
+    return (int)(sizeof(SPAWN_CHARAS) / sizeof(SPAWN_CHARAS[0]));
+}
+
+const char* Pc_SpawnList_Name(int i)
+{
+    if (i < 0 || i >= Pc_SpawnList_Count()) return "";
+    return SPAWN_CHARAS[i].name;
+}
+
+int Pc_SpawnList_Ready(int i)
+{
+    if (i < 0 || i >= Pc_SpawnList_Count()) return 0;
+    return spawn_chara_model_ready(SPAWN_CHARAS[i].charaId) &&
+           spawn_chara_anim_ready(SPAWN_CHARAS[i].charaId);
+}
+
+void Pc_SpawnList_Spawn(int i)
+{
+    if (i < 0 || i >= Pc_SpawnList_Count()) return;
+    cmd_spawn(SPAWN_CHARAS[i].name);
+}
+
 static void cmd_spawn(const char* arg)
 {
     char nm[32];
@@ -1134,20 +1162,37 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "VFOV") == 0) {
         extern float g_PsxWorldVScale;
         if (arg[0]) g_PsxWorldVScale = (float)atof(arg);
-        cprintf("world vertical FOV scale: %.3f (1.0=off; ~0.872 matches DuckStation)", g_PsxWorldVScale);
+        cprintf("world vertical FOV scale: %.3f (1.0=off; vertical crop/zoom of the world)", g_PsxWorldVScale);
     } else if (strcmp(cmd, "CUTFOV") == 0) {
-        /* Vertical FOV scale for the 3D world DURING CUTSCENES only. Default 1.0
-         * = full vertical (matches DuckStation); the gameplay 0.872 crop
-         * over-zoomed cutscene shots and cut heads off the top. */
+        /* EXPLICIT cutscene vertical scale override; 0 (default) = cutscenes
+         * follow the gameplay vfov crop. Defaulting this to 1.0 once shipped a
+         * squished-cutscene release -- it is a live-tuning knob only. */
         extern float g_PsxCutsceneVScale;
         if (arg[0]) g_PsxCutsceneVScale = (float)atof(arg);
-        cprintf("cutscene vertical FOV scale: %.3f (1.0=full, matches DuckStation)", g_PsxCutsceneVScale);
+        cprintf("cutscene vscale override: %.3f (0=follow vfov, the default)", g_PsxCutsceneVScale);
     } else if (strcmp(cmd, "HFOV") == 0) {
         /* 3D-world horizontal scale (Hor+ only). 1.0 = current behaviour; >1 = wider
          * models, <1 = narrower. Pure tuning/preference knob, default neutral. */
         extern float g_PsxWorldHScale;
         if (arg[0]) g_PsxWorldHScale = (float)atof(arg);
-        cprintf("world horizontal scale: %.3f (1.0=off; >1 wider models, <1 narrower)", g_PsxWorldHScale);
+        cprintf("world horizontal scale: %.3f (1.0=off; >1 wider models, <1 narrower; all 3D modes)", g_PsxWorldHScale);
+    } else if (strcmp(cmd, "VCROPANCHOR") == 0) {
+        /* Where the vfov crop sits: 0 = keep the top rows (default, today's
+         * framing), 0.5 = centred like an overscan crop, 1 = keep the bottom. */
+        extern float g_PsxWorldVCropAnchor;
+        if (arg[0]) g_PsxWorldVCropAnchor = (float)atof(arg);
+        if (g_PsxWorldVCropAnchor < 0.0f) g_PsxWorldVCropAnchor = 0.0f;
+        if (g_PsxWorldVCropAnchor > 1.0f) g_PsxWorldVCropAnchor = 1.0f;
+        cprintf("vfov crop anchor: %.2f (0=top/default, 0.5=centred, 1=bottom)", g_PsxWorldVCropAnchor);
+    } else if (strcmp(cmd, "PAR") == 0) {
+        /* PsyCross pixel-aspect compensation (320x224 shown as 4:3 -> 15/14).
+         * Live for A/B only; main_pc.c bakes the correct value at boot. */
+        extern float g_PsxPixelAspect;
+        if (arg[0]) g_PsxPixelAspect = (float)atof(arg);
+        cprintf("pixel aspect compensation: %.4f (15/14 = 1.0714 is the 4:3 picture; 1.0 = square pixels)", g_PsxPixelAspect);
+    } else if (strcmp(cmd, "CAMSNAP") == 0) {
+        extern void Pc_CamSnapDump(void);
+        Pc_CamSnapDump();
     } else if (strcmp(cmd, "VSHIFT") == 0) {
         extern float g_PsxWorldVShift;
         if (arg[0]) g_PsxWorldVShift = (float)atof(arg);
@@ -1188,10 +1233,10 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "SHADOWRES") == 0) {
         /* Flashlight shadow-map resolution. The target is rebuilt on the next
          * frame that needs it, so this takes effect immediately. Clamped to
-         * 256..4096 inside GR_EnsureShadowTarget. */
+         * 256..8192 inside GR_EnsureShadowTarget. */
         extern int g_PsyX_ShadowMapSize;
         if (arg[0]) g_PsyX_ShadowMapSize = atoi(arg);
-        cprintf("flashlight shadow map: %dx%d (256..4096; default 1024)",
+        cprintf("flashlight shadow map: %dx%d (256..8192; default 1024)",
                 g_PsyX_ShadowMapSize, g_PsyX_ShadowMapSize);
     } else if (strcmp(cmd, "CUTSHIFT") == 0) {
         extern float g_PsxCutsceneVShift;

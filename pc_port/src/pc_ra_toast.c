@@ -146,6 +146,9 @@ static void toast_gl_init(void)
         "    gl_Position = vec4(a_pos, 0.0, 1.0);\n"
         "}\n";
     static const char* fs_src =
+        "#ifdef GL_ES\n"
+        "precision mediump float;\n"
+        "#endif\n"
         "varying vec2 v_uv;\n"
         "uniform sampler2D u_tex;\n"
         "uniform vec4 u_color;\n"
@@ -890,6 +893,16 @@ void Pc_RaToast_Draw(void)
     glUseProgram(s_prog);
     glBindVertexArray(s_vao);
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
+    /* Same defect as the quick options panel: the shader samples with a_uv
+     * (attribute 1), and if that array is left disabled or repointed by other
+     * GL code, every vertex samples one texel and each text quad paints a solid
+     * block in its own colour. Re-assert the layout per draw rather than trust
+     * the VAO to have kept it. A 1x1 texture hides this, which is why only the
+     * text ever showed it. */
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
     glUniform1i(s_locTex, 0);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

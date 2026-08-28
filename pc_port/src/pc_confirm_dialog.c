@@ -66,6 +66,10 @@ static GLuint s_texTitle, s_texMsg, s_texYes, s_texNo, s_texHint;
 static int    s_titleW, s_titleH, s_msgW, s_msgH, s_yesW, s_yesH, s_noW, s_noH, s_hintW, s_hintH;
 static int    s_bakedForPx;
 
+/* The game's arrow pointer, decoded from VRAM once. The overlay composites
+ * above the PSX frame, so the PSX-drawn cursor would sit under the dialog. */
+static GLuint s_texCursor;
+
 /* Geometry published by Draw for Update's mouse hit-test (viewport px, y up). */
 static float s_vpW = 1920.0f, s_vpH = 1080.0f;
 static float s_geoBtnL[2], s_geoBtnR[2], s_geoBtnT, s_geoBtnB;
@@ -101,6 +105,9 @@ static void cd_gl_init(void)
         "varying vec2 v_uv;\n"
         "void main() { v_uv = a_uv; gl_Position = vec4(a_pos, 0.0, 1.0); }\n";
     static const char* fs_src =
+        "#ifdef GL_ES\n"
+        "precision mediump float;\n"
+        "#endif\n"
         "varying vec2 v_uv;\n"
         "uniform sampler2D u_tex;\n"
         "uniform vec4 u_color;\n"
@@ -534,6 +541,16 @@ void Pc_ConfirmDialog_Draw(void)
     glUseProgram(s_prog);
     glBindVertexArray(s_vao);
     glBindBuffer(GL_ARRAY_BUFFER, s_vbo);
+    /* Same defect as the quick options panel: the shader samples with a_uv
+     * (attribute 1), and if that array is left disabled or repointed by other
+     * GL code, every vertex samples one texel and each text quad paints a solid
+     * block in its own colour. Re-assert the layout per draw rather than trust
+     * the VAO to have kept it. A 1x1 texture hides this, which is why only the
+     * text ever showed it. */
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glBlendEquation(GL_FUNC_ADD);
@@ -600,6 +617,25 @@ void Pc_ConfirmDialog_Draw(void)
         float hx = panelL + (panelW - (float)s_hintW) * 0.5f;
         float hy = panelB + hintH * 0.78f;
         cd_quad(s_texHint, NX(hx), NY(hy), NX(hx + s_hintW), NY(hy - s_hintH), 0.7f, 0.7f, 0.75f, dim);
+    }
+
+    /* Mouse cursor last, so it rides above the panel. Nearest filtering keeps
+     * the PSX pixel look of the sprite. */
+    if (!s_texCursor)
+    {
+        unsigned char rgba[32 * 32 * 4];
+        if (Pc_MouseCursor_SpriteRgba(rgba))
+        {
+            s_texCursor = cd_upload_rgba(rgba, 32, 32);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        }
+    }
+    if (s_texCursor)
+    {
+        float cx, cy, cw, ch;
+        if (Pc_MouseCursor_GlRect(vpW, vpH, &cx, &cy, &cw, &ch))
+            cd_quad(s_texCursor, NX(cx), NY(cy), NX(cx + cw), NY(cy - ch), 1.0f, 1.0f, 1.0f, 1.0f);
     }
 
 #undef NX

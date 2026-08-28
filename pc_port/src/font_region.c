@@ -392,6 +392,20 @@ void Font_UsePolishLayout(void)
     }
 }
 
+/* Back to the region's pristine base layout. Pc_LangInit is re-entrant (the
+ * options menu re-runs it on every language step) and each run has to derive
+ * fan-patch override vs Polish layout from scratch: EurFanFontInit judges the
+ * disc table against the CURRENT layout's glyph count, and Font_UsePolishLayout
+ * only installs over the untouched EUR base. Left as they were, stepping off
+ * Polish (126 cells) made EurFanFontInit install a 120-cell override, and
+ * stepping back onto Polish then refused the Polish layout -- its letters drew
+ * with zero advance and folded into the next glyph until a restart. */
+void Font_ResetLayout(void)
+{
+    s_PolishLayoutActive = 0;
+    g_FontLayout = (g_GameRegion == Region_EUR) ? &s_FontLayout_EUR : &s_FontLayout_USA;
+}
+
 void Font_ApplyRegionPatches(void)
 {
     s_PolishLayoutActive = 0;

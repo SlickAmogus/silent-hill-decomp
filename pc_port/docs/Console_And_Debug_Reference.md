@@ -139,22 +139,21 @@ Require `allow_debug_controls = 1`. (In-game references: `debug` / `debug 2`.)
 | `K` / `,` `.` | Keyframe inspector; scrub (hold = faster). |
 | `L` | Log the FPS-camera eye offset (for baking `g_PcFpsOffset`). |
 
-**Debug camera** (numpad)
+**Free camera** (also the quick options menu's Cheats page, no dev controls needed there)
 
 | Key | Action |
 |---|---|
-| `Num *` | Free debug camera on/off. |
+| `Num *` | Free camera on/off. Harry stays where he was; his input is ignored while it is on. |
+| Mouse | Look (mouse sensitivity / invert follow the control settings). |
+| `W/A/S/D` | Fly forward / left / back / right, along the view direction. |
+| `Space` / `C` | Move up / down. |
+| `Shift` / `Ctrl` | Fast / slow. |
 | `Num 2` | Third-person chase cam (mouse look). |
-| `Num 8/5/4/6` | Fly forward / back / strafe left / right. |
-| `Num 7 / 9` | Turn left / right. |
-| `Num + / -` | Tilt up / down. |
-| `PgUp / PgDn` | Move up / down. |
-| `Num /` | Print camera coordinates to the log. |
 | `Num 3` | Reset cam nudge / in-game rescue teleport. |
 | `Num 0` | Raw cam mode (zero all nudges). |
 | `Num .` | Log Harry position. |
 
-With the debug cam **off**, the same numpad keys nudge the normal game camera
+With the free camera **off**, the numpad keys nudge the normal game camera
 (live camera-tuning aid).
 
 ---
@@ -179,6 +178,7 @@ Set in `config.cfg` (defaults shown), active in every camera mode:
 | `key_quicksave` | `F6` | Quick save. |
 | `key_quickload` | `F8` | Quick load. |
 | `key_change_cam` | `F9` | Cycle control style (Classic / TPS / OTS). |
+| `key_quick_options` | `F10` | Quick options overlay (in-game): live graphics / HUD / audio settings. |
 | `key_swap_shoulder` | `Mouse3` | Swap the OTS shoulder side. |
 | `key_console` | `` ` `` | Console open/close (tap) / type (hold). |
 
@@ -189,4 +189,5 @@ Set in `config.cfg` (defaults shown), active in every camera mode:
 Many of these also exist as `config.cfg` keys and/or launcher options
 (resolution, vsync, filtering, PGXP, MSAA, post-process, tone-map, flashlight +
 shadows, FPS cap, control style, sensitivities, volumes). The in-game **PC
-Options** menu (3 pages) exposes the common ones live.
+Options** menu (5 pages) exposes the common ones live, and the **F10 quick
+options overlay** exposes the most-used ones without leaving gameplay.

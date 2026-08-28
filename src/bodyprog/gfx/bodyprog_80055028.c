@@ -13,6 +13,31 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
  * at startup; the per-poly cull bounds here must track the same factor PsyCross's
  * Hor+ ortho uses. */
 extern float g_PsxPixelAspect;
+extern float g_PsxWorldHScale;
+
+/* Half-width for full-screen overlay quads (screenBrightness, fog colour).
+ * These used psxAspect=320/240 with no PAR and no hfov, giving halfW ~223 at
+ * 16:9 while the visible half is ~250 -- the additive brightness quad ended in
+ * plain sight as hard-edged dark side bands (user-measured cliff at +/-223.8).
+ * Same bound as the mesh cull / halo border, plus the PSX +10 edge pad. */
+static s16 Pc_OverlayQuadHalfH(void)
+{
+    extern float g_PsxWorldVScale, g_PsxWorldVShift;
+    const float vs = (g_PsxWorldVScale > 1.0f) ? g_PsxWorldVScale : 1.0f;
+    const float sh = (g_PsxWorldVShift < 0.0f) ? -g_PsxWorldVShift : g_PsxWorldVShift;
+    return (s16)(112.0f * vs + sh + 8.0f);
+}
+
+static s16 Pc_OverlayQuadHalfW(void)
+{
+    const float hs = (g_PsxWorldHScale > 0.01f) ? g_PsxWorldHScale : 1.0f;
+    float halfW = (g_PcConfig.windowHeight > 0)
+        ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
+           (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect / hs
+        : 160.0f;
+    if (halfW < 160.0f) halfW = 160.0f;
+    return (s16)(halfW + 10.0f);
+}
 #endif
 
 #include <psyq/gtemac.h>
@@ -133,20 +158,27 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
  * in the otherwise-unused pad2 texcoord short instead (PsyCross's GT4
  * parser reads it into v0's fog). Without this, v0 borrowed v1's fog,
  * giving every floor quad one wrong corner -> visible grid seams. */
+/* Fog 0..127 conversions round rather than truncate. The ramp saturates at
+ * 255 (func_80055A50 returns 255 past its range), so truncation produced 126,
+ * not 127: distant geometry kept ~0.8% of its own colour forever and read as a
+ * faint shape "one shade off" the fog instead of dissolving into it. PSX culled
+ * that geometry at the fog far distance so it never showed; the port draws
+ * further, which is what exposed it. Rounding makes the far end exactly full
+ * fog, so distant objects fade out completely. */
 #define PC_FACE_FOG_VERTS(sd) do { \
     s32 _fa; \
     _fa = (sd)->field_252[(sd)->field_380.s_0.field_10] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
-    poly3->pad2 = (u8)((_fa * 127) >> 12); \
+    poly3->pad2 = (u8)((_fa * 127 + 2048) >> 12); \
     _fa = (sd)->field_252[(sd)->field_380.s_0.field_11] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
-    poly3->p1 = (u8)((_fa * 127) >> 12); \
+    poly3->p1 = (u8)((_fa * 127 + 2048) >> 12); \
     _fa = (sd)->field_252[(sd)->field_380.s_0.field_12] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
-    poly3->p2 = (u8)((_fa * 127) >> 12); \
+    poly3->p2 = (u8)((_fa * 127 + 2048) >> 12); \
     _fa = (sd)->field_252[(sd)->field_380.s_0.field_13] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
-    poly3->p3 = (u8)((_fa * 127) >> 12); \
+    poly3->p3 = (u8)((_fa * 127 + 2048) >> 12); \
 } while(0)
 
 /* Compute fog factor (0-127) from a single screenZ value. Used for character
@@ -160,7 +192,7 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
         if (_idx < 0) _idx = 0; if (_idx > 127) _idx = 127; \
         _fb = g_WorldEnvWork.fogRamp[_idx]; \
     } else { _fb = 255; } \
-    (u8)((_fb * 127) >> 8); \
+    (u8)((_fb * 127 + 128) >> 8); \
 })
 #else
 #define FOG_FAR_DIST() (g_WorldEnvWork.fog.farDistance)
@@ -458,13 +490,9 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
         setSemiTrans(poly, true);
 #ifdef SH_PC_PORT
         {
-            const float psxAspect = 320.0f / 240.0f;
-            const float winAspect = g_PcConfig.windowHeight > 0
-                ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight
-                : psxAspect;
-            const float horScale  = winAspect / psxAspect;
-            const s16 halfW = (s16)(160.0f * horScale + 10.0f);
-            setXY4(poly, -halfW, -120, halfW, -120, -halfW, 120, halfW, 120);
+            const s16 halfW = Pc_OverlayQuadHalfW();
+            const s16 halfH = Pc_OverlayQuadHalfH();
+            setXY4(poly, -halfW, -halfH, halfW, -halfH, -halfW, halfH, halfW, halfH);
         }
 #else
         setXY4(poly,
@@ -500,13 +528,9 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
          * uniform across the full window.  At 1920x1080 margin ≈ 53 PSX
          * units, requiring halfW ≈ 213 instead of the original 180. */
         {
-            const float psxAspect = 320.0f / 240.0f;
-            const float winAspect = g_PcConfig.windowHeight > 0
-                ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight
-                : psxAspect;
-            const float horScale  = winAspect / psxAspect;
-            const s16 halfW = (s16)(160.0f * horScale + 10.0f); /* +10 = PSX edge pad */
-            setXY4(poly, -halfW, -120, halfW, -120, -halfW, 120, halfW, 120);
+            const s16 halfW = Pc_OverlayQuadHalfW();
+            const s16 halfH = Pc_OverlayQuadHalfH();
+            setXY4(poly, -halfW, -halfH, halfW, -halfH, -halfW, halfH, halfW, halfH);
         }
 #else
         setXY4(poly,
@@ -2662,12 +2686,16 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
          * triangle" culling reported across multiple test sessions
          * since the pixel-aspect fix landed. */
         const s32   psxHalfW     = g_GameWork.gsScreenWidth >> 1;
-        const float visibleHalfW = (g_PcConfig.windowHeight > 0)
+        /* /hfov: PsyCross DIVIDES its Hor+ ortho half-width by g_PsxWorldHScale,
+         * so hfov<1 shows more world than this bound allowed and floor/wall polys
+         * were culled at the far screen edges (user-reported, recurring). */
+        const float visibleHalfW = ((g_PcConfig.windowHeight > 0)
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
                (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect
-            : (float)psxHalfW;
-        s32 halfW = (s32)(visibleHalfW + 16.5f);
+            : (float)psxHalfW) / (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f);
+        s32 halfW = (s32)(visibleHalfW + 64.5f); /* generous by policy */
         if (halfW < psxHalfW) halfW = psxHalfW;
+        if (g_PcConfig.disableCulling) halfW = 0x3FFF;
         scratchData->field_380.s_0.field_0 = halfW;
     }
 #else
@@ -3837,12 +3865,16 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
      * even with the other fix in place. */
     {
         const s32   psxHalfW     = g_GameWork.gsScreenWidth >> 1;
-        const float visibleHalfW = (g_PcConfig.windowHeight > 0)
+        /* /hfov: PsyCross DIVIDES its Hor+ ortho half-width by g_PsxWorldHScale,
+         * so hfov<1 shows more world than this bound allowed and floor/wall polys
+         * were culled at the far screen edges (user-reported, recurring). */
+        const float visibleHalfW = ((g_PcConfig.windowHeight > 0)
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
                (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect
-            : (float)psxHalfW;
-        s32 halfW = (s32)(visibleHalfW + 16.5f);
+            : (float)psxHalfW) / (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f);
+        s32 halfW = (s32)(visibleHalfW + 64.5f); /* generous by policy */
         if (halfW < psxHalfW) halfW = psxHalfW;
+        if (g_PcConfig.disableCulling) halfW = 0x3FFF;
         scratchData->field_380.s_0.field_0 = halfW;
     }
 #else
@@ -5217,7 +5249,7 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
                 {
                     s32 fogAmt = (func_80055A50(temp_v0_2 << 6) * 16) + g_WorldEnvWork.fog.intensity;
                     if (fogAmt > 0x1000) fogAmt = 0x1000;
-                    poly_gt4->p1 = (u8)((fogAmt * 127) >> 12);
+                    poly_gt4->p1 = (u8)((fogAmt * 127 + 2048) >> 12);
                     poly_gt4->p2 = poly_gt4->p1;
                     poly_gt4->p3 = poly_gt4->p1;
                 }

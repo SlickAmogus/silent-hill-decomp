@@ -68,6 +68,117 @@ s_IpdCollisionData* D_800C1010[4];
 
 s_MapTerrain g_Map;
 
+#ifdef SH_PC_PORT
+extern float g_PsxPixelAspect;
+extern float g_PsxWorldHScale;
+
+/* The light-halo fill quads (POLY_F4) run from the glow's outer ring out to a
+ * screen border baked at +/-gsScreenWidth/2. In Hor+ widescreen the visible
+ * frame reaches +/-(psxH*winW/(2*winH))*PAR/hfov, so the fill stopped at the
+ * 4:3 edge and the revealed side strips got no tint at all -- the dark bands
+ * down both sides. Same bound the mesh cull uses, so fill and geometry agree.
+ * Rebuilt whenever the extent changes (window resize, live `hfov`/`par`). */
+static s32 s_pcRingHalfW = 0;
+
+static s32 Pc_ScreenRingHalfW(void)
+{
+    const s32 psxHalfW = g_GameWork.gsScreenWidth >> 1;
+    float     halfW;
+
+    if (g_PcConfig.windowHeight <= 0 || g_PcConfig.windowWidth <= 0)
+    {
+        return psxHalfW;
+    }
+
+    halfW = ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
+             (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect /
+            (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f);
+
+    return ((s32)halfW < psxHalfW) ? psxHalfW : (s32)halfW;
+}
+
+/* X stretch for the glow/vignette compositor: its ring radii are authored for
+ * the 320-wide frame, and the gradient hits FULL darkness at the outer ring --
+ * which on PSX lay past the 4:3 frame edge, invisible. A widescreen view looks
+ * straight at it: darker side bands (user-reported, correctly diagnosed as an
+ * unscaled effect). Scaling the ring X extent about the light centre maps the
+ * 4:3-edge brightness to the new visible edge. */
+static float Pc_GlowXScale(void)
+{
+    const s32 psxHalfW = g_GameWork.gsScreenWidth >> 1;
+    return (psxHalfW > 0) ? ((float)Pc_ScreenRingHalfW() / (float)psxHalfW) : 1.0f;
+}
+
+static void Pc_ScreenRingBuild(s32 halfW)
+{
+    DVECTOR   posTable[17];
+    POLY_F4*  poly_f4;
+    s32*      ptr;
+    s32       i;
+    s32       j;
+    const s32 step = halfW >> 1;
+    const s32 h2   = g_GameWork.gsScreenHeight >> 1;
+
+    for (i = 0; i < 17; i++)
+    {
+        if (i < 2)
+        {
+            posTable[i].vx = halfW;
+            posTable[i].vy = (g_GameWork.gsScreenHeight / 4) * i;
+        }
+        else if (i < 6)
+        {
+            posTable[i].vx = halfW - (step * (i - 2));
+            posTable[i].vy = h2;
+        }
+        else if (i < 10)
+        {
+            posTable[i].vx = -halfW;
+            posTable[i].vy = h2 - ((h2 >> 1) * (i - 6));
+        }
+        else if (i < 14)
+        {
+            posTable[i].vx = -halfW + (step * (i - 10));
+            posTable[i].vy = -h2;
+        }
+        else
+        {
+            posTable[i].vx = halfW;
+            posTable[i].vy = -h2 + ((g_GameWork.gsScreenHeight >> 2) * (i - 14));
+        }
+    }
+
+    /* Stretch the border ring vertically the same way the overlay quads do, so
+     * the fill still reaches the top/bottom edges under vshift / vfov > 1. */
+    {
+        extern float g_PsxWorldVScale, g_PsxWorldVShift;
+        const float vs    = (g_PsxWorldVScale > 1.0f) ? g_PsxWorldVScale : 1.0f;
+        const float sh    = (g_PsxWorldVShift < 0.0f) ? -g_PsxWorldVShift : g_PsxWorldVShift;
+        const float halfH = (float)h2 * vs + sh + 8.0f;
+        for (i = 0; i < 17; i++)
+        {
+            posTable[i].vy = (s16)((float)posTable[i].vy * halfH / (float)(h2 > 0 ? h2 : 1));
+        }
+    }
+
+    for (j = 0; j < 2; j++)
+    {
+        poly_f4 = (POLY_F4*)&D_800BFBF0[j][(sizeof(DR_TPAGE) * 2) +
+                                           ((sizeof(POLY_G4) * 16) * 3) +
+                                           (sizeof(POLY_G3) * 16)];
+        ptr = (s32*)&posTable[0];
+
+        for (i = 0; i < 16; i++, poly_f4++)
+        {
+            *(s32*)&poly_f4->x2 = ptr[i % 16];
+            *(s32*)&poly_f4->x3 = ptr[i % 16 + 1];
+        }
+    }
+
+    s_pcRingHalfW = halfW;
+}
+#endif
+
 void func_80040BAC(void) // 0x80040BAC
 {
     DVECTOR   posTable[17];
@@ -144,6 +255,10 @@ void func_80040BAC(void) // 0x80040BAC
             }
         }
     }
+
+#ifdef SH_PC_PORT
+    Pc_ScreenRingBuild(Pc_ScreenRingHalfW());
+#endif
 }
 
 void func_80040E7C(u8 arg0, u8 arg1, u8 arg2, u8 arg3, u8 arg4, u8 arg5) // 0x80040E7C
@@ -376,6 +491,9 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
             temp_a1   = Math_Sin(j << 8);
 
             var_s1_2->vx = Q12_MULT_ALT(sp10[i], temp_s0_3) + sp20[i].vx;
+#ifdef SH_PC_PORT
+            var_s1_2->vx = arg1->vx + (s32)((var_s1_2->vx - arg1->vx) * Pc_GlowXScale());
+#endif
             var_s1_2->vx = CLAMP(var_s1_2->vx, Q12(-0.25f), Q12(0.25f) - 1);
 
             var_s1_2->vy = Q12_MULT_ALT(sp10[i], temp_a1) + sp20[i].vy;
@@ -384,6 +502,16 @@ void func_800414E0(GsOT* arg0, VECTOR3* arg1, s32 arg2, q19_12 angle0, q19_12 an
     }
 
     var_t0 = (u32*)PSX_SCRATCH;
+
+#ifdef SH_PC_PORT
+    {
+        const s32 pcHalfW = Pc_ScreenRingHalfW();
+        if (pcHalfW != s_pcRingHalfW)
+        {
+            Pc_ScreenRingBuild(pcHalfW);
+        }
+    }
+#endif
 
     poly_g3 = &D_800BFBF0[g_ActiveBufferIdx][sizeof(DR_TPAGE) * 2];
     poly_f4 = &D_800BFBF0[g_ActiveBufferIdx][(sizeof(DR_TPAGE) * 2) +
@@ -1560,10 +1688,19 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
      * widened draw window without a widened load window showed stale
      * resident chunks (other rooms/floors) and left visible neighbors
      * with no geometry or collision until walked into. */
-    s32 scanMin = g_DebugCamEnabled ? -4 : (map->isExterior ? -1 : -2);
-    s32 scanMax = g_DebugCamEnabled ? 5 : (map->isExterior ? 1 : 2);
+    /* Only whole-town mode widens the streaming window. A plain free-cam flight
+     * used to widen it too, from 9 cells to 100, which does not fit the texture
+     * budget the local room is sized for -- the room's pages get evicted by
+     * everything else being pulled in, and the world draws UNTEXTURED. Harry is
+     * pinned while flying, so streaming the ordinary gameplay window around him
+     * is both correct and stable, and it is what the camera used to do. */
+    s32 wideScan = g_DebugCamEnabled && Pc_WholeMapDrawActive();
+    s32 scanMin = wideScan ? -4 : (map->isExterior ? -1 : -2);
+    s32 scanMax = wideScan ? 5 : (map->isExterior ? 1 : 2);
     s32 loadsThisFrame = 0;
-    s32 maxLoadsPerFrame = g_DebugCamEnabled ? 2 : 9;
+    /* The wide window needs a budget to match, or it can never be satisfied.
+     * The ordinary window keeps the ordinary budget. */
+    s32 maxLoadsPerFrame = wideScan ? 16 : 9;
 #else
     s32 scanMin = -1;
     s32 scanMax = 1;
@@ -1573,7 +1710,7 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
         for (x = scanMin; x <= scanMax; x++)
         {
 #ifdef SH_PC_PORT
-            if (g_DebugCamEnabled || map->isExterior || (z >= -1 && z <= 1))
+            if (wideScan || map->isExterior || (z >= -1 && z <= 1))
 #else
             if (map->isExterior || (x == 0 && z == 0))
 #endif
@@ -1587,7 +1724,7 @@ s32 Map_ChunkLoad(s_MapTerrain* map, q19_12 posX0, q19_12 posZ0, q19_12 posX1, q
                     /* Interior neighbor cells are by definition outside the
                      * player's cell (distance > 0); the window itself is the
                      * load gate. */
-                    (g_DebugCamEnabled || !map->isExterior || Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior) <= Q12(0.0f)) &&
+                    (wideScan || !map->isExterior || Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior) <= Q12(0.0f)) &&
 #else
                     Ipd_PaddedDistanceToEdgeGet(posX0, posZ0, projCellX, projCellZ, map->isExterior) <= Q12(0.0f) &&
 #endif
@@ -2249,8 +2386,20 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
      * scenery. Widen it in step with draw_distance_pct, or the extra reach the
      * per-poly cap allows would land on untextured (invisible) chunks. Note
      * paddedDistanceToEdge is Q8 (256/u), not Q12. */
+    /* Q12(35.0f) here was a UNIT BUG: paddedDistanceToEdge is Q8 (256/u), so
+     * that constant did not mean 35 units, it meant 560 -- fourteen 40-unit
+     * cells. With preload_chunks the whole 304-cell grid is resident, so with
+     * the debug camera on, ~300 chunks all qualified and raced for the 200-slot
+     * pool in the ARRAY-ORDER loop below, which has no count cap and no
+     * nearest-first ordering. Whichever chunks came first won the pages; the
+     * losers never reach Loaded and an untextured chunk is skipped by the draw
+     * gate -- the free camera's untextured/invisible world. The interior path
+     * above was rewritten for exactly this ("nearest-first so the pool can
+     * never be exhausted before the player's own cell gets its pages"); this
+     * path never was. Two cells keeps the flight's surroundings textured while
+     * claiming a small fraction of the pool. */
     q19_12 _matDist = (g_PcConfig.preloadChunks && g_DebugCamEnabled && !g_DebugFogDisabled)
-                          ? Q12(35.0f)
+                          ? (q19_12)(2 * Q12_TO_Q8(CHUNK_CELL_SIZE))
                           : Q12(0.0f);
     if (g_PcConfig.drawDistancePct > 100 && _matDist == Q12(0.0f))
     {
@@ -2610,9 +2759,13 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
         extern int g_PsxWholeMapFar; /* PsyCross: gate the GTE far re-projection */
         extern int g_PsxWholeMapChunkSz; /* PsyCross: true depth for this chunk's saturated far polys */
         int drawCount = 0;
-        /* The 16-chunk debug-cam cap predates the OT depth clamps; with the
-         * whole-town mode active it was exactly what truncated the flycam view
-         * to a block of houses. Keep the cap only for plain debug flights. */
+        /* The cap stays: without it every resident chunk draws, which mixes
+         * other rooms and the outdoors into one scene and drops under 1 fps.
+         * The bug was never the cap, it was that this loop walks activeChunks
+         * in ARRAY (load) order, so a cap of 16 kept whichever chunks loaded
+         * first rather than the ones nearby -- routinely excluding the room the
+         * player stands in, which is the empty free-cam view. Room visibility
+         * below now does the selecting instead, so the 16 are the RIGHT 16. */
         int drawLimit = (g_DebugCamEnabled && !Pc_WholeMapDrawActive()) ? 16 : PC_MAX_IPD_CHUNKS;
         int totalChunks = 0, loadedChunks = 0, cellMatchChunks = 0, culledChunks = 0;
         /* Whole-town mode: unclamp the GTE projection for far world vertices (see
@@ -2784,7 +2937,14 @@ void Ipd_ChunkCheckDraw(GsOT* ot, s32 arg1) // 0x80043A24
 bool Ipd_CellPositionMatchCheck(s_Chunk* chunk, s_MapTerrain* map)
 {
 #ifdef SH_PC_PORT
-    if (g_DebugCamEnabled) return true;
+    /* Only whole-town mode may ignore room visibility: it has its own outdoor
+     * classification, cone culling and depth-sorted submission to cope with the
+     * result. A plain free-cam flight used to bypass it too, which made every
+     * resident chunk eligible -- other rooms, other floors, the outdoors -- and
+     * those crowded out the local room under the draw cap above, leaving an
+     * empty view at the same spot every time. Room visibility is the same rule
+     * gameplay uses, and it keeps the chunks near the player eligible. */
+    if (g_DebugCamEnabled && Pc_WholeMapDrawActive()) return true;
     /* NOTE: disable_culling must NOT bypass the interior check below — it is
      * ROOM VISIBILITY, not culling, and disable_culling=1 is the SHIPPED
      * DEFAULT (its old first-line bypass here is why the courtyard ghost
@@ -3360,6 +3520,14 @@ bool Gfx_ChunkSubcellVisibleCheck(s_IpdModelBuffer* modelBuf, q7_8 subcellX, q7_
     GsCOORDINATE2 viewCoord;
     MATRIX        viewMat;
     SVECTOR*      curSubcellPos; // TODO: Subcell? Cell?
+
+#ifdef SH_PC_PORT
+    /* Console `CULL` promises "draw everything": include the subcell gate. */
+    if (g_PcConfig.disableCulling)
+    {
+        return true;
+    }
+#endif
 
     // Run through subcell positions.
     for (curSubcellPos = modelBuf->subcellPositions;
