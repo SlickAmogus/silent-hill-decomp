@@ -3327,9 +3327,22 @@ void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* delt
                 limitRange(localPart->movement_18.vy, 5, 1000);
             }
 
+#ifdef SH_PC_PORT
+            /* PC: the camera-displacement term is already a PER-FRAME quantity
+             * (the view vectors are snapshotted every update), so it must not
+             * be scaled by the frame's fraction of a 30 Hz tick like the wind
+             * speed is. Scaled, only that fraction of the compensation landed
+             * and every drop drifted with the camera -- rain "flowing forward"
+             * while running at high frame rates. At 30 fps the scale is ~1, so
+             * the PSX never showed it. */
+            localPart->position0_0.vx += TIMESTEP_SCALE_30_FPS(*deltaTime, (localPart->movement_18.vx << 2) + g_Particle_SpeedX) + deltaXCase0;
+            localPart->position0_0.vy += TIMESTEP_SCALE_30_FPS(*deltaTime, (localPart->movement_18.vy >> 1) << 2);
+            localPart->position0_0.vz += TIMESTEP_SCALE_30_FPS(*deltaTime, (localPart->movement_18.vz << 2) + g_Particle_SpeedZ) + deltaZCase0;
+#else
             localPart->position0_0.vx += TIMESTEP_SCALE_30_FPS(*deltaTime, (localPart->movement_18.vx << 2) + g_Particle_SpeedX + deltaXCase0);
             localPart->position0_0.vy += TIMESTEP_SCALE_30_FPS(*deltaTime, (localPart->movement_18.vy >> 1) << 2);
             localPart->position0_0.vz += TIMESTEP_SCALE_30_FPS(*deltaTime, (localPart->movement_18.vz << 2) + g_Particle_SpeedZ + deltaZCase0);
+#endif
 
 #if defined(MAP7_S03)
             localPart->position0_0.vz += (deltaZCase0 - D_800F23D0);
@@ -3390,7 +3403,12 @@ void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* delt
             localPart->position1_C.vz = localPart->position0_0.vz;
             localPart->position1_C.vy = localPart->position0_0.vy - localPart->movement_18.vy;
 #endif
+#ifdef SH_PC_PORT
+            /* Same per-frame camera term as the snow case above: unscaled. */
+            localPart->position0_0.vx += TIMESTEP_SCALE_30_FPS(*deltaTime, g_Particle_SpeedX) + deltaXCase1;
+#else
             localPart->position0_0.vx += TIMESTEP_SCALE_30_FPS(*deltaTime, g_Particle_SpeedX + deltaXCase1);
+#endif
             localPart->movement_18.vy += sharedData_800E32D4_0_s00;
             localPart->position0_0.vy += TIMESTEP_SCALE_30_FPS(*deltaTime, localPart->movement_18.vy << 2);
 
@@ -3398,7 +3416,19 @@ void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* delt
             localPart->position1_C.vy = localPart->position0_0.vy - Q12(0.125f);
 #endif
 
+#ifdef SH_PC_PORT
+            localPart->position0_0.vz += TIMESTEP_SCALE_30_FPS(*deltaTime, g_Particle_SpeedZ) + deltaZCase1;
+            /* The tail is last frame's head, still expressed against last
+             * frame's origin. Both ends live in origin-relative space, so the
+             * tail needs the same origin shift as the head or the streak tilts
+             * by the camera's per-frame travel -- slanted rain while moving,
+             * blatant under the free camera. With it, a streak is the fall
+             * vector in world space regardless of how the camera moves. */
+            localPart->position1_C.vx += deltaXCase1;
+            localPart->position1_C.vz += deltaZCase1;
+#else
             localPart->position0_0.vz += TIMESTEP_SCALE_30_FPS(*deltaTime, g_Particle_SpeedZ + deltaZCase1);
+#endif
 
 #if defined(MAP5_S00) || defined(MAP6_S03)
             localPart->position1_C.vx = localPart->position0_0.vx;
@@ -3523,11 +3553,19 @@ void sharedFunc_800D0690_1_s03(s32 pass, s_Particle* part, s16* rand, q19_12* de
     q19_12 z = g_Particle_PrevPosition.vz - g_Particle_Position.vz;
 
     part->position1_C.vy  = part->position0_0.vy - part->movement_18.vy;
+#ifdef SH_PC_PORT
+    part->position0_0.vx += x; /* per-frame camera term, see Particle_MovementUpdate */
+#else
     part->position0_0.vx += TIMESTEP_SCALE_30_FPS(*deltaTime, x);
+#endif
     part->movement_18.vy += Q12(0.001f);
     part->position0_0.vy += TIMESTEP_SCALE_30_FPS(*deltaTime, part->movement_18.vy << 2);
     part->position1_C.vy  = part->position0_0.vy - Q12(1.0f / 32.0f);
+#ifdef SH_PC_PORT
+    part->position0_0.vz += z;
+#else
     part->position0_0.vz += TIMESTEP_SCALE_30_FPS(*deltaTime, z);
+#endif
     part->position1_C.vx  = part->position0_0.vx;
     part->position1_C.vz  = part->position0_0.vz;
 

@@ -74,6 +74,11 @@ void Font_ApplyRegionPatches(void);
 void Font_PatchPolishGlyphs(void* pixels, int widthWords, int height);
 void Font_UsePolishLayout(void);
 
+/* Return g_FontLayout to the region base (drops any fan-patch override or the
+ * Polish layout). Pc_LangInit calls it first so every language switch derives
+ * its layout from a clean slate. */
+void Font_ResetLayout(void);
+
 /* Widest atlas the drawer supports: retail PAL's 21x6 grid. Retail declares
  * only 120 of those cells; a fan repaint can fill all 126. */
 #define FONT_ATLAS_CELL_MAX 126

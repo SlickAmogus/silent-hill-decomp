@@ -719,6 +719,11 @@ void Pc_LangInit(void)
     free(s_ItemPool);
     s_ItemPool = NULL;
 
+    /* Clean slate for the layout logic below: a previous run's fan-patch
+     * override or Polish layout must not survive into this one (see
+     * Font_ResetLayout for the switch-away-and-back fold-up it caused). */
+    Font_ResetLayout();
+
     /* A PAL fan patch's retuned kerning has to be in before anything measures
      * a string. (The USA equivalent rides along with item text in FanTextInit.) */
     if (g_GameRegion == Region_EUR)

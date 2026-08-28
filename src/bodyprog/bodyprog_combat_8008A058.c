@@ -146,6 +146,27 @@ s32 func_8008A0E4(s32 arg0, s32 weaponAttack, s_SubCharacter* chara, VECTOR3* po
     {
         return NO_VALUE;
     }
+
+    /* No-target cheat: nothing an enemy swings can land on Harry.
+     *
+     * This is the only place every enemy attack passes through, so it is
+     * the one hook that covers ALL of them. CharaFlag_Unk4, which the cheat
+     * also sets, is the game's own ignore-the-player flag but only six
+     * characters ever test it (stalker, groaner, creeper, hanged scratcher,
+     * air screamer, player) -- the rest inline their own distance and angle
+     * math against the player's position and never consult it, which is why
+     * nurses and the bosses kept attacking.
+     *
+     * Gated on chara2 (the VICTIM) being the player: enemies pass the player
+     * there, while the player's own attacks pass an NPC, so Harry's ability
+     * to damage enemies is untouched. */
+    {
+        extern int g_DebugNoTarget;
+        if (g_DebugNoTarget && chara2 == &g_SysWork.playerWork.player)
+        {
+            return NO_VALUE;
+        }
+    }
 #endif
 
     if (chara == &g_SysWork.playerWork.player)

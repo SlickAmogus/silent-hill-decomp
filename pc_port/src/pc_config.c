@@ -33,6 +33,7 @@ s_PcConfig g_PcConfig = {
     .dumpTextures = 0, /* 1=write every decoded texture upload to gamedata/dump/ as a pack-named PNG (modding aid) */
     .attractDemos = 1,
     .menuFpsUnlock = 1, /* menus/map/puzzles follow fps_cap; inventory and cutscenes do not */
+    .lowHealthGlow = 0, /* 1=pulsing red edge glow below 20 hp (SH2 remake style); off by default */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
@@ -161,6 +162,7 @@ s_PcConfig g_PcConfig = {
         .keyRearLook = "NONE", .padRearLook = "NONE",
     },
     .keyQuickSave = "F6", .keyQuickLoad = "F8",
+    .keyQuickOptions = "F10",
     .keySwapShoulder = "Mouse3",
     .keyConsole = "`",
     .keyGfxCycle = "\\",
@@ -271,6 +273,8 @@ static const struct { const char* key; size_t off; } s_SchemeBinds[] = {
 /* Global (scheme-independent) binds -> offset within s_PcConfig. */
 static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
     { "key_quicksave",     offsetof(s_PcConfig, keyQuickSave)    },
+    { "key_quick_options", offsetof(s_PcConfig, keyQuickOptions) },
+    { "pad_quick_options", offsetof(s_PcConfig, padQuickOptions) },
     { "key_quickload",     offsetof(s_PcConfig, keyQuickLoad)    },
     { "key_swap_shoulder", offsetof(s_PcConfig, keySwapShoulder) },
     { "key_console",       offsetof(s_PcConfig, keyConsole)      },
@@ -580,6 +584,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "menu_fps_unlock") == 0)
         {
             g_PcConfig.menuFpsUnlock = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "low_health_glow") == 0)
+        {
+            g_PcConfig.lowHealthGlow = (atoi(value) != 0);
         }
         else if (strcmp(key, "bullet_decals") == 0)
         {
@@ -998,7 +1006,7 @@ else if (strcmp(key, "enable_plugins") == 0)
         else if (strcmp(key, "shadow_resolution") == 0)
         {
             int v = atoi(value);
-            g_PcConfig.shadowMapSize = (v < 256) ? 256 : ((v > 4096) ? 4096 : v);
+            g_PcConfig.shadowMapSize = (v < 256) ? 256 : ((v > 8192) ? 8192 : v);
         }
         else if (strcmp(key, "minimap_corner") == 0)
         {

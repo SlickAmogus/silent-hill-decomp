@@ -1,5 +1,55 @@
 # Porting the iOS fixes to Android
 
+## READ FIRST: the pause hang (PsyCross `d51c5b0`)
+
+If pause appears to crash, it is not crashing — it is **hanging**, and the fix is
+one commit.
+
+`git merge` PsyCross `ios-port` (at or past `d51c5b0`). The gate is
+`#if defined(RENDERER_OGLES)`, which Android already satisfies, so **no
+Android-side edit is needed** — merging is the whole fix.
+
+### Why it happens, so it can be recognised again
+
+The pause screen does not redraw the world. It re-presents a captured still, and
+`GR_PresentLastFrame()` opens with `if (!g_freezeFrameValid) return;`.
+
+The capture had **always failed on both phones** — that is what the fog-grey
+pause and map screens were. So that function had never once executed on a GLES
+target. Fixing the capture (the ES3 RGB8/RGBA8 format matching, which Android
+took from this branch) lit up a code path that had never run, and it wedges on
+the first pause.
+
+The wedge is `glBlitFramebuffer` **into** the default framebuffer. The fix uses
+`GR_DrawFullscreenTexture` instead on any GLES target, MSAA or not — not a new
+path, it is what the MSAA case always used, and `GR_InitPostProcess` runs
+unconditionally so `g_postShader` exists even with `post_process = 0`. Desktop
+keeps the blit.
+
+**A fix that makes a previously-dead path live is a fix that ships an untested
+path.** That is the general lesson.
+
+### How to tell a hang from a crash here
+
+`PsyX_Log_Flush()` is the **last statement of `PsyX_BeginScene`**, and
+`GR_PresentLastFrame()` is called a few lines above it. So anything that wedges
+inside it means nothing after that frame's last line ever reaches disk — the log
+stops mid-frame with no error. On iOS the confirmation was that there was **no
+crash report and no jetsam report at all**; check for the absence as hard as you
+check the contents. (iOS `.ips` files named `cpu_resource` are not crash reports:
+`Action taken: none`, and every game trips the CPU limit.)
+
+### Still open after this fix
+
+The frozen backdrop **contains the touch overlay**. The capture happens at
+EndScene, after `Pc_Touch_Draw` has put its OT prims into the frame, so the still
+has the gameplay buttons baked in and pause draws its own on top — two buttons
+stacked in the corner, plus ghost Aim/Item/Map rings. The proper fix is the
+project's standing rule: in-game UI is a GL overlay drawn *after* the capture,
+never OT prims. Not done on either branch yet.
+
+---
+
 Most of this session's work is in shared code (`src/`, `pc_port/src/`), so Android
 wants nearly all of it. The quickest route is a merge; the table is here so the
 Android session knows what it is getting and which handful of hunks to skip.

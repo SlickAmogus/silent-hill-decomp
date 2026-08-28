@@ -1918,6 +1918,27 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
         return 0;
     }
 
+    /* Same 16bpp reasoning as the virtual-pool guard above, for the REGULAR
+     * entry path: PSX ignores `clut` in 16bpp mode, so the framebuffer-sampling
+     * cutscene overlays (map4_s01 Lisa et al) ship uninitialized clut bytes and
+     * address the display buffers, which live in the left 320 VRAM columns.
+     * The entry loop keys on the tpage window + bit depth, so a 16bpp override
+     * registered anywhere in that band could be hijacked by those prims and
+     * drawn as a big textured rect -- the rainbow block users still saw after
+     * the pool path was guarded. Real 16bpp game textures sit far right in VRAM
+     * (x>=512 in every session log), so this cannot cost a legitimate override. */
+    if (((tpage >> 7) & 0x3) >= 2 && ((tpage & 0xF) * 64) < 320)
+    {
+        static int s_fbTpageLogged = 0;
+        if (s_fbTpageLogged < 8)
+        {
+            SH_DBG("[HIRES] ignored 16bpp tpage 0x%X clut 0x%04X in the framebuffer band (feedback prim)",
+                   tpage, clut);
+            s_fbTpageLogged++;
+        }
+        return 0;
+    }
+
     if (g_numEntries == 0) return 0;
 
     int tpx = (tpage & 0xF) * 64;

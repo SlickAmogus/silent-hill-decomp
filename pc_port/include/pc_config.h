@@ -128,6 +128,7 @@ typedef struct {
                            * cutscenes stay clamped by Pc_ScriptOwnsShot regardless.
                            * Set 0 to put every non-gameplay screen back on the hard
                            * one-vblank wait. (config key: menu_fps_unlock) */
+    int lowHealthGlow;    /* 1 = pulsing red edge glow while health is low (config key: low_health_glow); off by default */
     int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
                            * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
                            * (config key: bullet_decals) */
@@ -234,7 +235,7 @@ typedef struct {
     int menuFilter;          /* 1 = bilinear-filter menus / 2D screens, independent of the in-game texture Filtering mode; default 0 (config key: menu_filter) */
     int minimap;             /* minimap overlay: 0 = off, 1 = square, 2 = circle (config key: minimap); default 0 */
     int anisoLevel;          /* max anisotropic taps, 1..16 (config key: aniso_level); default 8 */
-    int shadowMapSize;       /* flashlight shadow-map resolution, 256..4096 (config key: shadow_resolution); default 1024 */
+    int shadowMapSize;       /* flashlight shadow-map resolution, 256..8192 (config key: shadow_resolution); default 1024 */
     int minimapCorner;       /* minimap screen corner: 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right (config key: minimap_corner); default 0 */
     int minimapShape;        /* DEPRECATED, folded into `minimap`; still read to migrate old configs (config key: minimap_shape) */
     float minimapScale;      /* minimap size percentage, MINIMAP_SCALE_MIN..MAX (config key: minimap_scale); default 100 */
@@ -261,6 +262,8 @@ typedef struct {
     /* Global (scheme-independent) binds. Change Camera / Reload / Cycle Weapons /
      * Quick Heal are per-scheme now — they live in ControlScheme above. */
     char keyQuickSave[24], keyQuickLoad[24]; /* PC-only: quick save/load screen hotkeys */
+    char keyQuickOptions[24]; /* PC-only: in-game quick options overlay hotkey (config key: key_quick_options); default F10 */
+    char padQuickOptions[24]; /* PC-only: OPTIONAL controller bind for the same overlay (config key: pad_quick_options); unbound by default */
     char keySwapShoulder[24]; /* PC-only: swap OTS shoulder side (default Mouse3) */
     char keyConsole[24]; /* PC-only: dev console toggle key (default tilde "`"); keyboard-only */
     /* PC-only graphics-effect tuning keys (keyboard-only). keyGfxCycle switches

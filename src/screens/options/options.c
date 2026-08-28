@@ -118,7 +118,8 @@ extern float g_PcFmvVolume;
 
 s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
-static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls, 3 = Camera */
+static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls, 3 = Camera, 4 = HUD */
+#define PCOPT_PAGE_COUNT 5
 
 /* Mouse hover moves the selection WITHOUT resetting g_Options_SelectionHighlightTimer:
  * a reset re-arms the LINE_CURSOR_TIMER_MAX gate, which then swallows the click that
@@ -346,8 +347,22 @@ static const s_PcOpt PCOPT_C[] = {
  * row to the Graphics page — both of which had spare rows. Third_Person_FOV
  * lives with First_Person_FOV on the Controls page. */
 static const s_PcOpt PCOPT_T[] = {
-    /* Shape folded in here so the freed row can carry the scale, rather than
-     * spilling the minimap settings onto a second PC options page. */
+    /* The minimap rows moved to the HUD page (PCOPT_H) when the low-health
+     * glow arrived: every page was at the 11-row ceiling. */
+    { "Aim_Assist",        &g_PcConfig.aimAssist,          "aim_assist",            VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    /* 0..200 to match the config loader, the TPSAIMZOOM console command and the
+     * pc_config.h contract — 100 is the original full zoom, 200 a deeper 2x.
+     * The slider alone was capped at 100, so the top half was unreachable. */
+    { "Aim_Zoom",          NULL, "tps_aim_zoom_amount",    NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsAimZoom,  NULL, 0.0f, 200.0f, 5.0f },
+    { "OTS_Aim_In_TPS",    &g_PcConfig.tpsOtsAim,          "tps_ots_aim",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Camera_Collision",  &g_PcConfig.tpsCameraCollision, "tps_camera_collision",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Prev_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Next_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_NEXT },
+    { "Back",              NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_BACK },
+};
+
+/* Page 5 (HUD): the minimap rows plus the low-health glow. */
+static const s_PcOpt PCOPT_H[] = {
     { "Minimap",           &g_PcConfig.minimap,            "minimap",               VAL_MMMODE, 3, LBL_MMMODE, NULL, 1, PCK_INT },
     { "Minimap_Scale",     NULL, "minimap_scale",          NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.minimapScale, NULL, MINIMAP_SCALE_MIN, MINIMAP_SCALE_MAX, 5.0f },
     { "Minimap_Corner",    &g_PcConfig.minimapCorner,      "minimap_corner",        VAL_MMCNR, 4, LBL_MMCNR, NULL, 1, PCK_INT },
@@ -356,13 +371,8 @@ static const s_PcOpt PCOPT_T[] = {
      * draw the minimap once the area's paper map is found (the default); Off =
      * always draw it. Was config-only (minimap_require_map). */
     { "Minimap_Reqs_Map",  &g_PcConfig.minimapRequireMap,  "minimap_require_map",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    { "Aim_Assist",        &g_PcConfig.aimAssist,          "aim_assist",            VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    /* 0..200 to match the config loader, the TPSAIMZOOM console command and the
-     * pc_config.h contract — 100 is the original full zoom, 200 a deeper 2x.
-     * The slider alone was capped at 100, so the top half was unreachable. */
-    { "Aim_Zoom",          NULL, "tps_aim_zoom_amount",    NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsAimZoom,  NULL, 0.0f, 200.0f, 5.0f },
-    { "OTS_Aim_In_TPS",    &g_PcConfig.tpsOtsAim,          "tps_ots_aim",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    { "Camera_Collision",  &g_PcConfig.tpsCameraCollision, "tps_camera_collision",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    /* Pulsing red edge glow below 20 hp (pc_combat.c Pc_LowHealthGlowUpdate). */
+    { "Low_HP_Glow",       &g_PcConfig.lowHealthGlow,      "low_health_glow",       VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Prev_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Back",              NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
@@ -402,8 +412,9 @@ const s_PcOpt* PcOpt_PageByIndex(int page, int* count)
     if (page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
     if (page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
     if (page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
-    *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0]));
-    return PCOPT_T;
+    if (page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
+    *count = (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0]));
+    return PCOPT_H;
 }
 
 static const s_PcOpt* PcOpt_Page(int* count)
@@ -411,8 +422,9 @@ static const s_PcOpt* PcOpt_Page(int* count)
     if (g_PcOptionsMenu_Page == 0) { *count = (int)(sizeof(PCOPT_G) / sizeof(PCOPT_G[0])); return PCOPT_G; }
     if (g_PcOptionsMenu_Page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
     if (g_PcOptionsMenu_Page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
-    *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0]));
-    return PCOPT_T;
+    if (g_PcOptionsMenu_Page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
+    *count = (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0]));
+    return PCOPT_H;
 }
 
 static int PcOpt_ValIndex(const s_PcOpt* e)
@@ -613,6 +625,119 @@ static void PcOpt_Adjust(const s_PcOpt* e, int dir)
     }
 }
 
+#ifdef SH_PC_PORT
+/* ---- Quick options overlay (pc_quick_options.c, F9) ----
+ * The overlay drives the SAME rows as the PC Options screen through this
+ * opaque handle API, so labels, value cycling, config saving and live-apply
+ * side effects are this file's code and cannot drift. Looked up by config
+ * key; NULL if a key is not on any page. */
+const void* PcOpt_QuickFind(const char* key)
+{
+    int page, count, i;
+    if (key == NULL)
+        return NULL;
+    for (page = 0; page < PCOPT_PAGE_COUNT; page++) {
+        const s_PcOpt* tbl = PcOpt_PageByIndex(page, &count);
+        for (i = 0; i < count; i++)
+            if (tbl[i].key && strcmp(tbl[i].key, key) == 0)
+                return &tbl[i];
+    }
+    return NULL;
+}
+
+const char* PcOpt_QuickName(const void* h)     { return ((const s_PcOpt*)h)->name; }
+int         PcOpt_QuickRealtime(const void* h) { return ((const s_PcOpt*)h)->realtime; }
+
+const char* PcOpt_QuickLabel(const void* h, char* buf, int bufsz)
+{
+    return PcOpt_ValueLabel((const s_PcOpt*)h, buf, bufsz);
+}
+
+void PcOpt_QuickAdjust(const void* h, int dir)
+{
+    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+    PcOpt_Adjust((const s_PcOpt*)h, dir);
+}
+
+/* Rows the overlay wants that are not in the table: the shadow map size
+ * (launcher / console only until now), the speaker layout and the two PSX
+ * volumes (main Options menu rows). Same apply paths as those screens. */
+enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX };
+
+static const int         QO_SHADOW_SIZES[] = { 256, 512, 1024, 2048, 4096, 8192 };
+static const char* const QO_SPEAKER_LBL[]  = { "Auto", "Stereo", "Quad", "5.1", "7.1" };
+static const char* const QO_SPEAKER_IDS[]  = { "auto", "stereo", "quad", "51", "71" };
+
+const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
+{
+    switch (which) {
+    case QO_X_SHADOW:
+        snprintf(buf, bufsz, "%d x %d", g_PcConfig.shadowMapSize, g_PcConfig.shadowMapSize);
+        return buf;
+    case QO_X_SPEAKERS: {
+        int a = g_PcConfig.audioOutput;
+        return (a >= 0 && a < 5) ? QO_SPEAKER_LBL[a] : "HRTF";
+    }
+    case QO_X_BGM:
+        snprintf(buf, bufsz, "%d / 16", g_GameWork.config.volumeBgm / 8);
+        return buf;
+    case QO_X_SFX:
+        snprintf(buf, bufsz, "%d / 16", g_GameWork.config.volumeSe / 8);
+        return buf;
+    default:
+        return "";
+    }
+}
+
+void PcOpt_QuickExtraAdjust(int which, int dir)
+{
+    char buf[24];
+
+    switch (which) {
+    case QO_X_SHADOW: {
+        extern int g_PsyX_ShadowMapSize;
+        int n = (int)(sizeof(QO_SHADOW_SIZES) / sizeof(QO_SHADOW_SIZES[0]));
+        int i, idx = 2;
+        for (i = 0; i < n; i++)
+            if (QO_SHADOW_SIZES[i] == g_PcConfig.shadowMapSize) { idx = i; break; }
+        idx = (idx + dir + n) % n;
+        g_PcConfig.shadowMapSize = QO_SHADOW_SIZES[idx];
+        g_PsyX_ShadowMapSize     = QO_SHADOW_SIZES[idx]; /* target rebuilds on the next shadow frame */
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.shadowMapSize);
+        PcConfig_SaveKeyValue("shadow_resolution", buf);
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
+    case QO_X_SPEAKERS: {
+        /* Mirrors the main Options "Sound" row: Auto/Stereo/Quad/5.1/7.1,
+         * internal mix pinned to Stereo so surround layouts keep their image. */
+        extern void PsyX_SPUAL_SetOutputMode(int mode);
+        g_PcConfig.audioOutput = (g_PcConfig.audioOutput + dir + 5) % 5;
+        PcConfig_SaveKeyValue("audio_output", QO_SPEAKER_IDS[g_PcConfig.audioOutput]);
+        PsyX_SPUAL_SetOutputMode(g_PcConfig.audioOutput);
+        g_GameWork.config.soundType = 0;
+        SD_Call(AudioMode_Stereo);
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
+    case QO_X_BGM:
+    case QO_X_SFX: {
+        /* 16 notches of 8 over 0..128, exactly the main Options sliders. */
+        s32 vol = (which == QO_X_BGM) ? g_GameWork.config.volumeBgm : g_GameWork.config.volumeSe;
+        s32 nv  = CLAMP(vol + dir * 8, 0, OPT_SOUND_VOLUME_MAX);
+        if (nv == vol) { SD_Call(Sfx_MenuError); break; }
+        if (which == QO_X_BGM) g_GameWork.config.volumeBgm = nv;
+        else                   g_GameWork.config.volumeSe  = nv;
+        Sd_SetVolume(OPT_SOUND_VOLUME_MAX, g_GameWork.config.volumeBgm, g_GameWork.config.volumeSe);
+        SD_Call(Sfx_MenuMove);
+        break;
+    }
+    default:
+        break;
+    }
+}
+#endif
+
 /* Reset one options row to its captured compile-time default, applying the
  * same side effects a manual change would. Resolution and window mode are
  * skipped by the caller (their kinds) so the player is never bumped to 640x480
@@ -674,7 +799,7 @@ void Pc_Options_ResetToDefaults(void)
 {
     extern const s_PcOpt* PcOpt_PageByIndex(int page, int* count);
     int page, count, i;
-    for (page = 0; page <= 3; page++) {
+    for (page = 0; page < PCOPT_PAGE_COUNT; page++) {
         const s_PcOpt* tbl = PcOpt_PageByIndex(page, &count);
         for (i = 0; i < count; i++)
             PcOpt_ResetEntry(&tbl[i]);
@@ -934,13 +1059,13 @@ void Options_PcOptionsMenu_Control(void)
          * the same PSX bits, so this works on keyboard too. */
         if (g_Controller0->clickedBtnFlags & ControllerFlag_R1) {
             Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-            g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 1) & 3; /* 4 pages */
+            g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 1) % PCOPT_PAGE_COUNT;
             g_PcOptionsMenu_SelectedEntry     = 0;
             g_Options_SelectionHighlightTimer = 0;
         }
         if (g_Controller0->clickedBtnFlags & ControllerFlag_L1) {
             Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-            g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + 3) & 3; /* -1 mod 4 */
+            g_PcOptionsMenu_Page = (g_PcOptionsMenu_Page + PCOPT_PAGE_COUNT - 1) % PCOPT_PAGE_COUNT;
             g_PcOptionsMenu_SelectedEntry     = 0;
             g_Options_SelectionHighlightTimer = 0;
         }
@@ -963,12 +1088,12 @@ void Options_PcOptionsMenu_Control(void)
         if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter) {
             if (sel->kind == PCK_NEXT) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-                g_PcOptionsMenu_Page++; /* Graphics -> System -> Controls -> Camera */
+                g_PcOptionsMenu_Page++; /* Graphics -> System -> Controls -> Camera -> HUD */
                 g_PcOptionsMenu_SelectedEntry = 0;
                 g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_PREV) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-                g_PcOptionsMenu_Page--; /* Camera -> Controls -> System -> Graphics */
+                g_PcOptionsMenu_Page--; /* HUD -> Camera -> Controls -> System -> Graphics */
                 g_PcOptionsMenu_SelectedEntry = 0;
                 g_Options_SelectionHighlightTimer = 0;
 #if defined(SH_IOS)

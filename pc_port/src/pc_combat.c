@@ -11,6 +11,7 @@
 #include "pc_combat.h"
 #include "pc_config.h"
 #include "bodyprog/item_screens.h"
+#include "sh_log.h"      /* SH_DBG */
 #include "dbg_overlay.h" /* DbgOverlay_ToastLine — quick-heal result line */
 #include <stdio.h>
 #include "bodyprog/sound/sound_system.h"
@@ -231,10 +232,16 @@ static void Pc_ManualReloadSample(int sch)
 
 extern void GameFs_WeaponInfoUpdate(void); /* player.h — loads the equipped weapon model/anim */
 
+/* Only the LIVE slots count. The game itself (Player_ItemRemove, the inventory
+ * screen) never looks past inventorySlotCount; slots beyond it keep whatever
+ * a previous save or session left there. Scanning all INV_ITEM_COUNT_MAX
+ * found those ghosts: quick heal "used" a drink that was not in the
+ * inventory (heal + green flash + toast, nothing removed) and weapon cycling
+ * could pick a weapon that was no longer owned. */
 static s32 Pc_FindItemSlot(u8 id)
 {
     s32 i;
-    for (i = 0; i < INV_ITEM_COUNT_MAX; i++)
+    for (i = 0; i < g_SavegamePtr->inventorySlotCount && i < INV_ITEM_COUNT_MAX; i++)
         if (g_SavegamePtr->items[i].id_0 == id) return i;
     return NO_VALUE;
 }
@@ -352,7 +359,7 @@ void Pc_CycleWeapons(void)
 static s32 Pc_HealItemCount(u8 id)
 {
     s32 i;
-    for (i = 0; i < INV_ITEM_COUNT_MAX; i++)
+    for (i = 0; i < g_SavegamePtr->inventorySlotCount && i < INV_ITEM_COUNT_MAX; i++)
         if (g_SavegamePtr->items[i].id_0 == id)
             return g_SavegamePtr->items[i].count_1;
     return 0;
@@ -391,6 +398,14 @@ void Pc_QuickHeal(void)
     }
     if (chosen == InvItemId_Empty) return; /* nothing owned */
 
+    /* Spend the item FIRST, through the game's own removal, and heal only if it
+     * really came out of the inventory. Healing before removing is how a ghost
+     * slot produced a full heal with feedback and no inventory change. */
+    if (!Player_ItemRemove(chosen, 1)) {
+        SH_DBG("[QUICKHEAL] item %d looked owned but Player_ItemRemove found none -- no heal", (int)chosen);
+        return;
+    }
+
     switch (chosen) {
         case InvItemId_FirstAidKit: health += Q12(80.0f);  break;
         case InvItemId_HealthDrink: health += Q12(40.0f);  break;
@@ -398,7 +413,6 @@ void Pc_QuickHeal(void)
     }
     g_SysWork.playerWork.player.health = CLAMP(health, Q12(0.0f), Q12(100.0f));
     Sd_PlaySfx(Sfx_Unk1325, -0x40, 0x40); /* same feedback SFX as the inventory heal */
-    Player_ItemRemove(chosen, 1);
     g_PcHealFlashTimer = Q12(0.35f); /* brief green heal pulse (drawn by Pc_HealFlashUpdate) */
 
     /* Report what was spent and what is left, since quick heal picks the item for
@@ -449,6 +463,110 @@ void Pc_HealFlashUpdate(void)
 
     AddPrim(&g_OtTags0[buf][4], &s_tile[buf]);
     AddPrim(&g_OtTags0[buf][4], &s_tp[buf]);
+}
+
+/* Low-health glow: a slow red pulse breathing in from the screen edges while
+ * health is under 20 (the SH2 remake's cue). Four additive Gouraud bands,
+ * red at the border fading to black inward, so it reads as a vignette rather
+ * than a damage flash; the same OT2 bucket + additive tpage as the heal pulse.
+ * Strength scales with the deficit (faint at 19 hp, full at the brink) and
+ * breathes on a ~1.6 s cycle driven by the game clock, so it holds still with
+ * the game. Optional: config low_health_glow (PC Options > HUD / quick options). */
+void Pc_LowHealthGlowUpdate(void)
+{
+    #define GLOW_HP_MAX   20
+    #define GLOW_PERIOD   Q12(1.6f)
+    #define GLOW_R_MIN    36
+    #define GLOW_R_MAX    112
+    static POLY_G4  s_band[2][4];
+    static DR_TPAGE s_tp[2];
+    static s32      s_phase;
+    extern int      g_PsxCutsceneActive;
+    extern int      g_PsxPresentLastFrame;
+    extern int      g_PcHorPlusEnabled;
+    s32 hp, pulse, strength, r, halfW, halfH, dx, dy, buf, i;
+
+    if (!g_PcConfig.lowHealthGlow)
+        return;
+    if (g_GameWork.gameState != GameState_InGame || g_SysWork.sysState != SysState_Gameplay)
+        return;
+    if (g_PsxCutsceneActive || g_PsxPresentLastFrame)
+        return;
+
+    hp = g_SysWork.playerWork.player.health >> Q12_SHIFT;
+    if (hp <= 0 || hp >= GLOW_HP_MAX)
+        return;
+
+    s_phase += g_DeltaTime;
+    while (s_phase >= GLOW_PERIOD)
+        s_phase -= GLOW_PERIOD;
+    pulse    = (Math_Sin((s32)(((s64)s_phase * 4096) / GLOW_PERIOD)) + Q12(1.0f)) >> 1; /* 0..4096 */
+    strength = ((GLOW_HP_MAX - hp) * Q12(1.0f)) / GLOW_HP_MAX;                           /* 0..4096 by deficit */
+    r        = GLOW_R_MIN + (((GLOW_R_MAX - GLOW_R_MIN) * pulse) >> 12);
+    r        = (r * (Q12(0.5f) + (strength >> 1))) >> 12;                                 /* half at 19 hp, full at 0 */
+    if (r <= 0)
+        return;
+
+    /* Centre-origin OT2 space (same as the heal tile). Hor+ shows more width
+     * than the PSX frame, so the side bands follow the window's aspect. */
+    halfH = SCREEN_HEIGHT / 2;
+    halfW = SCREEN_WIDTH / 2;
+    if (g_PcHorPlusEnabled && g_PcConfig.windowHeight > 0)
+    {
+        /* Same visible-extent bound the mesh cull and the overlay quads use:
+         * window aspect * PAR / hfov. The old `halfH * winW / winH` dropped
+         * both the pixel aspect and hfov, landing at ~199 units where the
+         * visible half-extent at 16:9 is ~286 -- so the glow stopped well
+         * short of the screen edges. See project_widescreen_frame_bound_class. */
+        extern float g_PsxPixelAspect;
+        extern float g_PsxWorldHScale;
+        const float hs = (g_PsxWorldHScale > 0.01f) ? g_PsxWorldHScale : 1.0f;
+        float       w  = (((float)halfH * (float)g_PcConfig.windowWidth) /
+                          (float)g_PcConfig.windowHeight) * g_PsxPixelAspect / hs;
+
+        halfW = (s32)(w + 0.5f);
+        /* Cap well past 32:9 but inside the s16 prim range. */
+        if (halfW > 512) halfW = 512;
+        if (halfW < SCREEN_WIDTH / 2) halfW = SCREEN_WIDTH / 2;
+    }
+    dy  = (halfH * 27) / 100; /* halved 2026-08-25: the 55/40 bands swallowed a third of the screen */
+    dx  = (halfW * 20) / 100;
+    buf = g_ActiveBufferIdx;
+
+    for (i = 0; i < 4; i++)
+    {
+        POLY_G4* q = &s_band[buf][i];
+        setPolyG4(q);
+        setSemiTrans(q, 1);
+        switch (i)
+        {
+            case 0: /* top: red along the top edge, black at the inner edge */
+                setXY4(q, -halfW, -halfH, halfW, -halfH, -halfW, -halfH + dy, halfW, -halfH + dy);
+                setRGB0(q, (u8)r, 0, 0); setRGB1(q, (u8)r, 0, 0); setRGB2(q, 0, 0, 0); setRGB3(q, 0, 0, 0);
+                break;
+            case 1: /* bottom */
+                setXY4(q, -halfW, halfH - dy, halfW, halfH - dy, -halfW, halfH, halfW, halfH);
+                setRGB0(q, 0, 0, 0); setRGB1(q, 0, 0, 0); setRGB2(q, (u8)r, 0, 0); setRGB3(q, (u8)r, 0, 0);
+                break;
+            case 2: /* left */
+                setXY4(q, -halfW, -halfH, -halfW + dx, -halfH, -halfW, halfH, -halfW + dx, halfH);
+                setRGB0(q, (u8)r, 0, 0); setRGB1(q, 0, 0, 0); setRGB2(q, (u8)r, 0, 0); setRGB3(q, 0, 0, 0);
+                break;
+            default: /* right */
+                setXY4(q, halfW - dx, -halfH, halfW, -halfH, halfW - dx, halfH, halfW, halfH);
+                setRGB0(q, 0, 0, 0); setRGB1(q, (u8)r, 0, 0); setRGB2(q, 0, 0, 0); setRGB3(q, (u8)r, 0, 0);
+                break;
+        }
+        AddPrim(&g_OtTags0[buf][4], q);
+    }
+    /* Added last so it is drawn first: additive blend for the bands above. */
+    setDrawTPage(&s_tp[buf], 0, 1, getTPageN(0, 1, 0, 0));
+    AddPrim(&g_OtTags0[buf][4], &s_tp[buf]);
+
+    #undef GLOW_HP_MAX
+    #undef GLOW_PERIOD
+    #undef GLOW_R_MIN
+    #undef GLOW_R_MAX
 }
 
 /* Per-frame dispatch for the bound Cycle Weapons + Quick Heal actions (reload is
@@ -532,6 +650,7 @@ void Pc_RearLookUpdate(void)
     extern int          g_DebugThirdPersonCam;
     extern int          g_PcFpsCam;
     extern int          g_PcConsoleInputActive;
+    extern int          g_PcQuickOptionsActive;
     const Uint8*        keys;
     int                 sch, held;
 
@@ -555,7 +674,7 @@ void Pc_RearLookUpdate(void)
     g_PcRearLookActive = (held && g_DebugThirdPersonCam && !g_PcFpsCam &&
                           g_GameWork.gameState == GameState_InGame &&
                           g_SysWork.sysState   == SysState_Gameplay &&
-                          !g_PcConsoleInputActive) ? 1 : 0;
+                          !g_PcConsoleInputActive && !g_PcQuickOptionsActive) ? 1 : 0;
 }
 
 /* OTS/TPS free-aim aim assist.

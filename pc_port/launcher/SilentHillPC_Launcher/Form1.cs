@@ -642,6 +642,8 @@ public partial class Form1 : Form
         const string shadowTip =
             "Flashlight shadow map size. Higher is sharper and costs more\n" +
             "GPU time. Only used by the shadow flashlight modes.\n" +
+            "8192 needs a recent GPU (~256 MB just for the map) and is\n" +
+            "clamped to the driver limit on GPUs that can't do it.\n" +
             "Console: shadowres <size>";
         Set(lblShadow,        shadowTip);
         Set(comboShadow,      shadowTip);
@@ -918,7 +920,8 @@ public partial class Form1 : Form
          * never change what is written to config.cfg. */
         comboShadow.Items.Clear();
         comboShadow.Items.AddRange(new object[] {
-            "256 x 256", "512 x 512", "1024 x 1024", "2048 x 2048", "4096 x 4096" });
+            "256 x 256", "512 x 512", "1024 x 1024", "2048 x 2048", "4096 x 4096",
+            "8192 x 8192" });
 
         comboMinimap.Items.Clear();
         comboMinimap.Items.AddRange(new object[] {
@@ -2077,7 +2080,7 @@ public partial class Form1 : Form
     /* Parallel to comboShadow's items, same contract as RendererValues. */
     private static readonly string[] ShadowResValues =
     {
-        "256", "512", "1024", "2048", "4096",
+        "256", "512", "1024", "2048", "4096", "8192",
     };
 
     private static int ParseIntOr(string s, int fallback)

@@ -1412,6 +1412,15 @@ void DbgOverlay_Update(void)
     extern int g_PcAllowDebugControls;
 
     const unsigned char* ks = SDL_GetKeyboardState(NULL);
+    /* PsyCross owns Ctrl+<key> for its renderer diagnostics (Ctrl+F1
+     * wireframe, Ctrl+F2 textureless, Ctrl+F5 fast-forward, Ctrl+F10 VRAM
+     * dump, Ctrl+F12 screenshot). The game-side binds below read the same raw
+     * key state, so without this every one of those shortcuts ALSO fired the
+     * game's action on the same key -- Ctrl+F1 toggled PGXP while it toggled
+     * wireframe. Suppress the ACTION only: the edge state below still tracks
+     * the physical key, so letting go of Ctrl while the key is still held
+     * cannot manufacture a fresh press. */
+    const int ctrlHeld = (SDL_GetModState() & KMOD_CTRL) ? 1 : 0;
     if (!ks) return;
 
     /* First Update runs inside MainLoop — arm the top-left message toast now so
@@ -1735,7 +1744,7 @@ void DbgOverlay_Update(void)
     {
         static int s_prev_f1 = 0;
         int cur_f1 = ks[SDL_SCANCODE_F1];
-        if (cur_f1 && !s_prev_f1) {
+        if (cur_f1 && !s_prev_f1 && !ctrlHeld) {
             extern int g_PsxUsePgxp;
             g_PsxUsePgxp = !g_PsxUsePgxp;
             g_PcConfig.usePgxp = g_PsxUsePgxp ? 1 : 0;
@@ -1745,13 +1754,49 @@ void DbgOverlay_Update(void)
         s_prev_f1 = cur_f1;
     }
 
+    /* key_quick_options (default F10 -- F9 is the camera-style cycle) toggles
+     * the in-game quick options overlay (pc_quick_options.c). A user-facing
+     * menu like F1/F2, so not gated on g_PcAllowDebugControls; in-game only
+     * (the title/main menu has the real Options screen), and not while the
+     * console has the keyboard. */
+    {
+        extern int  PsyX_LookupGameControllerMapping(const char* str, int default_value);
+        extern bool PC_RawControllerButtonClicked(int sdlButton);
+        static SDL_Scancode s_scQuick   = SDL_SCANCODE_UNKNOWN;
+        static int          s_padQuick  = -1;
+        static int          s_quickRes  = 0;
+        static int          s_prevQuick = 0;
+        int curQuick;
+        int padQuick;
+        if (!s_quickRes) {
+            s_scQuick  = SDL_GetScancodeFromName(g_PcConfig.keyQuickOptions);
+            /* Optional controller bind, unbound by default -- an empty string
+             * leaves it at -1 and nothing is polled. */
+            s_padQuick = (g_PcConfig.padQuickOptions[0] != ' ')
+                       ? (int)PsyX_LookupGameControllerMapping(g_PcConfig.padQuickOptions,
+                                                              -1)
+                       : -1;
+            s_quickRes = 1;
+        }
+        curQuick = (s_scQuick != SDL_SCANCODE_UNKNOWN) ? ks[s_scQuick] : 0;
+        /* Already edge-detected, so it is tested separately from the keyboard
+         * level below rather than folded into curQuick. */
+        padQuick = (s_padQuick >= 0) && PC_RawControllerButtonClicked(s_padQuick);
+        if (((curQuick && !s_prevQuick && !ctrlHeld) || padQuick) && !g_PcConsoleInputActive &&
+            g_GameWork.gameState == GameState_InGame) {
+            extern void Pc_QuickOptions_Toggle(void);
+            Pc_QuickOptions_Toggle();
+        }
+        s_prevQuick = curQuick;
+    }
+
     /* F2 cycles the full-screen post-process look (0=Off..8). Like F1/PGXP this
      * is a user-facing graphics option, not a debug feature, so it is NOT gated
      * on g_PcAllowDebugControls. Order must match the post fragment shader. */
     {
         static int s_prev_f2 = 0;
         int cur_f2 = ks[SDL_SCANCODE_F2];
-        if (cur_f2 && !s_prev_f2) {
+        if (cur_f2 && !s_prev_f2 && !ctrlHeld) {
             extern int g_cfg_postProcess;
             static const char* const s_postNames[] = {
                 "Off", "CRT", "Scanlines", "Vignette", "Color Grade",
@@ -1773,7 +1818,7 @@ void DbgOverlay_Update(void)
     {
         static int s_prev_f3 = 0;
         int cur_f3 = ks[SDL_SCANCODE_F3];
-        if (cur_f3 && !s_prev_f3) {
+        if (cur_f3 && !s_prev_f3 && !ctrlHeld) {
             extern int g_cfg_tonemap;
             static const char* const s_toneNames[] = { "Off", "Reinhard", "ACES", "Filmic" };
             const int count = (int)(sizeof(s_toneNames) / sizeof(s_toneNames[0]));
@@ -1791,7 +1836,7 @@ void DbgOverlay_Update(void)
     {
         static int s_prev_f4 = 0;
         int cur_f4 = ks[SDL_SCANCODE_F4];
-        if (cur_f4 && !s_prev_f4) {
+        if (cur_f4 && !s_prev_f4 && !ctrlHeld) {
             Pc_FlashlightModeApply((g_PcConfig.flashlightMode + 1) & 3, 1);
             SH_DBG_ECHO("F4 Flashlight: %s",
                         Pc_FlashlightModeLabel(g_PcConfig.flashlightMode));
@@ -1808,7 +1853,10 @@ void DbgOverlay_Update(void)
     {
         static int s_prev_exit = 0;
         int cur_exit = Dbg_GfxBindActive(ks, g_PcConfig.keyExitGame);
-        if (cur_exit && !s_prev_exit && !g_PcConsoleInputActive) {
+        /* The quick options overlay closes on Escape, the default exit bind:
+         * without this gate closing it also warm-reset the game to the title. */
+        extern int g_PcQuickOptionsActive;
+        if (cur_exit && !s_prev_exit && !g_PcConsoleInputActive && !g_PcQuickOptionsActive) {
             /* The brightness screen owns the whole display (its calibration bar is
              * drawn outside the normal menu path), so warm-resetting out of it left
              * the bar on screen over the title. Back out to the options list the
@@ -1934,6 +1982,10 @@ void DbgOverlay_Render(void)
     /* In-game randomizer settings panel — same self-contained-GL arrangement,
      * opened by tapping the Map button during a run. */
     { extern void Pc_RandoSettings_Draw(void); Pc_RandoSettings_Draw(); }
+
+    /* In-game quick options overlay (F9) -- same self-contained-GL arrangement,
+     * translucent so live setting changes show through it. */
+    { extern void Pc_QuickOptions_Draw(void); Pc_QuickOptions_Draw(); }
 
     /* Modal Yes/No message box (options-screen "reset to defaults") — same
      * self-contained-GL arrangement; drawn last so it sits over every panel. */

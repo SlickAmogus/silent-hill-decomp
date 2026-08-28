@@ -67,8 +67,20 @@ void Screen_DisplayEnvXySet(DISPENV* displayEnv, s32 x, s32 y) // 0x80032524
     g_GameWorkConst->config.screenPositionX = x;
     g_GameWorkConst->config.screenPositionY = y;
 
+#ifdef SH_PC_PORT
+    /* The PSX Screen Position option was replaced by PC options, and PsyCross
+     * ignores screen.x/y for display placement -- but imported PSX saves can
+     * carry non-default values, and DuckStation-side comparisons assume the
+     * default. Pin the display env to the default-centred position (x=0,
+     * y=+RANGE_Y) so every consumer of screen.x/y behaves as if the option
+     * were untouched; the config value itself is preserved so saves
+     * round-trip unchanged. */
+    displayEnv->screen.x = 0;
+    displayEnv->screen.y = RANGE_Y;
+#else
     displayEnv->screen.x = g_GameWorkConst->config.screenPositionX;
     displayEnv->screen.y = g_GameWorkConst->config.screenPositionY + RANGE_Y;
+#endif
     
     #undef RANGE_X
     #undef RANGE_Y

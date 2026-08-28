@@ -695,10 +695,31 @@ void func_800D8D7C(s_SubCharacter* monsterCybil, s_Model* modelUpper, GsCOORDINA
             break;
 
         case MonsterCybilControl_11:
-            if (monsterCybil->model.anim.keyframeIdx == 38)
+        {
+            /* Fire on the ENTRY to keyframe 38, not while it equals 38.
+             *
+             * Animation time advances fractionally (Anim_TimestepGet scales
+             * by g_DeltaTime), so an integer keyframe holds the same value
+             * for about two frames at 60fps and four at 120 -- an equality
+             * test spawns the attack that many times. At 30fps the keyframe
+             * advances a whole step per frame, so it fired exactly once,
+             * which is why this never showed on console. Same family as the
+             * two-bullets-per-shot free-aim bug (dce9773e0).
+             *
+             * Cybil's sibling call in cybil.c already guards this function
+             * with its own one-shot flag; this one had nothing. A static is
+             * safe here because monster Cybil is a single-instance boss.
+             * The edge cannot fire less often than the old test at 30fps,
+             * where the equality was already true for exactly one frame. */
+            static s32 s_prevKeyframeIdx = -1;
+            const s32  curKeyframeIdx    = monsterCybil->model.anim.keyframeIdx;
+
+            if (curKeyframeIdx == 38 && s_prevKeyframeIdx != 38)
             {
                 func_8006342C(EquippedWeaponId_Unk63, Q12_ANGLE(90.0f), monsterCybil->rotation.vy, g_SysWork.npcBoneCoordBuffer);
             }
+            s_prevKeyframeIdx = curKeyframeIdx;
+        }
 
             sharedFunc_800D9188_0_s00(39, monsterCybil, 38, Sfx_Unk1622);
             break;

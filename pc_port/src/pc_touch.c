@@ -25,6 +25,7 @@
 #include "bodyprog/sys/joy.h"
 #include "screens/options.h" /* OptionsMenuState_Brightness */
 #include "pc_retroachievements.h" /* Pc_Ra_IsSignedIn */
+#include "pc_quick_options.h"     /* the button below opens it */
 
 #define TC_MAX_FINGERS 8
 
@@ -34,7 +35,7 @@
 enum { TR_NONE = 0, TR_MOVE, TR_LOOK, TR_BUTTON, TR_ADVANCE };
 
 /* Actions the on-screen buttons drive. Indices into s_Buttons. */
-enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_FIRE, TB_COUNT };
+enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_FIRE, TB_MENU, TB_COUNT };
 
 typedef struct
 {
@@ -71,6 +72,11 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
      * the same thumb is holding. Hidden the rest of the time so it never eats
      * a movement drag. */
     /* TB_FIRE  */ { 0.095f, 0.760f, 0.105f, 0 },
+    /* Quick options. Permanent, because a phone has no F10 to press and
+     * the settings behind it are the ones worth changing mid-scene
+     * (brightness, fog, flashlight). Directly under Start in the corner
+     * strip, away from both thumbs so it cannot be hit while playing. */
+    /* TB_MENU  */ { 0.955f, 0.190f, 0.055f, 0 },
 };
 
 typedef struct
@@ -185,6 +191,13 @@ static int Tc_Mode(void)
     int level = Tc_Level();
 
     if (level == TC_LEVEL_NONE)
+        return TC_MODE_OFF;
+
+    /* The quick-options panel freezes the game and drives itself through the
+     * pointer. Leaving the thumb controls up under it would both cover it and
+     * keep feeding the frozen game pad input, and a finger meant for a row
+     * would also count as a look-drag. */
+    if (Pc_QuickOptions_IsOpen())
         return TC_MODE_OFF;
 
     /* The boot logos and the intro movies are GAME states, not sys states, so
@@ -753,6 +766,18 @@ void Pc_Touch_Update(void)
         if (s_Buttons[TB_ITEM].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->item);
         if (s_Buttons[TB_MAP].holdFrames   > 0) Tc_PressAction(&s_PadWord, cfg->map);
         if (s_Buttons[TB_START].holdFrames > 0) Tc_PressAction(&s_PadWord, cfg->pause);
+
+        /* Opens the overlay directly rather than through a pad bind: there is
+         * no PSX button for it to press. Edge-triggered on the latch, or the
+         * three-frame minimum press would toggle it open and shut again. */
+        {
+            static int s_menuWas;
+            const int  menuNow = (s_Buttons[TB_MENU].holdFrames > 0);
+
+            if (menuNow && !s_menuWas)
+                Pc_QuickOptions_Toggle();
+            s_menuWas = menuNow;
+        }
         if (s_Buttons[TB_BACK].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->cancel);
 
         if (s_Running || s_Buttons[TB_RUN].holdFrames > 0)
@@ -833,7 +858,29 @@ static int Tc_HalfWidth(void)
     winA = (sw > 0 && sh > 0) ? (float)sw / (float)sh : psxA;
 
     if (g_PcWidescreenMode != 0 && winA > psxA + 0.01f)
-        return (int)((160.0f * (winA / psxA)) + 0.5f);
+    {
+        /* Must match the UI-pass ortho in GR_SetOffscreenState EXACTLY, or the
+         * buttons draw somewhere their hit test is not: the test works in
+         * normalised window coords straight from SDL, while the drawing works
+         * in this centre-origin ortho space.
+         *
+         * The naive 160 * horScale this used to return dropped the PSX pixel
+         * aspect, which the ortho does apply. At 35/32 that is ~9% -- on a
+         * 2868x1320 panel, 261 against the real 285, so every button drew about
+         * twenty units in from where it could be pressed.
+         *
+         * hfov (g_PsxWorldHScale) is deliberately NOT applied: the renderer
+         * skips it for the UI pass (g_PsxUIOrthoPass), because applying it to
+         * 2D shrank the title background and exposed VRAM garbage at its
+         * sides. */
+        extern float g_PsxPixelAspect;
+
+        const float horScale = winA / psxA;
+        const float par      = (g_PsxPixelAspect > 0.0f) ? g_PsxPixelAspect : 1.0f;
+        const float margin   = (float)SCREEN_WIDTH * ((horScale * par) - 1.0f) * 0.5f;
+
+        return (int)((160.0f + margin) + 0.5f);
+    }
 
     return 160;
 }
@@ -900,7 +947,11 @@ void Pc_Touch_Draw(void)
     static int     s_inited = 0;
 
     s_TcBatch batch;
-    GsOT*     ot;
+    /* A TAG, not the GsOT. AddPrim writes the prim's address into the low 24
+     * bits of whatever it is handed, so handing it a GsOT* clobbers that
+     * struct's `length` field -- see the assignment below. Declaring it as the
+     * GsOT* it is not was exactly what let that through unnoticed. */
+    GsOT_TAG* ot;
     int       buf, i, halfW, mode;
 
     mode = Tc_Mode();
@@ -1028,6 +1079,21 @@ void Pc_Touch_Draw(void)
                 Tc_Quad(&batch, cx - w, cy - h, cx + w, cy - h, cx - w, cy + h, cx + w, cy + h, lum);
                 break;
             }
+            case TB_MENU:
+            {
+                /* Three stacked bars -- the one symbol every phone user
+                 * already reads as "settings live here". */
+                int w = (r * 40) / 100, t = (r * 7) / 100, g = (r * 20) / 100;
+                int k;
+
+                for (k = -1; k <= 1; k++)
+                {
+                    int yc = cy + k * g;
+                    Tc_Quad(&batch, cx - w, yc - t, cx + w, yc - t,
+                                    cx - w, yc + t, cx + w, yc + t, lum);
+                }
+                break;
+            }
             case TB_START:
             default:
             {
@@ -1072,9 +1138,22 @@ void Pc_Touch_Draw(void)
      * straight over anything left in OT0: the lone escape button was being
      * submitted every frame and buried, so the corner was tappable with nothing
      * visible in it. Put the solo-button modes in OT2 so the way out is drawn
-     * on top of the screen it is meant to leave. */
+     * on top of the screen it is meant to leave.
+     *
+     * The index is into g_OtTags0, which despite the name IS OT2's tag array
+     * (g_OrderingTable2 is { 4, &g_OtTags0[buf][0], ... }; OT0 lives in
+     * g_OtTags1). Higher index draws in front -- the 2D screens put their fill
+     * at 6 and its border at 7 -- so 15 is on top of everything, and 4 in
+     * gameplay leaves the controls behind any screen that opens over them.
+     *
+     * This used to pass &g_OrderingTable2[buf], the GsOT STRUCT, where a tag
+     * belongs. AddPrim then wrote the prim's low 24 bits over the struct's
+     * first word, which is `length` (4). GsClearOt clears `1 << ot->length`
+     * entries, so the next frame cleared a garbage-sized span of memory and the
+     * process died -- only in the solo-button modes, because only they took
+     * this branch, which is why it presented as "pause crashes". */
     if (mode != TC_MODE_GAMEPLAY)
-        ot = &g_OrderingTable2[g_ActiveBufferIdx];
+        ot = &g_OtTags0[buf][15];
     else
         ot = &g_OtTags0[buf][4];
 
