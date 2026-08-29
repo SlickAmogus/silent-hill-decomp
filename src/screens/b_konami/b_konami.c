@@ -132,16 +132,6 @@ void GameState_KonamiLogo_Update(void) // 0x800C95AC
         GsSwapDispBuff();
         GsDrawOt(&g_OrderingTable2[g_ActiveBufferIdx]);
 #ifdef SH_PC_PORT
-        {
-            /* TEMPORARY [LOGODBG]: one capture, at the top of the fade-in. */
-            static int s_shot = 0;
-            s_shot++;
-            if (s_shot == 312)
-            {
-                extern void SH_TakeScreenshot(const char* filename);
-                SH_TakeScreenshot("logodbg_konami.bmp");
-            }
-        }
         PsyX_EndScene();
 #endif
 
@@ -589,32 +579,11 @@ void BootScreen_KonamiScreenDraw(void) // 0x800C9FB8
 #endif
 
 #ifdef SH_PC_PORT
-    if (s_dbgFrame == 1 || s_dbgFrame == 80 || s_dbgFrame == 160 ||
-        s_dbgFrame == 240 || s_dbgFrame == 310 || s_dbgFrame == 330)
+    if (s_dbgFrame == 300)
     {
-        const u32* sp = (const u32*)dbgFirst;
-        const u32* tp = (const u32*)tile;
-        SH_DBG("[LOGODBG] konami f=%d step=%d fsq=%d buf=%d fade=%d "
-               "sprt=%08x %08x %08x %08x %08x | tile=%08x %08x %08x",
-               s_dbgFrame, (int)g_GameWork.gameStateSteps[0],
-               (int)Fs_QueueGetLength(), (int)g_ActiveBufferIdx,
-               (int)ScreenFade_IsNone(),
-               sp[0], sp[1], sp[2], sp[3], sp[4], tp[0], tp[1], tp[2]);
-
-        {
-            RECT r;
-            u16  px[16];
-            setRECT(&r, 0, 0, 16, 1);
-            StoreImage(&r, (u_long*)px);
-            DrawSync(0);
-            SH_DBG("[LOGODBG] konami f=%d status=%d prog=%d clut(0,0)= "
-                   "%04x %04x %04x %04x %04x %04x %04x %04x "
-                   "%04x %04x %04x %04x %04x %04x %04x %04x",
-                   s_dbgFrame, (int)g_Screen_FadeStatus,
-                   (int)Screen_FadeInProgressGet(),
-                   px[0], px[1], px[2], px[3], px[4], px[5], px[6], px[7],
-                   px[8], px[9], px[10], px[11], px[12], px[13], px[14], px[15]);
-        }
+        /* TEMPORARY [SPLITDBG]: arm PsyCross to report this frame's splits. */
+        extern int g_PsxSplitDbg;
+        g_PsxSplitDbg = 14;
     }
 #endif
 
