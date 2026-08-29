@@ -70,6 +70,7 @@ s_MapTerrain g_Map;
 
 #ifdef SH_PC_PORT
 extern float g_PsxPixelAspect;
+extern float GR_LivePixelAspect(void);
 extern float g_PsxWorldHScale;
 
 /* The light-halo fill quads (POLY_F4) run from the glow's outer ring out to a
@@ -91,7 +92,7 @@ static s32 Pc_ScreenRingHalfW(void)
     }
 
     halfW = ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
-             (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect /
+             (2.0f * (float)g_PcConfig.windowHeight)) * GR_LivePixelAspect() /
             (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f);
 
     return ((s32)halfW < psxHalfW) ? psxHalfW : (s32)halfW;

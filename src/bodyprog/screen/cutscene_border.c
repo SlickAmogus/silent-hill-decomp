@@ -68,11 +68,12 @@ static void Screen_BorderInitStatics(void)
          * the letterbox bars stopped short of the window edges. Use the shared
          * visible-extent bound instead. */
         extern float g_PsxPixelAspect, g_PsxWorldHScale;
+extern float GR_LivePixelAspect(void);
         const int   rw = g_windowWidth  > 0 ? g_windowWidth  : g_PcConfig.windowWidth;
         const int   rh = g_windowHeight > 0 ? g_windowHeight : g_PcConfig.windowHeight;
         const float hs = (g_PsxWorldHScale > 0.01f) ? g_PsxWorldHScale : 1.0f;
         float fw = (rh > 0)
-            ? ((float)g_GameWork.gsScreenHeight * (float)rw / (2.0f * (float)rh)) * g_PsxPixelAspect / hs
+            ? ((float)g_GameWork.gsScreenHeight * (float)rw / (2.0f * (float)rh)) * GR_LivePixelAspect() / hs
             : 160.0f;
         if (fw < 160.0f) fw = 160.0f;
         halfW = (s16)(fw + 10.0f);

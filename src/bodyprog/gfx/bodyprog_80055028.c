@@ -2,7 +2,9 @@
 #include "inline_no_dmpsx.h"
 #ifdef SH_PC_PORT
 #include "pc_config.h"
-#include "sh_log.h" /* [OVLW] TEMPORARY probe */
+/* The pixel aspect the renderer is really using (PsyX_render.cpp). NOT
+ * GR_LivePixelAspect(), which display_aspect = crt does not read. */
+extern float GR_LivePixelAspect(void);
 /* PsyCross runtime horizontal PAR. main_pc.c bakes this to 15/14 (320x224 -> 4:3)
  * at startup; the per-poly cull bounds here must track the same factor PsyCross's
  * Hor+ ortho uses. */
@@ -27,35 +29,9 @@ static s16 Pc_OverlayQuadHalfW(void)
     const float hs = (g_PsxWorldHScale > 0.01f) ? g_PsxWorldHScale : 1.0f;
     float halfW = (g_PcConfig.windowHeight > 0)
         ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
-           (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect / hs
+           (2.0f * (float)g_PcConfig.windowHeight)) * GR_LivePixelAspect() / hs
         : 160.0f;
     if (halfW < 160.0f) halfW = 160.0f;
-#ifdef SH_PC_PORT
-    /* [OVLW] TEMPORARY, one line per distinct result: this helper still sizes
-     * the quad from g_PsxPixelAspect, the `par` CONSTANT, but display_aspect =
-     * crt makes the renderer's effective PAR a solve over the live hfov/vfov
-     * knobs instead. Print both half-widths so the gap at the frame edges is
-     * measured rather than argued about: if ours is the smaller number, that
-     * is the band. Remove once it is settled. */
-    {
-        extern int GR_HorPlusHalfWidths(float* out43, float* outWide);
-        static s16 s_lastW = -1;
-        s16 mine = (s16)(halfW + 10.0f);
-        if (mine != s_lastW)
-        {
-            float h43 = 0.0f, hWide = 0.0f;
-            s_lastW = mine;
-            if (GR_HorPlusHalfWidths(&h43, &hWide))
-            {
-                SH_DBG("[OVLW] overlay halfW=%d (pad+10) vs ortho wide=%.2f 4:3=%.2f "
-                       "-> %s by %.2f units",
-                       (int)mine, hWide, h43,
-                       (mine >= hWide) ? "covers" : "SHORT",
-                       (mine >= hWide) ? (mine - hWide) : (hWide - mine));
-            }
-        }
-    }
-#endif
     return (s16)(halfW + 10.0f);
 }
 #endif
@@ -2711,7 +2687,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
          * were culled at the far screen edges (user-reported, recurring). */
         const float visibleHalfW = ((g_PcConfig.windowHeight > 0)
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
-               (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect
+               (2.0f * (float)g_PcConfig.windowHeight)) * GR_LivePixelAspect()
             : (float)psxHalfW) / (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f);
         s32 halfW = (s32)(visibleHalfW + 64.5f); /* generous by policy */
         if (halfW < psxHalfW) halfW = psxHalfW;
@@ -3890,7 +3866,7 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
          * were culled at the far screen edges (user-reported, recurring). */
         const float visibleHalfW = ((g_PcConfig.windowHeight > 0)
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
-               (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect
+               (2.0f * (float)g_PcConfig.windowHeight)) * GR_LivePixelAspect()
             : (float)psxHalfW) / (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f);
         s32 halfW = (s32)(visibleHalfW + 64.5f); /* generous by policy */
         if (halfW < psxHalfW) halfW = psxHalfW;
