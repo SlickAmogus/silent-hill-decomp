@@ -291,9 +291,11 @@ void GsDrawOt(GsOT *ot)
         PsyX_ClearGteDepthTable();
 
         /* The double-precision form is desktop-only; ES 3.0 has glClearDepthf. */
+#if !defined(__ANDROID__) && !defined(RENDERER_OGLES)
         if (g_grCaps.clearDepthDouble)
             glClearDepth(1.0f);
         else
+#endif
             glClearDepthf(1.0f);
         glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 #endif
