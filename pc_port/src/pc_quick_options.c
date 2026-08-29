@@ -61,6 +61,14 @@ extern void        PcOpt_QuickViewReset(void);
 /* ROW_ACTION fires from Confirm/click ONLY -- unlike every other row kind,
  * Left/Right must not trigger it, or scrolling past "Reset View Settings"
  * with the arrows would undo the player's tuning. */
+/* Defined HERE, above the row tables, because they test it: from its old
+ * position further down, the #if guarding the Speaker Layout row in s_page1
+ * was evaluated before the macro existed and silently kept a row mobile is
+ * meant to drop. */
+#if defined(SH_IOS) || defined(__ANDROID__)
+#define QO_MOBILE 1
+#endif
+
 enum { ROW_OPT = 0, ROW_EXTRA, ROW_PAGE, ROW_CLOSE, ROW_CHEAT, ROW_ACTION };
 enum { QO_A_VIEWRESET = 0 };
 
@@ -98,7 +106,16 @@ static const QoRowDef s_page1[] = {
     { ROW_OPT,   "minimap_require_map",  0, NULL },
     { ROW_OPT,   "crosshair",            0, NULL },
     { ROW_OPT,   "low_health_glow",      0, NULL },
+/* Not on mobile: it would not do anything. PsyX_SPUAL_SetOutputMode is an
+ * empty stub on the software backend and GetOutputMode always answers
+ * stereo -- the only surround path for the software SPU is audio_spatial,
+ * which IS OpenAL placement, and there is no OpenAL on either mobile target
+ * (PsyX_SPUSpatial.cpp is not even compiled there). Cycling the row would
+ * write a config value, redraw a new label, and change nothing you can
+ * hear, which is worse than not offering it. */
+#if !defined(QO_MOBILE)
     { ROW_EXTRA, NULL, QO_X_SPEAKERS,       "Speaker Layout" },
+#endif
     { ROW_EXTRA, NULL, QO_X_BGM,            "Music Volume" },
     { ROW_EXTRA, NULL, QO_X_SFX,            "Effects Volume" },
     { ROW_OPT,   "fmv_volume",           0, NULL },
@@ -220,10 +237,6 @@ static const char* const s_pageTitles[QO_PAGES] = {
  * The desktop tables stay the single source of truth for what is offered and in
  * what order -- a parallel set of mobile tables would drift the first time
  * someone added a row to one and not the other. */
-#if defined(SH_IOS) || defined(__ANDROID__)
-#define QO_MOBILE 1
-#endif
-
 #if defined(QO_MOBILE)
 
 #define QO_M_CONTENT 5   /* settings per page, before the two nav rows */
@@ -1499,6 +1512,25 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
             if (mClick)
             {
                 s_sel = row;
+#if defined(QO_MOBILE)
+                if (qo_row_is_list(&rows[row]))
+                {
+                    /* No dropdown on touch. It is a scrolling sub-list inside
+                     * one row, which is the smallest thing on the panel and the
+                     * hardest to hit or scroll with a thumb.
+                     *
+                     * The row itself is the control instead, split the way it
+                     * already reads: the label half ("Spawn") fires, the value
+                     * half cycles whom. Forwards only -- one direction is
+                     * enough to reach every entry, and the alternative is
+                     * splitting the value side into two even smaller zones. */
+                    if (mpx < (s_geoPanelL + s_geoPanelR) * 0.5f)
+                        qo_confirm(&rows[row]);
+                    else
+                        qo_activate(&rows[row], +1);
+                }
+                else
+#endif
                 if (qo_row_is_list(&rows[row]) && mpx > (s_geoPanelL + s_geoPanelR) * 0.5f)
                 {
                     /* Right half of a list row: open the dropdown on the value. */
@@ -1777,9 +1809,19 @@ void Pc_QuickOptions_Draw(void)
         int   hpx   = (int)(hintH * 0.42f);
 
         if (hpx < 7) hpx = 7;
+#if defined(QO_MOBILE)
+        /* Every term in the desktop footer names hardware this device does not
+         * have -- arrow keys, PgUp/PgDn, Esc, F10 -- and the panel does not move
+         * here either. Describing the gestures that DO exist is the only version
+         * of this line worth the width. */
+        snprintf(hint, sizeof(hint),
+                 "Tap - / + to adjust      Next page and Close at the bottom      * req restart");
+        (void)0;
+#else
         snprintf(hint, sizeof(hint),
                  "Up/Down select   Left/Right adjust   PgUp/PgDn page   drag title to move   %s or Esc close   * req restart",
                  g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10");
+#endif
         s_texHint = qo_bake(hint, (float)hpx, &s_hintW, &s_hintH);
         if (s_texHint && s_hintW > avail && s_hintW > 0 && avail > 0.0f)
         {
@@ -1904,6 +1946,9 @@ void Pc_QuickOptions_Draw(void)
              * outside the label and the value so nothing overlaps, and dimmed
              * on unselected rows so the page does not read as a wall of
              * symbols. */
+            /* Not on a list row: that one is not a stepper -- its halves fire
+             * and cycle -- so - and + would describe the wrong gesture. */
+            if (!qo_row_is_list(r))
             {
                 const float mg = (i == s_sel) ? 0.95f : 0.45f;
 

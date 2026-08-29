@@ -62,21 +62,27 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
     /* TB_AIM   */ { 0.905f, 0.760f, 0.105f, 0 },
     /* TB_ITEM  */ { 0.760f, 0.830f, 0.070f, 0 },
     /* TB_MAP   */ { 0.905f, 0.510f, 0.070f, 0 },
-    /* TB_START */ { 0.955f, 0.075f, 0.055f, 0 },
+    /* Off the very corner: 0.955/0.075 sat hard against the bezel, which is
+     * awkward to reach and close to where a phone puts its own system
+     * gestures. Moved ~20 overlay units down and in. X is a smaller fraction
+     * than Y for the same distance because the overlay is ~570 units wide at
+     * this aspect against 240 tall. */
+    /* TB_START */ { 0.920f, 0.158f, 0.055f, 0 },
     /* TB_RUN   */ { 0.665f, 0.760f, 0.065f, 0 },
     /* TB_BACK is only ever drawn in the corner escape slot, so its own
      * position is never used -- it exists to carry a glyph and a binding. */
-    /* TB_BACK  */ { 0.955f, 0.075f, 0.055f, 0 },
+    /* TB_BACK  */ { 0.920f, 0.158f, 0.055f, 0 },
     /* Mirror of Aim on the other thumb, and only while Aim is held: firing
      * meant tapping the steering half of the screen, which fights the stick
      * the same thumb is holding. Hidden the rest of the time so it never eats
      * a movement drag. */
     /* TB_FIRE  */ { 0.095f, 0.760f, 0.105f, 0 },
-    /* Quick options. Permanent, because a phone has no F10 to press and
-     * the settings behind it are the ones worth changing mid-scene
-     * (brightness, fog, flashlight). Directly under Start in the corner
-     * strip, away from both thumbs so it cannot be hit while playing. */
-    /* TB_MENU  */ { 0.955f, 0.190f, 0.055f, 0 },
+    /* Quick options. Permanent, because a phone has no F10 to press and the
+     * settings behind it are the ones worth changing mid-scene (brightness,
+     * fog, flashlight). Mirrors Start across the screen: same height, other
+     * side, so the two system buttons frame the top and neither sits where a
+     * thumb rests while playing. */
+    /* TB_MENU  */ { 0.080f, 0.158f, 0.055f, 0 },
 };
 
 typedef struct

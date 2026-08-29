@@ -55,12 +55,31 @@ enum { CH_TOGGLE = 0, CH_ACTION, CH_PLAYAS, CH_FREECAM, CH_DEBUGKEYS, CH_SPAWN }
 
 static int s_spawnIdx; /* CH_SPAWN: the browsed entry; confirm spawns it */
 
+/* mobile: what a touch build does with this row.
+ *
+ * Explicit per row rather than inferred from the label. Stripping "(Ctrl+F1)"
+ * by looking for a bracket would work today only because every remaining
+ * parenthetical happens to be a key hint, and would quietly start eating real
+ * text the first time someone wrote "Play as (any chara)". */
+#if defined(SH_IOS) || defined(__ANDROID__)
+#define PC_CHEATS_MOBILE 1
+#endif
+
+enum
+{
+    MOB_KEEP = 0,  /* as-is */
+    MOB_HIDE,      /* not offered at all -- no keyboard to use it from */
+    MOB_RELABEL    /* shown, but under `mname` (the key hint dropped) */
+};
+
 typedef struct
 {
     const char* name;
     int         kind;
     int*        flag;      /* CH_TOGGLE */
     void      (*action)(void); /* CH_ACTION */
+    int         mobile;    /* MOB_* */
+    const char* mname;     /* MOB_RELABEL */
 } CheatRow;
 
 /* ---- actions (mirrors of the debug keys / console commands) ---------- */
@@ -158,17 +177,24 @@ static const CheatRow s_cheats[] = {
 };
 
 static const CheatRow s_debug[] = {
-    { "Debug keys (top row)", CH_DEBUGKEYS, NULL, NULL },
+    /* Debug keys and the free-cam fog toggle are both keyboard-only concepts:
+     * the first arms the number row, the second only means anything while the
+     * free camera is being flown with WASD. Neither is reachable on a phone. */
+    { "Debug keys (top row)", CH_DEBUGKEYS, NULL, NULL, MOB_HIDE },
     { "Collision visualizer", CH_TOGGLE,  &g_CollVisEnabled,  NULL },
-    { "Fog (free cam)",       CH_TOGGLE,  &g_DebugFogDisabled, NULL },
-    { "Keyframe viewer (K)",  CH_TOGGLE,  &g_DebugAnimKfView, NULL },
+    { "Fog (free cam)",       CH_TOGGLE,  &g_DebugFogDisabled, NULL, MOB_HIDE },
+    { "Keyframe viewer (K)",  CH_TOGGLE,  &g_DebugAnimKfView, NULL,
+      MOB_RELABEL, "Keyframe viewer" },
     /* Also on Ctrl+F5 / Ctrl+F1 / Ctrl+F2. The key and the row drive the same
      * state, except fast-forward, where the key is a HOLD and this row is a
      * sticky toggle -- they use separate flags so releasing the key cannot
      * cancel the toggle. The toggle clears itself if Harry dies. */
-    { "Fast forward (Ctrl+F5)", CH_TOGGLE, &g_PcFastForward,     NULL },
-    { "Wireframe (Ctrl+F1)",  CH_TOGGLE,  &g_dbg_wireframeMode,  NULL },
-    { "No textures (Ctrl+F2)", CH_TOGGLE, &g_dbg_texturelessMode, NULL },
+    { "Fast forward (Ctrl+F5)", CH_TOGGLE, &g_PcFastForward,     NULL,
+      MOB_RELABEL, "Fast forward" },
+    { "Wireframe (Ctrl+F1)",  CH_TOGGLE,  &g_dbg_wireframeMode,  NULL,
+      MOB_RELABEL, "Wireframe" },
+    { "No textures (Ctrl+F2)", CH_TOGGLE, &g_dbg_texturelessMode, NULL,
+      MOB_RELABEL, "No textures" },
     { "Spawn",                CH_SPAWN,   NULL, NULL },
     { "Log Harry position",   CH_ACTION,  NULL, act_log_position },
     { "Log camera shot",      CH_ACTION,  NULL, act_log_camera },
@@ -180,8 +206,38 @@ static const CheatRow* row_at(int page, int idx, int* count)
     const CheatRow* t = (page == PC_CHEATS_PAGE_DEBUG) ? s_debug : s_cheats;
     int n = (page == PC_CHEATS_PAGE_DEBUG) ? (int)(sizeof(s_debug) / sizeof(s_debug[0]))
                                            : (int)(sizeof(s_cheats) / sizeof(s_cheats[0]));
+#if defined(PC_CHEATS_MOBILE)
+    /* Hidden rows are SKIPPED, not blanked, so the indices the overlay walks
+     * stay dense. Every other entry point here reaches a row through this one
+     * function, so filtering in it moves the count, the names, the toggles and
+     * the actions together -- nothing can end up addressing a row that is not
+     * on screen. */
+    {
+        int i, live = 0, seen = 0;
+
+        for (i = 0; i < n; i++)
+        {
+            if (t[i].mobile != MOB_HIDE)
+                live++;
+        }
+        if (count) *count = live;
+        if (idx < 0 || idx >= live)
+            return NULL;
+
+        for (i = 0; i < n; i++)
+        {
+            if (t[i].mobile == MOB_HIDE)
+                continue;
+            if (seen == idx)
+                return &t[i];
+            seen++;
+        }
+        return NULL;
+    }
+#else
     if (count) *count = n;
     return (idx >= 0 && idx < n) ? &t[idx] : NULL;
+#endif
 }
 
 int Pc_Cheats_Count(int page)
@@ -194,7 +250,16 @@ int Pc_Cheats_Count(int page)
 const char* Pc_Cheats_Name(int page, int idx)
 {
     const CheatRow* r = row_at(page, idx, NULL);
-    return r ? r->name : "";
+
+    if (!r)
+        return "";
+#if defined(PC_CHEATS_MOBILE)
+    /* "(Ctrl+F1)" is instructions for hardware this device does not have, and
+     * it is the longest part of the label on the narrowest screen. */
+    if (r->mobile == MOB_RELABEL && r->mname)
+        return r->mname;
+#endif
+    return r->name;
 }
 
 int Pc_Cheats_IsAction(int page, int idx)
@@ -216,8 +281,17 @@ const char* Pc_Cheats_Label(int page, int idx, char* buf, int bufsz)
         case CH_FREECAM:   return g_DebugCamEnabled ? "On" : "Off";
         case CH_DEBUGKEYS: return g_PcAllowDebugControls ? "On" : "Off";
         case CH_SPAWN:
+#if defined(PC_CHEATS_MOBILE)
+            /* No chevrons: on touch this row is not left/right-stepped. The
+             * value side cycles the character and the label side fires it,
+             * which the row already reads as -- "Spawn" on the left, whom on
+             * the right. */
+            snprintf(buf, bufsz, "%s%s", Pc_SpawnList_Name(s_spawnIdx),
+                     Pc_SpawnList_Ready(s_spawnIdx) ? "" : "  (not here)");
+#else
             snprintf(buf, bufsz, "< %s >%s", Pc_SpawnList_Name(s_spawnIdx),
                      Pc_SpawnList_Ready(s_spawnIdx) ? "" : "  (not in this map)");
+#endif
             return buf;
         default:           return "";
     }
