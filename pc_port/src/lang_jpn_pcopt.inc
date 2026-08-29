@@ -87,3 +87,31 @@
 { "BGM_Volume",          "\202\141\202\146\202\154\211\271\227\312", }, /* ＢＧＭ音量 */
 { "SE_Volume",           "\202\162\202\144\211\271\227\312",      }, /* ＳＥ音量 */
 { "Vibration",           "\220\125\223\256\220\335\222\350\201\106", }, /* 振動設定： */
+/* ---- Inventory ---------------------------------------------------------
+ * The item command menu and the status line under it. Retail NTSC-J draws
+ * these in ENGLISH -- the words are ASCII in the JP BODYPROG's rodata at
+ * 0x800262E8 (commands) and 0x80027C78 (status), byte-identical to the USA
+ * disc -- and the Chinese patch left them alone too, so there is nothing to
+ * read back and both halves are written here. Japanese only, same gate as the
+ * rest of this file.
+ *
+ * "On"/"Off" are NOT here: those keys already resolve to オン/オフ through the
+ * disc table, which the options screen feeds. The decorated "==On==" forms the
+ * status line uses are different keys and do need their own entries.
+ *
+ * Widths are checked against what they replace -- the command box is sized for
+ * "Unequip" (42 px) and the status line starts at x=208 -- which is why Reload
+ * is 装填 (24 px) rather than リロード (48 px). */
+{ "Use",                 "\216\147\202\244",                            }, /* 使う */
+{ "Equip",               "\221\225\224\365",                            }, /* 装備 */
+{ "Unequip",             "\211\360\217\234",                            }, /* 解除 */
+{ "Reload",              "\221\225\223\125",                            }, /* 装填 */
+{ "Detail",              "\222\262\202\327\202\351",                    }, /* 調べる */
+{ "Look",                "\214\251\202\351",                            }, /* 見る */
+{ "Stock:",              "\216\143\202\350\201\106",                    }, /* 残り： */
+{ "Fuel:",               "\224\122\227\277\201\106",                    }, /* 燃料： */
+{ "==On==",              "\075\075\203\111\203\223\075\075",            }, /* ==オン== */
+{ "==Off==",             "\075\075\203\111\203\164\075\075",            }, /* ==オフ== */
+{ "==Use_OK==",          "\075\075\216\147\227\160\211\302\075\075",    }, /* ==使用可== */
+{ "==Use_OK?==",         "\075\075\216\147\227\160\211\302\201\110\075\075", }, /* ==使用可？== */
+{ "==Use_NG==",          "\075\075\216\147\227\160\225\163\211\302\075\075", }, /* ==使用不可== */
