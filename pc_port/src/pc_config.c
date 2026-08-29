@@ -120,8 +120,24 @@ s_PcConfig g_PcConfig = {
      * 0.92) was cancelling the fabricated 3/4 world-Y squash in GsIDMATRIX2,
      * not correcting a real aspect error. That squash is gone, so these are
      * the honest numbers. */
-    .worldHScale         = 1.0f,
-    .worldVScale         = 1.0f,       /* full 224-row frame, no vertical crop */
+    /* Paired with vfov 1.06 so Advanced still lands on Simple's picture:
+     * Simple's shape is 0.93333 x 0.98 = 0.9147, and Advanced's is
+     * hfov x vfov / par, so hfov = 0.9147 x 1.09375 / 1.06 = 0.944. Unlike
+     * every earlier sub-1.0 value here, this one is not cancelling a bug --
+     * it is just the arithmetic of vfov feeding the shape in Advanced but not
+     * in Simple. At vfov 1.0 it would be exactly 1.0. */
+    .worldHScale         = 0.944f,
+    /* 1.06 is a uniform zoom OUT of 6% (Simple holds the shape fixed, so FOV
+     * scales both axes together). It is close to 240/224 = 1.0714, which is
+     * the geometric value: the console draws 224 lines inside a 240-line
+     * raster and a TV fills the screen with the 240, so the picture occupies
+     * 224/240 of the screen height there while the port fills the window with
+     * the 224 rows. 1.06 is what matched the set side by side, and the eye has
+     * beaten the arithmetic on this every time, so it is what ships.
+     * NOTE: vcropanchor is 0 (top-anchored), so the extra 13 rows all appear
+     * at the BOTTOM and the picture rides ~13 rows high. 0.5 splits them, which
+     * is what a centred 224-in-240 raster actually does -- worth one A/B. */
+    .worldVScale         = 1.06f,
     .pixelAspect         = 35.0f / 32.0f, /* raw mode only: the 350x240 NTSC dot */
     .worldVShift         = 0.0f,       /* the console anchor needs no correction */
     .mouseSensitivity        = 1.0f,
