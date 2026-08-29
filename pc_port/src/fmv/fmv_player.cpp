@@ -1958,9 +1958,42 @@ static int PlayFromFFmpeg(const char* path)
         printf("[FMV] ffmpeg: cannot open '%s'\n", path);
         return -1;
     }
-    if (avformat_find_stream_info(fmt, NULL) < 0) {
-        printf("[FMV] ffmpeg: no stream info in '%s'\n", path);
-        goto cleanup;
+    /* Cap how far ffmpeg analyses before it will report the streams.
+     *
+     * These bound STREAM DISCOVERY only, so nothing here can shorten playback:
+     * once the streams are known the demuxer reads the whole file exactly as
+     * before, and the frame loop still ends on EOF rather than on any byte
+     * budget.
+     *
+     * The default analyzeduration is 5 s, sized for formats that genuinely
+     * have to be scanned (MPEG-TS and friends). Our containers are MP4 and
+     * AVI, whose headers already declare every codec parameter, so 2 s is
+     * generous and simply stops a badly muxed file from spending the whole
+     * budget before the first frame can appear.
+     *
+     * The retry is what makes this safe rather than merely likely-safe: if the
+     * tighter budget ever fails to identify the streams, the caps are lifted
+     * and the probe runs again exactly as it used to. The worst case is
+     * today's behaviour plus one cheap failed attempt. */
+    {
+        Uint32 probeStart = SDL_GetTicks();
+        int    rc;
+
+        av_opt_set_int(fmt, "probesize",       8 * 1024 * 1024, 0);
+        av_opt_set_int(fmt, "analyzeduration", 2 * 1000 * 1000, 0);
+
+        rc = avformat_find_stream_info(fmt, NULL);
+        if (rc < 0) {
+            printf("[FMV] ffmpeg: capped probe found no stream info, retrying uncapped\n");
+            av_opt_set_int(fmt, "probesize",       5 * 1000 * 1000, 0);
+            av_opt_set_int(fmt, "analyzeduration", 5 * 1000 * 1000, 0);
+            rc = avformat_find_stream_info(fmt, NULL);
+        }
+        if (rc < 0) {
+            printf("[FMV] ffmpeg: no stream info in '%s'\n", path);
+            goto cleanup;
+        }
+        printf("[FMV] ffmpeg: probe %u ms\n", (unsigned)(SDL_GetTicks() - probeStart));
     }
 
     vs = av_find_best_stream(fmt, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
