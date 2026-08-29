@@ -48,7 +48,6 @@ static s16 Pc_OverlayQuadHalfW(void)
 #ifdef SH_PC_PORT
 #include <stdio.h>
 #include "sh_log.h"
-#include "pc_n64_trace.h" /* TEMPORARY N64 capture */
 #include "pc_config.h"
 #include "hires_override.h"
 #include "pc_wide_lm.h"
@@ -4402,10 +4401,6 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
 #ifdef SH_PC_PORT
     s32 _dbgPrimPass = 0, _dbgPrimDepthFail = 0, _dbgPrimOobFail = 0, _dbgPrimTotal = 0;
     s32 _dbgPrimBackfaceFail = 0;
-    /* TEMPORARY N64 capture: a passed quad is two triangles, which is the unit
-     * the N64 rate is quoted in. See pc_n64_trace.c. */
-    s32 _n64Tris = 0;
-    s32 _n64Gold = N64Trace_GoldWant();
     {
         static int _charTexLog = 0;
         if (_charTexLog < 3 && meshHdr->primitiveCount > 0) {
@@ -4534,17 +4529,6 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             poly.gt3++;
 #ifdef SH_PC_PORT
             _dbgPrimPass++;
-            _n64Tris += 1;
-            if (_n64Gold && _dbgPrimPass <= 8)
-            {
-                u8  _vi   = scratchData->u.s_1.field_0;
-                s16 _mz   = meshHdr->verticesZ != NULL ? meshHdr->verticesZ[_vi] : 0;
-                SH_LOG("[GOLD] prim=%d tpage=%04x model=(%d,%d,%d) screen=(%d,%d) z=%d",
-                       _dbgPrimPass - 1, (unsigned)prim->field_6.flags,
-                       meshHdr->verticesXy[_vi].vx, meshHdr->verticesXy[_vi].vy, _mz,
-                       scratchData->screenXy_0[_vi].vx, scratchData->screenXy_0[_vi].vy,
-                       (int)scratchData->screenZ_168[_vi]);
-            }
 #endif
         }
         else
@@ -4651,17 +4635,6 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
             poly.gt4++;
 #ifdef SH_PC_PORT
             _dbgPrimPass++;
-            _n64Tris += 2;
-            if (_n64Gold && _dbgPrimPass <= 8)
-            {
-                u8  _vi   = scratchData->u.s_1.field_0;
-                s16 _mz   = meshHdr->verticesZ != NULL ? meshHdr->verticesZ[_vi] : 0;
-                SH_LOG("[GOLD] prim=%d tpage=%04x model=(%d,%d,%d) screen=(%d,%d) z=%d",
-                       _dbgPrimPass - 1, (unsigned)prim->field_6.flags,
-                       meshHdr->verticesXy[_vi].vx, meshHdr->verticesXy[_vi].vy, _mz,
-                       scratchData->screenXy_0[_vi].vx, scratchData->screenXy_0[_vi].vy,
-                       (int)scratchData->screenZ_168[_vi]);
-            }
 #endif
         }
     }
@@ -4706,10 +4679,6 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
     }
 #endif
 
-#ifdef SH_PC_PORT
-    N64Trace_AddCensus(_dbgPrimTotal, _dbgPrimPass, _n64Tris,
-                       _dbgPrimDepthFail, _dbgPrimBackfaceFail, _dbgPrimOobFail);
-#endif
     GsOUT_PACKET_P = poly.packet;
 }
 

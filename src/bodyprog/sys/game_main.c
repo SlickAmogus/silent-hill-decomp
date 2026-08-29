@@ -2431,10 +2431,6 @@ void MainLoop(void) // 0x80032EE0
         /* Same lifecycle for the full-screen puzzle depth flag (map5_s01 lock
          * draw re-arms it while the puzzle is on screen). */
         { extern int g_PcPuzzleItemDepth; g_PcPuzzleItemDepth = 0; }
-        /* TEMPORARY N64 comparison capture (pc_n64_trace.c). Runs BEFORE the
-         * flag is cleared so it judges the frame that just finished, and arms
-         * itself only after the map has been settled for two seconds. */
-        { extern void N64Trace_Tick(void); N64Trace_Tick(); }
         /* Re-armed by the single Gfx_InGameDraw call site during this frame's
          * state update, and read by the clear-color choice further down. */
         g_PcWorldDrawnThisFrame = 0;
