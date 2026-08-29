@@ -105,22 +105,7 @@ void Fs_QueueWaitForEmpty(void)
          * full read and post-load, unlike the timeout branch further down which
          * advances the cursors past entries that were never read.
          * Console: FASTLOAD 0 restores the vblank-paced behaviour. */
-        /* NOT during the boot logos. Those two states queue uploads that land
-         * on top of the very logo being displayed -- BG_ETC.TIM goes to VRAM
-         * (768,0 32x256) inside KONAMI.TIM's (768,0 96x384), and TITLE_E.TIM
-         * to (864,0 160x480) which covers KONAMI2.TIM's (896,0 104x160)
-         * entirely. That is retail's own order, and it is safe on a PSX only
-         * because the queue trickles in one sector per vblank, so the uploads
-         * land as the logo fades rather than while it is up.
-         *
-         * Draining at disk speed wins that race and blanks both logos, which
-         * is exactly what it did: the Konami and KCET screens went black and
-         * the boot ran straight on to the intro FMV. The fast drain stays on
-         * everywhere else, which is where it was worth having -- it is the
-         * multi-second black hold on every door that it exists to fix. */
-        if (g_PcFastBlockingLoads &&
-            g_GameWork.gameState != GameState_KonamiLogo &&
-            g_GameWork.gameState != GameState_KcetLogo)
+        if (g_PcFastBlockingLoads)
         {
             Fs_QueueDrainNow();
         }
