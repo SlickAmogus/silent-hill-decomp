@@ -2,6 +2,7 @@
 #ifdef SH_PC_PORT
 #include <stdio.h>
 #include "sh_log.h"
+#include "pc_n64_trace.h" /* TEMPORARY N64 capture */
 #include "pc_config.h"
 #include "pc_big_lm.h"
 #include "pc_playas.h"
@@ -1657,6 +1658,28 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
     func_80045534(&g_WorldGfxWork.registeredCharaModels[charaId]->skeleton, &g_OrderingTable0[g_ActiveBufferIdx], arg2,
                   boneCoords, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6), ret, CHARA_FILE_INFOS[charaId].field_8);
 #ifdef SH_PC_PORT
+    /* TEMPORARY N64 capture (pc_n64_trace.c): Harry's per-bone matrices for one
+     * frame, after func_80045534 has composed them. `coord` is the animation's
+     * own output for the bone; `workm` beside it is that composed down the
+     * hierarchy, if the comparison needs to move a stage later. One shot. */
+    if (charaId == Chara_Harry && boneCoords != NULL && N64Trace_BonesWant())
+    {
+        s32 _b;
+        s32 _n = g_WorldGfxWork.registeredCharaModels[charaId]->skeleton.boneCount;
+
+        if (_n > 18) _n = 18;
+        SH_LOG("[BONE] harry bones=%d (matrices are GsCOORDINATE2.coord, Q12)", _n);
+        for (_b = 0; _b < _n; _b++)
+        {
+            const MATRIX* _m = &boneCoords[_b].coord;
+            SH_LOG("[BONE] %2d m=[%6d %6d %6d | %6d %6d %6d | %6d %6d %6d] t=(%d,%d,%d)",
+                   _b,
+                   _m->m[0][0], _m->m[0][1], _m->m[0][2],
+                   _m->m[1][0], _m->m[1][1], _m->m[1][2],
+                   _m->m[2][0], _m->m[2][1], _m->m[2][2],
+                   _m->t[0], _m->t[1], _m->t[2]);
+        }
+    }
     { extern int g_PcCharaPrimProbeActive; g_PcCharaPrimProbeActive = 0; }
     { extern int g_PcHideHarryFpsBody; g_PcHideHarryFpsBody = 0; }
     { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 0; }

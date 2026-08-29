@@ -36,6 +36,7 @@ extern float g_PsxWorldVScale, g_PsxWorldVShift;
 #include "bodyprog/math/math.h"
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+#include "pc_n64_trace.h" /* TEMPORARY N64 capture */
 #endif
 
 // Reference view transform?
@@ -1112,6 +1113,15 @@ q19_12 vwVectorToAngle(SVECTOR* ang, const SVECTOR* vec) // 0x8004A714
     ang->vx = ratan2(-vec->vy, SquareRoot0(localVec.vx + localVec.vz));
     ang->vy = ratan2(vec->vx, vec->vz);
     ang->vz = Q12_ANGLE(0.0f);
+#ifdef SH_PC_PORT
+    /* TEMPORARY N64 capture (pc_n64_trace.c): horiz is the Y angle, pitch the
+     * X one. Budgeted per slice -- this runs several times a frame. */
+    if (N64Trace_VangWant())
+    {
+        SH_LOG("[VANG] vec=(%d,%d,%d) horiz=%d pitch=%d r=%d",
+               vec->vx, vec->vy, vec->vz, (int)ang->vy, (int)ang->vx, (int)ret_r);
+    }
+#endif
     return ret_r;
 }
 
