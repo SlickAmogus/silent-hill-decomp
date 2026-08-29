@@ -1281,11 +1281,30 @@ MATRIX GsIDMATRIX = {
     {{4096, 0, 0}, {0, 4096, 0}, {0, 0, 4096}},
     {0, 0, 0}
 };
-/* Identity matrix with NTSC aspect ratio correction.
- * PSX NTSC pixels are ~1.094x taller than wide (320x240 displayed as 4:3).
- * Y scale = 4096 * 3/4 = 3072 (PSX libgs convention). */
+/* GsIDMATRIX2 is a PLAIN IDENTITY, exactly like GsIDMATRIX. Do not "restore"
+ * the aspect correction the libgs header's "Unit Matrix including Aspect retio"
+ * comment implies -- retail does not apply one.
+ *
+ * Read out of the retail binary, GsInitGraph at 0x80094950:
+ *     addiu r2, 4096            ; sh into m[0][0], m[1][1], m[2][2] of
+ *     ...                       ; GsIDMATRIX (0x800C6FA0), off-diagonals and
+ *                               ; t[] already zeroed above
+ *     lw/sw x8                  ; 0x80094960..0x8009499C copies all 32 bytes
+ *                               ; verbatim into GsIDMATRIX2 (0x800C6FE0)
+ * Both are .bss (configs/USA/sym.bodyprog.txt, libgs/gs_107), so the values
+ * exist only at runtime and cannot be read out of the file image.
+ *
+ * The 3072 that used to sit here (a fabricated 3/4 Y scale) squashed the WORLD
+ * vertically to 75% -- vw_calc.c's vbSetWorldScreenMatrix right-multiplies by
+ * this matrix, which scales the Y COLUMN, i.e. world Y before the view
+ * rotation. That made the port show ~1/0.75 more vertical world than the
+ * console, varying with camera pitch (world Y mixes into depth on a tilted
+ * shot), which is why the framing read as inconsistent from room to room.
+ * It is also what every hfov "correction" was really compensating: the chain
+ * of eyeball fixes had settled on 0.76, and the squash it was cancelling
+ * was 0.75. */
 MATRIX GsIDMATRIX2 = {
-    {{4096, 0, 0}, {0, 3072, 0}, {0, 0, 4096}},
+    {{4096, 0, 0}, {0, 4096, 0}, {0, 0, 4096}},
     {0, 0, 0}
 };
 

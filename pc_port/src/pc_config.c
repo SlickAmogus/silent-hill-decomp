@@ -103,20 +103,24 @@ s_PcConfig g_PcConfig = {
     .tpsFov              = 71.1f, /* thirdperson/OTS FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
     .tpsAimZoom          = 100.0f, /* default aim dolly = the original zoom; 200 = 2x zoom, 0 = no zoom */
     .reverbScale         = 0.0f, /* 0 = PsyCross default depth->wet scale */
-    /* View & aspect. A textbook 4:3 stretch of the 224-line frame is trim 1.0
-     * and letting those 224 lines sit inside the 240-line 4:3 window is 1.071,
-     * so the geometry alone does not pick a number: how much a set overscans
-     * decides it, and only a human figure shows the difference. 0.9 is the
-     * value that matched a real CRT side by side. */
+    /* View & aspect. The console picture is NOT a 4:3 stretch of the 224-line
+     * frame: the frame is scanned inside a larger visible area, and DuckStation
+     * renders the game's 320x224 at 465x357 = 1.3025:1, not 1.3333:1. That is
+     * an on-screen pixel aspect of 0.9118, and Simple's shape is
+     * (4:3)/(320/224) x trim = 0.93333 x trim, so console = 0.977. 0.98 both
+     * rounds it and lands within 0.05% of Advanced's hfov 1.0, so the two
+     * Control Types agree out of the box. */
     .aspectRaw           = 0,          /* crt: the framebuffer scanned out to 4:3 */
-    .crtAspectTrim       = 0.9f,
-    /* 0.92 puts Advanced on the same picture as Simple's 0.90 trim
-     * (shape = hfov x vfov / par = 0.92 / 1.09375 = 0.841, and
-     * Simple's = (4:3)/(320/224) x 0.90 = 0.840), so the two Control Types
-     * agree out of the box. The 0.76 that shipped before was 0.872 squared,
-     * carried forward from a chain of eyeball corrections; it renders 21%
-     * narrower than this, which is the "too thin" everyone kept reporting. */
-    .worldHScale         = 0.92f,
+    .crtAspectTrim       = 0.98f,
+    /* 1.0 = the console picture, and now derivable rather than eyeballed.
+     * DuckStation's game area measures 465x357 for the 320x224 frame
+     * (exactsize.png), i.e. an on-screen pixel aspect of 0.9118, and
+     * shape = hfov x vfov / par, so hfov x vfov = 0.9118 x 1.09375 = 0.997.
+     * Every value below 1.0 this ever had (0.872, then 0.76 = 0.872^2, then
+     * 0.92) was cancelling the fabricated 3/4 world-Y squash in GsIDMATRIX2,
+     * not correcting a real aspect error. That squash is gone, so these are
+     * the honest numbers. */
+    .worldHScale         = 1.0f,
     .worldVScale         = 1.0f,       /* full 224-row frame, no vertical crop */
     .pixelAspect         = 35.0f / 32.0f, /* raw mode only: the 350x240 NTSC dot */
     .worldVShift         = 0.0f,       /* the console anchor needs no correction */
