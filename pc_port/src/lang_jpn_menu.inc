@@ -53,3 +53,30 @@
 { "SLOT1", 1, 0x013C, 10 },
 { "SLOT2", 1, 0x0146, 10 },
 { "FILE", 1, 0x0154, 12 },
+/* ---- Options + Extra Options row labels -------------------------------
+ * Retail NTSC-J draws these in Japanese from the same OPTION.BIN the values
+ * above come from; the port compiled the decomp's US branch and drew the
+ * English literals, which is why those two screens read half-translated on a
+ * JP disc. Offsets are the two pointer arrays at 0x01BC (Options, 9 entries)
+ * and 0x039C (Extra Options, 8), verified against both the retail JP disc and
+ * the Chinese-patched one -- so this gets Chinese for free, exactly as the
+ * value strings already do. `len` trims the ideographic-space padding to the
+ * longer of the two languages; Bullet_Adjust's field is followed by the x1..x6
+ * value blob in the same string, so it stops at the colon. */
+{ "Exit", 0, 0x0004, 28 },                            /* オプションモードを終了します */
+{ "Brightness_Level", 0, 0x0030, 24 },                /* 画面の明るさを調節します */
+{ "Controller_Config", 0, 0x005C, 20 },               /* 操作方法を変更します */
+{ "Screen_Position", 0, 0x0088, 26 },                 /* 画面の表示位置を調節します */
+{ "Vibration", 0, 0x00B4, 34 },                       /* アナログコントローラの振動設定： */
+{ "Auto_Load", 0, 0x00E0, 28 },                       /* オートロードの設定： */
+{ "Sound", 0, 0x010C, 20 },                           /* サウンドの設定： */
+{ "BGM_Volume", 0, 0x0138, 30 },                      /* ＢＧＭのボリュームを調節します */
+{ "SE_Volume", 0, 0x0164, 28 },                       /* ＳＥのボリュームを調節します */
+{ "Weapon_Control", 0, 0x01E4, 18 },                  /* 武器の構えタイプ： */
+{ "Blood_Color", 0, 0x0210, 14 },                     /* 血しぶきの色： */
+{ "View_Control", 0, 0x023C, 18 },                    /* サーチビュー操作： */
+{ "Retreat_Turn", 0, 0x0268, 14 },                    /* 後退時の旋回： */
+{ "\x01W" "\x01" "a\x01l\x01k/R\x01\x01u\x01n_\x01\x01\x01\x01" "Co\x01n\x01t\x01ro\x01l", 0, 0x0294, 18 }, /* 歩行／走行の操作： */
+{ "Auto_Aiming", 0, 0x02C0, 16 },                     /* 武器の自動照準： */
+{ "View_Mode", 0, 0x02EC, 18 },                       /* サーチビュー効果： */
+{ "Bullet_Adjust", 0, 0x0318, 12 },                   /* 弾薬量設定： */

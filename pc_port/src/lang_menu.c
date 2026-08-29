@@ -12,7 +12,6 @@
 #include "font_region.h"
 #include "main/fileinfo.h"
 #include "pc_config.h"
-#include "sh_log.h"
 
 /* Port-written menu translations (DE/FR/ES/IT). Retail PAL shipped ENGLISH
  * menus in every language (probe-verified from its OPTION.BIN/SAVELOAD.BIN)
@@ -257,21 +256,6 @@ const char* Pc_LangMenuText(const char* str)
     if (g_GameRegion == Region_JPN)
     {
         const char* jp = Pc_JpnMenuText(str);
-        /* [JPPROBE] one-shot, capped at 8 lines for the whole session (NOT a
-         * per-frame probe): does the menu lookup find a Japanese/Chinese
-         * string at all? Separates "no translation" from "translated but not
-         * drawn". Remove once the language regression is closed. */
-        {
-            static int s_probe = 0;
-            if (s_probe < 8)
-            {
-                s_probe++;
-                SH_DBG("[JPPROBE] menu \"%.20s\" -> %s (first bytes %02X %02X)",
-                       str, jp ? "TRANSLATED" : "no entry",
-                       jp ? (unsigned char)jp[0] : 0u,
-                       (jp && jp[0]) ? (unsigned char)jp[1] : 0u);
-            }
-        }
         return jp ? jp : str;
     }
 

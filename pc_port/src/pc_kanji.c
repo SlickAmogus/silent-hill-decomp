@@ -3,8 +3,6 @@
 
 #include <string.h>
 
-#include "sh_log.h"
-
 #include "kanji_font.inc"
 #include "kanji_font_cn.inc"
 
@@ -195,20 +193,6 @@ int Pc_KanjiCell(unsigned short sjis, unsigned int* outPage, int* outU, int* out
     }
 
     bits = GlyphBits(sjis);
-    /* [JPPROBE] one-shot, capped at 8 lines for the session (NOT per-frame):
-     * is the glyph reaching the rasterizer, and where does its cell land?
-     * Separates "no glyph data" from "rasterized but invisible". Remove once
-     * the language regression is closed. */
-    {
-        static int s_probe = 0;
-        if (s_probe < 8)
-        {
-            s_probe++;
-            SH_DBG("[JPPROBE] kanji sjis=%04X bits=%s cell=%d chinese=%d clut=%04X",
-                   sjis, bits ? "found" : "MISSING", s_CellCount, s_UseChinese,
-                   (unsigned)KANJI_CLUT_ID);
-        }
-    }
     if (bits == 0)
         return 0;
 

@@ -35,6 +35,19 @@ static const s_JpnMenuEntry s_JpnMenu[] = {
 };
 #define JPN_MENU_COUNT ((int)(sizeof(s_JpnMenu) / sizeof(s_JpnMenu[0])))
 
+/* Rows the PORT added, which no disc can supply. Written rather than read
+ * back, and Japanese only -- see the header of lang_jpn_pcopt.inc for why the
+ * Chinese glyph set cannot borrow them. */
+typedef struct {
+    const char* us;
+    const char* jp; /* Shift-JIS */
+} s_JpnPcOptEntry;
+
+static const s_JpnPcOptEntry s_JpnPcOpt[] = {
+#include "lang_jpn_pcopt.inc"
+};
+#define JPN_PCOPT_COUNT ((int)(sizeof(s_JpnPcOpt) / sizeof(s_JpnPcOpt[0])))
+
 static char*       s_Arena;
 static const char* s_Text[JPN_MENU_COUNT];
 static int         s_Active;
@@ -123,6 +136,7 @@ void Pc_JpnMenuInit(void)
     char*          out;
     unsigned int   bytes = 0;
     int            i;
+    int            packHits = 0;
 
     free(s_Arena);
     s_Arena = NULL;
@@ -176,6 +190,7 @@ void Pc_JpnMenuInit(void)
         packed = Pc_LangZhPackActive() ? Pc_LangZhMenuEntry(i, &packedLen) : NULL;
         if (packed != NULL)
         {
+            packHits++;
             out = CopyEntry(out, packed, (unsigned int)packedLen, 0, e->len);
         }
         else if (Pc_LangZhPackActive())
@@ -200,6 +215,18 @@ void Pc_JpnMenuInit(void)
     free(ovl[0]);
     free(ovl[1]);
     s_Active = 1;
+    /* Naming the shortfall matters: the pack is read BY INDEX and a short one
+     * simply runs out, so rows the game has and the pack does not fall back to
+     * English silently. New rows are always APPENDED to lang_jpn_menu.inc for
+     * that reason -- inserting one in the middle would shift every later index
+     * and draw the wrong string instead of none. Regenerate with
+     * pc_port/tools/gen_zh_pack.py after any change to that table. */
+    if (Pc_LangZhPackActive() && packHits < JPN_MENU_COUNT)
+    {
+        SH_WARN("[LANG-JP] zh.pack supplied %d of %d menu strings — the rest stay "
+                "English; regenerate it with tools/gen_zh_pack.py",
+                packHits, JPN_MENU_COUNT);
+    }
     SH_LOG("[LANG-JP] %d menu strings installed (%s)", JPN_MENU_COUNT,
            Pc_LangZhPackActive() ? "zh.pack" : "the disc's own overlays");
 }
@@ -208,13 +235,30 @@ const char* Pc_JpnMenuText(const char* us)
 {
     int i;
 
-    if (!s_Active || us == NULL)
+    if (us == NULL)
         return NULL;
 
-    for (i = 0; i < JPN_MENU_COUNT; i++)
+    /* Disc strings first: they are the real thing in both languages. */
+    if (s_Active)
     {
-        if (s_JpnMenu[i].us[0] == us[0] && strcmp(s_JpnMenu[i].us, us) == 0)
-            return s_Text[i];
+        for (i = 0; i < JPN_MENU_COUNT; i++)
+        {
+            if (s_JpnMenu[i].us[0] == us[0] && strcmp(s_JpnMenu[i].us, us) == 0)
+                return s_Text[i];
+        }
+    }
+
+    /* Then the port's own rows. Not gated on s_Active -- these never came off
+     * a disc, so they stand whether or not the overlays read. Gated on the
+     * glyph set instead: under the Chinese font every kanji here would draw as
+     * an unrelated character, and English beats that. */
+    if (!Pc_KanjiChineseActive())
+    {
+        for (i = 0; i < JPN_PCOPT_COUNT; i++)
+        {
+            if (s_JpnPcOpt[i].us[0] == us[0] && strcmp(s_JpnPcOpt[i].us, us) == 0)
+                return s_JpnPcOpt[i].jp;
+        }
     }
     return NULL;
 }
