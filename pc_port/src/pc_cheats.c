@@ -33,7 +33,6 @@ extern int  g_dbg_wireframeMode;  /* PsyCross renderer debug (also Ctrl+F1) */
 extern int  g_dbg_texturelessMode;/* PsyCross renderer debug (also Ctrl+F2) */
 extern int  g_DebugAnimKfView;
 extern int  g_DebugCamEnabled;
-extern int  g_DebugFogDisabled;
 extern void Pc_FreeCam_Set(int on);
 /* main_pc.c / dbg_overlay.c */
 extern int  g_PcAllowDebugControls;
@@ -160,7 +159,6 @@ static const CheatRow s_cheats[] = {
 static const CheatRow s_debug[] = {
     { "Debug keys (top row)", CH_DEBUGKEYS, NULL, NULL },
     { "Collision visualizer", CH_TOGGLE,  &g_CollVisEnabled,  NULL },
-    { "Fog (free cam)",       CH_TOGGLE,  &g_DebugFogDisabled, NULL },
     { "Keyframe viewer (K)",  CH_TOGGLE,  &g_DebugAnimKfView, NULL },
     /* Also on Ctrl+F5 / Ctrl+F1 / Ctrl+F2. The key and the row drive the same
      * state, except fast-forward, where the key is a HOLD and this row is a
