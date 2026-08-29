@@ -51,6 +51,7 @@
 
 /* PsyCross public API */
 #include <PsyX/PsyX_public.h>
+#include <PsyX/PsyX_backend.h>
 #include <PsyX/common/glad.h>
 
 /* Null device differs by platform: NUL on Windows, /dev/null on POSIX. */
@@ -887,15 +888,27 @@ int main(int argc, char* argv[])
         }
     }
 
-    /* PsyCross horizontal pixel-aspect compensation. Silent Hill renders a 320x224
-     * framebuffer the PSX displays as a 4:3 picture, so its pixels are NOT square
-     * (PAR = (4/3)/(320/224) = 14/15). PsyCross's Hor+ ortho and the matching game-side
-     * cull bounds scale the framebuffer-aspect horizontal extent by g_PsxPixelAspect;
-     * the value that restores the 4:3 picture is (320/224)*(3/4) = 15/14 ~= 1.0714.
-     * Baked in — it was a config knob, but no other value is correct for this game. */
+    /* PsyCross horizontal pixel-aspect compensation. The 15/14 previously baked
+     * here assumed the 320x224 picture fills 4:3 — it does not. The console scans
+     * the frame inside the 350x240 NTSC visible area (DuckStation reports exactly
+     * "1x native = 350x240" for this game, with real black bars around the
+     * picture), so a 320-mode dot's height/width = (350/240)/(4/3) = 35/32 =
+     * 1.09375 and the visible picture is ~1.306:1, slightly narrower than 4:3.
+     * Confirmed empirically 2026-08-25: DuckStation's game content measures
+     * 465x357 => (357/224)/(465/320) = 1.097 ~= 35/32. This is also the original
+     * PSX_NTSC_PIXEL_ASPECT PsyCross shipped (9c502de) and the constant the
+     * vw_calc.c cull comments still quote. Read only by display_aspect = raw;
+     * config key pixel_aspect, console `par`, View & Aspect quick-options row.
+     * hfov/vfov (world_hscale/world_vscale) come from the same page. */
     {
         extern float g_PsxPixelAspect;
-        g_PsxPixelAspect = (320.0f / 224.0f) * (3.0f / 4.0f);
+        extern float g_PsxWorldHScale;
+        extern float g_PsxWorldVScale;
+        extern float g_PsxWorldVShift;
+        g_PsxPixelAspect = g_PcConfig.pixelAspect;
+        g_PsxWorldHScale = g_PcConfig.worldHScale;
+        g_PsxWorldVScale = g_PcConfig.worldVScale;
+        g_PsxWorldVShift = g_PcConfig.worldVShift;
     }
 
     /* Apply widescreen mode to PsyCross. */
@@ -1084,6 +1097,15 @@ int main(int argc, char* argv[])
     g_cfg_msaaSamples = g_PcConfig.msaaSamples;
     SH_LOG("MSAA: %dx", g_cfg_msaaSamples);
 
+    /* Same rule as MSAA: the backend decides whether SDL builds a WGL or an EGL
+     * window, so it has to be set before PsyX_Initialise. Unknown names resolve
+     * to native GL rather than failing, and a translated backend with no ANGLE
+     * present falls back inside PsyCross — this cannot block startup. */
+    g_cfg_renderBackend = PsyX_Backend_FromName(g_PcConfig.renderer);
+    SH_LOG("Renderer: %s -> %s", g_PcConfig.renderer, PsyX_Backend_GetDescription(g_cfg_renderBackend));
+    if (PsyX_Backend_IsTranslated(g_cfg_renderBackend) && !PsyX_Backend_AngleAvailable())
+        SH_LOG("Renderer: ANGLE (libEGL.dll + libGLESv2.dll) not found next to the exe — falling back to native OpenGL");
+
     /* Before PsyX_Initialise: the window is confined as soon as it is created. */
     g_cfg_confineCursor = g_PcConfig.confineCursor;
 
@@ -1197,18 +1219,29 @@ int main(int argc, char* argv[])
      * dither, 2 = bilinear. Mutually exclusive — bilinear softens
      * everything while dither keeps the original look but masks the
      * texture-page seam artifacts and adds the authentic PSX noise. */
+    { extern int g_cfg_textureFilter, g_cfg_anisoLevel; }
     switch (g_PcConfig.psxDither) {
-    case 1:  g_cfg_psxDither = 1; g_cfg_bilinearFiltering = 0; break;
-    case 2:  g_cfg_psxDither = 0; g_cfg_bilinearFiltering = 1; break;
-    default: g_cfg_psxDither = 0; g_cfg_bilinearFiltering = 0; break;
+    case 1:  g_cfg_psxDither = 1; g_cfg_textureFilter = 0; break;
+    case 2:  g_cfg_psxDither = 0; g_cfg_textureFilter = 1; break;
+    case 3:  g_cfg_psxDither = 0; g_cfg_textureFilter = 2; break;
+    /* 4..7 = anisotropic 2x/4x/8x/16x: one value carries mode AND strength. */
+    case 4:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 2;  break;
+    case 5:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 4;  break;
+    case 6:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 8;  break;
+    case 7:  g_cfg_psxDither = 0; g_cfg_textureFilter = 3; g_cfg_anisoLevel = 16; break;
+    default: g_cfg_psxDither = 0; g_cfg_textureFilter = 0; break;
     }
+    g_cfg_bilinearFiltering = (g_cfg_textureFilter > 0);
     /* Menus / 2D-only frames (g_PsxDitherSuppressed) get bilinear if enabled,
      * independent of the 3D psx_dither mode above. */
     g_cfg_menuFilter = g_PcConfig.menuFilter ? 1 : 0;
     g_cfg_disableDpadMovement = 0; /* driven per-frame by gameplay state (game_main.c) so the D-pad still navigates menus */
-    SH_LOG("Filtering: %s",
-           g_cfg_psxDither ? "PSX dither" :
-           g_cfg_bilinearFiltering ? "bilinear" : "off");
+    SH_LOG("Filtering: %s%s",
+           g_cfg_psxDither     ? "PSX dither" :
+           g_cfg_textureFilter == 1 ? "bilinear" :
+           g_cfg_textureFilter == 2 ? "trilinear" :
+           g_cfg_textureFilter == 3 ? "anisotropic" : "off",
+           g_cfg_textureFilter >= 3 ? " (see aniso taps in the mode)" : "");
 
     /* PGXP master gate: PsyCross is compiled with USE_PGXP=1, but the
      * runtime path is opt-in via config.cfg use_pgxp. When 0, prim emit
@@ -1285,10 +1318,38 @@ int main(int argc, char* argv[])
                                          g_PcAudioConfig.modernDither))
             SH_ERR("Invalid SPU renderer configuration; audio startup will fail");
 
+    {
+        /* A television scans the framebuffer out to 4:3 whatever its line
+         * count, which is the picture these games were composed on. raw
+         * keeps the framebuffer at the `par` pixel aspect instead. */
+        extern int g_PsxAspectRaw;
+        g_PsxAspectRaw = g_PcConfig.aspectRaw ? 1 : 0;
+        {
+            /* Unset (0) means no trim, not a zero-width picture. */
+            extern float g_PsxCrtAspectTrim;
+            if (g_PcConfig.crtAspectTrim > 0.0f)
+                g_PsxCrtAspectTrim = g_PcConfig.crtAspectTrim;
+        }
+        SH_LOG("Display aspect: %s (trim %.3f, hfov %.3f, vfov %.3f, par %.4f)",
+               g_PsxAspectRaw ? "raw (framebuffer par)" : "crt (stretched to 4:3)",
+               g_PcConfig.crtAspectTrim, g_PcConfig.worldHScale,
+               g_PcConfig.worldVScale, g_PcConfig.pixelAspect);
+    }
+
+        {
+            /* Spatial output: the software SPU keeps its exact synthesis and
+             * reverb, but its per-voice taps are placed by OpenAL instead of
+             * being downmixed to stereo, so surround layouts finally get the
+             * accurate reverb. Ignored by the legacy backend. */
+            extern void PsyX_SPUAL_ConfigureSpatial(int enable, int speakers);
+            PsyX_SPUAL_ConfigureSpatial(
+                (PcAudioConfig_UsesSoftwareSpu() && g_PcAudioConfig.spatial) ? 1 : 0,
+                g_PcConfig.audioOutput);
+        }
         if (PcAudioConfig_UsesSoftwareSpu()) {
-            SH_LOG("Software SPU output: renderer=%d backend=%d mode=%d rate=%d bit-perfect=%d",
+            SH_LOG("Software SPU output: renderer=%d backend=%d mode=%d rate=%d bit-perfect=%d spatial=%d",
                    g_PcAudioConfig.renderer, g_PcAudioConfig.backend, g_PcAudioConfig.mode,
-                   g_PcAudioConfig.rate, g_PcAudioConfig.bitPerfect);
+                   g_PcAudioConfig.rate, g_PcAudioConfig.bitPerfect, g_PcAudioConfig.spatial);
         } else {
             extern void PsyX_SPUAL_SetAdsrEnabled(int on);
             extern void PsyX_SPUAL_SetReverbDepthScale(float scale);
@@ -1327,6 +1388,12 @@ int main(int argc, char* argv[])
             g_cfg_saturation = g_PcConfig.saturation;
         }
         g_PsyX_FlashlightSize      = g_PcConfig.flashlightSize;
+        {
+            /* Shadow-map resolution. GR_EnsureShadowTarget clamps and rebuilds
+             * the target, so this is safe to set before any GL work. */
+            extern int g_PsyX_ShadowMapSize;
+            g_PsyX_ShadowMapSize = g_PcConfig.shadowMapSize;
+        }
         g_PsyX_FlashlightIntensityFps = g_PcConfig.flashlightIntensityFps;
         g_PsyX_FlashlightSizeFps      = g_PcConfig.flashlightSizeFps;
         SH_LOG("Effect intensity: flashlight %.2f, post %.2f, tonemap %.2f; flashlight size %.2f",
@@ -1454,6 +1521,10 @@ int main(int argc, char* argv[])
      * unless enabled and signed in. */
     { extern void Pc_Ra_Init(void); Pc_Ra_Init(); }
 
+    /* Gameplay plugins (plugins/*.dll). Self-gated on config enable_plugins,
+     * which defaults OFF -- the scan never runs unless the user opted in. */
+    { extern void Pc_Plugins_Init(void); Pc_Plugins_Init(); }
+
     SH_LOG("All subsystems initialized. Entering MainLoop...");
 
     /* The graphic-content warning ("There are violent and disturbing
@@ -1474,6 +1545,7 @@ int main(int argc, char* argv[])
     /* Cleanup */
     SH_DBG("[SH] MainLoop exited normally. Shutting down...");
     { extern void Pc_Ra_Shutdown(void); Pc_Ra_Shutdown(); }
+    { extern void Pc_Plugins_Shutdown(void); Pc_Plugins_Shutdown(); }
     Pc_Discord_Shutdown();
     PsyX_Shutdown();
 

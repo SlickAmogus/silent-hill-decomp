@@ -106,6 +106,13 @@ typedef struct {
     int attractDemos;     /* 1 = play the PSX attract-mode gameplay demos after the title screen
                            * sits idle (the intro FMV still plays every third cycle either way)
                            * (config key: attract_demos) */
+    int menuFpsUnlock;    /* 1 = let the fps cap apply to screens that are not gameplay:
+                           * main menu, options (title and in-game), the map screens and
+                           * cursor puzzles. The inventory stays at 60 on purpose, and
+                           * cutscenes stay clamped by Pc_ScriptOwnsShot regardless.
+                           * Set 0 to put every non-gameplay screen back on the hard
+                           * one-vblank wait. (config key: menu_fps_unlock) */
+    int lowHealthGlow;    /* 1 = pulsing red edge glow while health is low (config key: low_health_glow); off by default */
     int bulletDecals;     /* 1 = bullet-hole decals where player gunfire hits world geometry
                            * (gamedata/decal.png; up to 64 FIFO, cleared on map load)
                            * (config key: bullet_decals) */
@@ -139,6 +146,12 @@ typedef struct {
                           * sits inside geometry (elevator doors/staircase). 0 = draw them (old behavior).
                           * (config key: psx_poly_size_cull; console: polysizecull) */
     int msaaSamples;     /* MSAA on the default framebuffer: 0 = off, 2/4/8 = sample count (config key: msaa) */
+    char renderer[16];   /* graphics backend (config key: renderer): "gl" (default, native OpenGL),
+                          * "d3d11", "vulkan", "d3d9", "software", "gles". Everything but "gl" runs the
+                          * same renderer against an OpenGL ES 3.0 context provided by ANGLE, so those
+                          * need libEGL.dll + libGLESv2.dll beside the exe; without them the game logs a
+                          * warning and falls back to "gl". Mostly of interest because overlay/capture
+                          * tools hook DXGI and Vulkan far more reliably than they hook opengl32. */
     int postProcess;     /* full-screen post-process look: 0 = off, 1.. = built-in filter (config key: post_process) */
     int tonemap;         /* tone-map operator: 0=off,1=Reinhard,2=ACES,3=Filmic (config key: tonemap) */
     int flashlightMode;     /* THE flashlight setting (config key: flashlight_mode):
@@ -175,6 +188,9 @@ typedef struct {
                              * map7_s03 boss with a score-picked ending. Forces global_chara_pool on and
                              * overrides `map`. 0 = off, byte-identical vanilla.
                              * (config key: randomizer; docs/Randomizer_Mode.md) */
+    /* Randomizer tunables live in their OWN file (gamedata/randomizer.cfg), owned
+     * by pc_rando_config.c — NOT here — so config.cfg stays clean and the in-game
+     * panel / Lua layer read+write a single dedicated store (s_RandoConfig). */
     int controllerMovement; /* 0 = analog stick, 1 = d-pad, 2 = both (default) */
     int movementOriginal;   /* 1 = PSX lower-body movement state
                              * machine (accel/decel, wall smack, authored sidesteps)
@@ -199,9 +215,12 @@ typedef struct {
     int disableDpadMovement; /* 1 = the controller D-pad no longer drives movement, freeing those D-pad inputs to be bound to other actions (config key: disable_dpad_movement); default 0 */
     int menuFilter;          /* 1 = bilinear-filter menus / 2D screens, independent of the in-game texture Filtering mode; default 0 (config key: menu_filter) */
     int minimap;             /* minimap overlay: 0 = off, 1 = square, 2 = circle (config key: minimap); default 0 */
+    int anisoLevel;          /* max anisotropic taps, 1..16 (config key: aniso_level); default 8 */
+    int shadowMapSize;       /* flashlight shadow-map resolution, 256..8192 (config key: shadow_resolution); default 1024 */
     int minimapCorner;       /* minimap screen corner: 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right (config key: minimap_corner); default 0 */
     int minimapShape;        /* DEPRECATED, folded into `minimap`; still read to migrate old configs (config key: minimap_shape) */
     float minimapScale;      /* minimap size percentage, MINIMAP_SCALE_MIN..MAX (config key: minimap_scale); default 100 */
+    int enablePlugins;       /* 1 = load plugins/*.dll gameplay plugins at boot; 0 = never touch them (config-only key: enable_plugins); default 0 -- a DLL runs arbitrary code, so the surface is strictly opt-in */
     int minimapRequireMap;   /* 1 = only draw the map once the area's paper map has been found; 0 = always draw it (config-only key: minimap_require_map); default 1 */
     float minimapOpacity;    /* minimap opacity percentage, 0..100 (config key: minimap_opacity); default 100 */
     int   adsr;             /* 1 = SPU ADSR envelopes (instrument attack/release fades in sequenced BGM); default 1 (config key: adsr) */
@@ -209,6 +228,28 @@ typedef struct {
     float fpsFov;           /* first-person horizontal FOV in degrees (4:3 basis), 55..110; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during FPS gameplay (config key: fps_fov) */
     float tpsFov;           /* Thirdperson/OTS horizontal FOV in degrees (4:3 basis), 55..110; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during TPS/OTS gameplay — the Classic camera always keeps the original projection (config key: tps_fov) */
     float tpsAimZoom;       /* "TPS/OTS Aim Zoom": how far the TPS/OTS camera dollies in while aiming, as a percentage of the zoom range, 0..200. 100 (default) = the original full zoom, 200 = a deeper 2x zoom, 0 = no zoom at all. Replaces the old tps_aim_zoom on/off key (config key: tps_aim_zoom_amount) */
+    /* display_aspect: 0 = crt (stretch the framebuffer to 4:3, as a television
+     * does, the default), 1 = raw (the framebuffer at the `par` knob's pixel
+     * aspect, faithful to the game's own numbers). */
+    int   aspectRaw;
+    /* crt_aspect_trim: multiplies the 4:3 target of display_aspect = crt.
+     * 1.0 is a textbook 4:3; below 1.0 gives taller, thinner figures.
+     * Console: crtaspect. Quick options: View & Aspect page. */
+    float crtAspectTrim;
+    /* The three live view knobs the console has always had (hfov / vfov / par),
+     * now persisted so the View & Aspect page can save what the player picks.
+     * hfov and vfov only change how much world is on screen -- display_aspect =
+     * crt divides them back out of the pixel aspect, so they cannot squash the
+     * picture -- and par is read only by display_aspect = raw.
+     * Config keys: world_hscale, world_vscale, pixel_aspect. */
+    float worldHScale;
+    float worldVScale;
+    float pixelAspect;
+    /* world_vshift: GTE projection-centre delta in PSX rows, + = view up.
+     * Gameplay cameras only; cutscenes use the separate cutshift. Console
+     * `vshift`. 0 = the console anchor, which is where it should stay unless
+     * a comparison says otherwise. */
+    float worldVShift;
     float reverbScale;      /* reverb depth->wet mapping scale, 0 = leave PsyCross default (2.0) (config key: reverb_scale) */
     float mouseSensitivity;      /* mouse-look sensitivity multiplier for TPS/OTS/FPS cameras, 0.1..4.0; default 1.0 (config key: mouse_sensitivity) */
     float controllerSensitivity; /* right-stick look sensitivity multiplier for TPS/OTS/FPS cameras, 0.1..4.0; default 1.0 (config key: controller_sensitivity) */
@@ -224,6 +265,8 @@ typedef struct {
     /* Global (scheme-independent) binds. Change Camera / Reload / Cycle Weapons /
      * Quick Heal are per-scheme now — they live in ControlScheme above. */
     char keyQuickSave[24], keyQuickLoad[24]; /* PC-only: quick save/load screen hotkeys */
+    char keyQuickOptions[24]; /* PC-only: in-game quick options overlay hotkey (config key: key_quick_options); default F10 */
+    char padQuickOptions[24]; /* PC-only: OPTIONAL controller bind for the same overlay (config key: pad_quick_options); unbound by default */
     char keySwapShoulder[24]; /* PC-only: swap OTS shoulder side (default Mouse3) */
     char keyConsole[24]; /* PC-only: dev console toggle key (default tilde "`"); keyboard-only */
     /* PC-only graphics-effect tuning keys (keyboard-only). keyGfxCycle switches
@@ -347,6 +390,8 @@ const char* Pc_FlashlightModeLabel(int mode);
 
 /* Parse config.cfg from the executable's directory. Uses defaults if not found. */
 void PcConfig_Load(const char* path);
+/* Compile-time defaults captured before the config file was parsed. */
+const s_PcConfig* PcConfig_Defaults(void);
 
 /* Rewrite only the `map = ...` line in the loaded config file (preserves the
  * rest). Persists a runtime map change so the next New Game loads it. */

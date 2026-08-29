@@ -47,7 +47,25 @@ int  Pc_Rando_ExtraHandgunAmmo(void);
 void Pc_Rando_OnEnemyKilled(void);
 void Pc_Rando_OnDamageTaken(s32 amount); /* q19_12 HP actually deducted */
 
+/* Difficulty scaling, both no-ops unless a run is live (byte-identical vanilla
+ * when off). WeaponDamage scales player->enemy damage only (targetIsPlayer
+ * guards enemy->player); ScaleEnemyHealth latches per NPC slot and multiplies an
+ * enemy's HP once, the first frame its AI-init sets it positive. */
+s32  Pc_Rando_ScaleWeaponDamage(s32 damageAmount, int targetIsPlayer);
+void Pc_Rando_ScaleEnemyHealth(void* npc, int slot);
+
 /* Overlay: fills "Score: N". Returns 0 when the panel should not be drawn. */
 int  Pc_Rando_ScoreLine(char* buf, int cap);
+
+/* Script layer (Lua) surface. */
+int  Pc_Rando_AreaNumber(void);      /* areas entered so far (0 when off) */
+int  Pc_Rando_CurrentMapIdx(void);   /* current MapIdx_* (-1 when off) */
+int  Pc_Rando_PlayerHasItem(int itemId);
+/* Live-spawn a pooled monster at world (x,z); stateStep < 0 = auto. Slot or -1. */
+int  Pc_Rando_ScriptSpawnMonster(int charaId, int x, int z, int stateStep);
+/* Re-apply spawn settings to the current area in place ("Reload area"). */
+void Pc_Rando_RespawnArea(void);
+/* Add an item straight to the inventory. */
+void Pc_Rando_GiveItem(int itemId, int count);
 
 #endif /* PC_RANDO_H */

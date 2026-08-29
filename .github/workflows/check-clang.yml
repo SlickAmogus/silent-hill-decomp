@@ -1,0 +1,137 @@
+name: Clang front-end check (macOS / iOS)
+
+# Every shipping build uses GCC: MinGW on Windows, GCC on Linux, and build.sh
+# deliberately picks Homebrew GCC on macOS because AppleClang is stricter. So
+# nothing else in CI ever puts the decomp through a Clang front end.
+#
+# iOS has no such choice. Homebrew GCC cannot target arm64-apple-ios, so the
+# Apple toolchain is Clang or nothing, and a Clang-only breakage would otherwise
+# only surface once someone tried to build the iOS port. This job is the guard.
+#
+# It is a syntax check, not a build: it catches GCC extensions Clang does not
+# implement (nested functions above all, which no flag can rescue) and missing
+# prototypes that Clang turns into conflicting-type errors. Warning-vs-error
+# differences are suppressed on purpose — the real builds suppress them too.
+
+on:
+  push:
+    branches: [pc-port, ios-port]
+    paths:
+      - 'src/**'
+      - 'include/**'
+      - 'pc_port/tools/check-clang.sh'
+      - '.github/workflows/check-clang.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'include/**'
+  workflow_dispatch:
+
+jobs:
+  clang-macos:
+    name: AppleClang (host)
+    if: github.repository == 'SlickAmogus/silent-hill-decomp'
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # Only the headers are needed; a few decomp TUs include SDL_timer.h and
+      # SDL_scancode.h directly. Nothing is linked.
+      - name: Install SDL2 headers
+        run: brew install sdl2
+
+      - name: Clang version
+        run: clang --version
+
+      - name: Syntax-check the decomp (USA)
+        run: bash pc_port/tools/check-clang.sh
+
+      # JAP1/JAP2 share USA's file tables and are clean. EUR and JAP0 are
+      # deliberately absent: both have pre-existing region-specific decomp gaps
+      # (EUR is missing a set of FILE_* enum constants, JAP0 references a
+      # _CollisionSurface member that does not exist in its layout). Neither is
+      # Clang-related — they fail under GCC too — so gating on them here would
+      # only produce a permanently red check.
+      - name: Syntax-check the decomp (JAP1, JAP2)
+        run: |
+          for v in JAP1 JAP2; do
+            echo "=== VER_$v ==="
+            SH_VERSION="$v" bash pc_port/tools/check-clang.sh
+          done
+
+  clang-ios:
+    name: AppleClang (arm64-apple-ios)
+    if: github.repository == 'SlickAmogus/silent-hill-decomp'
+    runs-on: macos-15
+    # Informational for now: this cross-checks the decomp against the real
+    # iPhoneOS SDK headers, which nothing has ever done. The host job above is
+    # the one that gates.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install SDL2 headers
+        run: brew install sdl2
+
+      - name: Show iOS SDK
+        run: |
+          xcrun --sdk iphoneos --show-sdk-path
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Syntax-check for arm64-apple-ios
+        run: |
+          bash pc_port/tools/check-clang.sh \
+            --target arm64-apple-ios \
+            --sysroot "$(xcrun --sdk iphoneos --show-sdk-path)"
+
+      # PsyCross's platform chain has to pick GLES on iOS rather than desktop
+      # GL, reach Apple's OpenGLES/ES3 headers rather than the Khronos ones,
+      # and skip EGL, which iOS does not have. None of that can be checked off
+      # an Apple SDK, so verify it here against the real iPhoneOS headers.
+      - name: Check the PsyCross iOS render path resolves
+        run: |
+          echo '#include "PsyX/PsyX_render.h"' > "$RUNNER_TEMP/psyx_ios.c"
+          # -Dstatic_assert: libgpu.h uses static_assert without including
+          # <assert.h>, so every real build maps it (pc_port/CMakeLists.txt does
+          # the same for every C source).
+          clang -fsyntax-only \
+            --target=arm64-apple-ios \
+            -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" \
+            -Dstatic_assert=_Static_assert \
+            -Ipc_port/PsyCross/include \
+            -Ipc_port/PsyCross/include/psx \
+            "$RUNNER_TEMP/psyx_ios.c"
+          echo "PsyX_render.h resolves for arm64-apple-ios"
+
+      # Prove the selection actually landed on GLES rather than silently
+      # falling through to the desktop branch, which would compile here but
+      # produce a binary that cannot create a context on device.
+      - name: Confirm iOS selected GLES, not desktop GL
+        run: |
+          cat > "$RUNNER_TEMP/psyx_probe.c" <<'EOF'
+          #include "PsyX/PsyX_render.h"
+          #if !defined(PSYX_IOS)
+          #error "PSYX_IOS not set for an iOS target"
+          #endif
+          #if !defined(RENDERER_OGLES)
+          #error "iOS did not select RENDERER_OGLES"
+          #endif
+          #if defined(RENDERER_OGL) || defined(USE_GLAD)
+          #error "iOS wrongly selected the desktop GL path"
+          #endif
+          #if OGLES_VERSION != 3
+          #error "iOS should use OpenGL ES 3.0"
+          #endif
+          EOF
+          clang -fsyntax-only \
+            --target=arm64-apple-ios \
+            -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" \
+            -Dstatic_assert=_Static_assert \
+            -Ipc_port/PsyCross/include \
+            -Ipc_port/PsyCross/include/psx \
+            "$RUNNER_TEMP/psyx_probe.c"
+          echo "iOS selects RENDERER_OGLES v3, no desktop GL, no glad"

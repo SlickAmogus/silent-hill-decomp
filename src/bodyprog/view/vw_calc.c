@@ -6,6 +6,25 @@
  * at startup; the cull-bound math here must use the same value PsyCross uses for
  * its Hor+ ortho. */
 extern float g_PsxPixelAspect;
+extern float GR_LivePixelAspect(void);
+/* Console `hfov`. PsyCross DIVIDES its Hor+ ortho half-width by this, so hfov<1
+ * shows MORE world horizontally than these cull bounds allowed -- geometry inside
+ * the widened view was frustum-culled at the screen edges. Bounds must widen the
+ * same way or edge models pop out (user-reported at the shipped hfov 0.872). */
+extern float g_PsxWorldHScale;
+#define SH_HFOV_CULL_DIV (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f)
+/* Vertical cull bound. The stock ±(gsScreenHeight>>1) assumes the view shows
+ * exactly rows 0..224; `vshift` moves the projection centre and vfov>1 widens
+ * the vertical view, so bounds must stretch the same way or geometry culls in
+ * bands at the top/bottom edges (Y edition of the hfov side-culling bug). */
+extern float g_PsxWorldVScale, g_PsxWorldVShift;
+/* Screen-edge cull policy: bounds are GENEROUS (+64 units past the exact
+ * visible edge), never exact-math-plus-tiny-pad -- every tight bound in this
+ * class has eventually shown up on screen after some view change. And the
+ * culling master toggle (g_PcConfig.disableCulling) bypasses screen-edge
+ * culling entirely, as its name promises. */
+#define SH_CULL_LOOSE (g_PcConfig.disableCulling ? 8192 : 64)
+#define SH_VCULL_HALF_H     ((s32)((float)(g_GameWork.gsScreenHeight >> 1) * (g_PsxWorldVScale > 1.0f ? g_PsxWorldVScale : 1.0f)            + (g_PsxWorldVShift < 0.0f ? -g_PsxWorldVShift : g_PsxWorldVShift) + 0.5f) + SH_CULL_LOOSE)
 #endif
 
 #include <psyq/gtemac.h>
@@ -630,12 +649,16 @@ bool Vw_AabbVisibleInScreenCheck(s32 minX, s32 maxX, s32 minY, s32 maxY, s32 min
          * tight). 16 px @ 1920 wide is ~0.8% extra render — cheap. */
         /* 1.09375 = PSX_NTSC_PIXEL_ASPECT — matches PsyCross's hor+
          * ortho. +16 px safety margin for boundary truncation. */
-        screenCenterX = (s32)(psxHalfW * horScale * (winAspect / psxAspect) * g_PsxPixelAspect + 16.5f);
+        screenCenterX = (s32)(psxHalfW * horScale * (winAspect / psxAspect) * GR_LivePixelAspect() / SH_HFOV_CULL_DIV + 0.5f) + SH_CULL_LOOSE;
     }
 #else
     screenCenterX = (g_GameWork.gsScreenWidth  / 2) + 2;
 #endif
+#ifdef SH_PC_PORT
+    screenCenterY = SH_VCULL_HALF_H;
+#else
     screenCenterY = (g_GameWork.gsScreenHeight / 2) + 2;
+#endif
 
     if (screenMaxX < -screenCenterX || screenCenterX < screenMinX ||
         screenMaxY < -screenCenterY || screenCenterY < screenMinY)
@@ -772,7 +795,7 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
                  * aren't truncation-culled (was producing the small
                  * disappearing triangles at screen edges while
                  * panning). */
-                const s32   fr_halfW   = (s32)((fr_psxW * 0.5f) * fr_horSc * (fr_winAsp / fr_psxAsp) * g_PsxPixelAspect + 16.5f);
+                const s32   fr_halfW   = (s32)((fr_psxW * 0.5f) * fr_horSc * (fr_winAsp / fr_psxAsp) * GR_LivePixelAspect() / SH_HFOV_CULL_DIV + 0.5f) + SH_CULL_LOOSE;
                 const s32   fr_scaledX = (s32)(screenPos.vx * fr_horSc);
 
                 if (fr_scaledX >= -fr_halfW)
@@ -802,9 +825,9 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
             }
 #endif
 
-            if (screenPos.vy >= -(g_GameWork.gsScreenHeight >> 1))
+            if (screenPos.vy >= -SH_VCULL_HALF_H)
             {
-                if ((g_GameWork.gsScreenHeight >> 1) < screenPos.vy)
+                if (SH_VCULL_HALF_H < screenPos.vy)
                 {
                     flag1Idx = 2;
                 }
@@ -824,15 +847,31 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
         }
     }
 
+    if (pointsOutsideNearPlaneCount == 8)
+    {
+        /* All corners beyond the far distance. (Decomp param names are swapped:
+         * "nearPlane"=Q8(25) is the FAR threshold, "farPlane"=224 the NEAR.) */
+        return false;
+    }
+
+#ifdef SH_PC_PORT
+    /* Retail rejected a subcell whose 8 corners are ALL within 224 view-units
+     * (near cull), and near corners are excluded from the screen-region
+     * classification below -- so bottom-edge subcells (floor decals right in
+     * front of the camera) culled visibly once the full 224-row frame is
+     * shown; CRT overscan used to hide those rows. Any near corner now means
+     * VISIBLE: near geometry is exactly what the bottom edge shows, and the
+     * per-model/per-poly stages downstream still cull rubbish. */
+    if (pointsOutsideFarClipCount > 0)
+    {
+        return true;
+    }
+#else
     if (pointsOutsideFarClipCount == 8)
     {
         return false;
     }
-
-    if (pointsOutsideNearPlaneCount == 8)
-    {
-        return false;
-    }
+#endif
 
     if (regionFlags.flags[1][1])
     {
@@ -903,7 +942,7 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
                  * 722). Was missed when the pixel-aspect factor was
                  * added — caused the persistent edge-clipping the user
                  * has been chasing across multiple test passes. */
-                const s32   fr2_halfW   = (s32)((fr2_psxW * 0.5f) * fr2_horSc * (fr2_winAsp / fr2_psxAsp) * g_PsxPixelAspect + 16.5f);
+                const s32   fr2_halfW   = (s32)((fr2_psxW * 0.5f) * fr2_horSc * (fr2_winAsp / fr2_psxAsp) * GR_LivePixelAspect() / SH_HFOV_CULL_DIV + 0.5f) + SH_CULL_LOOSE;
                 const s32   fr2_scaledX = (s32)(screenPoints->vx * fr2_horSc);
 
                 if (fr2_scaledX >= -fr2_halfW)
@@ -933,9 +972,9 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
             }
 #endif
 
-            if (screenPoints->vy >= -(g_GameWork.gsScreenHeight >> 1))
+            if (screenPoints->vy >= -SH_VCULL_HALF_H)
             {
-                if ((g_GameWork.gsScreenHeight >> 1) < screenPoints->vy)
+                if (SH_VCULL_HALF_H < screenPoints->vy)
                 {
                     flag1Idx = 2;
                 }
@@ -950,9 +989,9 @@ bool Vw_AabbVisibleInFrustumCheck(MATRIX* modelMat,
             }
 
 			// --- Y (unchanged) ---
-			if (screenPoints->vy >= -(g_GameWork.gsScreenHeight >> 1))
+			if (screenPoints->vy >= -SH_VCULL_HALF_H)
 			{
-				if ((g_GameWork.gsScreenHeight >> 1) < screenPoints->vy)
+				if (SH_VCULL_HALF_H < screenPoints->vy)
 				{
 					flag1Idx = 2;
 				}

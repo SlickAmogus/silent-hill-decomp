@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -51,6 +51,12 @@ namespace SilentHillPC_Launcher
             // Extraction/indexing happens after the window is up (with a progress
             // window) so opening the manager never freezes on a big archive.
             Shown += OnShownInitialLoad;
+
+            // Localize whatever Loc knows; anything it does not know keeps its
+            // English text, so this is safe to run over the whole window.
+            Loc.Apply(this);
+            Loc.Changed += OnLangChanged;
+            FormClosed += (s2, e2) => Loc.Changed -= OnLangChanged;
         }
 
         private void OnShownInitialLoad(object sender, EventArgs e)
@@ -63,6 +69,12 @@ namespace SilentHillPC_Launcher
         /// (cancellable), then re-index and repopulate.</summary>
         private void ExtractThenScan()
         {
+            // Names known before this pass, so the post-extraction DLL screen
+            // below only fires for mods that just appeared (closes the rar/7z
+            // hole: those archives can't be peeked at drop time, but once
+            // extracted their DLLs are ordinary files).
+            var known = new HashSet<string>(_mgr.Mods.Select(m => m.Name ?? ""));
+
             var pending = _mgr.PendingWork();
             if (pending.Count > 0)
             {
@@ -78,6 +90,37 @@ namespace SilentHillPC_Launcher
                         (r, cancelled) => _mgr.Prepare(todo, r, cancelled));
             }
             _mgr.Scan();
+
+            foreach (var m in _mgr.Mods.ToList())
+            {
+                if (known.Contains(m.Name ?? "")) continue;
+                if (m.Type != ModType.Gameplay && m.Type != ModType.TotalConversion) continue;
+                if (string.IsNullOrEmpty(m.LibraryPath) || !Directory.Exists(m.LibraryPath)) continue;
+
+                var suspicious = PeImports.ScanModForSuspiciousDlls(m.LibraryPath);
+                if (suspicious.Count == 0) continue;
+
+                string extra = "This mod contains DLLs that do NOT look like edited game code " +
+                               "(edited maps only use the game and the C runtime):\n\n - " +
+                               string.Join("\n - ", suspicious.Take(5)) +
+                               (suspicious.Count > 5 ? "\n - ..." : "") +
+                               "\n\nOnly continue if you trust this mod completely. " +
+                               "Cancel removes it from the library.";
+                var choice = DllWarningDialog.Show(this, extra);
+                if (choice == DllWarningDialog.Result.Cancel)
+                {
+                    try { Directory.Delete(m.LibraryPath, true); } catch { }
+                    _mgr.Scan();
+                }
+                else if (choice == DllWarningDialog.Result.DontShowAgain)
+                {
+                    // The generic notice can be silenced; a NAMED suspicious-import
+                    // alarm intentionally cannot -- treat it as Continue.
+                    _mgr.DllWarningAck = true;
+                    _mgr.SaveState();
+                }
+            }
+
             Populate();
         }
 
@@ -94,6 +137,8 @@ namespace SilentHillPC_Launcher
                 "Mod Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
                 MessageBoxDefaultButton.Button2) == DialogResult.Yes;
         }
+
+        private void OnLangChanged() { Loc.Apply(this); }
 
         private void BuildUi()
         {
@@ -512,6 +557,52 @@ namespace SilentHillPC_Launcher
 
             var others = paths.Where(p => !bins.Contains(p)).ToArray();
             if (others.Length == 0) return;
+
+            // DLL mods execute code; get explicit consent before they enter the library.
+            bool anyDllMod = others.Any(p =>
+            {
+                var t = ModManager.DetectDroppedType(p);
+                return t == ModType.Gameplay || t == ModType.TotalConversion;
+            });
+            if (anyDllMod)
+            {
+                // Import screening (PeImports mirrors the game's fingerprint):
+                // a DLL that doesn't look like edited game code gets NAMED in
+                // the dialog, and that stronger warning shows even after
+                // "Don't show me again" -- it is a different, targeted alarm.
+                var suspicious = new List<string>();
+                foreach (var mp in others)
+                {
+                    var t = ModManager.DetectDroppedType(mp);
+                    if (t != ModType.Gameplay && t != ModType.TotalConversion) continue;
+                    string mext = Path.GetExtension(mp).ToLowerInvariant();
+                    if (mext == ".rar" || mext == ".7z")
+                        suspicious.Add(Path.GetFileName(mp) + " (archive can't be pre-screened; its DLLs are checked by the game at load)");
+                    else
+                        suspicious.AddRange(PeImports.ScanModForSuspiciousDlls(mp));
+                }
+
+                string extra = null;
+                if (suspicious.Count > 0)
+                {
+                    extra = "This mod contains DLLs that do NOT look like edited game code " +
+                            "(edited maps only use the game and the C runtime):\n\n - " +
+                            string.Join("\n - ", suspicious.Take(5)) +
+                            (suspicious.Count > 5 ? "\n - ..." : "") +
+                            "\n\nOnly continue if you trust this mod completely.";
+                }
+
+                if (extra != null || !_mgr.DllWarningAck)
+                {
+                    var choice = DllWarningDialog.Show(this, extra);
+                    if (choice == DllWarningDialog.Result.Cancel) return;
+                    if (choice == DllWarningDialog.Result.DontShowAgain)
+                    {
+                        _mgr.DllWarningAck = true;
+                        _mgr.SaveState();
+                    }
+                }
+            }
 
             CommitOrderAndState();
             _mgr.SaveState();
@@ -1479,9 +1570,9 @@ namespace SilentHillPC_Launcher
                 Populate(); // reflect enable/disable state changes
 
                 string msg = string.Format(
-                    "Applied.\n\nActive texture packs: {0}\nLoad-folder mods: {1}\nFMV mods: {2}\n" +
-                    "Loose file support: {3}",
-                    r.Texture, r.Load, r.Fmv, r.LooseEnabled ? "on" : "off");
+                    "Applied.\n\nActive texture packs: {0}\nData overlays (load/): {1}\nGameplay (Code / DLL) mods: {2}\nFMV video mods: {3}\n" +
+                    "Loose file support: {4}",
+                    r.Texture, r.Load, r.Gameplay, r.Fmv, r.LooseEnabled ? "on" : "off");
                 if (r.Warnings.Count > 0)
                     msg += "\n\nWarnings:\n - " + string.Join("\n - ", r.Warnings);
 

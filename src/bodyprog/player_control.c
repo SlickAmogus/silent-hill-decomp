@@ -88,6 +88,11 @@ static void Player_CrashHandler(int sig) {
 #include "pc_grab_guard.h"
 #include "main/fileinfo.h" /* g_GameRegion — EUR overlay pointer rebase */
 
+/* Called above their definitions. Without a prototype in scope Clang
+ * synthesises `int f()` at the call site and then rejects the real
+ * definition as a conflicting type; GCC only warns. */
+void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* coords);
+
 extern int g_PcFpsCam;
 
 /* Alt-camera fire button state (SDL mouse/bind), published by the TPS input
@@ -2001,7 +2006,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 {
                     static u16    s_prevBack = 0;
                     static u8     s_jumpBackActive = 0;
-                    static u16    s_jumpBackFrames = 0;
+                    static q19_12 s_jumpBackElapsed = 0; /* Q12 s of game time, not frames */
                     static q19_12 s_prevJumpBackTime = -1;
                     /* Require pure-backward input to start a jumpback: if
                      * forward is also held, other branches will stomp the
@@ -2035,7 +2040,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
 
                     if (backEdge && hopRunHeld && !s_jumpBackActive) {
                         s_jumpBackActive = 1;
-                        s_jumpBackFrames = 0;
+                        s_jumpBackElapsed = 0;
                         s_prevJumpBackTime = -1;
                         player->model.anim.status = ANIM_STATUS(HarryAnim_JumpBackward, false);
                         player->model.stateStep = 0;
@@ -2054,8 +2059,20 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * based on player input: once triggered the hop commits
                      * and plays to completion regardless of button release. */
                     if (s_jumpBackActive) {
-                        s_jumpBackFrames++;
                         bool animFinished = false;
+                        bool timedOut;
+                        /* The native hop is a real leap (fallSpeed -2.0 in the
+                         * JumpBackward lower-body handler) whose landing runs at
+                         * keyframe 246, and the generic ledge check deliberately
+                         * ignores the JumpBackward state until then. Ending this
+                         * wrapper while Harry was still airborne dropped that
+                         * state early, so the ledge check fired FallBackward on
+                         * flat ground -- "lands in the air, then falls backwards"
+                         * -- every time the 180-FRAME timeout beat the landing at
+                         * high frame rates. Time the safety net in game seconds
+                         * and hold the state until his feet are on the ground. */
+                        s_jumpBackElapsed += g_DeltaTime;
+                        timedOut = s_jumpBackElapsed > Q12(3.0f);
                         if (player->model.anim.status == ANIM_STATUS(HarryAnim_JumpBackward, true) &&
                             player->model.anim.status < 76)
                         {
@@ -2065,9 +2082,22 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                                 animFinished = true;
                             }
                         }
-                        if (animFinished || s_jumpBackFrames > 180) {
+                        {
+                            /* PSX +Y is down: on or below the floor = grounded. */
+                            bool grounded = player->position.vy >= player->properties.player.groundHeight;
+                            if (animFinished && !grounded && !timedOut) {
+                                animFinished = false; /* still coming down: keep the hop alive */
+                            } else if ((animFinished || timedOut) && !grounded) {
+                                /* Genuinely over a drop at the end of the hop: the
+                                 * native landing's own answer. */
+                                Player_ExtraStateSet(player, extra, PlayerState_FallBackward);
+                            } else if (animFinished || timedOut) {
+                                player->fallSpeed = Q12(0.0f);
+                            }
+                        }
+                        if (animFinished || timedOut) {
                             s_jumpBackActive = 0;
-                            s_jumpBackFrames = 0;
+                            s_jumpBackElapsed = 0;
                             s_prevJumpBackTime = -1;
                             /* Hop done — drop body states back to None so the
                              * normal walk/idle anim assignments below take over
@@ -2107,14 +2137,15 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         D_800C4550 = Q12(0.0f);
                     } else if (g_Player_IsMovingForward) {
 #ifdef SH_PC_PORT
-                        /* Free-aim (OTS/TPS): no sprint while a ranged weapon is up
-                         * (Dead Space feel). Force walk speed when aiming a gun so the
-                         * Run leg anim is never selected — this is how move+aim+shoot
-                         * avoids the sprint-in-place bug instead of cancelling aim.
-                         * Classic camera (g_DebugThirdPersonCam==0) is unchanged. */
-                        if (g_Player_IsRunning &&
-                            !(g_DebugThirdPersonCam && g_Player_IsAiming &&
-                              g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap)))
+                        /* Sprint forward while aiming (alternate cameras). This used to
+                         * clamp to walk speed whenever a gun was up, but the leg anim
+                         * below still picks RunForward from g_Player_IsRunning alone —
+                         * so the run cycle played over 1.5 movement and Harry scrubbed
+                         * in place. Strafing while aiming never had the clamp (its
+                         * position comes from the anim keyframes), so sideways sprint
+                         * already worked; matching forward to it is what the run anim
+                         * was asking for anyway. Classic camera is unchanged. */
+                        if (g_Player_IsRunning)
                             D_800C4550 = g_DebugThirdPersonCam
                                              ? PC_OTS_RUN_SPEED
                                              : PC_SHIM_RUN_SPEED(Map_SpeedZoneTypeGet(player->position.vx,
@@ -2365,12 +2396,22 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         }
                     }
                 } else {
-                    if (player->model.anim.status != ANIM_STATUS(HarryAnim_Idle, true) &&
-                        player->model.anim.status != ANIM_STATUS(HarryAnim_Idle, false)) {
-                        player->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
+                    /* Same exertion pick as the native idle (7190): the tired
+                     * idle is what carries the heavy-breath SFX (its keyframe
+                     * 551 fires it via case PlayerUpperBodyState_None), so
+                     * forcing plain Idle here stomped the native selection and
+                     * Harry never panted after sprinting in the alt cameras.
+                     * The exhaustion timer itself already accumulates. */
+                    s32 idleAnim = (player->properties.player.exhaustionTimer >= Q12(10.0f) ||
+                                    player->health < Q12(30.0f))
+                                       ? HarryAnim_IdleExhausted
+                                       : HarryAnim_Idle;
+                    if (player->model.anim.status != ANIM_STATUS(idleAnim, true) &&
+                        player->model.anim.status != ANIM_STATUS(idleAnim, false)) {
+                        player->model.anim.status = ANIM_STATUS(idleAnim, false);
                         player->model.stateStep = 0;
                         if (!aimingNow && !inGunAttack) {
-                            extra->model.anim.status = ANIM_STATUS(HarryAnim_Idle, false);
+                            extra->model.anim.status = ANIM_STATUS(idleAnim, false);
                             extra->model.stateStep = 0;
                         }
                     }
@@ -2542,7 +2583,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                  * whose keyframe pattern never matches the hop anim -- so the
                  * landing was silent in TPS/OTS while classic, which does not run
                  * this shim, kept its sound. */
-                if (!g_Player_IsAiming && !jumpBackActive) {
+                if (!jumpBackActive) {
                     /* Strafe footsteps (PC): the sidestep / strafe-run anim is driven
                      * by the stepping globals, not IsMovingForward/Backward, so without
                      * these branches every strafe fell through to None and the dispatcher
@@ -2552,18 +2593,40 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     bool stepRight = g_Player_IsSteppingRightHold || g_Player_IsSteppingRightTap;
                     bool runStrafe = g_DebugThirdPersonCam && g_Player_IsRunning &&
                                      (g_Player_IsSteppingLeftHold || g_Player_IsSteppingRightHold);
+                    s32 moveState;
+
                     if (g_Player_IsMovingForward && g_Player_IsRunning)
-                        extra->lowerBodyState = PlayerLowerBodyState_RunForward;
+                        moveState = PlayerLowerBodyState_RunForward;
                     else if (g_Player_IsMovingForward)
-                        extra->lowerBodyState = PlayerLowerBodyState_WalkForward;
+                        moveState = PlayerLowerBodyState_WalkForward;
                     else if (g_Player_IsMovingBackward)
-                        extra->lowerBodyState = PlayerLowerBodyState_WalkBackward;
+                        moveState = PlayerLowerBodyState_WalkBackward;
                     else if (stepLeft)
-                        extra->lowerBodyState = runStrafe ? PlayerLowerBodyState_RunLeft : PlayerLowerBodyState_SidestepLeft;
+                        moveState = runStrafe ? PlayerLowerBodyState_RunLeft : PlayerLowerBodyState_SidestepLeft;
                     else if (stepRight)
-                        extra->lowerBodyState = runStrafe ? PlayerLowerBodyState_RunRight : PlayerLowerBodyState_SidestepRight;
+                        moveState = runStrafe ? PlayerLowerBodyState_RunRight : PlayerLowerBodyState_SidestepRight;
                     else
-                        extra->lowerBodyState = PlayerLowerBodyState_None;
+                        moveState = PlayerLowerBodyState_None;
+
+                    if (g_DebugThirdPersonCam && g_Player_IsAiming) {
+                        /* Moving while aiming used to leave lowerBodyState pinned at
+                         * plain Aim (set above), so the footstep dispatcher matched its
+                         * standing-still case and the alternate cameras were silent
+                         * while walking, running or strafing with a weapon up. The
+                         * game's own encoding for "this movement, but aiming" is the
+                         * movement state + PlayerLowerBodyState_Aim (see the += / -=
+                         * pairs at 6547 / 6645), and the leg animation is unchanged by
+                         * aiming, so the aim variants dispatch the same footsteps.
+                         * Not over an active swing: Attack carries the swing's root
+                         * motion. */
+                        if (extra->lowerBodyState != PlayerLowerBodyState_Attack)
+                            extra->lowerBodyState = moveState + PlayerLowerBodyState_Aim;
+                    }
+                    else if (!g_Player_IsAiming) {
+                        extra->lowerBodyState = moveState;
+                    }
+                    /* Aiming outside the alternate cameras keeps whatever the
+                     * original path set — classic is not this shim's business. */
                 }
 
                 /* Trigger footstep sounds based on animation keyframes.
@@ -4277,7 +4340,12 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
              * cycle (the FSM only re-enters Aim after the recoil ends), with the
              * wall-time refire floor as the rate cap. All other guns stay
              * semi-auto (release-required rising edge) and need ammo. */
-            if (isHyperBlaster ? (fireHeld && s_refireT <= 0) : (fireEdge && ammo > 0))
+            /* The aim requirement matters now that the gate also holds during a
+             * recoil: without it, clicking fire again after releasing aim (but
+             * before the recoil ends) would loose an un-aimed shot from inside
+             * the FSM. Raw input OR'd in so an isAiming blip can't drop a shot. */
+            if ((g_SysWork.playerCombat.isAiming || g_Player_IsAiming) &&
+                (isHyperBlaster ? (fireHeld && s_refireT <= 0) : (fireEdge && ammo > 0)))
             {
                 /* Fire: the existing (working) damage trigger + ammo + SFX. */
                 s_refireT = PC_GUN_REFIRE_SEC;
@@ -4304,6 +4372,26 @@ static void Pc_FreeAimGunUpperBody(s_SubCharacter* player, s_PlayerExtra* extra,
                 }
                 s_state    = PcGun_Fire;
                 s_stuckTmr = 0;
+            }
+            else if (fireEdge && ammo == 0)
+            {
+                /* Dry fire. Reaching here means the reload branch above declined
+                 * it — no reserve left — so this is the genuinely empty click,
+                 * and the native path plays it (Player_CombatAnimUpdate, the
+                 * else of the same ammo test). This FSM replaces that function
+                 * wholesale for the alternate cameras, so without this the gun
+                 * was simply silent when empty: fire did nothing at all, which
+                 * reads as the input being dropped rather than the gun being
+                 * out.
+                 *
+                 * field_10C is the noise value the native branch sets for the
+                 * same event, so enemies react to the click exactly as they do
+                 * in classic. No keyframe work: PcGun_Aim re-pins the hold pose
+                 * every frame, so a pose set here would be overwritten, and the
+                 * repeat is already bounded because fireEdge needs the button
+                 * released first. */
+                func_8005DC1C(g_Player_EquippedWeaponInfo.outOfAmmoSfx, &player->position, Q8(0.5f), 0);
+                player->properties.player.field_10C = 32;
             }
             break;
         }
@@ -4398,7 +4486,15 @@ void Player_UpperBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
              /* Reloads are uninterruptible on PSX: keep the FSM owning an
               * in-flight reload even if aim drops, so the PSX case Reload
               * never runs a frame of it (double-SFX + anim restart). */
-             g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Reload) &&
+             g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Reload ||
+             /* A recoil in flight must finish under the FSM too. Releasing aim
+              * right after a shot handed the mid-recoil Attack state to the PSX
+              * path, whose controlState==0 attack entry cleared
+              * PlayerFlag_Shooting and (instant-fire block) jumped back to the
+              * damage window — a SECOND bullet fired and deducted per shot.
+              * With a ranged weapon equipped the Attack state can only be this
+              * FSM's own recoil, so melee is unaffected. */
+             g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_Attack) &&
             g_SysWork.playerCombat.weaponAttack >= WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap))
         {
             bool fresh = !s_pcGunWasAiming;
@@ -4472,14 +4568,19 @@ void Player_UpperBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 #define SH_AIM_KF_REACHED_P(kf) (player->model.anim.keyframeIdx == (kf))
 #endif
 
-/* Were function-scope statics of Player_UpperBodyMainUpdate. Player_CombatAnimUpdate
- * reads and writes all three and is no longer nested inside it, so they move to file
- * scope. Storage duration and zero-initialisation are unchanged; only visibility
- * within this translation unit widens. */
+/* Were function-statics of Player_UpperBodyMainUpdate. Player_CombatAnimUpdate
+ * (un-nested below) reads and writes them, and it now sits above its former
+ * parent, so they move to file scope. Still one instance with the same
+ * lifetime; only the visibility changes. */
 static s32 D_800C44D0;
 static s32 D_800C44D4;
+#ifdef SH_PC_PORT
 static int s_pcMtClickQueue = 0;
+#endif
 
+/* Un-nested from Player_UpperBodyMainUpdate: Clang has no GCC nested-function
+ * extension. It captured the parent's two parameters plus enemyAttackedIdx,
+ * which it both reads and writes, so that one travels by pointer. */
 static bool Player_CombatAnimUpdate(s_SubCharacter* player, s_PlayerExtra* extra, s32* enemyAttackedIdx) // 0x80074350 (un-nested from Player_UpperBodyMainUpdate)
 {
     s16 ssp20;
@@ -5410,7 +5511,33 @@ bool Player_UpperBodyMainUpdate(s_SubCharacter* player, s_PlayerExtra* extra) //
 
             if (g_SysWork.playerWork.extra.upperBodyState == PlayerUpperBodyState_None)
             {
+#ifdef SH_PC_PORT
+                /* In this state afkTimer is a FRAME count and the trigger below
+                 * is a raw `>= 300`: exactly 10s at the PSX's 30fps, but 5s at
+                 * 60 and ~2s at 144, so the AFK look-around fired after a couple
+                 * of seconds of standing still. Accumulate at the 30fps-
+                 * equivalent rate and only ever add whole steps, so the field
+                 * keeps its integer frame-count meaning (it is reused as a Q12
+                 * duration in other states) and the trigger stays ~10s at any
+                 * framerate. */
+                {
+                    static q19_12 s_afkFrac = 0;
+
+                    if (player->properties.player.afkTimer == Q12(0.0f))
+                    {
+                        s_afkFrac = 0;
+                    }
+
+                    s_afkFrac += TIMESTEP_SCALE_30_FPS(g_DeltaTime, Q12(1.0f));
+                    while (s_afkFrac >= Q12(1.0f))
+                    {
+                        s_afkFrac -= Q12(1.0f);
+                        player->properties.player.afkTimer++;
+                    }
+                }
+#else
                 player->properties.player.afkTimer++;
+#endif
 
 #ifdef SH_PC_PORT
                 /* FPS: never trip the AFK look-around — its head/body turning
@@ -8644,7 +8771,22 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 
             if (player->model.anim.status == ANIM_STATUS(HarryAnim_JumpBackward, true) && player->model.anim.keyframeIdx == 246)
             {
-                if (player->position.vy < player->properties.player.groundHeight)
+                if (
+#ifdef SH_PC_PORT
+                    /* THE "lands in the air, then falls backward every jump"
+                     * bug. This native landing check runs at keyframe 246 and
+                     * is the real trigger -- ahead of the PC hop wrapper's own
+                     * end. On flat ground the -2.0 leap has not fully settled at
+                     * kf246, so position.vy sits a sub-unit ABOVE groundHeight
+                     * (-Y is up) and the strict `< groundHeight` read it as
+                     * airborne and fired FallBackward on every hop. Require the
+                     * same 0.65 drop the generic ledge check uses (line ~9651),
+                     * so flat ground never falls but a real ledge still does. */
+                    player->properties.player.groundHeight - player->position.vy >= Q12(0.65f)
+#else
+                    player->position.vy < player->properties.player.groundHeight
+#endif
+                )
                 {
                     Player_ExtraStateSet(player, extra, PlayerState_FallBackward);
 
@@ -9043,6 +9185,14 @@ void func_8007B924(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8007B924
         case PlayerLowerBodyState_RunForward:
         case PlayerLowerBodyState_RunRight:
         case PlayerLowerBodyState_RunLeft:
+#ifdef SH_PC_PORT
+        /* Sprinting with a weapon up (alternate cameras only) tires Harry at the
+         * same rate as sprinting without one. These three are unused by the
+         * original, so classic reaches them never. */
+        case PlayerLowerBodyState_Unk22:     /* AimRunForward */
+        case PlayerLowerBodyState_AimRunRight:
+        case PlayerLowerBodyState_AimRunLeft:
+#endif
             if (ANIM_STATUS_IS_ACTIVE(player->model.anim.status) && player->model.anim.status >= ANIM_STATUS(HarryAnim_RunForward, true))
             {
                 player->properties.player.exhaustionTimer += g_DeltaTime;
@@ -9129,6 +9279,46 @@ void func_8007B924(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8007B924
             Player_FootstepSfxPlay(ANIM_STATUS(HarryAnim_WalkForward, true), player, 18, 6, sfxId, pitch0);
             playerProps.flags |= PlayerFlag_Moving;
             break;
+
+#ifdef SH_PC_PORT
+        /* Aim variants (movement state + PlayerLowerBodyState_Aim). The
+         * original has no case for these, so moving while aiming was silent;
+         * the alternate cameras now set them (player_control.c ~2560) and the
+         * leg anim is the same as the non-aiming state, so the same keyframes
+         * apply. Gated on the alternate cameras: classic sets AimSidestep*
+         * too, and on PSX that combination genuinely plays no footstep.
+         * AimRunForward/AimRunLeft/AimRunRight are unused by the original. */
+        case PlayerLowerBodyState_Unk22:     /* AimRunForward  */
+        case PlayerLowerBodyState_AimRunRight:
+        case PlayerLowerBodyState_AimRunLeft:
+        case PlayerLowerBodyState_AimSidestepRight:
+        case PlayerLowerBodyState_AimSidestepLeft:
+            if (!g_DebugThirdPersonCam) break;
+            /* fallthrough to the matching movement case below */
+            switch (g_SysWork.playerWork.extra.lowerBodyState)
+            {
+                case PlayerLowerBodyState_Unk22:
+                    if (Player_FootstepSfxPlay(ANIM_STATUS(HarryAnim_RunForward, true), player, 31, 41, sfxId, pitch1))
+                        player->properties.player.runStepSfxCount++;
+                    break;
+                case PlayerLowerBodyState_AimRunRight:
+                    if (Player_FootstepSfxPlay(ANIM_STATUS(HarryAnim_RunRight, true), player, 145, 139, sfxId, pitch1))
+                        player->properties.player.runStepSfxCount++;
+                    break;
+                case PlayerLowerBodyState_AimRunLeft:
+                    if (Player_FootstepSfxPlay(ANIM_STATUS(HarryAnim_RunLeft, true), player, 131, 125, sfxId, pitch1))
+                        player->properties.player.runStepSfxCount++;
+                    break;
+                case PlayerLowerBodyState_AimSidestepRight:
+                    Player_FootstepSfxPlay(ANIM_STATUS(HarryAnim_SidestepRight, true), player, 118, 108, sfxId, pitch0);
+                    break;
+                default:
+                    Player_FootstepSfxPlay(ANIM_STATUS(HarryAnim_SidestepLeft, true), player, 93, 83, sfxId, pitch0);
+                    break;
+            }
+            playerProps.flags |= PlayerFlag_Moving;
+            break;
+#endif
 
         case PlayerLowerBodyState_RunForward:
             if (Player_FootstepSfxPlay(ANIM_STATUS(HarryAnim_RunForward, true), player, 31, 41, sfxId, pitch1))

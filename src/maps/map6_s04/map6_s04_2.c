@@ -688,8 +688,16 @@ bool func_800DF41C(s_800ED848* arg0) // 0x800DF41C
         static s32 s_rayProbes = 0;
         if (s_rayProbes < 8)
         {
-            SH_DBG("[FLAUROS-RAY] update field_8=%d trans=(%d,%d,%d)",
-                   arg0->field_8, arg0->field_28.t[0], arg0->field_28.t[1], arg0->field_28.t[2]);
+            /* The ray is aimed purely by these two world points (Flauros ->
+             * Alessa's torso), so if it renders past her they are what to look
+             * at: everything between is faithful decomp. Alessa's own position
+             * comes along to show whether the stored target is tracking her. */
+            SH_DBG("[FLAUROS-RAY] update field_8=%d trans=(%d,%d,%d) from=(%d,%d,%d) to=(%d,%d,%d) alessa=(%d,%d,%d)",
+                   arg0->field_8, arg0->field_28.t[0], arg0->field_28.t[1], arg0->field_28.t[2],
+                   arg0->field_14->vx, arg0->field_14->vy, arg0->field_14->vz,
+                   arg0->field_68->vx, arg0->field_68->vy, arg0->field_68->vz,
+                   g_SysWork.npcs[0].position.vx, g_SysWork.npcs[0].position.vy,
+                   g_SysWork.npcs[0].position.vz);
             s_rayProbes++;
         }
     }

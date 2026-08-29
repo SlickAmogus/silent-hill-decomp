@@ -124,6 +124,14 @@ void func_800880F0(bool arg0) // 0x800880F0
                  * regression class as the map0_s00 death-zone fix in
                  * map0_s00_2.c:1381. BGM mute (above) still runs. */
                 SD_Call(22);
+#else
+                /* ...but a loop never ends on its own, so with the blanket stop
+                 * gone an ambient bed (the bridge wind) kept playing across a
+                 * quickload. Stop only the looping voices: they are precisely
+                 * the ones that cannot finish by themselves, and the only ones
+                 * with no decay tail for the hard stop to truncate. */
+                extern void Pc_SpuStopLoopingVoices(void);
+                Pc_SpuStopLoopingVoices();
 #endif
             }
             else

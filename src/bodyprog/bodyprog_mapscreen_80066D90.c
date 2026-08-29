@@ -529,6 +529,10 @@ s32 func_80067914(s32 paperMapIdx, u16 arg1, u16 arg2, u16 arg3) // 0x80067914
         case PaperMapIdx_OldTown:
             switch (g_SavegamePtr->mapIdx)
             {
+#ifdef SH_PC_PORT
+                /* Intro street shares map2_s00's layout, so borrow its placement. */
+                case MapIdx_MAP0_S00:
+#endif
                 case MapIdx_MAP2_S00:
                     if (cellZ < 4 || (cellZ < 6 && (cellX >= -1 && cellX < 1)))
                     {

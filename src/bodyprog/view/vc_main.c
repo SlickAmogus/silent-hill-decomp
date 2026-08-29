@@ -303,6 +303,110 @@ void vcSetSubjChara(VECTOR3* chara_pos,
     vcWork.chara_watch_xz_r = chara_watch_xz_r;
 }
 
+#ifdef SH_PC_PORT
+/* Widescreen reframing for shots authored against the 4:3 edge.
+ *
+ * A fixed camera composed for 320x240 can have nothing built past the edge of
+ * that frame. Hor+ widens the ortho, so the extra picture on the left of this
+ * alley shot is void the artists never dressed -- while there is real scenery
+ * to the right that simply was not in frame.
+ *
+ * The rotation is not a tuned number: it is exactly the angle between the 4:3
+ * frame edge and the widened one, so the left edge of the widescreen picture
+ * lands where the 4:3 left edge used to be and every pixel Hor+ gained is spent
+ * on the right. The renderer reports both half-widths (they are the same
+ * expressions it builds the ortho from), and geom_screen_dist is the GTE
+ * projection distance, so screen x maps to an angle as atan(x / dist) --
+ * ratan2 being the engine's own version of that.
+ *
+ * Only while Hor+ is actually widening: GR_HorPlusHalfWidths returns 0 for the
+ * pillarboxed and stretched modes and for 4:3 windows, so the shot stays
+ * byte-identical to PSX there. Rotation only, never a position shift -- an XZ
+ * delta is meaningless to any shot but the one it was measured on. */
+static void Pc_WideShotYawFix(void)
+{
+    extern int GR_HorPlusHalfWidths(float* out43, float* outWide);
+
+    /* map10/room23 alley, the fixed shot looking up the street. */
+    #define WSF_MAP   10
+    #define WSF_ROOM  23
+    #define WSF_CAM_X (-769024)
+    #define WSF_CAM_Z (1243136)
+    #define WSF_TOL   Q12(1.0f)
+
+    float h43 = 0.0f, hWide = 0.0f;
+    s32   dist, a43, aWide, delta;
+
+    if (!g_SavegamePtr ||
+        g_SavegamePtr->mapIdx     != WSF_MAP ||
+        g_SavegamePtr->mapRoomIdx != WSF_ROOM)
+    {
+        return;
+    }
+    if (ABS(vcWork.cam_pos.vx - WSF_CAM_X) > WSF_TOL ||
+        ABS(vcWork.cam_pos.vz - WSF_CAM_Z) > WSF_TOL)
+    {
+        return;
+    }
+    if (!GR_HorPlusHalfWidths(&h43, &hWide) || hWide <= h43)
+    {
+        return;
+    }
+
+    dist = (s32)vcWork.geom_screen_dist;
+    if (dist <= 0)
+    {
+        return;
+    }
+
+    /* Q12 throughout so ratan2 keeps its precision; only the RATIO matters. */
+    a43   = ratan2((s32)(h43   * 4096.0f), dist * 4096);
+    aWide = ratan2((s32)(hWide * 4096.0f), dist * 4096);
+    delta = aWide - a43;
+
+    /* Swing the LOOK-AT TARGET about the camera, and let the engine build the
+     * matrix from it as usual.
+     *
+     * Writing cam_mat_ang did nothing: the renderer is handed cam_mat
+     * (vwSetViewInfoDirectMatrix), which vcRenewalCamMatAng has already
+     * built by then, so the angle is an output rather than an input. This
+     * runs before that call instead and moves what it derives from, so
+     * cam_mat, cam_mat_ang and anything else downstream all agree.
+     *
+     * Direction convention matches vcGetNowWatchPos, which builds the watch
+     * point as (sin(yaw), cos(yaw)): increasing yaw turns right.
+     *
+     * Recomputed from the freshly-derived target every frame, so it sets an
+     * absolute offset rather than accumulating. */
+    {
+        s32 dx = vcWork.watch_tgt_pos.vx - vcWork.cam_pos.vx;
+        s32 dz = vcWork.watch_tgt_pos.vz - vcWork.cam_pos.vz;
+        s32 r  = Vc_VectorMagnitudeCalc(dx, 0, dz);
+        s32 y1 = (ratan2(dx, dz) + delta) & 0xFFF;
+
+        vcWork.watch_tgt_pos.vx = vcWork.cam_pos.vx +
+                                  Math_MulFixed(r, Math_Sin(y1), Q12_SHIFT);
+        vcWork.watch_tgt_pos.vz = vcWork.cam_pos.vz +
+                                  Math_MulFixed(r, Math_Cos(y1), Q12_SHIFT);
+    }
+
+    /* Reported ONCE per session, not per frame: without it there is no way to
+     * tell 'the shot did not match' from 'it matched but the angle is too
+     * small'. delta is Q12 (4096 = 360 degrees). */
+    {
+        static int s_reported = 0;
+        if (!s_reported)
+        {
+            s_reported = 1;
+            SH_DBG("[WIDESHOT] map=%d room=%d half43=%d halfWide=%d dist=%d delta=%d (%d.%02d deg)",
+                   (int)g_SavegamePtr->mapIdx, (int)g_SavegamePtr->mapRoomIdx,
+                   (int)h43, (int)hWide, (int)dist, (int)delta,
+                   (int)((delta * 360) / 4096), (int)((((delta * 360) % 4096) * 100) / 4096));
+        }
+    }
+}
+#endif
+
 s32 vcExecCamera(void) // 0x80080FBC
 {
     VECTOR3            sv_old_cam_pos;
@@ -340,7 +444,9 @@ s32 vcExecCamera(void) // 0x80080FBC
      * cutscene, sys state) lives there. Chase/settle/door/self-view cameras unset it. */
     {
         extern int g_PsxFixedCamActive;
+        extern int g_PcLastCamMvType;
         g_PsxFixedCamActive = (cur_cam_mv_type == VC_MV_FIX_ANG);
+        g_PcLastCamMvType   = (int)cur_cam_mv_type;
     }
 #endif
 
@@ -377,6 +483,9 @@ s32 vcExecCamera(void) // 0x80080FBC
         }
     }
 
+#ifdef SH_PC_PORT
+    Pc_WideShotYawFix();
+#endif
     vcRenewalCamMatAng(&vcWork, watch_mv_prm_p, cur_cam_mv_type,
                        vcWork.flags & VC_VISIBLE_CHARA_F);
 
@@ -388,6 +497,107 @@ s32 vcExecCamera(void) // 0x80080FBC
     vcWork.flags                     &= ~(VC_WARP_CAM_F | VC_WARP_WATCH_F | VC_WARP_CAM_TGT_F);
 
     return vcRetSmoothCamMvF(&sv_old_cam_pos, &vcWork.cam_pos, &sv_old_cam_mat_ang, &vcWork.cam_mat_ang);
+}
+
+/* [CAMSNAP] one-line dump of everything that differs per camera shot, for the
+ * per-scene vertical framing riddle (some shots need vshift 11, others 0).
+ * Pressed by the user at a good spot and a bad spot; diffing the two lines --
+ * and the same fields in DuckStation RAM -- names the divergent input. */
+int g_PcLastCamMvType = -1;
+
+void Pc_CamSnapDump(void)
+{
+    extern float g_PsxWorldVShift;
+    extern int   g_PsxFixedCamActive;
+    const VC_ROAD_DATA* rd = vcWork.cur_near_road.road_p;
+
+    SH_DBG_ECHO("[CAMSNAP] map=%d room=%d camMv=%d rdFlags=0x%02X rdArea=%d rdCamMv=%d vcFlags=0x%08X",
+                (int)g_SavegamePtr->mapIdx, (int)g_SavegamePtr->mapRoomIdx,
+                g_PcLastCamMvType,
+                rd ? (int)rd->flags : -1, rd ? (int)rd->area_size_type : -1,
+                rd ? (int)rd->cam_mv_type : -1, (unsigned)vcWork.flags);
+    SH_DBG_ECHO("[CAMSNAP] camPos=(%ld,%ld,%ld) tgtPos=(%ld,%ld,%ld) watch=(%ld,%ld,%ld)",
+                (long)vcWork.cam_pos.vx, (long)vcWork.cam_pos.vy, (long)vcWork.cam_pos.vz,
+                (long)vcWork.cam_tgt_pos.vx, (long)vcWork.cam_tgt_pos.vy, (long)vcWork.cam_tgt_pos.vz,
+                (long)vcWork.watch_tgt_pos.vx, (long)vcWork.watch_tgt_pos.vy, (long)vcWork.watch_tgt_pos.vz);
+    SH_DBG_ECHO("[CAMSNAP] matAng=(%d,%d,%d) geomH=%d gsH=%d fixedCam=%d vshift=%.1f",
+                (int)vcWork.cam_mat_ang.vx, (int)vcWork.cam_mat_ang.vy, (int)vcWork.cam_mat_ang.vz,
+                (int)vcWork.geom_screen_dist, (int)g_GameWork.gsScreenHeight,
+                g_PsxFixedCamActive, g_PsxWorldVShift);
+    {
+        /* The projection-centre chain: GTE offset (vshift lands here via
+         * game_main's SetGeomOffset) and the draw-env centre. With camera and
+         * geomH already proven identical to console, these are the remaining
+         * numbers that decide where the picture sits vertically. */
+        extern void ReadGeomOffset(long* ofx, long* ofy);
+        long ofx = 0, ofy = 0;
+        ReadGeomOffset(&ofx, &ofy);
+        SH_DBG_ECHO("[CAMSNAP] gteOfs=(%ld,%ld) drawOfs=(%d,%d)",
+                    ofx, ofy, (int)GsDRAWENV.ofs[0], (int)GsDRAWENV.ofs[1]);
+    }
+    /* The final comparable: camera pos/angles/geomH are proven bit-identical
+     * to console at the cafe FIX_ANG spot, yet the render sits high with
+     * depth-grading -- so the divergence must be in the angle->matrix build or
+     * later. Print the actual 3x3 + translation used for rendering; console
+     * side reads at 0x800B9D68 (USA). */
+    {
+        /* GTE self-test: project (watch - cam) through the game's own GTE with
+         * the render matrix. The same integer math is replicated offline from
+         * the printed inputs (matrix, delta, H, OFY) as the console reference:
+         * if our GTE result differs, the GTE emulation is biased; if it
+         * matches but the on-screen picture still sits high, the raster/ortho
+         * mapping owns the offset. */
+        MATRIX  m;
+        SVECTOR d;
+        DVECTOR scr;
+        s32     i, j, dummy0, dummy1, otz;
+        /* cam_mat is camera-to-world (columns = view basis; t = camera world
+         * pos in Q8) -- the untransposed feed projected a behind-camera point
+         * and saturated. The world-to-view rotation is its transpose. */
+        for (i = 0; i < 3; i++)
+            for (j = 0; j < 3; j++)
+                m.m[i][j] = vcWork.cam_mat.m[j][i];
+        m.t[0] = m.t[1] = m.t[2] = 0;
+        d.vx = (s16)(vcWork.watch_tgt_pos.vx - vcWork.cam_pos.vx);
+        d.vy = (s16)(vcWork.watch_tgt_pos.vy - vcWork.cam_pos.vy);
+        d.vz = (s16)(vcWork.watch_tgt_pos.vz - vcWork.cam_pos.vz);
+        SetRotMatrix(&m);
+        SetTransMatrix(&m);
+        otz = RotTransPers(&d, (s32*)&scr, &dummy0, &dummy1);
+        SH_DBG_ECHO("[CAMSNAP] gteProbe d=(%d,%d,%d) -> scr=(%d,%d) otz=%ld",
+                    (int)d.vx, (int)d.vy, (int)d.vz, (int)scr.vx, (int)scr.vy, (long)otz);
+    }
+    {
+        /* The raster anchor PsyCross actually uses: window position of a prim =
+         * prim coord + (activeDrawEnv.ofs - activeDispEnv.disp.xy) under dfe.
+         * If this nets to anything but (160,112) during gameplay, the global
+         * vertical offset is found arithmetically. */
+        extern DISPENV activeDispEnv;
+        extern DRAWENV activeDrawEnv;
+        SH_DBG_ECHO("[CAMSNAP] raster dfe=%d ofs=(%d,%d) disp=(%d,%d %dx%d) net=(%d,%d) clip=(%d,%d %dx%d)",
+                    (int)activeDrawEnv.dfe,
+                    (int)activeDrawEnv.ofs[0], (int)activeDrawEnv.ofs[1],
+                    (int)activeDispEnv.disp.x, (int)activeDispEnv.disp.y,
+                    (int)activeDispEnv.disp.w, (int)activeDispEnv.disp.h,
+                    (int)(activeDrawEnv.ofs[0] - activeDispEnv.disp.x),
+                    (int)(activeDrawEnv.ofs[1] - activeDispEnv.disp.y),
+                    (int)activeDrawEnv.clip.x, (int)activeDrawEnv.clip.y,
+                    (int)activeDrawEnv.clip.w, (int)activeDrawEnv.clip.h);
+    }
+    SH_DBG_ECHO("[CAMSNAP] camMat=[%d,%d,%d / %d,%d,%d / %d,%d,%d] t=(%ld,%ld,%ld)",
+                (int)vcWork.cam_mat.m[0][0], (int)vcWork.cam_mat.m[0][1], (int)vcWork.cam_mat.m[0][2],
+                (int)vcWork.cam_mat.m[1][0], (int)vcWork.cam_mat.m[1][1], (int)vcWork.cam_mat.m[1][2],
+                (int)vcWork.cam_mat.m[2][0], (int)vcWork.cam_mat.m[2][1], (int)vcWork.cam_mat.m[2][2],
+                (long)vcWork.cam_mat.t[0], (long)vcWork.cam_mat.t[1], (long)vcWork.cam_mat.t[2]);
+    /* The FINAL render matrix, for offline internal-consistency audit:
+     * rotation must equal transpose(cam_mat)*diag(1,0.75,1) and t must equal
+     * that matrix applied to -campos(Q8). Any deviation IS the global vertical
+     * offset, quantified. */
+    SH_DBG_ECHO("[CAMSNAP] wsMat=[%d,%d,%d / %d,%d,%d / %d,%d,%d] t=(%ld,%ld,%ld)",
+                (int)GsWSMATRIX.m[0][0], (int)GsWSMATRIX.m[0][1], (int)GsWSMATRIX.m[0][2],
+                (int)GsWSMATRIX.m[1][0], (int)GsWSMATRIX.m[1][1], (int)GsWSMATRIX.m[1][2],
+                (int)GsWSMATRIX.m[2][0], (int)GsWSMATRIX.m[2][1], (int)GsWSMATRIX.m[2][2],
+                (long)GsWSMATRIX.t[0], (long)GsWSMATRIX.t[1], (long)GsWSMATRIX.t[2]);
 }
 
 void vcSetAllNpcDeadTimer(void) // 0x8008123C

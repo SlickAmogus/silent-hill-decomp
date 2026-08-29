@@ -99,6 +99,7 @@ static char* Png_Inflate(const char* buf, int len, int initialSize, int* outLen,
 #include "pc_config.h"
 
 #include <PsyX/common/glad.h>
+#include <PsyX/PsyX_backend.h>
 
 #define MAX_HIRES_OVERRIDES 256
 
@@ -302,6 +303,9 @@ typedef struct {
     unsigned short rowH[HIRES_POOL_MAX_ROWS];   /* the shader's footprint clamp */
     unsigned long long rowHash[HIRES_POOL_MAX_ROWS]; /* TexPack_LastComposeHash of each resident row; 0 = unknown */
     unsigned rowTick[HIRES_POOL_MAX_ROWS];      /* pump tick this row was last SAMPLED (LRU key) */
+    short  nativeClutX, nativeClutY; /* disc TIM's real CLUT rect origin; -1 = unknown.
+                                      * Needed to map ABSOLUTE prim cluts onto slot rows
+                                      * (see HiresOverride_RestampValidate). */
 } PoolSlotEntry;
 
 static PoolSlotEntry g_poolSlots[HIRES_POOL_SLOT_MAX];
@@ -434,6 +438,121 @@ int HiresOverride_EvictColdestPackRow(unsigned minAgeTicks,
     return 1;
 }
 
+/* Record the disc TIM's real CLUT origin for a slot (PostLoadTim knows it;
+ * nothing else does). Lets the restamp path relate a prim's ABSOLUTE native
+ * clut to this slot's rows. */
+void HiresOverride_PoolSlotSetNativeClut(int slotId, int clutX, int clutY)
+{
+    if (!g_initialized) HiresOverride_Init();
+    if (slotId < 0 || slotId >= HIRES_POOL_SLOT_MAX) return;
+    g_poolSlots[slotId].nativeClutX = (short)clutX;
+    g_poolSlots[slotId].nativeClutY = (short)clutY;
+}
+
+/* A restamped prim clut must encode a BACKED pool slot. The rebase in
+ * Model_MaterialFlagsApply is pure arithmetic -- field_10 + (prim - field_12)
+ * -- and whenever a prim's carried base disagrees with field_12 (reload /
+ * completion-order desyncs seen only on low-spec machines; deltas of 46, 58
+ * and 505 palette rows in the 2026-08-21 Nowhere logs) the sum encodes a slot
+ * nothing owns. Such a prim is either dropped by the CLUT sanitizer (the
+ * invisible Nowhere elevator) or, where the guard cannot apply, drawn as
+ * palette garbage (the rainbow triangle). Clamping to the material's own base
+ * keeps the object drawn with its row-0 palette, and the log line names the
+ * material so the upstream desync stays visible in user logs. */
+unsigned short HiresOverride_RestampValidate(unsigned short newClut,
+                                             unsigned short baseClut,
+                                             unsigned short oldClut,
+                                             unsigned short oldBase,
+                                             const char* matName)
+{
+    int q, slotId, row, r, backed;
+
+    if ((newClut & 0x8000) == 0)
+        return newClut; /* native clut: real VRAM semantics, nothing to check */
+
+    q      = ((newClut >> 6) & 0x3FF) - HIRES_POOL_CLUT_ROW_BASE;
+    slotId = (q / HIRES_POOL_MAX_ROWS) * 64 + (newClut & 0x3F);
+    row    = q % HIRES_POOL_MAX_ROWS;
+    backed = 0;
+    if (q >= 0 && slotId >= 0 && slotId < HIRES_POOL_SLOT_MAX)
+    {
+        PoolSlotEntry* ps = &g_poolSlots[slotId];
+        for (r = 0; r < HIRES_POOL_MAX_ROWS; r++)
+        {
+            if (ps->glTexture[r] != 0) { backed = 1; break; }
+        }
+    }
+    if (backed)
+        return newClut;
+
+    /* A result decoding PAST the pool entirely (slot beyond the table) can
+     * only be crossed-generation arithmetic -- the poison birth itself. Rare,
+     * so it gets its own budget: the per-material cap below starves exactly
+     * these (the door material burns its lines on benign load stamps). */
+    if (slotId >= HIRES_POOL_SLOT_MAX || q < 0)
+    {
+        static int s_wildLog = 0;
+        if (s_wildLog < 16)
+        {
+            s_wildLog++;
+            SH_DBG("[RESTAMP-WILD] mat '%.8s': %04X = new base %04X + (prim %04X - old base %04X) -> slot %d row %d PAST-POOL",
+                   (matName != NULL) ? matName : "?", newClut, baseClut, oldClut, oldBase, slotId, row);
+        }
+    }
+
+    {
+        /* Per-MATERIAL cap: a global cap burned entirely on one chatty
+         * material's load-time noise (SC2FC2H x24) and the door material --
+         * the one under investigation -- never got a line. */
+        static struct { char name[8]; int n; } s_seen[24];
+        static int s_seenCount = 0;
+        int _k = 0, _log = 0;
+
+        if (matName != NULL)
+        {
+            for (_k = 0; _k < s_seenCount; _k++)
+                if (memcmp(s_seen[_k].name, matName, 8) == 0) break;
+            if (_k == s_seenCount && s_seenCount < 24)
+            {
+                memcpy(s_seen[s_seenCount].name, matName, 8);
+                s_seen[s_seenCount].n = 0;
+                s_seenCount++;
+            }
+            if (_k < s_seenCount && s_seen[_k].n < 2)
+            {
+                s_seen[_k].n++;
+                _log = 1;
+            }
+        }
+        if (_log)
+        {
+            /* oldClut/oldBase expose WHICH state generations crossed: a native
+             * oldClut against a virtual oldBase (or two different virtual
+             * generations) is the reload/bookkeeping desync in one line. */
+            {
+                int nx = -1, ny = -1;
+                int bq = ((baseClut >> 6) & 0x3FF) - HIRES_POOL_CLUT_ROW_BASE;
+                int bslot = (bq >= 0) ? (bq / HIRES_POOL_MAX_ROWS) * 64 + (baseClut & 0x3F) : -1;
+                if (bslot >= 0 && bslot < HIRES_POOL_SLOT_MAX)
+                {
+                    nx = g_poolSlots[bslot].nativeClutX;
+                    ny = g_poolSlots[bslot].nativeClutY;
+                }
+                SH_DBG("[RESTAMP] mat '%.8s': %04X = new base %04X + (prim %04X - old base %04X) -> slot %d row %d unbacked-at-stamp (base slot %d native clut=(%d,%d))",
+                       (matName != NULL) ? matName : "?", newClut, baseClut, oldClut, oldBase, slotId, row, bslot, nx, ny);
+            }
+        }
+    }
+    /* DIAGNOSTIC ONLY -- the value passes through. Clamping here was tried and
+     * destroyed LEGITIMATE early stamps: at load the stamp routinely lands
+     * before the slot's [POOLTEX] registration (THR4001F: slot 0 rows 3/4
+     * stamped moments before slot 0 registered), and clamping erased the row
+     * deltas, wrecking multi-row palettes. Unbacked-at-stamp is not an error;
+     * unbacked-at-DRAW is, and the parse-side CLUT sanitizer already handles
+     * that (drop, never rainbow). */
+    return newClut;
+}
+
 /* Expand one CLUT row of a raw TIM pixel+palette block to RGBA8 at native
  * resolution and install it as this slot row's texture, UNCHARGED against the
  * pack budget (native rows never were). Restores an evicted row to correct art
@@ -498,8 +617,15 @@ int HiresOverride_PoolSlotRestoreNativeRow(int slotId, int row,
 
 void HiresOverride_Init(void)
 {
+    int i;
+
     if (g_initialized) return;
     g_numEntries = 0;
+    for (i = 0; i < HIRES_POOL_SLOT_MAX; i++)
+    {
+        g_poolSlots[i].nativeClutX = -1;
+        g_poolSlots[i].nativeClutY = -1;
+    }
     g_initialized = 1;
     SH_DBG("[HIRES] override system initialized (capacity=%d)",
            MAX_HIRES_OVERRIDES);
@@ -977,16 +1103,7 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
      * upload reports a COMPRESSED internal format here (a sub-image into it
      * would fail), so only GL's own answer is trustworthy. */
     int reuseStorage;
-#if defined(__ANDROID__)
-    /* glGetTexLevelParameteriv is ES 3.1; the NDK's <GLES3/gl3.h> is ES 3.0, so
-     * the current storage cannot be queried and the reuse fast path cannot be
-     * proven safe (the BC7-compressed-format case it guards against would make
-     * a sub-image fail). Always take the reallocating path below — the same one
-     * every genuine (re)allocation already uses, so this is correct, only
-     * slower. Restoring the fast path here means moving to <GLES3/gl31.h>,
-     * which would also raise the device requirement to ES 3.1. */
-    reuseStorage = 0;
-#else
+    if (g_grCaps.texLevelParam)
     {
         GLint curW = 0, curH = 0, curFmt = 0;
         glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &curW);
@@ -995,7 +1112,15 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
         reuseStorage = (curW == w && curH == h &&
                         (curFmt == GL_RGBA || curFmt == GL_RGBA8));
     }
-#endif
+    else
+    {
+        /* ES 3.0 (the ANGLE-backed backends) has no glGetTexLevelParameteriv —
+         * it arrived in 3.1. With no trustworthy answer available, always take
+         * the full re-specification path: a glTexImage2D is valid whatever the
+         * slot previously held, whereas a sub-image into a mismatched or
+         * compressed level is the exact failure this check exists to avoid. */
+        reuseStorage = 0;
+    }
 
     if (reuseStorage)
     {
@@ -1055,12 +1180,97 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
         GLenum uploadErr = glGetError();
         if (uploadErr != GL_NO_ERROR)
         {
-            static int s_oomLog = 0;
-            if (s_oomLog < 8) { SH_DBG("[POOLTEX] GL error 0x%X on %dx%d upload — keeping native art", (unsigned)uploadErr, w, h); s_oomLog++; }
-            glBindTexture(GL_TEXTURE_2D, 0);
-            glDeleteTextures(1, tex);
-            *tex = 0;
-            return -1;
+            /* Shrink and retry before giving up.
+             *
+             * Losing the texture here does NOT degrade to native art, which is
+             * what the old comment assumed. The material's prim clut has
+             * already been rebased onto this virtual slot, and a virtual slot
+             * with no GL texture is an UNBACKED bit-15 clut — exactly what
+             * PsyX_GPU.cpp's ClutHasNoPalette drops on sight, because drawing
+             * it folds a negative V onto an arbitrary VRAM palette (permanent
+             * rainbow). So the prim is discarded outright and the object is
+             * simply absent: the missing Nowhere elevator door, reported only
+             * ever from low-VRAM machines, where a big resident-texture working
+             * set is what makes these uploads fail in the first place.
+             *
+             * Halving until it fits keeps the slot BACKED, so nothing is
+             * dropped and nothing can rainbow — the object is drawn, at worst
+             * softer than the pack intended. That is a real graceful degrade,
+             * and it is strictly better than invisible on the machines that hit
+             * it. Downscale is a box filter done in place (dst index never
+             * passes src index at 2:1), so it needs one scratch buffer. */
+            static unsigned char* s_shrink = NULL;
+            static int            s_shrinkBytes = 0;
+            const unsigned char*  src = rgba;
+            int                   sw = w, sh = h;
+            int                   recovered = 0;
+
+            while (sw >= 2 && sh >= 2 && (sw > 32 || sh > 32))
+            {
+                int dw = sw >> 1, dh = sh >> 1;
+                int need = dw * dh * 4, x, y, c;
+
+                if (need > s_shrinkBytes)
+                {
+                    unsigned char* nb = (unsigned char*)realloc(s_shrink, (size_t)need);
+                    if (nb == NULL)
+                        break;
+                    s_shrink = nb;
+                    s_shrinkBytes = need;
+                }
+
+                for (y = 0; y < dh; y++)
+                {
+                    for (x = 0; x < dw; x++)
+                    {
+                        const unsigned char* a = src + (((y * 2) * sw) + x * 2) * 4;
+                        const unsigned char* b = a + 4;
+                        const unsigned char* d = a + sw * 4;
+                        const unsigned char* e = d + 4;
+
+                        for (c = 0; c < 4; c++)
+                            s_shrink[((y * dw) + x) * 4 + c] =
+                                (unsigned char)(((int)a[c] + b[c] + d[c] + e[c]) >> 2);
+                    }
+                }
+
+                src = s_shrink;
+                sw  = dw;
+                sh  = dh;
+
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sw, sh, 0,
+                             GL_RGBA, GL_UNSIGNED_BYTE, s_shrink);
+                if (glGetError() == GL_NO_ERROR)
+                {
+                    recovered = 1;
+                    break;
+                }
+            }
+
+            {
+                static int s_oomLog = 0;
+                if (s_oomLog < 8)
+                {
+                    if (recovered)
+                        SH_WARN("[POOLTEX] GL error 0x%X on %dx%d upload — recovered at %dx%d",
+                                (unsigned)uploadErr, w, h, sw, sh);
+                    else
+                        SH_WARN("[POOLTEX] GL error 0x%X on %dx%d upload and every shrink — "
+                                "slot left unbacked, its prims will be dropped",
+                                (unsigned)uploadErr, w, h);
+                    s_oomLog++;
+                }
+            }
+
+            if (!recovered)
+            {
+                glBindTexture(GL_TEXTURE_2D, 0);
+                glDeleteTextures(1, tex);
+                *tex = 0;
+                return -1;
+            }
+            w = sw;
+            h = sh;
         }
     }
     if (!nearest && glGenerateMipmap != NULL)
@@ -1073,6 +1283,16 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
     }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, nearest ? GL_NEAREST : GL_LINEAR);
+
+    /* Tell the renderer this one is off-limits to the global filtering setting.
+     * Filtering is applied per BIND now, so without this the mode chosen above
+     * would be overwritten every frame and the gutterless font cells would bleed
+     * into each other again. */
+    if (nearest)
+    {
+        extern void GR_MarkTextureNearest(unsigned int tex);
+        GR_MarkTextureNearest(*tex);
+    }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
@@ -1685,6 +1905,27 @@ unsigned int HiresOverride_LookupByTpageClut(int tpage, int clut,
                     return (unsigned int)tex;
                 }
             }
+        }
+        return 0;
+    }
+
+    /* Same 16bpp reasoning as the virtual-pool guard above, for the REGULAR
+     * entry path: PSX ignores `clut` in 16bpp mode, so the framebuffer-sampling
+     * cutscene overlays (map4_s01 Lisa et al) ship uninitialized clut bytes and
+     * address the display buffers, which live in the left 320 VRAM columns.
+     * The entry loop keys on the tpage window + bit depth, so a 16bpp override
+     * registered anywhere in that band could be hijacked by those prims and
+     * drawn as a big textured rect -- the rainbow block users still saw after
+     * the pool path was guarded. Real 16bpp game textures sit far right in VRAM
+     * (x>=512 in every session log), so this cannot cost a legitimate override. */
+    if (((tpage >> 7) & 0x3) >= 2 && ((tpage & 0xF) * 64) < 320)
+    {
+        static int s_fbTpageLogged = 0;
+        if (s_fbTpageLogged < 8)
+        {
+            SH_DBG("[HIRES] ignored 16bpp tpage 0x%X clut 0x%04X in the framebuffer band (feedback prim)",
+                   tpage, clut);
+            s_fbTpageLogged++;
         }
         return 0;
     }

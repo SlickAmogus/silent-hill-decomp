@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "lang_text.h"
+#include "lang_zh.h"        /* Chinese text pack for NTSC-J */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +18,7 @@
 #include "lang_pack.h"        /* PC-side language packs (gamedata/lang) */
 #include "lang_ru.h"          /* Russian fan-patch detection + menu text */
 #include "pc_kanji.h"         /* Pc_KanjiSetChinese (NTSC-J glyph set) */
+#include "lang_jpn.h"         /* NTSC-J menu text from the disc overlays */
 #include "main/fsqueue.h"     /* Fs_QueueStartReadTim, FS_BUFFER_1 */
 #include "main/fileinfo.h"    /* g_GameRegion, Fs_EurFileLookup */
 #include "pc_config.h"
@@ -143,6 +145,25 @@ int Pc_LangActive(void)
 }
 
 static int s_FanTextActive;
+
+/* Set once the disc's item text is recognised as the Chinese patch. Until then
+ * nothing may claim this disc can render Chinese. */
+static int s_JpnDiscIsChinese;
+
+/* Set when zh.pack is supplying the words instead. Read by the map-message
+ * installer, which must then take its strings from the pack and not the
+ * overlay — the disc is Japanese in that case. */
+static int s_ZhPackActive;
+
+int Pc_LangZhPackActive(void)
+{
+    return s_ZhPackActive;
+}
+
+int Pc_LangJpnDiscIsChinese(void)
+{
+    return s_JpnDiscIsChinese;
+}
 
 int Pc_FanTextActive(void)
 {
@@ -574,23 +595,60 @@ static void EurFanFontInit(void)
  * game's own kuten codes and only redefines the glyphs drawn at them), so the
  * arrays are still JP-linked and only their strings differ. Map/story text
  * needs nothing here — that already comes off the disc on NTSC-J. */
-static void JpnFanTextInit(void)
+/* Fingerprint of the adopted NTSC-J item text: FNV-1a over item names 0..7,
+ * each NUL-terminated. Measured offline from the discs themselves —
+ *
+ *   0x5FE7A885  retail SLPM-86192 (栄養剤 / 携帯用救急キット / アンプル)
+ *   0xECCF3760  the goro / 十三月 2006 Chinese patch (PPF applied to that disc)
+ *
+ * The Chinese patch does not write Chinese; it writes JIS kuten codes whose
+ * GLYPHS its custom BIOS redefines. Its item names come out as runs like
+ * 0x89B3 0x89B4 0x89B5 — sequential nonsense as Japanese, which is exactly what
+ * makes them a reliable signature. */
+#define JPN_ITEMS_FNV_CHINESE 0xECCF3760u
+
+static unsigned int JpnItemTextFingerprint(void)
+{
+    unsigned int h = 2166136261u;
+    int          i;
+
+    for (i = 0; i < 8; i++)
+    {
+        const char* p = s_ItemNames[i];
+
+        if (p != NULL)
+        {
+            for (; *p != '\0'; p++)
+            {
+                h ^= (unsigned char)*p;
+                h *= 16777619u;
+            }
+        }
+        h ^= 0u;
+        h *= 16777619u;
+    }
+    return h;
+}
+
+/* Returns 1 only if the disc's own item text replaced the compiled tables. */
+static int JpnFanTextInit(void)
 {
     static const unsigned char* s_compiledWidths;
 
     unsigned int   size = (unsigned int)g_FileTable[FILE_1ST_BODYPROG_BIN].blockCount << 8;
     unsigned char* bin;
     int            i;
+    int            adopted;
 
     if (s_compiledWidths == NULL)
         s_compiledWidths = g_FontLayout->glyphWidths;
 
     if (size < (JPN_ITEM_DESC_ADDR - JPN_BODY_VRAM) + ITEM_TEXT_COUNT * 4)
-        return;
+        return 0;
 
     bin = Pc_LangReadDiscFile(g_FileTable[FILE_1ST_BODYPROG_BIN].startSector, size);
     if (bin == NULL)
-        return;
+        return 0;
 
     DecryptOverlay(bin, size);
 
@@ -602,7 +660,7 @@ static void JpnFanTextInit(void)
         {
             SH_WARN("[FANPATCH] NTSC-J BODYPROG not JP-linked — keeping compiled font/item text");
             free(bin);
-            return;
+            return 0;
         }
     }
 
@@ -612,6 +670,7 @@ static void JpnFanTextInit(void)
         SH_LOG("[FANPATCH] modified NTSC-J FONT16 kerning table adopted from disc");
     }
 
+    adopted = 0;
     switch (AdoptItemArrays(bin, size, JPN_BODY_VRAM,
                             JPN_ITEM_NAME_ADDR - JPN_BODY_VRAM,
                             JPN_ITEM_DESC_ADDR - JPN_BODY_VRAM,
@@ -619,6 +678,20 @@ static void JpnFanTextInit(void)
     {
         case 1:
             SH_LOG("[FANPATCH] modified NTSC-J item text adopted from disc");
+            adopted = 1;
+            if (JpnItemTextFingerprint() == JPN_ITEMS_FNV_CHINESE)
+            {
+                /* The disc IS the Chinese release, so turn its glyph set on
+                 * without making the player find the language row: on this disc
+                 * Japanese glyphs would render the same codes as gibberish, so
+                 * Chinese is not a preference here, it is the correct reading. */
+                s_JpnDiscIsChinese = 1;
+                if (!g_PcConfig.jpLanguage)
+                {
+                    g_PcConfig.jpLanguage = 1;
+                    SH_LOG("[LANG] Chinese-patched NTSC-J disc detected — selecting Chinese");
+                }
+            }
             break;
         case -1:
             SH_WARN("[FANPATCH] NTSC-J BODYPROG item arrays did not parse — keeping compiled item text");
@@ -628,6 +701,7 @@ static void JpnFanTextInit(void)
     }
 
     free(bin);
+    return adopted;
 }
 
 void Pc_LangInit(void)
@@ -644,6 +718,11 @@ void Pc_LangInit(void)
      * compiled US strings until (unless) a new table loads below. */
     free(s_ItemPool);
     s_ItemPool = NULL;
+
+    /* Clean slate for the layout logic below: a previous run's fan-patch
+     * override or Polish layout must not survive into this one (see
+     * Font_ResetLayout for the switch-away-and-back fold-up it caused). */
+    Font_ResetLayout();
 
     /* A PAL fan patch's retuned kerning has to be in before anything measures
      * a string. (The USA equivalent rides along with item text in FanTextInit.) */
@@ -719,6 +798,54 @@ void Pc_LangInit(void)
         /* A fan-translated JP disc (the Chinese patch) rewrites those same
          * arrays; adopting them replaces the pointers just installed. */
         JpnFanTextInit();
+
+        /* Chinese wanted, but this disc is not the Chinese release: take the
+         * words from zh.pack instead. That is the whole point of the pack —
+         * the port already has the glyphs, so with the text supplied a RETAIL
+         * Japanese disc can show Chinese and switch to it in game. */
+        s_ZhPackActive = 0;
+        if (g_PcConfig.jpLanguage && !s_JpnDiscIsChinese && Pc_LangZhAvailable())
+        {
+            int installed = 0;
+
+            for (i = 0; i < ITEM_TEXT_COUNT; i++)
+            {
+                const char* nm = Pc_LangZhItemName(i);
+                const char* ds = Pc_LangZhItemDesc(i);
+
+                /* Only over entries the pack actually carries: the JP tables
+                 * are mostly NULL (78 of 195 are real items) and a NULL there
+                 * is meaningful — it is what the inventory tests. */
+                if (nm != NULL)
+                {
+                    s_ItemNames[i] = nm;
+                    installed++;
+                }
+                if (ds != NULL)
+                {
+                    s_ItemDescs[i] = ds;
+                }
+            }
+            s_ItemTextReady = 1;
+            s_ZhPackActive  = 1;
+            SH_LOG("[LANG-ZH] Chinese text pack installed (%d inventory entries) — "
+                   "no disc patch needed", installed);
+        }
+
+        if (g_PcConfig.jpLanguage && !s_JpnDiscIsChinese && !s_ZhPackActive)
+        {
+            /* Chinese is a GLYPH swap over unchanged kuten codes, so it only
+             * spells Chinese if the disc supplied Chinese strings. Left on over
+             * the compiled Japanese text every code draws some unrelated
+             * character — reported as "text is corrupted when CN is selected",
+             * which is what a retail JP disc (or a CN disc whose BODYPROG did
+             * not parse) does. Japanese glyphs over Japanese text at least
+             * reads correctly. */
+            Pc_KanjiSetChinese(0);
+            SH_WARN("[LANG] Chinese selected but neither this disc nor gamedata/lang/"
+                    "zh.pack carries Chinese text — using Japanese glyphs.");
+        }
+        Pc_JpnMenuInit();
         return;
     }
 
@@ -801,17 +928,42 @@ void Pc_LangSetLanguage(int lang)
     SH_LOG("[LANG] language switched to '%s'", s_LangIds[lang]);
 }
 
-/* NTSC-J text language: 0 Japanese, 1 Chinese. Nothing on the disc is rebound —
- * the Chinese fan translation writes the same JIS kuten codes the Japanese
- * script does and only redefines the glyphs drawn at them — so this just swaps
- * the rasterizer's glyph set and the port's own menu text. */
+/* NTSC-J text language: 0 Japanese, 1 Chinese.
+ *
+ * This used to swap only the rasterizer's glyph set, which was the whole job
+ * back when the words could only come from a Chinese-patched disc — the codes
+ * were already on the disc and only the glyphs drawn at them changed. With
+ * zh.pack supplying the words for an unpatched disc that is now half the job:
+ * swapping glyphs alone left every string Japanese, so the switch appeared to
+ * do nothing. Reinstall the text too, the same way Pc_LangSetLanguage does for
+ * PAL. Pc_LangInit picks the glyph set itself (and stands it back down if
+ * neither the disc nor the pack has Chinese), so it is not set here. */
 void Pc_LangSetJpLanguage(int lang)
 {
     lang = (lang != 0);
 
     g_PcConfig.jpLanguage = lang;
     PcConfig_SaveKeyValue("jp_language", lang ? "zh" : "ja");
-    Pc_KanjiSetChinese(lang);
+    Pc_LangInit();
+
+    /* Inventory text is reinstalled above, but story text is installed per map
+     * at load time, so the map already loaded would keep the old language until
+     * the next door. g_OvlDynamic still holds this map's overlay, which is the
+     * same pointer game_boot.c passes, so re-running the installer against it
+     * refreshes the current map in place. Only in game: at the title there is
+     * no map loaded and nothing to re-patch. */
+    if (g_GameRegion == Region_JPN && g_GameWork.gameState == GameState_InGame &&
+        g_OvlDynamic != NULL && g_SavegamePtr != NULL)
+    {
+        int mapIdx = (int)g_SavegamePtr->mapIdx;
+
+        if (mapIdx >= 0 && mapIdx < 45)
+        {
+            Pc_LangPatchMapMessages(
+                mapIdx, g_OvlDynamic,
+                (unsigned int)g_FileTable[FILE_VIN_MAP0_S00_BIN + mapIdx].blockCount << 8);
+        }
+    }
 
     SH_LOG("[LANG] NTSC-J language switched to '%s'", lang ? "zh" : "ja");
 }
@@ -922,14 +1074,69 @@ const char* Pc_LangItemName(int itemIdx)
     return (s_ItemNames[itemIdx] && s_ItemNames[itemIdx][0]) ? s_ItemNames[itemIdx] : NULL;
 }
 
+/* "~N" is the MAP-MESSAGE newline, understood by the message drawer. Item text
+ * goes through Gfx_StringDraw, which knows only a literal newline -- and drops
+ * '~' outright, because 0x7E is past the 'z' its glyph range ends at, leaving
+ * the 'N' to draw as a letter. That is the stray N in the Japanese inventory.
+ *
+ * Normalising HERE rather than in the tables is deliberate: the Japanese text
+ * can arrive from three places -- the compiled table, a patched disc adopted by
+ * JpnFanTextInit, or zh.pack -- and fixing only the compiled one made it DIFFER
+ * from the disc, which is precisely the test JpnFanTextInit uses to decide a
+ * disc is patched. It then adopted the disc's own "~N" text and put the N
+ * straight back. One conversion at the exit covers every source.
+ *
+ * The caller (Gfx_Inventory_ItemDescriptionDraw) draws the string immediately
+ * and does not retain it, so one rotating buffer is enough for the two calls a
+ * frame; text without a "~N" is returned untouched. */
+static const char* NormalizeItemText(const char* s)
+{
+    static char s_buf[2][512];
+    static int  s_next;
+
+    const char* p;
+    char*       out;
+    char*       end;
+
+    if (s == NULL)
+        return NULL;
+
+    for (p = s; *p != '\0'; p++)
+    {
+        if (p[0] == '~' && p[1] == 'N')
+            break;
+    }
+
+    if (*p == '\0')
+        return s;
+
+    out    = s_buf[s_next];
+    s_next = (s_next + 1) & 1;
+    end    = out + sizeof(s_buf[0]) - 1;
+
+    for (p = s; *p != '\0' && out < end; p++)
+    {
+        if (p[0] == '~' && p[1] == 'N')
+        {
+            *out++ = '\n';
+            p++;
+            continue;
+        }
+        *out++ = *p;
+    }
+
+    *out = '\0';
+    return s_buf[(s_next + 1) & 1];
+}
+
 const char* Pc_LangItemDesc(int itemIdx)
 {
     if (Pc_LangPackActive())
-        return Pc_LangPackItemDesc(itemIdx);
+        return NormalizeItemText(Pc_LangPackItemDesc(itemIdx));
 
     if (!s_ItemTextReady || itemIdx < 0 || itemIdx >= ITEM_TEXT_COUNT)
         return NULL;
-    return (s_ItemDescs[itemIdx] && s_ItemDescs[itemIdx][0]) ? s_ItemDescs[itemIdx] : NULL;
+    return NormalizeItemText((s_ItemDescs[itemIdx] && s_ItemDescs[itemIdx][0]) ? s_ItemDescs[itemIdx] : NULL);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1088,6 +1295,43 @@ static int MsgCleanRun(const unsigned char* ovl, unsigned int ovlSize, unsigned 
     return i;
 }
 
+/* A dub-only release (ViT Co / Metallist) strips the words out of every voiced
+ * line and leaves the "~J0(seconds)" timing command behind, so the scene still
+ * paces to the dubbed audio but draws nothing. That is what the disc says and
+ * what real hardware shows, so it is not corrected here — only reported, since
+ * it reads as a port bug ("no subtitles") every time someone runs one. */
+static int MsgIsVoicedButBlank(const char* s)
+{
+    int visible = 0;
+
+    if (strstr(s, "~J0(") == NULL)
+        return 0;
+
+    for (; *s != '\0'; s++)
+    {
+        if (*s == '~')
+        {
+            /* Commands are ~ + letter + optional index digits + optional
+             * "(2.0)" argument: ~E, ~C2, ~J0(6.0). */
+            if (s[1] != '\0')
+                s++;
+            while (s[1] >= '0' && s[1] <= '9')
+                s++;
+            if (s[1] == '(')
+            {
+                while (s[1] != '\0' && s[1] != ')')
+                    s++;
+                if (s[1] == ')')
+                    s++;
+            }
+            continue;
+        }
+        if (*s != ' ' && *s != '\t' && *s != '\n' && *s != '\r' && *s != '_')
+            visible = 1;
+    }
+    return !visible;
+}
+
 static unsigned int UsaDetectOverlayBase(const unsigned char* ovl, unsigned int ovlSize)
 {
     static unsigned int s_rebuiltBase = 0; /* cache: a disc has ONE overlay base */
@@ -1171,6 +1415,7 @@ static void UsaPatchMapMessages(int mapIdx)
     char*             newPool;
     char*             out;
     const char**      origMsgs;
+    int               dubbed;
     extern s_MapOverlayHdr* g_pMapOverlayHeader;
 
     if (mapIdx < 0 || mapIdx >= 45 || g_pMapOverlayHeader == NULL)
@@ -1257,13 +1502,18 @@ static void UsaPatchMapMessages(int mapIdx)
     s_MsgPool = newPool;
     out       = s_MsgPool;
 
+    dubbed = 0;
     for (i = 0; i < MSG_COUNT_MAX; i++)
     {
         if (i < srcCount)
         {
-            size_t len = strlen((const char*)ovl + srcPtrs[i]);
+            const char* src = (const char*)ovl + srcPtrs[i];
+            size_t      len = strlen(src);
 
-            memcpy(out, ovl + srcPtrs[i], len + 1);
+            if (MsgIsVoicedButBlank(src))
+                dubbed++;
+
+            memcpy(out, src, len + 1);
             s_MsgPtrs[i] = out;
             out += len + 1;
         }
@@ -1279,6 +1529,12 @@ static void UsaPatchMapMessages(int mapIdx)
 
     free(ovl);
     SH_LOG("[FANPATCH] map %d: %d translated messages installed", mapIdx, srcCount);
+    if (dubbed > 0)
+    {
+        SH_LOG("[FANPATCH] map %d: %d voiced lines have no subtitle text on this disc "
+               "(dub release — the patch removed the words and kept the timing)",
+               mapIdx, dubbed);
+    }
 }
 
 void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
@@ -1394,9 +1650,22 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
             }
             else
             {
-                size_t len = strlen((const char*)bytes + srcPtrs[jpIdx]);
+                /* Pack first when it is driving: the overlay under us is the
+                 * Japanese disc's, so its strings are Japanese and would draw
+                 * as nonsense through the Chinese glyph set. Index with jpIdx,
+                 * because the pack stores the disc's own JP order and the map
+                 * above has already been applied. */
+                const char* src = s_ZhPackActive
+                                      ? Pc_LangZhMapMessage(mapIdx, jpIdx)
+                                      : NULL;
+                size_t      len;
 
-                memcpy(out, bytes + srcPtrs[jpIdx], len + 1);
+                if (src == NULL)
+                {
+                    src = (const char*)bytes + srcPtrs[jpIdx];
+                }
+                len = strlen(src);
+                memcpy(out, src, len + 1);
                 s_MsgPtrs[usIdx] = out;
                 out += len + 1;
             }

@@ -20,12 +20,26 @@
  *
  * Naming, mirroring the texture convention:
  *     gamedata/load/SND/<BANK>.<NNN>.wav      e.g. SND/PISTOL.002.wav
- * where NNN is the one-based sample number the launcher's Audio tool shows.
+ * where NNN is the one-based sample number the launcher's Audio tool shows, and
+ * BANK is the bank's name on the disc -- MAP000, MAP001_2, PISTOL. The tool
+ * labels a sample "MAP000_005", which is bank MAP000 sample 5, NOT a bank
+ * called MAP000_005; the separator before the number is a dot here.
+ * <BANK>_<NNN>.wav is accepted too, because that is exactly what the tool names
+ * its exports, so an unedited round trip works either way.
  *
- * The WAV should be at the rate the Audio tool exported (the sound's real
- * in-game rate). The engine pitches the buffer exactly as it pitched the
- * original, so a file at that rate plays at the intended speed; a file at some
- * other rate plays proportionally faster or slower, like changing tape speed.
+ * The WAV plays at ITS OWN sample rate: what you hear in your audio editor is
+ * what plays in game, at any rate the editor saves. The mixer uploads the file
+ * at the rate its header declares and treats the pitch the game keys the voice
+ * with as 1.0, so the original sample's (often very low) authoring rate no
+ * longer matters. Pitch the game applies AFTER the trigger still scales
+ * relative to that baseline, so modulated sounds keep their modulation; what a
+ * replacement gives up is trigger-time pitch variation. If the RIFF header
+ * cannot be read the file falls back to the old fixed-44100 upload (speed then
+ * depends on the original sample's rate); the [SFXMOD] log line prints the
+ * rate it read from each file, and 0 there is the tell.
+ *
+ * (The tool's own "replace inside the VAB" path resamples for you; that applies
+ * to a repacked bank, not to these loose files.)
  */
 
 /* Called after a bank's sample data reaches SPU RAM. `vabHeader` is the parsed
@@ -37,7 +51,7 @@ void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSec
 /* Playback-time lookup by the SPU address a voice was pointed at. Returns 1 and
  * fills the outputs when that address is an overridden sample. The samples are
  * owned by this module and stay valid until the bank is replaced. */
-int Pc_SfxOverride_Lookup(int spuAddr, const short** outPcm, int* outSampleCount);
+int Pc_SfxOverride_Lookup(int spuAddr, const short** outPcm, int* outSampleCount, int* outRate);
 
 /* Drop everything (map teardown / shutdown). */
 void Pc_SfxOverride_Reset(void);

@@ -743,6 +743,47 @@ void func_8003CC7C(s_WorldObjectModel* model, MATRIX* viewMat, MATRIX* worldMat)
         return;
     }
 
+#ifdef SH_PC_PORT
+    /* Name the owner of any packet the CLUT sanitizer is about to discard.
+     * PsyCross sees only the packet (CLUTDROP can't say whose it was); a clut
+     * decoding past the pool (slot >= 512) cannot come from any stamp path --
+     * it is poisoned prim data, i.e. this model is being drawn from a
+     * reclaimed buffer even though its name still matches. Log the object,
+     * model address and prim so user logs identify the reclaimed file
+     * (Nowhere elevator: use elevator -> hall -> return). */
+    {
+        static int s_poisonLog = 0;
+
+        if (s_poisonLog < 8 && modelHdr->meshCount > 0)
+        {
+            s_MeshHeader* _mh = &modelHdr->meshHdrs[0];
+            s32           _pi;
+
+            for (_pi = 0; _pi < _mh->primitiveCount; _pi++)
+            {
+                u16 _c = (u16)_mh->primitives[_pi].field_2;
+
+                if ((_c & 0x8000) &&
+                    (((((_c >> 6) & 0x3FF) - 512) / 16) * 64 + (_c & 0x3F)) >= 512)
+                {
+                    extern int Pc_PrimHashCheck(const void* ptr, u32 len);
+                    int _v = Pc_PrimHashCheck(_mh->primitives,
+                                              (u32)_mh->primitiveCount * sizeof(s_Primitive));
+                    s_poisonLog++;
+                    SH_DBG("[WOBJ-POISON] '%.8s' lmIdx=%d modelHdr=%p mesh0 prim%d clut=0x%04X primCnt=%d prims=%p verts=%p p0clut=0x%04X verdict=%s",
+                           model->metadata.name.str, (int)lmIdx, (void*)modelHdr,
+                           (int)_pi, (unsigned)_c, (int)_mh->primitiveCount,
+                           (void*)_mh->primitives, (void*)_mh->verticesXy,
+                           (unsigned)(u16)_mh->primitives[0].field_2,
+                           (_v == 1) ? "BORN-AT-REFORMAT" :
+                           (_v == 2) ? "STOMPED-IN-PLACE" : "PTR-NOT-A-REFORMAT-OUTPUT");
+                    break;
+                }
+            }
+        }
+    }
+#endif
+
     func_80057090(&model->modelInfo, &g_OrderingTable0[g_ActiveBufferIdx], 1, viewMat, worldMat, 0);
 }
 
@@ -1521,6 +1562,33 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
                       Q12_MULT_PRECISE(Q12(1.0f) - timer, g_WorldEnvWork.worldTintColor.g) << 5,
                       Q12_MULT_PRECISE(Q12(1.0f) - timer, g_WorldEnvWork.worldTintColor.b) << 5,
                       g_WorldEnvWork.screenBrightness);
+
+#ifdef SH_PC_PORT
+        /* This IS the vanish for a Larval Stalker: timer is its timer_C6, and
+         * at Q12(1.0) the scaling above drives the world tint AND the per-vertex
+         * light matrix to zero, so the model should light to nothing. A capture
+         * shows the state machine completing (timer_C6 4096/4096, health -1) with
+         * the creature still plainly visible, so the question is whether the
+         * values really arrive at zero here or the PC lighting path lights it
+         * anyway. Logs the fade only near its end, once per second. */
+        {
+            static q19_12 s_next = 0;
+            static s32    s_lines = 0;
+            s_next -= g_DeltaTime;
+            if (timer > Q12(0.5f) && s_lines < 24 && s_next <= 0)
+            {
+                s_next = Q12(1.0f);
+                s_lines++;
+                SH_DBG("[FADE] chara=%d timer=%d/%d tintIn=(%d,%d,%d) tintOut=(%d,%d,%d) light00=%d mode=%d fog=%d",
+                       (int)charaId, (int)timer, (int)Q12(1.0f),
+                       (int)tintColor.r, (int)tintColor.g, (int)tintColor.b,
+                       (int)g_WorldEnvWork.worldTintColor.r, (int)g_WorldEnvWork.worldTintColor.g,
+                       (int)g_WorldEnvWork.worldTintColor.b,
+                       (int)g_WorldEnvWork.field_2C.m[0][0],
+                       (int)g_WorldEnvWork.field_0, (int)g_WorldEnvWork.isFogEnabled);
+            }
+        }
+#endif
     }
 
 #ifdef SH_PC_PORT
@@ -1573,6 +1641,13 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
      * pre-pass (monsters still cast). Set here (build time) so the GTE captures it
      * per-vertex; cleared right after. */
     { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = (charaId == Chara_Harry) ? 1 : 0; }
+    /* Hand the same fade the block above applied to this character's LIGHTING to
+     * the per-pixel flashlight, which adds its light on top of the TEXTURE and so
+     * would otherwise relight a character the game has already faded to nothing.
+     * That is a Larval Stalker's whole vanish: it fades out, and on Classic (no
+     * per-pixel light) it duly disappears, while every Modern/shadow mode kept it
+     * lit and standing there forever. Rides the view-space FIFO per vertex. */
+    { extern float g_PsyX_CharaFade; g_PsyX_CharaFade = (float)timer / 4096.0f; }
     /* [CHARAPRIM]: the draw chain below (func_80057090 -> func_8005AC50) only ever
      * sees a model header, never a chara, so the probe's subject is stamped here —
      * the one place both are in scope. */
@@ -1585,6 +1660,7 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
     { extern int g_PcCharaPrimProbeActive; g_PcCharaPrimProbeActive = 0; }
     { extern int g_PcHideHarryFpsBody; g_PcHideHarryFpsBody = 0; }
     { extern int g_PsyX_NoShadowCast; g_PsyX_NoShadowCast = 0; }
+    { extern float g_PsyX_CharaFade; g_PsyX_CharaFade = 0.0f; }
 #endif
 
     if (timer != Q12(0.0f))

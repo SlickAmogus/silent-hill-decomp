@@ -7,6 +7,12 @@
 #include <stddef.h>
 #include "xa_player.h"
 
+static float PcCfg_ClampF(float v, float lo, float hi)
+{
+    return (v < lo) ? lo : ((v > hi) ? hi : v);
+}
+
+
 s_PcConfig g_PcConfig = {
     .windowWidth    = 640,
     .windowHeight   = 480,
@@ -32,6 +38,8 @@ s_PcConfig g_PcConfig = {
     .texpackLazyMs = 4, /* per-frame wall-clock budget for the on-demand pack composer (pop-in speed vs frame cost) */
     .dumpTextures = 0, /* 1=write every decoded texture upload to gamedata/dump/ as a pack-named PNG (modding aid) */
     .attractDemos = 1,
+    .menuFpsUnlock = 1, /* menus/map/puzzles follow fps_cap; inventory and cutscenes do not */
+    .lowHealthGlow = 0, /* 1=pulsing red edge glow below 20 hp (SH2 remake style); off by default */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
@@ -40,6 +48,7 @@ s_PcConfig g_PcConfig = {
     .charaPrimProbe = 0, /* 0=off, else e_CharaId to trace: one-shot [CHARAPRIM] per-model submit/reject dump */
     .psxPolySizeCull = 1, /* 1=PSX GPU parity: cull triangles with screen bbox >1023x511 (hardware never drew them) */
     .msaaSamples    = 0, /* 0=off, 2/4/8 = MSAA sample count */
+    .renderer       = "gl", /* native OpenGL ??? the long-tested path */
     .postProcess    = 0, /* 0=off, 1.. = post-process look */
     .tonemap        = 0, /* 0=off, 1=Reinhard, 2=ACES, 3=Filmic */
     .flashlightMode = 0, /* 0=Classic (PSX), 1=Classic+Shadows, 2=Modern, 3=Modern+Shadows */
@@ -75,9 +84,6 @@ s_PcConfig g_PcConfig = {
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
 #if defined(__ANDROID__)
-    /* On by default only where the touchscreen IS the controller. A desktop
-     * with a touch-capable monitor still has a mouse and a pad, and drawing
-     * thumb controls over its picture uninvited would be wrong. */
     .touchControls       = 1,
 #else
     .touchControls       = 0,
@@ -88,6 +94,8 @@ s_PcConfig g_PcConfig = {
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
     .control2dSnap           = 0, /* 2D control turns into the direction (0), doesn't snap */
     .minimap                 = 0, /* minimap overlay off by default */
+    .anisoLevel              = 8,
+    .shadowMapSize           = 1024,
     .minimapCorner           = 0, /* top-left */
     .minimapShape            = 1, /* deprecated; only feeds the old-config migration */
     .minimapScale            = 100.0f,
@@ -101,6 +109,51 @@ s_PcConfig g_PcConfig = {
     .tpsFov              = 71.1f, /* thirdperson/OTS FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
     .tpsAimZoom          = 100.0f, /* default aim dolly = the original zoom; 200 = 2x zoom, 0 = no zoom */
     .reverbScale         = 0.0f, /* 0 = PsyCross default depth->wet scale */
+    /* View & aspect. The console picture is NOT a 4:3 stretch of the 224-line
+     * frame: the frame is scanned inside a larger visible area, and DuckStation
+     * renders the game's 320x224 at 465x357 = 1.3025:1, not 1.3333:1. That is
+     * an on-screen pixel aspect of 0.9118, and Simple's shape is
+     * (4:3)/(320/224) x trim = 0.93333 x trim, so console = 0.977. 0.98 both
+     * rounds it and lands within 0.05% of Advanced's hfov 1.0, so the two
+     * Control Types agree out of the box. */
+    .aspectRaw           = 0,          /* crt: the framebuffer scanned out to 4:3 */
+    .crtAspectTrim       = 0.98f,
+    /* 1.0 = the console picture, and now derivable rather than eyeballed.
+     * DuckStation's game area measures 465x357 for the 320x224 frame
+     * (exactsize.png), i.e. an on-screen pixel aspect of 0.9118, and
+     * shape = hfov x vfov / par, so hfov x vfov = 0.9118 x 1.09375 = 0.997.
+     * Every value below 1.0 this ever had (0.872, then 0.76 = 0.872^2, then
+     * 0.92) was cancelling the fabricated 3/4 world-Y squash in GsIDMATRIX2,
+     * not correcting a real aspect error. That squash is gone, so these are
+     * the honest numbers. */
+    /* 1.0 = the console picture, and derivable rather than eyeballed.
+     * DuckStation renders the 320x224 frame at 465x357 (exactsize.png), an
+     * on-screen pixel aspect of 0.9118, and shape = hfov x vfov / par, so
+     * hfov x vfov = 0.9118 x 1.09375 = 0.997. With vfov back at 1.0 this is
+     * 1.0, which also puts Advanced on Simple's 0.93333 x 0.98 = 0.9147.
+     *
+     * Every sub-1.0 value this ever held (0.872, 0.76 = 0.872^2, 0.92) was
+     * cancelling the fabricated 3/4 world-Y squash in GsIDMATRIX2, not
+     * correcting a real aspect error; 0.944 was the arithmetic of pairing it
+     * with vfov 1.06. Both reasons are gone. */
+    .worldHScale         = 1.0f,
+    /* 1.0 = the console's field of view exactly: 224 rows of world, the same
+     * 224 the frame holds. FOV is a uniform zoom in Simple (the shape is held
+     * by the trim), so anything above 1.0 shows MORE world than the console
+     * ever did -- 1.06 showed 237 rows, and that extra 13 is why more of a
+     * background poster was visible than on a real set.
+     *
+     * The "match a TV at 1.06" reasoning does not survive inspection: a set
+     * that underscans shows the picture smaller inside the tube while still
+     * showing the console's 224 rows. It reveals BLACK, where this knob
+     * reveals GEOMETRY. It matched apparent size and missed field of view.
+     *
+     * 1.0 also removes a whole bug class: the item-take screen pins its ortho
+     * to vscale 1, so any other vfov makes its aspect solve disagree with what
+     * it renders (the tall, thin pickups). At 1.0 they are the same number. */
+    .worldVScale         = 1.0f,
+    .pixelAspect         = 35.0f / 32.0f, /* raw mode only: the 350x240 NTSC dot */
+    .worldVShift         = 0.0f,       /* the console anchor needs no correction */
     .mouseSensitivity        = 1.0f,
     .controllerSensitivity   = 1.0f,
 
@@ -150,6 +203,7 @@ s_PcConfig g_PcConfig = {
         .keyRearLook = "NONE", .padRearLook = "NONE",
     },
     .keyQuickSave = "F6", .keyQuickLoad = "F8",
+    .keyQuickOptions = "F10",
     .keySwapShoulder = "Mouse3",
     .keyConsole = "`",
     .keyGfxCycle = "\\",
@@ -157,9 +211,9 @@ s_PcConfig g_PcConfig = {
     .keyGfxNext  = "]",
     .keyExitGame = "Escape",
 
-    .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it — PAL-disc text language; USA: menu translations on fan-patched discs */
-    .jpLanguage     = 0, /* 0=ja 1=zh — NTSC-J text language (Chinese needs a fan-translated JP disc) */
-    .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal 3=jap — preferred disc when several are present */
+    .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it ??? PAL-disc text language; USA: menu translations on fan-patched discs */
+    .jpLanguage     = 0, /* 0=ja 1=zh ??? NTSC-J text language (Chinese needs a fan-translated JP disc) */
+    .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal 3=jap ??? preferred disc when several are present */
     .discImage      = "", /* exact .bin in gamedata/ (launcher Disc dropdown); empty = auto */
     .uncensored     = 0, /* 0=retail PAL Mumblers (default); 1=restore Grey Children on EUR (matches US) */
     .playerCharacter = "harry", /* play as: harry|lisa|cybil|kaufmann|dahlia|... (also - / = in K view) */
@@ -168,7 +222,7 @@ s_PcConfig g_PcConfig = {
     .discordAppId        = "", /* project's Discord application id; empty = compiled-in default / off */
     .retroAchievements   = 0,  /* opt-in; needs a launcher sign-in to do anything */
     .raUsername          = "",
-    .raToken             = "", /* connect token from the launcher — never the password */
+    .raToken             = "", /* connect token from the launcher ??? never the password */
     .raSfx               = "playstation", /* trophy.wav, the cue this port shipped with */
     .raSpectator         = 0,  /* 1 = evaluate + toast locally but never submit (testing) */
     .mapName        = "map0_s00"
@@ -241,7 +295,7 @@ static const struct { const char* key; size_t off; } s_SchemeBinds[] = {
     { "pad_r3_2",       offsetof(ControlScheme, padR32)       },
     { "pad_start_2",    offsetof(ControlScheme, padStart2)    },
     { "pad_select_2",   offsetof(ControlScheme, padSelect2)   },
-    /* PC-only actions — per-scheme (base key = classic, "_altcam" = altcam). */
+    /* PC-only actions ??? per-scheme (base key = classic, "_altcam" = altcam). */
     { "key_change_cam",    offsetof(ControlScheme, keyChangeCam)    },
     { "pad_change_cam",    offsetof(ControlScheme, padChangeCam)    },
     { "key_reload",        offsetof(ControlScheme, keyReload)       },
@@ -260,6 +314,8 @@ static const struct { const char* key; size_t off; } s_SchemeBinds[] = {
 /* Global (scheme-independent) binds -> offset within s_PcConfig. */
 static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
     { "key_quicksave",     offsetof(s_PcConfig, keyQuickSave)    },
+    { "key_quick_options", offsetof(s_PcConfig, keyQuickOptions) },
+    { "pad_quick_options", offsetof(s_PcConfig, padQuickOptions) },
     { "key_quickload",     offsetof(s_PcConfig, keyQuickLoad)    },
     { "key_swap_shoulder", offsetof(s_PcConfig, keySwapShoulder) },
     { "key_console",       offsetof(s_PcConfig, keyConsole)      },
@@ -311,7 +367,7 @@ void Pc_FlashlightModeApply(int mode, int persist)
 
     /* Each per-pixel style has its own calibrated intensity/size defaults
      * (Modern 2.10/2.40, Classic+Shadows 1.20/3.00). Swap only when the
-     * current value IS the other style's default — a customized value is a
+     * current value IS the other style's default ??? a customized value is a
      * user choice and follows them across styles. */
     if (pp)
     {
@@ -364,8 +420,22 @@ const char* Pc_FlashlightModeLabel(int mode)
     return s_names[(mode >= 0 && mode <= 3) ? mode : 0];
 }
 
+/* Snapshot of the compile-time defaults, taken before any config file is
+ * parsed, so a runtime "reset to defaults" can restore them. */
+static s_PcConfig s_PcConfigDefaults;
+static int        s_defaultsCaptured = 0;
+
+const s_PcConfig* PcConfig_Defaults(void)
+{
+    if (!s_defaultsCaptured) { s_PcConfigDefaults = g_PcConfig; s_defaultsCaptured = 1; }
+    return &s_PcConfigDefaults;
+}
+
 void PcConfig_Load(const char* path)
 {
+    /* g_PcConfig still holds the static initializer here ??? capture it. */
+    if (!s_defaultsCaptured) { s_PcConfigDefaults = g_PcConfig; s_defaultsCaptured = 1; }
+
     if (path) {
         strncpy(s_configPath, path, sizeof(s_configPath) - 1);
         s_configPath[sizeof(s_configPath) - 1] = '\0';
@@ -483,9 +553,13 @@ void PcConfig_Load(const char* path)
         }
         else if (strcmp(key, "psx_dither") == 0)
         {
+            /* 0..7: off, dither, bilinear, trilinear, aniso 2x/4x/8x/16x. The
+             * old 0..2 clamp outlived the filter rework and folded every mode
+             * above bilinear back to bilinear on each boot -- the setting saved
+             * fine and was destroyed on load. */
             int v = atoi(value);
             if (v < 0) v = 0;
-            if (v > 2) v = 2;
+            if (v > 7) v = 7;
             g_PcConfig.psxDither = v;
         }
         else if (strcmp(key, "menu_filter") == 0)
@@ -548,6 +622,14 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.attractDemos = (atoi(value) != 0);
         }
+        else if (strcmp(key, "menu_fps_unlock") == 0)
+        {
+            g_PcConfig.menuFpsUnlock = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "low_health_glow") == 0)
+        {
+            g_PcConfig.lowHealthGlow = (atoi(value) != 0);
+        }
         else if (strcmp(key, "bullet_decals") == 0)
         {
             g_PcConfig.bulletDecals = (atoi(value) != 0);
@@ -566,7 +648,7 @@ void PcConfig_Load(const char* path)
         }
         else if (strcmp(key, "chara_prim_probe") == 0)
         {
-            /* charaId, not a bool — 0 means off and no chara is id 0 (Chara_None). */
+            /* charaId, not a bool ??? 0 means off and no chara is id 0 (Chara_None). */
             g_PcConfig.charaPrimProbe = atoi(value);
         }
         else if (strcmp(key, "psx_poly_size_cull") == 0)
@@ -583,6 +665,14 @@ void PcConfig_Load(const char* path)
             else if (v >= 2) v = 2;
             else             v = 0;
             g_PcConfig.msaaSamples = v;
+        }
+        else if (strcmp(key, "renderer") == 0)
+        {
+            /* Validated in main_pc.c against PsyX_Backend_FromName, which maps
+             * anything unrecognised back to "gl" ??? a typo here must never stop
+             * the game booting. */
+            strncpy(g_PcConfig.renderer, value, sizeof(g_PcConfig.renderer) - 1);
+            g_PcConfig.renderer[sizeof(g_PcConfig.renderer) - 1] = '\0';
         }
         else if (strcmp(key, "post_process") == 0)
         {
@@ -838,17 +928,6 @@ void PcConfig_Load(const char* path)
         {
             g_PcConfig.mouseCursor = (atoi(value) != 0);
         }
-        else if (strcmp(key, "touch_controls") == 0)
-        {
-            g_PcConfig.touchControls = (atoi(value) != 0);
-        }
-        else if (strcmp(key, "touch_look_sensitivity") == 0)
-        {
-            float v = (float)atof(value);
-            if (v < 0.1f) v = 0.1f;
-            if (v > 4.0f) v = 4.0f;
-            g_PcConfig.touchLookSensitivity = v;
-        }
         else if (strcmp(key, "aim_assist") == 0)
         {
             g_PcConfig.aimAssist = (atoi(value) != 0);
@@ -878,6 +957,35 @@ void PcConfig_Load(const char* path)
             if (v > 110.0f) v = 110.0f;
             g_PcConfig.fpsFov = v;
         }
+        else if (strcmp(key, "crt_aspect_trim") == 0)
+        {
+            float v = (float)atof(value);
+            if (v > 0.0f) g_PcConfig.crtAspectTrim = PcCfg_ClampF(v, 0.50f, 1.50f);
+        }
+        else if (strcmp(key, "world_hscale") == 0)
+        {
+            float v = (float)atof(value);
+            if (v > 0.0f) g_PcConfig.worldHScale = PcCfg_ClampF(v, 0.25f, 2.00f);
+        }
+        else if (strcmp(key, "world_vscale") == 0)
+        {
+            float v = (float)atof(value);
+            if (v > 0.0f) g_PcConfig.worldVScale = PcCfg_ClampF(v, 0.25f, 2.00f);
+        }
+        else if (strcmp(key, "pixel_aspect") == 0)
+        {
+            float v = (float)atof(value);
+            if (v > 0.0f) g_PcConfig.pixelAspect = PcCfg_ClampF(v, 0.50f, 2.00f);
+        }
+        else if (strcmp(key, "world_vshift") == 0)
+        {
+            g_PcConfig.worldVShift = PcCfg_ClampF((float)atof(value), -60.0f, 60.0f);
+        }
+        else if (strcmp(key, "display_aspect") == 0)
+        {
+            g_PcConfig.aspectRaw = (strcmp(value, "raw") == 0 ||
+                                    strcmp(value, "accurate") == 0) ? 1 : 0;
+        }
         else if (strcmp(key, "reverb_scale") == 0)
         {
             g_PcConfig.reverbScale = (float)atof(value);
@@ -903,6 +1011,18 @@ void PcConfig_Load(const char* path)
             g_PcConfig.minimap = (v < 0) ? 0 : ((v > 2) ? 2 : v);
             s_minimapSeen = 1;
         }
+else if (strcmp(key, "enable_plugins") == 0)
+        {
+            g_PcConfig.enablePlugins = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "allow_unrecognized_dlls") == 0)
+        {
+            /* Downgrades ONLY the map-DLL unknown-import verdict to a logged
+             * pass (toolchain-drift escape hatch). Flagrant imports and
+             * invalid binaries always block. */
+            extern int g_DllAllowUnrecognized;
+            g_DllAllowUnrecognized = (atoi(value) != 0);
+        }
         else if (strcmp(key, "minimap_require_map") == 0)
         {
             g_PcConfig.minimapRequireMap = (atoi(value) != 0);
@@ -913,6 +1033,16 @@ void PcConfig_Load(const char* path)
             if (v < MINIMAP_SCALE_MIN) v = MINIMAP_SCALE_MIN;
             if (v > MINIMAP_SCALE_MAX) v = MINIMAP_SCALE_MAX;
             g_PcConfig.minimapScale = v;
+        }
+        else if (strcmp(key, "aniso_level") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.anisoLevel = (v < 1) ? 1 : ((v > 16) ? 16 : v);
+        }
+        else if (strcmp(key, "shadow_resolution") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.shadowMapSize = (v < 256) ? 256 : ((v > 8192) ? 8192 : v);
         }
         else if (strcmp(key, "minimap_corner") == 0)
         {
@@ -1029,7 +1159,7 @@ void PcConfig_Load(const char* path)
         {
             /* Launcher-managed keys (launcher_repo_url / _branch / _build) live in
              * this same config.cfg under the "## Launcher" section. The game owns
-             * none of them — ignore silently so they don't hit the unknown-key
+             * none of them ??? ignore silently so they don't hit the unknown-key
              * warning below. */
         }
         else
@@ -1075,7 +1205,13 @@ void PcConfig_Load(const char* path)
                 }
             }
             if (!matched)
-                fprintf(stderr, "[CONFIG] Unknown key: %s\n", key);
+                {
+                    /* Not a game key and not a keybind: keep it for mods so a map
+                     * DLL can read its own settings via Pc_ModConfig_Value. */
+                    extern void Pc_ModConfig_Store(const char* k, const char* v);
+                    Pc_ModConfig_Store(key, value);
+                    fprintf(stderr, "[CONFIG] key '%s' kept for mods\n", key);
+                }
         }
     }
 
@@ -1083,7 +1219,7 @@ void PcConfig_Load(const char* path)
 
     /* Configs from before flashlight_mode existed carry only the legacy
      * pp/shadows keys. pp+shadows was the pre-calibration per-pixel look, so
-     * it maps to Modern + Shadows — those users keep the flashlight they had. */
+     * it maps to Modern + Shadows ??? those users keep the flashlight they had. */
     if (!s_sawFlashlightMode && g_PcConfig.perPixelFlashlight)
     {
         g_PcConfig.flashlightMode = g_PcConfig.flashlightShadows ? 3 : 2;
@@ -1109,7 +1245,7 @@ void PcConfig_SaveKeyValue(const char* cfgKey, const char* cfgValue)
 {
     /* Big enough to hold the whole config with headroom: the file grows as new
      * settings are toggled (each unknown key appends a line), and any line past
-     * this cap would be dropped on the next save — silently resetting those keys
+     * this cap would be dropped on the next save ??? silently resetting those keys
      * to their defaults. The full keybind config is ~380 lines already. */
     static char lines[1024][256];
     int   n = 0;

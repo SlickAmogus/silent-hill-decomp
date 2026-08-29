@@ -9,10 +9,38 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
 
 #ifdef SH_PC_PORT
 #include "pc_config.h"
+/* The pixel aspect the renderer is really using (PsyX_render.cpp). NOT
+ * GR_LivePixelAspect(), which display_aspect = crt does not read. */
+extern float GR_LivePixelAspect(void);
 /* PsyCross runtime horizontal PAR. main_pc.c bakes this to 15/14 (320x224 -> 4:3)
  * at startup; the per-poly cull bounds here must track the same factor PsyCross's
  * Hor+ ortho uses. */
 extern float g_PsxPixelAspect;
+extern float g_PsxWorldHScale;
+
+/* Half-width for full-screen overlay quads (screenBrightness, fog colour).
+ * These used psxAspect=320/240 with no PAR and no hfov, giving halfW ~223 at
+ * 16:9 while the visible half is ~250 -- the additive brightness quad ended in
+ * plain sight as hard-edged dark side bands (user-measured cliff at +/-223.8).
+ * Same bound as the mesh cull / halo border, plus the PSX +10 edge pad. */
+static s16 Pc_OverlayQuadHalfH(void)
+{
+    extern float g_PsxWorldVScale, g_PsxWorldVShift;
+    const float vs = (g_PsxWorldVScale > 1.0f) ? g_PsxWorldVScale : 1.0f;
+    const float sh = (g_PsxWorldVShift < 0.0f) ? -g_PsxWorldVShift : g_PsxWorldVShift;
+    return (s16)(112.0f * vs + sh + 8.0f);
+}
+
+static s16 Pc_OverlayQuadHalfW(void)
+{
+    const float hs = (g_PsxWorldHScale > 0.01f) ? g_PsxWorldHScale : 1.0f;
+    float halfW = (g_PcConfig.windowHeight > 0)
+        ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
+           (2.0f * (float)g_PcConfig.windowHeight)) * GR_LivePixelAspect() / hs
+        : 160.0f;
+    if (halfW < 160.0f) halfW = 160.0f;
+    return (s16)(halfW + 10.0f);
+}
 #endif
 
 #include <psyq/gtemac.h>
@@ -33,6 +61,11 @@ extern float g_PsxPixelAspect;
 #include "pc_config.h"
 #include "hires_override.h"
 #include "pc_wide_lm.h"
+
+/* Called above their definitions. Without a prototype in scope Clang
+ * synthesises `int f()` at the call site and then rejects the real
+ * definition as a conflicting type; GCC only warns. */
+void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
 /* When culling is disabled, ignore fog-based draw distance clamp.
  * PSX uses fogFarDistance as a draw distance optimization (don't render
  * what fog fully hides). On PC we want everything to render and let
@@ -128,20 +161,27 @@ extern float g_PsxPixelAspect;
  * in the otherwise-unused pad2 texcoord short instead (PsyCross's GT4
  * parser reads it into v0's fog). Without this, v0 borrowed v1's fog,
  * giving every floor quad one wrong corner -> visible grid seams. */
+/* Fog 0..127 conversions round rather than truncate. The ramp saturates at
+ * 255 (func_80055A50 returns 255 past its range), so truncation produced 126,
+ * not 127: distant geometry kept ~0.8% of its own colour forever and read as a
+ * faint shape "one shade off" the fog instead of dissolving into it. PSX culled
+ * that geometry at the fog far distance so it never showed; the port draws
+ * further, which is what exposed it. Rounding makes the far end exactly full
+ * fog, so distant objects fade out completely. */
 #define PC_FACE_FOG_VERTS(sd) do { \
     s32 _fa; \
     _fa = (sd)->field_252[(sd)->field_380.s_0.field_10] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
-    poly3->pad2 = (u8)((_fa * 127) >> 12); \
+    poly3->pad2 = (u8)((_fa * 127 + 2048) >> 12); \
     _fa = (sd)->field_252[(sd)->field_380.s_0.field_11] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
-    poly3->p1 = (u8)((_fa * 127) >> 12); \
+    poly3->p1 = (u8)((_fa * 127 + 2048) >> 12); \
     _fa = (sd)->field_252[(sd)->field_380.s_0.field_12] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
-    poly3->p2 = (u8)((_fa * 127) >> 12); \
+    poly3->p2 = (u8)((_fa * 127 + 2048) >> 12); \
     _fa = (sd)->field_252[(sd)->field_380.s_0.field_13] * 16 + (sd)->field_380.s_0.field_4; \
     if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
-    poly3->p3 = (u8)((_fa * 127) >> 12); \
+    poly3->p3 = (u8)((_fa * 127 + 2048) >> 12); \
 } while(0)
 
 /* Compute fog factor (0-127) from a single screenZ value. Used for character
@@ -155,7 +195,7 @@ extern float g_PsxPixelAspect;
         if (_idx < 0) _idx = 0; if (_idx > 127) _idx = 127; \
         _fb = g_WorldEnvWork.fogRamp[_idx]; \
     } else { _fb = 255; } \
-    (u8)((_fb * 127) >> 8); \
+    (u8)((_fb * 127 + 128) >> 8); \
 })
 #else
 #define FOG_FAR_DIST() (g_WorldEnvWork.fog.farDistance)
@@ -196,6 +236,67 @@ void WorldEnv_Init(void) // 0x80055028
 
     WorldEnv_FogDistanceSet(Q12(32.0f), Q12(34.0f));
 }
+
+#ifdef SH_PC_PORT
+/* "This room is lit by the flashlight rather than by its own lighting."
+ *
+ * Not a PC invention — it is the game's own dark-room test, lifted verbatim
+ * from the two places that ask the same question (events_main.c:217 gating
+ * button events, game_sys_states.c:835 gating the map screen), minus their
+ * shared `&& !isFlashlightOn_15` term, which asks something different: those
+ * two want "dark AND unlit", this wants "dark" on its own.
+ *
+ * field_1C[0]/[1] are the two light slots; either one in dynamic mode means the
+ * room is driven by the flashlight. Deliberately NOT field_2 (the per-room
+ * glow-halo enable) — that reads 0 in genuinely dark rooms like map3_s05, which
+ * is the trap the comment at the call site warns about. */
+static int RoomIsFlashlightLitRaw(void)
+{
+    return (g_SysWork.field_2388.field_154.effectsInfo_0.field_0.s_field_0.field_0 & (1 << 1)) &&
+           ((g_SysWork.field_2388.field_1C[0].effectsInfo_0.field_0.s_field_0.field_0 & (1 << 0)) ||
+            (g_SysWork.field_2388.field_1C[1].effectsInfo_0.field_0.s_field_0.field_0 & (1 << 0)));
+}
+
+/* Whether a room lights itself is a property of the ROOM. It must not be able
+ * to change between one frame and the next, because it gates a BINARY
+ * whole-scene dim (the fragment shader multiplies the entire frame by 0.15
+ * while the cone is active). One frame where the raw bits happen to disagree
+ * therefore lights the whole scene for exactly that frame, which is the
+ * "everything goes lighter and greyer for a frame" flicker over the sky. It
+ * shows up worst with the console open because the console re-presents frames
+ * without the environment update that maintains those bits having run.
+ *
+ * So hold the last stable answer and only adopt a new one once it has agreed
+ * with itself for several consecutive frames. Transients cannot reach the dim;
+ * a genuine room change still takes effect well inside its own fade. */
+static int RoomIsFlashlightLit(void)
+{
+    static int s_state = -1;
+    static int s_cand  = -1;
+    static int s_agree = 0;
+
+    int raw = RoomIsFlashlightLitRaw();
+
+    if (s_state < 0)
+    {
+        s_state = raw;
+        s_cand  = raw;
+        s_agree = 0;
+    }
+    else if (raw != s_cand)
+    {
+        s_cand  = raw;
+        s_agree = 0;
+    }
+    else if (raw != s_state && ++s_agree >= 6)
+    {
+        s_state = raw;
+        s_agree = 0;
+    }
+
+    return s_state;
+}
+#endif
 
 void Gfx_2dEffectsDraw(void) // 0x800550D0
 {
@@ -250,8 +351,38 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
          * the dim while the camera had already stood down for them. One predicate
          * means the camera and the lighting hand back on the same frame. Falls
          * back to the game's normal PSX flashlight rendering (glow halo below). */
-        if (g_PsyX_UsePerPixelFlashlight && g_SysWork.field_2388.isFlashlightOn_15
-            && !Pc_ScriptOwnsShot())
+        /* ...and on the ROOM being dark, using the game's own test for it — the
+         * same one events_main.c:217 and game_sys_states.c:835 use to decide the
+         * map is too dark to read. Without this the *= 0.15 dim fires in rooms
+         * the game lit itself, so simply having the flashlight out turned a lit
+         * room to night: reported against the Unknown Liquid pickup in the
+         * hospital director's office (map3_s01, "Hospital - 1F and basement
+         * after Kaufmann"), which is a daylit room. On PSX the flashlight never
+         * darkened its surroundings, it only added a glow; the fall-through
+         * below is that original glow-halo path. */
+        int roomLit = RoomIsFlashlightLit();
+        int dimOn   = g_PsyX_UsePerPixelFlashlight && g_SysWork.field_2388.isFlashlightOn_15
+                      && !Pc_ScriptOwnsShot() && roomLit;
+
+        /* Reports every flip of the whole-scene dim, term by term, so a single
+         * run names which one is unstable if any still is. */
+        {
+            static int s_prevDim = -1;
+            static int s_dimLogs = 0;
+
+            if (dimOn != s_prevDim && s_dimLogs < 40)
+            {
+                s_dimLogs++;
+                SH_DBG("[FLICKER] dim=%d master=%d flashlight=%d scripted=%d roomlit=%d raw=%d",
+                       dimOn, g_PsyX_UsePerPixelFlashlight,
+                       (int)g_SysWork.field_2388.isFlashlightOn_15,
+                       Pc_ScriptOwnsShot(), roomLit, RoomIsFlashlightLitRaw());
+            }
+
+            s_prevDim = dimOn;
+        }
+
+        if (dimOn)
         {
             s32 lx = Q12_TO_Q8(g_WorldEnvWork.field_60.vx);
             s32 ly = Q12_TO_Q8(g_WorldEnvWork.field_60.vy);
@@ -362,13 +493,9 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
         setSemiTrans(poly, true);
 #ifdef SH_PC_PORT
         {
-            const float psxAspect = 320.0f / 240.0f;
-            const float winAspect = g_PcConfig.windowHeight > 0
-                ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight
-                : psxAspect;
-            const float horScale  = winAspect / psxAspect;
-            const s16 halfW = (s16)(160.0f * horScale + 10.0f);
-            setXY4(poly, -halfW, -120, halfW, -120, -halfW, 120, halfW, 120);
+            const s16 halfW = Pc_OverlayQuadHalfW();
+            const s16 halfH = Pc_OverlayQuadHalfH();
+            setXY4(poly, -halfW, -halfH, halfW, -halfH, -halfW, halfH, halfW, halfH);
         }
 #else
         setXY4(poly,
@@ -404,13 +531,9 @@ void Gfx_2dEffectsDraw(void) // 0x800550D0
          * uniform across the full window.  At 1920x1080 margin ≈ 53 PSX
          * units, requiring halfW ≈ 213 instead of the original 180. */
         {
-            const float psxAspect = 320.0f / 240.0f;
-            const float winAspect = g_PcConfig.windowHeight > 0
-                ? (float)g_PcConfig.windowWidth / (float)g_PcConfig.windowHeight
-                : psxAspect;
-            const float horScale  = winAspect / psxAspect;
-            const s16 halfW = (s16)(160.0f * horScale + 10.0f); /* +10 = PSX edge pad */
-            setXY4(poly, -halfW, -120, halfW, -120, -halfW, 120, halfW, 120);
+            const s16 halfW = Pc_OverlayQuadHalfW();
+            const s16 halfH = Pc_OverlayQuadHalfH();
+            setXY4(poly, -halfW, -halfH, halfW, -halfH, -halfW, halfH, halfW, halfH);
         }
 #else
         setXY4(poly,
@@ -704,6 +827,24 @@ void func_80055814(s32 arg0) // 0x80055814
     g_WorldEnvWork.fog.intensity = Q12(1.0f) - func_800559A8(arg0);
 }
 
+#ifdef SH_PC_PORT
+/* Fog-distance scale, console `fogdist`. 100 = stock. Applied INSIDE the one
+ * function every fog-distance write goes through, so it covers streets and the
+ * black indoor fog alike (a dark room's "wall of black" IS its fog far plane --
+ * the fog colour there is black). The raw arguments are remembered so a console
+ * change can re-run the setter immediately instead of waiting for the next room
+ * transition to call it. */
+int g_PcFogDistScalePct = 100;
+static q19_12 s_lastFogNearRaw = 0;
+static q19_12 s_lastFogFarRaw  = 0;
+
+void Pc_FogDistanceReapply(void)
+{
+    if (s_lastFogFarRaw > 0)
+        WorldEnv_FogDistanceSet(s_lastFogNearRaw, s_lastFogFarRaw);
+}
+#endif
+
 void WorldEnv_FogDistanceSet(q19_12 nearDist, q19_12 farDist) // 0x80055840
 {
     s32 temp_lo;
@@ -715,6 +856,17 @@ void WorldEnv_FogDistanceSet(q19_12 nearDist, q19_12 farDist) // 0x80055840
     s32 var_t0;
     s32 var_v1;
     s32 temp;
+
+#ifdef SH_PC_PORT
+    s_lastFogNearRaw = nearDist;
+    s_lastFogFarRaw  = farDist;
+
+    if (g_PcFogDistScalePct != 100 && g_PcFogDistScalePct > 0)
+    {
+        nearDist = (q19_12)(((s64)nearDist * g_PcFogDistScalePct) / 100);
+        farDist  = (q19_12)(((s64)farDist  * g_PcFogDistScalePct) / 100);
+    }
+#endif
 
     nearDist = Q12_TO_Q8(nearDist);
 
@@ -828,6 +980,18 @@ u8 func_80055A50(s32 arg0) // 0x80055A50
  * func_80055A90 already applies — so distant blood stays vivid while the world around it
  * grays out. Multiplying the additive layer color by this (>>8) fades it toward black at
  * the SAME rate as world geometry (same fogRamp), so it disappears into the fog. */
+/* Fog colour for AVERAGE-blended PC prims (the bullet decals). An average
+ * blend shows (background + F)/2, so at distance "invisible" means F matching
+ * the fogged background -- the FOG COLOUR -- not F going to zero, which turns
+ * the prim into a permanent half-darkening: the solid unchangeable black hole
+ * the decals showed at any range. */
+void Pc_FogColorGet(int* r, int* g, int* b)
+{
+    *r = g_WorldEnvWork.fog.color.r;
+    *g = g_WorldEnvWork.fog.color.g;
+    *b = g_WorldEnvWork.fog.color.b;
+}
+
 int Pc_BloodFogKeep(s32 z)
 {
     s32 idx;
@@ -1352,6 +1516,23 @@ void Lm_MaterialsLoadWithFilter(s_LmHeader* lmHdr, s_ActiveChunkTextures* active
 {
     s_Material* curMat;
 
+#ifdef SH_PC_PORT
+    /* Same stale-header guard as Lm_MaterialFlagsApply: this walk writes
+     * curMat->texture and stamps Material_FsImageApply through the materials
+     * pointer -- garbage bounds/pointer = heap stomp. */
+    if (lmHdr == NULL || lmHdr->magic != LM_HEADER_MAGIC)
+    {
+        static int s_lmGarbageLog2 = 0;
+        if (s_lmGarbageLog2 < 8)
+        {
+            s_lmGarbageLog2++;
+            SH_DBG("[LM-GARBAGE] Lm_MaterialsLoadWithFilter on invalid header %p (magic=0x%02X) -- skipped",
+                   (void*)lmHdr, lmHdr ? (unsigned)lmHdr->magic : 0u);
+        }
+        return;
+    }
+#endif
+
     for (curMat = &lmHdr->materials[0]; curMat < &lmHdr->materials[lmHdr->materialCount]; curMat++)
     {
         if (curMat->field_C == 0 && curMat->texture == NULL &&
@@ -1460,6 +1641,26 @@ void Lm_MaterialFlagsApply(s_LmHeader* lmHdr) // 0x80056954
     s32         matFlags;
     s_Material* curMat;
 
+#ifdef SH_PC_PORT
+    /* The materials walk below trusts materialCount and the materials pointer.
+     * A stale/freed/reused lmHdr (registry eviction, buffer round-trip) hands
+     * this loop garbage BOUNDS and garbage POINTERS -- and the field_12 commit
+     * writes through them: a heap stomp that lands in whatever now owns that
+     * memory (the reformat's prim arrays among the candidates -- the Nowhere
+     * corruption class). Same guard Lm_MaterialRefCountDec already carries. */
+    if (lmHdr == NULL || lmHdr->magic != LM_HEADER_MAGIC)
+    {
+        static int s_lmGarbageLog = 0;
+        if (s_lmGarbageLog < 8)
+        {
+            s_lmGarbageLog++;
+            SH_DBG("[LM-GARBAGE] Lm_MaterialFlagsApply on invalid header %p (magic=0x%02X) -- skipped",
+                   (void*)lmHdr, lmHdr ? (unsigned)lmHdr->magic : 0u);
+        }
+        return;
+    }
+#endif
+
     for (i = 0, curMat = lmHdr->materials; i < lmHdr->materialCount; i++, curMat++)
     {
 #ifdef SH_PC_PORT
@@ -1556,7 +1757,18 @@ void Model_MaterialFlagsApply(s_ModelHeader* modelHdr, s32 arg1, const s_Materia
                 }
                 if (matFlags & MaterialFlag_1)
                 {
+#ifdef SH_PC_PORT
+                    /* The sum below encodes an unowned pool slot whenever the
+                     * prim's carried base disagrees with field_12 (invisible
+                     * Nowhere elevator + rainbow triangle); validate against
+                     * the pool and clamp to the material's own base. */
+                    curPrim->field_2 = HiresOverride_RestampValidate(
+                        (u16)(mat->field_10 + (curPrim->field_2 - mat->field_12)),
+                        mat->field_10, (u16)curPrim->field_2, mat->field_12,
+                        (const char*)&mat->name);
+#else
                     curPrim->field_2 = mat->field_10 + (curPrim->field_2 - mat->field_12);
+#endif
                 }
                 if (matFlags & MaterialFlag_2)
                 {
@@ -2477,12 +2689,16 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
          * triangle" culling reported across multiple test sessions
          * since the pixel-aspect fix landed. */
         const s32   psxHalfW     = g_GameWork.gsScreenWidth >> 1;
-        const float visibleHalfW = (g_PcConfig.windowHeight > 0)
+        /* /hfov: PsyCross DIVIDES its Hor+ ortho half-width by g_PsxWorldHScale,
+         * so hfov<1 shows more world than this bound allowed and floor/wall polys
+         * were culled at the far screen edges (user-reported, recurring). */
+        const float visibleHalfW = ((g_PcConfig.windowHeight > 0)
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
-               (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect
-            : (float)psxHalfW;
-        s32 halfW = (s32)(visibleHalfW + 16.5f);
+               (2.0f * (float)g_PcConfig.windowHeight)) * GR_LivePixelAspect()
+            : (float)psxHalfW) / (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f);
+        s32 halfW = (s32)(visibleHalfW + 64.5f); /* generous by policy */
         if (halfW < psxHalfW) halfW = psxHalfW;
+        if (g_PcConfig.disableCulling) halfW = 0x3FFF;
         scratchData->field_380.s_0.field_0 = halfW;
     }
 #else
@@ -3652,12 +3868,16 @@ void func_80059E34(u32 arg0, s_MeshHeader* meshHdr, s_GteScratchData* scratchDat
      * even with the other fix in place. */
     {
         const s32   psxHalfW     = g_GameWork.gsScreenWidth >> 1;
-        const float visibleHalfW = (g_PcConfig.windowHeight > 0)
+        /* /hfov: PsyCross DIVIDES its Hor+ ortho half-width by g_PsxWorldHScale,
+         * so hfov<1 shows more world than this bound allowed and floor/wall polys
+         * were culled at the far screen edges (user-reported, recurring). */
+        const float visibleHalfW = ((g_PcConfig.windowHeight > 0)
             ? ((float)g_GameWork.gsScreenHeight * (float)g_PcConfig.windowWidth /
-               (2.0f * (float)g_PcConfig.windowHeight)) * g_PsxPixelAspect
-            : (float)psxHalfW;
-        s32 halfW = (s32)(visibleHalfW + 16.5f);
+               (2.0f * (float)g_PcConfig.windowHeight)) * GR_LivePixelAspect()
+            : (float)psxHalfW) / (g_PsxWorldHScale > 0.01f ? g_PsxWorldHScale : 1.0f);
+        s32 halfW = (s32)(visibleHalfW + 64.5f); /* generous by policy */
         if (halfW < psxHalfW) halfW = psxHalfW;
+        if (g_PcConfig.disableCulling) halfW = 0x3FFF;
         scratchData->field_380.s_0.field_0 = halfW;
     }
 #else
@@ -5032,7 +5252,7 @@ void Gfx_BillboardDraw(s32 arg0, q19_12 posX, q19_12 posY, q19_12 posZ, GsOT* ot
                 {
                     s32 fogAmt = (func_80055A50(temp_v0_2 << 6) * 16) + g_WorldEnvWork.fog.intensity;
                     if (fogAmt > 0x1000) fogAmt = 0x1000;
-                    poly_gt4->p1 = (u8)((fogAmt * 127) >> 12);
+                    poly_gt4->p1 = (u8)((fogAmt * 127 + 2048) >> 12);
                     poly_gt4->p2 = poly_gt4->p1;
                     poly_gt4->p3 = poly_gt4->p1;
                 }

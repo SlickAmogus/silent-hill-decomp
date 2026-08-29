@@ -93,6 +93,7 @@ public partial class Form1 : Form
         PopulateDisplayOptions();
         LoadConfig();
         SetupTooltips();
+        SetupLanguageButton();
         this.Shown += (s, e) =>
         {
             CleanupOldFiles();
@@ -101,6 +102,171 @@ public partial class Form1 : Form
             FfmpegCheck.WarnIfNeeded(this, AppDomain.CurrentDomain.BaseDirectory);
             SilentAutoCheckForUpdates();
         };
+    }
+
+
+    // ---- launcher language -------------------------------------------------
+
+    private Button btnLang;
+    private readonly ToolTip _langTip = new ToolTip();
+
+    /// <summary>
+    /// The flag button in the bottom-right corner, sitting in the space the
+    /// update progress bar gave up. Clicking it opens the language picker; the
+    /// flag itself is the current language's, so the setting is readable at a
+    /// glance without opening anything.
+    /// </summary>
+    private void SetupLanguageButton()
+    {
+        try { Loc.Current = LauncherSettings.Load(config).Language; }
+        catch { Loc.Current = LauncherLang.English; }
+
+        LocalizeValueLists();
+
+        btnLang = new Button
+        {
+            /* The right column is full from y 469 down: comboMap 469..490,
+             * progUpdate 503..526, lblUpdateStatus 533..548 -- so 416,472 landed
+             * ON TOP of the Level dropdown and the randomizer checkbox once the
+             * new options moved in. Back on the right edge, one row lower: the
+             * only things it shares that band with are progUpdate and
+             * chkRandomizer, both Visible=false in normal use (the progress bar
+             * appears during a download). Created in code rather than the designer (the flag
+             * is custom-painted), so it cannot be nudged from the design surface;
+             * re-check this against Form1.Designer.cs after any layout change. */
+            Location = new System.Drawing.Point(416, 504),
+            Size = new System.Drawing.Size(30, 22),
+            Text = "",
+            FlatStyle = FlatStyle.Standard,
+            TabStop = false
+        };
+        // The flag is PAINTED, not typed: emoji flags are regional-indicator
+        // pairs that only DirectWrite ligates, so GDI would draw "US".
+        btnLang.Paint += (s2, e2) =>
+        {
+            var box = new System.Drawing.Rectangle(4, 4, btnLang.Width - 9, btnLang.Height - 9);
+            FlagIcon.Draw(e2.Graphics, box, Loc.Current);
+        };
+        btnLang.Click += btnLang_Click;
+        Controls.Add(btnLang);
+        btnLang.BringToFront();
+        _langTip.SetToolTip(btnLang, Loc.T("Launcher language"));
+
+        Loc.Changed += OnLanguageChanged;
+        if (Loc.Current != LauncherLang.English) OnLanguageChanged();
+    }
+
+    private readonly Dictionary<Control, Func<string>> _dynText =
+        new Dictionary<Control, Func<string>>();
+
+    /// <summary>
+    /// Set a control's text from its English, and remember how to redo it.
+    ///
+    /// Loc.Apply can only restore the text a control was BORN with, so anything
+    /// the update flow rewrites at runtime ("Update available!", the status
+    /// line) would snap back to its designer text on a language switch. These
+    /// are re-applied after Apply instead.
+    /// </summary>
+    private void SetText(Control c, string english, params object[] args)
+    {
+        if (c == null) return;
+        Func<string> f = () => (args == null || args.Length == 0)
+            ? Loc.T(english)
+            : string.Format(Loc.T(english), args);
+        _dynText[c] = f;
+        c.Text = f();
+    }
+
+    /// <summary>
+    /// Combos whose items are words rather than data. Only these get owner-draw
+    /// translation — resolution, refresh rate, FPS cap, disc image and level are
+    /// left alone because their selected text is what gets written to config.cfg.
+    /// </summary>
+    private void LocalizeValueLists()
+    {
+        // "はい"/"いいえ" and "Nein" are wider than "Yes"/"No", and each of these
+        // sits at the end of its row with free space to the right.
+        foreach (var r in new[] { radioVsyncYes, radioVsyncNo, radioDecalsYes, radioDecalsNo, radioPreloadYes, radioPreloadNo,
+                                  pgxpYes, pgxpNo, loggingYes, loggingNo, consoleYes, consoleNo })
+            r.AutoSize = true;
+
+        Loc.LocalizeItems(comboFullscreen);
+        Loc.LocalizeItems(comboSkipIntros);
+        Loc.LocalizeItems(comboPillarbox);
+        Loc.LocalizeItems(comboFiltering);
+        Loc.LocalizeItems(comboAA);
+        Loc.LocalizeItems(comboPost);
+        Loc.LocalizeItems(comboTone);
+        Loc.LocalizeItems(comboFlash);
+        Loc.LocalizeItems(comboAudioOut);
+    }
+
+    private readonly Dictionary<Label, int> _labelHome = new Dictionary<Label, int>();
+
+    /// <summary>
+    /// Nudge a label left when its translation would otherwise run under the
+    /// control beside it — the labels are AutoSize, so a longer word grows to
+    /// the right and paints over the combo it belongs to.
+    ///
+    /// A label is never moved past whatever is to its left, and never past its
+    /// designed position, so this only ever consumes slack the row already had.
+    /// </summary>
+    private void FitLabels(Control root)
+    {
+        foreach (Control c in root.Controls)
+        {
+            var lbl = c as Label;
+            if (lbl == null) { FitLabels(c); continue; }
+
+            int home;
+            if (!_labelHome.TryGetValue(lbl, out home)) { home = lbl.Left; _labelHome[lbl] = home; }
+            lbl.Left = home;
+
+            int rightX = int.MaxValue, leftEdge = 4;
+            foreach (Control o in root.Controls)
+            {
+                if (ReferenceEquals(o, lbl) || Math.Abs(o.Top - lbl.Top) > 12) continue;
+                if (o.Left > home && o.Left < rightX) rightX = o.Left;
+                if (o.Right <= home && o.Right + 4 > leftEdge) leftEdge = o.Right + 4;
+            }
+            if (rightX == int.MaxValue) continue;
+
+            int w = TextRenderer.MeasureText(lbl.Text, lbl.Font).Width;
+            int want = rightX - 4 - w;
+            if (want < home) lbl.Left = Math.Max(leftEdge, want);
+        }
+    }
+
+    private void OnLanguageChanged()
+    {
+        Loc.Apply(this);
+        SetupTooltips();
+        foreach (var kv in _dynText) kv.Key.Text = kv.Value();
+        FitLabels(this);
+        if (btnLang != null)
+        {
+            btnLang.Invalidate();
+            _langTip.SetToolTip(btnLang, Loc.T("Launcher language"));
+        }
+    }
+
+    private void btnLang_Click(object sender, EventArgs e)
+    {
+        var before = Loc.Current;
+        using (var dlg = new LanguageDialog(Loc.Current))
+        {
+            dlg.ShowDialog(this);
+            Loc.Set(dlg.Selected);
+        }
+        if (Loc.Current == before) return;
+
+        try
+        {
+            var st = LauncherSettings.Load(config);
+            st.Language = Loc.Current;
+            st.Save(config);
+        }
+        catch { /* config not writable - the choice still applies this session */ }
     }
 
     /// <summary>
@@ -151,7 +317,7 @@ public partial class Form1 : Form
         if (_discs.Count == 0)
         {
             _regionUiUpdating = false;
-            lblDisc.Text = "No disc image found in gamedata\\";
+            SetText(lblDisc, "No disc image found in gamedata\\");
             MessageBox.Show(this,
                 "No Silent Hill disc image found.\n\n" +
                 "Please put a Silent Hill .bin (USA or PAL/European release)\n" +
@@ -318,11 +484,11 @@ public partial class Form1 : Form
     {
         var settings = LauncherSettings.Load(config);
         string installDir = AppDomain.CurrentDomain.BaseDirectory;
-        btnUpdate.Text     = "Check for Updates";
-        downloadBuild.Text = "Download Build";
+        SetText(btnUpdate, "Check for Updates");
+        SetText(downloadBuild, "Download Build");
         try
         {
-            lblUpdateStatus.Text = "Checking for updates...";
+            SetText(lblUpdateStatus, "Checking for updates...");
             var plan = await UpdateChecker.CheckAsync(installDir, ForceLatest(settings));
 
             // If the install already matches the latest, remember that so it
@@ -332,14 +498,14 @@ public partial class Form1 : Form
             bool available = LauncherSettings.CompareVersions(plan.RemoteVersion, settings.GetSeen(config)) > 0;
             if (available)
             {
-                btnUpdate.Text = "Update available!";
+                SetText(btnUpdate, "Update available!");
                 lblUpdateStatus.ForeColor = Color.LightGreen;
-                lblUpdateStatus.Text = $"Update available: {plan.RemoteVersion}";
+                SetText(lblUpdateStatus, "Update available: {0}", plan.RemoteVersion);
             }
             else
             {
                 lblUpdateStatus.ForeColor = Color.LightGray;
-                lblUpdateStatus.Text = $"Up to date ({plan.RemoteVersion}).";
+                SetText(lblUpdateStatus, "Up to date ({0}).", plan.RemoteVersion);
             }
 
             // "Download Build" vs "Redownload Build": is the SELECTED build already
@@ -348,12 +514,12 @@ public partial class Form1 : Form
             bool selectedInstalled = settings.IsLatestBuild
                 ? !plan.HasUpdate
                 : !(await UpdateChecker.CheckAsync(installDir, settings)).HasUpdate;
-            downloadBuild.Text = selectedInstalled ? "Redownload Build" : "Download Build";
+            SetText(downloadBuild, selectedInstalled ? "Redownload Build" : "Download Build");
         }
         catch
         {
             // Silent — no internet, no nightly repo yet, etc.
-            lblUpdateStatus.Text = "";
+            SetText(lblUpdateStatus, "");
         }
     }
 
@@ -373,9 +539,15 @@ public partial class Form1 : Form
             ShowAlways   = true,
         };
 
+        /* Tooltips are localized here rather than at each call site: the English
+         * text IS the dictionary key, so every Set() below stays readable and a
+         * missing translation falls through to English on its own. SetupTooltips
+         * is re-run by OnLanguageChanged, because a ToolTip's text is not a
+         * control property and Loc.Apply cannot reach it. */
         void Set(Control c, string text)
         {
             if (c == null) return;
+            text = Loc.T(text);
             tip.SetToolTip(c, text);
             // Radio buttons sit inside panels; attach to the panel too so
             // hovering between buttons doesn't drop the tooltip.
@@ -408,8 +580,13 @@ public partial class Form1 : Form
 
         const string filteringTip =
             "Off = crisp PSX pixels, no smoothing.\n" +
-            "Dithering = recreates the PSX 24→15-bit dither pattern (recommended).\n" +
-            "Bilinear = blurs textures; can hide pixel-art detail.";
+            "Dithering = recreates the PSX 24->15-bit dither pattern.\n" +
+            "Bilinear = smooths texture magnification.\n" +
+            "Trilinear = bilinear plus mip blending; only affects\n" +
+            "  replacement textures that carry mip levels.\n" +
+            "Anisotropic = sharpens surfaces seen at grazing angles\n" +
+            "  (distant floors, walls). Higher = sharper, slightly more GPU.\n" +
+            "Dithering and the filters are mutually exclusive.";
         Set(filteringLabel, filteringTip);
         Set(comboFiltering, filteringTip);
 
@@ -439,6 +616,44 @@ public partial class Form1 : Form
             "             skips the opening movie.";
         Set(skipIntrosLabel,  skipIntrosTip);
         Set(comboSkipIntros,  skipIntrosTip);
+
+        const string decalsTip =
+            "Leaves a bullet hole on walls and other world geometry where your\n" +
+            "gunfire lands. Not in the original game, so it is off by default.\n" +
+            "Also on the Controls page of the in-game PC Options menu.";
+        Set(decalsLabel,      decalsTip);
+        Set(radioDecalsYes,   decalsTip);
+        Set(radioDecalsNo,    decalsTip);
+
+        const string renderTip =
+            "Which graphics API the game renders through.\n" +
+            "OpenGL (native) = the default and the most tested path.\n" +
+            "The rest go through ANGLE, which translates to another API:\n" +
+            "Direct3D 11 and Vulkan are worth trying if your OpenGL driver\n" +
+            "misbehaves (integrated graphics especially). WARP and Software\n" +
+            "render on the CPU — very slow, but they run without a working\n" +
+            "GPU driver at all.\n" +
+            "ANGLE needs libEGL.dll and libGLESv2.dll next to the exe; if they\n" +
+            "are missing the game falls back to native OpenGL and says so in\n" +
+            "the log.";
+        Set(lblRender,        renderTip);
+        Set(comboRender,      renderTip);
+
+        const string shadowTip =
+            "Flashlight shadow map size. Higher is sharper and costs more\n" +
+            "GPU time. Only used by the shadow flashlight modes.\n" +
+            "8192 needs a recent GPU (~256 MB just for the map) and is\n" +
+            "clamped to the driver limit on GPUs that can't do it.\n" +
+            "Console: shadowres <size>";
+        Set(lblShadow,        shadowTip);
+        Set(comboShadow,      shadowTip);
+
+        const string minimapTip =
+            "On-screen minimap: shape and which corner it sits in.\n" +
+            "Size and opacity stay in the in-game options.\n" +
+            "Console: minimap";
+        Set(lblMinimap,       minimapTip);
+        Set(comboMinimap,     minimapTip);
 
         const string preloadTip =
             "Preload all map chunks at level start instead of streaming\n" +
@@ -684,6 +899,38 @@ public partial class Form1 : Form
 
     private void PopulateDisplayOptions()
     {
+        /* Renderer backends. Filled HERE because the constructor runs
+         * PopulateDisplayOptions() before LoadConfig(), and LoadConfig sets
+         * comboRender.SelectedIndex — an empty combo makes that throw
+         * ArgumentOutOfRangeException and the launcher never opens. It first
+         * lived in LocalizeValueLists(), which runs after LoadConfig, and did
+         * exactly that.
+         *
+         * Display text is paired with the config value by INDEX through
+         * RendererValues, so what lands in config.cfg never depends on the
+         * label: the labels are PsyX_Backend's descriptions, the values are
+         * what PsyX_Backend_FromName parses. */
+        comboRender.Items.Clear();
+        comboRender.Items.AddRange(new object[] {
+            "OpenGL (native)", "OpenGL ES 3.0", "Direct3D 11 (ANGLE)",
+            "Vulkan (ANGLE)", "Direct3D 11 WARP (CPU)", "Software (SwiftShader)" });
+
+        /* Same index-pairing rule as the renderer: the visible text is localized,
+         * the config value comes from the parallel array, so a translation can
+         * never change what is written to config.cfg. */
+        comboShadow.Items.Clear();
+        comboShadow.Items.AddRange(new object[] {
+            "256 x 256", "512 x 512", "1024 x 1024", "2048 x 2048", "4096 x 4096",
+            "8192 x 8192" });
+
+        comboMinimap.Items.Clear();
+        comboMinimap.Items.AddRange(new object[] {
+            Loc.T("Off"),
+            Loc.T("Circle + Top Left"),     Loc.T("Circle + Top Right"),
+            Loc.T("Circle + Bottom Left"),  Loc.T("Circle + Bottom Right"),
+            Loc.T("Square + Top Left"),     Loc.T("Square + Top Right"),
+            Loc.T("Square + Bottom Left"),  Loc.T("Square + Bottom Right") });
+
         var modes = DisplayModes.GetModes();
 
         // Unique resolutions, LARGEST FIRST. A HashSet enumerates in whatever
@@ -697,6 +944,16 @@ public partial class Form1 : Form
             if (seen.Add($"{m.width}x{m.height}"))
                 resolutions.Add((m.width, m.height));
         }
+        /* PSX-native and its doubles, which no monitor reports as a display mode
+         * but which people ask for by name. Harmless in exclusive fullscreen --
+         * SDL_GetClosestDisplayMode picks the nearest real mode -- and exact in
+         * windowed. Added only if the driver did not already list them. */
+        foreach (var r in new[] { (320, 240), (640, 480), (960, 720) })
+        {
+            if (seen.Add($"{r.Item1}x{r.Item2}"))
+                resolutions.Add((r.Item1, r.Item2));
+        }
+
         resolutions.Sort((a, b) => a.w != b.w ? b.w.CompareTo(a.w) : b.h.CompareTo(a.h));
 
         foreach (var r in resolutions)
@@ -794,12 +1051,15 @@ public partial class Form1 : Form
         else
             comboFps.SelectedItem = "30";
 
-        // Filtering: int in config (0/1/2) <-> dropdown index
-        // 0 = Off, 1 = Dithering, 2 = Bilinear
+        /* Filtering. psx_dither carries BOTH the mode and, for anisotropic, the
+         * strength: 0 off, 1 dithering, 2 bilinear, 3 trilinear, 4..7
+         * anisotropic 2x/4x/8x/16x. One value means the launcher, the in-game
+         * row and config.cfg cannot disagree about what is selected, which two
+         * separate keys would have allowed. Index maps to it directly. */
         int filterIdx;
         if (!int.TryParse(config.Get("psx_dither", "1"), out filterIdx))
             filterIdx = 1; // default to dithering
-        if (filterIdx < 0 || filterIdx > 2) filterIdx = 1;
+        if (filterIdx < 0 || filterIdx >= comboFiltering.Items.Count) filterIdx = 1;
         comboFiltering.SelectedIndex = filterIdx;
 
         // "Menus:" checkbox — also bilinear-filter menu/2D screens (config key menu_filter)
@@ -881,6 +1141,46 @@ public partial class Form1 : Form
         comboSkipIntros.SelectedIndex = skipIntrosLevel;
 
         // preload_chunks (recommended: Yes — matches engine default)
+        // bullet_decals — off by default, matching the engine default.
+        radioDecalsYes.Checked = config.Get("bullet_decals", "0") == "1";
+        radioDecalsNo.Checked = !radioDecalsYes.Checked;
+        {
+            /* Never assign SelectedIndex without checking the item count. A
+             * combo that is empty (or shorter than expected) throws, and a
+             * throw in LoadConfig happens in the constructor, so the launcher
+             * dies before it draws a window — no UI, no log, nothing the user
+             * can act on. Clamping costs nothing and the worst case is a
+             * dropdown showing the wrong entry. */
+            int ri = Array.IndexOf(RendererValues, config.Get("renderer", "gl").Trim().ToLowerInvariant());
+            /* Unknown, or the retired "auto" — both mean OpenGL. GR_ResolveBackend
+             * maps PSYX_BACKEND_AUTO straight to PSYX_BACKEND_GL with no probing
+             * of any kind, so "Automatic" was a second name for the entry below
+             * it and is no longer offered. A config that still says auto lands
+             * here and shows what it actually gets. */
+            if (ri < 0) ri = 0;
+            if (ri >= comboRender.Items.Count) ri = 0;
+            comboRender.SelectedIndex = comboRender.Items.Count > 0 ? ri : -1;
+        }
+        {
+            int si = Array.IndexOf(ShadowResValues, config.Get("shadow_resolution", "1024").Trim());
+            if (si < 0 || si >= comboShadow.Items.Count) si = 2; /* 1024 */
+            comboShadow.SelectedIndex = comboShadow.Items.Count > 0 ? si : -1;
+        }
+        {
+            /* One dropdown over two keys: `minimap` is 0 off / 1 square / 2 circle,
+             * `minimap_corner` is 0..3. Off collapses both. */
+            int shape  = ParseIntOr(config.Get("minimap", "0"), 0);
+            int corner = ParseIntOr(config.Get("minimap_corner", "0"), 0);
+            if (corner < 0 || corner > 3) corner = 0;
+
+            int mi;
+            if (shape == 2)      mi = 1 + corner;   /* circle */
+            else if (shape == 1) mi = 5 + corner;   /* square */
+            else                 mi = 0;            /* off */
+
+            if (mi >= comboMinimap.Items.Count) mi = 0;
+            comboMinimap.SelectedIndex = comboMinimap.Items.Count > 0 ? mi : -1;
+        }
         radioPreloadYes.Checked = config.Get("preload_chunks", "1") == "1";
         radioPreloadNo.Checked = !radioPreloadYes.Checked;
 
@@ -918,6 +1218,15 @@ public partial class Form1 : Form
         config.Set("skip_intros", comboSkipIntros.SelectedIndex.ToString());
 
         // preload_chunks
+        config.Set("bullet_decals", radioDecalsYes.Checked ? "1" : "0");
+        config.Set("renderer", RendererValues[comboRender.SelectedIndex >= 0 ? comboRender.SelectedIndex : 1]);
+        config.Set("shadow_resolution", ShadowResValues[comboShadow.SelectedIndex >= 0 ? comboShadow.SelectedIndex : 2]);
+        {
+            int mi = comboMinimap.SelectedIndex;
+            if (mi < 0) mi = 0;
+            config.Set("minimap",        mi == 0 ? "0" : (mi <= 4 ? "2" : "1"));
+            config.Set("minimap_corner", mi == 0 ? "0" : ((mi <= 4 ? mi - 1 : mi - 5)).ToString());
+        }
         config.Set("preload_chunks", radioPreloadYes.Checked ? "1" : "0");
 
         // enable debug logging
@@ -1104,6 +1413,25 @@ public partial class Form1 : Form
             var p = Process.Start(exePath);
             if (p != null)
             {
+                /* THE stale-settings bug. The launcher loads config.cfg once at
+                 * startup, and this handler saves the UI state before every
+                 * launch -- so: Play, change options in-game (the game writes
+                 * them to config.cfg correctly), quit, Play again... and this
+                 * SaveConfig() just overwrote the in-game changes with whatever
+                 * the launcher was showing from before. Reload the UI from disk
+                 * the moment the game exits, so the launcher always reflects the
+                 * most recent writer. */
+                try
+                {
+                    p.EnableRaisingEvents = true;
+                    p.Exited += (s2, e2) =>
+                    {
+                        try { BeginInvoke((Action)(() => LoadConfig())); }
+                        catch { /* launcher closing; nothing to refresh */ }
+                    };
+                }
+                catch { }
+
                 // Grant the child process permission to come to the foreground.
                 AllowSetForegroundWindow((uint)p.Id);
 
@@ -1140,7 +1468,7 @@ public partial class Form1 : Form
         var settings = LauncherSettings.Load(config);
 
         SetUpdateBusy(true);
-        lblUpdateStatus.Text = "Checking for updates...";
+        SetText(lblUpdateStatus, "Checking for updates...");
         progUpdate.Style   = ProgressBarStyle.Marquee;
         progUpdate.Visible = true;
         try
@@ -1151,8 +1479,8 @@ public partial class Form1 : Form
             bool available = LauncherSettings.CompareVersions(plan.RemoteVersion, settings.GetSeen(config)) > 0;
             if (!available)
             {
-                btnUpdate.Text = "Check for Updates";
-                lblUpdateStatus.Text = $"Up to date ({plan.RemoteVersion}).";
+                SetText(btnUpdate, "Check for Updates");
+                SetText(lblUpdateStatus, "Up to date ({0}).", plan.RemoteVersion);
                 progUpdate.Visible = false;
                 MessageBox.Show(this,
                     $"You're up to date!\n\nSource: {plan.RepoLabel}\nLatest: {plan.RemoteVersion}",
@@ -1160,7 +1488,7 @@ public partial class Form1 : Form
                 return;
             }
 
-            btnUpdate.Text = "Update available!";
+            SetText(btnUpdate, "Update available!");
             lblUpdateStatus.ForeColor = Color.LightGreen;
 
             // Always re-promptable: clicking the button offers the update every
@@ -1176,7 +1504,7 @@ public partial class Form1 : Form
                 plan.ChangelogUrl);
             if (!wantUpdate)
             {
-                lblUpdateStatus.Text = $"Update {plan.RemoteVersion} skipped.";
+                SetText(lblUpdateStatus, "Update {0} skipped.", plan.RemoteVersion);
                 progUpdate.Visible = false;
                 return;
             }
@@ -1189,20 +1517,20 @@ public partial class Form1 : Form
                     settings.Branch = plan.MigrateToBranch;   // auto-migrate alpha -> beta
                 settings.Save(config);
                 settings.RecordInstalled(config, plan.RemoteVersion);
-                btnUpdate.Text = "Check for Updates";
-                downloadBuild.Text = "Redownload Build"; // latest is now installed
+                SetText(btnUpdate, "Check for Updates");
+                SetText(downloadBuild, "Redownload Build"); // latest is now installed
                 lblUpdateStatus.ForeColor = Color.LightGray;
-                lblUpdateStatus.Text = $"Up to date ({plan.RemoteVersion}).";
+                SetText(lblUpdateStatus, "Up to date ({0}).", plan.RemoteVersion);
                 MessageBox.Show(this, "Update complete!", "Update", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             else
             {
-                lblUpdateStatus.Text = $"Update {plan.RemoteVersion} skipped.";
+                SetText(lblUpdateStatus, "Update {0} skipped.", plan.RemoteVersion);
             }
         }
         catch (Exception ex)
         {
-            lblUpdateStatus.Text = "Update failed (see message).";
+            SetText(lblUpdateStatus, "Update failed (see message).");
             MessageBox.Show(this, "Update failed:\n\n" + ex.Message, "Update error",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
@@ -1222,7 +1550,7 @@ public partial class Form1 : Form
         var settings = LauncherSettings.Load(config);
 
         SetUpdateBusy(true);
-        lblUpdateStatus.Text = "Checking selected build...";
+        SetText(lblUpdateStatus, "Checking selected build...");
         progUpdate.Style   = ProgressBarStyle.Marquee;
         progUpdate.Visible = true;
         try
@@ -1232,7 +1560,7 @@ public partial class Form1 : Form
             if (!plan.HasUpdate)
             {
                 progUpdate.Visible = false;
-                lblUpdateStatus.Text = $"Build {plan.RemoteVersion} is installed.";
+                SetText(lblUpdateStatus, "Build {0} is installed.", plan.RemoteVersion);
                 MessageBox.Show(this,
                     $"Build {plan.RemoteVersion} is already installed.\n\nSource: {plan.RepoLabel}",
                     "Download Build", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1271,7 +1599,7 @@ public partial class Form1 : Form
             if (MessageBox.Show(this, sb.ToString(), promptTitle,
                     MessageBoxButtons.YesNo, promptIcon) != DialogResult.Yes)
             {
-                lblUpdateStatus.Text = "Download cancelled.";
+                SetText(lblUpdateStatus, "Download cancelled.");
                 progUpdate.Visible = false;
                 return;
             }
@@ -1281,19 +1609,19 @@ public partial class Form1 : Form
             {
                 settings.RecordInstalled(config, plan.RemoteVersion);
                 lblUpdateStatus.ForeColor = Color.LightGray;
-                lblUpdateStatus.Text = $"Build {plan.RemoteVersion} installed.";
+                SetText(lblUpdateStatus, "Build {0} installed.", plan.RemoteVersion);
                 MessageBox.Show(this, $"Build {plan.RemoteVersion} installed!", "Download Build",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 SilentAutoCheckForUpdates(); // refresh the update indicator
             }
             else
             {
-                lblUpdateStatus.Text = "Download cancelled.";
+                SetText(lblUpdateStatus, "Download cancelled.");
             }
         }
         catch (Exception ex)
         {
-            lblUpdateStatus.Text = "Download failed (see message).";
+            SetText(lblUpdateStatus, "Download failed (see message).");
             MessageBox.Show(this, "Download failed:\n\n" + ex.Message, "Download error",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
@@ -1365,7 +1693,7 @@ public partial class Form1 : Form
             BeginInvoke((Action)(() =>
             {
                 if (frac >= 0 && frac <= 1) progUpdate.Value = (int)(frac * 100);
-                lblUpdateStatus.Text = msg ?? "";
+                lblUpdateStatus.Text = Loc.T(msg ?? "");
             }));
         });
 
@@ -1742,6 +2070,25 @@ public partial class Form1 : Form
         }
     }
 
+    /* Parallel to comboRender's items. Index is the only link between the two,
+     * so re-ordering one without the other silently writes the wrong backend. */
+    private static readonly string[] RendererValues =
+    {
+        "gl", "gles", "d3d11", "vulkan", "warp", "software",
+    };
+
+    /* Parallel to comboShadow's items, same contract as RendererValues. */
+    private static readonly string[] ShadowResValues =
+    {
+        "256", "512", "1024", "2048", "4096", "8192",
+    };
+
+    private static int ParseIntOr(string s, int fallback)
+    {
+        int v;
+        return int.TryParse((s ?? "").Trim(), out v) ? v : fallback;
+    }
+
     private void radioPreloadYes_CheckedChanged(object sender, EventArgs e)
     {
 
@@ -1984,6 +2331,11 @@ public partial class Form1 : Form
     }
 
     private void chkUncensored_CheckedChanged(object sender, EventArgs e)
+    {
+
+    }
+
+    private void label2_Click(object sender, EventArgs e)
     {
 
     }

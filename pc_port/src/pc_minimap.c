@@ -123,6 +123,76 @@ static int s_pendKind    = 0;   /* in-flight read: 0 none, 1 map image, 2 markin
 static int s_pendFileIdx = -1;  /* file the in-flight read is for (override lookup) */
 static int s_idleFrames  = 0;
 static int s_mapReady    = 0;   /* pool slot holds this area's map */
+
+/* The paper-map index the minimap should use. Normally the savegame's own --
+ * but the INTRO street (map0_s00 and friends) carries PaperMapIdx_OtherPlaces
+ * because no paper map is ever obtainable there, even though its layout IS the
+ * town's. When the minimap is set to always draw (minimap_require_map = 0),
+ * probe the town paper maps and adopt whichever one's placement tables actually
+ * resolve Harry's position: func_80067914 in query mode returns 0 for an index
+ * that does not recognise the coordinates, so the right town map self-selects
+ * with no per-area table. Cached until the probe stops resolving (area left).
+ * With minimap_require_map = 1 nothing changes: OtherPlaces stays unmapped. */
+
+static int s_otherPlacesIdx = -1;
+
+/* Query wrapper: func_80067914's FIRST gate is
+ *     if (g_SavegamePtr->paperMapIdx != paperMapIdx) return 0;
+ * so probing a candidate index -- or querying a substituted one at draw time --
+ * is rejected outright unless the savegame momentarily agrees. Override for
+ * the duration of the one call and restore; same frame, same thread, nothing
+ * else reads the field in between. */
+static s32 mm_query_at(int idx)
+{
+    u8  prev = (u8)g_SavegamePtr->paperMapIdx;
+    s32 packed;
+
+    g_SavegamePtr->paperMapIdx = (u8)idx;
+    packed = func_80067914((s32)idx, 0, 0, (u16)Q12(1.0f));
+    g_SavegamePtr->paperMapIdx = prev;
+    return packed;
+}
+
+static int mm_effective_map_idx(void)
+{
+    int idx = (int)g_SavegamePtr->paperMapIdx;
+
+    if (idx != 0 /* PaperMapIdx_OtherPlaces */ || g_PcConfig.minimapRequireMap)
+    {
+        s_otherPlacesIdx = -1;
+        return idx;
+    }
+
+    /* Save/restore rather than set/clear: this helper runs inside the draw
+     * path's own query-only bracket (argument evaluation at the 607 call), and
+     * clearing the flag there would flip the REAL query into draw mode. */
+    {
+    s32 prevQueryOnly = g_PcMapQueryOnly;
+
+    g_PcMapQueryOnly = 1;
+
+    if (s_otherPlacesIdx < 0 || mm_query_at(s_otherPlacesIdx) == 0)
+    {
+        int c;
+
+        s_otherPlacesIdx = -1;
+        /* 1..4 are the four town maps (OldTown, FogCentralTown,
+         * AltCentralTown, ResortTown). */
+        for (c = 1; c <= 4; c++)
+        {
+            if (mm_query_at(c) != 0)
+            {
+                s_otherPlacesIdx = c;
+                break;
+            }
+        }
+    }
+
+    g_PcMapQueryOnly = prevQueryOnly;
+    }
+
+    return (s_otherPlacesIdx >= 0) ? s_otherPlacesIdx : idx;
+}
 static int s_markFileLoaded = NO_VALUE; /* marking TIM idx read into MM_MARK_SLOT */
 static int s_markReady      = 0;
 
@@ -381,7 +451,7 @@ static POLY_FT4 s_markPrim[2][MM_MARK_MAX];
 static int mm_markers_build(int buf, const s_MmView* vw)
 {
     const s_800AEDBC* tbl;
-    int idx = (int)g_SavegamePtr->paperMapIdx;
+    int idx = mm_effective_map_idx();
     int uw  = vw->u1 - vw->u0;
     int vh  = vw->v1 - vw->v0;
     int n, i, j, count = 0;
@@ -514,6 +584,7 @@ void Pc_MinimapUpdate(void)
     int       markCount = 0;
     GsOT_TAG* ot;
 
+
     if (!g_PcConfig.minimap) return;
     if (g_GameWork.gameState != GameState_InGame ||
         g_SysWork.sysState   != SysState_Gameplay) return;
@@ -528,7 +599,7 @@ void Pc_MinimapUpdate(void)
     lum  = (128 * op) / 100;
     if (lum < 1) lum = 1;
 
-    mm_map_load_tick((int)g_SavegamePtr->paperMapIdx);
+    mm_map_load_tick(mm_effective_map_idx());
 
     buf   = g_ActiveBufferIdx;
     ot    = &g_OtTags0[buf][4];
@@ -542,7 +613,11 @@ void Pc_MinimapUpdate(void)
      * the panel a touch. */
     {
         extern void PsyX_GetScreenSize(int* w, int* h);
-        extern int  g_PcHorPlusEnabled;
+        /* The WORLD's framing, not the live flag: this function runs earlier
+         * in the frame than the world is submitted, so reading g_PcHorPlusEnabled
+         * picked up the 2D-screen value on menu frames and the panel jumped to
+         * the 4:3 spot for a frame on inventory close. */
+        extern int  g_PcWorldHorPlus;
         extern int  g_PcMenuPillarbox;
         extern int  g_PcWidescreenMode;
 
@@ -553,8 +628,16 @@ void Pc_MinimapUpdate(void)
          * PILLARBOXED wide window still draws 4:3, so widening here put the
          * panel inside (or past) the black bar. Same predicate the inventory
          * mouse hit-test uses for the same question. */
-        int   stretched = (g_PcHorPlusEnabled && g_PcWidescreenMode == 2) ||
-                          (!g_PcHorPlusEnabled && !g_PcMenuPillarbox);
+        /* Widen to the true screen edge whenever the gameplay pass fills a wide
+         * window: Hor+ (mode 1) AND stretch (mode 2) both do, so gate on
+         * "not pillarbox" (mode != 0), not just mode == 2. The old `== 2` left
+         * the panel at the 4:3 margin in the default 16:9 Hor+ mode and in
+         * menus-only pillarboxing (world still Hor+). Pillarbox (mode 0) draws
+         * 4:3 with bars, so it must NOT widen. The second clause covers the 2D
+         * screens (g_PcHorPlusEnabled == 0), which the minimap never reaches
+         * (it early-returns outside SysState_Gameplay) but is kept for parity. */
+        int   stretched = (g_PcWorldHorPlus && g_PcWidescreenMode != 0) ||
+                          (!g_PcWorldHorPlus && !g_PcMenuPillarbox);
 
         /* Ask for the REAL backbuffer: the config width/height this used to read
          * describe the windowed size and say nothing about the current
@@ -604,16 +687,17 @@ void Pc_MinimapUpdate(void)
      * bails before exporting one) still get a sane arrow. */
     g_PcMapQueryAngle = g_SysWork.playerWork.player.rotation.vy;
     g_PcMapQueryOnly  = 1;
-    packed = func_80067914((s32)g_SavegamePtr->paperMapIdx, 0, 0, (u16)Q12(1.0f));
+    packed = mm_query_at(mm_effective_map_idx());
     g_PcMapQueryOnly  = 0;
 
     /* The paper map is only drawn once Harry has actually found it -- HAS_MAP is
      * the same savegame bit the map screen gates on. minimap_require_map=0
      * restores the old always-visible behaviour. */
     haveMap = (s_mapReady && packed != 0);
+
     if (haveMap && g_PcConfig.minimapRequireMap)
     {
-        int mi = (int)g_SavegamePtr->paperMapIdx;
+        int mi = mm_effective_map_idx();
         if (mi < 0 || mi >= MM_PAPER_MAP_COUNT || !HAS_MAP(mi)) haveMap = 0;
     }
 

@@ -42,20 +42,30 @@
     (u16)((((HIRES_POOL_CLUT_ROW_BASE + (DECAL_POOL_SLOT / 64) * HIRES_POOL_MAX_ROWS)) << 6) | \
           (DECAL_POOL_SLOT % 64))
 
-/* Depth handling mirrors the game's own blood-splat drawer (func_80062708):
- * accumulate RAW RotTransPers SZ (no <<2), push one blood-bias step toward FAR
- * (blood's var_s7 = 256), and draw the decal SEMI-TRANSPARENT.
+/* Depth handling is in two halves, and BOTH are needed:
  *
- * The semi-transparency is the load-bearing part: like blood, the decal then
- * never depth-tests, so it CANNOT win the depth buffer against a character
- * standing in front of the wall — it just blends onto the scene and anything
- * drawn nearer paints over it (no more see-through-objects). The far push keeps
- * it from over-drawing foreground in painter order; the DECAL_OFFSET normal lift
- * keeps it in front of its own host surface. This replaces the previous OPAQUE
- * quad pulled one bucket FORWARD, which won the depth test against — and drew
- * over — characters/objects near the wall (the reported bug). Bump toward 0 if a
- * decal dips behind a grazing wall. */
-#define DECAL_BLOOD_BIAS 256 /* == blood-splat var_s7 (func_80062708) */
+ *   1. SEMI-TRANSPARENT, like the blood splats (setSemiTrans in func_80062708),
+ *      so the quad never wins the depth buffer against a character in front of
+ *      the wall.
+ *   2. Bucketed on OT0's own scale (DECAL_OT_SHIFT), so it never wins PAINTER
+ *      order against him either.
+ *
+ * Getting only (1) is what shipped first and it was not enough: the quad was
+ * also copying blood's >>3 bucketing, which is a different scale from the rest
+ * of OT0, and a semi-transparent prim in a nearer bucket still paints last. */
+/* OT0 bucket scale. func_80057090's shift argument is 1 at every character and
+ * held-item call site (world_draw.c:746, :1034), and Ipd_ChunkDraw passes a
+ * bool, so nothing in this table is coarser than >>1. The decal has to use the
+ * same scale as the characters it must lose to — blood's >>3 does not, which is
+ * why bullet holes drew over Harry's head while blood on the floor looks fine
+ * (blood is only ever compared against things standing ON it). */
+#define DECAL_OT_SHIFT 1
+
+/* One bucket NEARER than the surface it sits on, so it still beats its own host
+ * wall in painter order. DECAL_OFFSET already lifts it along the normal, but at
+ * this shift the lift can round into the same bucket as the wall, and within a
+ * bucket the draw order is list order, not depth. */
+#define DECAL_OT_LIFT 1
 
 typedef struct {
     VECTOR3 center; /* Q19.12 world, already offset along the normal */
@@ -288,6 +298,7 @@ void Pc_DecalsDraw(GsOT* ot)
         s32              bucket;
         int              k;
         int              ok = 1;
+        int              decalKeep = 256;
 
         Vw_WorldScreenMatrixAtPositionGet(&mat, d->center.vx, d->center.vy, d->center.vz);
         SetRotMatrix(&mat);
@@ -335,16 +346,56 @@ void Pc_DecalsDraw(GsOT* ot)
             continue;
         }
 
-        /* Blood-splat bucketing (func_80062708): (avgSZ + var_s7) >> 3. The far
-         * push (DECAL_BLOOD_BIAS) is what lets foreground paint over the decal. */
-        bucket = ((bucketSum >> 2) + DECAL_BLOOD_BIAS) >> 3;
-        if (bucket < 0)
+        /* Bucket on the SAME scale as everything else in OT0, which is what the
+         * blood-splat copy got wrong: blood's >>3 produced an index ~4x too
+         * SMALL, and a smaller index is NEARER, so the decal sorted in front of
+         * a character standing between the camera and the wall and painted over
+         * him. Semi-transparency stops it winning the depth test; it does not
+         * stop it winning painter order. */
+        bucket = (bucketSum >> 2) >> DECAL_OT_SHIFT;
+        bucket -= DECAL_OT_LIFT;
+        if (bucket < 1)
         {
-            bucket = 0;
+            /* The game's own sorters drop otz <= 0 outright, so never hand
+             * DrawOTag bucket 0. */
+            bucket = 1;
         }
         if (bucket >= ORDERING_TABLE_SIZE)
         {
             bucket = ORDERING_TABLE_SIZE - 1;
+        }
+
+        /* Fully fogged: stop drawing entirely, the way PSX drops world polys
+         * past the fog far plane. The bullet-hole texture is DARK, and an
+         * average-blended dark texture darkens the frame no matter what the
+         * vertex colour is mixed toward -- (fog + 0.2*fog)/2 is still below the
+         * fog -- so past the point where fog should have swallowed the hole,
+         * colour maths cannot hide it. Skipping is the only correct occlusion. */
+        {
+            /* The keep must track what the fog LOOKS like, not the raw ramp:
+             * the shader multiplies fog by g_PsyX_FogStrength (typically >1),
+             * so the scene whites out faster than the unscaled ramp says. An
+             * unscaled fade left the decal outliving the wall it sits on -- a
+             * lone dark dot in blank fog. Scale the fade by the same strength,
+             * then skip once it is nearly gone. */
+            extern int   Pc_BloodFogKeep(s32 z);
+            extern float g_PsyX_FogStrength;
+            /* bucketSum accumulates RotTransPers RETURN values, and RotTransPers
+             * returns OTZ = SZ >> 2 -- so bucketSum >> 2 is a QUARTER of the true
+             * average depth, and the keep was being evaluated as if every decal
+             * were four times closer than it is: barely any fade at any range,
+             * which is why the previous two fixes changed nothing visible. The
+             * sum of the four quartered corners IS the average SZ, so the ramp
+             * gets bucketSum itself. (The OT bucketing below is unaffected: its
+             * >>1 shift was calibrated against the quartered otz.) */
+            int fade = 256 - Pc_BloodFogKeep(bucketSum);
+
+            fade = (int)(fade * (g_PsyX_FogStrength > 0.0f ? g_PsyX_FogStrength : 1.0f));
+            if (fade > 256) fade = 256;
+            decalKeep = 256 - fade;
+
+            if (decalKeep < 64)
+                continue;
         }
 
         setPolyFT4(poly);
@@ -368,6 +419,27 @@ void Pc_DecalsDraw(GsOT* ot)
             if (lr > 128) lr = 128;
             if (lg > 128) lg = 128;
             if (lb > 128) lb = 128;
+            /* Fade with world fog, exactly as the blood prims do. A decal is
+             * semi-transparent, so it disappears as its source colour goes to
+             * zero -- without this a bullet hole stayed at full strength however
+             * far away or however thick the fog, standing out against a wall
+             * that had already faded. bucketSum >> 2 is the average corner SZ,
+             * the same depth measure blood passes in. */
+            {
+                /* True transparency fade. Neither colour direction works for an
+                 * average-blended DARK texture: toward zero it half-darkens
+                 * forever (the black hole), toward the fog colour it still
+                 * darkens because the texture itself is dark. BM_AVERAGE is
+                 * genuine SRC_ALPHA blending on PC, so the per-prim alpha
+                 * channel fades the decal to actually invisible, with the art
+                 * and the near look untouched. decalKeep is the strength-scaled
+                 * keep computed at the skip above, so the fade tracks the fog
+                 * as it is actually rendered. */
+                extern void PsyX_SetNextPrimAlpha(int a);
+
+                PsyX_SetNextPrimAlpha(decalKeep);
+            }
+
             setRGB0(poly, (u8)lr, (u8)lg, (u8)lb);
         }
         /* tpage is irrelevant: the bit-15 clut alone keys the GL override

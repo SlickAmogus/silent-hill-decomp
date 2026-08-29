@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using SilentHillPC_Launcher;   /* Loc — this file is in the global namespace */
 
 /// <summary>
 /// Separate window for editing keyboard + controller bindings. Code-generated
@@ -96,6 +97,7 @@ public class ControlsForm : Form
         { "key_l1", "A" }, { "key_r1", "D" }, { "key_l2", "Right Shift" }, { "key_r2", "Left Shift" },
         { "key_l3", "NONE" }, { "key_r3", "NONE" }, { "key_start", "Return" }, { "key_select", "Space" },
         { "key_quicksave", "F6" }, { "key_quickload", "F8" },
+        { "key_quick_options", "F10" }, { "pad_quick_options", "NONE" },
         { "key_change_cam", "F9" }, { "pad_change_cam", "rightstick" },
         { "key_swap_shoulder", "Mouse3" }, { "key_console", "`" },
         { "key_gfx_cycle", "\\" }, { "key_gfx_prev", "[" }, { "key_gfx_next", "]" },
@@ -345,7 +347,11 @@ public class ControlsForm : Form
         /* Height fits the sensitivity column, which is now the tallest: its last
          * slider (TPS/OTS Aim Zoom) bottoms out at styleY + 346 = 722. The bottom
          * button row is placed from ClientSize.Height, so it follows automatically. */
-        ClientSize = new Size(860, 868);
+        /* Raised from 868: the keyboard column had grown into the bottom
+         * button row, with Quick Turn overlapping Reset to Defaults, and the
+         * controller column gained a Quick Options row. The bottom row is
+         * placed from ClientSize.Height, so it follows this down. */
+        ClientSize = new Size(860, 906);
 
         tips = new ToolTip { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 80, ShowAlways = true };
 
@@ -390,9 +396,9 @@ public class ControlsForm : Form
             FlatStyle = FlatStyle.Flat,
         };
         btnAltCamHelp.Click += (s, e) => MessageBox.Show(this,
-            "Leave the box unchecked to set classic controls, check it to set controls for modern TPS/OTS modes. " +
-            "Each control style also has alternates so that you can use more than one button for the same action.",
-            "Alternate Camera Controls", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Loc.T("Leave the box unchecked to set classic controls, check it to set controls for modern TPS/OTS modes. " +
+                  "Each control style also has alternates so that you can use more than one button for the same action."),
+            Loc.T("Alternate Camera Controls"), MessageBoxButtons.OK, MessageBoxIcon.Information);
         Controls.Add(btnAltCamHelp);
 
         // Keyboard PSX binds — each gets a hidden secondary box (shown when the
@@ -420,10 +426,17 @@ public class ControlsForm : Form
         tips.SetToolTip(inputs["key_console"],
             "Developer console toggle (needs Allow debug controls = Yes). Hold to show/hide it; tap while open to type a command.");
 
+        // Quick options overlay — in-game settings panel, keyboard-only like the
+        // console above it.
+        int quickOptY = consoleY + rowH;
+        AddKeyRow("Quick Options", "key_quick_options", colKbX, quickOptY, labelW, inputW, false);
+        tips.SetToolTip(inputs["key_quick_options"],
+            "In-game quick options overlay: graphics, HUD, audio, cheats and debug settings, changeable while you play. Drag its title bar to move it.");
+
         // Graphics-effect tuning keys (keyboard-only). Cycle picks which enabled
         // effect (flashlight / post-process / tonemap) is tuned; Prev/Next lower
         // and raise its intensity live. Defaults \ / [ / ].
-        int gfxCycleY = consoleY + rowH + 8;
+        int gfxCycleY = quickOptY + rowH + 8;
         AddKeyRow("Gfx: Cycle Effect", "key_gfx_cycle", colKbX, gfxCycleY, labelW, inputW, false);
         AddKeyRow("Gfx: Adjust Down",  "key_gfx_prev",  colKbX, gfxCycleY + rowH,     labelW, inputW, false);
         AddKeyRow("Gfx: Adjust Up",    "key_gfx_next",  colKbX, gfxCycleY + rowH * 2, labelW, inputW, false);
@@ -492,6 +505,9 @@ public class ControlsForm : Form
         AddPadCombo("pad_quick_turn", colPadX + labelW, padQtY - 3, padInputW);
         Label lblRearLookPad = AddLabel("Rear Look", colPadX, padRlY, labelW);
         AddPadCombo("pad_rear_look", colPadX + labelW, padRlY - 3, padInputW);
+        int padQuickOptY = padRlY + rowH;
+        AddLabel("Quick Options", colPadX, padQuickOptY, labelW);
+        AddPadCombo("pad_quick_options", colPadX + labelW, padQuickOptY - 3, padInputW);
         rearLookControls.Add(lblRearLookPad);
         rearLookControls.Add(inputs["pad_rear_look"]);
         foreach (Control _rl in rearLookControls) _rl.Enabled = chkAltCamControls.Checked;
@@ -503,6 +519,8 @@ public class ControlsForm : Form
             "Uses the most sensible healing item you are carrying (a stronger one when badly hurt).");
         tips.SetToolTip(inputs["pad_quick_turn"],
             "Quick 180 turn — Harry spins to face the opposite direction (animated, not a snap).");
+        tips.SetToolTip(inputs["pad_quick_options"],
+            "Optional controller button for the quick options overlay (same panel as the keyboard bind). Unbound by default.");
         tips.SetToolTip(inputs["pad_rear_look"],
             "Hold to swing the camera behind Harry (Thirdperson / Over-the-Shoulder only). Bind it with the alt-cam scheme selected.");
 
@@ -512,7 +530,7 @@ public class ControlsForm : Form
         // / Quick Heal). The sensitivity sliders keep the original styleY so they do
         // NOT move; only the checkbox column (chkY) shifts.
         int styleY = padChangeCamY + rowH + 16 + 30;   // sensitivity column (unshifted)
-        int chkY = styleY + 5 * rowH;                  // Experimental left column (shifted below the 5 controller PC rows)
+        int chkY = styleY + 6 * rowH;                  // Experimental left column (shifted below the 5 controller PC rows)
         AddHeader("Experimental", colPadX, chkY - 30);
         AddLabel("Control Style", colPadX, chkY, 90);
         cmbControlStyle = new ComboBox
@@ -823,6 +841,12 @@ public class ControlsForm : Form
         Controls.Add(btnCancel);
         AcceptButton = btnSave;
         CancelButton = btnCancel;
+
+        // Before SetupResizable, so the AutoSize labels (the two column headers,
+        // "Experimental", the "Press Del to unbind" hint) are captured at their
+        // translated width rather than the English one. The bind boxes and the
+        // value combos are left alone by the walker — their text is config data.
+        Loc.Apply(this);
 
         SetupResizable();
     }

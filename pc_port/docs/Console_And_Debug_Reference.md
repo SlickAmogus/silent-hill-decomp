@@ -78,8 +78,10 @@ built-in quick lists.
 | `pgxpdepth [0\|1]` | PGXP unquantized-depth W (distance-seam fix). |
 | `weld <f>` | PGXP seam-weld radius in px (`0` = off). |
 | `weldw <f>` | PGXP weld depth ratio. |
-| `vfov <f>` | World vertical FOV scale (`1.0` = off; ~`0.872` matches DuckStation). |
-| `hfov <f>` | World horizontal scale, Hor+ only (`1.0` = off; >1 wider, <1 narrower). |
+| `vfov <f>` | World vertical FOV scale (`1.0` = off; ~`0.872` matches DuckStation). Config key `world_vscale`; the Quick Options *View & Aspect* page saves it. |
+| `hfov <f>` | World horizontal scale, Hor+ only (`1.0` = off; >1 wider, <1 narrower). Config key `world_hscale`; same page saves it. |
+| `crtaspect <f>` | Trim on the 4:3 CRT picture, `0.5`..`1.5`. Below 1.0 = taller, thinner figures. Default `0.9`. Config key `crt_aspect_trim`; same page saves it. |
+| `par <f>` | Pixel aspect, read by `display_aspect = raw` only (`35/32` = 1.09375). Config key `pixel_aspect`; same page saves it. |
 | `vshift <f>` | World vertical view shift, psx-units (+ = view up; `0` = off). |
 | `msgshift <n>` | Message-box up-shift, psx-units. |
 | `bary <n>` | Cutscene letterbox bar Y (raise until bars hit the screen edges). |
@@ -139,22 +141,21 @@ Require `allow_debug_controls = 1`. (In-game references: `debug` / `debug 2`.)
 | `K` / `,` `.` | Keyframe inspector; scrub (hold = faster). |
 | `L` | Log the FPS-camera eye offset (for baking `g_PcFpsOffset`). |
 
-**Debug camera** (numpad)
+**Free camera** (also the quick options menu's Cheats page, no dev controls needed there)
 
 | Key | Action |
 |---|---|
-| `Num *` | Free debug camera on/off. |
+| `Num *` | Free camera on/off. Harry stays where he was; his input is ignored while it is on. |
+| Mouse | Look (mouse sensitivity / invert follow the control settings). |
+| `W/A/S/D` | Fly forward / left / back / right, along the view direction. |
+| `Space` / `C` | Move up / down. |
+| `Shift` / `Ctrl` | Fast / slow. |
 | `Num 2` | Third-person chase cam (mouse look). |
-| `Num 8/5/4/6` | Fly forward / back / strafe left / right. |
-| `Num 7 / 9` | Turn left / right. |
-| `Num + / -` | Tilt up / down. |
-| `PgUp / PgDn` | Move up / down. |
-| `Num /` | Print camera coordinates to the log. |
 | `Num 3` | Reset cam nudge / in-game rescue teleport. |
 | `Num 0` | Raw cam mode (zero all nudges). |
 | `Num .` | Log Harry position. |
 
-With the debug cam **off**, the same numpad keys nudge the normal game camera
+With the free camera **off**, the numpad keys nudge the normal game camera
 (live camera-tuning aid).
 
 ---
@@ -179,6 +180,7 @@ Set in `config.cfg` (defaults shown), active in every camera mode:
 | `key_quicksave` | `F6` | Quick save. |
 | `key_quickload` | `F8` | Quick load. |
 | `key_change_cam` | `F9` | Cycle control style (Classic / TPS / OTS). |
+| `key_quick_options` | `F10` | Quick options overlay (in-game): live graphics / HUD / audio settings. |
 | `key_swap_shoulder` | `Mouse3` | Swap the OTS shoulder side. |
 | `key_console` | `` ` `` | Console open/close (tap) / type (hold). |
 
@@ -189,4 +191,5 @@ Set in `config.cfg` (defaults shown), active in every camera mode:
 Many of these also exist as `config.cfg` keys and/or launcher options
 (resolution, vsync, filtering, PGXP, MSAA, post-process, tone-map, flashlight +
 shadows, FPS cap, control style, sensitivities, volumes). The in-game **PC
-Options** menu (3 pages) exposes the common ones live.
+Options** menu (5 pages) exposes the common ones live, and the **F10 quick
+options overlay** exposes the most-used ones without leaving gameplay.

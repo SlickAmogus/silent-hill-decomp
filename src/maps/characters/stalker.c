@@ -32,6 +32,34 @@ void Sd_SfxStop(u16 sfxId);
 
 #define stalkerProps stalker->properties.stalker
 
+#ifdef SH_PC_PORT
+/* The attack-commit decisions below were authored to run once per 30Hz tick.
+ * The port runs NPC AI once per FRAME, so at 60/120fps a Grey Child rolls 2x/4x
+ * as many commit chances per unit of approach distance -- and the branch that
+ * reaches FURTHEST is the grab (0.5..1.0) versus the lunge (0.7..0.9), so the
+ * surplus rolls disproportionately fire the grab near its maximum range: the
+ * child commits early, dives from too far out and lands short.
+ *
+ * Gate the decision so commits-per-second stay framerate-independent: consider
+ * a commit with probability dt/(1/30). At 30fps this always passes (behaviour
+ * byte-identical to the original), at 60fps half the frames, at 120fps a
+ * quarter -- i.e. the same number of decisions per second at any framerate.
+ * Deliberately narrow: steering, movement, collision, damage and death all keep
+ * running every frame (they are delta-scaled and already correct). */
+static bool Pc_StalkerMayCommitAttack(void)
+{
+    if (g_DeltaTime >= TIMESTEP_30_FPS)
+    {
+        return true;
+    }
+
+    return Rng_GenerateInt(0, TIMESTEP_30_FPS - 1) < g_DeltaTime;
+}
+#define SH_STALKER_MAY_COMMIT pcMayCommit
+#else
+#define SH_STALKER_MAY_COMMIT 1
+#endif
+
 void Stalker_Update(s_SubCharacter* stalker, s_AnmHeader* anmHdr, GsCOORDINATE2* coords)
 {
     if (g_SavegamePtr->gameDifficulty == GameDifficulty_Normal)
@@ -686,6 +714,9 @@ void Ai_Stalker_Control_2(s_SubCharacter* stalker)
     q3_12  angleDeltaToPlayer;
     q19_12 distToPlayer;
     s32    i;
+#ifdef SH_PC_PORT
+    bool   pcMayCommit;
+#endif
 
     // TODO: Doesn't match?
     //distToPlayer  = Math_Vector2MagCalc(sharedData_800E3A18_0_s00 - stalker->position.vx,
@@ -751,9 +782,13 @@ void Ai_Stalker_Control_2(s_SubCharacter* stalker)
             }
         }
 
-        if ((g_SysWork.charaGroupFlags[3] & CharaGroupFlag_0) ||
+#ifdef SH_PC_PORT
+        pcMayCommit = Pc_StalkerMayCommitAttack();
+#endif
+        if (SH_STALKER_MAY_COMMIT &&
+           ((g_SysWork.charaGroupFlags[3] & CharaGroupFlag_0) ||
             ( (stalkerProps.flags & StalkerFlag_2) && Rng_GenerateInt(0, 3) != 0) || // 1 in 4 chance.
-            (!(stalkerProps.flags & StalkerFlag_2) && Rng_GenerateInt(0, 1) != 0))   // 1 in 2 chance.
+            (!(stalkerProps.flags & StalkerFlag_2) && Rng_GenerateInt(0, 1) != 0)))  // 1 in 2 chance.
         {
             if ( distToPlayer < Q12(0.9f) &&
                 (distToPlayer > Q12(0.7f) || !Rng_GenerateInt(0, 3))) // 1 in 4 chance.
@@ -801,7 +836,7 @@ void Ai_Stalker_Control_2(s_SubCharacter* stalker)
             }
         }
         // Attack player if player is alive.
-        else if (distToPlayer > Q12(0.5f) && distToPlayer < Q12(1.0f))
+        else if (SH_STALKER_MAY_COMMIT && distToPlayer > Q12(0.5f) && distToPlayer < Q12(1.0f))
         {
             if (ABS(angleDeltaToPlayer) < Q12_ANGLE(60.0f))
             {
@@ -895,6 +930,9 @@ void Ai_Stalker_Control_3(s_SubCharacter* stalker)
     bool   cond1;
     q25_6  temp;
     q19_12 temp2;
+#ifdef SH_PC_PORT
+    bool   pcMayCommit;
+#endif
 
     distToPlayer  = Math_Vector2MagCalcSafeQ6(sharedData_800E3A18_0_s00 - stalker->position.vx,
                                         sharedData_800E3A1C_0_s00 - stalker->position.vz);
@@ -1012,10 +1050,14 @@ void Ai_Stalker_Control_3(s_SubCharacter* stalker)
             }
         }
 
-        if ((g_SysWork.charaGroupFlags[3] & CharaGroupFlag_0) || func_80070320() ||
+#ifdef SH_PC_PORT
+        pcMayCommit = Pc_StalkerMayCommitAttack();
+#endif
+        if (SH_STALKER_MAY_COMMIT &&
+           ((g_SysWork.charaGroupFlags[3] & CharaGroupFlag_0) || func_80070320() ||
             ABS(stalker->position.vy - g_SysWork.playerWork.player.position.vy) > Q12(0.3f) ||
             ( (stalkerProps.flags & StalkerFlag_2) &&  Rng_GenerateInt(0, 3)) || // 3 in 4 chance?
-            (!(stalkerProps.flags & StalkerFlag_2) && !Rng_GenerateInt(0, 3)))   // 1 in 4 chance.
+            (!(stalkerProps.flags & StalkerFlag_2) && !Rng_GenerateInt(0, 3))))  // 1 in 4 chance.
         {
             if (!(g_SysWork.playerWork.player.flags & CharaFlag_Unk4) &&
                 distToPlayer < Q12(0.9f) && (distToPlayer > Q12(0.7f) || !Rng_GenerateInt(0, 3)) && // 1 in 4 chance.
@@ -1064,7 +1106,8 @@ void Ai_Stalker_Control_3(s_SubCharacter* stalker)
                 stalker->model.controlState = StalkerControl_4;
             }
         }
-        else if (!(g_SysWork.playerWork.player.flags & CharaFlag_Unk4) &&
+        else if (SH_STALKER_MAY_COMMIT &&
+                 !(g_SysWork.playerWork.player.flags & CharaFlag_Unk4) &&
                  distToPlayer < Q12(1.0f) && distToPlayer > Q12(0.5f) &&
                  ABS(angleDeltaToPlayer) < Q12_ANGLE(60.0f) && g_SysWork.playerWork.player.health > Q12(0.0f))
         {
