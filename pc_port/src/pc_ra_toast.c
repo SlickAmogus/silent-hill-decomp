@@ -23,6 +23,7 @@
 #include <math.h>
 
 #include <SDL.h>
+#include <PsyX/common/glad.h>
 #include <PsyX/PsyX_backend.h>
 #if !defined(SH_NO_OPENAL)
 #include <AL/al.h>
