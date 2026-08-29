@@ -72,11 +72,18 @@
 { "External",            "\212\117\225\224",                      }, /* 外部 */
 { "In_Game",             "\203\121\201\133\203\200\223\340",      }, /* ゲーム内 */
 { "Both",                "\227\274\225\373",                      }, /* 両方 */
-/* Layout overrides, not new rows: these two keys ALSO exist in
+/* Layout overrides, not new rows: these keys ALSO exist in
  * lang_jpn_menu.inc, and Pc_JpnMenuText checks this table first so the short
- * form wins in Japanese. Retail's wording is a full sentence
- * ("BGMのボリュームを調節します", 15 glyphs = 180 px from the label origin at
- * x=121) and the port's volume bar starts at 212, so the sentence ran straight
- * through it. Chinese keeps the disc string -- it is 8 glyphs, which fits. */
+ * form wins in Japanese. Retail words each of these as a full sentence, sized
+ * for a screen the port has since re-laid-out, and every label origin here is
+ * x=121 at 12 px per glyph:
+ *
+ *   BGM_Volume  "BGMのボリュームを調節します"      15 glyphs -> 301, bar at 212
+ *   SE_Volume   "SEのボリュームを調節します"       14 glyphs -> 289, bar at 212
+ *   Vibration   "　アナログコントローラの振動設定：" 16 glyphs -> 313, value at 232
+ *
+ * so all three drew straight through what sits to their right. Chinese keeps
+ * the disc strings: they are 6 to 8 glyphs, they fit, and they are real. */
 { "BGM_Volume",          "\202\141\202\146\202\154\211\271\227\312", }, /* ＢＧＭ音量 */
 { "SE_Volume",           "\202\162\202\144\211\271\227\312",      }, /* ＳＥ音量 */
+{ "Vibration",           "\220\125\223\256\220\335\222\350\201\106", }, /* 振動設定： */
