@@ -2,7 +2,6 @@
 #ifdef SH_PC_PORT
 #include <stdio.h>
 #include <SDL_scancode.h>
-#include "sh_log.h"
 extern void PsyX_EndScene(void);
 extern const unsigned char* g_sdlKeyboardState;
 extern int PsyX_Pad_SkipButtonHeld(void);
@@ -545,12 +544,6 @@ void BootScreen_KonamiScreenDraw(void) // 0x800C9FB8
     s32*  ptr;
 #endif
     TILE* tile;
-#ifdef SH_PC_PORT
-    /* TEMPORARY [LOGODBG]: bounded to 5 frames of the Konami logo. */
-    SPRT* dbgFirst = (SPRT*)GsOUT_PACKET_P;
-    static int s_dbgFrame = 0;
-    s_dbgFrame++;
-#endif
 
     // Draw Konami logo.
     BootScreen_ImageSegmentDraw(&g_KonamiLogoImg, 0xF, 0, 0, 256, 256, -192, -192);
@@ -576,15 +569,6 @@ void BootScreen_KonamiScreenDraw(void) // 0x800C9FB8
     setCodeWord(tile, PRIM_RECT, 0xFFFFFF);
     setXY0Fast(tile, 136, 140);
     setWH(tile, 13, 13);
-#endif
-
-#ifdef SH_PC_PORT
-    if (s_dbgFrame == 5 || s_dbgFrame == 90)
-    {
-        /* TEMPORARY [SPLITDBG]: arm PsyCross to report this frame's splits. */
-        extern int g_PsxSplitDbg;
-        g_PsxSplitDbg = 14;
-    }
 #endif
 
     GsOUT_PACKET_P = (PACKET*)&tile[1];

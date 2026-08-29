@@ -114,7 +114,7 @@ static void cd_gl_init(void)
         "void main() { gl_FragColor = texture2D(u_tex, v_uv) * u_color; }\n";
 
     GLuint vs, fs;
-    GLint  ok = 0, prevVao = 0, prevBuf = 0;
+    GLint  ok = 0, prevVao = 0, prevBuf = 0, prevProg = 0;
 
     s_glReady = -1;
     vs = cd_make_shader(GL_VERTEX_SHADER, vs_src);
@@ -140,9 +140,15 @@ static void cd_gl_init(void)
         s_prog = 0;
         return;
     }
+    /* Restore the bound program: PsyCross caches it and skips glUseProgram
+     * when it believes the right one is current, so a leak here persists
+     * until a DIFFERENT shader is requested. Same defect that blacked out
+     * the boot logos from pc_quick_options.c. */
+    glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
     glUseProgram(s_prog);
     glUniform1i(glGetUniformLocation(s_prog, "u_tex"), 0);
     s_locColor = glGetUniformLocation(s_prog, "u_color");
+    glUseProgram((GLuint)prevProg);
 
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prevBuf);

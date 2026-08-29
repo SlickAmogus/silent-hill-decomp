@@ -313,7 +313,7 @@ static void qo_gl_init(void)
         "void main() { gl_FragColor = texture2D(u_tex, v_uv) * u_color; }\n";
 
     GLuint vs, fs;
-    GLint  ok = 0, prevVao = 0, prevBuf = 0;
+    GLint  ok = 0, prevVao = 0, prevBuf = 0, prevProg = 0;
 
     s_glReady = -1;
     vs = qo_make_shader(GL_VERTEX_SHADER, vs_src);
@@ -339,10 +339,22 @@ static void qo_gl_init(void)
         s_prog = 0;
         return;
     }
+    /* Restore whatever program was bound, the same way the VAO and array
+     * buffer below are restored. PsyCross caches the bound program in
+     * g_PreviousShader and skips glUseProgram when it believes the right one
+     * is already current, so leaving ours bound here does not just affect the
+     * next draw -- it persists until something asks for a DIFFERENT shader.
+     * A screen whose every split shares one texture format never does, and
+     * renders entirely through this program, which has no Projection uniform:
+     * all geometry collapses and the screen is black. That is what happened to
+     * the Konami and KCET logos once this init moved to startup; they draw only
+     * 4-bit prims, so nothing ever forced the rebind that lets gameplay recover. */
+    glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
     glUseProgram(s_prog);
     glUniform1i(glGetUniformLocation(s_prog, "u_tex"), 0);
     qo_atlas_ensure(); /* one texture, created here, never recreated */
     s_locColor = glGetUniformLocation(s_prog, "u_color");
+    glUseProgram((GLuint)prevProg);
 
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prevBuf);
