@@ -2,6 +2,7 @@
 #ifdef SH_PC_PORT
 #include <stdio.h>
 #include <SDL_scancode.h>
+#include "sh_log.h"
 extern void PsyX_EndScene(void);
 extern const unsigned char* g_sdlKeyboardState;
 extern int PsyX_Pad_SkipButtonHeld(void);
@@ -544,6 +545,12 @@ void BootScreen_KonamiScreenDraw(void) // 0x800C9FB8
     s32*  ptr;
 #endif
     TILE* tile;
+#ifdef SH_PC_PORT
+    /* TEMPORARY [LOGODBG]: bounded to 5 frames of the Konami logo. */
+    SPRT* dbgFirst = (SPRT*)GsOUT_PACKET_P;
+    static int s_dbgFrame = 0;
+    s_dbgFrame++;
+#endif
 
     // Draw Konami logo.
     BootScreen_ImageSegmentDraw(&g_KonamiLogoImg, 0xF, 0, 0, 256, 256, -192, -192);
@@ -569,6 +576,31 @@ void BootScreen_KonamiScreenDraw(void) // 0x800C9FB8
     setCodeWord(tile, PRIM_RECT, 0xFFFFFF);
     setXY0Fast(tile, 136, 140);
     setWH(tile, 13, 13);
+#endif
+
+#ifdef SH_PC_PORT
+    if (s_dbgFrame == 1 || s_dbgFrame == 20 || s_dbgFrame == 60 ||
+        s_dbgFrame == 120 || s_dbgFrame == 175)
+    {
+        const u32* sp = (const u32*)dbgFirst;
+        const u32* tp = (const u32*)tile;
+        SH_DBG("[LOGODBG] konami f=%d step=%d fsq=%d buf=%d fade=%d "
+               "sprt=%08x %08x %08x %08x %08x | tile=%08x %08x %08x",
+               s_dbgFrame, (int)g_GameWork.gameStateSteps[0],
+               (int)Fs_QueueGetLength(), (int)g_ActiveBufferIdx,
+               (int)ScreenFade_IsNone(),
+               sp[0], sp[1], sp[2], sp[3], sp[4], tp[0], tp[1], tp[2]);
+
+        {
+            RECT r;
+            u16  px[8];
+            setRECT(&r, 768, 8, 8, 1);
+            StoreImage(&r, (u_long*)px);
+            DrawSync(0);
+            SH_DBG("[LOGODBG] konami f=%d vram(768,8)= %04x %04x %04x %04x %04x %04x %04x %04x",
+                   s_dbgFrame, px[0], px[1], px[2], px[3], px[4], px[5], px[6], px[7]);
+        }
+    }
 #endif
 
     GsOUT_PACKET_P = (PACKET*)&tile[1];
