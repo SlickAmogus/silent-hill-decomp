@@ -40,14 +40,17 @@ extern const char* PcOpt_QuickName(const void* h);
 extern const char* PcOpt_QuickLabel(const void* h, char* buf, int bufsz);
 extern void        PcOpt_QuickAdjust(const void* h, int dir);
 extern int         PcOpt_QuickRealtime(const void* h);
-/* options.c: rows that are not in that table. */
-enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX };
+/* options.c: rows that are not in that table. Keep in step with the identical
+ * enum there -- these are indices into its switch, nothing more. */
+enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
+       QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
+extern void        PcOpt_QuickViewReset(void);
 
 #define QO_GARBAGE  48
 #define QO_MAX_ROWS 16
-#define QO_PAGES    4
+#define QO_PAGES    5
 #define QO_DD_MAX     64  /* dropdown entries cached */
 #define QO_DD_VISIBLE 8
 
@@ -55,7 +58,11 @@ extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 /* Rows                                                                */
 /* ------------------------------------------------------------------ */
 
-enum { ROW_OPT = 0, ROW_EXTRA, ROW_PAGE, ROW_CLOSE, ROW_CHEAT };
+/* ROW_ACTION fires from Confirm/click ONLY -- unlike every other row kind,
+ * Left/Right must not trigger it, or scrolling past "Reset View Settings"
+ * with the arrows would undo the player's tuning. */
+enum { ROW_OPT = 0, ROW_EXTRA, ROW_PAGE, ROW_CLOSE, ROW_CHEAT, ROW_ACTION };
+enum { QO_A_VIEWRESET = 0 };
 
 typedef struct
 {
@@ -95,8 +102,25 @@ static const QoRowDef s_page1[] = {
     { ROW_EXTRA, NULL, QO_X_BGM,            "Music Volume" },
     { ROW_EXTRA, NULL, QO_X_SFX,            "Effects Volume" },
     { ROW_OPT,   "fmv_volume",           0, NULL },
-    { ROW_PAGE,  NULL, 0,                   "Next page  (Cheats)" },
+    { ROW_PAGE,  NULL, 0,                   "Next page  (View)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
+};
+
+/* View & Aspect. Display Aspect picks the whole model -- CRT scans the frame
+ * out to 4:3 the way a television did, Original keeps the framebuffer at the
+ * Pixel Aspect below -- and CRT Aspect Trim is the few percent of overscan the
+ * geometry cannot settle. Horizontal/Vertical FOV only change how much world
+ * is on screen: in CRT mode they are divided back out of the pixel aspect, so
+ * they cannot squash the picture. Pixel Aspect is read by Original only. */
+static const QoRowDef s_page2[] = {
+    { ROW_EXTRA,  NULL, QO_X_ASPECT,       "Display Aspect" },
+    { ROW_EXTRA,  NULL, QO_X_CRTTRIM,      "CRT Aspect Trim" },
+    { ROW_EXTRA,  NULL, QO_X_HFOV,         "Horizontal FOV" },
+    { ROW_EXTRA,  NULL, QO_X_VFOV,         "Vertical FOV" },
+    { ROW_EXTRA,  NULL, QO_X_PAR,          "Pixel Aspect" },
+    { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
+    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
+    { ROW_CLOSE,  NULL, 0,                 "Close" },
 };
 
 /* Pages 2/3 mirror pc_cheats.c's tables, built on first use. */
@@ -129,14 +153,16 @@ static const QoRowDef* qo_cheat_page(int cpage, const char* nextLabel, int* coun
 static const QoRowDef* qo_page_rows(int page, int* count)
 {
     if (page == 1) { *count = (int)(sizeof(s_page1) / sizeof(s_page1[0])); return s_page1; }
-    if (page == 2) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
-    if (page == 3) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Graphics)", count);
+    if (page == 2) { *count = (int)(sizeof(s_page2) / sizeof(s_page2[0])); return s_page2; }
+    if (page == 3) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
+    if (page == 4) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Graphics)", count);
     *count = (int)(sizeof(s_page0) / sizeof(s_page0[0]));
     return s_page0;
 }
 
 static const char* const s_pageTitles[QO_PAGES] = {
     "QUICK OPTIONS  -  GRAPHICS", "QUICK OPTIONS  -  HUD & AUDIO",
+    "QUICK OPTIONS  -  VIEW & ASPECT",
     "QUICK OPTIONS  -  CHEATS",   "QUICK OPTIONS  -  DEBUG" };
 
 /* ------------------------------------------------------------------ */
@@ -1064,6 +1090,7 @@ static void qo_activate(const QoRowDef* r, int dir)
         case ROW_CHEAT: Pc_Cheats_Adjust(r->cpage, r->extra, dir); break;
         case ROW_PAGE:  qo_set_page(s_page + (dir < 0 ? -1 : +1)); break;
         case ROW_CLOSE: Pc_QuickOptions_Close(); break;
+        case ROW_ACTION: break; /* confirm-only; see the ROW_ACTION comment */
         default: break;
     }
 }
@@ -1276,6 +1303,11 @@ static void qo_confirm(const QoRowDef* r)
 {
     if (r->kind == ROW_CHEAT)
         Pc_Cheats_Confirm(r->cpage, r->extra);
+    else if (r->kind == ROW_ACTION)
+    {
+        if (r->extra == QO_A_VIEWRESET)
+            PcOpt_QuickViewReset();
+    }
     else
         qo_activate(r, +1);
 }

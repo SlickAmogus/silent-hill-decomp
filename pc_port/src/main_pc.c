@@ -797,10 +797,16 @@ int main(int argc, char* argv[])
      * Confirmed empirically 2026-08-25: DuckStation's game content measures
      * 465x357 => (357/224)/(465/320) = 1.097 ~= 35/32. This is also the original
      * PSX_NTSC_PIXEL_ASPECT PsyCross shipped (9c502de) and the constant the
-     * vw_calc.c cull comments still quote. Live-tunable via console `par`. */
+     * vw_calc.c cull comments still quote. Read only by display_aspect = raw;
+     * config key pixel_aspect, console `par`, View & Aspect quick-options row.
+     * hfov/vfov (world_hscale/world_vscale) come from the same page. */
     {
         extern float g_PsxPixelAspect;
-        g_PsxPixelAspect = 35.0f / 32.0f;
+        extern float g_PsxWorldHScale;
+        extern float g_PsxWorldVScale;
+        g_PsxPixelAspect = g_PcConfig.pixelAspect;
+        g_PsxWorldHScale = g_PcConfig.worldHScale;
+        g_PsxWorldVScale = g_PcConfig.worldVScale;
     }
 
     /* Apply widescreen mode to PsyCross. */
@@ -1195,7 +1201,10 @@ int main(int argc, char* argv[])
             if (g_PcConfig.crtAspectTrim > 0.0f)
                 g_PsxCrtAspectTrim = g_PcConfig.crtAspectTrim;
         }
-        SH_LOG("Display aspect: %s", g_PsxAspectRaw ? "raw (framebuffer par)" : "crt (stretched to 4:3)");
+        SH_LOG("Display aspect: %s (trim %.3f, hfov %.3f, vfov %.3f, par %.4f)",
+               g_PsxAspectRaw ? "raw (framebuffer par)" : "crt (stretched to 4:3)",
+               g_PcConfig.crtAspectTrim, g_PcConfig.worldHScale,
+               g_PcConfig.worldVScale, g_PcConfig.pixelAspect);
     }
 
         {

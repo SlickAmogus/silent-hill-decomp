@@ -7,7 +7,8 @@
  * post-capture hook, updated on the game thread. Rows are the live-applying
  * subset of the PC Options screen (driven through the PcOpt_Quick* API in
  * options.c, so labels / cycling / config saving are the same code) plus a few
- * settings that live elsewhere (shadow resolution, speaker layout, volumes).
+ * settings that live elsewhere (shadow resolution, speaker layout, volumes,
+ * and the View & Aspect page's display-aspect / CRT trim / hfov / vfov / par).
  * While open the game is frozen the way the console freezes it -- every site
  * that reads g_PcConsoleInputActive also reads g_PcQuickOptionsActive.
  */

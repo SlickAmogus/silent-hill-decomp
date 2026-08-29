@@ -78,8 +78,10 @@ built-in quick lists.
 | `pgxpdepth [0\|1]` | PGXP unquantized-depth W (distance-seam fix). |
 | `weld <f>` | PGXP seam-weld radius in px (`0` = off). |
 | `weldw <f>` | PGXP weld depth ratio. |
-| `vfov <f>` | World vertical FOV scale (`1.0` = off; ~`0.872` matches DuckStation). |
-| `hfov <f>` | World horizontal scale, Hor+ only (`1.0` = off; >1 wider, <1 narrower). |
+| `vfov <f>` | World vertical FOV scale (`1.0` = off; ~`0.872` matches DuckStation). Config key `world_vscale`; the Quick Options *View & Aspect* page saves it. |
+| `hfov <f>` | World horizontal scale, Hor+ only (`1.0` = off; >1 wider, <1 narrower). Config key `world_hscale`; same page saves it. |
+| `crtaspect <f>` | Trim on the 4:3 CRT picture, `0.5`..`1.5`. Below 1.0 = taller, thinner figures. Default `0.9`. Config key `crt_aspect_trim`; same page saves it. |
+| `par <f>` | Pixel aspect, read by `display_aspect = raw` only (`35/32` = 1.09375). Config key `pixel_aspect`; same page saves it. |
 | `vshift <f>` | World vertical view shift, psx-units (+ = view up; `0` = off). |
 | `msgshift <n>` | Message-box up-shift, psx-units. |
 | `bary <n>` | Cutscene letterbox bar Y (raise until bars hit the screen edges). |

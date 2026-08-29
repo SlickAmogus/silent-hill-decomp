@@ -7,6 +7,12 @@
 #include <stddef.h>
 #include "xa_player.h"
 
+static float PcCfg_ClampF(float v, float lo, float hi)
+{
+    return (v < lo) ? lo : ((v > hi) ? hi : v);
+}
+
+
 s_PcConfig g_PcConfig = {
     .windowWidth    = 640,
     .windowHeight   = 480,
@@ -97,6 +103,16 @@ s_PcConfig g_PcConfig = {
     .tpsFov              = 71.1f, /* thirdperson/OTS FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
     .tpsAimZoom          = 100.0f, /* default aim dolly = the original zoom; 200 = 2x zoom, 0 = no zoom */
     .reverbScale         = 0.0f, /* 0 = PsyCross default depth->wet scale */
+    /* View & aspect. A textbook 4:3 stretch of the 224-line frame is trim 1.0
+     * and letting those 224 lines sit inside the 240-line 4:3 window is 1.071,
+     * so the geometry alone does not pick a number: how much a set overscans
+     * decides it, and only a human figure shows the difference. 0.9 is the
+     * value that matched a real CRT side by side. */
+    .aspectRaw           = 0,          /* crt: the framebuffer scanned out to 4:3 */
+    .crtAspectTrim       = 0.9f,
+    .worldHScale         = 0.76f,      /* 0.872^2, the shipped Hor+ horizontal framing */
+    .worldVScale         = 1.0f,       /* full 224-row frame, no vertical crop */
+    .pixelAspect         = 35.0f / 32.0f, /* raw mode only: the 350x240 NTSC dot */
     .mouseSensitivity        = 1.0f,
     .controllerSensitivity   = 1.0f,
 
@@ -902,7 +918,23 @@ void PcConfig_Load(const char* path)
         }
         else if (strcmp(key, "crt_aspect_trim") == 0)
         {
-            g_PcConfig.crtAspectTrim = (float)atof(value);
+            float v = (float)atof(value);
+            if (v > 0.0f) g_PcConfig.crtAspectTrim = PcCfg_ClampF(v, 0.50f, 1.50f);
+        }
+        else if (strcmp(key, "world_hscale") == 0)
+        {
+            float v = (float)atof(value);
+            if (v > 0.0f) g_PcConfig.worldHScale = PcCfg_ClampF(v, 0.25f, 2.00f);
+        }
+        else if (strcmp(key, "world_vscale") == 0)
+        {
+            float v = (float)atof(value);
+            if (v > 0.0f) g_PcConfig.worldVScale = PcCfg_ClampF(v, 0.25f, 2.00f);
+        }
+        else if (strcmp(key, "pixel_aspect") == 0)
+        {
+            float v = (float)atof(value);
+            if (v > 0.0f) g_PcConfig.pixelAspect = PcCfg_ClampF(v, 0.50f, 2.00f);
         }
         else if (strcmp(key, "display_aspect") == 0)
         {
