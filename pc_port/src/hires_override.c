@@ -1102,7 +1102,8 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
      * and recycled throughout this file, and a slot row that last took a BC7
      * upload reports a COMPRESSED internal format here (a sub-image into it
      * would fail), so only GL's own answer is trustworthy. */
-    int reuseStorage;
+    int reuseStorage = 0;
+#if !defined(__ANDROID__) && !defined(RENDERER_OGLES)
     if (g_grCaps.texLevelParam)
     {
         GLint curW = 0, curH = 0, curFmt = 0;
@@ -1121,6 +1122,7 @@ static int upload_rgba(GLuint* tex, const unsigned char* rgba, int w, int h, int
          * compressed level is the exact failure this check exists to avoid. */
         reuseStorage = 0;
     }
+#endif
 
     if (reuseStorage)
     {
