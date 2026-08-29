@@ -120,24 +120,32 @@ s_PcConfig g_PcConfig = {
      * 0.92) was cancelling the fabricated 3/4 world-Y squash in GsIDMATRIX2,
      * not correcting a real aspect error. That squash is gone, so these are
      * the honest numbers. */
-    /* Paired with vfov 1.06 so Advanced still lands on Simple's picture:
-     * Simple's shape is 0.93333 x 0.98 = 0.9147, and Advanced's is
-     * hfov x vfov / par, so hfov = 0.9147 x 1.09375 / 1.06 = 0.944. Unlike
-     * every earlier sub-1.0 value here, this one is not cancelling a bug --
-     * it is just the arithmetic of vfov feeding the shape in Advanced but not
-     * in Simple. At vfov 1.0 it would be exactly 1.0. */
-    .worldHScale         = 0.944f,
-    /* 1.06 is a uniform zoom OUT of 6% (Simple holds the shape fixed, so FOV
-     * scales both axes together). It is close to 240/224 = 1.0714, which is
-     * the geometric value: the console draws 224 lines inside a 240-line
-     * raster and a TV fills the screen with the 240, so the picture occupies
-     * 224/240 of the screen height there while the port fills the window with
-     * the 224 rows. 1.06 is what matched the set side by side, and the eye has
-     * beaten the arithmetic on this every time, so it is what ships.
-     * NOTE: vcropanchor is 0 (top-anchored), so the extra 13 rows all appear
-     * at the BOTTOM and the picture rides ~13 rows high. 0.5 splits them, which
-     * is what a centred 224-in-240 raster actually does -- worth one A/B. */
-    .worldVScale         = 1.06f,
+    /* 1.0 = the console picture, and derivable rather than eyeballed.
+     * DuckStation renders the 320x224 frame at 465x357 (exactsize.png), an
+     * on-screen pixel aspect of 0.9118, and shape = hfov x vfov / par, so
+     * hfov x vfov = 0.9118 x 1.09375 = 0.997. With vfov back at 1.0 this is
+     * 1.0, which also puts Advanced on Simple's 0.93333 x 0.98 = 0.9147.
+     *
+     * Every sub-1.0 value this ever held (0.872, 0.76 = 0.872^2, 0.92) was
+     * cancelling the fabricated 3/4 world-Y squash in GsIDMATRIX2, not
+     * correcting a real aspect error; 0.944 was the arithmetic of pairing it
+     * with vfov 1.06. Both reasons are gone. */
+    .worldHScale         = 1.0f,
+    /* 1.0 = the console's field of view exactly: 224 rows of world, the same
+     * 224 the frame holds. FOV is a uniform zoom in Simple (the shape is held
+     * by the trim), so anything above 1.0 shows MORE world than the console
+     * ever did -- 1.06 showed 237 rows, and that extra 13 is why more of a
+     * background poster was visible than on a real set.
+     *
+     * The "match a TV at 1.06" reasoning does not survive inspection: a set
+     * that underscans shows the picture smaller inside the tube while still
+     * showing the console's 224 rows. It reveals BLACK, where this knob
+     * reveals GEOMETRY. It matched apparent size and missed field of view.
+     *
+     * 1.0 also removes a whole bug class: the item-take screen pins its ortho
+     * to vscale 1, so any other vfov makes its aspect solve disagree with what
+     * it renders (the tall, thin pickups). At 1.0 they are the same number. */
+    .worldVScale         = 1.0f,
     .pixelAspect         = 35.0f / 32.0f, /* raw mode only: the 350x240 NTSC dot */
     .worldVShift         = 0.0f,       /* the console anchor needs no correction */
     .mouseSensitivity        = 1.0f,
