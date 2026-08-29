@@ -3296,12 +3296,24 @@ void MainLoop(void) // 0x80032EE0
             extern float g_PsxWorldVShift;
             extern float g_PsxCutsceneVShift;
             extern int   g_PcPickupItemActive;
-            /* Console vertical anchor: real GsInit3D centres the projection on
-             * the 240-line SCREEN (OFY 120); PsyCross's draw offset carries
-             * 112, so every state needs +8 to land where the console did.
-             * This block runs every frame in every state, so the base lives
-             * here (the GsInit3D boot value is stomped by this assert). The
-             * knobs (vshift/cutshift) are deltas ON TOP of the anchor. */
+            /* Console vertical anchor. The "real GsInit3D centres on the
+             * 240-line SCREEN (OFY 120)" this comment used to claim is NOT what
+             * retail does -- disassembled 2026-08-29, GsInit3D (0x8009543C)
+             * computes POSITION = (HWD0/2, VWD0/2) = (160, 112) from the
+             * GsInitGraph args, and GsSetDrawBuffOffset (0x80094CB4) then calls
+             * SetGeomOffset(POSITION.x + PSDOFSX[idx], POSITION.y + PSDOFSY[idx]),
+             * where PSDOFS is the DRAW BUFFER's VRAM origin. So console's OFY is
+             * 112 plus wherever the back buffer sits, and this +8 is a
+             * compensation for how PsyCross carries that origin instead, not a
+             * console constant.
+             *
+             * It is left at 8 because that is what was validated on screen, but
+             * it was validated while GsIDMATRIX2 still squashed the world to 75%
+             * vertically (fixed 2026-08-29), so it is the first thing to re-check
+             * against a console capture now that the picture is a third taller.
+             * This block runs every frame in every state, so the base lives here
+             * (the GsInit3D boot value is stomped by this assert). The knobs
+             * (vshift/cutshift) are deltas ON TOP of the anchor. */
 #define PC_GTE_BASE_OFY 8
             static s32   s_heldWorldOfy = PC_GTE_BASE_OFY;
             s32 ofy = PC_GTE_BASE_OFY;

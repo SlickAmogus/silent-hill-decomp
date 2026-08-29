@@ -7,7 +7,8 @@
  * post-capture hook, updated on the game thread. Rows are the live-applying
  * subset of the PC Options screen (driven through the PcOpt_Quick* API in
  * options.c, so labels / cycling / config saving are the same code) plus a few
- * settings that live elsewhere (shadow resolution, speaker layout, volumes).
+ * settings that live elsewhere (shadow resolution, speaker layout, volumes,
+ * and the View & Aspect page's display-aspect / CRT trim / hfov / vfov / par).
  * While open the game is frozen the way the console freezes it -- every site
  * that reads g_PcConsoleInputActive also reads g_PcQuickOptionsActive.
  */
@@ -19,6 +20,10 @@ int  Pc_QuickOptions_IsOpen(void);
 /* Same as IsOpen, as a plain global for the freeze sites (game_main.c,
  * control_style.c, pc_combat.c) that already read g_PcConsoleInputActive. */
 extern int g_PcQuickOptionsActive;
+
+/* The View page shows a different row set per Control Type; call this when
+ * that changes so the cached per-row text is rebuilt. */
+void Pc_QuickOptions_InvalidateRows(void);
 
 void Pc_QuickOptions_Toggle(void);
 void Pc_QuickOptions_Close(void);

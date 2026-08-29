@@ -20,6 +20,10 @@ typedef struct
     int mode;
     int rate;
     int bitPerfect;
+    /* audio_spatial: run the software SPU through OpenAL placement so its
+     * accurate reverb reaches surround layouts. Software renderers only --
+     * the legacy backend already has its own speaker handling. */
+    int spatial;
 } PcAudioConfig;
 
 extern PcAudioConfig g_PcAudioConfig;

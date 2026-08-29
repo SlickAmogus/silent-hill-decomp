@@ -15,7 +15,11 @@ PcAudioConfig g_PcAudioConfig = {
 #else
     PC_SPU_RENDERER_LEGACY,
 #endif
-    0, 0, 0, 0, 1, 0, 0
+    0, 0, 0, 0, 1, 0, 0,
+    /* spatial: OpenAL placement for the software SPU. There is no OpenAL
+     * at all on a SH_NO_OPENAL build, so it stays off there whatever the
+     * config says -- see PcAudioConfig_Load. */
+    0
 };
 
 static char* Trim(char* text)
@@ -98,6 +102,8 @@ void PcAudioConfig_Load(const char* path)
                 rate == 44100 || rate == 88200 || rate == 176400 ||
                 rate == 352800 ? rate : 0;
         }
+        else if (strcmp(key, "audio_spatial") == 0)
+            g_PcAudioConfig.spatial = atoi(value) != 0;
         else if (strcmp(key, "audio_bit_perfect") == 0)
             g_PcAudioConfig.bitPerfect = atoi(value) != 0;
     }
@@ -106,6 +112,16 @@ void PcAudioConfig_Load(const char* path)
     if (PcAudioConfig_UsesSoftwareSpu() && g_PcAudioConfig.rate == 0)
         g_PcAudioConfig.rate =
             g_PcAudioConfig.renderer == PC_SPU_RENDERER_AUTHENTIC ? 44100 : 176400;
+
+#if defined(SH_NO_OPENAL)
+    /* Spatial output IS OpenAL placement, and this build has no OpenAL --
+     * PsyX_SPUSpatial.cpp is not even compiled. Clear it here rather than
+     * letting the request travel: SpuInit would try to start it, fail, warn,
+     * and fall back to the stereo sink on every launch, which reads like a
+     * fault rather than a configuration that cannot apply. Same reasoning as
+     * the renderer clamp in PcAudioConfig_UsesSoftwareSpu below. */
+    g_PcAudioConfig.spatial = 0;
+#endif
 }
 
 int PcAudioConfig_UsesSoftwareSpu(void)

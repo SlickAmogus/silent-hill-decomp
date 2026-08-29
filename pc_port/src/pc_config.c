@@ -7,6 +7,12 @@
 #include <stddef.h>
 #include "xa_player.h"
 
+static float PcCfg_ClampF(float v, float lo, float hi)
+{
+    return (v < lo) ? lo : ((v > hi) ? hi : v);
+}
+
+
 s_PcConfig g_PcConfig = {
     .windowWidth    = 640,
     .windowHeight   = 480,
@@ -107,6 +113,43 @@ s_PcConfig g_PcConfig = {
     .tpsFov              = 71.1f, /* thirdperson/OTS FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
     .tpsAimZoom          = 100.0f, /* default aim dolly = the original zoom; 200 = 2x zoom, 0 = no zoom */
     .reverbScale         = 0.0f, /* 0 = PsyCross default depth->wet scale */
+    /* View & aspect. The console picture is NOT a 4:3 stretch of the 224-line
+     * frame: the frame is scanned inside a larger visible area, and DuckStation
+     * renders the game's 320x224 at 465x357 = 1.3025:1, not 1.3333:1. That is
+     * an on-screen pixel aspect of 0.9118, and Simple's shape is
+     * (4:3)/(320/224) x trim = 0.93333 x trim, so console = 0.977. 0.98 both
+     * rounds it and lands within 0.05% of Advanced's hfov 1.0, so the two
+     * Control Types agree out of the box. */
+    .aspectRaw           = 0,          /* crt: the framebuffer scanned out to 4:3 */
+    .crtAspectTrim       = 0.98f,
+    /* 1.0 = the console picture, and now derivable rather than eyeballed.
+     * DuckStation's game area measures 465x357 for the 320x224 frame
+     * (exactsize.png), i.e. an on-screen pixel aspect of 0.9118, and
+     * shape = hfov x vfov / par, so hfov x vfov = 0.9118 x 1.09375 = 0.997.
+     * Every value below 1.0 this ever had (0.872, then 0.76 = 0.872^2, then
+     * 0.92) was cancelling the fabricated 3/4 world-Y squash in GsIDMATRIX2,
+     * not correcting a real aspect error. That squash is gone, so these are
+     * the honest numbers. */
+    /* Paired with vfov 1.06 so Advanced still lands on Simple's picture:
+     * Simple's shape is 0.93333 x 0.98 = 0.9147, and Advanced's is
+     * hfov x vfov / par, so hfov = 0.9147 x 1.09375 / 1.06 = 0.944. Unlike
+     * every earlier sub-1.0 value here, this one is not cancelling a bug --
+     * it is just the arithmetic of vfov feeding the shape in Advanced but not
+     * in Simple. At vfov 1.0 it would be exactly 1.0. */
+    .worldHScale         = 0.944f,
+    /* 1.06 is a uniform zoom OUT of 6% (Simple holds the shape fixed, so FOV
+     * scales both axes together). It is close to 240/224 = 1.0714, which is
+     * the geometric value: the console draws 224 lines inside a 240-line
+     * raster and a TV fills the screen with the 240, so the picture occupies
+     * 224/240 of the screen height there while the port fills the window with
+     * the 224 rows. 1.06 is what matched the set side by side, and the eye has
+     * beaten the arithmetic on this every time, so it is what ships.
+     * NOTE: vcropanchor is 0 (top-anchored), so the extra 13 rows all appear
+     * at the BOTTOM and the picture rides ~13 rows high. 0.5 splits them, which
+     * is what a centred 224-in-240 raster actually does -- worth one A/B. */
+    .worldVScale         = 1.06f,
+    .pixelAspect         = 35.0f / 32.0f, /* raw mode only: the 350x240 NTSC dot */
+    .worldVShift         = 0.0f,       /* the console anchor needs no correction */
     .mouseSensitivity        = 1.0f,
     .controllerSensitivity   = 1.0f,
 
@@ -924,6 +967,35 @@ void PcConfig_Load(const char* path)
             if (v < 55.0f)  v = 55.0f;
             if (v > 110.0f) v = 110.0f;
             g_PcConfig.fpsFov = v;
+        }
+        else if (strcmp(key, "crt_aspect_trim") == 0)
+        {
+            float v = (float)atof(value);
+            if (v > 0.0f) g_PcConfig.crtAspectTrim = PcCfg_ClampF(v, 0.50f, 1.50f);
+        }
+        else if (strcmp(key, "world_hscale") == 0)
+        {
+            float v = (float)atof(value);
+            if (v > 0.0f) g_PcConfig.worldHScale = PcCfg_ClampF(v, 0.25f, 2.00f);
+        }
+        else if (strcmp(key, "world_vscale") == 0)
+        {
+            float v = (float)atof(value);
+            if (v > 0.0f) g_PcConfig.worldVScale = PcCfg_ClampF(v, 0.25f, 2.00f);
+        }
+        else if (strcmp(key, "pixel_aspect") == 0)
+        {
+            float v = (float)atof(value);
+            if (v > 0.0f) g_PcConfig.pixelAspect = PcCfg_ClampF(v, 0.50f, 2.00f);
+        }
+        else if (strcmp(key, "world_vshift") == 0)
+        {
+            g_PcConfig.worldVShift = PcCfg_ClampF((float)atof(value), -60.0f, 60.0f);
+        }
+        else if (strcmp(key, "display_aspect") == 0)
+        {
+            g_PcConfig.aspectRaw = (strcmp(value, "raw") == 0 ||
+                                    strcmp(value, "accurate") == 0) ? 1 : 0;
         }
         else if (strcmp(key, "reverb_scale") == 0)
         {
