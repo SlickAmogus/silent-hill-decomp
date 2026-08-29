@@ -549,7 +549,7 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         snprintf(buf, bufsz, "%d / 16", g_GameWork.config.volumeSe / 8);
         return buf;
     case QO_X_ASPECT:
-        return g_PcConfig.aspectRaw ? "Original" : "CRT_4:3";
+        return g_PcConfig.aspectRaw ? "Original" : "CRT 4:3";
     case QO_X_CRTTRIM:
         snprintf(buf, bufsz, "%.2f", g_PcConfig.crtAspectTrim);
         return buf;
