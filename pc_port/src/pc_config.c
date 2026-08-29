@@ -110,7 +110,13 @@ s_PcConfig g_PcConfig = {
      * value that matched a real CRT side by side. */
     .aspectRaw           = 0,          /* crt: the framebuffer scanned out to 4:3 */
     .crtAspectTrim       = 0.9f,
-    .worldHScale         = 0.76f,      /* 0.872^2, the shipped Hor+ horizontal framing */
+    /* 0.92 puts Advanced on the same picture as Simple's 0.90 trim
+     * (shape = hfov x vfov / par = 0.92 / 1.09375 = 0.841, and
+     * Simple's = (4:3)/(320/224) x 0.90 = 0.840), so the two Control Types
+     * agree out of the box. The 0.76 that shipped before was 0.872 squared,
+     * carried forward from a chain of eyeball corrections; it renders 21%
+     * narrower than this, which is the "too thin" everyone kept reporting. */
+    .worldHScale         = 0.92f,
     .worldVScale         = 1.0f,       /* full 224-row frame, no vertical crop */
     .pixelAspect         = 35.0f / 32.0f, /* raw mode only: the 350x240 NTSC dot */
     .worldVShift         = 0.0f,       /* the console anchor needs no correction */

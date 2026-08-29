@@ -528,6 +528,13 @@ void PcOpt_QuickAdjust(const void* h, int dir)
 enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT };
 
+/* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
+ * pixel lands on screen this many times wider than tall at trim 1.0. It is the
+ * bridge between the two Control Types. */
+#define PCOPT_CRT_SHAPE ((4.0f / 3.0f) / (320.0f / 224.0f))
+
+extern void Pc_QuickOptions_InvalidateRows(void);
+
 static const int         QO_SHADOW_SIZES[] = { 256, 512, 1024, 2048, 4096, 8192 };
 static const char* const QO_SPEAKER_LBL[]  = { "Auto", "Stereo", "Quad", "5.1", "7.1" };
 static const char* const QO_SPEAKER_IDS[]  = { "auto", "stereo", "quad", "51", "71" };
@@ -549,23 +556,23 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         snprintf(buf, bufsz, "%d / 16", g_GameWork.config.volumeSe / 8);
         return buf;
     case QO_X_ASPECT:
-        return g_PcConfig.aspectRaw ? "Original" : "CRT 4:3";
+        return g_PcConfig.aspectRaw ? "Advanced" : "Simple";
+    /* Advanced gets its shape from hfov x vfov / par instead, so the trim is
+      * inert there and says so rather than reading as a knob that failed. */
     case QO_X_CRTTRIM:
-        snprintf(buf, bufsz, "%.2f", g_PcConfig.crtAspectTrim);
+        snprintf(buf, bufsz, g_PcConfig.aspectRaw ? "%.2f  (simple)" : "%.2f",
+                 g_PcConfig.crtAspectTrim);
         return buf;
-    /* In CRT mode the pixel-aspect solve divides hfov straight back out, so
-      * the row genuinely does nothing there; par is read by raw only. Say so
-      * in the value rather than letting a player tune a dead knob. */
+    /* Simple hides this row entirely: its pixel-aspect solve divides hfov
+      * straight back out, so the knob genuinely does nothing there. */
     case QO_X_HFOV:
-        snprintf(buf, bufsz, g_PcConfig.aspectRaw ? "%.2f" : "%.2f  (raw)",
-                 g_PcConfig.worldHScale);
+        snprintf(buf, bufsz, "%.2f", g_PcConfig.worldHScale);
         return buf;
     case QO_X_VFOV:
         snprintf(buf, bufsz, "%.2f", g_PcConfig.worldVScale);
         return buf;
     case QO_X_PAR:
-        snprintf(buf, bufsz, g_PcConfig.aspectRaw ? "%.3f" : "%.3f  (raw)",
-                 g_PcConfig.pixelAspect);
+        snprintf(buf, bufsz, "%.3f", g_PcConfig.pixelAspect);
         return buf;
     case QO_X_VSHIFT:
         snprintf(buf, bufsz, "%+d rows", (int)g_PcConfig.worldVShift);
@@ -643,8 +650,9 @@ void PcOpt_QuickViewReset(void)
     snprintf(buf, sizeof(buf), "%.0f", g_PcConfig.worldVShift);
     PcConfig_SaveKeyValue("world_vshift", buf);
 
+    Pc_QuickOptions_InvalidateRows();
     Sd_PlaySfx(Sfx_MenuMove, 0, 64);
-    SH_LOG("View reset: aspect %s, trim %.2f, hfov %.2f, vfov %.2f, vshift %+d, par %.3f",
+    SH_LOG("View reset: control type %s, trim %.2f, hfov %.2f, vfov %.2f, vshift %+d, par %.3f",
            g_PcConfig.aspectRaw ? "raw" : "crt", g_PcConfig.crtAspectTrim,
            g_PcConfig.worldHScale, g_PcConfig.worldVScale,
            (int)g_PcConfig.worldVShift, g_PcConfig.pixelAspect);
@@ -682,11 +690,48 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         break;
     }
     case QO_X_ASPECT: {
-        extern int g_PsxAspectRaw;
+        /* Switching Control Type must not move the picture. The two modes reach
+         * the same on-screen pixel aspect by different routes --
+         *   Simple:   shape = PCOPT_CRT_SHAPE x trim
+         *   Advanced: shape = hfov x vfov / par
+         * -- so carry the current shape across into whichever knob the new mode
+         * owns. Only the controls you are handed change; the render does not,
+         * and the conversion round-trips exactly. */
+        extern int   g_PsxAspectRaw;
+        extern float g_PsxWorldHScale;
+        extern float g_PsxCrtAspectTrim;
+        float vf  = (g_PcConfig.worldVScale > 0.0f) ? g_PcConfig.worldVScale : 1.0f;
+        float par = (g_PcConfig.pixelAspect > 0.0f) ? g_PcConfig.pixelAspect : 1.0f;
+        char  buf[24];
+
+        if (!g_PcConfig.aspectRaw)
+        {
+            float hf = (PCOPT_CRT_SHAPE * g_PcConfig.crtAspectTrim) * par / vf;
+            if (hf < 0.25f) hf = 0.25f;
+            if (hf > 2.00f) hf = 2.00f;
+            g_PcConfig.worldHScale = hf;
+            g_PsxWorldHScale       = hf;
+            snprintf(buf, sizeof(buf), "%.3f", hf);
+            PcConfig_SaveKeyValue("world_hscale", buf);
+        }
+        else
+        {
+            float tr = (g_PcConfig.worldHScale * vf / par) / PCOPT_CRT_SHAPE;
+            if (tr < 0.50f) tr = 0.50f;
+            if (tr > 1.50f) tr = 1.50f;
+            g_PcConfig.crtAspectTrim = tr;
+            g_PsxCrtAspectTrim       = tr;
+            snprintf(buf, sizeof(buf), "%.3f", tr);
+            PcConfig_SaveKeyValue("crt_aspect_trim", buf);
+        }
+
         g_PcConfig.aspectRaw = !g_PcConfig.aspectRaw;
         g_PsxAspectRaw       = g_PcConfig.aspectRaw;
         PcConfig_SaveKeyValue("display_aspect", g_PcConfig.aspectRaw ? "raw" : "crt");
-        SH_LOG("View: display_aspect = %s", g_PcConfig.aspectRaw ? "raw" : "crt");
+        Pc_QuickOptions_InvalidateRows(); /* the page shows a different row set */
+        SH_LOG("View: control type = %s  (trim %.3f, hfov %.3f, vfov %.2f, par %.3f)",
+               g_PcConfig.aspectRaw ? "advanced" : "simple", g_PcConfig.crtAspectTrim,
+               g_PcConfig.worldHScale, g_PcConfig.worldVScale, g_PcConfig.pixelAspect);
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     }

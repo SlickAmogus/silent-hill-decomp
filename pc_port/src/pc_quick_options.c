@@ -106,15 +106,31 @@ static const QoRowDef s_page1[] = {
     { ROW_CLOSE, NULL, 0,                   "Close" },
 };
 
-/* View & Aspect. Display Aspect picks the whole model -- CRT scans the frame
- * out to 4:3 the way a television did, Original keeps the framebuffer at the
- * Pixel Aspect below -- and CRT Aspect Trim is the few percent of overscan the
- * geometry cannot settle. Horizontal/Vertical FOV only change how much world
- * is on screen: in CRT mode they are divided back out of the pixel aspect, so
- * they cannot squash the picture. Pixel Aspect is read by Original only. */
-static const QoRowDef s_page2[] = {
-    { ROW_EXTRA,  NULL, QO_X_ASPECT,       "Display Aspect" },
-    { ROW_EXTRA,  NULL, QO_X_CRTTRIM,      "CRT Aspect Trim" },
+/* View & Aspect, in two shapes.
+ *
+ * Control Type picks how much rope the player gets, and the page then shows
+ * ONLY the knobs that mode actually reads. Simple owns the shape with one
+ * value (Aspect Trim) because its pixel-aspect solve divides hfov straight
+ * back out and never reads par -- both rows would sit there doing nothing.
+ * Advanced multiplies its own shape out of hfov x vfov / par instead, which is
+ * what the released builds did, so there the trim is the inert one.
+ *
+ * FOV is the same knob in both (the world's vertical ortho); it is named for
+ * what it does rather than for the axis it is implemented on, since in Simple
+ * it zooms both axes together with the shape held fixed. */
+static const QoRowDef s_page2Simple[] = {
+    { ROW_EXTRA,  NULL, QO_X_ASPECT,       "Control Type" },
+    { ROW_EXTRA,  NULL, QO_X_CRTTRIM,      "Aspect Trim" },
+    { ROW_EXTRA,  NULL, QO_X_VFOV,         "FOV" },
+    { ROW_EXTRA,  NULL, QO_X_VSHIFT,       "Vertical Shift" },
+    { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
+    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
+    { ROW_CLOSE,  NULL, 0,                 "Close" },
+};
+
+static const QoRowDef s_page2Advanced[] = {
+    { ROW_EXTRA,  NULL, QO_X_ASPECT,       "Control Type" },
+    { ROW_EXTRA,  NULL, QO_X_CRTTRIM,      "Aspect Trim" },
     { ROW_EXTRA,  NULL, QO_X_HFOV,         "Horizontal FOV" },
     { ROW_EXTRA,  NULL, QO_X_VFOV,         "Vertical FOV" },
     { ROW_EXTRA,  NULL, QO_X_VSHIFT,       "Vertical Shift" },
@@ -123,6 +139,27 @@ static const QoRowDef s_page2[] = {
     { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
     { ROW_CLOSE,  NULL, 0,                 "Close" },
 };
+
+/* Set when the row SET changes under the cached text (a Control Type switch,
+ * or a reset that flips it back). Every label is cached by row index, so the
+ * page has to re-bake or Advanced's extra rows would draw Simple's words. */
+static int s_viewRowsDirty;
+
+void Pc_QuickOptions_InvalidateRows(void)
+{
+    s_viewRowsDirty = 1;
+}
+
+static const QoRowDef* qo_view_page(int* count)
+{
+    if (g_PcConfig.aspectRaw)
+    {
+        *count = (int)(sizeof(s_page2Advanced) / sizeof(s_page2Advanced[0]));
+        return s_page2Advanced;
+    }
+    *count = (int)(sizeof(s_page2Simple) / sizeof(s_page2Simple[0]));
+    return s_page2Simple;
+}
 
 /* Pages 2/3 mirror pc_cheats.c's tables, built on first use. */
 static QoRowDef s_cheatRows[2][QO_MAX_ROWS];
@@ -154,7 +191,7 @@ static const QoRowDef* qo_cheat_page(int cpage, const char* nextLabel, int* coun
 static const QoRowDef* qo_page_rows(int page, int* count)
 {
     if (page == 1) { *count = (int)(sizeof(s_page1) / sizeof(s_page1[0])); return s_page1; }
-    if (page == 2) { *count = (int)(sizeof(s_page2) / sizeof(s_page2[0])); return s_page2; }
+    if (page == 2) return qo_view_page(count);
     if (page == 3) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
     if (page == 4) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Graphics)", count);
     *count = (int)(sizeof(s_page0) / sizeof(s_page0[0]));
@@ -1187,6 +1224,11 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     int mMoved, mClick, mRClick, wheel;
     float mx, my;
 
+    /* Advanced has two rows Simple does not, so a switch while parked on one of
+     * them would leave the cursor past the end of the array. */
+    if (s_sel >= nRows) s_sel = nRows - 1;
+    if (s_sel < 0)      s_sel = 0;
+
     up    = qo_repeat(0, up);
     down  = qo_repeat(1, down);
     left  = qo_repeat(2, left);
@@ -1457,11 +1499,18 @@ void Pc_QuickOptions_Draw(void)
     }
     if (!s_fontsTried) qo_fonts_init();
 
-    /* A bake failed for want of atlas room. Drop every cached handle so the
-     * page rebuilds from an empty atlas this frame rather than drawing gaps
-     * for the rest of the session. qo_free_text clears the flag. */
-    if (s_atlasExhausted)
+    if (s_sel >= nRows) s_sel = nRows - 1;
+    if (s_sel < 0)      s_sel = 0;
+
+    /* Either a bake failed for want of atlas room, or the Control Type switch
+     * changed which rows this page has. Both are fixed the same way: drop every
+     * cached handle so the page rebuilds from an empty atlas this frame, rather
+     * than drawing gaps or the previous mode's labels. */
+    if (s_atlasExhausted || s_viewRowsDirty)
+    {
+        s_viewRowsDirty = 0;
         qo_free_text();
+    }
 
     glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);

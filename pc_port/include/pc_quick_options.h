@@ -21,6 +21,10 @@ int  Pc_QuickOptions_IsOpen(void);
  * control_style.c, pc_combat.c) that already read g_PcConsoleInputActive. */
 extern int g_PcQuickOptionsActive;
 
+/* The View page shows a different row set per Control Type; call this when
+ * that changes so the cached per-row text is rebuilt. */
+void Pc_QuickOptions_InvalidateRows(void);
+
 void Pc_QuickOptions_Toggle(void);
 void Pc_QuickOptions_Close(void);
 
