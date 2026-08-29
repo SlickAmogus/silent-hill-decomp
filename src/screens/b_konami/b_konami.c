@@ -579,7 +579,7 @@ void BootScreen_KonamiScreenDraw(void) // 0x800C9FB8
 #endif
 
 #ifdef SH_PC_PORT
-    if (s_dbgFrame == 300)
+    if (s_dbgFrame == 5 || s_dbgFrame == 90)
     {
         /* TEMPORARY [SPLITDBG]: arm PsyCross to report this frame's splits. */
         extern int g_PsxSplitDbg;
