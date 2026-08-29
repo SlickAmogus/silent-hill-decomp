@@ -359,28 +359,38 @@ static unsigned qo_hash(const unsigned char* p, size_t n);
 #define QO_ATLAS_W    2048
 #define QO_ATLAS_H    1024
 #define QO_ATLAS_PAD  2
-#define QO_SLOT_MAX   96
+/* One open dropdown alone caches QO_DD_MAX (64) entries, and a 16-row page
+ * holds a label and a value each: the old 96 could be exhausted by the panel
+ * simply being open, never mind editing anything. */
+#define QO_SLOT_MAX   256
 
 static GLuint s_atlasTex;
 static int    s_atlasReady;
 static int    s_atlasX, s_atlasY, s_atlasRowH;
-static struct { int x, y, w, h; } s_slot[QO_SLOT_MAX];
+/* cw/ch is the rectangle the slot OWNS in the atlas; w/h is how much of it the
+ * current image uses. They differ after a slot is recycled by a shorter string,
+ * and only w/h feed the UVs, so the leftover pixels are never sampled. */
+static struct { int x, y, w, h, cw, ch, free; } s_slot[QO_SLOT_MAX];
 static int    s_slotCount;
+static int    s_atlasExhausted;
 
 /* Slot 0 is the solid white texel and is PERMANENT: the panel background,
  * the scrollbar and the row highlights all draw from it, and a reset that
  * handed slot 0 to the next label would repaint those with a word. */
 static void qo_atlas_reset(void)
 {
-    s_atlasX    = QO_ATLAS_PAD;
-    s_atlasY    = QO_ATLAS_PAD;
-    s_atlasRowH = 0;
-    s_slotCount = 0;
+    s_atlasX         = QO_ATLAS_PAD;
+    s_atlasY         = QO_ATLAS_PAD;
+    s_atlasRowH      = 0;
+    s_slotCount      = 0;
+    s_atlasExhausted = 0;
     if (s_atlasTex)
     {
         /* re-claim slot 0 in place, exactly as qo_atlas_ensure laid it out */
         s_slot[0].x = QO_ATLAS_PAD; s_slot[0].y = QO_ATLAS_PAD;
         s_slot[0].w = 1;            s_slot[0].h = 1;
+        s_slot[0].cw = 1;           s_slot[0].ch = 1;
+        s_slot[0].free = 0;
         s_slotCount = 1;
         s_atlasX    = QO_ATLAS_PAD + 1 + QO_ATLAS_PAD;
         s_atlasRowH = 1;
@@ -429,10 +439,39 @@ static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int neares
 
     (void)nearest; /* one atlas, one filter; padding covers the bleed */
 
-    if (!qo_atlas_ensure() || w <= 0 || h <= 0 || s_slotCount >= QO_SLOT_MAX)
+    if (!qo_atlas_ensure() || w <= 0 || h <= 0)
         return 0;
     if (w > QO_ATLAS_W - 2 * QO_ATLAS_PAD || h > QO_ATLAS_H - 2 * QO_ATLAS_PAD)
         return 0;
+
+    /* Recycle first. Editing a value re-bakes it on EVERY step, so a held
+     * arrow key used to burn one slot per step and never give it back -- the
+     * atlas ran out, this returned 0, and the number the player was adjusting
+     * simply stopped drawing. A re-baked value is nearly always the same size
+     * as the one it replaces, so the slot it just released fits it exactly.
+     * Best fit, so a short string does not claim a long string's rectangle. */
+    {
+        int bestIdx = -1, bestArea = 0;
+        for (idx = 1; idx < s_slotCount; idx++)
+        {
+            int area;
+            if (!s_slot[idx].free || s_slot[idx].cw < w || s_slot[idx].ch < h)
+                continue;
+            area = s_slot[idx].cw * s_slot[idx].ch;
+            if (bestIdx < 0 || area < bestArea) { bestIdx = idx; bestArea = area; }
+        }
+        if (bestIdx >= 0)
+        {
+            s_slot[bestIdx].w    = w;
+            s_slot[bestIdx].h    = h;
+            s_slot[bestIdx].free = 0;
+            glBindTexture(GL_TEXTURE_2D, s_atlasTex);
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+            glTexSubImage2D(GL_TEXTURE_2D, 0, s_slot[bestIdx].x, s_slot[bestIdx].y,
+                            w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+            return (GLuint)(bestIdx + 1);
+        }
+    }
 
     if (s_atlasX + w + QO_ATLAS_PAD > QO_ATLAS_W)
     {
@@ -440,14 +479,27 @@ static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int neares
         s_atlasY    += s_atlasRowH + QO_ATLAS_PAD;
         s_atlasRowH  = 0;
     }
-    if (s_atlasY + h + QO_ATLAS_PAD > QO_ATLAS_H)
-        return 0; /* full: caller simply draws nothing this pass */
+    /* Out of slots or out of atlas. Never draw nothing and never say nothing:
+     * the flag makes the next Draw drop every cached handle and re-bake the
+     * page from an empty atlas, which costs one frame and always recovers. */
+    if (s_slotCount >= QO_SLOT_MAX ||
+        s_atlasY + h + QO_ATLAS_PAD > QO_ATLAS_H)
+    {
+        if (!s_atlasExhausted)
+            SH_DBG("[QOTEX] atlas exhausted (%d slots, cursor %d,%d) -- rebuilding",
+                   s_slotCount, s_atlasX, s_atlasY);
+        s_atlasExhausted = 1;
+        return 0;
+    }
 
     idx = s_slotCount++;
-    s_slot[idx].x = s_atlasX;
-    s_slot[idx].y = s_atlasY;
-    s_slot[idx].w = w;
-    s_slot[idx].h = h;
+    s_slot[idx].x  = s_atlasX;
+    s_slot[idx].y  = s_atlasY;
+    s_slot[idx].w  = w;
+    s_slot[idx].h  = h;
+    s_slot[idx].cw = w;
+    s_slot[idx].ch = h;
+    s_slot[idx].free = 0;
 
     glBindTexture(GL_TEXTURE_2D, s_atlasTex);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -480,7 +532,12 @@ static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int neares
  * belongs in a release build. */
 static void qo_retire(GLuint tex)
 {
-    (void)tex;
+    int idx = (int)tex - 1;
+
+    /* Slot 0 is the permanent white texel; freeing it would hand the panel
+     * background to the next string that fits in one pixel. */
+    if (idx > 0 && idx < s_slotCount)
+        s_slot[idx].free = 1;
 }
 
 /* Nothing is queued for deletion any more (see qo_retire); kept so the draw
@@ -1398,6 +1455,12 @@ void Pc_QuickOptions_Draw(void)
         qo_build_white();
     }
     if (!s_fontsTried) qo_fonts_init();
+
+    /* A bake failed for want of atlas room. Drop every cached handle so the
+     * page rebuilds from an empty atlas this frame rather than drawing gaps
+     * for the rest of the session. qo_free_text clears the flag. */
+    if (s_atlasExhausted)
+        qo_free_text();
 
     glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
