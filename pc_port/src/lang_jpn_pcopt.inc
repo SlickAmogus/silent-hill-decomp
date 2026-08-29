@@ -72,3 +72,11 @@
 { "External",            "\212\117\225\224",                      }, /* 外部 */
 { "In_Game",             "\203\121\201\133\203\200\223\340",      }, /* ゲーム内 */
 { "Both",                "\227\274\225\373",                      }, /* 両方 */
+/* Layout overrides, not new rows: these two keys ALSO exist in
+ * lang_jpn_menu.inc, and Pc_JpnMenuText checks this table first so the short
+ * form wins in Japanese. Retail's wording is a full sentence
+ * ("BGMのボリュームを調節します", 15 glyphs = 180 px from the label origin at
+ * x=121) and the port's volume bar starts at 212, so the sentence ran straight
+ * through it. Chinese keeps the disc string -- it is 8 glyphs, which fits. */
+{ "BGM_Volume",          "\202\141\202\146\202\154\211\271\227\312", }, /* ＢＧＭ音量 */
+{ "SE_Volume",           "\202\162\202\144\211\271\227\312",      }, /* ＳＥ音量 */

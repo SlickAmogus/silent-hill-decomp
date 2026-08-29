@@ -238,26 +238,30 @@ const char* Pc_JpnMenuText(const char* us)
     if (us == NULL)
         return NULL;
 
-    /* Disc strings first: they are the real thing in both languages. */
-    if (s_Active)
-    {
-        for (i = 0; i < JPN_MENU_COUNT; i++)
-        {
-            if (s_JpnMenu[i].us[0] == us[0] && strcmp(s_JpnMenu[i].us, us) == 0)
-                return s_Text[i];
-        }
-    }
-
-    /* Then the port's own rows. Not gated on s_Active -- these never came off
+    /* The port's own rows first. Not gated on s_Active -- these never came off
      * a disc, so they stand whether or not the overlays read. Gated on the
      * glyph set instead: under the Chinese font every kanji here would draw as
-     * an unrelated character, and English beats that. */
+     * an unrelated character, and English beats that.
+     *
+     * Ahead of the disc so this table can also OVERRIDE a disc string whose
+     * retail wording does not fit the port's layout (the BGM/SE volume rows,
+     * whose full sentence ran through the volume bar). Chinese still gets the
+     * disc string, which is what should happen: it is shorter and it is real. */
     if (!Pc_KanjiChineseActive())
     {
         for (i = 0; i < JPN_PCOPT_COUNT; i++)
         {
             if (s_JpnPcOpt[i].us[0] == us[0] && strcmp(s_JpnPcOpt[i].us, us) == 0)
                 return s_JpnPcOpt[i].jp;
+        }
+    }
+
+    if (s_Active)
+    {
+        for (i = 0; i < JPN_MENU_COUNT; i++)
+        {
+            if (s_JpnMenu[i].us[0] == us[0] && strcmp(s_JpnMenu[i].us, us) == 0)
+                return s_Text[i];
         }
     }
     return NULL;
