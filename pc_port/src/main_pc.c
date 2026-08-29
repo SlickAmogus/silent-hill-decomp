@@ -805,10 +805,12 @@ int main(int argc, char* argv[])
         extern float g_PsxWorldHScale;
         extern float g_PsxWorldVScale;
         extern float g_PsxWorldVShift;
+        extern float g_PsxCutsceneVShift;
         g_PsxPixelAspect = g_PcConfig.pixelAspect;
         g_PsxWorldHScale = g_PcConfig.worldHScale;
         g_PsxWorldVScale = g_PcConfig.worldVScale;
         g_PsxWorldVShift = g_PcConfig.worldVShift;
+        g_PsxCutsceneVShift = g_PcConfig.cutsceneVShift;
     }
 
     /* Apply widescreen mode to PsyCross. */

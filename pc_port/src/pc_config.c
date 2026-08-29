@@ -148,6 +148,7 @@ s_PcConfig g_PcConfig = {
     .worldVScale         = 1.0f,
     .pixelAspect         = 35.0f / 32.0f, /* raw mode only: the 350x240 NTSC dot */
     .worldVShift         = 0.0f,       /* the console anchor needs no correction */
+    .cutsceneVShift      = 0.0f,       /* cutscenes frame via letterbox bars; neutral by default */
     .mouseSensitivity        = 1.0f,
     .controllerSensitivity   = 1.0f,
 
@@ -974,6 +975,11 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "world_vshift") == 0)
         {
             g_PcConfig.worldVShift = PcCfg_ClampF((float)atof(value), -60.0f, 60.0f);
+        }
+
+        else if (strcmp(key, "cutscene_vshift") == 0)
+        {
+            g_PcConfig.cutsceneVShift = PcCfg_ClampF((float)atof(value), -60.0f, 60.0f);
         }
         else if (strcmp(key, "display_aspect") == 0)
         {

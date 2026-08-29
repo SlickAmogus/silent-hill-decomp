@@ -526,7 +526,8 @@ void PcOpt_QuickAdjust(const void* h, int dir)
  * (launcher / console only until now), the speaker layout and the two PSX
  * volumes (main Options menu rows). Same apply paths as those screens. */
 enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
-       QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT };
+       QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT,
+       QO_X_CUTSHIFT };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -577,6 +578,9 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
     case QO_X_VSHIFT:
         snprintf(buf, bufsz, "%+d rows", (int)g_PcConfig.worldVShift);
         return buf;
+    case QO_X_CUTSHIFT:
+        snprintf(buf, bufsz, "%+d rows", (int)g_PcConfig.cutsceneVShift);
+        return buf;
     default:
         return "";
     }
@@ -620,6 +624,7 @@ void PcOpt_QuickViewReset(void)
     extern float g_PsxWorldHScale;
     extern float g_PsxWorldVScale;
     extern float g_PsxWorldVShift;
+    extern float g_PsxCutsceneVShift;
     extern float g_PsxPixelAspect;
     const s_PcConfig* d = PcConfig_Defaults();
     char buf[24];
@@ -630,6 +635,7 @@ void PcOpt_QuickViewReset(void)
     g_PcConfig.worldVScale   = d->worldVScale;
     g_PcConfig.pixelAspect   = d->pixelAspect;
     g_PcConfig.worldVShift   = d->worldVShift;
+    g_PcConfig.cutsceneVShift = d->cutsceneVShift;
 
     g_PsxAspectRaw     = g_PcConfig.aspectRaw;
     g_PsxCrtAspectTrim = g_PcConfig.crtAspectTrim;
@@ -637,6 +643,7 @@ void PcOpt_QuickViewReset(void)
     g_PsxWorldVScale   = g_PcConfig.worldVScale;
     g_PsxPixelAspect   = g_PcConfig.pixelAspect;
     g_PsxWorldVShift   = g_PcConfig.worldVShift;
+    g_PsxCutsceneVShift = g_PcConfig.cutsceneVShift;
 
     PcConfig_SaveKeyValue("display_aspect", g_PcConfig.aspectRaw ? "raw" : "crt");
     snprintf(buf, sizeof(buf), "%.2f", g_PcConfig.crtAspectTrim);
@@ -649,6 +656,8 @@ void PcOpt_QuickViewReset(void)
     PcConfig_SaveKeyValue("pixel_aspect", buf);
     snprintf(buf, sizeof(buf), "%.0f", g_PcConfig.worldVShift);
     PcConfig_SaveKeyValue("world_vshift", buf);
+    snprintf(buf, sizeof(buf), "%.0f", g_PcConfig.cutsceneVShift);
+    PcConfig_SaveKeyValue("cutscene_vshift", buf);
 
     Pc_QuickOptions_InvalidateRows();
     Sd_PlaySfx(Sfx_MenuMove, 0, 64);
@@ -763,6 +772,14 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         extern float g_PsxWorldVShift;
         PcOpt_ViewStep(&g_PcConfig.worldVShift, &g_PsxWorldVShift,
                        "world_vshift", -60.0f, 60.0f, 1.0f, dir, 2);
+        break;
+    }
+    case QO_X_CUTSHIFT: {
+        /* Gameplay vshift is deliberately not applied during cutscenes (they
+         * frame via letterbox bars), so cutscenes carry their own delta. */
+        extern float g_PsxCutsceneVShift;
+        PcOpt_ViewStep(&g_PcConfig.cutsceneVShift, &g_PsxCutsceneVShift,
+                       "cutscene_vshift", -60.0f, 60.0f, 1.0f, dir, 2);
         break;
     }
     case QO_X_BGM:

@@ -1426,6 +1426,16 @@ void Pc_ConsoleExec(const char* line)
         g_PcConfig.usePgxp = g_PsxUsePgxp ? 1 : 0;
         PcConfig_SaveKeyValue("use_pgxp", g_PsxUsePgxp ? "1" : "0");
         cprintf("PGXP %s (perspective-correct, WIP)", g_PsxUsePgxp ? "ON" : "OFF");
+    } else if (strcmp(cmd, "WORLDDEPTH") == 0) {
+        /* worlddepth 0|1 -- depth function for static opaque world under PGXP.
+         * 1 = GL_ALWAYS (paint order alone decides), 0 = GL_LEQUAL (a nearer
+         * coplanar face wins whatever order it was drawn in). Live toggle for the
+         * central Silent Hill road flicker. */
+        extern int g_PsxWorldDepthAlways;
+        if (arg[0] == '1') g_PsxWorldDepthAlways = 1;
+        else if (arg[0] == '0') g_PsxWorldDepthAlways = 0;
+        else g_PsxWorldDepthAlways = !g_PsxWorldDepthAlways;
+        cprintf("world depth: %s", g_PsxWorldDepthAlways ? "ALWAYS (paint order)" : "LEQUAL (nearer wins)");
     } else if (strcmp(cmd, "FLMODE") == 0) {
         /* flmode 0..3 | classic | classicshadows | modern | modernshadows */
         int mode = g_PcConfig.flashlightMode;

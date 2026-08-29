@@ -43,7 +43,8 @@ extern int         PcOpt_QuickRealtime(const void* h);
 /* options.c: rows that are not in that table. Keep in step with the identical
  * enum there -- these are indices into its switch, nothing more. */
 enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
-       QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT };
+       QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT,
+       QO_X_CUTSHIFT };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(void);
@@ -123,6 +124,7 @@ static const QoRowDef s_page2Simple[] = {
     { ROW_EXTRA,  NULL, QO_X_CRTTRIM,      "Aspect Trim" },
     { ROW_EXTRA,  NULL, QO_X_VFOV,         "FOV" },
     { ROW_EXTRA,  NULL, QO_X_VSHIFT,       "Vertical Shift" },
+    { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
     { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
     { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
     { ROW_CLOSE,  NULL, 0,                 "Close" },
@@ -134,6 +136,7 @@ static const QoRowDef s_page2Advanced[] = {
     { ROW_EXTRA,  NULL, QO_X_HFOV,         "Horizontal FOV" },
     { ROW_EXTRA,  NULL, QO_X_VFOV,         "Vertical FOV" },
     { ROW_EXTRA,  NULL, QO_X_VSHIFT,       "Vertical Shift" },
+    { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
     { ROW_EXTRA,  NULL, QO_X_PAR,          "Pixel Aspect" },
     { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
     { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
