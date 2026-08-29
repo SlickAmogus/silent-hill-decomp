@@ -526,7 +526,7 @@ void PcOpt_QuickAdjust(const void* h, int dir)
  * (launcher / console only until now), the speaker layout and the two PSX
  * volumes (main Options menu rows). Same apply paths as those screens. */
 enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
-       QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR };
+       QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT };
 
 static const int         QO_SHADOW_SIZES[] = { 256, 512, 1024, 2048, 4096, 8192 };
 static const char* const QO_SPEAKER_LBL[]  = { "Auto", "Stereo", "Quad", "5.1", "7.1" };
@@ -553,14 +553,22 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
     case QO_X_CRTTRIM:
         snprintf(buf, bufsz, "%.2f", g_PcConfig.crtAspectTrim);
         return buf;
+    /* In CRT mode the pixel-aspect solve divides hfov straight back out, so
+      * the row genuinely does nothing there; par is read by raw only. Say so
+      * in the value rather than letting a player tune a dead knob. */
     case QO_X_HFOV:
-        snprintf(buf, bufsz, "%.2f", g_PcConfig.worldHScale);
+        snprintf(buf, bufsz, g_PcConfig.aspectRaw ? "%.2f" : "%.2f  (raw)",
+                 g_PcConfig.worldHScale);
         return buf;
     case QO_X_VFOV:
         snprintf(buf, bufsz, "%.2f", g_PcConfig.worldVScale);
         return buf;
     case QO_X_PAR:
-        snprintf(buf, bufsz, "%.3f", g_PcConfig.pixelAspect);
+        snprintf(buf, bufsz, g_PcConfig.aspectRaw ? "%.3f" : "%.3f  (raw)",
+                 g_PcConfig.pixelAspect);
+        return buf;
+    case QO_X_VSHIFT:
+        snprintf(buf, bufsz, "%+d rows", (int)g_PcConfig.worldVShift);
         return buf;
     default:
         return "";
@@ -584,6 +592,13 @@ static void PcOpt_ViewStep(float* cfg, float* live, const char* key,
     if (live) *live = v;
     snprintf(buf, sizeof(buf), (decimals >= 3) ? "%.3f" : "%.2f", v);
     PcConfig_SaveKeyValue(key, buf);
+    /* Logged because a screenshot is only useful if the settings behind it are
+     * known, and these five have historically been retyped per session and
+     * never recorded -- which is how comparison shots ended up unattributable. */
+    SH_LOG("View: %s = %s  (aspect %s, trim %.2f, hfov %.2f, vfov %.2f, vshift %+d, par %.3f)",
+           key, buf, g_PcConfig.aspectRaw ? "raw" : "crt", g_PcConfig.crtAspectTrim,
+           g_PcConfig.worldHScale, g_PcConfig.worldVScale,
+           (int)g_PcConfig.worldVShift, g_PcConfig.pixelAspect);
     Sd_PlaySfx(Sfx_MenuMove, 0, 64);
 }
 
@@ -597,6 +612,7 @@ void PcOpt_QuickViewReset(void)
     extern float g_PsxCrtAspectTrim;
     extern float g_PsxWorldHScale;
     extern float g_PsxWorldVScale;
+    extern float g_PsxWorldVShift;
     extern float g_PsxPixelAspect;
     const s_PcConfig* d = PcConfig_Defaults();
     char buf[24];
@@ -606,12 +622,14 @@ void PcOpt_QuickViewReset(void)
     g_PcConfig.worldHScale   = d->worldHScale;
     g_PcConfig.worldVScale   = d->worldVScale;
     g_PcConfig.pixelAspect   = d->pixelAspect;
+    g_PcConfig.worldVShift   = d->worldVShift;
 
     g_PsxAspectRaw     = g_PcConfig.aspectRaw;
     g_PsxCrtAspectTrim = g_PcConfig.crtAspectTrim;
     g_PsxWorldHScale   = g_PcConfig.worldHScale;
     g_PsxWorldVScale   = g_PcConfig.worldVScale;
     g_PsxPixelAspect   = g_PcConfig.pixelAspect;
+    g_PsxWorldVShift   = g_PcConfig.worldVShift;
 
     PcConfig_SaveKeyValue("display_aspect", g_PcConfig.aspectRaw ? "raw" : "crt");
     snprintf(buf, sizeof(buf), "%.2f", g_PcConfig.crtAspectTrim);
@@ -622,11 +640,14 @@ void PcOpt_QuickViewReset(void)
     PcConfig_SaveKeyValue("world_vscale", buf);
     snprintf(buf, sizeof(buf), "%.3f", g_PcConfig.pixelAspect);
     PcConfig_SaveKeyValue("pixel_aspect", buf);
+    snprintf(buf, sizeof(buf), "%.0f", g_PcConfig.worldVShift);
+    PcConfig_SaveKeyValue("world_vshift", buf);
 
     Sd_PlaySfx(Sfx_MenuMove, 0, 64);
-    SH_LOG("View reset: aspect %s, trim %.2f, hfov %.2f, vfov %.2f, par %.3f",
+    SH_LOG("View reset: aspect %s, trim %.2f, hfov %.2f, vfov %.2f, vshift %+d, par %.3f",
            g_PcConfig.aspectRaw ? "raw" : "crt", g_PcConfig.crtAspectTrim,
-           g_PcConfig.worldHScale, g_PcConfig.worldVScale, g_PcConfig.pixelAspect);
+           g_PcConfig.worldHScale, g_PcConfig.worldVScale,
+           (int)g_PcConfig.worldVShift, g_PcConfig.pixelAspect);
 }
 
 void PcOpt_QuickExtraAdjust(int which, int dir)
@@ -665,6 +686,7 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         g_PcConfig.aspectRaw = !g_PcConfig.aspectRaw;
         g_PsxAspectRaw       = g_PcConfig.aspectRaw;
         PcConfig_SaveKeyValue("display_aspect", g_PcConfig.aspectRaw ? "raw" : "crt");
+        SH_LOG("View: display_aspect = %s", g_PcConfig.aspectRaw ? "raw" : "crt");
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     }
@@ -690,6 +712,12 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         extern float g_PsxPixelAspect;
         PcOpt_ViewStep(&g_PcConfig.pixelAspect, &g_PsxPixelAspect,
                        "pixel_aspect", 0.50f, 2.00f, 0.005f, dir, 3);
+        break;
+    }
+    case QO_X_VSHIFT: {
+        extern float g_PsxWorldVShift;
+        PcOpt_ViewStep(&g_PcConfig.worldVShift, &g_PsxWorldVShift,
+                       "world_vshift", -60.0f, 60.0f, 1.0f, dir, 2);
         break;
     }
     case QO_X_BGM:

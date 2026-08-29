@@ -113,6 +113,7 @@ s_PcConfig g_PcConfig = {
     .worldHScale         = 0.76f,      /* 0.872^2, the shipped Hor+ horizontal framing */
     .worldVScale         = 1.0f,       /* full 224-row frame, no vertical crop */
     .pixelAspect         = 35.0f / 32.0f, /* raw mode only: the 350x240 NTSC dot */
+    .worldVShift         = 0.0f,       /* the console anchor needs no correction */
     .mouseSensitivity        = 1.0f,
     .controllerSensitivity   = 1.0f,
 
@@ -935,6 +936,10 @@ void PcConfig_Load(const char* path)
         {
             float v = (float)atof(value);
             if (v > 0.0f) g_PcConfig.pixelAspect = PcCfg_ClampF(v, 0.50f, 2.00f);
+        }
+        else if (strcmp(key, "world_vshift") == 0)
+        {
+            g_PcConfig.worldVShift = PcCfg_ClampF((float)atof(value), -60.0f, 60.0f);
         }
         else if (strcmp(key, "display_aspect") == 0)
         {

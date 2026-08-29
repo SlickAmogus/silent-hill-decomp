@@ -243,6 +243,11 @@ typedef struct {
     float worldHScale;
     float worldVScale;
     float pixelAspect;
+    /* world_vshift: GTE projection-centre delta in PSX rows, + = view up.
+     * Gameplay cameras only; cutscenes use the separate cutshift. Console
+     * `vshift`. 0 = the console anchor, which is where it should stay unless
+     * a comparison says otherwise. */
+    float worldVShift;
     float reverbScale;      /* reverb depth->wet mapping scale, 0 = leave PsyCross default (2.0) (config key: reverb_scale) */
     float mouseSensitivity;      /* mouse-look sensitivity multiplier for TPS/OTS/FPS cameras, 0.1..4.0; default 1.0 (config key: mouse_sensitivity) */
     float controllerSensitivity; /* right-stick look sensitivity multiplier for TPS/OTS/FPS cameras, 0.1..4.0; default 1.0 (config key: controller_sensitivity) */
