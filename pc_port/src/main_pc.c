@@ -814,6 +814,23 @@ int main(int argc, char* argv[])
     PcConfig_Load("config.cfg");
     PcAudioConfig_Load("config.cfg");
 
+#if defined(__ANDROID__)
+    /* Apply orientation setting (0 = Auto/Sensor, 1 = Lock Landscape, 2 = Lock Portrait) */
+    if (g_PcConfig.screenOrientation == 1)
+        SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+    else if (g_PcConfig.screenOrientation == 2)
+        SDL_SetHint(SDL_HINT_ORIENTATIONS, "Portrait PortraitUpsideDown");
+    else
+        SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight Portrait PortraitUpsideDown");
+
+    /* Gamepad & Input optimizations for Android / Retroid Pocket 6 / Bluetooth / USB controllers */
+    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+    SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "1");
+    SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
+    SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0");
+    SDL_SetHint(SDL_HINT_RENDER_VSYNC, "1");
+#endif
+
     /* After the config load, or the parsed skip_intros would clobber it.
      * map0_s00 is the compiled-in default, so a config still naming it counts as
      * "no level picked" and gets the bus level, which has a save point. */

@@ -242,6 +242,9 @@ static int Tc_Enabled(void)
     if (!g_PcConfig.touchControls)
         return 0;
 
+    if (g_PcConfig.touchControls == 2)
+        return 1; /* Forced always on */
+
     return !(s_PadAttached || s_PhysicalInput);
 }
 
@@ -268,19 +271,43 @@ static void Tc_PressAction(unsigned short* word, unsigned short mask)
         *word &= (unsigned short)~mask;
 }
 
+static void Tc_GetButtonGeometry(int idx, float aspect, float* cx, float* cy, float* r)
+{
+    if (aspect < 1.0f)
+    {
+        /* Portrait layout: buttons placed comfortably in the lower thumb zone */
+        switch (idx)
+        {
+            case TB_AIM:   *cx = 0.820f; *cy = 0.820f; *r = 0.080f; break;
+            case TB_ITEM:  *cx = 0.620f; *cy = 0.880f; *r = 0.055f; break;
+            case TB_MAP:   *cx = 0.820f; *cy = 0.680f; *r = 0.055f; break;
+            case TB_START: *cx = 0.900f; *cy = 0.040f; *r = 0.040f; break;
+            case TB_RUN:   *cx = 0.440f; *cy = 0.840f; *r = 0.050f; break;
+            case TB_BACK:  *cx = 0.900f; *cy = 0.040f; *r = 0.040f; break;
+            default:       *cx = s_Buttons[idx].cx; *cy = s_Buttons[idx].cy; *r = s_Buttons[idx].r; break;
+        }
+    }
+    else
+    {
+        /* Standard landscape layout */
+        *cx = s_Buttons[idx].cx;
+        *cy = s_Buttons[idx].cy;
+        *r  = s_Buttons[idx].r;
+    }
+}
+
 static int Tc_HitButton(float x, float y, float aspect)
 {
     int i;
 
     for (i = 0; i < TB_COUNT; i++)
     {
-        float dx = (x - s_Buttons[i].cx) * aspect;
-        float dy = (y - s_Buttons[i].cy);
-        float r  = s_Buttons[i].r;
+        float bcx, bcy, br;
+        Tc_GetButtonGeometry(i, aspect, &bcx, &bcy, &br);
 
-        /* Hit radius is padded over the drawn radius: a control you can see is
-         * one players expect to hit near the edge of, and fingers are wide. */
-        r *= 1.25f;
+        float dx = (x - bcx) * aspect;
+        float dy = (y - bcy);
+        float r  = br * 1.25f;
 
         if ((dx * dx) + (dy * dy) <= (r * r))
             return i;
@@ -449,9 +476,11 @@ void Pc_Touch_Update(void)
                     /* One live control, in the corner slot; a stray thumb
                      * anywhere else must not steer a frozen world. */
                     int   solo = Tc_SoloButton(mode);
-                    float sdx  = (vx - s_Buttons[TB_START].cx) * aspect;
-                    float sdy  = (vy - s_Buttons[TB_START].cy);
-                    float sr   = s_Buttons[TB_START].r * 1.25f;
+                    float scx, scy, sr;
+                    Tc_GetButtonGeometry(TB_START, aspect, &scx, &scy, &sr);
+                    float sdx  = (vx - scx) * aspect;
+                    float sdy  = (vy - scy);
+                    sr *= 1.25f;
                     int   onIt = (((sdx * sdx) + (sdy * sdy)) <= (sr * sr));
 
                     t->role      = (onIt && solo >= 0) ? TR_BUTTON : TR_NONE;
@@ -837,8 +866,11 @@ void Pc_Touch_Draw(void)
 
     for (i = 0; i < TB_COUNT; i++)
     {
-        float bcx = s_Buttons[i].cx, bcy = s_Buttons[i].cy, br = s_Buttons[i].r;
+        float bcx, bcy, br;
+        float aspect = Tc_Aspect();
         int   cx;
+
+        Tc_GetButtonGeometry(i, aspect, &bcx, &bcy, &br);
 
         if (mode == TC_MODE_ADVANCE)
             continue;
@@ -848,9 +880,7 @@ void Pc_Touch_Draw(void)
             if (i != Tc_SoloButton(mode))
                 continue;
 
-            bcx = s_Buttons[TB_START].cx;
-            bcy = s_Buttons[TB_START].cy;
-            br  = s_Buttons[TB_START].r;
+            Tc_GetButtonGeometry(TB_START, aspect, &bcx, &bcy, &br);
         }
 
         cx = TC_UX(bcx);

@@ -13,6 +13,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import android.content.pm.ActivityInfo;
+import android.os.Build;
+import android.view.View;
+import android.view.WindowManager;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
+
 public class SilentHillActivity extends SDLActivity {
 
     private static final String TAG = "SilentHill";
@@ -36,7 +44,88 @@ public class SilentHillActivity extends SDLActivity {
         // to already be in place.
         unpackBundledAssets();
         publishDiscDropDir();
+        applyOrientationConfig();
+        applyImmersiveMode();
         super.onCreate(savedInstanceState);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            applyImmersiveMode();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        applyImmersiveMode();
+    }
+
+    /**
+     * Optimizes display for Retroid Pocket 6 and modern Android devices:
+     * enables edge-to-edge rendering around cutouts, sticky immersive mode,
+     * and keeps screen awake during gameplay.
+     */
+    private void applyImmersiveMode() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                getWindow().getAttributes().layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            }
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            );
+        } catch (Exception e) {
+            Log.w(TAG, "applyImmersiveMode: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Reads screen_orientation from config.cfg:
+     *   0 = Auto / Sensor (Landscape and Portrait)
+     *   1 = Lock Landscape
+     *   2 = Lock Portrait
+     */
+    private void applyOrientationConfig() {
+        File cfg = new File(getExternalFilesDir(null), "config.cfg");
+        int mode = 0; // default to Auto / Sensor
+        if (cfg.exists()) {
+            try (BufferedReader r = new BufferedReader(new FileReader(cfg))) {
+                String line;
+                while ((line = r.readLine()) != null) {
+                    line = line.trim();
+                    if (line.startsWith("screen_orientation")) {
+                        String[] parts = line.split("=");
+                        if (parts.length > 1) {
+                            String val = parts[1].trim().toLowerCase();
+                            if (val.contains("landscape") || val.equals("1")) {
+                                mode = 1;
+                            } else if (val.contains("portrait") || val.equals("2")) {
+                                mode = 2;
+                            } else {
+                                mode = 0;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        if (mode == 1) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+        } else if (mode == 2) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT);
+        } else {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
+        }
     }
 
     /**

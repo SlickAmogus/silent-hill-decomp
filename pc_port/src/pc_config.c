@@ -89,6 +89,7 @@ s_PcConfig g_PcConfig = {
     .touchControls       = 0,
 #endif
     .touchLookSensitivity = 1.0f,
+    .screenOrientation   = 0, /* 0 = Auto / Sensor (Landscape and Portrait), 1 = Lock Landscape, 2 = Lock Portrait */
     .altButtonSprint     = 0, /* alt cams sprint from the run control only (off = full stick push also sprints) */
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
@@ -1140,6 +1141,29 @@ else if (strcmp(key, "enable_plugins") == 0)
             {
                 strncpy(g_PcConfig.raSfx, value, sizeof(g_PcConfig.raSfx) - 1);
                 g_PcConfig.raSfx[sizeof(g_PcConfig.raSfx) - 1] = '\0';
+            }
+        }
+        else if (strcmp(key, "touch_controls") == 0)
+        {
+            g_PcConfig.touchControls = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "touch_look_sensitivity") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.1f) v = 0.1f;
+            if (v > 4.0f) v = 4.0f;
+            g_PcConfig.touchLookSensitivity = v;
+        }
+        else if (strcmp(key, "screen_orientation") == 0)
+        {
+            if (strcmp(value, "landscape") == 0) g_PcConfig.screenOrientation = 1;
+            else if (strcmp(value, "portrait") == 0) g_PcConfig.screenOrientation = 2;
+            else if (strcmp(value, "auto") == 0 || strcmp(value, "sensor") == 0) g_PcConfig.screenOrientation = 0;
+            else
+            {
+                int v = atoi(value);
+                if (v < 0 || v > 2) v = 0;
+                g_PcConfig.screenOrientation = v;
             }
         }
         else if (strcmp(key, "control_styles") == 0)

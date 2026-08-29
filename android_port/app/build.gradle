@@ -3,7 +3,7 @@ apply plugin: 'com.android.application'
 android {
     namespace 'com.silenthill.port'
     compileSdk 34
-    ndkVersion '27.3.13750724'
+    ndkVersion '26.2.11394342'
 
     defaultConfig {
         applicationId 'com.silenthill.port'

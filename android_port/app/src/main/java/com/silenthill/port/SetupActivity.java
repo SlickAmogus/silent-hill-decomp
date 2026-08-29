@@ -125,7 +125,7 @@ public class SetupActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(48, 48, 48, 48);
-        root.setBackgroundColor(Color.BLACK);
+        root.setBackgroundColor(Color.argb(210, 10, 10, 14));
 
         TextView title = new TextView(this);
         title.setText("Silent Hill - Setup");

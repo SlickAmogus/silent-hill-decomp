@@ -2,6 +2,7 @@
 <resources>
     <!-- Base application theme. -->
     <style name="AppTheme" parent="android:Theme.NoTitleBar.Fullscreen">
-        <!-- Customize your theme here. -->
+        <item name="android:windowBackground">@drawable/splash_bg</item>
+        <item name="android:colorBackground">#000000</item>
     </style>
 </resources>
