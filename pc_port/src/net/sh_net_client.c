@@ -361,6 +361,9 @@ static void ShNetW_GhostUpdate(unsigned int playerId, int charaId, int flags,
         g = &s_sh.ghosts[s_sh.ghostCount++];
         memset(g, 0, sizeof(*g));
         g->playerId = playerId;
+        SH_DBG("[NET] player %u appeared on this map at (%d.%03d, %d.%03d) - %d ghost(s) here",
+               playerId, x >> 12, ((x & 0xFFF) * 1000) >> 12,
+               z >> 12, ((z & 0xFFF) * 1000) >> 12, s_sh.ghostCount);
         /* First sight: both samples are the same point, so the ghost appears
          * standing still rather than sliding in from the origin. */
         g->prevX    = x;
@@ -397,6 +400,8 @@ static void ShNetW_GhostExpire(unsigned int now)
     {
         if (now - s_sh.ghosts[i].curMs > SHNET_GHOST_STALE_MS)
         {
+            SH_DBG("[NET] player %u left this map (%d ghost(s) here)",
+                   s_sh.ghosts[i].playerId, s_sh.ghostCount - 1);
             s_sh.ghosts[i] = s_sh.ghosts[s_sh.ghostCount - 1];
             s_sh.ghostCount--;
         }
