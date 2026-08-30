@@ -11,13 +11,13 @@
  * through the game's own ordering table rather than a GL overlay is what makes
  * a ghost occlude behind walls and fade into the fog for free.
  *
- * THE ART IS GENERATED, not shipped. A ghost is a hollow humanoid contour and
- * a marker is a ring sigil, both rasterized here from a signed-distance field
- * into a hires-override pool slot. Two reasons: a texture the port draws
- * itself cannot be missing at runtime the way gamedata/decal.png can, and a
- * contour is defined by a distance threshold, which is exactly what an SDF is
- * already computing. gamedata/ghost.png and gamedata/memo.png override them
- * when present.
+ * THE ART IS GENERATED, not shipped (sh_net_art.c): a ghost is a hollow
+ * humanoid contour and a marker is a ring sigil, both rasterized from a
+ * signed-distance field into a hires-override pool slot. Two reasons: a
+ * texture the port draws itself cannot be missing at runtime the way
+ * gamedata/decal.png can, and a contour IS a distance threshold, which is
+ * what an SDF is already computing. gamedata/ghost.png and gamedata/memo.png
+ * override them when present.
  *
  * The billboard is CYLINDRICAL: its horizontal axis is the camera's right
  * vector read out of the world->screen matrix, its vertical axis is world up.
@@ -40,6 +40,7 @@
 #include "hires_override.h"
 #include "pc_config.h"
 #include "sh_net.h"
+#include "sh_net_art.h"
 #include "sh_log.h"
 #include "stb_image.h"
 
@@ -54,10 +55,10 @@
     (u16)((((HIRES_POOL_CLUT_ROW_BASE + ((slot) / 64) * HIRES_POOL_MAX_ROWS)) << 6) | \
           ((slot) % 64))
 
-#define GHOST_TEX_W 64
-#define GHOST_TEX_H 128
-#define MEMO_TEX_W  64
-#define MEMO_TEX_H  64
+#define GHOST_TEX_W SHNET_ART_GHOST_W
+#define GHOST_TEX_H SHNET_ART_GHOST_H
+#define MEMO_TEX_W  SHNET_ART_MEMO_W
+#define MEMO_TEX_H  SHNET_ART_MEMO_H
 
 /* World units. SH1 is metric: pc_decals.c's Q12(0.05f) is documented as ~5cm,
  * so a 1.80-tall, 0.72-wide quad is a person-sized billboard. */
@@ -89,139 +90,8 @@ static int s_memoTexOk;
 static int s_texTried;
 
 /* ------------------------------------------------------------------ */
-/* Procedural art                                                      */
+/* Texture registration                                                */
 /* ------------------------------------------------------------------ */
-
-static float ShNetG_SegDist(float px, float py, float ax, float ay, float bx, float by)
-{
-    float vx = bx - ax, vy = by - ay;
-    float wx = px - ax, wy = py - ay;
-    float len2 = vx * vx + vy * vy;
-    float t    = (len2 > 0.0001f) ? ((wx * vx + wy * vy) / len2) : 0.0f;
-    float dx, dy;
-    if (t < 0.0f) t = 0.0f;
-    if (t > 1.0f) t = 1.0f;
-    dx = px - (ax + vx * t);
-    dy = py - (ay + vy * t);
-    return sqrtf(dx * dx + dy * dy);
-}
-
-/* Negative inside the body, positive outside — a plain union of capsules that
- * happens to look like a person from the front. */
-static float ShNetG_BodySdf(float x, float y)
-{
-    float d;
-    float head = sqrtf((x - 32.0f) * (x - 32.0f) + (y - 19.0f) * (y - 19.0f)) - 11.0f;
-
-    d = head;
-    /* torso */
-    { float t = ShNetG_SegDist(x, y, 32.0f, 33.0f, 32.0f, 70.0f) - 12.5f; if (t < d) d = t; }
-    /* arms */
-    { float t = ShNetG_SegDist(x, y, 21.0f, 36.0f, 14.0f, 68.0f) - 5.0f;  if (t < d) d = t; }
-    { float t = ShNetG_SegDist(x, y, 43.0f, 36.0f, 50.0f, 68.0f) - 5.0f;  if (t < d) d = t; }
-    /* legs */
-    { float t = ShNetG_SegDist(x, y, 26.0f, 68.0f, 24.0f, 121.0f) - 6.0f; if (t < d) d = t; }
-    { float t = ShNetG_SegDist(x, y, 38.0f, 68.0f, 40.0f, 121.0f) - 6.0f; if (t < d) d = t; }
-    return d;
-}
-
-/* White pixels, all the shaping in alpha: the prim's own RGB tints the whole
- * thing, so one texture serves every ghost colour. */
-static unsigned char* ShNetG_MakeGhostRgba(void)
-{
-    unsigned char* px = (unsigned char*)malloc(GHOST_TEX_W * GHOST_TEX_H * 4);
-    int            x, y;
-
-    if (!px)
-    {
-        return NULL;
-    }
-
-    for (y = 0; y < GHOST_TEX_H; y++)
-    {
-        for (x = 0; x < GHOST_TEX_W; x++)
-        {
-            float d = ShNetG_BodySdf((float)x + 0.5f, (float)y + 0.5f);
-            float a;
-            int   o = (y * GHOST_TEX_W + x) * 4;
-
-            /* The contour: a band straddling d == 0, brightest on the line and
-             * falling off over ~3px each way. This is the "hollow outline". */
-            float band = 1.0f - (fabsf(d) / 3.2f);
-            if (band < 0.0f) band = 0.0f;
-            a = band * band * 235.0f;
-
-            /* A very faint interior so the figure still reads as a body at
-             * distance, where the contour is a couple of pixels wide. Kept low
-             * enough that it never becomes a solid silhouette. */
-            if (d < 0.0f)
-            {
-                float fill = 26.0f + 18.0f * (1.0f - (float)y / (float)GHOST_TEX_H);
-                if (fill > a) a = fill;
-            }
-            if (a > 255.0f) a = 255.0f;
-
-            px[o + 0] = 255;
-            px[o + 1] = 255;
-            px[o + 2] = 255;
-            px[o + 3] = (unsigned char)a;
-        }
-    }
-    return px;
-}
-
-/* A ring with four radial ticks. Same white-plus-alpha arrangement, so kind
- * (memo / death / save) is purely a prim colour. */
-static unsigned char* ShNetG_MakeMemoRgba(void)
-{
-    unsigned char* px = (unsigned char*)malloc(MEMO_TEX_W * MEMO_TEX_H * 4);
-    int            x, y;
-
-    if (!px)
-    {
-        return NULL;
-    }
-
-    for (y = 0; y < MEMO_TEX_H; y++)
-    {
-        for (x = 0; x < MEMO_TEX_W; x++)
-        {
-            float fx = (float)x + 0.5f - 32.0f;
-            float fy = (float)y + 0.5f - 32.0f;
-            float r  = sqrtf(fx * fx + fy * fy);
-            float a  = 0.0f;
-            int   o  = (y * MEMO_TEX_W + x) * 4;
-
-            {
-                float ring = 1.0f - (fabsf(r - 22.0f) / 3.0f);
-                if (ring > 0.0f) a = ring * ring * 255.0f;
-            }
-            {
-                float inner = 1.0f - (fabsf(r - 9.0f) / 2.0f);
-                if (inner > 0.0f && inner * inner * 190.0f > a) a = inner * inner * 190.0f;
-            }
-            /* Ticks at the cardinals, between the two rings. */
-            if (r > 9.0f && r < 22.0f)
-            {
-                float tick = 0.0f;
-                if (fabsf(fx) < 1.6f) tick = 1.0f - fabsf(fx) / 1.6f;
-                if (fabsf(fy) < 1.6f)
-                {
-                    float t2 = 1.0f - fabsf(fy) / 1.6f;
-                    if (t2 > tick) tick = t2;
-                }
-                if (tick * 170.0f > a) a = tick * 170.0f;
-            }
-            if (a > 255.0f) a = 255.0f;
-
-            px[o + 0] = 255;
-            px[o + 1] = 255;
-            px[o + 2] = 255;
-            px[o + 3] = (unsigned char)a;
-        }
-    }
-    return px;
-}
 
 /* An override PNG replaces the generated art entirely. Returns a malloc'd RGBA
  * buffer plus its dimensions, or NULL when the file is absent. */
@@ -273,7 +143,7 @@ static void ShNetG_EnsureTextures(void)
         {
             w = GHOST_TEX_W;
             h = GHOST_TEX_H;
-            rgba = ShNetG_MakeGhostRgba();
+            rgba = ShNetArt_MakeGhost();
             generated = 1;
         }
         if (rgba)
@@ -296,7 +166,7 @@ static void ShNetG_EnsureTextures(void)
         {
             w = MEMO_TEX_W;
             h = MEMO_TEX_H;
-            rgba = ShNetG_MakeMemoRgba();
+            rgba = ShNetArt_MakeMarker();
             generated = 1;
         }
         if (rgba)

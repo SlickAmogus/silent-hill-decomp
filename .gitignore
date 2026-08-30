@@ -62,3 +62,4 @@ online_server/*.exe
 online_server/build/
 online_server/*.db
 online_server/server_out.txt
+online_server/*.png

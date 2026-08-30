@@ -19,6 +19,7 @@
 #include "bodyprog/map/map.h"
 
 #include "sh_net.h"
+#include "sh_net_memo.h"
 #include "sh_net_internal.h"
 #include "pc_config.h"
 #include "pc_playas.h"
@@ -108,6 +109,8 @@ void ShNet_GameTick(void)
     {
         return;
     }
+
+    ShNetMemo_Tick();
 
     inWorld = (g_GameWork.gameState == GameState_InGame) &&
               (g_SavegamePtr != NULL) &&

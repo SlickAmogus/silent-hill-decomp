@@ -38,6 +38,8 @@
 #include "map_registry.h"
 #include "dbg_overlay.h"
 #include "pc_config.h"
+#include "pc_discord.h" /* Pc_MapAreaName, for NET WHO */
+#include "sh_net.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -488,6 +490,9 @@ static const char* const HELP_LINES[] = {
     " kf [n]         keyframe inspector: set/show frame (K key)",
     " playas [name]  play as another character (bare = list)",
     " loga / logb    log Harry+camera pos/angles to SilentHill.log",
+    " net            online status, ghosts and markers here",
+    " net reconnect  drop and re-join the master server",
+    " net who        who is online, and where",
     "Quick Save: F6   Quick Load: F8 (work outside console)",
 };
 
@@ -1040,6 +1045,54 @@ void Pc_ConsoleExec(const char* line)
 
     if (cmd[0] == '\0') {
         return;
+    } else if (strcmp(cmd, "NET") == 0) {
+        extern int          ShNet_Status(void);
+        extern const char*  ShNet_StatusText(void);
+        extern const char*  ShNet_ServerName(void);
+        extern int          ShNet_PingMs(void);
+        extern int          ShNet_GhostCount(void);
+        extern int          ShNet_MemoCount(void);
+        extern int          ShNet_PeerCount(void);
+        extern int          ShNet_PeerTotal(void);
+        extern void         ShNet_Reconnect(void);
+        extern const ShNetPeer* ShNet_Peer(int i);
+        extern void         ShNet_RequestRoster(void);
+        extern void         ShNet_RequestMemos(void);
+
+        if (strcmp(arg, "RECONNECT") == 0) {
+            ShNet_Reconnect();
+            cprintf("online: reconnecting");
+        } else if (strcmp(arg, "WHO") == 0) {
+            int n = ShNet_PeerCount();
+            int i;
+            ShNet_RequestRoster();
+            if (n == 0) {
+                cprintf("online: nobody listed yet (roster requested)");
+            }
+            for (i = 0; i < n; i++) {
+                const ShNetPeer* p = ShNet_Peer(i);
+                if (!p) continue;
+                cprintf("  %-16s %-28s %d ms", p->name,
+                        Pc_MapAreaName(p->mapIdx), p->pingMs);
+            }
+            cprintf("online: %d of %d listed", n, ShNet_PeerTotal());
+        } else if (strcmp(arg, "MEMOS") == 0) {
+            ShNet_RequestMemos();
+            cprintf("online: re-queried this map's markers (%d held)", ShNet_MemoCount());
+        } else {
+            static const char* const st[] = {
+                "off", "resolving", "connecting", "connected", "refused", "lost"
+            };
+            int s = ShNet_Status();
+            cprintf("online: %s - %s", (s >= 0 && s <= 5) ? st[s] : "?", ShNet_StatusText());
+            if (s == 3) {
+                cprintf("  server \"%s\"  %d ms  %d online",
+                        ShNet_ServerName(), ShNet_PingMs(), ShNet_PeerTotal());
+                cprintf("  %d ghost(s) on this map, %d marker(s)",
+                        ShNet_GhostCount(), ShNet_MemoCount());
+            }
+            cprintf("  net reconnect | net who | net memos");
+        }
     } else if (strcmp(cmd, "QUIT") == 0) {
         SH_DBG("[CONSOLE] quit");
         exit(0);

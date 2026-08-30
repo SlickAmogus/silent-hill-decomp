@@ -382,6 +382,8 @@ typedef struct {
     int  onlineGhostStyle;    /* SHNET_GS_*: contour, floor ring, or both (online_ghost_style) */
     int  onlineGhostRange;    /* metres past which a ghost is not drawn (online_ghost_range) */
     int  onlineEvents;        /* 1 = show the server's join/leave/death feed (online_events) */
+    char keyOnlinePlayers[24]; /* who-is-online panel hotkey (key_online_players); default F11 */
+    char keyOnlineMemo[24];    /* leave-a-message composer hotkey (key_online_memo); default M */
 
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;

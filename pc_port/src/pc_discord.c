@@ -67,9 +67,10 @@ static unsigned char s_rx[8192];
 static unsigned int  s_rxLen;
 
 /* Player-facing area name by e_MapIdx (0..42). Unused/out-of-range fall back to
- * the game title. Every string MUST stay JSON-safe (no '"' or '\'); apostrophes
- * are fine. */
-static const char* Discord_AreaName(int idx)
+ * the game title. Every string MUST stay JSON-safe (no quote or backslash);
+ * apostrophes are fine. Shared with the online player list (sh_net_ui.c), which
+ * is why it is not static. */
+const char* Pc_MapAreaName(int idx)
 {
     switch (idx)
     {
@@ -290,7 +291,7 @@ void Pc_Discord_Update(void)
     state[0] = '\0';
     if (g_SavegamePtr != NULL && g_GameWork.gameState == GameState_InGame)
     {
-        snprintf(details, sizeof(details), "%s", Discord_AreaName((int)g_SavegamePtr->mapIdx));
+        snprintf(details, sizeof(details), "%s", Pc_MapAreaName((int)g_SavegamePtr->mapIdx));
         snprintf(state, sizeof(state), "Difficulty: %s",
                  Discord_DifficultyName((int)g_SavegamePtr->gameDifficulty));
     }

@@ -8,5 +8,10 @@
 void Pc_Discord_Init(void);
 void Pc_Discord_Update(void);
 void Pc_Discord_Shutdown(void);
+/* Player-facing area name for an e_MapIdx, e.g. "Midwich Elementary School".
+ * Lives in pc_discord.c because the presence line needed it first; the online
+ * player list shows the same names. */
+const char* Pc_MapAreaName(int idx);
+
 
 #endif /* PC_DISCORD_H */

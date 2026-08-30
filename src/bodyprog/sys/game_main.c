@@ -2289,6 +2289,40 @@ void MainLoop(void) // 0x80032EE0
                 g_Controller0->pulsedGuiBtnFlags = 0;
             }
         }
+
+        /* Online message composer. Same arrangement as the quick options above
+         * and for the same reason: the pad edges are consumed HERE, after the
+         * parse refills g_Controller0 and before any game logic reads it, then
+         * zeroed so Harry does not walk while the player is picking words. */
+        {
+            extern int  ShNetMemo_ComposerActive(void);
+            extern void ShNetMemo_ComposerInput(int, int, int, int, int, int);
+            extern void ShNetMemo_ComposerClose(void);
+
+            if (ShNetMemo_ComposerActive() &&
+                (g_GameWork.gameState != GameState_InGame ||
+                 g_SysWork.sysState   != SysState_Gameplay ||
+                 (g_SysWork.sysFlags & SysFlag_DemoActive)))
+                ShNetMemo_ComposerClose();
+
+            if (ShNetMemo_ComposerActive()) {
+                const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
+                /* PULSED for the axes so a held direction repeats, CLICKED for
+                 * confirm and cancel so a held button cannot place two memos. */
+                ShNetMemo_ComposerInput(
+                    (g_Controller0->pulsedBtnFlags  & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp))    != 0,
+                    (g_Controller0->pulsedBtnFlags  & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown))  != 0,
+                    (g_Controller0->pulsedBtnFlags  & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft))  != 0,
+                    (g_Controller0->pulsedBtnFlags  & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
+                    (g_Controller0->clickedBtnFlags & (cc->enter | cc->action))  != 0,
+                    (g_Controller0->clickedBtnFlags & (cc->cancel | cc->option)) != 0);
+                g_Controller0->heldBtnFlags      = 0;
+                g_Controller0->clickedBtnFlags   = 0;
+                g_Controller0->releasedBtnFlags  = 0;
+                g_Controller0->pulsedBtnFlags    = 0;
+                g_Controller0->pulsedGuiBtnFlags = 0;
+            }
+        }
         /* Free camera: Harry is frozen in place and W/A/S/D fly the camera
          * (the alt-cam scheme walks with the same keys), so none of his pad
          * input may reach the game. */

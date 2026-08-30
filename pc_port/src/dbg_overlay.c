@@ -1795,6 +1795,44 @@ void DbgOverlay_Update(void)
         s_prevQuick = curQuick;
     }
 
+    /* Online: key_online_players (default F11) opens the who-is-online panel,
+     * key_online_memo (default M) opens the message composer. Both are
+     * player-facing like the quick options above, so neither is gated on
+     * g_PcAllowDebugControls; both are dormant unless online_enabled is set,
+     * which the toggles check for themselves. */
+    {
+        static SDL_Scancode s_scList = SDL_SCANCODE_UNKNOWN;
+        static SDL_Scancode s_scMemo = SDL_SCANCODE_UNKNOWN;
+        static int          s_netRes  = 0;
+        static int          s_prevList = 0;
+        static int          s_prevMemo = 0;
+        int curList, curMemo;
+
+        if (!s_netRes) {
+            s_scList = SDL_GetScancodeFromName(g_PcConfig.keyOnlinePlayers);
+            s_scMemo = SDL_GetScancodeFromName(g_PcConfig.keyOnlineMemo);
+            s_netRes = 1;
+        }
+        curList = (s_scList != SDL_SCANCODE_UNKNOWN) ? ks[s_scList] : 0;
+        curMemo = (s_scMemo != SDL_SCANCODE_UNKNOWN) ? ks[s_scMemo] : 0;
+
+        if (curList && !s_prevList && !ctrlHeld && !g_PcConsoleInputActive) {
+            extern void ShNetUi_TogglePlayerList(void);
+            ShNetUi_TogglePlayerList();
+        }
+        /* The memo key is a LETTER by default, so it must never fire while the
+         * console has the keyboard or the game would open a composer every
+         * time someone typed an "m" into a command. */
+        if (curMemo && !s_prevMemo && !ctrlHeld && !g_PcConsoleInputActive &&
+            g_GameWork.gameState == GameState_InGame &&
+            !(g_SysWork.sysFlags & SysFlag_DemoActive)) {
+            extern void ShNetMemo_ComposerToggle(void);
+            ShNetMemo_ComposerToggle();
+        }
+        s_prevList = curList;
+        s_prevMemo = curMemo;
+    }
+
     /* F2 cycles the full-screen post-process look (0=Off..8). Like F1/PGXP this
      * is a user-facing graphics option, not a debug feature, so it is NOT gated
      * on g_PcAllowDebugControls. Order must match the post fragment shader. */
@@ -1991,6 +2029,11 @@ void DbgOverlay_Render(void)
     /* In-game quick options overlay (F9) -- same self-contained-GL arrangement,
      * translucent so live setting changes show through it. */
     { extern void Pc_QuickOptions_Draw(void); Pc_QuickOptions_Draw(); }
+
+    /* Online client UI: the player list, the message composer, the marker the
+     * player is standing on, and the server feed. Same self-contained-GL
+     * arrangement, and before the modal dialog so a confirm box still wins. */
+    { extern void ShNetUi_Draw(void); ShNetUi_Draw(); }
 
     /* Modal Yes/No message box (options-screen "reset to defaults") — same
      * self-contained-GL arrangement; drawn last so it sits over every panel. */

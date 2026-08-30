@@ -55,6 +55,8 @@ s_PcConfig g_PcConfig = {
     .onlineGhostStyle = 2, /* SHNET_GS_BOTH: the contour plus a floor ring */
     .onlineGhostRange = 40,
     .onlineEvents     = 1,
+    .keyOnlinePlayers = "F11",
+    .keyOnlineMemo    = "M",
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
@@ -324,6 +326,8 @@ static const struct { const char* key; size_t off; } s_SchemeBinds[] = {
 static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
     { "key_quicksave",     offsetof(s_PcConfig, keyQuickSave)    },
     { "key_quick_options", offsetof(s_PcConfig, keyQuickOptions) },
+    { "key_online_players", offsetof(s_PcConfig, keyOnlinePlayers) },
+    { "key_online_memo",    offsetof(s_PcConfig, keyOnlineMemo)    },
     { "pad_quick_options", offsetof(s_PcConfig, padQuickOptions) },
     { "key_quickload",     offsetof(s_PcConfig, keyQuickLoad)    },
     { "key_swap_shoulder", offsetof(s_PcConfig, keySwapShoulder) },
