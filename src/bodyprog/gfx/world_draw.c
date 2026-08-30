@@ -487,6 +487,11 @@ void Gfx_InGameDraw(bool arg0) // 0x8003C878
     /* Bullet-hole decals ride the world OT here so GsWSMATRIX matches the
      * chunk geometry they sit on (pc_decals.c). */
     { extern void Pc_DecalsDraw(GsOT* ot); Pc_DecalsDraw(&g_OrderingTable0[g_ActiveBufferIdx]); }
+    /* Online ghosts and markers, same OT and the same reason: GsWSMATRIX is
+     * the chunk geometry's matrix here, so a ghost occludes behind the same
+     * walls and fades into the same fog (sh_net_ghost.c). No-op unless the
+     * client is connected. */
+    { extern void ShNet_DrawWorld(GsOT* ot); ShNet_DrawWorld(&g_OrderingTable0[g_ActiveBufferIdx]); }
 #endif
     Gfx_2dEffectsDraw();
 }

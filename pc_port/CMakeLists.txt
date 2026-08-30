@@ -410,6 +410,12 @@ target_link_libraries(SilentHillPC PRIVATE
     psycross_static
 )
 
+# Silent Hill Online: the UDP transport in pc_port/src/net. Winsock2 on
+# Windows; POSIX sockets need no extra library on Linux/macOS.
+if(WIN32)
+    target_link_libraries(SilentHillPC PRIVATE ws2_32)
+endif()
+
 # Lua scripting (randomizer): link the vendored interpreter + flag its presence.
 if(SH_HAVE_LUA)
     target_link_libraries(SilentHillPC PRIVATE lua_static)

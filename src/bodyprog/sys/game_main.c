@@ -2603,6 +2603,12 @@ void MainLoop(void) // 0x80032EE0
              * to being signed in. */
             { extern void Pc_Ra_Update(void); Pc_Ra_Update(); }
 
+            /* Silent Hill Online: publish this player position and pull the
+             * worker thread findings into the game-thread copy. Same spot and
+             * the same reasoning as the RA tick above: the frame world state
+             * is settled here. Self-gated on online_enabled. */
+            { extern void ShNet_GameTick(void); ShNet_GameTick(); }
+
             /* Gameplay plugins: per-frame hooks after the frame's game state is
              * settled. Both are no-op loops over zero plugins unless the user
              * enabled enable_plugins and dropped DLLs in plugins/. */

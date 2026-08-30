@@ -367,6 +367,22 @@ typedef struct {
      * reads correctly. (config key: ra_spectator) */
     int  raSpectator;
 
+    /* ---------------- Silent Hill Online ----------------
+     * The whole feature is dormant unless onlineEnabled is set, and every
+     * accessor in sh_net.h reports an empty world in that state, so a build
+     * with these at their defaults behaves exactly like the offline port. */
+    int  onlineEnabled;       /* 1 = connect to a master server (config key: online_enabled) */
+    char onlineServer[128];   /* hostname or IP of the master server (online_server) */
+    int  onlinePort;          /* UDP port; 0 = SHNET_DEFAULT_PORT (online_port) */
+    char onlineName[24];      /* how other players see you (online_name) */
+    char onlinePassword[64];  /* shared word for a private server, "" = none (online_password) */
+    int  onlineGhosts;        /* 1 = draw other players in the world (online_ghosts) */
+    int  onlineMemos;         /* 1 = draw and place messages (online_memos) */
+    int  onlineDeaths;        /* 1 = draw and report death markers (online_deaths) */
+    int  onlineGhostStyle;    /* SHNET_GS_*: contour, floor ring, or both (online_ghost_style) */
+    int  onlineGhostRange;    /* metres past which a ghost is not drawn (online_ghost_range) */
+    int  onlineEvents;        /* 1 = show the server's join/leave/death feed (online_events) */
+
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;
 

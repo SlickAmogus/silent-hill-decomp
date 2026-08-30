@@ -56,3 +56,9 @@ pc_port/launcher/**/bin/
 # pc_port/docs/Render_Backends.md for where to get a build (and which builds
 # actually contain the Vulkan backend).
 pc_port/angle/
+
+# Silent Hill Online: master server build artifacts and its runtime state
+online_server/*.exe
+online_server/build/
+online_server/*.db
+online_server/server_out.txt

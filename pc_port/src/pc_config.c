@@ -41,6 +41,20 @@ s_PcConfig g_PcConfig = {
     .menuFpsUnlock = 1, /* menus/map/puzzles follow fps_cap; inventory and cutscenes do not */
     .lowHealthGlow = 0, /* 1=pulsing red edge glow below 20 hp (SH2 remake style); off by default */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
+    /* Silent Hill Online. Off by default: an offline build must behave
+     * exactly like the single-player port, and nothing here contacts a
+     * network until online_enabled is set. */
+    .onlineEnabled    = 0,
+    .onlineServer     = "127.0.0.1",
+    .onlinePort       = 27888,
+    .onlineName       = "Wanderer",
+    .onlinePassword   = "",
+    .onlineGhosts     = 1,
+    .onlineMemos      = 1,
+    .onlineDeaths     = 1,
+    .onlineGhostStyle = 2, /* SHNET_GS_BOTH: the contour plus a floor ring */
+    .onlineGhostRange = 40,
+    .onlineEvents     = 1,
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
     .wholeMapExteriors = 0, /* EXPERIMENTAL: texture+draw every exterior chunk (whole town visible; heavy with fog weakened) */
     .usePgxp        = 0, /* 0=affine textures (PSX look), 1=PGXP perspective correct (WIP) */
@@ -628,6 +642,61 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "bullet_decals") == 0)
         {
             g_PcConfig.bulletDecals = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "online_enabled") == 0)
+        {
+            g_PcConfig.onlineEnabled = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "online_server") == 0)
+        {
+            strncpy(g_PcConfig.onlineServer, value, sizeof(g_PcConfig.onlineServer) - 1);
+            g_PcConfig.onlineServer[sizeof(g_PcConfig.onlineServer) - 1] = ' ';
+        }
+        else if (strcmp(key, "online_port") == 0)
+        {
+            int v = atoi(value);
+            if (v <= 0 || v > 65535) v = 27888;
+            g_PcConfig.onlinePort = v;
+        }
+        else if (strcmp(key, "online_name") == 0)
+        {
+            strncpy(g_PcConfig.onlineName, value, sizeof(g_PcConfig.onlineName) - 1);
+            g_PcConfig.onlineName[sizeof(g_PcConfig.onlineName) - 1] = ' ';
+        }
+        else if (strcmp(key, "online_password") == 0)
+        {
+            strncpy(g_PcConfig.onlinePassword, value, sizeof(g_PcConfig.onlinePassword) - 1);
+            g_PcConfig.onlinePassword[sizeof(g_PcConfig.onlinePassword) - 1] = ' ';
+        }
+        else if (strcmp(key, "online_ghosts") == 0)
+        {
+            g_PcConfig.onlineGhosts = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "online_memos") == 0)
+        {
+            g_PcConfig.onlineMemos = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "online_deaths") == 0)
+        {
+            g_PcConfig.onlineDeaths = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "online_ghost_style") == 0)
+        {
+            int v = atoi(value);
+            if (v < 0) v = 0;
+            if (v > 2) v = 2;
+            g_PcConfig.onlineGhostStyle = v;
+        }
+        else if (strcmp(key, "online_ghost_range") == 0)
+        {
+            int v = atoi(value);
+            if (v < 5)   v = 5;
+            if (v > 400) v = 400;
+            g_PcConfig.onlineGhostRange = v;
+        }
+        else if (strcmp(key, "online_events") == 0)
+        {
+            g_PcConfig.onlineEvents = (atoi(value) != 0);
         }
         else if (strcmp(key, "whole_map_exteriors") == 0)
         {
