@@ -50,7 +50,7 @@ extern void        PcOpt_QuickViewReset(void);
 
 #define QO_GARBAGE  48
 #define QO_MAX_ROWS 16
-#define QO_PAGES    5
+#define QO_PAGES    6
 #define QO_DD_MAX     64  /* dropdown entries cached */
 #define QO_DD_VISIBLE 8
 
@@ -124,7 +124,7 @@ static const QoRowDef s_page2Simple[] = {
     { ROW_EXTRA,  NULL, QO_X_VFOV,         "FOV" },
     { ROW_EXTRA,  NULL, QO_X_VSHIFT,       "Vertical Shift" },
     { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
-    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
+    { ROW_PAGE,   NULL, 0,                 "Next page  (Controls & Touch)" },
     { ROW_CLOSE,  NULL, 0,                 "Close" },
 };
 
@@ -136,8 +136,25 @@ static const QoRowDef s_page2Advanced[] = {
     { ROW_EXTRA,  NULL, QO_X_VSHIFT,       "Vertical Shift" },
     { ROW_EXTRA,  NULL, QO_X_PAR,          "Pixel Aspect" },
     { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
-    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
+    { ROW_PAGE,   NULL, 0,                 "Next page  (Controls & Touch)" },
     { ROW_CLOSE,  NULL, 0,                 "Close" },
+};
+
+static const QoRowDef s_pageControls[] = {
+    { ROW_OPT,   "touch_controls",        0, NULL },
+    { ROW_OPT,   "touch_look_sensitivity",0, NULL },
+    { ROW_OPT,   "screen_orientation",    0, NULL },
+    { ROW_OPT,   "control_2d",            0, NULL },
+    { ROW_OPT,   "controller_sensitivity",0, NULL },
+    { ROW_OPT,   "aim_assist",            0, NULL },
+    { ROW_OPT,   "tps_aim_zoom_amount",   0, NULL },
+    { ROW_OPT,   "tps_ots_aim",           0, NULL },
+    { ROW_OPT,   "tps_camera_collision",  0, NULL },
+    { ROW_OPT,   "fps_fov",               0, NULL },
+    { ROW_OPT,   "tps_fov",               0, NULL },
+    { ROW_OPT,   "invert_controller_y",   0, NULL },
+    { ROW_PAGE,  NULL, 0,                 "Next page  (Cheats)" },
+    { ROW_CLOSE, NULL, 0,                 "Close" },
 };
 
 /* Set when the row SET changes under the cached text (a Control Type switch,
@@ -161,7 +178,7 @@ static const QoRowDef* qo_view_page(int* count)
     return s_page2Simple;
 }
 
-/* Pages 2/3 mirror pc_cheats.c's tables, built on first use. */
+/* Pages mirror pc_cheats.c's tables, built on first use. */
 static QoRowDef s_cheatRows[2][QO_MAX_ROWS];
 static int      s_cheatRowCount[2];
 
@@ -192,16 +209,21 @@ static const QoRowDef* qo_page_rows(int page, int* count)
 {
     if (page == 1) { *count = (int)(sizeof(s_page1) / sizeof(s_page1[0])); return s_page1; }
     if (page == 2) return qo_view_page(count);
-    if (page == 3) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
-    if (page == 4) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Graphics)", count);
+    if (page == 3) { *count = (int)(sizeof(s_pageControls) / sizeof(s_pageControls[0])); return s_pageControls; }
+    if (page == 4) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
+    if (page == 5) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Graphics)", count);
     *count = (int)(sizeof(s_page0) / sizeof(s_page0[0]));
     return s_page0;
 }
 
 static const char* const s_pageTitles[QO_PAGES] = {
-    "QUICK OPTIONS  -  GRAPHICS", "QUICK OPTIONS  -  HUD & AUDIO",
+    "QUICK OPTIONS  -  GRAPHICS",
+    "QUICK OPTIONS  -  HUD & AUDIO",
     "QUICK OPTIONS  -  VIEW & ASPECT",
-    "QUICK OPTIONS  -  CHEATS",   "QUICK OPTIONS  -  DEBUG" };
+    "QUICK OPTIONS  -  CONTROLS & TOUCH",
+    "QUICK OPTIONS  -  CHEATS",
+    "QUICK OPTIONS  -  DEBUG & WARPS"
+};
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -248,6 +270,10 @@ static int    s_bakedForPage = -1;
 /* Geometry published by Draw for Update's mouse hit-test (viewport px, y up). */
 static float s_vpW = 1920.0f, s_vpH = 1080.0f;
 static float s_geoListT, s_geoRowPitch, s_geoRowH, s_geoPanelL, s_geoPanelR;
+/* First row drawn. Pages taller than the panel scroll instead of shrinking their
+ * text; the hit-test has to add this back to turn a screen slot into a row. */
+static int   s_scrollTop = 0;
+static int   s_geoScrollTop = 0;
 /* Panel drag: grab the title bar and move it. Offsets are in viewport px and
  * survive close/reopen within a session. The title-bar rect is published for
  * Update's hit-test the same way the row geometry is. */
@@ -306,6 +332,10 @@ static void qo_gl_init(void)
     static const char* fs_src =
         "#ifdef GL_ES\n"
         "precision mediump float;\n"
+        "#else\n"
+        "#ifdef __ANDROID__\n"
+        "precision mediump float;\n"
+        "#endif\n"
         "#endif\n"
         "varying vec2 v_uv;\n"
         "uniform sampler2D u_tex;\n"
@@ -1104,6 +1134,7 @@ static void qo_open(void)
     s_phase      = QO_OPENING;
     s_phaseStart = SDL_GetTicks();
     s_sel        = 0;
+    s_scrollTop  = 0;
     g_PcQuickOptionsActive = 1;
 }
 
@@ -1174,6 +1205,7 @@ static void qo_set_page(int page)
     int n;
     s_ddRow = -1;
     s_page = (page + QO_PAGES) % QO_PAGES;
+    s_scrollTop = 0;
     qo_page_rows(s_page, &n);
     if (s_sel >= n) s_sel = n - 1;
     if (s_sel < 0)  s_sel = 0;
@@ -1370,7 +1402,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     {
         float py  = (1.0f - my) * s_vpH; /* top-left norm -> bottom-left px */
         float mpx = mx * s_vpW;
-        int   row = (int)((s_geoListT - py) / s_geoRowPitch);
+        int   row = (int)((s_geoListT - py) / s_geoRowPitch) + s_geoScrollTop;
         int   inX = mpx >= s_geoPanelL && mpx <= s_geoPanelR;
         if (inX && row >= 0 && row < nRows)
         {
@@ -1458,6 +1490,7 @@ void Pc_QuickOptions_Draw(void)
     GLint vp[4];
     float vpW, vpH, panelW, panelH, panelL, panelR, panelT, panelB;
     float titleH, hintH, listT, listB, listH, rowPitch, rowH, pad, dim = 1.0f;
+    int   visRows;
     int   nRows;
     const QoRowDef* rows = qo_page_rows(s_page, &nRows);
     int   px, i;
@@ -1561,8 +1594,16 @@ void Pc_QuickOptions_Draw(void)
 
     /* Layout (viewport px, origin bottom-left). Left-anchored rather than
      * centred so the scene stays visible beside it while you tune. */
+#if defined(__ANDROID__)
+    /* A handheld is held closer than a monitor but is physically much smaller,
+     * so the desktop panel (0.74 x 0.80) came out as a narrow strip of tiny
+     * text. Give it most of the display instead. */
+    panelH = 0.92f * vpH;
+    panelW = 1.15f * panelH;
+#else
     panelH = 0.74f * vpH;
     panelW = 0.80f * panelH;
+#endif
     if (panelW > 0.90f * vpW) panelW = 0.90f * vpW;
     panelL = vpW * 0.04f;
     panelB = (vpH - panelH) * 0.5f;
@@ -1592,7 +1633,28 @@ void Pc_QuickOptions_Draw(void)
     listT    = panelT - titleH;
     listB    = panelB + hintH;
     listH    = listT - listB;
-    rowPitch = listH / (float)nRows;
+    /* Size rows for legibility FIRST, then scroll if they do not all fit. The
+     * old listH/nRows made every row added to a page shrink that page's text --
+     * the 14-row Controls page rendered at 20px on a 1080p handheld. */
+    {
+        float pxWant = vpH * 0.028f;
+        float pitchWant;
+
+        if (pxWant < 13.0f) pxWant = 13.0f;
+        pitchWant = pxWant / (0.84f * 0.52f);
+
+        visRows = (int)(listH / pitchWant);
+        if (visRows < 3)     visRows = 3;
+        if (visRows > nRows) visRows = nRows;
+    }
+
+    /* Keep the selected row on screen. */
+    if (s_scrollTop > s_sel)                 s_scrollTop = s_sel;
+    if (s_scrollTop < s_sel - (visRows - 1)) s_scrollTop = s_sel - (visRows - 1);
+    if (s_scrollTop > nRows - visRows)       s_scrollTop = nRows - visRows;
+    if (s_scrollTop < 0)                     s_scrollTop = 0;
+
+    rowPitch = listH / (float)visRows;
     rowH     = rowPitch * 0.84f;
     px       = (int)(rowH * 0.52f);
     if (px < 8) px = 8;
@@ -1632,6 +1694,7 @@ void Pc_QuickOptions_Draw(void)
     s_vpW = vpW; s_vpH = vpH;
     s_geoListT = listT; s_geoRowPitch = rowPitch; s_geoRowH = rowH;
     s_geoPanelL = panelL; s_geoPanelR = panelR; s_geoRows = nRows;
+    s_geoScrollTop = s_scrollTop;
     s_geoTitleT = panelT; s_geoTitleB = panelT - titleH;
 
     qo_build_white();
@@ -1682,10 +1745,10 @@ void Pc_QuickOptions_Draw(void)
         qo_quad(s_texTitle, NX(tx), NY(ty), NX(tx + s_titleW), NY(ty - s_titleH), 1.0f, 0.93f, 0.86f, dim);
     }
 
-    for (i = 0; i < nRows && i < QO_MAX_ROWS; i++)
+    for (i = s_scrollTop; i < nRows && i < QO_MAX_ROWS && (i - s_scrollTop) < visRows; i++)
     {
         const QoRowDef* r = &rows[i];
-        float rowTop = listT - (float)i * rowPitch;
+        float rowTop = listT - (float)(i - s_scrollTop) * rowPitch;
         float rowMid = rowTop - rowH * 0.5f;
         float tH, tY;
         char  txt[64];
@@ -1763,7 +1826,7 @@ void Pc_QuickOptions_Draw(void)
         int   vis = (n < QO_DD_VISIBLE) ? n : QO_DD_VISIBLE;
         float ddL = panelL + panelW * 0.5f;
         float ddR = panelR - 4.0f;
-        float ddTop = listT - (float)(s_ddRow + 1) * rowPitch + rowPitch * 0.08f;
+        float ddTop = listT - (float)(s_ddRow - s_scrollTop + 1) * rowPitch + rowPitch * 0.08f;
         float ddH = rowH;
         int   k;
 
@@ -1771,7 +1834,7 @@ void Pc_QuickOptions_Draw(void)
         if (s_ddScroll > n - vis) s_ddScroll = n - vis;
         if (s_ddScroll < 0) s_ddScroll = 0;
         /* Don't run off the panel bottom: open upward instead. */
-        if (ddTop - vis * ddH < panelB) ddTop = listT - (float)s_ddRow * rowPitch + vis * ddH;
+        if (ddTop - vis * ddH < panelB) ddTop = listT - (float)(s_ddRow - s_scrollTop) * rowPitch + vis * ddH;
 
         qo_quad(s_texWhite, NX(ddL - 2.0f), NY(ddTop + 2.0f), NX(ddR + 2.0f), NY(ddTop - vis * ddH - 2.0f), 0.47f, 0.11f, 0.08f, dim);
         qo_quad(s_texWhite, NX(ddL), NY(ddTop), NX(ddR), NY(ddTop - vis * ddH), 0.05f, 0.045f, 0.06f, 0.97f * dim);
