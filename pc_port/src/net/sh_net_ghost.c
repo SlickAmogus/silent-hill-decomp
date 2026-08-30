@@ -75,6 +75,15 @@
  * bucket still paints last, however transparent it is. */
 #define SHNET_OT_SHIFT 1
 
+/* Hard cap on prims per frame, whatever the server sends. The frame packet
+ * arena is shared with the world and has nothing stopping emission past its
+ * end (see PC_WM_PACKET_BUDGET in bodyprog_80040B74.c), and the counts here
+ * are driven by a REMOTE party: a server bug, or a hostile one, could put
+ * hundreds of markers on one map. Range culling already keeps the normal case
+ * far below this; the cap is what makes the abnormal case a few missing
+ * markers instead of a corrupted arena. */
+#define SHNET_MAX_PRIMS 192
+
 /* A ghost further than this is not drawn. Not an optimization — the point is
  * that a silhouette visible across the whole map would give away rooms the
  * player has not reached. Config: online_ghost_range (metres). */
@@ -371,6 +380,7 @@ static POLY_FT4* ShNetG_EmitFootprint(GsOT* ot, POLY_FT4* poly,
 void ShNet_DrawWorld(GsOT* ot)
 {
     POLY_FT4*    poly;
+    POLY_FT4*    primBase;
     int          i;
     int          count;
     const int    style = g_PcConfig.onlineGhostStyle;
@@ -392,8 +402,9 @@ void ShNet_DrawWorld(GsOT* ot)
         return;
     }
 
-    poly  = (POLY_FT4*)GsOUT_PACKET_P;
-    range = ShNetG_RangeQ12();
+    poly     = (POLY_FT4*)GsOUT_PACKET_P;
+    primBase = poly;
+    range    = ShNetG_RangeQ12();
 
     /* ---- other players ---- */
     if (g_PcConfig.onlineGhosts && (s_ghostTexOk || s_memoTexOk))
@@ -409,6 +420,10 @@ void ShNet_DrawWorld(GsOT* ot)
             short             grot;
             u8                cr, cg, cb;
 
+            if (poly - primBase >= SHNET_MAX_PRIMS)
+            {
+                break;
+            }
             if (!g || !ShNet_GhostInterp(i, &gx, &gy, &gz, &grot))
             {
                 continue;
@@ -471,6 +486,10 @@ void ShNet_DrawWorld(GsOT* ot)
             VECTOR3          axisV;
             u8               cr, cg, cb;
 
+            if (poly - primBase >= SHNET_MAX_PRIMS)
+            {
+                break;
+            }
             if (!m)
             {
                 continue;

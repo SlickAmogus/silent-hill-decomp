@@ -2190,6 +2190,14 @@ void MainLoop(void) // 0x80032EE0
             static int s_qoPreloaded = 0;
             if (!s_qoPreloaded) { s_qoPreloaded = 1; Pc_QuickOptions_PreloadGL(); }
         }
+        /* Same claim, same reason, for the online panels: a texture allocated
+         * later can be handed a recycled name a framebuffer object still refers
+         * to, and that pass then renders the scene into the panel's glyphs. */
+        {
+            extern void ShNetUi_PreloadGL(void);
+            static int s_netUiPreloaded = 0;
+            if (!s_netUiPreloaded) { s_netUiPreloaded = 1; ShNetUi_PreloadGL(); }
+        }
         DbgOverlay_Update();
 
         /* Randomizer: per-area monster placement, entry-door relock timer.
