@@ -156,6 +156,7 @@ partial class Form1
             this.lblUncensored = new System.Windows.Forms.Label();
             this.lblMenu = new System.Windows.Forms.Label();
             this.btnRA = new System.Windows.Forms.Button();
+            this.btnOnline = new System.Windows.Forms.Button();
             this.comboRender = new System.Windows.Forms.ComboBox();
             this.lblRender = new System.Windows.Forms.Label();
             this.lblShadow = new System.Windows.Forms.Label();
@@ -888,6 +889,17 @@ partial class Form1
             this.lblMenu.TabIndex = 70;
             this.lblMenu.Text = "UI:";
             // 
+            // btnOnline
+            // 
+            this.btnOnline.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.btnOnline.Location = new System.Drawing.Point(4, 562);
+            this.btnOnline.Name = "btnOnline";
+            this.btnOnline.Size = new System.Drawing.Size(200, 26);
+            this.btnOnline.TabIndex = 120;
+            this.btnOnline.Text = "Online";
+            this.btnOnline.UseVisualStyleBackColor = true;
+            this.btnOnline.Click += new System.EventHandler(this.btnOnline_Click);
+            // 
             // btnRA
             // 
             this.btnRA.Location = new System.Drawing.Point(170, 533);
@@ -961,7 +973,8 @@ partial class Form1
             // 
             // Form1
             // 
-            this.ClientSize = new System.Drawing.Size(454, 558);
+            this.ClientSize = new System.Drawing.Size(454, 594);
+            this.Controls.Add(this.btnOnline);
             this.Controls.Add(this.lblMinimap);
             this.Controls.Add(this.comboMinimap);
             this.Controls.Add(this.lblShadow);
@@ -1062,6 +1075,7 @@ partial class Form1
     private Label lblUncensored;
     private Label lblMenu;
     private Button btnRA;
+    private Button btnOnline;
     private ComboBox comboRender;
     private Label lblRender;
     private Label lblShadow;

@@ -2164,6 +2164,17 @@ public partial class Form1 : Form
         RefreshRaTooltip();
     }
 
+    // Online: the settings for this branch's networking, plus a button that
+    // starts the master server on this machine. Everything it writes is inert
+    // in the game while "Play online" is off.
+    private void btnOnline_Click(object sender, EventArgs e)
+    {
+        using (var dlg = new SilentHillPC_Launcher.OnlineForm(config))
+        {
+            dlg.ShowDialog(this);
+        }
+    }
+
     private void btnBuildSettings_Click(object sender, EventArgs e)
     {
         // Build Settings: choose the repo/branch/build the launcher tracks for
