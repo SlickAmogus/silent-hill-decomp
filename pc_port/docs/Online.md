@@ -163,13 +163,13 @@ seen at, over both fog and a dark interior.
 ## Limits, honestly
 
 - **Only ever tested on one machine.** Two copies of the game, running at once
-  against one , do connect and do see each other — the log shows
+  against one `sh_master`, do connect and do see each other — the log shows
   each one reporting the other appearing at a plausible world position, and
   the ghost texture registering from inside the world draw. What has not been
   tried is two *different* machines, across a real network, with real latency
   and a NAT in the way. Expect that session to find things.
 - **Nobody has looked at a ghost in the scene yet.** The silhouette was tuned
-  by rendering it (), and every step up to the draw call is
+  by rendering it (`ghost_art_dump`), and every step up to the draw call is
   verified, but whether it reads well standing in a Silent Hill corridor is a
   question only a person can answer.
 - No name tags over ghosts. Projecting a world position into the overlay's
