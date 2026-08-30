@@ -33,7 +33,8 @@
 enum { TR_NONE = 0, TR_MOVE, TR_LOOK, TR_BUTTON, TR_ADVANCE };
 
 /* Actions the on-screen buttons drive. Indices into s_Buttons. */
-enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_COUNT };
+enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_MENU,
+       TB_LIGHT, TB_VIEW, TB_COUNT };
 
 typedef struct
 {
@@ -54,8 +55,7 @@ typedef struct
 #define TC_BUTTON_MIN_FRAMES 3
 
 /* Bottom-right cluster for the two combat-adjacent actions, with Item and Map
- * above them and Start out of the way in the corner. Right-handed layout: the
- * looking thumb is already on this side. */
+ * above them, Start out of the way in top-right, and Menu in top-left. */
 static s_TouchButton s_Buttons[TB_COUNT] = {
     /* TB_AIM   */ { 0.905f, 0.760f, 0.105f, 0 },
     /* TB_ITEM  */ { 0.760f, 0.830f, 0.070f, 0 },
@@ -65,6 +65,11 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
     /* TB_BACK is only ever drawn in the corner escape slot, so its own
      * position is never used -- it exists to carry a glyph and a binding. */
     /* TB_BACK  */ { 0.955f, 0.075f, 0.055f, 0 },
+    /* TB_MENU  */ { 0.045f, 0.075f, 0.055f, 0 },
+    /* Flashlight is not a convenience on a touchscreen -- half the game is
+     * unplayable without toggling it, and it had no button at all. */
+    /* TB_LIGHT */ { 0.760f, 0.640f, 0.065f, 0 },
+    /* TB_VIEW  */ { 0.905f, 0.330f, 0.058f, 0 },
 };
 
 typedef struct
@@ -139,7 +144,12 @@ static float Tc_LookGain(void)
 
 static int Tc_Enabled(void);
 
-enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_ADVANCE, TC_MODE_BACK };
+/* TC_MODE_MENUONLY: the overlay is switched off or auto-hidden, but the single
+ * menu button stays live. Without it a hidden overlay was a dead end -- there is
+ * no keyboard on a handheld, and nothing on screen could turn touch back on or
+ * open Quick Options. */
+enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_ADVANCE,
+       TC_MODE_BACK, TC_MODE_MENUONLY };
 
 /* Gameplay gets the full scheme. Pause gets Start ALONE -- nothing else on that
  * screen responds to a pointer, so hiding the controls there left no way back
@@ -149,7 +159,15 @@ enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_AD
 static int Tc_Mode(void)
 {
     if (!Tc_Enabled())
+    {
+        /* Keep the one escape hatch alive during gameplay. Everything else stays
+         * dark, so a resting thumb still cannot steer or fire. */
+        if (g_GameWork.gameState == GameState_InGame &&
+            g_SysWork.sysState == SysState_Gameplay)
+            return TC_MODE_MENUONLY;
+
         return TC_MODE_OFF;
+    }
 
     /* The boot logos and the intro movies are GAME states, not sys states, so
      * the checks below never saw them and the Konami/KCET screens could not be
@@ -284,15 +302,20 @@ static void Tc_GetButtonGeometry(int idx, float aspect, float* cx, float* cy, fl
             case TB_START: *cx = 0.900f; *cy = 0.040f; *r = 0.040f; break;
             case TB_RUN:   *cx = 0.440f; *cy = 0.840f; *r = 0.050f; break;
             case TB_BACK:  *cx = 0.900f; *cy = 0.040f; *r = 0.040f; break;
+            case TB_MENU:  *cx = 0.100f; *cy = 0.040f; *r = 0.040f; break;
+            case TB_LIGHT: *cx = 0.620f; *cy = 0.740f; *r = 0.052f; break;
+            case TB_VIEW:  *cx = 0.820f; *cy = 0.545f; *r = 0.048f; break;
             default:       *cx = s_Buttons[idx].cx; *cy = s_Buttons[idx].cy; *r = s_Buttons[idx].r; break;
         }
     }
     else
     {
         /* Standard landscape layout */
-        *cx = s_Buttons[idx].cx;
-        *cy = s_Buttons[idx].cy;
-        *r  = s_Buttons[idx].r;
+        switch (idx)
+        {
+            case TB_MENU:  *cx = 0.045f; *cy = 0.075f; *r = 0.055f; break;
+            default:       *cx = s_Buttons[idx].cx; *cy = s_Buttons[idx].cy; *r = s_Buttons[idx].r; break;
+        }
     }
 }
 
@@ -473,8 +496,7 @@ void Pc_Touch_Update(void)
                 }
                 else if (mode != TC_MODE_GAMEPLAY)
                 {
-                    /* One live control, in the corner slot; a stray thumb
-                     * anywhere else must not steer a frozen world. */
+                    /* One live control in the corner slot; or TB_MENU in top-left */
                     int   solo = Tc_SoloButton(mode);
                     float scx, scy, sr;
                     Tc_GetButtonGeometry(TB_START, aspect, &scx, &scy, &sr);
@@ -483,8 +505,28 @@ void Pc_Touch_Update(void)
                     sr *= 1.25f;
                     int   onIt = (((sdx * sdx) + (sdy * sdy)) <= (sr * sr));
 
-                    t->role      = (onIt && solo >= 0) ? TR_BUTTON : TR_NONE;
-                    t->buttonIdx = (onIt && solo >= 0) ? solo : -1;
+                    float mcx, mcy, mr;
+                    Tc_GetButtonGeometry(TB_MENU, aspect, &mcx, &mcy, &mr);
+                    float mdx  = (vx - mcx) * aspect;
+                    float mdy  = (vy - mcy);
+                    mr *= 1.25f;
+                    int   onMenu = (((mdx * mdx) + (mdy * mdy)) <= (mr * mr));
+
+                    if (onMenu)
+                    {
+                        t->role      = TR_BUTTON;
+                        t->buttonIdx = TB_MENU;
+                    }
+                    else if (onIt && solo >= 0)
+                    {
+                        t->role      = TR_BUTTON;
+                        t->buttonIdx = solo;
+                    }
+                    else
+                    {
+                        t->role      = TR_NONE;
+                        t->buttonIdx = -1;
+                    }
                 }
                 else if (b >= 0)
                 {
@@ -649,6 +691,25 @@ void Pc_Touch_Update(void)
         if (s_Buttons[TB_MAP].holdFrames   > 0) Tc_PressAction(&s_PadWord, cfg->map);
         if (s_Buttons[TB_START].holdFrames > 0) Tc_PressAction(&s_PadWord, cfg->pause);
         if (s_Buttons[TB_BACK].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->cancel);
+        if (s_Buttons[TB_LIGHT].holdFrames > 0) Tc_PressAction(&s_PadWord, cfg->light);
+        if (s_Buttons[TB_VIEW].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->view);
+
+        /* The touch route to the quick options overlay, mirroring the L3 pad bind
+         * and F10 on desktop. Same gate as dbg_overlay.c: the panel is closed for
+         * you outside InGame, so opening it from the brightness screen (a BACK
+         * mode, where gameState is OptionScreen) would only flicker. */
+        {
+            static int s_prevMenu = 0;
+            int curMenu = (s_Buttons[TB_MENU].held || s_Buttons[TB_MENU].holdFrames > 0);
+            if (curMenu && !s_prevMenu &&
+                g_GameWork.gameState == GameState_InGame &&
+                !(g_SysWork.sysFlags & SysFlag_DemoActive))
+            {
+                extern void Pc_QuickOptions_Toggle(void);
+                Pc_QuickOptions_Toggle();
+            }
+            s_prevMenu = curMenu;
+        }
 
         if (s_Running || s_Buttons[TB_RUN].holdFrames > 0)
             Tc_PressAction(&s_PadWord, cfg->run);
@@ -877,10 +938,18 @@ void Pc_Touch_Draw(void)
 
         if (mode != TC_MODE_GAMEPLAY)
         {
-            if (i != Tc_SoloButton(mode))
+            if (i == TB_MENU)
+            {
+                Tc_GetButtonGeometry(TB_MENU, aspect, &bcx, &bcy, &br);
+            }
+            else if (i == Tc_SoloButton(mode))
+            {
+                Tc_GetButtonGeometry(TB_START, aspect, &bcx, &bcy, &br);
+            }
+            else
+            {
                 continue;
-
-            Tc_GetButtonGeometry(TB_START, aspect, &bcx, &bcy, &br);
+            }
         }
 
         cx = TC_UX(bcx);
@@ -920,6 +989,57 @@ void Pc_Touch_Draw(void)
                 int w = (r * 12) / 100, h = (r * 34) / 100, g = (r * 22) / 100;
                 Tc_Quad(&batch, cx - g - w, cy - h, cx - g + w, cy - h, cx - g - w, cy + h, cx - g + w, cy + h, lum);
                 Tc_Quad(&batch, cx + g - w, cy - h, cx + g + w, cy - h, cx + g - w, cy + h, cx + g + w, cy + h, lum);
+                break;
+            }
+            case TB_MENU:
+            {
+                /* Three bars, with a floor under every term. This space is 240
+                 * units tall (TC_UR), so at this button's radius -- 13 units --
+                 * a plain 7%-of-r half-height integer-divides to 0 and the whole
+                 * glyph disappears, leaving a ring with nothing in it. */
+                int h = (r * 8) / 100;
+                int g, w;
+                if (h < 1) h = 1;
+                g = (r * 30) / 100;
+                if (g < h * 3) g = h * 3;
+                w = (r * 38) / 100;
+                if (w < 2) w = 2;
+                Tc_Quad(&batch, cx - w, cy - g - h, cx + w, cy - g - h, cx - w, cy - g + h, cx + w, cy - g + h, lum);
+                Tc_Quad(&batch, cx - w, cy - h,     cx + w, cy - h,     cx - w, cy + h,     cx + w, cy + h,     lum);
+                Tc_Quad(&batch, cx - w, cy + g - h, cx + w, cy + g - h, cx - w, cy + g + h, cx + w, cy + g + h, lum);
+                break;
+            }
+            case TB_LIGHT:
+            {
+                /* A widening beam: narrow at the lamp, broad at the far end.
+                 * Floors on every term for the same reason as TB_MENU -- this
+                 * space is 240 units tall, so small percentages truncate to 0. */
+                int hw = (r * 26) / 100;
+                int bw = (r * 48) / 100;
+                int hh = (r * 34) / 100;
+                if (hw < 2) hw = 2;
+                if (bw < 3) bw = 3;
+                if (hh < 2) hh = 2;
+                Tc_Quad(&batch, cx - hw, cy - hh, cx + hw, cy - hh,
+                                cx - bw, cy + hh, cx + bw, cy + hh, lum);
+                break;
+            }
+            case TB_VIEW:
+            {
+                /* Camera body with a viewfinder hump: reads as "change view"
+                 * next to the map's plain rectangle. */
+                int w = (r * 40) / 100;
+                int h = (r * 20) / 100;
+                int nw = (r * 15) / 100;
+                int nh = (r * 12) / 100;
+                if (w < 3)  w = 3;
+                if (h < 2)  h = 2;
+                if (nw < 1) nw = 1;
+                if (nh < 1) nh = 1;
+                Tc_Quad(&batch, cx - w, cy - h, cx + w, cy - h,
+                                cx - w, cy + h, cx + w, cy + h, lum);
+                Tc_Quad(&batch, cx - nw, cy - h - 2 * nh, cx + nw, cy - h - 2 * nh,
+                                cx - nw, cy - h,          cx + nw, cy - h,          lum);
                 break;
             }
             case TB_BACK:
