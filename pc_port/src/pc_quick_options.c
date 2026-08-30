@@ -40,14 +40,17 @@ extern const char* PcOpt_QuickName(const void* h);
 extern const char* PcOpt_QuickLabel(const void* h, char* buf, int bufsz);
 extern void        PcOpt_QuickAdjust(const void* h, int dir);
 extern int         PcOpt_QuickRealtime(const void* h);
-/* options.c: rows that are not in that table. */
-enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX };
+/* options.c: rows that are not in that table. Keep in step with the identical
+ * enum there -- these are indices into its switch, nothing more. */
+enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
+       QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
+extern void        PcOpt_QuickViewReset(void);
 
 #define QO_GARBAGE  48
 #define QO_MAX_ROWS 16
-#define QO_PAGES    4
+#define QO_PAGES    5
 #define QO_DD_MAX     64  /* dropdown entries cached */
 #define QO_DD_VISIBLE 8
 
@@ -55,7 +58,19 @@ extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 /* Rows                                                                */
 /* ------------------------------------------------------------------ */
 
-enum { ROW_OPT = 0, ROW_EXTRA, ROW_PAGE, ROW_CLOSE, ROW_CHEAT };
+/* ROW_ACTION fires from Confirm/click ONLY -- unlike every other row kind,
+ * Left/Right must not trigger it, or scrolling past "Reset View Settings"
+ * with the arrows would undo the player's tuning. */
+/* Defined HERE, above the row tables, because they test it: from its old
+ * position further down, the #if guarding the Speaker Layout row in s_page1
+ * was evaluated before the macro existed and silently kept a row mobile is
+ * meant to drop. */
+#if defined(SH_IOS) || defined(__ANDROID__)
+#define QO_MOBILE 1
+#endif
+
+enum { ROW_OPT = 0, ROW_EXTRA, ROW_PAGE, ROW_CLOSE, ROW_CHEAT, ROW_ACTION };
+enum { QO_A_VIEWRESET = 0 };
 
 typedef struct
 {
@@ -91,13 +106,77 @@ static const QoRowDef s_page1[] = {
     { ROW_OPT,   "minimap_require_map",  0, NULL },
     { ROW_OPT,   "crosshair",            0, NULL },
     { ROW_OPT,   "low_health_glow",      0, NULL },
+/* Not on mobile: it would not do anything. PsyX_SPUAL_SetOutputMode is an
+ * empty stub on the software backend and GetOutputMode always answers
+ * stereo -- the only surround path for the software SPU is audio_spatial,
+ * which IS OpenAL placement, and there is no OpenAL on either mobile target
+ * (PsyX_SPUSpatial.cpp is not even compiled there). Cycling the row would
+ * write a config value, redraw a new label, and change nothing you can
+ * hear, which is worse than not offering it. */
+#if !defined(QO_MOBILE)
     { ROW_EXTRA, NULL, QO_X_SPEAKERS,       "Speaker Layout" },
+#endif
     { ROW_EXTRA, NULL, QO_X_BGM,            "Music Volume" },
     { ROW_EXTRA, NULL, QO_X_SFX,            "Effects Volume" },
     { ROW_OPT,   "fmv_volume",           0, NULL },
-    { ROW_PAGE,  NULL, 0,                   "Next page  (Cheats)" },
+    { ROW_PAGE,  NULL, 0,                   "Next page  (View)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
 };
+
+/* View & Aspect, in two shapes.
+ *
+ * Control Type picks how much rope the player gets, and the page then shows
+ * ONLY the knobs that mode actually reads. Simple owns the shape with one
+ * value (Aspect Trim) because its pixel-aspect solve divides hfov straight
+ * back out and never reads par -- both rows would sit there doing nothing.
+ * Advanced multiplies its own shape out of hfov x vfov / par instead, which is
+ * what the released builds did, so there the trim is the inert one.
+ *
+ * FOV is the same knob in both (the world's vertical ortho); it is named for
+ * what it does rather than for the axis it is implemented on, since in Simple
+ * it zooms both axes together with the shape held fixed. */
+static const QoRowDef s_page2Simple[] = {
+    { ROW_EXTRA,  NULL, QO_X_ASPECT,       "Control Type" },
+    { ROW_EXTRA,  NULL, QO_X_CRTTRIM,      "Aspect Trim" },
+    { ROW_EXTRA,  NULL, QO_X_VFOV,         "FOV" },
+    { ROW_EXTRA,  NULL, QO_X_VSHIFT,       "Vertical Shift" },
+    { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
+    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
+    { ROW_CLOSE,  NULL, 0,                 "Close" },
+};
+
+static const QoRowDef s_page2Advanced[] = {
+    { ROW_EXTRA,  NULL, QO_X_ASPECT,       "Control Type" },
+    { ROW_EXTRA,  NULL, QO_X_CRTTRIM,      "Aspect Trim" },
+    { ROW_EXTRA,  NULL, QO_X_HFOV,         "Horizontal FOV" },
+    { ROW_EXTRA,  NULL, QO_X_VFOV,         "Vertical FOV" },
+    { ROW_EXTRA,  NULL, QO_X_VSHIFT,       "Vertical Shift" },
+    { ROW_EXTRA,  NULL, QO_X_PAR,          "Pixel Aspect" },
+    { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
+    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
+    { ROW_CLOSE,  NULL, 0,                 "Close" },
+};
+
+/* Set when the row SET changes under the cached text (a Control Type switch,
+ * or a reset that flips it back). Every label is cached by row index, so the
+ * page has to re-bake or Advanced's extra rows would draw Simple's words. */
+static int s_viewRowsDirty;
+
+void Pc_QuickOptions_InvalidateRows(void)
+{
+    s_viewRowsDirty = 1;
+}
+
+static const QoRowDef* qo_view_page(int* count)
+{
+    if (g_PcConfig.aspectRaw)
+    {
+        *count = (int)(sizeof(s_page2Advanced) / sizeof(s_page2Advanced[0]));
+        return s_page2Advanced;
+    }
+    *count = (int)(sizeof(s_page2Simple) / sizeof(s_page2Simple[0]));
+    return s_page2Simple;
+}
 
 /* Pages 2/3 mirror pc_cheats.c's tables, built on first use. */
 static QoRowDef s_cheatRows[2][QO_MAX_ROWS];
@@ -132,14 +211,16 @@ static const QoRowDef* qo_cheat_page(int cpage, const char* nextLabel, int* coun
 static const QoRowDef* qo_section_rows(int page, int* count)
 {
     if (page == 1) { *count = (int)(sizeof(s_page1) / sizeof(s_page1[0])); return s_page1; }
-    if (page == 2) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
-    if (page == 3) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Graphics)", count);
+    if (page == 2) return qo_view_page(count);
+    if (page == 3) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
+    if (page == 4) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Graphics)", count);
     *count = (int)(sizeof(s_page0) / sizeof(s_page0[0]));
     return s_page0;
 }
 
 static const char* const s_pageTitles[QO_PAGES] = {
     "QUICK OPTIONS  -  GRAPHICS", "QUICK OPTIONS  -  HUD & AUDIO",
+    "QUICK OPTIONS  -  VIEW & ASPECT",
     "QUICK OPTIONS  -  CHEATS",   "QUICK OPTIONS  -  DEBUG" };
 
 /* ------------------------------------------------------------------ */
@@ -156,10 +237,6 @@ static const char* const s_pageTitles[QO_PAGES] = {
  * The desktop tables stay the single source of truth for what is offered and in
  * what order -- a parallel set of mobile tables would drift the first time
  * someone added a row to one and not the other. */
-#if defined(SH_IOS) || defined(__ANDROID__)
-#define QO_MOBILE 1
-#endif
-
 #if defined(QO_MOBILE)
 
 #define QO_M_CONTENT 5   /* settings per page, before the two nav rows */
@@ -375,7 +452,7 @@ static void qo_gl_init(void)
         "void main() { gl_FragColor = texture2D(u_tex, v_uv) * u_color; }\n";
 
     GLuint vs, fs;
-    GLint  ok = 0, prevVao = 0, prevBuf = 0;
+    GLint  ok = 0, prevVao = 0, prevBuf = 0, prevProg = 0;
 
     s_glReady = -1;
     vs = qo_make_shader(GL_VERTEX_SHADER, vs_src);
@@ -401,10 +478,22 @@ static void qo_gl_init(void)
         s_prog = 0;
         return;
     }
+    /* Restore whatever program was bound, the same way the VAO and array
+     * buffer below are restored. PsyCross caches the bound program in
+     * g_PreviousShader and skips glUseProgram when it believes the right one
+     * is already current, so leaving ours bound here does not just affect the
+     * next draw -- it persists until something asks for a DIFFERENT shader.
+     * A screen whose every split shares one texture format never does, and
+     * renders entirely through this program, which has no Projection uniform:
+     * all geometry collapses and the screen is black. That is what happened to
+     * the Konami and KCET logos once this init moved to startup; they draw only
+     * 4-bit prims, so nothing ever forced the rebind that lets gameplay recover. */
+    glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
     glUseProgram(s_prog);
     glUniform1i(glGetUniformLocation(s_prog, "u_tex"), 0);
     qo_atlas_ensure(); /* one texture, created here, never recreated */
     s_locColor = glGetUniformLocation(s_prog, "u_color");
+    glUseProgram((GLuint)prevProg);
 
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
     glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prevBuf);
@@ -459,28 +548,38 @@ static unsigned qo_hash(const unsigned char* p, size_t n);
 #define QO_ATLAS_W    2048
 #define QO_ATLAS_H    1024
 #define QO_ATLAS_PAD  2
-#define QO_SLOT_MAX   96
+/* One open dropdown alone caches QO_DD_MAX (64) entries, and a 16-row page
+ * holds a label and a value each: the old 96 could be exhausted by the panel
+ * simply being open, never mind editing anything. */
+#define QO_SLOT_MAX   256
 
 static GLuint s_atlasTex;
 static int    s_atlasReady;
 static int    s_atlasX, s_atlasY, s_atlasRowH;
-static struct { int x, y, w, h; } s_slot[QO_SLOT_MAX];
+/* cw/ch is the rectangle the slot OWNS in the atlas; w/h is how much of it the
+ * current image uses. They differ after a slot is recycled by a shorter string,
+ * and only w/h feed the UVs, so the leftover pixels are never sampled. */
+static struct { int x, y, w, h, cw, ch, free; } s_slot[QO_SLOT_MAX];
 static int    s_slotCount;
+static int    s_atlasExhausted;
 
 /* Slot 0 is the solid white texel and is PERMANENT: the panel background,
  * the scrollbar and the row highlights all draw from it, and a reset that
  * handed slot 0 to the next label would repaint those with a word. */
 static void qo_atlas_reset(void)
 {
-    s_atlasX    = QO_ATLAS_PAD;
-    s_atlasY    = QO_ATLAS_PAD;
-    s_atlasRowH = 0;
-    s_slotCount = 0;
+    s_atlasX         = QO_ATLAS_PAD;
+    s_atlasY         = QO_ATLAS_PAD;
+    s_atlasRowH      = 0;
+    s_slotCount      = 0;
+    s_atlasExhausted = 0;
     if (s_atlasTex)
     {
         /* re-claim slot 0 in place, exactly as qo_atlas_ensure laid it out */
         s_slot[0].x = QO_ATLAS_PAD; s_slot[0].y = QO_ATLAS_PAD;
         s_slot[0].w = 1;            s_slot[0].h = 1;
+        s_slot[0].cw = 1;           s_slot[0].ch = 1;
+        s_slot[0].free = 0;
         s_slotCount = 1;
         s_atlasX    = QO_ATLAS_PAD + 1 + QO_ATLAS_PAD;
         s_atlasRowH = 1;
@@ -529,10 +628,39 @@ static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int neares
 
     (void)nearest; /* one atlas, one filter; padding covers the bleed */
 
-    if (!qo_atlas_ensure() || w <= 0 || h <= 0 || s_slotCount >= QO_SLOT_MAX)
+    if (!qo_atlas_ensure() || w <= 0 || h <= 0)
         return 0;
     if (w > QO_ATLAS_W - 2 * QO_ATLAS_PAD || h > QO_ATLAS_H - 2 * QO_ATLAS_PAD)
         return 0;
+
+    /* Recycle first. Editing a value re-bakes it on EVERY step, so a held
+     * arrow key used to burn one slot per step and never give it back -- the
+     * atlas ran out, this returned 0, and the number the player was adjusting
+     * simply stopped drawing. A re-baked value is nearly always the same size
+     * as the one it replaces, so the slot it just released fits it exactly.
+     * Best fit, so a short string does not claim a long string's rectangle. */
+    {
+        int bestIdx = -1, bestArea = 0;
+        for (idx = 1; idx < s_slotCount; idx++)
+        {
+            int area;
+            if (!s_slot[idx].free || s_slot[idx].cw < w || s_slot[idx].ch < h)
+                continue;
+            area = s_slot[idx].cw * s_slot[idx].ch;
+            if (bestIdx < 0 || area < bestArea) { bestIdx = idx; bestArea = area; }
+        }
+        if (bestIdx >= 0)
+        {
+            s_slot[bestIdx].w    = w;
+            s_slot[bestIdx].h    = h;
+            s_slot[bestIdx].free = 0;
+            glBindTexture(GL_TEXTURE_2D, s_atlasTex);
+            glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+            glTexSubImage2D(GL_TEXTURE_2D, 0, s_slot[bestIdx].x, s_slot[bestIdx].y,
+                            w, h, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+            return (GLuint)(bestIdx + 1);
+        }
+    }
 
     if (s_atlasX + w + QO_ATLAS_PAD > QO_ATLAS_W)
     {
@@ -540,14 +668,27 @@ static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int neares
         s_atlasY    += s_atlasRowH + QO_ATLAS_PAD;
         s_atlasRowH  = 0;
     }
-    if (s_atlasY + h + QO_ATLAS_PAD > QO_ATLAS_H)
-        return 0; /* full: caller simply draws nothing this pass */
+    /* Out of slots or out of atlas. Never draw nothing and never say nothing:
+     * the flag makes the next Draw drop every cached handle and re-bake the
+     * page from an empty atlas, which costs one frame and always recovers. */
+    if (s_slotCount >= QO_SLOT_MAX ||
+        s_atlasY + h + QO_ATLAS_PAD > QO_ATLAS_H)
+    {
+        if (!s_atlasExhausted)
+            SH_DBG("[QOTEX] atlas exhausted (%d slots, cursor %d,%d) -- rebuilding",
+                   s_slotCount, s_atlasX, s_atlasY);
+        s_atlasExhausted = 1;
+        return 0;
+    }
 
     idx = s_slotCount++;
-    s_slot[idx].x = s_atlasX;
-    s_slot[idx].y = s_atlasY;
-    s_slot[idx].w = w;
-    s_slot[idx].h = h;
+    s_slot[idx].x  = s_atlasX;
+    s_slot[idx].y  = s_atlasY;
+    s_slot[idx].w  = w;
+    s_slot[idx].h  = h;
+    s_slot[idx].cw = w;
+    s_slot[idx].ch = h;
+    s_slot[idx].free = 0;
 
     glBindTexture(GL_TEXTURE_2D, s_atlasTex);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -580,7 +721,12 @@ static GLuint qo_upload_rgba(const unsigned char* rgba, int w, int h, int neares
  * belongs in a release build. */
 static void qo_retire(GLuint tex)
 {
-    (void)tex;
+    int idx = (int)tex - 1;
+
+    /* Slot 0 is the permanent white texel; freeing it would hand the panel
+     * background to the next string that fits in one pixel. */
+    if (idx > 0 && idx < s_slotCount)
+        s_slot[idx].free = 1;
 }
 
 /* Nothing is queued for deletion any more (see qo_retire); kept so the draw
@@ -1197,6 +1343,7 @@ static void qo_activate(const QoRowDef* r, int dir)
         case ROW_CHEAT: Pc_Cheats_Adjust(r->cpage, r->extra, dir); break;
         case ROW_PAGE:  qo_set_page(s_page + (dir < 0 ? -1 : +1)); break;
         case ROW_CLOSE: Pc_QuickOptions_Close(); break;
+        case ROW_ACTION: break; /* confirm-only; see the ROW_ACTION comment */
         default: break;
     }
 }
@@ -1234,6 +1381,11 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     const QoRowDef* rows = qo_page_rows(s_page, &nRows);
     int mMoved, mClick, mRClick, wheel;
     float mx, my;
+
+    /* Advanced has two rows Simple does not, so a switch while parked on one of
+     * them would leave the cursor past the end of the array. */
+    if (s_sel >= nRows) s_sel = nRows - 1;
+    if (s_sel < 0)      s_sel = 0;
 
     up    = qo_repeat(0, up);
     down  = qo_repeat(1, down);
@@ -1372,6 +1524,25 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
             if (mClick)
             {
                 s_sel = row;
+#if defined(QO_MOBILE)
+                if (qo_row_is_list(&rows[row]))
+                {
+                    /* No dropdown on touch. It is a scrolling sub-list inside
+                     * one row, which is the smallest thing on the panel and the
+                     * hardest to hit or scroll with a thumb.
+                     *
+                     * The row itself is the control instead, split the way it
+                     * already reads: the label half ("Spawn") fires, the value
+                     * half cycles whom. Forwards only -- one direction is
+                     * enough to reach every entry, and the alternative is
+                     * splitting the value side into two even smaller zones. */
+                    if (mpx < (s_geoPanelL + s_geoPanelR) * 0.5f)
+                        qo_confirm(&rows[row]);
+                    else
+                        qo_activate(&rows[row], +1);
+                }
+                else
+#endif
                 if (qo_row_is_list(&rows[row]) && mpx > (s_geoPanelL + s_geoPanelR) * 0.5f)
                 {
                     /* Right half of a list row: open the dropdown on the value. */
@@ -1422,6 +1593,11 @@ static void qo_confirm(const QoRowDef* r)
 {
     if (r->kind == ROW_CHEAT)
         Pc_Cheats_Confirm(r->cpage, r->extra);
+    else if (r->kind == ROW_ACTION)
+    {
+        if (r->extra == QO_A_VIEWRESET)
+            PcOpt_QuickViewReset();
+    }
     else
         qo_activate(r, +1);
 }
@@ -1512,6 +1688,19 @@ void Pc_QuickOptions_Draw(void)
         qo_build_white();
     }
     if (!s_fontsTried) qo_fonts_init();
+
+    if (s_sel >= nRows) s_sel = nRows - 1;
+    if (s_sel < 0)      s_sel = 0;
+
+    /* Either a bake failed for want of atlas room, or the Control Type switch
+     * changed which rows this page has. Both are fixed the same way: drop every
+     * cached handle so the page rebuilds from an empty atlas this frame, rather
+     * than drawing gaps or the previous mode's labels. */
+    if (s_atlasExhausted || s_viewRowsDirty)
+    {
+        s_viewRowsDirty = 0;
+        qo_free_text();
+    }
 
     glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
@@ -1632,9 +1821,19 @@ void Pc_QuickOptions_Draw(void)
         int   hpx   = (int)(hintH * 0.42f);
 
         if (hpx < 7) hpx = 7;
+#if defined(QO_MOBILE)
+        /* Every term in the desktop footer names hardware this device does not
+         * have -- arrow keys, PgUp/PgDn, Esc, F10 -- and the panel does not move
+         * here either. Describing the gestures that DO exist is the only version
+         * of this line worth the width. */
+        snprintf(hint, sizeof(hint),
+                 "Tap - / + to adjust      Next page and Close at the bottom      * req restart");
+        (void)0;
+#else
         snprintf(hint, sizeof(hint),
                  "Up/Down select   Left/Right adjust   PgUp/PgDn page   drag title to move   %s or Esc close   * req restart",
                  g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10");
+#endif
         s_texHint = qo_bake(hint, (float)hpx, &s_hintW, &s_hintH);
         if (s_texHint && s_hintW > avail && s_hintW > 0 && avail > 0.0f)
         {
@@ -1759,6 +1958,9 @@ void Pc_QuickOptions_Draw(void)
              * outside the label and the value so nothing overlaps, and dimmed
              * on unselected rows so the page does not read as a wall of
              * symbols. */
+            /* Not on a list row: that one is not a stepper -- its halves fire
+             * and cycle -- so - and + would describe the wrong gesture. */
+            if (!qo_row_is_list(r))
             {
                 const float mg = (i == s_sel) ? 0.95f : 0.45f;
 

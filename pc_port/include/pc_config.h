@@ -247,6 +247,28 @@ typedef struct {
     float fpsFov;           /* first-person horizontal FOV in degrees (4:3 basis), 55..110; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during FPS gameplay (config key: fps_fov) */
     float tpsFov;           /* Thirdperson/OTS horizontal FOV in degrees (4:3 basis), 55..110; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during TPS/OTS gameplay — the Classic camera always keeps the original projection (config key: tps_fov) */
     float tpsAimZoom;       /* "TPS/OTS Aim Zoom": how far the TPS/OTS camera dollies in while aiming, as a percentage of the zoom range, 0..200. 100 (default) = the original full zoom, 200 = a deeper 2x zoom, 0 = no zoom at all. Replaces the old tps_aim_zoom on/off key (config key: tps_aim_zoom_amount) */
+    /* display_aspect: 0 = crt (stretch the framebuffer to 4:3, as a television
+     * does, the default), 1 = raw (the framebuffer at the `par` knob's pixel
+     * aspect, faithful to the game's own numbers). */
+    int   aspectRaw;
+    /* crt_aspect_trim: multiplies the 4:3 target of display_aspect = crt.
+     * 1.0 is a textbook 4:3; below 1.0 gives taller, thinner figures.
+     * Console: crtaspect. Quick options: View & Aspect page. */
+    float crtAspectTrim;
+    /* The three live view knobs the console has always had (hfov / vfov / par),
+     * now persisted so the View & Aspect page can save what the player picks.
+     * hfov and vfov only change how much world is on screen -- display_aspect =
+     * crt divides them back out of the pixel aspect, so they cannot squash the
+     * picture -- and par is read only by display_aspect = raw.
+     * Config keys: world_hscale, world_vscale, pixel_aspect. */
+    float worldHScale;
+    float worldVScale;
+    float pixelAspect;
+    /* world_vshift: GTE projection-centre delta in PSX rows, + = view up.
+     * Gameplay cameras only; cutscenes use the separate cutshift. Console
+     * `vshift`. 0 = the console anchor, which is where it should stay unless
+     * a comparison says otherwise. */
+    float worldVShift;
     float reverbScale;      /* reverb depth->wet mapping scale, 0 = leave PsyCross default (2.0) (config key: reverb_scale) */
     float mouseSensitivity;      /* mouse-look sensitivity multiplier for TPS/OTS/FPS cameras, 0.1..4.0; default 1.0 (config key: mouse_sensitivity) */
     float controllerSensitivity; /* right-stick look sensitivity multiplier for TPS/OTS/FPS cameras, 0.1..4.0; default 1.0 (config key: controller_sensitivity) */

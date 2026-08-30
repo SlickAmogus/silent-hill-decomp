@@ -163,9 +163,18 @@ def menu_entries():
     path = os.path.join(REPO, 'pc_port', 'src', 'lang_jpn_menu.inc')
     text = io.open(path, encoding='utf-8', errors='surrogateescape').read()
     out = []
-    for m in re.finditer(r'\{\s*"(?:[^"\\]|\\.)*"\s*,\s*(\d+)\s*,\s*'
+    # A key may be SEVERAL adjacent literals: the Walk/Run row carries the
+    # menu's kerning escapes and C splits it across quotes. Matching only one
+    # literal dropped that row and shifted every index after it by one, which
+    # the loader cannot catch -- it reads the pack BY INDEX, so Chinese would
+    # have drawn the wrong string for every entry past it.
+    for m in re.finditer(r'\{\s*(?:"(?:[^"\\]|\\.)*"\s*)+,\s*(\d+)\s*,\s*'
                          r'(0x[0-9A-Fa-f]+|\d+)\s*,\s*(\d+)\s*\}', text):
         out.append((int(m.group(1)), int(m.group(2), 0), int(m.group(3))))
+    rows = len(re.findall(r'^\s*\{', text, re.M))
+    if rows != len(out):
+        sys.exit('error: parsed %d of %d rows in lang_jpn_menu.inc -- the pack '
+                 'would be index-shifted against the game' % (len(out), rows))
     return out
 
 

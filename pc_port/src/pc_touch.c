@@ -62,21 +62,27 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
     /* TB_AIM   */ { 0.905f, 0.760f, 0.105f, 0 },
     /* TB_ITEM  */ { 0.760f, 0.830f, 0.070f, 0 },
     /* TB_MAP   */ { 0.905f, 0.510f, 0.070f, 0 },
-    /* TB_START */ { 0.955f, 0.075f, 0.055f, 0 },
+    /* Off the very corner: 0.955/0.075 sat hard against the bezel, which is
+     * awkward to reach and close to where a phone puts its own system
+     * gestures. Moved ~20 overlay units down and in. X is a smaller fraction
+     * than Y for the same distance because the overlay is ~570 units wide at
+     * this aspect against 240 tall. */
+    /* TB_START */ { 0.920f, 0.158f, 0.055f, 0 },
     /* TB_RUN   */ { 0.665f, 0.760f, 0.065f, 0 },
     /* TB_BACK is only ever drawn in the corner escape slot, so its own
      * position is never used -- it exists to carry a glyph and a binding. */
-    /* TB_BACK  */ { 0.955f, 0.075f, 0.055f, 0 },
+    /* TB_BACK  */ { 0.920f, 0.158f, 0.055f, 0 },
     /* Mirror of Aim on the other thumb, and only while Aim is held: firing
      * meant tapping the steering half of the screen, which fights the stick
      * the same thumb is holding. Hidden the rest of the time so it never eats
      * a movement drag. */
     /* TB_FIRE  */ { 0.095f, 0.760f, 0.105f, 0 },
-    /* Quick options. Permanent, because a phone has no F10 to press and
-     * the settings behind it are the ones worth changing mid-scene
-     * (brightness, fog, flashlight). Directly under Start in the corner
-     * strip, away from both thumbs so it cannot be hit while playing. */
-    /* TB_MENU  */ { 0.955f, 0.190f, 0.055f, 0 },
+    /* Quick options. Permanent, because a phone has no F10 to press and the
+     * settings behind it are the ones worth changing mid-scene (brightness,
+     * fog, flashlight). Mirrors Start across the screen: same height, other
+     * side, so the two system buttons frame the top and neither sits where a
+     * thumb rests while playing. */
+    /* TB_MENU  */ { 0.080f, 0.158f, 0.055f, 0 },
 };
 
 typedef struct
@@ -186,6 +192,16 @@ enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_AD
  * out of a pause once one had been opened by touch. Everywhere else (menus,
  * inventory, the map) touch already works through pc_mouse_cursor and a pad on
  * top of it would fight it. */
+/* The attract demo is in-game gameplay as far as the state tests go, so the
+ * quick-options button would draw over it and be tappable. dbg_overlay.c gates
+ * the keyboard open the same way, and game_main.c closes the panel outright if
+ * a demo starts -- so opening it here would last a single frame anyway. Not
+ * drawing it at all beats a button that visibly does nothing. */
+static int Tc_MenuAllowed(void)
+{
+    return !(g_SysWork.sysFlags & SysFlag_DemoActive);
+}
+
 static int Tc_Mode(void)
 {
     int level = Tc_Level();
@@ -774,7 +790,7 @@ void Pc_Touch_Update(void)
             static int s_menuWas;
             const int  menuNow = (s_Buttons[TB_MENU].holdFrames > 0);
 
-            if (menuNow && !s_menuWas)
+            if (menuNow && !s_menuWas && Tc_MenuAllowed())
                 Pc_QuickOptions_Toggle();
             s_menuWas = menuNow;
         }
@@ -1022,6 +1038,9 @@ void Pc_Touch_Draw(void)
          * own position is a copy of Start's. Drawing it in gameplay too put the
          * back mark and the pause bars inside the same ring. */
         if (mode == TC_MODE_GAMEPLAY && i == TB_BACK)
+            continue;
+
+        if (i == TB_MENU && !Tc_MenuAllowed())
             continue;
 
         /* Fire appears with the gun and goes away with it. */

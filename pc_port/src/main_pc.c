@@ -1163,10 +1163,18 @@ int main(int argc, char* argv[])
      * Confirmed empirically 2026-08-25: DuckStation's game content measures
      * 465x357 => (357/224)/(465/320) = 1.097 ~= 35/32. This is also the original
      * PSX_NTSC_PIXEL_ASPECT PsyCross shipped (9c502de) and the constant the
-     * vw_calc.c cull comments still quote. Live-tunable via console `par`. */
+     * vw_calc.c cull comments still quote. Read only by display_aspect = raw;
+     * config key pixel_aspect, console `par`, View & Aspect quick-options row.
+     * hfov/vfov (world_hscale/world_vscale) come from the same page. */
     {
         extern float g_PsxPixelAspect;
-        g_PsxPixelAspect = 35.0f / 32.0f;
+        extern float g_PsxWorldHScale;
+        extern float g_PsxWorldVScale;
+        extern float g_PsxWorldVShift;
+        g_PsxPixelAspect = g_PcConfig.pixelAspect;
+        g_PsxWorldHScale = g_PcConfig.worldHScale;
+        g_PsxWorldVScale = g_PcConfig.worldVScale;
+        g_PsxWorldVShift = g_PcConfig.worldVShift;
     }
 
     /* Apply widescreen mode to PsyCross. */
@@ -1585,10 +1593,38 @@ int main(int argc, char* argv[])
                                          g_PcAudioConfig.modernDither))
             SH_ERR("Invalid SPU renderer configuration; audio startup will fail");
 
+    {
+        /* A television scans the framebuffer out to 4:3 whatever its line
+         * count, which is the picture these games were composed on. raw
+         * keeps the framebuffer at the `par` pixel aspect instead. */
+        extern int g_PsxAspectRaw;
+        g_PsxAspectRaw = g_PcConfig.aspectRaw ? 1 : 0;
+        {
+            /* Unset (0) means no trim, not a zero-width picture. */
+            extern float g_PsxCrtAspectTrim;
+            if (g_PcConfig.crtAspectTrim > 0.0f)
+                g_PsxCrtAspectTrim = g_PcConfig.crtAspectTrim;
+        }
+        SH_LOG("Display aspect: %s (trim %.3f, hfov %.3f, vfov %.3f, par %.4f)",
+               g_PsxAspectRaw ? "raw (framebuffer par)" : "crt (stretched to 4:3)",
+               g_PcConfig.crtAspectTrim, g_PcConfig.worldHScale,
+               g_PcConfig.worldVScale, g_PcConfig.pixelAspect);
+    }
+
+        {
+            /* Spatial output: the software SPU keeps its exact synthesis and
+             * reverb, but its per-voice taps are placed by OpenAL instead of
+             * being downmixed to stereo, so surround layouts finally get the
+             * accurate reverb. Ignored by the legacy backend. */
+            extern void PsyX_SPUAL_ConfigureSpatial(int enable, int speakers);
+            PsyX_SPUAL_ConfigureSpatial(
+                (PcAudioConfig_UsesSoftwareSpu() && g_PcAudioConfig.spatial) ? 1 : 0,
+                g_PcConfig.audioOutput);
+        }
         if (PcAudioConfig_UsesSoftwareSpu()) {
-            SH_LOG("Software SPU output: renderer=%d backend=%d mode=%d rate=%d bit-perfect=%d",
+            SH_LOG("Software SPU output: renderer=%d backend=%d mode=%d rate=%d bit-perfect=%d spatial=%d",
                    g_PcAudioConfig.renderer, g_PcAudioConfig.backend, g_PcAudioConfig.mode,
-                   g_PcAudioConfig.rate, g_PcAudioConfig.bitPerfect);
+                   g_PcAudioConfig.rate, g_PcAudioConfig.bitPerfect, g_PcAudioConfig.spatial);
         } else {
             extern void PsyX_SPUAL_SetAdsrEnabled(int on);
             extern void PsyX_SPUAL_SetReverbDepthScale(float scale);

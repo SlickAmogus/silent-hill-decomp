@@ -662,7 +662,15 @@ void PcOpt_QuickAdjust(const void* h, int dir)
 /* Rows the overlay wants that are not in the table: the shadow map size
  * (launcher / console only until now), the speaker layout and the two PSX
  * volumes (main Options menu rows). Same apply paths as those screens. */
-enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX };
+enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
+       QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT };
+
+/* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
+ * pixel lands on screen this many times wider than tall at trim 1.0. It is the
+ * bridge between the two Control Types. */
+#define PCOPT_CRT_SHAPE ((4.0f / 3.0f) / (320.0f / 224.0f))
+
+extern void Pc_QuickOptions_InvalidateRows(void);
 
 static const int         QO_SHADOW_SIZES[] = { 256, 512, 1024, 2048, 4096, 8192 };
 static const char* const QO_SPEAKER_LBL[]  = { "Auto", "Stereo", "Quad", "5.1", "7.1" };
@@ -684,9 +692,107 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
     case QO_X_SFX:
         snprintf(buf, bufsz, "%d / 16", g_GameWork.config.volumeSe / 8);
         return buf;
+    case QO_X_ASPECT:
+        return g_PcConfig.aspectRaw ? "Advanced" : "Simple";
+    /* Advanced gets its shape from hfov x vfov / par instead, so the trim is
+      * inert there and says so rather than reading as a knob that failed. */
+    case QO_X_CRTTRIM:
+        snprintf(buf, bufsz, g_PcConfig.aspectRaw ? "%.2f  (simple)" : "%.2f",
+                 g_PcConfig.crtAspectTrim);
+        return buf;
+    /* Simple hides this row entirely: its pixel-aspect solve divides hfov
+      * straight back out, so the knob genuinely does nothing there. */
+    case QO_X_HFOV:
+        snprintf(buf, bufsz, "%.2f", g_PcConfig.worldHScale);
+        return buf;
+    case QO_X_VFOV:
+        snprintf(buf, bufsz, "%.2f", g_PcConfig.worldVScale);
+        return buf;
+    case QO_X_PAR:
+        snprintf(buf, bufsz, "%.3f", g_PcConfig.pixelAspect);
+        return buf;
+    case QO_X_VSHIFT:
+        snprintf(buf, bufsz, "%+d rows", (int)g_PcConfig.worldVShift);
+        return buf;
     default:
         return "";
     }
+}
+
+/* The five view knobs share one adjust path: step the config float, clamp it,
+ * push the PsyCross global (every one of them is read per frame, so the change
+ * lands on the next drawn frame) and save the key. */
+static void PcOpt_ViewStep(float* cfg, float* live, const char* key,
+                           float lo, float hi, float step, int dir, int decimals)
+{
+    char buf[24];
+    float v = *cfg + (float)dir * step;
+
+    if (v < lo) v = lo;
+    if (v > hi) v = hi;
+    /* Steps of 0.01 off a float accumulate a drift that shows in the label. */
+    v = (float)((int)(v * 1000.0f + (v < 0.0f ? -0.5f : 0.5f))) / 1000.0f;
+    *cfg = v;
+    if (live) *live = v;
+    snprintf(buf, sizeof(buf), (decimals >= 3) ? "%.3f" : "%.2f", v);
+    PcConfig_SaveKeyValue(key, buf);
+    /* Logged because a screenshot is only useful if the settings behind it are
+     * known, and these five have historically been retyped per session and
+     * never recorded -- which is how comparison shots ended up unattributable. */
+    SH_LOG("View: %s = %s  (aspect %s, trim %.2f, hfov %.2f, vfov %.2f, vshift %+d, par %.3f)",
+           key, buf, g_PcConfig.aspectRaw ? "raw" : "crt", g_PcConfig.crtAspectTrim,
+           g_PcConfig.worldHScale, g_PcConfig.worldVScale,
+           (int)g_PcConfig.worldVShift, g_PcConfig.pixelAspect);
+    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+}
+
+/* Reset row on the View & Aspect page: put every knob on that page back to its
+ * compile-time default in one press, so a display experiment can never leave
+ * the picture unusable. */
+void PcOpt_QuickViewReset(void)
+{
+    extern const s_PcConfig* PcConfig_Defaults(void);
+    extern int   g_PsxAspectRaw;
+    extern float g_PsxCrtAspectTrim;
+    extern float g_PsxWorldHScale;
+    extern float g_PsxWorldVScale;
+    extern float g_PsxWorldVShift;
+    extern float g_PsxPixelAspect;
+    const s_PcConfig* d = PcConfig_Defaults();
+    char buf[24];
+
+    g_PcConfig.aspectRaw     = d->aspectRaw;
+    g_PcConfig.crtAspectTrim = d->crtAspectTrim;
+    g_PcConfig.worldHScale   = d->worldHScale;
+    g_PcConfig.worldVScale   = d->worldVScale;
+    g_PcConfig.pixelAspect   = d->pixelAspect;
+    g_PcConfig.worldVShift   = d->worldVShift;
+
+    g_PsxAspectRaw     = g_PcConfig.aspectRaw;
+    g_PsxCrtAspectTrim = g_PcConfig.crtAspectTrim;
+    g_PsxWorldHScale   = g_PcConfig.worldHScale;
+    g_PsxWorldVScale   = g_PcConfig.worldVScale;
+    g_PsxPixelAspect   = g_PcConfig.pixelAspect;
+    g_PsxWorldVShift   = g_PcConfig.worldVShift;
+
+    PcConfig_SaveKeyValue("display_aspect", g_PcConfig.aspectRaw ? "raw" : "crt");
+    snprintf(buf, sizeof(buf), "%.2f", g_PcConfig.crtAspectTrim);
+    PcConfig_SaveKeyValue("crt_aspect_trim", buf);
+    snprintf(buf, sizeof(buf), "%.2f", g_PcConfig.worldHScale);
+    PcConfig_SaveKeyValue("world_hscale", buf);
+    snprintf(buf, sizeof(buf), "%.2f", g_PcConfig.worldVScale);
+    PcConfig_SaveKeyValue("world_vscale", buf);
+    snprintf(buf, sizeof(buf), "%.3f", g_PcConfig.pixelAspect);
+    PcConfig_SaveKeyValue("pixel_aspect", buf);
+    snprintf(buf, sizeof(buf), "%.0f", g_PcConfig.worldVShift);
+    PcConfig_SaveKeyValue("world_vshift", buf);
+
+    Pc_QuickOptions_InvalidateRows();
+    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+    SH_LOG("View reset: control type %s, trim %.2f, hfov %.2f, vfov %.2f, vshift %+d, par %.3f",
+           g_PcConfig.aspectRaw ? "raw" : "crt", g_PcConfig.crtAspectTrim,
+           g_PcConfig.worldHScale, g_PcConfig.worldVScale,
+           (int)g_PcConfig.worldVShift, g_PcConfig.pixelAspect);
 }
 
 void PcOpt_QuickExtraAdjust(int which, int dir)
@@ -718,6 +824,82 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         g_GameWork.config.soundType = 0;
         SD_Call(AudioMode_Stereo);
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
+    case QO_X_ASPECT: {
+        /* Switching Control Type must not move the picture. The two modes reach
+         * the same on-screen pixel aspect by different routes --
+         *   Simple:   shape = PCOPT_CRT_SHAPE x trim
+         *   Advanced: shape = hfov x vfov / par
+         * -- so carry the current shape across into whichever knob the new mode
+         * owns. Only the controls you are handed change; the render does not,
+         * and the conversion round-trips exactly. */
+        extern int   g_PsxAspectRaw;
+        extern float g_PsxWorldHScale;
+        extern float g_PsxCrtAspectTrim;
+        float vf  = (g_PcConfig.worldVScale > 0.0f) ? g_PcConfig.worldVScale : 1.0f;
+        float par = (g_PcConfig.pixelAspect > 0.0f) ? g_PcConfig.pixelAspect : 1.0f;
+        char  buf[24];
+
+        if (!g_PcConfig.aspectRaw)
+        {
+            float hf = (PCOPT_CRT_SHAPE * g_PcConfig.crtAspectTrim) * par / vf;
+            if (hf < 0.25f) hf = 0.25f;
+            if (hf > 2.00f) hf = 2.00f;
+            g_PcConfig.worldHScale = hf;
+            g_PsxWorldHScale       = hf;
+            snprintf(buf, sizeof(buf), "%.3f", hf);
+            PcConfig_SaveKeyValue("world_hscale", buf);
+        }
+        else
+        {
+            float tr = (g_PcConfig.worldHScale * vf / par) / PCOPT_CRT_SHAPE;
+            if (tr < 0.50f) tr = 0.50f;
+            if (tr > 1.50f) tr = 1.50f;
+            g_PcConfig.crtAspectTrim = tr;
+            g_PsxCrtAspectTrim       = tr;
+            snprintf(buf, sizeof(buf), "%.3f", tr);
+            PcConfig_SaveKeyValue("crt_aspect_trim", buf);
+        }
+
+        g_PcConfig.aspectRaw = !g_PcConfig.aspectRaw;
+        g_PsxAspectRaw       = g_PcConfig.aspectRaw;
+        PcConfig_SaveKeyValue("display_aspect", g_PcConfig.aspectRaw ? "raw" : "crt");
+        Pc_QuickOptions_InvalidateRows(); /* the page shows a different row set */
+        SH_LOG("View: control type = %s  (trim %.3f, hfov %.3f, vfov %.2f, par %.3f)",
+               g_PcConfig.aspectRaw ? "advanced" : "simple", g_PcConfig.crtAspectTrim,
+               g_PcConfig.worldHScale, g_PcConfig.worldVScale, g_PcConfig.pixelAspect);
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
+    case QO_X_CRTTRIM: {
+        extern float g_PsxCrtAspectTrim;
+        PcOpt_ViewStep(&g_PcConfig.crtAspectTrim, &g_PsxCrtAspectTrim,
+                       "crt_aspect_trim", 0.50f, 1.50f, 0.01f, dir, 2);
+        break;
+    }
+    case QO_X_HFOV: {
+        extern float g_PsxWorldHScale;
+        PcOpt_ViewStep(&g_PcConfig.worldHScale, &g_PsxWorldHScale,
+                       "world_hscale", 0.25f, 2.00f, 0.01f, dir, 2);
+        break;
+    }
+    case QO_X_VFOV: {
+        extern float g_PsxWorldVScale;
+        PcOpt_ViewStep(&g_PcConfig.worldVScale, &g_PsxWorldVScale,
+                       "world_vscale", 0.25f, 2.00f, 0.01f, dir, 2);
+        break;
+    }
+    case QO_X_PAR: {
+        extern float g_PsxPixelAspect;
+        PcOpt_ViewStep(&g_PcConfig.pixelAspect, &g_PsxPixelAspect,
+                       "pixel_aspect", 0.50f, 2.00f, 0.005f, dir, 3);
+        break;
+    }
+    case QO_X_VSHIFT: {
+        extern float g_PsxWorldVShift;
+        PcOpt_ViewStep(&g_PcConfig.worldVShift, &g_PsxWorldVShift,
+                       "world_vshift", -60.0f, 60.0f, 1.0f, dir, 2);
         break;
     }
     case QO_X_BGM:
@@ -1199,9 +1381,12 @@ static void Options_PcOptionsMenu_EntryStringsDraw(void)
  * something unreachable. The Reset_Settings row on the Graphics page is that
  * platform's route, and it goes further -- it restores the config.cfg out of
  * the signed bundle rather than resetting the values held in memory. */
-#if defined(SH_PC_PORT) && !defined(SH_IOS)
+#if defined(SH_PC_PORT) && !defined(SH_IOS) && !defined(__ANDROID__)
     /* Reset hint, top-right by the heading (same layer). Highlighted while the
-     * confirm dialog is up. Underscores render as spaces: "[R] Reset". */
+     * confirm dialog is up. Underscores render as spaces: "[R] Reset".
+     *
+     * Hidden on both mobile targets for the same reason: there is no keyboard
+     * to press R on, so it advertises something the player cannot do. */
     {
         extern int g_PcOptResetConfirmActive;
         Gfx_StringSetColor(g_PcOptResetConfirmActive ? StringColorId_Red : StringColorId_White);
