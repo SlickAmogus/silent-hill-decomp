@@ -162,10 +162,16 @@ seen at, over both fog and a dark interior.
 
 ## Limits, honestly
 
-- **Untested with real players.** Everything below the game — the protocol, the
-  server, the fan-out, the marker store — is covered by the self-test and
-  passes. What has never run is two copies of the game, on two machines,
-  seeing each other. Expect that first session to find things.
+- **Only ever tested on one machine.** Two copies of the game, running at once
+  against one , do connect and do see each other — the log shows
+  each one reporting the other appearing at a plausible world position, and
+  the ghost texture registering from inside the world draw. What has not been
+  tried is two *different* machines, across a real network, with real latency
+  and a NAT in the way. Expect that session to find things.
+- **Nobody has looked at a ghost in the scene yet.** The silhouette was tuned
+  by rendering it (), and every step up to the draw call is
+  verified, but whether it reads well standing in a Silent Hill corridor is a
+  question only a person can answer.
 - No name tags over ghosts. Projecting a world position into the overlay's
   coordinate space is a known trap in this port (the widescreen/Hor+ framing
   work), and it is not worth risking for v1. Names are in the player list.
