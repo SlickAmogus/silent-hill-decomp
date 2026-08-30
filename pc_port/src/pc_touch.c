@@ -170,6 +170,16 @@ enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_AD
  * out of a pause once one had been opened by touch. Everywhere else (menus,
  * inventory, the map) touch already works through pc_mouse_cursor and a pad on
  * top of it would fight it. */
+/* The attract demo is in-game gameplay as far as the state tests go, so the
+ * quick-options button would draw over it and be tappable. dbg_overlay.c gates
+ * the keyboard open the same way, and game_main.c closes the panel outright if
+ * a demo starts -- so opening it here would last a single frame anyway. Not
+ * drawing it at all beats a button that visibly does nothing. */
+static int Tc_MenuAllowed(void)
+{
+    return !(g_SysWork.sysFlags & SysFlag_DemoActive);
+}
+
 static int Tc_Mode(void)
 {
     if (!Tc_Enabled())
@@ -704,7 +714,7 @@ void Pc_Touch_Update(void)
             static int s_menuWas;
             const int  menuNow = (s_Buttons[TB_MENU].holdFrames > 0);
 
-            if (menuNow && !s_menuWas)
+            if (menuNow && !s_menuWas && Tc_MenuAllowed())
                 Pc_QuickOptions_Toggle();
             s_menuWas = menuNow;
         }
@@ -962,6 +972,9 @@ void Pc_Touch_Draw(void)
          * own position is a copy of Start's. Drawing it in gameplay too put the
          * back mark and the pause bars inside the same ring. */
         if (mode == TC_MODE_GAMEPLAY && i == TB_BACK)
+            continue;
+
+        if (i == TB_MENU && !Tc_MenuAllowed())
             continue;
 
         /* Fire appears with the gun and goes away with it. */
