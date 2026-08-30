@@ -1782,8 +1782,13 @@ void DbgOverlay_Update(void)
         /* Already edge-detected, so it is tested separately from the keyboard
          * level below rather than folded into curQuick. */
         padQuick = (s_padQuick >= 0) && PC_RawControllerButtonClicked(s_padQuick);
+        /* Not during an attract demo. The demo drives g_Controller0 with
+         * recorded input, and the panel reads that same controller, so every
+         * playback frame pressed its rows for you. GameState is InGame
+         * throughout a demo, so the state test above cannot see it. */
         if (((curQuick && !s_prevQuick && !ctrlHeld) || padQuick) && !g_PcConsoleInputActive &&
-            g_GameWork.gameState == GameState_InGame) {
+            g_GameWork.gameState == GameState_InGame &&
+            !(g_SysWork.sysFlags & SysFlag_DemoActive)) {
             extern void Pc_QuickOptions_Toggle(void);
             Pc_QuickOptions_Toggle();
         }

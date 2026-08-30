@@ -6,20 +6,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* SH_NO_OPENAL builds (Android) compile no legacy AL renderer, so the
- * PSX-accurate 44.1 kHz software one is the only backend that exists and has
- * to be the default here. */
+/* AUTHENTIC by default: the bit-exact software SPU, which is the only path
+ * that runs the real PSX reverb -- the delay lines and registers the game
+ * itself writes -- rather than approximating it with an OpenAL EFX send. It
+ * became shippable once the XA zigzag coefficients were corrected; that table
+ * error was what made voices tinny on this path and it is the only reason
+ * legacy was still the default. `spu_renderer = legacy` restores it. */
 PcAudioConfig g_PcAudioConfig = {
-#if defined(SH_NO_OPENAL)
-    PC_SPU_RENDERER_AUTHENTIC,
-#else
-    PC_SPU_RENDERER_LEGACY,
-#endif
-    0, 0, 0, 0, 1, 0, 0,
-    /* spatial: OpenAL placement for the software SPU. There is no OpenAL
-     * at all on a SH_NO_OPENAL build, so it stays off there whatever the
-     * config says -- see PcAudioConfig_Load. */
-    0
+    PC_SPU_RENDERER_AUTHENTIC, 0, 0, 0, 0, 1, 0, 0, 0
 };
 
 static char* Trim(char* text)

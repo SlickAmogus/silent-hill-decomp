@@ -33,7 +33,6 @@ extern int  g_dbg_wireframeMode;  /* PsyCross renderer debug (also Ctrl+F1) */
 extern int  g_dbg_texturelessMode;/* PsyCross renderer debug (also Ctrl+F2) */
 extern int  g_DebugAnimKfView;
 extern int  g_DebugCamEnabled;
-extern int  g_DebugFogDisabled;
 extern void Pc_FreeCam_Set(int on);
 /* main_pc.c / dbg_overlay.c */
 extern int  g_PcAllowDebugControls;
@@ -177,12 +176,15 @@ static const CheatRow s_cheats[] = {
 };
 
 static const CheatRow s_debug[] = {
-    /* Debug keys and the free-cam fog toggle are both keyboard-only concepts:
-     * the first arms the number row, the second only means anything while the
-     * free camera is being flown with WASD. Neither is reachable on a phone. */
-    { "Debug keys (top row)", CH_DEBUGKEYS, NULL, NULL, MOB_HIDE },
+    /* Named for what it gates in practice: the console toggle
+     * (dbg_overlay.c). It still carries the same allow_debug_controls
+     * config key and the handful of dev keys behind it.
+     *
+     * Hidden on mobile: what it unlocks is a text console opened with `~`
+     * and typed into, plus dev keys on the number row. None of that is
+     * reachable without a keyboard, so the toggle would gate nothing. */
+    { "Allow console",        CH_DEBUGKEYS, NULL, NULL, MOB_HIDE },
     { "Collision visualizer", CH_TOGGLE,  &g_CollVisEnabled,  NULL },
-    { "Fog (free cam)",       CH_TOGGLE,  &g_DebugFogDisabled, NULL, MOB_HIDE },
     { "Keyframe viewer (K)",  CH_TOGGLE,  &g_DebugAnimKfView, NULL,
       MOB_RELABEL, "Keyframe viewer" },
     /* Also on Ctrl+F5 / Ctrl+F1 / Ctrl+F2. The key and the row drive the same
@@ -338,7 +340,7 @@ void Pc_Cheats_Adjust(int page, int idx, int dir)
             g_PcConfig.allowDebugControls = g_PcAllowDebugControls;
             PcConfig_SaveKeyValue("allow_debug_controls", g_PcAllowDebugControls ? "1" : "0");
             Sd_PlaySfx(g_PcAllowDebugControls ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
-            SH_DBG_ECHO("[CHEAT] Debug keys: %s", g_PcAllowDebugControls ? "ON" : "OFF");
+            SH_DBG_ECHO("[CHEAT] Allow console: %s", g_PcAllowDebugControls ? "ON" : "OFF");
             break;
         default:
             break;
