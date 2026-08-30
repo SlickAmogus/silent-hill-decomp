@@ -24,7 +24,6 @@
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/sys/joy.h"
 #include "screens/options.h" /* OptionsMenuState_Brightness */
-#include "pc_retroachievements.h" /* Pc_Ra_IsSignedIn */
 #include "pc_quick_options.h"     /* the button below opens it */
 
 #define TC_MAX_FINGERS 8
@@ -218,18 +217,22 @@ static int Tc_Mode(void)
         g_GameWork.gameState == GameState_LoadSavegameScreen)
         return TC_MODE_BACK;
 
-    /* The title screen opens the achievement browser on the Map bind (there is
-     * no map to show there). With no pad and no such button on screen, signing
-     * in from the options menu left no way to ever look at the list.
+    /* Only while the browser is actually up, and only as the way OUT of it.
+     * Opening is the tappable "Achievements" line in the corner now
+     * (title.c), so a permanent button here would be a second control for
+     * something already on screen. Closing still needs one: the browser
+     * takes cancel or map to leave, and its own pointer handling uses a
+     * RIGHT click for that, which a finger cannot produce.
      *
-     * Self-gating rather than platform-gated, so this file keeps its property
-     * of having no platform conditionals: the button appears only once an
-     * account is actually on file, and Pc_Ra_IsSignedIn() is a stub returning 0
-     * wherever RetroAchievements is not compiled in. The menu underneath stays
-     * pointer-driven as before, and the browser itself takes drag and tap
-     * through the same cursor. */
-    if (g_GameWork.gameState == GameState_MainMenu && Pc_Ra_IsSignedIn())
-        return TC_MODE_TITLE;
+     * Self-gating rather than platform-gated, so this file keeps carrying no
+     * platform conditionals: Pc_RaBrowser_IsOpen is false everywhere the
+     * browser is not compiled in or not open. */
+    {
+        extern int Pc_RaBrowser_IsOpen(void);
+
+        if (g_GameWork.gameState == GameState_MainMenu && Pc_RaBrowser_IsOpen())
+            return TC_MODE_TITLE;
+    }
 
     if (g_GameWork.gameState != GameState_InGame)
         return TC_MODE_OFF;

@@ -42,8 +42,11 @@ extern void        PcOpt_QuickAdjust(const void* h, int dir);
 extern int         PcOpt_QuickRealtime(const void* h);
 /* options.c: rows that are not in that table. Keep in step with the identical
  * enum there -- these are indices into its switch, nothing more. */
+/* Must stay in step with the copy in options.c, which owns the label and
+ * adjust for each of these. */
 enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
-       QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT };
+       QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT,
+       QO_X_SPU };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(void);
@@ -113,7 +116,12 @@ static const QoRowDef s_page1[] = {
  * (PsyX_SPUSpatial.cpp is not even compiled there). Cycling the row would
  * write a config value, redraw a new label, and change nothing you can
  * hear, which is worse than not offering it. */
-#if !defined(QO_MOBILE)
+#if defined(QO_MOBILE)
+    /* In the layout row's place: which software SPU renders the mix. That IS
+     * the audio choice worth having here -- a phone is two channels, and the
+     * layout row could not change them anyway (see above). */
+    { ROW_EXTRA, NULL, QO_X_SPU,            "Sound Engine *" },
+#else
     { ROW_EXTRA, NULL, QO_X_SPEAKERS,       "Speaker Layout" },
 #endif
     { ROW_EXTRA, NULL, QO_X_BGM,            "Music Volume" },

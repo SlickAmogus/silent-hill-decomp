@@ -18,6 +18,7 @@
 #ifdef SH_PC_PORT
 #include <ctype.h>
 #include "pc_config.h"
+#include "pc_audio_config.h" /* the software-SPU row */
 #endif
 
 #define LINE_CURSOR_TIMER_MAX 8
@@ -597,7 +598,8 @@ void PcOpt_QuickAdjust(const void* h, int dir)
  * (launcher / console only until now), the speaker layout and the two PSX
  * volumes (main Options menu rows). Same apply paths as those screens. */
 enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
-       QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT };
+       QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT,
+       QO_X_SPU };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -608,6 +610,17 @@ extern void Pc_QuickOptions_InvalidateRows(void);
 
 static const int         QO_SHADOW_SIZES[] = { 256, 512, 1024, 2048, 4096, 8192 };
 static const char* const QO_SPEAKER_LBL[]  = { "Auto", "Stereo", "Quad", "5.1", "7.1" };
+
+/* The software SPU implementations, in the order the renderer enum has them
+ * minus Legacy. Legacy is the OpenAL mixer, which does not exist on a build
+ * without OpenAL -- PcAudioConfig_UsesSoftwareSpu pins those to software
+ * whatever the config says, so offering it here would be a value that reads
+ * back wrong on the next launch. */
+static const char* const QO_SPU_LBL[] = { "Authentic", "High Precision", "Modern" };
+static const char* const QO_SPU_IDS[] = { "authentic", "high_precision", "modern" };
+/* Each implementation renders at its own native rate; keeping the pair in
+ * step here means the rate never has to be a second row to get wrong. */
+static const int         QO_SPU_RATE[] = { 44100, 176400, 176400 };
 static const char* const QO_SPEAKER_IDS[]  = { "auto", "stereo", "quad", "51", "71" };
 
 const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
@@ -619,6 +632,10 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
     case QO_X_SPEAKERS: {
         int a = g_PcConfig.audioOutput;
         return (a >= 0 && a < 5) ? QO_SPEAKER_LBL[a] : "HRTF";
+    }
+    case QO_X_SPU: {
+        int r = g_PcAudioConfig.renderer - PC_SPU_RENDERER_AUTHENTIC;
+        return (r >= 0 && r < 3) ? QO_SPU_LBL[r] : "Legacy";
     }
     case QO_X_BGM:
         snprintf(buf, bufsz, "%d / 16", g_GameWork.config.volumeBgm / 8);
@@ -745,6 +762,27 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         g_PsyX_ShadowMapSize     = QO_SHADOW_SIZES[idx]; /* target rebuilds on the next shadow frame */
         snprintf(buf, sizeof(buf), "%d", g_PcConfig.shadowMapSize);
         PcConfig_SaveKeyValue("shadow_resolution", buf);
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
+    case QO_X_SPU: {
+        /* Which software SPU renders the mix. Takes effect on the next launch:
+         * PsyX_SPUAL_ConfigureRenderer is read once, before SpuInit, and the
+         * voices are already allocated against it -- hence the * in the label
+         * and the footer note. Saved immediately so the choice survives even if
+         * the player never opens this again. */
+        int r = g_PcAudioConfig.renderer - PC_SPU_RENDERER_AUTHENTIC;
+        char rateBuf[16];
+
+        if (r < 0 || r > 2)
+            r = 0;                      /* legacy, or anything unexpected */
+        r = (r + dir + 3) % 3;
+
+        g_PcAudioConfig.renderer = PC_SPU_RENDERER_AUTHENTIC + r;
+        g_PcAudioConfig.rate     = QO_SPU_RATE[r];
+        PcConfig_SaveKeyValue("spu_renderer", QO_SPU_IDS[r]);
+        snprintf(rateBuf, sizeof(rateBuf), "%d", QO_SPU_RATE[r]);
+        PcConfig_SaveKeyValue("audio_rate", rateBuf);
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     }
