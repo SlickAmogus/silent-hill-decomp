@@ -38,11 +38,144 @@ JDK 17 specifically: AGP 8.x will not run on the machine's default JDK 24.
 
 ## Build
 
+### Prerequisites
+
+| Component | Requirement |
+|---|---|
+| JDK | **17** (Temurin/Zulu/Corretto). Not 8, not 21+. |
+| Android SDK | platform 34, build-tools 34.0.0 |
+| NDK | 26.2+ (27.x works) |
+| CMake | 3.22.1 (SDK-bundled) |
+| SDL2 | 2.32.x — vendored at `android_port/app/jni/SDL` (submodule) |
+
+**JDK 17 is not optional.** AGP 8.x refuses to run on JDK 8 (`Unsupported
+class-file major version`), and Gradle 8.9 refuses JDK 23+ the same way. If
+Gradle picks up a 32-bit JRE you get `Invalid maximum heap size: -Xmx4096m`
+instead, because `gradle.properties` asks for 4 GB. Point `JAVA_HOME` at a
+64-bit JDK 17 and none of that happens. Android Studio's bundled `jbr` is
+usually *too new* — check it before assuming it will do.
+
+Clone with submodules (SDL2 and PsyCross are both submodules):
+
 ```sh
-./android_port/build_android.sh              # assembleDebug
-./android_port/build_android.sh assembleRelease
+git submodule update --init --recursive
+```
+
+Tell Gradle where the SDK is, via `android_port/local.properties`:
+
+```properties
+sdk.dir=/path/to/Android/Sdk
+```
+
+### Building
+
+```sh
+# Linux / macOS
+cd android_port
+JAVA_HOME=/path/to/jdk-17 ./gradlew :app:assembleDebug
+```
+
+```powershell
+# Windows
+cd android_port
+$env:JAVA_HOME = "C:\path\to\jdk-17"
+.\gradlew.bat :app:assembleDebug
+```
+
+`build_android.sh` / `build_android.bat` wrap the same thing and print the APK
+path when they finish. Pass `assembleRelease` for a release build.
+
+The native side (~2200 translation units, both ABIs) is the long pole — budget
+a few minutes for a clean build, seconds for an incremental one. Output:
+
+```
+android_port/app/build/outputs/apk/debug/app-debug.apk
 adb install -r android_port/app/build/outputs/apk/debug/app-debug.apk
 ```
+
+To build one ABI only while iterating, edit `abiFilters` in `app/build.gradle`
+(`arm64-v8a` alone roughly halves the build).
+
+## What the Android port adds
+
+Everything below is Android-only and lives behind `__ANDROID__` / `if(ANDROID)`
+guards, so none of it changes desktop behaviour.
+
+### First-run launcher and disc setup
+
+`SetupActivity` is the launch activity. It runs before the game and exists to
+get a disc image into place, because that is the one thing the APK cannot ship.
+
+- **Auto-scan.** Walks Download, Documents, ROMs, Games and the storage root
+  (two levels deep), reading each candidate's ISO header and matching it
+  against the known Silent Hill serials — `SLUS-007.07`, `SLES-015.14`,
+  `SLPM-861.92`, `SLPM-872.70`, `SLES-025.38`. A file is only offered if its
+  header actually identifies it, so an unrelated 600 MB `.bin` is never
+  proposed. The detected serial and its region are shown on the disc card.
+- **`.cue` support.** Picking a cue sheet resolves the `FILE "..." BINARY`
+  track it names: first as a real file beside the sheet (possible with
+  all-files access), then as a sibling document URI, and failing both it says
+  which `.bin` to pick rather than dying.
+- **Storage permissions.** A styled explainer states *why* all-files access is
+  wanted before Android's own screen appears, and offers the document picker as
+  a way to never grant it. The picker path streams the image in with a progress
+  bar and works with no permission at all.
+- **Settings, pre-launch.** Orientation, touch HUD mode, camera/control style,
+  frame pacing, flashlight mode and boot logos, written straight to
+  `config.cfg`.
+
+### Touch controls
+
+Full on-screen control set for playing without a gamepad
+(`pc_port/src/pc_touch.c`), drawn in the game's own overlay layer:
+
+- Floating movement stick on the left (origin follows your thumb, so a long
+  push never runs out of stick), drag-to-look on the right, tap for Action.
+- Buttons for **Aim, Item, Map, Start, Run, Light, View** and a **☰ menu**
+  button. Light matters: much of the game is unplayable without toggling the
+  flashlight, and there is no keyboard to do it from.
+- Context-aware: full set during gameplay; a single exit button on the pause,
+  map and brightness screens (so touch can always leave a screen it opened);
+  whole-screen-advances during cutscenes and text.
+- `touch_controls` takes **0 = off, 1 = auto-hide while a controller is
+  attached, 2 = always on**. Whichever it is, the ☰ button stays live during
+  gameplay — a hidden overlay would otherwise be a dead end on a handheld with
+  no keyboard, with no way to reach settings or turn touch back on.
+
+### In-game Quick Options
+
+The overlay opens on **L3** (`pad_quick_options`, default `leftstick` on
+Android) or the **☰** touch button, and covers graphics, HUD & audio, view &
+aspect, a Controls & Touch page, cheats and debug. Rows are sized for
+legibility and the list scrolls when a page has more rows than fit, rather than
+shrinking the text to squeeze them in.
+
+If L3 does nothing on your device, its firmware is probably eating the press
+before any app sees it — several handhelds bind L3/R3 to their own overlays.
+Rebind with `pad_quick_options = <button>` in `config.cfg` (`back`, `guide`,
+`leftshoulder`, …), or just use ☰. With `enable_debug_log = 1` the log states
+what the bind resolved to:
+
+```
+[QUICKOPT] bind resolve: key='F10' scancode=67 pad='leftstick' padBind=7
+```
+
+### Display and input
+
+- **Orientation.** `screen_orientation` = `0` auto / `1` landscape /
+  `2` portrait, applied before SDL starts. The touch overlay has a separate
+  layout for each.
+- **Gamepads.** USB, Bluetooth and built-in handheld pads all arrive through
+  SDL's game-controller layer, so one set of binds covers them. Developed
+  against a Retroid Pocket 6.
+- Sticky immersive mode, render-through-cutout, and screen-on during play.
+
+### Artwork
+
+The launcher icon is **AI-generated placeholder art**, as are the splash
+screens. They are there so the app does not ship with the default Android
+robot; they are not final and should be replaced by anyone who wants to do it
+properly.
 
 ## Where the game data goes
 
