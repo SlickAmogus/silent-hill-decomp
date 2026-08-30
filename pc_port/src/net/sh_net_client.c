@@ -39,7 +39,11 @@
 #define SHNET_PING_MS       2000
 #define SHNET_HELLO_MS      1000
 #define SHNET_RETRY_MS      1500
-#define SHNET_ROSTER_MS     5000  /* the panel refreshes itself while open */
+/* Retries for the two requests that expect an answer. A server started with
+ * --no-memos answers a MEMO_QUERY with silence, so an unbounded retry would
+ * send one every SHNET_RETRY_MS for the rest of the session. Giving up is
+ * safe: both are re-armed by a map change or by the player asking. */
+#define SHNET_REQ_TRIES     5
 #define SHNET_TIMEOUT_MS    8000
 #define SHNET_HELLO_MAX     30    /* ~30s of retries before reporting failure */
 
@@ -210,6 +214,8 @@ typedef struct
     int          rosterPending;
     int          memoPending;
     int          memoPendingMap;
+    int          rosterTries;
+    int          memoTries;
 } ShNetWorker;
 
 static void ShNetW_Send(ShNetWorker* w, const unsigned char* buf, int len)
@@ -838,9 +844,14 @@ static int SDLCALL ShNet_Worker(void* unused)
                     SDL_LockMutex(s_lock);
                     ShNet_SetStatus(SHNET_ST_LOST, "No reply from server");
                     SDL_UnlockMutex(s_lock);
-                    /* Back off rather than spinning HELLOs at a dead host. */
+                    /* Back off rather than spinning HELLOs at a dead host.
+                     * `continue` because `now` is five seconds stale after the
+                     * sleep, and handing that to ShNetW_Receive would stamp a
+                     * freshly-arrived packet as five seconds old -- which is
+                     * most of the way to a spurious timeout. */
                     w.helloTries = 0;
                     SDL_Delay(5000);
+                    continue;
                 }
             }
         }
@@ -892,24 +903,40 @@ static int SDLCALL ShNet_Worker(void* unused)
             if (wantRoster)
             {
                 w.rosterPending = 1;
+                w.rosterTries   = 0;
                 w.lastRosterMs  = 0;
             }
             if (w.rosterPending && now - w.lastRosterMs >= SHNET_RETRY_MS)
             {
                 w.lastRosterMs = now;
-                ShNetW_SendSimple(&w, SHNET_MSG_ROSTER_REQ);
+                if (++w.rosterTries > SHNET_REQ_TRIES)
+                {
+                    w.rosterPending = 0;
+                }
+                else
+                {
+                    ShNetW_SendSimple(&w, SHNET_MSG_ROSTER_REQ);
+                }
             }
 
             if (wantMemos)
             {
                 w.memoPending    = 1;
+                w.memoTries      = 0;
                 w.memoPendingMap = memoMap;
                 w.lastMemoMs     = 0;
             }
             if (w.memoPending && now - w.lastMemoMs >= SHNET_RETRY_MS)
             {
                 w.lastMemoMs = now;
-                ShNetW_SendMemoQuery(&w, w.memoPendingMap);
+                if (++w.memoTries > SHNET_REQ_TRIES)
+                {
+                    w.memoPending = 0;
+                }
+                else
+                {
+                    ShNetW_SendMemoQuery(&w, w.memoPendingMap);
+                }
             }
 
             if (now - w.lastRxMs > SHNET_TIMEOUT_MS)
