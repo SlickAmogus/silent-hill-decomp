@@ -226,25 +226,23 @@ static const s_PcOpt PCOPT_S[] = {
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
 
+static const int VAL_TOUCH_CTRL[] = { 0, 1, 2 };
+static const int VAL_ORIENTATION[] = { 0, 1, 2 };
+
+static const char* const LBL_TOUCH_CTRL[] = { "Off", "Auto", "Always_On" };
+static const char* const LBL_ORIENTATION[] = { "Auto", "Landscape", "Portrait" };
+
 /* Page 3 (Controls): the 2D screen-relative control toggles + look sensitivities
  * and the invert toggles. (The New-Game start Map row now lives on page 4.) */
 static const s_PcOpt PCOPT_C[] = {
     { "2D_Controls",       &g_PcConfig.control2d,        "control_2d",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    /* control_2d_snap is config-only now — the default turn-into-the-direction 2D
-     * control is what players expect, so the in-game toggle was dropped. The key
-     * still loads from config.cfg (pc_config.c) for anyone who wants instant snap. */
-    { "Mouse_Sensitivity", NULL, "mouse_sensitivity",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.mouseSensitivity,      NULL, 0.1f, 4.0f, 0.1f },
+    { "Touch_Controls",    &g_PcConfig.touchControls,     "touch_controls",         VAL_TOUCH_CTRL, 3, LBL_TOUCH_CTRL, NULL, 1, PCK_INT },
+    { "Touch_Look_Speed",  NULL, "touch_look_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.touchLookSensitivity, NULL, 0.1f, 4.0f, 0.1f },
+    { "Screen_Orientation",&g_PcConfig.screenOrientation, "screen_orientation",     VAL_ORIENTATION, 3, LBL_ORIENTATION, NULL, 1, PCK_INT },
     { "Pad_Sensitivity",   NULL, "controller_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.controllerSensitivity, NULL, 0.1f, 4.0f, 0.1f },
     { "First_Person_FOV",  NULL, "fps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fpsFov,                NULL, 55.0f, 110.0f, 1.0f },
     { "Third_Person_FOV",  NULL, "tps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsFov,                NULL, 55.0f, 110.0f, 1.0f },
-    { "Invert_Mouse_Y",    &g_PcConfig.invertMouseY,      "invert_mouse_y",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    { "Touch_Controls",    &g_PcConfig.touchControls,     "touch_controls",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    { "Touch_Look_Speed",  NULL, "touch_look_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.touchLookSensitivity, NULL, 0.1f, 4.0f, 0.1f },
-    /* A graphics option living on the Controls page purely for room: 11 rows is
-     * the real ceiling, not the 12 the Graphics comment above assumes, and this
-     * page is the shortest. Adding it to Graphics pushed that page off-screen. */
-    { "Bullet_Decals",     &g_PcConfig.bulletDecals,      "bullet_decals",          VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },

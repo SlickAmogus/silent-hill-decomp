@@ -1775,6 +1775,9 @@ void DbgOverlay_Update(void)
                                                               -1)
                        : -1;
             s_quickRes = 1;
+            SH_DBG("[QUICKOPT] bind resolve: key='%s' scancode=%d pad='%s' padBind=%d",
+                   g_PcConfig.keyQuickOptions, (int)s_scQuick,
+                   g_PcConfig.padQuickOptions, s_padQuick);
         }
         curQuick = (s_scQuick != SDL_SCANCODE_UNKNOWN) ? ks[s_scQuick] : 0;
         /* Already edge-detected, so it is tested separately from the keyboard

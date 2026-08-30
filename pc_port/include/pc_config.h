@@ -206,7 +206,7 @@ typedef struct {
     int crosshairStyle;     /* reticle shape: 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap (config key: crosshair_style) */
     int aimAssist;          /* 1 = OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) (config key: aim_assist) */
     int mouseCursor;        /* 1 = mouse controls cursor puzzles + clickable main menu (config key: mouse_cursor) */
-    int touchControls;      /* 1 = on-screen touch controls during gameplay: floating movement stick on the left, drag to look on the right, tap for Action, plus Aim/Item/Map/Start buttons (config key: touch_controls); defaults on where a touchscreen is the only input */
+    int touchControls;      /* 0 = off, 1 = auto-hide while a controller is attached, 2 = always on. On-screen touch controls during gameplay: floating movement stick on the left, drag to look on the right, tap for Action, plus Aim/Item/Map/Start buttons (config key: touch_controls); defaults on where a touchscreen is the only input */
     float touchLookSensitivity; /* touch look speed multiplier, 0.1..4.0 (config key: touch_look_sensitivity); default 1.0 */
     int screenOrientation;   /* 0 = Auto / Sensor (Landscape and Portrait), 1 = Lock Landscape, 2 = Lock Portrait (config key: screen_orientation) */
     int altButtonSprint;    /* "Always use button based sprinting": 1 = walk by default, sprint ONLY while the bound run control is held — applies to alt cameras (TPS/OTS/FPS) AND 2D control under any camera; 0 = a near-full stick push also sprints (config key: altcam_button_sprint) */

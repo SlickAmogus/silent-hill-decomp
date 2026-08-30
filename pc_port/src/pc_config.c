@@ -84,7 +84,7 @@ s_PcConfig g_PcConfig = {
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
 #if defined(__ANDROID__)
-    .touchControls       = 1,
+    .touchControls       = 2, /* 2 = Always On (Visible), 1 = Auto-hide on controller, 0 = Off */
 #else
     .touchControls       = 0,
 #endif
@@ -205,6 +205,17 @@ s_PcConfig g_PcConfig = {
     },
     .keyQuickSave = "F6", .keyQuickLoad = "F8",
     .keyQuickOptions = "F10",
+#if defined(__ANDROID__)
+    /* Android has no F10, so the overlay needs a pad button. L3 is the only
+     * one the game leaves free: rightstick is already the Change-Camera bind,
+     * the shoulders and triggers are PSX buttons, and Select+Start is the PSX
+     * warm-reset combo (warm_boot.c) that has to keep working. PSX L3 itself is
+     * read only as part of an exact-match pause-screen debug combo, which a lone
+     * press cannot satisfy. One bind covers the built-in pad, USB and Bluetooth
+     * pads alike -- SDL routes them all through the same game-controller layer.
+     * Override with pad_quick_options. */
+    .padQuickOptions = "leftstick",
+#endif
     .keySwapShoulder = "Mouse3",
     .keyConsole = "`",
     .keyGfxCycle = "\\",
@@ -1145,7 +1156,13 @@ else if (strcmp(key, "enable_plugins") == 0)
         }
         else if (strcmp(key, "touch_controls") == 0)
         {
-            g_PcConfig.touchControls = (atoi(value) != 0);
+            /* 0 = off, 1 = auto-hide when a controller is attached, 2 = always on.
+             * The old boolean coercion folded 2 back to 1, so Always On could
+             * never survive a reload. */
+            int v = atoi(value);
+            if (v < 0) v = 0;
+            if (v > 2) v = 2;
+            g_PcConfig.touchControls = v;
         }
         else if (strcmp(key, "touch_look_sensitivity") == 0)
         {
