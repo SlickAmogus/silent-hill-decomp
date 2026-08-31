@@ -389,6 +389,10 @@ const char* Pc_FlashlightModeLabel(int mode);
 
 /* Parse config.cfg from the executable's directory. Uses defaults if not found. */
 void PcConfig_Load(const char* path);
+
+/* Echo the config file into the log (ra_token redacted). Call after the log is
+ * open so a submitted log carries the settings the run actually used. */
+void PcConfig_LogEffective(const char* path);
 /* Compile-time defaults captured before the config file was parsed. */
 const s_PcConfig* PcConfig_Defaults(void);
 

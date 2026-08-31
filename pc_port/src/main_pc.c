@@ -739,6 +739,9 @@ int main(int argc, char* argv[])
             #include "sh_build_info.h"
             SH_DBG("[SH] build " SH_BUILD_GIT_HASH " (" SH_BUILD_STAMP ")");
         }
+        /* The user's actual settings, verbatim. Costs one pass over a small
+         * file at boot and removes the guesswork from every bug report. */
+        PcConfig_LogEffective("config.cfg");
         /* One-line render-config fingerprint: these are the axes every remote
          * corruption report gets bisected on — stop having to ask for the cfg. */
         SH_DBG("[CONFIG] flashlight_mode=%d use_pgxp=%d resident_textures=%d global_chara_pool=%d",

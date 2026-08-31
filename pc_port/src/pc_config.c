@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include <stddef.h>
 #include "xa_player.h"
+#include "sh_log.h"
 
 static float PcCfg_ClampF(float v, float lo, float hi)
 {
@@ -1241,6 +1242,49 @@ else if (strcmp(key, "enable_plugins") == 0)
 
 /* Rewrite (or append) a single `key = value` line in the loaded config file,
  * preserving every other line and comment. */
+/* Echo the config file as it was actually read, so a user-submitted log says
+ * what the run was configured with instead of us guessing. Dumps the raw lines
+ * rather than the parsed struct on purpose: it costs nothing to maintain as
+ * keys come and go, and it also shows keys we do NOT parse, which is how a
+ * typo in someone's config becomes visible instead of silently doing nothing.
+ * ra_token is redacted -- logs get posted in public issues. */
+void PcConfig_LogEffective(const char* path)
+{
+    FILE* f = fopen(path, "r");
+    char  line[512];
+    int   n = 0;
+
+    if (f == NULL)
+    {
+        SH_DBG("[CFG] %s not found -- every setting is at its compiled-in default", path);
+        return;
+    }
+
+    SH_DBG("[CFG] ---- %s ----", path);
+    while (fgets(line, sizeof(line), f) != NULL)
+    {
+        char* p = line;
+        char* e;
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == '#' || *p == ';' || *p == '\r' ||
+            *p == '\n' || *p == '\0')
+            continue;
+        e = p + strlen(p);
+        while (e > p && (e[-1] == '\r' || e[-1] == '\n' ||
+                         e[-1] == ' ' || e[-1] == '\t'))
+            *--e = '\0';
+        if (*p == '\0')
+            continue;
+        if (strncmp(p, "ra_token", 8) == 0)
+            SH_DBG("[CFG] ra_token = <redacted>");
+        else
+            SH_DBG("[CFG] %s", p);
+        n++;
+    }
+    fclose(f);
+    SH_DBG("[CFG] ---- %d setting(s) ----", n);
+}
+
 void PcConfig_SaveKeyValue(const char* cfgKey, const char* cfgValue)
 {
     /* Big enough to hold the whole config with headroom: the file grows as new
