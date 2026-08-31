@@ -31,14 +31,20 @@ public final class RaHttp {
     /**
      * GET when {@code post} is null or empty, otherwise a form-encoded POST.
      *
-     * Returns the status code, a newline, then the body -- one string rather
-     * than an out-parameter because returning two values across JNI costs
-     * either a wrapper class to look up or a second call to race with. The
-     * split is on the FIRST newline only, so a body containing newlines
-     * survives intact. Null means the request could not be made at all, which
-     * the caller reports as status 0.
+     * Returns four bytes of status code, big-endian, then the body verbatim.
+     * Null means the request could not be made at all, which the caller reports
+     * as status 0.
+     *
+     * BYTES, not a String. This used to hand back "status
+body" as text, which
+     * serves the JSON API and destroys everything else: achievement badges are
+     * PNGs, and new String(bytes, "UTF-8") replaces every byte that is not
+     * valid UTF-8 with U+FFFD. The body still arrived non-empty, so the fetch
+     * looked successful and the decoder just refused it -- on screen, a browser
+     * full of achievements with no pictures. A length-prefixed array has no
+     * encoding to get wrong.
      */
-    public static String request(String url, String post) {
+    public static byte[] request(String url, String post) {
         HttpURLConnection c = null;
 
         try {
@@ -85,7 +91,16 @@ public final class RaHttp {
                 }
             }
 
-            return status + "\n" + new String(bos.toByteArray(), "UTF-8");
+            byte[] body = bos.toByteArray();
+            byte[] out  = new byte[4 + body.length];
+
+            out[0] = (byte) (status >>> 24);
+            out[1] = (byte) (status >>> 16);
+            out[2] = (byte) (status >>> 8);
+            out[3] = (byte) status;
+            System.arraycopy(body, 0, out, 4, body.length);
+
+            return out;
         } catch (Throwable t) {
             /* Throwable, not Exception: a DNS failure on some vendor builds
              * surfaces as an Error, and letting anything propagate into JNI

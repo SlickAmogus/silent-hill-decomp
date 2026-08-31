@@ -137,6 +137,9 @@ static int   s_prevHeld;
  * viewport. All in viewport pixels, y up. */
 static float s_geoListT, s_geoListB, s_geoRowPitch, s_geoRowH;
 static float s_geoPanelL, s_geoPanelR;
+/* Panel top/bottom as well, so a tap can be tested against the whole rect
+ * and not just its columns -- see the tap-outside close below. */
+static float s_geoPanelT, s_geoPanelB;
 static float s_geoBarL, s_geoBarR;
 
 /* Close is edge-triggered on a RELEASE-then-PRESS so the Map button that opened
@@ -1210,7 +1213,23 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm)
             if (s_dragMoved < 4.0f && !s_barDragging)
             {
                 s_velocity = 0.0f;          /* a tap must not flick */
-                if (s_detailRow >= 0)
+
+                /* A tap on the empty space around the panel means Cancel. On a
+                 * pad this screen closes on Cancel or Map, on a desktop on
+                 * Escape or a right-click -- a touchscreen has none of those,
+                 * so opening this from the main menu was a one-way trip. Tapping
+                 * outside a panel to dismiss it is also just what a phone player
+                 * already expects. Backs out one level like every other route:
+                 * a detail card closes to the list first. */
+                if (px < s_geoPanelL || px > s_geoPanelR ||
+                    py > s_geoPanelT || py < s_geoPanelB)
+                {
+                    if (s_detailRow >= 0)
+                        s_detailRow = -1;
+                    else
+                        rab_begin_close();
+                }
+                else if (s_detailRow >= 0)
                     s_detailRow = -1;
                 else if (s_pressRow >= 0 && s_pressRow == row)
                 {
@@ -1418,6 +1437,8 @@ void Pc_RaBrowser_Draw(void)
     s_geoRowH     = rowH;
     s_geoPanelL   = panelL;
     s_geoPanelR   = panelR;
+    s_geoPanelT   = panelT;
+    s_geoPanelB   = panelB;
     s_scrollMax  = (float)s_rowCount * (rowH + rowGap) - listH;
     if (s_scrollMax < 0.0f) s_scrollMax = 0.0f;
     if (s_scroll > s_scrollMax) s_scroll = s_scrollMax;

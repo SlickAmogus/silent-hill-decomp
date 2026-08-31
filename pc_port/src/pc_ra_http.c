@@ -221,7 +221,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
         s_raHttpClass   = (jclass)(*env)->NewGlobalRef(env, local);
         s_raHttpRequest = (*env)->GetStaticMethodID(
             env, s_raHttpClass, "request",
-            "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
+            "(Ljava/lang/String;Ljava/lang/String;)[B");
         (*env)->DeleteLocalRef(env, local);
     }
     else
@@ -235,9 +235,10 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved)
 int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t* out_len)
 {
     JNIEnv*     env;
-    jstring     jUrl, jPost, jResult;
-    const char* chars;
-    const char* split;
+    jstring     jUrl, jPost;
+    jbyteArray  jResult;
+    jsize       n;
+    jbyte*      raw;
     int         status = 0;
 
     *out_body = NULL;
@@ -254,7 +255,7 @@ int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t*
     jUrl  = (*env)->NewStringUTF(env, url);
     jPost = (post != NULL && post[0]) ? (*env)->NewStringUTF(env, post) : NULL;
 
-    jResult = (jstring)(*env)->CallStaticObjectMethod(env, s_raHttpClass,
+    jResult = (jbyteArray)(*env)->CallStaticObjectMethod(env, s_raHttpClass,
                                                       s_raHttpRequest, jUrl, jPost);
 
     if ((*env)->ExceptionCheck(env))
@@ -269,29 +270,39 @@ int Pc_RaHttpRequest(const char* url, const char* post, char** out_body, size_t*
     if (jResult == NULL)
         return 0;
 
-    chars = (*env)->GetStringUTFChars(env, jResult, NULL);
-    if (chars != NULL)
+    /* Four bytes of status, big-endian, then the body verbatim. Bytes rather
+     * than text the whole way: badge art is PNG, and a string conversion turns
+     * every byte that is not valid UTF-8 into U+FFFD -- the body still arrives
+     * non-empty, so the fetch looks fine and the decoder just refuses it. */
+    n = (*env)->GetArrayLength(env, jResult);
+
+    if (n >= 4)
     {
-        /* "<status>NEWLINE<body>", split on the FIRST newline only so a body
-         * containing newlines survives. */
-        split = strchr(chars, '\n');
-        if (split != NULL)
+        raw = (*env)->GetByteArrayElements(env, jResult, NULL);
+
+        if (raw != NULL)
         {
-            size_t len = strlen(split + 1);
+            size_t len = (size_t)(n - 4);
             char*  buf = (char*)malloc(len + 1);
 
-            status = atoi(chars);
+            status = ((int)(unsigned char)raw[0] << 24) |
+                     ((int)(unsigned char)raw[1] << 16) |
+                     ((int)(unsigned char)raw[2] << 8)  |
+                      (int)(unsigned char)raw[3];
 
+            /* NUL-terminated for the JSON callers, which read it as a string;
+             * out_len carries the true length for the binary ones. */
             if (buf != NULL)
             {
-                memcpy(buf, split + 1, len);
-                buf[len] = '\0';
+                if (len)
+                    memcpy(buf, raw + 4, len);
+                buf[len]  = ' ';
                 *out_body = buf;
                 *out_len  = len;
             }
-        }
 
-        (*env)->ReleaseStringUTFChars(env, jResult, chars);
+            (*env)->ReleaseByteArrayElements(env, jResult, raw, JNI_ABORT);
+        }
     }
 
     (*env)->DeleteLocalRef(env, jResult);
