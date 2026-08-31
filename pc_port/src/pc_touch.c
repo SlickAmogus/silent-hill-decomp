@@ -15,6 +15,7 @@
 #include "game.h"
 #include "pc_config.h"
 #include "pc_touch.h"
+#include "sh_log.h"
 
 #include <libetc.h>
 #include <libgs.h>
@@ -233,8 +234,32 @@ static int Tc_Mode(void)
     {
         extern int g_PcMapScreenActive;
 
-        if (g_PcMapScreenActive)
+        /* TWO routes reach a fullscreen map, and they are tracked differently.
+         *
+         * The Map button's map is its own gameState: SysState_MapScreen loads
+         * the art and hands off to GameState_PaperMapScreen. It does NOT set
+         * g_PcMapScreenActive -- only Event_MapTake and the map-zoom events do,
+         * and those run inside GameState_InGame. Testing the flag alone
+         * therefore missed the one route a player uses constantly, and every
+         * test below then fell through to "not InGame" and returned OFF: no
+         * button built, no input taken, nothing drawn.
+         *
+         * Both are checked now, by the thing that actually identifies each.
+         * The screen closes on cancel from either entry point, which is what
+         * TC_MODE_BACK's corner button sends. */
+        if (g_GameWork.gameState == GameState_PaperMapScreen || g_PcMapScreenActive)
+        {
+            static int s_loggedMap = 0;
+
+            if (!s_loggedMap)
+            {
+                s_loggedMap = 1;
+                SH_DBG("[TOUCH] map screen: gameState=%d flag=%d -> corner Back",
+                       (int)g_GameWork.gameState, g_PcMapScreenActive);
+            }
+
             return TC_MODE_BACK;
+        }
     }
 
     /* The boot logos and the intro movies are GAME states, not sys states, so
