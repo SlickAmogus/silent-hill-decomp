@@ -126,6 +126,27 @@ static float s_barGrabScroll;
 
 /* Row under the pointer, the highlighted row (keys or mouse), the row a press
  * landed on, and the row opened for detail (-1 = none / list view). */
+/* The stock menu cues, so this panel sounds like every other screen. Declared
+ * here rather than by including the sound headers: this file is deliberately
+ * GL + stb only, and pulling the PSX sound tree in for three calls is not worth
+ * it. Ids from include/bodyprog/sound/sfx_id_enum.h. */
+extern unsigned char Sd_PlaySfx(unsigned short sfxId, signed char balance, unsigned char vol);
+
+#define RAB_SFX_MOVE    1305   /* Sfx_MenuMove    */
+#define RAB_SFX_CONFIRM 1307   /* Sfx_MenuConfirm */
+#define RAB_SFX_CANCEL  1306   /* Sfx_MenuCancel  */
+
+/* 64 is the volume every other menu passes; balance 0 is centre. */
+static void rab_sfx(int id)
+{
+    Sd_PlaySfx((unsigned short)id, 0, 64);
+}
+
+/* Selection as it stood at the end of the last update. One comparison catches
+ * every route that can move it -- arrow keys, pad, mouse hover, a tap -- rather
+ * than a play call at each of the sites that assign it. */
+static int   s_sfxPrevSel = -1;
+
 static int   s_hoverRow  = -1;
 static int   s_selRow    = 0;
 static int   s_pressRow  = -1;
@@ -941,6 +962,7 @@ void Pc_RaBrowser_Open(void)
     s_selRow     = 0;
     s_detailRow  = -1;
     s_hoverRow   = -1;
+    s_sfxPrevSel = -1;   /* suppresses a cue on the opening frame */
     s_prevHeld   = 0;
     s_scroll     = 0.0f;
     s_velocity   = 0.0f;
@@ -1100,9 +1122,15 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm)
         if (confirm)
         {
             if (s_detailRow >= 0)
+            {
                 s_detailRow = -1;
+                rab_sfx(RAB_SFX_CANCEL);
+            }
             else if (s_selRow >= 0 && s_selRow < s_rowCount)
+            {
                 s_detailRow = s_selRow;
+                rab_sfx(RAB_SFX_CONFIRM);
+            }
         }
     }
 
@@ -1228,13 +1256,18 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm)
                         s_detailRow = -1;
                     else
                         rab_begin_close();
+                    rab_sfx(RAB_SFX_CANCEL);
                 }
                 else if (s_detailRow >= 0)
+                {
                     s_detailRow = -1;
+                    rab_sfx(RAB_SFX_CANCEL);
+                }
                 else if (s_pressRow >= 0 && s_pressRow == row)
                 {
                     s_detailRow = s_pressRow;
                     s_selRow    = s_pressRow;
+                    rab_sfx(RAB_SFX_CONFIRM);
                 }
             }
             s_dragging    = 0;
@@ -1287,7 +1320,17 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm)
             s_detailRow = -1;
         else
             rab_begin_close();
+
+        rab_sfx(RAB_SFX_CANCEL);
     }
+
+    /* Cursor movement, once, however it moved. Only while the list is up -- the
+     * detail card has nothing to step through -- and never on the opening
+     * frame, which is what the -1 latch below is for. */
+    if (s_detailRow < 0 && s_selRow != s_sfxPrevSel && s_sfxPrevSel >= 0)
+        rab_sfx(RAB_SFX_MOVE);
+
+    s_sfxPrevSel = s_selRow;
 }
 
 /* ------------------------------------------------------------------ */
