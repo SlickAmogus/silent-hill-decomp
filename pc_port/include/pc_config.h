@@ -225,6 +225,12 @@ typedef struct {
     int aimAssist;          /* 1 = OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) (config key: aim_assist) */
     int mouseCursor;        /* 1 = mouse controls cursor puzzles + clickable main menu (config key: mouse_cursor) */
     int touchControls;      /* on-screen touch controls during gameplay -- floating movement stick on the left, drag to look on the right, tap for Action, plus Aim/Fire/Item/Map/Start buttons. e_TouchControlsMode (config key: touch_controls); defaults to Automatic where a touchscreen is the only input */
+    /* Mobile screen orientation: 0 = lock landscape (the default and what the
+     * port has always done), 1 = follow the sensor, 2 = lock portrait. SDL
+     * otherwise derives this from the window's proportions, which on a device
+     * rotated to portrait letterboxes the game into a strip. Config key:
+     * screen_orientation. */
+    int   screenOrientation;
     float touchLookSensitivity; /* touch look speed multiplier, 0.1..4.0 (config key: touch_look_sensitivity); default 1.0 */
     int   oneButtonCombat;  /* 1 = Aim also fires, so combat is one thumb (config key: one_button_combat) */
     int altButtonSprint;    /* "Always use button based sprinting": 1 = walk by default, sprint ONLY while the bound run control is held — applies to alt cameras (TPS/OTS/FPS) AND 2D control under any camera; 0 = a near-full stick push also sprints (config key: altcam_button_sprint) */

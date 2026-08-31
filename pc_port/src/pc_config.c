@@ -95,6 +95,7 @@ s_PcConfig g_PcConfig = {
 #else
     .touchControls       = TouchControls_Off,
 #endif
+    .screenOrientation   = 0, /* lock landscape: what the port has always done */
     .touchLookSensitivity = 1.0f,
     .renderScale         = 1.0f,
     .lowEndMode          = 0,
@@ -214,6 +215,9 @@ s_PcConfig g_PcConfig = {
     },
     .keyQuickSave = "F6", .keyQuickLoad = "F8",
     .keyQuickOptions = "F10",
+    /* L3. A handheld or a pad-on-a-phone has no F10, and the quick panel is
+     * the only settings surface reachable without leaving the scene. */
+    .padQuickOptions = "leftstick",
     .keySwapShoulder = "Mouse3",
     .keyConsole = "`",
     .keyGfxCycle = "\\",
@@ -948,6 +952,15 @@ void PcConfig_Load(const char* path)
             if (v < 0.25f) v = 0.25f;
             if (v > 1.0f)  v = 1.0f;
             g_PcConfig.renderScale = v;
+        }
+        else if (strcmp(key, "screen_orientation") == 0)
+        {
+            int v = atoi(value);
+
+            if (v < 0 || v > 2)
+                v = 0;
+
+            g_PcConfig.screenOrientation = v;
         }
         else if (strcmp(key, "touch_controls") == 0)
         {
