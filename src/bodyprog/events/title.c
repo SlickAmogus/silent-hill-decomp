@@ -273,6 +273,33 @@ void GameState_MainMenu_Update(void) // 0x8003AB28
                     Pc_RaBrowser_Open();
                     browserOpen = true;
                 }
+#if defined(SH_IOS) || defined(__ANDROID__)
+                /* Tap the hint to open it. The zone is the bottom-left corner
+                 * rather than the text's own rectangle: the string layer works
+                 * in its own coordinate space (Gfx_StringSetPosition subtracts
+                 * a 50%/47% origin and the title screen's Y runs past the 240
+                 * the touch overlay uses), so reconstructing the glyph bounds
+                 * here would be a guess dressed up as a measurement.
+                 *
+                 * Being larger than the words is the right error anyway -- it is
+                 * a fingertip target, and nothing else on the title screen lives
+                 * in this corner. The menu column is centred. */
+                else if (g_PcConfig.retroAchievements)
+                {
+                    extern int Pc_MouseCursor_LeftClicked(void);
+                    extern int Pc_MouseCursor_ViewportPos(float*, float*);
+
+                    float tapX = 0.0f, tapY = 0.0f;
+
+                    if (Pc_MouseCursor_LeftClicked() &&
+                        Pc_MouseCursor_ViewportPos(&tapX, &tapY) &&
+                        tapX < 0.34f && tapY > 0.80f)
+                    {
+                        Pc_RaBrowser_Open();
+                        browserOpen = true;
+                    }
+                }
+#endif
                 if (browserOpen)
                 {
                     /* Clear the DERIVED per-frame events only.
@@ -772,6 +799,16 @@ static void MainMenu_AchievementHintDraw(void)
     /* Whatever the player bound Map to -- the browser opens on that, so the
      * hint has to read it rather than assume a key. Scheme 0 (classic): the
      * title screen has no camera mode to disagree about. */
+#if defined(SH_IOS) || defined(__ANDROID__)
+    /* No bind prefix on a touch build. "[M] Achievements" names a key this
+     * device does not have, and the line is the label of something you tap --
+     * so it should read as one. Opened by the tap zone in
+     * GameState_MainMenu_Update, which covers this corner. */
+    (void)key; (void)pad; (void)bind; (void)i; (void)mapBtn;
+    Gfx_StringSetPosition(ACH_HINT_POS_X, ACH_HINT_POS_Y);
+    Gfx_StringDraw("Achievements", DEFAULT_MAP_MESSAGE_LENGTH);
+    return;
+#else
     mapBtn = g_GameWorkPtr->config.controllerConfig.map;
     key    = PcConfig_BindName(mapBtn, 0, 0, 0);
     pad    = PcConfig_BindName(mapBtn, 1, 0, 0);
@@ -807,6 +844,7 @@ static void MainMenu_AchievementHintDraw(void)
 
     Gfx_StringSetPosition(ACH_HINT_POS_X, ACH_HINT_POS_Y);
     Gfx_StringDraw(line, DEFAULT_MAP_MESSAGE_LENGTH);
+#endif
 }
 #endif
 
