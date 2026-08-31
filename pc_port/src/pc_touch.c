@@ -25,6 +25,7 @@
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/sys/joy.h"
 #include "screens/options.h" /* OptionsMenuState_Brightness */
+#include "bodyprog/events/map_msg.h" /* g_MapMsg_Select */
 #include "pc_quick_options.h"     /* the button below opens it */
 
 #define TC_MAX_FINGERS 8
@@ -259,7 +260,18 @@ static int Tc_Mode(void)
          * Both are checked now, by the thing that actually identifies each.
          * The screen closes on cancel from either entry point, which is what
          * TC_MODE_BACK's corner button sends. */
-        if (g_GameWork.gameState == GameState_PaperMapScreen || g_PcMapScreenActive)
+        /* ...but NOT while the map is asking something. Event_MapTake draws the
+         * map, sets the flag, and THEN puts a Yes/No over it (case 3, "take this
+         * map?"). Treating that as a dismissable map made every tap send Cancel,
+         * so the answer was always No and the map could not be picked up at all.
+         *
+         * A screen with a live selection is not a screen you leave by tapping
+         * it. Falling through here hands the prompt back to the ordinary state
+         * handling, which confirms on a tap the way every other message does.
+         * maxIdx is NO_VALUE whenever no choice is on screen, so this is inert
+         * for a map you are simply reading. */
+        if ((g_GameWork.gameState == GameState_PaperMapScreen || g_PcMapScreenActive) &&
+            g_MapMsg_Select.maxIdx == NO_VALUE)
         {
             static int s_loggedMap = 0;
 
@@ -820,7 +832,14 @@ void Pc_Touch_Update(void)
          *
          * Buttons keep priority: a contact that landed on the corner already
          * has role TR_BUTTON and is excluded, so this never doubles up. */
+        /* Never while a selection is on screen. "Take this map?" and "Is it OK
+         * to save?" are both drawn over a TC_MODE_BACK screen, and a blind
+         * Cancel ANSWERS them -- always with No. That is how the map became
+         * impossible to pick up. A screen asking a question is not a screen you
+         * dismiss by tapping it; maxIdx is NO_VALUE the rest of the time, so
+         * this costs the cancel-only screens nothing. */
         if (mode == TC_MODE_BACK && t->role != TR_BUTTON && !t->movedFar &&
+            g_MapMsg_Select.maxIdx == NO_VALUE &&
             (now - t->startMs) >= TC_TAP_MIN_MS &&
             (now - t->startMs) <= TC_TAP_MS)
         {
