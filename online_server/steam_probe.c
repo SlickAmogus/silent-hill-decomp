@@ -163,6 +163,9 @@ int main(int argc, char** argv)
         int                n = 0;
 
         printf("\npeer to peer (loopback)\n");
+        printf("  note   Steam prints an \"Unlinking connection in state 1\" assertion\n"
+               "         when this self-session is torn down. It is provoked by\n"
+               "         sending to our own account, which no real session does.\n");
         ShSteam_AcceptSession(ShSteam_SelfId());
         if (!ShSteam_Send(ShSteam_SelfId(), payload, (int)sizeof(payload), 1))
         {
