@@ -2542,6 +2542,21 @@ void MainLoop(void) // 0x80032EE0
         // Call update function for current GameState.
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
 #ifdef SH_PC_PORT
+        /* The touch overlay, for EVERY game state, drawn right after the state
+         * that owns the frame has queued its own prims.
+         *
+         * It used to be called from GameState_InGame_Update alone, which is why
+         * the map and the save screen each looked like a fresh softlock: both
+         * are their own gameState, so Tc_Mode picked the right mode and built
+         * the right button and nothing was ever drawn. Fixing those one screen
+         * at a time was chasing the symptom -- any state that is not InGame had
+         * the same hole, and the next one added would have had it too.
+         *
+         * Cheap where it does nothing: Tc_Mode returns OFF for states with no
+         * touch affordance and Pc_Touch_Draw leaves immediately. */
+        { extern void Pc_Touch_Draw(void); Pc_Touch_Draw(); }
+#endif
+#ifdef SH_PC_PORT
         if (g_GameWork.gameState == GameState_InGame) {
             /* Packet-arena overrun check.
              *

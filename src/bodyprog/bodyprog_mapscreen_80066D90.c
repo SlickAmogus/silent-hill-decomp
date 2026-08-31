@@ -286,15 +286,6 @@ void GameState_PaperMapScreen_Update(void) // 0x80066EB0
 
             func_800692A4(var_s6, var_s5, temp_s4);
 
-#ifdef SH_PC_PORT
-            /* The touch overlay is drawn from GameState_InGame_Update, and this
-             * screen is its OWN gameState -- so the corner Back button that
-             * closes it was being built by Pc_Touch_Update and never drawn. It
-             * worked; it was simply invisible, which on a phone is the same as
-             * a softlock. Drawn after the map's own prims so it sits on top. */
-            { extern void Pc_Touch_Draw(void); Pc_Touch_Draw(); }
-#endif
-
             if ((g_GameWork.gameStatePrev == GameState_InventoryScreen && g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel) ||
                 (g_GameWork.gameStatePrev != GameState_InventoryScreen && g_Controller0->clickedBtnFlags & (g_GameWorkPtr->config.controllerConfig.cancel |
                                                                                                            g_GameWorkPtr->config.controllerConfig.map)))

@@ -117,6 +117,7 @@ static int            s_StickActive;
 static float          s_StickOx, s_StickOy, s_StickKx, s_StickKy;
 static int            s_Running;
 static int            s_ActionFrames;  /* tap pulse, in pad updates */
+static int            s_CancelFrames;  /* the same, for the tap-anywhere Cancel */
 static int            s_AdvanceHeld;   /* a finger is down during an advance state */
 static int            s_PadAttached;   /* an SDL game controller is plugged in */
 static Uint32         s_LastTouchMs;
@@ -146,6 +147,12 @@ static int            s_LastSource;
 #define TC_TAP_MS        260
 #define TC_TAP_SLOP      0.035f
 #define TC_ACTION_FRAMES 3        /* hold Action long enough to survive an edge test */
+/* A tap has to read as DELIBERATE before it dismisses a screen. Below this a
+ * contact is a graze -- a thumb resting as the phone is picked up, a knuckle
+ * on the way past -- and backing out of a save screen on one of those would
+ * be its own kind of hostile. Well under what a real press takes, so nothing
+ * an actual finger does gets rejected. */
+#define TC_TAP_MIN_MS    45
 
 /* Full right-stick deflection for a drag crossing this much of the picture in
  * one update. Small enough that a flick whips the camera, large enough that a
@@ -520,6 +527,8 @@ static void Tc_Reset(void)
     s_StickActive = 0;
     s_Running     = 0;
     s_AdvanceHeld = 0;
+    /* Or a pending cancel would fire into whatever screen comes next. */
+    s_CancelFrames = 0;
 }
 
 void Pc_Touch_Update(void)
@@ -796,6 +805,23 @@ void Pc_Touch_Update(void)
             s_ActionFrames = TC_ACTION_FRAMES;
         }
 
+        /* Tap anywhere else on a cancel-only screen to leave it.
+         *
+         * The corner button is still drawn and still works; this is the half
+         * that stops a player hunting for it. Each of these screens has turned
+         * into a reported softlock in its turn -- the save screen, the map, the
+         * puzzles -- because the way out was one small target on a phone. The
+         * honest fix is that the whole background is the target.
+         *
+         * Buttons keep priority: a contact that landed on the corner already
+         * has role TR_BUTTON and is excluded, so this never doubles up. */
+        if (mode == TC_MODE_BACK && t->role != TR_BUTTON && !t->movedFar &&
+            (now - t->startMs) >= TC_TAP_MIN_MS &&
+            (now - t->startMs) <= TC_TAP_MS)
+        {
+            s_CancelFrames = TC_ACTION_FRAMES;
+        }
+
         if (t->role == TR_MOVE)
         {
             s_StickActive = 0;
@@ -853,6 +879,12 @@ void Pc_Touch_Update(void)
 
         if (s_AdvanceHeld)
             Tc_PressAction(&s_PadWord, cfg->enter);
+
+        if (s_CancelFrames > 0)
+        {
+            Tc_PressAction(&s_PadWord, cfg->cancel);
+            s_CancelFrames--;
+        }
 
         if (s_ActionFrames > 0)
         {
