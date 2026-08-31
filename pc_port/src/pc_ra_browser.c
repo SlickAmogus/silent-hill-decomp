@@ -40,6 +40,21 @@
 #include "pc_config.h"
 #include "pc_mouse_cursor.h"
 #include "pc_ui_sound.h"
+
+/* The same menu cues the rest of the UI uses, so moving through this list
+ * sounds like moving through any other screen. Only the SFX enum is pulled
+ * in -- this file keeps its distance from the game headers on purpose (see
+ * the notes above), so Sd_PlaySfx is declared by hand with the exact types
+ * from sound_system.h: q0_7 is a signed char. */
+#include "bodyprog/sound/sfx_id_enum.h"
+extern unsigned char Sd_PlaySfx(unsigned short sfxId, signed char balance, unsigned char vol);
+
+/* Update runs on the game thread, so calling into the sound system here is
+ * the same context every other menu plays its cues from. */
+static void rab_cue(unsigned short sfxId)
+{
+    Sd_PlaySfx(sfxId, 0, 64);
+}
 #include "sh_log.h"
 
 /* stb_image is vendored for the texture-pack loader; the badge PNGs come
@@ -1068,10 +1083,17 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm)
 
         if (s_detailRow < 0)
         {
+            const int selWas = s_selRow;
+
             if (stepUp)   s_selRow--;
             if (stepDown) s_selRow++;
             if (s_selRow < 0)            s_selRow = 0;
             if (s_selRow >= s_rowCount)  s_selRow = s_rowCount - 1;
+
+            /* Only when it actually moved: holding a direction at the end of the
+             * list would otherwise machine-gun the cue at the repeat rate. */
+            if (s_selRow != selWas)
+                rab_cue(Sfx_MenuMove);
 
             /* Keep the highlight on screen. Only nudges when it would fall off,
              * so paging with the mouse does not yank the view around. */
@@ -1100,9 +1122,15 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm)
         if (confirm)
         {
             if (s_detailRow >= 0)
+            {
                 s_detailRow = -1;
+                rab_cue(Sfx_MenuCancel);
+            }
             else if (s_selRow >= 0 && s_selRow < s_rowCount)
+            {
                 s_detailRow = s_selRow;
+                rab_cue(Sfx_MenuConfirm);
+            }
         }
     }
 
@@ -1214,11 +1242,15 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm)
             {
                 s_velocity = 0.0f;          /* a tap must not flick */
                 if (s_detailRow >= 0)
+                {
                     s_detailRow = -1;
+                    rab_cue(Sfx_MenuCancel);
+                }
                 else if (s_pressRow >= 0 && s_pressRow == row)
                 {
                     s_detailRow = s_pressRow;
                     s_selRow    = s_pressRow;
+                    rab_cue(Sfx_MenuConfirm);
                 }
             }
             s_dragging    = 0;

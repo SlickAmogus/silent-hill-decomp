@@ -398,6 +398,13 @@ static float s_geoListT, s_geoRowPitch, s_geoRowH, s_geoPanelL, s_geoPanelR;
 /* Panel bottom as well (s_geoTitleT is already its top), so a pointer can be
  * tested against the whole rectangle -- see the tap-outside close. */
 static float s_geoPanelB;
+#if defined(QO_MOBILE)
+/* The stepper column: a fixed strip down the right of every row holding
+ * `-  value  +`. Fixed rather than fitted to each value's width so the two
+ * halves land in the SAME place on every row -- a thumb learns one spot
+ * instead of hunting a boundary that moves with the text. */
+static float s_geoStepL, s_geoStepMid, s_geoStepPx;
+#endif
 /* Panel drag: grab the title bar and move it. Offsets are in viewport px and
  * survive close/reopen within a session. The title-bar rect is published for
  * Update's hit-test the same way the row geometry is. */
@@ -1501,6 +1508,73 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         }
     }
 
+#if defined(QO_MOBILE)
+    /* Slide a value. Dragging across the stepper column moves it continuously,
+     * which is what a slider wants -- tapping 0.05 at a time to cross a range is
+     * the thing that made these unusable with a thumb.
+     *
+     * One step per s_geoStepPx of travel, accumulated so a slow drag still adds
+     * up and a fast one does not skip. The residue is KEPT between frames rather
+     * than reset, or a steady drag would lose whatever was left under the
+     * threshold every frame and creep.
+     *
+     * Vertical travel is ignored: this is a horizontal control, and a thumb
+     * drawing a shallow arc across it should not stop stepping halfway.
+     *
+     * The initial press has already applied its own tap step above; this only
+     * adds more as the finger travels, so a tap and a drag agree on direction. */
+    {
+        static int   s_slideRow = -1;
+        static float s_slideX, s_slideAccum;
+
+        float smx, smy;
+
+        if (!s_dragging && Pc_MouseCursor_LeftHeld() &&
+            Pc_MouseCursor_ViewportPos(&smx, &smy) && s_geoStepPx > 0.0f)
+        {
+            const float px_ = smx * s_vpW;
+            const float py_ = (1.0f - smy) * s_vpH;
+            const int   r_  = (s_geoRowPitch > 0.0f)
+                            ? (int)((s_geoListT - py_) / s_geoRowPitch) : -1;
+
+            if (s_slideRow < 0)
+            {
+                /* Latch on the row the finger went DOWN on, inside the column,
+                 * so sliding off the row does not start adjusting its
+                 * neighbour. */
+                if (r_ >= 0 && r_ < nRows && px_ >= s_geoStepL &&
+                    QO_IS_VALUE_ROW(rows[r_].kind) && !qo_row_is_list(&rows[r_]))
+                {
+                    s_slideRow   = r_;
+                    s_slideX     = px_;
+                    s_slideAccum = 0.0f;
+                }
+            }
+            else if (s_slideRow < nRows && QO_IS_VALUE_ROW(rows[s_slideRow].kind))
+            {
+                s_slideAccum += px_ - s_slideX;
+                s_slideX      = px_;
+
+                while (s_slideAccum >= s_geoStepPx)
+                {
+                    qo_activate(&rows[s_slideRow], +1);
+                    s_slideAccum -= s_geoStepPx;
+                }
+                while (s_slideAccum <= -s_geoStepPx)
+                {
+                    qo_activate(&rows[s_slideRow], -1);
+                    s_slideAccum += s_geoStepPx;
+                }
+                s_sel = s_slideRow;
+            }
+        }
+        else
+        {
+            s_slideRow = -1;
+        }
+    }
+#endif
+
     /* Title-bar drag. Held (not clicked) so it tracks continuously, and it is
      * resolved before the row hit-test below so dragging never also activates
      * whatever the cursor passes over. */
@@ -1591,14 +1665,19 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
 #if defined(QO_MOBILE)
                 else if (QO_IS_VALUE_ROW(rows[row].kind))
                 {
-                    /* A finger has no right button and no wheel, so a value row
-                     * becomes a stepper: the half you tap is the direction it
-                     * moves, matching left/right on a pad. Without this a touch
-                     * player can only ever cycle a setting FORWARDS, which means
-                     * walking a slider all the way around to go back one step.
-                     * The chevrons drawn on the row say which half is which. */
-                    qo_activate(&rows[row],
-                                mpx < (s_geoPanelL + s_geoPanelR) * 0.5f ? -1 : +1);
+                    /* A finger has no right button and no wheel, so the value
+                     * needs both directions from taps alone.
+                     *
+                     * Only inside the stepper column, and split at ITS middle --
+                     * not the panel's. The number is right-aligned, so a
+                     * panel-wide split put every tap near it in the raise half
+                     * and left the label as the only way to lower anything.
+                     *
+                     * A tap left of the column selects the row and nothing else.
+                     * Stepping from there would mean the label doubles as a
+                     * "down" button, which is what was confusing before. */
+                    if (mpx >= s_geoStepL)
+                        qo_activate(&rows[row], mpx < s_geoStepMid ? -1 : +1);
                 }
 #endif
                 else
@@ -1886,6 +1965,23 @@ void Pc_QuickOptions_Draw(void)
     s_geoPanelL = panelL; s_geoPanelR = panelR; s_geoRows = nRows;
     s_geoTitleT = panelT; s_geoTitleB = panelT - titleH;
     s_geoPanelB = panelB;
+#if defined(QO_MOBILE)
+    /* The stepper column. 34% of the panel is wide enough that each half is
+     * a comfortable target at this panel size, and narrow enough to leave
+     * the label readable beside it.
+     *
+     * s_geoStepPx is how far a finger drags for ONE step. 3.5% of the panel
+     * means crossing the whole thing is ~28 steps: a slider moves at a
+     * readable pace instead of flying past the value you wanted, and a tap
+     * that rolls a few pixels never registers as a drag at all. */
+    {
+        const float stepW = panelW * 0.34f;
+
+        s_geoStepL   = panelR - pad * 0.12f - stepW;
+        s_geoStepMid = s_geoStepL + stepW * 0.5f;
+        s_geoStepPx  = panelW * 0.035f;
+    }
+#endif
 
     qo_build_white();
 
@@ -1985,16 +2081,25 @@ void Pc_QuickOptions_Draw(void)
             {
                 float vg = (i == s_sel) ? 1.0f : 0.85f;
                 float vr = panelR - pad - (float)s_valueW[i];
+#if defined(QO_MOBILE)
+                /* Right-aligned against the + rather than the panel edge, so
+                 * the mark sits beside the number instead of on top of it. */
+                if (!qo_row_is_list(r))
+                    vr = panelR - pad * 0.12f - (float)s_incW - pad * 0.45f
+                       - (float)s_valueW[i];
+#endif
                 tH = (float)s_valueH[i]; tY = rowMid + tH * 0.5f;
                 qo_quad(s_texValue[i], NX(vr), NY(tY), NX(vr + s_valueW[i]), NY(tY - tH),
                         vg, vg * 0.85f, vg * 0.45f, dim);
             }
 #if defined(QO_MOBILE)
-            /* Say which half does what. The row is a stepper on touch: tap the
-             * left of it to go down, the right to go up. Drawn in the padding
-             * outside the label and the value so nothing overlaps, and dimmed
-             * on unselected rows so the page does not read as a wall of
-             * symbols. */
+            /* Say which half does what. The stepper is the right-hand column,
+             * `-  value  +`, and the half of THAT you tap is the direction it
+             * moves. It used to be the whole row split down the panel's middle,
+             * with the - way over by the label: the number sits on the right, so
+             * every tap near it landed in the raise half and lowering a value
+             * meant tapping the label, which nobody would guess. Dimmed on
+             * unselected rows so a page does not read as a wall of symbols. */
             /* Not on a list row: that one is not a stepper -- its halves fire
              * and cycle -- so - and + would describe the wrong gesture. */
             if (!qo_row_is_list(r))
@@ -2002,8 +2107,8 @@ void Pc_QuickOptions_Draw(void)
                 const float mg = (i == s_sel) ? 0.95f : 0.45f;
 
                 if (s_texDec)
-                    qo_quad(s_texDec, NX(panelL + pad * 0.12f), NY(rowMid + s_decH * 0.5f),
-                            NX(panelL + pad * 0.12f + s_decW), NY(rowMid - s_decH * 0.5f),
+                    qo_quad(s_texDec, NX(s_geoStepL), NY(rowMid + s_decH * 0.5f),
+                            NX(s_geoStepL + s_decW), NY(rowMid - s_decH * 0.5f),
                             mg, mg, mg, dim);
                 if (s_texInc)
                     qo_quad(s_texInc, NX(panelR - pad * 0.12f - s_incW), NY(rowMid + s_incH * 0.5f),
