@@ -46,6 +46,17 @@
  * in -- this file keeps its distance from the game headers on purpose (see
  * the notes above), so Sd_PlaySfx is declared by hand with the exact types
  * from sound_system.h: q0_7 is a signed char. */
+/* sfx_id_enum.h needs exactly one symbol it does not define: NO_VALUE, used
+ * by the @hack entry that forces the enum to s32. Its home is
+ * decomp/types.h, which pulls in psyq/sys/types.h -- the PSX type headers
+ * this file deliberately stays away from, since it has SDL and GL above.
+ *
+ * Supplying the one constant is smaller than that chain and keeps the ids
+ * coming from the enum rather than being copied in as numbers. Guarded, and
+ * the value matches decomp/types.h exactly, so a later include is harmless. */
+#ifndef NO_VALUE
+#define NO_VALUE -1
+#endif
 #include "bodyprog/sound/sfx_id_enum.h"
 extern unsigned char Sd_PlaySfx(unsigned short sfxId, signed char balance, unsigned char vol);
 
