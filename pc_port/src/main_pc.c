@@ -688,11 +688,22 @@ static void ParseArgs(int argc, char* argv[])
             g_GameDataPath[sizeof(g_GameDataPath) - 1] = '\0';
             i++;
         }
+        else if (strcmp(argv[i], "+connect_lobby") == 0 && i + 1 < argc)
+        {
+            /* Steam appends this when a player accepts an invite while the
+             * game is not running: it launches us with the lobby to join.
+             * Recorded here and honoured once the Steam layer is up, which
+             * happens much later (sh_net_session.c). */
+            extern void ShSteam_SetCommandLineLobby(unsigned long long lobbyId);
+            ShSteam_SetCommandLineLobby(strtoull(argv[i + 1], NULL, 10));
+            i++;
+        }
         else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("Usage: SilentHillPC [options]\n");
             printf("Options:\n");
-            printf("  -data <path>    Path to game data directory or CD image\n");
+            printf("  -data <path>          Path to game data directory or CD image\n");
+            printf("  +connect_lobby <id>   Join a Steam lobby (Steam passes this itself)\n");
             printf("  -h, --help      Show this help\n");
             exit(0);
         }

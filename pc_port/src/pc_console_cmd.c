@@ -40,6 +40,7 @@
 #include "pc_config.h"
 #include "pc_discord.h" /* Pc_MapAreaName, for NET WHO */
 #include "sh_net.h"
+#include "sh_net_session.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -492,7 +493,11 @@ static const char* const HELP_LINES[] = {
     " loga / logb    log Harry+camera pos/angles to SilentHill.log",
     " net            online status, ghosts and markers here",
     " net reconnect  drop and re-join the master server",
-    " net who        who is online, and where",
+    " net who       who is online, and where",
+    " steam         Steam session status",
+    " steam host    open a co-op lobby (friends only)",
+    " steam invite  Steam overlay friend invite",
+    " steam join <id> | steam leave",
     "Quick Save: F6   Quick Load: F8 (work outside console)",
 };
 
@@ -1092,6 +1097,44 @@ void Pc_ConsoleExec(const char* line)
                         ShNet_GhostCount(), ShNet_MemoCount());
             }
             cprintf("  net reconnect | net who | net memos");
+        }
+    } else if (strcmp(cmd, "STEAM") == 0) {
+        char line[128];
+        ShSession_StatusLine(line, (int)sizeof(line));
+        if (strcmp(arg, "HOST") == 0) {
+            ShSession_RequestHost();
+            cprintf("steam: opening a session (friends only)");
+        } else if (strcmp(arg, "INVITE") == 0) {
+            ShSession_RequestInvite();
+            cprintf("steam: opening the invite overlay");
+        } else if (strcmp(arg, "LEAVE") == 0) {
+            ShSession_RequestLeave();
+            cprintf("steam: leaving the session");
+        } else if (strncmp(arg, "JOIN", 4) == 0) {
+            unsigned long long id = strtoull(arg + 4, NULL, 10);
+            if (id) {
+                ShSession_RequestJoin(id);
+                cprintf("steam: joining %llu", id);
+            } else {
+                cprintf("steam: give a lobby id, e.g. steam join 109775241010101010");
+            }
+        } else {
+            int i, n = ShSession_MemberCount();
+            cprintf("%s", line);
+            if (ShSession_Active()) {
+                cprintf("  lobby %llu, %s", ShSession_LobbyId(),
+                        ShSession_IsHost() ? "hosting" : "guest");
+            }
+            for (i = 0; i < n; i++) {
+                const ShSessionMember* m = ShSession_Member(i);
+                if (!m) continue;
+                if (m->pingMs >= 0)
+                    cprintf("  %-20s %d ms%s", m->name, m->pingMs,
+                            m->linked ? "" : "  (no link)");
+                else
+                    cprintf("  %-20s  --%s", m->name, m->linked ? "" : "  (no link)");
+            }
+            cprintf("  steam host | steam invite | steam join <id> | steam leave");
         }
     } else if (strcmp(cmd, "QUIT") == 0) {
         SH_DBG("[CONSOLE] quit");

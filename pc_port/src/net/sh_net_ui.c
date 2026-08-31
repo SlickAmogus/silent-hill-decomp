@@ -45,6 +45,7 @@
 
 #include "sh_net.h"
 #include "sh_net_memo.h"
+#include "sh_net_session.h"
 #include "pc_config.h"
 #include "pc_discord.h" /* Pc_MapAreaName */
 #include "sh_log.h"
@@ -712,8 +713,10 @@ static void Nu_DrawPlayerList(int px)
     const int   count = ShNet_PeerCount();
     const int   shown = (count > NU_LIST_ROWS) ? NU_LIST_ROWS : count;
     const float w     = s_vpW * 0.42f < 420.0f ? 420.0f : s_vpW * 0.42f;
+    const int   sess  = ShSession_MemberCount();
     const float h     = pad * 2.0f + (float)big * 1.5f + (float)px * 1.4f +
-                        rowH * (float)(shown + 2);
+                        rowH * (float)(shown + 2) +
+                        (sess > 0 ? rowH * (float)(sess + 2) : 0.0f);
     const float x     = (s_vpW - w) * 0.5f;
     const float y     = s_vpH * 0.12f;
     float       ty;
@@ -787,6 +790,58 @@ static void Nu_DrawPlayerList(int px)
         snprintf(buf, sizeof(buf), "and %d more", count - shown);
         Nu_DrawText(buf, x + pad, ty, px, 0.45f, 0.45f, 0.43f, 1.0f);
         ty += rowH;
+    }
+
+    /* The Steam session, when there is one. It is a different thing from the
+     * roster above -- the people you invited, not everyone who happens to be
+     * on the same master server -- so it gets its own block rather than being
+     * mixed into the list. */
+    if (ShSession_MemberCount() > 0)
+    {
+        char sline[128];
+        int  n = ShSession_MemberCount();
+        int  k;
+
+        ty += rowH * 0.5f;
+        {
+            const float x0 = (x + pad) / s_vpW * 2.0f - 1.0f;
+            const float x1 = (x + w - pad) / s_vpW * 2.0f - 1.0f;
+            const float yy = 1.0f - (ty / s_vpH) * 2.0f;
+            Nu_Fill(x0, yy, x1, yy - 2.0f / s_vpH, 0.4f, 0.39f, 0.36f, 0.5f);
+        }
+        ty += rowH * 0.4f;
+
+        ShSession_StatusLine(sline, (int)sizeof(sline));
+        Nu_DrawText(sline, x + pad, ty, px, 0.62f, 0.66f, 0.58f, 1.0f);
+        ty += rowH;
+
+        for (k = 0; k < n; k++)
+        {
+            const ShSessionMember* m = ShSession_Member(k);
+            if (!m)
+            {
+                continue;
+            }
+            Nu_DrawText(m->name, x + pad + (float)px, ty, px,
+                        m->linked ? 0.78f : 0.46f,
+                        m->linked ? 0.76f : 0.45f,
+                        m->linked ? 0.62f : 0.43f, 1.0f);
+            if (m->mapIdx >= 0 && m->mapIdx < 64)
+            {
+                Nu_DrawText(Pc_MapAreaName(m->mapIdx), x + w * 0.38f, ty, px,
+                            0.52f, 0.52f, 0.50f, 1.0f);
+            }
+            if (m->pingMs >= 0)
+            {
+                snprintf(buf, sizeof(buf), "%d ms", m->pingMs);
+            }
+            else
+            {
+                snprintf(buf, sizeof(buf), "%s", m->linked ? "--" : "no link");
+            }
+            Nu_DrawTextRight(buf, x + w - pad, ty, px, 0.45f, 0.45f, 0.43f, 1.0f);
+            ty += rowH;
+        }
     }
 
     ty = y + h - pad - (float)px;
@@ -961,7 +1016,7 @@ void ShNetUi_PreloadGL(void)
 
 void ShNetUi_TogglePlayerList(void)
 {
-    if (!g_PcConfig.onlineEnabled)
+    if (!g_PcConfig.onlineEnabled && !g_PcConfig.onlineSteam)
     {
         return;
     }
@@ -981,7 +1036,7 @@ void ShNetUi_Draw(void)
     int       px;
     int       drawList, drawComposer, drawStatus;
 
-    if (!g_PcConfig.onlineEnabled)
+    if (!g_PcConfig.onlineEnabled && !g_PcConfig.onlineSteam)
     {
         return;
     }
@@ -1007,6 +1062,12 @@ void ShNetUi_Draw(void)
         ShNetMemo_NearestReadable() < 0 && !ShNetMemo_JustPlaced())
     {
         return;
+    }
+    /* A Steam-session-only build has no master-server status line to show, so
+     * the connection banner must not claim one. */
+    if (!g_PcConfig.onlineEnabled)
+    {
+        drawStatus = 0;
     }
 
     glGetIntegerv(GL_VIEWPORT, vp);

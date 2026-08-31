@@ -116,6 +116,9 @@ void ShNet_Reconnect(void);
 /* Status                                                              */
 /* ------------------------------------------------------------------ */
 
+/* 1 when the worker is running at all - the master server, a Steam session, or
+ * both. ShNet_Status only describes the master-server half. */
+int         ShNet_Enabled(void);
 int         ShNet_Status(void);        /* SHNET_ST_* */
 const char* ShNet_StatusText(void);    /* one short line for the UI */
 const char* ShNet_ServerName(void);

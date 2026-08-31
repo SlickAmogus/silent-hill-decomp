@@ -2,6 +2,11 @@
 
 A branch of the PC port where other people are in your Silent Hill.
 
+> There are two online systems here and they are independent. This page is the
+> **master server**: ghosts and messages from strangers, no accounts, anyone can
+> host one. For **Steam sessions** — friend invites, the overlay, and the link
+> co-op will run on — see [Online_Steam.md](Online_Steam.md).
+
 Not co-op. You are still playing the game alone, and nothing another player
 does can touch your world — no shared enemies, no shared items, no shared
 doors. What you get is the sense that the town is inhabited: pale outlines
@@ -97,6 +102,11 @@ net             connection, ghost and marker counts
 net who         the roster, with areas and pings
 net reconnect   drop and re-join
 net memos       re-query this map's markers
+
+steam           Steam session, and the round-trip time to each member
+steam host      open a co-op lobby (friends only)
+steam invite    Steam overlay friend invite
+steam join <id> | steam leave
 ```
 
 ---
@@ -129,6 +139,9 @@ net memos       re-query this map's markers
 | `pc_port/src/net/sh_net_ui.c` | player list, composer, feed |
 | `online_server/sh_master.c` | the server |
 | `online_server/shnet_selftest.c` | drives a live server with two fake players |
+| `pc_port/src/net/sh_net_steam.c` | Steam, loaded at runtime (Online_Steam.md) |
+| `pc_port/src/net/sh_net_session.c` | Steam lobby lifecycle and the peer link |
+| `online_server/steam_probe.c` | validates the Steam layer against a real DLL |
 
 The socket lives on its own thread, so a server that has gone away cannot
 stall a frame. It publishes into a game-thread-private copy once per frame,

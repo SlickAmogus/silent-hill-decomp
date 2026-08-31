@@ -63,3 +63,9 @@ online_server/build/
 online_server/*.db
 online_server/server_out.txt
 online_server/*.png
+
+# Valve's redistributable. Never committed: it is not ours to ship, and the
+# port loads whatever copy the player supplies at runtime.
+steam_api64.dll
+steam_api.dll
+steam_appid.txt

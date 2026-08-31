@@ -55,6 +55,11 @@ s_PcConfig g_PcConfig = {
     .onlineGhostStyle = 2, /* SHNET_GS_BOTH: the contour plus a floor ring */
     .onlineGhostRange = 40,
     .onlineEvents     = 1,
+    .onlineSteam           = 0,
+    .onlineSteamAppId      = 480, /* Spacewar; see sh_net_steam.h */
+    .onlineSteamMaxPlayers = 4,
+    .onlineSteamPublic     = 0,   /* friends only: an invite is the point */
+    .onlineSteamAutoHost   = 0,
     .keyOnlinePlayers = "F11",
     .keyOnlineMemo    = "M",
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
@@ -701,6 +706,31 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "online_events") == 0)
         {
             g_PcConfig.onlineEvents = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "online_steam") == 0)
+        {
+            g_PcConfig.onlineSteam = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "online_steam_appid") == 0)
+        {
+            int v = atoi(value);
+            if (v <= 0) v = 480;
+            g_PcConfig.onlineSteamAppId = v;
+        }
+        else if (strcmp(key, "online_steam_max_players") == 0)
+        {
+            int v = atoi(value);
+            if (v < 2) v = 2;
+            if (v > 8) v = 8;
+            g_PcConfig.onlineSteamMaxPlayers = v;
+        }
+        else if (strcmp(key, "online_steam_public") == 0)
+        {
+            g_PcConfig.onlineSteamPublic = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "online_steam_autohost") == 0)
+        {
+            g_PcConfig.onlineSteamAutoHost = (atoi(value) != 0);
         }
         else if (strcmp(key, "whole_map_exteriors") == 0)
         {

@@ -106,7 +106,18 @@ enum
     SHNET_MSG_MEMO_RATE  = 0x33, /* C->S  +1 / -1 on someone's memo */
     SHNET_MSG_MEMO_ACK   = 0x34, /* S->C  your placement landed, here is its id */
 
-    SHNET_MSG_EVENT      = 0x40  /* S->C  a line for the toast feed */
+    SHNET_MSG_EVENT      = 0x40, /* S->C  a line for the toast feed */
+
+    /* ---- Session messages ----
+     * Peer to peer between the members of a Steam lobby, NOT to the master
+     * server. They travel on the Steam relay (sh_net_steam.c) rather than the
+     * UDP socket, but they carry the same header and go through the same
+     * ShnPut/ShnGet helpers, so one parser covers both and a co-op message
+     * added later is just another type in this range. */
+    SHNET_MSG_S_HELLO    = 0x50, /* P2P  I am here, this is my name and map */
+    SHNET_MSG_S_PING     = 0x51,
+    SHNET_MSG_S_PONG     = 0x52,
+    SHNET_MSG_S_BYE      = 0x53
 };
 
 /* Marker kinds. */

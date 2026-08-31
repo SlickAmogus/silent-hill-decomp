@@ -10,7 +10,13 @@ using System.Windows.Forms;
 namespace SilentHillPC_Launcher
 {
     /// <summary>
-    /// Silent Hill Online settings, and a way to run the master server.
+    /// Silent Hill Online settings: the master server, and Steam sessions.
+    ///
+    /// The two halves are independent. The MASTER SERVER is the ambient world
+    /// (ghosts and messages from strangers, anyone can host one); STEAM is for
+    /// co-op with friends, where an invite in the overlay and a connection that
+    /// needs no port forwarding are worth more than an address field. A player
+    /// can run either, both, or neither.
     ///
     /// Writes the online_* keys in config.cfg. Everything is inert in the game
     /// while "Play online" is unchecked: no socket is opened and no thread
@@ -43,6 +49,14 @@ namespace SilentHillPC_Launcher
         private Button _btnTest;
         private Button _btnHost;
         private Button _btnClose;
+
+        private CheckBox _chkSteam;
+        private NumericUpDown _numSteamAppId;
+        private NumericUpDown _numSteamMax;
+        private CheckBox _chkSteamPublic;
+        private CheckBox _chkSteamAutoHost;
+        private Button _btnSteamCheck;
+        private Label _lblSteamState;
 
         private Process _server;
 
@@ -78,7 +92,7 @@ namespace SilentHillPC_Launcher
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(560, 432);
+            ClientSize = new Size(560, 576);
 
             var intro = new Label
             {
@@ -182,16 +196,94 @@ namespace SilentHillPC_Launcher
                 Lbl("Visible within", 258, 66, 80), _trkRange, _lblRange
             });
 
+            var grpSteam = new GroupBox
+            {
+                Location = new Point(12, 368),
+                Size = new Size(536, 140),
+                Text = "Steam co-op sessions"
+            };
+
+            var steamIntro = new Label
+            {
+                Location = new Point(14, 20),
+                Size = new Size(508, 32),
+                Text = "Separate from the master server above, and usable on its own. " +
+                       "Gives you Steam friend invites, the overlay, and a direct " +
+                       "connection that needs no port forwarding."
+            };
+
+            _chkSteam = new CheckBox
+            {
+                Location = new Point(14, 56),
+                Size = new Size(200, 20),
+                Text = "Enable Steam sessions"
+            };
+
+            _chkSteamPublic = new CheckBox
+            {
+                Location = new Point(220, 56),
+                Size = new Size(140, 20),
+                Text = "Public lobby"
+            };
+
+            _chkSteamAutoHost = new CheckBox
+            {
+                Location = new Point(366, 56),
+                Size = new Size(160, 20),
+                Text = "Open one at startup"
+            };
+
+            _numSteamAppId = new NumericUpDown
+            {
+                Location = new Point(76, 82),
+                Size = new Size(84, 22),
+                Minimum = 1,
+                Maximum = 2000000000,
+                Value = 480
+            };
+
+            _numSteamMax = new NumericUpDown
+            {
+                Location = new Point(246, 82),
+                Size = new Size(52, 22),
+                Minimum = 2,
+                Maximum = 8,
+                Value = 4
+            };
+
+            _btnSteamCheck = new Button
+            {
+                Location = new Point(320, 81),
+                Size = new Size(120, 24),
+                Text = "Check Steam"
+            };
+            _btnSteamCheck.Click += BtnSteamCheck_Click;
+
+            _lblSteamState = new Label
+            {
+                Location = new Point(14, 112),
+                Size = new Size(508, 20),
+                Text = ""
+            };
+
+            grpSteam.Controls.AddRange(new Control[]
+            {
+                steamIntro, _chkSteam, _chkSteamPublic, _chkSteamAutoHost,
+                Lbl("App ID", 14, 82, 58), _numSteamAppId,
+                Lbl("Players", 176, 82, 62), _numSteamMax,
+                _btnSteamCheck, _lblSteamState
+            });
+
             var keys = new Label
             {
-                Location = new Point(14, 368),
-                Size = new Size(360, 18),
-                Text = "In game:  F11 who is online     M leave a message"
+                Location = new Point(14, 516),
+                Size = new Size(420, 18),
+                Text = "In game:  F11 who is online     M leave a message     console: steam host"
             };
 
             _btnClose = new Button
             {
-                Location = new Point(452, 396),
+                Location = new Point(452, 540),
                 Size = new Size(96, 26),
                 Text = "Save",
                 DialogResult = DialogResult.OK
@@ -213,8 +305,21 @@ namespace SilentHillPC_Launcher
                 "map gives away rooms you have not reached yet.");
             tip.SetToolTip(_chkDeaths,
                 "Your own deaths are reported too, so other players see where you fell.");
+            tip.SetToolTip(_numSteamAppId,
+                "480 is Spacewar, Valve's public test app. Every Steam account owns it, " +
+                "so a fan port can use lobbies and invites without an AppID of its own. " +
+                "Change this only if the project ever gets a real one.");
+            tip.SetToolTip(_chkSteam,
+                "Needs steam_api64.dll beside the game exe (Steamworks SDK, " +
+                "redistributable_bin/win64) and Steam running.");
+            tip.SetToolTip(_btnSteamCheck,
+                "Runs the probe in online_server: loads the DLL, resolves every Steam " +
+                "function the port needs, and creates a throwaway lobby. Names whatever " +
+                "did not work.");
+            tip.SetToolTip(_chkSteamPublic,
+                "Off means friends only, which is what an invite-driven co-op session wants.");
 
-            Controls.AddRange(new Control[] { intro, _chkEnable, grpServer, grpWhat, keys, _btnClose });
+            Controls.AddRange(new Control[] { intro, _chkEnable, grpServer, grpWhat, grpSteam, keys, _btnClose });
             AcceptButton = _btnClose;
         }
 
@@ -244,6 +349,16 @@ namespace SilentHillPC_Launcher
             _trkRange.Value = Math.Min(_trkRange.Maximum,
                                        Math.Max(_trkRange.Minimum, GetInt(_config, "online_ghost_range", 40)));
             UpdateRangeLabel();
+
+            _chkSteam.Checked         = GetInt(_config, "online_steam", 0) != 0;
+            _numSteamAppId.Value      = Math.Max(1, GetInt(_config, "online_steam_appid", 480));
+            _numSteamMax.Value        = Math.Min(8, Math.Max(2, GetInt(_config, "online_steam_max_players", 4)));
+            _chkSteamPublic.Checked   = GetInt(_config, "online_steam_public", 0) != 0;
+            _chkSteamAutoHost.Checked = GetInt(_config, "online_steam_autohost", 0) != 0;
+            _lblSteamState.Text       = File.Exists(Path.Combine(
+                                            AppDomain.CurrentDomain.BaseDirectory, "steam_api64.dll"))
+                                      ? "steam_api64.dll found."
+                                      : "steam_api64.dll is not next to the game - Steam features stay off.";
         }
 
         private void SaveToConfig()
@@ -269,6 +384,11 @@ namespace SilentHillPC_Launcher
             _config.Set("online_events", _chkEvents.Checked ? "1" : "0");
             _config.Set("online_ghost_style", _cboStyle.SelectedIndex.ToString());
             _config.Set("online_ghost_range", _trkRange.Value.ToString());
+            _config.Set("online_steam", _chkSteam.Checked ? "1" : "0");
+            _config.Set("online_steam_appid", ((int)_numSteamAppId.Value).ToString());
+            _config.Set("online_steam_max_players", ((int)_numSteamMax.Value).ToString());
+            _config.Set("online_steam_public", _chkSteamPublic.Checked ? "1" : "0");
+            _config.Set("online_steam_autohost", _chkSteamAutoHost.Checked ? "1" : "0");
             _config.Save();
         }
 
@@ -433,6 +553,94 @@ namespace SilentHillPC_Launcher
             {
                 message = ex.Message;
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Runs online_server\steam_probe.exe and shows what it found.
+        ///
+        /// Deliberately a separate process rather than P/Invoking Steam from
+        /// the launcher: the probe links the game's OWN Steam layer, so what
+        /// it reports is what the game will do, and a crash in a mismatched
+        /// steam_api64.dll takes down a throwaway process instead of the
+        /// launcher.
+        /// </summary>
+        private void BtnSteamCheck_Click(object sender, EventArgs e)
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string exe = Path.Combine(baseDir, "online_server\\steam_probe.exe");
+            if (!File.Exists(exe))
+                exe = Path.Combine(baseDir, "steam_probe.exe");
+            if (!File.Exists(exe))
+            {
+                MessageBox.Show(this,
+                    "steam_probe.exe was not found next to the launcher or in online_server\\.\r\n\r\n" +
+                    "Build it with:\r\n" +
+                    "    gcc -O2 -I../pc_port/include steam_probe.c " +
+                    "../pc_port/src/net/sh_net_steam.c -o steam_probe.exe",
+                    "Silent Hill Online", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            _btnSteamCheck.Enabled = false;
+            _lblSteamState.Text = "Checking...";
+            Application.DoEvents();
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = exe,
+                    Arguments = ((int)_numSteamAppId.Value).ToString(),
+                    WorkingDirectory = Path.GetDirectoryName(exe),
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                string output;
+                int code;
+                using (var p = Process.Start(psi))
+                {
+                    output = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
+                    p.WaitForExit(30000);
+                    code = p.HasExited ? p.ExitCode : -1;
+                }
+                _lblSteamState.Text = code == 0
+                    ? "Steam is working: lobbies, invites and peer-to-peer all responded."
+                    : "Steam did not come up - see the details.";
+                _lblSteamState.ForeColor = code == 0 ? Color.FromArgb(0, 110, 0)
+                                                     : Color.FromArgb(150, 0, 0);
+                ShowProbeOutput(output);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "Silent Hill Online",
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                _btnSteamCheck.Enabled = true;
+            }
+        }
+
+        private void ShowProbeOutput(string text)
+        {
+            using (var dlg = new Form())
+            {
+                dlg.Text = "Steam check";
+                dlg.StartPosition = FormStartPosition.CenterParent;
+                dlg.ClientSize = new Size(680, 460);
+                var box = new TextBox
+                {
+                    Multiline = true,
+                    ReadOnly = true,
+                    ScrollBars = ScrollBars.Vertical,
+                    Dock = DockStyle.Fill,
+                    Font = new Font(FontFamily.GenericMonospace, 8.5f),
+                    Text = text.Replace("\n", "\r\n").Replace("\r\r\n", "\r\n")
+                };
+                dlg.Controls.Add(box);
+                dlg.ShowDialog(this);
             }
         }
 

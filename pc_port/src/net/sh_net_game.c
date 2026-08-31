@@ -20,7 +20,9 @@
 
 #include "sh_net.h"
 #include "sh_net_memo.h"
+#include "sh_net_session.h"
 #include "sh_net_internal.h"
+#include "pc_discord.h" /* Pc_MapAreaName, for Steam rich presence */
 #include "pc_config.h"
 #include "pc_playas.h"
 #include "sh_log.h"
@@ -86,6 +88,9 @@ void ShNet_OnMapChanged(int mapIdx)
     s_deathLatched = 0;
     ShNet_RequestMemos();
     ShNet_RequestRoster();
+    /* What friends see on the Steam friends list. The area name is the same
+     * one the Discord presence line and the player list use. */
+    ShSession_PublishPresence(Pc_MapAreaName(mapIdx), mapIdx);
 }
 
 void ShNet_GameTick(void)
@@ -105,7 +110,7 @@ void ShNet_GameTick(void)
         ShNet_Init();
     }
 
-    if (ShNet_Status() == SHNET_ST_OFF)
+    if (!ShNet_Enabled())
     {
         return;
     }
@@ -120,6 +125,7 @@ void ShNet_GameTick(void)
     {
         ShNet_PublishLocal(0, s_lastMap < 0 ? 0 : s_lastMap, ShNetG_LocalChara(), 0,
                            0, 0, 0, 0, 0, 0, 0);
+        ShSession_PublishPresence("In the menus", -1);
         ShNet_PumpToGameThread();
         return;
     }

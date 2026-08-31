@@ -382,6 +382,14 @@ typedef struct {
     int  onlineGhostStyle;    /* SHNET_GS_*: contour, floor ring, or both (online_ghost_style) */
     int  onlineGhostRange;    /* metres past which a ghost is not drawn (online_ghost_range) */
     int  onlineEvents;        /* 1 = show the server's join/leave/death feed (online_events) */
+    /* Steam co-op sessions. Independent of online_enabled: a player can run a
+     * Steam session without a master server, or both at once. */
+    int  onlineSteam;          /* 1 = bring up Steam for lobbies/invites (online_steam) */
+    int  onlineSteamAppId;     /* 480 = Spacewar, the public test app (online_steam_appid) */
+    int  onlineSteamMaxPlayers;/* lobby size cap, 2..8 (online_steam_max_players) */
+    int  onlineSteamPublic;    /* 1 = public lobby, 0 = friends only (online_steam_public) */
+    int  onlineSteamAutoHost;  /* 1 = open a lobby at startup (online_steam_autohost) */
+
     char keyOnlinePlayers[24]; /* who-is-online panel hotkey (key_online_players); default F11 */
     char keyOnlineMemo[24];    /* leave-a-message composer hotkey (key_online_memo); default M */
 

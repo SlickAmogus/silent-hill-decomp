@@ -30,6 +30,7 @@
 #include "sh_net.h"
 #include "sh_net_platform.h"
 #include "sh_net_internal.h"
+#include "sh_net_session.h"
 #include "pc_config.h"
 #include "sh_log.h"
 
@@ -132,7 +133,8 @@ static struct
 static SDL_mutex*  s_lock;
 static SDL_Thread* s_thread;
 static volatile int s_quit;
-static int          s_enabled;
+static int          s_enabled;   /* the worker is running at all */
+static int          s_masterOn;  /* the master-server half is wanted */
 
 static char           s_host[128];
 static unsigned short s_port;
@@ -767,15 +769,21 @@ static int SDLCALL ShNet_Worker(void* unused)
         return 0;
     }
 
-    w.sock = ShNetPlat_Open();
-    if (!w.sock)
+    if (s_masterOn)
     {
-        SDL_LockMutex(s_lock);
-        ShNet_SetStatus(SHNET_ST_REJECTED, "Could not open a UDP socket");
-        SDL_UnlockMutex(s_lock);
-        ShNetPlat_Shutdown();
-        return 0;
+        w.sock = ShNetPlat_Open();
+        if (!w.sock)
+        {
+            SDL_LockMutex(s_lock);
+            ShNet_SetStatus(SHNET_ST_REJECTED, "Could not open a UDP socket");
+            SDL_UnlockMutex(s_lock);
+            ShNetPlat_Shutdown();
+            return 0;
+        }
     }
+
+    /* Steam is brought up on THIS thread and used from nowhere else. */
+    ShSession_Init();
 
     while (!s_quit)
     {
@@ -799,6 +807,15 @@ static int SDLCALL ShNet_Worker(void* unused)
             resolved     = 0;
             w.session    = 0;
             w.helloTries = 0;
+        }
+
+        if (!s_masterOn)
+        {
+            /* Steam-session-only: no master server to talk to, but the session
+             * still needs its callbacks pumped and its pings sent. */
+            ShSession_Tick(now);
+            SDL_Delay(5);
+            continue;
         }
 
         if (!resolved)
@@ -957,6 +974,7 @@ static int SDLCALL ShNet_Worker(void* unused)
         }
 
         ShNetW_Receive(&w, now);
+        ShSession_Tick(now);
 
         /* Expire ghosts even when SNAPSHOTs have stopped, or a server that
          * went quiet would leave everyone frozen in place forever. */
@@ -967,6 +985,7 @@ static int SDLCALL ShNet_Worker(void* unused)
         SDL_Delay(5);
     }
 
+    ShSession_Shutdown();
     if (w.session)
     {
         ShNetW_SendSimple(&w, SHNET_MSG_BYE);
@@ -993,7 +1012,8 @@ void ShNet_Init(void)
     s_sh.localMap = -1;
     s_sh.tickMs   = SHNET_STATE_MS;
 
-    if (!g_PcConfig.onlineEnabled)
+    s_masterOn = g_PcConfig.onlineEnabled;
+    if (!s_masterOn && !g_PcConfig.onlineSteam)
     {
         s_enabled = 0;
         ShNet_SetStatus(SHNET_ST_OFF, "Online disabled");
@@ -1020,8 +1040,16 @@ void ShNet_Init(void)
 
     s_quit    = 0;
     s_enabled = 1;
-    ShNet_SetStatus(SHNET_ST_RESOLVING, "Looking up server...");
-    s_gt.status = SHNET_ST_RESOLVING;
+    if (s_masterOn)
+    {
+        ShNet_SetStatus(SHNET_ST_RESOLVING, "Looking up server...");
+        s_gt.status = SHNET_ST_RESOLVING;
+    }
+    else
+    {
+        ShNet_SetStatus(SHNET_ST_OFF, "Steam session only");
+        s_gt.status = SHNET_ST_OFF;
+    }
 
     s_thread = SDL_CreateThread(ShNet_Worker, "SH_NET", NULL);
     if (!s_thread)
@@ -1140,6 +1168,15 @@ void ShNet_PumpToGameThread(void)
 int ShNet_Status(void)
 {
     return s_gt.status;
+}
+
+int ShNet_Enabled(void)
+{
+    /* Written once on the game thread in ShNet_Init and never again, so a
+     * plain read is the whole synchronisation. Distinct from ShNet_Status:
+     * a Steam-session-only build has no master-server status but is very
+     * much running. */
+    return s_enabled;
 }
 
 const char* ShNet_StatusText(void)
