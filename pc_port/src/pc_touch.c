@@ -799,44 +799,38 @@ int Pc_Touch_UsedRecently(void)
  * spanned +-260, which pulled every button ~15% of the screen toward the centre.
  * Mode 0 is the genuinely pillarboxed case and keeps the 4:3 extent, which is
  * also what viewport-space touch coords are relative to. */
-static int Tc_HalfWidth(void)
+/* The overlay frame, taken from the renderer rather than rebuilt here.
+ *
+ * This used to solve the Hor+ widening again from the window aspect and the
+ * pixel aspect. That is a copy of the renderer's own maths, and it has to be
+ * kept in step with hfov, vfov, the CRT trim and the display-aspect mode as
+ * those arrive -- miss one and the HUD is placed in a frame the renderer is not
+ * using. Raising the FOV pushed the buttons off both edges of the screen, and
+ * their hit zones with them: reported with a screenshot of the controls clipped
+ * against the bezel.
+ *
+ * g_PsxUiOrtho* is what the UI pass actually installed for the ordering table
+ * these prims go into, so this cannot drift by construction. Those knobs are
+ * skipped for that pass by design, which is the behaviour that was wanted all
+ * along -- FOV and scaling are for the world, not the controls. */
+static float Tc_HalfWidth(void)
 {
-    extern int g_PcWidescreenMode;
+    extern float g_PsxUiOrthoL, g_PsxUiOrthoR;
 
-    float psxA = (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT;
-    float winA;
-    int   sw = 0, sh = 0;
+    const float w = (g_PsxUiOrthoR - g_PsxUiOrthoL) * 0.5f;
 
-    PsyX_GetScreenSize(&sw, &sh);
-    winA = (sw > 0 && sh > 0) ? (float)sw / (float)sh : psxA;
-
-    if (g_PcWidescreenMode != 0 && winA > psxA + 0.01f)
-    {
-        /* Must match the UI-pass ortho in GR_SetOffscreenState EXACTLY, or the
-         * buttons draw somewhere their hit test is not: the test works in
-         * normalised window coords straight from SDL, while the drawing works
-         * in this centre-origin ortho space.
-         *
-         * The naive 160 * horScale this used to return dropped the PSX pixel
-         * aspect, which the ortho does apply. At 35/32 that is ~9% -- on a
-         * 2868x1320 panel, 261 against the real 285, so every button drew about
-         * twenty units in from where it could be pressed.
-         *
-         * hfov (g_PsxWorldHScale) is deliberately NOT applied: the renderer
-         * skips it for the UI pass (g_PsxUIOrthoPass), because applying it to
-         * 2D shrank the title background and exposed VRAM garbage at its
-         * sides. */
-        extern float g_PsxPixelAspect;
-
-        const float horScale = winA / psxA;
-        const float par      = (g_PsxPixelAspect > 0.0f) ? g_PsxPixelAspect : 1.0f;
-        const float margin   = (float)SCREEN_WIDTH * ((horScale * par) - 1.0f) * 0.5f;
-
-        return (int)((160.0f + margin) + 0.5f);
-    }
-
-    return 160;
+    return (w > 1.0f) ? w : 160.0f;
 }
+
+static float Tc_HalfHeight(void)
+{
+    extern float g_PsxUiOrthoT, g_PsxUiOrthoB;
+
+    const float h = (g_PsxUiOrthoB - g_PsxUiOrthoT) * 0.5f;
+
+    return (h > 1.0f) ? h : 120.0f;
+}
+
 
 #define TC_MAX_QUADS 220
 
@@ -905,7 +899,8 @@ void Pc_Touch_Draw(void)
      * struct's `length` field -- see the assignment below. Declaring it as the
      * GsOT* it is not was exactly what let that through unnoticed. */
     GsOT_TAG* ot;
-    int       buf, i, halfW, mode;
+    int       buf, i, mode;
+    float     halfW, halfH;
 
     mode = Tc_Mode();
     if (mode == TC_MODE_OFF)
@@ -934,13 +929,17 @@ void Pc_Touch_Draw(void)
     batch.p     = s_pool[buf];
     batch.used  = 0;
     halfW       = Tc_HalfWidth();
+    halfH       = Tc_HalfHeight();
 
-    /* Viewport space -> the centre-origin overlay. Y is always the 4:3 -120..120
-     * band; X widens with the Hor+ ortho. */
-    #define TC_UX(vx) ((int)((((vx) - 0.5f) * 2.0f * (float)halfW) + 0.5f))
-    #define TC_UY(vy) ((int)((((vy) - 0.5f) * 240.0f) + 0.5f))
-    /* A radius given in height units is 240 tall-units across the whole screen. */
-    #define TC_UR(r)  ((int)(((r) * 240.0f) + 0.5f))
+    /* Viewport space -> the centre-origin overlay, sized by the ortho the UI
+     * pass installed for this frame. */
+    #define TC_UX(vx) ((int)((((vx) - 0.5f) * 2.0f * halfW) + 0.5f))
+    /* Vertical comes from the installed ortho too, for the same reason as the
+     * width: the 240 hardcoded here was only ever right while nothing scaled
+     * the UI pass vertically. */
+    #define TC_UY(vy) ((int)((((vy) - 0.5f) * 2.0f * halfH) + 0.5f))
+    /* A radius given in height units spans the full height of that frame. */
+    #define TC_UR(r)  ((int)(((r) * 2.0f * halfH) + 0.5f))
 
     /* Movement stick: only while a thumb is down. A permanently drawn stick is
      * clutter on a screen this small, and the floating origin means a fixed
