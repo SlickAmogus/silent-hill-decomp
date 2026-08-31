@@ -137,6 +137,9 @@ static int   s_prevHeld;
  * viewport. All in viewport pixels, y up. */
 static float s_geoListT, s_geoListB, s_geoRowPitch, s_geoRowH;
 static float s_geoPanelL, s_geoPanelR;
+/* Panel top/bottom as well, so a pointer can be tested against the whole
+ * rectangle and not just its column -- see the tap-outside close. */
+static float s_geoPanelT, s_geoPanelB;
 static float s_geoBarL, s_geoBarR;
 
 /* Close is edge-triggered on a RELEASE-then-PRESS so the Map button that opened
@@ -1259,15 +1262,43 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm)
             s_armClose = 1;
         return;
     }
-    if (closeRequested || (keys && keys[SDL_SCANCODE_ESCAPE]) ||
-        Pc_MouseCursor_RightClicked())
+    /* Tapping outside the panel dismisses it, the way every modal on a phone
+     * behaves. This is not a convenience here, it is the ONLY way out on a
+     * touch-only device: the three routes above are a pad button, a keyboard
+     * key, and a RIGHT click, and a finger can produce none of them. Without it
+     * the browser could be opened and never closed short of restarting.
+     *
+     * Deliberately a click and not a press-anywhere: the panel scrolls by
+     * dragging, so a drag that starts inside and ends outside must not count.
+     * Pc_MouseCursor_LeftClicked is the press EDGE, and the position is sampled
+     * with it, so the test is where the finger went down. */
     {
+        int outsideClick = 0;
+
+        if (Pc_MouseCursor_LeftClicked())
+        {
+            float fx, fy;
+
+            if (Pc_MouseCursor_ViewportPos(&fx, &fy))
+            {
+                const float px = fx * s_viewW;
+                const float py = s_viewH - fy * s_viewH;   /* y up, as above */
+
+                outsideClick = !(px >= s_geoPanelL && px <= s_geoPanelR &&
+                                 py >= s_geoPanelB && py <= s_geoPanelT);
+            }
+        }
+
+        if (closeRequested || (keys && keys[SDL_SCANCODE_ESCAPE]) ||
+            Pc_MouseCursor_RightClicked() || outsideClick)
+        {
         /* Back out one level at a time: a detail card closes to the list, and
          * only then does the panel itself close. */
-        if (s_detailRow >= 0)
-            s_detailRow = -1;
-        else
-            rab_begin_close();
+            if (s_detailRow >= 0)
+                s_detailRow = -1;
+            else
+                rab_begin_close();
+        }
     }
 }
 
@@ -1418,6 +1449,8 @@ void Pc_RaBrowser_Draw(void)
     s_geoRowH     = rowH;
     s_geoPanelL   = panelL;
     s_geoPanelR   = panelR;
+    s_geoPanelT   = panelT;
+    s_geoPanelB   = panelB;
     s_scrollMax  = (float)s_rowCount * (rowH + rowGap) - listH;
     if (s_scrollMax < 0.0f) s_scrollMax = 0.0f;
     if (s_scroll > s_scrollMax) s_scroll = s_scrollMax;

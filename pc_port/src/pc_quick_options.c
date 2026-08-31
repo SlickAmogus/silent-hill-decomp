@@ -395,6 +395,9 @@ static int    s_bakedForPage = -1;
 /* Geometry published by Draw for Update's mouse hit-test (viewport px, y up). */
 static float s_vpW = 1920.0f, s_vpH = 1080.0f;
 static float s_geoListT, s_geoRowPitch, s_geoRowH, s_geoPanelL, s_geoPanelR;
+/* Panel bottom as well (s_geoTitleT is already its top), so a pointer can be
+ * tested against the whole rectangle -- see the tap-outside close. */
+static float s_geoPanelB;
 /* Panel drag: grab the title bar and move it. Offsets are in viewport px and
  * survive close/reopen within a session. The title-bar rect is published for
  * Update's hit-test the same way the row geometry is. */
@@ -1473,6 +1476,31 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
 
     if (close) { Pc_QuickOptions_Close(); return; }
 
+    /* Tapping outside the panel closes it, the way a modal is expected to
+     * behave -- and the way the achievement browser now does, so the two
+     * pop-ups are not dismissed by different gestures.
+     *
+     * The press EDGE, not a held pointer: a slider drag that starts on a row
+     * and runs off the edge must not count as dismissing. The panel keeps its
+     * own Close row, which stays the obvious route; this is the reflex. */
+    {
+        float ox, oy;
+
+        if (Pc_MouseCursor_LeftClicked() && Pc_MouseCursor_ViewportPos(&ox, &oy))
+        {
+            const float px_ = ox * s_vpW;
+            const float py_ = (1.0f - oy) * s_vpH;
+
+            if (s_geoPanelR > s_geoPanelL && s_geoTitleT > s_geoPanelB &&
+                !(px_ >= s_geoPanelL && px_ <= s_geoPanelR &&
+                  py_ >= s_geoPanelB && py_ <= s_geoTitleT))
+            {
+                Pc_QuickOptions_Close();
+                return;
+            }
+        }
+    }
+
     /* Title-bar drag. Held (not clicked) so it tracks continuously, and it is
      * resolved before the row hit-test below so dragging never also activates
      * whatever the cursor passes over. */
@@ -1857,6 +1885,7 @@ void Pc_QuickOptions_Draw(void)
     s_geoListT = listT; s_geoRowPitch = rowPitch; s_geoRowH = rowH;
     s_geoPanelL = panelL; s_geoPanelR = panelR; s_geoRows = nRows;
     s_geoTitleT = panelT; s_geoTitleB = panelT - titleH;
+    s_geoPanelB = panelB;
 
     qo_build_white();
 
