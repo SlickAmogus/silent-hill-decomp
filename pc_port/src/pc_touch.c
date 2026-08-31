@@ -223,6 +223,20 @@ static int Tc_Mode(void)
     if (Pc_QuickOptions_IsOpen())
         return TC_MODE_OFF;
 
+    /* The PAPER map -- the fullscreen one from a wall map or a map-zoom event,
+     * not the Map button's screen. It is not a sys state at all: it runs as a
+     * gameplay SUB-state with the world frozen behind it, so every test below
+     * said TC_MODE_GAMEPLAY and put the full thumb overlay on top of it. It
+     * leaves on enter|cancel and none of the gameplay buttons send either, so
+     * a player with no pad was simply stuck there. Give it the same lone corner
+     * Back the other cancel-only screens get. */
+    {
+        extern int g_PcMapScreenActive;
+
+        if (g_PcMapScreenActive)
+            return TC_MODE_BACK;
+    }
+
     /* The boot logos and the intro movies are GAME states, not sys states, so
      * the checks below never saw them and the Konami/KCET screens could not be
      * skipped by touch the way Start skips them on a pad. */
