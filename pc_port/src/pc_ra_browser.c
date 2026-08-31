@@ -40,6 +40,32 @@
 #include "pc_config.h"
 #include "pc_mouse_cursor.h"
 #include "pc_ui_sound.h"
+
+/* The same menu cues the rest of the UI uses, so moving through this list
+ * sounds like moving through any other screen. Only the SFX enum is pulled
+ * in -- this file keeps its distance from the game headers on purpose (see
+ * the notes above), so Sd_PlaySfx is declared by hand with the exact types
+ * from sound_system.h: q0_7 is a signed char. */
+/* sfx_id_enum.h needs exactly one symbol it does not define: NO_VALUE, used
+ * by the @hack entry that forces the enum to s32. Its home is
+ * decomp/types.h, which pulls in psyq/sys/types.h -- the PSX type headers
+ * this file deliberately stays away from, since it has SDL and GL above.
+ *
+ * Supplying the one constant is smaller than that chain and keeps the ids
+ * coming from the enum rather than being copied in as numbers. Guarded, and
+ * the value matches decomp/types.h exactly, so a later include is harmless. */
+#ifndef NO_VALUE
+#define NO_VALUE -1
+#endif
+#include "bodyprog/sound/sfx_id_enum.h"
+extern unsigned char Sd_PlaySfx(unsigned short sfxId, signed char balance, unsigned char vol);
+
+/* Update runs on the game thread, so calling into the sound system here is
+ * the same context every other menu plays its cues from. */
+static void rab_cue(unsigned short sfxId)
+{
+    Sd_PlaySfx(sfxId, 0, 64);
+}
 #include "sh_log.h"
 
 /* stb_image is vendored for the texture-pack loader; the badge PNGs come
@@ -126,27 +152,6 @@ static float s_barGrabScroll;
 
 /* Row under the pointer, the highlighted row (keys or mouse), the row a press
  * landed on, and the row opened for detail (-1 = none / list view). */
-/* The stock menu cues, so this panel sounds like every other screen. Declared
- * here rather than by including the sound headers: this file is deliberately
- * GL + stb only, and pulling the PSX sound tree in for three calls is not worth
- * it. Ids from include/bodyprog/sound/sfx_id_enum.h. */
-extern unsigned char Sd_PlaySfx(unsigned short sfxId, signed char balance, unsigned char vol);
-
-#define RAB_SFX_MOVE    1305   /* Sfx_MenuMove    */
-#define RAB_SFX_CONFIRM 1307   /* Sfx_MenuConfirm */
-#define RAB_SFX_CANCEL  1306   /* Sfx_MenuCancel  */
-
-/* 64 is the volume every other menu passes; balance 0 is centre. */
-static void rab_sfx(int id)
-{
-    Sd_PlaySfx((unsigned short)id, 0, 64);
-}
-
-/* Selection as it stood at the end of the last update. One comparison catches
- * every route that can move it -- arrow keys, pad, mouse hover, a tap -- rather
- * than a play call at each of the sites that assign it. */
-static int   s_sfxPrevSel = -1;
-
 static int   s_hoverRow  = -1;
 static int   s_selRow    = 0;
 static int   s_pressRow  = -1;
@@ -158,8 +163,8 @@ static int   s_prevHeld;
  * viewport. All in viewport pixels, y up. */
 static float s_geoListT, s_geoListB, s_geoRowPitch, s_geoRowH;
 static float s_geoPanelL, s_geoPanelR;
-/* Panel top/bottom as well, so a tap can be tested against the whole rect
- * and not just its columns -- see the tap-outside close below. */
+/* Panel top/bottom as well, so a pointer can be tested against the whole
+ * rectangle and not just its column -- see the tap-outside close. */
 static float s_geoPanelT, s_geoPanelB;
 static float s_geoBarL, s_geoBarR;
 
@@ -962,7 +967,6 @@ void Pc_RaBrowser_Open(void)
     s_selRow     = 0;
     s_detailRow  = -1;
     s_hoverRow   = -1;
-    s_sfxPrevSel = -1;   /* suppresses a cue on the opening frame */
     s_prevHeld   = 0;
     s_scroll     = 0.0f;
     s_velocity   = 0.0f;
@@ -1090,10 +1094,17 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm)
 
         if (s_detailRow < 0)
         {
+            const int selWas = s_selRow;
+
             if (stepUp)   s_selRow--;
             if (stepDown) s_selRow++;
             if (s_selRow < 0)            s_selRow = 0;
             if (s_selRow >= s_rowCount)  s_selRow = s_rowCount - 1;
+
+            /* Only when it actually moved: holding a direction at the end of the
+             * list would otherwise machine-gun the cue at the repeat rate. */
+            if (s_selRow != selWas)
+                rab_cue(Sfx_MenuMove);
 
             /* Keep the highlight on screen. Only nudges when it would fall off,
              * so paging with the mouse does not yank the view around. */
@@ -1124,12 +1135,12 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm)
             if (s_detailRow >= 0)
             {
                 s_detailRow = -1;
-                rab_sfx(RAB_SFX_CANCEL);
+                rab_cue(Sfx_MenuCancel);
             }
             else if (s_selRow >= 0 && s_selRow < s_rowCount)
             {
                 s_detailRow = s_selRow;
-                rab_sfx(RAB_SFX_CONFIRM);
+                rab_cue(Sfx_MenuConfirm);
             }
         }
     }
@@ -1241,33 +1252,16 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm)
             if (s_dragMoved < 4.0f && !s_barDragging)
             {
                 s_velocity = 0.0f;          /* a tap must not flick */
-
-                /* A tap on the empty space around the panel means Cancel. On a
-                 * pad this screen closes on Cancel or Map, on a desktop on
-                 * Escape or a right-click -- a touchscreen has none of those,
-                 * so opening this from the main menu was a one-way trip. Tapping
-                 * outside a panel to dismiss it is also just what a phone player
-                 * already expects. Backs out one level like every other route:
-                 * a detail card closes to the list first. */
-                if (px < s_geoPanelL || px > s_geoPanelR ||
-                    py > s_geoPanelT || py < s_geoPanelB)
-                {
-                    if (s_detailRow >= 0)
-                        s_detailRow = -1;
-                    else
-                        rab_begin_close();
-                    rab_sfx(RAB_SFX_CANCEL);
-                }
-                else if (s_detailRow >= 0)
+                if (s_detailRow >= 0)
                 {
                     s_detailRow = -1;
-                    rab_sfx(RAB_SFX_CANCEL);
+                    rab_cue(Sfx_MenuCancel);
                 }
                 else if (s_pressRow >= 0 && s_pressRow == row)
                 {
                     s_detailRow = s_pressRow;
                     s_selRow    = s_pressRow;
-                    rab_sfx(RAB_SFX_CONFIRM);
+                    rab_cue(Sfx_MenuConfirm);
                 }
             }
             s_dragging    = 0;
@@ -1311,26 +1305,44 @@ void Pc_RaBrowser_Update(int closeRequested, int up, int down, int confirm)
             s_armClose = 1;
         return;
     }
-    if (closeRequested || (keys && keys[SDL_SCANCODE_ESCAPE]) ||
-        Pc_MouseCursor_RightClicked())
+    /* Tapping outside the panel dismisses it, the way every modal on a phone
+     * behaves. This is not a convenience here, it is the ONLY way out on a
+     * touch-only device: the three routes above are a pad button, a keyboard
+     * key, and a RIGHT click, and a finger can produce none of them. Without it
+     * the browser could be opened and never closed short of restarting.
+     *
+     * Deliberately a click and not a press-anywhere: the panel scrolls by
+     * dragging, so a drag that starts inside and ends outside must not count.
+     * Pc_MouseCursor_LeftClicked is the press EDGE, and the position is sampled
+     * with it, so the test is where the finger went down. */
     {
+        int outsideClick = 0;
+
+        if (Pc_MouseCursor_LeftClicked())
+        {
+            float fx, fy;
+
+            if (Pc_MouseCursor_ViewportPos(&fx, &fy))
+            {
+                const float px = fx * s_viewW;
+                const float py = s_viewH - fy * s_viewH;   /* y up, as above */
+
+                outsideClick = !(px >= s_geoPanelL && px <= s_geoPanelR &&
+                                 py >= s_geoPanelB && py <= s_geoPanelT);
+            }
+        }
+
+        if (closeRequested || (keys && keys[SDL_SCANCODE_ESCAPE]) ||
+            Pc_MouseCursor_RightClicked() || outsideClick)
+        {
         /* Back out one level at a time: a detail card closes to the list, and
          * only then does the panel itself close. */
-        if (s_detailRow >= 0)
-            s_detailRow = -1;
-        else
-            rab_begin_close();
-
-        rab_sfx(RAB_SFX_CANCEL);
+            if (s_detailRow >= 0)
+                s_detailRow = -1;
+            else
+                rab_begin_close();
+        }
     }
-
-    /* Cursor movement, once, however it moved. Only while the list is up -- the
-     * detail card has nothing to step through -- and never on the opening
-     * frame, which is what the -1 latch below is for. */
-    if (s_detailRow < 0 && s_selRow != s_sfxPrevSel && s_sfxPrevSel >= 0)
-        rab_sfx(RAB_SFX_MOVE);
-
-    s_sfxPrevSel = s_selRow;
 }
 
 /* ------------------------------------------------------------------ */
