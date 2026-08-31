@@ -28,8 +28,15 @@
 #include <string.h>
 #include "sh_log.h"
 
-#if defined(SH_IOS)
+#if defined(SH_IOS) || defined(__ANDROID__)
+/* Both mobile targets draw the Achievements row, so both need the prototypes.
+ * Guarded to iOS alone, Android built every Pc_Ra_* call as an implicit int:
+ * the int-returning ones survived it, and Pc_Ra_LoginResult's pointer came
+ * back truncated to 32 bits and crashed the first time anything dereferenced
+ * it. */
 #include "pc_retroachievements.h"
+#endif
+#if defined(SH_IOS)
 /* ios_port/src/ios_ra_login.m. Declared here rather than in a header because
  * ios_port owns no include directory and the other Ios_ entry points are
  * declared the same way at their call sites. */
@@ -492,8 +499,17 @@ static const char* PcOpt_ValueLabel(const s_PcOpt* e, char* buf, int bufsz)
     if (e->kind == PCK_RALOGIN) {
         if (Pc_Ra_LoginPending())
             return "Signing_in";
-        if (!Pc_Ra_IsSignedIn())
-            return "Sign_In";
+        if (!Pc_Ra_IsSignedIn()) {
+            /* An attempt that finished without signing in has to say so. It
+             * used to snap straight back to "Sign_In", which is exactly what
+             * doing nothing looks like -- a missing INTERNET permission, a
+             * wrong password and a dropped connection were all indistinguishable. The
+             * reason itself is too long for this column; it is in the log as
+             * [RA] password login failed. */
+            const char* res = Pc_Ra_LoginResult();
+
+            return (res != NULL && res[0]) ? "Failed" : "Sign_In";
+        }
         /* Truncated to what fits: the value column starts at 204 and the screen
          * clips at 320, which is about 13 glyphs. RA allows longer names than
          * that, and an overrun would draw off the edge rather than wrap. */

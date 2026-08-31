@@ -17,6 +17,13 @@
          image the user already downloaded (Downloads holds a .bin, a non-media
          file, so from API 30 nothing short of all-files access can read it by
          path). Declining is fine: the file picker needs no permission at all. -->
+    <!-- RetroAchievements is the only thing here that touches the network: the
+         sign-in exchanges a password for a token, and the client then talks to
+         retroachievements.org. Without this every HttpURLConnection throws
+         SecurityException the moment it connects, which reads in game as a
+         sign-in that silently does nothing. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
