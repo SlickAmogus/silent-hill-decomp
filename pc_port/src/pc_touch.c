@@ -199,8 +199,13 @@ static int Tc_Level(void);
  * a physical button pressed -- Off means off. */
 enum { TC_LEVEL_NONE = 0, TC_LEVEL_ESCAPE, TC_LEVEL_FULL };
 
+/* TC_MODE_BACK_CURSOR is TC_MODE_BACK with the background still LIVE: the same
+ * lone corner button, but a tap on the rest of the screen belongs to whatever
+ * is under it rather than to leaving. Free-cursor puzzles are the case --
+ * tapping IS how you work one, so the tap-anywhere dismissal would back out
+ * the instant you touched a dial and the puzzle could never be solved. */
 enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_ADVANCE, TC_MODE_BACK,
-       TC_MODE_ESCAPE, TC_MODE_TITLE };
+       TC_MODE_BACK_CURSOR, TC_MODE_ESCAPE, TC_MODE_TITLE };
 
 /* Gameplay gets the full scheme. Pause gets Start ALONE -- nothing else on that
  * screen responds to a pointer, so hiding the controls there left no way back
@@ -358,7 +363,7 @@ static int Tc_Mode(void)
          * button the brightness screen gets. The drag still reaches the cursor;
          * only that one corner slot is taken. */
         if (Pc_MouseCursor_PuzzleActive())
-            return TC_MODE_BACK;
+            return TC_MODE_BACK_CURSOR;
 
         return TC_MODE_ADVANCE;
     }
@@ -378,7 +383,7 @@ static int Tc_SoloButton(int mode)
         return TB_START;   /* pause opens and exits on the same bind */
     if (mode == TC_MODE_MAP)
         return TB_MAP;     /* the map screen exits on the map bind */
-    if (mode == TC_MODE_BACK)
+    if (mode == TC_MODE_BACK || mode == TC_MODE_BACK_CURSOR)
         return TB_BACK;    /* brightness and friends leave on cancel */
     if (mode == TC_MODE_TITLE)
         return TB_MAP;     /* opens the achievement browser, and closes it */
