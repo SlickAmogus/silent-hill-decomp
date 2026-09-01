@@ -688,6 +688,12 @@ static void ParseArgs(int argc, char* argv[])
             g_GameDataPath[sizeof(g_GameDataPath) - 1] = '\0';
             i++;
         }
+        else if (strcmp(argv[i], "-skiptogame") == 0)
+        {
+            /* The flag existed and was honoured after the config load, but nothing
+             * ever SET it, so the option silently did nothing. */
+            s_SkipToGameArg = 1;
+        }
         else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("Usage: SilentHillPC [options]\n");

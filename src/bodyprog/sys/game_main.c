@@ -3684,6 +3684,10 @@ void MainLoop(void) // 0x80032EE0
                     pmapTrace = 1;
                     s_pmapTraceUsed = 1;
                 }
+                /* Scene scratch-redirect tracking for this walk; see the DR_AREA
+                 * handling below. */
+                extern void GR_SetSceneFbRedirect(int x, int y, int w, int h);
+                s32 scratchX = 0, scratchY = 0, scratchW = 0, scratchH = 0;
                 while (cur && w2 < 8192) {
                     uintptr_t curAddr = (uintptr_t)cur;
                     int curOk = ((curAddr >= pktLo && curAddr < pktHi) ||
@@ -3728,6 +3732,46 @@ void MainLoop(void) // 0x80032EE0
                          * and the pickup screen renders as tiled gameplay-scene
                          * garbage. Other 0xE_ codes (DR_MODE multi-byte family)
                          * remain stripped. */
+                        /* DR_AREA (0xE3/0xE4 pair). Absolute VRAM areas cannot pass
+                         * through in general: the PC display buffers are collapsed
+                         * to (0,0), so an area at the real buffer origin (0,32) /
+                         * (0,256) would shift the picture. But a scene that points
+                         * the area at OFFSCREEN VRAM (x >= 320: map4_s04's Lisa
+                         * scene, map3_s02, map7_s02) is drawing the frame there to
+                         * composite it back through SPRTs, and PsyCross needs two
+                         * things from that: the rect (so it is refreshed, never
+                         * left holding whatever texture the map loaded there) and
+                         * WHERE in draw order the scene switches back, because that
+                         * is the moment the frame drawn so far must be captured
+                         * into the rect for the strips that follow. The outgoing
+                         * area is reported and dropped; the incoming one is
+                         * rewritten in place into DR_PSYX_FBCAPTURE (0xB4, same
+                         * two-long size). Stripping both, as before, left the rect
+                         * holding a 64x256 map texture at (320,256) in the hospital,
+                         * and the strips composited THAT: the rainbow band on the
+                         * left of the "Where am I?" cutscene. */
+                        if (codeFull == 0xE3 && len == 2) {
+                            /* Through the struct, never by word index: the PC tag
+                             * is P_LEN longs (a 64-bit link plus the PGXP word). */
+                            DR_AREA* da  = (DR_AREA*)cur;
+                            s32      ax0 = (s32)(da->code[0] & 1023), ay0 = (s32)((da->code[0] >> 10) & 1023);
+                            s32      ax1 = (s32)(da->code[1] & 1023), ay1 = (s32)((da->code[1] >> 10) & 1023);
+                            if (ax0 >= 320 && ax1 > ax0 && ay1 > ay0) {
+                                scratchX = ax0;
+                                scratchY = ay0;
+                                /* PsyCross's SetDrawArea encodes x+w / y+h (not the
+                                 * PSX x+w-1), so the extent is the plain difference. */
+                                scratchW = ax1 - ax0;
+                                scratchH = ay1 - ay0;
+                                GR_SetSceneFbRedirect(scratchX, scratchY, scratchW, scratchH);
+                            } else if (scratchW > 0) {
+                                da->code[0] = 0xB4000000u | ((u32)scratchX & 0x3FFu) | (((u32)scratchY & 0x1FFu) << 10);
+                                da->code[1] = ((u32)scratchW & 0xFFFFu) | (((u32)scratchH & 0xFFFFu) << 16);
+                                hi       = 0xB0;
+                                codeFull = 0xB4;
+                                scratchW = 0;
+                            }
+                        }
                         if (len > 32 || (hi != 0x00 && hi != 0x20 && hi != 0x30 &&
                             /* LINE_F2 (0x42) and LINE_G2 (0x52) used by inventory
                              * selection-box borders in item_screens_3.c */
