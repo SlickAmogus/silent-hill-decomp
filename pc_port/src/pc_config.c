@@ -36,6 +36,7 @@ s_PcConfig g_PcConfig = {
     .texturePacks = 1, /* 1=scan gamedata/texturemods/ for DuckStation texture packs (loose dirs or .zip) */
     .texpackCacheMb = 2048, /* composed-canvas cache RAM cap; kills pack re-compose stutter on chunk churn */
     .texpackBudgetMb = 6144, /* HD pack GL-texture cap; generous for 64-bit/real VRAM + big packs (0 = unlimited) */
+    .texpackWorkerThread = 1,
     .texpackLazyMs = 4, /* per-frame wall-clock budget for the on-demand pack composer (pop-in speed vs frame cost) */
     .dumpTextures = 0, /* 1=write every decoded texture upload to gamedata/dump/ as a pack-named PNG (modding aid) */
     .attractDemos = 1,
@@ -609,6 +610,10 @@ void PcConfig_Load(const char* path)
             if (ms < 1) ms = 1;
             if (ms > 100) ms = 100;
             g_PcConfig.texpackLazyMs = ms;
+        }
+        else if (strcmp(key, "texpack_worker") == 0)
+        {
+            g_PcConfig.texpackWorkerThread = (atoi(value) != 0);
         }
         else if (strcmp(key, "dump_textures") == 0)
         {

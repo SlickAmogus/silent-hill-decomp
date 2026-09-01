@@ -34,6 +34,36 @@ extern "C" {
  * texturemods folder; respects g_PcConfig.texturePacks). */
 int TexPack_HasEntries(void);
 
+/* Result of the thread-safe build core. Exactly one of rgba / ddsBytes is set
+ * on a match; both are malloc blocks the receiver owns. */
+typedef struct {
+    unsigned char* rgba;
+    int            w, h;
+    int            built;    /* 1 = paid the decode+composite cost */
+    unsigned char* ddsBytes; /* whole-upload BC7 file bytes */
+    size_t         ddsSize;
+} TpBuildResult;
+
+/* The lazy worker-thread seam. EnsureScanned/ComposeKeys/CacheProbe/
+ * CacheInsertOwned are game-thread only; BuildCanvasThreaded is safe on the
+ * worker once EnsureScanned has run (g_entries is immutable after the scan and
+ * the shared zip readers are serialised internally). */
+void TexPack_EnsureScanned(void);
+void TexPack_ComposeKeys(const unsigned char* pixels, int w16, int h,
+                         const unsigned short* clut, int clutCount, int bpp,
+                         unsigned long long* outSrc, unsigned long long* outPal,
+                         int* outPalMax);
+unsigned long long TexPack_FoldKey(unsigned long long srcHash,
+                                   unsigned long long palHash, int bpp);
+int  TexPack_CacheProbe(unsigned long long srcHash, unsigned long long palHash,
+                        int bpp, const unsigned char** outRgba, int* outW, int* outH);
+void TexPack_CacheInsertOwned(unsigned long long srcHash, unsigned long long palHash,
+                              int bpp, unsigned char* rgba, int w, int h);
+int  TexPack_BuildCanvasThreaded(const unsigned char* pixels, int w16, int h,
+                                 const unsigned short* clut, int clutCount, int bpp,
+                                 unsigned long long srcHash, unsigned long long fullPalHash,
+                                 int fullPalMax, TpBuildResult* out);
+
 /* Compose a replacement image for one TIM upload.
  *   pixels     raw PSX pixel block (w16*h halfwords, row-major)
  *   w16, h     upload size in VRAM halfwords
