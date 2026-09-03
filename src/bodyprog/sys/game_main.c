@@ -3357,8 +3357,18 @@ void MainLoop(void) // 0x80032EE0
                      * literal 0 rather than PC_GTE_BASE_OFY -- its item/backdrop
                      * layout was validated repeatedly under this value and the
                      * backdrop is a screen-space capture that does not move
-                     * with the GTE anchor. Do not re-litigate. */
-                    ofy = 0;
+                     * with the GTE anchor. Do not re-litigate.
+                     *
+                     * ...for the take/item PRESENTATION, that is. On the
+                     * boundary frames of a common pickup the flag is armed
+                     * while the WORLD still renders live (the freeze and the
+                     * item pass are not up yet), and 0 there moved the whole
+                     * scene up by the 8-row anchor for a frame or two -- the
+                     * flick on every ammo pickup confirm. A live world keeps
+                     * the held anchor; only frames where the world is not
+                     * drawn (the item pass over the frozen backdrop) take the
+                     * validated 0. */
+                    ofy = g_PcWorldDrawnThisFrame ? s_heldWorldOfy : 0;
                 }
                 else
                 {
