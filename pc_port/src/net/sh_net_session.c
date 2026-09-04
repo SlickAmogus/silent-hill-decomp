@@ -19,6 +19,7 @@
 #include "sh_net_proto.h"
 #include "sh_net_session.h"
 #include "sh_net_steam.h"
+#include "sh_net_coop.h"
 #include "pc_config.h"
 #include "sh_log.h"
 
@@ -565,6 +566,13 @@ void ShSession_Tick(unsigned int nowMs)
             s_members[i].pingMs = -1;
         }
     }
+
+    /* THE CO-OP FLAG. It is deliberately NOT "two people are in a lobby":
+     * standing in a lobby together is not standing in each other's world, and
+     * blocking pause for it would be wrong. It wants the world handshake that
+     * joining someone's game will perform, which does not exist yet -- so
+     * nothing here turns it on, and `net coop 1` is how the suppression is
+     * exercised until it does. When co-op lands, this is where it goes. */
 
     ShSession_Publish();
 }

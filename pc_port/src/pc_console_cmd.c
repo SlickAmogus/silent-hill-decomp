@@ -41,6 +41,8 @@
 #include "pc_discord.h" /* Pc_MapAreaName, for NET WHO */
 #include "sh_net.h"
 #include "sh_net_session.h"
+#include "sh_net_coop.h"
+#include "sh_net_coop.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -494,6 +496,7 @@ static const char* const HELP_LINES[] = {
     " net            online status, ghosts and markers here",
     " net reconnect  drop and re-join the master server",
     " net who       who is online, and where",
+    " net coop 0|1  force co-op mode (blocks pausing) for testing",
     " steam         Steam session status",
     " steam host    open a co-op lobby (friends only)",
     " steam invite  Steam overlay friend invite",
@@ -1081,6 +1084,16 @@ void Pc_ConsoleExec(const char* line)
                         Pc_MapAreaName(p->mapIdx), p->pingMs);
             }
             cprintf("online: %d of %d listed", n, ShNet_PeerTotal());
+        } else if (strncmp(arg, "COOP", 4) == 0) {
+            const char* v = arg + 4;
+            while (*v == ' ') v++;
+            if (*v == '0' || *v == '1')
+                ShNet_SetCoopActive(*v == '1', "console");
+            else
+                ShNet_SetCoopActive(!ShNet_CoopActive(), "console");
+            cprintf("co-op mode: %s (pausing %s)",
+                    ShNet_CoopActive() ? "ON" : "off",
+                    ShNet_PauseBlocked() ? "BLOCKED" : "allowed");
         } else if (strcmp(arg, "MEMOS") == 0) {
             ShNet_RequestMemos();
             cprintf("online: re-queried this map's markers (%d held)", ShNet_MemoCount());
@@ -1096,7 +1109,9 @@ void Pc_ConsoleExec(const char* line)
                 cprintf("  %d ghost(s) on this map, %d marker(s)",
                         ShNet_GhostCount(), ShNet_MemoCount());
             }
-            cprintf("  net reconnect | net who | net memos");
+            cprintf("  co-op mode: %s", ShNet_CoopActive()
+                    ? "ON - pausing is blocked" : "off");
+            cprintf("  net reconnect | net who | net memos | net coop [0|1]");
         }
     } else if (strcmp(cmd, "STEAM") == 0) {
         char line[128];

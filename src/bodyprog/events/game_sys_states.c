@@ -3,6 +3,9 @@
 #ifdef SH_PC_PORT
 #include "sh_log.h"
 #ifdef SH_PC_PORT
+#include "sh_net_coop.h"
+#endif
+#ifdef SH_PC_PORT
 #include <time.h>
 /* Transition timing probe; see the [TXNTIME] log in SysState_LoadArea_Update. */
 int g_PcTxnStartMs = 0;
@@ -525,7 +528,15 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
 #endif
         SysWork_StateSetNext(g_MapEventSysState);
     }
-    else if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.pause)
+    else if ((g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.pause)
+#ifdef SH_PC_PORT
+             /* Co-op: another player is standing in this world, so stopping it
+              * is not a local decision any more. The ghost world does NOT set
+              * this - a ghost is a picture of somebody else's game and pausing
+              * yours affects nobody. See sh_net_coop.h. */
+             && !ShNet_PauseBlocked()
+#endif
+             )
     {
 #ifdef SH_PC_PORT
         /* Do NOT arm the freeze here. This tick still renders the world, and
@@ -587,6 +598,25 @@ void SysState_GamePaused_Update(void) // 0x800391E8
     static s32 D_800A9A68 = 0;
 
 #ifdef SH_PC_PORT
+    /* A co-op session can begin while the game is ALREADY paused - the guest
+     * joins, and the host is sitting on the pause screen. Leaving them there
+     * would freeze a world somebody else is now in, so the state is left the
+     * moment the flag turns on rather than only being refused on entry. */
+    if (ShNet_PauseBlocked())
+    {
+        D_800A9A68 = 0;
+        SD_Call(4);
+        {
+            /* Same hand-off the pause button uses: releasing on this tick shows
+             * one bare fog-coloured frame, because the world draw is still
+             * gated off. MainLoop waits for a tick that actually drew. */
+            extern int g_PcFreezeReleasePending;
+            g_PcFreezeReleasePending = 1;
+        }
+        SysWork_StateSetNext(SysState_Gameplay);
+        return;
+    }
+
     /* Make pause actually pause. `BgmStatusFlag_Pause` is misleadingly named:
      * it's the flag the InGame update flow uses to gate world-objects, camera,
      * player, NPC, particle, and character-render updates (see this file
