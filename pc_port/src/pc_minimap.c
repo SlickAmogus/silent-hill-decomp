@@ -618,26 +618,24 @@ void Pc_MinimapUpdate(void)
          * picked up the 2D-screen value on menu frames and the panel jumped to
          * the 4:3 spot for a frame on inventory close. */
         extern int  g_PcWorldHorPlus;
-        extern int  g_PcMenuPillarbox;
         extern int  g_PcWidescreenMode;
 
         float psxA = (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT;
         float winA;
         int   sw = 0, sh = 0;
-        /* The 2D layer only reaches past +-160 when it is genuinely widened. A
-         * PILLARBOXED wide window still draws 4:3, so widening here put the
-         * panel inside (or past) the black bar. Same predicate the inventory
-         * mouse hit-test uses for the same question. */
-        /* Widen to the true screen edge whenever the gameplay pass fills a wide
-         * window: Hor+ (mode 1) AND stretch (mode 2) both do, so gate on
-         * "not pillarbox" (mode != 0), not just mode == 2. The old `== 2` left
-         * the panel at the 4:3 margin in the default 16:9 Hor+ mode and in
-         * menus-only pillarboxing (world still Hor+). Pillarbox (mode 0) draws
-         * 4:3 with bars, so it must NOT widen. The second clause covers the 2D
-         * screens (g_PcHorPlusEnabled == 0), which the minimap never reaches
-         * (it early-returns outside SysState_Gameplay) but is kept for parity. */
-        int   stretched = (g_PcWorldHorPlus && g_PcWidescreenMode != 0) ||
-                          (!g_PcWorldHorPlus && !g_PcMenuPillarbox);
+        /* Widen halfW to the true screen edge ONLY for genuine Hor+ (mode 1),
+         * where GR_SetOffscreenState actually widens the 2D ortho past +-160.
+         *
+         * STRETCH (mode 2) and PILLARBOX (mode 0) both render the 4:3 ortho
+         * (x -160..+160); stretch fills the window with it, pillarbox letterboxes
+         * it. In BOTH the screen edge is AT +-160, so halfW must stay 160.
+         * g_PcWorldHorPlus is 1 for every gameplay frame regardless of mode (it
+         * means "3D gameplay", not "Hor+ on"), so the old `mode != 0` gate
+         * widened stretch too -- and on a borderless 4:3 resolution stretched to
+         * a wide desktop that pushed half the minimap off the right edge. Gate on
+         * mode == 1 to match the renderer, keeping the winA>psxA guard below so a
+         * 4:3 window in Hor+ mode is unaffected. */
+        int   stretched = (g_PcWorldHorPlus && g_PcWidescreenMode == 1);
 
         /* Ask for the REAL backbuffer: the config width/height this used to read
          * describe the windowed size and say nothing about the current
