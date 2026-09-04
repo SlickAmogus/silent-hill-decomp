@@ -6,6 +6,9 @@ A branch of the PC port where other people are in your Silent Hill.
 > **master server**: ghosts and messages from strangers, no accounts, anyone can
 > host one. For **Steam sessions** — friend invites, the overlay, and the link
 > co-op will run on — see [Online_Steam.md](Online_Steam.md).
+>
+> [Online_Roadmap.md](Online_Roadmap.md) has what works today, what is next, and
+> every testing recipe in one place.
 
 Not co-op. You are still playing the game alone, and nothing another player
 does can touch your world — no shared enemies, no shared items, no shared
@@ -62,6 +65,12 @@ online_name    = Harry
 ## What you see
 
 ![The ghost silhouette at the sizes it is drawn at, over fog and over a dark interior, with the marker sigil](online_ghost_art.png)
+
+**It is seamless.** You do not connect to the living world, you are just in it.
+There is no lobby, no waiting and no banner — the client resolves and connects
+in the background while you play, and reconnects the same way. Something only
+appears on screen if the server refused you outright, or has stayed unreachable
+for fifteen seconds. `F11` tells the truth whenever you want it.
 
 **Ghosts.** Other players on the same map, drawn as hollow humanoid outlines.
 They occlude behind walls and fade into the fog exactly as world geometry
