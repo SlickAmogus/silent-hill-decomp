@@ -1207,6 +1207,11 @@ static int Kf_HoldRepeat(int cur, int prev, Uint32* pressMs, Uint32* lastMs)
 #define FC_VERT_SPEED  128
 #define FC_MOUSE_YAW   6    /* Q12 angle units per mouse pixel */
 #define FC_MOUSE_PITCH 4
+/* Controller look tuning for the free camera; mirrors the TPS cam's
+ * TP_STICK_* so both cameras feel the same on a pad. */
+#define FC_STICK_DEADZONE 24
+#define FC_STICK_YAW      40
+#define FC_STICK_PITCH    28
 #define FC_PITCH_MAX   900  /* ~79 degrees either way */
 
 /* The saved position is only meaningful in the room it was taken in. */
@@ -1271,10 +1276,37 @@ static void Pc_FreeCam_Input(void)
         if (g_DebugCamAngleX < -FC_PITCH_MAX) g_DebugCamAngleX = -FC_PITCH_MAX;
     }
 
+    /* Controller look (right stick), parity with the alt-camera scheme in
+     * Pc_TpsCamera_Apply: same deadzone, controller sensitivity, invert flag
+     * and 30fps time-scale, so the free camera reads identically to the TPS
+     * cam. Adds on top of the mouse, exactly as the TPS path does. */
+    if (g_Controller0)
+    {
+        s32 rx = (s32)g_Controller0->analogController.rightX - 128;
+        s32 ry = (s32)g_Controller0->analogController.rightY - 128;
+        if (rx > -FC_STICK_DEADZONE && rx < FC_STICK_DEADZONE) rx = 0;
+        if (ry > -FC_STICK_DEADZONE && ry < FC_STICK_DEADZONE) ry = 0;
+        if (rx != 0 || ry != 0)
+        {
+            float cs = g_PcConfig.controllerSensitivity;
+            s32 dYaw   = TIMESTEP_SCALE_30_FPS(g_DeltaTime, (s32)(((rx * FC_STICK_YAW)   >> 7) * cs));
+            s32 dPitch = TIMESTEP_SCALE_30_FPS(g_DeltaTime, (s32)(((ry * FC_STICK_PITCH) >> 7) * cs));
+            g_DebugCamAngleY = (g_DebugCamAngleY + dYaw) & 0xFFF;
+            /* ry>0 = stick down = look down (AngleX positive), matching the
+             * mouse convention above; invert flag flips it. */
+            g_DebugCamAngleX += g_PcConfig.invertControllerY ? -dPitch : dPitch;
+            if (g_DebugCamAngleX >  FC_PITCH_MAX) g_DebugCamAngleX =  FC_PITCH_MAX;
+            if (g_DebugCamAngleX < -FC_PITCH_MAX) g_DebugCamAngleX = -FC_PITCH_MAX;
+        }
+    }
+
     spd  = TIMESTEP_SCALE_60_FPS(g_DeltaTime, FC_MOVE_SPEED);
     vspd = TIMESTEP_SCALE_60_FPS(g_DeltaTime, FC_VERT_SPEED);
     if (ks[SDL_SCANCODE_LSHIFT] || ks[SDL_SCANCODE_RSHIFT]) { spd *= 3; vspd *= 3; }
     if (ks[SDL_SCANCODE_LCTRL]) { spd >>= 2; vspd >>= 2; }
+    /* R1 = fast (Shift), L1 = slow (Ctrl). */
+    if (g_Controller0 && (g_Controller0->heldBtnFlags & ControllerFlag_R1)) { spd *= 3; vspd *= 3; }
+    if (g_Controller0 && (g_Controller0->heldBtnFlags & ControllerFlag_L1)) { spd >>= 2; vspd >>= 2; }
 
     sinY = Math_Sin(g_DebugCamAngleY);
     cosY = Math_Cos(g_DebugCamAngleY);
@@ -1302,6 +1334,31 @@ static void Pc_FreeCam_Input(void)
     }
     if (ks[SDL_SCANCODE_SPACE]) g_DebugCamPos.vy -= vspd; /* PSX +Y is down */
     if (ks[SDL_SCANCODE_C])     g_DebugCamPos.vy += vspd;
+
+    /* Controller move (left stick) + R2/L2 vertical. Left stick maps to the
+     * WASD plane: up = forward along the view (pitch carried, like W), right =
+     * strafe (like D); scaled by deflection so a light push creeps. */
+    if (g_Controller0)
+    {
+        s32 lx = (s32)g_Controller0->analogController.leftX - 128;
+        s32 ly = (s32)g_Controller0->analogController.leftY - 128;
+        if (lx > -FC_STICK_DEADZONE && lx < FC_STICK_DEADZONE) lx = 0;
+        if (ly > -FC_STICK_DEADZONE && ly < FC_STICK_DEADZONE) ly = 0;
+        if (lx != 0 || ly != 0)
+        {
+            /* fwd/dy carry the pitch (set above from spd); scale by stick
+             * deflection over 128. Stick up (ly<0) = forward. */
+            s32 fwdAmt = (s32)((s64)fwd  * -ly / 128);
+            s32 vyAmt  = (s32)((s64)dy   * -ly / 128);
+            s32 strAmt = (s32)((s64)spd  *  lx / 128);
+            g_DebugCamPos.vx += (s32)((s64)fwdAmt * sinY >> 12) + (s32)((s64)strAmt * cosY >> 12);
+            g_DebugCamPos.vz += (s32)((s64)fwdAmt * cosY >> 12) - (s32)((s64)strAmt * sinY >> 12);
+            g_DebugCamPos.vy += vyAmt;
+        }
+        /* R2 = up (Space), L2 = down (C). */
+        if (g_Controller0->heldBtnFlags & ControllerFlag_R2) g_DebugCamPos.vy -= vspd;
+        if (g_Controller0->heldBtnFlags & ControllerFlag_L2) g_DebugCamPos.vy += vspd;
+    }
 }
 
 static void Pc_FreeCam_Apply(void)
