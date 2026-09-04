@@ -1,5 +1,17 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.09.04.1 -- 2026-09-04
+- Fixed screen flicking upwards upon confirmation of item pickup
+- Weather now simulated at 30hz (fixes snow speed)
+- Controllers can now be disconnected and reconnected during gameplay
+- Analog running should no longer slow down the player while steering
+
+Commit summaries:
+- Pickup confirm no longer flicks the scene up 8 rows for a frame
+- Weather particles simulate at the original 30 Hz, whatever the framerate
+- Pickup flick, the real fix: the world asserts its own anchor at submission
+- Analog run no longer sheds speed while steering; PsyCross hot-plug fix
+
 ## beta-2026.09.01.1 -- 2026-09-01
 - Added cutscene shift to aspect quick settings (like vertical shift but applies in cutscenes)
 - Fix rainbow band appearing on some hardware in place of cutscene effect for Lisa cutscenes
