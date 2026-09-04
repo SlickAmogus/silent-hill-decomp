@@ -3,6 +3,7 @@
  * why this exists and what the pop-in trade rests on. */
 
 #include <stdlib.h>
+#include <SDL.h>
 #include <string.h>
 
 #include <SDL_timer.h>
@@ -57,6 +58,9 @@ typedef struct {
      * total the first over-subtract wraps to ~2^64 and disables retention for
      * the rest of the session. */
     long long       bytes;
+    /* Bumped every time this slot is dropped or its source replaced, so a
+     * worker job that raced a re-register can be told from a current one. */
+    unsigned        gen;
     unsigned int    queued;  /* rows sitting in the ring, not yet serviced */
     unsigned int    done;    /* rows resolved: composed, or confirmed no match */
     char            name[16];
@@ -79,6 +83,271 @@ static int ring_push(unsigned int key)
     return 1;
 }
 
+/* ---- compose worker -------------------------------------------------------
+ * A built row costs a file read, a PNG (or BC7) decode and an upscale blit --
+ * single-digit ms for most rows, but a heavy pack source runs to tens or
+ * hundreds, and on the game thread that is a visible hitch however tight the
+ * budget, because the budget can only stop AFTER a row. So the CPU half runs
+ * on one worker thread against private copies of the inputs, and the pump
+ * collects finished canvases and pays only the GL upload (plus cache insert)
+ * out of its wall-clock budget. The compose cache, the entry table scan and
+ * every GL call stay on the game thread. texpack_worker = 0 restores the
+ * synchronous path for A/B. */
+#define LAZY_JOBS 8
+
+typedef struct {
+    int                busy;     /* slot claimed by the game thread */
+    int                started;  /* worker picked it up */
+    int                finished; /* result ready for the collector */
+    int                slotId, row;
+    unsigned           gen;
+    unsigned char*     pixels;   /* private copies: a job outlives any slot */
+    unsigned short*    clutRow;
+    int                w16, h, clutW, bpp, palMax;
+    unsigned long long srcHash, palHash;
+    int                buildMs;
+    int                matched;
+    TpBuildResult      res;
+} LazyJob;
+
+static LazyJob     g_jobs[LAZY_JOBS];
+static SDL_mutex*  g_jobMx;
+static SDL_cond*   g_jobCv;
+static SDL_Thread* g_jobThread;
+
+static int LazyWorker(void* unused)
+{
+    (void)unused;
+    SDL_LockMutex(g_jobMx);
+    for (;;)
+    {
+        int i, found = -1;
+        for (i = 0; i < LAZY_JOBS; i++)
+        {
+            if (g_jobs[i].busy && !g_jobs[i].started) { found = i; break; }
+        }
+        if (found < 0)
+        {
+            SDL_CondWait(g_jobCv, g_jobMx);
+            continue;
+        }
+        g_jobs[found].started = 1;
+        SDL_UnlockMutex(g_jobMx);
+        {
+            LazyJob* j  = &g_jobs[found];
+            Uint64   t0 = SDL_GetPerformanceCounter();
+            j->matched = TexPack_BuildCanvasThreaded(j->pixels, j->w16, j->h,
+                                                     j->clutRow, j->clutW, j->bpp,
+                                                     j->srcHash, j->palHash,
+                                                     j->palMax, &j->res);
+            j->buildMs = (int)((SDL_GetPerformanceCounter() - t0) * 1000 /
+                               SDL_GetPerformanceFrequency());
+        }
+        SDL_LockMutex(g_jobMx);
+        g_jobs[found].finished = 1;
+    }
+}
+
+static int Lazy_WorkerReady(void)
+{
+    static int failed = 0;
+    if (g_jobThread != NULL) return 1;
+    if (failed) return 0;
+    g_jobMx = SDL_CreateMutex();
+    g_jobCv = SDL_CreateCond();
+    if (g_jobMx != NULL && g_jobCv != NULL)
+        g_jobThread = SDL_CreateThread(LazyWorker, "texpack_lazy", NULL);
+    if (g_jobThread == NULL)
+    {
+        failed = 1;
+        SH_DBG("[TEXPACK/LAZY] worker unavailable (%s) - composing on the game thread",
+               SDL_GetError());
+        return 0;
+    }
+    return 1;
+}
+
+/* One (slot,row) through the worker path. 1 = handled (job submitted, cache
+ * hit registered, or resolved trivially); 0 = every job slot is in flight,
+ * put the key back and stop submitting this pump. */
+static int Lazy_SubmitRow(int slotId, int row, int* serviced)
+{
+    LazySlot*            s = &g_slots[slotId];
+    unsigned long long   srcHash, palHash;
+    int                  palMax;
+    const unsigned char* hit = NULL;
+    int                  hw = 0, hh = 0;
+    int                  i;
+
+    TexPack_EnsureScanned();
+    if (!TexPack_HasEntries())
+    {
+        s->queued &= ~(1u << row);
+        s->done   |= 1u << row;
+        return 1;
+    }
+
+    TexPack_ComposeKeys(s->pixels, s->w16, s->h,
+                        s->clut + (size_t)row * (size_t)s->clutW, s->clutW,
+                        s->bpp, &srcHash, &palHash, &palMax);
+
+    if (TexPack_CacheProbe(srcHash, palHash, s->bpp, &hit, &hw, &hh))
+    {
+        s->queued &= ~(1u << row);
+        s->done   |= 1u << row;
+        HiresOverride_PoolSlotRegisterRGBAKeyed(slotId, row, hit, hw, hh,
+                                                s->nativeW, s->nativeH,
+                                                TexPack_FoldKey(srcHash, palHash, s->bpp));
+        (*serviced)++;
+        return 1;
+    }
+
+    SDL_LockMutex(g_jobMx);
+    for (i = 0; i < LAZY_JOBS; i++)
+        if (!g_jobs[i].busy) break;
+    if (i == LAZY_JOBS)
+    {
+        SDL_UnlockMutex(g_jobMx);
+        return 0;
+    }
+    {
+        LazyJob* j = &g_jobs[i];
+        memset(j, 0, sizeof(*j));
+        j->pixels  = (unsigned char*)malloc((size_t)s->w16 * (size_t)s->h * 2);
+        j->clutRow = (unsigned short*)malloc((size_t)s->clutW * 2);
+        if (j->pixels == NULL || j->clutRow == NULL)
+        {
+            free(j->pixels);
+            free(j->clutRow);
+            memset(j, 0, sizeof(*j));
+            SDL_UnlockMutex(g_jobMx);
+            /* Out of memory: keep native art rather than looping. */
+            s->queued &= ~(1u << row);
+            s->done   |= 1u << row;
+            return 1;
+        }
+        memcpy(j->pixels, s->pixels, (size_t)s->w16 * (size_t)s->h * 2);
+        memcpy(j->clutRow, s->clut + (size_t)row * (size_t)s->clutW,
+               (size_t)s->clutW * 2);
+        j->slotId  = slotId;
+        j->row     = row;
+        j->gen     = s->gen;
+        j->w16     = s->w16;
+        j->h       = s->h;
+        j->clutW   = s->clutW;
+        j->bpp     = s->bpp;
+        j->palMax  = palMax;
+        j->srcHash = srcHash;
+        j->palHash = palHash;
+        j->busy    = 1;
+    }
+    SDL_CondSignal(g_jobCv);
+    SDL_UnlockMutex(g_jobMx);
+    /* queued stays set: that is what keeps NoteWanted from re-enqueueing while
+     * the job is in flight. The collector clears it. */
+    return 1;
+}
+
+/* Land finished jobs: GL upload + cache insert, on the game thread, inside the
+ * pump's wall-clock budget. */
+static void Lazy_Collect(Uint64 start, long long budgetTicks, int* serviced, int* built)
+{
+    int i;
+
+    if (g_jobThread == NULL) return;
+    for (i = 0; i < LAZY_JOBS; i++)
+    {
+        LazyJob   j;
+        LazySlot* s;
+        int       take;
+
+        if (*serviced > 0 &&
+            (long long)(SDL_GetPerformanceCounter() - start) >= budgetTicks)
+            break;
+
+        SDL_LockMutex(g_jobMx);
+        take = g_jobs[i].busy && g_jobs[i].finished;
+        if (take)
+        {
+            j = g_jobs[i];
+            memset(&g_jobs[i], 0, sizeof(g_jobs[i]));
+        }
+        SDL_UnlockMutex(g_jobMx);
+        if (!take) continue;
+
+        free(j.pixels);
+        free(j.clutRow);
+
+        s = &g_slots[j.slotId];
+        if (s->gen != j.gen || j.row >= s->rows || !(s->queued & (1u << j.row)))
+        {
+            /* The slot moved on while the job ran; the result belongs to a
+             * source that is no longer there. */
+            free(j.res.rgba);
+            free(j.res.ddsBytes);
+            continue;
+        }
+
+        s->queued &= ~(1u << j.row);
+        s->done   |= 1u << j.row;
+        (*serviced)++;
+        if (j.matched && j.res.built) (*built)++;
+
+        if (j.buildMs > 30)
+        {
+            static int s_slowBuild = 0;
+            if (s_slowBuild < 32)
+            {
+                s_slowBuild++;
+                SH_DBG("[TEXPACK/LAZY] heavy source: '%s' row %d built in %d ms (off-thread)",
+                       s->name, j.row, j.buildMs);
+            }
+        }
+
+        if (j.matched && j.res.rgba != NULL)
+        {
+            Uint64 u0 = SDL_GetPerformanceCounter();
+            HiresOverride_PoolSlotRegisterRGBAKeyed(j.slotId, j.row, j.res.rgba,
+                                                    j.res.w, j.res.h,
+                                                    s->nativeW, s->nativeH,
+                                                    TexPack_FoldKey(j.srcHash, j.palHash, j.bpp));
+            {
+                int upMs = (int)((SDL_GetPerformanceCounter() - u0) * 1000 /
+                                 SDL_GetPerformanceFrequency());
+                static int s_slowUp = 0;
+                if (upMs > 8 && s_slowUp < 32)
+                {
+                    s_slowUp++;
+                    SH_DBG("[TEXPACK/LAZY] slow upload: '%s' row %d %dx%d took %d ms",
+                           s->name, j.row, j.res.w, j.res.h, upMs);
+                }
+            }
+            /* The cache takes ownership of the canvas, or frees it; the GL
+             * upload above is already done with the bytes. */
+            TexPack_CacheInsertOwned(j.srcHash, j.palHash, j.bpp,
+                                     j.res.rgba, j.res.w, j.res.h);
+        }
+        else if (j.matched && j.res.ddsBytes != NULL)
+        {
+            HiresOverride_PoolSlotRegisterDdsKeyed(j.slotId, j.row,
+                                                   j.res.ddsBytes, j.res.ddsSize,
+                                                   s->nativeW, s->nativeH,
+                                                   TexPack_FoldKey(j.srcHash, j.palHash, j.bpp));
+            free(j.res.ddsBytes);
+        }
+        else
+        {
+            static int s_missLog2 = 0;
+            if (s_missLog2 < 64)
+            {
+                s_missLog2++;
+                SH_DBG("[TEXPACK] %s (pool slot %d): NO replacement for CLUT row %d - keeps native art",
+                       s->name, j.slotId, j.row);
+            }
+        }
+    }
+}
+
 void TexPackLazy_DropSlot(int slotId)
 {
     LazySlot* s;
@@ -96,10 +365,15 @@ void TexPackLazy_DropSlot(int slotId)
                slotId, g_srcBytes);
         g_srcBytes = 0;
     }
-    /* Zeroing queued/done here is exactly what makes a ring key that outlives
-     * its slot safe: the pump discards any key whose row bit is no longer
-     * queued, so no generation counter is needed. */
-    memset(s, 0, sizeof(*s));
+    /* Zeroing queued/done here is what makes a ring key that outlives its slot
+     * safe: the pump discards any key whose row bit is no longer queued. The
+     * generation survives the wipe and steps, so a worker-thread job submitted
+     * against the old source can never land in the slot's next occupant. */
+    {
+        unsigned g = s->gen;
+        memset(s, 0, sizeof(*s));
+        s->gen = g + 1u;
+    }
 }
 
 void TexPackLazy_MapReset(void)
@@ -272,7 +546,23 @@ void TexPackLazy_Pump(void)
      * freeze every age and make the next eviction pass see nothing as cold. */
     HiresOverride_Tick();
 
-    if (g_ringHead == g_ringTail) return;
+    budgetMs = g_PcConfig.texpackLazyMs;
+    if (budgetMs < 1) budgetMs = 1;
+    if (g_burstFrames > 0) budgetMs *= LAZY_BURST_SCALE;
+
+    /* SDL_GetPerformanceCounter, not SDL_GetTicks: the budget is a few
+     * milliseconds and a run of compose-cache hits costs tens of microseconds
+     * each, which a 1 ms-resolution clock cannot separate from free. Same
+     * source the frame limiter and GsGetVcount already use. */
+    freq        = SDL_GetPerformanceFrequency();
+    budgetTicks = (long long)((freq * (Uint64)(unsigned)budgetMs) / 1000u);
+    start       = SDL_GetPerformanceCounter();
+
+    /* Land what the worker finished first: those rows are pure upload now and
+     * must not wait behind fresh submissions. Runs even with an empty ring. */
+    Lazy_Collect(start, budgetTicks, &serviced, &built);
+
+    if (g_ringHead == g_ringTail) goto pump_done;
 
     /* Budget spent: recycle the coldest rows instead of giving up on the run.
      *
@@ -334,18 +624,6 @@ void TexPackLazy_Pump(void)
         }
     }
 
-    budgetMs = g_PcConfig.texpackLazyMs;
-    if (budgetMs < 1) budgetMs = 1;
-    if (g_burstFrames > 0) budgetMs *= LAZY_BURST_SCALE;
-
-    /* SDL_GetPerformanceCounter, not SDL_GetTicks: the budget is a few
-     * milliseconds and a run of compose-cache hits costs tens of microseconds
-     * each, which a 1 ms-resolution clock cannot separate from free. Same
-     * source the frame limiter and GsGetVcount already use. */
-    freq        = SDL_GetPerformanceFrequency();
-    budgetTicks = (long long)((freq * (Uint64)(unsigned)budgetMs) / 1000u);
-    start       = SDL_GetPerformanceCounter();
-
     while (g_ringHead != g_ringTail)
     {
         unsigned int         key;
@@ -381,6 +659,20 @@ void TexPackLazy_Pump(void)
          * new source. Costs nothing, so it does not count as serviced. */
         if (s->pixels == NULL || row >= s->rows) continue;
         if (!(s->queued & (1u << row))) continue;
+
+        if (g_PcConfig.texpackWorkerThread && Lazy_WorkerReady())
+        {
+            if (!Lazy_SubmitRow(slotId, row, &serviced))
+            {
+                /* Every job slot is in flight: put the key back and stop
+                 * submitting this pump. If the ring is somehow full as well,
+                 * clear the bit so the next sample re-enqueues it. */
+                if (!ring_push(key)) s->queued &= ~(1u << row);
+                break;
+            }
+            continue;
+        }
+
         s->queued &= ~(1u << row);
         s->done   |= 1u << row;
 
@@ -443,6 +735,7 @@ void TexPackLazy_Pump(void)
         if (HiresOverride_PackBudgetExceeded()) break;
     }
 
+pump_done:
     if (built > 0 && g_pumpLogs < 256)
     {
         g_pumpLogs++;

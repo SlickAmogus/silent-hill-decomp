@@ -89,6 +89,51 @@ static void Pc_BgEtcSpriteBandUvFix(POLY_FT4* poly)
 #define MAP_USE_PARTICLES (MAP_PARTICLE_HAS_SNOW || MAP_PARTICLE_HAS_RAIN)
 #define MAP_PARTICLE_HAS_800D0690 (MAP_PARTICLE_HAS_RAIN && !defined(MAP0_S00) && !defined(MAP1_S02) && !defined(MAP4_S03))
 
+#ifdef SH_PC_PORT
+/* Fixed 30 Hz simulation cadence for the weather particles.
+ *
+ * The whole system was authored frame-stepped at the PSX's 30fps: the snow
+ * jitter is a per-frame random walk, spawn/rest are per-frame counters, the
+ * wind ramps once per call, the weather-density counter advances once per
+ * call. At 120fps all of it evolves 4x (and the random walk's spread grows
+ * with the step count, so snow also LOOKS different, not just faster). One
+ * earlier spot-fix dt-scaled the snow fall speed; everything else stayed
+ * frame-bound.
+ *
+ * Rather than dt-scale each site (a random walk cannot be rescaled without
+ * changing its character), the SIMULATION now steps at a fixed 30 Hz on the
+ * game clock -- exactly the original cadence, running the original per-frame
+ * math once per step -- while the DRAW pass still runs every frame with the
+ * live camera, so sprites are present and correctly projected on every
+ * rendered frame. Below 30fps one step per frame keeps the console's own
+ * slowdown behaviour. Steps consume the accumulator; after a load hitch at
+ * most one banked step is kept so the sim cannot fast-forward.
+ *
+ * s_pcParticleSimDt is what the sim's dt consumers receive on a step: the
+ * fixed 1/30, which turns the existing TIMESTEP_SCALE_30_FPS corrections
+ * into exact identity -- original PSX math per step. */
+static q19_12 s_pcParticleSimAccum = Q12(0.0f);
+static int    s_pcParticleSimStep  = 1;
+static q19_12 s_pcParticleSimDt    = Q12(1.0f / 30.0f);
+
+static void Pc_ParticleSimTick(void)
+{
+    s_pcParticleSimAccum += g_DeltaTime;
+    s_pcParticleSimStep   = s_pcParticleSimAccum >= Q12(1.0f / 30.0f);
+    if (s_pcParticleSimStep)
+    {
+        s_pcParticleSimAccum -= Q12(1.0f / 30.0f);
+        if (s_pcParticleSimAccum > Q12(1.0f / 30.0f))
+        {
+            s_pcParticleSimAccum = Q12(1.0f / 30.0f);
+        }
+    }
+}
+#define PC_PARTICLE_DT (&s_pcParticleSimDt)
+#else
+#define PC_PARTICLE_DT (&g_DeltaTime)
+#endif
+
 #if !MAP_USE_PARTICLES
 
 /** Barebones version of `Particle_SystemUpdate`, missing calls to `Particle_Update` and other particle-related code. */
@@ -422,11 +467,21 @@ void Particle_SystemUpdate(s32 arg1, e_MapIdx mapIdx, s32 arg3)
             sharedData_800DD584_0_s00 = g_DeltaTime == Q12(0.0f);
 #endif
 
+#ifdef SH_PC_PORT
+            Pc_ParticleSimTick();
+#endif
+
             func_8003EDB8(&sharedData_800E3258_0_s00, &sharedData_800E325C_0_s00);
 
             if (sharedData_800E0CB6_0_s00 != sharedData_800E0CB4_0_s00)
             {
+#ifdef SH_PC_PORT
+                /* Weather transition counter: one tick per SIM step, or the
+                 * density fade sweeps 4x too fast at 120fps. */
+                if (sharedData_800DD584_0_s00 == 0 && s_pcParticleSimStep)
+#else
                 if (sharedData_800DD584_0_s00 == 0)
+#endif
                 {
                     sharedData_800DD598_0_s00++;
                 }
@@ -909,6 +964,9 @@ bool Particle_Update(s_Particle* partHead)
     updatePrev = 0;
 
     // Update wind speed.
+#ifdef SH_PC_PORT
+    if (s_pcParticleSimStep)
+#endif
     if (sharedData_800E0CAC_0_s00 >= 2)
     {
         // Wind is active.
@@ -1303,6 +1361,11 @@ bool Particle_Update(s_Particle* partHead)
     }
 #endif
 
+#ifdef SH_PC_PORT
+    /* The whole spawn/movement/rest pass is the original per-frame sim; it
+     * runs once per 30 Hz step. The draw pass below runs every frame. */
+    if (s_pcParticleSimStep)
+#endif
     for (pass = 0; pass < 2; pass++)
     {
         // Set particle density.
@@ -1358,13 +1421,17 @@ bool Particle_Update(s_Particle* partHead)
             }
 
         #if defined(MAP7_S03)
+#ifdef SH_PC_PORT
+            D_800F23D0 = (s_pcParticleSimDt * 10936) / Q12(1.0f);
+#else
             D_800F23D0 = (g_DeltaTime * 10936) / Q12(1.0f);
+#endif
         #endif
 
             if (sharedData_800DD584_0_s00 != 0)
             {
                 // NOTE: This function only has a body in `MAP07_S03` and everything else calls an empty function.
-                sharedFunc_800CE954_7_s03(pass, curPart, &rand, &g_DeltaTime);
+                sharedFunc_800CE954_7_s03(pass, curPart, &rand, PC_PARTICLE_DT);
             }
             else
             {
@@ -1379,7 +1446,7 @@ bool Particle_Update(s_Particle* partHead)
                         break;
 
                     case ParticleState_Active:
-                        Particle_MovementUpdate(pass, curPart, &rand, &g_DeltaTime);
+                        Particle_MovementUpdate(pass, curPart, &rand, PC_PARTICLE_DT);
                         break;
 
                     default: // `ParticleState_Rest`
@@ -1391,7 +1458,7 @@ bool Particle_Update(s_Particle* partHead)
                     #if MAP_PARTICLE_HAS_800D0690
                         else
                         {
-                            sharedFunc_800D0690_1_s03(pass, curPart, &rand, &g_DeltaTime);
+                            sharedFunc_800D0690_1_s03(pass, curPart, &rand, PC_PARTICLE_DT);
                         }
                     #endif
                         break;
@@ -1411,6 +1478,11 @@ bool Particle_Update(s_Particle* partHead)
     #if MAP_PARTICLE_HAS_RAIN
         if (pass != 0)
         {
+#ifdef SH_PC_PORT
+            /* Sim state despite living in the draw section: it gates the rain
+             * density thresholds, so it advances per step, not per frame. */
+            if (s_pcParticleSimStep)
+#endif
             sharedData_800E32D0_0_s00 += g_ParticlesAddedCount[pass];
             limitRange(sharedData_800E32D0_0_s00, 0, 135000);
         }
@@ -1443,9 +1515,14 @@ bool Particle_Update(s_Particle* partHead)
 
     // Likely previous position for next particle system update.
     // Stores XZ position and Y rotation.
-    g_Particle_PrevPosition.vx = prevPos.vx;
-    g_Particle_PrevPosition.vz = prevPos.vz;
-    g_Particle_PrevRotationY   = g_Particle_RotationY;
+#ifdef SH_PC_PORT
+    if (s_pcParticleSimStep)
+#endif
+    {
+        g_Particle_PrevPosition.vx = prevPos.vx;
+        g_Particle_PrevPosition.vz = prevPos.vz;
+        g_Particle_PrevRotationY   = g_Particle_RotationY;
+    }
     return false;
 }
 

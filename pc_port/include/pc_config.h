@@ -89,6 +89,9 @@ typedef struct {
                                  * main_pc.c, which the VRAM derivation must not raise past:
                                  * on a shared-memory APU, pack textures come out of the same
                                  * RAM as the game. */
+    int texpackWorkerThread; /* 1 = decode+composite pack rows on a worker thread so a heavy
+                              * source cannot hitch the frame; 0 = on the game thread (A/B).
+                              * Config key: texpack_worker */
     int texpackLazyMs;    /* Wall-clock milliseconds per frame the demand-driven pack composer
                            * (texpack_lazy.c) may spend on compose + upload. Pool-slot pack rows
                            * are no longer composed at TIM load - they compose when a prim first
@@ -415,6 +418,10 @@ const char* Pc_FlashlightModeLabel(int mode);
 
 /* Parse config.cfg from the executable's directory. Uses defaults if not found. */
 void PcConfig_Load(const char* path);
+
+/* Echo the config file into the log (ra_token redacted). Call after the log is
+ * open so a submitted log carries the settings the run actually used. */
+void PcConfig_LogEffective(const char* path);
 /* Compile-time defaults captured before the config file was parsed. */
 const s_PcConfig* PcConfig_Defaults(void);
 

@@ -1,5 +1,80 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.09.01.1 -- 2026-09-01
+- Added cutscene shift to aspect quick settings (like vertical shift but applies in cutscenes)
+- Fix rainbow band appearing on some hardware in place of cutscene effect for Lisa cutscenes
+- Cleaned up some unnecessary logging
+- Fixed some performance issues especially with texture packs
+
+Commit summaries:
+- Quick options: a Cutscene Shift row, saved like the rest of the view knobs
+- Stop dropping geometry at 4096 splits, and stop logging about it every time
+- Lisa cutscene: the soft-focus is back, and the rainbow band with it
+- Texture packs: decode and composite on a worker thread
+- Drop the [BOOT0/TIM] probe: five forced flushes per streamed TIM
+- Revert "Drop the [BOOT0/TIM] probe: five forced flushes per streamed TIM"
+- Remove only the probes this time: 0af770616 deleted 440 lines of post-load
+
+## beta-2026.08.29.1 -- 2026-08-29
+- Fixed rendering issue that was causing issues with displaying the correct aspect ratio and throwing off measurements
+- Set new default FOV and made FOV settings customizable under either simple or advanced settings in the quick menu, and all of it saves to the config
+- The software SPU is now the default for audio playback, which is more accurate to PS1 as far as effects like reverb 
+- Surround support for software SPU 
+- Fixed the radio, and others sounds, playing forever in software SPU
+- Fixed the Konami and KCET logos not showing at all, leaving a black screen until the intro movie
+- Fixed the long black screen before the upscaled FMVs, which was ffmpeg reading far more of the file than it needed before starting
+- Fixed the grey overlay not covering the whole screen in widescreen
+- Fixed picked-up items rendering about 6% too narrow
+- Fixed in-game text stretching under the new aspect ratio settings
+- Translated most of the Options and PC Options screens for Japanese and Chinese 
+- Translated the inventory commands and status line, and shortened the BGM, SE and Vibration labels so they stop running through the volume bar
+- Fixed quick menu values vanishing while you were adjusting them
+- The quick menu no longer takes input during the attract demo at the main menu, which was clicking things on its own
+- "Debug keys (top row)" is now called "Allow console", which is what it actually does
+- Removed the Fog (free cam) row from the quick menu
+- Launcher: Play! is bold and more obvious now
+
+Commit summaries:
+- display_aspect: default to the 4:3 CRT picture, keep the raw one
+- audio_spatial: accurate PSX reverb on surround layouts
+- PsyCross: CRT aspect now lands on 4:3 regardless of the hfov/vfov knobs
+- crtaspect: live trim for the CRT picture, tuned against a real set
+- PsyCross: in-game text no longer stretches under the CRT aspect
+- Quick options: a View & Aspect page, and crt_aspect_trim defaults to 0.9
+- Quick options: the Display Aspect value column does not unescape underscores
+- Quick options: recycle atlas slots, so edited values stop vanishing
+- Quick options: a saved Vertical Shift row, and log every view change
+- Quick options: Control Type Simple/Advanced, and hfov defaults to 0.92
+- GsIDMATRIX2 was not an identity, and it squashed the world 25% vertically
+- Default FOV 1.06, matched against the set
+- [JPPROBE]: two capped probes for the NTSC-J text regression
+- Options and PC Options in Japanese and Chinese; drop the [JPPROBE] probes
+- BGM and SE volume labels no longer run through the bar in Japanese
+- Vibration label clears its value in Japanese too
+- Japanese for the inventory commands and status line
+- Quick options: drop the Fog (free cam) row
+- TEMPORARY: [N64TRACE] capture of PC ground truth for the N64 port
+- Revert the [N64TRACE] capture
+- Launcher: Play! in bold, and the filter row fits again
+- Submodule: [SPUSTUCK] probe for the radio that never stops
+- Radio-forever fix, quick menu out of attract demos, [OVLW] probe
+- Frame-sized overlays and cull bounds follow the CRT aspect solve
+- Submodule: item-take screen no longer renders 5.7% too narrow
+- Submodule: [XAFEED] probe for the tinny voices
+- Submodule: drop the [XAFEED] probe, XA feed ruled out
+- Submodule: fix the XA zigzag coefficients that made voices tinny
+- Submodule: spectral regression test for the XA resampler
+- Ship FOV 1.0 and the authentic software SPU as the defaults
+- Quick options: "Debug keys (top row)" is really "Allow console"
+- FMV: bound the ffmpeg probe, and time it
+- Boot logos are back: the fast drain stands down during them
+- Revert "Boot logos are back: the fast drain stands down during them"
+- TEMPORARY [LOGODBG]: what the Konami logo actually draws, and whether its VRAM survives
+- TEMPORARY [LOGODBG]: capture one frame of the Konami logo at full fade
+- TEMPORARY [SPLITDBG]: arm the split report on the Konami logo
+- [SPLITDBG]: arm at logo frame 5, not 300
+- Boot logos are back: the quick-options GL init leaked its bound program
+
 ## beta-2026.08.27.2 -- 2026-08-27
 - Fixed issue where quick menu could become visually corrupted
 - Attempt to fix issues with graphical corruption and artifacts on vulkan and other renderers

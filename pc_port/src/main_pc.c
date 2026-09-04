@@ -688,6 +688,12 @@ static void ParseArgs(int argc, char* argv[])
             g_GameDataPath[sizeof(g_GameDataPath) - 1] = '\0';
             i++;
         }
+        else if (strcmp(argv[i], "-skiptogame") == 0)
+        {
+            /* The flag existed and was honoured after the config load, but nothing
+             * ever SET it, so the option silently did nothing. */
+            s_SkipToGameArg = 1;
+        }
         else if (strcmp(argv[i], "+connect_lobby") == 0 && i + 1 < argc)
         {
             /* Steam appends this when a player accepts an invite while the
@@ -704,7 +710,8 @@ static void ParseArgs(int argc, char* argv[])
             printf("Options:\n");
             printf("  -data <path>          Path to game data directory or CD image\n");
             printf("  +connect_lobby <id>   Join a Steam lobby (Steam passes this itself)\n");
-            printf("  -h, --help      Show this help\n");
+            printf("  -skiptogame           Skip the intros and start a new game\n");
+            printf("  -h, --help            Show this help\n");
             exit(0);
         }
     }
@@ -750,6 +757,9 @@ int main(int argc, char* argv[])
             #include "sh_build_info.h"
             SH_DBG("[SH] build " SH_BUILD_GIT_HASH " (" SH_BUILD_STAMP ")");
         }
+        /* The user's actual settings, verbatim. Costs one pass over a small
+         * file at boot and removes the guesswork from every bug report. */
+        PcConfig_LogEffective("config.cfg");
         /* One-line render-config fingerprint: these are the axes every remote
          * corruption report gets bisected on — stop having to ask for the cfg. */
         SH_DBG("[CONFIG] flashlight_mode=%d use_pgxp=%d resident_textures=%d global_chara_pool=%d",
