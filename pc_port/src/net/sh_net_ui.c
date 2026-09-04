@@ -66,6 +66,10 @@
 #define NU_EVENT_FADE_MS 1200
 #define NU_EVENT_SLOTS   5
 
+/* How long the master server has to stay unreachable before the player is
+ * told. Long enough that a reconnect nobody noticed stays unnoticed. */
+#define NU_LOST_QUIET_MS 15000
+
 int g_ShNetPlayerListOpen;
 
 /* ------------------------------------------------------------------ */
@@ -96,6 +100,7 @@ static struct
 static unsigned s_useClock;
 
 static float s_vpW = 1920.0f, s_vpH = 1080.0f;
+static unsigned int s_lostSinceMs;
 
 static GLuint Nu_Shader(GLenum type, const char* src)
 {
@@ -1053,10 +1058,35 @@ void ShNetUi_Draw(void)
 
     drawList     = g_ShNetPlayerListOpen;
     drawComposer = ShNetMemo_ComposerActive();
-    drawStatus   = (ShNet_Status() == SHNET_ST_CONNECTING ||
-                    ShNet_Status() == SHNET_ST_RESOLVING  ||
-                    ShNet_Status() == SHNET_ST_LOST       ||
-                    ShNet_Status() == SHNET_ST_REJECTED);
+    /* SEAMLESS BY DESIGN. The living world is not something you connect to,
+     * it is something you are in, so the normal path -- resolving, connecting,
+     * reconnecting after a blip -- says NOTHING. Two exceptions, both cases
+     * where the player has to actually do something:
+     *
+     *   REJECTED  the server refused us (wrong password, wrong version, full).
+     *             It will never resolve itself.
+     *   LOST      but only once it has stayed lost. A dropped packet or a map
+     *             load should not put a banner on screen; a server that has
+     *             genuinely gone away for a quarter of a minute should.
+     *
+     * F11 always tells the truth for anyone who wants to look. */
+    {
+        const int st = ShNet_Status();
+        if (st == SHNET_ST_LOST)
+        {
+            if (s_lostSinceMs == 0)
+            {
+                s_lostSinceMs = SDL_GetTicks();
+            }
+        }
+        else
+        {
+            s_lostSinceMs = 0;
+        }
+        drawStatus = (st == SHNET_ST_REJECTED) ||
+                     (st == SHNET_ST_LOST && s_lostSinceMs != 0 &&
+                      SDL_GetTicks() - s_lostSinceMs > NU_LOST_QUIET_MS);
+    }
 
     if (!drawList && !drawComposer && !drawStatus && s_eventCount == 0 &&
         ShNetMemo_NearestReadable() < 0 && !ShNetMemo_JustPlaced())
@@ -1123,6 +1153,8 @@ void ShNetUi_Draw(void)
     {
         char line[160];
         snprintf(line, sizeof(line), "Online: %s", ShNet_StatusText());
+        /* Only ever a real problem by the time we get here, so it is allowed
+         * to sit in the corner until it is fixed. */
         Nu_DrawText(line, s_vpH * 0.03f, s_vpH * 0.03f, (int)((float)px * 0.9f),
                     0.62f, 0.55f, 0.45f, 0.9f);
     }
