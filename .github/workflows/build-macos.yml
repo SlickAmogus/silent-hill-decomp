@@ -7,7 +7,7 @@ name: Build PC Port (macOS arm64)
 #
 # macos-14 runners are Apple Silicon (arm64). The binary is UNSIGNED — Gatekeeper
 # will warn; users right-click->Open once or run:
-#   xattr -dr com.apple.quarantine SilentHillPC
+#   xattr -dr com.apple.quarantine .   (whole folder: binary + map .dylibs)
 
 on:
   push:
@@ -56,13 +56,47 @@ jobs:
           mkdir -p "$STAGE/gamedata/save"
           # Shipped runtime assets (pc_port/assets/ mirrors the game folder layout).
           cp -r pc_port/assets/. "$STAGE/"
+
+          # Bundle libjpeg (issue #110): jpeg-turbo is keg-only, so the binary
+          # linked it by its absolute Homebrew path and users without
+          # `brew install jpeg-turbo` got "Library not loaded: .../libjpeg.8.dylib".
+          # Copy the actual linked dylib next to the binary and repoint the load
+          # command at @loader_path, so no Homebrew jpeg is needed at runtime.
+          JPEG_SRC="$(otool -L "$STAGE/SilentHillPC" | awk '/libjpeg\.[0-9]+\.dylib/{print $1; exit}')"
+          if [ -n "${JPEG_SRC:-}" ] && [ -f "$JPEG_SRC" ]; then
+            JPEG_BASE="$(basename "$JPEG_SRC")"
+            cp "$JPEG_SRC" "$STAGE/$JPEG_BASE"
+            chmod u+w "$STAGE/$JPEG_BASE"
+            install_name_tool -change "$JPEG_SRC" "@loader_path/$JPEG_BASE" "$STAGE/SilentHillPC"
+            install_name_tool -id "@loader_path/$JPEG_BASE" "$STAGE/$JPEG_BASE"
+            echo "Bundled $JPEG_BASE and repointed the load command."
+          else
+            echo "WARNING: could not locate the linked libjpeg to bundle." >&2
+          fi
+
+          # Ad-hoc codesign the binary and every .dylib (issue #110): unsigned
+          # .dylibs made Gatekeeper prompt once PER map overlay ("cannot verify
+          # developer", the four Done clicks). An ad-hoc signature plus the
+          # recursive quarantine strip below lets them load without prompts.
+          # Must run AFTER install_name_tool (editing a signed binary voids it).
+          codesign --force --sign - "$STAGE/SilentHillPC" || true
+          for dl in "$STAGE"/maps/*.dylib "$STAGE"/*.dylib; do
+            [ -f "$dl" ] && codesign --force --sign - "$dl" || true
+          done
+
           cat > "$STAGE/README-macos.txt" <<'EOF'
           Silent Hill PC Port — macOS arm64 (Apple Silicon)
+
           Requires the original disc image in gamedata/ (not included).
+
           Runtime dependencies (Homebrew):
             brew install sdl2 openal-soft
-          The binary is unsigned. First run:
-            xattr -dr com.apple.quarantine SilentHillPC
+          (libjpeg is bundled; no jpeg-turbo install needed.)
+
+          The build is unsigned. Before the first run, clear the quarantine flag
+          on the WHOLE folder so the binary AND the map .dylibs load without
+          per-file Gatekeeper prompts:
+            xattr -dr com.apple.quarantine .
           Then:  ./SilentHillPC
           EOF
           ( cd "$RUNNER_TEMP" && zip -r "$RUNNER_TEMP/SHPC-macos-arm64.zip" SHPC-macos-arm64 )

@@ -72,6 +72,18 @@ void Event_Update(bool disableButtonEvents) // 0x800373CC
 
     g_MapEventLastUsedItem = InvItemId_Unequipped;
 
+#ifdef SH_PC_PORT
+    /* Overlay-swap race (issue #113): during a map->map transition the overlay
+     * header is torn down and rebuilt, and a frame can run Event_Update while
+     * mapEvents is NULL. &mapEvents[-1] is then (base-1), ++ makes it NULL, and
+     * the mapEvent->triggerType read below faults -- the intermittent SIGSEGV on
+     * the alley->cafe (map0_s00->map0_s01) transition at 60fps. No overlay = no
+     * events this frame. */
+    if (g_MapOverlayHdr.mapEvents == NULL)
+    {
+        return;
+    }
+#endif
     mapEvent = &g_MapOverlayHdr.mapEvents[-1];
 
 #ifdef SH_PC_PORT
