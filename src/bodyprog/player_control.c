@@ -237,6 +237,29 @@ s32 g_Player_LastMoveStep;
 s32 g_Player_WallRayHitDist, g_Player_WallRayAngleDelta, g_Player_WallRayGroundHeight;
 #endif
 
+#ifdef SH_PC_PORT
+/* Radial deflection of the movement stick, capped to the PSX 0..127 range.
+ *
+ * Every analog speed and animation-rate formula below keys on |leftY| alone,
+ * which was correct on PSX: DualShock gates are square-ish, so Y holds ~127
+ * while X steers. Modern pads have CIRCULAR gates -- at a 45-degree steer each
+ * axis reads ~90 of 127, so |leftY| sheds ~40% of the speed range the moment
+ * the player steers, and past ~60 degrees drops under the formulas' 64 floor:
+ * "turning almost halts the run" (user report). The radial magnitude is what
+ * the player's thumb is actually expressing, and it degrades to exactly
+ * |leftY| for a straight push, so keyboard/d-pad synthesis (full-scale axes)
+ * is untouched. Direction thresholds stay on the raw axes -- only magnitudes
+ * are substituted. */
+static s32 Pc_StickMoveDeflection(void)
+{
+    s32 sx  = g_Controller0->sticks_20.sticks_0.leftX;
+    s32 sy  = g_Controller0->sticks_20.sticks_0.leftY;
+    s32 mag = SquareRoot0((sx * sx) + (sy * sy));
+
+    return (mag > 127) ? 127 : mag;
+}
+#endif
+
 #define playerProps g_SysWork.playerWork.player.properties.player
 
 q19_12 Player_VariableAnimDurationGet(s_Model* model) // 0x800706E4
@@ -317,7 +340,11 @@ q19_12 Player_VariableAnimDurationGet(s_Model* model) // 0x800706E4
                 case ANIM_STATUS(HarryAnim_WalkForward, true):
                     if (g_Controller0->sticks_20.sticks_0.leftY < -63)
                     {
+#ifdef SH_PC_PORT
+                        duration = (ABS(64 - Pc_StickMoveDeflection()) * Q12(0.65f) / 64) * 16 + Q12(12.0f);
+#else
                         duration = (ABS(g_Controller0->sticks_20.sticks_0.leftY + 64) * Q12(0.65f) / 64) * 16 + Q12(12.0f);
+#endif
                     }
                     else if (D_800AF216 != 0)
                     {
@@ -335,7 +362,11 @@ q19_12 Player_VariableAnimDurationGet(s_Model* model) // 0x800706E4
                         if ((model->anim.keyframeIdx >= 40 && model->anim.keyframeIdx < 46) ||
                             (model->anim.keyframeIdx >= 30 && model->anim.keyframeIdx < 36))
                         {
+#ifdef SH_PC_PORT
+                            duration = ABS(64 - Pc_StickMoveDeflection()) * Q12(0.25f) + Q12(16.0f);
+#else
                             duration = ABS(g_Controller0->sticks_20.sticks_0.leftY + 64) * Q12(0.25f) + Q12(16.0f);
+#endif
                         }
                         else
                         {
@@ -355,7 +386,11 @@ q19_12 Player_VariableAnimDurationGet(s_Model* model) // 0x800706E4
                 case ANIM_STATUS(HarryAnim_WalkBackward, true):
                     if (g_Controller0->sticks_20.sticks_0.leftY >= 64)
                     {
+#ifdef SH_PC_PORT
+                        duration = ((ABS(Pc_StickMoveDeflection() - 64) * Q12(0.4f) / 64) * Q12(1.0f) / 200) + Q12(15.36f);
+#else
                         duration = ((ABS(g_Controller0->sticks_20.sticks_0.leftY - 64) * Q12(0.4f) / 64) * Q12(1.0f) / 200) + Q12(15.36f);
+#endif
                     }
                     else if (D_800AF216 != 0)
                     {
@@ -396,7 +431,11 @@ void func_80070B84(s_SubCharacter* player, q19_12 moveDistMax, q19_12 arg2, s32 
 
     if (!D_800AF216)
     {
+#ifdef SH_PC_PORT
+        stickY = Pc_StickMoveDeflection();
+#else
         stickY = ABS(g_Controller0->sticks_20.sticks_0.leftY);
+#endif
     }
     else
     {
@@ -441,7 +480,11 @@ void func_80070CF0(s_SubCharacter* player, q19_12 arg1, q19_12 moveDistMax, q19_
         if ((player->model.anim.keyframeIdx >= 40 && player->model.anim.keyframeIdx < 46) ||
             (player->model.anim.keyframeIdx >= 30 && player->model.anim.keyframeIdx < 36))
         {
+#ifdef SH_PC_PORT
+            stickY      = D_800AF216 ? D_800AF216 : Pc_StickMoveDeflection();
+#else
             stickY      = D_800AF216 ? D_800AF216 : ABS(g_Controller0->sticks_20.sticks_0.leftY);
+#endif
             moveDistMax = arg1 + ((moveDistMax - arg1) * (stickY - 64) / 64);
         }
     }
@@ -7556,7 +7599,11 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
             {
                 if (g_Controller0->sticks_20.sticks_0.leftY <= -STICK_THRESHOLD)
                 {
+#ifdef SH_PC_PORT
+                    D_800AF216 = Pc_StickMoveDeflection();
+#else
                     D_800AF216 = ABS(g_Controller0->sticks_20.sticks_0.leftY);
+#endif
                     func_80070B84(player, Q12(0.75f), Q12(1.4f), 2);
                 }
                 // Stopped walking.
@@ -7706,7 +7753,11 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
 
             if (g_Controller0->sticks_20.sticks_0.leftY <= -STICK_THRESHOLD)
             {
+#ifdef SH_PC_PORT
+                D_800AF216 = Pc_StickMoveDeflection();
+#else
                 D_800AF216 = ABS(g_Controller0->sticks_20.sticks_0.leftY);
+#endif
 
                 speedX = GET_MOVE_SPEED(speedZoneType);
 
@@ -8005,7 +8056,11 @@ void Player_LowerBodyUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0x8
             // Walking backward.
             else if (g_Controller0->sticks_20.sticks_0.leftY >= STICK_THRESHOLD)
             {
+#ifdef SH_PC_PORT
+                D_800AF216 = Pc_StickMoveDeflection();
+#else
                 D_800AF216 = ABS(g_Controller0->sticks_20.sticks_0.leftY);
+#endif
                 func_80070B84(player, Q12(0.75f), Q12(1.15f), 2);
             }
             // Stop walking backward.
