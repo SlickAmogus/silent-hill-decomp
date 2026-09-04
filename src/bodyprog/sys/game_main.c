@@ -2106,6 +2106,75 @@ void GameState_Boot_Update(void) // 0x80032D1C
 extern void GsSortOt_GetSubrootBounds(uintptr_t* lo, uintptr_t* hi);
 #endif
 
+/* ---- world GTE anchor ------------------------------------------------------
+ * Console vertical anchor. Disassembled 2026-08-29: GsInit3D (0x8009543C)
+ * computes POSITION = (HWD0/2, VWD0/2) = (160, 112) and GsSetDrawBuffOffset
+ * adds the draw buffer's VRAM origin, so console's OFY is 112 plus wherever
+ * the back buffer sits; the +8 here compensates for how PsyCross carries that
+ * origin instead, validated on screen (and re-validated after the GsIDMATRIX2
+ * fix). The knobs (vshift/cutshift) are deltas ON TOP of the anchor.
+ *
+ * One implementation, two consumers:
+ *  - Gfx_InGameDraw asserts this at the MOMENT the world is projected. The
+ *    end-of-frame assert in MainLoop lands one frame late by construction
+ *    (the state update projects everything before it runs), and any 0<->8
+ *    transition leaked one world frame at the stale value -- the 8-row upward
+ *    flick on every common-pickup confirm.
+ *  - MainLoop's assert still runs every frame as the baseline every OTHER
+ *    projection inherits (the pickup item pass, menus, item screens), with
+ *    the take-screen zero exemption applied there and only there.
+ *
+ * Branch semantics (moved verbatim from the old in-loop block):
+ *  - Gameplay, no pickup: cutscenes take base+cutshift; every gameplay camera
+ *    takes base+vshift (one offset for ALL camera types -- the fixed/chase
+ *    split made framing jump between camera types); the result is HELD.
+ *  - Any other InGame state renders the world too (examine, door, inventory,
+ *    pause) and must not jump, so it returns the held value -- EXCEPT during
+ *    a cutscene/letterbox, which owns its framing (the alley-match-scene bars
+ *    fault, 161b950d4): those take base+cutshift so the world stays under the
+ *    2D bars.
+ *  - Outside InGame, the clean baseline. */
+#define PC_GTE_BASE_OFY 8
+static s32 s_heldWorldOfy = PC_GTE_BASE_OFY;
+
+s32 Pc_WorldAnchorOfy(void)
+{
+    extern int   g_PsxCutsceneActive;
+    extern float g_PsxCutsceneVShift;
+    extern float g_PsxWorldVShift;
+    extern int   g_PcPickupItemActive;
+
+    if (g_GameWork.gameState == GameState_InGame &&
+        g_SysWork.sysState == SysState_Gameplay &&
+        !g_PcPickupItemActive)
+    {
+        s32 ofy = PC_GTE_BASE_OFY;
+
+        if (g_PsxCutsceneActive)
+        {
+            ofy = PC_GTE_BASE_OFY + (s32)g_PsxCutsceneVShift;
+        }
+        else if (!g_DebugThirdPersonCam)
+        {
+            ofy = PC_GTE_BASE_OFY + (s32)g_PsxWorldVShift;
+        }
+        s_heldWorldOfy = ofy;
+        return ofy;
+    }
+
+    if (g_GameWork.gameState == GameState_InGame)
+    {
+        if (g_PsxCutsceneActive ||
+            g_SysWork.cutsceneBorderState != CutsceneBorderState_None)
+        {
+            return PC_GTE_BASE_OFY + (s32)g_PsxCutsceneVShift;
+        }
+        return s_heldWorldOfy;
+    }
+
+    return PC_GTE_BASE_OFY;
+}
+
 void MainLoop(void) // 0x80032EE0
 {
     #define TICKS_PER_SECOND_MIN (TICKS_PER_SECOND / 4)
@@ -3277,103 +3346,48 @@ void MainLoop(void) // 0x80032EE0
              * This block runs every frame in every state, so the base lives here
              * (the GsInit3D boot value is stomped by this assert). The knobs
              * (vshift/cutshift) are deltas ON TOP of the anchor. */
-#define PC_GTE_BASE_OFY 8
-            static s32   s_heldWorldOfy = PC_GTE_BASE_OFY;
-            s32 ofy = PC_GTE_BASE_OFY;
+            /* The anchor VALUE lives in Pc_WorldAnchorOfy() above MainLoop --
+             * one implementation, shared with the world-submission assert in
+             * Gfx_InGameDraw. What this end-of-frame assert still owns is the
+             * ITEM-PASS EXEMPTION: during a pickup, the value set here is what
+             * the item pass projects with on the NEXT frame (the state update
+             * runs before this assert, so everything it projects uses the
+             * previous frame's value).
+             *
+             * The pickup/take screen gets the ZERO baseline -- do not
+             * re-litigate this (it has flip-flopped twice):
+             * 91d76eb07 set it to s_heldWorldOfy "to align with the
+             * frozen backdrop", and users reported every fixed-angle
+             * room's pickup item ~20 units too low. The +20 vshift is a
+             * FIX_ANG WORLD-camera band-aid (f85505514: clipped "by the
+             * projection, not the display; other camera modes are
+             * unaffected"); the take screen stages its own camera and
+             * projection (GsSetProjection(1000)), which never had the
+             * quirk -- on PSX both world and item ran at offset 0. The
+             * backdrop's +20 world render already reproduces the PSX
+             * world image, so item-at-0 reproduces the PSX composite.
+             * ANCHOR EXEMPTION (2026-08-25): the take screen keeps
+             * literal 0 rather than PC_GTE_BASE_OFY -- its item/backdrop
+             * layout was validated repeatedly under this value and the
+             * backdrop is a screen-space capture that does not move
+             * with the GTE anchor. Do not re-litigate.
+             *
+             * The exemption is gated on the world NOT being live-drawn: on the
+             * boundary frames of a common pickup the world still renders while
+             * the flag is up, and a 0 here used to reach the next frame's
+             * world projection -- the 8-row upward flick on pickup confirm.
+             * The world projection no longer reads this assert at all (it
+             * re-asserts its own anchor in Gfx_InGameDraw), so this gate only
+             * decides what the item pass inherits. */
+            s32 ofy = Pc_WorldAnchorOfy();
 
             if (g_GameWork.gameState == GameState_InGame &&
-                g_SysWork.sysState == SysState_Gameplay &&
-                !g_PcPickupItemActive)
+                g_PcPickupItemActive &&
+                !g_PcWorldDrawnThisFrame &&
+                !g_PsxCutsceneActive &&
+                g_SysWork.cutsceneBorderState == CutsceneBorderState_None)
             {
-                if (g_PsxCutsceneActive)
-                {
-                    ofy = PC_GTE_BASE_OFY + (s32)g_PsxCutsceneVShift;
-                }
-                else if (!g_DebugThirdPersonCam)
-                {
-                    /* Applies to EVERY gameplay camera, not just VC_MV_FIX_ANG.
-                     * The fixed/chase split made framing jump between camera
-                     * types (and "fixed" shots slide anyway), so one offset is
-                     * used throughout; alt cams replace the camera entirely. */
-                    ofy = PC_GTE_BASE_OFY + (s32)g_PsxWorldVShift;
-                }
-                s_heldWorldOfy = ofy;
-            }
-            else if (g_GameWork.gameState == GameState_InGame)
-            {
-                /* Every other InGame state holds the gameplay offset rather than
-                 * recomputing it. The original has no per-state offset at all, so the
-                 * framing has to stay put across an examine, a door, the inventory, the
-                 * pause screen — anything that keeps the world on screen while something
-                 * runs over it.
-                 *
-                 * Enumerating states was the wrong shape and kept missing one: gating on
-                 * Gameplay alone jumped on every examine, adding ReadMessage still jumped
-                 * on the event-callback examines (locked doors, puzzles, key items), and
-                 * fixing those left the inventory and door transitions jumping. They are
-                 * all the same bug — a non-gameplay state that still renders the world.
-                 *
-                 * Safe to hold here because this offset only ever describes the WORLD
-                 * render: every screen that projects its own 3D sets its own centre
-                 * first (the inventory carousel in item_screens_cam.c, the effect passes
-                 * in bodyprog_80055028.c), so none of them inherit this value.
-                 *
-                 * EXCEPT during a cutscene, which owns its own framing. The Gameplay
-                 * branch above has always zeroed the shift for those (g_PsxCutsceneActive)
-                 * and the hold has to agree, or a cutscene that runs outside
-                 * SysState_Gameplay keeps the last gameplay shift and moves the world out
-                 * from under the letterbox bars — the bars are 2D at fixed screen Y and do
-                 * not move with it. That is the exact fault 161b950d4 fixed for the alley
-                 * match scene ("drew its letterbox bars shifted up by the gameplay
-                 * fixed-cam vshift, revealing the scene's own bar underneath"), and
-                 * generalising the hold reintroduced it for the map6_s04 Cybil scene.
-                 * Border state counts as well as the cutscene flag, so a cinematic zoom
-                 * letterbox is covered the same way that fix gated it. */
-                if (g_PsxCutsceneActive ||
-                    g_SysWork.cutsceneBorderState != CutsceneBorderState_None)
-                {
-                    /* Anchor baseline, plus whatever `cutshift` dials in. It stays 0
-                     * by default, so the letterbox agreement described above is
-                     * unchanged: a non-zero value moves the world AND is the thing
-                     * being measured, so the bars are re-checked at whatever value
-                     * gets baked in. */
-                    ofy = PC_GTE_BASE_OFY + (s32)g_PsxCutsceneVShift;
-                }
-                else if (g_PcPickupItemActive)
-                {
-                    /* The pickup/take screen gets the ZERO baseline -- do not
-                     * re-litigate this (it has flip-flopped twice):
-                     * 91d76eb07 set it to s_heldWorldOfy "to align with the
-                     * frozen backdrop", and users reported every fixed-angle
-                     * room's pickup item ~20 units too low. The +20 vshift is a
-                     * FIX_ANG WORLD-camera band-aid (f85505514: clipped "by the
-                     * projection, not the display; other camera modes are
-                     * unaffected"); the take screen stages its own camera and
-                     * projection (GsSetProjection(1000)), which never had the
-                     * quirk -- on PSX both world and item ran at offset 0. The
-                     * backdrop's +20 world render already reproduces the PSX
-                     * world image, so item-at-0 reproduces the PSX composite.
-                     * ANCHOR EXEMPTION (2026-08-25): the take screen keeps
-                     * literal 0 rather than PC_GTE_BASE_OFY -- its item/backdrop
-                     * layout was validated repeatedly under this value and the
-                     * backdrop is a screen-space capture that does not move
-                     * with the GTE anchor. Do not re-litigate.
-                     *
-                     * ...for the take/item PRESENTATION, that is. On the
-                     * boundary frames of a common pickup the flag is armed
-                     * while the WORLD still renders live (the freeze and the
-                     * item pass are not up yet), and 0 there moved the whole
-                     * scene up by the 8-row anchor for a frame or two -- the
-                     * flick on every ammo pickup confirm. A live world keeps
-                     * the held anchor; only frames where the world is not
-                     * drawn (the item pass over the frozen backdrop) take the
-                     * validated 0. */
-                    ofy = g_PcWorldDrawnThisFrame ? s_heldWorldOfy : 0;
-                }
-                else
-                {
-                    ofy = s_heldWorldOfy;
-                }
+                ofy = 0;
             }
 
             SetGeomOffset(0, ofy);
