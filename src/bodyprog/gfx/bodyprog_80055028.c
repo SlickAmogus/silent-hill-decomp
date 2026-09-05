@@ -59,21 +59,14 @@ static s16 Pc_OverlayQuadHalfW(void)
  * synthesises `int f()` at the call site and then rejects the real
  * definition as a conflicting type; GCC only warns. */
 void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
-/* PSX uses fogFarDistance as a draw-distance cull (don't render what the fog is
- * meant to fully hide). disableCulling is ANGLE culling (widescreen edge polys,
- * handled by halfW = 0x3FFF below) -- it must NOT also lift the far-distance cull
- * to infinity. Doing so drew the band of geometry between fog.farDistance and the
- * per-poly far drop (~61u): the fog ramp does not saturate until beyond
- * fog.farDistance, so that band renders only PARTIALLY fogged and reads as
- * distant trees/street-lights/level bits sitting a shade brighter than the fog --
- * exactly what PSX culled so it never showed (reported, and the real cause behind
- * the earlier "one shade off" fog fixes, which only touched full-fog rounding).
- *
- * Cap the far draw at fog.farDistance by default. Seeing further is still opt-in:
- * draw_distance_pct > 100 restores the uncapped reach, and turning fog distance up
- * raises fog.farDistance itself (see g_PcFogDistScalePct below), so the far
- * geometry stays fogged appropriately as it is revealed. */
-#define FOG_FAR_DIST() ((g_PcConfig.disableCulling && g_PcConfig.drawDistancePct > 100) ? 0x7FFFFFFF : g_WorldEnvWork.fog.farDistance)
+/* When culling is disabled, ignore fog-based draw distance clamp.
+ * PSX uses fogFarDistance as a draw distance optimization (don't render
+ * what fog fully hides). On PC we want everything to render and let
+ * fog visually obscure it instead of culling geometry. The shader fog now
+ * dissolves fully-fogged geometry to exactly the void colour (PsyCross
+ * GPU_DITHERING_NO_VCOLOR fades dither/quantize with fog), so drawing past
+ * the fog plane no longer leaves a shade-off band -- no distance cull needed. */
+#define FOG_FAR_DIST() (g_PcConfig.disableCulling ? 0x7FFFFFFF : g_WorldEnvWork.fog.farDistance)
 
 /* Per-poly far drop. The base 0x79C shifted by (shift+2) is ~61u, and it -- not
  * chunk residency, not the cull predicate -- is what actually ends the view:
