@@ -32,6 +32,7 @@
 #include "pc_mouse_cursor.h"
 #include "pc_config.h"
 #include "pc_cheats.h"
+#include "control_style.h"
 #include "sh_log.h"
 
 /* options.c: the live-applying rows of the PC Options screen, by config key. */
@@ -44,7 +45,9 @@ extern int         PcOpt_QuickRealtime(const void* h);
  * enum there -- these are indices into its switch, nothing more. */
 enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT,
-       QO_X_CUTSHIFT };
+       QO_X_CUTSHIFT,
+       QO_X_TPSFOV, QO_X_FPSFOV,
+       QO_X_FPSHEADX, QO_X_FPSHEADY, QO_X_FPSHEADZ, QO_X_FPSSWING };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(void);
@@ -143,9 +146,35 @@ static const QoRowDef s_page2Advanced[] = {
     { ROW_CLOSE,  NULL, 0,                 "Close" },
 };
 
-/* Set when the row SET changes under the cached text (a Control Type switch,
- * or a reset that flips it back). Every label is cached by row index, so the
- * page has to re-bake or Advanced's extra rows would draw Simple's words. */
+/* Thirdperson (TPS/OTS) and Firstperson (FPS) shapes. The classic aspect/pixel
+ * knobs are meaningless for the dynamic cameras -- they follow Harry in 3D -- so
+ * these show only what that camera actually reads: its FOV, and for FPS the eye
+ * position and the melee-swing pullback. The View page auto-follows the active
+ * camera, so the block you see matches the camera you are using. */
+static const QoRowDef s_page2Tps[] = {
+    { ROW_EXTRA,  NULL, QO_X_TPSFOV,       "FOV" },
+    { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
+    { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
+    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
+    { ROW_CLOSE,  NULL, 0,                 "Close" },
+};
+
+static const QoRowDef s_page2Fps[] = {
+    { ROW_EXTRA,  NULL, QO_X_FPSFOV,       "FOV" },
+    { ROW_EXTRA,  NULL, QO_X_FPSHEADX,     "Head X (left/right)" },
+    { ROW_EXTRA,  NULL, QO_X_FPSHEADY,     "Head Y (up/down)" },
+    { ROW_EXTRA,  NULL, QO_X_FPSHEADZ,     "Head Z (fwd/back)" },
+    { ROW_EXTRA,  NULL, QO_X_FPSSWING,     "Melee Swing Pullback" },
+    { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
+    { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
+    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
+    { ROW_CLOSE,  NULL, 0,                 "Close" },
+};
+
+/* Set when the row SET changes under the cached text (a Control Type switch, a
+ * reset that flips it back, or the active camera changing while the page is up).
+ * Every label is cached by row index, so the page has to re-bake or one shape's
+ * extra rows would draw another shape's words. */
 static int s_viewRowsDirty;
 
 void Pc_QuickOptions_InvalidateRows(void)
@@ -153,8 +182,44 @@ void Pc_QuickOptions_InvalidateRows(void)
     s_viewRowsDirty = 1;
 }
 
+/* Which camera's settings the View page shows. Auto-follows the live camera:
+ * FPS when first-person, Thirdperson for TPS/OTS, else the Classic aspect page. */
+enum { QO_CAM_CLASSIC = 0, QO_CAM_THIRD, QO_CAM_FPS };
+static int qo_view_cam_mode(void)
+{
+    extern int g_PcFpsCam;
+    if (g_PcFpsCam || g_ControlStyle == ControlStyle_Fps) return QO_CAM_FPS;
+    if (g_ControlStyle == ControlStyle_Tps ||
+        g_ControlStyle == ControlStyle_Ots) return QO_CAM_THIRD;
+    return QO_CAM_CLASSIC;
+}
+
 static const QoRowDef* qo_view_page(int* count)
 {
+    int mode = qo_view_cam_mode();
+
+    /* Re-bake the cached labels when the active camera changes the row set out
+     * from under them (the page is fetched every frame; the mode can flip while
+     * it is open if the player switches camera). */
+    {
+        static int s_lastViewMode = -1;
+        if (mode != s_lastViewMode)
+        {
+            s_lastViewMode = mode;
+            s_viewRowsDirty = 1;
+        }
+    }
+
+    if (mode == QO_CAM_FPS)
+    {
+        *count = (int)(sizeof(s_page2Fps) / sizeof(s_page2Fps[0]));
+        return s_page2Fps;
+    }
+    if (mode == QO_CAM_THIRD)
+    {
+        *count = (int)(sizeof(s_page2Tps) / sizeof(s_page2Tps[0]));
+        return s_page2Tps;
+    }
     if (g_PcConfig.aspectRaw)
     {
         *count = (int)(sizeof(s_page2Advanced) / sizeof(s_page2Advanced[0]));
@@ -247,6 +312,7 @@ static int    s_valueW[QO_MAX_ROWS], s_valueH[QO_MAX_ROWS];
 static char   s_valueText[QO_MAX_ROWS][48];
 static int    s_bakedForPx;
 static int    s_bakedForPage = -1;
+static int    s_bakedForViewMode = -2; /* view page's baked camera mode (-1 = n/a) */
 
 /* Geometry published by Draw for Update's mouse hit-test (viewport px, y up). */
 static float s_vpW = 1920.0f, s_vpH = 1080.0f;
@@ -1600,14 +1666,32 @@ void Pc_QuickOptions_Draw(void)
     px       = (int)(rowH * 0.52f);
     if (px < 8) px = 8;
 
-    if (s_bakedForPx != px || s_bakedForPage != s_page)
     {
-        qo_free_text();
-        s_bakedForPx   = px;
-        s_bakedForPage = s_page;
+        /* The View page (2) titles by the active camera, which can change while
+         * the page is open, so key the bake on it too and re-bake on a switch. */
+        int viewMode = (s_page == 2) ? qo_view_cam_mode() : -1;
+        if (s_bakedForPx != px || s_bakedForPage != s_page || s_bakedForViewMode != viewMode)
+        {
+            qo_free_text();
+            s_bakedForPx       = px;
+            s_bakedForPage     = s_page;
+            s_bakedForViewMode = viewMode;
+        }
     }
     if (!s_texTitle)
-        s_texTitle = qo_bake(s_pageTitles[s_page], (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
+    {
+        const char* title = s_pageTitles[s_page];
+        char titleBuf[64];
+        if (s_page == 2)
+        {
+            int m = qo_view_cam_mode();
+            snprintf(titleBuf, sizeof(titleBuf), "QUICK OPTIONS  -  VIEW  (%s)",
+                     (m == QO_CAM_FPS)   ? "Firstperson" :
+                     (m == QO_CAM_THIRD) ? "Thirdperson" : "Classic");
+            title = titleBuf;
+        }
+        s_texTitle = qo_bake(title, (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
+    }
     /* Controls footer. It used to run off-screen at some panel widths, so bake
      * it once at the natural size and, if it overflows, re-bake once scaled to
      * fit -- the text always ends up inside the panel whatever its width. */

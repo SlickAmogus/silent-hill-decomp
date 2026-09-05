@@ -235,8 +235,8 @@ static const s_PcOpt PCOPT_C[] = {
      * still loads from config.cfg (pc_config.c) for anyone who wants instant snap. */
     { "Mouse_Sensitivity", NULL, "mouse_sensitivity",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.mouseSensitivity,      NULL, 0.1f, 4.0f, 0.1f },
     { "Pad_Sensitivity",   NULL, "controller_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.controllerSensitivity, NULL, 0.1f, 4.0f, 0.1f },
-    { "First_Person_FOV",  NULL, "fps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fpsFov,                NULL, 55.0f, 110.0f, 1.0f },
-    { "Third_Person_FOV",  NULL, "tps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsFov,                NULL, 55.0f, 110.0f, 1.0f },
+    { "First_Person_FOV",  NULL, "fps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fpsFov,                NULL, 40.0f, 140.0f, 1.0f },
+    { "Third_Person_FOV",  NULL, "tps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsFov,                NULL, 40.0f, 140.0f, 1.0f },
     { "Invert_Mouse_Y",    &g_PcConfig.invertMouseY,      "invert_mouse_y",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     /* A graphics option living on the Controls page purely for room: 11 rows is
@@ -527,7 +527,12 @@ void PcOpt_QuickAdjust(const void* h, int dir)
  * volumes (main Options menu rows). Same apply paths as those screens. */
 enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT,
-       QO_X_CUTSHIFT };
+       QO_X_CUTSHIFT,
+       /* Per-camera view rows (shown by the View page for the active camera):
+        * Thirdperson/FPS FOV, and the FPS eye position + melee-swing pullback.
+        * Keep IDENTICAL to the mirror enum in pc_quick_options.c. */
+       QO_X_TPSFOV, QO_X_FPSFOV,
+       QO_X_FPSHEADX, QO_X_FPSHEADY, QO_X_FPSHEADZ, QO_X_FPSSWING };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -581,6 +586,28 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
     case QO_X_CUTSHIFT:
         snprintf(buf, bufsz, "%+d rows", (int)g_PcConfig.cutsceneVShift);
         return buf;
+    case QO_X_TPSFOV:
+        snprintf(buf, bufsz, "%.0f%s", g_PcConfig.tpsFov,
+                 (g_PcConfig.tpsFov > 71.0f && g_PcConfig.tpsFov < 71.2f) ? " (default)" : "");
+        return buf;
+    case QO_X_FPSFOV:
+        snprintf(buf, bufsz, "%.0f%s", g_PcConfig.fpsFov,
+                 (g_PcConfig.fpsFov > 71.0f && g_PcConfig.fpsFov < 71.2f) ? " (default)" : "");
+        return buf;
+    case QO_X_FPSHEADX:
+        snprintf(buf, bufsz, "%+d", g_PcConfig.fpsHeadX);
+        return buf;
+    case QO_X_FPSHEADY:
+        /* Stored PSX-down; show as up-positive so "+" reads as "raise the eye". */
+        snprintf(buf, bufsz, "%+d", -g_PcConfig.fpsHeadY);
+        return buf;
+    case QO_X_FPSHEADZ:
+        snprintf(buf, bufsz, "%+d", g_PcConfig.fpsHeadZ);
+        return buf;
+    case QO_X_FPSSWING:
+        if (g_PcConfig.fpsMeleeSwing <= 0.0001f) return "Off";
+        snprintf(buf, bufsz, "%.2f", g_PcConfig.fpsMeleeSwing);
+        return buf;
     default:
         return "";
     }
@@ -610,6 +637,23 @@ static void PcOpt_ViewStep(float* cfg, float* live, const char* key,
            key, buf, g_PcConfig.aspectRaw ? "raw" : "crt", g_PcConfig.crtAspectTrim,
            g_PcConfig.worldHScale, g_PcConfig.worldVScale,
            (int)g_PcConfig.worldVShift, g_PcConfig.pixelAspect);
+    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+}
+
+/* FPS eye-position axes: step the config field AND the live g_PcFpsOffset
+ * together (the camera reads the live global every frame, config persists it),
+ * clamp, and save. Q12 in Harry's body frame -- same units the numpad debug
+ * keys nudge, so a menu value reproduces a baked value exactly. */
+static void PcOpt_FpsHeadStep(int* cfg, int* live, const char* key, int delta)
+{
+    char buf[24];
+    int v = *cfg + delta;
+    if (v < -20000) v = -20000;
+    if (v >  20000) v =  20000;
+    *cfg = v;
+    if (live) *live = v;
+    snprintf(buf, sizeof(buf), "%d", v);
+    PcConfig_SaveKeyValue(key, buf);
     Sd_PlaySfx(Sfx_MenuMove, 0, 64);
 }
 
@@ -658,6 +702,33 @@ void PcOpt_QuickViewReset(void)
     PcConfig_SaveKeyValue("world_vshift", buf);
     snprintf(buf, sizeof(buf), "%.0f", g_PcConfig.cutsceneVShift);
     PcConfig_SaveKeyValue("cutscene_vshift", buf);
+
+    /* Per-camera view settings reset with the page too, so the reset is complete
+     * whichever camera you are in when you press it. */
+    {
+        extern VECTOR3 g_PcFpsOffset;
+        g_PcConfig.fpsFov       = d->fpsFov;
+        g_PcConfig.tpsFov       = d->tpsFov;
+        g_PcConfig.fpsHeadX     = d->fpsHeadX;
+        g_PcConfig.fpsHeadY     = d->fpsHeadY;
+        g_PcConfig.fpsHeadZ     = d->fpsHeadZ;
+        g_PcConfig.fpsMeleeSwing = d->fpsMeleeSwing;
+        g_PcFpsOffset.vx = d->fpsHeadX;
+        g_PcFpsOffset.vy = d->fpsHeadY;
+        g_PcFpsOffset.vz = d->fpsHeadZ;
+        snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.fpsFov);
+        PcConfig_SaveKeyValue("fps_fov", buf);
+        snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.tpsFov);
+        PcConfig_SaveKeyValue("tps_fov", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.fpsHeadX);
+        PcConfig_SaveKeyValue("fps_head_x", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.fpsHeadY);
+        PcConfig_SaveKeyValue("fps_head_y", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.fpsHeadZ);
+        PcConfig_SaveKeyValue("fps_head_z", buf);
+        snprintf(buf, sizeof(buf), "%.2f", g_PcConfig.fpsMeleeSwing);
+        PcConfig_SaveKeyValue("fps_melee_swing", buf);
+    }
 
     Pc_QuickOptions_InvalidateRows();
     Sd_PlaySfx(Sfx_MenuMove, 0, 64);
@@ -794,6 +865,33 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         SD_Call(Sfx_MenuMove);
         break;
     }
+    case QO_X_TPSFOV:
+        /* No live global: Pc_CameraFov_Update reads g_PcConfig.tpsFov per frame. */
+        PcOpt_ViewStep(&g_PcConfig.tpsFov, NULL, "tps_fov", 40.0f, 140.0f, 1.0f, dir, 2);
+        break;
+    case QO_X_FPSFOV:
+        PcOpt_ViewStep(&g_PcConfig.fpsFov, NULL, "fps_fov", 40.0f, 140.0f, 1.0f, dir, 2);
+        break;
+    case QO_X_FPSHEADX: {
+        extern VECTOR3 g_PcFpsOffset;
+        PcOpt_FpsHeadStep(&g_PcConfig.fpsHeadX, (int*)&g_PcFpsOffset.vx, "fps_head_x", dir * 64);
+        break;
+    }
+    case QO_X_FPSHEADY: {
+        /* Displayed up-positive; stored PSX-down, so a "+" press lowers fpsHeadY. */
+        extern VECTOR3 g_PcFpsOffset;
+        PcOpt_FpsHeadStep(&g_PcConfig.fpsHeadY, (int*)&g_PcFpsOffset.vy, "fps_head_y", -dir * 64);
+        break;
+    }
+    case QO_X_FPSHEADZ: {
+        extern VECTOR3 g_PcFpsOffset;
+        PcOpt_FpsHeadStep(&g_PcConfig.fpsHeadZ, (int*)&g_PcFpsOffset.vz, "fps_head_z", dir * 64);
+        break;
+    }
+    case QO_X_FPSSWING:
+        /* No live global: the FPS camera reads g_PcConfig.fpsMeleeSwing per frame. */
+        PcOpt_ViewStep(&g_PcConfig.fpsMeleeSwing, NULL, "fps_melee_swing", 0.0f, 1.0f, 0.05f, dir, 2);
+        break;
     default:
         break;
     }

@@ -226,9 +226,18 @@ typedef struct {
     float minimapOpacity;    /* minimap opacity percentage, 0..100 (config key: minimap_opacity); default 100 */
     int   adsr;             /* 1 = SPU ADSR envelopes (instrument attack/release fades in sequenced BGM); default 1 (config key: adsr) */
     int   audioOutput;      /* speaker layout: 0 = auto (OpenAL detects the system layout; alsoft.ini honored), 1 = stereo, 2 = quad, 3 = 5.1, 4 = 7.1, 5 = hrtf headphones. With rear speakers active: positional SFX pan on the full circle, wide-stereo BGM layers play from the surrounds (config key: audio_output = auto|stereo|quad|51|71|hrtf) */
-    float fpsFov;           /* first-person horizontal FOV in degrees (4:3 basis), 55..110; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during FPS gameplay (config key: fps_fov) */
-    float tpsFov;           /* Thirdperson/OTS horizontal FOV in degrees (4:3 basis), 55..110; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during TPS/OTS gameplay — the Classic camera always keeps the original projection (config key: tps_fov) */
+    float fpsFov;           /* first-person horizontal FOV in degrees (4:3 basis), 40..140; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during FPS gameplay (config key: fps_fov) */
+    float tpsFov;           /* Thirdperson/OTS horizontal FOV in degrees (4:3 basis), 40..140; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during TPS/OTS gameplay — the Classic camera always keeps the original projection (config key: tps_fov) */
     float tpsAimZoom;       /* "TPS/OTS Aim Zoom": how far the TPS/OTS camera dollies in while aiming, as a percentage of the zoom range, 0..200. 100 (default) = the original full zoom, 200 = a deeper 2x zoom, 0 = no zoom at all. Replaces the old tps_aim_zoom on/off key (config key: tps_aim_zoom_amount) */
+    /* First-person eye position, the baseline for g_PcFpsOffset (a LOCAL offset in
+     * Harry's body frame, Q12): vx = right(+), vy = up(-, PSX +Y is down), vz =
+     * forward(+). Head-follow sway rides on top at runtime. Tunable in the View
+     * quick-options page while in FPS, and via the numpad debug keys. Baseline
+     * {-29, -6836, 919}. Config keys: fps_head_x, fps_head_y, fps_head_z. */
+    int   fpsHeadX;
+    int   fpsHeadY;
+    int   fpsHeadZ;
+    float fpsMeleeSwing;    /* FPS melee-swing camera pullback cap in world units, 0..1; default 0.5, 0 = off. How far the eye dollies back when Harry raises his arms to swing (config key: fps_melee_swing) */
     /* display_aspect: 0 = crt (stretch the framebuffer to 4:3, as a television
      * does, the default), 1 = raw (the framebuffer at the `par` knob's pixel
      * aspect, faithful to the game's own numbers). */

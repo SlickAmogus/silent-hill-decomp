@@ -887,8 +887,10 @@ static void Pc_TpsCamera_Apply(void)
              * pulled position keeps the dolly out of level geometry behind the eye. */
             {
                 #define SWING_PULL_NEAR Q12(0.55f) /* arm distance where the dolly starts */
-                #define SWING_PULL_MAX  Q12(0.50f) /* dolly cap */
                 #define SWING_PULL_WALL Q12(0.15f) /* keep-out margin from level geometry */
+                /* Dolly cap is player-tunable (View & Aspect page / config
+                 * fps_melee_swing, 0..1 world units); 0 disables the pullback. */
+                const s32 swingPullMax = (s32)(g_PcConfig.fpsMeleeSwing * 4096.0f);
                 s32 target = 0;
 
                 if (g_SysWork.playerCombat.weaponAttack != NO_VALUE &&
@@ -914,7 +916,7 @@ static void Pc_TpsCamera_Apply(void)
                         /* 1.5x gain: bone origins (elbow/wrist) sit past the mesh
                          * surface that actually fills the view. */
                         target = (SWING_PULL_NEAR - minDist) + ((SWING_PULL_NEAR - minDist) >> 1);
-                        if (target > SWING_PULL_MAX) target = SWING_PULL_MAX;
+                        if (target > swingPullMax) target = swingPullMax;
                     }
                 }
 
@@ -955,7 +957,6 @@ static void Pc_TpsCamera_Apply(void)
                     tpCamPos.vz -= (s32)((s64)pull * fwdZ >> 12);
                 }
                 #undef SWING_PULL_NEAR
-                #undef SWING_PULL_MAX
                 #undef SWING_PULL_WALL
             }
 

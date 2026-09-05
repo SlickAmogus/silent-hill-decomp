@@ -104,6 +104,10 @@ s_PcConfig g_PcConfig = {
     .fpsFov              = 71.1f, /* first-person FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
     .tpsFov              = 71.1f, /* thirdperson/OTS FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
     .tpsAimZoom          = 100.0f, /* default aim dolly = the original zoom; 200 = 2x zoom, 0 = no zoom */
+    .fpsHeadX            = -29,   /* FPS eye baseline, Harry body frame (Q12): right(+) */
+    .fpsHeadY            = -6836, /* up (PSX +Y is down, so negative = up) */
+    .fpsHeadZ            = 919,   /* forward(+) */
+    .fpsMeleeSwing       = 0.5f,  /* melee-swing camera pullback cap (world units); 0 = off */
     .reverbScale         = 0.0f, /* 0 = PsyCross default depth->wet scale */
     /* View & aspect. The console picture is NOT a 4:3 stretch of the 224-line
      * frame: the frame is scanned inside a larger visible area, and DuckStation
@@ -902,9 +906,19 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "tps_fov") == 0)
         {
             float v = (float)atof(value);
-            if (v < 55.0f)  v = 55.0f;
-            if (v > 110.0f) v = 110.0f;
+            if (v < 40.0f)  v = 40.0f;
+            if (v > 140.0f) v = 140.0f;
             g_PcConfig.tpsFov = v;
+        }
+        else if (strcmp(key, "fps_head_x") == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.fpsHeadX = v; }
+        else if (strcmp(key, "fps_head_y") == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.fpsHeadY = v; }
+        else if (strcmp(key, "fps_head_z") == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.fpsHeadZ = v; }
+        else if (strcmp(key, "fps_melee_swing") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 1.0f) v = 1.0f;
+            g_PcConfig.fpsMeleeSwing = v;
         }
         else if (strcmp(key, "tps_ots_aim") == 0)
         {
@@ -954,8 +968,8 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "fps_fov") == 0)
         {
             float v = (float)atof(value);
-            if (v < 55.0f)  v = 55.0f;
-            if (v > 110.0f) v = 110.0f;
+            if (v < 40.0f)  v = 40.0f;
+            if (v > 140.0f) v = 140.0f;
             g_PcConfig.fpsFov = v;
         }
         else if (strcmp(key, "crt_aspect_trim") == 0)
