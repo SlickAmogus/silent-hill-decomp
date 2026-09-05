@@ -606,46 +606,25 @@ void Pc_MinimapUpdate(void)
     round = (g_PcConfig.minimap == 2); /* 1 = square, 2 = circle */
 
     /* --- corner placement ---
-     * Vertical is always 4:3 (y -120..+120). Horizontally the port renders 2D at
-     * a Hor+ widescreen ortho, so on a wide window the true left/right screen
-     * edge sits past ±160 — widen `halfW` to reach it (same as dbg_overlay's
-     * collvis: halfW = 160 * winAspect/psxAspect). On 4:3 keep 160 and shrink
-     * the panel a touch. */
+     * Vertical is always 4:3 (y -120..+120). Horizontally, sit flush to the true
+     * screen edge by reading the exact centred half-width the WORLD ortho was set
+     * to (g_PcWorldOrthoHalfW, PSX units): 160 for 4:3 (pillarbox / stretch /
+     * narrow window) or wider for genuine Hor+. That is the renderer's own value,
+     * so the panel edge always matches the actual screen edge.
+     *
+     * This must NOT be re-derived from a window size. The renderer picks the
+     * ortho from the logical render size (g_windowWidth/Height), but a window
+     * query (SDL_GetWindowSize) returns the actual window, and in borderless the
+     * two differ -- e.g. a 640x480 render presented to a 1920x1080 desktop.
+     * Widening off SDL_GetWindowSize (1.78) while the ortho stayed 4:3 (+-160)
+     * pushed half the minimap off the right edge (borderless 4:3, pillarbox off).
+     * Shrink the panel a touch only when not widened, matching the old 4:3 look. */
     {
-        extern void PsyX_GetScreenSize(int* w, int* h);
-        /* The WORLD's framing, not the live flag: this function runs earlier
-         * in the frame than the world is submitted, so reading g_PcHorPlusEnabled
-         * picked up the 2D-screen value on menu frames and the panel jumped to
-         * the 4:3 spot for a frame on inventory close. */
-        extern int  g_PcWorldHorPlus;
-        extern int  g_PcWidescreenMode;
-
-        float psxA = (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT;
-        float winA;
-        int   sw = 0, sh = 0;
-        /* Widen halfW to the true screen edge ONLY for genuine Hor+ (mode 1),
-         * where GR_SetOffscreenState actually widens the 2D ortho past +-160.
-         *
-         * STRETCH (mode 2) and PILLARBOX (mode 0) both render the 4:3 ortho
-         * (x -160..+160); stretch fills the window with it, pillarbox letterboxes
-         * it. In BOTH the screen edge is AT +-160, so halfW must stay 160.
-         * g_PcWorldHorPlus is 1 for every gameplay frame regardless of mode (it
-         * means "3D gameplay", not "Hor+ on"), so the old `mode != 0` gate
-         * widened stretch too -- and on a borderless 4:3 resolution stretched to
-         * a wide desktop that pushed half the minimap off the right edge. Gate on
-         * mode == 1 to match the renderer, keeping the winA>psxA guard below so a
-         * 4:3 window in Hor+ mode is unaffected. */
-        int   stretched = (g_PcWorldHorPlus && g_PcWidescreenMode == 1);
-
-        /* Ask for the REAL backbuffer: the config width/height this used to read
-         * describe the windowed size and say nothing about the current
-         * fullscreen or borderless resolution. */
-        PsyX_GetScreenSize(&sw, &sh);
-        winA = (sw > 0 && sh > 0) ? (float)sw / (float)sh : psxA;
-
-        if (stretched && winA > psxA + 0.01f)
+        extern float g_PcWorldOrthoHalfW;
+        int worldHalf = (int)(g_PcWorldOrthoHalfW + 0.5f);
+        if (worldHalf > SCREEN_WIDTH / 2)
         {
-            halfW = (int)(160.0f * (winA / psxA) + 0.5f);
+            halfW = worldHalf;
         }
         else
         {
