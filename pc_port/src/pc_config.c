@@ -102,8 +102,18 @@ s_PcConfig g_PcConfig = {
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
     .audioOutput         = 0,    /* auto: OpenAL detects the system speaker layout */
     .fpsFov              = 71.1f, /* first-person FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
-    .tpsFov              = 71.1f, /* thirdperson/OTS FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
-    .tpsAimZoom          = 100.0f, /* default aim dolly = the original zoom; 200 = 2x zoom, 0 = no zoom */
+    .tpsFov              = 71.1f, /* thirdperson FOV; 71.1 = the game's own projection, no-op */
+    .tpsAimZoom          = 100.0f, /* aim dolly = the original zoom; 200 = closest, 0 = none, <0 = pull back */
+    .otsFov              = 71.1f, /* OTS FOV (separate from tpsFov); no-op default */
+    .otsAimZoom          = 100.0f, /* OTS aim dolly */
+    .tpsRestX            = 0,     /* TPS rest offset: centred */
+    .tpsRestY            = 0,
+    .tpsAimX             = 3686,  /* TPS aim offset X = Q12(0.9) (matches old OTS_OFFSET_AIM when tps_ots_aim on) */
+    .tpsAimY             = 0,
+    .otsRestX            = 2252,  /* OTS rest offset X = Q12(0.55) (old OTS_OFFSET) */
+    .otsRestY            = 0,
+    .otsAimX             = 3686,  /* OTS aim offset X = Q12(0.9) (old OTS_OFFSET_AIM) */
+    .otsAimY             = 0,
     .fpsHeadX            = -29,   /* FPS eye baseline, Harry body frame (Q12): right(+) */
     .fpsHeadY            = -6836, /* up (PSX +Y is down, so negative = up) */
     .fpsHeadZ            = 919,   /* forward(+) */
@@ -890,10 +900,32 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "tps_aim_zoom_amount") == 0)
         {
             float v = (float)atof(value);
-            if (v < 0.0f)   v = 0.0f;
-            if (v > 200.0f) v = 200.0f;
+            if (v < -200.0f) v = -200.0f;
+            if (v >  200.0f) v =  200.0f;
             g_PcConfig.tpsAimZoom = v;
         }
+        else if (strcmp(key, "ots_aim_zoom_amount") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < -200.0f) v = -200.0f;
+            if (v >  200.0f) v =  200.0f;
+            g_PcConfig.otsAimZoom = v;
+        }
+        else if (strcmp(key, "ots_fov") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 40.0f)  v = 40.0f;
+            if (v > 140.0f) v = 140.0f;
+            g_PcConfig.otsFov = v;
+        }
+        else if (strcmp(key, "tps_rest_x") == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.tpsRestX = v; }
+        else if (strcmp(key, "tps_rest_y") == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.tpsRestY = v; }
+        else if (strcmp(key, "tps_aim_x")  == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.tpsAimX  = v; }
+        else if (strcmp(key, "tps_aim_y")  == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.tpsAimY  = v; }
+        else if (strcmp(key, "ots_rest_x") == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.otsRestX = v; }
+        else if (strcmp(key, "ots_rest_y") == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.otsRestY = v; }
+        else if (strcmp(key, "ots_aim_x")  == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.otsAimX  = v; }
+        else if (strcmp(key, "ots_aim_y")  == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.otsAimY  = v; }
         else if (strcmp(key, "tps_aim_zoom") == 0)
         {
             /* Superseded by the tps_aim_zoom_amount slider. Kept so an existing

@@ -227,8 +227,24 @@ typedef struct {
     int   adsr;             /* 1 = SPU ADSR envelopes (instrument attack/release fades in sequenced BGM); default 1 (config key: adsr) */
     int   audioOutput;      /* speaker layout: 0 = auto (OpenAL detects the system layout; alsoft.ini honored), 1 = stereo, 2 = quad, 3 = 5.1, 4 = 7.1, 5 = hrtf headphones. With rear speakers active: positional SFX pan on the full circle, wide-stereo BGM layers play from the surrounds (config key: audio_output = auto|stereo|quad|51|71|hrtf) */
     float fpsFov;           /* first-person horizontal FOV in degrees (4:3 basis), 40..140; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during FPS gameplay (config key: fps_fov) */
-    float tpsFov;           /* Thirdperson/OTS horizontal FOV in degrees (4:3 basis), 40..140; default 71.1 = the game's OWN projection (H = gsScreenHeight = 224 on the 320-wide progressive frame), so the default is a no-op; applied ONLY during TPS/OTS gameplay — the Classic camera always keeps the original projection (config key: tps_fov) */
-    float tpsAimZoom;       /* "TPS/OTS Aim Zoom": how far the TPS/OTS camera dollies in while aiming, as a percentage of the zoom range, 0..200. 100 (default) = the original full zoom, 200 = a deeper 2x zoom, 0 = no zoom at all. Replaces the old tps_aim_zoom on/off key (config key: tps_aim_zoom_amount) */
+    float tpsFov;           /* Thirdperson horizontal FOV in degrees (4:3 basis), 40..140; default 71.1 = the game's OWN projection, a no-op; applied ONLY during TPS gameplay. OTS has its own otsFov (config key: tps_fov) */
+    float tpsAimZoom;       /* Thirdperson aim dolly, -200..200%. 0 = no zoom (rest distance), 100 (default) = the original zoom, 200 = as close as the camera goes; negative pulls the aim camera back (wider view while aiming) (config key: tps_aim_zoom_amount) */
+    float otsFov;           /* Over-the-Shoulder horizontal FOV in degrees, 40..140; default 71.1 (a no-op). Separate from tpsFov (config key: ots_fov) */
+    float otsAimZoom;       /* OTS aim dolly, -200..200%; same meaning as tpsAimZoom (config key: ots_aim_zoom_amount) */
+    /* Per-camera position offsets in the view frame (Q12): X = lateral along the
+     * right vector (shoulder side; g_OtsSide flips it), Y = vertical (shown +up in
+     * the menu; stored PSX-down). "Rest" = not aiming, "Aim" = aiming; the camera
+     * eases between them. The TPS aim offset applies only with tps_ots_aim on.
+     * Defaults reproduce the old hardcoded OTS_OFFSET (0.55) / OTS_OFFSET_AIM (0.9).
+     * Config keys: tps_rest_x/y, tps_aim_x/y, ots_rest_x/y, ots_aim_x/y. */
+    int   tpsRestX;
+    int   tpsRestY;
+    int   tpsAimX;
+    int   tpsAimY;
+    int   otsRestX;
+    int   otsRestY;
+    int   otsAimX;
+    int   otsAimY;
     /* First-person eye position, the baseline for g_PcFpsOffset (a LOCAL offset in
      * Harry's body frame, Q12): vx = right(+), vy = up(-, PSX +Y is down), vz =
      * forward(+). Head-follow sway rides on top at runtime. Tunable in the View

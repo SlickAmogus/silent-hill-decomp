@@ -47,10 +47,13 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT,
        QO_X_CUTSHIFT,
        QO_X_TPSFOV, QO_X_FPSFOV,
-       QO_X_FPSHEADX, QO_X_FPSHEADY, QO_X_FPSHEADZ, QO_X_FPSSWING };
+       QO_X_FPSHEADX, QO_X_FPSHEADY, QO_X_FPSHEADZ, QO_X_FPSSWING,
+       QO_X_OTSFOV, QO_X_TPSAIMZOOM, QO_X_OTSAIMZOOM, QO_X_TPSOTSAIM,
+       QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
+       QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
-extern void        PcOpt_QuickViewReset(void);
+extern void        PcOpt_QuickViewReset(int mode);
 
 #define QO_GARBAGE  48
 #define QO_MAX_ROWS 16
@@ -146,13 +149,33 @@ static const QoRowDef s_page2Advanced[] = {
     { ROW_CLOSE,  NULL, 0,                 "Close" },
 };
 
-/* Thirdperson (TPS/OTS) and Firstperson (FPS) shapes. The classic aspect/pixel
- * knobs are meaningless for the dynamic cameras -- they follow Harry in 3D -- so
- * these show only what that camera actually reads: its FOV, and for FPS the eye
- * position and the melee-swing pullback. The View page auto-follows the active
- * camera, so the block you see matches the camera you are using. */
+/* Thirdperson, OTS and Firstperson shapes. The classic aspect/pixel knobs are
+ * meaningless for the dynamic cameras -- they follow Harry in 3D -- so each shows
+ * only what that camera reads: FOV, aim zoom, the rest/aim camera position (X =
+ * left/right, Y = up/down), and for FPS the eye position + melee-swing pullback.
+ * The View page auto-follows the active camera, so the block matches the camera
+ * you are using, and each Reset is scoped to that camera alone. */
 static const QoRowDef s_page2Tps[] = {
     { ROW_EXTRA,  NULL, QO_X_TPSFOV,       "FOV" },
+    { ROW_EXTRA,  NULL, QO_X_TPSOTSAIM,    "OTS Aim (while in TPS)" },
+    { ROW_EXTRA,  NULL, QO_X_TPSAIMZOOM,   "Aim Zoom" },
+    { ROW_EXTRA,  NULL, QO_X_TPSRESTX,     "Rest X (left/right)" },
+    { ROW_EXTRA,  NULL, QO_X_TPSRESTY,     "Rest Y (up/down)" },
+    { ROW_EXTRA,  NULL, QO_X_TPSAIMX,      "Aim X (left/right)" },
+    { ROW_EXTRA,  NULL, QO_X_TPSAIMY,      "Aim Y (up/down)" },
+    { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
+    { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
+    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
+    { ROW_CLOSE,  NULL, 0,                 "Close" },
+};
+
+static const QoRowDef s_page2Ots[] = {
+    { ROW_EXTRA,  NULL, QO_X_OTSFOV,       "FOV" },
+    { ROW_EXTRA,  NULL, QO_X_OTSAIMZOOM,   "Aim Zoom" },
+    { ROW_EXTRA,  NULL, QO_X_OTSRESTX,     "Rest X (left/right)" },
+    { ROW_EXTRA,  NULL, QO_X_OTSRESTY,     "Rest Y (up/down)" },
+    { ROW_EXTRA,  NULL, QO_X_OTSAIMX,      "Aim X (left/right)" },
+    { ROW_EXTRA,  NULL, QO_X_OTSAIMY,      "Aim Y (up/down)" },
     { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
     { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
     { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
@@ -182,15 +205,15 @@ void Pc_QuickOptions_InvalidateRows(void)
     s_viewRowsDirty = 1;
 }
 
-/* Which camera's settings the View page shows. Auto-follows the live camera:
- * FPS when first-person, Thirdperson for TPS/OTS, else the Classic aspect page. */
-enum { QO_CAM_CLASSIC = 0, QO_CAM_THIRD, QO_CAM_FPS };
+/* Which camera's settings the View page shows. Auto-follows the live camera.
+ * Values match the mode argument PcOpt_QuickViewReset expects. */
+enum { QO_CAM_CLASSIC = 0, QO_CAM_TPS, QO_CAM_OTS, QO_CAM_FPS };
 static int qo_view_cam_mode(void)
 {
     extern int g_PcFpsCam;
     if (g_PcFpsCam || g_ControlStyle == ControlStyle_Fps) return QO_CAM_FPS;
-    if (g_ControlStyle == ControlStyle_Tps ||
-        g_ControlStyle == ControlStyle_Ots) return QO_CAM_THIRD;
+    if (g_ControlStyle == ControlStyle_Ots) return QO_CAM_OTS;
+    if (g_ControlStyle == ControlStyle_Tps) return QO_CAM_TPS;
     return QO_CAM_CLASSIC;
 }
 
@@ -215,7 +238,12 @@ static const QoRowDef* qo_view_page(int* count)
         *count = (int)(sizeof(s_page2Fps) / sizeof(s_page2Fps[0]));
         return s_page2Fps;
     }
-    if (mode == QO_CAM_THIRD)
+    if (mode == QO_CAM_OTS)
+    {
+        *count = (int)(sizeof(s_page2Ots) / sizeof(s_page2Ots[0]));
+        return s_page2Ots;
+    }
+    if (mode == QO_CAM_TPS)
     {
         *count = (int)(sizeof(s_page2Tps) / sizeof(s_page2Tps[0]));
         return s_page2Tps;
@@ -1487,7 +1515,7 @@ static void qo_confirm(const QoRowDef* r)
     else if (r->kind == ROW_ACTION)
     {
         if (r->extra == QO_A_VIEWRESET)
-            PcOpt_QuickViewReset();
+            PcOpt_QuickViewReset(qo_view_cam_mode());
     }
     else
         qo_activate(r, +1);
@@ -1686,8 +1714,9 @@ void Pc_QuickOptions_Draw(void)
         {
             int m = qo_view_cam_mode();
             snprintf(titleBuf, sizeof(titleBuf), "QUICK OPTIONS  -  VIEW  (%s)",
-                     (m == QO_CAM_FPS)   ? "Firstperson" :
-                     (m == QO_CAM_THIRD) ? "Thirdperson" : "Classic");
+                     (m == QO_CAM_FPS) ? "Firstperson" :
+                     (m == QO_CAM_OTS) ? "Over-the-Shoulder" :
+                     (m == QO_CAM_TPS) ? "Thirdperson" : "Classic");
             title = titleBuf;
         }
         s_texTitle = qo_bake(title, (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);

@@ -448,7 +448,9 @@ static void Pc_CameraFov_Update(int standDown)
     {
         if (g_PcFpsCam)
             fov = g_PcConfig.fpsFov;
-        else if (g_ControlStyle == ControlStyle_Tps || g_ControlStyle == ControlStyle_Ots)
+        else if (g_ControlStyle == ControlStyle_Ots)
+            fov = g_PcConfig.otsFov;
+        else if (g_ControlStyle == ControlStyle_Tps)
             fov = g_PcConfig.tpsFov;
     }
 
@@ -567,7 +569,8 @@ static void Pc_TpsCamera_Apply(void)
     /* Aim zoom: ease the orbit distance in while aiming a gun, so the shot lines
      * up better. tps_aim_zoom config gates it (on by default). */
     static s32 s_tpDist = TP_DIST;
-    static s32 s_otsOff = 0;   /* OTS lateral offset; also reset on mode entry */
+    static s32 s_otsOff  = 0;   /* camera lateral (X) offset ease; reset on mode entry */
+    static s32 s_otsOffY = 0;   /* camera vertical (Y) offset ease */
     {
         extern int g_TpsCamNeedsReset;
         if (g_TpsCamNeedsReset)
@@ -580,18 +583,24 @@ static void Pc_TpsCamera_Apply(void)
             g_TpsCamPitch = 0;
             s_tpDist      = TP_DIST;
             s_otsOff      = 0;
+            s_otsOffY     = 0;
         }
         /* tps_aim_zoom_amount scales how far in the dolly goes: 0% leaves the
          * camera at TP_DIST (no zoom), 100% (the default) lands on TP_DIST_AIM (the
          * original zoom), 200% goes all the way to TP_DIST_AIM_MAX (twice as far
          * in). Linear across the whole range. */
-        s32 pct = (s32)(g_PcConfig.tpsAimZoom + 0.5f);
+        float zoomPctF = (g_ControlStyle == ControlStyle_Ots) ? g_PcConfig.otsAimZoom
+                                                              : g_PcConfig.tpsAimZoom;
+        s32 pct = (s32)(zoomPctF + (zoomPctF < 0.0f ? -0.5f : 0.5f));
         s32 aimDist;
         s32 target;
 
-        if (pct < 0)   pct = 0;
-        if (pct > 200) pct = 200;
+        if (pct < -200) pct = -200;
+        if (pct >  200) pct =  200;
 
+        /* Negative = pull the aim camera BACK past the rest distance (wider view);
+         * +200 = as close as the dolly goes. Stays positive across the range
+         * (at -200, TP_DIST + (TP_DIST - TP_DIST_AIM_MAX)). */
         aimDist = TP_DIST - (((TP_DIST - TP_DIST_AIM_MAX) * pct) / 200);
         target  = isAiming ? aimDist : TP_DIST;
         s_tpDist += (target - s_tpDist) >> 3;
@@ -998,24 +1007,40 @@ static void Pc_TpsCamera_Apply(void)
          * while aiming — precisely so s_otsOff can ease both ways instead of
          * snapping. With the option off, Thirdperson never enters it and the
          * camera stays centred exactly as before. */
-        if (g_ControlStyle == ControlStyle_Ots ||
-            (g_ControlStyle == ControlStyle_Tps && g_PcConfig.tpsOtsAim))
+        /* Camera position offset: lateral (X, along the right vector; g_OtsSide and
+         * Rear Look flip the shoulder) and vertical (Y). Each camera has a rest and
+         * an aim target the view eases between. Defaults reproduce the old
+         * OTS_OFFSET (0.55) / OTS_OFFSET_AIM (0.9): OTS rests over the shoulder, TPS
+         * rests centred and only swings to its aim offset when tps_ots_aim is on.
+         * All four (rest/aim X/Y) are player-tunable per mode (View & Aspect page).
+         * FPS is excluded -- its eye is already at Harry's head. */
+        if (!g_PcFpsCam)
         {
-            #define OTS_OFFSET     Q12(0.55f)
-            #define OTS_OFFSET_AIM Q12(0.9f)
-            s32 restOff   = (g_ControlStyle == ControlStyle_Ots) ? OTS_OFFSET : 0;
-            s32 targetOff = (isAiming ? OTS_OFFSET_AIM : restOff) * g_OtsSide;
-            s32 rX = Math_Cos(g_TpsCamYaw + rearOfs);   /* horizontal right vector = (cos yaw, -sin yaw); +rearOfs flips the shoulder with Rear Look */
-            s32 rZ = -Math_Sin(g_TpsCamYaw + rearOfs);
-            s32 ox, oz;
-
-            s_otsOff += (targetOff - s_otsOff) >> 3;
-            ox = (s32)((s64)s_otsOff * rX >> 12);
-            oz = (s32)((s64)s_otsOff * rZ >> 12);
-            tpCamPos.vx += ox; tpCamPos.vz += oz;
-            tpLookAt.vx += ox; tpLookAt.vz += oz;
-            #undef OTS_OFFSET
-            #undef OTS_OFFSET_AIM
+            s32 restX, restY, aimX, aimY;
+            if (g_ControlStyle == ControlStyle_Ots)
+            {
+                restX = g_PcConfig.otsRestX; restY = g_PcConfig.otsRestY;
+                aimX  = g_PcConfig.otsAimX;  aimY  = g_PcConfig.otsAimY;
+            }
+            else
+            {
+                restX = g_PcConfig.tpsRestX; restY = g_PcConfig.tpsRestY;
+                if (g_PcConfig.tpsOtsAim) { aimX = g_PcConfig.tpsAimX; aimY = g_PcConfig.tpsAimY; }
+                else                      { aimX = restX;              aimY = restY; }
+            }
+            {
+                s32 rX = Math_Cos(g_TpsCamYaw + rearOfs);   /* right vector = (cos yaw, -sin yaw); +rearOfs flips the shoulder with Rear Look */
+                s32 rZ = -Math_Sin(g_TpsCamYaw + rearOfs);
+                s32 targetX = (isAiming ? aimX : restX) * g_OtsSide; /* g_OtsSide flips X only */
+                s32 targetY = (isAiming ? aimY : restY);
+                s32 ox, oz;
+                s_otsOff  += (targetX - s_otsOff)  >> 3;
+                s_otsOffY += (targetY - s_otsOffY) >> 3;
+                ox = (s32)((s64)s_otsOff * rX >> 12);
+                oz = (s32)((s64)s_otsOff * rZ >> 12);
+                tpCamPos.vx += ox; tpCamPos.vz += oz; tpCamPos.vy += s_otsOffY;
+                tpLookAt.vx += ox; tpLookAt.vz += oz; tpLookAt.vy += s_otsOffY;
+            }
         }
 
 #ifdef SH_PC_PORT

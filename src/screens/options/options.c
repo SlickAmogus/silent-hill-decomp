@@ -532,7 +532,10 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
         * Thirdperson/FPS FOV, and the FPS eye position + melee-swing pullback.
         * Keep IDENTICAL to the mirror enum in pc_quick_options.c. */
        QO_X_TPSFOV, QO_X_FPSFOV,
-       QO_X_FPSHEADX, QO_X_FPSHEADY, QO_X_FPSHEADZ, QO_X_FPSSWING };
+       QO_X_FPSHEADX, QO_X_FPSHEADY, QO_X_FPSHEADZ, QO_X_FPSSWING,
+       QO_X_OTSFOV, QO_X_TPSAIMZOOM, QO_X_OTSAIMZOOM, QO_X_TPSOTSAIM,
+       QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
+       QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -608,6 +611,27 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         if (g_PcConfig.fpsMeleeSwing <= 0.0001f) return "Off";
         snprintf(buf, bufsz, "%.2f", g_PcConfig.fpsMeleeSwing);
         return buf;
+    case QO_X_OTSFOV:
+        snprintf(buf, bufsz, "%.0f%s", g_PcConfig.otsFov,
+                 (g_PcConfig.otsFov > 71.0f && g_PcConfig.otsFov < 71.2f) ? " (default)" : "");
+        return buf;
+    case QO_X_TPSAIMZOOM:
+        snprintf(buf, bufsz, "%+d%%", (int)(g_PcConfig.tpsAimZoom + (g_PcConfig.tpsAimZoom < 0.0f ? -0.5f : 0.5f)));
+        return buf;
+    case QO_X_OTSAIMZOOM:
+        snprintf(buf, bufsz, "%+d%%", (int)(g_PcConfig.otsAimZoom + (g_PcConfig.otsAimZoom < 0.0f ? -0.5f : 0.5f)));
+        return buf;
+    case QO_X_TPSOTSAIM:
+        return g_PcConfig.tpsOtsAim ? "On" : "Off";
+    /* Position offsets, raw Q12; Y shown up-positive (stored PSX-down). */
+    case QO_X_TPSRESTX: snprintf(buf, bufsz, "%+d", g_PcConfig.tpsRestX);  return buf;
+    case QO_X_TPSRESTY: snprintf(buf, bufsz, "%+d", -g_PcConfig.tpsRestY); return buf;
+    case QO_X_TPSAIMX:  snprintf(buf, bufsz, "%+d", g_PcConfig.tpsAimX);   return buf;
+    case QO_X_TPSAIMY:  snprintf(buf, bufsz, "%+d", -g_PcConfig.tpsAimY);  return buf;
+    case QO_X_OTSRESTX: snprintf(buf, bufsz, "%+d", g_PcConfig.otsRestX);  return buf;
+    case QO_X_OTSRESTY: snprintf(buf, bufsz, "%+d", -g_PcConfig.otsRestY); return buf;
+    case QO_X_OTSAIMX:  snprintf(buf, bufsz, "%+d", g_PcConfig.otsAimX);   return buf;
+    case QO_X_OTSAIMY:  snprintf(buf, bufsz, "%+d", -g_PcConfig.otsAimY);  return buf;
     default:
         return "";
     }
@@ -657,85 +681,93 @@ static void PcOpt_FpsHeadStep(int* cfg, int* live, const char* key, int delta)
     Sd_PlaySfx(Sfx_MenuMove, 0, 64);
 }
 
-/* Reset row on the View & Aspect page: put every knob on that page back to its
- * compile-time default in one press, so a display experiment can never leave
- * the picture unusable. */
-void PcOpt_QuickViewReset(void)
+/* Reset row on the View & Aspect page: restore the ACTIVE camera's settings to
+ * their compile-time defaults, so a display experiment can never leave the picture
+ * unusable. Mode-scoped: resetting one camera never disturbs another.
+ * mode: 0 = Classic, 1 = Thirdperson, 2 = OTS, 3 = Firstperson (matches
+ * qo_view_cam_mode in pc_quick_options.c). */
+void PcOpt_QuickViewReset(int mode)
 {
     extern const s_PcConfig* PcConfig_Defaults(void);
-    extern int   g_PsxAspectRaw;
-    extern float g_PsxCrtAspectTrim;
-    extern float g_PsxWorldHScale;
-    extern float g_PsxWorldVScale;
-    extern float g_PsxWorldVShift;
-    extern float g_PsxCutsceneVShift;
-    extern float g_PsxPixelAspect;
     const s_PcConfig* d = PcConfig_Defaults();
     char buf[24];
 
-    g_PcConfig.aspectRaw     = d->aspectRaw;
-    g_PcConfig.crtAspectTrim = d->crtAspectTrim;
-    g_PcConfig.worldHScale   = d->worldHScale;
-    g_PcConfig.worldVScale   = d->worldVScale;
-    g_PcConfig.pixelAspect   = d->pixelAspect;
-    g_PcConfig.worldVShift   = d->worldVShift;
-    g_PcConfig.cutsceneVShift = d->cutsceneVShift;
-
-    g_PsxAspectRaw     = g_PcConfig.aspectRaw;
-    g_PsxCrtAspectTrim = g_PcConfig.crtAspectTrim;
-    g_PsxWorldHScale   = g_PcConfig.worldHScale;
-    g_PsxWorldVScale   = g_PcConfig.worldVScale;
-    g_PsxPixelAspect   = g_PcConfig.pixelAspect;
-    g_PsxWorldVShift   = g_PcConfig.worldVShift;
-    g_PsxCutsceneVShift = g_PcConfig.cutsceneVShift;
-
-    PcConfig_SaveKeyValue("display_aspect", g_PcConfig.aspectRaw ? "raw" : "crt");
-    snprintf(buf, sizeof(buf), "%.2f", g_PcConfig.crtAspectTrim);
-    PcConfig_SaveKeyValue("crt_aspect_trim", buf);
-    snprintf(buf, sizeof(buf), "%.2f", g_PcConfig.worldHScale);
-    PcConfig_SaveKeyValue("world_hscale", buf);
-    snprintf(buf, sizeof(buf), "%.2f", g_PcConfig.worldVScale);
-    PcConfig_SaveKeyValue("world_vscale", buf);
-    snprintf(buf, sizeof(buf), "%.3f", g_PcConfig.pixelAspect);
-    PcConfig_SaveKeyValue("pixel_aspect", buf);
-    snprintf(buf, sizeof(buf), "%.0f", g_PcConfig.worldVShift);
-    PcConfig_SaveKeyValue("world_vshift", buf);
-    snprintf(buf, sizeof(buf), "%.0f", g_PcConfig.cutsceneVShift);
-    PcConfig_SaveKeyValue("cutscene_vshift", buf);
-
-    /* Per-camera view settings reset with the page too, so the reset is complete
-     * whichever camera you are in when you press it. */
+    if (mode == 0) /* Classic: aspect shape + world shifts (the shared/global view). */
+    {
+        extern int   g_PsxAspectRaw;
+        extern float g_PsxCrtAspectTrim, g_PsxWorldHScale, g_PsxWorldVScale;
+        extern float g_PsxWorldVShift, g_PsxCutsceneVShift, g_PsxPixelAspect;
+        g_PcConfig.aspectRaw      = d->aspectRaw;
+        g_PcConfig.crtAspectTrim  = d->crtAspectTrim;
+        g_PcConfig.worldHScale    = d->worldHScale;
+        g_PcConfig.worldVScale    = d->worldVScale;
+        g_PcConfig.pixelAspect    = d->pixelAspect;
+        g_PcConfig.worldVShift    = d->worldVShift;
+        g_PcConfig.cutsceneVShift = d->cutsceneVShift;
+        g_PsxAspectRaw      = g_PcConfig.aspectRaw;
+        g_PsxCrtAspectTrim  = g_PcConfig.crtAspectTrim;
+        g_PsxWorldHScale    = g_PcConfig.worldHScale;
+        g_PsxWorldVScale    = g_PcConfig.worldVScale;
+        g_PsxPixelAspect    = g_PcConfig.pixelAspect;
+        g_PsxWorldVShift    = g_PcConfig.worldVShift;
+        g_PsxCutsceneVShift = g_PcConfig.cutsceneVShift;
+        PcConfig_SaveKeyValue("display_aspect", g_PcConfig.aspectRaw ? "raw" : "crt");
+        snprintf(buf, sizeof(buf), "%.2f", g_PcConfig.crtAspectTrim);  PcConfig_SaveKeyValue("crt_aspect_trim", buf);
+        snprintf(buf, sizeof(buf), "%.2f", g_PcConfig.worldHScale);    PcConfig_SaveKeyValue("world_hscale", buf);
+        snprintf(buf, sizeof(buf), "%.2f", g_PcConfig.worldVScale);    PcConfig_SaveKeyValue("world_vscale", buf);
+        snprintf(buf, sizeof(buf), "%.3f", g_PcConfig.pixelAspect);    PcConfig_SaveKeyValue("pixel_aspect", buf);
+        snprintf(buf, sizeof(buf), "%.0f", g_PcConfig.worldVShift);    PcConfig_SaveKeyValue("world_vshift", buf);
+        snprintf(buf, sizeof(buf), "%.0f", g_PcConfig.cutsceneVShift); PcConfig_SaveKeyValue("cutscene_vshift", buf);
+    }
+    else if (mode == 1) /* Thirdperson */
+    {
+        g_PcConfig.tpsFov     = d->tpsFov;
+        g_PcConfig.tpsAimZoom = d->tpsAimZoom;
+        g_PcConfig.tpsOtsAim  = d->tpsOtsAim;
+        g_PcConfig.tpsRestX   = d->tpsRestX; g_PcConfig.tpsRestY = d->tpsRestY;
+        g_PcConfig.tpsAimX    = d->tpsAimX;  g_PcConfig.tpsAimY  = d->tpsAimY;
+        snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.tpsFov);     PcConfig_SaveKeyValue("tps_fov", buf);
+        snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.tpsAimZoom); PcConfig_SaveKeyValue("tps_aim_zoom_amount", buf);
+        PcConfig_SaveKeyValue("tps_ots_aim", g_PcConfig.tpsOtsAim ? "1" : "0");
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.tpsRestX); PcConfig_SaveKeyValue("tps_rest_x", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.tpsRestY); PcConfig_SaveKeyValue("tps_rest_y", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.tpsAimX);  PcConfig_SaveKeyValue("tps_aim_x", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.tpsAimY);  PcConfig_SaveKeyValue("tps_aim_y", buf);
+    }
+    else if (mode == 2) /* Over-the-Shoulder */
+    {
+        g_PcConfig.otsFov     = d->otsFov;
+        g_PcConfig.otsAimZoom = d->otsAimZoom;
+        g_PcConfig.otsRestX   = d->otsRestX; g_PcConfig.otsRestY = d->otsRestY;
+        g_PcConfig.otsAimX    = d->otsAimX;  g_PcConfig.otsAimY  = d->otsAimY;
+        snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.otsFov);     PcConfig_SaveKeyValue("ots_fov", buf);
+        snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.otsAimZoom); PcConfig_SaveKeyValue("ots_aim_zoom_amount", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.otsRestX); PcConfig_SaveKeyValue("ots_rest_x", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.otsRestY); PcConfig_SaveKeyValue("ots_rest_y", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.otsAimX);  PcConfig_SaveKeyValue("ots_aim_x", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.otsAimY);  PcConfig_SaveKeyValue("ots_aim_y", buf);
+    }
+    else /* Firstperson */
     {
         extern VECTOR3 g_PcFpsOffset;
-        g_PcConfig.fpsFov       = d->fpsFov;
-        g_PcConfig.tpsFov       = d->tpsFov;
-        g_PcConfig.fpsHeadX     = d->fpsHeadX;
-        g_PcConfig.fpsHeadY     = d->fpsHeadY;
-        g_PcConfig.fpsHeadZ     = d->fpsHeadZ;
+        g_PcConfig.fpsFov        = d->fpsFov;
+        g_PcConfig.fpsHeadX      = d->fpsHeadX;
+        g_PcConfig.fpsHeadY      = d->fpsHeadY;
+        g_PcConfig.fpsHeadZ      = d->fpsHeadZ;
         g_PcConfig.fpsMeleeSwing = d->fpsMeleeSwing;
         g_PcFpsOffset.vx = d->fpsHeadX;
         g_PcFpsOffset.vy = d->fpsHeadY;
         g_PcFpsOffset.vz = d->fpsHeadZ;
-        snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.fpsFov);
-        PcConfig_SaveKeyValue("fps_fov", buf);
-        snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.tpsFov);
-        PcConfig_SaveKeyValue("tps_fov", buf);
-        snprintf(buf, sizeof(buf), "%d", g_PcConfig.fpsHeadX);
-        PcConfig_SaveKeyValue("fps_head_x", buf);
-        snprintf(buf, sizeof(buf), "%d", g_PcConfig.fpsHeadY);
-        PcConfig_SaveKeyValue("fps_head_y", buf);
-        snprintf(buf, sizeof(buf), "%d", g_PcConfig.fpsHeadZ);
-        PcConfig_SaveKeyValue("fps_head_z", buf);
-        snprintf(buf, sizeof(buf), "%.2f", g_PcConfig.fpsMeleeSwing);
-        PcConfig_SaveKeyValue("fps_melee_swing", buf);
+        snprintf(buf, sizeof(buf), "%.1f", g_PcConfig.fpsFov);        PcConfig_SaveKeyValue("fps_fov", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.fpsHeadX);        PcConfig_SaveKeyValue("fps_head_x", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.fpsHeadY);        PcConfig_SaveKeyValue("fps_head_y", buf);
+        snprintf(buf, sizeof(buf), "%d", g_PcConfig.fpsHeadZ);        PcConfig_SaveKeyValue("fps_head_z", buf);
+        snprintf(buf, sizeof(buf), "%.2f", g_PcConfig.fpsMeleeSwing); PcConfig_SaveKeyValue("fps_melee_swing", buf);
     }
 
     Pc_QuickOptions_InvalidateRows();
     Sd_PlaySfx(Sfx_MenuMove, 0, 64);
-    SH_LOG("View reset: control type %s, trim %.2f, hfov %.2f, vfov %.2f, vshift %+d, par %.3f",
-           g_PcConfig.aspectRaw ? "raw" : "crt", g_PcConfig.crtAspectTrim,
-           g_PcConfig.worldHScale, g_PcConfig.worldVScale,
-           (int)g_PcConfig.worldVShift, g_PcConfig.pixelAspect);
+    SH_LOG("View reset: camera mode %d", mode);
 }
 
 void PcOpt_QuickExtraAdjust(int which, int dir)
@@ -892,6 +924,31 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         /* No live global: the FPS camera reads g_PcConfig.fpsMeleeSwing per frame. */
         PcOpt_ViewStep(&g_PcConfig.fpsMeleeSwing, NULL, "fps_melee_swing", 0.0f, 1.0f, 0.05f, dir, 2);
         break;
+    /* TPS/OTS FOV + aim zoom (camera reads g_PcConfig per frame -> live = NULL). */
+    case QO_X_OTSFOV:
+        PcOpt_ViewStep(&g_PcConfig.otsFov, NULL, "ots_fov", 40.0f, 140.0f, 1.0f, dir, 2);
+        break;
+    case QO_X_TPSAIMZOOM:
+        PcOpt_ViewStep(&g_PcConfig.tpsAimZoom, NULL, "tps_aim_zoom_amount", -200.0f, 200.0f, 5.0f, dir, 2);
+        break;
+    case QO_X_OTSAIMZOOM:
+        PcOpt_ViewStep(&g_PcConfig.otsAimZoom, NULL, "ots_aim_zoom_amount", -200.0f, 200.0f, 5.0f, dir, 2);
+        break;
+    case QO_X_TPSOTSAIM:
+        g_PcConfig.tpsOtsAim = !g_PcConfig.tpsOtsAim;
+        PcConfig_SaveKeyValue("tps_ots_aim", g_PcConfig.tpsOtsAim ? "1" : "0");
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    /* Position offsets: config-only (live = NULL), 128 = ~0.03 units per press.
+     * Y presses are inverted so a "+" press raises the camera (stored PSX-down). */
+    case QO_X_TPSRESTX: PcOpt_FpsHeadStep(&g_PcConfig.tpsRestX, NULL, "tps_rest_x",  dir * 128); break;
+    case QO_X_TPSRESTY: PcOpt_FpsHeadStep(&g_PcConfig.tpsRestY, NULL, "tps_rest_y", -dir * 128); break;
+    case QO_X_TPSAIMX:  PcOpt_FpsHeadStep(&g_PcConfig.tpsAimX,  NULL, "tps_aim_x",   dir * 128); break;
+    case QO_X_TPSAIMY:  PcOpt_FpsHeadStep(&g_PcConfig.tpsAimY,  NULL, "tps_aim_y",  -dir * 128); break;
+    case QO_X_OTSRESTX: PcOpt_FpsHeadStep(&g_PcConfig.otsRestX, NULL, "ots_rest_x",  dir * 128); break;
+    case QO_X_OTSRESTY: PcOpt_FpsHeadStep(&g_PcConfig.otsRestY, NULL, "ots_rest_y", -dir * 128); break;
+    case QO_X_OTSAIMX:  PcOpt_FpsHeadStep(&g_PcConfig.otsAimX,  NULL, "ots_aim_x",   dir * 128); break;
+    case QO_X_OTSAIMY:  PcOpt_FpsHeadStep(&g_PcConfig.otsAimY,  NULL, "ots_aim_y",  -dir * 128); break;
     default:
         break;
     }
