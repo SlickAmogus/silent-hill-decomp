@@ -2853,7 +2853,8 @@ void MainLoop(void) // 0x80032EE0
                 {
                     static Uint64 s_lastFrameTime = 0;
                     int effectiveMin = g_IntervalVBlanks;
-                    if (g_GameWork.gameState == GameState_InGame || Pc_ScreenFpsUnlocked())
+                    int screenUnlocked = Pc_ScreenFpsUnlocked();
+                    if (g_GameWork.gameState == GameState_InGame || screenUnlocked)
                     {
                         int effectiveFps;
 
@@ -2864,6 +2865,14 @@ void MainLoop(void) // 0x80032EE0
                             effectiveFps = 0; /* uncapped */
                         else
                             effectiveFps = g_PcConfig.fpsCap;
+
+                        /* Menus, map and puzzle screens have no simulation to pace,
+                         * so the fps cap may only RAISE them above the old hard 60fps
+                         * floor (120/240/uncapped), never drag them below it. Following
+                         * a sub-60 cap (e.g. 30) down made the menus laggy for no
+                         * benefit (reported). Real gameplay keeps its exact cap. */
+                        if (screenUnlocked && effectiveFps > 0 && effectiveFps < 60)
+                            effectiveFps = 60;
 
                         /* Scripted shots never run above 60. Animation, DMS
                          * stepping and the FX pacing were authored against a
