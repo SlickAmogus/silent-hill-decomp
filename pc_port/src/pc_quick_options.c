@@ -38,9 +38,9 @@
 #include "bodyprog/sound/sfx_id_enum.h"
 #include "bodyprog/sound/sound_system.h"
 
-/* Cancel beep on close only. A move beep on every hover and page step was
- * tried and found excessive; value, toggle and action rows beep in their
- * own handlers. */
+/* Move beep on a page change, cancel beep on close. A beep on every hover
+ * was tried and found excessive; value, toggle and action rows beep in
+ * their own handlers. */
 static void qo_beep(int sfxId)
 {
     Sd_PlaySfx((u16)sfxId, 0, 64);
@@ -1307,7 +1307,7 @@ static void qo_activate(const QoRowDef* r, int dir)
         }
         case ROW_EXTRA: PcOpt_QuickExtraAdjust(r->extra, dir); break;
         case ROW_CHEAT: Pc_Cheats_Adjust(r->cpage, r->extra, dir); break;
-        case ROW_PAGE:  qo_set_page(s_page + (dir < 0 ? -1 : +1)); break;
+        case ROW_PAGE:  qo_beep(Sfx_MenuMove); qo_set_page(s_page + (dir < 0 ? -1 : +1)); break;
         case ROW_CLOSE: qo_beep(Sfx_MenuCancel); Pc_QuickOptions_Close(); break;
         case ROW_ACTION: break; /* confirm-only; see the ROW_ACTION comment */
         default: break;
@@ -1465,6 +1465,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         }
     }
 
+    if (pageNext || pagePrev) qo_beep(Sfx_MenuMove);
     if (pageNext) qo_set_page(s_page + 1);
     if (pagePrev) qo_set_page(s_page - 1);
     rows = qo_page_rows(s_page, &nRows);
