@@ -104,6 +104,7 @@ static const QoRowDef s_page1[] = {
     { ROW_OPT,   "minimap_opacity",      0, NULL },
     { ROW_OPT,   "minimap_require_map",  0, NULL },
     { ROW_OPT,   "crosshair",            0, NULL },
+    { ROW_OPT,   "crosshair_size",       0, NULL },
     { ROW_OPT,   "low_health_glow",      0, NULL },
     { ROW_EXTRA, NULL, QO_X_SPEAKERS,       "Speaker Layout" },
     { ROW_EXTRA, NULL, QO_X_BGM,            "Music Volume" },

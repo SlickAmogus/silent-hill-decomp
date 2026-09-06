@@ -221,6 +221,7 @@ static const s_PcOpt PCOPT_S[] = {
     { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
     /* Moved here from the Camera page for the same reason as Map above. */
     { "Crosshair",        &g_PcConfig.crosshair,      "crosshair",        VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
+    { "Crosshair_Size",   NULL, "crosshair_size",       NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.crosshairSize,       NULL,                        25.0f, 125.0f, 5.0f },
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
