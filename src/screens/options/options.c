@@ -265,6 +265,7 @@ static const s_PcOpt PCOPT_T[] = {
     /* Aim_Zoom is tps_aim_zoom_amount (Thirdperson only since the TPS/OTS split);
      * -200..200, 0 = no zoom, 100 = original, negative pulls the aim camera back. */
     { "Aim_Zoom",          NULL, "tps_aim_zoom_amount",    NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsAimZoom,  NULL, -200.0f, 200.0f, 5.0f },
+    { "OTS_Aim_Zoom",      NULL, "ots_aim_zoom_amount",    NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.otsAimZoom,  NULL, -200.0f, 200.0f, 5.0f },
     { "OTS_Aim_In_TPS",    &g_PcConfig.tpsOtsAim,          "tps_ots_aim",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Camera_Collision",  &g_PcConfig.tpsCameraCollision, "tps_camera_collision",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Prev_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_PREV },

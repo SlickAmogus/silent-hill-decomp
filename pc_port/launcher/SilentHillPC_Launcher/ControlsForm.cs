@@ -191,12 +191,14 @@ public class ControlsForm : Form
     private NumericUpDown numTpsFov;
     private NumericUpDown numOtsFov;
     private NumericUpDown numTpsAimZoom;
+    private NumericUpDown numOtsAimZoom;
     private TrackBar trkMouseSens;
     private TrackBar trkControllerSens;
     private TrackBar trkFpsFov;
     private TrackBar trkTpsFov;
     private TrackBar trkOtsFov;
     private TrackBar trkTpsAimZoom;
+    private TrackBar trkOtsAimZoom;
     private bool syncingSens;   /* guards the numeric <-> slider mirroring */
     private CheckBox chkAltCamControls;
     private ToolTip  tips;
@@ -353,7 +355,10 @@ public class ControlsForm : Form
          * button row, with Quick Turn overlapping Reset to Defaults, and the
          * controller column gained a Quick Options row. The bottom row is
          * placed from ClientSize.Height, so it follows this down. */
-        ClientSize = new Size(860, 906);
+        /* Raised again from 906 for the per-camera FOV split: the sensitivity
+         * column now carries five FOV/zoom sliders (First/Third/OTS FOV, then
+         * Thirdperson + OTS Aim Zoom), the lowest bottoming out near styleY+448. */
+        ClientSize = new Size(860, 972);
 
         tips = new ToolTip { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 80, ShowAlways = true };
 
@@ -746,7 +751,29 @@ public class ControlsForm : Form
         tips.SetToolTip(numTpsAimZoom,
             "How far the Thirdperson camera dollies while you aim, as a percentage of the zoom range. " +
             "100 (default) = the original zoom, 200 = as close as it goes, 0 = no zoom, negative pulls the aim " +
-            "camera back for a wider view. Over-the-Shoulder has its own aim zoom in the in-game quick menu.");
+            "camera back for a wider view. Over-the-Shoulder has its own aim zoom below.");
+
+        AddLabel("Over-the-Shoulder Aim Zoom", sensX, styleY + 426, 160);
+        numOtsAimZoom = new NumericUpDown
+        {
+            Left = sensX + sensW - 60,
+            Top = styleY + 423,
+            Width = 60,
+            DecimalPlaces = 0,
+            Increment = 5m,
+            Minimum = -200m,
+            Maximum = 200m,
+            BackColor = PanelBack,
+            ForeColor = TextColor,
+        };
+        Controls.Add(numOtsAimZoom);
+        trkOtsAimZoom = MakeSensSlider(sensX, styleY + 448, sensW);
+        trkOtsAimZoom.Minimum = -200;
+        trkOtsAimZoom.Maximum = 200;
+        WirePair(numOtsAimZoom, trkOtsAimZoom, 1m);
+        tips.SetToolTip(numOtsAimZoom,
+            "How far the Over-the-Shoulder camera dollies while you aim, independent of the Thirdperson aim " +
+            "zoom. 100 (default) = the original zoom, 200 = as close as it goes, 0 = none, negative pulls back.");
 
         tips.SetToolTip(numMouseSens,
             "Mouse look-speed multiplier for the Thirdperson / Over-the-Shoulder / First-person cameras (1.0 = default).");
@@ -1225,6 +1252,7 @@ public class ControlsForm : Form
         // configs with tps_aim_zoom_amount=100 keep their original feel unchanged.
         numTpsAimZoom.Value = ClampAimZoom(
             config.Get("tps_aim_zoom_amount", config.Get("tps_aim_zoom", "1") == "1" ? "100" : "0"));
+        numOtsAimZoom.Value = ClampAimZoom(config.Get("ots_aim_zoom_amount", "100"));
 
         bool dbg = config.Get("allow_debug_controls", "0") == "1";
         debugYes.Checked = dbg;
@@ -1266,6 +1294,7 @@ public class ControlsForm : Form
         numTpsFov.Value = 71.1m;
         numOtsFov.Value = 71.1m;
         numTpsAimZoom.Value = 100m;
+        numOtsAimZoom.Value = 100m;
 
         debugNo.Checked = true;
         debugYes.Checked = false;
@@ -1408,6 +1437,8 @@ public class ControlsForm : Form
             ((double)numOtsFov.Value).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture));
         config.Set("tps_aim_zoom_amount",
             ((double)numTpsAimZoom.Value).ToString("0", System.Globalization.CultureInfo.InvariantCulture));
+        config.Set("ots_aim_zoom_amount",
+            ((double)numOtsAimZoom.Value).ToString("0", System.Globalization.CultureInfo.InvariantCulture));
 
         config.Set("allow_debug_controls", debugYes.Checked ? "1" : "0");
         config.Save();

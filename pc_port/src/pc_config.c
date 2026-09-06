@@ -147,21 +147,18 @@ s_PcConfig g_PcConfig = {
      * correcting a real aspect error; 0.944 was the arithmetic of pairing it
      * with vfov 1.06. Both reasons are gone. */
     .worldHScale         = 1.0f,
-    /* 1.0 = the console's field of view exactly: 224 rows of world, the same
-     * 224 the frame holds. FOV is a uniform zoom in Simple (the shape is held
-     * by the trim), so anything above 1.0 shows MORE world than the console
-     * ever did -- 1.06 showed 237 rows, and that extra 13 is why more of a
-     * background poster was visible than on a real set.
+    /* Vertical FOV as a fraction of the console's 224-row frame. 1.08 matches
+     * DuckStation's picture -- the port's visual reference throughout -- which
+     * shows slightly more vertical world than a console's exact 224 rows. 1.0 is
+     * console-exact but reads a touch tighter than DuckStation. FOV is a near-
+     * uniform vertical zoom in Simple (the shape is held by the trim), so above
+     * 1.0 reveals a little more geometry top and bottom.
      *
-     * The "match a TV at 1.06" reasoning does not survive inspection: a set
-     * that underscans shows the picture smaller inside the tube while still
-     * showing the console's 224 rows. It reveals BLACK, where this knob
-     * reveals GEOMETRY. It matched apparent size and missed field of view.
-     *
-     * 1.0 also removes a whole bug class: the item-take screen pins its ortho
-     * to vscale 1, so any other vfov makes its aspect solve disagree with what
-     * it renders (the tall, thin pickups). At 1.0 they are the same number. */
-    .worldVScale         = 1.0f,
+     * Non-1.0 does NOT distort held pickups: the item-take screen and the 2D UI
+     * pass pin their ortho to vscale 1 AND the PAR solve (PsxDisplayPixelAspect)
+     * matches that, so aspect stays consistent. The inventory renders with Hor+
+     * off (g_PcHorPlusEnabled = 0), so the vfov crop never reaches it either. */
+    .worldVScale         = 1.08f,
     .pixelAspect         = 35.0f / 32.0f, /* raw mode only: the 350x240 NTSC dot */
     .worldVShift         = 0.0f,       /* the console anchor needs no correction */
     .cutsceneVShift      = 0.0f,       /* cutscenes frame via letterbox bars; neutral by default */
