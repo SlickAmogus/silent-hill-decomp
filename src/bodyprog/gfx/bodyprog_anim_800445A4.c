@@ -5,6 +5,7 @@
 #ifdef SH_PC_PORT
 #include <stdio.h>
 #include "sh_log.h"
+#include "pc_cheats.h"
 #endif
 
 #include "bodyprog/bodyprog.h"
@@ -251,6 +252,9 @@ void func_80044950(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
 
     animInfo = func_80044918(&chara->model.anim);
     animInfo->playbackFunc(&chara->model, anmHdr, coords, animInfo);
+#ifdef SH_PC_PORT
+    Pc_BigHead_Apply(chara->model.charaId, coords);
+#endif
 }
 
 q19_12 Anim_DurationGet(s_Model* unused, s_AnimInfo* animInfo) // 0x800449AC
