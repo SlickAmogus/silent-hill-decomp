@@ -94,6 +94,7 @@ s_PcConfig g_PcConfig = {
     .shadowMapSize           = 1024,
     .minimapCorner           = 0, /* top-left */
     .minimapShape            = 1, /* deprecated; only feeds the old-config migration */
+    .configVersion           = 0, /* absent key = pre-versioning; migration runs, then it is stamped */
     .minimapScale            = 100.0f,
     .minimapRequireMap       = 1, /* the map only appears once Harry has found it */
     .minimapOpacity          = 100.0f,
@@ -1105,6 +1106,10 @@ else if (strcmp(key, "enable_plugins") == 0)
             g_PcConfig.minimapShape = (atoi(value) != 0);
             s_minimapShapeSeen = 1;
         }
+        else if (strcmp(key, "config_version") == 0)
+        {
+            g_PcConfig.configVersion = atoi(value);
+        }
         else if (strcmp(key, "minimap_opacity") == 0)
         {
             float v = (float)atof(value);
@@ -1281,6 +1286,33 @@ else if (strcmp(key, "enable_plugins") == 0)
         g_PcConfig.minimap == 1 && g_PcConfig.minimapShape != 0)
     {
         g_PcConfig.minimap = 2;
+    }
+
+    /* Default migration: reapply a changed persisted DEFAULT to users still sitting
+     * on the previous default, so an improved default reaches everyone on update
+     * while a value the player deliberately set is left alone. Each step only fires
+     * when the value still equals the OLD default; version-gated so it runs once,
+     * then config_version is stamped forward and saved. Absent keys already loaded
+     * as the new default, so only a persisted old value needs rewriting. Add a step
+     * and bump PC_CONFIG_VERSION whenever a config-written default changes. */
+    if (g_PcConfig.configVersion < PC_CONFIG_VERSION)
+    {
+        char vbuf[24];
+
+        /* v1: vertical FOV default 1.0 -> 1.08 (DuckStation match). */
+        if (g_PcConfig.configVersion < 1 &&
+            g_PcConfig.worldVScale > 0.999f && g_PcConfig.worldVScale < 1.001f)
+        {
+            extern float g_PsxWorldVScale;
+            g_PcConfig.worldVScale = 1.08f;
+            g_PsxWorldVScale       = 1.08f;
+            snprintf(vbuf, sizeof(vbuf), "%.2f", g_PcConfig.worldVScale);
+            PcConfig_SaveKeyValue("world_vscale", vbuf);
+        }
+
+        g_PcConfig.configVersion = PC_CONFIG_VERSION;
+        snprintf(vbuf, sizeof(vbuf), "%d", g_PcConfig.configVersion);
+        PcConfig_SaveKeyValue("config_version", vbuf);
     }
 
     fprintf(stderr, "[CONFIG] Resolution: %dx%d, Fullscreen: %d, DisableCulling: %d, Map: %s\n",

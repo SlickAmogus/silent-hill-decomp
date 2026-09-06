@@ -2,6 +2,13 @@
 #ifndef PC_CONFIG_H
 #define PC_CONFIG_H
 
+/* Config schema version, bumped whenever a persisted DEFAULT changes so that
+ * users sitting on the previous default get the new one on update (a value they
+ * deliberately changed is kept). See PcConfig_Load's migration block. Bump this
+ * and add a migration whenever you change a default that is written to config.cfg.
+ *   1: world_vscale default 1.0 -> 1.08 (DuckStation-match vertical FOV). */
+#define PC_CONFIG_VERSION 1
+
 /* Minimap size range, as a percentage of the built-in MM_SIZE. The top end is a
  * little larger than the stock panel; the bottom end is a bit over half of it. */
 #define MINIMAP_SCALE_MIN 60.0f
@@ -220,6 +227,7 @@ typedef struct {
     int shadowMapSize;       /* flashlight shadow-map resolution, 256..8192 (config key: shadow_resolution); default 1024 */
     int minimapCorner;       /* minimap screen corner: 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right (config key: minimap_corner); default 0 */
     int minimapShape;        /* DEPRECATED, folded into `minimap`; still read to migrate old configs (config key: minimap_shape) */
+    int configVersion;       /* PC_CONFIG_VERSION the file was last written at; 0 = pre-versioning. Drives the default-migration in PcConfig_Load (config key: config_version) */
     float minimapScale;      /* minimap size percentage, MINIMAP_SCALE_MIN..MAX (config key: minimap_scale); default 100 */
     int enablePlugins;       /* 1 = load plugins/*.dll gameplay plugins at boot; 0 = never touch them (config-only key: enable_plugins); default 0 -- a DLL runs arbitrary code, so the surface is strictly opt-in */
     int minimapRequireMap;   /* 1 = only draw the map once the area's paper map has been found; 0 = always draw it (config-only key: minimap_require_map); default 1 */

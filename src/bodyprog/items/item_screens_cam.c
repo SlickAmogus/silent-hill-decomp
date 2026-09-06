@@ -12,12 +12,14 @@
 #include "pc_modern_mesh.h"
 #include "sh_log.h"
 #include <PsyX/PsyX_public.h>
-/* Inventory item-preview aspect: 0 = PSX-faithful (raw 4:3-display look,
- * vertically squished in interlaced 448), 1 = square (true proportions, default).
- * Toggled by `invaspect`. g_PcInvAspectPct fine-tunes the vertical scale as a
- * percent of the geometric square factor (100 = exactly square); `invscale`. */
+/* Inventory item-preview aspect: 0 = off (raw), 1 = apply the vertical aspect
+ * correction (default). Toggled by `invaspect`. g_PcInvAspectPct scales it: with
+ * gsScreen 320x224 the factor is (4/3)*(224/320)=0.9333, so 107 gives ~1.0 (no net
+ * vertical scale = the authentic 4:3/DuckStation proportions). It was 125 (=1.167,
+ * ~17% too tall -- the "stretched inventory 3D" report vs DuckStation). `invscale`
+ * fine-tunes live. Not persisted, so this default ships to everyone on update. */
 int g_PcInvAspectSquare = 1;
-int g_PcInvAspectPct    = 125;
+int g_PcInvAspectPct    = 107;
 /* Slight Y placement match vs Duckstation (view-Y units; + = down). Carousel a
  * touch down, equipped weapon up. Tunable: invcary / inveqy. */
 int g_PcInvCarouselYOff = 50;
