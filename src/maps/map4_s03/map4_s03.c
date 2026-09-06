@@ -55,33 +55,6 @@ void func_800D078C(void) // 0x800D078C
     D_800DF568 = getClut(x, y + 15);
     D_800DF56C = getClut(x, y + 13);
     D_800DF570 = x >> 4;
-
-#ifdef SH_PC_PORT
-    /* EUR: the per-screen draw table D_800DB874 is extracted US map data, but
-     * retail SLES ships it for the PAL TV bank (see func_800D7450): TV2 on
-     * tpage 26 with the PAL TIM's tile offsets, every palette at x=896 rows
-     * 496..507. Sizes and v offsets are identical on both discs; only the
-     * page, palette and u differ. Values decoded from the EUR MAP4_S03.BIN. */
-    {
-        extern e_GameRegion g_GameRegion;
-        if (g_GameRegion == Region_EUR)
-        {
-            static const struct { u8 tpage; u16 clutY; u8 u; } s_eur[15] = {
-                { 29, 497,   8 }, { 29, 496,   0 }, { 29, 497,   0 }, { 29, 497,   0 }, { 29, 496, 128 },
-                { 26, 501,   0 }, { 26, 502,   0 }, { 26, 502,   0 },
-                { 26, 502, 128 }, { 26, 502, 128 }, { 26, 502, 128 }, { 26, 502, 128 },
-                { 28, 506,   0 }, { 28, 506,   0 }, { 28, 507, 128 },
-            };
-            s32 i;
-            for (i = 0; i < 15; i++)
-            {
-                D_800DB874[i].field_0 = s_eur[i].tpage;
-                D_800DB874[i].field_2 = getClut(896, s_eur[i].clutY);
-                D_800DB874[i].field_4 = s_eur[i].u;
-            }
-        }
-    }
-#endif
 }
 
 void func_800D0840(void) // 0x800D0840
@@ -3857,12 +3830,51 @@ void func_800D7408(void) // 0x800D7408
     WorldObject_ModelNameSet(&D_800E0698.objRef_238, "REF_NEAR");
 }
 
+#ifdef SH_PC_PORT
+/* EUR: the per-screen draw table D_800DB874 is extracted US map data, but
+ * retail SLES ships it for the PAL TV bank (see the EUR block below): TV2 on
+ * tpage 26 with the PAL TIM's tile offsets, every palette at x=896 rows
+ * 496..507. Sizes and v offsets are identical on both discs; only the page,
+ * palette and u differ. Values decoded from the EUR MAP4_S03.BIN. Applied
+ * here, with the bank upload, because this runs on every mall entry; the
+ * init that derives the SPUM602F pages (func_800D078C) only runs from the
+ * Twinfeeler's setup, so a patch there left the screens pointing at the US
+ * palette rows, which the bank no longer fills. */
+static void Pc_EurTvDrawTableApply(void)
+{
+    static const struct { u8 tpage; u16 clutY; u8 u; } s_eur[15] = {
+        { 29, 497,   8 }, { 29, 496,   0 }, { 29, 497,   0 }, { 29, 497,   0 }, { 29, 496, 128 },
+        { 26, 501,   0 }, { 26, 502,   0 }, { 26, 502,   0 },
+        { 26, 502, 128 }, { 26, 502, 128 }, { 26, 502, 128 }, { 26, 502, 128 },
+        { 28, 506,   0 }, { 28, 506,   0 }, { 28, 507, 128 },
+    };
+    s32 i;
+
+    for (i = 0; i < 15; i++)
+    {
+        D_800DB874[i].field_0 = s_eur[i].tpage;
+        D_800DB874[i].field_2 = getClut(896, s_eur[i].clutY);
+        D_800DB874[i].field_4 = s_eur[i].u;
+    }
+}
+#endif
+
 void func_800D7450(void) // 0x800D7450
 {
     e_FsFile textureFileIdx;
     s32      i;
 
     textureFileIdx = NO_VALUE;
+
+#ifdef SH_PC_PORT
+    {
+        extern e_GameRegion g_GameRegion;
+        if (g_GameRegion == Region_EUR)
+        {
+            Pc_EurTvDrawTableApply();
+        }
+    }
+#endif
 
     for (i = 0; i < 3; i++)
     {
@@ -3917,6 +3929,11 @@ void func_800D7450(void) // 0x800D7450
                     D_800DB91C.u        = 0;
                 }
             }
+            SH_DBG("[TVSCR3] TV%d upload tpage=%d u=%d v=%d -> vram=(%d,%d) clut=(%d,%d)",
+                   (int)i + 1, (int)D_800DB91C.tPage[1], (int)D_800DB91C.u, (int)D_800DB91C.v,
+                   (int)(D_800DB91C.u + ((D_800DB91C.tPage[1] & 0xF) << 6)),
+                   (int)(D_800DB91C.v + ((D_800DB91C.tPage[1] << 4) & 0x100)),
+                   (int)D_800DB91C.clutX, (int)D_800DB91C.clutY);
         }
 #endif
 
@@ -4740,6 +4757,39 @@ void func_800D88C8(s_800E06A0* arg0, u8 arg1) // 0x800D88C8
     spA8  = temp_fp->field_0 & 0x10;
     temp  = (temp_fp->field_0 & 0xF) | 0x20;
     spA8 |= temp;
+
+#ifdef SH_PC_PORT
+    /* [TVSCR3]: what a screen actually samples, read back from VRAM for the
+     * first three screens drawn after the DLL loads. Event-level, never per
+     * frame. */
+    {
+        static int s_tvscr3 = 0;
+        if (s_tvscr3 < 3)
+        {
+            RECT r;
+            u32  clBuf[8];
+            u32  pxBuf[2];
+            u16* cl = (u16*)clBuf;
+            u16* px = (u16*)pxBuf;
+            int  cx = (temp_fp->field_2 & 0x3F) << 4;
+            int  cy = temp_fp->field_2 >> 6;
+            int  tx = (spA8 & 0xF) << 6;
+            int  ty = (spA8 << 4) & 0x100;
+
+            s_tvscr3++;
+            r.x = cx; r.y = cy; r.w = 16; r.h = 1;
+            StoreImage(&r, (u_long*)clBuf);
+            DrawSync(0);
+            r.x = tx + (temp_fp->field_4 >> 2); r.y = ty + temp_fp->field_5; r.w = 4; r.h = 1;
+            StoreImage(&r, (u_long*)pxBuf);
+            DrawSync(0);
+            SH_DBG("[TVSCR3] screen row=%d tpage=0x%X vram=(%d,%d) clut=0x%X (%d,%d) u=%d v=%d | clut0..3=%04X %04X %04X %04X | px0..3=%04X %04X %04X %04X",
+                   (int)arg0->field_30, (unsigned)spA8, tx, ty, (unsigned)temp_fp->field_2, cx, cy,
+                   (int)temp_fp->field_4, (int)temp_fp->field_5,
+                   cl[0], cl[1], cl[2], cl[3], px[0], px[1], px[2], px[3]);
+        }
+    }
+#endif
 
     temp_s6 = arg0->field_34 + temp_fp->field_4 + func_800D7394() % (temp_fp->field_8 + 1);
     spB0    = arg0->field_34 + temp_fp->field_4 + func_800D7394() % (temp_fp->field_8 + 1) + temp_fp->field_6 - 1;
