@@ -55,6 +55,33 @@ void func_800D078C(void) // 0x800D078C
     D_800DF568 = getClut(x, y + 15);
     D_800DF56C = getClut(x, y + 13);
     D_800DF570 = x >> 4;
+
+#ifdef SH_PC_PORT
+    /* EUR: the per-screen draw table D_800DB874 is extracted US map data, but
+     * retail SLES ships it for the PAL TV bank (see func_800D7450): TV2 on
+     * tpage 26 with the PAL TIM's tile offsets, every palette at x=896 rows
+     * 496..507. Sizes and v offsets are identical on both discs; only the
+     * page, palette and u differ. Values decoded from the EUR MAP4_S03.BIN. */
+    {
+        extern e_GameRegion g_GameRegion;
+        if (g_GameRegion == Region_EUR)
+        {
+            static const struct { u8 tpage; u16 clutY; u8 u; } s_eur[15] = {
+                { 29, 497,   8 }, { 29, 496,   0 }, { 29, 497,   0 }, { 29, 497,   0 }, { 29, 496, 128 },
+                { 26, 501,   0 }, { 26, 502,   0 }, { 26, 502,   0 },
+                { 26, 502, 128 }, { 26, 502, 128 }, { 26, 502, 128 }, { 26, 502, 128 },
+                { 28, 506,   0 }, { 28, 506,   0 }, { 28, 507, 128 },
+            };
+            s32 i;
+            for (i = 0; i < 15; i++)
+            {
+                D_800DB874[i].field_0 = s_eur[i].tpage;
+                D_800DB874[i].field_2 = getClut(896, s_eur[i].clutY);
+                D_800DB874[i].field_4 = s_eur[i].u;
+            }
+        }
+    }
+#endif
 }
 
 void func_800D0840(void) // 0x800D0840
@@ -3827,24 +3854,6 @@ void func_800D7408(void) // 0x800D7408
     func_800D7450();
     func_800D7548();
 
-#ifdef SH_PC_PORT
-    /* EUR only: func_800D7450's case 1 uploads TV2.TIM into tpage 12 (VRAM
-     * 800,0), which on the PAL/EUR layout overlaps the FONT16 atlas home
-     * (768,128) and its CLUT (816,255) — see font_region.c — so it corrupts
-     * all FONT16 text (the blue-box glyph corruption reported in the mall). US
-     * parks FONT16 at the (0,496) strip and never collides; retail SLES
-     * relocates this TV bank instead, but that overlay isn't decompiled.
-     * Re-queue FONT16 AFTER the TV bank so it wins the page back and text stays
-     * legible. Cost: the ~32px corner of TV2 that overlaps the atlas shows font
-     * pixels — cosmetic on the mall's static monitors. Proper fix: move TV2 to
-     * a free EUR page once its SLES coordinates are known. */
-    {
-        extern e_GameRegion g_GameRegion;
-        if (g_GameRegion == Region_EUR)
-            Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
-    }
-#endif
-
     WorldObject_ModelNameSet(&D_800E0698.objRef_238, "REF_NEAR");
 }
 
@@ -3883,6 +3892,33 @@ void func_800D7450(void) // 0x800D7450
                 D_800DB91C.clutY    = 10;
                 break;
         }
+
+#ifdef SH_PC_PORT
+        /* EUR: the US bank puts TV2 on tpage 12 at u=32, which on the PAL VRAM
+         * layout runs straight through the FONT16 atlas home (768,128) and its
+         * CLUT (816,255): every TV re-upload stamped static over the font and
+         * every font re-queue stamped glyphs over the screens. Retail SLES lays
+         * the bank out differently, recovered from the EUR MAP4_S03.BIN's copy
+         * of this routine (same store skeleton, different immediates): TV2 on
+         * tpage 26 at (640,256), u=0, and all three palettes at x=896 rows
+         * 496/501/506 instead of x=448 rows 0/5/10. The PAL TV2.TIM is authored
+         * for that placement, and the draw table gets its PAL values in
+         * func_800D078C. */
+        {
+            extern e_GameRegion g_GameRegion;
+            if (g_GameRegion == Region_EUR)
+            {
+                static const u16 s_eurClutY[3] = { 496, 501, 506 };
+                D_800DB91C.clutX = 896;
+                D_800DB91C.clutY = s_eurClutY[i];
+                if (i == 1)
+                {
+                    D_800DB91C.tPage[1] = 26;
+                    D_800DB91C.u        = 0;
+                }
+            }
+        }
+#endif
 
         Fs_QueueStartReadTim(textureFileIdx, FS_BUFFER_1, &D_800DB91C);
     }
