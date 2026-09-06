@@ -202,7 +202,7 @@ namespace SilentHillPC_Launcher
             var btnReb = new Button { Text = "Rebuild…",    Location = new Point(510, 386), Size = new Size(78, 28) };
             // Characters and item models are different formats with different rules,
             // so each direction is a dropdown rather than a button per combination —
-            // the tool column has no room left, and the DDS button below already
+            // the tool column has no room left, and the DDS button above already
             // establishes the pattern.
             var btnMo = new Button { Text = "Model → OBJ ▾", Location = new Point(510, 418), Size = new Size(78, 28) };
             var btnOm = new Button { Text = "OBJ → Model ▾", Location = new Point(510, 450), Size = new Size(78, 28) };
@@ -214,7 +214,7 @@ namespace SilentHillPC_Launcher
             omMenu.Items.Add("Character — simple…",    null, (s, e) => ConverterActions.SimpleImport(this, _gameRoot));
             omMenu.Items.Add("Item model (.TMD) — reshape…", null, (s, e) => ConverterActions.ImportTmd(this, _gameRoot));
             omMenu.Items.Add("Item model (.TMD) — replace…", null, (s, e) => ConverterActions.RebuildTmd(this, _gameRoot));
-            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 482), Size = new Size(78, 28) };
+            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 514), Size = new Size(78, 28) };
             _btnTips = new ToolTip();
             _btnTips.SetToolTip(btnEx, "Unpack a Silent Hill .bin disc image into the loose asset tree.");
             _btnTips.SetToolTip(btnTp, "Convert individual .TIM texture files to .png.");
@@ -267,7 +267,7 @@ namespace SilentHillPC_Launcher
 
             // BC7 .dds tooling (texconv). One button, a dropdown of actions —
             // like the OBJ pair, but grouped since they share the same converter.
-            var btnDds = new Button { Text = "DDS ▾", Location = new Point(510, 514), Size = new Size(78, 28) };
+            var btnDds = new Button { Text = "DDS ▾", Location = new Point(510, 482), Size = new Size(78, 28) };
             var ddsMenu = new ContextMenuStrip();
             ddsMenu.Items.Add("PNG → BC7 DDS…",       null, (s, e) => OnDdsEncode());
             ddsMenu.Items.Add("DDS → PNG…",           null, (s, e) => OnDdsDecode());
@@ -316,7 +316,7 @@ namespace SilentHillPC_Launcher
 
             FitToolColumn(
                 new[] { btnUp, btnDn, btnRe, btnOp, btnEx, btnVw, btnAu, btnTp, btnBp,
-                        btnRef, btnReb, btnMo, btnOm, btnHelp, btnDds },
+                        btnRef, btnReb, btnMo, btnOm, btnDds, btnHelp },
                 new[] { btnApply, btnClose },
                 new Control[] { help, _ffmpegRow });
         }
@@ -1560,6 +1560,23 @@ namespace SilentHillPC_Launcher
             CommitOrderAndState();
             try
             {
+                // Files in gamedata/load or gamedata/FMV that the manager did not put
+                // there are the user's own. Ask before Apply replaces them; it backs
+                // them up and removing the mod restores them.
+                var foreign = _mgr.PreviewForeignOverwrites();
+                if (foreign.Count > 0)
+                {
+                    var sb = new System.Text.StringBuilder();
+                    for (int i = 0; i < foreign.Count && i < 12; i++) sb.Append(foreign[i]).Append('\n');
+                    if (foreign.Count > 12) sb.Append("… and ").Append(foreign.Count - 12).Append(" more\n");
+                    if (MessageBox.Show(this,
+                            "Applying will overwrite " + foreign.Count + " existing file(s) that the Mod Manager " +
+                            "did not put there:\n\n" + sb + "\nThey are backed up and restored when the mod is " +
+                            "removed. Overwrite them?",
+                            "Mod Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                        return;
+                }
+
                 ModManager.ApplyResult r = null;
                 // Cancel here aborts an archive being unpacked (the only slow part), not the
                 // apply itself: the pack is left off and everything else still commits, so the
@@ -1571,8 +1588,8 @@ namespace SilentHillPC_Launcher
 
                 string msg = string.Format(
                     "Applied.\n\nActive texture packs: {0}\nData overlays (load/): {1}\nGameplay (Code / DLL) mods: {2}\nFMV video mods: {3}\n" +
-                    "Loose file support: {4}",
-                    r.Texture, r.Load, r.Gameplay, r.Fmv, r.LooseEnabled ? "on" : "off");
+                    "Loose file support: {4}\nFiles copied: {5} ({6} already in place, left as is)",
+                    r.Texture, r.Load, r.Gameplay, r.Fmv, r.LooseEnabled ? "on" : "off", r.Files, r.Skipped);
                 if (r.Warnings.Count > 0)
                     msg += "\n\nWarnings:\n - " + string.Join("\n - ", r.Warnings);
 
