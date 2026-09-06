@@ -355,10 +355,11 @@ public class ControlsForm : Form
          * button row, with Quick Turn overlapping Reset to Defaults, and the
          * controller column gained a Quick Options row. The bottom row is
          * placed from ClientSize.Height, so it follows this down. */
-        /* Raised again from 906 for the per-camera FOV split: the sensitivity
-         * column now carries five FOV/zoom sliders (First/Third/OTS FOV, then
-         * Thirdperson + OTS Aim Zoom), the lowest bottoming out near styleY+448. */
-        ClientSize = new Size(860, 972);
+        /* Height set so the bottom button row sits just under the keyboard column's
+         * last bind (Rear Look, ~y+827). The sensitivity column carries five FOV/zoom
+         * sliders (First/Third/OTS FOV, then Thirdperson + OTS Aim Zoom) at a tight
+         * 58px pitch so they fit this height without expanding the form. */
+        ClientSize = new Size(860, 877);
 
         tips = new ToolTip { AutoPopDelay = 20000, InitialDelay = 350, ReshowDelay = 80, ShowAlways = true };
 
@@ -662,11 +663,11 @@ public class ControlsForm : Form
         trkControllerSens = MakeSensSlider(sensX, styleY + 118, sensW);
         WireSensPair(numControllerSens, trkControllerSens);
 
-        AddLabel("First-person FOV", sensX, styleY + 162, 125);
+        AddLabel("First-person FOV", sensX, styleY + 154, 125);
         numFpsFov = new NumericUpDown
         {
             Left = sensX + sensW - 60,
-            Top = styleY + 159,
+            Top = styleY + 151,
             Width = 60,
             DecimalPlaces = 1,
             Increment = 1m,
@@ -676,7 +677,7 @@ public class ControlsForm : Form
             ForeColor = TextColor,
         };
         Controls.Add(numFpsFov);
-        trkFpsFov = MakeSensSlider(sensX, styleY + 184, sensW);
+        trkFpsFov = MakeSensSlider(sensX, styleY + 176, sensW);
         trkFpsFov.Minimum = 40;
         trkFpsFov.Maximum = 140;
         WirePair(numFpsFov, trkFpsFov, 1m);
@@ -685,11 +686,11 @@ public class ControlsForm : Form
             "cutscenes, and the other cameras keep the game's original projection. Default 71.1 = the game's " +
             "original FOV; 90 = standard FPS feel.");
 
-        AddLabel("Thirdperson FOV", sensX, styleY + 228, 125);
+        AddLabel("Thirdperson FOV", sensX, styleY + 212, 125);
         numTpsFov = new NumericUpDown
         {
             Left = sensX + sensW - 60,
-            Top = styleY + 225,
+            Top = styleY + 209,
             Width = 60,
             DecimalPlaces = 1,
             Increment = 1m,
@@ -699,7 +700,7 @@ public class ControlsForm : Form
             ForeColor = TextColor,
         };
         Controls.Add(numTpsFov);
-        trkTpsFov = MakeSensSlider(sensX, styleY + 250, sensW);
+        trkTpsFov = MakeSensSlider(sensX, styleY + 234, sensW);
         trkTpsFov.Minimum = 40;
         trkTpsFov.Maximum = 140;
         WirePair(numTpsFov, trkTpsFov, 1m);
@@ -708,11 +709,11 @@ public class ControlsForm : Form
             "Over-the-Shoulder has its own FOV below; the Classic fixed cameras always keep the game's " +
             "original projection. Default 71.1 = the game's own FOV, so leaving it alone changes nothing.");
 
-        AddLabel("Over-the-Shoulder FOV", sensX, styleY + 294, 140);
+        AddLabel("Over-the-Shoulder FOV", sensX, styleY + 270, 140);
         numOtsFov = new NumericUpDown
         {
             Left = sensX + sensW - 60,
-            Top = styleY + 291,
+            Top = styleY + 267,
             Width = 60,
             DecimalPlaces = 1,
             Increment = 1m,
@@ -722,7 +723,7 @@ public class ControlsForm : Form
             ForeColor = TextColor,
         };
         Controls.Add(numOtsFov);
-        trkOtsFov = MakeSensSlider(sensX, styleY + 316, sensW);
+        trkOtsFov = MakeSensSlider(sensX, styleY + 292, sensW);
         trkOtsFov.Minimum = 40;
         trkOtsFov.Maximum = 140;
         WirePair(numOtsFov, trkOtsFov, 1m);
@@ -730,11 +731,11 @@ public class ControlsForm : Form
             "Horizontal field of view (degrees, 4:3 basis) used ONLY in the Over-the-Shoulder camera, " +
             "independent of the Thirdperson FOV. Default 71.1 = the game's own FOV.");
 
-        AddLabel("Thirdperson Aim Zoom", sensX, styleY + 360, 140);
+        AddLabel("Thirdperson Aim Zoom", sensX, styleY + 328, 140);
         numTpsAimZoom = new NumericUpDown
         {
             Left = sensX + sensW - 60,
-            Top = styleY + 357,
+            Top = styleY + 325,
             Width = 60,
             DecimalPlaces = 0,
             Increment = 5m,
@@ -744,7 +745,7 @@ public class ControlsForm : Form
             ForeColor = TextColor,
         };
         Controls.Add(numTpsAimZoom);
-        trkTpsAimZoom = MakeSensSlider(sensX, styleY + 382, sensW);
+        trkTpsAimZoom = MakeSensSlider(sensX, styleY + 350, sensW);
         trkTpsAimZoom.Minimum = -200;
         trkTpsAimZoom.Maximum = 200;
         WirePair(numTpsAimZoom, trkTpsAimZoom, 1m);
@@ -753,11 +754,11 @@ public class ControlsForm : Form
             "100 (default) = the original zoom, 200 = as close as it goes, 0 = no zoom, negative pulls the aim " +
             "camera back for a wider view. Over-the-Shoulder has its own aim zoom below.");
 
-        AddLabel("Over-the-Shoulder Aim Zoom", sensX, styleY + 426, 160);
+        AddLabel("Over-the-Shoulder Aim Zoom", sensX, styleY + 386, 160);
         numOtsAimZoom = new NumericUpDown
         {
             Left = sensX + sensW - 60,
-            Top = styleY + 423,
+            Top = styleY + 383,
             Width = 60,
             DecimalPlaces = 0,
             Increment = 5m,
@@ -767,7 +768,7 @@ public class ControlsForm : Form
             ForeColor = TextColor,
         };
         Controls.Add(numOtsAimZoom);
-        trkOtsAimZoom = MakeSensSlider(sensX, styleY + 448, sensW);
+        trkOtsAimZoom = MakeSensSlider(sensX, styleY + 408, sensW);
         trkOtsAimZoom.Minimum = -200;
         trkOtsAimZoom.Maximum = 200;
         WirePair(numOtsAimZoom, trkOtsAimZoom, 1m);
