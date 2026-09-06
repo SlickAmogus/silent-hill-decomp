@@ -1409,6 +1409,63 @@ void Player_AnimUpdate(s_SubCharacter* player, s_PlayerExtra* extra, s_AnmHeader
     }
 }
 
+#ifdef SH_PC_PORT
+/* Stuck-state net for the map-table reaction anims (the release, get-up and
+ * damage families in Player_LogicUpdate). Those states exit only on
+ * keyframeIdx == field_38[D_800AF220].keyframeIdx_6, which a map carrying no
+ * row for the anim can never satisfy. A clock since state entry cannot tell
+ * "never going to end" from "still playing": at Q12(0.5f) it cut every real
+ * get-up and pin release short and snapped Harry upright mid-animation (those
+ * anims run around two seconds). The keyframe counter can tell them apart. A
+ * playing anim advances it every keyframe period, tens of ms even at the
+ * slowest rate in the anim tables, while a finished or dataless one never
+ * moves it again. Exit once it has sat still far longer than any keyframe
+ * period. The absolute ceiling only covers a row that loops forever; no anim
+ * here legitimately runs that long. Both counters are watched because the
+ * damage family exits on the upper-body anim and the release family on the
+ * body anim. Keyframe-based, so 30 and 240 fps behave identically. */
+static bool Pc_ReactionStateStuck(s32 state, s32 bodyKf, s32 upperKf)
+{
+    static s32    s_prevState   = -1;
+    static s32    s_prevBodyKf  = -1;
+    static s32    s_prevUpperKf = -1;
+    static q19_12 s_stillTime   = 0;
+    static q19_12 s_stateTime   = 0;
+
+    if (state != s_prevState)
+    {
+        s_stateTime = 0;
+        s_stillTime = 0;
+    }
+    else if (bodyKf != s_prevBodyKf || upperKf != s_prevUpperKf)
+    {
+        s_stillTime = 0;
+    }
+    else
+    {
+        s_stillTime += g_DeltaTime;
+    }
+    s_stateTime += g_DeltaTime;
+
+    s_prevState   = state;
+    s_prevBodyKf  = bodyKf;
+    s_prevUpperKf = upperKf;
+
+    if (s_stillTime <= Q12(1.0f) && s_stateTime <= Q12(10.0f))
+    {
+        return false;
+    }
+
+    SH_DBG("[GRABGUARD] state %d anim stopped short of its end keyframe (kf %d/%d still %dms, in state %dms) - force-exiting",
+           state, bodyKf, upperKf, (s_stillTime * 1000) >> Q12_SHIFT, (s_stateTime * 1000) >> Q12_SHIFT);
+
+    s_prevState = -1;
+    s_stillTime = 0;
+    s_stateTime = 0;
+    return true;
+}
+#endif
+
 void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* coords) // 0x80071CE8
 {
     SVECTOR       playerAngles;
@@ -3599,41 +3656,22 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
             }
 
 #ifdef SH_PC_PORT
-            /* The same net the DamageTorso and DamageFeet block below already
-             * carries, for the release and get-up family. Every one of these
-             * states exits only on keyframeIdx == field_38[D_800AF220].
-             * keyframeIdx_6, so a map with no row for the animation can never
-             * satisfy it and the player is held for the rest of the session.
-             * pc_grab_guard.c refuses the grabs that lead here, but it only sees
-             * the four grab attacks; this catches every other way in (the Cybil
-             * throw's get-up chain, Unk17/Unk18, DamageHead) without having to
-             * enumerate them.
+            /* Stuck net for the release and get-up family, see
+             * Pc_ReactionStateStuck. pc_grab_guard.c refuses the grabs that
+             * lead here, but it only sees the four grab attacks; this catches
+             * every other way in (the Cybil throw's get-up chain, Unk17/Unk18,
+             * DamageHead) without having to enumerate them.
              *
              * FallForward/FallBackward are deliberately excluded: they set
              * anim.status directly and exit against HARRY_BASE_ANIM_INFOS rather
-             * than the map table, so they are never stuck, and a long fall can
-             * legitimately outlast the timeout. */
+             * than the map table, so they are never stuck. */
             if (playerExtra.state != PlayerState_FallForward &&
                 playerExtra.state != PlayerState_FallBackward)
             {
-                static q19_12 s_relStateTime = 0;
-                static s32    s_relPrevState = -1;
-                s32           relCurState    = (s32)g_SysWork.playerWork.extra.state;
-
-                if (relCurState != s_relPrevState)
+                if (Pc_ReactionStateStuck((s32)g_SysWork.playerWork.extra.state,
+                                          player->model.anim.keyframeIdx,
+                                          extra->model.anim.keyframeIdx))
                 {
-                    s_relStateTime = 0;
-                    s_relPrevState = relCurState;
-                }
-                else
-                {
-                    s_relStateTime += g_DeltaTime;
-                }
-
-                if (s_relStateTime > Q12(0.5f))
-                {
-                    SH_DBG("[GRABGUARD] state %d never reached its end keyframe - force-exiting", relCurState);
-
                     g_SysWork.targetNpcIdx = NO_VALUE;
                     playerProps.flags &= ~PlayerFlag_DamageReceived;
                     Player_ExtraStateSet(player, extra, PlayerState_None);
@@ -3644,9 +3682,6 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                     g_SysWork.playerWork.player.collision.shapeOffsets.cylinder.vz = Q12(0.0f);
                     g_SysWork.playerWork.player.collision.shapeOffsets.box.vx = Q12(0.0f);
                     g_SysWork.playerWork.player.collision.shapeOffsets.box.vz = Q12(0.0f);
-
-                    s_relStateTime = 0;
-                    s_relPrevState = -1;
                 }
             }
 #endif
@@ -3959,40 +3994,23 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
             }
 
 #ifdef SH_PC_PORT
-            /* PC time-based exit from DamageTorso* / DamageFeet* / DamagePush*
-             * states. PSX exits when the per-map anim hits its end keyframe
-             * via the field_38 lookup above, but on PC the wild AS damage
-             * fires on maps whose HARRY_M*_ANIM_INFOS files don't actually
+            /* Stuck net for DamageTorso* / DamageFeet* / DamagePush*, see
+             * Pc_ReactionStateStuck. PSX exits when the per-map anim hits its
+             * end keyframe via the field_38 lookup above, but on PC the wild
+             * AS damage fires on maps whose HARRY_M*_ANIM_INFOS files don't
              * include the damage anim data (e.g. map2_s00). The anim status
              * gets set to 0x5352 etc. but no keyframe data exists, so
-             * keyframeIdx never reaches keyframeIdx_6 and Harry is stuck in
-             * DamageTorsoX forever — frozen-in-place / input-broken.
-             *
-             * Force-exit after 0.5 seconds of wall time regardless of the
-             * field_38 keyframe match. Time-based (g_DeltaTime accumulator)
-             * so 30fps and 60fps both exit at the same wall-time — the
-             * old 30-frame counter exited in 0.5s @60fps but 1.0s @30fps.
-             * Tracks per-state so re-entry from another bite restarts the
-             * countdown. */
+             * keyframeIdx never reaches keyframeIdx_6 and Harry would be stuck
+             * in DamageTorsoX forever. */
+            if (Pc_ReactionStateStuck((s32)g_SysWork.playerWork.extra.state,
+                                      player->model.anim.keyframeIdx,
+                                      extra->model.anim.keyframeIdx))
             {
-                static q19_12 s_dmgStateTime = 0;
-                static s32    s_dmgPrevState = -1;
-                s32           s_dmgCurState  = (s32)g_SysWork.playerWork.extra.state;
-                if (s_dmgCurState != s_dmgPrevState) {
-                    s_dmgStateTime = 0;
-                    s_dmgPrevState = s_dmgCurState;
-                } else {
-                    s_dmgStateTime += g_DeltaTime;
-                }
-                if (s_dmgStateTime > Q12(0.5f)) {
-                    player->attackReceived = NO_VALUE;
-                    g_SysWork.targetNpcIdx = NO_VALUE;
-                    playerProps.flags &= ~PlayerFlag_DamageReceived;
-                    Player_ExtraStateSet(player, extra, PlayerState_None);
-                    playerProps.moveSpeed = Q12(0.0f);
-                    s_dmgStateTime = 0;
-                    s_dmgPrevState = -1;
-                }
+                player->attackReceived = NO_VALUE;
+                g_SysWork.targetNpcIdx = NO_VALUE;
+                playerProps.flags &= ~PlayerFlag_DamageReceived;
+                Player_ExtraStateSet(player, extra, PlayerState_None);
+                playerProps.moveSpeed = Q12(0.0f);
             }
 #endif
 
