@@ -38,9 +38,9 @@
 #include "bodyprog/sound/sfx_id_enum.h"
 #include "bodyprog/sound/sound_system.h"
 
-/* The main options menu's cues: move on every selection or page change,
- * cancel on close. Value, toggle and action rows already beep in their own
- * handlers, so those are not repeated here. */
+/* Cancel beep on close only. A move beep on every hover and page step was
+ * tried and found excessive; value, toggle and action rows beep in their
+ * own handlers. */
 static void qo_beep(int sfxId)
 {
     Sd_PlaySfx((u16)sfxId, 0, 64);
@@ -1307,7 +1307,7 @@ static void qo_activate(const QoRowDef* r, int dir)
         }
         case ROW_EXTRA: PcOpt_QuickExtraAdjust(r->extra, dir); break;
         case ROW_CHEAT: Pc_Cheats_Adjust(r->cpage, r->extra, dir); break;
-        case ROW_PAGE:  qo_beep(Sfx_MenuMove);   qo_set_page(s_page + (dir < 0 ? -1 : +1)); break;
+        case ROW_PAGE:  qo_set_page(s_page + (dir < 0 ? -1 : +1)); break;
         case ROW_CLOSE: qo_beep(Sfx_MenuCancel); Pc_QuickOptions_Close(); break;
         case ROW_ACTION: break; /* confirm-only; see the ROW_ACTION comment */
         default: break;
@@ -1377,8 +1377,8 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         float mx2, my2;
 
         if (close) { qo_beep(Sfx_MenuCancel); s_ddRow = -1; return; }
-        if (up)   { s_ddSel = (s_ddSel + n - 1) % n; qo_beep(Sfx_MenuMove); }
-        if (down) { s_ddSel = (s_ddSel + 1) % n;     qo_beep(Sfx_MenuMove); }
+        if (up)   s_ddSel = (s_ddSel + n - 1) % n;
+        if (down) s_ddSel = (s_ddSel + 1) % n;
         /* Keyboard steps the selection; the window follows it. */
         if (s_ddSel < s_ddScroll) s_ddScroll = s_ddSel;
         if (s_ddSel >= s_ddScroll + QO_DD_VISIBLE) s_ddScroll = s_ddSel - QO_DD_VISIBLE + 1;
@@ -1409,11 +1409,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
             if (inside && line >= 0 && line < vis)
             {
                 /* highlight follows the pointer as the list moves under it */
-                if ((mMoved2 || wheel2) && s_ddSel != s_ddScroll + line)
-                {
-                    s_ddSel = s_ddScroll + line;
-                    qo_beep(Sfx_MenuMove);
-                }
+                if (mMoved2 || wheel2) s_ddSel = s_ddScroll + line;
                 if (mClick2) pick = s_ddScroll + line;
             }
             else if (mClick2)
@@ -1469,13 +1465,12 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         }
     }
 
-    if (pageNext || pagePrev) qo_beep(Sfx_MenuMove);
     if (pageNext) qo_set_page(s_page + 1);
     if (pagePrev) qo_set_page(s_page - 1);
     rows = qo_page_rows(s_page, &nRows);
 
-    if (up)   { s_sel = (s_sel + nRows - 1) % nRows; qo_beep(Sfx_MenuMove); }
-    if (down) { s_sel = (s_sel + 1) % nRows;         qo_beep(Sfx_MenuMove); }
+    if (up)   { s_sel = (s_sel + nRows - 1) % nRows; }
+    if (down) { s_sel = (s_sel + 1) % nRows; }
 
     /* Mouse: hover selects, wheel adjusts, left click steps a value up (or
      * runs an action), right click steps it down. */
@@ -1491,11 +1486,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         int   inX = mpx >= s_geoPanelL && mpx <= s_geoPanelR;
         if (inX && row >= 0 && row < nRows)
         {
-            if (mMoved && s_sel != row)
-            {
-                s_sel = row;
-                qo_beep(Sfx_MenuMove);
-            }
+            if (mMoved) s_sel = row;
             if (mClick)
             {
                 s_sel = row;
