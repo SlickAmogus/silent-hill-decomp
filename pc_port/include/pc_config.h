@@ -6,8 +6,10 @@
  * users sitting on the previous default get the new one on update (a value they
  * deliberately changed is kept). See PcConfig_Load's migration block. Bump this
  * and add a migration whenever you change a default that is written to config.cfg.
- *   1: world_vscale default 1.0 -> 1.08 (DuckStation-match vertical FOV). */
-#define PC_CONFIG_VERSION 1
+ *   1: world_vscale default 1.0 -> 1.08 (DuckStation-match vertical FOV).
+ *   2: crt_aspect_trim default 0.98 -> 1.06, so Simple's default shape equals
+ *      Advanced's (hfov 1.00, vfov 1.08) again -- they diverged at vfov 1.08. */
+#define PC_CONFIG_VERSION 2
 
 /* Minimap size range, as a percentage of the built-in MM_SIZE. The top end is a
  * little larger than the stock panel; the bottom end is a bit over half of it. */

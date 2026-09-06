@@ -120,15 +120,19 @@ s_PcConfig g_PcConfig = {
     .fpsHeadZ            = 919,   /* forward(+) */
     .fpsMeleeSwing       = 0.5f,  /* melee-swing camera pullback cap (world units); 0 = off */
     .reverbScale         = 0.0f, /* 0 = PsyCross default depth->wet scale */
-    /* View & aspect. The console picture is NOT a 4:3 stretch of the 224-line
-     * frame: the frame is scanned inside a larger visible area, and DuckStation
-     * renders the game's 320x224 at 465x357 = 1.3025:1, not 1.3333:1. That is
-     * an on-screen pixel aspect of 0.9118, and Simple's shape is
-     * (4:3)/(320/224) x trim = 0.93333 x trim, so console = 0.977. 0.98 both
-     * rounds it and lands within 0.05% of Advanced's hfov 1.0, so the two
-     * Control Types agree out of the box. */
+    /* View & aspect. The two Control Types must produce the SAME picture out of
+     * the box, and the reference is the maintainer's side-by-side against
+     * DuckStation: Advanced at hfov 1.00 / vfov 1.08. Advanced's on-screen shape
+     * is hfov x vfov / par = 1.00 x 1.08 / (35/32) = 0.9874; Simple's is
+     * (4:3)/(320/224) x trim = 0.93333 x trim, so trim = 0.9874 / 0.93333 =
+     * 1.058 -> 1.06. The old 0.98 was this same solve at vfov 1.0 (0.9143 /
+     * 0.93333); vfov is a uniform zoom in Simple but a shape change in Advanced,
+     * so the trim that keeps the modes agreeing has to move with the vfov
+     * default -- at 1.08 a 0.98 trim left Simple ~7% narrower than Advanced and
+     * "Reset View Settings" (which lands in Simple) no longer restored the
+     * matched picture. Round-trips: the Control Type toggle maps 1.06 <-> 1.00. */
     .aspectRaw           = 0,          /* crt: the framebuffer scanned out to 4:3 */
-    .crtAspectTrim       = 0.98f,
+    .crtAspectTrim       = 1.06f,
     /* 1.0 = the console picture, and now derivable rather than eyeballed.
      * DuckStation's game area measures 465x357 for the 320x224 frame
      * (exactsize.png), i.e. an on-screen pixel aspect of 0.9118, and
@@ -1308,6 +1312,21 @@ else if (strcmp(key, "enable_plugins") == 0)
             g_PsxWorldVScale       = 1.08f;
             snprintf(vbuf, sizeof(vbuf), "%.2f", g_PcConfig.worldVScale);
             PcConfig_SaveKeyValue("world_vscale", vbuf);
+        }
+
+        /* v2: Simple aspect trim 0.98 -> 1.06, so Simple's default shape equals
+         * Advanced's (hfov 1.00, vfov 1.08) again. The two diverged once vfov
+         * moved to 1.08: a uniform zoom in Simple, a shape change in Advanced.
+         * Inert while display_aspect = raw, but migrating it keeps the Control
+         * Type toggle round-tripping 1.06 <-> 1.00 for that user too. */
+        if (g_PcConfig.configVersion < 2 &&
+            g_PcConfig.crtAspectTrim > 0.979f && g_PcConfig.crtAspectTrim < 0.981f)
+        {
+            extern float g_PsxCrtAspectTrim;
+            g_PcConfig.crtAspectTrim = 1.06f;
+            g_PsxCrtAspectTrim       = 1.06f;
+            snprintf(vbuf, sizeof(vbuf), "%.2f", g_PcConfig.crtAspectTrim);
+            PcConfig_SaveKeyValue("crt_aspect_trim", vbuf);
         }
 
         g_PcConfig.configVersion = PC_CONFIG_VERSION;
