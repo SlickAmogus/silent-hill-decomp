@@ -2258,6 +2258,18 @@ s32 Pc_WorldAnchorOfy(void)
     return PC_GTE_BASE_OFY;
 }
 
+#ifdef SH_PC_PORT
+/* The quick menu zeroes g_Controller0->heldBtnFlags after it reads them so
+ * nothing underneath reacts, but Joy_ControllerDataUpdate derives the next
+ * frame's clicked edges from that same field as "previous held". Zeroed, a
+ * key that stayed down read as a fresh press every frame: one Enter became
+ * one confirm per frame, 31 error beeps at once on a maxed volume row, and
+ * a page step per frame that only looked right because 31 mod 5 pages is 1.
+ * Carry the real held state across so the pad update sees the true edge. */
+static s32 s_pcQoHeldStash      = 0;
+static int s_pcQoHeldStashValid = 0;
+#endif
+
 void MainLoop(void) // 0x80032EE0
 {
     #define TICKS_PER_SECOND_MIN (TICKS_PER_SECOND / 4)
@@ -2358,6 +2370,13 @@ void MainLoop(void) // 0x80032EE0
         // Update input.
         Joy_ReadP1();
         Demo_ControllerDataUpdate();
+#ifdef SH_PC_PORT
+        if (s_pcQoHeldStashValid)
+        {
+            g_Controller0->heldBtnFlags = s_pcQoHeldStash;
+            s_pcQoHeldStashValid        = 0;
+        }
+#endif
         Joy_ControllerDataUpdate();
 
 #ifdef SH_PC_PORT
@@ -2434,6 +2453,8 @@ void MainLoop(void) // 0x80032EE0
                     (g_Controller0->clickedBtnFlags & (cc->cancel | cc->option)) != 0,
                     (g_Controller0->clickedBtnFlags & ControllerFlag_R1) != 0,
                     (g_Controller0->clickedBtnFlags & ControllerFlag_L1) != 0);
+                s_pcQoHeldStash      = g_Controller0->heldBtnFlags;
+                s_pcQoHeldStashValid = 1;
                 g_Controller0->heldBtnFlags      = 0;
                 g_Controller0->clickedBtnFlags   = 0;
                 g_Controller0->releasedBtnFlags  = 0;
