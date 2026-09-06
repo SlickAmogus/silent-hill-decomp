@@ -26,7 +26,7 @@
 #include "stb_image.h"
 
 #define DECAL_MAX       64
-#define DECAL_HALF      Q12(0.0125f) /* quad half-extent (~1.25cm) */
+#define DECAL_HALF      Q12(0.0375f) /* quad half-extent (~3.75cm) */
 #define DECAL_OFFSET    Q12(0.02f) /* lift along the normal against z-fighting */
 #define DECAL_FLOOR_TOL Q12(0.15f) /* |impactY - floorY| for the FLOOR case (blood splats use the same) */
 
