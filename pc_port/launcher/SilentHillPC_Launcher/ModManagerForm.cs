@@ -1555,25 +1555,40 @@ namespace SilentHillPC_Launcher
             ConverterActions.ShowTextDialog(this, title, lines, monospace);
         }
 
+        private static void AppendFileList(System.Text.StringBuilder sb, List<string> files, int max)
+        {
+            for (int i = 0; i < files.Count && i < max; i++) sb.Append("  ").Append(files[i]).Append('\n');
+            if (files.Count > max) sb.Append("  … and ").Append(files.Count - max).Append(" more\n");
+        }
+
         private void OnApply(object sender, EventArgs e)
         {
             CommitOrderAndState();
             try
             {
-                // Files in gamedata/load or gamedata/FMV that the manager did not put
-                // there are the user's own. Ask before Apply replaces them; it backs
-                // them up and removing the mod restores them.
-                var foreign = _mgr.PreviewForeignOverwrites();
-                if (foreign.Count > 0)
+                // Files of the user's own in gamedata/load or gamedata/FMV: ones they
+                // added themselves, and ones a mod deployed that they edited since.
+                // Ask before Apply replaces any of them; each is backed up and comes
+                // back when the mod that replaced it is removed.
+                var pv = _mgr.PreviewOverwrites();
+                if (pv.Count > 0)
                 {
                     var sb = new System.Text.StringBuilder();
-                    for (int i = 0; i < foreign.Count && i < 12; i++) sb.Append(foreign[i]).Append('\n');
-                    if (foreign.Count > 12) sb.Append("… and ").Append(foreign.Count - 12).Append(" more\n");
-                    if (MessageBox.Show(this,
-                            "Applying will overwrite " + foreign.Count + " existing file(s) that the Mod Manager " +
-                            "did not put there:\n\n" + sb + "\nThey are backed up and restored when the mod is " +
-                            "removed. Overwrite them?",
-                            "Mod Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                    sb.Append("Applying will overwrite ").Append(pv.Count).Append(" file(s) of yours.\n");
+                    if (pv.Foreign.Count > 0)
+                    {
+                        sb.Append("\nFiles you added (not from a mod):\n");
+                        AppendFileList(sb, pv.Foreign, 8);
+                    }
+                    if (pv.Modified.Count > 0)
+                    {
+                        sb.Append("\nFiles a mod deployed that you edited since:\n");
+                        AppendFileList(sb, pv.Modified, 8);
+                    }
+                    sb.Append("\nEach one is backed up and restored when the mod that replaced it is removed. " +
+                              "Overwrite them?");
+                    if (MessageBox.Show(this, sb.ToString(), "Mod Manager",
+                            MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                         return;
                 }
 

@@ -822,9 +822,8 @@ namespace SilentHillPC_Launcher
             {
                 foreach (var line in File.ReadAllLines(ManifestPath))
                 {
-                    if (line.Length < 3 || line[1] != '|') continue;
-                    char op = line[0];
-                    string rel = line.Substring(2);
+                    char op; string rel; long size, ticks;
+                    if (!ParseManifestLine(line, out op, out rel, out size, out ticks)) continue;
                     if (keep != null && keep.Contains(rel)) continue;
                     string full = Path.Combine(_gameRoot, rel);
                     try
@@ -966,6 +965,7 @@ namespace SilentHillPC_Launcher
                 string dst = Path.Combine(dstRoot, rel);
                 Directory.CreateDirectory(Path.GetDirectoryName(dst));
 
+                char op;
                 if (File.Exists(dst))
                 {
                     string backupFile = Path.Combine(BackupDir, rel);
@@ -974,14 +974,15 @@ namespace SilentHillPC_Launcher
                         Directory.CreateDirectory(Path.GetDirectoryName(backupFile));
                         File.Copy(dst, backupFile, true);
                     }
-                    manifest.Add("B|" + Rel(dst));
+                    op = 'B';
                 }
                 else
                 {
-                    manifest.Add("F|" + Rel(dst));
+                    op = 'F';
                 }
 
                 File.Copy(file, dst, true);
+                manifest.Add(ManifestLine(op, dst, Rel(dst)));
                 n++;
             }
             return n;
@@ -1064,37 +1065,101 @@ namespace SilentHillPC_Launcher
             return Math.Abs((a.LastWriteTimeUtc - b.LastWriteTimeUtc).TotalSeconds) < 2.0;
         }
 
-        private Dictionary<string, char> ReadManifest()
+        private struct DeployedRecord
         {
-            var ops = new Dictionary<string, char>(StringComparer.OrdinalIgnoreCase);
+            public char Op;
+            public long Size;  // -1 when the entry predates size/time recording
+            public long Ticks;
+        }
+
+        /// <summary>Manifest line: "F|size|ticks|rel" or "B|size|ticks|rel", size and
+        /// last-write ticks of what the manager wrote, so a later Apply can tell a
+        /// file the user edited from one a mod updated. Older launchers wrote
+        /// "F|rel" / "B|rel" / "D|rel"; those parse with no record.</summary>
+        private static bool ParseManifestLine(string line, out char op, out string rel, out long size, out long ticks)
+        {
+            op = '\0'; rel = null; size = -1; ticks = 0;
+            if (line == null || line.Length < 3 || line[1] != '|') return false;
+            op = line[0];
+            string rest = line.Substring(2);
+            int a = rest.IndexOf('|');
+            int b = a >= 0 ? rest.IndexOf('|', a + 1) : -1;
+            if (a > 0 && b > a &&
+                long.TryParse(rest.Substring(0, a), out size) &&
+                long.TryParse(rest.Substring(a + 1, b - a - 1), out ticks))
+            {
+                rel = rest.Substring(b + 1);
+            }
+            else
+            {
+                size = -1; ticks = 0;
+                rel = rest;
+            }
+            return rel.Length > 0;
+        }
+
+        private static string ManifestLine(char op, string dst, string rel)
+        {
+            var fi = new FileInfo(dst);
+            return op + "|" + fi.Length + "|" + fi.LastWriteTimeUtc.Ticks + "|" + rel;
+        }
+
+        private Dictionary<string, DeployedRecord> ReadManifest()
+        {
+            var ops = new Dictionary<string, DeployedRecord>(StringComparer.OrdinalIgnoreCase);
             if (!File.Exists(ManifestPath)) return ops;
             foreach (var line in File.ReadAllLines(ManifestPath))
             {
-                if (line.Length < 3 || line[1] != '|') continue;
-                ops[line.Substring(2)] = line[0];
+                char op; string rel; long size, ticks;
+                if (!ParseManifestLine(line, out op, out rel, out size, out ticks)) continue;
+                ops[rel] = new DeployedRecord { Op = op, Size = size, Ticks = ticks };
             }
             return ops;
         }
 
-        /// <summary>Files Apply would overwrite in gamedata/load or gamedata/FMV that
-        /// the manager did not put there and that differ from what it would write.
-        /// The form shows these for confirmation before anything is touched.</summary>
-        public List<string> PreviewForeignOverwrites()
+        /// <summary>Whether dst is still exactly what the manager wrote there. An entry
+        /// with no record (older manifest) counts as untouched.</summary>
+        private static bool MatchesRecord(string dst, DeployedRecord r)
+        {
+            if (r.Size < 0) return true;
+            var fi = new FileInfo(dst);
+            if (!fi.Exists || fi.Length != r.Size) return false;
+            return Math.Abs(fi.LastWriteTimeUtc.Ticks - r.Ticks) < TimeSpan.TicksPerSecond * 2;
+        }
+
+        public class OverwritePreview
+        {
+            /// <summary>Files the user added that no mod has replaced yet.</summary>
+            public List<string> Foreign = new List<string>();
+            /// <summary>Files a mod deployed that the user edited since.</summary>
+            public List<string> Modified = new List<string>();
+            public int Count { get { return Foreign.Count + Modified.Count; } }
+        }
+
+        /// <summary>Files of the user's that Apply would overwrite in gamedata/load or
+        /// gamedata/FMV. The form shows these for confirmation before anything is
+        /// touched. A file that already equals what the mod would write is not listed;
+        /// nothing happens to it.</summary>
+        public OverwritePreview PreviewOverwrites()
         {
             var plan = BuildDeployPlan(new ApplyResult());
             var old  = ReadManifest();
-            var list = new List<string>();
+            var pv   = new OverwritePreview();
             foreach (var kv in plan)
             {
-                string rel = Rel(kv.Key);
-                if (old.ContainsKey(rel) || !File.Exists(kv.Key) || SameFile(kv.Value, kv.Key)) continue;
-                list.Add(rel);
+                string dst = kv.Key;
+                string rel = Rel(dst);
+                if (!File.Exists(dst) || SameFile(kv.Value, dst)) continue;
+                DeployedRecord r;
+                if (!old.TryGetValue(rel, out r)) pv.Foreign.Add(rel);
+                else if (!MatchesRecord(dst, r)) pv.Modified.Add(rel);
             }
-            list.Sort(StringComparer.OrdinalIgnoreCase);
-            return list;
+            pv.Foreign.Sort(StringComparer.OrdinalIgnoreCase);
+            pv.Modified.Sort(StringComparer.OrdinalIgnoreCase);
+            return pv;
         }
 
-        private void DeployPlan(Dictionary<string, string> plan, Dictionary<string, char> old,
+        private void DeployPlan(Dictionary<string, string> plan, Dictionary<string, DeployedRecord> old,
                                 List<string> manifest, ApplyResult result, Action<int, int, string> report)
         {
             int i = 0;
@@ -1105,22 +1170,36 @@ namespace SilentHillPC_Launcher
                 string rel = Rel(dst);
                 if (report != null && (++i % 50) == 0) report(i, plan.Count, "Deploying " + rel);
 
-                char op;
-                if (old.TryGetValue(rel, out op))
+                DeployedRecord r;
+                if (old.TryGetValue(rel, out r))
                 {
                     // Ours from an earlier Apply. A 'B' entry keeps its backup of the
                     // user's original so a later undeploy still restores it.
+                    char op = r.Op == 'B' ? 'B' : 'F';
                     if (SameFile(src, dst))
                     {
                         result.Skipped++;
                     }
                     else
                     {
+                        if (op == 'F' && !MatchesRecord(dst, r))
+                        {
+                            // A file the manager created, edited by the user since. They
+                            // said yes to replacing it; their version becomes the backup,
+                            // so removing the mod hands it back instead of deleting it.
+                            string backupFile = Path.Combine(BackupDir, rel);
+                            if (!File.Exists(backupFile))
+                            {
+                                Directory.CreateDirectory(Path.GetDirectoryName(backupFile));
+                                File.Copy(dst, backupFile, true);
+                            }
+                            op = 'B';
+                        }
                         Directory.CreateDirectory(Path.GetDirectoryName(dst));
                         File.Copy(src, dst, true);
                         result.Files++;
                     }
-                    manifest.Add((op == 'B' ? "B|" : "F|") + rel);
+                    manifest.Add(ManifestLine(op, dst, rel));
                 }
                 else if (File.Exists(dst))
                 {
@@ -1139,14 +1218,14 @@ namespace SilentHillPC_Launcher
                         File.Copy(dst, backupFile, true);
                     }
                     File.Copy(src, dst, true);
-                    manifest.Add("B|" + rel);
+                    manifest.Add(ManifestLine('B', dst, rel));
                     result.Files++;
                 }
                 else
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(dst));
                     File.Copy(src, dst, true);
-                    manifest.Add("F|" + rel);
+                    manifest.Add(ManifestLine('F', dst, rel));
                     result.Files++;
                 }
             }
