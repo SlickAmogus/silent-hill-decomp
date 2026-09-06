@@ -34,6 +34,7 @@
 #include "tex_pack.h"
 #include "sh_log.h"
 #include <stdlib.h>
+#include <math.h>
 
 /* The paper map's MARKINGS (blocked roads, locked/jammed doors, "no way through"
  * scribbles) come straight from the game's own tables in
@@ -578,7 +579,9 @@ void Pc_MinimapUpdate(void)
     s32       packed, px, py;
     int       haveMap, round, semi, op, lum;
     int       x0, y0, x1, y1, cx, cy, R;
-    int       halfW = SCREEN_WIDTH / 2, mmSize = MM_SIZE;
+    int       hudL = -(SCREEN_WIDTH / 2), hudR = SCREEN_WIDTH / 2;
+    int       hudT = -(SCREEN_HEIGHT / 2), hudB = SCREEN_HEIGHT / 2;
+    int       mmSize = MM_SIZE;
     s32       mkScale = 4096;
     int       u0 = 0, v0 = 0, u1 = MM_UV_MAX, v1 = MM_UV_MAX;
     int       markCount = 0;
@@ -606,27 +609,22 @@ void Pc_MinimapUpdate(void)
     round = (g_PcConfig.minimap == 2); /* 1 = square, 2 = circle */
 
     /* --- corner placement ---
-     * Vertical is always 4:3 (y -120..+120). Horizontally, sit flush to the true
-     * screen edge by reading the exact centred half-width the WORLD ortho was set
-     * to (g_PcWorldOrthoHalfW, PSX units): 160 for 4:3 (pillarbox / stretch /
-     * narrow window) or wider for genuine Hor+. That is the renderer's own value,
-     * so the panel edge always matches the actual screen edge.
-     *
-     * This must NOT be re-derived from a window size. The renderer picks the
-     * ortho from the logical render size (g_windowWidth/Height), but a window
-     * query (SDL_GetWindowSize) returns the actual window, and in borderless the
-     * two differ -- e.g. a 640x480 render presented to a 1920x1080 desktop.
-     * Widening off SDL_GetWindowSize (1.78) while the ortho stayed 4:3 (+-160)
-     * pushed half the minimap off the right edge (borderless 4:3, pillarbox off).
-     * Shrink the panel a touch only when not widened, matching the old 4:3 look. */
+     * Sit inside the overlay pass's real visible rectangle (g_PcHudRect, prim
+     * coordinates, published by the renderer every gameplay frame). These prims
+     * go on OT2, which is drawn under the UI ortho: no hfov, no vfov, so the
+     * rectangle is exact at any aspect, window or render size, FOV, or display
+     * height. It must NOT be re-derived from a window size (borderless presents
+     * a 640x480 render on a 1920x1080 desktop) nor from the WORLD ortho, whose
+     * width is divided by hfov: that placed the panel past the right edge at any
+     * hfov other than 1. Shrink the panel a touch only when the frame is 4:3,
+     * matching the old 4:3 look. */
     {
-        extern float g_PcWorldOrthoHalfW;
-        int worldHalf = (int)(g_PcWorldOrthoHalfW + 0.5f);
-        if (worldHalf > SCREEN_WIDTH / 2)
-        {
-            halfW = worldHalf;
-        }
-        else
+        extern float g_PcHudRect[4];
+        hudL = (int)floorf(g_PcHudRect[0] + 0.5f);
+        hudR = (int)floorf(g_PcHudRect[1] + 0.5f);
+        hudT = (int)floorf(g_PcHudRect[2] + 0.5f);
+        hudB = (int)floorf(g_PcHudRect[3] + 0.5f);
+        if (hudR - hudL <= SCREEN_WIDTH)
         {
             mmSize = MM_SIZE - 8;
         }
@@ -647,14 +645,14 @@ void Pc_MinimapUpdate(void)
     }
     switch (g_PcConfig.minimapCorner)
     {
-        case 1:  x0 =  halfW - MM_MARGIN - mmSize;
-                 y0 = -(SCREEN_HEIGHT / 2) + MM_MARGIN; break;
-        case 2:  x0 = -halfW + MM_MARGIN;
-                 y0 =  (SCREEN_HEIGHT / 2) - MM_MARGIN - mmSize; break;
-        case 3:  x0 =  halfW - MM_MARGIN - mmSize;
-                 y0 =  (SCREEN_HEIGHT / 2) - MM_MARGIN - mmSize; break;
-        default: x0 = -halfW + MM_MARGIN;
-                 y0 = -(SCREEN_HEIGHT / 2) + MM_MARGIN; break;
+        case 1:  x0 = hudR - MM_MARGIN - mmSize;
+                 y0 = hudT + MM_MARGIN; break;
+        case 2:  x0 = hudL + MM_MARGIN;
+                 y0 = hudB - MM_MARGIN - mmSize; break;
+        case 3:  x0 = hudR - MM_MARGIN - mmSize;
+                 y0 = hudB - MM_MARGIN - mmSize; break;
+        default: x0 = hudL + MM_MARGIN;
+                 y0 = hudT + MM_MARGIN; break;
     }
     x1 = x0 + mmSize; y1 = y0 + mmSize;
     cx = x0 + mmSize / 2; cy = y0 + mmSize / 2; R = mmSize / 2;
