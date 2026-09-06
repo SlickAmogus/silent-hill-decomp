@@ -80,7 +80,6 @@ static void Player_CrashHandler(int sig) {
 #include "pc_timing.h"
 #include "pc_config.h"
 #include "pc_grab_guard.h"
-#include "pc_cheats.h"
 #include "main/fileinfo.h" /* g_GameRegion — EUR overlay pointer rebase */
 
 /* Called above their definitions. Without a prototype in scope Clang
@@ -1388,9 +1387,6 @@ void Player_AnimUpdate(s_SubCharacter* player, s_PlayerExtra* extra, s_AnmHeader
 
         animInfo = &HARRY_BASE_ANIM_INFOS[extra->model.anim.status];
         animInfo->playbackFunc(&extra->model, anmHdr, coords, animInfo);
-#ifdef SH_PC_PORT
-        Pc_BigHead_Apply(player->model.charaId, coords);
-#endif
         return;
     }
 
@@ -1406,9 +1402,6 @@ void Player_AnimUpdate(s_SubCharacter* player, s_PlayerExtra* extra, s_AnmHeader
 
     animInfo = &HARRY_BASE_ANIM_INFOS[extra->model.anim.status];
     animInfo->playbackFunc(&extra->model, anmHdr, coords, animInfo);
-#ifdef SH_PC_PORT
-    Pc_BigHead_Apply(player->model.charaId, coords);
-#endif
 
     if (player->model.anim.status == HARRY_BASE_ANIM_INFOS[ANIM_STATUS(HarryAnim_Still, false)].linkStatus)
     {

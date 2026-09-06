@@ -57,7 +57,7 @@ enum { CH_TOGGLE = 0, CH_ACTION, CH_PLAYAS, CH_FREECAM, CH_DEBUGKEYS, CH_SPAWN }
 int g_PcBigHead = 0;
 
 #define BIGHEAD_BONE  2 /* the head on every 18-bone human rig (parent chain -1,0,1,...) */
-#define BIGHEAD_SCALE 3
+#define BIGHEAD_SCALE 2
 
 static int Pc_BigHead_IsHuman(int charaId)
 {

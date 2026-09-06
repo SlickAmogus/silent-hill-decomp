@@ -252,9 +252,6 @@ void func_80044950(s_SubCharacter* chara, s_AnmHeader* anmHdr, GsCOORDINATE2* co
 
     animInfo = func_80044918(&chara->model.anim);
     animInfo->playbackFunc(&chara->model, anmHdr, coords, animInfo);
-#ifdef SH_PC_PORT
-    Pc_BigHead_Apply(chara->model.charaId, coords);
-#endif
 }
 
 q19_12 Anim_DurationGet(s_Model* unused, s_AnimInfo* animInfo) // 0x800449AC
@@ -328,6 +325,9 @@ void Anim_PlaybackOnce(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* boneC
     if ((model->anim.flags & AnimFlag_Unlocked) || (model->anim.flags & AnimFlag_Visible))
     {
         Anim_BoneUpdate(anmHdr, boneCoords, newKeyframeIdx, newKeyframeIdx + 1, alpha);
+#ifdef SH_PC_PORT
+        Pc_BigHead_Apply(model->charaId, boneCoords);
+#endif
     }
 
     // Update frame data.
@@ -433,6 +433,9 @@ void Anim_PlaybackLoop(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* boneC
     if ((model->anim.flags & AnimFlag_Unlocked) || (model->anim.flags & AnimFlag_Visible))
     {
         Anim_BoneUpdate(anmHdr, boneCoords, newKeyframeIdx0, newKeyframeIdx1, alpha);
+#ifdef SH_PC_PORT
+        Pc_BigHead_Apply(model->charaId, boneCoords);
+#endif
     }
 
     // Update frame data.
@@ -498,6 +501,9 @@ void Anim_BlendLinear(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCo
     if ((model->anim.flags & AnimFlag_Unlocked) || (model->anim.flags & AnimFlag_Visible))
     {
         Anim_BoneUpdate(anmHdr, boneCoords, startKeyframeIdx, endKeyframeIdx, alpha);
+#ifdef SH_PC_PORT
+        Pc_BigHead_Apply(model->charaId, boneCoords);
+#endif
     }
 
     // Update alpha.
@@ -574,6 +580,9 @@ void Anim_BlendEaseOut(s_Model* model, s_AnmHeader* anmHdr, GsCOORDINATE2* boneC
     if ((model->anim.flags & AnimFlag_Unlocked) || (model->anim.flags & AnimFlag_Visible))
     {
         Anim_BoneUpdate(anmHdr, boneCoords, startKeyframeIdx, endKeyframeIdx, alpha);
+#ifdef SH_PC_PORT
+        Pc_BigHead_Apply(model->charaId, boneCoords);
+#endif
     }
 
     // Update active keyframe.

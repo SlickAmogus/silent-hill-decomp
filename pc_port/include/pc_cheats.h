@@ -21,7 +21,7 @@ const char* Pc_Cheats_ListName(int page, int idx, int i);
 int         Pc_Cheats_ListGet(int page, int idx);
 void        Pc_Cheats_ListSet(int page, int idx, int i);
 
-/* Big head mode: every human character's head bone drawn 3x. Toggle from the
+/* Big head mode: every human character's head bone drawn 2x. Toggle from the
  * Cheats page or the BIGHEAD console command; applied right after a
  * character's animation writes its bones for the frame. */
 extern int  g_PcBigHead;
