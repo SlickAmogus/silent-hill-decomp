@@ -235,8 +235,8 @@ static const s_PcOpt PCOPT_C[] = {
      * still loads from config.cfg (pc_config.c) for anyone who wants instant snap. */
     { "Mouse_Sensitivity", NULL, "mouse_sensitivity",      NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.mouseSensitivity,      NULL, 0.1f, 4.0f, 0.1f },
     { "Pad_Sensitivity",   NULL, "controller_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.controllerSensitivity, NULL, 0.1f, 4.0f, 0.1f },
-    { "First_Person_FOV",  NULL, "fps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fpsFov,                NULL, 40.0f, 140.0f, 1.0f },
-    { "Third_Person_FOV",  NULL, "tps_fov",                NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsFov,                NULL, 40.0f, 140.0f, 1.0f },
+    /* The three per-camera FOVs moved to the Camera page (grouped with the aim/
+     * camera options) once OTS got its own FOV -- the Controls page was full. */
     { "Invert_Mouse_Y",    &g_PcConfig.invertMouseY,      "invert_mouse_y",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     /* A graphics option living on the Controls page purely for room: 11 rows is
@@ -257,10 +257,14 @@ static const s_PcOpt PCOPT_T[] = {
     /* The minimap rows moved to the HUD page (PCOPT_H) when the low-health
      * glow arrived: every page was at the 11-row ceiling. */
     { "Aim_Assist",        &g_PcConfig.aimAssist,          "aim_assist",            VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    /* 0..200 to match the config loader, the TPSAIMZOOM console command and the
-     * pc_config.h contract — 100 is the original full zoom, 200 a deeper 2x.
-     * The slider alone was capped at 100, so the top half was unreachable. */
-    { "Aim_Zoom",          NULL, "tps_aim_zoom_amount",    NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsAimZoom,  NULL, 0.0f, 200.0f, 5.0f },
+    /* Per-camera FOV, each independent (40..140). First/Thirdperson moved here from
+     * the Controls page when OTS got its own FOV; grouped with the camera options. */
+    { "First_Person_FOV",  NULL, "fps_fov", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fpsFov, NULL, 40.0f, 140.0f, 1.0f },
+    { "Third_Person_FOV",  NULL, "tps_fov", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsFov, NULL, 40.0f, 140.0f, 1.0f },
+    { "OTS_FOV",           NULL, "ots_fov", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.otsFov, NULL, 40.0f, 140.0f, 1.0f },
+    /* Aim_Zoom is tps_aim_zoom_amount (Thirdperson only since the TPS/OTS split);
+     * -200..200, 0 = no zoom, 100 = original, negative pulls the aim camera back. */
+    { "Aim_Zoom",          NULL, "tps_aim_zoom_amount",    NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.tpsAimZoom,  NULL, -200.0f, 200.0f, 5.0f },
     { "OTS_Aim_In_TPS",    &g_PcConfig.tpsOtsAim,          "tps_ots_aim",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Camera_Collision",  &g_PcConfig.tpsCameraCollision, "tps_camera_collision",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Prev_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_PREV },

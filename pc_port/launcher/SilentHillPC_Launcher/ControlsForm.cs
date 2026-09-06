@@ -189,11 +189,13 @@ public class ControlsForm : Form
     private NumericUpDown numControllerSens;
     private NumericUpDown numFpsFov;
     private NumericUpDown numTpsFov;
+    private NumericUpDown numOtsFov;
     private NumericUpDown numTpsAimZoom;
     private TrackBar trkMouseSens;
     private TrackBar trkControllerSens;
     private TrackBar trkFpsFov;
     private TrackBar trkTpsFov;
+    private TrackBar trkOtsFov;
     private TrackBar trkTpsAimZoom;
     private bool syncingSens;   /* guards the numeric <-> slider mirroring */
     private CheckBox chkAltCamControls;
@@ -663,15 +665,15 @@ public class ControlsForm : Form
             Width = 60,
             DecimalPlaces = 1,
             Increment = 1m,
-            Minimum = 55m,
-            Maximum = 110m,
+            Minimum = 40m,
+            Maximum = 140m,
             BackColor = PanelBack,
             ForeColor = TextColor,
         };
         Controls.Add(numFpsFov);
         trkFpsFov = MakeSensSlider(sensX, styleY + 184, sensW);
-        trkFpsFov.Minimum = 55;
-        trkFpsFov.Maximum = 110;
+        trkFpsFov.Minimum = 40;
+        trkFpsFov.Maximum = 140;
         WirePair(numFpsFov, trkFpsFov, 1m);
         tips.SetToolTip(numFpsFov,
             "Horizontal field of view (degrees, 4:3 basis) used ONLY while playing in First-person mode — menus, " +
@@ -686,43 +688,65 @@ public class ControlsForm : Form
             Width = 60,
             DecimalPlaces = 1,
             Increment = 1m,
-            Minimum = 55m,
-            Maximum = 110m,
+            Minimum = 40m,
+            Maximum = 140m,
             BackColor = PanelBack,
             ForeColor = TextColor,
         };
         Controls.Add(numTpsFov);
         trkTpsFov = MakeSensSlider(sensX, styleY + 250, sensW);
-        trkTpsFov.Minimum = 55;
-        trkTpsFov.Maximum = 110;
+        trkTpsFov.Minimum = 40;
+        trkTpsFov.Maximum = 140;
         WirePair(numTpsFov, trkTpsFov, 1m);
         tips.SetToolTip(numTpsFov,
-            "Horizontal field of view (degrees, 4:3 basis) used ONLY while playing in Thirdperson or " +
-            "Over-the-Shoulder. The Classic fixed cameras always keep the game's original projection. " +
-            "Default 71.1 = the game's own FOV, so leaving it alone changes nothing.");
+            "Horizontal field of view (degrees, 4:3 basis) used ONLY while playing in Thirdperson. " +
+            "Over-the-Shoulder has its own FOV below; the Classic fixed cameras always keep the game's " +
+            "original projection. Default 71.1 = the game's own FOV, so leaving it alone changes nothing.");
 
-        AddLabel("TPS/OTS Aim Zoom", sensX, styleY + 294, 125);
-        numTpsAimZoom = new NumericUpDown
+        AddLabel("Over-the-Shoulder FOV", sensX, styleY + 294, 140);
+        numOtsFov = new NumericUpDown
         {
             Left = sensX + sensW - 60,
             Top = styleY + 291,
             Width = 60,
+            DecimalPlaces = 1,
+            Increment = 1m,
+            Minimum = 40m,
+            Maximum = 140m,
+            BackColor = PanelBack,
+            ForeColor = TextColor,
+        };
+        Controls.Add(numOtsFov);
+        trkOtsFov = MakeSensSlider(sensX, styleY + 316, sensW);
+        trkOtsFov.Minimum = 40;
+        trkOtsFov.Maximum = 140;
+        WirePair(numOtsFov, trkOtsFov, 1m);
+        tips.SetToolTip(numOtsFov,
+            "Horizontal field of view (degrees, 4:3 basis) used ONLY in the Over-the-Shoulder camera, " +
+            "independent of the Thirdperson FOV. Default 71.1 = the game's own FOV.");
+
+        AddLabel("Thirdperson Aim Zoom", sensX, styleY + 360, 140);
+        numTpsAimZoom = new NumericUpDown
+        {
+            Left = sensX + sensW - 60,
+            Top = styleY + 357,
+            Width = 60,
             DecimalPlaces = 0,
             Increment = 5m,
-            Minimum = 0m,
+            Minimum = -200m,
             Maximum = 200m,
             BackColor = PanelBack,
             ForeColor = TextColor,
         };
         Controls.Add(numTpsAimZoom);
-        trkTpsAimZoom = MakeSensSlider(sensX, styleY + 316, sensW);
-        trkTpsAimZoom.Minimum = 0;
+        trkTpsAimZoom = MakeSensSlider(sensX, styleY + 382, sensW);
+        trkTpsAimZoom.Minimum = -200;
         trkTpsAimZoom.Maximum = 200;
         WirePair(numTpsAimZoom, trkTpsAimZoom, 1m);
         tips.SetToolTip(numTpsAimZoom,
-            "How far the Thirdperson / Over-the-Shoulder camera pulls in behind Harry while you aim, as a percentage " +
-            "of the zoom range. 100 (default) = the original zoom, 200 = a deeper 2x zoom, 0 = no zoom at all (this " +
-            "replaces the old TPS/OTS Aim Zoom checkbox).");
+            "How far the Thirdperson camera dollies while you aim, as a percentage of the zoom range. " +
+            "100 (default) = the original zoom, 200 = as close as it goes, 0 = no zoom, negative pulls the aim " +
+            "camera back for a wider view. Over-the-Shoulder has its own aim zoom in the in-game quick menu.");
 
         tips.SetToolTip(numMouseSens,
             "Mouse look-speed multiplier for the Thirdperson / Over-the-Shoulder / First-person cameras (1.0 = default).");
@@ -1193,6 +1217,7 @@ public class ControlsForm : Form
         numControllerSens.Value = ClampSens(config.Get("controller_sensitivity", "1.0"));
         numFpsFov.Value = ClampFov(config.Get("fps_fov", "71.1"));
         numTpsFov.Value = ClampFov(config.Get("tps_fov", "71.1"));
+        numOtsFov.Value = ClampFov(config.Get("ots_fov", "71.1"));
         // Migration: the aim zoom used to be the on/off "tps_aim_zoom" key. If the
         // slider key isn't there yet, land on the position that matches whatever the
         // old checkbox said, so an existing setting isn't silently lost. The old "on"
@@ -1239,6 +1264,7 @@ public class ControlsForm : Form
         numControllerSens.Value = 1.0m;
         numFpsFov.Value = 71.1m;
         numTpsFov.Value = 71.1m;
+        numOtsFov.Value = 71.1m;
         numTpsAimZoom.Value = 100m;
 
         debugNo.Checked = true;
@@ -1294,7 +1320,7 @@ public class ControlsForm : Form
         WirePair(num, trk, 0.1m);
     }
 
-    // Parse a camera FOV from config, clamped to [55, 110] degrees
+    // Parse a camera FOV from config, clamped to [40, 140] degrees
     // (one decimal kept so the 71.1 native default round-trips).
     private static decimal ClampFov(string s)
     {
@@ -1302,8 +1328,8 @@ public class ControlsForm : Form
         if (!double.TryParse(s, System.Globalization.NumberStyles.Float,
                              System.Globalization.CultureInfo.InvariantCulture, out v))
             v = 71.1;
-        if (v < 55.0) v = 55.0;
-        if (v > 110.0) v = 110.0;
+        if (v < 40.0) v = 40.0;
+        if (v > 140.0) v = 140.0;
         return (decimal)(Math.Round(v * 10.0) / 10.0);
     }
 
@@ -1314,8 +1340,8 @@ public class ControlsForm : Form
         if (!double.TryParse(s, System.Globalization.NumberStyles.Float,
                              System.Globalization.CultureInfo.InvariantCulture, out v))
             v = 100.0;
-        if (v < 0.0) v = 0.0;
-        if (v > 200.0) v = 200.0;
+        if (v < -200.0) v = -200.0;
+        if (v >  200.0) v =  200.0;
         return (decimal)Math.Round(v);
     }
 
@@ -1378,6 +1404,8 @@ public class ControlsForm : Form
             ((double)numFpsFov.Value).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture));
         config.Set("tps_fov",
             ((double)numTpsFov.Value).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture));
+        config.Set("ots_fov",
+            ((double)numOtsFov.Value).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture));
         config.Set("tps_aim_zoom_amount",
             ((double)numTpsAimZoom.Value).ToString("0", System.Globalization.CultureInfo.InvariantCulture));
 
