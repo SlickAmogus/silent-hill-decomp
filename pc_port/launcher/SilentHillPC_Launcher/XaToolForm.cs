@@ -592,25 +592,57 @@ namespace SilentHillPC_Launcher
             if (path.EndsWith(".wav", StringComparison.OrdinalIgnoreCase))
             {
                 byte[] wav = NormalizeWav(File.ReadAllBytes(path));
-                if (wav != null) return wav;
+                if (wav != null) return ResampleWav(wav, XaRate);
             }
             string ff = FindFfmpeg(_gameRoot);
             if (ff == null) return null;
             string tmp = Path.Combine(Path.GetTempPath(), "sh1_xa_" + Guid.NewGuid().ToString("N") + ".wav");
             try
             {
-                var psi = new ProcessStartInfo(ff, "-y -i \"" + path + "\" -vn -acodec pcm_s16le \"" + tmp + "\"")
+                var psi = new ProcessStartInfo(ff, "-y -i \"" + path + "\" -vn -acodec pcm_s16le -ar " + XaRate + " \"" + tmp + "\"")
                 {
                     UseShellExecute = false, CreateNoWindow = true
                 };
                 using (var p = Process.Start(psi)) { p.WaitForExit(120000); }
                 if (!File.Exists(tmp)) return null;
-                return NormalizeWav(File.ReadAllBytes(tmp));
+                byte[] wav = NormalizeWav(File.ReadAllBytes(tmp));
+                return wav == null ? null : ResampleWav(wav, XaRate);
             }
             finally
             {
                 try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
             }
+        }
+
+        /// <summary>The disc's XA sample rate. Files saved at it need no conversion in
+        /// the game (whose software mixer takes only the disc rates and otherwise
+        /// resamples at load).</summary>
+        private const int XaRate = 37800;
+
+        /// <summary>A canonical 16-bit PCM WAV (BuildWav layout) brought to the given
+        /// rate by linear interpolation; returned as is when already there.</summary>
+        private static byte[] ResampleWav(byte[] wav, int rate)
+        {
+            int channels = BitConverter.ToInt16(wav, 22);
+            int inRate = BitConverter.ToInt32(wav, 24);
+            int dataLen = BitConverter.ToInt32(wav, 40);
+            if (inRate == rate || inRate <= 0 || channels < 1) return wav;
+            int inFrames = dataLen / (channels * 2);
+            long outFrames = (long)inFrames * rate / inRate;
+            var pcm = new short[outFrames * channels];
+            for (long i = 0; i < outFrames; i++)
+            {
+                long srcPos = i * inRate;
+                int idx = (int)(srcPos / rate);
+                int frac = (int)(srcPos % rate);
+                for (int c = 0; c < channels; c++)
+                {
+                    int a = BitConverter.ToInt16(wav, 44 + (idx * channels + c) * 2);
+                    int b = idx + 1 < inFrames ? BitConverter.ToInt16(wav, 44 + ((idx + 1) * channels + c) * 2) : a;
+                    pcm[i * channels + c] = (short)(a + (int)((long)(b - a) * frac / rate));
+                }
+            }
+            return BuildWav(pcm, pcm.Length, rate, channels);
         }
 
         /// <summary>A WAV re-emitted as canonical 16-bit PCM (8/24/32-bit integer and
@@ -692,7 +724,15 @@ namespace SilentHillPC_Launcher
                 try
                 {
                     Mci("open new type waveaudio alias sh1xarec");
-                    Mci("set sh1xarec time format ms bitspersample 16 channels 1 samplespersec 44100 bytespersec 88200 alignment 2");
+                    try
+                    {
+                        // The disc's own rate, so the game plays the take as is.
+                        Mci("set sh1xarec time format ms bitspersample 16 channels 1 samplespersec " + XaRate + " bytespersec " + (XaRate * 2) + " alignment 2");
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        Mci("set sh1xarec time format ms bitspersample 16 channels 1 samplespersec 44100 bytespersec 88200 alignment 2");
+                    }
                     Mci("record sh1xarec");
                 }
                 catch (Exception ex)
@@ -808,9 +848,10 @@ namespace SilentHillPC_Launcher
                 "Every voice line the game streams from the disc is listed by its number. Play one to hear it, " +
                 "Export it as WAV to edit elsewhere, then Replace it with any audio file, or press Record, say the " +
                 "line, and Stop and save.\n\n" +
-                "A replacement is a WAV in gamedata\\load\\XA named xa_NNNN.wav. Mono or stereo, any sample rate: the " +
-                "game resamples. The scene keeps its authored timing: a shorter take does not rush it, and a longer " +
-                "take is not cut off.\n\n" +
+                "A replacement is a WAV in gamedata\\load\\XA named xa_NNNN.wav. Mono or stereo. Record and Replace " +
+                "save it at 37800 Hz, the disc's own rate; a file at any other rate is converted by the game when it " +
+                "plays. The scene keeps its authored timing: a shorter take does not rush it, and a longer take is " +
+                "not cut off.\n\n" +
                 "Loose file support must be on (the Mod Manager turns it on when a load mod is applied). To ship a " +
                 "fan dub as a mod, put the files in a load\\XA folder inside the mod; Apply deploys them here.\n\n" +
                 "Not sure which number a line is? Play the scene in the game, then press \"Last played in game\".\n\n" +
