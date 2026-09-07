@@ -91,9 +91,53 @@ there. The event addresses the point by index, so several events can share a spo
 | `TriggerActivationType_Button` | requires a button press |
 | `TriggerActivationType_Item` | requires using `requiredItemId` from the inventory |
 
-In the editor these appear as `sh_trigger` entities with dropdowns for the two
-type fields; the rest are text, because their valid values are large enums
-(`MapEvent_*`, `EventFlag_*`, `e_InvItemId`) that live in the decomp headers.
+### What `eventParam` actually means
+
+`eventParam` is a bare 8-bit field that each system state reads differently, so
+on its own it says nothing. Confirmed against `game_sys_states.c`:
+
+| `sysState` | `eventParam` is |
+|---|---|
+| `SysState_Fmv` | FMV to play, file `BASE_AUDIO_FILE_IDX - eventParam` |
+| `SysState_LoadOverlay`, `SysState_LoadRoom` | destination `mapPoints` index |
+| `SysState_ReadMessage` | `MapMsg` id passed to `Gfx_MapMsg_Draw` |
+| `SysState_SaveMenu0`, `SysState_SaveMenu1` | `SaveLocationId` |
+| `SysState_EventCallback` | index into the map's own `g_MapEventFuncs` |
+| `SysState_EventSetFlag` | unused - the state just sets `disabledEventFlag` |
+| `SysState_EventPlaySound` | sound id, added to `Sfx_Base` |
+
+`g_MapEventFuncs` is declared per map in `src/maps/<map>/<map>_header.c` and is
+sparse - `NULL` entries are real. 43 of the maps have one, from 1 entry
+(`map2_s03`) to 47 (`map7_s01`). It is the map's own list of scripted actions:
+`MapEvent_CommonItemTake`, `MapEvent_DoorLocked`, `MapEvent_KeyOfOphielUse`,
+`MapEvent_CutsceneCybilDeath`, and a long tail still named `func_800D84EC`.
+
+### Editing triggers
+
+`ipd2map` resolves all of this and writes it onto each `sh_trigger`:
+
+- every `s_EventData` field, as a dropdown wherever the decomp declares an enum
+- `requiredEventFlag` / `disabledEventFlag` pick from all 1066 `e_EventFlag`
+  values, the 578 named ones listed first (`M6S03: Health Drink0  (1121)`)
+- `event_param_is` - read-only, what `eventParam` means for the current state
+- `event_func` - read-only, the `g_MapEventFuncs` entry this trigger calls
+- `event_index` - the `MAP_EVENTS` row, which is how write-back finds it
+
+`entities_to_source.py` writes changed fields back into
+`src/maps/<map>/<map>_events_data.c`. Those rows are sparse designated
+initializers, so it substitutes a field in place, inserts a missing one in
+struct order, or deletes one set back to zero - and it rewrites the
+`// \`MapEvent_X\`` comment beside `eventParam` so it never goes stale. An
+unedited map produces a zero-byte diff.
+
+It edits the decomp repository, not a loose game file, so it is dry-run by
+default and the map DLLs must be rebuilt afterwards:
+
+```
+Run > Compile Map > "Entities + triggers: preview changes"
+Run > Compile Map > "Entities + triggers: WRITE to decomp source"
+cmake --build <pc_port build dir>          # with -DSH_BUILD_MAP_DLLS=ON
+```
 
 ## Cameras
 
@@ -128,5 +172,10 @@ So TB = `(sh.x, sh.z, -sh.y) / 4` for geometry, `q12 / 64` for entities and
 - Adding a brand new map cell needs the file table regenerating, or an extension
   to `Map_MakeIpdGrid` to scan `gamedata/load/BG/`.
 - Editing a shared area (`ER`, `THR`) changes every map DLL that renders it.
+- Trigger and camera edits reach the game through a map-DLL rebuild, not through
+  a loose file, so they cannot be hot-loaded the way geometry can.
+- `eventParam` is only validated against `g_MapEventFuncs` for
+  `SysState_EventCallback`; the game clamps it to 0-63 and skips NULL entries,
+  so a bad index is inert rather than a crash.
 - Lighting is computed at runtime from baked normals and a world tint; there are
   no light entities to place.
