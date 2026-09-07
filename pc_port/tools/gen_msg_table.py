@@ -29,7 +29,8 @@ def clean(t):
     t = t.replace("~N", " ")
     t = re.sub(r"~[A-Za-z]\d*", "", t)
     t = t.replace("\t", "").replace("\n", " ").replace("_", " ")
-    return re.sub(r"\s+", " ", t).strip()
+    t = re.sub(r"\s+", " ", t).strip()
+    return re.sub(r" ([.,!?])", r"\1", t)
 
 def cs(s):
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
