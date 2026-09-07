@@ -184,6 +184,131 @@ static XaPlayerState g_XaPlayer = {0};
 float g_PcXaVolume = 1.0f;
 static float s_XaGameGain = 1.0f;
 
+/* ---- WAV override (voice modding) ----------------------------------------
+ * gamedata/load/XA/xa_NNNN.wav replaces voice line NNNN (the g_XaItemData
+ * index; the launcher's Voices tool writes them). 16-bit PCM (8-bit accepted),
+ * mono or stereo, any sample rate: OpenAL resamples, so a microphone take
+ * plays as recorded. The line keeps the AUTHORED pacing: the finished signal
+ * still waits for the original pad, so a shorter take does not rush the
+ * scene, and the page-advance hold stretches to cover a longer take so it is
+ * not cut off. Gated on allow_loose_files like the rest of the load folder. */
+static unsigned char* s_ovPcm    = NULL; /* interleaved int16 frames */
+static uint32_t       s_ovBytes  = 0;
+static uint32_t       s_ovPos    = 0;
+static int            s_ovActive = 0;
+
+static void XaOverride_Free(void)
+{
+    free(s_ovPcm);
+    s_ovPcm    = NULL;
+    s_ovBytes  = 0;
+    s_ovPos    = 0;
+    s_ovActive = 0;
+}
+
+static uint32_t Rd32(const unsigned char* p) { return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24); }
+static uint32_t Rd16(const unsigned char* p) { return p[0] | (p[1] << 8); }
+
+/* Returns 1 with s_ovPcm filled on success. */
+static int XaOverride_Load(uint16_t xaIdx, int* outRate, int* outStereo)
+{
+    char           path[1024];
+    FILE*          f;
+    long           size;
+    unsigned char* d;
+    uint32_t       off, fmtTag = 0, channels = 0, rate = 0, bits = 0;
+    const unsigned char* data = NULL;
+    uint32_t       dataLen = 0;
+
+    if (!g_PcConfig.allowLooseFiles) return 0;
+    snprintf(path, sizeof(path), "%s/load/XA/xa_%04u.wav", PcPort_GetGameDataPath(), (unsigned)xaIdx);
+    f = fopen(path, "rb");
+    if (!f) return 0;
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size < 44 || size > 64L * 1024L * 1024L) { fclose(f); return 0; }
+    d = (unsigned char*)malloc((size_t)size);
+    if (!d || fread(d, 1, (size_t)size, f) != (size_t)size) { free(d); fclose(f); return 0; }
+    fclose(f);
+
+    if (memcmp(d, "RIFF", 4) != 0 || memcmp(d + 8, "WAVE", 4) != 0)
+    {
+        SH_DBG("[XA] override %s is not a RIFF WAVE file, ignored", path);
+        free(d);
+        return 0;
+    }
+    for (off = 12; off + 8 <= (uint32_t)size; )
+    {
+        uint32_t len = Rd32(d + off + 4);
+        const unsigned char* body = d + off + 8;
+        if (off + 8 + len > (uint32_t)size) len = (uint32_t)size - off - 8;
+        if (memcmp(d + off, "fmt ", 4) == 0 && len >= 16)
+        {
+            fmtTag   = Rd16(body);
+            channels = Rd16(body + 2);
+            rate     = Rd32(body + 4);
+            bits     = Rd16(body + 14);
+            /* WAVE_FORMAT_EXTENSIBLE: the real tag is the sub-format's first word. */
+            if (fmtTag == 0xFFFE && len >= 26) fmtTag = Rd16(body + 24);
+        }
+        else if (memcmp(d + off, "data", 4) == 0)
+        {
+            data    = body;
+            dataLen = len;
+        }
+        off += 8 + len + (len & 1);
+    }
+    if (!data || fmtTag != 1 || (channels != 1 && channels != 2) || rate < 4000 || rate > 96000 ||
+        (bits != 16 && bits != 8))
+    {
+        SH_DBG("[XA] override %s unsupported (tag=%u ch=%u rate=%u bits=%u); needs 8/16-bit PCM mono or stereo",
+               path, fmtTag, channels, rate, bits);
+        free(d);
+        return 0;
+    }
+
+    {
+        uint32_t frameIn  = channels * (bits / 8);
+        uint32_t frames   = dataLen / frameIn;
+        uint32_t outBytes = frames * channels * 2;
+        unsigned char* pcm = (unsigned char*)malloc(outBytes ? outBytes : 2);
+        if (!pcm) { free(d); return 0; }
+        if (bits == 16)
+        {
+            memcpy(pcm, data, outBytes);
+        }
+        else
+        {
+            uint32_t i;
+            int16_t* o = (int16_t*)pcm;
+            for (i = 0; i < frames * channels; i++) o[i] = (int16_t)(((int)data[i] - 128) << 8);
+        }
+        XaOverride_Free();
+        s_ovPcm    = pcm;
+        s_ovBytes  = outBytes;
+        s_ovPos    = 0;
+        s_ovActive = 1;
+    }
+    free(d);
+    *outRate   = (int)rate;
+    *outStereo = (channels == 2);
+    return 1;
+}
+
+/* One OpenAL source and buffer set for the player's life; gain back to full at
+ * every new line (see the note at the end of XaPlayer_Play). */
+static void XaPlayer_EnsureAlReady(void)
+{
+    if (!g_XaPlayer.alSource) {
+        alGenSources(1, &g_XaPlayer.alSource);
+        alGenBuffers(XA_NUM_BUFFERS, g_XaPlayer.alBuffers);
+        g_XaPlayer.pcmBuffer = malloc(XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * 2 * sizeof(int16_t));
+    }
+    s_XaGameGain = 1.0f;
+    alSourcef(g_XaPlayer.alSource, AL_GAIN, s_XaGameGain * g_PcXaVolume);
+}
+
 // Clamp s32 to s16
 static int16_t ClampS16(int32_t val) {
     if (val > 32767) return 32767;
@@ -442,6 +567,43 @@ void XaPlayer_Play(uint16_t xaIdx) {
         XaPlayer_Stop();
     }
 
+    {
+        int ovRate = 0, ovStereo = 0;
+        if (XaOverride_Load(xaIdx, &ovRate, &ovStereo)) {
+            const uint32_t chunkBytes = XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * sizeof(int16_t);
+            uint32_t chunks  = (s_ovBytes + chunkBytes - 1) / chunkBytes;
+            uint32_t wavMs   = (uint32_t)(((uint64_t)(s_ovBytes / (ovStereo ? 4u : 2u)) * 1000u) / (unsigned)ovRate);
+            uint32_t origMs  = ((uint32_t)item->audioLength_8_bits * 1000u) / 60u;
+            Uint32   nowMs   = SDL_GetTicks();
+
+            g_XaPlayer.file             = NULL;
+            g_XaPlayer.baseSector       = 0;
+            g_XaPlayer.xaIdx            = xaIdx;
+            g_XaPlayer.currentSector    = 0;
+            g_XaPlayer.totalSectors     = chunks;
+            g_XaPlayer.remainingSectors = chunks;
+            g_XaPlayer.sampleRate       = ovRate;
+            g_XaPlayer.isStereo         = ovStereo;
+            g_XaPlayer.bitDepth         = 0;
+            g_XaPlayer.filterFile       = 0;
+            g_XaPlayer.filterChannel    = 0;
+            g_XaPlayer.isPlaying        = 1;
+            g_XaPlayer.needsInitialFill = 1;
+            g_XaPlayer.debugForceMono   = 0;
+            memset(g_XaPlayer.lastSamples, 0, sizeof(g_XaPlayer.lastSamples));
+
+            s_xaPrevFireMs    = nowMs;
+            s_xaPlayStartMs   = nowMs;
+            s_xaPadEndMs      = nowMs + (((uint32_t)item->audioLength_8_bits + 32u) * 1000u) / 60u;
+            s_xaVoiceGapEndMs = nowMs + (wavMs > origMs ? wavMs : origMs) + (uint32_t)g_PcConfig.cutsceneLineGapMs;
+
+            SH_DBG("[XA] override xa_%04u.wav %s %dHz %ums (authored %ums)",
+                   (unsigned)xaIdx, ovStereo ? "stereo" : "mono", ovRate, wavMs, origMs);
+            XaPlayer_EnsureAlReady();
+            return;
+        }
+    }
+
     // Resolve disc base sector for this XA file (and open the BIN if needed)
     uint32_t baseSector = BeginXaStream(fileIdx);
     if (!baseSector) {
@@ -505,13 +667,6 @@ void XaPlayer_Play(uint16_t xaIdx) {
     /* Mono replication test confirmed not the issue — leave off. */
     g_XaPlayer.debugForceMono = 0;
 
-    // Create OpenAL source/buffers once
-    if (!g_XaPlayer.alSource) {
-        alGenSources(1, &g_XaPlayer.alSource);
-        alGenBuffers(XA_NUM_BUFFERS, g_XaPlayer.alBuffers);
-        g_XaPlayer.pcmBuffer = malloc(XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * 2 * sizeof(int16_t));
-    }
-
     /* Always reset gain to full at the start of a new track. The game's
      * audio task pool emits a Sd_SetVolXa(0,0) "mute-before-seek" early
      * in gameplay (sd_call.c:1073, inside Sd_XaPreLoadAudio case 0).
@@ -521,9 +676,7 @@ void XaPlayer_Play(uint16_t xaIdx) {
      * 0.0 for the rest of the session. Without this reset, every voice
      * line after the first ~20 plays silently (cafe cutscene voices
      * still work because they precede the mute event). */
-    s_XaGameGain = 1.0f;
-    alSourcef(g_XaPlayer.alSource, AL_GAIN, s_XaGameGain * g_PcXaVolume);
-
+    XaPlayer_EnsureAlReady();
 }
 
 void XaPlayer_Stop(void) {
@@ -542,6 +695,7 @@ void XaPlayer_Stop(void) {
     }
 
     g_XaPlayer.isPlaying = 0;
+    XaOverride_Free();
     /* Clear all the streaming-state flags that Sd_AudioStreamingCheck consults.
      * Skip when this Stop is the queued-Stop-before-Play in Sd_XaAudioPlayTaskAdd:
      * in that case Sd_TaskPoolExecute case 2 already preserves xaAudioIdx_4
@@ -594,6 +748,25 @@ void XaPlayer_PlayWithParams(uint16_t xaIdx, uint16_t fileIdx, uint32_t sectorOf
  * given AL buffer. Returns total int16 samples written. */
 static int FillAndUploadOne(ALuint alBuffer) {
     if (g_XaPlayer.remainingSectors == 0) return 0;
+
+    if (s_ovActive) {
+        /* Override: one PCM chunk per "sector" so the drain logic below is
+         * shared unchanged. */
+        const uint32_t chunkBytes = XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * sizeof(int16_t);
+        uint32_t n = s_ovBytes - s_ovPos;
+        if (n == 0) {
+            g_XaPlayer.remainingSectors = 0;
+            return 0;
+        }
+        if (n > chunkBytes) n = chunkBytes;
+        memcpy(g_XaPlayer.pcmBuffer, s_ovPcm + s_ovPos, n);
+        s_ovPos += n;
+        g_XaPlayer.remainingSectors--;
+        alBufferData(alBuffer, g_XaPlayer.isStereo ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16,
+                     g_XaPlayer.pcmBuffer, (ALsizei)n, g_XaPlayer.sampleRate);
+        alSourceQueueBuffers(g_XaPlayer.alSource, 1, &alBuffer);
+        return (int)(n / sizeof(int16_t));
+    }
 
     int wantedMatches = (g_XaPlayer.remainingSectors > XA_SECTORS_PER_BUFFER)
                       ? XA_SECTORS_PER_BUFFER : (int)g_XaPlayer.remainingSectors;
@@ -695,6 +868,7 @@ void XaPlayer_Update(void) {
         /* g_XaPlayer.file aliases the shared s_BinFile — never fclose it
          * here. The BIN handle is held for the lifetime of the process. */
         g_XaPlayer.file = NULL;
+        XaOverride_Free();
         Xa_SignalPlaybackFinished();
     }
 }
