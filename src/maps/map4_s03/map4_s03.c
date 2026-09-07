@@ -3929,11 +3929,6 @@ void func_800D7450(void) // 0x800D7450
                     D_800DB91C.u        = 0;
                 }
             }
-            SH_DBG("[TVSCR3] TV%d upload tpage=%d u=%d v=%d -> vram=(%d,%d) clut=(%d,%d)",
-                   (int)i + 1, (int)D_800DB91C.tPage[1], (int)D_800DB91C.u, (int)D_800DB91C.v,
-                   (int)(D_800DB91C.u + ((D_800DB91C.tPage[1] & 0xF) << 6)),
-                   (int)(D_800DB91C.v + ((D_800DB91C.tPage[1] << 4) & 0x100)),
-                   (int)D_800DB91C.clutX, (int)D_800DB91C.clutY);
         }
 #endif
 
@@ -4757,39 +4752,6 @@ void func_800D88C8(s_800E06A0* arg0, u8 arg1) // 0x800D88C8
     spA8  = temp_fp->field_0 & 0x10;
     temp  = (temp_fp->field_0 & 0xF) | 0x20;
     spA8 |= temp;
-
-#ifdef SH_PC_PORT
-    /* [TVSCR3]: what a screen actually samples, read back from VRAM for the
-     * first three screens drawn after the DLL loads. Event-level, never per
-     * frame. */
-    {
-        static int s_tvscr3 = 0;
-        if (s_tvscr3 < 3)
-        {
-            RECT r;
-            u32  clBuf[8];
-            u32  pxBuf[2];
-            u16* cl = (u16*)clBuf;
-            u16* px = (u16*)pxBuf;
-            int  cx = (temp_fp->field_2 & 0x3F) << 4;
-            int  cy = temp_fp->field_2 >> 6;
-            int  tx = (spA8 & 0xF) << 6;
-            int  ty = (spA8 << 4) & 0x100;
-
-            s_tvscr3++;
-            r.x = cx; r.y = cy; r.w = 16; r.h = 1;
-            StoreImage(&r, (u_long*)clBuf);
-            DrawSync(0);
-            r.x = tx + (temp_fp->field_4 >> 2); r.y = ty + temp_fp->field_5; r.w = 4; r.h = 1;
-            StoreImage(&r, (u_long*)pxBuf);
-            DrawSync(0);
-            SH_DBG("[TVSCR3] screen row=%d tpage=0x%X vram=(%d,%d) clut=0x%X (%d,%d) u=%d v=%d | clut0..3=%04X %04X %04X %04X | px0..3=%04X %04X %04X %04X",
-                   (int)arg0->field_30, (unsigned)spA8, tx, ty, (unsigned)temp_fp->field_2, cx, cy,
-                   (int)temp_fp->field_4, (int)temp_fp->field_5,
-                   cl[0], cl[1], cl[2], cl[3], px[0], px[1], px[2], px[3]);
-        }
-    }
-#endif
 
     temp_s6 = arg0->field_34 + temp_fp->field_4 + func_800D7394() % (temp_fp->field_8 + 1);
     spB0    = arg0->field_34 + temp_fp->field_4 + func_800D7394() % (temp_fp->field_8 + 1) + temp_fp->field_6 - 1;
