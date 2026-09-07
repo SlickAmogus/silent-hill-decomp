@@ -626,6 +626,11 @@ namespace SilentHillPC_Launcher
         /// <summary>Sound-bank browser. Starts in the extracted SND/ folder when one is
         /// findable, since that is where all 90 banks live and hunting for it by hand is
         /// the first thing every user would otherwise have to do.</summary>
+        public static void OpenXaTool(IWin32Window owner, string gameRoot)
+        {
+            XaToolForm.ShowTool(owner, gameRoot);
+        }
+
         public static void OpenAudioTool(IWin32Window owner, string gameRoot)
         {
             AudioToolForm.ShowTool(owner, GuessSoundDir(gameRoot));

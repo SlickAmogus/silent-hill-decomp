@@ -378,6 +378,61 @@ namespace SilentHillPC_Launcher
         /// <see cref="ExtractResult.Cancelled"/>; whatever was already written stays put, since
         /// the output folder is the user's own and may not be ours to delete.
         /// </summary>
+        /// <summary>Disc-absolute start sectors of the nine XA voice files, indexed 1..9
+        /// like the game's g_FileXaLoc (0 and 10 are sentinels), read from the disc's
+        /// own file table so a fan disc that rearranged the CD resolves the way the
+        /// game does. Returns null when the image or its table cannot be read, or the
+        /// release ships no XA container.</summary>
+        public static int[] ReadXaFileSectors(string binPath, out string error)
+        {
+            error = null;
+            try
+            {
+                using (var f = new FileStream(binPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    IsoFile exeRec = FindRootFile(f, IsExeName);
+                    if (exeRec == null) { error = "No PSX boot executable found in the disc image."; return null; }
+                    var exeReader = new ArchiveReader(f, exeRec.ExtentLba, exeRec.DataLen, 24, 2048);
+                    byte[] exe = exeReader.Read(0, exeRec.DataLen);
+                    uint crc = Crc32(exe, 4096);
+                    Release rel = Detect(crc);
+                    if (rel == null)
+                    {
+                        var probed = DiscProbe.Probe(binPath);
+                        Release baseRel = (probed == null) ? null : RegionFallback(probed.Region);
+                        int toc = (baseRel == null) ? -1 : FindTocBySignature(exe);
+                        if (toc < 0) { error = "Unrecognized disc executable; the file table could not be located."; return null; }
+                        rel = new Release(baseRel.Id + " [modified exe]", crc, toc, baseRel.FileCount,
+                                          baseRel.Dirs, baseRel.Types, baseRel.Flags);
+                    }
+                    if ((rel.Flags & FLAG_NO_XA) != 0) { error = "This release has no XA voice container."; return null; }
+
+                    var xa = new List<TableEntry>();
+                    int pos = rel.TocOffset;
+                    for (int i = 0; i < rel.FileCount; i++)
+                    {
+                        if (pos + 12 > exe.Length) break;
+                        uint meta = LE32(exe, pos), file1 = LE32(exe, pos + 4), file2 = LE32(exe, pos + 8);
+                        pos += 12;
+                        TableEntry e;
+                        if (!DecodeEntry(meta, file1, file2, rel, out e)) continue;
+                        if (e.FullPath.StartsWith("XA/", StringComparison.Ordinal)) xa.Add(e);
+                    }
+                    if (xa.Count == 0) { error = "No XA entries in the disc's file table."; return null; }
+                    // The game's index order is ascending disc position.
+                    xa.Sort((a, b) => a.Lba.CompareTo(b.Lba));
+                    var sectors = new int[11];
+                    for (int i = 0; i < xa.Count && i < 9; i++) sectors[i + 1] = xa[i].Lba;
+                    return sectors;
+                }
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return null;
+            }
+        }
+
         public static ExtractResult Extract(string binPath, string outDir, bool convertTimToPng, bool deleteTimAfterConvert,
                                             Action<int, int, string> report, Func<bool> cancelled = null)
         {

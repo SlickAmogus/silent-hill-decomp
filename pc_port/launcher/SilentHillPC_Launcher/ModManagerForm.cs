@@ -195,7 +195,7 @@ namespace SilentHillPC_Launcher
             // window for the same extract flow (OnDragDrop).
             var btnEx = new Button { Text = "Extract BIN…", Location = new Point(510, 194), Size = new Size(78, 28) };
             var btnVw = new Button { Text = "Model Viewer", Location = new Point(510, 226), Size = new Size(78, 28) };
-            var btnAu = new Button { Text = "Audio",        Location = new Point(510, 258), Size = new Size(78, 28) };
+            var btnAu = new Button { Text = "Audio ▾",      Location = new Point(510, 258), Size = new Size(78, 28) };
             var btnTp = new Button { Text = "TIM → PNG…",   Location = new Point(510, 290), Size = new Size(78, 28) };
             var btnBp = new Button { Text = "Bulk → PNG…",  Location = new Point(510, 322), Size = new Size(78, 28) };
             var btnRef = new Button { Text = "Reference ▾", Location = new Point(510, 354), Size = new Size(78, 28) };
@@ -237,7 +237,9 @@ namespace SilentHillPC_Launcher
             _btnTips.SetToolTip(btnVw, "Model Viewer: a 3D window for .ILM characters (with .ANM animation playback), " +
                 ".PLM props, .TMD items and edited .obj files — textured with their real in-game palettes. " +
                 "Open models from its File menu or drag & drop them onto it.");
-            _btnTips.SetToolTip(btnAu, "Audio: browse a .VAB sound bank, play the sounds inside it, and export them " +
+            _btnTips.SetToolTip(btnAu, "Audio: sound banks (browse a .VAB, play and export its sounds) and Voices (every XA " +
+                "voice line: play, export, replace with a file, or re-record from the microphone into gamedata\\load\\XA).\n\n" +
+                "Sound banks: browse a .VAB sound bank, play the sounds inside it, and export them " +
                 "as .wav or raw .vag. The banks live in SND/ inside an extracted disc. " +
                 "Open a bank from its File menu or drag & drop one onto it.");
             _btnTips.SetToolTip(btnHelp, "How to make and install loose-file texture mods.");
@@ -252,7 +254,10 @@ namespace SilentHillPC_Launcher
             btnMo.Click += (s, e) => moMenu.Show(btnMo, new Point(0, btnMo.Height));
             btnOm.Click += (s, e) => omMenu.Show(btnOm, new Point(0, btnOm.Height));
             btnVw.Click += (s, e) => OnViewModel();
-            btnAu.Click += (s, e) => OnAudioTool();
+            var auMenu = new ContextMenuStrip();
+            auMenu.Items.Add("Sound banks (VAB)…", null, (s, e) => OnAudioTool());
+            auMenu.Items.Add("Voices (XA)…",       null, (s, e) => ConverterActions.OpenXaTool(this, _gameRoot));
+            btnAu.Click += (s, e) => auMenu.Show(btnAu, new Point(0, btnAu.Height));
             btnHelp.Click += (s, e) => ShowLooseModHelp();
             Controls.Add(btnEx);
             Controls.Add(btnTp);
