@@ -44,6 +44,8 @@ namespace SilentHillPC_Launcher
         private SoundPlayer       _player;
         private bool              _recording;
         private int               _recIdx = -1;
+        private bool              _textMode;
+        private ToolStripComboBox _mode;
 
         [DllImport("winmm.dll", CharSet = CharSet.Auto)]
         private static extern int mciSendString(string command, StringBuilder ret, int retLen, IntPtr hwnd);
@@ -69,7 +71,7 @@ namespace SilentHillPC_Launcher
         private XaToolForm(string gameRoot)
         {
             _gameRoot = gameRoot;
-            Text = "Voices (XA)";
+            Text = "Voices";
             ClientSize = new Size(760, 480);
             StartPosition = FormStartPosition.CenterParent;
             MinimumSize = new Size(640, 380);
@@ -84,6 +86,15 @@ namespace SilentHillPC_Launcher
             help.DropDownItems.Add("About voice mods…", null, (s, e) => ShowHelp());
             menu.Items.Add(file);
             menu.Items.Add(help);
+            _mode = new ToolStripComboBox();
+            _mode.DropDownStyle = ComboBoxStyle.DropDownList;
+            _mode.Items.Add("Voice lines (disc)");
+            _mode.Items.Add("Text boxes (unvoiced)");
+            _mode.SelectedIndex = 0;
+            _mode.Width = 170;
+            _mode.Alignment = ToolStripItemAlignment.Right;
+            _mode.SelectedIndexChanged += (s, e) => { StopPlayback(); _textMode = _mode.SelectedIndex == 1; Populate(); };
+            menu.Items.Add(_mode);
             MainMenuStrip = menu;
             Controls.Add(menu);
 
@@ -95,12 +106,6 @@ namespace SilentHillPC_Launcher
             _list.Location = new Point(12, 30);
             _list.Size = new Size(736, 320);
             _list.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
-            _list.Columns.Add("#", 56, HorizontalAlignment.Right);
-            _list.Columns.Add("XA file", 60, HorizontalAlignment.Right);
-            _list.Columns.Add("Channel", 62, HorizontalAlignment.Right);
-            _list.Columns.Add("Length", 70, HorizontalAlignment.Right);
-            _list.Columns.Add("Format", 110, HorizontalAlignment.Left);
-            _list.Columns.Add("Replacement", 360, HorizontalAlignment.Left);
             _list.SelectedIndexChanged += (s, e) => UpdateButtons();
             _list.DoubleClick += (s, e) => PlaySelected(false);
             Controls.Add(_list);
@@ -140,7 +145,12 @@ namespace SilentHillPC_Launcher
 
         private string GameDataDir { get { return Path.Combine(_gameRoot, "gamedata"); } }
         private string OverrideDir { get { return Path.Combine(GameDataDir, Path.Combine("load", "XA")); } }
-        private string OverridePath(int idx) { return Path.Combine(OverrideDir, "xa_" + idx.ToString("D4") + ".wav"); }
+        private string OverridePath(int idx)
+        {
+            if (_textMode) return Path.Combine(OverrideDir, "msg_" + MsgTable.Items[idx].Key.Replace('.', '_') + ".wav");
+            return Path.Combine(OverrideDir, "xa_" + idx.ToString("D4") + ".wav");
+        }
+        private string LineLabel(int idx) { return _textMode ? MsgTable.Items[idx].Key : idx.ToString(); }
 
         /// <summary>The image the game plays from: the config's disc_image if it names a
         /// file in gamedata, else the first .bin there.</summary>
@@ -189,10 +199,55 @@ namespace SilentHillPC_Launcher
 
         // ---- list ---------------------------------------------------------------
 
+        private void SetupColumns()
+        {
+            _list.Columns.Clear();
+            if (_textMode)
+            {
+                _list.Columns.Add("Key", 110, HorizontalAlignment.Left);
+                _list.Columns.Add("Text", 420, HorizontalAlignment.Left);
+                _list.Columns.Add("Replacement", 190, HorizontalAlignment.Left);
+                return;
+            }
+            _list.Columns.Add("#", 56, HorizontalAlignment.Right);
+            _list.Columns.Add("XA file", 60, HorizontalAlignment.Right);
+            _list.Columns.Add("Channel", 62, HorizontalAlignment.Right);
+            _list.Columns.Add("Length", 70, HorizontalAlignment.Right);
+            _list.Columns.Add("Format", 110, HorizontalAlignment.Left);
+            _list.Columns.Add("Replacement", 360, HorizontalAlignment.Left);
+        }
+
+        private void PopulateText()
+        {
+            int replaced = 0;
+            for (int i = 0; i < MsgTable.Items.Length; i++)
+            {
+                var it = MsgTable.Items[i];
+                string ov = File.Exists(OverridePath(i)) ? Path.GetFileName(OverridePath(i)) : "";
+                if (ov.Length > 0) replaced++;
+                var row = new ListViewItem(it.Key);
+                row.SubItems.Add(it.Text);
+                row.SubItems.Add(ov);
+                row.Tag = i;
+                if (ov.Length > 0) row.ForeColor = Color.DarkGreen;
+                _list.Items.Add(row);
+            }
+            _info.Text = string.Format("{0} text-box messages (USA script), {1} with a voice file. Files: gamedata\\load\\XA\\msg_<KEY>.wav. Lines the game already voices keep their disc voice.",
+                MsgTable.Items.Length, replaced);
+        }
+
         private void Populate()
         {
             _list.BeginUpdate();
             _list.Items.Clear();
+            SetupColumns();
+            if (_textMode)
+            {
+                PopulateText();
+                _list.EndUpdate();
+                UpdateButtons();
+                return;
+            }
             if (_binPath == null || _xaSectors == null)
             {
                 _list.EndUpdate();
@@ -258,15 +313,16 @@ namespace SilentHillPC_Launcher
         private void UpdateButtons()
         {
             int idx = SelectedIdx();
-            bool have = idx >= 0 && _xaSectors != null;
+            bool have = idx >= 0 && (_textMode || _xaSectors != null);
             bool ov = have && File.Exists(OverridePath(idx));
             _btnPlay.Enabled = have && !_recording;
-            _btnOrig.Enabled = have && ov && !_recording;
-            _btnExport.Enabled = have && !_recording;
+            _btnOrig.Enabled = have && ov && !_recording && !_textMode;
+            _btnExport.Enabled = have && !_recording && !_textMode;
             _btnImport.Enabled = have && !_recording;
             _btnRecord.Enabled = have;
             _btnRemove.Enabled = ov && !_recording;
-            _btnLast.Enabled = _xaSectors != null && !_recording;
+            _btnLast.Enabled = (_textMode || _xaSectors != null) && !_recording;
+            _mode.Enabled = !_recording;
         }
 
         private void RefreshRow(int idx)
@@ -275,7 +331,7 @@ namespace SilentHillPC_Launcher
             {
                 if ((int)row.Tag != idx) continue;
                 bool ov = File.Exists(OverridePath(idx));
-                row.SubItems[5].Text = ov ? Path.GetFileName(OverridePath(idx)) : "";
+                row.SubItems[row.SubItems.Count - 1].Text = ov ? Path.GetFileName(OverridePath(idx)) : "";
                 row.ForeColor = ov ? Color.DarkGreen : SystemColors.WindowText;
                 break;
             }
@@ -417,6 +473,11 @@ namespace SilentHillPC_Launcher
             {
                 byte[] wav;
                 string ov = OverridePath(idx);
+                if (_textMode && !File.Exists(ov))
+                {
+                    _info.Text = "No voice file for " + LineLabel(idx) + " yet: press Record, or Replace with a file.";
+                    return;
+                }
                 if (!original && File.Exists(ov))
                 {
                     wav = File.ReadAllBytes(ov);
@@ -475,7 +536,7 @@ namespace SilentHillPC_Launcher
             if (idx < 0) return;
             using (var d = new OpenFileDialog())
             {
-                d.Title = "Replace voice line " + idx;
+                d.Title = "Replace voice line " + LineLabel(idx);
                 d.Filter = "WAV audio (*.wav)|*.wav|All audio (*.wav;*.mp3;*.ogg;*.flac;*.m4a)|*.wav;*.mp3;*.ogg;*.flac;*.m4a|All files (*.*)|*.*";
                 if (d.ShowDialog(this) != DialogResult.OK) return;
                 try
@@ -485,7 +546,7 @@ namespace SilentHillPC_Launcher
                     Directory.CreateDirectory(OverrideDir);
                     File.WriteAllBytes(OverridePath(idx), wav);
                     RefreshRow(idx);
-                    _info.Text = "Line " + idx + " now plays " + Path.GetFileName(d.FileName) + " (saved as " + Path.GetFileName(OverridePath(idx)) + ").";
+                    _info.Text = "Line " + LineLabel(idx) + " now plays " + Path.GetFileName(d.FileName) + " (saved as " + Path.GetFileName(OverridePath(idx)) + ").";
                 }
                 catch (Exception ex)
                 {
@@ -587,12 +648,13 @@ namespace SilentHillPC_Launcher
             if (idx < 0) return;
             string ov = OverridePath(idx);
             if (!File.Exists(ov)) return;
-            if (MessageBox.Show(this, "Delete " + Path.GetFileName(ov) + "? The line goes back to the disc's voice.",
+            if (MessageBox.Show(this, "Delete " + Path.GetFileName(ov) + "? " +
+                    (_textMode ? "The text box goes back to being silent." : "The line goes back to the disc's voice."),
                     "Voices", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
             StopPlayback();
             File.Delete(ov);
             RefreshRow(idx);
-            _info.Text = "Line " + idx + " plays the original again.";
+            _info.Text = _textMode ? LineLabel(idx) + " is silent again." : "Line " + idx + " plays the original again.";
         }
 
         // ---- recording (winmm MCI: no dependencies, saves a PCM WAV) ---------------
@@ -627,7 +689,7 @@ namespace SilentHillPC_Launcher
                 _recording = true;
                 _recIdx = idx;
                 _btnRecord.Text = "■ Stop and save";
-                _info.Text = "Recording line " + idx + "… speak, then press Stop and save.";
+                _info.Text = "Recording line " + LineLabel(idx) + "… speak, then press Stop and save.";
                 UpdateButtons();
                 return;
             }
@@ -639,7 +701,7 @@ namespace SilentHillPC_Launcher
                 string target = OverridePath(_recIdx);
                 Mci("save sh1xarec \"" + target + "\"");
                 Mci("close sh1xarec");
-                _info.Text = "Saved the take as " + Path.GetFileName(target) + ". The game plays it for line " + _recIdx + " now.";
+                _info.Text = "Saved the take as " + Path.GetFileName(target) + ". The game plays it for line " + LineLabel(_recIdx) + " now.";
                 RefreshRow(_recIdx);
                 _list.Focus();
                 PlaySelectedIdx(_recIdx);
@@ -667,7 +729,8 @@ namespace SilentHillPC_Launcher
         // ---- helpers ------------------------------------------------------------------
 
         /// <summary>Select the line the game last played, from the newest log: the XA
-        /// player logs "[XA] Play xaIdx=N" for every line, so a modder can play a scene,
+        /// player logs "[XA] Play xaIdx=N" for every line and pc_msg_voice.c logs
+        /// "[MSGBOX] KEY" for every unvoiced text box, so a modder can play a scene,
         /// come here, and find the line without knowing its number.</summary>
         private void SelectLastPlayed()
         {
@@ -685,14 +748,28 @@ namespace SilentHillPC_Launcher
                     int got = 0; while (got < take) { int n = f.Read(buf, got, (int)(take - got)); if (n <= 0) break; got += n; }
                     text = Encoding.ASCII.GetString(buf, 0, got);
                 }
-                var ms = Regex.Matches(text, @"\[XA\] (?:Play|override) (?:xaIdx=|xa_)(\d+)");
-                if (ms.Count == 0) { _info.Text = "The newest log has no voice line plays."; return; }
-                int idx = int.Parse(ms[ms.Count - 1].Groups[1].Value);
+                int idx = -1;
+                string label;
+                if (_textMode)
+                {
+                    var ms = Regex.Matches(text, @"\[MSGBOX\] (\S+)");
+                    if (ms.Count == 0) { _info.Text = "The newest log has no text boxes (the game logs each unvoiced box it opens)."; return; }
+                    label = ms[ms.Count - 1].Groups[1].Value;
+                    for (int i = 0; i < MsgTable.Items.Length; i++)
+                        if (MsgTable.Items[i].Key == label) { idx = i; break; }
+                }
+                else
+                {
+                    var ms = Regex.Matches(text, @"\[XA\] (?:Play|override) (?:xaIdx=|xa_)(\d+)");
+                    if (ms.Count == 0) { _info.Text = "The newest log has no voice line plays."; return; }
+                    idx = int.Parse(ms[ms.Count - 1].Groups[1].Value);
+                    label = idx.ToString();
+                }
                 foreach (ListViewItem row in _list.Items)
                 {
-                    if ((int)row.Tag == idx) { row.Selected = true; row.EnsureVisible(); _info.Text = "Line " + idx + " was the last voice the game played (" + Path.GetFileName(logs[0]) + ")."; return; }
+                    if ((int)row.Tag == idx) { row.Selected = true; row.EnsureVisible(); _info.Text = "Line " + label + " was the last one the game showed (" + Path.GetFileName(logs[0]) + ")."; return; }
                 }
-                _info.Text = "Line " + idx + " was last played but is not listed.";
+                _info.Text = "Line " + label + " was last shown but is not listed.";
             }
             catch (Exception ex)
             {
@@ -721,7 +798,13 @@ namespace SilentHillPC_Launcher
                 "take is not cut off.\n\n" +
                 "Loose file support must be on (the Mod Manager turns it on when a load mod is applied). To ship a " +
                 "fan dub as a mod, put the files in a load\\XA folder inside the mod; Apply deploys them here.\n\n" +
-                "Not sure which number a line is? Play the scene in the game, then press \"Last played in game\".",
+                "Not sure which number a line is? Play the scene in the game, then press \"Last played in game\".\n\n" +
+                "Text boxes: switch the list (top right) to \"Text boxes (unvoiced)\" to give a voice to any map " +
+                "message the game shows silently: memos, examined objects, doors, item prompts. Record or Replace " +
+                "works the same; the file is gamedata\\load\\XA\\msg_<KEY>.wav and plays when that box opens, " +
+                "staying on through the box's pages unless a later page has its own file. Read the box in the game, " +
+                "then press \"Last played in game\" to find its key. Keys follow the USA script; boxes the game " +
+                "already voices ignore these files.",
                 "Voice mods", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 

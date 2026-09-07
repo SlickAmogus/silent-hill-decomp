@@ -25,24 +25,29 @@ void Pc_MsgVoice_Touch(void)
 void Pc_MsgVoice_OnPage(int msgIdx)
 {
     char key[32];
+    char file[32];
     char path[1024];
     char* c;
+    int   played = 0;
 
-    if (g_PcMapMsgGameVoiced || !g_PcConfig.allowLooseFiles)
+    if (g_PcMapMsgGameVoiced)
         return;
     if (!Pc_LangPackMsgKey((int)g_SavegamePtr->mapIdx, msgIdx, key, sizeof(key)))
         return;
-    for (c = key; *c != '\0'; c++)
+    snprintf(file, sizeof(file), "%s", key);
+    for (c = file; *c != '\0'; c++)
     {
         if (*c == '.')
             *c = '_';
     }
-    snprintf(path, sizeof(path), "%s/load/XA/msg_%s.wav", PcPort_GetGameDataPath(), key);
-    if (XaPlayer_PlayFile(path))
+    snprintf(path, sizeof(path), "%s/load/XA/msg_%s.wav", PcPort_GetGameDataPath(), file);
+    if (g_PcConfig.allowLooseFiles && XaPlayer_PlayFile(path))
     {
         s_fileStarted = 1;
-        SH_DBG("[MSGVOICE] %s", key);
+        played = 1;
     }
+    /* Once per box page; the launcher's "Last played in game" reads the key. */
+    SH_DBG("[MSGBOX] %s%s", key, played ? " (voice file)" : "");
 }
 
 void Pc_MsgVoice_OnEnd(void)
