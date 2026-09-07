@@ -96,6 +96,7 @@
     </Compile>
     <Compile Include="VabFile.cs" />
     <Compile Include="MsgTable.cs" />
+    <Compile Include="XaSubtitles.cs" />
     <Compile Include="XaTable.cs" />
     <Compile Include="XaToolForm.cs">
       <SubType>Form</SubType>

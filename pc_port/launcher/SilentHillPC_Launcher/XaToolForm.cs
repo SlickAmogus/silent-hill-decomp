@@ -72,7 +72,7 @@ namespace SilentHillPC_Launcher
         {
             _gameRoot = gameRoot;
             Text = "Voices";
-            ClientSize = new Size(760, 480);
+            ClientSize = new Size(900, 480);
             StartPosition = FormStartPosition.CenterParent;
             MinimumSize = new Size(640, 380);
 
@@ -104,14 +104,14 @@ namespace SilentHillPC_Launcher
             _list.HideSelection = false;
             _list.GridLines = true;
             _list.Location = new Point(12, 30);
-            _list.Size = new Size(736, 320);
+            _list.Size = new Size(876, 320);
             _list.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
             _list.SelectedIndexChanged += (s, e) => UpdateButtons();
             _list.DoubleClick += (s, e) => PlaySelected(false);
             Controls.Add(_list);
 
             _info.Location = new Point(12, 358);
-            _info.Size = new Size(736, 34);
+            _info.Size = new Size(876, 34);
             _info.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             Controls.Add(_info);
 
@@ -209,12 +209,12 @@ namespace SilentHillPC_Launcher
                 _list.Columns.Add("Replacement", 190, HorizontalAlignment.Left);
                 return;
             }
-            _list.Columns.Add("#", 56, HorizontalAlignment.Right);
-            _list.Columns.Add("XA file", 60, HorizontalAlignment.Right);
-            _list.Columns.Add("Channel", 62, HorizontalAlignment.Right);
-            _list.Columns.Add("Length", 70, HorizontalAlignment.Right);
-            _list.Columns.Add("Format", 110, HorizontalAlignment.Left);
-            _list.Columns.Add("Replacement", 360, HorizontalAlignment.Left);
+            _list.Columns.Add("#", 50, HorizontalAlignment.Right);
+            _list.Columns.Add("Length", 60, HorizontalAlignment.Right);
+            _list.Columns.Add("Subtitle", 380, HorizontalAlignment.Left);
+            _list.Columns.Add("Key", 100, HorizontalAlignment.Left);
+            _list.Columns.Add("Format", 96, HorizontalAlignment.Left);
+            _list.Columns.Add("Replacement", 170, HorizontalAlignment.Left);
         }
 
         private void PopulateText()
@@ -265,20 +265,20 @@ namespace SilentHillPC_Launcher
                     {
                         var it = XaTable.Items[i];
                         if (it.File < 1 || it.File > 9 || _xaSectors[it.File] == 0) continue;
-                        string fmt = "?", ch = "?";
+                        string fmt = "?";
                         if (ReadSector(f, _xaSectors[it.File], it.Sector, sector))
                         {
                             bool stereo = (sector[3] & 1) != 0;
                             int rate = ((sector[3] >> 2) & 3) == 0 ? 37800 : 18900;
                             fmt = rate + " Hz " + (stereo ? "stereo" : "mono");
-                            ch = sector[1].ToString();
                         }
                         string ov = File.Exists(OverridePath(i)) ? Path.GetFileName(OverridePath(i)) : "";
                         if (ov.Length > 0) replaced++;
+                        string key = XaSubtitles.Keys[i] ?? "";
                         var row = new ListViewItem(i.ToString());
-                        row.SubItems.Add(it.File.ToString());
-                        row.SubItems.Add(ch);
                         row.SubItems.Add(FormatSeconds(it.Frames / 60.0));
+                        row.SubItems.Add(SubtitleText(key));
+                        row.SubItems.Add(key);
                         row.SubItems.Add(fmt);
                         row.SubItems.Add(ov);
                         row.Tag = i;
@@ -302,6 +302,21 @@ namespace SilentHillPC_Launcher
         {
             int m = (int)(s / 60);
             return string.Format("{0}:{1:00.0}", m, s - m * 60);
+        }
+
+        private static Dictionary<string, string> s_msgText;
+
+        /// <summary>The script text for a message key (MsgTable), "" when unknown.</summary>
+        private static string SubtitleText(string key)
+        {
+            if (key.Length == 0) return "";
+            if (s_msgText == null)
+            {
+                s_msgText = new Dictionary<string, string>();
+                foreach (var it in MsgTable.Items) s_msgText[it.Key] = it.Text;
+            }
+            string t;
+            return s_msgText.TryGetValue(key, out t) ? t : "";
         }
 
         private int SelectedIdx()
