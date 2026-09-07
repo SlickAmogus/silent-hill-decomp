@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "xa_player.h"
+#include "xa_wav.h"
 #include "sh_log.h"
 #include "main/fileinfo.h"   /* g_FileXaLoc[] — XA file disc-sector offsets */
 #include "pc_config.h"       /* g_PcConfig.cutsceneLineGapMs */
@@ -206,90 +207,18 @@ static void XaOverride_Free(void)
     s_ovActive = 0;
 }
 
-static uint32_t Rd32(const unsigned char* p) { return p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24); }
-static uint32_t Rd16(const unsigned char* p) { return p[0] | (p[1] << 8); }
-
 /* Returns 1 with s_ovPcm filled on success. */
 static int XaOverride_LoadPath(const char* path, int* outRate, int* outStereo)
 {
-    FILE*          f;
-    long           size;
-    unsigned char* d;
-    uint32_t       off, fmtTag = 0, channels = 0, rate = 0, bits = 0;
-    const unsigned char* data = NULL;
-    uint32_t       dataLen = 0;
+    unsigned char* pcm;
+    uint32_t       bytes;
 
-    f = fopen(path, "rb");
-    if (!f) return 0;
-    fseek(f, 0, SEEK_END);
-    size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (size < 44 || size > 64L * 1024L * 1024L) { fclose(f); return 0; }
-    d = (unsigned char*)malloc((size_t)size);
-    if (!d || fread(d, 1, (size_t)size, f) != (size_t)size) { free(d); fclose(f); return 0; }
-    fclose(f);
-
-    if (memcmp(d, "RIFF", 4) != 0 || memcmp(d + 8, "WAVE", 4) != 0)
-    {
-        SH_DBG("[XA] override %s is not a RIFF WAVE file, ignored", path);
-        free(d);
-        return 0;
-    }
-    for (off = 12; off + 8 <= (uint32_t)size; )
-    {
-        uint32_t len = Rd32(d + off + 4);
-        const unsigned char* body = d + off + 8;
-        if (off + 8 + len > (uint32_t)size) len = (uint32_t)size - off - 8;
-        if (memcmp(d + off, "fmt ", 4) == 0 && len >= 16)
-        {
-            fmtTag   = Rd16(body);
-            channels = Rd16(body + 2);
-            rate     = Rd32(body + 4);
-            bits     = Rd16(body + 14);
-            /* WAVE_FORMAT_EXTENSIBLE: the real tag is the sub-format's first word. */
-            if (fmtTag == 0xFFFE && len >= 26) fmtTag = Rd16(body + 24);
-        }
-        else if (memcmp(d + off, "data", 4) == 0)
-        {
-            data    = body;
-            dataLen = len;
-        }
-        off += 8 + len + (len & 1);
-    }
-    if (!data || fmtTag != 1 || (channels != 1 && channels != 2) || rate < 4000 || rate > 96000 ||
-        (bits != 16 && bits != 8))
-    {
-        SH_DBG("[XA] override %s unsupported (tag=%u ch=%u rate=%u bits=%u); needs 8/16-bit PCM mono or stereo",
-               path, fmtTag, channels, rate, bits);
-        free(d);
-        return 0;
-    }
-
-    {
-        uint32_t frameIn  = channels * (bits / 8);
-        uint32_t frames   = dataLen / frameIn;
-        uint32_t outBytes = frames * channels * 2;
-        unsigned char* pcm = (unsigned char*)malloc(outBytes ? outBytes : 2);
-        if (!pcm) { free(d); return 0; }
-        if (bits == 16)
-        {
-            memcpy(pcm, data, outBytes);
-        }
-        else
-        {
-            uint32_t i;
-            int16_t* o = (int16_t*)pcm;
-            for (i = 0; i < frames * channels; i++) o[i] = (int16_t)(((int)data[i] - 128) << 8);
-        }
-        XaOverride_Free();
-        s_ovPcm    = pcm;
-        s_ovBytes  = outBytes;
-        s_ovPos    = 0;
-        s_ovActive = 1;
-    }
-    free(d);
-    *outRate   = (int)rate;
-    *outStereo = (channels == 2);
+    if (!XaWav_Load(path, &pcm, &bytes, outRate, outStereo)) return 0;
+    XaOverride_Free();
+    s_ovPcm    = pcm;
+    s_ovBytes  = bytes;
+    s_ovPos    = 0;
+    s_ovActive = 1;
     return 1;
 }
 
@@ -298,7 +227,7 @@ static int XaOverride_Load(uint16_t xaIdx, int* outRate, int* outStereo)
     char path[1024];
 
     if (!g_PcConfig.allowLooseFiles) return 0;
-    snprintf(path, sizeof(path), "%s/load/XA/xa_%04u.wav", PcPort_GetGameDataPath(), (unsigned)xaIdx);
+    XaWav_OverridePath(xaIdx, path, sizeof(path));
     return XaOverride_LoadPath(path, outRate, outStereo);
 }
 
