@@ -539,13 +539,13 @@ static int FillAndQueueOne(void) {
             return 0;
         }
         memcpy(g_XaPlayer.pcmBuffer, s_ovPcm + s_ovPos, n);
-        s_ovPos += n;
-        g_XaPlayer.remainingSectors = (s_ovPos >= s_ovBytes) ? 0 : g_XaPlayer.remainingSectors - 1;
         frames = (int)(n / (uint32_t)(channels * 2));
         if (!PsyX_AudioPushXaFrames(g_XaPlayer.pcmBuffer, (uint32_t)frames,
                                     (uint32_t)g_XaPlayer.sampleRate, (uint32_t)channels)) {
             return 0;
         }
+        s_ovPos += n;
+        g_XaPlayer.remainingSectors = (s_ovPos >= s_ovBytes) ? 0 : g_XaPlayer.remainingSectors - 1;
         return frames;
     }
 

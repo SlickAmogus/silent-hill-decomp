@@ -88,6 +88,33 @@ int XaWav_Load(const char* path, unsigned char** outPcm, uint32_t* outBytes, int
             int16_t* o = (int16_t*)pcm;
             for (i = 0; i < frames * channels; i++) o[i] = (int16_t)(((int)data[i] - 128) << 8);
         }
+        /* The software SPU's XA input takes only the disc rates and drops
+         * anything else without a word, so everything becomes 37800 Hz here. */
+        if (rate != 37800 && rate != 18900)
+        {
+            uint64_t outFrames = ((uint64_t)frames * 37800u) / rate;
+            int16_t* in  = (int16_t*)pcm;
+            int16_t* out = (int16_t*)malloc((size_t)(outFrames * channels * 2 + 2));
+            uint64_t i;
+            uint32_t c;
+            if (!out) { free(pcm); free(d); return 0; }
+            for (i = 0; i < outFrames; i++)
+            {
+                uint64_t srcPos = i * rate;
+                uint32_t idx    = (uint32_t)(srcPos / 37800u);
+                uint32_t frac   = (uint32_t)(srcPos % 37800u);
+                for (c = 0; c < channels; c++)
+                {
+                    int a = in[idx * channels + c];
+                    int b = (idx + 1 < frames) ? in[(idx + 1) * channels + c] : a;
+                    out[i * channels + c] = (int16_t)(a + (int)(((int64_t)(b - a) * frac) / 37800));
+                }
+            }
+            free(pcm);
+            pcm   = (unsigned char*)out;
+            bytes = (uint32_t)(outFrames * channels * 2);
+            rate  = 37800;
+        }
         *outPcm   = pcm;
         *outBytes = bytes;
     }
