@@ -23,6 +23,7 @@ extern const RECT D_8002AB10; // defined in events/events_util.c
 #ifdef SH_PC_PORT
 extern int g_PcHorPlusEnabled;
 extern int g_PcMapScreenActive;
+extern int g_PcMapMsgGameVoiced;
 #endif
 
 VECTOR3 D_800C4640[2][8];
@@ -691,7 +692,13 @@ void Map_MessageWithAudio(s32 mapMsgIdx, u8* audioIdx, const u16* audioCmds) // 
 
     g_SysWork.bgmStatusFlags |= BgmStatusFlag_VoiceDialog;
 
+#ifdef SH_PC_PORT
+    g_PcMapMsgGameVoiced = 1;
+#endif
     mapMsgState = Gfx_MapMsg_Draw(mapMsgIdx);
+#ifdef SH_PC_PORT
+    g_PcMapMsgGameVoiced = 0;
+#endif
     if (mapMsgState == MapMsgState_SelectEntry0)
     {
         SysWork_StateStepIncrement(0);

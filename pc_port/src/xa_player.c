@@ -210,9 +210,8 @@ static uint32_t Rd32(const unsigned char* p) { return p[0] | (p[1] << 8) | (p[2]
 static uint32_t Rd16(const unsigned char* p) { return p[0] | (p[1] << 8); }
 
 /* Returns 1 with s_ovPcm filled on success. */
-static int XaOverride_Load(uint16_t xaIdx, int* outRate, int* outStereo)
+static int XaOverride_LoadPath(const char* path, int* outRate, int* outStereo)
 {
-    char           path[1024];
     FILE*          f;
     long           size;
     unsigned char* d;
@@ -220,8 +219,6 @@ static int XaOverride_Load(uint16_t xaIdx, int* outRate, int* outStereo)
     const unsigned char* data = NULL;
     uint32_t       dataLen = 0;
 
-    if (!g_PcConfig.allowLooseFiles) return 0;
-    snprintf(path, sizeof(path), "%s/load/XA/xa_%04u.wav", PcPort_GetGameDataPath(), (unsigned)xaIdx);
     f = fopen(path, "rb");
     if (!f) return 0;
     fseek(f, 0, SEEK_END);
@@ -295,6 +292,19 @@ static int XaOverride_Load(uint16_t xaIdx, int* outRate, int* outStereo)
     *outStereo = (channels == 2);
     return 1;
 }
+
+static int XaOverride_Load(uint16_t xaIdx, int* outRate, int* outStereo)
+{
+    char path[1024];
+
+    if (!g_PcConfig.allowLooseFiles) return 0;
+    snprintf(path, sizeof(path), "%s/load/XA/xa_%04u.wav", PcPort_GetGameDataPath(), (unsigned)xaIdx);
+    return XaOverride_LoadPath(path, outRate, outStereo);
+}
+
+/* g_XaPlayer.xaIdx while a loose file (not a disc line) is playing. Never a
+ * real g_XaItemData index (727 entries). */
+#define XA_FILE_IDX 0xFFFFu
 
 /* One OpenAL source and buffer set for the player's life; gain back to full at
  * every new line (see the note at the end of XaPlayer_Play). */
@@ -701,6 +711,65 @@ void XaPlayer_Stop(void) {
      * in that case Sd_TaskPoolExecute case 2 already preserves xaAudioIdx_4
      * for the upcoming Play, and the about-to-fire Play will re-set the flags. */
     Xa_SignalPlaybackFinished();
+}
+
+int XaPlayer_PlayFile(const char* path)
+{
+    int    rate = 0, stereo = 0;
+    FILE*  probe;
+    Uint32 nowMs;
+    uint32_t chunks, wavMs;
+    const uint32_t chunkBytes = XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * sizeof(int16_t);
+
+    if (!g_PcConfig.allowLooseFiles) return 0;
+    /* A disc line still producing audio keeps the source; its pad tail (audio
+     * drained, finish signal pending) may be cut so the file can start. */
+    if (g_XaPlayer.isPlaying && g_XaPlayer.xaIdx != XA_FILE_IDX && Xa_IsVoiceAudioDraining()) return 0;
+    /* Existence check before Stop: a missing file must not cut a pad tail. */
+    probe = fopen(path, "rb");
+    if (!probe) return 0;
+    fclose(probe);
+
+    if (g_XaPlayer.isPlaying) {
+        XaPlayer_Stop();
+    }
+    if (!XaOverride_LoadPath(path, &rate, &stereo)) return 0;
+
+    chunks = (s_ovBytes + chunkBytes - 1) / chunkBytes;
+    wavMs  = (uint32_t)(((uint64_t)(s_ovBytes / (stereo ? 4u : 2u)) * 1000u) / (unsigned)rate);
+    nowMs  = SDL_GetTicks();
+
+    g_XaPlayer.file             = NULL;
+    g_XaPlayer.baseSector       = 0;
+    g_XaPlayer.xaIdx            = XA_FILE_IDX;
+    g_XaPlayer.currentSector    = 0;
+    g_XaPlayer.totalSectors     = chunks;
+    g_XaPlayer.remainingSectors = chunks;
+    g_XaPlayer.sampleRate       = rate;
+    g_XaPlayer.isStereo         = stereo;
+    g_XaPlayer.bitDepth         = 0;
+    g_XaPlayer.filterFile       = 0;
+    g_XaPlayer.filterChannel    = 0;
+    g_XaPlayer.isPlaying        = 1;
+    g_XaPlayer.needsInitialFill = 1;
+    g_XaPlayer.debugForceMono   = 0;
+    memset(g_XaPlayer.lastSamples, 0, sizeof(g_XaPlayer.lastSamples));
+
+    s_xaPrevFireMs    = nowMs;
+    s_xaPlayStartMs   = nowMs;
+    s_xaPadEndMs      = nowMs + wavMs;
+    s_xaVoiceGapEndMs = nowMs + wavMs + (uint32_t)g_PcConfig.cutsceneLineGapMs;
+
+    SH_DBG("[XA] file %s %s %dHz %ums", path, stereo ? "stereo" : "mono", rate, wavMs);
+    XaPlayer_EnsureAlReady();
+    return 1;
+}
+
+void XaPlayer_StopFile(void)
+{
+    if (g_XaPlayer.isPlaying && g_XaPlayer.xaIdx == XA_FILE_IDX) {
+        XaPlayer_Stop();
+    }
 }
 
 // Fill a single OpenAL buffer with decoded XA data

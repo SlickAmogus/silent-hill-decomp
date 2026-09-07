@@ -4,6 +4,7 @@
 #include "sh_log.h"
 #include "pc_config.h"
 #include "xa_player.h"
+#include "pc_msg_voice.h"
 #include <SDL_timer.h>
 #include <math.h>
 extern void PsyX_EndScene(void);
@@ -2798,6 +2799,7 @@ void MainLoop(void) // 0x80032EE0
          * g_Sd_AudioStreamingStates are static there. */
         Sd_TaskPoolDrain();
         XaPlayer_Update();
+        Pc_MsgVoice_Update();
 #endif
 
 #ifdef SH_PC_PORT
