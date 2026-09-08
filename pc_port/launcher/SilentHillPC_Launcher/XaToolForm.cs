@@ -46,6 +46,14 @@ namespace SilentHillPC_Launcher
         private int               _recIdx = -1;
         private bool              _textMode;
         private ToolStripComboBox _mode;
+        private ToolStripComboBox _discCombo;
+        private ToolStripComboBox _langCombo;
+        private List<DiscProbe.Disc>     _discs = new List<DiscProbe.Disc>();
+        private DiscProbe.Disc           _disc;
+        private List<DiscText.Language>  _langs = new List<DiscText.Language>();
+        private DiscText.Language        _lang;
+        private Dictionary<string, string> _texts;   // current language; null = built-in English
+        private readonly Dictionary<string, Dictionary<string, string>> _textCache = new Dictionary<string, Dictionary<string, string>>();
 
         [DllImport("winmm.dll", CharSet = CharSet.Auto)]
         private static extern int mciSendString(string command, StringBuilder ret, int retLen, IntPtr hwnd);
@@ -95,6 +103,18 @@ namespace SilentHillPC_Launcher
             _mode.Alignment = ToolStripItemAlignment.Right;
             _mode.SelectedIndexChanged += (s, e) => { StopPlayback(); _textMode = _mode.SelectedIndex == 1; Populate(); };
             menu.Items.Add(_mode);
+            menu.Items.Add(new ToolStripLabel("Disc:"));
+            _discCombo = new ToolStripComboBox();
+            _discCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+            _discCombo.Width = 300;
+            _discCombo.SelectedIndexChanged += (s, e) => { if (_discCombo.SelectedIndex >= 0) SelectDisc(_discCombo.SelectedIndex); };
+            menu.Items.Add(_discCombo);
+            menu.Items.Add(new ToolStripLabel("Text:"));
+            _langCombo = new ToolStripComboBox();
+            _langCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+            _langCombo.Width = 170;
+            _langCombo.SelectedIndexChanged += (s, e) => { if (_langCombo.SelectedIndex >= 0) SelectLanguage(_langCombo.SelectedIndex); };
+            menu.Items.Add(_langCombo);
             MainMenuStrip = menu;
             Controls.Add(menu);
 
@@ -127,8 +147,7 @@ namespace SilentHillPC_Launcher
             SetupButton(_btnFolder, "Open folder",       new Point(368, y + 30), (s, e) => OpenFolder());
             _btnImport.Width = 120; _btnRemove.Width = 132; _btnLast.Width = 140; _btnOrig.Width = 102;
 
-            ResolveDisc();
-            Populate();
+            LoadDiscs();
         }
 
         private void SetupButton(Button b, string text, Point at, EventHandler onClick)
@@ -152,18 +171,15 @@ namespace SilentHillPC_Launcher
         }
         private string LineLabel(int idx) { return _textMode ? MsgTable.Items[idx].Key : idx.ToString(); }
 
-        /// <summary>The image the game plays from: the config's disc_image if it names a
-        /// file in gamedata, else the first .bin there.</summary>
-        private void ResolveDisc()
+        /// <summary>Every disc image in gamedata, the config's disc_image selected
+        /// (the one the game boots), else the first the game supports.</summary>
+        private void LoadDiscs()
         {
-            _binPath = null;
-            _xaSectors = null;
+            _discs = Directory.Exists(GameDataDir) ? DiscProbe.Scan(GameDataDir) : new List<DiscProbe.Disc>();
+            _discs.Sort((x, y) => string.Compare(x.FileName, y.FileName, StringComparison.OrdinalIgnoreCase));
+            string want = null;
             try
             {
-                if (!Directory.Exists(GameDataDir)) return;
-                var bins = Directory.GetFiles(GameDataDir, "*.bin");
-                if (bins.Length == 0) return;
-                string want = null;
                 string cfg = Path.Combine(_gameRoot, "config.cfg");
                 if (File.Exists(cfg))
                 {
@@ -174,27 +190,84 @@ namespace SilentHillPC_Launcher
                             want = t.Substring("disc_image=".Length).Trim();
                     }
                 }
-                string pick = bins[0];
-                if (!string.IsNullOrEmpty(want))
-                {
-                    foreach (var b in bins)
-                    {
-                        string n = Path.GetFileName(b);
-                        if (string.Equals(n, want, StringComparison.OrdinalIgnoreCase) ||
-                            n.IndexOf(want, StringComparison.OrdinalIgnoreCase) >= 0 ||
-                            want.IndexOf(n, StringComparison.OrdinalIgnoreCase) >= 0)
-                        { pick = b; break; }
-                    }
-                }
-                _binPath = pick;
+            }
+            catch { }
+            int pick = -1;
+            for (int i = 0; i < _discs.Count; i++)
+            {
+                if (!string.IsNullOrEmpty(want) && string.Equals(_discs[i].FileName, want, StringComparison.OrdinalIgnoreCase)) { pick = i; break; }
+            }
+            if (pick < 0)
+                for (int i = 0; i < _discs.Count; i++) if (_discs[i].Supported) { pick = i; break; }
+            if (pick < 0 && _discs.Count > 0) pick = 0;
+
+            _discCombo.Items.Clear();
+            foreach (var d in _discs)
+                _discCombo.Items.Add(d.FileName + "   [" + d.RegionLabel + (d.Modified ? ", fan patch" : "") + "]");
+            if (pick >= 0) _discCombo.SelectedIndex = pick;   // fires SelectDisc
+            else SelectDisc(-1);
+        }
+
+        private void SelectDisc(int idx)
+        {
+            StopPlayback();
+            _disc = (idx >= 0 && idx < _discs.Count) ? _discs[idx] : null;
+            _binPath = _disc != null ? _disc.Path : null;
+            _xaSectors = null;
+            if (_binPath != null)
+            {
                 string err;
                 _xaSectors = BinExtractor.ReadXaFileSectors(_binPath, out err);
                 if (_xaSectors == null) _info.Text = "Disc " + Path.GetFileName(_binPath) + ": " + err;
             }
-            catch (Exception ex)
+            _langs = DiscText.LanguagesFor(_disc, _gameRoot);
+            _langCombo.Items.Clear();
+            foreach (var l in _langs) _langCombo.Items.Add(l.Label);
+            if (_langs.Count > 0) _langCombo.SelectedIndex = 0;   // fires SelectLanguage -> Populate
+            else { _lang = null; _texts = null; Populate(); }
+        }
+
+        /// <summary>Show the script in this language: the disc's own text (read off
+        /// the image, cached per disc and language) or a PC-side pack. A retail USA
+        /// disc's English is the built-in table. Missing lines fall back to English.</summary>
+        private void SelectLanguage(int idx)
+        {
+            _lang = (idx >= 0 && idx < _langs.Count) ? _langs[idx] : null;
+            _texts = null;
+            if (_lang != null && _disc != null && !(_lang.Slot == 0 && _disc.Region == "USA" && !_disc.Modified))
             {
-                _info.Text = "Disc lookup failed: " + ex.Message;
+                string cacheKey = (_lang.Slot < 0 ? _lang.PackPath : _binPath) + "|" + _lang.Label;
+                Dictionary<string, string> texts;
+                if (!_textCache.TryGetValue(cacheKey, out texts))
+                {
+                    Cursor = Cursors.WaitCursor;
+                    try
+                    {
+                        string err;
+                        texts = DiscText.Load(_binPath, _disc, _lang, out err);
+                        if (texts.Count == 0)
+                        {
+                            _info.Text = "Could not read " + _lang.Label + " text: " + (err ?? "nothing found") + ". Showing English.";
+                            texts = null;
+                        }
+                    }
+                    finally { Cursor = Cursors.Default; }
+                    _textCache[cacheKey] = texts;
+                }
+                _texts = texts;
             }
+            else if (_lang != null && _lang.Slot < 0)
+            {
+                string err;
+                _texts = DiscText.Load(null, _disc, _lang, out err);
+            }
+            Populate();
+        }
+
+        private string TextLabel()
+        {
+            if (_lang == null) return "English (built in)";
+            return _texts != null ? _lang.Label : "English (built in)";
         }
 
         // ---- list ---------------------------------------------------------------
@@ -226,14 +299,14 @@ namespace SilentHillPC_Launcher
                 string ov = File.Exists(OverridePath(i)) ? Path.GetFileName(OverridePath(i)) : "";
                 if (ov.Length > 0) replaced++;
                 var row = new ListViewItem(it.Key);
-                row.SubItems.Add(it.Text);
+                row.SubItems.Add(SubtitleText(it.Key));
                 row.SubItems.Add(ov);
                 row.Tag = i;
                 if (ov.Length > 0) row.ForeColor = Color.DarkGreen;
                 _list.Items.Add(row);
             }
-            _info.Text = string.Format("{0} text-box messages (USA script), {1} with a voice file. Files: gamedata\\load\\XA\\msg_<KEY>.wav. Lines the game already voices keep their disc voice.",
-                MsgTable.Items.Length, replaced);
+            _info.Text = string.Format("{0} text-box messages, text: {2}, {1} with a voice file. Files: gamedata\\load\\XA\\msg_<KEY>.wav. Lines the game already voices keep their disc voice.",
+                MsgTable.Items.Length, replaced, TextLabel());
         }
 
         private void Populate()
@@ -287,8 +360,8 @@ namespace SilentHillPC_Launcher
                         shown++;
                     }
                 }
-                _info.Text = string.Format("Disc: {0} — {1} voice lines, {2} replaced. Replacements live in gamedata\\load\\XA (a load mod's load\\XA folder deploys there).",
-                    Path.GetFileName(_binPath), shown, replaced);
+                _info.Text = string.Format("Disc: {0} — {1} voice lines, {2} replaced, text: {3}. Replacements live in gamedata\\load\\XA (a load mod's load\\XA folder deploys there).",
+                    Path.GetFileName(_binPath), shown, replaced, TextLabel());
             }
             catch (Exception ex)
             {
@@ -306,10 +379,13 @@ namespace SilentHillPC_Launcher
 
         private static Dictionary<string, string> s_msgText;
 
-        /// <summary>The script text for a message key (MsgTable), "" when unknown.</summary>
-        private static string SubtitleText(string key)
+        /// <summary>The script text for a message key in the selected language, the
+        /// built-in English (MsgTable) when that language lacks the line, "" when unknown.</summary>
+        private string SubtitleText(string key)
         {
             if (key.Length == 0) return "";
+            string tr;
+            if (_texts != null && _texts.TryGetValue(key, out tr) && tr.Length > 0) return tr;
             if (s_msgText == null)
             {
                 s_msgText = new Dictionary<string, string>();
@@ -338,6 +414,8 @@ namespace SilentHillPC_Launcher
             _btnRemove.Enabled = ov && !_recording;
             _btnLast.Enabled = (_textMode || _xaSectors != null) && !_recording;
             _mode.Enabled = !_recording;
+            _discCombo.Enabled = !_recording;
+            _langCombo.Enabled = !_recording;
         }
 
         private void RefreshRow(int idx)
@@ -860,7 +938,12 @@ namespace SilentHillPC_Launcher
                 "works the same; the file is gamedata\\load\\XA\\msg_<KEY>.wav and plays when that box opens, " +
                 "staying on through the box's pages unless a later page has its own file. Read the box in the game, " +
                 "then press \"Last played in game\" to find its key. Keys follow the USA script; boxes the game " +
-                "already voices ignore these files.",
+                "already voices ignore these files.\n\n" +
+                "Disc and Text (menu bar): the disc list is every image in gamedata; the one the game boots is " +
+                "selected. Text shows the script in a language the selected disc carries (all five on a PAL disc, " +
+                "the patch's own text on a fan translation) or in a language pack from gamedata\\lang, so a dub " +
+                "can be recorded against the words in its own language. Which files play, and their names, never " +
+                "change with this: it only changes what the lists show.",
                 "Voice mods", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 

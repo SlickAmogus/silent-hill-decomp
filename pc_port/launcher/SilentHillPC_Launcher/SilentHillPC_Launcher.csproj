@@ -96,6 +96,9 @@
     </Compile>
     <Compile Include="VabFile.cs" />
     <Compile Include="MsgTable.cs" />
+    <Compile Include="DiscText.cs" />
+    <Compile Include="JpnMsgMap.cs" />
+    <Compile Include="RuCharsets.cs" />
     <Compile Include="XaSubtitles.cs" />
     <Compile Include="XaTable.cs" />
     <Compile Include="XaToolForm.cs">
