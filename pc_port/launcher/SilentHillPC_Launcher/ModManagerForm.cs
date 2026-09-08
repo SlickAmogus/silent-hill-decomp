@@ -124,6 +124,41 @@ namespace SilentHillPC_Launcher
             Populate();
         }
 
+        /// <summary>A mod another tool just wrote into the mods folder (the Voices window's
+        /// "Create voice mod"): unpack and re-index, name it, show it selected, and when asked,
+        /// enable and apply it through the same path as the Apply button.</summary>
+        public void ShowImportedMod(string modName, string displayName, string description, bool enable)
+        {
+            ExtractThenScan();
+            ModEntry entry = null;
+            foreach (var m in _mgr.Mods)
+            {
+                if (string.Equals(m.Name, modName, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(m.Name, modName + ".zip", StringComparison.OrdinalIgnoreCase)) { entry = m; break; }
+            }
+            if (entry != null)
+            {
+                entry.DisplayName = displayName;
+                entry.Description = description;
+                if (enable) entry.Enabled = true;
+                _mgr.SaveState();
+                Populate();
+                foreach (ListViewItem it in _list.Items)
+                {
+                    if (it.Tag == entry) { it.Selected = true; it.EnsureVisible(); break; }
+                }
+            }
+            if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+            Activate();
+            if (entry == null)
+            {
+                MessageBox.Show(this, "\"" + modName + "\" was written to the mods folder but did not show up in the list. Try Rescan.",
+                    "Mod Manager", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (enable) OnApply(this, EventArgs.Empty);
+        }
+
         /// <summary>Confirm before unpacking archives found in the mod folders, naming them.</summary>
         private bool AskUnpack(List<ModManager.PendingItem> items)
         {

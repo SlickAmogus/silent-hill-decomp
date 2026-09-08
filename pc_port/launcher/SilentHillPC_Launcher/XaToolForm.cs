@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.IO.Compression;
 using System.Media;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -41,6 +42,7 @@ namespace SilentHillPC_Launcher
         private readonly Button   _btnRemove = new Button();
         private readonly Button   _btnFolder = new Button();
         private readonly Button   _btnLast   = new Button();
+        private readonly Button   _btnMod    = new Button();
         private SoundPlayer       _player;
         private bool              _recording;
         private int               _recIdx = -1;
@@ -145,7 +147,8 @@ namespace SilentHillPC_Launcher
             SetupButton(_btnRecord, "● Record",          new Point(140, y + 30), (s, e) => ToggleRecord());
             SetupButton(_btnRemove, "Remove replacement", new Point(228, y + 30), (s, e) => RemoveSelected());
             SetupButton(_btnFolder, "Open folder",       new Point(368, y + 30), (s, e) => OpenFolder());
-            _btnImport.Width = 120; _btnRemove.Width = 132; _btnLast.Width = 140; _btnOrig.Width = 102;
+            SetupButton(_btnMod,    "Create voice mod…", new Point(456, y + 30), (s, e) => CreateVoiceMod());
+            _btnImport.Width = 120; _btnRemove.Width = 132; _btnLast.Width = 140; _btnOrig.Width = 102; _btnMod.Width = 130;
 
             LoadDiscs();
         }
@@ -416,6 +419,7 @@ namespace SilentHillPC_Launcher
             _mode.Enabled = !_recording;
             _discCombo.Enabled = !_recording;
             _langCombo.Enabled = !_recording;
+            _btnMod.Enabled = !_recording;
         }
 
         private void RefreshRow(int idx)
@@ -920,6 +924,153 @@ namespace SilentHillPC_Launcher
             catch { }
         }
 
+        // ---- packaging -----------------------------------------------------------------
+
+        /// <summary>Pack every voice file in gamedata\load\XA into mods\&lt;name&gt;.zip (a
+        /// load mod, stored uncompressed so the Mod Manager unpacks it by plain copy),
+        /// then hand it to the Mod Manager. Each step asks first.</summary>
+        private void CreateVoiceMod()
+        {
+            StopPlayback();
+            var files = new List<string>();
+            int lines = 0;
+            try
+            {
+                if (Directory.Exists(OverrideDir))
+                {
+                    foreach (var f in Directory.GetFiles(OverrideDir, "*.wav"))
+                    {
+                        string n = Path.GetFileName(f);
+                        bool isLine = n.StartsWith("xa_", StringComparison.OrdinalIgnoreCase);
+                        if (!isLine && !n.StartsWith("msg_", StringComparison.OrdinalIgnoreCase)) continue;
+                        files.Add(f);
+                        if (isLine) lines++;
+                    }
+                }
+            }
+            catch { }
+            if (files.Count == 0)
+            {
+                MessageBox.Show(this, "There are no voice files in gamedata\\load\\XA yet. Record or Replace some lines first.",
+                    "Create voice mod", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            int boxes = files.Count - lines;
+            string what = lines + " replaced disc line" + (lines == 1 ? "" : "s") + " and " + boxes + " voiced text box" + (boxes == 1 ? "" : "es");
+
+            if (MessageBox.Show(this,
+                    "This packs the " + files.Count + " voice files in gamedata\\load\\XA (" + what + ") into a mod: a .zip in the " +
+                    "mods folder that the Mod Manager can enable, disable and remove, and that you can share.\n\n" +
+                    "The recordings themselves are not changed. Continue?",
+                    "Create voice mod", MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes) return;
+
+            string modsDir = Path.Combine(_gameRoot, "mods");
+            string name, safe, zipPath;
+            string initial = "Voice mod";
+            while (true)
+            {
+                using (var d = new PromptDialog("Create voice mod", "Name of the mod (shown in the Mod Manager; also the .zip's file name):", initial))
+                {
+                    if (d.ShowDialog(this) != DialogResult.OK) return;
+                    name = d.Value;
+                }
+                safe = SafeFileName(name);
+                initial = name;
+                if (safe.Length == 0)
+                {
+                    MessageBox.Show(this, "Please enter a name.", "Create voice mod", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    continue;
+                }
+                zipPath = Path.Combine(modsDir, safe + ".zip");
+                if (File.Exists(zipPath) || File.Exists(zipPath + ".disabled") || Directory.Exists(Path.Combine(modsDir, safe)))
+                {
+                    MessageBox.Show(this, "A mod called \"" + safe + "\" is already in the mods folder. Remove it in the Mod Manager first, or choose another name.",
+                        "Create voice mod", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    continue;
+                }
+                break;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(modsDir);
+                Cursor = Cursors.WaitCursor;
+                try
+                {
+                    using (var za = ZipFile.Open(zipPath, ZipArchiveMode.Create))
+                    {
+                        foreach (var f in files)
+                            za.CreateEntryFromFile(f, "load/XA/" + Path.GetFileName(f), CompressionLevel.NoCompression);
+                    }
+                }
+                finally { Cursor = Cursors.Default; }
+            }
+            catch (Exception ex)
+            {
+                try { if (File.Exists(zipPath)) File.Delete(zipPath); } catch { }
+                MessageBox.Show(this, "Could not write the mod:\n\n" + ex.Message, "Create voice mod", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            MessageBox.Show(this, "Created mods\\" + safe + ".zip with " + files.Count + " files.", "Create voice mod",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            if (MessageBox.Show(this,
+                    "Delete the " + files.Count + " files from gamedata\\load\\XA now?\n\nRecommended: the mod carries copies, and " +
+                    "enabling it in the Mod Manager puts them back. If you keep them, the Mod Manager will ask about overwriting " +
+                    "them when the mod is applied.",
+                    "Create voice mod", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+            {
+                int failed = 0;
+                foreach (var f in files) { try { File.Delete(f); } catch { failed++; } }
+                if (failed > 0)
+                    MessageBox.Show(this, failed + " file(s) could not be deleted (in use?). They stay in gamedata\\load\\XA.",
+                        "Create voice mod", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                Populate();
+            }
+
+            bool enable = MessageBox.Show(this, "Enable \"" + name + "\" now? The Mod Manager will apply it right away.",
+                "Create voice mod", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+
+            var manager = Owner as ModManagerForm;
+            string description = "Voice mod: " + what + " (made with the Voices tool)";
+            Close();
+            if (manager != null)
+                manager.ShowImportedMod(safe, name, description, enable);
+            else
+                MessageBox.Show("The mod is in the mods folder. Open the Mod Manager to enable it.", "Create voice mod",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private static string SafeFileName(string s)
+        {
+            var sb = new StringBuilder();
+            char[] bad = Path.GetInvalidFileNameChars();
+            foreach (char c in s) sb.Append(Array.IndexOf(bad, c) >= 0 ? '_' : c);
+            return sb.ToString().Trim().TrimEnd('.');
+        }
+
+        private sealed class PromptDialog : Form
+        {
+            private readonly TextBox _box = new TextBox();
+            public string Value { get { return _box.Text.Trim(); } }
+
+            public PromptDialog(string title, string message, string initial)
+            {
+                Text = title;
+                ClientSize = new Size(420, 130);
+                FormBorderStyle = FormBorderStyle.FixedDialog;
+                StartPosition = FormStartPosition.CenterParent;
+                MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false;
+                var lbl = new Label { Text = message, Location = new Point(12, 12), Size = new Size(396, 40) };
+                _box.Location = new Point(12, 56); _box.Size = new Size(396, 23); _box.Text = initial;
+                var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Location = new Point(252, 92), Size = new Size(75, 26) };
+                var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Location = new Point(333, 92), Size = new Size(75, 26) };
+                Controls.AddRange(new Control[] { lbl, _box, ok, cancel });
+                AcceptButton = ok; CancelButton = cancel;
+                Shown += (s, e) => { _box.SelectAll(); _box.Focus(); };
+            }
+        }
+
         private void ShowHelp()
         {
             MessageBox.Show(this,
@@ -943,7 +1094,9 @@ namespace SilentHillPC_Launcher
                 "selected. Text shows the script in a language the selected disc carries (all five on a PAL disc, " +
                 "the patch's own text on a fan translation) or in a language pack from gamedata\\lang, so a dub " +
                 "can be recorded against the words in its own language. Which files play, and their names, never " +
-                "change with this: it only changes what the lists show.",
+                "change with this: it only changes what the lists show.\n\n" +
+                "Create voice mod packs everything in gamedata\\load\\XA into a .zip in the mods folder, so the dub " +
+                "can be enabled, disabled, removed and shared like any other mod. It asks at each step.",
                 "Voice mods", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
