@@ -999,7 +999,10 @@ namespace SilentHillPC_Launcher
         // Apply leave files that are already right alone, ask before touching the
         // user's own files, and back those up the way the DLL path always has.
 
-        private Dictionary<string, string> BuildDeployPlan(ApplyResult result)
+        /// <summary>Final dst -> src map. <paramref name="candidates"/>, when given, also
+        /// collects every enabled mod's file for each dst (the losers of the priority
+        /// order included), which the overwrite preview needs.</summary>
+        private Dictionary<string, string> BuildDeployPlan(ApplyResult result, Dictionary<string, List<string>> candidates = null)
         {
             var plan = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -1010,10 +1013,10 @@ namespace SilentHillPC_Launcher
                 try
                 {
                     string loadSub = FindDirNamed(m.LibraryPath, "load");
-                    if (loadSub != null && Directory.Exists(loadSub)) { PlanTree(loadSub, LoadDir, plan); result.Load++; }
+                    if (loadSub != null && Directory.Exists(loadSub)) { PlanTree(loadSub, LoadDir, plan, candidates); result.Load++; }
 
                     string fmvSub = FindDirNamed(m.LibraryPath, "FMV");
-                    if (fmvSub != null && Directory.Exists(fmvSub)) { PlanVideosFlat(fmvSub, FmvDir, plan); result.Fmv++; }
+                    if (fmvSub != null && Directory.Exists(fmvSub)) { PlanVideosFlat(fmvSub, FmvDir, plan, candidates); result.Fmv++; }
                 }
                 catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
@@ -1021,36 +1024,50 @@ namespace SilentHillPC_Launcher
             var loadMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled && m.Type == ModType.Load).ToList();
             foreach (var m in Enumerable.Reverse(loadMods))
             {
-                try { PlanTree(DeploySourceRoot(m.LibraryPath, ModType.Load), LoadDir, plan); result.Load++; }
+                try { PlanTree(DeploySourceRoot(m.LibraryPath, ModType.Load), LoadDir, plan, candidates); result.Load++; }
                 catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
 
             var fmvMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled && m.Type == ModType.Fmv).ToList();
             foreach (var m in Enumerable.Reverse(fmvMods))
             {
-                try { PlanVideosFlat(m.LibraryPath, FmvDir, plan); result.Fmv++; }
+                try { PlanVideosFlat(m.LibraryPath, FmvDir, plan, candidates); result.Fmv++; }
                 catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
 
             return plan;
         }
 
-        private static void PlanTree(string src, string dstRoot, Dictionary<string, string> plan)
+        private static void PlanTree(string src, string dstRoot, Dictionary<string, string> plan,
+                                     Dictionary<string, List<string>> candidates)
         {
             foreach (var file in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
             {
                 string rel = file.Substring(src.Length).TrimStart('\\', '/');
-                plan[Path.Combine(dstRoot, rel)] = file;
+                string dst = Path.Combine(dstRoot, rel);
+                plan[dst] = file;
+                AddCandidate(candidates, dst, file);
             }
         }
 
-        private static void PlanVideosFlat(string src, string dstRoot, Dictionary<string, string> plan)
+        private static void PlanVideosFlat(string src, string dstRoot, Dictionary<string, string> plan,
+                                           Dictionary<string, List<string>> candidates)
         {
             foreach (var file in SafeFiles(src))
             {
                 if (!IsVideoFile(file)) continue;
-                plan[Path.Combine(dstRoot, Path.GetFileName(file))] = file;
+                string dst = Path.Combine(dstRoot, Path.GetFileName(file));
+                plan[dst] = file;
+                AddCandidate(candidates, dst, file);
             }
+        }
+
+        private static void AddCandidate(Dictionary<string, List<string>> candidates, string dst, string file)
+        {
+            if (candidates == null) return;
+            List<string> list;
+            if (!candidates.TryGetValue(dst, out list)) candidates[dst] = list = new List<string>();
+            list.Add(file);
         }
 
         /// <summary>Whether dst already holds exactly this source. File.Copy keeps the
@@ -1142,7 +1159,8 @@ namespace SilentHillPC_Launcher
         /// nothing happens to it.</summary>
         public OverwritePreview PreviewOverwrites()
         {
-            var plan = BuildDeployPlan(new ApplyResult());
+            var candidates = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var plan = BuildDeployPlan(new ApplyResult(), candidates);
             var old  = ReadManifest();
             var pv   = new OverwritePreview();
             foreach (var kv in plan)
@@ -1151,12 +1169,26 @@ namespace SilentHillPC_Launcher
                 string rel = Rel(dst);
                 if (!File.Exists(dst) || SameFile(kv.Value, dst)) continue;
                 DeployedRecord r;
-                if (!old.TryGetValue(rel, out r)) pv.Foreign.Add(rel);
+                if (!old.TryGetValue(rel, out r))
+                {
+                    // Untracked, but equal to what another enabled mod supplies: a
+                    // lower-priority mod's copy (left untracked because it matched a
+                    // file already there), now outranked. Not the user's; no question.
+                    if (!IsAnotherModsCopy(dst, candidates)) pv.Foreign.Add(rel);
+                }
                 else if (!MatchesRecord(dst, r)) pv.Modified.Add(rel);
             }
             pv.Foreign.Sort(StringComparer.OrdinalIgnoreCase);
             pv.Modified.Sort(StringComparer.OrdinalIgnoreCase);
             return pv;
+        }
+
+        private static bool IsAnotherModsCopy(string dst, Dictionary<string, List<string>> candidates)
+        {
+            List<string> list;
+            if (!candidates.TryGetValue(dst, out list)) return false;
+            foreach (var src in list) if (SameFile(src, dst)) return true;
+            return false;
         }
 
         private void DeployPlan(Dictionary<string, string> plan, Dictionary<string, DeployedRecord> old,
