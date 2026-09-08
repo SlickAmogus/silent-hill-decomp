@@ -88,6 +88,8 @@ extern s_XaItemData g_XaItemData[727];
 
 // PC wrapper to signal playback finished
 extern void Xa_SignalPlaybackFinished(void);
+/* libsd (src/bodyprog/libsd/smf_snd.c): the SPU CD-input mix switch. */
+extern void SsSetSerialAttr(char s_num, char attr, char mode);
 void PcSoftwareXa_Stop(void);
 int PcSoftwareXa_IsVoiceAudioDraining(void);
 
@@ -623,6 +625,9 @@ void PcSoftwareXa_Update(void) {
     }
     SH_DBG("[XA] finished xaIdx=%u (drained) playedMs=%u", (unsigned)g_XaPlayer.xaIdx,
            (unsigned)(SDL_GetTicks() - s_xaPlayStartMs));
+    if (g_XaPlayer.xaIdx == XA_FILE_IDX) {
+        SsSetSerialAttr(0, 0, 0);
+    }
     g_XaPlayer.isPlaying = 0;
     XaOverride_Free();
     Xa_SignalPlaybackFinished();
@@ -725,6 +730,10 @@ int PcSoftwareXa_PlayFile(const char* path)
     nowMs = SDL_GetTicks();
     s_xaPadEndMs      = nowMs + wavMs;
     s_xaVoiceGapEndMs = nowMs + wavMs + (uint32_t)g_PcConfig.cutsceneLineGapMs;
+    /* The SPU mixes its CD input only while the serial attribute is on; the
+     * game's XA task switches it on after every Play and off after every Stop
+     * (sd_call.c), and this file plays outside that task. */
+    SsSetSerialAttr(0, 0, 1);
     SH_DBG("[XA] file %s %s %dHz %ums", path, stereo ? "stereo" : "mono", rate, wavMs);
     return 1;
 }
@@ -732,6 +741,7 @@ int PcSoftwareXa_PlayFile(const char* path)
 void PcSoftwareXa_StopFile(void)
 {
     if (g_XaPlayer.isPlaying && g_XaPlayer.xaIdx == XA_FILE_IDX) {
+        SsSetSerialAttr(0, 0, 0);
         PcSoftwareXa_Stop();
     }
 }
