@@ -55,6 +55,10 @@ namespace SilentHillPC_Launcher
         private List<DiscText.Language>  _langs = new List<DiscText.Language>();
         private DiscText.Language        _lang;
         private Dictionary<string, string> _texts;   // current language; null = built-in English
+        // Lower-case file name -> (mod name, path) for every voice file inside an installed
+        // mod, so a file in load\XA can be told apart from a loose recording of the user's.
+        private Dictionary<string, List<KeyValuePair<string, string>>> _modFiles = new Dictionary<string, List<KeyValuePair<string, string>>>();
+        private bool _createdMod;
         private readonly Dictionary<string, Dictionary<string, string>> _textCache = new Dictionary<string, Dictionary<string, string>>();
 
         [DllImport("winmm.dll", CharSet = CharSet.Auto)]
@@ -299,16 +303,14 @@ namespace SilentHillPC_Launcher
             for (int i = 0; i < MsgTable.Items.Length; i++)
             {
                 var it = MsgTable.Items[i];
-                string ov = File.Exists(OverridePath(i)) ? Path.GetFileName(OverridePath(i)) : "";
-                if (ov.Length > 0) replaced++;
                 var row = new ListViewItem(it.Key);
                 row.SubItems.Add(SubtitleText(it.Key));
-                row.SubItems.Add(ov);
+                row.SubItems.Add("");
                 row.Tag = i;
-                if (ov.Length > 0) row.ForeColor = Color.DarkGreen;
+                if (ApplyReplacementCell(row, i)) replaced++;
                 _list.Items.Add(row);
             }
-            _info.Text = string.Format("{0} text-box messages, text: {2}, {1} with a voice file. Files: gamedata\\load\\XA\\msg_<KEY>.wav. Lines the game already voices keep their disc voice.",
+            _info.Text = string.Format("{0} text-box messages, text: {2}, {1} with a voice file (green: yours, blue: placed by a mod). Files: gamedata\\load\\XA\\msg_<KEY>.wav.",
                 MsgTable.Items.Length, replaced, TextLabel());
         }
 
@@ -317,6 +319,7 @@ namespace SilentHillPC_Launcher
             _list.BeginUpdate();
             _list.Items.Clear();
             SetupColumns();
+            ScanModFiles();
             if (_textMode)
             {
                 PopulateText();
@@ -348,22 +351,20 @@ namespace SilentHillPC_Launcher
                             int rate = ((sector[3] >> 2) & 3) == 0 ? 37800 : 18900;
                             fmt = rate + " Hz " + (stereo ? "stereo" : "mono");
                         }
-                        string ov = File.Exists(OverridePath(i)) ? Path.GetFileName(OverridePath(i)) : "";
-                        if (ov.Length > 0) replaced++;
                         string key = XaSubtitles.Keys[i] ?? "";
                         var row = new ListViewItem(i.ToString());
                         row.SubItems.Add(FormatSeconds(it.Frames / 60.0));
                         row.SubItems.Add(SubtitleText(key));
                         row.SubItems.Add(key);
                         row.SubItems.Add(fmt);
-                        row.SubItems.Add(ov);
+                        row.SubItems.Add("");
                         row.Tag = i;
-                        if (ov.Length > 0) row.ForeColor = Color.DarkGreen;
+                        if (ApplyReplacementCell(row, i)) replaced++;
                         _list.Items.Add(row);
                         shown++;
                     }
                 }
-                _info.Text = string.Format("Disc: {0} — {1} voice lines, {2} replaced, text: {3}. Replacements live in gamedata\\load\\XA (a load mod's load\\XA folder deploys there).",
+                _info.Text = string.Format("Disc: {0} — {1} voice lines, {2} replaced (green: yours, blue: placed by a mod), text: {3}. Replacements live in gamedata\\load\\XA.",
                     Path.GetFileName(_binPath), shown, replaced, TextLabel());
             }
             catch (Exception ex)
@@ -427,12 +428,88 @@ namespace SilentHillPC_Launcher
             foreach (ListViewItem row in _list.Items)
             {
                 if ((int)row.Tag != idx) continue;
-                bool ov = File.Exists(OverridePath(idx));
-                row.SubItems[row.SubItems.Count - 1].Text = ov ? Path.GetFileName(OverridePath(idx)) : "";
-                row.ForeColor = ov ? Color.DarkGreen : SystemColors.WindowText;
+                ScanModFiles();
+                ApplyReplacementCell(row, idx);
                 break;
             }
             UpdateButtons();
+        }
+
+        // ---- mod attribution ----------------------------------------------------------
+
+        /// <summary>Index every voice file inside the mods folder (any mod, enabled or
+        /// not: a leftover of a disabled one is still that mod's file).</summary>
+        private void ScanModFiles()
+        {
+            var map = new Dictionary<string, List<KeyValuePair<string, string>>>();
+            try
+            {
+                string modsDir = Path.Combine(_gameRoot, "mods");
+                if (Directory.Exists(modsDir))
+                {
+                    foreach (var modDir in Directory.GetDirectories(modsDir))
+                    {
+                        string modName = Path.GetFileName(modDir);
+                        if (modName.StartsWith(".", StringComparison.Ordinal)) continue;
+                        if (modName.EndsWith(".disabled", StringComparison.OrdinalIgnoreCase)) modName = modName.Substring(0, modName.Length - 9);
+                        string[] wavs;
+                        try { wavs = Directory.GetFiles(modDir, "*.wav", SearchOption.AllDirectories); }
+                        catch { continue; }
+                        foreach (var w in wavs)
+                        {
+                            string dir = Path.GetDirectoryName(w) ?? "";
+                            if (!dir.EndsWith("\\load\\XA", StringComparison.OrdinalIgnoreCase)) continue;
+                            string key = Path.GetFileName(w).ToLowerInvariant();
+                            List<KeyValuePair<string, string>> list;
+                            if (!map.TryGetValue(key, out list)) map[key] = list = new List<KeyValuePair<string, string>>();
+                            list.Add(new KeyValuePair<string, string>(modName, w));
+                        }
+                    }
+                }
+            }
+            catch { }
+            _modFiles = map;
+        }
+
+        /// <summary>Same size and write time (within 2 s), the Mod Manager's own test for
+        /// "this is the copy I made".</summary>
+        private static bool SameFile(string a, string b)
+        {
+            try
+            {
+                var fa = new FileInfo(a); var fb = new FileInfo(b);
+                if (!fa.Exists || !fb.Exists || fa.Length != fb.Length) return false;
+                return Math.Abs((fa.LastWriteTimeUtc - fb.LastWriteTimeUtc).TotalSeconds) < 2.0;
+            }
+            catch { return false; }
+        }
+
+        /// <summary>The installed mod whose copy this load\XA file is, or null for a
+        /// recording of the user's own (including one that replaced a mod's file).</summary>
+        private string ModOwning(string overridePath)
+        {
+            List<KeyValuePair<string, string>> list;
+            if (!_modFiles.TryGetValue(Path.GetFileName(overridePath).ToLowerInvariant(), out list)) return null;
+            foreach (var kv in list) if (SameFile(kv.Value, overridePath)) return kv.Key;
+            return null;
+        }
+
+        /// <summary>Fill the row's Replacement cell and colour: green = the user's own
+        /// file, blue = placed there by a mod. Returns whether a replacement exists.</summary>
+        private bool ApplyReplacementCell(ListViewItem row, int idx)
+        {
+            string ov = OverridePath(idx);
+            var cell = row.SubItems[row.SubItems.Count - 1];
+            if (!File.Exists(ov))
+            {
+                cell.Text = "";
+                row.ForeColor = SystemColors.WindowText;
+                return false;
+            }
+            string mod = ModOwning(ov);
+            cell.Text = Path.GetFileName(ov) + (mod != null ? "   (" + mod + ")" : "");
+            row.ForeColor = mod != null ? Color.RoyalBlue : Color.DarkGreen;
+            return true;
         }
 
         // ---- XA decode ------------------------------------------------------------
@@ -926,13 +1003,16 @@ namespace SilentHillPC_Launcher
 
         // ---- packaging -----------------------------------------------------------------
 
-        /// <summary>Pack every voice file in gamedata\load\XA into mods\&lt;name&gt;.zip (a
-        /// load mod, stored uncompressed so the Mod Manager unpacks it by plain copy),
-        /// then hand it to the Mod Manager. Each step asks first.</summary>
+        /// <summary>Pack the user's own voice files in gamedata\load\XA (not the copies
+        /// installed mods placed there) into mods\&lt;name&gt;.zip, a load mod stored
+        /// uncompressed so the Mod Manager unpacks it by plain copy. It ends there: the
+        /// Mod Manager lists the mod on its next scan and enabling is done there.</summary>
         private void CreateVoiceMod()
         {
             StopPlayback();
+            ScanModFiles();
             var files = new List<string>();
+            var fromMods = new SortedDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
             int lines = 0;
             try
             {
@@ -943,26 +1023,39 @@ namespace SilentHillPC_Launcher
                         string n = Path.GetFileName(f);
                         bool isLine = n.StartsWith("xa_", StringComparison.OrdinalIgnoreCase);
                         if (!isLine && !n.StartsWith("msg_", StringComparison.OrdinalIgnoreCase)) continue;
+                        string owner = ModOwning(f);
+                        if (owner != null)
+                        {
+                            int c; fromMods.TryGetValue(owner, out c); fromMods[owner] = c + 1;
+                            continue;
+                        }
                         files.Add(f);
                         if (isLine) lines++;
                     }
                 }
             }
             catch { }
+
+            var skipped = new StringBuilder();
+            foreach (var kv in fromMods) skipped.Append(skipped.Length == 0 ? "" : ", ").Append(kv.Key).Append(" (").Append(kv.Value).Append(")");
+
             if (files.Count == 0)
             {
-                MessageBox.Show(this, "There are no voice files in gamedata\\load\\XA yet. Record or Replace some lines first.",
+                MessageBox.Show(this, fromMods.Count > 0
+                        ? "Every voice file in gamedata\\load\\XA was placed there by an installed mod: " + skipped + ".\n\nThere is nothing of your own to pack. Record or Replace some lines first."
+                        : "There are no voice files in gamedata\\load\\XA yet. Record or Replace some lines first.",
                     "Create voice mod", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             int boxes = files.Count - lines;
             string what = lines + " replaced disc line" + (lines == 1 ? "" : "s") + " and " + boxes + " voiced text box" + (boxes == 1 ? "" : "es");
 
-            if (MessageBox.Show(this,
-                    "This packs the " + files.Count + " voice files in gamedata\\load\\XA (" + what + ") into a mod: a .zip in the " +
-                    "mods folder that the Mod Manager can enable, disable and remove, and that you can share.\n\n" +
-                    "The recordings themselves are not changed. Continue?",
-                    "Create voice mod", MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes) return;
+            string intro = "This packs your " + files.Count + " voice files in gamedata\\load\\XA (" + what + ") into a mod: a .zip in the " +
+                           "mods folder that the Mod Manager lists, and that you can share.";
+            if (fromMods.Count > 0)
+                intro += "\n\nLeft out, because installed mods put them there: " + skipped + ".";
+            intro += "\n\nThe recordings themselves are not changed. Continue?";
+            if (MessageBox.Show(this, intro, "Create voice mod", MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes) return;
 
             string modsDir = Path.Combine(_gameRoot, "mods");
             string name, safe, zipPath;
@@ -1011,13 +1104,12 @@ namespace SilentHillPC_Launcher
                 MessageBox.Show(this, "Could not write the mod:\n\n" + ex.Message, "Create voice mod", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
-            MessageBox.Show(this, "Created mods\\" + safe + ".zip with " + files.Count + " files.", "Create voice mod",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            _createdMod = true;
 
             if (MessageBox.Show(this,
-                    "Delete the " + files.Count + " files from gamedata\\load\\XA now?\n\nRecommended: the mod carries copies, and " +
-                    "enabling it in the Mod Manager puts them back. If you keep them, the Mod Manager will ask about overwriting " +
-                    "them when the mod is applied.",
+                    "Created mods\\" + safe + ".zip with " + files.Count + " files. The Mod Manager lists it on its next scan (it rescans when this window closes); enable it there.\n\n" +
+                    "Delete the " + files.Count + " packed files from gamedata\\load\\XA now? Recommended: the mod carries copies and puts them back when enabled. " +
+                    "If you keep them, the Mod Manager will ask about overwriting them when the mod is applied.",
                     "Create voice mod", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
                 int failed = 0;
@@ -1025,20 +1117,8 @@ namespace SilentHillPC_Launcher
                 if (failed > 0)
                     MessageBox.Show(this, failed + " file(s) could not be deleted (in use?). They stay in gamedata\\load\\XA.",
                         "Create voice mod", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                Populate();
             }
-
-            bool enable = MessageBox.Show(this, "Enable \"" + name + "\" now? The Mod Manager will apply it right away.",
-                "Create voice mod", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
-
-            var manager = Owner as ModManagerForm;
-            string description = "Voice mod: " + what + " (made with the Voices tool)";
-            Close();
-            if (manager != null)
-                manager.ShowImportedMod(safe, name, description, enable);
-            else
-                MessageBox.Show("The mod is in the mods folder. Open the Mod Manager to enable it.", "Create voice mod",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Populate();
         }
 
         private static string SafeFileName(string s)
@@ -1095,14 +1175,21 @@ namespace SilentHillPC_Launcher
                 "the patch's own text on a fan translation) or in a language pack from gamedata\\lang, so a dub " +
                 "can be recorded against the words in its own language. Which files play, and their names, never " +
                 "change with this: it only changes what the lists show.\n\n" +
-                "Create voice mod packs everything in gamedata\\load\\XA into a .zip in the mods folder, so the dub " +
-                "can be enabled, disabled, removed and shared like any other mod. It asks at each step.",
+                "Create voice mod packs your own files in gamedata\\load\\XA (green rows; blue rows were placed by " +
+                "an installed mod and are left out) into a .zip in the mods folder, where the Mod Manager lists it " +
+                "for enabling like any other mod. It asks at each step.",
                 "Voice mods", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             StopPlayback();
+            if (_createdMod)
+            {
+                _createdMod = false;
+                var manager = Owner as ModManagerForm;
+                if (manager != null) manager.RescanFromTool();
+            }
             if (_recording)
             {
                 try { Mci("stop sh1xarec"); Mci("close sh1xarec"); } catch { }
