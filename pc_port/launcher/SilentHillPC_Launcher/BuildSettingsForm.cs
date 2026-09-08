@@ -213,6 +213,7 @@ namespace SilentHillPC_Launcher
         {
             if (string.Equals(branch, "beta", StringComparison.OrdinalIgnoreCase)) return "Beta (Latest)";
             if (string.Equals(branch, "main", StringComparison.OrdinalIgnoreCase)) return "Main (Alpha)";
+            if (string.Equals(branch, UpdateChecker.CustomBranch, StringComparison.OrdinalIgnoreCase)) return "Custom builds (mods, experiments)";
             return branch;
         }
 

@@ -43,6 +43,10 @@ namespace SilentHillPC_Launcher
         // users are auto-migrated to it once a newer beta release appears, so the
         // move to beta zip builds needs no manual Build Settings change.
         public const string BetaBranch = "beta";
+        /// <summary>Named opt-in builds (release-nightly.ps1 -Name): prereleases on
+        /// this branch with custom-&lt;slug&gt;-version tags. Listed only under their own
+        /// branch and never counted as "latest" (their tags parse to version 0).</summary>
+        public const string CustomBranch = "custom";
 
         // -- DTOs (manifest) --------------------------------------------------
 
@@ -236,14 +240,16 @@ namespace SilentHillPC_Launcher
             var rels = await ListReleasesAsync(owner, repo, ct).ConfigureAwait(false);
             IEnumerable<GhRelease> cand;
             if (string.IsNullOrWhiteSpace(branch))
-                cand = rels.Where(r => !IsBetaRelease(r)); // alpha = the v* (non-beta) stream
+                cand = rels.Where(r => !IsBetaRelease(r) && !IsCustomRelease(r)); // alpha = the v* (non-beta) stream
             else
                 cand = rels.Where(r => string.Equals(r.TargetCommitish, branch, StringComparison.OrdinalIgnoreCase));
 
             return cand.Select(r => new BuildInfo
             {
                 Tag   = r.TagName,
-                Label = $"{r.TagName}  ({ParseDate(r.CreatedAt):yyyy-MM-dd}){(IsBetaRelease(r) ? "  [beta]" : "")}"
+                Label = IsCustomRelease(r)
+                    ? $"{(string.IsNullOrWhiteSpace(r.Name) ? r.TagName : r.Name)}  ({ParseDate(r.CreatedAt):yyyy-MM-dd})  [custom]"
+                    : $"{r.TagName}  ({ParseDate(r.CreatedAt):yyyy-MM-dd}){(IsBetaRelease(r) ? "  [beta]" : "")}"
             }).ToList();
         }
 
@@ -271,7 +277,7 @@ namespace SilentHillPC_Launcher
             {
                 IEnumerable<GhRelease> cand = releases;
                 cand = string.IsNullOrWhiteSpace(branch)
-                    ? cand.Where(r => !IsBetaRelease(r))
+                    ? cand.Where(r => !IsBetaRelease(r) && !IsCustomRelease(r))
                     : cand.Where(r => string.Equals(r.TargetCommitish, branch, StringComparison.OrdinalIgnoreCase));
                 target = cand.FirstOrDefault();
             }
@@ -448,6 +454,12 @@ namespace SilentHillPC_Launcher
         {
             return string.Equals(r.TargetCommitish, BetaBranch, StringComparison.OrdinalIgnoreCase) ||
                    (r.TagName != null && r.TagName.StartsWith("beta-", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool IsCustomRelease(GhRelease r)
+        {
+            return string.Equals(r.TargetCommitish, CustomBranch, StringComparison.OrdinalIgnoreCase) ||
+                   (r.TagName != null && r.TagName.StartsWith("custom-", StringComparison.OrdinalIgnoreCase));
         }
 
         private static async Task<List<GhRelease>> ListReleasesAsync(string owner, string repo, CancellationToken ct)
