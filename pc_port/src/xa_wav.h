@@ -2,6 +2,7 @@
 #ifndef PC_PORT_XA_WAV_H
 #define PC_PORT_XA_WAV_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 /* Loose PCM WAV files that stand in for XA voice audio, shared by both XA
