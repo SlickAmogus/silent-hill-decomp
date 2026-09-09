@@ -31,13 +31,19 @@
 #            custom tag parses as 0, and GitHub's own latest skips prereleases),
 #            so a normal release afterwards is NOT needed. No CHANGELOG.md
 #            section is written and the cross-platform CI gate is skipped, since
-#            the build usually comes from a branch CI never built.
+#            the build usually comes from a branch CI never built. The LAUNCHER
+#            is left out of a custom build unless -WithLauncher is passed: the
+#            launcher self-updates on version alone and never downgrades, so a
+#            build meant to be opt-in would otherwise hand its launcher to every
+#            tester and keep it there after they switch back. Pass -WithLauncher
+#            only when the launcher itself is what you are testing.
 #
 # Usage:
 #   .\tools\release-nightly.ps1 [-Mode zip|loose] [-DryRun] [-BuildDir path]
 #                               [-Notes string] [-NoPause] [-BetaBranch beta]
 #                               [-SkipCrossPlatform]
-#   .\tools\release-nightly.ps1 -Name "Open World Test" [-Notes string] [-DryRun]
+#   .\tools\release-nightly.ps1 -Name "Open World Test" [-WithLauncher]
+#                               [-Notes string] [-DryRun]
 #
 # Linux + macOS builds are included BY DEFAULT and are VERIFIED BEFORE anything
 # is published: the release is NOT created until the build-linux.yml /
@@ -89,7 +95,10 @@ param(
     # Custom named build (see the header): the display name users pick in the
     # launcher, e.g. "Open World Test". Implies zip mode on the custom branch.
     [string]$Name         = "",
-    [string]$CustomBranch = "custom"
+    [string]$CustomBranch = "custom",
+    # Ship the launcher inside a CUSTOM build (it always ships in beta/loose).
+    # Off by default: see the -Name notes in the header.
+    [switch]$WithLauncher
 )
 
 $ErrorActionPreference = "Stop"
@@ -486,6 +495,11 @@ if ($isCustom) {
     Write-Host ""
     Write-Host "Custom build: '$Name'  (tag prefix custom-$customSlug-, branch '$CustomBranch', prerelease)" -ForegroundColor Magenta
     Write-Host "  No CHANGELOG.md section; Linux/macOS CI gate skipped." -ForegroundColor Gray
+    if ($WithLauncher) {
+        Write-Host "  -WithLauncher: the launcher IS included. Testers keep it after switching back." -ForegroundColor Yellow
+    } else {
+        Write-Host "  Launcher NOT included, so this build cannot change anyone's launcher." -ForegroundColor Gray
+    }
 }
 
 if (-not $Mode) {
@@ -499,6 +513,10 @@ if (-not $Mode) {
 $isZip     = ($Mode -eq 'zip')
 $tagPrefix = if ($isCustom) { "custom-$customSlug-" } elseif ($isZip) { 'beta-' } else { 'v' }
 $zipBranch = if ($isCustom) { $CustomBranch } else { $BetaBranch }
+# The launcher updates itself from any release of the official repo whose
+# launcher_version is newer, regardless of branch, and never downgrades. Keep it
+# out of an opt-in build unless it is the thing being tested.
+$includeLauncher = (-not $isCustom) -or $WithLauncher
 Write-Host "Mode: $Mode" -ForegroundColor Magenta
 
 # ---- Find the previous release of THIS stream -------------------------------
@@ -715,7 +733,7 @@ if ($isZip) {
     # stream, not whatever the dev's local config points at.
     $cfgTemplate = Join-Path $PSScriptRoot "..\pc_port\config.cfg"
 
-    if (-not (Test-Path $launcherExe)) {
+    if ($includeLauncher -and -not (Test-Path $launcherExe)) {
         throw "Launcher exe not found at $launcherExe. Build the launcher (Release) before a zip release."
     }
 
@@ -725,8 +743,10 @@ if ($isZip) {
 
     try {
         # Top-level files.
-        Copy-Item $exe         (Join-Path $stage "SilentHillPC.exe") -Force
-        Copy-Item $launcherExe (Join-Path $stage "SilentHillPC_Launcher.exe") -Force
+        Copy-Item $exe (Join-Path $stage "SilentHillPC.exe") -Force
+        if ($includeLauncher) {
+            Copy-Item $launcherExe (Join-Path $stage "SilentHillPC_Launcher.exe") -Force
+        }
         if (Test-Path $changelogPath) { Copy-Item $changelogPath (Join-Path $stage "CHANGELOG.md") -Force }
         if (Test-Path $cfgTemplate)   { Copy-Item $cfgTemplate   (Join-Path $stage "config.cfg")   -Force }
 
@@ -818,7 +838,7 @@ if ($isZip) {
             name       = $(if ($isCustom) { $Name } else { $null })
             build_date = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
             git_commit = $curCommitFull
-            launcher_version = $launcherVersion
+            launcher_version = $(if ($includeLauncher) { $launcherVersion } else { $null })
             zip_name   = $zipName
             zip_url    = "$baseUrl/$zipName"
             files      = $files
