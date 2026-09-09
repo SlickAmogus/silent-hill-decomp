@@ -143,12 +143,14 @@ static void Pc_ParticleSimTick(void)
  * distinguishable from the probe not running. Hard stop after 40 lines. */
 static s32    s_rsSeen      = 0;   /* rain streaks examined this step */
 static s32    s_rsLean      = 0;   /* ... of those, more horizontal than vertical */
-static q19_12 s_rsWorstFlat = 0;   /* worst |dx|+|dz| this step */
+static s32    s_rsLong      = 0;   /* ... of those, longer than one world unit */
+static q19_12 s_rsWorstLen  = 0;   /* worst |dx|+|dy|+|dz| this step */
 static q19_12 s_rsDx, s_rsDy, s_rsDz;
 static q19_12 s_rsVy;              /* fall speed of the worst one */
 static q19_12 s_rsGnd;             /* its ground type (5 = the blue variant) */
 static q19_12 s_rsCamX, s_rsCamZ;  /* camera term applied to BOTH ends */
 static s32    s_rsStep  = 0;
+static s32    s_rsSecs  = 0;
 static s32    s_rsLines = 0;
 /* The same measurement taken again in the DRAW, which is what the screen shows.
  * If the simulation's streaks are short and these are long, something moves the
@@ -1497,29 +1499,41 @@ bool Particle_Update(s_Particle* partHead)
 #if defined(SH_PC_PORT) && defined(MAP4_S02)
     /* TEMP [RAINSLANT] probe (issue #134, remove when it closes): one line per
      * second of simulation, printed whether or not anything leaned. */
-    if (s_pcParticleSimStep && s_rsLines < 40)
+    if (s_pcParticleSimStep && s_rsLines < 60)
     {
         if (++s_rsStep >= 30)
         {
+            /* A second's worth. Spend the budget on the seconds that matter: log
+             * whenever anything leaned or drew longer than a world unit, and
+             * otherwise only every fifth second, as a heartbeat that says the
+             * probe is alive and the rain is behaving. */
+            int interesting = (s_rsLean > 0) || (s_rsLong > 0) || (s_rsDrawLean > 0);
+
             s_rsStep = 0;
-            s_rsLines++;
-            SH_DBG("[RAINSLANT] %d/40 sim lean=%d/%d d=(%d,%d,%d) vy=%d gnd=%d | "
-                   "draw lean=%d/%d d=(%d,%d,%d) | cam=(%d,%d) origin=(%d,%d) "
-                   "wind=(%d,%d) moved=%d spd=%d",
-                   s_rsLines, s_rsLean, s_rsSeen, s_rsDx, s_rsDy, s_rsDz, s_rsVy, s_rsGnd,
-                   s_rsDrawLean, s_rsDrawSeen, s_rsDrawDx, s_rsDrawDy, s_rsDrawDz,
-                   s_rsCamX, s_rsCamZ,
-                   g_Particle_PrevPosition.vx - g_Particle_Position.vx,
-                   g_Particle_PrevPosition.vz - g_Particle_Position.vz,
-                   g_Particle_SpeedX, g_Particle_SpeedZ,
-                   g_ParticleCameraMoved, g_SysWork.playerWork.player.moveSpeed);
+            s_rsSecs++;
+            if (interesting || (s_rsSecs % 5) == 0)
+            {
+                s_rsLines++;
+                SH_DBG("[RAINSLANT] %d/60 t=%ds %s sim lean=%d long=%d of %d "
+                       "worst d=(%d,%d,%d) vy=%d gnd=%d | draw lean=%d of %d d=(%d,%d,%d) | "
+                       "cam=(%d,%d) origin=(%d,%d) wind=(%d,%d) moved=%d spd=%d",
+                       s_rsLines, s_rsSecs, interesting ? "HIT " : "idle",
+                       s_rsLean, s_rsLong, s_rsSeen, s_rsDx, s_rsDy, s_rsDz, s_rsVy, s_rsGnd,
+                       s_rsDrawLean, s_rsDrawSeen, s_rsDrawDx, s_rsDrawDy, s_rsDrawDz,
+                       s_rsCamX, s_rsCamZ,
+                       g_Particle_PrevPosition.vx - g_Particle_Position.vx,
+                       g_Particle_PrevPosition.vz - g_Particle_Position.vz,
+                       g_Particle_SpeedX, g_Particle_SpeedZ,
+                       g_ParticleCameraMoved, g_SysWork.playerWork.player.moveSpeed);
+            }
+            s_rsSeen     = 0;
+            s_rsLean     = 0;
+            s_rsLong     = 0;
+            s_rsWorstLen = 0;
+            s_rsDrawSeen = 0;
+            s_rsDrawLean = 0;
+            s_rsDrawFlat = 0;
         }
-        s_rsSeen      = 0;
-        s_rsLean      = 0;
-        s_rsWorstFlat = 0;
-        s_rsDrawSeen  = 0;
-        s_rsDrawLean  = 0;
-        s_rsDrawFlat  = 0;
     }
 #endif
 
@@ -3618,22 +3632,29 @@ void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* delt
                 q19_12 dy = localPart->position0_0.vy - localPart->position1_C.vy;
                 q19_12 dz = localPart->position0_0.vz - localPart->position1_C.vz;
                 q19_12 flat = ABS(dx) + ABS(dz);
+                q19_12 len  = flat + ABS(dy);
 
                 s_rsSeen++;
                 if (flat > ABS(dy))
                 {
                     s_rsLean++;
                 }
-                if (flat > s_rsWorstFlat)
+                if (len > Q12(1.0f))
                 {
-                    s_rsWorstFlat = flat;
-                    s_rsDx        = dx;
-                    s_rsDy        = dy;
-                    s_rsDz        = dz;
-                    s_rsVy        = localPart->movement_18.vy;
-                    s_rsGnd       = localPart->movement_18.vx;
-                    s_rsCamX      = deltaXCase1;
-                    s_rsCamZ      = deltaZCase1;
+                    s_rsLong++;
+                }
+                /* Worst by TOTAL length, so a sample is always recorded even on a
+                 * step where nothing leans -- that is the baseline to compare. */
+                if (len > s_rsWorstLen)
+                {
+                    s_rsWorstLen = len;
+                    s_rsDx       = dx;
+                    s_rsDy       = dy;
+                    s_rsDz       = dz;
+                    s_rsVy       = localPart->movement_18.vy;
+                    s_rsGnd      = localPart->movement_18.vx;
+                    s_rsCamX     = deltaXCase1;
+                    s_rsCamZ     = deltaZCase1;
                 }
             }
 #endif
