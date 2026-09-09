@@ -220,15 +220,20 @@ namespace SilentHillPC_Launcher
         private async Task LoadBuildsAsync()
         {
             _cmbBuild.Items.Clear();
-            _cmbBuild.Items.Add(new Item { Display = "latest", Value = "latest" });
             string branch = SelectedValue(_cmbBranch);
+            // No plain "latest" on the custom branch: each named build has its own
+            // "latest", so a generic one would drift between unrelated mods.
+            bool isCustom = string.Equals(branch, UpdateChecker.CustomBranch, StringComparison.OrdinalIgnoreCase);
+            if (!isCustom) _cmbBuild.Items.Add(new Item { Display = "latest", Value = "latest" });
             _lblStatus.Text = "Loading builds...";
             try
             {
                 var builds = await UpdateChecker.ListBuildsAsync(_settings, branch, _cts.Token);
                 foreach (var b in builds)
                     _cmbBuild.Items.Add(new Item { Display = b.Label, Value = b.Tag });
-                _lblStatus.Text = builds.Count + " build(s) on this branch. \"latest\" tracks the newest automatically.";
+                _lblStatus.Text = isCustom
+                    ? builds.Count + " opt-in build(s). Pick a \"latest (auto-updates)\" entry to keep getting that build's updates."
+                    : builds.Count + " build(s) on this branch. \"latest\" tracks the newest automatically.";
             }
             catch (Exception ex)
             {
@@ -287,17 +292,25 @@ namespace SilentHillPC_Launcher
             string newBranch = SelectedValue(_cmbBranch);
             string newBuild  = string.IsNullOrEmpty(SelectedValue(_cmbBuild)) ? "latest" : SelectedValue(_cmbBuild);
 
-            // First time the user pins a specific (older) build, warn once about
-            // bugs / save corruption and tell them to back up their saves.
+            // First time the user leaves "latest", warn once about bugs / save
+            // corruption and tell them to back up their saves. A custom build gets
+            // its own wording: it is experimental, not merely old.
             bool pinningSpecific = !newBuild.Equals("latest", StringComparison.OrdinalIgnoreCase);
+            bool pickingCustom   = UpdateChecker.CustomFamilyPrefix(newBuild) != null;
             if (pinningSpecific && !_settings.OldBuildWarned)
             {
                 MessageBox.Show(this,
-                    "Heads up — switching to an older build can cause unexpected bugs and may even " +
-                    "break your save data if you aren't careful.\n\n" +
-                    "Back up your gamedata\\save folder first, just in case.\n\n" +
-                    "This message will not be shown again.",
-                    "Old build", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    pickingCustom
+                        ? "Heads up — this is an experimental build, separate from the normal releases. " +
+                          "It can have bugs the main builds do not, and may even break your save data.\n\n" +
+                          "Back up your gamedata\\save folder first, just in case. Switch back any time by " +
+                          "choosing another branch here.\n\n" +
+                          "This message will not be shown again."
+                        : "Heads up — switching to an older build can cause unexpected bugs and may even " +
+                          "break your save data if you aren't careful.\n\n" +
+                          "Back up your gamedata\\save folder first, just in case.\n\n" +
+                          "This message will not be shown again.",
+                    pickingCustom ? "Experimental build" : "Old build", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 _settings.OldBuildWarned = true;
             }
 
