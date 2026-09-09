@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
+using System.Text;
 
 namespace SilentHillPC_Launcher
 {
@@ -1013,7 +1014,8 @@ namespace SilentHillPC_Launcher
                 try
                 {
                     string loadSub = FindDirNamed(m.LibraryPath, "load");
-                    if (loadSub != null && Directory.Exists(loadSub)) { PlanTree(loadSub, LoadDir, plan, candidates); result.Load++; }
+                    if (loadSub != null && Directory.Exists(loadSub))
+                    { PlanTree(loadSub, LoadDir, plan, candidates, TextOverrideTag(500 + codeMods.IndexOf(m), m)); result.Load++; }
 
                     string fmvSub = FindDirNamed(m.LibraryPath, "FMV");
                     if (fmvSub != null && Directory.Exists(fmvSub)) { PlanVideosFlat(fmvSub, FmvDir, plan, candidates); result.Fmv++; }
@@ -1024,7 +1026,12 @@ namespace SilentHillPC_Launcher
             var loadMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled && m.Type == ModType.Load).ToList();
             foreach (var m in Enumerable.Reverse(loadMods))
             {
-                try { PlanTree(DeploySourceRoot(m.LibraryPath, ModType.Load), LoadDir, plan, candidates); result.Load++; }
+                try
+                {
+                    PlanTree(DeploySourceRoot(m.LibraryPath, ModType.Load), LoadDir, plan, candidates,
+                             TextOverrideTag(loadMods.IndexOf(m), m));
+                    result.Load++;
+                }
                 catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
 
@@ -1039,15 +1046,48 @@ namespace SilentHillPC_Launcher
         }
 
         private static void PlanTree(string src, string dstRoot, Dictionary<string, string> plan,
-                                     Dictionary<string, List<string>> candidates)
+                                     Dictionary<string, List<string>> candidates, string ovrTag = null)
         {
             foreach (var file in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
             {
                 string rel = file.Substring(src.Length).TrimStart('\\', '/');
+                if (ovrTag != null) rel = RemapTextOverride(rel, ovrTag);
                 string dst = Path.Combine(dstRoot, rel);
                 plan[dst] = file;
                 AddCandidate(candidates, dst, file);
             }
+        }
+
+        /// <summary>Several text mods can be installed at once, so each one's
+        /// override file is deployed under load\text_overrides\ named by the mod's
+        /// priority instead of every mod overwriting load\text_overrides.txt. The
+        /// game reads them all in name order and the first file to replace a line
+        /// wins it, so the mod nearest the top of the list decides a conflict. A
+        /// file the player put in gamedata\load themselves is never touched.</summary>
+        private static string RemapTextOverride(string rel, string tag)
+        {
+            string norm = rel.Replace('/', '\\');
+            bool atRoot = string.Equals(norm, "text_overrides.txt", StringComparison.OrdinalIgnoreCase);
+            bool inDir  = norm.StartsWith("text_overrides\\", StringComparison.OrdinalIgnoreCase) &&
+                          norm.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
+            if (!atRoot && !inDir) return rel;
+
+            string leaf = atRoot ? "" : "_" + Path.GetFileNameWithoutExtension(norm);
+            return Path.Combine("text_overrides", tag + leaf + ".txt");
+        }
+
+        /// <summary>"007_my_dialogue_mod" — the deployed override file's name, so a
+        /// plain sort in the game reproduces this list's order (000 = top).</summary>
+        private static string TextOverrideTag(int priority, ModEntry m)
+        {
+            var sb = new StringBuilder();
+            foreach (char c in (m?.Name ?? "mod"))
+                sb.Append(char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : '_');
+            string slug = sb.ToString().Trim('_');
+            if (slug.Length > 40) slug = slug.Substring(0, 40);
+            if (slug.Length == 0) slug = "mod";
+            if (priority < 0) priority = 999;
+            return priority.ToString("000") + "_" + slug;
         }
 
         private static void PlanVideosFlat(string src, string dstRoot, Dictionary<string, string> plan,

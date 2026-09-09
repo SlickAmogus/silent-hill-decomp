@@ -505,6 +505,11 @@ with no tools and no disc rebuild. Drop it at:
 gamedata/load/text_overrides.txt
 ```
 
+Several text mods can be installed at the same time. The game gathers entries from your
+own file above and from every `gamedata/load/text_overrides/*.txt`, so mods that change
+different lines all apply at once. See "Shipping it as a mod" below for how conflicts
+are settled.
+
 One replacement per line, `key = new text`:
 
 ```
@@ -551,20 +556,36 @@ each map to change it everywhere.
 
 **Shipping it as a mod**
 
-Put the file at `load/text_overrides.txt` inside a mod folder or zip and the Mod Manager
-deploys it to `gamedata/load/`, so it can be enabled, disabled and shared like any other
-mod. Only one such file is read, so two text mods cannot both be active: the one applied
-last wins.
+Put the file at `load/text_overrides.txt` inside a mod folder or zip. The Mod Manager
+gives each mod its own file when it deploys, named by that mod's place in the list:
+
+```
+gamedata/load/text_overrides/000_better_dialogue.txt
+gamedata/load/text_overrides/001_meme_text_pack.txt
+```
+
+So any number of text mods can be enabled together. Only a line both mods replace is a
+conflict, and there the mod nearer the top of the Mod Manager list wins, exactly as it
+does for any other file. Drag a mod up or down to change who wins, then Apply.
+
+A mod can also ship a whole folder of files as `load/text_overrides/*.txt`, useful for
+keeping chapters or characters in separate files. Each keeps its own name behind the
+priority number.
+
+Your own `gamedata/load/text_overrides.txt` outranks every mod, so it stays the place to
+put a personal tweak without editing anyone's mod. The Mod Manager never writes to it.
 
 **Limits and behaviour**
 
-- 128 replacements per file, 512 bytes per line.
-- The file is read once when the first map loads. Restart the game after editing it.
+- 512 replacements in total, across at most 64 files, 512 bytes per line.
+- Files are read once when the first map loads. Restart the game after editing one.
 - Overrides are applied after any language swap, so they win on every disc region, and a
   key that names a map with no such message is skipped.
 - Menus, item names and item descriptions are not covered here. Those come from a
   language pack (`gamedata/lang/*.lang`, built by
   `pc_port/localization/import_translation.py`).
-- The log records `[MODTEXT] loaded N text override(s)` at load and
-  `[MODTEXT] map N: text override(s) applied` per map, which is the quickest way to
-  confirm a file was found and parsed.
+- The log names every file it reads and how many replacements each contributed
+  (`[MODTEXT] 000_better_dialogue.txt: 12 override(s)`), then
+  `[MODTEXT] loaded N text override(s) from M file(s)`, and
+  `[MODTEXT] map N: text override(s) applied` per map. A mod that lost a line to a
+  higher-priority mod simply reports fewer, which is the quickest way to see a conflict.
