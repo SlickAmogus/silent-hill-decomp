@@ -3532,6 +3532,51 @@ void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* delt
                 localPart->position1_C.vz = localPart->position0_0.vz;
             }
 
+#if defined(SH_PC_PORT) && defined(MAP4_S02)
+            /* TEMP [RAINSLANT] probe (issue #134, remove when it closes): rain
+             * streaks lean along the camera's travel even at 30fps, and every
+             * term here reads as cancelled. Dump the finished streak whenever it
+             * comes out more horizontal than vertical, with the terms that built
+             * it. Bounded: at most 8 lines per burst, one burst per ~2 s of sim,
+             * and it stops for good after 48 lines. */
+            {
+                static int s_rsTick  = 0;
+                static int s_rsBurst = 0;
+                static int s_rsTotal = 0;
+
+                if (localPart == part)
+                {
+                    if (++s_rsTick >= 60)
+                    {
+                        s_rsTick  = 0;
+                        s_rsBurst = 0;
+                    }
+                }
+                if (s_rsTotal < 48 && s_rsBurst < 8)
+                {
+                    q19_12 dx = localPart->position0_0.vx - localPart->position1_C.vx;
+                    q19_12 dy = localPart->position0_0.vy - localPart->position1_C.vy;
+                    q19_12 dz = localPart->position0_0.vz - localPart->position1_C.vz;
+
+                    if (ABS(dx) + ABS(dz) > ABS(dy))
+                    {
+                        s_rsBurst++;
+                        s_rsTotal++;
+                        SH_DBG("[RAINSLANT] d=(%d,%d,%d) vy=%d wind=(%d,%d) camDelta=(%d,%d) "
+                               "originDelta=(%d,%d) moved=%d gnd=%d head=(%d,%d,%d)",
+                               dx, dy, dz, localPart->movement_18.vy,
+                               g_Particle_SpeedX, g_Particle_SpeedZ,
+                               deltaXCase1, deltaZCase1,
+                               g_Particle_PrevPosition.vx - g_Particle_Position.vx,
+                               g_Particle_PrevPosition.vz - g_Particle_Position.vz,
+                               g_ParticleCameraMoved, localPart->movement_18.vx,
+                               localPart->position0_0.vx, localPart->position0_0.vy,
+                               localPart->position0_0.vz);
+                    }
+                }
+            }
+#endif
+
             if (ABS(localPart->position0_0.vx) + ABS(localPart->position0_0.vz) > Q12(6.0))
             {
                 if (g_ParticleCameraMoved)
