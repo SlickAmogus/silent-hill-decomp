@@ -2907,6 +2907,20 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
 
         Particle_BoundaryClamp(&sp10, sharedData_800E326C_0_s00.corners_0, &sharedData_800E326C_0_s00.corners_0[1], 0);
 
+#ifdef SH_PC_PORT
+        /* The clamp mirrors a drop that crossed the boundary line back inside it
+         * (the "rain does not fall past the fence" rule), and this is the DRAW
+         * pass: it runs every rendered frame and moves the streak's HEAD alone.
+         * The tail is re-synced by the simulation, which steps at 30 Hz, so above
+         * 30fps the tail stayed at the pre-mirror position for the rest of the
+         * step and the streak drew as a long line from there to the fence --
+         * stretching along the ground while running, nothing while standing
+         * still (issue #134). Carry the tail by the same displacement: the drop
+         * is still clamped, and the streak keeps the fall vector it had. */
+        localPart->position1_C.vx += sp10.vx - localPart->position0_0.vx;
+        localPart->position1_C.vz += sp10.vz - localPart->position0_0.vz;
+#endif
+
         localPart->position0_0.vx = sp10.vx;
         localPart->position0_0.vz = sp10.vz;
 
