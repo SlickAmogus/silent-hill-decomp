@@ -159,6 +159,12 @@ static q19_12 s_rsDrawFlat = 0;
 static q19_12 s_rsDrawDx, s_rsDrawDy, s_rsDrawDz;
 static s32    s_rsDrawSeen = 0;
 static s32    s_rsDrawLean = 0;
+/* The same streak measured in SCREEN PIXELS, after projection -- the only
+ * measurement that describes what is actually on the glass. */
+static s32    s_rsScrWorst = 0;    /* worst |dx|+|dy| in pixels */
+static s32    s_rsScrDx, s_rsScrDy;
+static s32    s_rsScrX0, s_rsScrY0;
+static s32    s_rsScrLong  = 0;    /* streaks drawn longer than 40 px */
 #endif
 
 #if !MAP_USE_PARTICLES
@@ -1507,17 +1513,20 @@ bool Particle_Update(s_Particle* partHead)
              * whenever anything leaned or drew longer than a world unit, and
              * otherwise only every fifth second, as a heartbeat that says the
              * probe is alive and the rain is behaving. */
-            int interesting = (s_rsLean > 0) || (s_rsLong > 0) || (s_rsDrawLean > 0);
+            int interesting = (s_rsLean > 0) || (s_rsLong > 0) || (s_rsDrawLean > 0) ||
+                              (s_rsScrLong > 0);
 
             s_rsStep = 0;
             s_rsSecs++;
             if (interesting || (s_rsSecs % 5) == 0)
             {
                 s_rsLines++;
-                SH_DBG("[RAINSLANT] %d/60 t=%ds %s sim lean=%d long=%d of %d "
-                       "worst d=(%d,%d,%d) vy=%d gnd=%d | draw lean=%d of %d d=(%d,%d,%d) | "
+                SH_DBG("[RAINSLANT] %d/60 t=%ds %s SCREEN long=%d worst=%dpx d=(%d,%d) at=(%d,%d) | "
+                       "sim lean=%d long=%d of %d worst d=(%d,%d,%d) vy=%d gnd=%d | "
+                       "draw lean=%d of %d d=(%d,%d,%d) | "
                        "cam=(%d,%d) origin=(%d,%d) wind=(%d,%d) moved=%d spd=%d",
                        s_rsLines, s_rsSecs, interesting ? "HIT " : "idle",
+                       s_rsScrLong, s_rsScrWorst, s_rsScrDx, s_rsScrDy, s_rsScrX0, s_rsScrY0,
                        s_rsLean, s_rsLong, s_rsSeen, s_rsDx, s_rsDy, s_rsDz, s_rsVy, s_rsGnd,
                        s_rsDrawLean, s_rsDrawSeen, s_rsDrawDx, s_rsDrawDy, s_rsDrawDz,
                        s_rsCamX, s_rsCamZ,
@@ -1533,6 +1542,8 @@ bool Particle_Update(s_Particle* partHead)
             s_rsDrawSeen = 0;
             s_rsDrawLean = 0;
             s_rsDrawFlat = 0;
+            s_rsScrLong  = 0;
+            s_rsScrWorst = 0;
         }
     }
 #endif
@@ -3067,6 +3078,32 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
             depth = depth >> 1;
 
             gte_stsxy(&poly->x1);
+
+#if defined(SH_PC_PORT) && defined(MAP4_S02)
+            /* TEMP [RAINSLANT] probe (issue #134): the streak as PROJECTED, in
+             * screen pixels. The world-space measurement above says these are
+             * vertical and under a unit long, so if the drawn line is long and
+             * mostly horizontal the projection is where it happens -- and if it
+             * is short, the streaks are not what is being seen at all. */
+            {
+                s32 sdx = (s32)poly->x1 - (s32)poly->x0;
+                s32 sdy = (s32)poly->y1 - (s32)poly->y0;
+                s32 slen = ABS(sdx) + ABS(sdy);
+
+                if (slen > 40)
+                {
+                    s_rsScrLong++;
+                }
+                if (slen > s_rsScrWorst)
+                {
+                    s_rsScrWorst = slen;
+                    s_rsScrDx    = sdx;
+                    s_rsScrDy    = sdy;
+                    s_rsScrX0    = poly->x0;
+                    s_rsScrY0    = poly->y0;
+                }
+            }
+#endif
 
             if (depth > 32 && depth < ORDERING_TABLE_SIZE - 1)
             {
