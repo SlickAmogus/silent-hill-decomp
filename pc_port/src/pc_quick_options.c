@@ -104,6 +104,7 @@ static const QoRowDef s_page0[] = {
     { ROW_OPT,   "flashlight_size",      0, NULL },
     { ROW_EXTRA, NULL, QO_X_SHADOW,         "Shadow Resolution" },
     { ROW_OPT,   "bullet_decals",        0, NULL },
+    { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
     { ROW_PAGE,  NULL, 0,                   "Next page  (HUD & Audio)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
 };

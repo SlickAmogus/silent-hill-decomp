@@ -162,6 +162,9 @@ static const int VAL_FPS[]   = { 0, 30, 60, 120, 240 };
 static const int VAL_FLMODE[] = { 0, 1, 2, 3 };
 static const int VAL_MMCNR[]  = { 0, 1, 2, 3 };
 static const int VAL_MMMODE[] = { 0, 1, 2 };
+/* Weather simulation rate. 60 = one step per rendered frame (default), 30 = the
+ * console cadence the particle code was authored at. */
+static const int VAL_WHZ[]    = { 30, 60 };
 
 static const char* const LBL_WIN[]   = { "Windowed", "Fullscreen", "Borderless" };
 static const char* const LBL_VSYNC[] = { "Off", "On" };
@@ -179,6 +182,7 @@ static const char* const LBL_FLMODE[] = { "Classic", "C_+_Shadows", "Modern", "M
  * right edge of the value column. */
 static const char* const LBL_MMCNR[]  = { "Top_L", "Top_R", "Bottom_L", "Bottom_R" };
 static const char* const LBL_MMMODE[] = { "Off", "Square", "Circle" };
+static const char* const LBL_WHZ[]    = { "30_Hz", "60_Hz" };
 
 static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
 static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
@@ -219,9 +223,12 @@ static const s_PcOpt PCOPT_S[] = {
     { "Disable_Culling",  &g_PcConfig.disableCulling, "disable_culling",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
     { "FPS_Limit",        &g_PcConfig.fpsCap,         "fps_cap",          VAL_FPS,   5, LBL_FPS,   NULL, 1, PCK_INT  },
     { "FMV_Movie_Vol",    NULL, "fmv_volume",           NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.fmvVolume,           &g_PcFmvVolume,             0.0f, 1.0f, 0.05f },
-    /* Moved here from the Camera page for the same reason as Map above. */
-    { "Crosshair",        &g_PcConfig.crosshair,      "crosshair",        VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT  },
-    { "Crosshair_Size",   NULL, "crosshair_size",       NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.crosshairSize,       NULL,                        25.0f, 125.0f, 5.0f },
+    /* Rain and snow step once per rendered frame at 60, or on the original
+     * 30 Hz console cadence -- the same knob as the WEATHERHZ console command.
+     * Sits with FPS_Limit because it is the same kind of decision. The two
+     * Crosshair rows moved to the HUD page to make room, which is where the
+     * quick-options overlay already groups them. */
+    { "Weather_Rate",     &g_PcConfig.weatherSimHz,   "weather_sim_hz",   VAL_WHZ,   2, LBL_WHZ,   NULL, 1, PCK_INT  },
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -286,6 +293,9 @@ static const s_PcOpt PCOPT_H[] = {
     { "Minimap_Reqs_Map",  &g_PcConfig.minimapRequireMap,  "minimap_require_map",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     /* Pulsing red edge glow below 20 hp (pc_combat.c Pc_LowHealthGlowUpdate). */
     { "Low_HP_Glow",       &g_PcConfig.lowHealthGlow,      "low_health_glow",       VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    /* From the System page; a crosshair is HUD, and that page needed the room. */
+    { "Crosshair",         &g_PcConfig.crosshair,          "crosshair",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Crosshair_Size",    NULL, "crosshair_size",         NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.crosshairSize, NULL, 25.0f, 125.0f, 5.0f },
     { "Prev_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Back",              NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
