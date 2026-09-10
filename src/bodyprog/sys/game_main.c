@@ -2734,6 +2734,21 @@ void MainLoop(void) // 0x80032EE0
                 g_PsxPresentLastFrame    = 0;
                 g_PcFreezeReleasePending = 0;
             }
+
+            /* Nothing on the title side can legitimately hold the freeze: every
+             * holder (pause, the map-screen messages, the world item pickup)
+             * runs under InGame or MapEvent and re-arms it per tick. Leaving one
+             * of those states by a route that is not its own exit -- a warm reset
+             * out of pause or "I don't have a map", backing out of the load
+             * screen to the menu, an ending handing off to the title -- left the
+             * latch set with no holder to release it, and PsyX_BeginScene went on
+             * re-presenting the captured gameplay frame under the whole title
+             * screen. */
+            if (g_PsxPresentLastFrame && g_GameWork.gameState <= GameState_MainLoadScreen)
+            {
+                g_PsxPresentLastFrame    = 0;
+                g_PcFreezeReleasePending = 0;
+            }
         }
 #endif
 
