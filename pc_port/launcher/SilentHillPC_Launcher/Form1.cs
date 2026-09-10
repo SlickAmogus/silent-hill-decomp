@@ -962,6 +962,27 @@ public partial class Form1 : Form
                 resolutions.Add((r.Item1, r.Item2));
         }
 
+        /* Standard 16:9 sizes the panel is big enough to frame. Some drivers --
+         * and every remote-desktop, capture or virtual display -- enumerate a
+         * handful of modes and nothing else, so a 1440p-capable screen could
+         * come up with no 2560x1440 entry at all. Bounded by the largest width
+         * and height actually reported, so nothing is offered to a display that
+         * cannot show it: exclusive fullscreen snaps to the nearest real mode
+         * (SDL_GetClosestDisplayMode) and windowed is exact. */
+        int maxW = 0, maxH = 0;
+        foreach (var r in resolutions)
+        {
+            if (r.w > maxW) maxW = r.w;
+            if (r.h > maxH) maxH = r.h;
+        }
+        foreach (var r in new[] { (1280, 720), (1600, 900), (1920, 1080), (2560, 1440), (3840, 2160) })
+        {
+            if (r.Item1 > maxW || r.Item2 > maxH)
+                continue;
+            if (seen.Add($"{r.Item1}x{r.Item2}"))
+                resolutions.Add((r.Item1, r.Item2));
+        }
+
         resolutions.Sort((a, b) => a.w != b.w ? b.w.CompareTo(a.w) : b.h.CompareTo(a.h));
 
         foreach (var r in resolutions)
@@ -980,6 +1001,27 @@ public partial class Form1 : Form
             comboRefresh.Items.Add(hz.ToString());
     }
 
+
+    /* Keeps the largest-first order PopulateDisplayOptions established. */
+    private void InsertResolutionSorted(string res)
+    {
+        var parts = res.Split('x');
+        int w, h;
+        if (parts.Length != 2 || !int.TryParse(parts[0], out w) || !int.TryParse(parts[1], out h) ||
+            w <= 0 || h <= 0)
+            return;
+
+        int at = comboResolution.Items.Count;
+        for (int i = 0; i < comboResolution.Items.Count; i++)
+        {
+            var p = comboResolution.Items[i].ToString().Split('x');
+            int iw, ih;
+            if (p.Length != 2 || !int.TryParse(p[0], out iw) || !int.TryParse(p[1], out ih))
+                continue;
+            if (w > iw || (w == iw && h > ih)) { at = i; break; }
+        }
+        comboResolution.Items.Insert(at, res);
+    }
 
     private void LoadConfig()
     {
@@ -1125,7 +1167,13 @@ public partial class Form1 : Form
         // resolution
         string w = config.Get("width", "640");
         string h = config.Get("height", "480");
-        comboResolution.SelectedItem = $"{w}x{h}";
+        string res = $"{w}x{h}";
+        /* A size set by hand in config.cfg, or one this machine's driver does
+         * not enumerate, still has to be selectable: without this the box comes
+         * up blank and the next Save writes whatever the user picks instead. */
+        if (!comboResolution.Items.Contains(res))
+            InsertResolutionSorted(res);
+        comboResolution.SelectedItem = res;
 
         // refresh rate is config-only now (auto-detected by default); keep the
         // hidden combo populated harmlessly so its references stay valid.
