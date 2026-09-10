@@ -25,6 +25,7 @@ s_PcConfig g_PcConfig = {
     .vsync          = 0,
     .refreshRate    = 0,
     .fpsCap         = 30,
+    .weatherSimHz      = 60,   /* per-frame weather sim; 30 = the console's cadence */
     .cutsceneLineGapMs = 300,
     .skipIntros     = 0,
     .showConsole    = 0,
@@ -551,6 +552,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "cutscene_line_gap_ms") == 0)
         {
             g_PcConfig.cutsceneLineGapMs = atoi(value);
+        }
+        else if (strcmp(key, "weather_sim_hz") == 0)
+        {
+            g_PcConfig.weatherSimHz = (atoi(value) == 30) ? 30 : 60;
         }
         else if (strcmp(key, "skip_intros") == 0)
         {

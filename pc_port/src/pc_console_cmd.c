@@ -1295,6 +1295,10 @@ void Pc_ConsoleExec(const char* line)
         extern float g_pgxpWeldWRatio;
         if (arg[0]) g_pgxpWeldWRatio = (float)atof(arg);
         cprintf("PGXP weld depth ratio: %.3f", g_pgxpWeldWRatio);
+    } else if (strcmp(cmd, "WEATHERHZ") == 0) {
+        if (arg[0]) g_PcConfig.weatherSimHz = (atoi(arg) == 30) ? 30 : 60;
+        cprintf("Weather (rain/snow) simulation: %d Hz%s", g_PcConfig.weatherSimHz,
+                g_PcConfig.weatherSimHz == 30 ? " (original console cadence)" : " (per rendered frame)");
     } else if (strcmp(cmd, "PGXPEDGE") == 0) {
         extern float g_PgxpEdgeMax;
         if (arg[0]) g_PgxpEdgeMax = (float)atof(arg);

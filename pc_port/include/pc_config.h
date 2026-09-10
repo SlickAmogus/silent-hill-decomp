@@ -56,6 +56,11 @@ typedef struct {
     int vsync;           /* 0 = off (uncapped), 1 = on, -1 = adaptive */
     int refreshRate;     /* target refresh rate in hz (0 = display default); fullscreen only */
     int fpsCap;          /* gameplay fps cap: 0 = uncapped, 30 = PSX-accurate, 60 = smooth */
+    int weatherSimHz;      /* rain/snow simulation rate: 60 (default) steps it once per rendered
+                            * frame, 30 locks it to the console's cadence. Only the frame-stepped
+                            * parts differ (snow's random walk, spawn/rest counters, the wind
+                            * ramp); fall speed and wind are delta-scaled either way.
+                            * (config key: weather_sim_hz, console: WEATHERHZ) */
     int cutsceneLineGapMs; /* min silence (ms) between cutscene voice lines — simulates PSX CD
                             * seek latency so tightly-timed lines don't run together. Applied as a
                             * MINIMUM (never shortens an authored gap). 0 = off. Default 300. */

@@ -9,6 +9,7 @@
 #include "maps/particle.h"
 
 #ifdef SH_PC_PORT
+#include "pc_config.h"
 #include "sh_log.h"
 #endif
 
@@ -118,54 +119,38 @@ static q19_12 s_pcParticleSimDt    = Q12(1.0f / 30.0f);
 
 static void Pc_ParticleSimTick(void)
 {
-    s_pcParticleSimAccum += g_DeltaTime;
-    s_pcParticleSimStep   = s_pcParticleSimAccum >= Q12(1.0f / 30.0f);
-    if (s_pcParticleSimStep)
+    /* weather_sim_hz 30 locks the simulation to the console's cadence (above);
+     * anything else runs it once per rendered frame on the real delta, which is
+     * what the port did before the lock and what the default restores. Per frame
+     * the dt-scaled parts (fall speed, wind, camera compensation) are identical
+     * either way; the frame-stepped parts (the snow random walk, spawn/rest
+     * counters, the wind ramp) evolve at frame rate, which is the trade the
+     * option exists to offer. */
+    if (g_PcConfig.weatherSimHz == 30)
     {
-        s_pcParticleSimAccum -= Q12(1.0f / 30.0f);
-        if (s_pcParticleSimAccum > Q12(1.0f / 30.0f))
+        s_pcParticleSimDt     = Q12(1.0f / 30.0f);
+        s_pcParticleSimAccum += g_DeltaTime;
+        s_pcParticleSimStep   = s_pcParticleSimAccum >= Q12(1.0f / 30.0f);
+        if (s_pcParticleSimStep)
         {
-            s_pcParticleSimAccum = Q12(1.0f / 30.0f);
+            s_pcParticleSimAccum -= Q12(1.0f / 30.0f);
+            if (s_pcParticleSimAccum > Q12(1.0f / 30.0f))
+            {
+                s_pcParticleSimAccum = Q12(1.0f / 30.0f);
+            }
         }
+        return;
     }
+
+    s_pcParticleSimAccum = Q12(0.0f);
+    s_pcParticleSimStep  = 1;
+    s_pcParticleSimDt    = g_DeltaTime;
 }
 #define PC_PARTICLE_DT (&s_pcParticleSimDt)
 #else
 #define PC_PARTICLE_DT (&g_DeltaTime)
 #endif
 
-#if defined(SH_PC_PORT) && defined(MAP4_S02)
-/* TEMP [RAINSLANT] probe (issue #134, remove when it closes). Rain streaks lean
- * along the camera's travel at ANY frame rate, yet every camera term in the
- * movement is applied to both ends of the streak. These collect the finished
- * streaks of one simulation step; Particle_Update prints one summary line per
- * second, whether or not anything leaned, so the probe's own silence is
- * distinguishable from the probe not running. Hard stop after 40 lines. */
-static s32    s_rsSeen      = 0;   /* rain streaks examined this step */
-static s32    s_rsLean      = 0;   /* ... of those, more horizontal than vertical */
-static s32    s_rsLong      = 0;   /* ... of those, longer than one world unit */
-static q19_12 s_rsWorstLen  = 0;   /* worst |dx|+|dy|+|dz| this step */
-static q19_12 s_rsDx, s_rsDy, s_rsDz;
-static q19_12 s_rsVy;              /* fall speed of the worst one */
-static q19_12 s_rsGnd;             /* its ground type (5 = the blue variant) */
-static q19_12 s_rsCamX, s_rsCamZ;  /* camera term applied to BOTH ends */
-static s32    s_rsStep  = 0;
-static s32    s_rsSecs  = 0;
-static s32    s_rsLines = 0;
-/* The same measurement taken again in the DRAW, which is what the screen shows.
- * If the simulation's streaks are short and these are long, something moves the
- * endpoints between the two and the movement code is not where the bug is. */
-static q19_12 s_rsDrawFlat = 0;
-static q19_12 s_rsDrawDx, s_rsDrawDy, s_rsDrawDz;
-static s32    s_rsDrawSeen = 0;
-static s32    s_rsDrawLean = 0;
-/* The same streak measured in SCREEN PIXELS, after projection -- the only
- * measurement that describes what is actually on the glass. */
-static s32    s_rsScrWorst = 0;    /* worst |dx|+|dy| in pixels */
-static s32    s_rsScrDx, s_rsScrDy;
-static s32    s_rsScrX0, s_rsScrY0;
-static s32    s_rsScrLong  = 0;    /* streaks drawn longer than 40 px */
-#endif
 
 #if !MAP_USE_PARTICLES
 
@@ -1502,51 +1487,6 @@ bool Particle_Update(s_Particle* partHead)
         updatePrev += g_ParticlesAddedCount[pass];
     }
 
-#if defined(SH_PC_PORT) && defined(MAP4_S02)
-    /* TEMP [RAINSLANT] probe (issue #134, remove when it closes): one line per
-     * second of simulation, printed whether or not anything leaned. */
-    if (s_pcParticleSimStep && s_rsLines < 60)
-    {
-        if (++s_rsStep >= 30)
-        {
-            /* A second's worth. Spend the budget on the seconds that matter: log
-             * whenever anything leaned or drew longer than a world unit, and
-             * otherwise only every fifth second, as a heartbeat that says the
-             * probe is alive and the rain is behaving. */
-            int interesting = (s_rsLean > 0) || (s_rsLong > 0) || (s_rsDrawLean > 0) ||
-                              (s_rsScrLong > 0);
-
-            s_rsStep = 0;
-            s_rsSecs++;
-            if (interesting || (s_rsSecs % 5) == 0)
-            {
-                s_rsLines++;
-                SH_DBG("[RAINSLANT] %d/60 t=%ds %s SCREEN long=%d worst=%dpx d=(%d,%d) at=(%d,%d) | "
-                       "sim lean=%d long=%d of %d worst d=(%d,%d,%d) vy=%d gnd=%d | "
-                       "draw lean=%d of %d d=(%d,%d,%d) | "
-                       "cam=(%d,%d) origin=(%d,%d) wind=(%d,%d) moved=%d spd=%d",
-                       s_rsLines, s_rsSecs, interesting ? "HIT " : "idle",
-                       s_rsScrLong, s_rsScrWorst, s_rsScrDx, s_rsScrDy, s_rsScrX0, s_rsScrY0,
-                       s_rsLean, s_rsLong, s_rsSeen, s_rsDx, s_rsDy, s_rsDz, s_rsVy, s_rsGnd,
-                       s_rsDrawLean, s_rsDrawSeen, s_rsDrawDx, s_rsDrawDy, s_rsDrawDz,
-                       s_rsCamX, s_rsCamZ,
-                       g_Particle_PrevPosition.vx - g_Particle_Position.vx,
-                       g_Particle_PrevPosition.vz - g_Particle_Position.vz,
-                       g_Particle_SpeedX, g_Particle_SpeedZ,
-                       g_ParticleCameraMoved, g_SysWork.playerWork.player.moveSpeed);
-            }
-            s_rsSeen     = 0;
-            s_rsLean     = 0;
-            s_rsLong     = 0;
-            s_rsWorstLen = 0;
-            s_rsDrawSeen = 0;
-            s_rsDrawLean = 0;
-            s_rsDrawFlat = 0;
-            s_rsScrLong  = 0;
-            s_rsScrWorst = 0;
-        }
-    }
-#endif
 
     ////////////////////////////////////////////////////////////////////////////
 
@@ -3017,28 +2957,6 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
             return;
 
         case 1:
-#if defined(SH_PC_PORT) && defined(MAP4_S02)
-            /* TEMP [RAINSLANT] probe (issue #134): the streak as DRAWN. */
-            {
-                q19_12 ddx  = localPart->position0_0.vx - localPart->position1_C.vx;
-                q19_12 ddy  = localPart->position0_0.vy - localPart->position1_C.vy;
-                q19_12 ddz  = localPart->position0_0.vz - localPart->position1_C.vz;
-                q19_12 flat = ABS(ddx) + ABS(ddz);
-
-                s_rsDrawSeen++;
-                if (flat > ABS(ddy))
-                {
-                    s_rsDrawLean++;
-                }
-                if (flat > s_rsDrawFlat)
-                {
-                    s_rsDrawFlat = flat;
-                    s_rsDrawDx   = ddx;
-                    s_rsDrawDy   = ddy;
-                    s_rsDrawDz   = ddz;
-                }
-            }
-#endif
             sp20.vx = Q12_TO_Q8(localPart->position1_C.vx);
             sp20.vy = Q12_TO_Q8(localPart->position1_C.vy);
             sp20.vz = Q12_TO_Q8(localPart->position1_C.vz);
@@ -3079,31 +2997,6 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
 
             gte_stsxy(&poly->x1);
 
-#if defined(SH_PC_PORT) && defined(MAP4_S02)
-            /* TEMP [RAINSLANT] probe (issue #134): the streak as PROJECTED, in
-             * screen pixels. The world-space measurement above says these are
-             * vertical and under a unit long, so if the drawn line is long and
-             * mostly horizontal the projection is where it happens -- and if it
-             * is short, the streaks are not what is being seen at all. */
-            {
-                s32 sdx = (s32)poly->x1 - (s32)poly->x0;
-                s32 sdy = (s32)poly->y1 - (s32)poly->y0;
-                s32 slen = ABS(sdx) + ABS(sdy);
-
-                if (slen > 40)
-                {
-                    s_rsScrLong++;
-                }
-                if (slen > s_rsScrWorst)
-                {
-                    s_rsScrWorst = slen;
-                    s_rsScrDx    = sdx;
-                    s_rsScrDy    = sdy;
-                    s_rsScrX0    = poly->x0;
-                    s_rsScrY0    = poly->y0;
-                }
-            }
-#endif
 
             if (depth > 32 && depth < ORDERING_TABLE_SIZE - 1)
             {
@@ -3659,42 +3552,6 @@ void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* delt
                 localPart->position1_C.vz = localPart->position0_0.vz;
             }
 
-#if defined(SH_PC_PORT) && defined(MAP4_S02)
-            /* TEMP [RAINSLANT] probe (issue #134, remove when it closes): only
-             * accumulates here, one summary line per second is emitted from
-             * Particle_Update. Records the WORST streak of the step -- the one
-             * furthest from vertical -- with the terms that built it. */
-            {
-                q19_12 dx = localPart->position0_0.vx - localPart->position1_C.vx;
-                q19_12 dy = localPart->position0_0.vy - localPart->position1_C.vy;
-                q19_12 dz = localPart->position0_0.vz - localPart->position1_C.vz;
-                q19_12 flat = ABS(dx) + ABS(dz);
-                q19_12 len  = flat + ABS(dy);
-
-                s_rsSeen++;
-                if (flat > ABS(dy))
-                {
-                    s_rsLean++;
-                }
-                if (len > Q12(1.0f))
-                {
-                    s_rsLong++;
-                }
-                /* Worst by TOTAL length, so a sample is always recorded even on a
-                 * step where nothing leans -- that is the baseline to compare. */
-                if (len > s_rsWorstLen)
-                {
-                    s_rsWorstLen = len;
-                    s_rsDx       = dx;
-                    s_rsDy       = dy;
-                    s_rsDz       = dz;
-                    s_rsVy       = localPart->movement_18.vy;
-                    s_rsGnd      = localPart->movement_18.vx;
-                    s_rsCamX     = deltaXCase1;
-                    s_rsCamZ     = deltaZCase1;
-                }
-            }
-#endif
 
             if (ABS(localPart->position0_0.vx) + ABS(localPart->position0_0.vz) > Q12(6.0))
             {
@@ -3777,6 +3634,30 @@ void sharedFunc_800CFFF8_0_s00(s32 pass, s_Particle* part, s16* rand)
     !defined(MAP7_S03)
     if (sharedData_800DD591_0_s00 != 0)
     {
+#ifdef SH_PC_PORT
+        /* Carry the streak's tail before leaving. The head was moved by the
+         * camera's travel at the top of this function; the tail is only ever
+         * brought back to it at the bottom, past this return. A drop that landed
+         * on grating (ground type 11 -> SnowType_HeavyWindy, and that type draws
+         * as a streak rather than a splash quad) therefore had its head dragged
+         * along by the camera every step while its tail stayed where it fell,
+         * stretching into a line that lay on the ground and grew with camera
+         * travel until the particle recycled -- only on grating, only while the
+         * view moved, running or merely turning (issue #134).
+         *
+         * The stale flag that lands us in here is a second, wider bug: PSX kept
+         * it in each map overlay's own data, so it began at zero on every load
+         * and only the maps that assign it ever saw it set. The port links one
+         * copy shared by every map, so walking out of the mall carries the mall's
+         * value into the streets, which never assign it. Left alone here because
+         * it also gates the rain-boundary clamp and the wander/respawn check, and
+         * those want their own testing. */
+        if (part->type_1F == SnowType_HeavyWindy || part->type_1F == 243)
+        {
+            part->position1_C.vx = part->position0_0.vx;
+            part->position1_C.vz = part->position0_0.vz;
+        }
+#endif
         return;
     }
 #endif
