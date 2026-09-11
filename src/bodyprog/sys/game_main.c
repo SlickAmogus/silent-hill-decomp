@@ -39,6 +39,13 @@ int g_PcHorPlusGate = 0;
 /* Set by a freeze-frame state (pause, map messages) when it hands control back,
  * instead of dropping g_PsxPresentLastFrame on the spot. See the release below. */
 int g_PcFreezeReleasePending = 0;
+
+/* [SLOWFRAME] phase clocks. A stall report needs to say WHICH part of the frame
+ * took the time -- "worst=9470ms" in [PERF] separates a stall from slow
+ * rendering and then stops being useful. Stamped at five fixed points in the
+ * loop and read back only on a frame over the threshold, so this costs five
+ * SDL_GetTicks calls a frame and prints nothing on a healthy run. */
+static unsigned int s_sfTop, s_sfUpdStart, s_sfUpdEnd, s_sfFsqEnd, s_sfSwapEnd;
 #include <stdio.h>
 #include <SDL_scancode.h>
 #include <SDL_mouse.h>
@@ -2341,6 +2348,8 @@ void MainLoop(void) // 0x80032EE0
         g_TickCount++;
 
 #ifdef SH_PC_PORT
+        s_sfTop = (unsigned int)SDL_GetTicks();
+
         /* PsyCross requires explicit input polling — on PSX this happens
          * via hardware interrupt during VBlank. */
         PsyX_UpdateInput();
@@ -2616,7 +2625,13 @@ void MainLoop(void) // 0x80032EE0
 #endif
 
         // Call update function for current GameState.
+#ifdef SH_PC_PORT
+        s_sfUpdStart = (unsigned int)SDL_GetTicks();
+#endif
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
+#ifdef SH_PC_PORT
+        s_sfUpdEnd = (unsigned int)SDL_GetTicks();
+#endif
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState == GameState_InGame) {
             /* Packet-arena overrun check.
@@ -2837,6 +2852,7 @@ void MainLoop(void) // 0x80032EE0
             ML_TRACE("Fs_QueueUpdate");
             Fs_QueueUpdate();
         }
+        s_sfFsqEnd = (unsigned int)SDL_GetTicks();
 #endif
 
         ML_TRACE("func_80089128");
@@ -3057,6 +3073,32 @@ void MainLoop(void) // 0x80032EE0
                     s_perfAccumMs += dt;
                     if (dt > s_perfWorstMs)
                         s_perfWorstMs = dt;
+
+                    /* Where a stalled frame actually went. The phases tile the
+                     * whole interval between two samples of this point, in loop
+                     * order: the previous iteration's buffer swap, the rest of
+                     * that iteration, this one's input/top-of-frame work, the
+                     * game-state update (world submission included), the file
+                     * queue pump, and the DrawSync + vsync pacing that ends the
+                     * frame. Whichever one carries the milliseconds names the
+                     * culprit. Capped, and silent on a healthy frame. */
+                    {
+                        static int s_slowLogged = 0;
+
+                        if (dt >= 150 && s_sfSwapEnd != 0 && s_slowLogged < 200)
+                        {
+                            s_slowLogged++;
+                            SH_DBG("[SLOWFRAME] total=%ums present=%u tail=%u top=%u update=%u fsq=%u sync=%u | gameState=%d sysState=%d",
+                                   (unsigned)dt,
+                                   (unsigned)(s_sfSwapEnd  - (unsigned int)s_perfLastMs),
+                                   (unsigned)(s_sfTop      - s_sfSwapEnd),
+                                   (unsigned)(s_sfUpdStart - s_sfTop),
+                                   (unsigned)(s_sfUpdEnd   - s_sfUpdStart),
+                                   (unsigned)(s_sfFsqEnd   - s_sfUpdEnd),
+                                   (unsigned)((unsigned int)perfNowMs - s_sfFsqEnd),
+                                   (int)g_GameWork.gameState, (int)g_SysWork.sysState);
+                        }
+                    }
                     s_perfVbAccum += (u32)g_UncappedVBlanks;
                     if (++s_perfFrames >= 256)
                     {
@@ -3251,6 +3293,9 @@ void MainLoop(void) // 0x80032EE0
         ML_TRACE("GsSwapDispBuff");
         // Draw objects?
         GsSwapDispBuff();
+#ifdef SH_PC_PORT
+        s_sfSwapEnd = (unsigned int)SDL_GetTicks();
+#endif
         ML_TRACE("post-GsSwapDispBuff");
 #ifdef SH_PC_PORT
         /* Numpad .: (1) always logs Harry's detailed position with a unique
