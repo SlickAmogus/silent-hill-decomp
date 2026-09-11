@@ -6896,6 +6896,68 @@ void Player_CombatStateUpdate(s_SubCharacter* player, s_PlayerExtra* extra) // 0
                             (extra->model.anim.status != ANIM_STATUS(HarryAnim_Unk33, true) ||
                              extra->model.anim.keyframeIdx != D_800C44F0[5].field_6))
                         {
+#ifdef SH_PC_PORT
+                            /* Same exact-keyframe problem the gun gate below had to be
+                             * relaxed for, and the reason the rock drill and chainsaw
+                             * have never been usable on the port: the unlock is written
+                             * as kf == field_6, PC delta-time steps the keyframe OVER
+                             * that value, and the equality is then never observed, so
+                             * every attack press while aiming was dropped here. PSX
+                             * ticks at a fixed 30Hz and lands on it.
+                             *
+                             * Both tools sit in one of these statuses while held ready
+                             * (the drill in Unk29, the chainsaw in HandgunRecoil -- see
+                             * the animHold each weapon's ANM carries), so the gate was
+                             * closed for the entire time the player could press attack.
+                             *
+                             * Unk34 is already authored as a window; give the rest the
+                             * "reached or passed" form, then fall back to the same
+                             * direction-aware end-of-animation test the plain melee
+                             * branch uses, which covers the backward-playing ones. */
+                            bool pcToolGated = true;
+
+                            switch (extra->model.anim.status)
+                            {
+                                case ANIM_STATUS(HarryAnim_HandgunAim, true):
+                                    pcToolGated = extra->model.anim.keyframeIdx < D_800C44F0[0].field_6;
+                                    break;
+                                case ANIM_STATUS(HarryAnim_Unk29, true):
+                                    pcToolGated = extra->model.anim.keyframeIdx < D_800C44F0[1].field_6;
+                                    break;
+                                case ANIM_STATUS(HarryAnim_Unk30, true):
+                                    pcToolGated = extra->model.anim.keyframeIdx < D_800C44F0[2].field_6;
+                                    break;
+                                case ANIM_STATUS(HarryAnim_HandgunRecoil, true):
+                                    pcToolGated = extra->model.anim.keyframeIdx < D_800C44F0[3].field_6;
+                                    break;
+                                case ANIM_STATUS(HarryAnim_Unk33, true):
+                                    pcToolGated = extra->model.anim.keyframeIdx < D_800C44F0[5].field_6;
+                                    break;
+                                case ANIM_STATUS(HarryAnim_Unk34, true):
+                                    pcToolGated = extra->model.anim.keyframeIdx < D_800C44F0[6].field_4 ||
+                                                  extra->model.anim.keyframeIdx > D_800C44F0[6].field_6;
+                                    break;
+                                default:
+                                    break;
+                            }
+
+                            if (pcToolGated &&
+                                ANIM_STATUS_IS_ACTIVE(extra->model.anim.status) &&
+                                extra->model.anim.status < 76)
+                            {
+                                const s_AnimInfo* info = &HARRY_BASE_ANIM_INFOS[extra->model.anim.status];
+                                bool isBackward = !info->hasVariableDuration && info->duration.constant < 0;
+                                s16  doneKf     = isBackward ? info->startKeyframeIdx : info->endKeyframeIdx;
+
+                                if (doneKf > 0 && (isBackward ? extra->model.anim.keyframeIdx <= doneKf
+                                                              : extra->model.anim.keyframeIdx >= doneKf))
+                                {
+                                    pcToolGated = false;
+                                }
+                            }
+
+                            if (pcToolGated)
+#endif
                             break;
                         }
                     }
