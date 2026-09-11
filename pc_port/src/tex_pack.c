@@ -250,7 +250,13 @@ static int ParseName(const char* title, PackEntry* e)
         e->palMax  = 0;
     }
 
-    if (*p != '\0') return 0;
+    /* A trailing UNDERSCORE suffix is the upscaler's, not the dumper's: Upscayl
+     * writes "<name>_upscayl_4x_upscayl-standard-4x.png" and whoever built the
+     * pack renamed all but a few files back. Those few were dropped silently,
+     * since every field before this point parsed. Underscore only -- the dumper
+     * separates its own fields with '-', so this cannot swallow a real field or
+     * match a name the format never produced. */
+    if (*p != '\0' && *p != '_') return 0;
 
     return e->srcW != 0 && e->srcH != 0 && e->subW != 0 && e->subH != 0;
 }
@@ -1284,12 +1290,42 @@ int TexPack_BuildCanvasThreaded(const unsigned char* pixels, int w16, int h,
     }
 
     {
-        static int s_composeLog = 0;
-        if (s_composeLog < 256)
+        /* One line per PAGE rather than per compose event. The old flat cap of
+         * 256 events was spent on the first room's churn -- the same handful of
+         * uploads recomposing -- so a log could not say which page a surface
+         * later in the session was drawn from, which is exactly what a "this
+         * texture looks wrong" report needs. Keyed on the upload hash, so a
+         * page recomposed fifty times still prints once.
+         *
+         * `cover` is what fraction of the page the pack actually replaces;
+         * overlap is not subtracted, so it reads high rather than low. The rest
+         * of the canvas is the original art nearest-upscaled, and a page in the
+         * low tens is mostly original with HD patches dropped into it. */
+        static unsigned long long s_loggedHash[512];
+        static int                s_loggedCount = 0;
+        int                       li, seen = 0;
+
+        for (li = 0; li < s_loggedCount; li++)
         {
-            SH_DBG("[TEXPACK] composed %dx%d for upload %016llX (%d sub-image%s, %dbpp)",
-                   canvasW, canvasH, srcHash, matchCount, matchCount == 1 ? "" : "s", bpp);
-            s_composeLog++;
+            if (s_loggedHash[li] == srcHash) { seen = 1; break; }
+        }
+        if (!seen && s_loggedCount < (int)(sizeof(s_loggedHash) / sizeof(s_loggedHash[0])))
+        {
+            long long covered = 0;
+            int       pct;
+
+            for (i = 0; i < matchCount; i++)
+            {
+                const PackEntry* e = &g_entries[matches[i]];
+                covered += (long long)e->subW * (long long)e->subH;
+            }
+            pct = (nativeW > 0 && h > 0) ? (int)((covered * 100) / ((long long)nativeW * h)) : 0;
+            if (pct > 100) pct = 100;
+
+            s_loggedHash[s_loggedCount++] = srcHash;
+            SH_DBG("[TEXPACK] composed %dx%d for upload %016llX (%d sub-image%s, %dbpp, native %dx%d, cover<=%d%%)",
+                   canvasW, canvasH, srcHash, matchCount, matchCount == 1 ? "" : "s", bpp,
+                   nativeW, h, pct);
         }
     }
 
