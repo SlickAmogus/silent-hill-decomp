@@ -9,7 +9,7 @@
  *   1: world_vscale default 1.0 -> 1.08 (DuckStation-match vertical FOV).
  *   2: crt_aspect_trim default 0.98 -> 1.06, so Simple's default shape equals
  *      Advanced's (hfov 1.00, vfov 1.08) again -- they diverged at vfov 1.08. */
-#define PC_CONFIG_VERSION 2
+#define PC_CONFIG_VERSION 3
 
 /* Minimap size range, as a percentage of the built-in MM_SIZE. The top end is a
  * little larger than the stock panel; the bottom end is a bit over half of it. */
@@ -123,7 +123,10 @@ typedef struct {
     int attractDemos;     /* 1 = play the PSX attract-mode gameplay demos after the title screen
                            * sits idle (the intro FMV still plays every third cycle either way)
                            * (config key: attract_demos) */
-    int menuFpsUnlock;    /* 1 = let the fps cap apply to screens that are not gameplay:
+    int menuFpsUnlock;    /* 0 (default) = every non-gameplay screen takes the PSX one-vblank
+                           * wait, 60fps, because cursor and repeat speeds there are counted
+                           * per frame and ran 4x fast on a 240Hz menu.
+                           * 1 = let the fps cap apply to screens that are not gameplay:
                            * main menu, options (title and in-game), the map screens and
                            * cursor puzzles. The inventory stays at 60 on purpose, and
                            * cutscenes stay clamped by Pc_ScriptOwnsShot regardless.

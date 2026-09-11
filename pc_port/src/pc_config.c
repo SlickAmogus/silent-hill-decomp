@@ -41,7 +41,9 @@ s_PcConfig g_PcConfig = {
     .texpackLazyMs = 4, /* per-frame wall-clock budget for the on-demand pack composer (pop-in speed vs frame cost) */
     .dumpTextures = 0, /* 1=write every decoded texture upload to gamedata/dump/ as a pack-named PNG (modding aid) */
     .attractDemos = 1,
-    .menuFpsUnlock = 1, /* menus/map/puzzles follow fps_cap; inventory and cutscenes do not */
+    .menuFpsUnlock = 0, /* PSX menu cadence: one vblank, 60fps. Opt in to follow fps_cap.
+                         * Cursor and repeat speeds on those screens are per-frame, so a
+                         * 240Hz menu moved them four times too fast (reported). */
     .lowHealthGlow = 0, /* 1=pulsing red edge glow below 20 hp (SH2 remake style); off by default */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
     .globalCharaPool = 1, /* 1=all chara assets resident PC-side + chara_global.dll AI backfill (SPAWN anything anywhere) */
@@ -1340,6 +1342,17 @@ else if (strcmp(key, "enable_plugins") == 0)
             g_PsxCrtAspectTrim       = 1.06f;
             snprintf(vbuf, sizeof(vbuf), "%.2f", g_PcConfig.crtAspectTrim);
             PcConfig_SaveKeyValue("crt_aspect_trim", vbuf);
+        }
+
+        /* v3: menu_fps_unlock 1 -> 0. Every screen it covers counts cursor
+         * movement and input repeat per FRAME, not per second, so a menu running
+         * at the display rate moved them several times too fast (reported). The
+         * PSX ran all of them on a single vblank. Anyone who wants the smoother
+         * menus back sets the key again. */
+        if (g_PcConfig.configVersion < 3 && g_PcConfig.menuFpsUnlock == 1)
+        {
+            g_PcConfig.menuFpsUnlock = 0;
+            PcConfig_SaveKeyValue("menu_fps_unlock", "0");
         }
 
         g_PcConfig.configVersion = PC_CONFIG_VERSION;
