@@ -21,6 +21,8 @@ jobs:
     # 22.04 links against an older glibc than ubuntu-latest (24.04), so the binary
     # runs on a wider range of distros.
     runs-on: ubuntu-22.04
+    # The whole job is ~2.5 minutes; anything past this is a hang, not work.
+    timeout-minutes: 20
 
     steps:
       - name: Checkout (with PsyCross submodule)
@@ -44,16 +46,28 @@ jobs:
       # at runtime, so nothing from these packages is linked into or shipped with
       # the binary. Without this the build still succeeds, just with the feature off.
       - name: Stage ffmpeg 6 headers (build-only, never linked or bundled)
+        # The FMV fallback is optional and the build succeeds without it, so this
+        # step may never decide whether the job runs. On 2026-09-11 it hung past
+        # ten minutes inside apt against archive.ubuntu.com and blocked a nightly
+        # that was otherwise fine (macOS built the same commit in two minutes).
+        timeout-minutes: 4
+        continue-on-error: true
         run: |
           set -euo pipefail
           FFDIR="$RUNNER_TEMP/ffmpeg-headers"
           mkdir -p "$FFDIR/debs" "$FFDIR/root"
-          echo 'deb http://archive.ubuntu.com/ubuntu noble main universe' \
+          # Fetch from the mirror the runner image already uses (the hosted images
+          # point at a regional azure.archive mirror). archive.ubuntu.com answers
+          # Azure egress slowly enough to stall apt for tens of minutes.
+          MIRROR="$(awk '$1 == "deb" && $3 ~ /^jammy/ { print $2; exit }' /etc/apt/sources.list 2>/dev/null || true)"
+          [ -n "$MIRROR" ] || MIRROR='http://archive.ubuntu.com/ubuntu'
+          APT_NET='-o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20'
+          echo "deb $MIRROR noble main universe" \
             | sudo tee /etc/apt/sources.list.d/noble-ffmpeg-headers.list >/dev/null
-          sudo apt-get update \
+          sudo apt-get update $APT_NET \
             -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/noble-ffmpeg-headers.list \
             -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0
-          (cd "$FFDIR/debs" && apt-get download \
+          (cd "$FFDIR/debs" && apt-get download $APT_NET \
             libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev)
           for deb in "$FFDIR"/debs/*.deb; do dpkg-deb -x "$deb" "$FFDIR/root"; done
           sudo rm -f /etc/apt/sources.list.d/noble-ffmpeg-headers.list
