@@ -14,6 +14,13 @@ on:
       - 'pc_port/launcher/**'
   workflow_dispatch:
 
+# One Linux build per branch. Pushes land in bursts and a stuck run used to sit
+# there while newer ones queued behind it; the newest push is the one anyone
+# cares about.
+concurrency:
+  group: build-linux-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     # Only on our fork — never on Vatuu upstream (which has no PC port branch).
@@ -31,9 +38,15 @@ jobs:
           submodules: recursive
 
       - name: Install build dependencies
+        # Bounded, with explicit retries and socket timeouts: an apt fetch that
+        # stalls against a slow mirror otherwise sits here doing nothing until the
+        # job timeout. Two runs in a row hung inside apt on 2026-09-11 while macOS
+        # built the same commits in two minutes.
+        timeout-minutes: 8
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          APT_NET='-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20'
+          sudo apt-get update $APT_NET
+          sudo apt-get install -y --no-install-recommends $APT_NET \
             build-essential cmake ninja-build pkg-config \
             libsdl2-dev libopenal-dev libjpeg-dev \
             libgl1-mesa-dev libglu1-mesa-dev
