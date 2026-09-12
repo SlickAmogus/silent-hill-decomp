@@ -34,8 +34,12 @@
 
 #include "bodyprog/collision/collision.h"
 #include "bodyprog/math/math.h"
+#include "bodyprog/bodyprog.h"
 #include "bodyprog/gfx/world.h"
+#include "bodyprog/screen/screen_data.h"
 #include "bodyprog/view/vw_calc.h"
+#include "bodyprog/game_boot/fs_chara_anim.h"
+#include "main/fsqueue.h"
 
 #include "hires_override.h"
 #include "pc_config.h"
@@ -377,10 +381,89 @@ static POLY_FT4* ShNetG_EmitFootprint(GsOT* ot, POLY_FT4* poly,
                            MEMO_TEX_W - 1, MEMO_TEX_H - 1, cr, cg, cb, 190);
 }
 
+#define GHOST_BONE_MAX 64
+#define SHNET_MAX_MODELS 16
+
+static int ShNetG_TryDrawModel(int charaId, int gx, int gy, int gz, short grot, int animFrame)
+{
+    static GsCOORDINATE2 s_coords[GHOST_BONE_MAX];
+    s_CharaModel*  cm;
+    s_AnmHeader*   anm;
+    SVECTOR        rot;
+    s16            ret;
+    int            slot;
+
+    if (charaId <= 0 || charaId >= Chara_Count)
+    {
+        return 0;
+    }
+    cm = g_WorldGfxWork.registeredCharaModels[charaId];
+    if (cm == NULL || cm->skeleton.bones_4 == NULL)
+    {
+        return 0;
+    }
+    /* Harry's animation is not in the pool: the player poses itself from the
+     * base ANM at FS_BUFFER_0, so a Harry ghost reads the same header. */
+    if (charaId == Chara_Harry)
+    {
+        anm = (s_AnmHeader*)FS_BUFFER_0;
+    }
+    else
+    {
+        slot = PC_CHARA_ANIM_SLOT(charaId);
+        if (slot < 0 || slot >= CHARA_ANIM_DATA_COUNT)
+        {
+            return 0;
+        }
+        anm = g_CharaModelAnimsData[slot].activeAnmHdr;
+    }
+    if (anm == NULL || anm->boneCount <= 0 || anm->boneCount > GHOST_BONE_MAX)
+    {
+        return 0;
+    }
+
+    /* Pose the skeleton to its resting keyframe, then plant the root at the
+     * ghost's world position and heading. Both operations mirror the spawned-
+     * actor path exactly. */
+    {
+        /* The ghost's own keyframe, into the base ANM's shared keyframe bank,
+         * so a walking player's ghost actually walks. Clamped: a keyframe from
+         * a map-specific clip the base bank does not contain would be garbage,
+         * and clamping keeps it in-range rather than reading past the bank. */
+        int kf = animFrame;
+        int maxKf = (anm->keyframeCount > 0) ? (int)anm->keyframeCount - 1 : 0;
+        if (kf < 0)     kf = 0;
+        if (kf > maxKf) kf = maxKf;
+        Anim_BoneInit(anm, s_coords);
+        Anim_BoneUpdate(anm, s_coords, kf, kf, Q12(0.0f));
+    }
+
+    rot.vx = 0;
+    rot.vy = grot;
+    rot.vz = 0;
+    rot.pad = 0;
+    Math_RotMatrixZxyNegGte(&rot, &s_coords[0].coord);
+    s_coords[0].coord.t[0] = Q12_TO_Q8(gx);
+    s_coords[0].coord.t[1] = Q12_TO_Q8(gy);
+    s_coords[0].coord.t[2] = Q12_TO_Q8(gz);
+    s_coords[0].flg = 0;
+
+    /* One-shot per session: confirms the experimental model path took effect
+     * for whoever is testing it. */
+    { static int s_once = 0; if (!s_once) { s_once = 1;
+        SH_DBG("[NET] modeled ghosts active (chara %d, %d bones)", charaId, (int)anm->boneCount); } }
+    ret = (s16)func_8003DD74((e_CharaId)charaId, 0);
+    func_80045534(&cm->skeleton, &g_OrderingTable0[g_ActiveBufferIdx], 1,
+                  s_coords, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6),
+                  (u16)ret, CHARA_FILE_INFOS[charaId].field_8);
+    return 1;
+}
+
 void ShNet_DrawWorld(GsOT* ot)
 {
     POLY_FT4*    poly;
     POLY_FT4*    primBase;
+    int          modelsDrawn;
     int          i;
     int          count;
     const int    style = g_PcConfig.onlineGhostStyle;
@@ -405,6 +488,7 @@ void ShNet_DrawWorld(GsOT* ot)
     poly     = (POLY_FT4*)GsOUT_PACKET_P;
     primBase = poly;
     range    = ShNetG_RangeQ12();
+    modelsDrawn = 0;
 
     /* ---- other players ---- */
     if (g_PcConfig.onlineGhosts && (s_ghostTexOk || s_memoTexOk))
@@ -457,15 +541,39 @@ void ShNet_DrawWorld(GsOT* ot)
             ShNetG_GhostColor(g->playerId, &cr, &cg, &cb);
             /* A ghost with no flashlight and no motion is a little dimmer, so
              * the ones actually moving read first. */
-            if (s_ghostTexOk && style != SHNET_GS_FOOTPRINT)
             {
-                int alpha = 230;
-                if (!(g->flags & SHNET_PF_ALIVE))   alpha = 150;
-                if (g->flags & SHNET_PF_FLASHLIGHT) alpha = 255;
-                poly = ShNetG_EmitQuad(ot, poly, &centre, &axisU, &axisV,
-                                       SHNET_CLUT(GHOST_SLOT),
-                                       GHOST_TEX_W - 1, GHOST_TEX_H - 1,
-                                       cr, cg, cb, alpha);
+                int drewModel = 0;
+                /* A full character model costs several KB of the shared packet
+                 * arena, so cap how many draw as models per frame; the rest
+                 * fall back to the cheap silhouette. */
+                if (g_PcConfig.onlineGhostModel && modelsDrawn < SHNET_MAX_MODELS &&
+                    !(g->flags & SHNET_PF_CUTSCENE))
+                {
+                    /* func_80045534 allocates through GsOUT_PACKET_P, so commit
+                     * the silhouette cursor into it first and read it back
+                     * after. primBase is re-based by the same delta so the
+                     * silhouette-prim budget below is not tripped by the
+                     * model's own packets. */
+                    unsigned char* before = (unsigned char*)poly;
+                    GsOUT_PACKET_P = (PACKET*)poly;
+                    drewModel = ShNetG_TryDrawModel(g->charaId, gx, gy, gz, grot, (int)g->animFrame);
+                    {
+                        unsigned char* after = (unsigned char*)GsOUT_PACKET_P;
+                        poly     = (POLY_FT4*)after;
+                        primBase = (POLY_FT4*)((unsigned char*)primBase + (after - before));
+                    }
+                    if (drewModel) modelsDrawn++;
+                }
+                if (!drewModel && s_ghostTexOk && style != SHNET_GS_FOOTPRINT)
+                {
+                    int alpha = 230;
+                    if (!(g->flags & SHNET_PF_ALIVE))   alpha = 150;
+                    if (g->flags & SHNET_PF_FLASHLIGHT) alpha = 255;
+                    poly = ShNetG_EmitQuad(ot, poly, &centre, &axisU, &axisV,
+                                           SHNET_CLUT(GHOST_SLOT),
+                                           GHOST_TEX_W - 1, GHOST_TEX_H - 1,
+                                           cr, cg, cb, alpha);
+                }
             }
             if (s_memoTexOk && style != SHNET_GS_SILHOUETTE)
             {

@@ -384,6 +384,9 @@ typedef struct {
     int  onlineDeaths;        /* 1 = draw and report death markers (online_deaths) */
     int  onlineGhostStyle;    /* SHNET_GS_*: contour, floor ring, or both (online_ghost_style) */
     int  onlineGhostRange;    /* metres past which a ghost is not drawn (online_ghost_range) */
+    int  onlineGhostModel;    /* EXPERIMENTAL: 1 = draw ghosts as the real character model
+                               * instead of the silhouette, when that chara is resident
+                               * (online_ghost_model); 0 = silhouette (default, proven) */
     int  onlineEvents;        /* 1 = show the server's join/leave/death feed (online_events) */
     /* Steam co-op sessions. Independent of online_enabled: a player can run a
      * Steam session without a master server, or both at once. */

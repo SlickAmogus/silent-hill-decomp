@@ -56,6 +56,7 @@ s_PcConfig g_PcConfig = {
     .onlineDeaths     = 1,
     .onlineGhostStyle = 2, /* SHNET_GS_BOTH: the contour plus a floor ring */
     .onlineGhostRange = 40,
+    .onlineGhostModel = 0, /* silhouette by default; model path is experimental */
     .onlineEvents     = 1,
     .onlineSteam           = 0,
     .onlineSteamAppId      = 480, /* Spacewar; see sh_net_steam.h */
@@ -712,6 +713,10 @@ void PcConfig_Load(const char* path)
             if (v < 5)   v = 5;
             if (v > 400) v = 400;
             g_PcConfig.onlineGhostRange = v;
+        }
+        else if (strcmp(key, "online_ghost_model") == 0)
+        {
+            g_PcConfig.onlineGhostModel = (atoi(value) != 0);
         }
         else if (strcmp(key, "online_events") == 0)
         {

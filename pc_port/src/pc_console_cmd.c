@@ -498,6 +498,7 @@ static const char* const HELP_LINES[] = {
     " net reconnect  drop and re-join the master server",
     " net who       who is online, and where",
     " net coop 0|1  force co-op mode (blocks pausing) for testing",
+    " net model 0|1 EXPERIMENTAL: draw ghosts as full character models",
     " steam         Steam session status",
     " steam host    open a co-op lobby (friends only)",
     " steam invite  Steam overlay friend invite",
@@ -1096,6 +1097,15 @@ void Pc_ConsoleExec(const char* line)
             cprintf("co-op mode: %s (pausing %s)",
                     ShNet_CoopActive() ? "ON" : "off",
                     ShNet_PauseBlocked() ? "BLOCKED" : "allowed");
+        } else if (strncmp(arg, "MODEL", 5) == 0) {
+            const char* v = arg + 5;
+            while (*v == ' ') v++;
+            if (*v == '0' || *v == '1')
+                g_PcConfig.onlineGhostModel = (*v == '1');
+            else
+                g_PcConfig.onlineGhostModel = !g_PcConfig.onlineGhostModel;
+            cprintf("ghost model: %s (experimental; silhouette otherwise)",
+                    g_PcConfig.onlineGhostModel ? "ON" : "off");
         } else if (strcmp(arg, "MEMOS") == 0) {
             ShNet_RequestMemos();
             cprintf("online: re-queried this map's markers (%d held)", ShNet_MemoCount());
