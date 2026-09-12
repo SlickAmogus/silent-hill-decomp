@@ -24,8 +24,11 @@ never set it, however many ghosts are on screen.
 |---|---|
 | Master server, ghosts, memos, death markers | **working**, two real clients verified |
 | Ghost outlines, fogged and wall-occluded | **working** |
+| **Chat** -- global (whole server) + game (same map) | **working**, relay + scoping verified |
+| Modeled ghosts (real character, opt-in) | **experimental**, runs + stable; fidelity needs two machines |
 | Templated messages (`M`), reading them | working, untested with a second player |
 | Player list, event feed (`F11`) | working |
+| Console no longer pauses a live world | **working** |
 | Steam init, identity, rich presence | **working**, verified on live Steam |
 | Steam lobby create / join / leave / metadata | **working**, real lobby on Valve's servers |
 | Steam invites, `+connect_lobby` | written, **needs two accounts to prove** |
@@ -36,26 +39,60 @@ never set it, however many ghosts are on screen.
 
 ---
 
+## Distributing a test build: what a player needs
+
+The test build is the ordinary game plus the online code. Two ways to play with
+someone, and they are independent.
+
+### The master server (the persistent "lobby" world -- ghosts + chat)
+
+This is the one to test first. One person runs `sh_master`; everyone else points
+`online_server` at that machine.
+
+- **The HOST forwards one UDP port** (default 27888) to the machine running
+  `sh_master`, or everyone is on the same LAN / the same VPN (Hamachi, Tailscale,
+  ZeroTier all work -- then use the VPN IP and no forwarding at all).
+- **Players forward nothing.** They set `online_server = <host ip>` and play.
+- Everyone connected sees each other's ghosts on the same map, can leave
+  messages, and can chat: **global** reaches everyone on the server, **game**
+  reaches everyone on your map.
+- This is the "overarching world everyone connects to" idea. It is one server;
+  everyone on it is in the same world.
+
+### Steam (friends, no forwarding)
+
+- **No port forwarding, ever** -- Valve's relay does the NAT traversal.
+- **No master server needed.** Steam lobbies + invites are their own thing.
+- Needs `steam_api64.dll` beside the exe and Steam running. `online_steam = 1`.
+- Today this gives you a lobby, the overlay invite, and a live peer link between
+  members. It does NOT yet carry ghosts or gameplay -- that is the co-op work
+  below. So for THIS release, ghosts + chat come from the master server; Steam
+  is the plumbing co-op will use.
+
+### So do I need a master server with Steam?
+
+For **ghosts and chat right now: yes**, run a master server -- that is what
+carries them. Steam alone is the co-op transport and co-op is not built yet. The
+end state is: the master server stays the ambient world everyone shares, and
+Steam sessions layer real co-op on top for friends who want to be in one game.
+
+---
+
 ## Next, in order
 
-### 1. Ghosts become bodies
+### 1. Modeled ghosts: finish them
 
-**Why this is next:** the data is already on the wire and being thrown away.
-`sh_net_game.c` sends `model.anim.status` and `model.anim.keyframeIdx` every
-tick; `sh_net_client.c` stores them in `ShNetGhost.animIdx` / `animFrame`; and
-`sh_net_ghost.c` has never once read them. The protocol, the transport and the
-interpolation are all done — what is missing is only the drawing.
+**Where they are:** implemented and opt-in (`online_ghost_model`), off by
+default. A ghost draws as the real character model at its world position, posed
+to the sender's own keyframe, through the engine's own actor-draw path. It runs
+and is stable; what has not been seen is a cleanly separated ghost on two
+machines with real movement.
 
-**What it needs:** the character pool already keeps any character resident in
-any map (`pc_chara_pool.c`), and play-as already drives fourteen different
-bodies off Harry's own animation tree (`pc_playas.c`). A remote player is a
-model from the pool, posed at the interpolated position with the animation
-index they sent.
-
-**Why it is worth doing before anything else:** it is the entire rendering half
-of co-op, it is testable with the two-client setup that already works, and it
-turns the most-noticed feature from "a pale outline" into "that is Harry, and
-he is reloading".
+**What is left:** confirm the pose and placement read right at a distance, then
+promote it to the default. Two known gaps to close after that: a Harry ghost
+uses Harry's base ANM, so a map-specific animation (a scripted pose) will not
+map cleanly and clamps to the nearest base keyframe; and the model does not yet
+carry the flashlight or held weapon. Neither blocks the visual.
 
 ### 2. The world handshake
 
@@ -124,6 +161,11 @@ Each log should say:
 [NET] ghost texture generated (64x128, slot 509, clut 0x9C3D)
 [NET] player 2 appeared on this map at (-7.800, 160.500) - 1 ghost(s) here
 ```
+
+Then, in either window: press **Y**, type, **Enter** -- the line appears in
+both. **U** switches the channel between global and game. To try modeled
+ghosts, open the console (`~`) and run `net model 1` in both, or set
+`online_ghost_model = 1` before launching.
 
 ### The protocol, without the game
 
