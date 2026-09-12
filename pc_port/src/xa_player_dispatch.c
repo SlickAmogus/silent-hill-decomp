@@ -67,9 +67,17 @@ XA_DISPATCH_VOID(XaPlayer_StopFile, PcLegacyXa_StopFile, PcSoftwareXa_StopFile, 
 
 int XaPlayer_PlayFile(const char* path)
 {
+#if defined(SH_NO_OPENAL)
+    /* Written by hand rather than through XA_DISPATCH_VOID (it returns a
+     * value), so it did not inherit the macro's SH_NO_OPENAL collapse and named
+     * the legacy backend on a build that does not compile xa_player.c at all --
+     * an undefined symbol at link. Same shape as Xa_IsVoiceAudioDraining below. */
+    return PcSoftwareXa_PlayFile(path);
+#else
     return PcAudioConfig_UsesSoftwareSpu()
         ? PcSoftwareXa_PlayFile(path)
         : PcLegacyXa_PlayFile(path);
+#endif
 }
 
 int Xa_IsVoiceAudioDraining(void)
