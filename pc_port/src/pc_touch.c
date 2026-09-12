@@ -975,32 +975,22 @@ int Pc_Touch_UsedRecently(void)
  * This used to solve the Hor+ widening again from the window aspect and the
  * pixel aspect. That is a copy of the renderer's own maths, and it has to be
  * kept in step with hfov, vfov, the CRT trim and the display-aspect mode as
- * those arrive -- miss one and the HUD is placed in a frame the renderer is not
- * using. Raising the FOV pushed the buttons off both edges of the screen, and
- * their hit zones with them: reported with a screenshot of the controls clipped
+ * those arrive -- miss one and the controls are placed in a frame the renderer
+ * is not using. Raising the FOV pushed the buttons off both edges of the
+ * screen, hit zones with them, reported with a screenshot of them clipped
  * against the bezel.
  *
- * g_PsxUiOrtho* is what the UI pass actually installed for the ordering table
- * these prims go into, so this cannot drift by construction. Those knobs are
- * skipped for that pass by design, which is the behaviour that was wanted all
- * along -- FOV and scaling are for the world, not the controls. */
-static float Tc_HalfWidth(void)
-{
-    extern float g_PsxUiOrthoL, g_PsxUiOrthoR;
-
-    const float w = (g_PsxUiOrthoR - g_PsxUiOrthoL) * 0.5f;
-
-    return (w > 1.0f) ? w : 160.0f;
-}
-
-static float Tc_HalfHeight(void)
-{
-    extern float g_PsxUiOrthoT, g_PsxUiOrthoB;
-
-    const float h = (g_PsxUiOrthoB - g_PsxUiOrthoT) * 0.5f;
-
-    return (h > 1.0f) ? h : 120.0f;
-}
+ * g_PcHudRect is the overlay pass's own visible rectangle in PRIM coordinates
+ * (the draw-env offset already removed), published by the renderer for exactly
+ * this. It carries neither hfov nor vfov, which is the behaviour wanted all
+ * along: FOV and scaling are for the world, not the controls.
+ *
+ * Read as bounds rather than a half-extent, so nothing here assumes the frame
+ * is centred on zero -- the renderer decides where it sits. */
+static float Tc_RectL(void) { extern float g_PcHudRect[4]; return g_PcHudRect[0]; }
+static float Tc_RectR(void) { extern float g_PcHudRect[4]; return g_PcHudRect[1]; }
+static float Tc_RectT(void) { extern float g_PcHudRect[4]; return g_PcHudRect[2]; }
+static float Tc_RectB(void) { extern float g_PcHudRect[4]; return g_PcHudRect[3]; }
 
 
 #define TC_MAX_QUADS 220
@@ -1071,7 +1061,7 @@ void Pc_Touch_Draw(void)
      * GsOT* it is not was exactly what let that through unnoticed. */
     GsOT_TAG* ot;
     int       buf, i, mode;
-    float     halfW, halfH;
+    float     rectL, rectR, rectT, rectB;
 
     mode = Tc_Mode();
     if (mode == TC_MODE_OFF)
@@ -1099,18 +1089,17 @@ void Pc_Touch_Draw(void)
     buf         = g_ActiveBufferIdx;
     batch.p     = s_pool[buf];
     batch.used  = 0;
-    halfW       = Tc_HalfWidth();
-    halfH       = Tc_HalfHeight();
+    rectL       = Tc_RectL();
+    rectR       = Tc_RectR();
+    rectT       = Tc_RectT();
+    rectB       = Tc_RectB();
 
     /* Viewport space -> the centre-origin overlay, sized by the ortho the UI
-     * pass installed for this frame. */
-    #define TC_UX(vx) ((int)((((vx) - 0.5f) * 2.0f * halfW) + 0.5f))
-    /* Vertical comes from the installed ortho too, for the same reason as the
-     * width: the 240 hardcoded here was only ever right while nothing scaled
-     * the UI pass vertically. */
-    #define TC_UY(vy) ((int)((((vy) - 0.5f) * 2.0f * halfH) + 0.5f))
-    /* A radius given in height units spans the full height of that frame. */
-    #define TC_UR(r)  ((int)(((r) * 2.0f * halfH) + 0.5f))
+     * pass published for this frame (g_PcHudRect). */
+    #define TC_UX(vx) ((int)((rectL + ((vx) * (rectR - rectL))) + 0.5f))
+    #define TC_UY(vy) ((int)((rectT + ((vy) * (rectB - rectT))) + 0.5f))
+    /* A radius given in height units spans the frame's full height. */
+    #define TC_UR(r)  ((int)(((r) * (rectB - rectT)) + 0.5f))
 
     /* Movement stick: only while a thumb is down. A permanently drawn stick is
      * clutter on a screen this small, and the floating origin means a fixed
