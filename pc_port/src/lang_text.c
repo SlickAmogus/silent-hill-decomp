@@ -2,6 +2,7 @@
 #include "lang_text.h"
 #include "lang_zh.h"        /* Chinese text pack for NTSC-J */
 
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1778,9 +1779,18 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
  * '_' and ' ' both render as a space and '~N' is a line break. Applied AFTER
  * any localization swap so it wins for every region; an absent file is a
  * no-op. This is the seed of a fuller mod text system (menus/items, the
- * localization-doc format) tracked separately. */
+ * localization-doc format) tracked separately.
+ *
+ * SEVERAL text mods can be installed at once, so the entries are gathered from
+ * every file rather than one: the player's own gamedata/load/text_overrides.txt
+ * first, then every gamedata/load/text_overrides/<name>.txt in name order. The
+ * FIRST file to name a message wins it, and the Mod Manager writes one file per
+ * mod named <priority>_<mod>.txt, so a plain name sort reproduces the mod list's
+ * own order and the mod on top wins a conflict. Mods that touch different lines
+ * simply all apply. */
 
-#define TEXT_OVR_MAX 128
+#define TEXT_OVR_MAX       512
+#define TEXT_OVR_FILES_MAX 64
 
 typedef struct {
     short mapIdx;
@@ -1797,15 +1807,32 @@ static s_MapOverlayHdr s_ModMapHeader;
 extern int MapRegistry_FindByName(const char* name);
 extern int Pc_MapMsgCount(int mapIdx);
 
-static void TextOverridesLoad(void)
+/* ASCII case-insensitive compare (strcasecmp is not portable across the
+ * port's three toolchains). */
+static int TextOvrStrCaseCmp(const char* a, const char* b)
+{
+    for (;; a++, b++)
+    {
+        int ca = (*a >= 'A' && *a <= 'Z') ? (*a + 32) : (int)(unsigned char)*a;
+        int cb = (*b >= 'A' && *b <= 'Z') ? (*b + 32) : (int)(unsigned char)*b;
+
+        if (ca != cb || ca == 0)
+            return ca - cb;
+    }
+}
+
+/* Add one file's entries to the table. A message an earlier file already
+ * claimed is skipped, which is what makes the first file win a conflict.
+ * Returns the number added, or -1 when there is no such file. */
+static int TextOverridesLoadFile(const char* path)
 {
     FILE* f;
     char  line[512];
+    int   added = 0;
 
-    s_TextOvrCount = 0;
-    f = fopen("gamedata/load/text_overrides.txt", "rb");
+    f = fopen(path, "rb");
     if (f == NULL)
-        return;
+        return -1;
 
     while (fgets(line, sizeof(line), f) != NULL && s_TextOvrCount < TEXT_OVR_MAX)
     {
@@ -1852,14 +1879,95 @@ static void TextOverridesLoad(void)
              end >= val && (*end == '\r' || *end == '\n' || *end == ' ' || *end == '\t'); end--)
             *end = '\0';
 
+        {
+            int dup = 0;
+            int i;
+
+            for (i = 0; i < s_TextOvrCount; i++)
+            {
+                if (s_TextOvr[i].mapIdx == (short)mapIdx && s_TextOvr[i].msgIdx == (short)msgIdx)
+                {
+                    dup = 1;
+                    break;
+                }
+            }
+            if (dup)
+                continue; /* a higher-priority file already replaced this line */
+        }
+
         s_TextOvr[s_TextOvrCount].mapIdx   = (short)mapIdx;
         s_TextOvr[s_TextOvrCount].msgIdx   = (short)msgIdx;
         s_TextOvr[s_TextOvrCount].userText = _strdup(val);
         s_TextOvr[s_TextOvrCount].built    = NULL;
         s_TextOvrCount++;
+        added++;
     }
     fclose(f);
-    SH_LOG("[MODTEXT] loaded %d text override(s)", s_TextOvrCount);
+    return added;
+}
+
+static void TextOverridesLoad(void)
+{
+    DIR*           d;
+    struct dirent* e;
+    char*          names[TEXT_OVR_FILES_MAX];
+    char           path[768];
+    int            n     = 0;
+    int            files = 0;
+    int            added;
+    int            i;
+    int            j;
+
+    s_TextOvrCount = 0;
+
+    /* The player's own file outranks the mods: it is a deliberate hand edit. */
+    added = TextOverridesLoadFile("gamedata/load/text_overrides.txt");
+    if (added >= 0)
+    {
+        files++;
+        SH_LOG("[MODTEXT] text_overrides.txt: %d override(s)", added);
+    }
+
+    d = opendir("gamedata/load/text_overrides");
+    if (d != NULL)
+    {
+        while ((e = readdir(d)) != NULL && n < TEXT_OVR_FILES_MAX)
+        {
+            size_t len = strlen(e->d_name);
+
+            if (len < 5 || TextOvrStrCaseCmp(e->d_name + len - 4, ".txt") != 0)
+                continue;
+
+            names[n] = _strdup(e->d_name);
+            if (names[n] != NULL)
+                n++;
+        }
+        closedir(d);
+
+        /* Name order = the Mod Manager's priority order (it numbers the files). */
+        for (i = 1; i < n; i++)
+        {
+            char* key = names[i];
+
+            for (j = i - 1; j >= 0 && TextOvrStrCaseCmp(names[j], key) > 0; j--)
+                names[j + 1] = names[j];
+            names[j + 1] = key;
+        }
+
+        for (i = 0; i < n; i++)
+        {
+            snprintf(path, sizeof(path), "gamedata/load/text_overrides/%s", names[i]);
+            added = TextOverridesLoadFile(path);
+            if (added >= 0)
+            {
+                files++;
+                SH_LOG("[MODTEXT] %s: %d override(s)", names[i], added);
+            }
+            free(names[i]);
+        }
+    }
+
+    SH_LOG("[MODTEXT] loaded %d text override(s) from %d file(s)", s_TextOvrCount, files);
 }
 
 /* Keep orig's leading ~J..(..) timing prefix (+ following whitespace), then the

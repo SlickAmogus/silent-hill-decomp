@@ -1,5 +1,9 @@
 #include "game.h"
 
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
+
 #include <memory.h>
 #include <psyq/libetc.h>
 
@@ -15,6 +19,22 @@ void SysWork_Clear(void) // 0x800340E0
 {
     bzero(&g_SysWork, sizeof(s_SysWork));
 }
+
+#ifdef SH_PC_PORT
+/* Named diagnostic, one line per warm reset (never per-frame): a reset that
+ * nobody asked for drops the player to the title mid-game, and the log has to
+ * say which of the four triggers fired. */
+static s32 Pc_WarmResetLog(const char* cause)
+{
+    SH_DBG("[WARMRESET] cause=%s held=0x%04X timer=%d sysFlags=0x%X gameState=%d sysState=%d",
+           cause, (unsigned int)(g_Controller0->heldBtnFlags & 0xFFFF), (int)g_WarmBootTimer,
+           (unsigned int)g_SysWork.sysFlags, (int)g_GameWork.gameState, (int)g_SysWork.sysState);
+    return ResetType_WarmBoot;
+}
+#define WARM_RESET(cause) return Pc_WarmResetLog(cause)
+#else
+#define WARM_RESET(cause) return ResetType_WarmBoot
+#endif
 
 s32 MainLoop_ShouldWarmReset(void) // 0x80034108
 {
@@ -43,7 +63,7 @@ s32 MainLoop_ShouldWarmReset(void) // 0x80034108
     {
         if (g_Demo_FrameCount > (TICKS_PER_SECOND * 30))
         {
-            return ResetType_WarmBoot;
+            WARM_RESET("demo-timeout");
         }
     }
     else
@@ -64,18 +84,27 @@ s32 MainLoop_ShouldWarmReset(void) // 0x80034108
 
     if (g_WarmBootTimer > (TICKS_PER_SECOND * 2))
     {
-        return ResetType_WarmBoot;
+        WARM_RESET("select+start-2s");
     }
     else if (g_Controller0->heldBtnFlags == WARM_BOOT_COMBO_PRESS && (g_Controller0->clickedBtnFlags & WARM_BOOT_COMBO_PRESS))
     {
-        return ResetType_WarmBoot;
+        WARM_RESET("combo");
     }
     else if (g_Controller0->heldBtnFlags == WARM_BOOT_COMBO_PRESS_ALT && (g_Controller0->clickedBtnFlags & ControllerFlag_Start))
     {
-        return ResetType_WarmBoot;
+        WARM_RESET("combo-alt");
     }
 
+#ifdef SH_PC_PORT
+    if (g_SysWork.sysFlags & SysFlag_DoWarmReset)
+    {
+        WARM_RESET("flag");
+    }
+
+    return ResetType_None;
+#else
     return (g_SysWork.sysFlags & SysFlag_DoWarmReset) ? ResetType_WarmBoot : ResetType_None;
+#endif
 
     #undef WARM_BOOT_COMBO_HOLD
     #undef WARM_BOOT_COMBO_PRESS
@@ -85,6 +114,22 @@ s32 MainLoop_ShouldWarmReset(void) // 0x80034108
 void Game_WarmBoot(void) // 0x80034264
 {
     e_GameState prevState;
+
+#ifdef SH_PC_PORT
+    /* A warm reset can fire from any state that holds the PC freeze-frame:
+     * pause, the map-screen messages ("I don't have a map" / "too dark") and
+     * the item pickup all re-arm g_PsxPresentLastFrame every tick and only drop
+     * it on their own exit path, which a reset never takes. Left set, nothing
+     * else releases it -- gameplay is over -- and PsyX_BeginScene kept
+     * re-presenting the captured gameplay frame over the clear, so the title
+     * screen came up drawn on top of the last frame of play. */
+    {
+        extern int g_PsxPresentLastFrame;
+        extern int g_PcFreezeReleasePending;
+        g_PsxPresentLastFrame    = 0;
+        g_PcFreezeReleasePending = 0;
+    }
+#endif
 
     DrawSync(SyncMode_Wait);
     Screen_RectInterlacedClear(0, 32, 512, 448, 0, 0, 0);

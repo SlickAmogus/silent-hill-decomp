@@ -124,6 +124,14 @@ namespace SilentHillPC_Launcher
             Populate();
         }
 
+        /// <summary>Another tool (the Voices window) wrote a mod into the mods folder:
+        /// unpack, re-index and list it, as opening the manager would.</summary>
+        public void RescanFromTool()
+        {
+            ExtractThenScan();
+            if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+        }
+
         /// <summary>Confirm before unpacking archives found in the mod folders, naming them.</summary>
         private bool AskUnpack(List<ModManager.PendingItem> items)
         {
@@ -195,14 +203,14 @@ namespace SilentHillPC_Launcher
             // window for the same extract flow (OnDragDrop).
             var btnEx = new Button { Text = "Extract BIN…", Location = new Point(510, 194), Size = new Size(78, 28) };
             var btnVw = new Button { Text = "Model Viewer", Location = new Point(510, 226), Size = new Size(78, 28) };
-            var btnAu = new Button { Text = "Audio",        Location = new Point(510, 258), Size = new Size(78, 28) };
+            var btnAu = new Button { Text = "Audio ▾",      Location = new Point(510, 258), Size = new Size(78, 28) };
             var btnTp = new Button { Text = "TIM → PNG…",   Location = new Point(510, 290), Size = new Size(78, 28) };
             var btnBp = new Button { Text = "Bulk → PNG…",  Location = new Point(510, 322), Size = new Size(78, 28) };
             var btnRef = new Button { Text = "Reference ▾", Location = new Point(510, 354), Size = new Size(78, 28) };
             var btnReb = new Button { Text = "Rebuild…",    Location = new Point(510, 386), Size = new Size(78, 28) };
             // Characters and item models are different formats with different rules,
             // so each direction is a dropdown rather than a button per combination —
-            // the tool column has no room left, and the DDS button below already
+            // the tool column has no room left, and the DDS button above already
             // establishes the pattern.
             var btnMo = new Button { Text = "Model → OBJ ▾", Location = new Point(510, 418), Size = new Size(78, 28) };
             var btnOm = new Button { Text = "OBJ → Model ▾", Location = new Point(510, 450), Size = new Size(78, 28) };
@@ -214,7 +222,7 @@ namespace SilentHillPC_Launcher
             omMenu.Items.Add("Character — simple…",    null, (s, e) => ConverterActions.SimpleImport(this, _gameRoot));
             omMenu.Items.Add("Item model (.TMD) — reshape…", null, (s, e) => ConverterActions.ImportTmd(this, _gameRoot));
             omMenu.Items.Add("Item model (.TMD) — replace…", null, (s, e) => ConverterActions.RebuildTmd(this, _gameRoot));
-            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 482), Size = new Size(78, 28) };
+            var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 514), Size = new Size(78, 28) };
             _btnTips = new ToolTip();
             _btnTips.SetToolTip(btnEx, "Unpack a Silent Hill .bin disc image into the loose asset tree.");
             _btnTips.SetToolTip(btnTp, "Convert individual .TIM texture files to .png.");
@@ -237,7 +245,9 @@ namespace SilentHillPC_Launcher
             _btnTips.SetToolTip(btnVw, "Model Viewer: a 3D window for .ILM characters (with .ANM animation playback), " +
                 ".PLM props, .TMD items and edited .obj files — textured with their real in-game palettes. " +
                 "Open models from its File menu or drag & drop them onto it.");
-            _btnTips.SetToolTip(btnAu, "Audio: browse a .VAB sound bank, play the sounds inside it, and export them " +
+            _btnTips.SetToolTip(btnAu, "Audio: sound banks (browse a .VAB, play and export its sounds) and Voices (every XA " +
+                "voice line: play, export, replace with a file, or re-record from the microphone into gamedata\\load\\XA).\n\n" +
+                "Sound banks: browse a .VAB sound bank, play the sounds inside it, and export them " +
                 "as .wav or raw .vag. The banks live in SND/ inside an extracted disc. " +
                 "Open a bank from its File menu or drag & drop one onto it.");
             _btnTips.SetToolTip(btnHelp, "How to make and install loose-file texture mods.");
@@ -252,7 +262,10 @@ namespace SilentHillPC_Launcher
             btnMo.Click += (s, e) => moMenu.Show(btnMo, new Point(0, btnMo.Height));
             btnOm.Click += (s, e) => omMenu.Show(btnOm, new Point(0, btnOm.Height));
             btnVw.Click += (s, e) => OnViewModel();
-            btnAu.Click += (s, e) => OnAudioTool();
+            var auMenu = new ContextMenuStrip();
+            auMenu.Items.Add("Sound banks (VAB)…", null, (s, e) => OnAudioTool());
+            auMenu.Items.Add("Voices (XA)…",       null, (s, e) => ConverterActions.OpenXaTool(this, _gameRoot));
+            btnAu.Click += (s, e) => auMenu.Show(btnAu, new Point(0, btnAu.Height));
             btnHelp.Click += (s, e) => ShowLooseModHelp();
             Controls.Add(btnEx);
             Controls.Add(btnTp);
@@ -267,7 +280,7 @@ namespace SilentHillPC_Launcher
 
             // BC7 .dds tooling (texconv). One button, a dropdown of actions —
             // like the OBJ pair, but grouped since they share the same converter.
-            var btnDds = new Button { Text = "DDS ▾", Location = new Point(510, 514), Size = new Size(78, 28) };
+            var btnDds = new Button { Text = "DDS ▾", Location = new Point(510, 482), Size = new Size(78, 28) };
             var ddsMenu = new ContextMenuStrip();
             ddsMenu.Items.Add("PNG → BC7 DDS…",       null, (s, e) => OnDdsEncode());
             ddsMenu.Items.Add("DDS → PNG…",           null, (s, e) => OnDdsDecode());
@@ -316,7 +329,7 @@ namespace SilentHillPC_Launcher
 
             FitToolColumn(
                 new[] { btnUp, btnDn, btnRe, btnOp, btnEx, btnVw, btnAu, btnTp, btnBp,
-                        btnRef, btnReb, btnMo, btnOm, btnHelp, btnDds },
+                        btnRef, btnReb, btnMo, btnOm, btnDds, btnHelp },
                 new[] { btnApply, btnClose },
                 new Control[] { help, _ffmpegRow });
         }
@@ -1555,11 +1568,43 @@ namespace SilentHillPC_Launcher
             ConverterActions.ShowTextDialog(this, title, lines, monospace);
         }
 
+        private static void AppendFileList(System.Text.StringBuilder sb, List<string> files, int max)
+        {
+            for (int i = 0; i < files.Count && i < max; i++) sb.Append("  ").Append(files[i]).Append('\n');
+            if (files.Count > max) sb.Append("  … and ").Append(files.Count - max).Append(" more\n");
+        }
+
         private void OnApply(object sender, EventArgs e)
         {
             CommitOrderAndState();
             try
             {
+                // Files of the user's own in gamedata/load or gamedata/FMV: ones they
+                // added themselves, and ones a mod deployed that they edited since.
+                // Ask before Apply replaces any of them; each is backed up and comes
+                // back when the mod that replaced it is removed.
+                var pv = _mgr.PreviewOverwrites();
+                if (pv.Count > 0)
+                {
+                    var sb = new System.Text.StringBuilder();
+                    sb.Append("Applying will overwrite ").Append(pv.Count).Append(" file(s) of yours.\n");
+                    if (pv.Foreign.Count > 0)
+                    {
+                        sb.Append("\nFiles you added (not from a mod):\n");
+                        AppendFileList(sb, pv.Foreign, 8);
+                    }
+                    if (pv.Modified.Count > 0)
+                    {
+                        sb.Append("\nFiles a mod deployed that you edited since:\n");
+                        AppendFileList(sb, pv.Modified, 8);
+                    }
+                    sb.Append("\nEach one is backed up and restored when the mod that replaced it is removed. " +
+                              "Overwrite them?");
+                    if (MessageBox.Show(this, sb.ToString(), "Mod Manager",
+                            MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                        return;
+                }
+
                 ModManager.ApplyResult r = null;
                 // Cancel here aborts an archive being unpacked (the only slow part), not the
                 // apply itself: the pack is left off and everything else still commits, so the
@@ -1571,8 +1616,8 @@ namespace SilentHillPC_Launcher
 
                 string msg = string.Format(
                     "Applied.\n\nActive texture packs: {0}\nData overlays (load/): {1}\nGameplay (Code / DLL) mods: {2}\nFMV video mods: {3}\n" +
-                    "Loose file support: {4}",
-                    r.Texture, r.Load, r.Gameplay, r.Fmv, r.LooseEnabled ? "on" : "off");
+                    "Loose file support: {4}\nFiles copied: {5} ({6} already in place, left as is)",
+                    r.Texture, r.Load, r.Gameplay, r.Fmv, r.LooseEnabled ? "on" : "off", r.Files, r.Skipped);
                 if (r.Warnings.Count > 0)
                     msg += "\n\nWarnings:\n - " + string.Join("\n - ", r.Warnings);
 

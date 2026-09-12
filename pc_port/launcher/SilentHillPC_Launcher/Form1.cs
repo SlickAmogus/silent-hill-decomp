@@ -478,7 +478,15 @@ public partial class Form1 : Form
     // running an old build isn't flagged). Build switching is the Download Build
     // button's job.
     private static LauncherSettings ForceLatest(LauncherSettings s)
-        => new LauncherSettings { RepoUrl = s.RepoUrl, Branch = s.Branch, Build = "latest", OldBuildWarned = s.OldBuildWarned };
+        // A custom (opt-in) build tracks ITS OWN named build: forcing plain "latest"
+        // would measure it against a different mod's newest release, or the beta one.
+        => new LauncherSettings
+        {
+            RepoUrl        = s.RepoUrl,
+            Branch         = s.Branch,
+            Build          = UpdateChecker.CustomFamilyLatestToken(s.Build) ?? "latest",
+            OldBuildWarned = s.OldBuildWarned
+        };
 
     private async void SilentAutoCheckForUpdates()
     {
@@ -954,6 +962,27 @@ public partial class Form1 : Form
                 resolutions.Add((r.Item1, r.Item2));
         }
 
+        /* Standard 16:9 sizes the panel is big enough to frame. Some drivers --
+         * and every remote-desktop, capture or virtual display -- enumerate a
+         * handful of modes and nothing else, so a 1440p-capable screen could
+         * come up with no 2560x1440 entry at all. Bounded by the largest width
+         * and height actually reported, so nothing is offered to a display that
+         * cannot show it: exclusive fullscreen snaps to the nearest real mode
+         * (SDL_GetClosestDisplayMode) and windowed is exact. */
+        int maxW = 0, maxH = 0;
+        foreach (var r in resolutions)
+        {
+            if (r.w > maxW) maxW = r.w;
+            if (r.h > maxH) maxH = r.h;
+        }
+        foreach (var r in new[] { (1280, 720), (1600, 900), (1920, 1080), (2560, 1440), (3840, 2160) })
+        {
+            if (r.Item1 > maxW || r.Item2 > maxH)
+                continue;
+            if (seen.Add($"{r.Item1}x{r.Item2}"))
+                resolutions.Add((r.Item1, r.Item2));
+        }
+
         resolutions.Sort((a, b) => a.w != b.w ? b.w.CompareTo(a.w) : b.h.CompareTo(a.h));
 
         foreach (var r in resolutions)
@@ -972,6 +1001,27 @@ public partial class Form1 : Form
             comboRefresh.Items.Add(hz.ToString());
     }
 
+
+    /* Keeps the largest-first order PopulateDisplayOptions established. */
+    private void InsertResolutionSorted(string res)
+    {
+        var parts = res.Split('x');
+        int w, h;
+        if (parts.Length != 2 || !int.TryParse(parts[0], out w) || !int.TryParse(parts[1], out h) ||
+            w <= 0 || h <= 0)
+            return;
+
+        int at = comboResolution.Items.Count;
+        for (int i = 0; i < comboResolution.Items.Count; i++)
+        {
+            var p = comboResolution.Items[i].ToString().Split('x');
+            int iw, ih;
+            if (p.Length != 2 || !int.TryParse(p[0], out iw) || !int.TryParse(p[1], out ih))
+                continue;
+            if (w > iw || (w == iw && h > ih)) { at = i; break; }
+        }
+        comboResolution.Items.Insert(at, res);
+    }
 
     private void LoadConfig()
     {
@@ -1117,7 +1167,13 @@ public partial class Form1 : Form
         // resolution
         string w = config.Get("width", "640");
         string h = config.Get("height", "480");
-        comboResolution.SelectedItem = $"{w}x{h}";
+        string res = $"{w}x{h}";
+        /* A size set by hand in config.cfg, or one this machine's driver does
+         * not enumerate, still has to be selectable: without this the box comes
+         * up blank and the next Save writes whatever the user picks instead. */
+        if (!comboResolution.Items.Contains(res))
+            InsertResolutionSorted(res);
+        comboResolution.SelectedItem = res;
 
         // refresh rate is config-only now (auto-detected by default); keep the
         // hidden combo populated harmlessly so its references stay valid.
@@ -1499,6 +1555,10 @@ public partial class Form1 : Form
                 $"Built: {plan.BuildDate}\n" +
                 $"Source: {plan.RepoLabel}\n\n" +
                 (plan.IsBeta ? "This build is on the BETA branch (newer than the latest alpha/stable build).\n\n" : "") +
+                (plan.IsCustom
+                    ? $"This is the experimental build \"{(string.IsNullOrWhiteSpace(plan.BuildName) ? "custom" : plan.BuildName)}\", " +
+                      "not a normal release. You stay on it until you pick another branch in Build Settings.\n\n"
+                    : "") +
                 (settings.IsLatestBuild ? "" : $"You currently have build '{settings.Build}' selected.\n") +
                 "Update to the latest build and switch to it now?",
                 plan.ChangelogUrl);
@@ -1512,7 +1572,9 @@ public partial class Form1 : Form
             bool applied = await RunApplyAsync(installDir, plan, showFileConfirm: false);
             if (applied)
             {
-                settings.Build = "latest";   // switch to latest
+                // Stay with whatever stream the user is on: a custom build keeps
+                // following its own named build, everything else tracks latest.
+                settings.Build = UpdateChecker.CustomFamilyLatestToken(settings.Build) ?? "latest";
                 if (!string.IsNullOrEmpty(plan.MigrateToBranch))
                     settings.Branch = plan.MigrateToBranch;   // auto-migrate alpha -> beta
                 settings.Save(config);

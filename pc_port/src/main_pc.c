@@ -912,6 +912,12 @@ static void ParseArgs(int argc, char* argv[])
             g_GameDataPath[sizeof(g_GameDataPath) - 1] = '\0';
             i++;
         }
+        else if (strcmp(argv[i], "-skiptogame") == 0)
+        {
+            /* The flag existed and was honoured after the config load, but nothing
+             * ever SET it, so the option silently did nothing. */
+            s_SkipToGameArg = 1;
+        }
         else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
         {
             printf("Usage: SilentHillPC [options]\n");
@@ -1121,6 +1127,9 @@ int main(int argc, char* argv[])
             const char* drop = Pc_UserVisibleDir();
             SH_DBG("[SH] user-visible dir: %s", (drop != NULL) ? drop : "(none - using the app's private files dir)");
         }
+        /* The user's actual settings, verbatim. Costs one pass over a small
+         * file at boot and removes the guesswork from every bug report. */
+        PcConfig_LogEffective("config.cfg");
         /* One-line render-config fingerprint: these are the axes every remote
          * corruption report gets bisected on — stop having to ask for the cfg. */
         SH_DBG("[CONFIG] flashlight_mode=%d use_pgxp=%d resident_textures=%d global_chara_pool=%d",
@@ -1187,10 +1196,23 @@ int main(int argc, char* argv[])
         extern float g_PsxWorldHScale;
         extern float g_PsxWorldVScale;
         extern float g_PsxWorldVShift;
+        extern float g_PsxCutsceneVShift;
         g_PsxPixelAspect = g_PcConfig.pixelAspect;
         g_PsxWorldHScale = g_PcConfig.worldHScale;
         g_PsxWorldVScale = g_PcConfig.worldVScale;
         g_PsxWorldVShift = g_PcConfig.worldVShift;
+        g_PsxCutsceneVShift = g_PcConfig.cutsceneVShift;
+    }
+
+    /* Seed the FPS eye baseline from config so a player's saved head position
+     * (View & Aspect quick-options page, or the numpad debug keys baked via the
+     * config) survives a restart. g_PcFpsOffset stays the live value the camera
+     * reads and the numpad edits; the menu writes both it and the config keys. */
+    {
+        extern VECTOR3 g_PcFpsOffset;
+        g_PcFpsOffset.vx = g_PcConfig.fpsHeadX;
+        g_PcFpsOffset.vy = g_PcConfig.fpsHeadY;
+        g_PcFpsOffset.vz = g_PcConfig.fpsHeadZ;
     }
 
     /* Apply widescreen mode to PsyCross. */

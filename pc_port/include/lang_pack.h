@@ -2,6 +2,8 @@
 #ifndef LANG_PACK_H
 #define LANG_PACK_H
 
+#include <stddef.h>
+
 /* PC-side language packs (gamedata/lang/<code>.lang).
  *
  * The five retail languages come off the PAL disc (lang_text.c reads
@@ -37,6 +39,9 @@ const char* Pc_LangPackName(void);
 /* NULL when the key is absent -- callers fall back to the compiled English. */
 const char* Pc_LangPackGet(const char* key);
 const char* Pc_LangPackMapMsg(int mapIdx, int msgIdx);
+/* The pack key of a map message ("MAP1_S00.23", "COMMON.5"); 0 when the map
+ * index carries no text. Independent of whether a pack is loaded. */
+int Pc_LangPackMsgKey(int mapIdx, int msgIdx, char* out, size_t outSize);
 const char* Pc_LangPackItemName(int itemIdx);
 const char* Pc_LangPackItemDesc(int itemIdx);
 

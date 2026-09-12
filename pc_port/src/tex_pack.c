@@ -27,6 +27,7 @@
 
 #define XXH_INLINE_ALL
 #include "xxhash.h"
+#include <SDL.h> /* SDL_mutex: the zip readers are shared with the lazy worker thread */
 
 #include "miniz.h"
 #include "stb_image.h"
@@ -502,10 +503,16 @@ static int Entry_CompareSrcHash(const void* a, const void* b)
     return 0;
 }
 
+/* Serialises the shared miniz readers between the game thread and the lazy
+ * compose worker. Created on the game thread in Scan_Once, which every path
+ * runs before the first compose. Loose-file reads need no lock. */
+static SDL_mutex* g_zipMx = NULL;
+
 static void Scan_Once(void)
 {
     if (g_scanned) return;
     g_scanned = 1;
+    if (g_zipMx == NULL) g_zipMx = SDL_CreateMutex();
 
     if (!g_PcConfig.texturePacks) return;
 
@@ -645,7 +652,9 @@ static unsigned char* Entry_LoadRaw(const PackEntry* e, size_t* outSize)
     }
     else
     {
-        mz_zip_archive* zip = Zip_Reader(e->zipIdx);
+        mz_zip_archive* zip;
+        if (g_zipMx != NULL) SDL_LockMutex(g_zipMx);
+        zip = Zip_Reader(e->zipIdx);
         if (zip != NULL)
         {
             size_t size = 0;
@@ -657,6 +666,7 @@ static unsigned char* Entry_LoadRaw(const PackEntry* e, size_t* outSize)
                 mz_free(data);
             }
         }
+        if (g_zipMx != NULL) SDL_UnlockMutex(g_zipMx);
     }
     return out;
 }
@@ -698,11 +708,14 @@ static unsigned char* Entry_LoadImage(const PackEntry* e, int* outW, int* outH, 
     }
     else
     {
-        mz_zip_archive* zip = Zip_Reader(e->zipIdx);
+        mz_zip_archive* zip;
+        if (g_zipMx != NULL) SDL_LockMutex(g_zipMx);
+        zip = Zip_Reader(e->zipIdx);
         if (zip != NULL)
         {
             data = (unsigned char*)mz_zip_reader_extract_to_heap(zip, e->zipEntry, &size, 0);
         }
+        if (g_zipMx != NULL) SDL_UnlockMutex(g_zipMx);
     }
 
     if (data == NULL) return NULL;
@@ -946,70 +959,119 @@ static void tp_cache_evict_lru(void)
     g_tpCache[oldest] = g_tpCache[--g_tpCacheCount];
 }
 
-const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h,
-                                     const unsigned short* clut, int clutCount,
-                                     int bpp, int* outW, int* outH)
+/* Content keys of one upload, exactly as the compose cache and pack entries
+ * key on them. One implementation on purpose: a second copy of this formula
+ * that drifts is a silent cache split. */
+void TexPack_ComposeKeys(const unsigned char* pixels, int w16, int h,
+                         const unsigned short* clut, int clutCount, int bpp,
+                         unsigned long long* outSrc, unsigned long long* outPal,
+                         int* outPalMax)
 {
-    unsigned long long srcHash;
-    unsigned long long fullPalHash = 0;
-    int                fullPalMax;
-    int                i, first, matchCount = 0;
-    int                matches[64];
-    float              scaleX = 1.0f, scaleY = 1.0f;
-    int                nativeW, canvasW, canvasH;
-    unsigned char*     canvas;
-    size_t             cacheCap;
+    unsigned long long palHash = 0;
 
-    g_tpLastHash  = 0;
-    g_tpLastIsDds = 0;
-    g_tpLastBuilt = 0;
-    if (g_tpDdsBytes != NULL)
-    {
-        free(g_tpDdsBytes);
-        g_tpDdsBytes = NULL;
-        g_tpDdsSize  = 0;
-    }
-
-    Scan_Once();
-    if (g_entryCount == 0 || pixels == NULL || w16 <= 0 || h <= 0) return NULL;
-
-    if (g_tpTransient != NULL)
-    {
-        free(g_tpTransient);
-        g_tpTransient = NULL;
-    }
-
-    srcHash = XXH3_64bits(pixels, (size_t)w16 * (size_t)h * 2);
-
-    fullPalMax = (bpp == 4) ? 15 : 255;
+    *outSrc    = XXH3_64bits(pixels, (size_t)w16 * (size_t)h * 2);
+    *outPalMax = (bpp == 4) ? 15 : 255;
     if (bpp != 16 && clut != NULL && clutCount > 0)
     {
         int n = (bpp == 4) ? 16 : 256;
         if (n > clutCount) n = clutCount;
-        fullPalHash = XXH3_64bits(clut, (size_t)n * 2);
+        palHash = XXH3_64bits(clut, (size_t)n * 2);
     }
+    *outPal = palHash;
+}
 
-    /* Fold the same identity the cache keys on into one u64 for the pool
-     * registrars. hash_combine so (src=A,pal=B) != (src=B,pal=A). */
-    g_tpLastHash = srcHash ^ (fullPalHash + 0x9E3779B97F4A7C15ULL +
-                              (srcHash << 6) + (srcHash >> 2)) ^ (unsigned long long)bpp;
+unsigned long long TexPack_FoldKey(unsigned long long srcHash,
+                                   unsigned long long palHash, int bpp)
+{
+    /* hash_combine so (src=A,pal=B) != (src=B,pal=A). */
+    return srcHash ^ (palHash + 0x9E3779B97F4A7C15ULL +
+                      (srcHash << 6) + (srcHash >> 2)) ^ (unsigned long long)bpp;
+}
 
-    cacheCap = (size_t)g_PcConfig.texpackCacheMb << 20;
-    if (cacheCap > 0)
+/* Game thread only (the cache is single-threaded by design). */
+int TexPack_CacheProbe(unsigned long long srcHash, unsigned long long palHash,
+                       int bpp, const unsigned char** outRgba, int* outW, int* outH)
+{
+    int i;
+    if (((size_t)g_PcConfig.texpackCacheMb << 20) == 0) return 0;
+    for (i = 0; i < g_tpCacheCount; i++)
     {
-        for (i = 0; i < g_tpCacheCount; i++)
+        TpCacheEnt* c = &g_tpCache[i];
+        if (c->srcHash == srcHash && c->palHash == palHash && c->bpp == bpp)
         {
-            TpCacheEnt* c = &g_tpCache[i];
-            if (c->srcHash == srcHash && c->palHash == fullPalHash && c->bpp == bpp)
-            {
-                c->tick = ++g_tpCacheTick;
-                g_tpCacheHits++;
-                *outW = c->w;
-                *outH = c->h;
-                return c->rgba;
-            }
+            c->tick = ++g_tpCacheTick;
+            g_tpCacheHits++;
+            *outRgba = c->rgba;
+            *outW    = c->w;
+            *outH    = c->h;
+            return 1;
         }
     }
+    return 0;
+}
+
+/* Game thread only. Takes ownership of rgba: stored in the cache, or freed on
+ * the spot when the cache is off, full of hotter entries, or the canvas alone
+ * exceeds the cap. Callers must be done with the pointer either way. */
+void TexPack_CacheInsertOwned(unsigned long long srcHash, unsigned long long palHash,
+                              int bpp, unsigned char* rgba, int w, int h)
+{
+    size_t cacheCap = (size_t)g_PcConfig.texpackCacheMb << 20;
+    size_t bytes    = (size_t)w * (size_t)h * 4;
+
+    g_tpCacheMisses++;
+    if (cacheCap == 0 || bytes > cacheCap)
+    {
+        free(rgba);
+        return;
+    }
+    while (g_tpCacheCount > 0 &&
+           (g_tpCacheBytes + bytes > cacheCap || g_tpCacheCount >= TP_CACHE_MAX))
+    {
+        tp_cache_evict_lru();
+    }
+    if (g_tpCacheCount >= TP_CACHE_MAX)
+    {
+        free(rgba);
+        return;
+    }
+    {
+        TpCacheEnt* c = &g_tpCache[g_tpCacheCount++];
+        c->srcHash = srcHash;
+        c->palHash = palHash;
+        c->bpp     = bpp;
+        c->rgba    = rgba;
+        c->w       = w;
+        c->h       = h;
+        c->bytes   = bytes;
+        c->tick    = ++g_tpCacheTick;
+        g_tpCacheBytes += bytes;
+    }
+}
+
+void TexPack_EnsureScanned(void)
+{
+    Scan_Once();
+}
+
+/* The decode + composite half of TexPack_Compose, and nothing else: no cache,
+ * no Scan_Once, no g_tpLast* globals, so the lazy worker thread can run it.
+ * Everything it reads is immutable after Scan_Once (g_entries) or owned by the
+ * caller; the shared zip readers are serialised inside Entry_LoadImage/LoadRaw.
+ * Returns 0 = no pack coverage (keep native art); 1 = out holds either an RGBA
+ * canvas (malloc, caller owns) or whole-upload DDS bytes (malloc, caller owns).
+ * Game-thread callers use TexPack_Compose, which wraps this with the cache and
+ * the Last* accessors. */
+int TexPack_BuildCanvasThreaded(const unsigned char* pixels, int w16, int h,
+                                const unsigned short* clut, int clutCount, int bpp,
+                                unsigned long long srcHash, unsigned long long fullPalHash,
+                                int fullPalMax, TpBuildResult* out)
+{
+    int            i, first, matchCount = 0;
+    int            matches[64];
+    float          scaleX = 1.0f, scaleY = 1.0f;
+    int            nativeW, canvasW = 0, canvasH = 0;
+    unsigned char* canvas = NULL;
 
     first = Entry_LowerBound(srcHash);
     for (i = first; i < g_entryCount && g_entries[i].srcHash == srcHash; i++)
@@ -1040,10 +1102,10 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
         }
     }
 
-    if (matchCount == 0) return NULL;
+    if (matchCount == 0) return 0;
 
     /* Past this point every exit has read and decoded pack files. */
-    g_tpLastBuilt = 1;
+    out->built = 1;
 
     nativeW = w16 * (16 / bpp);
 
@@ -1149,12 +1211,11 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
 
             if (raw != NULL && Dds_ParseBptc(raw, (int)rawSize, &probe))
             {
-                g_tpDdsBytes  = raw;
-                g_tpDdsSize   = rawSize;
-                g_tpLastIsDds = 1;
-                *outW = probe.width;
-                *outH = probe.height;
-                return NULL; /* DDS, not RGBA — g_tpLastHash already set for keying */
+                out->ddsBytes = raw;
+                out->ddsSize  = rawSize;
+                out->w = probe.width;
+                out->h = probe.height;
+                return 1;
             }
             free(raw);
         }
@@ -1219,7 +1280,7 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
             if (imgStbi[i]) stbi_image_free(imgs[i]);
             else free(imgs[i]);
         }
-        if (canvas == NULL) return NULL;
+        if (canvas == NULL) return 0;
     }
 
     {
@@ -1230,6 +1291,86 @@ const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h
                    canvasW, canvasH, srcHash, matchCount, matchCount == 1 ? "" : "s", bpp);
             s_composeLog++;
         }
+    }
+
+
+    out->rgba = canvas;
+    out->w    = canvasW;
+    out->h    = canvasH;
+    return 1;
+}
+
+const unsigned char* TexPack_Compose(const unsigned char* pixels, int w16, int h,
+                                     const unsigned short* clut, int clutCount,
+                                     int bpp, int* outW, int* outH)
+{
+    unsigned long long srcHash;
+    unsigned long long fullPalHash = 0;
+    int                fullPalMax;
+    int                i;
+    int                canvasW, canvasH;
+    unsigned char*     canvas;
+    size_t             cacheCap;
+
+    g_tpLastHash  = 0;
+    g_tpLastIsDds = 0;
+    g_tpLastBuilt = 0;
+    if (g_tpDdsBytes != NULL)
+    {
+        free(g_tpDdsBytes);
+        g_tpDdsBytes = NULL;
+        g_tpDdsSize  = 0;
+    }
+
+    Scan_Once();
+    if (g_entryCount == 0 || pixels == NULL || w16 <= 0 || h <= 0) return NULL;
+
+    if (g_tpTransient != NULL)
+    {
+        free(g_tpTransient);
+        g_tpTransient = NULL;
+    }
+
+    TexPack_ComposeKeys(pixels, w16, h, clut, clutCount, bpp,
+                        &srcHash, &fullPalHash, &fullPalMax);
+    g_tpLastHash = TexPack_FoldKey(srcHash, fullPalHash, bpp);
+
+    cacheCap = (size_t)g_PcConfig.texpackCacheMb << 20;
+    if (cacheCap > 0)
+    {
+        for (i = 0; i < g_tpCacheCount; i++)
+        {
+            TpCacheEnt* c = &g_tpCache[i];
+            if (c->srcHash == srcHash && c->palHash == fullPalHash && c->bpp == bpp)
+            {
+                c->tick = ++g_tpCacheTick;
+                g_tpCacheHits++;
+                *outW = c->w;
+                *outH = c->h;
+                return c->rgba;
+            }
+        }
+    }
+
+    {
+        TpBuildResult br;
+        memset(&br, 0, sizeof(br));
+        if (!TexPack_BuildCanvasThreaded(pixels, w16, h, clut, clutCount, bpp,
+                                         srcHash, fullPalHash, fullPalMax, &br))
+            return NULL;
+        g_tpLastBuilt = br.built;
+        if (br.ddsBytes != NULL)
+        {
+            g_tpDdsBytes  = br.ddsBytes;
+            g_tpDdsSize   = br.ddsSize;
+            g_tpLastIsDds = 1;
+            *outW = br.w;
+            *outH = br.h;
+            return NULL; /* DDS, not RGBA -- g_tpLastHash already set for keying */
+        }
+        canvasW = br.w;
+        canvasH = br.h;
+        canvas  = br.rgba;
     }
 
     /* Hand the canvas to the cache (it owns every returned pointer). If the

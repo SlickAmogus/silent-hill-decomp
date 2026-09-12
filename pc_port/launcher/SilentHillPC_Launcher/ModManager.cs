@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
+using System.Text;
 
 namespace SilentHillPC_Launcher
 {
@@ -722,7 +723,7 @@ namespace SilentHillPC_Launcher
 
         public class ApplyResult
         {
-            public int Texture, Load, Fmv, Gameplay, Files;
+            public int Texture, Load, Fmv, Gameplay, Files, Skipped;
             public bool LooseEnabled;
             public List<string> Warnings = new List<string>();
         }
@@ -770,51 +771,29 @@ namespace SilentHillPC_Launcher
 
             // 3) Deploy library mods (Gameplay, Load, FMV, TotalConversion, Preset)
             if (report != null) report(0, 0, "Deploying mods…");
-            Undeploy();
+            var plan = BuildDeployPlan(result);
+            var keep = new HashSet<string>(plan.Keys.Select(Rel), StringComparer.OrdinalIgnoreCase);
+            var old  = ReadManifest();
+            Undeploy(keep);
             var manifest = new List<string>();
 
-            // Gameplay & TotalConversion Mods (Code & DLLs)
-            var codeMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled && 
-                                         (m.Type == ModType.Gameplay || m.Type == ModType.TotalConversion)).ToList();
+            // Gameplay & TotalConversion Mods (Code & DLLs): a handful of files with
+            // their own backup/restore cycle, redeployed in full as before.
+            var codeMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled &&
+                                          (m.Type == ModType.Gameplay || m.Type == ModType.TotalConversion)).ToList();
             foreach (var m in Enumerable.Reverse(codeMods))
             {
                 try
                 {
                     result.Files += CopyGameplayTracked(m.LibraryPath, _gameRoot, manifest, result.Warnings);
                     result.Gameplay++;
-
-                    string loadSub = FindDirNamed(m.LibraryPath, "load");
-                    if (loadSub != null && Directory.Exists(loadSub))
-                    {
-                        result.Files += CopyTreeTracked(loadSub, LoadDir, manifest);
-                        result.Load++;
-                    }
-
-                    string fmvSub = FindDirNamed(m.LibraryPath, "FMV");
-                    if (fmvSub != null && Directory.Exists(fmvSub))
-                    {
-                        result.Files += CopyVideosFlat(fmvSub, FmvDir, manifest);
-                        result.Fmv++;
-                    }
                 }
                 catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
             }
 
-            // Data Overlay (Load) Mods
             var loadMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled && m.Type == ModType.Load).ToList();
-            foreach (var m in Enumerable.Reverse(loadMods))
-            {
-                try { result.Files += CopyTreeTracked(DeploySourceRoot(m.LibraryPath, ModType.Load), LoadDir, manifest); result.Load++; }
-                catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
-            }
 
-            // FMV Mods
-            var fmvMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled && m.Type == ModType.Fmv).ToList();
-            foreach (var m in Enumerable.Reverse(fmvMods))
-            {
-                try { result.Files += CopyVideosFlat(m.LibraryPath, FmvDir, manifest); result.Fmv++; }
-                catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
-            }
+            DeployPlan(plan, old, manifest, result, report);
 
             WriteManifest(manifest);
 
@@ -832,18 +811,29 @@ namespace SilentHillPC_Launcher
 
         private void Undeploy()
         {
+            Undeploy(null);
+        }
+
+        /// <param name="keep">Deployed rels the new plan still wants. They stay in
+        /// place, with their backups, so Apply can leave files that are already
+        /// right alone instead of deleting and re-copying everything.</param>
+        private void Undeploy(HashSet<string> keep)
+        {
             if (File.Exists(ManifestPath))
             {
                 foreach (var line in File.ReadAllLines(ManifestPath))
                 {
-                    if (line.Length < 3 || line[1] != '|') continue;
-                    char op = line[0];
-                    string rel = line.Substring(2);
+                    char op; string rel; long size, ticks;
+                    if (!ParseManifestLine(line, out op, out rel, out size, out ticks)) continue;
+                    if (keep != null && keep.Contains(rel)) continue;
                     string full = Path.Combine(_gameRoot, rel);
                     try
                     {
                         if (op == 'D' && Directory.Exists(full))
                         {
+                            string prefix = rel.TrimEnd('\\', '/') + "\\";
+                            if (keep != null && keep.Any(k => k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+                                continue;
                             Directory.Delete(full, true);
                         }
                         else if (op == 'F' && File.Exists(full))
@@ -872,7 +862,9 @@ namespace SilentHillPC_Launcher
 
             if (Directory.Exists(BackupDir))
             {
-                try { Directory.Delete(BackupDir, true); } catch { }
+                // Kept 'B' entries still need their backups for a later removal.
+                if (keep == null) { try { Directory.Delete(BackupDir, true); } catch { } }
+                else PruneEmptyDirs(BackupDir);
             }
 
             PruneEmptyDirs(LoadDir);
@@ -974,6 +966,7 @@ namespace SilentHillPC_Launcher
                 string dst = Path.Combine(dstRoot, rel);
                 Directory.CreateDirectory(Path.GetDirectoryName(dst));
 
+                char op;
                 if (File.Exists(dst))
                 {
                     string backupFile = Path.Combine(BackupDir, rel);
@@ -982,48 +975,332 @@ namespace SilentHillPC_Launcher
                         Directory.CreateDirectory(Path.GetDirectoryName(backupFile));
                         File.Copy(dst, backupFile, true);
                     }
-                    manifest.Add("B|" + Rel(dst));
+                    op = 'B';
                 }
                 else
                 {
-                    manifest.Add("F|" + Rel(dst));
+                    op = 'F';
                 }
 
                 File.Copy(file, dst, true);
+                manifest.Add(ManifestLine(op, dst, Rel(dst)));
                 n++;
             }
             return n;
         }
 
-        private int CopyTreeTracked(string src, string dstRoot, List<string> manifest)
+        // --- load/FMV deploy plan ----------------------------------------------
+        //
+        // Apply used to undeploy everything and then re-copy every file of every
+        // enabled mod, so re-applying an unchanged list rewrote thousands of files
+        // (hundreds of MB for FMV mods). It also overwrote loose files the user had
+        // put in gamedata/load themselves with no backup, then deleted them on the
+        // next undeploy. Resolving the final dst -> src map first (later entries
+        // win: the same highest-priority-last order the old copiers used) lets
+        // Apply leave files that are already right alone, ask before touching the
+        // user's own files, and back those up the way the DLL path always has.
+
+        /// <summary>Final dst -> src map. <paramref name="candidates"/>, when given, also
+        /// collects every enabled mod's file for each dst (the losers of the priority
+        /// order included), which the overwrite preview needs.</summary>
+        private Dictionary<string, string> BuildDeployPlan(ApplyResult result, Dictionary<string, List<string>> candidates = null)
         {
-            int n = 0;
-            Directory.CreateDirectory(dstRoot);
+            var plan = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+            var codeMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled &&
+                                          (m.Type == ModType.Gameplay || m.Type == ModType.TotalConversion)).ToList();
+            foreach (var m in Enumerable.Reverse(codeMods))
+            {
+                try
+                {
+                    string loadSub = FindDirNamed(m.LibraryPath, "load");
+                    if (loadSub != null && Directory.Exists(loadSub))
+                    { PlanTree(loadSub, LoadDir, plan, candidates, TextOverrideTag(500 + codeMods.IndexOf(m), m)); result.Load++; }
+
+                    string fmvSub = FindDirNamed(m.LibraryPath, "FMV");
+                    if (fmvSub != null && Directory.Exists(fmvSub)) { PlanVideosFlat(fmvSub, FmvDir, plan, candidates); result.Fmv++; }
+                }
+                catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
+            }
+
+            var loadMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled && m.Type == ModType.Load).ToList();
+            foreach (var m in Enumerable.Reverse(loadMods))
+            {
+                try
+                {
+                    PlanTree(DeploySourceRoot(m.LibraryPath, ModType.Load), LoadDir, plan, candidates,
+                             TextOverrideTag(loadMods.IndexOf(m), m));
+                    result.Load++;
+                }
+                catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
+            }
+
+            var fmvMods = Mods.Where(m => m.Source == ModSource.Library && m.Enabled && m.Type == ModType.Fmv).ToList();
+            foreach (var m in Enumerable.Reverse(fmvMods))
+            {
+                try { PlanVideosFlat(m.LibraryPath, FmvDir, plan, candidates); result.Fmv++; }
+                catch (Exception ex) { result.Warnings.Add(m.Label + ": " + ex.Message); }
+            }
+
+            return plan;
+        }
+
+        private static void PlanTree(string src, string dstRoot, Dictionary<string, string> plan,
+                                     Dictionary<string, List<string>> candidates, string ovrTag = null)
+        {
             foreach (var file in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
             {
                 string rel = file.Substring(src.Length).TrimStart('\\', '/');
+                if (ovrTag != null) rel = RemapTextOverride(rel, ovrTag);
                 string dst = Path.Combine(dstRoot, rel);
-                Directory.CreateDirectory(Path.GetDirectoryName(dst));
-                File.Copy(file, dst, true);
-                manifest.Add("F|" + Rel(dst));
-                n++;
+                plan[dst] = file;
+                AddCandidate(candidates, dst, file);
             }
-            return n;
         }
 
-        private int CopyVideosFlat(string src, string dstRoot, List<string> manifest)
+        /// <summary>Several text mods can be installed at once, so each one's
+        /// override file is deployed under load\text_overrides\ named by the mod's
+        /// priority instead of every mod overwriting load\text_overrides.txt. The
+        /// game reads them all in name order and the first file to replace a line
+        /// wins it, so the mod nearest the top of the list decides a conflict. A
+        /// file the player put in gamedata\load themselves is never touched.</summary>
+        private static string RemapTextOverride(string rel, string tag)
         {
-            int n = 0;
-            Directory.CreateDirectory(dstRoot);
+            string norm = rel.Replace('/', '\\');
+            bool atRoot = string.Equals(norm, "text_overrides.txt", StringComparison.OrdinalIgnoreCase);
+            bool inDir  = norm.StartsWith("text_overrides\\", StringComparison.OrdinalIgnoreCase) &&
+                          norm.EndsWith(".txt", StringComparison.OrdinalIgnoreCase);
+            if (!atRoot && !inDir) return rel;
+
+            string leaf = atRoot ? "" : "_" + Path.GetFileNameWithoutExtension(norm);
+            return Path.Combine("text_overrides", tag + leaf + ".txt");
+        }
+
+        /// <summary>"007_my_dialogue_mod" — the deployed override file's name, so a
+        /// plain sort in the game reproduces this list's order (000 = top).</summary>
+        private static string TextOverrideTag(int priority, ModEntry m)
+        {
+            var sb = new StringBuilder();
+            foreach (char c in (m?.Name ?? "mod"))
+                sb.Append(char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : '_');
+            string slug = sb.ToString().Trim('_');
+            if (slug.Length > 40) slug = slug.Substring(0, 40);
+            if (slug.Length == 0) slug = "mod";
+            if (priority < 0) priority = 999;
+            return priority.ToString("000") + "_" + slug;
+        }
+
+        private static void PlanVideosFlat(string src, string dstRoot, Dictionary<string, string> plan,
+                                           Dictionary<string, List<string>> candidates)
+        {
             foreach (var file in SafeFiles(src))
             {
                 if (!IsVideoFile(file)) continue;
                 string dst = Path.Combine(dstRoot, Path.GetFileName(file));
-                File.Copy(file, dst, true);
-                manifest.Add("F|" + Rel(dst));
-                n++;
+                plan[dst] = file;
+                AddCandidate(candidates, dst, file);
             }
-            return n;
+        }
+
+        private static void AddCandidate(Dictionary<string, List<string>> candidates, string dst, string file)
+        {
+            if (candidates == null) return;
+            List<string> list;
+            if (!candidates.TryGetValue(dst, out list)) candidates[dst] = list = new List<string>();
+            list.Add(file);
+        }
+
+        /// <summary>Whether dst already holds exactly this source. File.Copy keeps the
+        /// source's last-write time, so a file the manager deployed earlier still
+        /// matches it, while one the user replaced or a mod update changed does not.
+        /// No content hashing: FMV mods are hundreds of MB.</summary>
+        private static bool SameFile(string src, string dst)
+        {
+            var a = new FileInfo(src);
+            var b = new FileInfo(dst);
+            if (!a.Exists || !b.Exists || a.Length != b.Length) return false;
+            return Math.Abs((a.LastWriteTimeUtc - b.LastWriteTimeUtc).TotalSeconds) < 2.0;
+        }
+
+        private struct DeployedRecord
+        {
+            public char Op;
+            public long Size;  // -1 when the entry predates size/time recording
+            public long Ticks;
+        }
+
+        /// <summary>Manifest line: "F|size|ticks|rel" or "B|size|ticks|rel", size and
+        /// last-write ticks of what the manager wrote, so a later Apply can tell a
+        /// file the user edited from one a mod updated. Older launchers wrote
+        /// "F|rel" / "B|rel" / "D|rel"; those parse with no record.</summary>
+        private static bool ParseManifestLine(string line, out char op, out string rel, out long size, out long ticks)
+        {
+            op = '\0'; rel = null; size = -1; ticks = 0;
+            if (line == null || line.Length < 3 || line[1] != '|') return false;
+            op = line[0];
+            string rest = line.Substring(2);
+            int a = rest.IndexOf('|');
+            int b = a >= 0 ? rest.IndexOf('|', a + 1) : -1;
+            if (a > 0 && b > a &&
+                long.TryParse(rest.Substring(0, a), out size) &&
+                long.TryParse(rest.Substring(a + 1, b - a - 1), out ticks))
+            {
+                rel = rest.Substring(b + 1);
+            }
+            else
+            {
+                size = -1; ticks = 0;
+                rel = rest;
+            }
+            return rel.Length > 0;
+        }
+
+        private static string ManifestLine(char op, string dst, string rel)
+        {
+            var fi = new FileInfo(dst);
+            return op + "|" + fi.Length + "|" + fi.LastWriteTimeUtc.Ticks + "|" + rel;
+        }
+
+        private Dictionary<string, DeployedRecord> ReadManifest()
+        {
+            var ops = new Dictionary<string, DeployedRecord>(StringComparer.OrdinalIgnoreCase);
+            if (!File.Exists(ManifestPath)) return ops;
+            foreach (var line in File.ReadAllLines(ManifestPath))
+            {
+                char op; string rel; long size, ticks;
+                if (!ParseManifestLine(line, out op, out rel, out size, out ticks)) continue;
+                ops[rel] = new DeployedRecord { Op = op, Size = size, Ticks = ticks };
+            }
+            return ops;
+        }
+
+        /// <summary>Whether dst is still exactly what the manager wrote there. An entry
+        /// with no record (older manifest) counts as untouched.</summary>
+        private static bool MatchesRecord(string dst, DeployedRecord r)
+        {
+            if (r.Size < 0) return true;
+            var fi = new FileInfo(dst);
+            if (!fi.Exists || fi.Length != r.Size) return false;
+            return Math.Abs(fi.LastWriteTimeUtc.Ticks - r.Ticks) < TimeSpan.TicksPerSecond * 2;
+        }
+
+        public class OverwritePreview
+        {
+            /// <summary>Files the user added that no mod has replaced yet.</summary>
+            public List<string> Foreign = new List<string>();
+            /// <summary>Files a mod deployed that the user edited since.</summary>
+            public List<string> Modified = new List<string>();
+            public int Count { get { return Foreign.Count + Modified.Count; } }
+        }
+
+        /// <summary>Files of the user's that Apply would overwrite in gamedata/load or
+        /// gamedata/FMV. The form shows these for confirmation before anything is
+        /// touched. A file that already equals what the mod would write is not listed;
+        /// nothing happens to it.</summary>
+        public OverwritePreview PreviewOverwrites()
+        {
+            var candidates = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var plan = BuildDeployPlan(new ApplyResult(), candidates);
+            var old  = ReadManifest();
+            var pv   = new OverwritePreview();
+            foreach (var kv in plan)
+            {
+                string dst = kv.Key;
+                string rel = Rel(dst);
+                if (!File.Exists(dst) || SameFile(kv.Value, dst)) continue;
+                DeployedRecord r;
+                if (!old.TryGetValue(rel, out r))
+                {
+                    // Untracked, but equal to what another enabled mod supplies: a
+                    // lower-priority mod's copy (left untracked because it matched a
+                    // file already there), now outranked. Not the user's; no question.
+                    if (!IsAnotherModsCopy(dst, candidates)) pv.Foreign.Add(rel);
+                }
+                else if (!MatchesRecord(dst, r)) pv.Modified.Add(rel);
+            }
+            pv.Foreign.Sort(StringComparer.OrdinalIgnoreCase);
+            pv.Modified.Sort(StringComparer.OrdinalIgnoreCase);
+            return pv;
+        }
+
+        private static bool IsAnotherModsCopy(string dst, Dictionary<string, List<string>> candidates)
+        {
+            List<string> list;
+            if (!candidates.TryGetValue(dst, out list)) return false;
+            foreach (var src in list) if (SameFile(src, dst)) return true;
+            return false;
+        }
+
+        private void DeployPlan(Dictionary<string, string> plan, Dictionary<string, DeployedRecord> old,
+                                List<string> manifest, ApplyResult result, Action<int, int, string> report)
+        {
+            int i = 0;
+            foreach (var kv in plan)
+            {
+                string dst = kv.Key;
+                string src = kv.Value;
+                string rel = Rel(dst);
+                if (report != null && (++i % 50) == 0) report(i, plan.Count, "Deploying " + rel);
+
+                DeployedRecord r;
+                if (old.TryGetValue(rel, out r))
+                {
+                    // Ours from an earlier Apply. A 'B' entry keeps its backup of the
+                    // user's original so a later undeploy still restores it.
+                    char op = r.Op == 'B' ? 'B' : 'F';
+                    if (SameFile(src, dst))
+                    {
+                        result.Skipped++;
+                    }
+                    else
+                    {
+                        if (op == 'F' && !MatchesRecord(dst, r))
+                        {
+                            // A file the manager created, edited by the user since. They
+                            // said yes to replacing it; their version becomes the backup,
+                            // so removing the mod hands it back instead of deleting it.
+                            string backupFile = Path.Combine(BackupDir, rel);
+                            if (!File.Exists(backupFile))
+                            {
+                                Directory.CreateDirectory(Path.GetDirectoryName(backupFile));
+                                File.Copy(dst, backupFile, true);
+                            }
+                            op = 'B';
+                        }
+                        Directory.CreateDirectory(Path.GetDirectoryName(dst));
+                        File.Copy(src, dst, true);
+                        result.Files++;
+                    }
+                    manifest.Add(ManifestLine(op, dst, rel));
+                }
+                else if (File.Exists(dst))
+                {
+                    // The user's own file. Identical: leave it theirs, untracked, so
+                    // removing the mod never deletes it. Different: the form has
+                    // already asked; back it up so undeploy puts it back.
+                    if (SameFile(src, dst))
+                    {
+                        result.Skipped++;
+                        continue;
+                    }
+                    string backupFile = Path.Combine(BackupDir, rel);
+                    if (!File.Exists(backupFile))
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(backupFile));
+                        File.Copy(dst, backupFile, true);
+                    }
+                    File.Copy(src, dst, true);
+                    manifest.Add(ManifestLine('B', dst, rel));
+                    result.Files++;
+                }
+                else
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(dst));
+                    File.Copy(src, dst, true);
+                    manifest.Add(ManifestLine('F', dst, rel));
+                    result.Files++;
+                }
+            }
         }
 
         private static void PruneEmptyDirs(string root)

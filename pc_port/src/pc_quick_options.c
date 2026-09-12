@@ -32,7 +32,19 @@
 #include "pc_mouse_cursor.h"
 #include "pc_config.h"
 #include "pc_cheats.h"
+#include "control_style.h"
 #include "sh_log.h"
+#include "game.h"
+#include "bodyprog/sound/sfx_id_enum.h"
+#include "bodyprog/sound/sound_system.h"
+
+/* Move beep on a page change, cancel beep on close. A beep on every hover
+ * was tried and found excessive; value, toggle and action rows beep in
+ * their own handlers. */
+static void qo_beep(int sfxId)
+{
+    Sd_PlaySfx((u16)sfxId, 0, 64);
+}
 
 /* options.c: the live-applying rows of the PC Options screen, by config key. */
 extern const void* PcOpt_QuickFind(const char* key);
@@ -46,10 +58,16 @@ extern int         PcOpt_QuickRealtime(const void* h);
  * adjust for each of these. */
 enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_ASPECT, QO_X_CRTTRIM, QO_X_HFOV, QO_X_VFOV, QO_X_PAR, QO_X_VSHIFT,
+       QO_X_CUTSHIFT,
+       QO_X_TPSFOV, QO_X_FPSFOV,
+       QO_X_FPSHEADX, QO_X_FPSHEADY, QO_X_FPSHEADZ, QO_X_FPSSWING,
+       QO_X_OTSFOV, QO_X_TPSAIMZOOM, QO_X_OTSAIMZOOM, QO_X_TPSOTSAIM,
+       QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
+       QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
        QO_X_SPU };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
-extern void        PcOpt_QuickViewReset(void);
+extern void        PcOpt_QuickViewReset(int mode);
 
 #define QO_GARBAGE  48
 #define QO_MAX_ROWS 16
@@ -97,6 +115,7 @@ static const QoRowDef s_page0[] = {
     { ROW_OPT,   "flashlight_size",      0, NULL },
     { ROW_EXTRA, NULL, QO_X_SHADOW,         "Shadow Resolution" },
     { ROW_OPT,   "bullet_decals",        0, NULL },
+    { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
     { ROW_PAGE,  NULL, 0,                   "Next page  (HUD & Audio)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
 };
@@ -108,6 +127,7 @@ static const QoRowDef s_page1[] = {
     { ROW_OPT,   "minimap_opacity",      0, NULL },
     { ROW_OPT,   "minimap_require_map",  0, NULL },
     { ROW_OPT,   "crosshair",            0, NULL },
+    { ROW_OPT,   "crosshair_size",       0, NULL },
     { ROW_OPT,   "low_health_glow",      0, NULL },
 /* Not on mobile: it would not do anything. PsyX_SPUAL_SetOutputMode is an
  * empty stub on the software backend and GetOutputMode always answers
@@ -148,6 +168,7 @@ static const QoRowDef s_page2Simple[] = {
     { ROW_EXTRA,  NULL, QO_X_CRTTRIM,      "Aspect Trim" },
     { ROW_EXTRA,  NULL, QO_X_VFOV,         "FOV" },
     { ROW_EXTRA,  NULL, QO_X_VSHIFT,       "Vertical Shift" },
+    { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
     { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
     { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
     { ROW_CLOSE,  NULL, 0,                 "Close" },
@@ -159,15 +180,62 @@ static const QoRowDef s_page2Advanced[] = {
     { ROW_EXTRA,  NULL, QO_X_HFOV,         "Horizontal FOV" },
     { ROW_EXTRA,  NULL, QO_X_VFOV,         "Vertical FOV" },
     { ROW_EXTRA,  NULL, QO_X_VSHIFT,       "Vertical Shift" },
+    { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
     { ROW_EXTRA,  NULL, QO_X_PAR,          "Pixel Aspect" },
     { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
     { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
     { ROW_CLOSE,  NULL, 0,                 "Close" },
 };
 
-/* Set when the row SET changes under the cached text (a Control Type switch,
- * or a reset that flips it back). Every label is cached by row index, so the
- * page has to re-bake or Advanced's extra rows would draw Simple's words. */
+/* Thirdperson, OTS and Firstperson shapes. The classic aspect/pixel knobs are
+ * meaningless for the dynamic cameras -- they follow Harry in 3D -- so each shows
+ * only what that camera reads: FOV, aim zoom, the rest/aim camera position (X =
+ * left/right, Y = up/down), and for FPS the eye position + melee-swing pullback.
+ * The View page auto-follows the active camera, so the block matches the camera
+ * you are using, and each Reset is scoped to that camera alone. */
+static const QoRowDef s_page2Tps[] = {
+    { ROW_EXTRA,  NULL, QO_X_TPSFOV,       "FOV" },
+    { ROW_EXTRA,  NULL, QO_X_TPSOTSAIM,    "OTS Aim (while in TPS)" },
+    { ROW_EXTRA,  NULL, QO_X_TPSAIMZOOM,   "Aim Zoom" },
+    { ROW_EXTRA,  NULL, QO_X_TPSRESTX,     "Rest X (left/right)" },
+    { ROW_EXTRA,  NULL, QO_X_TPSRESTY,     "Rest Y (up/down)" },
+    { ROW_EXTRA,  NULL, QO_X_TPSAIMX,      "Aim X (left/right)" },
+    { ROW_EXTRA,  NULL, QO_X_TPSAIMY,      "Aim Y (up/down)" },
+    { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
+    { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
+    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
+    { ROW_CLOSE,  NULL, 0,                 "Close" },
+};
+
+static const QoRowDef s_page2Ots[] = {
+    { ROW_EXTRA,  NULL, QO_X_OTSFOV,       "FOV" },
+    { ROW_EXTRA,  NULL, QO_X_OTSAIMZOOM,   "Aim Zoom" },
+    { ROW_EXTRA,  NULL, QO_X_OTSRESTX,     "Rest X (left/right)" },
+    { ROW_EXTRA,  NULL, QO_X_OTSRESTY,     "Rest Y (up/down)" },
+    { ROW_EXTRA,  NULL, QO_X_OTSAIMX,      "Aim X (left/right)" },
+    { ROW_EXTRA,  NULL, QO_X_OTSAIMY,      "Aim Y (up/down)" },
+    { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
+    { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
+    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
+    { ROW_CLOSE,  NULL, 0,                 "Close" },
+};
+
+static const QoRowDef s_page2Fps[] = {
+    { ROW_EXTRA,  NULL, QO_X_FPSFOV,       "FOV" },
+    { ROW_EXTRA,  NULL, QO_X_FPSHEADX,     "Head X (left/right)" },
+    { ROW_EXTRA,  NULL, QO_X_FPSHEADY,     "Head Y (up/down)" },
+    { ROW_EXTRA,  NULL, QO_X_FPSHEADZ,     "Head Z (fwd/back)" },
+    { ROW_EXTRA,  NULL, QO_X_FPSSWING,     "Melee Swing Pullback" },
+    { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
+    { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
+    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
+    { ROW_CLOSE,  NULL, 0,                 "Close" },
+};
+
+/* Set when the row SET changes under the cached text (a Control Type switch, a
+ * reset that flips it back, or the active camera changing while the page is up).
+ * Every label is cached by row index, so the page has to re-bake or one shape's
+ * extra rows would draw another shape's words. */
 static int s_viewRowsDirty;
 
 void Pc_QuickOptions_InvalidateRows(void)
@@ -175,8 +243,49 @@ void Pc_QuickOptions_InvalidateRows(void)
     s_viewRowsDirty = 1;
 }
 
+/* Which camera's settings the View page shows. Auto-follows the live camera.
+ * Values match the mode argument PcOpt_QuickViewReset expects. */
+enum { QO_CAM_CLASSIC = 0, QO_CAM_TPS, QO_CAM_OTS, QO_CAM_FPS };
+static int qo_view_cam_mode(void)
+{
+    extern int g_PcFpsCam;
+    if (g_PcFpsCam || g_ControlStyle == ControlStyle_Fps) return QO_CAM_FPS;
+    if (g_ControlStyle == ControlStyle_Ots) return QO_CAM_OTS;
+    if (g_ControlStyle == ControlStyle_Tps) return QO_CAM_TPS;
+    return QO_CAM_CLASSIC;
+}
+
 static const QoRowDef* qo_view_page(int* count)
 {
+    int mode = qo_view_cam_mode();
+
+    /* Re-bake the cached labels when the active camera changes the row set out
+     * from under them (the page is fetched every frame; the mode can flip while
+     * it is open if the player switches camera). */
+    {
+        static int s_lastViewMode = -1;
+        if (mode != s_lastViewMode)
+        {
+            s_lastViewMode = mode;
+            s_viewRowsDirty = 1;
+        }
+    }
+
+    if (mode == QO_CAM_FPS)
+    {
+        *count = (int)(sizeof(s_page2Fps) / sizeof(s_page2Fps[0]));
+        return s_page2Fps;
+    }
+    if (mode == QO_CAM_OTS)
+    {
+        *count = (int)(sizeof(s_page2Ots) / sizeof(s_page2Ots[0]));
+        return s_page2Ots;
+    }
+    if (mode == QO_CAM_TPS)
+    {
+        *count = (int)(sizeof(s_page2Tps) / sizeof(s_page2Tps[0]));
+        return s_page2Tps;
+    }
     if (g_PcConfig.aspectRaw)
     {
         *count = (int)(sizeof(s_page2Advanced) / sizeof(s_page2Advanced[0]));
@@ -391,6 +500,7 @@ static int    s_valueW[QO_MAX_ROWS], s_valueH[QO_MAX_ROWS];
 static char   s_valueText[QO_MAX_ROWS][48];
 static int    s_bakedForPx;
 static int    s_bakedForPage = -1;
+static int    s_bakedForViewMode = -2; /* view page's baked camera mode (-1 = n/a) */
 
 /* Geometry published by Draw for Update's mouse hit-test (viewport px, y up). */
 static float s_vpW = 1920.0f, s_vpH = 1080.0f;
@@ -1282,7 +1392,10 @@ void Pc_QuickOptions_Toggle(void)
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
         qo_open();
     else
+    {
+        qo_beep(Sfx_MenuCancel);
         Pc_QuickOptions_Close();
+    }
 }
 
 /* Phase machine on the GAME thread, wall clock. It used to live in Draw, and a
@@ -1359,8 +1472,8 @@ static void qo_activate(const QoRowDef* r, int dir)
         }
         case ROW_EXTRA: PcOpt_QuickExtraAdjust(r->extra, dir); break;
         case ROW_CHEAT: Pc_Cheats_Adjust(r->cpage, r->extra, dir); break;
-        case ROW_PAGE:  qo_set_page(s_page + (dir < 0 ? -1 : +1)); break;
-        case ROW_CLOSE: Pc_QuickOptions_Close(); break;
+        case ROW_PAGE:  qo_beep(Sfx_MenuMove); qo_set_page(s_page + (dir < 0 ? -1 : +1)); break;
+        case ROW_CLOSE: qo_beep(Sfx_MenuCancel); Pc_QuickOptions_Close(); break;
         case ROW_ACTION: break; /* confirm-only; see the ROW_ACTION comment */
         default: break;
     }
@@ -1428,7 +1541,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         int pick = -1, mMoved2, mClick2, wheel2;
         float mx2, my2;
 
-        if (close) { s_ddRow = -1; return; }
+        if (close) { qo_beep(Sfx_MenuCancel); s_ddRow = -1; return; }
         if (up)   s_ddSel = (s_ddSel + n - 1) % n;
         if (down) s_ddSel = (s_ddSel + 1) % n;
         /* Keyboard steps the selection; the window follows it. */
@@ -1481,7 +1594,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     }
     s_ddRow = -1;
 
-    if (close) { Pc_QuickOptions_Close(); return; }
+    if (close) { qo_beep(Sfx_MenuCancel); Pc_QuickOptions_Close(); return; }
 
     /* Tapping outside the panel closes it, the way a modal is expected to
      * behave -- and the way the achievement browser now does, so the two
@@ -1609,6 +1722,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         }
     }
 
+    if (pageNext || pagePrev) qo_beep(Sfx_MenuMove);
     if (pageNext) qo_set_page(s_page + 1);
     if (pagePrev) qo_set_page(s_page - 1);
     rows = qo_page_rows(s_page, &nRows);
@@ -1711,7 +1825,7 @@ static void qo_confirm(const QoRowDef* r)
     else if (r->kind == ROW_ACTION)
     {
         if (r->extra == QO_A_VIEWRESET)
-            PcOpt_QuickViewReset();
+            PcOpt_QuickViewReset(qo_view_cam_mode());
     }
     else
         qo_activate(r, +1);
@@ -1914,14 +2028,42 @@ void Pc_QuickOptions_Draw(void)
     if (px > 56) px = 56;
 #endif
 
-    if (s_bakedForPx != px || s_bakedForPage != s_page)
     {
-        qo_free_text();
-        s_bakedForPx   = px;
-        s_bakedForPage = s_page;
+        /* The View page (2) titles by the active camera, which can change while
+         * the page is open, so key the bake on it too and re-bake on a switch. */
+        int viewMode = (s_page == 2) ? qo_view_cam_mode() : -1;
+        if (s_bakedForPx != px || s_bakedForPage != s_page || s_bakedForViewMode != viewMode)
+        {
+            qo_free_text();
+            s_bakedForPx       = px;
+            s_bakedForPage     = s_page;
+            s_bakedForViewMode = viewMode;
+        }
     }
     if (!s_texTitle)
-        s_texTitle = qo_bake(qo_page_title(s_page), (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
+    {
+        /* Mobile pages are CHUNKS of a section, so the page index is not a
+         * section index there and qo_page_title is the only thing that can name
+         * one. Desktop keeps pc-port's dynamic View title, which reports the
+         * camera the page is currently editing. */
+#if defined(QO_MOBILE)
+        s_texTitle = qo_bake(qo_page_title(s_page), (float)(int)(titleH * 0.46f),
+                             &s_titleW, &s_titleH);
+#else
+        const char* title = s_pageTitles[s_page];
+        char titleBuf[64];
+        if (s_page == 2)
+        {
+            int m = qo_view_cam_mode();
+            snprintf(titleBuf, sizeof(titleBuf), "QUICK OPTIONS  -  VIEW  (%s)",
+                     (m == QO_CAM_FPS) ? "Firstperson" :
+                     (m == QO_CAM_OTS) ? "Over-the-Shoulder" :
+                     (m == QO_CAM_TPS) ? "Thirdperson" : "Classic");
+            title = titleBuf;
+        }
+        s_texTitle = qo_bake(title, (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
+#endif
+    }
 #if defined(QO_MOBILE)
     if (!s_texDec) s_texDec = qo_bake("-", (float)px, &s_decW, &s_decH);
     if (!s_texInc) s_texInc = qo_bake("+", (float)px, &s_incW, &s_incH);

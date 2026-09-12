@@ -26,6 +26,7 @@
  * (without it the 320-wide map renders pillarboxed with garbage bars). */
 void PaperMap_ReuploadTimToVram_PC(void);
 extern int g_PcMapScreenActive;
+extern int g_PcMapMsgGameVoiced;
 
 /* Set when Event_DisplayMapMsgWithAudio drops an out-of-range voice cmd, so
  * the subtitle voice-wait in Gfx_MapMsg_Draw knows no voice is coming for the
@@ -598,7 +599,13 @@ void Event_DisplayMapMsgWithAudio(s32 mapMsgIdx, u8* audioIdx, const u16* audioC
 
     g_SysWork.bgmStatusFlags |= BgmStatusFlag_VoiceDialog;
 
+#ifdef SH_PC_PORT
+    g_PcMapMsgGameVoiced = 1;
+#endif
     mapMsgState = Gfx_MapMsg_Draw(mapMsgIdx);
+#ifdef SH_PC_PORT
+    g_PcMapMsgGameVoiced = 0;
+#endif
     if (mapMsgState == MapMsgState_SelectEntry0)
     {
         SysWork_StateStepIncrement(0);

@@ -4498,7 +4498,27 @@ bool Gfx_PickupItemAnimate(u8 itemId) // 0x80054AD8
 #endif
     GsSetFlatLight(0, &D_800C3AC8[0]);
     GsSetFlatLight(1, &D_800C3AC8[1]);
+#ifdef SH_PC_PORT
+    /* Pin the pickup to the game's own projection. This draw uses whatever GTE H
+     * is current, and the alternate cameras (TPS/OTS/FPS) drive H with their
+     * per-camera FOV, so the pickup item scaled with that FOV (reported). The
+     * Pc_CameraFov_Update stand-down that was meant to prevent this keys on
+     * g_PcPickupItemActive, which MainLoop clears every frame and only THIS
+     * function re-sets -- so whether the camera update sees it depends on
+     * their order within the frame, and it did not. The inventory is immune
+     * because func_8004BFE8 pins its own projection; do the same here around
+     * the draw. The world is frozen behind the item (BgmStatusFlag_Pause), so
+     * nothing else is reprojected by the swap. gsScreenHeight IS the game's own
+     * projection (H = 224), the one this animation was authored for. */
+    {
+        s32 savedH = ReadGeomScreen();
+        SetGeomScreen(g_GameWork.gsScreenHeight);
+        func_8004BD74(9, obj, 2);
+        SetGeomScreen(savedH);
+    }
+#else
     func_8004BD74(9, obj, 2);
+#endif
     PopMatrix();
 
     return g_Items_PickupAnimState > 0;

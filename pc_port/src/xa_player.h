@@ -20,6 +20,14 @@ void XaPlayer_Play(uint16_t xaIdx);
 
 void XaPlayer_Stop(void);
 void XaPlayer_Update(void);
+
+/* Play a loose PCM WAV (8/16-bit, mono/stereo) through the voice source, same
+ * pacing as a disc line of the WAV's length. Returns 0 (nothing changed) when
+ * the file is missing/unsupported, loose files are off, or a disc line is
+ * still producing audio. */
+int XaPlayer_PlayFile(const char* path);
+/* Stop only if a loose file is what is playing; a disc line is left alone. */
+void XaPlayer_StopFile(void);
 void XaPlayer_SetVolume(int16_t volLeft, int16_t volRight);
 
 /* Console-freeze hold: pauses the OpenAL voice source and freezes the PSX

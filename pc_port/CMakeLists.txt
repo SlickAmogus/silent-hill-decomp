@@ -454,6 +454,8 @@ set_property(SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/xa_player.c" APPEND PROPERT
         "Xa_IsVoiceAudioDraining=PcLegacyXa_IsVoiceAudioDraining"
         "Xa_VoiceGapHold=PcLegacyXa_VoiceGapHold"
         "XaPlayer_SetMasterVolume=PcLegacyXa_SetMasterVolume"
+        "XaPlayer_PlayFile=PcLegacyXa_PlayFile"
+        "XaPlayer_StopFile=PcLegacyXa_StopFile"
 )
 if(SH_DEBUG)
     target_compile_definitions(SilentHillPC PRIVATE SH_DEBUG=1)

@@ -52,6 +52,71 @@ extern int         Pc_PlayAs_SetByName(const char* name, int save);
 
 enum { CH_TOGGLE = 0, CH_ACTION, CH_PLAYAS, CH_FREECAM, CH_DEBUGKEYS, CH_SPAWN };
 
+/* ---- big head mode ---------------------------------------------------- */
+
+int g_PcBigHead = 0;
+
+#define BIGHEAD_BONE  2 /* the head on every 18-bone human rig (parent chain -1,0,1,...) */
+#define BIGHEAD_SCALE 2
+
+static int Pc_BigHead_IsHuman(int charaId)
+{
+    switch (charaId)
+    {
+        case Chara_Harry:
+        case Chara_MonsterCybil:
+        case Chara_Cybil:
+        case Chara_EndingCybil:
+        case Chara_Cheryl:
+        case Chara_Dahlia:
+        case Chara_EndingDahlia:
+        case Chara_Lisa:
+        case Chara_BloodyLisa:
+        case Chara_Alessa:
+        case Chara_GhostChildAlessa:
+        case Chara_Incubator:
+        case Chara_BloodyIncubator:
+        case Chara_Kaufmann:
+        case Chara_EndingKaufmann:
+            return 1;
+        default:
+            return 0;
+    }
+}
+
+/* Scales the head bone's local rotation matrix, so the head grows about the
+ * neck joint and anything parented to it (Lisa's hair bones) rides along.
+ * The animation rewrites the matrix every frame it plays, but a paused
+ * character keeps last frame's, so only scale a row that is still unit
+ * length: a scaled one is never scaled again. */
+void Pc_BigHead_Apply(int charaId, GsCOORDINATE2* coords)
+{
+    MATRIX* m;
+    s32     len2;
+    int     i, j;
+
+    if (!g_PcBigHead || coords == NULL || !Pc_BigHead_IsHuman(charaId))
+    {
+        return;
+    }
+
+    m    = &coords[BIGHEAD_BONE].coord;
+    len2 = (s32)m->m[0][0] * m->m[0][0] + (s32)m->m[0][1] * m->m[0][1] + (s32)m->m[0][2] * m->m[0][2];
+    if (len2 > ((s32)Q12(1.0f) * Q12(1.0f)) * 2)
+    {
+        return;
+    }
+
+    for (i = 0; i < 3; i++)
+    {
+        for (j = 0; j < 3; j++)
+        {
+            m->m[i][j] = (short)(m->m[i][j] * BIGHEAD_SCALE);
+        }
+    }
+    coords[BIGHEAD_BONE].flg = 0;
+}
+
 static int s_spawnIdx; /* CH_SPAWN: the browsed entry; confirm spawns it */
 
 /* mobile: what a touch build does with this row.
@@ -167,6 +232,7 @@ static const CheatRow s_cheats[] = {
     { "Noclip",               CH_TOGGLE,  &g_DebugNoWallCollision, NULL },
     { "Enemies ignore Harry", CH_TOGGLE,  &g_DebugNoTarget,       NULL },
     { "Unlimited enemies",    CH_TOGGLE,  &g_PcUnlimitedEnemies,  NULL },
+    { "Big head mode",        CH_TOGGLE,  &g_PcBigHead,           NULL },
     { "Handgun bullets +15",  CH_ACTION,  NULL, act_handgun_ammo },
     { "Hunting rifle +30",    CH_ACTION,  NULL, act_rifle },
     { "Shotgun +30",          CH_ACTION,  NULL, act_shotgun },

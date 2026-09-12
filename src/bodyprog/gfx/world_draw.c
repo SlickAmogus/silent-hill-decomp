@@ -448,6 +448,36 @@ bool Ipd_ChunkInitCheck(void) // 0x8003C850
 
 void Gfx_InGameDraw(bool arg0) // 0x8003C878
 {
+#ifdef SH_PC_PORT
+    /* Assert the WORLD's GTE anchor at the moment the world is projected.
+     * MainLoop's per-frame anchor assert runs AFTER the state update, and the
+     * whole world is projected DURING it (right here), so that assert's value
+     * lands one frame late: any 0<->8 transition leaked one world frame at the
+     * stale value -- the 8-row upward flick on every common-pickup confirm
+     * (pickup frames assert 0 for the item pass; the first world frame after
+     * the confirm was still projected with it). Same decide-at-submission
+     * pattern as the Hor+ framing flag set beside this call's site
+     * (game_sys_states.c). The item pass never comes through here, so its
+     * validated zero baseline is untouched.
+     *
+     * [FLICK] logs anchor CHANGES only (bounded): after this fix no world
+     * submission may ever log an anchor of 0. */
+    {
+        extern s32 Pc_WorldAnchorOfy(void);
+        extern int g_PcPickupItemActive;
+        s32 worldOfy = Pc_WorldAnchorOfy();
+        static s32 s_prevOfy = -9999;
+        static int s_flickLogs = 0;
+        if (worldOfy != s_prevOfy && s_flickLogs < 24)
+        {
+            s_flickLogs++;
+            SH_DBG("[FLICK] world anchor %d -> %d (pickup=%d)",
+                   s_prevOfy, worldOfy, g_PcPickupItemActive);
+        }
+        s_prevOfy = worldOfy;
+        SetGeomOffset(0, worldOfy);
+    }
+#endif
     Gfx_WorldObjectsDraw(&g_WorldGfxWork);
 
 #ifdef SH_PC_PORT

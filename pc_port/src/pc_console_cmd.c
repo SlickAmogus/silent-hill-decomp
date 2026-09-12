@@ -1147,6 +1147,23 @@ void Pc_ConsoleExec(const char* line)
         int v = atoi(arg);
         if (v >= 0 && v <= 100) g_PcInvDimStrength = v;
         cprintf("off-center carousel dim: %d%%", g_PcInvDimStrength);
+    } else if (strcmp(cmd, "BIGHEAD") == 0) {
+        extern int g_PcBigHead;
+        if (arg[0]) g_PcBigHead = atoi(arg) ? 1 : 0;
+        cprintf("big head mode: %s", g_PcBigHead ? "ON" : "OFF");
+    } else if (strcmp(cmd, "CROSSHAIRSIZE") == 0) {
+        if (arg[0]) {
+            float v = (float)atof(arg);
+            if (v < 25.0f) v = 25.0f;
+            if (v > 125.0f) v = 125.0f;
+            g_PcConfig.crosshairSize = v;
+            {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%d", (int)(v + 0.5f));
+                PcConfig_SaveKeyValue("crosshair_size", buf);
+            }
+        }
+        cprintf("crosshair size: %d%% (25..125)", (int)(g_PcConfig.crosshairSize + 0.5f));
     } else if (strcmp(cmd, "OBST") == 0) {
         extern int g_PcObstacleCollision;
         if (arg[0]) g_PcObstacleCollision = atoi(arg) ? 1 : 0;
@@ -1278,6 +1295,10 @@ void Pc_ConsoleExec(const char* line)
         extern float g_pgxpWeldWRatio;
         if (arg[0]) g_pgxpWeldWRatio = (float)atof(arg);
         cprintf("PGXP weld depth ratio: %.3f", g_pgxpWeldWRatio);
+    } else if (strcmp(cmd, "WEATHERHZ") == 0) {
+        if (arg[0]) g_PcConfig.weatherSimHz = (atoi(arg) == 30) ? 30 : 60;
+        cprintf("Weather (rain/snow) simulation: %d Hz%s", g_PcConfig.weatherSimHz,
+                g_PcConfig.weatherSimHz == 30 ? " (original console cadence)" : " (per rendered frame)");
     } else if (strcmp(cmd, "PGXPEDGE") == 0) {
         extern float g_PgxpEdgeMax;
         if (arg[0]) g_PgxpEdgeMax = (float)atof(arg);
@@ -1431,6 +1452,16 @@ void Pc_ConsoleExec(const char* line)
         g_PcConfig.usePgxp = g_PsxUsePgxp ? 1 : 0;
         PcConfig_SaveKeyValue("use_pgxp", g_PsxUsePgxp ? "1" : "0");
         cprintf("PGXP %s (perspective-correct, WIP)", g_PsxUsePgxp ? "ON" : "OFF");
+    } else if (strcmp(cmd, "WORLDDEPTH") == 0) {
+        /* worlddepth 0|1 -- depth function for static opaque world under PGXP.
+         * 1 = GL_ALWAYS (paint order alone decides), 0 = GL_LEQUAL (a nearer
+         * coplanar face wins whatever order it was drawn in). Live toggle for the
+         * central Silent Hill road flicker. */
+        extern int g_PsxWorldDepthAlways;
+        if (arg[0] == '1') g_PsxWorldDepthAlways = 1;
+        else if (arg[0] == '0') g_PsxWorldDepthAlways = 0;
+        else g_PsxWorldDepthAlways = !g_PsxWorldDepthAlways;
+        cprintf("world depth: %s", g_PsxWorldDepthAlways ? "ALWAYS (paint order)" : "LEQUAL (nearer wins)");
     } else if (strcmp(cmd, "FLMODE") == 0) {
         /* flmode 0..3 | classic | classicshadows | modern | modernshadows */
         int mode = g_PcConfig.flashlightMode;

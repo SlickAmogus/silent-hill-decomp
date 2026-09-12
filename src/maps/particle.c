@@ -9,6 +9,7 @@
 #include "maps/particle.h"
 
 #ifdef SH_PC_PORT
+#include "pc_config.h"
 #include "sh_log.h"
 #endif
 
@@ -88,6 +89,68 @@ static void Pc_BgEtcSpriteBandUvFix(POLY_FT4* poly)
 
 #define MAP_USE_PARTICLES (MAP_PARTICLE_HAS_SNOW || MAP_PARTICLE_HAS_RAIN)
 #define MAP_PARTICLE_HAS_800D0690 (MAP_PARTICLE_HAS_RAIN && !defined(MAP0_S00) && !defined(MAP1_S02) && !defined(MAP4_S03))
+
+#ifdef SH_PC_PORT
+/* Fixed 30 Hz simulation cadence for the weather particles.
+ *
+ * The whole system was authored frame-stepped at the PSX's 30fps: the snow
+ * jitter is a per-frame random walk, spawn/rest are per-frame counters, the
+ * wind ramps once per call, the weather-density counter advances once per
+ * call. At 120fps all of it evolves 4x (and the random walk's spread grows
+ * with the step count, so snow also LOOKS different, not just faster). One
+ * earlier spot-fix dt-scaled the snow fall speed; everything else stayed
+ * frame-bound.
+ *
+ * Rather than dt-scale each site (a random walk cannot be rescaled without
+ * changing its character), the SIMULATION now steps at a fixed 30 Hz on the
+ * game clock -- exactly the original cadence, running the original per-frame
+ * math once per step -- while the DRAW pass still runs every frame with the
+ * live camera, so sprites are present and correctly projected on every
+ * rendered frame. Below 30fps one step per frame keeps the console's own
+ * slowdown behaviour. Steps consume the accumulator; after a load hitch at
+ * most one banked step is kept so the sim cannot fast-forward.
+ *
+ * s_pcParticleSimDt is what the sim's dt consumers receive on a step: the
+ * fixed 1/30, which turns the existing TIMESTEP_SCALE_30_FPS corrections
+ * into exact identity -- original PSX math per step. */
+static q19_12 s_pcParticleSimAccum = Q12(0.0f);
+static int    s_pcParticleSimStep  = 1;
+static q19_12 s_pcParticleSimDt    = Q12(1.0f / 30.0f);
+
+static void Pc_ParticleSimTick(void)
+{
+    /* weather_sim_hz 30 locks the simulation to the console's cadence (above);
+     * anything else runs it once per rendered frame on the real delta, which is
+     * what the port did before the lock and what the default restores. Per frame
+     * the dt-scaled parts (fall speed, wind, camera compensation) are identical
+     * either way; the frame-stepped parts (the snow random walk, spawn/rest
+     * counters, the wind ramp) evolve at frame rate, which is the trade the
+     * option exists to offer. */
+    if (g_PcConfig.weatherSimHz == 30)
+    {
+        s_pcParticleSimDt     = Q12(1.0f / 30.0f);
+        s_pcParticleSimAccum += g_DeltaTime;
+        s_pcParticleSimStep   = s_pcParticleSimAccum >= Q12(1.0f / 30.0f);
+        if (s_pcParticleSimStep)
+        {
+            s_pcParticleSimAccum -= Q12(1.0f / 30.0f);
+            if (s_pcParticleSimAccum > Q12(1.0f / 30.0f))
+            {
+                s_pcParticleSimAccum = Q12(1.0f / 30.0f);
+            }
+        }
+        return;
+    }
+
+    s_pcParticleSimAccum = Q12(0.0f);
+    s_pcParticleSimStep  = 1;
+    s_pcParticleSimDt    = g_DeltaTime;
+}
+#define PC_PARTICLE_DT (&s_pcParticleSimDt)
+#else
+#define PC_PARTICLE_DT (&g_DeltaTime)
+#endif
+
 
 #if !MAP_USE_PARTICLES
 
@@ -422,11 +485,21 @@ void Particle_SystemUpdate(s32 arg1, e_MapIdx mapIdx, s32 arg3)
             sharedData_800DD584_0_s00 = g_DeltaTime == Q12(0.0f);
 #endif
 
+#ifdef SH_PC_PORT
+            Pc_ParticleSimTick();
+#endif
+
             func_8003EDB8(&sharedData_800E3258_0_s00, &sharedData_800E325C_0_s00);
 
             if (sharedData_800E0CB6_0_s00 != sharedData_800E0CB4_0_s00)
             {
+#ifdef SH_PC_PORT
+                /* Weather transition counter: one tick per SIM step, or the
+                 * density fade sweeps 4x too fast at 120fps. */
+                if (sharedData_800DD584_0_s00 == 0 && s_pcParticleSimStep)
+#else
                 if (sharedData_800DD584_0_s00 == 0)
+#endif
                 {
                     sharedData_800DD598_0_s00++;
                 }
@@ -909,6 +982,9 @@ bool Particle_Update(s_Particle* partHead)
     updatePrev = 0;
 
     // Update wind speed.
+#ifdef SH_PC_PORT
+    if (s_pcParticleSimStep)
+#endif
     if (sharedData_800E0CAC_0_s00 >= 2)
     {
         // Wind is active.
@@ -1303,6 +1379,11 @@ bool Particle_Update(s_Particle* partHead)
     }
 #endif
 
+#ifdef SH_PC_PORT
+    /* The whole spawn/movement/rest pass is the original per-frame sim; it
+     * runs once per 30 Hz step. The draw pass below runs every frame. */
+    if (s_pcParticleSimStep)
+#endif
     for (pass = 0; pass < 2; pass++)
     {
         // Set particle density.
@@ -1358,13 +1439,17 @@ bool Particle_Update(s_Particle* partHead)
             }
 
         #if defined(MAP7_S03)
+#ifdef SH_PC_PORT
+            D_800F23D0 = (s_pcParticleSimDt * 10936) / Q12(1.0f);
+#else
             D_800F23D0 = (g_DeltaTime * 10936) / Q12(1.0f);
+#endif
         #endif
 
             if (sharedData_800DD584_0_s00 != 0)
             {
                 // NOTE: This function only has a body in `MAP07_S03` and everything else calls an empty function.
-                sharedFunc_800CE954_7_s03(pass, curPart, &rand, &g_DeltaTime);
+                sharedFunc_800CE954_7_s03(pass, curPart, &rand, PC_PARTICLE_DT);
             }
             else
             {
@@ -1379,7 +1464,7 @@ bool Particle_Update(s_Particle* partHead)
                         break;
 
                     case ParticleState_Active:
-                        Particle_MovementUpdate(pass, curPart, &rand, &g_DeltaTime);
+                        Particle_MovementUpdate(pass, curPart, &rand, PC_PARTICLE_DT);
                         break;
 
                     default: // `ParticleState_Rest`
@@ -1391,7 +1476,7 @@ bool Particle_Update(s_Particle* partHead)
                     #if MAP_PARTICLE_HAS_800D0690
                         else
                         {
-                            sharedFunc_800D0690_1_s03(pass, curPart, &rand, &g_DeltaTime);
+                            sharedFunc_800D0690_1_s03(pass, curPart, &rand, PC_PARTICLE_DT);
                         }
                     #endif
                         break;
@@ -1402,6 +1487,7 @@ bool Particle_Update(s_Particle* partHead)
         updatePrev += g_ParticlesAddedCount[pass];
     }
 
+
     ////////////////////////////////////////////////////////////////////////////
 
     curPart = partHead;
@@ -1411,6 +1497,11 @@ bool Particle_Update(s_Particle* partHead)
     #if MAP_PARTICLE_HAS_RAIN
         if (pass != 0)
         {
+#ifdef SH_PC_PORT
+            /* Sim state despite living in the draw section: it gates the rain
+             * density thresholds, so it advances per step, not per frame. */
+            if (s_pcParticleSimStep)
+#endif
             sharedData_800E32D0_0_s00 += g_ParticlesAddedCount[pass];
             limitRange(sharedData_800E32D0_0_s00, 0, 135000);
         }
@@ -1443,9 +1534,14 @@ bool Particle_Update(s_Particle* partHead)
 
     // Likely previous position for next particle system update.
     // Stores XZ position and Y rotation.
-    g_Particle_PrevPosition.vx = prevPos.vx;
-    g_Particle_PrevPosition.vz = prevPos.vz;
-    g_Particle_PrevRotationY   = g_Particle_RotationY;
+#ifdef SH_PC_PORT
+    if (s_pcParticleSimStep)
+#endif
+    {
+        g_Particle_PrevPosition.vx = prevPos.vx;
+        g_Particle_PrevPosition.vz = prevPos.vz;
+        g_Particle_PrevRotationY   = g_Particle_RotationY;
+    }
     return false;
 }
 
@@ -2830,6 +2926,20 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
 
         Particle_BoundaryClamp(&sp10, sharedData_800E326C_0_s00.corners_0, &sharedData_800E326C_0_s00.corners_0[1], 0);
 
+#ifdef SH_PC_PORT
+        /* The clamp mirrors a drop that crossed the boundary line back inside it
+         * (the "rain does not fall past the fence" rule), and this is the DRAW
+         * pass: it runs every rendered frame and moves the streak's HEAD alone.
+         * The tail is re-synced by the simulation, which steps at 30 Hz, so above
+         * 30fps the tail stayed at the pre-mirror position for the rest of the
+         * step and the streak drew as a long line from there to the fence --
+         * stretching along the ground while running, nothing while standing
+         * still (issue #134). Carry the tail by the same displacement: the drop
+         * is still clamped, and the streak keeps the fall vector it had. */
+        localPart->position1_C.vx += sp10.vx - localPart->position0_0.vx;
+        localPart->position1_C.vz += sp10.vz - localPart->position0_0.vz;
+#endif
+
         localPart->position0_0.vx = sp10.vx;
         localPart->position0_0.vz = sp10.vz;
 
@@ -2886,6 +2996,7 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
             depth = depth >> 1;
 
             gte_stsxy(&poly->x1);
+
 
             if (depth > 32 && depth < ORDERING_TABLE_SIZE - 1)
             {
@@ -3441,6 +3552,7 @@ void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* delt
                 localPart->position1_C.vz = localPart->position0_0.vz;
             }
 
+
             if (ABS(localPart->position0_0.vx) + ABS(localPart->position0_0.vz) > Q12(6.0))
             {
                 if (g_ParticleCameraMoved)
@@ -3522,6 +3634,30 @@ void sharedFunc_800CFFF8_0_s00(s32 pass, s_Particle* part, s16* rand)
     !defined(MAP7_S03)
     if (sharedData_800DD591_0_s00 != 0)
     {
+#ifdef SH_PC_PORT
+        /* Carry the streak's tail before leaving. The head was moved by the
+         * camera's travel at the top of this function; the tail is only ever
+         * brought back to it at the bottom, past this return. A drop that landed
+         * on grating (ground type 11 -> SnowType_HeavyWindy, and that type draws
+         * as a streak rather than a splash quad) therefore had its head dragged
+         * along by the camera every step while its tail stayed where it fell,
+         * stretching into a line that lay on the ground and grew with camera
+         * travel until the particle recycled -- only on grating, only while the
+         * view moved, running or merely turning (issue #134).
+         *
+         * The stale flag that lands us in here is a second, wider bug: PSX kept
+         * it in each map overlay's own data, so it began at zero on every load
+         * and only the maps that assign it ever saw it set. The port links one
+         * copy shared by every map, so walking out of the mall carries the mall's
+         * value into the streets, which never assign it. Left alone here because
+         * it also gates the rain-boundary clamp and the wander/respawn check, and
+         * those want their own testing. */
+        if (part->type_1F == SnowType_HeavyWindy || part->type_1F == 243)
+        {
+            part->position1_C.vx = part->position0_0.vx;
+            part->position1_C.vz = part->position0_0.vz;
+        }
+#endif
         return;
     }
 #endif

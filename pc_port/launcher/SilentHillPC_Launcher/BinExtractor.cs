@@ -378,6 +378,126 @@ namespace SilentHillPC_Launcher
         /// <see cref="ExtractResult.Cancelled"/>; whatever was already written stays put, since
         /// the output folder is the user's own and may not be ours to delete.
         /// </summary>
+        /// <summary>Disc-absolute start sectors of the nine XA voice files, indexed 1..9
+        /// like the game's g_FileXaLoc (0 and 10 are sentinels), read from the disc's
+        /// own file table so a fan disc that rearranged the CD resolves the way the
+        /// game does. Returns null when the image or its table cannot be read, or the
+        /// release ships no XA container.</summary>
+        /// <summary>One entry of the game's file table, as the disc lays it out.</summary>
+        public sealed class DiscFile
+        {
+            public string FullPath;   // "VIN/MAP0_S00.BIN", "XA/05_02152"
+            public int    Lba;        // disc-absolute start sector
+            public int    Bytes;      // size in bytes (256-byte units on disc; 0 = unknown)
+        }
+
+        /// <summary>The game's whole file table (the exe's TOC), or null with an error.
+        /// A fan-patched exe is located by the table's signature the way the game does.</summary>
+        public static List<DiscFile> ReadFileTable(string binPath, out string error)
+        {
+            error = null;
+            try
+            {
+                using (var f = new FileStream(binPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    Release rel;
+                    var entries = ReadTable(f, binPath, out rel, out error);
+                    if (entries == null) return null;
+                    var list = new List<DiscFile>(entries.Count);
+                    foreach (var e in entries)
+                        list.Add(new DiscFile { FullPath = e.FullPath, Lba = e.Lba, Bytes = e.Size * 256 });
+                    return list;
+                }
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return null;
+            }
+        }
+
+        /// <summary>The raw bytes of a file-table entry (2048 data bytes per raw sector,
+        /// no decryption), or null.</summary>
+        public static byte[] ReadDiscFile(string binPath, DiscFile file)
+        {
+            if (file == null || file.Bytes <= 0) return null;
+            try
+            {
+                using (var f = new FileStream(binPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    var reader = new ArchiveReader(f, file.Lba, file.Bytes, 24, 2048);
+                    return reader.Read(0, file.Bytes);
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static List<TableEntry> ReadTable(FileStream f, string binPath, out Release rel, out string error)
+        {
+            error = null;
+            rel = null;
+            IsoFile exeRec = FindRootFile(f, IsExeName);
+            if (exeRec == null) { error = "No PSX boot executable found in the disc image."; return null; }
+            var exeReader = new ArchiveReader(f, exeRec.ExtentLba, exeRec.DataLen, 24, 2048);
+            byte[] exe = exeReader.Read(0, exeRec.DataLen);
+            uint crc = Crc32(exe, 4096);
+            rel = Detect(crc);
+            if (rel == null)
+            {
+                var probed = DiscProbe.Probe(binPath);
+                Release baseRel = (probed == null) ? null : RegionFallback(probed.Region);
+                int toc = (baseRel == null) ? -1 : FindTocBySignature(exe);
+                if (toc < 0) { error = "Unrecognized disc executable; the file table could not be located."; return null; }
+                rel = new Release(baseRel.Id + " [modified exe]", crc, toc, baseRel.FileCount,
+                                  baseRel.Dirs, baseRel.Types, baseRel.Flags);
+            }
+            var entries = new List<TableEntry>(rel.FileCount);
+            int pos = rel.TocOffset;
+            for (int i = 0; i < rel.FileCount; i++)
+            {
+                if (pos + 12 > exe.Length) break;
+                uint meta = LE32(exe, pos), file1 = LE32(exe, pos + 4), file2 = LE32(exe, pos + 8);
+                pos += 12;
+                TableEntry e;
+                if (!DecodeEntry(meta, file1, file2, rel, out e)) continue;
+                entries.Add(e);
+            }
+            return entries;
+        }
+
+        public static int[] ReadXaFileSectors(string binPath, out string error)
+        {
+            error = null;
+            try
+            {
+                using (var f = new FileStream(binPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    Release rel;
+                    var entries = ReadTable(f, binPath, out rel, out error);
+                    if (entries == null) return null;
+                    if ((rel.Flags & FLAG_NO_XA) != 0) { error = "This release has no XA voice container."; return null; }
+
+                    var xa = new List<TableEntry>();
+                    foreach (var e in entries)
+                        if (e.FullPath.StartsWith("XA/", StringComparison.Ordinal)) xa.Add(e);
+                    if (xa.Count == 0) { error = "No XA entries in the disc's file table."; return null; }
+                    // The game's index order is ascending disc position.
+                    xa.Sort((a, b) => a.Lba.CompareTo(b.Lba));
+                    var sectors = new int[11];
+                    for (int i = 0; i < xa.Count && i < 9; i++) sectors[i + 1] = xa[i].Lba;
+                    return sectors;
+                }
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return null;
+            }
+        }
+
         public static ExtractResult Extract(string binPath, string outDir, bool convertTimToPng, bool deleteTimAfterConvert,
                                             Action<int, int, string> report, Func<bool> cancelled = null)
         {

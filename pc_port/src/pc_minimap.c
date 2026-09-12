@@ -34,6 +34,7 @@
 #include "tex_pack.h"
 #include "sh_log.h"
 #include <stdlib.h>
+#include <math.h>
 
 /* The paper map's MARKINGS (blocked roads, locked/jammed doors, "no way through"
  * scribbles) come straight from the game's own tables in
@@ -578,7 +579,9 @@ void Pc_MinimapUpdate(void)
     s32       packed, px, py;
     int       haveMap, round, semi, op, lum;
     int       x0, y0, x1, y1, cx, cy, R;
-    int       halfW = SCREEN_WIDTH / 2, mmSize = MM_SIZE;
+    int       hudL = -(SCREEN_WIDTH / 2), hudR = SCREEN_WIDTH / 2;
+    int       hudT = -(SCREEN_HEIGHT / 2), hudB = SCREEN_HEIGHT / 2;
+    int       mmSize = MM_SIZE;
     s32       mkScale = 4096;
     int       u0 = 0, v0 = 0, u1 = MM_UV_MAX, v1 = MM_UV_MAX;
     int       markCount = 0;
@@ -606,50 +609,22 @@ void Pc_MinimapUpdate(void)
     round = (g_PcConfig.minimap == 2); /* 1 = square, 2 = circle */
 
     /* --- corner placement ---
-     * Vertical is always 4:3 (y -120..+120). Horizontally the port renders 2D at
-     * a Hor+ widescreen ortho, so on a wide window the true left/right screen
-     * edge sits past ±160 — widen `halfW` to reach it (same as dbg_overlay's
-     * collvis: halfW = 160 * winAspect/psxAspect). On 4:3 keep 160 and shrink
-     * the panel a touch. */
+     * Sit inside the overlay pass's real visible rectangle (g_PcHudRect, prim
+     * coordinates, published by the renderer every gameplay frame). These prims
+     * go on OT2, which is drawn under the UI ortho: no hfov, no vfov, so the
+     * rectangle is exact at any aspect, window or render size, FOV, or display
+     * height. It must NOT be re-derived from a window size (borderless presents
+     * a 640x480 render on a 1920x1080 desktop) nor from the WORLD ortho, whose
+     * width is divided by hfov: that placed the panel past the right edge at any
+     * hfov other than 1. Shrink the panel a touch only when the frame is 4:3,
+     * matching the old 4:3 look. */
     {
-        extern void PsyX_GetScreenSize(int* w, int* h);
-        /* The WORLD's framing, not the live flag: this function runs earlier
-         * in the frame than the world is submitted, so reading g_PcHorPlusEnabled
-         * picked up the 2D-screen value on menu frames and the panel jumped to
-         * the 4:3 spot for a frame on inventory close. */
-        extern int  g_PcWorldHorPlus;
-        extern int  g_PcMenuPillarbox;
-        extern int  g_PcWidescreenMode;
-
-        float psxA = (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT;
-        float winA;
-        int   sw = 0, sh = 0;
-        /* The 2D layer only reaches past +-160 when it is genuinely widened. A
-         * PILLARBOXED wide window still draws 4:3, so widening here put the
-         * panel inside (or past) the black bar. Same predicate the inventory
-         * mouse hit-test uses for the same question. */
-        /* Widen to the true screen edge whenever the gameplay pass fills a wide
-         * window: Hor+ (mode 1) AND stretch (mode 2) both do, so gate on
-         * "not pillarbox" (mode != 0), not just mode == 2. The old `== 2` left
-         * the panel at the 4:3 margin in the default 16:9 Hor+ mode and in
-         * menus-only pillarboxing (world still Hor+). Pillarbox (mode 0) draws
-         * 4:3 with bars, so it must NOT widen. The second clause covers the 2D
-         * screens (g_PcHorPlusEnabled == 0), which the minimap never reaches
-         * (it early-returns outside SysState_Gameplay) but is kept for parity. */
-        int   stretched = (g_PcWorldHorPlus && g_PcWidescreenMode != 0) ||
-                          (!g_PcWorldHorPlus && !g_PcMenuPillarbox);
-
-        /* Ask for the REAL backbuffer: the config width/height this used to read
-         * describe the windowed size and say nothing about the current
-         * fullscreen or borderless resolution. */
-        PsyX_GetScreenSize(&sw, &sh);
-        winA = (sw > 0 && sh > 0) ? (float)sw / (float)sh : psxA;
-
-        if (stretched && winA > psxA + 0.01f)
-        {
-            halfW = (int)(160.0f * (winA / psxA) + 0.5f);
-        }
-        else
+        extern float g_PcHudRect[4];
+        hudL = (int)floorf(g_PcHudRect[0] + 0.5f);
+        hudR = (int)floorf(g_PcHudRect[1] + 0.5f);
+        hudT = (int)floorf(g_PcHudRect[2] + 0.5f);
+        hudB = (int)floorf(g_PcHudRect[3] + 0.5f);
+        if (hudR - hudL <= SCREEN_WIDTH)
         {
             mmSize = MM_SIZE - 8;
         }
@@ -670,14 +645,14 @@ void Pc_MinimapUpdate(void)
     }
     switch (g_PcConfig.minimapCorner)
     {
-        case 1:  x0 =  halfW - MM_MARGIN - mmSize;
-                 y0 = -(SCREEN_HEIGHT / 2) + MM_MARGIN; break;
-        case 2:  x0 = -halfW + MM_MARGIN;
-                 y0 =  (SCREEN_HEIGHT / 2) - MM_MARGIN - mmSize; break;
-        case 3:  x0 =  halfW - MM_MARGIN - mmSize;
-                 y0 =  (SCREEN_HEIGHT / 2) - MM_MARGIN - mmSize; break;
-        default: x0 = -halfW + MM_MARGIN;
-                 y0 = -(SCREEN_HEIGHT / 2) + MM_MARGIN; break;
+        case 1:  x0 = hudR - MM_MARGIN - mmSize;
+                 y0 = hudT + MM_MARGIN; break;
+        case 2:  x0 = hudL + MM_MARGIN;
+                 y0 = hudB - MM_MARGIN - mmSize; break;
+        case 3:  x0 = hudR - MM_MARGIN - mmSize;
+                 y0 = hudB - MM_MARGIN - mmSize; break;
+        default: x0 = hudL + MM_MARGIN;
+                 y0 = hudT + MM_MARGIN; break;
     }
     x1 = x0 + mmSize; y1 = y0 + mmSize;
     cx = x0 + mmSize / 2; cy = y0 + mmSize / 2; R = mmSize / 2;
