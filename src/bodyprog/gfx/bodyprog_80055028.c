@@ -4727,7 +4727,14 @@ static bool Pc_MaterialNeedsVramSlot(const s_Material* mat)
 s_Texture* Texture_Get(s_Material* mat, s_ActiveChunkTextures* activeTexs, void* fsBuffer9, e_FsFile fileIdx, s32 arg4)
 {
     s8         filename[12];
-    s8         debugStr[12];
+    /* 13, not 12. The missing-TIM path below writes debugStr[12] = 0 as the
+     * terminator for a 12-character name, which is one past the end of a
+     * 12-byte array. PSX tolerated it -- the byte landed in stack padding --
+     * but the NDK builds with -fstack-protector, where that byte IS the
+     * canary slot, so the next return aborts the process with
+     * "stack corruption detected". The write is kept as it was; the buffer
+     * is the thing that was wrong. */
+    s8         debugStr[13];
     s32        fileId;
     s32        i;
     s32        smallestQueueIdx;

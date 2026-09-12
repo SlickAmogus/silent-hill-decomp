@@ -117,12 +117,117 @@ void Sh_InstallCrashFilter(void)
 
 #else /* !_WIN32 */
 
-/* POSIX no-op for now. The Windows path relies on SEH + RtlVirtualUnwind,
- * which have no direct equivalent. A signal-based backtrace
- * (sigaction + backtrace()/backtrace_symbols) can be added later; until
- * then crashes fall through to the OS default (core dump / debugger). */
+/* POSIX crash handler. This existed as a no-op, and on Android that made
+ * every crash report undiagnosable: the log is fully buffered (64 KB) and the
+ * only thing emptying it is a once-per-second periodic flush, so a crash
+ * discards up to a second of the log -- which is exactly the second that
+ * explains it. A user's sewer crash arrived as a log whose last line was an
+ * ordinary room transition, with the abort message from stderr (unbuffered,
+ * so it survived) and nothing in between.
+ *
+ * Two jobs: flush the log so the tail reaches disk, and name the frames.
+ * Bionic has no backtrace()/backtrace_symbols() -- those are glibc extensions
+ * the NDK never shipped -- but it does have the C++ ABI unwinder and dladdr,
+ * which together give the same answer.
+ *
+ * The handler re-raises with the default disposition afterwards, so Android
+ * still writes its own tombstone and a debugger still sees the signal. */
+#include <signal.h>
+#include <unistd.h>
+#include <dlfcn.h>
+#include <unwind.h>
+
+typedef struct
+{
+    int count;
+} Sh_UnwindState;
+
+static _Unwind_Reason_Code Sh_UnwindFrame(struct _Unwind_Context* ctx, void* arg)
+{
+    Sh_UnwindState* st = (Sh_UnwindState*)arg;
+    uintptr_t       pc = (uintptr_t)_Unwind_GetIP(ctx);
+    Dl_info         info;
+
+    if (pc == 0 || st->count >= 40)
+    {
+        return _URC_END_OF_STACK;
+    }
+
+    /* Module + offset, not the raw address: the load base is randomised, so
+     * an absolute pointer means nothing in a report. The offset resolves with
+     *   addr2line -f -e libmain.so 0x<offset>
+     * against the matching build's unstripped .so. */
+    if (dladdr((void*)pc, &info) && info.dli_fname != NULL)
+    {
+        const char* slash = strrchr(info.dli_fname, '/');
+        const char* base  = slash ? slash + 1 : info.dli_fname;
+        uintptr_t   off   = pc - (uintptr_t)info.dli_fbase;
+
+        if (info.dli_sname != NULL)
+        {
+            fprintf(g_ShDebugLog, "[CRASH]   #%02d %s+0x%lx  (%s)\n",
+                    st->count, base, (unsigned long)off, info.dli_sname);
+        }
+        else
+        {
+            fprintf(g_ShDebugLog, "[CRASH]   #%02d %s+0x%lx\n",
+                    st->count, base, (unsigned long)off);
+        }
+    }
+    else
+    {
+        fprintf(g_ShDebugLog, "[CRASH]   #%02d 0x%lx\n",
+                st->count, (unsigned long)pc);
+    }
+
+    st->count++;
+    return _URC_NO_REASON;
+}
+
+static void Sh_CrashSignal(int sig)
+{
+    static volatile sig_atomic_t s_inHandler = 0;
+
+    /* A fault inside the handler must die quietly rather than recurse. */
+    if (s_inHandler)
+    {
+        _exit(1);
+    }
+    s_inHandler = 1;
+
+    if (g_ShDebugLog != NULL)
+    {
+        Sh_UnwindState st;
+
+        st.count = 0;
+        fprintf(g_ShDebugLog, "[CRASH] signal %d -- backtrace follows\n", sig);
+        _Unwind_Backtrace(Sh_UnwindFrame, &st);
+        fflush(g_ShDebugLog);
+    }
+
+    /* Default disposition, then re-raise: Android writes its tombstone and the
+     * process dies the way it would have. */
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
 void Sh_InstallCrashFilter(void)
 {
+    static const int kSignals[] = { SIGSEGV, SIGBUS, SIGILL, SIGFPE, SIGABRT };
+    struct sigaction sa;
+    unsigned         i;
+
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = Sh_CrashSignal;
+    sigemptyset(&sa.sa_mask);
+    /* NODEFER so the recursion guard above sees a second fault rather than
+     * the handler deadlocking; RESETHAND so the re-raise is not caught again. */
+    sa.sa_flags = SA_NODEFER | SA_RESETHAND;
+
+    for (i = 0; i < sizeof(kSignals) / sizeof(kSignals[0]); i++)
+    {
+        sigaction(kSignals[i], &sa, NULL);
+    }
 }
 
 #endif /* _WIN32 */
