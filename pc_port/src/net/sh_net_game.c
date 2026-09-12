@@ -23,6 +23,7 @@
 #include "sh_net_chat.h"
 #include "sh_net_session.h"
 #include "sh_net_internal.h"
+#include "sh_net_platform.h" /* ShNetPlat_Millis, for the roster re-request throttle */
 #include "pc_discord.h" /* Pc_MapAreaName, for Steam rich presence */
 #include "pc_config.h"
 #include "pc_playas.h"
@@ -35,6 +36,10 @@
 static int s_lastMap      = -1;
 static int s_deathLatched = 0;
 static int s_initDone     = 0;
+
+/* Throttle for the "a ghost is still unnamed" roster re-request below. */
+#define SHNET_NAME_REQ_MS 3000u
+static unsigned int s_lastNameReqMs = 0;
 
 /* Recompute every frame rather than caching: the player can change character
  * mid-session (PLAYAS), and a ghost wearing the wrong body is worse than the
@@ -189,4 +194,34 @@ void ShNet_GameTick(void)
     }
 
     ShNet_PumpToGameThread();
+
+    /* Ghost names come from the roster, which is fetched once on connect and on
+     * each map change. A player who reaches this map after that shows as "?"
+     * (the placeholder set when a ghost is first seen), which also leaves the
+     * nameplate blank. Ask for the roster again -- throttled -- whenever a ghost
+     * is still unnamed, so late arrivals get named without polling the roster
+     * every frame. */
+    {
+        int n = ShNet_GhostCount();
+        int i;
+        int unnamed = 0;
+        for (i = 0; i < n; i++)
+        {
+            const ShNetGhost* g = ShNet_Ghost(i);
+            if (g && (g->name[0] == '\0' || g->name[0] == '?'))
+            {
+                unnamed = 1;
+                break;
+            }
+        }
+        if (unnamed)
+        {
+            unsigned int now = ShNetPlat_Millis();
+            if (now - s_lastNameReqMs >= SHNET_NAME_REQ_MS)
+            {
+                s_lastNameReqMs = now;
+                ShNet_RequestRoster();
+            }
+        }
+    }
 }
