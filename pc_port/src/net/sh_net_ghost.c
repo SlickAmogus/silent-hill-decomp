@@ -45,6 +45,7 @@
 #include "pc_config.h"
 #include "sh_net.h"
 #include "sh_net_art.h"
+#include "sh_net_ui.h"
 #include "sh_log.h"
 #include "stb_image.h"
 
@@ -459,11 +460,94 @@ static int ShNetG_TryDrawModel(int charaId, int gx, int gy, int gz, short grot, 
     return 1;
 }
 
+/* Pool slots for baked name textures. Above the chara base so a map load's
+ * PoolSlotsReset leaves them alone; below the minimap's 510/511 and the ghost/
+ * marker 509/508. */
+#define NAMEPLATE_SLOT0 496
+#define NAMEPLATE_SLOTS 8
+#define NAMEPLATE_PX    26
+
+static struct { char name[SHNET_NAME_MAX]; int w, h; int used; } s_np[NAMEPLATE_SLOTS];
+static int s_npNext;
+
+/* Slot index (0..NAMEPLATE_SLOTS-1) holding `name`, baking + registering it if
+ * new. Round-robin eviction: with <= 8 names on screen nothing is evicted. */
+static int ShNetG_NameplateSlot(const char* name)
+{
+    int i;
+    if (!name || !name[0])
+    {
+        return -1;
+    }
+    for (i = 0; i < NAMEPLATE_SLOTS; i++)
+    {
+        if (s_np[i].used && strcmp(s_np[i].name, name) == 0)
+        {
+            return i;
+        }
+    }
+    {
+        int            idx = s_npNext;
+        int            w = 0, h = 0;
+        unsigned char* rgba = ShNetUi_RasterizeText(name, NAMEPLATE_PX, &w, &h);
+        if (!rgba)
+        {
+            return -1;
+        }
+        if (HiresOverride_PoolSlotRegisterRGBA(NAMEPLATE_SLOT0 + idx, 0, rgba, w, h, w, h) != 0)
+        {
+            free(rgba);
+            return -1;
+        }
+        free(rgba);
+        strncpy(s_np[idx].name, name, SHNET_NAME_MAX - 1);
+        s_np[idx].name[SHNET_NAME_MAX - 1] = '\0';
+        s_np[idx].w    = w;
+        s_np[idx].h    = h;
+        s_np[idx].used = 1;
+        s_npNext = (s_npNext + 1) % NAMEPLATE_SLOTS;
+        return idx;
+    }
+}
+
+static POLY_FT4* ShNetG_DrawNameplate(GsOT* ot, POLY_FT4* poly, const char* name,
+                                      int gx, int gy, int gz)
+{
+    int     idx = ShNetG_NameplateSlot(name);
+    VECTOR3 centre;
+    VECTOR3 axisU;
+    VECTOR3 axisV;
+    s32     halfH = Q12(0.16f);
+    s32     halfW;
+
+    if (idx < 0)
+    {
+        return poly;
+    }
+    halfW = (s32)(((long long)halfH * s_np[idx].w) / (s_np[idx].h ? s_np[idx].h : 1));
+
+    /* Just above the head. Feet are at gy, PSX -Y is up, the body is ~1.8m. */
+    centre.vx = gx;
+    centre.vy = gy - Q12(2.05f);
+    centre.vz = gz;
+    axisU.vx = (halfW * GsWSMATRIX.m[0][0]) >> 12;
+    axisU.vy = (halfW * GsWSMATRIX.m[0][1]) >> 12;
+    axisU.vz = (halfW * GsWSMATRIX.m[0][2]) >> 12;
+    axisV.vx = 0;
+    axisV.vy = -halfH;
+    axisV.vz = 0;
+
+    return ShNetG_EmitQuad(ot, poly, &centre, &axisU, &axisV,
+                           SHNET_CLUT(NAMEPLATE_SLOT0 + idx),
+                           s_np[idx].w - 1, s_np[idx].h - 1, 235, 230, 205, 255);
+}
+
 void ShNet_DrawWorld(GsOT* ot)
 {
     POLY_FT4*    poly;
     POLY_FT4*    primBase;
     int          modelsDrawn;
+    int          namesDrawn;
     int          i;
     int          count;
     const int    style = g_PcConfig.onlineGhostStyle;
@@ -489,6 +573,7 @@ void ShNet_DrawWorld(GsOT* ot)
     primBase = poly;
     range    = ShNetG_RangeQ12();
     modelsDrawn = 0;
+    namesDrawn  = 0;
 
     /* ---- other players ---- */
     if (g_PcConfig.onlineGhosts && (s_ghostTexOk || s_memoTexOk))
@@ -578,6 +663,15 @@ void ShNet_DrawWorld(GsOT* ot)
             if (s_memoTexOk && style != SHNET_GS_SILHOUETTE)
             {
                 poly = ShNetG_EmitFootprint(ot, poly, gx, gy, gz, cr, cg, cb);
+            }
+
+            /* The player's name over their head. Off is a config toggle; the
+             * '?' placeholder (no roster entry yet) is skipped. */
+            if (g_PcConfig.onlineNameplates && namesDrawn < NAMEPLATE_SLOTS &&
+                g->name[0] && g->name[0] != '?')
+            {
+                poly = ShNetG_DrawNameplate(ot, poly, g->name, gx, gy, gz);
+                namesDrawn++;
             }
         }
     }

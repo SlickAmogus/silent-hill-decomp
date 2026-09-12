@@ -17,6 +17,7 @@
 #include <PsyX/PsyX_backend.h>
 #include "screens/options.h" /* OptionsMenuState_* — Escape backs out of the brightness screen */
 #include "pc_config.h"
+#include "sh_net.h"
 #include "sh_net_chat.h"
 
 #include <PsyX/common/glad.h>
@@ -1422,6 +1423,12 @@ void DbgOverlay_Update(void)
      * the physical key, so letting go of Ctrl while the key is still held
      * cannot manufacture a fresh press. */
     const int ctrlHeld = (SDL_GetModState() & KMOD_CTRL) ? 1 : 0;
+    /* Was the chat box open at the START of this pass? The chat handler below
+     * closes it on Esc/Enter, so by the time the Exit-Game (Esc) bind is read
+     * ShNetChat_IsOpen() already reads false and the same Esc would warm-reset.
+     * Latch it here so the exit bind can tell "Esc closed chat" from a real
+     * exit. */
+    const int chatWasOpen = ShNetChat_IsOpen();
     if (!ks) return;
 
     /* First Update runs inside MainLoop — arm the top-left message toast now so
@@ -1723,7 +1730,7 @@ void DbgOverlay_Update(void)
      * scrolling console's visibility. */
     {
         int cur_apos = ks[SDL_SCANCODE_APOSTROPHE];
-        if (cur_apos && !s_prev_apos && g_PcAllowDebugControls) {
+        if (cur_apos && !s_prev_apos && g_PcAllowDebugControls && !chatWasOpen) {
             s_coll_on = !s_coll_on;
             g_CollVisEnabled = s_coll_on;
             SH_DBG_ECHO("[DEBUG] ' Collision visualizer: %s", s_coll_on ? "ON" : "OFF");
@@ -1787,12 +1794,20 @@ void DbgOverlay_Update(void)
          * recorded input, and the panel reads that same controller, so every
          * playback frame pressed its rows for you. GameState is InGame
          * throughout a demo, so the state test above cannot see it. */
+        /* The quick-options menu is disabled during online play: it is a pause-
+         * style overlay, and a shared/live world should not be halted or fiddled
+         * with mid-session. The graphics options it holds are still reachable
+         * from the launcher and the title-screen Options. */
         if (((curQuick && !s_prevQuick && !ctrlHeld) || padQuick) && !g_PcConsoleInputActive &&
+            !ShNet_LiveWorld() &&
             g_GameWork.gameState == GameState_InGame &&
             !(g_SysWork.sysFlags & SysFlag_DemoActive)) {
             extern void Pc_QuickOptions_Toggle(void);
             Pc_QuickOptions_Toggle();
         }
+        /* If a live world begins while it is open, close it. */
+        { extern int g_PcQuickOptionsActive; extern void Pc_QuickOptions_Close(void);
+          if (g_PcQuickOptionsActive && ShNet_LiveWorld()) Pc_QuickOptions_Close(); }
         s_prevQuick = curQuick;
     }
 
@@ -1941,7 +1956,10 @@ void DbgOverlay_Update(void)
         /* The quick options overlay closes on Escape, the default exit bind:
          * without this gate closing it also warm-reset the game to the title. */
         extern int g_PcQuickOptionsActive;
-        if (cur_exit && !s_prev_exit && !g_PcConsoleInputActive && !g_PcQuickOptionsActive) {
+        /* Esc used to close the chat box must not also warm-reset. chatWasOpen
+         * is sampled before the chat handler above consumes the Esc. */
+        if (cur_exit && !s_prev_exit && !g_PcConsoleInputActive && !g_PcQuickOptionsActive &&
+            !chatWasOpen) {
             /* The brightness screen owns the whole display (its calibration bar is
              * drawn outside the normal menu path), so warm-resetting out of it left
              * the bar on screen over the title. Back out to the options list the

@@ -29,6 +29,11 @@ void ShNetUi_TogglePlayerList(void);
  * nothing to show. */
 void ShNetUi_Draw(void);
 
+/* Rasterize one line to a malloc'd RGBA buffer (white glyphs + a dark 1px halo)
+ * for a caller that uploads it itself -- the world-space nameplates. Shares the
+ * UI font; self-inits it. NULL when there is no font. Caller frees. */
+unsigned char* ShNetUi_RasterizeText(const char* text, int px, int* outW, int* outH);
+
 #ifdef __cplusplus
 }
 #endif

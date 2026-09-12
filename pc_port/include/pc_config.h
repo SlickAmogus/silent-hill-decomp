@@ -428,6 +428,7 @@ typedef struct {
     int  onlineDeaths;        /* 1 = draw and report death markers (online_deaths) */
     int  onlineGhostStyle;    /* SHNET_GS_*: contour, floor ring, or both (online_ghost_style) */
     int  onlineGhostRange;    /* metres past which a ghost is not drawn (online_ghost_range) */
+    int  onlineNameplates;    /* 1 = float each other player's name over their head (online_nameplates) */
     int  onlineGhostModel;    /* EXPERIMENTAL: 1 = draw ghosts as the real character model
                                * instead of the silhouette, when that chara is resident
                                * (online_ghost_model); 0 = silhouette (default, proven) */

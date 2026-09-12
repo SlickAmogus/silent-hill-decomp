@@ -1443,11 +1443,15 @@ void DebugCamera_Update(void)
     if (!g_sdlKeyboardState) return;
 #ifdef SH_PC_PORT
     /* Master gate for all dev/cheat keys (numpad cam, top-row digits, give-
-     * weapon cheats, kill-Harry, noclip, etc.). Off unless allow_debug_controls
-     * is set in config. */
+     * weapon cheats, kill-Harry, noclip, keyframe inspector, etc.). Off unless
+     * allow_debug_controls is set in config -- and always off once online is in
+     * play: cheats and the keyframe inspector have no place in a world other
+     * people share. The free camera and TPS below are user features, not dev
+     * keys, so they still work; the console (a separate handler) is untouched. */
     {
         extern int g_PcAllowDebugControls;
-        if (!g_PcAllowDebugControls) {
+        int onlineActive = g_PcConfig.onlineEnabled || g_PcConfig.onlineSteam;
+        if (!g_PcAllowDebugControls || onlineActive) {
             /* The free camera is a user feature (quick options row), so it
              * flies with the dev keys off too. */
             if (g_DebugCamEnabled && g_GameWork.gameState == GameState_InGame) {
@@ -2488,17 +2492,38 @@ void MainLoop(void) // 0x80032EE0
             }
         }
 
-        /* Chat: while the box is open, swallow the pad so typing does not also
-         * drive Harry. It never freezes the game -- that is the whole point of
-         * chat in a live session -- so unlike the console it only zeroes input. */
+        /* Chat: while the box is open, swallow the whole pad so typing cannot
+         * also drive Harry -- and keep swallowing after it closes until the
+         * submit/exit keys release, exactly like the console below. Without the
+         * tail the Enter that sends a line leaks through as Start (pausing) and
+         * the Esc that closes the box leaks through as the exit bind (warm
+         * reset). It never freezes the game -- pausing a live session is the one
+         * thing chat must not do -- it only zeroes input. */
         {
-            extern int ShNetChat_IsOpen(void);
+            extern int  ShNetChat_IsOpen(void);
+            static int  s_chatSwallow = 0;
             if (ShNetChat_IsOpen()) {
-                g_Controller0->heldBtnFlags      = 0;
-                g_Controller0->clickedBtnFlags   = 0;
-                g_Controller0->releasedBtnFlags  = 0;
-                g_Controller0->pulsedBtnFlags    = 0;
-                g_Controller0->pulsedGuiBtnFlags = 0;
+                s_chatSwallow = 1;
+            }
+            if (s_chatSwallow) {
+                int release =
+                    !ShNetChat_IsOpen() &&
+                    g_sdlKeyboardState != NULL &&
+                    !g_sdlKeyboardState[SDL_SCANCODE_RETURN] &&
+                    !g_sdlKeyboardState[SDL_SCANCODE_KP_ENTER] &&
+                    !g_sdlKeyboardState[SDL_SCANCODE_ESCAPE] &&
+                    !(g_Controller0->heldBtnFlags & ControllerFlag_Start);
+                if (release) {
+                    s_chatSwallow = 0;
+                } else {
+                    g_Controller0->heldBtnFlags        = 0;
+                    g_Controller0->clickedBtnFlags     = 0;
+                    g_Controller0->releasedBtnFlags    = 0;
+                    g_Controller0->pulsedBtnFlags      = 0;
+                    g_Controller0->pulsedGuiBtnFlags   = 0;
+                    g_Controller0->sticks_20.rawData_0 = 0;
+                    g_Controller0->sticks_24.rawData_0 = 0;
+                }
             }
         }
 

@@ -31,6 +31,7 @@
 #include "sh_net_platform.h"
 #include "sh_net_internal.h"
 #include "sh_net_session.h"
+#include "sh_net_steam.h"
 #include "pc_config.h"
 #include "sh_log.h"
 
@@ -828,6 +829,15 @@ static int SDLCALL ShNet_Worker(void* unused)
 
     /* Steam is brought up on THIS thread and used from nowhere else. */
     ShSession_Init();
+
+    /* Prefer the Steam persona for the name others see, so a Steam player shows
+     * up as their real handle rather than the config default. Done here, on the
+     * worker, after Steam is up and BEFORE the first HELLO carries the name. */
+    if (ShSteam_Available() && ShSteam_PersonaName()[0])
+    {
+        SDL_strlcpy(s_name, ShSteam_PersonaName(), sizeof(s_name));
+        ShNet_SanitizeName(s_name);
+    }
 
     while (!s_quit)
     {

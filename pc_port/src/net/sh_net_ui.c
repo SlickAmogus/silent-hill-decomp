@@ -416,6 +416,105 @@ static void Nu_FontInit(void)
 
 /* Rasterize one line of ASCII to white-with-coverage-alpha, trimmed to the ink
  * so centring and right-alignment use the real width. */
+unsigned char* ShNetUi_RasterizeText(const char* text, int px, int* outW, int* outH)
+{
+    const char*    p;
+    float          scale, penX, baseY;
+    int            asc, desc, gap, W, H, i, stride, x, y;
+    const int      pad = 2;
+    int            prev = 0;
+    unsigned char *cov, *rgba, *scratch;
+
+    Nu_FontInit();
+    if (!s_fontOk || !text || !text[0] || px < 6)
+    {
+        return NULL;
+    }
+    scale = stbtt_ScaleForPixelHeight(&s_font, (float)px);
+    stbtt_GetFontVMetrics(&s_font, &asc, &desc, &gap);
+
+    W = (int)((float)px * 0.66f * (float)strlen(text)) + 8 * pad;
+    H = (int)ceilf((float)px * 1.4f) + 2 * pad;
+    if (W <= 0 || H <= 0 || W > 1024 || H > 128)
+    {
+        return NULL;
+    }
+    stride = W;
+    cov     = (unsigned char*)calloc((size_t)W * H, 1);
+    rgba    = (unsigned char*)calloc((size_t)W * H, 4);
+    scratch = (unsigned char*)malloc((size_t)W * H);
+    if (!cov || !rgba || !scratch) { free(cov); free(rgba); free(scratch); return NULL; }
+
+    penX  = (float)pad;
+    baseY = (float)pad + (float)asc * scale;
+    p     = text;
+    while (*p)
+    {
+        int   cp = (unsigned char)*p++;
+        int   gx0, gy0, gx1, gy1, gw, gh, adv, lsb, sx, sy;
+        float shiftX;
+        if (prev) penX += (float)stbtt_GetCodepointKernAdvance(&s_font, prev, cp) * scale;
+        shiftX = penX - floorf(penX);
+        stbtt_GetCodepointBitmapBoxSubpixel(&s_font, cp, scale, scale, shiftX, 0.0f,
+                                            &gx0, &gy0, &gx1, &gy1);
+        gw = gx1 - gx0; gh = gy1 - gy0;
+        if (gw > 0 && gh > 0 && gw <= W && gh <= H)
+        {
+            memset(scratch, 0, (size_t)gw * gh);
+            stbtt_MakeCodepointBitmapSubpixel(&s_font, scratch, gw, gh, gw, scale, scale, shiftX, 0.0f, cp);
+            for (sy = 0; sy < gh; sy++)
+            {
+                int dy = (int)baseY + gy0 + sy;
+                if (dy < 0 || dy >= H) continue;
+                for (sx = 0; sx < gw; sx++)
+                {
+                    int dx = (int)penX + gx0 + sx; unsigned char c;
+                    if (dx < 0 || dx >= W) continue;
+                    c = scratch[sy * gw + sx];
+                    if (c > cov[dy * W + dx]) cov[dy * W + dx] = c;
+                }
+            }
+        }
+        stbtt_GetCodepointHMetrics(&s_font, cp, &adv, &lsb);
+        penX += (float)adv * scale;
+        prev = cp;
+        if (penX > (float)(W - pad)) break;
+    }
+
+    { int inkW = (int)ceilf(penX) + pad; if (inkW > 0 && inkW < W) W = inkW; }
+
+    /* White glyph with a dark halo: alpha is coverage dilated by one pixel,
+     * colour is the glyph where it is solid and near-black in the halo ring. */
+    for (y = 0; y < H; y++)
+    {
+        for (x = 0; x < W; x++)
+        {
+            int   c = cov[y * stride + x];
+            int   dil = c, dx, dy;
+            int   o = (y * W + x) * 4;
+            for (dy = -1; dy <= 1; dy++)
+                for (dx = -1; dx <= 1; dx++)
+                {
+                    int nx = x + dx, ny = y + dy;
+                    if (nx >= 0 && nx < W && ny >= 0 && ny < H)
+                    {
+                        int nc = cov[ny * stride + nx];
+                        if (nc > dil) dil = nc;
+                    }
+                }
+            rgba[o + 0] = (unsigned char)c;
+            rgba[o + 1] = (unsigned char)c;
+            rgba[o + 2] = (unsigned char)c;
+            rgba[o + 3] = (unsigned char)dil;
+        }
+    }
+
+    free(cov); free(scratch);
+    if (outW) *outW = W;
+    if (outH) *outH = H;
+    return rgba;
+}
+
 static GLuint Nu_Bake(const char* text, int px, int* outW, int* outH)
 {
     const char*    p;

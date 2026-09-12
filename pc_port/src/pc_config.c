@@ -52,13 +52,14 @@ s_PcConfig g_PcConfig = {
     .onlineEnabled    = 0,
     .onlineServer     = "127.0.0.1",
     .onlinePort       = 27888,
-    .onlineName       = "Wanderer",
+    .onlineName       = "Harry",
     .onlinePassword   = "",
     .onlineGhosts     = 1,
     .onlineMemos      = 1,
     .onlineDeaths     = 1,
     .onlineGhostStyle = 2, /* SHNET_GS_BOTH: the contour plus a floor ring */
     .onlineGhostRange = 40,
+    .onlineNameplates = 1, /* names float over other players' heads */
     .onlineGhostModel = 0, /* silhouette by default; model path is experimental */
     .onlineEvents     = 1,
     .onlineSteam           = 0,
@@ -741,6 +742,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "online_ghost_model") == 0)
         {
             g_PcConfig.onlineGhostModel = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "online_nameplates") == 0)
+        {
+            g_PcConfig.onlineNameplates = (atoi(value) != 0);
         }
         else if (strcmp(key, "online_events") == 0)
         {
