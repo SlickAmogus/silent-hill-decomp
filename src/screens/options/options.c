@@ -330,6 +330,9 @@ static const s_PcOpt PCOPT_C[] = {
     { "Pad_Sensitivity",   NULL, "controller_sensitivity", NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.controllerSensitivity, NULL, 0.1f, 4.0f, 0.1f },
     /* The three per-camera FOVs moved to the Camera page (grouped with the aim/
      * camera options) once OTS got its own FOV -- the Controls page was full. */
+/* No mouse to invert on a phone; the key still loads from config.cfg for
+ * anyone pairing one over USB-C, same as Mouse_Sensitivity above. */
+#if !defined(__ANDROID__) && !defined(SH_IOS)
     { "Invert_Mouse_Y",    &g_PcConfig.invertMouseY,      "invert_mouse_y",         VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
 #endif
     { "Invert_Pad_Y",      &g_PcConfig.invertControllerY, "invert_controller_y",    VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },

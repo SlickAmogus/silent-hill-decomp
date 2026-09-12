@@ -2285,6 +2285,7 @@ static void Ml_TraceReport(unsigned frames)
     for (i = 0; i < s_mlTagCount; i++)
         s_mlMs[i] = 0;
 }
+#endif /* SH_PC_PORT -- phase timing */
 
 /* ---- world GTE anchor ------------------------------------------------------
  * Console vertical anchor. Disassembled 2026-08-29: GsInit3D (0x8009543C)
