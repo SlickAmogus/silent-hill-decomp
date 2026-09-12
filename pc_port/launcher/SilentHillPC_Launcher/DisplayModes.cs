@@ -82,6 +82,14 @@ public static class DisplayModes
     [DllImport("gdi32.dll")]
     private static extern int GetDeviceCaps(IntPtr hdc, int nIndex);
 
+    /* Windows 10 1607+ (V2: 1703+). Present on every system the launcher
+     * supports in practice, absent on 7/8.1 -- the call is wrapped. */
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr dpiContext);
+
+    private static readonly IntPtr DPI_PER_MONITOR_AWARE_V2 = new IntPtr(-4);
+    private static readonly IntPtr DPI_PER_MONITOR_AWARE    = new IntPtr(-3);
+
     private const int ENUM_CURRENT_SETTINGS = -1;
     private const int DISPLAY_DEVICE_ATTACHED_TO_DESKTOP = 0x00000001;
 
@@ -91,39 +99,107 @@ public static class DisplayModes
     private const int DESKTOPVERTRES = 117; // TRUE physical height
 
     /// <summary>
-    /// Physical-to-virtual pixel ratio for this process.
+    /// Stop Windows virtualizing display metrics for THIS THREAD, and return the
+    /// previous context so the caller can put it back.
     ///
     /// app.manifest sets dpiAware=false on purpose (the forms are fixed-pixel
-    /// 96-DPI layouts and turning it on clips every control), which means
-    /// Windows virtualizes display metrics for us: on a 3440x1440 panel at 150%
-    /// scaling, EnumDisplaySettings reports 2293x960 and the real mode is
-    /// nowhere in the list. That is why ultrawide users reported their
-    /// resolution "not detected".
+    /// 96-DPI layouts and turning it on clips every control), and the price is
+    /// that EnumDisplaySettings reports SCALED modes: on a 3840x2160 panel at
+    /// 150%, 2560x1440 enumerates as 1706x960 and the real mode is nowhere in
+    /// the list. That is why 1440p and ultrawide users report their resolution
+    /// "not detected".
     ///
-    /// GetDeviceCaps(DESKTOPHORZRES) reports true physical pixels even to a
-    /// non-aware process, so the ratio against HORZRES recovers the scale and
-    /// lets the enumerated modes be converted back to physical.
+    /// Awareness is per thread, not per process, so this is borrowed for the
+    /// length of the enumeration and handed straight back. No window is created
+    /// while it is held, so no layout can inherit it.
     /// </summary>
-    private static void GetDpiScale(out double sx, out double sy)
+    private static IntPtr EnterPhysicalPixelContext()
+    {
+        try
+        {
+            IntPtr prev = SetThreadDpiAwarenessContext(DPI_PER_MONITOR_AWARE_V2);
+            if (prev == IntPtr.Zero)
+                prev = SetThreadDpiAwarenessContext(DPI_PER_MONITOR_AWARE);
+            return prev;
+        }
+        catch (EntryPointNotFoundException) { return IntPtr.Zero; }
+        catch (DllNotFoundException)        { return IntPtr.Zero; }
+    }
+
+    private static void LeavePhysicalPixelContext(IntPtr prev)
+    {
+        if (prev == IntPtr.Zero)
+            return;
+        try { SetThreadDpiAwarenessContext(prev); }
+        catch (EntryPointNotFoundException) { }
+        catch (DllNotFoundException)        { }
+    }
+
+    /// <summary>
+    /// How far the mode enumeration is off from physical pixels, measured
+    /// rather than assumed: DESKTOPHORZRES is true physical even to an unaware
+    /// process, so comparing it against the width EnumDisplaySettings reports
+    /// for the same (primary) display gives the exact factor to undo.
+    ///
+    /// With the thread context above in force both numbers agree and this
+    /// returns 1.0, which is the whole point -- an exact list beats a
+    /// reconstructed one. It only has real work to do on Windows 7/8.1, where
+    /// the context does not exist.
+    /// </summary>
+    private static void GetEnumScale(out double sx, out double sy)
     {
         sx = 1.0;
         sy = 1.0;
+
+        int physW = 0, physH = 0;
         IntPtr hdc = GetDC(IntPtr.Zero);
-        if (hdc == IntPtr.Zero)
+        if (hdc != IntPtr.Zero)
+        {
+            try
+            {
+                physW = GetDeviceCaps(hdc, DESKTOPHORZRES);
+                physH = GetDeviceCaps(hdc, DESKTOPVERTRES);
+            }
+            finally
+            {
+                ReleaseDC(IntPtr.Zero, hdc);
+            }
+        }
+        if (physW <= 0 || physH <= 0)
             return;
-        try
+
+        var dm = new DEVMODE();
+        dm.dmSize = (short)Marshal.SizeOf(typeof(DEVMODE));
+        if (!EnumDisplaySettings(null, ENUM_CURRENT_SETTINGS, ref dm))
+            return;
+
+        if (dm.dmPelsWidth  > 0) sx = (double)physW / dm.dmPelsWidth;
+        if (dm.dmPelsHeight > 0) sy = (double)physH / dm.dmPelsHeight;
+    }
+
+    /* Undoing the scale is lossy in both directions: 2560 virtualized at 150%
+     * comes back as 1706 or 1707 depending on which way the driver rounded, and
+     * multiplying up again lands on 2559 or 2561. A dropdown entry that is one
+     * pixel off is the same thing to the user as a missing one, so a
+     * reconstructed size within two pixels of a real display width is taken to
+     * BE that width. Only reached when the thread context above was
+     * unavailable and the scale is doing work. */
+    private static readonly int[] s_commonWidths =
+        { 640, 720, 800, 1024, 1152, 1280, 1360, 1366, 1440, 1600, 1680, 1920,
+          2048, 2560, 2880, 3200, 3440, 3840, 5120, 7680 };
+
+    private static readonly int[] s_commonHeights =
+        { 480, 540, 576, 600, 720, 768, 800, 864, 900, 960, 1024, 1050, 1080,
+          1152, 1200, 1440, 1600, 1620, 1800, 2160, 2400, 2880, 4320 };
+
+    private static int SnapToCommon(int v, int[] table)
+    {
+        foreach (int t in table)
         {
-            int virtW = GetDeviceCaps(hdc, HORZRES);
-            int virtH = GetDeviceCaps(hdc, VERTRES);
-            int physW = GetDeviceCaps(hdc, DESKTOPHORZRES);
-            int physH = GetDeviceCaps(hdc, DESKTOPVERTRES);
-            if (virtW > 0 && physW > 0) sx = (double)physW / virtW;
-            if (virtH > 0 && physH > 0) sy = (double)physH / virtH;
+            if (Math.Abs(t - v) <= 2)
+                return t;
         }
-        finally
-        {
-            ReleaseDC(IntPtr.Zero, hdc);
-        }
+        return v;
     }
 
     private static List<string> GetAttachedDeviceNames()
@@ -150,6 +226,8 @@ public static class DisplayModes
         // 3439.5 and truncation would offer "3439x1440".
         int pw = (int)Math.Round(w * sx);
         int ph = (int)Math.Round(h * sy);
+        if (sx != 1.0) pw = SnapToCommon(pw, s_commonWidths);
+        if (sy != 1.0) ph = SnapToCommon(ph, s_commonHeights);
         var entry = (pw, ph, hz);
         if (!list.Contains(entry))
             list.Add(entry);
@@ -157,9 +235,22 @@ public static class DisplayModes
 
     public static List<(int width, int height, int hz)> GetModes()
     {
+        IntPtr prevDpiContext = EnterPhysicalPixelContext();
+        try
+        {
+            return EnumerateModes();
+        }
+        finally
+        {
+            LeavePhysicalPixelContext(prevDpiContext);
+        }
+    }
+
+    private static List<(int width, int height, int hz)> EnumerateModes()
+    {
         var list = new List<(int, int, int)>();
         double sx, sy;
-        GetDpiScale(out sx, out sy);
+        GetEnumScale(out sx, out sy);
 
         // Every attached adapter, not just the primary: an ultrawide is often
         // the second monitor, and EnumDisplaySettings(null) only ever describes

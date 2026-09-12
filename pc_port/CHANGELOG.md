@@ -1,5 +1,74 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.09.06.2 -- 2026-09-06
+- Fixed issue where Harry would get back up very quickly when breaking out of a grab attack
+- Mod manager will now not re-extract files that have already been extracted, and will prompt you before overwriting anything that already exists
+- Added crosshair size adjustment setting to quick Menu
+- Added Big Head cheat to quick Menu
+- Fixed minimap position from being slightly offscreen
+- Quick menu tweaks and fixes, like preventing sound effects from stacking
+- Fix for screens in mall from displaying glyphs in PAL
+- Slightly decreased bullet decal size    
+
+Commit summaries:
+- launcher: Mod Manager applies incrementally, asks before touching the user's own files (2026.9.6.3)
+- combat: stuck-state nets exit on keyframe stillness, not a 0.5 s clock
+- launcher: Mod Manager knows which deployed files you edited (2026.9.6.4)
+- map4_s03: bridge COPY_GT4_DATA into the PGXP shadow (mall big screen holes)
+- crosshair: size option, 25..125%, quick menu + CROSSHAIRSIZE console command
+- cheats: big head mode (Cheats page + BIGHEAD console command)
+- decals: bullet holes three quarters of their original size, not a quarter
+- cheats: big head 2x, and hook it where every character's bones are written
+- minimap: place inside the overlay pass's real visible rectangle
+- quick menu: one press is one press again
+- quick menu: navigation cues like the main options menu
+- quick menu: drop the move beeps, keep the cancel beep on close
+- quick menu: move beep on page changes
+- map4_s03: on EUR lay the TV bank out the way retail SLES does
+- map4_s03: apply the EUR draw table with the bank upload, not in the worm's init
+- map4_s03: drop the [TVSCR3] readback, the EUR bank is verified
+
+## beta-2026.09.06.1 -- 2026-09-06
+- Adjusted default view so that it is not squished. Inventory should also now be accurate and not stretched. (If you have customized your view, it will stay that way)
+- Alternate camera modes can now also be customized in the quick menu's view editor, and you can adjust the firstperson head position, aiming zoom amount, etc. 
+- All camera customization is saved to the config, but users with the default values will automatically update to the new defaults
+- You can control the free cam with a controller now
+- Fixed minimap being cut off in certain modes
+- Fixed menus from going below 60 fps when fps was capped to 30 (they are 60 in the original)
+- Attempted to improve blending of distant objects with the fog
+- Item pickups should now always appear the same regardless of camera mode or FOV
+
+Commit summaries:
+- Free camera: full controller support, matching the alt-camera scheme
+- Fix Linux transition crash + Event_Update NULL walk; macOS lib/Gatekeeper (issues #113, #110, #102)
+- Minimap: don't widen the corner anchor in stretch mode (borderless 4:3 cutoff)
+- Minimap: place against the renderer's real ortho, not a window query
+- Menus no longer follow a sub-60 fps cap down into lag
+- Bump PsyCross: fogged geometry matches the void colour exactly
+- Quick menu: View page follows the active camera (Classic/Thirdperson/FPS)
+- Quick menu: separate TPS/OTS camera pages with aim + position tuning
+- Options menu + launcher: OTS FOV, and widen the FOV range to 40-140
+- OTS aim zoom in options+launcher; vertical FOV default 1.08 (DuckStation)
+- Fix stretched inventory 3D; migrate changed defaults on update
+- Launcher: compact the Controls form instead of growing it
+- Launcher: move the FOV/zoom slider group up as one unit, original pitch
+- Bump PsyCross: pixel-aspect solve gates on Hor+ like the ortho (load screen / inventory stretch)
+- Inventory 3D aspect: invscale default 100, the geometric 224/240 factor
+- Simple aspect trim default 0.98 -> 1.06 so both Control Types match again
+- Item pickup renders at the game's own projection under any camera FOV
+
+## beta-2026.09.04.1 -- 2026-09-04
+- Fixed screen flicking upwards upon confirmation of item pickup
+- Weather now simulated at 30hz (fixes snow speed)
+- Controllers can now be disconnected and reconnected during gameplay
+- Analog running should no longer slow down the player while steering
+
+Commit summaries:
+- Pickup confirm no longer flicks the scene up 8 rows for a frame
+- Weather particles simulate at the original 30 Hz, whatever the framerate
+- Pickup flick, the real fix: the world asserts its own anchor at submission
+- Analog run no longer sheds speed while steering; PsyCross hot-plug fix
+
 ## beta-2026.09.01.1 -- 2026-09-01
 - Added cutscene shift to aspect quick settings (like vertical shift but applies in cutscenes)
 - Fix rainbow band appearing on some hardware in place of cutscene effect for Lisa cutscenes

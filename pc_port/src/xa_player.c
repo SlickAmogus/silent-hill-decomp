@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "xa_player.h"
+#include "xa_wav.h"
 #include "sh_log.h"
 #include "main/fileinfo.h"   /* g_FileXaLoc[] — XA file disc-sector offsets */
 #include "pc_config.h"       /* g_PcConfig.cutsceneLineGapMs */
@@ -183,6 +184,69 @@ static XaPlayerState g_XaPlayer = {0};
  * an already-playing source without waiting for the next Sd_SetVolXa. */
 float g_PcXaVolume = 1.0f;
 static float s_XaGameGain = 1.0f;
+
+/* ---- WAV override (voice modding) ----------------------------------------
+ * gamedata/load/XA/xa_NNNN.wav replaces voice line NNNN (the g_XaItemData
+ * index; the launcher's Voices tool writes them). 16-bit PCM (8-bit accepted),
+ * mono or stereo, any sample rate: OpenAL resamples, so a microphone take
+ * plays as recorded. The line keeps the AUTHORED pacing: the finished signal
+ * still waits for the original pad, so a shorter take does not rush the
+ * scene, and the page-advance hold stretches to cover a longer take so it is
+ * not cut off. Gated on allow_loose_files like the rest of the load folder. */
+static unsigned char* s_ovPcm    = NULL; /* interleaved int16 frames */
+static uint32_t       s_ovBytes  = 0;
+static uint32_t       s_ovPos    = 0;
+static int            s_ovActive = 0;
+
+static void XaOverride_Free(void)
+{
+    free(s_ovPcm);
+    s_ovPcm    = NULL;
+    s_ovBytes  = 0;
+    s_ovPos    = 0;
+    s_ovActive = 0;
+}
+
+/* Returns 1 with s_ovPcm filled on success. */
+static int XaOverride_LoadPath(const char* path, int* outRate, int* outStereo)
+{
+    unsigned char* pcm;
+    uint32_t       bytes;
+
+    if (!XaWav_Load(path, &pcm, &bytes, outRate, outStereo)) return 0;
+    XaOverride_Free();
+    s_ovPcm    = pcm;
+    s_ovBytes  = bytes;
+    s_ovPos    = 0;
+    s_ovActive = 1;
+    return 1;
+}
+
+static int XaOverride_Load(uint16_t xaIdx, int* outRate, int* outStereo)
+{
+    char path[1024];
+
+    if (!g_PcConfig.allowLooseFiles) return 0;
+    XaWav_OverridePath(xaIdx, path, sizeof(path));
+    return XaOverride_LoadPath(path, outRate, outStereo);
+}
+
+/* g_XaPlayer.xaIdx while a loose file (not a disc line) is playing. Never a
+ * real g_XaItemData index (727 entries). */
+#define XA_FILE_IDX 0xFFFFu
+
+/* One OpenAL source and buffer set for the player's life; gain back to full at
+ * every new line (see the note at the end of XaPlayer_Play). */
+static void XaPlayer_EnsureAlReady(void)
+{
+    if (!g_XaPlayer.alSource) {
+        alGenSources(1, &g_XaPlayer.alSource);
+        alGenBuffers(XA_NUM_BUFFERS, g_XaPlayer.alBuffers);
+        g_XaPlayer.pcmBuffer = malloc(XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * 2 * sizeof(int16_t));
+    }
+    s_XaGameGain = 1.0f;
+    alSourcef(g_XaPlayer.alSource, AL_GAIN, s_XaGameGain * g_PcXaVolume);
+}
 
 // Clamp s32 to s16
 static int16_t ClampS16(int32_t val) {
@@ -442,6 +506,43 @@ void XaPlayer_Play(uint16_t xaIdx) {
         XaPlayer_Stop();
     }
 
+    {
+        int ovRate = 0, ovStereo = 0;
+        if (XaOverride_Load(xaIdx, &ovRate, &ovStereo)) {
+            const uint32_t chunkBytes = XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * sizeof(int16_t);
+            uint32_t chunks  = (s_ovBytes + chunkBytes - 1) / chunkBytes;
+            uint32_t wavMs   = (uint32_t)(((uint64_t)(s_ovBytes / (ovStereo ? 4u : 2u)) * 1000u) / (unsigned)ovRate);
+            uint32_t origMs  = ((uint32_t)item->audioLength_8_bits * 1000u) / 60u;
+            Uint32   nowMs   = SDL_GetTicks();
+
+            g_XaPlayer.file             = NULL;
+            g_XaPlayer.baseSector       = 0;
+            g_XaPlayer.xaIdx            = xaIdx;
+            g_XaPlayer.currentSector    = 0;
+            g_XaPlayer.totalSectors     = chunks;
+            g_XaPlayer.remainingSectors = chunks;
+            g_XaPlayer.sampleRate       = ovRate;
+            g_XaPlayer.isStereo         = ovStereo;
+            g_XaPlayer.bitDepth         = 0;
+            g_XaPlayer.filterFile       = 0;
+            g_XaPlayer.filterChannel    = 0;
+            g_XaPlayer.isPlaying        = 1;
+            g_XaPlayer.needsInitialFill = 1;
+            g_XaPlayer.debugForceMono   = 0;
+            memset(g_XaPlayer.lastSamples, 0, sizeof(g_XaPlayer.lastSamples));
+
+            s_xaPrevFireMs    = nowMs;
+            s_xaPlayStartMs   = nowMs;
+            s_xaPadEndMs      = nowMs + (((uint32_t)item->audioLength_8_bits + 32u) * 1000u) / 60u;
+            s_xaVoiceGapEndMs = nowMs + (wavMs > origMs ? wavMs : origMs) + (uint32_t)g_PcConfig.cutsceneLineGapMs;
+
+            SH_DBG("[XA] override xa_%04u.wav %s %dHz %ums (authored %ums)",
+                   (unsigned)xaIdx, ovStereo ? "stereo" : "mono", ovRate, wavMs, origMs);
+            XaPlayer_EnsureAlReady();
+            return;
+        }
+    }
+
     // Resolve disc base sector for this XA file (and open the BIN if needed)
     uint32_t baseSector = BeginXaStream(fileIdx);
     if (!baseSector) {
@@ -505,13 +606,6 @@ void XaPlayer_Play(uint16_t xaIdx) {
     /* Mono replication test confirmed not the issue — leave off. */
     g_XaPlayer.debugForceMono = 0;
 
-    // Create OpenAL source/buffers once
-    if (!g_XaPlayer.alSource) {
-        alGenSources(1, &g_XaPlayer.alSource);
-        alGenBuffers(XA_NUM_BUFFERS, g_XaPlayer.alBuffers);
-        g_XaPlayer.pcmBuffer = malloc(XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * 2 * sizeof(int16_t));
-    }
-
     /* Always reset gain to full at the start of a new track. The game's
      * audio task pool emits a Sd_SetVolXa(0,0) "mute-before-seek" early
      * in gameplay (sd_call.c:1073, inside Sd_XaPreLoadAudio case 0).
@@ -521,9 +615,7 @@ void XaPlayer_Play(uint16_t xaIdx) {
      * 0.0 for the rest of the session. Without this reset, every voice
      * line after the first ~20 plays silently (cafe cutscene voices
      * still work because they precede the mute event). */
-    s_XaGameGain = 1.0f;
-    alSourcef(g_XaPlayer.alSource, AL_GAIN, s_XaGameGain * g_PcXaVolume);
-
+    XaPlayer_EnsureAlReady();
 }
 
 void XaPlayer_Stop(void) {
@@ -542,11 +634,71 @@ void XaPlayer_Stop(void) {
     }
 
     g_XaPlayer.isPlaying = 0;
+    XaOverride_Free();
     /* Clear all the streaming-state flags that Sd_AudioStreamingCheck consults.
      * Skip when this Stop is the queued-Stop-before-Play in Sd_XaAudioPlayTaskAdd:
      * in that case Sd_TaskPoolExecute case 2 already preserves xaAudioIdx_4
      * for the upcoming Play, and the about-to-fire Play will re-set the flags. */
     Xa_SignalPlaybackFinished();
+}
+
+int XaPlayer_PlayFile(const char* path)
+{
+    int    rate = 0, stereo = 0;
+    FILE*  probe;
+    Uint32 nowMs;
+    uint32_t chunks, wavMs;
+    const uint32_t chunkBytes = XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * sizeof(int16_t);
+
+    if (!g_PcConfig.allowLooseFiles) return 0;
+    /* A disc line still producing audio keeps the source; its pad tail (audio
+     * drained, finish signal pending) may be cut so the file can start. */
+    if (g_XaPlayer.isPlaying && g_XaPlayer.xaIdx != XA_FILE_IDX && Xa_IsVoiceAudioDraining()) return 0;
+    /* Existence check before Stop: a missing file must not cut a pad tail. */
+    probe = fopen(path, "rb");
+    if (!probe) return 0;
+    fclose(probe);
+
+    if (g_XaPlayer.isPlaying) {
+        XaPlayer_Stop();
+    }
+    if (!XaOverride_LoadPath(path, &rate, &stereo)) return 0;
+
+    chunks = (s_ovBytes + chunkBytes - 1) / chunkBytes;
+    wavMs  = (uint32_t)(((uint64_t)(s_ovBytes / (stereo ? 4u : 2u)) * 1000u) / (unsigned)rate);
+    nowMs  = SDL_GetTicks();
+
+    g_XaPlayer.file             = NULL;
+    g_XaPlayer.baseSector       = 0;
+    g_XaPlayer.xaIdx            = XA_FILE_IDX;
+    g_XaPlayer.currentSector    = 0;
+    g_XaPlayer.totalSectors     = chunks;
+    g_XaPlayer.remainingSectors = chunks;
+    g_XaPlayer.sampleRate       = rate;
+    g_XaPlayer.isStereo         = stereo;
+    g_XaPlayer.bitDepth         = 0;
+    g_XaPlayer.filterFile       = 0;
+    g_XaPlayer.filterChannel    = 0;
+    g_XaPlayer.isPlaying        = 1;
+    g_XaPlayer.needsInitialFill = 1;
+    g_XaPlayer.debugForceMono   = 0;
+    memset(g_XaPlayer.lastSamples, 0, sizeof(g_XaPlayer.lastSamples));
+
+    s_xaPrevFireMs    = nowMs;
+    s_xaPlayStartMs   = nowMs;
+    s_xaPadEndMs      = nowMs + wavMs;
+    s_xaVoiceGapEndMs = nowMs + wavMs + (uint32_t)g_PcConfig.cutsceneLineGapMs;
+
+    SH_DBG("[XA] file %s %s %dHz %ums", path, stereo ? "stereo" : "mono", rate, wavMs);
+    XaPlayer_EnsureAlReady();
+    return 1;
+}
+
+void XaPlayer_StopFile(void)
+{
+    if (g_XaPlayer.isPlaying && g_XaPlayer.xaIdx == XA_FILE_IDX) {
+        XaPlayer_Stop();
+    }
 }
 
 // Fill a single OpenAL buffer with decoded XA data
@@ -594,6 +746,25 @@ void XaPlayer_PlayWithParams(uint16_t xaIdx, uint16_t fileIdx, uint32_t sectorOf
  * given AL buffer. Returns total int16 samples written. */
 static int FillAndUploadOne(ALuint alBuffer) {
     if (g_XaPlayer.remainingSectors == 0) return 0;
+
+    if (s_ovActive) {
+        /* Override: one PCM chunk per "sector" so the drain logic below is
+         * shared unchanged. */
+        const uint32_t chunkBytes = XA_SECTORS_PER_BUFFER * XA_SAMPLES_PER_SECTOR * sizeof(int16_t);
+        uint32_t n = s_ovBytes - s_ovPos;
+        if (n == 0) {
+            g_XaPlayer.remainingSectors = 0;
+            return 0;
+        }
+        if (n > chunkBytes) n = chunkBytes;
+        memcpy(g_XaPlayer.pcmBuffer, s_ovPcm + s_ovPos, n);
+        s_ovPos += n;
+        g_XaPlayer.remainingSectors--;
+        alBufferData(alBuffer, g_XaPlayer.isStereo ? AL_FORMAT_STEREO16 : AL_FORMAT_MONO16,
+                     g_XaPlayer.pcmBuffer, (ALsizei)n, g_XaPlayer.sampleRate);
+        alSourceQueueBuffers(g_XaPlayer.alSource, 1, &alBuffer);
+        return (int)(n / sizeof(int16_t));
+    }
 
     int wantedMatches = (g_XaPlayer.remainingSectors > XA_SECTORS_PER_BUFFER)
                       ? XA_SECTORS_PER_BUFFER : (int)g_XaPlayer.remainingSectors;
@@ -695,6 +866,7 @@ void XaPlayer_Update(void) {
         /* g_XaPlayer.file aliases the shared s_BinFile — never fclose it
          * here. The BIN handle is held for the lifetime of the process. */
         g_XaPlayer.file = NULL;
+        XaOverride_Free();
         Xa_SignalPlaybackFinished();
     }
 }

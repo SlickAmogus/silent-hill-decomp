@@ -9,6 +9,7 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -43,6 +44,10 @@ namespace SilentHillPC_Launcher
         // users are auto-migrated to it once a newer beta release appears, so the
         // move to beta zip builds needs no manual Build Settings change.
         public const string BetaBranch = "beta";
+        /// <summary>Named opt-in builds (release-nightly.ps1 -Name): prereleases on
+        /// this branch with custom-&lt;slug&gt;-version tags. Listed only under their own
+        /// branch and never counted as "latest" (their tags parse to version 0).</summary>
+        public const string CustomBranch = "custom";
 
         // -- DTOs (manifest) --------------------------------------------------
 
@@ -57,6 +62,8 @@ namespace SilentHillPC_Launcher
             [DataMember(Name = "launcher_version")] public string LauncherVersion;
             [DataMember(Name = "zip_url")]          public string ZipUrl;
             [DataMember(Name = "zip_name")]         public string ZipName;
+            [DataMember(Name = "name")]             public string Name;        // custom builds: the display name
+            [DataMember(Name = "stream")]           public string Stream;      // "beta" | "custom" (absent on older builds)
             [DataMember(Name = "files")]            public List<FileEntry> Files;
         }
 
@@ -80,6 +87,8 @@ namespace SilentHillPC_Launcher
             public bool   LauncherIsNewer;  // incoming launcher strictly newer than ours
             public string MigrateToBranch;  // non-null => switch the user's branch to this on apply (alpha->beta)
             public bool   IsBeta;          // newest build is a beta-branch release (surfaced in the update dialog)
+            public bool   IsCustom;        // an opt-in named build (custom branch), never the main stream
+            public string BuildName;       // custom builds: the display name from the manifest
             public List<FileEntry> Changed = new List<FileEntry>();
             public bool HasUpdate => Changed.Count > 0;
 
@@ -160,6 +169,9 @@ namespace SilentHillPC_Launcher
                 LauncherVersion = manifest.LauncherVersion,
                 MigrateToBranch = src.MigrateBranch,
                 IsBeta          = src.IsBeta,
+                IsCustom        = string.Equals(manifest.Stream, "custom", StringComparison.OrdinalIgnoreCase) ||
+                                  CustomFamilyPrefix(src.Tag) != null,
+                BuildName       = manifest.Name,
             };
 
             if (manifest.Files != null)
@@ -236,15 +248,38 @@ namespace SilentHillPC_Launcher
             var rels = await ListReleasesAsync(owner, repo, ct).ConfigureAwait(false);
             IEnumerable<GhRelease> cand;
             if (string.IsNullOrWhiteSpace(branch))
-                cand = rels.Where(r => !IsBetaRelease(r)); // alpha = the v* (non-beta) stream
+                cand = rels.Where(r => !IsBetaRelease(r) && !IsCustomRelease(r)); // alpha = the v* (non-beta) stream
             else
                 cand = rels.Where(r => string.Equals(r.TargetCommitish, branch, StringComparison.OrdinalIgnoreCase));
 
-            return cand.Select(r => new BuildInfo
+            var list = cand.Select(r => new BuildInfo
             {
                 Tag   = r.TagName,
-                Label = $"{r.TagName}  ({ParseDate(r.CreatedAt):yyyy-MM-dd}){(IsBetaRelease(r) ? "  [beta]" : "")}"
+                Label = IsCustomRelease(r)
+                    ? $"{(string.IsNullOrWhiteSpace(r.Name) ? r.TagName : r.Name)}  ({ParseDate(r.CreatedAt):yyyy-MM-dd})  [custom]"
+                    : $"{r.TagName}  ({ParseDate(r.CreatedAt):yyyy-MM-dd}){(IsBetaRelease(r) ? "  [beta]" : "")}"
             }).ToList();
+
+            // Custom branch: one "follow this build" entry per named build, above its
+            // dated releases, so picking it keeps getting that build's updates.
+            if (!string.IsNullOrWhiteSpace(branch) &&
+                string.Equals(branch, CustomBranch, StringComparison.OrdinalIgnoreCase))
+            {
+                var families = new List<BuildInfo>();
+                var seen     = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var r in cand)
+                {
+                    string prefix = CustomFamilyPrefix(r.TagName);
+                    if (prefix == null || !seen.Add(prefix)) continue;
+                    families.Add(new BuildInfo
+                    {
+                        Tag   = prefix + "latest",
+                        Label = $"{CustomDisplayName(r)}  — latest (auto-updates)"
+                    });
+                }
+                list.InsertRange(0, families);
+            }
+            return list;
         }
 
         // -- Public: cross-platform archives (Build Settings) -----------------
@@ -271,7 +306,7 @@ namespace SilentHillPC_Launcher
             {
                 IEnumerable<GhRelease> cand = releases;
                 cand = string.IsNullOrWhiteSpace(branch)
-                    ? cand.Where(r => !IsBetaRelease(r))
+                    ? cand.Where(r => !IsBetaRelease(r) && !IsCustomRelease(r))
                     : cand.Where(r => string.Equals(r.TargetCommitish, branch, StringComparison.OrdinalIgnoreCase));
                 target = cand.FirstOrDefault();
             }
@@ -343,7 +378,9 @@ namespace SilentHillPC_Launcher
             {
                 if (s.IsDefaultRepo)
                 {
-                    var all    = await ListReleasesAsync(owner, repo, ct).ConfigureAwait(false);
+                    var all    = (await ListReleasesAsync(owner, repo, ct).ConfigureAwait(false))
+                                 .Where(r => !IsCustomRelease(r))   // opt-in builds are never "latest"
+                                 .ToList();
                     // Newest by version; on a tie (a same-day alpha + beta share a
                     // version) prefer the beta — it's the leading-edge stream, and
                     // this is the case where an alpha launcher-delivery release ties
@@ -379,7 +416,17 @@ namespace SilentHillPC_Launcher
             string branch = s.IsDefaultBranch ? null : s.Branch;
 
             GhRelease target;
-            if (!s.IsLatestBuild)
+            string family = CustomFamilyPrefix(s.Build);
+            if (family != null && s.Build.EndsWith("-latest", StringComparison.OrdinalIgnoreCase))
+            {
+                // "Newest release of THIS named build" — never another custom build's,
+                // and never the beta/alpha streams.
+                target = releases.FirstOrDefault(r => r.TagName != null &&
+                             r.TagName.StartsWith(family, StringComparison.OrdinalIgnoreCase));
+                if (target == null)
+                    throw new Exception($"No builds found for '{s.Build}' in {owner}/{repo}.");
+            }
+            else if (!s.IsLatestBuild)
             {
                 target = releases.FirstOrDefault(r => string.Equals(r.TagName, s.Build, StringComparison.OrdinalIgnoreCase));
                 if (target == null)
@@ -390,6 +437,8 @@ namespace SilentHillPC_Launcher
                 IEnumerable<GhRelease> cand = releases;
                 if (branch != null)
                     cand = cand.Where(r => string.Equals(r.TargetCommitish, branch, StringComparison.OrdinalIgnoreCase));
+                else
+                    cand = cand.Where(r => !IsCustomRelease(r));
                 target = cand.FirstOrDefault();
                 if (target == null)
                     throw new Exception($"No releases found for branch '{(branch ?? "default")}' in {owner}/{repo}.");
@@ -448,6 +497,49 @@ namespace SilentHillPC_Launcher
         {
             return string.Equals(r.TargetCommitish, BetaBranch, StringComparison.OrdinalIgnoreCase) ||
                    (r.TagName != null && r.TagName.StartsWith("beta-", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool IsCustomRelease(GhRelease r)
+        {
+            return string.Equals(r.TargetCommitish, CustomBranch, StringComparison.OrdinalIgnoreCase) ||
+                   (r.TagName != null && r.TagName.StartsWith("custom-", StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>The family prefix shared by every release of one named custom build
+        /// ("custom-open-world-test-"), from either a release tag
+        /// ("custom-open-world-test-2026.09.08.1") or the saved build value
+        /// ("custom-open-world-test-latest"). null for anything that is not a custom
+        /// build, so it doubles as the "is this a custom build?" test.</summary>
+        public static string CustomFamilyPrefix(string tagOrBuild)
+        {
+            string t = (tagOrBuild ?? "").Trim();
+            if (!t.StartsWith("custom-", StringComparison.OrdinalIgnoreCase)) return null;
+            int cut = t.LastIndexOf('-');
+            if (cut <= "custom".Length) return null;   // no version/latest segment
+            return t.Substring(0, cut + 1);
+        }
+
+        /// <summary>The build value meaning "the newest release of this named custom
+        /// build", or null when the input is not a custom build.</summary>
+        public static string CustomFamilyLatestToken(string tagOrBuild)
+        {
+            string prefix = CustomFamilyPrefix(tagOrBuild);
+            return prefix == null ? null : prefix + "latest";
+        }
+
+        /// <summary>A custom release's display name, from its release title with the
+        /// trailing version stripped ("Open World Test 2026.09.08.1" -> "Open World
+        /// Test"); falls back to the tag's family slug.</summary>
+        private static string CustomDisplayName(GhRelease r)
+        {
+            string title = (r?.Name ?? "").Trim();
+            if (title.Length > 0)
+            {
+                var m = Regex.Match(title, @"^(.*?)\s+\d{4}\.\d{2}\.\d{2}\.\d+$");
+                return m.Success ? m.Groups[1].Value.Trim() : title;
+            }
+            string prefix = CustomFamilyPrefix(r?.TagName);
+            return prefix == null ? (r?.TagName ?? "") : prefix.Substring("custom-".Length).TrimEnd('-');
         }
 
         private static async Task<List<GhRelease>> ListReleasesAsync(string owner, string repo, CancellationToken ct)
@@ -763,6 +855,14 @@ namespace SilentHillPC_Launcher
         {
             string t = (tag ?? "").Trim();
             if (t.StartsWith("beta-", StringComparison.OrdinalIgnoreCase)) t = t.Substring(5);
+            else if (t.StartsWith("custom-", StringComparison.OrdinalIgnoreCase))
+            {
+                // Strip the family prefix so releases of ONE custom build order among
+                // themselves. Custom builds are filtered out of every cross-stream
+                // "newest" comparison, so a real version here can never win "latest".
+                string prefix = CustomFamilyPrefix(t);
+                t = prefix == null ? "" : t.Substring(prefix.Length);
+            }
             else if (t.StartsWith("v", StringComparison.OrdinalIgnoreCase)) t = t.Substring(1);
             Version v;
             return Version.TryParse(t, out v) ? v : new Version(0, 0, 0, 0);

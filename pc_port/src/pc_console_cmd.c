@@ -1282,6 +1282,23 @@ void Pc_ConsoleExec(const char* line)
         int v = atoi(arg);
         if (v >= 0 && v <= 100) g_PcInvDimStrength = v;
         cprintf("off-center carousel dim: %d%%", g_PcInvDimStrength);
+    } else if (strcmp(cmd, "BIGHEAD") == 0) {
+        extern int g_PcBigHead;
+        if (arg[0]) g_PcBigHead = atoi(arg) ? 1 : 0;
+        cprintf("big head mode: %s", g_PcBigHead ? "ON" : "OFF");
+    } else if (strcmp(cmd, "CROSSHAIRSIZE") == 0) {
+        if (arg[0]) {
+            float v = (float)atof(arg);
+            if (v < 25.0f) v = 25.0f;
+            if (v > 125.0f) v = 125.0f;
+            g_PcConfig.crosshairSize = v;
+            {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%d", (int)(v + 0.5f));
+                PcConfig_SaveKeyValue("crosshair_size", buf);
+            }
+        }
+        cprintf("crosshair size: %d%% (25..125)", (int)(g_PcConfig.crosshairSize + 0.5f));
     } else if (strcmp(cmd, "OBST") == 0) {
         extern int g_PcObstacleCollision;
         if (arg[0]) g_PcObstacleCollision = atoi(arg) ? 1 : 0;
@@ -1413,6 +1430,10 @@ void Pc_ConsoleExec(const char* line)
         extern float g_pgxpWeldWRatio;
         if (arg[0]) g_pgxpWeldWRatio = (float)atof(arg);
         cprintf("PGXP weld depth ratio: %.3f", g_pgxpWeldWRatio);
+    } else if (strcmp(cmd, "WEATHERHZ") == 0) {
+        if (arg[0]) g_PcConfig.weatherSimHz = (atoi(arg) == 30) ? 30 : 60;
+        cprintf("Weather (rain/snow) simulation: %d Hz%s", g_PcConfig.weatherSimHz,
+                g_PcConfig.weatherSimHz == 30 ? " (original console cadence)" : " (per rendered frame)");
     } else if (strcmp(cmd, "PGXPEDGE") == 0) {
         extern float g_PgxpEdgeMax;
         if (arg[0]) g_PgxpEdgeMax = (float)atof(arg);

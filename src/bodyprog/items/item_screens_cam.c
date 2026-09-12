@@ -12,12 +12,21 @@
 #include "pc_modern_mesh.h"
 #include "sh_log.h"
 #include <PsyX/PsyX_public.h>
-/* Inventory item-preview aspect: 0 = PSX-faithful (raw 4:3-display look,
- * vertically squished in interlaced 448), 1 = square (true proportions, default).
- * Toggled by `invaspect`. g_PcInvAspectPct fine-tunes the vertical scale as a
- * percent of the geometric square factor (100 = exactly square); `invscale`. */
+/* Inventory item-preview aspect: 0 = off (raw), 1 = apply the vertical aspect
+ * correction (default). Toggled by `invaspect`; g_PcInvAspectPct scales it live
+ * (`invscale`; 100 = the geometric factor exactly).
+ *
+ * The factor (4/3)*(gsScreenHeight/gsScreenWidth) = (4/3)*(224/320) = 0.9333 is
+ * exactly 224/240. A TV shows the 224-line frame letterboxed inside its 240 lines
+ * (square pixels); the port's Hor+-off ortho stretches those 224 rows to the FULL
+ * 4:3 height, 240/224 = ~7% taller. 100% of the factor undoes precisely that for
+ * the 3D item, which is why 100 matches DuckStation. The shipped 125 was a stale
+ * eyeball tune (it matched the inventory to the world while the world itself was
+ * squashed by the fabricated GsIDMATRIX2 Y scale, since removed); 107 was a wrong
+ * "no net scale" guess that ignored the 224->240 stretch. Shared with the world
+ * pickup screen. Not persisted, so this default reaches everyone on update. */
 int g_PcInvAspectSquare = 1;
-int g_PcInvAspectPct    = 125;
+int g_PcInvAspectPct    = 100;
 /* Slight Y placement match vs Duckstation (view-Y units; + = down). Carousel a
  * touch down, equipped weapon up. Tunable: invcary / inveqy. */
 int g_PcInvCarouselYOff = 50;

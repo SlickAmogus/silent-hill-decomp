@@ -11,6 +11,9 @@
 #include "bodyprog/screen/screen_draw.h"
 #include "bodyprog/sound/sound_system.h"
 #include "bodyprog/text/text_draw.h"
+#ifdef SH_PC_PORT
+#include "pc_msg_voice.h"
+#endif
 #include "main/fsqueue.h"
 
 #ifdef SH_PC_PORT
@@ -73,6 +76,9 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
     s32        temp_s1;
     bool       hasInput;
     s32        temp;
+#ifdef SH_PC_PORT
+    Pc_MsgVoice_Touch();
+#endif
     s32        var_a1;
     static s32 stateMachineIdx0;
     static s32 stateMachineIdx1;
@@ -156,6 +162,7 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
             g_MapMsg_CurrentIdx              = mapMsgIdx;
 #ifdef SH_PC_PORT
             Pc_MapMsgPageReset();
+            Pc_MsgVoice_OnPage(mapMsgIdx);
 #endif
             stateMachineIdx0                 = 0;
             stateMachineIdx1                 = 0;
@@ -484,6 +491,7 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
                     else
                     {
                         g_MapMsg_CurrentIdx++;
+                        Pc_MsgVoice_OnPage(g_MapMsg_CurrentIdx);
                     }
 #else
                     g_MapMsg_CurrentIdx++;
@@ -555,6 +563,9 @@ s32 Gfx_MapMsg_Draw(s32 mapMsgIdx) // 0x800365B8
         return MapMsgState_Idle;
     }
 
+#ifdef SH_PC_PORT
+    Pc_MsgVoice_OnEnd();
+#endif
     g_SysWork.isMgsStringSet            = false;
     g_SysWork.enableHighResGlyphs = false;
     msgDisplayLength               = 0;

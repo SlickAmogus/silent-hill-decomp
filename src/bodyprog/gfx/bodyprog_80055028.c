@@ -62,7 +62,10 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
 /* When culling is disabled, ignore fog-based draw distance clamp.
  * PSX uses fogFarDistance as a draw distance optimization (don't render
  * what fog fully hides). On PC we want everything to render and let
- * fog visually obscure it instead of culling geometry. */
+ * fog visually obscure it instead of culling geometry. The shader fog now
+ * dissolves fully-fogged geometry to exactly the void colour (PsyCross
+ * GPU_DITHERING_NO_VCOLOR fades dither/quantize with fog), so drawing past
+ * the fog plane no longer leaves a shade-off band -- no distance cull needed. */
 #define FOG_FAR_DIST() (g_PcConfig.disableCulling ? 0x7FFFFFFF : g_WorldEnvWork.fog.farDistance)
 
 /* Per-poly far drop. The base 0x79C shifted by (shift+2) is ~61u, and it -- not

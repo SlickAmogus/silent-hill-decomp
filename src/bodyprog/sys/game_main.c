@@ -4,6 +4,7 @@
 #include "sh_log.h"
 #include "pc_config.h"
 #include "xa_player.h"
+#include "pc_msg_voice.h"
 #include <SDL_timer.h>
 #include <math.h>
 extern void PsyX_EndScene(void);
@@ -38,6 +39,13 @@ int g_PcHorPlusGate = 0;
 /* Set by a freeze-frame state (pause, map messages) when it hands control back,
  * instead of dropping g_PsxPresentLastFrame on the spot. See the release below. */
 int g_PcFreezeReleasePending = 0;
+
+/* [SLOWFRAME] phase clocks. A stall report needs to say WHICH part of the frame
+ * took the time -- "worst=9470ms" in [PERF] separates a stall from slow
+ * rendering and then stops being useful. Stamped at five fixed points in the
+ * loop and read back only on a frame over the threshold, so this costs five
+ * SDL_GetTicks calls a frame and prints nothing on a healthy run. */
+static unsigned int s_sfTop, s_sfUpdStart, s_sfUpdEnd, s_sfFsqEnd, s_sfSwapEnd;
 #include <stdio.h>
 #include <SDL_scancode.h>
 #include <SDL_mouse.h>
@@ -448,7 +456,9 @@ static void Pc_CameraFov_Update(int standDown)
     {
         if (g_PcFpsCam)
             fov = g_PcConfig.fpsFov;
-        else if (g_ControlStyle == ControlStyle_Tps || g_ControlStyle == ControlStyle_Ots)
+        else if (g_ControlStyle == ControlStyle_Ots)
+            fov = g_PcConfig.otsFov;
+        else if (g_ControlStyle == ControlStyle_Tps)
             fov = g_PcConfig.tpsFov;
     }
 
@@ -567,7 +577,8 @@ static void Pc_TpsCamera_Apply(void)
     /* Aim zoom: ease the orbit distance in while aiming a gun, so the shot lines
      * up better. tps_aim_zoom config gates it (on by default). */
     static s32 s_tpDist = TP_DIST;
-    static s32 s_otsOff = 0;   /* OTS lateral offset; also reset on mode entry */
+    static s32 s_otsOff  = 0;   /* camera lateral (X) offset ease; reset on mode entry */
+    static s32 s_otsOffY = 0;   /* camera vertical (Y) offset ease */
     {
         extern int g_TpsCamNeedsReset;
         if (g_TpsCamNeedsReset)
@@ -580,18 +591,24 @@ static void Pc_TpsCamera_Apply(void)
             g_TpsCamPitch = 0;
             s_tpDist      = TP_DIST;
             s_otsOff      = 0;
+            s_otsOffY     = 0;
         }
         /* tps_aim_zoom_amount scales how far in the dolly goes: 0% leaves the
          * camera at TP_DIST (no zoom), 100% (the default) lands on TP_DIST_AIM (the
          * original zoom), 200% goes all the way to TP_DIST_AIM_MAX (twice as far
          * in). Linear across the whole range. */
-        s32 pct = (s32)(g_PcConfig.tpsAimZoom + 0.5f);
+        float zoomPctF = (g_ControlStyle == ControlStyle_Ots) ? g_PcConfig.otsAimZoom
+                                                              : g_PcConfig.tpsAimZoom;
+        s32 pct = (s32)(zoomPctF + (zoomPctF < 0.0f ? -0.5f : 0.5f));
         s32 aimDist;
         s32 target;
 
-        if (pct < 0)   pct = 0;
-        if (pct > 200) pct = 200;
+        if (pct < -200) pct = -200;
+        if (pct >  200) pct =  200;
 
+        /* Negative = pull the aim camera BACK past the rest distance (wider view);
+         * +200 = as close as the dolly goes. Stays positive across the range
+         * (at -200, TP_DIST + (TP_DIST - TP_DIST_AIM_MAX)). */
         aimDist = TP_DIST - (((TP_DIST - TP_DIST_AIM_MAX) * pct) / 200);
         target  = isAiming ? aimDist : TP_DIST;
         s_tpDist += (target - s_tpDist) >> 3;
@@ -889,8 +906,10 @@ static void Pc_TpsCamera_Apply(void)
              * pulled position keeps the dolly out of level geometry behind the eye. */
             {
                 #define SWING_PULL_NEAR Q12(0.55f) /* arm distance where the dolly starts */
-                #define SWING_PULL_MAX  Q12(0.50f) /* dolly cap */
                 #define SWING_PULL_WALL Q12(0.15f) /* keep-out margin from level geometry */
+                /* Dolly cap is player-tunable (View & Aspect page / config
+                 * fps_melee_swing, 0..1 world units); 0 disables the pullback. */
+                const s32 swingPullMax = (s32)(g_PcConfig.fpsMeleeSwing * 4096.0f);
                 s32 target = 0;
 
                 if (g_SysWork.playerCombat.weaponAttack != NO_VALUE &&
@@ -916,7 +935,7 @@ static void Pc_TpsCamera_Apply(void)
                         /* 1.5x gain: bone origins (elbow/wrist) sit past the mesh
                          * surface that actually fills the view. */
                         target = (SWING_PULL_NEAR - minDist) + ((SWING_PULL_NEAR - minDist) >> 1);
-                        if (target > SWING_PULL_MAX) target = SWING_PULL_MAX;
+                        if (target > swingPullMax) target = swingPullMax;
                     }
                 }
 
@@ -957,7 +976,6 @@ static void Pc_TpsCamera_Apply(void)
                     tpCamPos.vz -= (s32)((s64)pull * fwdZ >> 12);
                 }
                 #undef SWING_PULL_NEAR
-                #undef SWING_PULL_MAX
                 #undef SWING_PULL_WALL
             }
 
@@ -999,24 +1017,40 @@ static void Pc_TpsCamera_Apply(void)
          * while aiming — precisely so s_otsOff can ease both ways instead of
          * snapping. With the option off, Thirdperson never enters it and the
          * camera stays centred exactly as before. */
-        if (g_ControlStyle == ControlStyle_Ots ||
-            (g_ControlStyle == ControlStyle_Tps && g_PcConfig.tpsOtsAim))
+        /* Camera position offset: lateral (X, along the right vector; g_OtsSide and
+         * Rear Look flip the shoulder) and vertical (Y). Each camera has a rest and
+         * an aim target the view eases between. Defaults reproduce the old
+         * OTS_OFFSET (0.55) / OTS_OFFSET_AIM (0.9): OTS rests over the shoulder, TPS
+         * rests centred and only swings to its aim offset when tps_ots_aim is on.
+         * All four (rest/aim X/Y) are player-tunable per mode (View & Aspect page).
+         * FPS is excluded -- its eye is already at Harry's head. */
+        if (!g_PcFpsCam)
         {
-            #define OTS_OFFSET     Q12(0.55f)
-            #define OTS_OFFSET_AIM Q12(0.9f)
-            s32 restOff   = (g_ControlStyle == ControlStyle_Ots) ? OTS_OFFSET : 0;
-            s32 targetOff = (isAiming ? OTS_OFFSET_AIM : restOff) * g_OtsSide;
-            s32 rX = Math_Cos(g_TpsCamYaw + rearOfs);   /* horizontal right vector = (cos yaw, -sin yaw); +rearOfs flips the shoulder with Rear Look */
-            s32 rZ = -Math_Sin(g_TpsCamYaw + rearOfs);
-            s32 ox, oz;
-
-            s_otsOff += (targetOff - s_otsOff) >> 3;
-            ox = (s32)((s64)s_otsOff * rX >> 12);
-            oz = (s32)((s64)s_otsOff * rZ >> 12);
-            tpCamPos.vx += ox; tpCamPos.vz += oz;
-            tpLookAt.vx += ox; tpLookAt.vz += oz;
-            #undef OTS_OFFSET
-            #undef OTS_OFFSET_AIM
+            s32 restX, restY, aimX, aimY;
+            if (g_ControlStyle == ControlStyle_Ots)
+            {
+                restX = g_PcConfig.otsRestX; restY = g_PcConfig.otsRestY;
+                aimX  = g_PcConfig.otsAimX;  aimY  = g_PcConfig.otsAimY;
+            }
+            else
+            {
+                restX = g_PcConfig.tpsRestX; restY = g_PcConfig.tpsRestY;
+                if (g_PcConfig.tpsOtsAim) { aimX = g_PcConfig.tpsAimX; aimY = g_PcConfig.tpsAimY; }
+                else                      { aimX = restX;              aimY = restY; }
+            }
+            {
+                s32 rX = Math_Cos(g_TpsCamYaw + rearOfs);   /* right vector = (cos yaw, -sin yaw); +rearOfs flips the shoulder with Rear Look */
+                s32 rZ = -Math_Sin(g_TpsCamYaw + rearOfs);
+                s32 targetX = (isAiming ? aimX : restX) * g_OtsSide; /* g_OtsSide flips X only */
+                s32 targetY = (isAiming ? aimY : restY);
+                s32 ox, oz;
+                s_otsOff  += (targetX - s_otsOff)  >> 3;
+                s_otsOffY += (targetY - s_otsOffY) >> 3;
+                ox = (s32)((s64)s_otsOff * rX >> 12);
+                oz = (s32)((s64)s_otsOff * rZ >> 12);
+                tpCamPos.vx += ox; tpCamPos.vz += oz; tpCamPos.vy += s_otsOffY;
+                tpLookAt.vx += ox; tpLookAt.vz += oz; tpLookAt.vy += s_otsOffY;
+            }
         }
 
 #ifdef SH_PC_PORT
@@ -1209,6 +1243,11 @@ static int Kf_HoldRepeat(int cur, int prev, Uint32* pressMs, Uint32* lastMs)
 #define FC_VERT_SPEED  128
 #define FC_MOUSE_YAW   6    /* Q12 angle units per mouse pixel */
 #define FC_MOUSE_PITCH 4
+/* Controller look tuning for the free camera; mirrors the TPS cam's
+ * TP_STICK_* so both cameras feel the same on a pad. */
+#define FC_STICK_DEADZONE 24
+#define FC_STICK_YAW      40
+#define FC_STICK_PITCH    28
 #define FC_PITCH_MAX   900  /* ~79 degrees either way */
 
 /* The saved position is only meaningful in the room it was taken in. */
@@ -1273,10 +1312,37 @@ static void Pc_FreeCam_Input(void)
         if (g_DebugCamAngleX < -FC_PITCH_MAX) g_DebugCamAngleX = -FC_PITCH_MAX;
     }
 
+    /* Controller look (right stick), parity with the alt-camera scheme in
+     * Pc_TpsCamera_Apply: same deadzone, controller sensitivity, invert flag
+     * and 30fps time-scale, so the free camera reads identically to the TPS
+     * cam. Adds on top of the mouse, exactly as the TPS path does. */
+    if (g_Controller0)
+    {
+        s32 rx = (s32)g_Controller0->analogController.rightX - 128;
+        s32 ry = (s32)g_Controller0->analogController.rightY - 128;
+        if (rx > -FC_STICK_DEADZONE && rx < FC_STICK_DEADZONE) rx = 0;
+        if (ry > -FC_STICK_DEADZONE && ry < FC_STICK_DEADZONE) ry = 0;
+        if (rx != 0 || ry != 0)
+        {
+            float cs = g_PcConfig.controllerSensitivity;
+            s32 dYaw   = TIMESTEP_SCALE_30_FPS(g_DeltaTime, (s32)(((rx * FC_STICK_YAW)   >> 7) * cs));
+            s32 dPitch = TIMESTEP_SCALE_30_FPS(g_DeltaTime, (s32)(((ry * FC_STICK_PITCH) >> 7) * cs));
+            g_DebugCamAngleY = (g_DebugCamAngleY + dYaw) & 0xFFF;
+            /* ry>0 = stick down = look down (AngleX positive), matching the
+             * mouse convention above; invert flag flips it. */
+            g_DebugCamAngleX += g_PcConfig.invertControllerY ? -dPitch : dPitch;
+            if (g_DebugCamAngleX >  FC_PITCH_MAX) g_DebugCamAngleX =  FC_PITCH_MAX;
+            if (g_DebugCamAngleX < -FC_PITCH_MAX) g_DebugCamAngleX = -FC_PITCH_MAX;
+        }
+    }
+
     spd  = TIMESTEP_SCALE_60_FPS(g_DeltaTime, FC_MOVE_SPEED);
     vspd = TIMESTEP_SCALE_60_FPS(g_DeltaTime, FC_VERT_SPEED);
     if (ks[SDL_SCANCODE_LSHIFT] || ks[SDL_SCANCODE_RSHIFT]) { spd *= 3; vspd *= 3; }
     if (ks[SDL_SCANCODE_LCTRL]) { spd >>= 2; vspd >>= 2; }
+    /* R1 = fast (Shift), L1 = slow (Ctrl). */
+    if (g_Controller0 && (g_Controller0->heldBtnFlags & ControllerFlag_R1)) { spd *= 3; vspd *= 3; }
+    if (g_Controller0 && (g_Controller0->heldBtnFlags & ControllerFlag_L1)) { spd >>= 2; vspd >>= 2; }
 
     sinY = Math_Sin(g_DebugCamAngleY);
     cosY = Math_Cos(g_DebugCamAngleY);
@@ -1304,6 +1370,31 @@ static void Pc_FreeCam_Input(void)
     }
     if (ks[SDL_SCANCODE_SPACE]) g_DebugCamPos.vy -= vspd; /* PSX +Y is down */
     if (ks[SDL_SCANCODE_C])     g_DebugCamPos.vy += vspd;
+
+    /* Controller move (left stick) + R2/L2 vertical. Left stick maps to the
+     * WASD plane: up = forward along the view (pitch carried, like W), right =
+     * strafe (like D); scaled by deflection so a light push creeps. */
+    if (g_Controller0)
+    {
+        s32 lx = (s32)g_Controller0->analogController.leftX - 128;
+        s32 ly = (s32)g_Controller0->analogController.leftY - 128;
+        if (lx > -FC_STICK_DEADZONE && lx < FC_STICK_DEADZONE) lx = 0;
+        if (ly > -FC_STICK_DEADZONE && ly < FC_STICK_DEADZONE) ly = 0;
+        if (lx != 0 || ly != 0)
+        {
+            /* fwd/dy carry the pitch (set above from spd); scale by stick
+             * deflection over 128. Stick up (ly<0) = forward. */
+            s32 fwdAmt = (s32)((s64)fwd  * -ly / 128);
+            s32 vyAmt  = (s32)((s64)dy   * -ly / 128);
+            s32 strAmt = (s32)((s64)spd  *  lx / 128);
+            g_DebugCamPos.vx += (s32)((s64)fwdAmt * sinY >> 12) + (s32)((s64)strAmt * cosY >> 12);
+            g_DebugCamPos.vz += (s32)((s64)fwdAmt * cosY >> 12) - (s32)((s64)strAmt * sinY >> 12);
+            g_DebugCamPos.vy += vyAmt;
+        }
+        /* R2 = up (Space), L2 = down (C). */
+        if (g_Controller0->heldBtnFlags & ControllerFlag_R2) g_DebugCamPos.vy -= vspd;
+        if (g_Controller0->heldBtnFlags & ControllerFlag_L2) g_DebugCamPos.vy += vspd;
+    }
 }
 
 static void Pc_FreeCam_Apply(void)
@@ -2182,6 +2273,18 @@ s32 Pc_WorldAnchorOfy(void)
     return PC_GTE_BASE_OFY;
 }
 
+#ifdef SH_PC_PORT
+/* The quick menu zeroes g_Controller0->heldBtnFlags after it reads them so
+ * nothing underneath reacts, but Joy_ControllerDataUpdate derives the next
+ * frame's clicked edges from that same field as "previous held". Zeroed, a
+ * key that stayed down read as a fresh press every frame: one Enter became
+ * one confirm per frame, 31 error beeps at once on a maxed volume row, and
+ * a page step per frame that only looked right because 31 mod 5 pages is 1.
+ * Carry the real held state across so the pad update sees the true edge. */
+static s32 s_pcQoHeldStash      = 0;
+static int s_pcQoHeldStashValid = 0;
+#endif
+
 void MainLoop(void) // 0x80032EE0
 {
     #define TICKS_PER_SECOND_MIN (TICKS_PER_SECOND / 4)
@@ -2252,6 +2355,8 @@ void MainLoop(void) // 0x80032EE0
         g_TickCount++;
 
 #ifdef SH_PC_PORT
+        s_sfTop = (unsigned int)SDL_GetTicks();
+
         /* PsyCross requires explicit input polling — on PSX this happens
          * via hardware interrupt during VBlank. */
         PsyX_UpdateInput();
@@ -2290,6 +2395,13 @@ void MainLoop(void) // 0x80032EE0
         // Update input.
         Joy_ReadP1();
         Demo_ControllerDataUpdate();
+#ifdef SH_PC_PORT
+        if (s_pcQoHeldStashValid)
+        {
+            g_Controller0->heldBtnFlags = s_pcQoHeldStash;
+            s_pcQoHeldStashValid        = 0;
+        }
+#endif
         Joy_ControllerDataUpdate();
 
 #ifdef SH_PC_PORT
@@ -2366,6 +2478,8 @@ void MainLoop(void) // 0x80032EE0
                     (g_Controller0->clickedBtnFlags & (cc->cancel | cc->option)) != 0,
                     (g_Controller0->clickedBtnFlags & ControllerFlag_R1) != 0,
                     (g_Controller0->clickedBtnFlags & ControllerFlag_L1) != 0);
+                s_pcQoHeldStash      = g_Controller0->heldBtnFlags;
+                s_pcQoHeldStashValid = 1;
                 g_Controller0->heldBtnFlags      = 0;
                 g_Controller0->clickedBtnFlags   = 0;
                 g_Controller0->releasedBtnFlags  = 0;
@@ -2574,7 +2688,13 @@ void MainLoop(void) // 0x80032EE0
 #endif
 
         // Call update function for current GameState.
+#ifdef SH_PC_PORT
+        s_sfUpdStart = (unsigned int)SDL_GetTicks();
+#endif
         g_GameStateUpdateFuncs[g_GameWork.gameState]();
+#ifdef SH_PC_PORT
+        s_sfUpdEnd = (unsigned int)SDL_GetTicks();
+#endif
 #ifdef SH_PC_PORT
         if (g_GameWork.gameState == GameState_InGame) {
             /* Packet-arena overrun check.
@@ -2692,6 +2812,21 @@ void MainLoop(void) // 0x80032EE0
                 g_PsxPresentLastFrame    = 0;
                 g_PcFreezeReleasePending = 0;
             }
+
+            /* Nothing on the title side can legitimately hold the freeze: every
+             * holder (pause, the map-screen messages, the world item pickup)
+             * runs under InGame or MapEvent and re-arms it per tick. Leaving one
+             * of those states by a route that is not its own exit -- a warm reset
+             * out of pause or "I don't have a map", backing out of the load
+             * screen to the menu, an ending handing off to the title -- left the
+             * latch set with no holder to release it, and PsyX_BeginScene went on
+             * re-presenting the captured gameplay frame under the whole title
+             * screen. */
+            if (g_PsxPresentLastFrame && g_GameWork.gameState <= GameState_MainLoadScreen)
+            {
+                g_PsxPresentLastFrame    = 0;
+                g_PcFreezeReleasePending = 0;
+            }
         }
 #endif
 
@@ -2763,6 +2898,7 @@ void MainLoop(void) // 0x80032EE0
          * g_Sd_AudioStreamingStates are static there. */
         Sd_TaskPoolDrain();
         XaPlayer_Update();
+        Pc_MsgVoice_Update();
 #endif
 
 #ifdef SH_PC_PORT
@@ -2785,6 +2921,7 @@ void MainLoop(void) // 0x80032EE0
             ML_TRACE("Fs_QueueUpdate");
             Fs_QueueUpdate();
         }
+        s_sfFsqEnd = (unsigned int)SDL_GetTicks();
 #endif
 
         ML_TRACE("func_80089128");
@@ -2865,7 +3002,8 @@ void MainLoop(void) // 0x80032EE0
                 {
                     static Uint64 s_lastFrameTime = 0;
                     int effectiveMin = g_IntervalVBlanks;
-                    if (g_GameWork.gameState == GameState_InGame || Pc_ScreenFpsUnlocked())
+                    int screenUnlocked = Pc_ScreenFpsUnlocked();
+                    if (g_GameWork.gameState == GameState_InGame || screenUnlocked)
                     {
                         int effectiveFps;
 
@@ -2876,6 +3014,14 @@ void MainLoop(void) // 0x80032EE0
                             effectiveFps = 0; /* uncapped */
                         else
                             effectiveFps = g_PcConfig.fpsCap;
+
+                        /* Menus, map and puzzle screens have no simulation to pace,
+                         * so the fps cap may only RAISE them above the old hard 60fps
+                         * floor (120/240/uncapped), never drag them below it. Following
+                         * a sub-60 cap (e.g. 30) down made the menus laggy for no
+                         * benefit (reported). Real gameplay keeps its exact cap. */
+                        if (screenUnlocked && effectiveFps > 0 && effectiveFps < 60)
+                            effectiveFps = 60;
 
                         /* Scripted shots never run above 60. Animation, DMS
                          * stepping and the FX pacing were authored against a
@@ -2996,6 +3142,32 @@ void MainLoop(void) // 0x80032EE0
                     s_perfAccumMs += dt;
                     if (dt > s_perfWorstMs)
                         s_perfWorstMs = dt;
+
+                    /* Where a stalled frame actually went. The phases tile the
+                     * whole interval between two samples of this point, in loop
+                     * order: the previous iteration's buffer swap, the rest of
+                     * that iteration, this one's input/top-of-frame work, the
+                     * game-state update (world submission included), the file
+                     * queue pump, and the DrawSync + vsync pacing that ends the
+                     * frame. Whichever one carries the milliseconds names the
+                     * culprit. Capped, and silent on a healthy frame. */
+                    {
+                        static int s_slowLogged = 0;
+
+                        if (dt >= 150 && s_sfSwapEnd != 0 && s_slowLogged < 200)
+                        {
+                            s_slowLogged++;
+                            SH_DBG("[SLOWFRAME] total=%ums present=%u tail=%u top=%u update=%u fsq=%u sync=%u | gameState=%d sysState=%d",
+                                   (unsigned)dt,
+                                   (unsigned)(s_sfSwapEnd  - (unsigned int)s_perfLastMs),
+                                   (unsigned)(s_sfTop      - s_sfSwapEnd),
+                                   (unsigned)(s_sfUpdStart - s_sfTop),
+                                   (unsigned)(s_sfUpdEnd   - s_sfUpdStart),
+                                   (unsigned)(s_sfFsqEnd   - s_sfUpdEnd),
+                                   (unsigned)((unsigned int)perfNowMs - s_sfFsqEnd),
+                                   (int)g_GameWork.gameState, (int)g_SysWork.sysState);
+                        }
+                    }
                     s_perfVbAccum += (u32)g_UncappedVBlanks;
                     if (++s_perfFrames >= 256)
                     {
@@ -3192,6 +3364,9 @@ void MainLoop(void) // 0x80032EE0
         ML_TRACE("GsSwapDispBuff");
         // Draw objects?
         GsSwapDispBuff();
+#ifdef SH_PC_PORT
+        s_sfSwapEnd = (unsigned int)SDL_GetTicks();
+#endif
         ML_TRACE("post-GsSwapDispBuff");
 #ifdef SH_PC_PORT
         /* Numpad .: (1) always logs Harry's detailed position with a unique

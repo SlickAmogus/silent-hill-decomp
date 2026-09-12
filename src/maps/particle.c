@@ -9,6 +9,7 @@
 #include "maps/particle.h"
 
 #ifdef SH_PC_PORT
+#include "pc_config.h"
 #include "sh_log.h"
 #endif
 
@@ -118,21 +119,38 @@ static q19_12 s_pcParticleSimDt    = Q12(1.0f / 30.0f);
 
 static void Pc_ParticleSimTick(void)
 {
-    s_pcParticleSimAccum += g_DeltaTime;
-    s_pcParticleSimStep   = s_pcParticleSimAccum >= Q12(1.0f / 30.0f);
-    if (s_pcParticleSimStep)
+    /* weather_sim_hz 30 locks the simulation to the console's cadence (above);
+     * anything else runs it once per rendered frame on the real delta, which is
+     * what the port did before the lock and what the default restores. Per frame
+     * the dt-scaled parts (fall speed, wind, camera compensation) are identical
+     * either way; the frame-stepped parts (the snow random walk, spawn/rest
+     * counters, the wind ramp) evolve at frame rate, which is the trade the
+     * option exists to offer. */
+    if (g_PcConfig.weatherSimHz == 30)
     {
-        s_pcParticleSimAccum -= Q12(1.0f / 30.0f);
-        if (s_pcParticleSimAccum > Q12(1.0f / 30.0f))
+        s_pcParticleSimDt     = Q12(1.0f / 30.0f);
+        s_pcParticleSimAccum += g_DeltaTime;
+        s_pcParticleSimStep   = s_pcParticleSimAccum >= Q12(1.0f / 30.0f);
+        if (s_pcParticleSimStep)
         {
-            s_pcParticleSimAccum = Q12(1.0f / 30.0f);
+            s_pcParticleSimAccum -= Q12(1.0f / 30.0f);
+            if (s_pcParticleSimAccum > Q12(1.0f / 30.0f))
+            {
+                s_pcParticleSimAccum = Q12(1.0f / 30.0f);
+            }
         }
+        return;
     }
+
+    s_pcParticleSimAccum = Q12(0.0f);
+    s_pcParticleSimStep  = 1;
+    s_pcParticleSimDt    = g_DeltaTime;
 }
 #define PC_PARTICLE_DT (&s_pcParticleSimDt)
 #else
 #define PC_PARTICLE_DT (&g_DeltaTime)
 #endif
+
 
 #if !MAP_USE_PARTICLES
 
@@ -1468,6 +1486,7 @@ bool Particle_Update(s_Particle* partHead)
 
         updatePrev += g_ParticlesAddedCount[pass];
     }
+
 
     ////////////////////////////////////////////////////////////////////////////
 
@@ -2907,6 +2926,20 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
 
         Particle_BoundaryClamp(&sp10, sharedData_800E326C_0_s00.corners_0, &sharedData_800E326C_0_s00.corners_0[1], 0);
 
+#ifdef SH_PC_PORT
+        /* The clamp mirrors a drop that crossed the boundary line back inside it
+         * (the "rain does not fall past the fence" rule), and this is the DRAW
+         * pass: it runs every rendered frame and moves the streak's HEAD alone.
+         * The tail is re-synced by the simulation, which steps at 30 Hz, so above
+         * 30fps the tail stayed at the pre-mirror position for the rest of the
+         * step and the streak drew as a long line from there to the fence --
+         * stretching along the ground while running, nothing while standing
+         * still (issue #134). Carry the tail by the same displacement: the drop
+         * is still clamped, and the streak keeps the fall vector it had. */
+        localPart->position1_C.vx += sp10.vx - localPart->position0_0.vx;
+        localPart->position1_C.vz += sp10.vz - localPart->position0_0.vz;
+#endif
+
         localPart->position0_0.vx = sp10.vx;
         localPart->position0_0.vz = sp10.vz;
 
@@ -2963,6 +2996,7 @@ void Particle_RainDraw(s_Particle* part, s32 arg1)
             depth = depth >> 1;
 
             gte_stsxy(&poly->x1);
+
 
             if (depth > 32 && depth < ORDERING_TABLE_SIZE - 1)
             {
@@ -3518,6 +3552,7 @@ void Particle_MovementUpdate(s32 pass, s_Particle* part, u16* rand, q19_12* delt
                 localPart->position1_C.vz = localPart->position0_0.vz;
             }
 
+
             if (ABS(localPart->position0_0.vx) + ABS(localPart->position0_0.vz) > Q12(6.0))
             {
                 if (g_ParticleCameraMoved)
@@ -3599,6 +3634,30 @@ void sharedFunc_800CFFF8_0_s00(s32 pass, s_Particle* part, s16* rand)
     !defined(MAP7_S03)
     if (sharedData_800DD591_0_s00 != 0)
     {
+#ifdef SH_PC_PORT
+        /* Carry the streak's tail before leaving. The head was moved by the
+         * camera's travel at the top of this function; the tail is only ever
+         * brought back to it at the bottom, past this return. A drop that landed
+         * on grating (ground type 11 -> SnowType_HeavyWindy, and that type draws
+         * as a streak rather than a splash quad) therefore had its head dragged
+         * along by the camera every step while its tail stayed where it fell,
+         * stretching into a line that lay on the ground and grew with camera
+         * travel until the particle recycled -- only on grating, only while the
+         * view moved, running or merely turning (issue #134).
+         *
+         * The stale flag that lands us in here is a second, wider bug: PSX kept
+         * it in each map overlay's own data, so it began at zero on every load
+         * and only the maps that assign it ever saw it set. The port links one
+         * copy shared by every map, so walking out of the mall carries the mall's
+         * value into the streets, which never assign it. Left alone here because
+         * it also gates the rain-boundary clamp and the wander/respawn check, and
+         * those want their own testing. */
+        if (part->type_1F == SnowType_HeavyWindy || part->type_1F == 243)
+        {
+            part->position1_C.vx = part->position0_0.vx;
+            part->position1_C.vz = part->position0_0.vz;
+        }
+#endif
         return;
     }
 #endif

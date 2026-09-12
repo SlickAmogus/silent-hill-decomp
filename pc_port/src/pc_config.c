@@ -25,6 +25,7 @@ s_PcConfig g_PcConfig = {
     .vsync          = 0,
     .refreshRate    = 0,
     .fpsCap         = 30,
+    .weatherSimHz      = 60,   /* per-frame weather sim; 30 = the console's cadence */
     .cutsceneLineGapMs = 300,
     .skipIntros     = 0,
     .showConsole    = 0,
@@ -40,7 +41,9 @@ s_PcConfig g_PcConfig = {
     .texpackLazyMs = 4, /* per-frame wall-clock budget for the on-demand pack composer (pop-in speed vs frame cost) */
     .dumpTextures = 0, /* 1=write every decoded texture upload to gamedata/dump/ as a pack-named PNG (modding aid) */
     .attractDemos = 1,
-    .menuFpsUnlock = 1, /* menus/map/puzzles follow fps_cap; inventory and cutscenes do not */
+    .menuFpsUnlock = 0, /* PSX menu cadence: one vblank, 60fps. Opt in to follow fps_cap.
+                         * Cursor and repeat speeds on those screens are per-frame, so a
+                         * 240Hz menu moved them four times too fast (reported). */
     .lowHealthGlow = 0, /* 1=pulsing red edge glow below 20 hp (SH2 remake style); off by default */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
     /* Silent Hill Online. Off by default: an offline build must behave
@@ -107,6 +110,7 @@ s_PcConfig g_PcConfig = {
     .tpsOtsAim           = 1, /* raising the gun in TPS eases the camera into the OTS shoulder framing */
     .crosshair           = 0, /* draw a center crosshair while aiming in TPS/OTS */
     .crosshairStyle      = 0, /* 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap */
+    .crosshairSize       = 100.0f,
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
     .altButtonSprint     = 0, /* alt cams sprint from the run control only (off = full stick push also sprints) */
@@ -118,6 +122,7 @@ s_PcConfig g_PcConfig = {
     .shadowMapSize           = 1024,
     .minimapCorner           = 0, /* top-left */
     .minimapShape            = 1, /* deprecated; only feeds the old-config migration */
+    .configVersion           = 0, /* absent key = pre-versioning; migration runs, then it is stamped */
     .minimapScale            = 100.0f,
     .minimapRequireMap       = 1, /* the map only appears once Harry has found it */
     .minimapOpacity          = 100.0f,
@@ -126,18 +131,36 @@ s_PcConfig g_PcConfig = {
     .adsr                = 1,    /* SPU ADSR envelopes on (BGM instrument fades) */
     .audioOutput         = 0,    /* auto: OpenAL detects the system speaker layout */
     .fpsFov              = 71.1f, /* first-person FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
-    .tpsFov              = 71.1f, /* thirdperson/OTS FOV; 71.1 = the game's own projection (H = gsScreenHeight = 224), so the default changes nothing */
-    .tpsAimZoom          = 100.0f, /* default aim dolly = the original zoom; 200 = 2x zoom, 0 = no zoom */
+    .tpsFov              = 71.1f, /* thirdperson FOV; 71.1 = the game's own projection, no-op */
+    .tpsAimZoom          = 100.0f, /* aim dolly = the original zoom; 200 = closest, 0 = none, <0 = pull back */
+    .otsFov              = 71.1f, /* OTS FOV (separate from tpsFov); no-op default */
+    .otsAimZoom          = 100.0f, /* OTS aim dolly */
+    .tpsRestX            = 0,     /* TPS rest offset: centred */
+    .tpsRestY            = 0,
+    .tpsAimX             = 3686,  /* TPS aim offset X = Q12(0.9) (matches old OTS_OFFSET_AIM when tps_ots_aim on) */
+    .tpsAimY             = 0,
+    .otsRestX            = 2252,  /* OTS rest offset X = Q12(0.55) (old OTS_OFFSET) */
+    .otsRestY            = 0,
+    .otsAimX             = 3686,  /* OTS aim offset X = Q12(0.9) (old OTS_OFFSET_AIM) */
+    .otsAimY             = 0,
+    .fpsHeadX            = -29,   /* FPS eye baseline, Harry body frame (Q12): right(+) */
+    .fpsHeadY            = -6836, /* up (PSX +Y is down, so negative = up) */
+    .fpsHeadZ            = 919,   /* forward(+) */
+    .fpsMeleeSwing       = 0.5f,  /* melee-swing camera pullback cap (world units); 0 = off */
     .reverbScale         = 0.0f, /* 0 = PsyCross default depth->wet scale */
-    /* View & aspect. The console picture is NOT a 4:3 stretch of the 224-line
-     * frame: the frame is scanned inside a larger visible area, and DuckStation
-     * renders the game's 320x224 at 465x357 = 1.3025:1, not 1.3333:1. That is
-     * an on-screen pixel aspect of 0.9118, and Simple's shape is
-     * (4:3)/(320/224) x trim = 0.93333 x trim, so console = 0.977. 0.98 both
-     * rounds it and lands within 0.05% of Advanced's hfov 1.0, so the two
-     * Control Types agree out of the box. */
+    /* View & aspect. The two Control Types must produce the SAME picture out of
+     * the box, and the reference is the maintainer's side-by-side against
+     * DuckStation: Advanced at hfov 1.00 / vfov 1.08. Advanced's on-screen shape
+     * is hfov x vfov / par = 1.00 x 1.08 / (35/32) = 0.9874; Simple's is
+     * (4:3)/(320/224) x trim = 0.93333 x trim, so trim = 0.9874 / 0.93333 =
+     * 1.058 -> 1.06. The old 0.98 was this same solve at vfov 1.0 (0.9143 /
+     * 0.93333); vfov is a uniform zoom in Simple but a shape change in Advanced,
+     * so the trim that keeps the modes agreeing has to move with the vfov
+     * default -- at 1.08 a 0.98 trim left Simple ~7% narrower than Advanced and
+     * "Reset View Settings" (which lands in Simple) no longer restored the
+     * matched picture. Round-trips: the Control Type toggle maps 1.06 <-> 1.00. */
     .aspectRaw           = 0,          /* crt: the framebuffer scanned out to 4:3 */
-    .crtAspectTrim       = 0.98f,
+    .crtAspectTrim       = 1.06f,
     /* 1.0 = the console picture, and now derivable rather than eyeballed.
      * DuckStation's game area measures 465x357 for the 320x224 frame
      * (exactsize.png), i.e. an on-screen pixel aspect of 0.9118, and
@@ -157,21 +180,18 @@ s_PcConfig g_PcConfig = {
      * correcting a real aspect error; 0.944 was the arithmetic of pairing it
      * with vfov 1.06. Both reasons are gone. */
     .worldHScale         = 1.0f,
-    /* 1.0 = the console's field of view exactly: 224 rows of world, the same
-     * 224 the frame holds. FOV is a uniform zoom in Simple (the shape is held
-     * by the trim), so anything above 1.0 shows MORE world than the console
-     * ever did -- 1.06 showed 237 rows, and that extra 13 is why more of a
-     * background poster was visible than on a real set.
+    /* Vertical FOV as a fraction of the console's 224-row frame. 1.08 matches
+     * DuckStation's picture -- the port's visual reference throughout -- which
+     * shows slightly more vertical world than a console's exact 224 rows. 1.0 is
+     * console-exact but reads a touch tighter than DuckStation. FOV is a near-
+     * uniform vertical zoom in Simple (the shape is held by the trim), so above
+     * 1.0 reveals a little more geometry top and bottom.
      *
-     * The "match a TV at 1.06" reasoning does not survive inspection: a set
-     * that underscans shows the picture smaller inside the tube while still
-     * showing the console's 224 rows. It reveals BLACK, where this knob
-     * reveals GEOMETRY. It matched apparent size and missed field of view.
-     *
-     * 1.0 also removes a whole bug class: the item-take screen pins its ortho
-     * to vscale 1, so any other vfov makes its aspect solve disagree with what
-     * it renders (the tall, thin pickups). At 1.0 they are the same number. */
-    .worldVScale         = 1.0f,
+     * Non-1.0 does NOT distort held pickups: the item-take screen and the 2D UI
+     * pass pin their ortho to vscale 1 AND the PAR solve (PsxDisplayPixelAspect)
+     * matches that, so aspect stays consistent. The inventory renders with Hor+
+     * off (g_PcHorPlusEnabled = 0), so the vfov crop never reaches it either. */
+    .worldVScale         = 1.08f,
     .pixelAspect         = 35.0f / 32.0f, /* raw mode only: the 350x240 NTSC dot */
     .worldVShift         = 0.0f,       /* the console anchor needs no correction */
     .cutsceneVShift      = 0.0f,       /* cutscenes frame via letterbox bars; neutral by default */
@@ -562,6 +582,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "cutscene_line_gap_ms") == 0)
         {
             g_PcConfig.cutsceneLineGapMs = atoi(value);
+        }
+        else if (strcmp(key, "weather_sim_hz") == 0)
+        {
+            g_PcConfig.weatherSimHz = (atoi(value) == 30) ? 30 : 60;
         }
         else if (strcmp(key, "skip_intros") == 0)
         {
@@ -998,10 +1022,32 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "tps_aim_zoom_amount") == 0)
         {
             float v = (float)atof(value);
-            if (v < 0.0f)   v = 0.0f;
-            if (v > 200.0f) v = 200.0f;
+            if (v < -200.0f) v = -200.0f;
+            if (v >  200.0f) v =  200.0f;
             g_PcConfig.tpsAimZoom = v;
         }
+        else if (strcmp(key, "ots_aim_zoom_amount") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < -200.0f) v = -200.0f;
+            if (v >  200.0f) v =  200.0f;
+            g_PcConfig.otsAimZoom = v;
+        }
+        else if (strcmp(key, "ots_fov") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 40.0f)  v = 40.0f;
+            if (v > 140.0f) v = 140.0f;
+            g_PcConfig.otsFov = v;
+        }
+        else if (strcmp(key, "tps_rest_x") == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.tpsRestX = v; }
+        else if (strcmp(key, "tps_rest_y") == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.tpsRestY = v; }
+        else if (strcmp(key, "tps_aim_x")  == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.tpsAimX  = v; }
+        else if (strcmp(key, "tps_aim_y")  == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.tpsAimY  = v; }
+        else if (strcmp(key, "ots_rest_x") == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.otsRestX = v; }
+        else if (strcmp(key, "ots_rest_y") == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.otsRestY = v; }
+        else if (strcmp(key, "ots_aim_x")  == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.otsAimX  = v; }
+        else if (strcmp(key, "ots_aim_y")  == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.otsAimY  = v; }
         else if (strcmp(key, "tps_aim_zoom") == 0)
         {
             /* Superseded by the tps_aim_zoom_amount slider. Kept so an existing
@@ -1014,9 +1060,19 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "tps_fov") == 0)
         {
             float v = (float)atof(value);
-            if (v < 55.0f)  v = 55.0f;
-            if (v > 110.0f) v = 110.0f;
+            if (v < 40.0f)  v = 40.0f;
+            if (v > 140.0f) v = 140.0f;
             g_PcConfig.tpsFov = v;
+        }
+        else if (strcmp(key, "fps_head_x") == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.fpsHeadX = v; }
+        else if (strcmp(key, "fps_head_y") == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.fpsHeadY = v; }
+        else if (strcmp(key, "fps_head_z") == 0) { int v = atoi(value); if (v < -20000) v = -20000; if (v > 20000) v = 20000; g_PcConfig.fpsHeadZ = v; }
+        else if (strcmp(key, "fps_melee_swing") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 1.0f) v = 1.0f;
+            g_PcConfig.fpsMeleeSwing = v;
         }
         else if (strcmp(key, "tps_ots_aim") == 0)
         {
@@ -1036,6 +1092,13 @@ void PcConfig_Load(const char* path)
             if (v < 0) v = 0;
             if (v > 3) v = 3;
             g_PcConfig.crosshairStyle = v;
+        }
+        else if (strcmp(key, "crosshair_size") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 25.0f) v = 25.0f;
+            if (v > 125.0f) v = 125.0f;
+            g_PcConfig.crosshairSize = v;
         }
         else if (strcmp(key, "mouse_cursor") == 0)
         {
@@ -1066,8 +1129,8 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "fps_fov") == 0)
         {
             float v = (float)atof(value);
-            if (v < 55.0f)  v = 55.0f;
-            if (v > 110.0f) v = 110.0f;
+            if (v < 40.0f)  v = 40.0f;
+            if (v > 140.0f) v = 140.0f;
             g_PcConfig.fpsFov = v;
         }
         else if (strcmp(key, "crt_aspect_trim") == 0)
@@ -1173,6 +1236,10 @@ else if (strcmp(key, "enable_plugins") == 0)
              * an existing config keeps the shape the player had. */
             g_PcConfig.minimapShape = (atoi(value) != 0);
             s_minimapShapeSeen = 1;
+        }
+        else if (strcmp(key, "config_version") == 0)
+        {
+            g_PcConfig.configVersion = atoi(value);
         }
         else if (strcmp(key, "minimap_opacity") == 0)
         {
@@ -1350,6 +1417,59 @@ else if (strcmp(key, "enable_plugins") == 0)
         g_PcConfig.minimap == 1 && g_PcConfig.minimapShape != 0)
     {
         g_PcConfig.minimap = 2;
+    }
+
+    /* Default migration: reapply a changed persisted DEFAULT to users still sitting
+     * on the previous default, so an improved default reaches everyone on update
+     * while a value the player deliberately set is left alone. Each step only fires
+     * when the value still equals the OLD default; version-gated so it runs once,
+     * then config_version is stamped forward and saved. Absent keys already loaded
+     * as the new default, so only a persisted old value needs rewriting. Add a step
+     * and bump PC_CONFIG_VERSION whenever a config-written default changes. */
+    if (g_PcConfig.configVersion < PC_CONFIG_VERSION)
+    {
+        char vbuf[24];
+
+        /* v1: vertical FOV default 1.0 -> 1.08 (DuckStation match). */
+        if (g_PcConfig.configVersion < 1 &&
+            g_PcConfig.worldVScale > 0.999f && g_PcConfig.worldVScale < 1.001f)
+        {
+            extern float g_PsxWorldVScale;
+            g_PcConfig.worldVScale = 1.08f;
+            g_PsxWorldVScale       = 1.08f;
+            snprintf(vbuf, sizeof(vbuf), "%.2f", g_PcConfig.worldVScale);
+            PcConfig_SaveKeyValue("world_vscale", vbuf);
+        }
+
+        /* v2: Simple aspect trim 0.98 -> 1.06, so Simple's default shape equals
+         * Advanced's (hfov 1.00, vfov 1.08) again. The two diverged once vfov
+         * moved to 1.08: a uniform zoom in Simple, a shape change in Advanced.
+         * Inert while display_aspect = raw, but migrating it keeps the Control
+         * Type toggle round-tripping 1.06 <-> 1.00 for that user too. */
+        if (g_PcConfig.configVersion < 2 &&
+            g_PcConfig.crtAspectTrim > 0.979f && g_PcConfig.crtAspectTrim < 0.981f)
+        {
+            extern float g_PsxCrtAspectTrim;
+            g_PcConfig.crtAspectTrim = 1.06f;
+            g_PsxCrtAspectTrim       = 1.06f;
+            snprintf(vbuf, sizeof(vbuf), "%.2f", g_PcConfig.crtAspectTrim);
+            PcConfig_SaveKeyValue("crt_aspect_trim", vbuf);
+        }
+
+        /* v3: menu_fps_unlock 1 -> 0. Every screen it covers counts cursor
+         * movement and input repeat per FRAME, not per second, so a menu running
+         * at the display rate moved them several times too fast (reported). The
+         * PSX ran all of them on a single vblank. Anyone who wants the smoother
+         * menus back sets the key again. */
+        if (g_PcConfig.configVersion < 3 && g_PcConfig.menuFpsUnlock == 1)
+        {
+            g_PcConfig.menuFpsUnlock = 0;
+            PcConfig_SaveKeyValue("menu_fps_unlock", "0");
+        }
+
+        g_PcConfig.configVersion = PC_CONFIG_VERSION;
+        snprintf(vbuf, sizeof(vbuf), "%d", g_PcConfig.configVersion);
+        PcConfig_SaveKeyValue("config_version", vbuf);
     }
 
     fprintf(stderr, "[CONFIG] Resolution: %dx%d, Fullscreen: %d, DisableCulling: %d, Map: %s\n",

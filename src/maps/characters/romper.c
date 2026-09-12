@@ -4,6 +4,9 @@
 #include "bodyprog/player.h"
 #include "main/rng.h"
 #include "maps/shared.h"
+#ifdef SH_PC_PORT
+#include "sh_log.h"
+#endif
 #include "maps/characters/romper.h"
 
 #define romperProps romper->properties.romper
@@ -46,6 +49,11 @@ static bool Romper_TickChance(s32 n)
 
     return Rng_GenerateUInt(0, (s32)scaled - 1) == 0;
 }
+#endif
+
+#ifdef SH_PC_PORT
+static VECTOR3 s_romperHopLaunch;
+static s32     s_romperHopBlocked;
 #endif
 
 void Romper_Update(s_SubCharacter* romper, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
@@ -1041,6 +1049,22 @@ void Romper_ControlJump(s_SubCharacter* romper)
 
             romper->fallSpeed  = (temp << 1) - Q12(2.45f);
             romperProps.flags &= ~RomperFlag_9;
+
+#ifdef SH_PC_PORT
+            /* [ROMPER-HOP]: one line at launch and one at landing (never per
+             * frame) to settle whether a Romper crossing a wall is the original
+             * airborne step-height bypass or a port fault. The launch speed is
+             * derived from the player's ABSOLUTE floor height, so hops grow on
+             * floors below Y=0; the landing line carries how many airborne
+             * frames the wall sweep trimmed. */
+            SH_DBG("[ROMPER-HOP] launch at (%d,%d,%d) player (%d,%d,%d) playerGround=%d dist=%d moveSpeed=%d fallSpeed=%d",
+                   romper->position.vx, romper->position.vy, romper->position.vz,
+                   g_SysWork.playerWork.player.position.vx, g_SysWork.playerWork.player.position.vy,
+                   g_SysWork.playerWork.player.position.vz,
+                   surface.groundHeight, temp_v1_5, romper->moveSpeed, romper->fallSpeed);
+            s_romperHopLaunch  = romper->position;
+            s_romperHopBlocked = 0;
+#endif
         }
         else if (FP_FROM(romper->model.anim.time, Q12_SHIFT) == 5 ||
                  FP_FROM(romper->model.anim.time, Q12_SHIFT) == 6)
@@ -1266,6 +1290,14 @@ void sharedFunc_800E8730_2_s02(s_SubCharacter* romper)
 
         Collision_WallDetect(&collResult, &pos, romper);
 
+#ifdef SH_PC_PORT
+        if ((romperProps.flags & RomperFlag_Falling) &&
+            (collResult.offset.vx != pos.vx || collResult.offset.vz != pos.vz))
+        {
+            s_romperHopBlocked++;
+        }
+#endif
+
         romper->position.vx += collResult.offset.vx;
         romper->position.vz += collResult.offset.vz;
 
@@ -1329,6 +1361,15 @@ void sharedFunc_800E8730_2_s02(s_SubCharacter* romper)
     }
     else
     {
+#ifdef SH_PC_PORT
+        if (romperProps.flags & RomperFlag_Falling)
+        {
+            SH_DBG("[ROMPER-HOP] landed at (%d,%d,%d) from (%d,%d,%d) wallTrimmedFrames=%d",
+                   romper->position.vx, romper->position.vy, romper->position.vz,
+                   s_romperHopLaunch.vx, s_romperHopLaunch.vy, s_romperHopLaunch.vz,
+                   s_romperHopBlocked);
+        }
+#endif
         romperProps.flags &= ~RomperFlag_Falling;
     }
 }

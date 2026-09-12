@@ -834,6 +834,17 @@ int main(int argc, char* argv[])
         g_PsxCutsceneVShift = g_PcConfig.cutsceneVShift;
     }
 
+    /* Seed the FPS eye baseline from config so a player's saved head position
+     * (View & Aspect quick-options page, or the numpad debug keys baked via the
+     * config) survives a restart. g_PcFpsOffset stays the live value the camera
+     * reads and the numpad edits; the menu writes both it and the config keys. */
+    {
+        extern VECTOR3 g_PcFpsOffset;
+        g_PcFpsOffset.vx = g_PcConfig.fpsHeadX;
+        g_PcFpsOffset.vy = g_PcConfig.fpsHeadY;
+        g_PcFpsOffset.vz = g_PcConfig.fpsHeadZ;
+    }
+
     /* Apply widescreen mode to PsyCross. */
     {
         extern int g_PcWidescreenMode;

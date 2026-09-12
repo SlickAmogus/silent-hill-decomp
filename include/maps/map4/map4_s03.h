@@ -17,6 +17,19 @@
 
 #include "maps/shared.h"
 
+#ifdef SH_PC_PORT
+/* The PGXP and flashlight shadows are keyed by the prim-field address. A plain
+ * word copy from the GTE scratch table leaves the prim untracked, so the mall's
+ * big screen (and the Twinfeeler, which shares this macro) drew affine at its
+ * OT-bucket depth, 25 buckets behind the screen surface, and PGXP world
+ * geometry with true per-pixel depth punched wedge-shaped holes through it.
+ * Same bridge the generic drawer uses (bodyprog_80055028.c). */
+extern void Shadow_Copy(void* dst, const void* src);
+    #define COPY_GT4_XY_BRIDGE(poly, n, src) Shadow_Copy(&(poly)->x##n, (src))
+#else
+    #define COPY_GT4_XY_BRIDGE(poly, n, src)
+#endif
+
 #define COPY_GT4_DATA(poly, idx, ptr0, ptr1, ptr2, n) \
 {                                                     \
     u16* ptr4 = &(ptr0)[(idx)];                       \
@@ -25,6 +38,7 @@
                                                       \
     *(u16*)&(poly)->u##n = *ptr4;                     \
     *(s32*)&(poly)->x##n = *ptr5;                     \
+    COPY_GT4_XY_BRIDGE(poly, n, ptr5);                \
     *(s32*)&(poly)->r##n = *ptr6;                     \
 }
 

@@ -344,24 +344,32 @@ const char* Pc_LangPackName(void)
 /* Typed lookups                                                       */
 /* ------------------------------------------------------------------ */
 
-const char* Pc_LangPackMapMsg(int mapIdx, int msgIdx)
+int Pc_LangPackMsgKey(int mapIdx, int msgIdx, char* out, size_t outSize)
 {
-    char key[32];
-
-    if (!s_Active || msgIdx < 0)
-        return NULL;
+    if (msgIdx < 0)
+        return 0;
 
     /* Indices 0-14 are the shared map_msg_common.h block, extracted once. */
     if (msgIdx < COMMON_MSG_COUNT)
     {
-        snprintf(key, sizeof(key), "COMMON.%d", msgIdx);
-        return Pc_LangPackGet(key);
+        snprintf(out, outSize, "COMMON.%d", msgIdx);
+        return 1;
     }
 
     if (mapIdx < 0 || mapIdx >= MAP_NAME_COUNT)
+        return 0;
+
+    snprintf(out, outSize, "%s.%d", s_MapNames[mapIdx], msgIdx);
+    return 1;
+}
+
+const char* Pc_LangPackMapMsg(int mapIdx, int msgIdx)
+{
+    char key[32];
+
+    if (!s_Active || !Pc_LangPackMsgKey(mapIdx, msgIdx, key, sizeof(key)))
         return NULL;
 
-    snprintf(key, sizeof(key), "%s.%d", s_MapNames[mapIdx], msgIdx);
     return Pc_LangPackGet(key);
 }
 

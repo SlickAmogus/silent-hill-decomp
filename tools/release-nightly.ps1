@@ -22,10 +22,28 @@
 # subjects since the previous release of the SAME stream) and PAUSE so it can be
 # hand-edited before anything is hashed/zipped/uploaded.
 #
+#   custom - a NAMED build for users to opt into (a modded or experimental
+#            build such as an open-world test): -Name "Open World Test". Always
+#            a zip release, published as a PRERELEASE on the `custom` branch
+#            with tag custom-<slug>-YYYY.MM.DD.N. The launcher lists it under
+#            Branch "Custom builds" by its name; it never counts as "latest"
+#            for anyone (the launcher orders by the version in beta-/v tags, a
+#            custom tag parses as 0, and GitHub's own latest skips prereleases),
+#            so a normal release afterwards is NOT needed. No CHANGELOG.md
+#            section is written and the cross-platform CI gate is skipped, since
+#            the build usually comes from a branch CI never built. The LAUNCHER
+#            is left out of a custom build unless -WithLauncher is passed: the
+#            launcher self-updates on version alone and never downgrades, so a
+#            build meant to be opt-in would otherwise hand its launcher to every
+#            tester and keep it there after they switch back. Pass -WithLauncher
+#            only when the launcher itself is what you are testing.
+#
 # Usage:
 #   .\tools\release-nightly.ps1 [-Mode zip|loose] [-DryRun] [-BuildDir path]
 #                               [-Notes string] [-NoPause] [-BetaBranch beta]
 #                               [-SkipCrossPlatform]
+#   .\tools\release-nightly.ps1 -Name "Open World Test" [-WithLauncher]
+#                               [-Notes string] [-DryRun]
 #
 # Linux + macOS builds are included BY DEFAULT and are VERIFIED BEFORE anything
 # is published: the release is NOT created until the build-linux.yml /
@@ -73,7 +91,14 @@ param(
     # cannot affect the launcher. Linux/macOS users download these zips by hand.
     # Pass -SkipCrossPlatform to publish a Windows-only release.
     [switch]$SkipCrossPlatform,
-    [string]$CrossPlatformBranch = "pc-port"
+    [string]$CrossPlatformBranch = "pc-port",
+    # Custom named build (see the header): the display name users pick in the
+    # launcher, e.g. "Open World Test". Implies zip mode on the custom branch.
+    [string]$Name         = "",
+    [string]$CustomBranch = "custom",
+    # Ship the launcher inside a CUSTOM build (it always ships in beta/loose).
+    # Off by default: see the -Name notes in the header.
+    [switch]$WithLauncher
 )
 
 $ErrorActionPreference = "Stop"
@@ -459,6 +484,24 @@ $launcherVersion = if (Test-Path $launcherExe) { Get-LauncherVersion $launcherEx
 
 # ---- Resolve release mode ---------------------------------------------------
 
+$isCustom   = ($Name.Trim().Length -gt 0)
+$customSlug = ""
+if ($isCustom) {
+    $Name = $Name.Trim()
+    $customSlug = ($Name.ToLowerInvariant() -replace '[^a-z0-9]+', '-').Trim('-')
+    if (-not $customSlug) { throw "-Name '$Name' has no letters or digits to make a tag from." }
+    $Mode = 'zip'
+    $SkipCrossPlatform = $true
+    Write-Host ""
+    Write-Host "Custom build: '$Name'  (tag prefix custom-$customSlug-, branch '$CustomBranch', prerelease)" -ForegroundColor Magenta
+    Write-Host "  No CHANGELOG.md section; Linux/macOS CI gate skipped." -ForegroundColor Gray
+    if ($WithLauncher) {
+        Write-Host "  -WithLauncher: the launcher IS included. Testers keep it after switching back." -ForegroundColor Yellow
+    } else {
+        Write-Host "  Launcher NOT included, so this build cannot change anyone's launcher." -ForegroundColor Gray
+    }
+}
+
 if (-not $Mode) {
     Write-Host ""
     Write-Host "Release mode:" -ForegroundColor Magenta
@@ -468,7 +511,12 @@ if (-not $Mode) {
     $Mode = if ($ans.Trim() -eq '2') { 'zip' } else { 'loose' }
 }
 $isZip     = ($Mode -eq 'zip')
-$tagPrefix = if ($isZip) { 'beta-' } else { 'v' }
+$tagPrefix = if ($isCustom) { "custom-$customSlug-" } elseif ($isZip) { 'beta-' } else { 'v' }
+$zipBranch = if ($isCustom) { $CustomBranch } else { $BetaBranch }
+# The launcher updates itself from any release of the official repo whose
+# launcher_version is newer, regardless of branch, and never downgrades. Keep it
+# out of an opt-in build unless it is the thing being tested.
+$includeLauncher = (-not $isCustom) -or $WithLauncher
 Write-Host "Mode: $Mode" -ForegroundColor Magenta
 
 # ---- Find the previous release of THIS stream -------------------------------
@@ -483,9 +531,10 @@ function Get-LatestStreamReleaseTag {
     if ($LASTEXITCODE -ne 0 -or -not $json) { return $null }
     $rels = $json | ConvertFrom-Json
     if (-not $rels) { return $null }
-    $prefix = if ($Zip) { 'beta-' } else { 'v' }
-    $stream = if ($Zip) { $rels | Where-Object { $_.tagName -like 'beta-*' } }
-              else       { $rels | Where-Object { $_.tagName -notlike 'beta-*' } }
+    $prefix = if ($isCustom) { $tagPrefix } elseif ($Zip) { 'beta-' } else { 'v' }
+    $stream = if ($isCustom) { $rels | Where-Object { $_.tagName -like "$tagPrefix*" } }
+              elseif ($Zip)  { $rels | Where-Object { $_.tagName -like 'beta-*' -and $_.tagName -notlike 'custom-*' } }
+              else           { $rels | Where-Object { $_.tagName -notlike 'beta-*' -and $_.tagName -notlike 'custom-*' } }
     if (-not $stream) { return $null }
     # Sort by the PARSED version (YYYY.MM.DD.N), NOT createdAt: the nightly repo's
     # release timestamps are all identical (a bulk re-upload reset them), so a
@@ -532,7 +581,7 @@ $sourceFooter = "`r`n`r`n---`r`nBuilt from source commit $curCommitShort`r`nSour
 # newest release of the OTHER stream -- so the FIRST release of a stream still
 # lists commits since the last release of any kind instead of "(no commits)".
 $baseManifest = $prevManifest
-if (-not $baseManifest) {
+if (-not $baseManifest -and -not $isCustom) {
     $otherTag = Get-LatestStreamReleaseTag -Zip (-not $isZip)
     if ($otherTag) {
         try {
@@ -605,11 +654,14 @@ $newVersion = "$today.$counter"
 $newTag     = "$tagPrefix$newVersion"
 
 Write-Host ""
-Write-Host "New version: $newVersion  tag: $newTag  branch: $(if ($isZip) { $BetaBranch } else { 'default' })" -ForegroundColor Magenta
+Write-Host "New version: $newVersion  tag: $newTag  branch: $(if ($isZip) { $zipBranch } else { 'default' })" -ForegroundColor Magenta
 
 # ---- Prepend release section to local CHANGELOG.md --------------------------
+# A custom build is not part of the release history: no section, no pause.
 
-if (Test-Path $changelogPath) {
+if ($isCustom) {
+    Write-Host "Custom build: CHANGELOG.md left untouched." -ForegroundColor Cyan
+} elseif (Test-Path $changelogPath) {
     $existingBytes = [System.IO.File]::ReadAllBytes($changelogPath)
     $bomStart = 0
     if ($existingBytes.Length -ge 3 -and $existingBytes[0] -eq 0xEF -and $existingBytes[1] -eq 0xBB -and $existingBytes[2] -eq 0xBF) {
@@ -646,7 +698,7 @@ if (Test-Path $changelogPath) {
 
 # ---- Pause for manual changelog edit ----------------------------------------
 
-if (-not $NoPause) {
+if (-not $NoPause -and -not $isCustom) {
     Write-Host ""
     Write-Host "==> CHANGELOG.md updated with auto-generated notes for $newTag." -ForegroundColor Yellow
     Write-Host "    Edit and SAVE it now if you want (e.g. add command usage)." -ForegroundColor Yellow
@@ -681,7 +733,7 @@ if ($isZip) {
     # stream, not whatever the dev's local config points at.
     $cfgTemplate = Join-Path $PSScriptRoot "..\pc_port\config.cfg"
 
-    if (-not (Test-Path $launcherExe)) {
+    if ($includeLauncher -and -not (Test-Path $launcherExe)) {
         throw "Launcher exe not found at $launcherExe. Build the launcher (Release) before a zip release."
     }
 
@@ -691,8 +743,10 @@ if ($isZip) {
 
     try {
         # Top-level files.
-        Copy-Item $exe         (Join-Path $stage "SilentHillPC.exe") -Force
-        Copy-Item $launcherExe (Join-Path $stage "SilentHillPC_Launcher.exe") -Force
+        Copy-Item $exe (Join-Path $stage "SilentHillPC.exe") -Force
+        if ($includeLauncher) {
+            Copy-Item $launcherExe (Join-Path $stage "SilentHillPC_Launcher.exe") -Force
+        }
         if (Test-Path $changelogPath) { Copy-Item $changelogPath (Join-Path $stage "CHANGELOG.md") -Force }
         if (Test-Path $cfgTemplate)   { Copy-Item $cfgTemplate   (Join-Path $stage "config.cfg")   -Force }
 
@@ -779,10 +833,12 @@ if ($isZip) {
             version    = $newVersion
             tag        = $newTag
             mode       = "zip"
-            branch     = $BetaBranch
+            branch     = $zipBranch
+            stream     = $(if ($isCustom) { "custom" } else { "beta" })
+            name       = $(if ($isCustom) { $Name } else { $null })
             build_date = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
             git_commit = $curCommitFull
-            launcher_version = $launcherVersion
+            launcher_version = $(if ($includeLauncher) { $launcherVersion } else { $null })
             zip_name   = $zipName
             zip_url    = "$baseUrl/$zipName"
             files      = $files
@@ -800,13 +856,17 @@ if ($isZip) {
                 if ($parts.Count -eq 2) { $Notes = $parts[1].Trim() }
             }
         }
-        if (-not $Notes) { $Notes = "Beta zip release $newVersion" }
+        if (-not $Notes) {
+            $Notes = if ($isCustom) {
+                "$Name -- custom build $newVersion.`r`n`r`nAn opt-in build: in the launcher open Build Settings, pick Branch 'Custom builds' and this build. It never replaces the normal latest release."
+            } else { "Beta zip release $newVersion" }
+        }
         $Notes = $Notes + $sourceFooter
         $notesFile = Join-Path ([IO.Path]::GetTempPath()) "release_notes_$newVersion.txt"
         [System.IO.File]::WriteAllText($notesFile, $Notes)
 
         if ($DryRun) {
-            Write-Host "[DryRun] Would publish $newTag to branch '$BetaBranch' with:" -ForegroundColor Yellow
+            Write-Host "[DryRun] Would publish $newTag to branch '$zipBranch'$(if ($isCustom) { ' as a PRERELEASE' }) with:" -ForegroundColor Yellow
             Write-Host "  $zipName ($zipSize MB) + version.json ($($files.Count) files)" -ForegroundColor Gray
             Write-Host "  Zip kept at: $zipPath" -ForegroundColor Gray
             Remove-Item $manifestPath, $notesFile -Force -ErrorAction SilentlyContinue
@@ -816,19 +876,19 @@ if ($isZip) {
         # Ensure the beta branch exists (releases target it). Create it from the
         # repo's default branch head on first use.
         $branchOk = $true
-        try { gh api "repos/$Repo/branches/$BetaBranch" 2>$null | Out-Null }
+        try { gh api "repos/$Repo/branches/$zipBranch" 2>$null | Out-Null }
         catch { }
         if ($LASTEXITCODE -ne 0) { $branchOk = $false }
         if (-not $branchOk) {
-            Write-Host "Creating '$BetaBranch' branch on $Repo..." -ForegroundColor Cyan
+            Write-Host "Creating '$zipBranch' branch on $Repo..." -ForegroundColor Cyan
             $defBranch = (gh api "repos/$Repo" --jq ".default_branch").Trim()
             $defSha    = (gh api "repos/$Repo/git/refs/heads/$defBranch" --jq ".object.sha").Trim()
-            if (-not $defSha) { throw "Couldn't resolve $Repo default branch head to seed '$BetaBranch'." }
-            gh api "repos/$Repo/git/refs" -f "ref=refs/heads/$BetaBranch" -f "sha=$defSha" | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "Failed to create '$BetaBranch' branch." }
+            if (-not $defSha) { throw "Couldn't resolve $Repo default branch head to seed '$zipBranch'." }
+            gh api "repos/$Repo/git/refs" -f "ref=refs/heads/$zipBranch" -f "sha=$defSha" | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "Failed to create '$zipBranch' branch." }
         }
 
-        Write-Host "Creating release $newTag on branch '$BetaBranch'..." -ForegroundColor Cyan
+        Write-Host "Creating release $newTag on branch '$zipBranch'$(if ($isCustom) { ' (prerelease)' })..." -ForegroundColor Cyan
         # CHANGELOG.md goes up as its OWN asset (next to version.json) so the
         # launcher can preview it without downloading the whole zip. Betas are
         # REGULAR releases (not prereleases) so they appear on the repo's Releases
@@ -836,11 +896,17 @@ if ($isZip) {
         # and picks the newest build across both streams by parsed version.
         $betaAssets = @($zipPath, $manifestPath)
         if (Test-Path $changelogPath) { $betaAssets += $changelogPath }
+        # A custom build is a PRERELEASE: GitHub's releases/latest then skips it, so
+        # even a third-party-repo launcher on plain "latest" never lands on it.
+        $releaseTitle = if ($isCustom) { "$Name $newVersion" } else { "Beta $newVersion" }
+        $releaseFlags = @()
+        if ($isCustom) { $releaseFlags += "--prerelease" }
         gh release create $newTag `
             --repo $Repo `
-            --target $BetaBranch `
-            --title "Beta $newVersion" `
+            --target $zipBranch `
+            --title $releaseTitle `
             --notes-file $notesFile `
+            @releaseFlags `
             @betaAssets
         if ($LASTEXITCODE -ne 0) { throw "gh release create failed (exit $LASTEXITCODE). Release was NOT published." }
 
@@ -849,9 +915,14 @@ if ($isZip) {
         Remove-Item $zipPath, $manifestPath, $notesFile -Force -ErrorAction SilentlyContinue
         if ($xplat.DlRoot -and (Test-Path $xplat.DlRoot)) { Remove-Item -Recurse -Force $xplat.DlRoot -ErrorAction SilentlyContinue }
         Write-Host ""
-        Write-Host "Done. Beta zip release published: https://github.com/$Repo/releases/tag/$newTag" -ForegroundColor Green
-        Write-Host "Commit the updated CHANGELOG.md when ready:" -ForegroundColor Cyan
-        Write-Host "  git add pc_port/CHANGELOG.md && git commit -m 'changelog: $newTag'" -ForegroundColor Gray
+        if ($isCustom) {
+            Write-Host "Done. Custom build '$Name' published: https://github.com/$Repo/releases/tag/$newTag" -ForegroundColor Green
+            Write-Host "Users opt in via Build Settings > Branch 'Custom builds' > '$Name $newVersion'. Latest is unaffected." -ForegroundColor Cyan
+        } else {
+            Write-Host "Done. Beta zip release published: https://github.com/$Repo/releases/tag/$newTag" -ForegroundColor Green
+            Write-Host "Commit the updated CHANGELOG.md when ready:" -ForegroundColor Cyan
+            Write-Host "  git add pc_port/CHANGELOG.md && git commit -m 'changelog: $newTag'" -ForegroundColor Gray
+        }
     }
     finally {
         if (Test-Path $stage) { Remove-Item -Recurse -Force $stage -ErrorAction SilentlyContinue }

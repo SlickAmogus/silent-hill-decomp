@@ -96,6 +96,15 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="VabFile.cs" />
+    <Compile Include="MsgTable.cs" />
+    <Compile Include="DiscText.cs" />
+    <Compile Include="JpnMsgMap.cs" />
+    <Compile Include="RuCharsets.cs" />
+    <Compile Include="XaSubtitles.cs" />
+    <Compile Include="XaTable.cs" />
+    <Compile Include="XaToolForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="SfxTable.cs" />
     <Compile Include="VagEncoder.cs" />
     <Compile Include="AudioToolForm.cs">
