@@ -119,6 +119,11 @@ void ShNet_Reconnect(void);
 /* 1 when the worker is running at all - the master server, a Steam session, or
  * both. ShNet_Status only describes the master-server half. */
 int         ShNet_Enabled(void);
+
+/* 1 when the world is shared or watched live -- co-op is active, or we are
+ * connected to a master server. Pausing such a world is no longer a purely
+ * local act, so the pause button and the console both consult this. */
+int         ShNet_LiveWorld(void);
 int         ShNet_Status(void);        /* SHNET_ST_* */
 const char* ShNet_StatusText(void);    /* one short line for the UI */
 const char* ShNet_ServerName(void);
@@ -176,6 +181,19 @@ void             ShNet_RequestRoster(void);
 /* Pops the oldest unread server event line into `out`, returning 1 when one
  * was waiting. Drives the toast. */
 int ShNet_PopEvent(char* out, int cap);
+
+/* ------------------------------------------------------------------ */
+/* Chat                                                                */
+/* ------------------------------------------------------------------ */
+
+/* Queue a line for the server. scope is SHNET_CHAT_GLOBAL or SHNET_CHAT_GAME.
+ * Fire-and-forget; drops silently if the queue is full or online is off. */
+void ShNet_SendChat(int scope, const char* text);
+
+/* Pop the oldest received chat line. Returns 1 when one was waiting. The chat
+ * UI drains this each frame. */
+int  ShNet_PopChat(int* outScope, unsigned int* outFromId, char* outName, int nameCap,
+                   char* outText, int textCap);
 
 /* ------------------------------------------------------------------ */
 /* Hooks the rest of the port calls                                    */

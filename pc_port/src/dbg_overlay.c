@@ -17,6 +17,7 @@
 #include <PsyX/PsyX_backend.h>
 #include "screens/options.h" /* OptionsMenuState_* — Escape backs out of the brightness screen */
 #include "pc_config.h"
+#include "sh_net_chat.h"
 
 #include <PsyX/common/glad.h>
 
@@ -1446,7 +1447,7 @@ void DbgOverlay_Update(void)
         }
         cur_tilde = ks[s_consoleSc];
     }
-    if (g_PcAllowDebugControls) {
+    if (g_PcAllowDebugControls && !ShNetChat_IsOpen()) {
         if (cur_tilde && !s_prev_tilde) { /* press edge = toggle */
             s_console_open = !s_console_open;
             s_console_dirty = 1;
@@ -1816,7 +1817,8 @@ void DbgOverlay_Update(void)
         curList = (s_scList != SDL_SCANCODE_UNKNOWN) ? ks[s_scList] : 0;
         curMemo = (s_scMemo != SDL_SCANCODE_UNKNOWN) ? ks[s_scMemo] : 0;
 
-        if (curList && !s_prevList && !ctrlHeld && !g_PcConsoleInputActive) {
+        if (curList && !s_prevList && !ctrlHeld && !g_PcConsoleInputActive &&
+            !ShNetChat_IsOpen()) {
             extern void ShNetUi_TogglePlayerList(void);
             ShNetUi_TogglePlayerList();
         }
@@ -1824,6 +1826,7 @@ void DbgOverlay_Update(void)
          * console has the keyboard or the game would open a composer every
          * time someone typed an "m" into a command. */
         if (curMemo && !s_prevMemo && !ctrlHeld && !g_PcConsoleInputActive &&
+            !ShNetChat_IsOpen() &&
             g_GameWork.gameState == GameState_InGame &&
             !(g_SysWork.sysFlags & SysFlag_DemoActive)) {
             extern void ShNetMemo_ComposerToggle(void);
@@ -1831,6 +1834,45 @@ void DbgOverlay_Update(void)
         }
         s_prevList = curList;
         s_prevMemo = curMemo;
+    }
+
+    /* Chat: key_chat_game (default Y) opens the box to type; key_chat_cycle
+     * (default U) picks the channel. While the box is open its own handler
+     * (ShNetChat_FeedKeys) owns the whole keyboard -- typing, backspace,
+     * Enter to send, Esc to cancel, Tab to switch channel -- so the open/cycle
+     * edges below are only read while it is closed. Only meaningful online, so
+     * the box will not open on a purely offline build. */
+    {
+        extern int  ShNetChat_IsOpen(void);
+        extern void ShNetChat_FeedKeys(const unsigned char* ks);
+        extern void ShNetChat_Open(void);
+        extern void ShNetChat_CycleScope(void);
+        static SDL_Scancode s_scChatG = SDL_SCANCODE_UNKNOWN;
+        static SDL_Scancode s_scChatC = SDL_SCANCODE_UNKNOWN;
+        static int          s_chatRes  = 0;
+        static int          s_prevChatG = 0, s_prevChatC = 0;
+        int online = g_PcConfig.onlineEnabled || g_PcConfig.onlineSteam;
+        int inWorld = g_GameWork.gameState == GameState_InGame &&
+                      !(g_SysWork.sysFlags & SysFlag_DemoActive);
+
+        if (!s_chatRes) {
+            s_scChatG = SDL_GetScancodeFromName(g_PcConfig.keyChatGame);
+            s_scChatC = SDL_GetScancodeFromName(g_PcConfig.keyChatCycle);
+            s_chatRes = 1;
+        }
+
+        if (ShNetChat_IsOpen()) {
+            ShNetChat_FeedKeys(ks);
+        } else if (online && inWorld && !g_PcConsoleInputActive && !ctrlHeld) {
+            int curG = (s_scChatG != SDL_SCANCODE_UNKNOWN) ? ks[s_scChatG] : 0;
+            int curC = (s_scChatC != SDL_SCANCODE_UNKNOWN) ? ks[s_scChatC] : 0;
+            if (curG && !s_prevChatG) { ShNetChat_Open(); }
+            else if (curC && !s_prevChatC) { ShNetChat_CycleScope(); }
+            s_prevChatG = curG;
+            s_prevChatC = curC;
+        } else {
+            s_prevChatG = s_prevChatC = 0;
+        }
     }
 
     /* F2 cycles the full-screen post-process look (0=Off..8). Like F1/PGXP this

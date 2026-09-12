@@ -45,6 +45,7 @@
 
 #include "sh_net.h"
 #include "sh_net_memo.h"
+#include "sh_net_chat.h"
 #include "sh_net_session.h"
 #include "pc_config.h"
 #include "pc_discord.h" /* Pc_MapAreaName */
@@ -1032,6 +1033,58 @@ void ShNetUi_TogglePlayerList(void)
     }
 }
 
+static void Nu_DrawChat(int px)
+{
+    const int   n    = ShNetChat_LineCount();
+    const int   comp = ShNetChat_Composing();
+    const float lh   = (float)px * 1.32f;
+    const float x    = s_vpH * 0.03f;
+    const float bot  = s_vpH * (comp ? 0.9f : 0.93f);
+    float       y;
+    int         i;
+
+    if (n <= 0 && !comp)
+    {
+        return;
+    }
+
+    /* Backing slab only while composing -- idle lines float over the scene the
+     * way a console-style feed does, so they never box off the corner. */
+    if (comp)
+    {
+        float top = bot - lh * (float)(n + 1) - (float)px * 0.5f;
+        Nu_Panel(x - (float)px * 0.5f, top, s_vpW * 0.42f, bot - top + lh,
+                 0.85f);
+    }
+
+    y = bot - lh * (float)(n + (comp ? 1 : 0));
+    for (i = 0; i < n; i++)
+    {
+        float a = ShNetChat_LineAlpha(i);
+        int   g = (ShNetChat_LineScope(i) == SHNET_CHAT_GAME);
+        if (a <= 0.0f)
+        {
+            y += lh;
+            continue;
+        }
+        Nu_DrawText(ShNetChat_LineText(i), x, y, px,
+                    g ? 0.86f : 0.72f,
+                    g ? 0.80f : 0.78f,
+                    g ? 0.62f : 0.86f, a);
+        y += lh;
+    }
+
+    if (comp)
+    {
+        char        line[200];
+        const int   g = (ShNetChat_Scope() == SHNET_CHAT_GAME);
+        snprintf(line, sizeof(line), "%s %s_",
+                 g ? "[Game]" : "[All]", ShNetChat_ComposeText());
+        Nu_DrawText(line, x, y, px,
+                    g ? 0.95f : 0.80f, g ? 0.90f : 0.86f, g ? 0.66f : 0.95f, 1.0f);
+    }
+}
+
 void ShNetUi_Draw(void)
 {
     GLint     vp[4];
@@ -1089,7 +1142,8 @@ void ShNetUi_Draw(void)
     }
 
     if (!drawList && !drawComposer && !drawStatus && s_eventCount == 0 &&
-        ShNetMemo_NearestReadable() < 0 && !ShNetMemo_JustPlaced())
+        ShNetMemo_NearestReadable() < 0 && !ShNetMemo_JustPlaced() &&
+        !ShNetChat_DisplayActive())
     {
         return;
     }
@@ -1165,6 +1219,11 @@ void ShNetUi_Draw(void)
     {
         Nu_DrawTextCentered("Message left.", s_vpW * 0.5f, s_vpH * 0.74f, px,
                             0.80f, 0.78f, 0.60f, 1.0f);
+    }
+
+    if (ShNetChat_DisplayActive())
+    {
+        Nu_DrawChat((int)((float)px * 0.82f));
     }
 
     if (!drawComposer)

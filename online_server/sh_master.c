@@ -335,6 +335,64 @@ static void SrvBroadcastEvent(int kind, shn_u32 who, const char* text, Client* e
     }
 }
 
+static void SrvSendChat(Client* c, int scope, shn_u32 fromId, const char* name, const char* text)
+{
+    shn_u8 buf[SHNET_HDR_SIZE + 8 + SHNET_NAME_MAX + SHNET_CHAT_MAX];
+    int    off = SHNET_HDR_SIZE;
+
+    ShnPutU8(buf, &off, (shn_u8)scope);
+    ShnPutU8(buf, &off, 0);
+    ShnPutU16(buf, &off, 0);
+    ShnPutU32(buf, &off, fromId);
+    ShnPutStr(buf, &off, name, SHNET_NAME_MAX);
+    ShnPutStr(buf, &off, text, SHNET_CHAT_MAX);
+    SrvSendTo(c, buf, off - SHNET_HDR_SIZE, SHNET_MSG_CHAT_MSG);
+}
+
+static void SrvHandleChatSay(Client* c, const shn_u8* p, int len)
+{
+    int  off = 0;
+    int  scope;
+    char text[SHNET_CHAT_MAX];
+    int  i;
+
+    if (len < 4 + SHNET_CHAT_MAX)
+    {
+        return;
+    }
+    scope = (int)ShnGetU8(p, &off);
+    (void)ShnGetU8(p, &off);
+    (void)ShnGetU16(p, &off);
+    ShnGetStr(p, &off, SHNET_CHAT_MAX, text, sizeof(text));
+    SrvSanitize(text, SHNET_CHAT_MAX);
+    if (text[0] == '\0')
+    {
+        return;
+    }
+    if (scope != SHNET_CHAT_GLOBAL && scope != SHNET_CHAT_GAME)
+    {
+        scope = SHNET_CHAT_GLOBAL;
+    }
+
+    SrvLog("  chat[%s] %s: %s", scope == SHNET_CHAT_GAME ? "game" : "all", c->name, text);
+
+    for (i = 0; i < SRV_MAX_CLIENTS; i++)
+    {
+        Client* o = &g_clients[i];
+        if (!o->used)
+        {
+            continue;
+        }
+        /* Game chat only reaches players standing in the same map. A client
+         * with no map yet (still on a menu) is not in anyone's game. */
+        if (scope == SHNET_CHAT_GAME && (o->mapIdx < 0 || o->mapIdx != c->mapIdx))
+        {
+            continue;
+        }
+        SrvSendChat(o, scope, c->playerId, c->name, text);
+    }
+}
+
 static void SrvSendReject(const struct sockaddr_in* to, int reason, const char* text)
 {
     shn_u8 buf[SHNET_HDR_SIZE + 4 + SHNET_REJECT_MAX];
@@ -1093,6 +1151,7 @@ static void SrvDispatch(const struct sockaddr_in* from, const shn_u8* buf, int n
     case SHNET_MSG_MEMO_QUERY: SrvHandleMemoQuery(c, pay, (int)payLen);  break;
     case SHNET_MSG_MEMO_PLACE: SrvHandleMemoPlace(c, pay, (int)payLen);  break;
     case SHNET_MSG_MEMO_RATE:  SrvHandleMemoRate(c, pay, (int)payLen);   break;
+    case SHNET_MSG_CHAT_SAY:   SrvHandleChatSay(c, pay, (int)payLen);    break;
     case SHNET_MSG_BYE:
     {
         char text[SHNET_EVENT_MAX];

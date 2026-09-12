@@ -20,6 +20,7 @@
 
 #include "sh_net.h"
 #include "sh_net_memo.h"
+#include "sh_net_chat.h"
 #include "sh_net_session.h"
 #include "sh_net_internal.h"
 #include "pc_discord.h" /* Pc_MapAreaName, for Steam rich presence */
@@ -116,6 +117,7 @@ void ShNet_GameTick(void)
     }
 
     ShNetMemo_Tick();
+    ShNetChat_Tick();
 
     inWorld = (g_GameWork.gameState == GameState_InGame) &&
               (g_SavegamePtr != NULL) &&

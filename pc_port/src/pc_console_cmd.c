@@ -41,6 +41,7 @@
 #include "pc_discord.h" /* Pc_MapAreaName, for NET WHO */
 #include "sh_net.h"
 #include "sh_net_session.h"
+#include "sh_net_chat.h"
 #include "sh_net_coop.h"
 #include "sh_net_coop.h"
 
@@ -501,6 +502,7 @@ static const char* const HELP_LINES[] = {
     " steam host    open a co-op lobby (friends only)",
     " steam invite  Steam overlay friend invite",
     " steam join <id> | steam leave",
+    " chat hide|show   toggle the chat overlay (Y type, U channel)",
     "Quick Save: F6   Quick Load: F8 (work outside console)",
 };
 
@@ -1150,6 +1152,18 @@ void Pc_ConsoleExec(const char* line)
                     cprintf("  %-20s  --%s", m->name, m->linked ? "" : "  (no link)");
             }
             cprintf("  steam host | steam invite | steam join <id> | steam leave");
+        }
+    } else if (strcmp(cmd, "CHAT") == 0) {
+        if (strcmp(arg, "HIDE") == 0 || strcmp(arg, "OFF") == 0) {
+            ShNetChat_SetHidden(1);
+            cprintf("chat overlay hidden");
+        } else if (strcmp(arg, "SHOW") == 0 || strcmp(arg, "ON") == 0) {
+            ShNetChat_SetHidden(0);
+            cprintf("chat overlay shown");
+        } else {
+            ShNetChat_SetHidden(!ShNetChat_Hidden());
+            cprintf("chat overlay %s (Y to type, U to switch channel)",
+                    ShNetChat_Hidden() ? "hidden" : "shown");
         }
     } else if (strcmp(cmd, "QUIT") == 0) {
         SH_DBG("[CONSOLE] quit");

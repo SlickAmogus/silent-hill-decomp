@@ -197,6 +197,18 @@ static void PeerSimple(Peer* p, int type)
     PeerSend(p, buf, SHNET_HDR_SIZE);
 }
 
+static void PeerChat(Peer* p, int scope, const char* text)
+{
+    shn_u8 buf[SHNET_HDR_SIZE + 4 + SHNET_CHAT_MAX];
+    int    off = SHNET_HDR_SIZE;
+    ShnPutU8(buf, &off, (shn_u8)scope);
+    ShnPutU8(buf, &off, 0);
+    ShnPutU16(buf, &off, 0);
+    ShnPutStr(buf, &off, text, SHNET_CHAT_MAX);
+    ShnPutHeader(buf, SHNET_MSG_CHAT_SAY, (shn_u16)(off - SHNET_HDR_SIZE), p->session);
+    PeerSend(p, buf, off);
+}
+
 static void PeerQueryMemos(Peer* p, int mapIdx)
 {
     shn_u8 buf[SHNET_HDR_SIZE + 8];
@@ -436,6 +448,37 @@ int main(int argc, char** argv)
         n = PeerWait(&a, SHNET_MSG_MEMO_ACK, 600, pay, sizeof(pay));
         CHECK(n < 0, "a second death at the same spot is collapsed into the first");
     }
+
+    printf("\nchat\n");
+    /* From the map-isolation block above, A is on map 5 and B on map 9. */
+    PeerState(&a, 5, 10 << 12, 0, 20 << 12, 512, SHNET_PF_ALIVE);
+    PeerState(&b, 9, 14 << 12, 0, 20 << 12, 512, SHNET_PF_ALIVE);
+    T_SLEEP(120);
+    PeerChat(&a, SHNET_CHAT_GLOBAL, "hello everyone");
+    n = PeerWait(&b, SHNET_MSG_CHAT_MSG, 1500, pay, sizeof(pay));
+    CHECK(n > 0, "global chat reaches a player on another map");
+    if (n > 0)
+    {
+        int  o = 0;
+        int  scope = ShnGetU8(pay, &o);
+        char nm[SHNET_NAME_MAX], tx[SHNET_CHAT_MAX];
+        unsigned int fromId;
+        (void)ShnGetU8(pay, &o);
+        (void)ShnGetU16(pay, &o);
+        fromId = ShnGetU32(pay, &o);
+        ShnGetStr(pay, &o, SHNET_NAME_MAX, nm, SHNET_NAME_MAX);
+        ShnGetStr(pay, &o, SHNET_CHAT_MAX, tx, SHNET_CHAT_MAX);
+        CHECK(scope == SHNET_CHAT_GLOBAL, "the scope survived");
+        CHECK(fromId == a.playerId, "the sender id is player A");
+        CHECK(strcmp(nm, "TestHarry") == 0, "the sender name survived (%s)", nm);
+        CHECK(strcmp(tx, "hello everyone") == 0, "the text survived (%s)", tx);
+    }
+    /* Game chat from A (map 5) must NOT reach B (map 9), but A hears its own. */
+    PeerChat(&a, SHNET_CHAT_GAME, "anyone in this room");
+    n = PeerWait(&b, SHNET_MSG_CHAT_MSG, 500, pay, sizeof(pay));
+    CHECK(n < 0, "game chat does not cross to another map");
+    n = PeerWait(&a, SHNET_MSG_CHAT_MSG, 1000, pay, sizeof(pay));
+    CHECK(n > 0, "the sender hears their own game-chat line (echo)");
 
     printf("\nhostile input\n");
     {

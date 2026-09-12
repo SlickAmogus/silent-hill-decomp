@@ -106,6 +106,9 @@ enum
     SHNET_MSG_MEMO_RATE  = 0x33, /* C->S  +1 / -1 on someone's memo */
     SHNET_MSG_MEMO_ACK   = 0x34, /* S->C  your placement landed, here is its id */
 
+    SHNET_MSG_CHAT_SAY   = 0x35, /* C->S  a line the player typed (scope + text) */
+    SHNET_MSG_CHAT_MSG   = 0x36, /* S->C  a line to show (scope + sender + text) */
+
     SHNET_MSG_EVENT      = 0x40, /* S->C  a line for the toast feed */
 
     /* ---- Session messages ----
@@ -158,6 +161,15 @@ enum
     SHNET_REJ_BANNED   = 4,
     SHNET_REJ_NAME     = 5
 };
+
+/* Chat scope. Also the value the U key cycles through. */
+enum
+{
+    SHNET_CHAT_GLOBAL = 0, /* everyone connected to the server */
+    SHNET_CHAT_GAME   = 1  /* everyone on the same map (a "game", for now) */
+};
+
+#define SHNET_CHAT_MAX 160   /* max UTF-8 bytes of one chat line, incl. NUL */
 
 /* EVENT kinds. */
 enum

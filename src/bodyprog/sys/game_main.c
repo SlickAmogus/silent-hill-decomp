@@ -607,7 +607,9 @@ static void Pc_TpsCamera_Apply(void)
          * accumulator (below) so the view doesn't jump when the console closes. */
         extern int g_PcConsoleInputActive;
         extern int g_PcQuickOptionsActive;
-        int frozen = g_PcConsoleInputActive || g_PcQuickOptionsActive;
+        extern int ShNet_LiveWorld(void);
+        int frozen = (g_PcConsoleInputActive || g_PcQuickOptionsActive) &&
+                     !ShNet_LiveWorld();
 
         SDL_GetRelativeMouseState(&mdx, &mdy);
         if (frozen) { mdx = 0; mdy = 0; }
@@ -1376,7 +1378,12 @@ void DebugCamera_Update(void)
     {
         extern int g_PcConsoleInputActive;
         extern int g_PcQuickOptionsActive;
-        if (g_PcConsoleInputActive || g_PcQuickOptionsActive) {
+        extern int ShNet_LiveWorld(void);
+        /* In a live/shared world the console and quick-options overlays do NOT
+         * pause -- pausing a world someone else is standing in (or watching
+         * your ghost in) is no longer a local act. Input is still swallowed
+         * below, so nothing moves; the world simply keeps running. */
+        if ((g_PcConsoleInputActive || g_PcQuickOptionsActive) && !ShNet_LiveWorld()) {
             /* Keep the alternate (TPS/OTS/FPS) camera applied while the console
              * is open, so the frozen frame shows the exact view you were looking
              * at instead of snapping back to the default game camera. The look
@@ -2367,6 +2374,20 @@ void MainLoop(void) // 0x80032EE0
             }
         }
 
+        /* Chat: while the box is open, swallow the pad so typing does not also
+         * drive Harry. It never freezes the game -- that is the whole point of
+         * chat in a live session -- so unlike the console it only zeroes input. */
+        {
+            extern int ShNetChat_IsOpen(void);
+            if (ShNetChat_IsOpen()) {
+                g_Controller0->heldBtnFlags      = 0;
+                g_Controller0->clickedBtnFlags   = 0;
+                g_Controller0->releasedBtnFlags  = 0;
+                g_Controller0->pulsedBtnFlags    = 0;
+                g_Controller0->pulsedGuiBtnFlags = 0;
+            }
+        }
+
         /* Online message composer. Same arrangement as the quick options above
          * and for the same reason: the pad edges are consumed HERE, after the
          * parse refills g_Controller0 and before any game logic reads it, then
@@ -3084,7 +3105,9 @@ void MainLoop(void) // 0x80032EE0
             s32       dtCapped;
             int       pcInCutscene = (g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
                                      g_SysWork.cutsceneBorderState != CutsceneBorderState_None;
+            extern int ShNet_LiveWorld(void);
             int       pcConsoleFrozen = (g_PcConsoleInputActive || g_PcQuickOptionsActive) &&
+                                        !ShNet_LiveWorld() &&
                                         !(g_SysWork.bgmStatusFlags & BgmStatusFlag_Pause) &&
                                         !g_SysWork.isMgsStringSet;
 

@@ -395,6 +395,8 @@ typedef struct {
 
     char keyOnlinePlayers[24]; /* who-is-online panel hotkey (key_online_players); default F11 */
     char keyOnlineMemo[24];    /* leave-a-message composer hotkey (key_online_memo); default M */
+    char keyChatGame[24];      /* open chat to type (key_chat_game); default Y */
+    char keyChatCycle[24];     /* pick channel global<->game (key_chat_cycle); default U */
 
     char mapName[64];    /* e.g. "map0_s00" */
 } s_PcConfig;

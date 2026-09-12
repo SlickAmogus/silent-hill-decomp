@@ -66,6 +66,7 @@ typedef struct
 } ShNetCmd;
 
 #define SHNET_CMD_RING 32
+#define SHNET_CHAT_RING 16
 
 static struct
 {
@@ -92,6 +93,14 @@ static struct
     char         events[SHNET_MAX_EVENTS][SHNET_EVENT_MAX];
     int          eventHead;
     int          eventTail;
+
+    /* Chat, both directions. Text does not fit the ShNetCmd ring, so chat gets
+     * its own tiny rings; both are drained by the thread on the far side. */
+    struct { int scope; char text[SHNET_CHAT_MAX]; } chatOut[SHNET_CHAT_RING];
+    int          chatOutHead, chatOutTail;
+    struct { int scope; unsigned int fromId; char name[SHNET_NAME_MAX];
+             char text[SHNET_CHAT_MAX]; } chatIn[SHNET_CHAT_RING];
+    int          chatInHead, chatInTail;
 
     int          localValid;
     int          localMap;
@@ -328,6 +337,19 @@ static void ShNetW_SendCmd(ShNetWorker* w, const ShNetCmd* c)
     }
 
     ShnPutHeader(buf, (shn_u8)c->kind, (shn_u16)(off - SHNET_HDR_SIZE), w->session);
+    ShNetW_Send(w, buf, off);
+}
+
+static void ShNetW_SendChat(ShNetWorker* w, int scope, const char* text)
+{
+    unsigned char buf[SHNET_HDR_SIZE + 4 + SHNET_CHAT_MAX];
+    int           off = SHNET_HDR_SIZE;
+
+    ShnPutU8(buf, &off, (shn_u8)scope);
+    ShnPutU8(buf, &off, 0);
+    ShnPutU16(buf, &off, 0);
+    ShnPutStr(buf, &off, text, SHNET_CHAT_MAX);
+    ShnPutHeader(buf, SHNET_MSG_CHAT_SAY, (shn_u16)(off - SHNET_HDR_SIZE), w->session);
     ShNetW_Send(w, buf, off);
 }
 
@@ -742,6 +764,28 @@ static void ShNetW_Receive(ShNetWorker* w, unsigned int now)
         case SHNET_MSG_EVENT:
             ShNetW_HandleEvent(pay, (int)payLen);
             break;
+        case SHNET_MSG_CHAT_MSG:
+            if (payLen >= 8 + SHNET_NAME_MAX + SHNET_CHAT_MAX)
+            {
+                int          off   = 0;
+                int          scope = (int)ShnGetU8(pay, &off);
+                unsigned int fromId;
+                int          next  = (s_sh.chatInHead + 1) % SHNET_CHAT_RING;
+                (void)ShnGetU8(pay, &off);
+                (void)ShnGetU16(pay, &off);
+                fromId = ShnGetU32(pay, &off);
+                if (next == s_sh.chatInTail)
+                {
+                    s_sh.chatInTail = (s_sh.chatInTail + 1) % SHNET_CHAT_RING;
+                }
+                s_sh.chatIn[s_sh.chatInHead].scope  = scope;
+                s_sh.chatIn[s_sh.chatInHead].fromId = fromId;
+                ShnGetStr(pay, &off, SHNET_NAME_MAX, s_sh.chatIn[s_sh.chatInHead].name, SHNET_NAME_MAX);
+                ShnGetStr(pay, &off, SHNET_CHAT_MAX, s_sh.chatIn[s_sh.chatInHead].text, SHNET_CHAT_MAX);
+                ShNet_SanitizeName(s_sh.chatIn[s_sh.chatInHead].name);
+                s_sh.chatInHead = next;
+            }
+            break;
         default:
             break;
         }
@@ -920,6 +964,23 @@ static int SDLCALL ShNet_Worker(void* unused)
                 {
                     ShNetW_SendCmd(&w, &pending[i]);
                 }
+            }
+
+            for (;;)
+            {
+                int  scope;
+                char line[SHNET_CHAT_MAX];
+                SDL_LockMutex(s_lock);
+                if (s_sh.chatOutTail == s_sh.chatOutHead)
+                {
+                    SDL_UnlockMutex(s_lock);
+                    break;
+                }
+                scope = s_sh.chatOut[s_sh.chatOutTail].scope;
+                SDL_strlcpy(line, s_sh.chatOut[s_sh.chatOutTail].text, sizeof(line));
+                s_sh.chatOutTail = (s_sh.chatOutTail + 1) % SHNET_CHAT_RING;
+                SDL_UnlockMutex(s_lock);
+                ShNetW_SendChat(&w, scope, line);
             }
 
             if (wantRoster)
@@ -1170,6 +1231,12 @@ int ShNet_Status(void)
     return s_gt.status;
 }
 
+int ShNet_LiveWorld(void)
+{
+    extern int g_ShNetCoopActive;
+    return g_ShNetCoopActive || s_gt.status == SHNET_ST_CONNECTED;
+}
+
 int ShNet_Enabled(void)
 {
     /* Written once on the game thread in ShNet_Init and never again, so a
@@ -1406,6 +1473,47 @@ void ShNet_RequestRoster(void)
     SDL_LockMutex(s_lock);
     s_sh.wantRoster = 1;
     SDL_UnlockMutex(s_lock);
+}
+
+void ShNet_SendChat(int scope, const char* text)
+{
+    int next;
+    if (!s_enabled || !s_lock || !text || !text[0])
+    {
+        return;
+    }
+    SDL_LockMutex(s_lock);
+    next = (s_sh.chatOutHead + 1) % SHNET_CHAT_RING;
+    if (next != s_sh.chatOutTail) /* full -> drop, never block the game thread */
+    {
+        s_sh.chatOut[s_sh.chatOutHead].scope = scope;
+        SDL_strlcpy(s_sh.chatOut[s_sh.chatOutHead].text, text, SHNET_CHAT_MAX);
+        s_sh.chatOutHead = next;
+    }
+    SDL_UnlockMutex(s_lock);
+}
+
+int ShNet_PopChat(int* outScope, unsigned int* outFromId, char* outName, int nameCap,
+                  char* outText, int textCap)
+{
+    int got = 0;
+    if (!s_enabled || !s_lock || !outText || textCap <= 0)
+    {
+        return 0;
+    }
+    SDL_LockMutex(s_lock);
+    if (s_sh.chatInTail != s_sh.chatInHead)
+    {
+        if (outScope)  *outScope  = s_sh.chatIn[s_sh.chatInTail].scope;
+        if (outFromId) *outFromId = s_sh.chatIn[s_sh.chatInTail].fromId;
+        if (outName && nameCap > 0)
+            SDL_strlcpy(outName, s_sh.chatIn[s_sh.chatInTail].name, (size_t)nameCap);
+        SDL_strlcpy(outText, s_sh.chatIn[s_sh.chatInTail].text, (size_t)textCap);
+        s_sh.chatInTail = (s_sh.chatInTail + 1) % SHNET_CHAT_RING;
+        got = 1;
+    }
+    SDL_UnlockMutex(s_lock);
+    return got;
 }
 
 int ShNet_PopEvent(char* out, int cap)
