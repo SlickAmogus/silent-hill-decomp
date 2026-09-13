@@ -2059,7 +2059,7 @@ void func_800D947C(void) // 0x800D947C
      * sharing the backing is safe. Also restores the ceremony particles the
      * SH_F3D48_ENTRY_CORRUPT guard had to drop (flame UV cycling / missing
      * floors / misplaced Harry+Cybil run textures / results-screen meshes). */
-    D_800F3D48 = &D_800F2448;
+    D_800F3D48 = D_800F2448;
 #else
     D_800F3D48 = (s_800F3D48*)FS_BUFFER_27;
 #endif
@@ -2098,12 +2098,18 @@ void func_800D952C(void) // 0x800D952C
     s_800F3D58* ptr0;
     s_800F3D48* ptr1;
 
-    D_800F3D48 = &D_800F2448;
+    D_800F3D48 = D_800F2448;
     D_800F2438 = 80;
 
     ptr0 = &D_800F3D58;
 
-    memset(&D_800F2448, 0xA5, 0x1900);
+#ifdef SH_PC_PORT
+    /* The declaration has to stay big enough for the write, or a toolchain that
+     * checks object sizes turns this into an abort. Fail the build instead. */
+    _Static_assert(sizeof(D_800F2448) >= 0x1900,
+                   "D_800F2448 must cover the 0x1900 pool memset");
+#endif
+    memset(D_800F2448, 0xA5, 0x1900);
 
     ptr1 = D_800F3D48;
 

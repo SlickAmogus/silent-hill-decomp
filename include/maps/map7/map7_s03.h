@@ -477,7 +477,15 @@ extern s_800F3D48_0 D_800EC53C;
 extern s_800F3D48_0 D_800EC614;
 extern s_800F3D48_0 D_800EC5A8;
 
-extern s_800F3D48 D_800F2448;
+/* The 80-entry final-boss particle pool, declared as the array it is. It was
+ * declared as a single entry, which told the compiler the whole object was one
+ * struct while func_800D952C memsets 0x1900 bytes of it. Storage was never
+ * short (see the data stub), but a toolchain that checks object sizes believes
+ * the declaration: under _FORTIFY_SOURCE that memset becomes __memset_chk and
+ * aborts with signal 6 and no message, which is how it was found on Android.
+ * Ubuntu's gcc enables FORTIFY by default at -O2, so the Linux build is exposed
+ * to the same abort. */
+extern s_800F3D48 D_800F2448[80];
 extern s32        D_800F3D90;
 
 extern s_800F3D48_0  D_800EC6EC;

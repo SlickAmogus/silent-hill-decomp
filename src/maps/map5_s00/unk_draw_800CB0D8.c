@@ -52,8 +52,30 @@ bool func_800CB25C(POLY_FT4** poly, s32 idx) // 0x800CB25C
         s32             field_160;
     } s_func_800CB25C;
 
+#ifdef SH_PC_PORT
+    /* The projection loop below steps i by 3 and stores THREE entries per pass
+     * (gte_stsxy3c / gte_stsz3c are the contiguous forms), so it covers flat
+     * elements 0..26. The grid is 5x5 = 25. The last pass starts at element 24
+     * and writes 24, 25 and 26: eight bytes past the end of each array.
+     *
+     * PSX tolerated it. The two arrays sat 0x68 apart and the spill landed in
+     * the gap between them and in sp78[0][0], corrupting the first quad's Z,
+     * which was plainly not intended. A modern stack layout puts the canary
+     * there instead, which is how Android found it.
+     *
+     * Give each 27 elements of real backing and view it through a 5-column
+     * pointer, so every sp10[i][j] / sp78[i][j] resolves to the same flat
+     * element it always did. Reads only ever reach element 24. The two extra
+     * writes are kept -- they are original behaviour -- but they now land in
+     * storage instead of on whatever followed. */
+    DVECTOR          sp10Store[27];
+    s32              sp78Store[27];
+    DVECTOR        (*sp10)[5] = (DVECTOR (*)[5])sp10Store;
+    s32            (*sp78)[5] = (s32 (*)[5])sp78Store;
+#else
     DVECTOR          sp10[5][5];
     s32              sp78[5][5];
+#endif
     s32              j;
     s32              i;
     s32              var_v0_4;
