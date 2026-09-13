@@ -4524,6 +4524,12 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
              * with distance. Without this, distant characters render as the
              * solid color from gte_nct (which collapses to the background
              * color = black when fog dampens light contribution to ~0). */
+            /* v0's fog rides the unused trailing pad2 short, marked with bit 15,
+             * the same scheme the GT4 case below uses. v0's own colour-word pad
+             * is the GPU command code, so without this the renderer had to give
+             * v0 its neighbour's fog and every triangle came out with one corner
+             * fogged for the wrong distance. */
+            poly.gt3->pad2 = 0x8000 | PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_0]);
             poly.gt3->p1 = PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_1]);
             poly.gt3->p2 = PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_2]);
 #endif

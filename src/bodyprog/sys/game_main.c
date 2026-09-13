@@ -3412,6 +3412,16 @@ void MainLoop(void) // 0x80032EE0
                                !g_PsxSkipFramebufferStore &&
                                !g_PcMapScreenActive &&
                                !bg2dHeld) ? 1 : 0;
+
+            /* The same question the renderer needs answered for texture
+             * filtering: is this frame the 3D world, or one of the flat screens
+             * that runs inside the in-game state? A POLY primitive on a world
+             * frame is world geometry, and marking it so is what stops walls
+             * and tree quads rendering point-sampled because their vertices
+             * missed the view-space shadow. Deliberately the same expression
+             * rather than a second opinion -- the two must not disagree about
+             * what a world frame is. */
+            { extern int g_PsxFrame3dClass; g_PsxFrame3dClass = wantHorPlus; }
             /* The grace period below used to be a FRAME count (6), i.e. 200ms at
              * 30fps but only 100ms at 60 and 42ms at 144 -- while the fade it
              * exists to ride out takes a fixed wall-clock time. At high
