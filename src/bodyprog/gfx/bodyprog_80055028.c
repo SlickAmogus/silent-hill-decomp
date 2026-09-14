@@ -183,15 +183,31 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
 /* Compute fog factor (0-127) from a single screenZ value. Used for character
  * prims which don't have a precomputed field_252[] fog ramp array. Reads the
  * world's fog ramp at the index derived from screenZ. */
+/* Must produce the SAME number the world faces get for the same depth. The
+ * game's fog is ramp*16 + fog.intensity everywhere it computes one -- the face
+ * depth cue (0x1000 - ramp*16 - intensity), func_80055A50's callers at 1944 and
+ * 5255, PC_FACE_FOG_VERTS above -- and this macro alone left the intensity term
+ * out. fog.intensity is a live per-area bias (Q12(1.0) - func_800559A8), so
+ * every character, lamp post, sign and object went through here fogged LESS
+ * than the world around it by intensity*127/4096: at a distance where the
+ * street had already dissolved into the fog, the objects standing on it had
+ * not, and read as separate shapes against it everywhere outdoors. With the
+ * term the two formulas are identical (for intensity 0 this reduces exactly to
+ * the old (fb*127+128)>>8). */
 #define PC_SCREEN_Z_TO_FOG(z) ({ \
-    s32 _z = (s32)(z); s32 _fb; \
-    if (!g_WorldEnvWork.isFogEnabled) { _fb = 0; } \
-    else if (_z < (1 << g_WorldEnvWork.fog.depthShift)) { \
-        s32 _idx = (_z << 7) >> g_WorldEnvWork.fog.depthShift; \
-        if (_idx < 0) _idx = 0; if (_idx > 127) _idx = 127; \
-        _fb = g_WorldEnvWork.fogRamp[_idx]; \
-    } else { _fb = 255; } \
-    (u8)((_fb * 127 + 128) >> 8); \
+    s32 _z = (s32)(z); s32 _fa; \
+    if (!g_WorldEnvWork.isFogEnabled) { _fa = 0; } \
+    else { \
+        s32 _fb; \
+        if (_z < (1 << g_WorldEnvWork.fog.depthShift)) { \
+            s32 _idx = (_z << 7) >> g_WorldEnvWork.fog.depthShift; \
+            if (_idx < 0) _idx = 0; if (_idx > 127) _idx = 127; \
+            _fb = g_WorldEnvWork.fogRamp[_idx]; \
+        } else { _fb = 255; } \
+        _fa = _fb * 16 + g_WorldEnvWork.fog.intensity; \
+        if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
+    } \
+    (u8)((_fa * 127 + 2048) >> 12); \
 })
 #else
 #define FOG_FAR_DIST() (g_WorldEnvWork.fog.farDistance)
