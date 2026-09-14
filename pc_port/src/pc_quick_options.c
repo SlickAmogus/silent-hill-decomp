@@ -155,7 +155,7 @@ static const QoRowDef s_page1[] = {
     /* In the layout row's place: which software SPU renders the mix. That IS
      * the audio choice worth having here -- a phone is two channels, and the
      * layout row could not change them anyway (see above). */
-    { ROW_EXTRA, NULL, QO_X_SPU,            "Sound Engine *" },
+    { ROW_EXTRA, NULL, QO_X_SPU,            "Sound Engine (restart)" },
 #else
     { ROW_EXTRA, NULL, QO_X_SPEAKERS,       "Speaker Layout" },
 #endif
@@ -2053,7 +2053,15 @@ void Pc_QuickOptions_Draw(void)
 
     pad      = panelW * 0.05f;
     titleH   = panelH * 0.09f;
+#if defined(QO_MOBILE)
+    /* No controls footer, so no band to reserve for it -- just enough of a
+     * margin that Close does not sit on the panel border. Every term the
+     * desktop line carries names a key or a gesture a thumb already knows, and
+     * the row it was costing is worth more than the sentence. */
+    hintH    = panelH * 0.015f;
+#else
     hintH    = panelH * 0.07f;
+#endif
     listT    = panelT - titleH;
     listB    = panelB + hintH;
     listH    = listT - listB;
@@ -2117,6 +2125,7 @@ void Pc_QuickOptions_Draw(void)
     /* Controls footer. It used to run off-screen at some panel widths, so bake
      * it once at the natural size and, if it overflows, re-bake once scaled to
      * fit -- the text always ends up inside the panel whatever its width. */
+#if !defined(QO_MOBILE)
     if (!s_texHint)
     {
         char  hint[192];
@@ -2124,19 +2133,9 @@ void Pc_QuickOptions_Draw(void)
         int   hpx   = (int)(hintH * 0.42f);
 
         if (hpx < 7) hpx = 7;
-#if defined(QO_MOBILE)
-        /* Every term in the desktop footer names hardware this device does not
-         * have -- arrow keys, PgUp/PgDn, Esc, F10 -- and the panel does not move
-         * here either. Describing the gestures that DO exist is the only version
-         * of this line worth the width. */
-        snprintf(hint, sizeof(hint),
-                 "Tap - / + to adjust      Next page and Close at the bottom      * req restart");
-        (void)0;
-#else
         snprintf(hint, sizeof(hint),
                  "Up/Down select   Left/Right adjust   PgUp/PgDn page   drag title to move   %s or Esc close   * req restart",
                  g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10");
-#endif
         s_texHint = qo_bake(hint, (float)hpx, &s_hintW, &s_hintH);
         if (s_texHint && s_hintW > avail && s_hintW > 0 && avail > 0.0f)
         {
@@ -2146,6 +2145,7 @@ void Pc_QuickOptions_Draw(void)
             s_texHint = qo_bake(hint, (float)fit, &s_hintW, &s_hintH);
         }
     }
+#endif
 
     /* Publish geometry for Update's mouse hit-test. */
     s_vpW = vpW; s_vpH = vpH;
