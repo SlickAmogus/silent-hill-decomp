@@ -1308,10 +1308,13 @@ void Pc_ConsoleExec(const char* line)
         extern float g_PsyX_FogColor[3];
         extern int   g_cfg_psxDither, g_cfg_tonemap, g_cfg_postProcess;
         g_PsxVoidProbeArmed = 1;
-        cprintf("[VOIDPROBE] armed: background2dColor=(%d,%d,%d) shaderFog=(%.2f,%.2f,%.2f)/255 psxDither=%d tonemap=%d post=%d fogStrength=%.3f",
-                g_GameWork.background2dColor.r, g_GameWork.background2dColor.g, g_GameWork.background2dColor.b,
-                g_PsyX_FogColor[0] * 255.0f, g_PsyX_FogColor[1] * 255.0f, g_PsyX_FogColor[2] * 255.0f,
-                g_cfg_psxDither, g_cfg_tonemap, g_cfg_postProcess, g_PcConfig.fogStrength);
+        /* cprintf only reaches the overlay; the log is what gets sent back. */
+        SH_DBG("[VOIDPROBE] armed: background2dColor=(%d,%d,%d) shaderFog=(%.2f,%.2f,%.2f)/255 psxDither=%d tonemap=%d post=%d fogStrength=%.3f gameState=%d sysState=%d",
+               g_GameWork.background2dColor.r, g_GameWork.background2dColor.g, g_GameWork.background2dColor.b,
+               g_PsyX_FogColor[0] * 255.0f, g_PsyX_FogColor[1] * 255.0f, g_PsyX_FogColor[2] * 255.0f,
+               g_cfg_psxDither, g_cfg_tonemap, g_cfg_postProcess, g_PcConfig.fogStrength,
+               (int)g_GameWork.gameState, (int)g_SysWork.sysState);
+        cprintf("[VOIDPROBE] armed -- readback lands in the log on the next frame");
     } else if (strcmp(cmd, "PGXPEDGE") == 0) {
         extern float g_PgxpEdgeMax;
         if (arg[0]) g_PgxpEdgeMax = (float)atof(arg);
