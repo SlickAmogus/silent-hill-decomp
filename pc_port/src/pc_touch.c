@@ -1214,7 +1214,13 @@ void Pc_Touch_Update(void)
             }
         }
         if (s_Buttons[TB_LIGHT].holdFrames > 0) Tc_PressAction(&s_PadWord, cfg->light);
-        if (s_Buttons[TB_VIEW].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->view);
+        /* The raw L2 bit, which is exactly what the Gamepad style's second
+         * shoulder control sends -- not controllerConfig.view. Going through
+         * the bind let the two styles disagree: control type 2 moves `view` to
+         * L1 and puts step-left on L2, so the same button did different things
+         * depending on a setting in another menu. Same bit in both styles now,
+         * by construction. */
+        if (s_Buttons[TB_VIEW].holdFrames  > 0) Tc_PressAction(&s_PadWord, TG_L2);
         if (s_Buttons[TB_START].holdFrames > 0) Tc_PressAction(&s_PadWord, cfg->pause);
 
         /* Opens the overlay directly rather than through a pad bind: there is
