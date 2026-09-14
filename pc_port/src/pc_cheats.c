@@ -250,17 +250,23 @@ static const CheatRow s_debug[] = {
      * and typed into, plus dev keys on the number row. None of that is
      * reachable without a keyboard, so the toggle would gate nothing. */
     { "Allow console",        CH_DEBUGKEYS, NULL, NULL, MOB_HIDE },
-    { "Collision visualizer", CH_TOGGLE,  &g_CollVisEnabled,  NULL },
-    { "Keyframe viewer (K)",  CH_TOGGLE,  &g_DebugAnimKfView, NULL,
-      MOB_RELABEL, "Keyframe viewer" },
+    /* Both hidden on mobile: neither is usable once it is on. The collision
+     * view and the keyframe inspector are driven entirely from the debug keys
+     * -- the same number row "Allow console" is hidden for -- so the toggle
+     * turns on a view that cannot then be stepped, moved or read. */
+    { "Collision visualizer", CH_TOGGLE,  &g_CollVisEnabled,  NULL, MOB_HIDE },
+    { "Keyframe viewer (K)",  CH_TOGGLE,  &g_DebugAnimKfView, NULL, MOB_HIDE },
     /* Also on Ctrl+F5 / Ctrl+F1 / Ctrl+F2. The key and the row drive the same
      * state, except fast-forward, where the key is a HOLD and this row is a
      * sticky toggle -- they use separate flags so releasing the key cannot
      * cancel the toggle. The toggle clears itself if Harry dies. */
     { "Fast forward (Ctrl+F5)", CH_TOGGLE, &g_PcFastForward,     NULL,
       MOB_RELABEL, "Fast forward" },
-    { "Wireframe (Ctrl+F1)",  CH_TOGGLE,  &g_dbg_wireframeMode,  NULL,
-      MOB_RELABEL, "Wireframe" },
+    /* Hidden on mobile because it cannot do anything there: GR_SetWireframe is
+     * inside a desktop-GL-only guard, and ES has no glPolygonMode to put behind
+     * it. Drawing it as lines instead would mean re-issuing every draw, which is
+     * not worth it for a debug toggle. The row flipped a flag nothing read. */
+    { "Wireframe (Ctrl+F1)",  CH_TOGGLE,  &g_dbg_wireframeMode,  NULL, MOB_HIDE },
     { "No textures (Ctrl+F2)", CH_TOGGLE, &g_dbg_texturelessMode, NULL,
       MOB_RELABEL, "No textures" },
     { "Spawn",                CH_SPAWN,   NULL, NULL },
