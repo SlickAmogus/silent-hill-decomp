@@ -826,19 +826,36 @@ void Pc_Touch_Update(void)
 
         /* Window-normalized -> viewport-normalized, so a letterboxed picture
          * does not shift every control off where it is drawn. */
+        t = Tc_FindFinger(dev, f->id);
         {
             float fx = 0.0f, fy = 0.0f;
             int   px = (int)(f->x * (float)winW);
             int   py = (int)(f->y * (float)winH);
 
             if (!PsyX_MapWindowToViewport(px, py, &fx, &fy))
-                continue; /* inside the black bars -- not on the picture at all */
+            {
+                /* Off the picture. A NEW contact there is a tap on the black
+                 * bars and stays ignored, but a finger that already owns a
+                 * control must not be dropped here: `continue` skips the
+                 * seen[] mark below, and anything unseen is pruned at the end
+                 * of the frame, which RELEASES the press. So a thumb drifting a
+                 * few pixels past the edge let go of its own accord -- and the
+                 * controls nearest the edge are the ones that hit it, which is
+                 * every one of the shoulder buttons and nothing else. Clamp and
+                 * carry on instead; the role was decided when it landed. */
+                if (t == NULL || t->role == TR_NONE)
+                    continue;
+
+                if (fx < 0.0f) fx = 0.0f;
+                if (fx > 1.0f) fx = 1.0f;
+                if (fy < 0.0f) fy = 0.0f;
+                if (fy > 1.0f) fy = 1.0f;
+            }
 
             vx = fx;
             vy = fy;
         }
 
-        t = Tc_FindFinger(dev, f->id);
         if (t == NULL)
         {
             t = Tc_NewFinger();
