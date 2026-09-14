@@ -1299,6 +1299,19 @@ void Pc_ConsoleExec(const char* line)
         if (arg[0]) g_PcConfig.weatherSimHz = (atoi(arg) == 30) ? 30 : 60;
         cprintf("Weather (rain/snow) simulation: %d Hz%s", g_PcConfig.weatherSimHz,
                 g_PcConfig.weatherSimHz == 30 ? " (original console cadence)" : " (per rendered frame)");
+    } else if (strcmp(cmd, "VOIDPROBE") == 0) {
+        /* One-shot: the renderer prints the clear bytes, the fog uniform and a
+         * colour histogram of the top rows of the scene target and of the window
+         * on the next frame. Stand looking at the far void with a lamp post in
+         * view and run it. */
+        extern int   g_PsxVoidProbeArmed;
+        extern float g_PsyX_FogColor[3];
+        extern int   g_cfg_psxDither, g_cfg_tonemap, g_cfg_postProcess;
+        g_PsxVoidProbeArmed = 1;
+        cprintf("[VOIDPROBE] armed: background2dColor=(%d,%d,%d) shaderFog=(%.2f,%.2f,%.2f)/255 psxDither=%d tonemap=%d post=%d fogStrength=%.3f",
+                g_GameWork.background2dColor.r, g_GameWork.background2dColor.g, g_GameWork.background2dColor.b,
+                g_PsyX_FogColor[0] * 255.0f, g_PsyX_FogColor[1] * 255.0f, g_PsyX_FogColor[2] * 255.0f,
+                g_cfg_psxDither, g_cfg_tonemap, g_cfg_postProcess, g_PcConfig.fogStrength);
     } else if (strcmp(cmd, "PGXPEDGE") == 0) {
         extern float g_PgxpEdgeMax;
         if (arg[0]) g_PgxpEdgeMax = (float)atof(arg);
