@@ -1015,6 +1015,18 @@ void Pc_Touch_Update(void)
                 {
                     s_LeftX = s_LeftY = 128;
                 }
+
+                /* The same auto-run the context stick has, on the same
+                 * thresholds. A thumb on glass gets no resistance to tell it
+                 * how far it has pushed, so pushing further is the only way to
+                 * ask for a run, and a fixed ring is where that reads best.
+                 * Forward only: Run plus Back is the quick back-jump, which
+                 * would turn every backward step into a lurch. Square is still
+                 * there for a deliberate one. */
+                {
+                    const float engage = s_Running ? TC_RUN_RELEASE : TC_RUN_THRESHOLD;
+                    s_Running = (mag >= engage) && (dy < (0.35f * len));
+                }
                 break;
             }
 
@@ -1437,7 +1449,10 @@ void Pc_Touch_Draw(void)
         int   ky = s_StickActive ? TC_UY(s_StickKy) : oy;
 
         Tc_Ring(&batch, ox, oy, rr, (rr * 88) / 100, 140);
-        Tc_Octagon(&batch, kx, ky, TC_UR(TG_KNOB_R), s_StickActive ? 235 : 175);
+        /* Brightest while running, so the auto-run has a state the player can
+         * see. The context stick already reads this way. */
+        Tc_Octagon(&batch, kx, ky, TC_UR(TG_KNOB_R),
+                   s_Running ? 255 : (s_StickActive ? 225 : 175));
 
         for (c = 0; c < TG_C_COUNT; c++)
         {
