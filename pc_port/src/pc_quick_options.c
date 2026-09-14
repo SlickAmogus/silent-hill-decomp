@@ -146,7 +146,9 @@ static const QoRowDef s_page1[] = {
     /* In the layout row's place: which software SPU renders the mix. That IS
      * the audio choice worth having here -- a phone is two channels, and the
      * layout row could not change them anyway (see above). */
-    { ROW_EXTRA, NULL, QO_X_SPU,            "Sound Engine *" },
+    /* Spelled out rather than starred: the "* req restart" legend lived in the
+     * footer, which mobile no longer draws. */
+    { ROW_EXTRA, NULL, QO_X_SPU,            "Sound Engine (restart)" },
 #else
     { ROW_EXTRA, NULL, QO_X_SPEAKERS,       "Speaker Layout" },
 #endif
@@ -2027,7 +2029,14 @@ void Pc_QuickOptions_Draw(void)
 
     pad      = panelW * 0.05f;
     titleH   = panelH * 0.09f;
+#if defined(QO_MOBILE)
+    /* No footer here, so no band reserved for one. Every term it could carry is
+     * either hardware this device does not have or a gesture the rows already
+     * make obvious, and the height buys more than the sentence did. */
+    hintH    = 0.0f;
+#else
     hintH    = panelH * 0.07f;
+#endif
     listT    = panelT - titleH;
     listB    = panelB + hintH;
     listH    = listT - listB;
@@ -2090,7 +2099,11 @@ void Pc_QuickOptions_Draw(void)
 #endif
     /* Controls footer. It used to run off-screen at some panel widths, so bake
      * it once at the natural size and, if it overflows, re-bake once scaled to
-     * fit -- the text always ends up inside the panel whatever its width. */
+     * fit -- the text always ends up inside the panel whatever its width.
+     *
+     * Never baked on mobile: s_texHint stays 0, which is exactly what the draw
+     * below already tests, so removing it needs nothing else. */
+#if !defined(QO_MOBILE)
     if (!s_texHint)
     {
         char  hint[192];
@@ -2120,6 +2133,7 @@ void Pc_QuickOptions_Draw(void)
             s_texHint = qo_bake(hint, (float)fit, &s_hintW, &s_hintH);
         }
     }
+#endif
 
     /* Publish geometry for Update's mouse hit-test. */
     s_vpW = vpW; s_vpH = vpH;
