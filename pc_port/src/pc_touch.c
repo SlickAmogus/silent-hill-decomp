@@ -1208,7 +1208,14 @@ void Pc_Touch_Update(void)
             }
         }
         if (s_Buttons[TB_LIGHT].holdFrames > 0) Tc_PressAction(&s_PadWord, cfg->light);
-        if (s_Buttons[TB_VIEW].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->view);
+        /* Raw L2, not cfg->view, so this is literally the key the gamepad style's
+         * second-from-the-left shoulder sends. Through the bind it did nothing:
+         * Tc_PressAction ignores a zero mask, and controllerConfig is only ever
+         * filled in by Settings_RestoreControlDefaults -- which the control-type
+         * screen calls, and that screen is not in this port because the binds are
+         * customisable here instead. An empty view bind made this the one context
+         * button with nothing behind it, while the pad's own L2 worked. */
+        if (s_Buttons[TB_VIEW].holdFrames  > 0) s_PadWord &= (unsigned short)~TG_L2;
         if (s_Buttons[TB_START].holdFrames > 0) Tc_PressAction(&s_PadWord, cfg->pause);
 
         /* Opens the overlay directly rather than through a pad bind: there is
