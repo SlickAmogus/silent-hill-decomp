@@ -11884,6 +11884,37 @@ void Player_Controller(void) // 0x8007F32C
     g_Player_IsSteppingLeftTap  |= (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.stepLeft)  != 0;
     g_Player_IsSteppingRightTap |= (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.stepRight) != 0;
 
+#ifdef SH_PC_PORT
+    /* [STEPDIAG] Edge-triggered, NOT per frame: one line whenever the stepping
+     * state changes, so a sidestep that starts and dies shows which half broke.
+     * Prints the binds too, because an empty or duplicated bind makes Hold
+     * impossible while Tap still fires, and that is indistinguishable on screen.
+     * Remove once the mobile sidestep report is closed. */
+    {
+        static u32 s_stepDiagPrev = 0xFFFFFFFFu;
+        const u16  bindL = g_GameWorkPtr->config.controllerConfig.stepLeft;
+        const u16  bindR = g_GameWorkPtr->config.controllerConfig.stepRight;
+        const u32  now   = ((u32)(g_Player_IsSteppingLeftHold  ? 1 : 0)) |
+                           ((u32)(g_Player_IsSteppingRightHold ? 1 : 0) << 1) |
+                           ((u32)(g_Player_IsSteppingLeftTap   ? 1 : 0) << 2) |
+                           ((u32)(g_Player_IsSteppingRightTap  ? 1 : 0) << 3) |
+                           ((u32)((g_Controller0->heldBtnFlags & (bindL | bindR)) != 0) << 4);
+
+        if (now != s_stepDiagPrev)
+        {
+            s_stepDiagPrev = now;
+            SH_DBG("[STEPDIAG] holdL=%d holdR=%d tapL=0x%02X tapR=0x%02X "
+                   "held=0x%08X bindL=0x%04X bindR=0x%04X",
+                   g_Player_IsSteppingLeftHold ? 1 : 0,
+                   g_Player_IsSteppingRightHold ? 1 : 0,
+                   (unsigned)g_Player_IsSteppingLeftTap,
+                   (unsigned)g_Player_IsSteppingRightTap,
+                   (unsigned)g_Controller0->heldBtnFlags,
+                   (unsigned)bindL, (unsigned)bindR);
+        }
+    }
+#endif
+
     if (g_GameWork.config.extraWalkRunCtrl)
     {
         g_Player_IsRunning = !(g_Controller0->heldBtnFlags & g_GameWorkPtr->config.controllerConfig.run);
