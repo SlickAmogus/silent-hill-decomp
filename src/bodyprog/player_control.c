@@ -11837,8 +11837,21 @@ void Player_Controller(void) // 0x8007F32C
     {
         g_Player_IsMovingForward = (g_Player_IsMovingForward * 2) & 0x3;
     }
-    g_Player_IsSteppingLeftTap  = (g_Player_IsSteppingLeftTap * 2) & 0x3F;
-    g_Player_IsSteppingRightTap = (g_Player_IsSteppingRightTap * 2) & 0x3F;
+#ifdef SH_PC_PORT
+    /* Same 30 Hz ageing as the forward register above and the attack one below,
+     * which these two were left out of. They are 6-bit shift registers of the
+     * sidestep TAP, and the sidestep plays for as long as any bit is still set.
+     * PSX shifts once per 30 Hz tick, so a tap lasts ~200 ms. Aged per render
+     * frame it lasts 6 frames however long that is: 100 ms at 60, 50 ms on a
+     * 120 Hz phone, 25 ms at 240. That is the reported "sidestep plays for a
+     * frame and stops", and why it is worse the faster the display runs. */
+    static int s_stepTapShiftAccum = 0;
+    if (PC_Tick30HzReady(&s_stepTapShiftAccum))
+#endif
+    {
+        g_Player_IsSteppingLeftTap  = (g_Player_IsSteppingLeftTap * 2) & 0x3F;
+        g_Player_IsSteppingRightTap = (g_Player_IsSteppingRightTap * 2) & 0x3F;
+    }
 
     if (g_Controller0->sticks_20.sticks_0.leftY < -STICK_THRESHOLD || g_Controller0->sticks_20.sticks_0.leftY >= STICK_THRESHOLD ||
         g_Controller0->sticks_20.sticks_0.leftX < -STICK_THRESHOLD || g_Controller0->sticks_20.sticks_0.leftX >= STICK_THRESHOLD)
