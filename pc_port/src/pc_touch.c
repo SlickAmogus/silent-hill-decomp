@@ -663,12 +663,26 @@ static void Tc_PressAction(unsigned short* word, unsigned short mask)
         *word &= (unsigned short)~mask;
 }
 
+/* Buttons that exist only to fill the corner escape slot. They carry a glyph
+ * and a binding and have no place of their own, so their table entry is a copy
+ * of Start's -- which means any mode that draws them alongside Start stacks
+ * them inside the same ring. */
+static int Tc_CornerOnly(int b)
+{
+    return b == TB_BACK || b == TB_SKIP;
+}
+
 static int Tc_HitButton(float x, float y, float aspect)
 {
     int i;
 
+    /* Gameplay only: the solo modes hit-test Start's circle directly and take
+     * the index from Tc_SoloButton, so nothing here has to answer for them. */
     for (i = 0; i < TB_COUNT; i++)
     {
+        if (Tc_CornerOnly(i))
+            continue;
+
         float dx = (x - s_Buttons[i].cx) * aspect;
         float dy = (y - s_Buttons[i].cy);
         float r  = s_Buttons[i].r;
@@ -1527,10 +1541,11 @@ void Pc_Touch_Draw(void)
         if (mode == TC_MODE_ADVANCE)
             continue;
 
-        /* TB_BACK carries a glyph and a binding for the corner escape slot; its
-         * own position is a copy of Start's. Drawing it in gameplay too put the
-         * back mark and the pause bars inside the same ring. */
-        if (mode == TC_MODE_GAMEPLAY && i == TB_BACK)
+        /* Both corner-slot buttons, not just Back. Skip was missing from this
+         * test, so it drew its fast-forward mark inside Start's ring all through
+         * play: one control wearing two symbols, and on the stock binds the same
+         * one, since Skip and Pause are both Start (settings_reset.c). */
+        if (mode == TC_MODE_GAMEPLAY && Tc_CornerOnly(i))
             continue;
 
         if (i == TB_MENU && !Tc_MenuAllowed())
@@ -1604,13 +1619,13 @@ void Pc_Touch_Draw(void)
             }
             case TB_VIEW:
             {
-                /* A camera body with a lens: the change-view bind. */
-                int w = (r * 40) / 100, h = (r * 26) / 100, d = (r * 14) / 100;
+                /* A lens: a ring around a filled pupil. It was a camera body
+                 * with a viewfinder bump, which at this size drew as a plain
+                 * rectangle and read as a second Item square two rows up. */
+                int ro = (r * 40) / 100;
 
-                Tc_Quad(&batch, cx - w, cy - h, cx + w, cy - h,
-                                cx - w, cy + h, cx + w, cy + h, lum);
-                Tc_Quad(&batch, cx - d, cy - h - d, cx + d, cy - h - d,
-                                cx - d, cy - h,     cx + d, cy - h,     lum);
+                Tc_Ring(&batch, cx, cy, ro, (ro * 60) / 100, lum);
+                Tc_Octagon(&batch, cx, cy, (ro * 32) / 100, lum);
                 break;
             }
             case TB_SKIP:
