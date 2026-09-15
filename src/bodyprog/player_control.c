@@ -2394,6 +2394,34 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                         s_prevSidestepTime = -1;
                     }
 
+#ifdef SH_PC_PORT
+                    /* [STEPANIM] Edge-triggered: one line per change of the anim
+                     * this branch is driving. The input side is already proven
+                     * good (holdL stays 1 for the whole press), so what is left
+                     * is why the animation stops while it is still being asked
+                     * for. Prints the status it wants against the status the
+                     * model actually holds, the keyframe, and the state-machine
+                     * state -- the branch only runs in None/Combat, so if the
+                     * state moves the lines simply stop, which is itself the
+                     * answer. Remove with [STEPDIAG]. */
+                    {
+                        static s32 s_animDiagPrev = -1;
+                        const s32  cur = (s32)player->model.anim.status;
+                        const s32  key = (cur << 8) | (s32)playerExtra.state;
+
+                        if (key != s_animDiagPrev) {
+                            s_animDiagPrev = key;
+                            SH_DBG("[STEPANIM] state=%d status=0x%04X want=0x%04X/0x%04X "
+                                   "kf=%d time=%d left=%d",
+                                   (int)playerExtra.state, (unsigned)cur,
+                                   (unsigned)wantInactive, (unsigned)wantActive,
+                                   (int)player->model.anim.keyframeIdx,
+                                   (int)player->model.anim.time,
+                                   isLeft ? 1 : 0);
+                        }
+                    }
+#endif
+
                     {
                         /* Time-delta movement: fractional anim.time advances
                          * continuously so sidestep is smooth. PlaybackLoop can
