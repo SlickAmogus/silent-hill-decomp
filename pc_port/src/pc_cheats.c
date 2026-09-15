@@ -250,10 +250,11 @@ static const CheatRow s_debug[] = {
      * and typed into, plus dev keys on the number row. None of that is
      * reachable without a keyboard, so the toggle would gate nothing. */
     { "Allow console",        CH_DEBUGKEYS, NULL, NULL, MOB_HIDE },
-    /* Both hidden on mobile: neither is usable once it is on. The collision
-     * view and the keyframe inspector are driven entirely from the debug keys
-     * -- the same number row "Allow console" is hidden for -- so the toggle
-     * turns on a view that cannot then be stepped, moved or read. */
+    /* Both hidden on mobile. Each paints a dense diagnostic over the scene and
+     * is read while stepping frames from the keyboard, which is the half a
+     * phone does not have -- so what lands on the glass is an unreadable mesh
+     * with no way to advance past it. They also cost a row apiece on a panel
+     * that is five settings tall. */
     { "Collision visualizer", CH_TOGGLE,  &g_CollVisEnabled,  NULL, MOB_HIDE },
     { "Keyframe viewer (K)",  CH_TOGGLE,  &g_DebugAnimKfView, NULL, MOB_HIDE },
     /* Also on Ctrl+F5 / Ctrl+F1 / Ctrl+F2. The key and the row drive the same
@@ -262,10 +263,14 @@ static const CheatRow s_debug[] = {
      * cancel the toggle. The toggle clears itself if Harry dies. */
     { "Fast forward (Ctrl+F5)", CH_TOGGLE, &g_PcFastForward,     NULL,
       MOB_RELABEL, "Fast forward" },
-    /* Hidden on mobile because it cannot do anything there: GR_SetWireframe is
-     * inside a desktop-GL-only guard, and ES has no glPolygonMode to put behind
-     * it. Drawing it as lines instead would mean re-issuing every draw, which is
-     * not worth it for a debug toggle. The row flipped a flag nothing read. */
+    /* Hidden on mobile because it cannot work there. The whole toggle is
+     * glPolygonMode, which OpenGL ES does not have at any version -- see
+     * GR_SetWireframe, where it sits behind g_grCaps.polygonMode and quietly
+     * does nothing. The only way to get it back is to stop drawing filled
+     * triangles: either re-issue every draw as lines, or carry barycentric
+     * coordinates through the hottest shader in the renderer and discard the
+     * interiors. Both make every frame of ordinary play pay for a debug view,
+     * so the row goes instead. */
     { "Wireframe (Ctrl+F1)",  CH_TOGGLE,  &g_dbg_wireframeMode,  NULL, MOB_HIDE },
     { "No textures (Ctrl+F2)", CH_TOGGLE, &g_dbg_texturelessMode, NULL,
       MOB_RELABEL, "No textures" },

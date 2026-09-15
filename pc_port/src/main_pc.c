@@ -37,6 +37,8 @@
 #include <SDL_main.h>
 #if defined(__ANDROID__) || defined(SH_IOS)
 #include <SDL_system.h>   /* SDL_AndroidGetExternalStoragePath */
+#include <sys/stat.h>    /* mkdir */
+#include <errno.h>
 #include <unistd.h>       /* chdir */
 #endif
 #ifdef SH_IOS
@@ -930,6 +932,71 @@ static void ParseArgs(int argc, char* argv[])
     }
 }
 
+#if defined(__ANDROID__)
+/* The same job as Ios_EnsureModFolders, in C because nothing here needs the
+ * platform: the data root is already the working directory by this point, so
+ * every relative path the loose-file loader uses resolves under it.
+ *
+ * The gap it fills is discoverability. A file manager shows what exists, so a
+ * folder nobody created is a folder nobody finds, and a phone player has no
+ * launcher and nothing on the device telling them the names to type.
+ *
+ * Only the two roots and a note. The layout underneath mirrors the disc's own
+ * folder names, which is what the note explains; guessing a full tree would
+ * just leave empty folders for channels most players never touch.
+ *
+ * Never overwrites: mods already in place stay, and an edited note stays
+ * edited. */
+static void Pc_EnsureModFolders(void)
+{
+    static const char* const kDirs[] = { "gamedata", "gamedata/load", "gamedata/texturemods" };
+    const char* note = "gamedata/load/README.txt";
+    unsigned    i;
+    FILE*       f;
+
+    for (i = 0; i < sizeof(kDirs) / sizeof(kDirs[0]); i++)
+    {
+        if (mkdir(kDirs[i], 0775) != 0 && errno != EEXIST)
+            SH_DBG("[MODS] could not create %s (errno %d)", kDirs[i], errno);
+    }
+
+    f = fopen(note, "rb");
+    if (f != NULL)
+    {
+        fclose(f);
+        return;
+    }
+
+    f = fopen(note, "wb");
+    if (f == NULL)
+    {
+        SH_DBG("[MODS] could not write the mod note");
+        return;
+    }
+
+    fputs("Manually installed mods go here.\n"
+          "\n"
+          "Turn on Options > Graphics > Load Mods first, then restart the\n"
+          "game. Files here are ignored while that is off.\n"
+          "\n"
+          "gamedata/load/<FOLDER>/<NAME>.<EXT>\n"
+          "  <FOLDER> and <NAME> are the disc's own folder and file names,\n"
+          "  so a replacement sits at the path the original came from.\n"
+          "  Textures are .TIM, models .TMD, and .GLB is read where a\n"
+          "  modern mesh replaces a model.\n"
+          "\n"
+          "gamedata/load/SND/<BANK>.VAB        replacement sound bank\n"
+          "gamedata/load/SND/<BANK>.001.wav    single sound, numbered\n"
+          "gamedata/load/XA/xa_0001.wav        replacement voice line\n"
+          "gamedata/load/text_overrides.txt    replacement text\n"
+          "\n"
+          "gamedata/texturemods/ is separate and needs no switch: drop a\n"
+          "DuckStation-format texture pack there as a folder or a .zip.\n",
+          f);
+    fclose(f);
+}
+#endif
+
 int main(int argc, char* argv[])
 {
 #ifdef __ANDROID__
@@ -974,7 +1041,7 @@ int main(int argc, char* argv[])
          * fallback rather than the answer. */
         const char* dataDir = getenv("SH_DATA_ROOT");
 
-        if (dataDir == NULL || dataDir[0] == ' ')
+        if (dataDir == NULL || dataDir[0] == '\0')
             dataDir = SDL_AndroidGetExternalStoragePath();
 
         if (dataDir == NULL || chdir(dataDir) != 0)
@@ -1035,6 +1102,7 @@ int main(int argc, char* argv[])
     /* So Files.app has somewhere to show the player before they own a mod. */
     Ios_EnsureModFolders();
 #endif
+
 
     /* Log file is NOT opened until after config load. SH_DBG calls before
      * that point are silently no-ops (the macro short-circuits on a NULL
@@ -1139,6 +1207,12 @@ int main(int argc, char* argv[])
                g_PcConfig.flashlightMode, g_PcConfig.usePgxp,
                g_PcConfig.residentTextures, g_PcConfig.globalCharaPool);
     }
+
+#if defined(__ANDROID__)
+    /* After the config load so a failure has somewhere to be logged, and
+     * well before the first file request reaches the loose-file loader. */
+    Pc_EnsureModFolders();
+#endif
 
     /* Scale the texture-pack memory budgets to the machine's RAM. The defaults
      * (texpack_cache_mb 2 GB compose cache + texpack_budget_mb 6 GB of GL

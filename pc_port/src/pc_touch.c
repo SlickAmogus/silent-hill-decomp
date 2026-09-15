@@ -479,6 +479,11 @@ enum { TG_C_TRIANGLE = 0, TG_C_CIRCLE, TG_C_CROSS, TG_C_SQUARE,
        TG_C_L1, TG_C_L2, TG_C_START, TG_C_MENU, TG_C_SELECT, TG_C_R2, TG_C_R1,
        TG_C_COUNT };
 
+/* The quick-options panel has no PSX button to press, so its control carries no
+ * pad bit and is handled on its own edge below -- the same way TB_MENU is in the
+ * context style. Zero means "not a pad control". */
+#define TG_NOBIT 0x0000
+
 static s_TgCtl s_TgCtls[TG_C_COUNT];
 static int     s_TgHeld[TG_C_COUNT];
 static int     s_TgLaidOut;
@@ -507,28 +512,11 @@ static void Tg_Layout(float aspectW)
     /* Top row: shoulders at the outside, Start/Select inboard of them. */
     s_TgCtls[TG_C_L1]     = (s_TgCtl){ 0.14f,            0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_L1 };
     s_TgCtls[TG_C_L2]     = (s_TgCtl){ 0.34f,            0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_L2 };
-    /* Three across the middle, not two: the quick menu has no PSX button to
-     * borrow, and the context style's own menu key is not drawn in this style,
-     * so without one here the overlay is unreachable on a pad. Centred on the
-     * screen with the pair split either side of it, which keeps the set
-     * symmetrical rather than hanging the extra key off one end. */
-    {
-        /* Spacing gives way on a narrow screen. A phone has room to spare, but
-         * a 4:3 tablet does not: L2 and R2 sit 0.34 in from each edge, and a
-         * fixed gap wide enough to look right at 18:9 would put Start on top of
-         * L2 there. Widest that clears them, never tighter than the plates. */
-        const float mid  = aspectW * 0.5f;
-        const float room = mid - (0.34f + (TG_SHLD_W * 2.0f) + 0.02f);
-        const float tight = (TG_SHLD_W * 2.0f) + 0.01f;
-        float       sp   = 0.22f;
-
-        if (sp > room)  sp = room;
-        if (sp < tight) sp = tight;
-
-        s_TgCtls[TG_C_START]  = (s_TgCtl){ mid - sp, 0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_START };
-        s_TgCtls[TG_C_MENU]   = (s_TgCtl){ mid,      0.08f, TG_SHLD_W, TG_SHLD_H, 0, 0 };
-        s_TgCtls[TG_C_SELECT] = (s_TgCtl){ mid + sp, 0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_SELECT };
-    }
+    /* Three across the middle now -- Start, Menu, Select -- re-centred so the
+     * group still sits on the screen's midline rather than the pair's. */
+    s_TgCtls[TG_C_START]  = (s_TgCtl){ aspectW * 0.5f - 0.22f, 0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_START };
+    s_TgCtls[TG_C_MENU]   = (s_TgCtl){ aspectW * 0.5f,         0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_NOBIT };
+    s_TgCtls[TG_C_SELECT] = (s_TgCtl){ aspectW * 0.5f + 0.22f, 0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_SELECT };
     s_TgCtls[TG_C_R2]     = (s_TgCtl){ aspectW - 0.34f,   0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_R2 };
     s_TgCtls[TG_C_R1]     = (s_TgCtl){ aspectW - 0.14f,   0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_R1 };
 
@@ -675,12 +663,26 @@ static void Tc_PressAction(unsigned short* word, unsigned short mask)
         *word &= (unsigned short)~mask;
 }
 
+/* Buttons that exist only to fill the corner escape slot. They carry a glyph
+ * and a binding and have no place of their own, so their table entry is a copy
+ * of Start's -- which means any mode that draws them alongside Start stacks
+ * them inside the same ring. */
+static int Tc_CornerOnly(int b)
+{
+    return b == TB_BACK || b == TB_SKIP;
+}
+
 static int Tc_HitButton(float x, float y, float aspect)
 {
     int i;
 
+    /* Gameplay only: the solo modes hit-test Start's circle directly and take
+     * the index from Tc_SoloButton, so nothing here has to answer for them. */
     for (i = 0; i < TB_COUNT; i++)
     {
+        if (Tc_CornerOnly(i))
+            continue;
+
         float dx = (x - s_Buttons[i].cx) * aspect;
         float dy = (y - s_Buttons[i].cy);
         float r  = s_Buttons[i].r;
@@ -826,36 +828,19 @@ void Pc_Touch_Update(void)
 
         /* Window-normalized -> viewport-normalized, so a letterboxed picture
          * does not shift every control off where it is drawn. */
-        t = Tc_FindFinger(dev, f->id);
         {
             float fx = 0.0f, fy = 0.0f;
             int   px = (int)(f->x * (float)winW);
             int   py = (int)(f->y * (float)winH);
 
             if (!PsyX_MapWindowToViewport(px, py, &fx, &fy))
-            {
-                /* Off the picture. A NEW contact there is a tap on the black
-                 * bars and stays ignored, but a finger that already owns a
-                 * control must not be dropped here: `continue` skips the
-                 * seen[] mark below, and anything unseen is pruned at the end
-                 * of the frame, which RELEASES the press. So a thumb drifting a
-                 * few pixels past the edge let go of its own accord -- and the
-                 * controls nearest the edge are the ones that hit it, which is
-                 * every one of the shoulder buttons and nothing else. Clamp and
-                 * carry on instead; the role was decided when it landed. */
-                if (t == NULL || t->role == TR_NONE)
-                    continue;
-
-                if (fx < 0.0f) fx = 0.0f;
-                if (fx > 1.0f) fx = 1.0f;
-                if (fy < 0.0f) fy = 0.0f;
-                if (fy > 1.0f) fy = 1.0f;
-            }
+                continue; /* inside the black bars -- not on the picture at all */
 
             vx = fx;
             vy = fy;
         }
 
+        t = Tc_FindFinger(dev, f->id);
         if (t == NULL)
         {
             t = Tc_NewFinger();
@@ -1030,6 +1015,18 @@ void Pc_Touch_Update(void)
                 {
                     s_LeftX = s_LeftY = 128;
                 }
+
+                /* The same auto-run the context stick has, on the same
+                 * thresholds. A thumb on glass gets no resistance to tell it
+                 * how far it has pushed, so pushing further is the only way to
+                 * ask for a run, and a fixed ring is where that reads best.
+                 * Forward only: Run plus Back is the quick back-jump, which
+                 * would turn every backward step into a lurch. Square is still
+                 * there for a deliberate one. */
+                {
+                    const float engage = s_Running ? TC_RUN_RELEASE : TC_RUN_THRESHOLD;
+                    s_Running = (mag >= engage) && (dy < (0.35f * len));
+                }
                 break;
             }
 
@@ -1154,14 +1151,12 @@ void Pc_Touch_Update(void)
             s_CancelFrames = TC_ACTION_FRAMES;
         }
 
-        /* TR_TG_STICK as well as TR_MOVE. The gamepad stick was missing here,
-         * and s_LeftX/s_LeftY are not reset per frame -- only a release or the
-         * deadzone clears them -- so letting go left the last deflection in the
-         * pad forever. The knob stayed drawn off-centre, and the stuck movement
-         * kept overriding anything else: a sidestep on L1/R1 began and was
-         * cancelled a frame later by the walk that was still being demanded. */
         if (t->role == TR_MOVE || t->role == TR_TG_STICK)
         {
+            /* TR_TG_STICK was missing here, so the fixed pad's knob stayed
+             * wherever it was let go of -- and because s_LeftX/s_LeftY are only
+             * written while a finger is on the stick, the last deflection kept
+             * being reported and the character kept walking. */
             s_StickActive = 0;
             s_LeftX = s_LeftY = 128;
             s_Running = 0;
@@ -1203,19 +1198,29 @@ void Pc_Touch_Update(void)
 
             for (c = 0; c < TG_C_COUNT; c++)
             {
-                if (s_TgHeld[c])
+                if (s_TgHeld[c] && s_TgCtls[c].bit != TG_NOBIT)
                     s_PadWord &= (unsigned short)~s_TgCtls[c].bit;
+            }
+
+            /* Edge-triggered, or a held finger would toggle the panel open and
+             * shut every pad update. Same shape as TB_MENU above. */
+            {
+                static int s_tgMenuWas;
+                const int  menuNow = s_TgHeld[TG_C_MENU];
+
+                if (menuNow && !s_tgMenuWas)
+                    Pc_QuickOptions_Toggle();
+                s_tgMenuWas = menuNow;
             }
         }
         if (s_Buttons[TB_LIGHT].holdFrames > 0) Tc_PressAction(&s_PadWord, cfg->light);
-        /* Raw L2, not cfg->view, so this is literally the key the gamepad style's
-         * second-from-the-left shoulder sends. Through the bind it did nothing:
-         * Tc_PressAction ignores a zero mask, and controllerConfig is only ever
-         * filled in by Settings_RestoreControlDefaults -- which the control-type
-         * screen calls, and that screen is not in this port because the binds are
-         * customisable here instead. An empty view bind made this the one context
-         * button with nothing behind it, while the pad's own L2 worked. */
-        if (s_Buttons[TB_VIEW].holdFrames  > 0) s_PadWord &= (unsigned short)~TG_L2;
+        /* The raw L2 bit, which is exactly what the Gamepad style's second
+         * shoulder control sends -- not controllerConfig.view. Going through
+         * the bind let the two styles disagree: control type 2 moves `view` to
+         * L1 and puts step-left on L2, so the same button did different things
+         * depending on a setting in another menu. Same bit in both styles now,
+         * by construction. */
+        if (s_Buttons[TB_VIEW].holdFrames  > 0) Tc_PressAction(&s_PadWord, TG_L2);
         if (s_Buttons[TB_START].holdFrames > 0) Tc_PressAction(&s_PadWord, cfg->pause);
 
         /* Opens the overlay directly rather than through a pad bind: there is
@@ -1228,19 +1233,6 @@ void Pc_Touch_Update(void)
             if (menuNow && !s_menuWas && Tc_MenuAllowed())
                 Pc_QuickOptions_Toggle();
             s_menuWas = menuNow;
-        }
-
-        /* The pad's own overlay key, edge-triggered the same way. It carries no
-         * PSX bit -- the loop above ANDs ~0, which changes nothing -- because
-         * there is no console button this maps to. Tested outside the style
-         * check so the edge is still cleared if the style changes mid-press. */
-        {
-            static int s_tgMenuWas;
-            const int  menuNow = Tc_GamepadStyle() && s_TgHeld[TG_C_MENU];
-
-            if (menuNow && !s_tgMenuWas && Tc_MenuAllowed())
-                Pc_QuickOptions_Toggle();
-            s_tgMenuWas = menuNow;
         }
         if (s_Buttons[TB_BACK].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->cancel);
 
@@ -1463,7 +1455,10 @@ void Pc_Touch_Draw(void)
         int   ky = s_StickActive ? TC_UY(s_StickKy) : oy;
 
         Tc_Ring(&batch, ox, oy, rr, (rr * 88) / 100, 140);
-        Tc_Octagon(&batch, kx, ky, TC_UR(TG_KNOB_R), s_StickActive ? 235 : 175);
+        /* Brightest while running, so the auto-run has a state the player can
+         * see. The context stick already reads this way. */
+        Tc_Octagon(&batch, kx, ky, TC_UR(TG_KNOB_R),
+                   s_Running ? 255 : (s_StickActive ? 225 : 175));
 
         for (c = 0; c < TG_C_COUNT; c++)
         {
@@ -1509,30 +1504,28 @@ void Pc_Touch_Draw(void)
                 int hw = TC_UR(s_TgCtls[c].hw);
                 int hh = TC_UR(s_TgCtls[c].hh);
 
-                Tc_Quad(&batch, bx - hw, by - hh, bx + hw, by - hh,
-                                bx - hw, by + hh, bx + hw, by + hh, lum);
-
-                /* Three bars cut into the plate, so the overlay key reads as a
-                 * menu instead of a third shoulder button sitting in the middle
-                 * of the row. Drawn after the plate and darker than it. */
-                if (c == TG_C_MENU)
+                if (s_TgCtls[c].bit == TG_NOBIT)
                 {
-                    int bw  = (hw * 45) / 100;
-                    int bt  = (hh * 16) / 100;
-                    int gap = (hh * 42) / 100;
+                    /* Three stacked bars: the settings mark every phone player
+                     * already reads, and the only control here that is not a
+                     * PSX button. Outlined so it does not read as a slab. */
+                    int t = (hh * 16) / 100;
+                    int g = (hh * 42) / 100;
+                    int w = (hw * 46) / 100;
                     int k;
-
-                    if (bt  < 1) bt  = 1;
-                    if (gap < bt * 2) gap = bt * 2;
 
                     for (k = -1; k <= 1; k++)
                     {
-                        int cy = by + (k * gap);
+                        int yc = by + k * g;
 
-                        Tc_Quad(&batch, bx - bw, cy - bt, bx + bw, cy - bt,
-                                        bx - bw, cy + bt, bx + bw, cy + bt,
-                                        s_TgHeld[c] ? 95 : 45);
+                        Tc_Quad(&batch, bx - w, yc - t, bx + w, yc - t,
+                                        bx - w, yc + t, bx + w, yc + t, lum);
                     }
+                }
+                else
+                {
+                    Tc_Quad(&batch, bx - hw, by - hh, bx + hw, by - hh,
+                                    bx - hw, by + hh, bx + hw, by + hh, lum);
                 }
             }
         }
@@ -1569,10 +1562,11 @@ void Pc_Touch_Draw(void)
         if (mode == TC_MODE_ADVANCE)
             continue;
 
-        /* TB_BACK carries a glyph and a binding for the corner escape slot; its
-         * own position is a copy of Start's. Drawing it in gameplay too put the
-         * back mark and the pause bars inside the same ring. */
-        if (mode == TC_MODE_GAMEPLAY && i == TB_BACK)
+        /* Both corner-slot buttons, not just Back. Skip was missing from this
+         * test, so it drew its fast-forward mark inside Start's ring all through
+         * play: one control wearing two symbols, and on the stock binds the same
+         * one, since Skip and Pause are both Start (settings_reset.c). */
+        if (mode == TC_MODE_GAMEPLAY && Tc_CornerOnly(i))
             continue;
 
         if (i == TB_MENU && !Tc_MenuAllowed())
@@ -1646,13 +1640,13 @@ void Pc_Touch_Draw(void)
             }
             case TB_VIEW:
             {
-                /* A camera body with a lens: the change-view bind. */
-                int w = (r * 40) / 100, h = (r * 26) / 100, d = (r * 14) / 100;
+                /* A lens: a ring around a filled pupil. It was a camera body
+                 * with a viewfinder bump, which at this size drew as a plain
+                 * rectangle and read as a second Item square two rows up. */
+                int ro = (r * 40) / 100;
 
-                Tc_Quad(&batch, cx - w, cy - h, cx + w, cy - h,
-                                cx - w, cy + h, cx + w, cy + h, lum);
-                Tc_Quad(&batch, cx - d, cy - h - d, cx + d, cy - h - d,
-                                cx - d, cy - h,     cx + d, cy - h,     lum);
+                Tc_Ring(&batch, cx, cy, ro, (ro * 60) / 100, lum);
+                Tc_Octagon(&batch, cx, cy, (ro * 32) / 100, lum);
                 break;
             }
             case TB_SKIP:

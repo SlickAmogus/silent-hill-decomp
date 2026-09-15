@@ -90,7 +90,7 @@ extern void        PcOpt_QuickViewReset(int mode);
 #define QO_MOBILE 1
 #endif
 
-enum { ROW_OPT = 0, ROW_EXTRA, ROW_PAGE, ROW_PAGEPREV, ROW_CLOSE, ROW_CHEAT, ROW_ACTION };
+enum { ROW_OPT = 0, ROW_EXTRA, ROW_PAGE, ROW_CLOSE, ROW_CHEAT, ROW_ACTION };
 enum { QO_A_VIEWRESET = 0 };
 
 typedef struct
@@ -103,6 +103,14 @@ typedef struct
 } QoRowDef;
 
 #define QO_IS_VALUE_ROW(k) ((k) == ROW_OPT || (k) == ROW_EXTRA || (k) == ROW_CHEAT)
+
+/* ROW_PAGE reuses `extra` as its step. A row that names one is a labelled
+ * button: it goes where it says however it is activated, and Left/Right pass
+ * over it, which is what lets Previous and Next sit on the panel together. The
+ * desktop's single "Next page" leaves it 0 and keeps the value behaviour, where
+ * Left goes back a page and Right goes forward. */
+#define QO_ROW_TAKES_DIR(r) (QO_IS_VALUE_ROW((r)->kind) || \
+                             ((r)->kind == ROW_PAGE && (r)->extra == 0))
 
 static const QoRowDef s_page0[] = {
     { ROW_OPT,   "psx_dither",           0, NULL },  /* Texture_Filter */
@@ -117,10 +125,11 @@ static const QoRowDef s_page0[] = {
     { ROW_OPT,   "bullet_decals",        0, NULL },
     { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
 #if defined(QO_MOBILE)
-    /* Not a graphics setting, but repagination leaves Weather_Rate alone on the
-     * last chunk of this section, and the switch between the context overlay and
-     * the fixed pad is worth reaching without leaving the game. Applies live. */
-    { ROW_OPT,   "touch_style",          0, NULL },  /* Touch_Style: Context or Gamepad */
+    /* Context vs Gamepad. It is a Controls-page row in the main menu and this
+     * is the Graphics section, which is a compromise: the quick menu has no
+     * Controls section at all, and the one setting a player wants to change
+     * without leaving the room is which pad is under their thumbs. */
+    { ROW_OPT,   "touch_style",          0, NULL },
 #endif
     { ROW_PAGE,  NULL, 0,                   "Next page  (HUD & Audio)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
@@ -146,8 +155,6 @@ static const QoRowDef s_page1[] = {
     /* In the layout row's place: which software SPU renders the mix. That IS
      * the audio choice worth having here -- a phone is two channels, and the
      * layout row could not change them anyway (see above). */
-    /* Spelled out rather than starred: the "* req restart" legend lived in the
-     * footer, which mobile no longer draws. */
     { ROW_EXTRA, NULL, QO_X_SPU,            "Sound Engine (restart)" },
 #else
     { ROW_EXTRA, NULL, QO_X_SPEAKERS,       "Speaker Layout" },
@@ -355,7 +362,7 @@ static const char* const s_pageTitles[QO_PAGES] = {
  * panel that is a ~50px stripe per row -- unreadable, and far below the ~44pt
  * minimum a fingertip can reliably hit. So on a touch target the SAME row
  * definitions are re-chunked into many short pages instead: five settings plus
- * the two navigation rows, each row then getting a seventh of the list.
+ * the three navigation rows, each row then getting an eighth of the list.
  *
  * Chunked WITHIN a section, never across one, so a page is never half Graphics
  * and half Audio; the title carries "(2/3)" to say where you are inside it.
@@ -364,7 +371,7 @@ static const char* const s_pageTitles[QO_PAGES] = {
  * someone added a row to one and not the other. */
 #if defined(QO_MOBILE)
 
-#define QO_M_CONTENT 5   /* settings per page, before the two nav rows */
+#define QO_M_CONTENT 5   /* settings per page, before the three nav rows */
 
 static QoRowDef s_mRows[QO_M_CONTENT + 3];
 static char     s_mTitle[96];
@@ -413,30 +420,44 @@ static int qo_page_count(void)
     return (t > 0) ? t : 1;
 }
 
+/* Even chunks rather than greedy ones. Filling each page to QO_M_CONTENT and
+ * letting the remainder fall into the last one ended Graphics on a page holding
+ * a single setting, and a short page moves the navigation rows: the row pitch
+ * is the list height divided by the row count, so the same spot on the glass
+ * belongs to a different row. Sizes now differ by at most one across a section,
+ * which keeps a repeated tap on Next landing on Next. */
+static void qo_chunk_span(int content, int chunks, int chunk, int* base, int* len)
+{
+    const int q = content / chunks;
+    const int r = content % chunks;
+
+    *len  = q + ((chunk < r) ? 1 : 0);
+    *base = (chunk * q) + ((chunk < r) ? chunk : r);
+}
+
 static const QoRowDef* qo_page_rows(int page, int* count)
 {
     const QoRowDef* src;
-    int n, sec, chunk, chunks, base, i, k = 0;
+    int n, sec, chunk, chunks, base, len, i, k = 0;
 
     qo_locate(page, &sec, &chunk, &chunks);
-    src  = qo_section_rows(sec, &n);
-    base = chunk * QO_M_CONTENT;
+    src = qo_section_rows(sec, &n);
+    qo_chunk_span(n - 2, chunks, chunk, &base, &len);
 
-    for (i = 0; i < QO_M_CONTENT && (base + i) < (n - 2); i++)
+    for (i = 0; i < len && (base + i) < (n - 2); i++)
         s_mRows[k++] = src[base + i];
 
-    /* Both directions, not just forward. One "Next page" row meant the only way
-     * back was all the way round, and repagination makes that a long trip: the
-     * sections are cut into chunks of five, so there are far more pages here
-     * than the desktop's four. Desktop still adjusts its single page row like a
-     * value (left goes back), which is why that row keeps its direction. */
+    /* Both directions, because a phone has no shoulder buttons to page with and
+     * no way back except wrapping the whole way round. */
     memset(&s_mRows[k], 0, sizeof(s_mRows[k]));
-    s_mRows[k].kind  = ROW_PAGEPREV;
+    s_mRows[k].kind  = ROW_PAGE;
+    s_mRows[k].extra = -1;
     s_mRows[k].label = "Previous page";
     k++;
 
     memset(&s_mRows[k], 0, sizeof(s_mRows[k]));
     s_mRows[k].kind  = ROW_PAGE;
+    s_mRows[k].extra = +1;
     s_mRows[k].label = "Next page";
     k++;
 
@@ -1490,9 +1511,10 @@ static void qo_activate(const QoRowDef* r, int dir)
         }
         case ROW_EXTRA: PcOpt_QuickExtraAdjust(r->extra, dir); break;
         case ROW_CHEAT: Pc_Cheats_Adjust(r->cpage, r->extra, dir); break;
-        case ROW_PAGE:  qo_beep(Sfx_MenuMove); qo_set_page(s_page + (dir < 0 ? -1 : +1)); break;
-        /* Its own row, so it goes back whichever way it was activated. */
-        case ROW_PAGEPREV: qo_beep(Sfx_MenuMove); qo_set_page(s_page - 1); break;
+        case ROW_PAGE:
+            qo_beep(Sfx_MenuMove);
+            qo_set_page(s_page + (r->extra != 0 ? r->extra : (dir < 0 ? -1 : +1)));
+            break;
         case ROW_CLOSE: qo_beep(Sfx_MenuCancel); Pc_QuickOptions_Close(); break;
         case ROW_ACTION: break; /* confirm-only; see the ROW_ACTION comment */
         default: break;
@@ -1817,18 +1839,17 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
                 else
                     qo_confirm(&rows[row]);
             }
-            if (mRClick && (QO_IS_VALUE_ROW(rows[row].kind) ||
-                            rows[row].kind == ROW_PAGE || rows[row].kind == ROW_PAGEPREV))
+            if (mRClick && QO_ROW_TAKES_DIR(&rows[row]))
             { s_sel = row; qo_activate(&rows[row], -1); }
             if (wheel && QO_IS_VALUE_ROW(rows[row].kind))
                 qo_activate(&rows[row], wheel > 0 ? +1 : -1);
         }
     }
 
-    /* The page row adjusts like a value: Left/right-click go back a page,
-     * Right/confirm go forward. */
-    if (QO_IS_VALUE_ROW(rows[s_sel].kind) ||
-        rows[s_sel].kind == ROW_PAGE || rows[s_sel].kind == ROW_PAGEPREV)
+    /* A page row with no step of its own adjusts like a value: Left and a
+     * right-click go back a page, Right and Confirm go forward. Previous and
+     * Next carry their own step and take Confirm only. */
+    if (QO_ROW_TAKES_DIR(&rows[s_sel]))
     {
         if (left)  qo_activate(&rows[s_sel], -1);
         if (right) qo_activate(&rows[s_sel], +1);
@@ -1994,7 +2015,10 @@ void Pc_QuickOptions_Draw(void)
      * sense on a phone, where there is no second place to look and no cursor to
      * drag with. Centred, and deliberately not draggable -- a drag here is the
      * page swipe. */
-    panelW = 0.84f * vpW;
+    /* Not the full width. A phone in landscape is better than two to one, so
+     * 94% of it put a two-word label and a number at opposite ends of a stripe
+     * most of the screen long, with nothing in between. */
+    panelW = 0.80f * vpW;
     panelH = 0.90f * vpH;
     panelL = (vpW - panelW) * 0.5f;
     panelB = (vpH - panelH) * 0.5f;
@@ -2030,10 +2054,11 @@ void Pc_QuickOptions_Draw(void)
     pad      = panelW * 0.05f;
     titleH   = panelH * 0.09f;
 #if defined(QO_MOBILE)
-    /* No footer here, so no band reserved for one. Every term it could carry is
-     * either hardware this device does not have or a gesture the rows already
-     * make obvious, and the height buys more than the sentence did. */
-    hintH    = 0.0f;
+    /* No controls footer, so no band to reserve for it -- just enough of a
+     * margin that Close does not sit on the panel border. Every term the
+     * desktop line carries names a key or a gesture a thumb already knows, and
+     * the row it was costing is worth more than the sentence. */
+    hintH    = panelH * 0.015f;
 #else
     hintH    = panelH * 0.07f;
 #endif
@@ -2099,10 +2124,7 @@ void Pc_QuickOptions_Draw(void)
 #endif
     /* Controls footer. It used to run off-screen at some panel widths, so bake
      * it once at the natural size and, if it overflows, re-bake once scaled to
-     * fit -- the text always ends up inside the panel whatever its width.
-     *
-     * Never baked on mobile: s_texHint stays 0, which is exactly what the draw
-     * below already tests, so removing it needs nothing else. */
+     * fit -- the text always ends up inside the panel whatever its width. */
 #if !defined(QO_MOBILE)
     if (!s_texHint)
     {
@@ -2111,19 +2133,9 @@ void Pc_QuickOptions_Draw(void)
         int   hpx   = (int)(hintH * 0.42f);
 
         if (hpx < 7) hpx = 7;
-#if defined(QO_MOBILE)
-        /* Every term in the desktop footer names hardware this device does not
-         * have -- arrow keys, PgUp/PgDn, Esc, F10 -- and the panel does not move
-         * here either. Describing the gestures that DO exist is the only version
-         * of this line worth the width. */
-        snprintf(hint, sizeof(hint),
-                 "Tap - / + to adjust      Page and Close at the bottom      * req restart");
-        (void)0;
-#else
         snprintf(hint, sizeof(hint),
                  "Up/Down select   Left/Right adjust   PgUp/PgDn page   drag title to move   %s or Esc close   * req restart",
                  g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10");
-#endif
         s_texHint = qo_bake(hint, (float)hpx, &s_hintW, &s_hintH);
         if (s_texHint && s_hintW > avail && s_hintW > 0 && avail > 0.0f)
         {
