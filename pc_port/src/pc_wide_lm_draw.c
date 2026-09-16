@@ -51,6 +51,10 @@ extern int PsyX_PGXP_QuadBackface(const void* a, const void* b, const void* c, c
 
 /* Emit far-distance cap (:32 PC form). */
 #define WIDE_FOG_FAR_DIST() (g_PcConfig.disableCulling ? 0x7FFFFFFF : g_WorldEnvWork.fog.farDistance)
+/* Fog maps cull on the NEAREST vertex, not the average, so the drawn part of a
+ * model always ends beyond full fog (see PC_FACE_CULL_DEPTH in bodyprog_80055028.c). */
+#define WIDE_FOG_CULL_DEPTH(avgz, minz) \
+    ((g_WorldEnvWork.isFogEnabled && (minz) < (avgz)) ? (minz) : (avgz))
 
 /* :4024-4027 — PsyCross does not clip huge polys; drop any vertex far off-screen. */
 #define WIDE_SCREEN_BOUND 1024
@@ -280,7 +284,7 @@ static int Pc_WideLm_Emit(const s_WideMesh* mesh, s_GteScratchData2* env, GsOT_T
 
             depth = (z[c0] + z[c1] + z[c2] + z[c2]) >> 2; /* :4095 */
             WIDE_WHOLEMAP_DEPTH_RESCUE(depth, arg2);
-            if (depth <= 0 || farcap < depth)
+            if (depth <= 0 || farcap < WIDE_FOG_CULL_DEPTH(depth, MIN(z[c0], MIN(z[c1], z[c2]))))
             {
                 continue;
             }
@@ -336,7 +340,7 @@ static int Pc_WideLm_Emit(const s_WideMesh* mesh, s_GteScratchData2* env, GsOT_T
 
             depth = (z[c0] + z[c1] + z[c2] + z[c3]) >> 2; /* :4185 */
             WIDE_WHOLEMAP_DEPTH_RESCUE(depth, arg2);
-            if (depth <= 0 || farcap < depth)
+            if (depth <= 0 || farcap < WIDE_FOG_CULL_DEPTH(depth, MIN(MIN(z[c0], z[c1]), MIN(z[c2], z[c3]))))
             {
                 continue;
             }
