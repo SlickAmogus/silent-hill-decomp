@@ -151,7 +151,10 @@ namespace SilentHillPC_Launcher
     internal sealed class DuplicateTarget
     {
         public string Bank;
+        public bool IsPrimary;        // the bank open in the tool, listed first and always written
+        public string OriginalPath;   // pristine copy (or the opened file), the source of last resort
         public string SourcePath;     // bank read as the basis for the rewrite
+        public bool SourcePinned;     // user chose SourcePath by hand; folder changes leave it alone
         public string DestPath;       // where the rewritten bank is written
         public readonly List<DuplicateItem> Items = new List<DuplicateItem>();
         public bool Selected = true;
@@ -184,6 +187,11 @@ namespace SilentHillPC_Launcher
         /// <summary>Read SourcePath, drop the replacement bodies in, write DestPath.</summary>
         public bool Write(out string error)
         {
+            if (string.IsNullOrEmpty(DestPath))
+            {
+                error = "no destination folder";
+                return false;
+            }
             VabFile v = VabFile.Load(SourcePath, out error);
             if (v == null) return false;
 

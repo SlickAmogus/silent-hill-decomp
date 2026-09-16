@@ -121,7 +121,7 @@ namespace SilentHillPC_Launcher
             SetupButton(_btnAll, "Export all…", new Point(430, y), (s, e) => ExportAll());
             SetupButton(_btnRep, "Replace…", new Point(12, y + 30), (s, e) => ReplaceSelected());
             SetupButton(_btnRevert, "Revert", new Point(100, y + 30), (s, e) => RevertSelected());
-            SetupButton(_btnSave, "Save bank as…", new Point(188, y + 30), (s, e) => SaveBank());
+            SetupButton(_btnSave, "Save bank…", new Point(188, y + 30), (s, e) => SaveBank());
 
             var sl = new Label
             {
@@ -476,13 +476,13 @@ namespace SilentHillPC_Launcher
                 _pending[vag.Index] = body;
                 _lastDir = Path.GetDirectoryName(d.FileName);
                 _info.Text = "Sample " + vag.Index + " staged: " + note +
-                             " (was " + vag.Length.ToString("N0") + "). Save bank as… to write it out.";
+                             " (was " + vag.Length.ToString("N0") + "). Save bank… to write it out.";
 
                 List<SampleRef> others;
                 if (_dupes.TryGetValue(vag.Index, out others) && others.Count > 0)
                 {
                     _info.Text += " The same sound is also in " + BankDetail(others) +
-                                  " — saving will offer to update those too.";
+                                  " — saving offers to update those too.";
                 }
                 MarkPending();
             }
@@ -519,72 +519,95 @@ namespace SilentHillPC_Launcher
             UpdateButtons();
         }
 
+        private string LoadSndDir
+        {
+            get
+            {
+                return string.IsNullOrEmpty(_gameRoot)
+                    ? null
+                    : Path.Combine(Path.Combine(Path.Combine(_gameRoot, "gamedata"), "load"), "SND");
+            }
+        }
+
+        /// <summary>Save is one dialog: this bank plus every bank sharing the replaced
+        /// samples, a destination folder, and a source per row. No file picker first —
+        /// the destination is a folder because every bank in it is named by the game,
+        /// and the source is what lets a second round of edits merge into the first.</summary>
         private void SaveBank()
         {
             if (_vab == null || _pending.Count == 0) return;
 
-            string err;
-            byte[] rebuilt = _vab.Rebuild(_pending, out err);
-            if (rebuilt == null)
+            string editedBank = BaseName;
+            List<DuplicateTarget> targets = PlanTargets();
+
+            string loadSnd = LoadSndDir;
+            string folder = loadSnd ?? _lastDir ?? Path.GetDirectoryName(_vab.Path);
+
+            using (var dlg = new DuplicateSoundsDialog(editedBank, targets, folder, loadSnd))
             {
-                MessageBox.Show(this, err, "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
             }
 
-            using (var d = new SaveFileDialog())
+            // Overwriting the bank being read would invalidate every offset the open
+            // view still points at, so it is reloaded afterwards; but say so first.
+            foreach (DuplicateTarget t in targets)
             {
-                d.Title = "Save sound bank";
-                d.Filter = "PSX sound banks (*.vab)|*.vab";
-                d.FileName = Path.GetFileName(_vab.Path);
-                if (!string.IsNullOrEmpty(_lastDir)) d.InitialDirectory = _lastDir;
-                if (d.ShowDialog(this) != DialogResult.OK) return;
-
-                // Overwriting the bank being read would invalidate every offset the
-                // open view still points at.
-                if (string.Equals(Path.GetFullPath(d.FileName), Path.GetFullPath(_vab.Path),
+                if (!t.Selected || t.DestPath == null) continue;
+                if (string.Equals(Path.GetFullPath(t.DestPath), Path.GetFullPath(_vab.Path),
                         StringComparison.OrdinalIgnoreCase))
                 {
                     if (MessageBox.Show(this,
-                            "That is the bank currently open. Overwrite it and reload?",
+                            "That folder holds the bank currently open. Overwrite it and reload?",
                             "Audio", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
                         return;
+                    break;
                 }
-
-                try { File.WriteAllBytes(d.FileName, rebuilt); }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(this, "Could not write:\n" + d.FileName + "\n\n" + ex.Message,
-                        "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-
-                // Planned from the bank as it was opened: Open() below replaces _vab
-                // with the rewritten file, whose bodies no longer match anything.
-                string editedBank = BaseName;
-                List<DuplicateTarget> targets = PlanDuplicates(Path.GetDirectoryName(d.FileName));
-
-                int n = _pending.Count;
-                _pending.Clear();
-                Open(d.FileName);
-                _info.Text = "Wrote " + Path.GetFileName(d.FileName) + " with " + n + " replaced sample(s).";
-
-                if (targets.Count > 0) OfferDuplicates(editedBank, targets);
             }
+
+            var written = new List<string>();
+            var failed = new List<string>();
+            string primaryDest = null;
+            foreach (DuplicateTarget t in targets)
+            {
+                if (!t.Selected) continue;
+                string err;
+                if (t.Write(out err))
+                {
+                    written.Add(t.Bank);
+                    if (t.IsPrimary) primaryDest = t.DestPath;
+                }
+                else
+                {
+                    failed.Add(t.Bank + ": " + err);
+                }
+            }
+
+            if (failed.Count > 0)
+            {
+                MessageBox.Show(this,
+                    "Some banks could not be written:\n\n" + string.Join("\n", failed.ToArray()),
+                    "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            if (primaryDest == null) return;
+
+            int n = _pending.Count;
+            _pending.Clear();
+            Open(primaryDest);
+            _info.Text = "Wrote " + Path.GetFileName(primaryDest) + " with " + n + " replaced sample(s)" +
+                         (written.Count > 1
+                             ? ", and the same sounds into " + string.Join(", ", written.GetRange(1, written.Count - 1).ToArray()) + "."
+                             : ".");
         }
 
-        /// <summary>For every staged replacement, the other banks holding the sample it
-        /// replaces, grouped per bank so each is rewritten once. The rewrite starts from
-        /// the copy the user is most likely already working on: one beside the bank
-        /// just saved, then one in gamedata/load/SND, then the pristine extract.</summary>
-        private List<DuplicateTarget> PlanDuplicates(string saveDir)
+        /// <summary>The bank being edited first, then for every staged replacement the
+        /// other banks holding the sample it replaces, grouped per bank so each is
+        /// rewritten once. Sources and destinations are the dialog's business; only the
+        /// pristine path each rewrite falls back to is decided here.</summary>
+        private List<DuplicateTarget> PlanTargets()
         {
             var byBank = new Dictionary<string, DuplicateTarget>(StringComparer.OrdinalIgnoreCase);
-            var targets = new List<DuplicateTarget>();
-            if (_index == null || _vab == null) return targets;
-
-            string loadSnd = string.IsNullOrEmpty(_gameRoot)
-                ? null
-                : Path.Combine(Path.Combine(Path.Combine(_gameRoot, "gamedata"), "load"), "SND");
+            var others = new List<DuplicateTarget>();
+            var primary = new DuplicateTarget { Bank = BaseName, IsPrimary = true, OriginalPath = _vab.Path };
 
             foreach (KeyValuePair<int, byte[]> kv in _pending)
             {
@@ -592,22 +615,23 @@ namespace SilentHillPC_Launcher
                 byte[] original = _vab.RawVag(kv.Key);
                 string key = SndSampleIndex.Key(original);
 
+                primary.Items.Add(new DuplicateItem
+                {
+                    TargetIndex = kv.Key,
+                    SourceIndex = kv.Key,
+                    Body = kv.Value,
+                    OriginalKey = key,
+                });
+
+                if (_index == null) continue;
                 foreach (SampleRef r in _index.Others(original, BaseName))
                 {
                     DuplicateTarget t;
                     if (!byBank.TryGetValue(r.Bank, out t))
                     {
-                        string file = r.Bank + ".VAB";
-                        t = new DuplicateTarget { Bank = r.Bank, DestPath = Path.Combine(saveDir, file) };
-
-                        string beside = Path.Combine(saveDir, file);
-                        string inLoad = loadSnd == null ? null : Path.Combine(loadSnd, file);
-                        if (File.Exists(beside)) t.SourcePath = beside;
-                        else if (inLoad != null && File.Exists(inLoad)) t.SourcePath = inLoad;
-                        else t.SourcePath = r.Path;
-
+                        t = new DuplicateTarget { Bank = r.Bank, OriginalPath = r.Path };
                         byBank[r.Bank] = t;
-                        targets.Add(t);
+                        others.Add(t);
                     }
                     t.Items.Add(new DuplicateItem
                     {
@@ -619,50 +643,11 @@ namespace SilentHillPC_Launcher
                 }
             }
 
-            targets.Sort((a, b) => string.Compare(a.Bank, b.Bank, StringComparison.OrdinalIgnoreCase));
+            others.Sort((a, b) => string.Compare(a.Bank, b.Bank, StringComparison.OrdinalIgnoreCase));
+            var targets = new List<DuplicateTarget> { primary };
+            targets.AddRange(others);
             foreach (DuplicateTarget t in targets) t.Items.Sort((a, b) => a.TargetIndex.CompareTo(b.TargetIndex));
             return targets;
-        }
-
-        private void OfferDuplicates(string editedBank, List<DuplicateTarget> targets)
-        {
-            using (var dlg = new DuplicateSoundsDialog(editedBank, targets, _lastDir))
-            {
-                if (dlg.ShowDialog(this) != DialogResult.OK)
-                {
-                    _info.Text += " " + targets.Count + " other bank(s) carry the same sounds and were left alone.";
-                    return;
-                }
-            }
-
-            int ok = 0;
-            var failed = new List<string>();
-            var written = new List<string>();
-            foreach (DuplicateTarget t in targets)
-            {
-                if (!t.Selected) continue;
-                string err;
-                if (t.Write(out err))
-                {
-                    ok++;
-                    written.Add(t.Bank);
-                }
-                else
-                {
-                    failed.Add(t.Bank + ": " + err);
-                }
-            }
-
-            _info.Text += ok > 0
-                ? " Also updated " + string.Join(", ", written.ToArray()) + "."
-                : " No other bank was written.";
-
-            if (failed.Count > 0)
-            {
-                MessageBox.Show(this,
-                    "Some banks could not be written:\n\n" + string.Join("\n", failed.ToArray()),
-                    "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
         }
 
         private VabVag Selected
@@ -832,9 +817,15 @@ namespace SilentHillPC_Launcher
                 "sample. The disc pastes a monster's sounds into the ambient bank of every",
                 "map it appears in (the Groaner block is in eight), and the game loads one",
                 "ambient bank per map — so a replacement made in MAP200 alone plays only in",
-                "the areas that load MAP200. When you save a bank, the tool offers to write",
-                "the same replacement into those other banks, and lets you pick which file",
-                "each rewrite starts from in case you already have an edited copy.",
+                "the areas that load MAP200.",
+                "",
+                "Save bank… writes this bank and, ticked per row, every bank sharing the",
+                "replaced sounds into one folder (gamedata\\load\\SND by default, where the",
+                "game reads them). Each row has a Source, the file the rewrite starts from.",
+                "A copy already in the folder is the source automatically, so a second",
+                "round of edits merges into the first instead of overwriting it. Always",
+                "open the PRISTINE bank from the extract to edit: an already-edited sample",
+                "matches nothing, so an edited copy cannot reveal where else it lives.",
             };
             ConverterActions.ShowTextDialog(this, "Audio — About sound banks", lines.ToArray(), false);
         }
