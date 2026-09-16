@@ -248,12 +248,6 @@ static const s_PcOpt PCOPT_G[] = {
     /* New-Game start map. Moved here from the Camera page, which had run to 12
      * rows (the practical maximum) while this page had room to spare. */
     { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
-    { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
-#if defined(__ANDROID__) || defined(SH_IOS)
-    /* Back on the Graphics page on a phone: the Controls page is full of touch
-     * rows there, and this one lost Resolution and Window_Mode. */
-    { "Bullet_Decals",  &g_PcConfig.bulletDecals,       "bullet_decals",        VAL_ONOFF, 2, LBL_ONOFF, NULL,                          1, PCK_INT    },
-#endif
 #if defined(__ANDROID__)
     /* Where the disc image, gamedata/, config.cfg, the memory cards and the log
      * live. The default is an SD card where one is present, because the players
@@ -283,6 +277,11 @@ static const s_PcOpt PCOPT_G[] = {
      * editor pointed at Documents. */
     { "Reset_Settings", NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_RESET  },
 #endif
+    /* Always second to last, after every platform's own rows. It used to sit
+     * above the mobile-only rows, so on a phone Bullet_Decals, Load_Mods and
+     * Reset_Settings were listed under Next_Page; on desktop those are compiled
+     * out and the order is unchanged. */
+    { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
     { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
 };
 
@@ -311,16 +310,6 @@ static const s_PcOpt PCOPT_S[] = {
      * Crosshair rows moved to the HUD page to make room, which is where the
      * quick-options overlay already groups them. */
     { "Weather_Rate",     &g_PcConfig.weatherSimHz,   "weather_sim_hz",   VAL_WHZ,   2, LBL_WHZ,   NULL, 1, PCK_INT  },
-#if defined(SH_IOS) || defined(__ANDROID__)
-    /* Twelfth row, one past what the other pages carry. It fits: rows start at
-     * PCOPT_LINE_BASE_Y 40 and step 16, so this page now ends at y=216 --
-     * exactly where an 11-row page ended before the base moved up from 56.
-     *
-     * Mobile only, because a phone has no launcher. Everywhere else the launcher
-     * owns the RetroAchievements account and the game just consumes the token it
-     * left in the config. */
-    { "Achievements",     NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_RALOGIN },
-#endif
     { "Prev_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",        NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",             NULL,                       NULL,               NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -363,14 +352,12 @@ static const s_PcOpt PCOPT_C[] = {
      * in one place always, after WhoisMiau0x1's Android fork. Applies live. */
     { "Touch_Style",       &g_PcConfig.touchStyle,       "touch_style",            VAL_TSTYLE, 2, LBL_TSTYLE, NULL, 1, PCK_INT },
 #endif
-    /* A graphics option parked on the Controls page purely for room: 11 rows is
-     * the real ceiling, not the 12 the Graphics comment above assumes, and this
-     * page is the shortest. On a phone the balance flips -- the touch rows land
-     * here while Graphics loses Resolution and Window_Mode -- so it goes back
-     * where it belongs there. */
-#if !defined(__ANDROID__) && !defined(SH_IOS)
+    /* A graphics option parked on the Controls page purely for room, on every
+     * platform now. 11 rows is the ceiling on every page -- a twelfth row runs
+     * Back off the bottom of a phone screen (reported) -- and on a phone the
+     * Graphics page is already at 11 with Load_Mods and Reset_Settings, while
+     * this page has exactly one spare. */
     { "Bullet_Decals",     &g_PcConfig.bulletDecals,      "bullet_decals",          VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-#endif
     { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -421,6 +408,14 @@ static const s_PcOpt PCOPT_H[] = {
     /* From the System page; a crosshair is HUD, and that page needed the room. */
     { "Crosshair",         &g_PcConfig.crosshair,          "crosshair",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Crosshair_Size",    NULL, "crosshair_size",         NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.crosshairSize, NULL, 25.0f, 125.0f, 5.0f },
+#if defined(SH_IOS) || defined(__ANDROID__)
+    /* The RetroAchievements login. It was a twelfth row on the Screen page, and
+     * a twelfth row runs Back off the bottom of a phone screen (reported); this
+     * is the last page and had one spare. Mobile only, because a phone has no
+     * launcher -- everywhere else the launcher owns the account and the game
+     * just consumes the token it left in the config. */
+    { "Achievements",      NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_RALOGIN },
+#endif
     { "Prev_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Back",              NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };

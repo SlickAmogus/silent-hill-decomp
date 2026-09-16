@@ -1083,6 +1083,9 @@ if(IOS AND SH_IOS_PORT_DIR)
         # mod is installed, which is the only reason desktop ships it off.
         string(REGEX REPLACE "allow_loose_files[ \t]*=[ \t]*0"
                              "allow_loose_files = 1" SH_IOS_CFG "${SH_IOS_CFG}")
+        # 60 fps on a phone; 30 is the desktop's PSX-accurate default.
+        string(REGEX REPLACE "fps_cap[ \t]*=[ \t]*30"
+                             "fps_cap = 60" SH_IOS_CFG "${SH_IOS_CFG}")
         file(WRITE "${CMAKE_BINARY_DIR}/config.ios.cfg" "${SH_IOS_CFG}")
         add_custom_command(TARGET SilentHillPC POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy

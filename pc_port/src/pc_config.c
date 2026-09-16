@@ -24,7 +24,14 @@ s_PcConfig g_PcConfig = {
     .preloadChunks  = 1,
     .vsync          = 0,
     .refreshRate    = 0,
+#if defined(SH_IOS) || defined(__ANDROID__)
+    /* 60 on a phone. 30 is the PSX-accurate gameplay rate and stays the desktop
+     * default, but a phone panel runs at 60 or better and the port paces
+     * everything off g_DeltaTime, so 30 only halves the motion for nothing. */
+    .fpsCap         = 60,
+#else
     .fpsCap         = 30,
+#endif
     .weatherSimHz      = 60,   /* per-frame weather sim; 30 = the console's cadence */
     .cutsceneLineGapMs = 300,
     .skipIntros     = 0,
@@ -1446,6 +1453,15 @@ else if (strcmp(key, "enable_plugins") == 0)
         {
             g_PcConfig.allowLooseFiles = 1;
             PcConfig_SaveKeyValue("allow_loose_files", "1");
+        }
+
+        /* v5 (mobile only): fps_cap 30 -> 60, same reasoning as the default
+         * above. Only a config still on 30 moves; 0 (uncapped), 120 and 240 are
+         * kept as chosen. */
+        if (g_PcConfig.configVersion < 5 && g_PcConfig.fpsCap == 30)
+        {
+            g_PcConfig.fpsCap = 60;
+            PcConfig_SaveKeyValue("fps_cap", "60");
         }
 #endif
 
