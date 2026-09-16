@@ -1121,8 +1121,15 @@ void Pc_Touch_Update(void)
         if (!t->active || seen[i])
             continue;
 
-        if (mode == TC_MODE_GAMEPLAY && t->role != TR_BUTTON && !t->movedFar &&
-            (now - t->startMs) <= TC_TAP_MS)
+        /* Every role that IS a control, not just the context style's. TR_TG_BTN
+         * and TR_TG_STICK were missing, so releasing a Gamepad-style pad button
+         * inside the tap window ALSO pressed Action: the log shows heldBtnFlags
+         * going 0x0400 (L1) -> 0x4000 (Cross) two ticks after an L1 press, with
+         * no face button touched. Pressing a shoulder must never press Cross --
+         * on a pad every control is drawn, so there is no free zone to tap. */
+        if (mode == TC_MODE_GAMEPLAY &&
+            t->role != TR_BUTTON && t->role != TR_TG_BTN && t->role != TR_TG_STICK &&
+            !t->movedFar && (now - t->startMs) <= TC_TAP_MS)
         {
             s_ActionFrames = TC_ACTION_FRAMES;
         }

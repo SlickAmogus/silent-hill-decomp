@@ -2439,9 +2439,31 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                          * (PC_OTS_RUN_SPEED * g_DeltaTime, matching func_8007C0D8's
                          * forward integration) so left/right run as fast as forward.
                          * Walk-sidestep keeps the slow anim-driven discrete shuffle. */
+                        /* Held is driven by real time, not by the animation's own
+                         * time delta.
+                         *
+                         * The anim-delta path only produces movement on a frame where
+                         * anim.time actually advanced INSIDE the 70..94 (or 95..119)
+                         * loop, and it is zeroed whenever the delta is negative or
+                         * larger than Q12(2) -- which is every loop wrap, every frame
+                         * the status is (re)assigned (s_prevSidestepTime resets to -1),
+                         * and every hitch. Tapping hides that, because a tap is mostly
+                         * the blend-in, which does advance time. Holding does not: the
+                         * loop wraps every 24 keyframes and Harry stops travelling
+                         * while the shuffle keeps playing -- "moves about a foot, then
+                         * the animation cancels and it stops".
+                         *
+                         * Same average speed as before by construction: the old path
+                         * moved Q12(0.024) per keyframe and the loop runs at Q12(30)
+                         * keyframes a second, so 0.024 * 30 = Q12(0.72) a second. It is
+                         * simply continuous now, and holding travels until released. */
+                        bool stepHeld = isLeft ? (bool)g_Player_IsSteppingLeftHold
+                                               : (bool)g_Player_IsSteppingRightHold;
                         q19_12 step = 0;
                         if (runStrafe) {
                             step = Q12_MULT_PRECISE(PC_OTS_RUN_SPEED, g_DeltaTime);
+                        } else if (stepHeld) {
+                            step = Q12_MULT_PRECISE(Q12(0.72f), g_DeltaTime);
                         } else if (dTime > 0) {
                             step = Q12_MULT_PRECISE(Q12(0.024f), dTime);
                         }
