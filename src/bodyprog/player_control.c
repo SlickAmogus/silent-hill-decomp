@@ -2326,7 +2326,44 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 /* While jump-back is active, suppress normal anim-state assignments
                  * so the hop plays to completion even if the player releases the
                  * back button or briefly touches another direction. */
-                if (!jumpBackActive) if (g_Player_IsMovingForward) {
+#ifdef SH_PC_PORT
+                /* [STEPBRANCH] Which arm of the anim chain wins, on change only.
+                 * [STEPANIM] lives INSIDE the sidestep arm, so "it stopped
+                 * printing" could mean either the status held steady or the arm
+                 * stopped being reached -- this tells the two apart. */
+                {
+                    static s32 s_branchPrev = -1;
+                    s32 br = jumpBackActive                        ? 5
+                           : (g_Player_IsMovingForward & 1)        ? 0
+                           : g_Player_IsMovingBackward             ? 1
+                           : (g_Player_IsSteppingLeftHold  || g_Player_IsSteppingLeftTap ||
+                              g_Player_IsSteppingRightHold || g_Player_IsSteppingRightTap) ? 2
+                           : g_Player_IsTurningLeft                ? 3
+                           : g_Player_IsTurningRight               ? 4 : 6;
+                    s32 key = (br << 8) | (s32)(g_Player_IsMovingForward & 3);
+
+                    if (key != s_branchPrev) {
+                        s_branchPrev = key;
+                        SH_DBG("[STEPBRANCH] br=%d (0=fwd 1=back 2=STEP 3=turnL 4=turnR 5=jump 6=idle) "
+                               "fwdreg=%d back=%d holdL=%d holdR=%d",
+                               (int)br, (int)(g_Player_IsMovingForward & 3),
+                               (int)g_Player_IsMovingBackward,
+                               (int)g_Player_IsSteppingLeftHold,
+                               (int)g_Player_IsSteppingRightHold);
+                    }
+                }
+#endif
+                /* Bit 0 is the CURRENT forward input; bit 1 is the aged copy the
+                 * 30 Hz shift register keeps so a one-frame dropout cannot fire
+                 * the skid-stop. Selecting the animation off the whole register
+                 * let that aged bit win this chain for a tick after forward was
+                 * released -- and anything that sets it spuriously (the pad's
+                 * stick emits DpadUp, which Joy_ControllerDataUpdate folds into
+                 * LStickUp) locks the chain on the forward arm, so the sidestep
+                 * arm below is never reached while the button is held. The skid
+                 * detector still reads the full register; only the selector is
+                 * narrowed to the live bit. */
+                if (!jumpBackActive) if (g_Player_IsMovingForward & 1) {
                     /* Movement-direction anim (OTS/TPS, Oblivion-style): forward and
                      * diagonal use RunForward (IsMovingForward wins here); PURE left/
                      * right are handled by the sidestep/strafe branch below (RunLeft/
