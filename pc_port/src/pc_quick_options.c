@@ -124,13 +124,6 @@ static const QoRowDef s_page0[] = {
     { ROW_EXTRA, NULL, QO_X_SHADOW,         "Shadow Resolution" },
     { ROW_OPT,   "bullet_decals",        0, NULL },
     { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
-#if defined(QO_MOBILE)
-    /* Context vs Gamepad. It is a Controls-page row in the main menu and this
-     * is the Graphics section, which is a compromise: the quick menu has no
-     * Controls section at all, and the one setting a player wants to change
-     * without leaving the room is which pad is under their thumbs. */
-    { ROW_OPT,   "touch_style",          0, NULL },
-#endif
     { ROW_PAGE,  NULL, 0,                   "Next page  (HUD & Audio)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
 };
@@ -340,8 +333,29 @@ static const QoRowDef* qo_cheat_page(int cpage, const char* nextLabel, int* coun
 /* The desktop pages, which stay the source of truth for WHAT is offered and in
  * what order. Mobile re-chunks these rather than keeping a second set of tables
  * that would drift. */
+#if defined(QO_MOBILE)
+/* The Controls section the comment on the old Touch_Style row wished for.
+ *
+ * Touch_Style sat on Graphics as an admitted compromise and 2D_Controls was not
+ * in the quick menu at all -- it lived only in the full options menu, which is
+ * the wrong place for a setting you want to flip mid-room to feel the
+ * difference. Neither is a graphics setting. All of these apply live. */
+static const QoRowDef s_pageControls[] = {
+    { ROW_OPT,   "touch_style",            0, NULL },  /* Context or Gamepad */
+    { ROW_OPT,   "control_2d",             0, NULL },  /* screen-relative movement */
+    { ROW_OPT,   "touch_controls",         0, NULL },  /* Automatic / On / Off */
+    { ROW_OPT,   "touch_look_sensitivity", 0, NULL },
+    { ROW_OPT,   "one_button_combat",      0, NULL },
+    { ROW_PAGE,  NULL, 0,                     "Next page  (Graphics)" },
+    { ROW_CLOSE, NULL, 0,                     "Close" },
+};
+#endif
+
 static const QoRowDef* qo_section_rows(int page, int* count)
 {
+#if defined(QO_MOBILE)
+    if (page == 5) { *count = (int)(sizeof(s_pageControls) / sizeof(s_pageControls[0])); return s_pageControls; }
+#endif
     if (page == 1) { *count = (int)(sizeof(s_page1) / sizeof(s_page1[0])); return s_page1; }
     if (page == 2) return qo_view_page(count);
     if (page == 3) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
@@ -353,7 +367,11 @@ static const QoRowDef* qo_section_rows(int page, int* count)
 static const char* const s_pageTitles[QO_PAGES] = {
     "QUICK OPTIONS  -  GRAPHICS", "QUICK OPTIONS  -  HUD & AUDIO",
     "QUICK OPTIONS  -  VIEW & ASPECT",
-    "QUICK OPTIONS  -  CHEATS",   "QUICK OPTIONS  -  DEBUG" };
+    "QUICK OPTIONS  -  CHEATS",   "QUICK OPTIONS  -  DEBUG"
+#if defined(QO_MOBILE)
+    , "QUICK OPTIONS  -  CONTROLS"
+#endif
+};
 
 /* ------------------------------------------------------------------ */
 /* Mobile pagination                                                   */

@@ -1915,8 +1915,21 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * you" feel. The mesh slew above is decoration. */
                     g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | (anyInput ? 1 : 0);
                     g_Player_IsMovingBackward    = 0;
-                    g_Player_IsSteppingLeftHold  = 0;
-                    g_Player_IsSteppingRightHold = 0;
+                    /* The stepping HOLDS are deliberately left alone. Turning and
+                     * backward are derived from the stick, so 2D owns them and has
+                     * to clear them; sidestep is not -- it comes from the dedicated
+                     * stepLeft/stepRight binds (L1/R1) that Player_Controller reads
+                     * a few lines earlier, and it is a separate control from the
+                     * movement stick under every scheme.
+                     *
+                     * Zeroing them here meant the anim chain below saw holdL/holdR
+                     * as 0 no matter how long the button was held, so the sidestep
+                     * arm was reachable only through the TAP shift registers, which
+                     * age out after 6 ticks: tapping worked, holding did nothing,
+                     * and only with 2D controls on. Sidestep now behaves the same
+                     * whether 2D is on or off, which is what it should always have
+                     * done. The stick still wins when it is pushed, because the
+                     * forward arm is tested before the sidestep arm. */
                     g_Player_IsTurningLeft       = 0;
                     g_Player_IsTurningRight      = 0;
                     g_Player_HasMoveInput        = anyInput;
