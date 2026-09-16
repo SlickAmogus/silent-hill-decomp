@@ -393,7 +393,11 @@ void GameState_InGame_Update(void) // 0x80038BD4
         {
             extern int g_PcHorPlusEnabled, g_PcMapScreenActive, g_PsxSkipFramebufferStore;
             extern int g_PcWorldHorPlus;
-            if (!g_PcMapScreenActive && !g_PsxSkipFramebufferStore)
+            /* Same exemption as MainLoop's gate: the ending raises the protect
+             * flag for its palettes while drawing a 3D cutscene. */
+            const int cutsceneLive = ((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
+                                      g_SysWork.cutsceneBorderState != CutsceneBorderState_None) ? 1 : 0;
+            if (!g_PcMapScreenActive && !(g_PsxSkipFramebufferStore && !cutsceneLive))
                 g_PcHorPlusEnabled = 1;
             /* Record what the world is actually being drawn with, for HUD
              * elements that lay out before this point in the frame. */

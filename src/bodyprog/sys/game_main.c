@@ -3408,8 +3408,16 @@ void MainLoop(void) // 0x80032EE0
              * Honour bg2dHeld immediately (these are stable screens, not a fade
              * transient to ride out — the countdown would flash a stretched
              * frame before snapping). */
+            /* The store-protect flag doubles as the paper-map "2D screen up"
+             * signal, but the map7_s03 ending raises it too, for its palettes,
+             * while drawing a full 3D scene under letterbox bars. A cutscene is
+             * never a 2D screen, so the flag must not narrow one. (Only reaches
+             * here since the map DLLs stopped carrying a private copy of the
+             * flag; before that the ending's write never left the DLL.) */
+            const int cutsceneLive = ((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
+                                      g_SysWork.cutsceneBorderState != CutsceneBorderState_None) ? 1 : 0;
             int wantHorPlus = (g_GameWork.gameState == GameState_InGame &&
-                               !g_PsxSkipFramebufferStore &&
+                               !(g_PsxSkipFramebufferStore && !cutsceneLive) &&
                                !g_PcMapScreenActive &&
                                !bg2dHeld) ? 1 : 0;
 
