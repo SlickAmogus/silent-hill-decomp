@@ -325,6 +325,7 @@ static int Pc_WideLm_Emit(const s_WideMesh* mesh, s_GteScratchData2* env, GsOT_T
             *(s32*)&poly.gt3->u1 = (s32)(((u32)prim->uv[1] | ((u32)prim->flags << 16)) & 0xFFFFFF); /* :4162 */
             *(u16*)&poly.gt3->u2 = prim->uv[2];                                                     /* :4163 */
 
+            poly.gt3->pad2 = (u16)(0x8000u | WIDE_SCREEN_Z_TO_FOG(z[c0])); /* v0 fog + marker, as the stock chara GT3 */
             poly.gt3->p1 = WIDE_SCREEN_Z_TO_FOG(z[c1]); /* :4170 */
             poly.gt3->p2 = WIDE_SCREEN_Z_TO_FOG(z[c2]);
 
