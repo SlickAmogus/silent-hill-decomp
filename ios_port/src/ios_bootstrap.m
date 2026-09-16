@@ -226,22 +226,23 @@ void Ios_EnsureModFolders(void)
             NSString* text =
                 @"Manually installed mods go here.\n"
                  "\n"
-                 "Turn on Options > Graphics > Load Mods first, then restart the\n"
-                 "game. Files here are ignored while that is off.\n"
+                 "Mods are on by default. Options > Graphics > Load Mods turns\n"
+                 "them off. Restart the game after adding or removing files.\n"
                  "\n"
-                 "gamedata/load/<FOLDER>/<NAME>.<EXT>\n"
+                 "gamedata/load/<FOLDER>/<NAME>\n"
                  "  <FOLDER> and <NAME> are the disc's own folder and file names,\n"
-                 "  so a replacement sits at the path the original came from.\n"
-                 "  Textures are .TIM, models .TMD, and .GLB is read where a\n"
-                 "  modern mesh replaces a model.\n"
+                 "  so a replacement sits at the path the original came from,\n"
+                 "  e.g. gamedata/load/CHARA/HERO.TIM. Case does not matter.\n"
                  "\n"
-                 "gamedata/load/SND/<BANK>.VAB        replacement sound bank\n"
-                 "gamedata/load/SND/<BANK>.001.wav    single sound, numbered\n"
-                 "gamedata/load/XA/xa_0001.wav        replacement voice line\n"
-                 "gamedata/load/text_overrides.txt    replacement text\n"
+                 "Textures:  <NAME>.png or <NAME>.dds beside it (HERO.TIM.png or\n"
+                 "           HERO.png), or a replacement .TIM with the same name\n"
+                 "Models:    replacement .TMD / .ILM / .IPD; .glb for items\n"
+                 "Sounds:    SND/<BANK>.VAB, or one sound as SND/<BANK>.001.wav\n"
+                 "Voices:    XA/xa_0001.wav, or XA/msg_<KEY>.wav for a text box\n"
+                 "Text:      text_overrides.txt, or text_overrides/<name>.txt\n"
                  "\n"
-                 "gamedata/texturemods/ is separate and needs no switch: drop a\n"
-                 "DuckStation-format texture pack there as a folder or a .zip.\n";
+                 "gamedata/texturemods/ takes DuckStation-format texture packs,\n"
+                 "as a folder or a .zip. Always on, no switch needed.\n";
 
             NSError* err = nil;
             if (![text writeToFile:note atomically:YES

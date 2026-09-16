@@ -268,6 +268,7 @@ static const s_PcOpt PCOPT_G[] = {
      * models, ILM/IPD, glTF meshes, SFX banks, XA voice lines and text
      * overrides. Launcher-only on desktop, but a phone has no launcher, and
      * editing config.cfg by hand through Files.app is the only alternative.
+     * On by default here for the same reason; this row is for turning it off.
      *
      * Not realtime: the lookups run when an asset is loaded, so the room already
      * in memory keeps what it has. Takes hold on the next load either way. */

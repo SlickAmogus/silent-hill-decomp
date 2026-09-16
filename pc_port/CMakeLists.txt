@@ -1079,6 +1079,10 @@ if(IOS AND SH_IOS_PORT_DIR)
         file(READ "${CMAKE_CURRENT_SOURCE_DIR}/config.cfg" SH_IOS_CFG)
         string(REGEX REPLACE "enable_debug_log[ \t]*=[ \t]*0"
                              "enable_debug_log = 1" SH_IOS_CFG "${SH_IOS_CFG}")
+        # Mods on by default: there is no launcher here to switch this on when a
+        # mod is installed, which is the only reason desktop ships it off.
+        string(REGEX REPLACE "allow_loose_files[ \t]*=[ \t]*0"
+                             "allow_loose_files = 1" SH_IOS_CFG "${SH_IOS_CFG}")
         file(WRITE "${CMAKE_BINARY_DIR}/config.ios.cfg" "${SH_IOS_CFG}")
         add_custom_command(TARGET SilentHillPC POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy

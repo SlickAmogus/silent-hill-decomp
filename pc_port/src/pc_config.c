@@ -32,7 +32,15 @@ s_PcConfig g_PcConfig = {
     .psxDither      = 1, /* 0=off, 1=PSX dither, 2=bilinear */
     .widescreenMode  = 1, /* 0=pillarbox, 1=Hor+ (default, no bars + correct proportions), 2=stretch */
     .menuPillarbox   = 1, /* 1=pillarbox 2D screens (black bars), 0=stretch to fill */
+#if defined(SH_IOS) || defined(__ANDROID__)
+    /* On by default on a phone. Desktop leaves it off because the launcher's mod
+     * manager switches it on the moment a load mod is installed; a phone has no
+     * launcher, so off meant every manually installed mod silently did nothing
+     * until the player found the Load Mods row. */
+    .allowLooseFiles = 1, /* 0=disc image only, 1=scan gamedata/load/ first */
+#else
     .allowLooseFiles = 0, /* 0=disc image only, 1=scan gamedata/load/ first */
+#endif
     .residentTextures = 1, /* 1=expanded chunk-texture pool w/ per-slot GL textures (whole map textured), 0=vanilla 8+2 VRAM pool */
     .texturePacks = 1, /* 1=scan gamedata/texturemods/ for DuckStation texture packs (loose dirs or .zip) */
     .texpackCacheMb = 2048, /* composed-canvas cache RAM cap; kills pack re-compose stutter on chunk churn */
@@ -1427,6 +1435,19 @@ else if (strcmp(key, "enable_plugins") == 0)
             g_PcConfig.menuFpsUnlock = 0;
             PcConfig_SaveKeyValue("menu_fps_unlock", "0");
         }
+
+#if defined(SH_IOS) || defined(__ANDROID__)
+        /* v4 (mobile only): allow_loose_files 0 -> 1. Every install before this
+         * staged a config.cfg with the desktop value written into it, so the new
+         * code default alone would never reach them. Desktop keeps 0 on purpose
+         * (see the default above), so the step is compiled out there and a
+         * desktop config is only stamped forward. */
+        if (g_PcConfig.configVersion < 4 && g_PcConfig.allowLooseFiles == 0)
+        {
+            g_PcConfig.allowLooseFiles = 1;
+            PcConfig_SaveKeyValue("allow_loose_files", "1");
+        }
+#endif
 
         g_PcConfig.configVersion = PC_CONFIG_VERSION;
         snprintf(vbuf, sizeof(vbuf), "%d", g_PcConfig.configVersion);
