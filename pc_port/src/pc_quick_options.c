@@ -71,7 +71,16 @@ extern void        PcOpt_QuickViewReset(int mode);
 
 #define QO_GARBAGE  48
 #define QO_MAX_ROWS 16
+#if defined(SH_IOS) || defined(__ANDROID__)
+/* One more section than desktop: CONTROLS, appended last so every existing
+ * section index -- and the "Next page (X)" label baked into each table -- stays
+ * where it was. This has to be 6 or the section is never reached: page count and
+ * page lookup both walk 0..QO_PAGES-1. QO_MOBILE is defined further down, so the
+ * platform is tested directly here. */
+#define QO_PAGES    6
+#else
 #define QO_PAGES    5
+#endif
 #define QO_DD_MAX     64  /* dropdown entries cached */
 #define QO_DD_VISIBLE 8
 
@@ -346,6 +355,10 @@ static const QoRowDef s_pageControls[] = {
     { ROW_OPT,   "touch_controls",         0, NULL },  /* Automatic / On / Off */
     { ROW_OPT,   "touch_look_sensitivity", 0, NULL },
     { ROW_OPT,   "one_button_combat",      0, NULL },
+    /* The pad rows the Options menu's Controls page carries on a phone, for
+     * anyone who has paired a controller. */
+    { ROW_OPT,   "controller_sensitivity", 0, NULL },
+    { ROW_OPT,   "invert_controller_y",    0, NULL },
     { ROW_PAGE,  NULL, 0,                     "Next page  (Graphics)" },
     { ROW_CLOSE, NULL, 0,                     "Close" },
 };
