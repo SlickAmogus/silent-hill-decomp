@@ -1849,6 +1849,24 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
         int       mx, my;
         const int pcTouch = Pc_MouseCursor_TouchDriving();
 
+        /* A mouse button that is ALSO bound to a PSX button (key_cross = Mouse1
+         * is the common one) arrived on this screen twice: once here, where the
+         * pointer logic decides what a click MEANS, and once as a raw Cross
+         * press that the switch below reads as "load the selected save". So
+         * pressing the scroll bar, or starting a drag anywhere, loaded whatever
+         * row happened to be selected before the pointer code could say
+         * otherwise. Drop the bits the mouse is producing this frame; every
+         * injection below is added afterwards, and pad or keyboard presses of
+         * the same buttons are unaffected. */
+        {
+            extern unsigned int Pc_MouseCursor_BoundPadBits(void);
+            const u32 pcMouseBits = Pc_MouseCursor_BoundPadBits();
+
+            g_Controller0->clickedBtnFlags &= ~pcMouseBits;
+            g_Controller0->pulsedBtnFlags  &= ~pcMouseBits;
+            g_Controller0->heldBtnFlags    &= ~pcMouseBits;
+        }
+
         /* Re-armed every frame: only a hover that actually moves the selection
          * (below) pins the scroll, so pad/keyboard navigation still scrolls
          * normally. Consumed later in the frame by SaveScreen_ScreenDraw ->

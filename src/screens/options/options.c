@@ -4528,13 +4528,16 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
                 g_Controller0->pulsedGuiBtnFlags = 0;
                 return;
             }
-            /* Nothing of the PSX layout, not even for the one frame this
-             * hand-off takes: without the return the rest of this function
-             * drew it under the fade (the flash on the way out). */
             ScreenFade_Start(false, false, false);
             g_GameWork.gameStateSteps[1] = ControllerMenuState_Leave;
             g_GameWork.gameStateSteps[2] = 0;
             s_bindPanelShown             = 0;
+
+            /* Return on the closing frame too. Without this the function ran on
+             * into the stock controller layout below and drew it once, which is
+             * the old screen flashing up for a frame as the panel exits. The
+             * Leave branch above handles every frame after this one and draws
+             * nothing. */
             return;
         }
     }

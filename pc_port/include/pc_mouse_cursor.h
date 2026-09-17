@@ -84,6 +84,12 @@ int Pc_MouseCursor_TouchViewportPos(float* outX, float* outY);
  * adjust the hovered value row / scroll lists. */
 int Pc_MouseCursor_WheelStep(void);
 
+/* The pad bits (ControllerFlag_*) the mouse is producing right now through
+ * mouse binds (key_cross = Mouse1 and the like), d-pad bits mirrored onto the
+ * left-stick ones. Panels that handle the mouse themselves drop these from the
+ * pad flags they read, or one click acts twice. */
+unsigned int Pc_MouseCursor_BoundPadBits(void);
+
 /* 1 while a free-cursor puzzle is on screen. control_style.c releases the TPS/OTS
  * mouse capture when this is set, so a cursor puzzle always gets the pointer
  * regardless of the active camera. */
