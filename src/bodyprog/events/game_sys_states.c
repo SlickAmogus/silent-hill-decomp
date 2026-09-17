@@ -424,13 +424,17 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
         if (Pc_RandoSettings_IsOpen())
         {
             const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
+            /* Same as the quick menu: the panel handles the mouse itself, so
+             * pad bits a mouse bind is producing must not act a second time. */
+            extern unsigned int Pc_MouseCursor_BoundPadBits(void);
+            const unsigned int  mouseBits = Pc_MouseCursor_BoundPadBits();
             Pc_RandoSettings_Update(
-                (g_Controller0->pulsedBtnFlags  & ControllerFlag_LStickUp)    != 0,
-                (g_Controller0->pulsedBtnFlags  & ControllerFlag_LStickDown)  != 0,
-                (g_Controller0->pulsedBtnFlags  & ControllerFlag_LStickLeft)  != 0,
-                (g_Controller0->pulsedBtnFlags  & ControllerFlag_LStickRight) != 0,
-                (g_Controller0->clickedBtnFlags & (cc->enter | cc->action))   != 0,
-                (g_Controller0->clickedBtnFlags & (cc->cancel | cc->map))     != 0);
+                (g_Controller0->pulsedBtnFlags  & ~mouseBits & ControllerFlag_LStickUp)    != 0,
+                (g_Controller0->pulsedBtnFlags  & ~mouseBits & ControllerFlag_LStickDown)  != 0,
+                (g_Controller0->pulsedBtnFlags  & ~mouseBits & ControllerFlag_LStickLeft)  != 0,
+                (g_Controller0->pulsedBtnFlags  & ~mouseBits & ControllerFlag_LStickRight) != 0,
+                (g_Controller0->clickedBtnFlags & ~mouseBits & (cc->enter | cc->action))   != 0,
+                (g_Controller0->clickedBtnFlags & ~mouseBits & (cc->cancel | cc->map))     != 0);
             g_Controller0->clickedBtnFlags = 0;
             g_Controller0->pulsedBtnFlags  = 0;
             return;

@@ -135,6 +135,28 @@ int Pc_MouseCursor_WheelStep(void)
     return Mc_Enabled() ? s_wheelStep : 0;
 }
 
+unsigned int Pc_MouseCursor_BoundPadBits(void)
+{
+    extern unsigned short g_cfg_mouseButtonMask[8];
+    extern int            g_PsyX_WheelUpFrames, g_PsyX_WheelDownFrames;
+    const Uint32          mb   = SDL_GetMouseState(NULL, NULL);
+    unsigned int          bits = 0;
+    int                   b;
+
+    for (b = 1; b <= 5; b++)
+    {
+        if (mb & SDL_BUTTON(b))
+            bits |= g_cfg_mouseButtonMask[b];
+    }
+    if (g_PsyX_WheelUpFrames > 0)   bits |= g_cfg_mouseButtonMask[6];
+    if (g_PsyX_WheelDownFrames > 0) bits |= g_cfg_mouseButtonMask[7];
+    if (bits & ControllerFlag_DpadUp)    bits |= ControllerFlag_LStickUp;
+    if (bits & ControllerFlag_DpadDown)  bits |= ControllerFlag_LStickDown;
+    if (bits & ControllerFlag_DpadLeft)  bits |= ControllerFlag_LStickLeft;
+    if (bits & ControllerFlag_DpadRight) bits |= ControllerFlag_LStickRight;
+    return bits;
+}
+
 int Pc_MouseCursor_PuzzleActive(void)
 {
     return s_puzzleFrames > 0;

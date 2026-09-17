@@ -2454,15 +2454,27 @@ void MainLoop(void) // 0x80032EE0
                 Pc_QuickOptions_Close();
             if (g_PcQuickOptionsActive) {
                 const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
+                /* The panel reads the mouse itself, so a mouse button that is
+                 * ALSO bound to a PSX button (key_cross = Mouse1 is common)
+                 * reached it twice: one left click activated the row under the
+                 * pointer and then, as Cross, "confirm" on the selected row --
+                 * after a Next page click that was a row on the NEW page, and
+                 * everywhere else a double activation. Pad bits the mouse is
+                 * producing right now are dropped here; keyboard and controller
+                 * presses of the same buttons still count. */
+                extern unsigned int Pc_MouseCursor_BoundPadBits(void);
+                const u32 pcMouseBits = Pc_MouseCursor_BoundPadBits();
+                const u32 pcQoHeld    = g_Controller0->heldBtnFlags    & ~pcMouseBits;
+                const u32 pcQoClicked = g_Controller0->clickedBtnFlags & ~pcMouseBits;
                 Pc_QuickOptions_Update(
-                    (g_Controller0->heldBtnFlags    & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp))    != 0,
-                    (g_Controller0->heldBtnFlags    & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown))  != 0,
-                    (g_Controller0->heldBtnFlags    & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft))  != 0,
-                    (g_Controller0->heldBtnFlags    & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
-                    (g_Controller0->clickedBtnFlags & (cc->enter | cc->action))  != 0,
-                    (g_Controller0->clickedBtnFlags & (cc->cancel | cc->option)) != 0,
-                    (g_Controller0->clickedBtnFlags & ControllerFlag_R1) != 0,
-                    (g_Controller0->clickedBtnFlags & ControllerFlag_L1) != 0);
+                    (pcQoHeld    & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp))    != 0,
+                    (pcQoHeld    & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown))  != 0,
+                    (pcQoHeld    & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft))  != 0,
+                    (pcQoHeld    & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
+                    (pcQoClicked & (cc->enter | cc->action))  != 0,
+                    (pcQoClicked & (cc->cancel | cc->option)) != 0,
+                    (pcQoClicked & ControllerFlag_R1) != 0,
+                    (pcQoClicked & ControllerFlag_L1) != 0);
                 s_pcQoHeldStash      = g_Controller0->heldBtnFlags;
                 s_pcQoHeldStashValid = 1;
                 g_Controller0->heldBtnFlags      = 0;
