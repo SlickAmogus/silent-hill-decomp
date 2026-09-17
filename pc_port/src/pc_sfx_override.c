@@ -8,6 +8,7 @@
 #include "game.h"
 #include "main/fileinfo.h"
 #include "pc_config.h"
+#include "pc_big_lm.h"
 #include "pc_loose_files.h"
 #include "pc_sfx_override.h"
 #include "sh_log.h"
@@ -80,6 +81,14 @@ static short* SfxOverride_LoadWav(const char* path, int* outCount, int* outRate)
     *outCount = 0;
     if (outRate != NULL) *outRate = 0;
 
+    /* Up to four names are tried per sample and most do not exist; the slurp
+     * logs every failed open, which filled the log with one warning per
+     * missing name. Probe silently first, as the texture loader does. */
+    {
+        FILE* chk = Pc_LooseFOpen(path, "rb");
+        if (chk == NULL) return NULL;
+        fclose(chk);
+    }
     d = Pc_LooseSlurp(path, &size);
     if (d == NULL)
     {
@@ -307,6 +316,11 @@ static unsigned char* SfxOverride_LoadBank(const char* bank, long* outSize)
     *outSize = 0;
     snprintf(path, sizeof(path), "gamedata/load/SND/%s.VAB", bank);
 
+    {
+        FILE* chk = Pc_LooseFOpen(path, "rb");
+        if (chk == NULL) return NULL;
+        fclose(chk);
+    }
     d = Pc_LooseSlurp(path, outSize);
     if (d == NULL)
     {
