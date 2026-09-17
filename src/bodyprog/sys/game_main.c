@@ -2920,6 +2920,34 @@ void MainLoop(void) // 0x80032EE0
                 ML_TRACE("VSync-Wait");
                 VSync(SyncMode_Wait);
                 ML_TRACE("VSync-Wait-done");
+#ifdef SH_PC_PORT
+                /* Backstop that makes the wait above a real one-per-frame gate.
+                 * In-game cutscenes run here (SysState_EventCallback), and this
+                 * single wait is the whole reason they cannot exceed 60. But
+                 * PsyX_WaitForTimestep keeps ONE static of "when did I last
+                 * wait", shared with every other VSync caller in the frame, so
+                 * a wait somewhere else can satisfy it and this one returns
+                 * immediately — the scene then runs at whatever the machine
+                 * does. Wait on the loop's own count instead, which nothing
+                 * else can consume. No-op whenever the wait above did its job.
+                 *
+                 * Fast-forward is exempt: holding it through a scene is the
+                 * point of the key, and it drives the counter itself. */
+                {
+                    extern int g_PcFastForward;
+
+                    if (!g_PcFastForward)
+                    {
+                        const s32    target   = g_PrevVBlanks + 1;
+                        const Uint32 deadline = SDL_GetTicks() + 50; /* never hang on a stalled counter */
+
+                        while (VSync(SyncMode_Count) < target && SDL_GetTicks() < deadline)
+                        {
+                            VSync(SyncMode_Wait);
+                        }
+                    }
+                }
+#endif
             }
             else
             {
@@ -2986,7 +3014,13 @@ void MainLoop(void) // 0x80032EE0
                          * a skipped scene, a load, a death or a scene that ends
                          * early restores the user's cap on the very next frame
                          * with nothing to unwind. */
-                        if (Pc_ScriptOwnsShot() &&
+                        /* Pc_ScriptOwnsScene, not Pc_ScriptOwnsShot: the Shot
+                         * form drops the post-load fade of a room transition on
+                         * purpose, because that is about how a FRAME LOOKS. For
+                         * pacing the question is only "is an authored scene
+                         * running", and those fade frames were the one part of a
+                         * scripted shot still free to run at 240. */
+                        if (Pc_ScriptOwnsScene() &&
                             (effectiveFps <= 0 || effectiveFps > 60))
                             effectiveFps = 60;
 
