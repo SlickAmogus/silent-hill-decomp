@@ -37,5 +37,8 @@ void Pc_ControlStyleSet(int style);
 int         Pc_ControlStyleCount(void);
 const char* Pc_ControlStyleId(int idx);
 const char* Pc_ControlStyleLabel(int idx);
+/* Re-apply the live scheme (classic while a menu forces it) after a runtime
+ * bind edit. */
+void        Pc_ControlStyle_ReapplyBinds(void);
 
 #endif /* CONTROL_STYLE_H */

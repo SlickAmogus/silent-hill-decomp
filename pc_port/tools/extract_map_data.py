@@ -562,6 +562,11 @@ SIZE_OVERRIDE_PER_MAP = {
 }
 
 SIZE_OVERRIDE = {
+    # Split Head bone points, s_sharedData_800D5AB0_1_s05[38] (8 B each) up to
+    # sharedData_800D5BE0_1_s05. The 256 B gap cap clipped the last six, and
+    # the mouth strands index 33, 36 and 37: those ends read past the array
+    # and drew the strand out to wherever the garbage bone put it.
+    "sharedData_800D5AB0_1_s05": 304,
     "sharedData_800ECA4C_2_s02": 4,
     "sharedData_800ECACC_2_s02": 4,
     "sharedData_800ECBD0_2_s02": 2,

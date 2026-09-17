@@ -29,6 +29,7 @@
 #include "stb_truetype.h"
 
 #include "pc_quick_options.h"
+#include "pc_bind_panel.h"
 #include "pc_mouse_cursor.h"
 #include "pc_config.h"
 #include "pc_cheats.h"
@@ -71,16 +72,10 @@ extern void        PcOpt_QuickViewReset(int mode);
 
 #define QO_GARBAGE  48
 #define QO_MAX_ROWS 16
-#if defined(SH_IOS) || defined(__ANDROID__)
-/* One more section than desktop: CONTROLS, appended last so every existing
- * section index -- and the "Next page (X)" label baked into each table -- stays
- * where it was. This has to be 6 or the section is never reached: page count and
- * page lookup both walk 0..QO_PAGES-1. QO_MOBILE is defined further down, so the
- * platform is tested directly here. */
+/* CONTROLS is appended last, so every existing section index -- and the "Next
+ * page (X)" label baked into each table -- stays where it was. Its rows differ
+ * by platform (s_page5 / s_pageControls). */
 #define QO_PAGES    6
-#else
-#define QO_PAGES    5
-#endif
 #define QO_DD_MAX     64  /* dropdown entries cached */
 #define QO_DD_VISIBLE 8
 
@@ -100,7 +95,7 @@ extern void        PcOpt_QuickViewReset(int mode);
 #endif
 
 enum { ROW_OPT = 0, ROW_EXTRA, ROW_PAGE, ROW_CLOSE, ROW_CHEAT, ROW_ACTION };
-enum { QO_A_VIEWRESET = 0 };
+enum { QO_A_VIEWRESET = 0, QO_A_KEYBINDS };
 
 typedef struct
 {
@@ -172,6 +167,22 @@ static const QoRowDef s_page1[] = {
     { ROW_PAGE,  NULL, 0,                   "Next page  (View)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
 };
+
+#if !defined(QO_MOBILE)
+/* Controls: the keybind panel (the same one as Options > Controller Config),
+ * then the control settings that apply live. Phones use s_pageControls. */
+static const QoRowDef s_page5[] = {
+    { ROW_ACTION, NULL, QO_A_KEYBINDS,       "Edit Keybinds" },
+    { ROW_OPT,   "control_2d",             0, NULL },
+    { ROW_OPT,   "mouse_sensitivity",      0, NULL },
+    { ROW_OPT,   "controller_sensitivity", 0, NULL },
+    { ROW_OPT,   "invert_mouse_y",         0, NULL },
+    { ROW_OPT,   "invert_controller_y",    0, NULL },
+    { ROW_OPT,   "aim_assist",             0, NULL },
+    { ROW_PAGE,  NULL, 0,                   "Next page  (Graphics)" },
+    { ROW_CLOSE, NULL, 0,                   "Close" },
+};
+#endif
 
 /* View & Aspect, in two shapes.
  *
@@ -348,13 +359,17 @@ static const QoRowDef* qo_cheat_page(int cpage, const char* nextLabel, int* coun
  * what order. Mobile re-chunks these rather than keeping a second set of tables
  * that would drift. */
 #if defined(QO_MOBILE)
-/* The Controls section the comment on the old Touch_Style row wished for.
+/* The Controls section on a phone, in place of the desktop's s_page5, and the
+ * one the comment on the old Touch_Style row wished for.
  *
  * Touch_Style sat on Graphics as an admitted compromise and 2D_Controls was not
  * in the quick menu at all -- it lived only in the full options menu, which is
  * the wrong place for a setting you want to flip mid-room to feel the
  * difference. Neither is a graphics setting. All of these apply live. */
 static const QoRowDef s_pageControls[] = {
+    /* The controls panel, controller columns only on a phone. With no
+     * controller connected it shows a toast instead of opening. */
+    { ROW_ACTION, NULL, QO_A_KEYBINDS,         "Controller Buttons" },
     { ROW_OPT,   "touch_style",            0, NULL },  /* Context or Gamepad */
     { ROW_OPT,   "control_2d",             0, NULL },  /* screen-relative movement */
     { ROW_OPT,   "touch_controls",         0, NULL },  /* Automatic / On / Off */
@@ -374,11 +389,13 @@ static const QoRowDef* qo_section_rows(int page, int* count)
 {
 #if defined(QO_MOBILE)
     if (page == 5) { *count = (int)(sizeof(s_pageControls) / sizeof(s_pageControls[0])); return s_pageControls; }
+#else
+    if (page == 5) { *count = (int)(sizeof(s_page5) / sizeof(s_page5[0])); return s_page5; }
 #endif
     if (page == 1) { *count = (int)(sizeof(s_page1) / sizeof(s_page1[0])); return s_page1; }
     if (page == 2) return qo_view_page(count);
     if (page == 3) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
-    if (page == 4) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Graphics)", count);
+    if (page == 4) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Controls)", count);
     *count = (int)(sizeof(s_page0) / sizeof(s_page0[0]));
     return s_page0;
 }
@@ -386,11 +403,8 @@ static const QoRowDef* qo_section_rows(int page, int* count)
 static const char* const s_pageTitles[QO_PAGES] = {
     "QUICK OPTIONS  -  GRAPHICS", "QUICK OPTIONS  -  HUD & AUDIO",
     "QUICK OPTIONS  -  VIEW & ASPECT",
-    "QUICK OPTIONS  -  CHEATS",   "QUICK OPTIONS  -  DEBUG"
-#if defined(QO_MOBILE)
-    , "QUICK OPTIONS  -  CONTROLS"
-#endif
-};
+    "QUICK OPTIONS  -  CHEATS",   "QUICK OPTIONS  -  DEBUG",
+    "QUICK OPTIONS  -  CONTROLS" };
 
 /* ------------------------------------------------------------------ */
 /* Mobile pagination                                                   */
@@ -1446,6 +1460,27 @@ int Pc_QuickOptions_IsOpen(void)
     return s_phase != QO_CLOSED;
 }
 
+int Pc_QuickOptions_ShowsMinimapRows(void)
+{
+    const QoRowDef* rows;
+    int             n, i;
+
+    if (s_phase == QO_CLOSED)
+    {
+        return 0;
+    }
+    rows = qo_page_rows(s_page, &n);
+    for (i = 0; i < n; i++)
+    {
+        if (rows[i].kind == ROW_OPT && rows[i].key != NULL &&
+            strncmp(rows[i].key, "minimap", 7) == 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void qo_open(void)
 {
     if (s_phase == QO_OPENING || s_phase == QO_SHOWN)
@@ -1610,6 +1645,16 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     if (qo_key_edge(SDL_SCANCODE_ESCAPE))   close    = 1;
     if (qo_key_edge(SDL_SCANCODE_PAGEDOWN) || qo_key_edge(SDL_SCANCODE_E)) pageNext = 1;
     if (qo_key_edge(SDL_SCANCODE_PAGEUP)   || qo_key_edge(SDL_SCANCODE_Q)) pagePrev = 1;
+
+    /* The keybind panel opened from the Controls page owns input until it has
+     * closed; then this menu is back where it was. The key edges above still
+     * run while it is up, so the Esc that closed the panel is not read here as
+     * a fresh press. */
+    if (Pc_BindPanel_IsOpen())
+    {
+        Pc_BindPanel_Update();
+        return;
+    }
 
     if (s_phase != QO_SHOWN) /* ignore input while animating in/out */
         return;
@@ -1908,6 +1953,13 @@ static void qo_confirm(const QoRowDef* r)
     {
         if (r->extra == QO_A_VIEWRESET)
             PcOpt_QuickViewReset(qo_view_cam_mode());
+        else if (r->extra == QO_A_KEYBINDS)
+        {
+            /* On a phone this can refuse (no controller): it toasts and
+             * beeps itself, so only a real open gets the confirm. */
+            if (Pc_BindPanel_TryOpen())
+                qo_beep(Sfx_MenuConfirm);
+        }
     }
     else
         qo_activate(r, +1);
@@ -1957,6 +2009,9 @@ void Pc_QuickOptions_Draw(void)
     GLboolean prevBlend, prevDepth, prevCull;
 
     if (s_phase == QO_CLOSED)
+        return;
+    /* The keybind panel stands in for this menu while it is open. */
+    if (Pc_BindPanel_IsOpen())
         return;
 
     glGetIntegerv(GL_VIEWPORT, vp);

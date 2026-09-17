@@ -3237,7 +3237,10 @@ void MainLoop(void) // 0x80032EE0
                         }
                     }
                     s_perfVbAccum += (u32)g_UncappedVBlanks;
-                    if (++s_perfFrames >= 256)
+                    /* A 30-second window, not 256 frames: at 240 fps the frame count
+                     * logged every second and was the third-largest source in the log. */
+                    s_perfFrames++;
+                    if (s_perfAccumMs >= 30000)
                     {
                         {
                         /* Per-frame GPU work, alongside the timing. A full VRAM
@@ -3754,29 +3757,6 @@ void MainLoop(void) // 0x80032EE0
 
             SetGeomOffset(0, ofy);
 
-#ifdef SH_PC_PORT
-            /* [CUTDIAG] one line/second: which framing knobs are live, so a
-             * "cutscene squashed/shifted vs emulator" report names the cause
-             * (vshift ofy vs vscale crop vs HorPlus mode) instead of guessing. */
-            {
-                extern int   g_PcHorPlusEnabled;
-                extern int   g_PsxCutsceneActive;
-                extern int   g_PsxFixedCamActive;
-                extern float g_PsxWorldVScale;
-                extern float g_PsxCutsceneVScale;
-                static s32   s_cutDiagCtr = 0;
-                if (++s_cutDiagCtr >= 60)
-                {
-                    s_cutDiagCtr = 0;
-                    SH_DBG("[CUTDIAG] state=%d sys=%d cut=%d border=%d fixed=%d tpc=%d ofy=%d | horplus=%d vscale=%.3f cutvscale=%.3f wsmode=%d",
-                           (int)g_GameWork.gameState, (int)g_SysWork.sysState,
-                           (int)g_PsxCutsceneActive, (int)g_SysWork.cutsceneBorderState,
-                           (int)g_PsxFixedCamActive, (int)g_DebugThirdPersonCam, (int)ofy,
-                           (int)g_PcHorPlusEnabled, g_PsxWorldVScale, g_PsxCutsceneVScale,
-                           (int)g_PcConfig.widescreenMode);
-                }
-            }
-#endif
         }
 
         /* Suppress dither on 2D-only states (logos, menus, map screen,

@@ -76,6 +76,9 @@ int Pc_MouseCursor_TouchDriving(void);
 int Pc_MouseCursor_TouchDown(int* outX, int* outY);
 int Pc_MouseCursor_TouchPressed(void);
 int Pc_MouseCursor_TouchReleased(int* outX, int* outY);
+/* The finger in Pc_MouseCursor_ViewportPos's space (0..1 of the presented
+ * picture), for GL overlays; valid while down and on the release frame. */
+int Pc_MouseCursor_TouchViewportPos(float* outX, float* outY);
 
 /* +1/-1 on a new wheel notch this frame (0 otherwise) — menus use it to
  * adjust the hovered value row / scroll lists. */

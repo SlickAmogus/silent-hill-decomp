@@ -9,6 +9,9 @@
 #include "bodyprog/collision/collision.h"
 #ifdef SH_PC_PORT
 #include "sh_log.h"
+#ifdef SH_PC_PORT
+#include <SDL_timer.h>
+#endif
 #endif
 #include "bodyprog/math/math.h"
 #include "bodyprog/item_screens.h"
@@ -844,6 +847,24 @@ bool func_8006A4A8(s_CollisionResult* collResult, VECTOR3* moveOffset, const s_C
                     s32 chan = (sc->field_0_14 * 4) | sc->field_2_14;
                     s32 s0   = state.point.field_C.cellSurfaces.surfaceIdx0;
                     s32 s1   = state.point.field_C.cellSurfaces.surfaceIdx1;
+                    /* Once per face, not once per 15 ticks of contact: a boss
+                     * pinning Harry to one wall wrote three lines four times a
+                     * second for the whole fight (2841 lines in one log). A new
+                     * face logs at once; the same face again after 30 s. */
+                    static const s_IpdCollisionData* s_lastWallCd  = NULL;
+                    static s32                       s_lastWallKey = -1;
+                    static Uint32                    s_lastWallMs  = 0;
+                    const s32                        wallKey       = (sci << 16) | ((s0 & 0xFF) << 8) | (s1 & 0xFF);
+                    const Uint32                     wallNowMs     = SDL_GetTicks();
+
+                    if (cd == s_lastWallCd && wallKey == s_lastWallKey &&
+                        (wallNowMs - s_lastWallMs) < 30000u)
+                    {
+                        goto pc_wallhit_skip;
+                    }
+                    s_lastWallCd  = cd;
+                    s_lastWallKey = wallKey;
+                    s_lastWallMs  = wallNowMs;
 
                     s_lastWallLog = g_TickCount;
                     SH_DBG("[WALL-HIT] subcell=%d chan=%d flags=0x%04X s0=%d(t%d d%d) s1=%d(t%d d%d) gt=%d dist=%d rad=%d",
@@ -883,6 +904,7 @@ bool func_8006A4A8(s_CollisionResult* collResult, VECTOR3* moveOffset, const s_C
                            (int)state.charaState.distance,
                            (int)state.point.splitVertex0.vx, (int)state.point.splitVertex0.vz,
                            (int)state.point.splitVertex1.vx, (int)state.point.splitVertex1.vz);
+                pc_wallhit_skip:;
                 }
             }
         }

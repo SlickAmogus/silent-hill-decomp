@@ -487,6 +487,7 @@ static const char* const HELP_LINES[] = {
     " fmv <name|#>   play a movie (also intro1-2, end1-5)",
     " kf [n]         keyframe inspector: set/show frame (K key)",
     " playas [name]  play as another character (bare = list)",
+    " minimapnomap [0|1]  minimap before the map is found: 0 hide, 1 empty panel",
     " loga / logb    log Harry+camera pos/angles to SilentHill.log",
     "Quick Save: F6   Quick Load: F8 (work outside console)",
 };
@@ -1598,6 +1599,19 @@ void Pc_ConsoleExec(const char* line)
         cprintf("speaker layout: %s active (requested %s)%s", kSpkUi[PsyX_SPUAL_GetOutputMode()],
                 kSpkUi[g_PcConfig.audioOutput],
                 PsyX_SPUAL_GetSurroundActive() ? " [surround routing ON]" : "");
+    } else if (strcmp(cmd, "MINIMAPNOMAP") == 0) {
+        /* Config-only minimap_show_without_map: with minimap_require_map on,
+         * 1 draws an empty panel with Harry's arrow before the area map is
+         * found (the old behaviour), 0 hides the minimap. Bare toggles.
+         * Persists to config.cfg. */
+        if (arg[0] == '0' || arg[0] == '1')
+            g_PcConfig.minimapShowWithoutMap = (arg[0] == '1');
+        else
+            g_PcConfig.minimapShowWithoutMap = !g_PcConfig.minimapShowWithoutMap;
+        PcConfig_SaveKeyValue("minimap_show_without_map",
+                              g_PcConfig.minimapShowWithoutMap ? "1" : "0");
+        cprintf("minimap before the map is found: %s",
+                g_PcConfig.minimapShowWithoutMap ? "empty panel + arrow" : "hidden");
     } else if (strcmp(cmd, "FOV") == 0) {
         /* First-person FOV (degrees, horizontal on the 4:3 frame). Same value
          * as the launcher slider / PC options row; persists to config.cfg.

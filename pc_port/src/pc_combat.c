@@ -153,9 +153,11 @@ static int          s_padReload[2] = { -2, -2 }; /* [scheme]; -2 = unresolved */
 
 static void Pc_ReloadBindsResolve(void)
 {
+    static int s_gen = -1;
     const ControlScheme* sc[2];
     int i;
-    if (s_padReload[0] != -2) return;
+    if (s_padReload[0] != -2 && s_gen == g_PcBindsGen) return;
+    s_gen = g_PcBindsGen;
     sc[0] = &g_PcConfig.classic;
     sc[1] = &g_PcConfig.altcam;
     for (i = 0; i < 2; i++) {
@@ -584,8 +586,10 @@ void Pc_ExtraActionsUpdate(void)
 
     g_PcInputFrame++; /* frame identity for the edge caches — see g_PcInputFrame */
 
-    if (s_padCycle[0] == -2) {
+    static int          s_actGen = -1;
+    if (s_padCycle[0] == -2 || s_actGen != g_PcBindsGen) {
         const ControlScheme* sc[2];
+        s_actGen = g_PcBindsGen;
         int i;
         sc[0] = &g_PcConfig.classic;
         sc[1] = &g_PcConfig.altcam;
@@ -654,9 +658,11 @@ void Pc_RearLookUpdate(void)
     const Uint8*        keys;
     int                 sch, held;
 
-    if (s_pad[0] == -2) {
+    static int          s_rlGen = -1;
+    if (s_pad[0] == -2 || s_rlGen != g_PcBindsGen) {
         const ControlScheme* sc[2];
         int i;
+        s_rlGen = g_PcBindsGen;
         sc[0] = &g_PcConfig.classic;
         sc[1] = &g_PcConfig.altcam;
         for (i = 0; i < 2; i++) {

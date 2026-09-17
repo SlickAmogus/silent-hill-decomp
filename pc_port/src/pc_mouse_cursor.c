@@ -16,6 +16,7 @@
 #include <PsyX/PsyX_public.h>
 #include <PsyX/PsyX_render.h> /* GR_ReadVRAM */
 #include "pc_confirm_dialog.h"
+#include "pc_bind_panel.h"
 #include "pc_quick_options.h"
 #include <libgs.h>
 
@@ -143,6 +144,7 @@ int Pc_MouseCursor_PuzzleActive(void)
 /* ---- Touch pointer (see pc_mouse_cursor.h) ---------------------------- */
 static int    s_tDown, s_tPrevDown, s_tPressEdge, s_tReleaseEdge, s_tInView;
 static float  s_tgx, s_tgy;
+static float  s_tvx, s_tvy;
 static Uint32 s_tLastMs;
 
 #define MC_TOUCH_RECENT_MS 3000
@@ -196,6 +198,8 @@ static void Mc_TouchUpdate(void)
                                              (int)(ny * (float)winH), &vx, &vy);
         if (s_tInView)
         {
+            s_tvx = vx;
+            s_tvy = vy;
             s_tgx = vx * (float)g_GameWork.gsScreenWidth;
             s_tgy = vy * (float)g_GameWork.gsScreenHeight
                     - (float)(g_GameWork.gsScreenHeight / 2)
@@ -232,6 +236,15 @@ int Pc_MouseCursor_TouchDown(int* outX, int* outY)
         return 0;
     if (outX != NULL) *outX = (int)s_tgx;
     if (outY != NULL) *outY = (int)s_tgy;
+    return 1;
+}
+
+int Pc_MouseCursor_TouchViewportPos(float* outX, float* outY)
+{
+    if (!Mc_Enabled() || !(s_tDown || s_tReleaseEdge) || !s_tInView)
+        return 0;
+    if (outX != NULL) *outX = s_tvx;
+    if (outY != NULL) *outY = s_tvy;
     return 1;
 }
 
@@ -412,7 +425,7 @@ void Pc_MouseCursor_Draw(void)
         return;
     /* A GL overlay dialog composites above this whole frame, so it draws the
      * cursor itself (Pc_MouseCursor_SpriteRgba/GlRect); ours would sit under it. */
-    if (Pc_ConfirmDialog_IsOpen() || Pc_QuickOptions_IsOpen())
+    if (Pc_ConfirmDialog_IsOpen() || Pc_QuickOptions_IsOpen() || Pc_BindPanel_IsOpen())
         return;
 
     /* Touch drives menus through this same hover/click path (SDL synthesizes

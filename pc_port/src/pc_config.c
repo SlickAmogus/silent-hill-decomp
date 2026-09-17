@@ -135,6 +135,7 @@ s_PcConfig g_PcConfig = {
     .configVersion           = 0, /* absent key = pre-versioning; migration runs, then it is stamped */
     .minimapScale            = 100.0f,
     .minimapRequireMap       = 1, /* the map only appears once Harry has found it */
+    .minimapShowWithoutMap   = 0, /* no map found: no minimap (1 = empty panel + arrow) */
     .minimapOpacity          = 100.0f,
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
@@ -1189,6 +1190,10 @@ else if (strcmp(key, "enable_plugins") == 0)
         {
             g_PcConfig.minimapRequireMap = (atoi(value) != 0);
         }
+        else if (strcmp(key, "minimap_show_without_map") == 0)
+        {
+            g_PcConfig.minimapShowWithoutMap = (atoi(value) != 0);
+        }
         else if (strcmp(key, "minimap_scale") == 0)
         {
             float v = (float)atof(value);
@@ -1525,20 +1530,23 @@ void PcConfig_LogEffective(const char* path)
     SH_DBG("[CFG] ---- %d setting(s) ----", n);
 }
 
-void PcConfig_SaveKeyValue(const char* cfgKey, const char* cfgValue)
+void PcConfig_SaveKeyValues(const char* const* keys, const char* const* values, int count)
 {
     /* Big enough to hold the whole config with headroom: the file grows as new
      * settings are toggled (each unknown key appends a line), and any line past
      * this cap would be dropped on the next save — silently resetting those keys
      * to their defaults. The full keybind config is ~380 lines already. */
     static char lines[1024][256];
+    static char found[256];
     int   n = 0;
-    int   i;
-    int   found = 0;
+    int   i, k;
     FILE* f;
 
-    if (cfgKey == NULL || cfgKey[0] == '\0' || cfgValue == NULL)
+    if (keys == NULL || values == NULL || count <= 0)
         return;
+    if (count > (int)sizeof(found))
+        count = (int)sizeof(found);
+    memset(found, 0, (size_t)count);
 
     f = fopen(s_configPath, "r");
     if (!f)
@@ -1563,11 +1571,14 @@ void PcConfig_SaveKeyValue(const char* cfgKey, const char* cfgValue)
         strncpy(key, p, kl);
         key[kl] = '\0';
         TrimWhitespace(key);
-        if (strcmp(key, cfgKey) == 0)
+        for (k = 0; k < count; k++)
         {
-            snprintf(lines[i], sizeof(lines[i]), "%s = %s\n", cfgKey, cfgValue);
-            found = 1;
-            break;
+            if (!found[k] && keys[k] != NULL && values[k] != NULL && strcmp(key, keys[k]) == 0)
+            {
+                snprintf(lines[i], sizeof(lines[i]), "%s = %s\n", keys[k], values[k]);
+                found[k] = 1;
+                break;
+            }
         }
     }
 
@@ -1576,9 +1587,19 @@ void PcConfig_SaveKeyValue(const char* cfgKey, const char* cfgValue)
         return;
     for (i = 0; i < n; i++)
         fputs(lines[i], f);
-    if (!found)
-        fprintf(f, "%s = %s\n", cfgKey, cfgValue);
+    for (k = 0; k < count; k++)
+    {
+        if (!found[k] && keys[k] != NULL && keys[k][0] != '\0' && values[k] != NULL)
+            fprintf(f, "%s = %s\n", keys[k], values[k]);
+    }
     fclose(f);
+}
+
+void PcConfig_SaveKeyValue(const char* cfgKey, const char* cfgValue)
+{
+    if (cfgKey == NULL || cfgKey[0] == '\0' || cfgValue == NULL)
+        return;
+    PcConfig_SaveKeyValues(&cfgKey, &cfgValue, 1);
 }
 
 void PcConfig_ApplyXaVolume(float norm)
@@ -1637,4 +1658,44 @@ const char* PcConfig_BindName(unsigned short btnFlag, int device, int scheme, in
         return "";
 
     return v;
+}
+
+int g_PcBindsGen = 0;
+
+static char* PcConfig_BindFieldIn(s_PcConfig* cfg, const char* key, int scheme, int* outPerScheme)
+{
+    size_t i;
+
+    if (outPerScheme) *outPerScheme = 0;
+    if (key == NULL)
+        return NULL;
+    for (i = 0; i < sizeof(s_SchemeBinds) / sizeof(s_SchemeBinds[0]); i++)
+    {
+        if (strcmp(key, s_SchemeBinds[i].key) == 0)
+        {
+            ControlScheme* sc = (scheme != 0) ? &cfg->altcam : &cfg->classic;
+            if (outPerScheme) *outPerScheme = 1;
+            return (char*)sc + s_SchemeBinds[i].off;
+        }
+    }
+    for (i = 0; i < sizeof(s_GlobalBinds) / sizeof(s_GlobalBinds[0]); i++)
+    {
+        if (strcmp(key, s_GlobalBinds[i].key) == 0)
+            return (char*)cfg + s_GlobalBinds[i].off;
+    }
+    return NULL;
+}
+
+char* PcConfig_BindField(const char* key, int scheme, int* outPerScheme)
+{
+    return PcConfig_BindFieldIn(&g_PcConfig, key, scheme, outPerScheme);
+}
+
+const char* PcConfig_BindDefault(const char* key, int scheme)
+{
+    const char* v;
+
+    if (!s_defaultsCaptured) { s_PcConfigDefaults = g_PcConfig; s_defaultsCaptured = 1; }
+    v = PcConfig_BindFieldIn(&s_PcConfigDefaults, key, scheme, NULL);
+    return v ? v : "";
 }

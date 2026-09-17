@@ -35,6 +35,10 @@ void Pc_QuickOptions_Close(void);
 void Pc_QuickOptions_Update(int up, int down, int left, int right,
                             int confirm, int close, int pageNext, int pagePrev);
 
+/* 1 while the panel is open on a page that has minimap rows, so the minimap
+ * shows for adjustment even where it would otherwise be hidden. */
+int  Pc_QuickOptions_ShowsMinimapRows(void);
+
 /* Per-frame draw from the post-capture GL hook (cheap no-op while closed). */
 void Pc_QuickOptions_Draw(void);
 
