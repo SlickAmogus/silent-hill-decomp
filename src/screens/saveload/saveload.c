@@ -1671,6 +1671,15 @@ void SaveScreen_ElementInfoDraw(s32 slotIdx, s32 selectedSaveIdx) // 0x801E5E18
         timeInSec = FP_FROM(ptr->gameplayTimer, Q12_SHIFT);
 
         offset = ptr->add290Hours;
+#ifdef SH_PC_PORT
+        /* Shown as it will load: a broken clock restarts from zero
+         * (MemCard_Process_Load). */
+        if (offset != 0)
+        {
+            timeInSec = 0;
+            offset    = 0;
+        }
+#endif
         hours  = (timeInSec / 3600) + offset * 290;
 
         hyperBlasterBeamColor = ptr->pickedUpSpecialItemCount;

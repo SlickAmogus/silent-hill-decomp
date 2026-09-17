@@ -780,6 +780,25 @@ void MemCard_Process_Load(s_MemCard_Process* statusPtr)
             else
             {
                 memcpy(g_SavegamePtr, &g_MemCard_SaveWork.savegame.savegame, sizeof(s_Savegame));
+#ifdef SH_PC_PORT
+                /* A play clock broken by Game_TimerUpdate's old out-of-range
+                 * constant. On Clang builds (iOS, Android, macOS) the 290-hour
+                 * rollover fired at random, and every firing bumped
+                 * add290Hours and added garbage to the timer, so those saves
+                 * read up to 1000:00:00 (reported). Nothing else ever sets
+                 * add290Hours, and a real one needs 290 hours on one save,
+                 * so nonzero is the signature. The real time was never
+                 * recorded; the clock restarts from zero, which also keeps
+                 * the end-of-game ranking from reading it. */
+                if (g_SavegamePtr->add290Hours != 0)
+                {
+                    SH_DBG("[SAVE] play clock was broken (add290Hours=%u timer=0x%08X), reset to 0",
+                           (unsigned)g_SavegamePtr->add290Hours,
+                           (unsigned)g_SavegamePtr->gameplayTimer);
+                    g_SavegamePtr->gameplayTimer = 0;
+                    g_SavegamePtr->add290Hours   = 0;
+                }
+#endif
             }
             break;
     }
