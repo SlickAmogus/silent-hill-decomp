@@ -29,6 +29,7 @@
 #include "stb_truetype.h"
 
 #include "pc_quick_options.h"
+#include "pc_bind_panel.h"
 #include "pc_mouse_cursor.h"
 #include "pc_config.h"
 #include "pc_cheats.h"
@@ -68,7 +69,9 @@ extern void        PcOpt_QuickViewReset(int mode);
 
 #define QO_GARBAGE  48
 #define QO_MAX_ROWS 16
-#define QO_PAGES    5
+/* CONTROLS is appended last, so every existing section index -- and the "Next
+ * page (X)" label baked into each table -- stays where it was. */
+#define QO_PAGES    6
 #define QO_DD_MAX     64  /* dropdown entries cached */
 #define QO_DD_VISIBLE 8
 
@@ -80,7 +83,7 @@ extern void        PcOpt_QuickViewReset(int mode);
  * Left/Right must not trigger it, or scrolling past "Reset View Settings"
  * with the arrows would undo the player's tuning. */
 enum { ROW_OPT = 0, ROW_EXTRA, ROW_PAGE, ROW_CLOSE, ROW_CHEAT, ROW_ACTION };
-enum { QO_A_VIEWRESET = 0 };
+enum { QO_A_VIEWRESET = 0, QO_A_KEYBINDS };
 
 typedef struct
 {
@@ -123,6 +126,20 @@ static const QoRowDef s_page1[] = {
     { ROW_EXTRA, NULL, QO_X_SFX,            "Effects Volume" },
     { ROW_OPT,   "fmv_volume",           0, NULL },
     { ROW_PAGE,  NULL, 0,                   "Next page  (View)" },
+    { ROW_CLOSE, NULL, 0,                   "Close" },
+};
+
+/* Controls: the keybind panel (the same one as Options > Controller Config),
+ * then the control settings that apply live. */
+static const QoRowDef s_page5[] = {
+    { ROW_ACTION, NULL, QO_A_KEYBINDS,       "Edit Keybinds" },
+    { ROW_OPT,   "control_2d",             0, NULL },
+    { ROW_OPT,   "mouse_sensitivity",      0, NULL },
+    { ROW_OPT,   "controller_sensitivity", 0, NULL },
+    { ROW_OPT,   "invert_mouse_y",         0, NULL },
+    { ROW_OPT,   "invert_controller_y",    0, NULL },
+    { ROW_OPT,   "aim_assist",             0, NULL },
+    { ROW_PAGE,  NULL, 0,                   "Next page  (Graphics)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
 };
 
@@ -302,7 +319,8 @@ static const QoRowDef* qo_page_rows(int page, int* count)
     if (page == 1) { *count = (int)(sizeof(s_page1) / sizeof(s_page1[0])); return s_page1; }
     if (page == 2) return qo_view_page(count);
     if (page == 3) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
-    if (page == 4) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Graphics)", count);
+    if (page == 4) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Controls)", count);
+    if (page == 5) { *count = (int)(sizeof(s_page5) / sizeof(s_page5[0])); return s_page5; }
     *count = (int)(sizeof(s_page0) / sizeof(s_page0[0]));
     return s_page0;
 }
@@ -310,7 +328,8 @@ static const QoRowDef* qo_page_rows(int page, int* count)
 static const char* const s_pageTitles[QO_PAGES] = {
     "QUICK OPTIONS  -  GRAPHICS", "QUICK OPTIONS  -  HUD & AUDIO",
     "QUICK OPTIONS  -  VIEW & ASPECT",
-    "QUICK OPTIONS  -  CHEATS",   "QUICK OPTIONS  -  DEBUG" };
+    "QUICK OPTIONS  -  CHEATS",   "QUICK OPTIONS  -  DEBUG",
+    "QUICK OPTIONS  -  CONTROLS" };
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -1387,6 +1406,16 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     if (qo_key_edge(SDL_SCANCODE_PAGEDOWN) || qo_key_edge(SDL_SCANCODE_E)) pageNext = 1;
     if (qo_key_edge(SDL_SCANCODE_PAGEUP)   || qo_key_edge(SDL_SCANCODE_Q)) pagePrev = 1;
 
+    /* The keybind panel opened from the Controls page owns input until it has
+     * closed; then this menu is back where it was. The key edges above still
+     * run while it is up, so the Esc that closed the panel is not read here as
+     * a fresh press. */
+    if (Pc_BindPanel_IsOpen())
+    {
+        Pc_BindPanel_Update();
+        return;
+    }
+
     if (s_phase != QO_SHOWN) /* ignore input while animating in/out */
         return;
 
@@ -1554,6 +1583,11 @@ static void qo_confirm(const QoRowDef* r)
     {
         if (r->extra == QO_A_VIEWRESET)
             PcOpt_QuickViewReset(qo_view_cam_mode());
+        else if (r->extra == QO_A_KEYBINDS)
+        {
+            qo_beep(Sfx_MenuConfirm);
+            Pc_BindPanel_Open();
+        }
     }
     else
         qo_activate(r, +1);
@@ -1603,6 +1637,9 @@ void Pc_QuickOptions_Draw(void)
     GLboolean prevBlend, prevDepth, prevCull;
 
     if (s_phase == QO_CLOSED)
+        return;
+    /* The keybind panel stands in for this menu while it is open. */
+    if (Pc_BindPanel_IsOpen())
         return;
 
     glGetIntegerv(GL_VIEWPORT, vp);

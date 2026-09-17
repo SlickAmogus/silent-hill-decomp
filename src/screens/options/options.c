@@ -4103,7 +4103,6 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
                 g_Controller0->clickedBtnFlags   = 0;
                 g_Controller0->pulsedBtnFlags    = 0;
                 g_Controller0->pulsedGuiBtnFlags = 0;
-                Options_ControllerMenu_EntriesDraw(false, ControllerMenuState_Exit, NO_VALUE, NO_VALUE);
                 return;
             }
             ScreenFade_Start(false, false, false);
