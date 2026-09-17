@@ -398,7 +398,15 @@ void Pc_QuickHeal(void)
         else if (drink != NO_VALUE) chosen = InvItemId_HealthDrink;
         else if (amp   != NO_VALUE) chosen = InvItemId_Ampoule;
     }
-    if (chosen == InvItemId_Empty) return; /* nothing owned */
+    /* Nothing owned. This compared a u8 against the enum constant: chosen holds
+     * (u8)InvItemId_Empty = 255 while InvItemId_Empty itself is NO_VALUE (-1),
+     * so the test never matched. Player_ItemRemove(255) then found the first
+     * EMPTY slot (id 255), "removed" one from its count (0 wrapping to 255 and
+     * counting down), reported success, and Harry healed off nothing -- as
+     * often as the key was pressed, with the toast falling through to
+     * "Ampoule". Only the three healing items may ever be spent here. */
+    if (chosen != InvItemId_HealthDrink && chosen != InvItemId_FirstAidKit && chosen != InvItemId_Ampoule)
+        return;
 
     /* [QUICKHEAL] One line per use: which slot paid for it and the whole live
      * inventory. A heal "with no healing items" (2026-09-17, a New Game warped
