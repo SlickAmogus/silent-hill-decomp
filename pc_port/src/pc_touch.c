@@ -328,12 +328,20 @@ static int Tc_Mode(void)
         g_GameWork.gameStateSteps[0] == OptionsMenuState_Brightness)
         return TC_MODE_BACK;
 
-    /* The save/load screen is cancel-only in the same way, and it is reachable
-     * straight from the pause menu, so with no pad a player could get into it
-     * and not back out. */
+    /* The save/load screen needs the corner Back -- it is reachable straight
+     * from the pause menu, and with no pad a player could get in and not back
+     * out -- but it is NOT cancel-only. saveload.c drives the whole screen as a
+     * pointer: a tap picks a slot or a menu option, a drag scrolls the list.
+     *
+     * As TC_MODE_BACK, every tap on a slot was two actions. The pointer turned
+     * it into a click and the save began to load, then the release fired the
+     * tap-anywhere Cancel and backed straight out again: MenuConfirm followed
+     * by MenuCancel on every tap, the screen left half faded, and no save could
+     * be loaded at all. BACK_CURSOR keeps the corner button and leaves the rest
+     * of the screen to the pointer, the same as a free-cursor puzzle. */
     if (g_GameWork.gameState == GameState_SaveScreen ||
         g_GameWork.gameState == GameState_LoadSavegameScreen)
-        return TC_MODE_BACK;
+        return TC_MODE_BACK_CURSOR;
 
     /* Only while the browser is actually up, and only as the way OUT of it.
      * Opening is the tappable "Achievements" line in the corner now
@@ -1138,12 +1146,16 @@ void Pc_Touch_Update(void)
          *
          * The corner button is still drawn and still works; this is the half
          * that stops a player hunting for it. Each of these screens has turned
-         * into a reported softlock in its turn -- the save screen, the map, the
-         * puzzles -- because the way out was one small target on a phone. The
+         * into a reported softlock in its turn -- the map, the brightness
+         * screen -- because the way out was one small target on a phone. The
          * honest fix is that the whole background is the target.
          *
          * Buttons keep priority: a contact that landed on the corner already
-         * has role TR_BUTTON and is excluded, so this never doubles up. */
+         * has role TR_BUTTON and is excluded, so this never doubles up.
+         *
+         * Only for screens with nothing else to tap. The save screen and the
+         * free-cursor puzzles are TC_MODE_BACK_CURSOR precisely so a tap there
+         * reaches the screen instead of leaving it. */
         /* Never while a selection is on screen. "Take this map?" and "Is it OK
          * to save?" are both drawn over a TC_MODE_BACK screen, and a blind
          * Cancel ANSWERS them -- always with No. That is how the map became

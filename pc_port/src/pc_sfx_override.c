@@ -68,6 +68,29 @@ void Pc_SfxOverride_Reset(void)
 /* Minimal RIFF/PCM reader. Deliberately strict: a wrong guess about the data
  * chunk is inaudible as an error and audible as noise, so anything unexpected
  * is refused with a log line rather than played. */
+extern FILE* Pc_LooseFOpen(const char* path, const char* mode);
+
+/* Every lookup here is a probe that is expected to miss: a bank has up to 255
+ * samples and each is tried under two spellings (and two more for a MEP bank's
+ * MAP twin), for every bank the game loads. Pc_LooseSlurp logs each failed open,
+ * which is right for a path already known to exist and wrong for this -- with
+ * loose files on by default on a phone, one bank load put ~90 warnings in every
+ * player's log. Check quietly first; a miss costs the same open it always did,
+ * and a file that is present but unreadable still reports through the slurp. */
+static unsigned char* SfxOverride_SlurpIfPresent(const char* path, long* outSize)
+{
+    FILE* f = Pc_LooseFOpen(path, "rb");
+
+    *outSize = 0;
+    if (f == NULL)
+    {
+        return NULL;
+    }
+    fclose(f);
+
+    return Pc_LooseSlurp(path, outSize);
+}
+
 static short* SfxOverride_LoadWav(const char* path, int* outCount, int* outRate)
 {
     unsigned char* d;
@@ -80,7 +103,7 @@ static short* SfxOverride_LoadWav(const char* path, int* outCount, int* outRate)
     *outCount = 0;
     if (outRate != NULL) *outRate = 0;
 
-    d = Pc_LooseSlurp(path, &size);
+    d = SfxOverride_SlurpIfPresent(path, &size);
     if (d == NULL)
     {
         return NULL;
@@ -307,7 +330,7 @@ static unsigned char* SfxOverride_LoadBank(const char* bank, long* outSize)
     *outSize = 0;
     snprintf(path, sizeof(path), "gamedata/load/SND/%s.VAB", bank);
 
-    d = Pc_LooseSlurp(path, outSize);
+    d = SfxOverride_SlurpIfPresent(path, outSize);
     if (d == NULL)
     {
         return NULL;
