@@ -77,7 +77,7 @@ int Dds_BptcSupported(void)
         }
     }
     SH_DBG("[DDS] BC7 (GL_ARB_texture_compression_bptc): %s",
-           s_bptcOk ? "supported" : "NOT supported — .dds mods will fall back to .png");
+           s_bptcOk ? "supported" : "NOT supported — .dds mods are decoded on the CPU");
     return s_bptcOk;
 }
 

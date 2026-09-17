@@ -820,6 +820,22 @@ static int decode_to_rgba(const char* tag,
         }
         *outBpp = 32;
     }
+    else if (size >= 4 && data[0] == 'D' && data[1] == 'D' &&
+             data[2] == 'S' && data[3] == ' ')
+    {
+        /* A BC7 .dds that is not going up compressed: the GPU has no BPTC
+         * (every iOS device, much of mobile GLES). Expanded here with the same
+         * decoder the texture-pack compositor uses, so it takes the ordinary
+         * RGBA upload like a PNG. Dds_DecodeRgba logs an unsupported format
+         * itself. */
+        *outRGBA = Dds_DecodeRgba(data, (int)size, outW, outH);
+        if (*outRGBA == NULL)
+        {
+            SH_DBG("[HIRES] %s: DDS decode failed (size=%u)", tag, size);
+            return -1;
+        }
+        *outBpp = 32;
+    }
     else if (parse_tim_to_rgba(data, size, outRGBA, outW, outH, outBpp,
                                clutRow, outClutRows) != 0)
     {
@@ -926,7 +942,13 @@ int HiresOverride_PoolSlotRegister(int slotId,
     /* BC7 .dds replacement: upload the compressed blocks straight through rather
      * than expanding to RGBA8. Same 4x VRAM saving the format exists for, and it
      * keeps a real 8-bit alpha for the override shader's cutout. A whole-image
-     * .dds covers the slot, so it lands on row 0 like any whole-image PNG. */
+     * .dds covers the slot, so it lands on row 0 like any whole-image PNG.
+     *
+     * Only where the GPU has BPTC. Without it the upload can only fail, and
+     * this used to return there, so a loose .dds never showed on iOS; now it
+     * falls through to the RGBA loop, which decode_to_rgba feeds by expanding
+     * the blocks on the CPU. */
+    if (Dds_BptcSupported())
     {
         s_DdsBptc probe;
         if (Dds_ParseBptc(data, (int)size, &probe))
@@ -1420,6 +1442,23 @@ int HiresOverride_PoolSlotRegisterDdsKeyed(int slotId, int row,
         return 0;
     }
 
+    /* No BPTC on this GPU: expand on the CPU and register through the RGBA
+     * twin, which charges the budget at the RGBA rate the texture really
+     * costs. After the skip above, so a redundant re-register never decodes.
+     * The decoded size is mip 0's, the same w/h the skip compares next time. */
+    if (!Dds_BptcSupported())
+    {
+        int            dw = 0, dh = 0, rc;
+        unsigned char* rgba = Dds_DecodeRgba(ddsBytes, (int)ddsSize, &dw, &dh);
+
+        if (rgba == NULL) return -1;
+        rc = HiresOverride_PoolSlotRegisterRGBAKeyed(slotId, row, rgba, dw, dh,
+                                                     nativePixelW, nativePixelH,
+                                                     contentHash);
+        free(rgba);
+        return rc;
+    }
+
     /* Sampling must not depend on the pack's FORMAT: upload_rgba derives
      * `nearest` from native-vs-upscaled and additionally honours the font
      * atlas's force-nearest, so the .dds twin has to do both or the same
@@ -1588,6 +1627,23 @@ int HiresOverride_RegisterDdsKeyed(const char* label,
         return 0;
     }
 
+    /* No BPTC: the same CPU fallback as the pool twin. Before an entry is
+     * claimed here, because the RGBA twin finds or claims its own. */
+    if (!Dds_BptcSupported())
+    {
+        int            dw = 0, dh = 0, rc;
+        unsigned char* rgba = Dds_DecodeRgba(ddsBytes, (int)ddsSize, &dw, &dh);
+
+        if (rgba == NULL) return -1;
+        rc = HiresOverride_RegisterRGBAKeyed(label, rgba, dw, dh,
+                                             targetVramX, targetVramY,
+                                             targetVramW, targetVramH,
+                                             targetClutX, targetClutY,
+                                             originalBitDepth, contentHash);
+        free(rgba);
+        return rc;
+    }
+
     if (e == NULL)
     {
         if (g_numEntries >= MAX_HIRES_OVERRIDES)
@@ -1702,7 +1758,12 @@ int HiresOverride_RegisterLoosePngAllRows(const char* label,
     /* BC7 .dds whole-image replacement on the VRAM-rect path (regular/map/HUD
      * textures — the pool/chara path already detects .dds in PoolSlotRegister).
      * Upload the compressed file at each palette row's clut cell, like the RGBA
-     * loop below, so any palette a prim selects samples it. */
+     * loop below, so any palette a prim selects samples it.
+     *
+     * Only where the GPU has BPTC; otherwise decode_to_rgba below expands the
+     * file once and every row takes the RGBA registration. (The keyed twin
+     * would also fall back, but per row, decoding the same file each time.) */
+    if (Dds_BptcSupported())
     {
         s_DdsBptc probe;
         if (Dds_ParseBptc(data, (int)size, &probe))

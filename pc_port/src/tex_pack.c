@@ -514,10 +514,18 @@ static int Entry_CompareSrcHash(const void* a, const void* b)
  * runs before the first compose. Loose-file reads need no lock. */
 static SDL_mutex* g_zipMx = NULL;
 
+/* Whether the GPU takes BC7, sampled once in Scan_Once. The worker thread
+ * (TexPack_BuildCanvasThreaded) needs the answer but may not ask GL, so it is
+ * read here on the game thread and is immutable afterwards, like g_entries.
+ * Every Scan_Once caller is in the texture-load pipeline, after the GL
+ * context exists. */
+static int g_bptcOk = 0;
+
 static void Scan_Once(void)
 {
     if (g_scanned) return;
     g_scanned = 1;
+    g_bptcOk  = Dds_BptcSupported();
     if (g_zipMx == NULL) g_zipMx = SDL_CreateMutex();
 
     if (!g_PcConfig.texturePacks) return;
@@ -1204,8 +1212,12 @@ int TexPack_BuildCanvasThreaded(const unsigned char* pixels, int w16, int h,
      * TexPack_LastComposeIsDds(); the upload site hands the file to Dds_Upload.
      * A partial or multi-entry .dds cannot take this path — the compositor has
      * to blit 32-bit pixels — so it falls through to the RGBA path below, where
-     * Entry_LoadImage decodes its BC7 blocks on the CPU. */
-    if (matchCount == 1 && g_entries[matches[0]].isDds)
+     * Entry_LoadImage decodes its BC7 blocks on the CPU.
+     *
+     * Only where the GPU has BPTC. Without it the upload site can only fail,
+     * which left every whole-cover .dds pack texture at its native art on iOS;
+     * falling through lets the compositor expand it like a partial cover. */
+    if (g_bptcOk && matchCount == 1 && g_entries[matches[0]].isDds)
     {
         const PackEntry* e = &g_entries[matches[0]];
         if (e->offX == 0 && e->offY == 0 &&
