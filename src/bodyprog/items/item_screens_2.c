@@ -74,8 +74,27 @@ static const s8 D_80025EB0[] = {
 
 void Game_TimerUpdate(void) // 0x8004C8DC
 {
+#ifdef SH_PC_PORT
+    /* `Q12(290 hours)` is `(s32)(4276224000.0f)`, a float->int conversion out
+     * of s32 range, which C leaves undefined. The timer is a u32 and the wrap
+     * below takes exactly 290 hours off it, so the intended constant is the
+     * unsigned 4276224000.
+     *
+     * GCC folds the overflow to INT_MAX, so desktop wrapped at ~145 hours.
+     * Clang has no value for it at all. At -O0 the compare read whatever was
+     * left in a register and the add read an unwritten stack slot, so the
+     * check passed at random, add290Hours reached 3 within a few frames and
+     * the clamp pinned the clock at 1000:00:00 (reported on iOS). At -O2 the
+     * function became unreachable, and inlined into
+     * GameState_ItemScreens_Update it took every step below 21 with it,
+     * `case 0:` included: the grey inventory that could not be left, which
+     * this file used to be built at -O0 to avoid. */
+    #define TIME_290_HOURS        ((q20_12)(290u * 60u * 60u) << Q12_SHIFT)
+    #define TIME_130_HOURS        ((q20_12)(130u * 60u * 60u) << Q12_SHIFT)
+#else
     #define TIME_290_HOURS        Q12((290.0f * 60.0f) * 60.0f)
     #define TIME_130_HOURS        Q12((130.0f * 60.0f) * 60.0f)
+#endif
     #define TIME_290_OVERFLOW_MAX 3 // `add290Hours` has max value of 3.
 
     g_SavegamePtr->gameplayTimer += g_DeltaTimeRaw;

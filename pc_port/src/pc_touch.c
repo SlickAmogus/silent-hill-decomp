@@ -1432,11 +1432,22 @@ int Pc_Touch_UsedRecently(void)
  * along: FOV and scaling are for the world, not the controls.
  *
  * Read as bounds rather than a half-extent, so nothing here assumes the frame
- * is centred on zero -- the renderer decides where it sits. */
-static float Tc_RectL(void) { extern float g_PcHudRect[4]; return g_PcHudRect[0]; }
-static float Tc_RectR(void) { extern float g_PcHudRect[4]; return g_PcHudRect[1]; }
-static float Tc_RectT(void) { extern float g_PcHudRect[4]; return g_PcHudRect[2]; }
-static float Tc_RectB(void) { extern float g_PcHudRect[4]; return g_PcHudRect[3]; }
+ * is centred on zero -- the renderer decides where it sits.
+ *
+ * Gameplay only, though: g_PcHudRect is latched on 3D frames, so on a 2D
+ * screen drawn 4:3 (save/load, the paper map, brightness) it still held the
+ * WIDE gameplay frame. The corner button landed past the 4:3 picture's right
+ * edge and was clipped, while its hit test, which maps the finger into the
+ * real 4:3 viewport, still answered in the corner: an invisible Back button
+ * (reported on the save screen). Every other mode places against
+ * g_PcUiRect, the rectangle of the overlay pass that actually ran. */
+static const float* Tc_FrameRect(int mode)
+{
+    extern float g_PcHudRect[4];
+    extern float g_PcUiRect[4];
+
+    return (mode == TC_MODE_GAMEPLAY) ? g_PcHudRect : g_PcUiRect;
+}
 
 
 /* Room for the labelled top row and the quick buttons on top of everything
@@ -1670,13 +1681,13 @@ void Pc_Touch_Draw(void)
     buf         = g_ActiveBufferIdx;
     batch.p     = s_pool[buf];
     batch.used  = 0;
-    rectL       = Tc_RectL();
-    rectR       = Tc_RectR();
-    rectT       = Tc_RectT();
-    rectB       = Tc_RectB();
+    rectL       = Tc_FrameRect(mode)[0];
+    rectR       = Tc_FrameRect(mode)[1];
+    rectT       = Tc_FrameRect(mode)[2];
+    rectB       = Tc_FrameRect(mode)[3];
 
     /* Viewport space -> the centre-origin overlay, sized by the ortho the UI
-     * pass published for this frame (g_PcHudRect). */
+     * pass published (Tc_FrameRect). */
     #define TC_UX(vx) ((int)((rectL + ((vx) * (rectR - rectL))) + 0.5f))
     #define TC_UY(vy) ((int)((rectT + ((vy) * (rectB - rectT))) + 0.5f))
     /* A radius given in height units spans the frame's full height. */
