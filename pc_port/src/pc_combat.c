@@ -400,6 +400,21 @@ void Pc_QuickHeal(void)
     }
     if (chosen == InvItemId_Empty) return; /* nothing owned */
 
+    /* [QUICKHEAL] One line per use: which slot paid for it and the whole live
+     * inventory. A heal "with no healing items" (2026-09-17, a New Game warped
+     * straight to map1_s05) could not be traced from the code: this path only
+     * spends an item the game's own Player_ItemRemove finds in a live slot. */
+    {
+        char inv[256];
+        int  n = 0, i;
+        for (i = 0; i < g_SavegamePtr->inventorySlotCount && i < INV_ITEM_COUNT_MAX && n < (int)sizeof(inv) - 12; i++)
+            n += snprintf(inv + n, sizeof(inv) - (size_t)n, " %d:%d", (int)g_SavegamePtr->items[i].id_0,
+                          (int)g_SavegamePtr->items[i].count_1);
+        inv[n] = '\0';
+        SH_DBG("[QUICKHEAL] hp=%d chose item %d (slot %d) | slots=%d:%s", (int)hp, (int)chosen,
+               (int)Pc_FindItemSlot(chosen), (int)g_SavegamePtr->inventorySlotCount, inv);
+    }
+
     /* Spend the item FIRST, through the game's own removal, and heal only if it
      * really came out of the inventory. Healing before removing is how a ghost
      * slot produced a full heal with feedback and no inventory change. */
