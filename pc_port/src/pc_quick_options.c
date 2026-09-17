@@ -364,6 +364,7 @@ static const QoRowDef s_pageControls[] = {
      * anyone who has paired a controller. */
     { ROW_OPT,   "controller_sensitivity", 0, NULL },
     { ROW_OPT,   "invert_controller_y",    0, NULL },
+    { ROW_OPT,   "touch_quicksave_buttons", 0, "Quick Save/Load Buttons" },
     { ROW_PAGE,  NULL, 0,                     "Next page  (Graphics)" },
     { ROW_CLOSE, NULL, 0,                     "Close" },
 };
@@ -1395,7 +1396,9 @@ static void qo_row_name(const QoRowDef* r, char* out, int n)
     if (r->kind == ROW_OPT)
     {
         const void* h = PcOpt_QuickFind(r->key);
-        src = h ? PcOpt_QuickName(h) : r->key;
+        /* A table row may carry its own wording: the options screen's names
+         * are cut to fit a 320px value column, and this panel has the room. */
+        src = (r->label != NULL) ? r->label : (h ? PcOpt_QuickName(h) : r->key);
     }
     else if (r->kind == ROW_CHEAT)
         src = Pc_Cheats_Name(r->cpage, r->extra);

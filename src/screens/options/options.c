@@ -127,7 +127,14 @@ extern float g_PcFmvVolume;
 s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
 static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls, 3 = Camera, 4 = HUD */
+#if defined(SH_IOS) || defined(__ANDROID__)
+/* A sixth page on a phone. Every page there is at its 11-row ceiling (a
+ * twelfth row runs Back off the screen), so a new Controls row needed a page
+ * to push the overflow onto. PCOPT_M, after HUD. */
+#define PCOPT_PAGE_COUNT 6
+#else
 #define PCOPT_PAGE_COUNT 5
+#endif
 
 /* Mouse hover moves the selection WITHOUT resetting g_Options_SelectionHighlightTimer:
  * a reset re-arms the LINE_CURSOR_TIMER_MAX gate, which then swallows the click that
@@ -352,12 +359,17 @@ static const s_PcOpt PCOPT_C[] = {
      * in one place always, after WhoisMiau0x1's Android fork. Applies live. */
     { "Touch_Style",       &g_PcConfig.touchStyle,       "touch_style",            VAL_TSTYLE, 2, LBL_TSTYLE, NULL, 1, PCK_INT },
 #endif
-    /* A graphics option parked on the Controls page purely for room, on every
-     * platform now. 11 rows is the ceiling on every page -- a twelfth row runs
-     * Back off the bottom of a phone screen (reported) -- and on a phone the
-     * Graphics page is already at 11 with Load_Mods and Reset_Settings, while
-     * this page has exactly one spare. */
+#if defined(__ANDROID__) || defined(SH_IOS)
+    /* Quick Save / Quick Load buttons on the touch overlay. Named for the
+     * value column: a longer name pushes it past where Touch_Controls'
+     * "Always_Off" can finish before the 320px clip (see One_Button_Fire).
+     * The quick menu has room for the full wording. Applies live. */
+    { "Quick_Save_Load",   &g_PcConfig.touchQuickSaveLoad, "touch_quicksave_buttons", VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+#else
+    /* A graphics option parked on the Controls page purely for room: 11 rows
+     * is the ceiling on every page. On a phone it lives on the sixth page. */
     { "Bullet_Decals",     &g_PcConfig.bulletDecals,      "bullet_decals",          VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+#endif
     { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -383,11 +395,6 @@ static const s_PcOpt PCOPT_T[] = {
     { "OTS_Aim_Zoom",      NULL, "ots_aim_zoom_amount",    NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.otsAimZoom,  NULL, -200.0f, 200.0f, 5.0f },
     { "OTS_Aim_In_TPS",    &g_PcConfig.tpsOtsAim,          "tps_ots_aim",           VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Camera_Collision",  &g_PcConfig.tpsCameraCollision, "tps_camera_collision",  VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-#if defined(__ANDROID__)
-    /* Parked on this page purely for room: it is the only one under the 11-row
-     * ceiling on a phone. Applied at startup, so it needs a relaunch. */
-    { "Screen_Rotation",   &g_PcConfig.screenOrientation, "screen_orientation",    VAL_ORIENT, 3, LBL_ORIENT, NULL, 0, PCK_INT },
-#endif
     { "Prev_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -408,17 +415,33 @@ static const s_PcOpt PCOPT_H[] = {
     /* From the System page; a crosshair is HUD, and that page needed the room. */
     { "Crosshair",         &g_PcConfig.crosshair,          "crosshair",             VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Crosshair_Size",    NULL, "crosshair_size",         NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.crosshairSize, NULL, 25.0f, 125.0f, 5.0f },
-#if defined(SH_IOS) || defined(__ANDROID__)
-    /* The RetroAchievements login. It was a twelfth row on the Screen page, and
-     * a twelfth row runs Back off the bottom of a phone screen (reported); this
-     * is the last page and had one spare. Mobile only, because a phone has no
-     * launcher -- everywhere else the launcher owns the account and the game
-     * just consumes the token it left in the config. */
-    { "Achievements",      NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_RALOGIN },
-#endif
     { "Prev_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_PREV },
+#if defined(SH_IOS) || defined(__ANDROID__)
+    /* Not the last page on a phone: PCOPT_M follows. */
+    { "Next_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_NEXT },
+#endif
     { "Back",              NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_BACK },
 };
+
+#if defined(SH_IOS) || defined(__ANDROID__)
+/* Page 6, phones only: the overflow. Each of these was parked on a page with
+ * a spare row until the rows ran out -- Bullet_Decals on Controls, the
+ * RetroAchievements login on HUD, Android's Screen_Rotation on Camera, which
+ * had made that page twelve tall there. The pages are unlabelled in game, so
+ * grouping is secondary to every page fitting. */
+static const s_PcOpt PCOPT_M[] = {
+    { "Bullet_Decals",     &g_PcConfig.bulletDecals,      "bullet_decals",       VAL_ONOFF,  2, LBL_ONOFF,  NULL, 1, PCK_INT },
+    /* Mobile only, because a phone has no launcher: everywhere else the
+     * launcher owns the account and the game just consumes its token. */
+    { "Achievements",      NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_RALOGIN },
+#if defined(__ANDROID__)
+    /* Applied at startup, so it needs a relaunch. */
+    { "Screen_Rotation",   &g_PcConfig.screenOrientation, "screen_orientation", VAL_ORIENT, 3, LBL_ORIENT, NULL, 0, PCK_INT },
+#endif
+    { "Prev_Page",         NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_PREV },
+    { "Back",              NULL,                          NULL,                  NULL,       0, NULL,       NULL, 0, PCK_BACK },
+};
+#endif
 
 static void Options_PcOptionsMenu_EntryStringsDraw(void);
 static void Options_PcOptionsMenu_ConfigDraw(void);
@@ -456,6 +479,9 @@ const s_PcOpt* PcOpt_PageByIndex(int page, int* count)
     if (page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
     if (page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
     if (page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
+#if defined(SH_IOS) || defined(__ANDROID__)
+    if (page == 5) { *count = (int)(sizeof(PCOPT_M) / sizeof(PCOPT_M[0])); return PCOPT_M; }
+#endif
     *count = (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0]));
     return PCOPT_H;
 }
@@ -466,6 +492,9 @@ static const s_PcOpt* PcOpt_Page(int* count)
     if (g_PcOptionsMenu_Page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
     if (g_PcOptionsMenu_Page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
     if (g_PcOptionsMenu_Page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
+#if defined(SH_IOS) || defined(__ANDROID__)
+    if (g_PcOptionsMenu_Page == 5) { *count = (int)(sizeof(PCOPT_M) / sizeof(PCOPT_M[0])); return PCOPT_M; }
+#endif
     *count = (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0]));
     return PCOPT_H;
 }

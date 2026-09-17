@@ -266,6 +266,10 @@ typedef struct {
      * fixed PSX pad -- stick, four face buttons, shoulders, Start/Select --
      * drawn in the same place always). e_TouchStyle. Config key: touch_style. */
     int   touchStyle;
+    /* 1 = Quick Save and Quick Load buttons on the touch overlay, in both
+     * styles. Off by default: they open the save and load screens, which
+     * nobody wants under a stray thumb. Config key: touch_quicksave_buttons. */
+    int   touchQuickSaveLoad;
     int   screenOrientation;
     float touchLookSensitivity; /* touch look speed multiplier, 0.1..4.0 (config key: touch_look_sensitivity); default 1.0 */
     int   oneButtonCombat;  /* 1 = Aim also fires, so combat is one thumb (config key: one_button_combat) */

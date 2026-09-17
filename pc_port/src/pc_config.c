@@ -117,6 +117,7 @@ s_PcConfig g_PcConfig = {
     .touchControls       = TouchControls_Off,
 #endif
     .touchStyle          = TouchStyle_Context,
+    .touchQuickSaveLoad  = 0,
     .screenOrientation   = 0, /* lock landscape: what the port has always done */
     .touchLookSensitivity = 1.0f,
     .renderScale         = 1.0f,
@@ -1047,6 +1048,10 @@ void PcConfig_Load(const char* path)
                 v = TouchStyle_Context;
 
             g_PcConfig.touchStyle = v;
+        }
+        else if (strcmp(key, "touch_quicksave_buttons") == 0)
+        {
+            g_PcConfig.touchQuickSaveLoad = (atoi(value) != 0);
         }
         else if (strcmp(key, "screen_orientation") == 0)
         {

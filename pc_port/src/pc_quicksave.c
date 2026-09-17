@@ -9,6 +9,8 @@
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/screen/screen_draw.h"
 #include "main/fsqueue.h"
+#include "bodyprog/sound/sfx_id_enum.h"
+#include "bodyprog/sound/sound_system.h"
 #include "sh_log.h"
 #include "pc_config.h"
 #include "pc_rando.h"
@@ -60,6 +62,21 @@ static int Pc_QuickSave_BossActive(void)
     return 0;
 }
 
+/* Requests from the touch overlay's Quick Save / Quick Load buttons
+ * (pc_touch.c). Held for exactly one update and consumed whatever the state,
+ * so a tap that could not act is dropped instead of firing later on a screen
+ * it was never aimed at. */
+static int s_touchReqSave = 0;
+static int s_touchReqLoad = 0;
+
+void Pc_QuickSave_TouchRequest(int load)
+{
+    if (load)
+        s_touchReqLoad = 1;
+    else
+        s_touchReqSave = 1;
+}
+
 void Pc_QuickSaveLoadUpdate(void)
 {
     static SDL_Scancode scSave   = SDL_SCANCODE_UNKNOWN;
@@ -73,6 +90,11 @@ void Pc_QuickSaveLoadUpdate(void)
     const Uint8* keys;
     int          curSave;
     int          curLoad;
+    const int    touchSave = s_touchReqSave;
+    const int    touchLoad = s_touchReqLoad;
+
+    s_touchReqSave = 0;
+    s_touchReqLoad = 0;
 
     if (!resolved) {
         scSave   = SDL_GetScancodeFromName(g_PcConfig.keyQuickSave);
@@ -84,12 +106,11 @@ void Pc_QuickSaveLoadUpdate(void)
     if (Pc_Rando_Active())
         return;
 
-    keys = SDL_GetKeyboardState(NULL);
-    if (keys == NULL)
-        return;
-
-    curSave = (scSave != SDL_SCANCODE_UNKNOWN) ? keys[scSave] : 0;
-    curLoad = (scLoad != SDL_SCANCODE_UNKNOWN) ? keys[scLoad] : 0;
+    /* No keyboard state is no keys held, not a reason to skip the touch
+     * requests as well. */
+    keys    = SDL_GetKeyboardState(NULL);
+    curSave = (keys != NULL && scSave != SDL_SCANCODE_UNKNOWN) ? keys[scSave] : 0;
+    curLoad = (keys != NULL && scLoad != SDL_SCANCODE_UNKNOWN) ? keys[scLoad] : 0;
 
     /* PsyCross owns Ctrl+<key> for its renderer diagnostics, and these binds
      * read the same raw key state, so a Ctrl shortcut on a key that is also
@@ -108,17 +129,25 @@ void Pc_QuickSaveLoadUpdate(void)
         g_SysWork.sysState == SysState_Gameplay &&
         !g_PcConsoleInputActive)
     {
-        if (curSave && !prevSave && Pc_QuickSave_BossActive()) {
+        const int wantSave = (curSave && !prevSave) || touchSave;
+        const int wantLoad = (curLoad && !prevLoad) || touchLoad;
+
+        if (wantSave && Pc_QuickSave_BossActive()) {
             SH_DBG_ECHO("Can't quick save during a boss fight");
-        } else if (curSave && !prevSave) {
-            SH_DBG("[QUICK] opening save screen (%s)", g_PcConfig.keyQuickSave);
+            /* A phone has no console to show that line on; say no out loud. */
+            if (touchSave)
+                Sd_PlaySfx(Sfx_MenuError, 0, 64);
+        } else if (wantSave) {
+            SH_DBG("[QUICK] opening save screen (%s)",
+                   touchSave ? "touch" : g_PcConfig.keyQuickSave);
             SysWork_SavegameUpdatePlayer();
             Screen_Refresh(320, 0);
             GameFs_SaveLoadBinLoad();
             Fs_QueueWaitForEmpty();
             Game_StateSetNext(GameState_SaveScreen);
-        } else if (curLoad && !prevLoad) {
-            SH_DBG("[QUICK] opening load screen (%s)", g_PcConfig.keyQuickLoad);
+        } else if (wantLoad) {
+            SH_DBG("[QUICK] opening load screen (%s)",
+                   touchLoad ? "touch" : g_PcConfig.keyQuickLoad);
             Screen_Refresh(320, 0);
             GameFs_SaveLoadBinLoad();
             Fs_QueueWaitForEmpty();

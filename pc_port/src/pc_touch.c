@@ -39,7 +39,7 @@ enum { TR_NONE = 0, TR_MOVE, TR_LOOK, TR_BUTTON, TR_ADVANCE,
 /* Actions the on-screen buttons drive. Indices into s_Buttons. */
 enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_FIRE, TB_MENU,
        TB_SKIP,
-       TB_LIGHT, TB_VIEW, TB_COUNT };
+       TB_LIGHT, TB_VIEW, TB_QSAVE, TB_QLOAD, TB_COUNT };
 
 typedef struct
 {
@@ -97,6 +97,11 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
     /* Corner escape slot only, like TB_BACK -- its own position is never
      * used; it carries the glyph and the Skip binding. */
     [TB_SKIP] = { 0.920f, 0.158f, 0.055f, 0 },
+    /* Quick Save / Quick Load, only with touch_quicksave_buttons on. Up in the
+     * empty band of the top edge, a quarter in from each side, about the size
+     * of Menu, Pause and View -- a shade larger, so the letter clears the ring. */
+    [TB_QSAVE] = { 0.245f, 0.068f, 0.060f, 0 },
+    [TB_QLOAD] = { 0.745f, 0.068f, 0.060f, 0 },
 };
 
 typedef struct
@@ -468,6 +473,10 @@ static int Tc_Mode(void)
 #define TG_BTN_D    0.125f  /* cluster arm length */
 #define TG_BTN_R    0.068f
 #define TG_SHLD_W   0.080f
+/* Start and Select carry the longest names on the row (SELECT is 35 prim units
+ * at the smallest legible size, a shoulder plate's inside is 34), so their
+ * plates are a touch wider. */
+#define TG_MID_W    0.095f
 #define TG_SHLD_H   0.040f
 
 /* Drawn small, caught generously: a thumb's contact patch sits below where the
@@ -485,7 +494,23 @@ typedef struct
 
 enum { TG_C_TRIANGLE = 0, TG_C_CIRCLE, TG_C_CROSS, TG_C_SQUARE,
        TG_C_L1, TG_C_L2, TG_C_START, TG_C_MENU, TG_C_SELECT, TG_C_R2, TG_C_R1,
+       TG_C_QSAVE, TG_C_QLOAD,
        TG_C_COUNT };
+
+/* Quick Save / Quick Load: round, face-button style, between the shoulders and
+ * the middle trio and hanging a little below the row. */
+#define TG_QS_R      0.060f /* the letter needs this much ring to clear it */
+#define TG_QS_ROW_Y  0.12f
+#define TG_QS_LOW_Y  (0.08f + TG_SHLD_H + TG_QS_R + 0.03f)
+
+/* Both styles' quick buttons exist only with touch_quicksave_buttons on:
+ * hidden, they are neither drawn nor hit-tested. */
+extern void Pc_QuickSave_TouchRequest(int load);
+
+static int Tc_QuickButtonsOn(void)
+{
+    return g_PcConfig.touchQuickSaveLoad != 0;
+}
 
 /* The quick-options panel has no PSX button to press, so its control carries no
  * pad bit and is handled on its own edge below -- the same way TB_MENU is in the
@@ -520,11 +545,42 @@ static void Tg_Layout(float aspectW)
     /* Top row: shoulders at the outside, Start/Select inboard of them. */
     s_TgCtls[TG_C_L1]     = (s_TgCtl){ 0.14f,            0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_L1 };
     s_TgCtls[TG_C_L2]     = (s_TgCtl){ 0.34f,            0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_L2 };
-    /* Three across the middle now -- Start, Menu, Select -- re-centred so the
-     * group still sits on the screen's midline rather than the pair's. */
-    s_TgCtls[TG_C_START]  = (s_TgCtl){ aspectW * 0.5f - 0.22f, 0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_START };
-    s_TgCtls[TG_C_MENU]   = (s_TgCtl){ aspectW * 0.5f,         0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_NOBIT };
-    s_TgCtls[TG_C_SELECT] = (s_TgCtl){ aspectW * 0.5f + 0.22f, 0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_SELECT };
+    /* Three across the middle -- Start, Menu, Select -- centred on the screen's
+     * midline. The gap gives way on a narrow screen: a phone has room, but at
+     * 4:3 a fixed 0.22 puts Start on top of L2, which sits 0.34 in. */
+    {
+        const float mid   = aspectW * 0.5f;
+        const float room  = mid - (0.34f + TG_SHLD_W + TG_MID_W + 0.02f);
+        /* Never closer than Start's plate to Menu's drawn bars (46% of the
+         * Menu plate's width). The bars are all that is visible there; using
+         * Menu's whole plate pushed the trio onto L2 and R2 at 4:3. */
+        const float tight = TG_MID_W + (TG_SHLD_W * 0.46f) + 0.01f;
+        float       sp    = 0.22f;
+        float       startX, selectX, gap, qy;
+
+        if (sp > room)  sp = room;
+        if (sp < tight) sp = tight;
+        startX  = mid - sp;
+        selectX = mid + sp;
+
+        s_TgCtls[TG_C_START]  = (s_TgCtl){ startX,  0.08f, TG_MID_W,  TG_SHLD_H, 0, TG_START };
+        s_TgCtls[TG_C_MENU]   = (s_TgCtl){ mid,     0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_NOBIT };
+        s_TgCtls[TG_C_SELECT] = (s_TgCtl){ selectX, 0.08f, TG_MID_W,  TG_SHLD_H, 0, TG_SELECT };
+
+        /* Save midway between L2 and Start, Load midway between Select and
+         * R2 -- the gaps they were asked for. Where that gap is too narrow for
+         * the button (a 4:3 tablet has none), they drop below the row. */
+        gap = (startX - TG_MID_W) - (0.34f + TG_SHLD_W);
+        /* In the row only where the gap also holds their TOUCH areas: each
+         * side's plate catches 30% past its drawn edge and the button 30% past
+         * its ring. At 16:9 the drawn gap fits but those overlap, so the
+         * plates would take the taps meant for Save and Load. */
+        qy  = (gap >= ((TG_SHLD_W + TG_MID_W) * (TG_HIT_GROW - 1.0f)) +
+                      (TG_QS_R * TG_HIT_GROW * 2.0f))
+                  ? TG_QS_ROW_Y : TG_QS_LOW_Y;
+        s_TgCtls[TG_C_QSAVE] = (s_TgCtl){ (0.34f + startX) * 0.5f,            qy, TG_QS_R, TG_QS_R, 1, TG_NOBIT };
+        s_TgCtls[TG_C_QLOAD] = (s_TgCtl){ (selectX + aspectW - 0.34f) * 0.5f, qy, TG_QS_R, TG_QS_R, 1, TG_NOBIT };
+    }
     s_TgCtls[TG_C_R2]     = (s_TgCtl){ aspectW - 0.34f,   0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_R2 };
     s_TgCtls[TG_C_R1]     = (s_TgCtl){ aspectW - 0.14f,   0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_R1 };
 
@@ -545,6 +601,9 @@ static int Tg_HitCtl(float hx, float hy)
 
     for (i = 0; i < TG_C_COUNT; i++)
     {
+        if ((i == TG_C_QSAVE || i == TG_C_QLOAD) && !Tc_QuickButtonsOn())
+            continue;
+
         float dx = hx - s_TgCtls[i].cx;
         float dy = hy - s_TgCtls[i].cy;
         float hw = s_TgCtls[i].hw * TG_HIT_GROW;
@@ -689,6 +748,8 @@ static int Tc_HitButton(float x, float y, float aspect)
     for (i = 0; i < TB_COUNT; i++)
     {
         if (Tc_CornerOnly(i))
+            continue;
+        if ((i == TB_QSAVE || i == TB_QLOAD) && !Tc_QuickButtonsOn())
             continue;
 
         float dx = (x - s_Buttons[i].cx) * aspect;
@@ -1231,6 +1292,20 @@ void Pc_Touch_Update(void)
                     Pc_QuickOptions_Toggle();
                 s_tgMenuWas = menuNow;
             }
+
+            /* Quick Save / Quick Load: no PSX button, so edge-triggered
+             * requests, gated like the keys in pc_quicksave.c. */
+            {
+                static int s_tgSaveWas, s_tgLoadWas;
+                const int  on      = Tc_QuickButtonsOn();
+                const int  saveNow = on && s_TgHeld[TG_C_QSAVE];
+                const int  loadNow = on && s_TgHeld[TG_C_QLOAD];
+
+                if (saveNow && !s_tgSaveWas) Pc_QuickSave_TouchRequest(0);
+                if (loadNow && !s_tgLoadWas) Pc_QuickSave_TouchRequest(1);
+                s_tgSaveWas = saveNow;
+                s_tgLoadWas = loadNow;
+            }
         }
         if (s_Buttons[TB_LIGHT].holdFrames > 0) Tc_PressAction(&s_PadWord, cfg->light);
         /* The raw L2 bit, which is exactly what the Gamepad style's second
@@ -1252,6 +1327,20 @@ void Pc_Touch_Update(void)
             if (menuNow && !s_menuWas && Tc_MenuAllowed())
                 Pc_QuickOptions_Toggle();
             s_menuWas = menuNow;
+        }
+
+        /* Quick Save / Quick Load, edge-triggered on the latch for the same
+         * reason as Menu. Gamepad style handles its own pair above. */
+        {
+            static int s_saveWas, s_loadWas;
+            const int  on      = Tc_QuickButtonsOn() && !Tc_GamepadStyle();
+            const int  saveNow = on && (s_Buttons[TB_QSAVE].holdFrames > 0);
+            const int  loadNow = on && (s_Buttons[TB_QLOAD].holdFrames > 0);
+
+            if (saveNow && !s_saveWas) Pc_QuickSave_TouchRequest(0);
+            if (loadNow && !s_loadWas) Pc_QuickSave_TouchRequest(1);
+            s_saveWas = saveNow;
+            s_loadWas = loadNow;
         }
         if (s_Buttons[TB_BACK].holdFrames  > 0) Tc_PressAction(&s_PadWord, cfg->cancel);
 
@@ -1350,7 +1439,9 @@ static float Tc_RectT(void) { extern float g_PcHudRect[4]; return g_PcHudRect[2]
 static float Tc_RectB(void) { extern float g_PcHudRect[4]; return g_PcHudRect[3]; }
 
 
-#define TC_MAX_QUADS 220
+/* Room for the labelled top row and the quick buttons on top of everything
+ * else the pad draws (about 190 at worst); quads past the cap are dropped. */
+#define TC_MAX_QUADS 320
 
 typedef struct
 {
@@ -1358,8 +1449,8 @@ typedef struct
     int      used;
 } s_TcBatch;
 
-static void Tc_Quad(s_TcBatch* b, int x0, int y0, int x1, int y1,
-                    int x2, int y2, int x3, int y3, int lum)
+static void Tc_QuadRGB(s_TcBatch* b, int x0, int y0, int x1, int y1,
+                       int x2, int y2, int x3, int y3, int r, int g, int bl)
 {
     POLY_G4* q;
 
@@ -1368,9 +1459,147 @@ static void Tc_Quad(s_TcBatch* b, int x0, int y0, int x1, int y1,
 
     q = &b->p[b->used++];
     setXY4(q, x0, y0, x1, y1, x2, y2, x3, y3);
-    q->r0 = q->r1 = q->r2 = q->r3 = (u_char)lum;
-    q->g0 = q->g1 = q->g2 = q->g3 = (u_char)lum;
-    q->b0 = q->b1 = q->b2 = q->b3 = (u_char)lum;
+    q->r0 = q->r1 = q->r2 = q->r3 = (u_char)r;
+    q->g0 = q->g1 = q->g2 = q->g3 = (u_char)g;
+    q->b0 = q->b1 = q->b2 = q->b3 = (u_char)bl;
+}
+
+static void Tc_Quad(s_TcBatch* b, int x0, int y0, int x1, int y1,
+                    int x2, int y2, int x3, int y3, int lum)
+{
+    Tc_QuadRGB(b, x0, y0, x1, y1, x2, y2, x3, y3, lum, lum, lum);
+}
+
+static void Tc_RectRGB(s_TcBatch* b, int l, int t, int r, int bm, int cr, int cg, int cb)
+{
+    Tc_QuadRGB(b, l, t, r, t, l, bm, r, bm, cr, cg, cb);
+}
+
+/* A 5x7 pixel font, just the letters the controls need. One byte per row,
+ * 0x10 is the leftmost column. Overlay vertices are whole prim units (about
+ * four screen pixels on a phone), which is too coarse for any smaller face. */
+typedef struct
+{
+    char          ch;
+    unsigned char rows[7];
+} s_TcGlyph;
+
+static const s_TcGlyph s_TcFont[] = {
+    { 'L', { 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F } },
+    { 'R', { 0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11 } },
+    { 'S', { 0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E } },
+    { 'T', { 0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04 } },
+    { 'A', { 0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11 } },
+    { 'E', { 0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F } },
+    { 'C', { 0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E } },
+    { '1', { 0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E } },
+    { '2', { 0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F } },
+};
+
+#define TC_GLYPH_W   5
+#define TC_GLYPH_H   7
+#define TC_GLYPH_ADV 6 /* one column of spacing */
+
+/* One glyph as few rectangles as possible: each horizontal run is extended
+ * down while the rows below repeat it, so an L is two quads, not eleven. */
+static void Tc_Glyph(s_TcBatch* b, const unsigned char* rows, int x, int y, int px,
+                     int cr, int cg, int cb)
+{
+    unsigned char used[TC_GLYPH_H] = { 0 };
+    int           row;
+
+    for (row = 0; row < TC_GLYPH_H; row++)
+    {
+        int col = 0;
+
+        while (col < TC_GLYPH_W)
+        {
+            unsigned char bit = (unsigned char)(0x10 >> col);
+            unsigned char mask;
+            int           c1, r1, k;
+
+            if (!(rows[row] & bit) || (used[row] & bit))
+            {
+                col++;
+                continue;
+            }
+
+            c1   = col;
+            mask = bit;
+            while (c1 + 1 < TC_GLYPH_W &&
+                   (rows[row] & (0x10 >> (c1 + 1))) &&
+                   !(used[row] & (0x10 >> (c1 + 1))))
+            {
+                c1++;
+                mask |= (unsigned char)(0x10 >> c1);
+            }
+
+            r1 = row;
+            while (r1 + 1 < TC_GLYPH_H &&
+                   (rows[r1 + 1] & mask) == mask &&
+                   !(used[r1 + 1] & mask))
+                r1++;
+
+            for (k = row; k <= r1; k++)
+                used[k] |= mask;
+
+            Tc_RectRGB(b, x + col * px, y + row * px,
+                       x + (c1 + 1) * px, y + (r1 + 1) * px, cr, cg, cb);
+            col = c1 + 1;
+        }
+    }
+}
+
+static int Tc_TextLen(const char* s)
+{
+    int n = 0;
+
+    while (s[n] != '\0')
+        n++;
+    return n;
+}
+
+/* Width in font pixels. */
+static int Tc_TextWidth(const char* s)
+{
+    const int n = Tc_TextLen(s);
+
+    return (n > 0) ? ((n * TC_GLYPH_ADV) - 1) : 0;
+}
+
+/* Centred on (cx, cy), px prim units per font pixel. */
+static void Tc_Text(s_TcBatch* b, const char* s, int cx, int cy, int px,
+                    int cr, int cg, int cb)
+{
+    int x = cx - (Tc_TextWidth(s) * px) / 2;
+    int y = cy - (TC_GLYPH_H * px) / 2;
+    int i, g;
+
+    for (i = 0; s[i] != '\0'; i++)
+    {
+        for (g = 0; g < (int)(sizeof(s_TcFont) / sizeof(s_TcFont[0])); g++)
+        {
+            if (s_TcFont[g].ch == s[i])
+            {
+                Tc_Glyph(b, s_TcFont[g].rows, x, y, px, cr, cg, cb);
+                break;
+            }
+        }
+        x += TC_GLYPH_ADV * px;
+    }
+}
+
+/* Save and load are the only controls that touch the player's progress, so
+ * they are the only coloured ones: green to write, blue to read. */
+static void Tc_QuickTint(int load, int lum, int* cr, int* cg, int* cb)
+{
+    const int br = 150;
+    const int bg = load ? 200 : 255;
+    const int bb = load ? 255 : 170;
+
+    *cr = (br * lum) / 255;
+    *cg = (bg * lum) / 255;
+    *cb = (bb * lum) / 255;
 }
 
 /* Filled octagon as three non-overlapping quads (cap, band, cap). Overlapping
@@ -1387,7 +1616,16 @@ static void Tc_Octagon(s_TcBatch* b, int cx, int cy, int r, int lum)
 
 /* Octagonal ring between radii rOuter and rInner: eight annulus quads, the same
  * construction the crosshair's circle style uses. */
+static void Tc_RingRGB(s_TcBatch* b, int cx, int cy, int rOuter, int rInner,
+                       int cr, int cg, int cb);
+
 static void Tc_Ring(s_TcBatch* b, int cx, int cy, int rOuter, int rInner, int lum)
+{
+    Tc_RingRGB(b, cx, cy, rOuter, rInner, lum, lum, lum);
+}
+
+static void Tc_RingRGB(s_TcBatch* b, int cx, int cy, int rOuter, int rInner,
+                       int cr, int cg, int cb)
 {
     static const int SX[8] = { 100,  71,   0, -71, -100, -71,    0,  71 };
     static const int SY[8] = {   0,  71, 100,  71,    0, -71, -100, -71 };
@@ -1401,8 +1639,24 @@ static void Tc_Ring(s_TcBatch* b, int cx, int cy, int rOuter, int rInner, int lu
         int ix0 = cx + ((SX[i] * rInner) / 100), iy0 = cy + ((SY[i] * rInner) / 100);
         int ix1 = cx + ((SX[j] * rInner) / 100), iy1 = cy + ((SY[j] * rInner) / 100);
 
-        Tc_Quad(b, ox0, oy0, ox1, oy1, ix0, iy0, ix1, iy1, lum);
+        Tc_QuadRGB(b, ox0, oy0, ox1, oy1, ix0, iy0, ix1, iy1, cr, cg, cb);
     }
+}
+
+/* A quick save/load button: a tinted ring with its letter. */
+static void Tc_QuickButton(s_TcBatch* b, int load, int cx, int cy, int r, int lum)
+{
+    int cr, cg, cb, px;
+    int inner = (r * 80) / 100;
+
+    Tc_QuickTint(load, lum, &cr, &cg, &cb);
+    Tc_RingRGB(b, cx, cy, r, inner, cr, cg, cb);
+    /* 80% of the ring's inside: two prim units a font pixel at phone size,
+     * which still clears the ring corner to corner. */
+    px = ((inner * 2 * 80) / 100) / TC_GLYPH_H;
+    if (px < 1)
+        px = 1;
+    Tc_Text(b, load ? "L" : "S", cx, cy, px, cr, cg, cb);
 }
 
 void Pc_Touch_Draw(void)
@@ -1485,6 +1739,14 @@ void Pc_Touch_Draw(void)
             int by  = TC_UY(s_TgCtls[c].cy);
             int lum = s_TgHeld[c] ? 255 : 145;
 
+            if (c == TG_C_QSAVE || c == TG_C_QLOAD)
+            {
+                if (Tc_QuickButtonsOn())
+                    Tc_QuickButton(&batch, c == TG_C_QLOAD, bx, by,
+                                   TC_UR(s_TgCtls[c].hw), lum);
+                continue;
+            }
+
             if (s_TgCtls[c].circle)
             {
                 int br = TC_UR(s_TgCtls[c].hw);
@@ -1543,8 +1805,44 @@ void Pc_Touch_Draw(void)
                 }
                 else
                 {
-                    Tc_Quad(&batch, bx - hw, by - hh, bx + hw, by - hh,
-                                    bx - hw, by + hh, bx + hw, by + hh, lum);
+                    /* An outlined plate carrying the button's own name, so the
+                     * top row reads like the pad it stands in for rather than
+                     * six identical slabs. Filled while held, like a pressed
+                     * key. */
+                    const unsigned short bit = s_TgCtls[c].bit;
+                    const char* label = (bit == TG_L1)     ? "L1"
+                                      : (bit == TG_L2)     ? "L2"
+                                      : (bit == TG_R1)     ? "R1"
+                                      : (bit == TG_R2)     ? "R2"
+                                      : (bit == TG_START)  ? "START"
+                                      : (bit == TG_SELECT) ? "SELECT" : "";
+                    int t = (hh * 12) / 100;
+                    int fw, availW, availH, px;
+
+                    if (t < 1)
+                        t = 1;
+
+                    if (s_TgHeld[c])
+                        Tc_RectRGB(&batch, bx - hw + t, by - hh + t, bx + hw - t, by + hh - t,
+                                   90, 90, 90);
+
+                    Tc_RectRGB(&batch, bx - hw, by - hh,     bx + hw, by - hh + t, lum, lum, lum);
+                    Tc_RectRGB(&batch, bx - hw, by + hh - t, bx + hw, by + hh,     lum, lum, lum);
+                    Tc_RectRGB(&batch, bx - hw, by - hh + t, bx - hw + t, by + hh - t, lum, lum, lum);
+                    Tc_RectRGB(&batch, bx + hw - t, by - hh + t, bx + hw, by + hh - t, lum, lum, lum);
+
+                    /* As large as the plate allows: the shoulder names fit at
+                     * two prim units a font pixel, START and SELECT at one. */
+                    fw     = Tc_TextWidth(label);
+                    availW = (2 * hw) - (2 * t) - 2;
+                    availH = (2 * hh) - (2 * t) - 2;
+                    px     = availH / TC_GLYPH_H;
+                    if (fw > 0 && px * fw > availW)
+                        px = availW / fw;
+                    if (px < 1)
+                        px = 1;
+
+                    Tc_Text(&batch, label, bx, by, px, lum, lum, lum);
                 }
             }
         }
@@ -1591,6 +1889,11 @@ void Pc_Touch_Draw(void)
         if (i == TB_MENU && !Tc_MenuAllowed())
             continue;
 
+        /* Quick Save / Quick Load: only with the option on, and only in play. */
+        if ((i == TB_QSAVE || i == TB_QLOAD) &&
+            (mode != TC_MODE_GAMEPLAY || !Tc_QuickButtonsOn()))
+            continue;
+
         /* Fire appears with the gun and goes away with it. */
         if (i == TB_FIRE &&
             (mode != TC_MODE_GAMEPLAY || g_PcConfig.oneButtonCombat ||
@@ -1612,6 +1915,12 @@ void Pc_Touch_Draw(void)
         int cy = TC_UY(bcy);
         int r  = TC_UR(br);
         int lum = (s_Buttons[i].holdFrames > 0) ? 255 : 140;
+
+        if (i == TB_QSAVE || i == TB_QLOAD)
+        {
+            Tc_QuickButton(&batch, i == TB_QLOAD, cx, cy, r, lum);
+            continue;
+        }
 
         Tc_Ring(&batch, cx, cy, r, (r * 82) / 100, lum);
 
