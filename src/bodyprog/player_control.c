@@ -11,12 +11,6 @@
 #include <setjmp.h>
 #include "sh_log.h"
 
-/* Each of these is called earlier in this file than it is defined. Without a
- * prototype the call creates an implicit `int f()` declaration that then
- * conflicts with the real definition -- GCC tolerates that, Clang (the Android
- * NDK compiler) rejects it. */
-void func_8007C0D8(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINATE2* coords);
-
 static jmp_buf s_PlayerCrashJmp;
 static volatile sig_atomic_t s_PlayerCrashGuardActive = 0;
 extern int g_DebugNoWallCollision;
@@ -1915,21 +1909,8 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                      * you" feel. The mesh slew above is decoration. */
                     g_Player_IsMovingForward     = (g_Player_IsMovingForward & 0x2) | (anyInput ? 1 : 0);
                     g_Player_IsMovingBackward    = 0;
-                    /* The stepping HOLDS are deliberately left alone. Turning and
-                     * backward are derived from the stick, so 2D owns them and has
-                     * to clear them; sidestep is not -- it comes from the dedicated
-                     * stepLeft/stepRight binds (L1/R1) that Player_Controller reads
-                     * a few lines earlier, and it is a separate control from the
-                     * movement stick under every scheme.
-                     *
-                     * Zeroing them here meant the anim chain below saw holdL/holdR
-                     * as 0 no matter how long the button was held, so the sidestep
-                     * arm was reachable only through the TAP shift registers, which
-                     * age out after 6 ticks: tapping worked, holding did nothing,
-                     * and only with 2D controls on. Sidestep now behaves the same
-                     * whether 2D is on or off, which is what it should always have
-                     * done. The stick still wins when it is pushed, because the
-                     * forward arm is tested before the sidestep arm. */
+                    g_Player_IsSteppingLeftHold  = 0;
+                    g_Player_IsSteppingRightHold = 0;
                     g_Player_IsTurningLeft       = 0;
                     g_Player_IsTurningRight      = 0;
                     g_Player_HasMoveInput        = anyInput;
@@ -2339,17 +2320,7 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                 /* While jump-back is active, suppress normal anim-state assignments
                  * so the hop plays to completion even if the player releases the
                  * back button or briefly touches another direction. */
-                /* Bit 0 is the CURRENT forward input; bit 1 is the aged copy the
-                 * 30 Hz shift register keeps so a one-frame dropout cannot fire
-                 * the skid-stop. Selecting the animation off the whole register
-                 * let that aged bit win this chain for a tick after forward was
-                 * released -- and anything that sets it spuriously (the pad's
-                 * stick emits DpadUp, which Joy_ControllerDataUpdate folds into
-                 * LStickUp) locks the chain on the forward arm, so the sidestep
-                 * arm below is never reached while the button is held. The skid
-                 * detector still reads the full register; only the selector is
-                 * narrowed to the live bit. */
-                if (!jumpBackActive) if (g_Player_IsMovingForward & 1) {
+                if (!jumpBackActive) if (g_Player_IsMovingForward) {
                     /* Movement-direction anim (OTS/TPS, Oblivion-style): forward and
                      * diagonal use RunForward (IsMovingForward wins here); PURE left/
                      * right are handled by the sidestep/strafe branch below (RunLeft/
@@ -2434,31 +2405,9 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
                          * (PC_OTS_RUN_SPEED * g_DeltaTime, matching func_8007C0D8's
                          * forward integration) so left/right run as fast as forward.
                          * Walk-sidestep keeps the slow anim-driven discrete shuffle. */
-                        /* Held is driven by real time, not by the animation's own
-                         * time delta.
-                         *
-                         * The anim-delta path only produces movement on a frame where
-                         * anim.time actually advanced INSIDE the 70..94 (or 95..119)
-                         * loop, and it is zeroed whenever the delta is negative or
-                         * larger than Q12(2) -- which is every loop wrap, every frame
-                         * the status is (re)assigned (s_prevSidestepTime resets to -1),
-                         * and every hitch. Tapping hides that, because a tap is mostly
-                         * the blend-in, which does advance time. Holding does not: the
-                         * loop wraps every 24 keyframes and Harry stops travelling
-                         * while the shuffle keeps playing -- "moves about a foot, then
-                         * the animation cancels and it stops".
-                         *
-                         * Same average speed as before by construction: the old path
-                         * moved Q12(0.024) per keyframe and the loop runs at Q12(30)
-                         * keyframes a second, so 0.024 * 30 = Q12(0.72) a second. It is
-                         * simply continuous now, and holding travels until released. */
-                        bool stepHeld = isLeft ? (bool)g_Player_IsSteppingLeftHold
-                                               : (bool)g_Player_IsSteppingRightHold;
                         q19_12 step = 0;
                         if (runStrafe) {
                             step = Q12_MULT_PRECISE(PC_OTS_RUN_SPEED, g_DeltaTime);
-                        } else if (stepHeld) {
-                            step = Q12_MULT_PRECISE(Q12(0.72f), g_DeltaTime);
                         } else if (dTime > 0) {
                             step = Q12_MULT_PRECISE(Q12(0.024f), dTime);
                         }
@@ -11899,21 +11848,8 @@ void Player_Controller(void) // 0x8007F32C
     {
         g_Player_IsMovingForward = (g_Player_IsMovingForward * 2) & 0x3;
     }
-#ifdef SH_PC_PORT
-    /* Same 30 Hz ageing as the forward register above and the attack one below,
-     * which these two were left out of. They are 6-bit shift registers of the
-     * sidestep TAP, and the sidestep plays for as long as any bit is still set.
-     * PSX shifts once per 30 Hz tick, so a tap lasts ~200 ms. Aged per render
-     * frame it lasts 6 frames however long that is: 100 ms at 60, 50 ms on a
-     * 120 Hz phone, 25 ms at 240. That is the reported "sidestep plays for a
-     * frame and stops", and why it is worse the faster the display runs. */
-    static int s_stepTapShiftAccum = 0;
-    if (PC_Tick30HzReady(&s_stepTapShiftAccum))
-#endif
-    {
-        g_Player_IsSteppingLeftTap  = (g_Player_IsSteppingLeftTap * 2) & 0x3F;
-        g_Player_IsSteppingRightTap = (g_Player_IsSteppingRightTap * 2) & 0x3F;
-    }
+    g_Player_IsSteppingLeftTap  = (g_Player_IsSteppingLeftTap * 2) & 0x3F;
+    g_Player_IsSteppingRightTap = (g_Player_IsSteppingRightTap * 2) & 0x3F;
 
     if (g_Controller0->sticks_20.sticks_0.leftY < -STICK_THRESHOLD || g_Controller0->sticks_20.sticks_0.leftY >= STICK_THRESHOLD ||
         g_Controller0->sticks_20.sticks_0.leftX < -STICK_THRESHOLD || g_Controller0->sticks_20.sticks_0.leftX >= STICK_THRESHOLD)
