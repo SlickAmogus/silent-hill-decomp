@@ -57,6 +57,66 @@ static void Pc_BgEtcSpriteBandUvFix(POLY_FT4* poly)
     poly->v3 -= 128;
 }
 
+/* Snow flake / beam tip sprite: BG_ETC holds a plus of opaque texels inside a
+ * 4x4 box (CLUT indices 0 and 1; index 2 is the transparent entry of the snow
+ * CLUT rows at VRAM y 96..103). Vanilla covers that box with a right triangle
+ * and saves a vertex, because the PSX rasterizes a 1-4 pixel primitive by
+ * pixel corner, so the hypotenuse never clips a texel it should have drawn.
+ * Above 320x240 the same hypotenuse cuts through the texels themselves: the
+ * plus loses its lower-right arms and the 2x2 mid-distance flake loses its
+ * bottom-right quarter, which is why the snow renders as little wedges.
+ *
+ * Re-emit the primitive as the whole box, one texel per PSX pixel. Every texel
+ * the triangle left out is transparent, so this is the PSX pixel coverage at
+ * any resolution. */
+static POLY_FT4* Pc_SpriteTriToQuad(POLY_FT3* tri)
+{
+    POLY_FT4* quad  = (POLY_FT4*)tri;
+    s16       x     = tri->x0;
+    s16       y     = tri->y0;
+    s16       w     = tri->x2 - tri->x0;
+    s16       h     = tri->y1 - tri->y0;
+    u8        u     = tri->u0;
+    u8        v     = tri->v0;
+    u8        r     = tri->r0;
+    u8        g     = tri->g0;
+    u8        b     = tri->b0;
+    u16       clut  = tri->clut;
+    u16       tpage = tri->tpage;
+    bool      semi  = (tri->code & 2) != 0;
+
+    setPolyFT4(quad);
+    setSemiTrans(quad, semi);
+
+    quad->r0    = r;
+    quad->g0    = g;
+    quad->b0    = b;
+    quad->clut  = clut;
+    quad->tpage = tpage;
+
+    quad->x0 = x;
+    quad->y0 = y;
+    quad->u0 = u;
+    quad->v0 = v;
+
+    quad->x1 = x + w;
+    quad->y1 = y;
+    quad->u1 = u + w;
+    quad->v1 = v;
+
+    quad->x2 = x;
+    quad->y2 = y + h;
+    quad->u2 = u;
+    quad->v2 = v + h;
+
+    quad->x3 = x + w;
+    quad->y3 = y + h;
+    quad->u3 = u + w;
+    quad->v3 = v + h;
+
+    return quad;
+}
+
 /* On PSX `sharedData_800DD58C_0_s00` IS `g_ParticlesAddedCount[1]` — one object,
  * two names (0x800DD588 + 4 == 0x800DD58C in map0_s00's address space; every
  * rain overlay's sym table shows the same 4-byte overlap, e.g. map1_s03
@@ -2857,6 +2917,10 @@ void Particle_SnowDraw(s_Particle* part)
                 polyFt3->y1   = polyFt3->y0 + 3;
             }
 
+#ifdef SH_PC_PORT
+            Pc_SpriteTriToQuad(polyFt3);
+#endif
+
 #if defined(MAP1_S00) || defined(MAP6_S00)
             addPrim(&g_OrderingTable0[g_ActiveBufferIdx].org[zScreenStart], polyFt3);
 #elif defined(MAP7_S03)
@@ -2880,7 +2944,12 @@ void Particle_SnowDraw(s_Particle* part)
                     break;
             }
 #endif
+
+#ifdef SH_PC_PORT
+            GsOUT_PACKET_P = (PACKET*)((POLY_FT4*)polyFt3 + 1);
+#else
             GsOUT_PACKET_P = (PACKET*)&polyFt3[1];
+#endif
         }
     }
 }
@@ -4544,10 +4613,18 @@ void Particle_HyperBlasterBeamDraw(VECTOR3* vec0, q3_12* rotX, q3_12* rotY)
                     break;
             }
 
+#ifdef SH_PC_PORT
+            Pc_SpriteTriToQuad(polyFt3);
+#endif
+
             if (zScreenStart >= 1 && zScreenStart < 0xFF)
             {
                 addPrim(&ot->org[zScreenStart], polyFt3);
+#ifdef SH_PC_PORT
+                GsOUT_PACKET_P = (PACKET*)((POLY_FT4*)polyFt3 + 1);
+#else
                 GsOUT_PACKET_P = (PACKET*)&polyFt3[1];
+#endif
             }
         }
     }

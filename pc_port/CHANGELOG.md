@@ -1,5 +1,79 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.09.11.1 -- 2026-09-11
+- Fixed Rock Drill and Chainsaw attacks not working
+- Fixed sound replacement mods not playing at right pitch in some cases
+- Restored menus to 60 FPS limit as letting them go higher seemed to cause issues. You can put 'menu_fps_unlock = 1' in your config to unlock them again.
+- Fixed issues that would prevent Linux builds from compiling
+
+Commit summaries:
+- Bump PsyCross: whole-bank sound mods play at the right pitch again
+- Rock drill and chainsaw: the attack input was dropped at PC frame rates
+- Menus run at 60fps again, the rate the PSX ran them at
+- CI: the optional ffmpeg header step can no longer hang the Linux build
+- CI: bound the apt install step too, and one Linux run per branch
+
+## beta-2026.09.10.1 -- 2026-09-10
+- Fixed rain effect being oddly slanted in certain conditions
+- Fixed SFX mods like weapon sound replacements so that they work again
+- Set weather back to 60hz by default and added option in quick menu and PC options to set it back to 30hz
+- Fixed PC options pages so none run off the screen
+- Can now have more than one text override file and multiple text override mods installed at once (check the modding guide under docs for details)
+- Fixed issue where real game would show real gameplay frames in the background after warm reset (may not be fully fixed, needs testing)
+- Fixed launcher not showing real resolutions like 2560x1440 and instead showing DPI resolutions
+- You can now select custom experimental builds in the launcher under "Build Settings" - downloading these will replace the current installed build until you switch it back. The experimental builds will contain test features not in the main branch, but they also may never be finished.
+
+Commit summaries:
+- Release script: -Name publishes a custom opt-in build; launcher lists it under "Custom builds"
+- Launcher: custom builds update within their own name, never across mods or into beta
+- docs: document the text_overrides system in the modding guide
+- Text overrides: several text mods at once, mod-list order settles a conflict
+- Release script: custom builds leave the launcher out unless -WithLauncher
+- Rain: the fence clamp moved the streak's head without its tail (issue #134)
+- TEMP [RAINSLANT] probe: dump the terms behind a leaning rain streak (issue #134)
+- [RAINSLANT] probe rewritten so it actually fires, and it now samples the draw too
+- [RAINSLANT] probe v3: spend the budget on the seconds that show the artifact
+- Bump PsyCross: sound replacements work under the software SPU
+- [RAINSLANT] probe: measure the streak in SCREEN PIXELS, where the artifact is
+- Rain: a drop that lands on grating smeared with the camera (issue #134)
+- Fix the main menu drawing over the last gameplay frame
+- Launcher: 1440p missing from the resolution list on scaled displays
+- PC Options: a Weather Rate row for the 30/60 Hz weather simulation
+
+## beta-2026.09.08.3 -- 2026-09-08
+- Fixed regression where fog had sudden hard edge instead of gradient
+- Fixed mod manager issue where it would prompt that you were overwriting files when it was just due to one mod being higher priority than another
+
+Commit summaries:
+- xa_wav.h: include stddef.h for size_t (Linux/macOS build fix)
+- Mod Manager: no "your file" prompt when a higher-priority mod outranks another mod's copy
+- Bump PsyCross: drop the fog snap-to-full (the fog "wall" got harder)
+
+## beta-2026.09.08.2 -- 2026-09-08
+- Fixed support for additional voiced dialog that wasn't originally in the game (tested with locked door text)
+Commit summary: Text-box voice files were mixed into a switched-off CD input
+
+## beta-2026.09.08.1 -- 2026-09-08
+- Mod Manager: Implemented voice (XA) replacements, can be replaced with WAV and mod manager has built in viewer, editor, voice recorder, and mod maker. Fan dubs have never been easier to make. Let me know if you have any questions. (Audio > Voices in Mod Manager)
+- In addition to voice replacements, it is now possible to add voices to lines that never had them. Some things may not work yet and it still needs testing, but these are all listed in a separate tab in the voice editor.
+- Map editor has been updated to support triggers/flag editing and will also display 3D models. Will be posted in Discord.
+
+Commit summaries:
+- xa: voice line replacements from gamedata/load/XA
+- launcher: Voices (XA) tool for voice mods and fan dubs (2026.9.7.1)
+- docs: document trigger/flag editing in the TrenchBroom guide
+- Voice files for unvoiced text boxes (load/XA/msg_<KEY>.wav)
+- Launcher: Voices tool lists text boxes for msg_<KEY>.wav files
+- Launcher: no space before punctuation in the text-box list
+- Launcher: subtitle text and key on the disc voice-line list
+- Voice WAV overrides for the software SPU XA player too
+- Resample loose voice WAVs to 37800 Hz for the software SPU
+- Launcher: record and import voice files at the disc's 37800 Hz
+- Launcher: Voices tool picks the disc and shows the script in its languages
+- Launcher: "Create voice mod" packs load/XA into a mod and hands it to the Mod Manager
+- Launcher: Voices tool tells mod-placed files from the user's own; packing stops at the zip
+- PsyCross -> 5d320bc ([PGXPCLIP] probe); Flashlight self-shadow task doc
+
 ## beta-2026.09.06.2 -- 2026-09-06
 - Fixed issue where Harry would get back up very quickly when breaking out of a grab attack
 - Mod manager will now not re-extract files that have already been extracted, and will prompt you before overwriting anything that already exists
