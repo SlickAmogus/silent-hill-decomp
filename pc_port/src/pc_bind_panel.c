@@ -42,6 +42,7 @@ extern const char* PsyX_Pad_HeldBindName(void);
 extern int         PsyX_Pad_AxisValue(int sdlAxis);
 extern int         g_PsyX_WheelUpFrames, g_PsyX_WheelDownFrames;
 extern int         g_DebugThirdPersonCam;
+extern void        PsyX_GetDisplayViewport(int* outX, int* outY, int* outW, int* outH);
 
 /* ------------------------------------------------------------------ */
 /* Rows                                                                */
@@ -1053,7 +1054,7 @@ static const BpText* bp_text(const char* text, int px)
 
 void Pc_BindPanel_Draw(void)
 {
-    GLint vp[4];
+    GLint vp[4], prevVp[4];
     float vpW, vpH, panelW, panelH, panelL, panelR, panelT, panelB, dim = 1.0f;
     float pad, titleH, subH, headH, footH, rowH, listT, listB, listL, listR;
     float colX[BP_COLS + 2];
@@ -1069,7 +1070,12 @@ void Pc_BindPanel_Draw(void)
     if (s_phase == BP_CLOSED)
         return;
 
-    glGetIntegerv(GL_VIEWPORT, vp);
+    /* Lay out against the picture's rect, not the GL_VIEWPORT the frame left:
+     * a menu frame that drew nothing keeps the full-window viewport while one
+     * that drew leaves the pillarboxed one, and the panel changed size between
+     * them (the "stretch" as it opened). The rect is the one the mouse
+     * fractions are measured in, so hit-testing and the cursor still line up. */
+    PsyX_GetDisplayViewport(&vp[0], &vp[1], &vp[2], &vp[3]);
     if (vp[2] <= 0 || vp[3] <= 0)
         return;
     vpW = (float)vp[2];
@@ -1078,6 +1084,9 @@ void Pc_BindPanel_Draw(void)
     if (!s_glReady) bp_gl_init();
     if (s_glReady != 1) return;
     if (!s_fontsTried) bp_fonts_init();
+
+    glGetIntegerv(GL_VIEWPORT, prevVp);
+    glViewport(vp[0], vp[1], vp[2], vp[3]);
 
     glGetIntegerv(GL_CURRENT_PROGRAM, &prevProg);
     glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &prevVao);
@@ -1360,6 +1369,7 @@ void Pc_BindPanel_Draw(void)
 #undef NY
 
 restore:
+    glViewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3]);
     glBindTexture(GL_TEXTURE_2D, (GLuint)prevTex);
     glActiveTexture((GLenum)prevUnit);
     glPixelStorei(GL_UNPACK_ALIGNMENT, prevAlign);

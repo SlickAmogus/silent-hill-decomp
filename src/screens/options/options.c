@@ -4088,7 +4088,18 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
 
         if (g_GameWork.gameStateSteps[1] == ControllerMenuState_Leave)
         {
+            /* The PSX leave path would draw the old layout under the fade-out;
+             * leave the same way without drawing anything. */
             s_bindPanelShown = 0;
+            if (ScreenFade_IsFinished())
+            {
+                ScreenFade_Start(true, true, false);
+                g_GameWork.gameStateSteps[0] = OptionsMenuState_LeaveController;
+                g_SysWork.counters_1C[1]     = 0;
+                g_GameWork.gameStateSteps[1] = 0;
+                g_GameWork.gameStateSteps[2] = 0;
+            }
+            return;
         }
         else
         {
