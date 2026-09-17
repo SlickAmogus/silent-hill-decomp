@@ -1425,6 +1425,14 @@ int Pc_Touch_AnyContact(void)
     return Tc_ContactPresent();
 }
 
+/* 1 while the glass is what is playing the game: the full scheme is live and
+ * nothing physical has taken it over. Used by control_style.c, which holds the
+ * camera in classic for as long as this is true. */
+int Pc_Touch_IsDrivingInput(void)
+{
+    return Tc_Level() == TC_LEVEL_FULL && s_LastSource != TS_PHYSICAL;
+}
+
 int Pc_Touch_UsedRecently(void)
 {
     if (s_LastTouchMs == 0)

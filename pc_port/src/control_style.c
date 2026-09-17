@@ -56,7 +56,12 @@ const char* Pc_ControlStyleLabel(int idx)
     return g_ControlStyles[idx].label;
 }
 
-void Pc_ControlStyleSet(int style)
+/* The style the player chose, which is the one the config holds. A camera
+ * forced live (touch, below) must not overwrite it. */
+static int s_userStyle = ControlStyle_Classic;
+
+/* Everything Pc_ControlStyleSet does except remember it: a live change only. */
+static void Pc_ControlStyleApply(int style)
 {
     int wasTps = g_DebugThirdPersonCam;
 
@@ -80,6 +85,15 @@ void Pc_ControlStyleSet(int style)
      * Not flagged on tps<->ots so cycling between them doesn't jerk the view. */
     if (!wasTps && g_DebugThirdPersonCam)
         g_TpsCamNeedsReset = 1;
+}
+
+void Pc_ControlStyleSet(int style)
+{
+    if (style < 0 || style >= Pc_ControlStyleCount())
+        style = ControlStyle_Classic;
+
+    Pc_ControlStyleApply(style);
+    s_userStyle = style;
 
     /* Persist so the choice survives a restart and the launcher reflects it.
      * Mouse capture is managed per-frame in Pc_ControlStyleUpdate. */
@@ -115,6 +129,7 @@ void Pc_ControlStyleInit(void)
         style = ControlStyle_Classic;
 
     g_ControlStyle        = style;
+    s_userStyle           = style;
     g_DebugThirdPersonCam = (style == ControlStyle_Tps || style == ControlStyle_Ots ||
                              style == ControlStyle_Fps);
     g_PcFpsCam            = (style == ControlStyle_Fps);
@@ -214,6 +229,36 @@ void Pc_ControlStyleUpdate(void)
     inGameplay = (g_GameWork.gameState == GameState_InGame &&
                   g_SysWork.sysState   == SysState_Gameplay &&
                   !g_PcConsoleInputActive && !g_PcQuickOptionsActive);
+
+#if defined(SH_IOS) || defined(__ANDROID__)
+    /* Touch plays in classic. The alternate cameras are aim-and-look cameras
+     * built around a mouse or a stick, and the overlay offers no way to pick
+     * one anyway, so a saved tps/ots/fps would strand a player who has only
+     * the glass. Held live, never written to the config: the style is the
+     * controller's, and picking the pad back up restores it. */
+    {
+        extern int Pc_Touch_IsDrivingInput(void);
+        static int s_touchClassic = 0;
+        const int  touchDriving   = Pc_Touch_IsDrivingInput();
+
+        if (touchDriving && g_ControlStyle != ControlStyle_Classic)
+        {
+            SH_DBG("[CTRLSTYLE] touch is driving -> classic (saved: %s)",
+                   Pc_ControlStyleId(s_userStyle));
+            Pc_ControlStyleApply(ControlStyle_Classic);
+            s_touchClassic = 1;
+        }
+        else if (!touchDriving && s_touchClassic)
+        {
+            s_touchClassic = 0;
+            if (s_userStyle != g_ControlStyle)
+            {
+                SH_DBG("[CTRLSTYLE] pad is driving -> %s", Pc_ControlStyleId(s_userStyle));
+                Pc_ControlStyleApply(s_userStyle);
+            }
+        }
+    }
+#endif
 
     keys   = SDL_GetKeyboardState(NULL);
     {
