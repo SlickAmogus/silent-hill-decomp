@@ -6,6 +6,7 @@
 #include "maps/characters/split_head.h"
 #ifdef SH_PC_PORT
 #include "pc_timing.h"
+#include "sh_log.h"
 #endif
 
 #define splitHeadProps splitHead->properties.splitHead
@@ -282,17 +283,16 @@ void SplitHead_ControlUpdate(s_SubCharacter* splitHead)
     extern void (*g_SplitHead_ControlFuncs[])(s_SubCharacter* splitHead); // TODO: Add func table to this func.
 
 #ifdef SH_PC_PORT
-    /* The eat has no way out on PSX: SplitHeadFlag_1 and _9 are set on the bite
-     * and never cleared, because Harry is always dead by the time it ends. A
-     * jump-back timed on the bite can leave him free while the boss is already
-     * in its eat loop (anim 14, keyframes 34-36 forever), which then chews and
-     * sprays blood at nothing and never bites again. When Harry is not in the
-     * mouth, drop the eat the way a missed bite ends -- blend to the idle stance,
-     * which leads back into the attack cycle -- and allow the next bite.
-     *
-     * A pending attack gets one second to land; a state that ignores it would
-     * otherwise hold the eat open forever. The stale attack is cleared so it
-     * cannot kill Harry later, after he has visibly escaped. */
+    /* The eat assumes the bite took Harry: SplitHeadFlag_1 and _9 are set on the
+     * bite and never cleared, because on PSX Harry is always dead before the
+     * eat ends. A jump-back timed on the bite could lose the attack before the
+     * damage handler acted on it, so the boss chewed at nothing forever while
+     * Harry walked away. A bite that has registered now stands: if the attack
+     * has not put Harry in the eaten state within 0.2 s, he is put there
+     * directly, exactly as the handler's case 47 does. A hop that clears the
+     * mouth before the bite registers still escapes, because then there is no
+     * bite. With damage off (god mode, damage or control disabled) the eat is
+     * dropped instead, the way a missed bite ends. */
     {
         static q19_12 s_pcPendingTime = Q12(0.0f);
 
@@ -305,10 +305,16 @@ void SplitHead_ControlUpdate(s_SubCharacter* splitHead)
         {
             s_pcPendingTime += g_DeltaTime;
 
-            if (!SplitHead_PcHarryTaken() || s_pcPendingTime > Q12(1.0f))
+            if (!SplitHead_PcHarryTaken() || s_pcPendingTime > Q12(0.2f))
             {
-                extern s8 D_800C4560;
-                const s32 eat = WEAPON_ATTACK(EquippedWeaponId_Unk37, AttackInputType_Hold);
+                extern s8  D_800C4560;
+                extern int g_PcGodMode;
+                const s32  eat = WEAPON_ATTACK(EquippedWeaponId_Unk37, AttackInputType_Hold);
+
+                SH_DBG("[SPLITBITE] bite not taken after %d ms: state=%d lower=%d attack=%d deferred=%d god=%d",
+                       (int)((s_pcPendingTime * 1000) >> 12), (int)g_SysWork.playerWork.extra.state,
+                       (int)g_SysWork.playerWork.extra.lowerBodyState,
+                       (int)g_SysWork.playerWork.player.attackReceived, (int)D_800C4560, g_PcGodMode);
 
                 if (g_SysWork.playerWork.player.attackReceived == eat)
                 {
@@ -318,13 +324,21 @@ void SplitHead_ControlUpdate(s_SubCharacter* splitHead)
                 {
                     D_800C4560 = NO_VALUE;
                 }
+                s_pcPendingTime = Q12(0.0f);
 
-                splitHeadProps.flags &= ~(SplitHeadFlag_1 | SplitHeadFlag_9);
-                s_pcPendingTime       = Q12(0.0f);
-
-                if (ANIM_STATUS_IDX_GET(splitHead->model.anim.status) == SplitHeadAnim_14)
+                if (g_PcGodMode || g_Player_DisableDamage || g_Player_DisableControl)
                 {
-                    splitHead->model.anim.status = ANIM_STATUS(SplitHeadAnim_StandIdle, false);
+                    splitHeadProps.flags &= ~(SplitHeadFlag_1 | SplitHeadFlag_9);
+                    if (ANIM_STATUS_IDX_GET(splitHead->model.anim.status) == SplitHeadAnim_14)
+                    {
+                        splitHead->model.anim.status = ANIM_STATUS(SplitHeadAnim_StandIdle, false);
+                    }
+                }
+                else
+                {
+                    g_SysWork.playerWork.player.health                  = NO_VALUE;
+                    g_SysWork.playerWork.player.collision.cylinder.field_2 = Q12(0.0f);
+                    Player_ExtraStateSet(&g_SysWork.playerWork.player, &g_SysWork.playerWork.extra, PlayerState_InstantDeath);
                 }
             }
         }
