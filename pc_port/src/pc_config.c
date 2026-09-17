@@ -101,6 +101,7 @@ s_PcConfig g_PcConfig = {
     .configVersion           = 0, /* absent key = pre-versioning; migration runs, then it is stamped */
     .minimapScale            = 100.0f,
     .minimapRequireMap       = 1, /* the map only appears once Harry has found it */
+    .minimapShowWithoutMap   = 0, /* no map found: no minimap (1 = empty panel + arrow) */
     .minimapOpacity          = 100.0f,
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
@@ -1095,6 +1096,10 @@ else if (strcmp(key, "enable_plugins") == 0)
         else if (strcmp(key, "minimap_require_map") == 0)
         {
             g_PcConfig.minimapRequireMap = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "minimap_show_without_map") == 0)
+        {
+            g_PcConfig.minimapShowWithoutMap = (atoi(value) != 0);
         }
         else if (strcmp(key, "minimap_scale") == 0)
         {

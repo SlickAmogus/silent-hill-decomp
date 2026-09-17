@@ -1207,6 +1207,27 @@ int Pc_QuickOptions_IsOpen(void)
     return s_phase != QO_CLOSED;
 }
 
+int Pc_QuickOptions_ShowsMinimapRows(void)
+{
+    const QoRowDef* rows;
+    int             n, i;
+
+    if (s_phase == QO_CLOSED)
+    {
+        return 0;
+    }
+    rows = qo_page_rows(s_page, &n);
+    for (i = 0; i < n; i++)
+    {
+        if (rows[i].kind == ROW_OPT && rows[i].key != NULL &&
+            strncmp(rows[i].key, "minimap", 7) == 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void qo_open(void)
 {
     if (s_phase == QO_OPENING || s_phase == QO_SHOWN)

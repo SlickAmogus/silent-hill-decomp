@@ -415,6 +415,13 @@ typedef struct {
     int  raSpectator;
 
     char mapName[64];    /* e.g. "map0_s00" */
+
+    /* With minimap_require_map on and this area's paper map not found yet:
+     * 1 = still draw an empty panel with Harry's arrow (the old behaviour),
+     * 0 = hide the minimap until the map is found. Appended last so plugins
+     * built against the earlier layout still read the fields above.
+     * (config-only key: minimap_show_without_map; console: minimapnomap) */
+    int  minimapShowWithoutMap;
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;

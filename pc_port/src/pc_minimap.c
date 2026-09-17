@@ -29,6 +29,7 @@
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/events/bodyprog_data_800A99B4.h" /* g_PaperMapFileIdxs */
 #include "pc_config.h"
+#include "pc_quick_options.h"
 #include "hires_override.h"
 #include "pc_loose_files.h"
 #include "tex_pack.h"
@@ -674,6 +675,22 @@ void Pc_MinimapUpdate(void)
     {
         int mi = mm_effective_map_idx();
         if (mi < 0 || mi >= MM_PAPER_MAP_COUNT || !HAS_MAP(mi)) haveMap = 0;
+    }
+
+    /* No map yet means no minimap at all, not an empty panel: nothing on it
+     * would tell the player anything the map screen does not already say.
+     * Only HAS_MAP decides, so a map that is found but still loading keeps
+     * the panel up. Shown anyway while the quick menu is on the minimap
+     * settings, so they can be adjusted; minimap_show_without_map = 1 keeps
+     * the old empty panel. */
+    if (g_PcConfig.minimapRequireMap && !g_PcConfig.minimapShowWithoutMap &&
+        !Pc_QuickOptions_ShowsMinimapRows())
+    {
+        int mi = mm_effective_map_idx();
+        if (packed == 0 || mi < 0 || mi >= MM_PAPER_MAP_COUNT || !HAS_MAP(mi))
+        {
+            return;
+        }
     }
 
     if (packed != 0)
