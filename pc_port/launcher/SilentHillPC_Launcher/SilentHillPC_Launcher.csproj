@@ -95,6 +95,10 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="VabFile.cs" />
+    <Compile Include="VabDuplicates.cs" />
+    <Compile Include="DuplicateSoundsDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="MsgTable.cs" />
     <Compile Include="DiscText.cs" />
     <Compile Include="JpnMsgMap.cs" />

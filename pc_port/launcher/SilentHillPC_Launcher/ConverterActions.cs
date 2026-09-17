@@ -633,7 +633,7 @@ namespace SilentHillPC_Launcher
 
         public static void OpenAudioTool(IWin32Window owner, string gameRoot)
         {
-            AudioToolForm.ShowTool(owner, GuessSoundDir(gameRoot));
+            AudioToolForm.ShowTool(owner, gameRoot, GuessSoundDir(gameRoot));
         }
 
         private static string GuessSoundDir(string gameRoot)

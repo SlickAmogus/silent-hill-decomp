@@ -735,6 +735,8 @@ void GsTMDfastTG3LFG(void* op, VERT* vp, VERT* np, PACKET* pk, int n, int shift,
 
         poly = (POLY_GT3*)GsOUT_PACKET_P;
         setPolyGT3(poly);
+        /* The packet arena is reused: a world-object GT3 leaves 0x8000|fog in pad2 and fog in p1/p2, and the parser reads pad2 bit 15 as "v0 carries its own fog". Zero all three or one corner of every item triangle is fogged. */
+        poly->p1 = 0; poly->p2 = 0; poly->pad2 = 0;
         setSemiTrans(poly, (prim->cd >> 1) & 1);
         setRGB0(poly, c0.r, c0.g, c0.b);
         setRGB1(poly, c1.r, c1.g, c1.b);
@@ -1131,12 +1133,13 @@ void GsTMDfastNTG3(void* op, VERT* vp, PACKET* pk, int n, int shift, GsOT* ot, u
 
         poly = (POLY_GT3*)GsOUT_PACKET_P;
         setPolyGT3(poly);
+        /* The packet arena is reused: a world-object GT3 leaves 0x8000|fog in pad2 and fog in p1/p2, and the parser reads pad2 bit 15 as "v0 carries its own fog". Zero all three or one corner of every item triangle is fogged. */
+        poly->p1 = 0; poly->p2 = 0; poly->pad2 = 0;
         setSemiTrans(poly, (prim->mode >> 1) & 1);
         /* No per-vertex colours in data; use neutral 0x80 (= 100% modulation). */
         setRGB0(poly, ITEMDIM(0x80), ITEMDIM(0x80), ITEMDIM(0x80));
         setRGB1(poly, ITEMDIM(0x80), ITEMDIM(0x80), ITEMDIM(0x80));
         setRGB2(poly, ITEMDIM(0x80), ITEMDIM(0x80), ITEMDIM(0x80));
-        poly->p1 = 0; poly->p2 = 0;
         setUV3(poly, prim->tu0, prim->tv0, prim->tu1, prim->tv1, prim->tu2, prim->tv2);
         poly->tpage = prim->tpage;
         poly->clut  = prim->clut;

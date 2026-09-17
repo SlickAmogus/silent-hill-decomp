@@ -21,7 +21,7 @@ When a bug appeared after a known commit or set of commits:
 
 Log file: `C:\Claude\silenthill\silent-hill-decomp\pc_port\build\SilentHill.log` — always read this, never sh_stderr.txt.
 
-Never build the launcher — user builds it themselves.
+Build and deploy the launcher yourself when its source changes (bump AssemblyFileVersion first). The user runs the game.
 
 ## Code Rules
 

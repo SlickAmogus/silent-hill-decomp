@@ -148,6 +148,29 @@ namespace SilentHillPC_Launcher
 
         private byte[] _data;
 
+        /* Seven SND banks exist on the disc but are absent from the sound system's
+         * own table (g_AudioData[].fileOffset_8), which is what identifies a bank
+         * when it loads. Nothing ever requests them, so a replacement aimed at one
+         * cannot fire however it is named or resampled — and the Audio tool used to
+         * hand out an export name for them like any other, which is how
+         * MAP000_005.wav came to be a reasonable-looking file that did nothing.
+         *
+         * Derived by pairing every SND/*.VAB in filetable.c.USA.inc against that
+         * table: 83 of 90 are reachable, these are not. Names, not sectors, so it
+         * holds for every region. */
+        public static readonly string[] MapOnlyBanks =
+        {
+            "MAP000", "MAP100", "MAP101", "MAP102", "MAP103", "MAP502", "MAP604",
+        };
+
+        public static bool IsMapOnlyBank(string stem)
+        {
+            if (string.IsNullOrEmpty(stem)) return false;
+            foreach (string b in MapOnlyBanks)
+                if (string.Equals(stem, b, StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
+        }
+
         public byte[] Raw { get { return _data; } }
         public int BodiesOffset { get; private set; }
 

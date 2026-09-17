@@ -3966,7 +3966,24 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
             func_8007FB94(player, extra, ANIM_STATUS(101, true));
             player->collision.cylinder.field_2 = Q12(0.0f);
 
+#ifdef SH_PC_PORT
+            /* The Split Head eat is the only way this state ends, and it ended on
+             * ONE exact keyframe: 25 before the death anim's last. PSX steps the
+             * keyframe counter once per tick and lands on it; PC delta-time steps
+             * over it at anything above 30fps, so Game Over never fired, Harry sat
+             * in the eaten state with the boss chewing and the blood running, and
+             * the fight never ended (reported at 240fps). Same class as the gun,
+             * melee and tool gates, this one just never got the treatment.
+             *
+             * Reached-or-passed, bounded to the anim's own range so a stale index
+             * from the previous animation on the entry tick cannot fire it, and
+             * one-shot through controlState, which the block below advances. */
+            if (extra->model.controlState == 0 &&
+                player->model.anim.keyframeIdx >= (g_MapOverlayHdr.field_38[D_800AF220].keyframeIdx_6 - 25) &&
+                player->model.anim.keyframeIdx <= g_MapOverlayHdr.field_38[D_800AF220].keyframeIdx_6)
+#else
             if (player->model.anim.keyframeIdx == (g_MapOverlayHdr.field_38[D_800AF220].keyframeIdx_6 - 25))
+#endif
             {
                 g_MapOverlayHdr.playerAnimLock();
 

@@ -2086,6 +2086,12 @@ void func_800D952C(void) // 0x800D952C
 
     ptr0 = &D_800F3D58;
 
+#ifdef SH_PC_PORT
+    /* The declaration has to stay big enough for the write, or a toolchain that
+     * checks object sizes turns this into an abort. Fail the build instead. */
+    _Static_assert(sizeof(D_800F2448) >= 0x1900,
+                   "D_800F2448 must cover the 0x1900 pool memset");
+#endif
     memset(D_800F2448, 0xA5, 0x1900);
 
     ptr1 = D_800F3D48;

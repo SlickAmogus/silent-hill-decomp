@@ -190,19 +190,80 @@ void func_80057228(MATRIX* mat, s32 alpha, SVECTOR* arg2, VECTOR3* arg3);
 /* Compute fog factor (0-127) from a single screenZ value. Used for character
  * prims which don't have a precomputed field_252[] fog ramp array. Reads the
  * world's fog ramp at the index derived from screenZ. */
+/* Must produce the SAME number the world faces get for the same depth. The
+ * game's fog is ramp*16 + fog.intensity everywhere it computes one -- the face
+ * depth cue (0x1000 - ramp*16 - intensity), func_80055A50's callers at 1944 and
+ * 5255, PC_FACE_FOG_VERTS above -- and this macro alone left the intensity term
+ * out. fog.intensity is a live per-area bias (Q12(1.0) - func_800559A8), so
+ * every character, lamp post, sign and object went through here fogged LESS
+ * than the world around it by intensity*127/4096: at a distance where the
+ * street had already dissolved into the fog, the objects standing on it had
+ * not, and read as separate shapes against it everywhere outdoors. With the
+ * term the two formulas are identical (for intensity 0 this reduces exactly to
+ * the old (fb*127+128)>>8). */
 #define PC_SCREEN_Z_TO_FOG(z) ({ \
-    s32 _z = (s32)(z); s32 _fb; \
-    if (!g_WorldEnvWork.isFogEnabled) { _fb = 0; } \
-    else if (_z < (1 << g_WorldEnvWork.fog.depthShift)) { \
-        s32 _idx = (_z << 7) >> g_WorldEnvWork.fog.depthShift; \
-        if (_idx < 0) _idx = 0; if (_idx > 127) _idx = 127; \
-        _fb = g_WorldEnvWork.fogRamp[_idx]; \
-    } else { _fb = 255; } \
-    (u8)((_fb * 127 + 128) >> 8); \
+    s32 _z = (s32)(z); s32 _fa; \
+    if (!g_WorldEnvWork.isFogEnabled) { _fa = 0; } \
+    else { \
+        s32 _fb; \
+        if (_z < (1 << g_WorldEnvWork.fog.depthShift)) { \
+            s32 _idx = (_z << 7) >> g_WorldEnvWork.fog.depthShift; \
+            if (_idx < 0) _idx = 0; if (_idx > 127) _idx = 127; \
+            _fb = g_WorldEnvWork.fogRamp[_idx]; \
+        } else { _fb = 255; } \
+        _fa = _fb * 16 + g_WorldEnvWork.fog.intensity; \
+        if (_fa > 0x1000) _fa = 0x1000; if (_fa < 0) _fa = 0; \
+    } \
+    (u8)((_fa * 127 + 2048) >> 12); \
 })
+/* Which vertex decides the far cull. PSX drops a world face once its FARTHEST
+ * vertex passes the fog far distance, which the maps set one metre past where
+ * the ramp reaches full fog. The drawn world therefore ends at the far edge of
+ * the last surviving face, up to a whole face-length short of full fog: on the
+ * town maps (near 13.5 m, road and wall quads several metres deep) that edge
+ * sits at 75-95% fog, and a dark texture there is the fog colour scaled by
+ * 0.96-0.99 -- the (107,99,114) and (104,97,112) against a (108,100,116) void
+ * that every VOIDPROBE run measured. PSX's 15-bit framebuffer folded that
+ * one-unit step away; an 8-bit one shows it as the outline of every road end,
+ * wall top and lamp post at the draw distance. No shader curve can close it,
+ * because the fragment really is short of full fog. Cull on the NEAREST vertex
+ * instead: a face is dropped only once all of it is past the far distance, so
+ * the far edge of whatever is drawn always lies beyond full fog, where its fog
+ * byte is 127 and the shader writes exactly the void colour. The extra faces
+ * are fully fogged, so nothing new becomes visible; no-fog maps keep the PSX
+ * test. The triangle sentinel (4th index 0xFF) is skipped, as the loops that
+ * do not rewrite it would otherwise read past the vertex pool. */
+#define PC_FACE_CULL_DEPTH(sd, maxz) ({ \
+    s32 _cd = (maxz); \
+    if (g_WorldEnvWork.isFogEnabled) { \
+        s32 _mn = (sd)->field_18C[(sd)->field_380.s_0.field_10]; \
+        s32 _tz = (sd)->field_18C[(sd)->field_380.s_0.field_11]; if (_tz < _mn) _mn = _tz; \
+        _tz = (sd)->field_18C[(sd)->field_380.s_0.field_12]; if (_tz < _mn) _mn = _tz; \
+        if ((sd)->field_380.s_0.field_13 != 0xFF) { \
+            _tz = (sd)->field_18C[(sd)->field_380.s_0.field_13]; if (_tz < _mn) _mn = _tz; \
+        } \
+        if (_mn < _cd) _cd = _mn; \
+    } \
+    _cd; })
+
+/* Same rule for lit objects (lamp posts, signs, fences), whose loops cull on
+ * the face's AVERAGE depth: a post whose top is past the far distance lost its
+ * upper faces while the lower ones were still at 90% fog. */
+#define PC_OBJ_CULL_DEPTH(sd, avgz, quad) ({ \
+    s32 _cd = (avgz); \
+    if (g_WorldEnvWork.isFogEnabled) { \
+        s32 _mn = (sd)->screenZ_168[(sd)->u.s_1.field_0]; \
+        s32 _tz = (sd)->screenZ_168[(sd)->u.s_1.field_1]; if (_tz < _mn) _mn = _tz; \
+        _tz = (sd)->screenZ_168[(sd)->u.s_1.field_2]; if (_tz < _mn) _mn = _tz; \
+        if (quad) { _tz = (sd)->screenZ_168[(sd)->u.s_1.field_3]; if (_tz < _mn) _mn = _tz; } \
+        if (_mn < _cd) _cd = _mn; \
+    } \
+    _cd; })
 #else
 #define FOG_FAR_DIST() (g_WorldEnvWork.fog.farDistance)
 #define VTXCOL_LDDP(dp) gte_lddp(dp)
+#define PC_FACE_CULL_DEPTH(sd, maxz) (maxz)
+#define PC_OBJ_CULL_DEPTH(sd, avgz, quad) (avgz)
 #endif
 
 // ========================================
@@ -2780,7 +2841,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
 
                     SH_CLAMP_OT_DEPTH(scratchData->field_380.s_0.field_18, arg3);
 
-                    if (scratchData->field_380.s_0.field_18 > scratchData->field_380.s_0.field_1C)
+                    if (PC_FACE_CULL_DEPTH(scratchData, scratchData->field_380.s_0.field_18) > scratchData->field_380.s_0.field_1C)
                     {
                         continue;
                     }
@@ -3030,7 +3091,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
 
                 SH_CLAMP_OT_DEPTH(scratchData->field_380.s_0.field_18, arg3);
 
-                if (scratchData->field_380.s_0.field_18 > scratchData->field_380.s_0.field_1C)
+                if (PC_FACE_CULL_DEPTH(scratchData, scratchData->field_380.s_0.field_18) > scratchData->field_380.s_0.field_1C)
                 {
                     continue;
                 }
@@ -3201,7 +3262,7 @@ void Gfx_MeshDraw(s_MeshHeader* meshHdr, s_GteScratchData* scratchData, GsOT_TAG
 
             SH_CLAMP_OT_DEPTH(scratchData->field_380.s_0.field_18, arg3);
 
-            if (scratchData->field_380.s_0.field_18 > scratchData->field_380.s_0.field_1C)
+            if (PC_FACE_CULL_DEPTH(scratchData, scratchData->field_380.s_0.field_18) > scratchData->field_380.s_0.field_1C)
             {
                 continue;
             }
@@ -3463,7 +3524,7 @@ __block1530:
 
         SH_CLAMP_OT_DEPTH(scratchData->field_380.s_0.field_18, arg3);
 
-        if (scratchData->field_380.s_0.field_18 > scratchData->field_380.s_0.field_1C)
+        if (PC_FACE_CULL_DEPTH(scratchData, scratchData->field_380.s_0.field_18) > scratchData->field_380.s_0.field_1C)
         {
 #ifdef SH_PC_PORT
             _b1530FarZ++;
@@ -3686,7 +3747,7 @@ __block19CC:
 
         SH_CLAMP_OT_DEPTH(scratchData->field_380.s_0.field_18, arg3);
 
-        if (scratchData->field_380.s_0.field_18 > scratchData->field_380.s_0.field_1C)
+        if (PC_FACE_CULL_DEPTH(scratchData, scratchData->field_380.s_0.field_18) > scratchData->field_380.s_0.field_1C)
         {
 #ifdef SH_PC_PORT
             pc_primIdx++;
@@ -4457,13 +4518,15 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                        scratchData->screenZ_168[scratchData->u.s_1.field_2] + scratchData->screenZ_168[scratchData->u.s_1.field_2]) >> 2;
 
             SH_WHOLEMAP_DEPTH_RESCUE(temp_t4, arg3);
-            if (temp_t4 <= 0 || var_t9 < temp_t4)
+            if (temp_t4 <= 0 || var_t9 < PC_OBJ_CULL_DEPTH(scratchData, temp_t4, 0))
             {
 #ifdef SH_PC_PORT
                 _dbgPrimDepthFail++;
 #endif
                 continue;
             }
+            /* The average may now exceed the far distance; keep the OT bucket in range. */
+            SH_CLAMP_OT_DEPTH(temp_t4, arg3);
 
             gte_NormalClip(*(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_0],
                            *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_1],
@@ -4531,6 +4594,12 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
              * with distance. Without this, distant characters render as the
              * solid color from gte_nct (which collapses to the background
              * color = black when fog dampens light contribution to ~0). */
+            /* v0's fog rides the unused trailing pad2 short, marked with bit 15,
+             * the same scheme the GT4 case below uses. v0's own colour-word pad
+             * is the GPU command code, so without this the renderer had to give
+             * v0 its neighbour's fog and every triangle came out with one corner
+             * fogged for the wrong distance. */
+            poly.gt3->pad2 = 0x8000 | PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_0]);
             poly.gt3->p1 = PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_1]);
             poly.gt3->p2 = PC_SCREEN_Z_TO_FOG(scratchData->screenZ_168[scratchData->u.s_1.field_2]);
 #endif
@@ -4550,13 +4619,15 @@ void func_8005AC50(s_MeshHeader* meshHdr, s_GteScratchData2* scratchData, GsOT_T
                        scratchData->screenZ_168[scratchData->u.s_1.field_2] + scratchData->screenZ_168[scratchData->u.s_1.field_3]) >> 2;
 
             SH_WHOLEMAP_DEPTH_RESCUE(temp_t4, arg3);
-            if (temp_t4 <= 0 || var_t9 < temp_t4)
+            if (temp_t4 <= 0 || var_t9 < PC_OBJ_CULL_DEPTH(scratchData, temp_t4, 1))
             {
 #ifdef SH_PC_PORT
                 _dbgPrimDepthFail++;
 #endif
                 continue;
             }
+            /* The average may now exceed the far distance; keep the OT bucket in range. */
+            SH_CLAMP_OT_DEPTH(temp_t4, arg3);
 
             gte_ldsxy3(*(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_0],
                        *(s32*)&scratchData->screenXy_0[scratchData->u.s_1.field_1],

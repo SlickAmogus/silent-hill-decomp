@@ -4,6 +4,9 @@
 #include "main/rng.h"
 #include "maps/shared.h"
 #include "maps/characters/split_head.h"
+#ifdef SH_PC_PORT
+#include "pc_timing.h"
+#endif
 
 #define splitHeadProps splitHead->properties.splitHead
 
@@ -1737,11 +1740,25 @@ void sharedFunc_800D4070_1_s05(s_SubCharacter* splitHead)
 
     if (g_DeltaTime != Q12(0.0f))
     {
+#ifdef SH_PC_PORT
+        /* The blood drops are rolled per CALL: a 1-in-32 (or 1-in-4) chance each
+         * tick, plus an unconditional drop every tick inside one window of the
+         * anim. PSX called this 30 times a second; at 240fps it is 240, so the
+         * boss shed eight times the blood and each drop's floor splat (the
+         * "dripping" sound) played eight times as often. Roll at the PSX
+         * cadence. The drops themselves fly on delta time, so they look the same. */
+        static int s_pcDropAccum = 0;
+        int        pcDropTick    = PC_Tick30HzReady(&s_pcDropAccum);
+#endif
         new_var = Q12(2.0f);
 
         animIdx = ANIM_STATUS_IDX_GET(splitHead->model.anim.status);
 
-        if ((ANIM_STATUS_IDX_GET(splitHead->model.anim.status) != SplitHeadAnim_12) && animIdx != SplitHeadAnim_13)
+        if (
+#ifdef SH_PC_PORT
+            pcDropTick &&
+#endif
+            (ANIM_STATUS_IDX_GET(splitHead->model.anim.status) != SplitHeadAnim_12) && animIdx != SplitHeadAnim_13)
         {
             if ((FP_FROM(splitHead->model.anim.time, Q12_SHIFT) < 20 || FP_FROM(splitHead->model.anim.time, Q12_SHIFT) > 35) &&
                 (FP_FROM(splitHead->model.anim.time, Q12_SHIFT) > 14 && FP_FROM(splitHead->model.anim.time, Q12_SHIFT) < 20 ||

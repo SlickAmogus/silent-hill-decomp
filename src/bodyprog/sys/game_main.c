@@ -3577,10 +3577,28 @@ void MainLoop(void) // 0x80032EE0
              * Honour bg2dHeld immediately (these are stable screens, not a fade
              * transient to ride out — the countdown would flash a stretched
              * frame before snapping). */
+            /* The store-protect flag doubles as the paper-map "2D screen up"
+             * signal, but the map7_s03 ending raises it too, for its palettes,
+             * while drawing a full 3D scene under letterbox bars. A cutscene is
+             * never a 2D screen, so the flag must not narrow one. (Only reaches
+             * here since the map DLLs stopped carrying a private copy of the
+             * flag; before that the ending's write never left the DLL.) */
+            const int cutsceneLive = ((g_SysWork.sysFlags & SysFlag_CutsceneActive) ||
+                                      g_SysWork.cutsceneBorderState != CutsceneBorderState_None) ? 1 : 0;
             int wantHorPlus = (g_GameWork.gameState == GameState_InGame &&
-                               !g_PsxSkipFramebufferStore &&
+                               !(g_PsxSkipFramebufferStore && !cutsceneLive) &&
                                !g_PcMapScreenActive &&
                                !bg2dHeld) ? 1 : 0;
+
+            /* The same question the renderer needs answered for texture
+             * filtering: is this frame the 3D world, or one of the flat screens
+             * that runs inside the in-game state? A POLY primitive on a world
+             * frame is world geometry, and marking it so is what stops walls
+             * and tree quads rendering point-sampled because their vertices
+             * missed the view-space shadow. Deliberately the same expression
+             * rather than a second opinion -- the two must not disagree about
+             * what a world frame is. */
+            { extern int g_PsxFrame3dClass; g_PsxFrame3dClass = wantHorPlus; }
             /* The grace period below used to be a FRAME count (6), i.e. 200ms at
              * 30fps but only 100ms at 60 and 42ms at 144 -- while the fade it
              * exists to ride out takes a fixed wall-clock time. At high
