@@ -102,6 +102,9 @@ static const BpRow s_rows[] = {
     { "Quick Turn",     { "key_quick_turn",    NULL,             "pad_quick_turn",    NULL },             0 },
     { "Rear Look",      { "key_rear_look",     NULL,             "pad_rear_look",     NULL },             BPF_ALTCAM },
     { "Change Camera",  { "key_change_cam",    NULL,             "pad_change_cam",    NULL },             0 },
+    /* The quick menu, the one control a phone otherwise reaches by touch
+     * alone. Shared by both schemes, like the other global rows. */
+    { "Quick Menu",     { "key_quick_options", NULL,             "pad_quick_options", NULL },             BPF_GLOBAL },
 #if !defined(BP_MOBILE)
     { "Swap Shoulder",  { "key_swap_shoulder", NULL,             NULL,                NULL },             BPF_GLOBAL | BPF_MOUSE },
     { "Quick Save",     { "key_quicksave",     NULL,             NULL,                NULL },             BPF_GLOBAL },
@@ -157,6 +160,20 @@ static Uint32 s_toastStart;
 enum { BN_UP = 0, BN_DOWN, BN_LEFT, BN_RIGHT, BN_OK, BN_BACK, BN_CLEAR, BN_COUNT };
 static int    s_navPrev[BN_COUNT];
 static Uint32 s_navRepeatAt[BN_COUNT];
+
+/* One action per press. After any of them nothing acts again until everything
+ * has been released and stayed released for a moment. A pad press used to run
+ * twice over: the log shows one A writing the same bind five times and
+ * answering the reset dialog twice. */
+static int    s_gate;
+static Uint32 s_gateAt;
+#define BP_GATE_MS 150u
+
+/* Set while the panel is shut but the press that shut it is still down. The
+ * host clears the pad for as long as this file owns input, so that press
+ * cannot also act on the screen underneath -- it re-entered Controller Config
+ * and reopened the panel (two "panel open" lines in a row in the log). */
+static int s_drain;
 
 /* GL */
 #define BP_GARBAGE 256
@@ -403,6 +420,30 @@ static void bp_nav_reset(void)
         s_navPrev[i]     = 1; /* whatever opened the panel must be released first */
         s_navRepeatAt[i] = 0;
     }
+    s_gate   = 1;
+    s_gateAt = SDL_GetTicks();
+}
+
+static int bp_nav_any(const int held[BN_COUNT])
+{
+    int i;
+    for (i = 0; i < BN_COUNT; i++)
+    {
+        if (held[i])
+            return 1;
+    }
+    return 0;
+}
+
+/* 1 while the last action is still waiting for its press to end. */
+static int bp_gated(const int held[BN_COUNT])
+{
+    if (!s_gate)
+        return 0;
+    if (bp_nav_any(held) || (SDL_GetTicks() - s_gateAt) < BP_GATE_MS)
+        return 1;
+    s_gate = 0;
+    return 0;
 }
 
 void Pc_BindPanel_Open(void)
@@ -461,6 +502,7 @@ int Pc_BindPanel_TryOpen(void)
 static void bp_close(void)
 {
     s_listen     = 0;
+    s_drain      = 1;
     s_phase      = BP_CLOSING;
     s_phaseStart = SDL_GetTicks();
 }
@@ -580,6 +622,7 @@ static void bp_activate(void)
     s_listen      = 1;
     s_listenArmed = 0;
     s_listenStart = SDL_GetTicks();
+    bp_nav_reset(); /* the press that opened this must not also be captured */
 }
 
 static void bp_clear_cell(void)
@@ -591,6 +634,7 @@ static void bp_clear_cell(void)
     }
     bp_set(s_row, s_col, "NONE");
     bp_beep(Sfx_MenuCancel);
+    bp_nav_reset();
 }
 
 /* Returns the captured bind name, "" to cancel, or NULL while still waiting. */
@@ -863,7 +907,17 @@ int Pc_BindPanel_Update(void)
     int mActivate, mClear;
 
     if (s_phase == BP_CLOSED)
+    {
+        if (s_drain)
+        {
+            bp_read_nav(held);
+            bp_nav_edges(held, pressed);
+            if (bp_nav_any(held))
+                return 1;
+            s_drain = 0;
+        }
         return 0;
+    }
     if (s_phase != BP_SHOWN)
         return 1;
 
@@ -889,6 +943,8 @@ int Pc_BindPanel_Update(void)
         int res;
         bp_read_nav(held);
         bp_nav_edges(held, pressed);
+        if (bp_gated(held))
+            memset(pressed, 0, sizeof(pressed));
         if (!Pc_ConfirmDialog_IsOpen() && !pressed[BN_OK])
         {
             s_resetAsked = 0;
@@ -902,11 +958,13 @@ int Pc_BindPanel_Update(void)
             bp_beep(Sfx_MenuConfirm);
             bp_reset_scheme();
             s_resetAsked = 0;
+            bp_nav_reset(); /* or the same press re-opens the dialog */
         }
         else if (res == PC_CONFIRM_NO)
         {
             bp_beep(Sfx_MenuCancel);
             s_resetAsked = 0;
+            bp_nav_reset();
         }
         return 1;
     }
@@ -933,6 +991,8 @@ int Pc_BindPanel_Update(void)
 
     bp_read_nav(held);
     bp_nav_edges(held, pressed);
+    if (bp_gated(held))
+        memset(pressed, 0, sizeof(pressed));
     bp_mouse(&mActivate, &mClear);
 
     if (pressed[BN_BACK])
