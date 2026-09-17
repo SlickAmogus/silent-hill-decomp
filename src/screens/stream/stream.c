@@ -146,6 +146,30 @@ void open_main(s32 file_idx, s16 num_frames) // 0x801E2AA4
     /* PC: AVI override first, then BIN/MDEC fallback (handled by FMV_Play). */
     SH_DBG("[SH] open_main: playing FMV (file=%d frames=%d)", (int)file_idx, (int)num_frames);
     Fs_QueueWaitForEmpty();
+
+    /* Silence the room before the movie starts.
+     *
+     * On PSX the STR takes the drive: strInit/strKickCD put the CD into
+     * streaming mode, so an XA track that was playing simply ends there, and
+     * the movie's own audio arrives through the SPU CD input instead
+     * (SsSetSerialVol below in movie_main). Our movie is a file, so nothing
+     * takes the stream away and the XA player keeps going underneath it.
+     *
+     * Voices are the same story from the other end: FMV_Play blocks for the
+     * whole movie, so a looping SFX still keyed on when the scene cuts has
+     * nothing to stop it until the next area initialises its own sound. That
+     * is the boss-arena drone still audible under the post-Split Head scene.
+     * Keying the SFX voices off here is what the game does at any other scene
+     * cut (SD_BranchCTRL 16/17/20/21). It only reaches voices on the SFX MIDI
+     * channel, so a sequence that is genuinely meant to play under a movie is
+     * untouched. */
+    {
+        extern void XaPlayer_Stop(void);
+        extern void Sd_AllSfxWithRRStop(void);
+        XaPlayer_Stop();
+        Sd_AllSfxWithRRStop();
+    }
+
     FMV_Play(file_idx, num_frames);
     SH_DBG("[SH] open_main: FMV_Play returned");
     return;
