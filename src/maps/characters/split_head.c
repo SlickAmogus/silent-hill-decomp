@@ -10,6 +10,21 @@
 
 #define splitHeadProps splitHead->properties.splitHead
 
+#ifdef SH_PC_PORT
+/* True while the bite has actually taken Harry, or is still on its way to him:
+ * he is in the eaten state, or the eat attack is set on him and not yet read,
+ * or the damage handler has deferred it. */
+static bool SplitHead_PcHarryTaken(void)
+{
+    extern s8 D_800C4560;
+    const s32 eat = WEAPON_ATTACK(EquippedWeaponId_Unk37, AttackInputType_Hold);
+
+    return g_SysWork.playerWork.extra.state == PlayerState_InstantDeath ||
+           g_SysWork.playerWork.player.attackReceived == eat ||
+           D_800C4560 == eat;
+}
+#endif
+
 void SplitHead_Update(s_SubCharacter* splitHead, s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords)
 {
     sharedData_800D8610_1_s05 = boneCoords;
@@ -266,6 +281,56 @@ void SplitHead_ControlUpdate(s_SubCharacter* splitHead)
 {
     extern void (*g_SplitHead_ControlFuncs[])(s_SubCharacter* splitHead); // TODO: Add func table to this func.
 
+#ifdef SH_PC_PORT
+    /* The eat has no way out on PSX: SplitHeadFlag_1 and _9 are set on the bite
+     * and never cleared, because Harry is always dead by the time it ends. A
+     * jump-back timed on the bite can leave him free while the boss is already
+     * in its eat loop (anim 14, keyframes 34-36 forever), which then chews and
+     * sprays blood at nothing and never bites again. When Harry is not in the
+     * mouth, drop the eat the way a missed bite ends -- blend to the idle stance,
+     * which leads back into the attack cycle -- and allow the next bite.
+     *
+     * A pending attack gets one second to land; a state that ignores it would
+     * otherwise hold the eat open forever. The stale attack is cleared so it
+     * cannot kill Harry later, after he has visibly escaped. */
+    {
+        static q19_12 s_pcPendingTime = Q12(0.0f);
+
+        if (!(splitHeadProps.flags & SplitHeadFlag_1) ||
+            g_SysWork.playerWork.extra.state == PlayerState_InstantDeath)
+        {
+            s_pcPendingTime = Q12(0.0f);
+        }
+        else
+        {
+            s_pcPendingTime += g_DeltaTime;
+
+            if (!SplitHead_PcHarryTaken() || s_pcPendingTime > Q12(1.0f))
+            {
+                extern s8 D_800C4560;
+                const s32 eat = WEAPON_ATTACK(EquippedWeaponId_Unk37, AttackInputType_Hold);
+
+                if (g_SysWork.playerWork.player.attackReceived == eat)
+                {
+                    g_SysWork.playerWork.player.attackReceived = NO_VALUE;
+                }
+                if (D_800C4560 == eat)
+                {
+                    D_800C4560 = NO_VALUE;
+                }
+
+                splitHeadProps.flags &= ~(SplitHeadFlag_1 | SplitHeadFlag_9);
+                s_pcPendingTime       = Q12(0.0f);
+
+                if (ANIM_STATUS_IDX_GET(splitHead->model.anim.status) == SplitHeadAnim_14)
+                {
+                    splitHead->model.anim.status = ANIM_STATUS(SplitHeadAnim_StandIdle, false);
+                }
+            }
+        }
+    }
+#endif
+
     // Handle control state.
     splitHeadProps.flags &= ~SplitHeadFlag_3;
     g_SplitHead_ControlFuncs[splitHead->model.controlState](splitHead);
@@ -386,7 +451,16 @@ void SplitHead_Control_1(s_SubCharacter* splitHead)
             splitHead->rotation.vy = Math_AngleBetweenPositionsGet(splitHead->position, g_SysWork.playerWork.player.position);
         }
 
+#ifdef SH_PC_PORT
+        /* One burst per call while the eat loop sits on keyframe 35: PSX made that
+         * call 30 times a second, 240fps makes it 240. Burst at the PSX rate. */
+        static int s_pcBloodAccum = 0;
+        const bool pcBloodTick    = PC_Tick30HzReady(&s_pcBloodAccum);
+
+        if (pcBloodTick && FP_FROM(splitHead->model.anim.time, Q12_SHIFT) == 35)
+#else
         if (FP_FROM(splitHead->model.anim.time, Q12_SHIFT) == 35)
+#endif
         {
             unkPos.vx = Rng_AddGeneratedUInt(g_SysWork.playerWork.player.position.vx, Q12(-0.25f), Q12(0.0f) - 1);
             unkPos.vy = (g_SysWork.playerWork.player.position.vy - Rng_GenerateUInt(0, Q12(0.5f) - 1)) - Q12(1.0f); // TODO: Doesn't match with `Rng_AddGeneratedUInt`?
