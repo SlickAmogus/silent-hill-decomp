@@ -8,6 +8,7 @@
 #include "bodyprog/sys/joy.h"
 #include "pc_config.h"
 #include "pc_mouse_cursor.h"
+#include "sh_log.h"
 
 #include "bodyprog/screen/screen_data.h"
 
@@ -139,6 +140,115 @@ int Pc_MouseCursor_PuzzleActive(void)
     return s_puzzleFrames > 0;
 }
 
+/* ---- Touch pointer (see pc_mouse_cursor.h) ---------------------------- */
+static int    s_tDown, s_tPrevDown, s_tPressEdge, s_tReleaseEdge, s_tInView;
+static float  s_tgx, s_tgy;
+static Uint32 s_tLastMs;
+
+#define MC_TOUCH_RECENT_MS 3000
+
+static void Mc_TouchClear(void)
+{
+    s_tDown = s_tPrevDown = s_tPressEdge = s_tReleaseEdge = 0;
+}
+
+static void Mc_TouchUpdate(void)
+{
+    int   nDev  = SDL_GetNumTouchDevices();
+    int   found = 0, d;
+    float nx = 0.0f, ny = 0.0f;
+
+    /* Every device, as pc_touch.c does: the touchscreen is not necessarily
+     * device 0. The first finger found is the pointer. */
+    for (d = 0; d < nDev && !found; d++)
+    {
+        SDL_TouchID dev = SDL_GetTouchDevice(d);
+
+        if (SDL_GetNumTouchFingers(dev) > 0)
+        {
+            SDL_Finger* f = SDL_GetTouchFinger(dev, 0);
+
+            if (f != NULL)
+            {
+                nx    = f->x;
+                ny    = f->y;
+                found = 1;
+            }
+        }
+    }
+
+    s_tPrevDown    = s_tDown;
+    s_tDown        = found;
+    s_tPressEdge   = (s_tDown && !s_tPrevDown);
+    s_tReleaseEdge = (!s_tDown && s_tPrevDown);
+
+    if (found)
+    {
+        /* The mapping pc_touch.c uses for its buttons, which land where they
+         * are drawn: window-normalised finger -> drawable pixels -> the
+         * presented picture -> the same authoring space as s_gx/s_gy. */
+        int   winW = 0, winH = 0;
+        float vx = 0.0f, vy = 0.0f;
+
+        s_tLastMs = SDL_GetTicks();
+        PsyX_GetScreenSize(&winW, &winH);
+        s_tInView = PsyX_MapWindowToViewport((int)(nx * (float)winW),
+                                             (int)(ny * (float)winH), &vx, &vy);
+        if (s_tInView)
+        {
+            s_tgx = vx * (float)g_GameWork.gsScreenWidth;
+            s_tgy = vy * (float)g_GameWork.gsScreenHeight
+                    - (float)(g_GameWork.gsScreenHeight / 2)
+                    + (float)MC_OFFSET_Y;
+        }
+
+        /* One line per touch, not per frame: where the finger landed at every
+         * stage of the mapping, beside what the synthesised mouse reports, so
+         * a pointer that still lands in the wrong place is a single log away
+         * from its cause. */
+        if (s_tPressEdge)
+        {
+            SH_DBG("[TOUCHPTR] down n=(%.3f,%.3f) px=(%d,%d) of %dx%d view=(%.3f,%.3f) "
+                   "in=%d ui=(%d,%d) fb=%dx%d mouse=(%d,%d)",
+                   nx, ny, (int)(nx * (float)winW), (int)(ny * (float)winH), winW, winH,
+                   vx, vy, s_tInView, (int)s_tgx, (int)s_tgy,
+                   (int)g_GameWork.gsScreenWidth, (int)g_GameWork.gsScreenHeight,
+                   (int)s_gx, (int)s_gy);
+        }
+    }
+}
+
+int Pc_MouseCursor_TouchDriving(void)
+{
+    if (!Mc_Enabled() || s_tLastMs == 0)
+        return 0;
+
+    return s_tDown || (SDL_GetTicks() - s_tLastMs) < MC_TOUCH_RECENT_MS;
+}
+
+int Pc_MouseCursor_TouchDown(int* outX, int* outY)
+{
+    if (!Mc_Enabled() || !s_tDown || !s_tInView)
+        return 0;
+    if (outX != NULL) *outX = (int)s_tgx;
+    if (outY != NULL) *outY = (int)s_tgy;
+    return 1;
+}
+
+int Pc_MouseCursor_TouchPressed(void)
+{
+    return Mc_Enabled() && s_tPressEdge && s_tInView;
+}
+
+int Pc_MouseCursor_TouchReleased(int* outX, int* outY)
+{
+    if (!Mc_Enabled() || !s_tReleaseEdge || !s_tInView)
+        return 0;
+    if (outX != NULL) *outX = (int)s_tgx;
+    if (outY != NULL) *outY = (int)s_tgy;
+    return 1;
+}
+
 void Pc_MouseCursor_FrameUpdate(void)
 {
     int    mx, my;
@@ -152,6 +262,7 @@ void Pc_MouseCursor_FrameUpdate(void)
         s_prevLeft = s_prevRight = 0;
         s_havePrev  = 0;
         s_wheelStep = 0;
+        Mc_TouchClear();
         if (s_puzzleFrames > 0)
             s_puzzleFrames--;
         return;
@@ -205,6 +316,8 @@ void Pc_MouseCursor_FrameUpdate(void)
         s_prevGy  = s_gy;
         s_havePrev = 1;
     }
+
+    Mc_TouchUpdate();
 
     /* ---- Free-cursor puzzle servo (piano / plate / door / map pan) ---- */
     if (s_puzzleFrames > 0)
@@ -309,7 +422,7 @@ void Pc_MouseCursor_Draw(void)
      * device with both a touchscreen and a mouse follows whichever is in use. */
     {
         extern int Pc_Touch_UsedRecently(void);
-        if (Pc_Touch_UsedRecently())
+        if (Pc_Touch_UsedRecently() || Pc_MouseCursor_TouchDriving())
             return;
     }
 #if defined(__ANDROID__) || defined(SH_IOS)

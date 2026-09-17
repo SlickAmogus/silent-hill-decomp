@@ -1837,7 +1837,8 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
      * is what the stock code reads) and a click confirms the hovered option.
      * Everything is injected controller bits, read by the switch below. */
     {
-        int mx, my;
+        int       mx, my;
+        const int pcTouch = Pc_MouseCursor_TouchDriving();
 
         /* Re-armed every frame: only a hover that actually moves the selection
          * (below) pins the scroll, so pad/keyboard navigation still scrolls
@@ -1845,7 +1846,10 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
          * SaveScreen_SavesSlotDraw. */
         g_PcSaveHoverPinScroll = 0;
 
-        if (Pc_MouseCursor_UiPos(&mx, &my))
+        /* The mouse rules below are for a mouse. While a finger drives, the
+         * mouse SDL synthesises from it would apply them to the same taps --
+         * the touch block after this one handles the screen instead. */
+        if (!pcTouch && Pc_MouseCursor_UiPos(&mx, &my))
         {
             if (gameStateSteps == 0 && g_MemCard_TotalElementsCount > 0)
             {
@@ -2105,6 +2109,231 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
                 {
                     g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;
                 }
+            }
+        }
+
+        /* ---- Touch ---------------------------------------------------------
+         * A finger is not a mouse, and treating it as one made this screen
+         * unusable on a phone (reported): the synthesised mouse moves and clicks
+         * in the same frame, so the tap meant to pick a save also loaded one,
+         * and not necessarily the one touched.
+         *
+         * Read from the finger instead, with phone rules:
+         *   - tap an entry to highlight it; tap the highlighted entry to act
+         *   - drag the list to scroll it; drag the bar to jump
+         *   - on the Yes/No prompt, tap to highlight, tap again to confirm
+         * Nothing acts on the first touch of anything, and a drag never acts.
+         * Where the finger lands is what is selected. The corner Back button
+         * (pc_touch.c) is the way out. */
+        #define SAVE_TOUCH_SLOP 6 /* fingers wobble more than a mouse */
+
+        if (pcTouch && gameStateSteps == 0 && g_MemCard_TotalElementsCount > 0)
+        {
+            static s32 s_tBar    = -1; /* slot whose bar the finger holds */
+            static s32 s_tSlot   = -1; /* slot column the finger landed in */
+            static s32 s_tStartX = 0;
+            static s32 s_tStartY = 0;
+            static s32 s_tLastY  = 0;
+            static s32 s_tMoved  = 0;
+            int        tx = 0, ty = 0;
+
+            /* Pad/keyboard reclaims the list, as it does from the mouse. */
+            if (g_Controller0->pulsedBtnFlags & (ControllerFlag_LStickUp | ControllerFlag_LStickDown))
+            {
+                s_tBar  = -1;
+                s_tSlot = -1;
+            }
+            else if (g_SaveScreen_HiddenSaves[g_SelectedSaveSlotIdx] != NO_VALUE)
+            {
+                /* Touch owns the scroll: highlighting the top or bottom visible
+                 * row must not slide a different save under the finger. */
+                g_PcSaveHoverPinScroll = 1;
+            }
+
+            if (Pc_MouseCursor_TouchPressed() && Pc_MouseCursor_TouchDown(&tx, &ty))
+            {
+                s32 slot = (tx >= 153) ? 1 : 0;
+                s32 barX = SAVE_BAR_X(slot);
+
+                s_tSlot   = slot;
+                s_tStartX = tx;
+                s_tStartY = ty;
+                s_tLastY  = ty;
+                s_tMoved  = 0;
+                s_tBar    = (tx >= barX - SAVE_BAR_GRAB && tx <= barX + 8 + SAVE_BAR_GRAB &&
+                             ty >= SAVE_BAR_TOP_Y && ty <= SAVE_BAR_TOP_Y + 96 &&
+                             g_Savegame_ElementCount1[slot] > 0) ? slot : -1;
+            }
+            else if (s_tSlot >= 0 && Pc_MouseCursor_TouchDown(&tx, &ty))
+            {
+                s32 cnt = g_Savegame_ElementCount1[s_tSlot];
+                s32 mh  = (cnt > SAVE_VIS_ROWS) ? (cnt - SAVE_VIS_ROWS) : 0;
+                s32 dx  = tx - s_tStartX;
+                s32 dy  = ty - s_tStartY;
+
+                if (dx < 0) dx = -dx;
+                if (dy < 0) dy = -dy;
+                if (dx > SAVE_TOUCH_SLOP || dy > SAVE_TOUCH_SLOP)
+                    s_tMoved = 1;
+
+                if (s_tBar >= 0)
+                {
+                    if (mh > 0)
+                    {
+                        /* Same inverse thumb mapping as the mouse bar drag. */
+                        s32 h = ((ty - SAVE_BAR_TOP_Y - 8) * mh) / SAVE_BAR_TRAVEL;
+
+                        if (h < 0)  h = 0;
+                        if (h > mh) h = mh;
+
+                        if (g_SaveScreen_HiddenSaves[s_tBar] != h)
+                        {
+                            g_SaveScreen_HiddenSaves[s_tBar] = (s16)h;
+                            SD_Call(Sfx_MenuMove);
+                        }
+                    }
+                }
+                else if (s_tMoved && mh > 0)
+                {
+                    /* Content follows the finger, a row per row-height. Only
+                     * whole rows are consumed, so a slow drag still arrives. */
+                    s32 rows = (s_tLastY - ty) / 20;
+
+                    if (rows != 0)
+                    {
+                        s32 h = g_SaveScreen_HiddenSaves[s_tSlot] + rows;
+
+                        if (h < 0)  h = 0;
+                        if (h > mh) h = mh;
+
+                        if (g_SaveScreen_HiddenSaves[s_tSlot] != h)
+                        {
+                            g_SaveScreen_HiddenSaves[s_tSlot] = (s16)h;
+                            SD_Call(Sfx_MenuMove);
+                        }
+                        s_tLastY -= rows * 20;
+                    }
+                }
+
+                /* Keep that column's selection inside what is visible, for the
+                 * same reason the mouse path does: the highlight is drawn
+                 * relative to the scroll and would otherwise land off the list. */
+                if (cnt > 0 && g_SaveScreen_HiddenSaves[s_tSlot] != NO_VALUE)
+                {
+                    s32 lo  = g_SaveScreen_HiddenSaves[s_tSlot];
+                    s32 hi  = lo + (SAVE_VIS_ROWS - 1);
+                    s32 sel = g_SlotElementSelectedIdx[s_tSlot];
+
+                    if (hi > cnt - 1) hi = cnt - 1;
+                    if (lo < 0)       lo = 0;
+                    if (sel < lo)     sel = lo;
+                    if (sel > hi)     sel = hi;
+
+                    g_SlotElementSelectedIdx[s_tSlot] = (u8)sel;
+                }
+            }
+            else if (s_tSlot >= 0 && Pc_MouseCursor_TouchReleased(&tx, &ty))
+            {
+                if (s_tBar < 0 && !s_tMoved && g_SaveScreen_HiddenSaves[s_tSlot] != NO_VALUE)
+                {
+                    /* A tap, hit-tested where the finger landed. */
+                    s32 slot   = s_tSlot;
+                    s32 visRow = -1;
+                    s32 i;
+
+                    for (i = 0; i < SAVE_VIS_ROWS; i++)
+                    {
+                        s32 top = 53 + (i * 20) - 3;
+
+                        if (s_tStartY >= top && s_tStartY < top + 20)
+                        {
+                            visRow = i;
+                            break;
+                        }
+                    }
+
+                    if (visRow >= 0)
+                    {
+                        s32 target = g_SaveScreen_HiddenSaves[slot] + visRow;
+
+                        if (target >= 0 && target < g_Savegame_ElementCount0[slot])
+                        {
+                            if (slot != g_SelectedSaveSlotIdx)
+                            {
+                                /* The other card's column: move there and
+                                 * highlight, never act. */
+                                if (g_Savegame_ElementCount0[0] != 0 && g_Savegame_ElementCount0[1] != 0)
+                                {
+                                    g_SelectedSaveSlotIdx          = slot;
+                                    g_SlotElementSelectedIdx[slot] = (u8)target;
+                                    SD_Call(Sfx_MenuMove);
+                                }
+                            }
+                            else if (g_SlotElementSelectedIdx[slot] != target)
+                            {
+                                g_SlotElementSelectedIdx[slot] = (u8)target;
+                                SD_Call(Sfx_MenuMove);
+                            }
+                            else
+                            {
+                                /* Tapped the save that was already highlighted. */
+                                g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+                            }
+                        }
+                    }
+                }
+
+                s_tSlot  = -1;
+                s_tBar   = -1;
+                s_tMoved = 0;
+            }
+        }
+        else if (pcTouch && gameStateSteps == 1)
+        {
+            /* Yes/No: the same boxes the mouse path hit-tests. The highlight is
+             * isSaveWriteOptionSelected (true = Yes); No is the default, so a
+             * stray single tap can never overwrite or format a card. */
+            static s32 s_tOpt = 0; /* 0 = none, 1 = Yes, 2 = No */
+            int        tx = 0, ty = 0;
+            s32        opt = 0;
+
+            if (Pc_MouseCursor_TouchPressed() && Pc_MouseCursor_TouchDown(&tx, &ty))
+            {
+                if (ty >= 191 && ty < 213)
+                {
+                    if (tx >= 90 && tx < 146)       s_tOpt = 1;
+                    else if (tx >= 174 && tx < 230) s_tOpt = 2;
+                    else                            s_tOpt = 0;
+                }
+                else
+                {
+                    s_tOpt = 0;
+                }
+            }
+            else if (Pc_MouseCursor_TouchReleased(&tx, &ty))
+            {
+                if (ty >= 191 && ty < 213)
+                {
+                    if (tx >= 90 && tx < 146)       opt = 1;
+                    else if (tx >= 174 && tx < 230) opt = 2;
+                }
+
+                /* Released on the option it pressed, so a slide off cancels. */
+                if (opt != 0 && opt == s_tOpt)
+                {
+                    const s32 yesLit = isSaveWriteOptionSelected ? 1 : 0;
+
+                    if ((opt == 1) == yesLit)
+                    {
+                        g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
+                    }
+                    else
+                    {
+                        g_Controller0->clickedBtnFlags |= (opt == 1) ? ControllerFlag_LStickLeft
+                                                                     : ControllerFlag_LStickRight;
+                    }
+                }
+                s_tOpt = 0;
             }
         }
     }

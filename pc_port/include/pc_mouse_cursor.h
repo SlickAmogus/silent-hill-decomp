@@ -59,6 +59,24 @@ int Pc_MouseCursor_LeftClicked(void);
 int Pc_MouseCursor_LeftHeld(void);
 int Pc_MouseCursor_RightClicked(void);
 
+/* Touch as a pointer, read from the finger itself rather than from the mouse
+ * SDL synthesises out of it. That synthetic mouse moves and clicks in the same
+ * frame, so a screen that reads Left* from it confirms on the very tap meant to
+ * pick something. A screen that wants phone rules -- tap to highlight, tap the
+ * highlighted thing to act, drag to scroll -- reads these while
+ * Pc_MouseCursor_TouchDriving() is 1 and ignores the Left* calls. Positions are
+ * in the same space as Pc_MouseCursor_UiPos.
+ *
+ * TouchDriving: a finger is down, or was within the last few seconds.
+ * TouchDown:    1 while a finger is down, with its position.
+ * TouchPressed: the finger came down this frame.
+ * TouchReleased: the finger lifted this frame; the position is where it was
+ *               last seen. */
+int Pc_MouseCursor_TouchDriving(void);
+int Pc_MouseCursor_TouchDown(int* outX, int* outY);
+int Pc_MouseCursor_TouchPressed(void);
+int Pc_MouseCursor_TouchReleased(int* outX, int* outY);
+
 /* +1/-1 on a new wheel notch this frame (0 otherwise) — menus use it to
  * adjust the hovered value row / scroll lists. */
 int Pc_MouseCursor_WheelStep(void);
