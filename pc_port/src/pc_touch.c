@@ -498,9 +498,9 @@ enum { TG_C_TRIANGLE = 0, TG_C_CIRCLE, TG_C_CROSS, TG_C_SQUARE,
        TG_C_COUNT };
 
 /* Quick Save / Quick Load: round, face-button style, between the shoulders and
- * the middle trio and hanging a little below the row. */
+ * the middle trio, centred on the row. */
 #define TG_QS_R      0.060f /* the letter needs this much ring to clear it */
-#define TG_QS_ROW_Y  0.12f
+#define TG_QS_ROW_Y  0.08f
 #define TG_QS_LOW_Y  (0.08f + TG_SHLD_H + TG_QS_R + 0.03f)
 
 /* Both styles' quick buttons exist only with touch_quicksave_buttons on:
@@ -1449,8 +1449,8 @@ typedef struct
     int      used;
 } s_TcBatch;
 
-static void Tc_QuadRGB(s_TcBatch* b, int x0, int y0, int x1, int y1,
-                       int x2, int y2, int x3, int y3, int r, int g, int bl)
+static void Tc_Quad(s_TcBatch* b, int x0, int y0, int x1, int y1,
+                    int x2, int y2, int x3, int y3, int lum)
 {
     POLY_G4* q;
 
@@ -1459,20 +1459,14 @@ static void Tc_QuadRGB(s_TcBatch* b, int x0, int y0, int x1, int y1,
 
     q = &b->p[b->used++];
     setXY4(q, x0, y0, x1, y1, x2, y2, x3, y3);
-    q->r0 = q->r1 = q->r2 = q->r3 = (u_char)r;
-    q->g0 = q->g1 = q->g2 = q->g3 = (u_char)g;
-    q->b0 = q->b1 = q->b2 = q->b3 = (u_char)bl;
+    q->r0 = q->r1 = q->r2 = q->r3 = (u_char)lum;
+    q->g0 = q->g1 = q->g2 = q->g3 = (u_char)lum;
+    q->b0 = q->b1 = q->b2 = q->b3 = (u_char)lum;
 }
 
-static void Tc_Quad(s_TcBatch* b, int x0, int y0, int x1, int y1,
-                    int x2, int y2, int x3, int y3, int lum)
+static void Tc_Rect(s_TcBatch* b, int l, int t, int r, int bm, int lum)
 {
-    Tc_QuadRGB(b, x0, y0, x1, y1, x2, y2, x3, y3, lum, lum, lum);
-}
-
-static void Tc_RectRGB(s_TcBatch* b, int l, int t, int r, int bm, int cr, int cg, int cb)
-{
-    Tc_QuadRGB(b, l, t, r, t, l, bm, r, bm, cr, cg, cb);
+    Tc_Quad(b, l, t, r, t, l, bm, r, bm, lum);
 }
 
 /* A 5x7 pixel font, just the letters the controls need. One byte per row,
@@ -1503,7 +1497,7 @@ static const s_TcGlyph s_TcFont[] = {
 /* One glyph as few rectangles as possible: each horizontal run is extended
  * down while the rows below repeat it, so an L is two quads, not eleven. */
 static void Tc_Glyph(s_TcBatch* b, const unsigned char* rows, int x, int y, int px,
-                     int cr, int cg, int cb)
+                     int lum)
 {
     unsigned char used[TC_GLYPH_H] = { 0 };
     int           row;
@@ -1543,8 +1537,8 @@ static void Tc_Glyph(s_TcBatch* b, const unsigned char* rows, int x, int y, int 
             for (k = row; k <= r1; k++)
                 used[k] |= mask;
 
-            Tc_RectRGB(b, x + col * px, y + row * px,
-                       x + (c1 + 1) * px, y + (r1 + 1) * px, cr, cg, cb);
+            Tc_Rect(b, x + col * px, y + row * px,
+                    x + (c1 + 1) * px, y + (r1 + 1) * px, lum);
             col = c1 + 1;
         }
     }
@@ -1568,8 +1562,7 @@ static int Tc_TextWidth(const char* s)
 }
 
 /* Centred on (cx, cy), px prim units per font pixel. */
-static void Tc_Text(s_TcBatch* b, const char* s, int cx, int cy, int px,
-                    int cr, int cg, int cb)
+static void Tc_Text(s_TcBatch* b, const char* s, int cx, int cy, int px, int lum)
 {
     int x = cx - (Tc_TextWidth(s) * px) / 2;
     int y = cy - (TC_GLYPH_H * px) / 2;
@@ -1581,25 +1574,12 @@ static void Tc_Text(s_TcBatch* b, const char* s, int cx, int cy, int px,
         {
             if (s_TcFont[g].ch == s[i])
             {
-                Tc_Glyph(b, s_TcFont[g].rows, x, y, px, cr, cg, cb);
+                Tc_Glyph(b, s_TcFont[g].rows, x, y, px, lum);
                 break;
             }
         }
         x += TC_GLYPH_ADV * px;
     }
-}
-
-/* Save and load are the only controls that touch the player's progress, so
- * they are the only coloured ones: green to write, blue to read. */
-static void Tc_QuickTint(int load, int lum, int* cr, int* cg, int* cb)
-{
-    const int br = 150;
-    const int bg = load ? 200 : 255;
-    const int bb = load ? 255 : 170;
-
-    *cr = (br * lum) / 255;
-    *cg = (bg * lum) / 255;
-    *cb = (bb * lum) / 255;
 }
 
 /* Filled octagon as three non-overlapping quads (cap, band, cap). Overlapping
@@ -1616,16 +1596,7 @@ static void Tc_Octagon(s_TcBatch* b, int cx, int cy, int r, int lum)
 
 /* Octagonal ring between radii rOuter and rInner: eight annulus quads, the same
  * construction the crosshair's circle style uses. */
-static void Tc_RingRGB(s_TcBatch* b, int cx, int cy, int rOuter, int rInner,
-                       int cr, int cg, int cb);
-
 static void Tc_Ring(s_TcBatch* b, int cx, int cy, int rOuter, int rInner, int lum)
-{
-    Tc_RingRGB(b, cx, cy, rOuter, rInner, lum, lum, lum);
-}
-
-static void Tc_RingRGB(s_TcBatch* b, int cx, int cy, int rOuter, int rInner,
-                       int cr, int cg, int cb)
 {
     static const int SX[8] = { 100,  71,   0, -71, -100, -71,    0,  71 };
     static const int SY[8] = {   0,  71, 100,  71,    0, -71, -100, -71 };
@@ -1639,24 +1610,23 @@ static void Tc_RingRGB(s_TcBatch* b, int cx, int cy, int rOuter, int rInner,
         int ix0 = cx + ((SX[i] * rInner) / 100), iy0 = cy + ((SY[i] * rInner) / 100);
         int ix1 = cx + ((SX[j] * rInner) / 100), iy1 = cy + ((SY[j] * rInner) / 100);
 
-        Tc_QuadRGB(b, ox0, oy0, ox1, oy1, ix0, iy0, ix1, iy1, cr, cg, cb);
+        Tc_Quad(b, ox0, oy0, ox1, oy1, ix0, iy0, ix1, iy1, lum);
     }
 }
 
-/* A quick save/load button: a tinted ring with its letter. */
+/* A quick save/load button: a ring with its letter. */
 static void Tc_QuickButton(s_TcBatch* b, int load, int cx, int cy, int r, int lum)
 {
-    int cr, cg, cb, px;
+    int px;
     int inner = (r * 80) / 100;
 
-    Tc_QuickTint(load, lum, &cr, &cg, &cb);
-    Tc_RingRGB(b, cx, cy, r, inner, cr, cg, cb);
+    Tc_Ring(b, cx, cy, r, inner, lum);
     /* 80% of the ring's inside: two prim units a font pixel at phone size,
      * which still clears the ring corner to corner. */
     px = ((inner * 2 * 80) / 100) / TC_GLYPH_H;
     if (px < 1)
         px = 1;
-    Tc_Text(b, load ? "L" : "S", cx, cy, px, cr, cg, cb);
+    Tc_Text(b, load ? "L" : "S", cx, cy, px, lum);
 }
 
 void Pc_Touch_Draw(void)
@@ -1823,13 +1793,12 @@ void Pc_Touch_Draw(void)
                         t = 1;
 
                     if (s_TgHeld[c])
-                        Tc_RectRGB(&batch, bx - hw + t, by - hh + t, bx + hw - t, by + hh - t,
-                                   90, 90, 90);
+                        Tc_Rect(&batch, bx - hw + t, by - hh + t, bx + hw - t, by + hh - t, 90);
 
-                    Tc_RectRGB(&batch, bx - hw, by - hh,     bx + hw, by - hh + t, lum, lum, lum);
-                    Tc_RectRGB(&batch, bx - hw, by + hh - t, bx + hw, by + hh,     lum, lum, lum);
-                    Tc_RectRGB(&batch, bx - hw, by - hh + t, bx - hw + t, by + hh - t, lum, lum, lum);
-                    Tc_RectRGB(&batch, bx + hw - t, by - hh + t, bx + hw, by + hh - t, lum, lum, lum);
+                    Tc_Rect(&batch, bx - hw, by - hh,     bx + hw, by - hh + t, lum);
+                    Tc_Rect(&batch, bx - hw, by + hh - t, bx + hw, by + hh,     lum);
+                    Tc_Rect(&batch, bx - hw, by - hh + t, bx - hw + t, by + hh - t, lum);
+                    Tc_Rect(&batch, bx + hw - t, by - hh + t, bx + hw, by + hh - t, lum);
 
                     /* As large as the plate allows: the shoulder names fit at
                      * two prim units a font pixel, START and SELECT at one. */
@@ -1842,7 +1811,7 @@ void Pc_Touch_Draw(void)
                     if (px < 1)
                         px = 1;
 
-                    Tc_Text(&batch, label, bx, by, px, lum, lum, lum);
+                    Tc_Text(&batch, label, bx, by, px, lum);
                 }
             }
         }
