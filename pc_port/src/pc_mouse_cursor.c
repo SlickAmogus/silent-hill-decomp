@@ -15,6 +15,7 @@
 #include <PsyX/PsyX_public.h>
 #include <PsyX/PsyX_render.h> /* GR_ReadVRAM */
 #include "pc_confirm_dialog.h"
+#include "pc_bind_panel.h"
 #include "pc_quick_options.h"
 #include <libgs.h>
 
@@ -293,7 +294,7 @@ void Pc_MouseCursor_Draw(void)
         return;
     /* A GL overlay dialog composites above this whole frame, so it draws the
      * cursor itself (Pc_MouseCursor_SpriteRgba/GlRect); ours would sit under it. */
-    if (Pc_ConfirmDialog_IsOpen() || Pc_QuickOptions_IsOpen())
+    if (Pc_ConfirmDialog_IsOpen() || Pc_QuickOptions_IsOpen() || Pc_BindPanel_IsOpen())
         return;
 
     cx = (s32)s_gx - MC_OFFSET_X;

@@ -472,5 +472,21 @@ void PcConfig_ApplyXaVolume(float norm);
  * "Mouse1", "lefttrigger"), or "" when unbound. Never NULL. */
 const char* PcConfig_BindName(unsigned short btnFlag, int device, int scheme, int slot);
 
+/* Rewrite (or append) several `key = value` lines in one read/write pass. */
+void PcConfig_SaveKeyValues(const char* const* keys, const char* const* values, int count);
+
+/* The in-game controls panel edits binds through these. BindField returns the
+ * live 24-byte field behind a bind config key (key_cross, pad_reload,
+ * key_quicksave, ...) for scheme 0 = classic / 1 = altcam, or NULL for an
+ * unknown key; *outPerScheme says whether the key is per-scheme, in which case
+ * the altcam copy is saved under key + "_altcam", exactly as the launcher does.
+ * BindDefault is the built-in value of the same field ("" if none). */
+char*       PcConfig_BindField(const char* key, int scheme, int* outPerScheme);
+const char* PcConfig_BindDefault(const char* key, int scheme);
+
+/* Bumped whenever a bind changes at runtime. Code that resolves a bind once
+ * and caches it compares its copy against this to know when to re-resolve. */
+extern int g_PcBindsGen;
+
 #endif /* PC_CONFIG_H */
 

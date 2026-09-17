@@ -1043,6 +1043,7 @@ void Pc_Options_ResetToDefaults(void)
 #ifdef SH_PC_PORT
 #include <SDL.h>
 #include "pc_confirm_dialog.h"
+#include "pc_bind_panel.h"
 
 /* Shared with the header draw: 1 while the reset dialog is up (label turns red). */
 int g_PcOptResetConfirmActive = 0;
@@ -4075,6 +4076,43 @@ void Options_ControllerMenu_Control(void) // 0x801E69BC
     s32                                     boundActionIdx = NO_VALUE;
     e_InputAction                           actionIdx;
     static s_ControllerMenu_SelectedEntries selectedEntries;
+
+#ifdef SH_PC_PORT
+    /* PC: this screen is the in-game controls panel (pc_bind_panel.c), a GL
+     * overlay over the PSX layout. It opens once per visit, and the screen
+     * leaves the way EXIT does when the panel closes. The PSX actions pane
+     * only ever re-mapped PSX buttons onto game actions, which on PC sits
+     * under the launcher's physical binds and only confused them. */
+    {
+        static int s_bindPanelShown = 0;
+
+        if (g_GameWork.gameStateSteps[1] == ControllerMenuState_Leave)
+        {
+            s_bindPanelShown = 0;
+        }
+        else
+        {
+            if (!s_bindPanelShown)
+            {
+                Pc_BindPanel_Open();
+                s_bindPanelShown = 1;
+            }
+            if (Pc_BindPanel_Update())
+            {
+                ScreenFade_Start(false, true, false);
+                g_Controller0->clickedBtnFlags   = 0;
+                g_Controller0->pulsedBtnFlags    = 0;
+                g_Controller0->pulsedGuiBtnFlags = 0;
+                Options_ControllerMenu_EntriesDraw(false, ControllerMenuState_Exit, NO_VALUE, NO_VALUE);
+                return;
+            }
+            ScreenFade_Start(false, false, false);
+            g_GameWork.gameStateSteps[1] = ControllerMenuState_Leave;
+            g_GameWork.gameStateSteps[2] = 0;
+            s_bindPanelShown             = 0;
+        }
+    }
+#endif
 
 #ifdef SH_PC_PORT
     /* Mouse: hover selects in both panes; click confirms ONLY in the presets

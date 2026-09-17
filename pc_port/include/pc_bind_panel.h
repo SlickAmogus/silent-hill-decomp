@@ -1,0 +1,28 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/*
+ * pc_bind_panel.h - in-game controls panel (Options > Controller Config).
+ *
+ * Rebinds keyboard, mouse and controller inputs for the control scheme that
+ * matches the camera in use when it opens (classic, or the alternate-camera
+ * scheme for Thirdperson / Over-the-Shoulder / First Person). Writes the same
+ * config keys and value names as the launcher's Controls window, so either
+ * one can edit what the other wrote.
+ *
+ * Self-contained GL overlay in the pc_confirm_dialog.c style: Update runs on
+ * the game thread from the host screen and reads raw SDL input (so a bad bind
+ * can never lock the player out of the panel), Draw runs from the post-capture
+ * hook in dbg_overlay.c.
+ */
+#ifndef PC_BIND_PANEL_H
+#define PC_BIND_PANEL_H
+
+int  Pc_BindPanel_IsOpen(void);
+void Pc_BindPanel_Open(void);
+
+/* Per-frame input while open. Returns 1 while the panel owns input (the host
+ * should skip its own handling), 0 once it has fully closed. */
+int  Pc_BindPanel_Update(void);
+
+void Pc_BindPanel_Draw(void);
+
+#endif /* PC_BIND_PANEL_H */

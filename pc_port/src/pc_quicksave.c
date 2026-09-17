@@ -74,10 +74,10 @@ void Pc_QuickSaveLoadUpdate(void)
     int          curSave;
     int          curLoad;
 
-    if (!resolved) {
+    if (resolved != g_PcBindsGen + 1) {
         scSave   = SDL_GetScancodeFromName(g_PcConfig.keyQuickSave);
         scLoad   = SDL_GetScancodeFromName(g_PcConfig.keyQuickLoad);
-        resolved = 1;
+        resolved = g_PcBindsGen + 1;
     }
 
     /* A randomizer run cannot be saved or reloaded. */

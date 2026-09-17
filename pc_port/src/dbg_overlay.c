@@ -1861,7 +1861,10 @@ void DbgOverlay_Update(void)
         /* The quick options overlay closes on Escape, the default exit bind:
          * without this gate closing it also warm-reset the game to the title. */
         extern int g_PcQuickOptionsActive;
-        if (cur_exit && !s_prev_exit && !g_PcConsoleInputActive && !g_PcQuickOptionsActive) {
+        /* The controls panel uses Escape to back out and to cancel a rebind. */
+        extern int Pc_BindPanel_IsOpen(void);
+        if (cur_exit && !s_prev_exit && !g_PcConsoleInputActive && !g_PcQuickOptionsActive &&
+            !Pc_BindPanel_IsOpen()) {
             /* The brightness screen owns the whole display (its calibration bar is
              * drawn outside the normal menu path), so warm-resetting out of it left
              * the bar on screen over the title. Back out to the options list the
@@ -1994,6 +1997,10 @@ void DbgOverlay_Render(void)
 
     /* Modal Yes/No message box (options-screen "reset to defaults") — same
      * self-contained-GL arrangement; drawn last so it sits over every panel. */
+    /* In-game controls panel (Options > Controller Config) -- same arrangement;
+     * under the Yes/No box, which it opens for its reset. */
+    { extern void Pc_BindPanel_Draw(void); Pc_BindPanel_Draw(); }
+
     { extern void Pc_ConfirmDialog_Draw(void); Pc_ConfirmDialog_Draw(); }
 
     /* Console is hidden once fully slid off-screen (toggled by `~`); the ring
