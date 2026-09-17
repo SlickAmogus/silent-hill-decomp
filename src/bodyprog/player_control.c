@@ -3869,10 +3869,14 @@ void Player_LogicUpdate(s_SubCharacter* player, s_PlayerExtra* extra, GsCOORDINA
              * the fight never ended (reported at 240fps). Same class as the gun,
              * melee and tool gates, this one just never got the treatment.
              *
-             * Reached-or-passed, bounded to the anim's own range so a stale index
-             * from the previous animation on the entry tick cannot fire it, and
-             * one-shot through controlState, which the block below advances. */
-            if (extra->model.controlState == 0 &&
+             * Reached-or-passed, bounded to the anim's own range; map-specific
+             * Harry anims are numbered after all of his base anims, so a stale
+             * base-anim index on the entry tick cannot land in it. One-shot:
+             * func_8007FB94 just above takes controlState 0 -> 1 on the first
+             * tick, and the block below advances it to 2. (The first version of
+             * this required 0, which after that call is never true, so Game Over
+             * never came at any frame rate.) */
+            if (extra->model.controlState == 1 &&
                 player->model.anim.keyframeIdx >= (g_MapOverlayHdr.field_38[D_800AF220].keyframeIdx_6 - 25) &&
                 player->model.anim.keyframeIdx <= g_MapOverlayHdr.field_38[D_800AF220].keyframeIdx_6)
 #else

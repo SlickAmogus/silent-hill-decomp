@@ -246,7 +246,17 @@ void SplitHead_DamageTake(s_SubCharacter* splitHead)
     }
     splitHead->health = newHealth;
 
+#ifdef SH_PC_PORT
+    /* A hit that crosses the 24000 phase line AND zero at once (the debug kill
+     * key's 99999) took this branch and skipped the death below, so the boss
+     * kept fighting at 0 HP; the early return above then locked that in, and
+     * Player_DisableDamage(health == 0) made Harry immune to every bite. No
+     * weapon reaches this in one hit, so the order only matters there: death
+     * wins. */
+    if (splitHead->health < 24000 && splitHead->health != 0 && !(splitHeadProps.flags & SplitHeadFlag_4))
+#else
     if (splitHead->health < 24000 && !(splitHeadProps.flags & SplitHeadFlag_4))
+#endif
     {
         splitHead->model.controlState = SplitHeadControl_4;
         splitHeadProps.flags   |= SplitHeadFlag_4;
