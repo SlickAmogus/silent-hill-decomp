@@ -120,6 +120,14 @@ void GameBoot_LoadScreen_PlayerRun(void) // 0x80035BE0
                       0);                              /* no brightness overlay */
         g_WorldEnvWork.isFogEnabled = 0;
     }
+    /* The per-pixel flashlight flag is only refreshed by Gfx_2dEffectsDraw,
+     * which runs with the world pass; the loading screen draws no world, so
+     * the last gameplay frame's cone, whole-scene dim and shadow pre-pass
+     * would otherwise land on Harry here. PSX lights him with no flashlight. */
+    {
+        extern int g_PsyX_FlashlightActive;
+        g_PsyX_FlashlightActive = 0;
+    }
     /* NOTE: the per-load func_800453E8(skel, true) force-show was removed —
      * it re-showed Harry's hidden weapon-hand variant meshes (duplicate
      * hands). The merge-era invisibility it covered for was the mis-mapped
