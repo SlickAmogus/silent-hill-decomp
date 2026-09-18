@@ -145,7 +145,21 @@ void GameBoot_LoadScreen_PlayerRun(void) // 0x80035BE0
     }
 #endif
 
+#ifdef SH_PC_PORT
+    /* Advance the run on the loading screen's console-length clock (see
+     * Pc_LoadScreenClockTick): the clipped PSX step on a console frame, nothing
+     * in between, so the pose holds exactly while the blur holds too. */
+    {
+        extern q19_12 g_PcLoadScreenDt;
+        const q19_12  savedDt = g_DeltaTime;
+
+        g_DeltaTime = g_PcLoadScreenDt;
+        Anim_PlaybackLoop(model, (s_Skeleton*)FS_BUFFER_0, boneCoords, &D_800A998C);
+        g_DeltaTime = savedDt;
+    }
+#else
     Anim_PlaybackLoop(model, (s_Skeleton*)FS_BUFFER_0, boneCoords, &D_800A998C);
+#endif
     vcMoveAndSetCamera(true, false, false, false, false, false, false, false);
     Gfx_FlashlightUpdate();
 #ifdef SH_PC_PORT

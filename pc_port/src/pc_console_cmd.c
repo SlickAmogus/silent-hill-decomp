@@ -1405,6 +1405,22 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PcFastBlockingLoads = 0;
         else g_PcFastBlockingLoads = !g_PcFastBlockingLoads;
         cprintf("fast blocking loads: %s", g_PcFastBlockingLoads ? "ON (disk speed)" : "OFF (PSX CD pace)");
+    } else if (strcmp(cmd, "LOADPACE") == 0) {
+        /* Loading screen visuals on a console-length frame clock: one step of
+         * Harry and the blur every N vblanks, time clipped at 4 vblanks as PSX
+         * MainLoop does. 7 (~8.6 fps) is the default; 0 or 1 steps every frame.
+         * The load itself is not slowed. */
+        extern int g_PcLoadScreenPsxVblanks;
+        if (arg[0])
+            g_PcLoadScreenPsxVblanks = atoi(arg);
+        if (g_PcLoadScreenPsxVblanks < 0)  g_PcLoadScreenPsxVblanks = 0;
+        if (g_PcLoadScreenPsxVblanks > 30) g_PcLoadScreenPsxVblanks = 30;
+        if (g_PcLoadScreenPsxVblanks <= 1)
+            cprintf("loading screen pace: every frame");
+        else
+            cprintf("loading screen pace: one console frame per %d vblanks (%.1f fps, time x%.2f)",
+                    g_PcLoadScreenPsxVblanks, 60.0 / g_PcLoadScreenPsxVblanks,
+                    (g_PcLoadScreenPsxVblanks > 4 ? 4.0 : (double)g_PcLoadScreenPsxVblanks) / g_PcLoadScreenPsxVblanks);
     } else if (strcmp(cmd, "FBEXACT") == 0) {
         /* Loading-screen trail and door fade: 1 = the exact PS1 copy loop (long
          * trail, one 5-bit step lost per decay frame), 0 = the old damped loop
