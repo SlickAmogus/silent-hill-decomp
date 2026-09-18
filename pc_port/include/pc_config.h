@@ -422,6 +422,15 @@ typedef struct {
      * built against the earlier layout still read the fields above.
      * (config-only key: minimap_show_without_map; console: minimapnomap) */
     int  minimapShowWithoutMap;
+
+    /* The dream/ghosting screen blur: full-screen prims that sample the
+     * previous frame out of the PSX display buffers (Lisa, after Split Head,
+     * the otherworld rooms). 1 = on, 0 = only the loading-screen trail, which
+     * is the same mechanism and has always been allowed. The effect feeds on
+     * its own output, so any per-frame error compounds into visible garbage --
+     * the reason it sat disabled -- and a switch to turn it off in game is
+     * worth more than a rebuild. (config key: dream_blur; console: dreamblur) */
+    int  dreamBlur;
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;

@@ -102,6 +102,7 @@ s_PcConfig g_PcConfig = {
     .minimapScale            = 100.0f,
     .minimapRequireMap       = 1, /* the map only appears once Harry has found it */
     .minimapShowWithoutMap   = 0, /* no map found: no minimap (1 = empty panel + arrow) */
+    .dreamBlur               = 1, /* dream/ghosting screen blur (0 = loading trail only) */
     .minimapOpacity          = 100.0f,
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
@@ -1100,6 +1101,12 @@ else if (strcmp(key, "enable_plugins") == 0)
         else if (strcmp(key, "minimap_show_without_map") == 0)
         {
             g_PcConfig.minimapShowWithoutMap = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "dream_blur") == 0)
+        {
+            extern int g_cfg_dreamFeedback;
+            g_PcConfig.dreamBlur = (atoi(value) != 0);
+            g_cfg_dreamFeedback  = g_PcConfig.dreamBlur;
         }
         else if (strcmp(key, "minimap_scale") == 0)
         {

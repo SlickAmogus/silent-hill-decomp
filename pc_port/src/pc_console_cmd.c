@@ -1410,10 +1410,20 @@ void Pc_ConsoleExec(const char* line)
          * and the loading-screen trail. 0.5 = shipped; ~0.996 (255/256) is
          * retail-length decay but diverged to a grey field last time it was
          * tried, so it is tunable here rather than baked in. */
+        /* Second argument is the gain for a BLENDING reader (the dream
+         * overlays), which is unity by default because the overlay's own 50/50
+         * composite is already the decay hardware relies on. */
         extern float g_PsxFeedbackDamp;
+        extern float g_PsxFeedbackDampBlend;
         if (arg[0]) g_PsxFeedbackDamp = (float)atof(arg);
-        cprintf("framebuffer feedback damp: %.4f (0.5=shipped, 0.996=retail-length fade)",
-                g_PsxFeedbackDamp);
+        {
+            const char* second = arg;
+            while (*second && *second != ' ') second++;
+            while (*second == ' ') second++;
+            if (*second) g_PsxFeedbackDampBlend = (float)atof(second);
+        }
+        cprintf("framebuffer feedback damp: %.4f opaque (loading trail), %.4f blended (dream overlays)",
+                g_PsxFeedbackDamp, g_PsxFeedbackDampBlend);
     } else if (strcmp(cmd, "CULL") == 0) {
         /* Retail gates each chunk's model buffers on a baked per-subcell PVS
          * slice plus a frustum test; disable_culling skips both (exterior maps).
@@ -1607,6 +1617,24 @@ void Pc_ConsoleExec(const char* line)
                               g_PcConfig.minimapShowWithoutMap ? "1" : "0");
         cprintf("minimap before the map is found: %s",
                 g_PcConfig.minimapShowWithoutMap ? "empty panel + arrow" : "hidden");
+    } else if (strcmp(cmd, "DREAMBLUR") == 0) {
+        /* The dream/ghosting screen blur (Lisa, after Split Head, the
+         * otherworld rooms): full-screen prims sampling the previous frame out
+         * of the PSX display buffers. 0 leaves only the loading-screen trail,
+         * which uses the same store and has always been on. Bare toggles.
+         * Persists to config.cfg. */
+        {
+            extern int g_cfg_dreamFeedback;
+
+            if (arg[0] == '0' || arg[0] == '1')
+                g_PcConfig.dreamBlur = (arg[0] == '1');
+            else
+                g_PcConfig.dreamBlur = !g_PcConfig.dreamBlur;
+
+            g_cfg_dreamFeedback = g_PcConfig.dreamBlur;
+            PcConfig_SaveKeyValue("dream_blur", g_PcConfig.dreamBlur ? "1" : "0");
+            cprintf("dream screen blur: %s", g_PcConfig.dreamBlur ? "on" : "off");
+        }
     } else if (strcmp(cmd, "FOV") == 0) {
         /* First-person FOV (degrees, horizontal on the 4:3 frame). Same value
          * as the launcher slider / PC options row; persists to config.cfg.

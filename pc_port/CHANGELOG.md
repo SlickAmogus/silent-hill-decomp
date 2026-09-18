@@ -1,5 +1,65 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.09.18.1 -- 2026-09-18
+- Texture packs: log one line per page composed, and stop dropping upscaler names
+- Add [SLOWFRAME]: say which phase of a stalled frame took the time
+- Port the two latent memory bugs the Android crash handler caught
+- Publish the 3D-world frame class, and carry v0 fog on character triangles
+- Bump PsyCross: fog eases into full instead of leaving a residue or a wall
+- Console VOIDPROBE: arm the renderer's void/fog readback and print the game-side values
+- VOIDPROBE: mirror the arm line into the log, and record game/sys state with it
+- Fog: objects were fogged with a different formula from the world they stand in
+- Bump PsyCross: Steam Controller and Steam Deck pad support
+- Bump PsyCross: Steam Controller ownership diagnostic
+- Split Head: the eat death never reached Game Over above 30fps, and the blood drops spawned per frame
+- Bump PsyCross: fog ease lands by 0.95 with a sub-half-unit snap; VOIDPROBE reads the window without an internal target
+- Audio tool: a replaced sound is offered to every other bank that carries it
+- Bump PsyCross: VOIDPROBE samples the full frame height
+- Bump PsyCross: VOIDPROBE samples every pixel
+- Audio tool: save is one dialog, and a second round of edits merges into the first
+- Ending cutscene no longer pillarboxes: the palette-protect flag is not a 2D screen
+- Bump PsyCross: fog colour-space snap; VOIDPROBE real histogram
+- Fog: cull world and object faces on the nearest vertex so the drawn world ends beyond full fog
+- PsyCross: smooth dead zone around the fog colour
+- PsyCross: revert the fog dead zone (flattened mid fog into a wall, crushed inventory item shading)
+- PsyCross: plain PSX fog mix, easing curve and colour snaps removed
+- PsyCross: step to the void at 97% fog
+- PsyCross: two-phase VOIDPROBE
+- Item TMDs: zero p1, p2 and pad2 on the GT3 emitters
+- Wide drawer: GT3 carries v0 fog in pad2 with the marker
+- PsyCross: VOIDPROBE frame dump
+- PsyCross: VOIDPROBE dump build fix
+- PsyCross: untextured prims draw their vertex colour exactly (fog void fix)
+- Log cleanup: drop CUTDIAG, PERF every 30 s, silent SFX override probes
+- Interior cell gate samples five points per cell, not the centre (from ios-port cd43e3862)
+- Texture_Get: debugStr is 13 bytes, the missing-TIM path writes [12] (from ios-port 64206b223)
+- Sidestep: hold works under 2D controls, held steps keep travelling, taps age at 30 Hz
+- PsyCross: loop stop reaches the live SPU engine; libmcrd fopen check
+- Revert "Sidestep: hold works under 2D controls, held steps keep travelling, taps age at 30 Hz"
+- Revert "Interior cell gate samples five points per cell, not the centre (from ios-port cd43e3862)"
+- PsyCross: back out the SPU loop-stop routing
+- PsyCross: drop the unused SPUCore loop-stop method
+- Split Head: the mouth strands' endpoint table was 48 bytes short
+- Split Head: a bite Harry escapes ends the eat and the fight resumes
+- [WALL-HIT] probe: once per wall face, repeat after 30 s
+- Minimap: hidden until the area map is found, unless the quick menu is on its settings
+- Split Head: a bite that registers takes Harry; escape only by clearing the mouth first
+- In-game controls panel: rebind keyboard, mouse and controller from Options > Controller Config
+- Split Head: Game Over after the eat actually fires; the kill key kills the boss
+- Keybind panel: nothing drawn behind it; reachable from a new quick menu Controls page
+- Split Head: remove the bite fallback; it froze Harry in the eat
+- Keybind panel: fixed layout rect, and no old controls screen on the way out
+- Boss arenas (map1_s05, map7_s03) draw exactly the player's cell again
+- [QUICKHEAL] log every use with the slot and the live inventory
+- Quick heal: never spend the empty slot (u8 vs NO_VALUE comparison)
+- Quick menu and randomizer panel: one mouse click acts once
+- Snow flakes: draw the sprite box, not half of it
+- PsyCross: additive sprite edges fade by texture coverage (round snow flakes)
+- FMV: stop XA and lingering SFX voices before a movie plays
+- FMV: key the pre-movie audio stop to the Alessa scene only
+- Save list clicks, controls-exit flash, cutscene frame gate
+
+
 ## beta-2026.09.11.1 -- 2026-09-11
 - Fixed Rock Drill and Chainsaw attacks not working
 - Fixed sound replacement mods not playing at right pitch in some cases
