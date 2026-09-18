@@ -1405,6 +1405,16 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PcFastBlockingLoads = 0;
         else g_PcFastBlockingLoads = !g_PcFastBlockingLoads;
         cprintf("fast blocking loads: %s", g_PcFastBlockingLoads ? "ON (disk speed)" : "OFF (PSX CD pace)");
+    } else if (strcmp(cmd, "FBEXACT") == 0) {
+        /* Loading-screen trail and door fade: 1 = the exact PS1 copy loop (long
+         * trail, one 5-bit step lost per decay frame), 0 = the old damped loop
+         * whose gain is FBDAMP's first number. Bare toggles. */
+        extern int g_PsxFeedbackExact;
+        if (arg[0] == '0' || arg[0] == '1')
+            g_PsxFeedbackExact = (arg[0] == '1');
+        else
+            g_PsxFeedbackExact = !g_PsxFeedbackExact;
+        cprintf("loading trail: %s", g_PsxFeedbackExact ? "exact PS1 loop" : "damped (FBDAMP)");
     } else if (strcmp(cmd, "FBDAMP") == 0) {
         /* Gain of the framebuffer-feedback loop that produces the door out-fade
          * and the loading-screen trail. 0.5 = shipped; ~0.996 (255/256) is
