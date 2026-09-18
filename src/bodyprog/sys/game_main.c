@@ -4264,6 +4264,16 @@ void MainLoop(void) // 0x80032EE0
          * frozen pause / "no map" image (which used to ghost the live console against the
          * frozen copy when the console was already open before pausing). Not drawn here. */
         ML_TRACE("PsyX_EndScene");
+        /* [GREYFRAME] game-side context for the renderer's flash detector. */
+        {
+            extern int g_PsxGreyTag[6];
+            g_PsxGreyTag[0] = g_GameWork.gameState;
+            g_PsxGreyTag[1] = g_SysWork.sysState;
+            g_PsxGreyTag[2] = g_VBlanks;
+            g_PsxGreyTag[3] = g_PcWorldDrawnThisFrame;
+            g_PsxGreyTag[4] = g_DeltaTime;
+            g_PsxGreyTag[5] = g_PsxPresentLastFrame;
+        }
         PsyX_EndScene();
         /* Demand-driven texture-pack composes (pc_port/src/texpack_lazy.c). Runs
          * HERE, after the OT submit and after the swap inside PsyX_EndScene,
