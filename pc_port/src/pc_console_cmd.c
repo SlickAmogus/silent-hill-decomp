@@ -1405,6 +1405,30 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PcFastBlockingLoads = 0;
         else g_PcFastBlockingLoads = !g_PcFastBlockingLoads;
         cprintf("fast blocking loads: %s", g_PcFastBlockingLoads ? "ON (disk speed)" : "OFF (PSX CD pace)");
+    } else if (strcmp(cmd, "LOADPACE") == 0) {
+        /* Harry-running loading screen: one step of Harry and the blur every N
+         * vblanks, each capped at 1/30 s, which is what turns his run into the
+         * console's slow jog. 4 (15 fps, ~half speed) is the default; 0 or 1
+         * steps every frame at full speed. The load itself is never slowed. */
+        extern s32 g_PcLoadScreenPaceVblanks;
+        if (arg[0]) g_PcLoadScreenPaceVblanks = atoi(arg);
+        if (g_PcLoadScreenPaceVblanks < 0)  g_PcLoadScreenPaceVblanks = 0;
+        if (g_PcLoadScreenPaceVblanks > 12) g_PcLoadScreenPaceVblanks = 12;
+        if (g_PcLoadScreenPaceVblanks <= 1)
+            cprintf("loading screen pace: every frame, full speed");
+        else
+            cprintf("loading screen pace: a step every %d vblanks (%.0f fps), Harry at %.0f%% speed",
+                    (int)g_PcLoadScreenPaceVblanks, 60.0 / g_PcLoadScreenPaceVblanks,
+                    100.0 * (g_PcLoadScreenPaceVblanks > 2 ? 2.0 : (double)g_PcLoadScreenPaceVblanks) / g_PcLoadScreenPaceVblanks);
+    } else if (strcmp(cmd, "LOADMIN") == 0) {
+        /* Minimum time the Harry-running loading screen stays up, in seconds.
+         * The load finishes underneath; the new area waits before its music
+         * starts. 0 = no minimum. */
+        extern s32 g_PcLoadScreenMinVblanks;
+        if (arg[0]) g_PcLoadScreenMinVblanks = (s32)(atof(arg) * 60.0 + 0.5);
+        if (g_PcLoadScreenMinVblanks < 0)   g_PcLoadScreenMinVblanks = 0;
+        if (g_PcLoadScreenMinVblanks > 600) g_PcLoadScreenMinVblanks = 600;
+        cprintf("loading screen minimum: %.1f s", g_PcLoadScreenMinVblanks / 60.0);
     } else if (strcmp(cmd, "FBEXACT") == 0) {
         /* Loading-screen trail and door fade: 1 = pixel-exact store (lossless,
          * sharp store, persistence set by FBDAMP), 0 = the old filtered loop
