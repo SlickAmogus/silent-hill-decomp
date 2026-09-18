@@ -2127,9 +2127,17 @@ void Pc_QuickOptions_Draw(void)
                 x += (float)s_navW[p] + gap[k] * (float)s_navPx;
             }
         }
+        else if (r->kind == ROW_ACTION && s_texLabel[i])
+        {
+            /* Settings-page actions (Edit Keybinds, Reset View Settings) line
+             * up with the option labels around them. */
+            tH = (float)s_labelH[i]; tY = rowMid + tH * 0.5f;
+            qo_quad(s_texLabel[i], NX(panelL + pad), NY(tY), NX(panelL + pad + s_labelW[i]), NY(tY - tH),
+                    0.92f, 0.92f, 0.95f, dim);
+        }
         else if (s_texLabel[i])
         {
-            /* Action row, centred. */
+            /* Close, centred. */
             float lx = panelL + (panelW - (float)s_labelW[i]) * 0.5f;
             tH = (float)s_labelH[i]; tY = rowMid + tH * 0.5f;
             qo_quad(s_texLabel[i], NX(lx), NY(tY), NX(lx + s_labelW[i]), NY(tY - tH),
