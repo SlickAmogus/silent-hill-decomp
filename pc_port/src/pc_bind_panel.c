@@ -1364,6 +1364,40 @@ void Pc_BindPanel_Draw(void)
             bp_quad(s_texCursor, NX(cx), NY(cy), NX(cx + cw), NY(cy - ch), 1.0f, 1.0f, 1.0f, 1.0f);
     }
 
+    /* [PANELMISS] The panel vanishes from single presented frames. Hand the
+     * renderer's present-time readback one pixel of the red rule under the
+     * title -- opaque (0.47,0.11,0.08), so (120,28,20) whatever is behind the
+     * panel, and no scene pixel is near it -- plus the GL state this draw ran
+     * under, so a frame that comes out without the panel says whether the draw
+     * was rejected or the image was lost later. Only while fully shown: the
+     * fades change the colour. */
+    if (dim >= 1.0f)
+    {
+        extern int g_PsxPanelProbe[6], g_PsxPanelState[16];
+        GLint     iv = 0, box[4] = { 0, 0, 0, 0 }, cvp[4] = { 0, 0, 0, 0 };
+
+        g_PsxPanelProbe[0] = 1;
+        g_PsxPanelProbe[1] = vp[0] + (int)(panelL + 8.0f);
+        g_PsxPanelProbe[2] = vp[1] + (int)(panelT - titleH - 1.0f);
+        g_PsxPanelProbe[3] = 120; g_PsxPanelProbe[4] = 28; g_PsxPanelProbe[5] = 20;
+
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &iv); g_PsxPanelState[0] = iv;
+        g_PsxPanelState[1] = glIsEnabled(GL_SCISSOR_TEST) ? 1 : 0;
+        glGetIntegerv(GL_SCISSOR_BOX, box);
+        g_PsxPanelState[2] = box[0]; g_PsxPanelState[3] = box[1];
+        g_PsxPanelState[4] = box[2]; g_PsxPanelState[5] = box[3];
+        g_PsxPanelState[6] = glIsEnabled(GL_STENCIL_TEST) ? 1 : 0;
+        glGetIntegerv(GL_STENCIL_FUNC, &iv);       g_PsxPanelState[7] = iv;
+        glGetIntegerv(GL_STENCIL_REF, &iv);        g_PsxPanelState[8] = iv;
+        glGetIntegerv(GL_STENCIL_VALUE_MASK, &iv); g_PsxPanelState[9] = iv;
+        glGetIntegerv(GL_VIEWPORT, cvp);
+        g_PsxPanelState[10] = cvp[2]; g_PsxPanelState[11] = cvp[3];
+        g_PsxPanelState[12] = glIsProgram(s_prog) ? 1 : 0;
+        g_PsxPanelState[13] = glIsTexture(s_texWhite) ? (int)s_texWhite : -(int)s_texWhite;
+        g_PsxPanelState[14] = (int)glGetError();
+        g_PsxPanelState[15] = (int)s_phase;
+    }
+
 #undef TEXT_AT
 #undef NX
 #undef NY
