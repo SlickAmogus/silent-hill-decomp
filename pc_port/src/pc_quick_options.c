@@ -152,16 +152,17 @@ static const QoRowDef s_pageAudio[] = {
     QO_CLOSE_ROW,
 };
 
-/* Controls: the keybind panel (the same one as Options > Controller Config),
- * then the control settings that apply live. */
+/* Controls: the control settings that apply live, then the keybind panel (the
+ * same one as Options > Controller Config). The action sits centred at the
+ * bottom, where Reset View Settings sits on the View page. */
 static const QoRowDef s_pageControls[] = {
-    { ROW_ACTION, NULL, QO_A_KEYBINDS,       "Edit Keybinds" },
     { ROW_OPT,   "control_2d",             0, NULL },
     { ROW_OPT,   "mouse_sensitivity",      0, NULL },
     { ROW_OPT,   "controller_sensitivity", 0, NULL },
     { ROW_OPT,   "invert_mouse_y",         0, NULL },
     { ROW_OPT,   "invert_controller_y",    0, NULL },
     { ROW_OPT,   "aim_assist",             0, NULL },
+    { ROW_ACTION, NULL, QO_A_KEYBINDS,       "Edit Keybinds" },
     QO_NAV_ROW,
     QO_CLOSE_ROW,
 };
@@ -2127,17 +2128,9 @@ void Pc_QuickOptions_Draw(void)
                 x += (float)s_navW[p] + gap[k] * (float)s_navPx;
             }
         }
-        else if (r->kind == ROW_ACTION && s_texLabel[i])
-        {
-            /* Settings-page actions (Edit Keybinds, Reset View Settings) line
-             * up with the option labels around them. */
-            tH = (float)s_labelH[i]; tY = rowMid + tH * 0.5f;
-            qo_quad(s_texLabel[i], NX(panelL + pad), NY(tY), NX(panelL + pad + s_labelW[i]), NY(tY - tH),
-                    0.92f, 0.92f, 0.95f, dim);
-        }
         else if (s_texLabel[i])
         {
-            /* Close, centred. */
+            /* Action row, centred. */
             float lx = panelL + (panelW - (float)s_labelW[i]) * 0.5f;
             tH = (float)s_labelH[i]; tY = rowMid + tH * 0.5f;
             qo_quad(s_texLabel[i], NX(lx), NY(tY), NX(lx + s_labelW[i]), NY(tY - tH),
