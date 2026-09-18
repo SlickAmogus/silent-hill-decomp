@@ -429,8 +429,8 @@ void GameBoot_GameStartup(void) // 0x80034964
  *    has been on screen for g_PcLoadScreenMinVblanks.
  * Only the PlayerRun screen; the other loading screens and room transitions are
  * untouched. Console LOADPACE <vblanks> (0 or 1 = every frame), LOADMIN <sec>. */
-s32    g_PcLoadScreenPaceVblanks = 4;
-s32    g_PcLoadScreenMinVblanks  = 150;
+s32    g_PcLoadScreenPaceVblanks = 2;
+s32    g_PcLoadScreenMinVblanks  = 180;
 q19_12 g_PcLoadScreenDt          = 0;
 
 static s32 s_pcLoadScreenStartVb = NO_VALUE;

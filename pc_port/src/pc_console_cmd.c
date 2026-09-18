@@ -1408,7 +1408,7 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "LOADPACE") == 0) {
         /* Harry-running loading screen: one step of Harry and the blur every N
          * vblanks, each capped at 1/30 s, which is what turns his run into the
-         * console's slow jog. 4 (15 fps, ~half speed) is the default; 0 or 1
+         * console's jog. 2 (30 fps, full speed) is the default; 0 or 1
          * steps every frame at full speed. The load itself is never slowed. */
         extern s32 g_PcLoadScreenPaceVblanks;
         if (arg[0]) g_PcLoadScreenPaceVblanks = atoi(arg);
