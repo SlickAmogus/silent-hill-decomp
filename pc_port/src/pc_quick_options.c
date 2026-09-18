@@ -1647,12 +1647,12 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     if (qo_key_edge(SDL_SCANCODE_PAGEUP)   || qo_key_edge(SDL_SCANCODE_Q)) pagePrev = 1;
 
     /* The keybind panel opened from the Controls page owns input until it has
-     * closed; then this menu is back where it was. The key edges above still
-     * run while it is up, so the Esc that closed the panel is not read here as
-     * a fresh press. */
-    if (Pc_BindPanel_IsOpen())
+     * closed AND the press that closed it has ended; then this menu is back
+     * where it was. Update says so itself -- asking IsOpen instead let that
+     * press through to this menu as a fresh one. The key edges above still run
+     * meanwhile, so the Esc that closed the panel is not read here either. */
+    if (Pc_BindPanel_Update())
     {
-        Pc_BindPanel_Update();
         return;
     }
 

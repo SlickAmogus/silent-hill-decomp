@@ -653,6 +653,35 @@ static int Tc_SoloButton(int mode)
     return -1;
 }
 
+/* A controller BUTTON or a pushed stick, which the key word below never
+ * carried: Automatic asks "what was used last", and a pad answered that only
+ * by being ATTACHED. So once a finger had touched the glass -- which every
+ * player does to reach the menu -- s_LastSource stayed TS_TOUCH and the overlay
+ * stayed up for the rest of the session while the pad was doing the playing
+ * (reported). Worse, an overlay that is up overwrites the pad's sticks in
+ * PsyX_pad.cpp, which is why movement was d-pad only. */
+#define TC_PAD_STICK_DEAD 12000
+
+static int Tc_PadInUse(void)
+{
+    static const int AXES[4] = {
+        SDL_CONTROLLER_AXIS_LEFTX, SDL_CONTROLLER_AXIS_LEFTY,
+        SDL_CONTROLLER_AXIS_RIGHTX, SDL_CONTROLLER_AXIS_RIGHTY,
+    };
+    int i;
+
+    if (PsyX_Pad_HeldBindName() != NULL)
+        return 1;
+    for (i = 0; i < 4; i++)
+    {
+        const int v = PsyX_Pad_AxisValue(AXES[i]);
+
+        if (v > TC_PAD_STICK_DEAD || v < -TC_PAD_STICK_DEAD)
+            return 1;
+    }
+    return 0;
+}
+
 /* Real hardware wins. Two tests, because one is not enough here: SDL opens a
  * pad as a GameController on most platforms, but on Android it frequently never
  * enumerates one at all -- this project's own GameSir arrives purely as key
@@ -665,7 +694,7 @@ void Pc_Touch_NoteOtherInput(int padAttached, int keyWord)
 {
     s_PadAttached = (padAttached != 0);
 
-    if (keyWord != 0xFFFF)
+    if (keyWord != 0xFFFF || Tc_PadInUse())
         s_LastSource = TS_PHYSICAL;
 }
 
@@ -1394,6 +1423,14 @@ int Pc_Touch_AnyContact(void)
         return 0;
 
     return Tc_ContactPresent();
+}
+
+/* 1 while the glass is what is playing the game: the full scheme is live and
+ * nothing physical has taken it over. Used by control_style.c, which holds the
+ * camera in classic for as long as this is true. */
+int Pc_Touch_IsDrivingInput(void)
+{
+    return Tc_Level() == TC_LEVEL_FULL && s_LastSource != TS_PHYSICAL;
 }
 
 int Pc_Touch_UsedRecently(void)

@@ -2551,15 +2551,27 @@ void MainLoop(void) // 0x80032EE0
                 Pc_QuickOptions_Close();
             if (g_PcQuickOptionsActive) {
                 const s_ControllerConfig* cc = &g_GameWorkPtr->config.controllerConfig;
+                /* The panel reads the mouse itself, so a mouse button that is
+                 * ALSO bound to a PSX button (key_cross = Mouse1 is common)
+                 * reached it twice: one left click activated the row under the
+                 * pointer and then, as Cross, "confirm" on the selected row --
+                 * after a Next page click that was a row on the NEW page, and
+                 * everywhere else a double activation. Pad bits the mouse is
+                 * producing right now are dropped here; keyboard and controller
+                 * presses of the same buttons still count. */
+                extern unsigned int Pc_MouseCursor_BoundPadBits(void);
+                const u32 pcMouseBits = Pc_MouseCursor_BoundPadBits();
+                const u32 pcQoHeld    = g_Controller0->heldBtnFlags    & ~pcMouseBits;
+                const u32 pcQoClicked = g_Controller0->clickedBtnFlags & ~pcMouseBits;
                 Pc_QuickOptions_Update(
-                    (g_Controller0->heldBtnFlags    & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp))    != 0,
-                    (g_Controller0->heldBtnFlags    & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown))  != 0,
-                    (g_Controller0->heldBtnFlags    & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft))  != 0,
-                    (g_Controller0->heldBtnFlags    & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
-                    (g_Controller0->clickedBtnFlags & (cc->enter | cc->action))  != 0,
-                    (g_Controller0->clickedBtnFlags & (cc->cancel | cc->option)) != 0,
-                    (g_Controller0->clickedBtnFlags & ControllerFlag_R1) != 0,
-                    (g_Controller0->clickedBtnFlags & ControllerFlag_L1) != 0);
+                    (pcQoHeld    & (ControllerFlag_LStickUp    | ControllerFlag_DpadUp))    != 0,
+                    (pcQoHeld    & (ControllerFlag_LStickDown  | ControllerFlag_DpadDown))  != 0,
+                    (pcQoHeld    & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft))  != 0,
+                    (pcQoHeld    & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
+                    (pcQoClicked & (cc->enter | cc->action))  != 0,
+                    (pcQoClicked & (cc->cancel | cc->option)) != 0,
+                    (pcQoClicked & ControllerFlag_R1) != 0,
+                    (pcQoClicked & ControllerFlag_L1) != 0);
                 s_pcQoHeldStash      = g_Controller0->heldBtnFlags;
                 s_pcQoHeldStashValid = 1;
                 g_Controller0->heldBtnFlags      = 0;
@@ -3045,6 +3057,34 @@ void MainLoop(void) // 0x80032EE0
                 ML_TRACE("VSync-Wait");
                 VSync(SyncMode_Wait);
                 ML_TRACE("VSync-Wait-done");
+#ifdef SH_PC_PORT
+                /* Backstop that makes the wait above a real one-per-frame gate.
+                 * In-game cutscenes run here (SysState_EventCallback), and this
+                 * single wait is the whole reason they cannot exceed 60. But
+                 * PsyX_WaitForTimestep keeps ONE static of "when did I last
+                 * wait", shared with every other VSync caller in the frame, so
+                 * a wait somewhere else can satisfy it and this one returns
+                 * immediately — the scene then runs at whatever the machine
+                 * does. Wait on the loop's own count instead, which nothing
+                 * else can consume. No-op whenever the wait above did its job.
+                 *
+                 * Fast-forward is exempt: holding it through a scene is the
+                 * point of the key, and it drives the counter itself. */
+                {
+                    extern int g_PcFastForward;
+
+                    if (!g_PcFastForward)
+                    {
+                        const s32    target   = g_PrevVBlanks + 1;
+                        const Uint32 deadline = SDL_GetTicks() + 50; /* never hang on a stalled counter */
+
+                        while (VSync(SyncMode_Count) < target && SDL_GetTicks() < deadline)
+                        {
+                            VSync(SyncMode_Wait);
+                        }
+                    }
+                }
+#endif
             }
             else
             {
@@ -3111,7 +3151,13 @@ void MainLoop(void) // 0x80032EE0
                          * a skipped scene, a load, a death or a scene that ends
                          * early restores the user's cap on the very next frame
                          * with nothing to unwind. */
-                        if (Pc_ScriptOwnsShot() &&
+                        /* Pc_ScriptOwnsScene, not Pc_ScriptOwnsShot: the Shot
+                         * form drops the post-load fade of a room transition on
+                         * purpose, because that is about how a FRAME LOOKS. For
+                         * pacing the question is only "is an authored scene
+                         * running", and those fade frames were the one part of a
+                         * scripted shot still free to run at 240. */
+                        if (Pc_ScriptOwnsScene() &&
                             (effectiveFps <= 0 || effectiveFps > 60))
                             effectiveFps = 60;
 

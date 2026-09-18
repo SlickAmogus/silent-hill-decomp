@@ -1768,15 +1768,18 @@ void DbgOverlay_Update(void)
         static int          s_prevQuick = 0;
         int curQuick;
         int padQuick;
-        if (!s_quickRes) {
+        /* Re-resolved after a bind edit, like every other cached bind: the
+         * controls panel offers this row now. */
+        if (s_quickRes != g_PcBindsGen + 1) {
             s_scQuick  = SDL_GetScancodeFromName(g_PcConfig.keyQuickOptions);
-            /* Optional controller bind, unbound by default -- an empty string
-             * leaves it at -1 and nothing is polled. */
-            s_padQuick = (g_PcConfig.padQuickOptions[0] != ' ')
+            /* Unbound leaves it at -1 and nothing is polled, and so does the
+             * NONE the panel writes for a bind the player cleared. */
+            s_padQuick = (g_PcConfig.padQuickOptions[0] != ' ' &&
+                          SDL_strcasecmp(g_PcConfig.padQuickOptions, "NONE") != 0)
                        ? (int)PsyX_LookupGameControllerMapping(g_PcConfig.padQuickOptions,
                                                               -1)
                        : -1;
-            s_quickRes = 1;
+            s_quickRes = g_PcBindsGen + 1;
         }
         curQuick = (s_scQuick != SDL_SCANCODE_UNKNOWN) ? ks[s_scQuick] : 0;
         /* Already edge-detected, so it is tested separately from the keyboard

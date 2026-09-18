@@ -146,6 +146,28 @@ void open_main(s32 file_idx, s16 num_frames) // 0x801E2AA4
     /* PC: AVI override first, then BIN/MDEC fallback (handled by FMV_Play). */
     SH_DBG("[SH] open_main: playing FMV (file=%d frames=%d)", (int)file_idx, (int)num_frames);
     Fs_QueueWaitForEmpty();
+
+    /* Whether the room falls silent for a movie is per scene, so this is keyed
+     * to one movie rather than applied to all of them.
+     *
+     * M4_02490 is the Alessa scene after Split Head. The arena's background
+     * loop is still keyed on when it starts and nothing stops it until the next
+     * area loads its own sound, so it plays right through the movie. FMV_Play
+     * blocks for the whole scene, which is why no later frame can clear it.
+     *
+     * Every other movie keeps its audio: map0_s00 starts an ambient loop once
+     * and lets it run through the opening Cheryl scene without ever restarting
+     * it, so a blanket stop here would leave that scene silent — and a blanket
+     * stop in that same map is what cut Harry's death scream short before
+     * (func_800DBE00). */
+    if (file_idx == FILE_XA_M4_02490)
+    {
+        extern void XaPlayer_Stop(void);
+        extern void Sd_AllSfxWithRRStop(void);
+        XaPlayer_Stop();
+        Sd_AllSfxWithRRStop();
+    }
+
     FMV_Play(file_idx, num_frames);
     SH_DBG("[SH] open_main: FMV_Play returned");
     return;

@@ -57,6 +57,10 @@ int Pc_Touch_AnyContact(void);
  *  mouse cursor, which represents a pointer a touchscreen does not have. */
 int Pc_Touch_UsedRecently(void);
 
+/* 1 while touch is the live input: the overlay is up and no pad or key has
+ * taken over. The camera is held in classic while it is (control_style.c). */
+int Pc_Touch_IsDrivingInput(void);
+
 /** On-screen controls. Drawn from the same overlay pass as the crosshair. */
 void Pc_Touch_Draw(void);
 
