@@ -1408,12 +1408,20 @@ void Pc_QuickOptions_Close(void)
     s_ddRow = -1;
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
         return;
+    /* The keybind panel opened from here gets its input only through this
+     * menu's Update, so closing the menu under it left it on screen with
+     * nothing able to close it. Whatever closes the menu closes it too. */
+    Pc_BindPanel_Close();
     s_phase      = QO_CLOSING;
     s_phaseStart = SDL_GetTicks();
 }
 
 void Pc_QuickOptions_Toggle(void)
 {
+    /* The keybind panel owns the keyboard while it is up -- F10 may be the
+     * very key being bound -- so the toggle does nothing until it closes. */
+    if (Pc_BindPanel_IsOpen())
+        return;
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
         qo_open();
     else

@@ -18,6 +18,9 @@
 
 int  Pc_BindPanel_IsOpen(void);
 void Pc_BindPanel_Open(void);
+/* Starts the close fade (a pending rebind is dropped). For a host that is
+ * going away underneath the panel and would stop feeding it input. */
+void Pc_BindPanel_Close(void);
 
 /* Per-frame input while open. Returns 1 while the panel owns input (the host
  * should skip its own handling), 0 once it has fully closed. */

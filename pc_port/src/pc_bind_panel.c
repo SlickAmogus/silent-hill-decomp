@@ -397,6 +397,18 @@ static void bp_close(void)
     s_phaseStart = SDL_GetTicks();
 }
 
+void Pc_BindPanel_Close(void)
+{
+    /* Its reset question is fed by this panel's Update too. */
+    if (s_resetAsked)
+    {
+        Pc_ConfirmDialog_Cancel();
+        s_resetAsked = 0;
+    }
+    if (s_phase == BP_OPENING || s_phase == BP_SHOWN)
+        bp_close();
+}
+
 /* ------------------------------------------------------------------ */
 /* Input                                                               */
 /* ------------------------------------------------------------------ */
