@@ -999,18 +999,17 @@ void func_800E3390(void) // 0x800E3390
 {
     s32 i;
 
-#ifdef SH_PC_PORT
-    /* This is the ending cutscene the player actually reaches (event param 2;
-     * func_800E3C48 is the alternate-ending sibling). It LoadImage's each
-     * NPC's CLUT into the VRAM display region as they appear, so with the
-     * framebuffer->VRAM store active every frame stamps the rendered frame
-     * over the freshly-loaded CLUTs -> Dahlia/Alessa textures corrupt
-     * mid-scene, magenta walls, wrong floor. Suppress the store while this
-     * event runs, like the paper-map path. Re-set each frame (PsyX_EndScene
-     * auto-clears it). */
-    extern int g_PsxSkipFramebufferStore;
-    g_PsxSkipFramebufferStore = 1;
-#endif
+    /* PC: this ending used to force g_PsxSkipFramebufferStore every frame, which
+     * also killed the scene's dream overlay (the strips in func_800E3F30). The
+     * guard was right for the OLD store, which wrote (0,0)-(320,240) and so
+     * covered the y<32 CLUT strip: the background-image palette D_800A9A04 sits
+     * at (224,13), and stamping over it gave the magenta walls and garbled NPCs.
+     * The store now writes only the PSX display buffers, x 0..319 / y 32..479 --
+     * the real framebuffers on hardware, where nothing persistent can live. This
+     * scene's own uploads all land outside them: the NPC descriptors
+     * D_800ED218/220/228 put textures at x >= 768 and CLUTs at (704,464..496).
+     * Any upload that ever did overlap stands the store down on its own
+     * (GR_NoteVramUploadForFeedback). */
 
     if ((g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.skip) &&
         D_800F4805 > 0 && D_800F4805 < 4)
@@ -1328,17 +1327,9 @@ void func_800E3B6C(void) // 0x800E3B6C
 
 void func_800E3C48(void) // 0x800E3C48
 {
-#ifdef SH_PC_PORT
-    /* The ending cutscene LoadImage's NPC/floor CLUTs into the VRAM display
-     * region (e.g. CLUT at (224,13) — the same spot as the paper-map victim
-     * (224,15)). With the framebuffer->VRAM store active, every frame stamps
-     * the rendered frame over those CLUTs -> garbled NPC textures, magenta
-     * walls, wrong floor (CutsceneGlitch screenshots). Suppress the store
-     * while this ending event runs, like the paper-map path does. Re-set each
-     * frame because PsyX_EndScene auto-clears it. */
-    extern int g_PsxSkipFramebufferStore;
-    g_PsxSkipFramebufferStore = 1;
-#endif
+    /* PC: the store guard that used to sit here was lifted for the same reason
+     * as in func_800E3390 -- it protected the y<32 CLUT strip from the old
+     * (0,0)-(320,240) store, and the current store never writes there. */
     switch (D_800F4805)
     {
         case 0:
