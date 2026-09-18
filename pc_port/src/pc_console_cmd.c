@@ -1417,7 +1417,7 @@ void Pc_ConsoleExec(const char* line)
         cprintf("loading trail: %s", g_PsxFeedbackExact ? "sharp (pixel-exact store)" : "soft (old filtered store)");
     } else if (strcmp(cmd, "FBDAMP") == 0) {
         /* Gain of the framebuffer-feedback loop that produces the door out-fade
-         * and the loading-screen trail. 0.5 = shipped; ~0.996 (255/256) is
+         * and the loading-screen trail. 0.65 = shipped; ~0.996 (255/256) is
          * retail-length decay but diverged to a grey field last time it was
          * tried, so it is tunable here rather than baked in. */
         /* Second argument is the gain for a BLENDING reader (the dream
