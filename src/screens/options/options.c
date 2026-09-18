@@ -201,11 +201,7 @@ static const s_PcOpt PCOPT_G[] = {
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
     /* New-Game start map. Moved here from the Camera page, which had run to 12
      * rows (the practical maximum) while this page had room to spare. */
-    /* The dream/ghosting screen blur (Lisa, after Split Head, the otherworld
-     * rooms). Off leaves only the loading-screen trail, which is the same
-     * mechanism. Strength is the quick menu row next to it. */
-    { "Dream_Blur",     &g_PcConfig.dreamBlur,          "dream_blur",           VAL_ONOFF, 2, LBL_ONOFF, &g_cfg_dreamFeedback,          1, PCK_INT    },
-    { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
+    { "Map",           NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
     { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
     { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
 };
@@ -558,7 +554,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_OTSFOV, QO_X_TPSAIMZOOM, QO_X_OTSAIMZOOM, QO_X_TPSOTSAIM,
        QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
-       QO_X_DREAMSTR };
+       QO_X_DREAMSTR, QO_X_DREAMBLUR };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -581,6 +577,9 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         int a = g_PcConfig.audioOutput;
         return (a >= 0 && a < 5) ? QO_SPEAKER_LBL[a] : "HRTF";
     }
+    /* Quick menu only: the PC Options graphics page is already at its row limit. */
+    case QO_X_DREAMBLUR:
+        return g_PcConfig.dreamBlur ? "On" : "Off";
     case QO_X_DREAMSTR:
         if (!g_PcConfig.dreamBlur) { snprintf(buf, bufsz, "%d%%  (off)", (int)(g_PcConfig.dreamBlurStrength * 100.0f + 0.5f)); return buf; }
         snprintf(buf, bufsz, "%d%%", (int)(g_PcConfig.dreamBlurStrength * 100.0f + 0.5f));
@@ -979,6 +978,12 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
     case QO_X_TPSOTSAIM:
         g_PcConfig.tpsOtsAim = !g_PcConfig.tpsOtsAim;
         PcConfig_SaveKeyValue("tps_ots_aim", g_PcConfig.tpsOtsAim ? "1" : "0");
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    case QO_X_DREAMBLUR:
+        g_PcConfig.dreamBlur = !g_PcConfig.dreamBlur;
+        g_cfg_dreamFeedback  = g_PcConfig.dreamBlur;
+        PcConfig_SaveKeyValue("dream_blur", g_PcConfig.dreamBlur ? "1" : "0");
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     /* Position offsets: config-only (live = NULL), 128 = ~0.03 units per press.
