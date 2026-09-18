@@ -29,6 +29,7 @@
 #include "stb_truetype.h"
 
 #include "pc_quick_options.h"
+#include "pc_mouse_click_icons.h"
 #include "pc_bind_panel.h"
 #include "pc_mouse_cursor.h"
 #include "pc_config.h"
@@ -70,9 +71,13 @@ extern void        PcOpt_QuickViewReset(int mode);
 
 #define QO_GARBAGE  48
 #define QO_MAX_ROWS 16
-/* CONTROLS is appended last, so every existing section index -- and the "Next
- * page (X)" label baked into each table -- stays where it was. */
-#define QO_PAGES    6
+#define QO_PAGES    10
+/* Every page lays out on the same row pitch -- the pitch QO_ROW_SLOTS rows
+ * would get in the full-height panel -- and the panel shrinks to its rows.
+ * Deriving the pitch from each page's own row count made the text a different
+ * size on every page and smallest on the longest ones. It has to be at least
+ * the longest page (View in Thirdperson: 11 rows). */
+#define QO_ROW_SLOTS 11
 #define QO_DD_MAX     64  /* dropdown entries cached */
 #define QO_DD_VISIBLE 8
 
@@ -97,25 +102,35 @@ typedef struct
 
 #define QO_IS_VALUE_ROW(k) ((k) == ROW_OPT || (k) == ROW_EXTRA || (k) == ROW_CHEAT)
 
-static const QoRowDef s_page0[] = {
+/* ROW_PAGE's label is only a placeholder: the row draws "Previous / Next" with
+ * the neighbouring pages' names, which depend on where the page sits. */
+#define QO_NAV_ROW   { ROW_PAGE,  NULL, 0, "Previous / Next" }
+#define QO_CLOSE_ROW { ROW_CLOSE, NULL, 0, "Close" }
+
+static const QoRowDef s_pageGfx1[] = {
     { ROW_OPT,   "psx_dither",           0, NULL },  /* Texture_Filter */
     { ROW_OPT,   "msaa",                 0, NULL },  /* Antialiasing (restart) */
     { ROW_OPT,   "post_process",         0, NULL },
     { ROW_OPT,   "tonemap",              0, NULL },
     { ROW_OPT,   "fog_strength",         0, NULL },
+    { ROW_OPT,   "bullet_decals",        0, NULL },
+    { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
+    QO_NAV_ROW,
+    QO_CLOSE_ROW,
+};
+
+static const QoRowDef s_pageGfx2[] = {
     { ROW_OPT,   "flashlight_mode",      0, NULL },
     { ROW_OPT,   "flashlight_intensity", 0, NULL },
     { ROW_OPT,   "flashlight_size",      0, NULL },
     { ROW_EXTRA, NULL, QO_X_SHADOW,         "Shadow Resolution" },
-    { ROW_OPT,   "bullet_decals",        0, NULL },
-    { ROW_OPT,   "weather_sim_hz",       0, NULL },  /* Weather_Rate: 30 or 60 Hz */
     { ROW_OPT,   "dream_blur",           0, NULL },  /* dream/ghosting screen blur */
     { ROW_EXTRA, NULL, QO_X_DREAMSTR,       "Dream Blur Strength" },
-    { ROW_PAGE,  NULL, 0,                   "Next page  (HUD & Audio)" },
-    { ROW_CLOSE, NULL, 0,                   "Close" },
+    QO_NAV_ROW,
+    QO_CLOSE_ROW,
 };
 
-static const QoRowDef s_page1[] = {
+static const QoRowDef s_pageHud[] = {
     { ROW_OPT,   "minimap",              0, NULL },
     { ROW_OPT,   "minimap_scale",        0, NULL },
     { ROW_OPT,   "minimap_corner",       0, NULL },
@@ -124,17 +139,22 @@ static const QoRowDef s_page1[] = {
     { ROW_OPT,   "crosshair",            0, NULL },
     { ROW_OPT,   "crosshair_size",       0, NULL },
     { ROW_OPT,   "low_health_glow",      0, NULL },
+    QO_NAV_ROW,
+    QO_CLOSE_ROW,
+};
+
+static const QoRowDef s_pageAudio[] = {
     { ROW_EXTRA, NULL, QO_X_SPEAKERS,       "Speaker Layout" },
     { ROW_EXTRA, NULL, QO_X_BGM,            "Music Volume" },
     { ROW_EXTRA, NULL, QO_X_SFX,            "Effects Volume" },
     { ROW_OPT,   "fmv_volume",           0, NULL },
-    { ROW_PAGE,  NULL, 0,                   "Next page  (View)" },
-    { ROW_CLOSE, NULL, 0,                   "Close" },
+    QO_NAV_ROW,
+    QO_CLOSE_ROW,
 };
 
 /* Controls: the keybind panel (the same one as Options > Controller Config),
  * then the control settings that apply live. */
-static const QoRowDef s_page5[] = {
+static const QoRowDef s_pageControls[] = {
     { ROW_ACTION, NULL, QO_A_KEYBINDS,       "Edit Keybinds" },
     { ROW_OPT,   "control_2d",             0, NULL },
     { ROW_OPT,   "mouse_sensitivity",      0, NULL },
@@ -142,8 +162,8 @@ static const QoRowDef s_page5[] = {
     { ROW_OPT,   "invert_mouse_y",         0, NULL },
     { ROW_OPT,   "invert_controller_y",    0, NULL },
     { ROW_OPT,   "aim_assist",             0, NULL },
-    { ROW_PAGE,  NULL, 0,                   "Next page  (Graphics)" },
-    { ROW_CLOSE, NULL, 0,                   "Close" },
+    QO_NAV_ROW,
+    QO_CLOSE_ROW,
 };
 
 /* View & Aspect, in two shapes.
@@ -165,8 +185,8 @@ static const QoRowDef s_page2Simple[] = {
     { ROW_EXTRA,  NULL, QO_X_VSHIFT,       "Vertical Shift" },
     { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
     { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
-    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
-    { ROW_CLOSE,  NULL, 0,                 "Close" },
+    QO_NAV_ROW,
+    QO_CLOSE_ROW,
 };
 
 static const QoRowDef s_page2Advanced[] = {
@@ -178,8 +198,8 @@ static const QoRowDef s_page2Advanced[] = {
     { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
     { ROW_EXTRA,  NULL, QO_X_PAR,          "Pixel Aspect" },
     { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
-    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
-    { ROW_CLOSE,  NULL, 0,                 "Close" },
+    QO_NAV_ROW,
+    QO_CLOSE_ROW,
 };
 
 /* Thirdperson, OTS and Firstperson shapes. The classic aspect/pixel knobs are
@@ -198,8 +218,8 @@ static const QoRowDef s_page2Tps[] = {
     { ROW_EXTRA,  NULL, QO_X_TPSAIMY,      "Aim Y (up/down)" },
     { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
     { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
-    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
-    { ROW_CLOSE,  NULL, 0,                 "Close" },
+    QO_NAV_ROW,
+    QO_CLOSE_ROW,
 };
 
 static const QoRowDef s_page2Ots[] = {
@@ -211,8 +231,8 @@ static const QoRowDef s_page2Ots[] = {
     { ROW_EXTRA,  NULL, QO_X_OTSAIMY,      "Aim Y (up/down)" },
     { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
     { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
-    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
-    { ROW_CLOSE,  NULL, 0,                 "Close" },
+    QO_NAV_ROW,
+    QO_CLOSE_ROW,
 };
 
 static const QoRowDef s_page2Fps[] = {
@@ -223,8 +243,8 @@ static const QoRowDef s_page2Fps[] = {
     { ROW_EXTRA,  NULL, QO_X_FPSSWING,     "Melee Swing Pullback" },
     { ROW_EXTRA,  NULL, QO_X_CUTSHIFT,     "Cutscene Shift" },
     { ROW_ACTION, NULL, QO_A_VIEWRESET,    "Reset View Settings" },
-    { ROW_PAGE,   NULL, 0,                 "Next page  (Cheats)" },
-    { ROW_CLOSE,  NULL, 0,                 "Close" },
+    QO_NAV_ROW,
+    QO_CLOSE_ROW,
 };
 
 /* Set when the row SET changes under the cached text (a Control Type switch, a
@@ -290,49 +310,65 @@ static const QoRowDef* qo_view_page(int* count)
     return s_page2Simple;
 }
 
-/* Pages 2/3 mirror pc_cheats.c's tables, built on first use. */
-static QoRowDef s_cheatRows[2][QO_MAX_ROWS];
-static int      s_cheatRowCount[2];
+/* The Cheats and Debug pages mirror pc_cheats.c's tables, each split in two:
+ * the settings, then the one-shot actions. Split by row kind rather than by
+ * index so a row added to either table lands on the right half by itself.
+ * ROW_CHEAT.extra stays the TABLE index, which is what Pc_Cheats_* takes. */
+static QoRowDef s_cheatRows[2][2][QO_MAX_ROWS];
+static int      s_cheatRowCount[2][2];
 
-static const QoRowDef* qo_cheat_page(int cpage, const char* nextLabel, int* count)
+static const QoRowDef* qo_cheat_page(int cpage, int actions, int* count)
 {
-    if (s_cheatRowCount[cpage] == 0)
+    if (s_cheatRowCount[cpage][actions] == 0)
     {
+        QoRowDef* out = s_cheatRows[cpage][actions];
         int n = Pc_Cheats_Count(cpage), i, k = 0;
-        if (n > QO_MAX_ROWS - 2) n = QO_MAX_ROWS - 2;
-        for (i = 0; i < n; i++)
+        for (i = 0; i < n && k < QO_MAX_ROWS - 2; i++)
         {
-            s_cheatRows[cpage][k].kind  = ROW_CHEAT;
-            s_cheatRows[cpage][k].key   = NULL;
-            s_cheatRows[cpage][k].extra = i;
-            s_cheatRows[cpage][k].label = NULL;
-            s_cheatRows[cpage][k].cpage = cpage;
+            if ((Pc_Cheats_IsAction(cpage, i) != 0) != (actions != 0))
+                continue;
+            out[k].kind  = ROW_CHEAT;
+            out[k].key   = NULL;
+            out[k].extra = i;
+            out[k].label = NULL;
+            out[k].cpage = cpage;
             k++;
         }
-        s_cheatRows[cpage][k].kind = ROW_PAGE;  s_cheatRows[cpage][k].label = nextLabel; k++;
-        s_cheatRows[cpage][k].kind = ROW_CLOSE; s_cheatRows[cpage][k].label = "Close";   k++;
-        s_cheatRowCount[cpage] = k;
+        out[k].kind = ROW_PAGE;  out[k].label = "Previous / Next"; k++;
+        out[k].kind = ROW_CLOSE; out[k].label = "Close";           k++;
+        s_cheatRowCount[cpage][actions] = k;
     }
-    *count = s_cheatRowCount[cpage];
-    return s_cheatRows[cpage];
+    *count = s_cheatRowCount[cpage][actions];
+    return s_cheatRows[cpage][actions];
 }
+
+enum { QO_PG_GFX1 = 0, QO_PG_GFX2, QO_PG_HUD, QO_PG_AUDIO, QO_PG_VIEW,
+       QO_PG_CHEATS1, QO_PG_CHEATS2, QO_PG_DEBUG1, QO_PG_DEBUG2, QO_PG_CONTROLS };
+
+#define QO_TABLE(t) (*count = (int)(sizeof(t) / sizeof((t)[0])), (t))
 
 static const QoRowDef* qo_page_rows(int page, int* count)
 {
-    if (page == 1) { *count = (int)(sizeof(s_page1) / sizeof(s_page1[0])); return s_page1; }
-    if (page == 2) return qo_view_page(count);
-    if (page == 3) return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, "Next page  (Debug)",    count);
-    if (page == 4) return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  "Next page  (Controls)", count);
-    if (page == 5) { *count = (int)(sizeof(s_page5) / sizeof(s_page5[0])); return s_page5; }
-    *count = (int)(sizeof(s_page0) / sizeof(s_page0[0]));
-    return s_page0;
+    switch (page)
+    {
+        case QO_PG_GFX2:     return QO_TABLE(s_pageGfx2);
+        case QO_PG_HUD:      return QO_TABLE(s_pageHud);
+        case QO_PG_AUDIO:    return QO_TABLE(s_pageAudio);
+        case QO_PG_VIEW:     return qo_view_page(count);
+        case QO_PG_CHEATS1:  return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, 0, count);
+        case QO_PG_CHEATS2:  return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, 1, count);
+        case QO_PG_DEBUG1:   return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  0, count);
+        case QO_PG_DEBUG2:   return qo_cheat_page(PC_CHEATS_PAGE_DEBUG,  1, count);
+        case QO_PG_CONTROLS: return QO_TABLE(s_pageControls);
+        default:             return QO_TABLE(s_pageGfx1);
+    }
 }
 
-static const char* const s_pageTitles[QO_PAGES] = {
-    "QUICK OPTIONS  -  GRAPHICS", "QUICK OPTIONS  -  HUD & AUDIO",
-    "QUICK OPTIONS  -  VIEW & ASPECT",
-    "QUICK OPTIONS  -  CHEATS",   "QUICK OPTIONS  -  DEBUG",
-    "QUICK OPTIONS  -  CONTROLS" };
+/* The title, and the Previous / Next row's destinations. No slashes in these:
+ * the row already separates its two destinations with one. */
+static const char* const s_pageNames[QO_PAGES] = {
+    "Graphics", "Lighting & Effects", "HUD", "Audio", "View",
+    "Cheats", "Cheat Actions", "Debug", "Debug Actions", "Controls" };
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -366,8 +402,13 @@ static int            s_fontsTried;
 
 /* Baked text, re-baked when the pixel size or the page changes; values are
  * re-baked whenever their text changes. */
-static GLuint s_texTitle, s_texHint;
-static int    s_titleW, s_titleH, s_hintW, s_hintH;
+static GLuint s_texTitle, s_texHint, s_texHint2;
+static int    s_titleW, s_titleH, s_hintW, s_hintH, s_hint2W, s_hint2H;
+/* The Previous / Next row, in pieces so the mouse glyphs sit inline. */
+enum { QO_NAV_PREV = 0, QO_NAV_SLASH, QO_NAV_NEXT, QO_NAV_DEST, QO_NAV_ICON_R, QO_NAV_ICON_L, QO_NAV_N };
+static GLuint s_texNav[QO_NAV_N];
+static int    s_navW[QO_NAV_N], s_navH[QO_NAV_N];
+static int    s_navPx;
 static GLuint s_texLabel[QO_MAX_ROWS];
 static int    s_labelW[QO_MAX_ROWS], s_labelH[QO_MAX_ROWS];
 static GLuint s_texValue[QO_MAX_ROWS];
@@ -1032,6 +1073,102 @@ static void qo_build_white(void)
 
 }
 
+/* A mouse glyph at `size` px, area-averaged down from the embedded 48 px
+ * coverage mask so it stays clean at text size (the atlas has no mips, and a
+ * LINEAR minify of the full mask would alias the thin outline). White with
+ * alpha = coverage, like the baked text, so it tints the same way. */
+static GLuint qo_bake_icon(const unsigned char* mask, int size, int* outW, int* outH)
+{
+    const float    scale = (float)PC_MOUSE_ICON_SIZE / (float)size;
+    unsigned char* rgba;
+    GLuint         tex;
+    int            x, y;
+
+    if (size < 4 || size > 256)
+        return 0;
+    rgba = (unsigned char*)malloc((size_t)size * size * 4);
+    if (!rgba)
+        return 0;
+
+    for (y = 0; y < size; y++)
+    {
+        const float sy0 = y * scale, sy1 = (y + 1) * scale;
+        for (x = 0; x < size; x++)
+        {
+            const float sx0 = x * scale, sx1 = (x + 1) * scale;
+            float       acc = 0.0f;
+            int         iy, ix;
+
+            for (iy = (int)sy0; iy < PC_MOUSE_ICON_SIZE && (float)iy < sy1; iy++)
+            {
+                const float wy = fminf(sy1, (float)(iy + 1)) - fmaxf(sy0, (float)iy);
+                for (ix = (int)sx0; ix < PC_MOUSE_ICON_SIZE && (float)ix < sx1; ix++)
+                {
+                    const float wx = fminf(sx1, (float)(ix + 1)) - fmaxf(sx0, (float)ix);
+                    acc += (float)mask[iy * PC_MOUSE_ICON_SIZE + ix] * wx * wy;
+                }
+            }
+            acc /= scale * scale;
+            rgba[(y * size + x) * 4 + 0] = 255;
+            rgba[(y * size + x) * 4 + 1] = 255;
+            rgba[(y * size + x) * 4 + 2] = 255;
+            rgba[(y * size + x) * 4 + 3] = (unsigned char)(acc > 255.0f ? 255.0f : acc + 0.5f);
+        }
+    }
+
+    tex = qo_upload_rgba(rgba, size, size, 0);
+    free(rgba);
+    if (outW) *outW = size;
+    if (outH) *outH = size;
+    return tex;
+}
+
+/* Previous / Next row pieces for `page`, baked so the whole row fits `avail`:
+ * at `px` if it does, otherwise once more scaled down to fit. Right click goes
+ * back and left click forward (the row adjusts like a value row), so each word
+ * carries the button that does it. */
+static void qo_bake_nav(int page, int px, float avail)
+{
+    char dest[96];
+    int  pass, i;
+
+    snprintf(dest, sizeof(dest), "(%s  /  %s)",
+             s_pageNames[(page + QO_PAGES - 1) % QO_PAGES],
+             s_pageNames[(page + 1) % QO_PAGES]);
+
+    for (pass = 0; pass < 2; pass++)
+    {
+        const int destPx = (int)((float)px * 0.82f);
+        const int icon   = (int)((float)px * 1.15f + 0.5f);
+        float     total;
+
+        s_texNav[QO_NAV_PREV]   = qo_bake("Previous", (float)px, &s_navW[QO_NAV_PREV], &s_navH[QO_NAV_PREV]);
+        s_texNav[QO_NAV_SLASH]  = qo_bake("/", (float)px, &s_navW[QO_NAV_SLASH], &s_navH[QO_NAV_SLASH]);
+        s_texNav[QO_NAV_NEXT]   = qo_bake("Next", (float)px, &s_navW[QO_NAV_NEXT], &s_navH[QO_NAV_NEXT]);
+        s_texNav[QO_NAV_DEST]   = qo_bake(dest, (float)destPx, &s_navW[QO_NAV_DEST], &s_navH[QO_NAV_DEST]);
+        s_texNav[QO_NAV_ICON_R] = qo_bake_icon(g_PcMouseIconRight, icon, &s_navW[QO_NAV_ICON_R], &s_navH[QO_NAV_ICON_R]);
+        s_texNav[QO_NAV_ICON_L] = qo_bake_icon(g_PcMouseIconLeft,  icon, &s_navW[QO_NAV_ICON_L], &s_navH[QO_NAV_ICON_L]);
+
+        total = (float)(s_navW[QO_NAV_ICON_R] + s_navW[QO_NAV_PREV] + s_navW[QO_NAV_SLASH] +
+                        s_navW[QO_NAV_NEXT] + s_navW[QO_NAV_ICON_L] + s_navW[QO_NAV_DEST]) +
+                (float)px * (0.3f * 2.0f + 0.45f * 2.0f + 0.9f);
+        if (pass == 1 || total <= avail || total <= 0.0f)
+        {
+            s_navPx = px;
+            return;
+        }
+
+        for (i = 0; i < QO_NAV_N; i++)
+        {
+            qo_retire(s_texNav[i]);
+            s_texNav[i] = 0;
+        }
+        px = (int)((float)px * avail / total);
+        if (px < 6)
+            px = 6;
+    }
+}
+
 static void qo_free_text(void)
 {
     int i;
@@ -1049,6 +1186,11 @@ static void qo_free_text(void)
     s_texCursor = 0; /* re-uploaded on the next draw */
     qo_retire(s_texTitle); s_texTitle = 0;
     qo_retire(s_texHint);  s_texHint  = 0;
+    qo_retire(s_texHint2); s_texHint2 = 0;
+    for (i = 0; i < QO_NAV_N; i++)
+    {
+        qo_retire(s_texNav[i]); s_texNav[i] = 0;
+    }
     for (i = 0; i < QO_MAX_ROWS; i++)
     {
         qo_retire(s_texLabel[i]); s_texLabel[i] = 0;
@@ -1629,7 +1771,7 @@ void Pc_QuickOptions_Draw(void)
 {
     GLint vp[4];
     float vpW, vpH, panelW, panelH, panelL, panelR, panelT, panelB;
-    float titleH, hintH, listT, listB, listH, rowPitch, rowH, pad, dim = 1.0f;
+    float titleH, hintH, listT, rowPitch, rowH, pad, dim = 1.0f;
     int   nRows;
     const QoRowDef* rows = qo_page_rows(s_page, &nRows);
     int   px, i;
@@ -1736,11 +1878,21 @@ void Pc_QuickOptions_Draw(void)
 
     /* Layout (viewport px, origin bottom-left). Left-anchored rather than
      * centred so the scene stays visible beside it while you tune. */
-    panelH = 0.74f * vpH;
-    panelW = 0.80f * panelH;
-    if (panelW > 0.90f * vpW) panelW = 0.90f * vpW;
-    panelL = vpW * 0.04f;
-    panelB = (vpH - panelH) * 0.5f;
+    /* One row pitch for every page (see QO_ROW_SLOTS); the panel is as tall as
+     * its page, with its top edge where the full-height panel's was so the
+     * title bar stays put when the page changes. */
+    {
+        const float fullH = 0.74f * vpH;
+
+        titleH   = fullH * 0.09f;
+        hintH    = fullH * 0.10f;
+        rowPitch = fullH * 0.84f / (float)QO_ROW_SLOTS;
+        panelH   = titleH + rowPitch * (float)nRows + hintH;
+        panelW   = 0.80f * fullH;
+        if (panelW > 0.90f * vpW) panelW = 0.90f * vpW;
+        panelL   = vpW * 0.04f;
+        panelB   = (vpH + fullH) * 0.5f - panelH;
+    }
 
     /* User drag offset, clamped so a good part of the panel always stays on
      * screen (never let it be dragged fully out of reach). */
@@ -1762,12 +1914,7 @@ void Pc_QuickOptions_Draw(void)
     panelT = panelB + panelH;
 
     pad      = panelW * 0.05f;
-    titleH   = panelH * 0.09f;
-    hintH    = panelH * 0.07f;
     listT    = panelT - titleH;
-    listB    = panelB + hintH;
-    listH    = listT - listB;
-    rowPitch = listH / (float)nRows;
     rowH     = rowPitch * 0.84f;
     px       = (int)(rowH * 0.52f);
     if (px < 8) px = 8;
@@ -1775,7 +1922,7 @@ void Pc_QuickOptions_Draw(void)
     {
         /* The View page (2) titles by the active camera, which can change while
          * the page is open, so key the bake on it too and re-bake on a switch. */
-        int viewMode = (s_page == 2) ? qo_view_cam_mode() : -1;
+        int viewMode = (s_page == QO_PG_VIEW) ? qo_view_cam_mode() : -1;
         if (s_bakedForPx != px || s_bakedForPage != s_page || s_bakedForViewMode != viewMode)
         {
             qo_free_text();
@@ -1786,41 +1933,58 @@ void Pc_QuickOptions_Draw(void)
     }
     if (!s_texTitle)
     {
-        const char* title = s_pageTitles[s_page];
-        char titleBuf[64];
-        if (s_page == 2)
+        char titleBuf[96];
+        char name[48];
+        int  k;
+
+        for (k = 0; k < (int)sizeof(name) - 1 && s_pageNames[s_page][k]; k++)
+        {
+            const char c = s_pageNames[s_page][k];
+            name[k] = (c >= 'a' && c <= 'z') ? (char)(c - 'a' + 'A') : c;
+        }
+        name[k] = 0;
+        if (s_page == QO_PG_VIEW)
         {
             int m = qo_view_cam_mode();
-            snprintf(titleBuf, sizeof(titleBuf), "QUICK OPTIONS  -  VIEW  (%s)",
+            snprintf(titleBuf, sizeof(titleBuf), "QUICK OPTIONS  -  %s  (%s)", name,
                      (m == QO_CAM_FPS) ? "Firstperson" :
                      (m == QO_CAM_OTS) ? "Over-the-Shoulder" :
                      (m == QO_CAM_TPS) ? "Thirdperson" : "Classic");
-            title = titleBuf;
         }
-        s_texTitle = qo_bake(title, (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
+        else
+            snprintf(titleBuf, sizeof(titleBuf), "QUICK OPTIONS  -  %s", name);
+        s_texTitle = qo_bake(titleBuf, (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
     }
-    /* Controls footer. It used to run off-screen at some panel widths, so bake
-     * it once at the natural size and, if it overflows, re-bake once scaled to
-     * fit -- the text always ends up inside the panel whatever its width. */
+    /* Controls footer, on two lines: as one it had to shrink to fit the panel
+     * and came out too small to read. Both lines share one size, scaled down
+     * once only if the wider of them still overflows. */
     if (!s_texHint)
     {
-        char  hint[192];
+        char  hint[128], hint2[128];
         float avail = panelW - 2.0f * pad;
-        int   hpx   = (int)(hintH * 0.42f);
+        int   hpx   = (int)(hintH * 0.30f);
+        int   widest;
 
         if (hpx < 7) hpx = 7;
-        snprintf(hint, sizeof(hint),
-                 "Up/Down select   Left/Right adjust   PgUp/PgDn page   drag title to move   %s or Esc close   * req restart",
+        snprintf(hint, sizeof(hint), "Up/Down select    Left/Right adjust    Q/E or PgUp/PgDn page");
+        snprintf(hint2, sizeof(hint2), "Drag the title to move    %s or Esc close    * needs restart",
                  g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10");
-        s_texHint = qo_bake(hint, (float)hpx, &s_hintW, &s_hintH);
-        if (s_texHint && s_hintW > avail && s_hintW > 0 && avail > 0.0f)
+        s_texHint  = qo_bake(hint,  (float)hpx, &s_hintW,  &s_hintH);
+        s_texHint2 = qo_bake(hint2, (float)hpx, &s_hint2W, &s_hint2H);
+        widest = (s_hintW > s_hint2W) ? s_hintW : s_hint2W;
+        if (widest > avail && widest > 0 && avail > 0.0f)
         {
-            int fit = (int)((float)hpx * avail / (float)s_hintW);
+            int fit = (int)((float)hpx * avail / (float)widest);
             if (fit < 6)   fit = 6;
             if (fit > hpx) fit = hpx;
-            s_texHint = qo_bake(hint, (float)fit, &s_hintW, &s_hintH);
+            qo_retire(s_texHint);
+            qo_retire(s_texHint2);
+            s_texHint  = qo_bake(hint,  (float)fit, &s_hintW,  &s_hintH);
+            s_texHint2 = qo_bake(hint2, (float)fit, &s_hint2W, &s_hint2H);
         }
     }
+    if (!s_texNav[QO_NAV_PREV])
+        qo_bake_nav(s_page, px, panelW - 2.0f * pad);
 
     /* Publish geometry for Update's mouse hit-test. */
     s_vpW = vpW; s_vpH = vpH;
@@ -1888,7 +2052,7 @@ void Pc_QuickOptions_Draw(void)
             qo_quad(s_texWhite, NX(panelL + 4.0f), NY(rowTop), NX(panelR - 4.0f), NY(rowTop - rowH),
                     0.42f, 0.16f, 0.12f, 0.55f * dim);
 
-        if (!s_texLabel[i])
+        if (!s_texLabel[i] && r->kind != ROW_PAGE)
         {
             qo_row_name(r, txt, (int)sizeof(txt));
             s_texLabel[i] = qo_bake(txt, (float)px, &s_labelW[i], &s_labelH[i]);
@@ -1931,6 +2095,38 @@ void Pc_QuickOptions_Draw(void)
                         vg, vg * 0.85f, vg * 0.45f, dim);
             }
         }
+        else if (r->kind == ROW_PAGE)
+        {
+            /* [R] Previous  /  Next [L]    (previous page  /  next page),
+             * centred as one line, each piece on the row's middle. */
+            static const int order[] = { QO_NAV_ICON_R, QO_NAV_PREV, QO_NAV_SLASH,
+                                         QO_NAV_NEXT, QO_NAV_ICON_L, QO_NAV_DEST };
+            const float gap[] = { 0.30f, 0.45f, 0.45f, 0.30f, 0.90f, 0.0f };
+            float total = 0.0f, x;
+            int   k;
+
+            for (k = 0; k < 6; k++)
+                total += (float)s_navW[order[k]] + gap[k] * (float)s_navPx;
+            x = panelL + (panelW - total) * 0.5f;
+            for (k = 0; k < 6; k++)
+            {
+                const int   p    = order[k];
+                const int   icon = (p == QO_NAV_ICON_R || p == QO_NAV_ICON_L);
+                const float c    = (p == QO_NAV_DEST) ? 0.62f : (p == QO_NAV_SLASH) ? 0.55f : 1.0f;
+
+                if (s_texNav[p])
+                {
+                    tH = (float)s_navH[p]; tY = rowMid + tH * 0.5f;
+                    if (icon)
+                        qo_quad(s_texNav[p], NX(x), NY(tY), NX(x + s_navW[p]), NY(tY - tH),
+                                0.92f, 0.92f, 0.95f, dim);
+                    else
+                        qo_quad(s_texNav[p], NX(x), NY(tY), NX(x + s_navW[p]), NY(tY - tH),
+                                0.80f * c, 0.85f * c, 0.95f * c, dim);
+                }
+                x += (float)s_navW[p] + gap[k] * (float)s_navPx;
+            }
+        }
         else if (s_texLabel[i])
         {
             /* Action row, centred. */
@@ -1944,8 +2140,14 @@ void Pc_QuickOptions_Draw(void)
     if (s_texHint)
     {
         float hx = panelL + (panelW - (float)s_hintW) * 0.5f;
-        float hy = panelB + hintH * 0.72f;
+        float hy = panelB + hintH * 0.88f;
         qo_quad(s_texHint, NX(hx), NY(hy), NX(hx + s_hintW), NY(hy - s_hintH), 0.7f, 0.7f, 0.75f, dim);
+    }
+    if (s_texHint2)
+    {
+        float hx = panelL + (panelW - (float)s_hint2W) * 0.5f;
+        float hy = panelB + hintH * 0.46f;
+        qo_quad(s_texHint2, NX(hx), NY(hy), NX(hx + s_hint2W), NY(hy - s_hint2H), 0.7f, 0.7f, 0.75f, dim);
     }
 
     /* Dropdown list over the value column of its row, on top of the rows. */
