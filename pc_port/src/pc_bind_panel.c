@@ -136,9 +136,15 @@ static int s_visRows = 16; /* published by Draw */
 static int s_followSel;
 
 static int    s_listen;       /* waiting for an input for (s_row, s_col) */
-static int    s_listenArmed;  /* everything was released since listening began */
+static int    s_listenArmed;  /* the press that opened the capture is done */
 static Uint32 s_listenStart;
 #define BP_LISTEN_PAD_MS 8000u
+
+/* The pad bind held when a capture opened, and when it was last seen held. It
+ * is not a candidate until it has been let go for BP_ARM_MS -- see bp_capture. */
+static char   s_listenSkip[32];
+static Uint32 s_skipSeenMs;
+#define BP_ARM_MS 300u
 
 static int s_resetAsked;      /* the confirm dialog is ours */
 
@@ -160,6 +166,10 @@ static Uint32 s_toastStart;
 enum { BN_UP = 0, BN_DOWN, BN_LEFT, BN_RIGHT, BN_OK, BN_BACK, BN_CLEAR, BN_COUNT };
 static int    s_navPrev[BN_COUNT];
 static Uint32 s_navRepeatAt[BN_COUNT];
+/* Last time each input was seen held; a press counts only once it has been
+ * released for BP_SETTLE_MS (see bp_nav_edges). */
+static Uint32 s_navHeldAt[BN_COUNT];
+#define BP_SETTLE_MS 140u
 
 /* One action per press. After any of them nothing acts again until everything
  * has been released and stayed released for a moment. A pad press used to run
@@ -419,6 +429,7 @@ static void bp_nav_reset(void)
     {
         s_navPrev[i]     = 1; /* whatever opened the panel must be released first */
         s_navRepeatAt[i] = 0;
+        s_navHeldAt[i]   = SDL_GetTicks(); /* and settle before it counts again */
     }
     s_gate   = 1;
     s_gateAt = SDL_GetTicks();
@@ -541,7 +552,15 @@ static void bp_read_nav(int held[BN_COUNT])
     }
 }
 
-/* Press edges, with key-repeat on the four directions. */
+/* Press edges, with key-repeat on the four directions.
+ *
+ * An input counts as a new press only once it has been seen released for
+ * BP_SETTLE_MS. A controller's face buttons are ANALOG on an MFi pad (and on
+ * plenty of others), and SDL turns that pressure into a digital state at a
+ * threshold: one ordinary press crosses it several times on the way in and out,
+ * so a plain rising edge fired two or three times. That is the double
+ * assignment and the double reset from the first controller session, and a very
+ * light tap avoided it precisely because it never wavered. */
 static void bp_nav_edges(int held[BN_COUNT], int pressed[BN_COUNT])
 {
     const Uint32 now = SDL_GetTicks();
@@ -550,7 +569,7 @@ static void bp_nav_edges(int held[BN_COUNT], int pressed[BN_COUNT])
     for (i = 0; i < BN_COUNT; i++)
     {
         pressed[i] = 0;
-        if (held[i] && !s_navPrev[i])
+        if (held[i] && !s_navPrev[i] && (now - s_navHeldAt[i]) >= BP_SETTLE_MS)
         {
             pressed[i]       = 1;
             s_navRepeatAt[i] = now + 360u;
@@ -560,6 +579,8 @@ static void bp_nav_edges(int held[BN_COUNT], int pressed[BN_COUNT])
             pressed[i]       = 1;
             s_navRepeatAt[i] = now + 90u;
         }
+        if (held[i])
+            s_navHeldAt[i] = now;
         s_navPrev[i] = held[i];
     }
 }
@@ -622,6 +643,14 @@ static void bp_activate(void)
     s_listen      = 1;
     s_listenArmed = 0;
     s_listenStart = SDL_GetTicks();
+    {
+        /* Remember the button doing the opening, so bp_capture can tell it from
+         * the one the player picks next. */
+        const char* pb = PsyX_Pad_HeldBindName();
+
+        snprintf(s_listenSkip, sizeof(s_listenSkip), "%s", (pb != NULL) ? pb : "");
+        s_skipSeenMs = s_listenStart;
+    }
     bp_nav_reset(); /* the press that opened this must not also be captured */
 }
 
@@ -652,27 +681,38 @@ static const char* bp_capture(void)
 
     if (s_col >= BP_PAD1)
     {
-        const char* pb = PsyX_Pad_HeldBindName();
+        const char*  pb  = PsyX_Pad_HeldBindName();
+        const Uint32 now = SDL_GetTicks();
 
         if (ks && ks[SDL_SCANCODE_ESCAPE])
             return "";
-        if (SDL_GetTicks() - s_listenStart > BP_LISTEN_PAD_MS || PsyX_Pad_ConnectedControllerName() == NULL)
+        if (now - s_listenStart > BP_LISTEN_PAD_MS || PsyX_Pad_ConnectedControllerName() == NULL)
             return "";
 #if defined(BP_MOBILE)
         /* A phone has no Esc: a tap anywhere cancels. */
         if (Pc_MouseCursor_TouchPressed())
             return "";
 #endif
-        if (!s_listenArmed)
+        if (pb != NULL)
         {
-            if (pb == NULL)
-                s_listenArmed = 1;
-            return NULL;
+            /* The button that opened this capture is not a choice until it has
+             * been properly let go. Arming on a single released frame armed in
+             * the middle of the opening press -- an analog face button dips
+             * below SDL's threshold on the way down -- and bound A to itself on
+             * every ordinary press (reported; only a feather-light tap worked).
+             * Any OTHER button is the player choosing, and is taken at once. */
+            if (!s_listenArmed && s_listenSkip[0] != '\0' &&
+                SDL_strcasecmp(pb, s_listenSkip) == 0)
+            {
+                s_skipSeenMs = now;
+                return NULL;
+            }
+            snprintf(name, sizeof(name), "%s", pb);
+            return name;
         }
-        if (pb == NULL)
-            return NULL;
-        snprintf(name, sizeof(name), "%s", pb);
-        return name;
+        if (!s_listenArmed && (now - s_skipSeenMs) >= BP_ARM_MS)
+            s_listenArmed = 1;
+        return NULL;
     }
 
     if (!s_listenArmed)
