@@ -505,18 +505,28 @@ namespace SilentHillPC_Launcher
             foreach (ListViewItem it in _list.Items)
             {
                 var vag = (VabVag)it.Tag;
-                bool staged = _pending.ContainsKey(vag.Index);
+                byte[] body;
+                bool staged = _pending.TryGetValue(vag.Index, out body);
                 it.Font = new Font(_list.Font, staged ? FontStyle.Bold : FontStyle.Regular);
-                if (staged)
-                {
-                    it.SubItems[1].Text = _pending[vag.Index].Length.ToString("N0") + " *";
-                }
-                else if (it.SubItems[1].Text.EndsWith(" *"))
-                {
-                    it.SubItems[1].Text = vag.Length.ToString("N0");
-                }
+
+                // The whole size group follows the staged body, so the row describes
+                // the sound Play will actually produce.
+                int bytes = staged ? body.Length : vag.Length;
+                int samples = bytes / 16 * 28;
+                it.SubItems[1].Text = bytes.ToString("N0") + (staged ? " *" : "");
+                it.SubItems[2].Text = samples.ToString("N0");
+                it.SubItems[3].Text = (samples / RateFor(vag)).ToString("0.00") + "s";
             }
             UpdateButtons();
+        }
+
+        /// <summary>The PCM a row stands for right now: the staged replacement when
+        /// there is one, otherwise the bank's own sample.</summary>
+        private short[] SamplesFor(VabVag vag)
+        {
+            byte[] body;
+            if (_pending.TryGetValue(vag.Index, out body)) return VabFile.DecodeAdpcm(body, 0, body.Length);
+            return _vab.Decode(vag.Index);
         }
 
         private string LoadSndDir
@@ -663,7 +673,7 @@ namespace SilentHillPC_Launcher
             StopPlayback();
             try
             {
-                short[] pcm = _vab.Decode(vag.Index);
+                short[] pcm = SamplesFor(vag);
                 if (pcm.Length == 0)
                 {
                     MessageBox.Show(this, "That sample decoded to nothing — its first block is an end marker.",
