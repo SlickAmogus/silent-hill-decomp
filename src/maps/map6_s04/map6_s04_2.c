@@ -105,6 +105,47 @@ s32 func_800DE350(s32 arg0) // 0x800DE350
     return D_800EAF20[idx] | 0x3A000000;
 }
 
+#ifdef SH_PC_PORT
+/* The carousel's glow field is a grid of 12px gouraud cells laid across the
+ * whole 320x224 frame, but it is drawn in OT0, so it inherits the world pass's
+ * Hor+ widening and vertical crop -- both there for 3D geometry -- and comes out
+ * as a 4:3 box of glow that stops short of the bottom. Map it onto the world
+ * ortho's own extent instead. A glow field has no aspect to preserve, and every
+ * cell edge goes through the same affine map, so shared edges stay shared and no
+ * cracks can open. Identity at 4:3, where the ortho is the frame itself. */
+static void Pc_GlowGridMapping(float* sx, float* ox, float* sy, float* oy)
+{
+    extern float g_PsxWorldOrtho[4];
+    extern float g_PsxWorldDisp[2];
+    extern int   g_PsxWorldOrthoValid;
+    float        w;
+    float        h;
+
+    *sx = 1.0f; *ox = 0.0f;
+    *sy = 1.0f; *oy = 0.0f;
+
+    w = g_PsxWorldDisp[0];
+    h = g_PsxWorldDisp[1];
+    if (!g_PsxWorldOrthoValid || w <= 0.0f || h <= 0.0f)
+    {
+        return;
+    }
+
+    /* Prim coordinates are centre-origin (draw offset = half the display), the
+     * ortho is in display coordinates: x' = L + (x + w/2) * (R - L) / w - w/2. */
+    *sx = (g_PsxWorldOrtho[1] - g_PsxWorldOrtho[0]) / w;
+    *ox = g_PsxWorldOrtho[0] + (w * 0.5f) * (*sx) - (w * 0.5f);
+    *sy = (g_PsxWorldOrtho[3] - g_PsxWorldOrtho[2]) / h;
+    *oy = g_PsxWorldOrtho[2] + (h * 0.5f) * (*sy) - (h * 0.5f);
+}
+
+static short Pc_GlowGridMap(short v, float s, float o)
+{
+    float f = (float)v * s + o;
+    return (short)((f >= 0.0f) ? (f + 0.5f) : (f - 0.5f));
+}
+#endif
+
 void* func_800DE380(GsOT_TAG* arg0, PACKET* arg1) // 0x800DE380
 {
     s32       i;
@@ -115,6 +156,11 @@ void* func_800DE380(GsOT_TAG* arg0, PACKET* arg1) // 0x800DE380
     s32       var_s7;
     POLY_G4*  poly;
     DR_TPAGE* tPage;
+#ifdef SH_PC_PORT
+    float     pcSx, pcOx, pcSy, pcOy;
+
+    Pc_GlowGridMapping(&pcSx, &pcOx, &pcSy, &pcOy);
+#endif
 
     poly = arg1;
 
@@ -141,6 +187,17 @@ void* func_800DE380(GsOT_TAG* arg0, PACKET* arg1) // 0x800DE380
             poly->y2 = ((i - 1) * 12) - 100;
             poly->x3 = -166 + (12 * j);
             poly->y3 = ((i - 1) * 12) - 100;
+
+#ifdef SH_PC_PORT
+            poly->x0 = Pc_GlowGridMap(poly->x0, pcSx, pcOx);
+            poly->x1 = Pc_GlowGridMap(poly->x1, pcSx, pcOx);
+            poly->x2 = Pc_GlowGridMap(poly->x2, pcSx, pcOx);
+            poly->x3 = Pc_GlowGridMap(poly->x3, pcSx, pcOx);
+            poly->y0 = Pc_GlowGridMap(poly->y0, pcSy, pcOy);
+            poly->y1 = Pc_GlowGridMap(poly->y1, pcSy, pcOy);
+            poly->y2 = Pc_GlowGridMap(poly->y2, pcSy, pcOy);
+            poly->y3 = Pc_GlowGridMap(poly->y3, pcSy, pcOy);
+#endif
 
             *(s32*)&poly->r0 = temp_s0;
             *(s32*)&poly->r1 = var_s7;
