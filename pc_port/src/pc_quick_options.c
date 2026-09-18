@@ -2068,22 +2068,9 @@ void Pc_QuickOptions_Draw(void)
                 snprintf(s_valueText[i], sizeof(s_valueText[i]), "%s", txt);
                 s_texValue[i] = qo_bake(txt, (float)px, &s_valueW[i], &s_valueH[i]);
             }
-            /* Label left. A list row's label is a BUTTON (the action lives on
-             * it; the value on the right only browses), drawn as a boxed pill. */
             if (s_texLabel[i])
             {
                 tH = (float)s_labelH[i]; tY = rowMid + tH * 0.5f;
-                if (qo_row_is_list(r))
-                {
-                    float bl = panelL + pad - 6.0f, br = panelL + pad + (float)s_labelW[i] + 6.0f;
-                    float bt = rowTop - rowH * 0.08f, bb = rowTop - rowH * 0.92f;
-                    float sel = (i == s_sel) ? 1.0f : 0.6f;
-                    qo_quad(s_texWhite, NX(bl), NY(bt), NX(br), NY(bb), 0.47f, 0.11f, 0.08f, 0.55f * sel * dim);
-                    qo_quad(s_texWhite, NX(bl), NY(bt), NX(br), NY(bt - 1.0f), 1.0f, 0.93f, 0.86f, 0.35f * dim);
-                    qo_quad(s_texWhite, NX(bl), NY(bb + 1.0f), NX(br), NY(bb), 1.0f, 0.93f, 0.86f, 0.35f * dim);
-                    qo_quad(s_texWhite, NX(bl), NY(bt), NX(bl + 1.0f), NY(bb), 1.0f, 0.93f, 0.86f, 0.35f * dim);
-                    qo_quad(s_texWhite, NX(br - 1.0f), NY(bt), NX(br), NY(bb), 1.0f, 0.93f, 0.86f, 0.35f * dim);
-                }
                 qo_quad(s_texLabel[i], NX(panelL + pad), NY(tY), NX(panelL + pad + s_labelW[i]), NY(tY - tH),
                         0.92f, 0.92f, 0.95f, dim);
             }
