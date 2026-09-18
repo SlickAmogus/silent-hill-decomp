@@ -428,7 +428,8 @@ void GameBoot_GameStartup(void) // 0x80034964
  *  - the load waits at step 9, before the new area's music starts, until Harry
  *    has been on screen for g_PcLoadScreenMinVblanks.
  * Only the PlayerRun screen; the other loading screens and room transitions are
- * untouched. Console LOADPACE <vblanks> (0 or 1 = every frame), LOADMIN <sec>. */
+ * untouched. Console LOADPACE <vblanks> (0 or 1 = every frame), LOADMIN <sec>
+ * (config load_screen_min, which overrides the 180 below). */
 s32    g_PcLoadScreenPaceVblanks = 2;
 s32    g_PcLoadScreenMinVblanks  = 180;
 q19_12 g_PcLoadScreenDt          = 0;

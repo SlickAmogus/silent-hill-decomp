@@ -436,6 +436,12 @@ typedef struct {
      * hardware, where the overlay's own 50/50 composite is the only decay.
      * Lower fades the ghost faster. (config key: dream_blur_strength) */
     float dreamBlurStrength;
+
+    /* Minimum time, in seconds, the Harry-running loading screen stays up.
+     * Fast loads finish in a frame or two, which flashed the screen; the load
+     * itself is never slowed, the new area just waits. 0 = no minimum.
+     * (config key: load_screen_min; console: loadmin) */
+    float loadScreenMin;
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;

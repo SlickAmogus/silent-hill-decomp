@@ -1423,11 +1423,20 @@ void Pc_ConsoleExec(const char* line)
     } else if (strcmp(cmd, "LOADMIN") == 0) {
         /* Minimum time the Harry-running loading screen stays up, in seconds.
          * The load finishes underneath; the new area waits before its music
-         * starts. 0 = no minimum. */
+         * starts. 0 = no minimum. Persists to config.cfg. */
         extern s32 g_PcLoadScreenMinVblanks;
-        if (arg[0]) g_PcLoadScreenMinVblanks = (s32)(atof(arg) * 60.0 + 0.5);
-        if (g_PcLoadScreenMinVblanks < 0)   g_PcLoadScreenMinVblanks = 0;
-        if (g_PcLoadScreenMinVblanks > 600) g_PcLoadScreenMinVblanks = 600;
+        if (arg[0]) {
+            float v = (float)atof(arg);
+            if (v < 0.0f)  v = 0.0f;
+            if (v > 10.0f) v = 10.0f;
+            g_PcConfig.loadScreenMin = v;
+            g_PcLoadScreenMinVblanks = (s32)(v * 60.0f + 0.5f);
+            {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%.1f", v);
+                PcConfig_SaveKeyValue("load_screen_min", buf);
+            }
+        }
         cprintf("loading screen minimum: %.1f s", g_PcLoadScreenMinVblanks / 60.0);
     } else if (strcmp(cmd, "FBEXACT") == 0) {
         /* Loading-screen trail and door fade: 1 = pixel-exact store (lossless,
