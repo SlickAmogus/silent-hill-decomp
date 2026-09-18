@@ -431,6 +431,11 @@ typedef struct {
      * the reason it sat disabled -- and a switch to turn it off in game is
      * worth more than a rebuild. (config key: dream_blur; console: dreamblur) */
     int  dreamBlur;
+
+    /* Strength of that blur: the gain of its feedback loop, 0 to 1. 1.0 is
+     * hardware, where the overlay's own 50/50 composite is the only decay.
+     * Lower fades the ghost faster. (config key: dream_blur_strength) */
+    float dreamBlurStrength;
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;

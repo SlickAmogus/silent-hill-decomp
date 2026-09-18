@@ -81,6 +81,8 @@ extern int g_cfg_bilinearFiltering;
 extern int g_cfg_anisoLevel;
 extern int g_PsxUsePgxp;
 extern int g_cfg_postProcess;
+extern int g_cfg_dreamFeedback;
+extern float g_PsxFeedbackDampBlend;
 extern int g_cfg_tonemap;
 extern int g_PsyX_UsePerPixelFlashlight;
 extern int g_PsyX_UseFlashlightShadows;
@@ -199,6 +201,10 @@ static const s_PcOpt PCOPT_G[] = {
     { "Tone_Mapping",   &g_PcConfig.tonemap,            "tonemap",              VAL_TONE,  4, LBL_TONE,  &g_cfg_tonemap,                1, PCK_INT    },
     /* New-Game start map. Moved here from the Camera page, which had run to 12
      * rows (the practical maximum) while this page had room to spare. */
+    /* The dream/ghosting screen blur (Lisa, after Split Head, the otherworld
+     * rooms). Off leaves only the loading-screen trail, which is the same
+     * mechanism. Strength is the quick menu row next to it. */
+    { "Dream_Blur",     &g_PcConfig.dreamBlur,          "dream_blur",           VAL_ONOFF, 2, LBL_ONOFF, &g_cfg_dreamFeedback,          1, PCK_INT    },
     { "Map",            NULL,                           "map",                  NULL,      0, NULL,      NULL,                          1, PCK_MAP    },
     { "Next_Page",      NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_NEXT   },
     { "Back",           NULL,                           NULL,                   NULL,      0, NULL,      NULL,                          0, PCK_BACK   },
@@ -551,7 +557,8 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_FPSHEADX, QO_X_FPSHEADY, QO_X_FPSHEADZ, QO_X_FPSSWING,
        QO_X_OTSFOV, QO_X_TPSAIMZOOM, QO_X_OTSAIMZOOM, QO_X_TPSOTSAIM,
        QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
-       QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY };
+       QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
+       QO_X_DREAMSTR };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -574,6 +581,10 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         int a = g_PcConfig.audioOutput;
         return (a >= 0 && a < 5) ? QO_SPEAKER_LBL[a] : "HRTF";
     }
+    case QO_X_DREAMSTR:
+        if (!g_PcConfig.dreamBlur) { snprintf(buf, bufsz, "%d%%  (off)", (int)(g_PcConfig.dreamBlurStrength * 100.0f + 0.5f)); return buf; }
+        snprintf(buf, bufsz, "%d%%", (int)(g_PcConfig.dreamBlurStrength * 100.0f + 0.5f));
+        return buf;
     case QO_X_BGM:
         snprintf(buf, bufsz, "%d / 16", g_GameWork.config.volumeBgm / 8);
         return buf;
@@ -899,6 +910,21 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         extern float g_PsxCutsceneVShift;
         PcOpt_ViewStep(&g_PcConfig.cutsceneVShift, &g_PsxCutsceneVShift,
                        "cutscene_vshift", -60.0f, 60.0f, 1.0f, dir, 2);
+        break;
+    }
+    case QO_X_DREAMSTR: {
+        /* Gain of the blur's feedback loop. 1.0 is hardware, where the
+         * overlay's own 50/50 composite is the only decay; lower fades the
+         * ghost out faster. Same value as the second FBDAMP argument. */
+        float v = g_PcConfig.dreamBlurStrength + (float)dir * 0.05f;
+        if (v < 0.0f) v = 0.0f;
+        if (v > 1.0f) v = 1.0f;
+        if (v == g_PcConfig.dreamBlurStrength) { SD_Call(Sfx_MenuError); break; }
+        g_PcConfig.dreamBlurStrength = v;
+        g_PsxFeedbackDampBlend       = v;
+        snprintf(buf, sizeof(buf), "%.2f", v);
+        PcConfig_SaveKeyValue("dream_blur_strength", buf);
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     }
     case QO_X_BGM:
