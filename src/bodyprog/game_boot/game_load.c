@@ -402,67 +402,9 @@ void GameBoot_GameStartup(void) // 0x80034964
     }
 }
 
-#ifdef SH_PC_PORT
-/* The loading screen on a console-length frame clock.
- *
- * On PSX each loading-screen frame also carried the CD and setup work of the
- * load, so it ran long, and MainLoop clips a frame's time step at 4 vblanks
- * (1/15 s). Time therefore ran slower than real time: Harry's 8 keyframe/s run
- * played close to slow motion, and the motion-blur loop took a pass only once
- * per long frame. Our loads finish at storage speed, so the same screen ran at
- * 60 fps and full speed.
- *
- * The load itself stays fast. Only the VISUALS step on this clock: every
- * g_PcLoadScreenPsxVblanks vblanks is one "console frame", on which Harry
- * advances by the clipped step and the blur may take its decay step; the
- * frames in between hold the pose and the trail exactly (the exact feedback
- * loop round-trips losslessly at modulation 128). 0 or 1 = step every frame.
- * Console LOADPACE. */
-int    g_PcLoadScreenPsxVblanks = 7;
-int    g_PcLoadScreenCommit     = 1;
-q19_12 g_PcLoadScreenDt         = 0;
-
-static void Pc_LoadScreenClockTick(void)
-{
-    static s32 s_lastCommitVb = NO_VALUE;
-    s32        now            = VSync(SyncMode_Count);
-    s32        elapsed;
-
-    if (g_PcLoadScreenPsxVblanks <= 1)
-    {
-        g_PcLoadScreenCommit = 1;
-        g_PcLoadScreenDt     = g_DeltaTime;
-        return;
-    }
-
-    elapsed = (s_lastCommitVb == NO_VALUE) ? g_PcLoadScreenPsxVblanks : (now - s_lastCommitVb);
-    if (elapsed < 0)
-    {
-        elapsed = g_PcLoadScreenPsxVblanks;
-    }
-
-    if (elapsed >= g_PcLoadScreenPsxVblanks)
-    {
-        /* The PSX step: elapsed vblanks, clipped at MainLoop's 4-vblank floor. */
-        g_PcLoadScreenCommit = 1;
-        g_PcLoadScreenDt     = (Q12(1.0f) * MIN(elapsed, 4)) / 60;
-        s_lastCommitVb       = now;
-    }
-    else
-    {
-        g_PcLoadScreenCommit = 0;
-        g_PcLoadScreenDt     = 0;
-    }
-}
-#endif
-
 /** @brief Initalizes drawing of a loading screen. */
 static void GameBoot_LoadingScreen(void) // 0x80034E58
 {
-#ifdef SH_PC_PORT
-    Pc_LoadScreenClockTick();
-#endif
-
     if (g_SysWork.loadingScreenIdx != LoadingScreenId_None && g_GameWork.gameStateSteps[0] < 10)
     {
         ScreenFade_Start(false, true, false);
@@ -471,10 +413,4 @@ static void GameBoot_LoadingScreen(void) // 0x80034E58
     }
 
     Screen_BackgroundMotionBlur(SyncMode_Wait2);
-
-#ifdef SH_PC_PORT
-    /* Scoped to this screen: the blur is also the room-transition door fade,
-     * which must keep stepping every frame. */
-    g_PcLoadScreenCommit = 1;
-#endif
 }

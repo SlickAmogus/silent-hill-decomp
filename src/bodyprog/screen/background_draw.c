@@ -383,22 +383,6 @@ bool Screen_BackgroundMotionBlur(s32 vBlanks) // 0x80031CCC
 
             addPrimFast(ot, sprt, 4);
 
-#ifdef SH_PC_PORT
-            /* Between the loading screen's console frames the trail must hold, not
-             * fade: 128 is the identity copy. The decay rule itself is untouched and
-             * applies on each console frame, with the vblank count of that frame. */
-            {
-                extern int g_PcLoadScreenCommit;
-                if (g_PcLoadScreenCommit && (VSync(SyncMode_Count) % vBlanks) == 0)
-                {
-                    setRGBC0(sprt, 127, 127, 127, PRIM_RECT | RECT_TEXTURE);
-                }
-                else
-                {
-                    setRGBC0(sprt, 128, 128, 128, PRIM_RECT | RECT_TEXTURE);
-                }
-            }
-#else
             if ((VSync(SyncMode_Count) % vBlanks) == 0)
             {
                 setRGBC0(sprt, 127, 127, 127, PRIM_RECT | RECT_TEXTURE);
@@ -407,7 +391,6 @@ bool Screen_BackgroundMotionBlur(s32 vBlanks) // 0x80031CCC
             {
                 setRGBC0(sprt, 128, 128, 128, PRIM_RECT | RECT_TEXTURE);
             }
-#endif
 
 #ifdef SH_PC_PORT
             setWH(sprt, tileW, 224);
