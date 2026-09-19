@@ -3931,14 +3931,7 @@ void MainLoop(void) // 0x80032EE0
                  * handling below. */
                 extern void GR_SetSceneFbRedirect(int x, int y, int w, int h);
                 s32 scratchX = 0, scratchY = 0, scratchW = 0, scratchH = 0;
-                /* The cap only guards a cyclic list, so it matches the PsyCross
-                 * parse of this same chain (1 << 20 nodes). At 8192 it counted
-                 * the 2048 empty buckets too, and a busy frame -- disable_culling,
-                 * the outdoor Alessa shot -- ran out before bucket 2: the far
-                 * scratch DR_AREA armed the effect, but the switch-back one was
-                 * never rewritten into the capture and reached PsyCross as a raw
-                 * area/offset, so the soft-focus strips were never shown. */
-                while (cur && w2 < (1 << 20)) {
+                while (cur && w2 < 8192) {
                     uintptr_t curAddr = (uintptr_t)cur;
                     int curOk = ((curAddr >= pktLo && curAddr < pktHi) ||
                                  (curAddr >= otLo  && curAddr < otHi)  ||
