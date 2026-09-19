@@ -1,6 +1,35 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.09.18.2 -- 2026-09-18
+- Fixed black screen in various scenarios when on OpenGL with AA
+
+Commit summaries:
+- PsyCross: std headers outside the _WIN32 block (Linux/macOS CI build fix)
+- PsyCross: MSAA resolve keeps the DRAW framebuffer (black pickup/save screens on GL)
+
 ## beta-2026.09.18.1 -- 2026-09-18
+- Fixed distant fog rendering so that object outlines are no longer visible
+- Snowflakes greatly improved and more faithful to the original
+- "Dream blur" effect restored for loading screen, certain cutscenes, and anywhere else it is used. Turn off in the quick menu or with dreamblur console command
+- Cleaned up a lot of spam logging
+- Reworked SFX replacements (Mod Manager > Audio > Sound Banks), now the tools in the mod manager automatically detect all duplicate VABs an audio file is in, and will let you replace the sound in all of them at once. Video guide coming soon
+- SFX Editor now plays replacement audio instead of original after replacing audio
+- Controls: In Game menu to adjust controls, can adjust either classic or alternate camera controls depending on which you are in when the menu is opened
+- Controller Support: Added probes for controllers, if your controller doesn't work please send me a log after running the game with it connected and I will fix
+- Split Head:  Fixed glitchy saliva and issues that could break the boss fight. Background SFX now stops appropriately before Alessa scene
+- Cutscenes now locked to 60 FPS like they used to be
+- Added additional support for Steam Controller
+- Fixed regression where pillarboxing was in ending cutscene always
+- Minimap: Changed behavior so that it is hidden unless you are changing settings, have the map, or have the setting on to show it regardless of the map
+- Quick Heal: Finally fixed healing with no health items (thought this was fixed already, my bad)
+- Fixed parts of other areas showing in boss arenas
+- Save/Load: Made mouse input less trigger happy, easier to navigate without accidentally loading a save
+- Fixed certain effects so they take up the whole screen in widescreen
+- Adjusted Harry running loading screen so that it always lasts at least a couple of seconds, configurable with LOADMIN command
+- Cleaned up quick menu to make it more user friendly to navigate
+- Fixed latent memory bug in sewers that caused crashes on certain platforms
+
+Commit summaries:
 - Texture packs: log one line per page composed, and stop dropping upscaler names
 - Add [SLOWFRAME]: say which phase of a stalled frame took the time
 - Port the two latent memory bugs the Android crash handler caught
@@ -58,7 +87,35 @@
 - FMV: stop XA and lingering SFX voices before a movie plays
 - FMV: key the pre-movie audio stop to the Alessa scene only
 - Save list clicks, controls-exit flash, cutscene frame gate
-
+- Dream screen blur restored, with a switch
+- Dream blur: fills the window, and lands in the quick menu
+- Carousel scene effects fill widescreen
+- Audio tool: Play plays a staged replacement before the bank is saved
+- map7_s03: lift the ending's framebuffer-store guards
+- Audio tool: re-replacing a sound ticks the banks that hold your earlier edit of it
+- PsyCross: widen feedback strips in the UI pass only
+- Audio tool: compare against the real disc extract, and edit either the pristine or the edited bank
+- Loading-screen trail follows the PS1 loop exactly
+- Loading screen visuals step on a console-length frame clock
+- Revert "Loading screen visuals step on a console-length frame clock"
+- Loading trail: short, sharp ghost as on real hardware
+- PsyCross: loading-trail ghost strength default 0.65
+- Harry loading screen: console-paced jog and a 2.5 s minimum
+- Harry loading screen defaults: LOADPACE 2, LOADMIN 3 s
+- PsyCross: sprites ending on the page edge keep their last texel
+- Loading screen: no per-pixel flashlight on Harry; fbdamp 0.8
+- Loading screen minimum time is a config option (load_screen_min)
+- diag: [GREYFRAME] tag each frame for the grey-flash detector
+- Quick options: split the long pages, one text size, clearer page row
+- PC Options: take Dream Blur back out; it lives in the quick menu only
+- Quick options: action rows left-aligned with the option labels
+- Quick options: Edit Keybinds centred at the bottom of Controls
+- Quick options: Spawn draws like any other row
+- diag: [PANELMISS] arm the controls panel for the present-time check
+- PsyCross: swap interval only on change; [PANELMISS] live line
+- PsyCross: native GL always draws the scene offscreen (grey flash, panel blink)
+- Quick options: F10 can no longer strand the controls panel on screen
+- PsyCross: loading-screen blur (fbdamp) defaults to 0.7
 
 ## beta-2026.09.11.1 -- 2026-09-11
 - Fixed Rock Drill and Chainsaw attacks not working
