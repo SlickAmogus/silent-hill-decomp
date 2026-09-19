@@ -1768,15 +1768,16 @@ void DbgOverlay_Update(void)
         static int          s_prevQuick = 0;
         int curQuick;
         int padQuick;
-        if (!s_quickRes) {
+        /* Re-resolved on g_PcBindsGen: the in-game controls panel rebinds it. */
+        if (s_quickRes != g_PcBindsGen + 1) {
             s_scQuick  = SDL_GetScancodeFromName(g_PcConfig.keyQuickOptions);
             /* Optional controller bind, unbound by default -- an empty string
              * leaves it at -1 and nothing is polled. */
-            s_padQuick = (g_PcConfig.padQuickOptions[0] != ' ')
+            s_padQuick = (g_PcConfig.padQuickOptions[0] != '\0')
                        ? (int)PsyX_LookupGameControllerMapping(g_PcConfig.padQuickOptions,
                                                               -1)
                        : -1;
-            s_quickRes = 1;
+            s_quickRes = g_PcBindsGen + 1;
         }
         curQuick = (s_scQuick != SDL_SCANCODE_UNKNOWN) ? ks[s_scQuick] : 0;
         /* Already edge-detected, so it is tested separately from the keyboard
