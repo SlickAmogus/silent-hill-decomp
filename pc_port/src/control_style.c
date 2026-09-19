@@ -288,7 +288,7 @@ void Pc_ControlStyleUpdate(void)
              (g_ControlStyle == ControlStyle_Tps && g_PcConfig.tpsOtsAim)))
         {
             g_OtsSide = -g_OtsSide;
-            SH_DBG_ECHO("[CTRLSTYLE] OTS shoulder: %s", g_OtsSide > 0 ? "right" : "left");
+            SH_DBG("[CTRLSTYLE] OTS shoulder: %s", g_OtsSide > 0 ? "right" : "left");
         }
         prevSwap = curSwap;
     }
