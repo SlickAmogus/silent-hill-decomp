@@ -2443,7 +2443,7 @@ void MainLoop(void) // 0x80032EE0
 
         {
             extern int  g_PcQuickOptionsActive;
-            extern void Pc_QuickOptions_Update(int, int, int, int, int, int, int, int);
+            extern void Pc_QuickOptions_Update(int, int, int, int, int, int, int, int, int, int);
             extern void Pc_QuickOptions_Close(void);
             /* A demo counts as "not the player's game" here for the same
              * reason the toggle refuses to open during one: the recorded input
@@ -2472,9 +2472,11 @@ void MainLoop(void) // 0x80032EE0
                     (pcQoHeld    & (ControllerFlag_LStickLeft  | ControllerFlag_DpadLeft))  != 0,
                     (pcQoHeld    & (ControllerFlag_LStickRight | ControllerFlag_DpadRight)) != 0,
                     (pcQoClicked & (cc->enter | cc->action))  != 0,
-                    (pcQoClicked & (cc->cancel | cc->option)) != 0,
+                    (pcQoClicked & cc->option) != 0,
                     (pcQoClicked & ControllerFlag_R1) != 0,
-                    (pcQoClicked & ControllerFlag_L1) != 0);
+                    (pcQoClicked & ControllerFlag_L1) != 0,
+                    (pcQoClicked & cc->cancel) != 0,
+                    (pcQoHeld    & cc->cancel) != 0);
                 s_pcQoHeldStash      = g_Controller0->heldBtnFlags;
                 s_pcQoHeldStashValid = 1;
                 g_Controller0->heldBtnFlags      = 0;

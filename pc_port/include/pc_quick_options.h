@@ -29,11 +29,14 @@ void Pc_QuickOptions_Toggle(void);
 void Pc_QuickOptions_Close(void);
 
 /* Per-frame input while open (game thread). up/down/left/right are HELD
- * state (the overlay repeats them on its own clock); confirm/close/page are
- * press edges from the player's own bindings. Keyboard (arrows via the pad emulation, Esc / the bound key /
+ * state (the overlay repeats them on its own clock); confirm/close/page/back
+ * are press edges from the player's own bindings. close is immediate; back
+ * (cancel) closes too, except on the nav row, where a tap pages back and a
+ * hold (backHeld = cancel still down) closes. Keyboard (arrows via the pad emulation, Esc / the bound key /
  * PgUp / PgDn / Q / E) and the mouse are read internally. */
 void Pc_QuickOptions_Update(int up, int down, int left, int right,
-                            int confirm, int close, int pageNext, int pagePrev);
+                            int confirm, int close, int pageNext, int pagePrev,
+                            int back, int backHeld);
 
 /* 1 while the panel is open on a page that has minimap rows, so the minimap
  * shows for adjustment even where it would otherwise be hidden. */

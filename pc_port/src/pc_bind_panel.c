@@ -197,8 +197,12 @@ static int bp_cell_usable(int row, int col)
 
 static void bp_binds_changed(void)
 {
+    extern void Pc_QuickOptions_InvalidateRows(void);
+
     g_PcBindsGen++;
     Pc_ControlStyle_ReapplyBinds();
+    /* The quick options footer names the Quick Options key. */
+    Pc_QuickOptions_InvalidateRows();
 }
 
 static void bp_cfg_key(const char* key, int perScheme, char* out, size_t outSize)

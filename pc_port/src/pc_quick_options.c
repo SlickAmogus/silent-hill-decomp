@@ -64,7 +64,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_OTSFOV, QO_X_TPSAIMZOOM, QO_X_OTSAIMZOOM, QO_X_TPSOTSAIM,
        QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
-       QO_X_DREAMSTR, QO_X_DREAMBLUR };
+       QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -162,6 +162,7 @@ static const QoRowDef s_pageControls[] = {
     { ROW_OPT,   "invert_mouse_y",         0, NULL },
     { ROW_OPT,   "invert_controller_y",    0, NULL },
     { ROW_OPT,   "aim_assist",             0, NULL },
+    { ROW_EXTRA, NULL, QO_X_DPADMOVE,        "Disable D-pad for Movement" },
     { ROW_ACTION, NULL, QO_A_KEYBINDS,       "Edit Keybinds" },
     QO_NAV_ROW,
     QO_CLOSE_ROW,
@@ -440,6 +441,12 @@ static GLuint s_ddTex[QO_DD_MAX];
 static int    s_ddW[QO_DD_MAX], s_ddH[QO_DD_MAX];
 static float  s_ddL, s_ddR, s_ddTop, s_ddRowH; /* published for the hit-test */
 static int    s_ddShown;
+
+/* Cancel pressed on the nav row: a tap (release) goes back a page, a hold
+ * closes the menu. */
+static int    s_backHold;
+static Uint32 s_backHoldStart;
+#define QO_BACK_HOLD_MS 500u
 
 static int qo_row_is_list(const QoRowDef* r)
 {
@@ -1400,12 +1407,14 @@ static void qo_open(void)
     s_phase      = QO_OPENING;
     s_phaseStart = SDL_GetTicks();
     s_sel        = 0;
+    s_backHold   = 0;
     g_PcQuickOptionsActive = 1;
 }
 
 void Pc_QuickOptions_Close(void)
 {
-    s_ddRow = -1;
+    s_ddRow    = -1;
+    s_backHold = 0;
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
         return;
     /* The keybind panel opened from here gets its input only through this
@@ -1486,6 +1495,24 @@ static void qo_set_page(int page)
     if (s_sel < 0)  s_sel = 0;
 }
 
+/* Paging from the nav row keeps the cursor on the new page's nav row. Pages
+ * differ in length, so the same index could land on Close, and the next
+ * confirm or cancel would shut the menu. */
+static void qo_select_nav_row(void)
+{
+    int             n, i;
+    const QoRowDef* rows = qo_page_rows(s_page, &n);
+
+    for (i = 0; i < n; i++)
+    {
+        if (rows[i].kind == ROW_PAGE)
+        {
+            s_sel = i;
+            return;
+        }
+    }
+}
+
 /* Confirm / click: cheat rows have their own confirm (the Spawn row fires
  * its browsed entry); everything else steps up. */
 static void qo_confirm(const QoRowDef* r);
@@ -1502,7 +1529,7 @@ static void qo_activate(const QoRowDef* r, int dir)
         }
         case ROW_EXTRA: PcOpt_QuickExtraAdjust(r->extra, dir); break;
         case ROW_CHEAT: Pc_Cheats_Adjust(r->cpage, r->extra, dir); break;
-        case ROW_PAGE:  qo_beep(Sfx_MenuMove); qo_set_page(s_page + (dir < 0 ? -1 : +1)); break;
+        case ROW_PAGE:  qo_beep(Sfx_MenuMove); qo_set_page(s_page + (dir < 0 ? -1 : +1)); qo_select_nav_row(); break;
         case ROW_CLOSE: qo_beep(Sfx_MenuCancel); Pc_QuickOptions_Close(); break;
         case ROW_ACTION: break; /* confirm-only; see the ROW_ACTION comment */
         default: break;
@@ -1536,7 +1563,8 @@ static int qo_repeat(int idx, int held)
 }
 
 void Pc_QuickOptions_Update(int up, int down, int left, int right,
-                            int confirm, int close, int pageNext, int pagePrev)
+                            int confirm, int close, int pageNext, int pagePrev,
+                            int back, int backHeld)
 {
     int nRows;
     const QoRowDef* rows = qo_page_rows(s_page, &nRows);
@@ -1581,7 +1609,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         int pick = -1, mMoved2, mClick2, wheel2;
         float mx2, my2;
 
-        if (close) { qo_beep(Sfx_MenuCancel); s_ddRow = -1; return; }
+        if (close || back) { qo_beep(Sfx_MenuCancel); s_ddRow = -1; return; }
         if (up)   s_ddSel = (s_ddSel + n - 1) % n;
         if (down) s_ddSel = (s_ddSel + 1) % n;
         /* Keyboard steps the selection; the window follows it. */
@@ -1634,7 +1662,33 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     }
     s_ddRow = -1;
 
-    if (close) { qo_beep(Sfx_MenuCancel); Pc_QuickOptions_Close(); return; }
+    /* On the nav row cancel mirrors confirm: confirm pages forward, a cancel tap
+     * pages back. The tap acts on release so a hold never flips a page first,
+     * and holding is how cancel still closes from this row. */
+    if (s_backHold)
+    {
+        if (!backHeld)
+        {
+            s_backHold = 0;
+            if (rows[s_sel].kind == ROW_PAGE)
+                qo_activate(&rows[s_sel], -1);
+        }
+        else if (SDL_GetTicks() - s_backHoldStart >= QO_BACK_HOLD_MS)
+        {
+            s_backHold = 0;
+            qo_beep(Sfx_MenuCancel);
+            Pc_QuickOptions_Close();
+        }
+        return;
+    }
+    if (back && rows[s_sel].kind == ROW_PAGE)
+    {
+        s_backHold      = 1;
+        s_backHoldStart = SDL_GetTicks();
+        return;
+    }
+
+    if (close || back) { qo_beep(Sfx_MenuCancel); Pc_QuickOptions_Close(); return; }
 
     /* Title-bar drag. Held (not clicked) so it tracks continuously, and it is
      * resolved before the row hit-test below so dragging never also activates

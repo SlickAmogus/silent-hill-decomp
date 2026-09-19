@@ -554,7 +554,7 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_OTSFOV, QO_X_TPSAIMZOOM, QO_X_OTSAIMZOOM, QO_X_TPSOTSAIM,
        QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
-       QO_X_DREAMSTR, QO_X_DREAMBLUR };
+       QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -580,6 +580,8 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
     /* Quick menu only: the PC Options graphics page is already at its row limit. */
     case QO_X_DREAMBLUR:
         return g_PcConfig.dreamBlur ? "On" : "Off";
+    case QO_X_DPADMOVE:
+        return g_PcConfig.disableDpadMovement ? "On" : "Off";
     case QO_X_DREAMSTR:
         if (!g_PcConfig.dreamBlur) { snprintf(buf, bufsz, "%d%%  (off)", (int)(g_PcConfig.dreamBlurStrength * 100.0f + 0.5f)); return buf; }
         snprintf(buf, bufsz, "%d%%", (int)(g_PcConfig.dreamBlurStrength * 100.0f + 0.5f));
@@ -984,6 +986,12 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         g_PcConfig.dreamBlur = !g_PcConfig.dreamBlur;
         g_cfg_dreamFeedback  = g_PcConfig.dreamBlur;
         PcConfig_SaveKeyValue("dream_blur", g_PcConfig.dreamBlur ? "1" : "0");
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    /* Read every frame by the gameplay gate in game_main.c, so it applies live. */
+    case QO_X_DPADMOVE:
+        g_PcConfig.disableDpadMovement = !g_PcConfig.disableDpadMovement;
+        PcConfig_SaveKeyValue("disable_dpad_movement", g_PcConfig.disableDpadMovement ? "1" : "0");
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     /* Position offsets: config-only (live = NULL), 128 = ~0.03 units per press.
