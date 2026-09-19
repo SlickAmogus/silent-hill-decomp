@@ -258,6 +258,7 @@ void Pc_ControlStyleUpdate(void)
     {
         static SDL_Scancode scSwap   = SDL_SCANCODE_UNKNOWN;
         static int          mbSwap   = 0;
+        static int          padSwap  = SDL_CONTROLLER_BUTTON_INVALID;
         static int          swapRes  = 0; /* g_PcBindsGen + 1 when resolved */
         static int          prevSwap = 0;
         int                 curSwap  = 0;
@@ -266,6 +267,9 @@ void Pc_ControlStyleUpdate(void)
         {
             mbSwap = SwapShoulder_MouseButton(g_PcConfig.keySwapShoulder);
             scSwap = (mbSwap == 0) ? SDL_GetScancodeFromName(g_PcConfig.keySwapShoulder) : SDL_SCANCODE_UNKNOWN;
+            padSwap = (g_PcConfig.padSwapShoulder[0])
+                          ? (int)PsyX_LookupGameControllerMapping(g_PcConfig.padSwapShoulder, SDL_CONTROLLER_BUTTON_INVALID)
+                          : SDL_CONTROLLER_BUTTON_INVALID;
             swapRes = g_PcBindsGen + 1;
         }
 
@@ -273,6 +277,8 @@ void Pc_ControlStyleUpdate(void)
             curSwap = (SDL_GetMouseState(NULL, NULL) & SDL_BUTTON(mbSwap)) != 0;
         else if (keys && scSwap != SDL_SCANCODE_UNKNOWN)
             curSwap = keys[scSwap];
+        if (PsyX_RawControllerBindHeld(padSwap))
+            curSwap = 1;
 
         /* Thirdperson borrows the shoulder-swap bind too when tps_ots_aim is on —
          * it uses the OTS framing while aiming, so the player needs to be able to

@@ -339,6 +339,7 @@ static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
     { "pad_quick_options", offsetof(s_PcConfig, padQuickOptions) },
     { "key_quickload",     offsetof(s_PcConfig, keyQuickLoad)    },
     { "key_swap_shoulder", offsetof(s_PcConfig, keySwapShoulder) },
+    { "pad_swap_shoulder", offsetof(s_PcConfig, padSwapShoulder) },
     { "key_console",       offsetof(s_PcConfig, keyConsole)      },
     { "key_gfx_cycle",     offsetof(s_PcConfig, keyGfxCycle)     },
     { "key_gfx_prev",      offsetof(s_PcConfig, keyGfxPrev)      },

@@ -314,6 +314,7 @@ typedef struct {
     char keyQuickOptions[24]; /* PC-only: in-game quick options overlay hotkey (config key: key_quick_options); default F10 */
     char padQuickOptions[24]; /* PC-only: OPTIONAL controller bind for the same overlay (config key: pad_quick_options); unbound by default */
     char keySwapShoulder[24]; /* PC-only: swap OTS shoulder side (default Mouse3) */
+    char padSwapShoulder[24]; /* PC-only: controller bind for the same (config key: pad_swap_shoulder); unbound by default */
     char keyConsole[24]; /* PC-only: dev console toggle key (default tilde "`"); keyboard-only */
     /* PC-only graphics-effect tuning keys (keyboard-only). keyGfxCycle switches
      * which enabled effect (flashlight / post-process / tonemap) is being tuned;

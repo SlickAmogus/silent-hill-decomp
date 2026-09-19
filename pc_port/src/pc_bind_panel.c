@@ -88,7 +88,7 @@ static const BpRow s_rows[] = {
     { "Quick Turn",     { "key_quick_turn",    NULL,             "pad_quick_turn",    NULL },             0 },
     { "Rear Look",      { "key_rear_look",     NULL,             "pad_rear_look",     NULL },             BPF_ALTCAM },
     { "Change Camera",  { "key_change_cam",    NULL,             "pad_change_cam",    NULL },             0 },
-    { "Swap Shoulder",  { "key_swap_shoulder", NULL,             NULL,                NULL },             BPF_GLOBAL | BPF_MOUSE },
+    { "Swap Shoulder",  { "key_swap_shoulder", NULL,             "pad_swap_shoulder", NULL },             BPF_GLOBAL | BPF_MOUSE },
     { "Quick Save",     { "key_quicksave",     NULL,             NULL,                NULL },             BPF_GLOBAL },
     { "Quick Load",     { "key_quickload",     NULL,             NULL,                NULL },             BPF_GLOBAL },
 };
