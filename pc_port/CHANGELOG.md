@@ -1,5 +1,29 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.09.19.1 -- 2026-09-19
+- Fixed Alessa antique shop cutscene and Lisa cutscene so that proper dream blur effect applies, intensity can be controlled in Quick Menu
+- Allowed binding of Swap Shoulder to Controller
+- Added controller icons in quick menu for navigation (visible based on last used device)
+- Added option in quick menu to disable DPAD for movement
+
+Commit summaries:
+- PsyCross: feedback captures read the scene target (Alessa/Lisa soft-focus, dream blur)
+- Swap Shoulder can be bound to a controller button
+- PsyCross: scene-scratch capture carries the mask bit (Alessa/Lisa soft focus)
+- OT0 sanitizer walks the whole chain (Alessa/Lisa soft focus was never drawn)
+- PsyCross: [SCRATCHDBG] scene-scratch composite trace
+- PsyCross: [SCRATCHDBG] whole-rect counts
+- PsyCross: mid-pass capture restores the vertex array (Alessa/Lisa soft focus)
+- Revert "OT0 sanitizer walks the whole chain" -- misdiagnosed
+- PsyCross: soft focus spans the widened frame and obeys dream_blur
+- PsyCross: dream_blur_strength scales the Alessa/Lisa soft focus
+- Controls panel: Quick Options row (keyboard + controller)
+- Quick options: cancel pages back on the nav row, hold closes; D-pad row
+- Quick options: page back / hold-to-close is Circle (B), not the cancel set
+- Quick options: D-pad icons on the page row after controller input
+- Disable D-pad for movement: keep the D-pad in the quick options overlay
+- OTS shoulder swap: log only, no on-screen toast
+
 ## beta-2026.09.18.2 -- 2026-09-18
 - Fixed black screen in various scenarios when on OpenGL with AA
 
