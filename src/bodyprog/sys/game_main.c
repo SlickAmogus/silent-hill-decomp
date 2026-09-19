@@ -2554,13 +2554,18 @@ void MainLoop(void) // 0x80032EE0
         }
 
         /* "Disable D-pad for movement" applies ONLY during gameplay, so the D-pad
-         * still navigates menus / inventory / the map. Re-evaluated every frame. */
+         * still navigates menus / inventory / the map. Re-evaluated every frame.
+         * The quick options overlay (and the controls panel it opens) sits on
+         * top of gameplay without leaving SysState_Gameplay, so it is excluded
+         * by name. */
         {
             extern int g_cfg_disableDpadMovement;
+            extern int g_PcQuickOptionsActive;
             g_cfg_disableDpadMovement =
                 (g_PcConfig.disableDpadMovement &&
                  g_GameWork.gameState == GameState_InGame &&
-                 g_SysWork.sysState   == SysState_Gameplay) ? 1 : 0;
+                 g_SysWork.sysState   == SysState_Gameplay &&
+                 !g_PcQuickOptionsActive) ? 1 : 0;
         }
 
         /* Mouse cursor: drive free-cursor puzzles + the main menu from the mouse.
