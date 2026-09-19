@@ -30,6 +30,7 @@
 
 #include "pc_quick_options.h"
 #include "pc_mouse_click_icons.h"
+#include "pc_dpad_icons.h"
 #include "pc_bind_panel.h"
 #include "pc_mouse_cursor.h"
 #include "pc_config.h"
@@ -407,10 +408,14 @@ static int            s_fontsTried;
 static GLuint s_texTitle, s_texHint, s_texHint2;
 static int    s_titleW, s_titleH, s_hintW, s_hintH, s_hint2W, s_hint2H;
 /* The Previous / Next row, in pieces so the mouse glyphs sit inline. */
-enum { QO_NAV_PREV = 0, QO_NAV_SLASH, QO_NAV_NEXT, QO_NAV_DEST, QO_NAV_ICON_R, QO_NAV_ICON_L, QO_NAV_N };
+enum { QO_NAV_PREV = 0, QO_NAV_SLASH, QO_NAV_NEXT, QO_NAV_DEST, QO_NAV_ICON_R, QO_NAV_ICON_L,
+       QO_NAV_PAD_L, QO_NAV_PAD_R, QO_NAV_N };
 static GLuint s_texNav[QO_NAV_N];
 static int    s_navW[QO_NAV_N], s_navH[QO_NAV_N];
 static int    s_navPx;
+/* The page row names the buttons of the device used last: the D-pad after
+ * controller input, the mouse after mouse or keyboard input. */
+static int    s_navPadIcons;
 static GLuint s_texLabel[QO_MAX_ROWS];
 static int    s_labelW[QO_MAX_ROWS], s_labelH[QO_MAX_ROWS];
 static GLuint s_texValue[QO_MAX_ROWS];
@@ -441,12 +446,6 @@ static GLuint s_ddTex[QO_DD_MAX];
 static int    s_ddW[QO_DD_MAX], s_ddH[QO_DD_MAX];
 static float  s_ddL, s_ddR, s_ddTop, s_ddRowH; /* published for the hit-test */
 static int    s_ddShown;
-
-/* Cancel pressed on the nav row: a tap (release) goes back a page, a hold
- * closes the menu. */
-static int    s_backHold;
-static Uint32 s_backHoldStart;
-#define QO_BACK_HOLD_MS 500u
 
 static int qo_row_is_list(const QoRowDef* r)
 {
@@ -1085,9 +1084,9 @@ static void qo_build_white(void)
  * coverage mask so it stays clean at text size (the atlas has no mips, and a
  * LINEAR minify of the full mask would alias the thin outline). White with
  * alpha = coverage, like the baked text, so it tints the same way. */
-static GLuint qo_bake_icon(const unsigned char* mask, int size, int* outW, int* outH)
+static GLuint qo_bake_icon(const unsigned char* mask, int srcSize, int size, int* outW, int* outH)
 {
-    const float    scale = (float)PC_MOUSE_ICON_SIZE / (float)size;
+    const float    scale = (float)srcSize / (float)size;
     unsigned char* rgba;
     GLuint         tex;
     int            x, y;
@@ -1107,13 +1106,13 @@ static GLuint qo_bake_icon(const unsigned char* mask, int size, int* outW, int* 
             float       acc = 0.0f;
             int         iy, ix;
 
-            for (iy = (int)sy0; iy < PC_MOUSE_ICON_SIZE && (float)iy < sy1; iy++)
+            for (iy = (int)sy0; iy < srcSize && (float)iy < sy1; iy++)
             {
                 const float wy = fminf(sy1, (float)(iy + 1)) - fmaxf(sy0, (float)iy);
-                for (ix = (int)sx0; ix < PC_MOUSE_ICON_SIZE && (float)ix < sx1; ix++)
+                for (ix = (int)sx0; ix < srcSize && (float)ix < sx1; ix++)
                 {
                     const float wx = fminf(sx1, (float)(ix + 1)) - fmaxf(sx0, (float)ix);
-                    acc += (float)mask[iy * PC_MOUSE_ICON_SIZE + ix] * wx * wy;
+                    acc += (float)mask[iy * srcSize + ix] * wx * wy;
                 }
             }
             acc /= scale * scale;
@@ -1134,7 +1133,8 @@ static GLuint qo_bake_icon(const unsigned char* mask, int size, int* outW, int* 
 /* Previous / Next row pieces for `page`, baked so the whole row fits `avail`:
  * at `px` if it does, otherwise once more scaled down to fit. Right click goes
  * back and left click forward (the row adjusts like a value row), so each word
- * carries the button that does it. */
+ * carries the button that does it; on a controller that is D-pad left / right.
+ * Both icon pairs are square at one size, so the fit holds for either. */
 static void qo_bake_nav(int page, int px, float avail)
 {
     char dest[96];
@@ -1154,8 +1154,10 @@ static void qo_bake_nav(int page, int px, float avail)
         s_texNav[QO_NAV_SLASH]  = qo_bake("/", (float)px, &s_navW[QO_NAV_SLASH], &s_navH[QO_NAV_SLASH]);
         s_texNav[QO_NAV_NEXT]   = qo_bake("Next", (float)px, &s_navW[QO_NAV_NEXT], &s_navH[QO_NAV_NEXT]);
         s_texNav[QO_NAV_DEST]   = qo_bake(dest, (float)destPx, &s_navW[QO_NAV_DEST], &s_navH[QO_NAV_DEST]);
-        s_texNav[QO_NAV_ICON_R] = qo_bake_icon(g_PcMouseIconRight, icon, &s_navW[QO_NAV_ICON_R], &s_navH[QO_NAV_ICON_R]);
-        s_texNav[QO_NAV_ICON_L] = qo_bake_icon(g_PcMouseIconLeft,  icon, &s_navW[QO_NAV_ICON_L], &s_navH[QO_NAV_ICON_L]);
+        s_texNav[QO_NAV_ICON_R] = qo_bake_icon(g_PcMouseIconRight, PC_MOUSE_ICON_SIZE, icon, &s_navW[QO_NAV_ICON_R], &s_navH[QO_NAV_ICON_R]);
+        s_texNav[QO_NAV_ICON_L] = qo_bake_icon(g_PcMouseIconLeft,  PC_MOUSE_ICON_SIZE, icon, &s_navW[QO_NAV_ICON_L], &s_navH[QO_NAV_ICON_L]);
+        s_texNav[QO_NAV_PAD_L]  = qo_bake_icon(g_PcDpadIconLeft,   PC_DPAD_ICON_SIZE,  icon, &s_navW[QO_NAV_PAD_L],  &s_navH[QO_NAV_PAD_L]);
+        s_texNav[QO_NAV_PAD_R]  = qo_bake_icon(g_PcDpadIconRight,  PC_DPAD_ICON_SIZE,  icon, &s_navW[QO_NAV_PAD_R],  &s_navH[QO_NAV_PAD_R]);
 
         total = (float)(s_navW[QO_NAV_ICON_R] + s_navW[QO_NAV_PREV] + s_navW[QO_NAV_SLASH] +
                         s_navW[QO_NAV_NEXT] + s_navW[QO_NAV_ICON_L] + s_navW[QO_NAV_DEST]) +
@@ -1407,14 +1409,12 @@ static void qo_open(void)
     s_phase      = QO_OPENING;
     s_phaseStart = SDL_GetTicks();
     s_sel        = 0;
-    s_backHold   = 0;
     g_PcQuickOptionsActive = 1;
 }
 
 void Pc_QuickOptions_Close(void)
 {
-    s_ddRow    = -1;
-    s_backHold = 0;
+    s_ddRow = -1;
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
         return;
     /* The keybind panel opened from here gets its input only through this
@@ -1497,7 +1497,7 @@ static void qo_set_page(int page)
 
 /* Paging from the nav row keeps the cursor on the new page's nav row. Pages
  * differ in length, so the same index could land on Close, and the next
- * confirm or cancel would shut the menu. */
+ * confirm would shut the menu. */
 static void qo_select_nav_row(void)
 {
     int             n, i;
@@ -1562,9 +1562,50 @@ static int qo_repeat(int idx, int held)
     return fire;
 }
 
+/* Keyboard counts as the mouse side: its arrows are not the D-pad the icons
+ * would show. Checked every frame, since the choice is the last device used. */
+static void qo_track_input_device(void)
+{
+    extern int   PsyX_RawControllerBindHeld(int buttonOrAxis);
+    extern int   PsyX_Pad_AxisValue(int sdlAxis);
+    const Uint8* ks;
+    int          n, i;
+
+    for (i = 0; i < SDL_CONTROLLER_BUTTON_MAX; i++)
+    {
+        if (PsyX_RawControllerBindHeld(i))
+        {
+            s_navPadIcons = 1;
+            return;
+        }
+    }
+    for (i = 0; i < SDL_CONTROLLER_AXIS_MAX; i++)
+    {
+        if (abs(PsyX_Pad_AxisValue(i)) > 16384)
+        {
+            s_navPadIcons = 1;
+            return;
+        }
+    }
+    if (Pc_MouseCursor_Moved() || Pc_MouseCursor_LeftClicked() ||
+        Pc_MouseCursor_RightClicked() || Pc_MouseCursor_WheelStep())
+    {
+        s_navPadIcons = 0;
+        return;
+    }
+    ks = SDL_GetKeyboardState(&n);
+    for (i = 0; i < n; i++)
+    {
+        if (ks[i])
+        {
+            s_navPadIcons = 0;
+            return;
+        }
+    }
+}
+
 void Pc_QuickOptions_Update(int up, int down, int left, int right,
-                            int confirm, int close, int pageNext, int pagePrev,
-                            int back, int backHeld)
+                            int confirm, int close, int pageNext, int pagePrev)
 {
     int nRows;
     const QoRowDef* rows = qo_page_rows(s_page, &nRows);
@@ -1582,6 +1623,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     right = qo_repeat(3, right);
 
     qo_phase_tick();
+    qo_track_input_device();
 
     /* Keyboard extras (arrows arrive through the pad emulation already). */
     if (qo_key_edge(SDL_SCANCODE_ESCAPE))   close    = 1;
@@ -1609,7 +1651,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
         int pick = -1, mMoved2, mClick2, wheel2;
         float mx2, my2;
 
-        if (close || back) { qo_beep(Sfx_MenuCancel); s_ddRow = -1; return; }
+        if (close) { qo_beep(Sfx_MenuCancel); s_ddRow = -1; return; }
         if (up)   s_ddSel = (s_ddSel + n - 1) % n;
         if (down) s_ddSel = (s_ddSel + 1) % n;
         /* Keyboard steps the selection; the window follows it. */
@@ -1662,33 +1704,7 @@ void Pc_QuickOptions_Update(int up, int down, int left, int right,
     }
     s_ddRow = -1;
 
-    /* On the nav row cancel mirrors confirm: confirm pages forward, a cancel tap
-     * pages back. The tap acts on release so a hold never flips a page first,
-     * and holding is how cancel still closes from this row. */
-    if (s_backHold)
-    {
-        if (!backHeld)
-        {
-            s_backHold = 0;
-            if (rows[s_sel].kind == ROW_PAGE)
-                qo_activate(&rows[s_sel], -1);
-        }
-        else if (SDL_GetTicks() - s_backHoldStart >= QO_BACK_HOLD_MS)
-        {
-            s_backHold = 0;
-            qo_beep(Sfx_MenuCancel);
-            Pc_QuickOptions_Close();
-        }
-        return;
-    }
-    if (back && rows[s_sel].kind == ROW_PAGE)
-    {
-        s_backHold      = 1;
-        s_backHoldStart = SDL_GetTicks();
-        return;
-    }
-
-    if (close || back) { qo_beep(Sfx_MenuCancel); Pc_QuickOptions_Close(); return; }
+    if (close) { qo_beep(Sfx_MenuCancel); Pc_QuickOptions_Close(); return; }
 
     /* Title-bar drag. Held (not clicked) so it tracks continuously, and it is
      * resolved before the row hit-test below so dragging never also activates
@@ -2149,8 +2165,8 @@ void Pc_QuickOptions_Draw(void)
         {
             /* [R] Previous  /  Next [L]    (previous page  /  next page),
              * centred as one line, each piece on the row's middle. */
-            static const int order[] = { QO_NAV_ICON_R, QO_NAV_PREV, QO_NAV_SLASH,
-                                         QO_NAV_NEXT, QO_NAV_ICON_L, QO_NAV_DEST };
+            const int order[] = { s_navPadIcons ? QO_NAV_PAD_L : QO_NAV_ICON_R, QO_NAV_PREV, QO_NAV_SLASH,
+                                  QO_NAV_NEXT, s_navPadIcons ? QO_NAV_PAD_R : QO_NAV_ICON_L, QO_NAV_DEST };
             const float gap[] = { 0.30f, 0.45f, 0.45f, 0.30f, 0.90f, 0.0f };
             float total = 0.0f, x;
             int   k;
@@ -2161,7 +2177,8 @@ void Pc_QuickOptions_Draw(void)
             for (k = 0; k < 6; k++)
             {
                 const int   p    = order[k];
-                const int   icon = (p == QO_NAV_ICON_R || p == QO_NAV_ICON_L);
+                const int   icon = (p == QO_NAV_ICON_R || p == QO_NAV_ICON_L ||
+                                    p == QO_NAV_PAD_L  || p == QO_NAV_PAD_R);
                 const float c    = (p == QO_NAV_DEST) ? 0.62f : (p == QO_NAV_SLASH) ? 0.55f : 1.0f;
 
                 if (s_texNav[p])
