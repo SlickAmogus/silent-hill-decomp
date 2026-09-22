@@ -390,6 +390,12 @@ static void cd_close(void)
     s_phaseStart = SDL_GetTicks();
 }
 
+void Pc_ConfirmDialog_Cancel(void)
+{
+    if (s_phase == CD_OPENING || s_phase == CD_SHOWN)
+        cd_close();
+}
+
 /* ------------------------------------------------------------------ */
 /* Input                                                               */
 /* ------------------------------------------------------------------ */

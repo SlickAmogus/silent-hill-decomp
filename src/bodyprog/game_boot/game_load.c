@@ -39,6 +39,8 @@ s32 g_PcTxnHoldFrames = 30;
 
 #ifdef SH_PC_PORT
 static void GameBoot_LoadingScreen(void);
+static bool Pc_LoadScreenHoldingMinimum(void);
+static void Pc_LoadScreenReset(void);
 #endif
 
 static inline void Game_StateStepIncrement(void) // TODO: Move to header?
@@ -93,6 +95,7 @@ void GameBoot_GameStartup(void) // 0x80034964
     {
         case 0:
 #ifdef SH_PC_PORT
+            Pc_LoadScreenReset();
             SH_DBG("[TRANSITION] GameStartup step=0: processFlags=0x%X (%s) sizeof(s_WorldGfxWork)=%zu",
                    g_SysWork.processFlags,
                    (g_SysWork.processFlags == ProcessFlag_RoomTransition) ? "RoomTransition" :
@@ -296,6 +299,12 @@ void GameBoot_GameStartup(void) // 0x80034964
 
         case 9:
 #ifdef SH_PC_PORT
+            /* Keep Harry running until the screen has had its minimum time (see
+             * Pc_LoadScreenClockTick); the new area's music starts after it. */
+            if (Pc_LoadScreenHoldingMinimum())
+            {
+                break;
+            }
             {
                 /* Log actual return + state every 60 frames so we can see why
                  * Bgm_Init is failing to return 0 during scene transitions. */
@@ -402,9 +411,100 @@ void GameBoot_GameStartup(void) // 0x80034964
     }
 }
 
+#ifdef SH_PC_PORT
+/* The Harry-running loading screen, paced like the console.
+ *
+ * On PSX that screen shared its frames with the load, so they ran long and
+ * MainLoop's clipped time step turned Harry's run into a slow jog; with FASTLOAD
+ * 0 the port reproduced that look for the same reason (its per-frame step caps
+ * at 1/30 s). With loads at storage speed the frames were short, so he sprinted
+ * at the full present rate -- and the screen was gone before it registered.
+ *
+ * So the screen gets its own clock and a minimum time, and the load underneath
+ * is not slowed at all:
+ *  - every g_PcLoadScreenPaceVblanks vblanks is one screen step, on which Harry
+ *    advances by at most 1/30 s (the same cap) and the motion-blur loop takes
+ *    one pass; frames in between hold both (g_PsxFeedbackHoldFrame);
+ *  - the load waits at step 9, before the new area's music starts, until Harry
+ *    has been on screen for g_PcLoadScreenMinVblanks.
+ * Only the PlayerRun screen; the other loading screens and room transitions are
+ * untouched. Console LOADPACE <vblanks> (0 or 1 = every frame), LOADMIN <sec>
+ * (config load_screen_min, which overrides the 180 below). */
+s32    g_PcLoadScreenPaceVblanks = 2;
+s32    g_PcLoadScreenMinVblanks  = 180;
+q19_12 g_PcLoadScreenDt          = 0;
+
+static s32 s_pcLoadScreenStartVb = NO_VALUE;
+static s32 s_pcLoadScreenStepVb  = NO_VALUE;
+
+static bool Pc_LoadScreenIsPlayerRun(void)
+{
+    return g_SysWork.loadingScreenIdx == LoadingScreenId_PlayerRun && g_GameWork.gameStateSteps[0] < 10;
+}
+
+static void Pc_LoadScreenClockTick(void)
+{
+    extern int g_PsxFeedbackHoldFrame;
+    s32        now = VSync(SyncMode_Count);
+    s32        elapsed;
+
+    if (!Pc_LoadScreenIsPlayerRun())
+    {
+        g_PcLoadScreenDt = g_DeltaTime;
+        return;
+    }
+
+    if (s_pcLoadScreenStartVb == NO_VALUE)
+    {
+        s_pcLoadScreenStartVb = now;
+    }
+
+    if (g_PcLoadScreenPaceVblanks <= 1)
+    {
+        g_PcLoadScreenDt = g_DeltaTime;
+        return;
+    }
+
+    elapsed = (s_pcLoadScreenStepVb == NO_VALUE) ? g_PcLoadScreenPaceVblanks : (now - s_pcLoadScreenStepVb);
+    if (elapsed < 0)
+    {
+        elapsed = g_PcLoadScreenPaceVblanks;
+    }
+
+    if (elapsed >= g_PcLoadScreenPaceVblanks)
+    {
+        g_PcLoadScreenDt      = (Q12(1.0f) * MIN(elapsed, 2)) / 60;
+        s_pcLoadScreenStepVb  = now;
+    }
+    else
+    {
+        g_PcLoadScreenDt       = 0;
+        g_PsxFeedbackHoldFrame = 1;
+    }
+}
+
+/* True while the PlayerRun screen still owes its minimum time. */
+static bool Pc_LoadScreenHoldingMinimum(void)
+{
+    return Pc_LoadScreenIsPlayerRun() &&
+           s_pcLoadScreenStartVb != NO_VALUE &&
+           (VSync(SyncMode_Count) - s_pcLoadScreenStartVb) < g_PcLoadScreenMinVblanks;
+}
+
+static void Pc_LoadScreenReset(void)
+{
+    s_pcLoadScreenStartVb = NO_VALUE;
+    s_pcLoadScreenStepVb  = NO_VALUE;
+}
+#endif
+
 /** @brief Initalizes drawing of a loading screen. */
 static void GameBoot_LoadingScreen(void) // 0x80034E58
 {
+#ifdef SH_PC_PORT
+    Pc_LoadScreenClockTick();
+#endif
+
     if (g_SysWork.loadingScreenIdx != LoadingScreenId_None && g_GameWork.gameStateSteps[0] < 10)
     {
         ScreenFade_Start(false, true, false);

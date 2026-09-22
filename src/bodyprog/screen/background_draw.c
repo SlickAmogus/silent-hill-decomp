@@ -331,11 +331,11 @@ bool Screen_BackgroundMotionBlur(s32 vBlanks) // 0x80031CCC
 #endif
 
 #ifdef SH_PC_PORT
-    /* Arm the framebuffer-feedback store for the loading/transition blur ONLY —
-     * this is its one confirmed-good use. =2 is a short trailing window so a
-     * 1-frame gap can't flip it off; the HAL store decrements it and blanks the
-     * feedback rects once this stops drawing, keeping the store out of the
-     * still-broken per-map dream/cutscene overlays (g_PsxFeedbackStoreAllowed). */
+    /* Arm the framebuffer-feedback store for this frame. The HAL arms itself
+     * off any prim that samples a display buffer, which covers this one too;
+     * this stays because it is the one site that arms BEFORE the first such
+     * prim is drawn, so the trail has a frame to sample from immediately. =2 is
+     * a short trailing window so a 1-frame gap can't flip it off. */
     { extern int g_PsxFeedbackStoreAllowed; g_PsxFeedbackStoreAllowed = 2; }
 #endif
 

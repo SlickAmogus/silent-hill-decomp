@@ -19,6 +19,9 @@
 
 int  Pc_BindPanel_IsOpen(void);
 void Pc_BindPanel_Open(void);
+/* Starts the close fade (a pending rebind is dropped). For a host that is
+ * going away underneath the panel and would stop feeding it input. */
+void Pc_BindPanel_Close(void);
 
 /* A phone edits only a paired controller's buttons, so there the panel needs
  * one connected. CanOpen answers that, and on a refusal beeps and shows a

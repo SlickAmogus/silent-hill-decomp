@@ -1410,15 +1410,68 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PcFastBlockingLoads = 0;
         else g_PcFastBlockingLoads = !g_PcFastBlockingLoads;
         cprintf("fast blocking loads: %s", g_PcFastBlockingLoads ? "ON (disk speed)" : "OFF (PSX CD pace)");
+    } else if (strcmp(cmd, "LOADPACE") == 0) {
+        /* Harry-running loading screen: one step of Harry and the blur every N
+         * vblanks, each capped at 1/30 s, which is what turns his run into the
+         * console's jog. 2 (30 fps, full speed) is the default; 0 or 1
+         * steps every frame at full speed. The load itself is never slowed. */
+        extern s32 g_PcLoadScreenPaceVblanks;
+        if (arg[0]) g_PcLoadScreenPaceVblanks = atoi(arg);
+        if (g_PcLoadScreenPaceVblanks < 0)  g_PcLoadScreenPaceVblanks = 0;
+        if (g_PcLoadScreenPaceVblanks > 12) g_PcLoadScreenPaceVblanks = 12;
+        if (g_PcLoadScreenPaceVblanks <= 1)
+            cprintf("loading screen pace: every frame, full speed");
+        else
+            cprintf("loading screen pace: a step every %d vblanks (%.0f fps), Harry at %.0f%% speed",
+                    (int)g_PcLoadScreenPaceVblanks, 60.0 / g_PcLoadScreenPaceVblanks,
+                    100.0 * (g_PcLoadScreenPaceVblanks > 2 ? 2.0 : (double)g_PcLoadScreenPaceVblanks) / g_PcLoadScreenPaceVblanks);
+    } else if (strcmp(cmd, "LOADMIN") == 0) {
+        /* Minimum time the Harry-running loading screen stays up, in seconds.
+         * The load finishes underneath; the new area waits before its music
+         * starts. 0 = no minimum. Persists to config.cfg. */
+        extern s32 g_PcLoadScreenMinVblanks;
+        if (arg[0]) {
+            float v = (float)atof(arg);
+            if (v < 0.0f)  v = 0.0f;
+            if (v > 10.0f) v = 10.0f;
+            g_PcConfig.loadScreenMin = v;
+            g_PcLoadScreenMinVblanks = (s32)(v * 60.0f + 0.5f);
+            {
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%.1f", v);
+                PcConfig_SaveKeyValue("load_screen_min", buf);
+            }
+        }
+        cprintf("loading screen minimum: %.1f s", g_PcLoadScreenMinVblanks / 60.0);
+    } else if (strcmp(cmd, "FBEXACT") == 0) {
+        /* Loading-screen trail and door fade: 1 = pixel-exact store (lossless,
+         * sharp store, persistence set by FBDAMP), 0 = the old filtered loop
+         * whose gain is FBDAMP's first number. Bare toggles. */
+        extern int g_PsxFeedbackExact;
+        if (arg[0] == '0' || arg[0] == '1')
+            g_PsxFeedbackExact = (arg[0] == '1');
+        else
+            g_PsxFeedbackExact = !g_PsxFeedbackExact;
+        cprintf("loading trail: %s", g_PsxFeedbackExact ? "sharp (pixel-exact store)" : "soft (old filtered store)");
     } else if (strcmp(cmd, "FBDAMP") == 0) {
         /* Gain of the framebuffer-feedback loop that produces the door out-fade
-         * and the loading-screen trail. 0.5 = shipped; ~0.996 (255/256) is
+         * and the loading-screen trail. 0.65 = shipped; ~0.996 (255/256) is
          * retail-length decay but diverged to a grey field last time it was
          * tried, so it is tunable here rather than baked in. */
+        /* Second argument is the gain for a BLENDING reader (the dream
+         * overlays), which is unity by default because the overlay's own 50/50
+         * composite is already the decay hardware relies on. */
         extern float g_PsxFeedbackDamp;
+        extern float g_PsxFeedbackDampBlend;
         if (arg[0]) g_PsxFeedbackDamp = (float)atof(arg);
-        cprintf("framebuffer feedback damp: %.4f (0.5=shipped, 0.996=retail-length fade)",
-                g_PsxFeedbackDamp);
+        {
+            const char* second = arg;
+            while (*second && *second != ' ') second++;
+            while (*second == ' ') second++;
+            if (*second) g_PsxFeedbackDampBlend = (float)atof(second);
+        }
+        cprintf("framebuffer feedback damp: %.4f opaque (loading trail), %.4f blended (dream overlays)",
+                g_PsxFeedbackDamp, g_PsxFeedbackDampBlend);
     } else if (strcmp(cmd, "CULL") == 0) {
         /* Retail gates each chunk's model buffers on a baked per-subcell PVS
          * slice plus a frustum test; disable_culling skips both (exterior maps).
@@ -1612,6 +1665,24 @@ void Pc_ConsoleExec(const char* line)
                               g_PcConfig.minimapShowWithoutMap ? "1" : "0");
         cprintf("minimap before the map is found: %s",
                 g_PcConfig.minimapShowWithoutMap ? "empty panel + arrow" : "hidden");
+    } else if (strcmp(cmd, "DREAMBLUR") == 0) {
+        /* The dream/ghosting screen blur (Lisa, after Split Head, the
+         * otherworld rooms): full-screen prims sampling the previous frame out
+         * of the PSX display buffers. 0 leaves only the loading-screen trail,
+         * which uses the same store and has always been on. Bare toggles.
+         * Persists to config.cfg. */
+        {
+            extern int g_cfg_dreamFeedback;
+
+            if (arg[0] == '0' || arg[0] == '1')
+                g_PcConfig.dreamBlur = (arg[0] == '1');
+            else
+                g_PcConfig.dreamBlur = !g_PcConfig.dreamBlur;
+
+            g_cfg_dreamFeedback = g_PcConfig.dreamBlur;
+            PcConfig_SaveKeyValue("dream_blur", g_PcConfig.dreamBlur ? "1" : "0");
+            cprintf("dream screen blur: %s", g_PcConfig.dreamBlur ? "on" : "off");
+        }
     } else if (strcmp(cmd, "FOV") == 0) {
         /* First-person FOV (degrees, horizontal on the 4:3 frame). Same value
          * as the launcher slider / PC options row; persists to config.cfg.

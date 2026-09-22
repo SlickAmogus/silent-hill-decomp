@@ -2651,13 +2651,18 @@ void MainLoop(void) // 0x80032EE0
         }
 
         /* "Disable D-pad for movement" applies ONLY during gameplay, so the D-pad
-         * still navigates menus / inventory / the map. Re-evaluated every frame. */
+         * still navigates menus / inventory / the map. Re-evaluated every frame.
+         * The quick options overlay (and the controls panel it opens) sits on
+         * top of gameplay without leaving SysState_Gameplay, so it is excluded
+         * by name. */
         {
             extern int g_cfg_disableDpadMovement;
+            extern int g_PcQuickOptionsActive;
             g_cfg_disableDpadMovement =
                 (g_PcConfig.disableDpadMovement &&
                  g_GameWork.gameState == GameState_InGame &&
-                 g_SysWork.sysState   == SysState_Gameplay) ? 1 : 0;
+                 g_SysWork.sysState   == SysState_Gameplay &&
+                 !g_PcQuickOptionsActive) ? 1 : 0;
         }
 
         /* Mouse cursor: drive free-cursor puzzles + the main menu from the mouse.
@@ -4435,6 +4440,16 @@ void MainLoop(void) // 0x80032EE0
          * frozen pause / "no map" image (which used to ghost the live console against the
          * frozen copy when the console was already open before pausing). Not drawn here. */
         ML_TRACE("PsyX_EndScene");
+        /* [GREYFRAME] game-side context for the renderer's flash detector. */
+        {
+            extern int g_PsxGreyTag[6];
+            g_PsxGreyTag[0] = g_GameWork.gameState;
+            g_PsxGreyTag[1] = g_SysWork.sysState;
+            g_PsxGreyTag[2] = g_VBlanks;
+            g_PsxGreyTag[3] = g_PcWorldDrawnThisFrame;
+            g_PsxGreyTag[4] = g_DeltaTime;
+            g_PsxGreyTag[5] = g_PsxPresentLastFrame;
+        }
         PsyX_EndScene();
         /* Demand-driven texture-pack composes (pc_port/src/texpack_lazy.c). Runs
          * HERE, after the OT submit and after the swap inside PsyX_EndScene,

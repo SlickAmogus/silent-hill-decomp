@@ -180,8 +180,10 @@ namespace SilentHillPC_Launcher
             it.SubItems[2].Text = t.SourcePath ?? "";
 
             string err;
-            int untouched = t.CountUntouched(out err);
+            int sameEdit;
+            int untouched = t.Classify(t.IsPrimary ? null : PrimaryKeys(), out sameEdit, out err);
             int changed = untouched < 0 ? 0 : t.Items.Count - untouched;
+            int different = changed - sameEdit;
             string note;
             bool inPlace = t.DestPath != null && SameFile(t.SourcePath, t.DestPath);
             bool destExists = t.DestPath != null && File.Exists(t.DestPath);
@@ -201,22 +203,30 @@ namespace SilentHillPC_Launcher
                      : destExists ? "overwrites the copy there" : "new file";
                 if (changed > 0) note += ", " + changed + " earlier edit" + (changed == 1 ? "" : "s") + " replaced";
             }
-            else if (changed == 0)
+            else if (different == 0)
             {
                 note = inPlace ? "merged into the existing file"
                      : destExists ? "overwrites the copy there" : "new file";
+                if (sameEdit > 0) note += ", same earlier edit as " + _targets[0].Bank + " replaced";
+                t.Selected = true;
             }
             else
             {
-                // A source already edited at these very samples most likely holds a
-                // deliberate different sound; leave that to the user to tick.
-                note = changed + " of " + t.Items.Count + " already changed in the source";
+                // Neither the disc's sound nor the edited bank's: a deliberate
+                // different replacement, so it is the user's call to overwrite it.
+                note = different + " of " + t.Items.Count + " hold a different edit, left alone unless ticked";
                 t.Selected = false;
             }
 
             it.SubItems[3].Text = note;
             it.Checked = t.IsPrimary || t.Selected;
             it.ForeColor = untouched < 0 ? SystemColors.GrayText : SystemColors.WindowText;
+        }
+
+        private Dictionary<int, string> PrimaryKeys()
+        {
+            DuplicateTarget p = _targets.Count > 0 && _targets[0].IsPrimary ? _targets[0] : null;
+            return p == null || string.IsNullOrEmpty(p.SourcePath) ? null : p.CurrentKeys();
         }
 
         private static bool SameFile(string a, string b)
@@ -249,7 +259,8 @@ namespace SilentHillPC_Launcher
             {
                 if (!t.Selected) continue;
                 string err;
-                if (t.CountUntouched(out err) < 0)
+                int sameEdit;
+                if (t.Classify(null, out sameEdit, out err) < 0)
                 {
                     MessageBox.Show(this, t.Bank + ": the source cannot be read.\n\n" + err,
                         "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);

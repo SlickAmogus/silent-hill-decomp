@@ -120,6 +120,14 @@ void GameBoot_LoadScreen_PlayerRun(void) // 0x80035BE0
                       0);                              /* no brightness overlay */
         g_WorldEnvWork.isFogEnabled = 0;
     }
+    /* The per-pixel flashlight flag is only refreshed by Gfx_2dEffectsDraw,
+     * which runs with the world pass; the loading screen draws no world, so
+     * the last gameplay frame's cone, whole-scene dim and shadow pre-pass
+     * would otherwise land on Harry here. PSX lights him with no flashlight. */
+    {
+        extern int g_PsyX_FlashlightActive;
+        g_PsyX_FlashlightActive = 0;
+    }
     /* NOTE: the per-load func_800453E8(skel, true) force-show was removed —
      * it re-showed Harry's hidden weapon-hand variant meshes (duplicate
      * hands). The merge-era invisibility it covered for was the mis-mapped
@@ -145,7 +153,21 @@ void GameBoot_LoadScreen_PlayerRun(void) // 0x80035BE0
     }
 #endif
 
+#ifdef SH_PC_PORT
+    /* The run advances on the loading screen's own clock (see
+     * Pc_LoadScreenClockTick in game_load.c): a capped step on each screen step,
+     * nothing on the frames between, so the pose holds while the blur holds. */
+    {
+        extern q19_12 g_PcLoadScreenDt;
+        const q19_12  savedDt = g_DeltaTime;
+
+        g_DeltaTime = g_PcLoadScreenDt;
+        Anim_PlaybackLoop(model, (s_Skeleton*)FS_BUFFER_0, boneCoords, &D_800A998C);
+        g_DeltaTime = savedDt;
+    }
+#else
     Anim_PlaybackLoop(model, (s_Skeleton*)FS_BUFFER_0, boneCoords, &D_800A998C);
+#endif
     vcMoveAndSetCamera(true, false, false, false, false, false, false, false);
     Gfx_FlashlightUpdate();
 #ifdef SH_PC_PORT

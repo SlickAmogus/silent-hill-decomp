@@ -159,11 +159,17 @@ namespace SilentHillPC_Launcher
         public readonly List<DuplicateItem> Items = new List<DuplicateItem>();
         public bool Selected = true;
 
-        /// <summary>How many of the items still hold the original body in SourcePath.
-        /// Fewer than all means the source has already been edited at those spots.
-        /// -1 when the source cannot be read as a bank.</summary>
-        public int CountUntouched(out string error)
+        /// <summary>How many of the items still hold the original body in SourcePath;
+        /// -1 when the source cannot be read as a bank. `sameEdit` counts the rest that
+        /// hold exactly what the edited bank's own source holds at that sample.
+        ///
+        /// That second count is what separates a sound replaced everywhere in one
+        /// earlier save (re-editing it should follow through to every copy) from a
+        /// bank where the modder deliberately put a DIFFERENT sound (which must not
+        /// be overwritten without them ticking it).</summary>
+        public int Classify(Dictionary<int, string> primaryKeys, out int sameEdit, out string error)
         {
+            sameEdit = 0;
             error = null;
             VabFile v = VabFile.Load(SourcePath, out error);
             if (v == null) return -1;
@@ -172,9 +178,29 @@ namespace SilentHillPC_Launcher
             {
                 if (it.TargetIndex < 1 || it.TargetIndex > v.VagCount) continue;
                 VabVag vag = v.Vags[it.TargetIndex - 1];
-                if (SndSampleIndex.Key(v.Raw, vag.Offset, vag.Length) == it.OriginalKey) n++;
+                string key = SndSampleIndex.Key(v.Raw, vag.Offset, vag.Length);
+                string edited;
+                if (key == it.OriginalKey) n++;
+                else if (primaryKeys != null && primaryKeys.TryGetValue(it.SourceIndex, out edited) && key == edited) sameEdit++;
             }
             return n;
+        }
+
+        /// <summary>Key of each replaced sample as SourcePath holds it now, by sample
+        /// index. Only meaningful for the primary target, whose indices are its own.</summary>
+        public Dictionary<int, string> CurrentKeys()
+        {
+            string err;
+            VabFile v = VabFile.Load(SourcePath, out err);
+            if (v == null) return null;
+            var keys = new Dictionary<int, string>();
+            foreach (DuplicateItem it in Items)
+            {
+                if (it.TargetIndex < 1 || it.TargetIndex > v.VagCount) continue;
+                VabVag vag = v.Vags[it.TargetIndex - 1];
+                keys[it.SourceIndex] = SndSampleIndex.Key(v.Raw, vag.Offset, vag.Length);
+            }
+            return keys;
         }
 
         public string IndexList()
