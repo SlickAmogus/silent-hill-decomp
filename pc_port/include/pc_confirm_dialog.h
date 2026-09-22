@@ -18,6 +18,9 @@ int  Pc_ConfirmDialog_IsOpen(void);
  * Selection starts on "No". */
 void Pc_ConfirmDialog_Open(const char* title, const char* message);
 
+/* Dismiss without an answer, for a host closing underneath the dialog. */
+void Pc_ConfirmDialog_Cancel(void);
+
 enum
 {
     PC_CONFIRM_NONE = 0,

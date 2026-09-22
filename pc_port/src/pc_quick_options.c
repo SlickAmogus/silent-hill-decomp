@@ -65,7 +65,8 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_OTSFOV, QO_X_TPSAIMZOOM, QO_X_OTSAIMZOOM, QO_X_TPSOTSAIM,
        QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
-       QO_X_SPU };
+       QO_X_SPU,
+       QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -126,6 +127,10 @@ static const QoRowDef s_page0[] = {
     { ROW_OPT,   "flashlight_intensity", 0, NULL },
     { ROW_OPT,   "flashlight_size",      0, NULL },
     { ROW_EXTRA, NULL, QO_X_SHADOW,         "Shadow Resolution" },
+    /* The Alessa/Lisa soft focus. Quick menu only: the PC Options graphics
+     * page is at its row limit, and this is a look you judge by watching it. */
+    { ROW_EXTRA, NULL, QO_X_DREAMBLUR,      "Dream Blur" },
+    { ROW_EXTRA, NULL, QO_X_DREAMSTR,       "Dream Blur Strength" },
     { ROW_OPT,   "bullet_decals",        0, NULL },
 #if defined(QO_MOBILE)
     /* Frame cap, beside Weather_Rate for the same reason the Options menu puts
@@ -179,6 +184,7 @@ static const QoRowDef s_page5[] = {
     { ROW_OPT,   "invert_mouse_y",         0, NULL },
     { ROW_OPT,   "invert_controller_y",    0, NULL },
     { ROW_OPT,   "aim_assist",             0, NULL },
+    { ROW_EXTRA, NULL, QO_X_DPADMOVE,        "Disable D-pad for Movement" },
     { ROW_PAGE,  NULL, 0,                   "Next page  (Graphics)" },
     { ROW_CLOSE, NULL, 0,                   "Close" },
 };
@@ -379,6 +385,7 @@ static const QoRowDef s_pageControls[] = {
      * anyone who has paired a controller. */
     { ROW_OPT,   "controller_sensitivity", 0, NULL },
     { ROW_OPT,   "invert_controller_y",    0, NULL },
+    { ROW_EXTRA, NULL, QO_X_DPADMOVE,         "Disable D-pad for Movement" },
     { ROW_OPT,   "touch_quicksave_buttons", 0, "Quick Save/Load Buttons" },
     { ROW_PAGE,  NULL, 0,                     "Next page  (Graphics)" },
     { ROW_CLOSE, NULL, 0,                     "Close" },
@@ -1496,12 +1503,20 @@ void Pc_QuickOptions_Close(void)
     s_ddRow = -1;
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
         return;
+    /* The keybind panel opened from the Controls page is fed by this menu's
+     * Update, so closing the menu under it left it drawn with nothing able to
+     * close it. Whatever closes the menu closes it too. */
+    Pc_BindPanel_Close();
     s_phase      = QO_CLOSING;
     s_phaseStart = SDL_GetTicks();
 }
 
 void Pc_QuickOptions_Toggle(void)
 {
+    /* The panel owns input while it is up -- the bind being captured may be
+     * the very button that opens this menu -- so the toggle waits for it. */
+    if (Pc_BindPanel_IsOpen())
+        return;
     if (s_phase == QO_CLOSED || s_phase == QO_CLOSING)
         qo_open();
     else

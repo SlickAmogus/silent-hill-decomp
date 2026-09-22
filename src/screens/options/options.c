@@ -98,6 +98,8 @@ extern int g_cfg_bilinearFiltering;
 extern int g_cfg_anisoLevel;
 extern int g_PsxUsePgxp;
 extern int g_cfg_postProcess;
+extern int g_cfg_dreamFeedback;
+extern float g_PsxFeedbackDampBlend;
 extern int g_cfg_tonemap;
 extern int g_PsyX_UsePerPixelFlashlight;
 extern int g_PsyX_UseFlashlightShadows;
@@ -754,7 +756,9 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_OTSFOV, QO_X_TPSAIMZOOM, QO_X_OTSAIMZOOM, QO_X_TPSOTSAIM,
        QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
-       QO_X_SPU };
+       QO_X_SPU,
+       /* Quick menu only: the PC Options graphics page is at its row limit. */
+       QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -792,6 +796,15 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         int r = g_PcAudioConfig.renderer - PC_SPU_RENDERER_AUTHENTIC;
         return (r >= 0 && r < 3) ? QO_SPU_LBL[r] : "Legacy";
     }
+    /* Quick menu only: the PC Options graphics page is already at its row limit. */
+    case QO_X_DREAMBLUR:
+        return g_PcConfig.dreamBlur ? "On" : "Off";
+    case QO_X_DPADMOVE:
+        return g_PcConfig.disableDpadMovement ? "On" : "Off";
+    case QO_X_DREAMSTR:
+        if (!g_PcConfig.dreamBlur) { snprintf(buf, bufsz, "%d%%  (off)", (int)(g_PcConfig.dreamBlurStrength * 100.0f + 0.5f)); return buf; }
+        snprintf(buf, bufsz, "%d%%", (int)(g_PcConfig.dreamBlurStrength * 100.0f + 0.5f));
+        return buf;
     case QO_X_BGM:
         snprintf(buf, bufsz, "%d / 16", g_GameWork.config.volumeBgm / 8);
         return buf;
@@ -1140,6 +1153,21 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
                        "cutscene_vshift", -60.0f, 60.0f, 1.0f, dir, 2);
         break;
     }
+    case QO_X_DREAMSTR: {
+        /* Gain of the blur's feedback loop. 1.0 is hardware, where the
+         * overlay's own 50/50 composite is the only decay; lower fades the
+         * ghost out faster. Same value as the second FBDAMP argument. */
+        float v = g_PcConfig.dreamBlurStrength + (float)dir * 0.05f;
+        if (v < 0.0f) v = 0.0f;
+        if (v > 1.0f) v = 1.0f;
+        if (v == g_PcConfig.dreamBlurStrength) { SD_Call(Sfx_MenuError); break; }
+        g_PcConfig.dreamBlurStrength = v;
+        g_PsxFeedbackDampBlend       = v;
+        snprintf(buf, sizeof(buf), "%.2f", v);
+        PcConfig_SaveKeyValue("dream_blur_strength", buf);
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
     case QO_X_BGM:
     case QO_X_SFX: {
         /* 16 notches of 8 over 0..128, exactly the main Options sliders. */
@@ -1192,6 +1220,18 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
     case QO_X_TPSOTSAIM:
         g_PcConfig.tpsOtsAim = !g_PcConfig.tpsOtsAim;
         PcConfig_SaveKeyValue("tps_ots_aim", g_PcConfig.tpsOtsAim ? "1" : "0");
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    case QO_X_DREAMBLUR:
+        g_PcConfig.dreamBlur = !g_PcConfig.dreamBlur;
+        g_cfg_dreamFeedback  = g_PcConfig.dreamBlur;
+        PcConfig_SaveKeyValue("dream_blur", g_PcConfig.dreamBlur ? "1" : "0");
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    /* Read every frame by the gameplay gate in game_main.c, so it applies live. */
+    case QO_X_DPADMOVE:
+        g_PcConfig.disableDpadMovement = !g_PcConfig.disableDpadMovement;
+        PcConfig_SaveKeyValue("disable_dpad_movement", g_PcConfig.disableDpadMovement ? "1" : "0");
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     /* Position offsets: config-only (live = NULL), 128 = ~0.03 units per press.

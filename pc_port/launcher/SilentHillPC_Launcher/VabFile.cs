@@ -307,21 +307,28 @@ namespace SilentHillPC_Launcher
         private static readonly int[] Filter0 = { 0, 60, 115, 98 };
         private static readonly int[] Filter1 = { 0, 0, -52, -55 };
 
-        /// <summary>Decode one sample's ADPCM to 16-bit mono PCM. Each 16-byte block
-        /// is a shift/filter byte, a flag byte, then 14 bytes holding 28 nibbles.</summary>
         public short[] Decode(int vagIndex)
         {
             VabVag vag = Vags[vagIndex - 1];
-            var outBuf = new short[vag.BlockCount * 28];
+            return DecodeAdpcm(_data, vag.Offset, vag.Length);
+        }
+
+        /// <summary>Decode PSX ADPCM to 16-bit mono PCM. Each 16-byte block is a
+        /// shift/filter byte, a flag byte, then 14 bytes holding 28 nibbles. Static so a
+        /// replacement staged in the Audio tool previews before it is in any bank.</summary>
+        public static short[] DecodeAdpcm(byte[] data, int offset, int length)
+        {
+            int blocks = length / 16;
+            var outBuf = new short[blocks * 28];
             int w = 0;
             int prev1 = 0, prev2 = 0;
 
-            for (int b = 0; b < vag.BlockCount; b++)
+            for (int b = 0; b < blocks; b++)
             {
-                int p = vag.Offset + b * 16;
-                int shift = _data[p] & 0x0F;
-                int filter = (_data[p] >> 4) & 0x0F;
-                int flag = _data[p + 1];
+                int p = offset + b * 16;
+                int shift = data[p] & 0x0F;
+                int filter = (data[p] >> 4) & 0x0F;
+                int flag = data[p + 1];
 
                 if (filter > 3) filter = 3;
                 // A shift of 13..15 is not meaningful; hardware treats it as a mute.
@@ -329,7 +336,7 @@ namespace SilentHillPC_Launcher
 
                 for (int i = 0; i < 14; i++)
                 {
-                    int by = _data[p + 2 + i];
+                    int by = data[p + 2 + i];
                     for (int half = 0; half < 2; half++)
                     {
                         int nib = half == 0 ? (by & 0x0F) : (by >> 4);

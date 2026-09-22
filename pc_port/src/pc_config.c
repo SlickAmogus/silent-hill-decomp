@@ -136,6 +136,9 @@ s_PcConfig g_PcConfig = {
     .minimapScale            = 100.0f,
     .minimapRequireMap       = 1, /* the map only appears once Harry has found it */
     .minimapShowWithoutMap   = 0, /* no map found: no minimap (1 = empty panel + arrow) */
+    .dreamBlur               = 1, /* dream/ghosting screen blur (0 = loading trail only) */
+    .dreamBlurStrength       = 1.0f, /* feedback gain of that blur; 1.0 = hardware */
+    .loadScreenMin           = 3.0f, /* seconds the Harry loading screen stays up at least */
     .minimapOpacity          = 100.0f,
     .disableDpadMovement     = 0, /* D-pad still drives movement (off = byte-identical) */
     .menuFilter              = 0, /* menus unfiltered (off = byte-identical) */
@@ -373,6 +376,7 @@ static const struct { const char* key; size_t off; } s_GlobalBinds[] = {
     { "pad_quick_options", offsetof(s_PcConfig, padQuickOptions) },
     { "key_quickload",     offsetof(s_PcConfig, keyQuickLoad)    },
     { "key_swap_shoulder", offsetof(s_PcConfig, keySwapShoulder) },
+    { "pad_swap_shoulder", offsetof(s_PcConfig, padSwapShoulder) },
     { "key_console",       offsetof(s_PcConfig, keyConsole)      },
     { "key_gfx_cycle",     offsetof(s_PcConfig, keyGfxCycle)     },
     { "key_gfx_prev",      offsetof(s_PcConfig, keyGfxPrev)      },
@@ -1193,6 +1197,30 @@ else if (strcmp(key, "enable_plugins") == 0)
         else if (strcmp(key, "minimap_show_without_map") == 0)
         {
             g_PcConfig.minimapShowWithoutMap = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "dream_blur") == 0)
+        {
+            extern int g_cfg_dreamFeedback;
+            g_PcConfig.dreamBlur = (atoi(value) != 0);
+            g_cfg_dreamFeedback  = g_PcConfig.dreamBlur;
+        }
+        else if (strcmp(key, "dream_blur_strength") == 0)
+        {
+            extern float g_PsxFeedbackDampBlend;
+            float v = (float)atof(value);
+            if (v < 0.0f) v = 0.0f;
+            if (v > 1.0f) v = 1.0f;
+            g_PcConfig.dreamBlurStrength = v;
+            g_PsxFeedbackDampBlend       = v;
+        }
+        else if (strcmp(key, "load_screen_min") == 0)
+        {
+            extern int g_PcLoadScreenMinVblanks;
+            float v = (float)atof(value);
+            if (v < 0.0f)  v = 0.0f;
+            if (v > 10.0f) v = 10.0f;
+            g_PcConfig.loadScreenMin = v;
+            g_PcLoadScreenMinVblanks = (int)(v * 60.0f + 0.5f);
         }
         else if (strcmp(key, "minimap_scale") == 0)
         {

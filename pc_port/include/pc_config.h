@@ -360,6 +360,7 @@ typedef struct {
     char keyQuickOptions[24]; /* PC-only: in-game quick options overlay hotkey (config key: key_quick_options); default F10 */
     char padQuickOptions[24]; /* PC-only: OPTIONAL controller bind for the same overlay (config key: pad_quick_options); unbound by default */
     char keySwapShoulder[24]; /* PC-only: swap OTS shoulder side (default Mouse3) */
+    char padSwapShoulder[24]; /* PC-only: controller bind for the same (config key: pad_swap_shoulder); unbound by default */
     char keyConsole[24]; /* PC-only: dev console toggle key (default tilde "`"); keyboard-only */
     /* PC-only graphics-effect tuning keys (keyboard-only). keyGfxCycle switches
      * which enabled effect (flashlight / post-process / tonemap) is being tuned;
@@ -468,6 +469,26 @@ typedef struct {
      * built against the earlier layout still read the fields above.
      * (config-only key: minimap_show_without_map; console: minimapnomap) */
     int  minimapShowWithoutMap;
+
+    /* The dream/ghosting screen blur: full-screen prims that sample the
+     * previous frame out of the PSX display buffers (Lisa, after Split Head,
+     * the otherworld rooms). 1 = on, 0 = only the loading-screen trail, which
+     * is the same mechanism and has always been allowed. The effect feeds on
+     * its own output, so any per-frame error compounds into visible garbage --
+     * the reason it sat disabled -- and a switch to turn it off in game is
+     * worth more than a rebuild. (config key: dream_blur; console: dreamblur) */
+    int  dreamBlur;
+
+    /* Strength of that blur: the gain of its feedback loop, 0 to 1. 1.0 is
+     * hardware, where the overlay's own 50/50 composite is the only decay.
+     * Lower fades the ghost faster. (config key: dream_blur_strength) */
+    float dreamBlurStrength;
+
+    /* Minimum time, in seconds, the Harry-running loading screen stays up.
+     * Fast loads finish in a frame or two, which flashed the screen; the load
+     * itself is never slowed, the new area just waits. 0 = no minimum.
+     * (config key: load_screen_min; console: loadmin) */
+    float loadScreenMin;
 } s_PcConfig;
 
 extern s_PcConfig g_PcConfig;

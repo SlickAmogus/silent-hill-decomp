@@ -40,11 +40,51 @@ namespace SilentHillPC_Launcher
         /// <summary>The pristine extract's SND/ folder, when one was found. It is the
         /// authority on which banks share a sample; edited copies elsewhere are not.</summary>
         private string _sndDir;
+        private bool _askedForSndDir;
         private SndSampleIndex _index;
         private readonly Dictionary<int, List<SfxMatch>> _matches = new Dictionary<int, List<SfxMatch>>();
         private readonly Dictionary<int, List<SampleRef>> _dupes = new Dictionary<int, List<SampleRef>>();
 
-        public static void ShowTool(IWin32Window owner, string gameRoot, string startDir)
+        /// <summary>Each sample as the disc has it, by index: the clean extract's copy of
+        /// the open bank when there is one, else the open bank's own bytes. Duplicates
+        /// are searched with THESE, so a bank already edited in gamedata/load finds the
+        /// same other copies as the pristine one — the edited bytes match nothing.</summary>
+        private readonly Dictionary<int, byte[]> _originals = new Dictionary<int, byte[]>();
+        /// <summary>Samples whose bytes in the open file differ from the clean extract.</summary>
+        private readonly HashSet<int> _edited = new HashSet<int>();
+
+        private const string CleanSndKey = "launcher_audio_clean_snd";
+
+        private static string ConfigPath
+        {
+            get { return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.cfg"); }
+        }
+
+        /// <summary>The clean SND/ folder the user picked earlier, if it still holds banks.</summary>
+        public static string SavedCleanSndDir()
+        {
+            try
+            {
+                if (!File.Exists(ConfigPath)) return null;
+                string dir = new ConfigManager(ConfigPath).Get(CleanSndKey, "").Trim();
+                return HasBanks(dir) ? dir : null;
+            }
+            catch { return null; }
+        }
+
+        private static void SaveCleanSndDir(string dir)
+        {
+            try
+            {
+                var cfg = new ConfigManager(ConfigPath);
+                cfg.EnsureLauncherSection();
+                cfg.Set(CleanSndKey, dir ?? "");
+                cfg.Save();
+            }
+            catch { }
+        }
+
+        public static void ShowTool(IWin32Window owner, string gameRoot, string startDir, string cleanSndDir)
         {
             AudioToolForm f = s_open;
             if (f == null || f.IsDisposed)
@@ -54,7 +94,7 @@ namespace SilentHillPC_Launcher
                 f.FormClosed += (s, e) => { if (s_open == f) s_open = null; };
                 f._lastDir = startDir;
                 f._gameRoot = gameRoot;
-                f._sndDir = HasBanks(startDir) ? startDir : null;
+                f._sndDir = HasBanks(cleanSndDir) ? cleanSndDir : null;
                 f.Show(owner);
             }
             else
@@ -76,6 +116,7 @@ namespace SilentHillPC_Launcher
             var menu = new MenuStrip();
             var file = new ToolStripMenuItem("&File");
             file.DropDownItems.Add("&Open sound bank…", null, (s, e) => PickAndOpen());
+            file.DropDownItems.Add("&Clean SND folder…", null, (s, e) => ChooseCleanSndDir(true));
             file.DropDownItems.Add(new ToolStripSeparator());
             file.DropDownItems.Add("E&xit", null, (s, e) => Close());
             var help = new ToolStripMenuItem("&Help");
@@ -91,7 +132,7 @@ namespace SilentHillPC_Launcher
             _list.HideSelection = false;
             _list.GridLines = true;
             _list.Location = new Point(12, 30);
-            _list.Size = new Size(736, 300);
+            _list.Size = new Size(736, 286);
             _list.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
             _list.Columns.Add("#", 44, HorizontalAlignment.Right);
             _list.Columns.Add("Bytes", 74, HorizontalAlignment.Right);
@@ -107,8 +148,8 @@ namespace SilentHillPC_Launcher
             _list.DoubleClick += (s, e) => PlaySelected();
             Controls.Add(_list);
 
-            _info.Location = new Point(12, 338);
-            _info.Size = new Size(736, 34);
+            _info.Location = new Point(12, 322);
+            _info.Size = new Size(736, 50);
             _info.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             _info.Text = "No bank loaded — File > Open, or drag a .VAB onto this window.";
             Controls.Add(_info);
@@ -262,10 +303,13 @@ namespace SilentHillPC_Launcher
             _lastDir = Path.GetDirectoryName(path);
             Text = "Audio — " + Path.GetFileName(path);
 
+            if (_sndDir == null && !_askedForSndDir) ChooseCleanSndDir(false);
+
             // The extract first, so its copy of a bank wins over an edited one that
             // happens to sit next to the file being opened.
             var indexDirs = new List<string> { _sndDir, Path.GetDirectoryName(path) };
             if (_index == null || !_index.SameDirs(indexDirs)) _index = SndSampleIndex.Build(indexDirs);
+            LoadOriginals(v, path);
 
             _matches.Clear();
             _dupes.Clear();
@@ -274,7 +318,7 @@ namespace SilentHillPC_Launcher
             int identified = 0;
             foreach (VabVag vag in v.Vags)
             {
-                List<SampleRef> others = _index.Others(v.RawVag(vag.Index), BaseName);
+                List<SampleRef> others = _index.Others(_originals[vag.Index], BaseName);
                 _dupes[vag.Index] = others;
                 var progs = new List<int>();
                 int centre = -1;
@@ -309,7 +353,7 @@ namespace SilentHillPC_Launcher
                     if (!rates.Contains(r)) rates.Add(r);
                 }
 
-                var it = new ListViewItem(vag.Index.ToString());
+                var it = new ListViewItem(vag.Index + (_edited.Contains(vag.Index) ? " *" : ""));
                 it.SubItems.Add(vag.Length.ToString("N0"));
                 it.SubItems.Add(samples.ToString("N0"));
                 it.SubItems.Add(secs.ToString("0.00") + "s");
@@ -332,6 +376,18 @@ namespace SilentHillPC_Launcher
                 "sound id in this slot reaches them.",
                 v.VagCount, v.ProgramCount, v.Tones.Count, v.VabId, v.DeclaredSize, identified);
 
+            if (_edited.Count > 0)
+            {
+                _info.Text += " * marks the " + _edited.Count + " sample" + (_edited.Count == 1 ? "" : "s") +
+                              " this file has already changed from the disc; their other copies are " +
+                              "still found from the disc's sound.";
+            }
+            else if (_sndDir == null)
+            {
+                _info.Text += " No clean SND folder is set (File > Clean SND folder…), so other copies " +
+                              "are only found for samples this file has not changed.";
+            }
+
             string twin = LoadedTwinBank(path);
             if (twin != null)
             {
@@ -348,6 +404,91 @@ namespace SilentHillPC_Launcher
 
             if (_list.Items.Count > 0) _list.Items[0].Selected = true;
             MarkPending();
+        }
+
+        /// <summary>Fill _originals and _edited for a freshly opened bank. The clean copy
+        /// is matched by file name; a different sample count means it is not the same
+        /// bank's layout, and then the open file stands for itself.</summary>
+        private void LoadOriginals(VabFile v, string path)
+        {
+            _originals.Clear();
+            _edited.Clear();
+
+            VabFile clean = null;
+            if (_sndDir != null)
+            {
+                string cand = Path.Combine(_sndDir, Path.GetFileNameWithoutExtension(path) + ".VAB");
+                if (File.Exists(cand) && !SamePath(cand, path))
+                {
+                    string err;
+                    clean = VabFile.Load(cand, out err);
+                    if (clean != null && clean.VagCount != v.VagCount) clean = null;
+                }
+            }
+
+            foreach (VabVag vag in v.Vags)
+            {
+                byte[] own = v.RawVag(vag.Index);
+                byte[] orig = clean != null ? clean.RawVag(vag.Index) : own;
+                _originals[vag.Index] = orig;
+                if (clean != null && SndSampleIndex.Key(orig) != SndSampleIndex.Key(own)) _edited.Add(vag.Index);
+            }
+        }
+
+        private static bool SamePath(string a, string b)
+        {
+            try { return string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase); }
+            catch { return false; }
+        }
+
+        /// <summary>Ask for the SND folder of a clean extract. Unprompted it is asked
+        /// once per window, and only because none was found; from the menu it is the
+        /// way to change a folder the launcher guessed wrong.</summary>
+        private void ChooseCleanSndDir(bool fromMenu)
+        {
+            if (!fromMenu)
+            {
+                _askedForSndDir = true;
+                if (MessageBox.Show(this,
+                        "The Audio tool finds a sound's other copies, and marks the samples you have " +
+                        "already changed, by comparing against the SND folder of a clean disc extract. " +
+                        "None was found under gamedata.\n\nChoose one now?",
+                        "Audio", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                    return;
+            }
+
+            using (var d = new FolderBrowserDialog())
+            {
+                d.Description = "The SND folder of a clean, unedited disc extract" +
+                                (_sndDir != null ? " (now: " + _sndDir + ")" : "");
+                string start = _sndDir ?? _lastDir;
+                if (!string.IsNullOrEmpty(start) && Directory.Exists(start)) d.SelectedPath = start;
+                if (d.ShowDialog(this) != DialogResult.OK) return;
+
+                string dir = d.SelectedPath;
+                if (!HasBanks(dir))
+                {
+                    MessageBox.Show(this, "That folder holds no .VAB sound banks.", "Audio",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                string parent = Path.GetFileName(Path.GetDirectoryName(dir) ?? "");
+                if (string.Equals(parent, "load", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Edited banks live here, so it cannot say what the disc's sounds are.
+                    MessageBox.Show(this,
+                        "That is gamedata\\load\\SND, where your edited banks go. Choose the SND " +
+                        "folder inside a disc extract instead.",
+                        "Audio", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                _sndDir = dir;
+                _index = null;
+                SaveCleanSndDir(dir);
+            }
+
+            if (fromMenu && _vab != null) Open(_vab.Path);
         }
 
         /// <summary>The MEP twin the game loads in place of this bank, or null.</summary>
@@ -505,18 +646,28 @@ namespace SilentHillPC_Launcher
             foreach (ListViewItem it in _list.Items)
             {
                 var vag = (VabVag)it.Tag;
-                bool staged = _pending.ContainsKey(vag.Index);
+                byte[] body;
+                bool staged = _pending.TryGetValue(vag.Index, out body);
                 it.Font = new Font(_list.Font, staged ? FontStyle.Bold : FontStyle.Regular);
-                if (staged)
-                {
-                    it.SubItems[1].Text = _pending[vag.Index].Length.ToString("N0") + " *";
-                }
-                else if (it.SubItems[1].Text.EndsWith(" *"))
-                {
-                    it.SubItems[1].Text = vag.Length.ToString("N0");
-                }
+
+                // The whole size group follows the staged body, so the row describes
+                // the sound Play will actually produce.
+                int bytes = staged ? body.Length : vag.Length;
+                int samples = bytes / 16 * 28;
+                it.SubItems[1].Text = bytes.ToString("N0");
+                it.SubItems[2].Text = samples.ToString("N0");
+                it.SubItems[3].Text = (samples / RateFor(vag)).ToString("0.00") + "s";
             }
             UpdateButtons();
+        }
+
+        /// <summary>The PCM a row stands for right now: the staged replacement when
+        /// there is one, otherwise the bank's own sample.</summary>
+        private short[] SamplesFor(VabVag vag)
+        {
+            byte[] body;
+            if (_pending.TryGetValue(vag.Index, out body)) return VabFile.DecodeAdpcm(body, 0, body.Length);
+            return _vab.Decode(vag.Index);
         }
 
         private string LoadSndDir
@@ -612,7 +763,8 @@ namespace SilentHillPC_Launcher
             foreach (KeyValuePair<int, byte[]> kv in _pending)
             {
                 if (kv.Key < 1 || kv.Key > _vab.VagCount) continue;
-                byte[] original = _vab.RawVag(kv.Key);
+                byte[] original;
+                if (!_originals.TryGetValue(kv.Key, out original)) original = _vab.RawVag(kv.Key);
                 string key = SndSampleIndex.Key(original);
 
                 primary.Items.Add(new DuplicateItem
@@ -663,7 +815,7 @@ namespace SilentHillPC_Launcher
             StopPlayback();
             try
             {
-                short[] pcm = _vab.Decode(vag.Index);
+                short[] pcm = SamplesFor(vag);
                 if (pcm.Length == 0)
                 {
                     MessageBox.Show(this, "That sample decoded to nothing — its first block is an end marker.",
@@ -823,9 +975,15 @@ namespace SilentHillPC_Launcher
                 "replaced sounds into one folder (gamedata\\load\\SND by default, where the",
                 "game reads them). Each row has a Source, the file the rewrite starts from.",
                 "A copy already in the folder is the source automatically, so a second",
-                "round of edits merges into the first instead of overwriting it. Always",
-                "open the PRISTINE bank from the extract to edit: an already-edited sample",
-                "matches nothing, so an edited copy cannot reveal where else it lives.",
+                "round of edits merges into the first instead of overwriting it. A bank",
+                "that holds your earlier edit of the same sound starts ticked; one that",
+                "holds a different sound of yours stays unticked.",
+                "",
+                "You can open either the pristine bank or your edited copy. The tool",
+                "compares the open bank with the same bank in a clean extract's SND",
+                "folder (File > Clean SND folder…), marks the samples you have already",
+                "changed with * in the # column, and still finds their other copies",
+                "from the disc's sound. Bold rows are replacements not saved yet.",
             };
             ConverterActions.ShowTextDialog(this, "Audio — About sound banks", lines.ToArray(), false);
         }

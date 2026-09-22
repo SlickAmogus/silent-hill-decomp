@@ -633,30 +633,55 @@ namespace SilentHillPC_Launcher
 
         public static void OpenAudioTool(IWin32Window owner, string gameRoot)
         {
-            AudioToolForm.ShowTool(owner, gameRoot, GuessSoundDir(gameRoot));
+            string clean = AudioToolForm.SavedCleanSndDir();
+            if (clean == null) clean = GuessCleanSndDir(gameRoot);
+
+            string start = clean;
+            if (start == null && !string.IsNullOrEmpty(gameRoot))
+            {
+                string data = Path.Combine(gameRoot, "gamedata");
+                string loadSnd = Path.Combine(Path.Combine(data, "load"), "SND");
+                start = Directory.Exists(loadSnd) ? loadSnd : Directory.Exists(data) ? data : gameRoot;
+            }
+            AudioToolForm.ShowTool(owner, gameRoot, start, clean);
         }
 
-        private static string GuessSoundDir(string gameRoot)
+        /// <summary>The disc's own SND/ folder, as a disc extract under gamedata/ holds
+        /// it; null when there is none.
+        ///
+        /// gamedata/load is skipped by name. It is where edited banks go, and it sorts
+        /// before "Silent Hill (USA)_extracted", so a first-match search picked it —
+        /// the Audio tool then took the user's edits for the disc's sounds and could no
+        /// longer find the other copies of any sound already replaced. Among the
+        /// extracts, the one holding the most banks wins, since a complete SND/ is the
+        /// only kind that can answer "where else is this sound".</summary>
+        private static string GuessCleanSndDir(string gameRoot)
         {
             if (string.IsNullOrEmpty(gameRoot)) return null;
 
             string data = Path.Combine(gameRoot, "gamedata");
-            if (!Directory.Exists(data)) return Directory.Exists(gameRoot) ? gameRoot : null;
+            if (!Directory.Exists(data)) return null;
 
-            // An extract is named after the disc, so the SND/ folder sits under a
-            // sibling whose name we cannot predict — take the first one that has it.
+            string best = null;
+            int bestCount = 0;
             try
             {
                 foreach (string sub in Directory.GetDirectories(data))
                 {
+                    if (string.Equals(Path.GetFileName(sub), "load", StringComparison.OrdinalIgnoreCase)) continue;
                     string snd = Path.Combine(sub, "SND");
-                    if (Directory.Exists(snd)) return snd;
+                    if (!Directory.Exists(snd)) continue;
+                    int n;
+                    try { n = Directory.GetFiles(snd, "*.vab").Length; } catch { continue; }
+                    if (n > bestCount)
+                    {
+                        best = snd;
+                        bestCount = n;
+                    }
                 }
             }
             catch { }
-
-            string load = Path.Combine(data, "load");
-            return Directory.Exists(load) ? load : data;
+            return best;
         }
 
         // ---- helpers moved verbatim from ModManagerForm -------------------------

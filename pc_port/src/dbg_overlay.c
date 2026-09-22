@@ -1774,7 +1774,7 @@ void DbgOverlay_Update(void)
             s_scQuick  = SDL_GetScancodeFromName(g_PcConfig.keyQuickOptions);
             /* Unbound leaves it at -1 and nothing is polled, and so does the
              * NONE the panel writes for a bind the player cleared. */
-            s_padQuick = (g_PcConfig.padQuickOptions[0] != ' ' &&
+            s_padQuick = (g_PcConfig.padQuickOptions[0] != '\0' &&
                           SDL_strcasecmp(g_PcConfig.padQuickOptions, "NONE") != 0)
                        ? (int)PsyX_LookupGameControllerMapping(g_PcConfig.padQuickOptions,
                                                               -1)
