@@ -375,7 +375,7 @@ static const QoRowDef* qo_cheat_page(int cpage, const char* nextLabel, int* coun
 static const QoRowDef s_pageControls[] = {
     /* The controls panel, controller columns only on a phone. With no
      * controller connected it shows a toast instead of opening. */
-    { ROW_ACTION, NULL, QO_A_KEYBINDS,         "Controller Buttons" },
+    { ROW_ACTION, NULL, QO_A_KEYBINDS,         "Controller Config" },
     { ROW_OPT,   "touch_style",            0, NULL },  /* Context or Gamepad */
     { ROW_OPT,   "control_2d",             0, NULL },  /* screen-relative movement */
     { ROW_OPT,   "touch_controls",         0, NULL },  /* Automatic / On / Off */
@@ -2411,8 +2411,12 @@ void Pc_QuickOptions_Draw(void)
         }
         else if (s_texLabel[i])
         {
-            /* Action row, centred. */
-            float lx = panelL + (panelW - (float)s_labelW[i]) * 0.5f;
+            /* An action row is a setting like any other, so it starts where the
+             * option labels do. Only the navigation rows -- Previous / Next
+             * page and Close -- are centred. */
+            float lx = (r->kind == ROW_ACTION)
+                     ? panelL + pad
+                     : panelL + (panelW - (float)s_labelW[i]) * 0.5f;
             tH = (float)s_labelH[i]; tY = rowMid + tH * 0.5f;
             qo_quad(s_texLabel[i], NX(lx), NY(tY), NX(lx + s_labelW[i]), NY(tY - tH),
                     0.80f, 0.85f, 0.95f, dim);
