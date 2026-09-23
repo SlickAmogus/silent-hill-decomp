@@ -136,10 +136,16 @@ void Ios_StageBundledAssets(void)
  * save screen sits on "checking the memory card" forever, because the check it
  * is waiting on can never succeed.
  *
- * So lay down a blank formatted card on first run, the way a console ships with
- * one in the slot. 128 KB = 1024 frames x 128 bytes; frame 0 carries the "MC"
- * magic MemCardAccept tests for, and the rest stays zeroed, which is what an
- * empty card looks like to the directory walk in MemCardOpen.
+ * So lay down a blank FORMATTED card on first run, the way a console ships with
+ * one in the slot. 128 KB = 1024 frames x 128 bytes, and "formatted" is the
+ * part that matters: frame 0 carries the "MC" magic and its checksum, frames
+ * 1..15 are the directory and each must say FREE (0xA0), and the data frames
+ * are 0xFF. A card of zeros with only the magic passes for a card and then
+ * cannot hold anything -- a zeroed entry is neither free nor used, so the
+ * allocator finds no slot and every save fails while the card reads as empty,
+ * which sat the save screen on "Now checking MEMORY CARD" (reported
+ * 2026-09-23). This is the same image PsyCross writes in mc_format_buffer,
+ * which also repairs a zeroed card left by the old version of this function.
  *
  * Never overwrites an existing card -- that would erase the player's saves. */
 void Ios_EnsureMemoryCard(void)
@@ -167,8 +173,35 @@ void Ios_EnsureMemoryCard(void)
 
             NSMutableData* card = [NSMutableData dataWithLength:128 * 1024];
             unsigned char* p    = (unsigned char*)card.mutableBytes;
+
+            /* Data frames first, then the header and directory over the top. */
+            memset(p, 0xFF, 128 * 1024);
+            memset(p, 0, 128);
             p[0] = 'M';
             p[1] = 'C';
+            {
+                unsigned char xorck = 0;
+                for (int i = 0; i < 127; i++)
+                {
+                    xorck ^= p[i];
+                }
+                p[127] = xorck;
+            }
+            for (int e = 1; e <= 15; e++)
+            {
+                unsigned char* dir = p + (e * 128);
+
+                memset(dir, 0, 128);
+                dir[0] = 0xA0; /* free */
+                {
+                    unsigned char xorck = 0;
+                    for (int i = 0; i < 127; i++)
+                    {
+                        xorck ^= dir[i];
+                    }
+                    dir[127] = xorck;
+                }
+            }
 
             if (![card writeToFile:path atomically:YES])
             {

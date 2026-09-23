@@ -2371,6 +2371,31 @@ void SaveScreen_LogicUpdate(void) // 0x801E649C
         case 0:
             if (MemCard_ElementsUpdate() == false)
             {
+#ifdef SH_PC_PORT
+                /* Leaving is allowed even when the card layer is not ready.
+                 * The exit below sits inside the ready path, so a status that
+                 * never resolves swallowed every input: a failed file create
+                 * parks the device at status 0, the slots then read "Now
+                 * checking MEMORY CARD" for good, and Back did nothing --
+                 * quitting the game was the only way out (reported on iOS,
+                 * 2026-09-23). Nothing here is mid-write: this is the browse
+                 * state, and the write states are cases 2 and 3. */
+                if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.cancel)
+                {
+                    ScreenFade_Start(false, false, false);
+                    g_GameWork.gameStateSteps[1] = 2;
+                    g_GameWork.gameStateSteps[2] = 0;
+
+                    SD_Call(Sfx_MenuCancel);
+
+                    if (g_GameWork.gameStatePrev == GameState_InventoryScreen)
+                    {
+                        SD_Call(23);
+                        GameFs_TitleGfxLoad();
+                        GameFs_StreamBinSeek();
+                    }
+                }
+#endif
                 break;
             }
 

@@ -385,6 +385,9 @@ static const QoRowDef s_pageControls[] = {
      * anyone who has paired a controller. */
     { ROW_OPT,   "controller_sensitivity", 0, NULL },
     { ROW_OPT,   "invert_controller_y",    0, NULL },
+    /* Frees the pad's D-pad to be bound to actions instead. Gameplay only, and
+     * the touch overlay's own D-pad bits are merged after the controller read,
+     * so the Gamepad style still navigates menus with it. */
     { ROW_EXTRA, NULL, QO_X_DPADMOVE,         "Disable D-pad for Movement" },
     { ROW_OPT,   "touch_quicksave_buttons", 0, "Quick Save/Load Buttons" },
     { ROW_PAGE,  NULL, 0,                     "Next page  (Graphics)" },
