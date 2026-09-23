@@ -15,6 +15,8 @@
  *   FMV                  - list all FMV names (numbered)
  *   FMV <name|number>    - play an FMV (fades out, plays, fades back in)
  *   FMV INTROn / ENDn    - alias for the nth intro (C*) / ending (Z*) movie
+ *   ABOUT                - PC port credits (same block the staff roll appends)
+ *   PCCREDITS [0|1]      - toggle that block in the staff roll (persists)
  *   LOGA / LOGB          - stamp an incremental A#/B# position mark
  *                          (Harry + camera pos/angles) into SilentHill.log;
  *                          LOGA RESET / LOGB RESET restarts the counter
@@ -38,6 +40,7 @@
 #include "map_registry.h"
 #include "dbg_overlay.h"
 #include "pc_config.h"
+#include "pc_credits.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -488,6 +491,8 @@ static const char* const HELP_LINES[] = {
     " kf [n]         keyframe inspector: set/show frame (K key)",
     " playas [name]  play as another character (bare = list)",
     " minimapnomap [0|1]  minimap before the map is found: 0 hide, 1 empty panel",
+    " about          PC port credits",
+    " pccredits [0|1]  PC port credits block in the staff roll",
     " loga / logb    log Harry+camera pos/angles to SilentHill.log",
     "Quick Save: F6   Quick Load: F8 (work outside console)",
 };
@@ -1026,6 +1031,45 @@ static void cmd_logmark(char letter, const char* arg)
             (int)vcWork.cam_mat_ang.vx, (int)vcWork.cam_mat_ang.vy);
 }
 
+/* The staff-roll block, read straight off the same table pc_credits.c encodes
+ * for the roll, so the two can never drift apart. */
+static void cmd_about(void)
+{
+    int rows    = PcCredits_RowCount();
+    int emitted = 0;
+    int gap     = 0;
+    int i;
+
+    {
+        #include "sh_build_info.h"
+        cprintf("Silent Hill - Native PC Port (build %s)", SH_BUILD_GIT_HASH);
+    }
+    DbgOverlay_PushLine("");
+
+    for (i = 0; i < rows; i++) {
+        const s_PcCreditRow* row = PcCredits_Row(i);
+        if (row == NULL)
+            continue;
+        if (row->kind == PcCreditRow_Blank) {
+            gap = emitted;
+            continue;
+        }
+        if (gap) {
+            DbgOverlay_PushLine("");
+            gap = 0;
+        }
+        switch (row->kind) {
+            case PcCreditRow_Header: cprintf("%s", row->left); break;
+            case PcCreditRow_Pair:   cprintf("  %-20s %s", row->left, row->right); break;
+            default:                 cprintf("  %s", row->left); break;
+        }
+        emitted = 1;
+    }
+
+    if (!emitted)
+        cprintf("no PC port credits defined");
+}
+
 void Pc_ConsoleExec(const char* line)
 {
     char cmd[48];
@@ -1075,6 +1119,15 @@ void Pc_ConsoleExec(const char* line)
             push_lines(DEBUG_PAGE1, (int)(sizeof(DEBUG_PAGE1) / sizeof(DEBUG_PAGE1[0])));
     } else if (strcmp(cmd, "AMBSFX") == 0) {
         cmd_ambsfx(arg);
+    } else if (strcmp(cmd, "ABOUT") == 0 || strcmp(cmd, "CREDITS") == 0) {
+        cmd_about();
+    } else if (strcmp(cmd, "PCCREDITS") == 0) {
+        int on = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !g_PcConfig.pcPortCredits;
+        g_PcConfig.pcPortCredits = on;
+        PcConfig_SaveKeyValue("pc_port_credits", on ? "1" : "0");
+        PcCredits_Begin(); /* rebuild now so a roll started later picks it up */
+        cprintf("PC port credits in the staff roll %s%s", on ? "ON" : "OFF",
+                on ? "" : " (vanilla roll)");
     } else if (strcmp(cmd, "LOGA") == 0) {
         cmd_logmark('A', arg);
     } else if (strcmp(cmd, "LOGB") == 0) {

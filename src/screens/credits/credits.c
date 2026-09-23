@@ -12,6 +12,14 @@
 #include "main/rng.h"
 #include "screens/credits/credits.h"
 
+#ifdef SH_PC_PORT
+#include "pc_credits.h"
+/* Vanilla list, or vanilla + the config-gated PC-port block (pc_credits.c). */
+#define CREDIT_LIST PcCredits_List()
+#else
+#define CREDIT_LIST g_CreditList
+#endif
+
 extern s_800AFE08 D_800AFE08;
 extern s_800AFE24 D_800AFE24;
 
@@ -67,6 +75,12 @@ void func_801E2E28(s32 idx) // 0x801E2E28
 {
     s32 var0;
     s32 var1;
+
+#ifdef SH_PC_PORT
+    /* Sets D_801E5C20 to the real line count before the per-line step is
+     * derived from it below, so the roll still lands on the end of the track. */
+    PcCredits_Begin();
+#endif
 
     D_801E5E8C = idx;
 
@@ -498,7 +512,7 @@ bool func_801E3684(void) // 0x801E3684
         }
 
         var_s3 = sp14 + var_s4;
-        var_s2 = &g_CreditList[var_s0];
+        var_s2 = &CREDIT_LIST[var_s0];
 
         for (var_s1 = sp18; var_s1 > 0; var_s1--, var_s2++, var_s3 += sp10)
         {
@@ -525,6 +539,10 @@ void func_801E386C(void) // 0x801E386C
     s32         var2;
 
     var2 = 5;
+
+#ifdef SH_PC_PORT
+    PcCredits_Begin();
+#endif
 
     func_8009185C(0, 0, SCREEN_HEIGHT, 0x1000, 0, 0x22000, 0xF0000, 0xB33, 899, -0xF9C);
     ptr  = D_801E5558;
@@ -626,7 +644,7 @@ bool func_801E3970(void) // 0x801E3970
     func_801E434C(0, 0);
 
     lineY          = currentLinePosY;
-    currentLinePtr = &g_CreditList[lineIdx];
+    currentLinePtr = &CREDIT_LIST[lineIdx];
 
     for (i = linesToDraw; i > 0; i--, lineY += lineHeight, currentLinePtr++)
     {

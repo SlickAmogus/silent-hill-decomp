@@ -237,6 +237,7 @@ s_PcConfig g_PcConfig = {
     .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal 3=jap — preferred disc when several are present */
     .discImage      = "", /* exact .bin in gamedata/ (launcher Disc dropdown); empty = auto */
     .uncensored     = 0, /* 0=retail PAL Mumblers (default); 1=restore Grey Children on EUR (matches US) */
+    .pcPortCredits  = 1, /* 1=append the PC Port Credits block to the staff roll; 0=vanilla roll */
     .playerCharacter = "harry", /* play as: harry|lisa|cybil|kaufmann|dahlia|... (also - / = in K view) */
     .femaleVoicePitch = 140, /* voiced cries; breath caps at 118 of its own. 0 = off */
     .discordRichPresence = 1,  /* show current area on the player's Discord profile (needs a discord_app_id) */
@@ -871,6 +872,10 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "uncensored") == 0)
         {
             g_PcConfig.uncensored = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "pc_port_credits") == 0)
+        {
+            g_PcConfig.pcPortCredits = (atoi(value) != 0);
         }
         else if (strcmp(key, "player_character") == 0)
         {

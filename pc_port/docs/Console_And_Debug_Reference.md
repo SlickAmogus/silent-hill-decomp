@@ -37,6 +37,8 @@ built-in quick lists.
 | `quit` | Exit the game immediately. |
 | `map` | List all map names. |
 | `map <name>` | Set the New-Game start map (loads on next New Game; doesn't warp mid-session). |
+| `about` / `credits` | PC port credits: build id plus the same block the staff roll appends. |
+| `pccredits [0\|1]` | Append the PC Port Credits block to the end of the staff roll (toggles if no arg). The roll's scroll rate is its length divided by its line count, so the extra lines tighten the step slightly and the roll still ends on the music. Config key `pc_port_credits`. **(saved)** |
 
 ## Cheats / items / flags
 

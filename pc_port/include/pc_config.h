@@ -362,6 +362,14 @@ typedef struct {
      * US/NTSC-J discs, which already render their retail creature. */
     int uncensored;
 
+    /* Append a "PC Port Credits" block to the end of the staff roll, and back
+     * the ABOUT console command (config key: pc_port_credits, console:
+     * PCCREDITS). 1 = on (default), 0 = the PSX roll exactly as shipped. The
+     * roll's scroll rate is its length divided by the line count, so the extra
+     * lines tighten the per-line step slightly rather than outrunning the
+     * credits music. */
+    int pcPortCredits;
+
     /* Play as another character (config key: player_character): harry (default),
      * lisa, cybil, kaufmann, dahlia. Swaps the player's rendered model while
      * keeping Harry's animations/gameplay; also cycled in-game with - / = while
