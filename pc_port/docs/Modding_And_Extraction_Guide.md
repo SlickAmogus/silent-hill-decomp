@@ -1,15 +1,17 @@
 # Modding & Asset Extraction Guide
 
 How the *Silent Hill* disc is unpacked into the loose `disc_extract/` tree, how the
-game's file container works, how to get at the audio inside `.VAB` sound banks, and how
-to feed modified assets back into the PC port.
+game's file container works, how to replace its sounds and voices, and how to feed
+modified assets back into the PC port.
 
-This is the umbrella document. Two neighbouring guides cover specific asset classes in
-more depth and are the authoritative reference for those:
+This is the umbrella document, and it is the reference for **sound** (section 4) and for
+the **loose-file override** every mod is built on (section 5). Neighbouring guides own the
+other asset classes:
 
 - **FMV / video replacement** → [`fmv_files.md`](fmv_files.md)
 - **Textures (loose PNG/TIM + DuckStation packs)** → [`Texture_Residency_And_Custom_Textures_Task.md`](Texture_Residency_And_Custom_Textures_Task.md)
 - **Character models (ILM ↔ OBJ, edit/replace in Blender)** → [`Model_Modding_Guide.md`](Model_Modding_Guide.md)
+- **Modern item models (glTF)** → [`Modern_Item_GLTF_Modding_Guide.md`](Modern_Item_GLTF_Modding_Guide.md)
 
 ---
 
@@ -140,9 +142,9 @@ via the same ISO9660 reader the game uses).
   originals). This is the quick way to turn an extracted texture tree into PNGs for the
   loose-file / hi-res override workflow in §5.
 
-> XA audio tracks aren't the focus of the launcher extractor (they stream from the disc and
-> aren't loose-overridable anyway); if you specifically need the `XA/` tree, use the dev
-> `make extract`.
+> The `XA/` tree comes out too, read from `HILL.` at its 2336-byte sectors, on every release
+> that has one (the NTSC Preview build does not). You do not need those files to replace a
+> voice, though: the port takes a plain WAV per line instead (§4.7).
 
 ---
 
@@ -150,88 +152,201 @@ via the same ISO9660 reader the game uses).
 
 There are two unrelated audio containers, and the extraction handles them differently:
 
-| | Where | What | Extract with |
+| | Where | What | Work with it using |
 |---|---|---|---|
-| **VAB sound banks** | `SND/*.VAB`, `1ST/*.VAB` | SPU-ADPCM samples: SFX, footsteps, weapon sounds, sequenced BGM instruments | vgmstream (§4) |
-| **XA streams** | `XA/` (from `HILL.`) | CD-XA ADPCM: cutscene voices, movie audio, some ambience | already raw sectors; see below |
+| **VAB sound banks** | `SND/*.VAB`, `1ST/*.VAB` | SPU-ADPCM samples: SFX, footsteps, weapon sounds, monster cries, sequenced BGM instruments | the launcher's **Audio** tool (§4.2), or vgmstream (§4.6) |
+| **XA streams** | `XA/` (from `HILL.`) | CD-XA ADPCM: cutscene and event voices, movie audio, some ambience | the launcher's **Voices** tool (§4.7), or vgmstream |
 
-`.KDT` files (`KDT1` magic) sit next to the VABs — they are the **sequence / metadata**
+`.KDT` files (`KDT1` magic) sit next to the VABs. They are the **sequence / metadata**
 companions (which samples play, note/timing data for the music engine). A `.VAB` is the
 instrument bank; the `.KDT` is the "score". To *listen* to the raw samples you only need
 the VAB; to reproduce actual in-game music you need both plus the engine.
 
 **XA** is stored in `HILL.` and extracted into `disc_extract/XA/` as pre-stripped 2336-byte
 sectors. The port streams these **directly from the disc image at runtime** by seeking to
-`(fileLoc + K) × 2352 + 16` — it never reads the loose `XA/` folder as a runtime path (see
-`pc_port/src/xa_player.c`). To audition an XA track, vgmstream also reads `.xa`.
+`(fileLoc + K) * 2352 + 16`, so it never reads the loose `XA/` folder as a runtime path (see
+`pc_port/src/xa_player.c`). Replacing a voice line does not need the disc bytes at all: drop
+a WAV in and the port plays it instead (§4.7).
 
 ---
 
-## 4. Extracting & repacking VAB audio
+## 4. Sound banks (VAB): listening, replacing, repacking
+
+Nothing here needs Python, vgmstream or a disc rebuild. The launcher's **Audio** tool reads
+and writes the banks itself, and the game can take a plain WAV per sound at runtime.
 
 ### 4.1 What a VAB is
 
-A `.VAB` here is a **standard, self-contained PlayStation VAB** — header and body in one
-file. First bytes are the magic `pBAV` (`"VABp"`), version 7. Layout:
+A `.VAB` here is a **standard, self-contained PlayStation VAB**, header and body in one
+file, and there are 90 of them in `SND/`. The first four bytes read `pBAV` in file order
+(the header stores `"VABp"` as a little-endian word), version 7. Layout:
 
 ```
 0x00  "VABp"  magic
 0x04  version (7)
 0x08  VAB id
-0x0C  total file size   (e.g. MAP000.VAB → 0x00024600 = 148992, the exact file length)
-0x10  reserved / counts (programs, tones, VAGs, master vol/pan, ...)
-...   program table   (16 bytes × 128 programs)
-...   tone  table     (32 bytes × 16 tones per used program)
-...   VAG pointer table (2 bytes × 256 — half-word size of each waveform)
-...   VAG bodies       (concatenated SPU-ADPCM, 16 bytes per 28 samples)
+0x0C  total file size  (MAP000.VAB -> 0x00024600 = 148992, the exact file length)
+0x12  program count (u16)
+0x16  VAG count (u16)
+0x20  program table     16 bytes x 128 entries, always 128 (2048 bytes)
+      tone table        32 bytes x 16 tones x program count
+      VAG size table    2 bytes x 256
+      VAG bodies        concatenated SPU-ADPCM, 16 bytes per 28 samples
 ```
 
-Because header+body are combined, a single VAB is everything a tool needs.
+Two details matter if you write your own tool. The **size table is one-based**: entry 0 is a
+dummy and sample *n*'s length is `table[n] * 8` bytes, so reading it as 0-based shifts every
+body and produces noise rather than a clean failure. And because bodies are packed back to
+back and addressed by a running sum, changing one sample's length **moves every sample after
+it**, so a bank has to be rebuilt rather than patched in place. That length field is also the
+hard ceiling on a single sample: `65535 * 8` = **524,280 bytes**.
 
-### 4.2 Extract audio out of a VAB — vgmstream (the tool already used here)
+Routing inside a bank runs `sfxId -> program -> tone -> sample`. Everything above the sample
+is routing; the sample is what a mod replaces. Several tones can share one sample, which is
+why the same sound turns up at more than one pitch.
 
-The `snd_map*.wav` files in `tools/silentassets/` were produced by **vgmstream**, and
-`vgmstream-cli.exe` (plus its support DLLs) is already vendored at
-`disc_extract/vgmstream-cli.exe`. vgmstream treats each VAG in the bank as a **subsong**.
+### 4.2 The Audio tool: browse, preview, export
+
+Open it from the launcher's **Mod Manager** with **Audio ▾ → Sound banks (VAB)…**, or drag a
+`.VAB` onto the window. It lists every sample in the bank with its size, duration, whether
+its ADPCM blocks carry **loop flags**, the rate it plays at in game, the **sound ids** that
+trigger it, which **programs** reference it, and an **Also in** column (see §4.4).
+
+- **Play** / **Stop** audition the selected sample. **Preview rate** is *Auto (in-game)* by
+  default, which uses the rate the game's own sound table plays that sample at rather than
+  guessing one for the whole bank. The fixed rates are there for samples no sound id claims.
+- **Bank slot** (*base*, *weapon*, *ambient*, *music*) narrows the sound-id matching. A bank
+  file does not record which slot it gets loaded into, so this is your call.
+- **Export WAV…**, **Export raw VAG…** and **Export all…** write
+  `<BANK>.<NNN>.wav` / `.vag`, numbered one-based to match the list. That name is
+  deliberate: it is exactly what the runtime looks for in `gamedata/load/SND/`, so
+  export, edit, drop back in, and it plays (§4.5).
+- Raw VAG export is the exact compressed bytes, for re-injecting a sound untouched.
+
+### 4.3 Replacing a sound and saving the bank
+
+**Replace…** takes a `.wav` or a `.vag` for the selected sample.
+
+- A **WAV** is resampled to the rate that tone plays at and re-encoded to PSX ADPCM, because
+  a sample carries no rate of its own. If the original sample loops, the loop flags are
+  written back into the encoded blocks.
+- A **VAG** goes in as-is and must be a whole number of 16-byte ADPCM blocks. A `.vag` with
+  the usual 48-byte header needs that header stripped first; the tool says so rather than
+  writing noise.
+- Either way the result cannot exceed 524,280 bytes (§4.1).
+
+Replacements are **staged**, not written: the row goes bold, **Play** auditions the staged
+sound, and **Revert** drops it. Nothing on disk changes until you save.
+
+**Save bank…** opens one dialog that does the whole job. There is no file picker, because
+every bank is named by the game: you choose a **destination folder** (default
+`gamedata/load/SND`, where the game reads them) and tick which banks to write.
+
+The rows are the bank you edited, first and always ticked, followed by **every other bank
+that carries a byte-identical copy of a sample you replaced**. Each row has a **Source**, the
+file the rewrite starts from, which defaults to a copy already in the destination folder so a
+second round of edits **merges into the first** instead of overwriting it. A bank holding
+your earlier edit of that sound starts ticked; one holding a *different* edit of yours stays
+unticked and says so.
+
+### 4.4 One sound is copied into many banks
+
+The disc shares sounds **by copy, not by reference**: 236 of the 506 distinct samples in
+`SND/` appear in more than one bank, and the game loads one ambient bank per map. The
+Groaner block, for example, sits byte-identical in eight banks. Replace it in `MAP200` alone
+and it plays only in the areas that load `MAP200`.
+
+That is what the **Also in** column and the save dialog above are for. Two things make them
+trustworthy:
+
+- **A clean reference.** The tool compares the open bank against the same bank in a pristine
+  extract (**File → Clean SND folder…**, remembered as `launcher_audio_clean_snd` in
+  `config.cfg`). Samples you have already changed are marked with `*` in the `#` column, and
+  the duplicate search still uses the **disc** bytes, so you can open either the pristine
+  bank or your edited copy and find the same family.
+- **MEP/MAP twins.** `SND/` carries seven banks the game never loads (`MAP000`, `MAP100`,
+  `MAP101`, `MAP102`, `MAP103`, `MAP502`, `MAP604`); it loads the near-identical `MEP*` twin
+  instead. The tool says so when you open one, and the runtime accepts the twin's file names
+  anyway (§4.5), so an edit made in `MAP000` still plays.
+
+### 4.5 Loose sounds at runtime: one WAV per sample, no repacking
+
+This is the easy path, and the one with no size ceiling. Set `allow_loose_files = 1` and
+drop a WAV in:
 
 ```
-# how many subsongs (samples) are in the bank
-vgmstream-cli -m SND/MAP000.VAB
-
-# one subsong → wav
-vgmstream-cli -s 3 -o MAP000_03.wav SND/MAP000.VAB
-
-# every subsong → MAP000_00.wav, MAP000_01.wav, ...
-vgmstream-cli -S 0 -o "?f_?s.wav" SND/MAP000.VAB
+gamedata/load/SND/PISTOL.002.wav      sample 2 of the PISTOL bank
+gamedata/load/SND/MAP000.005.wav      the long ambient at the start of the game
 ```
 
-(That last form is how `snd_map000_1.wav … snd_map000_21.wav` — 21 subsongs from
-MAP000.VAB — were generated.)
+`<BANK>.<NNN>.wav` is the bank's disc name, a dot, and the one-based sample number the Audio
+tool shows. `<BANK>_<NNN>.wav` works too, since that is what older exports were named. For a
+`MEP*` bank the `MAP*` twin name is accepted as well.
 
-Alternatives if you want the raw `.VAG` files rather than decoded WAV: **VABtool**,
-**PSound**, **awave**, or any "VAB ripper" will split the bank into individual `.VAG`
-waveforms, which you can then decode/convert with a VAG↔WAV utility.
+When a bank is uploaded to SPU RAM, `pc_port/src/pc_sfx_override.c` checks every sample for
+such a file and registers the ones it finds against the address the voice will play from.
+The mixer substitutes PC-owned audio at playback, which means:
 
-### 4.3 Repacking a VAB (modifying the audio)
+- **Any length.** The replacement is not written into the bank, so nothing has to fit.
+- **Any rate.** The file plays at the rate its own header declares, so what you hear in your
+  editor is what plays in game. Pitch the game applies after the trigger still scales from
+  there, so modulated sounds keep their modulation; what you give up is trigger-time pitch
+  variation.
+- **Format:** uncompressed PCM WAV, 8 or 16 bit, mono or stereo (stereo is mixed down).
+- Up to 256 replacements can be live at once, and untouched samples decode exactly as before.
 
-**There is no round-trip VAB repacker in this repo.** `extract.py` copies each VAB out of
-the archive byte-for-byte, and `insertovl.py` only re-inserts *overlay* `.BIN` files — it
-does not rebuild VABs. So repacking is a manual, external-tool job:
+A **whole repacked bank** works the same way: drop `gamedata/load/SND/<BANK>.VAB` (what
+*Save bank…* writes) and its samples are lifted out one by one through this same path. So a
+loose VAB is **not** bound by the "no larger than the original" rule in §5.1, because it is
+never byte-replaced into the disc buffer. Keep the sample count and order the same as the
+disc bank, which is what *Save bank…* does.
 
-1. **Re-encode your new audio to PSX SPU-ADPCM (`.VAG`).** The sample rate/pitch a tone
-   plays at is fixed by the VAB's tone table, so match the original sample's rate to keep
-   pitch correct. Encoders: `psxavenc`, the PsyQ/PSn00bSDK `wav2vag`, **MFAudio**, or
-   VABtool's encode mode.
-2. **Rebuild the VAB.** Swap the VAG body and fix up the VAG pointer table (and the total
-   size at 0x0C) so offsets stay valid. VABtool / VAButil-style tools do this; doing it by
-   hand is viable only if the replacement sample is the **same length** as the original
-   (drop-in body swap, no table edits).
-3. **Keep the file size within the original's budget** if you want the loose-file path in
-   §5 — a VAB replacement that is *larger* than the original will not load that way.
+The log tells you which half went wrong. Every bank load prints
+`[SFXMOD] bank 'MAP201' loaded: 32 samples - replace as gamedata/load/SND/MAP201.001.wav ...`
+whether or not anything matched, so a wrong **bank** and a wrong **file name** look
+different. Each hit prints `[SFXMOD] MAP201 sample 9 <- ... (N samples @ R Hz ...)`, and a
+rate of 0 there means the WAV header could not be read.
 
-For BGM specifically, remember the music is VAB (instruments) **+ KDT (sequence)**; editing
-which notes play means editing the KDT, which the port/engine parses — see
+### 4.6 Command-line alternatives
+
+`vgmstream-cli.exe` (plus its DLLs) is vendored at `disc_extract/vgmstream-cli.exe`. It
+treats each VAG in a bank as a **subsong**, which is handy for bulk conversion or on
+Linux/macOS:
+
+```
+vgmstream-cli -m SND/MAP000.VAB                    # how many subsongs, and their details
+vgmstream-cli -s 3 -o MAP000_03.wav SND/MAP000.VAB # one subsong -> wav
+vgmstream-cli -S 0 -o "?f_?s.wav" SND/MAP000.VAB   # every subsong
+```
+
+Note that vgmstream numbers and names its output its own way, so rename to
+`<BANK>.<NNN>.wav` before using §4.5. For raw `.VAG` files rather than decoded WAV, or to
+repack outside the launcher, **VABtool**, **PSound** and **awave** all split a bank, and
+`psxavenc` / PsyQ's `wav2vag` / **MFAudio** encode WAV to SPU-ADPCM.
+
+For BGM, remember the music is VAB (instruments) **plus** KDT (sequence): changing which
+notes play means editing the KDT, which the port parses. See
 [`bgm_technical_analysis.md`](bgm_technical_analysis.md).
+
+### 4.7 Replacing voices (XA) and voicing silent text boxes
+
+Voices are not in the banks; they stream from the disc as XA. With `allow_loose_files = 1`:
+
+```
+gamedata/load/XA/xa_0123.wav          replace disc voice line 123
+gamedata/load/XA/msg_MAP1_S00_23.wav  voice a text box the game never voiced
+```
+
+`xa_NNNN` is the line's index (0 to 726). `msg_<KEY>` is the message key with dots replaced
+by underscores, the same key the game logs as `[MSGBOX] MAP1_S00.23` for every unvoiced box,
+so you can read a line in game, alt-tab, and copy its name out of `SilentHill.log`. A page
+with no file of its own keeps the running one, so a single take can cover a multi-page
+message. WAVs are 8 or 16 bit PCM, mono or stereo, any rate.
+
+The launcher's **Voices** tool (**Audio ▾ → Voices (XA)…**) lists both sets: all 727 disc
+lines with their length and format, and every unvoiced text box with its text in whichever
+language the selected disc carries. It plays the original, plays your replacement, imports a
+file, or **records one from your microphone** straight into the right file name.
 
 ---
 
@@ -259,20 +374,28 @@ where `<FOLDER>` is the disc folder (`SND`, `BG`, `ITEM`, `1ST`, …) and `<NAME
 exact disc filename. Examples:
 
 ```
-gamedata/load/SND/MAP000.VAB      ← replace a sound bank
 gamedata/load/BG/ITEM_M.TIM       ← replace a texture (or ITEM_M.TIM.png for hi-res)
+gamedata/load/CHARA/DOB.ILM       ← replace a character model
 ```
 
 At load time `src/main/fsqueue_3.c` intercepts each file read: if the matching loose file
-exists it **byte-replaces** the disc content with your file — for **any file type**,
-including VAB. Logging tags: `[LOOSE]` (hit), `[LOOSE/MISS]`, `[LOOSE/HIRES]` (oversized
-TIM → hi-res texture override), `[LOOSE/INIT]`, `[LOOSE/SUMMARY]`. Set env
+exists it **byte-replaces** the disc content with your file, for **any file type**. Logging
+tags: `[LOOSE]` (hit), `[LOOSE/MISS]`, `[LOOSE/HIRES]` (oversized TIM, deferred to the
+hi-res texture override), `[LOOSE/WARN]`, `[LOOSE/INIT]`, `[LOOSE/SUMMARY]`. Set env
 `SH_LOOSE_VERBOSE=1` to log every miss.
 
 **Constraint:** the byte-replace copies into the buffer the engine sized for the *original*
-file. A loose replacement that is **larger than the original** is only handled for
-oversized **TIM** textures (deferred to the hi-res override path). A larger **VAB / BIN /
-mesh** will not fit and won't load — keep non-texture replacements **≤ the original size**.
+file, so a replacement **larger than the original** needs a path that hands the engine its
+own buffer instead. Those exist for **TIM** textures (the hi-res override), **CHARA ILM**
+models (`pc_big_lm.c`), **ITEM TMD** item models (`pc_big_tmd.c`) and **map IPD** chunks
+(`pc_big_ipd.c`). Anything else oversized is refused with `[LOOSE/WARN] … > buf … for
+non-TIM read; ignoring loose file` and the disc file loads instead, so keep other
+replacements **at or under the original size**.
+
+**Sounds do not go through this path at all.** The sound system seeks banks by absolute disc
+sector, so a loose `SND/*.VAB` is invisible to the file reader above. It is picked up when
+the bank is uploaded instead, along with per-sample WAVs, which is why sounds have no size
+ceiling. See §4.5.
 
 The launcher's **Mod Manager** automates enabling `allow_loose_files` and staging files
 under `gamedata/load/` — see [`Texture_Residency_And_Custom_Textures_Task.md`](Texture_Residency_And_Custom_Textures_Task.md)
@@ -388,9 +511,12 @@ swaps the loose-file override in §5.1 is almost always what you want.
 | Split ISO → `SILENT.`/`HILL.`/exe | `dumpsxiso` | `dumpsxiso -x out -s layout.xml image.bin` |
 | Unpack archives → loose tree | `silentassets/extract.py` | `make extract GAME_VERSION=USA` |
 | Identify a release | `extract.py -c` | `python extract.py -exe SLUS_007.07 -c` |
-| List/convert VAB samples | `vgmstream-cli` | `disc_extract/vgmstream-cli.exe -m file.VAB` |
-| Split VAB → `.VAG` | VABtool / PSound | external |
-| Encode WAV → `.VAG` | psxavenc / MFAudio / wav2vag | external |
+| Browse / play / export a sound bank | launcher **Audio** tool | Mod Manager → Audio ▾ → Sound banks (VAB)… (§4.2) |
+| Replace a sound, no repacking | loose WAV | `gamedata/load/SND/<BANK>.<NNN>.wav` (§4.5) |
+| Repack a whole bank | launcher **Audio** tool | *Replace…* then *Save bank…* (§4.3) |
+| Replace a voice line / voice a text box | launcher **Voices** tool | `gamedata/load/XA/xa_NNNN.wav`, `msg_<KEY>.wav` (§4.7) |
+| List/convert VAB samples on the CLI | `vgmstream-cli` | `disc_extract/vgmstream-cli.exe -m file.VAB` |
+| Split VAB → `.VAG`, encode WAV → `.VAG` | VABtool / PSound / psxavenc / MFAudio | external (§4.6) |
 | Replace an asset (runtime) | loose-file override | `allow_loose_files=1` + `gamedata/load/<FOLDER>/<NAME>` |
 | Replace with oversize / rebuild disc | `insertovl.py` + `mkpsxiso` | `make insert-ovl` |
 | Replace an FMV | jPSXdec + AVI | see [`fmv_files.md`](fmv_files.md) |
