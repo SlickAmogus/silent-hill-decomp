@@ -98,6 +98,17 @@ void MemCard_SysInit(void) // 0x8002E630
 
 void MemCard_RamClear(s32 deviceId) // 0x8002E6E4
 {
+#ifdef SH_PC_PORT
+    /* Status 0 is what draws "Now checking MEMORY CARD" on that slot, and it
+     * is only ever set here, on a card error. One line, on an error path, so
+     * the next report says which device and when rather than nothing at all --
+     * the layer had no logging when this screen was first reported. */
+    if (g_MemCard_SaveWork.devices[deviceId].status != 0)
+    {
+        SH_DBG("[MEMCARD] device %d cleared after an error (status %d -> 0, slot now reads \"checking\")",
+               (s32)deviceId, (s32)g_MemCard_SaveWork.devices[deviceId].status);
+    }
+#endif
     g_MemCard_SaveWork.devices[deviceId].status = 0;
 
     MemCard_FileStatusClear(deviceId);
@@ -2051,7 +2062,38 @@ s32 MemCard_State_FileReadWrite(void) // 0x80031260
             break;
 
         case 3:
+#ifdef SH_PC_PORT
+        {
+            /* The only wait in this machine with no way out. With no event
+             * pending none of the cases below match, so it sits here for good,
+             * and everything waits on it: the save screen stops reading input
+             * while a card is busy, which is the "Now checking MEMORY CARD"
+             * softlock with a dead Back button (reported 2026-09-23). Every
+             * other state gives up after its retries; this one now reports the
+             * same I/O error rather than hanging. Tested once, since TestEvent
+             * consumes what it reports. */
+            const s32 ev = MemCard_SwEventsTest();
+
+            if (ev == 0)
+            {
+                if (g_MemCard_Work.retryCount++ >= 600) /* ~10 s at 60 fps */
+                {
+                    SH_DBG("[MEMCARD] no completion event: io=%d dev=%d file='%s' - reporting I/O error",
+                           (s32)g_MemCard_Work.MemCardIoMode, (s32)g_MemCard_Work.deviceId,
+                           g_MemCard_Work.filePath);
+                    result                   = MemCardResult_FileIoError;
+                    g_MemCard_Work.state     = MemCardWorkState_Idle;
+                    g_MemCard_Work.stateStep = 0;
+                    close(g_MemCard_Work.fileHandle);
+                }
+                break;
+            }
+            g_MemCard_Work.retryCount = 0;
+
+            switch (ev)
+#else
             switch (MemCard_SwEventsTest())
+#endif
             {
                 case EvSpIOE: // Completed.
                     result                     = MemCardResult_FileIoComplete;
@@ -2077,6 +2119,9 @@ s32 MemCard_State_FileReadWrite(void) // 0x80031260
                     g_MemCard_Work.stateStep = 1;
                     break;
             }
+#ifdef SH_PC_PORT
+        }
+#endif
     }
 
     return result;
