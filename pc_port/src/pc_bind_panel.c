@@ -105,8 +105,12 @@ static const BpRow s_rows[] = {
     /* The quick menu, the one control a phone otherwise reaches by touch
      * alone. Shared by both schemes, like the other global rows. */
     { "Quick Menu",     { "key_quick_options", NULL,             "pad_quick_options", NULL },             BPF_GLOBAL },
-#if !defined(BP_MOBILE)
+    /* Was desktop-only while its only binds were a key and a mouse button.
+     * It takes a controller button now, and a phone reaches the OTS camera it
+     * applies to whenever a pad is connected -- which is also the only way to
+     * open this panel here. */
     { "Swap Shoulder",  { "key_swap_shoulder", NULL,             "pad_swap_shoulder", NULL },             BPF_GLOBAL | BPF_MOUSE },
+#if !defined(BP_MOBILE)
     { "Quick Save",     { "key_quicksave",     NULL,             NULL,                NULL },             BPF_GLOBAL },
     { "Quick Load",     { "key_quickload",     NULL,             NULL,                NULL },             BPF_GLOBAL },
 #endif
