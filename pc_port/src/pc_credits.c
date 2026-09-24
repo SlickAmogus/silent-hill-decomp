@@ -77,7 +77,7 @@ static const s_PcCreditRow s_Rows[] = {
     { PcCreditRow_Blank,  NULL, NULL },
     { PcCreditRow_Pair,   "Ric Lewis", "keylimesoda" },
     { PcCreditRow_Blank,  NULL, NULL },
-    { PcCreditRow_Pair,   "Sergio Manzur", "keylimesoda" },
+    { PcCreditRow_Pair,   "Sergio Manzur", "sergiomanzur" },
     { PcCreditRow_Blank,  NULL, NULL },
     { PcCreditRow_Pair,   "Miau", "WhoisMiau0x1" },
     { PcCreditRow_Blank,  NULL, NULL },
