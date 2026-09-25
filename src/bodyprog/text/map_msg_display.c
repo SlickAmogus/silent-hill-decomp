@@ -35,6 +35,10 @@ static s16 g_MapMsg_SelectFlashTimer = 0;
 s_MapMsgSelect g_MapMsg_Select;
 u8             g_MapMsg_AudioLoadBlock;
 s8             g_MapMsg_SelectCancelIdx;
+#ifdef SH_PC_PORT
+s32            g_PcMapMsgSelectCount;
+s32            g_PcMapMsgSelectBaseY;
+#endif
 
 // @hack JP calls different `Gfx_StringSetColor` / `Gfx_StringDraw` funcs here.
 // The normal funcs available are also used in JP, so can't be renamed.
@@ -634,6 +638,9 @@ s32 Gfx_MapMsg_SelectionUpdate(u8 mapMsgIdx, s32* arg1) // 0x80036B5C
                 }
 
                 mapMsgCode = 2;
+#ifdef SH_PC_PORT
+                g_PcMapMsgSelectBaseY = 98;
+#endif
             }
             else
             {
@@ -661,7 +668,13 @@ s32 Gfx_MapMsg_SelectionUpdate(u8 mapMsgIdx, s32* arg1) // 0x80036B5C
                     Gfx_StringDraw_JP(g_MapOverlayHdr.mapMessages[(mapMsgIdx + i) + 1], i);
 #endif
                 }
+#ifdef SH_PC_PORT
+                g_PcMapMsgSelectBaseY = 96;
+#endif
             }
+#ifdef SH_PC_PORT
+            g_PcMapMsgSelectCount = mapMsgCode;
+#endif
 
             if (g_Controller0->clickedBtnFlags & ControllerFlag_LStickUp &&
                 g_MapMsg_Select.selectedEntryIdx != 0)
