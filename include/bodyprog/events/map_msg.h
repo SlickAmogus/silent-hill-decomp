@@ -76,6 +76,13 @@ extern u8 g_MapMsg_AudioLoadBlock;
 
 extern s8 g_MapMsg_SelectCancelIdx;
 
+#ifdef SH_PC_PORT
+/* Where the live choice prompt's lines are, for touch to hit-test: line i is
+ * drawn at text Y baseY + 16*i. Only meaningful while maxIdx != NO_VALUE. */
+extern s32 g_PcMapMsgSelectCount;
+extern s32 g_PcMapMsgSelectBaseY;
+#endif
+
 s32 Gfx_MapMsg_Draw(s32 mapMsgIdx);
 
 s32 Gfx_MapMsg_SelectionUpdate(u8 mapMsgIdx, s32* arg1);

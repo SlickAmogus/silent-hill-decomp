@@ -796,6 +796,33 @@ static int Tc_HitButton(float x, float y, float aspect)
     return -1;
 }
 
+/* A choice prompt (the valve before Split Head, Yes/No) moves its highlight
+ * only on up/down, which no tap sends, so tap-to-confirm could only ever answer
+ * with the line already highlighted. The line under the finger becomes the
+ * selection first; a tap off the lines still confirms the highlight. */
+static void Tc_PickChoiceLine(float vy)
+{
+    /* Text Y is centre-referenced on 112, the same space pc_mouse_cursor uses. */
+    const int h = g_GameWork.gsScreenHeight;
+    float     y;
+    int       line;
+
+    if (g_MapMsg_Select.maxIdx == NO_VALUE || g_PcMapMsgSelectCount <= 0 || h <= 0)
+        return;
+
+    /* 3px lead-in above the glyph top, as Pc_MouseCursor_MenuRowHover. */
+    y = (vy * (float)h) - (float)(h / 2) + 112.0f - (float)(g_PcMapMsgSelectBaseY - 3);
+    if (y < 0.0f)
+        return;
+
+    line = (int)(y / 16.0f);
+    if (line >= g_PcMapMsgSelectCount)
+        return;
+
+    g_MapMsg_Select.selectedEntryIdx = (u8)line;
+    SH_DBG("[TOUCH] choice line %d of %d", line, g_PcMapMsgSelectCount);
+}
+
 static s_TouchFinger* Tc_FindFinger(SDL_TouchID dev, SDL_FingerID id)
 {
     int i;
@@ -999,6 +1026,7 @@ void Pc_Touch_Update(void)
                      * nothing else to touch during a scene or a wall of text. */
                     t->role      = TR_ADVANCE;
                     t->buttonIdx = -1;
+                    Tc_PickChoiceLine(vy);
                 }
                 else if (mode != TC_MODE_GAMEPLAY)
                 {
