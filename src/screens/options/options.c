@@ -19,6 +19,7 @@
 #include <ctype.h>
 #include "pc_config.h"
 #include "pc_audio_config.h" /* the software-SPU row */
+#include "control_style.h"   /* the Camera Mode / OTS Shoulder rows */
 #endif
 
 #define LINE_CURSOR_TIMER_MAX 8
@@ -757,7 +758,8 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
        QO_X_SPU,
-       QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE };
+       QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE,
+       QO_X_CAMSTYLE, QO_X_OTSSIDE };
 
 /* display_aspect = crt puts the picture on (4:3 x trim), so one framebuffer
  * pixel lands on screen this many times wider than tall at trim 1.0. It is the
@@ -800,6 +802,12 @@ const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz)
         return g_PcConfig.dreamBlur ? "On" : "Off";
     case QO_X_DPADMOVE:
         return g_PcConfig.disableDpadMovement ? "On" : "Off";
+    case QO_X_CAMSTYLE: {
+        static const char* const lbl[] = { "Classic", "Thirdperson", "Over the Shoulder", "Firstperson" };
+        return (g_ControlStyle >= 0 && g_ControlStyle < 4) ? lbl[g_ControlStyle] : "Classic";
+    }
+    case QO_X_OTSSIDE:
+        return (g_OtsSide > 0) ? "Right" : "Left";
     case QO_X_DREAMSTR:
         if (!g_PcConfig.dreamBlur) { snprintf(buf, bufsz, "%d%%  (off)", (int)(g_PcConfig.dreamBlurStrength * 100.0f + 0.5f)); return buf; }
         snprintf(buf, bufsz, "%d%%", (int)(g_PcConfig.dreamBlurStrength * 100.0f + 0.5f));
@@ -1228,6 +1236,19 @@ void PcOpt_QuickExtraAdjust(int which, int dir)
         Sd_PlaySfx(Sfx_MenuMove, 0, 64);
         break;
     /* Read every frame by the gameplay gate in game_main.c, so it applies live. */
+    /* The Change-Camera cycle, both ways. Persisted by Pc_ControlStyleSet. */
+    case QO_X_CAMSTYLE: {
+        const int n = Pc_ControlStyleCount();
+        Pc_ControlStyleSet((g_ControlStyle + dir + n) % n);
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
+    }
+    /* Live only, like the Swap Shoulder bind it mirrors. Thirdperson reads it
+     * too while tps_ots_aim is on. */
+    case QO_X_OTSSIDE:
+        g_OtsSide = -g_OtsSide;
+        Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+        break;
     case QO_X_DPADMOVE:
         g_PcConfig.disableDpadMovement = !g_PcConfig.disableDpadMovement;
         PcConfig_SaveKeyValue("disable_dpad_movement", g_PcConfig.disableDpadMovement ? "1" : "0");

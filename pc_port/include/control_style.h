@@ -34,6 +34,10 @@ void Pc_ControlStyleUpdate(void);
 /* Set the active style, mirror the runtime flags, and persist to config. */
 void Pc_ControlStyleSet(int style);
 
+/* Step to the next style (Classic -> Thirdperson -> OTS -> Firstperson -> ...),
+ * the Change-Camera action. Persisted like Pc_ControlStyleSet. */
+void Pc_ControlStyleCycle(void);
+
 int         Pc_ControlStyleCount(void);
 const char* Pc_ControlStyleId(int idx);
 const char* Pc_ControlStyleLabel(int idx);

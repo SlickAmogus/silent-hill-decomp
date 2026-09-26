@@ -628,6 +628,10 @@ static void Pc_TpsCamera_Apply(void)
 
         SDL_GetRelativeMouseState(&mdx, &mdy);
         if (frozen) { mdx = 0; mdy = 0; }
+        {
+            extern int Pc_Touch_OwnsMouse(void);
+            if (Pc_Touch_OwnsMouse()) { mdx = 0; mdy = 0; }
+        }
         /* Mouse-RIGHT (mdx>0) → += yaw → view rotates right.
          * Mouse-UP (mdy<0) → pitch up by default; invert_mouse_y flips it. */
         {
@@ -651,6 +655,30 @@ static void Pc_TpsCamera_Apply(void)
             s32 sPitch = TIMESTEP_SCALE_30_FPS(g_DeltaTime, (s32)(((ry * TP_STICK_PITCH) >> 7) * cs));
             g_TpsCamYaw   += sYaw;
             g_TpsCamPitch += g_PcConfig.invertControllerY ? sPitch : -sPitch;
+        }
+
+        /* Touch drag-look, in picture-height units: a drag the height of the
+         * picture turns 180 degrees. Pitch is gentler, as with the mouse. */
+        #define TP_TOUCH_YAW   Q12_ANGLE(180.0f)
+        #define TP_TOUCH_PITCH Q12_ANGLE(110.0f)
+        {
+            extern int Pc_Touch_TakeLook(float* dx, float* dy);
+            float      tdx, tdy;
+
+            if (Pc_Touch_TakeLook(&tdx, &tdy) && !frozen)
+            {
+                float ts = g_PcConfig.touchLookSensitivity;
+                s32   tPitch;
+
+                if (ts <= 0.0f)
+                    ts = 1.0f;
+                g_TpsCamYaw   += (s32)(tdx * TP_TOUCH_YAW * ts);
+                tPitch         = (s32)(tdy * TP_TOUCH_PITCH * ts);
+                g_TpsCamPitch += g_PcConfig.invertControllerY ? tPitch : -tPitch;
+                /* The controller's magnetic aim assist: a fingertip is no
+                 * more precise than a thumbstick. */
+                g_PcAimDevice = 1;
+            }
         }
 
         /* Sticky aim-device detection for aim-assist: mouse motion -> mouse;
@@ -1201,6 +1229,8 @@ static void Pc_TpsCamera_Apply(void)
     #undef TP_STICK_DEADZONE
     #undef TP_STICK_YAW
     #undef TP_STICK_PITCH
+    #undef TP_TOUCH_YAW
+    #undef TP_TOUCH_PITCH
 }
 
 /* Auto-repeat with acceleration for the keyframe-inspector , / . keys: steps

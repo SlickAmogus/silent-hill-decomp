@@ -56,11 +56,6 @@ const char* Pc_ControlStyleLabel(int idx)
     return g_ControlStyles[idx].label;
 }
 
-/* The style the player chose, which is the one the config holds. A camera
- * forced live (touch, below) must not overwrite it. */
-static int s_userStyle = ControlStyle_Classic;
-
-/* Everything Pc_ControlStyleSet does except remember it: a live change only. */
 static void Pc_ControlStyleApply(int style)
 {
     int wasTps = g_DebugThirdPersonCam;
@@ -93,11 +88,18 @@ void Pc_ControlStyleSet(int style)
         style = ControlStyle_Classic;
 
     Pc_ControlStyleApply(style);
-    s_userStyle = style;
 
     /* Persist so the choice survives a restart and the launcher reflects it.
      * Mouse capture is managed per-frame in Pc_ControlStyleUpdate. */
     PcConfig_SaveKeyValue("control_style", Pc_ControlStyleId(style));
+}
+
+void Pc_ControlStyleCycle(void)
+{
+    const int next = (g_ControlStyle + 1) % Pc_ControlStyleCount();
+
+    Pc_ControlStyleSet(next);
+    SH_DBG_ECHO("[CTRLSTYLE] Change Camera -> %s", Pc_ControlStyleId(next));
 }
 
 /* Publish "id:Label|id:Label|..." so the launcher dropdown lists this build's
@@ -129,7 +131,6 @@ void Pc_ControlStyleInit(void)
         style = ControlStyle_Classic;
 
     g_ControlStyle        = style;
-    s_userStyle           = style;
     g_DebugThirdPersonCam = (style == ControlStyle_Tps || style == ControlStyle_Ots ||
                              style == ControlStyle_Fps);
     g_PcFpsCam            = (style == ControlStyle_Fps);
@@ -230,36 +231,6 @@ void Pc_ControlStyleUpdate(void)
                   g_SysWork.sysState   == SysState_Gameplay &&
                   !g_PcConsoleInputActive && !g_PcQuickOptionsActive);
 
-#if defined(SH_IOS) || defined(__ANDROID__)
-    /* Touch plays in classic. The alternate cameras are aim-and-look cameras
-     * built around a mouse or a stick, and the overlay offers no way to pick
-     * one anyway, so a saved tps/ots/fps would strand a player who has only
-     * the glass. Held live, never written to the config: the style is the
-     * controller's, and picking the pad back up restores it. */
-    {
-        extern int Pc_Touch_IsDrivingInput(void);
-        static int s_touchClassic = 0;
-        const int  touchDriving   = Pc_Touch_IsDrivingInput();
-
-        if (touchDriving && g_ControlStyle != ControlStyle_Classic)
-        {
-            SH_DBG("[CTRLSTYLE] touch is driving -> classic (saved: %s)",
-                   Pc_ControlStyleId(s_userStyle));
-            Pc_ControlStyleApply(ControlStyle_Classic);
-            s_touchClassic = 1;
-        }
-        else if (!touchDriving && s_touchClassic)
-        {
-            s_touchClassic = 0;
-            if (s_userStyle != g_ControlStyle)
-            {
-                SH_DBG("[CTRLSTYLE] pad is driving -> %s", Pc_ControlStyleId(s_userStyle));
-                Pc_ControlStyleApply(s_userStyle);
-            }
-        }
-    }
-#endif
-
     keys   = SDL_GetKeyboardState(NULL);
     {
         int sch = g_DebugThirdPersonCam ? 1 : 0; /* which scheme's Change-Camera bind is live */
@@ -269,11 +240,7 @@ void Pc_ControlStyleUpdate(void)
 
     /* Edge-toggle the active style — gameplay only. */
     if (inGameplay && ((curKey && !prevKey) || (curPad && !prevPad)))
-    {
-        int next = (g_ControlStyle + 1) % Pc_ControlStyleCount();
-        Pc_ControlStyleSet(next);
-        SH_DBG_ECHO("[CTRLSTYLE] Change Camera -> %s", Pc_ControlStyleId(next));
-    }
+        Pc_ControlStyleCycle();
     prevKey = curKey;
     prevPad = curPad;
 
@@ -375,6 +342,16 @@ void Pc_ControlStyleUpdate(void)
         extern int Pc_MouseCursor_PuzzleActive(void);
         wantCapture = ((g_DebugThirdPersonCam || g_DebugCamEnabled) && inGameplay && !Pc_MouseCursor_PuzzleActive());
     }
+#if defined(SH_IOS) || defined(__ANDROID__)
+    /* The glass is not a mouse. Touch look comes through pc_touch, and on
+     * Android relative mode asks the view for pointer capture. */
+    {
+        extern int Pc_Touch_IsDrivingInput(void);
+
+        if (Pc_Touch_IsDrivingInput())
+            wantCapture = 0;
+    }
+#endif
     if ((SDL_GetRelativeMouseMode() == SDL_TRUE) != (wantCapture != 0))
     {
         SDL_SetRelativeMouseMode(wantCapture ? SDL_TRUE : SDL_FALSE);

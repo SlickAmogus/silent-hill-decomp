@@ -142,6 +142,45 @@ static void Pc_ApplyKeyOrMouse(const char* v, unsigned short bit, int* kc)
     else        { *kc = PsyX_LookupKeyboardMapping(v, SDL_SCANCODE_UNKNOWN); }
 }
 
+/* SDL reports every finger as a left mouse button as well, which is what lets a
+ * tap work a menu. But the alternate-camera scheme fires on Mouse1, so every
+ * touch of the glass -- the movement thumb included -- would pull the trigger.
+ * While a finger is down the scheme's mouse bits are withheld. An event watch
+ * catches the press inside the same pump that sets the mouse state, so not even
+ * the first frame of a touch gets through. Classic binds no mouse button. */
+static unsigned short s_mouseMaskScheme[8];
+static int            s_mouseMaskWithheld;
+
+static void Pc_MouseMaskWithhold(int on)
+{
+    int i;
+
+    s_mouseMaskWithheld = on;
+    for (i = 0; i < 8; i++)
+        g_cfg_mouseButtonMask[i] = on ? 0 : s_mouseMaskScheme[i];
+}
+
+static int SDLCALL Pc_TouchMouseWatch(void* userdata, SDL_Event* e)
+{
+    (void)userdata;
+
+    if (e->type == SDL_FINGERDOWN ||
+        (e->type == SDL_MOUSEBUTTONDOWN && e->button.which == SDL_TOUCH_MOUSEID))
+    {
+        if (!s_mouseMaskWithheld)
+            Pc_MouseMaskWithhold(1);
+    }
+    return 0;
+}
+
+void Pc_TouchMouseGate_Update(void)
+{
+    extern int Pc_Touch_OwnsMouse(void);
+
+    if (s_mouseMaskWithheld && !Pc_Touch_OwnsMouse())
+        Pc_MouseMaskWithhold(0);
+}
+
 /* Apply ONE control scheme (classic or altcam) onto the PsyCross input mapping.
  * Rebuilds all four mappings from scratch each call (primary keyboard, secondary
  * keyboard, primary controller, secondary controller) + the mouse mask, so a
@@ -225,6 +264,11 @@ static void Pc_ApplyControlConfig(const ControlScheme* s)
     g_PcUnlimitedEnemies     = g_PcConfig.unlimitedEnemies;
     g_cfg_controllerMovement = g_PcConfig.controllerMovement;
     g_cfg_allowMouseSecondary = 1; /* mouse + secondary binds always active */
+
+    for (i = 0; i < 8; i++)
+        s_mouseMaskScheme[i] = g_cfg_mouseButtonMask[i];
+    if (s_mouseMaskWithheld)
+        Pc_MouseMaskWithhold(1);
 }
 
 /* Select + apply the control scheme matching the active camera mode: altcam for
@@ -1566,6 +1610,7 @@ int main(int argc, char* argv[])
         extern void Pc_ControlStyleInit(void);
         Pc_ControlStyleInit();
     }
+    SDL_AddEventWatch(Pc_TouchMouseWatch, NULL);
 
     /* Bring the game window to the foreground on launch. SilentHillPC.exe is a
      * console-subsystem app, so Windows spawns a console window at startup that

@@ -27,6 +27,7 @@
 #include "screens/options.h" /* OptionsMenuState_Brightness */
 #include "bodyprog/events/map_msg.h" /* g_MapMsg_Select */
 #include "pc_quick_options.h"     /* the button below opens it */
+#include "control_style.h"
 
 #define TC_MAX_FINGERS 8
 
@@ -39,7 +40,7 @@ enum { TR_NONE = 0, TR_MOVE, TR_LOOK, TR_BUTTON, TR_ADVANCE,
 /* Actions the on-screen buttons drive. Indices into s_Buttons. */
 enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_FIRE, TB_MENU,
        TB_SKIP,
-       TB_LIGHT, TB_VIEW, TB_QSAVE, TB_QLOAD, TB_COUNT };
+       TB_LIGHT, TB_VIEW, TB_CAM, TB_QSAVE, TB_QLOAD, TB_COUNT };
 
 typedef struct
 {
@@ -94,6 +95,10 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
      * Light sits under Item, View between Map and Start. */
     [TB_LIGHT] = { 0.760f, 0.640f, 0.062f, 0 },
     [TB_VIEW] = { 0.905f, 0.330f, 0.058f, 0 },
+    /* Camera style, beside Menu. Its x is placed from Menu's at run time
+     * (Tc_PlaceCamButton): a fixed width fraction would sit on top of Menu on
+     * a 4:3 tablet and drift off toward the middle on a phone. */
+    [TB_CAM] = { 0.200f, 0.158f, 0.055f, 0 },
     /* Corner escape slot only, like TB_BACK -- its own position is never
      * used; it carries the glyph and the Skip binding. */
     [TB_SKIP] = { 0.920f, 0.158f, 0.055f, 0 },
@@ -117,6 +122,8 @@ typedef struct
     float lastX, lastY;     /* previous frame, for look deltas */
     Uint32 startMs;
     int   movedFar;         /* travelled beyond the tap slop */
+    int   fireHold;         /* alt camera: second tap of a double tap, held = fire held */
+    int   noTap;            /* already spent as a double tap; its release is not a first tap */
 } s_TouchFinger;
 
 static s_TouchFinger s_Fingers[TC_MAX_FINGERS];
@@ -132,6 +139,19 @@ static int            s_CancelFrames;  /* the same, for the tap-anywhere Cancel 
 static int            s_AdvanceHeld;   /* a finger is down during an advance state */
 static int            s_PadAttached;   /* an SDL game controller is plugged in */
 static Uint32         s_LastTouchMs;
+static Uint32         s_ContactMs;     /* last update a finger was on the glass, any mode */
+
+/* The alternate cameras (Thirdperson / OTS / Firstperson) aim where the camera
+ * looks, so touch has to steer the camera and not just the body. There the
+ * right side is a drag-look, a double tap on the left toggles aim, and the
+ * right side fires: a tap is one shot or swing, a double tap held keeps it
+ * going. Both layouts share it; classic is untouched. */
+#define TC_DOUBLE_TAP_MS 320
+static int    s_AimLatched;   /* aim toggled on by a left double tap */
+static int    s_FireHeld;     /* a double-tap-held finger on the right */
+static Uint32 s_LeftTapMs;    /* release time of the last left-side tap */
+static Uint32 s_RightTapMs;   /* release time of the last right-side tap */
+static float  s_CamDx, s_CamDy; /* look drag since the camera last read it, height units */
 
 /* Which kind of input was used LAST. The attached flag alone cannot decide it:
  * a controller left plugged in and idle must not lock a player out of the
@@ -494,8 +514,12 @@ typedef struct
 
 enum { TG_C_TRIANGLE = 0, TG_C_CIRCLE, TG_C_CROSS, TG_C_SQUARE,
        TG_C_L1, TG_C_L2, TG_C_START, TG_C_MENU, TG_C_SELECT, TG_C_R2, TG_C_R1,
-       TG_C_QSAVE, TG_C_QLOAD,
+       TG_C_QSAVE, TG_C_QLOAD, TG_C_CAM,
        TG_C_COUNT };
+
+/* Camera style: round, under Menu at the top centre. */
+#define TG_CAM_R    0.050f
+#define TG_CAM_Y    (0.08f + TG_SHLD_H + TG_CAM_R + 0.03f)
 
 /* Quick Save / Quick Load: round, face-button style, between the shoulders and
  * the middle trio, centred on the row. */
@@ -580,6 +604,7 @@ static void Tg_Layout(float aspectW)
                   ? TG_QS_ROW_Y : TG_QS_LOW_Y;
         s_TgCtls[TG_C_QSAVE] = (s_TgCtl){ (0.34f + startX) * 0.5f,            qy, TG_QS_R, TG_QS_R, 1, TG_NOBIT };
         s_TgCtls[TG_C_QLOAD] = (s_TgCtl){ (selectX + aspectW - 0.34f) * 0.5f, qy, TG_QS_R, TG_QS_R, 1, TG_NOBIT };
+        s_TgCtls[TG_C_CAM]   = (s_TgCtl){ mid, TG_CAM_Y, TG_CAM_R, TG_CAM_R, 1, TG_NOBIT };
     }
     s_TgCtls[TG_C_R2]     = (s_TgCtl){ aspectW - 0.34f,   0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_R2 };
     s_TgCtls[TG_C_R1]     = (s_TgCtl){ aspectW - 0.14f,   0.08f, TG_SHLD_W, TG_SHLD_H, 0, TG_R1 };
@@ -868,6 +893,87 @@ static void Tc_Reset(void)
     s_AdvanceHeld = 0;
     /* Or a pending cancel would fire into whatever screen comes next. */
     s_CancelFrames = 0;
+    s_AimLatched   = 0;
+    s_FireHeld     = 0;
+    s_CamDx = s_CamDy = 0.0f;
+}
+
+static int Tc_AltCam(void)
+{
+    extern int g_DebugThirdPersonCam;
+
+    return g_DebugThirdPersonCam != 0;
+}
+
+/* Menu's centre plus a fixed gap in HEIGHT units, so the pair keeps its
+ * spacing at any aspect. */
+static void Tc_PlaceCamButton(float aspect)
+{
+    s_Buttons[TB_CAM].cx = s_Buttons[TB_MENU].cx + (0.135f / aspect);
+    s_Buttons[TB_CAM].cy = s_Buttons[TB_MENU].cy;
+}
+
+/* Aim is up by any route: the left double tap, the context Aim button, or
+ * whichever Gamepad-style control carries the aim bind. */
+static int Tc_AimHeld(void)
+{
+    const unsigned short aim = g_GameWorkPtr->config.controllerConfig.aim;
+    int                  c;
+
+    if (s_AimLatched || s_Buttons[TB_AIM].holdFrames > 0 || g_SysWork.playerCombat.isAiming)
+        return 1;
+    if (Tc_GamepadStyle())
+    {
+        for (c = 0; c < TG_C_COUNT; c++)
+        {
+            if (s_TgHeld[c] && (s_TgCtls[c].bit & aim))
+                return 1;
+        }
+    }
+    return 0;
+}
+
+/* The second tap of a double tap on the left toggles aim; the first is spent
+ * so a triple tap does not toggle it straight back. */
+static void Tc_LeftLanding(s_TouchFinger* t, Uint32 now)
+{
+    if (s_LeftTapMs != 0 && (now - s_LeftTapMs) <= TC_DOUBLE_TAP_MS)
+    {
+        s_AimLatched = !s_AimLatched;
+        s_LeftTapMs  = 0;
+        t->noTap     = 1;
+        SH_DBG("[TOUCH] aim %s (double tap)", s_AimLatched ? "on" : "off");
+    }
+}
+
+/* A right-side landing soon after a right-side tap, while aiming, is the held
+ * half of a double tap: fire for as long as it stays down. Continuous tapping
+ * lands here on every tap after the first, so each one fires on the press. */
+static void Tc_RightLanding(s_TouchFinger* t, Uint32 now)
+{
+    if (s_RightTapMs != 0 && (now - s_RightTapMs) <= TC_DOUBLE_TAP_MS && Tc_AimHeld())
+        t->fireHold = 1;
+}
+
+/* Look drag gathered for the alternate cameras since the last call, in
+ * picture HEIGHT units (x already aspect-scaled). Drained on read. */
+int Pc_Touch_TakeLook(float* dx, float* dy)
+{
+    const int any = (s_CamDx != 0.0f || s_CamDy != 0.0f);
+
+    *dx = s_CamDx;
+    *dy = s_CamDy;
+    s_CamDx = s_CamDy = 0.0f;
+    return any;
+}
+
+/* SDL turns every finger drag into mouse motion as well. The alternate cameras
+ * read mouse motion as look, so while a finger is (or just was) down that
+ * motion is the finger's, not a mouse's -- including the thumb on the
+ * movement stick, which would otherwise spin the camera as it walked. */
+int Pc_Touch_OwnsMouse(void)
+{
+    return Tc_ContactPresent() || (s_ContactMs != 0 && (SDL_GetTicks() - s_ContactMs) < 250);
 }
 
 void Pc_Touch_Update(void)
@@ -888,13 +994,28 @@ void Pc_Touch_Update(void)
      * also means the tap that hands control back is the one that acts, rather
      * than being swallowed to arm the next. */
     if (Tc_ContactPresent())
+    {
         s_LastSource = TS_TOUCH;
+        s_ContactMs  = SDL_GetTicks();
+    }
+    {
+        extern void Pc_TouchMouseGate_Update(void);
+        Pc_TouchMouseGate_Update();
+    }
 
     mode = Tc_Mode();
     if (mode == TC_MODE_OFF)
     {
         Tc_Reset();
         return;
+    }
+
+    /* Aim toggled on in play must not still be held when play resumes after
+     * an inventory, a door or a camera switch back to classic. */
+    if (mode != TC_MODE_GAMEPLAY || !Tc_AltCam())
+    {
+        s_AimLatched = 0;
+        s_CamDx = s_CamDy = 0.0f;
     }
 
     nDev = SDL_GetNumTouchDevices();
@@ -913,6 +1034,8 @@ void Pc_Touch_Update(void)
 
     s_PadWord     = 0xFFFF;
     s_AdvanceHeld = 0;
+    s_FireHeld    = 0;
+    Tc_PlaceCamButton(aspect);
 
     if (Tc_GamepadStyle())
     {
@@ -983,6 +1106,8 @@ void Pc_Touch_Update(void)
             t->lastY     = vy;
             t->startMs   = now;
             t->movedFar  = 0;
+            t->fireHold  = 0;
+            t->noTap     = 0;
             t->buttonIdx = -1;
 
             /* Role is decided once, here. A button wins over the zones so the
@@ -1012,11 +1137,24 @@ void Pc_Touch_Update(void)
                         {
                             t->role      = TR_TG_STICK;
                             t->buttonIdx = -1;
+                            if (Tc_AltCam())
+                                Tc_LeftLanding(t, now);
+                        }
+                        else if (Tc_AltCam() && vx >= 0.5f)
+                        {
+                            /* The alternate cameras need a look surface, and
+                             * the open right side is the only room this pad
+                             * leaves for one. */
+                            t->role      = TR_LOOK;
+                            t->buttonIdx = -1;
+                            Tc_RightLanding(t, now);
                         }
                         else
                         {
                             t->role      = TR_NONE;
                             t->buttonIdx = -1;
+                            if (Tc_AltCam())
+                                Tc_LeftLanding(t, now);
                         }
                     }
                 }
@@ -1049,10 +1187,14 @@ void Pc_Touch_Update(void)
                 else if (vx < TC_LEFT_ZONE && !s_StickActive)
                 {
                     t->role = TR_MOVE;
+                    if (Tc_AltCam())
+                        Tc_LeftLanding(t, now);
                 }
                 else
                 {
                     t->role = TR_LOOK;
+                    if (Tc_AltCam())
+                        Tc_RightLanding(t, now);
                 }
             }
         }
@@ -1228,6 +1370,17 @@ void Pc_Touch_Update(void)
 
             case TR_LOOK:
             default:
+                /* The alternate cameras take the drag as a position change,
+                 * the way they take a mouse: the view follows the finger and
+                 * stops with it, with no stick deadzone eating a slow aim. */
+                if (mode == TC_MODE_GAMEPLAY && Tc_AltCam())
+                {
+                    s_CamDx += (vx - t->lastX) * aspect;
+                    s_CamDy += (vy - t->lastY);
+                    if (t->fireHold)
+                        s_FireHeld = 1;
+                    break;
+                }
                 lookDx += (vx - t->lastX) * aspect;
                 lookDy += (vy - t->lastY);
                 break;
@@ -1253,7 +1406,27 @@ void Pc_Touch_Update(void)
          * going 0x0400 (L1) -> 0x4000 (Cross) two ticks after an L1 press, with
          * no face button touched. Pressing a shoulder must never press Cross --
          * on a pad every control is drawn, so there is no free zone to tap. */
-        if (mode == TC_MODE_GAMEPLAY &&
+        if (mode == TC_MODE_GAMEPLAY && Tc_AltCam())
+        {
+            /* Only the right side presses Action here. On the left a tap is
+             * half of the aim toggle, and while aiming Action is the trigger:
+             * toggling aim off would otherwise fire a shot on the way out. */
+            if (!t->movedFar && (now - t->startMs) <= TC_TAP_MS)
+            {
+                if (t->role == TR_LOOK)
+                {
+                    if (!t->fireHold)
+                        s_ActionFrames = TC_ACTION_FRAMES;
+                    s_RightTapMs = now;
+                }
+                else if ((t->role == TR_MOVE || t->role == TR_TG_STICK || t->role == TR_NONE) &&
+                         !t->noTap)
+                {
+                    s_LeftTapMs = now;
+                }
+            }
+        }
+        else if (mode == TC_MODE_GAMEPLAY &&
             t->role != TR_BUTTON && t->role != TR_TG_BTN && t->role != TR_TG_STICK &&
             !t->movedFar && (now - t->startMs) <= TC_TAP_MS)
         {
@@ -1403,6 +1576,24 @@ void Pc_Touch_Update(void)
 
         if (s_Running || s_Buttons[TB_RUN].holdFrames > 0)
             Tc_PressAction(&s_PadWord, cfg->run);
+
+        if (s_AimLatched)
+            Tc_PressAction(&s_PadWord, cfg->aim);
+        if (s_FireHeld)
+            Tc_PressAction(&s_PadWord, cfg->action);
+
+        /* Camera style: the same cycle the controller's Change Camera button
+         * runs. Edge-triggered on the latch, like Menu. */
+        {
+            static int s_camWas;
+            const int  camNow = (mode == TC_MODE_GAMEPLAY) && Tc_MenuAllowed() &&
+                                (Tc_GamepadStyle() ? s_TgHeld[TG_C_CAM]
+                                                   : (s_Buttons[TB_CAM].holdFrames > 0));
+
+            if (camNow && !s_camWas)
+                Pc_ControlStyleCycle();
+            s_camWas = camNow;
+        }
 
         if (s_AdvanceHeld)
             Tc_PressAction(&s_PadWord, cfg->enter);
@@ -1690,6 +1881,22 @@ static void Tc_Ring(s_TcBatch* b, int cx, int cy, int rOuter, int rInner, int lu
     }
 }
 
+/* An eye, for the camera style: an almond outline and a pupil. Each lid edge is
+ * a slanted bar, the same construction as Back's chevron. */
+static void Tc_Eye(s_TcBatch* b, int cx, int cy, int r, int lum)
+{
+    int w = (r * 56) / 100, h = (r * 30) / 100, t = (r * 9) / 100;
+
+    if (t < 1)
+        t = 1;
+
+    Tc_Quad(b, cx - w, cy,     cx, cy - h,     cx - w, cy + t, cx, cy - h + t, lum);
+    Tc_Quad(b, cx, cy - h,     cx + w, cy,     cx, cy - h + t, cx + w, cy + t, lum);
+    Tc_Quad(b, cx - w, cy - t, cx, cy + h - t, cx - w, cy,     cx, cy + h,     lum);
+    Tc_Quad(b, cx, cy + h - t, cx + w, cy - t, cx, cy + h,     cx + w, cy,     lum);
+    Tc_Octagon(b, cx, cy, (r * 17) / 100, lum);
+}
+
 /* A quick save/load button: a ring with its letter. */
 static void Tc_QuickButton(s_TcBatch* b, int load, int cx, int cy, int r, int lum)
 {
@@ -1790,6 +1997,15 @@ void Pc_Touch_Draw(void)
                 if (Tc_QuickButtonsOn())
                     Tc_QuickButton(&batch, c == TG_C_QLOAD, bx, by,
                                    TC_UR(s_TgCtls[c].hw), lum);
+                continue;
+            }
+
+            if (c == TG_C_CAM)
+            {
+                int br = TC_UR(s_TgCtls[c].hw);
+
+                Tc_Ring(&batch, bx, by, br, (br * 80) / 100, lum);
+                Tc_Eye(&batch, bx, by, br, lum);
                 continue;
             }
 
@@ -1910,6 +2126,8 @@ void Pc_Touch_Draw(void)
             return;
     }
 
+    Tc_PlaceCamButton(Tc_Aspect());
+
     for (i = 0; i < TB_COUNT; i++)
     {
         float bcx = s_Buttons[i].cx, bcy = s_Buttons[i].cy, br = s_Buttons[i].r;
@@ -1931,7 +2149,7 @@ void Pc_Touch_Draw(void)
         if (mode == TC_MODE_GAMEPLAY && Tc_CornerOnly(i))
             continue;
 
-        if (i == TB_MENU && !Tc_MenuAllowed())
+        if ((i == TB_MENU || i == TB_CAM) && !Tc_MenuAllowed())
             continue;
 
         /* Quick Save / Quick Load: only with the option on, and only in play. */
@@ -1959,7 +2177,9 @@ void Pc_Touch_Draw(void)
         {
         int cy = TC_UY(bcy);
         int r  = TC_UR(br);
-        int lum = (s_Buttons[i].holdFrames > 0) ? 255 : 140;
+        /* Aim stays lit while a left double tap is holding it up, so a latched
+         * aim is never invisible. */
+        int lum = (s_Buttons[i].holdFrames > 0 || (i == TB_AIM && s_AimLatched)) ? 255 : 140;
 
         if (i == TB_QSAVE || i == TB_QLOAD)
         {
@@ -2022,6 +2242,9 @@ void Pc_Touch_Draw(void)
                 Tc_Octagon(&batch, cx, cy, (ro * 32) / 100, lum);
                 break;
             }
+            case TB_CAM:
+                Tc_Eye(&batch, cx, cy, r, lum);
+                break;
             case TB_SKIP:
             {
                 /* Two right-pointing triangles: the fast-forward mark, which is

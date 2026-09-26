@@ -66,7 +66,8 @@ enum { QO_X_SHADOW = 0, QO_X_SPEAKERS, QO_X_BGM, QO_X_SFX,
        QO_X_TPSRESTX, QO_X_TPSRESTY, QO_X_TPSAIMX, QO_X_TPSAIMY,
        QO_X_OTSRESTX, QO_X_OTSRESTY, QO_X_OTSAIMX, QO_X_OTSAIMY,
        QO_X_SPU,
-       QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE };
+       QO_X_DREAMSTR, QO_X_DREAMBLUR, QO_X_DPADMOVE,
+       QO_X_CAMSTYLE, QO_X_OTSSIDE };
 extern const char* PcOpt_QuickExtraLabel(int which, char* buf, int bufsz);
 extern void        PcOpt_QuickExtraAdjust(int which, int dir);
 extern void        PcOpt_QuickViewReset(int mode);
@@ -376,6 +377,9 @@ static const QoRowDef s_pageControls[] = {
     /* The controls panel, controller columns only on a phone. With no
      * controller connected it shows a toast instead of opening. */
     { ROW_ACTION, NULL, QO_A_KEYBINDS,         "Controller Config" },
+    /* The eye button's cycle, both ways, for anyone who would rather pick. */
+    { ROW_EXTRA, NULL, QO_X_CAMSTYLE,         "Camera Mode" },
+    { ROW_EXTRA, NULL, QO_X_OTSSIDE,          "OTS Shoulder" },
     { ROW_OPT,   "touch_style",            0, NULL },  /* Context or Gamepad */
     { ROW_OPT,   "control_2d",             0, NULL },  /* screen-relative movement */
     { ROW_OPT,   "touch_controls",         0, NULL },  /* Automatic / On / Off */
