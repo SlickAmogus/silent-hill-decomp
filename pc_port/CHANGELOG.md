@@ -1,7 +1,42 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.10.02.1 -- 2026-10-02
+- Fixed surround sound on the software SPU audio path (current default), now selecting 5.1 or 7.1 will work correctly
+- Added scaling mode and separated dithering from filtering in the launcher, now upscaling from low resolutions can look much better
+- New console commands health, heal, info, goto, bring, and freeze that can all work on a selected npc
+- Fixed results screen movement distance counter
+- Text size option has been added for subtitles, memos, and messages (Still a WIP, looks glitchy in places)
+- Aspect ratio fixes for effects, such as the light after fighting floatstinger and the lighthouse (thanks to thetrexx)
+- Fixed issue where game could briefly speed up after an FMV (also thanks to thetrexx)
+- Fixed hyperblaster audio issue with floatstinger (again thanks to thetrexx)
+- Fixed scale command for bosses (untested on all)
+- Fixed issue where reversing walk/run would break melee aiming in alternate cam modes
+
+Commit summaries:
+- Asking for a surround layout now enables spatial output, and document it
+- hrtf also implies spatial output
+- PsyCross: spatial sink selects and reports its real speaker layout
+- Console: health, heal, info, goto, bring and freeze act on the selection
+- Results screen: count strafe and jump-back distance under the alternate cameras
+- Text Size option for subtitles, memos and messages (100-150%)
+- PsyCross: warn when a requested surround layout is refused
+- Merge cloud session claude/beautiful-edison-8iajdy
+- UI Transition Aspect Ratio Fix
+- Floatstinger Hyperblaster audio fix
+- Post-FMV Cutscene Fast-Forward Fix
+- Console fmv: discard the movie's runtime from the game clock too
+- PsyCross: lighthouse glow fills follow the Hor+ stretch
+- PsyCross: discrete speaker channels for surround output
+- PsyCross: stop re-queueing stale audio buffers in the spatial sink
+- PsyCross: real positional audio on the software SPU surround path
+- PsyCross: real extension check for the multichannel fallback
+- SCALE: scale the drawn bones, so it works on bosses too
+- Scaling dropdown, and Dithering split out of Filtering
+- Launcher: move the language flag down with the new row
+- Alt cams: Reverse walk/run no longer kills melee aim
+
 ## beta-2026.09.29.1 -- 2026-09-29
-- Issue related to quick turn that could cause player to get stuck running in place has been fixed (thanks to thetrexx for sharing)
+- Issue related to quick turn that could cause player to get stuck running in place has been fixed (thanks to - Many aspect ratio fixes for effects, such as the light after fighting floatstinger for sharing)
 - Added infinite ammo cheat (unlimited clip), console command infammo
 - NTSC-J: The title menu and inventory now show in the chosen language (Chinese or Japanese)
 - Added new console commands for functions that didn't exist as console commands, meaning they can be bound using the "bind" function. New commands:
