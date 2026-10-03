@@ -186,6 +186,28 @@ int Font_MapChar(unsigned int charCode, s_GlyphEmit emits[2])
             case 0xD9: case 0xDA: case 0xDC:            cell = 'U'; break;
             case 0x9C:                                  cell = 'o'; break;
             case 0x96:                                  cell = '-'; break;
+            /* The PAL languages now run on this atlas too (their packs), and
+             * these three are common enough that dropping them would be read
+             * as missing text: Spanish opens 342 sentences with an inverted
+             * question mark and German writes 191 sharp s. The inverted
+             * exclamation has no home here -- the US atlas starts above '!'
+             * and the drawer rewrites that byte anyway -- so it still goes. */
+            case 0xBF:                                  cell = '?'; break;
+            case 0x85:                                  cell = '.'; break;
+            case 0xDF:
+            {
+                /* No sharp s in this atlas, and "ss" is what German itself
+                 * writes without one. Two emissions, both advancing. */
+                int ss = 's' - GLYPH_TABLE_ASCII_OFFSET;
+
+                emits[0].cell    = ss;
+                emits[0].dy      = 0;
+                emits[0].advance = layout->glyphWidths[ss];
+                emits[1].cell    = ss;
+                emits[1].dy      = 0;
+                emits[1].advance = layout->glyphWidths[ss];
+                return 2;
+            }
             default: return 0;
         }
         cell -= GLYPH_TABLE_ASCII_OFFSET;
