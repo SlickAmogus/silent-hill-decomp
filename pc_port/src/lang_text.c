@@ -93,75 +93,95 @@ extern const char* g_ItemDescriptions[];
  * accent cells to build their letters into. */
 const char* const s_LangIds[LANG_PACK_FIRST] = { "en", "de", "fr", "es", "it" };
 
-/* Which installed packs THIS disc should offer. A PAL disc already carries
- * German, French, Spanish and Italian, so a pack of the same name would be a
- * second identical row, and the disc's own text is the better source. On any
- * other disc those packs are the only way to get those languages, which is the
- * whole point of extracting them.
+/* The Language row's list, built for THIS disc.
  *
- * A pack that brings its own letterforms (Polish, Russian) still needs the PAL
- * atlas to build them into, so those stay PAL-only for now. A plain Latin pack
- * is fine anywhere: the US atlas has no accent cells, and Font_MapChar already
- * draws the unaccented base letter instead of dropping the character. */
-#define PACK_SLOT_MAX 24
+ * A slot is a position on the row; the value it selects is a config language
+ * id. The two are no longer the same number, because what a disc can offer
+ * varies: only a PAL disc carries German, French, Spanish and Italian itself,
+ * so on any other disc those four ids select nothing and must not appear --
+ * while the packs of the same name, which DO work there, must. On a PAL disc
+ * it is the other way round: the disc's own text wins and the duplicate packs
+ * are hidden.
+ *
+ * A pack that builds letterforms into the PAL atlas (Polish, Russian) still
+ * needs that atlas. A Shift-JIS pack rasterizes its own glyphs and a plain
+ * Latin pack degrades its accents, so both are offered anywhere. */
+#define LANG_SLOT_MAX 32
 
-static signed char s_PackSlot[PACK_SLOT_MAX];
-static int         s_PackSlotCount = -1;
+static short s_SlotLang[LANG_SLOT_MAX];
+static int   s_SlotCount = -1;
 
-static void PackSlotsBuild(void)
+static int PackOfferedHere(int packIdx)
+{
+    const char* code = Pc_LangPackListCode(packIdx);
+    int         font = Pc_LangPackListFont(packIdx);
+    int         i;
+
+    if (g_GameRegion == Region_EUR)
+    {
+        for (i = 1; i < LANG_PACK_FIRST; i++)
+        {
+            if (strcmp(code, s_LangIds[i]) == 0)
+                return 0; /* the disc carries this one natively */
+        }
+        /* And slot 0 on a PAL disc already IS the PAL English script. */
+        return strcmp(code, "en_pal") != 0;
+    }
+    return font == LANG_PACK_FONT_LATIN || font == LANG_PACK_FONT_SJIS;
+}
+
+static void SlotsBuild(void)
 {
     int n = Pc_LangPackListCount();
     int i;
-    int j;
 
-    s_PackSlotCount = 0;
-    for (i = 0; i < n && s_PackSlotCount < PACK_SLOT_MAX; i++)
+    s_SlotCount = 0;
+    s_SlotLang[s_SlotCount++] = 0; /* English: every disc draws the compiled text */
+
+    if (g_GameRegion == Region_EUR)
     {
-        const char* code = Pc_LangPackListCode(i);
-        int         skip = 0;
+        for (i = 1; i < LANG_PACK_FIRST && s_SlotCount < LANG_SLOT_MAX; i++)
+            s_SlotLang[s_SlotCount++] = (short)i;
+    }
 
-        if (g_GameRegion == Region_EUR)
-        {
-            for (j = 1; j < LANG_PACK_FIRST; j++)
-            {
-                if (strcmp(code, s_LangIds[j]) == 0)
-                    skip = 1;
-            }
-        }
-        else if (Pc_LangPackListFont(i) != LANG_PACK_FONT_LATIN &&
-                 Pc_LangPackListFont(i) != LANG_PACK_FONT_SJIS)
-        {
-            /* Polish and Russian build letterforms into the PAL atlas; a
-             * Shift-JIS pack rasterizes its own and needs no atlas at all. */
-            skip = 1;
-        }
-
-        if (!skip)
-            s_PackSlot[s_PackSlotCount++] = (signed char)i;
+    for (i = 0; i < n && s_SlotCount < LANG_SLOT_MAX; i++)
+    {
+        if (PackOfferedHere(i))
+            s_SlotLang[s_SlotCount++] = (short)(LANG_PACK_FIRST + i);
     }
 }
 
-static int PackSlotsCount(void)
+static int SlotsCount(void)
 {
-    if (s_PackSlotCount < 0)
-        PackSlotsBuild();
-    return s_PackSlotCount;
+    if (s_SlotCount < 0)
+        SlotsBuild();
+    return s_SlotCount;
 }
 
-/* Slot (LANG_PACK_FIRST and up) -> index in the installed-pack list, or -1. */
-static int PackIndexForSlot(int slot)
+static int SlotLang(int slot)
 {
-    int i = slot - LANG_PACK_FIRST;
+    if (s_SlotCount < 0)
+        SlotsBuild();
+    return (slot >= 0 && slot < s_SlotCount) ? s_SlotLang[slot] : 0;
+}
 
-    if (s_PackSlotCount < 0)
-        PackSlotsBuild();
-    return (i >= 0 && i < s_PackSlotCount) ? s_PackSlot[i] : -1;
+/* Row position of the language in use, for the menu's starting highlight. */
+static int SlotOfLang(int lang)
+{
+    int i;
+
+    for (i = 0; i < SlotsCount(); i++)
+    {
+        if (s_SlotLang[i] == lang)
+            return i;
+    }
+    return 0;
 }
 
 void Pc_LangPacksRescan(void)
 {
     Pc_LangPackListRescan();
-    s_PackSlotCount = -1;
+    s_SlotCount = -1;
 }
 
 /* Is the text on screen Shift-JIS? True on a Japanese disc showing Japanese or
@@ -176,16 +196,15 @@ int Pc_LangSjisActive(void)
     return Pc_LangPackActive() && Pc_LangPackFont() == LANG_PACK_FONT_SJIS;
 }
 
-const char* Pc_LangIdForSlot(int slot)
+const char* Pc_LangIdForSlot(int lang)
 {
-    if (slot >= LANG_PACK_FIRST)
+    if (lang >= LANG_PACK_FIRST)
     {
-        int         idx  = PackIndexForSlot(slot);
-        const char* code = (idx >= 0) ? Pc_LangPackListCode(idx) : "";
+        const char* code = Pc_LangPackListCode(lang - LANG_PACK_FIRST);
 
         return (code[0] != '\0') ? code : "en";
     }
-    return (slot > 0 && slot < LANG_PACK_FIRST) ? s_LangIds[slot] : "en";
+    return (lang > 0 && lang < LANG_PACK_FIRST) ? s_LangIds[lang] : "en";
 }
 
 static char*       s_ItemPool;
@@ -1115,14 +1134,13 @@ int Pc_LangSlotCount(void)
     if (g_GameRegion == Region_JPN)
         return JP_LANG_COUNT;
 
-    /* PC-side packs need the EUR font atlas, so they are offered on EUR only;
-     * elsewhere the row stops at the five disc languages. */
-    return LANG_PACK_FIRST + PackSlotsCount();
+    return SlotsCount();
 }
 
 int Pc_LangSlotCurrent(void)
 {
-    return (g_GameRegion == Region_JPN) ? g_PcConfig.jpLanguage : g_PcConfig.language;
+    return (g_GameRegion == Region_JPN) ? g_PcConfig.jpLanguage
+                                        : SlotOfLang(g_PcConfig.language);
 }
 
 void Pc_LangSlotSet(int slot)
@@ -1132,7 +1150,7 @@ void Pc_LangSlotSet(int slot)
         Pc_LangSetJpLanguage(slot);
         return;
     }
-    Pc_LangSetLanguage(slot);
+    Pc_LangSetLanguage(SlotLang(slot));
 }
 
 const char* Pc_LangSlotName(int slot)
@@ -1153,16 +1171,13 @@ const char* Pc_LangSlotName(int slot)
 
     /* The pack's own `!menu` label, read from the registry rather than from
      * the loaded pack -- the row is browsed before anything is loaded. */
-    if (slot >= LANG_PACK_FIRST)
     {
-        int idx = PackIndexForSlot(slot);
+        int lang = SlotLang(slot);
 
-        return (idx >= 0) ? Pc_LangPackListName(idx) : s_PalNames[0];
+        if (lang >= LANG_PACK_FIRST)
+            return Pc_LangPackListName(lang - LANG_PACK_FIRST);
+        return s_PalNames[(lang >= 0 && lang < LANG_PACK_FIRST) ? lang : 0];
     }
-    if (slot < 0)
-        return s_PalNames[0];
-
-    return s_PalNames[slot];
 }
 
 /* Left edge for the value name, nudged per word length the way the retail
@@ -1174,10 +1189,11 @@ int Pc_LangSlotNameX(int slot)
     if (g_GameRegion == Region_JPN)
         return (slot == JP_LANG_ENGLISH) ? 198 : (slot ? 198 : 192);
 
-    if (slot < 0 || slot >= LANG_PACK_FIRST)
-        return 200;
+    {
+        int lang = SlotLang(slot);
 
-    return s_PalX[slot];
+        return (lang > 0 && lang < LANG_PACK_FIRST) ? s_PalX[lang] : 200;
+    }
 }
 
 /* The options menu shows the Language row only on EUR discs and only when
@@ -1207,9 +1223,12 @@ int Pc_LangMenuRowActive(void)
         return 1;
     }
 
-    return (g_GameRegion == Region_EUR ||
-            (g_GameRegion == Region_USA && s_FanTextActive)) &&
-           g_GameWork.gameStatePrev == GameState_MainMenu;
+    /* Anywhere there is more than one language to pick. A US disc used to have
+     * none; with packs installing on every region it can have several, and the
+     * row is the only way to reach them. Still title-screen only: a switch
+     * rebinds the file table and reloads item text, which would strand what
+     * the loaded map already extracted. */
+    return SlotsCount() > 1 && g_GameWork.gameStatePrev == GameState_MainMenu;
 }
 
 const char* Pc_LangItemName(int itemIdx)

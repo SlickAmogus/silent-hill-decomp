@@ -42,6 +42,10 @@ COMMON_MSG_COUNT = 15
 
 # config id, options-menu label, VINn path index, ITEM_*.BIN, s_MenuTr column
 LANGS = [
+    # PAL English is its own retranslation, not the US script ("Take them?" for
+    # "Take it?"), so it is worth having on an NTSC disc as a language of its
+    # own. It lives in the base VIN set, like the disc's default.
+    ('en_pal', 'English (PAL)', 1, 'ITEM_ENG', -1),
     ('de', 'German',  2, 'ITEM_GER', 0),
     ('fr', 'French',  3, 'ITEM_FRN', 1),
     ('es', 'Spanish', 4, 'ITEM_SPN', 2),
@@ -240,8 +244,11 @@ def main():
             if mapname is None:
                 continue
             # VIN/MAP0_S00 -> VIN2/MAP0_S10: the language digit is char 6.
-            disc_name = mapname[:6] + str(vin - 1) + mapname[7:]
-            ent = ft_find('VIN%d/%s' % (vin, disc_name))
+            # VIN/MAP0_S00 -> VINn/MAP0_S<lang>0: the language digit is char 6.
+            # English is the base set, where the name is unchanged.
+            disc_name = mapname if vin == 1 else mapname[:6] + str(vin - 1) + mapname[7:]
+            ent = ft_find(('VIN/%s' if vin == 1 else 'VIN%d/%%s' % vin) % disc_name
+                          if vin == 1 else ('VIN%d/%s' % (vin, disc_name)))
             if ent is None:
                 continue
             if ent[1] == 0:
@@ -261,7 +268,7 @@ def main():
         items = item_text(path, binname)
         entries.update(items)
 
-        menus = menu_text(column)
+        menus = menu_text(column) if column >= 0 else {}
         for us, v in menus.items():
             entries[menu_key(c_unescape(us).decode('latin-1'))] = c_unescape(v)
 
