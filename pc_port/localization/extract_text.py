@@ -413,6 +413,14 @@ for kind, lit in parse_c_entries(m.group(1)):
     records.append(('RESULTS', menu_key(lit), lit, readable(lit), f'results screen {what}, max ~{budget} characters'))
 assert res_seen == len(RESULTS_BUDGET), ('results strings moved', res_seen)
 
+# --- OPTIONS > LANGUAGE row: the language names themselves. Pc_LangSlotName
+#     hands these to Gfx_StringDraw like any other menu string, so a pack can
+#     translate them -- which matters most for a pack whose own atlas has no
+#     Latin capitals. ---
+for _lang in ('English', 'German', 'French', 'Spanish', 'Italian', 'Japanese', 'Chinese'):
+    if menu_key(_lang) not in {r[1] for r in records}:
+        records.append(('MENU', menu_key(_lang), _lang, _lang, 'Options > Language row'))
+
 # --- INVENTORY SCREEN: prompts and labels Gfx_Inventory_ItemDescriptionDraw
 #     draws straight from local arrays. They reach Gfx_StringDraw like every
 #     menu string, so they are MENU.<literal> keys too. ---

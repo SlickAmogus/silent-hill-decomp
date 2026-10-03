@@ -1,0 +1,7279 @@
+# Joke Russian: the volunteer translation, with our Russian filling
+# the lines they left blank (the PC-port menus and the cutscene
+# subtitles they removed). Generated, see make_ru_lang.py.
+[COMMON.0]
+EN:
+RU: Да
+
+[COMMON.1]
+EN:
+RU: Не
+
+[COMMON.2]
+EN:
+RU: Если кто-нибудь попадёт в~N подобную ебаторию, надеюсь,~N мои малявы будут полезны.~E
+
+[COMMON.3]
+EN:
+RU: ~D У меня нет карты~N этой ебатории.~E
+
+[COMMON.4]
+EN:
+RU: ~D Слишком насрано, чтобы~N разглядеть что-нибудь на карте.~E
+
+[COMMON.5]
+EN:
+RU: Тут у нас ~C2аптечочка~C7.~N Берем?~S4
+
+[COMMON.6]
+EN:
+RU: Тут у нас ~C2Боярышник~C7.~N Берем?~S4
+
+[COMMON.7]
+EN:
+RU: Тут у нас ~C2Доза~C7.~N Берем?~S4
+
+[COMMON.8]
+EN:
+RU: Тут у нас ~C2маслины для пугача~C7.~N Берем?~S4
+
+[COMMON.9]
+EN:
+RU: Тут у нас ~C2маслины для валыны~C7.~N Взять?~S4
+
+[COMMON.10]
+EN:
+RU: Тут у нас ~C2маслины для пердежа~C7.~N Взять?~S4
+
+[COMMON.11]
+EN:
+RU: Замку пизда.~N Дверь нихуя не открыть.~E
+
+[COMMON.12]
+EN:
+RU: Занято.~E
+
+[COMMON.13]
+EN:
+RU: О повезло.~E
+
+[COMMON.14]
+EN:
+RU: ~C6Загрузочка...~C7~E
+
+[MENU.English]
+EN:
+RU: Английский
+
+[MENU.German]
+EN:
+RU: Немецкий
+
+[MENU.French]
+EN:
+RU: Французский
+
+[MENU.Spanish]
+EN:
+RU: Испанский
+
+[MENU.Italian]
+EN:
+RU: Итальянский
+
+[MENU.Can't_use_it_here.]
+EN:
+RU: Нихуя не работает.
+
+[MENU.Too_dark_to_look_at
+		the_item_here.]
+EN:
+RU: Тут как в жопе негра, чтобы осматривать вещи.
+
+[MENU.Stock:]
+EN:
+RU: х
+
+[MENU.--On--]
+EN:
+RU: -Вкл-
+
+[MENU.--Off--]
+EN:
+RU: -Выкл-
+
+[MENU.--Use_OK--]
+EN:
+RU: -Можно-
+
+[MENU.--Use_OK?--]
+EN:
+RU: -Можно?-
+
+[MENU.--Use_NG--]
+EN:
+RU: -Нельзя-
+
+[MENU.Fuel:]
+EN:
+RU: 250р литр:
+
+[MENU.LOAD]
+EN:
+RU: ЗАГРУЗИТЬ
+
+[MENU.CONTINUE]
+EN:
+RU: ПРОДОЛЖИТЬ
+
+[MENU.START]
+EN:
+RU: НАЧАТЬ
+
+[MENU.OPTION]
+EN:
+RU: ОПЦИИ
+
+[MENU.EXIT]
+EN:
+RU: ВЫХОД
+
+[MENU.EASY]
+EN:
+RU: ДЛЯ ЛОХОВ
+
+[MENU.NORMAL]
+EN:
+RU: НОРМАЛЬНО
+
+[MENU.HARD]
+EN:
+RU: АНАЛ
+
+[MENU.OPTION_S]
+EN:
+RU: ОПЦИИ
+
+[MENU.EXTRA_OPTION_S]
+EN:
+RU: ДОПОЛНИТЕЛЬНО
+
+[MENU.Exit]
+EN:
+RU: Выход
+
+[MENU.Brightness_Level]
+EN:
+RU: Яркость
+
+[MENU.Controller_Config]
+EN:
+RU: Управление
+
+[MENU.Vibration]
+EN:
+RU: Вибрация
+
+[MENU.Auto_Load]
+EN:
+RU: Автозагрузка
+
+[MENU.Language]
+EN:
+RU: Язык
+
+[MENU.Sound]
+EN:
+RU: Режим звука
+
+[MENU.BGM_Volume]
+EN:
+RU: Музыка
+
+[MENU.SE_Volume]
+EN:
+RU: Эффекты
+
+[MENU.Voice]
+EN:
+RU: Голоса
+
+[MENU.Stereo]
+EN:
+RU: Стерео
+
+[MENU.Monaural]
+EN:
+RU: Моно
+
+[MENU.Weapon_Control]
+EN:
+RU: Атака
+
+[MENU.Blood_Color]
+EN:
+RU: Цвет крови
+
+[MENU.View_Control]
+EN:
+RU: Камера
+
+[MENU.Retreat_Turn]
+EN:
+RU: Разворот
+
+[MENU.Walk/Run_Control]
+EN:
+RU: Ходьба-Бег
+
+[MENU.Auto_Aiming]
+EN:
+RU: Автоприцел
+
+[MENU.View_Mode]
+EN:
+RU: Режим обзора
+
+[MENU.Bullet_Adjust]
+EN:
+RU: Патроны
+
+[MENU.Press]
+EN:
+RU: Нажать
+
+[MENU.Switch]
+EN:
+RU: Выбор
+
+[MENU.Normal]
+EN:
+RU: Обычно
+
+[MENU.Green]
+EN:
+RU: Зелёная
+
+[MENU.Violet]
+EN:
+RU: Фиолет
+
+[MENU.Black]
+EN:
+RU: Чёрная
+
+[MENU.Reverse]
+EN:
+RU: Обратно
+
+[MENU.Self_View]
+EN:
+RU: от 1 лица
+
+[MENU.PAUSE]
+EN:
+RU: ПАУЗА
+
+[MENU.PAUSED]
+EN:
+RU: ПАУЗА
+
+[MENU.Is_it_OK_to_save?]
+EN:
+RU:  Сохранить?
+
+[MENU.Yes_____________No]
+EN:
+RU: Да Не
+
+[MENU.NEXT_GAME_MODE]
+EN:
+RU: Следующий режим
+
+[MENU.Is_it_OK_to_overwrite?]
+EN:
+RU:  Переписять?
+
+[MENU.Is_it_OK_to_format?]
+EN:
+RU: Форматировать?
+
+[MENU.FILE]
+EN:
+RU: Файл
+
+[MENU.Data]
+EN:
+RU: Ном.
+
+[MENU.Save]
+EN:
+RU: Сохр.
+
+[MENU.Time]
+EN:
+RU: Время
+
+[MENU.You_need_1_free_block
+__to_create_a_new_file.]
+EN:
+RU: Необходим 1 свободный блок для сохранения.
+
+[MENU.You_removed_the_MEMORY_CARD!]
+EN:
+RU: Вы извлекли КАРТУ ПАМЯТИ
+
+[MENU.Now_formatting...]
+EN:
+RU: Форматирование...
+
+[MENU.Now_saving...]
+EN:
+RU: Сохранение...
+
+[MENU.Unable_to_create_a_new_file.]
+EN:
+RU: Ошибка создания.
+
+[MENU.Finished_saving.]
+EN:
+RU:  Сохранено.
+
+[MENU.Failed_to_save!]
+EN:
+RU:  Ошибка!
+
+[MENU.The_data_is_not_found!]
+EN:
+RU:  Нет данных!
+
+[MENU.The_data_is_damaged!]
+EN:
+RU: Данные повреждены!
+
+[MENU.Failed_to_load!]
+EN:
+RU: Ошибка!
+
+[MENU.Finished_loading.]
+EN:
+RU:  Загружено.
+
+[MENU.Now_loading...]
+EN:
+RU:  Загрузочка...
+
+[MENU.Anywhere]
+EN:
+RU: В пизде
+
+[MENU.Cafe]
+EN:
+RU: Кафе
+
+[MENU.Store]
+EN:
+RU: Пятерочка
+
+[MENU.Infirmary]
+EN:
+RU: Попа болит
+
+[MENU.Doghouse]
+EN:
+RU: Шаурма
+
+[MENU.Church]
+EN:
+RU: Синагога
+
+[MENU.Garage]
+EN:
+RU: Гараж
+
+[MENU.Police]
+EN:
+RU: Ментовка
+
+[MENU.Reception]
+EN:
+RU: Приёмная бля
+
+[MENU.Room_302]
+EN:
+RU: Палата 302
+
+[MENU.Director's]
+EN:
+RU: Директорская
+
+[MENU.Jewelry_shop]
+EN:
+RU: Ты ювелир
+
+[MENU.Pool_hall]
+EN:
+RU: Шары гоняем
+
+[MENU.Antique_shop]
+EN:
+RU: Секс шоп
+
+[MENU.Theme_park]
+EN:
+RU: Анал Парк
+
+[MENU.Boat]
+EN:
+RU: Катер
+
+[MENU.Bridge]
+EN:
+RU: Мост
+
+[MENU.Lighthouse]
+EN:
+RU: Стояк
+
+[MENU.Sewer]
+EN:
+RU: Говнище
+
+[MENU.Nowhere]
+EN:
+RU: Хуй где
+
+[MENU.Child's_room]
+EN:
+RU: Альтушная
+
+[MENU.Next_fear]
+EN:
+RU: Новый трах
+
+[MENU.Use]
+EN:
+RU: Юзать
+
+[MENU.Equip]
+EN:
+RU: Берем
+
+[MENU.Unequip]
+EN:
+RU: Нахуй
+
+[MENU.Reload]
+EN:
+RU: Зарядить
+
+[MENU.Detail]
+EN:
+RU: Инфо
+
+[MENU.Look]
+EN:
+RU: Гляди
+
+[MENU.Equipment]
+EN:
+RU: Хуета
+
+[MENU.Option]
+EN:
+RU: Опции
+
+[MENU.Command]
+EN:
+RU: Прием
+
+[MENU.Status]
+EN:
+RU: Але
+
+[MENU.Name:]
+EN:
+RU: Вещь:
+
+[MENU.Preload_Chunks]
+EN:
+RU: Предзагрузочка
+
+[MENU.PP_Flashlight]
+EN:
+RU: Фонарик (ПП)
+
+[MENU.PP_Shadows]
+EN:
+RU: Тени (ПП)
+
+[MENU.External]
+EN:
+RU: Внешнее
+
+[MENU.In_Game]
+EN:
+RU: В игре
+
+[MENU.Both]
+EN:
+RU: Оба
+
+[MENU.Too_dark_to_look_at
+		the_map_here.]
+EN:
+RU: Тут как в жопе негра, чтобы разглядеть что-нибудь на карте.
+
+[MENU.I_don't_have_the_map
+		for_this_place.]
+EN:
+RU: У меня нет карты этой хуйни.
+
+[MENU.GAME_RESULT]
+EN:
+RU: РЕЗУЛЬТАТЫ
+
+[MENU.Mode]
+EN:
+RU: Режим
+
+[MENU.Saves]
+EN:
+RU: Сохранений
+
+[MENU.Continues]
+EN:
+RU: Продолжений
+
+[MENU.Total_time]
+EN:
+RU: Общее время
+
+[MENU.Walking_distance]
+EN:
+RU: Расстояние пешком
+
+[MENU.Running_distance]
+EN:
+RU: Расстояние бегом
+
+[MENU.Items]
+EN:
+RU: Собрано хуеты
+
+[MENU.Game_clear]
+EN:
+RU: Прохождений
+
+[MENU.Ending]
+EN:
+RU: Кончание
+
+[MENU.--Your_rank--]
+EN:
+RU: -Ваш ранг-
+
+[MENU.Defeated_enemy_by_shooting]
+EN:
+RU: Застрелено врагов
+
+[MENU.Defeated_enemy_by_fighting]
+EN:
+RU: Убито врагов в пиздилке
+
+[MENU.Shooting_style]
+EN:
+RU: Стиль стрельбы:
+
+[MENU.Short_range_shots]
+EN:
+RU: В упор
+
+[MENU.Middle_range_shots]
+EN:
+RU: С расстояния
+
+[MENU.Long_range_shots]
+EN:
+RU: Издалека
+
+[MENU.No_aiming_shots]
+EN:
+RU: ноу скоп
+
+[MENU.PC_Options]
+EN:
+RU: Опции_ПК
+
+[MENU.[R]_Reset]
+EN:
+RU: [Р]_Сброс
+
+[MENU.Resolution]
+EN:
+RU: Разрешение
+
+[MENU.Window_Mode]
+EN:
+RU: Режим_окна
+
+[MENU.VSync]
+EN:
+RU: Вертик._синхр.
+
+[MENU.Texture_Filter]
+EN:
+RU: Фильтрация
+
+[MENU.PGXP]
+EN:
+RU: Коррекция
+
+[MENU.Antialiasing]
+EN:
+RU: Сглаживание
+
+[MENU.Post_Process]
+EN:
+RU: Постобработка
+
+[MENU.Tone_Mapping]
+EN:
+RU: Тонмаппинг
+
+[MENU.Map]
+EN:
+RU: Карта
+
+[MENU.Next_Page]
+EN:
+RU: След._страница
+
+[MENU.Back]
+EN:
+RU: Назад
+
+[MENU.Flashlight]
+EN:
+RU: Фонарик
+
+[MENU.Beam_Intensity]
+EN:
+RU: Яркость_луча
+
+[MENU.Beam_Size]
+EN:
+RU: Размер_луча
+
+[MENU.Fog_Strength]
+EN:
+RU: Плотн._тумана
+
+[MENU.Disable_Culling]
+EN:
+RU: Без_отсечения
+
+[MENU.FPS_Limit]
+EN:
+RU: Лимит_кадров
+
+[MENU.FMV_Movie_Vol]
+EN:
+RU: Громк._видео
+
+[MENU.Weather_Rate]
+EN:
+RU: Частота_погоды
+
+[MENU.Prev_Page]
+EN:
+RU: Пред._страница
+
+[MENU.2D_Controls]
+EN:
+RU: Плоское_упр.
+
+[MENU.Mouse_Sensitivity]
+EN:
+RU: Чувств._мыши
+
+[MENU.Pad_Sensitivity]
+EN:
+RU: Чувств._геймпада
+
+[MENU.Invert_Mouse_Y]
+EN:
+RU: Инверсия_мыши
+
+[MENU.Invert_Pad_Y]
+EN:
+RU: Инверсия_геймпада
+
+[MENU.Bullet_Decals]
+EN:
+RU: Следы_пуль
+
+[MENU.Aim_Assist]
+EN:
+RU: Помощь_прицела
+
+[MENU.First_Person_FOV]
+EN:
+RU: Обзор_от_1-го_лица
+
+[MENU.Third_Person_FOV]
+EN:
+RU: Обзор_от_3-го_лица
+
+[MENU.OTS_FOV]
+EN:
+RU: Обзор_из-за_плеча
+
+[MENU.Aim_Zoom]
+EN:
+RU: Приближение
+
+[MENU.OTS_Aim_Zoom]
+EN:
+RU: Прибл._из-за_плеча
+
+[MENU.OTS_Aim_In_TPS]
+EN:
+RU: Прицел_из-за_плеча
+
+[MENU.Camera_Collision]
+EN:
+RU: Коллизия_камеры
+
+[MENU.Minimap]
+EN:
+RU: Миникарта
+
+[MENU.Minimap_Scale]
+EN:
+RU: Размер_миникарты
+
+[MENU.Minimap_Corner]
+EN:
+RU: Угол_миникарты
+
+[MENU.Minimap_Opacity]
+EN:
+RU: Прозрачность
+
+[MENU.Minimap_Reqs_Map]
+EN:
+RU: Нужна_карта
+
+[MENU.Low_HP_Glow]
+EN:
+RU: Свечение_ран
+
+[MENU.Crosshair]
+EN:
+RU: Прицел
+
+[MENU.Crosshair_Size]
+EN:
+RU: Размер_прицела
+
+[MENU.Text_Size]
+EN:
+RU: Размер_текста
+
+[MENU.Windowed]
+EN:
+RU: В_окне
+
+[MENU.Fullscreen]
+EN:
+RU: Полный_экран
+
+[MENU.Borderless]
+EN:
+RU: Без_рамки
+
+[MENU.Off]
+EN:
+RU: Выкл
+
+[MENU.On]
+EN:
+RU: Вкл
+
+[MENU.Dither]
+EN:
+RU: Дизеринг
+
+[MENU.Bilinear]
+EN:
+RU: Билинейный
+
+[MENU.Trilinear]
+EN:
+RU: Трилинейный
+
+[MENU.Aniso_2x]
+EN:
+RU: Анизо_2х
+
+[MENU.Aniso_4x]
+EN:
+RU: Анизо_4х
+
+[MENU.Aniso_8x]
+EN:
+RU: Анизо_8х
+
+[MENU.Aniso_16x]
+EN:
+RU: Анизо_16х
+
+[MENU.CRT]
+EN:
+RU: ЭЛТ
+
+[MENU.Scanlines]
+EN:
+RU: Строки
+
+[MENU.Vignette]
+EN:
+RU: Виньетка
+
+[MENU.Color_Grade]
+EN:
+RU: Цветокор.
+
+[MENU.Film_Grain]
+EN:
+RU: Зерно
+
+[MENU.Sharpen]
+EN:
+RU: Резкость
+
+[MENU.PSX_Retro]
+EN:
+RU: Ретро
+
+[MENU.Cinematic]
+EN:
+RU: Кино
+
+[MENU.Reinhard]
+EN:
+RU: Рейнхард
+
+[MENU.ACES]
+EN:
+RU: Эйсес
+
+[MENU.Filmic]
+EN:
+RU: Плёночный
+
+[MENU.Classic]
+EN:
+RU: Классика
+
+[MENU.C_+_Shadows]
+EN:
+RU: К_+_тени
+
+[MENU.Modern]
+EN:
+RU: Совр.
+
+[MENU.M_+_Shadows]
+EN:
+RU: С_+_тени
+
+[MENU.Top_L]
+EN:
+RU: Верх_Л
+
+[MENU.Top_R]
+EN:
+RU: Верх_П
+
+[MENU.Bottom_L]
+EN:
+RU: Низ_Л
+
+[MENU.Bottom_R]
+EN:
+RU: Низ_П
+
+[MENU.Square]
+EN:
+RU: Квадрат
+
+[MENU.Circle]
+EN:
+RU: Круг
+
+[MENU.30_Hz]
+EN:
+RU: 30_Гц
+
+[MENU.60_Hz]
+EN:
+RU: 60_Гц
+
+[QUICK.Graphics]
+EN:
+RU: Графика
+
+[QUICK.Lighting_&_Effects]
+EN:
+RU: Свет и эффекты
+
+[QUICK.HUD]
+EN:
+RU: Интерфейс
+
+[QUICK.Audio]
+EN:
+RU: Звук
+
+[QUICK.View]
+EN:
+RU: Вид
+
+[QUICK.Cheats]
+EN:
+RU: Читы
+
+[QUICK.Cheat_Actions]
+EN:
+RU: Действия читов
+
+[QUICK.Debug]
+EN:
+RU: Отладка
+
+[QUICK.Debug_Actions]
+EN:
+RU: Действия отладки
+
+[QUICK.Controls]
+EN:
+RU: Управление
+
+[QUICK.QUICK_OPTIONS]
+EN:
+RU: БЫСТРЫЕ НАСТРОЙКИ
+
+[QUICK.Classic]
+EN:
+RU: Классическая
+
+[QUICK.Thirdperson]
+EN:
+RU: От третьего лица
+
+[QUICK.Over-the-Shoulder]
+EN:
+RU: Из-за плеча
+
+[QUICK.Firstperson]
+EN:
+RU: От первого лица
+
+[QUICK.Previous]
+EN:
+RU: Назад
+
+[QUICK.Next]
+EN:
+RU: Вперёд
+
+[QUICK.Close]
+EN:
+RU: Закрыть
+
+[QUICK.Shadow_Resolution]
+EN:
+RU: Разрешение теней
+
+[QUICK.Dream_Blur]
+EN:
+RU: Размытие сна
+
+[QUICK.Dream_Blur_Strength]
+EN:
+RU: Сила размытия сна
+
+[QUICK.Speaker_Layout]
+EN:
+RU: Расположение колонок
+
+[QUICK.Music_Volume]
+EN:
+RU: Громкость музыки
+
+[QUICK.Effects_Volume]
+EN:
+RU: Громкость эффектов
+
+[QUICK.Disable_D-pad_for_Movement]
+EN:
+RU: Крестовина не для ходьбы
+
+[QUICK.Edit_Keybinds]
+EN:
+RU: Настроить клавиши
+
+[QUICK.Control_Type]
+EN:
+RU: Тип настройки
+
+[QUICK.Aspect_Trim]
+EN:
+RU: Правка пропорций
+
+[QUICK.FOV]
+EN:
+RU: Обзор
+
+[QUICK.Vertical_Shift]
+EN:
+RU: Сдвиг по вертикали
+
+[QUICK.Cutscene_Shift]
+EN:
+RU: Сдвиг в роликах
+
+[QUICK.Reset_View_Settings]
+EN:
+RU: Сбросить настройки вида
+
+[QUICK.Horizontal_FOV]
+EN:
+RU: Обзор по горизонтали
+
+[QUICK.Vertical_FOV]
+EN:
+RU: Обзор по вертикали
+
+[QUICK.Pixel_Aspect]
+EN:
+RU: Форма пикселя
+
+[QUICK.OTS_Aim_(while_in_TPS)]
+EN:
+RU: Прицел из-за плеча (в режиме 3-го лица)
+
+[QUICK.Aim_Zoom]
+EN:
+RU: Приближение при прицеливании
+
+[QUICK.Rest_X_(left/right)]
+EN:
+RU: Покой X (влево/вправо)
+
+[QUICK.Rest_Y_(up/down)]
+EN:
+RU: Покой Y (вверх/вниз)
+
+[QUICK.Aim_X_(left/right)]
+EN:
+RU: Прицел X (влево/вправо)
+
+[QUICK.Aim_Y_(up/down)]
+EN:
+RU: Прицел Y (вверх/вниз)
+
+[QUICK.Head_X_(left/right)]
+EN:
+RU: Голова X (влево/вправо)
+
+[QUICK.Head_Y_(up/down)]
+EN:
+RU: Голова Y (вверх/вниз)
+
+[QUICK.Head_Z_(fwd/back)]
+EN:
+RU: Голова Z (вперёд/назад)
+
+[QUICK.Melee_Swing_Pullback]
+EN:
+RU: Замах в ближнем бою
+
+[QUICK.Auto]
+EN:
+RU: Авто
+
+[QUICK.Stereo]
+EN:
+RU: Стерео
+
+[QUICK.Quad]
+EN:
+RU: Квадро
+
+[QUICK.HRTF]
+EN:
+RU: HRTF
+
+[QUICK.Simple]
+EN:
+RU: Простая
+
+[QUICK.Advanced]
+EN:
+RU: Расширенная
+
+[QUICK.{n}_rows]
+EN:
+RU: {n} строк
+
+[QUICK.(default)]
+EN:
+RU: (по умолчанию)
+
+[QUICK.(off)]
+EN:
+RU: (выкл)
+
+[QUICK.(simple)]
+EN:
+RU: (простая)
+
+[QUICK.Up/Down_select]
+EN:
+RU: Вверх/Вниз выбор
+
+[QUICK.Left/Right_adjust]
+EN:
+RU: Влево/Вправо значение
+
+[QUICK.Q/E_or_PgUp/PgDn_page]
+EN:
+RU: Q/E или PgUp/PgDn страница
+
+[QUICK.Drag_the_title_to_move]
+EN:
+RU: Тяните заголовок, чтобы передвинуть
+
+[QUICK.{key}_or_Esc_close]
+EN:
+RU: {key} или Esc закрыть
+
+[QUICK.*_needs_restart]
+EN:
+RU: * нужен перезапуск
+
+[QUICK.God_mode]
+EN:
+RU: Режим бога
+
+[QUICK.Noclip]
+EN:
+RU: Сквозь стены
+
+[QUICK.Enemies_ignore_Harry]
+EN:
+RU: Враги не видят Гарри
+
+[QUICK.Unlimited_enemies]
+EN:
+RU: Бесконечные враги
+
+[QUICK.Infinite_ammo]
+EN:
+RU: Бесконечные патроны
+
+[QUICK.Big_head_mode]
+EN:
+RU: Большая голова
+
+[QUICK.Handgun_bullets_+15]
+EN:
+RU: Патроны к пистолету +15
+
+[QUICK.Hunting_rifle_+30]
+EN:
+RU: Охотничье ружьё +30
+
+[QUICK.Shotgun_+30]
+EN:
+RU: Дробовик +30
+
+[QUICK.Kill_nearby_enemies]
+EN:
+RU: Убить врагов рядом
+
+[QUICK.Play_as]
+EN:
+RU: Играть за
+
+[QUICK.Free_camera]
+EN:
+RU: Свободная камера
+
+[QUICK.Allow_console]
+EN:
+RU: Разрешить консоль
+
+[QUICK.Collision_visualizer]
+EN:
+RU: Показ коллизий
+
+[QUICK.Keyframe_viewer_(K)]
+EN:
+RU: Просмотр кадров (K)
+
+[QUICK.Fast_forward_(Ctrl+F5)]
+EN:
+RU: Ускорение (Ctrl+F5)
+
+[QUICK.Wireframe_(Ctrl+F1)]
+EN:
+RU: Каркас (Ctrl+F1)
+
+[QUICK.No_textures_(Ctrl+F2)]
+EN:
+RU: Без текстур (Ctrl+F2)
+
+[QUICK.Starting_map]
+EN:
+RU: Начальная карта
+
+[QUICK.Spawn]
+EN:
+RU: Создать
+
+[QUICK.Log_Harry_position]
+EN:
+RU: Записать позицию Гарри
+
+[QUICK.Log_camera_shot]
+EN:
+RU: Записать ракурс камеры
+
+[QUICK.Kill_Harry]
+EN:
+RU: Убить Гарри
+
+[QUICK.(not_in_this_map)]
+EN:
+RU: (нет на этой карте)
+
+[QUICK.CONTROLS]
+EN:
+RU: УПРАВЛЕНИЕ
+
+[QUICK.Move_Up]
+EN:
+RU: Вперёд
+
+[QUICK.Move_Down]
+EN:
+RU: Назад
+
+[QUICK.Turn_Left]
+EN:
+RU: Поворот влево
+
+[QUICK.Turn_Right]
+EN:
+RU: Поворот вправо
+
+[QUICK.Action_/_Shoot]
+EN:
+RU: Действие / Выстрел
+
+[QUICK.Flashlight]
+EN:
+RU: Фонарик
+
+[QUICK.Map]
+EN:
+RU: Карта
+
+[QUICK.Run]
+EN:
+RU: Бег
+
+[QUICK.Sidestep_Left]
+EN:
+RU: Шаг влево
+
+[QUICK.Sidestep_Right]
+EN:
+RU: Шаг вправо
+
+[QUICK.Aim]
+EN:
+RU: Прицел
+
+[QUICK.Pause]
+EN:
+RU: Пауза
+
+[QUICK.Inventory]
+EN:
+RU: Инвентарь
+
+[QUICK.Reload]
+EN:
+RU: Перезарядка
+
+[QUICK.Cycle_Weapons]
+EN:
+RU: Смена оружия
+
+[QUICK.Quick_Heal]
+EN:
+RU: Быстрое лечение
+
+[QUICK.Quick_Turn]
+EN:
+RU: Быстрый разворот
+
+[QUICK.Rear_Look]
+EN:
+RU: Взгляд назад
+
+[QUICK.Change_Camera]
+EN:
+RU: Сменить камеру
+
+[QUICK.Swap_Shoulder]
+EN:
+RU: Сменить плечо
+
+[QUICK.Quick_Options]
+EN:
+RU: Быстрые настройки
+
+[QUICK.Quick_Save]
+EN:
+RU: Быстрое сохранение
+
+[QUICK.Quick_Load]
+EN:
+RU: Быстрая загрузка
+
+[QUICK.Classic_(Default)]
+EN:
+RU: Классическая (по умолчанию)
+
+[QUICK.Thirdperson_Shooter]
+EN:
+RU: Шутер от третьего лица
+
+[QUICK.Over_the_Shoulder]
+EN:
+RU: Из-за плеча
+
+[QUICK.First_Person]
+EN:
+RU: От первого лица
+
+[QUICK.Editing:_alternate_camera_binds_(current_camera:_{camera})]
+EN:
+RU: Настройка: клавиши других камер (текущая камера: {camera})
+
+[QUICK.Editing:_classic_camera_binds]
+EN:
+RU: Настройка: клавиши классической камеры
+
+[QUICK.Controller:_{name}]
+EN:
+RU: Геймпад: {name}
+
+[QUICK.Controller:_none_connected]
+EN:
+RU: Геймпад: не подключён
+
+[QUICK.Action]
+EN:
+RU: Действие
+
+[QUICK.Keyboard]
+EN:
+RU: Клавиатура
+
+[QUICK.Keyboard_2]
+EN:
+RU: Клавиатура 2
+
+[QUICK.Controller]
+EN:
+RU: Геймпад
+
+[QUICK.Controller_2]
+EN:
+RU: Геймпад 2
+
+[QUICK.Reset_to_Defaults]
+EN:
+RU: Сбросить по умолчанию
+
+[QUICK.Press_a_key...]
+EN:
+RU: Нажмите клавишу...
+
+[QUICK.Press_a_button...]
+EN:
+RU: Нажмите кнопку...
+
+[QUICK.more_above]
+EN:
+RU: ещё выше
+
+[QUICK.more_below]
+EN:
+RU: ещё ниже
+
+[QUICK.Press_a_key_for_{action}]
+EN:
+RU: Нажмите клавишу для «{action}»
+
+[QUICK.Press_a_key_or_mouse_button_for_{action}]
+EN:
+RU: Нажмите клавишу или кнопку мыши для «{action}»
+
+[QUICK.Press_a_controller_button_for_{action}]
+EN:
+RU: Нажмите кнопку геймпада для «{action}»
+
+[QUICK.Esc_to_cancel]
+EN:
+RU: Esc для отмены
+
+[QUICK.Esc,_or_wait_a_few_seconds,_to_cancel]
+EN:
+RU: Esc или подождите несколько секунд для отмены
+
+[QUICK.Enter_/_A:_rebind]
+EN:
+RU: Enter / A: назначить
+
+[QUICK.Delete_/_X:_clear]
+EN:
+RU: Delete / X: очистить
+
+[QUICK.Esc_/_B:_back]
+EN:
+RU: Esc / B: назад
+
+[QUICK.Mouse:_click_a_bind_to_change_it,_right-click_to_clear._Orange_-_used_twice.]
+EN:
+RU: Мышь: щелчок по клавише меняет её, правый щелчок очищает. Оранжевый = назначено дважды.
+
+[QUICK.Left_Stick]
+EN:
+RU: Левый стик
+
+[QUICK.Left_Mouse]
+EN:
+RU: Левая кнопка мыши
+
+[QUICK.Right_Mouse]
+EN:
+RU: Правая кнопка мыши
+
+[QUICK.Middle_Mouse]
+EN:
+RU: Средняя кнопка мыши
+
+[QUICK.Wheel_Up]
+EN:
+RU: Колесо вверх
+
+[QUICK.Wheel_Down]
+EN:
+RU: Колесо вниз
+
+[QUICK.D-pad_Up]
+EN:
+RU: Крестовина вверх
+
+[QUICK.D-pad_Down]
+EN:
+RU: Крестовина вниз
+
+[QUICK.D-pad_Left]
+EN:
+RU: Крестовина влево
+
+[QUICK.D-pad_Right]
+EN:
+RU: Крестовина вправо
+
+[QUICK.RESET_CONTROLS]
+EN:
+RU: СБРОС УПРАВЛЕНИЯ
+
+[QUICK.Reset_the_classic_camera_binds_to_their_defaults?]
+EN:
+RU: Сбросить клавиши классической камеры по умолчанию?
+
+[QUICK.Reset_the_alternate_camera_binds_to_their_defaults?]
+EN:
+RU: Сбросить клавиши других камер по умолчанию?
+
+[QUICK.RESET_SETTINGS]
+EN:
+RU: СБРОС НАСТРОЕК
+
+[QUICK.Reset_all_PC_options_to_their_defaults?]
+EN:
+RU: Сбросить все настройки ПК по умолчанию?
+
+[QUICK.Yes]
+EN:
+RU: Да
+
+[QUICK.No]
+EN:
+RU: Нет
+
+[QUICK.Left/Right_select]
+EN:
+RU: Влево/Вправо выбор
+
+[QUICK.[OK]_confirm]
+EN:
+RU: [OK] подтвердить
+
+[QUICK.[Cancel]_back]
+EN:
+RU: [Отмена] назад
+
+[ITEM_NAME.0]
+EN:
+RU: Боярышник
+
+[ITEM_NAME.1]
+EN:
+RU: Аптечочка
+
+[ITEM_NAME.2]
+EN:
+RU: Доза
+
+[ITEM_NAME.32]
+EN:
+RU: Лобок ключ
+
+[ITEM_NAME.33]
+EN:
+RU: Ключ от дома
+
+[ITEM_NAME.34]
+EN:
+RU: Ключ [Левы]
+
+[ITEM_NAME.35]
+EN:
+RU: Ключ [Гомосека]
+
+[ITEM_NAME.36]
+EN:
+RU: Ключ [Дрочилы]
+
+[ITEM_NAME.37]
+EN:
+RU: Ключ от Еблиотеки
+
+[ITEM_NAME.38]
+EN:
+RU: Ключ от Асса
+
+[ITEM_NAME.39]
+EN:
+RU: Ключ К. Гондона
+
+[ITEM_NAME.40]
+EN:
+RU: Ключ от разводного моста
+
+[ITEM_NAME.41]
+EN:
+RU: Ключ от Данжеона
+
+[ITEM_NAME.42]
+EN:
+RU: Ключ от склада в Данжеоне
+
+[ITEM_NAME.43]
+EN:
+RU: Ключ от Дрочильни
+
+[ITEM_NAME.44]
+EN:
+RU: Ключ от Секс шопа
+
+[ITEM_NAME.45]
+EN:
+RU: Ключ от анализации
+
+[ITEM_NAME.46]
+EN:
+RU: Ключ [Охуеля]
+
+[ITEM_NAME.47]
+EN:
+RU: Ключ [Вахабита]
+
+[ITEM_NAME.48]
+EN:
+RU: Ключ [Олега]
+
+[ITEM_NAME.49]
+EN:
+RU: Ключ [Бетона]
+
+[ITEM_NAME.50]
+EN:
+RU: Ключ [Арахнотраха]
+
+[ITEM_NAME.51]
+EN:
+RU: Записка [В шкилу]
+
+[ITEM_NAME.52]
+EN:
+RU: Записка [Шаурма]
+
+[ITEM_NAME.53]
+EN:
+RU: Карточка с картиночкой
+
+[ITEM_NAME.55]
+EN:
+RU: Ключ от двери анализации
+
+[ITEM_NAME.56]
+EN:
+RU: Анальный камень
+
+[ITEM_NAME.64]
+EN:
+RU: Уолтер убери
+
+[ITEM_NAME.65]
+EN:
+RU: Золотая шишка
+
+[ITEM_NAME.66]
+EN:
+RU: Голубая шишка
+
+[ITEM_NAME.67]
+EN:
+RU: Резиновый презик
+
+[ITEM_NAME.68]
+EN:
+RU: [Фалос]
+
+[ITEM_NAME.69]
+EN:
+RU: Садись на бутыку
+
+[ITEM_NAME.70]
+EN:
+RU: Странные месики
+
+[ITEM_NAME.71]
+EN:
+RU: Табличка [Донатела]
+
+[ITEM_NAME.72]
+EN:
+RU: Табличка [Шляпник]
+
+[ITEM_NAME.73]
+EN:
+RU: Табличка [Киса]
+
+[ITEM_NAME.74]
+EN:
+RU: Табличка [Наташа]
+
+[ITEM_NAME.75]
+EN:
+RU: Пакет с месиками
+
+[ITEM_NAME.76]
+EN:
+RU: Бухать спирт
+
+[ITEM_NAME.77]
+EN:
+RU: Зажигалочка
+
+[ITEM_NAME.78]
+EN:
+RU: Порнушка
+
+[ITEM_NAME.80]
+EN:
+RU: Ключ Кайфмана
+
+[ITEM_NAME.81]
+EN:
+RU: Чек на член
+
+[ITEM_NAME.82]
+EN:
+RU: Ключ от сейфа
+
+[ITEM_NAME.83]
+EN:
+RU: Магнито
+
+[ITEM_NAME.84]
+EN:
+RU: Ключ от мотика
+
+[ITEM_NAME.85]
+EN:
+RU: Ключ от птичьей ебли
+
+[ITEM_NAME.86]
+EN:
+RU: Плоскогубцы
+
+[ITEM_NAME.87]
+EN:
+RU: Отвёрточка
+
+[ITEM_NAME.88]
+EN:
+RU: Нокиа
+
+[ITEM_NAME.89]
+EN:
+RU: Анальное кольцо
+
+[ITEM_NAME.90]
+EN:
+RU: Камень времени
+
+[ITEM_NAME.91]
+EN:
+RU: Амулет Салотрона
+
+[ITEM_NAME.92]
+EN:
+RU: Самотык Меркурия
+
+[ITEM_NAME.93]
+EN:
+RU: Ахахах
+
+[ITEM_NAME.94]
+EN:
+RU: Заточка Мельхуера
+
+[ITEM_NAME.95]
+EN:
+RU: Диск Уропоноса
+
+[ITEM_NAME.96]
+EN:
+RU: Заточка
+
+[ITEM_NAME.97]
+EN:
+RU: Труба епта
+
+[ITEM_NAME.98]
+EN:
+RU: Отдолби молоток
+
+[ITEM_NAME.100]
+EN:
+RU: Пезда
+
+[ITEM_NAME.101]
+EN:
+RU: Баста
+
+[ITEM_NAME.102]
+EN:
+RU: Катанус
+
+[ITEM_NAME.103]
+EN:
+RU: Топорик
+
+[ITEM_NAME.128]
+EN:
+RU: Пугачь
+
+[ITEM_NAME.129]
+EN:
+RU: Валына
+
+[ITEM_NAME.130]
+EN:
+RU: Пердеж
+
+[ITEM_NAME.131]
+EN:
+RU: Пиу Пиу блять
+
+[ITEM_NAME.160]
+EN:
+RU: Маслины для Пугача
+
+[ITEM_NAME.161]
+EN:
+RU: Маслины для Валыны
+
+[ITEM_NAME.162]
+EN:
+RU: Пердежные маслины
+
+[ITEM_NAME.192]
+EN:
+RU: Фонарик
+
+[ITEM_NAME.193]
+EN:
+RU: Шансон
+
+[ITEM_NAME.194]
+EN:
+RU: 95й за 200р литр
+
+[ITEM_DESC.0]
+EN:
+RU: Восстанавливает небольшое количество попы.
+
+[ITEM_DESC.1]
+EN:
+RU: Лечит попу, нормально так.
+
+[ITEM_DESC.2]
+EN:
+RU: Попа как камень, потом хуебесы перд глазами. Эффект длится нормально.
+
+[ITEM_DESC.32]
+EN:
+RU: Ключ, открывающий дверь в вестибюль. Я нашёл его в раздевалочке.
+
+[ITEM_DESC.33]
+EN:
+RU: Ключ от дома. Был спрятан в собачьей шаурме.
+
+[ITEM_DESC.34]
+EN:
+RU: Ключ от двора дома. Нашёл в жопе мента.
+
+[ITEM_DESC.35]
+EN:
+RU: Ключ от двора дома. Нашёл на зумерской площадке.
+
+[ITEM_DESC.36]
+EN:
+RU: Ключ от двора дома. Нашёл в почтовом ящике, проебал кто-то.
+
+[ITEM_DESC.37]
+EN:
+RU: Ключ от еблиотеки школы на 2-м этаже. Подобрал в раздевалочке.
+
+[ITEM_DESC.38]
+EN:
+RU: Ключ от класса. Застрял в вододрочной трубе на крыше.
+
+[ITEM_DESC.39]
+EN:
+RU: На бирке написано: [К. Гондон] Нашёл в школьной ебательной.
+
+[ITEM_DESC.40]
+EN:
+RU: Ключ для управления мостом. Нашёл в Синагоге.
+
+[ITEM_DESC.41]
+EN:
+RU: Ключ от данжеона больницы. Нашёл на столе в конференц- зале на 1-ом этаже.
+
+[ITEM_DESC.42]
+EN:
+RU: Ключ от склада в данжеоне больницы. Нашёл в операционной.
+
+[ITEM_DESC.43]
+EN:
+RU: Нашёл в палате на 2-м этаже данжеона.
+
+[ITEM_DESC.44]
+EN:
+RU: Ключ, что Бабка оставила в калечке. На бирке - название Секс шопа
+
+[ITEM_DESC.45]
+EN:
+RU: Ключ от прохода в Анализацию.
+
+[ITEM_DESC.46]
+EN:
+RU: На ключе выгравировано слово [Охуель].
+
+[ITEM_DESC.47]
+EN:
+RU: На ключе выгравировано слово [Вахабита].
+
+[ITEM_DESC.48]
+EN:
+RU: На ключе выгравировано слово [Олег].
+
+[ITEM_DESC.49]
+EN:
+RU: На ключе выгравировано слово [Бетон].
+
+[ITEM_DESC.50]
+EN:
+RU: На ключе выгравировано слово [Арахнотрах].
+
+[ITEM_DESC.51]
+EN:
+RU: [В шкилу] намазано почерком Черил.
+
+[ITEM_DESC.52]
+EN:
+RU: [Шаурма на ул. Левин долбоеб] намазано почерком Черил.
+
+[ITEM_DESC.53]
+EN:
+RU: КартОчка хуярточка с изображением ключа. Нашёл на столе в классе.
+
+[ITEM_DESC.55]
+EN:
+RU: Ключ от выхода из Анализации в чиловый район. Лежал в бомже.
+
+[ITEM_DESC.56]
+EN:
+RU: Камень с мистической силой. Если его где-то использовать, то пизды дадут?..
+
+[ITEM_DESC.64]
+EN:
+RU: На этикетке написано: [соляная кислота, Питер]. Иди нахуй Уолтер!
+
+[ITEM_DESC.65]
+EN:
+RU: На поверхности выгравировано изображение часового стояка. Нашёл в кабинете Уолтера.
+
+[ITEM_DESC.66]
+EN:
+RU: На поверхности выгравировано изображение часового стояка. Нашёл в классе репа.
+
+[ITEM_DESC.67]
+EN:
+RU: Яркий розовый резиновый презик, с которым играют дети)
+
+[ITEM_DESC.68]
+EN:
+RU: Предмет продолговатой формы, найденный в синагоге. Кому в жопу сувать?
+
+[ITEM_DESC.69]
+EN:
+RU: Пустая бутылка, садись.
+
+[ITEM_DESC.70]
+EN:
+RU: Красные месики из разбитого фанфурика, найденного в кабинете директора калечки.
+
+[ITEM_DESC.71]
+EN:
+RU: Синяя плитка с изображением [Донателы].
+
+[ITEM_DESC.72]
+EN:
+RU: Зелёная плитка с изображением [Безумного Шляпника].
+
+[ITEM_DESC.73]
+EN:
+RU: Жёлтая плитка с изображением [Чеширской Кисы].
+
+[ITEM_DESC.74]
+EN:
+RU: Красная плитка с продлением [Наташи].
+
+[ITEM_DESC.75]
+EN:
+RU: Пакет с месиками 200 мл. Нашёл на складе калечки.
+
+[ITEM_DESC.76]
+EN:
+RU: Бутылка изопропилового спирта, бухаем?
+
+[ITEM_DESC.77]
+EN:
+RU: Масляная зажигалочка, найденная в палате 201.
+
+[ITEM_DESC.78]
+EN:
+RU: На наклейке нихуя нет. Нашёл на 2-м ярусе калечного подвала.
+
+[ITEM_DESC.80]
+EN:
+RU: На бирке намазано [3]. Похоже, его проебал Кайфман.
+
+[ITEM_DESC.81]
+EN:
+RU: Чек из магазина, который, похоже, проебал Кайфман.
+
+[ITEM_DESC.82]
+EN:
+RU: Ключ от сейфа, найденный в магазине [Ну ты индеец Бом Бом].
+
+[ITEM_DESC.83]
+EN:
+RU: Длинный тонкий магнитный стержень для баб самое то.
+
+[ITEM_DESC.84]
+EN:
+RU: Ключ от старого мотоцика, лежавший в целочкеномера мотеля.
+
+[ITEM_DESC.85]
+EN:
+RU: Гравированный ключ от птичей ебли.
+
+[ITEM_DESC.86]
+EN:
+RU: Агрегат для работы с металлом и проволокой. Хуйня, но по кайфу.
+
+[ITEM_DESC.87]
+EN:
+RU: Агрегат для винтов. Хуйня, но по кайфу.
+
+[ITEM_DESC.88]
+EN:
+RU: Нокиа со вспышкой.
+
+[ITEM_DESC.89]
+EN:
+RU: Грубое анальное кольцо, из неизвестного материала.
+
+[ITEM_DESC.90]
+EN:
+RU: Большой камень с изображением ебаната.
+
+[ITEM_DESC.91]
+EN:
+RU: Амулет в виде шестиконечной пезды, названный в честь жида ебаного.
+
+[ITEM_DESC.92]
+EN:
+RU: Змея в самотыке меркурия олицетворяет наркоманию.
+
+[ITEM_DESC.93]
+EN:
+RU: Эллиптический талисман с хуем внутри.
+
+[ITEM_DESC.94]
+EN:
+RU: Древняя заточка, названная в честь какого-то Дениса.
+
+[ITEM_DESC.95]
+EN:
+RU: Круг со змеёй, кусающей себя за жопу Вескера.
+
+[ITEM_DESC.96]
+EN:
+RU: Практически бесполезен, но лучше, чем нахуй.
+
+[ITEM_DESC.97]
+EN:
+RU: Метровая стальная труба епта. Большой радиус действия, пизды всем даст.
+
+[ITEM_DESC.98]
+EN:
+RU: Используется в дорожном строительстве для создания ям под еблом.
+
+[ITEM_DESC.100]
+EN:
+RU: Аварийная кувалда. Жестко ебет, но в жопу не влезет.
+
+[ITEM_DESC.101]
+EN:
+RU: Агрегат для рубки деревьев и прочей хуйни. Писю отрежет.
+
+[ITEM_DESC.102]
+EN:
+RU: Традиционная японская заточка для обрезания.
+
+[ITEM_DESC.103]
+EN:
+RU: Небольшой одноручный топор. Самое то для бабки.
+
+[ITEM_DESC.128]
+EN:
+RU: Его дала мне Дибил. Магазин на 15 маслин.
+
+[ITEM_DESC.129]
+EN:
+RU: Обойма на 6 маслин.
+
+[ITEM_DESC.130]
+EN:
+RU: Стреляет с большим разбросом. Обойма на 6 маслин.
+
+[ITEM_DESC.131]
+EN:
+RU: Мощный пугачь с инфракрасным прицелом и бесконечными маслинами.
+
+[ITEM_DESC.160]
+EN:
+RU: Маслины для пугача.
+
+[ITEM_DESC.161]
+EN:
+RU: Маслины для валыны.
+
+[ITEM_DESC.162]
+EN:
+RU: Маслины для пердежа.
+
+[ITEM_DESC.192]
+EN:
+RU: С кнопкочкой вкл/выкл. В нагрудном кармане.
+
+[ITEM_DESC.193]
+EN:
+RU: Портативный шансон, пердит, когда поблизости ебаки.
+
+[ITEM_DESC.194]
+EN:
+RU: Топливо за 200р литр для бензопилочки и отбойных молоточков.
+
+[MAP0_S00.15]
+EN:
+RU: ~J0(2.5) Черил. Где же ты?~E
+
+[MAP0_S00.16]
+EN:
+RU: ~J0(1.5) Каво...
+
+[MAP0_S00.17]
+EN:
+RU: ~J0(2.0) Здесь так тихо. Будто кто-то какает.
+
+[MAP0_S00.18]
+EN:
+RU: ~J0(3.0) Это очко словно~N село-призрак.~E
+
+[MAP0_S00.19]
+EN:
+RU: ~J0(3.0) Черил.~E
+
+[MAP0_S00.20]
+EN:
+RU: ~J0(1.5) Кто там хуярит?~E
+
+[MAP0_S00.21]
+EN:
+RU: ~J0(2.8)
+
+[MAP0_S00.22]
+EN:
+RU: ~J0(1.2)
+
+[MAP0_S00.23]
+EN:
+RU: ~J0(1.8)
+
+[MAP0_S00.24]
+EN:
+RU: Нужно пиздовать за Черил...~E
+
+[MAP0_S00.25]
+EN:
+RU: Как странно, уже~N как в жопе.~E
+
+[MAP0_S00.26]
+EN:
+RU: Тупик?~N Че за хуйня?!~E
+
+[MAP0_S00.27]
+EN:
+RU: ~J0(1.6)
+
+[MAP0_S00.28]
+EN:
+RU: ~J0(2.5)
+
+[MAP0_S00.29]
+EN:
+RU: Что это нахуй?~E
+
+[MAP0_S00.30]
+EN:
+RU: ...пожалуй, лучше~N чем нихуя.~E
+
+[MAP0_S00.31]
+EN:
+RU: Че?~N Нахуя это здесь?~E
+
+[MAP0_S00.32]
+EN:
+RU: Перехуячено?~E
+
+[MAP0_S00.33]
+EN:
+RU: Сломанная инвалидная~N коляска? Того деда Саламанки?~E
+
+[MAP0_S00.34]
+EN:
+RU: Каво?..~N Че за поебень?~E
+
+[MAP0_S00.35]
+EN:
+RU: Улица переёбана.
+
+[MAP0_S00.36]
+EN:
+RU: Здесь из села~N не съебаться.~E
+
+[MAP0_S00.37]
+EN:
+RU: Моя Нива...~N Зато утильсбор не нужен.
+
+[MAP0_S00.38]
+EN:
+RU: Где же черил?~N Надеюсь, ее попа в порядке.~E
+
+[MAP0_S01.15]
+EN:
+RU: ~J0(2.0)
+
+[MAP0_S01.16]
+EN:
+RU: ~J0(2.5)
+
+[MAP0_S01.17]
+EN:
+RU: ~J0(6.0)
+
+[MAP0_S01.18]
+EN:
+RU: ~J0(1.5)
+
+[MAP0_S01.19]
+EN:
+RU: ~J0(5.0)
+
+[MAP0_S01.20]
+EN:
+RU: ~J0(3.0)
+
+[MAP0_S01.21]
+EN:
+RU: ~J0(5.2)
+
+[MAP0_S01.22]
+EN:
+RU: ~J0(4.2)
+
+[MAP0_S01.23]
+EN:
+RU: ~J0(4.0)
+
+[MAP0_S01.24]
+EN:
+RU: ~J0(2.0)
+
+[MAP0_S01.25]
+EN:
+RU: ~J0(3.0)
+
+[MAP0_S01.26]
+EN:
+RU: ~J0(4.0)
+
+[MAP0_S01.27]
+EN:
+RU: ~J0(1.5)
+
+[MAP0_S01.28]
+EN:
+RU: ~J0(1.0)
+
+[MAP0_S01.29]
+EN:
+RU: ~J0(3.0)
+
+[MAP0_S01.30]
+EN:
+RU: ~J0(2.5)
+
+[MAP0_S01.31]
+EN:
+RU: ~J0(3.5)
+
+[MAP0_S01.32]
+EN:
+RU: ~J0(5.5)
+
+[MAP0_S01.33]
+EN:
+RU: ~J0(2.5)
+
+[MAP0_S01.34]
+EN:
+RU: ~J0(2.0)
+
+[MAP0_S01.35]
+EN:
+RU: ~J0(2.0)
+
+[MAP0_S01.36]
+EN:
+RU: ~J0(1.0)
+
+[MAP0_S01.37]
+EN:
+RU: ~J0(2.0) Гарри Мейсон.
+
+[MAP0_S01.38]
+EN:
+RU: ~J0(2.0)
+
+[MAP0_S01.39]
+EN:
+RU: ~J0(4.0)
+
+[MAP0_S01.40]
+EN:
+RU: ~J0(3.0)
+
+[MAP0_S01.41]
+EN:
+RU: ~J0(4.0)
+
+[MAP0_S01.42]
+EN:
+RU: ~J0(1.5)
+
+[MAP0_S01.43]
+EN:
+RU: ~D ~J0(4.0)
+
+[MAP0_S01.44]
+EN:
+RU: ~J0(4.0)
+
+[MAP0_S01.45]
+EN:
+RU: ~D ~J0(1.5)
+
+[MAP0_S01.46]
+EN:
+RU: ~J0(3.0)
+
+[MAP0_S01.47]
+EN:
+RU: ~J0(5.0)
+
+[MAP0_S01.48]
+EN:
+RU: ~J0(3.0)
+
+[MAP0_S01.49]
+EN:
+RU: ~J0(2.5)
+
+[MAP0_S01.50]
+EN:
+RU: ~J0(3.0)
+
+[MAP0_S01.51]
+EN:
+RU: ~J0(5.0)
+
+[MAP0_S01.52]
+EN:
+RU: ~J0(1.5)
+
+[MAP0_S01.53]
+EN:
+RU: ~J0(4.5)
+
+[MAP0_S01.54]
+EN:
+RU: ~J0(3.0)
+
+[MAP0_S01.55]
+EN:
+RU: ~J0(3.0)
+
+[MAP0_S01.56]
+EN:
+RU: ~J0(2.5)
+
+[MAP0_S01.57]
+EN:
+RU: ~J0(2.5)
+
+[MAP0_S01.58]
+EN:
+RU: ~J0(5.0)
+
+[MAP0_S01.59]
+EN:
+RU: ~H Это ~C5карта пожилого района~C7.~N Берем?~S4
+
+[MAP0_S01.60]
+EN:
+RU: Тут у нас ~C2Заточка~C7.~N Берем?~S4
+
+[MAP0_S01.61]
+EN:
+RU: Тут у нас ~C2фонарик~C7.~N Берем?~S4
+
+[MAP0_S01.62]
+EN:
+RU: ~J0(1.1) Что это?~E
+
+[MAP0_S01.63]
+EN:
+RU: ~J0(4.5)
+
+[MAP0_S01.64]
+EN:
+RU: Тут у нас ~C2Радио шансон~C7.~N Берем?~S4
+
+[MAP0_S01.65]
+EN:
+RU: Радио... раъебано?~N Шансон не слышно.~E
+
+[MAP0_S01.67]
+EN:
+RU: Может, перед уходом стоит~N проебаться здесь и поискать~N хуйню всякую?~E
+
+[MAP0_S01.68]
+EN:
+RU: ~J0(4.3)
+
+[MAP0_S01.69]
+EN:
+RU: Займусь шансоном позже,~N У меня есть дела~N и попизже.~E
+
+[MAP0_S01.70]
+EN:
+RU: Нужно разобраться с этой~N ебакой!~E
+
+[MAP0_S01.71]
+EN:
+RU: Радио шансон может пригодиться.
+
+[MAP0_S01.72]
+EN:
+RU: Лучше взять его с собой.~E
+
+[MAP0_S01.73]
+EN:
+RU: Автомат для игры в литрбол.~N Хуйня.~E
+
+[MAP0_S01.74]
+EN:
+RU: Россия 24 не включается.~N Света нет?~E
+
+[MAP0_S01.75]
+EN:
+RU: У меня есть дела и попизже.~E
+
+[MAP0_S02.15]
+EN:
+RU: Тут у нас ~C2бензопилочка~C7.~N Берем?~S4
+
+[MAP0_S02.16]
+EN:
+RU: На полке стоят канистры~N с саслом.~E
+
+[MAP0_S02.17]
+EN:
+RU: Автомобильный двигатель.~N От калины наверное.~E
+
+[MAP0_S02.18]
+EN:
+RU: Телевизор.~N Канал Спас не включается.~E
+
+[MAP0_S02.19]
+EN:
+RU: Тут у нас ~C2канистра 95го~C7.~N Берем?~S4
+
+[MAP0_S02.20]
+EN:
+RU: Тут у нас ~C2Катаночка~C7.~N Берем?~S4
+
+[MAP0_S02.21]
+EN:
+RU: Тут у нас ~C2Анальный камень~C7.~N Берем?~S4
+
+[MAP1_S00.15]
+EN:
+RU: Дверь стояка занята.~E
+
+[MAP1_S00.16]
+EN:
+RU: Стрелки остановились в 10:00.~E
+
+[MAP1_S00.17]
+EN:
+RU: Стрелки остановились в 12:00.~E
+
+[MAP1_S00.18]
+EN:
+RU: Стрелки остановились в 5:00.~E
+
+[MAP1_S00.19]
+EN:
+RU: ~C3Золотой дождь~E
+
+[MAP1_S00.20]
+EN:
+RU: ~C3СГолубая луна~E
+
+[MAP1_S00.21]
+EN:
+RU: Дверь не открывается блять.~E
+
+[MAP1_S00.22]
+EN:
+RU: ~L4~M ~C310:00~N [Алхимическая ебатория]~N ~N Злато в ладони Уолтера.~N Грядущее скрывает кам в кулаке своём.~N И обменяет лишь на воду хуйца.~E
+
+[MAP1_S00.23]
+EN:
+RU: ~L4~M ~C312:00~N [Место песен и кала]~N ~N Серебряная путеводная срить~N в жопе покоится.~N Пробудиться в стояке~N нормально.~E
+
+[MAP1_S00.24]
+EN:
+RU: ~L4~M ~C35:00~N ]Говно, приносящее~N удушающий пиздец]~N ~N Пламя озаряет хуету,~N пробуждая ебучую свинью.~N Отвори времени дверь и~N чтобы че-нить спиздить.~E
+
+[MAP1_S00.25]
+EN:
+RU: Написано месиками.~E
+
+[MAP1_S00.26]
+EN:
+RU: Черил может быть тут.~N Я должен её затащить.~E
+
+[MAP1_S00.27]
+EN:
+RU: На бумажке намазали дверь.
+
+[MAP1_S00.28]
+EN:
+RU: Не знаю, кто её нарисовал,~N но он явно сделал это хуем.~E
+
+[MAP1_S00.29]
+EN:
+RU: Тут кнопочка.~N Нажать?~S4
+
+[MAP1_S00.30]
+EN:
+RU: Кажется, нихуя.~E
+
+[MAP1_S00.31]
+EN:
+RU: Бройлер разъебан.~E
+
+[MAP1_S00.32]
+EN:
+RU: Похоже, всё разъебано.~E
+
+[MAP1_S00.33]
+EN:
+RU: Вентиль туго закручен.~N Блять.
+
+[MAP1_S00.34]
+EN:
+RU: Не знаю, для чего он,~N и нахуй не надо.~E
+
+[MAP1_S00.35]
+EN:
+RU: Ничего особенного здесь~N не насрано.~E
+
+[MAP1_S00.36]
+EN:
+RU: В ящике стола нет~N нихуя.~E
+
+[MAP1_S00.37]
+EN:
+RU: ~H Тут унас ~C5карта шкилы~C7.~N Берем?~S4
+
+[MAP1_S00.38]
+EN:
+RU: Мур Мур, Рональдо, Гондон...~N Видимо, список училок.~E
+
+[MAP1_S00.39]
+EN:
+RU: Внутри нихуя нет.~E
+
+[MAP1_S01.15]
+EN:
+RU: Слепок руки Уолтера.
+
+[MAP1_S01.16]
+EN:
+RU: Кулак крепко сжат,~N как раз для писи.~E
+
+[MAP1_S01.17]
+EN:
+RU: Тут у нас ~C2золотая шишка~C7.~N Берем?~S4
+
+[MAP1_S01.18]
+EN:
+RU: Тут у нас ~C2хихихаха~C7.~N Берем?~S4
+
+[MAP1_S01.19]
+EN:
+RU: Нихуя необычного.~E
+
+[MAP1_S01.20]
+EN:
+RU: Всего лишь обдроченные~N остатки кама в руке.
+
+[MAP1_S01.21]
+EN:
+RU: Нихуя серьёзного.~E
+
+[MAP1_S01.23]
+EN:
+RU: ~L4~M ~C3[Сказка о птичах хуичках]~N ~N Влетает первым жадный Ебаклан,~N Размахивая белыми хуями,~N Отсутствие мозга его гложет.~N ~N А тихий Голубь дальше полетел,~N Он Ебаклана обогнал и перданул,~N что, обосрал шорты.
+
+[MAP1_S01.24]
+EN:
+RU: ~L4~M ~C3Тут Ворон появился из говна~N И выше Голубя скорее опустился,~N Чтоб показать, что он не лох.~N ~N А грациозный Лебедь всё парит,~N что аж одноразка ебанула~N Снесло пол ебала.
+
+[MAP1_S01.25]
+EN:
+RU: ~L4~M ~C3И короче стих говно~N я ебал калнами~N контору пидорасов,~N ~N делающие СХ про фурей и негров~N короче решай эту хуйню сам,~N подсказочка будет~N на срояле.~E
+
+[MAP1_S01.26]
+EN:
+RU: Нихуя. Странно,~N вроде не похоже, что пиздец.~E
+
+[MAP1_S01.27]
+EN:
+RU: На некоторых клавишах~N месики...
+
+[MAP1_S01.28]
+EN:
+RU: Это что за хуйня?~E
+
+[MAP1_S01.29]
+EN:
+RU: Осмотреть срояль?~S4
+
+[MAP1_S01.30]
+EN:
+RU: Тут у нас ~C2серебряная шишка~C7.~N Берем?~S4
+
+[MAP1_S01.31]
+EN:
+RU: Написано месиками.~E
+
+[MAP1_S01.32]
+EN:
+RU: Внутри нихуя нет.~E
+
+[MAP1_S01.33]
+EN:
+RU: ~J0(2.0) Всего лишь будущая шава...~E
+
+[MAP1_S01.34]
+EN:
+RU: Водичка.~N Потом на опохмел.~E
+
+[MAP1_S01.35]
+EN:
+RU: На полке нет нихуя.~E
+
+[MAP1_S01.36]
+EN:
+RU: В ящике стола нет~N нихуя.~E
+
+[MAP1_S01.37]
+EN:
+RU: Нихуя полезного.~E
+
+[MAP1_S01.38]
+EN:
+RU: Глюкоза.~N Песни у нее кал.~E
+
+[MAP1_S01.39]
+EN:
+RU: ~C3Алярм. Не забывайте~N забирать самотыки~N из шкафчиков.
+
+[MAP1_S01.40]
+EN:
+RU: Обычная шкильная~N доска объявлений.~N Можно хуй нарисовать.~E
+
+[MAP1_S01.41]
+EN:
+RU: ~C3~M В~N РАЗДЕВАЛКЕ НЕ БЕГАТЬ~N ТОЛЬКО ЕБАТЬ~E
+
+[MAP1_S01.42]
+EN:
+RU: В шкафчике нет нихуя~N полезного.~E
+
+[MAP1_S01.43]
+EN:
+RU: В ящике стола нет~N нихуя полезного.~E
+
+[MAP1_S01.44]
+EN:
+RU: Ни одной полезной ниги.~E
+
+[MAP1_S01.45]
+EN:
+RU: Не вижу ни одной интересной~N ниги.~E
+
+[MAP1_S01.46]
+EN:
+RU: Нет смысла ебать~N это ниги.~E
+
+[MAP1_S01.47]
+EN:
+RU: На некоторых клавишах~N месики...~E
+
+[MAP1_S02.15]
+EN:
+RU: ~J0(1.2)
+
+[MAP1_S02.16]
+EN:
+RU: ~J0(2.0)
+
+[MAP1_S02.17]
+EN:
+RU: ~J0(3.8)
+
+[MAP1_S02.18]
+EN:
+RU: Дверь стояка занята.~E
+
+[MAP1_S02.21]
+EN:
+RU: ~C5Золотой дождь~C7~E
+
+[MAP1_S02.22]
+EN:
+RU: ~C5Голубая луна~C7~E
+
+[MAP1_S02.23]
+EN:
+RU: Че?~N Это блять дверь?
+
+[MAP1_S02.24]
+EN:
+RU: Если да, то здесь нет~N ни дырки, ни даже дрочки...
+
+[MAP1_S02.25]
+EN:
+RU: Если её толкнуть, она шевелится,~N но хуй там.~E
+
+[MAP1_S02.26]
+EN:
+RU: Это че блять~E
+
+[MAP1_S02.27]
+EN:
+RU: В центре двери есть~N присунуть в щель.
+
+[MAP1_S02.28]
+EN:
+RU: Нахуя она?~E
+
+[MAP1_S02.29]
+EN:
+RU: Тут у нас ~C2карточка хуярточка~C7.~N Берем?~S4
+
+[MAP1_S02.30]
+EN:
+RU: Я присунул ~C2карточку~N хуярточку~C7 в щель.~E
+
+[MAP1_S02.32]
+EN:
+RU: ~J0(3.0)
+
+[MAP1_S02.33]
+EN:
+RU: ~J0(3.0)
+
+[MAP1_S02.34]
+EN:
+RU: ~D ~J0(2.0)
+
+[MAP1_S02.35]
+EN:
+RU: ~J1(2.4)~N Это был голос Черил.~N Ее ебут.
+
+[MAP1_S02.36]
+EN:
+RU: ~J1(2.0)~N Где же блять она?~N Черил...~E
+
+[MAP1_S02.37]
+EN:
+RU: Тут у нас ~C2резиновый презик~C7.~N Берем?~S4
+
+[MAP1_S02.38]
+EN:
+RU: ~C5Леонард Прайд~N Ебака затаился~C7
+
+[MAP1_S02.39]
+EN:
+RU: Ебака рядом...~N И что это, блять, значит?~E
+
+[MAP1_S02.40]
+EN:
+RU: Тут у нас ~C2Пердеж~C7.~N Берем?~S4
+
+[MAP1_S02.42]
+EN:
+RU: Хуйнуть вентиль влево.
+
+[MAP1_S02.43]
+EN:
+RU: Хуйнуть вентиль вправо.
+
+[MAP1_S02.44]
+EN:
+RU: Не поворачивается нихуя.
+
+[MAP1_S02.45]
+EN:
+RU: На столе разбросана хуйня...~E
+
+[MAP1_S02.46]
+EN:
+RU: Инвалидная коляска?~N Тут деда ебали?~E
+
+[MAP1_S02.47]
+EN:
+RU: Шкафчик занят.~E
+
+[MAP1_S02.48]
+EN:
+RU: Огромный вентилятор ебашит.
+
+[MAP1_S02.49]
+EN:
+RU: Дует так,~N как политики с телевизора.~E
+
+[MAP1_S02.50]
+EN:
+RU: Позвонить не нихуя.~E
+
+[MAP1_S02.51]
+EN:
+RU: Тут у нас ~C2ключ от Асса~C7.~N Берем?~S4
+
+[MAP1_S02.52]
+EN:
+RU: Распятое тело...~N Нихуя черешня...~E
+
+[MAP1_S02.53]
+EN:
+RU: На полу резиновая баба.~E
+
+[MAP1_S02.54]
+EN:
+RU: На стене висит~N баба без думалки.~E
+
+[MAP1_S03.15]
+EN:
+RU: Че это бля?~E
+
+[MAP1_S03.16]
+EN:
+RU: [Ебака затаился],~N так называется нига.~E
+
+[MAP1_S03.17]
+EN:
+RU: ~C3 Глава 3:~N [Проявление хуебесов]
+
+[MAP1_S03.18]
+EN:
+RU: ~C3 ...к их числу относятся~N уолтергейсты. Заебательские~N эмоции, такие как трах,
+
+[MAP1_S03.19]
+EN:
+RU: ~C3 АААбляяя или депресняк,~N проявляются во внешней поеботе~N с физическими дебилами.
+
+[MAP1_S03.20]
+EN:
+RU: ~C3 Было доказано, что~N в ряде случаев их вызывают~N ректальные трубы.
+
+[MAP1_S03.21]
+EN:
+RU: ~C3 Однако, такая хуйня~N возникает не у всех ебланов.
+
+[MAP1_S03.22]
+EN:
+RU: ~C3 Не до конца ясно почему, но~N зумерки, особенно альтушки,~N склонны к этим пиздастраданиям.~E
+
+[MAP1_S03.23]
+EN:
+RU: ~C3 Услышав это, Сталоне~N вооружился валыной,~N и сказал: [Я убью тебя лодочник.]
+
+[MAP1_S03.24]
+EN:
+RU: ~C3 Но встретив своего ебаря,~N он охуел и поржав:~N [Да шо это за хуебес?]
+
+[MAP1_S03.25]
+EN:
+RU: ~C3 На это разъярённый лодочник~N орнул: ]Тоби пезда~N хуесос!]
+
+[MAP1_S03.26]
+EN:
+RU: ~C3 Затем огромная ебака~N тупая, расширило свое очко.
+
+[MAP1_S03.27]
+EN:
+RU: ~C3 Это рэмбо и нужно было.~N Хладнокровно натянув валыну,~N он ебанул в раздвинутое~N очко.
+
+[MAP1_S03.28]
+EN:
+RU: ~C3 Маслина, без труда~N пронзив беззащитный анал,
+
+[MAP1_S03.29]
+EN:
+RU: ~C3 и лодочник стал дырявым.~E
+
+[MAP1_S03.30]
+EN:
+RU: Это из старой сказки.~N Помню, как дрочил на нее в детстве.~E
+
+[MAP1_S03.31]
+EN:
+RU: Это спускной клапан.~N Хочет срать.~E
+
+[MAP1_S03.32]
+EN:
+RU: Там застрял ключ.~N Гавной воняет.~E
+
+[MAP1_S03.33]
+EN:
+RU: Ключ провалился в говно.~E
+
+[MAP1_S03.34]
+EN:
+RU: Презик заткнут в трубу.~E
+
+[MAP1_S03.35]
+EN:
+RU: Нихуя особенного.~E
+
+[MAP1_S03.36]
+EN:
+RU: Я использовал ~C2резиновый~N презик~C7.~E
+
+[MAP1_S03.37]
+EN:
+RU: Я использовал ~C2ключ~N от Еблиотеки~C7.~E
+
+[MAP1_S03.38]
+EN:
+RU: Я использовал ~C2ключ~N от Асса~C7.~E
+
+[MAP1_S03.39]
+EN:
+RU: Ни одной полезной ниги.~E
+
+[MAP1_S03.40]
+EN:
+RU: Это спускной клапан.~N Срать?~S4
+
+[MAP1_S03.41]
+EN:
+RU: Вода стекает не в ту дырку.~N Может, мне удастся его~N как-нибудь трахнуть?~E
+
+[MAP1_S03.42]
+EN:
+RU: В шкафчике нет нихуя~N полезного.~E
+
+[MAP1_S03.43]
+EN:
+RU: Внутри нихуя нет.~E
+
+[MAP1_S03.44]
+EN:
+RU: Тут у нас ~C2ключ от Еблиотеки~C7.~N Берем?~S4
+
+[MAP1_S03.45]
+EN:
+RU: Тело ебнулось из шкафчика.~E
+
+[MAP1_S03.46]
+EN:
+RU: ~J0(1.0) Каво?~E
+
+[MAP1_S03.47]
+EN:
+RU: ~J0(2.5) Че там за свет!?~E
+
+[MAP1_S04.15]
+EN:
+RU: ИДИ НАХУЙ!~E
+
+[MAP1_S06.16]
+EN:
+RU: ~J2(1.5)
+
+[MAP1_S06.17]
+EN:
+RU: ~J0(2.4)
+
+[MAP1_S06.18]
+EN:
+RU: Тут у нас ~C2ключ К. Гондона~C7.~N Берем?~S4
+
+[MAP1_S06.19]
+EN:
+RU: Бройлер не фурычит.~E
+
+[MAP1_S06.20]
+EN:
+RU: Кажется, он разъебан.~E
+
+[MAP1_S06.21]
+EN:
+RU: Вентиль туго надрочен.~N Не поворачивается.~E
+
+[MAP1_S06.22]
+EN:
+RU: ~J0(2.0) Че за звуки...
+
+[MAP1_S06.23]
+EN:
+RU: ~J0(3.0) Синаготский колокол, видимо?~N Кто то срет в него?~E
+
+[MAP1_S06.24]
+EN:
+RU: Мур Мур, Ранальдо, Гордон...~N Видимо, список училок.~E
+
+[MAP1_S06.25]
+EN:
+RU: Список училок.
+
+[MAP1_S06.26]
+EN:
+RU: К. Гондон... так.~N Отмечу-ка я его дом~N на карте.~E
+
+[MAP1_S06.27]
+EN:
+RU: ~H Тут у нас ~C5карта шкилы~C7.~N Берем?~S4
+
+[MAP1_S06.28]
+EN:
+RU: ~J1(3.5) Где я нахуй?
+
+[MAP1_S06.29]
+EN:
+RU: ~J1(3.0) Это... бройлерная!?
+
+[MAP1_S06.30]
+EN:
+RU: ~J1(3.5) Да че тут за хуйня?~E
+
+[MAP2_S00.15]
+EN:
+RU: Тут у нас ~C2Труба епта~C7.~N Берем?~S4
+
+[MAP2_S00.16]
+EN:
+RU: Куда же Черил съебалась?
+
+[MAP2_S00.17]
+EN:
+RU: Наверное, стоит ещё раз~N пизды получить в том месте.~E
+
+[MAP2_S00.18]
+EN:
+RU: ~C3 В шкилу~E
+
+[MAP2_S00.19]
+EN:
+RU: ~J1(2.5)
+
+[MAP2_S00.20]
+EN:
+RU: ~J1(3.8)
+
+[MAP2_S00.21]
+EN:
+RU: Обложка каракуль.~N На картинке... я, нихуя!
+
+[MAP2_S00.22]
+EN:
+RU: Первая картинка, что Черил~N нарисовала каракули, своим~N калом из попки в 5 лет.~E
+
+[MAP2_S00.23]
+EN:
+RU: ~M ~C3 Шаурама~N на улице Левин еблан~E
+
+[MAP2_S00.24]
+EN:
+RU: Нихуя необычного.~E
+
+[MAP2_S00.25]
+EN:
+RU: Наверное, собачья шаурма,~N хоть я и не уверен,~N ведь сучек ещё дохуя.
+
+[MAP2_S00.26]
+EN:
+RU: Здесь нет нихуя.~E
+
+[MAP2_S00.27]
+EN:
+RU: В будке с шаурмой спрятан~N ~C2ключ от дома~C7. Берем?~S4
+
+[MAP2_S00.28]
+EN:
+RU: Тут у нас ~C2ключ [Левы]~C7.~N Взять?~S4
+
+[MAP2_S00.29]
+EN:
+RU: Тут у нас ~C2ключ [Гомосека]~C7.~N Берем?~S4
+
+[MAP2_S00.30]
+EN:
+RU: Тут у нас ~C2ключ [Дрочилы]~C7.~N Берем?~S4
+
+[MAP2_S00.31]
+EN:
+RU: Я использовал ~C2ключ от дома~C7.~E
+
+[MAP2_S00.32]
+EN:
+RU: Я использовал ~C2ключ [Левы]~C7.~E
+
+[MAP2_S00.33]
+EN:
+RU: Я использовал ~C2ключ [Гомосека]~C7.~E
+
+[MAP2_S00.34]
+EN:
+RU: Я использовал ~C2ключ [Дрочилы]~C7.~E
+
+[MAP2_S00.35]
+EN:
+RU: ~J0(20) Че?~E
+
+[MAP2_S00.36]
+EN:
+RU: Опять жопа негра?
+
+[MAP2_S00.37]
+EN:
+RU: Да что происходит?!~E
+
+[MAP2_S00.38]
+EN:
+RU: Собачья голова, гоу футбол ебанем.~E
+
+[MAP2_S00.39]
+EN:
+RU: Я использовал ~C2ключ К. Гондона~C7.~E
+
+[MAP2_S00.40]
+EN:
+RU: ~C3 Начальная шкила Сэндвич~E
+
+[MAP2_S00.41]
+EN:
+RU: Больше нечего~N спиздить со шкилы.~E
+
+[MAP2_S00.42]
+EN:
+RU: ~C3 Диспетчерская моста [Дрочичь]~E
+
+[MAP2_S00.43]
+EN:
+RU: На панели управления~N есть узкая щелочка.~E
+
+[MAP2_S00.44]
+EN:
+RU: Петрович врубай нанос!~N Нажать на кнопку?~S4
+
+[MAP2_S00.45]
+EN:
+RU: Улица раъебана.~N Здесь из села не выбраться.~E
+
+[MAP2_S00.46]
+EN:
+RU: Моя Нива...~N Ярик водила блять.
+
+[MAP2_S00.47]
+EN:
+RU: Где же Черил?~N Надеюсь, она не сдохла.~E
+
+[MAP2_S00.48]
+EN:
+RU: ~C3 Диспетчерская моста [Дрочичь]~E
+
+[MAP2_S00.49]
+EN:
+RU: ~C3 Анализация.~N Посторонние идите нахуй.~E
+
+[MAP2_S00.50]
+EN:
+RU: Хмм... замок весь обосран.
+
+[MAP2_S00.51]
+EN:
+RU: Я смогу его сбить, если~N как следует уебать.~E
+
+[MAP2_S00.52]
+EN:
+RU: На висящей на стене карте~N что-то говном намазали.
+
+[MAP2_S00.53]
+EN:
+RU: Я перехуячил всё на~N свою карту.~E
+
+[MAP2_S00.54]
+EN:
+RU: На висящей на стене карте~N что-то говном намазали.~E
+
+[MAP2_S00.56]
+EN:
+RU: Здесь три замочка.~E
+
+[MAP2_S00.57]
+EN:
+RU: Здесь два замочка.~E
+
+[MAP2_S00.58]
+EN:
+RU: Остался один замочек.~E
+
+[MAP2_S00.59]
+EN:
+RU: Заебок.~E
+
+[MAP2_S00.60]
+EN:
+RU: ~H Тут у нас ~C5карта района Барыг~C7.~N Берем?~S4
+
+[MAP2_S00.61]
+EN:
+RU: Нихуя особенного.~E
+
+[MAP2_S00.62]
+EN:
+RU: Мост опускается. Збс.~E
+
+[MAP2_S00.63]
+EN:
+RU: Мост опустился.~E
+
+[MAP2_S00.64]
+EN:
+RU: Телевизор.~N Соловьева не кажет.~N Хуево.~E
+
+[MAP2_S00.65]
+EN:
+RU: Нихуя полезного.~E
+
+[MAP2_S00.66]
+EN:
+RU: Нихуя особенного.~E
+
+[MAP2_S00.67]
+EN:
+RU: Морозила хуйня.~E
+
+[MAP2_S00.68]
+EN:
+RU: Дверь гаража заляпана~N месиками.~E
+
+[MAP2_S00.69]
+EN:
+RU: ~C3 К. Гондон~E
+
+[MAP2_S00.70]
+EN:
+RU: ~C3 Ебланская Синагога~E
+
+[MAP2_S00.71]
+EN:
+RU: Это ~C2отбойная ебля~C7.
+
+[MAP2_S00.72]
+EN:
+RU: Бензина нет.~N Так что, придется за 200р покупать.~E
+
+[MAP2_S00.73]
+EN:
+RU: Тут у нас ~C2отбойная ебля~C7.~N Берем?~S4
+
+[MAP2_S00.74]
+EN:
+RU: Это ~C2бензопилочка~C7.
+
+[MAP2_S00.75]
+EN:
+RU: Бензина нет.~N Так что, придется за 200р покупать.~E
+
+[MAP2_S00.76]
+EN:
+RU: Тут у нас ~C2бензопилочка~C7.~N Берем?~S4
+
+[MAP2_S00.77]
+EN:
+RU: Я залил бензин.Ура бля.~E
+
+[MAP2_S00.78]
+EN:
+RU: Наверное, это и есть тот~N анальный тунель, о которой~N говорила Лизка.~E
+
+[MAP2_S01.15]
+EN:
+RU: ~J1(1.9)
+
+[MAP2_S01.16]
+EN:
+RU: ~J1(5.3)
+
+[MAP2_S01.17]
+EN:
+RU: ~J1(1.8)
+
+[MAP2_S01.18]
+EN:
+RU: ~J1(2.2)
+
+[MAP2_S01.19]
+EN:
+RU: ~J1(2.4)
+
+[MAP2_S01.20]
+EN:
+RU: ~J1(0.9)
+
+[MAP2_S01.21]
+EN:
+RU: ~J1(1.7)
+
+[MAP2_S01.22]
+EN:
+RU: ~J1(2.8)
+
+[MAP2_S01.23]
+EN:
+RU: ~J0(2.1)
+
+[MAP2_S01.24]
+EN:
+RU: ~J0(1.1)
+
+[MAP2_S01.25]
+EN:
+RU: ~J1(4.0)
+
+[MAP2_S01.26]
+EN:
+RU: ~J1(2.3)
+
+[MAP2_S01.27]
+EN:
+RU: ~J1(4.0)
+
+[MAP2_S01.28]
+EN:
+RU: ~J1(3.6)
+
+[MAP2_S01.29]
+EN:
+RU: ~J0(4.0)
+
+[MAP2_S01.30]
+EN:
+RU: ~J0(3.3)
+
+[MAP2_S01.31]
+EN:
+RU: ~J0(3.8)
+
+[MAP2_S01.32]
+EN:
+RU: ~J0(3.0)
+
+[MAP2_S01.33]
+EN:
+RU: ~J0(4.2)
+
+[MAP2_S01.34]
+EN:
+RU: ~J0(2.4)
+
+[MAP2_S01.35]
+EN:
+RU: Тут у нас ~C2[Фалос]~C7.~N Берем?~S4
+
+[MAP2_S01.36]
+EN:
+RU: Тут ~C2ключ от разводного моста~C7.~N Берем?~S4
+
+[MAP2_S01.37]
+EN:
+RU: Черная Библия.Найс хентай~E
+
+[MAP2_S01.38]
+EN:
+RU: Не нихуя.
+
+[MAP2_S01.39]
+EN:
+RU: Наверное, занято~N с другой стороны.~E
+
+[MAP2_S01.40]
+EN:
+RU: Ящик для пожертвований.~N А так хотел спиздить.~E
+
+[MAP2_S01.41]
+EN:
+RU: Газета.~N Жопу вытирать.~E
+
+[MAP2_S01.42]
+EN:
+RU: На стене висит картина.~N Хуем нарисована.~E
+
+[MAP2_S01.43]
+EN:
+RU: Подсвечник.~N Можно его ебакам в жопу.~E
+
+[MAP2_S02.15]
+EN:
+RU: Я использовал ~C2ключ~N от секс шопа~C7.~E
+
+[MAP2_S02.16]
+EN:
+RU: ~C3 Калечка [Охуелла]~E
+
+[MAP2_S02.17]
+EN:
+RU: ~C3 [Зелёный лева]~E
+
+[MAP2_S03.15]
+EN:
+RU: ИДИ НАХУЙ!~E
+
+[MAP2_S04.15]
+EN:
+RU: На столе лежит записька.
+
+[MAP2_S04.16]
+EN:
+RU: ~C3 Звонил долбоеб Силз.
+
+[MAP2_S04.17]
+EN:
+RU: ~C3 Офицер Гуччи вряд ли~N был убит. Очевидно, он~N умер от хуевой одежды.
+
+[MAP2_S04.18]
+EN:
+RU: ~C3 Но, согласно медкарте,~N офицер Гуччи имел~N в попу~N Юдашкина.~E
+
+[MAP2_S04.19]
+EN:
+RU: На доске хуем написано.
+
+[MAP2_S04.20]
+EN:
+RU: ~C3 Товар распространён лишь~N в блядских районах~N Тихохолмска.
+
+[MAP2_S04.21]
+EN:
+RU: ~C3 Сырьё было у Белой~N Клавдии Петровны, это барыга,~N с пиздатым товаром.
+
+[MAP2_S04.22]
+EN:
+RU: ~C3 Захуячен здесь?~N Дилер и есть Клавдия Петровна?~E
+
+[MAP2_S04.23]
+EN:
+RU: ~H Тут у нас ~C5карта района барыг~C7.~N Берем?~S4
+
+[MAP2_S04.24]
+EN:
+RU: Нихуя полезного.~E
+
+[MAP2_S04.25]
+EN:
+RU: На столе полное блядство.~E
+
+[MAP2_S04.26]
+EN:
+RU: Тут у нас ~C2Пердеж~C7.~N Берем?~S4
+
+[MAP3_S00.15]
+EN:
+RU: ~J0(1.0)
+
+[MAP3_S00.17]
+EN:
+RU: ~J0(1.7)
+
+[MAP3_S00.18]
+EN:
+RU: ~J0(2.4)
+
+[MAP3_S00.19]
+EN:
+RU: ~J0(3.4)
+
+[MAP3_S00.20]
+EN:
+RU: ~J1(2.8)
+
+[MAP3_S00.21]
+EN:
+RU: ~J1(1.5)
+
+[MAP3_S00.22]
+EN:
+RU: ~J1(3.6)
+
+[MAP3_S00.23]
+EN:
+RU: ~J1(2.5)
+
+[MAP3_S00.24]
+EN:
+RU: ~J1(1.5)
+
+[MAP3_S00.25]
+EN:
+RU: ~J1(4.5)
+
+[MAP3_S00.26]
+EN:
+RU: ~J1(2.3)
+
+[MAP3_S00.27]
+EN:
+RU: ~J1(3.0)
+
+[MAP3_S00.28]
+EN:
+RU: ~J1(2.6)
+
+[MAP3_S00.29]
+EN:
+RU: ~J1(2.2)
+
+[MAP3_S00.30]
+EN:
+RU: ~J1(2.4)
+
+[MAP3_S00.31]
+EN:
+RU: ~J1(2.0)
+
+[MAP3_S00.32]
+EN:
+RU: ~J1(3.5)
+
+[MAP3_S00.33]
+EN:
+RU: ~J1(1.5)
+
+[MAP3_S00.34]
+EN:
+RU: ~J1(2.4)
+
+[MAP3_S00.35]
+EN:
+RU: ~J1(1.6)
+
+[MAP3_S00.36]
+EN:
+RU: ~J1(3.0)
+
+[MAP3_S00.37]
+EN:
+RU: ~J1(2.8)
+
+[MAP3_S00.38]
+EN:
+RU: ~J1(4.0)
+
+[MAP3_S00.40]
+EN:
+RU: ~J1(2.8)
+
+[MAP3_S00.41]
+EN:
+RU: ~J0(2.6)
+
+[MAP3_S00.42]
+EN:
+RU: ~J0(5.0)
+
+[MAP3_S00.43]
+EN:
+RU: ~J0(2.6)
+
+[MAP3_S00.44]
+EN:
+RU: ~J0(2.3)
+
+[MAP3_S00.45]
+EN:
+RU: ~J0(2.7)
+
+[MAP3_S00.46]
+EN:
+RU: ~J0(2.8)
+
+[MAP3_S00.47]
+EN:
+RU: Нужно что-то спиздить из калечки.~E
+
+[MAP3_S00.48]
+EN:
+RU: ~H Тут у нас ~C5карта Калечки~C7.~N Берем?~S4
+
+[MAP3_S00.49]
+EN:
+RU: Телефоны и справочники.~N А хотел порно журнал.(~E
+
+[MAP3_S00.50]
+EN:
+RU: Нихуя необычного.~E
+
+[MAP3_S00.51]
+EN:
+RU: Нихуя полезного.~E
+
+[MAP3_S01.15]
+EN:
+RU: Лифт, похоже, там нассано.~E
+
+[MAP3_S01.16]
+EN:
+RU: Стеклянный фанфурик разбит~N к хуям.
+
+[MAP3_S01.17]
+EN:
+RU: И не просто разбит.~N Его словно из жопы вытащили.~E
+
+[MAP3_S01.18]
+EN:
+RU: Я собрал остатки месиков~N в ~C2пластиковую бутылку~C7.
+
+[MAP3_S01.19]
+EN:
+RU: Интересно, че это за хуйня?~E
+
+[MAP3_S01.20]
+EN:
+RU: Стеклянный фанфурик разбит~N к хуям.~E
+
+[MAP3_S01.21]
+EN:
+RU: Тут у нас ~C2пластиковая бутылка~C7.~N Садимся?~S4
+
+[MAP3_S01.22]
+EN:
+RU: ~H Тут у нас ~C5карта калечки~C7.~N Берем?~S4
+
+[MAP3_S01.23]
+EN:
+RU: ~H Тут у нас ~C5карта данжеона калечки~C7.~N Берем?~S4
+
+[MAP3_S01.24]
+EN:
+RU: Тут у нас ~C2ключ от данжеона~C7.~N Берем?~S4
+
+[MAP3_S01.25]
+EN:
+RU: ~C3 Отдельный пенетратор питает~N только лифты, реанимации~N и паносные.
+
+[MAP3_S01.26]
+EN:
+RU: Нажать на кнопочку?~S4
+
+[MAP3_S01.27]
+EN:
+RU: Пенетратор работает.~E
+
+[MAP3_S01.28]
+EN:
+RU: Я использовал ~C2ключ от данжеона~C7 .~E
+
+[MAP3_S01.29]
+EN:
+RU: Нужно что-то спиздить с калечки.~E
+
+[MAP3_S01.30]
+EN:
+RU: Телефоны и справочники.~N А хотел порно журнал.~E
+
+[MAP3_S01.31]
+EN:
+RU: Торговый аппарат.~N Пизда ему.~E
+
+[MAP3_S01.32]
+EN:
+RU: На полках кругом пиздец.~N Кто-то что-то спизданул?~E
+
+[MAP3_S01.33]
+EN:
+RU: На столе разбросаны ниги.~N Больше здесь нет нихуя~N интересного.~E
+
+[MAP3_S01.34]
+EN:
+RU: Телефон отключён.~N ВПН надо оплатить.~E
+
+[MAP3_S01.35]
+EN:
+RU: Это белая доска.~N На ней хуем что-то~N написали.~E
+
+[MAP3_S01.36]
+EN:
+RU: Здесь газета для жопы.
+
+[MAP3_S01.37]
+EN:
+RU: Одну из статей вырезали нахуй...~E
+
+[MAP3_S01.38]
+EN:
+RU: Холодильник пуст. Блять.~E
+
+[MAP3_S01.39]
+EN:
+RU: Нихуя необычного.~E
+
+[MAP3_S01.40]
+EN:
+RU: Нихуя полезного.~E
+
+[MAP3_S02.15]
+EN:
+RU: Я нажал на кнопку лифта,~N но тут нассано.~E
+
+[MAP3_S02.16]
+EN:
+RU: Занято!~E
+
+[MAP3_S03.15]
+EN:
+RU: Тут у нас ~C2табличка [Шляпник]~C7.~N Берем?~S4
+
+[MAP3_S03.16]
+EN:
+RU: Тут у нас ~C2табличка [Киса]~C7.~N Берем?~S4
+
+[MAP3_S03.17]
+EN:
+RU: Тут у нас ~C2табличка [Донатела]~C7.~N Берем?~S4
+
+[MAP3_S03.18]
+EN:
+RU: ~D ~C3Облака, плывущие над еблом.
+
+[MAP3_S03.19]
+EN:
+RU: ~D ~C3Небо в ахуительный день.
+
+[MAP3_S03.20]
+EN:
+RU: ~D ~C3Горькие мандарины. Сцука.
+
+[MAP3_S03.21]
+EN:
+RU: ~D ~C3Четырёхлистный клевер на фарту.
+
+[MAP3_S03.22]
+EN:
+RU: ~D ~C3Фиалки в саду для попы.
+
+[MAP3_S03.23]
+EN:
+RU: ~D ~C3Одуванчики вдоль дороги обоссаны.
+
+[MAP3_S03.24]
+EN:
+RU: ~D ~C3Неминуемое время сна после секса.
+
+[MAP3_S03.25]
+EN:
+RU: ~D ~C3Малафья, стекающая~N из порезанного запястья.~E
+
+[MAP3_S03.26]
+EN:
+RU: Видимо, магнитола~N сломалась. Она больше~N не фурычит.~E
+
+[MAP3_S03.29]
+EN:
+RU: ~J2(2.7)
+
+[MAP3_S03.30]
+EN:
+RU: ~J2(2.6)
+
+[MAP3_S03.31]
+EN:
+RU: ~J2(2.8)
+
+[MAP3_S03.32]
+EN:
+RU: ~J2(2.3)
+
+[MAP3_S03.33]
+EN:
+RU: ~J2(1.2) Д
+
+[MAP3_S03.34]
+EN:
+RU: ~J2(3.8)
+
+[MAP3_S03.35]
+EN:
+RU: ~J2(5.9)
+
+[MAP3_S03.37]
+EN:
+RU: ~J2(3.3)
+
+[MAP3_S03.38]
+EN:
+RU: ~J2(2.0)
+
+[MAP3_S03.40]
+EN:
+RU: Тут у нас ~C2пакет с месиками~C7.~N Берем?~S4
+
+[MAP3_S03.41]
+EN:
+RU: Тут у нас ~C2медицинский спирт~C7.~N Бухать?~S4
+
+[MAP3_S03.42]
+EN:
+RU: Тут у нас ~C2зажигалка~C7.~N Пыхнем?~S4
+
+[MAP3_S03.43]
+EN:
+RU: Тут у нас ~C2ключ от склада в данжеоне~C7.~N Берем?~S4
+
+[MAP3_S03.45]
+EN:
+RU: Всего лишь обосранная доска.~E
+
+[MAP3_S03.46]
+EN:
+RU: Фанфурики от спирта.~N Кто всё выпил?~E
+
+[MAP3_S03.47]
+EN:
+RU: Куда пихать табличку ебаную?~E
+
+[MAP3_S03.48]
+EN:
+RU: Сюда нихуя не пихается.~E
+
+[MAP3_S03.49]
+EN:
+RU: Какую табличку вытащить?~E
+
+[MAP3_S03.50]
+EN:
+RU: Эта нихуя не вытаскивается.~E
+
+[MAP3_S03.51]
+EN:
+RU: На двери есть 4 квадратных~N дырки.~E
+
+[MAP3_S03.53]
+EN:
+RU: Птичья ебля. Птичку жалко.~E
+
+[MAP3_S03.54]
+EN:
+RU: Магнитола. Старая,~N но всё ещё ебет.~E
+
+[MAP3_S03.55]
+EN:
+RU: К стене прихуячена~N стальная пластина.~E
+
+[MAP3_S03.56]
+EN:
+RU: Нихуя необычного.~E
+
+[MAP3_S03.57]
+EN:
+RU: Это какие-то сушилки.~N Обосранные штаны стирать.~E
+
+[MAP3_S03.58]
+EN:
+RU: Нихуя полезного.~E
+
+[MAP3_S03.59]
+EN:
+RU: В коробках нет нихуя~N полезного.~E
+
+[MAP3_S03.60]
+EN:
+RU: Здесь фанфурики~N с каким-то камом.~N Хуйня не вкусная.~E
+
+[MAP3_S03.61]
+EN:
+RU: Здесь пустые фанфурики.~E
+
+[MAP3_S03.62]
+EN:
+RU: В коробках нет нихуя~N интересного. Разглядывать~N залупу не нужно.~E
+
+[MAP3_S04.15]
+EN:
+RU: ~J1(3.6)
+
+[MAP3_S04.16]
+EN:
+RU: ~J1(1.0)
+
+[MAP3_S04.17]
+EN:
+RU: ~J1(3.1)
+
+[MAP3_S04.18]
+EN:
+RU: ~J1(1.2)
+
+[MAP3_S04.19]
+EN:
+RU: ~J0(4.7)
+
+[MAP3_S04.20]
+EN:
+RU: ~J0(2.7)
+
+[MAP3_S04.21]
+EN:
+RU: ~J0(3.2)
+
+[MAP3_S04.22]
+EN:
+RU: ~J0(1.3)
+
+[MAP3_S04.23]
+EN:
+RU: ~J1(3.8)
+
+[MAP3_S04.24]
+EN:
+RU: ~J1(2.5)
+
+[MAP3_S04.25]
+EN:
+RU: ~J1(4.0)
+
+[MAP3_S04.26]
+EN:
+RU: ~J1(2.8)
+
+[MAP3_S04.27]
+EN:
+RU: ~J1(3.6)
+
+[MAP3_S04.28]
+EN:
+RU: ~J1(2.8)
+
+[MAP3_S04.29]
+EN:
+RU: ~J1(3.8)
+
+[MAP3_S04.30]
+EN:
+RU: ~J1(1.2)
+
+[MAP3_S04.31]
+EN:
+RU: ~J1(3.0)
+
+[MAP3_S04.32]
+EN:
+RU: ~J1(4.8)
+
+[MAP3_S04.33]
+EN:
+RU: ~J1(1.3)
+
+[MAP3_S04.34]
+EN:
+RU: ~J1(2.2)
+
+[MAP3_S04.35]
+EN:
+RU: ~J1(3.8)
+
+[MAP3_S04.36]
+EN:
+RU: ~J1(3.8)
+
+[MAP3_S04.37]
+EN:
+RU: ~J1(2.7)
+
+[MAP3_S04.38]
+EN:
+RU: ~J1(4.0)
+
+[MAP3_S04.39]
+EN:
+RU: ~J1(2.0)
+
+[MAP3_S04.40]
+EN:
+RU: ~J1(2.0)
+
+[MAP3_S04.41]
+EN:
+RU: ~J1(1.7)
+
+[MAP3_S04.43]
+EN:
+RU: ~J0(2.5)
+
+[MAP3_S04.44]
+EN:
+RU: ~J0(2.5)
+
+[MAP3_S04.45]
+EN:
+RU: ~J0(2.6)
+
+[MAP3_S04.47]
+EN:
+RU: Тут у нас ~C2табличка [Наташа]~C7.~N Продлить?~S4
+
+[MAP3_S04.48]
+EN:
+RU: Я использовал ~C2ключ~N от дрочильни~C7.~E
+
+[MAP3_S04.49]
+EN:
+RU: Разъебанный торговый аппарат.~E
+
+[MAP3_S04.50]
+EN:
+RU: Нихуя необычного.~E
+
+[MAP3_S04.51]
+EN:
+RU: Холодильник пуст. Жрать охота пиздец.~E
+
+[MAP3_S04.52]
+EN:
+RU: Нихуя полезного.~E
+
+[MAP3_S04.53]
+EN:
+RU: В ящике стола нет~N нихуя полезного.~E
+
+[MAP3_S04.54]
+EN:
+RU: За дверью раздался~N какой-то секс.~E
+
+[MAP3_S05.15]
+EN:
+RU: Тут у нас ~C2вПорнушка~C7.~N Берем?~S4
+
+[MAP3_S05.16]
+EN:
+RU: ~C3 Олеся~E
+
+[MAP3_S05.17]
+EN:
+RU: Олеся?..~E
+
+[MAP3_S05.18]
+EN:
+RU: ~J0(1.2)
+
+[MAP3_S05.19]
+EN:
+RU: ~J0(2.6)
+
+[MAP3_S05.21]
+EN:
+RU: Тут у нас ~C2ключ от дрочильни~C7.~N Берем?~S4
+
+[MAP3_S05.22]
+EN:
+RU: Похоже, под решёткой~N спуск где кого-то ебут.
+
+[MAP3_S05.23]
+EN:
+RU: Лоза облапала решётку, так что~N я нихуя не могу ее пошевелить.~E
+
+[MAP3_S05.24]
+EN:
+RU: Блять.~N Когда я поджигаю лозу,~N то шашлыка нихуя нет.~E
+
+[MAP3_S05.25]
+EN:
+RU: Я облил лозу~N ~C2медицинским спиртом~C7~E
+
+[MAP3_S05.26]
+EN:
+RU: Спирт впитался в лозу. Нраица...~E
+
+[MAP3_S05.27]
+EN:
+RU: Я использовал ~C2ключ~N от склада в данжеоне~C7.~E
+
+[MAP3_S05.28]
+EN:
+RU: Ебануть шкаф?~S4
+
+[MAP3_S05.29]
+EN:
+RU: Пенетратор работает.~E
+
+[MAP3_S05.30]
+EN:
+RU: На полу видны следы, будто~N шкаф ебали.~E
+
+[MAP3_S05.31]
+EN:
+RU: Тут у нас ~C2Кувалда~C7.~N Берем?~S4
+
+[MAP3_S05.32]
+EN:
+RU: Кровать? Кто тут ебался?~N Ууу сука...~E
+
+[MAP3_S05.33]
+EN:
+RU: На каталке лежит тело.~N Нет желания ему присунуть.~E
+
+[MAP3_S05.34]
+EN:
+RU: Нихуя полезного.~E
+
+[MAP3_S05.35]
+EN:
+RU: В коробках нет нихуя~N полезного.~E
+
+[MAP3_S05.36]
+EN:
+RU: Здесь фанфурики~N с каким-то лекарством.~N Хуета.~E
+
+[MAP3_S05.37]
+EN:
+RU: Здесь пустые фанфурики.~E
+
+[MAP3_S05.38]
+EN:
+RU: В коробках нет нихуя~N интересного. Разглядывать~N залупу нечего.~E
+
+[MAP3_S05.39]
+EN:
+RU: Внутри нихуя нет.~E
+
+[MAP3_S06.15]
+EN:
+RU: ~J0(1.5)
+
+[MAP3_S06.16]
+EN:
+RU: ~J0(2.6)
+
+[MAP3_S06.17]
+EN:
+RU: ~J0(1.2)
+
+[MAP3_S06.18]
+EN:
+RU: ~J0(3.4)
+
+[MAP3_S06.19]
+EN:
+RU: ~J1(3.0)
+
+[MAP3_S06.20]
+EN:
+RU: ~J1(1.5)
+
+[MAP3_S06.21]
+EN:
+RU: ~J1(3.9)
+
+[MAP3_S06.22]
+EN:
+RU: ~J1(5.8)
+
+[MAP3_S06.23]
+EN:
+RU: ~J1(3.4)
+
+[MAP3_S06.24]
+EN:
+RU: ~J1(4.0)
+
+[MAP3_S06.25]
+EN:
+RU: ~J0(3.8)
+
+[MAP3_S06.26]
+EN:
+RU: ~J0(5.3)
+
+[MAP3_S06.27]
+EN:
+RU: ~J0(6.5)
+
+[MAP3_S06.28]
+EN:
+RU: ~J0(5.0)
+
+[MAP3_S06.29]
+EN:
+RU: ~J0(3.2)
+
+[MAP3_S06.30]
+EN:
+RU: ~J0(1.2)
+
+[MAP3_S06.31]
+EN:
+RU: ~J0(3.1)
+
+[MAP3_S06.32]
+EN:
+RU: ~J0(2.8)
+
+[MAP3_S06.33]
+EN:
+RU: ~J0(1.8)
+
+[MAP3_S06.34]
+EN:
+RU: Лифт, похоже, туда нассали.~E
+
+[MAP3_S06.35]
+EN:
+RU: ~H Тут у нас ~C5карта калечки~C7.~N Берем?~S4
+
+[MAP3_S06.36]
+EN:
+RU: Тут ~C2ключ от Секс Шопа~C7.~N Берем?~S4
+
+[MAP3_S06.37]
+EN:
+RU: Телефоны и справочники.~N А хотел порно журнал.~E
+
+[MAP3_S06.38]
+EN:
+RU: Телефоны и справочники, жаль порно журналов нет.
+
+[MAP3_S06.39]
+EN:
+RU: Я отметил секс~N шоп на карте.~E
+
+[MAP3_S06.40]
+EN:
+RU: Торговый аппарат.~N Разъебан.~E
+
+[MAP3_S06.41]
+EN:
+RU: Здесь газета для жопы.
+
+[MAP3_S06.42]
+EN:
+RU: Одну из статей вырезали нахуй...~E
+
+[MAP3_S06.43]
+EN:
+RU: Нихуя необычного.~E
+
+[MAP3_S06.44]
+EN:
+RU: Это белая доска.~N На ней хуем~N написали.~E
+
+[MAP3_S06.45]
+EN:
+RU: Нихуя полезного.~E
+
+[MAP3_S06.46]
+EN:
+RU: Телефон отключён.~N ВПН отрубили.~E
+
+[MAP4_S01.15]
+EN:
+RU: ~J0(1.6)
+
+[MAP4_S01.16]
+EN:
+RU: ~J0(1.0)
+
+[MAP4_S01.17]
+EN:
+RU: ~J0(1.0)
+
+[MAP4_S01.18]
+EN:
+RU: ~J0(2.8)
+
+[MAP4_S01.19]
+EN:
+RU: ~J1(4.0)
+
+[MAP4_S01.20]
+EN:
+RU: ~J1(1.4)
+
+[MAP4_S01.21]
+EN:
+RU: ~J1(3.0)
+
+[MAP4_S01.22]
+EN:
+RU: ~J1(2.8)
+
+[MAP4_S01.23]
+EN:
+RU: ~J1(1.8)
+
+[MAP4_S01.24]
+EN:
+RU: ~J1(2.0)
+
+[MAP4_S01.25]
+EN:
+RU: ~J1(2.2)
+
+[MAP4_S01.26]
+EN:
+RU: ~J1(2.4)
+
+[MAP4_S01.27]
+EN:
+RU: ~J1(2.7)
+
+[MAP4_S01.28]
+EN:
+RU: ~J1(1.9)
+
+[MAP4_S01.29]
+EN:
+RU: ~J1(1.4)
+
+[MAP4_S01.30]
+EN:
+RU: ~J1(2.6)
+
+[MAP4_S01.31]
+EN:
+RU: ~J1(2.4)
+
+[MAP4_S01.32]
+EN:
+RU: ~J1(2.7)
+
+[MAP4_S01.33]
+EN:
+RU: ~J1(3.5)
+
+[MAP4_S01.34]
+EN:
+RU: ~J1(3.4)
+
+[MAP4_S01.35]
+EN:
+RU: ~J1(2.0)
+
+[MAP4_S01.36]
+EN:
+RU: ~J1(2.5)
+
+[MAP4_S01.37]
+EN:
+RU: ~J1(4.8)
+
+[MAP4_S01.38]
+EN:
+RU: ~J1(3.0)
+
+[MAP4_S01.39]
+EN:
+RU: ~J1(3.6)
+
+[MAP4_S01.41]
+EN:
+RU: ~J1(3.0)
+
+[MAP4_S01.42]
+EN:
+RU: ~J1(3.0)
+
+[MAP4_S01.43]
+EN:
+RU: ~J1(4.0)
+
+[MAP4_S01.44]
+EN:
+RU: ~J1(1.8)
+
+[MAP4_S01.45]
+EN:
+RU: ~J1(1.0)
+
+[MAP4_S01.46]
+EN:
+RU: ~J1(1.2)
+
+[MAP4_S01.47]
+EN:
+RU: ~J1(4.0)
+
+[MAP4_S01.48]
+EN:
+RU: ~J1(1.8)
+
+[MAP4_S01.49]
+EN:
+RU: ~J1(2.0)
+
+[MAP4_S01.50]
+EN:
+RU: ~J1(2.9)
+
+[MAP4_S01.51]
+EN:
+RU: ~J1(1.6)
+
+[MAP4_S01.52]
+EN:
+RU: ~J1(2.0)
+
+[MAP4_S01.53]
+EN:
+RU: ~J1(2.8)
+
+[MAP4_S01.54]
+EN:
+RU: ~J1(2.2)
+
+[MAP4_S01.55]
+EN:
+RU: ~J1(2.5)
+
+[MAP4_S01.56]
+EN:
+RU: ~J1(3.5)
+
+[MAP4_S01.57]
+EN:
+RU: ~J1(3.2)
+
+[MAP4_S01.58]
+EN:
+RU: ~J1(3.6)
+
+[MAP4_S01.59]
+EN:
+RU: ~J1(1.8)
+
+[MAP4_S01.61]
+EN:
+RU: ~J1(1.2)
+
+[MAP4_S01.62]
+EN:
+RU: ~J1(1.5)
+
+[MAP4_S01.63]
+EN:
+RU: ~J1(1.8)
+
+[MAP4_S01.64]
+EN:
+RU: ~J1(1.4)
+
+[MAP4_S01.65]
+EN:
+RU: ~J1(1.0)
+
+[MAP4_S01.66]
+EN:
+RU: ~J1(4.0)
+
+[MAP4_S01.67]
+EN:
+RU: ~J1(2.2)
+
+[MAP4_S01.68]
+EN:
+RU: ~J1(3.0)
+
+[MAP4_S01.69]
+EN:
+RU: ~J1(0.9)
+
+[MAP4_S01.70]
+EN:
+RU: ~J1(1.5)
+
+[MAP4_S01.71]
+EN:
+RU: ~J1(1.7)
+
+[MAP4_S01.72]
+EN:
+RU: ~J1(3.6)
+
+[MAP4_S01.73]
+EN:
+RU: ~J0(0.8)
+
+[MAP4_S01.74]
+EN:
+RU: ~J0(1.0) .
+
+[MAP4_S01.75]
+EN:
+RU: ~J0(0.9)
+
+[MAP4_S01.76]
+EN:
+RU: ~J1(2.2) .
+
+[MAP4_S01.77]
+EN:
+RU: ~J1(6.2)
+
+[MAP4_S01.78]
+EN:
+RU: ~J1(1.9)
+
+[MAP4_S01.79]
+EN:
+RU: ~J1(1.7)
+
+[MAP4_S01.80]
+EN:
+RU: ~J1(3.7)
+
+[MAP4_S01.81]
+EN:
+RU: ~J1(4.0)
+
+[MAP4_S01.82]
+EN:
+RU: ~J1(2.7)
+
+[MAP4_S01.83]
+EN:
+RU: ~J1(3.7)
+
+[MAP4_S01.84]
+EN:
+RU: ~J1(4.2)
+
+[MAP4_S01.85]
+EN:
+RU: ~J1(3.0)
+
+[MAP4_S01.86]
+EN:
+RU: ~J1(1.8)
+
+[MAP4_S01.87]
+EN:
+RU: ~J1(4.5)
+
+[MAP4_S01.88]
+EN:
+RU: ~J1(1.0)
+
+[MAP4_S01.89]
+EN:
+RU: ~J1(2.5)
+
+[MAP4_S01.90]
+EN:
+RU: ~J0(2.4)
+
+[MAP4_S01.91]
+EN:
+RU: ~J1(4.1)
+
+[MAP4_S01.92]
+EN:
+RU: ~J1(2.6)
+
+[MAP4_S01.93]
+EN:
+RU: ~J1(2.5)
+
+[MAP4_S01.94]
+EN:
+RU: В чаше насыпан какой-то~N герыч.~E
+
+[MAP4_S01.96]
+EN:
+RU: ~J2(1.5)
+
+[MAP4_S01.97]
+EN:
+RU: ~J0(4.2)
+
+[MAP4_S01.98]
+EN:
+RU: ~J0(1.0)
+
+[MAP4_S01.99]
+EN:
+RU: ~J0(2.3)
+
+[MAP4_S01.100]
+EN:
+RU: На полу видны следы, ~N будто кто-то ебал шкаф.
+
+[MAP4_S01.101]
+EN:
+RU: Ебать шкаф?~S4
+
+[MAP4_S01.102]
+EN:
+RU: ~J0(2.0) Неужели очередной передоз?~E
+
+[MAP4_S01.103]
+EN:
+RU: ~J0(2.0) Я опять потерял сознание?~E
+
+[MAP4_S01.104]
+EN:
+RU: ~J0(2.0) Не хотелось бы так думать,
+
+[MAP4_S01.105]
+EN:
+RU: ~J0(3.0) но что если это все ~N моя передозная шизофрения?
+
+[MAP4_S01.106]
+EN:
+RU: ~J0(4.0) Возможно, я ебанулся нахуй ~N и теперь лежу балдею ~N на дрочильной койке...
+
+[MAP4_S01.107]
+EN:
+RU: ~J0(2.0) Я уже не знаю, что ~N пиздец, а что - нихуя нет...~E
+
+[MAP4_S01.109]
+EN:
+RU: ~J0(3.0) Дибил сказала, что Черил~N направлялась в сторону озера.
+
+[MAP4_S01.110]
+EN:
+RU: ~J0(2.2) Но на дороге к озеру~N жопу могут порвать...
+
+[MAP4_S01.111]
+EN:
+RU: ~J0(2.0) Других дорог нихуя нет?
+
+[MAP4_S01.112]
+EN:
+RU: ~J0(2.0) Лизка, вероятно, может напиздеть...~E
+
+[MAP4_S01.113]
+EN:
+RU: Тут у нас ~C2топорик~C7.~N Берем?~S4
+
+[MAP4_S01.114]
+EN:
+RU: Часы.~N Стрелка на пол шестого.~E
+
+[MAP4_S01.115]
+EN:
+RU: Не хуй возвращаться.~E
+
+[MAP4_S01.116]
+EN:
+RU: Всё это не нужная поебатень.~E
+
+[MAP4_S01.117]
+EN:
+RU: Похоже на мангал.~N Интересно, из кого тут~N шашлыки жарят?~E
+
+[MAP4_S02.15]
+EN:
+RU: ~C3 [Зелёный лева]~E
+
+[MAP4_S02.16]
+EN:
+RU: ~C3 Калечка [Охуелла]~E
+
+[MAP4_S03.15]
+EN:
+RU: Батя... Где же ты блять!?..
+
+[MAP4_S03.16]
+EN:
+RU: ~J0(1.0)
+
+[MAP4_S03.17]
+EN:
+RU: Тут у нас ~C2Валына~C7.~N Берем?~S4
+
+[MAP4_S03.18]
+EN:
+RU: Нихуя полезного.~E
+
+[MAP4_S03.19]
+EN:
+RU: На экран выводится~N порево.
+
+[MAP4_S03.20]
+EN:
+RU: Черил...~N Где же она проебалась?~E
+
+[MAP4_S04.15]
+EN:
+RU: ~J0(1.8)
+
+[MAP4_S04.16]
+EN:
+RU: ~J1(1.0)
+
+[MAP4_S04.17]
+EN:
+RU: ~J1(1.2)
+
+[MAP4_S04.18]
+EN:
+RU: ~J1(1.5)
+
+[MAP4_S04.19]
+EN:
+RU: ~J1(2.4)
+
+[MAP4_S04.20]
+EN:
+RU: ~J1(0.8)
+
+[MAP4_S04.21]
+EN:
+RU: ~J1(4.2)
+
+[MAP4_S04.22]
+EN:
+RU: ~J1(1.3)
+
+[MAP4_S04.23]
+EN:
+RU: ~J1(2.2)
+
+[MAP4_S04.24]
+EN:
+RU: ~J1(2.2)
+
+[MAP4_S04.25]
+EN:
+RU: ~J1(4.3)
+
+[MAP4_S04.26]
+EN:
+RU: ~J1(3.2)
+
+[MAP4_S04.27]
+EN:
+RU: ~J1(2.3)
+
+[MAP4_S04.28]
+EN:
+RU: ~J1(4.0)
+
+[MAP4_S04.29]
+EN:
+RU: ~J1(5.2)
+
+[MAP4_S04.30]
+EN:
+RU: ~J1(5.1)
+
+[MAP4_S04.31]
+EN:
+RU: ~J1(2.7)
+
+[MAP4_S04.32]
+EN:
+RU: ~J1(3.5)
+
+[MAP4_S04.33]
+EN:
+RU: ~J1(2.1)
+
+[MAP4_S04.34]
+EN:
+RU: ~J1(2.9)
+
+[MAP4_S04.35]
+EN:
+RU: ~J1(3.4)
+
+[MAP4_S04.36]
+EN:
+RU: ~J1(4.1)
+
+[MAP4_S04.37]
+EN:
+RU: ~J1(4.8)
+
+[MAP4_S04.38]
+EN:
+RU: ~J1(5.0)
+
+[MAP4_S04.39]
+EN:
+RU: ~J1(3.7)
+
+[MAP4_S04.40]
+EN:
+RU: ~J1(3.5)
+
+[MAP4_S04.41]
+EN:
+RU: ~J1(4.5)
+
+[MAP4_S04.42]
+EN:
+RU: ~J1(3.8)
+
+[MAP4_S04.43]
+EN:
+RU: ~J0(1.8)
+
+[MAP4_S04.44]
+EN:
+RU: ~J0(4.8)
+
+[MAP4_S04.45]
+EN:
+RU: ~J1(4.4)
+
+[MAP4_S04.46]
+EN:
+RU: ~J1(2.0)
+
+[MAP4_S04.47]
+EN:
+RU: ~J1(4.2)
+
+[MAP4_S04.48]
+EN:
+RU: ~J0(1.1)
+
+[MAP4_S04.49]
+EN:
+RU: ~J0(1.6)
+
+[MAP4_S04.50]
+EN:
+RU: ~J0(4.6)
+
+[MAP4_S04.51]
+EN:
+RU: ~J0(2.5)
+
+[MAP4_S04.52]
+EN:
+RU: ~J0(1.6)
+
+[MAP4_S04.53]
+EN:
+RU: ~J1(3.3)
+
+[MAP4_S04.54]
+EN:
+RU: ~J1(3.0)
+
+[MAP4_S04.55]
+EN:
+RU: ~J1(1.5)
+
+[MAP4_S04.56]
+EN:
+RU: ~J1(2.3)
+
+[MAP4_S04.57]
+EN:
+RU: ~J1(1.3)
+
+[MAP4_S04.58]
+EN:
+RU: ~J1(2.7)
+
+[MAP4_S04.59]
+EN:
+RU: ~J1(3.0)
+
+[MAP4_S04.60]
+EN:
+RU: ~J1(0.6)
+
+[MAP4_S04.61]
+EN:
+RU: ~J1(3.3)
+
+[MAP4_S04.62]
+EN:
+RU: ~J1(2.3)
+
+[MAP4_S04.63]
+EN:
+RU: ~J1(4.2)
+
+[MAP4_S04.64]
+EN:
+RU: ~J1(3.2)
+
+[MAP4_S04.65]
+EN:
+RU: ~J1(0.9)
+
+[MAP4_S04.66]
+EN:
+RU: ~J1(2.3)
+
+[MAP4_S04.67]
+EN:
+RU: ~J1(3.1)
+
+[MAP4_S04.68]
+EN:
+RU: ~J1(2.8)
+
+[MAP4_S04.69]
+EN:
+RU: ~J1(2.3)
+
+[MAP4_S04.70]
+EN:
+RU: ~J1(2.0)
+
+[MAP4_S04.71]
+EN:
+RU: ~J1(4.2)
+
+[MAP4_S04.72]
+EN:
+RU: ~J1(1.6)
+
+[MAP4_S04.73]
+EN:
+RU: ~J1(2.6)
+
+[MAP4_S04.74]
+EN:
+RU: ~J1(3.6)
+
+[MAP4_S04.75]
+EN:
+RU: ~J1(4.2)
+
+[MAP4_S04.76]
+EN:
+RU: ~J1(4.0)
+
+[MAP4_S04.77]
+EN:
+RU: ~J1(3.8)
+
+[MAP4_S04.78]
+EN:
+RU: ~J1(3.0)
+
+[MAP4_S04.79]
+EN:
+RU: ~J0(1.5)
+
+[MAP4_S04.80]
+EN:
+RU: Нихуя необычного.~E
+
+[MAP4_S04.81]
+EN:
+RU: Нихуя полезного.~E
+
+[MAP4_S05.15]
+EN:
+RU: ~J0(1.0) Каво?~E
+
+[MAP4_S05.16]
+EN:
+RU: ~J0(2.5) Че там за хуйня!?~E
+
+[MAP4_S05.17]
+EN:
+RU: Лестница разъебана!~E
+
+[MAP4_S05.18]
+EN:
+RU: ~C3 Калечка [Охуелла]~E
+
+[MAP5_S00.15]
+EN:
+RU: Я использовал ~C2ключ~N от Анализации~C7.~E
+
+[MAP5_S00.16]
+EN:
+RU: Я использовал ~C2ключ~N от двери Анализации~C7.~E
+
+[MAP5_S00.17]
+EN:
+RU: Тут у нас ~C2ключ от Анализации~C7.~N Берем?~S4
+
+[MAP5_S00.18]
+EN:
+RU: В говне лежит ~C2ключ~N от двери Анализации~C7.~N Берем?~S4
+
+[MAP5_S00.19]
+EN:
+RU: Нужно найти Черил.~N Не хуй возвращаться.~E
+
+[MAP5_S00.20]
+EN:
+RU: ~H Тут ~C5карта Анализации~N (прилегающей к чиловому~N району)~C7. Берем?~S4
+
+[MAP5_S01.15]
+EN:
+RU: ~H Тут у нас ~C5карта чилового района~C7.~N Взять?~S4
+
+[MAP5_S01.16]
+EN:
+RU: Нихуя необычного.~E
+
+[MAP5_S01.17]
+EN:
+RU: Я использовал ~C2ключ Кайфмана~C7.~E
+
+[MAP5_S01.18]
+EN:
+RU: ~J0(1.0) Че блять?~E
+
+[MAP5_S01.19]
+EN:
+RU: ~J0(2.5) Че там за хуйня!?~E
+
+[MAP5_S02.16]
+EN:
+RU: ~J0(1.2)
+
+[MAP5_S02.17]
+EN:
+RU: ~J0(1.4)
+
+[MAP5_S02.18]
+EN:
+RU: ~J0(3.0)
+
+[MAP5_S02.19]
+EN:
+RU: ~J1(3.0)
+
+[MAP5_S02.20]
+EN:
+RU: ~J1(2.4)
+
+[MAP5_S02.21]
+EN:
+RU: ~J1(1.1)
+
+[MAP5_S02.22]
+EN:
+RU: ~J1(1.0)
+
+[MAP5_S02.23]
+EN:
+RU: ~J1(1.8)
+
+[MAP5_S02.24]
+EN:
+RU: ~J1(2.8)
+
+[MAP5_S02.25]
+EN:
+RU: ~J1(3.4)
+
+[MAP5_S02.26]
+EN:
+RU: ~J1(2.8)
+
+[MAP5_S02.27]
+EN:
+RU: ~J1(1.7)
+
+[MAP5_S02.28]
+EN:
+RU: ~J1(1.4)
+
+[MAP5_S02.29]
+EN:
+RU: ~J1(3.4)
+
+[MAP5_S02.30]
+EN:
+RU: ~J0(2.0)
+
+[MAP5_S02.31]
+EN:
+RU: ~J0(1.0)
+
+[MAP5_S02.32]
+EN:
+RU: Кайфман проебал это~E
+
+[MAP5_S02.33]
+EN:
+RU: Так, и что тут у нас...~E
+
+[MAP5_S02.34]
+EN:
+RU: Что это?~N Гашиш?~E
+
+[MAP5_S02.35]
+EN:
+RU: ~C3 20 августа
+
+[MAP5_S02.36]
+EN:
+RU: ~C3 Он припиздил. Я закинул~N ему пакет, что оставила~N та вуман.
+
+[MAP5_S02.37]
+EN:
+RU: ~C3 12 сентября
+
+[MAP5_S02.38]
+EN:
+RU: ~C3 Он залупился и [У Нормального].
+
+[MAP5_S02.39]
+EN:
+RU: ~C3 Не хочу больше ебаться~N с подобными ишаками, но...
+
+[MAP5_S02.40]
+EN:
+RU: ~C3 Я пиздец очкую~N обоссусь сейчас.
+
+[MAP5_S02.41]
+EN:
+RU: ~C3 Уж подумал съебаться из села,~N но ссу того, что может~N случиться, если я соскочу.~E
+
+[MAP5_S02.42]
+EN:
+RU: ~C3 3 буханки сладкого хлеба.~N 3 пакета кама.~N 2 десятка мужских яиц.
+
+[MAP5_S02.43]
+EN:
+RU: ~C3 Доставлять к анальному ходу~N ежедневно к 8:00.~N Код замка - 0886~N Нормально Яга~E
+
+[MAP5_S02.44]
+EN:
+RU: ~C3 [У Нормально]. Мы обосрались!~E
+
+[MAP5_S02.45]
+EN:
+RU: Тута шкафчик.~N Спиздить?~S4
+
+[MAP5_S02.46]
+EN:
+RU: Я использовал ~C2ключ от сейфа~C7.~E
+
+[MAP5_S02.47]
+EN:
+RU: Тут у нас ~C2ключ от сейфа~C7.~N Берем?~S4
+
+[MAP5_S02.48]
+EN:
+RU: Блять.~E
+
+[MAP5_S02.49]
+EN:
+RU: Я подобрал ~C2чек~C7.~E
+
+[MAP5_S02.50]
+EN:
+RU: Я спиздил ~C2ключ Кайфмана~C7.~E
+
+[MAP5_S03.15]
+EN:
+RU: Я спиздил ~C2ключ от мотика~C7.~E
+
+[MAP5_S03.16]
+EN:
+RU: В полу есть целочка.~E
+
+[MAP5_S03.17]
+EN:
+RU: В полу есть целочка.~N Внутри что-то сочное.
+
+[MAP5_S03.18]
+EN:
+RU: Целочка слишком узкая.~N Я не смогу присунуть~N туда.~E
+
+[MAP5_S03.19]
+EN:
+RU: Старый мотик.
+
+[MAP5_S03.20]
+EN:
+RU: Похоже, он уже давным-давно~N разъебан.
+
+[MAP5_S03.22]
+EN:
+RU: Каво.
+
+[MAP5_S03.23]
+EN:
+RU: Вокруг крышки бензобака~N залупой стёрли пыль.~E
+
+[MAP5_S03.24]
+EN:
+RU: Стеклянный фанфурик,~N завёрнутый в бич ~N пакет.
+
+[MAP5_S03.25]
+EN:
+RU: Че эта за хуйня?~E
+
+[MAP5_S03.26]
+EN:
+RU: Похож на тот разхуяренный фанфурик,~N что я нашёл в кабинете~N директора в каличке.~E
+
+[MAP5_S03.27]
+EN:
+RU: ~J0(1.3)
+
+[MAP5_S03.28]
+EN:
+RU: ~J0(1.2)
+
+[MAP5_S03.29]
+EN:
+RU: ~J1(2.0)
+
+[MAP5_S03.30]
+EN:
+RU: ~J1(3.3)
+
+[MAP5_S03.31]
+EN:
+RU: ~J1(0.9)
+
+[MAP5_S03.32]
+EN:
+RU: ~J1(2.6)
+
+[MAP5_S03.33]
+EN:
+RU: ~J1(1.3)
+
+[MAP5_S03.34]
+EN:
+RU: ~J1(3.0)
+
+[MAP5_S03.35]
+EN:
+RU: ~J1(1.9)
+
+[MAP5_S03.36]
+EN:
+RU: ~J1(3.2)
+
+[MAP5_S03.37]
+EN:
+RU: ~J1(0.8)
+
+[MAP5_S03.38]
+EN:
+RU: ~J1(3.3) Этот хуй по любе замешан ~N с этими барыгами.
+
+[MAP5_S03.39]
+EN:
+RU: ~J1(3.1) Ох, как же он заагрлися.~N Все тут разъебать хотел.
+
+[MAP5_S03.40]
+EN:
+RU: ~J1(1.8) Наверное, в фанфурике~N были какие-то месики.
+
+[MAP5_S03.41]
+EN:
+RU: ~J1(3.9) А, похуй, пускай идет,~N нахуй. Ведь на кону~N больше, чем просто моя срака.~E
+
+[MAP5_S03.42]
+EN:
+RU: ~J1(2.0) Наверное, я зря проебал время.
+
+[MAP5_S03.43]
+EN:
+RU: ~J1(2.0) Лучше поспешить....~N Я охуеваю за Черил.~E
+
+[MAP5_S03.44]
+EN:
+RU: ~J1(3.1) Ох, как же он заагрился.~N Все тут разъебать хотел.~E
+
+[MAP5_S03.45]
+EN:
+RU: Это газета для жопы.~E
+
+[MAP5_S03.46]
+EN:
+RU: Газета для жопы.
+
+[MAP5_S03.47]
+EN:
+RU: На ней та же дата, что и~N на жопной газете в калечке...~E
+
+[MAP5_S03.48]
+EN:
+RU: ~L4~C3Расследование проебалось.~N Барыги всё ещё на свободе.~N ~N Разрывания жоп продолжаются.~N Как и выступавший против~N гашиша мэр, офицер~N наркоотдела обосрался от~N внезапной остановки насоса~N неизвестной ебатории.~E
+
+[MAP5_S03.49]
+EN:
+RU: ~C3 10 сентября
+
+[MAP5_S03.50]
+EN:
+RU: ~C3 Получил пакет.~N Можно немного пыхнуть.
+
+[MAP5_S03.51]
+EN:
+RU: ~C3 Не хочу выебываться,~N но проебаться не могу...
+
+[MAP5_S03.52]
+EN:
+RU: ~C3 Вероятно, он замешан в развывании очка~N мэра и других.~E
+
+[MAP5_S03.53]
+EN:
+RU: Тут у нас ~C2магнито~C7.~N Берем?~S4
+
+[MAP5_S03.54]
+EN:
+RU: Я использовал ~C2ключ~N от мотика~C7.~E
+
+[MAP5_S03.55]
+EN:
+RU: На полках стоят аккумуляторы,~N канистры с маслом, и не спиздить.
+
+[MAP5_S03.56]
+EN:
+RU: Здесь столько пыли, что, ~N видно, никто тут~N залупой не тер.~E
+
+[MAP5_S03.57]
+EN:
+RU: На тумбочке стоит шансон.
+
+[MAP5_S03.58]
+EN:
+RU: Не фурычит.~N Видимо, разъебали.~E
+
+[MAP5_S03.59]
+EN:
+RU: На стене висит плакат.~N Кто-то гавно размазал не нем.~E
+
+[MAP5_S03.60]
+EN:
+RU: Телевизор.
+
+[MAP5_S03.61]
+EN:
+RU: Видимо, света нет.~N Соловьева не посмотреть.~E
+
+[MAP5_S03.62]
+EN:
+RU: Журнал кастрации гостей.~N В нём нихуя ничего~N интересного.~E
+
+[MAP5_S03.63]
+EN:
+RU: Нихуя особенного.~E
+
+[MAP5_S03.64]
+EN:
+RU: Торговый аппарат.~N Не фурычит.~E
+
+[MAP5_S03.65]
+EN:
+RU: Внутри нихуя нет.~E
+
+[MAP5_S03.66]
+EN:
+RU: Ебать полку?~S4
+
+[MAP5_S03.67]
+EN:
+RU: Старый мотик.~E
+
+[MAP6_S00.15]
+EN:
+RU: ~J0(1.5)
+
+[MAP6_S00.19]
+EN:
+RU: ~J1(4.0) Блять опять!?..~N Нет, в этот раз всё обосрали.
+
+[MAP6_S00.20]
+EN:
+RU: ~J1(4.5) Это не перемещение~N из реальности в калище,
+
+[MAP6_S00.21]
+EN:
+RU: ~J1(4.5) а, скорее, превращение~N ебатории в говнище.
+
+[MAP6_S00.22]
+EN:
+RU: ~J1(6.0) Еще эта музыка на фоне~N ебаная. Будто бешеный бурят~N хуячит по трубам...
+
+[MAP6_S00.23]
+EN:
+RU: ~J1(4.0) Либо этот аутизм, происходит ~N от песен Муцараева...~E
+
+[MAP6_S00.24]
+EN:
+RU: Крышку наебнули...
+
+[MAP6_S00.25]
+EN:
+RU: Наверное, Дибил решила так~N хуйнуть до парка анальных развлечений.~E
+
+[MAP6_S00.26]
+EN:
+RU: ~C3 Парк Анальных развлечений [Озерное очко]~E
+
+[MAP6_S01.15]
+EN:
+RU: ~J0(1.0)
+
+[MAP6_S01.16]
+EN:
+RU: ~J1(1.1)
+
+[MAP6_S01.17]
+EN:
+RU: ~J1(1.6)
+
+[MAP6_S01.18]
+EN:
+RU: ~J1(1.6)
+
+[MAP6_S01.19]
+EN:
+RU: ~J1(1.9)
+
+[MAP6_S01.20]
+EN:
+RU: ~J1(1.0)
+
+[MAP6_S01.21]
+EN:
+RU: ~J1(3.0)
+
+[MAP6_S01.22]
+EN:
+RU: ~J1(3.6)
+
+[MAP6_S01.23]
+EN:
+RU: ~J1(1.0)
+
+[MAP6_S01.24]
+EN:
+RU: ~J1(2.1)
+
+[MAP6_S01.25]
+EN:
+RU: ~J1(2.4)
+
+[MAP6_S01.26]
+EN:
+RU: ~J1(3.5)
+
+[MAP6_S01.27]
+EN:
+RU: ~J1(1.8)
+
+[MAP6_S01.28]
+EN:
+RU: ~J1(3.2)
+
+[MAP6_S01.29]
+EN:
+RU: ~J1(3.7)
+
+[MAP6_S01.30]
+EN:
+RU: ~J1(2.3)
+
+[MAP6_S01.31]
+EN:
+RU: ~J1(3.0)
+
+[MAP6_S01.32]
+EN:
+RU: ~J1(2.5)
+
+[MAP6_S01.33]
+EN:
+RU: ~J1(4.0)
+
+[MAP6_S01.34]
+EN:
+RU: ~J1(2.9)
+
+[MAP6_S01.35]
+EN:
+RU: ~J1(2.8)
+
+[MAP6_S01.36]
+EN:
+RU: ~J1(4.2)
+
+[MAP6_S01.37]
+EN:
+RU: ~J1(4.6)
+
+[MAP6_S01.38]
+EN:
+RU: ~J1(3.1)
+
+[MAP6_S01.39]
+EN:
+RU: ~J1(1.8)
+
+[MAP6_S01.40]
+EN:
+RU: ~J1(2.2)
+
+[MAP6_S01.41]
+EN:
+RU: ~J1(1.6)
+
+[MAP6_S01.42]
+EN:
+RU: ~J1(2.8)
+
+[MAP6_S01.43]
+EN:
+RU: ~J1(1.0)
+
+[MAP6_S01.44]
+EN:
+RU: ~J1(3.1)
+
+[MAP6_S01.45]
+EN:
+RU: ~J1(3.2)
+
+[MAP6_S01.46]
+EN:
+RU: ~J1(1.0)
+
+[MAP6_S01.47]
+EN:
+RU: ~J1(2.8)
+
+[MAP6_S01.48]
+EN:
+RU: ~J1(1.8)
+
+[MAP6_S01.49]
+EN:
+RU: ~J1(1.5)
+
+[MAP6_S01.50]
+EN:
+RU: ~J1(5.2)
+
+[MAP6_S01.51]
+EN:
+RU: ~J1(1.7)
+
+[MAP6_S01.52]
+EN:
+RU: ~J1(2.9)
+
+[MAP6_S01.53]
+EN:
+RU: ~J1(4.4)
+
+[MAP6_S01.54]
+EN:
+RU: ~J1(4.9)
+
+[MAP6_S01.55]
+EN:
+RU: ~J1(3.1)
+
+[MAP6_S01.56]
+EN:
+RU: ~J1(3.9)
+
+[MAP6_S01.57]
+EN:
+RU: ~J1(2.5)
+
+[MAP6_S01.58]
+EN:
+RU: ~J1(5.3)
+
+[MAP6_S01.59]
+EN:
+RU: ~J1(3.6)
+
+[MAP6_S01.60]
+EN:
+RU: ~J1(4.6)
+
+[MAP6_S01.61]
+EN:
+RU: ~J1(5.8)
+
+[MAP6_S01.62]
+EN:
+RU: ~J1(3.1)
+
+[MAP6_S01.63]
+EN:
+RU: ~J0(3.5)
+
+[MAP6_S01.64]
+EN:
+RU: ~J1(3.6)
+
+[MAP6_S01.65]
+EN:
+RU: ~J1(4.6)
+
+[MAP6_S01.66]
+EN:
+RU: ~J1(3.7)
+
+[MAP6_S01.67]
+EN:
+RU: ~J1(2.6)
+
+[MAP6_S01.68]
+EN:
+RU: ~J1(3.0)
+
+[MAP6_S01.69]
+EN:
+RU: ~J1(1.6)
+
+[MAP6_S01.70]
+EN:
+RU: ~J1(3.0)
+
+[MAP6_S01.71]
+EN:
+RU: ~J1(3.5)
+
+[MAP6_S01.72]
+EN:
+RU: ~J1(3.5)
+
+[MAP6_S01.73]
+EN:
+RU: ~J0(1.1)
+
+[MAP6_S01.74]
+EN:
+RU: ~J0(2.1)
+
+[MAP6_S01.75]
+EN:
+RU: ~J0(4.4)
+
+[MAP6_S01.76]
+EN:
+RU: ~J0(1.9)
+
+[MAP6_S01.77]
+EN:
+RU: ~J0(1.7)
+
+[MAP6_S01.78]
+EN:
+RU: ~J0(2.5)
+
+[MAP6_S01.79]
+EN:
+RU: ~J0(2.1)
+
+[MAP6_S01.80]
+EN:
+RU: ~J0(1.2)
+
+[MAP6_S01.81]
+EN:
+RU: ~J0(1.7)
+
+[MAP6_S01.82]
+EN:
+RU: ~J0(3.2)
+
+[MAP6_S01.83]
+EN:
+RU: ~J0(2.0)
+
+[MAP6_S01.84]
+EN:
+RU: ~J0(2.0)
+
+[MAP6_S01.85]
+EN:
+RU: ~J0(3.5)
+
+[MAP6_S01.86]
+EN:
+RU: ~J0(2.0)
+
+[MAP6_S01.87]
+EN:
+RU: Штурвал.~N Меня интересует только голландский.~E
+
+[MAP6_S01.88]
+EN:
+RU: К стене прихуячена черешня.~E
+
+[MAP6_S01.89]
+EN:
+RU: ~J0(1.0) Каво?~E
+
+[MAP6_S01.90]
+EN:
+RU: ~J0(2.5) Че там за хуйня!?~E
+
+[MAP6_S02.16]
+EN:
+RU: ~J0(1.0) П
+
+[MAP6_S02.17]
+EN:
+RU: ~J0(1.7)
+
+[MAP6_S02.18]
+EN:
+RU: ~J0(1.5) .
+
+[MAP6_S02.19]
+EN:
+RU: ~J0(0.6)
+
+[MAP6_S02.21]
+EN:
+RU: ~J0(3.6)
+
+[MAP6_S02.22]
+EN:
+RU: ~J0(2.8)
+
+[MAP6_S02.23]
+EN:
+RU: ~J0(1.0) Каво?~E
+
+[MAP6_S02.24]
+EN:
+RU: ~J0(2.5) Че там за хуйня!?~E
+
+[MAP6_S03.15]
+EN:
+RU: ~H Тут у нас ~C5карта Анализации~N (прилегающей к парку~N анальных развлечений)~C7. Берем?~S4
+
+[MAP6_S03.16]
+EN:
+RU: Нужно найти Дибил!~N Не хуй возвращаться.~E
+
+[MAP6_S04.15]
+EN:
+RU: Нужно пиздовать Дибил!~N Нет хуй возвращаться.~E
+
+[MAP6_S04.17]
+EN:
+RU: ~J0(10) Дибил!~E
+
+[MAP6_S04.18]
+EN:
+RU: ~J0(2.3) Рожай! Ну же сука блять!~E
+
+[MAP6_S04.19]
+EN:
+RU: ~J0(1.0)
+
+[MAP6_S04.20]
+EN:
+RU: ~J0(4.7)
+
+[MAP6_S04.21]
+EN:
+RU: ~J0(3.3)
+
+[MAP6_S04.22]
+EN:
+RU: ~J1(4.8)
+
+[MAP6_S04.23]
+EN:
+RU: ~J1(2.3)
+
+[MAP6_S04.24]
+EN:
+RU: ~J1(3.0)
+
+[MAP6_S04.25]
+EN:
+RU: ~J1(4.3)
+
+[MAP6_S04.26]
+EN:
+RU: ~J1(3.0)
+
+[MAP6_S04.27]
+EN:
+RU: ~J1(3.3)
+
+[MAP6_S04.28]
+EN:
+RU: ~J1(3.9)
+
+[MAP6_S04.29]
+EN:
+RU: ~J1(3.3)
+
+[MAP6_S04.30]
+EN:
+RU: ~J1(3.3)
+
+[MAP6_S04.31]
+EN:
+RU: ~J1(2.4)
+
+[MAP6_S04.32]
+EN:
+RU: ~J1(3.4)
+
+[MAP6_S04.33]
+EN:
+RU: ~J1(2.7)
+
+[MAP6_S04.34]
+EN:
+RU: ~J1(3.1)
+
+[MAP6_S04.35]
+EN:
+RU: ~J1(5.2)
+
+[MAP6_S04.36]
+EN:
+RU: ~J1(3.4)
+
+[MAP6_S04.37]
+EN:
+RU: ~J1(3.5)
+
+[MAP6_S04.38]
+EN:
+RU: ~J1(4.5)
+
+[MAP6_S04.41]
+EN:
+RU: ~J0(6.0) Какого хуя...~N Как такая пизда случилась?~E
+
+[MAP6_S04.42]
+EN:
+RU: ~J1(1.7)
+
+[MAP6_S04.43]
+EN:
+RU: ~J1(1.6)
+
+[MAP6_S04.44]
+EN:
+RU: ~J1(4.0)
+
+[MAP6_S04.45]
+EN:
+RU: ~J1(1.6)
+
+[MAP6_S04.46]
+EN:
+RU: ~J1(3.1)
+
+[MAP6_S04.47]
+EN:
+RU: ~J0(1.0)
+
+[MAP6_S04.48]
+EN:
+RU: ~J0(1.0)
+
+[MAP6_S04.49]
+EN:
+RU: ~J0(1.2)
+
+[MAP6_S04.50]
+EN:
+RU: ~J0(1.5)
+
+[MAP6_S04.52]
+EN:
+RU: ~J1(1.6)
+
+[MAP6_S04.53]
+EN:
+RU: ~J1(2.0)
+
+[MAP6_S04.54]
+EN:
+RU: ~J0(3.2)
+
+[MAP6_S04.56]
+EN:
+RU: ~J1(1.8)
+
+[MAP6_S04.57]
+EN:
+RU: ~J1(2.0)
+
+[MAP6_S04.58]
+EN:
+RU: ~J1(1.2)
+
+[MAP6_S04.59]
+EN:
+RU: ~J1(4.0)
+
+[MAP6_S04.60]
+EN:
+RU: ~J1(1.2)
+
+[MAP6_S04.61]
+EN:
+RU: ~J1(2.7)
+
+[MAP6_S04.62]
+EN:
+RU: ~J1(4.6)
+
+[MAP6_S04.63]
+EN:
+RU: ~J1(2.0)
+
+[MAP6_S04.64]
+EN:
+RU: ~J1(3.5)
+
+[MAP6_S04.65]
+EN:
+RU: ~J1(4.5)
+
+[MAP6_S04.66]
+EN:
+RU: ~J1(4.3)
+
+[MAP6_S04.67]
+EN:
+RU: ~J1(2.8)
+
+[MAP6_S04.68]
+EN:
+RU: ~J1(5.0)
+
+[MAP6_S04.69]
+EN:
+RU: ~J1(2.7)
+
+[MAP6_S04.70]
+EN:
+RU: ~J1(6.9)
+
+[MAP6_S04.71]
+EN:
+RU: ~J0(2.3)
+
+[MAP6_S04.72]
+EN:
+RU: ~J0(1.8)
+
+[MAP6_S04.73]
+EN:
+RU: ~J0(5.1)
+
+[MAP6_S04.74]
+EN:
+RU: ~J0(1.7)
+
+[MAP7_S00.16]
+EN:
+RU: ~J1(1.2)
+
+[MAP7_S00.17]
+EN:
+RU: ~J1(3.8)
+
+[MAP7_S00.18]
+EN:
+RU: ~J1(1.6)
+
+[MAP7_S00.19]
+EN:
+RU: ~J1(2.8)
+
+[MAP7_S00.20]
+EN:
+RU: ~J1(2.6)
+
+[MAP7_S00.21]
+EN:
+RU: ~J1(1.6)
+
+[MAP7_S00.22]
+EN:
+RU: ~J1(2.5)
+
+[MAP7_S00.23]
+EN:
+RU: ~J1(3.0)
+
+[MAP7_S00.24]
+EN:
+RU: ~J1(3.1)
+
+[MAP7_S00.25]
+EN:
+RU: ~J1(3.2)
+
+[MAP7_S00.26]
+EN:
+RU: ~J1(3.6)
+
+[MAP7_S00.27]
+EN:
+RU: ~J1(2.2)
+
+[MAP7_S00.28]
+EN:
+RU: ~J1(5.0)
+
+[MAP7_S00.29]
+EN:
+RU: ~J1(1.8)
+
+[MAP7_S00.30]
+EN:
+RU: ~J0(2.4)
+
+[MAP7_S00.31]
+EN:
+RU: ~J0(3.2)
+
+[MAP7_S00.32]
+EN:
+RU: ~J0(2.0)
+
+[MAP7_S00.33]
+EN:
+RU: ~J0(2.7)
+
+[MAP7_S00.34]
+EN:
+RU: ~J0(2.7)
+
+[MAP7_S00.35]
+EN:
+RU: ~J0(1.5)
+
+[MAP7_S00.36]
+EN:
+RU: ~J0(2.0)
+
+[MAP7_S00.37]
+EN:
+RU: ~J0(2.8)
+
+[MAP7_S00.38]
+EN:
+RU: ~J0(2.0) Лизка...
+
+[MAP7_S00.39]
+EN:
+RU: ~J0(3.0) Бля! Что за хуйня?~E
+
+[MAP7_S00.40]
+EN:
+RU: ~J0(2.0) Какой-то пердеж....
+
+[MAP7_S00.41]
+EN:
+RU: ~J0(4.0) Оттуда, снизу...~N Там походу кого-то ебут...~E
+
+[MAP7_S00.42]
+EN:
+RU: ~J0(2.4)
+
+[MAP7_S00.43]
+EN:
+RU: ~J0(2.1)
+
+[MAP7_S00.44]
+EN:
+RU: ~J0(2.7)
+
+[MAP7_S00.45]
+EN:
+RU: ~J0(4.3)
+
+[MAP7_S00.47]
+EN:
+RU: Нихуя необычного.~E
+
+[MAP7_S00.48]
+EN:
+RU: Нихуя полезного.~E
+
+[MAP7_S01.16]
+EN:
+RU: ~J0(2.8) Блять!~N Че за поебота?~E
+
+[MAP7_S01.17]
+EN:
+RU: ~J0(1.2)
+
+[MAP7_S01.18]
+EN:
+RU: ~J1(2.6)
+
+[MAP7_S01.19]
+EN:
+RU: ~J1(1.8)
+
+[MAP7_S01.20]
+EN:
+RU: ~J1(4.0)
+
+[MAP7_S01.21]
+EN:
+RU: ~J1(4.0)
+
+[MAP7_S01.22]
+EN:
+RU: ~J1(1.7)
+
+[MAP7_S01.23]
+EN:
+RU: ~J1(2.8)
+
+[MAP7_S01.24]
+EN:
+RU: ~J1(1.3)
+
+[MAP7_S01.25]
+EN:
+RU: ~J1(3.6)
+
+[MAP7_S01.26]
+EN:
+RU: ~J1(3.3)
+
+[MAP7_S01.27]
+EN:
+RU: ~J0(2.4)
+
+[MAP7_S01.28]
+EN:
+RU: ~J0(4.0)
+
+[MAP7_S01.30]
+EN:
+RU: Та же хуета...~E
+
+[MAP7_S01.31]
+EN:
+RU: ~L4~C3Расследование проебалось.~N Барыги всё ещё на свободе.~N ~N Разрывания жоп продолжаются.~N Как и выступавший против~N гашиша мэр, офицер~N наркоотдела обосрался от~N внезапной остановки насоса~N неизвестной ебатории.~E
+
+[MAP7_S01.32]
+EN:
+RU: Тут ещё что-то?~N Весьма собосранное...
+
+[MAP7_S01.33]
+EN:
+RU: ~L4~C3В городе ебанул кострище.~N Разхуячено 6 домов.~N ~N Впоследствии было~N обнаружено обгоревший~N шашлык Олеси Лезби (7 лет).~N ~N Причины шашлычков выясняются.
+
+[MAP7_S01.34]
+EN:
+RU: ~L4~C3Мусора установили, что~N жарка шашлыка началась в данжеоне~N дома Лезби.~N Предположительно, шашлычок~N вызван елдой~N устаревшего осла.~E
+
+[MAP7_S01.35]
+EN:
+RU: Дата шашлыков...
+
+[MAP7_S01.36]
+EN:
+RU: тот же самый день,~N когда мы нашли пиздючку Черил!~E
+
+[MAP7_S01.37]
+EN:
+RU: В ниге лежит закладка...~E
+
+[MAP7_S01.38]
+EN:
+RU: ~L4~C3БЕЛАЯ КЛАВДИЯ.~N ~N Многолетнее травянистая~N анаша, произрастающее~N у водоебов. Достигает~N высоты от 10 до 15 дюймов.~N Продолговатые листья,~N торкает збс.
+
+[MAP7_S01.39]
+EN:
+RU: ~L4~C3Семки содержат галюны.~N В древних письках~N говориться, что их~N использовали в религиозных~N оргиях. Галюны~N являются ключевой хуетой~N для обмазывания говном.~E
+
+[MAP7_S01.40]
+EN:
+RU: ~L4~C3Попросила доктора~N освободить меня от ухода~N за этой шашлычкой.~N ~N Всё это сраный пиздец.~E
+
+[MAP7_S01.41]
+EN:
+RU: ~L4~C3В палате куча Жориков.~N ~N Даже если все окна и двери~N закрыты, они всё равно~N как-то проникают и ебут~N меня.~N ~N В калечку...~E
+
+[MAP7_S01.42]
+EN:
+RU: ~L4~C3Она всё ещё жива, но~N такой шашлык хуй излечишь.~E
+
+[MAP7_S01.43]
+EN:
+RU: ~L4~C3Из крана в ванной текут~N месики и кола.~N ~N Пыталась его перекрыть,~N но он разъебался.~E
+
+[MAP7_S01.44]
+EN:
+RU: ~L4~C3Мне пиздец хуево.~N Всё время блюю.~N Наверное залетела.~E
+
+[MAP7_S01.45]
+EN:
+RU: ~L4~C3 Хочу пыхнуть.~E
+
+[MAP7_S01.46]
+EN:
+RU: ~L4~C3Сказала доктору, что~N заебалась. Не буду больше~N хуярить в этой каличке.~E
+
+[MAP7_S01.47]
+EN:
+RU: ~L4~C3 Помогите бляя...~E
+
+[MAP7_S01.48]
+EN:
+RU: Я использовал ~C2ключ [Охуеля]~C7.~E
+
+[MAP7_S01.49]
+EN:
+RU: Я использовал ~C2ключ [Вахабита]~C7.~E
+
+[MAP7_S01.50]
+EN:
+RU: Я использовал ~C2ключ [Олега]~C7.~E
+
+[MAP7_S01.51]
+EN:
+RU: Тут у нас ~C2анальное кольцо~C7.~N Берем?~S4
+
+[MAP7_S01.52]
+EN:
+RU: Тут у нас ~C2плоскогубцы~C7.~N Берем?~S4
+
+[MAP7_S01.53]
+EN:
+RU: Тут у нас ~C2отвёрточка~C7.~N Берем?~S4
+
+[MAP7_S01.54]
+EN:
+RU: Тут у нас ~C2ключ от птичьей ебли~C7.~N Берем?~S4
+
+[MAP7_S01.55]
+EN:
+RU: Тут у нас ~C2нокиа~C7.~N Берем?~S4
+
+[MAP7_S01.56]
+EN:
+RU: Тут у нас ~C2камень времени~C7.~N Берем?~S4
+
+[MAP7_S01.57]
+EN:
+RU: Тут у нас ~C2ключ [Охуеля]~C7.~N Берем?~S4
+
+[MAP7_S01.58]
+EN:
+RU: Тут у нас ~C2ключ [Вахабита]~C7.~N Берем?~S4
+
+[MAP7_S01.59]
+EN:
+RU: Тут у нас ~C2ключ [Олега]~C7.~N Берем?~S4
+
+[MAP7_S01.60]
+EN:
+RU: Тут у нас ~C2амулет Салотрона~C7.~N Берем?~S4
+
+[MAP7_S01.61]
+EN:
+RU: Тут у нас ~C2самотык Меркурия~C7.~N Берем?~S4
+
+[MAP7_S01.62]
+EN:
+RU: ~C3 Пиздуй домой.
+
+[MAP7_S01.63]
+EN:
+RU: ~C3 Вор ебаный.
+
+[MAP7_S01.64]
+EN:
+RU: ~C3 Сдохни сучка.~E
+
+[MAP7_S01.65]
+EN:
+RU: Старые часы.~N В центре часов есть~N квадратная дырочка для присунуть.
+
+[MAP7_S01.66]
+EN:
+RU: Стрелка часов на пол шестого,~N ...ебать это же ключ.
+
+[MAP7_S01.67]
+EN:
+RU: Из-за закрывающего цифереблата~N стекла, я не могу его родить.~E
+
+[MAP7_S01.68]
+EN:
+RU: В кран присунут ключ,
+
+[MAP7_S01.69]
+EN:
+RU: но я нихуя не могу его~N оттуда вытащить.~E
+
+[MAP7_S01.70]
+EN:
+RU: Это доска с какой-то писькой.~E
+
+[MAP7_S01.71]
+EN:
+RU: ~C3 На мраморе нахуячены~N имена, фамилии и возрасты.~N Список обсера.
+
+[MAP7_S01.72]
+EN:
+RU: ~C3 У обсера все наперечёт.~N По возрасту - и пердун и пиздюк,~N В порядке том же заебет.
+
+[MAP7_S01.73]
+EN:
+RU: ~C3 И для обсера нет преград,~N Пред ними двери отопрёт,~N Оттуда - лишь говном запрет.~E
+
+[MAP7_S01.74]
+EN:
+RU: Тута ключ.
+
+[MAP7_S01.75]
+EN:
+RU: Ключ под напряжением. Если~N я до него дотронусь, меня~N ебанет током.~E
+
+[MAP7_S01.76]
+EN:
+RU: ~C3 Свет в будущее анала.~E
+
+[MAP7_S01.77]
+EN:
+RU: ~C3 Свет, озаряющий тьму говнища.~E
+
+[MAP7_S01.78]
+EN:
+RU: Птичья ебля заперта.~E
+
+[MAP7_S01.79]
+EN:
+RU: Я использовал ~C2ключ~N от птичьей ебли~C7.~E
+
+[MAP7_S01.80]
+EN:
+RU: Птичья ебля. Пустая.~E
+
+[MAP7_S01.81]
+EN:
+RU: Занято.
+
+[MAP7_S01.82]
+EN:
+RU: На двери намазано~N слово [Охуель].~E
+
+[MAP7_S01.83]
+EN:
+RU: Занято.
+
+[MAP7_S01.84]
+EN:
+RU: На двери намазано~N слово [Вахабит].~E
+
+[MAP7_S01.85]
+EN:
+RU: Занято.
+
+[MAP7_S01.86]
+EN:
+RU: На двери намазано~N слово [Олег].~E
+
+[MAP7_S01.87]
+EN:
+RU: Стальная табличка~N прихуячена к стене.~E
+
+[MAP7_S01.88]
+EN:
+RU: Не похоже, что лифт ебашит.~E
+
+[MAP7_S01.89]
+EN:
+RU: Часы с разъебаным стеклом.~E
+
+[MAP7_S01.90]
+EN:
+RU: Здесь нет нихуя полезного.~E
+
+[MAP7_S01.91]
+EN:
+RU: Пиздец
+
+[MAP7_S01.92]
+EN:
+RU: На полу лежит записька.~E
+
+[MAP7_S01.93]
+EN:
+RU: Нихуя полезного.~E
+
+[MAP7_S01.94]
+EN:
+RU: Похоже на мангал.~N Интересно, кто здесь~N шашлык жарил?~E
+
+[MAP7_S01.95]
+EN:
+RU: На каталке лежит тело.~N Нет желания туда присунуть.~E
+
+[MAP7_S01.96]
+EN:
+RU: Это ботанический справочник.~N Заебало про гашиш читать.~E
+
+[MAP7_S02.15]
+EN:
+RU: Та же хуйня...~E
+
+[MAP7_S02.16]
+EN:
+RU: ~L4~C3Расследование проебалось.~N Барыги всё ещё на свободе.~N ~N Разрывания жоп продолжаются.~N Как и выступавший против~N гашиша мэр, офицер~N наркоотдела обосрался от~N внезапной остановки насоса~N неизвестной ебатории.~E
+
+[MAP7_S02.17]
+EN:
+RU: Тут ещё что-то?~N Весьма собосранное...
+
+[MAP7_S02.18]
+EN:
+RU: ~L4~C3В городе ебанул кострище.~N Разхуячено 6 домов.~N ~N Впоследствии было~N обнаружено обгоревший~N шашлык Олеси Лезби (7 лет).~N ~N Причины шашлычков выясняются.
+
+[MAP7_S02.19]
+EN:
+RU: ~L4~C3Мусора установили, что~N жарка шашлыка началась в данжеоне~N дома Лезби.~N Предположительно, шашлычок~N вызван елдой~N устаревшего осла.~E
+
+[MAP7_S02.20]
+EN:
+RU: Дата шашлыков...
+
+[MAP7_S02.21]
+EN:
+RU: тот же самый день,~N когда мы нашли пиздючку Черил!~E
+
+[MAP7_S02.22]
+EN:
+RU: В ниге лежит закладка...~E
+
+[MAP7_S02.23]
+EN:
+RU: ~L4~C3БЕЛАЯ КЛАВДИЯ.~N ~N Многолетнее травянистая~N анаша, произрастающее~N у водоебов. Достигает~N высоты от 10 до 15 дюймов.~N Продолговатые листья,~N торкает збс.
+
+[MAP7_S02.24]
+EN:
+RU: ~L4~C3Семки содержат галюны.~N В древних письках~N говориться, что их~N использовали в религиозных~N оргиях. Галюны~N являются ключевой хуетой~N для обмазывания говном.~E
+
+[MAP7_S02.25]
+EN:
+RU: ~L4~C3Попросила доктора~N освободить меня от ухода~N за этой шашлычкой.~N ~N Всё это сраный пиздец.~E
+
+[MAP7_S02.26]
+EN:
+RU: ~L4~C3В палате куча Жориков.~N ~N Даже если все окна и двери~N закрыты, они всё равно~N как-то проникают и ебут~N меня.~N ~N В калечку...~E
+
+[MAP7_S02.27]
+EN:
+RU: ~L4~C3Она всё ещё жива, но~N такой шашлык хуй излечишь.~E
+
+[MAP7_S02.28]
+EN:
+RU: ~L4~C3Из крана в ванной текут~N месики и кола.~N ~N Пыталась его перекрыть,~N но он разъебался.~E
+
+[MAP7_S02.29]
+EN:
+RU: ~L4~C3Мне пиздец хуево.~N Всё время блюю.~N Наверное залетела.~E
+
+[MAP7_S02.30]
+EN:
+RU: ~L4~C3 Хочу пыхнуть.~E
+
+[MAP7_S02.31]
+EN:
+RU: ~L4~C3Сказала доктору, что~N заебалась. Не буду больше~N хуярить в этой каличке.~E
+
+[MAP7_S02.33]
+EN:
+RU: ~J2(1.5)
+
+[MAP7_S02.34]
+EN:
+RU: ~J2(2.7)
+
+[MAP7_S02.35]
+EN:
+RU: ~J2(2.6)
+
+[MAP7_S02.36]
+EN:
+RU: ~J2(2.8)
+
+[MAP7_S02.37]
+EN:
+RU: ~J2(2.3)
+
+[MAP7_S02.38]
+EN:
+RU: ~J2(1.2)
+
+[MAP7_S02.39]
+EN:
+RU: ~J2(3.8)
+
+[MAP7_S02.40]
+EN:
+RU: ~J2(5.9)
+
+[MAP7_S02.41]
+EN:
+RU: ~J2(2.8)
+
+[MAP7_S02.42]
+EN:
+RU: ~J2(3.3)
+
+[MAP7_S02.43]
+EN:
+RU: ~J2(2.0)
+
+[MAP7_S02.47]
+EN:
+RU: ~J1(6.4)
+
+[MAP7_S02.48]
+EN:
+RU: ~J1(1.8)
+
+[MAP7_S02.49]
+EN:
+RU: ~J1(4.5)
+
+[MAP7_S02.50]
+EN:
+RU: ~J1(3.6)
+
+[MAP7_S02.51]
+EN:
+RU: ~J1(3.7)
+
+[MAP7_S02.52]
+EN:
+RU: ~J1(2.6)
+
+[MAP7_S02.53]
+EN:
+RU: ~J1(2.0)
+
+[MAP7_S02.54]
+EN:
+RU: ~J1(4.0)
+
+[MAP7_S02.55]
+EN:
+RU: ~J1(4.4)
+
+[MAP7_S02.56]
+EN:
+RU: ~J1(5.4)
+
+[MAP7_S02.57]
+EN:
+RU: ~J1(5.0)
+
+[MAP7_S02.58]
+EN:
+RU: ~J1(3.2)
+
+[MAP7_S02.59]
+EN:
+RU: ~J1(3.1)
+
+[MAP7_S02.60]
+EN:
+RU: ~J1(6.0)
+
+[MAP7_S02.61]
+EN:
+RU: ~J1(2.8)
+
+[MAP7_S02.63]
+EN:
+RU: ~J0(3.0)
+
+[MAP7_S02.64]
+EN:
+RU: ~J0(2.7) Д
+
+[MAP7_S02.65]
+EN:
+RU: ~J0(6.3)
+
+[MAP7_S02.66]
+EN:
+RU: ~J2(1.2)
+
+[MAP7_S02.67]
+EN:
+RU: ~J0(2.0)
+
+[MAP7_S02.68]
+EN:
+RU: ~J1(5.8)
+
+[MAP7_S02.69]
+EN:
+RU: ~J1(4.3)
+
+[MAP7_S02.70]
+EN:
+RU: ~J1(4.3)
+
+[MAP7_S02.71]
+EN:
+RU: ~J1(7.1)
+
+[MAP7_S02.72]
+EN:
+RU: ~J1(1.3)
+
+[MAP7_S02.73]
+EN:
+RU: ~J1(5.3)
+
+[MAP7_S02.74]
+EN:
+RU: ~J1(7.2)
+
+[MAP7_S02.75]
+EN:
+RU: ~J1(4.2)
+
+[MAP7_S02.76]
+EN:
+RU: ~J1(1.6)
+
+[MAP7_S02.77]
+EN:
+RU: Я использовал ~C2ключ~N [Бетона]~C7.~E
+
+[MAP7_S02.78]
+EN:
+RU: Я использовал ~C2ключ~N [Арахнотраха]~C7.~E
+
+[MAP7_S02.79]
+EN:
+RU: Тут у нас ~C2ключ [Бетона]~C7.~N Берем?~S4
+
+[MAP7_S02.80]
+EN:
+RU: Тут у нас ~C2ключ [Арахнотраха]~C7.~N Берем?~S4
+
+[MAP7_S02.81]
+EN:
+RU: Тут у нас ~C2аахахах~C7.~N Берем?~S4
+
+[MAP7_S02.82]
+EN:
+RU: Тут у нас ~C2заточка Мельхуера~C7.~N Берем?~S4
+
+[MAP7_S02.83]
+EN:
+RU: Тут у нас ~C2диск Уропоноса~C7.~N Берем?~S4
+
+[MAP7_S02.84]
+EN:
+RU: Пенетратор фурычит.~N Нажать на кнопку?~S4
+
+[MAP7_S02.85]
+EN:
+RU: Пенетратор остановлен.~N Нажать на кнопку?~S4
+
+[MAP7_S02.86]
+EN:
+RU: Занято.
+
+[MAP7_S02.87]
+EN:
+RU: На двери намазано~N слово [Бетон].~E
+
+[MAP7_S02.88]
+EN:
+RU: Занято.
+
+[MAP7_S02.89]
+EN:
+RU: На двери намазано~N слово [Арахнотрах].~E
+
+[MAP7_S02.90]
+EN:
+RU: Насвай.~N Открыть пакетик?~S4
+
+[MAP7_S02.91]
+EN:
+RU: В цепи нихуя нет звена.~E
+
+[MAP7_S02.92]
+EN:
+RU: Цепь соединена анальным кольцом.~E
+
+[MAP7_S02.93]
+EN:
+RU: Тут у нас ~C2анальное кольцо~C7.~N Берем?~S4
+
+[MAP7_S02.94]
+EN:
+RU: Тут у нас ~C2отвёрточка~C7.~N Берем?~S4
+
+[MAP7_S02.95]
+EN:
+RU: Тут у нас ~C2нокиа~C7.~N Берем?~S4
+
+[MAP7_S02.96]
+EN:
+RU: Тут у нас ~C2амулет Салотрона~C7.~N Берем?~S4
+
+[MAP7_S02.97]
+EN:
+RU: Тут у нас ~C2самотык Меркурия~C7.~N Берем?~S4
+
+[MAP7_S02.98]
+EN:
+RU: ~C3 Пиздуй домой.
+
+[MAP7_S02.99]
+EN:
+RU: ~C3 Вор ебаный.
+
+[MAP7_S02.100]
+EN:
+RU: ~C3 Сдохни сучка.~E
+
+[MAP7_S02.102]
+EN:
+RU: ~C3На мраморе нахуячены~N имена, фамилии и возрасты.~N Список обсера.
+
+[MAP7_S02.103]
+EN:
+RU: ~C3У обсера все наперечёт.~N По возрасту - и пердун и пиздюк,~N В порядке том же заебет.
+
+[MAP7_S02.104]
+EN:
+RU: ~C3И для обсера нет преград,~N Пред ними двери отопрёт,~N Оттуда - лишь говном запрет.~E
+
+[MAP7_S02.105]
+EN:
+RU: Тута ключ.
+
+[MAP7_S02.106]
+EN:
+RU: Ключ под напряжением. Если~N я до него дотронусь, меня~N ебанет током.~E
+
+[MAP7_S02.107]
+EN:
+RU: ~C3 Свет в будущее анала.~E
+
+[MAP7_S02.108]
+EN:
+RU: ~C3 Свет, озаряющий тьму говнища.~E
+
+[MAP7_S02.109]
+EN:
+RU: Птичья ебля. Пустая.~E
+
+[MAP7_S02.110]
+EN:
+RU: Стальная табличка~N прихуячена к стене.~E
+
+[MAP7_S02.111]
+EN:
+RU: ~J0(1.2)
+
+[MAP7_S02.112]
+EN:
+RU: ~J1(2.6)
+
+[MAP7_S02.113]
+EN:
+RU: ~J1(1.8)
+
+[MAP7_S02.114]
+EN:
+RU: ~J1(4.0)
+
+[MAP7_S02.115]
+EN:
+RU: ~J1(4.0)
+
+[MAP7_S02.116]
+EN:
+RU: ~J1(1.7)
+
+[MAP7_S02.117]
+EN:
+RU: ~J1(2.8) Просто я этого до сих пор~N не замечала.~E
+
+[MAP7_S02.118]
+EN:
+RU: ~J1(1.3)
+
+[MAP7_S02.119]
+EN:
+RU: ~J1(3.6)
+
+[MAP7_S02.120]
+EN:
+RU: ~J1(3.3)
+
+[MAP7_S02.121]
+EN:
+RU: ~J0(2.4)
+
+[MAP7_S02.122]
+EN:
+RU: ~J0(4.0)
+
+[MAP7_S02.124]
+EN:
+RU: [Олеся]~E
+
+[MAP7_S02.125]
+EN:
+RU: Я использовал ~C2амулет~N Салотрона~C7.~E
+
+[MAP7_S02.126]
+EN:
+RU: Я использовал ~C2самотык Меркурия~C7.~E
+
+[MAP7_S02.127]
+EN:
+RU: Я использовал ~C2ахахах~C7.~E
+
+[MAP7_S02.128]
+EN:
+RU: Я использовал ~C2заточку~N Мельхуера~C7.~E
+
+[MAP7_S02.129]
+EN:
+RU: Я использовал ~C2диск~N Уропоноса~C7.~E
+
+[MAP7_S02.130]
+EN:
+RU: ~C3даны они тебе,~N чтоб охранять свой хуй~N навей пять ритуалов~N раскроя свои булочки.~E
+
+[MAP7_S02.131]
+EN:
+RU: Оборванный силовой кабель.~N Нихуя интересного.~E
+
+[MAP7_S02.132]
+EN:
+RU: Не похоже, что лифт фурычит.~E
+
+[MAP7_S02.133]
+EN:
+RU: Часы с разбитым еблом.~E
+
+[MAP7_S02.134]
+EN:
+RU: Я использовал ~C2анальное~N кольцо~C7.~E
+
+[MAP7_S02.135]
+EN:
+RU: Здесь нет нихуя полезного.~E
+
+[MAP7_S02.136]
+EN:
+RU: Пиздец стена.~E
+
+[MAP7_S02.137]
+EN:
+RU: На стене висят ~N бабулечки.~E
+
+[MAP7_S02.138]
+EN:
+RU: На стене висит одежда~N альтушки.
+
+[MAP7_S02.139]
+EN:
+RU: Шести, может, семи лет...~N Наверно, пиздючка где-то~N такого возраста.~E
+
+[MAP7_S02.140]
+EN:
+RU: Но полу разбросана ебань.~E
+
+[MAP7_S02.141]
+EN:
+RU: На полу лежат лубриканты.~E
+
+[MAP7_S02.142]
+EN:
+RU: Но полу разбросаны~N детская срань.~E
+
+[MAP7_S02.143]
+EN:
+RU: Нихуя необычного.~E
+
+[MAP7_S02.144]
+EN:
+RU: На полке стоят старые~N сказки, книжки с порно~N картинками животных.~E
+
+[MAP7_S02.145]
+EN:
+RU: Здесь нет нихуя полезного.~E
+
+[MAP7_S02.146]
+EN:
+RU: ~L4~C3Помогите блять...~E
+
+[MAP7_S02.147]
+EN:
+RU: На полу лежит записька.~E
+
+[MAP7_S02.148]
+EN:
+RU: Нихуя полезного.~E
+
+[MAP7_S02.149]
+EN:
+RU: Похоже на мангал.~N Интересно, кто тут~N шашлык жарил?~E
+
+[MAP7_S02.150]
+EN:
+RU: Полы и стены сплошь~N обосраны.~E
+
+[MAP7_S02.151]
+EN:
+RU: Магнитола. Старая,~N но всё ещё заебок.~E
+
+[MAP7_S02.152]
+EN:
+RU: На каталке лежит тело.~N Нет желания туда присунуть.~E
+
+[MAP7_S02.153]
+EN:
+RU: Здесь фанфурики~N с каким-то камом.~N Ну нахуй.~E
+
+[MAP7_S02.154]
+EN:
+RU: Здесь пустые фанфурики.~E
+
+[MAP7_S02.155]
+EN:
+RU: В коробках нет нихуя~N интересного. Разглядывать~N залупу нечего.~E
+
+[MAP7_S02.156]
+EN:
+RU: Внутри нихуя нет.~E
+
+[MAP7_S02.157]
+EN:
+RU: В коробках нет нихуя~N полезного.~E
+
+[MAP7_S02.158]
+EN:
+RU: Это ботанический справочник.~N Нет смысла про анашу читать.~E
+
+[MAP7_S03.15]
+EN:
+RU: ~J1(4.9)
+
+[MAP7_S03.16]
+EN:
+RU: ~J1(4.0)
+
+[MAP7_S03.17]
+EN:
+RU: ~J1(4.3)
+
+[MAP7_S03.18]
+EN:
+RU: ~J1(7.0)
+
+[MAP7_S03.19]
+EN:
+RU: ~J1(3.2)
+
+[MAP7_S03.20]
+EN:
+RU: ~J1(8.5)
+
+[MAP7_S03.21]
+EN:
+RU: ~J0(1.2)
+
+[MAP7_S03.22]
+EN:
+RU: ~J0(2.6)
+
+[MAP7_S03.24]
+EN:
+RU: ~J1(1.1)
+
+[MAP7_S03.25]
+EN:
+RU: ~J1(5.6)
+
+[MAP7_S03.26]
+EN:
+RU: ~J1(2.5)
+
+[MAP7_S03.27]
+EN:
+RU: ~J1(2.0)
+
+[MAP7_S03.28]
+EN:
+RU: ~J1(4.8)
+
+[MAP7_S03.29]
+EN:
+RU: ~J1(2.4)
+
+[MAP7_S03.30]
+EN:
+RU: ~J0(3.4)
+
+[MAP7_S03.31]
+EN:
+RU: ~J1(1.8)
+
+[MAP7_S03.32]
+EN:
+RU: ~J1(4.5)
+
+[MAP7_S03.33]
+EN:
+RU: ~J1(1.4)
+
+[MAP7_S03.34]
+EN:
+RU: ~J1(2.2)
+
+[MAP7_S03.35]
+EN:
+RU: ~J1(3.8)
+
+[MAP7_S03.36]
+EN:
+RU: ~J1(4.4)
+
+[MAP7_S03.37]
+EN:
+RU: ~J1(3.2)
+
+[MAP7_S03.38]
+EN:
+RU: ~J1(3.9)
+
+[MAP7_S03.39]
+EN:
+RU: ~J1(6.5)
+
+[MAP7_S03.40]
+EN:
+RU: ~J1(4.0)
+
+[MAP7_S03.41]
+EN:
+RU: ~J1(3.6)
+
+[MAP7_S03.42]
+EN:
+RU: ~J1(3.6)
+
+[MAP7_S03.43]
+EN:
+RU: ~J1(2.9)
+
+[MAP7_S03.44]
+EN:
+RU: ~J1(5.1)
+
+[MAP7_S03.45]
+EN:
+RU: ~J1(3.1)
+
+[MAP7_S03.46]
+EN:
+RU: ~J1(2.8)
+
+[MAP7_S03.47]
+EN:
+RU: ~J1(4.7)
+
+[MAP7_S03.48]
+EN:
+RU: ~J1(4.8)
+
+[MAP7_S03.49]
+EN:
+RU: ~J0(6.2)
+
+[MAP7_S03.51]
+EN:
+RU: ~J1(1.7)
+
+[MAP7_S03.52]
+EN:
+RU: ~J1(2.4)
+
+[MAP7_S03.53]
+EN:
+RU: ~J1(1.0)
+
+[MAP7_S03.54]
+EN:
+RU: ~J1(1.9)
+
+[MAP7_S03.55]
+EN:
+RU: ~J1(1.9)
+
+[MAP7_S03.56]
+EN:
+RU: ~J1(3.0)
+
+[MAP7_S03.57]
+EN:
+RU: ~J1(4.7)
+
+[MAP7_S03.58]
+EN:
+RU: ~J1(3.6)
+
+[MAP7_S03.59]
+EN:
+RU: ~J1(3.5)
+
+[MAP7_S03.60]
+EN:
+RU: ~J1(3.2)
+
+[MAP7_S03.61]
+EN:
+RU: ~J0(3.5)
+
+[MAP7_S03.62]
+EN:
+RU: ~J0(3.2)
+
+[MAP7_S03.63]
+EN:
+RU: ~J0(3.9)
+
+[MAP7_S03.64]
+EN:
+RU: ~J0(1.7)
+
+[MAP7_S03.65]
+EN:
+RU: ~J0(2.4)
+
+[MAP7_S03.66]
+EN:
+RU: ~J0(1.7)
+
+[MAP7_S03.69]
+EN:
+RU: ~J2(1.2)
+
+[MAP7_S03.71]
+EN:
+RU: ~J0(3.0)
+
+[MAP7_S03.74]
+EN:
+RU: ~J0(3.4)
+
+[MAP7_S03.75]
+EN:
+RU: ~J0(3.0)
+
+[MAP7_S03.76]
+EN:
+RU: ~J0(1.2)
+
+[MAP7_S03.77]
+EN:
+RU: ~J0(3.5)
+
+[MAP7_S03.78]
+EN:
+RU: ~J0(2.0) !
+
+[MAP7_S03.79]
+EN:
+RU: ~J2(4.9)
+
+[MAP7_S03.84]
+EN:
+RU: ~J0(1.6)
+
+[MAP7_S03.85]
+EN:
+RU: ~J0(1.4)
+
+[MAP7_S03.86]
+EN:
+RU: ~J0(3.0)
+
+[MAP7_S03.87]
+EN:
+RU: ~J0(2.3)
+
+[MAP7_S03.88]
+EN:
+RU: ~J0(2.2)
+
+[MAP7_S03.89]
+EN:
+RU: ~J0(3.2)
+
+[MAP7_S03.90]
+EN:
+RU: ~J0(1.4)
+
+[MAP7_S03.93]
+EN:
+RU: ~J0(1.3)
+
+[MAP7_S03.98]
+EN:
+RU: ~J0(1.4)
+
+[MAP7_S03.99]
+EN:
+RU: ~J0(1.0)
+

@@ -1,13 +1,16 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "lang_pack.h"
 
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "lang_ru.h"   /* Pc_RuPackByte: Cyrillic -> the pack atlas's bytes */
 #include "sh_log.h"
 
-#define PACK_PATH_FMT "gamedata/lang/%s.lang"
+#define PACK_DIR      "gamedata/lang"
+#define PACK_PATH_FMT PACK_DIR "/%s.lang"
 #define PACK_MAX_SIZE (4 * 1024 * 1024)
 #define COMMON_MSG_COUNT 15 /* map message indices 0-14 come from the shared header */
 
@@ -22,6 +25,7 @@ static s_PackEntry* s_Table;
 static int          s_Mask;
 static int          s_Count;
 static int          s_Active;
+static int          s_Font;    /* LANG_PACK_FONT_* -- the glyph set the pack needs */
 static char         s_MenuName[32];
 
 /* Map-message keys are named after the map, and e_MapIdx is dense, so a table
@@ -104,7 +108,7 @@ static unsigned int Utf8Next(const char** pp)
 /* Transcode a value in place (output is never longer than the input) and
  * resolve the '\n' / '\t' escapes the pack writer uses to keep one entry per
  * line. Returns the new length. */
-static size_t TranscodeValue(char* s)
+static size_t TranscodeValueFont(char* s, int font)
 {
     const char* in  = s;
     char*       out = s;
@@ -127,6 +131,21 @@ static size_t TranscodeValue(char* s)
         {
             *out++ = (char)cp;
             continue;
+        }
+
+        /* A Cyrillic pack draws through the consolgames atlas font_ru.inc
+         * embeds, so its letters encode to that atlas's own bytes. Only Ё/ё
+         * have no cell; those come back 0 and fall through to the
+         * substitutions below. */
+        if (font == LANG_PACK_FONT_CYRILLIC)
+        {
+            unsigned char ru = Pc_RuPackByte(cp);
+
+            if (ru != 0)
+            {
+                *out++ = (char)ru;
+                continue;
+            }
         }
 
         for (i = 0; i < (int)(sizeof(s_PolishCodepoints) / sizeof(s_PolishCodepoints[0])); i++)
@@ -154,6 +173,11 @@ static size_t TranscodeValue(char* s)
 
     *out = '\0';
     return (size_t)(out - s);
+}
+
+static size_t TranscodeValue(char* s)
+{
+    return TranscodeValueFont(s, s_Font);
 }
 
 /* ------------------------------------------------------------------ */
@@ -261,6 +285,178 @@ void Pc_LangPackFree(void)
     s_MenuName[0] = '\0';
 }
 
+/* ------------------------------------------------------------------ */
+/* Registry: which languages are installed                             */
+/* ------------------------------------------------------------------ */
+
+/* The selectable languages past the five PAL ones are whatever .lang files are
+ * sitting in gamedata/lang, so a language is a MOD: drop the file in (the Mod
+ * Manager extracts a zip's lang/ folder straight there) and it appears in
+ * Options > Language. Only each file's short header is read here -- the body is
+ * parsed by Pc_LangPackLoad when the language is actually chosen.
+ *
+ * Config stores the CODE, never the slot, so installing or removing a pack
+ * cannot silently switch anyone's language to a different one. */
+#define PACK_LIST_MAX 24
+
+typedef struct {
+    char code[16];
+    char menu[32];
+    int  font;
+} s_PackInfo;
+
+static s_PackInfo s_Packs[PACK_LIST_MAX];
+static int        s_PackListCount = -1;
+
+static int PackFontFromName(const char* v)
+{
+    if (strcmp(v, "cyrillic") == 0)
+        return LANG_PACK_FONT_CYRILLIC;
+    if (strcmp(v, "polish") == 0)
+        return LANG_PACK_FONT_POLISH;
+    return LANG_PACK_FONT_LATIN;
+}
+
+/* Read just the `!` header lines. Stops at the first ordinary entry: the header
+ * is written first, and a 4MB pack should not be walked to list it. */
+static int PackReadHeader(const char* path, s_PackInfo* out)
+{
+    FILE* f = fopen(path, "rb");
+    char  line[256];
+
+    if (f == NULL)
+        return 0;
+
+    out->menu[0] = '\0';
+    out->font    = LANG_PACK_FONT_LATIN;
+
+    while (fgets(line, (int)sizeof(line), f) != NULL)
+    {
+        char* eq;
+        char* end;
+
+        if (line[0] == '#' || line[0] == '\r' || line[0] == '\n')
+            continue;
+        if (line[0] != '!')
+            break;
+
+        eq = strchr(line, '=');
+        if (eq == NULL)
+            continue;
+        *eq++ = '\0';
+        for (end = eq + strlen(eq); end > eq && (end[-1] == '\r' || end[-1] == '\n'); end--)
+            end[-1] = '\0';
+
+        if (strcmp(line, "!code") == 0)
+            snprintf(out->code, sizeof(out->code), "%s", eq);
+        else if (strcmp(line, "!menu") == 0)
+            snprintf(out->menu, sizeof(out->menu), "%s", eq);
+        else if (strcmp(line, "!font") == 0)
+            out->font = PackFontFromName(eq);
+    }
+    fclose(f);
+    return out->code[0] != '\0';
+}
+
+static void PackListScan(void)
+{
+    DIR*           d;
+    struct dirent* e;
+    int            i;
+    int            j;
+
+    s_PackListCount = 0;
+
+    d = opendir(PACK_DIR);
+    if (d == NULL)
+        return;
+
+    while ((e = readdir(d)) != NULL && s_PackListCount < PACK_LIST_MAX)
+    {
+        size_t     len = strlen(e->d_name);
+        char       path[256];
+        s_PackInfo info;
+
+        if (len < 6 || strcmp(e->d_name + len - 5, ".lang") != 0)
+            continue;
+
+        memset(&info, 0, sizeof(info));
+        /* The file name is the fallback code, so a pack with no !code line
+         * still works and its file name is what config stores. */
+        snprintf(info.code, sizeof(info.code), "%.*s", (int)(len - 5), e->d_name);
+        snprintf(path, sizeof(path), PACK_DIR "/%s", e->d_name);
+        if (!PackReadHeader(path, &info))
+            continue;
+        if (info.menu[0] == '\0')
+            snprintf(info.menu, sizeof(info.menu), "%s", info.code);
+        /* The Language row draws this with the GAME font, so it has to be in
+         * that pack's own byte encoding rather than the UTF-8 the file holds. */
+        TranscodeValueFont(info.menu, info.font);
+
+        for (i = 0; i < s_PackListCount; i++)
+            if (strcmp(s_Packs[i].code, info.code) == 0)
+                break;
+        if (i < s_PackListCount)
+            continue; /* two files claiming one code: first wins */
+
+        s_Packs[s_PackListCount++] = info;
+    }
+    closedir(d);
+
+    /* Alphabetical, so the Language row is in the same order every run
+     * whatever order the directory happens to hand back. */
+    for (i = 1; i < s_PackListCount; i++)
+    {
+        s_PackInfo key = s_Packs[i];
+
+        for (j = i - 1; j >= 0 && strcmp(s_Packs[j].code, key.code) > 0; j--)
+            s_Packs[j + 1] = s_Packs[j];
+        s_Packs[j + 1] = key;
+    }
+
+    SH_LOG("[LANGPACK] %d language pack(s) installed", s_PackListCount);
+}
+
+static void PackListEnsure(void)
+{
+    if (s_PackListCount < 0)
+        PackListScan();
+}
+
+int Pc_LangPackListCount(void)
+{
+    PackListEnsure();
+    return s_PackListCount;
+}
+
+const char* Pc_LangPackListCode(int idx)
+{
+    PackListEnsure();
+    return (idx >= 0 && idx < s_PackListCount) ? s_Packs[idx].code : "";
+}
+
+const char* Pc_LangPackListName(int idx)
+{
+    PackListEnsure();
+    return (idx >= 0 && idx < s_PackListCount) ? s_Packs[idx].menu : "";
+}
+
+int Pc_LangPackListFind(const char* code)
+{
+    int i;
+
+    PackListEnsure();
+    for (i = 0; code != NULL && i < s_PackListCount; i++)
+        if (strcmp(s_Packs[i].code, code) == 0)
+            return i;
+    return -1;
+}
+
+void Pc_LangPackListRescan(void)
+{
+    s_PackListCount = -1;
+}
+
 int Pc_LangPackLoad(const char* code)
 {
     char   path[128];
@@ -341,8 +537,16 @@ int Pc_LangPackLoad(const char* code)
 
         if (line[0] == '!')
         {
-            /* Pack metadata: !code, !name, !menu. */
-            if (strcmp(line, "!menu") == 0)
+            /* Pack metadata: !code, !name, !menu, !font. */
+            if (strcmp(line, "!font") == 0)
+            {
+                /* Read BEFORE any value is transcoded, since it decides how.
+                 * The writer puts it in the header for that reason. */
+                s_Font = (strcmp(eq, "cyrillic") == 0) ? LANG_PACK_FONT_CYRILLIC
+                       : (strcmp(eq, "polish") == 0)   ? LANG_PACK_FONT_POLISH
+                                                       : LANG_PACK_FONT_LATIN;
+            }
+            else if (strcmp(line, "!menu") == 0)
             {
                 TranscodeValue(eq);
                 snprintf(s_MenuName, sizeof(s_MenuName), "%s", eq);
@@ -379,6 +583,11 @@ int Pc_LangPackLoad(const char* code)
 int Pc_LangPackActive(void)
 {
     return s_Active;
+}
+
+int Pc_LangPackFont(void)
+{
+    return s_Font;
 }
 
 const char* Pc_LangPackName(void)

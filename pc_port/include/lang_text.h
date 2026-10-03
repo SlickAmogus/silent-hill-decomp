@@ -17,9 +17,14 @@
  * 0=en 1=de 2=fr 3=es 4=it are the PAL disc's own; LANG_PACK_FIRST and up are
  * PC-side packs loaded from gamedata/lang (see lang_pack.h). */
 #define LANG_PACK_FIRST 5
-#define LANG_COUNT      6
 
-extern const char* const s_LangIds[LANG_COUNT];
+/* Only the five disc languages are fixed. Every slot past them is an installed
+ * pack, discovered at runtime from gamedata/lang (lang_pack.c), so the count
+ * comes from Pc_LangSlotCount() and the id from Pc_LangIdForSlot(). */
+extern const char* const s_LangIds[LANG_PACK_FIRST];
+
+/* Config id for any slot ("en".."it", then each installed pack's code). */
+const char* Pc_LangIdForSlot(int slot);
 
 /* Non-zero when an EUR disc is active (localized text pipeline in use). */
 int Pc_LangActive(void);

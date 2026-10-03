@@ -74,6 +74,13 @@ void Font_ApplyRegionPatches(void);
 void Font_PatchPolishGlyphs(void* pixels, int widthWords, int height);
 void Font_UsePolishLayout(void);
 
+/* Russian replaces the whole atlas with the Cyrillic one (font_ru.inc). */
+void Font_UseRussianLayout(void);
+
+/* Build the active pack's letterforms into freshly-read FONT16 pixels, before
+ * upload. No-op when the active pack needs no glyphs of its own. */
+void Font_PatchPackGlyphs(void* pixels, int widthWords, int height);
+
 /* Return g_FontLayout to the region base (drops any fan-patch override or the
  * Polish layout). Pc_LangInit calls it first so every language switch derives
  * its layout from a clean slate. */

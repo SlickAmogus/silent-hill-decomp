@@ -49,9 +49,21 @@ static const unsigned char s_GlyphWidths_EUR_PL[126] = {
     12, 11, 12, 0,  0,  0
 };
 
+/* Russian needs sixty-six letterforms, which no amount of free cells in the
+ * retail atlas can hold, so its pack replaces the atlas outright with the one
+ * the consolgames.ru PAL translation drew -- uppercase Cyrillic over the Latin
+ * capitals, lowercase over the accent block. lang_ru.c already carries the byte
+ * table for that layout, and those bytes deliberately avoid 0x96/0x9C/0xA1, the
+ * three the retail EUR scheme special-cases, so Font_MapChar's existing
+ * arithmetic (cell = byte - 0x27) addresses every one of them unchanged.
+ * Latin CAPITALS are gone while this is active, exactly as on the fan disc; the
+ * atlas is re-read on a language switch, so stepping off Russian restores it. */
+#include "font_ru.inc"
+
 static const s_FontLayout s_FontLayout_USA    = { 84,  240, 1, 0x10, 0x7FD3, 30, s_GlyphWidths_USA };
 static const s_FontLayout s_FontLayout_EUR    = { 120, 128, 6, 0x0C, 0x3FF3, 31, s_GlyphWidths_EUR };
 static const s_FontLayout s_FontLayout_EUR_PL = { 126, 128, 6, 0x0C, 0x3FF3, 31, s_GlyphWidths_EUR_PL };
+static const s_FontLayout s_FontLayout_EUR_RU = { 126, 128, 6, 0x0C, 0x3FF3, 31, FONT_RU_WIDTHS };
 
 const s_FontLayout* g_FontLayout = &s_FontLayout_USA;
 
@@ -60,6 +72,7 @@ const s_FontLayout* g_FontLayout = &s_FontLayout_USA;
  * pack actually being active rather than on a wide glyph count — a fan disc
  * that extends the atlas to 126 cells reaches the same count. */
 static int s_PolishLayoutActive;
+static int s_RussianLayoutActive;
 
 /* == FONT_12X16_LINE_COUNT_MAX (see font_region.h). Region-independent default
  * so USA and NTSC-J evaluate every site exactly as before; Font_ApplyRegionPatches
@@ -392,6 +405,61 @@ void Font_UsePolishLayout(void)
     }
 }
 
+void Font_UseRussianLayout(void)
+{
+    if (g_FontLayout == &s_FontLayout_EUR)
+    {
+        g_FontLayout          = &s_FontLayout_EUR_RU;
+        s_RussianLayoutActive = 1;
+    }
+}
+
+/* Replace the atlas with the Cyrillic one, cell for cell. */
+static void FontPatchRussianGlyphs(void* pixels, int widthWords, int height)
+{
+    unsigned char* p      = (unsigned char*)pixels;
+    int            stride = widthWords * 2;
+    int            cell;
+
+    if (pixels == NULL || (widthWords * 4) < (ATLAS_COLS * CELL_W) || height < (6 * CELL_H))
+    {
+        SH_WARN("[FONT] Cyrillic atlas skipped: FONT16 is %dx%d, need %dx%d",
+                widthWords * 4, height, ATLAS_COLS * CELL_W, 6 * CELL_H);
+        return;
+    }
+
+    for (cell = 0; cell < (int)(sizeof(FONT_RU_ATLAS) / sizeof(FONT_RU_ATLAS[0])); cell++)
+    {
+        const unsigned char* src  = FONT_RU_ATLAS[cell];
+        int                  dstX = (cell % ATLAS_COLS) * CELL_W;
+        int                  dstY = (cell / ATLAS_COLS) * CELL_H;
+        int                  x, y;
+
+        for (y = 0; y < CELL_H; y++)
+        {
+            for (x = 0; x < CELL_W; x++)
+            {
+                unsigned char b = src[(y * CELL_W + x) >> 1];
+
+                PixSet(p, stride, dstX + x, dstY + y, (x & 1) ? (b >> 4) : (b & 0x0F));
+            }
+        }
+    }
+
+    SH_LOG("[FONT] Cyrillic atlas built into FONT16 (%d cells)",
+           (int)(sizeof(FONT_RU_ATLAS) / sizeof(FONT_RU_ATLAS[0])));
+}
+
+/* The FONT16 upload site calls this for whichever pack is active: the hook
+ * fires for any pack at all, so it cannot assume Polish. */
+void Font_PatchPackGlyphs(void* pixels, int widthWords, int height)
+{
+    if (s_RussianLayoutActive)
+        FontPatchRussianGlyphs(pixels, widthWords, height);
+    else if (s_PolishLayoutActive)
+        Font_PatchPolishGlyphs(pixels, widthWords, height);
+}
+
 /* Back to the region's pristine base layout. Pc_LangInit is re-entrant (the
  * options menu re-runs it on every language step) and each run has to derive
  * fan-patch override vs Polish layout from scratch: EurFanFontInit judges the
@@ -403,12 +471,14 @@ void Font_UsePolishLayout(void)
 void Font_ResetLayout(void)
 {
     s_PolishLayoutActive = 0;
+    s_RussianLayoutActive = 0;
     g_FontLayout = (g_GameRegion == Region_EUR) ? &s_FontLayout_EUR : &s_FontLayout_USA;
 }
 
 void Font_ApplyRegionPatches(void)
 {
     s_PolishLayoutActive = 0;
+    s_RussianLayoutActive = 0;
 
     if (g_GameRegion != Region_EUR)
     {

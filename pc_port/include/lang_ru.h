@@ -35,4 +35,8 @@ const char* Pc_RuMenuText(const char* us);
  * overlays that draw with a TrueType font. NULL when inactive or absent. */
 const char* Pc_RuMenuUtf8(const char* us);
 
+/* Cyrillic codepoint -> font byte for the PC Russian PACK (the consolgames
+ * atlas in font_ru.inc). 0 when that atlas has no cell for the letter. */
+unsigned char Pc_RuPackByte(unsigned int cp);
+
 #endif

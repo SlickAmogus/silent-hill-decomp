@@ -1210,15 +1210,16 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
     }
 
 #ifdef SH_PC_PORT
-    /* Polish ships no FONT16 of its own: build its extra letterforms into the
-     * atlas pixels right before upload. No-op unless the Polish pack is the
-     * active language, and covers every FONT16 reload site (boot, Konami,
-     * title, save-select) since they all pass through here. */
+    /* A pack language ships no FONT16 of its own: build its letterforms into
+     * the atlas pixels right before upload. Covers every FONT16 reload site
+     * (boot, Konami, title, save-select) since they all pass through here, and
+     * dispatches on which pack is active -- Polish adds a few cells, Russian
+     * replaces the atlas. */
     if (Pc_LangPackActive() &&
         FSQ_INFO_VALID(entry->info) &&
         (int)(entry->info - &g_FileTable[0]) == FILE_1ST_FONT16_TIM)
     {
-        Font_PatchPolishGlyphs(tim.paddr, tim.prect->w, tim.prect->h);
+        Font_PatchPackGlyphs(tim.paddr, tim.prect->w, tim.prect->h);
     }
 
     /* A resumed post-load already uploaded this TIM to VRAM on its first pass. */

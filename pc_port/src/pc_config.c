@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "pc_config.h"
+#include "lang_pack.h"
+#include "lang_text.h"
 #include "pc_binds.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -880,8 +882,15 @@ void PcConfig_Load(const char* path)
             else if (strcmp(value, "fr") == 0) g_PcConfig.language = 2;
             else if (strcmp(value, "es") == 0) g_PcConfig.language = 3;
             else if (strcmp(value, "it") == 0) g_PcConfig.language = 4;
-            else if (strcmp(value, "pl") == 0) g_PcConfig.language = 5; /* PC-side pack (gamedata/lang/pl.lang) */
-            else                               g_PcConfig.language = 0;
+            else
+            {
+                /* Anything else is a pack code: whatever .lang files are
+                 * installed in gamedata/lang, including ones a mod dropped
+                 * there. Unknown (pack removed) falls back to English. */
+                int slot = Pc_LangPackListFind(value);
+
+                g_PcConfig.language = (slot >= 0) ? (LANG_PACK_FIRST + slot) : 0;
+            }
         }
         else if (strcmp(key, "jp_language") == 0)
         {

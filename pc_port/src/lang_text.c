@@ -91,7 +91,18 @@ extern const char* g_ItemDescriptions[];
  * from LANG_PACK_FIRST on they are PC-side packs (gamedata/lang/<id>.lang),
  * which exist on no disc and so are offered on EUR only -- the US font has no
  * accent cells to build their letters into. */
-const char* const s_LangIds[LANG_COUNT] = { "en", "de", "fr", "es", "it", "pl" };
+const char* const s_LangIds[LANG_PACK_FIRST] = { "en", "de", "fr", "es", "it" };
+
+const char* Pc_LangIdForSlot(int slot)
+{
+    if (slot >= LANG_PACK_FIRST)
+    {
+        const char* code = Pc_LangPackListCode(slot - LANG_PACK_FIRST);
+
+        return (code[0] != '\0') ? code : "en";
+    }
+    return (slot > 0 && slot < LANG_PACK_FIRST) ? s_LangIds[slot] : "en";
+}
 
 static char*       s_ItemPool;
 /* "item text has been installed" sentinel. Was s_ItemPool != NULL, but the
@@ -754,9 +765,14 @@ void Pc_LangInit(void)
 
     if (g_PcConfig.language >= LANG_PACK_FIRST)
     {
-        if (g_GameRegion == Region_EUR && Pc_LangPackLoad(s_LangIds[g_PcConfig.language]))
+        if (g_GameRegion == Region_EUR && Pc_LangPackLoad(Pc_LangIdForSlot(g_PcConfig.language)))
         {
-            Font_UsePolishLayout();
+            /* Whatever letterforms this pack needs; the atlas itself is built
+             * at FONT16 upload (Font_PatchPackGlyphs). */
+            if (Pc_LangPackFont() == LANG_PACK_FONT_CYRILLIC)
+                Font_UseRussianLayout();
+            else if (Pc_LangPackFont() == LANG_PACK_FONT_POLISH)
+                Font_UsePolishLayout();
             /* Item name/desc come from the pack (Pc_LangItemName checks it
              * first); untranslated entries fall back to the compiled US
              * strings in item_screens_3.c. Story text is overlaid per map on
@@ -764,7 +780,7 @@ void Pc_LangInit(void)
             return;
         }
         SH_WARN("[LANG] pack '%s' unavailable (region=%d) — English",
-                s_LangIds[g_PcConfig.language], (int)g_GameRegion);
+                Pc_LangIdForSlot(g_PcConfig.language), (int)g_GameRegion);
         g_PcConfig.language = 0;
     }
     else
@@ -903,11 +919,13 @@ void Pc_LangInit(void)
  * rebinds the file table and reloads item text. */
 void Pc_LangSetLanguage(int lang)
 {
-    if (lang < 0 || lang >= LANG_COUNT)
+    if (lang < 0 || lang >= Pc_LangSlotCount())
         lang = 0;
 
     g_PcConfig.language = lang;
-    PcConfig_SaveKeyValue("language", s_LangIds[lang]);
+    /* The CODE, not the slot: installing or removing a pack renumbers the
+     * slots, and nobody's language should move because of that. */
+    PcConfig_SaveKeyValue("language", Pc_LangIdForSlot(lang));
     /* Pack languages fall through to the English disc assets (the redirect
      * only knows the five disc languages), which is what they want: the pack
      * supplies the text, the disc supplies everything else. */
@@ -926,7 +944,7 @@ void Pc_LangSetLanguage(int lang)
         Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
     }
 
-    SH_LOG("[LANG] language switched to '%s'", s_LangIds[lang]);
+    SH_LOG("[LANG] language switched to '%s'", Pc_LangIdForSlot(lang));
 }
 
 /* NTSC-J text language: 0 Japanese, 1 Chinese.
@@ -981,7 +999,8 @@ int Pc_LangSlotCount(void)
 
     /* PC-side packs need the EUR font atlas, so they are offered on EUR only;
      * elsewhere the row stops at the five disc languages. */
-    return (g_GameRegion == Region_EUR) ? LANG_COUNT : LANG_PACK_FIRST;
+    return (g_GameRegion == Region_EUR) ? (LANG_PACK_FIRST + Pc_LangPackListCount())
+                                        : LANG_PACK_FIRST;
 }
 
 int Pc_LangSlotCurrent(void)
@@ -1011,8 +1030,12 @@ const char* Pc_LangSlotName(int slot)
     if (g_GameRegion == Region_JPN)
         return slot ? "Chinese" : "Japanese";
 
-    if (slot < 0 || slot >= LANG_PACK_FIRST)
-        return Pc_LangPackName();
+    /* The pack's own `!menu` label, read from the registry rather than from
+     * the loaded pack -- the row is browsed before anything is loaded. */
+    if (slot >= LANG_PACK_FIRST)
+        return Pc_LangPackListName(slot - LANG_PACK_FIRST);
+    if (slot < 0)
+        return s_PalNames[0];
 
     return s_PalNames[slot];
 }
@@ -1758,7 +1781,7 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
             }
         }
         SH_LOG("[LANG] map %d: %d pack messages overlaid (%s)", mapIdx, replaced,
-               s_LangIds[g_PcConfig.language]);
+               Pc_LangIdForSlot(g_PcConfig.language));
     }
 
     s_LangMapHeader             = *g_pMapOverlayHeader;

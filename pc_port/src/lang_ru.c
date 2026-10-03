@@ -336,23 +336,53 @@ static const signed char s_RuSubstitute[RU_LETTER_COUNT] = {
 };
 
 /* One Cyrillic letter -> font byte, applying the fallback chain. 0 = drop. */
-static unsigned char RuEncodeLetter(int idx, int isUpper)
+static unsigned char RuEncodeLetterIn(const s_RuCharset* cs, int idx, int isUpper)
 {
     int depth;
 
     /* At most two hops (Ъ -> Ь -> its lowercase form). */
     for (depth = 0; depth < 3 && idx >= 0; depth++)
     {
-        unsigned char b = isUpper ? s_Active->up[idx] : s_Active->lo[idx];
+        unsigned char b = isUpper ? cs->up[idx] : cs->lo[idx];
 
         if (b == 0 && isUpper)
-            b = s_Active->lo[idx]; /* atlas painted only the lowercase form */
+            b = cs->lo[idx]; /* atlas painted only the lowercase form */
         if (b != 0)
             return b;
 
         idx = s_RuSubstitute[idx];
     }
     return 0;
+}
+
+static unsigned char RuEncodeLetter(int idx, int isUpper)
+{
+    return RuEncodeLetterIn(s_Active, idx, isUpper);
+}
+
+/* One Cyrillic codepoint -> the byte the PC Russian pack writes. The pack draws
+ * through the consolgames atlas that font_ru.inc embeds, so it always encodes
+ * with that charset -- the disc paths above instead pick one from the mounted
+ * font's hash, which says nothing about a pack. 0 = no cell for this letter. */
+unsigned char Pc_RuPackByte(unsigned int cp)
+{
+    unsigned char b;
+    int           idx;
+    int           isUpper = 0;
+
+    idx = RuLetterIndex(cp, &isUpper);
+    if (idx < 0)
+        return 0;
+    b = RuEncodeLetterIn(&s_Charset_ConsolGames, idx, isUpper);
+
+    /* Uppercase Э lands on the cell whose byte is 0x7E, and to THIS engine
+     * 0x7E is the '~' that opens a control code -- the disc gets away with it
+     * because its own text marks codes with {} instead. font_ru.inc gives Э a
+     * second cell (90, a duplicate the charset never addresses) so the pack can
+     * write it as a byte that means nothing else. */
+    if (b == 0x7E)
+        b = 0x81;
+    return b;
 }
 
 /* Transcode a UTF-8 menu string into the active patch's font bytes. ASCII

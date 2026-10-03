@@ -36,6 +36,24 @@ void Pc_LangPackFree(void);
 /* Non-zero once a pack is loaded and serving text. */
 int Pc_LangPackActive(void);
 
+/* The glyph set a pack needs, from its `!font` header line. A language whose
+ * letters the retail PAL atlas already draws needs nothing; the others bring
+ * their letterforms with them (font_region.c). */
+#define LANG_PACK_FONT_LATIN    0   /* `!font=latin`, or absent */
+#define LANG_PACK_FONT_POLISH   1   /* `!font=polish`   -- seven cells built in */
+#define LANG_PACK_FONT_CYRILLIC 2   /* `!font=cyrillic` -- atlas replaced */
+int Pc_LangPackFont(void);
+
+/* Installed packs, in a stable order: every .lang file in gamedata/lang. This
+ * is how a language MOD works -- the Mod Manager drops the file there and it
+ * becomes selectable. Scanned once, on first use; Rescan forces a re-read.
+ * Slot N of the Language row is LANG_PACK_FIRST + N. */
+int         Pc_LangPackListCount(void);
+const char* Pc_LangPackListCode(int idx);
+const char* Pc_LangPackListName(int idx);
+int         Pc_LangPackListFind(const char* code);   /* index, or -1 */
+void        Pc_LangPackListRescan(void);
+
 /* Label for the options-menu Language row (the pack's `!menu` field). */
 const char* Pc_LangPackName(void);
 
