@@ -441,6 +441,12 @@ const char* Pc_LangPackListName(int idx)
     return (idx >= 0 && idx < s_PackListCount) ? s_Packs[idx].menu : "";
 }
 
+int Pc_LangPackListFont(int idx)
+{
+    PackListEnsure();
+    return (idx >= 0 && idx < s_PackListCount) ? s_Packs[idx].font : LANG_PACK_FONT_LATIN;
+}
+
 int Pc_LangPackListFind(const char* code)
 {
     int i;

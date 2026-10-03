@@ -52,6 +52,7 @@ int         Pc_LangPackListCount(void);
 const char* Pc_LangPackListCode(int idx);
 const char* Pc_LangPackListName(int idx);
 int         Pc_LangPackListFind(const char* code);   /* index, or -1 */
+int         Pc_LangPackListFont(int idx);            /* LANG_PACK_FONT_* */
 void        Pc_LangPackListRescan(void);
 
 /* Label for the options-menu Language row (the pack's `!menu` field). */

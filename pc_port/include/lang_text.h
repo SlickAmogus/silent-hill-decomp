@@ -34,6 +34,9 @@ extern const char* const s_LangIds[LANG_PACK_FIRST];
 /* Config id for any slot ("en".."it", then each installed pack's code). */
 const char* Pc_LangIdForSlot(int slot);
 
+/* Re-read gamedata/lang (a mod was installed while the game was running). */
+void Pc_LangPacksRescan(void);
+
 /* Non-zero when an EUR disc is active (localized text pipeline in use). */
 int Pc_LangActive(void);
 

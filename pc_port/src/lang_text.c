@@ -93,11 +93,80 @@ extern const char* g_ItemDescriptions[];
  * accent cells to build their letters into. */
 const char* const s_LangIds[LANG_PACK_FIRST] = { "en", "de", "fr", "es", "it" };
 
+/* Which installed packs THIS disc should offer. A PAL disc already carries
+ * German, French, Spanish and Italian, so a pack of the same name would be a
+ * second identical row, and the disc's own text is the better source. On any
+ * other disc those packs are the only way to get those languages, which is the
+ * whole point of extracting them.
+ *
+ * A pack that brings its own letterforms (Polish, Russian) still needs the PAL
+ * atlas to build them into, so those stay PAL-only for now. A plain Latin pack
+ * is fine anywhere: the US atlas has no accent cells, and Font_MapChar already
+ * draws the unaccented base letter instead of dropping the character. */
+#define PACK_SLOT_MAX 24
+
+static signed char s_PackSlot[PACK_SLOT_MAX];
+static int         s_PackSlotCount = -1;
+
+static void PackSlotsBuild(void)
+{
+    int n = Pc_LangPackListCount();
+    int i;
+    int j;
+
+    s_PackSlotCount = 0;
+    for (i = 0; i < n && s_PackSlotCount < PACK_SLOT_MAX; i++)
+    {
+        const char* code = Pc_LangPackListCode(i);
+        int         skip = 0;
+
+        if (g_GameRegion == Region_EUR)
+        {
+            for (j = 1; j < LANG_PACK_FIRST; j++)
+            {
+                if (strcmp(code, s_LangIds[j]) == 0)
+                    skip = 1;
+            }
+        }
+        else if (Pc_LangPackListFont(i) != LANG_PACK_FONT_LATIN)
+        {
+            skip = 1;
+        }
+
+        if (!skip)
+            s_PackSlot[s_PackSlotCount++] = (signed char)i;
+    }
+}
+
+static int PackSlotsCount(void)
+{
+    if (s_PackSlotCount < 0)
+        PackSlotsBuild();
+    return s_PackSlotCount;
+}
+
+/* Slot (LANG_PACK_FIRST and up) -> index in the installed-pack list, or -1. */
+static int PackIndexForSlot(int slot)
+{
+    int i = slot - LANG_PACK_FIRST;
+
+    if (s_PackSlotCount < 0)
+        PackSlotsBuild();
+    return (i >= 0 && i < s_PackSlotCount) ? s_PackSlot[i] : -1;
+}
+
+void Pc_LangPacksRescan(void)
+{
+    Pc_LangPackListRescan();
+    s_PackSlotCount = -1;
+}
+
 const char* Pc_LangIdForSlot(int slot)
 {
     if (slot >= LANG_PACK_FIRST)
     {
-        const char* code = Pc_LangPackListCode(slot - LANG_PACK_FIRST);
+        int         idx  = PackIndexForSlot(slot);
+        const char* code = (idx >= 0) ? Pc_LangPackListCode(idx) : "";
 
         return (code[0] != '\0') ? code : "en";
     }
@@ -765,7 +834,7 @@ void Pc_LangInit(void)
 
     if (g_PcConfig.language >= LANG_PACK_FIRST)
     {
-        if (g_GameRegion == Region_EUR && Pc_LangPackLoad(Pc_LangIdForSlot(g_PcConfig.language)))
+        if (Pc_LangPackLoad(Pc_LangIdForSlot(g_PcConfig.language)))
         {
             /* Whatever letterforms this pack needs; the atlas itself is built
              * at FONT16 upload (Font_PatchPackGlyphs). */
@@ -1016,8 +1085,7 @@ int Pc_LangSlotCount(void)
 
     /* PC-side packs need the EUR font atlas, so they are offered on EUR only;
      * elsewhere the row stops at the five disc languages. */
-    return (g_GameRegion == Region_EUR) ? (LANG_PACK_FIRST + Pc_LangPackListCount())
-                                        : LANG_PACK_FIRST;
+    return LANG_PACK_FIRST + PackSlotsCount();
 }
 
 int Pc_LangSlotCurrent(void)
@@ -1054,7 +1122,11 @@ const char* Pc_LangSlotName(int slot)
     /* The pack's own `!menu` label, read from the registry rather than from
      * the loaded pack -- the row is browsed before anything is loaded. */
     if (slot >= LANG_PACK_FIRST)
-        return Pc_LangPackListName(slot - LANG_PACK_FIRST);
+    {
+        int idx = PackIndexForSlot(slot);
+
+        return (idx >= 0) ? Pc_LangPackListName(idx) : s_PalNames[0];
+    }
     if (slot < 0)
         return s_PalNames[0];
 
