@@ -981,7 +981,7 @@ static void MainMenu_BackgroundDraw(void) // 0x8003B758
     }
 
 #ifdef SH_PC_PORT
-    if (g_GameRegion == Region_EUR && !Pc_TitleUsesJpArt())
+    if (Pc_TitleUsesPalLogo())
     {
         Pc_TitleLogoDrawEur();
     }

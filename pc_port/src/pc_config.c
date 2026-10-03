@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "pc_config.h"
 #include "lang_pack.h"
+#include "pc_title_style.h"
 #include "lang_text.h"
 #include "pc_binds.h"
 #include <stdio.h>
@@ -241,7 +242,7 @@ s_PcConfig g_PcConfig = {
 
     .language       = 0, /* 0=en 1=de 2=fr 3=es 4=it — PAL-disc text language; USA: menu translations on fan-patched discs */
     .jpLanguage     = 0, /* 0=ja 1=zh 2=en — NTSC-J text language */
-    .menuStyle      = 0, /* 0=auto (the disc's own) 1=western 2=japanese title screen */
+    .menuStyle      = TITLE_STYLE_AUTO, /* the disc's own title screen */
     .region         = 0, /* 0=auto (USA wins) 1=usa 2=pal 3=jap — preferred disc when several are present */
     .discImage      = "", /* exact .bin in gamedata/ (launcher Disc dropdown); empty = auto */
     .uncensored     = 0, /* 0=retail PAL Mumblers (default); 1=restore Grey Children on EUR (matches US) */
@@ -896,9 +897,12 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "menu_style") == 0)
         {
             /* Which title screen to show. Unknown -> follow the disc. */
-            g_PcConfig.menuStyle = (strcmp(value, "western") == 0)  ? MENU_STYLE_WESTERN
-                                 : (strcmp(value, "japanese") == 0) ? MENU_STYLE_JAPANESE
-                                                                    : MENU_STYLE_AUTO;
+            g_PcConfig.menuStyle = (strcmp(value, "us") == 0 ||
+                                    strcmp(value, "western") == 0)  ? TITLE_STYLE_US
+                                 : (strcmp(value, "pal") == 0)      ? TITLE_STYLE_PAL
+                                 : (strcmp(value, "japanese") == 0 ||
+                                    strcmp(value, "jp") == 0)       ? TITLE_STYLE_JP
+                                                                    : TITLE_STYLE_AUTO;
         }
         else if (strcmp(key, "jp_language") == 0)
         {

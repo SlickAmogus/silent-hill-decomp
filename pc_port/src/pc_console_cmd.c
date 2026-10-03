@@ -1558,32 +1558,42 @@ void Pc_ConsoleExec(const char* line)
         else g_PcUnlimitedEnemies = !g_PcUnlimitedEnemies;
         cprintf("unlimited enemies %s (cap now %d)", g_PcUnlimitedEnemies ? "ON" : "OFF", NPC_COUNT_MAX);
     } else if (strcmp(cmd, "MENUSTYLE") == 0) {
-        /* Title screen: auto follows the disc, japanese works on any of them
-         * (TIM/TITLE.TIM is identical on all three), western is each disc's
-         * own. Applies now when the title is up, otherwise on the way back. */
+        /* Three main menus, and no disc carries all three: us is a full
+         * picture, pal composes black + logo + fog, japanese has its own
+         * stylized logo. The port ships the two a disc can lack. */
+        static const char* const names[3] = { "US", "PAL", "JAPANESE" };
         int was = g_PcConfig.menuStyle;
+        int now;
 
-        if (StrCaseEq(arg, "auto") || arg[0] == '0')
-            g_PcConfig.menuStyle = MENU_STYLE_AUTO;
-        else if (StrCaseEq(arg, "western") || StrCaseEq(arg, "us") || arg[0] == '1')
-            g_PcConfig.menuStyle = MENU_STYLE_WESTERN;
-        else if (StrCaseEq(arg, "japanese") || StrCaseEq(arg, "jp") || arg[0] == '2')
-            g_PcConfig.menuStyle = MENU_STYLE_JAPANESE;
+        if (StrCaseEq(arg, "auto"))
+            g_PcConfig.menuStyle = TITLE_STYLE_AUTO;
+        else if (StrCaseEq(arg, "us") || StrCaseEq(arg, "western") || StrCaseEq(arg, "ntsc"))
+            g_PcConfig.menuStyle = TITLE_STYLE_US;
+        else if (StrCaseEq(arg, "pal") || StrCaseEq(arg, "eur"))
+            g_PcConfig.menuStyle = TITLE_STYLE_PAL;
+        else if (StrCaseEq(arg, "japanese") || StrCaseEq(arg, "jp") || StrCaseEq(arg, "ntscj"))
+            g_PcConfig.menuStyle = TITLE_STYLE_JP;
         else if (arg[0] != ' ') {
-            cprintf("usage: MENUSTYLE auto|western|japanese");
+            cprintf("usage: MENUSTYLE auto|us|pal|japanese");
             return;
         } else {
-            g_PcConfig.menuStyle = (g_PcConfig.menuStyle + 1) % 3;
+            /* No argument: step auto -> us -> pal -> japanese -> auto. */
+            g_PcConfig.menuStyle = (was < TITLE_STYLE_US || was >= TITLE_STYLE_JP)
+                                       ? (was < TITLE_STYLE_US ? TITLE_STYLE_US : TITLE_STYLE_AUTO)
+                                       : was + 1;
         }
 
         PcConfig_SaveKeyValue("menu_style",
-                              g_PcConfig.menuStyle == MENU_STYLE_WESTERN  ? "western" :
-                              g_PcConfig.menuStyle == MENU_STYLE_JAPANESE ? "japanese" : "auto");
-        cprintf("menu style %s%s",
-                g_PcConfig.menuStyle == MENU_STYLE_WESTERN  ? "WESTERN" :
-                g_PcConfig.menuStyle == MENU_STYLE_JAPANESE ? "JAPANESE" : "AUTO (the disc's own)",
-                (was != g_PcConfig.menuStyle && !Pc_TitleStyleApply())
-                    ? " - shows next time the title screen is up" : "");
+                              g_PcConfig.menuStyle == TITLE_STYLE_US  ? "us" :
+                              g_PcConfig.menuStyle == TITLE_STYLE_PAL ? "pal" :
+                              g_PcConfig.menuStyle == TITLE_STYLE_JP  ? "japanese" : "auto");
+        now = Pc_TitleStyle();
+        if (g_PcConfig.menuStyle == TITLE_STYLE_AUTO)
+            cprintf("menu style AUTO - this disc's own, %s", names[now]);
+        else
+            cprintf("menu style %s", names[now]);
+        if (was != g_PcConfig.menuStyle && !Pc_TitleStyleApply())
+            cprintf("  shows next time the title screen is up");
     } else if (strcmp(cmd, "INFAMMO") == 0 || strcmp(cmd, "INFINITEAMMO") == 0) {
         extern int g_PcInfiniteAmmo;
         g_PcInfiniteAmmo = (arg[0] == '1') ? 1 : (arg[0] == '0') ? 0 : !g_PcInfiniteAmmo;
