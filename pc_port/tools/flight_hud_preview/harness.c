@@ -2,6 +2,8 @@
 #undef SH_DBG
 #define SH_DBG(...) ((void)0)
 #include "../../src/pc_flight_hud.c"
+#include "../../src/pc_flight_missile.c"
+#include "../../src/pc_flight_arcade.c"
 
 s_SysWork  g_SysWork;
 s_GameWork g_GameWork;
@@ -98,7 +100,7 @@ static void frame(float aspect, const char* path, int alert)
         memcpy(s_dim, s_main, sizeof(s_dim)); s_dim[3] *= 0.55f;
     }
     s_hud.n = s_glow.n = s_fill.n = 0;
-    s_cur = &s_glow; Ah_BuildFlares();
+    s_cur = &s_glow; Ah_BuildFlares(); Ah_BuildMissiles();
     s_cur = &s_hud;
     if (s_dead && s_deadT >= AH_DEAD_FAIL) Ah_BuildDead(1.0f);
     else if (g_PcConfig.flightHud == 2) Ah_BuildHudClassic(1920, 1080); else Ah_BuildHud();
@@ -264,5 +266,23 @@ int main(int argc, char** argv)
     say(AH_FACE_CYBIL, 0);
     for (i = 0; i < AH_RADIO_LINES; i++) if (s_radioLines[i].cat == AH_RC_DOWN) { s_radioQ[0] = i; break; }
     frame(16.0f/9.0f, "dead.txt", 1);
+    s_dead = 0; s_radioN = 0;
+    g_SysWork.playerWork.player.health = Q12(72.0f);
+
+    /* one inbound monster missile, one of Harry's, MSL counter */
+    g_PcConfig.flightGameplay = 1;
+    {
+        const AfVec3 a = { 2.0f, -1.2f, 5.0f }, ad = { 0.0f, 0.0f, -1.0f };
+        const AfVec3 b = { -1.0f, -1.0f, 3.0f }, bd = { 0.0f, 0.0f, 1.0f };
+        Af_MissileInit(&s_msl[0], 0, 0, -1, a, ad, 7.0f, 1.2f, 4.0f);
+        Af_MissileInit(&s_msl[1], 1, -1, 1, b, bd, 16.0f, 4.0f, 3.0f);
+    }
+    s_mslStock = 1;
+    frame(16.0f/9.0f, "missile.txt", 1);
+    g_PcConfig.flightHud = 2;
+    frame(16.0f/9.0f, "missile_classic.txt", 1);
+    g_PcConfig.flightHud = 1;
+    g_PcConfig.flightGameplay = 0;
+    memset(s_msl, 0, sizeof(s_msl));
     return 0;
 }

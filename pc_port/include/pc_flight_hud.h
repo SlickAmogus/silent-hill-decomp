@@ -36,6 +36,18 @@ int Pc_FlightHud_StickBindEdge(int sdlButton, int held, unsigned char* state);
 /* 1 when sdlButton is a stick click that Pc_FlightHud_StickBindEdge would defer. */
 int Pc_FlightHud_StickBindDeferred(int sdlButton);
 
+/* State flight_gameplay reads. */
+int Pc_FlightHud_JamActive(void);
+int Pc_FlightHud_LockState(int slot);
+int Pc_FlightHud_SeekerLockedSlot(void);
+int Pc_FlightHud_FlarePositions(float* xyz, int max);
+int Pc_FlightHud_IsBoss(int charaId);
+/* Change Target: move the seeker to the next enemy in front, by distance. */
+void Pc_FlightHud_NextTarget(void);
+/* The seeker's current pick, locked or still closing; -1 if none. */
+int Pc_FlightHud_SeekerSlot(void);
+int Pc_FlightHud_IsLiveEnemy(int slot);
+
 #ifdef __cplusplus
 }
 #endif

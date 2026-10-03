@@ -170,6 +170,16 @@ s32 func_8008A0E4(s32 arg0, s32 weaponAttack, s_SubCharacter* chara, VECTOR3* po
             return NO_VALUE;
         }
     }
+
+    /* flight_gameplay: a flare salvo blinds the monsters' seekers, and their
+     * swings with it. */
+    {
+        extern int Pc_FlightArcade_ShieldsHarryFrom(const s_SubCharacter* attacker);
+        if (chara2 == &g_SysWork.playerWork.player && Pc_FlightArcade_ShieldsHarryFrom(chara))
+        {
+            return NO_VALUE;
+        }
+    }
 #endif
 
     if (chara == &g_SysWork.playerWork.player)
@@ -1433,6 +1443,17 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     s32         z2;
     s_800AD4C8* temp_fp;
 
+#ifdef SH_PC_PORT
+    /* The Air Screamer reaches Harry through func_8008A3E0 without ever
+     * calling func_8008A0E4, so the flare shield is checked here too. */
+    {
+        extern int Pc_FlightArcade_ShieldsHarryFrom(const s_SubCharacter* attacker);
+        if (target == &g_SysWork.playerWork.player && Pc_FlightArcade_ShieldsHarryFrom(attacker))
+        {
+            return 0;
+        }
+    }
+#endif
     weaponAttack = (u8)attacker->field_44.field_2;
     temp_fp      = &D_800AD4C8[weaponAttack];
     offsetY       = temp_fp->field_10;

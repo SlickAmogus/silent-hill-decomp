@@ -62,6 +62,7 @@
 #endif
 #include "pc_quick_options.h"
 #include "pc_flight_hud.h"
+#include "pc_flight_arcade.h"
 
 extern long   ReadGeomScreen(void);
 extern int    PsyX_RawControllerBindHeld(int buttonOrAxis);
@@ -149,6 +150,7 @@ static float s_hpMax[NPC_COUNT_MAX];
 static float s_npcHpPrev[NPC_COUNT_MAX];
 
 static int   s_seekSlot = -1;
+static int   s_manualSlot = -1; /* target picked with Change Target, -1 = the seeker's own pick */
 static float s_seekT;
 
 typedef struct
@@ -474,6 +476,36 @@ static void Ah_FlareSim(float dt)
     }
 }
 
+int Pc_FlightHud_JamActive(void)
+{
+    return s_jamT > 0.0f;
+}
+
+int Pc_FlightHud_LockState(int slot)
+{
+    return (slot >= 0 && slot < NPC_COUNT_MAX) ? s_lockState[slot] : 0;
+}
+
+int Pc_FlightHud_SeekerLockedSlot(void)
+{
+    return (s_seekSlot >= 0 && s_seekT >= AH_SEEK_TIME) ? s_seekSlot : -1;
+}
+
+int Pc_FlightHud_FlarePositions(float* xyz, int max)
+{
+    int i, n = 0;
+    for (i = 0; i < AH_PARTICLES_MAX && n < max; i++)
+    {
+        if (!s_flares[i].alive)
+            continue;
+        xyz[n * 3 + 0] = s_flares[i].x;
+        xyz[n * 3 + 1] = s_flares[i].y;
+        xyz[n * 3 + 2] = s_flares[i].z;
+        n++;
+    }
+    return n;
+}
+
 /* ------------------------------------------------------------------ */
 /* Radio                                                               */
 /* ------------------------------------------------------------------ */
@@ -635,6 +667,11 @@ static int Ah_IsBoss(int charaId)
            charaId == Chara_Bloodsucker || charaId == Chara_Incubus || charaId == Chara_MonsterCybil;
 }
 
+int Pc_FlightHud_IsBoss(int charaId)
+{
+    return Ah_IsBoss(charaId);
+}
+
 static void Ah_StatsNow(s_AhStats* s)
 {
     s->timer = Ah_Q12f(g_SavegamePtr->gameplayTimer);
@@ -705,6 +742,7 @@ static void Ah_ZoneTick(float dt)
 
     if (map != s_prevMap)
     {
+        Pc_FlightArcade_Reset();
         if (s_prevMap >= 0)
         {
             if (chapter >= 0 && !(s_chapterSeen & (1u << chapter)))
@@ -772,6 +810,147 @@ static void Ah_OnHit(const s_SubCharacter* npc)
     s_hitFxNext = (s_hitFxNext + 1) % AH_HITFX_MAX;
 }
 
+static void Ah_View(float wx, float wy, float wz, float* vx, float* vy, float* vz);
+
+#define AH_RETICLE_RANGE 40.0f /* m */
+#define AH_RETICLE_BODY  0.8f  /* m off the aim line that still counts as on the body */
+#define AH_RETICLE_CONE  0.07f /* tan(4 deg): far targets get at least this much */
+
+/* The free-aim cameras (TPS, OTS, first person) skip the game's auto-target, so
+ * targetNpcIdx stays empty there: the seeker takes the live enemy closest to
+ * the screen-centre reticle instead. The current pick gets a wider window so the
+ * seeker does not drop it on a small wobble of the view. */
+static int Ah_ReticleTarget(int current)
+{
+    int   i, best = -1;
+    float bestK = 1.0f;
+
+    for (i = 0; i < NPC_COUNT_MAX; i++)
+    {
+        const s_SubCharacter* npc = &g_SysWork.npcs[i];
+        float vx, vy, vz, off, tol, k;
+
+        if (!Ah_NpcLive(npc))
+            continue;
+        Ah_View(Ah_Q12f(npc->position.vx + npc->collision.shapeOffsets.box.vx),
+                Ah_Q12f(npc->position.vy + npc->collision.box.offsetY),
+                Ah_Q12f(npc->position.vz + npc->collision.shapeOffsets.box.vz), &vx, &vy, &vz);
+        if (vz < 0.3f || vz > AH_RETICLE_RANGE)
+            continue;
+        off = sqrtf(vx * vx + vy * vy);
+        tol = vz * AH_RETICLE_CONE;
+        if (tol < AH_RETICLE_BODY)
+            tol = AH_RETICLE_BODY;
+        if (i == current)
+            tol *= 1.5f;
+        k = off / tol;
+        if (k <= bestK)
+        {
+            bestK = k;
+            best  = i;
+        }
+    }
+    return best;
+}
+
+/* A target the seeker can hold: alive, in range, and in front of the view. */
+static int Ah_SeekerCandidate(int slot, float* outDist)
+{
+    const s_SubCharacter* npc;
+    float                 vx, vy, vz;
+
+    if (slot < 0 || slot >= NPC_COUNT_MAX)
+        return 0;
+    npc = &g_SysWork.npcs[slot];
+    if (!Ah_NpcLive(npc))
+        return 0;
+    Ah_View(Ah_Q12f(npc->position.vx + npc->collision.shapeOffsets.box.vx),
+            Ah_Q12f(npc->position.vy + npc->collision.box.offsetY),
+            Ah_Q12f(npc->position.vz + npc->collision.shapeOffsets.box.vz), &vx, &vy, &vz);
+    if (vz < 0.3f || vz > AH_RETICLE_RANGE || fabsf(vx) > vz * 1.4f || fabsf(vy) > vz * 0.9f)
+        return 0;
+    if (outDist)
+        *outDist = vz;
+    return 1;
+}
+
+/* Change Target: the next candidate by distance after the current one,
+ * wrapping to the nearest. */
+int Pc_FlightHud_SeekerSlot(void)
+{
+    return s_seekSlot;
+}
+
+int Pc_FlightHud_IsLiveEnemy(int slot)
+{
+    return slot >= 0 && slot < NPC_COUNT_MAX && Ah_NpcLive(&g_SysWork.npcs[slot]);
+}
+
+void Pc_FlightHud_NextTarget(void)
+{
+    float dist[NPC_COUNT_MAX], curD = -1.0f;
+    int   i, next = -1, nearest = -1;
+
+    for (i = 0; i < NPC_COUNT_MAX; i++)
+        if (!Ah_SeekerCandidate(i, &dist[i]))
+            dist[i] = -1.0f;
+    if (s_seekSlot >= 0 && dist[s_seekSlot] >= 0.0f)
+        curD = dist[s_seekSlot];
+
+    for (i = 0; i < NPC_COUNT_MAX; i++)
+    {
+        if (dist[i] < 0.0f || i == s_seekSlot)
+            continue;
+        if (nearest < 0 || dist[i] < dist[nearest])
+            nearest = i;
+        if (dist[i] >= curD && (next < 0 || dist[i] < dist[next]))
+            next = i;
+    }
+    if (next < 0)
+        next = nearest;
+    if (next < 0)
+        return;
+    s_manualSlot = next;
+    SD_Call(Sfx_MenuMove);
+}
+
+#define AH_FACING_CONE 0.21f /* rad, ~12 deg either side of Harry's heading */
+
+/* The fixed cameras have no reticle: the seeker looks where Harry faces. */
+static int Ah_FacingTarget(int current)
+{
+    const s_SubCharacter* pl  = &g_SysWork.playerWork.player;
+    const float           yaw = Ah_Turns(pl->rotation.vy) * 2.0f * AH_PI;
+    const float           fx = sinf(yaw), fz = cosf(yaw);
+    int                   i, best = -1;
+    float                 bestK = 1.0f;
+
+    for (i = 0; i < NPC_COUNT_MAX; i++)
+    {
+        const s_SubCharacter* npc = &g_SysWork.npcs[i];
+        float dx, dz, d, c, ang, k;
+
+        if (!Ah_NpcLive(npc))
+            continue;
+        dx = Ah_Q12f(npc->position.vx - pl->position.vx);
+        dz = Ah_Q12f(npc->position.vz - pl->position.vz);
+        d  = sqrtf(dx * dx + dz * dz);
+        if (d < 0.01f || d > AH_RETICLE_RANGE)
+            continue;
+        c = (dx * fx + dz * fz) / d;
+        if (c > 1.0f) c = 1.0f;
+        if (c < -1.0f) c = -1.0f;
+        ang = acosf(c);
+        k   = ang / (i == current ? AH_FACING_CONE * 1.5f : AH_FACING_CONE);
+        if (k <= bestK)
+        {
+            bestK = k;
+            best  = i;
+        }
+    }
+    return best;
+}
+
 /* Runs before the lock scan: a shot this frame opens the miss window, and any
  * damage the scan sees (this frame or the next few) closes it. */
 static void Ah_CombatTick(float dt)
@@ -835,11 +1014,29 @@ static void Ah_CombatTick(float dt)
         s_deadT = 0.0f;
     }
 
-    /* The seeker rides the game's own auto-aim pick, so it closes on exactly
-     * what a shot would hit. Firearms only. */
-    if (g_SysWork.playerCombat.isAiming && w >= InvItemId_Handgun && w <= InvItemId_HyperBlaster && hp > 0.0f)
+    /* Aiming a firearm, the seeker rides the game's own auto-aim pick, so it
+     * closes on exactly what a shot would hit. In arcade mode it also hunts on
+     * its own, gun lowered or not, like a fighter's missile seeker. */
     {
-        const int t = g_SysWork.targetNpcIdx;
+        extern int g_DebugThirdPersonCam, g_PcFpsCam;
+        const int  gunUp   = g_SysWork.playerCombat.isAiming && w >= InvItemId_Handgun && w <= InvItemId_HyperBlaster;
+        const int  freeCam = g_DebugThirdPersonCam || g_PcFpsCam;
+        int        t       = -1;
+
+        if (s_manualSlot >= 0 && !(Pc_FlightArcade_Active() && hp > 0.0f && Ah_SeekerCandidate(s_manualSlot, NULL)))
+            s_manualSlot = -1;
+
+        if (hp > 0.0f && (gunUp || Pc_FlightArcade_Active()))
+        {
+            if (s_manualSlot >= 0)
+                t = s_manualSlot;
+            else if (freeCam)
+                t = Ah_ReticleTarget(s_seekSlot);
+            else if (gunUp)
+                t = g_SysWork.targetNpcIdx;
+            else
+                t = Ah_FacingTarget(s_seekSlot);
+        }
         if (t >= 0 && t < NPC_COUNT_MAX && Ah_NpcLive(&g_SysWork.npcs[t]))
             slot = t;
     }
@@ -977,7 +1174,11 @@ static void Ah_LockScan(float dt)
         }
     }
 
-    s_alert = s_anyLock;
+    /* A missile already flying keeps the alarm up after the lock that fired
+     * it is gone. */
+    if (Pc_FlightArcade_Inbound())
+        s_danger = 1;
+    s_alert = s_anyLock || s_danger;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1257,6 +1458,7 @@ void Pc_FlightHud_Update(void)
         Ah_ResetLocks();
         Ah_ToneStop();
         s_flareReq = 0;
+        Pc_FlightArcade_Reset();
         return;
     }
 
@@ -1323,6 +1525,7 @@ void Pc_FlightHud_Update(void)
     Ah_ZoneTick(dt);
     Ah_CombatTick(dt);
     Ah_LockScan(dt);
+    Pc_FlightArcade_Update(dt);
     Ah_RadioTick(dt);
     Ah_Tones(dt);
 }
@@ -2765,6 +2968,93 @@ static void Ah_CompassTape(float headingDeg, float cy)
     Ah_Line(0.0f, cy - 6.0f,  4.0f, cy - 1.0f, s_th);
 }
 
+/* One outline per missile Harry can carry, left to right from l: ready ones
+ * filled, the one coming back filled as far as its recharge. */
+static float Ah_MissileIcons(float l, float midY, float len)
+{
+    const int   n     = Pc_FlightArcade_StockMax();
+    const int   stock = Pc_FlightArcade_Stock();
+    const float h     = len * 0.22f, gap = len * 0.3f;
+    int         i;
+
+    for (i = 0; i < n; i++)
+    {
+        const float x0 = l + i * (len + gap), nose = x0 + len, body = nose - len * 0.25f;
+        const float t = midY - h * 0.5f, b = midY + h * 0.5f;
+        float       f = i < stock ? 1.0f : (i == stock ? Pc_FlightArcade_Recharge01() : 0.0f);
+
+        Ah_UseDim();
+        Ah_Box(x0, t, body, b, 0.8f);
+        Ah_Line(body, t, nose, midY, 0.8f);
+        Ah_Line(body, b, nose, midY, 0.8f);
+        Ah_Line(x0, t, x0 - len * 0.12f, t - h * 0.6f, 0.8f);
+        Ah_Line(x0, b, x0 - len * 0.12f, b + h * 0.6f, 0.8f);
+        if (f <= 0.0f)
+            continue;
+        Ah_UseMain();
+        Ah_Rect(x0, t, x0 + (body - x0) * f, b);
+        if (f >= 1.0f)
+            Ah_Tri(body, t, nose, midY, body, b);
+    }
+    return n * (len + gap) - gap;
+}
+
+/* Gun heat under the reticle while it is warm; OVERHEAT blinks while the gun
+ * is locked out. */
+static void Ah_GunHeat(float nowS)
+{
+    const float heat = Pc_FlightArcade_GunHeat();
+    const float w = 40.0f, t = 26.0f;
+
+    if (!Pc_FlightArcade_Active() || heat <= 0.0f)
+        return;
+    Ah_UseDim();
+    Ah_Box(-w * 0.5f, t, w * 0.5f, t + 4.0f, 0.8f);
+    if (Pc_FlightArcade_GunOverheated())
+    {
+        Ah_UseHi();
+        if (fmodf(nowS, 0.4f) < 0.25f)
+            Ah_Text("OVERHEAT", 0.0f, t + 8.0f, 7.0f, 1);
+    }
+    else
+    {
+        Ah_UseMain();
+    }
+    Ah_Rect(-w * 0.5f + 1.0f, t + 1.0f, -w * 0.5f + 1.0f + (w - 2.0f) * heat, t + 3.0f);
+}
+
+/* Blinks faster as the missile closes: 0.5 s at 12 m, 0.08 s at contact. */
+static void Ah_MissileMarks(float nowS)
+{
+    const AfMissile* m;
+    const int        n  = Pc_FlightArcade_Missiles(&m);
+    const AfVec3     me = { Ah_Q12f(g_SysWork.playerWork.player.position.vx),
+                            Ah_Q12f(g_SysWork.playerWork.player.position.vy),
+                            Ah_Q12f(g_SysWork.playerWork.player.position.vz) };
+    int              i;
+
+    for (i = 0; i < n; i++)
+    {
+        float       hx, hy, depth, k, period;
+        const float r = 10.0f;
+
+        if (!m[i].alive || m[i].fromHarry || m[i].decoyed)
+            continue;
+        if (!Ah_Project(m[i].pos.x, m[i].pos.y, m[i].pos.z, &hx, &hy, &depth))
+            continue;
+        k = Af_Dist(m[i].pos, me) / AH_LOCK_RANGE;
+        if (k > 1.0f) k = 1.0f;
+        period = 0.08f + 0.42f * k;
+        if (fmodf(nowS, period) >= period * 0.6f)
+            continue;
+        Ah_Color(1.0f, 0.15f, 0.1f, 1.0f);
+        Ah_Line(hx, hy - r, hx + r, hy, s_th);
+        Ah_Line(hx + r, hy, hx, hy + r, s_th);
+        Ah_Line(hx, hy + r, hx - r, hy, s_th);
+        Ah_Line(hx - r, hy, hx, hy - r, s_th);
+    }
+}
+
 static void Ah_BuildHud(void)
 {
     const s_SubCharacter* pl = &g_SysWork.playerWork.player;
@@ -2859,13 +3149,30 @@ static void Ah_BuildHud(void)
         Ah_Text(buf, colR, 112.0f, size, 2);
         Ah_RechargeBar(colL + 28.0f, 113.0f, colR - colL - 44.0f, 5.0f);
 
-        Ah_UseMain();
-        Ah_Text("DMG", colL, 128.0f, size, 0);
-        snprintf(buf, sizeof(buf), "%d%%", (int)(dmg + 0.5f));
-        Ah_Text(buf, colR, 128.0f, size, 2);
+        {
+            const int   arcade = Pc_FlightArcade_Active();
+            const float dmgY   = arcade ? 144.0f : 128.0f;
 
-        Ah_HealthColor(hp, nowS);
-        Ah_Silhouette(colR - 45.0f, 148.0f, 72.0f);
+            if (arcade)
+            {
+                if (Pc_FlightArcade_LaunchMsgT() > 0.0f)
+                    Ah_UseHi();
+                else
+                    Ah_UseMain();
+                Ah_Text("MSL", colL, 128.0f, size, 0);
+                snprintf(buf, sizeof(buf), "%d", Pc_FlightArcade_Stock());
+                Ah_Text(buf, colR, 128.0f, size, 2);
+                Ah_MissileIcons(colL + 30.0f, 128.0f + size * 0.5f, 16.0f);
+            }
+
+            Ah_UseMain();
+            Ah_Text("DMG", colL, dmgY, size, 0);
+            snprintf(buf, sizeof(buf), "%d%%", (int)(dmg + 0.5f));
+            Ah_Text(buf, colR, dmgY, size, 2);
+
+            Ah_HealthColor(hp, nowS);
+            Ah_Silhouette(colR - 45.0f, dmgY + 20.0f, 72.0f);
+        }
     }
     else
     {
@@ -2875,7 +3182,12 @@ static void Ah_BuildHud(void)
          * so at worst a thumb covers it while steering. */
         float w;
         Ah_Radar(-s_w2 + 18.0f, 138.0f, 116.0f, 86.0f, yawT, nowS);
-        snprintf(buf, sizeof(buf), "DMG %d%%  %s %s  FLR %d", (int)(dmg + 0.5f), wName, wVal, s_flareStock);
+        const int arcade = Pc_FlightArcade_Active();
+        if (arcade)
+            snprintf(buf, sizeof(buf), "DMG %d%%  %s %s  FLR %d  MSL %d", (int)(dmg + 0.5f), wName, wVal,
+                     s_flareStock, Pc_FlightArcade_Stock());
+        else
+            snprintf(buf, sizeof(buf), "DMG %d%%  %s %s  FLR %d", (int)(dmg + 0.5f), wName, wVal, s_flareStock);
         w = Ah_TextWidth(buf, 8.0f);
         Ah_UseMain();
         if (s_flareMsgT > 0.0f)
@@ -2883,7 +3195,10 @@ static void Ah_BuildHud(void)
         Ah_Text(buf, 10.0f, 214.0f, 8.0f, 1);
         {
             const float fw = Ah_TextWidth("FLR 4", 8.0f);
-            Ah_RechargeBar(10.0f + w * 0.5f - fw, 224.0f, fw, 4.0f);
+            const float mw = arcade ? Ah_TextWidth("  MSL 2", 8.0f) : 0.0f;
+            Ah_RechargeBar(10.0f + w * 0.5f - fw - mw, 224.0f, fw, 4.0f);
+            if (arcade)
+                Ah_MissileIcons(10.0f + w * 0.5f + 8.0f, 218.0f, 12.0f);
         }
         Ah_HealthColor(hp, nowS);
         Ah_Silhouette(10.0f - w * 0.5f - 14.0f, 196.0f, 30.0f);
@@ -2922,6 +3237,14 @@ static void Ah_BuildHud(void)
         Ah_Text("NO FLARES", 0.0f, 70.0f, 10.0f, 1);
     }
 
+    if (Pc_FlightArcade_NoMslT() > 0.0f)
+    {
+        Ah_UseMain();
+        Ah_Text("NO MISSILES", 0.0f, 86.0f, 10.0f, 1);
+    }
+
+    Ah_MissileMarks(nowS);
+    Ah_GunHeat(nowS);
     Ah_Events(scoreX, -210.0f, radioTop, 104.0f, nowS);
 }
 
@@ -3178,6 +3501,24 @@ static void Ah_FlareLine(float xRight, float y, float size)
     Ah_RechargeBar(xRight - w, y + size + 3.0f, w, 4.0f);
 }
 
+static void Ah_MslLine(float xRight, float y, float size)
+{
+    char buf[16];
+    if (!Pc_FlightArcade_Active())
+        return;
+    snprintf(buf, sizeof(buf), "MSL %d", Pc_FlightArcade_Stock());
+    if (Pc_FlightArcade_LaunchMsgT() > 0.0f)
+        Ah_UseHi();
+    else
+        Ah_UseMain();
+    Ah_Text(buf, xRight, y, size, 2);
+    {
+        const float len = size * 1.6f;
+        const float iw  = Pc_FlightArcade_StockMax() * len * 1.3f - len * 0.3f;
+        Ah_MissileIcons(xRight - Ah_TextWidth(buf, size) - 8.0f - iw, y + size * 0.5f, len);
+    }
+}
+
 static void Ah_BuildHudClassic(float vpW, float vpH)
 {
     const s_SubCharacter* pl = &g_SysWork.playerWork.player;
@@ -3262,6 +3603,7 @@ static void Ah_BuildHudClassic(float vpW, float vpH)
         if (l2[0])
             Ah_Text(l2, wx, 162.0f, 9.0f, 2);
         Ah_FlareLine(wx, 178.0f, 9.0f);
+        Ah_MslLine(wx, 200.0f, 9.0f);
 
         Ah_RadarClassic(rcx, rcy, rr, yawT, nowS);
     }
@@ -3281,6 +3623,7 @@ static void Ah_BuildHudClassic(float vpW, float vpH)
         snprintf(buf, sizeof(buf), "%s %s", l1, l2);
         Ah_Text(buf, 12.0f, 214.0f, 8.0f, 0);
         Ah_FlareLine(Ah_TextWidth("FLR 4", 8.0f) * 0.5f, 194.0f, 8.0f);
+        Ah_MslLine(Ah_TextWidth("FLR 4", 8.0f) * 0.5f, 178.0f, 8.0f);
     }
 
     if (s_alert && pl->health > Q12(0.0f))
@@ -3316,10 +3659,62 @@ static void Ah_BuildHudClassic(float vpW, float vpH)
         Ah_Text("NO FLARES", 0.0f, 40.0f, 10.0f, 1);
     }
 
+    if (Pc_FlightArcade_NoMslT() > 0.0f)
+    {
+        Ah_UseMain();
+        Ah_Text("NO MISSILES", 0.0f, 56.0f, 10.0f, 1);
+    }
+
     /* Below the heading tape, which owns the top band. */
+    Ah_MissileMarks(nowS);
+    Ah_GunHeat(nowS);
     Ah_Events(scoreX, -208.0f, -168.0f, 104.0f, nowS);
 
     (void)vpW;
+}
+
+static void Ah_BuildRounds(void)
+{
+    const AfRound* r;
+    const int      n = Pc_FlightArcade_Rounds(&r);
+    int            i;
+
+    for (i = 0; i < n; i++)
+    {
+        float hx, hy, d0, tx, ty, d1;
+        if (!r[i].alive || !Ah_Project(r[i].pos.x, r[i].pos.y, r[i].pos.z, &hx, &hy, &d0))
+            continue;
+        if (!Ah_Project(r[i].pos.x - r[i].dir.x * 2.5f, r[i].pos.y - r[i].dir.y * 2.5f, r[i].pos.z - r[i].dir.z * 2.5f,
+                        &tx, &ty, &d1))
+            continue;
+        Ah_Color(1.0f, 0.85f, 0.4f, 0.9f);
+        Ah_Line(tx, ty, hx, hy, 1.6f);
+    }
+}
+
+static void Ah_BuildMissiles(void)
+{
+    const AfMissile* m;
+    const int        n = Pc_FlightArcade_Missiles(&m);
+    int              i;
+
+    for (i = 0; i < n; i++)
+    {
+        float hx, hy, depth, rad;
+        float inner[4] = { 1.0f, 0.9f, 0.7f, 0.95f }, outer[4] = { 1.0f, 0.25f, 0.1f, 0.0f };
+
+        if (!m[i].alive || !Ah_Project(m[i].pos.x, m[i].pos.y, m[i].pos.z, &hx, &hy, &depth))
+            continue;
+        if (m[i].fromHarry)
+        {
+            inner[0] = 0.8f; inner[1] = 1.0f; inner[2] = 0.85f;
+            outer[0] = 0.3f; outer[1] = 1.0f; outer[2] = 0.5f;
+        }
+        rad = 0.18f * s_camH / depth * s_ky;
+        if (rad < 3.0f)  rad = 3.0f;
+        if (rad > 32.0f) rad = 32.0f;
+        Ah_Glow(hx, hy, rad, inner, outer);
+    }
 }
 
 static void Ah_BuildFlares(void)
@@ -4562,6 +4957,8 @@ void Pc_FlightHud_Draw(void)
     s_p3dKey      = -1;
     s_cur    = &s_glow;
     Ah_BuildFlares();
+    Ah_BuildMissiles();
+    Ah_BuildRounds();
     s_cur = &s_hud;
     s_jx = s_jy = 0.0f;
     if (s_dead || s_hurtT > 0.0f)

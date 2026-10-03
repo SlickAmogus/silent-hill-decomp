@@ -309,6 +309,12 @@ void GameState_InGame_Update(void) // 0x80038BD4
             extern void DebugCamera_Update(void);
             DebugCamera_Update();
         }
+        /* Missile smoke projects through GsWSMATRIX, so it waits for this
+         * frame's camera like func_44 below. */
+        {
+            extern void Pc_FlightArcade_DrawWorld(void);
+            Pc_FlightArcade_DrawWorld();
+        }
 #endif
 
         if (g_MapOverlayHdr.func_44 != NULL)
@@ -488,11 +494,24 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
         return;
     }
 
+#ifdef SH_PC_PORT
+    {
+        extern int Pc_FlightArcade_ClaimsLightButton(void);
+        /* With the seeker locked the light button fires a missile instead. */
+        if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.light &&
+            g_SysWork.field_2388.field_154.effectsInfo_0.field_0.s_field_0.field_0 & (1 << 1) &&
+            !Pc_FlightArcade_ClaimsLightButton())
+        {
+            Game_FlashlightToggle();
+        }
+    }
+#else
     if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.light &&
         g_SysWork.field_2388.field_154.effectsInfo_0.field_0.s_field_0.field_0 & (1 << 1))
     {
         Game_FlashlightToggle();
     }
+#endif
 
 #ifdef SH_PC_PORT
     /* Randomizer: the Map button opens the settings panel on a quick TAP and the
@@ -513,6 +532,27 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
                 g_SysWork.isMgsStringSet = false;
             }
             g_Controller0->clickedBtnFlags &= ~(e_ControllerFlags)mapBtn;
+        }
+        else
+        {
+            /* Arcade mode: the Map button is Ace Combat's Change Target on a
+             * tap, and still the map on a hold. */
+            extern int Pc_FlightArcade_Active(void);
+            extern int Pc_FlightArcade_MapButton(int clicked, int held);
+            if (Pc_FlightArcade_Active())
+            {
+                u16 mapBtn = g_GameWorkPtr->config.controllerConfig.map;
+                /* A hold hands the press to the vanilla map branch below. */
+                if (Pc_FlightArcade_MapButton((g_Controller0->clickedBtnFlags & mapBtn) != 0,
+                                              (g_Controller0->heldBtnFlags & mapBtn) != 0))
+                {
+                    g_Controller0->clickedBtnFlags |= (e_ControllerFlags)mapBtn;
+                }
+                else
+                {
+                    g_Controller0->clickedBtnFlags &= ~(e_ControllerFlags)mapBtn;
+                }
+            }
         }
     }
 #endif
@@ -1246,6 +1286,14 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     }
 #endif
 
+#ifdef SH_PC_PORT
+    {
+        /* A missile frozen through the load would resume against Harry's
+         * position in the new room. */
+        extern void Pc_FlightArcade_Reset(void);
+        Pc_FlightArcade_Reset();
+    }
+#endif
     g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
     Game_StateSetNext(GameState_MainLoadScreen);
     Screen_BackgroundMotionBlur(SyncMode_Immediate);

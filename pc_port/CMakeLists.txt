@@ -823,4 +823,14 @@ if(BUILD_TESTING)
         "${DECOMP_DIR}/include" "${DECOMP_DIR}/include/decomp"
         "${PSYCROSS_DIR}/include/psx" "${PSYCROSS_DIR}/include")
     add_test(NAME pc_big_tmd_test COMMAND pc_big_tmd_test)
+
+    # Missile flight for flight_gameplay (pc_flight_missile.c): pure maths, no game headers.
+    add_executable(pc_flight_missile_test
+        tests/pc_flight_missile_test.c
+        src/pc_flight_missile.c)
+    target_include_directories(pc_flight_missile_test PRIVATE include)
+    if(NOT MSVC)
+        target_link_libraries(pc_flight_missile_test PRIVATE m)
+    endif()
+    add_test(NAME pc_flight_missile_test COMMAND pc_flight_missile_test)
 endif()
