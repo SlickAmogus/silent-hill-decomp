@@ -27,6 +27,7 @@
 #include "sh_log.h"
 #include "pc_config.h"
 #include "pc_rando.h"
+#include "pc_quick_options.h"
 #include "pc_flight_hud.h"
 #include "pc_flight_missile.h"
 #include "pc_flight_arcade.h"
@@ -44,11 +45,24 @@ void func_8005DC1C(e_SfxId sfxId, const VECTOR3* pos, q23_8 vol, s32 soundType);
 #define AR_KNOCK           0.5f   /* m of push along the missile's path */
 #define AR_PUFF_STEP       0.04f  /* s between smoke puffs */
 #define AR_HARRY_HURT      43     /* a plain torso hit in Player_ReceiveDamage, never a grab */
+#define AR_HARRY_SPEED     16.0f
+#define AR_HARRY_TURN      4.0f   /* rad/s */
+#define AR_HARRY_LIFE      3.0f
+#define AR_HARRY_MAX       2
+#define AR_HARRY_RECHARGE  12.0f  /* s per missile */
+#define AR_HARRY_DMG_MULT  2      /* a missile hits like two rifle rounds */
+#define AR_HIT_NPC         0.8f   /* m */
 
 static AfMissile s_msl[AR_MISSILES_MAX];
 static AfSmoke   s_smoke;
 static float     s_lockHeld[NPC_COUNT_MAX];
 static float     s_cool[NPC_COUNT_MAX];
+static int       s_mslStock = AR_HARRY_MAX;
+static float     s_mslRechargeT;
+static float     s_launchMsgT, s_noMslT;
+static int       s_claim;
+
+extern int g_PcConsoleInputActive;
 
 static float Ar_Q12f(s32 v)
 {
@@ -251,6 +265,96 @@ static void Ar_Fly(float dt)
     }
 }
 
+static void Ar_HitNpc(const AfMissile* m)
+{
+    s_SubCharacter* npc = &g_SysWork.npcs[m->target];
+    const s32       wa  = WEAPON_ATTACK(EquippedWeaponId_HuntingRifle, AttackInputType_Tap);
+    q19_12          dmg;
+
+    if (npc->health <= Q12(0.0f))
+        return;
+    dmg = FP_TO(D_800AD4C8[wa].field_4, Q12_SHIFT) * AR_HARRY_DMG_MULT;
+    dmg = Pc_Rando_ScaleWeaponDamage(dmg, 0);
+    npc->damage.amount      += dmg;
+    npc->damage.position.vx += (s32)(m->dir.x * AR_KNOCK * 4096.0f);
+    npc->damage.position.vz += (s32)(m->dir.z * AR_KNOCK * 4096.0f);
+    Chara_AttackReceivedSet(npc, wa);
+    SH_DBG("[ARCADE] Harry's missile hits slot %d for %d", m->target, (int)dmg);
+}
+
+static void Ar_FlyHarry(float dt)
+{
+    const s_SubCharacter* pl = &g_SysWork.playerWork.player;
+    int                   i;
+
+    for (i = 0; i < AR_MISSILES_MAX; i++)
+    {
+        AfMissile*            m = &s_msl[i];
+        const s_SubCharacter* npc;
+        AfVec3                aim;
+        float                 radius = AR_HIT_NPC;
+        int                   step;
+
+        if (!m->alive || !m->fromHarry)
+            continue;
+
+        npc = &g_SysWork.npcs[m->target];
+        if (npc->health > Q12(0.0f))
+        {
+            aim = Ar_Center(npc);
+        }
+        else
+        {
+            aim.x  = m->pos.x + m->dir.x * 10.0f;
+            aim.y  = m->pos.y + m->dir.y * 10.0f;
+            aim.z  = m->pos.z + m->dir.z * 10.0f;
+            radius = -1.0f;
+        }
+
+        Ar_Trail(m, dt);
+        step = Af_MissileStep(m, aim, Ar_Q12f(MAX(pl->position.vy, npc->position.vy)) + 0.1f, radius, dt);
+        if (step == AF_STEP_HIT)
+            Ar_HitNpc(m);
+        if (step != AF_STEP_FLYING)
+            Ar_Blast(m->pos);
+    }
+}
+
+static void Ar_HarryLaunch(int claimed)
+{
+    s_SubCharacter* pl    = &g_SysWork.playerWork.player;
+    const u16       light = g_GameWorkPtr->config.controllerConfig.light;
+    AfMissile*      m;
+    AfVec3          from, to;
+    int             slot;
+
+    if (!claimed || !(g_Controller0->clickedBtnFlags & light) || g_PcConsoleInputActive || g_PcQuickOptionsActive)
+        return;
+
+    slot = Pc_FlightHud_SeekerLockedSlot();
+    if (slot < 0)
+        return;
+    if (s_mslStock <= 0 || (m = Ar_FreeSlot()) == NULL)
+    {
+        s_noMslT = 1.2f;
+        SD_Call(Sfx_MenuError);
+        return;
+    }
+
+    s_mslStock--;
+    from = Ar_Center(pl);
+    to   = Ar_Center(&g_SysWork.npcs[slot]);
+    Af_MissileInit(m, 1, -1, slot, from, Af_Dir(from, to), AR_HARRY_SPEED, AR_HARRY_TURN, AR_HARRY_LIFE);
+    s_launchMsgT = 1.0f;
+    func_8005DC1C(Sfx_Unk1286, &pl->position, Q8(0.75f), 0);
+    SH_DBG("[ARCADE] Harry fires at slot %d, %d left", slot, s_mslStock);
+}
+
+int Pc_FlightArcade_ClaimsLightButton(void)
+{
+    return Pc_FlightArcade_Active() && s_claim;
+}
+
 int Pc_FlightArcade_Active(void)
 {
     return g_PcConfig.flightHud != 0 && g_PcConfig.flightGameplay != 0;
@@ -268,19 +372,61 @@ void Pc_FlightArcade_Reset(void)
     memset(&s_smoke, 0, sizeof(s_smoke));
     memset(s_lockHeld, 0, sizeof(s_lockHeld));
     memset(s_cool, 0, sizeof(s_cool));
+    s_claim      = 0;
+    s_launchMsgT = s_noMslT = 0.0f;
 }
 
 void Pc_FlightArcade_Update(float dt)
 {
+    /* SysState_Gameplay_Update gates the flashlight on s_claim earlier in this
+     * same frame, so the launch uses that value and only then recomputes it:
+     * one click is either a missile or the light, never both, never neither. */
+    const int claimed = s_claim;
+
     if (!Pc_FlightArcade_Active())
     {
         Pc_FlightArcade_Reset();
         return;
     }
 
+    if (s_mslStock < AR_HARRY_MAX)
+    {
+        s_mslRechargeT += dt;
+        if (s_mslRechargeT >= AR_HARRY_RECHARGE)
+        {
+            s_mslRechargeT = 0.0f;
+            s_mslStock++;
+        }
+    }
+    else
+    {
+        s_mslRechargeT = 0.0f;
+    }
+    if (s_launchMsgT > 0.0f) s_launchMsgT -= dt;
+    if (s_noMslT > 0.0f)     s_noMslT -= dt;
+
+    Ar_HarryLaunch(claimed);
     Ar_EnemyLaunches(dt);
     Ar_Fly(dt);
+    Ar_FlyHarry(dt);
     Af_SmokeStep(&s_smoke, dt);
+
+    s_claim = Pc_FlightHud_SeekerLockedSlot() >= 0;
+}
+
+int Pc_FlightArcade_Stock(void)
+{
+    return s_mslStock;
+}
+
+float Pc_FlightArcade_LaunchMsgT(void)
+{
+    return s_launchMsgT;
+}
+
+float Pc_FlightArcade_NoMslT(void)
+{
+    return s_noMslT;
 }
 
 int Pc_FlightArcade_Missiles(const AfMissile** out)

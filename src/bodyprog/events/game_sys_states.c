@@ -488,11 +488,24 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
         return;
     }
 
+#ifdef SH_PC_PORT
+    {
+        extern int Pc_FlightArcade_ClaimsLightButton(void);
+        /* With the seeker locked the light button fires a missile instead. */
+        if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.light &&
+            g_SysWork.field_2388.field_154.effectsInfo_0.field_0.s_field_0.field_0 & (1 << 1) &&
+            !Pc_FlightArcade_ClaimsLightButton())
+        {
+            Game_FlashlightToggle();
+        }
+    }
+#else
     if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.light &&
         g_SysWork.field_2388.field_154.effectsInfo_0.field_0.s_field_0.field_0 & (1 << 1))
     {
         Game_FlashlightToggle();
     }
+#endif
 
 #ifdef SH_PC_PORT
     /* Randomizer: the Map button opens the settings panel on a quick TAP and the
