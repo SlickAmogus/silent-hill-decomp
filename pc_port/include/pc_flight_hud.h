@@ -42,6 +42,8 @@ int Pc_FlightHud_LockState(int slot);
 int Pc_FlightHud_SeekerLockedSlot(void);
 int Pc_FlightHud_FlarePositions(float* xyz, int max);
 int Pc_FlightHud_IsBoss(int charaId);
+/* Change Target: move the seeker to the next enemy in front, by distance. */
+void Pc_FlightHud_NextTarget(void);
 
 #ifdef __cplusplus
 }

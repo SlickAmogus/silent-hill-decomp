@@ -27,6 +27,8 @@
 #include <math.h>
 #include <string.h>
 
+#include <SDL.h>
+
 #include "sh_log.h"
 #include "pc_config.h"
 #include "pc_rando.h"
@@ -421,6 +423,39 @@ static void Ar_SmokeDraw(void)
         AddPrim(&ot->org[idx], tp);
         GsOUT_PACKET_P = (PACKET*)(tp + 1);
     }
+}
+
+#define AR_MAP_HOLD_MS 400u
+
+/* Ace Combat's Triangle: a tap changes target, a hold opens the map as
+ * before. Returns 1 on the frame the map should open. */
+int Pc_FlightArcade_MapButton(int clicked, int held)
+{
+    static int    s_pending, s_consumed;
+    static Uint32 s_pressMs;
+    const Uint32  now = SDL_GetTicks();
+
+    if (clicked && !s_pending)
+    {
+        s_pending  = 1;
+        s_consumed = 0;
+        s_pressMs  = now;
+    }
+    if (!s_pending)
+        return 0;
+    if (held)
+    {
+        if (!s_consumed && now - s_pressMs >= AR_MAP_HOLD_MS)
+        {
+            s_consumed = 1;
+            return 1;
+        }
+        return 0;
+    }
+    s_pending = 0;
+    if (!s_consumed)
+        Pc_FlightHud_NextTarget();
+    return 0;
 }
 
 void Pc_FlightArcade_DrawWorld(void)

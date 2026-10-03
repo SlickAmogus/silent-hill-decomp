@@ -150,6 +150,7 @@ static float s_hpMax[NPC_COUNT_MAX];
 static float s_npcHpPrev[NPC_COUNT_MAX];
 
 static int   s_seekSlot = -1;
+static int   s_manualSlot = -1; /* target picked with Change Target, -1 = the seeker's own pick */
 static float s_seekT;
 
 typedef struct
@@ -852,6 +853,57 @@ static int Ah_ReticleTarget(int current)
     return best;
 }
 
+/* A target the seeker can hold: alive, in range, and in front of the view. */
+static int Ah_SeekerCandidate(int slot, float* outDist)
+{
+    const s_SubCharacter* npc;
+    float                 vx, vy, vz;
+
+    if (slot < 0 || slot >= NPC_COUNT_MAX)
+        return 0;
+    npc = &g_SysWork.npcs[slot];
+    if (!Ah_NpcLive(npc))
+        return 0;
+    Ah_View(Ah_Q12f(npc->position.vx + npc->collision.shapeOffsets.box.vx),
+            Ah_Q12f(npc->position.vy + npc->collision.box.offsetY),
+            Ah_Q12f(npc->position.vz + npc->collision.shapeOffsets.box.vz), &vx, &vy, &vz);
+    if (vz < 0.3f || vz > AH_RETICLE_RANGE || fabsf(vx) > vz * 1.4f || fabsf(vy) > vz * 0.9f)
+        return 0;
+    if (outDist)
+        *outDist = vz;
+    return 1;
+}
+
+/* Change Target: the next candidate by distance after the current one,
+ * wrapping to the nearest. */
+void Pc_FlightHud_NextTarget(void)
+{
+    float dist[NPC_COUNT_MAX], curD = -1.0f;
+    int   i, next = -1, nearest = -1;
+
+    for (i = 0; i < NPC_COUNT_MAX; i++)
+        if (!Ah_SeekerCandidate(i, &dist[i]))
+            dist[i] = -1.0f;
+    if (s_seekSlot >= 0 && dist[s_seekSlot] >= 0.0f)
+        curD = dist[s_seekSlot];
+
+    for (i = 0; i < NPC_COUNT_MAX; i++)
+    {
+        if (dist[i] < 0.0f || i == s_seekSlot)
+            continue;
+        if (nearest < 0 || dist[i] < dist[nearest])
+            nearest = i;
+        if (dist[i] >= curD && (next < 0 || dist[i] < dist[next]))
+            next = i;
+    }
+    if (next < 0)
+        next = nearest;
+    if (next < 0)
+        return;
+    s_manualSlot = next;
+    SD_Call(Sfx_MenuMove);
+}
+
 #define AH_FACING_CONE 0.21f /* rad, ~12 deg either side of Harry's heading */
 
 /* The fixed cameras have no reticle: the seeker looks where Harry faces. */
@@ -961,9 +1013,14 @@ static void Ah_CombatTick(float dt)
         const int  freeCam = g_DebugThirdPersonCam || g_PcFpsCam;
         int        t       = -1;
 
+        if (s_manualSlot >= 0 && !(Pc_FlightArcade_Active() && hp > 0.0f && Ah_SeekerCandidate(s_manualSlot, NULL)))
+            s_manualSlot = -1;
+
         if (hp > 0.0f && (gunUp || Pc_FlightArcade_Active()))
         {
-            if (freeCam)
+            if (s_manualSlot >= 0)
+                t = s_manualSlot;
+            else if (freeCam)
                 t = Ah_ReticleTarget(s_seekSlot);
             else if (gunUp)
                 t = g_SysWork.targetNpcIdx;

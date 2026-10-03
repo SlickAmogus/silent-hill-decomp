@@ -141,7 +141,12 @@ Spenta di default: senza, l'HUD è solo scena. Accesa (e con l'HUD attivo):
   al centro dello schermo, nelle camere fisse quello davanti a Harry (entro
   40 m). Mirando con un'arma da fuoco segue la mira automatica del gioco.
   A LOCK ON **Cerchio** (il tasto della torcia) lancia un missile sul
-  bersaglio; in quel momento la torcia non cambia. Senza LOCK ON Cerchio resta
+  bersaglio; in quel momento la torcia non cambia.
+- **Comandi come Ace Combat 7 (schema Standard)**, solo per i tasti di
+  combattimento; stick e movimento restano quelli del TPS:
+  - **Cerchio**: missile (senza LOCK ON resta la torcia).
+  - **Triangolo** (il tasto Mappa): un tocco cambia bersaglio, il prossimo per
+    distanza fra i mostri davanti alla visuale; tenuto 0,4 s apre la mappa. Senza LOCK ON Cerchio resta
   la torcia. 2 missili, uno torna ogni 12 s; `MSL` accanto a `FLR`,
   `NO MISSILES` a stock vuoto. Accanto a MSL due icone di missile: piene se
   pronte, vuote se lanciate, quella in ricarica si riempie man mano. Colpisce come due colpi di fucile.

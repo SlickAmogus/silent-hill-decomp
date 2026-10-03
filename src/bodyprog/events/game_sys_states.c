@@ -533,6 +533,27 @@ void SysState_Gameplay_Update(void) // 0x80038BD4
             }
             g_Controller0->clickedBtnFlags &= ~(e_ControllerFlags)mapBtn;
         }
+        else
+        {
+            /* Arcade mode: the Map button is Ace Combat's Change Target on a
+             * tap, and still the map on a hold. */
+            extern int Pc_FlightArcade_Active(void);
+            extern int Pc_FlightArcade_MapButton(int clicked, int held);
+            if (Pc_FlightArcade_Active())
+            {
+                u16 mapBtn = g_GameWorkPtr->config.controllerConfig.map;
+                /* A hold hands the press to the vanilla map branch below. */
+                if (Pc_FlightArcade_MapButton((g_Controller0->clickedBtnFlags & mapBtn) != 0,
+                                              (g_Controller0->heldBtnFlags & mapBtn) != 0))
+                {
+                    g_Controller0->clickedBtnFlags |= (e_ControllerFlags)mapBtn;
+                }
+                else
+                {
+                    g_Controller0->clickedBtnFlags &= ~(e_ControllerFlags)mapBtn;
+                }
+            }
+        }
     }
 #endif
 

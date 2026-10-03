@@ -14,6 +14,7 @@ struct _SubCharacter;
 int   Pc_FlightArcade_Active(void);
 int   Pc_FlightArcade_ShieldsHarryFrom(const struct _SubCharacter* attacker);
 int   Pc_FlightArcade_ClaimsLightButton(void);
+int   Pc_FlightArcade_MapButton(int clicked, int held);
 void  Pc_FlightArcade_Update(float dt);
 void  Pc_FlightArcade_Reset(void);
 /* World-OT smoke, once this frame's camera is set. */
