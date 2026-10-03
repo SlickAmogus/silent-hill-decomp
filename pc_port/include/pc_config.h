@@ -363,6 +363,13 @@ typedef struct {
      * text the port supplies. Chinese needs a disc carrying the fan
      * translation; on a stock JP disc it changes nothing but the menus. */
     int jpLanguage;
+    /* Title-screen style: 0 auto (whatever the disc is), 1 western, 2 Japanese.
+     * TIM/TITLE.TIM is byte-identical on all three discs, so the Japanese look
+     * is available everywhere; "western" means each disc's own. */
+    int menuStyle;
+#define MENU_STYLE_AUTO     0
+#define MENU_STYLE_WESTERN  1
+#define MENU_STYLE_JAPANESE 2
 
     /* Preferred disc region when several discs are in gamedata/: 0=auto
      * (USA wins, then PAL, then NTSC-J), 1=usa, 2=pal, 3=jap (config key:

@@ -9,6 +9,7 @@
 #include "main/fsqueue.h"
 #ifdef SH_PC_PORT
 #include "main/fileinfo.h" /* g_GameRegion — PAL FONT16 reload */
+#include "pc_title_style.h"
 #endif
 
 void GameFs_TitleGfxSeek(void) // 0x80032BD0
@@ -18,7 +19,7 @@ void GameFs_TitleGfxSeek(void) // 0x80032BD0
      * US TITLE_E, different artwork: black bg + scratched logo + copyright —
      * all baked pixels). Runtime mirror of the retail NTSCJ branch below;
      * everything downstream (draw, menu, fog) is region-identical. */
-    if (g_GameRegion == Region_JPN)
+    if (Pc_TitleUsesJpArt())
     {
         Fs_QueueStartSeek(FILE_TIM_TITLE_TIM);
         return;
@@ -34,7 +35,7 @@ void GameFs_TitleGfxSeek(void) // 0x80032BD0
 void GameFs_TitleGfxLoad(void) // 0x80032BF0
 {
 #ifdef SH_PC_PORT
-    if (g_GameRegion == Region_JPN)
+    if (Pc_TitleUsesJpArt())
     {
         Fs_QueueStartReadTim(FILE_TIM_TITLE_TIM, FS_BUFFER_3, &g_TitleImg);
     }

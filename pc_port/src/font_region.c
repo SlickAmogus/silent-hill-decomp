@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "font_region.h"
 #include "lang_ru.h"
+#include "pc_title_style.h"
 
 #include <string.h> /* memcpy */
 
@@ -538,12 +539,7 @@ void Font_ApplyRegionPatches(void)
      * at (896,0) and composes the title as black + logo + fog. The 16-entry
      * CLUT keeps the US title-CLUT home (224,15). The matching draw is
      * Pc_TitleLogoDrawEur() in title.c. */
-    g_TitleImg.tPage[0] = 0;
-    g_TitleImg.tPage[1] = 14;
-    g_TitleImg.u        = 0;
-    g_TitleImg.v        = 0;
-    g_TitleImg.clutX    = 224;
-    g_TitleImg.clutY    = 15;
+    Pc_TitleStyleApplyDesc();
 
     /* Exterior tree/branch billboards (Gfx_BillboardDraw) sample BG_ETC
      * texels (0..63,128..191) — on PAL that band is resliced to
