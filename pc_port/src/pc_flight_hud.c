@@ -2808,6 +2808,38 @@ static void Ah_CompassTape(float headingDeg, float cy)
     Ah_Line(0.0f, cy - 6.0f,  4.0f, cy - 1.0f, s_th);
 }
 
+/* Blinks faster as the missile closes: 0.5 s at 12 m, 0.08 s at contact. */
+static void Ah_MissileMarks(float nowS)
+{
+    const AfMissile* m;
+    const int        n  = Pc_FlightArcade_Missiles(&m);
+    const AfVec3     me = { Ah_Q12f(g_SysWork.playerWork.player.position.vx),
+                            Ah_Q12f(g_SysWork.playerWork.player.position.vy),
+                            Ah_Q12f(g_SysWork.playerWork.player.position.vz) };
+    int              i;
+
+    for (i = 0; i < n; i++)
+    {
+        float       hx, hy, depth, k, period;
+        const float r = 10.0f;
+
+        if (!m[i].alive || m[i].fromHarry || m[i].decoyed)
+            continue;
+        if (!Ah_Project(m[i].pos.x, m[i].pos.y, m[i].pos.z, &hx, &hy, &depth))
+            continue;
+        k = Af_Dist(m[i].pos, me) / AH_LOCK_RANGE;
+        if (k > 1.0f) k = 1.0f;
+        period = 0.08f + 0.42f * k;
+        if (fmodf(nowS, period) >= period * 0.6f)
+            continue;
+        Ah_Color(1.0f, 0.15f, 0.1f, 1.0f);
+        Ah_Line(hx, hy - r, hx + r, hy, s_th);
+        Ah_Line(hx + r, hy, hx, hy + r, s_th);
+        Ah_Line(hx, hy + r, hx - r, hy, s_th);
+        Ah_Line(hx - r, hy, hx, hy - r, s_th);
+    }
+}
+
 static void Ah_BuildHud(void)
 {
     const s_SubCharacter* pl = &g_SysWork.playerWork.player;
@@ -2902,13 +2934,29 @@ static void Ah_BuildHud(void)
         Ah_Text(buf, colR, 112.0f, size, 2);
         Ah_RechargeBar(colL + 28.0f, 113.0f, colR - colL - 44.0f, 5.0f);
 
-        Ah_UseMain();
-        Ah_Text("DMG", colL, 128.0f, size, 0);
-        snprintf(buf, sizeof(buf), "%d%%", (int)(dmg + 0.5f));
-        Ah_Text(buf, colR, 128.0f, size, 2);
+        {
+            const int   arcade = Pc_FlightArcade_Active();
+            const float dmgY   = arcade ? 144.0f : 128.0f;
 
-        Ah_HealthColor(hp, nowS);
-        Ah_Silhouette(colR - 45.0f, 148.0f, 72.0f);
+            if (arcade)
+            {
+                if (Pc_FlightArcade_LaunchMsgT() > 0.0f)
+                    Ah_UseHi();
+                else
+                    Ah_UseMain();
+                Ah_Text("MSL", colL, 128.0f, size, 0);
+                snprintf(buf, sizeof(buf), "%d", Pc_FlightArcade_Stock());
+                Ah_Text(buf, colR, 128.0f, size, 2);
+            }
+
+            Ah_UseMain();
+            Ah_Text("DMG", colL, dmgY, size, 0);
+            snprintf(buf, sizeof(buf), "%d%%", (int)(dmg + 0.5f));
+            Ah_Text(buf, colR, dmgY, size, 2);
+
+            Ah_HealthColor(hp, nowS);
+            Ah_Silhouette(colR - 45.0f, dmgY + 20.0f, 72.0f);
+        }
     }
     else
     {
@@ -2918,7 +2966,12 @@ static void Ah_BuildHud(void)
          * so at worst a thumb covers it while steering. */
         float w;
         Ah_Radar(-s_w2 + 18.0f, 138.0f, 116.0f, 86.0f, yawT, nowS);
-        snprintf(buf, sizeof(buf), "DMG %d%%  %s %s  FLR %d", (int)(dmg + 0.5f), wName, wVal, s_flareStock);
+        const int arcade = Pc_FlightArcade_Active();
+        if (arcade)
+            snprintf(buf, sizeof(buf), "DMG %d%%  %s %s  FLR %d  MSL %d", (int)(dmg + 0.5f), wName, wVal,
+                     s_flareStock, Pc_FlightArcade_Stock());
+        else
+            snprintf(buf, sizeof(buf), "DMG %d%%  %s %s  FLR %d", (int)(dmg + 0.5f), wName, wVal, s_flareStock);
         w = Ah_TextWidth(buf, 8.0f);
         Ah_UseMain();
         if (s_flareMsgT > 0.0f)
@@ -2926,7 +2979,8 @@ static void Ah_BuildHud(void)
         Ah_Text(buf, 10.0f, 214.0f, 8.0f, 1);
         {
             const float fw = Ah_TextWidth("FLR 4", 8.0f);
-            Ah_RechargeBar(10.0f + w * 0.5f - fw, 224.0f, fw, 4.0f);
+            const float mw = arcade ? Ah_TextWidth("  MSL 2", 8.0f) : 0.0f;
+            Ah_RechargeBar(10.0f + w * 0.5f - fw - mw, 224.0f, fw, 4.0f);
         }
         Ah_HealthColor(hp, nowS);
         Ah_Silhouette(10.0f - w * 0.5f - 14.0f, 196.0f, 30.0f);
@@ -2965,6 +3019,13 @@ static void Ah_BuildHud(void)
         Ah_Text("NO FLARES", 0.0f, 70.0f, 10.0f, 1);
     }
 
+    if (Pc_FlightArcade_NoMslT() > 0.0f)
+    {
+        Ah_UseMain();
+        Ah_Text("NO MISSILES", 0.0f, 86.0f, 10.0f, 1);
+    }
+
+    Ah_MissileMarks(nowS);
     Ah_Events(scoreX, -210.0f, radioTop, 104.0f, nowS);
 }
 
@@ -3221,6 +3282,19 @@ static void Ah_FlareLine(float xRight, float y, float size)
     Ah_RechargeBar(xRight - w, y + size + 3.0f, w, 4.0f);
 }
 
+static void Ah_MslLine(float xRight, float y, float size)
+{
+    char buf[16];
+    if (!Pc_FlightArcade_Active())
+        return;
+    snprintf(buf, sizeof(buf), "MSL %d", Pc_FlightArcade_Stock());
+    if (Pc_FlightArcade_LaunchMsgT() > 0.0f)
+        Ah_UseHi();
+    else
+        Ah_UseMain();
+    Ah_Text(buf, xRight, y, size, 2);
+}
+
 static void Ah_BuildHudClassic(float vpW, float vpH)
 {
     const s_SubCharacter* pl = &g_SysWork.playerWork.player;
@@ -3305,6 +3379,7 @@ static void Ah_BuildHudClassic(float vpW, float vpH)
         if (l2[0])
             Ah_Text(l2, wx, 162.0f, 9.0f, 2);
         Ah_FlareLine(wx, 178.0f, 9.0f);
+        Ah_MslLine(wx, 200.0f, 9.0f);
 
         Ah_RadarClassic(rcx, rcy, rr, yawT, nowS);
     }
@@ -3324,6 +3399,7 @@ static void Ah_BuildHudClassic(float vpW, float vpH)
         snprintf(buf, sizeof(buf), "%s %s", l1, l2);
         Ah_Text(buf, 12.0f, 214.0f, 8.0f, 0);
         Ah_FlareLine(Ah_TextWidth("FLR 4", 8.0f) * 0.5f, 194.0f, 8.0f);
+        Ah_MslLine(Ah_TextWidth("FLR 4", 8.0f) * 0.5f, 178.0f, 8.0f);
     }
 
     if (s_alert && pl->health > Q12(0.0f))
@@ -3359,10 +3435,42 @@ static void Ah_BuildHudClassic(float vpW, float vpH)
         Ah_Text("NO FLARES", 0.0f, 40.0f, 10.0f, 1);
     }
 
+    if (Pc_FlightArcade_NoMslT() > 0.0f)
+    {
+        Ah_UseMain();
+        Ah_Text("NO MISSILES", 0.0f, 56.0f, 10.0f, 1);
+    }
+
     /* Below the heading tape, which owns the top band. */
+    Ah_MissileMarks(nowS);
     Ah_Events(scoreX, -208.0f, -168.0f, 104.0f, nowS);
 
     (void)vpW;
+}
+
+static void Ah_BuildMissiles(void)
+{
+    const AfMissile* m;
+    const int        n = Pc_FlightArcade_Missiles(&m);
+    int              i;
+
+    for (i = 0; i < n; i++)
+    {
+        float hx, hy, depth, rad;
+        float inner[4] = { 1.0f, 0.9f, 0.7f, 0.95f }, outer[4] = { 1.0f, 0.25f, 0.1f, 0.0f };
+
+        if (!m[i].alive || !Ah_Project(m[i].pos.x, m[i].pos.y, m[i].pos.z, &hx, &hy, &depth))
+            continue;
+        if (m[i].fromHarry)
+        {
+            inner[0] = 0.8f; inner[1] = 1.0f; inner[2] = 0.85f;
+            outer[0] = 0.3f; outer[1] = 1.0f; outer[2] = 0.5f;
+        }
+        rad = 0.18f * s_camH / depth * s_ky;
+        if (rad < 3.0f)  rad = 3.0f;
+        if (rad > 32.0f) rad = 32.0f;
+        Ah_Glow(hx, hy, rad, inner, outer);
+    }
 }
 
 static void Ah_BuildFlares(void)
@@ -4605,6 +4713,7 @@ void Pc_FlightHud_Draw(void)
     s_p3dKey      = -1;
     s_cur    = &s_glow;
     Ah_BuildFlares();
+    Ah_BuildMissiles();
     s_cur = &s_hud;
     s_jx = s_jy = 0.0f;
     if (s_dead || s_hurtT > 0.0f)
