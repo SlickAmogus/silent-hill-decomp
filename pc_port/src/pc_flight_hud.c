@@ -876,6 +876,16 @@ static int Ah_SeekerCandidate(int slot, float* outDist)
 
 /* Change Target: the next candidate by distance after the current one,
  * wrapping to the nearest. */
+int Pc_FlightHud_SeekerSlot(void)
+{
+    return s_seekSlot;
+}
+
+int Pc_FlightHud_IsLiveEnemy(int slot)
+{
+    return slot >= 0 && slot < NPC_COUNT_MAX && Ah_NpcLive(&g_SysWork.npcs[slot]);
+}
+
 void Pc_FlightHud_NextTarget(void)
 {
     float dist[NPC_COUNT_MAX], curD = -1.0f;
@@ -2989,6 +2999,30 @@ static float Ah_MissileIcons(float l, float midY, float len)
     return n * (len + gap) - gap;
 }
 
+/* Gun heat under the reticle while it is warm; OVERHEAT blinks while the gun
+ * is locked out. */
+static void Ah_GunHeat(float nowS)
+{
+    const float heat = Pc_FlightArcade_GunHeat();
+    const float w = 40.0f, t = 26.0f;
+
+    if (!Pc_FlightArcade_Active() || heat <= 0.0f)
+        return;
+    Ah_UseDim();
+    Ah_Box(-w * 0.5f, t, w * 0.5f, t + 4.0f, 0.8f);
+    if (Pc_FlightArcade_GunOverheated())
+    {
+        Ah_UseHi();
+        if (fmodf(nowS, 0.4f) < 0.25f)
+            Ah_Text("OVERHEAT", 0.0f, t + 8.0f, 7.0f, 1);
+    }
+    else
+    {
+        Ah_UseMain();
+    }
+    Ah_Rect(-w * 0.5f + 1.0f, t + 1.0f, -w * 0.5f + 1.0f + (w - 2.0f) * heat, t + 3.0f);
+}
+
 /* Blinks faster as the missile closes: 0.5 s at 12 m, 0.08 s at contact. */
 static void Ah_MissileMarks(float nowS)
 {
@@ -3210,6 +3244,7 @@ static void Ah_BuildHud(void)
     }
 
     Ah_MissileMarks(nowS);
+    Ah_GunHeat(nowS);
     Ah_Events(scoreX, -210.0f, radioTop, 104.0f, nowS);
 }
 
@@ -3632,9 +3667,29 @@ static void Ah_BuildHudClassic(float vpW, float vpH)
 
     /* Below the heading tape, which owns the top band. */
     Ah_MissileMarks(nowS);
+    Ah_GunHeat(nowS);
     Ah_Events(scoreX, -208.0f, -168.0f, 104.0f, nowS);
 
     (void)vpW;
+}
+
+static void Ah_BuildRounds(void)
+{
+    const AfRound* r;
+    const int      n = Pc_FlightArcade_Rounds(&r);
+    int            i;
+
+    for (i = 0; i < n; i++)
+    {
+        float hx, hy, d0, tx, ty, d1;
+        if (!r[i].alive || !Ah_Project(r[i].pos.x, r[i].pos.y, r[i].pos.z, &hx, &hy, &d0))
+            continue;
+        if (!Ah_Project(r[i].pos.x - r[i].dir.x * 2.5f, r[i].pos.y - r[i].dir.y * 2.5f, r[i].pos.z - r[i].dir.z * 2.5f,
+                        &tx, &ty, &d1))
+            continue;
+        Ah_Color(1.0f, 0.85f, 0.4f, 0.9f);
+        Ah_Line(tx, ty, hx, hy, 1.6f);
+    }
 }
 
 static void Ah_BuildMissiles(void)
@@ -4903,6 +4958,7 @@ void Pc_FlightHud_Draw(void)
     s_cur    = &s_glow;
     Ah_BuildFlares();
     Ah_BuildMissiles();
+    Ah_BuildRounds();
     s_cur = &s_hud;
     s_jx = s_jy = 0.0f;
     if (s_dead || s_hurtT > 0.0f)

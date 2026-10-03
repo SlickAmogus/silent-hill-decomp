@@ -56,6 +56,14 @@ typedef struct
 
 typedef struct
 {
+    int    alive;
+    AfVec3 pos;
+    AfVec3 dir;  /* unit */
+    float  life; /* s left */
+} AfRound;
+
+typedef struct
+{
     float heat;       /* 0..1 */
     int   overheated; /* locked out until heat is back to 0 */
     float shotT;      /* s banked toward the next round */

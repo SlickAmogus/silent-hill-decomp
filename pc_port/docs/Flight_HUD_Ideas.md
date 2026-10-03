@@ -146,7 +146,16 @@ Spenta di default: senza, l'HUD è solo scena. Accesa (e con l'HUD attivo):
   combattimento; stick e movimento restano quelli del TPS:
   - **Cerchio**: missile (senza LOCK ON resta la torcia).
   - **Triangolo** (il tasto Mappa): un tocco cambia bersaglio, il prossimo per
-    distanza fra i mostri davanti alla visuale; tenuto 0,4 s apre la mappa. Senza LOCK ON Cerchio resta
+    distanza fra i mostri davanti alla visuale; tenuto 0,4 s apre la mappa.
+  - **X**: mitragliatrice, a raffica finché è tenuto (12 colpi/s), verso il
+    bersaglio del seeker se c'è, altrimenti dritta davanti. Munizioni infinite:
+    dopo 3 s di fuoco si surriscalda (OVERHEAT sotto il mirino) e riparte
+    quando la barra è di nuovo vuota (2 s). Ogni colpo fa 1/5 di un colpo di
+    pistola; traccianti gialli nell'HUD.
+  - **R1**: azione (porte, oggetti, e sparo con l'arma mentre miri), al posto
+    di X. Il passo laterale destro su R1 non c'è più in modalità arcade.
+  - La rimappatura vale solo in gioco (non in menu, inventario, mappa,
+    messaggi) e non tocca la configurazione dei tasti salvata. Senza LOCK ON Cerchio resta
   la torcia. 2 missili, uno torna ogni 12 s; `MSL` accanto a `FLR`,
   `NO MISSILES` a stock vuoto. Accanto a MSL due icone di missile: piene se
   pronte, vuote se lanciate, quella in ricarica si riempie man mano. Colpisce come due colpi di fucile.

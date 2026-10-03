@@ -24,6 +24,12 @@ int   Pc_FlightArcade_Missiles(const AfMissile** out);
 int   Pc_FlightArcade_Inbound(void);
 float Pc_FlightArcade_InboundDist(void);
 int   Pc_FlightArcade_Stock(void);
+/* Arcade mode in gameplay: Cross becomes the gun trigger and R1 the action
+ * button. Called on the raw held flags before clicks are derived. */
+unsigned int Pc_FlightArcade_RemapPad(unsigned int held);
+int   Pc_FlightArcade_Rounds(const AfRound** out);
+float Pc_FlightArcade_GunHeat(void);
+int   Pc_FlightArcade_GunOverheated(void);
 int   Pc_FlightArcade_StockMax(void);
 float Pc_FlightArcade_Recharge01(void);
 float Pc_FlightArcade_LaunchMsgT(void);

@@ -82,6 +82,14 @@ void Joy_ControllerDataUpdate(void) // 0x80034494
             cont->heldBtnFlags = cont->heldBtnFlags & ~(ControllerFlag_LStickRight | ControllerFlag_LStickLeft);
         }
 
+#ifdef SH_PC_PORT
+        if (cont == g_Controller0)
+        {
+            extern unsigned int Pc_FlightArcade_RemapPad(unsigned int held);
+            cont->heldBtnFlags = (e_ControllerFlags)Pc_FlightArcade_RemapPad((unsigned int)cont->heldBtnFlags);
+        }
+#endif
+
         // Update clicked and released button flags.
         cont->clickedBtnFlags  = ~prevBtnsHeld & cont->heldBtnFlags;
         cont->releasedBtnFlags =  prevBtnsHeld & ~cont->heldBtnFlags;

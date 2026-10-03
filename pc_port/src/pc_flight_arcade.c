@@ -59,6 +59,12 @@ extern long ReadGeomScreen(void);
 #define AR_HARRY_RECHARGE  12.0f  /* s per missile */
 #define AR_HARRY_DMG_MULT  2      /* a missile hits like two rifle rounds */
 #define AR_HIT_NPC         0.8f   /* m */
+#define AR_ROUNDS_MAX      32
+#define AR_ROUND_SPEED     120.0f /* m/s */
+#define AR_ROUND_LIFE      0.35f  /* s, ~40 m */
+#define AR_ROUND_SPREAD    0.025f /* rad either way */
+#define AR_ROUND_HIT       0.6f   /* m from the body's centre */
+#define AR_GUN_DMG_MULT    0.2f   /* of a handgun round */
 
 static AfMissile s_msl[AR_MISSILES_MAX];
 static AfSmoke   s_smoke;
@@ -70,6 +76,11 @@ static float     s_launchMsgT, s_noMslT;
 static int       s_claim;
 static int       s_claimSlot = -1;
 static int       s_claimChara;
+static AfGun     s_gun;
+static AfRound   s_rounds[AR_ROUNDS_MAX];
+static int       s_roundNext;
+static int       s_gunTrigger;
+static unsigned  s_gunRng = 0x9E3779B9u;
 
 extern int g_PcConsoleInputActive;
 
@@ -464,6 +475,146 @@ void Pc_FlightArcade_DrawWorld(void)
         Ar_SmokeDraw();
 }
 
+unsigned int Pc_FlightArcade_RemapPad(unsigned int held)
+{
+    s_gunTrigger = 0;
+    if (!Pc_FlightArcade_Active() || g_GameWork.gameState != GameState_InGame ||
+        g_SysWork.sysState != SysState_Gameplay)
+        return held;
+
+    s_gunTrigger = (held & ControllerFlag_Cross) != 0;
+    held &= ~(unsigned int)ControllerFlag_Cross;
+    if (held & ControllerFlag_R1)
+    {
+        held &= ~(unsigned int)ControllerFlag_R1;
+        held |= g_GameWorkPtr->config.controllerConfig.action;
+    }
+    return held;
+}
+
+static float Ar_Spread(void)
+{
+    s_gunRng = s_gunRng * 1664525u + 1013904223u;
+    return ((float)(s_gunRng >> 8) / 16777216.0f * 2.0f - 1.0f) * AR_ROUND_SPREAD;
+}
+
+/* Toward the seeker's pick when there is one, else down the view in the
+ * free-aim cameras, else where Harry faces. */
+static AfVec3 Ar_GunAim(AfVec3 from)
+{
+    extern int     g_DebugThirdPersonCam, g_PcFpsCam;
+    extern VECTOR3 g_TpsCamFwd;
+    const int      slot = Pc_FlightHud_SeekerSlot();
+    AfVec3         d;
+
+    if (Pc_FlightHud_IsLiveEnemy(slot))
+        return Af_Dir(from, Ar_Center(&g_SysWork.npcs[slot]));
+    if (g_DebugThirdPersonCam || g_PcFpsCam)
+    {
+        d.x = Ar_Q12f(g_TpsCamFwd.vx);
+        d.y = Ar_Q12f(g_TpsCamFwd.vy);
+        d.z = Ar_Q12f(g_TpsCamFwd.vz);
+        return d;
+    }
+    {
+        const float yaw = Ar_Q12f(g_SysWork.playerWork.player.rotation.vy) * 2.0f * 3.14159265f;
+        d.x = sinf(yaw);
+        d.y = 0.0f;
+        d.z = cosf(yaw);
+    }
+    return d;
+}
+
+static void Ar_GunFire(int n)
+{
+    s_SubCharacter* pl    = &g_SysWork.playerWork.player;
+    const AfVec3    chest = Ar_Center(pl);
+    const AfVec3    aim   = Ar_GunAim(chest);
+    const AfVec3    zero  = { 0.0f, 0.0f, 0.0f };
+    int             k;
+
+    for (k = 0; k < n; k++)
+    {
+        AfRound* r = &s_rounds[s_roundNext];
+        AfVec3   d = aim;
+
+        d.x += Ar_Spread();
+        d.y += Ar_Spread();
+        d.z += Ar_Spread();
+        r->alive = 1;
+        r->dir   = Af_Dir(zero, d);
+        r->pos.x = chest.x + r->dir.x * 0.5f;
+        r->pos.y = chest.y + r->dir.y * 0.5f;
+        r->pos.z = chest.z + r->dir.z * 0.5f;
+        r->life  = AR_ROUND_LIFE;
+        s_roundNext = (s_roundNext + 1) % AR_ROUNDS_MAX;
+        if (s_roundNext & 1)
+            func_8005DC1C(D_800AFBF4[6].attackSfx, &pl->position, Q8(0.35f), 0);
+    }
+}
+
+static void Ar_HitNpcGun(int slot, AfVec3 dir)
+{
+    s_SubCharacter* npc = &g_SysWork.npcs[slot];
+    const s32       wa  = WEAPON_ATTACK(EquippedWeaponId_Handgun, AttackInputType_Tap);
+    q19_12          dmg = (q19_12)(FP_TO(D_800AD4C8[wa].field_4, Q12_SHIFT) * AR_GUN_DMG_MULT);
+
+    dmg = Pc_Rando_ScaleWeaponDamage(dmg, 0);
+    npc->damage.amount      += dmg;
+    npc->damage.position.vx += (s32)(dir.x * 0.05f * 4096.0f);
+    npc->damage.position.vz += (s32)(dir.z * 0.05f * 4096.0f);
+    Chara_AttackReceivedSet(npc, wa);
+}
+
+static void Ar_FlyRounds(float dt)
+{
+    const float floorY = Ar_Q12f(g_SysWork.playerWork.player.position.vy) + 0.1f;
+    int         i, k;
+
+    for (i = 0; i < AR_ROUNDS_MAX; i++)
+    {
+        AfRound* r = &s_rounds[i];
+        AfVec3   prev;
+
+        if (!r->alive)
+            continue;
+        prev      = r->pos;
+        r->pos.x += r->dir.x * AR_ROUND_SPEED * dt;
+        r->pos.y += r->dir.y * AR_ROUND_SPEED * dt;
+        r->pos.z += r->dir.z * AR_ROUND_SPEED * dt;
+        r->life  -= dt;
+
+        for (k = 0; k < NPC_COUNT_MAX; k++)
+        {
+            if (Pc_FlightHud_IsLiveEnemy(k) &&
+                Af_SegDist(prev, r->pos, Ar_Center(&g_SysWork.npcs[k])) <= AR_ROUND_HIT)
+            {
+                Ar_HitNpcGun(k, r->dir);
+                r->alive = 0;
+                break;
+            }
+        }
+        if (r->life <= 0.0f || r->pos.y > floorY)
+            r->alive = 0;
+    }
+}
+
+int Pc_FlightArcade_Rounds(const AfRound** out)
+{
+    *out = s_rounds;
+    return AR_ROUNDS_MAX;
+}
+
+float Pc_FlightArcade_GunHeat(void)
+{
+    return s_gun.heat;
+}
+
+int Pc_FlightArcade_GunOverheated(void)
+{
+    return s_gun.overheated;
+}
+
 int Pc_FlightArcade_ClaimsLightButton(void)
 {
     return Pc_FlightArcade_Active() && s_claim;
@@ -486,6 +637,8 @@ void Pc_FlightArcade_Reset(void)
     memset(&s_smoke, 0, sizeof(s_smoke));
     memset(s_lockHeld, 0, sizeof(s_lockHeld));
     memset(s_cool, 0, sizeof(s_cool));
+    memset(s_rounds, 0, sizeof(s_rounds));
+    memset(&s_gun, 0, sizeof(s_gun));
     s_claim      = 0;
     s_claimSlot  = -1;
     s_launchMsgT = s_noMslT = 0.0f;
@@ -521,6 +674,12 @@ void Pc_FlightArcade_Update(float dt)
     if (s_noMslT > 0.0f)     s_noMslT -= dt;
 
     Ar_HarryLaunch(claimed);
+    {
+        const int trigger = s_gunTrigger && g_SysWork.playerWork.player.health > Q12(0.0f) &&
+                            !g_PcConsoleInputActive && !g_PcQuickOptionsActive;
+        Ar_GunFire(Af_GunTick(&s_gun, trigger, dt));
+    }
+    Ar_FlyRounds(dt);
     Ar_EnemyLaunches(dt);
     Ar_Fly(dt);
     Ar_FlyHarry(dt);
