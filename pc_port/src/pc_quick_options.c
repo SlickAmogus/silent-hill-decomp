@@ -73,7 +73,7 @@ extern void        PcOpt_QuickViewReset(int mode);
 
 #define QO_GARBAGE  48
 #define QO_MAX_ROWS 16
-#define QO_PAGES    10
+#define QO_PAGES    11
 /* Every page lays out on the same row pitch -- the pitch QO_ROW_SLOTS rows
  * would get in the full-height panel -- and the panel shrinks to its rows.
  * Deriving the pitch from each page's own row count made the text a different
@@ -142,8 +142,17 @@ static const QoRowDef s_pageHud[] = {
     { ROW_OPT,   "crosshair_size",       0, NULL },
     { ROW_OPT,   "text_size",            0, NULL },
     { ROW_OPT,   "low_health_glow",      0, NULL },
-    { ROW_OPT,   "flight_hud",           0, NULL },
-    { ROW_OPT,   "flight_gameplay",      0, NULL },
+    QO_NAV_ROW,
+    QO_CLOSE_ROW,
+};
+
+static const QoRowDef s_pageFlight[] = {
+    { ROW_OPT,   "flight_hud",             0, NULL },
+    { ROW_OPT,   "flight_gameplay",        0, NULL },
+    { ROW_OPT,   "flight_hud_sound",       0, NULL },
+    { ROW_OPT,   "flight_hud_opacity",     0, NULL },
+    { ROW_OPT,   "flight_hud_callsigns",   0, NULL },
+    { ROW_OPT,   "flight_hud_portrait_3d", 0, NULL },
     QO_NAV_ROW,
     QO_CLOSE_ROW,
 };
@@ -349,7 +358,7 @@ static const QoRowDef* qo_cheat_page(int cpage, int actions, int* count)
     return s_cheatRows[cpage][actions];
 }
 
-enum { QO_PG_GFX1 = 0, QO_PG_GFX2, QO_PG_HUD, QO_PG_AUDIO, QO_PG_VIEW,
+enum { QO_PG_GFX1 = 0, QO_PG_GFX2, QO_PG_HUD, QO_PG_FLIGHT, QO_PG_AUDIO, QO_PG_VIEW,
        QO_PG_CHEATS1, QO_PG_CHEATS2, QO_PG_DEBUG1, QO_PG_DEBUG2, QO_PG_CONTROLS };
 
 #define QO_TABLE(t) (*count = (int)(sizeof(t) / sizeof((t)[0])), (t))
@@ -360,6 +369,7 @@ static const QoRowDef* qo_page_rows(int page, int* count)
     {
         case QO_PG_GFX2:     return QO_TABLE(s_pageGfx2);
         case QO_PG_HUD:      return QO_TABLE(s_pageHud);
+        case QO_PG_FLIGHT:   return QO_TABLE(s_pageFlight);
         case QO_PG_AUDIO:    return QO_TABLE(s_pageAudio);
         case QO_PG_VIEW:     return qo_view_page(count);
         case QO_PG_CHEATS1:  return qo_cheat_page(PC_CHEATS_PAGE_CHEATS, 0, count);
@@ -374,7 +384,7 @@ static const QoRowDef* qo_page_rows(int page, int* count)
 /* The title, and the Previous / Next row's destinations. No slashes in these:
  * the row already separates its two destinations with one. */
 static const char* const s_pageNames[QO_PAGES] = {
-    "Graphics", "Lighting & Effects", "HUD", "Audio", "View",
+    "Graphics", "Lighting & Effects", "HUD", "Flight", "Audio", "View",
     "Cheats", "Cheat Actions", "Debug", "Debug Actions", "Controls" };
 
 /* ------------------------------------------------------------------ */

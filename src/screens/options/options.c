@@ -114,8 +114,8 @@ extern float g_PcFmvVolume;
 
 s32 g_PcOptionsMenu_SelectedEntry     = 0;
 s32 g_PcOptionsMenu_PrevSelectedEntry = 0;
-static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls, 3 = Camera, 4 = HUD */
-#define PCOPT_PAGE_COUNT 5
+static s32 g_PcOptionsMenu_Page       = 0; /* 0 = Graphics, 1 = System, 2 = Controls, 3 = Camera, 4 = HUD, 5 = Flight */
+#define PCOPT_PAGE_COUNT 6
 
 /* Mouse hover moves the selection WITHOUT resetting g_Options_SelectionHighlightTimer:
  * a reset re-arms the LINE_CURSOR_TIMER_MAX gate, which then swallows the click that
@@ -190,6 +190,9 @@ static const char* const LBL_MMMODE[] = { "Off", "Square", "Circle" };
 static const char* const LBL_WHZ[]    = { "30_Hz", "60_Hz" };
 static const int VAL_FHUD[]   = { 0, 1, 2 };
 static const char* const LBL_FHUD[]   = { "Off", "Modern", "Classic" };
+static const int VAL_FHOP[]   = { 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 };
+static const int VAL_FCALL[]  = { 0, 1, 2 };
+static const char* const LBL_FCALL[]  = { "Names", "Callsigns", "Numbered" };
 
 static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
 static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
@@ -258,9 +261,6 @@ static const s_PcOpt PCOPT_C[] = {
      * the real ceiling, not the 12 the Graphics comment above assumes, and this
      * page is the shortest. Adding it to Graphics pushed that page off-screen. */
     { "Bullet_Decals",     &g_PcConfig.bulletDecals,      "bullet_decals",          VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
-    /* HUD page is at the 11-row ceiling. */
-    { "Flight_HUD",        &g_PcConfig.flightHud,          "flight_hud",            VAL_FHUD, 3, LBL_FHUD, NULL, 1, PCK_INT },
-    { "Flight_Gameplay",   &g_PcConfig.flightGameplay,    "flight_gameplay",        VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },
@@ -310,7 +310,20 @@ static const s_PcOpt PCOPT_H[] = {
      * Menus keep their fixed layouts. */
     { "Text_Size",         NULL, "text_size",              NULL, 0, NULL, NULL, 1, PCK_SLIDER, &g_PcConfig.textSize,      NULL, 100.0f, 150.0f, 5.0f },
     { "Prev_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_PREV },
+    { "Next_Page",         NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                           NULL,                    NULL,      0, NULL,      NULL, 0, PCK_BACK },
+};
+
+/* Page 6 (Flight): the fighter-jet HUD and its arcade mode. */
+static const s_PcOpt PCOPT_F[] = {
+    { "Flight_HUD",        &g_PcConfig.flightHud,          "flight_hud",            VAL_FHUD,  3,  LBL_FHUD,  NULL, 1, PCK_INT },
+    { "Arcade_Mode",       &g_PcConfig.flightGameplay,     "flight_gameplay",       VAL_ONOFF, 2,  LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Warning_Tones",     &g_PcConfig.flightHudSound,     "flight_hud_sound",      VAL_ONOFF, 2,  LBL_ONOFF, NULL, 1, PCK_INT },
+    { "HUD_Opacity",       &g_PcConfig.flightHudOpacity,   "flight_hud_opacity",    VAL_FHOP,  10, NULL,      NULL, 1, PCK_INT },
+    { "Target_Labels",     &g_PcConfig.flightHudCallsigns, "flight_hud_callsigns",  VAL_FCALL, 3,  LBL_FCALL, NULL, 1, PCK_INT },
+    { "3D_Radio_Portrait", &g_PcConfig.flightHudPortrait3d, "flight_hud_portrait_3d", VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    { "Prev_Page",         NULL,                           NULL,                    NULL,      0,  NULL,      NULL, 0, PCK_PREV },
+    { "Back",              NULL,                           NULL,                    NULL,      0,  NULL,      NULL, 0, PCK_BACK },
 };
 
 static void Options_PcOptionsMenu_EntryStringsDraw(void);
@@ -347,6 +360,7 @@ const s_PcOpt* PcOpt_PageByIndex(int page, int* count)
     if (page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
     if (page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
     if (page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
+    if (page == 5) { *count = (int)(sizeof(PCOPT_F) / sizeof(PCOPT_F[0])); return PCOPT_F; }
     *count = (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0]));
     return PCOPT_H;
 }
@@ -357,6 +371,7 @@ static const s_PcOpt* PcOpt_Page(int* count)
     if (g_PcOptionsMenu_Page == 1) { *count = (int)(sizeof(PCOPT_S) / sizeof(PCOPT_S[0])); return PCOPT_S; }
     if (g_PcOptionsMenu_Page == 2) { *count = (int)(sizeof(PCOPT_C) / sizeof(PCOPT_C[0])); return PCOPT_C; }
     if (g_PcOptionsMenu_Page == 3) { *count = (int)(sizeof(PCOPT_T) / sizeof(PCOPT_T[0])); return PCOPT_T; }
+    if (g_PcOptionsMenu_Page == 5) { *count = (int)(sizeof(PCOPT_F) / sizeof(PCOPT_F[0])); return PCOPT_F; }
     *count = (int)(sizeof(PCOPT_H) / sizeof(PCOPT_H[0]));
     return PCOPT_H;
 }
@@ -1343,12 +1358,12 @@ void Options_PcOptionsMenu_Control(void)
         if (g_Controller0->clickedBtnFlags & g_GameWorkPtr->config.controllerConfig.enter) {
             if (sel->kind == PCK_NEXT) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-                g_PcOptionsMenu_Page++; /* Graphics -> System -> Controls -> Camera -> HUD */
+                g_PcOptionsMenu_Page++; /* Graphics -> System -> Controls -> Camera -> HUD -> Flight */
                 g_PcOptionsMenu_SelectedEntry = 0;
                 g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_PREV) {
                 Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-                g_PcOptionsMenu_Page--; /* HUD -> Camera -> Controls -> System -> Graphics */
+                g_PcOptionsMenu_Page--; /* Flight -> HUD -> Camera -> Controls -> System -> Graphics */
                 g_PcOptionsMenu_SelectedEntry = 0;
                 g_Options_SelectionHighlightTimer = 0;
             } else if (sel->kind == PCK_BACK) {
