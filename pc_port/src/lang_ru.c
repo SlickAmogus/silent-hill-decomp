@@ -336,6 +336,16 @@ static const signed char s_RuSubstitute[RU_LETTER_COUNT] = {
 };
 
 /* One Cyrillic letter -> font byte, applying the fallback chain. 0 = drop. */
+/* consolgames puts uppercase Э on the cell addressed by 0x7E, and to THIS
+ * engine 0x7E is the '~' that opens a control code -- so an Э would vanish and
+ * eat the next character. The disc's own text never trips over this because it
+ * marks its codes with {} instead. Every atlas gets a copy of that glyph on
+ * cell 90 (byte 0x81), which means nothing to the drawer: the pack bakes it in
+ * (font_ru.inc), a mounted disc gets it patched at upload (font_region.c).
+ * No other charset emits 0x7E, so this is a no-op for the other nine. */
+#define RU_BYTE_CODE_MARKER 0x7E
+#define RU_BYTE_E_OBERT_ALT 0x81
+
 static unsigned char RuEncodeLetterIn(const s_RuCharset* cs, int idx, int isUpper)
 {
     int depth;
@@ -348,7 +358,7 @@ static unsigned char RuEncodeLetterIn(const s_RuCharset* cs, int idx, int isUppe
         if (b == 0 && isUpper)
             b = cs->lo[idx]; /* atlas painted only the lowercase form */
         if (b != 0)
-            return b;
+            return (b == RU_BYTE_CODE_MARKER) ? RU_BYTE_E_OBERT_ALT : b;
 
         idx = s_RuSubstitute[idx];
     }
@@ -366,23 +376,13 @@ static unsigned char RuEncodeLetter(int idx, int isUpper)
  * font's hash, which says nothing about a pack. 0 = no cell for this letter. */
 unsigned char Pc_RuPackByte(unsigned int cp)
 {
-    unsigned char b;
     int           idx;
     int           isUpper = 0;
 
     idx = RuLetterIndex(cp, &isUpper);
     if (idx < 0)
         return 0;
-    b = RuEncodeLetterIn(&s_Charset_ConsolGames, idx, isUpper);
-
-    /* Uppercase Э lands on the cell whose byte is 0x7E, and to THIS engine
-     * 0x7E is the '~' that opens a control code -- the disc gets away with it
-     * because its own text marks codes with {} instead. font_ru.inc gives Э a
-     * second cell (90, a duplicate the charset never addresses) so the pack can
-     * write it as a byte that means nothing else. */
-    if (b == 0x7E)
-        b = 0x81;
-    return b;
+    return RuEncodeLetterIn(&s_Charset_ConsolGames, idx, isUpper);
 }
 
 /* Transcode a UTF-8 menu string into the active patch's font bytes. ASCII
@@ -517,6 +517,13 @@ const char* Pc_RuMenuText(const char* us)
             return s_RuMenuEncoded[i];
     }
     return NULL;
+}
+
+/* Does the MOUNTED disc need the Э cell copied into its atlas? Only the
+ * consolgames repaint puts a letter on the control-marker byte. */
+int Pc_RuDiscNeedsEFix(void)
+{
+    return s_Active != NULL && s_Active->up[30] == RU_BYTE_CODE_MARKER;
 }
 
 const char* Pc_RuMenuUtf8(const char* us)

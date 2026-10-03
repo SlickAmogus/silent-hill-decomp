@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "font_region.h"
+#include "lang_ru.h"
 
 #include <string.h> /* memcpy */
 
@@ -324,6 +325,10 @@ static const s_GlyphBuild s_PolishGlyphs[] = {
     { PL_CELL_DOT_MARK, -1, 49, 7 }
 };
 
+/* consolgames' uppercase Э, and the spare cell it is copied to. */
+#define RU_CELL_E_OBERT 87
+#define RU_CELL_E_ALT   90
+
 #define ATLAS_COLS 21
 #define CELL_W     12
 #define CELL_H     16
@@ -455,9 +460,36 @@ static void FontPatchRussianGlyphs(void* pixels, int widthWords, int height)
 void Font_PatchPackGlyphs(void* pixels, int widthWords, int height)
 {
     if (s_RussianLayoutActive)
+    {
         FontPatchRussianGlyphs(pixels, widthWords, height);
-    else if (s_PolishLayoutActive)
+        return;
+    }
+    if (s_PolishLayoutActive)
+    {
         Font_PatchPolishGlyphs(pixels, widthWords, height);
+        return;
+    }
+
+    /* No pack, but a Russian-patched disc whose atlas puts Э on the byte this
+     * engine reads as '~'. Copy that glyph to cell 90 -- a duplicate the
+     * charset never addresses -- so the encoder can write it as 0x81 instead.
+     * Without this the port's own Russian menu rows lose every capital Э
+     * ("ЭЛТ", "Эйсес") and eat the letter after it. */
+    if (Pc_RuDiscNeedsEFix() && pixels != NULL &&
+        (widthWords * 4) >= (ATLAS_COLS * CELL_W) && height >= (6 * CELL_H))
+    {
+        unsigned char* p      = (unsigned char*)pixels;
+        int            stride = widthWords * 2;
+        int            sx     = (RU_CELL_E_OBERT % ATLAS_COLS) * CELL_W;
+        int            sy     = (RU_CELL_E_OBERT / ATLAS_COLS) * CELL_H;
+        int            dx     = (RU_CELL_E_ALT % ATLAS_COLS) * CELL_W;
+        int            dy     = (RU_CELL_E_ALT / ATLAS_COLS) * CELL_H;
+        int            x, y;
+
+        for (y = 0; y < CELL_H; y++)
+            for (x = 0; x < CELL_W; x++)
+                PixSet(p, stride, dx + x, dy + y, PixGet(p, stride, sx + x, sy + y));
+    }
 }
 
 /* Back to the region's pristine base layout. Pc_LangInit is re-entrant (the

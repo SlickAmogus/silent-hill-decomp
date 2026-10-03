@@ -16,7 +16,8 @@
 #include "pc_big_tmd.h"   /* Pc_BigTmd_DestCapacity — oversized loose ITEM TMDs */
 #include "pc_big_ipd.h"   /* Pc_BigIpd_DestCapacity — oversized loose map chunks */
 #include "lang_pack.h"    /* Pc_LangPackActive — FONT16 Polish glyph patch */
-#include "font_region.h"  /* Font_PatchPolishGlyphs */
+#include "font_region.h"  /* Font_PatchPackGlyphs */
+#include "lang_ru.h"      /* Pc_RuActive: a Russian disc needs one cell fixed too */
 #include "sh_log.h"
 
 #ifndef _WIN32
@@ -1215,7 +1216,7 @@ bool Fs_QueuePostLoadTim(s_FsQueueEntry* entry)
      * (boot, Konami, title, save-select) since they all pass through here, and
      * dispatches on which pack is active -- Polish adds a few cells, Russian
      * replaces the atlas. */
-    if (Pc_LangPackActive() &&
+    if ((Pc_LangPackActive() || Pc_RuActive()) &&
         FSQ_INFO_VALID(entry->info) &&
         (int)(entry->info - &g_FileTable[0]) == FILE_1ST_FONT16_TIM)
     {
