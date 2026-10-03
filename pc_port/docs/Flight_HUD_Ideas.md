@@ -136,8 +136,11 @@ Spenta di default: senza, l'HUD è solo scena. Accesa (e con l'HUD attivo):
   (mai una presa). Finché è in volo restano MISSILE ALERT, EVADE e la sirena;
   sul missile c'è un **rombo rosso** che lampeggia più veloce man mano che si
   avvicina.
-- **Missili di Harry**: con un'arma da fuoco in mira e il seeker chiuso
-  (LOCK ON), **Cerchio** (il tasto della torcia) lancia un missile sul
+- **Missili di Harry**: il seeker caccia da solo, senza mirare: nelle camere
+  a mira libera (TPS, OTS, prima persona) aggancia il mostro sotto il mirino
+  al centro dello schermo, nelle camere fisse quello davanti a Harry (entro
+  40 m). Mirando con un'arma da fuoco segue la mira automatica del gioco.
+  A LOCK ON **Cerchio** (il tasto della torcia) lancia un missile sul
   bersaglio; in quel momento la torcia non cambia. Senza LOCK ON Cerchio resta
   la torcia. 2 missili, uno torna ogni 12 s; `MSL` accanto a `FLR`,
   `NO MISSILES` a stock vuoto. Accanto a MSL due icone di missile: piene se
