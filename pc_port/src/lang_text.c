@@ -801,8 +801,22 @@ void Pc_LangInit(void)
     {
         int i;
 
+        /* English on a Japanese disc: the port compiles the US branch of every
+         * table, so the way to show English is to install NOTHING -- no item
+         * tables, no disc menu strings, no SJIS map messages. Asked for by
+         * players who want the Japanese release's look with text they read. */
+        if (g_PcConfig.jpLanguage == JP_LANG_ENGLISH)
+        {
+            Pc_KanjiSetChinese(0);
+            s_ItemTextReady = 0;
+            s_ZhPackActive  = 0;
+            Pc_JpnMenuInit();   /* reads the disc; Pc_JpnMenuText gates on the language */
+            SH_LOG("[LANG] NTSC-J showing the compiled English text");
+            return;
+        }
+
         /* Chinese draws from a second glyph set over the same kuten codes. */
-        Pc_KanjiSetChinese(g_PcConfig.jpLanguage);
+        Pc_KanjiSetChinese(g_PcConfig.jpLanguage == JP_LANG_CHINESE);
 
         for (i = 0; i < ITEM_TEXT_COUNT; i++)
         {
@@ -959,10 +973,13 @@ void Pc_LangSetLanguage(int lang)
  * neither the disc nor the pack has Chinese), so it is not set here. */
 void Pc_LangSetJpLanguage(int lang)
 {
-    lang = (lang != 0);
+    static const char* const s_JpIds[JP_LANG_COUNT] = { "ja", "zh", "en" };
+
+    if (lang < 0 || lang >= JP_LANG_COUNT)
+        lang = 0;
 
     g_PcConfig.jpLanguage = lang;
-    PcConfig_SaveKeyValue("jp_language", lang ? "zh" : "ja");
+    PcConfig_SaveKeyValue("jp_language", s_JpIds[lang]);
     Pc_LangInit();
 
     /* Inventory text is reinstalled above, but story text is installed per map
@@ -995,7 +1012,7 @@ void Pc_LangSetJpLanguage(int lang)
 int Pc_LangSlotCount(void)
 {
     if (g_GameRegion == Region_JPN)
-        return 2;
+        return JP_LANG_COUNT;
 
     /* PC-side packs need the EUR font atlas, so they are offered on EUR only;
      * elsewhere the row stops at the five disc languages. */
@@ -1028,7 +1045,11 @@ const char* Pc_LangSlotName(int slot)
     };
 
     if (g_GameRegion == Region_JPN)
-        return slot ? "Chinese" : "Japanese";
+    {
+        static const char* const s_JpNames[JP_LANG_COUNT] = { "Japanese", "Chinese", "English" };
+
+        return s_JpNames[(slot >= 0 && slot < JP_LANG_COUNT) ? slot : 0];
+    }
 
     /* The pack's own `!menu` label, read from the registry rather than from
      * the loaded pack -- the row is browsed before anything is loaded. */
@@ -1047,7 +1068,7 @@ int Pc_LangSlotNameX(int slot)
     static const unsigned char s_PalX[LANG_PACK_FIRST] = { 198, 204, 204, 198, 198 };
 
     if (g_GameRegion == Region_JPN)
-        return slot ? 198 : 192;
+        return (slot == JP_LANG_ENGLISH) ? 198 : (slot ? 198 : 192);
 
     if (slot < 0 || slot >= LANG_PACK_FIRST)
         return 200;
@@ -1581,7 +1602,9 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
         return;
     }
 
-    isJpn = (g_GameRegion == Region_JPN);
+    /* English on a Japanese disc installs no story text either, so the
+     * compiled US MAP_MESSAGES stand. */
+    isJpn = (g_GameRegion == Region_JPN && g_PcConfig.jpLanguage != JP_LANG_ENGLISH);
     /* To the log file (the SH_LOG/SH_WARN below only reach stdout/the in-game
      * console, so a launcher run records nothing about why story text fell back
      * to compiled English). */

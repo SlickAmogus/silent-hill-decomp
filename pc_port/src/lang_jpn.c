@@ -10,6 +10,7 @@
 #include "main/fsqueue.h"   /* FILE_VIN_OPTION_BIN, FILE_VIN_SAVELOAD_BIN */
 #include "pc_kanji.h"       /* Pc_KanjiIsLead (SJIS pair walk) */
 #include "lang_zh.h"
+#include "pc_config.h"
 #include "sh_log.h"
 
 /* NTSC-J menu text comes off the disc rather than out of the binary.
@@ -274,6 +275,12 @@ const char* Pc_JpnMenuText(const char* us)
     int i;
 
     if (us == NULL)
+        return NULL;
+
+    /* English on a Japanese disc: every one of these would replace a compiled
+     * US literal with the disc's Japanese, which is exactly what this language
+     * exists to avoid. NULL means "keep what the port compiled". */
+    if (g_PcConfig.jpLanguage == JP_LANG_ENGLISH)
         return NULL;
 
     {

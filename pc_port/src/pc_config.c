@@ -895,7 +895,9 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "jp_language") == 0)
         {
             /* NTSC-J text language. Unknown -> Japanese. */
-            g_PcConfig.jpLanguage = (strcmp(value, "zh") == 0) ? 1 : 0;
+            g_PcConfig.jpLanguage = (strcmp(value, "zh") == 0) ? JP_LANG_CHINESE
+                                  : (strcmp(value, "en") == 0) ? JP_LANG_ENGLISH
+                                                               : JP_LANG_JAPANESE;
         }
         else if (strcmp(key, "region") == 0)
         {

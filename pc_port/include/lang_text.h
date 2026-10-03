@@ -18,6 +18,14 @@
  * PC-side packs loaded from gamedata/lang (see lang_pack.h). */
 #define LANG_PACK_FIRST 5
 
+/* NTSC-J has its own short list on the same row. English is the port's: the
+ * Japanese release with the compiled US text, for players who want that
+ * disc's presentation and a script they can read. */
+#define JP_LANG_JAPANESE 0
+#define JP_LANG_CHINESE  1
+#define JP_LANG_ENGLISH  2
+#define JP_LANG_COUNT    3
+
 /* Only the five disc languages are fixed. Every slot past them is an installed
  * pack, discovered at runtime from gamedata/lang (lang_pack.c), so the count
  * comes from Pc_LangSlotCount() and the id from Pc_LangIdForSlot(). */
