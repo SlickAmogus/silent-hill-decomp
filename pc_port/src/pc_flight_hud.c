@@ -741,6 +741,7 @@ static void Ah_ZoneTick(float dt)
 
     if (map != s_prevMap)
     {
+        Pc_FlightArcade_Reset();
         if (s_prevMap >= 0)
         {
             if (chapter >= 0 && !(s_chapterSeen & (1u << chapter)))
@@ -1013,7 +1014,11 @@ static void Ah_LockScan(float dt)
         }
     }
 
-    s_alert = s_anyLock;
+    /* A missile already flying keeps the alarm up after the lock that fired
+     * it is gone. */
+    if (Pc_FlightArcade_Inbound())
+        s_danger = 1;
+    s_alert = s_anyLock || s_danger;
 }
 
 /* ------------------------------------------------------------------ */
