@@ -121,6 +121,30 @@ resto è rosso.
 | **MISSION UPDATE** con il nome della zona | La prima volta che entri in una zona durante la sessione (non quella in cui carichi la partita). |
 | **MISSION COMPLETE** | Dopo un boss, o la prima volta che entri in un nuovo capitolo: tempo, punteggio, uccisioni, colpi sparati / a segno, precisione e voto S/A/B/C. Resta 7 s e non blocca il gioco. Non compare se nel tratto non hai combattuto. |
 
+### Modalità arcade (`flight_gameplay`)
+
+Spenta di default: senza, l'HUD è solo scena. Accesa (e con l'HUD attivo):
+
+- **Flare con effetto vero**: per i 3 s in cui i flare accecano i seeker,
+  nessun colpo di un mostro arriva a Harry (niente danno né animazione).
+  I boss non ne sono toccati. Una presa già in corso non si rompe.
+- **Missili dei mostri**: un mostro che tiene il lock per 1,2 s lancia un
+  missile a ricerca (lo stesso mostro di nuovo dopo 6 s, al massimo 3 in aria,
+  mai i boss). Vira piano: correndo di lato si schiva. Un flare entro 8 m lo
+  prende e lo fa esplodere lontano da Harry. Se colpisce fa il danno
+  dell'attacco normale di quel mostro, con l'animazione del colpo al busto
+  (mai una presa). Finché è in volo restano MISSILE ALERT, EVADE e la sirena;
+  sul missile c'è un **rombo rosso** che lampeggia più veloce man mano che si
+  avvicina.
+- **Missili di Harry**: con un'arma da fuoco in mira e il seeker chiuso
+  (LOCK ON), **Cerchio** (il tasto della torcia) lancia un missile sul
+  bersaglio; in quel momento la torcia non cambia. Senza LOCK ON Cerchio resta
+  la torcia. 2 missili, uno torna ogni 12 s; `MSL` accanto a `FLR`,
+  `NO MISSILES` a stock vuoto. Colpisce come due colpi di fucile.
+- **Scie**: fumo chiaro nella scena (coperto da muri e nebbia) e bagliore
+  sulla testa del missile nell'HUD (arancio i mostri, verde Harry).
+- Limite noto: i missili non collidono con i muri, solo con il pavimento.
+
 ### Ritratto della radio
 
 - Il ritratto è il **volto vero del personaggio**, ritagliato dall'immagine del
@@ -157,6 +181,7 @@ scorrevoli di SPEED e ALT, mirino a "W", radar rotondo in basso a destra,
 | `flight_hud` | 0 off, 1 Modern (default), 2 Classic. Anche nel menu rapido e nelle Opzioni. |
 | `flight_hud_sound` | 1 bip di allarme (default), 0 silenzio. |
 | `flight_hud_opacity` | 10–100, trasparenza dell'HUD. |
+| `flight_gameplay` | 0 spento (default), 1 modalità arcade (vedi sopra). Serve `flight_hud` acceso. Nelle Opzioni pagina Controls ("Flight_Gameplay") e nel menu rapido, pagina HUD. |
 | `flight_hud_callsigns` | 0 nomi dei mostri (default), 1 BOGEY / BANDIT (BANDIT se ti sta puntando), 2 TGT-01, TGT-02… Nelle Opzioni solo su telefono ("Target_Labels"). |
 
 ---
@@ -186,6 +211,10 @@ scorrevoli di SPEED e ALT, mirino a "W", radar rotondo in basso a destra,
 | 16 | HUD che si strappa quando Harry è colpito, DAMAGE | [~] |
 | 17 | WARNING: LOW HEALTH con bip | [~] |
 | 18 | MISSION FAILED alla morte, Cybil alla radio | [~] |
+| 19 | Flare che fermano i colpi dei mostri (`flight_gameplay`) | [~] |
+| 20 | Missili dei mostri, deviati dai flare | [~] |
+| 21 | Missili di Harry con Cerchio a LOCK ON | [~] |
+| 22 | Scie di fumo nella scena e bagliore dei missili | [~] |
 
 ### Da provare in gioco
 
@@ -217,6 +246,21 @@ scorrevoli di SPEED e ALT, mirino a "W", radar rotondo in basso a destra,
 - [ ] Harry in wireframe: posa giusta (in piedi, braccia lungo i fianchi), non
       a testa in giù o di spalle? Leggibile anche piccolo su telefono?
 
+- [ ] `flight_gameplay = 0`: tutto come prima (colpi dopo i flare, Cerchio
+      sempre torcia, nessun missile, pannello in basso a destra invariato).
+- [ ] Flare quando un mostro sta per colpire: 3 s senza colpi, poi tornano.
+      Boss (Split Head) non toccati.
+- [ ] Groaner che tiene il lock: dopo ~1,2 s parte un missile, EVADE e
+      sirena; colpo = animazione al busto e danno. Correndo di lato si schiva.
+- [ ] Missile in volo + flare: il missile va sui flare, niente danno.
+- [ ] Missile in volo + cambio stanza: nella stanza nuova niente missile.
+- [ ] Cerchio a LOCK ON: missile, la torcia non cambia; senza LOCK ON torcia.
+      Terzo lancio di fila: suono d'errore e NO MISSILES; uno torna in 12 s.
+- [ ] Cerchio proprio mentre il seeker si chiude: mai missile e torcia insieme.
+- [ ] Scie: fumo che si allarga e sbiadisce, coperto da muri e nebbia; nessuno
+      sfarfallio con 5 missili in aria.
+- [ ] MSL in Modern, Classic e su telefono, senza sovrapposizioni.
+
 Se un elemento è nel posto sbagliato o non si capisce, annotarlo qui con uno
 screenshot.
 
@@ -247,6 +291,10 @@ all'originale PSX.
 | 4 | Harry e i mostri che si muovono come aerei (volo, quota, virate) | Molto difficile: va riscritto il movimento di tutti i personaggi, le collisioni e le telecamere. Sconsigliato |
 
 Consigliato: partire da 1, poi 2 e 3 insieme ("modalità arcade").
+
+Livelli 1–3 e scie: [~] implementati (vedi "Modalità arcade"), da provare in
+gioco. Prossimo: pulsante touch MSL su `android-port`, collisione dei missili
+con i muri.
 
 ### Missili arcade (livelli 2–3)
 
@@ -349,6 +397,22 @@ Rendering ibrido:
   documentati in `pc_port/config.cfg`. Riga "Flight HUD" in
   `src/screens/options/options.c` e nel menu rapido (`pc_port/src/pc_quick_options.c`).
   Le pagine Opzioni hanno un tetto di righe: la pagina HUD del telefono è piena.
+- Modalità arcade:
+  - `pc_port/src/pc_flight_missile.c` — volo puro (guida a virata limitata,
+    colpo sul segmento percorso, esche, fumo, regola di lancio), senza header
+    del gioco; test `pc_port/tests/pc_flight_missile_test.c`
+    (`-DBUILD_TESTING=ON`, `ctest -R pc_flight_missile`).
+  - `pc_port/src/pc_flight_arcade.c` — lanci, volo, danni (scritti in
+    `damage.amount` / `damage.position` / `attackReceived`, come fa il gioco),
+    tasto light, fumo nella OT del mondo (`Ar_SmokeDraw`, POLY_F4 additivi
+    con `Vw_WorldScreenMatrixAtPositionGet` + `RotTransPers`). Chiamato da
+    `Pc_FlightHud_Update` dopo `Ah_LockScan`; reset al cambio mappa.
+  - Scudo dei flare: `Pc_FlightArcade_ShieldsHarryFrom` in `func_8008A0E4` e
+    `func_8008B714` (`src/bodyprog/bodyprog_combat_8008A058.c`).
+  - Torcia: `SysState_Gameplay_Update` non la cambia se
+    `Pc_FlightArcade_ClaimsLightButton()`; lo stato è preso dal frame prima,
+    lo stesso con cui l'update decide il lancio.
+  - HUD: `Ah_BuildMissiles`, `Ah_MissileMarks`, `Ah_MslLine`.
 - Touch: pulsante flare `TB_FLARE` / `TG_C_FLARE` in `pc_port/src/pc_touch.c`.
 
 ## Anteprima senza il gioco
