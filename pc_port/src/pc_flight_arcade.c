@@ -20,6 +20,8 @@
 #include "bodyprog/sound/sfx_id_enum.h"
 #include "bodyprog/sound/sound_system.h"
 #include "bodyprog/screen/screen_fade.h"
+#include "bodyprog/screen/screen_data.h"
+#include "bodyprog/view/vw_calc.h"
 
 #include <math.h>
 #include <string.h>
@@ -33,6 +35,7 @@
 #include "pc_flight_arcade.h"
 
 void func_8005DC1C(e_SfxId sfxId, const VECTOR3* pos, q23_8 vol, s32 soundType);
+extern long ReadGeomScreen(void);
 
 #define AR_MISSILES_MAX    8
 #define AR_FLARES_MAX      24     /* AH_PARTICLES_MAX in pc_flight_hud.c */
@@ -44,6 +47,7 @@ void func_8005DC1C(e_SfxId sfxId, const VECTOR3* pos, q23_8 vol, s32 soundType);
 #define AR_DECOY_RANGE     8.0f   /* m from a flare that takes a missile */
 #define AR_KNOCK           0.5f   /* m of push along the missile's path */
 #define AR_PUFF_STEP       0.04f  /* s between smoke puffs */
+#define AR_PUFF_SHADE      72     /* additive: low, so it reads as smoke, not light */
 #define AR_HARRY_HURT      43     /* a plain torso hit in Player_ReceiveDamage, never a grab */
 #define AR_HARRY_SPEED     16.0f
 #define AR_HARRY_TURN      4.0f   /* rad/s */
@@ -350,6 +354,66 @@ static void Ar_HarryLaunch(int claimed)
     SH_DBG("[ARCADE] Harry fires at slot %d, %d left", slot, s_mslStock);
 }
 
+/* One quad per puff in the world OT at its own depth, so walls and characters
+ * in front cover it, and the GTE depth-cue value fades it into the fog.
+ * Additive, because 50/50 blending cannot fade a puff out to nothing. */
+static void Ar_SmokeDraw(void)
+{
+    GsOT*      ot = &g_OrderingTable0[g_ActiveBufferIdx];
+    const long h  = ReadGeomScreen();
+    int        i;
+
+    for (i = 0; i < AF_SMOKE_MAX; i++)
+    {
+        const AfPuff* p = &s_smoke.p[i];
+        MATRIX        mat;
+        SVECTOR       zero = { 0, 0, 0, 0 };
+        long          sxy, depthCue, flag, otz, idx, half, shade;
+        short         sx, sy;
+        POLY_F4*      poly;
+        DR_TPAGE*     tp;
+
+        if (!p->alive)
+            continue;
+
+        Vw_WorldScreenMatrixAtPositionGet(&mat, (q19_12)(p->pos.x * 4096.0f), (q19_12)(p->pos.y * 4096.0f),
+                                          (q19_12)(p->pos.z * 4096.0f));
+        SetRotMatrix(&mat);
+        SetTransMatrix(&mat);
+        otz = RotTransPers(&zero, &sxy, &depthCue, &flag);
+        if (otz <= 0)
+            continue;
+        idx = (otz >> 1) - 2;
+        if (idx < 1 || idx >= ORDERING_TABLE_SIZE - 1)
+            continue;
+
+        /* OTZ is SZ / 4, and a puff of half size s metres is s * 256 GTE units. */
+        half = (long)(Af_PuffSize(p->age) * 256.0f * (float)h / (float)(otz * 4));
+        if (half < 1)  half = 1;
+        if (half > 96) half = 96;
+        shade = (long)(Af_PuffAlpha(p->age) * AR_PUFF_SHADE * (float)(4096 - depthCue) / 4096.0f);
+        if (shade <= 0)
+            continue;
+
+        sx = (short)(sxy & 0xFFFF);
+        sy = (short)(sxy >> 16);
+
+        poly = (POLY_F4*)GsOUT_PACKET_P;
+        setPolyF4(poly);
+        setSemiTrans(poly, 1);
+        setRGB0(poly, shade, shade, shade);
+        setXY4(poly, sx - half, sy - half, sx + half, sy - half, sx - half, sy + half, sx + half, sy + half);
+        AddPrim(&ot->org[idx], poly);
+
+        /* AddPrim puts each prim at the head of the slot's list, so the tpage
+         * added after the poly runs before it. */
+        tp = (DR_TPAGE*)(poly + 1);
+        setDrawTPage(tp, 0, 1, getTPage(0, 1, 0, 0));
+        AddPrim(&ot->org[idx], tp);
+        GsOUT_PACKET_P = (PACKET*)(tp + 1);
+    }
+}
+
 int Pc_FlightArcade_ClaimsLightButton(void)
 {
     return Pc_FlightArcade_Active() && s_claim;
@@ -410,6 +474,7 @@ void Pc_FlightArcade_Update(float dt)
     Ar_Fly(dt);
     Ar_FlyHarry(dt);
     Af_SmokeStep(&s_smoke, dt);
+    Ar_SmokeDraw();
 
     s_claim = Pc_FlightHud_SeekerLockedSlot() >= 0;
 }
