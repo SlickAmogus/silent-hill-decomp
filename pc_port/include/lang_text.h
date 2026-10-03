@@ -16,7 +16,13 @@
 /* Selectable languages, in options-menu (and config `language`) order:
  * 0=en 1=de 2=fr 3=es 4=it are the PAL disc's own; LANG_PACK_FIRST and up are
  * PC-side packs loaded from gamedata/lang (see lang_pack.h). */
-#define LANG_PACK_FIRST 5
+/* NTSC-U English costs no data: the port compiles the US script, so "do not
+ * install any of the disc's text" IS that language. It exists as an id of its
+ * own so a PAL player can pick it, since PAL English is a separate
+ * retranslation and slot 0 on a PAL disc is the PAL one. */
+#define LANG_EN_US 5
+
+#define LANG_PACK_FIRST 6
 
 /* NTSC-J has its own short list on the same row. English is the port's: the
  * Japanese release with the compiled US text, for players who want that

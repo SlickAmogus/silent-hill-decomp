@@ -2,8 +2,8 @@
 # English (PAL), lifted from the PAL disc so any disc can offer it.
 !font=latin
 !code=en_pal
-!name=English (PAL)
-!menu=English (PAL)
+!name=PAL English
+!menu=PAL_English
 COMMON.0=Yes
 COMMON.1=No
 COMMON.2=Someday,_someone_may_experience~N these_bizarre_events._Hopefully,~N they_will_find_my_notes_useful.~E ~N ~E 

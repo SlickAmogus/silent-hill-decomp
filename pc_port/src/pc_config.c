@@ -880,7 +880,8 @@ void PcConfig_Load(const char* path)
         {
             /* Language id string. Index order matches the PAL disc's
              * option-menu / VIN2-5 dir order. Unknown -> English. */
-            if (strcmp(value, "de") == 0)      g_PcConfig.language = 1;
+            if (strcmp(value, "en_us") == 0)   g_PcConfig.language = LANG_EN_US;
+            else if (strcmp(value, "de") == 0) g_PcConfig.language = 1;
             else if (strcmp(value, "fr") == 0) g_PcConfig.language = 2;
             else if (strcmp(value, "es") == 0) g_PcConfig.language = 3;
             else if (strcmp(value, "it") == 0) g_PcConfig.language = 4;

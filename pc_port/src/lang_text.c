@@ -81,7 +81,8 @@ extern const char* PcPort_GetGameDiscPath(void);
 #define SECTOR_DATA_OFF 24
 #define SECTOR_DATA_LEN 2048
 
-static const char* s_ItemBinNames[5] = { "ITEM_ENG", "ITEM_GER", "ITEM_FRN", "ITEM_SPN", "ITEM_ITL" };
+static const char* s_ItemBinNames[LANG_PACK_FIRST] = { "ITEM_ENG", "ITEM_GER", "ITEM_FRN",
+                                                       "ITEM_SPN", "ITEM_ITL", "ITEM_ENG" };
 
 /* The compiled item tables a disc's own text is compared against. */
 extern const char* INVENTORY_ITEM_NAMES[];
@@ -91,7 +92,7 @@ extern const char* g_ItemDescriptions[];
  * from LANG_PACK_FIRST on they are PC-side packs (gamedata/lang/<id>.lang),
  * which exist on no disc and so are offered on EUR only -- the US font has no
  * accent cells to build their letters into. */
-const char* const s_LangIds[LANG_PACK_FIRST] = { "en", "de", "fr", "es", "it" };
+const char* const s_LangIds[LANG_PACK_FIRST] = { "en", "de", "fr", "es", "it", "en_us" };
 
 /* The Language row's list, built for THIS disc.
  *
@@ -143,6 +144,10 @@ static void SlotsBuild(void)
     {
         for (i = 1; i < LANG_PACK_FIRST && s_SlotCount < LANG_SLOT_MAX; i++)
             s_SlotLang[s_SlotCount++] = (short)i;
+    }
+    else
+    {
+        /* Slot 0 already IS the compiled US script on these discs. */
     }
 
     for (i = 0; i < n && s_SlotCount < LANG_SLOT_MAX; i++)
@@ -256,8 +261,9 @@ int Pc_LangActive(void)
 {
     /* Any language INCLUDING English: PAL-EN is its own retranslation
      * ("Take them?" vs the US "Take_it?"), so a PAL disc always shows its
-     * own text rather than the compiled US strings. */
-    return g_GameRegion == Region_EUR;
+     * own text rather than the compiled US strings -- unless NTSC-U English is
+     * what was asked for, which is precisely those compiled strings. */
+    return g_GameRegion == Region_EUR && g_PcConfig.language != LANG_EN_US;
 }
 
 static int s_FanTextActive;
@@ -1168,8 +1174,9 @@ const char* Pc_LangSlotName(int slot)
     /* Names in the retail PAL option-menu order (= config language index).
      * Index LANG_PACK_FIRST and up are PC-side packs, labelled by the pack's
      * own `!menu` field (e.g. "POLISH"). */
+    /* The two Englishes are distinct releases, so neither is just "English". */
     static const char* const s_PalNames[LANG_PACK_FIRST] = {
-        "English", "German", "French", "Spanish", "Italian"
+        "PAL_English", "German", "French", "Spanish", "Italian", "US_English"
     };
 
     if (g_GameRegion == Region_JPN)
@@ -1186,6 +1193,11 @@ const char* Pc_LangSlotName(int slot)
 
         if (lang >= LANG_PACK_FIRST)
             return Pc_LangPackListName(lang - LANG_PACK_FIRST);
+
+        /* Slot 0 is whichever English the mounted disc itself carries. */
+        if (lang == 0 && g_GameRegion != Region_EUR)
+            return s_PalNames[LANG_EN_US];
+
         return s_PalNames[(lang >= 0 && lang < LANG_PACK_FIRST) ? lang : 0];
     }
 }
@@ -1194,7 +1206,19 @@ const char* Pc_LangSlotName(int slot)
  * On/Off values are (the row draws right-aligned-ish against fixed arrows). */
 int Pc_LangSlotNameX(int slot)
 {
-    static const unsigned char s_PalX[LANG_PACK_FIRST] = { 198, 204, 204, 198, 198 };
+    /* Retail's five names are short enough that a fixed left edge was fine --
+     * the longest, "English", ran to x=262. Descriptive names are not: "NTSC-U
+     * English" is 138px and would have run to 336 on a 320-wide screen, and an
+     * installed pack can be called anything. So anything that would not fit is
+     * right-aligned to where the longest retail name ended instead, which
+     * leaves the short ones exactly where they have always been drawn. */
+    static const unsigned char s_PalX[LANG_PACK_FIRST] = { 198, 204, 204, 198, 198, 198 };
+
+    const int   rightEdge = 264;
+    const int   leftFloor = 130; /* keeps clear of the row's own label */
+    const char* name;
+    int         x;
+    int         width;
 
     if (g_GameRegion == Region_JPN)
         return (slot == JP_LANG_ENGLISH) ? 198 : (slot ? 198 : 192);
@@ -1202,8 +1226,15 @@ int Pc_LangSlotNameX(int slot)
     {
         int lang = SlotLang(slot);
 
-        return (lang > 0 && lang < LANG_PACK_FIRST) ? s_PalX[lang] : 200;
+        x = (lang > 0 && lang < LANG_PACK_FIRST) ? (int)s_PalX[lang] : 200;
     }
+
+    name  = Pc_LangSlotName(slot);
+    width = Pc_LangMenuTextWidth(name);
+    if (x + width > rightEdge)
+        x = rightEdge - width;
+
+    return (x < leftFloor) ? leftFloor : x;
 }
 
 /* The options menu shows the Language row only on EUR discs and only when
