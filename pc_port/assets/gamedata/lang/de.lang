@@ -1623,8 +1623,7 @@ MENU.Bottom_R=Unten_R
 MENU.Square=Quadrat
 MENU.Circle=Kreis
 MENU.Can't_use_it_here.=Hier_nicht_nutzbar.
-MENU.Too_dark_to_look_at
-		the_item_here.=Zu_dunkel,_um_das\n\t\tDing_anzusehen.
+MENU.Too_dark_to_look_at\n\t\tthe_item_here.=Zu_dunkel,_um_das\n\t\tDing_anzusehen.
 MENU.Stock:=Vorrat:
 MENU.--On--===Ein==
 MENU.--Off--===Aus==
@@ -1642,7 +1641,5 @@ MENU.--Your_rank--===Rang==
 MENU.Defeated_enemy_by_shooting=Gegner_erschossen
 MENU.Shooting_style=Schießstil
 MENU.No_aiming_shots=Ohne_Zielen
-MENU.Too_dark_to_look_at
-		the_map_here.=Zu_dunkel,_um_die\n\t\tKarte_zu_lesen.
-MENU.I_don't_have_the_map
-		for_this_place.=Ich_habe_keine_Karte\n\t\tvon_diesem_Ort.
+MENU.Too_dark_to_look_at\n\t\tthe_map_here.=Zu_dunkel,_um_die\n\t\tKarte_zu_lesen.
+MENU.I_don't_have_the_map\n\t\tfor_this_place.=Ich_habe_keine_Karte\n\t\tvon_diesem_Ort.

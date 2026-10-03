@@ -119,4 +119,8 @@ const char* Pc_LangMenuText(const char* str);
 const char* Pc_LangMenuPal(const char* us, int lang);
 int         Pc_LangMenuTextWidth(const char* str);
 
+/* Report every layer of the current language (pack, story, item text, font)
+ * through `out`. Backs the LANGCHECK console command. */
+void        Pc_LangSelfCheck(void (*out)(const char*, ...));
+
 #endif

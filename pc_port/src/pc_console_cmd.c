@@ -1557,6 +1557,11 @@ void Pc_ConsoleExec(const char* line)
         else if (arg[0] == '0') g_PcUnlimitedEnemies = 0;
         else g_PcUnlimitedEnemies = !g_PcUnlimitedEnemies;
         cprintf("unlimited enemies %s (cap now %d)", g_PcUnlimitedEnemies ? "ON" : "OFF", NPC_COUNT_MAX);
+    } else if (strcmp(cmd, "LANGCHECK") == 0) {
+        /* Every layer of the current language in one place. The layers
+         * install independently, so "the menus are translated" is no
+         * evidence that the story text is. */
+        Pc_LangSelfCheck(cprintf);
     } else if (strcmp(cmd, "MENUSTYLE") == 0) {
         /* Three main menus, and no disc carries all three: us is a full
          * picture, pal composes black + logo + fog, japanese has its own

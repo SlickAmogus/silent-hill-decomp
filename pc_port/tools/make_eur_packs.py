@@ -227,8 +227,14 @@ def menu_key(lit):
 
 
 def esc(b):
-    """Latin-1 disc bytes -> a UTF-8 pack line."""
-    return b.decode('latin-1').replace('\n', '\\n').replace('\t', '\\t')
+    """Latin-1 disc bytes -> a UTF-8 pack line.
+
+    The loader resolves these in KEYS as well as values, and it has to: one
+    menu string is "Too dark to look at\n\t\tthe item here.", so its key holds
+    a real newline and would otherwise split the entry across two lines and be
+    lost. Backslash first, or escaping would double-escape its own output."""
+    return (b.decode('latin-1').replace('\\', '\\\\')
+            .replace('\n', '\\n').replace('\t', '\\t'))
 
 
 def main():
@@ -280,7 +286,8 @@ def main():
             f.write('!font=latin\n!code=%s\n!name=%s\n!menu=%s\n'
                     % (code, name, name.replace(' ', '_')))
             for k, v in entries.items():
-                f.write('%s=%s\n' % (esc(k.encode('latin-1')) if isinstance(k, bytes) else k, esc(v)))
+                f.write('%s=%s\n' % (esc(k if isinstance(k, bytes)
+                                         else k.encode('latin-1')), esc(v)))
         story = sum(1 for k in entries if k.startswith(('MAP', 'COMMON')))
         print('%-3s %-8s %5d entries (%d story, %d item, %d menu)  %s KB'
               % (code, name, len(entries), story, len(items), len(menus),

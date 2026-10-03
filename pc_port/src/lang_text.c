@@ -214,6 +214,15 @@ const char* Pc_LangIdForSlot(int lang)
 }
 
 static char*       s_ItemPool;
+
+/* What the last map install actually achieved, for the LANGCHECK console
+ * command. Shipping a language means "every layer of it arrived", and the
+ * layers fail independently -- a US disc was once translating the menus and
+ * the inventory while leaving every story line English. Reading it back beats
+ * hunting for an untranslated line in-game. */
+static int s_StatMapIdx   = -1;
+static int s_StatSrcCount;
+static int s_StatPackMsgs;
 /* "item text has been installed" sentinel. Was s_ItemPool != NULL, but the
  * NTSC-J path installs pointers to COMPILED tables and allocates no pool, so
  * the pool alone would report the Japanese text as absent. */
@@ -1994,6 +2003,7 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
                 replaced++;
             }
         }
+        s_StatPackMsgs = replaced;
         SH_LOG("[LANG] map %d: %d pack messages overlaid (%s)", mapIdx, replaced,
                Pc_LangIdForSlot(g_PcConfig.language));
     }
@@ -2002,6 +2012,8 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
     s_LangMapHeader.mapMessages = s_MsgPtrs;
     g_pMapOverlayHeader         = &s_LangMapHeader;
 
+    s_StatMapIdx   = mapIdx;
+    s_StatSrcCount = srcCount;
     SH_LOG("[LANG] map %d: %d localized messages installed (lang %d)", mapIdx, srcCount, g_PcConfig.language);
 }
 
@@ -2333,4 +2345,30 @@ void Pc_TextOverrideApply(int mapIdx)
     g_pMapOverlayHeader        = &s_ModMapHeader;
 
     SH_LOG("[MODTEXT] map %d: text override(s) applied", mapIdx);
+}
+
+/* One line per layer of the current language, for the LANGCHECK command. */
+void Pc_LangSelfCheck(void (*out)(const char*, ...))
+{
+    static const char* const fonts[] = { "latin", "polish", "cyrillic", "sjis" };
+    int   font = Pc_LangPackActive() ? Pc_LangPackFont() : -1;
+    int   slot = Pc_LangSlotCurrent();
+
+    out("language %s  (slot %d of %d: %s)", Pc_LangIdForSlot(g_PcConfig.language),
+        slot, Pc_LangSlotCount(), Pc_LangSlotName(slot));
+    out("  disc      %s", g_GameRegion == Region_EUR ? "PAL"
+                        : g_GameRegion == Region_JPN ? "NTSC-J" : "NTSC-U");
+    out("  pack      %s%s%s", Pc_LangPackActive() ? "loaded, font " : "none",
+        Pc_LangPackActive() ? ((font >= 0 && font <= 3) ? fonts[font] : "?") : "",
+        (!Pc_LangPackActive() && g_PcConfig.language == LANG_EN_US)
+            ? " (compiled US text)" : "");
+    if (s_StatMapIdx < 0)
+        out("  story     no map loaded yet - check this in-game");
+    else
+        out("  story     map %d: %d messages, %d from the pack%s", s_StatMapIdx,
+            s_StatSrcCount, s_StatPackMsgs,
+            (Pc_LangPackActive() && s_StatPackMsgs == 0) ? "  <-- PACK TEXT MISSING" : "");
+    out("  item text %s", (s_ItemPool != NULL) ? "installed from disc" : "compiled");
+    out("  font      %s%s", Pc_LangSjisActive() ? "Shift-JIS" : "atlas",
+        Font_EurAtlasImported() ? ", PAL atlas imported" : "");
 }
