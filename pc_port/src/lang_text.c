@@ -1971,7 +1971,15 @@ static void TextOverridesLoad(void)
 }
 
 /* Keep orig's leading ~J..(..) timing prefix (+ following whitespace), then the
- * user text (space -> '_', '~N' etc. pass through), then a trailing " ~E ". */
+ * user text (space -> '_', '~N' etc. pass through), then orig's own terminator.
+ *
+ * The terminator has to be copied rather than assumed: a message WITHOUT a ~E
+ * is a chain page, and the engine walks on to the next index when it finishes
+ * (Gfx_MapMsg_Draw's g_MapMsg_CurrentIdx++). Ending every override with ~E
+ * closed the whole conversation at its first page, so a cutscene whose lines
+ * were blanked (the NoSubs mod) ran its opening line and then jumped straight
+ * to the end -- 119 of its 295 lines are chain pages, including all of the
+ * cafe scene. */
 static char* TextOverrideBuild(const char* orig, const char* userText)
 {
     char        prefix[64];
@@ -1980,6 +1988,16 @@ static char* TextOverrideBuild(const char* orig, const char* userText)
     const char* u;
     char*       out;
     char*       o;
+    int         hasEnd = 0;
+
+    for (u = orig; u != NULL && u[0] != '\0'; u++)
+    {
+        if (u[0] == '~' && u[1] == 'E')
+        {
+            hasEnd = 1;
+            break;
+        }
+    }
 
     if (s != NULL && s[0] == '~' && s[1] != '\0')
     {
@@ -2014,9 +2032,12 @@ static char* TextOverrideBuild(const char* orig, const char* userText)
     for (u = userText; *u != '\0'; u++)
         *o++ = (*u == ' ') ? '_' : *u;
     *o++ = ' ';
-    *o++ = '~';
-    *o++ = 'E';
-    *o++ = ' ';
+    if (hasEnd)
+    {
+        *o++ = '~';
+        *o++ = 'E';
+        *o++ = ' ';
+    }
     *o   = '\0';
     return out;
 }
