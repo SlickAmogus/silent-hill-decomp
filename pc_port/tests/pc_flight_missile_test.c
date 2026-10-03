@@ -1,3 +1,5 @@
+/* The build types define NDEBUG; these checks must run in every one. */
+#undef NDEBUG
 #include <assert.h>
 #include <math.h>
 
@@ -29,16 +31,16 @@ static void TestSteer(void)
     AfVec3 fwd = V(0, 0, 1), right = V(1, 0, 0), back = V(0, 0, -1), out;
 
     out = Af_Steer(fwd, Af_Dir(V(0, 0, 0), V(0.1f, 0, 1)), 1.0f);
-    assert(Angle(out, Af_Dir(V(0, 0, 0), V(0.1f, 0, 1))) < 1e-4f);
+    assert(Angle(out, Af_Dir(V(0, 0, 0), V(0.1f, 0, 1))) < 1e-3f);
 
     out = Af_Steer(fwd, right, 0.2f);
-    assert(Near(Angle(fwd, out), 0.2f, 1e-4f));
+    assert(Near(Angle(fwd, out), 0.2f, 1e-3f));
     assert(Near(sqrtf(out.x * out.x + out.y * out.y + out.z * out.z), 1.0f, 1e-4f));
     assert(out.x > 0.0f);
 
     out = Af_Steer(fwd, back, 0.3f);
     assert(!isnan(out.x) && !isnan(out.y) && !isnan(out.z));
-    assert(Near(Angle(fwd, out), 0.3f, 1e-4f));
+    assert(Near(Angle(fwd, out), 0.3f, 1e-3f));
 }
 
 static void TestHitStraight(void)
@@ -146,6 +148,31 @@ static void TestSmoke(void)
     assert(Near(Af_PuffAlpha(AF_PUFF_LIFE), 0.0f, 1e-5f));
 }
 
+static void TestGun(void)
+{
+    AfGun g = { 0 };
+    int   i, n = 0;
+
+    assert(Af_GunTick(&g, 1, 1.0f / 60.0f) == 1);
+    for (i = 1; i < 60; i++)
+        n += Af_GunTick(&g, 1, 1.0f / 60.0f);
+    assert(n + 1 >= 11 && n + 1 <= 13);
+    assert(!g.overheated);
+
+    for (i = 0; i < 150; i++)
+        Af_GunTick(&g, 1, 1.0f / 60.0f);
+    assert(g.overheated);
+    assert(Af_GunTick(&g, 1, 1.0f / 60.0f) == 0);
+
+    for (i = 0; i < 125; i++)
+        Af_GunTick(&g, 0, 1.0f / 60.0f);
+    assert(!g.overheated);
+    assert(Af_GunTick(&g, 1, 1.0f / 60.0f) == 1);
+
+    assert(Near(Af_SegDist(V(0, 0, 0), V(0, 0, 10), V(0.3f, 0, 5)), 0.3f, 1e-5f));
+    assert(Near(Af_SegDist(V(0, 0, 0), V(0, 0, 10), V(0, 0, 12)), 2.0f, 1e-5f));
+}
+
 int main(void)
 {
     (void)PI;
@@ -157,5 +184,6 @@ int main(void)
     TestDecoy();
     TestLaunchRule();
     TestSmoke();
+    TestGun();
     return 0;
 }

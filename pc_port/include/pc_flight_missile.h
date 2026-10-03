@@ -15,6 +15,9 @@ extern "C" {
 #define AF_PUFF_RISE          0.25f /* m/s */
 #define AF_ENEMY_LAUNCH_DELAY 1.2f  /* s a lock must hold before the monster fires */
 #define AF_ENEMY_MAX_INFLIGHT 3
+#define AF_GUN_RATE           12.0f /* rounds/s */
+#define AF_GUN_HEAT_TIME      3.0f  /* s of fire to overheat */
+#define AF_GUN_COOL_TIME      2.0f  /* s to cool from full */
 
 enum
 {
@@ -53,6 +56,14 @@ typedef struct
 
 typedef struct
 {
+    float heat;       /* 0..1 */
+    int   overheated; /* locked out until heat is back to 0 */
+    float shotT;      /* s banked toward the next round */
+    int   firing;     /* trigger held last tick */
+} AfGun;
+
+typedef struct
+{
     AfPuff p[AF_SMOKE_MAX];
     int    next;
 } AfSmoke;
@@ -64,6 +75,9 @@ void   Af_MissileInit(AfMissile* m, int fromHarry, int shooter, int target, AfVe
                       float speed, float turnRate, float life);
 /* hitRadius <= 0: the missile cannot hit, it only flies, expires or grounds. */
 int    Af_MissileStep(AfMissile* m, AfVec3 aim, float floorY, float hitRadius, float dt);
+float  Af_SegDist(AfVec3 a, AfVec3 b, AfVec3 p);
+/* Rounds to fire this tick; the first press fires at once. */
+int    Af_GunTick(AfGun* g, int trigger, float dt);
 int    Af_PickDecoy(AfVec3 pos, const AfVec3* flares, int n, float range);
 int    Af_EnemyMayLaunch(float lockHeldT, float cooldownT, int ownInFlight, int totalInFlight, int isBoss);
 void   Af_SmokeEmit(AfSmoke* s, AfVec3 pos);

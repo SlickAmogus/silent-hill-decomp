@@ -67,7 +67,7 @@ void Af_MissileInit(AfMissile* m, int fromHarry, int shooter, int target, AfVec3
     m->life      = life;
 }
 
-static float Af_SegPointDist(AfVec3 a, AfVec3 b, AfVec3 p)
+float Af_SegDist(AfVec3 a, AfVec3 b, AfVec3 p)
 {
     const AfVec3 ab = Af_Sub(b, a);
     const float  l2 = Af_Dot(ab, ab);
@@ -96,7 +96,7 @@ int Af_MissileStep(AfMissile* m, AfVec3 aim, float floorY, float hitRadius, floa
 
     /* The swept segment, not the end point: a fast missile on a long frame
      * would otherwise step straight through its target. */
-    if (hitRadius > 0.0f && Af_SegPointDist(prev, m->pos, aim) <= hitRadius)
+    if (hitRadius > 0.0f && Af_SegDist(prev, m->pos, aim) <= hitRadius)
     {
         m->alive = 0;
         return AF_STEP_HIT;
@@ -107,6 +107,42 @@ int Af_MissileStep(AfMissile* m, AfVec3 aim, float floorY, float hitRadius, floa
         return AF_STEP_GROUND;
     }
     return AF_STEP_FLYING;
+}
+
+int Af_GunTick(AfGun* g, int trigger, float dt)
+{
+    int n;
+
+    if (g->overheated || !trigger)
+    {
+        g->heat -= dt / AF_GUN_COOL_TIME;
+        if (g->heat <= 0.0f)
+        {
+            g->heat       = 0.0f;
+            g->overheated = 0;
+        }
+        g->firing = 0;
+        return 0;
+    }
+
+    if (!g->firing)
+    {
+        g->firing = 1;
+        g->shotT  = 1.0f / AF_GUN_RATE;
+        g->shotT -= dt;
+    }
+
+    g->heat += dt / AF_GUN_HEAT_TIME;
+    if (g->heat >= 1.0f)
+    {
+        g->heat       = 1.0f;
+        g->overheated = 1;
+        return 0;
+    }
+    g->shotT += dt;
+    n         = (int)(g->shotT * AF_GUN_RATE);
+    g->shotT -= (float)n / AF_GUN_RATE;
+    return n;
 }
 
 int Af_PickDecoy(AfVec3 pos, const AfVec3* flares, int n, float range)
