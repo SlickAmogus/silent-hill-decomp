@@ -21,6 +21,8 @@ int   Pc_FlightArcade_Missiles(const AfMissile** out);
 int   Pc_FlightArcade_Inbound(void);
 float Pc_FlightArcade_InboundDist(void);
 int   Pc_FlightArcade_Stock(void);
+int   Pc_FlightArcade_StockMax(void);
+float Pc_FlightArcade_Recharge01(void);
 float Pc_FlightArcade_LaunchMsgT(void);
 float Pc_FlightArcade_NoMslT(void);
 

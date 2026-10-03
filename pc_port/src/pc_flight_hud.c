@@ -2808,6 +2808,37 @@ static void Ah_CompassTape(float headingDeg, float cy)
     Ah_Line(0.0f, cy - 6.0f,  4.0f, cy - 1.0f, s_th);
 }
 
+/* One outline per missile Harry can carry, left to right from l: ready ones
+ * filled, the one coming back filled as far as its recharge. */
+static float Ah_MissileIcons(float l, float midY, float len)
+{
+    const int   n     = Pc_FlightArcade_StockMax();
+    const int   stock = Pc_FlightArcade_Stock();
+    const float h     = len * 0.22f, gap = len * 0.3f;
+    int         i;
+
+    for (i = 0; i < n; i++)
+    {
+        const float x0 = l + i * (len + gap), nose = x0 + len, body = nose - len * 0.25f;
+        const float t = midY - h * 0.5f, b = midY + h * 0.5f;
+        float       f = i < stock ? 1.0f : (i == stock ? Pc_FlightArcade_Recharge01() : 0.0f);
+
+        Ah_UseDim();
+        Ah_Box(x0, t, body, b, 0.8f);
+        Ah_Line(body, t, nose, midY, 0.8f);
+        Ah_Line(body, b, nose, midY, 0.8f);
+        Ah_Line(x0, t, x0 - len * 0.12f, t - h * 0.6f, 0.8f);
+        Ah_Line(x0, b, x0 - len * 0.12f, b + h * 0.6f, 0.8f);
+        if (f <= 0.0f)
+            continue;
+        Ah_UseMain();
+        Ah_Rect(x0, t, x0 + (body - x0) * f, b);
+        if (f >= 1.0f)
+            Ah_Tri(body, t, nose, midY, body, b);
+    }
+    return n * (len + gap) - gap;
+}
+
 /* Blinks faster as the missile closes: 0.5 s at 12 m, 0.08 s at contact. */
 static void Ah_MissileMarks(float nowS)
 {
@@ -2947,6 +2978,7 @@ static void Ah_BuildHud(void)
                 Ah_Text("MSL", colL, 128.0f, size, 0);
                 snprintf(buf, sizeof(buf), "%d", Pc_FlightArcade_Stock());
                 Ah_Text(buf, colR, 128.0f, size, 2);
+                Ah_MissileIcons(colL + 30.0f, 128.0f + size * 0.5f, 16.0f);
             }
 
             Ah_UseMain();
@@ -2981,6 +3013,8 @@ static void Ah_BuildHud(void)
             const float fw = Ah_TextWidth("FLR 4", 8.0f);
             const float mw = arcade ? Ah_TextWidth("  MSL 2", 8.0f) : 0.0f;
             Ah_RechargeBar(10.0f + w * 0.5f - fw - mw, 224.0f, fw, 4.0f);
+            if (arcade)
+                Ah_MissileIcons(10.0f + w * 0.5f + 8.0f, 218.0f, 12.0f);
         }
         Ah_HealthColor(hp, nowS);
         Ah_Silhouette(10.0f - w * 0.5f - 14.0f, 196.0f, 30.0f);
@@ -3293,6 +3327,11 @@ static void Ah_MslLine(float xRight, float y, float size)
     else
         Ah_UseMain();
     Ah_Text(buf, xRight, y, size, 2);
+    {
+        const float len = size * 1.6f;
+        const float iw  = Pc_FlightArcade_StockMax() * len * 1.3f - len * 0.3f;
+        Ah_MissileIcons(xRight - Ah_TextWidth(buf, size) - 8.0f - iw, y + size * 0.5f, len);
+    }
 }
 
 static void Ah_BuildHudClassic(float vpW, float vpH)

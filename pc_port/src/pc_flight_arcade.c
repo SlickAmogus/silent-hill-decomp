@@ -484,6 +484,16 @@ int Pc_FlightArcade_Stock(void)
     return s_mslStock;
 }
 
+int Pc_FlightArcade_StockMax(void)
+{
+    return AR_HARRY_MAX;
+}
+
+float Pc_FlightArcade_Recharge01(void)
+{
+    return s_mslStock < AR_HARRY_MAX ? s_mslRechargeT / AR_HARRY_RECHARGE : 0.0f;
+}
+
 float Pc_FlightArcade_LaunchMsgT(void)
 {
     return s_launchMsgT;
