@@ -284,6 +284,21 @@ static int PoolChara_Load(s32 id)
     return 1;
 }
 
+/* The pool's own copy of a character, whether or not the current map uses it:
+ * its textures always live in the pool's GL slots, which is what lets the
+ * flight HUD draw the model on its own. NULL when the pool has no copy. */
+void* Pc_CharaPool_ModelOf(int charaId)
+{
+    PcPoolChara* p;
+
+    if (!g_PcConfig.globalCharaPool || charaId < POOL_CHARA_FIRST || charaId > POOL_CHARA_LAST)
+    {
+        return NULL;
+    }
+    p = &s_pool[charaId];
+    return (p->loaded && p->model.isLoaded) ? &p->model : NULL;
+}
+
 void Pc_CharaPool_Refresh(void)
 {
     s32 id;

@@ -89,8 +89,16 @@ s_PcConfig g_PcConfig = {
     .crosshairStyle      = 0, /* 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap */
     .crosshairSize       = 100.0f,
     .textSize            = 100.0f,
+    .flightHud              = 1,
+    .flightHudSound         = 1,
+    .flightHudOpacity       = 100,
+    .flightHudCallsigns     = 0,
+    .flightHudPortrait3d    = 1,
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
+    /* On desktop it would suddenly wake the gyro of a DualShock or DualSense, so it stays opt-in. */
+    .gyroAim             = 0,
+    .gyroSensitivity     = 2.0f,
     .altButtonSprint     = 0, /* alt cams sprint from the run control only (off = full stick push also sprints) */
     .immersiveFpsHeadTracking = 0, /* FPS view follows head-bone rotation (experiment, off by default) */
     .control2d               = 0, /* 2D screen-relative movement (experiment, off by default) */
@@ -1008,6 +1016,35 @@ void PcConfig_Load(const char* path)
             if (v > 125.0f) v = 125.0f;
             g_PcConfig.crosshairSize = v;
         }
+        else if (strcmp(key, "flight_hud") == 0)
+        {
+            int v = atoi(value);
+            if (v < 0) v = 0;
+            if (v > 2) v = 2;
+            g_PcConfig.flightHud = v;
+        }
+        else if (strcmp(key, "flight_hud_sound") == 0)
+        {
+            g_PcConfig.flightHudSound = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "flight_hud_opacity") == 0)
+        {
+            int v = atoi(value);
+            if (v < 10)  v = 10;
+            if (v > 100) v = 100;
+            g_PcConfig.flightHudOpacity = v;
+        }
+        else if (strcmp(key, "flight_hud_portrait_3d") == 0)
+        {
+            g_PcConfig.flightHudPortrait3d = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "flight_hud_callsigns") == 0)
+        {
+            int v = atoi(value);
+            if (v < 0) v = 0;
+            if (v > 2) v = 2;
+            g_PcConfig.flightHudCallsigns = v;
+        }
         else if (strcmp(key, "text_size") == 0)
         {
             float v = (float)atof(value);
@@ -1018,6 +1055,22 @@ void PcConfig_Load(const char* path)
         else if (strcmp(key, "mouse_cursor") == 0)
         {
             g_PcConfig.mouseCursor = (atoi(value) != 0);
+        }
+        else if (strcmp(key, "gyro_aim") == 0)
+        {
+            int v = atoi(value);
+            g_PcConfig.gyroAim = (v < 0 || v > 2) ? 0 : v;
+        }
+        else if (strcmp(key, "gyro_sensitivity") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 0.25f) v = 0.25f;
+            if (v > 6.0f)  v = 6.0f;
+            g_PcConfig.gyroSensitivity = v;
+        }
+        else if (strcmp(key, "gyro_invert_y") == 0)
+        {
+            g_PcConfig.gyroInvertY = (atoi(value) != 0);
         }
         else if (strcmp(key, "aim_assist") == 0)
         {

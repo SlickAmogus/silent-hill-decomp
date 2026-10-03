@@ -222,12 +222,19 @@ void Pc_ControlStyleUpdate(void)
         curPad = PsyX_RawControllerBindHeld(scPad[sch]); /* physical controller only */
     }
 
-    /* Edge-toggle the active style — gameplay only. */
-    if (inGameplay && ((curKey && !prevKey) || (curPad && !prevPad)))
+    /* Edge-toggle the active style — gameplay only. A stick-click bind acts on
+     * release, so the L3+R3 flare chord does not also change the camera. */
     {
-        int next = (g_ControlStyle + 1) % Pc_ControlStyleCount();
-        Pc_ControlStyleSet(next);
-        SH_DBG_ECHO("[CTRLSTYLE] Change Camera -> %s", Pc_ControlStyleId(next));
+        static unsigned char s_camChord;
+        extern int Pc_FlightHud_StickBindEdge(int sdlButton, int held, unsigned char* state);
+        int padEdge = Pc_FlightHud_StickBindEdge(scPad[g_DebugThirdPersonCam ? 1 : 0], curPad, &s_camChord);
+
+        if (inGameplay && ((curKey && !prevKey) || padEdge))
+        {
+            int next = (g_ControlStyle + 1) % Pc_ControlStyleCount();
+            Pc_ControlStyleSet(next);
+            SH_DBG_ECHO("[CTRLSTYLE] Change Camera -> %s", Pc_ControlStyleId(next));
+        }
     }
     prevKey = curKey;
     prevPad = curPad;

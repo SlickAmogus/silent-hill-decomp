@@ -1823,6 +1823,17 @@ void DbgOverlay_Update(void)
         /* Already edge-detected, so it is tested separately from the keyboard
          * level below rather than folded into curQuick. */
         padQuick = (s_padQuick >= 0) && PC_RawControllerButtonClicked(s_padQuick);
+        /* On a stick click the press may be half of the L3+R3 flare chord, so
+         * it acts on release instead (pc_flight_hud.c). */
+        {
+            static unsigned char s_quickChord;
+            extern int Pc_FlightHud_StickBindDeferred(int sdlButton);
+            extern int Pc_FlightHud_StickBindEdge(int sdlButton, int held, unsigned char* state);
+            extern int PsyX_RawControllerBindHeld(int buttonOrAxis);
+            if (Pc_FlightHud_StickBindDeferred(s_padQuick))
+                padQuick = Pc_FlightHud_StickBindEdge(s_padQuick, PsyX_RawControllerBindHeld(s_padQuick),
+                                                   &s_quickChord);
+        }
         /* Not during an attract demo. The demo drives g_Controller0 with
          * recorded input, and the panel reads that same controller, so every
          * playback frame pressed its rows for you. GameState is InGame
@@ -2012,6 +2023,10 @@ void DbgOverlay_Render(void)
     /* Config-only minimap overlay: drawn every frame (self-gated on g_PcConfig.minimap
      * + live gameplay), independent of the debug panels below. Self-contained GL. */
     { extern void Pc_MinimapDraw(void); Pc_MinimapDraw(); }
+
+    /* Flight HUD: self-contained GL with its own state save/restore, and
+     * ahead of the toast so an unlock popup stays on top of it. */
+    { extern void Pc_FlightHud_Draw(void); Pc_FlightHud_Draw(); }
 
     /* Discord Rich Presence tick: this hook runs once per EndScene, so it's the
      * port's reliable per-frame heartbeat. Self-gated (no-op unless enabled +

@@ -110,7 +110,7 @@ s32 SdSpuMalloc(s32 size)
 
     if (sd_spu_alloc[0].addr_0 == 0)
     {
-        if (addr + size < 0x80000 - sd_reverb_area_size[sd_reverb_mode])
+        if (addr + size < SD_SPU_ALLOC_TOP)
         {
             sd_spu_alloc[0].addr_0 = addr;
             sd_spu_alloc[0].size_4 = size;
@@ -126,7 +126,7 @@ s32 SdSpuMalloc(s32 size)
     {
         if (sd_spu_alloc[i].size_4 == 0)
         {
-            if ((addr + size) < (0x80000 - sd_reverb_area_size[sd_reverb_mode]))
+            if ((addr + size) < SD_SPU_ALLOC_TOP)
             {
                 sd_spu_alloc[i].addr_0 = addr;
                 sd_spu_alloc[i].size_4 = size;
@@ -186,7 +186,7 @@ u32 SdSpuMallocWithStartAddr(u32 addr, s32 size) // 0x8009F120
 
     if (sd_spu_alloc[0].addr_0 == 0)
     {
-        if ((addr + size) < (0x80000 - sd_reverb_area_size[sd_reverb_mode]))
+        if ((addr + size) < SD_SPU_ALLOC_TOP)
         {
             sd_spu_alloc[0].addr_0 = addr;
             sd_spu_alloc[0].size_4 = size;
@@ -245,7 +245,7 @@ u32 SdSpuMallocWithStartAddr(u32 addr, s32 size) // 0x8009F120
 
         if (sd_spu_alloc[i + 1].size_4 == 0)
         {
-            if ((addr + size) < (0x80000 - sd_reverb_area_size[sd_reverb_mode]))
+            if ((addr + size) < SD_SPU_ALLOC_TOP)
             {
                 sd_spu_alloc[i + 1].addr_0 = addr;
                 sd_spu_alloc[i + 1].size_4 = size;
@@ -425,6 +425,32 @@ char SdSetReservedVoice(char voices) // 0x8009F584
     sd_reserved_voice = voices;
     return voices;
 }
+
+#ifdef SH_PC_PORT
+s32 sd_pc_held_voice = NO_VALUE;
+
+/* Take a voice out of the driver's hands (vo >= 0) or give it back (NO_VALUE).
+ * Its port is emptied so a channel key-off or a sequencer scan never matches
+ * a note the driver left there. */
+void SdPcHoldVoice(s32 vo)
+{
+    if (vo == sd_pc_held_voice)
+    {
+        return;
+    }
+    if (vo >= 0 && vo < 24)
+    {
+        SpuSetKey(SPU_OFF, spu_ch_tbl[vo]);
+        smf_port[vo].stat_16   = 0;
+        smf_port[vo].midi_ch_3 = 0xFF;
+    }
+    else if (sd_pc_held_voice >= 0)
+    {
+        SpuSetKey(SPU_OFF, spu_ch_tbl[sd_pc_held_voice]);
+    }
+    sd_pc_held_voice = vo;
+}
+#endif
 
 void SdSetTableSize(void* arg0, s32 arg1, s32 arg2) {} // 0x8009F5B8
 
@@ -1354,7 +1380,7 @@ s32 SdVoKeyOn(s32 vab_pro, s32 pitch, u16 voll, u16 volr) // 0x800A0AA0
 
         vc = 0;
 
-        while (SpuGetKeyStatus(spu_ch_tbl[vc]) != SPU_OFF)
+        while (SpuGetKeyStatus(spu_ch_tbl[vc]) != SPU_OFF || SD_PC_HELD(vc))
         {
             if (++vc > (sd_reserved_voice - 1))
             {
@@ -1368,7 +1394,7 @@ s32 SdVoKeyOn(s32 vab_pro, s32 pitch, u16 voll, u16 volr) // 0x800A0AA0
         {
             vc = 0;
 
-            while (SmfGetPort(vc)->stat_16 != 0)
+            while (SmfGetPort(vc)->stat_16 != 0 || SD_PC_HELD(vc))
             {
                 if (++vc > (sd_reserved_voice - 1))
                 {
@@ -1656,7 +1682,7 @@ s16 SdUtKeyOn(s16 vabid, s16 prog, s16 tone, s16 note, s16 fine, s16 voll, s16 v
 
     sd_int_flag = true;
 
-    while (SpuGetKeyStatus(spu_ch_tbl[vc]) != SPU_OFF)
+    while (SpuGetKeyStatus(spu_ch_tbl[vc]) != SPU_OFF || SD_PC_HELD(vc))
     {
         if (++vc > (sd_reserved_voice - 1))
         {
@@ -1670,7 +1696,7 @@ s16 SdUtKeyOn(s16 vabid, s16 prog, s16 tone, s16 note, s16 fine, s16 voll, s16 v
     {
         vc = 0;
 
-        while (SmfGetPort(vc)->stat_16 != 0)
+        while (SmfGetPort(vc)->stat_16 != 0 || SD_PC_HELD(vc))
         {
             if (++vc > (sd_reserved_voice - 1))
             {

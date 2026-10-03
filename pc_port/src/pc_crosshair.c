@@ -172,11 +172,17 @@ void Pc_CrosshairDraw(void)
         }
     }
 
-    for (i = 0; i < n; i++)
     {
-        p[i].r0 = p[i].r1 = p[i].r2 = p[i].r3 = 255;
-        p[i].g0 = p[i].g1 = p[i].g2 = p[i].g3 = 255;
-        p[i].b0 = p[i].b1 = p[i].b2 = p[i].b3 = 255;
+        /* Red with the rest of the flight HUD while an enemy holds a lock. */
+        extern int Pc_FlightHud_AlertActive(void);
+        const u_char gb = Pc_FlightHud_AlertActive() ? 50 : 255;
+
+        for (i = 0; i < n; i++)
+        {
+            p[i].r0 = p[i].r1 = p[i].r2 = p[i].r3 = 255;
+            p[i].g0 = p[i].g1 = p[i].g2 = p[i].g3 = gb;
+            p[i].b0 = p[i].b1 = p[i].b2 = p[i].b3 = gb;
+        }
     }
 
     ot = &g_OtTags0[buf][4];
