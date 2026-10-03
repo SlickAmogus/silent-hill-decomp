@@ -114,7 +114,7 @@ static size_t TranscodeValueFont(char* s, int font)
 
     /* Already the engine's bytes: nothing to convert, and converting would
      * corrupt them (a Shift-JIS pair is not UTF-8). */
-    if (font == LANG_PACK_FONT_SJIS)
+    if (LangPackFontIsKanji(font))
         return strlen(s);
 
     char*       out = s;
@@ -322,6 +322,8 @@ static int PackFontFromName(const char* v)
         return LANG_PACK_FONT_POLISH;
     if (strcmp(v, "sjis") == 0)
         return LANG_PACK_FONT_SJIS;
+    if (strcmp(v, "chinese") == 0)
+        return LANG_PACK_FONT_CHINESE;
     return LANG_PACK_FONT_LATIN;
 }
 

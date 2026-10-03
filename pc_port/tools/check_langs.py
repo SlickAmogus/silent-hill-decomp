@@ -24,7 +24,7 @@ REPO = os.path.normpath(os.path.join(HERE, '..', '..'))
 LANG_DIR = os.path.join(HERE, '..', 'assets', 'gamedata', 'lang')
 
 BS = bytes([92])
-FONTS = ('latin', 'polish', 'cyrillic', 'sjis')
+FONTS = ('latin', 'polish', 'cyrillic', 'sjis', 'chinese')
 
 # The row right-aligns a label that does not fit, but only to here (lang_text.c
 # Pc_LangSlotNameX): past this it would collide with the row's own caption.
@@ -58,7 +58,7 @@ def drawn_width(text):
 def strip_codes(v):
     """Drop the engine's ~X control codes. They are spelled with ASCII letters
     (~N, ~E, ~C2, ~J0(2.5)), so a Latin-letter search would flag every line."""
-    return re.sub(b'~[A-Z][0-9]?(\([0-9.]*\))?', b'', v)
+    return re.sub(rb'~[A-Z][0-9]?(\([0-9.]*\))?', b'', v)
 
 
 def unescape(v):
@@ -128,12 +128,12 @@ def check(path):
             k.decode('ascii')
         except UnicodeDecodeError:
             problems.append('line %d: key is not ASCII' % n)
-        if font == 'sjis':
+        if font in ('sjis', 'chinese'):
             try:
                 unescape(v).decode('cp932')
             except UnicodeDecodeError:
-                problems.append('line %d (%s): value is not valid Shift-JIS'
-                                % (n, k.decode('ascii', 'replace')))
+                problems.append('line %d (%s): value is not a valid %s byte sequence'
+                                % (n, k.decode('ascii', 'replace'), font))
 
     # A Cyrillic pack draws through an atlas with no Latin capitals, so a Latin
     # letter in a game-font entry renders as the wrong glyph or nothing. QUICK.*

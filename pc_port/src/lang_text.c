@@ -157,7 +157,8 @@ static int PackOfferedHere(int packIdx)
     }
     /* Slot 0 on a Japanese disc already IS Japanese, straight from the disc --
      * the better source, since ja.lang was extracted from it. */
-    if (g_GameRegion == Region_JPN && strcmp(code, "ja") == 0)
+    if (g_GameRegion == Region_JPN &&
+        (strcmp(code, "ja") == 0 || strcmp(code, "zh") == 0))
         return 0;
 
     (void)font; /* the PAL atlas is imported where it is missing, so all fit */
@@ -247,7 +248,7 @@ int Pc_LangSjisActive(void)
     if (g_GameRegion == Region_JPN)
         return g_PcConfig.jpLanguage != JP_LANG_ENGLISH;
 
-    return Pc_LangPackActive() && Pc_LangPackFont() == LANG_PACK_FONT_SJIS;
+    return Pc_LangPackActive() && LangPackFontIsKanji(Pc_LangPackFont());
 }
 
 const char* Pc_LangIdForSlot(int lang)
@@ -939,13 +940,22 @@ void Pc_LangInit(void)
             /* Every pack draws through the PAL atlas: the Latin ones for
              * their accents, Polish and Russian for the cells they build
              * into. A Shift-JIS pack rasterizes its own and needs none. */
-            if (Pc_LangPackFont() != LANG_PACK_FONT_SJIS)
+            if (!LangPackFontIsKanji(Pc_LangPackFont()))
+            {
                 Font_UseEurAtlas();
+                Pc_KanjiSetChinese(0); /* in case the last pack was Chinese */
+            }
 
             if (Pc_LangPackFont() == LANG_PACK_FONT_CYRILLIC)
                 Font_UseRussianLayout();
             else if (Pc_LangPackFont() == LANG_PACK_FONT_POLISH)
                 Font_UsePolishLayout();
+            else if (Pc_LangPackFont() == LANG_PACK_FONT_CHINESE)
+            {
+                /* This pack carries its own item text, so there is nothing to
+                 * install alongside it -- only the glyph table to switch. */
+                Pc_KanjiSetChinese(1);
+            }
             else if (Pc_LangPackFont() == LANG_PACK_FONT_SJIS)
             {
                 /* The pack carries the story; the Japanese item text is

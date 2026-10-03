@@ -46,6 +46,15 @@ int Pc_LangPackActive(void);
  * the embedded kanji font is indexed by), so the loader passes them through
  * untouched instead of transcoding from UTF-8. */
 #define LANG_PACK_FONT_SJIS     3
+/* `!font=chinese`: the same encoding as sjis -- the Chinese translation writes
+ * ordinary JIS kuten codes -- but drawn through the port's embedded Chinese
+ * glyph table, which redefines those codes. So values pass through exactly as
+ * for sjis, and only the font switched on differs. */
+#define LANG_PACK_FONT_CHINESE  4
+
+/* The two that index the embedded kanji font rather than the glyph atlas. */
+#define LangPackFontIsKanji(f) ((f) == LANG_PACK_FONT_SJIS || (f) == LANG_PACK_FONT_CHINESE)
+
 int Pc_LangPackFont(void);
 
 /* Installed packs, in a stable order: every .lang file in gamedata/lang. This
