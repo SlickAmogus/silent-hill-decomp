@@ -42,6 +42,10 @@ int Pc_LangPackActive(void);
 #define LANG_PACK_FONT_LATIN    0   /* `!font=latin`, or absent */
 #define LANG_PACK_FONT_POLISH   1   /* `!font=polish`   -- seven cells built in */
 #define LANG_PACK_FONT_CYRILLIC 2   /* `!font=cyrillic` -- atlas replaced */
+/* `!font=sjis`: the values are already the engine's own bytes (Shift-JIS, which
+ * the embedded kanji font is indexed by), so the loader passes them through
+ * untouched instead of transcoding from UTF-8. */
+#define LANG_PACK_FONT_SJIS     3
 int Pc_LangPackFont(void);
 
 /* Installed packs, in a stable order: every .lang file in gamedata/lang. This

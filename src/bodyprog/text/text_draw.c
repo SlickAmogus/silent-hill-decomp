@@ -345,7 +345,7 @@ bool Gfx_StringDraw(char* str, s32 strLength) // 0x8004A8E8
 #ifdef SH_PC_PORT
         /* NTSC-J: SJIS pairs (the select-prompt options like Yes/No route the
          * JP map messages through this drawer) — one 12x16 kanji atlas cell. */
-        else if (g_GameRegion == Region_JPN && Pc_KanjiIsLead(charCode) && strCpy[1] != '\0')
+        else if (Pc_LangSjisActive() && Pc_KanjiIsLead(charCode) && strCpy[1] != '\0')
         {
             unsigned int   kPage;
             int            kU, kV;
@@ -685,7 +685,7 @@ s32 Gfx_MapMsg_CalculateWidths(s32 mapMsgIdx) // 0x8004ACF4
 
 #ifdef SH_PC_PORT
                 /* NTSC-J: an SJIS pair is one fixed-width kanji cell. */
-                if (g_GameRegion == Region_JPN && Pc_KanjiIsLead((u8)charCode) && mapMsg[1] != '\0')
+                if (Pc_LangSjisActive() && Pc_KanjiIsLead((u8)charCode) && mapMsg[1] != '\0')
                 {
                     g_MapMsg_Widths[g_MapMsg_WidthIdx - 1] += FONT_12X16_GLYPH_SIZE_X;
                     mapMsg += 2;
@@ -1079,7 +1079,7 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
             /* NTSC-J: an SJIS pair draws one 12x16 kanji cell from the PC
              * atlas — same SPRT/FT4 shape as the Latin glyphs, different
              * uv/page/clut. Absent glyphs advance silently. */
-            if (g_GameRegion == Region_JPN && Pc_KanjiIsLead((u8)charCode) && ((u8*)mapMsg)[1] != '\0')
+            if (Pc_LangSjisActive() && Pc_KanjiIsLead((u8)charCode) && ((u8*)mapMsg)[1] != '\0')
             {
                 unsigned int   kPage;
                 int            kU, kV;

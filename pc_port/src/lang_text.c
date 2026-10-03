@@ -128,8 +128,11 @@ static void PackSlotsBuild(void)
                     skip = 1;
             }
         }
-        else if (Pc_LangPackListFont(i) != LANG_PACK_FONT_LATIN)
+        else if (Pc_LangPackListFont(i) != LANG_PACK_FONT_LATIN &&
+                 Pc_LangPackListFont(i) != LANG_PACK_FONT_SJIS)
         {
+            /* Polish and Russian build letterforms into the PAL atlas; a
+             * Shift-JIS pack rasterizes its own and needs no atlas at all. */
             skip = 1;
         }
 
@@ -159,6 +162,18 @@ void Pc_LangPacksRescan(void)
 {
     Pc_LangPackListRescan();
     s_PackSlotCount = -1;
+}
+
+/* Is the text on screen Shift-JIS? True on a Japanese disc showing Japanese or
+ * Chinese, and true for a `!font=sjis` pack on ANY disc -- the kanji glyphs are
+ * embedded in the port and rasterized into framebuffer cells, so they never
+ * needed the Japanese disc. */
+int Pc_LangSjisActive(void)
+{
+    if (g_GameRegion == Region_JPN)
+        return g_PcConfig.jpLanguage != JP_LANG_ENGLISH;
+
+    return Pc_LangPackActive() && Pc_LangPackFont() == LANG_PACK_FONT_SJIS;
 }
 
 const char* Pc_LangIdForSlot(int slot)
@@ -842,6 +857,23 @@ void Pc_LangInit(void)
                 Font_UseRussianLayout();
             else if (Pc_LangPackFont() == LANG_PACK_FONT_POLISH)
                 Font_UsePolishLayout();
+            else if (Pc_LangPackFont() == LANG_PACK_FONT_SJIS)
+            {
+                /* The pack carries the story; the Japanese item text is
+                 * already compiled in, and so are the port's own Japanese
+                 * UI rows, so install those alongside it. Menu strings the
+                 * JP disc supplies (save-point names, option values) are not
+                 * reachable on another disc and stay English. */
+                int i;
+
+                Pc_KanjiSetChinese(0);
+                for (i = 0; i < ITEM_TEXT_COUNT; i++)
+                {
+                    s_ItemNames[i] = INVENTORY_ITEM_NAMES_JPN[i];
+                    s_ItemDescs[i] = ITEM_DESCRIPTIONS_JPN[i];
+                }
+                s_ItemTextReady = 1;
+            }
             /* Item name/desc come from the pack (Pc_LangItemName checks it
              * first); untranslated entries fall back to the compiled US
              * strings in item_screens_3.c. Story text is overlaid per map on

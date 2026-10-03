@@ -405,7 +405,7 @@ int Pc_LangMenuTextWidth(const char* str)
 
         /* NTSC-J draws SJIS pairs as one 12px kanji cell (Gfx_StringDraw), so
          * measuring their bytes separately would roughly double the width. */
-        if (g_GameRegion == Region_JPN && Pc_KanjiIsLead(c) && str[1] != '\0')
+        if (Pc_LangSjisActive() && Pc_KanjiIsLead(c) && str[1] != '\0')
         {
             width += FONT_12X16_GLYPH_SIZE_X;
             str++;

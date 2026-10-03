@@ -37,6 +37,11 @@ const char* Pc_LangIdForSlot(int slot);
 /* Re-read gamedata/lang (a mod was installed while the game was running). */
 void Pc_LangPacksRescan(void);
 
+/* Non-zero when the drawn text is Shift-JIS, so a byte pair is one kanji cell.
+ * True for a Japanese disc showing Japanese or Chinese, and for a `!font=sjis`
+ * pack on any disc at all. */
+int Pc_LangSjisActive(void);
+
 /* Non-zero when an EUR disc is active (localized text pipeline in use). */
 int Pc_LangActive(void);
 

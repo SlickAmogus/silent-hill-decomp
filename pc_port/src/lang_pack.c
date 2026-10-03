@@ -111,6 +111,12 @@ static unsigned int Utf8Next(const char** pp)
 static size_t TranscodeValueFont(char* s, int font)
 {
     const char* in  = s;
+
+    /* Already the engine's bytes: nothing to convert, and converting would
+     * corrupt them (a Shift-JIS pair is not UTF-8). */
+    if (font == LANG_PACK_FONT_SJIS)
+        return strlen(s);
+
     char*       out = s;
     int         i;
 
@@ -314,6 +320,8 @@ static int PackFontFromName(const char* v)
         return LANG_PACK_FONT_CYRILLIC;
     if (strcmp(v, "polish") == 0)
         return LANG_PACK_FONT_POLISH;
+    if (strcmp(v, "sjis") == 0)
+        return LANG_PACK_FONT_SJIS;
     return LANG_PACK_FONT_LATIN;
 }
 
@@ -548,9 +556,7 @@ int Pc_LangPackLoad(const char* code)
             {
                 /* Read BEFORE any value is transcoded, since it decides how.
                  * The writer puts it in the header for that reason. */
-                s_Font = (strcmp(eq, "cyrillic") == 0) ? LANG_PACK_FONT_CYRILLIC
-                       : (strcmp(eq, "polish") == 0)   ? LANG_PACK_FONT_POLISH
-                                                       : LANG_PACK_FONT_LATIN;
+                s_Font = PackFontFromName(eq);
             }
             else if (strcmp(line, "!menu") == 0)
             {
