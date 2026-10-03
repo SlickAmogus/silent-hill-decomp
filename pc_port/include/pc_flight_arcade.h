@@ -16,6 +16,8 @@ int   Pc_FlightArcade_ShieldsHarryFrom(const struct _SubCharacter* attacker);
 int   Pc_FlightArcade_ClaimsLightButton(void);
 void  Pc_FlightArcade_Update(float dt);
 void  Pc_FlightArcade_Reset(void);
+/* World-OT smoke, once this frame's camera is set. */
+void  Pc_FlightArcade_DrawWorld(void);
 
 int   Pc_FlightArcade_Missiles(const AfMissile** out);
 int   Pc_FlightArcade_Inbound(void);

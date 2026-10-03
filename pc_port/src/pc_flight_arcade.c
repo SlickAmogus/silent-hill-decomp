@@ -22,6 +22,7 @@
 #include "bodyprog/screen/screen_fade.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/view/vw_calc.h"
+#include "bodyprog/gfx/map_effects.h"
 
 #include <math.h>
 #include <string.h>
@@ -65,6 +66,8 @@ static int       s_mslStock = AR_HARRY_MAX;
 static float     s_mslRechargeT;
 static float     s_launchMsgT, s_noMslT;
 static int       s_claim;
+static int       s_claimSlot = -1;
+static int       s_claimChara;
 
 extern int g_PcConsoleInputActive;
 
@@ -188,7 +191,7 @@ static void Ar_EnemyLaunches(float dt)
 
         if (s_cool[i] > 0.0f)
             s_cool[i] -= dt;
-        if (Pc_FlightHud_LockState(i) != 2)
+        if (Pc_FlightHud_LockState(i) != 2 || npc->health <= Q12(0.0f))
         {
             s_lockHeld[i] = 0.0f;
             continue;
@@ -335,9 +338,15 @@ static void Ar_HarryLaunch(int claimed)
     if (!claimed || !(g_Controller0->clickedBtnFlags & light) || g_PcConsoleInputActive || g_PcQuickOptionsActive)
         return;
 
-    slot = Pc_FlightHud_SeekerLockedSlot();
-    if (slot < 0)
+    /* The light was gated on last frame's lock, so the press belongs to that
+     * target even if the seeker let go of it this frame. */
+    slot = s_claimSlot;
+    if (slot < 0 || g_SysWork.npcs[slot].model.charaId != s_claimChara || g_SysWork.npcs[slot].health <= Q12(0.0f))
+    {
+        if (g_SysWork.field_2388.field_154.effectsInfo_0.field_0.s_field_0.field_0 & (1 << 1))
+            Game_FlashlightToggle();
         return;
+    }
     if (s_mslStock <= 0 || (m = Ar_FreeSlot()) == NULL)
     {
         s_noMslT = 1.2f;
@@ -414,6 +423,12 @@ static void Ar_SmokeDraw(void)
     }
 }
 
+void Pc_FlightArcade_DrawWorld(void)
+{
+    if (Pc_FlightArcade_Active())
+        Ar_SmokeDraw();
+}
+
 int Pc_FlightArcade_ClaimsLightButton(void)
 {
     return Pc_FlightArcade_Active() && s_claim;
@@ -437,6 +452,7 @@ void Pc_FlightArcade_Reset(void)
     memset(s_lockHeld, 0, sizeof(s_lockHeld));
     memset(s_cool, 0, sizeof(s_cool));
     s_claim      = 0;
+    s_claimSlot  = -1;
     s_launchMsgT = s_noMslT = 0.0f;
 }
 
@@ -474,9 +490,10 @@ void Pc_FlightArcade_Update(float dt)
     Ar_Fly(dt);
     Ar_FlyHarry(dt);
     Af_SmokeStep(&s_smoke, dt);
-    Ar_SmokeDraw();
 
-    s_claim = Pc_FlightHud_SeekerLockedSlot() >= 0;
+    s_claimSlot  = Pc_FlightHud_SeekerLockedSlot();
+    s_claim      = s_claimSlot >= 0;
+    s_claimChara = s_claim ? g_SysWork.npcs[s_claimSlot].model.charaId : 0;
 }
 
 int Pc_FlightArcade_Stock(void)

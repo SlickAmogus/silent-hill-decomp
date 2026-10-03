@@ -309,6 +309,12 @@ void GameState_InGame_Update(void) // 0x80038BD4
             extern void DebugCamera_Update(void);
             DebugCamera_Update();
         }
+        /* Missile smoke projects through GsWSMATRIX, so it waits for this
+         * frame's camera like func_44 below. */
+        {
+            extern void Pc_FlightArcade_DrawWorld(void);
+            Pc_FlightArcade_DrawWorld();
+        }
 #endif
 
         if (g_MapOverlayHdr.func_44 != NULL)
@@ -1259,6 +1265,14 @@ void SysState_LoadArea_Update(void) // 0x80039C40
     }
 #endif
 
+#ifdef SH_PC_PORT
+    {
+        /* A missile frozen through the load would resume against Harry's
+         * position in the new room. */
+        extern void Pc_FlightArcade_Reset(void);
+        Pc_FlightArcade_Reset();
+    }
+#endif
     g_SysWork.bgmStatusFlags |= BgmStatusFlag_Pause;
     Game_StateSetNext(GameState_MainLoadScreen);
     Screen_BackgroundMotionBlur(SyncMode_Immediate);
