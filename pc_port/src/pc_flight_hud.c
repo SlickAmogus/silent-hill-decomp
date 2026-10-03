@@ -852,6 +852,43 @@ static int Ah_ReticleTarget(int current)
     return best;
 }
 
+#define AH_FACING_CONE 0.21f /* rad, ~12 deg either side of Harry's heading */
+
+/* The fixed cameras have no reticle: the seeker looks where Harry faces. */
+static int Ah_FacingTarget(int current)
+{
+    const s_SubCharacter* pl  = &g_SysWork.playerWork.player;
+    const float           yaw = Ah_Turns(pl->rotation.vy) * 2.0f * AH_PI;
+    const float           fx = sinf(yaw), fz = cosf(yaw);
+    int                   i, best = -1;
+    float                 bestK = 1.0f;
+
+    for (i = 0; i < NPC_COUNT_MAX; i++)
+    {
+        const s_SubCharacter* npc = &g_SysWork.npcs[i];
+        float dx, dz, d, c, ang, k;
+
+        if (!Ah_NpcLive(npc))
+            continue;
+        dx = Ah_Q12f(npc->position.vx - pl->position.vx);
+        dz = Ah_Q12f(npc->position.vz - pl->position.vz);
+        d  = sqrtf(dx * dx + dz * dz);
+        if (d < 0.01f || d > AH_RETICLE_RANGE)
+            continue;
+        c = (dx * fx + dz * fz) / d;
+        if (c > 1.0f) c = 1.0f;
+        if (c < -1.0f) c = -1.0f;
+        ang = acosf(c);
+        k   = ang / (i == current ? AH_FACING_CONE * 1.5f : AH_FACING_CONE);
+        if (k <= bestK)
+        {
+            bestK = k;
+            best  = i;
+        }
+    }
+    return best;
+}
+
 /* Runs before the lock scan: a shot this frame opens the miss window, and any
  * damage the scan sees (this frame or the next few) closes it. */
 static void Ah_CombatTick(float dt)
@@ -915,12 +952,24 @@ static void Ah_CombatTick(float dt)
         s_deadT = 0.0f;
     }
 
-    /* The seeker rides the game's own auto-aim pick, so it closes on exactly
-     * what a shot would hit. Firearms only. */
-    if (g_SysWork.playerCombat.isAiming && w >= InvItemId_Handgun && w <= InvItemId_HyperBlaster && hp > 0.0f)
+    /* Aiming a firearm, the seeker rides the game's own auto-aim pick, so it
+     * closes on exactly what a shot would hit. In arcade mode it also hunts on
+     * its own, gun lowered or not, like a fighter's missile seeker. */
     {
         extern int g_DebugThirdPersonCam, g_PcFpsCam;
-        const int  t = (g_DebugThirdPersonCam || g_PcFpsCam) ? Ah_ReticleTarget(s_seekSlot) : g_SysWork.targetNpcIdx;
+        const int  gunUp   = g_SysWork.playerCombat.isAiming && w >= InvItemId_Handgun && w <= InvItemId_HyperBlaster;
+        const int  freeCam = g_DebugThirdPersonCam || g_PcFpsCam;
+        int        t       = -1;
+
+        if (hp > 0.0f && (gunUp || Pc_FlightArcade_Active()))
+        {
+            if (freeCam)
+                t = Ah_ReticleTarget(s_seekSlot);
+            else if (gunUp)
+                t = g_SysWork.targetNpcIdx;
+            else
+                t = Ah_FacingTarget(s_seekSlot);
+        }
         if (t >= 0 && t < NPC_COUNT_MAX && Ah_NpcLive(&g_SysWork.npcs[t]))
             slot = t;
     }
