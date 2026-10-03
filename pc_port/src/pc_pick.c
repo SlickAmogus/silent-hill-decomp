@@ -85,6 +85,15 @@ static s32         s_selPropX, s_selPropY, s_selPropZ;
 /* FREEZE and HEAL state per NPC slot, each tagged with the character it was
  * recorded for so a recycled slot starts clean (same reason as
  * s_npcScaleChara). -1 = nothing recorded. */
+/* NOCOLLIDE, tagged with the character it was set for exactly like
+ * s_frozenChara so a recycled slot starts solid again. */
+static s32 s_noColChara[NPC_COUNT_MAX];
+static int s_noColPlayer;
+
+/* Collision asks per character per frame, so keep a global fast-out: with
+ * nothing phased the query must not walk the NPC array at all. */
+static int s_anyNoCol;
+
 static s32 s_frozenChara[NPC_COUNT_MAX];
 static s32 s_maxHealth[NPC_COUNT_MAX];
 static s32 s_maxHealthChara[NPC_COUNT_MAX];
@@ -100,6 +109,7 @@ static void NpcStateInit(void)
     for (i = 0; i < NPC_COUNT_MAX; i++)
     {
         s_frozenChara[i]    = -1;
+        s_noColChara[i]     = -1;
         s_maxHealth[i]      = 0;
         s_maxHealthChara[i] = -1;
     }
@@ -420,6 +430,8 @@ int Pc_Pick_GetScale(void)
 void Pc_Pick_Reset(void)
 {
     s_anyScaled  = 0;
+    s_anyNoCol   = 0;
+    s_noColPlayer = 0;
     s_propCount  = 0;
     s_scalesInit = 0;
     ScalesInit();
@@ -488,6 +500,70 @@ int Pc_Pick_NpcMaxHealth(int slot)
         return 0;
 
     return s_maxHealth[slot];
+}
+
+int Pc_Pick_SetNoCollide(int on)
+{
+    NpcStateInit();
+
+    if (s_selKind == PcPick_Player)
+    {
+        s_noColPlayer = on ? 1 : 0;
+    }
+    else if (s_selKind == PcPick_Npc && s_selSlot >= 0 && s_selSlot < NPC_COUNT_MAX)
+    {
+        if (g_SysWork.npcs[s_selSlot].model.charaId == Chara_None)
+            return 0;
+        s_noColChara[s_selSlot] = on ? s_selCharaId : -1;
+    }
+    else
+    {
+        /* Props are world geometry, not characters: they never run the chara
+         * collision paths this flag gates, so there is nothing to phase. */
+        return 0;
+    }
+
+    if (on)
+        s_anyNoCol = 1;
+
+    return 1;
+}
+
+int Pc_Pick_GetNoCollide(void)
+{
+    if (s_selKind == PcPick_Player)
+        return s_noColPlayer;
+
+    if (s_selKind == PcPick_Npc && s_selSlot >= 0 && s_selSlot < NPC_COUNT_MAX)
+        return Pc_Pick_IsNoCollide(&g_SysWork.npcs[s_selSlot]);
+
+    return 0;
+}
+
+int Pc_Pick_IsNoCollide(const void* charaPtr)
+{
+    const s_SubCharacter* chara = (const s_SubCharacter*)charaPtr;
+    int                   i;
+
+    if (!s_anyNoCol || chara == NULL)
+        return 0;
+
+    if (chara == &g_SysWork.playerWork.player)
+        return s_noColPlayer;
+
+    if (!s_npcStateInit)
+        return 0;
+
+    for (i = 0; i < NPC_COUNT_MAX; i++)
+    {
+        if (chara == &g_SysWork.npcs[i])
+        {
+            return s_noColChara[i] != -1 &&
+                   s_noColChara[i] == chara->model.charaId;
+        }
+    }
+
+    return 0;
 }
 
 int Pc_Pick_SetFrozen(int slot, int on)

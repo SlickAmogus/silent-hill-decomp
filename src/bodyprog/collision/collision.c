@@ -555,9 +555,24 @@ bool Collision_CharaCollisionSetup(s_CollisionResult* collResult, const VECTOR3*
      * counts would be read uninitialized. Hoist the calls into locals first. */
     s_IpdCollisionData** _collDataPtrs = Ipd_ActiveChunksCollisionDataGet(&collDataIdx);
     s_SubCharacter**     _charas       = Collision_CollidableCharasGet(&charaCount, chara, true);
-    return func_8006A4A8(collResult, &offsetCpy, &cylinder, cond,
-                         _collDataPtrs, collDataIdx, NULL, 0,
-                         _charas, charaCount);
+    {
+        s32 result = func_8006A4A8(collResult, &offsetCpy, &cylinder, cond,
+                                   _collDataPtrs, collDataIdx, NULL, 0,
+                                   _charas, charaCount);
+
+        /* Console NOCOLLIDE: hand back the movement that was actually asked for,
+         * so no wall pushes it back. The query still RAN, so groundHeight, tilt,
+         * ground type and the ceiling are the real surveyed values and the ground
+         * keeps working -- only the horizontal block is dropped. vy is left as
+         * the query produced it, which is what carries the ground follow. */
+        if (Pc_Pick_IsNoCollide(chara))
+        {
+            collResult->offset.vx = moveOffset->vx;
+            collResult->offset.vz = moveOffset->vz;
+        }
+
+        return result;
+    }
 #else
     return func_8006A4A8(collResult, &offsetCpy, &cylinder, cond,
                          Ipd_ActiveChunksCollisionDataGet(&collDataIdx), collDataIdx, NULL, 0,
@@ -583,6 +598,21 @@ s_SubCharacter** Collision_CollidableCharasGet(s32* collCharaCount, const s_SubC
     static s_SubCharacter*  collCharas[NPC_COUNT_MAX + 1]; /** Enough for all NPCs and player. */
     static s_SubCharacter** curCollChara;                  /** Array of active characters. */
 
+    /* Console NOCOLLIDE: phase a character by treating it exactly as the game's
+     * own CharaCollisionState_Ignore, which is already threaded through every
+     * consumer of this list -- chara-vs-chara movement, the slow-down pass and
+     * the ray/hit-volume queries in ray.c. Gating here rather than writing
+     * collision.state is deliberate: that field is a 4-bit bitfield rewritten
+     * every frame by each enemy's AI and by the player, so a stored value would
+     * be clobbered within a frame. Both directions are covered -- the early-out
+     * below leaves the phased character colliding with nobody, and the skips in
+     * the collection loops leave nobody colliding with it. */
+    if (excludedChara != NULL && Pc_Pick_IsNoCollide(excludedChara))
+    {
+        *collCharaCount = 0;
+        return &collCharas;
+    }
+
     // Filter invalid case.
     if (excludedChara != NULL &&
         (excludedChara->model.charaId == Chara_None ||
@@ -599,7 +629,7 @@ s_SubCharacter** Collision_CollidableCharasGet(s32* collCharaCount, const s_SubC
     // Collect collidable NPCs.
     for (curChara = &g_SysWork.npcs[0]; curChara < &g_SysWork.npcs[ARRAY_SIZE(g_SysWork.npcs)]; curChara++)
     {
-        if (curChara->model.charaId != Chara_None)
+        if (curChara->model.charaId != Chara_None && !Pc_Pick_IsNoCollide(curChara))
         {
             if (curChara->collision.state != CharaCollisionState_Ignore &&
                 (curChara->collision.state != CharaCollisionState_Player || includePlayer != true) &&
@@ -618,7 +648,7 @@ s_SubCharacter** Collision_CollidableCharasGet(s32* collCharaCount, const s_SubC
 
     // Collect collidable player.
     curChara = &g_SysWork.playerWork.player;
-    if (curChara->model.charaId != Chara_None)
+    if (curChara->model.charaId != Chara_None && !Pc_Pick_IsNoCollide(curChara))
     {
         if (curChara->collision.state != CharaCollisionState_Ignore &&
             (curChara->collision.state != CharaCollisionState_Player || includePlayer != true) &&

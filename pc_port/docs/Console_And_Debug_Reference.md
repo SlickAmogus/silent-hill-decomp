@@ -73,6 +73,7 @@ when two overlap; a character beats a prop at the same depth. Harry is pickable 
 | `goto` | Move Harry next to the selected enemy or prop, on his side of it and facing it, dropped onto the floor there. |
 | `bring` | Move the selected enemy two units in front of Harry, facing him. Props cannot be moved. Unfreeze a frozen enemy first: it keeps drawing its last pose until it runs again. |
 | `freeze [0\|1]` | Hold the selected enemy still: its AI does not run, so it neither moves nor attacks, and damage dealt to it lands when it is unfrozen (`kill` unfreezes it). Bare `freeze` toggles. `freeze all` / `freeze none` act on every enemy in the room; `unfreeze` is `freeze 0`. |
+| `nocol [0\|1]` / `nocollide` | Take the selection out of collision except for the ground: it walks through walls and through other characters, they walk through it, and attacks pass straight through. The ground still holds it up, so it does not fall through floors. Bare `nocol` toggles, and with nothing selected it acts on Harry. Walking outside the map leaves the area with no collision data under you, where Harry drops as he would off any edge, so come back the way you went. |
 
 ## Custom key binds
 

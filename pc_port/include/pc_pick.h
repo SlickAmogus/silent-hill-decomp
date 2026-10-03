@@ -90,6 +90,17 @@ int Pc_Pick_NpcTick(const void* npc, int slot);
 /** Highest health seen for the character in `slot`, 0 when unknown. */
 int Pc_Pick_NpcMaxHealth(int slot);
 
+/** NOCOLLIDE: take a character out of collision entirely except for the
+ * ground. It stops blocking and being blocked by walls and by other
+ * characters, and attacks pass through it. Applies to the selection; returns 0
+ * when nothing collidable is selected. */
+int Pc_Pick_SetNoCollide(int on);
+int Pc_Pick_GetNoCollide(void);
+
+/** Per-character query for the collision and attack chokepoints. Hot path:
+ * returns 0 immediately while nothing has NOCOLLIDE set. */
+int Pc_Pick_IsNoCollide(const void* chara);
+
 /** FREEZE: hold an NPC slot still. Returns 0 for an empty slot. */
 int Pc_Pick_SetFrozen(int slot, int on);
 int Pc_Pick_IsFrozen(int slot);

@@ -25,6 +25,8 @@
  *   INFO                 - name, health, position and state of the selection
  *   GOTO / BRING         - Harry to the selection / the selected enemy to Harry
  *   FREEZE [0|1|ALL|NONE] - hold enemies still (UNFREEZE = FREEZE 0)
+ *   NOCOL / NOCOLLIDE [0|1] - phase the selection (player if none) out of
+ *                             collision except the ground
  *   BIND <key> <cmds>    - run one or more console commands from a key;
  *                          BIND LIST / UNBIND <key> / UNBINDALL
  *   ABOUT                - PC port credits (same block the staff roll appends)
@@ -1088,6 +1090,30 @@ static void cmd_select(const char* arg)
     cprintf("selected %s  scale %.2f", what, Pc_Pick_GetScale() / 4096.0f);
 }
 
+static void cmd_nocol(const char* arg)
+{
+    char what[64];
+    int  on;
+
+    /* Primarily a player cheat, so a bare NOCOL with nothing clicked means
+     * Harry rather than an error. */
+    if (Pc_Pick_Kind() == PcPick_None)
+        Pc_Pick_SelectPlayer();
+
+    on = (arg[0] == '1') ? 1 :
+         (arg[0] == '0') ? 0 : !Pc_Pick_GetNoCollide();
+
+    if (!Pc_Pick_SetNoCollide(on)) {
+        cprintf("nocollide: select a character first (props have no character collision)");
+        return;
+    }
+
+    Pc_Pick_Describe(what, sizeof(what));
+    cprintf("%s nocollide %s%s", what, on ? "ON" : "off",
+            on ? " - walls, characters and attacks pass through; the ground still holds"
+               : "");
+}
+
 static void cmd_scale(const char* arg)
 {
     char what[64];
@@ -1425,6 +1451,8 @@ void Pc_ConsoleExec(const char* line)
         cmd_select(arg);
     } else if (strcmp(cmd, "SCALE") == 0) {
         cmd_scale(arg);
+    } else if (strcmp(cmd, "NOCOL") == 0 || strcmp(cmd, "NOCOLLIDE") == 0) {
+        cmd_nocol(arg);
     } else if (strcmp(cmd, "HEALTH") == 0 || strcmp(cmd, "HP") == 0) {
         cmd_health(arg, 0);
     } else if (strcmp(cmd, "HEAL") == 0) {

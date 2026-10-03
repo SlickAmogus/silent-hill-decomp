@@ -1433,6 +1433,16 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
     s32         z2;
     s_800AD4C8* temp_fp;
 
+#ifdef SH_PC_PORT
+    /* Console NOCOLLIDE: attacks pass straight through. The ray/hit-volume
+     * queries already skip a phased character (they share
+     * Collision_CollidableCharasGet), so this covers whatever resolves to an
+     * attack without a ray -- grabs and proximity hits. 0 is "connected with
+     * nothing", which is what the caller at ~2353 tests. */
+    if (Pc_Pick_IsNoCollide(target))
+        return 0;
+#endif
+
     weaponAttack = (u8)attacker->field_44.field_2;
     temp_fp      = &D_800AD4C8[weaponAttack];
     offsetY       = temp_fp->field_10;
