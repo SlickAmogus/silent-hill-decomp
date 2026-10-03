@@ -36,6 +36,13 @@ int Pc_FlightHud_StickBindEdge(int sdlButton, int held, unsigned char* state);
 /* 1 when sdlButton is a stick click that Pc_FlightHud_StickBindEdge would defer. */
 int Pc_FlightHud_StickBindDeferred(int sdlButton);
 
+/* State flight_gameplay reads. */
+int Pc_FlightHud_JamActive(void);
+int Pc_FlightHud_LockState(int slot);
+int Pc_FlightHud_SeekerLockedSlot(void);
+int Pc_FlightHud_FlarePositions(float* xyz, int max);
+int Pc_FlightHud_IsBoss(int charaId);
+
 #ifdef __cplusplus
 }
 #endif

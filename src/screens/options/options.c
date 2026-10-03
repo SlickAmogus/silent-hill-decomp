@@ -260,6 +260,7 @@ static const s_PcOpt PCOPT_C[] = {
     { "Bullet_Decals",     &g_PcConfig.bulletDecals,      "bullet_decals",          VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     /* HUD page is at the 11-row ceiling. */
     { "Flight_HUD",        &g_PcConfig.flightHud,          "flight_hud",            VAL_FHUD, 3, LBL_FHUD, NULL, 1, PCK_INT },
+    { "Flight_Gameplay",   &g_PcConfig.flightGameplay,    "flight_gameplay",        VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
     { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },

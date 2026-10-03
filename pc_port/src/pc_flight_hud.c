@@ -62,6 +62,7 @@
 #endif
 #include "pc_quick_options.h"
 #include "pc_flight_hud.h"
+#include "pc_flight_arcade.h"
 
 extern long   ReadGeomScreen(void);
 extern int    PsyX_RawControllerBindHeld(int buttonOrAxis);
@@ -474,6 +475,36 @@ static void Ah_FlareSim(float dt)
     }
 }
 
+int Pc_FlightHud_JamActive(void)
+{
+    return s_jamT > 0.0f;
+}
+
+int Pc_FlightHud_LockState(int slot)
+{
+    return (slot >= 0 && slot < NPC_COUNT_MAX) ? s_lockState[slot] : 0;
+}
+
+int Pc_FlightHud_SeekerLockedSlot(void)
+{
+    return (s_seekSlot >= 0 && s_seekT >= AH_SEEK_TIME) ? s_seekSlot : -1;
+}
+
+int Pc_FlightHud_FlarePositions(float* xyz, int max)
+{
+    int i, n = 0;
+    for (i = 0; i < AH_PARTICLES_MAX && n < max; i++)
+    {
+        if (!s_flares[i].alive)
+            continue;
+        xyz[n * 3 + 0] = s_flares[i].x;
+        xyz[n * 3 + 1] = s_flares[i].y;
+        xyz[n * 3 + 2] = s_flares[i].z;
+        n++;
+    }
+    return n;
+}
+
 /* ------------------------------------------------------------------ */
 /* Radio                                                               */
 /* ------------------------------------------------------------------ */
@@ -633,6 +664,11 @@ static int Ah_IsBoss(int charaId)
 {
     return charaId == Chara_SplitHead || charaId == Chara_Floatstinger || charaId == Chara_Twinfeeler ||
            charaId == Chara_Bloodsucker || charaId == Chara_Incubus || charaId == Chara_MonsterCybil;
+}
+
+int Pc_FlightHud_IsBoss(int charaId)
+{
+    return Ah_IsBoss(charaId);
 }
 
 static void Ah_StatsNow(s_AhStats* s)
@@ -1257,6 +1293,7 @@ void Pc_FlightHud_Update(void)
         Ah_ResetLocks();
         Ah_ToneStop();
         s_flareReq = 0;
+        Pc_FlightArcade_Reset();
         return;
     }
 
@@ -1323,6 +1360,7 @@ void Pc_FlightHud_Update(void)
     Ah_ZoneTick(dt);
     Ah_CombatTick(dt);
     Ah_LockScan(dt);
+    Pc_FlightArcade_Update(dt);
     Ah_RadioTick(dt);
     Ah_Tones(dt);
 }

@@ -93,6 +93,7 @@ s_PcConfig g_PcConfig = {
     .flightHudSound         = 1,
     .flightHudOpacity       = 100,
     .flightHudCallsigns     = 0,
+    .flightGameplay         = 0,
     .flightHudPortrait3d    = 1,
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
@@ -1044,6 +1045,10 @@ void PcConfig_Load(const char* path)
             if (v < 0) v = 0;
             if (v > 2) v = 2;
             g_PcConfig.flightHudCallsigns = v;
+        }
+        else if (strcmp(key, "flight_gameplay") == 0)
+        {
+            g_PcConfig.flightGameplay = (atoi(value) != 0);
         }
         else if (strcmp(key, "text_size") == 0)
         {
