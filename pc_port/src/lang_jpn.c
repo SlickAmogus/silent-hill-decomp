@@ -82,7 +82,11 @@ static const char* JpnUiLookup(const s_JpnUiEntry* tbl, int count, const char* u
 
 const char* Pc_JpnInventoryLabel(const char* us)
 {
-    if (g_GameRegion != Region_JPN || us == NULL)
+    /* Keyed on the TEXT, not the disc: these are a compiled table, so they are
+     * just as available to a Japanese pack mounted on a PAL or US disc. (The
+     * main-menu strings are not -- those are read out of the Japanese disc's
+     * own VIN overlays, so they still need that disc.) */
+    if (!Pc_LangSjisActive() || us == NULL)
         return NULL;
     return JpnUiLookup(s_JpnInv, JPN_INV_COUNT, us);
 }
