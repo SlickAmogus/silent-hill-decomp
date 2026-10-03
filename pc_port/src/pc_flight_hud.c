@@ -809,6 +809,49 @@ static void Ah_OnHit(const s_SubCharacter* npc)
     s_hitFxNext = (s_hitFxNext + 1) % AH_HITFX_MAX;
 }
 
+static void Ah_View(float wx, float wy, float wz, float* vx, float* vy, float* vz);
+
+#define AH_RETICLE_RANGE 40.0f /* m */
+#define AH_RETICLE_BODY  0.8f  /* m off the aim line that still counts as on the body */
+#define AH_RETICLE_CONE  0.07f /* tan(4 deg): far targets get at least this much */
+
+/* The free-aim cameras (TPS, OTS, first person) skip the game's auto-target, so
+ * targetNpcIdx stays empty there: the seeker takes the live enemy closest to
+ * the screen-centre reticle instead. The current pick gets a wider window so the
+ * seeker does not drop it on a small wobble of the view. */
+static int Ah_ReticleTarget(int current)
+{
+    int   i, best = -1;
+    float bestK = 1.0f;
+
+    for (i = 0; i < NPC_COUNT_MAX; i++)
+    {
+        const s_SubCharacter* npc = &g_SysWork.npcs[i];
+        float vx, vy, vz, off, tol, k;
+
+        if (!Ah_NpcLive(npc))
+            continue;
+        Ah_View(Ah_Q12f(npc->position.vx + npc->collision.shapeOffsets.box.vx),
+                Ah_Q12f(npc->position.vy + npc->collision.box.offsetY),
+                Ah_Q12f(npc->position.vz + npc->collision.shapeOffsets.box.vz), &vx, &vy, &vz);
+        if (vz < 0.3f || vz > AH_RETICLE_RANGE)
+            continue;
+        off = sqrtf(vx * vx + vy * vy);
+        tol = vz * AH_RETICLE_CONE;
+        if (tol < AH_RETICLE_BODY)
+            tol = AH_RETICLE_BODY;
+        if (i == current)
+            tol *= 1.5f;
+        k = off / tol;
+        if (k <= bestK)
+        {
+            bestK = k;
+            best  = i;
+        }
+    }
+    return best;
+}
+
 /* Runs before the lock scan: a shot this frame opens the miss window, and any
  * damage the scan sees (this frame or the next few) closes it. */
 static void Ah_CombatTick(float dt)
@@ -876,7 +919,8 @@ static void Ah_CombatTick(float dt)
      * what a shot would hit. Firearms only. */
     if (g_SysWork.playerCombat.isAiming && w >= InvItemId_Handgun && w <= InvItemId_HyperBlaster && hp > 0.0f)
     {
-        const int t = g_SysWork.targetNpcIdx;
+        extern int g_DebugThirdPersonCam, g_PcFpsCam;
+        const int  t = (g_DebugThirdPersonCam || g_PcFpsCam) ? Ah_ReticleTarget(s_seekSlot) : g_SysWork.targetNpcIdx;
         if (t >= 0 && t < NPC_COUNT_MAX && Ah_NpcLive(&g_SysWork.npcs[t]))
             slot = t;
     }
