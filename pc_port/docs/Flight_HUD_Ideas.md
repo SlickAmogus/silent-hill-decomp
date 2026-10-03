@@ -140,7 +140,8 @@ Spenta di default: senza, l'HUD è solo scena. Accesa (e con l'HUD attivo):
   (LOCK ON), **Cerchio** (il tasto della torcia) lancia un missile sul
   bersaglio; in quel momento la torcia non cambia. Senza LOCK ON Cerchio resta
   la torcia. 2 missili, uno torna ogni 12 s; `MSL` accanto a `FLR`,
-  `NO MISSILES` a stock vuoto. Colpisce come due colpi di fucile.
+  `NO MISSILES` a stock vuoto. Accanto a MSL due icone di missile: piene se
+  pronte, vuote se lanciate, quella in ricarica si riempie man mano. Colpisce come due colpi di fucile.
 - **Scie**: fumo chiaro nella scena (coperto da muri e nebbia) e bagliore
   sulla testa del missile nell'HUD (arancio i mostri, verde Harry).
 - Limite noto: i missili non collidono con i muri, solo con il pavimento.
@@ -176,12 +177,16 @@ scorrevoli di SPEED e ALT, mirino a "W", radar rotondo in basso a destra,
 
 ### Opzioni
 
+Tutte le opzioni qui sotto stanno nella pagina **Flight** delle Opzioni (dopo
+HUD) e del menu rapido (dopo HUD): Flight HUD, Arcade Mode, Warning Tones, HUD
+Opacity, Target Labels, 3D Radio Portrait.
+
 | Opzione (`config.cfg`) | Valori |
 |------------------------|--------|
 | `flight_hud` | 0 off, 1 Modern (default), 2 Classic. Anche nel menu rapido e nelle Opzioni. |
 | `flight_hud_sound` | 1 bip di allarme (default), 0 silenzio. |
 | `flight_hud_opacity` | 10–100, trasparenza dell'HUD. |
-| `flight_gameplay` | 0 spento (default), 1 modalità arcade (vedi sopra). Serve `flight_hud` acceso. Nelle Opzioni pagina Controls ("Flight_Gameplay") e nel menu rapido, pagina HUD. |
+| `flight_gameplay` | 0 spento (default), 1 modalità arcade (vedi sopra). Serve `flight_hud` acceso. |
 | `flight_hud_callsigns` | 0 nomi dei mostri (default), 1 BOGEY / BANDIT (BANDIT se ti sta puntando), 2 TGT-01, TGT-02… Nelle Opzioni solo su telefono ("Target_Labels"). |
 
 ---
