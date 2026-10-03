@@ -1743,14 +1743,22 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
      * to compiled English). */
     SH_DBG("[LANG] map %d: region=%d isJpn=%d ovl=%p ovlSize=%u hdr=%p", mapIdx,
            (int)g_GameRegion, isJpn, ovl, ovlSize, (void*)g_pMapOverlayHeader);
-    if ((!Pc_LangActive() && !isJpn) || ovl == NULL || g_pMapOverlayHeader == NULL || ovlSize < 0x40)
+    /* A pack carries story text of its own, so it is reason to run even where
+     * the disc has nothing to install (a USA disc, whose compiled strings are
+     * already the text the pack is replacing). */
+    if ((!Pc_LangActive() && !isJpn && !Pc_LangPackActive()) ||
+        ovl == NULL || g_pMapOverlayHeader == NULL || ovlSize < 0x40)
     {
         SH_DBG("[LANG] map %d: install SKIPPED (langActive=%d isJpn=%d ovl=%p hdr=%p ovlSize=%u<0x40?)",
                mapIdx, Pc_LangActive(), isJpn, ovl, (void*)g_pMapOverlayHeader, ovlSize);
         return;
     }
 
-    base     = isJpn ? JPN_OVL_BASE : EUR_OVL_BASE;
+    /* Each disc links its overlays at its own base. A rebuilt USA disc moves
+     * even that, so it is detected rather than assumed. */
+    base     = (g_GameRegion == Region_JPN) ? JPN_OVL_BASE
+             : (g_GameRegion == Region_EUR) ? EUR_OVL_BASE
+                                            : Pc_UsaOverlayLinkBase(ovl, mapIdx);
     tablePsx = *(const unsigned int*)(bytes + 0x34);
     if (tablePsx < base || tablePsx - base >= ovlSize)
     {
@@ -1865,49 +1873,68 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
      * it into US index 2 — and everything after shifts by one. The
      * s_MsgSplits table handles the handful of additional per-language page
      * splits the same way. */
-    srcIdx = 0;
-    for (usIdx = 0; usIdx < MSG_COUNT_MAX && srcIdx < srcCount; usIdx++)
+    /* Only the PAL script needs converting and re-indexing: its codes are a
+     * different dialect and its pages do not line up with the US ones. A USA
+     * overlay is already US-dialect and 1:1, so it is copied straight through
+     * and only the pack's strings land on top of it. */
+    if (g_GameRegion != Region_EUR)
     {
-        int   parts = (usIdx == 2) ? 2 : SplitPartsFor(mapIdx, usIdx);
-        int   p;
-        char* start = out;
-        char* seam[MSG_PARTS_MAX];
-        int   seamCount = 0;
-
-        s_MsgPtrs[usIdx] = start;
-
-        for (p = 0; p < parts && srcIdx < srcCount; p++, srcIdx++)
+        for (usIdx = 0; usIdx < srcCount && usIdx < MSG_COUNT_MAX; usIdx++)
         {
-            if (p > 0)
-            {
-                /* Re-open after the previous part's NUL with a line break. */
-                out = out - 1;
-                if (seamCount < MSG_PARTS_MAX)
-                {
-                    seam[seamCount++] = out;
-                }
-                *out++ = '~';
-                *out++ = 'N';
-                *out++ = ' ';
-            }
-            out = TranslateMapMsg(out, bytes + srcPtrs[srcIdx], p == parts - 1);
+            const char* src = (const char*)bytes + srcPtrs[usIdx];
+            size_t      len = strlen(src);
+
+            s_MsgPtrs[usIdx] = out;
+            memcpy(out, src, len + 1);
+            out += len + 1;
         }
-
-        if (seamCount != 0)
+    }
+    else
+    {
+        srcIdx = 0;
+        for (usIdx = 0; usIdx < MSG_COUNT_MAX && srcIdx < srcCount; usIdx++)
         {
-            /* Retail shows these parts as separate pages; joining them is what
-             * keeps the compiled maps' message indices resolving. When the join
-             * does not fit one rendered page, promote the seams back to page
-             * breaks so each part lands on retail's own boundary — otherwise the
-             * renderer has to break mid-part at the line cap. */
-            if (MsgLineCount(start) > g_PcMapMsgLineMax)
+            int   parts = (usIdx == 2) ? 2 : SplitPartsFor(mapIdx, usIdx);
+            int   p;
+            char* start = out;
+            char* seam[MSG_PARTS_MAX];
+            int   seamCount = 0;
+
+            s_MsgPtrs[usIdx] = start;
+
+            for (p = 0; p < parts && srcIdx < srcCount; p++, srcIdx++)
             {
-                for (p = 0; p < seamCount; p++)
+                if (p > 0)
                 {
-                    seam[p][1] = MAP_MSG_CODE_PAGE;
+                    /* Re-open after the previous part's NUL with a line break. */
+                    out = out - 1;
+                    if (seamCount < MSG_PARTS_MAX)
+                    {
+                        seam[seamCount++] = out;
+                    }
+                    *out++ = '~';
+                    *out++ = 'N';
+                    *out++ = ' ';
                 }
+                out = TranslateMapMsg(out, bytes + srcPtrs[srcIdx], p == parts - 1);
             }
-            out = start + strlen(start) + 1;
+
+            if (seamCount != 0)
+            {
+                /* Retail shows these parts as separate pages; joining them is what
+                 * keeps the compiled maps' message indices resolving. When the join
+                 * does not fit one rendered page, promote the seams back to page
+                 * breaks so each part lands on retail's own boundary — otherwise the
+                 * renderer has to break mid-part at the line cap. */
+                if (MsgLineCount(start) > g_PcMapMsgLineMax)
+                {
+                    for (p = 0; p < seamCount; p++)
+                    {
+                        seam[p][1] = MAP_MSG_CODE_PAGE;
+                    }
+                }
+                out = start + strlen(start) + 1;
+            }
         }
     }
 
@@ -1916,9 +1943,9 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
         s_MsgPtrs[usIdx] = "";
     }
 
-    /* PC-side pack (Polish): the walk above filled s_MsgPtrs with the disc's
-     * own English text (this language clamps the file redirect to English), so
-     * it doubles as the count discovery and the untranslated-line fallback.
+    /* A pack's story text, laid over whatever the walk above produced -- the
+     * disc's own English (a pack clamps the file redirect to English), which
+     * doubles as the count discovery and the untranslated-line fallback.
      * Overlay the pack's translations, keyed by the same US message index the
      * split logic just resolved. Pack strings outlive this call (owned by
      * lang_pack), so pointing straight at them is safe. */
