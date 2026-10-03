@@ -293,6 +293,9 @@ typedef struct
 static s_PcSfxSustain s_pcSustain[PC_SFX_SUSTAIN_MAX];
 static s32            s_pcSustaining; /* re-entry guard for the sweep */
 
+/* The sweep below calls it before its definition; clang rejects the implicit declaration. */
+void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitch);
+
 static void Pc_SfxSustainRecord(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitch)
 {
     s32 i;
