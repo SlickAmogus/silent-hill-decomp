@@ -109,8 +109,35 @@ const char* const s_LangIds[LANG_PACK_FIRST] = { "en", "de", "fr", "es", "it", "
  * Latin pack degrades its accents, so both are offered anywhere. */
 #define LANG_SLOT_MAX 32
 
+/* A Japanese disc's own three choices keep their own config key rather than
+ * joining the language ids, and the row carries them as sentinels: slot value
+ * SLOT_JP_FIRST - n selects jpLanguage n.
+ *
+ * They are not interchangeable with a pack, which is why they stay separate.
+ * Switching among them only picks a glyph set, so it is legal in-game and
+ * re-patches the loaded map in place; selecting a pack rebinds the file table
+ * and reloads item text, which the loaded map cannot survive. Keeping the key
+ * also keeps every existing jp_language setting working untouched, and keeps
+ * Japanese as that disc's default rather than making the default depend on
+ * which disc is mounted. */
+#define SLOT_JP_FIRST (-1)
+#define SlotIsJp(v)   ((v) <= SLOT_JP_FIRST)
+#define SlotJpLang(v) (SLOT_JP_FIRST - (v))
+
 static short s_SlotLang[LANG_SLOT_MAX];
 static int   s_SlotCount = -1;
+static int   s_SlotBuiltAtTitle;
+
+/* Packs are only selectable from the title screen: a pack switch rebinds the
+ * file table and reloads item text, which the loaded map cannot survive. On a
+ * Japanese disc the row is also live in-game, for the disc's own three, so the
+ * list has to be built for where it is being used -- otherwise in-game it
+ * would offer a switch that strands the map. The pack already in use stays on
+ * the list either way, so the row can still show what is loaded. */
+static int SlotsOfferPacks(void)
+{
+    return g_GameWork.gameStatePrev == GameState_MainMenu;
+}
 
 static int PackOfferedHere(int packIdx)
 {
@@ -128,6 +155,11 @@ static int PackOfferedHere(int packIdx)
         /* And slot 0 on a PAL disc already IS the PAL English script. */
         return strcmp(code, "en_pal") != 0;
     }
+    /* Slot 0 on a Japanese disc already IS Japanese, straight from the disc --
+     * the better source, since ja.lang was extracted from it. */
+    if (g_GameRegion == Region_JPN && strcmp(code, "ja") == 0)
+        return 0;
+
     (void)font; /* the PAL atlas is imported where it is missing, so all fit */
     return 1;
 }
@@ -138,36 +170,52 @@ static void SlotsBuild(void)
     int i;
 
     s_SlotCount = 0;
-    s_SlotLang[s_SlotCount++] = 0; /* English: every disc draws the compiled text */
 
-    if (g_GameRegion == Region_EUR)
+    if (g_GameRegion == Region_JPN)
     {
-        for (i = 1; i < LANG_PACK_FIRST && s_SlotCount < LANG_SLOT_MAX; i++)
-            s_SlotLang[s_SlotCount++] = (short)i;
+        /* Japanese, Chinese, English -- the disc's own, first and in order. */
+        for (i = 0; i < JP_LANG_COUNT && s_SlotCount < LANG_SLOT_MAX; i++)
+            s_SlotLang[s_SlotCount++] = (short)(SLOT_JP_FIRST - i);
     }
     else
     {
-        /* Slot 0 already IS the compiled US script on these discs. */
+        s_SlotLang[s_SlotCount++] = 0; /* the compiled text, or the disc's own */
+
+        if (g_GameRegion == Region_EUR)
+        {
+            for (i = 1; i < LANG_PACK_FIRST && s_SlotCount < LANG_SLOT_MAX; i++)
+                s_SlotLang[s_SlotCount++] = (short)i;
+        }
     }
+
+    s_SlotBuiltAtTitle = SlotsOfferPacks();
 
     for (i = 0; i < n && s_SlotCount < LANG_SLOT_MAX; i++)
     {
-        if (PackOfferedHere(i))
-            s_SlotLang[s_SlotCount++] = (short)(LANG_PACK_FIRST + i);
+        if (!PackOfferedHere(i))
+            continue;
+        if (!s_SlotBuiltAtTitle && (LANG_PACK_FIRST + i) != g_PcConfig.language)
+            continue;
+
+        s_SlotLang[s_SlotCount++] = (short)(LANG_PACK_FIRST + i);
     }
+}
+
+static void SlotsEnsure(void)
+{
+    if (s_SlotCount < 0 || s_SlotBuiltAtTitle != SlotsOfferPacks())
+        SlotsBuild();
 }
 
 static int SlotsCount(void)
 {
-    if (s_SlotCount < 0)
-        SlotsBuild();
+    SlotsEnsure();
     return s_SlotCount;
 }
 
 static int SlotLang(int slot)
 {
-    if (s_SlotCount < 0)
-        SlotsBuild();
+    SlotsEnsure();
     return (slot >= 0 && slot < s_SlotCount) ? s_SlotLang[slot] : 0;
 }
 
@@ -1156,26 +1204,42 @@ void Pc_LangSetJpLanguage(int lang)
 
 int Pc_LangSlotCount(void)
 {
-    if (g_GameRegion == Region_JPN)
-        return JP_LANG_COUNT;
-
     return SlotsCount();
 }
 
 int Pc_LangSlotCurrent(void)
 {
-    return (g_GameRegion == Region_JPN) ? g_PcConfig.jpLanguage
-                                        : SlotOfLang(g_PcConfig.language);
+    /* On a Japanese disc the row spans both axes: a pack wins when one is
+     * loaded, otherwise the position is whichever of the disc's own three the
+     * jp_language key names. */
+    if (g_GameRegion == Region_JPN && !Pc_LangPackActive())
+        return SlotOfLang(SLOT_JP_FIRST - g_PcConfig.jpLanguage);
+
+    return SlotOfLang(g_PcConfig.language);
 }
 
 void Pc_LangSlotSet(int slot)
 {
-    if (g_GameRegion == Region_JPN)
+    int v = SlotLang(slot);
+
+    if (SlotIsJp(v))
     {
-        Pc_LangSetJpLanguage(slot);
+        /* Leaving a pack for one of the disc's own: drop the pack first, or
+         * its text would still be overlaid on top of the disc's. */
+        if (Pc_LangPackActive())
+            Pc_LangSetLanguage(0);
+
+        Pc_LangSetJpLanguage(SlotJpLang(v));
         return;
     }
-    Pc_LangSetLanguage(SlotLang(slot));
+
+    /* A pack on a Japanese disc: stand the disc's own text down, so the pack
+     * is what gets installed and untranslated lines fall back to English
+     * rather than to Japanese. */
+    if (g_GameRegion == Region_JPN && g_PcConfig.jpLanguage != JP_LANG_ENGLISH)
+        Pc_LangSetJpLanguage(JP_LANG_ENGLISH);
+
+    Pc_LangSetLanguage(v);
 }
 
 const char* Pc_LangSlotName(int slot)
@@ -1188,17 +1252,22 @@ const char* Pc_LangSlotName(int slot)
         "PAL_English", "German", "French", "Spanish", "Italian", "US_English"
     };
 
-    if (g_GameRegion == Region_JPN)
-    {
-        static const char* const s_JpNames[JP_LANG_COUNT] = { "Japanese", "Chinese", "English" };
-
-        return s_JpNames[(slot >= 0 && slot < JP_LANG_COUNT) ? slot : 0];
-    }
-
     /* The pack's own `!menu` label, read from the registry rather than from
      * the loaded pack -- the row is browsed before anything is loaded. */
     {
         int lang = SlotLang(slot);
+
+        if (SlotIsJp(lang))
+        {
+            /* The disc's own three. Its "English" is the compiled US script,
+             * so it is named as such -- PAL English is a pack on this disc. */
+            static const char* const s_JpNames[JP_LANG_COUNT] = {
+                "Japanese", "Chinese", "US_English"
+            };
+            int jp = SlotJpLang(lang);
+
+            return s_JpNames[(jp >= 0 && jp < JP_LANG_COUNT) ? jp : 0];
+        }
 
         if (lang >= LANG_PACK_FIRST)
             return Pc_LangPackListName(lang - LANG_PACK_FIRST);
@@ -1229,13 +1298,12 @@ int Pc_LangSlotNameX(int slot)
     int         x;
     int         width;
 
-    if (g_GameRegion == Region_JPN)
-        return (slot == JP_LANG_ENGLISH) ? 198 : (slot ? 198 : 192);
-
     {
         int lang = SlotLang(slot);
 
-        x = (lang > 0 && lang < LANG_PACK_FIRST) ? (int)s_PalX[lang] : 200;
+        x = SlotIsJp(lang)
+                ? ((SlotJpLang(lang) == 0) ? 192 : 198)
+                : ((lang > 0 && lang < LANG_PACK_FIRST) ? (int)s_PalX[lang] : 200);
     }
 
     name  = Pc_LangSlotName(slot);
@@ -1270,6 +1338,8 @@ int Pc_LangMenuRowActive(void)
      * reachable from the title screen where it takes effect. */
     if (g_GameRegion == Region_JPN)
     {
+        /* In-game the row offers only the disc's own three, so the restriction
+         * below still holds for the packs that now share this row. */
         return 1;
     }
 
@@ -1919,10 +1989,28 @@ void Pc_LangPatchMapMessages(int mapIdx, void* ovl, unsigned int ovlSize)
      * and only the pack's strings land on top of it. */
     if (g_GameRegion != Region_EUR)
     {
+        /* A Japanese disc reached here means a pack is what was selected, so
+         * its overlay holds Japanese -- the wrong fallback for a line the pack
+         * leaves untranslated (Polish covers 1272 of 1365, so 93 lines would
+         * have come out Japanese). The compiled English is the right one, and
+         * the pointers still in the header are it. */
+        const char** origMsgs = (g_GameRegion == Region_JPN)
+                                    ? (const char**)g_pMapOverlayHeader->mapMessages
+                                    : NULL;
+
         for (usIdx = 0; usIdx < srcCount && usIdx < MSG_COUNT_MAX; usIdx++)
         {
-            const char* src = (const char*)bytes + srcPtrs[usIdx];
-            size_t      len = strlen(src);
+            const char* src = (origMsgs != NULL)
+                                  ? origMsgs[usIdx]
+                                  : (const char*)bytes + srcPtrs[usIdx];
+            size_t      len;
+
+            if (src == NULL)
+            {
+                s_MsgPtrs[usIdx] = "";
+                continue;
+            }
+            len = strlen(src);
 
             s_MsgPtrs[usIdx] = out;
             memcpy(out, src, len + 1);
