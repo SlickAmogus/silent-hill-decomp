@@ -10,6 +10,7 @@
 #ifdef SH_PC_PORT
 #include "main/fileinfo.h" /* g_GameRegion — PAL FONT16 reload */
 #include "pc_title_style.h"
+#include "font_region.h"
 #endif
 
 void GameFs_TitleGfxSeek(void) // 0x80032BD0
@@ -48,6 +49,12 @@ void GameFs_TitleGfxLoad(void) // 0x80032BF0
     if (g_GameRegion == Region_EUR)
     {
         Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
+    }
+    else if (Font_EurAtlasImported())
+    {
+        /* Same reason, on a disc whose own FONT16 is elsewhere: the imported
+         * atlas sits in the band the Konami logo just wrote over. */
+        Font_AtlasReloadNow();
     }
 #else
 #if VERSION_REGION_IS(NTSC)

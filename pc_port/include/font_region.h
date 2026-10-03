@@ -85,6 +85,11 @@ void Font_PatchPackGlyphs(void* pixels, int widthWords, int height);
  * advances change on the same frame. */
 void Font_AtlasReloadNow(void);
 
+/* Import the PAL 126-cell atlas onto a disc that does not carry it, so a pack
+ * language gets real accents instead of base letters. No-op on a PAL disc. */
+void Font_UseEurAtlas(void);
+int  Font_EurAtlasImported(void);
+
 /* Return g_FontLayout to the region base (drops any fan-patch override or the
  * Polish layout). Pc_LangInit calls it first so every language switch derives
  * its layout from a clean slate. */

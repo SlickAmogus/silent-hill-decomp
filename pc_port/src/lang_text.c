@@ -127,7 +127,8 @@ static int PackOfferedHere(int packIdx)
         /* And slot 0 on a PAL disc already IS the PAL English script. */
         return strcmp(code, "en_pal") != 0;
     }
-    return font == LANG_PACK_FONT_LATIN || font == LANG_PACK_FONT_SJIS;
+    (void)font; /* the PAL atlas is imported where it is missing, so all fit */
+    return 1;
 }
 
 static void SlotsBuild(void)
@@ -872,6 +873,12 @@ void Pc_LangInit(void)
         {
             /* Whatever letterforms this pack needs; the atlas itself is built
              * at FONT16 upload (Font_PatchPackGlyphs). */
+            /* Every pack draws through the PAL atlas: the Latin ones for
+             * their accents, Polish and Russian for the cells they build
+             * into. A Shift-JIS pack rasterizes its own and needs none. */
+            if (Pc_LangPackFont() != LANG_PACK_FONT_SJIS)
+                Font_UseEurAtlas();
+
             if (Pc_LangPackFont() == LANG_PACK_FONT_CYRILLIC)
                 Font_UseRussianLayout();
             else if (Pc_LangPackFont() == LANG_PACK_FONT_POLISH)
@@ -1076,7 +1083,7 @@ void Pc_LangSetLanguage(int lang)
      * pixels at the new advances -- visible as a lag when stepping on or off
      * Russian, which replaces the whole atlas. EUR only; pack languages need
      * that atlas. */
-    if (g_GameRegion == Region_EUR)
+    if (g_GameRegion == Region_EUR || Font_EurAtlasImported())
     {
         Font_AtlasReloadNow();
     }

@@ -79,6 +79,15 @@ const s_FontLayout* g_FontLayout = &s_FontLayout_USA;
 static int s_PolishLayoutActive;
 static int s_RussianLayoutActive;
 
+/* The PAL atlas, in use on a disc that does not carry it. Its 126 cells are
+ * what every pack language draws through -- the accents the four PAL languages
+ * need, and the cells Polish and Russian build their letters into -- so a pack
+ * on a US or Japanese disc uploads it from gamedata/font/eur16.tim rather than
+ * settling for the 84-cell US strip. It is 64 VRAM units wide at (768,128),
+ * which stops short of the fire texture at 832; the Konami logo does cross it,
+ * so the pre-title reload PAL already does is needed here too. */
+static int s_EurAtlasImported;
+
 /* == FONT_12X16_LINE_COUNT_MAX (see font_region.h). Region-independent default
  * so USA and NTSC-J evaluate every site exactly as before; Font_ApplyRegionPatches
  * raises it to retail PAL's ten. */
@@ -429,16 +438,40 @@ void Font_PatchPolishGlyphs(void* pixels, int widthWords, int height)
 
 void Font_UsePolishLayout(void)
 {
-    if (g_FontLayout == &s_FontLayout_EUR)
+    if (g_FontLayout == &s_FontLayout_EUR || g_FontLayout == &s_FontLayout_USA)
     {
         g_FontLayout         = &s_FontLayout_EUR_PL;
         s_PolishLayoutActive = 1;
     }
 }
 
+/* Point FONT16's descriptor at the PAL home and remember to feed it the PAL
+ * atlas. No-op on a PAL disc, which is already there. */
+void Font_UseEurAtlas(void)
+{
+    if (g_GameRegion == Region_EUR)
+        return;
+
+    g_Font16AtlasImg.tPage[0] = 0;
+    g_Font16AtlasImg.tPage[1] = 12;
+    g_Font16AtlasImg.u        = 0;
+    g_Font16AtlasImg.v        = 128;
+    g_Font16AtlasImg.clutX    = 816;
+    g_Font16AtlasImg.clutY    = 255;
+
+    s_EurAtlasImported = 1;
+    if (g_FontLayout == &s_FontLayout_USA)
+        g_FontLayout = &s_FontLayout_EUR;
+}
+
+int Font_EurAtlasImported(void)
+{
+    return s_EurAtlasImported;
+}
+
 void Font_UseRussianLayout(void)
 {
-    if (g_FontLayout == &s_FontLayout_EUR)
+    if (g_FontLayout == &s_FontLayout_EUR || g_FontLayout == &s_FontLayout_USA)
     {
         g_FontLayout          = &s_FontLayout_EUR_RU;
         s_RussianLayoutActive = 1;
@@ -530,6 +563,7 @@ void Font_ResetLayout(void)
 {
     s_PolishLayoutActive = 0;
     s_RussianLayoutActive = 0;
+    s_EurAtlasImported = 0;
     g_FontLayout = (g_GameRegion == Region_EUR) ? &s_FontLayout_EUR : &s_FontLayout_USA;
 }
 
@@ -620,6 +654,32 @@ void Font_ApplyRegionPatches(void)
  * more later -- so for those frames the old pixels are drawn at the new
  * language's advances, which is the "delayed change" a Russian switch showed.
  * Doing the read and the LoadImage inline keeps the two in step. */
+static unsigned char* FontReadFile(const char* path, unsigned int* outSize)
+{
+    FILE*          f = fopen(path, "rb");
+    long           n;
+    unsigned char* buf;
+
+    if (f == NULL)
+    {
+        SH_WARN("[FONT] %s is missing - the PAL atlas cannot be imported", path);
+        return NULL;
+    }
+    fseek(f, 0, SEEK_END);
+    n = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    buf = (n > 0 && n < (1 << 20)) ? (unsigned char*)malloc((size_t)n) : NULL;
+    if (buf == NULL || fread(buf, 1, (size_t)n, f) != (size_t)n)
+    {
+        free(buf);
+        fclose(f);
+        return NULL;
+    }
+    fclose(f);
+    *outSize = (unsigned int)n;
+    return buf;
+}
+
 void Font_AtlasReloadNow(void)
 {
     const s_FileInfo*   info = &g_FileTable[FILE_1ST_FONT16_TIM];
@@ -631,7 +691,8 @@ void Font_AtlasReloadNow(void)
     if (size == 0)
         return;
 
-    raw = Pc_LangReadDiscFile(info->startSector, size);
+    raw = s_EurAtlasImported ? FontReadFile("gamedata/font/eur16.tim", &size)
+                             : Pc_LangReadDiscFile(info->startSector, size);
     if (raw == NULL)
     {
         SH_WARN("[FONT] could not re-read FONT16 - the atlas keeps the old language's glyphs");
