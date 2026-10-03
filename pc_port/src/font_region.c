@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "font_region.h"
+#include "lang_text.h"
+#include "main/fsqueue.h"
+#include <stdlib.h>
 #include "lang_ru.h"
 #include "pc_title_style.h"
 
@@ -608,4 +611,51 @@ void Font_ApplyRegionPatches(void)
     }
 
     SH_LOG("[FONT] EUR layout installed: FONT16 -> (768,128) tpage 12, clut (816,255); item CLUTs -> (896..928,480)");
+}
+
+/* Re-read FONT16 and upload it NOW, rather than queueing it.
+ *
+ * A language switch changes the layout (the glyph widths, and for Russian the
+ * whole atlas) the instant it happens, but the queued re-read lands a frame or
+ * more later -- so for those frames the old pixels are drawn at the new
+ * language's advances, which is the "delayed change" a Russian switch showed.
+ * Doing the read and the LoadImage inline keeps the two in step. */
+void Font_AtlasReloadNow(void)
+{
+    const s_FileInfo*   info = &g_FileTable[FILE_1ST_FONT16_TIM];
+    unsigned int        size = (unsigned int)info->blockCount << 8;
+    unsigned char*      raw;
+    TIM_IMAGE           tim;
+    RECT                rect;
+
+    if (size == 0)
+        return;
+
+    raw = Pc_LangReadDiscFile(info->startSector, size);
+    if (raw == NULL)
+    {
+        SH_WARN("[FONT] could not re-read FONT16 - the atlas keeps the old language's glyphs");
+        return;
+    }
+
+    OpenTIM((u_long*)raw);
+    if (ReadTIM(&tim) != NULL)
+    {
+        Font_PatchPackGlyphs(tim.paddr, tim.prect->w, tim.prect->h);
+
+        rect   = *tim.prect;
+        rect.x = g_Font16AtlasImg.u + ((g_Font16AtlasImg.tPage[1] & 0xF) << 6);
+        rect.y = g_Font16AtlasImg.v + ((g_Font16AtlasImg.tPage[1] << 4) & 0x100);
+        LoadImage(&rect, (u_long*)tim.paddr);
+
+        if (tim.caddr != NULL)
+        {
+            rect   = *tim.crect;
+            rect.x = g_Font16AtlasImg.clutX;
+            rect.y = g_Font16AtlasImg.clutY;
+            LoadImage(&rect, (u_long*)tim.caddr);
+        }
+        DrawSync(0);
+    }
+    free(raw);
 }

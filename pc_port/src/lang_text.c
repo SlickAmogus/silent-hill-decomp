@@ -1071,11 +1071,14 @@ void Pc_LangSetLanguage(int lang)
      * boot, before this live switch, so those cells are still blank — re-queue
      * the atlas so Font_PatchPolishGlyphs runs against the now-active pack.
      * (Composed accents like ć/ś/ó reuse vanilla cells and were fine already.)
-     * The options menu drains the queue before it redraws, so the glyphs are
-     * in VRAM by the next frame. EUR only — pack languages need that atlas. */
+     * Done inline rather than queued: the layout changes the instant the
+     * language does, so a queued read leaves a frame or more drawing the old
+     * pixels at the new advances -- visible as a lag when stepping on or off
+     * Russian, which replaces the whole atlas. EUR only; pack languages need
+     * that atlas. */
     if (g_GameRegion == Region_EUR)
     {
-        Fs_QueueStartReadTim(FILE_1ST_FONT16_TIM, FS_BUFFER_1, &g_Font16AtlasImg);
+        Font_AtlasReloadNow();
     }
 
     SH_LOG("[LANG] language switched to '%s'", Pc_LangIdForSlot(lang));

@@ -81,6 +81,10 @@ void Font_UseRussianLayout(void);
  * upload. No-op when the active pack needs no glyphs of its own. */
 void Font_PatchPackGlyphs(void* pixels, int widthWords, int height);
 
+/* Re-read and upload FONT16 immediately, so a language switch's glyphs and its
+ * advances change on the same frame. */
+void Font_AtlasReloadNow(void);
+
 /* Return g_FontLayout to the region base (drops any fan-patch override or the
  * Polish layout). Pc_LangInit calls it first so every language switch derives
  * its layout from a clean slate. */
