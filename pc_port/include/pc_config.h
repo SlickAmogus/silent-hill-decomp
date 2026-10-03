@@ -226,8 +226,16 @@ typedef struct {
     int crosshairStyle;     /* reticle shape: 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap (config key: crosshair_style) */
     float crosshairSize;    /* reticle scale in percent, 25..125 (config key: crosshair_size) */
     float textSize;         /* subtitle/message text scale in percent, 100..150 (config key: text_size) */
+    int flightHud;             /* 0 = off, 1 = modern, 2 = classic (tapes) fighter-jet style HUD: flight overlay, MISSILE ALERT on enemy lock, flares on L3+R3 (config key: flight_hud) */
+    int flightHudSound;        /* 1 = lock warning tones while an enemy tracks / locks Harry (config key: flight_hud_sound) */
+    int flightHudOpacity;      /* HUD opacity in percent, 10..100 (config key: flight_hud_opacity) */
+    int flightHudPortrait3d;   /* 1 = radio portrait is the speaker's 3D model, converted from the chara pool and drawn by the HUD (config key: flight_hud_portrait_3d) */
+    int flightHudCallsigns;    /* target labels: 0 = monster names, 1 = BANDIT/BOGEY, 2 = TGT-nn by slot (config key: flight_hud_callsigns) */
     int aimAssist;          /* 1 = OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) (config key: aim_assist) */
     int mouseCursor;        /* 1 = mouse controls cursor puzzles + clickable main menu (config key: mouse_cursor) */
+    int   gyroAim;              /* gyro aim: 0 off, 1 while aiming, 2 always (config key: gyro_aim); phones default 1, desktop 0 */
+    float gyroSensitivity;      /* gyro aim: view turn per device turn, 0.25..6.0 (config key: gyro_sensitivity); default 2.0 */
+    int   gyroInvertY;          /* gyro aim: 1 flips the vertical axis (config key: gyro_invert_y) */
     int altButtonSprint;    /* "Always use button based sprinting": 1 = walk by default, sprint ONLY while the bound run control is held — applies to alt cameras (TPS/OTS/FPS) AND 2D control under any camera; 0 = a near-full stick push also sprints (config key: altcam_button_sprint) */
     int immersiveFpsHeadTracking; /* 1 = FPS view direction follows Harry's animated head-bone rotation (idle sway/lean), mouse layered on top (config key: immersive_fps_head_tracking) */
     int control2d;          /* 1 = 2D screen-relative movement (input aligns with the camera; Harry turns to face the move direction) under ALL non-FPS camera styles (config key: control_2d) — an Experiment, off by default */

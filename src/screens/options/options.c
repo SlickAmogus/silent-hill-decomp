@@ -188,6 +188,8 @@ static const char* const LBL_FLMODE[] = { "Classic", "C_+_Shadows", "Modern", "M
 static const char* const LBL_MMCNR[]  = { "Top_L", "Top_R", "Bottom_L", "Bottom_R" };
 static const char* const LBL_MMMODE[] = { "Off", "Square", "Circle" };
 static const char* const LBL_WHZ[]    = { "30_Hz", "60_Hz" };
+static const int VAL_FHUD[]   = { 0, 1, 2 };
+static const char* const LBL_FHUD[]   = { "Off", "Modern", "Classic" };
 
 static const int RES_W[] = { 640, 1280, 1366, 1600, 1920, 2560, 3840 };
 static const int RES_H[] = { 480,  720,  768,  900, 1080, 1440, 2160 };
@@ -256,6 +258,8 @@ static const s_PcOpt PCOPT_C[] = {
      * the real ceiling, not the 12 the Graphics comment above assumes, and this
      * page is the shortest. Adding it to Graphics pushed that page off-screen. */
     { "Bullet_Decals",     &g_PcConfig.bulletDecals,      "bullet_decals",          VAL_ONOFF, 2, LBL_ONOFF, NULL, 1, PCK_INT },
+    /* HUD page is at the 11-row ceiling. */
+    { "Flight_HUD",        &g_PcConfig.flightHud,          "flight_hud",            VAL_FHUD, 3, LBL_FHUD, NULL, 1, PCK_INT },
     { "Prev_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_PREV },
     { "Next_Page",         NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_NEXT },
     { "Back",              NULL,                          NULL,                     NULL,      0, NULL,      NULL, 0, PCK_BACK },

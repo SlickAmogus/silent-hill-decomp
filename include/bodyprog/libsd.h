@@ -300,6 +300,26 @@ extern SMF_SONG smf_song[2];
 
 extern s32  sd_reverb_area_size[10];
 extern s32  sd_reverb_mode;
+
+/* Top of the sample area the bank allocator may hand out. The PC port keeps
+ * the last 64 bytes under the reverb work area for the flight HUD's alarm
+ * tone (pc_flight_hud.c), so the 64 bytes move with the reverb mode. */
+#ifdef SH_PC_PORT
+#define SD_PC_TONE_BYTES 64
+#define SD_SPU_ALLOC_TOP (0x80000 - sd_reverb_area_size[sd_reverb_mode] - SD_PC_TONE_BYTES)
+#else
+#define SD_SPU_ALLOC_TOP (0x80000 - sd_reverb_area_size[sd_reverb_mode])
+#endif
+
+/* A voice the PC port plays on itself (the flight HUD's alarm tone). Every
+ * allocation scan in the driver passes over it while it is held. */
+#ifdef SH_PC_PORT
+extern s32 sd_pc_held_voice;
+#define SD_PC_HELD(vo) ((s32)(vo) == sd_pc_held_voice)
+void SdPcHoldVoice(s32 vo);
+#else
+#define SD_PC_HELD(vo) 0
+#endif
 extern s16  sd_keyoff_mode;
 extern bool sd_interrupt_start_flag;
 extern s32  sd_reserved_voice;

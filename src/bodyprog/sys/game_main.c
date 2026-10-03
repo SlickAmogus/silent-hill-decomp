@@ -658,6 +658,19 @@ static void Pc_TpsCamera_Apply(void)
             g_TpsCamPitch += g_PcConfig.invertControllerY ? sPitch : -sPitch;
         }
 
+        /* Gyro aim: the turn the phone or the pad made this frame. */
+        {
+            extern int Pc_Gyro_TakeLook(float dt, int aiming, float* yaw, float* pitch);
+            float      gYaw, gPitch;
+
+            if (Pc_Gyro_TakeLook((float)g_DeltaTime / 4096.0f, isAiming, &gYaw, &gPitch) && !frozen)
+            {
+                const float toQ12 = 4096.0f / (2.0f * 3.14159265f);
+                g_TpsCamYaw   += (s32)(gYaw * toQ12);
+                g_TpsCamPitch += (s32)(gPitch * toQ12);
+            }
+        }
+
         /* Sticky aim-device detection for aim-assist: mouse motion -> mouse;
          * else any stick deflection (right = look, left = move) -> controller. */
         {

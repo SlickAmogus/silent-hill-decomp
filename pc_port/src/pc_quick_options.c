@@ -142,6 +142,7 @@ static const QoRowDef s_pageHud[] = {
     { ROW_OPT,   "crosshair_size",       0, NULL },
     { ROW_OPT,   "text_size",            0, NULL },
     { ROW_OPT,   "low_health_glow",      0, NULL },
+    { ROW_OPT,   "flight_hud",           0, NULL },
     QO_NAV_ROW,
     QO_CLOSE_ROW,
 };

@@ -875,7 +875,7 @@ s16 voice_check(s32 chan, s32 note, bool flag) // 0x800A4F64
     vo = 0;
     do
     {
-        if (SpuGetKeyStatus(spu_ch_tbl[vo]) == SPU_OFF)
+        if (SpuGetKeyStatus(spu_ch_tbl[vo]) == SPU_OFF && !SD_PC_HELD(vo))
         {
             return vo;
         }
@@ -887,7 +887,7 @@ s16 voice_check(s32 chan, s32 note, bool flag) // 0x800A4F64
     do
     {
         stat = SpuGetKeyStatus(spu_ch_tbl[vo]);
-        if (stat == SPU_OFF_ENV_ON || stat == SPU_OFF)
+        if ((stat == SPU_OFF_ENV_ON || stat == SPU_OFF) && !SD_PC_HELD(vo))
         {
             return vo;
         }
@@ -903,7 +903,7 @@ s16 voice_check(s32 chan, s32 note, bool flag) // 0x800A4F64
     vo = 0;
     do
     {
-        if (chan == smf_port[vo].midi_ch_3 && smf_port[vo].note_6 == note)
+        if (chan == smf_port[vo].midi_ch_3 && smf_port[vo].note_6 == note && !SD_PC_HELD(vo))
         {
             return vo;
         }
@@ -914,7 +914,7 @@ s16 voice_check(s32 chan, s32 note, bool flag) // 0x800A4F64
     vo = 0;
     do
     {
-        if (smf_port[vo].stat_16 == 0)
+        if (smf_port[vo].stat_16 == 0 && !SD_PC_HELD(vo))
         {
             return vo;
         }
@@ -1040,7 +1040,7 @@ void key_on(u8 chan, u8 c1, u8 c2) // 0x800A5158
                 vo = 0;
                 while (true)
                 {
-                    if (chan == smf_port[vo].midi_ch_3)
+                    if (chan == smf_port[vo].midi_ch_3 && !SD_PC_HELD(vo))
                     {
                         break;
                     }
