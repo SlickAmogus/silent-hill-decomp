@@ -475,12 +475,50 @@ void Pc_FlightArcade_DrawWorld(void)
         Ar_SmokeDraw();
 }
 
+static int Ar_Bound(const char* name)
+{
+    return name[0] != ' ' && SDL_strcasecmp(name, "NONE") != 0;
+}
+
+/* The alternate cameras' scheme leaves R1 unbound on the pad and puts Cross on
+ * RT, A, the left mouse button and E, so with Cross turned into the gun there
+ * was no action button at all. There RB (read off the controller, since no
+ * bind produces it) and E stay the action. */
+static int Ar_AltCamAction(int* fromKey)
+{
+    extern int           PsyX_RawControllerBindHeld(int buttonOrAxis);
+    const ControlScheme* sc   = &g_PcConfig.altcam;
+    const Uint8*         keys = SDL_GetKeyboardState(NULL);
+    const SDL_Scancode   e    = SDL_GetScancodeFromName(sc->keyCross2);
+    int                  pad  = 0;
+
+    *fromKey = keys != NULL && e != SDL_SCANCODE_UNKNOWN && keys[e];
+    if (!Ar_Bound(sc->padR1) && !Ar_Bound(sc->padR12))
+        pad = PsyX_RawControllerBindHeld(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER);
+    return pad || *fromKey;
+}
+
 unsigned int Pc_FlightArcade_RemapPad(unsigned int held)
 {
+    extern int g_DebugThirdPersonCam;
+
     s_gunTrigger = 0;
     if (!Pc_FlightArcade_Active() || g_GameWork.gameState != GameState_InGame ||
         g_SysWork.sysState != SysState_Gameplay)
         return held;
+
+    if (g_DebugThirdPersonCam)
+    {
+        int       fromKey;
+        const int act = Ar_AltCamAction(&fromKey);
+
+        /* E sets Cross too; that press is the action, not the gun. */
+        s_gunTrigger = (held & ControllerFlag_Cross) != 0 && !fromKey;
+        held &= ~(unsigned int)ControllerFlag_Cross;
+        if (act)
+            held |= g_GameWorkPtr->config.controllerConfig.action;
+        return held;
+    }
 
     s_gunTrigger = (held & ControllerFlag_Cross) != 0;
     held &= ~(unsigned int)ControllerFlag_Cross;
