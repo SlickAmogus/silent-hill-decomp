@@ -22,14 +22,19 @@
 #include "bodyprog/screen/screen_fade.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/view/vw_calc.h"
+#include "bodyprog/view/vc_util.h"
 #include "bodyprog/gfx/map_effects.h"
 
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <SDL.h>
+#include <PsyX/PsyX_audio.h>
 
 #include "sh_log.h"
+#include "lang_text.h"
+#include "pc_sfx_override.h"
 #include "pc_config.h"
 #include "pc_rando.h"
 #include "pc_quick_options.h"
@@ -38,7 +43,10 @@
 #include "pc_flight_arcade.h"
 
 void func_8005DC1C(e_SfxId sfxId, const VECTOR3* pos, q23_8 vol, s32 soundType);
+s32  func_8005D9B8(VECTOR3* pos, q23_8 vol);
+void Sd_PcSfxGains(e_SfxId sfxId, s32 balance, u8 vol, float* outLeft, float* outRight);
 extern long ReadGeomScreen(void);
+extern s32  g_Pc_SfxAzimuthValid;
 
 #define AR_MISSILES_MAX    8
 #define AR_FLARES_MAX      24     /* AH_PARTICLES_MAX in pc_flight_hud.c */
@@ -83,6 +91,93 @@ static int       s_gunTrigger;
 static unsigned  s_gunRng = 0x9E3779B9u;
 
 extern int g_PcConsoleInputActive;
+
+/* The gun and missile sounds are the handgun's, and the game keeps only the
+ * equipped weapon's bank in SPU RAM: with any other weapon they were silent,
+ * or played whatever that bank holds in the same slot. So the two samples are
+ * decoded once from PISTOL.VAB on the disc and mixed outside the SPU voices. */
+#define AR_PISTOL_VAB 166 /* SD_Call id of the handgun bank */
+
+#define AR_CLIP_LAYERS 4
+
+typedef struct
+{
+    e_SfxId    id;
+    int        layers;
+    PcVabLayer layer[AR_CLIP_LAYERS];
+} ArClip;
+
+enum { AR_CLIP_SHOT, AR_CLIP_BANG, AR_CLIP_COUNT };
+
+static ArClip s_clips[AR_CLIP_COUNT] = { { Sfx_Unk1283 }, { Sfx_Unk1286 } };
+static int    s_clipsState; /* 0 not tried, 1 ready, -1 unavailable */
+
+static void Ar_ClipsLoad(void)
+{
+    const s_AudioItemData* bank = &g_AudioData[AR_PISTOL_VAB - 160];
+    unsigned char*         vab  = Pc_LangReadDiscFile((unsigned)bank->fileOffset_8, bank->fileSize_4);
+    int                    k;
+
+    s_clipsState = -1;
+    if (vab == NULL)
+    {
+        SH_DBG("[ARCADE] PISTOL.VAB not readable from the disc image, weapon sounds stay on the SPU");
+        return;
+    }
+    s_clipsState = 1;
+    for (k = 0; k < AR_CLIP_COUNT; k++)
+    {
+        ArClip*          c  = &s_clips[k];
+        const s_VabInfo* vi = &g_Vab_InfoTable[c->id - Sfx_Base];
+
+        c->layers = Pc_SfxOverride_DecodeVabNote(vab, (long)bank->fileSize_4, vi->vab_progIdx_2 & 0xFF,
+                                                 vi->noteIdx_4, c->layer, AR_CLIP_LAYERS);
+        if (c->layers == 0)
+            s_clipsState = -1;
+        SH_DBG("[ARCADE] clip sfx %d: %d layer(s), first %d samples at %d Hz", c->id, c->layers,
+               c->layers ? c->layer[0].count : 0, c->layers ? c->layer[0].rate : 0);
+    }
+    free(vab);
+}
+
+/* func_8005DC3C's distance falloff and balance, applied to a clip. */
+static void Ar_Sfx(int clip, const VECTOR3* pos, q23_8 vol)
+{
+    extern bool   sd_mono_st_flag;
+    const ArClip* c = &s_clips[clip];
+
+    if (s_clipsState == 0)
+        Ar_ClipsLoad();
+
+    if (s_clipsState == 1)
+    {
+        const s32 bal = g_GameWork.config.soundType ? 0 : Vc_StereoBalanceGet(pos);
+        q23_8     v   = func_8005D9B8((VECTOR3*)pos, vol);
+        float     gl, gr;
+        int       k, played = 0;
+
+        /* The balance armed the azimuth for a voice key-on that never comes;
+         * the next real sound must not inherit it. */
+        g_Pc_SfxAzimuthValid = 0;
+
+        if (v > Q8_CLAMPED(1.0f))
+            v = Q8_CLAMPED(1.0f);
+        Sd_PcSfxGains(c->id, bal, (u8)~v, &gl, &gr);
+        for (k = 0; k < c->layers; k++)
+        {
+            const PcVabLayer* ly = &c->layer[k];
+            float             l  = ly->gainL * gl;
+            float             r  = ly->gainR * gr;
+
+            if (sd_mono_st_flag)
+                l = r = (l + r) * 0.5f;
+            played |= PsyX_AudioPlayOneShot(ly->pcm, (uint32_t)ly->count, (uint32_t)ly->rate, l, r);
+        }
+        if (played)
+            return;
+    }
+    func_8005DC1C(c->id, pos, vol, 0);
+}
 
 static float Ar_Q12f(s32 v)
 {
@@ -149,7 +244,7 @@ static void Ar_Blast(AfVec3 at)
     VECTOR3 v = Ar_Q12Vec(at);
     int     k;
 
-    func_8008B664(&v, WEAPON_ATTACK(EquippedWeaponId_HuntingRifle, AttackInputType_Tap));
+    Ar_Sfx(AR_CLIP_BANG, &v, Q8(0.75f));
     for (k = 0; k < 6; k++)
         Af_SmokeEmit(&s_smoke, at);
 }
@@ -223,7 +318,7 @@ static void Ar_EnemyLaunches(float dt)
         Af_MissileInit(m, 0, i, -1, from, Af_Dir(from, chest), AR_ENEMY_SPEED, AR_ENEMY_TURN, AR_ENEMY_LIFE);
         s_cool[i] = AR_ENEMY_COOLDOWN;
         total++;
-        func_8005DC1C(Sfx_Unk1286, &npc->position, Q8(0.75f), 0);
+        Ar_Sfx(AR_CLIP_BANG, &npc->position, Q8(0.75f));
         SH_DBG("[ARCADE] slot %d (chara %d) fires", i, npc->model.charaId);
     }
 }
@@ -372,7 +467,7 @@ static void Ar_HarryLaunch(int claimed)
     to   = Ar_Center(&g_SysWork.npcs[slot]);
     Af_MissileInit(m, 1, -1, slot, from, Af_Dir(from, to), AR_HARRY_SPEED, AR_HARRY_TURN, AR_HARRY_LIFE);
     s_launchMsgT = 1.0f;
-    func_8005DC1C(Sfx_Unk1286, &pl->position, Q8(0.75f), 0);
+    Ar_Sfx(AR_CLIP_BANG, &pl->position, Q8(0.75f));
     SH_DBG("[ARCADE] Harry fires at slot %d, %d left", slot, s_mslStock);
 }
 
@@ -587,7 +682,7 @@ static void Ar_GunFire(int n)
         r->life  = AR_ROUND_LIFE;
         s_roundNext = (s_roundNext + 1) % AR_ROUNDS_MAX;
         if (s_roundNext & 1)
-            func_8005DC1C(D_800AFBF4[6].attackSfx, &pl->position, Q8(0.35f), 0);
+            Ar_Sfx(AR_CLIP_SHOT, &pl->position, Q8(0.35f));
     }
 }
 

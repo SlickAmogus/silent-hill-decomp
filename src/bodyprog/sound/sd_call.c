@@ -1426,6 +1426,34 @@ s16 Sd_GetVolSe(s16 arg0) // 0x800478B8
     return (arg0 * gSDVolConfig.globalVolumeSe_C) >> 7;
 }
 
+#ifdef SH_PC_PORT
+/* The voll/volr Sd_PlaySfx hands SdVoKeyOn, as the fraction SdUtKeyOnV scales
+ * a voice by (>> 7), for a sound the port mixes outside the SPU voices. `vol`
+ * is the attenuation Sd_PlaySfx takes (0 = full). */
+void Sd_PcSfxGains(e_SfxId sfxId, s32 balance, u8 vol, float* outLeft, float* outRight)
+{
+    s32 conv = gSDVolConfig.volumeSe_4 + g_Vab_InfoTable[sfxId - Sfx_Base].field_5;
+    s16 left, right;
+
+    conv  = conv - (conv * vol) / 255;
+    left  = conv;
+    right = conv;
+    if (g_Sd_AudioWork.isStereoEnabled_12 == true)
+    {
+        if (balance < 0)
+        {
+            right -= (left * ABS(balance)) >> 7;
+        }
+        else
+        {
+            left -= (left * balance) >> 7;
+        }
+    }
+    *outLeft  = (left > 0) ? Sd_GetVolSe(left) / 128.0f : 0.0f;
+    *outRight = (right > 0) ? Sd_GetVolSe(right) / 128.0f : 0.0f;
+}
+#endif
+
 // ========================================
 // TASK POOL HANDLING
 // ========================================

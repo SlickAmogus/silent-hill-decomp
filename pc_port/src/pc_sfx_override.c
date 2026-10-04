@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* See pc_sfx_override.h for the naming convention and the rate contract. */
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -373,6 +374,81 @@ static const unsigned char* SfxOverride_BankSample(const unsigned char* d, long 
         return NULL;
     }
     return d + bodies + running;
+}
+
+int Pc_SfxOverride_DecodeVabNote(const unsigned char* vab, long size, int prog, int note, PcVabLayer* out, int max)
+{
+    const unsigned char* pa;
+    int                  programCount, toneTable, tones, t, n = 0;
+
+    if (vab == NULL || size < 32 + (128 * 16) || vab[0] != 'p' || vab[1] != 'B' || vab[2] != 'A' || vab[3] != 'V')
+    {
+        return 0;
+    }
+
+    /* Tone tables are stored only for the programs present, in order, so this
+     * holds for banks whose programs are numbered from 0 without gaps. */
+    programCount = (int)(short)(vab[18] | (vab[19] << 8));
+    if (prog < 0 || prog >= programCount)
+    {
+        return 0;
+    }
+
+    pa        = vab + 32 + prog * 16;
+    tones     = pa[0];
+    toneTable = 32 + (128 * 16) + prog * 16 * 32;
+    if (tones > 16 || toneTable + 16 * 32 > size)
+    {
+        return 0;
+    }
+
+    /* Every tone SdVoKeyOn would key for this note, each volume and pan as
+     * SdUtKeyOnV sets them: the bank's master volume applies twice there. */
+    for (t = 0; t < tones && n < max; t++)
+    {
+        const unsigned char* ta  = vab + toneTable + t * 32;
+        const int            vag = ta[22] | (ta[23] << 8);
+        const unsigned char* body;
+        int                  len, pan, vol, l, r;
+
+        if (vag == 0 || note < ta[6] || note > ta[7])
+        {
+            continue;
+        }
+        body = SfxOverride_BankSample(vab, size, vag, &len);
+        if (body == NULL)
+        {
+            continue;
+        }
+
+        pan = (vab[25] + pa[4] + ta[3]) - 0x80;
+        if (pan < 0)    pan = 0;
+        if (pan > 0x7F) pan = 0x7F;
+        vol = (vab[24] * pa[1] * ta[2]) >> 7;
+        if (pan >= 0x40)
+        {
+            r = vol;
+            l = ((0x40 - (pan & 0x3F)) * (r * 2)) >> 7;
+        }
+        else
+        {
+            l = vol;
+            r = (pan * (l * 2)) >> 7;
+        }
+
+        out[n].pcm = SfxOverride_DecodeAdpcm(body, len, &out[n].count);
+        if (out[n].pcm == NULL)
+        {
+            continue;
+        }
+        /* Note2Pitch: an SPU pitch of 0x1000 plays at 44.1 kHz, and the tone's
+         * fine-tune (1/128ths of a semitone) is added to the note. */
+        out[n].rate  = (int)(44100.0 * pow(2.0, ((note - ta[4]) + ta[5] / 128.0) / 12.0) + 0.5);
+        out[n].gainL = (float)((l * vab[24]) >> 7) / 16384.0f;
+        out[n].gainR = (float)((r * vab[24]) >> 7) / 16384.0f;
+        n++;
+    }
+    return n;
 }
 
 void Pc_SfxOverride_OnBankLoaded(const void* vabHeader, int spuBase, int discSector)
