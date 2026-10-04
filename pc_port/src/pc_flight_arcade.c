@@ -477,7 +477,7 @@ void Pc_FlightArcade_DrawWorld(void)
 
 static int Ar_Bound(const char* name)
 {
-    return name[0] != ' ' && SDL_strcasecmp(name, "NONE") != 0;
+    return name[0] != '\0' && SDL_strcasecmp(name, "NONE") != 0;
 }
 
 /* The alternate cameras' scheme leaves R1 unbound on the pad and puts Cross on
