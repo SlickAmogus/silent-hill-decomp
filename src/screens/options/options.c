@@ -3806,9 +3806,12 @@ void Options_BrightnessMenu_ConfigDraw(void) // 0x801E6238
     /* Trailing '_' pad the labels to equal RENDERED width so the value column
      * lines up (the font is proportional, so "CONTRAST" + 3 spaces was 9px
      * narrower than "BRIGHTNESS" + 1, pushing its number left). 5 underscores
-     * = 118px, matching BRIGHTNESS 117 / SATURATION 120. CLASSIC + 8 = 117. */
+     * = 118px, matching BRIGHTNESS 117 / SATURATION 120. CLASSIC + 7 = 119.
+     * (Those three figures assume a 5px space; FONT_12X16_SPACE_SIZE is
+     * actually 6, so the real widths are 118 / 123 / 121 and the column was
+     * never pixel-exact to begin with. 7 underscores is the closest fit.) */
     const char* const NAMES[PC_BRT_ROWS] = { "BRIGHTNESS_", "CONTRAST_____", "SATURATION_",
-                                             "CLASSIC________" };
+                                             "CLASSIC_______" };
     const float*      vals[3];
     s32 i;
 
