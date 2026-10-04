@@ -3596,7 +3596,21 @@ void Options_ScreenPosMenu_ConfigDraw(void) // 0x801E5CBC
  * Brightness / Contrast / Saturation, each driving a g_PcConfig float and the
  * matching live renderer global, saved to config on change. A procedural
  * reference bar (g_cfg_calibBar, drawn in the post shader) sits behind it. */
-static s32 g_PcBrtRow = 0; /* 0 = Brightness, 1 = Contrast, 2 = Saturation */
+/* 0 = Brightness, 1 = Contrast, 2 = Saturation, 3 = Classic level.
+ *
+ * Rows 0-2 are the PC output stage: they grade the WHOLE frame, UI, FMV and
+ * daytime exteriors included. Row 3 is the original console control
+ * (g_GameWork.config.config brightness, 0-7), which is a different thing
+ * entirely -- an additive grey quad drawn in the WORLD pass and scaled per map
+ * effect by brightnessIntensity_2E, so it lifts black level only where a map
+ * asks for it and never touches the UI or an FMV. That is what the original
+ * game's Brightness screen adjusted, and the reason "contrast 130" is not a
+ * substitute for it (issue #150). It stayed in the build and kept being applied
+ * at its default of 3, but the PC screen replaced the control, so there was no
+ * way to reach it. */
+static s32 g_PcBrtRow = 0;
+
+#define PC_BRT_ROWS 4
 
 static void Pc_BrightnessRowAdjust(s32 row, int dir)
 {
@@ -3607,6 +3621,22 @@ static void Pc_BrightnessRowAdjust(s32 row, int dir)
         { &g_PcConfig.saturation, &g_cfg_saturation, 0.0f,  2.0f, 0.05f, "saturation" },
     };
     float v;
+
+    if (row == 3)
+    {
+        /* The original console control. Lives in the game's own options block,
+         * so it persists with the rest of them and needs no config key. */
+        s32 lvl = (s32)g_GameWork.config.brightness + dir;
+
+        if (lvl < 0) lvl = 0;
+        if (lvl > 7) lvl = 7;
+        if (lvl == (s32)g_GameWork.config.brightness)
+            return;
+
+        g_GameWork.config.brightness = (u8)lvl;
+        Sd_PlaySfx(Sfx_MenuMove, 0, Q8(0.25f));
+        return;
+    }
 
     if (row < 0 || row > 2 || dir == 0)
         return;
@@ -3656,12 +3686,12 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
 
                 if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickUp)
                 {
-                    g_PcBrtRow = (g_PcBrtRow + 2) % 3;
+                    g_PcBrtRow = (g_PcBrtRow + PC_BRT_ROWS - 1) % PC_BRT_ROWS;
                     Sd_PlaySfx(Sfx_MenuMove, 0, Q8(0.25f));
                 }
                 if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickDown)
                 {
-                    g_PcBrtRow = (g_PcBrtRow + 1) % 3;
+                    g_PcBrtRow = (g_PcBrtRow + 1) % PC_BRT_ROWS;
                     Sd_PlaySfx(Sfx_MenuMove, 0, Q8(0.25f));
                 }
                 if (g_Controller0->pulsedBtnFlags & ControllerFlag_LStickLeft)
@@ -3767,16 +3797,18 @@ void Options_BrightnessMenu_Control(void) // 0x801E6018
 void Options_BrightnessMenu_ConfigDraw(void) // 0x801E6238
 {
 #ifdef SH_PC_PORT
-    /* Three rows: Brightness / Contrast / Saturation, values shown as a
-     * percentage (100 = neutral). The selected row is gold, the highlight
-     * bracket marks it. Values read from the live renderer globals so the text
-     * always matches what is applied. */
+    /* Four rows. Brightness / Contrast / Saturation are the PC output stage,
+     * shown as a percentage (100 = neutral) and read from the live renderer
+     * globals so the text always matches what is applied. CLASSIC is the
+     * original console control on its own 0-7 scale -- see g_PcBrtRow. The
+     * selected row is gold. */
     extern float g_cfg_brightness, g_cfg_contrast, g_cfg_saturation;
     /* Trailing '_' pad the labels to equal RENDERED width so the value column
      * lines up (the font is proportional, so "CONTRAST" + 3 spaces was 9px
      * narrower than "BRIGHTNESS" + 1, pushing its number left). 5 underscores
-     * = 118px, matching BRIGHTNESS 117 / SATURATION 120. */
-    const char* const NAMES[3] = { "BRIGHTNESS_", "CONTRAST_____", "SATURATION_" };
+     * = 118px, matching BRIGHTNESS 117 / SATURATION 120. CLASSIC + 8 = 117. */
+    const char* const NAMES[PC_BRT_ROWS] = { "BRIGHTNESS_", "CONTRAST_____", "SATURATION_",
+                                             "CLASSIC________" };
     const float*      vals[3];
     s32 i;
 
@@ -3784,8 +3816,20 @@ void Options_BrightnessMenu_ConfigDraw(void) // 0x801E6238
     vals[1] = &g_cfg_contrast;
     vals[2] = &g_cfg_saturation;
 
-    for (i = 0; i < 3; i++)
+    for (i = 0; i < PC_BRT_ROWS; i++)
     {
+        if (i == 3)
+        {
+            /* 0-7, not a percentage: this is the console control's own scale,
+             * and the reference lines behind the panel already move with it the
+             * way they did in the original screen. */
+            Gfx_StringSetColor(i == g_PcBrtRow ? StringColorId_Gold : StringColorId_White);
+            Gfx_StringSetPosition(SCREEN_POSITION_X(22.0f), SCREEN_POSITION_Y(52.0f + (float)i * 8.0f));
+            Gfx_StringDraw(NAMES[i], 20);
+            Gfx_StringDrawInt(3, (s32)g_GameWork.config.brightness);
+            continue;
+        }
+
         /* Kept above the bottom reference bar (bar occupies ~the bottom 15%).
          * Selection shown by gold vs white — no bracket glyph (the menu font
          * renders '[' as a curly quote). */
