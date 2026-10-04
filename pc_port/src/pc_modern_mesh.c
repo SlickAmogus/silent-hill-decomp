@@ -60,6 +60,8 @@ static_assert(PC_MODERN_MESH_VERTEX_BUFFER_SIZE == MAX_VERTEX_BUFFER_SIZE,
               "PC_MODERN_MESH_VERTEX_BUFFER_SIZE is out of sync with PsyCross");
 
 #define PC_MODERN_MESH_REGISTRY_MAX 64
+#define PC_MODERN_MESH_DRAW_COPIES 4
+#define PC_MODERN_MESH_HANDLE_COPY_SHIFT 24
 #define PC_MODERN_MESH_PATH_MAX     176
 #define PC_MODERN_AREA_EPSILON      1.0e-30
 #define PC_MODERN_UV_AREA_EPSILON   1.0e-15
@@ -104,9 +106,13 @@ typedef struct PcModernMeshEntry
      * Holding the payload on the entry lets every emitted item keep its own
      * expanded geometry, texture binding and footprint until its own
      * PrepareDraw runs. */
-    GrModernVertex* drawVertices;
-    unsigned short* drawSz;
-    int             drawCount;
+    /* One copy per emit: the same item can be drawn twice in one frame (the
+     * carousel's selected slot and the equipped box), and both packets are
+     * drawn only after both were emitted. The packet handle names the copy. */
+    GrModernVertex* drawVertices[PC_MODERN_MESH_DRAW_COPIES];
+    unsigned short* drawSz[PC_MODERN_MESH_DRAW_COPIES];
+    int             drawCount[PC_MODERN_MESH_DRAW_COPIES];
+    unsigned        drawNext;
     u32             drawTexture;
     int             drawFormat;
     int             drawNativeWidth;
@@ -120,6 +126,9 @@ typedef struct PcModernMeshEntry
      * item ever reported, which hid the take screen resolving differently from
      * the carousel. */
     unsigned        lastLoggedSource;
+    /* Emit failures fall back to the retail draw of geometry that has already
+     * been replaced, so the item just vanishes; log each reason once. */
+    unsigned        loggedFailures;
 } PcModernMeshEntry;
 
 static PcModernMeshEntry s_registry[PC_MODERN_MESH_REGISTRY_MAX];
@@ -956,7 +965,7 @@ static int ModernMesh_EnsureEmbeddedTexture(PcModernMesh* mesh)
     return 1;
 }
 
-static int ModernMesh_Expand(PcModernMeshEntry* entry, int tpage, int clut)
+static int ModernMesh_Expand(PcModernMeshEntry* entry, int copy, int tpage, int clut)
 {
     const PcModernMesh* mesh = &entry->mesh;
     const cgltf_mesh* gltfMesh;
@@ -976,12 +985,12 @@ static int ModernMesh_Expand(PcModernMeshEntry* entry, int tpage, int clut)
 
     if (outputCount == 0 || outputCount >= MAX_VERTEX_BUFFER_SIZE)
         return 0;
-    free(entry->drawVertices);
-    free(entry->drawSz);
-    entry->drawVertices = (GrModernVertex*)calloc(outputCount, sizeof(*entry->drawVertices));
-    entry->drawSz = (unsigned short*)calloc(outputCount, sizeof(*entry->drawSz));
-    entry->drawCount = 0;
-    if (entry->drawVertices == NULL || entry->drawSz == NULL)
+    free(entry->drawVertices[copy]);
+    free(entry->drawSz[copy]);
+    entry->drawVertices[copy] = (GrModernVertex*)calloc(outputCount, sizeof(*entry->drawVertices[copy]));
+    entry->drawSz[copy] = (unsigned short*)calloc(outputCount, sizeof(*entry->drawSz[copy]));
+    entry->drawCount[copy] = 0;
+    if (entry->drawVertices[copy] == NULL || entry->drawSz[copy] == NULL)
         return 0;
 
     gltfMesh = mesh->meshNode->mesh;
@@ -1000,7 +1009,7 @@ static int ModernMesh_Expand(PcModernMeshEntry* entry, int tpage, int clut)
         {
             cgltf_size index = primitive->indices != NULL ? cgltf_accessor_read_index(primitive->indices, indexOffset) : indexOffset;
             cgltf_float source[3], transformed[3], texcoord[2], rgba[4] = { 1, 1, 1, 1 };
-            GrModernVertex* vertex = &entry->drawVertices[output];
+            GrModernVertex* vertex = &entry->drawVertices[copy][output];
             double x, y, z;
             double nx, ny, nz;
 
@@ -1020,7 +1029,15 @@ static int ModernMesh_Expand(PcModernMeshEntry* entry, int tpage, int clut)
             y = (C2_R21 * nx + C2_R22 * ny + C2_R23 * nz) / 4096.0 + C2_TRY;
             z = (C2_R31 * nx + C2_R32 * ny + C2_R33 * nz) / 4096.0 + C2_TRZ;
             if (z <= 0.0 || z > 65535.0)
+            {
+                if (!(entry->loggedFailures & 1u))
+                {
+                    SH_DBG("[MODERN_MESH] item=%d not drawn: vertex %d projects to z=%.1f (TRZ=%ld)",
+                           (int)mesh->fileIdx, (int)index, z, (long)C2_TRZ);
+                    entry->loggedFailures |= 1u;
+                }
                 return 0;
+            }
             vertex->x = (float)(C2_OFX / 65536.0 + x * C2_H / z) + drawOffsetX;
             vertex->y = (float)(C2_OFY / 65536.0 + y * C2_H / z) + drawOffsetY;
             vertex->page = (float)(tpage & 0x1f);
@@ -1039,35 +1056,53 @@ static int ModernMesh_Expand(PcModernMeshEntry* entry, int tpage, int clut)
             vertex->vsx = (float)x;
             vertex->vsy = (float)y;
             vertex->vsz = (float)z;
-            entry->drawSz[output++] = (unsigned short)z;
+            entry->drawSz[copy][output++] = (unsigned short)z;
         }
     }
-    entry->drawCount = (int)output;
-    return entry->drawCount == (int)outputCount;
+    entry->drawCount[copy] = (int)output;
+    return entry->drawCount[copy] == (int)outputCount;
 }
 
 int Pc_ModernMesh_Emit(void* object, void* orderingTable, int shift)
 {
     GsDOBJ2* drawObject = (GsDOBJ2*)object;
     GsOT* ot = (GsOT*)orderingTable;
-    int tpage = 0, clut = 0, bucket, i;
+    int tpage = 0, clut = 0, bucket, i, copy;
     DR_PSYX_MODERN_MESH* packet;
     PcModernMeshEntry* entry;
 
     if (drawObject == NULL || drawObject->tmd == NULL || drawObject->id == 0 || ot == NULL || shift < 0)
         return 0;
-    if (Pc_ModernMesh_Find((s32)drawObject->id - 1) == NULL ||
-        !ModernMesh_RetailBinding(drawObject, &tpage, &clut))
+    if (Pc_ModernMesh_Find((s32)drawObject->id - 1) == NULL)
         return 0;
+    if (!ModernMesh_RetailBinding(drawObject, &tpage, &clut))
+    {
+        if (s_activeEntry != NULL && !(s_activeEntry->loggedFailures & 2u))
+        {
+            SH_DBG("[MODERN_MESH] item=%d not drawn: no single retail tpage/clut on the carrier object",
+                   (int)s_activeEntry->mesh.fileIdx);
+            s_activeEntry->loggedFailures |= 2u;
+        }
+        return 0;
+    }
     /* Find just set this, and every write below lands on THIS item's own
      * storage, so a later emit in the same frame cannot clobber it. */
     entry = s_activeEntry;
     if (entry == NULL)
         return 0;
+    copy = (int)(entry->drawNext++ % PC_MODERN_MESH_DRAW_COPIES);
     entry->drawFormat = (tpage >> 7) & 3;
     if (entry->drawFormat > TF_16_BIT || Pc_ModernShader_Get((TexFormat)entry->drawFormat) == (ShaderID)-1 ||
-        !ModernMesh_Expand(entry, tpage, clut))
+        !ModernMesh_Expand(entry, copy, tpage, clut))
+    {
+        if (!(entry->loggedFailures & 4u))
+        {
+            SH_DBG("[MODERN_MESH] item=%d not drawn: format %d / expand failed (see above for a z reason)",
+                   (int)entry->mesh.fileIdx, entry->drawFormat);
+            entry->loggedFailures |= 4u;
+        }
         return 0;
+    }
     entry->drawNativeWidth = entry->drawNativeHeight = entry->drawOffsetX = entry->drawOffsetY = 0;
     entry->drawHiresWidth = entry->drawHiresHeight = 0;
 
@@ -1151,14 +1186,14 @@ int Pc_ModernMesh_Emit(void* object, void* orderingTable, int shift)
     bucket = 0;
     {
         unsigned short szMax = 0;
-        for (i = 0; i < entry->drawCount; i++)
-            if (entry->drawSz[i] > szMax)
-                szMax = entry->drawSz[i];
+        for (i = 0; i < entry->drawCount[copy]; i++)
+            if (entry->drawSz[copy][i] > szMax)
+                szMax = entry->drawSz[copy][i];
         PsyX_NoteItemDepthSz(szMax);
     }
-    for (i = 0; i < entry->drawCount; i++)
-        bucket += entry->drawSz[i] >> (shift + 2);
-    bucket /= entry->drawCount;
+    for (i = 0; i < entry->drawCount[copy]; i++)
+        bucket += entry->drawSz[copy][i] >> (shift + 2);
+    bucket /= entry->drawCount[copy];
     if (bucket < 1)
         bucket = 1;
     if (bucket >= (1 << ot->length))
@@ -1166,7 +1201,7 @@ int Pc_ModernMesh_Emit(void* object, void* orderingTable, int shift)
     packet = (DR_PSYX_MODERN_MESH*)GsOUT_PACKET_P;
     setlen(packet, 2);
     packet->code[0] = 0xB3000000;
-    packet->code[1] = (u32)entry->mesh.fileIdx + 1u;
+    packet->code[1] = ((u32)entry->mesh.fileIdx + 1u) | ((u32)copy << PC_MODERN_MESH_HANDLE_COPY_SHIFT);
     addPrim(&ot->org[bucket], packet);
     GsOUT_PACKET_P = (PACKET*)((unsigned char*)packet + sizeof(*packet));
     return 1;
@@ -1175,9 +1210,11 @@ int Pc_ModernMesh_Emit(void* object, void* orderingTable, int shift)
 int Pc_ModernMesh_PrepareDraw(u32 meshHandle, PcModernDrawBinding* binding)
 {
     PcModernMeshEntry* entry = NULL;
+    const int copy = (int)(meshHandle >> PC_MODERN_MESH_HANDLE_COPY_SHIFT);
     int i;
 
-    if (binding == NULL)
+    meshHandle &= (1u << PC_MODERN_MESH_HANDLE_COPY_SHIFT) - 1u;
+    if (binding == NULL || copy >= PC_MODERN_MESH_DRAW_COPIES)
         return 0;
     memset(binding, 0, sizeof(*binding));
     binding->texFormat = -1;
@@ -1197,13 +1234,13 @@ int Pc_ModernMesh_PrepareDraw(u32 meshHandle, PcModernDrawBinding* binding)
             break;
         }
     }
-    if (entry == NULL || entry->drawCount < 3 ||
+    if (entry == NULL || entry->drawCount[copy] < 3 ||
         Pc_ModernShader_Get((TexFormat)entry->drawFormat) == (ShaderID)-1 ||
-        !Pc_ModernVertex_UploadExact(entry->drawVertices, entry->drawSz, entry->drawCount))
+        !Pc_ModernVertex_UploadExact(entry->drawVertices[copy], entry->drawSz[copy], entry->drawCount[copy]))
         return 0;
     binding->textureId = entry->drawTexture;
     binding->texFormat = entry->drawFormat;
-    binding->vertexCount = entry->drawCount;
+    binding->vertexCount = entry->drawCount[copy];
     binding->nativeWidth = entry->drawNativeWidth;
     binding->nativeHeight = entry->drawNativeHeight;
     binding->offsetX = entry->drawOffsetX;
