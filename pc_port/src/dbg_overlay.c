@@ -2001,6 +2001,17 @@ void DbgOverlay_Update(void)
 
 void DbgOverlay_Render(void)
 {
+    /* Publish whether this frame renders the 3D world, for the image-adjustment
+     * scope in GR_PostProcess (which runs immediately after this hook). The
+     * movie, menu, inventory, paper-map, save and load screens draw no world,
+     * so a brightness/contrast grade has no business touching them. */
+    {
+        extern int g_cfg_sceneFrame;
+
+        g_cfg_sceneFrame = (g_GameWork.gameState == GameState_InGame ||
+                            g_GameWork.gameState == GameState_MapEvent);
+    }
+
     GLint   vp[4];
     GLint   prev_prog, prev_tex, prev_vao, prev_vbo, prev_fb;
     GLint   prev_active_tex, prev_blend_src, prev_blend_dst;

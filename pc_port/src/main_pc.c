@@ -1308,6 +1308,10 @@ int main(int argc, char* argv[])
             g_cfg_brightness = g_PcConfig.brightness;
             g_cfg_contrast   = g_PcConfig.contrast;
             g_cfg_saturation = g_PcConfig.saturation;
+            {
+                extern int g_cfg_imageAdjustScope;
+                g_cfg_imageAdjustScope = g_PcConfig.imageAdjustScope;
+            }
         }
         g_PsyX_FlashlightSize      = g_PcConfig.flashlightSize;
         {

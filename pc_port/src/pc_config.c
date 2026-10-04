@@ -37,6 +37,7 @@ s_PcConfig g_PcConfig = {
     .dithering      = 1,  /* PSX ordered dither on, the long-standing default */
     .textureFilter  = 0,  /* point sampling */
     .scaling        = 2,  /* bilinear: what the present blit always did */
+    .imageAdjustScope = 1, /* world frames only; menus and FMVs left alone */
     .widescreenMode  = 1, /* 0=pillarbox, 1=Hor+ (default, no bars + correct proportions), 2=stretch */
     .menuPillarbox   = 1, /* 1=pillarbox 2D screens (black bars), 0=stretch to fill */
     .allowLooseFiles = 0, /* 0=disc image only, 1=scan gamedata/load/ first */
@@ -621,6 +622,10 @@ void PcConfig_Load(const char* path)
             if (v > 6) v = 6;
             g_PcConfig.textureFilter = v;
             s_sawDitherKeys = 1;
+        }
+        else if (strcmp(key, "image_adjust_scope") == 0)
+        {
+            g_PcConfig.imageAdjustScope = (atoi(value) != 0);
         }
         else if (strcmp(key, "scaling") == 0)
         {

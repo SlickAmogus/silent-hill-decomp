@@ -215,6 +215,11 @@ typedef struct {
      * Brightness screen. (config keys: brightness / contrast / saturation) */
     float brightness;           /* output brightness multiplier, 0.25..2.0; default 1.0 */
     float contrast;             /* output contrast around mid-grey, 0.5..2.0; default 1.0 */
+
+    /* What brightness/contrast/saturation are allowed to touch (config key:
+     * image_adjust_scope): 1 = only frames that render the 3D world (default),
+     * 0 = the whole composed frame, menus and FMVs included. */
+    int imageAdjustScope;
     float saturation;           /* output colour saturation, 0..2.0; default 1.0 */
     float xaVolume;             /* XA cutscene-voice stream volume, 0..1; default 1.0 (config key: xa_volume) */
     float fmvVolume;            /* FMV movie (SDL PCM) volume, 0..1; default 1.0 (config key: fmv_volume) */
