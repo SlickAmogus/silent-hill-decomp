@@ -77,6 +77,7 @@
 /* --- Cheats + debug --- */
 { "God mode",             { "Gottmodus",           "Mode dieu",             "Modo dios",             "Modalità dio"          } },
 { "Noclip",               { NULL,                  NULL,                    NULL,                    NULL                    } },
+{ "Infinite ammo",        { "Unbegrenzte Munition", "Munitions infinies",   "Munición infinita",     "Munizioni infinite"    } },
 { "Enemies ignore Harry", { "Gegner ignorieren Harry", "Ennemis ignorent Harry", "Enemigos ignoran a Harry", "Nemici ignorano Harry" } },
 { "Unlimited enemies",    { "Unbegrenzt Gegner",   "Ennemis illimités",     "Enemigos ilimitados",   "Nemici illimitati"     } },
 { "Big head mode",        { "Großkopf-Modus",      "Mode grosse tête",      "Modo cabezón",          "Modalità testone"      } },

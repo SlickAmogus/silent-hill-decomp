@@ -1517,6 +1517,8 @@ ITEM_NAME.193=Radio_tascabile
 ITEM_DESC.193=Radio_portatile_che_emette_suoni\nquando_i_mostri_si_avvicinano.
 ITEM_NAME.194=Tanica_di_benzina
 ITEM_DESC.194=Carburante_per_la_motosega\ne_il_trapano_da_rocce.
+ITEM_NAME.32=Chiave_della_hall
+ITEM_DESC.32=La_chiave_per_aprire_la_porta_della_hall._L'ho_trovata_negli_spogliatoi.
 MENU.LOAD=CARICA
 MENU.CONTINUE=CONTINUA
 MENU.START=INIZIA
@@ -1654,3 +1656,13 @@ MENU.Shooting_style=Stile_di_tiro
 MENU.No_aiming_shots=Senza_mirare
 MENU.Too_dark_to_look_at\n\t\tthe_map_here.=Troppo_buio_per\n\t\tleggere_la_mappa.
 MENU.I_don't_have_the_map\n\t\tfor_this_place.=Non_ho_la_mappa\n\t\tdi_questo_posto.
+MENU.English=Inglese
+MENU.German=Tedesco
+MENU.Spanish=Spagnolo
+MENU.Italian=Italiano
+MENU.Japanese=Giapponese
+MENU.Chinese=Cinese
+MENU.--Use_OK--===Sì==
+MENU.--Use_OK?--===Sì?==
+MENU.--Use_NG--===No==
+MENU.Defeated_enemy_by_fighting=Sconfitti_in_lotta

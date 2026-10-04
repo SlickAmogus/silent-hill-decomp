@@ -1517,6 +1517,8 @@ ITEM_NAME.193=Radio_de_poche
 ITEM_DESC.193=Radio_portable_émettant_des\nparasites_quand_les_monstres\nsont_proches.
 ITEM_NAME.194=Réservoir_d'essence
 ITEM_DESC.194=Carburant_pour_tronçonneuses\net_marteaux-piqueurs.
+ITEM_NAME.32=Clé_du_hall
+ITEM_DESC.32=La_clé_qui_ouvre_la_porte_du_hall._Je_l'ai_trouvée_dans_le_vestiaire.
 MENU.LOAD=CHARGER
 MENU.CONTINUE=CONTINUER
 MENU.START=COMMENCER
@@ -1650,3 +1652,13 @@ MENU.Shooting_style=Style_de_tir
 MENU.No_aiming_shots=Sans_viser
 MENU.Too_dark_to_look_at\n\t\tthe_map_here.=Trop_sombre_pour\n\t\tlire_la_carte.
 MENU.I_don't_have_the_map\n\t\tfor_this_place.=Je_n'ai_pas_la_carte\n\t\tde_ce_lieu.
+MENU.English=Anglais
+MENU.German=Allemand
+MENU.Spanish=Espagnol
+MENU.Italian=Italien
+MENU.Japanese=Japonais
+MENU.Chinese=Chinois
+MENU.--Use_OK--===OK==
+MENU.--Use_OK?--===OK?==
+MENU.--Use_NG--===Non==
+MENU.Defeated_enemy_by_fighting=Vaincus_au_combat

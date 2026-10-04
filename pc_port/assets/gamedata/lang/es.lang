@@ -1517,6 +1517,8 @@ ITEM_NAME.193=Radio_de_bolsillo
 ITEM_DESC.193=Radio_portátil_que_irradia\ncorriente_estática_cuando_hay\nalgún_monstruo_cerca.
 ITEM_NAME.194=Bidón_de_gasolina
 ITEM_DESC.194=Combustible_para_la_sierra_de\ncadena_y_el_taladro_neumático.
+ITEM_NAME.32=Llave_del_vestíbulo
+ITEM_DESC.32=La_llave_para_abrir_la_puerta_del_vestíbulo._La_encontré_en_el_vestuario.
 MENU.LOAD=CARGAR
 MENU.CONTINUE=CONTINUAR
 MENU.START=EMPEZAR
@@ -1656,3 +1658,13 @@ MENU.Shooting_style=Estilo_de_tiro
 MENU.No_aiming_shots=Sin_apuntar
 MENU.Too_dark_to_look_at\n\t\tthe_map_here.=Demasiado_oscuro\n\t\tpara_ver_el_mapa.
 MENU.I_don't_have_the_map\n\t\tfor_this_place.=No_tengo_el_mapa\n\t\tde_este_lugar.
+MENU.English=Inglés
+MENU.German=Alemán
+MENU.Spanish=Español
+MENU.Italian=Italiano
+MENU.Japanese=Japonés
+MENU.Chinese=Chino
+MENU.--Use_OK--===Sí==
+MENU.--Use_OK?--===Sí?==
+MENU.--Use_NG--===No==
+MENU.Defeated_enemy_by_fighting=Vencidos_luchando

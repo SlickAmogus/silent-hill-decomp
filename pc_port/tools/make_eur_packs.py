@@ -52,6 +52,35 @@ LANGS = [
     ('it', 'Italian', 5, 'ITEM_ITL', 3),
 ]
 
+# What the disc's item files do not carry, keyed by the file they belong to.
+SUPPLEMENT = {
+    'ITEM_ENG': {
+        'ITEM_NAME.32': 'Lobby key',
+        'ITEM_DESC.32': "The key to open the door to the lobby."
+                        " I found it in the locker room.",
+    },
+    'ITEM_GER': {
+        'ITEM_NAME.32': 'Lobbyschlüssel',
+        'ITEM_DESC.32': 'Der Schlüssel für die Tür zur Lobby.'
+                        ' Ich habe ihn im Umkleideraum gefunden.',
+    },
+    'ITEM_FRN': {
+        'ITEM_NAME.32': 'Clé du hall',
+        'ITEM_DESC.32': 'La clé qui ouvre la porte du hall.'
+                        " Je l'ai trouvée dans le vestiaire.",
+    },
+    'ITEM_SPN': {
+        'ITEM_NAME.32': 'Llave del vestíbulo',
+        'ITEM_DESC.32': 'La llave para abrir la puerta del vestíbulo.'
+                        ' La encontré en el vestuario.',
+    },
+    'ITEM_ITL': {
+        'ITEM_NAME.32': 'Chiave della hall',
+        'ITEM_DESC.32': 'La chiave per aprire la porta della hall.'
+                        " L'ho trovata negli spogliatoi.",
+    },
+}
+
 FT = io.open(os.path.join(REPO, 'src', 'main', 'filetable.c.EUR.inc'),
              encoding='utf-8', errors='surrogateescape').read()
 
@@ -174,6 +203,12 @@ def item_text(path, binname):
                 continue
             # The runtime turns a literal space into the drawer's '_'.
             out['%s.%d' % (key, i)] = data[s:e].replace(b' ', b'_')  # same as TranslateItemText
+
+    # Item 32 is a hole in every language's item file on the disc -- the Lobby
+    # key is there in English and nowhere else -- so it is written here. The
+    # Russian pack fills the same hole from its own supplement.
+    for key, text in SUPPLEMENT.get(binname, {}).items():
+        out.setdefault(key, text.replace(' ', '_').encode('latin-1'))
     return out
 
 

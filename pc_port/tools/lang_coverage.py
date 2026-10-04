@@ -26,6 +26,33 @@ STR = r'"((?:[^"\\]|\\.)*)"'
 ROW = r'\{\s*((?:' + STR + r'\s*)+),\s*\{(.*?)\}\s*\}'
 
 
+def c_unescape(s):
+    """C source escapes -> the text the compiler produces.
+
+    Needed to compare against the template at all: a colour byte is written
+    "\x07" in the source, four characters, while the template key holds the
+    real 0x07 -- so 17 menu literals never matched and read as untranslated."""
+    out, i = bytearray(), 0
+    while i < len(s):
+        if s[i] != chr(92) or i + 1 >= len(s):
+            out += s[i].encode('latin-1', 'replace')
+            i += 1
+            continue
+        c = s[i + 1]
+        if c == 'x':
+            j = i + 2
+            h = ''
+            while j < len(s) and len(h) < 2 and s[j] in '0123456789abcdefABCDEF':
+                h += s[j]
+                j += 1
+            out.append(int(h, 16))
+            i = j
+        else:
+            out.append({'n': 10, 't': 9, 'r': 13, '0': 0}.get(c, ord(c)))
+            i += 2
+    return out.decode('latin-1')
+
+
 def c_rows(path, start=None, cols=4):
     """Rows of a { "us", { a, b, c, d } } table, us -> [4 values or None].
 
@@ -50,8 +77,8 @@ def c_rows(path, start=None, cols=4):
         vals = []
         for p in parts:
             lits = re.findall(STR, p)
-            vals.append(''.join(lits) if lits else None)
-        out[us] = vals
+            vals.append(c_unescape(''.join(lits)) if lits else None)
+        out[c_unescape(us)] = vals
     return out
 
 
@@ -59,7 +86,7 @@ def template_keys():
     s = io.open(TEMPLATE, encoding='utf-8').read()
     keys, cur = [], None
     for ln in s.split('\n'):
-        m = re.match(r'^\[([^\]]+)\]', ln)
+        m = re.match(r'^\[(.+)\]\s*$', ln)  # keys contain ']', e.g. [MENU.[R] Reset]
         if m:
             cur = m.group(1)
             keys.append([cur, None])
@@ -108,6 +135,25 @@ def covered(code, keys):
     return got
 
 
+def decided(code):
+    """Keys deliberately left English: the row exists and its column is NULL.
+
+    VSync, PGXP, ACES, Aniso 8x and the like are the same word in every one of
+    these languages, so NULL is the answer rather than a gap. Separating the two
+    is the difference between 'nobody looked at this' and 'we looked'."""
+    out = set()
+    if code not in COLS:
+        return out
+    col = COLS.index(code)
+    for us, vals in MENU.items():
+        if vals[col] is None:
+            out.add(menu_key(us))
+    for en, vals in QUICK.items():
+        if vals[col] is None:
+            out.add(quick_key(en))
+    return out
+
+
 MENU = c_rows(os.path.join(HERE, '..', 'src', 'lang_menu.c'), 's_MenuTr[] = {')
 QUICK = c_rows(os.path.join(HERE, '..', 'src', 'lang_quick_pal.inc'))
 
@@ -135,6 +181,7 @@ def main():
         got = covered(code, allk)
         if code == 'ja':
             got |= jpn_pcopt_keys()
+        got |= decided(code)
         en = dict(keys)
         n = 0
         for g in kinds:
@@ -148,19 +195,23 @@ def main():
         print('\n%s: %d untranslated of %d' % (code, n, len(allk)))
         return
 
-    print('%-7s %s' % ('', '  '.join('%-11s' % g for g in kinds)))
+    print('%-7s %s %11s %11s' % ('', '  '.join('%-11s' % g for g in kinds),
+                                  'translated', 'English'))
     for code in ('de', 'fr', 'es', 'it', 'pl', 'ru', 'ja', 'zh', 'en_pal'):
         got = covered(code, allk)
         if code == 'ja':
             got |= jpn_pcopt_keys()
+        dec = decided(code) - got
         cells = []
         for g in kinds:
             tot = len(by[g])
             have = sum(1 for k in by[g] if k in got)
             cells.append('%d/%d' % (have, tot))
         total = sum(1 for k in allk if k in got)
-        print('%-7s %s  = %d/%d' % (code, '  '.join('%-11s' % c for c in cells),
-                                    total, len(allk)))
+        left = len(allk) - total - len(dec)
+        print('%-7s %s  %5d/%d  %4d chosen  %d LEFT'
+              % (code, '  '.join('%-11s' % c for c in cells), total, len(allk),
+                 len(dec), left))
 
 
 if __name__ == '__main__':

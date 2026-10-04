@@ -1517,6 +1517,8 @@ ITEM_NAME.193=Taschenradio
 ITEM_DESC.193=Kleines_Radio,_das_zu_rauschen\nbeginnt,_sobald_sich_Monster\nnähern.
 ITEM_NAME.194=Benzintank
 ITEM_DESC.194=Kraftstoff_für_Kettensägen_und\nBohrhämmer.
+ITEM_NAME.32=Lobbyschlüssel
+ITEM_DESC.32=Der_Schlüssel_für_die_Tür_zur_Lobby._Ich_habe_ihn_im_Umkleideraum_gefunden.
 MENU.LOAD=LADEN
 MENU.CONTINUE=WEITER
 MENU.OPTION=OPTIONEN
@@ -1643,3 +1645,13 @@ MENU.Shooting_style=Schießstil
 MENU.No_aiming_shots=Ohne_Zielen
 MENU.Too_dark_to_look_at\n\t\tthe_map_here.=Zu_dunkel,_um_die\n\t\tKarte_zu_lesen.
 MENU.I_don't_have_the_map\n\t\tfor_this_place.=Ich_habe_keine_Karte\n\t\tvon_diesem_Ort.
+MENU.English=Englisch
+MENU.German=Deutsch
+MENU.Spanish=Spanisch
+MENU.Italian=Italienisch
+MENU.Japanese=Japanisch
+MENU.Chinese=Chinesisch
+MENU.--Use_OK--===Geht==
+MENU.--Use_OK?--===Geht?==
+MENU.--Use_NG--===Nein==
+MENU.Defeated_enemy_by_fighting=Im_Kampf_besiegt

@@ -338,37 +338,11 @@ static const s_MenuTranslation s_MenuTr[] = {
     { "==Use_NG==",
         { "==Nein==", "==Non==", "==No==", "==No==" } },
 
-    /* --- Inventory + pause --- */
-    { "PAUSE",
-        { NULL, NULL, "PAUSA", "PAUSA" } },
-    { "PAUSED",
-        { "PAUSIERT", "EN_PAUSE", "EN_PAUSA", "IN_PAUSA" } },
-
-    /* --- Memory card messages --- */
-    { "Is_it_OK_to_overwrite?",
-        { "\xDC" "berschreiben?", "Remplacer_?", "\xBFSobrescribir?", "Sovrascrivere?" } },
-    { "Is_it_OK_to_format?",
-        { "Formatieren?", "Formater_?", "\xBF" "Formatear?", "Formattare?" } },
-    { "You_removed_the_MEMORY_CARD!",
-        { "MEMORY_CARD_entfernt!", "MEMORY_CARD_retir\xE9" "e_!", "\xA1MEMORY_CARD_retirada!", "MEMORY_CARD_rimossa!" } },
-    { "Now_formatting...",
-        { "Formatiere...", "Formatage...", "Formateando...", "Formattazione..." } },
-    { "Unable_to_create_a_new_file.",
-        { "Datei_nicht_erstellbar.", "Cr\xE9" "ation_impossible.", "No_se_puede_crear.", "Impossibile_creare." } },
-    { "Finished_saving.",
-        { "Gespeichert.", "Sauvegard\xE9.", "Guardado.", "Salvato." } },
-    { "Failed_to_save!",
-        { "Speichern_fehlgeschlagen!", "\xC9" "chec_de_sauvegarde_!", "\xA1" "Error_al_guardar!", "Salvataggio_fallito!" } },
-    { "The_data_is_not_found!",
-        { "Keine_Daten_gefunden!", "Donn\xE9" "es_introuvables_!", "\xA1" "Datos_no_encontrados!", "Dati_non_trovati!" } },
-    { "The_data_is_damaged!",
-        { "Daten_besch\xE4" "digt!", "Donn\xE9" "es_corrompues_!", "\xA1" "Datos_da\xF1" "ados!", "Dati_danneggiati!" } },
-    { "Failed_to_load!",
-        { "Laden_fehlgeschlagen!", "\xC9" "chec_du_chargement_!", "\xA1" "Error_al_cargar!", "Caricamento_fallito!" } },
-    { "Finished_loading.",
-        { "Geladen.", "Charg\xE9.", "Cargado.", "Caricato." } },
-    { "Now_loading...",
-        { "Lade...", "Chargement...", "Cargando...", "Caricamento..." } },
+    /* The other memory-card messages were already here; this one was not. The
+     * leading \x07 is the colour byte every message in that box carries. */
+    { "\x07You_removed_the_MEMORY_CARD!",
+        { "\x07MEMORY_CARD_entfernt!", "\x07MEMORY_CARD_retir\xE9" "e_!",
+          "\x07\xA1MEMORY_CARD_retirada!", "\x07MEMORY_CARD_rimossa!" } },
 
     /* --- Results screen (a value follows each label) --- */
     { "Defeated_enemy_by_fighting",
