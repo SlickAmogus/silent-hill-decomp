@@ -27,18 +27,31 @@ ROW = r'\{\s*((?:' + STR + r'\s*)+),\s*\{(.*?)\}\s*\}'
 
 
 def c_rows(path, start=None, cols=4):
-    """Rows of a { "us", { a, b, c, d } } table, us -> [4 values or None]."""
+    """Rows of a { "us", { a, b, c, d } } table, us -> [4 values or None].
+
+    A column may be several adjacent literals rather than one: the table splits
+    after a \\xNN escape whose next character is a hex digit ("Fran\\xE7" "ais"),
+    because the escape would otherwise swallow it. So columns are split on the
+    commas and each column's literals are joined -- counting literals instead
+    would see five in a four-column row and skip it, which silently hid every
+    accented translation in the table."""
     s = io.open(path, encoding='utf-8', errors='surrogateescape').read()
     if start:
         s = s[s.index(start):]
         s = s[:s.index('\n};')]
     out = {}
     for m in re.finditer(ROW, s, re.S):
-        us = ''.join(re.finditer and re.findall(STR, m.group(1)))
-        vals = re.findall(STR + r'|\bNULL\b', m.group(3))
-        if len(vals) != cols:
+        us = ''.join(re.findall(STR, m.group(1)))
+        parts = [p.strip() for p in re.split(r',(?![^"]*"(?:[^"]*"[^"]*")*[^"]*$)',
+                                             m.group(3))]
+        parts = [p for p in parts if p]
+        if len(parts) != cols:
             continue
-        out[us] = [v if v else None for v in vals]
+        vals = []
+        for p in parts:
+            lits = re.findall(STR, p)
+            vals.append(''.join(lits) if lits else None)
+        out[us] = vals
     return out
 
 

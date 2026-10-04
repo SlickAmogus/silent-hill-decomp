@@ -1397,7 +1397,7 @@ static void cmd_about(void)
  * regard to case. */
 static int StrCaseEq(const char* a, const char* b)
 {
-    for (; *a != ' ' && *b != ' '; a++, b++)
+    for (; *a != '\0' && *b != '\0'; a++, b++)
     {
         int ca = (*a >= 'A' && *a <= 'Z') ? (*a + 32) : *a;
         int cb = (*b >= 'A' && *b <= 'Z') ? (*b + 32) : *b;
@@ -1578,7 +1578,7 @@ void Pc_ConsoleExec(const char* line)
             g_PcConfig.menuStyle = TITLE_STYLE_PAL;
         else if (StrCaseEq(arg, "japanese") || StrCaseEq(arg, "jp") || StrCaseEq(arg, "ntscj"))
             g_PcConfig.menuStyle = TITLE_STYLE_JP;
-        else if (arg[0] != ' ') {
+        else if (arg[0] != '\0') {
             cprintf("usage: MENUSTYLE auto|us|pal|japanese");
             return;
         } else {

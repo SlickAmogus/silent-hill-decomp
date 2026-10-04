@@ -313,6 +313,84 @@ static const s_MenuTranslation s_MenuTr[] = {
           "Je_n'ai_pas_la_carte\n\t\tde_ce_lieu.",
           "No_tengo_el_mapa\n\t\tde_este_lugar.",
           "Non_ho_la_mappa\n\t\tdi_questo_posto." } },
+
+    /* --- Language row values --- */
+    { "English",
+        { "Englisch", "Anglais", "Ingl\xE9s", "Inglese" } },
+    { "German",
+        { "Deutsch", "Allemand", "Alem\xE1n", "Tedesco" } },
+    { "French",
+        { "Franz\xF6sisch", "Fran\xE7" "ais", "Franc\xE9s", "Francese" } },
+    { "Spanish",
+        { "Spanisch", "Espagnol", "Espa\xF1ol", "Spagnolo" } },
+    { "Italian",
+        { "Italienisch", "Italien", "Italiano", "Italiano" } },
+    { "Japanese",
+        { "Japanisch", "Japonais", "Japon\xE9s", "Giapponese" } },
+    { "Chinese",
+        { "Chinesisch", "Chinois", "Chino", "Cinese" } },
+
+    /* --- Inventory: whether the item can be used here (max ~10) --- */
+    { "==Use_OK==",
+        { "==Geht==", "==OK==", "==S\xED==", "==S\xEC==" } },
+    { "==Use_OK?==",
+        { "==Geht?==", "==OK?==", "==S\xED?==", "==S\xEC?==" } },
+    { "==Use_NG==",
+        { "==Nein==", "==Non==", "==No==", "==No==" } },
+
+    /* --- Inventory + pause --- */
+    { "PAUSE",
+        { NULL, NULL, "PAUSA", "PAUSA" } },
+    { "PAUSED",
+        { "PAUSIERT", "EN_PAUSE", "EN_PAUSA", "IN_PAUSA" } },
+
+    /* --- Memory card messages --- */
+    { "Is_it_OK_to_overwrite?",
+        { "\xDC" "berschreiben?", "Remplacer_?", "\xBFSobrescribir?", "Sovrascrivere?" } },
+    { "Is_it_OK_to_format?",
+        { "Formatieren?", "Formater_?", "\xBF" "Formatear?", "Formattare?" } },
+    { "You_removed_the_MEMORY_CARD!",
+        { "MEMORY_CARD_entfernt!", "MEMORY_CARD_retir\xE9" "e_!", "\xA1MEMORY_CARD_retirada!", "MEMORY_CARD_rimossa!" } },
+    { "Now_formatting...",
+        { "Formatiere...", "Formatage...", "Formateando...", "Formattazione..." } },
+    { "Unable_to_create_a_new_file.",
+        { "Datei_nicht_erstellbar.", "Cr\xE9" "ation_impossible.", "No_se_puede_crear.", "Impossibile_creare." } },
+    { "Finished_saving.",
+        { "Gespeichert.", "Sauvegard\xE9.", "Guardado.", "Salvato." } },
+    { "Failed_to_save!",
+        { "Speichern_fehlgeschlagen!", "\xC9" "chec_de_sauvegarde_!", "\xA1" "Error_al_guardar!", "Salvataggio_fallito!" } },
+    { "The_data_is_not_found!",
+        { "Keine_Daten_gefunden!", "Donn\xE9" "es_introuvables_!", "\xA1" "Datos_no_encontrados!", "Dati_non_trovati!" } },
+    { "The_data_is_damaged!",
+        { "Daten_besch\xE4" "digt!", "Donn\xE9" "es_corrompues_!", "\xA1" "Datos_da\xF1" "ados!", "Dati_danneggiati!" } },
+    { "Failed_to_load!",
+        { "Laden_fehlgeschlagen!", "\xC9" "chec_du_chargement_!", "\xA1" "Error_al_cargar!", "Caricamento_fallito!" } },
+    { "Finished_loading.",
+        { "Geladen.", "Charg\xE9.", "Cargado.", "Caricato." } },
+    { "Now_loading...",
+        { "Lade...", "Chargement...", "Cargando...", "Caricamento..." } },
+
+    /* --- Results screen (a value follows each label) --- */
+    { "Defeated_enemy_by_fighting",
+        { "Im_Kampf_besiegt", "Vaincus_au_combat", "Vencidos_luchando", "Sconfitti_in_lotta" } },
+
+    /* --- PC Options rows (max ~14..17) --- */
+    { "[R]_Reset",
+        { "[R]_Zur\xFC" "cksetzen", "[R]_R\xE9init.", "[R]_Reiniciar", "[R]_Ripristina" } },
+
+    /* --- Setting values (max ~11). A technical term keeps its English. --- */
+    { "VSync",                           { NULL, NULL, NULL, NULL } },
+    { "PGXP",                            { NULL, NULL, NULL, NULL } },
+    { "Aniso_2x",                        { NULL, NULL, NULL, NULL } },
+    { "Aniso_4x",                        { NULL, NULL, NULL, NULL } },
+    { "Aniso_8x",                        { NULL, NULL, NULL, NULL } },
+    { "Aniso_16x",                       { NULL, NULL, NULL, NULL } },
+    { "CRT",                             { NULL, NULL, NULL, NULL } },
+    { "PSX_Retro",                       { NULL, NULL, NULL, NULL } },
+    { "Reinhard",                        { NULL, NULL, NULL, NULL } },
+    { "ACES",                            { NULL, NULL, NULL, NULL } },
+    { "30_Hz",                           { NULL, NULL, NULL, NULL } },
+    { "60_Hz",                           { NULL, NULL, NULL, NULL } },
 };
 
 const char* Pc_LangMenuText(const char* str)
