@@ -56,6 +56,20 @@ int Pc_SfxOverride_Lookup(int spuAddr, const short** outPcm, int* outSampleCount
 /* Drop everything (map teardown / shutdown). */
 void Pc_SfxOverride_Reset(void);
 
+/* One sample the sound driver would key for a note, decoded. pcm is malloc'd
+ * mono (caller frees); rate is its playback rate for that note; gainL/R are
+ * the voice volume the driver would set, as 0..1, before the caller's own. */
+typedef struct
+{
+    short* pcm;
+    int    count, rate;
+    float  gainL, gainR;
+} PcVabLayer;
+
+/* Decodes every tone program `prog` of a whole VAB held in memory plays for
+ * `note`, up to `max` of them. Returns how many were filled. */
+int Pc_SfxOverride_DecodeVabNote(const unsigned char* vab, long size, int prog, int note, PcVabLayer* out, int max);
+
 #endif /* SH_PC_PORT */
 
 #endif /* PC_SFX_OVERRIDE_H */

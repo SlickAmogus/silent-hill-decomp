@@ -12,7 +12,8 @@
     url = https://github.com/mkst/maspsx.git
 [submodule "pc_port/PsyCross"]
 	path = pc_port/PsyCross
-	url = https://github.com/SlickAmogus/PsyCross.git
+	url = https://github.com/mcauzzi/PsyCross-panda.git
+	branch = panda
 [submodule "pc_port/third_party/rcheevos"]
 	path = pc_port/third_party/rcheevos
 	url = https://github.com/RetroAchievements/rcheevos.git
