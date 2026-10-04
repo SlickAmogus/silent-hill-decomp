@@ -88,6 +88,8 @@ static int s_RussianLayoutActive;
  * so the pre-title reload PAL already does is needed here too. */
 static int s_EurAtlasImported;
 
+#define EUR_ATLAS_PATH "gamedata/font/eur16.tim"
+
 /* == FONT_12X16_LINE_COUNT_MAX (see font_region.h). Region-independent default
  * so USA and NTSC-J evaluate every site exactly as before; Font_ApplyRegionPatches
  * raises it to retail PAL's ten. */
@@ -452,6 +454,24 @@ void Font_UseEurAtlas(void)
     if (g_GameRegion == Region_EUR)
         return;
 
+    /* Only move the descriptor if the atlas is actually there to put in it.
+     * An install missing this file would otherwise point FONT16 at a VRAM home
+     * nothing ever fills, and every glyph would draw from blank memory -- the
+     * language would be unreadable rather than merely unaccented. Falling back
+     * leaves the disc's own atlas in place, which is where this started. */
+    {
+        FILE* probe = fopen(EUR_ATLAS_PATH, "rb");
+
+        if (probe == NULL)
+        {
+            SH_WARN("[FONT] %s is missing - keeping this disc's own atlas, so a "
+                    "pack language draws base letters instead of accents",
+                    EUR_ATLAS_PATH);
+            return;
+        }
+        fclose(probe);
+    }
+
     g_Font16AtlasImg.tPage[0] = 0;
     g_Font16AtlasImg.tPage[1] = 12;
     g_Font16AtlasImg.u        = 0;
@@ -691,7 +711,7 @@ void Font_AtlasReloadNow(void)
     if (size == 0)
         return;
 
-    raw = s_EurAtlasImported ? FontReadFile("gamedata/font/eur16.tim", &size)
+    raw = s_EurAtlasImported ? FontReadFile(EUR_ATLAS_PATH, &size)
                              : Pc_LangReadDiscFile(info->startSector, size);
     if (raw == NULL)
     {
