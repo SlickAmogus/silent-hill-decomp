@@ -317,8 +317,8 @@ static const s_MenuTranslation s_MenuTr[] = {
 
 const char* Pc_LangMenuText(const char* str)
 {
-    int lang = g_PcConfig.language;
     int i;
+    int col;
 
     if (str == NULL)
         return str;
@@ -346,14 +346,20 @@ const char* Pc_LangMenuText(const char* str)
     if (Pc_LangPackActive())
     {
         const char* tr = Pc_LangPackMenu(str);
-        return tr ? tr : str;
+
+        if (tr != NULL)
+            return tr;
+        /* Not in the pack: a de/fr/es/it pack still has a column below. */
     }
 
     /* EUR discs always; USA only when a fan-translated disc is active (its
      * story/item text comes from the disc, these tables cover the menus the
-     * patch can't reach — the port renders menus from compiled strings). */
-    if (!(g_GameRegion == Region_EUR || (g_GameRegion == Region_USA && Pc_FanTextActive())) ||
-        lang < 1 || lang > 4)
+     * patch can't reach — the port renders menus from compiled strings). And
+     * any disc for a pack with a column, which is the same language. */
+    col = Pc_LangPalColumn();
+    if (col < 0 ||
+        !(g_GameRegion == Region_EUR || Pc_LangPackActive() ||
+          (g_GameRegion == Region_USA && Pc_FanTextActive())))
     {
         return str;
     }
@@ -362,7 +368,7 @@ const char* Pc_LangMenuText(const char* str)
     {
         if (s_MenuTr[i].us[0] == str[0] && strcmp(s_MenuTr[i].us, str) == 0)
         {
-            return s_MenuTr[i].tr[lang - 1] ? s_MenuTr[i].tr[lang - 1] : str;
+            return s_MenuTr[i].tr[col] ? s_MenuTr[i].tr[col] : str;
         }
     }
 
@@ -432,17 +438,50 @@ int Pc_LangMenuTextWidth(const char* str)
     return width;
 }
 
+/* Which column of the compiled de/fr/es/it tables this language reads.
+ *
+ * Those tables were written for the PAL disc, where German is language 1. The
+ * PACK called "de" is the same language and wants the same menus, overlays and
+ * prompts -- it carries the story and the items, and nothing else -- so it maps
+ * to the same column rather than falling back to English on a US disc. Packs
+ * with no column (Polish, Russian, Japanese, Chinese) carry their own and are
+ * unaffected. Returns -1 when there is no column to read. */
+int Pc_LangPalColumn(void)
+{
+    int lang = g_PcConfig.language;
+    int i;
+
+    if (lang >= 1 && lang < LANG_PACK_FIRST && lang != LANG_EN_US)
+        return lang - 1;
+
+    if (Pc_LangPackActive())
+    {
+        const char* code = Pc_LangIdForSlot(lang);
+
+        for (i = 1; i < LANG_PACK_FIRST; i++)
+        {
+            if (i != LANG_EN_US && strcmp(code, s_LangIds[i]) == 0)
+                return i - 1;
+        }
+    }
+    return -1;
+}
+
 const char* Pc_LangMenuPal(const char* us, int lang)
 {
     int i;
 
-    if (us == NULL || lang < 1 || lang > 4)
+    /* `lang` 1..4 is the retail numbering; a pack passes -1 and the column is
+     * resolved from its code instead. */
+    int col = (lang >= 1 && lang <= 4) ? (lang - 1) : Pc_LangPalColumn();
+
+    if (us == NULL || col < 0)
         return NULL;
 
     for (i = 0; i < (int)(sizeof(s_MenuTr) / sizeof(s_MenuTr[0])); i++)
     {
         if (s_MenuTr[i].us[0] == us[0] && strcmp(s_MenuTr[i].us, us) == 0)
-            return s_MenuTr[i].tr[lang - 1];
+            return s_MenuTr[i].tr[col];
     }
     return NULL;
 }

@@ -116,7 +116,13 @@ const char* Pc_LangMenuText(const char* str);
 
 /* The DE/FR/ES/IT column (lang 1..4) of the menu table for one US literal, as
  * Latin-1; NULL when absent. Region-blind: lang_quick.c decides when it applies. */
+/* `lang` 1..4 is the retail numbering; pass -1 for "whatever column the
+ * current language maps to", which is how a de/fr/es/it PACK reads these. */
 const char* Pc_LangMenuPal(const char* us, int lang);
+
+/* Column 0..3 of the compiled de/fr/es/it tables for the current language, or
+ * -1 if it has none. A pack of the same name maps to the same column. */
+int         Pc_LangPalColumn(void);
 int         Pc_LangMenuTextWidth(const char* str);
 
 /* Report every layer of the current language (pack, story, item text, font)
