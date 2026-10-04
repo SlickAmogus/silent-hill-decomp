@@ -154,6 +154,9 @@ Spenta di default: senza, l'HUD è solo scena. Accesa (e con l'HUD attivo):
     pistola; traccianti gialli nell'HUD.
   - **R1**: azione (porte, oggetti, e sparo con l'arma mentre miri), al posto
     di X. Il passo laterale destro su R1 non c'è più in modalità arcade.
+    Con le telecamere alternative (TPS, OTS, prima persona) l'azione è **RB**
+    sul controller, anche se lì non è assegnato, ed **E** sulla tastiera; RT,
+    A e il clic sinistro sono la mitragliatrice.
   - La rimappatura vale solo in gioco (non in menu, inventario, mappa,
     messaggi) e non tocca la configurazione dei tasti salvata. Senza LOCK ON Cerchio resta
   la torcia. 2 missili, uno torna ogni 12 s; `MSL` accanto a `FLR`,
