@@ -34,6 +34,7 @@
 #include "pc_bind_panel.h"
 #include "pc_mouse_cursor.h"
 #include "pc_config.h"
+#include "lang_text.h"
 #include "pc_cheats.h"
 #include "control_style.h"
 #include "lang_quick.h"
@@ -906,18 +907,51 @@ static int qo_font_check(void)
 
 static void qo_fonts_init(void)
 {
-    static const char* paths[] = {
+    /* Oswald carries Latin and Cyrillic, which is why Russian draws here, but
+     * no font the port ships has a single kana or kanji -- Japanese and Chinese
+     * would be rows of empty boxes. A CJK face is far too large to ship for an
+     * overlay, and every Windows install already has one, so those are tried
+     * FIRST when the language needs them and ignored otherwise. */
+    static const char* const cjk[] = {
+        "C:/Windows/Fonts/YuGothM.ttc",
+        "C:/Windows/Fonts/meiryo.ttc",
+        "C:/Windows/Fonts/msgothic.ttc",
+        "C:/Windows/Fonts/simsun.ttc",
+        "C:/Windows/Fonts/msyh.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+    };
+    static const char* paths[12] = {
         "gamedata/font/Oswald-Regular.ttf",
         "gamedata/font/BarlowSemiCondensed-Regular.ttf",
         "C:/Windows/Fonts/segoeui.ttf",
         "C:/Windows/Fonts/arial.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     };
+    int count = 5;
     int i;
     if (s_fontsTried)
         return;
     s_fontsTried = 1;
-    for (i = 0; i < (int)(sizeof(paths) / sizeof(paths[0])); i++)
+
+    if (Pc_LangSjisActive())
+    {
+        /* Shift it along rather than replacing: if no CJK face is installed the
+         * Latin ones still answer, and the overlay stays readable in English
+         * instead of disappearing. */
+        int n = (int)(sizeof(cjk) / sizeof(cjk[0]));
+        int k;
+
+        if (n > (int)(sizeof(paths) / sizeof(paths[0])) - count)
+            n = (int)(sizeof(paths) / sizeof(paths[0])) - count;
+        for (k = count - 1; k >= 0; k--)
+            paths[k + n] = paths[k];
+        for (k = 0; k < n; k++)
+            paths[k] = cjk[k];
+        count += n;
+    }
+
+    for (i = 0; i < count; i++)
     {
         long           sz   = 0;
         unsigned char* data = qo_read_file(paths[i], &sz);

@@ -196,6 +196,34 @@ QUICK = c_rows(os.path.join(HERE, '..', 'src', 'lang_quick_pal.inc'))
 JPN_UI = os.path.join(HERE, '..', 'src', 'lang_jpn_pcopt.inc')
 
 
+ALL_ITEM_KEYS = set()  # filled in main() once the template is read
+
+
+def jpn_item_keys():
+    """Japanese item text is compiled in (INVENTORY_ITEM_NAMES_JPN and
+    ITEM_DESCRIPTIONS_JPN), installed by Pc_LangInit rather than carried in the
+    pack, so ja.lang holds none of it and it is not a gap."""
+    path = os.path.join(HERE, '..', 'src', 'lang_jpn_items.inc')
+    if not os.path.exists(path):
+        return set()
+    s = io.open(path, encoding='utf-8', errors='surrogateescape').read()
+    out = set()
+    # Two flat arrays, one entry per item index in order.
+    for array, prefix in (('INVENTORY_ITEM_NAMES_JPN', 'ITEM_NAME'),
+                          ('ITEM_DESCRIPTIONS_JPN', 'ITEM_DESC')):
+        m = re.search(re.escape(array) + r'\[\]\s*=\s*\{(.*?)\n\};', s, re.S)
+        if not m:
+            continue
+        # The array's own index is not the template's item id (the template's
+        # run past 131, the arrays hold 78), and matching them up would prove
+        # nothing: these tables ARE the decomp's NTSC-J branch, so they are
+        # complete by construction and the runtime installs them wholesale.
+        # Credit the set rather than guess at a mapping.
+        if re.search(STR, m.group(1)):
+            out |= set(k for k in ALL_ITEM_KEYS if k.startswith(prefix))
+    return out
+
+
 def jpn_pcopt_keys():
     s = io.open(JPN_UI, encoding='utf-8', errors='surrogateescape').read()
     out = set()
@@ -206,6 +234,7 @@ def jpn_pcopt_keys():
 
 def main():
     keys = [(k, e) for k, e in template_keys() if needs_translation(k, e)]
+    ALL_ITEM_KEYS.update(k for k, _e in keys if kind(k).startswith('ITEM_'))
     allk = [k for k, _en in keys]
     kinds = ('story', 'MENU', 'QUICK', 'ITEM_NAME', 'ITEM_DESC')
     by = {g: [k for k in allk if kind(k) == g] for g in kinds}
@@ -214,7 +243,7 @@ def main():
         code = sys.argv[2]
         got = covered(code, allk)
         if code == 'ja':
-            got |= jpn_pcopt_keys()
+            got |= jpn_pcopt_keys() | jpn_item_keys()
         got |= decided(code)
         en = dict(keys)
         n = 0
@@ -234,7 +263,7 @@ def main():
     for code in ('de', 'fr', 'es', 'it', 'pl', 'ru', 'ja', 'zh', 'en_pal'):
         got = covered(code, allk)
         if code == 'ja':
-            got |= jpn_pcopt_keys()
+            got |= jpn_pcopt_keys() | jpn_item_keys()
         dec = decided(code) - got
         cells = []
         for g in kinds:
