@@ -96,6 +96,21 @@ def template_keys():
     return keys
 
 
+CODE = re.compile(r'~[A-Z][0-9]?(\([0-9.]*\))?')
+
+
+def needs_translation(key, en):
+    """False for an entry a translation cannot differ in.
+
+    58 story entries carry no words at all -- a timed pause and an end marker
+    ("~J0(13.2) ~E"), a select prompt ("~S3"), or a "=======" separator. A pack
+    rightly has no entry for them and the English fallback is identical, so
+    counting them as untranslated overstated every language by 58 lines."""
+    if not key.startswith(('COMMON', 'MAP')):
+        return True
+    return bool(re.search(r'[^\W_]', CODE.sub('', en or ''), re.UNICODE))
+
+
 def kind(k):
     p = k.split('.')[0]
     return 'story' if p.startswith(('COMMON', 'MAP')) else p
@@ -135,13 +150,32 @@ def covered(code, keys):
     return got
 
 
+def supplement_same(code):
+    """A language's own record of entries where English IS the translation.
+
+    Expressed as a SAME set in localization/<code>_supplement.py, which is the
+    pack equivalent of an explicit NULL column in the compiled tables: a name
+    that does not change (Harry, Katana), a technical term Polish keeps (ACES,
+    Aniso 8x), the engine's own "NO STAGE!" placeholder. Nothing is written for
+    them -- an identical value is dropped on import and the fallback yields the
+    same text -- so without this they read as untranslated forever."""
+    path = os.path.join(HERE, '..', 'localization', '%s_supplement.py' % code)
+    if not os.path.exists(path):
+        return set()
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('sup_' + code, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return set(getattr(mod, 'SAME', ()))
+
+
 def decided(code):
     """Keys deliberately left English: the row exists and its column is NULL.
 
     VSync, PGXP, ACES, Aniso 8x and the like are the same word in every one of
     these languages, so NULL is the answer rather than a gap. Separating the two
     is the difference between 'nobody looked at this' and 'we looked'."""
-    out = set()
+    out = supplement_same(code)
     if code not in COLS:
         return out
     col = COLS.index(code)
@@ -171,7 +205,7 @@ def jpn_pcopt_keys():
 
 
 def main():
-    keys = template_keys()
+    keys = [(k, e) for k, e in template_keys() if needs_translation(k, e)]
     allk = [k for k, _en in keys]
     kinds = ('story', 'MENU', 'QUICK', 'ITEM_NAME', 'ITEM_DESC')
     by = {g: [k for k in allk if kind(k) == g] for g in kinds}

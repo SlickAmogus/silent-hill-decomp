@@ -80,6 +80,9 @@ MENU = {
     'French':   'Французский',
     'Spanish':  'Испанский',
     'Italian':  'Итальянский',
+    # Both of these are reachable on any disc now, so the row needs them.
+    'Japanese': 'Японский',
+    'Chinese':  'Китайский',
     'Low_HP_Glow':      'Свечение_ран',
     'Crosshair':        'Прицел',
     'Crosshair_Size':   'Размер_прицела',

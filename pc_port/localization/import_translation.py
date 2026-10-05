@@ -438,6 +438,38 @@ def esc(s):
     return s.replace("\n", "\\n").replace("\t", "\\t")
 
 
+def apply_supplement(tr, path, raw):
+    """Fill entries the translation file left blank, from a supplement module.
+
+    The translator's file is their work and is not edited; this is where our own
+    additions live. An entry already translated is never overwritten. The
+    module's SAME set is documentation -- it names entries where English IS the
+    translation, so a later audit can tell "we looked" from "nobody looked" --
+    and nothing is written for those, because an identical value would be
+    dropped below and the runtime fallback yields the same text."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("lang_supplement", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    n = 0
+    for attr, prefix, keyfix in (("STORY", "", None),
+                                 ("MENU", "MENU.", lambda k: k.replace("=", "-")),
+                                 ("QUICK", "QUICK.",
+                                  lambda k: k.replace(" ", "_").replace("=", "-"))):
+        for k, v in getattr(mod, attr, {}).items():
+            key = prefix + (keyfix(k) if keyfix else k)
+            if key not in raw:
+                print("  ! supplement key not in the source: %s" % key)
+                continue
+            if tr.get(key, ("", 0))[0]:
+                continue  # the translator already did this one
+            tr[key] = (v, 0)
+            n += 1
+    return n
+
+
 def main():
     try:
         sys.stdout.reconfigure(encoding="utf-8")
@@ -448,9 +480,11 @@ def main():
     ap.add_argument("--code", required=True, help="language id, e.g. pl")
     ap.add_argument("--name", required=True, help="English name, e.g. Polish")
     ap.add_argument("--menu", default=None, help="options-menu label (default: --name)")
-    ap.add_argument("--font", default="latin", choices=["latin", "polish", "cyrillic"],
+    ap.add_argument("--font", default="latin", choices=["latin", "polish", "cyrillic", "sjis", "chinese"],
                     help="glyph set the pack needs (lang_pack.c !font)")
     ap.add_argument("--out", default=None, help="output .lang path")
+    ap.add_argument("--supplement", default=None,
+                    help="a .py module whose STORY/MENU/QUICK dicts fill blank entries")
     args = ap.parse_args()
 
     out_path = args.out or os.path.join(
@@ -464,6 +498,10 @@ def main():
     tr = parse_translation(args.src)
     print("source entries : %d" % len(raw))
     print("translated file: %d keys" % len(tr))
+
+    if args.supplement:
+        added = apply_supplement(tr, args.supplement, raw)
+        print("supplement     : %d filled" % added)
 
     missing = [k for k in raw if k not in tr]
     unknown = [k for k in tr if k not in raw]

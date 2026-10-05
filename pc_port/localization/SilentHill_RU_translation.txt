@@ -115,12 +115,12 @@ RU: Итальянский
 [MENU.Japanese]
 NOTE: Options > Language row
 EN: Japanese
-RU: 
+RU: Японский
 
 [MENU.Chinese]
 NOTE: Options > Language row
 EN: Chinese
-RU: 
+RU: Китайский
 
 [MENU.Can't_use_it_here.]
 NOTE: inventory prompt
@@ -702,7 +702,7 @@ EN: Window Mode
 RU: Режим_окна
 
 [MENU.VSync]
-NOTE: row name, Graphics page, max ~14 characters
+NOTE: row name, Graphics page, max ~14 characters (also used in the original menus)
 EN: VSync
 RU: Вертик._синхр.
 
@@ -712,7 +712,7 @@ EN: Texture Filter
 RU: Фильтрация
 
 [MENU.PGXP]
-NOTE: row name, Graphics page, max ~14 characters
+NOTE: row name, Graphics page, max ~14 characters (also used in the original menus)
 EN: PGXP
 RU: Коррекция
 
@@ -947,27 +947,27 @@ EN: Trilinear
 RU: Трилинейный
 
 [MENU.Aniso_2x]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: Aniso 2x
 RU: Анизо_2х
 
 [MENU.Aniso_4x]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: Aniso 4x
 RU: Анизо_4х
 
 [MENU.Aniso_8x]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: Aniso 8x
 RU: Анизо_8х
 
 [MENU.Aniso_16x]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: Aniso 16x
 RU: Анизо_16х
 
 [MENU.CRT]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: CRT
 RU: ЭЛТ
 
@@ -997,7 +997,7 @@ EN: Sharpen
 RU: Резкость
 
 [MENU.PSX_Retro]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: PSX Retro
 RU: Ретро
 
@@ -1007,12 +1007,12 @@ EN: Cinematic
 RU: Кино
 
 [MENU.Reinhard]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: Reinhard
 RU: Рейнхард
 
 [MENU.ACES]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: ACES
 RU: Эйсес
 
@@ -1072,12 +1072,12 @@ EN: Circle
 RU: Круг
 
 [MENU.30_Hz]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: 30 Hz
 RU: 30_Гц
 
 [MENU.60_Hz]
-NOTE: setting value, max ~11 characters
+NOTE: setting value, max ~11 characters (also used in the original menus)
 EN: 60 Hz
 RU: 60_Гц
 
