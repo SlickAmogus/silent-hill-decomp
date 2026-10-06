@@ -584,6 +584,12 @@ unsigned long long ShSteam_Member(int i)
     return (i >= 0 && i < s_memberCount) ? s_members[i] : 0;
 }
 
+/* Lowest valid individual SteamID64 (0x0110_0001_0000_0000): universe=public,
+ * type=individual. Steam has been seen reporting a bogus member with a tiny,
+ * zero-universe id that spams membership-change callbacks; anything below this
+ * is not a real player. */
+#define SHSTEAM_STEAMID64_MIN 0x0110000100000000ULL
+
 #if defined(_WIN32)
 static void ShSteam_RefreshMembers(void)
 {
@@ -601,7 +607,14 @@ static void ShSteam_RefreshMembers(void)
     }
     for (i = 0; i < n; i++)
     {
-        s_members[s_memberCount++] = s_MemberByIndex(s_iMatchmaking, s_lobbyId, i);
+        u64_ id = s_MemberByIndex(s_iMatchmaking, s_lobbyId, i);
+        /* A bogus id in the table would make the peer-session accept check
+         * (ShSteam_OnSessionRequest) reject the real player, killing the link. */
+        if (id < SHSTEAM_STEAMID64_MIN)
+        {
+            continue;
+        }
+        s_members[s_memberCount++] = id;
     }
 }
 #endif
@@ -909,8 +922,13 @@ static void ShSteam_OnLobbyChatUpdate(const u8_* p, int cb)
         memcpy(&changed, p + 8, sizeof(changed));
     }
     ShSteam_RefreshMembers();
-    SH_DBG("[STEAM] lobby membership changed (%llu) - %d member(s) now",
-           (unsigned long long)changed, s_memberCount);
+    /* Only a real account is worth reporting; the bogus-id churn (filtered out of
+     * the member table above) would otherwise spam the log. */
+    if (changed >= SHSTEAM_STEAMID64_MIN)
+    {
+        SH_DBG("[STEAM] lobby membership changed (%llu) - %d member(s) now",
+               (unsigned long long)changed, s_memberCount);
+    }
 }
 
 static void ShSteam_OnJoinRequested(const u8_* p, int cb)
