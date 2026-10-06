@@ -19,9 +19,37 @@
 #include "sh_net_proto.h"
 #include "sh_net_session.h"
 #include "sh_net_steam.h"
+#include "sh_net_coopudp.h"
 #include "sh_net_coop.h"
 #include "pc_config.h"
 #include "sh_log.h"
+
+/* Which transport this co-op session is riding. Steam P2P by default; switched to
+ * the relay server when the player hosts/joins through a server. */
+#define COOP_BACKEND_STEAM 0
+#define COOP_BACKEND_UDP   1
+static int s_backend = COOP_BACKEND_STEAM;
+
+/* Transport primitives, dispatched to the active backend. The session logic
+ * below is written against these, so it is identical for Steam and the server. */
+static unsigned long long Tp_SelfId(void)
+{ return s_backend == COOP_BACKEND_UDP ? CoopUdp_SelfId() : ShSteam_SelfId(); }
+static int Tp_MemberCount(void)
+{ return s_backend == COOP_BACKEND_UDP ? CoopUdp_MemberCount() : ShSteam_MemberCount(); }
+static unsigned long long Tp_Member(int i)
+{ return s_backend == COOP_BACKEND_UDP ? CoopUdp_Member(i) : ShSteam_Member(i); }
+static const char* Tp_NameOf(unsigned long long id)
+{ return s_backend == COOP_BACKEND_UDP ? CoopUdp_NameOf(id) : ShSteam_NameOf(id); }
+static int Tp_IsHost(void)
+{ return s_backend == COOP_BACKEND_UDP ? CoopUdp_IsHost() : ShSteam_IsLobbyOwner(); }
+static int Tp_Active(void)
+{ return s_backend == COOP_BACKEND_UDP ? CoopUdp_Active() : (ShSteam_LobbyState() == SHSTEAM_LOBBY_IN); }
+static unsigned long long Tp_LobbyId(void)
+{ return s_backend == COOP_BACKEND_UDP ? CoopUdp_RoomId() : ShSteam_LobbyId(); }
+static void Tp_Send(unsigned long long to, const shn_u8* buf, int len, int reliable)
+{ if (s_backend == COOP_BACKEND_UDP) CoopUdp_Send(to, buf, len); else ShSteam_Send(to, buf, len, reliable); }
+static int Tp_Recv(unsigned long long* from, shn_u8* buf, int cap)
+{ return s_backend == COOP_BACKEND_UDP ? CoopUdp_Recv(from, buf, cap) : ShSteam_Recv(from, buf, cap); }
 
 /* Round trip to each member, and how long before a silent member is no longer
  * called linked. A session is a handful of friends, so this can be leisurely. */
@@ -55,6 +83,16 @@ static struct
     int                wantWorldMap; /* host: send S_WORLD(map) to guests; -1 none */
 
     int                hostGuestDebug; /* host: allow joined players debug controls (0 default) */
+
+    /* Co-op over a relay server (vs Steam). Set by the server host/join/list
+     * requests; the Tick arms the UDP backend from them. */
+    char               coopHost[80];
+    int                coopPort;
+    int                coopMax;
+    int                coopJoinCode;
+    int                wantHostServer;
+    int                wantJoinServer;
+    int                wantListServer;
 } s_req;
 
 static struct
@@ -120,20 +158,21 @@ void ShSession_Init(void)
     s_req.wantWorldMap = -1;
     s_pub.worldReq     = -1;
 
-    /* Steam always comes up: this build always offers the Multiplayer menu, and
-     * host/join need it. ShSteam_Init fails gracefully (returns 0) when there is
-     * no steam_api64.dll or Steam is not running, in which case the Multiplayer
-     * menu simply reports it. */
+    /* The server (UDP) co-op transport does not need Steam, so it always comes
+     * up. Steam is a second transport on top: ShSteam_Init fails gracefully
+     * (returns 0) with no steam_api64.dll or no Steam running, and then only the
+     * "join a friend" path is unavailable -- server rooms still work. */
+    CoopUdp_Init();
+
     s_enabled = ShSteam_Init((unsigned int)g_PcConfig.onlineSteamAppId);
     if (!s_enabled)
     {
-        SDL_strlcpy(s_pub.status, "Steam: unavailable", sizeof(s_pub.status));
-        return;
+        SDL_strlcpy(s_pub.status, "Steam unavailable (server co-op still works)",
+                    sizeof(s_pub.status));
     }
-
     /* A lobby id on the command line means the player clicked Join on a
      * friend before the game existed; honour it as soon as we are up. */
-    if (g_PcConfig.onlineSteamAutoHost)
+    else if (g_PcConfig.onlineSteamAutoHost)
     {
         SDL_LockMutex(s_lock);
         s_req.wantHost = 1;
@@ -160,6 +199,7 @@ void ShSession_Shutdown(void)
         ShSteam_Shutdown();
         s_enabled = 0;
     }
+    CoopUdp_Shutdown();
     if (s_lock)
     {
         SDL_DestroyMutex(s_lock);
@@ -176,6 +216,38 @@ void ShSession_RequestHost(void)
     if (!s_lock) return;
     SDL_LockMutex(s_lock);
     s_req.wantHost = 1;
+    SDL_UnlockMutex(s_lock);
+}
+
+void ShSession_RequestHostServer(const char* host, int port, int maxPlayers)
+{
+    if (!s_lock || !host || !host[0]) return;
+    SDL_LockMutex(s_lock);
+    SDL_strlcpy(s_req.coopHost, host, sizeof(s_req.coopHost));
+    s_req.coopPort       = port ? port : SHNET_DEFAULT_PORT;
+    s_req.coopMax        = maxPlayers;
+    s_req.wantHostServer = 1;
+    SDL_UnlockMutex(s_lock);
+}
+
+void ShSession_RequestJoinServer(const char* host, int port, int code)
+{
+    if (!s_lock || !host || !host[0] || code <= 0) return;
+    SDL_LockMutex(s_lock);
+    SDL_strlcpy(s_req.coopHost, host, sizeof(s_req.coopHost));
+    s_req.coopPort       = port ? port : SHNET_DEFAULT_PORT;
+    s_req.coopJoinCode   = code;
+    s_req.wantJoinServer = 1;
+    SDL_UnlockMutex(s_lock);
+}
+
+void ShSession_RequestListServer(const char* host, int port)
+{
+    if (!s_lock || !host || !host[0]) return;
+    SDL_LockMutex(s_lock);
+    SDL_strlcpy(s_req.coopHost, host, sizeof(s_req.coopHost));
+    s_req.coopPort       = port ? port : SHNET_DEFAULT_PORT;
+    s_req.wantListServer = 1;
     SDL_UnlockMutex(s_lock);
 }
 
@@ -365,7 +437,7 @@ static void ShSession_SyncMembers(void)
     unsigned int    freshSeen[SHSESSION_MAX_MEMBERS];
     unsigned int    freshSent[SHSESSION_MAX_MEMBERS];
     int             freshWorld[SHSESSION_MAX_MEMBERS];
-    int             n = ShSteam_MemberCount();
+    int             n = Tp_MemberCount();
     int             count = 0;
     int             i;
 
@@ -380,7 +452,7 @@ static void ShSession_SyncMembers(void)
 
     for (i = 0; i < n; i++)
     {
-        unsigned long long id  = ShSteam_Member(i);
+        unsigned long long id  = Tp_Member(i);
         int                old = ShSession_IndexOf(id);
         const char*        nm;
 
@@ -402,7 +474,7 @@ static void ShSession_SyncMembers(void)
             fresh[count].mapIdx  = -1;
             fresh[count].linked  = 0;
         }
-        nm = ShSteam_NameOf(id);
+        nm = Tp_NameOf(id);
         if (nm && nm[0])
         {
             SDL_strlcpy(fresh[count].name, nm, SHSESSION_NAME_MAX);
@@ -452,7 +524,7 @@ static void ShSession_Receive(unsigned int now)
         shn_u16 payLen;
         shn_u32 session;
         int     idx;
-        int     n = ShSteam_Recv(&from, buf, (int)sizeof(buf));
+        int     n = Tp_Recv(&from, buf, (int)sizeof(buf));
 
         if (n <= 0)
         {
@@ -606,15 +678,16 @@ static void ShSession_Publish(void)
     int i;
 
     SDL_LockMutex(s_lock);
-    s_pub.active      = (ShSteam_LobbyState() == SHSTEAM_LOBBY_IN);
-    s_pub.isHost      = ShSteam_IsLobbyOwner();
-    s_pub.lobbyId     = ShSteam_LobbyId();
+    s_pub.active      = Tp_Active();
+    s_pub.isHost      = Tp_IsHost();
+    s_pub.lobbyId     = Tp_LobbyId();
     s_pub.memberCount = s_memberCount;
     for (i = 0; i < s_memberCount; i++)
     {
         s_pub.members[i] = s_members[i];
     }
-    ShSteam_StatusLine(s_pub.status, (int)sizeof(s_pub.status));
+    if (s_backend == COOP_BACKEND_UDP) CoopUdp_StatusLine(s_pub.status, (int)sizeof(s_pub.status));
+    else                               ShSteam_StatusLine(s_pub.status, (int)sizeof(s_pub.status));
     /* Hand a received world-boot request to the game thread. Only overwrite when
      * there is a new one, so a request already waiting to be taken is not lost. */
     if (s_worldReqIn >= 0)
@@ -622,9 +695,9 @@ static void ShSession_Publish(void)
         s_pub.worldReq = s_worldReqIn;
         s_worldReqIn   = -1;
     }
-    /* The host's debug-grant, read off the lobby data (host reads back its own
-     * value, a guest reads the host's). 0 when not in a lobby. */
-    if (s_pub.active)
+    /* The host's debug-grant, read off the Steam lobby data (host reads back its
+     * own value, a guest reads the host's). Steam path only for now; 0 otherwise. */
+    if (s_pub.active && s_backend == COOP_BACKEND_STEAM)
     {
         const char* d  = ShSteam_GetLobbyData("dbg");
         s_pub.guestDebug = (d && d[0] == '1') ? 1 : 0;
@@ -653,12 +726,19 @@ void ShSession_Tick(unsigned int nowMs)
     int                q;
     int                hostGuestDebug;
 
-    if (!s_lock || !s_enabled)
+    char               coopHost[80];
+    int                coopPort, coopMax, coopJoinCode;
+    int                wantHostServer, wantJoinServer, wantListServer;
+
+    if (!s_lock)
     {
         return;
     }
 
-    ShSteam_RunCallbacks();
+    /* Pump both transports: Steam for its overlay/invites (only if it came up),
+     * the UDP relay always (it no-ops until a server is armed). */
+    if (s_enabled) ShSteam_RunCallbacks();
+    CoopUdp_Tick(nowMs);
 
     SDL_LockMutex(s_lock);
     wantHost      = s_req.wantHost;
@@ -673,6 +753,13 @@ void ShSession_Tick(unsigned int nowMs)
     poseRotY  = s_req.poseRotY; poseAnim  = s_req.poseAnim;  poseFrame = s_req.poseFrame;
     wantWorldMap        = s_req.wantWorldMap;
     hostGuestDebug      = s_req.hostGuestDebug; /* persistent: snapshot, do not reset */
+    SDL_strlcpy(coopHost, s_req.coopHost, sizeof(coopHost));
+    coopPort        = s_req.coopPort;
+    coopMax         = s_req.coopMax;
+    coopJoinCode    = s_req.coopJoinCode;
+    wantHostServer  = s_req.wantHostServer;
+    wantJoinServer  = s_req.wantJoinServer;
+    wantListServer  = s_req.wantListServer;
     itemOutN            = s_itemOutCount;
     if (itemOutN > 0)
     {
@@ -685,10 +772,14 @@ void ShSession_Tick(unsigned int nowMs)
     s_req.wantJoin      = 0;
     s_req.presenceDirty = 0;
     s_req.wantWorldMap  = -1;
+    s_req.wantHostServer = 0;
+    s_req.wantJoinServer = 0;
+    s_req.wantListServer = 0;
     SDL_UnlockMutex(s_lock);
 
-    /* An invite accepted in the overlay, or +connect_lobby, outranks anything
-     * the player asked for in-game: they clicked Join on a friend. */
+    /* A Steam invite accepted in the overlay outranks an in-game Steam host,
+     * but not an explicit server host/join the player just chose. */
+    if (s_enabled && !wantHostServer && !wantJoinServer)
     {
         unsigned long long pending = ShSteam_TakePendingJoin();
         if (pending)
@@ -700,35 +791,64 @@ void ShSession_Tick(unsigned int nowMs)
 
     if (wantLeave)
     {
-        ShSteam_LeaveLobby();
+        if (s_backend == COOP_BACKEND_UDP) CoopUdp_Leave();
+        else if (s_enabled)                ShSteam_LeaveLobby();
         s_memberCount = 0;
     }
-    if (wantJoin)
+
+    /* Host/join routes the session onto a transport. A server choice switches to
+     * the UDP backend (leaving any Steam lobby first); a Steam choice switches
+     * back (leaving any server room first). The living world is untouched. */
+    if (wantJoinServer)
     {
+        if (s_enabled) ShSteam_LeaveLobby();
+        s_backend = COOP_BACKEND_UDP;
+        CoopUdp_SetServer(coopHost, (unsigned short)coopPort);
+        CoopUdp_JoinRoom((unsigned short)coopJoinCode);
+    }
+    else if (wantHostServer)
+    {
+        if (s_enabled) ShSteam_LeaveLobby();
+        s_backend = COOP_BACKEND_UDP;
+        CoopUdp_SetServer(coopHost, (unsigned short)coopPort);
+        CoopUdp_CreateRoom(coopMax);
+    }
+    else if (wantJoin && s_enabled)
+    {
+        CoopUdp_Disconnect();
+        s_backend = COOP_BACKEND_STEAM;
         ShSteam_JoinLobby(wantJoin);
     }
-    else if (wantHost)
+    else if (wantHost && s_enabled)
     {
+        CoopUdp_Disconnect();
+        s_backend = COOP_BACKEND_STEAM;
         ShSteam_CreateLobby(g_PcConfig.onlineSteamPublic ? SHSTEAM_LOBBY_PUBLIC
                                                          : SHSTEAM_LOBBY_FRIENDSONLY,
                             g_PcConfig.onlineSteamMaxPlayers);
     }
-    if (wantInvite)
+
+    /* A room-list query does not change the active transport. */
+    if (wantListServer)
+    {
+        CoopUdp_SetServer(coopHost, (unsigned short)coopPort);
+        CoopUdp_RequestRoomList();
+    }
+
+    if (wantInvite && s_backend == COOP_BACKEND_STEAM && s_enabled)
     {
         ShSteam_OpenInviteOverlay();
     }
 
-    if (presenceDirty)
+    if (presenceDirty && s_backend == COOP_BACKEND_STEAM && s_enabled)
     {
-        /* "status" is the line a friend sees under the game name. The other
-         * keys are there so a future Steam store page can use a localised
-         * presence string without another code change. */
+        /* "status" is the line a friend sees under the game name. */
         ShSteam_SetRichPresence("status", area[0] ? area : "Silent Hill");
         ShSteam_SetRichPresence("steam_display", "#Status");
         ShSteam_SetRichPresence("area", area);
     }
 
-    if (ShSteam_LobbyState() != SHSTEAM_LOBBY_IN)
+    if (!Tp_Active())
     {
         if (s_memberCount)
         {
@@ -742,22 +862,20 @@ void ShSession_Tick(unsigned int nowMs)
 
     ShSession_SyncMembers();
 
-    /* The lobby advertises what it is, so a joiner can tell a Silent Hill
-     * session from any other Spacewar lobby before it commits. */
-    if (ShSteam_IsLobbyOwner())
+    /* Steam only: advertise the lobby (so a joiner can tell a Silent Hill session
+     * from any other Spacewar lobby, its state, and the debug grant). The server
+     * backend gets all of this from the room roster instead. */
+    if (s_backend == COOP_BACKEND_STEAM && ShSteam_IsLobbyOwner())
     {
         ShSteam_SetLobbyData("game", "silenthill-online");
         ShSteam_SetLobbyData("proto", "1");
-        /* So a joiner (and a lobby browser) can tell a session that has already
-         * started from one still gathering in the lobby. */
         ShSteam_SetLobbyData("state", s_worldMapCur >= 0 ? "ingame" : "lobby");
-        /* Whether joined players may use debug controls; off by default, the host
-         * flips it with the `coopdebug` console command. Rides the lobby data so
-         * every guest reads the same answer. */
         ShSteam_SetLobbyData("dbg", hostGuestDebug ? "1" : "0");
     }
 
-    if (nowMs - s_lastHelloMs >= SESSION_HELLO_MS)
+    /* Steam only: S_HELLO carries each peer's name/map. On the server backend the
+     * roster already supplies names, so no hello is needed. */
+    if (s_backend == COOP_BACKEND_STEAM && nowMs - s_lastHelloMs >= SESSION_HELLO_MS)
     {
         s_lastHelloMs = nowMs;
         for (i = 0; i < s_memberCount; i++)
@@ -776,13 +894,13 @@ void ShSession_Tick(unsigned int nowMs)
         {
             shn_u8 buf[SHNET_HDR_SIZE + 4];
             int    off = SHNET_HDR_SIZE;
-            if (s_members[i].steamId == ShSteam_SelfId())
+            if (s_members[i].steamId == Tp_SelfId())
             {
                 continue;
             }
             ShnPutU32(buf, &off, nowMs);
             ShnPutHeader(buf, SHNET_MSG_S_PING, (shn_u16)(off - SHNET_HDR_SIZE), 0);
-            ShSteam_Send(s_members[i].steamId, buf, off, 0);
+            Tp_Send(s_members[i].steamId, buf, off, 0);
             s_pingSentMs[i] = nowMs;
         }
     }
@@ -797,13 +915,13 @@ void ShSession_Tick(unsigned int nowMs)
         memset(s_worldSent, 0, sizeof(s_worldSent));
         SH_DBG("[SESSION] co-op world is now map %d", s_worldMapCur);
     }
-    if (ShSteam_IsLobbyOwner() && s_worldMapCur >= 0)
+    if (Tp_IsHost() && s_worldMapCur >= 0)
     {
         for (i = 0; i < s_memberCount; i++)
         {
             shn_u8 buf[SHNET_HDR_SIZE + 4];
             int    off = SHNET_HDR_SIZE;
-            if (s_members[i].steamId == ShSteam_SelfId() || s_worldSent[i])
+            if (s_members[i].steamId == Tp_SelfId() || s_worldSent[i])
             {
                 continue;
             }
@@ -811,7 +929,7 @@ void ShSession_Tick(unsigned int nowMs)
             ShnPutU8(buf, &off, 0);
             ShnPutU16(buf, &off, 0);
             ShnPutHeader(buf, SHNET_MSG_S_WORLD, (shn_u16)(off - SHNET_HDR_SIZE), 0);
-            ShSteam_Send(s_members[i].steamId, buf, off, 1);
+            Tp_Send(s_members[i].steamId, buf, off, 1);
             s_worldSent[i] = 1;
             SH_DBG("[SESSION] sent world (map %d) to %s", s_worldMapCur, s_members[i].name);
         }
@@ -825,7 +943,7 @@ void ShSession_Tick(unsigned int nowMs)
         {
             shn_u8 buf[SHNET_HDR_SIZE + 24];
             int    off = SHNET_HDR_SIZE;
-            if (s_members[i].steamId == ShSteam_SelfId())
+            if (s_members[i].steamId == Tp_SelfId())
             {
                 continue;
             }
@@ -840,7 +958,7 @@ void ShSession_Tick(unsigned int nowMs)
             ShnPutU16(buf, &off, poseAnim);
             ShnPutU16(buf, &off, poseFrame);
             ShnPutHeader(buf, SHNET_MSG_S_POS, (shn_u16)(off - SHNET_HDR_SIZE), 0);
-            ShSteam_Send(s_members[i].steamId, buf, off, 0);
+            Tp_Send(s_members[i].steamId, buf, off, 0);
         }
     }
 
@@ -852,7 +970,7 @@ void ShSession_Tick(unsigned int nowMs)
         {
             shn_u8 buf[SHNET_HDR_SIZE + 4];
             int    off = SHNET_HDR_SIZE;
-            if (s_members[i].steamId == ShSteam_SelfId())
+            if (s_members[i].steamId == Tp_SelfId())
             {
                 continue;
             }
@@ -860,7 +978,7 @@ void ShSession_Tick(unsigned int nowMs)
             ShnPutU8(buf, &off, 0);
             ShnPutU16(buf, &off, itemOut[q].n);
             ShnPutHeader(buf, SHNET_MSG_S_ITEM, (shn_u16)(off - SHNET_HDR_SIZE), 0);
-            ShSteam_Send(s_members[i].steamId, buf, off, 1);
+            Tp_Send(s_members[i].steamId, buf, off, 1);
         }
         SH_DBG("[SESSION] shared pickup item %d x%d to session", itemOut[q].id, itemOut[q].n);
     }
@@ -869,7 +987,7 @@ void ShSession_Tick(unsigned int nowMs)
 
     for (i = 0; i < s_memberCount; i++)
     {
-        if (s_members[i].steamId == ShSteam_SelfId())
+        if (s_members[i].steamId == Tp_SelfId())
         {
             s_members[i].linked = 1;
             s_members[i].pingMs = 0;
