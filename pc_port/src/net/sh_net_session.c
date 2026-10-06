@@ -105,6 +105,10 @@ static struct
     char               status[128];
     int                worldReq;    /* guest: a map the host said to boot into, -1 none */
     int                guestDebug;  /* host granted joined players debug controls */
+
+    /* Open server rooms from the last list request, for the Join browser. */
+    struct { unsigned short code; unsigned char players, max; char host[SHSESSION_NAME_MAX]; } rooms[16];
+    int                roomCount;
 } s_pub;
 
 /* Worker-private. */
@@ -706,7 +710,40 @@ static void ShSession_Publish(void)
     {
         s_pub.guestDebug = 0;
     }
+    /* Open-room browser list (lives in the UDP module, filled by a list request;
+     * independent of the active backend). */
+    {
+        int cap = (int)(sizeof(s_pub.rooms) / sizeof(s_pub.rooms[0]));
+        int rc  = CoopUdp_RoomListCount();
+        int k;
+        if (rc > cap) rc = cap;
+        for (k = 0; k < rc; k++)
+        {
+            unsigned short code = 0;
+            int            players = 0, max = 0;
+            CoopUdp_RoomListGet(k, &code, &players, &max, s_pub.rooms[k].host, SHSESSION_NAME_MAX);
+            s_pub.rooms[k].code    = code;
+            s_pub.rooms[k].players = (unsigned char)players;
+            s_pub.rooms[k].max     = (unsigned char)max;
+        }
+        s_pub.roomCount = rc;
+    }
     SDL_UnlockMutex(s_lock);
+}
+
+int ShSession_RoomCount(void)
+{
+    return s_pub.roomCount;
+}
+
+int ShSession_RoomGet(int i, int* code, int* players, int* max, char* host, int hostCap)
+{
+    if (i < 0 || i >= s_pub.roomCount) return 0;
+    if (code)    *code    = s_pub.rooms[i].code;
+    if (players) *players = s_pub.rooms[i].players;
+    if (max)     *max     = s_pub.rooms[i].max;
+    if (host && hostCap > 0) SDL_strlcpy(host, s_pub.rooms[i].host, (size_t)hostCap);
+    return 1;
 }
 
 void ShSession_Tick(unsigned int nowMs)

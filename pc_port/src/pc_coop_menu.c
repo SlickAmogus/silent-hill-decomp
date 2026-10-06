@@ -29,6 +29,7 @@ typedef enum
     COOP_PAGE_HOST_SETUP,
     COOP_PAGE_HOST,
     COOP_PAGE_JOIN,
+    COOP_PAGE_ROOMS,        /* server room browser */
     COOP_PAGE_INGAME,       /* in-game M menu: Resume / prefs / players / leave */
     COOP_PAGE_PLAYERS       /* member list (in-game) */
 } CoopPage;
@@ -55,6 +56,18 @@ int g_PcCoopGame;
 static int s_setMaxPlayers = 4;
 static int s_setPublic     = 0;
 static int s_setFps        = 60;
+static int s_hostOnSteam   = 0; /* 0 = host on the relay server (default), 1 = Steam */
+
+/* The co-op relay server: the configured online server, or loopback. */
+static const char* Coop_ServerIp(void)
+{
+    const char* ip = g_PcConfig.onlineServer;
+    return (ip && ip[0]) ? ip : "127.0.0.1";
+}
+static int Coop_ServerPort(void)
+{
+    return g_PcConfig.onlinePort ? g_PcConfig.onlinePort : 27888;
+}
 
 /* Host-setup save picker: the co-op saves on disk and which one to start from
  * (-1 = a fresh New Game). */
@@ -147,9 +160,17 @@ static void Coop_StartHosting(void)
     g_PcConfig.onlineSteamMaxPlayers = s_setMaxPlayers;
     g_PcConfig.onlineSteamPublic     = s_setPublic;
     g_PcConfig.fpsCap                = s_setFps;
-    SH_DBG("[COOP] host: %d players, %s, fps %d",
+    SH_DBG("[COOP] host on %s: %d players, %s, fps %d",
+           s_hostOnSteam ? "steam" : "server",
            s_setMaxPlayers, s_setPublic ? "public" : "private", s_setFps);
-    ShSession_RequestHost();
+    if (s_hostOnSteam)
+    {
+        ShSession_RequestHost();
+    }
+    else
+    {
+        ShSession_RequestHostServer(Coop_ServerIp(), Coop_ServerPort(), s_setMaxPlayers);
+    }
     s_page = COOP_PAGE_HOST;
     s_sel  = 0;
 }
@@ -160,9 +181,10 @@ int Pc_CoopMenu_RowCount(void)
     switch (s_page)
     {
     case COOP_PAGE_ROOT:       return 3; /* Host, Join, Back */
-    case COOP_PAGE_HOST_SETUP: return 6; /* Players, Visibility, FPS, Load, Open Lobby, Back */
+    case COOP_PAGE_HOST_SETUP: return 7; /* Host on, Players, Visibility, FPS, Load, Open, Back */
     case COOP_PAGE_HOST:       return 4; /* Invite, Start Game, Leave, Back */
-    case COOP_PAGE_JOIN:       return 1; /* Back */
+    case COOP_PAGE_JOIN:       return 3; /* Browse rooms, Steam friend, Back */
+    case COOP_PAGE_ROOMS:      return ShSession_RoomCount() + 2; /* rooms + Refresh + Back */
     case COOP_PAGE_INGAME:     return 6; /* Resume, Save, Save&Exit, Nameplates, Players, Leave */
     case COOP_PAGE_PLAYERS:    return ShSession_MemberCount() + 1; /* members + Back */
     default:                   return 1;
@@ -181,6 +203,7 @@ const char* Pc_CoopMenu_Title(void)
     case COOP_PAGE_HOST_SETUP: return "HOST GAME";
     case COOP_PAGE_HOST:       return "LOBBY";
     case COOP_PAGE_JOIN:       return "JOIN GAME";
+    case COOP_PAGE_ROOMS:      return "SERVER ROOMS";
     case COOP_PAGE_INGAME:     return "MULTIPLAYER";
     case COOP_PAGE_PLAYERS:    return "PLAYERS";
     default:                   return "MULTIPLAYER";
@@ -203,17 +226,18 @@ void Pc_CoopMenu_RowText(int i, char* out, int cap)
         break;
 
     case COOP_PAGE_HOST_SETUP:
-        if (i == 0) snprintf(out, cap, "Max Players:  %d", s_setMaxPlayers);
-        else if (i == 1) snprintf(out, cap, "Visibility:  %s", s_setPublic ? "Public" : "Private");
-        else if (i == 2) snprintf(out, cap, "FPS Lock:  %d", s_setFps);
-        else if (i == 3)
+        if (i == 0) snprintf(out, cap, "Host on:  %s", s_hostOnSteam ? "Steam" : "My Server");
+        else if (i == 1) snprintf(out, cap, "Max Players:  %d", s_setMaxPlayers);
+        else if (i == 2) snprintf(out, cap, "Visibility:  %s", s_setPublic ? "Public" : "Private");
+        else if (i == 3) snprintf(out, cap, "FPS Lock:  %d", s_setFps);
+        else if (i == 4)
         {
             if (s_loadIdx >= 0 && s_loadIdx < s_saveCount)
                 snprintf(out, cap, "Load:  %s", s_saves[s_loadIdx].name);
             else
                 snprintf(out, cap, "Load:  New Game");
         }
-        else if (i == 4) snprintf(out, cap, "Open Lobby");
+        else if (i == 5) snprintf(out, cap, s_hostOnSteam ? "Open Lobby" : "Open Room");
         else snprintf(out, cap, "Back");
         break;
 
@@ -253,6 +277,27 @@ void Pc_CoopMenu_RowText(int i, char* out, int cap)
     }
 
     case COOP_PAGE_JOIN:
+        if (i == 0)      snprintf(out, cap, "Browse Server Rooms");
+        else if (i == 1) snprintf(out, cap, "Join a Friend (Steam)");
+        else             snprintf(out, cap, "Back");
+        break;
+
+    case COOP_PAGE_ROOMS:
+    {
+        int rc = ShSession_RoomCount();
+        if (i < rc)
+        {
+            int  code = 0, players = 0, max = 0;
+            char host[SHSESSION_NAME_MAX];
+            host[0] = '\0';
+            ShSession_RoomGet(i, &code, &players, &max, host, (int)sizeof(host));
+            snprintf(out, cap, "Room %d  (%d/%d)  %s", code, players, max, host);
+        }
+        else if (i == rc) snprintf(out, cap, "Refresh");
+        else              snprintf(out, cap, "Back");
+        break;
+    }
+
     default:
         snprintf(out, cap, "Back");
         break;
@@ -298,6 +343,11 @@ void Pc_CoopMenu_StatusText(char* out, int cap)
         {
             snprintf(out, cap, "Accept a Steam invite from a friend to join.");
         }
+        break;
+
+    case COOP_PAGE_ROOMS:
+        if (ShSession_RoomCount() > 0) { ShSession_StatusLine(out, cap); }
+        else                           { snprintf(out, cap, "No open rooms - pick Refresh, or Host one."); }
         break;
 
     case COOP_PAGE_INGAME:
@@ -349,11 +399,12 @@ static void Coop_Confirm(void)
 
     case COOP_PAGE_HOST_SETUP:
         /* Setting rows cycle on confirm; no left/right needed. */
-        if (s_sel == 0)      { s_setMaxPlayers = (s_setMaxPlayers >= 4) ? 2 : s_setMaxPlayers + 1; }
-        else if (s_sel == 1) { s_setPublic = !s_setPublic; }
-        else if (s_sel == 2) { s_setFps = (s_setFps == 60) ? 30 : 60; }
-        else if (s_sel == 3) { s_loadIdx = (s_loadIdx + 1 >= s_saveCount) ? -1 : s_loadIdx + 1; }
-        else if (s_sel == 4) { Coop_StartHosting(); } /* Open Lobby */
+        if (s_sel == 0)      { s_hostOnSteam = !s_hostOnSteam; }
+        else if (s_sel == 1) { s_setMaxPlayers = (s_setMaxPlayers >= 4) ? 2 : s_setMaxPlayers + 1; }
+        else if (s_sel == 2) { s_setPublic = !s_setPublic; }
+        else if (s_sel == 3) { s_setFps = (s_setFps == 60) ? 30 : 60; }
+        else if (s_sel == 4) { s_loadIdx = (s_loadIdx + 1 >= s_saveCount) ? -1 : s_loadIdx + 1; }
+        else if (s_sel == 5) { Coop_StartHosting(); } /* Open Room / Lobby */
         else                 { s_page = COOP_PAGE_ROOT; s_sel = 0; }
         break;
 
@@ -387,6 +438,39 @@ static void Coop_Confirm(void)
         break;
 
     case COOP_PAGE_JOIN:
+        if (s_sel == 0) /* browse the server's open rooms */
+        {
+            ShSession_RequestListServer(Coop_ServerIp(), Coop_ServerPort());
+            s_page = COOP_PAGE_ROOMS;
+            s_sel  = 0;
+        }
+        else if (s_sel == 1)
+        {
+            /* Steam: the friend's invite is accepted from Steam's overlay, not
+             * here; this row is the reminder. The pending-join flow boots them. */
+        }
+        else { s_page = COOP_PAGE_ROOT; s_sel = 0; }
+        break;
+
+    case COOP_PAGE_ROOMS:
+    {
+        int rc = ShSession_RoomCount();
+        if (s_sel < rc)
+        {
+            int code = 0;
+            ShSession_RoomGet(s_sel, &code, NULL, NULL, NULL, 0);
+            if (code > 0)
+                ShSession_RequestJoinServer(Coop_ServerIp(), Coop_ServerPort(), code);
+            /* The guest boots when the host starts (title.c takes the world). */
+        }
+        else if (s_sel == rc) /* Refresh */
+        {
+            ShSession_RequestListServer(Coop_ServerIp(), Coop_ServerPort());
+        }
+        else { s_page = COOP_PAGE_JOIN; s_sel = 0; }
+        break;
+    }
+
     default:
         s_page = COOP_PAGE_ROOT;
         s_sel  = 0;

@@ -86,6 +86,10 @@ void ShSession_RequestJoin(unsigned long long lobbyId);
 void ShSession_RequestHostServer(const char* host, int port, int maxPlayers);
 void ShSession_RequestJoinServer(const char* host, int port, int code);
 void ShSession_RequestListServer(const char* host, int port);
+
+/* Open server rooms from the last list request (for the Join browser). */
+int  ShSession_RoomCount(void);
+int  ShSession_RoomGet(int i, int* code, int* players, int* max, char* host, int hostCap);
 void ShSession_RequestLeave(void);
 void ShSession_RequestInvite(void);
 
