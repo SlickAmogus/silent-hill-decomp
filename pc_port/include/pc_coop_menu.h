@@ -28,6 +28,11 @@ int  Pc_CoopMenu_InGame(void);      /* 1 while the in-game M menu is up */
 /* One frame of input, edges already derived by the caller. */
 void Pc_CoopMenu_Update(int cancel, int up, int down, int confirm);
 
+/* Text entry (Join by IP / room code). The overlay feeds the keyboard state to
+ * FeedKeys every frame while Editing() is true; the field commits on Enter. */
+int  Pc_CoopMenu_Editing(void);
+void Pc_CoopMenu_FeedKeys(const unsigned char* ks);
+
 /* Accessors for the renderer (sh_net_ui.c's Nu_DrawCoopMenu). The menu is drawn
  * with the online UI's clean panel so it matches the quick menu / achievements
  * popup, on the title screen and in game alike. */

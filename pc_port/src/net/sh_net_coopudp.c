@@ -46,6 +46,7 @@ static unsigned int s_lastRxMs;
  * or a join (code in s_pendJoin). */
 static int          s_pendCreate;
 static shn_u16      s_pendJoin;
+static int          s_pendJoinSet; /* separate flag: code 0 is a valid "any room" join */
 static int          s_pendList;
 
 static shn_u16      s_room;
@@ -119,7 +120,7 @@ static void CoopUdp_DoJoin(shn_u16 code)
 static void CoopUdp_FlushPending(void)
 {
     if (s_pendCreate) { CoopUdp_DoCreate(s_pendCreate); s_pendCreate = 0; }
-    if (s_pendJoin)   { CoopUdp_DoJoin(s_pendJoin);      s_pendJoin   = 0; }
+    if (s_pendJoinSet) { CoopUdp_DoJoin(s_pendJoin);     s_pendJoin = 0; s_pendJoinSet = 0; }
     if (s_pendList)   { CoopUdp_SendSimple(SHNET_MSG_ROOM_LIST_REQ); s_pendList = 0; }
 }
 
@@ -306,7 +307,7 @@ void CoopUdp_JoinRoom(unsigned short code)
 {
     if (!s_haveServer) return;
     if (s_connected) CoopUdp_DoJoin(code);
-    else             s_pendJoin = code;
+    else             { s_pendJoin = code; s_pendJoinSet = 1; }
 }
 
 void CoopUdp_RequestRoomList(void)
@@ -320,7 +321,7 @@ void CoopUdp_Leave(void)
 {
     if (s_connected && s_room) CoopUdp_SendSimple(SHNET_MSG_ROOM_LEAVE);
     s_room = 0; s_memberCount = 0;
-    s_pendCreate = 0; s_pendJoin = 0;
+    s_pendCreate = 0; s_pendJoin = 0; s_pendJoinSet = 0;
 }
 
 void CoopUdp_Disconnect(void)

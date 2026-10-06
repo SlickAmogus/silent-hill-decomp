@@ -22,6 +22,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <SDL.h>
 
 typedef enum
 {
@@ -67,6 +69,142 @@ static const char* Coop_ServerIp(void)
 static int Coop_ServerPort(void)
 {
     return g_PcConfig.onlinePort ? g_PcConfig.onlinePort : 27888;
+}
+
+/* ------------------------------------------------------------------ */
+/* Text entry (Join by IP / room code)                                 */
+/* ------------------------------------------------------------------ */
+/* A single editable field, driven straight off the SDL keyboard state the
+ * overlay already reads each frame -- the same approach the chat composer uses
+ * (sh_net_chat.c), so no SDL text-input events are needed. While a field is
+ * active Pc_CoopMenu_Update ignores navigation so typed keys never move the
+ * selection, and the overlay feeds us the keyboard until Enter or Esc. */
+#define COOP_EDIT_NONE 0
+#define COOP_EDIT_IP   1   /* host[:port] */
+#define COOP_EDIT_CODE 2   /* 4-digit room code on the configured server */
+
+static int           s_editKind;
+static char          s_editBuf[80];
+static int           s_editLen;
+static unsigned char s_editPrev[SDL_NUM_SCANCODES];
+static int           s_editHaveKeys;
+
+int Pc_CoopMenu_Editing(void)
+{
+    return s_editKind != COOP_EDIT_NONE;
+}
+
+static void Coop_BeginEdit(int kind)
+{
+    s_editKind     = kind;
+    s_editBuf[0]   = '\0';
+    s_editLen      = 0;
+    s_editHaveKeys = 0; /* swallow the key that opened the field */
+}
+
+static char Coop_Glyph(int sc, int shift)
+{
+    if (sc >= SDL_SCANCODE_1 && sc <= SDL_SCANCODE_9) return (char)('1' + (sc - SDL_SCANCODE_1));
+    if (sc >= SDL_SCANCODE_A && sc <= SDL_SCANCODE_Z)
+    {
+        char base = (char)('a' + (sc - SDL_SCANCODE_A));
+        return shift ? (char)(base - 32) : base;
+    }
+    switch (sc)
+    {
+    case SDL_SCANCODE_0:      return '0';
+    case SDL_SCANCODE_PERIOD: return '.';
+    case SDL_SCANCODE_SEMICOLON: return shift ? ':' : ';'; /* ':' for host:port */
+    case SDL_SCANCODE_MINUS:  return '-';
+    default:                  return '\0';
+    }
+}
+
+static void Coop_CommitEdit(void)
+{
+    if (s_editKind == COOP_EDIT_IP && s_editLen > 0)
+    {
+        /* host[:port]; default port when none is typed. */
+        char host[80];
+        int  port = Coop_ServerPort();
+        char* colon;
+        SDL_strlcpy(host, s_editBuf, sizeof(host));
+        colon = strrchr(host, ':');
+        if (colon)
+        {
+            *colon = '\0';
+            if (colon[1]) port = atoi(colon + 1);
+        }
+        if (host[0])
+        {
+            ShSession_RequestJoinServer(host, port, 0); /* 0 = the host's room */
+            s_page = COOP_PAGE_ROOMS;
+            s_sel  = 0;
+        }
+    }
+    else if (s_editKind == COOP_EDIT_CODE && s_editLen > 0)
+    {
+        int code = atoi(s_editBuf);
+        if (code > 0)
+        {
+            ShSession_RequestJoinServer(Coop_ServerIp(), Coop_ServerPort(), code);
+            s_page = COOP_PAGE_ROOMS;
+            s_sel  = 0;
+        }
+    }
+    s_editKind = COOP_EDIT_NONE;
+}
+
+void Pc_CoopMenu_FeedKeys(const unsigned char* ks)
+{
+    int sc;
+    int shift;
+
+    if (s_editKind == COOP_EDIT_NONE || !ks)
+    {
+        return;
+    }
+    if (!s_editHaveKeys) /* seed from live so the opening key is not typed */
+    {
+        memcpy(s_editPrev, ks, SDL_NUM_SCANCODES);
+        s_editHaveKeys = 1;
+        return;
+    }
+
+    if (ks[SDL_SCANCODE_ESCAPE] && !s_editPrev[SDL_SCANCODE_ESCAPE])
+    {
+        s_editKind = COOP_EDIT_NONE;
+        goto done;
+    }
+    if ((ks[SDL_SCANCODE_RETURN]    && !s_editPrev[SDL_SCANCODE_RETURN]) ||
+        (ks[SDL_SCANCODE_KP_ENTER]  && !s_editPrev[SDL_SCANCODE_KP_ENTER]))
+    {
+        Coop_CommitEdit();
+        goto done;
+    }
+    if (ks[SDL_SCANCODE_BACKSPACE] && !s_editPrev[SDL_SCANCODE_BACKSPACE] && s_editLen > 0)
+    {
+        s_editBuf[--s_editLen] = '\0';
+    }
+
+    shift = ks[SDL_SCANCODE_LSHIFT] || ks[SDL_SCANCODE_RSHIFT];
+    for (sc = 0; sc < SDL_NUM_SCANCODES; sc++)
+    {
+        if (ks[sc] && !s_editPrev[sc])
+        {
+            char c = Coop_Glyph(sc, shift);
+            /* The code field is digits only. */
+            if (s_editKind == COOP_EDIT_CODE && (c < '0' || c > '9')) c = '\0';
+            if (c && s_editLen < (int)sizeof(s_editBuf) - 1)
+            {
+                s_editBuf[s_editLen++] = c;
+                s_editBuf[s_editLen]   = '\0';
+            }
+        }
+    }
+
+done:
+    memcpy(s_editPrev, ks, SDL_NUM_SCANCODES);
 }
 
 /* Host-setup save picker: the co-op saves on disk and which one to start from
@@ -183,7 +321,7 @@ int Pc_CoopMenu_RowCount(void)
     case COOP_PAGE_ROOT:       return 3; /* Host, Join, Back */
     case COOP_PAGE_HOST_SETUP: return 7; /* Host on, Players, Visibility, FPS, Load, Open, Back */
     case COOP_PAGE_HOST:       return 4; /* Invite, Start Game, Leave, Back */
-    case COOP_PAGE_JOIN:       return 3; /* Browse rooms, Steam friend, Back */
+    case COOP_PAGE_JOIN:       return 5; /* Browse, Join by IP, Enter code, Steam, Back */
     case COOP_PAGE_ROOMS:      return ShSession_RoomCount() + 2; /* rooms + Refresh + Back */
     case COOP_PAGE_INGAME:     return 6; /* Resume, Save, Save&Exit, Nameplates, Players, Leave */
     case COOP_PAGE_PLAYERS:    return ShSession_MemberCount() + 1; /* members + Back */
@@ -278,7 +416,9 @@ void Pc_CoopMenu_RowText(int i, char* out, int cap)
 
     case COOP_PAGE_JOIN:
         if (i == 0)      snprintf(out, cap, "Browse Server Rooms");
-        else if (i == 1) snprintf(out, cap, "Join a Friend (Steam)");
+        else if (i == 1) snprintf(out, cap, "Join by IP...");
+        else if (i == 2) snprintf(out, cap, "Enter Room Code...");
+        else if (i == 3) snprintf(out, cap, "Join a Friend (Steam)");
         else             snprintf(out, cap, "Back");
         break;
 
@@ -311,6 +451,16 @@ void Pc_CoopMenu_StatusText(char* out, int cap)
         return;
     }
     out[0] = '\0';
+    if (s_editKind == COOP_EDIT_IP)
+    {
+        snprintf(out, cap, "Server IP (host or host:port):  %s_   [Enter join, Esc cancel]", s_editBuf);
+        return;
+    }
+    if (s_editKind == COOP_EDIT_CODE)
+    {
+        snprintf(out, cap, "Room code:  %s_   [Enter join, Esc cancel]", s_editBuf);
+        return;
+    }
     switch (s_page)
     {
     case COOP_PAGE_ROOT:
@@ -444,7 +594,9 @@ static void Coop_Confirm(void)
             s_page = COOP_PAGE_ROOMS;
             s_sel  = 0;
         }
-        else if (s_sel == 1)
+        else if (s_sel == 1) { Coop_BeginEdit(COOP_EDIT_IP); }   /* type host[:port] */
+        else if (s_sel == 2) { Coop_BeginEdit(COOP_EDIT_CODE); } /* type a room code */
+        else if (s_sel == 3)
         {
             /* Steam: the friend's invite is accepted from Steam's overlay, not
              * here; this row is the reminder. The pending-join flow boots them. */
@@ -511,6 +663,12 @@ void Pc_CoopMenu_Update(int cancel, int up, int down, int confirm)
 {
     int rows;
     if (!s_open)
+    {
+        return;
+    }
+    /* While a text field is active the keyboard belongs to it (the overlay feeds
+     * Pc_CoopMenu_FeedKeys); ignore navigation so typing never moves the row. */
+    if (s_editKind != COOP_EDIT_NONE)
     {
         return;
     }

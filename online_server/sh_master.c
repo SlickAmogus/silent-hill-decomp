@@ -1241,7 +1241,20 @@ static void SrvHandleRoomJoin(Client* c, const shn_u8* p, int len)
 {
     int     off  = 0;
     shn_u16 code = (len >= 2) ? (shn_u16)ShnGetU16(p, &off) : 0;
-    Client* host = SrvRoomHost(code);
+    Client* host;
+    /* Code 0 means "whatever room is open here" -- the Join-by-IP path, which
+     * reaches a host directly and need not know a code. Take the first open one. */
+    if (code == 0)
+    {
+        int i;
+        for (i = 0; i < SRV_MAX_CLIENTS; i++)
+        {
+            Client* h = &g_clients[i];
+            if (h->used && h->roomHost && SrvRoomCount(h->room) < h->roomMax) { code = h->room; break; }
+        }
+        if (code == 0) { SrvSendRoomReject(c, 2, "no open room here"); return; }
+    }
+    host = SrvRoomHost(code);
     if (!host)                                   { SrvSendRoomReject(c, 2, "no such room");  return; }
     if (SrvRoomCount(code) >= host->roomMax)     { SrvSendRoomReject(c, 3, "room is full");  return; }
     SrvRoomLeave(c, 1);

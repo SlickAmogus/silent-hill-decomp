@@ -1905,6 +1905,18 @@ void DbgOverlay_Update(void)
         s_prevMemo = curMemo;
     }
 
+    /* Co-op menu text field (Join by IP / room code): while a field is open it
+     * owns the keyboard, exactly like the chat box below, and it is reached from
+     * the title-screen Join page so it must work with no world loaded. */
+    {
+        extern int  Pc_CoopMenu_Editing(void);
+        extern void Pc_CoopMenu_FeedKeys(const unsigned char* ks);
+        if (Pc_CoopMenu_Editing())
+        {
+            Pc_CoopMenu_FeedKeys(ks);
+        }
+    }
+
     /* Chat: key_chat_game (default Y) opens the box to type; key_chat_cycle
      * (default U) picks the channel. While the box is open its own handler
      * (ShNetChat_FeedKeys) owns the whole keyboard -- typing, backspace,
