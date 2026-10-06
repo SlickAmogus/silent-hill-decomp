@@ -119,6 +119,12 @@ typedef struct
     shn_s32            lastDeathX, lastDeathZ;
     int                memoCount;
     int                loggedSnap;
+
+    /* Co-op room. room == 0 means not in one. The host is the client that
+     * created it (roomHost); roomMax is the player cap, kept on every member. */
+    shn_u16            room;
+    int                roomHost;
+    int                roomMax;
 } Client;
 
 typedef struct
@@ -1078,6 +1084,8 @@ static void SrvSendSnapshots(unsigned int now)
     }
 }
 
+static void SrvRoomLeave(Client* c, int notify); /* defined with the co-op rooms below */
+
 static void SrvExpire(unsigned int now)
 {
     int i;
@@ -1092,6 +1100,7 @@ static void SrvExpire(unsigned int now)
         }
         snprintf(text, sizeof(text), "%s faded away", c->name);
         SrvLog("- %s timed out (id %u)", c->name, c->playerId);
+        SrvRoomLeave(c, 1); /* notify the room before the slot is freed */
         c->used = 0;
         SrvBroadcastEvent(SHNET_EV_LEAVE, c->playerId, text, NULL);
     }
@@ -1100,6 +1109,193 @@ static void SrvExpire(unsigned int now)
 /* ------------------------------------------------------------------ */
 /* Dispatch                                                            */
 /* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* Co-op rooms (relay)                                                 */
+/* ------------------------------------------------------------------ */
+
+#define SRV_ROOM_MAX_PLAYERS 8
+
+static Client* SrvRoomHost(shn_u16 room)
+{
+    int i;
+    if (!room) return NULL;
+    for (i = 0; i < SRV_MAX_CLIENTS; i++)
+        if (g_clients[i].used && g_clients[i].room == room && g_clients[i].roomHost)
+            return &g_clients[i];
+    return NULL;
+}
+
+static int SrvRoomCount(shn_u16 room)
+{
+    int i, n = 0;
+    if (!room) return 0;
+    for (i = 0; i < SRV_MAX_CLIENTS; i++)
+        if (g_clients[i].used && g_clients[i].room == room) n++;
+    return n;
+}
+
+/* ROOM_JOINED (to the one who just joined, yourId prefixed) or ROOM_ROSTER
+ * (to the rest). hostId 0 means the room has ended. */
+static void SrvSendRoomRoster(Client* c, int joined)
+{
+    shn_u8  buf[SHNET_MTU];
+    int     off = SHNET_HDR_SIZE, cntOff, i, n = 0;
+    Client* host   = SrvRoomHost(c->room);
+    shn_u32 hostId = host ? host->playerId : 0;
+
+    if (joined) ShnPutU32(buf, &off, c->playerId);
+    ShnPutU16(buf, &off, c->room);
+    ShnPutU32(buf, &off, hostId);
+    cntOff = off; ShnPutU8(buf, &off, 0);
+    for (i = 0; i < SRV_MAX_CLIENTS; i++)
+    {
+        Client* m = &g_clients[i];
+        if (!m->used || m->room != c->room) continue;
+        if (off + 4 + SHNET_NAME_MAX + 1 > (int)sizeof(buf)) break;
+        ShnPutU32(buf, &off, m->playerId);
+        ShnPutStr(buf, &off, m->name, SHNET_NAME_MAX);
+        ShnPutU8(buf, &off, (shn_u8)(m->roomHost ? 1 : 0));
+        n++;
+    }
+    buf[cntOff] = (shn_u8)n;
+    SrvSendTo(c, buf, off - SHNET_HDR_SIZE,
+              joined ? SHNET_MSG_ROOM_JOINED : SHNET_MSG_ROOM_ROSTER);
+}
+
+static void SrvBroadcastRoomRoster(shn_u16 room, Client* except)
+{
+    int i;
+    for (i = 0; i < SRV_MAX_CLIENTS; i++)
+        if (g_clients[i].used && g_clients[i].room == room && &g_clients[i] != except)
+            SrvSendRoomRoster(&g_clients[i], 0);
+}
+
+static void SrvSendRoomReject(Client* c, int reason, const char* text)
+{
+    shn_u8 buf[SHNET_HDR_SIZE + 1 + SHNET_REJECT_MAX];
+    int    off = SHNET_HDR_SIZE;
+    ShnPutU8(buf, &off, (shn_u8)reason);
+    ShnPutStr(buf, &off, text ? text : "", SHNET_REJECT_MAX);
+    SrvSendTo(c, buf, off - SHNET_HDR_SIZE, SHNET_MSG_ROOM_REJECT);
+}
+
+static shn_u16 SrvNewRoomCode(void)
+{
+    static int seeded = 0;
+    int tries;
+    if (!seeded) { srand((unsigned)time(NULL)); seeded = 1; }
+    for (tries = 0; tries < 10000; tries++)
+    {
+        shn_u16 code = (shn_u16)(1000 + (rand() % 9000)); /* shareable 4-digit */
+        if (SrvRoomCount(code) == 0) return code;
+    }
+    return 0;
+}
+
+/* Leave the current room. On the host leaving, the room ends: every member is
+ * cleared and told (roster with host 0). */
+static void SrvRoomLeave(Client* c, int notify)
+{
+    shn_u16 room    = c->room;
+    int     wasHost = c->roomHost;
+    if (!room) return;
+    c->room = 0; c->roomHost = 0; c->roomMax = 0;
+    if (!notify) return;
+    if (wasHost)
+    {
+        int i;
+        for (i = 0; i < SRV_MAX_CLIENTS; i++)
+        {
+            Client* m = &g_clients[i];
+            if (m->used && m->room == room)
+            {
+                m->room = 0; m->roomHost = 0; m->roomMax = 0;
+                SrvSendRoomRoster(m, 0);
+            }
+        }
+        SrvLog("- room %u closed", room);
+    }
+    else
+    {
+        SrvBroadcastRoomRoster(room, NULL);
+    }
+}
+
+static void SrvHandleRoomCreate(Client* c, const shn_u8* p, int len)
+{
+    int     off  = 0;
+    int     maxP = (len >= 1) ? (int)ShnGetU8(p, &off) : 4;
+    shn_u16 code;
+    if (maxP < 2) maxP = 2;
+    if (maxP > SRV_ROOM_MAX_PLAYERS) maxP = SRV_ROOM_MAX_PLAYERS;
+    SrvRoomLeave(c, 1);
+    code = SrvNewRoomCode();
+    if (!code) { SrvSendRoomReject(c, 1, "server is out of room codes"); return; }
+    c->room = code; c->roomHost = 1; c->roomMax = maxP;
+    SrvLog("+ room %u opened by %s (id %u, max %d)", code, c->name, c->playerId, maxP);
+    SrvSendRoomRoster(c, 1);
+}
+
+static void SrvHandleRoomJoin(Client* c, const shn_u8* p, int len)
+{
+    int     off  = 0;
+    shn_u16 code = (len >= 2) ? (shn_u16)ShnGetU16(p, &off) : 0;
+    Client* host = SrvRoomHost(code);
+    if (!host)                                   { SrvSendRoomReject(c, 2, "no such room");  return; }
+    if (SrvRoomCount(code) >= host->roomMax)     { SrvSendRoomReject(c, 3, "room is full");  return; }
+    SrvRoomLeave(c, 1);
+    c->room = code; c->roomHost = 0; c->roomMax = host->roomMax;
+    SrvLog("  %s (id %u) joined room %u", c->name, c->playerId, code);
+    SrvSendRoomRoster(c, 1);
+    SrvBroadcastRoomRoster(code, c);
+}
+
+static void SrvHandleRoomList(Client* c)
+{
+    shn_u8 buf[SHNET_MTU];
+    int    off = SHNET_HDR_SIZE, cntOff, i, n = 0;
+    cntOff = off; ShnPutU8(buf, &off, 0);
+    for (i = 0; i < SRV_MAX_CLIENTS; i++)
+    {
+        Client* h = &g_clients[i];
+        if (!h->used || !h->roomHost) continue;
+        if (off + 2 + 1 + 1 + SHNET_NAME_MAX > (int)sizeof(buf)) break;
+        ShnPutU16(buf, &off, h->room);
+        ShnPutU8(buf, &off, (shn_u8)SrvRoomCount(h->room));
+        ShnPutU8(buf, &off, (shn_u8)h->roomMax);
+        ShnPutStr(buf, &off, h->name, SHNET_NAME_MAX);
+        if (++n >= 40) break;
+    }
+    buf[cntOff] = (shn_u8)n;
+    SrvSendTo(c, buf, off - SHNET_HDR_SIZE, SHNET_MSG_ROOM_LIST);
+}
+
+/* Forward a member's co-op packet to the rest of its room (target 0) or to one
+ * member (target == their id). The payload is an opaque S_* message; the server
+ * never parses it, it only prefixes the sender id. */
+static void SrvHandleCoopRelay(Client* c, const shn_u8* p, int len)
+{
+    int           off = 0, innerLen, i;
+    shn_u32       target;
+    const shn_u8* inner;
+    if (!c->room || len < 4) return;
+    target   = ShnGetU32(p, &off);
+    inner    = p + off;
+    innerLen = len - off;
+    if (innerLen <= 0 || innerLen > SHNET_MTU - SHNET_HDR_SIZE - 4) return;
+    for (i = 0; i < SRV_MAX_CLIENTS; i++)
+    {
+        Client* m = &g_clients[i];
+        shn_u8  buf[SHNET_MTU];
+        int     o = SHNET_HDR_SIZE;
+        if (!m->used || m->room != c->room || m == c) continue;
+        if (target != 0 && m->playerId != target) continue;
+        ShnPutU32(buf, &o, c->playerId);
+        memcpy(buf + o, inner, (size_t)innerLen); o += innerLen;
+        SrvSendTo(m, buf, o - SHNET_HDR_SIZE, SHNET_MSG_COOP_RELAY);
+    }
+}
 
 static void SrvDispatch(const struct sockaddr_in* from, const shn_u8* buf, int n)
 {
@@ -1152,11 +1348,17 @@ static void SrvDispatch(const struct sockaddr_in* from, const shn_u8* buf, int n
     case SHNET_MSG_MEMO_PLACE: SrvHandleMemoPlace(c, pay, (int)payLen);  break;
     case SHNET_MSG_MEMO_RATE:  SrvHandleMemoRate(c, pay, (int)payLen);   break;
     case SHNET_MSG_CHAT_SAY:   SrvHandleChatSay(c, pay, (int)payLen);    break;
+    case SHNET_MSG_ROOM_CREATE:   SrvHandleRoomCreate(c, pay, (int)payLen); break;
+    case SHNET_MSG_ROOM_JOIN:     SrvHandleRoomJoin(c, pay, (int)payLen);   break;
+    case SHNET_MSG_ROOM_LEAVE:    SrvRoomLeave(c, 1);                       break;
+    case SHNET_MSG_ROOM_LIST_REQ: SrvHandleRoomList(c);                     break;
+    case SHNET_MSG_COOP_RELAY:    SrvHandleCoopRelay(c, pay, (int)payLen);  break;
     case SHNET_MSG_BYE:
     {
         char text[SHNET_EVENT_MAX];
         snprintf(text, sizeof(text), "%s left", c->name);
         SrvLog("- %s left (id %u)", c->name, c->playerId);
+        SrvRoomLeave(c, 1); /* notify the room before the slot is freed */
         c->used = 0;
         SrvBroadcastEvent(SHNET_EV_LEAVE, c->playerId, text, NULL);
         break;

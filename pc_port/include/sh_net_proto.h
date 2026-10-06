@@ -123,7 +123,22 @@ enum
     SHNET_MSG_S_BYE      = 0x53,
     SHNET_MSG_S_POS      = 0x54, /* P2P  my position/anim this tick (co-op presence) */
     SHNET_MSG_S_WORLD    = 0x55, /* P2P  host -> guests: boot into this map */
-    SHNET_MSG_S_ITEM     = 0x56  /* P2P  I picked this up; everyone gets it too */
+    SHNET_MSG_S_ITEM     = 0x56, /* P2P  I picked this up; everyone gets it too */
+
+    /* Co-op over a relay server (sh_master rooms). The transport the session layer
+     * rides when it is NOT using Steam P2P: the host creates a room, guests join
+     * by code or from a list, and the server forwards each member's traffic to
+     * the rest of the room. A COOP_RELAY payload is itself one of the S_* messages
+     * above, so the session's own wire format is reused unchanged inside it. */
+    SHNET_MSG_ROOM_CREATE   = 0x60, /* C->S  open a room (u8 maxPlayers, name) */
+    SHNET_MSG_ROOM_JOIN     = 0x61, /* C->S  join a room by code (u16 code) */
+    SHNET_MSG_ROOM_LEAVE    = 0x62, /* C->S  leave the current room */
+    SHNET_MSG_ROOM_LIST_REQ = 0x63, /* C->S  list open rooms */
+    SHNET_MSG_ROOM_JOINED   = 0x64, /* S->C  you are in: your member id, code, host id, roster */
+    SHNET_MSG_ROOM_ROSTER   = 0x65, /* S->C  the room roster changed */
+    SHNET_MSG_ROOM_REJECT   = 0x66, /* S->C  create/join refused (reason) */
+    SHNET_MSG_ROOM_LIST     = 0x67, /* S->C  one page of open rooms */
+    SHNET_MSG_COOP_RELAY    = 0x68  /* C->S fromMe / S->C fromPeer: (u32 peerId, S_* payload) */
 };
 
 /* Marker kinds. */
