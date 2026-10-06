@@ -16,6 +16,9 @@
 #include "sh_net_coopudp.h"
 #include "pc_config.h"
 #include "sh_log.h"
+#include "sh_master_embed.h"
+
+#include <SDL.h> /* SDL_CreateThread for the embedded relay */
 
 #define COOPUDP_MAX_MEMBERS 8
 #define COOPUDP_RX_RING     64
@@ -265,11 +268,51 @@ void CoopUdp_Init(void)
     s_inited = 1;
 }
 
+/* ------------------------------------------------------------------ */
+/* Embedded relay (co-op listen host)                                  */
+/* ------------------------------------------------------------------ */
+/* Hosting "on this PC" runs the real relay server (online_server/sh_master.c,
+ * built in with SH_MASTER_EMBED) on a worker thread and points our own client at
+ * 127.0.0.1, so there is one relay implementation and guests reach this machine's
+ * address directly -- no separate server process. */
+static SDL_Thread* s_srvThread;
+
+static int CoopUdp_ServerThread(void* unused)
+{
+    (void)unused;
+    ShMaster_Serve(); /* blocks until ShMaster_RequestStop */
+    return 0;
+}
+
+static void CoopUdp_StopServer(void)
+{
+    if (!s_srvThread) return;
+    ShMaster_RequestStop();
+    SDL_WaitThread(s_srvThread, NULL);
+    s_srvThread = NULL;
+    SH_DBG("[COOPUDP] embedded relay stopped");
+}
+
+void CoopUdp_HostListen(unsigned short port, int maxPlayers)
+{
+    if (port == 0) port = SHNET_DEFAULT_PORT;
+    if (!s_srvThread)
+    {
+        ShMaster_SetConfig(port, maxPlayers, NULL);
+        s_srvThread = SDL_CreateThread(CoopUdp_ServerThread, "sh-coop-relay", NULL);
+        if (!s_srvThread) { SH_DBG("[COOPUDP] could not start embedded relay"); return; }
+        SH_DBG("[COOPUDP] embedded relay hosting on UDP %u (max %d)", (unsigned)port, maxPlayers);
+    }
+    CoopUdp_SetServer("127.0.0.1", port);
+    CoopUdp_CreateRoom(maxPlayers);
+}
+
 void CoopUdp_Shutdown(void)
 {
     if (!s_inited) return;
     if (s_room && s_connected) CoopUdp_SendSimple(SHNET_MSG_ROOM_LEAVE);
     if (s_sock) { ShNetPlat_Close(s_sock); s_sock = NULL; }
+    CoopUdp_StopServer();
     s_inited = 0;
 }
 
@@ -327,6 +370,7 @@ void CoopUdp_Leave(void)
 void CoopUdp_Disconnect(void)
 {
     CoopUdp_Leave();
+    CoopUdp_StopServer(); /* if we were the listen host, tear the relay down too */
     s_haveServer = 0;
     s_connected  = 0;
     s_session    = 0;

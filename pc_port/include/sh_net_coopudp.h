@@ -28,6 +28,10 @@ void CoopUdp_Tick(unsigned int nowMs); /* pump: resolve, hello, ping, drain recv
  * the address will not resolve. Switching servers drops any current room. */
 int  CoopUdp_SetServer(const char* host, unsigned short port);
 
+/* Host co-op on THIS PC: start the relay in-process (no separate server) and
+ * connect to it on loopback. Guests reach it at this machine's own address. */
+void CoopUdp_HostListen(unsigned short port, int maxPlayers);
+
 void CoopUdp_CreateRoom(int maxPlayers);     /* host a room; a code comes back via the roster */
 void CoopUdp_JoinRoom(unsigned short code);  /* join a room by its shareable code */
 void CoopUdp_RequestRoomList(void);          /* ask the server for open rooms */

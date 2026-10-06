@@ -253,6 +253,15 @@ else()
     message(STATUS "Lua scripting: disabled (third_party/lua missing)")
 endif()
 
+# Silent Hill Online co-op listen host: the relay server (online_server/sh_master.c)
+# compiled into the game with SH_MASTER_EMBED so a player can host co-op without
+# running a separate server process. It is outside the src glob, so it carries
+# only its own defines (and drops its main/signals/on-disk store under the macro).
+set(SH_EMBED_SERVER "${DECOMP_DIR}/online_server/sh_master.c")
+set_source_files_properties(${SH_EMBED_SERVER} PROPERTIES
+    COMPILE_DEFINITIONS "SH_MASTER_EMBED;static_assert=_Static_assert"
+)
+
 add_executable(SilentHillPC
     ${PC_PORT_SOURCES}
     ${MAIN_SOURCES}
@@ -260,6 +269,7 @@ add_executable(SilentHillPC
     ${SCREEN_SOURCES}
     ${MAP_SOURCES}
     ${SH_APP_RESOURCES}
+    ${SH_EMBED_SERVER}
 )
 
 # Export symbols from the executable so map overlay DLLs can link against it.

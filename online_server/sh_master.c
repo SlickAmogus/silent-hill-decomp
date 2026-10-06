@@ -63,6 +63,11 @@ typedef socklen_t ShSockLen;
 
 #include "sh_net_proto.h"
 
+#ifdef SH_MASTER_EMBED
+#include "sh_master_embed.h"
+#include "sh_log.h" /* embedded in the client: relay logs go to SilentHill.log */
+#endif
+
 /* ------------------------------------------------------------------ */
 /* Limits                                                              */
 /* ------------------------------------------------------------------ */
@@ -177,15 +182,24 @@ static unsigned int SrvMillis(void)
 #endif
 }
 
+#ifndef SH_MASTER_EMBED
 static void SrvOnSignal(int sig)
 {
     (void)sig;
     g_running = 0;
 }
+#endif
 
 static void SrvLog(const char* fmt, ...)
 {
     va_list ap;
+#ifdef SH_MASTER_EMBED
+    char line[256];
+    va_start(ap, fmt);
+    vsnprintf(line, sizeof(line), fmt, ap);
+    va_end(ap);
+    SH_DBG("[coop-relay] %s", line);
+#else
     time_t    t  = time(NULL);
     struct tm* lt = localtime(&t);
     char      stamp[32];
@@ -197,6 +211,7 @@ static void SrvLog(const char* fmt, ...)
     va_end(ap);
     printf("\n");
     fflush(stdout);
+#endif
 }
 
 /* ------------------------------------------------------------------ */
@@ -1384,6 +1399,9 @@ static void SrvDispatch(const struct sockaddr_in* from, const shn_u8* buf, int n
 /* main                                                                */
 /* ------------------------------------------------------------------ */
 
+int ShMaster_Serve(void);
+
+#ifndef SH_MASTER_EMBED
 static void SrvUsage(const char* argv0)
 {
     printf("Silent Hill Online master server (protocol v%d)\n\n", SHNET_PROTO_VER);
@@ -1403,9 +1421,7 @@ static void SrvUsage(const char* argv0)
 
 int main(int argc, char** argv)
 {
-    struct sockaddr_in bindAddr;
-    unsigned int       lastExpire = 0;
-    int                i;
+    int i;
 
     for (i = 1; i < argc; i++)
     {
@@ -1448,8 +1464,19 @@ int main(int argc, char** argv)
     }
 
     SrvSanitize(g_serverName, SHNET_SERVER_MAX);
+    return ShMaster_Serve();
+}
+#endif /* !SH_MASTER_EMBED */
 
-    g_sessionSeed = (shn_u32)time(NULL) ^ ((shn_u32)(size_t)&argc * 2654435761u) ^ 0x9E3779B9u;
+/* The server proper: everything is configured through the g_* globals (by main's
+ * argument parsing, or by ShMaster_SetConfig when embedded in the client); this
+ * binds the socket and serves until g_running clears. */
+int ShMaster_Serve(void)
+{
+    struct sockaddr_in bindAddr;
+    unsigned int       lastExpire = 0;
+
+    g_sessionSeed = (shn_u32)time(NULL) ^ ((shn_u32)(size_t)&bindAddr * 2654435761u) ^ 0x9E3779B9u;
     if (g_sessionSeed == 0)
     {
         g_sessionSeed = 0x1234567u;
@@ -1518,9 +1545,11 @@ int main(int argc, char** argv)
     }
 #endif
 
+#ifndef SH_MASTER_EMBED
     signal(SIGINT, SrvOnSignal);
 #ifdef SIGTERM
     signal(SIGTERM, SrvOnSignal);
+#endif
 #endif
 
     SrvLoadDb();
@@ -1585,5 +1614,29 @@ int main(int argc, char** argv)
     WSACleanup();
 #endif
     free(g_memos);
+    g_sock = SH_INVALID_SOCK;
     return 0;
 }
+
+#ifdef SH_MASTER_EMBED
+/* Run inside the game as a co-op listen host. The relay's living-world extras
+ * (ghosts, memos) stay idle because no one asks for them, and the empty db path
+ * means it never touches the disk. ShMaster_Serve blocks on its own thread until
+ * ShMaster_RequestStop clears g_running. */
+void ShMaster_SetConfig(unsigned short port, int maxPlayers, const char* name)
+{
+    g_port = port ? port : SHNET_DEFAULT_PORT;
+    if (maxPlayers > 0)
+    {
+        g_maxClients = maxPlayers;
+        if (g_maxClients > SRV_MAX_CLIENTS) g_maxClients = SRV_MAX_CLIENTS;
+    }
+    if (name && name[0]) snprintf(g_serverName, sizeof(g_serverName), "%s", name);
+    g_dbPath[0] = '\0';   /* no marker store on disk when embedded */
+    g_running   = 1;
+}
+
+void ShMaster_RequestStop(void) { g_running = 0; }
+
+int ShMaster_Running(void) { return g_running && g_sock != SH_INVALID_SOCK; }
+#endif

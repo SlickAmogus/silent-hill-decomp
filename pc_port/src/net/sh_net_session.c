@@ -90,6 +90,7 @@ static struct
     int                coopPort;
     int                coopMax;
     int                coopJoinCode;
+    int                coopListen;     /* host the relay in-process (this PC) */
     int                wantHostServer;
     int                wantJoinServer;
     int                wantListServer;
@@ -230,6 +231,19 @@ void ShSession_RequestHostServer(const char* host, int port, int maxPlayers)
     SDL_strlcpy(s_req.coopHost, host, sizeof(s_req.coopHost));
     s_req.coopPort       = port ? port : SHNET_DEFAULT_PORT;
     s_req.coopMax        = maxPlayers;
+    s_req.coopListen     = 0;
+    s_req.wantHostServer = 1;
+    SDL_UnlockMutex(s_lock);
+}
+
+void ShSession_RequestHostListen(int port, int maxPlayers)
+{
+    if (!s_lock) return;
+    SDL_LockMutex(s_lock);
+    s_req.coopHost[0]    = '\0'; /* loopback; the relay runs in-process */
+    s_req.coopPort       = port ? port : SHNET_DEFAULT_PORT;
+    s_req.coopMax        = maxPlayers;
+    s_req.coopListen     = 1;
     s_req.wantHostServer = 1;
     SDL_UnlockMutex(s_lock);
 }
@@ -764,7 +778,7 @@ void ShSession_Tick(unsigned int nowMs)
     int                hostGuestDebug;
 
     char               coopHost[80];
-    int                coopPort, coopMax, coopJoinCode;
+    int                coopPort, coopMax, coopJoinCode, coopListen;
     int                wantHostServer, wantJoinServer, wantListServer;
 
     if (!s_lock)
@@ -794,6 +808,7 @@ void ShSession_Tick(unsigned int nowMs)
     coopPort        = s_req.coopPort;
     coopMax         = s_req.coopMax;
     coopJoinCode    = s_req.coopJoinCode;
+    coopListen      = s_req.coopListen;
     wantHostServer  = s_req.wantHostServer;
     wantJoinServer  = s_req.wantJoinServer;
     wantListServer  = s_req.wantListServer;
@@ -812,6 +827,7 @@ void ShSession_Tick(unsigned int nowMs)
     s_req.wantHostServer = 0;
     s_req.wantJoinServer = 0;
     s_req.wantListServer = 0;
+    s_req.coopListen     = 0;
     SDL_UnlockMutex(s_lock);
 
     /* A Steam invite accepted in the overlay outranks an in-game Steam host,
@@ -847,8 +863,15 @@ void ShSession_Tick(unsigned int nowMs)
     {
         if (s_enabled) ShSteam_LeaveLobby();
         s_backend = COOP_BACKEND_UDP;
-        CoopUdp_SetServer(coopHost, (unsigned short)coopPort);
-        CoopUdp_CreateRoom(coopMax);
+        if (coopListen)
+        {
+            CoopUdp_HostListen((unsigned short)coopPort, coopMax);
+        }
+        else
+        {
+            CoopUdp_SetServer(coopHost, (unsigned short)coopPort);
+            CoopUdp_CreateRoom(coopMax);
+        }
     }
     else if (wantJoin && s_enabled)
     {
