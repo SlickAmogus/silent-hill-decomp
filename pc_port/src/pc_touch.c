@@ -103,11 +103,9 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
     /* Corner escape slot only, like TB_BACK -- its own position is never
      * used; it carries the glyph and the Skip binding. */
     [TB_SKIP] = { 0.920f, 0.158f, 0.055f, 0 },
-    /* The options screen only. The bonus options page is entered with a
-     * shoulder button, which a touchscreen has no way to send, so the page was
-     * unreachable without a pad. Under the quick menu button on the left, well
-     * clear of the corner Back on the right. */
-    [TB_BONUS] = { 0.080f, 0.330f, 0.055f, 0 },
+    /* The main options list only, as TC_MODE_BONUS's solo button: it takes the
+     * corner slot like Back and Skip, so its own position is never used. */
+    [TB_BONUS] = { 0.920f, 0.158f, 0.055f, 0 },
     /* Free-cursor puzzles only, in the corner opposite Back: clicks wherever
      * the cursor is. Touch drags the cursor and never clicks on its own, so
      * this and a double tap at the cursor are the only ways to act. */
@@ -246,7 +244,8 @@ enum { TC_LEVEL_NONE = 0, TC_LEVEL_ESCAPE, TC_LEVEL_FULL };
  * tapping IS how you work one, so the tap-anywhere dismissal would back out
  * the instant you touched a dial and the puzzle could never be solved. */
 enum { TC_MODE_OFF = 0, TC_MODE_GAMEPLAY, TC_MODE_PAUSE, TC_MODE_MAP, TC_MODE_ADVANCE, TC_MODE_BACK,
-       TC_MODE_BACK_CURSOR, TC_MODE_ESCAPE, TC_MODE_TITLE, TC_MODE_SKIP };
+       TC_MODE_BACK_CURSOR, TC_MODE_ESCAPE, TC_MODE_TITLE, TC_MODE_SKIP,
+       TC_MODE_BONUS };
 
 /* Gameplay gets the full scheme. Pause gets Start ALONE -- nothing else on that
  * screen responds to a pointer, so hiding the controls there left no way back
@@ -362,6 +361,19 @@ static int Tc_Mode(void)
     if (g_GameWork.gameState == GameState_OptionScreen &&
         g_GameWork.gameStateSteps[0] == OptionsMenuState_Brightness)
         return TC_MODE_BACK;
+
+    /* The bonus options page is entered from the main options list with a
+     * shoulder button (options.c takes any of L1/L2/R1/R2), which a
+     * touchscreen cannot send, so the page was unreachable without a pad.
+     *
+     * It needs a mode of its own because this screen is OFF otherwise: the
+     * list is driven by the pointer, so the bonus button was gated to the one
+     * screen where the overlay does not run, and it drew nothing and took no
+     * taps. Like BACK_CURSOR, this adds the single corner button and leaves
+     * every other tap to the menu underneath. */
+    if (g_GameWork.gameState == GameState_OptionScreen &&
+        g_GameWork.gameStateSteps[0] == OptionsMenuState_MainOptions)
+        return TC_MODE_BONUS;
 
     /* The save/load screen needs the corner Back -- it is reachable straight
      * from the pause menu, and with no pad a player could get in and not back
@@ -684,6 +696,8 @@ static int Tc_SoloButton(int mode)
         return TB_MAP;     /* opens the achievement browser, and closes it */
     if (mode == TC_MODE_SKIP)
         return TB_SKIP;    /* results and credits move on with Skip */
+    if (mode == TC_MODE_BONUS)
+        return TB_BONUS;   /* the options list reaches the bonus page */
 
     return -1;
 }
@@ -798,17 +812,6 @@ static void Tc_PressAction(unsigned short* word, unsigned short mask)
  * and a binding and have no place of their own, so their table entry is a copy
  * of Start's -- which means any mode that draws them alongside Start stacks
  * them inside the same ring. */
-/* The bonus options page is entered from the main options list with a shoulder
- * button (options.c reads L1/L2/R1/R2), which leaves it unreachable on a
- * touchscreen. Only that list: on the PC Options page the same buttons page
- * through it instead, and the brightness and controller sub-screens have their
- * own modes. */
-static int Tc_BonusAllowed(void)
-{
-    return g_GameWork.gameState == GameState_OptionScreen &&
-           g_GameWork.gameStateSteps[0] == OptionsMenuState_MainOptions;
-}
-
 /* The Click button belongs to the free-cursor puzzles, not to every screen
  * that uses the live-background mode: the save screen is TC_MODE_BACK_CURSOR
  * too and its taps are meant to reach the list. */
@@ -1221,19 +1224,6 @@ void Pc_Touch_Update(void)
                             t->role      = TR_BUTTON;
                             t->buttonIdx = TB_CLICK;
                             onIt         = 1;
-                        }
-                    }
-
-                    if (!onIt && Tc_BonusAllowed())
-                    {
-                        float bdx = (vx - s_Buttons[TB_BONUS].cx) * aspect;
-                        float bdy = (vy - s_Buttons[TB_BONUS].cy);
-                        float br  = s_Buttons[TB_BONUS].r * 1.25f;
-
-                        if (((bdx * bdx) + (bdy * bdy)) <= (br * br))
-                        {
-                            t->role      = TR_BUTTON;
-                            t->buttonIdx = TB_BONUS;
                         }
                     }
                 }
@@ -2238,13 +2228,12 @@ void Pc_Touch_Draw(void)
 
         if (mode != TC_MODE_GAMEPLAY)
         {
-            const int bonus = (i == TB_BONUS) && Tc_BonusAllowed();
             const int click = (i == TB_CLICK) && Tc_PuzzleClickAllowed(mode);
 
-            if (i != Tc_SoloButton(mode) && !bonus && !click)
+            if (i != Tc_SoloButton(mode) && !click)
                 continue;
 
-            if (!bonus && !click)
+            if (!click)
             {
                 bcx = s_Buttons[TB_START].cx;
                 bcy = s_Buttons[TB_START].cy;
