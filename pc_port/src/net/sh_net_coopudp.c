@@ -48,6 +48,7 @@ static unsigned int s_lastRxMs;
 /* Deferred until the WELCOME lands: 0 none, else a create (max in s_pendCreate)
  * or a join (code in s_pendJoin). */
 static int          s_pendCreate;
+static int          s_pendCreateHidden;
 static shn_u16      s_pendJoin;
 static int          s_pendJoinSet; /* separate flag: code 0 is a valid "any room" join */
 static int          s_pendList;
@@ -102,11 +103,12 @@ static void CoopUdp_SendSimple(int type)
     CoopUdp_SendRaw(buf, SHNET_HDR_SIZE);
 }
 
-static void CoopUdp_DoCreate(int maxPlayers)
+static void CoopUdp_DoCreate(int maxPlayers, int hidden)
 {
-    shn_u8 buf[SHNET_HDR_SIZE + 1];
+    shn_u8 buf[SHNET_HDR_SIZE + 2];
     int    off = SHNET_HDR_SIZE;
     ShnPutU8(buf, &off, (shn_u8)(maxPlayers < 2 ? 2 : (maxPlayers > COOPUDP_MAX_MEMBERS ? COOPUDP_MAX_MEMBERS : maxPlayers)));
+    ShnPutU8(buf, &off, (shn_u8)(hidden ? 1 : 0));
     ShnPutHeader(buf, SHNET_MSG_ROOM_CREATE, (shn_u16)(off - SHNET_HDR_SIZE), s_session);
     CoopUdp_SendRaw(buf, off);
 }
@@ -122,7 +124,7 @@ static void CoopUdp_DoJoin(shn_u16 code)
 
 static void CoopUdp_FlushPending(void)
 {
-    if (s_pendCreate) { CoopUdp_DoCreate(s_pendCreate); s_pendCreate = 0; }
+    if (s_pendCreate) { CoopUdp_DoCreate(s_pendCreate, s_pendCreateHidden); s_pendCreate = 0; }
     if (s_pendJoinSet) { CoopUdp_DoJoin(s_pendJoin);     s_pendJoin = 0; s_pendJoinSet = 0; }
     if (s_pendList)   { CoopUdp_SendSimple(SHNET_MSG_ROOM_LIST_REQ); s_pendList = 0; }
 }
@@ -304,7 +306,7 @@ void CoopUdp_HostListen(unsigned short port, int maxPlayers)
         SH_DBG("[COOPUDP] embedded relay hosting on UDP %u (max %d)", (unsigned)port, maxPlayers);
     }
     CoopUdp_SetServer("127.0.0.1", port);
-    CoopUdp_CreateRoom(maxPlayers);
+    CoopUdp_CreateRoom(maxPlayers, 0); /* a listen room lives only on this host's relay */
 }
 
 void CoopUdp_Shutdown(void)
@@ -339,11 +341,11 @@ int CoopUdp_SetServer(const char* host, unsigned short port)
     return 1;
 }
 
-void CoopUdp_CreateRoom(int maxPlayers)
+void CoopUdp_CreateRoom(int maxPlayers, int hidden)
 {
     if (!s_haveServer) return;
-    if (s_connected) CoopUdp_DoCreate(maxPlayers);
-    else             s_pendCreate = maxPlayers;
+    if (s_connected) CoopUdp_DoCreate(maxPlayers, hidden);
+    else             { s_pendCreate = maxPlayers; s_pendCreateHidden = hidden; }
 }
 
 void CoopUdp_JoinRoom(unsigned short code)

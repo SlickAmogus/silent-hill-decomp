@@ -76,6 +76,16 @@ static int Coop_ServerPort(void)
     return g_PcConfig.onlinePort ? g_PcConfig.onlinePort : 27888;
 }
 
+/* Ask the configured server for its open rooms so the browser is ready. Skipped
+ * when we are already on a transport -- a list request repoints the co-op client
+ * and would drop a room we are hosting or in. */
+static void Coop_RefreshServerList(void)
+{
+    if (ShSession_Active()) return;
+    if (!g_PcConfig.onlineServer[0]) return;
+    ShSession_RequestListServer(Coop_ServerIp(), Coop_ServerPort());
+}
+
 /* ------------------------------------------------------------------ */
 /* Text entry (Join by IP / room code)                                 */
 /* ------------------------------------------------------------------ */
@@ -262,7 +272,7 @@ static void Coop_EnterHostSetup(void)
     s_setMaxPlayers = g_PcConfig.onlineSteamMaxPlayers;
     if (s_setMaxPlayers < 2) s_setMaxPlayers = 2;
     if (s_setMaxPlayers > 4) s_setMaxPlayers = 4;
-    s_setPublic   = g_PcConfig.onlineSteamPublic ? 1 : 0;
+    s_setPublic   = 1; /* "Room List: Listed" by default so friends can browse to you */
     s_setFps      = (g_PcConfig.fpsCap >= 60) ? 60 : 30;
     s_saveCount   = Pc_CoopSave_List(s_saves, (int)(sizeof(s_saves) / sizeof(s_saves[0])));
     s_loadIdx     = -1; /* default: start a fresh game */
@@ -311,7 +321,7 @@ static void Coop_StartHosting(void)
     }
     else if (s_hostMode == COOP_HOST_SERVER)
     {
-        ShSession_RequestHostServer(Coop_ServerIp(), Coop_ServerPort(), s_setMaxPlayers);
+        ShSession_RequestHostServer(Coop_ServerIp(), Coop_ServerPort(), s_setMaxPlayers, !s_setPublic);
     }
     else /* this PC: run the relay in-process */
     {
@@ -380,7 +390,7 @@ void Pc_CoopMenu_RowText(int i, char* out, int cap)
             snprintf(out, cap, "Host on:  %s", where);
         }
         else if (i == 1) snprintf(out, cap, "Max Players:  %d", s_setMaxPlayers);
-        else if (i == 2) snprintf(out, cap, "Visibility:  %s", s_setPublic ? "Public" : "Private");
+        else if (i == 2) snprintf(out, cap, "Room List:  %s", s_setPublic ? "Listed" : "Hidden (code only)");
         else if (i == 3) snprintf(out, cap, "FPS Lock:  %d", s_setFps);
         else if (i == 4)
         {
@@ -565,7 +575,7 @@ static void Coop_Confirm(void)
     {
     case COOP_PAGE_ROOT:
         if (s_sel == 0)      { Coop_EnterHostSetup(); }
-        else if (s_sel == 1) { s_page = COOP_PAGE_JOIN; s_sel = 0; }
+        else if (s_sel == 1) { s_page = COOP_PAGE_JOIN; s_sel = 0; Coop_RefreshServerList(); }
         else                 { Pc_CoopMenu_Close(); }
         break;
 

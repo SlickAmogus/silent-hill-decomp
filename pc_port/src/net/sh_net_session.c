@@ -91,6 +91,7 @@ static struct
     int                coopMax;
     int                coopJoinCode;
     int                coopListen;     /* host the relay in-process (this PC) */
+    int                coopHidden;     /* server room not listed (join by code) */
     int                wantHostServer;
     int                wantJoinServer;
     int                wantListServer;
@@ -224,7 +225,7 @@ void ShSession_RequestHost(void)
     SDL_UnlockMutex(s_lock);
 }
 
-void ShSession_RequestHostServer(const char* host, int port, int maxPlayers)
+void ShSession_RequestHostServer(const char* host, int port, int maxPlayers, int hidden)
 {
     if (!s_lock || !host || !host[0]) return;
     SDL_LockMutex(s_lock);
@@ -232,6 +233,7 @@ void ShSession_RequestHostServer(const char* host, int port, int maxPlayers)
     s_req.coopPort       = port ? port : SHNET_DEFAULT_PORT;
     s_req.coopMax        = maxPlayers;
     s_req.coopListen     = 0;
+    s_req.coopHidden     = hidden ? 1 : 0;
     s_req.wantHostServer = 1;
     SDL_UnlockMutex(s_lock);
 }
@@ -244,6 +246,7 @@ void ShSession_RequestHostListen(int port, int maxPlayers)
     s_req.coopPort       = port ? port : SHNET_DEFAULT_PORT;
     s_req.coopMax        = maxPlayers;
     s_req.coopListen     = 1;
+    s_req.coopHidden     = 0;
     s_req.wantHostServer = 1;
     SDL_UnlockMutex(s_lock);
 }
@@ -778,7 +781,7 @@ void ShSession_Tick(unsigned int nowMs)
     int                hostGuestDebug;
 
     char               coopHost[80];
-    int                coopPort, coopMax, coopJoinCode, coopListen;
+    int                coopPort, coopMax, coopJoinCode, coopListen, coopHidden;
     int                wantHostServer, wantJoinServer, wantListServer;
 
     if (!s_lock)
@@ -809,6 +812,7 @@ void ShSession_Tick(unsigned int nowMs)
     coopMax         = s_req.coopMax;
     coopJoinCode    = s_req.coopJoinCode;
     coopListen      = s_req.coopListen;
+    coopHidden      = s_req.coopHidden;
     wantHostServer  = s_req.wantHostServer;
     wantJoinServer  = s_req.wantJoinServer;
     wantListServer  = s_req.wantListServer;
@@ -828,6 +832,7 @@ void ShSession_Tick(unsigned int nowMs)
     s_req.wantJoinServer = 0;
     s_req.wantListServer = 0;
     s_req.coopListen     = 0;
+    s_req.coopHidden     = 0;
     SDL_UnlockMutex(s_lock);
 
     /* A Steam invite accepted in the overlay outranks an in-game Steam host,
@@ -870,7 +875,7 @@ void ShSession_Tick(unsigned int nowMs)
         else
         {
             CoopUdp_SetServer(coopHost, (unsigned short)coopPort);
-            CoopUdp_CreateRoom(coopMax);
+            CoopUdp_CreateRoom(coopMax, coopHidden);
         }
     }
     else if (wantJoin && s_enabled)

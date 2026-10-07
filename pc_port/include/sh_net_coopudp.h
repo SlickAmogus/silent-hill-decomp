@@ -32,7 +32,7 @@ int  CoopUdp_SetServer(const char* host, unsigned short port);
  * connect to it on loopback. Guests reach it at this machine's own address. */
 void CoopUdp_HostListen(unsigned short port, int maxPlayers);
 
-void CoopUdp_CreateRoom(int maxPlayers);     /* host a room; a code comes back via the roster */
+void CoopUdp_CreateRoom(int maxPlayers, int hidden); /* host a room (hidden = not listed, code only) */
 void CoopUdp_JoinRoom(unsigned short code);  /* join a room by its shareable code */
 void CoopUdp_RequestRoomList(void);          /* ask the server for open rooms */
 void CoopUdp_Leave(void);                    /* leave the room (stays connected) */

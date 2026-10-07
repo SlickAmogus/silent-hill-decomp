@@ -130,6 +130,7 @@ typedef struct
     shn_u16            room;
     int                roomHost;
     int                roomMax;
+    int                roomHidden; /* host chose not to list it; join by code only */
 } Client;
 
 typedef struct
@@ -1215,7 +1216,7 @@ static void SrvRoomLeave(Client* c, int notify)
     shn_u16 room    = c->room;
     int     wasHost = c->roomHost;
     if (!room) return;
-    c->room = 0; c->roomHost = 0; c->roomMax = 0;
+    c->room = 0; c->roomHost = 0; c->roomMax = 0; c->roomHidden = 0;
     if (!notify) return;
     if (wasHost)
     {
@@ -1225,7 +1226,7 @@ static void SrvRoomLeave(Client* c, int notify)
             Client* m = &g_clients[i];
             if (m->used && m->room == room)
             {
-                m->room = 0; m->roomHost = 0; m->roomMax = 0;
+                m->room = 0; m->roomHost = 0; m->roomMax = 0; m->roomHidden = 0;
                 SrvSendRoomRoster(m, 0);
             }
         }
@@ -1239,16 +1240,18 @@ static void SrvRoomLeave(Client* c, int notify)
 
 static void SrvHandleRoomCreate(Client* c, const shn_u8* p, int len)
 {
-    int     off  = 0;
-    int     maxP = (len >= 1) ? (int)ShnGetU8(p, &off) : 4;
+    int     off    = 0;
+    int     maxP   = (len >= 1) ? (int)ShnGetU8(p, &off) : 4;
+    int     hidden = (len >= 2) ? (int)ShnGetU8(p, &off) : 0;
     shn_u16 code;
     if (maxP < 2) maxP = 2;
     if (maxP > SRV_ROOM_MAX_PLAYERS) maxP = SRV_ROOM_MAX_PLAYERS;
     SrvRoomLeave(c, 1);
     code = SrvNewRoomCode();
     if (!code) { SrvSendRoomReject(c, 1, "server is out of room codes"); return; }
-    c->room = code; c->roomHost = 1; c->roomMax = maxP;
-    SrvLog("+ room %u opened by %s (id %u, max %d)", code, c->name, c->playerId, maxP);
+    c->room = code; c->roomHost = 1; c->roomMax = maxP; c->roomHidden = hidden ? 1 : 0;
+    SrvLog("+ room %u opened by %s (id %u, max %d%s)", code, c->name, c->playerId, maxP,
+           c->roomHidden ? ", hidden" : "");
     SrvSendRoomRoster(c, 1);
 }
 
@@ -1287,7 +1290,7 @@ static void SrvHandleRoomList(Client* c)
     for (i = 0; i < SRV_MAX_CLIENTS; i++)
     {
         Client* h = &g_clients[i];
-        if (!h->used || !h->roomHost) continue;
+        if (!h->used || !h->roomHost || h->roomHidden) continue;
         if (off + 2 + 1 + 1 + SHNET_NAME_MAX > (int)sizeof(buf)) break;
         ShnPutU16(buf, &off, h->room);
         ShnPutU8(buf, &off, (shn_u8)SrvRoomCount(h->room));

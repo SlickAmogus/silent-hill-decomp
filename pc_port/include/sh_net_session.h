@@ -83,7 +83,7 @@ void ShSession_RequestJoin(unsigned long long lobbyId);
 /* Co-op over a relay server (vs Steam). Host opens a room, join enters one by its
  * code, list asks the server for open rooms. host is an IP or name; port 0 means
  * the default. These switch the session to the UDP backend. */
-void ShSession_RequestHostServer(const char* host, int port, int maxPlayers);
+void ShSession_RequestHostServer(const char* host, int port, int maxPlayers, int hidden);
 void ShSession_RequestHostListen(int port, int maxPlayers); /* host the relay in-process (this PC) */
 void ShSession_RequestJoinServer(const char* host, int port, int code);
 void ShSession_RequestListServer(const char* host, int port);

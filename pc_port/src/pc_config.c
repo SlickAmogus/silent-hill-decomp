@@ -47,11 +47,11 @@ s_PcConfig g_PcConfig = {
                          * 240Hz menu moved them four times too fast (reported). */
     .lowHealthGlow = 0, /* 1=pulsing red edge glow below 20 hp (SH2 remake style); off by default */
     .bulletDecals = 0, /* 1=bullet-hole decals at player gunshot impacts (gamedata/decal.png); off by default */
-    /* Silent Hill Online. Off by default: an offline build must behave
-     * exactly like the single-player port, and nothing here contacts a
-     * network until online_enabled is set. */
-    .onlineEnabled    = 0,
-    .onlineServer     = "127.0.0.1",
+    /* Silent Hill Online. This is the online branch, so the living world is on
+     * by default and points at the community server; a player turns it off in
+     * the launcher to get the stock single-player port. */
+    .onlineEnabled    = 1,
+    .onlineServer     = "server.sh1pc.com",
     .onlinePort       = 27888,
     .onlineName       = "Harry",
     .onlinePassword   = "",
