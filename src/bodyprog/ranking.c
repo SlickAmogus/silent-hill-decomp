@@ -9,6 +9,21 @@
 #include "bodyprog/ranking.h"
 #include "main/fsqueue.h"
 
+#ifdef SH_PC_PORT
+#include "lang_text.h"
+
+/* The difficulty is drawn at an x tuned to each ENGLISH word's width, ending
+ * near x=296. Shift by the width difference so a longer translation keeps
+ * that right edge instead of running off-screen; English is unchanged. */
+static s32 Results_AlignedX(s32 x, const char* us)
+{
+    return x + Pc_LangMenuTextWidth(us) - Pc_LangMenuTextWidth(Pc_LangMenuText(us));
+}
+#define RESULTS_X(x, str) Results_AlignedX((x), (str))
+#else
+#define RESULTS_X(x, str) (x)
+#endif
+
 static const s32 pad_rodata_8002B2F8 = 0;
 
 s16 D_800C48A0;
@@ -512,17 +527,17 @@ void Results_DisplayInfo(u32* arg0) // 0x80090664
         switch (D_800C48D0)
         {
             case -1:
-                Gfx_StringSetPosition(0xFC, -0x38);
+                Gfx_StringSetPosition(RESULTS_X(0xFC, D_8002B4C0[2]), -0x38);
                 Gfx_StringDraw(D_8002B4C0[2], 20);
                 break;
 
             case 0:
-                Gfx_StringSetPosition(0xDE, -0x38);
+                Gfx_StringSetPosition(RESULTS_X(0xDE, D_8002B4C0[3]), -0x38);
                 Gfx_StringDraw(D_8002B4C0[3], 20);
                 break;
 
             case 1:
-                Gfx_StringSetPosition(0xF7, -0x38);
+                Gfx_StringSetPosition(RESULTS_X(0xF7, D_8002B4C0[4]), -0x38);
                 Gfx_StringDraw(D_8002B4C0[4], 20);
                 break;
 

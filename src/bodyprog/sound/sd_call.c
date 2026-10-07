@@ -56,6 +56,22 @@ static s_800C15F0 D_800C15F0[4];
 /** @brief `e_SfxId` | Stores the index of the currently playing SFX. */
 static u16 g_AudioPlayingIdxList[24];
 
+#ifdef SH_PC_PORT
+/* The positional-loop sustain in 3d_audio.c needs to know whether a sfx still
+ * owns a voice. The list stays private to this file. */
+bool Pc_Sd_SfxHasVoice(u16 sfxId)
+{
+    s32 i;
+
+    for (i = 0; i < (s32)ARRAY_SIZE(g_AudioPlayingIdxList); i++)
+    {
+        if (g_AudioPlayingIdxList[i] == sfxId)
+            return true;
+    }
+    return false;
+}
+#endif
+
 /** @brief Stores the pitch of currently playing SFX.
 * Shares the same index of where the SFX is stored in `g_AudioPlayingIdxList`.
 */

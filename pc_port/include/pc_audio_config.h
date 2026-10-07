@@ -22,8 +22,14 @@ typedef struct
     int bitPerfect;
     /* audio_spatial: run the software SPU through OpenAL placement so its
      * accurate reverb reaches surround layouts. Software renderers only --
-     * the legacy backend already has its own speaker handling. */
+     * the legacy backend already has its own speaker handling.
+     *
+     * Left unset it follows audio_output: asking for quad/5.1/7.1 turns it on,
+     * because a surround layout on the software SPU does nothing without it and
+     * there was no way to discover that. spatialUserSet records an explicit
+     * setting so audio_spatial = 0 can still force the plain stereo sink. */
     int spatial;
+    int spatialUserSet;
 } PcAudioConfig;
 
 extern PcAudioConfig g_PcAudioConfig;

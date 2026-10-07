@@ -264,6 +264,29 @@ static int g_BoneLogFrames = 0;
 int g_PcHideHarryFpsBody = 0;
 #endif
 
+#ifdef SH_PC_PORT
+extern s32 g_PcCharaDrawScale; /* world_draw.c */
+
+/* Scale one bone drawn matrix about `root` in the same space. */
+static void Pc_BoneMatrixScale(MATRIX* m, const MATRIX* root, s32 scaleQ12)
+{
+    s32 i;
+    s32 j;
+
+    for (i = 0; i < 3; i++)
+    {
+        for (j = 0; j < 3; j++)
+        {
+            s32 v = (s32)(((s64)m->m[i][j] * scaleQ12) >> 12);
+            if (v >  32767) v =  32767;
+            if (v < -32768) v = -32768;
+            m->m[i][j] = (s16)v;
+        }
+        m->t[i] = root->t[i] + (s32)(((s64)(m->t[i] - root->t[i]) * scaleQ12) >> 12);
+    }
+}
+#endif
+
 void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoords, q3_12 arg4, u16 arg5, s_FsImageDesc* images) // 0x80045534
 {
     MATRIX         viewMat;
@@ -362,11 +385,39 @@ void func_80045534(s_Skeleton* skel, GsOT* ot, s32 arg2, GsCOORDINATE2* boneCoor
         }
     }
 
+#ifdef SH_PC_PORT
+    /* Console SCALE. Applied to each bone FINAL matrices rather than to bone 0,
+     * because bone 0 only reaches what the ANM parented: Anim_BoneInit parents
+     * indices 1..boneCount-1, while this skeleton comes from the LM and may
+     * carry more models than that. Those parts keep super == NULL, sit outside
+     * bone 0 chain, and a bone-0 scale left them untouched -- the Incubator
+     * scaling only from the waist down. Scaling here is parenting-agnostic: it
+     * reaches every part the skeleton actually draws.
+     *
+     * Each bone is scaled about the ROOT position in the same space, so the
+     * character grows in place instead of drifting. The 3x3 is Q3.12 in a
+     * short, so entries are clamped: past roughly 8x the matrix saturates,
+     * which is the same ceiling Chara_ModelBoneScaleSet has always had. */
+    MATRIX rootWorld;
+    MATRIX rootView;
+    s32    drawScale = g_PcCharaDrawScale;
+
+    if (drawScale != Q12(1.0f))
+        Vw_CoordToWorldAndViewMatrices(&boneCoords[0], &rootWorld, &rootView);
+#endif
+
     for (curBone = skel->bones_4; curBone != NULL; curBone = curBone->next)
     {
         if (curBone->bone.modelInfo.field_0 >= 0)
         {
             Vw_CoordToWorldAndViewMatrices(&boneCoords[(u8)curBone->bone.idx], &worldMat, &viewMat);
+#ifdef SH_PC_PORT
+            if (drawScale != Q12(1.0f))
+            {
+                Pc_BoneMatrixScale(&worldMat, &rootWorld, drawScale);
+                Pc_BoneMatrixScale(&viewMat,  &rootView,  drawScale);
+            }
+#endif
 
             if (curBone->bone.modelInfo.field_0 & (1 << 0))
             {

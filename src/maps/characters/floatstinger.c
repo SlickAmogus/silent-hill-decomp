@@ -166,6 +166,13 @@ void func_800D1968(s_SubCharacter* floatstinger) // 0x800D1968
         floatstingerProps.field_F8 += FP_FROM(floatstinger->damage.amount, Q12_SHIFT);
         floatstingerProps.field_FA += FP_FROM(floatstinger->damage.amount, Q12_SHIFT);
 
+#ifdef SH_PC_PORT
+        /* PSX bug: sp10 is never written, so the hit SFX's volume comes from
+         * stack garbage -- silent for most weapons, an irregular thud under the
+         * Hyper Blaster. The origin is ~158 m from this arena, which pins it to
+         * the silent case every weapon already hears. */
+        Math_Vector3Zero(&sp10);
+#endif
         Sfx_WithFlagsPlay(Sfx_Unk1570, &sp10, Q8(0.5f), SfxFlag_None);
 
         if (floatstinger->health == Q12(0.0f) ||

@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include "pc_pick.h"
+#endif
 #include "inline_no_dmpsx.h"
 
 #include <psyq/gtemac.h>
@@ -751,6 +754,24 @@ void func_8006EE0C(s_RayState_6C* arg0, bool useCylinder, const s_SubCharacter* 
             topHeight += ev;     /* [groundY, topHeight] is the valid Y band; */
             groundY   -= ev;     /* widen both bounds outward (sign-agnostic).  */
             arg0->field_C += Q12_TO_Q8(Q12_MULT(r, g_PcBulletRadMul));
+        }
+    }
+#endif
+
+#ifdef SH_PC_PORT
+    /* Console SCALE: grow the trace volume with the model, about the
+     * character origin the model scales from, so a resized enemy is
+     * hittable over the body you can actually see. Last, so the bullet
+     * fat-hitbox inflation above scales with it. */
+    {
+        q19_12 cs = Pc_Pick_CollScale(chara);
+        if (cs != Q12(1.0f))
+        {
+            arg0->field_C = (s32)(((s64)arg0->field_C * cs) >> 12);
+            topHeight     = Pc_Pick_ScaleAbout(chara->position.vy, topHeight, cs);
+            groundY       = Pc_Pick_ScaleAbout(chara->position.vy, groundY,   cs);
+            offsetX       = (s32)(((s64)offsetX * cs) >> 12);
+            offsetZ       = (s32)(((s64)offsetZ * cs) >> 12);
         }
     }
 #endif

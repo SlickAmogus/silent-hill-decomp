@@ -13,7 +13,7 @@
  * error was what made voices tinny on this path and it is the only reason
  * legacy was still the default. `spu_renderer = legacy` restores it. */
 PcAudioConfig g_PcAudioConfig = {
-    PC_SPU_RENDERER_AUTHENTIC, 0, 0, 0, 0, 1, 0, 0, 0
+    PC_SPU_RENDERER_AUTHENTIC, 0, 0, 0, 0, 1, 0, 0, 0, 0
 };
 
 static char* Trim(char* text)
@@ -97,7 +97,10 @@ void PcAudioConfig_Load(const char* path)
                 rate == 352800 ? rate : 0;
         }
         else if (strcmp(key, "audio_spatial") == 0)
-            g_PcAudioConfig.spatial = atoi(value) != 0;
+        {
+            g_PcAudioConfig.spatial        = atoi(value) != 0;
+            g_PcAudioConfig.spatialUserSet = 1;
+        }
         else if (strcmp(key, "audio_bit_perfect") == 0)
             g_PcAudioConfig.bitPerfect = atoi(value) != 0;
     }

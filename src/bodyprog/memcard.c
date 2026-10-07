@@ -24,6 +24,65 @@ static s_MemCard_SaveHeader g_MemCard_BasicSaveInfo1[MEMCARD_FILE_COUNT_MAX];
 static s_MemCard_SaveHeader g_MemCard_BasicSaveInfo2[MEMCARD_FILE_COUNT_MAX];
 static s_MemCard_SaveHeader g_MemCard_BasicSaveInfo3[MEMCARD_FILE_COUNT_MAX];
 
+#ifdef SH_PC_PORT
+#include "main/fileinfo.h"
+
+/* Every release stores identical save data under its own name prefix, and one
+ * PC build plays all three discs. So a file is found under any region's name
+ * and keeps the name it was found under; files the port creates take the
+ * running disc's name, so the card stays readable by that region's PS1.
+ * Indexed by e_GameRegion. The Japanese reissues reuse SLPM-86192. */
+static const char* const s_PcSaveNamePrefixes[3] = { "BASLUS-00707SILENT", "BESLES-01514SILENT", "BISLPM-86192SILENT" };
+
+/* e_GameRegion + 1 of the name each file was found under; 0 = not on the card. */
+static s8 s_PcFileNameRegion[MEMCARD_DEVICE_COUNT_MAX][MEMCARD_FILE_COUNT_MAX];
+
+static void MemCard_PcFilenameForRegion(char* dest, s32 region, s32 fileIdx)
+{
+    strcpy(dest, s_PcSaveNamePrefixes[region]);
+    dest[18] = '0' + (fileIdx / 10);
+    dest[19] = '0' + (fileIdx % 10);
+    dest[20] = '\0';
+}
+
+static void MemCard_PcFilenameGenerate(char* dest, s32 deviceId, s32 fileIdx)
+{
+    s32 found = s_PcFileNameRegion[deviceId][fileIdx];
+
+    MemCard_PcFilenameForRegion(dest, found ? found - 1 : (s32)g_GameRegion, fileIdx);
+}
+
+/* Running disc's name first, so a card holding the same FILE number under two
+ * names shows the one this disc would; the other stays on the card untouched. */
+static bool MemCard_PcFileFind(s32 deviceId, s32 fileIdx, s_MemCard_Directory* dir)
+{
+    char name[24];
+    s32  pass;
+    s32  region;
+    s32  i;
+
+    s_PcFileNameRegion[deviceId][fileIdx] = 0;
+    for (pass = 0; pass < 3; pass++)
+    {
+        region = (pass == 0) ? (s32)g_GameRegion : (pass <= (s32)g_GameRegion ? pass - 1 : pass);
+        MemCard_PcFilenameForRegion(name, region, fileIdx);
+        for (i = 0; i < MEMCARD_FILE_COUNT_MAX; i++)
+        {
+            if (strcmp(dir->filenames[i], name) == 0)
+            {
+                s_PcFileNameRegion[deviceId][fileIdx] = region + 1;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+#define MEMCARD_FILENAME(dest, deviceId, fileIdx) MemCard_PcFilenameGenerate(dest, deviceId, fileIdx)
+#else
+#define MEMCARD_FILENAME(dest, deviceId, fileIdx) MemCard_FilenameGenerate(dest, fileIdx)
+#endif
+
 // ========================================
 // GLOBAL VARIABLES
 // ========================================
@@ -523,6 +582,13 @@ void MemCard_Process_Init(s_MemCard_Process* statusPtr) // 0x8002ED7C
 
             for (fileIdx; fileIdx < MEMCARD_FILE_COUNT_MAX; fileIdx++)
             {
+#ifdef SH_PC_PORT
+                if (MemCard_PcFileFind(statusPtr->deviceId, fileIdx, &directoryInfoCpy))
+                {
+                    statusPtr->processState = 6;
+                    return;
+                }
+#else
                 MemCard_FilenameGenerate(filePath, fileIdx);
 
                 for (i = 0; i < MEMCARD_FILE_COUNT_MAX; i++)
@@ -533,6 +599,7 @@ void MemCard_Process_Init(s_MemCard_Process* statusPtr) // 0x8002ED7C
                         return;
                     }
                 }
+#endif
             }
 
             if (fileIdx == MEMCARD_FILE_COUNT_MAX)
@@ -542,7 +609,7 @@ void MemCard_Process_Init(s_MemCard_Process* statusPtr) // 0x8002ED7C
             break;
 
         case 6: // Copies memory card header data and ties game directory to file.
-            MemCard_FilenameGenerate(filePath, fileIdx);
+            MEMCARD_FILENAME(filePath, statusPtr->deviceId, fileIdx);
 
             if (MemCard_WorkSet(MemCardIoMode_Read, statusPtr->deviceId, NULL, filePath, 0, sizeof(s_MemCard_SaveHeader) * 2, &g_MemCard_SaveWork.devices[statusPtr->deviceId].saveHeader[fileIdx], sizeof(s_MemCard_SaveHeader)))
             {
@@ -710,7 +777,7 @@ void MemCard_Process_Load(s_MemCard_Process* statusPtr)
                 saveData0Size   = sizeof(s_Savegame_Container);
             }
 
-            MemCard_FilenameGenerate(filePath, fileIdx);
+            MEMCARD_FILENAME(filePath, statusPtr->deviceId, fileIdx);
 
             if (MemCard_WorkSet(MemCardIoMode_Read, statusPtr->deviceId, NULL, filePath, 0, saveData0Offset, saveData0Buf, saveData0Size) == true)
             {
@@ -904,7 +971,7 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
         case 1: // Creates a new file in the memory card.
             MemCard_SaveBlockInit(&g_MemCard_SaveWork.saveBlock, 1, fileIdxCpy, 0, 0, 0x70, 0x60, 0, 0);
             MemCard_SaveInfoClear(&g_MemCard_SaveWork.saveInfo);
-            MemCard_FilenameGenerate(filePath, fileIdxCpy);
+            MEMCARD_FILENAME(filePath, statusPtr->deviceId, fileIdxCpy);
 
             if (MemCard_WorkSet(MemCardIoMode_Create, statusPtr->deviceId, NULL, filePath, 1, 0, &g_MemCard_SaveWork.saveBlock, 0x300))
             {
@@ -936,7 +1003,7 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
                     statusPtr->lastMemCardResult = MemCardResult_FileIoError;
                     ptr->status = 0;
 
-                    MemCard_FilenameGenerate(filePath, fileIdxCpy);
+                    MEMCARD_FILENAME(filePath, statusPtr->deviceId, fileIdxCpy);
                     MemCard_FileClear(statusPtr->deviceId, filePath);
                     break;
 
@@ -960,7 +1027,7 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
 
         case 3: // Copies and saves user configs.
             MemCard_UserConfigCopy(&g_MemCard_SaveWork.optionsConfig, &g_GameWorkConst->config);
-            MemCard_FilenameGenerate(filePath, fileIdxCpy);
+            MEMCARD_FILENAME(filePath, statusPtr->deviceId, fileIdxCpy);
 
             if (MemCard_WorkSet(MemCardIoMode_Write, statusPtr->deviceId, NULL, filePath, 0, 0x300, &g_MemCard_SaveWork.optionsConfig, 0x80))
             {
@@ -996,7 +1063,7 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
             break;
 
         case 5: // Copies and saves user progress.
-            MemCard_FilenameGenerate(filePath, fileIdxCpy);
+            MEMCARD_FILENAME(filePath, statusPtr->deviceId, fileIdxCpy);
             MemCard_GameDataCopy(&g_MemCard_SaveWork.savegame, g_SavegamePtr);
 
             if (MemCard_WorkSet(MemCardIoMode_Write, statusPtr->deviceId, NULL, filePath, 0, (statusPtr->saveIdx * 0x280) + 0x380, &g_MemCard_SaveWork.savegame, 0x280))
@@ -1034,7 +1101,7 @@ void MemCard_Process_Save(s_MemCard_Process* statusPtr)
             statusPtr->processState = 8;
 
         case 8: // Saves header information progress.
-            MemCard_FilenameGenerate(filePath, fileIdxCpy);
+            MEMCARD_FILENAME(filePath, statusPtr->deviceId, fileIdxCpy);
 
             if (MemCard_WorkSet(MemCardIoMode_Write, statusPtr->deviceId, NULL, filePath, 0, 512, (u8*)g_MemCard_SaveWork.devices[statusPtr->deviceId].saveHeader + (fileIdxCpy * sizeof(s_MemCard_SaveHeader)), sizeof(s_MemCard_SaveHeader)))
             {
@@ -1272,11 +1339,30 @@ void MemCard_SaveBlockInit(s_PsxSaveBlock* saveBlock, s8 blockCount, s32 saveIdx
     saveBlock->blockCount      = blockCount;
     bzero(saveBlock->titleNameShiftJis, 0x40);
 
+#ifdef SH_PC_PORT
+    /* The source is UTF-8 but the PS1 memory card screen (and DuckStation) read
+     * this title as Shift-JIS, so spell the bytes out. The digit patch below
+     * relies on "０" being 2 bytes (0x82 0x4F), which is only true in Shift-JIS. */
+    strcpy(saveIdxStr, "\x82\x4F\x82\x4F");
+#else
     strcpy(saveIdxStr, "００");
+#endif
     saveIdxStr[1] += (saveIdx + 1) / 10;
     saveIdxStr[3] += (saveIdx + 1) % 10;
 
-#if VERSION_REGION_IS(NTSC) || VERSION_REGION_IS(PAL)
+#ifdef SH_PC_PORT
+    /* Region follows the running disc, matching the file's name prefix. */
+    if (g_GameRegion == Region_JPN)
+    {
+        strcpy(saveBlock->titleNameShiftJis, "\x83\x54\x83\x43\x83\x8C\x83\x93\x83\x67\x83\x71\x83\x8B");
+        strcat(saveBlock->titleNameShiftJis, "\x81\x40\x83\x74\x83\x40\x83\x43\x83\x8B");
+    }
+    else
+    {
+        strcpy(saveBlock->titleNameShiftJis, "\x82\x72\x82\x68\x82\x6B\x82\x64\x82\x6D\x82\x73\x81\x40\x82\x67\x82\x68\x82\x6B\x82\x6B");
+        strcat(saveBlock->titleNameShiftJis, "\x81\x40\x81\x40\x82\x65\x82\x68\x82\x6B\x82\x64");
+    }
+#elif VERSION_REGION_IS(NTSC) || VERSION_REGION_IS(PAL)
     strcpy(saveBlock->titleNameShiftJis, "ＳＩＬＥＮＴ　ＨＩＬＬ");
     strcat(saveBlock->titleNameShiftJis, "　　ＦＩＬＥ");
 #elif VERSION_REGION_IS(NTSCJ)
@@ -1289,26 +1375,29 @@ void MemCard_SaveBlockInit(s_PsxSaveBlock* saveBlock, s8 blockCount, s32 saveIdx
     bzero(saveBlock->field_44, 0x1C);
 
 #ifdef SH_PC_PORT
-    /* PC: skip the memcard icon copy. The icon TIM is split across
-     * three sequential globals (D_800A8D98 + D_800A8DA0 + D_800A8DA8)
-     * intended to lay out as one contiguous TIM in memory. On PSX this
-     * is the actual layout; on x86-64 mingw the second memcpy
-     * (textureData_80, paddr, 128) crashes inside msvcrt!memcpy with
-     * INVALID_POINTER_READ — most likely a SIMD overread past the end
-     * of D_800A8DA8 into unmapped memory, or a linker-placement
-     * difference that breaks the contiguity assumption.
-     *
-     * Without the icon copy the save block still has correct magic,
-     * blockCount, title (so the OS-level memcard browser shows the
-     * file with name) — only the visual icon is missing. The actual
-     * save data written by Process_Save's later phases (config + game
-     * data + header) is unaffected.
-     *
-     * Proper fix: bundle the three TIM globals into one byte array
-     * with explicit layout, or hard-code the icon CLUT/pixels into
-     * the save block directly. */
-    bzero(saveBlock->iconPalette, 0x20);
-    bzero(saveBlock->textureData, 0x80);
+    /* The icon TIM (D_800A8D98) is split across three globals that are only
+     * contiguous in the PSX executable; reading it as one TIM on PC overreads
+     * and crashes. These are the CLUT and 16x16 4bpp pixels it holds, so PC
+     * saves show the same icon on a PS1 / in DuckStation. */
+    {
+        static const u8 SAVE_ICON_CLUT[32] = {
+            0x00, 0x80, 0x43, 0x84, 0x62, 0x8C, 0x65, 0x88, 0xA4, 0x98, 0xA7, 0x8C, 0xC8, 0x94, 0x07, 0xA1,
+            0xEA, 0x94, 0x27, 0xA9, 0x2C, 0x99, 0x6C, 0xA1, 0x8F, 0xA5, 0xF3, 0xA9, 0x16, 0xAE, 0x37, 0xAE
+        };
+        static const u8 SAVE_ICON_PIXELS[128] = {
+            0x00, 0x33, 0x55, 0x65, 0x36, 0x11, 0x00, 0x00, 0x10, 0x33, 0x11, 0x01, 0x11, 0x31, 0x03, 0x00,
+            0x10, 0xC6, 0xAC, 0x58, 0x11, 0x21, 0x13, 0x00, 0x00, 0xFC, 0xEE, 0xFF, 0x1A, 0x11, 0x22, 0x00,
+            0x00, 0xED, 0xDE, 0xFE, 0x3D, 0x10, 0x22, 0x00, 0x10, 0xFD, 0xEF, 0xEE, 0x6D, 0x11, 0x22, 0x00,
+            0x10, 0xA5, 0x3A, 0x63, 0x8A, 0x15, 0x22, 0x00, 0x00, 0xA5, 0x1C, 0x00, 0xA5, 0x5C, 0x74, 0x00,
+            0x00, 0xEC, 0xDE, 0xCB, 0xDE, 0x7C, 0xBB, 0x00, 0x00, 0xEC, 0xDD, 0xDE, 0xBC, 0x79, 0x4B, 0x00,
+            0x00, 0xA8, 0xC8, 0xAC, 0x78, 0x99, 0x04, 0x00, 0x00, 0x85, 0xCA, 0x8B, 0x76, 0x99, 0x04, 0x00,
+            0x00, 0x81, 0x55, 0x65, 0x77, 0x77, 0x09, 0x00, 0x00, 0xA0, 0xAA, 0x58, 0x44, 0x94, 0x0B, 0x00,
+            0x00, 0x50, 0x6A, 0x24, 0x22, 0xB4, 0x6C, 0x00, 0x00, 0x00, 0x30, 0x01, 0x31, 0xCA, 0xDC, 0x06
+        };
+        memcpy(saveBlock->iconPalette, SAVE_ICON_CLUT, sizeof(SAVE_ICON_CLUT));
+        /* 128 bytes from textureData on, as the PSX copy does (runs into unk_A0). */
+        memcpy((u8*)saveBlock + 0x80, SAVE_ICON_PIXELS, sizeof(SAVE_ICON_PIXELS));
+    }
 #else
     OpenTIM(&D_800A8D98);
     ReadTIM(&iconTexture);

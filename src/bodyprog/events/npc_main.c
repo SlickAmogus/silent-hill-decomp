@@ -25,6 +25,7 @@ static s32 Camera_Distance2dGet(const VECTOR3* pos);
 extern int g_DebugAnimKfView;
 extern int g_DebugViewNpcSlot;
 void Pc_KeyframeViewerPoseNpc(s_AnmHeader* anmHdr, GsCOORDINATE2* boneCoords);
+#include "pc_pick.h"
 #endif
 
 void Savegame_EnemyStateUpdate(s_SubCharacter* chara) // 0x80037DC4
@@ -689,6 +690,10 @@ void Game_NpcUpdate(void) // 0x80038354
                     {
                         /* Keep render-only NPCs alive even while ANM is still loading. */
                         if (animLoaded && (npc->model.anim.flags & AnimFlag_Visible)) {
+#ifdef SH_PC_PORT
+                            Pc_Pick_CharaPreDraw(npc, (int)(npc - g_SysWork.npcs),
+                                                 g_CharaModelAnimsData[animDataInfoIdx].boneCoords);
+#endif
                             func_8003DA9C(npc->model.charaId,
                                           g_CharaModelAnimsData[animDataInfoIdx].boneCoords,
                                           1, npc->timer_C6,
@@ -751,6 +756,10 @@ void Game_NpcUpdate(void) // 0x80038354
                             statueBc->coord.t[2] = Q12_TO_Q8(npc->position.vz);
                             statueBc->flg = 0;
                         }
+#ifdef SH_PC_PORT
+                        Pc_Pick_CharaPreDraw(npc, (int)(npc - g_SysWork.npcs),
+                                             g_CharaModelAnimsData[animDataInfoIdx].boneCoords);
+#endif
                         func_8003DA9C(npc->model.charaId,
                                       g_CharaModelAnimsData[animDataInfoIdx].boneCoords,
                                       1, npc->timer_C6,
@@ -836,7 +845,12 @@ void Game_NpcUpdate(void) // 0x80038354
             }
 #endif
 #ifdef SH_PC_PORT
-            if (g_DebugAnimKfView && g_DebugViewNpcSlot == k)
+            if (Pc_Pick_NpcTick(npc, (int)(npc - g_SysWork.npcs)))
+            {
+                /* Console FREEZE: no AI tick, so the bones keep last frame's
+                 * pose and the enemy neither moves nor attacks. */
+            }
+            else if (g_DebugAnimKfView && g_DebugViewNpcSlot == k)
             {
                 /* Keyframe viewer is inspecting this NPC: pose it from the
                  * inspector (freeze/loop) instead of running its AI + per-frame
@@ -864,6 +878,9 @@ void Game_NpcUpdate(void) // 0x80038354
 
             if (npc->model.anim.flags & AnimFlag_Visible)
             {
+#ifdef SH_PC_PORT
+                Pc_Pick_CharaPreDraw(npc, (int)(npc - g_SysWork.npcs), boneCoords);
+#endif
                 func_8003DA9C(npc->model.charaId, boneCoords, 1, npc->timer_C6, (s8)npc->model.paletteIdx);
             }
         }

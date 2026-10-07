@@ -234,6 +234,78 @@ static const s_MenuTranslation s_MenuTr[] = {
     { "Cinematic",         { "Kino",               "Cin\xE9ma",           "Cine",               "Cinema"         } },
     { "Filmic",            { "Filmisch",           "Filmique",            "F\xEDlmico",         "Filmico"        } },
 
+    /* Rows and values added to PC Options since the block above. Label budgets
+     * are the widest English row each page already fits: 15 glyphs on System,
+     * 17 on Controls/Camera/HUD. Value budgets: 11 on System, 8 on HUD. */
+    { "Flashlight",        { "Taschenlampe",       "Lampe",               "Linterna",           "Torcia"          } },
+    { "Fog_Strength",      { "Nebelst\xE4rke",     "Brouillard",          "Intens._niebla",     "Intens._nebbia"  } },
+    { "Weather_Rate",      { "Wetter-Takt",        "Fr\xE9q._m\xE9t\xE9o", "Frec._clima",       "Freq._meteo"     } },
+    { "Third_Person_FOV",  { "3.-Person-FOV",      "FOV_3e_pers.",        "FOV_3ra_pers.",      "FOV_3a_pers."    } },
+    { "OTS_FOV",           { "OTS-FOV",            "FOV_OTS",             "FOV_OTS",            "FOV_OTS"         } },
+    { "Aim_Zoom",          { "Ziel-Zoom",          "Zoom_vis\xE9" "e",    "Zoom_apuntar",       "Zoom_mira"       } },
+    { "OTS_Aim_Zoom",      { "OTS-Ziel-Zoom",      "Zoom_vis\xE9" "e_OTS", "Zoom_apunt._OTS",   "Zoom_mira_OTS"   } },
+    { "OTS_Aim_In_TPS",    { "OTS-Zielen_in_TPS",  "Vis\xE9" "e_OTS_en_TPS", "Apuntar_OTS_TPS", "Mira_OTS_in_TPS" } },
+    { "Camera_Collision",  { "Kamerakollision",    "Collision_cam\xE9ra", "Colisi\xF3n_c\xE1mara", "Collisione_cam." } },
+    { "Minimap",           { "Minikarte",          "Mini-carte",          "Minimapa",           "Minimappa"       } },
+    { "Minimap_Scale",     { "Minikarte_Gr\xF6\xDF" "e", "Taille_mini-carte", "Escala_minimapa", "Scala_minimappa" } },
+    { "Minimap_Corner",    { "Minikarte_Ecke",     "Coin_mini-carte",     "Esquina_minimapa",   "Angolo_minimappa" } },
+    { "Minimap_Opacity",   { "Minikarte_Deckkr.",  "Opacit\xE9_minicarte", "Opacidad_minimapa", "Opacit\xE0_minimappa" } },
+    { "Minimap_Reqs_Map",  { "Nur_mit_Karte",      "Carte_requise",       "Requiere_mapa",      "Serve_la_mappa"  } },
+    { "Low_HP_Glow",       { "Warnung_wenig_LP",   "Alerte_PV_bas",       "Aviso_vida_baja",    "Avviso_vita_bassa" } },
+    { "Crosshair_Size",    { "Fadenkreuzgr\xF6\xDF" "e", "Taille_r\xE9ticule", "Tama\xF1o_ret\xED" "cula", "Dim._mirino" } },
+    { "Text_Size",         { "Textgr\xF6\xDF" "e",  "Taille_du_texte",     "Tama\xF1o_del_texto", "Dim._testo"      } },
+    { "Dither",            { NULL,                 "Tramage",             "Tramado",            "Retinatura"      } },
+    { "Trilinear",         { NULL,                 "Trilin\xE9" "aire",   "Trilineal",          "Trilineare"      } },
+    { "Classic",           { "Klassisch",          "Classique",           "Cl\xE1sico",         "Classico"        } },
+    { "C_+_Shadows",       { "K+Schatten",         "C_+_ombres",          "C_+_sombras",        "C_+_ombre"       } },
+    { "Modern",            { NULL,                 "Moderne",             "Moderno",            "Moderno"         } },
+    { "M_+_Shadows",       { "M+Schatten",         "M_+_ombres",          "M_+_sombras",        "M_+_ombre"       } },
+    { "Top_L",             { "Oben_L",             "Haut_G",              "Arr._Izq",           "Alto_S"          } },
+    { "Top_R",             { "Oben_R",             "Haut_D",              "Arr._Der",           "Alto_D"          } },
+    { "Bottom_L",          { "Unten_L",            "Bas_G",               "Ab._Izq",            "Basso_S"         } },
+    { "Bottom_R",          { "Unten_R",            "Bas_D",               "Ab._Der",            "Basso_D"         } },
+    { "Square",            { "Quadrat",            "Carr\xE9",            "Cuadrado",           "Quadrato"        } },
+    { "Circle",            { "Kreis",              "Cercle",              "C\xEDrculo",         "Cerchio"         } },
+
+    /* --- Inventory screen (Gfx_Inventory_ItemDescriptionDraw); the labels
+     * are drawn with a 10-glyph budget. --- */
+    { "Can't_use_it_here.",  { "Hier_nicht_nutzbar.", "Inutilisable_ici.", "No_se_puede_usar.", "Non_usabile_qui." } },
+    { "Too_dark_to_look_at\n\t\tthe_item_here.",
+        { "Zu_dunkel,_um_das\n\t\tDing_anzusehen.",
+          "Trop_sombre_pour\n\t\tvoir_l'objet.",
+          "Demasiado_oscuro\n\t\tpara_ver_el_objeto.",
+          "Troppo_buio_per\n\t\tvedere_l'oggetto." } },
+    { "Stock:",            { "Vorrat:",            "Stock_:",             "Reserva:",           "Scorta:"         } },
+    { "==On==",            { "==Ein==",            "==Oui==",             "==S\xED==",          "==S\xEC=="       } },
+    { "==Off==",           { "==Aus==",            "==Non==",             "==No==",             "==No=="          } },
+    { "Fuel:",             { "Benzin:",            "Essence_:",           "Gasolina:",          "Benzina:"        } },
+
+    /* --- Results screen (ranking.c Results_DisplayInfo). Labels start at
+     * x=24 and their values are drawn at fixed x, so each stays inside the
+     * room before its value: Total_time 13 glyphs, the distances and Items
+     * 16, the shot rows (from x=72) 19, the rank 13 (its stars share the
+     * line), the Defeated rows 23. --- */
+    { "GAME_RESULT",        { "SPIELERGEBNIS",      "R\xC9SULTATS",        "RESULTADOS",         "RISULTATI"          } },
+    { "Mode",               { "Modus",              NULL,                  "Modo",               "Modalit\xE0"        } },
+    { "Saves",              { "Speicherungen",      "Sauvegardes",         "Partidas_guardadas", "Salvataggi"         } },
+    { "Continues",          { "Fortsetzungen",      "Reprises",            "Continuaciones",     "Continue"           } },
+    { "Total_time",         { "Gesamtzeit",         "Temps_total",         "Tiempo_total",       "Tempo_totale"       } },
+    { "Walking_distance",   { "Strecke_gehend",     "Distance_march\xE9" "e", "Dist._andada",   "Distanza_a_piedi"   } },
+    { "Running_distance",   { "Strecke_rennend",    "Distance_courue",     "Dist._corrida",      "Distanza_corsa"     } },
+    { "Items",              { "Gegenst\xE4nde",     "Objets",              "Objetos",            "Oggetti"            } },
+    { "Game_clear",         { "Durchgespielt",      "Parties_finies",      "Partidas_completadas", "Partite_completate" } },
+    { "Ending",             { "Ende",               "Fin",                 "Final",              "Finale"             } },
+    { "==Your_rank==",      { "==Rang==",           "==Rang==",            "==Rango==",          "==Grado=="          } },
+    { "Defeated_\x01\x01" "enemy_\x01\x01" "by_\x01\x01shooting",
+                            { "Gegner_erschossen",  "Ennemis_abattus_(tir)", "Abatidos_a_tiros", "Nemici_uccisi_(sparo)" } },
+    { "Defeated_\x01\x01" "enemy_\x01\x01" "by_\x01\x01" "fighting",
+                            { "Gegner_im_Nahkampf", "Ennemis_abattus_(m\xEAl\xE9" "e)", "Abatidos_a_golpes", "Nemici_uccisi_(lotta)" } },
+    { "Shooting_style",     { "Schie\xDFstil",      "Style_de_tir",        "Estilo_de_tiro",     "Stile_di_tiro"      } },
+    { "Short_range_shots",  { "Nahdistanz",         "Courte_port\xE9" "e", "A_corta_distancia",  "Corto_raggio"       } },
+    { "Middle_range_shots", { "Mitteldistanz",      "Moyenne_port\xE9" "e", "A_media_distancia", "Medio_raggio"       } },
+    { "Long_range_shots",   { "Ferndistanz",        "Longue_port\xE9" "e", "A_larga_distancia",  "Lungo_raggio"       } },
+    { "No_aiming_shots",    { "Ohne_Zielen",        "Sans_viser",          "Sin_apuntar",        "Senza_mirare"       } },
+
     /* --- Paper-map prompts --- */
     { "Too_dark_to_look_at\n\t\tthe_map_here.",
         { "Zu_dunkel,_um_die\n\t\tKarte_zu_lesen.",
@@ -362,4 +434,19 @@ int Pc_LangMenuTextWidth(const char* str)
     }
 
     return width;
+}
+
+const char* Pc_LangMenuPal(const char* us, int lang)
+{
+    int i;
+
+    if (us == NULL || lang < 1 || lang > 4)
+        return NULL;
+
+    for (i = 0; i < (int)(sizeof(s_MenuTr) / sizeof(s_MenuTr[0])); i++)
+    {
+        if (s_MenuTr[i].us[0] == us[0] && strcmp(s_MenuTr[i].us, us) == 0)
+            return s_MenuTr[i].tr[lang - 1];
+    }
+    return NULL;
 }

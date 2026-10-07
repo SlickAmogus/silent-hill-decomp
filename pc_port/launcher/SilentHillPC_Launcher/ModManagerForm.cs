@@ -27,6 +27,18 @@ namespace SilentHillPC_Launcher
         private ToolTip   _btnTips;
         private FfmpegStatusRow _ffmpegRow;
 
+        // Tooltips and the button dropdowns are not reachable by Loc.Apply (a
+        // ToolTip's text is not a control property, and these menus belong to no
+        // control), so they are kept here in English and re-translated on a switch.
+        private readonly List<KeyValuePair<Control, string>> _tipTexts = new List<KeyValuePair<Control, string>>();
+        private readonly List<ContextMenuStrip> _menus = new List<ContextMenuStrip>();
+
+        private Button[]  _toolColumn;
+        private Button[]  _toolRight;
+        private Control[] _toolFull;
+        private int       _toolBaseWidth;
+        private Size      _baseClientSize;
+
         public ModManagerForm(ConfigManager config, string gameRoot)
         {
             _config   = config;
@@ -54,7 +66,7 @@ namespace SilentHillPC_Launcher
 
             // Localize whatever Loc knows; anything it does not know keeps its
             // English text, so this is safe to run over the whole window.
-            Loc.Apply(this);
+            ApplyLanguage();
             Loc.Changed += OnLangChanged;
             FormClosed += (s2, e2) => Loc.Changed -= OnLangChanged;
         }
@@ -86,7 +98,7 @@ namespace SilentHillPC_Launcher
                 if (ask.Count > 0 && AskUnpack(ask)) todo.AddRange(ask);
 
                 if (todo.Count > 0)
-                    ProgressDialog.RunCancellable(this, "Unpacking archives…",
+                    ProgressDialog.RunCancellable(this, Loc.T("Unpacking archives…"),
                         (r, cancelled) => _mgr.Prepare(todo, r, cancelled));
             }
             _mgr.Scan();
@@ -100,12 +112,12 @@ namespace SilentHillPC_Launcher
                 var suspicious = PeImports.ScanModForSuspiciousDlls(m.LibraryPath);
                 if (suspicious.Count == 0) continue;
 
-                string extra = "This mod contains DLLs that do NOT look like edited game code " +
-                               "(edited maps only use the game and the C runtime):\n\n - " +
+                string extra = Loc.T("This mod contains DLLs that do NOT look like edited game code " +
+                                     "(edited maps only use the game and the C runtime):") + "\n\n - " +
                                string.Join("\n - ", suspicious.Take(5)) +
                                (suspicious.Count > 5 ? "\n - ..." : "") +
-                               "\n\nOnly continue if you trust this mod completely. " +
-                               "Cancel removes it from the library.";
+                               "\n\n" + Loc.T("Only continue if you trust this mod completely.") + " " +
+                               Loc.T("Cancel removes it from the library.");
                 var choice = DllWarningDialog.Show(this, extra);
                 if (choice == DllWarningDialog.Result.Cancel)
                 {
@@ -136,17 +148,36 @@ namespace SilentHillPC_Launcher
         private bool AskUnpack(List<ModManager.PendingItem> items)
         {
             var lines = items.Take(8).Select(p => "    " + p.Name).ToList();
-            if (items.Count > lines.Count) lines.Add("    …and " + (items.Count - lines.Count) + " more");
+            if (items.Count > lines.Count) lines.Add("    " + Loc.F("... and {0} more", items.Count - lines.Count));
 
             return MessageBox.Show(this,
-                "Unpack " + items.Count + " archive(s) found in your mod folders?\n\n" +
+                Loc.F("Unpack {0} archive(s) found in your mod folders?", items.Count) + "\n\n" +
                 string.Join("\n", lines) +
-                "\n\nNo = leave them as they are; tick one later to unpack it.",
-                "Mod Manager", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                "\n\n" + Loc.T("No = leave them as they are; tick one later to unpack it."),
+                Loc.T("Mod Manager"), MessageBoxButtons.YesNo, MessageBoxIcon.Question,
                 MessageBoxDefaultButton.Button2) == DialogResult.Yes;
         }
 
-        private void OnLangChanged() { Loc.Apply(this); }
+        private void OnLangChanged()
+        {
+            ApplyLanguage();
+            CommitOrderAndState();
+            Populate();
+        }
+
+        private void ApplyLanguage()
+        {
+            Loc.Apply(this);
+            foreach (var kv in _tipTexts) _btnTips.SetToolTip(kv.Key, Loc.T(kv.Value));
+            foreach (var m in _menus) Loc.ApplyMenu(m.Items);
+            _ffmpegRow.RefreshStatus();
+            RefitToolColumn();
+        }
+
+        private void Tip(Control c, string english)
+        {
+            _tipTexts.Add(new KeyValuePair<Control, string>(c, english));
+        }
 
         private void BuildUi()
         {
@@ -155,8 +186,8 @@ namespace SilentHillPC_Launcher
                 AutoSize = false,
                 Location = new Point(12, 10),
                 Size     = new Size(576, 34),
-                Text     = "Drag mod folders or .zip / .rar archives here. Check to enable (Apply commits); " +
-                           "top of the list = highest priority (wins conflicts). Right-click for name/notes or delete."
+                Text     = "Drag mod folders or .zip / .rar archives here. Tick to enable, then Apply. " +
+                           "Higher in the list wins conflicts. Right-click to rename, add notes or delete."
             };
             Controls.Add(help);
 
@@ -223,34 +254,29 @@ namespace SilentHillPC_Launcher
             omMenu.Items.Add("Item model (.TMD) — reshape…", null, (s, e) => ConverterActions.ImportTmd(this, _gameRoot));
             omMenu.Items.Add("Item model (.TMD) — replace…", null, (s, e) => ConverterActions.RebuildTmd(this, _gameRoot));
             var btnHelp = new Button { Text = "Help…",      Location = new Point(510, 514), Size = new Size(78, 28) };
-            _btnTips = new ToolTip();
-            _btnTips.SetToolTip(btnEx, "Unpack a Silent Hill .bin disc image into the loose asset tree.");
-            _btnTips.SetToolTip(btnTp, "Convert individual .TIM texture files to .png.");
-            _btnTips.SetToolTip(btnBp, "Recursively convert every .TIM under a folder to .png in place.");
-            _btnTips.SetToolTip(btnRef, "Reference: one correct image to paint over — every region shown through the palette " +
-                "the game really draws it with. Works for ANY texture (characters, world, weapons, items), one at a time or " +
-                "the whole disc in one pass.");
-            _btnTips.SetToolTip(btnReb, "Rebuild Textures: slice your edited reference image back into the per-row " +
-                "NAME.TIM.pNN.png files the game loads (gamedata/load/<FOLDER>/). No 16-colour-per-region limit — paint freely.");
-            _btnTips.SetToolTip(btnMo, "Model → OBJ: write a model out as a .obj you can open in Blender.\n\n" +
-                "Character (.ILM/.PLM): each 'o' object is ONE rigid animated body part — reshape its vertices freely, " +
-                "but do NOT rename, add or remove objects: that list is the rig, and changing it breaks the animation.\n\n" +
-                "Item model (.TMD): the pickup and inventory items (IT_00x banks, UNQ close-ups, the meat hook). " +
-                "A bank's items all sit on the origin and overlap — hide all but the one you are editing.");
-            _btnTips.SetToolTip(btnOm, "OBJ → Model: fold an edited .obj back into a game model.\n\n" +
-                "Character — high-poly: browse your model + the character to replace, tick the fixes (Help explains each).\n" +
-                "Character — simple: reshape an existing character within its vertex limit (patch / grow / replace).\n" +
-                "Item model (.TMD): patch an edited item back over the original, which supplies every non-geometry byte. " +
-                "Vertex counts and the face list must be unchanged.");
-            _btnTips.SetToolTip(btnVw, "Model Viewer: a 3D window for .ILM characters (with .ANM animation playback), " +
-                ".PLM props, .TMD items and edited .obj files — textured with their real in-game palettes. " +
-                "Open models from its File menu or drag & drop them onto it.");
-            _btnTips.SetToolTip(btnAu, "Audio: sound banks (browse a .VAB, play and export its sounds) and Voices (every XA " +
-                "voice line: play, export, replace with a file, or re-record from the microphone into gamedata\\load\\XA).\n\n" +
-                "Sound banks: browse a .VAB sound bank, play the sounds inside it, and export them " +
-                "as .wav or raw .vag. The banks live in SND/ inside an extracted disc. " +
-                "Open a bank from its File menu or drag & drop one onto it.");
-            _btnTips.SetToolTip(btnHelp, "How to make and install loose-file texture mods.");
+            _btnTips = new ToolTip { AutoPopDelay = 20000 };
+            Tip(btnEx, "Unpack a Silent Hill .bin disc image into loose files.");
+            Tip(btnTp, "Convert .TIM textures to .png.");
+            Tip(btnBp, "Convert every .TIM in a folder and its subfolders to .png.");
+            Tip(btnRef, "Build one paintable image per texture, showing every region in the palette the game " +
+                "really uses. One texture at a time, or the whole disc.");
+            Tip(btnReb, "Slice your edited reference image back into the NAME.TIM.pNN.png files the game loads. " +
+                "No 16-colour limit.");
+            Tip(btnMo, "Export a model as .obj for Blender.\n\n" +
+                "Character (.ILM/.PLM): each 'o' object is one animated body part. Reshape freely, but never " +
+                "rename, add or remove objects; that breaks the animation.\n" +
+                "Item model (.TMD): pickup and inventory items. A bank's items overlap at the origin, so hide " +
+                "all but the one you edit.");
+            Tip(btnOm, "Import an edited .obj back into a game model.\n\n" +
+                "Character — high-poly: replace a character with your own model (Help explains the options).\n" +
+                "Character — simple: reshape a character within its vertex limit.\n" +
+                "Item model — reshape: move an item's vertices; vertex and face counts must not change.\n" +
+                "Item model — replace: rebuild an item from any mesh, keeping the original's textures.");
+            Tip(btnVw, "3D viewer for .ILM characters (with .ANM animations), .PLM props, .TMD items and .obj files, " +
+                "in their in-game palettes. Open files from its File menu or drag them in.");
+            Tip(btnAu, "Sound banks: browse a .VAB, play its sounds and export them as .wav or .vag.\n" +
+                "Voices: play, export, replace or re-record any XA voice line (saved to gamedata\\load\\XA).");
+            Tip(btnHelp, "How to make and install loose-file texture mods.");
             btnEx.Click += (s, e) => OnExtractBin();
             btnTp.Click += (s, e) => OnConvertTim();
             btnBp.Click += (s, e) => OnBulkPng();
@@ -286,18 +312,14 @@ namespace SilentHillPC_Launcher
             ddsMenu.Items.Add("DDS → PNG…",           null, (s, e) => OnDdsDecode());
             ddsMenu.Items.Add("Convert folder → BC7…", null, (s, e) => OnDdsFolder());
             btnDds.Click += (s, e) => ddsMenu.Show(btnDds, new Point(0, btnDds.Height));
-            _btnTips.SetToolTip(btnDds,
-                "PNG ↔ BC7 .dds (via texconv). BC7 decodes about twice as fast as .png " +
-                "and keeps a real 8-bit alpha the cutout needs; a whole-texture " +
-                "replacement is also 4x cheaper in VRAM.\n\n" +
-                "PNG → BC7 DDS: convert one or more .png to .dds beside them.\n" +
-                "DDS → PNG: decode a .dds back to .png to inspect or edit.\n" +
-                "Convert folder → BC7: convert every .png under a folder (a whole pack) " +
-                "to .dds; offers to remove the source .png so the game uses the .dds. A " +
-                "DuckStation pack is classified first so its whole-texture entries keep " +
-                "a mip chain and its region entries are written single-level.\n\n" +
-                "Works for loose overrides and every kind of DuckStation pack entry; the " +
-                "GPU must support BC7 (any card since ~2010).");
+            Tip(btnDds,
+                "Convert between PNG and BC7 .dds (via texconv). BC7 loads about twice as fast as .png " +
+                "and keeps full alpha.\n\n" +
+                "PNG → BC7 DDS: convert .png files to .dds beside them.\n" +
+                "DDS → PNG: decode a .dds back to .png.\n" +
+                "Convert folder → BC7: convert a whole pack, optionally removing the source .png files.\n\n" +
+                "Needs a GPU with BC7 support (any card since ~2010).");
+            _menus.AddRange(new[] { moMenu, omMenu, refMenu, auMenu, ddsMenu });
             Controls.Add(btnDds);
 
             _chkLoose = new CheckBox
@@ -327,11 +349,28 @@ namespace SilentHillPC_Launcher
             AcceptButton = btnApply;
             CancelButton = btnClose;
 
-            FitToolColumn(
-                new[] { btnUp, btnDn, btnRe, btnOp, btnEx, btnVw, btnAu, btnTp, btnBp,
-                        btnRef, btnReb, btnMo, btnOm, btnDds, btnHelp },
-                new[] { btnApply, btnClose },
-                new Control[] { help, _ffmpegRow });
+            _toolColumn = new[] { btnUp, btnDn, btnRe, btnOp, btnEx, btnVw, btnAu, btnTp, btnBp,
+                                  btnRef, btnReb, btnMo, btnOm, btnDds, btnHelp };
+            _toolRight  = new[] { btnApply, btnClose };
+            _toolFull   = new Control[] { help, _ffmpegRow };
+            _toolBaseWidth  = btnUp.Width;
+            _baseClientSize = ClientSize;
+        }
+
+        /// <summary>Put the tool column back to its designed width, then fit it to the
+        /// current language's labels — a switch to a shorter language shrinks it again.</summary>
+        private void RefitToolColumn()
+        {
+            if (_toolColumn == null) return;
+            int delta = _toolColumn[0].Width - _toolBaseWidth;
+            if (delta != 0)
+            {
+                foreach (Button b in _toolColumn) b.Width -= delta;
+                foreach (Button b in _toolRight) b.Left -= delta;
+                foreach (Control c in _toolFull) c.Width -= delta;
+                ClientSize = _baseClientSize;
+            }
+            FitToolColumn(_toolColumn, _toolRight, _toolFull);
         }
 
         /// <summary>Size the right-hand tool column to its widest LABEL and grow the form
@@ -391,8 +430,8 @@ namespace SilentHillPC_Launcher
             foreach (var m in _mgr.Mods)
             {
                 var item = new ListViewItem(m.Label) { Checked = m.Enabled, Tag = m };
-                item.SubItems.Add(m.TypeLabel);
-                item.SubItems.Add(m.StateLabel);
+                item.SubItems.Add(Loc.T(m.TypeLabel));
+                item.SubItems.Add(Loc.T(m.StateLabel));
                 item.SubItems.Add(m.Description ?? "");
                 if (!string.IsNullOrEmpty(m.Description)) item.ToolTipText = m.Description;
                 if (m.Type == ModType.Unknown) item.ForeColor = Color.Gray;
@@ -401,7 +440,7 @@ namespace SilentHillPC_Launcher
             _list.EndUpdate();
             if (_mgr.Mods.Count == 0)
             {
-                var hint = new ListViewItem("(no mods yet — drag folders/.zip/.rar here or click Open Folder)");
+                var hint = new ListViewItem(Loc.T("(no mods yet — drag folders/.zip/.rar here or click Open Folder)"));
                 hint.SubItems.Add(""); hint.SubItems.Add(""); hint.SubItems.Add("");
                 hint.ForeColor = Color.Gray;
                 _list.Items.Add(hint);
@@ -491,11 +530,11 @@ namespace SilentHillPC_Launcher
             if (m == null) return;
 
             string where = m.Source == ModSource.TextureMods
-                ? "This permanently deletes it from gamedata\\texturemods."
-                : "This permanently deletes it from the mods folder (it stays deployed until you Apply).";
+                ? Loc.T("This permanently deletes it from gamedata\\texturemods.")
+                : Loc.T("This permanently deletes it from the mods folder (it stays deployed until you Apply).");
             if (MessageBox.Show(this,
-                    "Delete \"" + m.Label + "\"?\n\n" + where,
-                    "Delete Mod", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
+                    Loc.F("Delete \"{0}\"?", m.Label) + "\n\n" + where,
+                    Loc.T("Delete Mod"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
                 return;
 
             CommitOrderAndState();
@@ -510,29 +549,29 @@ namespace SilentHillPC_Launcher
         {
             using (var dlg = new Form())
             {
-                dlg.Text            = "Edit Mod";
+                dlg.Text            = Loc.T("Edit Mod");
                 dlg.ClientSize      = new Size(380, 230);
                 dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
                 dlg.StartPosition   = FormStartPosition.CenterParent;
                 dlg.MaximizeBox     = false;
                 dlg.MinimizeBox     = false;
 
-                dlg.Controls.Add(new Label { Text = "Folder: " + m.Name, Location = new Point(12, 10),
+                dlg.Controls.Add(new Label { Text = Loc.F("Folder: {0}", m.Name), Location = new Point(12, 10),
                                              AutoSize = true, ForeColor = Color.Gray });
-                dlg.Controls.Add(new Label { Text = "Display name:", Location = new Point(12, 36), AutoSize = true });
+                dlg.Controls.Add(new Label { Text = Loc.T("Display name:"), Location = new Point(12, 36), AutoSize = true });
                 var txtName = new TextBox { Location = new Point(12, 54), Size = new Size(356, 22),
                                             Text = m.DisplayName ?? "" };
                 dlg.Controls.Add(txtName);
 
-                dlg.Controls.Add(new Label { Text = "Notes / description:", Location = new Point(12, 84), AutoSize = true });
+                dlg.Controls.Add(new Label { Text = Loc.T("Notes / description:"), Location = new Point(12, 84), AutoSize = true });
                 var txtDesc = new TextBox { Location = new Point(12, 102), Size = new Size(356, 78),
                                             Multiline = true, ScrollBars = ScrollBars.Vertical,
                                             Text = m.Description ?? "" };
                 dlg.Controls.Add(txtDesc);
 
-                var ok     = new Button { Text = "OK",     Location = new Point(196, 192), Size = new Size(80, 28),
+                var ok     = new Button { Text = Loc.T("OK"),     Location = new Point(196, 192), Size = new Size(80, 28),
                                           DialogResult = DialogResult.OK };
-                var cancel = new Button { Text = "Cancel", Location = new Point(288, 192), Size = new Size(80, 28),
+                var cancel = new Button { Text = Loc.T("Cancel"), Location = new Point(288, 192), Size = new Size(80, 28),
                                           DialogResult = DialogResult.Cancel };
                 dlg.Controls.Add(ok);
                 dlg.Controls.Add(cancel);
@@ -563,8 +602,8 @@ namespace SilentHillPC_Launcher
                            Path.GetExtension(p).Equals(".bin", StringComparison.OrdinalIgnoreCase)).ToList();
             foreach (var bin in bins)
             {
-                if (MessageBox.Show(this, "Extract \"" + Path.GetFileName(bin) + "\"?",
-                        "Extract BIN", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                if (MessageBox.Show(this, Loc.F("Extract \"{0}\"?", Path.GetFileName(bin)),
+                        Loc.T("Extract BIN"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                     RunExtract(bin);
             }
 
@@ -590,7 +629,7 @@ namespace SilentHillPC_Launcher
                     if (t != ModType.Gameplay && t != ModType.TotalConversion) continue;
                     string mext = Path.GetExtension(mp).ToLowerInvariant();
                     if (mext == ".rar" || mext == ".7z")
-                        suspicious.Add(Path.GetFileName(mp) + " (archive can't be pre-screened; its DLLs are checked by the game at load)");
+                        suspicious.Add(Loc.F("{0} (archive can't be pre-screened; its DLLs are checked by the game at load)", Path.GetFileName(mp)));
                     else
                         suspicious.AddRange(PeImports.ScanModForSuspiciousDlls(mp));
                 }
@@ -598,11 +637,11 @@ namespace SilentHillPC_Launcher
                 string extra = null;
                 if (suspicious.Count > 0)
                 {
-                    extra = "This mod contains DLLs that do NOT look like edited game code " +
-                            "(edited maps only use the game and the C runtime):\n\n - " +
+                    extra = Loc.T("This mod contains DLLs that do NOT look like edited game code " +
+                                  "(edited maps only use the game and the C runtime):") + "\n\n - " +
                             string.Join("\n - ", suspicious.Take(5)) +
                             (suspicious.Count > 5 ? "\n - ..." : "") +
-                            "\n\nOnly continue if you trust this mod completely.";
+                            "\n\n" + Loc.T("Only continue if you trust this mod completely.");
                 }
 
                 if (extra != null || !_mgr.DllWarningAck)
@@ -621,7 +660,7 @@ namespace SilentHillPC_Launcher
             _mgr.SaveState();
 
             int imported = 0;
-            ProgressDialog.RunCancellable(this, "Importing mods…", (r, cancelled) =>
+            ProgressDialog.RunCancellable(this, Loc.T("Importing mods…"), (r, cancelled) =>
             {
                 foreach (var p in others)
                 {
@@ -633,8 +672,8 @@ namespace SilentHillPC_Launcher
             ExtractThenScan(); // asks before unpacking anything we just copied in
 
             if (imported == 0)
-                MessageBox.Show(this, "Nothing added. Drop a disc .bin to extract, or mod folders / .zip / .rar archives.",
-                    "Mod Manager", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, Loc.T("Nothing added. Drop a disc .bin to extract, or mod folders / .zip / .rar archives."),
+                    Loc.T("Mod Manager"), MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         // --- asset extraction / TIM conversion --------------------------------
@@ -645,8 +684,8 @@ namespace SilentHillPC_Launcher
             string gamedata = Path.Combine(_gameRoot, "gamedata");
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select a Silent Hill disc image";
-                ofd.Filter = "Disc image (*.bin)|*.bin|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select a Silent Hill disc image");
+                ofd.Filter = Loc.T("Disc image") + " (*.bin)|*.bin|" + Loc.T("All files") + " (*.*)|*.*";
                 if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
                 if (ofd.ShowDialog(this) != DialogResult.OK) return;
                 RunExtract(ofd.FileName);
@@ -665,36 +704,36 @@ namespace SilentHillPC_Launcher
             try { Directory.CreateDirectory(outDir); }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Cannot create the output folder:\n\n" + ex.Message,
-                    "Extract BIN", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.F("Cannot create the output folder:\n\n{0}", ex.Message),
+                    Loc.T("Extract BIN"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             BinExtractor.ExtractResult res = null;
             try
             {
-                ProgressDialog.RunCancellable(this, "Extracting " + Path.GetFileName(binPath) + "…",
+                ProgressDialog.RunCancellable(this, Loc.F("Extracting {0}…", Path.GetFileName(binPath)),
                     (r, cancelled) => { res = BinExtractor.Extract(binPath, outDir, convertPng, deleteTim, r, cancelled); });
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Extraction failed:\n\n" + ex.Message,
-                    "Extract BIN", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.F("Extraction failed:\n\n{0}", ex.Message),
+                    Loc.T("Extract BIN"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             if (res == null || !res.Ok)
             {
-                MessageBox.Show(this, "Extraction failed:\n\n" + (res != null ? res.Error : "unknown error"),
-                    "Extract BIN", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.F("Extraction failed:\n\n{0}", res != null ? res.Error : Loc.T("unknown error")),
+                    Loc.T("Extract BIN"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             if (res.Cancelled)
             {
                 MessageBox.Show(this,
-                    "Cancelled after " + res.Files + " file(s). They are complete and were left in:\n" + outDir,
-                    "Extract BIN", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    Loc.F("Cancelled after {0} file(s). They are complete and were left in:\n{1}", res.Files, outDir),
+                    Loc.T("Extract BIN"), MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -704,36 +743,36 @@ namespace SilentHillPC_Launcher
                 try
                 {
                     string tree = outDir;
-                    ProgressDialog.RunCancellable(this, "Building reference composites…", (r, cancelled) =>
+                    ProgressDialog.RunCancellable(this, Loc.T("Building reference composites…"), (r, cancelled) =>
                     {
-                        var idx = ClutComposer.EnsureIndex(tree, (i, n, m) => r(i, n, "Indexing " + m));
+                        var idx = ClutComposer.EnsureIndex(tree, (i, n, m) => r(i, n, Loc.F("Indexing {0}", m)));
                         refRes = ClutComposer.ComposeAll(idx, null, (i, n, m) => r(i, n, m), cancelled);
                     });
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(this, "Extraction finished, but building reference composites failed:\n\n" + ex.Message,
-                        "Extract BIN", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(this, Loc.F("Extraction finished, but building reference composites failed:\n\n{0}", ex.Message),
+                        Loc.T("Extract BIN"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
 
-            string msg = "Extracted " + res.Files + " files";
-            if (!string.IsNullOrEmpty(res.ReleaseId)) msg += " from " + res.ReleaseId;
-            msg += ".\n";
+            string msg = (string.IsNullOrEmpty(res.ReleaseId)
+                ? Loc.F("Extracted {0} files.", res.Files)
+                : Loc.F("Extracted {0} files from {1}.", res.Files, res.ReleaseId)) + "\n";
             if (convertPng)
             {
-                msg += "Converted " + res.Textures + " textures to PNG.\n";
-                if (deleteTim) msg += "Deleted " + res.TexturesDeleted + " original .TIM file(s).\n";
+                msg += Loc.F("Converted {0} textures to PNG.", res.Textures) + "\n";
+                if (deleteTim) msg += Loc.F("Deleted {0} original .TIM file(s).", res.TexturesDeleted) + "\n";
             }
             if (buildRefs && refRes != null)
-                msg += "Built " + (refRes.Made + refRes.Flat) + " reference composite(s).\n";
-            msg += "\nOutput folder:\n" + outDir;
+                msg += Loc.F("Built {0} reference composite(s).", refRes.Made + refRes.Flat) + "\n";
+            msg += "\n" + Loc.T("Output folder:") + "\n" + outDir;
             if (res.Warnings.Count > 0)
-                msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
+                msg += "\n\n" + Loc.F("Warnings ({0}):", res.Warnings.Count) + "\n - " +
                        string.Join("\n - ", res.Warnings.Take(8)) +
                        (res.Warnings.Count > 8 ? "\n - …" : "");
 
-            MessageBox.Show(this, msg, "Extract BIN", MessageBoxButtons.OK,
+            MessageBox.Show(this, msg, Loc.T("Extract BIN"), MessageBoxButtons.OK,
                 res.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
         }
 
@@ -747,23 +786,23 @@ namespace SilentHillPC_Launcher
 
             using (var dlg = new Form())
             {
-                dlg.Text            = "Extract Disc Image";
+                dlg.Text            = Loc.T("Extract Disc Image");
                 dlg.ClientSize      = new Size(460, 200);
                 dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
                 dlg.StartPosition   = FormStartPosition.CenterParent;
                 dlg.MaximizeBox     = false;
                 dlg.MinimizeBox     = false;
 
-                dlg.Controls.Add(new Label { Text = "Source: " + Path.GetFileName(binPath),
+                dlg.Controls.Add(new Label { Text = Loc.F("Source: {0}", Path.GetFileName(binPath)),
                                              Location = new Point(12, 12), AutoSize = true, ForeColor = Color.Gray });
-                dlg.Controls.Add(new Label { Text = "Extract to:", Location = new Point(12, 42), AutoSize = true });
+                dlg.Controls.Add(new Label { Text = Loc.T("Extract to:"), Location = new Point(12, 42), AutoSize = true });
                 var txtOut = new TextBox { Location = new Point(12, 60), Size = new Size(346, 22), Text = defaultOut };
-                var btnBrowse = new Button { Text = "Browse…", Location = new Point(364, 59), Size = new Size(84, 24) };
+                var btnBrowse = new Button { Text = Loc.T("Browse…"), Location = new Point(364, 59), Size = new Size(84, 24) };
                 btnBrowse.Click += (s, e) =>
                 {
                     using (var fbd = new FolderBrowserDialog())
                     {
-                        fbd.Description = "Choose the folder to extract into";
+                        fbd.Description = Loc.T("Choose the folder to extract into");
                         if (Directory.Exists(txtOut.Text)) fbd.SelectedPath = txtOut.Text;
                         if (fbd.ShowDialog(dlg) == DialogResult.OK)
                             txtOut.Text = Path.Combine(fbd.SelectedPath, Path.GetFileNameWithoutExtension(binPath) + "_extracted");
@@ -772,22 +811,33 @@ namespace SilentHillPC_Launcher
                 dlg.Controls.Add(txtOut);
                 dlg.Controls.Add(btnBrowse);
 
-                var chk = new CheckBox { Text = "Convert textures (TIM) to PNG", Location = new Point(12, 96), AutoSize = true };
-                var chkDel = new CheckBox { Text = "Delete original TIM?", Location = new Point(250, 96), AutoSize = true, Enabled = false };
+                var chk = new CheckBox { Text = Loc.T("Convert textures (TIM) to PNG"), Location = new Point(12, 96), AutoSize = true };
+                var chkDel = new CheckBox { Text = Loc.T("Delete original TIM?"), Location = new Point(250, 96), AutoSize = true, Enabled = false };
                 // "Delete original" only makes sense when converting; keep it gated + reset.
                 chk.CheckedChanged += (s, e) =>
                 {
                     chkDel.Enabled = chk.Checked;
                     if (!chk.Checked) chkDel.Checked = false;
                 };
-                var chkRef = new CheckBox { Text = "Build reference composites (one paintable image per texture)",
+                var chkRef = new CheckBox { Text = Loc.T("Build reference composites (one paintable image per texture)"),
                                            Location = new Point(12, 122), AutoSize = true };
                 dlg.Controls.Add(chk);
                 dlg.Controls.Add(chkDel);
                 dlg.Controls.Add(chkRef);
 
-                var ok     = new Button { Text = "Extract", Location = new Point(276, 160), Size = new Size(84, 28), DialogResult = DialogResult.OK };
-                var cancel = new Button { Text = "Cancel",  Location = new Point(364, 160), Size = new Size(84, 28), DialogResult = DialogResult.Cancel };
+                var ok     = new Button { Text = Loc.T("Extract"), Location = new Point(276, 160), Size = new Size(84, 28), DialogResult = DialogResult.OK };
+                var cancel = new Button { Text = Loc.T("Cancel"),  Location = new Point(364, 160), Size = new Size(84, 28), DialogResult = DialogResult.Cancel };
+                // The delete box shares a row with the convert box; push it right if
+                // the translated convert label reaches it, and widen the dialog to fit.
+                chkDel.Left = Math.Max(chkDel.Left, 12 + chk.PreferredSize.Width + 16);
+                int wantW = Math.Max(Math.Max(chkDel.Left + chkDel.PreferredSize.Width, 12 + chkRef.PreferredSize.Width) + 12,
+                                     dlg.ClientSize.Width);
+                if (wantW > dlg.ClientSize.Width)
+                {
+                    int grow = wantW - dlg.ClientSize.Width;
+                    dlg.ClientSize = new Size(wantW, dlg.ClientSize.Height);
+                    txtOut.Width += grow; btnBrowse.Left += grow; ok.Left += grow; cancel.Left += grow;
+                }
                 dlg.Controls.Add(ok);
                 dlg.Controls.Add(cancel);
                 dlg.AcceptButton = ok;
@@ -807,8 +857,8 @@ namespace SilentHillPC_Launcher
         {
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select TIM texture(s) to convert";
-                ofd.Filter = "TIM textures (*.tim)|*.tim|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select TIM texture(s) to convert");
+                ofd.Filter = Loc.T("TIM textures") + " (*.tim)|*.tim|" + Loc.T("All files") + " (*.*)|*.*";
                 ofd.Multiselect = true;
                 string gamedata = Path.Combine(_gameRoot, "gamedata");
                 if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
@@ -824,10 +874,10 @@ namespace SilentHillPC_Launcher
                     else failures.Add(Path.GetFileName(tim) + ": " + err);
                 }
 
-                string msg = "Converted " + ok + " of " + ofd.FileNames.Length + " file(s) to "
-                             + pngs + " PNG(s).\n(Multi-palette textures emit one PNG per palette row, "
-                             + "e.g. DOB.TIM.p00.png … — edit the row for the body region you want.)";
-                if (failures.Count > 0) msg += "\n\nFailed:\n - " + string.Join("\n - ", failures.Take(8));
+                string msg = Loc.F("Converted {0} of {1} file(s) to {2} PNG(s).", ok, ofd.FileNames.Length, pngs) + "\n" +
+                             Loc.T("(Multi-palette textures emit one PNG per palette row, e.g. DOB.TIM.p00.png … " +
+                                   "— edit the row for the body region you want.)");
+                if (failures.Count > 0) msg += "\n\n" + Loc.T("Failed:") + "\n - " + string.Join("\n - ", failures.Take(8));
                 MessageBox.Show(this, msg, "TIM → PNG", MessageBoxButtons.OK,
                     failures.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
             }
@@ -837,9 +887,9 @@ namespace SilentHillPC_Launcher
         {
             if (DdsConverter.IsAvailable()) return true;
             MessageBox.Show(this,
-                "texconv.exe isn't available, so BC7 .dds conversion can't run.\n\n" +
-                "It ships embedded in the launcher; if this build was made without it, put " +
-                "texconv.exe (Microsoft DirectXTex) next to the launcher or on your PATH.",
+                Loc.T("texconv.exe isn't available, so BC7 .dds conversion can't run.\n\n" +
+                      "It ships embedded in the launcher; if this build was made without it, put " +
+                      "texconv.exe (Microsoft DirectXTex) next to the launcher or on your PATH."),
                 "DDS", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return false;
         }
@@ -850,8 +900,8 @@ namespace SilentHillPC_Launcher
             if (!DdsReady()) return;
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select PNG texture(s) to convert to BC7 .dds";
-                ofd.Filter = "PNG images (*.png)|*.png|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select PNG texture(s) to convert to BC7 .dds");
+                ofd.Filter = Loc.T("PNG images") + " (*.png)|*.png|" + Loc.T("All files") + " (*.*)|*.*";
                 ofd.Multiselect = true;
                 string gamedata = Path.Combine(_gameRoot, "gamedata");
                 if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
@@ -866,8 +916,8 @@ namespace SilentHillPC_Launcher
                     else failures.Add(err);
                 }
 
-                string msg = "Encoded " + ok + " of " + ofd.FileNames.Length + " file(s) to BC7 .dds.";
-                if (failures.Count > 0) msg += "\n\nFailed:\n - " + string.Join("\n - ", failures.Take(6));
+                string msg = Loc.F("Encoded {0} of {1} file(s) to BC7 .dds.", ok, ofd.FileNames.Length);
+                if (failures.Count > 0) msg += "\n\n" + Loc.T("Failed:") + "\n - " + string.Join("\n - ", failures.Take(6));
                 MessageBox.Show(this, msg, "PNG → BC7 DDS", MessageBoxButtons.OK,
                     failures.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
             }
@@ -879,8 +929,8 @@ namespace SilentHillPC_Launcher
             if (!DdsReady()) return;
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select .dds texture(s) to decode to PNG";
-                ofd.Filter = "DDS textures (*.dds)|*.dds|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select .dds texture(s) to decode to PNG");
+                ofd.Filter = Loc.T("DDS textures") + " (*.dds)|*.dds|" + Loc.T("All files") + " (*.*)|*.*";
                 ofd.Multiselect = true;
                 string gamedata = Path.Combine(_gameRoot, "gamedata");
                 if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
@@ -895,8 +945,8 @@ namespace SilentHillPC_Launcher
                     else failures.Add(err);
                 }
 
-                string msg = "Decoded " + ok + " of " + ofd.FileNames.Length + " file(s) to PNG.";
-                if (failures.Count > 0) msg += "\n\nFailed:\n - " + string.Join("\n - ", failures.Take(6));
+                string msg = Loc.F("Decoded {0} of {1} file(s) to PNG.", ok, ofd.FileNames.Length);
+                if (failures.Count > 0) msg += "\n\n" + Loc.T("Failed:") + "\n - " + string.Join("\n - ", failures.Take(6));
                 MessageBox.Show(this, msg, "DDS → PNG", MessageBoxButtons.OK,
                     failures.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
             }
@@ -917,7 +967,7 @@ namespace SilentHillPC_Launcher
             string folder;
             using (var fbd = new FolderBrowserDialog())
             {
-                fbd.Description = "Choose a folder — every .png under it is converted to BC7 .dds";
+                fbd.Description = Loc.T("Choose a folder — every .png under it is converted to BC7 .dds");
                 string gamedata = Path.Combine(_gameRoot, "gamedata");
                 if (Directory.Exists(gamedata)) fbd.SelectedPath = gamedata;
                 if (fbd.ShowDialog(this) != DialogResult.OK) return;
@@ -927,7 +977,7 @@ namespace SilentHillPC_Launcher
             DdsConverter.PackAnalysis pack = null;
             try
             {
-                ProgressDialog.Run(this, "Checking the folder…",
+                ProgressDialog.Run(this, Loc.T("Checking the folder…"),
                     r => { pack = DdsConverter.AnalyzePack(folder); });
             }
             catch { pack = null; }
@@ -940,31 +990,30 @@ namespace SilentHillPC_Launcher
             if (pack != null && pack.Total > 0 && pack.Pngs == 0)
             {
                 MessageBox.Show(this,
-                    "Nothing to convert — all " + pack.Total.ToString("N0") +
-                    " files here are already .dds.\n\n" +
-                    "To start over, delete this folder and re-extract the pack from its archive.",
-                    "Convert folder → BC7", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    Loc.F("Nothing to convert — all {0} files here are already .dds.\n\n" +
+                          "To start over, delete this folder and re-extract the pack from its archive.",
+                          pack.Total.ToString("N0")),
+                    Loc.T("Convert folder → BC7"), MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
             if (pack != null && pack.SubRect > 0)
             {
                 string head =
-                    "Texture pack: " + pack.Pngs.ToString("N0") + " .png to convert" +
                     (pack.Total > pack.Pngs
-                        ? " (" + (pack.Total - pack.Pngs).ToString("N0") + " already .dds)"
-                        : "") + ".\n\n" +
-                    "BC7 .dds loads about twice as fast as .png and uses ~30% less disk. " +
-                    "Memory use is unchanged.\n\n";
+                        ? Loc.F("Texture pack: {0} .png to convert ({1} already .dds).",
+                                pack.Pngs.ToString("N0"), (pack.Total - pack.Pngs).ToString("N0"))
+                        : Loc.F("Texture pack: {0} .png to convert.", pack.Pngs.ToString("N0"))) + "\n\n" +
+                    Loc.T("BC7 .dds loads about twice as fast as .png and uses ~30% less disk. " +
+                          "Memory use is unchanged.") + "\n\n";
 
                 if (pack.WholeCoverPngs.Count > 0)
                 {
                     var choice = MessageBox.Show(this, head +
-                        "Yes    = convert all of it (recommended)\n" +
-                        "No     = convert only the " + pack.WholeCoverPngs.Count.ToString("N0") +
-                        " whole-texture files\n" +
-                        "Cancel = do nothing",
-                        "Convert folder → BC7", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Information,
+                        Loc.F("Yes = convert all of it (recommended)\n" +
+                              "No = convert only the {0} whole-texture files\n" +
+                              "Cancel = do nothing", pack.WholeCoverPngs.Count.ToString("N0")),
+                        Loc.T("Convert folder → BC7"), MessageBoxButtons.YesNoCancel, MessageBoxIcon.Information,
                         MessageBoxDefaultButton.Button1);
                     if (choice == DialogResult.Cancel) return;
                     wholeOnly = choice == DialogResult.No;
@@ -972,8 +1021,8 @@ namespace SilentHillPC_Launcher
                 else
                 {
                     var choice = MessageBox.Show(this, head +
-                        "Convert all of it?",
-                        "Convert folder → BC7", MessageBoxButtons.YesNo, MessageBoxIcon.Information,
+                        Loc.T("Convert all of it?"),
+                        Loc.T("Convert folder → BC7"), MessageBoxButtons.YesNo, MessageBoxIcon.Information,
                         MessageBoxDefaultButton.Button1);
                     if (choice != DialogResult.Yes) return;
                 }
@@ -981,14 +1030,14 @@ namespace SilentHillPC_Launcher
 
             var del = MessageBox.Show(this,
                 (wholeOnly
-                    ? "Converting only the " + pack.WholeCoverPngs.Count.ToString("N0") +
-                      " whole-texture files; the rest are left alone.\n\n"
+                    ? Loc.F("Converting only the {0} whole-texture files; the rest are left alone.",
+                            pack.WholeCoverPngs.Count.ToString("N0")) + "\n\n"
                     : "") +
-                "Delete each source .png after it converts?\n\n" +
-                "No  = keep both. The game prefers the .dds, so the .png just takes space.\n" +
-                "Yes = keep only the .dds. Sources go to the Recycle Bin, except on very\n" +
-                "        long paths (common in packs) where deletion is permanent.",
-                "Convert folder → BC7", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question,
+                Loc.T("Delete each source .png after it converts?\n\n" +
+                      "No = keep both. The game prefers the .dds, so the .png just takes space.\n" +
+                      "Yes = keep only the .dds. Sources go to the Recycle Bin, except on very " +
+                      "long paths (common in packs) where deletion is permanent."),
+                Loc.T("Convert folder → BC7"), MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question,
                 MessageBoxDefaultButton.Button2);
             if (del == DialogResult.Cancel) return;
             bool deleteSource = del == DialogResult.Yes;
@@ -1003,36 +1052,36 @@ namespace SilentHillPC_Launcher
                 // skipped region .png is not in the list at all. Those entries take
                 // the compressed upload path, so they need the full mip chain.
                 if (wholeOnly)
-                    finished = ProgressDialog.RunCancellable(this, "Encoding whole textures to BC7…",
+                    finished = ProgressDialog.RunCancellable(this, Loc.T("Encoding whole textures to BC7…"),
                         (r, cancelled) => DdsConverter.EncodeFiles(pack.WholeCoverPngs, deleteSource, true, r, cancelled,
                                                       out converted, out failed, out firstError));
                 else
-                    finished = ProgressDialog.RunCancellable(this, "Encoding textures to BC7…",
+                    finished = ProgressDialog.RunCancellable(this, Loc.T("Encoding textures to BC7…"),
                         (r, cancelled) => DdsConverter.EncodeFolder(folder, deleteSource,
                                                       pack != null ? pack.WholeCoverPngs : null, r, cancelled,
                                                       out converted, out failed, out firstError));
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Conversion failed:\n\n" + ex.Message,
-                    "Convert folder → BC7", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.F("Conversion failed:\n\n{0}", ex.Message),
+                    Loc.T("Convert folder → BC7"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             if (!finished)
             {
                 MessageBox.Show(this,
-                    "Cancelled after " + converted + " texture(s). The rest are untouched — run it again to finish.",
-                    "Convert folder → BC7", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    Loc.F("Cancelled after {0} texture(s). The rest are untouched — run it again to finish.", converted),
+                    Loc.T("Convert folder → BC7"), MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            string msg = "Encoded " + converted + " texture(s) to BC7 .dds.";
+            string msg = Loc.F("Encoded {0} texture(s) to BC7 .dds.", converted);
             if (wholeOnly)
-                msg += "\nLeft " + pack.SubRect.ToString("N0") + " region file(s) untouched.";
-            if (failed > 0) msg += "\n" + failed + " failed.";
-            if (firstError != null) msg += "\n\nFirst error:\n" + firstError;
-            MessageBox.Show(this, msg, "Convert folder → BC7", MessageBoxButtons.OK,
+                msg += "\n" + Loc.F("Left {0} region file(s) untouched.", pack.SubRect.ToString("N0"));
+            if (failed > 0) msg += "\n" + Loc.F("{0} failed.", failed);
+            if (firstError != null) msg += "\n\n" + Loc.T("First error:") + "\n" + firstError;
+            MessageBox.Show(this, msg, Loc.T("Convert folder → BC7"), MessageBoxButtons.OK,
                 failed > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
         }
 
@@ -1042,7 +1091,7 @@ namespace SilentHillPC_Launcher
             string folder;
             using (var fbd = new FolderBrowserDialog())
             {
-                fbd.Description = "Choose a folder — every .TIM under it is converted to .png";
+                fbd.Description = Loc.T("Choose a folder — every .TIM under it is converted to .png");
                 string gamedata = Path.Combine(_gameRoot, "gamedata");
                 if (Directory.Exists(gamedata)) fbd.SelectedPath = gamedata;
                 if (fbd.ShowDialog(this) != DialogResult.OK) return;
@@ -1050,40 +1099,40 @@ namespace SilentHillPC_Launcher
             }
 
             var del = MessageBox.Show(this,
-                "Delete each original .TIM after it is converted?\n\n" +
-                "Yes = convert then delete the .TIM (keep only the .png)\n" +
-                "No  = keep both the .TIM and the new .png",
-                "Bulk → PNG", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                Loc.T("Delete each original .TIM after it is converted?\n\n" +
+                      "Yes = convert then delete the .TIM (keep only the .png)\n" +
+                      "No = keep both the .TIM and the new .png"),
+                Loc.T("Bulk → PNG"), MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
             if (del == DialogResult.Cancel) return;
             bool deleteOriginals = del == DialogResult.Yes;
 
             TimConverter.BulkResult res = null;
             try
             {
-                ProgressDialog.RunCancellable(this, "Converting textures…",
+                ProgressDialog.RunCancellable(this, Loc.T("Converting textures…"),
                     (r, cancelled) => { res = TimConverter.BulkConvert(folder, deleteOriginals, r, cancelled); });
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Conversion failed:\n\n" + ex.Message,
-                    "Bulk → PNG", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.F("Conversion failed:\n\n{0}", ex.Message),
+                    Loc.T("Bulk → PNG"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             if (res != null && res.Cancelled)
             {
                 MessageBox.Show(this,
-                    "Cancelled after " + res.Converted + " file(s). The rest are untouched — run it again to finish.",
-                    "Bulk → PNG", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    Loc.F("Cancelled after {0} file(s). The rest are untouched — run it again to finish.", res.Converted),
+                    Loc.T("Bulk → PNG"), MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            string msg = "Converted " + res.Converted + " TIM file(s) to PNG.";
-            if (deleteOriginals) msg += "\nDeleted " + res.Deleted + " original .TIM file(s).";
+            string msg = Loc.F("Converted {0} TIM file(s) to PNG.", res.Converted);
+            if (deleteOriginals) msg += "\n" + Loc.F("Deleted {0} original .TIM file(s).", res.Deleted);
             if (res.Failed > 0)
-                msg += "\n\nFailed (" + res.Failed + "):\n - " + string.Join("\n - ", res.Failures.Take(8)) +
+                msg += "\n\n" + Loc.F("Failed ({0}):", res.Failed) + "\n - " + string.Join("\n - ", res.Failures.Take(8)) +
                        (res.Failures.Count > 8 ? "\n - …" : "");
-            MessageBox.Show(this, msg, "Bulk → PNG", MessageBoxButtons.OK,
+            MessageBox.Show(this, msg, Loc.T("Bulk → PNG"), MessageBoxButtons.OK,
                 res.Failed > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
         }
 
@@ -1105,8 +1154,9 @@ namespace SilentHillPC_Launcher
             string target;
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select a texture (.TIM) or a model (.ILM / .PLM / .IPD)";
-                ofd.Filter = "Textures and models (*.tim;*.ilm;*.plm;*.ipd)|*.tim;*.ilm;*.plm;*.ipd|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select a texture (.TIM) or a model (.ILM / .PLM / .IPD)");
+                ofd.Filter = Loc.T("Textures and models") + " (*.tim;*.ilm;*.plm;*.ipd)|*.tim;*.ilm;*.plm;*.ipd|" +
+                             Loc.T("All files") + " (*.*)|*.*";
                 string gamedata = Path.Combine(_gameRoot, "gamedata");
                 if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
                 if (ofd.ShowDialog(this) != DialogResult.OK) return;
@@ -1118,9 +1168,9 @@ namespace SilentHillPC_Launcher
             string err = null;
             try
             {
-                ProgressDialog.Run(this, "Reading the texture…", r =>
+                ProgressDialog.Run(this, Loc.T("Reading the texture…"), r =>
                 {
-                    var idx = ClutComposer.EnsureIndex(root, (i, n, m) => r(i, n, "Indexing " + m));
+                    var idx = ClutComposer.EnsureIndex(root, (i, n, m) => r(i, n, Loc.F("Indexing {0}", m)));
                     targets = ClutComposer.ResolveTargets(target, idx, null, out err);
                 });
             }
@@ -1128,8 +1178,8 @@ namespace SilentHillPC_Launcher
 
             if (targets == null || targets.Count == 0)
             {
-                MessageBox.Show(this, "Could not build the reference:\n\n" + (err ?? "unknown error"),
-                    "Reference", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.F("Could not build the reference:\n\n{0}", err ?? Loc.T("unknown error")),
+                    Loc.T("Reference"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -1143,8 +1193,8 @@ namespace SilentHillPC_Launcher
             string outPng;
             using (var sfd = new SaveFileDialog())
             {
-                sfd.Title = "Save reference image";
-                sfd.Filter = "PNG image (*.png)|*.png";
+                sfd.Title = Loc.T("Save reference image");
+                sfd.Filter = Loc.T("PNG image") + " (*.png)|*.png";
                 sfd.InitialDirectory = Path.GetDirectoryName(target);
                 sfd.FileName = Path.GetFileNameWithoutExtension(t.TimPath) + "_reference.png";
                 if (sfd.ShowDialog(this) != DialogResult.OK) return;
@@ -1154,27 +1204,27 @@ namespace SilentHillPC_Launcher
             ClutComposer.ComposeResult res = null;
             try
             {
-                ProgressDialog.Run(this, "Building reference…", r => { res = ClutComposer.ComposeTarget(t, outPng); });
+                ProgressDialog.Run(this, Loc.T("Building reference…"), r => { res = ClutComposer.ComposeTarget(t, outPng); });
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Could not build the reference:\n\n" + ex.Message,
-                    "Reference", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.F("Could not build the reference:\n\n{0}", ex.Message),
+                    Loc.T("Reference"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             string what = t.IsFlat
-                ? string.Format("{0} — {1}x{2}, flat 2D texture (no model draws it, so this is its plain decode).",
-                                Path.GetFileName(outPng), res.Width, res.Height)
-                : string.Format("{0} — {1}x{2}, {3} palette row(s), {4:F0}% of the sheet covered, {5:F0}% shared.",
-                                Path.GetFileName(outPng), res.Width, res.Height, res.Rows.Count,
-                                res.CoveragePct, res.SharedPct);
+                ? Loc.F("{0} — {1}x{2}, flat 2D texture (no model draws it, so this is its plain decode).",
+                        Path.GetFileName(outPng), res.Width, res.Height)
+                : Loc.F("{0} — {1}x{2}, {3} palette row(s), {4:F0}% of the sheet covered, {5:F0}% shared.",
+                        Path.GetFileName(outPng), res.Width, res.Height, res.Rows.Count,
+                        res.CoveragePct, res.SharedPct);
             if (res.TooShared)
-                what += string.Format("\n\nWARNING: {0:F0}% of it is drawn through MORE THAN ONE palette and a " +
-                                      "composite can show only one. Edit the per-row {1}.pNN.png set instead.",
-                                      res.SharedPct, Path.GetFileName(t.TimPath));
-            if (MessageBox.Show(this, what + "\n\nPaint over it, then \"Rebuild…\".  Open it now?",
-                    "Reference", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                what += "\n\n" + Loc.F("WARNING: {0:F0}% of it is drawn through MORE THAN ONE palette and a " +
+                                        "composite can show only one. Edit the per-row {1}.pNN.png set instead.",
+                                        res.SharedPct, Path.GetFileName(t.TimPath));
+            if (MessageBox.Show(this, what + "\n\n" + Loc.F("Paint over it, then \"{0}\". Open it now?", Loc.T("Rebuild…")),
+                    Loc.T("Reference"), MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
             {
                 try { System.Diagnostics.Process.Start(outPng); } catch { }
             }
@@ -1186,8 +1236,8 @@ namespace SilentHillPC_Launcher
             string outDir;
             using (var fbd = new FolderBrowserDialog())
             {
-                fbd.Description = Path.GetFileName(source) + " uses " + targets.Count +
-                                  " textures — folder for the reference images";
+                fbd.Description = Loc.F("{0} uses {1} textures — folder for the reference images",
+                                        Path.GetFileName(source), targets.Count);
                 fbd.SelectedPath = Path.GetDirectoryName(source);
                 if (fbd.ShowDialog(this) != DialogResult.OK) return;
                 outDir = fbd.SelectedPath;
@@ -1197,7 +1247,7 @@ namespace SilentHillPC_Launcher
             var failures = new List<string>();
             try
             {
-                ProgressDialog.RunCancellable(this, "Building references…", (r, cancelled) =>
+                ProgressDialog.RunCancellable(this, Loc.T("Building references…"), (r, cancelled) =>
                 {
                     for (int i = 0; i < targets.Count; i++)
                     {
@@ -1216,17 +1266,17 @@ namespace SilentHillPC_Launcher
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Could not build the references:\n\n" + ex.Message,
-                    "Reference", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.F("Could not build the references:\n\n{0}", ex.Message),
+                    Loc.T("Reference"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            string msg = made + " reference image(s) written to:\n" + outDir;
+            string msg = Loc.F("{0} reference image(s) written to:\n{1}", made, outDir);
             if (tooShared > 0)
-                msg += string.Format("\n{0} of them are over {1:F0}% shared — for those, edit the per-row " +
-                                     "pNN.png set, not the composite.", tooShared, ClutComposer.SharedWarnPct);
-            if (failures.Count > 0) msg += "\n\nFailed:\n - " + string.Join("\n - ", failures.Take(6));
-            if (MessageBox.Show(this, msg + "\n\nOpen the folder?", "Reference",
+                msg += "\n" + Loc.F("{0} of them are over {1:F0}% shared — for those, edit the per-row " +
+                                    "pNN.png set, not the composite.", tooShared, ClutComposer.SharedWarnPct);
+            if (failures.Count > 0) msg += "\n\n" + Loc.T("Failed:") + "\n - " + string.Join("\n - ", failures.Take(6));
+            if (MessageBox.Show(this, msg + "\n\n" + Loc.T("Open the folder?"), Loc.T("Reference"),
                     MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
             {
                 try { System.Diagnostics.Process.Start(outDir); } catch { }
@@ -1240,7 +1290,7 @@ namespace SilentHillPC_Launcher
             string tree;
             using (var fbd = new FolderBrowserDialog())
             {
-                fbd.Description = "Extracted disc folder (the one holding BG, CHARA, TIM…)";
+                fbd.Description = Loc.T("Extracted disc folder (the one holding BG, CHARA, TIM…)");
                 string gamedata = Path.Combine(_gameRoot, "gamedata");
                 if (Directory.Exists(gamedata)) fbd.SelectedPath = gamedata;
                 if (fbd.ShowDialog(this) != DialogResult.OK) return;
@@ -1251,27 +1301,28 @@ namespace SilentHillPC_Launcher
             ClutComposer.ComposeAllResult res = null;
             try
             {
-                ProgressDialog.RunCancellable(this, "Building reference images…", (r, cancelled) =>
+                ProgressDialog.RunCancellable(this, Loc.T("Building reference images…"), (r, cancelled) =>
                 {
-                    var idx = ClutComposer.EnsureIndex(tree, (i, n, m) => r(i, n, "Indexing " + m));
+                    var idx = ClutComposer.EnsureIndex(tree, (i, n, m) => r(i, n, Loc.F("Indexing {0}", m)));
                     res = ClutComposer.ComposeAll(idx, outDir, (i, n, m) => r(i, n, m), cancelled);
                 });
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Could not build the references:\n\n" + ex.Message,
-                    "Reference", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.F("Could not build the references:\n\n{0}", ex.Message),
+                    Loc.T("Reference"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             if (res == null) return;
 
-            string msg = string.Format("{0} reference image(s){1} in:\n{2}",
-                res.Made + res.Flat, res.Cancelled ? ", cancelled early" : "", outDir);
-            if (res.Failed > 0) msg += "\n" + res.Failed + " texture(s) could not be composed.";
+            string msg = res.Cancelled
+                ? Loc.F("{0} reference image(s), cancelled early, in:\n{1}", res.Made + res.Flat, outDir)
+                : Loc.F("{0} reference image(s) in:\n{1}", res.Made + res.Flat, outDir);
+            if (res.Failed > 0) msg += "\n" + Loc.F("{0} texture(s) could not be composed.", res.Failed);
             if (res.TooShared > 0)
-                msg += string.Format("\n{0} sheet(s) are over {1:F0}% shared — for those, edit the per-row " +
-                                     "pNN.png set, not the composite.", res.TooShared, ClutComposer.SharedWarnPct);
-            if (MessageBox.Show(this, msg + "\n\nOpen the folder?", "Reference",
+                msg += "\n" + Loc.F("{0} sheet(s) are over {1:F0}% shared — for those, edit the per-row " +
+                                    "pNN.png set, not the composite.", res.TooShared, ClutComposer.SharedWarnPct);
+            if (MessageBox.Show(this, msg + "\n\n" + Loc.T("Open the folder?"), Loc.T("Reference"),
                     MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
             {
                 try { System.Diagnostics.Process.Start(outDir); } catch { }
@@ -1285,8 +1336,8 @@ namespace SilentHillPC_Launcher
             string edited;
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select your edited reference image (.png)";
-                ofd.Filter = "PNG image (*.png)|*.png|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select your edited reference image (.png)");
+                ofd.Filter = Loc.T("PNG image") + " (*.png)|*.png|" + Loc.T("All files") + " (*.*)|*.*";
                 string gamedata = Path.Combine(_gameRoot, "gamedata");
                 if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
                 if (ofd.ShowDialog(this) != DialogResult.OK) return;
@@ -1296,8 +1347,9 @@ namespace SilentHillPC_Launcher
             string source = GuessSourceFor(edited);
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select the texture (.TIM) or model this image came from";
-                ofd.Filter = "Textures and models (*.tim;*.ilm;*.plm;*.ipd)|*.tim;*.ilm;*.plm;*.ipd|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select the texture (.TIM) or model this image came from");
+                ofd.Filter = Loc.T("Textures and models") + " (*.tim;*.ilm;*.plm;*.ipd)|*.tim;*.ilm;*.plm;*.ipd|" +
+                             Loc.T("All files") + " (*.*)|*.*";
                 if (source != null) { ofd.InitialDirectory = Path.GetDirectoryName(source); ofd.FileName = Path.GetFileName(source); }
                 else ofd.InitialDirectory = Path.GetDirectoryName(edited);
                 if (ofd.ShowDialog(this) != DialogResult.OK) return;
@@ -1307,7 +1359,7 @@ namespace SilentHillPC_Launcher
             string outDir;
             using (var fbd = new FolderBrowserDialog())
             {
-                fbd.Description = "Output folder for the per-row PNGs (usually gamedata/load/CHARA)";
+                fbd.Description = Loc.T("Output folder for the per-row PNGs (usually gamedata/load/CHARA)");
                 string load = Path.Combine(_gameRoot, "gamedata", "load");
                 if (Directory.Exists(load)) fbd.SelectedPath = load;
                 else if (Directory.Exists(Path.Combine(_gameRoot, "gamedata")))
@@ -1320,35 +1372,35 @@ namespace SilentHillPC_Launcher
             ClutComposer.SplitResult res = null;
             try
             {
-                ProgressDialog.Run(this, "Rebuilding textures…", r =>
+                ProgressDialog.Run(this, Loc.T("Rebuilding textures…"), r =>
                 {
-                    var idx = ClutComposer.EnsureIndex(TreeRootFor(src), (i, n, m) => r(i, n, "Indexing " + m));
+                    var idx = ClutComposer.EnsureIndex(TreeRootFor(src), (i, n, m) => r(i, n, Loc.F("Indexing {0}", m)));
                     res = ClutComposer.Split(edited, src, idx, null, outDir);
                 });
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Rebuild failed:\n\n" + ex.Message,
-                    "Rebuild Textures", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.F("Rebuild failed:\n\n{0}", ex.Message),
+                    Loc.T("Rebuild Textures"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             if (res == null || !string.IsNullOrEmpty(res.Error))
             {
-                MessageBox.Show(this, "Rebuild failed:\n\n" + (res != null ? res.Error : "unknown error"),
-                    "Rebuild Textures", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.F("Rebuild failed:\n\n{0}", res != null ? res.Error : Loc.T("unknown error")),
+                    Loc.T("Rebuild Textures"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            string msg = "Wrote " + res.Written.Count + " per-row PNG(s) to:\n" + outDir +
-                "\n\nPalette rows used: " + string.Join(", ", res.RowsUsed) +
-                "\n\nDrop these into gamedata/load/<FOLDER>/ (e.g. CHARA) and tick " +
-                "\"Enable loose file support\".";
+            string msg = Loc.F("Wrote {0} per-row PNG(s) to:\n{1}", res.Written.Count, outDir) +
+                "\n\n" + Loc.F("Palette rows used: {0}", string.Join(", ", res.RowsUsed)) +
+                "\n\n" + Loc.F("Drop these into gamedata/load/<FOLDER>/ (e.g. CHARA) and tick \"{0}\".",
+                                Loc.T("Enable loose file support (required for load-folder mods)"));
             if (res.RowsDropped.Count > 0)
-                msg += "\n\nRow(s) " + string.Join(", ", res.RowsDropped) + " are past the game's 16-row " +
-                       "limit and were skipped — it could never load them.";
-            if (MessageBox.Show(this, msg + "\n\nOpen the output folder?",
-                    "Rebuild Textures", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                msg += "\n\n" + Loc.F("Row(s) {0} are past the game's 16-row limit and were skipped — it could never load them.",
+                                       string.Join(", ", res.RowsDropped));
+            if (MessageBox.Show(this, msg + "\n\n" + Loc.T("Open the output folder?"),
+                    Loc.T("Rebuild Textures"), MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
             {
                 try { System.Diagnostics.Process.Start(outDir); } catch { }
             }
@@ -1412,7 +1464,7 @@ namespace SilentHillPC_Launcher
                 "",
                 "1.  Extract the textures.",
                 "    Click \"Extract BIN…\", pick your Silent Hill .bin, and tick",
-                "    \"Convert textures to PNG\". You get the disc's folder tree with every",
+                "    \"Convert textures (TIM) to PNG\". You get the disc's folder tree with every",
                 "    texture as a .png — for example the title screen is  TIM\\TITLE_E.png.",
                 "",
                 "    MONSTERS & CHARACTERS use ONE texture sheet with SEVERAL palettes —",
@@ -1453,7 +1505,7 @@ namespace SilentHillPC_Launcher
                 "",
                 "EDITING CHARACTER MODELS (advanced)",
                 "",
-                "    \"Model → OBJ…\" writes a model out as a .obj you can open in Blender,",
+                "    \"Model → OBJ ▾\" writes a model out as a .obj you can open in Blender,",
                 "    along with a .mtl and a .ilmmeta.json. Keep that .ilmmeta.json — the",
                 "    import step needs it.",
                 "",
@@ -1462,7 +1514,7 @@ namespace SilentHillPC_Launcher
                 "    remove objects: that list IS the rig, and changing it breaks every",
                 "    animation the character has.",
                 "",
-                "    \"OBJ → Model…\" folds the edited .obj back into a new .ILM. It asks for",
+                "    \"OBJ → Model ▾\" folds the edited .obj back into a new .ILM. It asks for",
                 "    three things: your .obj, the ORIGINAL .ILM it came from, and where to",
                 "    save — the .ilmmeta.json is picked up automatically from beside the",
                 "    .obj. Bones, draw order and palette rows are copied from the original.",
@@ -1554,10 +1606,13 @@ namespace SilentHillPC_Launcher
                 "    every existing animation keeps working. That is also why the one rule",
                 "    from above still stands — never rename, add or remove an 'o' OBJECT.",
                 "",
-                "    Preview before you install: \"View Model…\" opens the rebuilt .ILM.",
+                "    Preview before you install: \"Model Viewer\" opens the rebuilt .ILM.",
             };
 
-            ShowTextDialog("Loose-File Mods — Help", lines, false);
+            // Translated as one block: the steps refer back to each other, so
+            // line-by-line keys would read as disconnected fragments.
+            string text = Loc.T(string.Join("\n", lines));
+            ShowTextDialog(Loc.T("Loose-File Mods — Help"), text.Split('\n'), false);
         }
 
         /// <summary>Scrollable read-only text modal — the shape the Help dialog has always had,
@@ -1571,7 +1626,7 @@ namespace SilentHillPC_Launcher
         private static void AppendFileList(System.Text.StringBuilder sb, List<string> files, int max)
         {
             for (int i = 0; i < files.Count && i < max; i++) sb.Append("  ").Append(files[i]).Append('\n');
-            if (files.Count > max) sb.Append("  … and ").Append(files.Count - max).Append(" more\n");
+            if (files.Count > max) sb.Append("  ").Append(Loc.F("... and {0} more", files.Count - max)).Append('\n');
         }
 
         private void OnApply(object sender, EventArgs e)
@@ -1587,20 +1642,20 @@ namespace SilentHillPC_Launcher
                 if (pv.Count > 0)
                 {
                     var sb = new System.Text.StringBuilder();
-                    sb.Append("Applying will overwrite ").Append(pv.Count).Append(" file(s) of yours.\n");
+                    sb.Append(Loc.F("Applying will overwrite {0} file(s) of yours.", pv.Count)).Append('\n');
                     if (pv.Foreign.Count > 0)
                     {
-                        sb.Append("\nFiles you added (not from a mod):\n");
+                        sb.Append('\n').Append(Loc.T("Files you added (not from a mod):")).Append('\n');
                         AppendFileList(sb, pv.Foreign, 8);
                     }
                     if (pv.Modified.Count > 0)
                     {
-                        sb.Append("\nFiles a mod deployed that you edited since:\n");
+                        sb.Append('\n').Append(Loc.T("Files a mod deployed that you edited since:")).Append('\n');
                         AppendFileList(sb, pv.Modified, 8);
                     }
-                    sb.Append("\nEach one is backed up and restored when the mod that replaced it is removed. " +
-                              "Overwrite them?");
-                    if (MessageBox.Show(this, sb.ToString(), "Mod Manager",
+                    sb.Append('\n').Append(Loc.T("Each one is backed up and restored when the mod that replaced it is removed. " +
+                                                  "Overwrite them?"));
+                    if (MessageBox.Show(this, sb.ToString(), Loc.T("Mod Manager"),
                             MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                         return;
                 }
@@ -1609,25 +1664,25 @@ namespace SilentHillPC_Launcher
                 // Cancel here aborts an archive being unpacked (the only slow part), not the
                 // apply itself: the pack is left off and everything else still commits, so the
                 // config on disk always matches the list the user is looking at.
-                ProgressDialog.RunCancellable(this, "Applying mods…",
+                ProgressDialog.RunCancellable(this, Loc.T("Applying mods…"),
                     (rep, cancelled) => { r = _mgr.Apply(_chkLoose.Checked, rep, cancelled); });
                 _chkLoose.Checked = r.LooseEnabled;
                 Populate(); // reflect enable/disable state changes
 
-                string msg = string.Format(
+                string msg = Loc.F(
                     "Applied.\n\nActive texture packs: {0}\nData overlays (load/): {1}\nGameplay (Code / DLL) mods: {2}\nFMV video mods: {3}\n" +
                     "Loose file support: {4}\nFiles copied: {5} ({6} already in place, left as is)",
-                    r.Texture, r.Load, r.Gameplay, r.Fmv, r.LooseEnabled ? "on" : "off", r.Files, r.Skipped);
+                    r.Texture, r.Load, r.Gameplay, r.Fmv, Loc.T(r.LooseEnabled ? "On" : "Off"), r.Files, r.Skipped);
                 if (r.Warnings.Count > 0)
-                    msg += "\n\nWarnings:\n - " + string.Join("\n - ", r.Warnings);
+                    msg += "\n\n" + Loc.T("Warnings:") + "\n - " + string.Join("\n - ", r.Warnings);
 
-                MessageBox.Show(this, msg, "Mod Manager",
+                MessageBox.Show(this, msg, Loc.T("Mod Manager"),
                     MessageBoxButtons.OK,
                     r.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Failed to apply mods:\n\n" + ex.Message, "Mod Manager",
+                MessageBox.Show(this, Loc.F("Failed to apply mods:\n\n{0}", ex.Message), Loc.T("Mod Manager"),
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

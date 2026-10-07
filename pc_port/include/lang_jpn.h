@@ -18,4 +18,9 @@ void Pc_JpnMenuInit(void);
 /* Disc text for one compiled US menu literal, or NULL to keep the original. */
 const char* Pc_JpnMenuText(const char* us);
 
+/* The inventory's box labels (Equipment, Exit, Map ...) on NTSC-J, or NULL.
+ * Separate from Pc_JpnMenuText because "Exit" and "Map" mean something else
+ * on the Options and PC Options screens. */
+const char* Pc_JpnInventoryLabel(const char* us);
+
 #endif

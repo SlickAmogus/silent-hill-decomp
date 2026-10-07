@@ -1,4 +1,7 @@
 #include "game.h"
+#ifdef SH_PC_PORT
+#include "pc_pick.h"
+#endif
 #include "inline_no_dmpsx.h"
 
 #include <psyq/gtemac.h>
@@ -512,6 +515,23 @@ bool Collision_CharaCollisionSetup(s_CollisionResult* collResult, const VECTOR3*
     cylinder.radius         = chara->collision.cylinder.radius;
     cylinder.collisionState = chara->collision.state;
 
+#ifdef SH_PC_PORT
+    /* Console SCALE: a resized character is blocked by walls at its own size.
+     * Local query only -- the stored shape is untouched. MoveScale, not
+     * CollScale: this is the cylinder that decides how a body fits through the
+     * world, and the player is held at 1.0 there so doors and corridors keep
+     * working. */
+    {
+        q19_12 cs = Pc_Pick_MoveScale(chara);
+        if (cs != Q12(1.0f))
+        {
+            cylinder.top    = (s32)(((s64)cylinder.top    * cs) >> 12);
+            cylinder.bottom = (s32)(((s64)cylinder.bottom * cs) >> 12);
+            cylinder.radius = (s32)(((s64)cylinder.radius * cs) >> 12);
+        }
+    }
+#endif
+
     offsetCpy = *moveOffset;
 
     switch (chara->model.charaId)
@@ -980,6 +1000,9 @@ void Collision_TargetCharaCollidingSlowDown(VECTOR3* offset, const s_CollisionCy
     q19_12          otherCharaBottom;
     q19_12          otherCharaTop;
     s_SubCharacter* curChara;
+#ifdef SH_PC_PORT
+    q19_12          charaScale;
+#endif
 
     offsetAlpha  = Q12(1.0f);
     headingAngle = ratan2(offset->vx, offset->vz);
@@ -1000,6 +1023,14 @@ void Collision_TargetCharaCollidingSlowDown(VECTOR3* offset, const s_CollisionCy
         // Check if cylinders collide on vertical axis using box top and bottom.
         curCharaTop      = curChara->collision.box.top    + curChara->position.vy;
         curCharaBottom   = curChara->collision.box.bottom + curChara->position.vy;
+#ifdef SH_PC_PORT
+        charaScale = Pc_Pick_CollScale(curChara); /* 1.0 unless console SCALE is on */
+        if (charaScale != Q12(1.0f))
+        {
+            curCharaTop    = Pc_Pick_ScaleAbout(curChara->position.vy, curCharaTop,    charaScale);
+            curCharaBottom = Pc_Pick_ScaleAbout(curChara->position.vy, curCharaBottom, charaScale);
+        }
+#endif
         otherCharaTop    = cylinder->top                  + cylinder->position.vy;
         otherCharaBottom = cylinder->bottom               + cylinder->position.vy;
         if (curCharaTop    > otherCharaBottom ||
@@ -1013,7 +1044,14 @@ void Collision_TargetCharaCollidingSlowDown(VECTOR3* offset, const s_CollisionCy
         
         // Check if cylinders collide on XZ plane.
         dist = Vc_VectorMagnitudeCalc(cylinderOffsetX, Q12(0.0f), cylinderOffsetZ);
+#ifdef SH_PC_PORT
+        if (((((charaScale != Q12(1.0f))
+               ? (s32)(((s64)curChara->collision.cylinder.radius * charaScale) >> 12)
+               : curChara->collision.cylinder.radius) +
+              cylinder->radius) + INTERSECTION_BUFFER) < dist)
+#else
         if (((curChara->collision.cylinder.radius + cylinder->radius) + INTERSECTION_BUFFER) < dist)
+#endif
         {
             continue;
         }

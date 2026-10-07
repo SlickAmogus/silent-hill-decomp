@@ -78,17 +78,18 @@ namespace SilentHillPC_Launcher
                 switch (State)
                 {
                     case FfmpegState.Ok:
-                        return "FFmpeg " + FoundRelease + ": ready.";
+                        return Loc.F("FFmpeg {0}: ready.", FoundRelease);
                     case FfmpegState.WrongVersion:
                         if (Incomplete)
-                            return "FMV replacements need a complete ffmpeg " + IncompleteRelease + " — " +
-                                   (MissingFiles.Count == 1
-                                        ? MissingFiles[0] + " is missing."
-                                        : MissingFiles.Count + " of 5 files are missing.");
-                        return "FMV replacements need ffmpeg " + FfmpegCheck.AcceptedSpanText +
-                               " (found: " + FoundLabel + ").";
+                            return MissingFiles.Count == 1
+                                ? Loc.F("FMV replacements need a complete ffmpeg {0} — {1} is missing.",
+                                        IncompleteRelease, MissingFiles[0])
+                                : Loc.F("FMV replacements need a complete ffmpeg {0} — {1} of 5 files are missing.",
+                                        IncompleteRelease, MissingFiles.Count);
+                        return Loc.F("FMV replacements need ffmpeg {0} (found: {1}).",
+                                     FfmpegCheck.AcceptedSpanText, FoundLabel);
                     default:
-                        return "FMV replacements need ffmpeg " + InstallRelease + ".";
+                        return Loc.F("FMV replacements need ffmpeg {0}.", InstallRelease);
                 }
             }
         }
@@ -347,7 +348,7 @@ namespace SilentHillPC_Launcher
                 {
                     st.State      = FfmpegState.WrongVersion;
                     st.Incomplete = true;
-                    st.FoundLabel = "incomplete ffmpeg " + st.IncompleteRelease;
+                    st.FoundLabel = Loc.F("incomplete ffmpeg {0}", st.IncompleteRelease);
                 }
                 else
                 {
@@ -472,7 +473,7 @@ namespace SilentHillPC_Launcher
         {
             if (report == null) report = delegate { };
 
-            report(0, 0, "Looking for an LGPL shared build of ffmpeg…");
+            report(0, 0, Loc.T("Looking for an LGPL shared build of ffmpeg…"));
 
             FfmpegAbi abi;
             string url = FindLgplSharedAssetUrl(out abi);
@@ -487,11 +488,11 @@ namespace SilentHillPC_Launcher
         {
             if (report == null) report = delegate { };
 
-            report(0, 0, "Looking for an LGPL shared build of ffmpeg " + release + "…");
+            report(0, 0, Loc.F("Looking for an LGPL shared build of ffmpeg {0}…", release));
             string url = FindAssetForRelease(release);
             if (url == null)
-                throw new Exception("No LGPL shared build of ffmpeg " + release +
-                                    " is published any more.\n\n" + ManualAdvice(abi));
+                throw new Exception(Loc.F("No LGPL shared build of ffmpeg {0} is published any more.", release) +
+                                    "\n\n" + ManualAdvice(abi));
 
             return FetchAndInstall(gameRoot, url, abi, report);
         }
@@ -505,14 +506,14 @@ namespace SilentHillPC_Launcher
             {
                 DownloadFile(url, tmp, report);
 
-                report(0, 0, "Verifying archive…");
+                report(0, 0, Loc.T("Verifying archive…"));
                 var payload = ReadDllsFromZip(tmp, abi);
 
                 if (payload.Count != s_libBases.Length)
-                    throw new Exception("The downloaded archive did not contain the expected " +
-                                        s_libBases.Length + " libraries.");
+                    throw new Exception(Loc.F("The downloaded archive did not contain the expected {0} libraries.",
+                                              s_libBases.Length));
 
-                report(0, 0, "Installing…");
+                report(0, 0, Loc.T("Installing…"));
                 return InstallDlls(gameRoot, payload, abi);
             }
             finally
@@ -523,8 +524,8 @@ namespace SilentHillPC_Launcher
 
         private static string ManualAdvice(FfmpegAbi abi)
         {
-            return "Install it manually: download a win64 LGPL shared archive and copy " +
-                   string.Join(", ", abi.FileNames) + " next to " + GameExeName + ".\n" + BtbNHumanUrl;
+            return Loc.F("Install it manually: download a win64 LGPL shared archive and copy {0} next to {1}.",
+                         string.Join(", ", abi.FileNames), GameExeName) + "\n" + BtbNHumanUrl;
         }
 
         /// <summary>
@@ -560,12 +561,13 @@ namespace SilentHillPC_Launcher
             chosen = AbiForRelease(PreferredRelease);
 
             if (!reachedServer)
-                throw new Exception("Could not reach the ffmpeg build server" +
-                                    (transport != null ? " (" + transport.Message + ")" : "") +
-                                    ".\n\n" + ManualAdvice(chosen));
+                throw new Exception((transport != null
+                                        ? Loc.F("Could not reach the ffmpeg build server ({0}).", transport.Message)
+                                        : Loc.T("Could not reach the ffmpeg build server.")) +
+                                    "\n\n" + ManualAdvice(chosen));
 
-            throw new Exception("No LGPL shared build of ffmpeg " + AcceptedSpanText +
-                                " is published any more.\n\n" + ManualAdvice(chosen));
+            throw new Exception(Loc.F("No LGPL shared build of ffmpeg {0} is published any more.", AcceptedSpanText) +
+                                "\n\n" + ManualAdvice(chosen));
         }
 
         private static string FindAssetForRelease(int release)
@@ -634,8 +636,8 @@ namespace SilentHillPC_Launcher
                             int doneKb = (int)(done / 1024);
                             report(doneKb, totalKb,
                                    totalKb > 0
-                                       ? "Downloading ffmpeg… " + (doneKb / 1024) + " / " + (totalKb / 1024) + " MB"
-                                       : "Downloading ffmpeg… " + (doneKb / 1024) + " MB");
+                                       ? Loc.F("Downloading ffmpeg… {0} / {1} MB", doneKb / 1024, totalKb / 1024)
+                                       : Loc.F("Downloading ffmpeg… {0} MB", doneKb / 1024));
                         }
                     }
                 }
@@ -708,9 +710,9 @@ namespace SilentHillPC_Launcher
                 {
                     string dest = Path.Combine(gameRoot, names[i]);
                     if (!File.Exists(dest))
-                        throw new Exception(names[i] + " was not installed.");
+                        throw new Exception(Loc.F("{0} was not installed.", names[i]));
                     if (!VersionMajorMatches(dest, majors[i]))
-                        throw new Exception(names[i] + " is not really version " + majors[i] + ".");
+                        throw new Exception(Loc.F("{0} is not really version {1}.", names[i], majors[i]));
                 }
 
                 return backedUp.Count;
@@ -734,7 +736,7 @@ namespace SilentHillPC_Launcher
             var st = Probe(gameRoot);
             if (st.State == FfmpegState.Ok) return true;
 
-            if (MessageBox.Show(owner, st.Line + " Download it now?", "FMV support",
+            if (MessageBox.Show(owner, st.Line + " " + Loc.T("Download it now?"), Loc.T("FMV support"),
                                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
                 return false;
 
@@ -754,9 +756,9 @@ namespace SilentHillPC_Launcher
             var after = Probe(gameRoot);
             MessageBox.Show(owner,
                 after.State == FfmpegState.Ok
-                    ? "FFmpeg " + after.FoundRelease + " installed." +
-                      (backed > 0 ? " Your previous DLLs are in " + BackupDirName + "\\." : "")
-                    : "Installed, but ffmpeg still does not check out — see " + BtbNHumanUrl,
+                    ? Loc.F("FFmpeg {0} installed.", after.FoundRelease) +
+                      (backed > 0 ? " " + Loc.F("Your previous DLLs are in {0}.", BackupDirName + "\\") : "")
+                    : Loc.F("Installed, but ffmpeg still does not check out — see {0}", BtbNHumanUrl),
                 "FFmpeg", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
             return after.State == FfmpegState.Ok;
@@ -802,7 +804,7 @@ namespace SilentHillPC_Launcher
 
             _btn = new Button
             {
-                Text    = "Download",
+                Text    = Loc.T("Download"),
                 Size    = new Size(84, 26),
                 Visible = false,
             };

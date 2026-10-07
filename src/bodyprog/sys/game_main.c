@@ -39,6 +39,10 @@ int g_PcHorPlusGate = 0;
 /* Set by a freeze-frame state (pause, map messages) when it hands control back,
  * instead of dropping g_PsxPresentLastFrame on the spot. See the release below. */
 int g_PcFreezeReleasePending = 0;
+/* Set by open_main when a blocking FMV returns. The movie's whole runtime lands
+ * in the next frame's dt; the game clock never ran during it on PSX either, so
+ * it must not become cutscene catch-up debt. */
+int g_PcFmvClockDiscard = 0;
 
 /* [SLOWFRAME] phase clocks. A stall report needs to say WHICH part of the frame
  * took the time -- "worst=9470ms" in [PERF] separates a stall from slow
@@ -169,6 +173,7 @@ int g_DebugCamEnabled = 0;  /* 0 = normal camera, 1 = debug camera */
 int g_DebugFogDisabled = 0; /* 0 = fog normal, 1 = fog forced off (debug cam only) */
 int g_DebugNoWallCollision = 0;  /* 0 = wall collision on, 1 = walk through walls */
 int g_PcGodMode = 0;             /* 1 = god mode: no combat damage + health held full. ONE shared flag toggled by the `god` console cmd AND debug key 7, so turning it off either way fully disables it. */
+int g_PcInfiniteAmmo = 0;        /* 1 = firing does not spend ammo. Suppresses the two decrements and lets an empty clip fire; never writes to the inventory, so no round is ever added or removed. */
 int g_DebugNoFloorCollision = 0; /* 0 = floor collision on, always on (toggle removed) */
 int g_DebugThirdPersonCam = 0;   /* 0 = game camera, 1 = static third-person follow cam */
 int g_DebugNoTarget = 0;         /* 0 = normal AI detection, 1 = enemies ignore Harry */
@@ -1304,6 +1309,12 @@ void Pc_FreeCam_Set(int on)
         g_DebugCamSavedMapIdx    = g_SavegamePtr ? g_SavegamePtr->mapIdx     : -1;
         g_DebugCamSavedRoomIdx   = g_SavegamePtr ? g_SavegamePtr->mapRoomIdx : -1;
         SDL_GetRelativeMouseState(NULL, NULL); /* drop travel accumulated before capture */
+        /* Fog off by default. Outdoors the fog wall sits a few units past
+         * Harry, so a camera that flies anywhere useful is already behind it
+         * and the whole world renders as flat fog colour -- the grey void.
+         * Numpad . turns it back on when the fog itself is what you want to
+         * look at. */
+        g_DebugFogDisabled = 1;
         SH_DBG_ECHO("[FREECAM] on -- mouse look, W/A/S/D move, Space/C up/down, Shift fast, Ctrl slow");
     } else {
         /* Only hand back a snapshot that still belongs to the room Harry is in
@@ -1554,196 +1565,28 @@ void DebugCamera_Update(void)
 
     /* Fog toggle moved to main loop (runs after game sets fog params) */
 
-    /* Numpad 0: cycle to next map overlay (edge-triggered)
-     * DISABLED: runtime map switching crashes (map data not safely teardown-able).
-     * Use config.cfg map= setting instead. */
-#if 0
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_KP_0];
-        if (cur && !prevKey) {
-            int curId = (int)g_SavegamePtr->mapIdx;
-            int nextId = (curId + 1) % (MapOverlayId_MAPX_S00 + 1);
-            g_SavegamePtr->mapIdx = nextId;
-            MapRegistry_Load((e_MapOverlayId)nextId);
-            extern void GameBoot_MapLoad(s32 mapIdx);
-            GameBoot_MapLoad(nextId);
-            SH_DBG("[DEBUG] Switched to map %s (overlay %d)",
-                MapRegistry_GetName(nextId), nextId);
-        }
-        prevKey = cur;
-    }
-#endif
 
     /* Numpad 1: (unbound — collision toggle moved to top-row 0) */
 
-    /* Top-row 0: toggle wall collision (noclip) */
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_0];
-        if (cur && !prevKey) {
-            g_DebugNoWallCollision = !g_DebugNoWallCollision;
-            Sd_PlaySfx(g_DebugNoWallCollision ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
-            SH_DBG_ECHO("[DEBUG] Key 0: Wall collision: %s", g_DebugNoWallCollision ? "OFF (noclip)" : "ON");
-        }
-        prevKey = cur;
-    }
     /* (Third-person camera toggle moved out of debug controls: it's now the
      * rebindable Change-Camera action / control_style config, handled every
      * frame by Pc_ControlStyleUpdate.) */
 
     /* Kill Harry moved to the `kill` console command (was number key 1). */
-    /* Number keys 4/5: cycle the `map` config value (4 = previous, 5 = next,
-     * wrapping). Prints the new map + description and saves it to config.cfg so
-     * a warm-reset (Esc) + New Game loads the chosen map. */
-    {
-        static int prevKey4 = 0, prevKey5 = 0;
-        int cur4 = g_sdlKeyboardState[SDL_SCANCODE_4];
-        int cur5 = g_sdlKeyboardState[SDL_SCANCODE_5];
-        int dir  = 0;
-        if (cur5 && !prevKey5)      dir = 1;
-        else if (cur4 && !prevKey4) dir = -1;
-        if (dir != 0) {
-            int count = MapRegistry_Count();
-            int id    = MapRegistry_FindByName(g_PcConfig.mapName);
-            const char* name;
-            if (id < 0) id = 0;
-            id = (id + dir + count) % count;
-            name = MapRegistry_GetName(id);
-            strncpy(g_PcConfig.mapName, name, sizeof(g_PcConfig.mapName) - 1);
-            g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = '\0';
-            PcConfig_SaveMapName(name);
-            SH_DBG_ECHO("[DEBUG] Map config value changed to %s - %s",
-                        name, MapRegistry_GetDescription(id));
-        }
-        prevKey4 = cur4;
-        prevKey5 = cur5;
-    }
 
-    /* Number key 6: kill every active enemy near Harry (debug). Each enemy's own
-     * update applies damage.amount to its health (health = MAX(health - amount, 0))
-     * and then runs its normal death path, so forcing a huge damage.amount routes
-     * the kill through each enemy's real death/cleanup — works for every type, and
-     * the value clears all per-enemy damage thresholds (e.g. Creeper needs >=200).
-     * Replaces the old (non-working) Grey Child spawn. */
-    {
-        static int prevKey6 = 0;
-        int cur6 = g_sdlKeyboardState[SDL_SCANCODE_6];
-        if (cur6 && !prevKey6) {
-            s_SubCharacter* hr   = &g_SysWork.playerWork.player;
-            s32             killed = 0;
-            s32             i;
-            for (i = 0; i < NPC_COUNT_MAX; i++) {
-                s_SubCharacter* npc = &g_SysWork.npcs[i];
-                if (npc->model.charaId == Chara_None || npc->model.charaId == Chara_Harry ||
-                    npc->health <= Q12(0.0f)) {
-                    continue;
-                }
-                if (ABS(npc->position.vx - hr->position.vx) > Q12(50.0f) ||
-                    ABS(npc->position.vz - hr->position.vz) > Q12(50.0f)) {
-                    continue;
-                }
-                npc->damage.amount = Q12(99999.0f);
-                killed++;
-            }
-            SH_DBG_ECHO("[DEBUG] Key 6: killed %d nearby enemies", (int)killed);
-        }
-        prevKey6 = cur6;
-    }
 
-    /* Top-row 7: toggle god mode (same shared g_PcGodMode flag as the `god` console cmd) */
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_7];
-        if (cur && !prevKey) {
-            g_PcGodMode = !g_PcGodMode;
-            Sd_PlaySfx(g_PcGodMode ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
-            SH_DBG_ECHO("[DEBUG] Key 7: Invincibility: %s", g_PcGodMode ? "ON" : "OFF");
-        }
-        prevKey = cur;
-    }
-    /* Top-row 8: give 15 handgun bullets */
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_8];
-        if (cur && !prevKey) {
-            Inventory_AddSpecialItem(0xC0, 15);
-            Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-            SH_DBG_ECHO("[DEBUG] Key 8: Added 15 handgun bullets");
-        }
-        prevKey = cur;
-    }
-    /* Top-row 9: toggle no-target (enemies ignore Harry via CharaFlag_Unk4) */
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_9];
-        if (cur && !prevKey) {
-            g_DebugNoTarget = !g_DebugNoTarget;
-            Sd_PlaySfx(g_DebugNoTarget ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
-            SH_DBG_ECHO("[DEBUG] Key 9: No-target: %s", g_DebugNoTarget ? "ON (enemies ignore Harry)" : "OFF");
-        }
-        prevKey = cur;
-    }
-    /* Top-row -: give Hunting Rifle (skip if owned) + a stack of rifle shells.
-     * Stands down while the K keyframe view is on — there - / = cycle the
-     * play-as character instead. */
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_MINUS];
-        if (cur && !prevKey && !g_DebugAnimKfView) {
-            bool hasRifle = false;
-            for (int i = 0; i < INV_ITEM_COUNT_MAX; i++) {
-                if (g_SavegamePtr->items[i].id_0 == InvItemId_HuntingRifle) {
-                    hasRifle = true;
-                    break;
-                }
-            }
-            if (!hasRifle) Inventory_AddSpecialItem(InvItemId_HuntingRifle, 1);
-            Inventory_AddSpecialItem(InvItemId_RifleShells, 30);
-            Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-            SH_DBG_ECHO("[DEBUG] Key -: Added%s Rifle Shells x30", hasRifle ? "" : " Hunting Rifle +");
-        }
-        prevKey = cur;
-    }
-    /* Top-row =: give Shotgun (skip if owned) + a stack of shotgun shells.
-     * Stands down while the K keyframe view is on (see - above). */
-    {
-        static int prevKey = 0;
-        int cur = g_sdlKeyboardState[SDL_SCANCODE_EQUALS];
-        if (cur && !prevKey && !g_DebugAnimKfView) {
-            bool hasShotgun = false;
-            for (int i = 0; i < INV_ITEM_COUNT_MAX; i++) {
-                if (g_SavegamePtr->items[i].id_0 == InvItemId_Shotgun) {
-                    hasShotgun = true;
-                    break;
-                }
-            }
-            if (!hasShotgun) Inventory_AddSpecialItem(InvItemId_Shotgun, 1);
-            Inventory_AddSpecialItem(InvItemId_ShotgunShells, 30);
-            Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-            SH_DBG_ECHO("[DEBUG] Key =: Added%s Shotgun Shells x30", hasShotgun ? "" : " Shotgun +");
-        }
-        prevKey = cur;
-    }
 
-    /* Keyframe inspector: K toggles freezing Harry's whole skeleton on one
-     * absolute keyframe; , / . step the keyframe down / up. Used to find the
+    /* Keyframe inspector scrub. The viewer itself is a Quick Options > Debug
+     * row now (the K key is gone); , / . step the keyframe down / up while it
+     * is on. Used to find the
      * exact authored pose index for the aim shim (e.g. the gun-forward frame).
      * The actual pose override + clamp to the anim header's keyframe count live
      * in Player_Update (player_control.c); here we just drive the index. */
     {
-        static int    prevK = 0, prevComma = 0, prevPeriod = 0;
+        static int    prevComma = 0, prevPeriod = 0;
         static Uint32 commaPress = 0, commaLast = 0, periodPress = 0, periodLast = 0;
-        int curK      = g_sdlKeyboardState[SDL_SCANCODE_K];
         int curComma  = g_sdlKeyboardState[SDL_SCANCODE_COMMA];
         int curPeriod = g_sdlKeyboardState[SDL_SCANCODE_PERIOD];
-        if (curK && !prevK) {
-            g_DebugAnimKfView = !g_DebugAnimKfView;
-            if (!g_DebugAnimKfView) g_DebugAnimPlaying = 0;
-            Sd_PlaySfx(g_DebugAnimKfView ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
-            SH_DBG_ECHO("[DEBUG] K: Keyframe view: %s (KF %d)",
-                        g_DebugAnimKfView ? "ON" : "OFF", g_DebugAnimKf);
-        }
         if (g_DebugAnimKfView) {
             /* Hold , / . to scroll, accelerating up to 10/s the longer it's held.
              * Any manual scrub also stops loop playback. */
@@ -1762,34 +1605,10 @@ void DebugCamera_Update(void)
                 SH_DBG_ECHO("[DEBUG] KF %d", g_DebugAnimKf);
             }
         }
-        prevK      = curK;
         prevComma  = curComma;
         prevPeriod = curPeriod;
     }
 
-    /* - / = while the inspector is on: cycle the play-as character
-     * (Harry / Lisa / Cybil / Kaufmann / Dahlia). The swap is synchronous and
-     * sticks after K is turned off — that's how you pick who to play as. The
-     * rifle/shotgun give cheats on these keys stand down while K view is on. */
-    {
-        static int prevMinus = 0, prevEquals = 0;
-        int curMinus  = g_sdlKeyboardState[SDL_SCANCODE_MINUS];
-        int curEquals = g_sdlKeyboardState[SDL_SCANCODE_EQUALS];
-        if (g_DebugAnimKfView) {
-            int step = 0;
-            if (curMinus && !prevMinus)   step = -1;
-            if (curEquals && !prevEquals) step = 1;
-            if (step != 0) {
-                extern int         Pc_PlayAs_Cycle(int step);
-                extern const char* Pc_PlayAs_Label(int idx);
-                int idx = Pc_PlayAs_Cycle(step);
-                Sd_PlaySfx(Sfx_MenuConfirm, 0, 64);
-                SH_DBG_ECHO("[PLAYAS] %s", Pc_PlayAs_Label(idx));
-            }
-        }
-        prevMinus  = curMinus;
-        prevEquals = curEquals;
-    }
 
     /* `/` while the inspector is on: cycle the equipped weapon's UPPER-BODY anims
      * (HARRY_BASE_ANIM_INFOS entries 56..75 = anim indices 28..37: aim / fire /
@@ -2020,48 +1839,6 @@ void DebugCamera_Update(void)
      * are unnecessary here. Re-add when an in-progress later-map test
      * needs an item that isn't in the world yet. */
 
-    /* ==== First-person eye tuning (numpad) ====
-     * Active only in FPS mode (not debug-cam). The eye sits at Harry's root +
-     * g_PcFpsOffset, a LOCAL offset in his BODY frame. Every key below is a
-     * straight-line nudge along one body axis — no rotation, no orbit — so the
-     * eye moves exactly where you'd expect. Press KP_5 to print values to bake:
-     *   KP_8/KP_2  move eye forward / back    (offset vz, held)
-     *   KP_6/KP_4  move eye right / left       (offset vx, held)
-     *   KP_9/KP_7  move eye up / down          (offset vy, held, coarse)
-     *   KP_+/KP_-  move eye up / down          (offset vy, held, fine)
-     *   KP_5       log g_PcFpsOffset (paste to bake) */
-    if (g_PcFpsCam && !g_DebugCamEnabled &&
-        g_GameWork.gameState == GameState_InGame)
-    {
-        #define FPS_MOVE_STEP 64
-        #define FPS_VFINE     12   /* fine vertical step for KP_- / KP_+ */
-
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_8]) g_PcFpsOffset.vz += FPS_MOVE_STEP; /* forward */
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_2]) g_PcFpsOffset.vz -= FPS_MOVE_STEP; /* back */
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_6]) g_PcFpsOffset.vx += FPS_MOVE_STEP; /* right */
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_4]) g_PcFpsOffset.vx -= FPS_MOVE_STEP; /* left */
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_9]) g_PcFpsOffset.vy -= FPS_MOVE_STEP; /* up (PSX +Y is down) */
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_7]) g_PcFpsOffset.vy += FPS_MOVE_STEP; /* down */
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_PLUS])  g_PcFpsOffset.vy -= FPS_VFINE; /* fine up */
-        if (g_sdlKeyboardState[SDL_SCANCODE_KP_MINUS]) g_PcFpsOffset.vy += FPS_VFINE; /* fine down */
-
-        {
-            static int prev5 = 0;
-            int cur5 = g_sdlKeyboardState[SDL_SCANCODE_KP_5];
-            if (cur5 && !prev5) {
-                extern VECTOR3 g_PcFpsHeadRefDbg, g_PcFpsHeadLocalDbg;
-                SH_DBG_ECHO("[FPSCAM-TUNE] g_PcFpsOffset = { %d, %d, %d }",
-                            (int)g_PcFpsOffset.vx, (int)g_PcFpsOffset.vy, (int)g_PcFpsOffset.vz);
-                SH_DBG_ECHO("[FPSCAM-HEADREF] s_fpsHeadRef = { %d, %d, %d }  headLocal = { %d, %d, %d }",
-                            (int)g_PcFpsHeadRefDbg.vx, (int)g_PcFpsHeadRefDbg.vy, (int)g_PcFpsHeadRefDbg.vz,
-                            (int)g_PcFpsHeadLocalDbg.vx, (int)g_PcFpsHeadLocalDbg.vy, (int)g_PcFpsHeadLocalDbg.vz);
-            }
-            prev5 = cur5;
-        }
-
-        #undef FPS_MOVE_STEP
-        #undef FPS_VFINE
-    }
 
 
     /* If free-fly debug cam is off */
@@ -3484,6 +3261,15 @@ void MainLoop(void) // 0x80032EE0
             dtRaw    = MIN(dtTrue, PC_DT_STEP_15FPS);
             dtCapped = MIN(dtRaw, PC_DT_STEP_30FPS);
 
+            /* The ~22s escape-run movie in the Good+ ending (ME_03300) otherwise
+             * banked the 2s debt maximum and fast-forwarded the scene after it. */
+            if (g_PcFmvClockDiscard)
+            {
+                g_PcFmvClockDiscard = 0;
+                s_cutsceneDebt      = 0;
+                dtTrue              = dtCapped;
+            }
+
             if (pcInCutscene && !pcConsoleFrozen)
             {
                 s_cutsceneDebt += dtTrue - dtCapped;
@@ -3703,6 +3489,15 @@ void MainLoop(void) // 0x80032EE0
                  * the deadline elapsed so a following non-bg2d frame stays 4:3. */
                 s_narrowOffAtMs    = 1;
                 g_PcHorPlusEnabled = 0;
+            }
+            else if ((g_Screen_FadeStatus & 0x7) >= ScreenFadeState_ResetTimestep &&
+                     (g_Screen_FadeStatus & 0x7) <= ScreenFadeState_FadeInStart)
+            {
+                /* The fade tile is fully opaque, so it IS the image: nothing
+                 * behind it can be squished, but narrowing clips the tile to the
+                 * 4:3 viewport. Black-on-black hides that; the white fade into
+                 * the post-Floatstinger map load showed as a pillarboxed white
+                 * frame. Keep whatever framing the fade started under. */
             }
             else if (!g_PcWorldDrawnThisFrame)
             {

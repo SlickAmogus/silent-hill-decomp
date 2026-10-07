@@ -67,43 +67,39 @@ namespace SilentHillPC_Launcher
             {
                 Location = new Point(12, 12),
                 Size = new Size(576, 46),
-                Text = "Earn achievements on your real RetroAchievements account while " +
-                       "playing this port. Your disc image identifies the game, so the " +
-                       "official Silent Hill set is used.\r\n" +
-                       "Softcore only — this port has quick save/load and debug features."
+                Text = Loc.T("Earn achievements on your real RetroAchievements account while " +
+                             "playing this port. Your disc image identifies the game, so the " +
+                             "official Silent Hill set is used.\n" +
+                             "Softcore only — this port has quick save/load and debug features.")
             };
 
             _chkEnable = new CheckBox
             {
                 Location = new Point(15, 66),
-                Size = new Size(175, 20),
-                Text = "Enable RetroAchievements"
+                AutoSize = true,
+                Text = Loc.T("Enable RetroAchievements")
             };
 
             _chkHashBypass = new CheckBox
             {
                 Location = new Point(196, 66),
                 Size = new Size(390, 20),
-                Text = "Hash bypass for NTSC-J/Fan translations"
+                Text = Loc.T("Hash bypass for NTSC-J/Fan translations")
             };
 
             var tip = new ToolTip { AutoPopDelay = 30000, InitialDelay = 400, ReshowDelay = 100 };
-            tip.SetToolTip(_chkHashBypass,
-                "RetroAchievements identifies the game purely by your disc hash, and it " +
-                "has no entry for the Japanese release or for fan-translated discs, so " +
-                "those load zero achievements.\r\n\r\n" +
-                "With this on, the USA disc hash is reported instead and the set loads.\r\n\r\n" +
-                "This is technically spoofing: RetroAchievements is told you are running " +
-                "a disc you are not. The game itself is functionally identical, since " +
-                "this port compiles one codebase whatever disc is mounted and already " +
-                "presents itself to the achievement logic as the USA build, so the " +
-                "achievements evaluate exactly the same. Unlocks are softcore only.\r\n\r\n" +
-                "Ignored on a USA or PAL disc, which RetroAchievements supports natively.");
+            tip.SetToolTip(_chkHashBypass, Loc.T(
+                "RetroAchievements identifies the game by disc hash and has no entry for the " +
+                "Japanese release or fan translations, so those load no achievements.\n\n" +
+                "With this on, the USA disc hash is reported instead. The game logic is identical " +
+                "(this port always presents itself as the USA build), so achievements evaluate " +
+                "the same. Softcore only.\n\n" +
+                "Ignored on USA and PAL discs."));
 
-            var lblUser = new Label { Location = new Point(15, 98), Size = new Size(70, 20), Text = "Username" };
+            var lblUser = new Label { Location = new Point(15, 98), AutoSize = true, Text = Loc.T("Username") };
             _txtUser = new TextBox { Location = new Point(90, 95), Size = new Size(200, 22) };
 
-            var lblPass = new Label { Location = new Point(15, 128), Size = new Size(70, 20), Text = "Password" };
+            var lblPass = new Label { Location = new Point(15, 128), AutoSize = true, Text = Loc.T("Password") };
             _txtPass = new TextBox
             {
                 Location = new Point(90, 125),
@@ -115,7 +111,7 @@ namespace SilentHillPC_Launcher
             {
                 Location = new Point(470, 94),
                 Size = new Size(110, 25),
-                Text = "Sign in"
+                Text = Loc.T("Sign in")
             };
             _btnSignIn.Click += async (s, e) => await SignInAsync();
 
@@ -123,7 +119,7 @@ namespace SilentHillPC_Launcher
             {
                 Location = new Point(470, 124),
                 Size = new Size(110, 25),
-                Text = "Sign out"
+                Text = Loc.T("Sign out")
             };
             _btnSignOut.Click += (s, e) => SignOut();
 
@@ -140,8 +136,8 @@ namespace SilentHillPC_Launcher
             var lblSfx = new Label
             {
                 Location = new Point(15, 197),
-                Size = new Size(105, 20),
-                Text = "Achievement SFX:"
+                AutoSize = true,
+                Text = Loc.T("Achievement SFX:")
             };
 
             _cboSfx = new ComboBox
@@ -156,10 +152,34 @@ namespace SilentHillPC_Launcher
             {
                 Location = new Point(500, 192),
                 Size = new Size(85, 25),
-                Text = "Close",
+                Text = Loc.T("Close"),
                 DialogResult = DialogResult.OK
             };
             _btnClose.Click += (s, e) => SaveEnableFlag();
+
+            // Positions below were set for English; shift fields right of their
+            // translated labels, and push everything down if the intro wraps longer.
+            _chkHashBypass.Left = Math.Max(_chkHashBypass.Left, _chkEnable.Left + _chkEnable.PreferredSize.Width + 10);
+            _chkHashBypass.Width = ClientSize.Width - 10 - _chkHashBypass.Left;
+            int fieldLeft = Math.Max(90, 15 + Math.Max(lblUser.PreferredWidth, lblPass.PreferredWidth) + 8);
+            _txtUser.Left = _txtPass.Left = fieldLeft;
+            _cboSfx.Left = Math.Max(_cboSfx.Left, 15 + lblSfx.PreferredWidth + 6);
+            foreach (var b in new[] { _btnSignIn, _btnSignOut, _btnClose })
+            {
+                int want = TextRenderer.MeasureText(b.Text, Font).Width + 16;
+                if (want > b.Width) { b.Left -= want - b.Width; b.Width = want; }
+            }
+            int introH = TextRenderer.MeasureText(lblIntro.Text, Font, new Size(lblIntro.Width, 0),
+                                                  TextFormatFlags.WordBreak).Height;
+            if (introH > lblIntro.Height)
+            {
+                int grow = introH - lblIntro.Height;
+                lblIntro.Height = introH;
+                foreach (var c in new Control[] { _chkEnable, _chkHashBypass, lblUser, _txtUser, lblPass, _txtPass,
+                                                  _btnSignIn, _btnSignOut, _lblStatus, lblSfx, _cboSfx, _btnClose })
+                    c.Top += grow;
+                ClientSize = new Size(ClientSize.Width, ClientSize.Height + grow);
+            }
 
             Controls.AddRange(new Control[]
             {
@@ -195,14 +215,14 @@ namespace SilentHillPC_Launcher
             if (signedIn)
             {
                 _lblStatus.ForeColor = Color.DarkGreen;
-                _lblStatus.Text = "Signed in as " + _config.Get("ra_username", "") +
-                                  ". Achievements will unlock in softcore mode.";
+                _lblStatus.Text = Loc.F("Signed in as {0}. Achievements will unlock in softcore mode.",
+                                        _config.Get("ra_username", ""));
                 _txtPass.Text = "";
             }
             else
             {
                 _lblStatus.ForeColor = SystemColors.ControlText;
-                _lblStatus.Text = "Not signed in.";
+                _lblStatus.Text = Loc.T("Not signed in.");
             }
         }
 
@@ -246,13 +266,13 @@ namespace SilentHillPC_Launcher
             if (user.Length == 0 || pass.Length == 0)
             {
                 _lblStatus.ForeColor = Color.Firebrick;
-                _lblStatus.Text = "Enter your RetroAchievements username and password.";
+                _lblStatus.Text = Loc.T("Enter your RetroAchievements username and password.");
                 return;
             }
 
             _btnSignIn.Enabled = false;
             _lblStatus.ForeColor = SystemColors.ControlText;
-            _lblStatus.Text = "Signing in...";
+            _lblStatus.Text = Loc.T("Signing in...");
 
             try
             {
@@ -274,8 +294,8 @@ namespace SilentHillPC_Launcher
                     string err = ExtractJsonString(body, "Error");
                     _lblStatus.ForeColor = Color.Firebrick;
                     _lblStatus.Text = string.IsNullOrEmpty(err)
-                        ? "Sign-in failed. Check your username and password."
-                        : "Sign-in failed: " + err;
+                        ? Loc.T("Sign-in failed. Check your username and password.")
+                        : Loc.F("Sign-in failed: {0}", err);
                     return;
                 }
 
@@ -295,7 +315,7 @@ namespace SilentHillPC_Launcher
             catch (Exception ex)
             {
                 _lblStatus.ForeColor = Color.Firebrick;
-                _lblStatus.Text = "Could not reach retroachievements.org: " + ex.Message;
+                _lblStatus.Text = Loc.F("Could not reach retroachievements.org: {0}", ex.Message);
             }
             finally
             {

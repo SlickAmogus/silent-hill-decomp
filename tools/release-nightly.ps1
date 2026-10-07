@@ -172,8 +172,26 @@ function Get-CrossPlatformRunForCommit {
     if ($LASTEXITCODE -ne 0 -or -not $rawJson) { return $null }
     $parsedRuns = $rawJson | ConvertFrom-Json
     $runs = @($parsedRuns)
-    return ($runs | Where-Object { $_.headSha -eq $Commit } |
-                     Sort-Object -Property createdAt -Descending | Select-Object -First 1)
+    $exact = $runs | Where-Object { $_.headSha -eq $Commit } |
+                     Sort-Object -Property createdAt -Descending | Select-Object -First 1
+    if ($exact) { return $exact }
+
+    # The build workflows' paths-ignore (pc_port/launcher/**, **.md) means a
+    # launcher- or docs-only commit never gets a Linux/macOS run at all, so an
+    # exact match would never appear. A successful build of an ancestor whose
+    # diff to $Commit touches only those ignored paths is the same binary.
+    $candidates = @($runs | Where-Object { $_.status -eq 'completed' -and $_.conclusion -eq 'success' } |
+                            Sort-Object -Property createdAt -Descending)
+    foreach ($r in $candidates) {
+        $sha = "$($r.headSha)".Trim()
+        try {
+            git merge-base --is-ancestor $sha $Commit 2>$null
+            if ($LASTEXITCODE -ne 0) { continue }
+            git diff --quiet $sha $Commit -- . ':(exclude)pc_port/launcher' ':(exclude)*.md' 2>$null
+            if ($LASTEXITCODE -eq 0) { return $r }
+        } catch { }
+    }
+    return $null
 }
 
 # Is this commit present on the source repo at all? If not, CI cannot have built
@@ -319,7 +337,14 @@ function Resolve-CrossPlatformArtifacts {
         foreach ($e in $status) {
             $label = $e.Target.Name.PadRight(6)
             switch ($e.State) {
-                'ok'         { Write-Host "  $label : OK (run $($e.RunId))" -ForegroundColor Green }
+                'ok'         {
+                    $rsha = "$($e.Run.headSha)"
+                    if ($rsha -ne $SourceCommit) {
+                        Write-Host "  $label : OK (run $($e.RunId), built from $($rsha.Substring(0, [Math]::Min(9, $rsha.Length))) -- only launcher/docs changed since)" -ForegroundColor Green
+                    } else {
+                        Write-Host "  $label : OK (run $($e.RunId))" -ForegroundColor Green
+                    }
+                }
                 'failed'     { Write-Host "  $label : BUILD FAILED -- $($e.Url)" -ForegroundColor Red }
                 'running'    { Write-Host "  $label : still building -- $($e.Url)" -ForegroundColor Yellow }
                 'no-run'     {

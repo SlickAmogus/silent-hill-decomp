@@ -24,6 +24,9 @@ extern s_WorldEnvWork g_WorldEnvWork;
 #include "bodyprog/events/bodyprog_data_800A99B4.h"
 #include "bodyprog/events/events_main.h"
 #include "bodyprog/events/npc_main.h"
+#ifdef SH_PC_PORT
+#include "pc_pick.h"
+#endif
 #include "bodyprog/events/radio.h"
 #include "bodyprog/demo.h"
 #include "bodyprog/gfx/map_effects.h"
@@ -362,6 +365,7 @@ void GameState_InGame_Update(void) // 0x80038BD4
              * back negative — fixed at the lookup itself (PC_FOG_VTX_RAMP
              * in bodyprog_80055028.c), so the full fog+lighting pipeline
              * is safe for characters. */
+            Pc_Pick_CharaPreDraw(&g_SysWork.playerWork.player, -1, g_SysWork.playerBoneCoords);
             func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords, 1, g_SysWork.playerWork.player.timer_C6, 0);
 #else
             func_8003DA9C(Chara_Harry, g_SysWork.playerBoneCoords, 1, g_SysWork.playerWork.player.timer_C6, 0);
@@ -376,6 +380,11 @@ void GameState_InGame_Update(void) // 0x80038BD4
         Game_NpcUpdate();
         func_8005E89C();
         Ipd_CloseRangeChunksInit();
+#ifdef SH_PC_PORT
+        /* Last point in the gameplay update, so every map/event caller has had
+         * its chance to write a positional sfx this frame. */
+        { extern void Pc_3dAudio_SustainPositionalLoops(void); Pc_3dAudio_SustainPositionalLoops(); }
+#endif
         Gfx_InGameDraw(1);
 #ifdef SH_PC_PORT
         /* The world is in the OT for this frame, so the fog-colored clear behind

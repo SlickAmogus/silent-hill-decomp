@@ -31,4 +31,8 @@ int Pc_RuActive(void);
 /* Russian for one compiled US menu literal, or NULL to keep the original. */
 const char* Pc_RuMenuText(const char* us);
 
+/* The same translation as UTF-8, before the disc-charset encode, for the PC
+ * overlays that draw with a TrueType font. NULL when inactive or absent. */
+const char* Pc_RuMenuUtf8(const char* us);
+
 #endif

@@ -24,7 +24,7 @@ namespace SilentHillPC_Launcher
 
         public TmdPageDialog()
         {
-            Text = "Item texture bank";
+            Text = Loc.T("Item texture bank");
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition = FormStartPosition.CenterParent;
             MinimizeBox = false;
@@ -35,10 +35,10 @@ namespace SilentHillPC_Launcher
             {
                 Location = new Point(12, 12),
                 Size = new Size(406, 74),
-                Text = "Key-item textures live on one VRAM page that the game refills per map, " +
-                       "so a .TMD cannot say which bank its texture is in.\r\n\r\n" +
-                       "Pick the one for the area this item belongs to. It only changes the " +
-                       "preview images written beside the OBJ — the model itself is unaffected.",
+                Text = Loc.T("Key-item textures live on one VRAM page that the game refills per map, " +
+                             "so a .TMD cannot say which bank its texture is in.\n\n" +
+                             "Pick the one for the area this item belongs to. It only changes the " +
+                             "preview images written beside the OBJ — the model itself is unaffected."),
             };
             _combo = new ComboBox
             {
@@ -49,8 +49,17 @@ namespace SilentHillPC_Launcher
             foreach (string s in TmdViewSceneBuilder.Tpage14Candidates) _combo.Items.Add(s);
             _combo.SelectedIndex = 0;
 
-            var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Location = new Point(252, 128), Size = new Size(80, 26) };
-            var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, Location = new Point(338, 128), Size = new Size(80, 26) };
+            var ok = new Button { Text = Loc.T("OK"), DialogResult = DialogResult.OK, Location = new Point(252, 128), Size = new Size(80, 26) };
+            var cancel = new Button { Text = Loc.T("Cancel"), DialogResult = DialogResult.Cancel, Location = new Point(338, 128), Size = new Size(80, 26) };
+
+            int textH = TextRenderer.MeasureText(lbl.Text, Font, new Size(lbl.Width, 0), TextFormatFlags.WordBreak).Height;
+            if (textH > lbl.Height)
+            {
+                int grow = textH - lbl.Height;
+                lbl.Height = textH;
+                foreach (Control c in new Control[] { _combo, ok, cancel }) c.Top += grow;
+                ClientSize = new Size(ClientSize.Width, ClientSize.Height + grow);
+            }
 
             Controls.Add(lbl);
             Controls.Add(_combo);

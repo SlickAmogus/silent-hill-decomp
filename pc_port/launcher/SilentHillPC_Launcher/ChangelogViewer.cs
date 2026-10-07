@@ -38,7 +38,7 @@ namespace SilentHillPC_Launcher
                 };
                 var closeBtn = new Button
                 {
-                    Text      = "Close",
+                    Text      = Loc.T("Close"),
                     Dock      = DockStyle.Bottom,
                     Height    = 28,
                     BackColor = Color.FromArgb(60, 60, 60),

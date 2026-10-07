@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Silent Hill Save Converter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #e4e6e1;
+  --surface: #f2f3ef;
+  --tile: #d5d8d1;
+  --tile-empty: #dcdfd8;
+  --ink: #1b1f1e;
+  --muted: #5b6460;
+  --line: #c3c7c0;
+  --accent: #7a2e24;
+  --accent-ink: #fbf7f5;
+  --accent-soft: #ecdcd7;
+  --ok: #37644a;
+  --warn: #8d5f0c;
+  --focus: #2d5f8a;
+  --sans: "IBM Plex Sans Condensed", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111413; --surface: #1a1e1d; --tile: #262b29; --tile-empty: #1f2422;
+    --ink: #d8dbd5; --muted: #8e9792; --line: #2f3533;
+    --accent: #c9624f; --accent-ink: #160c0a; --accent-soft: #3a211c;
+    --ok: #82b394; --warn: #d8a646; --focus: #7fb2dd;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111413; --surface: #1a1e1d; --tile: #262b29; --tile-empty: #1f2422;
+  --ink: #d8dbd5; --muted: #8e9792; --line: #2f3533;
+  --accent: #c9624f; --accent-ink: #160c0a; --accent-soft: #3a211c;
+  --ok: #82b394; --warn: #d8a646; --focus: #7fb2dd;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.5 var(--sans);
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 64px; display: grid; gap: 28px; }
+h1, h2, h3 { font-weight: 600; text-wrap: balance; margin: 0; }
+h1 { font-size: 2rem; letter-spacing: 0.01em; line-height: 1.15; }
+h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 600; }
+h3 { font-size: 1.05rem; }
+p { margin: 0; max-width: 68ch; }
+.lede { color: var(--muted); margin-top: 6px; }
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+section { display: grid; gap: 12px; }
+
+.drop {
+  border: 1.5px dashed var(--line); border-radius: 6px; background: var(--surface);
+  padding: 22px; display: grid; gap: 14px; justify-items: start;
+  transition: border-color .15s, background .15s;
+}
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop .row { display: flex; flex-wrap: wrap; gap: 10px; }
+.hint { color: var(--muted); font-size: 0.92rem; }
+
+button, .btn {
+  font: 500 0.95rem var(--sans); border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  padding: 7px 14px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button:focus-visible, .btn:focus-visible, select:focus-visible, .tile:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+button.link { border: 0; background: none; padding: 2px 4px; color: var(--muted); text-decoration: underline; }
+select { font: inherit; font-size: 0.95rem; padding: 6px 8px; border-radius: 4px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 14px; display: grid; gap: 12px; align-content: start; }
+.card-head { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+.card-name { font-family: var(--mono); font-size: 0.9rem; word-break: break-all; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip { font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; padding: 1px 7px; border-radius: 3px; border: 1px solid var(--line); color: var(--muted); }
+.chip.pc { border-color: var(--accent); color: var(--accent); }
+.chip.warn { border-color: var(--warn); color: var(--warn); }
+
+.blocks { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+.tile {
+  aspect-ratio: 1; max-width: 100%; border-radius: 3px; background: var(--tile-empty);
+  display: grid; place-items: center; position: relative; border: 1px solid transparent; padding: 0;
+}
+.tile.used { background: var(--tile); cursor: pointer; }
+.tile.sh { border-color: var(--accent); }
+.tile.sel { outline: 2px solid var(--ink); outline-offset: 1px; }
+.tile canvas { width: 62%; height: 62%; image-rendering: pixelated; }
+.tile .num { position: absolute; left: 4px; top: 1px; font: 0.62rem var(--mono); color: var(--muted); }
+.tile.link-block::after { content: ""; width: 30%; height: 2px; background: var(--muted); }
+
+.files { display: grid; gap: 2px; font-size: 0.9rem; }
+.file-row { display: flex; justify-content: space-between; gap: 10px; }
+.file-row .mono { color: var(--muted); }
+
+.slots { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-weight: 500; color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+th, td { padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td.bad { color: var(--warn); }
+.fear { color: #b08a2e; font-weight: 600; }
+
+.actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+.action { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: grid; gap: 10px; align-content: start; }
+.action p { font-size: 0.93rem; color: var(--muted); }
+.action .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+label { font-size: 0.9rem; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+
+.log { font-family: var(--mono); font-size: 0.8rem; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; overflow-x: auto; display: grid; gap: 2px; }
+.log .warn { color: var(--warn); }
+.out-files { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.note { font-size: 0.93rem; color: var(--muted); }
+.error { color: var(--warn); font-size: 0.93rem; }
+
+.map { overflow-x: auto; }
+.map td:first-child { font-family: var(--mono); }
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 12px 16px; }
+details summary { cursor: pointer; font-weight: 500; }
+details[open] summary { margin-bottom: 10px; }
+details .body { display: grid; gap: 10px; font-size: 0.95rem; }
+.card.wide { grid-column: 1 / -1; }
+.chip.edited { border-color: var(--ok); color: var(--ok); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+tr.dim td { color: var(--muted); }
+tr.sel td { background: var(--accent-soft); }
+.slot-actions { display: flex; gap: 4px; }
+.slot-actions button { padding: 2px 8px; font-size: 0.82rem; }
+button.danger { border-color: var(--warn); color: var(--warn); }
+
+.editor { background: var(--surface); border: 1px solid var(--accent); border-radius: 6px; padding: 16px; display: grid; gap: 14px; }
+.ed-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: start; }
+.ed-head h3 { font-size: 1.15rem; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 6px 10px; color: var(--muted); }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
+.ed-body { display: grid; gap: 12px; }
+.ed-body h4 { margin: 4px 0 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 600; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 10px 14px; }
+.fld { display: grid; gap: 3px; min-width: 0; }
+.fld label { font-size: 0.82rem; }
+.fld input, .fld select { width: 100%; min-width: 0; }
+input[type="number"], input[type="text"], input[type="search"], input.hex {
+  font: inherit; font-size: 0.95rem; padding: 5px 7px; border-radius: 4px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); font-variant-numeric: tabular-nums;
+}
+input:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+input.narrow { width: 4.5em; }
+input.hex { width: 7.5em; font-family: var(--mono); font-size: 0.85rem; }
+.hint-dot { display: inline-grid; place-items: center; width: 14px; height: 14px; margin-left: 5px; border-radius: 50%; border: 1px solid var(--line); font-size: 0.65rem; color: var(--muted); cursor: help; }
+.chks { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.chk { color: var(--ink); cursor: pointer; }
+.scroll { overflow: auto; max-height: 420px; border: 1px solid var(--line); border-radius: 4px; }
+.scroll table th { position: sticky; top: 0; background: var(--surface); }
+.scroll td, .scroll th { padding-left: 8px; }
+.mapsum { max-height: 240px; }
+.mapsum tbody tr { cursor: pointer; }
+.mapsum tbody tr:hover td { background: var(--accent-soft); }
+table.inv select { max-width: 17em; }
+.filters input[type="search"] { flex: 1 1 220px; }
+.filters select { max-width: 100%; }
+.flaglist { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 2px 10px; max-height: 520px; overflow: auto; border: 1px solid var(--line); border-radius: 4px; padding: 8px; }
+.flag { display: flex; gap: 6px; align-items: baseline; font-size: 0.84rem; color: var(--ink); padding: 2px 4px; border-radius: 3px; cursor: pointer; min-width: 0; }
+.flag .fi { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); min-width: 2.6em; text-align: right; }
+.flag .fn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flag.unnamed .fn { color: var(--muted); font-style: italic; }
+.flag.on { background: var(--accent-soft); }
+.flag.diff { box-shadow: inset 3px 0 0 var(--warn); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: none; color: var(--muted); }
+.seg button.on { background: var(--accent); color: var(--accent-ink); }
+button.small { padding: 3px 9px; font-size: 0.82rem; }
+.fsec { display: grid; gap: 6px; }
+.fsec h4 { margin: 0; }
+.progress summary { color: var(--muted); font-size: 0.9rem; }
+.progress[open] summary { margin-bottom: 8px; }
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 4px 8px; }
+.fgrid.tall { max-height: 560px; overflow: auto; border: 1px solid var(--line); border-radius: 4px; padding: 8px; }
+.fsw { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; text-align: left; padding: 4px 8px; font-size: 0.86rem; background: var(--bg); }
+.fsw .pill { flex: none; width: 2.9em; text-align: center; font: 600 0.68rem var(--mono); letter-spacing: 0.04em; padding: 2px 0; border-radius: 3px; border: 1px solid var(--line); color: var(--muted); }
+.fsw.on { border-color: var(--accent); background: var(--accent-soft); }
+.fsw.on .pill { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.fsw .fn { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fsw .fi { flex: none; font: 0.72rem var(--mono); color: var(--muted); }
+.fsw.unnamed .fn { color: var(--muted); font-style: italic; }
+.fsw.diff { box-shadow: inset 3px 0 0 var(--warn); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Silent Hill Save Converter</h1>
+    <p class="lede">Move saves between the PC port (<code>gamedata/save/N.MCD</code>), DuckStation and a real PlayStation memory card, and inspect or edit what is inside them. Everything runs in this page; nothing is uploaded.</p>
+    <p class="lede">To edit: load a card, click a Silent Hill block, then <strong>Edit</strong> on a save. Use the arrows to reorder saves, then <strong>Download edited card</strong>.</p>
+  </header>
+
+  <section aria-labelledby="load-h">
+    <h2 id="load-h">1 · Load cards</h2>
+    <div class="drop" id="drop">
+      <p><strong>Drop memory cards or the PC port's save folder here.</strong></p>
+      <p class="hint">DuckStation <code>.mcd</code>, real-card dumps (<code>.mcr</code>, <code>.mc</code>, DexDrive <code>.gme</code>, PSP <code>.vmp</code>) and PC port <code>0.MCD</code>…<code>11.MCD</code>. A PC card is recognised by its name, so keep those names as the game wrote them.</p>
+      <div class="row">
+        <button type="button" class="primary" id="pick-files">Choose files</button>
+        <button type="button" id="pick-folder">Choose PC save folder</button>
+      </div>
+      <input type="file" id="file-in" multiple hidden>
+      <input type="file" id="folder-in" webkitdirectory hidden>
+    </div>
+    <div class="cards" id="cards"></div>
+    <section class="editor" id="editor" aria-label="Save editor" hidden></section>
+  </section>
+
+  <section aria-labelledby="conv-h">
+    <h2 id="conv-h">2 · Convert</h2>
+    <div class="actions">
+      <div class="action">
+        <h3>PSX cards → PC saves</h3>
+        <p>Takes the Silent Hill files from each PSX card and builds PC cards. The first card becomes <code>0.MCD</code> (Memory Card 1), the second <code>8.MCD</code> (Memory Card 2). Other games' saves are left out.</p>
+        <div class="row"><button type="button" class="primary" id="do-topc">Make PC saves</button></div>
+      </div>
+      <div class="action">
+        <h3>PC saves → PSX cards</h3>
+        <p>Builds one card per PC card, named the way DuckStation names per-game cards. Titles and icons are fixed so the PS1 memory card screen shows them properly. Pick the disc you will play: each region's game only sees saves named for it.</p>
+        <div class="row">
+          <label for="region">Disc <select id="region">
+            <option value="usa">USA (SLUS-00707)</option>
+            <option value="eur">Europe (SLES-01514)</option>
+            <option value="jpn">Japan (SLPM-86192)</option>
+          </select></label>
+          <button type="button" class="primary" id="do-topsx">Make PSX cards</button>
+        </div>
+      </div>
+      <div class="action">
+        <h3>Add saves into an existing card</h3>
+        <p>Copies the Silent Hill saves from every other loaded card into a copy of the card you pick. Its own saves, from any game, stay. Clashing file numbers get the next free number. Saves added to a PSX card take the region of the Silent Hill saves already on it, or the disc picked under "PC saves → PSX cards" if it has none.</p>
+        <div class="row">
+          <label for="base">Into <select id="base"></select></label>
+          <button type="button" class="primary" id="do-merge">Merge</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="out-h" id="out" hidden>
+    <h2 id="out-h">3 · Result</h2>
+    <div class="out-files" id="out-files"></div>
+    <p class="note" id="out-note"></p>
+    <div class="cards" id="out-cards"></div>
+    <div class="log" id="log"></div>
+  </section>
+
+  <details>
+    <summary>How the three formats relate</summary>
+    <div class="body">
+      <p>All three are the same thing: a raw 128 KB PlayStation memory card image, 16 blocks of 8 KB. Block 0 is the directory, blocks 1 to 15 hold saves. DuckStation <code>.mcd</code> and a real-card <code>.mcr</code> are byte-for-byte the same format.</p>
+      <p>The PC port stores one image per memory card slot. Silent Hill supports the multitap, but the PC port connects only Memory Card 1 and 2 (<code>0.MCD</code> and <code>8.MCD</code>). Older builds also created the multitap files below; empty ones can be deleted.</p>
+      <div class="map"><table>
+        <thead><tr><th>PC file</th><th>In game</th><th>PSX device</th></tr></thead>
+        <tbody>
+          <tr><td>0.MCD</td><td>Memory Card 1</td><td>bu00</td></tr>
+          <tr><td>1.MCD – 3.MCD</td><td>Memory Card 1-B to 1-D (multitap)</td><td>bu01 – bu03</td></tr>
+          <tr><td>8.MCD</td><td>Memory Card 2</td><td>bu10</td></tr>
+          <tr><td>9.MCD – 11.MCD</td><td>Memory Card 2-B to 2-D (multitap)</td><td>bu11 – bu13</td></tr>
+        </tbody>
+      </table></div>
+      <p>Each Silent Hill file (<code>BASLUS-00707SILENT00</code> … <code>SILENT14</code>, shown as FILE01 to FILE15) is one block and holds 11 save slots plus your options. So one card holds up to 15 files and 165 saves.</p>
+      <p>The save data inside a file is identical on PC and PS1. The only differences are in the wrapper: PC-written directories have no checksums, and older PC builds wrote a garbled title and no icon. This tool writes fully standard cards, which the PC port, DuckStation and real hardware all read.</p>
+    </div>
+  </details>
+</div>
+
+<!-- Bump ?v= whenever any of these files change: web hosts cache .js for a day,
+     and a new page running against an old core breaks. -->
+<script src="sh_savecard_core.js?v=2026-09-27b"></script>
+<script src="sh_savecard_data.js?v=2026-09-27b"></script>
+<script src="sh_savecard_editor.js?v=2026-09-27b"></script>
+<script>
+(function () {
+  'use strict';
+  const S = window.SHCard;
+  const $ = id => document.getElementById(id);
+  const state = { cards: [], output: [], selected: {} };
+  let nextId = 1;
+  let downloadsApi;
+
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  async function addFiles(files) {
+    if (files.length) state.cards = state.cards.filter(c => !c.example);
+    for (const file of files) {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      const entry = { id: nextId++, fileName: file.name, kind: S.isPcCardFileName(file.name) ? 'pc' : 'psx' };
+      try { entry.card = S.loadCard(buf); } catch (e) { entry.error = e.message; }
+      if (entry.kind === 'pc') entry.pcNum = S.pcNumber(file.name);
+      state.cards.push(entry);
+    }
+    render();
+  }
+
+  // Folder drops: read one level of files.
+  function readEntry(entry) {
+    return new Promise(resolve => {
+      if (entry.isFile) { entry.file(f => resolve([f]), () => resolve([])); return; }
+      if (!entry.isDirectory) { resolve([]); return; }
+      const reader = entry.createReader(), out = [];
+      const next = () => reader.readEntries(list => {
+        if (!list.length) { Promise.all(out).then(a => resolve(a.flat())); return; }
+        for (const e of list) if (e.isFile) out.push(new Promise(r => e.file(f => r([f]), () => r([]))));
+        next();
+      }, () => resolve([]));
+      next();
+    });
+  }
+
+  function keepFromFolder(files) {
+    return files.filter(f => S.isPcCardFileName(f.name));
+  }
+
+  function drawIcon(canvas, blk) {
+    canvas.width = 16; canvas.height = 16;
+    const ctx = canvas.getContext('2d');
+    ctx.putImageData(new ImageData(S.iconRgba(blk), 16, 16), 0, 0);
+  }
+
+  function cardPanel(entry, opts) {
+    const el = document.createElement('div');
+    el.className = 'card';
+    const chips = [];
+    if (entry.error) chips.push('<span class="chip warn">unreadable</span>');
+    else if (entry.kind === 'pc') chips.push(`<span class="chip pc">PC port · ${esc(S.pcCardLabel(entry.pcNum))}</span>`);
+    else chips.push('<span class="chip">PSX card image</span>');
+    if (entry.card) {
+      const sh = entry.card.files.filter(f => S.parseShName(f.name)).length;
+      chips.push(`<span class="chip">${sh} Silent Hill file${sh === 1 ? '' : 's'}</span>`);
+      chips.push(`<span class="chip">${S.freeBlocks(entry.card)} free</span>`);
+      if (entry.modified) chips.push('<span class="chip edited">edited</span>');
+    }
+    el.innerHTML = `<div class="card-head"><div><div class="card-name">${esc(entry.fileName)}</div><div class="chips">${chips.join('')}</div></div>` +
+      (opts.removable ? `<button type="button" class="link" data-remove="${entry.id}">Remove</button>` : '') + '</div>';
+    if (entry.error) {
+      const p = document.createElement('p'); p.className = 'error'; p.textContent = entry.error; el.appendChild(p);
+      return el;
+    }
+    if (entry.modified) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'primary';
+      btn.textContent = 'Download edited card';
+      btn.addEventListener('click', () => downloadEdited(entry, btn));
+      const note = document.createElement('span');
+      note.className = 'hint';
+      note.textContent = 'The zip holds the card under its original name. Back up the original first.';
+      row.append(btn, note);
+      el.appendChild(row);
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'blocks';
+    let blockNo = 1;
+    entry.card.files.forEach((f, fi) => {
+      const n = S.blocksOf(f);
+      for (let b = 0; b < n; b++, blockNo++) {
+        const t = document.createElement('button');
+        t.type = 'button';
+        const isSh = !!S.parseShName(f.name);
+        t.className = 'tile used' + (isSh ? ' sh' : '') + (b > 0 ? ' link-block' : '') + (state.selected[opts.key] === fi ? ' sel' : '');
+        t.title = f.name;
+        t.setAttribute('aria-label', `Block ${blockNo}: ${f.name}`);
+        t.innerHTML = `<span class="num">${blockNo}</span>`;
+        if (b === 0) { const c = document.createElement('canvas'); drawIcon(c, f.data); t.appendChild(c); }
+        t.addEventListener('click', () => { state.selected[opts.key] = state.selected[opts.key] === fi ? undefined : fi; render(); });
+        grid.appendChild(t);
+      }
+    });
+    for (; blockNo <= 15; blockNo++) {
+      const t = document.createElement('div');
+      t.className = 'tile';
+      t.innerHTML = `<span class="num">${blockNo}</span>`;
+      grid.appendChild(t);
+    }
+    el.appendChild(grid);
+
+    const list = document.createElement('div');
+    list.className = 'files';
+    entry.card.files.forEach(f => {
+      const sh = S.parseShName(f.name);
+      const title = S.decodeTitle(f.data);
+      const label = sh ? `Silent Hill FILE${String(sh.index + 1).padStart(2, '0')} · ${S.REGIONS[sh.region].label}`
+        : (title || 'Other game');
+      const extra = sh && title === null ? ' · title unreadable (PC-written)' : '';
+      const row = document.createElement('div');
+      row.className = 'file-row';
+      row.innerHTML = `<span>${esc(label)}${esc(extra)}</span><span class="mono">${esc(f.name)}</span>`;
+      list.appendChild(row);
+    });
+    if (!entry.card.files.length) list.innerHTML = '<span class="hint">Empty card</span>';
+    el.appendChild(list);
+    entry.card.warnings.forEach(w => { const p = document.createElement('p'); p.className = 'error'; p.textContent = w; el.appendChild(p); });
+
+    const sel = state.selected[opts.key];
+    const f = sel !== undefined ? entry.card.files[sel] : null;
+    if (f && S.parseShName(f.name) && opts.editable) {
+      el.classList.add('wide');
+      el.appendChild(slotTable(entry, sel));
+    } else if (f && S.parseShName(f.name)) {
+      const slots = S.readSlots(f.data);
+      const wrap = document.createElement('div');
+      wrap.className = 'slots';
+      wrap.innerHTML = `<table><thead><tr><th>Slot</th><th>Save</th><th>Location</th><th>Time</th><th></th></tr></thead><tbody>` +
+        (slots.length ? slots.map(s => `<tr><td>${s.index + 1}</td><td>#${s.saveCount}</td><td>${esc(s.location)}</td><td>${S.formatTime(s.seconds)}</td>` +
+          `<td class="${s.valid ? '' : 'bad'}">${s.nextFear ? '<span class="fear">Next Fear</span> ' : ''}${s.valid ? '' : 'damaged'}</td></tr>`).join('')
+          : '<tr><td colspan="5">No saves in this file</td></tr>') + '</tbody></table>';
+      el.appendChild(wrap);
+    } else if (f) {
+      const p = document.createElement('p'); p.className = 'hint';
+      p.textContent = `${f.name}: another game's file, ${S.blocksOf(f)} block(s).`;
+      el.appendChild(p);
+    }
+    return el;
+  }
+
+  // All 11 positions of a file, so saves can be moved into gaps. The save screen
+  // lists FILE01..FILE15 in order and each file's slots 1..11, skipping empty ones.
+  function slotTable(entry, fi) {
+    const blk = entry.card.files[fi].data;
+    const byIdx = {};
+    for (const sl of S.readSlots(blk)) byIdx[sl.index] = sl;
+    const cur = window.SHEditor.current();
+    const table = document.createElement('table');
+    table.innerHTML = '<thead><tr><th>Slot</th><th>Save</th><th>Location</th><th>Time</th><th></th><th></th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    for (let s = 0; s < S.SLOTS; s++) {
+      const sl = byIdx[s];
+      const tr = document.createElement('tr');
+      if (!sl) tr.className = 'dim';
+      if (cur && cur.entry === entry && cur.fi === fi && cur.s === s) tr.className = 'sel';
+      tr.innerHTML = sl
+        ? `<td>${s + 1}</td><td>#${sl.saveCount}</td><td>${esc(sl.location)}</td><td>${S.formatTime(sl.seconds)}</td>` +
+          `<td class="${sl.valid ? '' : 'bad'}">${sl.nextFear ? '<span class="fear">Next Fear</span> ' : ''}${sl.valid ? '' : 'damaged'}</td>`
+        : `<td>${s + 1}</td><td colspan="4">empty</td>`;
+      const td = document.createElement('td');
+      td.className = 'slot-actions';
+      const btn = (text, label, fn, disabled) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.textContent = text; b.title = label; b.setAttribute('aria-label', label);
+        b.disabled = !!disabled;
+        b.addEventListener('click', fn);
+        td.appendChild(b);
+        return b;
+      };
+      const move = to => {
+        S.swapSlots(blk, s, blk, to);
+        markEdited(entry);
+        window.SHEditor.follow(entry, fi, s, fi, to);
+      };
+      if (sl) btn('Edit', `Edit slot ${s + 1}`, () => window.SHEditor.open(entry, fi, s));
+      btn('\u2191', `Move slot ${s + 1} up`, () => move(s - 1), s === 0);
+      btn('\u2193', `Move slot ${s + 1} down`, () => move(s + 1), s === S.SLOTS - 1);
+      if (sl) {
+        const key = `${entry.id}:${fi}:${s}`;
+        const del = btn(state.pendingDelete === key ? 'Confirm' : 'Delete', `Delete slot ${s + 1}`, () => {
+          if (state.pendingDelete !== key) { state.pendingDelete = key; render(); return; }
+          state.pendingDelete = null;
+          const c = window.SHEditor.current();
+          if (c && c.entry === entry && c.fi === fi && c.s === s) window.SHEditor.close();
+          S.clearSlot(blk, s);
+          markEdited(entry);
+        });
+        if (state.pendingDelete === key) del.className = 'danger';
+      }
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    const wrap = document.createElement('div');
+    wrap.className = 'slots';
+    wrap.appendChild(table);
+    return wrap;
+  }
+
+  function downloadEdited(entry, btn) {
+    const name = entry.fileName.split(/[\\/]/).pop();
+    saveFile(name.replace(/\.[^.]*$/, '') + ' (edited).zip', S.zip([{ name, data: S.toImage(entry.card) }]), btn);
+  }
+
+  function markEdited(entry) {
+    entry.modified = true;
+    render();
+  }
+
+  function render() {
+    const cards = $('cards');
+    cards.innerHTML = '';
+    state.cards.forEach(c => cards.appendChild(cardPanel(c, { removable: true, editable: !c.example, key: 'in' + c.id })));
+
+    const ok = state.cards.filter(c => c.card && !c.example);
+    $('do-topc').disabled = !ok.some(c => c.kind === 'psx');
+    $('do-topsx').disabled = !ok.some(c => c.kind === 'pc');
+    const base = $('base');
+    const prev = base.value;
+    base.innerHTML = ok.map(c => `<option value="${c.id}">${esc(c.fileName)}</option>`).join('');
+    if (ok.some(c => String(c.id) === prev)) base.value = prev;
+    $('do-merge').disabled = ok.length < 2;
+
+    const out = $('out');
+    out.hidden = !state.output.length;
+    const oc = $('out-cards');
+    oc.innerHTML = '';
+    state.output.forEach((o, i) => oc.appendChild(cardPanel({ fileName: o.path, kind: o.kind, pcNum: o.pcNum, card: o.card }, { key: 'out' + i })));
+  }
+
+  function showOutput(outputs, log, note) {
+    state.output = outputs;
+    const lines = $('log');
+    lines.innerHTML = '';
+    log.forEach(l => {
+      const d = document.createElement('div');
+      d.className = l.level === 'warn' ? 'warn' : '';
+      d.textContent = (l.level === 'warn' ? '! ' : '') + l.text;
+      lines.appendChild(d);
+    });
+    $('out-note').textContent = note;
+    const files = $('out-files');
+    files.innerHTML = '';
+    if (!outputs.length) {
+      files.innerHTML = '<span class="error">No Silent Hill saves were found, so nothing was made.</span>';
+    } else {
+      outputs.forEach(o => { o.image = S.toImage(o.card); });
+      const zipBtn = document.createElement('button');
+      zipBtn.type = 'button'; zipBtn.className = 'primary';
+      zipBtn.textContent = 'Download .zip';
+      zipBtn.addEventListener('click', () => saveFile(outputs[0].zipName, S.zip(outputs.map(o => ({ name: o.path, data: o.image }))), zipBtn));
+      files.appendChild(zipBtn);
+      if (!window.claude) {
+        outputs.forEach(o => {
+          const a = document.createElement('a');
+          a.className = 'btn';
+          a.href = URL.createObjectURL(new Blob([o.image], { type: 'application/octet-stream' }));
+          a.download = o.path.split('/').pop();
+          a.textContent = a.download;
+          files.appendChild(a);
+        });
+      }
+    }
+    render();
+    $('out').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  async function saveFile(name, bytes, btn) {
+    if (!window.claude) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/zip' }));
+      a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      return;
+    }
+    if (downloadsApi === undefined) downloadsApi = await window.claude.use('downloads');
+    if (!downloadsApi) { btn.disabled = true; btn.textContent = 'Downloads are not available in this view'; return; }
+    try { await downloadsApi.save({ filename: name, data: new Blob([bytes]) }); }
+    catch (e) { if (e && e.code !== 'declined') btn.textContent = 'Download failed: ' + (e.message || e.code); }
+  }
+
+  function toPc() {
+    const src = state.cards.filter(c => c.card && c.kind === 'psx');
+    const outputs = [], log = [];
+    for (const c of src) {
+      if (outputs.length >= S.PC_OUTPUT_ORDER.length) { log.push({ level: 'warn', text: `${c.fileName} skipped: the PC port has 8 card slots.` }); continue; }
+      const r = S.gather([c.card], [c.fileName], 'usa', false);
+      log.push(...r.log);
+      if (!r.card.files.length) continue;
+      const n = S.PC_OUTPUT_ORDER[outputs.length];
+      outputs.push({ path: `SH saves for PC/${n}.MCD`, kind: 'pc', pcNum: n, card: r.card, zipName: 'SH saves for PC.zip' });
+      log.push({ level: 'info', text: `  = ${n}.MCD, ${S.pcCardLabel(n)} in game` });
+    }
+    showOutput(outputs, log, 'Copy the .MCD files into the game\'s gamedata/save folder. Back that folder up first: a card with the same name gets replaced.');
+  }
+
+  function toPsx() {
+    const region = $('region').value;
+    const src = state.cards.filter(c => c.card && c.kind === 'pc').sort((a, b) => a.pcNum - b.pcNum);
+    const outputs = [], log = [], used = new Set();
+    for (const c of src) {
+      const r = S.gather([c.card], [c.fileName], region, true);
+      log.push(...r.log);
+      if (!r.card.files.length) continue;
+      let name = S.psxFileNameFor(c.pcNum, region);
+      if (used.has(name)) name = name.replace(/\.mcd$/, ` (${c.id}).mcd`);
+      used.add(name);
+      outputs.push({ path: `SH saves for PSX/${name}`, kind: 'psx', card: r.card, zipName: 'SH saves for PSX.zip' });
+    }
+    showOutput(outputs, log, 'DuckStation: put the card in its memcards folder (per-game card mode), or open it in Tools → Memory Card Editor to copy saves across. Real PS1 SD cards: the file is a raw card image; rename it to the extension your device uses, such as .mcr.');
+  }
+
+  function doMerge() {
+    const base = state.cards.find(c => String(c.id) === $('base').value);
+    if (!base) return;
+    const adds = state.cards.filter(c => c.card && c !== base);
+    const toPcCard = base.kind === 'pc';
+    const region = toPcCard ? 'usa' : (S.cardRegion(base.card) || $('region').value);
+    const r = S.merge(base.card, base.fileName, adds.map(c => c.card), adds.map(c => c.fileName), region, !toPcCard);
+    const name = base.fileName.split(/[\\/]/).pop();
+    const folder = toPcCard ? 'SH saves for PC' : 'SH saves for PSX';
+    showOutput([{ path: `${folder}/${name}`, kind: base.kind, pcNum: base.pcNum, card: r.card, zipName: folder + '.zip' }], r.log,
+      toPcCard ? 'Replace the card in gamedata/save with this one. Keep a backup of the original.'
+               : 'Replace the original card with this one. Keep a backup of the original.');
+  }
+
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, () => drop.classList.remove('over')));
+  drop.addEventListener('drop', async e => {
+    e.preventDefault();
+    const items = [...(e.dataTransfer.items || [])].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+    if (items.length) {
+      const groups = await Promise.all(items.map(async en => en.isDirectory ? keepFromFolder(await readEntry(en)) : readEntry(en)));
+      addFiles(groups.flat());
+    } else {
+      addFiles([...e.dataTransfer.files]);
+    }
+  });
+  $('pick-files').addEventListener('click', () => $('file-in').click());
+  $('pick-folder').addEventListener('click', () => $('folder-in').click());
+  $('file-in').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
+  $('folder-in').addEventListener('change', e => { addFiles(keepFromFolder([...e.target.files])); e.target.value = ''; });
+  $('cards').addEventListener('click', e => {
+    const id = e.target.getAttribute && e.target.getAttribute('data-remove');
+    if (id) {
+      const cur = window.SHEditor.current();
+      if (cur && String(cur.entry.id) === id) window.SHEditor.close();
+      state.cards = state.cards.filter(c => String(c.id) !== id);
+      render();
+    }
+  });
+  $('do-topc').addEventListener('click', toPc);
+  $('do-topsx').addEventListener('click', toPsx);
+  $('do-merge').addEventListener('click', doMerge);
+
+  window.SHEditor.mount($('editor'), {
+    onChange: entry => markEdited(entry),
+    onClose: () => render(),
+    download: (entry, btn) => downloadEdited(entry, btn),
+    entries: () => state.cards.filter(c => c.card && !c.example),
+  });
+
+  // Opens with a formatted, empty card so the block layout is visible before anything is loaded.
+  state.cards.push({ id: nextId++, example: true, fileName: 'Example: blank card', kind: 'psx', card: S.loadCard(S.toImage({ files: [], warnings: [] })) });
+  render();
+})();
+</script>
+</body>
+</html>

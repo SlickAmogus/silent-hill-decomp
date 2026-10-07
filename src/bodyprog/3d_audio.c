@@ -254,6 +254,122 @@ static inline s32 AttenuationCalc(s32 volume, VECTOR3* pos, q19_12 falloff)
     return (volume * dist) / falloff;
 }
 
+#ifdef SH_PC_PORT
+/* Defined below, and the replay loop here calls it. Without this, Clang takes
+ * the call as an implicit int-returning declaration and the real definition
+ * then conflicts with it -- an error on the Android toolchain where GCC only
+ * warns. */
+void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitch);
+
+/* Looping positional SFX keep their own attenuation alive.
+ *
+ * Every caller of func_8005DE0C sits inside a proximity or state test, and
+ * that test also gates the SD_Call that STARTED the loop. Walk out of it and
+ * the per-frame attenuation simply stops being written, so the voice keeps
+ * whatever volume it last had and a looping sample plays at that volume for
+ * the rest of the room -- the wheelchair squeak heard the length of the alley,
+ * with its declared 8-unit falloff never reaching silence. On hardware the
+ * frozen voice was usually stolen by the next sound and went quiet by luck,
+ * which is why this only showed up once voices stopped being recycled as
+ * aggressively.
+ *
+ * So remember what each positional sfx was last told, and re-apply it on any
+ * frame its caller did not: the distance term is recomputed against the
+ * player, so leaving the area fades the loop out on its own curve and
+ * returning brings it back. Nothing changes while a caller is updating.
+ *
+ * The radio loops are excluded on purpose: they own reserved voices 22/23 and
+ * Sd_SfxAttributesUpdate RESTARTS them when their voice is not keyed on, so
+ * sustaining them here would make the radio play forever. */
+bool Pc_Sd_SfxHasVoice(u16 sfxId); /* sd_call.c */
+
+#define PC_SFX_SUSTAIN_MAX 16
+
+typedef struct
+{
+    u16     sfxId;
+    u8      used;
+    u8      fresh;   /* a caller wrote this sfx since the last sweep */
+    VECTOR3 pos;
+    s32     vol;
+    q19_12  falloff;
+    s8      pitch;
+} s_PcSfxSustain;
+
+static s_PcSfxSustain s_pcSustain[PC_SFX_SUSTAIN_MAX];
+static s32            s_pcSustaining; /* re-entry guard for the sweep */
+
+static void Pc_SfxSustainRecord(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitch)
+{
+    s32 i;
+    s32 free = -1;
+
+    if (s_pcSustaining || pos == NULL)
+        return;
+    if (sfxId == Sfx_RadioInterferenceLoop || sfxId == Sfx_RadioStaticLoop)
+        return;
+
+    for (i = 0; i < PC_SFX_SUSTAIN_MAX; i++)
+    {
+        if (s_pcSustain[i].used && s_pcSustain[i].sfxId == (u16)sfxId)
+            break;
+        if (!s_pcSustain[i].used && free < 0)
+            free = i;
+    }
+    if (i >= PC_SFX_SUSTAIN_MAX)
+    {
+        if (free < 0)
+            return;
+        i = free;
+    }
+
+    s_pcSustain[i].used    = 1;
+    s_pcSustain[i].fresh   = 1;
+    s_pcSustain[i].sfxId   = (u16)sfxId;
+    s_pcSustain[i].pos     = *pos;
+    s_pcSustain[i].vol     = vol;
+    s_pcSustain[i].falloff = falloff;
+    s_pcSustain[i].pitch   = pitch;
+}
+
+/* Once per frame, after the map/event code has had its chance to update. */
+void Pc_3dAudio_SustainPositionalLoops(void)
+{
+    s32 i;
+
+    s_pcSustaining = 1;
+
+    for (i = 0; i < PC_SFX_SUSTAIN_MAX; i++)
+    {
+        if (!s_pcSustain[i].used)
+            continue;
+
+        if (!Pc_Sd_SfxHasVoice(s_pcSustain[i].sfxId))
+        {
+            s_pcSustain[i].used = 0; /* the game stopped it; stop tracking it */
+            continue;
+        }
+
+        if (!s_pcSustain[i].fresh)
+        {
+            func_8005DE0C((e_SfxId)s_pcSustain[i].sfxId, &s_pcSustain[i].pos,
+                          s_pcSustain[i].vol, s_pcSustain[i].falloff, s_pcSustain[i].pitch);
+        }
+        s_pcSustain[i].fresh = 0;
+    }
+
+    s_pcSustaining = 0;
+}
+
+/* Map change: the positions belong to the map that is going away. */
+void Pc_3dAudio_SustainReset(void)
+{
+    s32 i;
+    for (i = 0; i < PC_SFX_SUSTAIN_MAX; i++)
+        s_pcSustain[i].used = 0;
+}
+#endif
+
 void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitch)
 {
     s32 balance;
@@ -290,6 +406,10 @@ void func_8005DE0C(e_SfxId sfxId, VECTOR3* pos, s32 vol, q19_12 falloff, s8 pitc
 #endif
         return;
     }
+
+#ifdef SH_PC_PORT
+    Pc_SfxSustainRecord(sfxId, pos, vol, falloff, pitch);
+#endif
 
     att0 = AttenuationCalc(vol, pos, falloff);
     s3 = vol - 0xFF;

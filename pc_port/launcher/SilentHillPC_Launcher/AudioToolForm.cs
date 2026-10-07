@@ -107,7 +107,7 @@ namespace SilentHillPC_Launcher
 
         private AudioToolForm()
         {
-            Text = "Audio";
+            Text = Loc.T("Audio");
             ClientSize = new Size(760, 460);
             StartPosition = FormStartPosition.CenterParent;
             MinimumSize = new Size(620, 360);
@@ -125,6 +125,7 @@ namespace SilentHillPC_Launcher
             menu.Items.Add(help);
             MainMenuStrip = menu;
             Controls.Add(menu);
+            Loc.ApplyMenu(menu.Items);
 
             _list.View = View.Details;
             _list.FullRowSelect = true;
@@ -135,15 +136,16 @@ namespace SilentHillPC_Launcher
             _list.Size = new Size(736, 286);
             _list.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
             _list.Columns.Add("#", 44, HorizontalAlignment.Right);
-            _list.Columns.Add("Bytes", 74, HorizontalAlignment.Right);
-            _list.Columns.Add("Samples", 78, HorizontalAlignment.Right);
-            _list.Columns.Add("Length", 70, HorizontalAlignment.Right);
-            _list.Columns.Add("Loops", 52, HorizontalAlignment.Center);
-            _list.Columns.Add("In-game rate", 88, HorizontalAlignment.Right);
-            _list.Columns.Add("Sound ids", 240, HorizontalAlignment.Left);
-            _list.Columns.Add("Also in", 170, HorizontalAlignment.Left);
-            _list.Columns.Add("Programs", 76, HorizontalAlignment.Left);
-            _list.Columns.Add("Centre note", 82, HorizontalAlignment.Right);
+            _list.Columns.Add(Loc.T("Bytes"), 74, HorizontalAlignment.Right);
+            _list.Columns.Add(Loc.T("Samples"), 78, HorizontalAlignment.Right);
+            _list.Columns.Add(Loc.T("Length"), 70, HorizontalAlignment.Right);
+            _list.Columns.Add(Loc.T("Loops"), 52, HorizontalAlignment.Center);
+            _list.Columns.Add(Loc.T("In-game rate"), 88, HorizontalAlignment.Right);
+            _list.Columns.Add(Loc.T("Sound ids"), 240, HorizontalAlignment.Left);
+            _list.ShowItemToolTips = true;
+            _list.Columns.Add(Loc.T("Also in"), 170, HorizontalAlignment.Left);
+            _list.Columns.Add(Loc.T("Programs"), 76, HorizontalAlignment.Left);
+            _list.Columns.Add(Loc.T("Centre note"), 82, HorizontalAlignment.Right);
             _list.SelectedIndexChanged += (s, e) => UpdateButtons();
             _list.DoubleClick += (s, e) => PlaySelected();
             Controls.Add(_list);
@@ -151,22 +153,31 @@ namespace SilentHillPC_Launcher
             _info.Location = new Point(12, 322);
             _info.Size = new Size(736, 50);
             _info.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-            _info.Text = "No bank loaded — File > Open, or drag a .VAB onto this window.";
+            _info.Text = Loc.T("No bank loaded — File > Open, or drag a .VAB onto this window.");
             Controls.Add(_info);
 
             int y = 380;
-            SetupButton(_btnPlay, "Play", new Point(12, y), (s, e) => PlaySelected());
-            SetupButton(_btnStop, "Stop", new Point(100, y), (s, e) => StopPlayback());
-            SetupButton(_btnWav, "Export WAV…", new Point(188, y), (s, e) => ExportSelected(false));
-            SetupButton(_btnVag, "Export raw VAG…", new Point(300, y), (s, e) => ExportSelected(true));
-            SetupButton(_btnAll, "Export all…", new Point(430, y), (s, e) => ExportAll());
-            SetupButton(_btnRep, "Replace…", new Point(12, y + 30), (s, e) => ReplaceSelected());
-            SetupButton(_btnRevert, "Revert", new Point(100, y + 30), (s, e) => RevertSelected());
-            SetupButton(_btnSave, "Save bank…", new Point(188, y + 30), (s, e) => SaveBank());
+            SetupButton(_btnPlay, Loc.T("Play"), new Point(12, y), (s, e) => PlaySelected());
+            SetupButton(_btnStop, Loc.T("Stop"), new Point(100, y), (s, e) => StopPlayback());
+            SetupButton(_btnWav, Loc.T("Export WAV…"), new Point(188, y), (s, e) => ExportSelected(false));
+            SetupButton(_btnVag, Loc.T("Export raw VAG…"), new Point(300, y), (s, e) => ExportSelected(true));
+            SetupButton(_btnAll, Loc.T("Export all…"), new Point(430, y), (s, e) => ExportAll());
+            SetupButton(_btnRep, Loc.T("Replace…"), new Point(12, y + 30), (s, e) => ReplaceSelected());
+            SetupButton(_btnRevert, Loc.T("Revert"), new Point(100, y + 30), (s, e) => RevertSelected());
+            SetupButton(_btnSave, Loc.T("Save bank…"), new Point(188, y + 30), (s, e) => SaveBank());
+            // Buttons are measured to their caption, so a translated row can outgrow the
+            // English positions above; flow each row left to right instead.
+            int rowEnd = 0;
+            foreach (var row in new[] { new[] { _btnPlay, _btnStop, _btnWav, _btnVag, _btnAll },
+                                        new[] { _btnRep, _btnRevert, _btnSave } })
+            {
+                for (int i = 1; i < row.Length; i++) row[i].Left = Math.Max(row[i].Left, row[i - 1].Right + 4);
+                rowEnd = Math.Max(rowEnd, row[row.Length - 1].Right);
+            }
 
             var sl = new Label
             {
-                Text = "Bank slot:",
+                Text = Loc.T("Bank slot:"),
                 Location = new Point(548, y - 24),
                 Size = new Size(78, 20),
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Left
@@ -176,14 +187,15 @@ namespace SilentHillPC_Launcher
             _slot.Location = new Point(628, y - 28);
             _slot.Size = new Size(88, 22);
             _slot.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            _slot.Items.AddRange(new object[] { "Any", "base", "weapon", "ambient", "music" });
+            _slot.Items.AddRange(new object[] { "This bank's", "Any", "base", "weapon", "ambient", "music" });
+            Loc.LocalizeItems(_slot);
             _slot.SelectedIndex = 0;
             _slot.SelectedIndexChanged += (s, e) => { if (_vab != null) Open(_vab.Path); };
             Controls.Add(_slot);
 
             var rl = new Label
             {
-                Text = "Preview rate:",
+                Text = Loc.T("Preview rate:"),
                 Location = new Point(548, y + 6),
                 Size = new Size(78, 20),
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Left
@@ -194,7 +206,21 @@ namespace SilentHillPC_Launcher
             _rate.Size = new Size(88, 22);
             _rate.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             _rate.Items.AddRange(new object[] { AutoRate, "44100 Hz", "32000 Hz", "22050 Hz", "16000 Hz", "11025 Hz", "8000 Hz" });
+            Loc.LocalizeItems(_rate);
             _rate.SelectedIndex = 0;
+
+            // Label + picker pairs sit to the right of the button rows; move them (and
+            // widen the window) when the translated rows or labels need the room.
+            int labelW = Math.Max(78, Math.Max(sl.PreferredWidth, rl.PreferredWidth));
+            int pairLeft = Math.Max(548, rowEnd + 12);
+            foreach (var lbl in new[] { sl, rl }) { lbl.Left = pairLeft; lbl.Width = labelW; }
+            foreach (var cb in new[] { _slot, _rate }) { cb.Left = pairLeft + labelW + 2; cb.Width = Math.Max(cb.Width, 110); }
+            if (_rate.Right + 12 > ClientSize.Width)
+            {
+                int grow = _rate.Right + 12 - ClientSize.Width;
+                MinimumSize = new Size(MinimumSize.Width + grow, MinimumSize.Height);
+                ClientSize = new Size(ClientSize.Width + grow, ClientSize.Height);
+            }
             _rate.SelectedIndexChanged += (s, e) =>
             {
                 // Durations and the rate column are both derived from it.
@@ -232,7 +258,15 @@ namespace SilentHillPC_Launcher
         /// not record its own slot, so this is the user's call.</summary>
         private int SlotFilter
         {
-            get { return _slot.SelectedIndex <= 0 ? -1 : _slot.SelectedIndex - 1; }
+            get
+            {
+                // Default: the slot the sound system loads THIS bank into. A row names
+                // only a slot, so without it every id aimed at the weapon or music slot
+                // that happens to share a program and note shows up under an ambient
+                // bank as well.
+                if (_slot.SelectedIndex == 0) return _vab == null ? -1 : VabFile.SlotOfBank(BaseName);
+                return _slot.SelectedIndex <= 1 ? -1 : _slot.SelectedIndex - 2;
+            }
         }
 
         /// <summary>Fixed rate the user picked, or 0 for "use each sample's own in-game
@@ -273,8 +307,8 @@ namespace SilentHillPC_Launcher
         {
             using (var d = new OpenFileDialog())
             {
-                d.Title = "Open a sound bank";
-                d.Filter = "PSX sound banks (*.vab)|*.vab|All files (*.*)|*.*";
+                d.Title = Loc.T("Open a sound bank");
+                d.Filter = Loc.T("PSX sound banks") + " (*.vab)|*.vab|" + Loc.T("All files") + " (*.*)|*.*";
                 if (!string.IsNullOrEmpty(_lastDir) && Directory.Exists(_lastDir)) d.InitialDirectory = _lastDir;
                 if (d.ShowDialog(this) == DialogResult.OK) Open(d.FileName);
             }
@@ -287,7 +321,7 @@ namespace SilentHillPC_Launcher
             VabFile v = VabFile.Load(path, out err);
             if (v == null)
             {
-                MessageBox.Show(this, err, "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, err, Loc.T("Audio"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -301,7 +335,7 @@ namespace SilentHillPC_Launcher
 
             _vab = v;
             _lastDir = Path.GetDirectoryName(path);
-            Text = "Audio — " + Path.GetFileName(path);
+            Text = Loc.T("Audio") + " — " + Path.GetFileName(path);
 
             if (_sndDir == null && !_askedForSndDir) ChooseCleanSndDir(false);
 
@@ -310,6 +344,8 @@ namespace SilentHillPC_Launcher
             var indexDirs = new List<string> { _sndDir, Path.GetDirectoryName(path) };
             if (_index == null || !_index.SameDirs(indexDirs)) _index = SndSampleIndex.Build(indexDirs);
             LoadOriginals(v, path);
+
+            SfxAnswerIndex answers = SfxAnswerIndex.For(_sndDir);
 
             _matches.Clear();
             _dupes.Clear();
@@ -330,6 +366,17 @@ namespace SilentHillPC_Launcher
                 progs.Sort();
 
                 List<SfxMatch> hits = v.MatchesFor(vag.Index, SlotFilter);
+                // Ids only this bank answers first: with an ambient bank most of the
+                // list is ids shared with every other map's bank, and those say least
+                // about the sample.
+                if (answers != null)
+                {
+                    hits.Sort(delegate(SfxMatch a, SfxMatch b)
+                    {
+                        int c = answers.BanksAnswering(a.Row.Id).CompareTo(answers.BanksAnswering(b.Row.Id));
+                        return c != 0 ? c : a.Row.Id.CompareTo(b.Row.Id);
+                    });
+                }
                 _matches[vag.Index] = hits;
                 if (hits.Count > 0) identified++;
 
@@ -341,13 +388,19 @@ namespace SilentHillPC_Launcher
 
                 var names = new List<string>();
                 var rates = new List<string>();
+                int layered = 0;
                 foreach (SfxMatch m in hits)
                 {
                     // The slot is part of the identity when the filter is off: the same
                     // program/note pair exists in banks loaded into different slots.
                     string label = SlotFilter >= 0
                         ? m.Label
-                        : m.Label + " (" + SfxMatch.SlotName(m.Row.Slot) + ")";
+                        : m.Label + " (" + Loc.T(SfxMatch.SlotName(m.Row.Slot)) + ")";
+                    if (m.Layers > 1)
+                    {
+                        label += " +" + (m.Layers - 1);
+                        layered++;
+                    }
                     if (!names.Contains(label)) names.Add(label);
                     string r = Math.Round(m.RateHz).ToString("N0");
                     if (!rates.Contains(r)) rates.Add(r);
@@ -357,44 +410,47 @@ namespace SilentHillPC_Launcher
                 it.SubItems.Add(vag.Length.ToString("N0"));
                 it.SubItems.Add(samples.ToString("N0"));
                 it.SubItems.Add(secs.ToString("0.00") + "s");
-                it.SubItems.Add(vag.Loops ? "yes" : "");
+                it.SubItems.Add(vag.Loops ? Loc.T("yes") : "");
                 it.SubItems.Add(rates.Count == 0 ? "-" :
                     (rates.Count == 1 ? rates[0] + " Hz" : string.Join(" / ", rates.ToArray()) + " Hz"));
-                it.SubItems.Add(names.Count == 0 ? "" : string.Join(", ", names.ToArray()));
+                it.SubItems.Add(IdSummary(names));
                 it.SubItems.Add(BankSummary(others));
-                it.SubItems.Add(progs.Count == 0 ? "(unused)" : string.Join(", ", progs.ConvertAll(x => x.ToString()).ToArray()));
+                it.SubItems.Add(progs.Count == 0 ? Loc.T("(unused)") : string.Join(", ", progs.ConvertAll(x => x.ToString()).ToArray()));
                 it.SubItems.Add(centre < 0 ? "-" : centre.ToString());
                 it.Tag = vag;
+                it.ToolTipText = RowTip(vag, hits, names, layered, answers);
                 if (progs.Count == 0) it.ForeColor = SystemColors.GrayText;
                 _list.Items.Add(it);
             }
             _list.EndUpdate();
 
-            _info.Text = string.Format(
-                "{0} samples, {1} programs, {2} tones — bank id {3}, {4:N0} bytes. " +
-                "{5} identified from the game's sound table; the rest are in the bank but no " +
-                "sound id in this slot reaches them.",
-                v.VagCount, v.ProgramCount, v.Tones.Count, v.VabId, v.DeclaredSize, identified);
+            int slot = SlotFilter;
+            _info.Text = Loc.F(
+                "{0} samples, {1} programs, {2} tones — bank id {3}, {4:N0} bytes. {5} are reached " +
+                "by a sound id. An id names a SLOT, not a bank, so these are the ids that play this " +
+                "sample while this bank is the loaded {6} bank; the same id plays another bank's " +
+                "sample elsewhere, and replacing here changes nothing there.",
+                v.VagCount, v.ProgramCount, v.Tones.Count, v.VabId, v.DeclaredSize, identified,
+                slot >= 0 ? Loc.T(SfxMatch.SlotName(slot)) : "");
 
             if (_edited.Count > 0)
             {
-                _info.Text += " * marks the " + _edited.Count + " sample" + (_edited.Count == 1 ? "" : "s") +
-                              " this file has already changed from the disc; their other copies are " +
-                              "still found from the disc's sound.";
+                _info.Text += " " + Loc.F("* marks the {0} sample(s) this file has already changed from the disc; " +
+                                          "their other copies are still found from the disc's sound.", _edited.Count);
             }
             else if (_sndDir == null)
             {
-                _info.Text += " No clean SND folder is set (File > Clean SND folder…), so other copies " +
-                              "are only found for samples this file has not changed.";
+                _info.Text += " " + Loc.T("No clean SND folder is set (File > Clean SND folder…), so other copies " +
+                                          "are only found for samples this file has not changed.");
             }
 
             string twin = LoadedTwinBank(path);
             if (twin != null)
             {
-                _info.Text = "The game loads " + twin + " instead of this bank — same sounds, and "
-                           + "this one is never requested. The port accepts either name, so an "
-                           + "export from here still works; name it " + twin + "_005.wav to be "
-                           + "explicit.\r\n" + _info.Text;
+                _info.Text = Loc.F("The game loads {0} instead of this bank — same sounds, and " +
+                                   "this one is never requested. The port accepts either name, so an " +
+                                   "export from here still works; name it {0}_005.wav to be explicit.", twin)
+                           + "\r\n" + _info.Text;
                 _info.ForeColor = Color.FromArgb(255, 170, 90);
             }
             else
@@ -450,17 +506,18 @@ namespace SilentHillPC_Launcher
             {
                 _askedForSndDir = true;
                 if (MessageBox.Show(this,
-                        "The Audio tool finds a sound's other copies, and marks the samples you have " +
-                        "already changed, by comparing against the SND folder of a clean disc extract. " +
-                        "None was found under gamedata.\n\nChoose one now?",
-                        "Audio", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                        Loc.T("The Audio tool finds a sound's other copies, and marks the samples you have " +
+                              "already changed, by comparing against the SND folder of a clean disc extract. " +
+                              "None was found under gamedata.\n\nChoose one now?"),
+                        Loc.T("Audio"), MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
                     return;
             }
 
             using (var d = new FolderBrowserDialog())
             {
-                d.Description = "The SND folder of a clean, unedited disc extract" +
-                                (_sndDir != null ? " (now: " + _sndDir + ")" : "");
+                d.Description = _sndDir != null
+                    ? Loc.F("The SND folder of a clean, unedited disc extract (now: {0})", _sndDir)
+                    : Loc.T("The SND folder of a clean, unedited disc extract");
                 string start = _sndDir ?? _lastDir;
                 if (!string.IsNullOrEmpty(start) && Directory.Exists(start)) d.SelectedPath = start;
                 if (d.ShowDialog(this) != DialogResult.OK) return;
@@ -468,7 +525,7 @@ namespace SilentHillPC_Launcher
                 string dir = d.SelectedPath;
                 if (!HasBanks(dir))
                 {
-                    MessageBox.Show(this, "That folder holds no .VAB sound banks.", "Audio",
+                    MessageBox.Show(this, Loc.T("That folder holds no .VAB sound banks."), Loc.T("Audio"),
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
@@ -477,9 +534,9 @@ namespace SilentHillPC_Launcher
                 {
                     // Edited banks live here, so it cannot say what the disc's sounds are.
                     MessageBox.Show(this,
-                        "That is gamedata\\load\\SND, where your edited banks go. Choose the SND " +
-                        "folder inside a disc extract instead.",
-                        "Audio", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        Loc.T("That is gamedata\\load\\SND, where your edited banks go. Choose the SND " +
+                              "folder inside a disc extract instead."),
+                        Loc.T("Audio"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
@@ -506,6 +563,66 @@ namespace SilentHillPC_Launcher
             catch { return false; }
         }
 
+        /// <summary>Four ids and a count. A sample in an ambient bank answers to dozens
+        /// of them, and a wall of Sfx_Unk numbers in a 240px column says nothing; the
+        /// first few are the ones fewest other banks share.</summary>
+        private static string IdSummary(List<string> names)
+        {
+            if (names.Count == 0) return "";
+            if (names.Count <= 3) return string.Join(", ", names.ToArray());
+            return string.Join(", ", names.GetRange(0, 3).ToArray()) + ", " + Loc.F("+{0} more", names.Count - 3);
+        }
+
+        private const int TipIdCap = 24;
+
+        /// <summary>The row's ids in full, up to a readable cap, with what an id means
+        /// here spelled out: how many banks answer the same id, and whether the id keys
+        /// on other samples at the same time.</summary>
+        private string RowTip(VabVag vag, List<SfxMatch> hits, List<string> names, int layered, SfxAnswerIndex answers)
+        {
+            var sb = new System.Text.StringBuilder();
+            int slot = SlotFilter;
+            sb.Append(Loc.F("Sample {0}", vag.Index));
+            if (_edited.Contains(vag.Index)) sb.Append(" ").Append(Loc.T("(already changed from the disc)"));
+            sb.AppendLine();
+
+            if (hits.Count == 0)
+            {
+                sb.Append(slot >= 0
+                    ? Loc.F("No sound id reaches this sample from the {0} slot.", Loc.T(SfxMatch.SlotName(slot)))
+                    : Loc.T("No sound id reaches this sample."));
+                return sb.ToString();
+            }
+
+            sb.Append(Loc.F("Played by {0} id(s) while this bank is loaded:", names.Count)).AppendLine();
+
+            var seen = new List<string>();
+            int shown = 0;
+            foreach (SfxMatch m in hits)
+            {
+                string label = m.Label;
+                if (seen.Contains(label)) continue;
+                seen.Add(label);
+                if (shown >= TipIdCap) continue;
+
+                sb.Append("  ").Append(label);
+                if (m.Layers > 1) sb.Append(" ").Append(Loc.F("(+{0} more samples at once)", m.Layers - 1));
+                int banks = answers == null ? 0 : answers.BanksAnswering(m.Row.Id);
+                if (banks == 1) sb.Append(" — ").Append(Loc.T("only this bank answers it"));
+                else if (banks > 1) sb.Append(" — ").Append(Loc.F("shared with {0} other bank(s)", banks - 1));
+                sb.AppendLine();
+                shown++;
+            }
+            if (seen.Count > shown) sb.Append("  ").Append(Loc.F("... and {0} more", seen.Count - shown)).AppendLine();
+
+            sb.Append(slot >= 0
+                ? Loc.F("A shared id plays whichever bank is loaded in the {0} slot at the time, so replacing " +
+                        "this sample changes that sound only where this bank is loaded.", Loc.T(SfxMatch.SlotName(slot)))
+                : Loc.T("A shared id plays whichever bank is loaded in the same slot at the time, so replacing " +
+                        "this sample changes that sound only where this bank is loaded."));
+            return sb.ToString();
+        }
+
         /// <summary>Distinct bank names, shortened past four so the column stays a
         /// glance rather than a paragraph; the full list appears when the sample is
         /// replaced and again when the bank is saved.</summary>
@@ -515,7 +632,7 @@ namespace SilentHillPC_Launcher
             var banks = new List<string>();
             foreach (SampleRef r in others) if (!banks.Contains(r.Bank)) banks.Add(r.Bank);
             if (banks.Count <= 4) return string.Join(", ", banks.ToArray());
-            return string.Join(", ", banks.GetRange(0, 3).ToArray()) + " +" + (banks.Count - 3) + " more";
+            return string.Join(", ", banks.GetRange(0, 3).ToArray()) + " " + Loc.F("+{0} more", banks.Count - 3);
         }
 
         private static string BankDetail(List<SampleRef> others)
@@ -556,8 +673,9 @@ namespace SilentHillPC_Launcher
 
             using (var d = new OpenFileDialog())
             {
-                d.Title = "Replace sample " + vag.Index;
-                d.Filter = "Audio (*.wav;*.vag)|*.wav;*.vag|WAV audio (*.wav)|*.wav|Raw PSX ADPCM (*.vag)|*.vag";
+                d.Title = Loc.F("Replace sample {0}", vag.Index);
+                d.Filter = Loc.T("Audio") + " (*.wav;*.vag)|*.wav;*.vag|" + Loc.T("WAV audio") + " (*.wav)|*.wav|" +
+                           Loc.T("Raw PSX ADPCM") + " (*.vag)|*.vag";
                 if (!string.IsNullOrEmpty(_lastDir)) d.InitialDirectory = _lastDir;
                 if (d.ShowDialog(this) != DialogResult.OK) return;
 
@@ -569,19 +687,19 @@ namespace SilentHillPC_Launcher
                     try { body = File.ReadAllBytes(d.FileName); }
                     catch (Exception ex)
                     {
-                        MessageBox.Show(this, ex.Message, "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show(this, ex.Message, Loc.T("Audio"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                         return;
                     }
                     if ((body.Length & 0x0F) != 0)
                     {
                         MessageBox.Show(this,
-                            "That .vag is " + body.Length + " bytes, which is not a whole number of " +
-                            "16-byte ADPCM blocks. It is probably not raw PSX ADPCM — a .vag with a " +
-                            "48-byte header needs that header stripped first.",
-                            "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            Loc.F("That .vag is {0} bytes, which is not a whole number of " +
+                                  "16-byte ADPCM blocks. It is probably not raw PSX ADPCM — a .vag with a " +
+                                  "48-byte header needs that header stripped first.", body.Length),
+                            Loc.T("Audio"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                         return;
                     }
-                    note = "raw ADPCM, " + body.Length.ToString("N0") + " bytes";
+                    note = Loc.F("raw ADPCM, {0} bytes", body.Length.ToString("N0"));
                 }
                 else
                 {
@@ -590,7 +708,7 @@ namespace SilentHillPC_Launcher
                     short[] pcm = VagEncoder.ReadWav(d.FileName, out srcRate, out err);
                     if (pcm == null)
                     {
-                        MessageBox.Show(this, err, "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show(this, err, Loc.T("Audio"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                         return;
                     }
 
@@ -600,30 +718,30 @@ namespace SilentHillPC_Launcher
                     var opt = new VagEncoder.Options { Loop = vag.Loops };
                     body = VagEncoder.Encode(resampled, opt);
 
-                    note = string.Format("{0} Hz WAV resampled to {1} Hz, {2:N0} bytes{3}",
-                        srcRate, target, body.Length, vag.Loops ? ", looping" : "");
+                    note = Loc.F("{0} Hz WAV resampled to {1} Hz, {2:N0} bytes", srcRate, target, body.Length) +
+                           (vag.Loops ? ", " + Loc.T("looping") : "");
                 }
 
                 if (body.Length > VabFile.MaxVagBytes)
                 {
                     MessageBox.Show(this,
-                        "That would be " + body.Length.ToString("N0") + " bytes. A single sample " +
-                        "cannot exceed " + VabFile.MaxVagBytes.ToString("N0") + " — the bank stores " +
-                        "each length as length/8 in 16 bits.",
-                        "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        Loc.F("That would be {0} bytes. A single sample cannot exceed {1} — the bank stores " +
+                              "each length as length/8 in 16 bits.",
+                              body.Length.ToString("N0"), VabFile.MaxVagBytes.ToString("N0")),
+                        Loc.T("Audio"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
                 _pending[vag.Index] = body;
                 _lastDir = Path.GetDirectoryName(d.FileName);
-                _info.Text = "Sample " + vag.Index + " staged: " + note +
-                             " (was " + vag.Length.ToString("N0") + "). Save bank… to write it out.";
+                _info.Text = Loc.F("Sample {0} staged: {1} (was {2}). Save bank… to write it out.",
+                                   vag.Index, note, vag.Length.ToString("N0"));
 
                 List<SampleRef> others;
                 if (_dupes.TryGetValue(vag.Index, out others) && others.Count > 0)
                 {
-                    _info.Text += " The same sound is also in " + BankDetail(others) +
-                                  " — saving offers to update those too.";
+                    _info.Text += " " + Loc.F("The same sound is also in {0} — saving offers to update those too.",
+                                              BankDetail(others));
                 }
                 MarkPending();
             }
@@ -634,8 +752,8 @@ namespace SilentHillPC_Launcher
             foreach (ListViewItem it in _list.SelectedItems)
                 _pending.Remove(((VabVag)it.Tag).Index);
             _info.Text = _pending.Count == 0
-                ? "All replacements reverted."
-                : _pending.Count + " replacement(s) still staged.";
+                ? Loc.T("All replacements reverted.")
+                : Loc.F("{0} replacement(s) still staged.", _pending.Count);
             MarkPending();
         }
 
@@ -708,8 +826,8 @@ namespace SilentHillPC_Launcher
                         StringComparison.OrdinalIgnoreCase))
                 {
                     if (MessageBox.Show(this,
-                            "That folder holds the bank currently open. Overwrite it and reload?",
-                            "Audio", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
+                            Loc.T("That folder holds the bank currently open. Overwrite it and reload?"),
+                            Loc.T("Audio"), MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
                         return;
                     break;
                 }
@@ -736,18 +854,18 @@ namespace SilentHillPC_Launcher
             if (failed.Count > 0)
             {
                 MessageBox.Show(this,
-                    "Some banks could not be written:\n\n" + string.Join("\n", failed.ToArray()),
-                    "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    Loc.T("Some banks could not be written:") + "\n\n" + string.Join("\n", failed.ToArray()),
+                    Loc.T("Audio"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             if (primaryDest == null) return;
 
             int n = _pending.Count;
             _pending.Clear();
             Open(primaryDest);
-            _info.Text = "Wrote " + Path.GetFileName(primaryDest) + " with " + n + " replaced sample(s)" +
-                         (written.Count > 1
-                             ? ", and the same sounds into " + string.Join(", ", written.GetRange(1, written.Count - 1).ToArray()) + "."
-                             : ".");
+            _info.Text = written.Count > 1
+                ? Loc.F("Wrote {0} with {1} replaced sample(s), and the same sounds into {2}.",
+                        Path.GetFileName(primaryDest), n, string.Join(", ", written.GetRange(1, written.Count - 1).ToArray()))
+                : Loc.F("Wrote {0} with {1} replaced sample(s).", Path.GetFileName(primaryDest), n);
         }
 
         /// <summary>The bank being edited first, then for every staged replacement the
@@ -818,8 +936,8 @@ namespace SilentHillPC_Launcher
                 short[] pcm = SamplesFor(vag);
                 if (pcm.Length == 0)
                 {
-                    MessageBox.Show(this, "That sample decoded to nothing — its first block is an end marker.",
-                        "Audio", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(this, Loc.T("That sample decoded to nothing — its first block is an end marker."),
+                        Loc.T("Audio"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
                 byte[] wav = VabFile.BuildWav(pcm, (int)Math.Round(RateFor(vag)));
@@ -828,8 +946,8 @@ namespace SilentHillPC_Launcher
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Could not play that sample:\n\n" + ex.Message,
-                    "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.F("Could not play that sample:\n\n{0}", ex.Message),
+                    Loc.T("Audio"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             UpdateButtons();
         }
@@ -854,18 +972,18 @@ namespace SilentHillPC_Launcher
                 var vag = (VabVag)_list.SelectedItems[0].Tag;
                 using (var d = new SaveFileDialog())
                 {
-                    d.Title = raw ? "Export raw ADPCM" : "Export WAV";
-                    d.Filter = raw ? "Raw PSX ADPCM (*.vag)|*.vag" : "WAV audio (*.wav)|*.wav";
+                    d.Title = Loc.T(raw ? "Export raw ADPCM" : "Export WAV");
+                    d.Filter = raw ? Loc.T("Raw PSX ADPCM") + " (*.vag)|*.vag" : Loc.T("WAV audio") + " (*.wav)|*.wav";
                     d.FileName = SoundFileName(vag, raw);
                     if (!string.IsNullOrEmpty(_lastDir)) d.InitialDirectory = _lastDir;
                     if (d.ShowDialog(this) != DialogResult.OK) return;
                     if (!WriteOne(vag, d.FileName, raw)) return;
                 }
-                _info.Text = "Exported 1 sample.";
+                _info.Text = Loc.T("Exported 1 sample.");
                 return;
             }
 
-            string dir = PickFolder("Choose a folder for the exported samples");
+            string dir = PickFolder(Loc.T("Choose a folder for the exported samples"));
             if (dir == null) return;
             int n = 0;
             foreach (ListViewItem it in _list.SelectedItems)
@@ -873,13 +991,13 @@ namespace SilentHillPC_Launcher
                 var vag = (VabVag)it.Tag;
                 if (WriteOne(vag, Path.Combine(dir, SoundFileName(vag, raw)), raw)) n++;
             }
-            _info.Text = "Exported " + n + " samples to " + dir;
+            _info.Text = Loc.F("Exported {0} samples to {1}", n, dir);
         }
 
         private void ExportAll()
         {
             if (_vab == null) return;
-            string dir = PickFolder("Choose a folder for the whole bank");
+            string dir = PickFolder(Loc.T("Choose a folder for the whole bank"));
             if (dir == null) return;
 
             int n = 0, skipped = 0;
@@ -888,7 +1006,7 @@ namespace SilentHillPC_Launcher
                 if (WriteOne(vag, Path.Combine(dir, SoundFileName(vag, false)), false)) n++;
                 else skipped++;
             }
-            _info.Text = "Exported " + n + " samples to " + dir + (skipped > 0 ? " (" + skipped + " failed)" : "");
+            _info.Text = Loc.F("Exported {0} samples to {1}", n, dir) + (skipped > 0 ? " " + Loc.F("({0} failed)", skipped) : "");
         }
 
         /// <summary>Zero-padded so a folder of exports sorts in bank order, and prefixed
@@ -921,8 +1039,8 @@ namespace SilentHillPC_Launcher
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Could not write:\n" + path + "\n\n" + ex.Message,
-                    "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.F("Could not write:\n{0}\n\n{1}", path, ex.Message),
+                    Loc.T("Audio"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
         }
@@ -951,6 +1069,19 @@ namespace SilentHillPC_Launcher
                 "Several tones can share one sample, which is why the same sound can appear",
                 "at more than one pitch. A sample listed as \"(unused)\" is in the bank but",
                 "no tone references it.",
+                "",
+                "Sound ids: a sound id names a SLOT and a program, never a bank. The game",
+                "keeps four slots filled, and their occupants change as you play: the",
+                "weapon slot follows the equipped weapon, the ambient slot follows the",
+                "map. So the ids listed are the ones that play this sample while THIS",
+                "bank is the loaded bank for its slot. In an area that loads another",
+                "bank, the same id plays that bank's sample instead, and your",
+                "replacement here does not affect it. Replacing a sample never removes",
+                "a sound: every id listed keeps playing, with the new audio.",
+                "",
+                "The list is long for a sound many ids can trigger. Hover a row to see",
+                "all of them. An id shown as \"+2\" keys on two further samples at the",
+                "same time, so this sample is one layer of that sound.",
                 "",
                 "Preview rate: the SPU plays a sample at 44100 Hz when it is triggered at",
                 "the tone's own centre note, and the game shifts the pitch per sound from",
@@ -985,7 +1116,8 @@ namespace SilentHillPC_Launcher
                 "changed with * in the # column, and still finds their other copies",
                 "from the disc's sound. Bold rows are replacements not saved yet.",
             };
-            ConverterActions.ShowTextDialog(this, "Audio — About sound banks", lines.ToArray(), false);
+            string text = Loc.T(string.Join("\n", lines.ToArray()));
+            ConverterActions.ShowTextDialog(this, Loc.T("Audio — About sound banks"), text.Split('\n'), false);
         }
 
         protected override void OnFormClosed(FormClosedEventArgs e)

@@ -27,7 +27,7 @@ namespace SilentHillPC_Launcher
         {
             _work = work;
 
-            Text            = title;
+            Text            = Loc.T(title);
             ClientSize      = new Size(410, cancellable ? 128 : 92);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition   = FormStartPosition.CenterParent;
@@ -37,7 +37,7 @@ namespace SilentHillPC_Launcher
             ShowInTaskbar   = false;
 
             _label = new Label { Location = new Point(12, 14), Size = new Size(386, 20),
-                                 Text = "Working…", AutoEllipsis = true };
+                                 Text = Loc.T("Working…"), AutoEllipsis = true };
             _bar = new ProgressBar { Location = new Point(12, 42), Size = new Size(386, 22),
                                      Minimum = 0, Maximum = 100, Style = ProgressBarStyle.Marquee,
                                      MarqueeAnimationSpeed = 30 };
@@ -46,8 +46,8 @@ namespace SilentHillPC_Launcher
 
             if (cancellable)
             {
-                var btn = new Button { Text = "Cancel", Location = new Point(322, 74), Size = new Size(76, 26) };
-                btn.Click += (s, e) => { _cancelled = true; btn.Enabled = false; _label.Text = "Cancelling…"; };
+                var btn = new Button { Text = Loc.T("Cancel"), Location = new Point(322, 74), Size = new Size(76, 26) };
+                btn.Click += (s, e) => { _cancelled = true; btn.Enabled = false; _label.Text = Loc.T("Cancelling…"); };
                 Controls.Add(btn);
                 CancelButton = btn;
             }
@@ -83,7 +83,9 @@ namespace SilentHillPC_Launcher
                     {
                         _bar.Style = ProgressBarStyle.Marquee;
                     }
-                    if (message != null) _label.Text = message;
+                    // Fixed status lines from the workers are English; T() passes
+                    // anything it does not know (file names, counts) straight through.
+                    if (message != null) _label.Text = Loc.T(message);
                 }));
             }
             catch { }

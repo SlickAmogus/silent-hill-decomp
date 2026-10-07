@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "pc_config.h"
+#include "pc_binds.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,7 +37,10 @@ s_PcConfig g_PcConfig = {
     .cutsceneLineGapMs = 300,
     .skipIntros     = 0,
     .showConsole    = 0,
-    .psxDither      = 1, /* 0=off, 1=PSX dither, 2=bilinear */
+    .psxDither      = -1, /* -1 = absent; see the dithering/texture_filter migration */
+    .dithering      = 1,  /* PSX ordered dither on, the long-standing default */
+    .textureFilter  = 0,  /* point sampling */
+    .scaling        = 2,  /* bilinear: what the present blit always did */
     .widescreenMode  = 1, /* 0=pillarbox, 1=Hor+ (default, no bars + correct proportions), 2=stretch */
     .menuPillarbox   = 1, /* 1=pillarbox 2D screens (black bars), 0=stretch to fill */
 #if defined(SH_IOS) || defined(__ANDROID__)
@@ -106,6 +110,7 @@ s_PcConfig g_PcConfig = {
     .crosshair           = 0, /* draw a center crosshair while aiming in TPS/OTS */
     .crosshairStyle      = 0, /* 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap */
     .crosshairSize       = 100.0f,
+    .textSize            = 100.0f,
     .aimAssist           = 1, /* OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) */
     .mouseCursor         = 1, /* mouse controls cursor puzzles + clickable main menu */
 #if defined(__ANDROID__) || defined(SH_IOS)
@@ -406,6 +411,9 @@ static void TrimWhitespace(char* s)
  * without one, mode is derived from the legacy pp/shadows keys after the parse. */
 static int s_sawFlashlightMode = 0;
 static int s_minimapSeen       = 0;
+/* Either independent key present means this config predates nothing and the
+ * legacy psx_dither must NOT overwrite it. */
+static int s_sawDitherKeys = 0;
 static int s_minimapShapeSeen  = 0;
 
 void Pc_FlashlightModeApply(int mode, int persist)
@@ -523,6 +531,14 @@ void PcConfig_Load(const char* path)
         char key[64] = {0};
         char value[128] = {0};
 
+        /* Custom key binds are stored as the console line that made them,
+         * not as key = value, so they are taken before the = test. */
+        if (strncmp(p, "bind ", 5) == 0 || strncmp(p, "BIND ", 5) == 0)
+        {
+            PcBinds_ParseConfigLine(p + 5);
+            continue;
+        }
+
         char* eq = strchr(p, '=');
         if (!eq) continue;
 
@@ -624,6 +640,25 @@ void PcConfig_Load(const char* path)
             if (v < 0) v = 0;
             if (v > 7) v = 7;
             g_PcConfig.psxDither = v;
+        }
+        else if (strcmp(key, "dithering") == 0)
+        {
+            g_PcConfig.dithering = (atoi(value) != 0);
+            s_sawDitherKeys = 1;
+        }
+        else if (strcmp(key, "texture_filter") == 0)
+        {
+            int v = atoi(value);
+            if (v < 0) v = 0;
+            if (v > 6) v = 6;
+            g_PcConfig.textureFilter = v;
+            s_sawDitherKeys = 1;
+        }
+        else if (strcmp(key, "scaling") == 0)
+        {
+            int v = atoi(value);
+            if (v < 0 || v > 3) v = 2;
+            g_PcConfig.scaling = v;
         }
         else if (strcmp(key, "menu_filter") == 0)
         {
@@ -1034,6 +1069,13 @@ void PcConfig_Load(const char* path)
             if (v > 125.0f) v = 125.0f;
             g_PcConfig.crosshairSize = v;
         }
+        else if (strcmp(key, "text_size") == 0)
+        {
+            float v = (float)atof(value);
+            if (v < 100.0f) v = 100.0f;
+            if (v > 150.0f) v = 150.0f;
+            g_PcConfig.textSize = v;
+        }
         else if (strcmp(key, "mouse_cursor") == 0)
         {
             g_PcConfig.mouseCursor = (atoi(value) != 0);
@@ -1433,6 +1475,27 @@ else if (strcmp(key, "enable_plugins") == 0)
         g_PcConfig.minimap = 2;
     }
 
+    /* psx_dither used to carry the dither flag AND the filtering mode in one
+     * value, so the two could not be combined. Translate it into the pair when
+     * the config has not been written by a build that knows them, and leave the
+     * player's look exactly as it was. */
+    if (g_PcConfig.psxDither >= 0 && !s_sawDitherKeys)
+    {
+        switch (g_PcConfig.psxDither)
+        {
+            case 1:  g_PcConfig.dithering = 1; g_PcConfig.textureFilter = 0; break;
+            case 2:  g_PcConfig.dithering = 0; g_PcConfig.textureFilter = 1; break;
+            case 3:  g_PcConfig.dithering = 0; g_PcConfig.textureFilter = 2; break;
+            case 4:  g_PcConfig.dithering = 0; g_PcConfig.textureFilter = 3; break;
+            case 5:  g_PcConfig.dithering = 0; g_PcConfig.textureFilter = 4; break;
+            case 6:  g_PcConfig.dithering = 0; g_PcConfig.textureFilter = 5; break;
+            case 7:  g_PcConfig.dithering = 0; g_PcConfig.textureFilter = 6; break;
+            default: g_PcConfig.dithering = 0; g_PcConfig.textureFilter = 0; break;
+        }
+        SH_LOG("[CFG] psx_dither = %d migrated to dithering = %d, texture_filter = %d",
+               g_PcConfig.psxDither, g_PcConfig.dithering, g_PcConfig.textureFilter);
+    }
+
     /* Default migration: reapply a changed persisted DEFAULT to users still sitting
      * on the previous default, so an improved default reaches everyone on update
      * while a value the player deliberately set is left alone. Each step only fires
@@ -1619,6 +1682,60 @@ void PcConfig_SaveKeyValues(const char* const* keys, const char* const* values, 
     {
         if (!found[k] && keys[k] != NULL && keys[k][0] != '\0' && values[k] != NULL)
             fprintf(f, "%s = %s\n", keys[k], values[k]);
+    }
+    fclose(f);
+}
+
+/* Custom key binds are not key = value lines, so they get their own writer:
+ * drop every existing bind line and its header, then re-append the section.
+ * They are written exactly as typed so a bind set can be copied out of the
+ * file, pasted into a message, and pasted back. */
+void PcConfig_SaveBindLines(const char* const* lines, int count)
+{
+    static char buf[1024][256];
+    int   n = 0;
+    int   i;
+    FILE* f;
+
+    f = fopen(s_configPath, "r");
+    if (!f)
+        return;
+    while (n < (int)(sizeof(buf) / sizeof(buf[0])) && fgets(buf[n], sizeof(buf[n]), f))
+    {
+        char* p = buf[n];
+        while (*p == 0x20 || *p == 0x09) p++;
+        if (strncmp(p, "bind ", 5) == 0 || strncmp(p, "BIND ", 5) == 0)
+            continue;
+        if (strncmp(p, "# --- Custom key binds", 22) == 0)
+            continue;
+        n++;
+    }
+    fclose(f);
+
+    /* Trim trailing blank lines so the section does not drift down the file
+     * every time it is rewritten. */
+    while (n > 0)
+    {
+        char* p = buf[n - 1];
+        while (*p == 0x20 || *p == 0x09 || *p == 0x0D || *p == 0x0A) p++;
+        if (*p != 0)
+            break;
+        n--;
+    }
+
+    f = fopen(s_configPath, "w");
+    if (!f)
+        return;
+    for (i = 0; i < n; i++)
+        fputs(buf[i], f);
+    if (count > 0)
+    {
+        fputs("\n# --- Custom key binds (console: bind / unbind / unbindall) ---\n", f);
+        for (i = 0; i < count; i++)
+        {
+            if (lines[i] != NULL && lines[i][0] != 0)
+                fprintf(f, "%s\n", lines[i]);
+        }
     }
     fclose(f);
 }

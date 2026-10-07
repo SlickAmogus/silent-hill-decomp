@@ -95,7 +95,7 @@ namespace SilentHillPC_Launcher
         {
             _gameRoot = gameRoot;
 
-            Text = "Model Viewer";
+            Text = Loc.T("Model Viewer");
             ClientSize = new Size(800, 640);
             MinimumSize = new Size(520, 400);
             StartPosition = FormStartPosition.CenterParent;
@@ -107,13 +107,18 @@ namespace SilentHillPC_Launcher
             var menu = BuildMenu();
 
             var bar = new Panel { Dock = DockStyle.Top, Height = 30 };
-            _chkTex = new CheckBox { Text = "Textured", Location = new Point(8, 6), AutoSize = true, Enabled = false };
-            _chkWire = new CheckBox { Text = "Wireframe", Location = new Point(92, 6), AutoSize = true };
-            var btnReset = new Button { Text = "Reset View", Location = new Point(188, 3), Size = new Size(80, 24) };
+            _chkTex = new CheckBox { Text = Loc.T("Textured"), Location = new Point(8, 6), AutoSize = true, Enabled = false };
+            _chkWire = new CheckBox { Text = Loc.T("Wireframe"), Location = new Point(92, 6), AutoSize = true };
+            var btnReset = new Button { Text = Loc.T("Reset View"), Location = new Point(188, 3), Size = new Size(80, 24) };
+            // Packed left to right from the translated widths; the English positions
+            // above are only the minimums.
+            _chkWire.Left = Math.Max(_chkWire.Left, _chkTex.Left + _chkTex.PreferredSize.Width + 8);
+            btnReset.Left = Math.Max(btnReset.Left, _chkWire.Left + _chkWire.PreferredSize.Width + 8);
+            btnReset.Width = Math.Max(btnReset.Width, TextRenderer.MeasureText(btnReset.Text, btnReset.Font).Width + 14);
             _lblInfo = new Label
             {
-                Text = "File > Open a model, or drop one here",
-                Location = new Point(282, 8),
+                Text = Loc.T("File > Open a model, or drop one here"),
+                Location = new Point(btnReset.Right + 14, 8),
                 AutoSize = true,
                 ForeColor = SystemColors.GrayText
             };
@@ -140,6 +145,7 @@ namespace SilentHillPC_Launcher
             Controls.Add(bar);
             Controls.Add(menu);
             MainMenuStrip = menu;
+            Loc.ApplyMenu(menu.Items);
 
             Shown += (s, e) => Render();
             FormClosed += (s, e) => { if (_timer != null) _timer.Dispose(); };
@@ -182,15 +188,15 @@ namespace SilentHillPC_Launcher
                 }
                 if (scene == null)
                 {
-                    MessageBox.Show(this, "Could not open the model:\n\n" + (err ?? "unknown error"),
-                        "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(this, Loc.F("Could not open the model:\n\n{0}", err ?? Loc.T("unknown error")),
+                        Loc.T("Model Viewer"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Could not open the model:\n\n" + ex.Message,
-                    "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.F("Could not open the model:\n\n{0}", ex.Message),
+                    Loc.T("Model Viewer"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -203,9 +209,9 @@ namespace SilentHillPC_Launcher
             _time = 0;
             _playing = false;
             _btnPlay.Enabled = false;
-            _btnPlay.Text = "Play";
+            _btnPlay.Text = Loc.T("Play");
             _bar.Enabled = false;
-            _lblKf.Text = "no ANM";
+            _lblKf.Text = Loc.T("no ANM");
             _distHome = scene.Radius * 2.6f + 1.0f;
             _chkTex.Checked = scene.HasTexture;
             _chkTex.Enabled = scene.HasTexture;
@@ -214,9 +220,9 @@ namespace SilentHillPC_Launcher
             // A TMD scene carries no AnimScene (it has no bones), so the export item
             // used to stay greyed out on exactly the models TmdObjConverter handles.
             _miExportThis.Enabled = (_anim != null && _anim.IlmPath != null) || _loadedIsTmd;
-            _lblInfo.Text = scene.Parts + " parts   " + scene.VertexCount + " verts   " + scene.Tris.Count + " tris" +
-                            "   |   drag: orbit    right-drag: pan    wheel: zoom";
-            Text = "Model Viewer — " + scene.Title;
+            _lblInfo.Text = Loc.F("{0} parts   {1} verts   {2} tris", scene.Parts, scene.VertexCount, scene.Tris.Count) +
+                            "   |   " + Loc.T("drag: orbit    right-drag: pan    wheel: zoom");
+            Text = Loc.T("Model Viewer") + " — " + scene.Title;
 
             if (_anim != null)
             {
@@ -228,7 +234,7 @@ namespace SilentHillPC_Launcher
 
             if (scene.Warnings.Count > 0)
                 MessageBox.Show(this, string.Join("\n\n", scene.Warnings.ToArray()),
-                    "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Loc.T("Model Viewer"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         private void OnDragEnter(object s, DragEventArgs e)
@@ -313,8 +319,8 @@ namespace SilentHillPC_Launcher
         {
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select a model to view";
-                ofd.Filter = "Models (*.ilm;*.plm;*.tmd;*.obj)|*.ilm;*.plm;*.tmd;*.obj|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select a model to view");
+                ofd.Filter = Loc.T("Models") + " (*.ilm;*.plm;*.tmd;*.obj)|*.ilm;*.plm;*.tmd;*.obj|" + Loc.T("All files") + " (*.*)|*.*";
                 try
                 {
                     if (_anim != null) ofd.InitialDirectory = Path.GetDirectoryName(_anim.IlmPath);
@@ -336,7 +342,7 @@ namespace SilentHillPC_Launcher
             {
                 "MODEL VIEWER",
                 "",
-                "Open models with File > Open, or drag & drop a file onto the window.",
+                "Open models with File > Open Model, or drag & drop a file onto the window.",
                 "The window is reused — opening another model replaces the current one.",
                 "",
                 "Opens:",
@@ -371,7 +377,8 @@ namespace SilentHillPC_Launcher
                 "  The Convert menu drives the SAME implementations as the Mod Manager's",
                 "  buttons (Model → OBJ, high-poly OBJ → Model, simple import).",
             };
-            ConverterActions.ShowTextDialog(this, "Model Viewer — Help", lines, false);
+            string text = Loc.T(string.Join("\n", lines));
+            ConverterActions.ShowTextDialog(this, Loc.T("Model Viewer — Help"), text.Split('\n'), false);
         }
 
         // ---- animation panel ------------------------------------------------------
@@ -379,12 +386,15 @@ namespace SilentHillPC_Launcher
         private Panel BuildAnimPanel()
         {
             var panel = new Panel { Dock = DockStyle.Bottom, Height = 34 };
-            _btnPlay = new Button { Text = "Play", Location = new Point(8, 4), Size = new Size(56, 26), Enabled = false };
+            _btnPlay = new Button { Text = Loc.T("Play"), Location = new Point(8, 4), Size = new Size(56, 26), Enabled = false };
+            // Wide enough for the longer of the two captions it toggles between.
+            _btnPlay.Width = Math.Max(_btnPlay.Width, 14 + Math.Max(TextRenderer.MeasureText(Loc.T("Play"), _btnPlay.Font).Width,
+                                                                     TextRenderer.MeasureText(Loc.T("Pause"), _btnPlay.Font).Width));
             _btnPlay.Click += (s, e) => TogglePlay();
             _bar = new TrackBar
             {
-                Location = new Point(70, 4),
-                Size = new Size(420, 26),
+                Location = new Point(_btnPlay.Right + 6, 4),
+                Size = new Size(490 - _btnPlay.Right, 26),
                 Minimum = 0,
                 Maximum = 1,
                 TickStyle = TickStyle.None,
@@ -395,14 +405,14 @@ namespace SilentHillPC_Launcher
             {
                 if (_barFromCode) return;
                 _playing = false;
-                _btnPlay.Text = "Play";
+                _btnPlay.Text = Loc.T("Play");
                 _time = _bar.Value;
                 ApplyPose();
                 Render();
             };
             _lblKf = new Label
             {
-                Text = "no ANM",
+                Text = Loc.T("no ANM"),
                 Location = new Point(498, 10),
                 AutoSize = true,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
@@ -431,7 +441,7 @@ namespace SilentHillPC_Launcher
         {
             if (_anm2 == null) return;
             _playing = !_playing;
-            _btnPlay.Text = _playing ? "Pause" : "Play";
+            _btnPlay.Text = Loc.T(_playing ? "Pause" : "Play");
             if (_playing)
             {
                 _lastTick = DateTime.UtcNow;
@@ -473,16 +483,16 @@ namespace SilentHillPC_Launcher
             if (anm == null)
             {
                 if (report)
-                    MessageBox.Show(this, "Could not load the ANM:\n\n" + err, "Model Viewer",
+                    MessageBox.Show(this, Loc.F("Could not load the ANM:\n\n{0}", err), Loc.T("Model Viewer"),
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             if (_anim.MaxBone >= anm.BoneCount)
             {
                 if (report)
-                    MessageBox.Show(this, Path.GetFileName(path) + " has " + anm.BoneCount +
-                        " bones but this model binds bone " + _anim.MaxBone + " — not a match.",
-                        "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(this, Loc.F("{0} has {1} bones but this model binds bone {2} — not a match.",
+                                                Path.GetFileName(path), anm.BoneCount, _anim.MaxBone),
+                        Loc.T("Model Viewer"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             _anm2 = anm;
@@ -490,25 +500,25 @@ namespace SilentHillPC_Launcher
             _time = 0;
             _playing = false;
             _btnPlay.Enabled = true;
-            _btnPlay.Text = "Play";
+            _btnPlay.Text = Loc.T("Play");
             _bar.Enabled = true;
             _bar.Maximum = Math.Max(1, anm.KeyframeCount - 1);
             _barFromCode = true; _bar.Value = 0; _barFromCode = false;
-            Text = "Model Viewer — " + _scene.Title + "  [" + Path.GetFileName(path) + "]";
+            Text = Loc.T("Model Viewer") + " — " + _scene.Title + "  [" + Path.GetFileName(path) + "]";
         }
 
         private void OnChooseAnm()
         {
             if (_anim == null)
             {
-                MessageBox.Show(this, "Open a character model (.ILM) first — animations pose its skeleton.",
-                    "Model Viewer", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, Loc.T("Open a character model (.ILM) first — animations pose its skeleton."),
+                    Loc.T("Model Viewer"), MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select an animation (.ANM)";
-                ofd.Filter = "Animations (*.anm)|*.anm|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select an animation (.ANM)");
+                ofd.Filter = Loc.T("Animations") + " (*.anm)|*.anm|" + Loc.T("All files") + " (*.*)|*.*";
                 try
                 {
                     string init = _anmPath != null ? Path.GetDirectoryName(_anmPath)
@@ -530,8 +540,8 @@ namespace SilentHillPC_Launcher
             {
                 using (var ofd = new OpenFileDialog())
                 {
-                    ofd.Title = "Select an animation (.ANM) to export";
-                    ofd.Filter = "Animations (*.anm)|*.anm|All files (*.*)|*.*";
+                    ofd.Title = Loc.T("Select an animation (.ANM) to export");
+                    ofd.Filter = Loc.T("Animations") + " (*.anm)|*.anm|" + Loc.T("All files") + " (*.*)|*.*";
                     if (ofd.ShowDialog(this) != DialogResult.OK) return;
                     src = ofd.FileName;
                 }
@@ -540,30 +550,31 @@ namespace SilentHillPC_Launcher
             AnmFile anm = AnmFile.Load(src, out err);
             if (anm == null)
             {
-                MessageBox.Show(this, "Could not load the ANM:\n\n" + err, "ANM → JSON",
+                MessageBox.Show(this, Loc.F("Could not load the ANM:\n\n{0}", err), "ANM → JSON",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             using (var sfd = new SaveFileDialog())
             {
-                sfd.Title = "Save editable animation JSON";
-                sfd.Filter = "JSON (*.json)|*.json|All files (*.*)|*.*";
+                sfd.Title = Loc.T("Save editable animation JSON");
+                sfd.Filter = "JSON (*.json)|*.json|" + Loc.T("All files") + " (*.*)|*.*";
                 sfd.InitialDirectory = Path.GetDirectoryName(src);
                 sfd.FileName = Path.GetFileNameWithoutExtension(src) + ".anm.json";
                 if (sfd.ShowDialog(this) != DialogResult.OK) return;
                 try
                 {
                     File.WriteAllText(sfd.FileName, anm.ToJson());
-                    MessageBox.Show(this, "Wrote " + Path.GetFileName(sfd.FileName) + " (" +
-                        anm.KeyframeCount + " keyframes, " + anm.BoneCount + " bones).\n\n" +
+                    MessageBox.Show(this, Loc.F("Wrote {0} ({1} keyframes, {2} bones).\n\n" +
                         "Rotations are raw signed-byte q12 matrix coefficients and translations " +
                         "raw signed bytes — edit values in place, keep every value in -128..127, " +
-                        "then \"Import JSON → ANM…\" writes it back (byte-identical when untouched).",
+                        "then \"{3}\" writes it back (byte-identical when untouched).",
+                        Path.GetFileName(sfd.FileName), anm.KeyframeCount, anm.BoneCount,
+                        Loc.T("&Import JSON → ANM…").Replace("&", "")),
                         "ANM → JSON", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(this, "Write failed:\n\n" + ex.Message, "ANM → JSON",
+                    MessageBox.Show(this, Loc.F("Write failed:\n\n{0}", ex.Message), "ANM → JSON",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
@@ -574,8 +585,8 @@ namespace SilentHillPC_Launcher
             string src;
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select an animation JSON";
-                ofd.Filter = "JSON (*.json)|*.json|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select an animation JSON");
+                ofd.Filter = "JSON (*.json)|*.json|" + Loc.T("All files") + " (*.*)|*.*";
                 if (ofd.ShowDialog(this) != DialogResult.OK) return;
                 src = ofd.FileName;
             }
@@ -583,14 +594,14 @@ namespace SilentHillPC_Launcher
             AnmFile anm = AnmFile.FromJson(File.ReadAllText(src), out err);
             if (anm == null)
             {
-                MessageBox.Show(this, "The JSON did not validate:\n\n" + err, "JSON → ANM",
+                MessageBox.Show(this, Loc.F("The JSON did not validate:\n\n{0}", err), "JSON → ANM",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             using (var sfd = new SaveFileDialog())
             {
-                sfd.Title = "Save the animation (.ANM)";
-                sfd.Filter = "Animations (*.anm)|*.anm|All files (*.*)|*.*";
+                sfd.Title = Loc.T("Save the animation (.ANM)");
+                sfd.Filter = Loc.T("Animations") + " (*.anm)|*.anm|" + Loc.T("All files") + " (*.*)|*.*";
                 sfd.InitialDirectory = Path.GetDirectoryName(src);
                 string stem = Path.GetFileNameWithoutExtension(src);
                 if (stem.EndsWith(".anm", StringComparison.OrdinalIgnoreCase))
@@ -600,14 +611,14 @@ namespace SilentHillPC_Launcher
                 try
                 {
                     File.WriteAllBytes(sfd.FileName, anm.ToBytes());
-                    MessageBox.Show(this, "Wrote " + Path.GetFileName(sfd.FileName) + ".\n\n" +
+                    MessageBox.Show(this, Loc.F("Wrote {0}.\n\n" +
                         "To use it in game, drop it into gamedata\\load\\ANIM\\ under the ORIGINAL " +
-                        "file name and set allow_loose_files = 1.",
+                        "file name and set allow_loose_files = 1.", Path.GetFileName(sfd.FileName)),
                         "JSON → ANM", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(this, "Write failed:\n\n" + ex.Message, "JSON → ANM",
+                    MessageBox.Show(this, Loc.F("Write failed:\n\n{0}", ex.Message), "JSON → ANM",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
@@ -738,7 +749,8 @@ namespace SilentHillPC_Launcher
                 using (var br = new SolidBrush(Color.FromArgb(150, 150, 156)))
                 {
                     g.Clear(Color.FromArgb(48, 48, 52));
-                    const string hint = "File > Open a model (.ILM / .PLM / .TMD / .OBJ)\n\nor drag && drop one here";
+                    // DrawString takes no mnemonics, so a single '&' is literal here.
+                    string hint = Loc.T("File > Open a model (.ILM / .PLM / .TMD / .OBJ)\n\nor drag and drop one here");
                     var size = g.MeasureString(hint, f);
                     g.DrawString(hint, f, br, (w - size.Width) / 2f, (h - size.Height) / 2f);
                 }
@@ -809,7 +821,7 @@ namespace SilentHillPC_Launcher
             }
             else
             {
-                error = "not a .OBJ: " + Path.GetFileName(path);
+                error = Loc.F("not a .OBJ: {0}", Path.GetFileName(path));
                 return null;
             }
 
@@ -880,7 +892,7 @@ namespace SilentHillPC_Launcher
                     if (edgeSeen.Add(key)) sc.Edges.Add(e);
                 }
             }
-            if (map.Count == 0) { error = "no geometry in " + sc.Title; return null; }
+            if (map.Count == 0) { error = Loc.F("no geometry in {0}", sc.Title); return null; }
 
             sc.VertexCount = map.Count;
             sc.Vx = new float[sc.VertexCount];
@@ -908,9 +920,9 @@ namespace SilentHillPC_Launcher
 
             sc.Warnings.AddRange(anim.Warnings);
             if (anim.MaxBone > 0 && anim.AnmPath == null)
-                sc.Warnings.Add("NO ANIMATION FILE FOUND for " + sc.Title + " — every part poses at " +
+                sc.Warnings.Add(Loc.F("NO ANIMATION FILE FOUND for {0} — every part poses at " +
                     "identity and piles on the origin. Keep the ANIM folder beside the model's folder " +
-                    "(like the extracted disc layout) so the skeleton can be posed.");
+                    "(like the extracted disc layout) so the skeleton can be posed.", sc.Title));
 
             sc.BuildMaterialAtlas(anim);
             return sc;
@@ -1059,7 +1071,7 @@ namespace SilentHillPC_Launcher
 
             var sc = new IlmViewScene();
             sc.Title = Path.GetFileName(path) +
-                       (tmd.ObjectCount > 1 ? "  (" + tmd.ObjectCount + " objects)" : "");
+                       (tmd.ObjectCount > 1 ? "  " + Loc.F("({0} objects)", tmd.ObjectCount) : "");
             sc.Parts = tmd.ObjectCount;
             sc.VertexCount = ts.Vx.Length;
             sc.Vx = ts.Vx;
@@ -1150,7 +1162,7 @@ namespace SilentHillPC_Launcher
                         string[] c = p[i + 1].Split('/');
                         vi[i] = int.Parse(c[0], inv) - 1;
                         ti[i] = (c.Length > 1 && c[1].Length > 0) ? int.Parse(c[1], inv) - 1 : -1;
-                        if (vi[i] < 0 || vi[i] >= vx.Count) { error = "face references vertex " + (vi[i] + 1) + " which does not exist"; return null; }
+                        if (vi[i] < 0 || vi[i] >= vx.Count) { error = Loc.F("face references vertex {0} which does not exist", vi[i] + 1); return null; }
                     }
                     // Fan-triangulate the polygon loop; OBJ corner order is already a loop.
                     for (int i = 1; i + 1 < n; i++)
@@ -1174,7 +1186,7 @@ namespace SilentHillPC_Launcher
                     }
                 }
             }
-            if (vx.Count == 0 || sc.Tris.Count == 0) { error = "no geometry found in " + Path.GetFileName(path); return null; }
+            if (vx.Count == 0 || sc.Tris.Count == 0) { error = Loc.F("no geometry found in {0}", Path.GetFileName(path)); return null; }
 
             sc.Vx = vx.ToArray(); sc.Vy = vy.ToArray(); sc.Vz = vz.ToArray();
             sc.VertexCount = vx.Count;

@@ -2399,7 +2399,11 @@ void Ipd_ChunkMaterialsApply(s_MapTerrain* map) // 0x800433B8
      * never be exhausted before the player's own cell gets its pages"); this
      * path never was. Two cells keeps the flight's surroundings textured while
      * claiming a small fraction of the pool. */
-    q19_12 _matDist = (g_PcConfig.preloadChunks && g_DebugCamEnabled && !g_DebugFogDisabled)
+    /* Not gated on the fog toggle: which chunks keep their texture pages has
+     * nothing to do with fog, and tying the two meant Numpad . silently
+     * changed what was textured -- the free camera now starts with fog off,
+     * which would have taken this path with it. */
+    q19_12 _matDist = (g_PcConfig.preloadChunks && g_DebugCamEnabled)
                           ? (q19_12)(2 * Q12_TO_Q8(CHUNK_CELL_SIZE))
                           : Q12(0.0f);
     if (g_PcConfig.drawDistancePct > 100 && _matDist == Q12(0.0f))

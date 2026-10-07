@@ -11,6 +11,9 @@
 #include "lang_text.h"     /* Pc_LangMenuText — port-written menu translations. */
 #include "pc_kanji.h"      /* NTSC-J SJIS glyph atlas. */
 #include "main/fileinfo.h" /* g_GameRegion */
+#include "pc_config.h"     /* g_PcConfig.textSize */
+
+#include <string.h>
 
 /* Retail PAL renders TEN map-message lines where NTSC-U/J render nine
  * (g_PcMapMsgLineMax, font_region.h); identical to FONT_12X16_LINE_COUNT_MAX on
@@ -32,6 +35,78 @@ static s32         s_PageNext; /* where the next page starts; 0 = none pending *
  * re-sets the colour to white every frame, so both have to be carried over. */
 static s16         s_PageColorId;
 static s32         s_PageAlign;
+
+/* Text Size (g_PcConfig.textSize) for the message being drawn: Q12 factor and
+ * the 240-line Y it grows from. 1.0 leaves every glyph on the original path. */
+static s32         s_MsgScale = Q12(1.0f);
+static s32         s_MsgAnchorY;
+
+/* One scaled message glyph. The layout is still computed at 1x; each glyph is
+ * then mapped about (0, s_MsgAnchorY), which scales its size, the advance and
+ * the line spacing together. A SPRT draws texels 1:1 and cannot be resized, so
+ * the low-res path draws a POLY_FT4 as well, from the same packet cursor its
+ * SPRTs would have used. Its UVs match the high-res FT4 the game already emits. */
+static void Pc_MsgGlyphQuad(GsOT* ot, PACKET** lowResPacket, s32 x, s32 y,
+                            u32 u, u32 v, u32 clut, u32 page, u32 color)
+{
+    bool      hiRes = g_SysWork.enableHighResGlyphs;
+    POLY_FT4* poly  = (POLY_FT4*)(hiRes ? GsOUT_PACKET_P : *lowResPacket);
+    s32       yMul  = hiRes ? 2 : 1;
+    s32       ay    = s_MsgAnchorY * yMul;
+    s32       x0    = (x * s_MsgScale) >> 12;
+    s32       y0    = ay + (((y * yMul) - ay) * s_MsgScale >> 12);
+    s32       w     = (FONT_12X16_GLYPH_SIZE_X * s_MsgScale) >> 12;
+    s32       h     = ((hiRes ? g_FontLayout->hiResGlyphBottom : 15) * s_MsgScale) >> 12;
+
+    setPolyFT4(poly);
+    setRGB0(poly, (s8)color, (s8)(color >> 8), (s8)(color >> 16));
+    setXY4(poly, x0, y0, x0, y0 + h, x0 + w, y0, x0 + w, y0 + h);
+
+    *((u32*)&poly->u0) = u + (v << 8) + (clut << 16);
+    *((u32*)&poly->u1) = u + (page << 16) + ((v + 15) << 8);
+    *((u16*)&poly->u2) = (u16)(u + FONT_12X16_GLYPH_SIZE_X + (v << 8));
+    *((u16*)&poly->u3) = (u16)(u + FONT_12X16_GLYPH_SIZE_X + ((v + 15) << 8));
+
+    addPrim(ot, poly);
+    if (hiRes)
+        GsOUT_PACKET_P = (PACKET*)poly + sizeof(POLY_FT4);
+    else
+        *lowResPacket = (PACKET*)poly + sizeof(POLY_FT4);
+}
+
+/* Pick the scale for a message block and where it grows from: boxes at the
+ * bottom of the screen grow upward from their last line, the rest downward
+ * from their first. Shrunk as needed so the widest line and the whole block
+ * stay on screen. Lines are centred on x = 0 unless an inset (~T) starts them
+ * at -120, which is the extent that has to fit then. */
+static void Pc_MsgScaleSetup(s32 blockTop, s32 lineCount, s32 longestLineWidth, u8 positionIdx, bool inset)
+{
+    s32 scale   = (s32)((g_PcConfig.textSize * 4096.0f) / 100.0f);
+    s32 height  = lineCount * FONT_12X16_GLYPH_SIZE_Y;
+    int fromBot = (positionIdx == 1 || positionIdx == 3 || positionIdx == 4);
+    s32 halfW   = longestLineWidth >> 1;
+    s32 room;
+
+    if (inset)
+        halfW = (longestLineWidth - 120 > 120) ? (longestLineWidth - 120) : 120;
+
+    s_MsgAnchorY = fromBot ? (blockTop + height) : blockTop;
+
+    if (scale <= Q12(1.0f) || lineCount <= 0)
+    {
+        s_MsgScale = Q12(1.0f);
+        return;
+    }
+
+    if (halfW > 0 && ((s64)halfW * scale >> 12) > 152)
+        scale = (s32)(((s64)152 << 12) / halfW);
+
+    room = fromBot ? (s_MsgAnchorY + 116) : (116 - s_MsgAnchorY);
+    if (height > 0 && ((s64)height * scale >> 12) > room)
+        scale = (s32)(((s64)room << 12) / height);
+
+    s_MsgScale = (scale > Q12(1.0f)) ? scale : Q12(1.0f);
+}
 
 void Pc_MapMsgPageReset(void)
 {
@@ -802,6 +877,13 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
             glyphPosX          = -120;
         }
     }
+
+    {
+        char tabCode[3] = { MAP_MSG_CODE_MARKER, MAP_MSG_CODE_TAB, '\0' };
+
+        Pc_MsgScaleSetup(g_StringPosition.vy, g_MapMsg_WidthIdx, longestLineWidth, (u8)D_800C38B0.positionIdx,
+                         result == MapMsgCode_SetByT || strstr(mapMsg, tabCode) != NULL);
+    }
 #endif
 
     // Parse string.
@@ -1006,7 +1088,12 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
                 if (Pc_KanjiCell((u16)(((u32)(u8)charCode << 8) | ((u8*)mapMsg)[1]),
                                  &kPage, &kU, &kV, &kClut))
                 {
-                    if (g_SysWork.enableHighResGlyphs)
+                    if (s_MsgScale != Q12(1.0f))
+                    {
+                        Pc_MsgGlyphQuad(ot, &packet, glyphPosX, glyphPosY,
+                                        (u32)kU, (u32)kV, (u32)kClut, kPage, color);
+                    }
+                    else if (g_SysWork.enableHighResGlyphs)
                     {
                         glyphPoly = (POLY_FT4*)GsOUT_PACKET_P;
 
@@ -1093,7 +1180,12 @@ s32 Gfx_MapMsg_StringDraw(char* mapMsg, s32 strLength) // 0x8004AF18
                     page      = g_FontLayout->tpageBase + (row / g_FontLayout->rowsPerPage);
                     temp_a0   = (idx % FONT_12X16_ATLAS_COLUMN_COUNT) * FONT_12X16_GLYPH_SIZE_X;
 
-                    if (g_SysWork.enableHighResGlyphs)
+                    if (s_MsgScale != Q12(1.0f))
+                    {
+                        Pc_MsgGlyphQuad(ot, &packet, glyphPosX, drawY, (u32)temp_a0, (u32)vTop,
+                                        (u32)g_FontLayout->packedClut, page, color);
+                    }
+                    else if (g_SysWork.enableHighResGlyphs)
                     {
                         glyphPoly = (POLY_FT4*)GsOUT_PACKET_P;
 

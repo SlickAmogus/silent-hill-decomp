@@ -15,7 +15,10 @@
  * The file is UTF-8 `KEY=value`, keyed exactly as the extractor names things:
  *   COMMON.<0-14>          shared prompts (every map's message indices 0-14)
  *   MAP<n>_S<nn>.<idx>     per-map story text, indices 15+
- *   MENU.<us literal>      menu/UI, keyed by the compiled string minus \x01
+ *   MENU.<us literal>      menu/UI, keyed by the compiled string minus \x01,
+ *                          '=' written as '-'
+ *   QUICK.<english>        TrueType overlays (quick menu, controls panel,
+ *                          confirm boxes); ' ' written as '_', '=' as '-'
  *   ITEM_NAME.<idx>        inventory names   (idx = item id - 32)
  *   ITEM_DESC.<idx>        inventory descriptions
  * Values are already in engine format ('_' = rendered space, ~X codes intact);
@@ -48,5 +51,11 @@ const char* Pc_LangPackItemDesc(int itemIdx);
 /* Menu lookup keyed by the compiled US literal, matching the Gfx_StringDraw
  * chokepoint in lang_menu.c. Handles the \x01 kerning bytes itself. */
 const char* Pc_LangPackMenu(const char* us);
+
+/* The same entries as UTF-8 text, untouched by the font transcode, for the
+ * PC overlays that draw with a TrueType font (quick menu, controls panel).
+ * Kept for MENU.* and QUICK.* keys only; NULL when absent. */
+const char* Pc_LangPackUtf8(const char* key);
+const char* Pc_LangPackMenuUtf8(const char* us);
 
 #endif

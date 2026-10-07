@@ -40,17 +40,95 @@ built-in quick lists.
 | `about` / `credits` | PC port credits: build id plus the same block the staff roll appends. |
 | `pccredits [0\|1]` | Append the PC Port Credits block to the end of the staff roll (toggles if no arg). The roll's scroll rate is its length divided by its line count, so the extra lines tighten the step slightly and the roll still ends on the music. Config key `pc_port_credits`. **(saved)** |
 
+## Selecting things in the scene
+
+With the console open the pointer is live over the picture. **Left-click a character**
+below the console panel to select it; **right-click** anywhere to deselect. Both print
+to the console, and a selection carries the NPC slot so you can tell two of the same
+monster apart:
+
+```
+selected npc[3] GROANER  hp 1.0  pos (12.3, 0.0, -4.5)  scale 1.00
+deselected npc[3] GROANER
+```
+
+The panel covers the top of the screen, so **hold TAB** to hide it while keeping the
+pointer live: the whole picture becomes clickable, and releasing TAB brings the panel
+back exactly as it was.
+
+Characters and **props** can both be picked. A prop here means a world object: the map, flashlight, radio and knife pickups, map-event objects and cutscene props. Furniture baked into the room mesh is not a separate object to the engine, so it cannot be picked individually. Only things the game is
+currently drawing are pickable, and the nearest one wins
+when two overlap; a character beats a prop at the same depth. Harry is pickable like anything else.
+
+| Command | Description |
+|---|---|
+| `select` | Show the current selection. |
+| `select clear` | Drop it (same as right-click). |
+| `select player` | Select Harry without clicking, for the cameras that hide him. |
+| `select nearest` | Select the nearest live enemy to Harry. |
+| `scale <f>` | Resize the selected character or prop, `0.05`..`20`. Bare `scale` reports the current value. For a character the hit volume scales with it, so a giant Groaner is hittable over the body you can see and is blocked by walls at its own size. The model grows about its root bone rather than its feet. Per NPC slot, forgotten when that slot is recycled into a different monster; props are remembered by placement, up to 32 at a time. |
+| `health [n]` | Show the selection's health, or set it to `n`. With nothing selected it acts on Harry (capped at 100). Use `kill` rather than `health 0`. |
+| `heal` | Refill the selection's health: Harry to 100, an enemy to the highest health it has had since it appeared (enemies set their own health on their first frame and have no max-health field). |
+| `info` | Name, character id, health, position, facing, scale, and for an enemy its AI state and whether it is frozen. Harry when nothing is selected; a prop reports its placement and scale. |
+| `goto` | Move Harry next to the selected enemy or prop, on his side of it and facing it, dropped onto the floor there. |
+| `bring` | Move the selected enemy two units in front of Harry, facing him. Props cannot be moved. Unfreeze a frozen enemy first: it keeps drawing its last pose until it runs again. |
+| `freeze [0\|1]` | Hold the selected enemy still: its AI does not run, so it neither moves nor attacks, and damage dealt to it lands when it is unfrozen (`kill` unfreezes it). Bare `freeze` toggles. `freeze all` / `freeze none` act on every enemy in the room; `unfreeze` is `freeze 0`. |
+
+## Custom key binds
+
+`bind` runs console commands from a key. It is a **separate system** from the control
+binds in Options: a key already driving Harry can carry a bind, it is the same key in
+every camera mode, and editing or clearing the control binds never touches it.
+
+```
+bind k kill
+bind f give shotgun;give shotgunammo;spawn groaner;spawn groaner
+```
+
+Commands are separated by `;` and run in order on the key press. Binds are written to
+`config.cfg` in their own section, as the lines you typed, so a set can be copied out,
+pasted into a message, and pasted back:
+
+```
+# --- Custom key binds (console: bind / unbind / unbindall) ---
+bind K KILL
+bind F GIVE SHOTGUN;SPAWN GROANER
+```
+
+| Command | Description |
+|---|---|
+| `bind` | Usage. |
+| `bind <key> <cmd>[;<cmd>...]` | Bind a key, replacing any bind already on it. **(saved)** |
+| `bind list` | Show every bind. |
+| `unbind <key>` | Clear one. **(saved)** |
+| `unbindall` | Clear them all. **(saved)** |
+
+The command list may be wrapped in quotes if you prefer (`bind k "kill;spawn groaner"`); they are stripped. The console types `; : ' " , < / ? [ { ] } \ |` as well as letters, digits, space, `-`, `=` and `.`, so the separator can actually be entered.
+
+Refused: the console key, Escape, Enter, Backspace, Tab and the modifiers, and a bind
+may not contain `bind`/`unbind` (or pressing a key could silently rewrite your other
+binds). Up to 48 binds. They need `allow_debug_controls` on, same as the console, so a
+shared config cannot hand someone cheats they never switched on; `bind list` says so
+when it is off.
+
 ## Cheats / items / flags
 
 | Command | Description |
 |---|---|
 | `give <item>` | Give a weapon/ammo/recovery/story item. See `help give` / `help give 2`. `give allweapons` = all melee + guns + ammo + gas. |
-| `kill` | Kill Harry (plays the death animation). |
+| `kill` | Kill the current selection: a selected enemy takes lethal damage and runs its own death path. With nothing selected (or Harry selected) it kills Harry, as before. |
 | `killall` | Kill all enemies within ~50 units of Harry. |
 | `spawn list` | List monsters loaded in the current map. |
 | `spawn <name> [state]` | Spawn a monster in front of Harry. |
 | `unlimited [0\|1]` | Raise the concurrent-enemy cap to the PC max (toggles if no arg). |
-| `noclip` | Walk through walls (floor collision stays on). Same as debug key `0`. |
+| `noclip` | Walk through walls (floor collision stays on). |
+| `infammo [0\|1]` | Fire without spending ammo, so clips never empty and guns never need reloading. Affects only the guns you already carry: it suppresses the ammo decrement rather than granting rounds, so nothing is ever added to or removed from your inventory. The automatic reload-on-empty is held off while it is on, since that is the one path that would move rounds out of the inventory. Off restores normal ammo use exactly. Also a Quick Options > Cheats row. |
+| `notarget [0\|1]` | Enemies ignore Harry. |
+| `freecam [0\|1]` | Free camera: mouse look, W/A/S/D, Space/C up/down, Shift fast, Ctrl slow. |
+| `collvis [0\|1]` | Collision visualizer panel. |
+| `fastforward [0\|1]` / `ff` | Speed the game up (the sticky toggle, not the Ctrl+F5 hold). |
+| `wireframe [0\|1]` | Wireframe rendering. |
+| `notex [0\|1]` | Disable textures. |
 | `getflags` | Show ending flags. |
 | `setflag <n> <0\|1>` | Set any event flag by index. |
 | `setending <bad\|bad+\|good\|good+>` | Set the ending flags. |
@@ -99,6 +177,7 @@ built-in quick lists.
 |---|---|
 | `invaspect [0\|1]` | Inventory item proportions: PSX-faithful vs square (true). |
 | `invscale <50..200>` | Inventory item vertical scale (% of square; default `125`). |
+| `textsize <100..150>` | Size of subtitles, memos and other in-game messages, in percent (saved as `text_size`; also Options > HUD). Menus keep their size; a message that would leave the screen is drawn as large as fits. |
 | `invcary <n>` | Carousel item Y offset (+ down). |
 | `inveqy <n>` | Equipped item Y offset (+ down). |
 | `invdim <0..100>` | Off-center carousel dim strength (%). |

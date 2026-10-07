@@ -488,3 +488,18 @@ const char* Pc_RuMenuText(const char* us)
     }
     return NULL;
 }
+
+const char* Pc_RuMenuUtf8(const char* us)
+{
+    int i;
+
+    if (s_Active == NULL || us == NULL)
+        return NULL;
+
+    for (i = 0; i < RU_MENU_COUNT; i++)
+    {
+        if (s_RuMenu[i].us[0] == us[0] && strcmp(s_RuMenu[i].us, us) == 0)
+            return s_RuMenu[i].ru;
+    }
+    return NULL;
+}

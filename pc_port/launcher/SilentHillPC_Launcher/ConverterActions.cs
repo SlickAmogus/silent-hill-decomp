@@ -23,8 +23,8 @@ namespace SilentHillPC_Launcher
             string ilm;
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select a character model (.ILM)";
-                ofd.Filter = "Model files (*.ilm)|*.ilm|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select a character model (.ILM)");
+                ofd.Filter = Loc.T("Model files") + " (*.ilm)|*.ilm|" + Loc.T("All files") + " (*.*)|*.*";
                 string gamedata = Path.Combine(gameRoot, "gamedata");
                 if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
                 if (ofd.ShowDialog(owner) != DialogResult.OK) return;
@@ -40,8 +40,8 @@ namespace SilentHillPC_Launcher
             string outObj;
             using (var sfd = new SaveFileDialog())
             {
-                sfd.Title = "Save model as OBJ";
-                sfd.Filter = "Wavefront OBJ (*.obj)|*.obj|All files (*.*)|*.*";
+                sfd.Title = Loc.T("Save model as OBJ");
+                sfd.Filter = "Wavefront OBJ (*.obj)|*.obj|" + Loc.T("All files") + " (*.*)|*.*";
                 sfd.InitialDirectory = Path.GetDirectoryName(ilm);
                 sfd.FileName = Path.GetFileNameWithoutExtension(ilm) + ".obj";
                 if (sfd.ShowDialog(owner) != DialogResult.OK) return;
@@ -51,20 +51,20 @@ namespace SilentHillPC_Launcher
             IlmObjConverter.ExportResult res = null;
             try
             {
-                ProgressDialog.Run(owner, "Exporting model…",
+                ProgressDialog.Run(owner, Loc.T("Exporting model…"),
                     r => { res = IlmObjConverter.Export(ilm, outObj); });
             }
             catch (Exception ex)
             {
-                MessageBox.Show(owner, "Export failed:\n\n" + ex.Message,
-                    "Model → OBJ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(owner, Loc.F("Export failed:\n\n{0}", ex.Message),
+                    Loc.T("Model → OBJ"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             if (res == null || !string.IsNullOrEmpty(res.Error))
             {
-                MessageBox.Show(owner, "Export failed:\n\n" + (res != null ? res.Error : "unknown error"),
-                    "Model → OBJ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(owner, Loc.F("Export failed:\n\n{0}", res != null ? res.Error : Loc.T("unknown error")),
+                    Loc.T("Model → OBJ"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -75,27 +75,27 @@ namespace SilentHillPC_Launcher
             // the round-trip. Silently skipped when no .TIM sits beside the .ILM.
             string texNote = TextureExportedObj(ilm, res.ObjPath, res.MtlPath);
 
-            string msg = "Wrote " + res.Parts + " body part(s), " + res.Vertices + " vertices, " +
-                res.Prims + " face(s) and " + res.Materials + " material(s):\n" + res.ObjPath +
-                "\n\nBeside it: " + Path.GetFileName(res.MtlPath) + " and " + Path.GetFileName(res.MetaPath) +
-                " — keep the .ilmmeta.json, \"OBJ → Model…\" needs it.\n\n" +
-                "In Blender, each object is one rigid animated body part: move and reshape " +
-                "vertices freely, but do not rename, add or remove objects.";
+            string msg = Loc.F("Wrote {0} body part(s), {1} vertices, {2} face(s) and {3} material(s):",
+                               res.Parts, res.Vertices, res.Prims, res.Materials) + "\n" + res.ObjPath +
+                "\n\n" + Loc.F("Beside it: {0} and {1} — keep the .ilmmeta.json, \"{2}\" needs it.",
+                               Path.GetFileName(res.MtlPath), Path.GetFileName(res.MetaPath), Loc.T("OBJ → Model ▾")) +
+                "\n\n" + Loc.T("In Blender, each object is one rigid animated body part: move and reshape " +
+                               "vertices freely, but do not rename, add or remove objects.");
             if (texNote != null) msg += "\n\n" + texNote;
             if (res.Dangling > 0)
-                msg += "\n\nNote: " + res.Dangling + " face corner(s) point at a vertex outside their own part, " +
+                msg += "\n\n" + Loc.F("Note: {0} face corner(s) point at a vertex outside their own part, " +
                        "so the OBJ substitutes that part's first vertex there — those few corners look wrong in " +
-                       "Blender and are restored on import.";
+                       "Blender and are restored on import.", res.Dangling);
             // res.Warnings carries the exporter's rest-pose diagnosis: when res.AnmName is null it explains
             // that every part is in its own local space and will pile on the origin in Blender — a failure the
             // user cannot diagnose from the model itself, so it must not be swallowed by the success dialog.
             if (res.Warnings.Count > 0)
-                msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
+                msg += "\n\n" + Loc.F("Warnings ({0}):", res.Warnings.Count) + "\n - " +
                        string.Join("\n - ", res.Warnings.Take(8)) +
                        (res.Warnings.Count > 8 ? "\n - …" : "");
             bool warn = res.Dangling > 0 || res.Warnings.Count > 0;
-            if (MessageBox.Show(owner, msg + "\n\nOpen the output folder?",
-                    "Model → OBJ", MessageBoxButtons.YesNo,
+            if (MessageBox.Show(owner, msg + "\n\n" + Loc.T("Open the output folder?"),
+                    Loc.T("Model → OBJ"), MessageBoxButtons.YesNo,
                     warn ? MessageBoxIcon.Warning : MessageBoxIcon.Information) == DialogResult.Yes)
             {
                 try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.ObjPath)); } catch { }
@@ -110,8 +110,8 @@ namespace SilentHillPC_Launcher
             string tmd;
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select an item model (.TMD)";
-                ofd.Filter = "PSX item models (*.tmd)|*.tmd|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select an item model (.TMD)");
+                ofd.Filter = Loc.T("PSX item models") + " (*.tmd)|*.tmd|" + Loc.T("All files") + " (*.*)|*.*";
                 string items = Path.Combine(Path.Combine(gameRoot, "gamedata"), "ITEM");
                 string gamedata = Path.Combine(gameRoot, "gamedata");
                 if (Directory.Exists(items)) ofd.InitialDirectory = items;
@@ -129,8 +129,8 @@ namespace SilentHillPC_Launcher
             string outObj;
             using (var sfd = new SaveFileDialog())
             {
-                sfd.Title = "Save item model as OBJ";
-                sfd.Filter = "Wavefront OBJ (*.obj)|*.obj|All files (*.*)|*.*";
+                sfd.Title = Loc.T("Save item model as OBJ");
+                sfd.Filter = "Wavefront OBJ (*.obj)|*.obj|" + Loc.T("All files") + " (*.*)|*.*";
                 sfd.InitialDirectory = Path.GetDirectoryName(tmd);
                 sfd.FileName = Path.GetFileNameWithoutExtension(tmd) + ".obj";
                 if (sfd.ShowDialog(owner) != DialogResult.OK) return;
@@ -148,7 +148,7 @@ namespace SilentHillPC_Launcher
                 var probe = TmdFile.Load(tmd, out terr);
                 if (probe == null)
                 {
-                    MessageBox.Show(owner, "Could not read the model:\n\n" + terr, "TMD → OBJ",
+                    MessageBox.Show(owner, Loc.F("Could not read the model:\n\n{0}", terr), Loc.T("TMD → OBJ"),
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
@@ -169,38 +169,40 @@ namespace SilentHillPC_Launcher
             TmdObjConverter.ExportResult res = null;
             try
             {
-                ProgressDialog.Run(owner, "Exporting item model…",
+                ProgressDialog.Run(owner, Loc.T("Exporting item model…"),
                     r => { res = TmdObjConverter.Export(tmd, outObj, tpage14); });
             }
             catch (Exception ex)
             {
-                MessageBox.Show(owner, "Export failed:\n\n" + ex.Message, "TMD → OBJ",
+                MessageBox.Show(owner, Loc.F("Export failed:\n\n{0}", ex.Message), Loc.T("TMD → OBJ"),
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             if (res == null || !string.IsNullOrEmpty(res.Error))
             {
-                MessageBox.Show(owner, "Export failed:\n\n" + (res != null ? res.Error : "unknown error"),
-                    "TMD → OBJ", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(owner, Loc.F("Export failed:\n\n{0}", res != null ? res.Error : Loc.T("unknown error")),
+                    Loc.T("TMD → OBJ"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            string msg = "Wrote " + res.Objects + " object(s), " + res.Vertices + " vertices, " +
-                res.Prims + " face(s) and " + res.Materials + " material(s):\n" + res.ObjPath +
-                "\n\nBeside it: " + Path.GetFileName(res.MtlPath) + " and " + Path.GetFileName(res.MetaPath) +
-                (res.Pages > 0 ? " plus " + res.Pages + " texture page PNG(s)" : "") + ".";
+            string msg = Loc.F("Wrote {0} object(s), {1} vertices, {2} face(s) and {3} material(s):",
+                               res.Objects, res.Vertices, res.Prims, res.Materials) + "\n" + res.ObjPath +
+                "\n\n" + (res.Pages > 0
+                    ? Loc.F("Beside it: {0} and {1} plus {2} texture page PNG(s).",
+                            Path.GetFileName(res.MtlPath), Path.GetFileName(res.MetaPath), res.Pages)
+                    : Loc.F("Beside it: {0} and {1}.", Path.GetFileName(res.MtlPath), Path.GetFileName(res.MetaPath)));
             if (res.Objects > 1)
-                msg += "\n\nThis is a BANK: its " + res.Objects + " items are separate objects that all sit " +
+                msg += "\n\n" + Loc.F("This is a BANK: its {0} items are separate objects that all sit " +
                        "on the origin (a TMD stores no placement), so they overlap in Blender. " +
-                       "Hide all but the one you are editing.";
-            msg += "\n\nEdit vertex positions freely, but do not add, remove or rename objects, " +
-                   "and do not add, delete or triangulate faces — \"OBJ → TMD\" patches the original " +
-                   "file and needs the topology intact.";
+                       "Hide all but the one you are editing.", res.Objects);
+            msg += "\n\n" + Loc.F("Edit vertex positions freely, but do not add, remove or rename objects, " +
+                   "and do not add, delete or triangulate faces — \"{0}\" patches the original " +
+                   "file and needs the topology intact.", Loc.T("Item model (.TMD) — reshape…"));
             if (res.Warnings.Count > 0)
-                msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
+                msg += "\n\n" + Loc.F("Warnings ({0}):", res.Warnings.Count) + "\n - " +
                        string.Join("\n - ", res.Warnings.Take(8)) +
                        (res.Warnings.Count > 8 ? "\n - …" : "");
-            if (MessageBox.Show(owner, msg + "\n\nOpen the output folder?", "TMD → OBJ",
+            if (MessageBox.Show(owner, msg + "\n\n" + Loc.T("Open the output folder?"), Loc.T("TMD → OBJ"),
                     MessageBoxButtons.YesNo,
                     res.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information) == DialogResult.Yes)
             { try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.ObjPath)); } catch { } }
@@ -214,8 +216,8 @@ namespace SilentHillPC_Launcher
             string obj;
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select your edited item model (.obj)";
-                ofd.Filter = "Wavefront OBJ (*.obj)|*.obj|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select your edited item model (.obj)");
+                ofd.Filter = "Wavefront OBJ (*.obj)|*.obj|" + Loc.T("All files") + " (*.*)|*.*";
                 string gamedata = Path.Combine(gameRoot, "gamedata");
                 if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
                 if (ofd.ShowDialog(owner) != DialogResult.OK) return;
@@ -225,8 +227,8 @@ namespace SilentHillPC_Launcher
             string tmd = GuessTmdFor(obj);
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select the ORIGINAL item model (.TMD) this OBJ came from";
-                ofd.Filter = "PSX item models (*.tmd)|*.tmd|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select the ORIGINAL item model (.TMD) this OBJ came from");
+                ofd.Filter = Loc.T("PSX item models") + " (*.tmd)|*.tmd|" + Loc.T("All files") + " (*.*)|*.*";
                 if (tmd != null) { ofd.InitialDirectory = Path.GetDirectoryName(tmd); ofd.FileName = Path.GetFileName(tmd); }
                 else ofd.InitialDirectory = Path.GetDirectoryName(obj);
                 if (ofd.ShowDialog(owner) != DialogResult.OK) return;
@@ -236,8 +238,8 @@ namespace SilentHillPC_Launcher
             string outTmd;
             using (var sfd = new SaveFileDialog())
             {
-                sfd.Title = "Save the patched item model";
-                sfd.Filter = "PSX item models (*.tmd)|*.tmd|All files (*.*)|*.*";
+                sfd.Title = Loc.T("Save the patched item model");
+                sfd.Filter = Loc.T("PSX item models") + " (*.tmd)|*.tmd|" + Loc.T("All files") + " (*.*)|*.*";
                 sfd.InitialDirectory = Path.GetDirectoryName(obj);
                 sfd.FileName = Path.GetFileName(tmd);
                 if (sfd.ShowDialog(owner) != DialogResult.OK) return;
@@ -245,42 +247,42 @@ namespace SilentHillPC_Launcher
             }
             if (string.Equals(Path.GetFullPath(outTmd), Path.GetFullPath(tmd), StringComparison.OrdinalIgnoreCase))
             {
-                MessageBox.Show(owner, "Choose a different output file — the original is the template " +
-                    "and overwriting it would leave you with nothing to import against next time.",
-                    "OBJ → TMD", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(owner, Loc.T("Choose a different output file — the original is the template " +
+                    "and overwriting it would leave you with nothing to import against next time."),
+                    Loc.T("OBJ → TMD"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             TmdObjConverter.ImportResult res = null;
             try
             {
-                ProgressDialog.Run(owner, "Patching item model…",
+                ProgressDialog.Run(owner, Loc.T("Patching item model…"),
                     r => { res = TmdObjConverter.Import(obj, tmd, outTmd); });
             }
             catch (Exception ex)
             {
-                MessageBox.Show(owner, "Import failed:\n\n" + ex.Message, "OBJ → TMD",
+                MessageBox.Show(owner, Loc.F("Import failed:\n\n{0}", ex.Message), Loc.T("OBJ → TMD"),
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             if (res == null || !string.IsNullOrEmpty(res.Error))
             {
-                MessageBox.Show(owner, "Import failed:\n\n" + (res != null ? res.Error : "unknown error"),
-                    "OBJ → TMD", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(owner, Loc.F("Import failed:\n\n{0}", res != null ? res.Error : Loc.T("unknown error")),
+                    Loc.T("OBJ → TMD"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            string msg = "Patched " + res.Objects + " object(s): " + res.Vertices + " vertices, " +
-                res.Normals + " normals and " + res.Uvs + " texture coordinate(s).\n" + res.OutPath +
-                "\n\nDrop it into gamedata\\load\\ITEM\\ under the ORIGINAL name (" +
-                Path.GetFileName(tmd) + ") and set allow_loose_files = 1." +
-                "\n\nKeep the CLUT and tpage words as they were: a modded TMD has to reuse the " +
-                "stock VRAM pages, because the game decides what is uploaded there.";
+            string msg = Loc.F("Patched {0} object(s): {1} vertices, {2} normals and {3} texture coordinate(s).",
+                               res.Objects, res.Vertices, res.Normals, res.Uvs) + "\n" + res.OutPath +
+                "\n\n" + Loc.F("Drop it into gamedata\\load\\ITEM\\ under the ORIGINAL name ({0}) and set allow_loose_files = 1.",
+                               Path.GetFileName(tmd)) +
+                "\n\n" + Loc.T("Keep the CLUT and tpage words as they were: a modded TMD has to reuse the " +
+                               "stock VRAM pages, because the game decides what is uploaded there.");
             if (res.Warnings.Count > 0)
-                msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
+                msg += "\n\n" + Loc.F("Warnings ({0}):", res.Warnings.Count) + "\n - " +
                        string.Join("\n - ", res.Warnings.Take(10)) +
                        (res.Warnings.Count > 10 ? "\n - …" : "");
-            if (MessageBox.Show(owner, msg + "\n\nOpen the output folder?", "OBJ → TMD",
+            if (MessageBox.Show(owner, msg + "\n\n" + Loc.T("Open the output folder?"), Loc.T("OBJ → TMD"),
                     MessageBoxButtons.YesNo,
                     res.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information) == DialogResult.Yes)
             { try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.OutPath)); } catch { } }
@@ -294,8 +296,8 @@ namespace SilentHillPC_Launcher
             string obj;
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select your replacement model (.obj)";
-                ofd.Filter = "Wavefront OBJ (*.obj)|*.obj|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select your replacement model (.obj)");
+                ofd.Filter = "Wavefront OBJ (*.obj)|*.obj|" + Loc.T("All files") + " (*.*)|*.*";
                 string gamedata = Path.Combine(gameRoot, "gamedata");
                 if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
                 if (ofd.ShowDialog(owner) != DialogResult.OK) return;
@@ -305,8 +307,8 @@ namespace SilentHillPC_Launcher
             string tmd = GuessTmdFor(obj);
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select the ORIGINAL item model (.TMD) to replace";
-                ofd.Filter = "PSX item models (*.tmd)|*.tmd|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select the ORIGINAL item model (.TMD) to replace");
+                ofd.Filter = Loc.T("PSX item models") + " (*.tmd)|*.tmd|" + Loc.T("All files") + " (*.*)|*.*";
                 if (tmd != null) { ofd.InitialDirectory = Path.GetDirectoryName(tmd); ofd.FileName = Path.GetFileName(tmd); }
                 else ofd.InitialDirectory = Path.GetDirectoryName(obj);
                 if (ofd.ShowDialog(owner) != DialogResult.OK) return;
@@ -316,8 +318,8 @@ namespace SilentHillPC_Launcher
             string outTmd;
             using (var sfd = new SaveFileDialog())
             {
-                sfd.Title = "Save the rebuilt item model";
-                sfd.Filter = "PSX item models (*.tmd)|*.tmd|All files (*.*)|*.*";
+                sfd.Title = Loc.T("Save the rebuilt item model");
+                sfd.Filter = Loc.T("PSX item models") + " (*.tmd)|*.tmd|" + Loc.T("All files") + " (*.*)|*.*";
                 sfd.InitialDirectory = Path.GetDirectoryName(obj);
                 sfd.FileName = Path.GetFileName(tmd);
                 if (sfd.ShowDialog(owner) != DialogResult.OK) return;
@@ -325,45 +327,47 @@ namespace SilentHillPC_Launcher
             }
             if (string.Equals(Path.GetFullPath(outTmd), Path.GetFullPath(tmd), StringComparison.OrdinalIgnoreCase))
             {
-                MessageBox.Show(owner, "Choose a different output file — the original supplies the texture " +
-                    "bindings for every rebuild, so overwriting it would leave you without a template.",
-                    "OBJ → TMD (replace)", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(owner, Loc.T("Choose a different output file — the original supplies the texture " +
+                    "bindings for every rebuild, so overwriting it would leave you without a template."),
+                    Loc.T("OBJ → TMD (replace)"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             TmdObjConverter.RebuildResult res = null;
             try
             {
-                ProgressDialog.Run(owner, "Rebuilding item model…",
+                ProgressDialog.Run(owner, Loc.T("Rebuilding item model…"),
                     r => { res = TmdObjConverter.Rebuild(obj, tmd, outTmd); });
             }
             catch (Exception ex)
             {
-                MessageBox.Show(owner, "Rebuild failed:\n\n" + ex.Message, "OBJ → TMD (replace)",
+                MessageBox.Show(owner, Loc.F("Rebuild failed:\n\n{0}", ex.Message), Loc.T("OBJ → TMD (replace)"),
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             if (res == null || !string.IsNullOrEmpty(res.Error))
             {
-                MessageBox.Show(owner, "Rebuild failed:\n\n" + (res != null ? res.Error : "unknown error"),
-                    "OBJ → TMD (replace)", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(owner, Loc.F("Rebuild failed:\n\n{0}", res != null ? res.Error : Loc.T("unknown error")),
+                    Loc.T("OBJ → TMD (replace)"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            string msg = "Rebuilt " + res.Objects + " object(s): " + res.Vertices + " vertices, " +
-                res.Normals + " normals, " + res.Prims + " face(s) (" + res.Tris + " tri, " + res.Quads +
-                " quad; " + res.Textured + " textured, " + res.Untextured + " flat), " + res.Bytes + " bytes.\n" +
+            string msg = Loc.F("Rebuilt {0} object(s): {1} vertices, {2} normals, {3} face(s) ({4} tri, {5} quad; " +
+                               "{6} textured, {7} flat), {8} bytes.",
+                               res.Objects, res.Vertices, res.Normals, res.Prims, res.Tris, res.Quads,
+                               res.Textured, res.Untextured, res.Bytes) + "\n" +
                 res.OutPath +
-                "\n\nDrop it into gamedata\\load\\ITEM\\ under the ORIGINAL name (" +
-                Path.GetFileName(tmd) + ") and set allow_loose_files = 1. Oversized models load through " +
-                "the engine's big-TMD path, which accepts up to 8192 vertices and 8192 faces per object." +
-                "\n\nTextures still come from the stock VRAM pages: keep using the tpNN_clutNN material " +
-                "names the exporter writes, and keep UVs inside the 256x256 page.";
+                "\n\n" + Loc.F("Drop it into gamedata\\load\\ITEM\\ under the ORIGINAL name ({0}) and set allow_loose_files = 1.",
+                               Path.GetFileName(tmd)) + " " +
+                Loc.T("Oversized models load through the engine's big-TMD path, which accepts up to 8192 " +
+                      "vertices and 8192 faces per object.") +
+                "\n\n" + Loc.T("Textures still come from the stock VRAM pages: keep using the tpNN_clutNN material " +
+                               "names the exporter writes, and keep UVs inside the 256x256 page.");
             if (res.Warnings.Count > 0)
-                msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
+                msg += "\n\n" + Loc.F("Warnings ({0}):", res.Warnings.Count) + "\n - " +
                        string.Join("\n - ", res.Warnings.Take(10)) +
                        (res.Warnings.Count > 10 ? "\n - …" : "");
-            if (MessageBox.Show(owner, msg + "\n\nOpen the output folder?", "OBJ → TMD (replace)",
+            if (MessageBox.Show(owner, msg + "\n\n" + Loc.T("Open the output folder?"), Loc.T("OBJ → TMD (replace)"),
                     MessageBoxButtons.YesNo,
                     res.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information) == DialogResult.Yes)
             { try { System.Diagnostics.Process.Start(Path.GetDirectoryName(res.OutPath)); } catch { } }
@@ -421,8 +425,8 @@ namespace SilentHillPC_Launcher
             string outIlm;
             using (var sfd = new SaveFileDialog())
             {
-                sfd.Title = "Save the rebuilt model";
-                sfd.Filter = "Model files (*.ilm)|*.ilm|All files (*.*)|*.*";
+                sfd.Title = Loc.T("Save the rebuilt model");
+                sfd.Filter = Loc.T("Model files") + " (*.ilm)|*.ilm|" + Loc.T("All files") + " (*.*)|*.*";
                 sfd.InitialDirectory = Path.GetDirectoryName(obj);
                 sfd.FileName = donorStem + ".ILM";
                 if (sfd.ShowDialog(owner) != DialogResult.OK) return;
@@ -434,38 +438,40 @@ namespace SilentHillPC_Launcher
             AtlasPrep.Result hp = null;
             try
             {
-                ProgressDialog.Run(owner, "Building high-poly model…",
+                ProgressDialog.Run(owner, Loc.T("Building high-poly model…"),
                     r => { hp = AtlasPrep.BuildHighPoly(obj, ilm, outIlm, atlasPng, geo, autoTex); });
             }
             catch (Exception ex)
             {
-                MessageBox.Show(owner, "High-poly build failed:\n\n" + ex.Message, "OBJ → Model",
+                MessageBox.Show(owner, Loc.F("High-poly build failed:\n\n{0}", ex.Message), Loc.T("OBJ → Model"),
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             if (hp == null || !string.IsNullOrEmpty(hp.Error))
             {
-                MessageBox.Show(owner, "High-poly build failed:\n\n" + (hp != null ? hp.Error : "unknown error"),
-                    "OBJ → Model", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(owner, Loc.F("High-poly build failed:\n\n{0}", hp != null ? hp.Error : Loc.T("unknown error")),
+                    Loc.T("OBJ → Model"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
-            string msg = "Built a high-poly model:\n" + outIlm;
+            string msg = Loc.T("Built a high-poly model:") + "\n" + outIlm;
             if (hp.AtlasPath != null)
-                msg += "\n" + atlasPng + "  (" + hp.Textures + " textures, " + hp.AtlasW + "x" + hp.AtlasH + ")";
+                msg += "\n" + atlasPng + "  " + Loc.F("({0} textures, {1}x{2})", hp.Textures, hp.AtlasW, hp.AtlasH);
             // The weld count is what says the joints will hold in motion, so it is
             // reported next to the file, not buried in the transcript.
             if (hp.Welds > 0)
-                msg += "\n\n" + hp.Welds + " cross-part weld(s): those joints follow the neighbouring part's " +
-                       "bone, so they stay closed when the model animates.";
-            msg += "\n\nDrop " + (hp.AtlasPath != null ? "BOTH files" : "the .ILM") + " into gamedata\\load\\CHARA\\ under " +
-                   "the ORIGINAL name" + (hp.AtlasPath != null ? "s (" + donorStem + ".ILM and " + donorStem + ".TIM.png)" :
-                   " (" + donorStem + ".ILM)") + " and set allow_loose_files = 1.";
+                msg += "\n\n" + Loc.F("{0} cross-part weld(s): those joints follow the neighbouring part's " +
+                       "bone, so they stay closed when the model animates.", hp.Welds);
+            msg += "\n\n" + (hp.AtlasPath != null
+                ? Loc.F("Drop BOTH files into gamedata\\load\\CHARA\\ under the ORIGINAL names ({0} and {1}) " +
+                        "and set allow_loose_files = 1.", donorStem + ".ILM", donorStem + ".TIM.png")
+                : Loc.F("Drop the .ILM into gamedata\\load\\CHARA\\ under the ORIGINAL name ({0}) " +
+                        "and set allow_loose_files = 1.", donorStem + ".ILM"));
             if (hp.Warnings.Count > 0)
-                msg += "\n\nWarnings (" + hp.Warnings.Count + "):\n - " +
+                msg += "\n\n" + Loc.F("Warnings ({0}):", hp.Warnings.Count) + "\n - " +
                        string.Join("\n - ", hp.Warnings.Take(10)) + (hp.Warnings.Count > 10 ? "\n - …" : "");
             var icon = hp.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information;
-            if (MessageBox.Show(owner, msg + "\n\nOpen the output folder?", "OBJ → Model",
+            if (MessageBox.Show(owner, msg + "\n\n" + Loc.T("Open the output folder?"), Loc.T("OBJ → Model"),
                     MessageBoxButtons.YesNo, icon) == DialogResult.Yes)
             { try { System.Diagnostics.Process.Start(Path.GetDirectoryName(outIlm)); } catch { } }
         }
@@ -477,8 +483,8 @@ namespace SilentHillPC_Launcher
             string obj;
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select your edited model (.obj)";
-                ofd.Filter = "Wavefront OBJ (*.obj)|*.obj|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select your edited model (.obj)");
+                ofd.Filter = "Wavefront OBJ (*.obj)|*.obj|" + Loc.T("All files") + " (*.*)|*.*";
                 string gamedata = Path.Combine(gameRoot, "gamedata");
                 if (Directory.Exists(gamedata)) ofd.InitialDirectory = gamedata;
                 if (ofd.ShowDialog(owner) != DialogResult.OK) return;
@@ -488,8 +494,8 @@ namespace SilentHillPC_Launcher
             string ilm = GuessIlmFor(obj);
             using (var ofd = new OpenFileDialog())
             {
-                ofd.Title = "Select the ORIGINAL model (.ILM) this OBJ was exported from";
-                ofd.Filter = "Model files (*.ilm)|*.ilm|All files (*.*)|*.*";
+                ofd.Title = Loc.T("Select the ORIGINAL model (.ILM) this OBJ was exported from");
+                ofd.Filter = Loc.T("Model files") + " (*.ilm)|*.ilm|" + Loc.T("All files") + " (*.*)|*.*";
                 if (ilm != null) { ofd.InitialDirectory = Path.GetDirectoryName(ilm); ofd.FileName = Path.GetFileName(ilm); }
                 else ofd.InitialDirectory = Path.GetDirectoryName(obj);
                 if (ofd.ShowDialog(owner) != DialogResult.OK) return;
@@ -499,8 +505,8 @@ namespace SilentHillPC_Launcher
             string outIlm;
             using (var sfd = new SaveFileDialog())
             {
-                sfd.Title = "Save the rebuilt model";
-                sfd.Filter = "Model files (*.ilm)|*.ilm|All files (*.*)|*.*";
+                sfd.Title = Loc.T("Save the rebuilt model");
+                sfd.Filter = Loc.T("Model files") + " (*.ilm)|*.ilm|" + Loc.T("All files") + " (*.*)|*.*";
                 sfd.InitialDirectory = Path.GetDirectoryName(obj);
                 sfd.FileName = Path.GetFileNameWithoutExtension(ilm) + "_new.ILM";
                 if (sfd.ShowDialog(owner) != DialogResult.OK) return;
@@ -525,14 +531,14 @@ namespace SilentHillPC_Launcher
             IlmObjConverter.ImportResult res = null;
             try
             {
-                ProgressDialog.Run(owner, "Rebuilding model…",
+                ProgressDialog.Run(owner, Loc.T("Rebuilding model…"),
                     r => { res = IlmObjConverter.Import(obj, ilm, tmpIlm, true); });
             }
             catch (Exception ex)
             {
                 TryDelete(tmpIlm);
-                MessageBox.Show(owner, "Rebuild failed:\n\n" + ex.Message,
-                    "OBJ → Model", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(owner, Loc.F("Rebuild failed:\n\n{0}", ex.Message),
+                    Loc.T("OBJ → Model"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -574,9 +580,9 @@ namespace SilentHillPC_Launcher
             {
                 // The temp is the ONLY copy of the rebuild and the destination may still hold the
                 // user's previous model - deleting either here loses work.
-                MessageBox.Show(owner, "The model rebuilt, but it could not be moved to:\n" + outIlm +
-                    "\n\n" + ex.Message + "\n\nThe rebuilt model is here:\n" + tmpIlm,
-                    "OBJ → Model", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(owner, Loc.F("The model rebuilt, but it could not be moved to:\n{0}\n\n{1}\n\n" +
+                                             "The rebuilt model is here:\n{2}", outIlm, ex.Message, tmpIlm),
+                    Loc.T("OBJ → Model"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             res.IlmPath = outIlm;
@@ -584,31 +590,31 @@ namespace SilentHillPC_Launcher
             if (res.Replaced)
             {
                 ShowReplaceReport(owner, res);
-                if (MessageBox.Show(owner, "Open the output folder?", "OBJ → Model",
+                if (MessageBox.Show(owner, Loc.T("Open the output folder?"), Loc.T("OBJ → Model"),
                         MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes)
                     return;
             }
             else if (res.Grew)
             {
                 ShowGrowReport(owner, res);
-                if (MessageBox.Show(owner, "Open the output folder?", "OBJ → Model",
+                if (MessageBox.Show(owner, Loc.T("Open the output folder?"), Loc.T("OBJ → Model"),
                         MessageBoxButtons.YesNo, MessageBoxIcon.Information) != DialogResult.Yes)
                     return;
             }
             else
             {
-                string msg = "Rebuilt " + res.Parts + " body part(s), " + res.Vertices + " vertices, " +
-                    res.Normals + " normals and " + res.Prims + " face(s):\n" + res.IlmPath +
-                    "\n\nTo use it, drop it into gamedata\\load\\<FOLDER>\\ under its ORIGINAL name " +
-                    "(e.g. gamedata\\load\\CHARA\\DOB.ILM) and set allow_loose_files = 1 in config.cfg.";
+                string msg = Loc.F("Rebuilt {0} body part(s), {1} vertices, {2} normals and {3} face(s):",
+                                   res.Parts, res.Vertices, res.Normals, res.Prims) + "\n" + res.IlmPath +
+                    "\n\n" + Loc.T("To use it, drop it into gamedata\\load\\<FOLDER>\\ under its ORIGINAL name " +
+                                   "(e.g. gamedata\\load\\CHARA\\DOB.ILM) and set allow_loose_files = 1 in config.cfg.");
                 // Same contract as the export dialog: res.Warnings carries seam-edit diagnoses the user
                 // cannot see in the written file, so a success box must not swallow them.
                 if (res.Warnings.Count > 0)
-                    msg += "\n\nWarnings (" + res.Warnings.Count + "):\n - " +
+                    msg += "\n\n" + Loc.F("Warnings ({0}):", res.Warnings.Count) + "\n - " +
                            string.Join("\n - ", res.Warnings.Take(8)) +
                            (res.Warnings.Count > 8 ? "\n - …" : "");
-                if (MessageBox.Show(owner, msg + "\n\nOpen the output folder?",
-                        "OBJ → Model", MessageBoxButtons.YesNo,
+                if (MessageBox.Show(owner, msg + "\n\n" + Loc.T("Open the output folder?"),
+                        Loc.T("OBJ → Model"), MessageBoxButtons.YesNo,
                         res.Warnings.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information) != DialogResult.Yes)
                     return;
             }
@@ -721,7 +727,7 @@ namespace SilentHillPC_Launcher
             IlmObjConverter.ImportResult rep = RunReplace(owner, obj, ilm, tmpIlm, opts);
             if (rep == null || string.IsNullOrEmpty(rep.Error) || !rep.WeldNeedsRestPose) return rep;
 
-            string msg = "This model was exported without its animation file, so every body part " +
+            string msg = Loc.F("This model was exported without its animation file, so every body part " +
                 "sits on the origin in the .obj rather than where it belongs on the character.\n\n" +
                 "Joints can therefore not be found automatically: two vertices being in the same " +
                 "place no longer means they meet at a joint, and welding them would fuse parts " +
@@ -729,9 +735,9 @@ namespace SilentHillPC_Launcher
                 "Rebuild WITHOUT welding? Each part then carries its own seam vertices, so the " +
                 "joints stay closed only while the parts' geometry overlaps — which is fine if you " +
                 "modelled them overlapping, and leaves visible gaps if you did not.\n\n" +
-                "(The alternative is to answer No, re-export the model with \"Model → OBJ…\" from " +
-                "a copy that has its ANIM folder beside it, and redo the edit.)";
-            if (MessageBox.Show(owner, msg, "OBJ → Model", MessageBoxButtons.YesNo,
+                "(The alternative is to answer No, re-export the model with \"{0}\" from " +
+                "a copy that has its ANIM folder beside it, and redo the edit.)", Loc.T("Model → OBJ ▾"));
+            if (MessageBox.Show(owner, msg, Loc.T("OBJ → Model"), MessageBoxButtons.YesNo,
                     MessageBoxIcon.Warning) != DialogResult.Yes)
                 return rep;
 
@@ -747,7 +753,7 @@ namespace SilentHillPC_Launcher
             IlmObjConverter.ImportResult rep = null;
             try
             {
-                ProgressDialog.Run(owner, "Rebuilding model…",
+                ProgressDialog.Run(owner, Loc.T("Rebuilding model…"),
                     r => { rep = IlmObjConverter.Import(obj, ilm, tmpIlm, opts); });
             }
             catch (Exception ex)
@@ -766,43 +772,81 @@ namespace SilentHillPC_Launcher
         private static bool ConfirmReplace(IWin32Window owner, IlmObjConverter.ImportResult res, IlmObjConverter.ImportResult why)
         {
             var lines = new List<string>();
-            lines.Add("REBUILD THE WHOLE MODEL?");
+            lines.Add(Loc.T("REBUILD THE WHOLE MODEL?"));
             lines.Add("");
-            lines.Add("Your .obj no longer carries the same vertices and faces as the original, so it");
-            lines.Add("cannot be folded back in piece by piece:");
+            Para(lines, Loc.T("Your .obj no longer carries the same vertices and faces as the original, so it " +
+                              "cannot be folded back in piece by piece:"), "", 80);
             lines.Add("");
-            foreach (string s in Wrap(why != null ? why.Error : "the geometry no longer matches", 76))
-                lines.Add("    " + s);
+            Para(lines, why != null ? why.Error : Loc.T("the geometry no longer matches"), "    ", 80);
             lines.Add("");
-            lines.Add("It CAN be rebuilt from scratch. The original .ILM then supplies only the rig —");
-            lines.Add("bone bindings, draw order, materials and palette rows — and every vertex, face,");
-            lines.Add("normal and UV comes from your .obj. Part names and part count still may not");
-            lines.Add("change: an 'o' object IS a bone.");
+            Para(lines, Loc.T("It CAN be rebuilt from scratch. The original .ILM then supplies only the rig — " +
+                              "bone bindings, draw order, materials and palette rows — and every vertex, face, " +
+                              "normal and UV comes from your .obj. Part names and part count still may not " +
+                              "change: an 'o' object IS a bone."), "", 80);
             lines.Add("");
-            lines.Add("REBUILT");
-            lines.Add("    " + res.Parts + " body part(s), " + res.Vertices + " vertices, " +
-                      res.Normals + " normals, " + res.Prims + " face(s).");
+            lines.Add(Loc.T("REBUILT"));
+            lines.Add("    " + Loc.F("{0} body part(s), {1} vertices, {2} normals, {3} face(s).",
+                                     res.Parts, res.Vertices, res.Normals, res.Prims));
             lines.Add("");
 
-            if (res.Warnings.Count > 0)
-            {
-                lines.Add("!!  GEOMETRY IN AN UNEXPECTED PLACE  (" + res.Warnings.Count + ")");
-                lines.Add("");
-                foreach (string w in res.Warnings)
-                {
-                    foreach (string s in Wrap(w, 74)) lines.Add("    " + s);
-                    lines.Add("");
-                }
-            }
-
+            AddUnexpected(res, lines);
             AddBoneChanges(res, lines);
             AddJoints(res, lines);
             lines.Add("");
-            lines.Add("REBUILD REPORT");
+            lines.Add(Loc.T("REBUILD REPORT"));
             AddReport(res, lines);
             lines.Add("");
-            lines.Add("Nothing has been written yet.");
-            return ShowTextDialog(owner, "OBJ → Model — Rebuild?", lines.ToArray(), true, "Rebuild");
+            lines.Add(Loc.T("Nothing has been written yet."));
+            return ShowTextDialog(owner, Loc.T("OBJ → Model — Rebuild?"), lines.ToArray(), true, Loc.T("Rebuild"));
+        }
+
+        private static void AddUnexpected(IlmObjConverter.ImportResult res, List<string> lines)
+        {
+            if (res.Warnings.Count == 0) return;
+            lines.Add("!!  " + Loc.F("GEOMETRY IN AN UNEXPECTED PLACE  ({0})", res.Warnings.Count));
+            lines.Add("");
+            foreach (string w in res.Warnings)
+            {
+                Para(lines, w, "    ", 78);
+                lines.Add("");
+            }
+        }
+
+        /// <summary>Append <paramref name="text"/> wrapped to <paramref name="width"/> columns,
+        /// every line prefixed with <paramref name="indent"/>.</summary>
+        private static void Para(List<string> lines, string text, string indent, int width)
+        {
+            foreach (string l in Wrap(text, width - indent.Length)) lines.Add(indent + l);
+        }
+
+        /// <summary>A numbered install step with a hanging indent under its number.</summary>
+        private static void Step(List<string> lines, string number, string text)
+        {
+            bool first = true;
+            foreach (string l in Wrap(text, 74))
+            {
+                lines.Add((first ? "  " + number + "  " : "      ") + l);
+                first = false;
+            }
+        }
+
+        /// <summary>The two install rules a full-rewrite model must meet, shared by the grow and
+        /// rebuild reports. Only the reason in step 1 differs between them.</summary>
+        private static void AddInstallSteps(List<string> lines, string why, string fileName)
+        {
+            lines.Add(Loc.T("INSTALLING IT  (both of these or it will not load)"));
+            lines.Add("");
+            Step(lines, "1.", Loc.F("Tick \"{0}\" at the bottom of the Mod Manager (allow_loose_files = 1 in config.cfg).",
+                                    Loc.T("Enable loose file support (required for load-folder mods)")) + " " + why + " " +
+                              Loc.T("Without it the game quietly keeps the original and nothing looks wrong."));
+            lines.Add("");
+            Step(lines, "2.", Loc.T("Copy it to") + "   gamedata\\load\\<FOLDER>\\<ORIGINAL NAME>.ILM");
+            lines.Add("      " + Loc.T("e.g.") + "   gamedata\\load\\CHARA\\DOB.ILM");
+            Para(lines, Loc.F("Under the ORIGINAL name, in the folder it came from. The game looks the file up " +
+                              "by that name — {0} will never be found.", fileName), "      ", 80);
+            lines.Add("");
+            Para(lines, Loc.T("An enabled TEXTURE PACK is no obstacle: a pack's .png for this character overrides " +
+                              "that character's TEXTURE only and never interferes with the loose .ILM."), "", 80);
         }
 
         /// <summary>The welds that handed a vertex to a different BONE. A weld inside one bone is
@@ -812,51 +856,48 @@ namespace SilentHillPC_Launcher
         {
             if (res.CrossedBones.Count == 0) return;
             var inv = System.Globalization.CultureInfo.InvariantCulture;
-            lines.Add("!!  VERTICES THAT CHANGED BONE  (" + res.CrossedBones.Count + " part pair(s))");
+            lines.Add("!!  " + Loc.F("VERTICES THAT CHANGED BONE  ({0} part pair(s))", res.CrossedBones.Count));
             lines.Add("");
-            foreach (string s in Wrap("These vertices were welded onto a part driven by a DIFFERENT bone, so " +
+            Para(lines, Loc.T("These vertices were welded onto a part driven by a DIFFERENT bone, so " +
                 "they will animate with that part from now on. If those two parts do not actually meet at a " +
-                "joint, pull the vertices apart in your modeller and rebuild.", 74))
-                lines.Add("    " + s);
+                "joint, pull the vertices apart in your modeller and rebuild."), "    ", 78);
             lines.Add("");
             foreach (IlmObjConverter.CrossedBoneInfo c in res.CrossedBones)
-                lines.Add("    " + c.Count.ToString(inv).PadLeft(4) + " vertex/vertices of " + c.Reader.PadRight(10) +
-                          " moved up to " + c.MaxDistance.ToString("0.000", inv) + " units onto " + c.Owner);
+                lines.Add("    " + Loc.F("{0} vertex/vertices of {1} moved up to {2} units onto {3}",
+                                         c.Count.ToString(inv).PadLeft(4), c.Reader.PadRight(10),
+                                         c.MaxDistance.ToString("0.000", inv), c.Owner));
             lines.Add("");
         }
 
         private static void AddJoints(IlmObjConverter.ImportResult res, List<string> lines)
         {
             var inv = System.Globalization.CultureInfo.InvariantCulture;
-            lines.Add("JOINTS");
+            lines.Add(Loc.T("JOINTS"));
             lines.Add("");
             if (!res.WeldEnabled)
             {
-                foreach (string s in Wrap("Welding is OFF, so every part keeps its own seam vertices. The " +
-                    "joints stay closed only while the parts' geometry overlaps.", 74))
-                    lines.Add("    " + s);
+                Para(lines, Loc.T("Welding is OFF, so every part keeps its own seam vertices. The " +
+                    "joints stay closed only while the parts' geometry overlaps."), "    ", 78);
                 return;
             }
-            foreach (string s in Wrap("This format has no skinning and no weights: a seam stays closed only " +
+            Para(lines, Loc.F("This format has no skinning and no weights: a seam stays closed only " +
                 "when the later-drawn part reads the earlier one's vertex. Vertices of two parts that landed " +
-                "in the same place (within " + res.WeldEps.ToString("0.####", inv) + " units) were welded " +
-                "that way — " + res.WeldedVertices.ToString(inv) + " vertices across " +
-                res.WeldPairs.Count.ToString(inv) + " part pair(s).", 74))
-                lines.Add("    " + s);
+                "in the same place (within {0} units) were welded that way — {1} vertices across {2} part pair(s).",
+                res.WeldEps.ToString("0.####", inv), res.WeldedVertices.ToString(inv),
+                res.WeldPairs.Count.ToString(inv)), "    ", 78);
             lines.Add("");
             foreach (IlmObjConverter.WeldPairInfo p in res.WeldPairs)
-                lines.Add("    " + p.Reader.PadRight(10) + " reads " + p.Owner.PadRight(10) + "  " +
+                lines.Add("    " + Loc.F("{0} reads {1}", p.Reader.PadRight(10), p.Owner.PadRight(10)) + "  " +
                           p.Count.ToString(inv));
             if (res.WeldPairs.Count == 0)
-                lines.Add("    (none - no two parts had a vertex in the same place)");
+                lines.Add("    " + Loc.T("(none - no two parts had a vertex in the same place)"));
             if (res.NearMissDistance >= 0.0)
             {
                 lines.Add("");
-                foreach (string s in Wrap("HINT: the closest pair of vertices in different parts that did NOT " +
-                    "weld is " + res.NearMissDistance.ToString("0.000", inv) + " units apart. If those were " +
-                    "meant to be one seam, snap them to exactly the same place in your modeller and rebuild — " +
-                    "widening the radius instead risks welding geometry onto the wrong bone.", 74))
-                    lines.Add("    " + s);
+                Para(lines, Loc.F("HINT: the closest pair of vertices in different parts that did NOT " +
+                    "weld is {0} units apart. If those were meant to be one seam, snap them to exactly the same " +
+                    "place in your modeller and rebuild — widening the radius instead risks welding geometry " +
+                    "onto the wrong bone.", res.NearMissDistance.ToString("0.000", inv)), "    ", 78);
             }
         }
 
@@ -887,46 +928,23 @@ namespace SilentHillPC_Launcher
         {
             string name = Path.GetFileName(res.IlmPath);
             var lines = new List<string>();
-            lines.Add("REBUILT FROM YOUR MESH");
+            lines.Add(Loc.T("REBUILT FROM YOUR MESH"));
             lines.Add("");
-            lines.Add("Written:  " + res.IlmPath);
-            lines.Add("Rebuilt " + res.Parts + " body part(s): " + res.Vertices + " vertices, " +
-                      res.Normals + " normals, " + res.Prims + " face(s).");
+            lines.Add(Loc.F("Written:  {0}", res.IlmPath));
+            lines.Add(Loc.F("Rebuilt {0} body part(s): {1} vertices, {2} normals, {3} face(s).",
+                            res.Parts, res.Vertices, res.Normals, res.Prims));
             lines.Add("");
-            lines.Add("INSTALLING IT  (both of these or it will not load)");
+            AddInstallSteps(lines, Loc.T("A rebuilt model is a full rewrite and is read ONLY through the loose-file path."), name);
             lines.Add("");
-            lines.Add("  1.  Tick \"Enable loose file support\" at the bottom of the Mod Manager");
-            lines.Add("      (allow_loose_files = 1 in config.cfg). A rebuilt model is a full rewrite");
-            lines.Add("      and is read ONLY through the loose-file path. Without it the game quietly");
-            lines.Add("      keeps the original and nothing looks wrong.");
+            lines.Add(Loc.F("Check it before you install: \"{0}\" opens the rebuilt .ILM.", Loc.T("Model Viewer")));
             lines.Add("");
-            lines.Add("  2.  Copy it to   gamedata\\load\\<FOLDER>\\<ORIGINAL NAME>.ILM");
-            lines.Add("      e.g.         gamedata\\load\\CHARA\\DOB.ILM");
-            lines.Add("      Under the ORIGINAL name, in the folder it came from. The game looks the");
-            lines.Add("      file up by that name — " + name + " will never be found.");
-            lines.Add("");
-            lines.Add("An enabled TEXTURE PACK is no obstacle: a pack's .png for this character");
-            lines.Add("overrides that character's TEXTURE only and never interferes with the");
-            lines.Add("loose .ILM.");
-            lines.Add("");
-            lines.Add("Check it before you install: \"View Model…\" opens the rebuilt .ILM.");
-            lines.Add("");
-            if (res.Warnings.Count > 0)
-            {
-                lines.Add("!!  GEOMETRY IN AN UNEXPECTED PLACE  (" + res.Warnings.Count + ")");
-                lines.Add("");
-                foreach (string w in res.Warnings)
-                {
-                    foreach (string s in Wrap(w, 74)) lines.Add("    " + s);
-                    lines.Add("");
-                }
-            }
+            AddUnexpected(res, lines);
             AddBoneChanges(res, lines);
             AddJoints(res, lines);
             lines.Add("");
-            lines.Add("REBUILD REPORT");
+            lines.Add(Loc.T("REBUILD REPORT"));
             AddReport(res, lines);
-            ShowTextDialog(owner, "OBJ → Model — Rebuilt Model", lines.ToArray(), true);
+            ShowTextDialog(owner, Loc.T("OBJ → Model — Rebuilt Model"), lines.ToArray(), true);
         }
 
         /// <summary>Break a long message into fixed-width lines. The monospace dialog turns word
@@ -935,20 +953,56 @@ namespace SilentHillPC_Launcher
         {
             var outp = new List<string>();
             var line = new System.Text.StringBuilder();
-            foreach (string w in s.Split(' '))
+            int lineW = 0;
+            foreach (string word in s.Split(' '))
             {
-                if (w.Length == 0) continue;
-                if (line.Length != 0 && line.Length + 1 + w.Length > width)
+                if (word.Length == 0) continue;
+                // Japanese and Chinese have no spaces to break on, so a "word" can be a whole
+                // sentence; it is split wherever the column budget runs out instead.
+                string w = word;
+                while (w.Length > 0)
                 {
-                    outp.Add(line.ToString());
-                    line.Length = 0;
+                    int ww = DisplayWidth(w);
+                    int room = width - lineW - (lineW == 0 ? 0 : 1);
+                    if (ww <= room)
+                    {
+                        if (lineW != 0) { line.Append(' '); lineW++; }
+                        line.Append(w); lineW += ww;
+                        break;
+                    }
+                    if ((ww <= width || ww == w.Length) && lineW != 0)
+                    {
+                        outp.Add(line.ToString()); line.Length = 0; lineW = 0;
+                        continue;
+                    }
+                    if (ww == w.Length) { outp.Add(w); break; } // an over-long path stays whole, as before
+                    if (lineW != 0) { outp.Add(line.ToString()); line.Length = 0; lineW = 0; }
+                    int take = 0, used = 0;
+                    while (take < w.Length && used + CharWidth(w[take]) <= width) { used += CharWidth(w[take]); take++; }
+                    if (take == 0) take = 1;
+                    outp.Add(w.Substring(0, take));
+                    w = w.Substring(take);
                 }
-                if (line.Length != 0) line.Append(' ');
-                line.Append(w);
             }
             if (line.Length != 0) outp.Add(line.ToString());
             if (outp.Count == 0) outp.Add("");
             return outp.ToArray();
+        }
+
+        /// <summary>Columns a character takes in the monospace report: CJK and full-width
+        /// forms render two cells wide.</summary>
+        private static int CharWidth(char c)
+        {
+            return (c >= 0x1100 && c <= 0x115F) || (c >= 0x2E80 && c <= 0xA4CF) || (c >= 0xAC00 && c <= 0xD7A3) ||
+                   (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFE30 && c <= 0xFE4F) || (c >= 0xFF00 && c <= 0xFF60) ||
+                   (c >= 0xFFE0 && c <= 0xFFE6) ? 2 : 1;
+        }
+
+        private static int DisplayWidth(string s)
+        {
+            int w = 0;
+            foreach (char c in s) w += CharWidth(c);
+            return w;
         }
 
         /// <summary>Import refusal. A ceiling refusal (too many vertices/normals/prims/parts for the
@@ -961,39 +1015,39 @@ namespace SilentHillPC_Launcher
         /// user ends up believing the file is unfixable.</summary>
         private static void ShowImportFailure(IWin32Window owner, IlmObjConverter.ImportResult res, IlmObjConverter.ImportResult rebuild)
         {
-            string err = res != null ? res.Error : "unknown error";
+            string err = res != null ? res.Error : Loc.T("unknown error");
             string alsoTried = (rebuild != null && !string.IsNullOrEmpty(rebuild.Error))
-                ? "\n\nRebuilding the model from scratch was tried as well, and refused too:\n\n" + rebuild.Error
+                ? "\n\n" + Loc.T("Rebuilding the model from scratch was tried as well, and refused too:") + "\n\n" + rebuild.Error
                 : null;
             if (res == null || res.Report.Count == 0)
             {
-                MessageBox.Show(owner, "Rebuild failed:\n\n" + err + alsoTried,
-                    "OBJ → Model", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(owner, Loc.F("Rebuild failed:\n\n{0}", err) + alsoTried,
+                    Loc.T("OBJ → Model"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             var lines = new List<string>();
-            lines.Add("REBUILD REFUSED — THE MODEL DOES NOT FIT");
+            lines.Add(Loc.T("REBUILD REFUSED — THE MODEL DOES NOT FIT"));
             lines.Add("");
             lines.Add(err);
             lines.Add("");
-            lines.Add("Nothing was written.");
+            lines.Add(Loc.T("Nothing was written."));
             lines.Add("");
-            lines.Add("A body part addresses its vertices, normals and faces with single bytes, so");
-            lines.Add("the limits below are hard: no build of the game can load a part past them.");
-            lines.Add("Remove geometry from the part named above — decimate it in Blender, or move");
-            lines.Add("some of the detail onto a neighbouring part — and rebuild.");
+            Para(lines, Loc.T("A body part addresses its vertices, normals and faces with single bytes, so " +
+                              "the limits below are hard: no build of the game can load a part past them. " +
+                              "Remove geometry from the part named above — decimate it in Blender, or move " +
+                              "some of the detail onto a neighbouring part — and rebuild."), "", 80);
             lines.Add("");
-            lines.Add("BUDGET AT THE POINT OF REFUSAL");
+            lines.Add(Loc.T("BUDGET AT THE POINT OF REFUSAL"));
             lines.AddRange(res.Report);
             if (alsoTried != null)
             {
                 lines.Add("");
-                lines.Add("A FULL REBUILD WAS TRIED TOO, AND REFUSED:");
+                lines.Add(Loc.T("A FULL REBUILD WAS TRIED TOO, AND REFUSED:"));
                 lines.Add("");
-                foreach (string s in Wrap(rebuild.Error, 76)) lines.Add("  " + s);
+                Para(lines, rebuild.Error, "  ", 78);
             }
-            ShowTextDialog(owner, "OBJ → Model — Refused", lines.ToArray(), true);
+            ShowTextDialog(owner, Loc.T("OBJ → Model — Refused"), lines.ToArray(), true);
         }
 
         /// <summary>Ask before committing a grown model: it is a different KIND of output (needs
@@ -1004,15 +1058,16 @@ namespace SilentHillPC_Launcher
         {
             int n = res.GrownParts.Count;
             string deltas = string.Join("\n", res.Report.Take(Math.Min(n, 12))) +
-                            (n > 12 ? "\n   … and " + (n - 12) + " more (full table follows)" : "");
-            string msg = "This OBJ ADDS geometry — the rebuilt model is larger than the original.\n\n" +
-                "New geometry in " + n + " of " + res.Parts + " body part(s):\n" +
+                            (n > 12 ? "\n   " + Loc.F("… and {0} more (full table follows)", n - 12) : "");
+            string msg = Loc.T("This OBJ ADDS geometry — the rebuilt model is larger than the original.") + "\n\n" +
+                Loc.F("New geometry in {0} of {1} body part(s):", n, res.Parts) + "\n" +
                 deltas + "\n\n" +
-                "A larger-than-original model loads only through this port's loose-file path with " +
-                "\"Enable loose file support\" switched on. If you did not mean to add geometry, " +
-                "answer No, undo the change in Blender and rebuild.\n\n" +
-                "Rebuild as a larger-than-original model?";
-            return MessageBox.Show(owner, msg, "OBJ → Model", MessageBoxButtons.YesNo,
+                Loc.F("A larger-than-original model loads only through this port's loose-file path with " +
+                      "\"{0}\" switched on. If you did not mean to add geometry, " +
+                      "answer No, undo the change in Blender and rebuild.",
+                      Loc.T("Enable loose file support (required for load-folder mods)")) + "\n\n" +
+                Loc.T("Rebuild as a larger-than-original model?");
+            return MessageBox.Show(owner, msg, Loc.T("OBJ → Model"), MessageBoxButtons.YesNo,
                        MessageBoxIcon.Question) == DialogResult.Yes;
         }
 
@@ -1023,37 +1078,23 @@ namespace SilentHillPC_Launcher
         {
             string name = Path.GetFileName(res.IlmPath);
             var lines = new List<string>();
-            lines.Add("REBUILT AS A LARGER-THAN-ORIGINAL MODEL");
+            lines.Add(Loc.T("REBUILT AS A LARGER-THAN-ORIGINAL MODEL"));
             lines.Add("");
-            lines.Add("Written:  " + res.IlmPath);
-            lines.Add("Grew " + res.GrownParts.Count + " of " + res.Parts + " body part(s), adding " +
-                      res.Prims + " new face(s).");
+            lines.Add(Loc.F("Written:  {0}", res.IlmPath));
+            lines.Add(Loc.F("Grew {0} of {1} body part(s), adding {2} new face(s).",
+                            res.GrownParts.Count, res.Parts, res.Prims));
             lines.Add("");
-            lines.Add("INSTALLING IT  (both of these or it will not load)");
-            lines.Add("");
-            lines.Add("  1.  Tick \"Enable loose file support\" at the bottom of the Mod Manager");
-            lines.Add("      (allow_loose_files = 1 in config.cfg). A model bigger than the one on");
-            lines.Add("      the disc is read ONLY through the loose-file path. Without it the game");
-            lines.Add("      quietly keeps the original and nothing looks wrong.");
-            lines.Add("");
-            lines.Add("  2.  Copy it to   gamedata\\load\\<FOLDER>\\<ORIGINAL NAME>.ILM");
-            lines.Add("      e.g.         gamedata\\load\\CHARA\\DOB.ILM");
-            lines.Add("      Under the ORIGINAL name, in the folder it came from. The game looks the");
-            lines.Add("      file up by that name — " + name + " will never be found.");
-            lines.Add("");
-            lines.Add("An enabled TEXTURE PACK is no obstacle: a pack's .png for this character");
-            lines.Add("overrides that character's TEXTURE only and never interferes with the");
-            lines.Add("loose .ILM.");
+            AddInstallSteps(lines, Loc.T("A model bigger than the one on the disc is read ONLY through the loose-file path."), name);
             if (res.Warnings.Count > 0)
             {
                 lines.Add("");
-                lines.Add("WARNINGS (" + res.Warnings.Count + ")");
+                lines.Add(Loc.F("WARNINGS ({0})", res.Warnings.Count));
                 foreach (var w in res.Warnings) lines.Add("  - " + w);
             }
             lines.Add("");
-            lines.Add("BUDGET  (per part: used / limit, and the pool window it occupies)");
+            lines.Add(Loc.T("BUDGET  (per part: used / limit, and the pool window it occupies)"));
             lines.AddRange(res.Report);
-            ShowTextDialog(owner, "OBJ → Model — Grown Model", lines.ToArray(), true);
+            ShowTextDialog(owner, Loc.T("OBJ → Model — Grown Model"), lines.ToArray(), true);
         }
 
         /// <summary>Composite the character's true in-game texture (each region through its
@@ -1093,9 +1134,9 @@ namespace SilentHillPC_Launcher
                     }
                 }
                 File.WriteAllLines(mtlPath, outLines.ToArray());
-                return "Textured preview: " + pngRef + " is beside the OBJ and wired into the " +
-                       "MTL, so the mesh shows its real in-game texture in Blender. (Import " +
-                       "ignores the MTL — this is display only.)";
+                return Loc.F("Textured preview: {0} is beside the OBJ and wired into the " +
+                             "MTL, so the mesh shows its real in-game texture in Blender. (Import " +
+                             "ignores the MTL — this is display only.)", pngRef);
             }
             catch { return null; }  // a preview convenience must never fail the export
         }
@@ -1172,7 +1213,7 @@ namespace SilentHillPC_Launcher
 
                 var close = new Button
                 {
-                    Text = confirm ? "Cancel" : "Close",
+                    Text = Loc.T(confirm ? "Cancel" : "Close"),
                     Location = new Point(w - 96, h - 40),
                     Size = new Size(84, 28),
                     DialogResult = confirm ? DialogResult.Cancel : DialogResult.OK

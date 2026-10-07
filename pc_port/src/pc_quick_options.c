@@ -34,6 +34,7 @@
 #include "pc_config.h"
 #include "pc_cheats.h"
 #include "control_style.h"
+#include "lang_quick.h"
 #include "sh_log.h"
 #include "game.h"
 #include "bodyprog/sound/sfx_id_enum.h"
@@ -151,6 +152,7 @@ static const QoRowDef s_page1[] = {
     { ROW_OPT,   "minimap_require_map",  0, NULL },
     { ROW_OPT,   "crosshair",            0, NULL },
     { ROW_OPT,   "crosshair_size",       0, NULL },
+    { ROW_OPT,   "text_size",            0, NULL },
     { ROW_OPT,   "low_health_glow",      0, NULL },
 /* Not on mobile: it would not do anything. PsyX_SPUAL_SetOutputMode is an
  * empty stub on the software backend and GetOutputMode always answers
@@ -422,6 +424,15 @@ static const char* const s_pageTitles[QO_PAGES] = {
     "QUICK OPTIONS  -  VIEW & ASPECT",
     "QUICK OPTIONS  -  CHEATS",   "QUICK OPTIONS  -  DEBUG",
     "QUICK OPTIONS  -  CONTROLS" };
+
+/* The same six, without the prefix: the navigation row names the neighbouring
+ * pages and the title builds itself from one. Parallel to s_pageTitles. */
+static const char* const s_pageNames[QO_PAGES] = {
+    "GRAPHICS", "HUD & AUDIO", "VIEW & ASPECT", "CHEATS", "DEBUG", "CONTROLS" };
+
+/* The View section's index here. pc-port numbers ten fixed pages and has its
+ * own enum for this; these six sections are chunked per platform instead. */
+#define QO_PG_VIEW 2
 
 /* ------------------------------------------------------------------ */
 /* Mobile pagination                                                   */
@@ -1161,7 +1172,7 @@ static GLuint qo_bake_once(const char* text, float px, int* outW, int* outH, int
     p     = text;
     while (*p)
     {
-        int cp = (unsigned char)*p++;
+        int cp = (int)Pc_LangUtf8Next(&p);
         int gx0, gy0, gx1, gy1, gw, gh, adv, lsb, sx, sy;
         float shiftX;
         if (prev)
@@ -1429,12 +1440,13 @@ static void qo_row_name(const QoRowDef* r, char* out, int n)
         const void* h = PcOpt_QuickFind(r->key);
         /* A table row may carry its own wording: the options screen's names
          * are cut to fit a 320px value column, and this panel has the room. */
-        src = (r->label != NULL) ? r->label : (h ? PcOpt_QuickName(h) : r->key);
+        src = (r->label != NULL) ? Pc_LangQuickMenu(r->label)
+                                 : (h ? Pc_LangQuickMenu(PcOpt_QuickName(h)) : r->key);
     }
     else if (r->kind == ROW_CHEAT)
-        src = Pc_Cheats_Name(r->cpage, r->extra);
+        src = Pc_LangQuick(Pc_Cheats_Name(r->cpage, r->extra));
     else
-        src = r->label;
+        src = Pc_LangQuick(r->label);
 
     for (i = 0; i < n - 1 && src[i]; i++)
         out[i] = (src[i] == '_') ? ' ' : src[i];
@@ -1448,7 +1460,7 @@ static void qo_row_value(const QoRowDef* r, char* out, int n)
     if (r->kind == ROW_OPT)
     {
         const void* h = PcOpt_QuickFind(r->key);
-        const char* v = h ? PcOpt_QuickLabel(h, buf, (int)sizeof(buf)) : "?";
+        const char* v = h ? Pc_LangQuickMenu(PcOpt_QuickLabel(h, buf, (int)sizeof(buf))) : "?";
         int i;
         for (i = 0; i < n - 1 && v[i]; i++)
             out[i] = (v[i] == '_') ? ' ' : v[i];
@@ -2217,24 +2229,26 @@ void Pc_QuickOptions_Draw(void)
     {
         /* Mobile pages are CHUNKS of a section, so the page index is not a
          * section index there and qo_page_title is the only thing that can name
-         * one. Desktop keeps pc-port's dynamic View title, which reports the
-         * camera the page is currently editing. */
+         * one -- it already carries the "(2/3)" that says where you are. */
 #if defined(QO_MOBILE)
         s_texTitle = qo_bake(qo_page_title(s_page), (float)(int)(titleH * 0.46f),
                              &s_titleW, &s_titleH);
 #else
-        const char* title = s_pageTitles[s_page];
-        char titleBuf[64];
-        if (s_page == 2)
+        char titleBuf[192];
+        char name[96];
+
+        Pc_LangUtf8Upper(Pc_LangQuick(s_pageNames[s_page]), name, (int)sizeof(name));
+        if (s_page == QO_PG_VIEW)
         {
             int m = qo_view_cam_mode();
-            snprintf(titleBuf, sizeof(titleBuf), "QUICK OPTIONS  -  VIEW  (%s)",
-                     (m == QO_CAM_FPS) ? "Firstperson" :
-                     (m == QO_CAM_OTS) ? "Over-the-Shoulder" :
-                     (m == QO_CAM_TPS) ? "Thirdperson" : "Classic");
-            title = titleBuf;
+            snprintf(titleBuf, sizeof(titleBuf), "%s  -  %s  (%s)", Pc_LangQuick("QUICK OPTIONS"), name,
+                     Pc_LangQuick((m == QO_CAM_FPS) ? "Firstperson" :
+                                  (m == QO_CAM_OTS) ? "Over-the-Shoulder" :
+                                  (m == QO_CAM_TPS) ? "Thirdperson" : "Classic"));
         }
-        s_texTitle = qo_bake(title, (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
+        else
+            snprintf(titleBuf, sizeof(titleBuf), "%s  -  %s", Pc_LangQuick("QUICK OPTIONS"), name);
+        s_texTitle = qo_bake(titleBuf, (float)(int)(titleH * 0.46f), &s_titleW, &s_titleH);
 #endif
     }
 #if defined(QO_MOBILE)
@@ -2247,14 +2261,17 @@ void Pc_QuickOptions_Draw(void)
 #if !defined(QO_MOBILE)
     if (!s_texHint)
     {
-        char  hint[192];
+        char  hint[384];
         float avail = panelW - 2.0f * pad;
         int   hpx   = (int)(hintH * 0.42f);
 
         if (hpx < 7) hpx = 7;
-        snprintf(hint, sizeof(hint),
-                 "Up/Down select   Left/Right adjust   PgUp/PgDn page   drag title to move   %s or Esc close   * req restart",
-                 g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10");
+        snprintf(hint, sizeof(hint), "%s    %s    %s    %s    %s    %s",
+                 Pc_LangQuick("Up/Down select"), Pc_LangQuick("Left/Right adjust"),
+                 Pc_LangQuick("Q/E or PgUp/PgDn page"), Pc_LangQuick("Drag the title to move"),
+                 Pc_LangQuickFill("{key} or Esc close", "{key}",
+                                  g_PcConfig.keyQuickOptions[0] ? g_PcConfig.keyQuickOptions : "F10"),
+                 Pc_LangQuick("* needs restart"));
         s_texHint = qo_bake(hint, (float)hpx, &s_hintW, &s_hintH);
         if (s_texHint && s_hintW > avail && s_hintW > 0 && avail > 0.0f)
         {

@@ -1,5 +1,6 @@
 #include "game.h"
 #ifdef SH_PC_PORT
+#include "pc_pick.h"
 #include <stdio.h>
 #include "sh_log.h"
 #include "pc_config.h"
@@ -686,6 +687,9 @@ void Gfx_WorldObjectDraw(s_WorldObject* obj) // 0x8003CBA4
     rot.vz = Q10_TO_Q12(obj->rotationZ);
 
     Math_RotMatrixZxyNeg(&rot, &coord.coord);
+#ifdef SH_PC_PORT
+    Pc_Pick_WorldObjectPreDraw(obj, &coord);
+#endif
     Vw_CoordToWorldAndViewMatrices(&coord, &mats[1], &mats[0]);
 
     func_8003CC7C(obj->model, &mats[0], &mats[1]);
@@ -1553,6 +1557,13 @@ void WorldGfx_CharaModelProcessLoad(s_CharaModel* model) // 0x8003D9C8
 #endif
 }
 
+#ifdef SH_PC_PORT
+/* Console SCALE for the character about to be drawn, Q12. Set by
+ * Pc_Pick_CharaPreDraw and consumed by this draw, so a draw with no preceding
+ * set -- the save/load screen Harry -- cannot inherit the last one. */
+s32 g_PcCharaDrawScale = Q12(1.0f);
+#endif
+
 void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12 timer, s32 arg4) // 0x8003DA9C
 {
     CVECTOR tintColor = { 0 };
@@ -1686,6 +1697,9 @@ void func_8003DA9C(e_CharaId charaId, GsCOORDINATE2* boneCoords, s32 arg2, q3_12
 #endif
     func_80045534(&g_WorldGfxWork.registeredCharaModels[charaId]->skeleton, &g_OrderingTable0[g_ActiveBufferIdx], arg2,
                   boneCoords, Q8_TO_Q12(CHARA_FILE_INFOS[charaId].field_6), ret, CHARA_FILE_INFOS[charaId].field_8);
+#ifdef SH_PC_PORT
+    g_PcCharaDrawScale = Q12(1.0f);
+#endif
 #ifdef SH_PC_PORT
     { extern int g_PcCharaPrimProbeActive; g_PcCharaPrimProbeActive = 0; }
     { extern int g_PcHideHarryFpsBody; g_PcHideHarryFpsBody = 0; }

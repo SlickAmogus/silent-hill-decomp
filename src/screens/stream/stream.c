@@ -170,6 +170,10 @@ void open_main(s32 file_idx, s16 num_frames) // 0x801E2AA4
 
     FMV_Play(file_idx, num_frames);
     SH_DBG("[SH] open_main: FMV_Play returned");
+    {
+        extern int g_PcFmvClockDiscard;
+        g_PcFmvClockDiscard = 1;
+    }
     return;
 #endif
     Fs_QueueWaitForEmpty();

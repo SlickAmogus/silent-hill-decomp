@@ -98,7 +98,27 @@ typedef struct {
     int showConsole;     /* EXTERNAL console window only: 1 or 3 = create it, else none.
                           * The ingame console is not config-gated anymore — `~` toggles it
                           * (needs allow_debug_controls). Legacy values 2/3 still parse. */
-    int psxDither;       /* texture filtering mode: 0 = off, 1 = PSX dither, 2 = bilinear */
+    int psxDither;       /* legacy combined key (config: psx_dither). Kept only so an
+                          * existing config still loads: 0 off, 1 dither, 2 bilinear,
+                          * 3 trilinear, 4-7 aniso 2x/4x/8x/16x. Migrated into the two
+                          * independent settings below, which are what the port reads. */
+
+    /* PSX 4x4 ordered dither + 5-bit quantize (config key: dithering). Its own
+     * setting now: it is a look, not a filtering quality, and pairing it with a
+     * smoothing mode is a legitimate combination the old single list could not
+     * express. Default on. */
+    int dithering;
+
+    /* Texture filtering, dither excluded (config key: texture_filter):
+     * 0 = off (point), 1 = bilinear, 2 = trilinear, 3..6 = anisotropic
+     * 2x/4x/8x/16x. */
+    int textureFilter;
+
+    /* How a render resolution below the window is scaled up to it (config key:
+     * scaling): 0 = integer, 1 = nearest, 2 = bilinear, 3 = sharp bilinear.
+     * Default 2, which is what the present always did. Only has an effect when
+     * the two sizes differ, so mostly borderless at a low render resolution. */
+    int scaling;
     int widescreenMode;  /* 0 = pillarbox (PSX-faithful, default), 1 = Hor+ (extra side content), 2 = stretch */
     int menuPillarbox;   /* 1 = pillarbox 2D screens (menus/load) with 4:3 black bars instead of stretching to fill (config key: menu_pillarbox) */
     int allowLooseFiles; /* 1 = scan gamedata/load/{folder}/{name}.{ext} before CD read (texture mod support) */
@@ -253,6 +273,7 @@ typedef struct {
     int crosshair;          /* 1 = draw a center crosshair while aiming in TPS/OTS (config key: crosshair) */
     int crosshairStyle;     /* reticle shape: 0 = cross (+), 1 = dot, 2 = circle, 3 = dashes/gap (config key: crosshair_style) */
     float crosshairSize;    /* reticle scale in percent, 25..125 (config key: crosshair_size) */
+    float textSize;         /* subtitle/message text scale in percent, 100..150 (config key: text_size) */
     int aimAssist;          /* 1 = OTS/TPS free-aim aim assist (mouse body-coverage + controller auto-aim) (config key: aim_assist) */
     int mouseCursor;        /* 1 = mouse controls cursor puzzles + clickable main menu (config key: mouse_cursor) */
     int touchControls;      /* on-screen touch controls during gameplay -- floating movement stick on the left, drag to look on the right, tap for Action, plus Aim/Fire/Item/Map/Start buttons. e_TouchControlsMode (config key: touch_controls); defaults to Automatic where a touchscreen is the only input */

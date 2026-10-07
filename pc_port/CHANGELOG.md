@@ -1,5 +1,77 @@
 # Silent Hill PC Port — Changelog
 
+## beta-2026.09.29.1 -- 2026-09-29
+- Issue related to quick turn that could cause player to get stuck running in place has been fixed (thanks to thetrexx for sharing)
+- Added infinite ammo cheat (unlimited clip), console command infammo
+- NTSC-J: The title menu and inventory now show in the chosen language (Chinese or Japanese)
+- Added new console commands for functions that didn't exist as console commands, meaning they can be bound using the "bind" function. New commands:
+notarget [0|1]  - Enemies do not attack player
+freecam [0|1] - Toggle freecam mode
+collvis [0|1] - Collision visualizer debug tool
+fastforward [0|1] / ff - Make gameplay double speed
+wireframe [0|1] - Turn on wireframe mode
+notex [0|1] - turn on no texture mode
+Example: bind p "freecam; wireframe; notex" - Entering  this command will enable you to press p to toggle free cam with wireframe + no textures.
+
+Commit summaries: 
+- Movement freeze fix attempt 1
+- localization: no-subtitles text override mod for voiced lines
+- Console: type the punctuation bind needs, and commands for six menu-only cheats
+- docs: console punctuation, quoted bind lists, and the six new toggles
+- Infinite ammo cheat (console INFAMMO + Quick Options > Cheats)
+- NTSC-J: title menu and inventory in Japanese and Chinese
+- tools: the Chinese glyph finder behind lang_jpn_ui.inc
+- Capitalized Eugene's name
+
+## beta-2026.09.27.1 -- 2026-09-27
+- Launcher is now almost 100% translated in all places for all 9 additional languages
+- Added ability to select objects by clicking them while in the console. Hold tab with console open to hide the window and click a character in the scene to select it
+- Repurposed kill console command to work with selected npc (or player)
+- Added scale command to resize player, npcs, and props. Scales collision
+- Fixed positional audio spots from being able to play continuously past their original range
+- Added PC port credits after original credits (can be turned off with pccredits command)
+- Removed all of the randomly placed debug and cheat keys that were added during testing, see below bind command to restore what's wanted
+- Added bind (+ unbind / unbindall) commands so that you can bind console commands to custom keys, separate from other keybinds in the config. Multiple commands per key supported    
+- Fix free camera outdoors so that it doesn't display a void
+- Adjusted memory card load so that other regions' saves can be loaded. You can load PAL or NTSC-J Duckstation saves just by renaming the MCD to 0 or 8 and putting it in gamedata\save
+- Save editor tool built into website at https://sh1pc.com/savetool.html - works with port or emulator saves 
+- Stopped excess save files from being created PC, now only 0.MCD and 8.MCD are ever written as they are the only ones used. 
+- PC Options and Quick Menu now support non-English languages and are built into the localization helper file
+- Results screen now displays in every supported language
+- Updated Polish translation from rafalekkb
+
+Commit summaries:
+- docs: modding guide, sound section rewritten around the Audio tool
+- PC port credits block in the staff roll + ABOUT console command
+- Console object picking: click a character to select, SCALE to resize it
+- Document scene selection and SCALE in the console reference
+- SCALE now scales the hitbox too
+- Picking: props, TAB to click through the console, bigger character hit box 
+- SCALE: gate it properly, scale melee reach, keep the player's collision vanilla
+- Retire the cheat/tool debug keys, add a Starting map row to Quick Options
+- Custom key binds: bind / unbind / unbindall
+- Free camera: show the world outdoors; mod manager: unpack "name .zip"
+- tools: Silent Hill save converter (PSX / DuckStation <-> PC port cards)
+- memcard: PC saves get a Shift-JIS title and the real save icon
+- savecard: ask for the target disc instead of defaulting to USA names
+- kill acts on the selection, select nearest, retire the stale numpad keys
+- memcard: read saves under any region's name; new files follow the disc
+- PsyCross: memcard no-multitap + channel mapping + standard directory writes
+- docs: save format notes for no-multitap and standard directory writes
+- Positional SFX loops keep attenuating after their caller stops updating
+- savecard: save editor (flags, inventory, position, stats, slot order)
+- Audio tool: the Sound ids column now matches how the engine picks a sample
+- savecard: version the script URLs so hosts serve fresh copies after an update
+- localization: one translation file with PC Options, Quick Options and Controls
+- savecard: clearer flag editing, Hyper Blaster colour
+- localization: Russian review file pre-filled from the Team Raccoon disc
+- Quick Options, Controls panel and confirm boxes follow the game language
+- Polish: the translator's revised pack, merged with the PC Options rows
+- Results screen translated in every language; Polish September pass
+- localization: results screen gets its own section in every template again
+- Polish: translator's wording for the results screen's melee-kills row
+- Launcher: translate the rest of the UI into all nine languages
+
 ## beta-2026.09.19.1 -- 2026-09-19
 - Fixed Alessa antique shop cutscene and Lisa cutscene so that proper dream blur effect applies, intensity can be controlled in Quick Menu
 - Allowed binding of Swap Shoulder to Controller

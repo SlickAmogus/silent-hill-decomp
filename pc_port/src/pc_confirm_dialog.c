@@ -27,10 +27,11 @@
 
 #include "pc_confirm_dialog.h"
 #include "pc_mouse_cursor.h"
+#include "lang_quick.h"
 #include "sh_log.h"
 
 #define CD_GARBAGE 16
-#define CD_TEXT_MAX 128
+#define CD_TEXT_MAX 256
 
 /* ------------------------------------------------------------------ */
 /* State                                                               */
@@ -294,7 +295,7 @@ static GLuint cd_bake(const char* text, float px, int* outW, int* outH)
     p     = text;
     while (*p)
     {
-        int cp = (unsigned char)*p++;
+        int cp = (int)Pc_LangUtf8Next(&p);
         int gx0, gy0, gx1, gy1, gw, gh, adv, lsb, sx, sy;
         float shiftX;
         if (prev)
@@ -375,8 +376,8 @@ void Pc_ConfirmDialog_Open(const char* title, const char* message)
 {
     if (s_phase == CD_OPENING || s_phase == CD_SHOWN)
         return;
-    snprintf(s_title, sizeof(s_title), "%s", title ? title : "");
-    snprintf(s_message, sizeof(s_message), "%s", message ? message : "");
+    snprintf(s_title, sizeof(s_title), "%s", title ? Pc_LangQuick(title) : "");
+    snprintf(s_message, sizeof(s_message), "%s", message ? Pc_LangQuick(message) : "");
     s_textDirty  = 1;
     s_phase      = CD_OPENING;
     s_phaseStart = SDL_GetTicks();
@@ -519,10 +520,15 @@ void Pc_ConfirmDialog_Draw(void)
     }
     if (!s_texTitle) s_texTitle = cd_bake(s_title,   (float)(int)(titleH * 0.50f), &s_titleW, &s_titleH);
     if (!s_texMsg)   s_texMsg   = cd_bake(s_message, (float)px,                    &s_msgW,   &s_msgH);
-    if (!s_texYes)   s_texYes   = cd_bake("Yes",     (float)px,                    &s_yesW,   &s_yesH);
-    if (!s_texNo)    s_texNo    = cd_bake("No",      (float)px,                    &s_noW,    &s_noH);
-    if (!s_texHint)  s_texHint  = cd_bake("Left/Right select   [OK] confirm   [Cancel] back",
-                                          (float)(int)(hintH * 0.60f), &s_hintW, &s_hintH);
+    if (!s_texYes)   s_texYes   = cd_bake(Pc_LangQuick("Yes"), (float)px,                    &s_yesW,   &s_yesH);
+    if (!s_texNo)    s_texNo    = cd_bake(Pc_LangQuick("No"), (float)px,                    &s_noW,    &s_noH);
+    if (!s_texHint)
+    {
+        char hint[384];
+        snprintf(hint, sizeof(hint), "%s   %s   %s", Pc_LangQuick("Left/Right select"),
+                 Pc_LangQuick("[OK] confirm"), Pc_LangQuick("[Cancel] back"));
+        s_texHint = cd_bake(hint, (float)(int)(hintH * 0.60f), &s_hintW, &s_hintH);
+    }
 
     panelW = 0.36f * vpW;
     if (panelW < (float)s_msgW + 2.0f * pad) panelW = (float)s_msgW + 2.0f * pad;

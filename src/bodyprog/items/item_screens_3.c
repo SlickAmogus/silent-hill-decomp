@@ -553,6 +553,8 @@ const char* g_ItemDescriptions[] = {
 
 #ifdef SH_PC_PORT
 #include "lang_text.h" /* PAL localized item text (NULL = use the US string) */
+#include "lang_jpn.h"  /* NTSC-J inventory labels */
+#include "main/fileinfo.h" /* g_GameRegion */
 
 static const char* s_ItemName(u8 id) {
     int idx = (int)id - 32;
@@ -1187,8 +1189,27 @@ void Gfx_ItemScreens_DrawInit(u32* selectedItemId) // 0x8004F764
     {
         for (i = 0; i < ARRAY_SIZE(LABEL_STR_POS_TABLE); i++)
         {
+#ifdef SH_PC_PORT
+            /* "Exit" and "Map" are also PC Options / Options row keys with
+             * different meanings, so on NTSC-J these labels take their own
+             * inventory-only lookup. The six box labels stay centred on the
+             * English one's centre; No./Name: are left-aligned. */
+            const char* label = LABEL_STRS[i];
+            s32         x     = LABEL_STR_POS_TABLE[i].vx;
+            if (g_GameRegion == Region_JPN)
+            {
+                const char* tr = Pc_JpnInventoryLabel(label);
+                if (tr != NULL)
+                    label = tr;
+            }
+            if (i < 6)
+                x += (Pc_LangMenuTextWidth(LABEL_STRS[i]) - Pc_LangMenuTextWidth(Pc_LangMenuText(label))) / 2;
+            Gfx_StringSetPosition(x, LABEL_STR_POS_TABLE[i].vy);
+            Gfx_StringDraw(label, 10);
+#else
             Gfx_StringSetPosition(LABEL_STR_POS_TABLE[i].vx, LABEL_STR_POS_TABLE[i].vy);
             Gfx_StringDraw(LABEL_STRS[i], 10);
+#endif
         }
 
         Inventory_PlayerItemScroll(selectedItemId);

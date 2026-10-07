@@ -1,5 +1,8 @@
 #include "game.h"
 #ifdef SH_PC_PORT
+#include "pc_pick.h"
+#endif
+#ifdef SH_PC_PORT
 #include "sh_log.h"
 #endif
 #include "inline_no_dmpsx.h"
@@ -1895,6 +1898,10 @@ s32 func_8008B714(s_SubCharacter* attacker, s_SubCharacter* target, VECTOR3* arg
 
 s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg3) // 0x8008BF84
 {
+#ifdef SH_PC_PORT
+    q19_12           atkScale;
+    q19_12           tgtScale = Q12(1.0f);
+#endif
     s_SubCharacter*  chara1;
     s32              sp14;
     s32              sp18;
@@ -1980,6 +1987,17 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
     sp40 = 0;
 
     var_s7           = chara->field_44.field_48[0].vy;
+#ifdef SH_PC_PORT
+    /* Console SCALE: a resized attacker swings from where its model reaches,
+     * so the attack point offset and the box around it scale with it. */
+    atkScale = Pc_Pick_CollScale(chara);
+    if (atkScale != Q12(1.0f))
+    {
+        sp34   = Q12_MULT_PRECISE(sp34,   atkScale);
+        var_fp = Q12_MULT_PRECISE(var_fp, atkScale);
+        var_s7 = Q12_MULT_PRECISE(var_s7, atkScale);
+    }
+#endif
     D_800C4788[1].vy = var_s7;
 
     temp_t4          = Q12_MULT_PRECISE(sp34, cosAngle) - Q12_MULT_PRECISE(var_fp, sinAngle);
@@ -2020,6 +2038,14 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
     temp_v1   = *(u16*)&arg2->field_6;
     temp_a0_2 = *(u16*)&arg2->field_8;
     temp_a2   = *(u16*)&arg2->field_A;
+#ifdef SH_PC_PORT
+    if (atkScale != Q12(1.0f))
+    {
+        temp_v1   = Q12_MULT_PRECISE(temp_v1,   atkScale);
+        temp_a0_2 = Q12_MULT_PRECISE(temp_a0_2, atkScale);
+        temp_a2   = Q12_MULT_PRECISE(temp_a2,   atkScale);
+    }
+#endif
 
     var_v0    = (sp38 - sp44);
     temp_v0_7 = (sp3C - sp48);
@@ -2027,20 +2053,20 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
 
     if (var_v0 < temp_v1)
     {
-        sp38 += *(u16*)&arg2->field_6 >> 1;
-        sp44 -= *(u16*)&arg2->field_6 >> 1;
+        sp38 += temp_v1 >> 1;
+        sp44 -= temp_v1 >> 1;
     }
 
     if (temp_v0_7 < temp_a0_2)
     {
-        sp3C += *(u16*)&arg2->field_8 >> 1;
-        sp48 -= *(u16*)&arg2->field_8 >> 1;
+        sp3C += temp_a0_2 >> 1;
+        sp48 -= temp_a0_2 >> 1;
     }
 
     if (var_v0_6 < temp_a2)
     {
-        sp40 += *(u16*)&arg2->field_A >> 1;
-        sp4C -= *(u16*)&arg2->field_A >> 1;
+        sp40 += temp_a2 >> 1;
+        sp4C -= temp_a2 >> 1;
     }
 
     if (chara == &g_SysWork.playerWork.player)
@@ -2094,10 +2120,26 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         D_800C47E8.vx = chara1->position.vx + chara1->collision.shapeOffsets.box.vx;
         D_800C47E8.vy = chara1->position.vy;
         D_800C47E8.vz = chara1->position.vz + chara1->collision.shapeOffsets.box.vz;
+#ifdef SH_PC_PORT
+        /* Reject range has to grow with whichever body got bigger, or the
+         * fine test below never runs for a scaled pair. */
+        tgtScale = Pc_Pick_CollScale(chara1);
+        {
+            q19_12 reach = (atkScale > tgtScale) ? atkScale : tgtScale;
+            if (reach < Q12(1.0f))
+                reach = Q12(1.0f);
+            if (Math_Distance2dGet(&chara->position, &D_800C47E8) >
+                Q12_MULT_PRECISE(Q12(3.0f), reach))
+            {
+                continue;
+            }
+        }
+#else
         if (Math_Distance2dGet(&chara->position, &D_800C47E8) > Q12(3.0f))
         {
             continue;
         }
+#endif
 
         temp_s1 = chara1->position.vx;
         var_v1  = chara1->position.vy;
@@ -2108,11 +2150,19 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
 
         temp_s1 += temp_s0;
 
+#ifdef SH_PC_PORT
+        var_v1  += Q12_MULT_PRECISE(chara1->collision.box.top, tgtScale);
+#else
         var_v1  += chara1->collision.box.top;
+#endif
         temp_s2 += temp_s3;
 
         D_800C47C8[1].vy = var_v1;
+#ifdef SH_PC_PORT
+        temp_s3          = Q12_MULT_PRECISE(chara1->collision.cylinder.field_2, tgtScale);
+#else
         temp_s3          = chara1->collision.cylinder.field_2;
+#endif
 
         angle1 = ratan2(temp_s1 - posX, temp_s2 - posZ);
         temp_v0_6 = Math_Sin(angle1);
@@ -2156,8 +2206,13 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
         temp_v0_8 = temp_t5 - coundZ;
 
         sp58    = chara1->position.vy;
+#ifdef SH_PC_PORT
+        temp_s6 = Q12_MULT_PRECISE(chara1->collision.box.height, tgtScale);
+        temp_s5 = Q12_MULT_PRECISE(chara1->collision.box.top,    tgtScale);
+#else
         temp_s6 = chara1->collision.box.height;
         temp_s5 = chara1->collision.box.top;
+#endif
 
         j   = sp58 - countY;
         temp_t2   = Q12_MULT_PRECISE(var_v1, cosAngle) - Q12_MULT_PRECISE(temp_v0_8, sinAngle);
@@ -2168,7 +2223,11 @@ s32 func_8008BF84(s_SubCharacter* chara, q19_12 angle, s_800AD4C8* arg2, s32 arg
             continue;
         }
 
+#ifdef SH_PC_PORT
+        temp_s3  = Q12_MULT_PRECISE(chara1->collision.cylinder.field_2, tgtScale);
+#else
         temp_s3  = chara1->collision.cylinder.field_2;
+#endif
         var_a1_2 = 0;
 
         if (temp_t2 < sp44)

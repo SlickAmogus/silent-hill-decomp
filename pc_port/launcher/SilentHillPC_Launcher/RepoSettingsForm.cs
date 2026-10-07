@@ -17,7 +17,7 @@ namespace SilentHillPC_Launcher
 
         public RepoSettingsForm(string current)
         {
-            Text            = "Repo Settings";
+            Text            = Loc.T("Repo Settings");
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition   = FormStartPosition.CenterParent;
             MaximizeBox     = false;
@@ -29,7 +29,7 @@ namespace SilentHillPC_Launcher
 
             var lbl = new Label
             {
-                Text = "GitHub repository (URL or Owner/Repo):",
+                Text = Loc.T("GitHub repository (URL or Owner/Repo):"),
                 Left = 12, Top = 14, AutoSize = true
             };
             _txt = new TextBox
@@ -39,14 +39,18 @@ namespace SilentHillPC_Launcher
             };
             var lblHint = new Label
             {
-                Text = "Default: " + LauncherSettings.DefaultRepoUrl,
+                Text = Loc.F("Default: {0}", LauncherSettings.DefaultRepoUrl),
                 Left = 12, Top = 66, AutoSize = true, ForeColor = Color.Gray
             };
 
-            var btnReset  = new Button { Text = "Default", Left = 12,  Top = 98, Width = 80, Height = 26 };
-            var btnOk     = new Button { Text = "OK",      Left = 262, Top = 98, Width = 80, Height = 26 };
-            var btnCancel = new Button { Text = "Cancel",  Left = 348, Top = 98, Width = 80, Height = 26,
+            var btnReset  = new Button { Text = Loc.T("Default"), Left = 12,  Top = 98, Width = 80, Height = 26 };
+            var btnOk     = new Button { Text = Loc.T("OK"),      Left = 262, Top = 98, Width = 80, Height = 26 };
+            var btnCancel = new Button { Text = Loc.T("Cancel"),  Left = 348, Top = 98, Width = 80, Height = 26,
                                          DialogResult = DialogResult.Cancel };
+            foreach (var b in new[] { btnReset, btnOk, btnCancel })
+                b.Width = Math.Max(b.Width, TextRenderer.MeasureText(b.Text, Font).Width + 16);
+            btnCancel.Left = 428 - btnCancel.Width;
+            btnOk.Left = btnCancel.Left - 6 - btnOk.Width;
 
             btnReset.Click += (s, e) => _txt.Text = LauncherSettings.DefaultRepoUrl;
             btnOk.Click += (s, e) =>
@@ -59,22 +63,22 @@ namespace SilentHillPC_Launcher
                 if (!test.TryGetOwnerRepo(out o, out r))
                 {
                     MessageBox.Show(this,
-                        "That doesn't look like a GitHub repo.\n\nUse a URL like\n  https://github.com/Owner/Repo\nor just\n  Owner/Repo",
-                        "Repo Settings", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        Loc.T("That doesn't look like a GitHub repo.\n\nUse a URL like\n  https://github.com/Owner/Repo\nor just\n  Owner/Repo"),
+                        Loc.T("Repo Settings"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
                 if (!test.IsDefaultRepo)
                 {
                     var warn = MessageBox.Show(this,
-                        $"You're pointing the launcher at a NON-OFFICIAL repository:\n  {o}/{r}\n\n" +
-                        "Updates from it download and RUN executable code (the game exe and its DLLs) " +
-                        "on your PC. File hashes only prove the download wasn't corrupted in transit — " +
-                        "they do NOT prove the files are safe, and a malicious repo controls both the " +
-                        "files and their hashes.\n\n" +
-                        "For safety the launcher will refuse to update ITSELF from a non-official repo " +
-                        "(it will only update game files).\n\n" +
-                        "Only continue if you fully trust this repo's owner. Use this repository?",
-                        "Untrusted repository", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                        Loc.F("You're pointing the launcher at a NON-OFFICIAL repository:\n  {0}\n\n" +
+                              "Updates from it download and RUN executable code (the game exe and its DLLs) " +
+                              "on your PC. File hashes only prove the download wasn't corrupted in transit — " +
+                              "they do NOT prove the files are safe, and a malicious repo controls both the " +
+                              "files and their hashes.\n\n" +
+                              "For safety the launcher will refuse to update ITSELF from a non-official repo " +
+                              "(it will only update game files).\n\n" +
+                              "Only continue if you fully trust this repo's owner. Use this repository?", o + "/" + r),
+                        Loc.T("Untrusted repository"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
                     if (warn != DialogResult.Yes) return;
                 }
                 DialogResult = DialogResult.OK;

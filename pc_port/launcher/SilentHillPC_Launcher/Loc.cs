@@ -43,6 +43,8 @@ namespace SilentHillPC_Launcher
 
         static readonly ConditionalWeakTable<object, string> s_English =
             new ConditionalWeakTable<object, string>();
+        static readonly ConditionalWeakTable<ToolStripItem, string> s_TipEnglish =
+            new ConditionalWeakTable<ToolStripItem, string>();
 
         // ---- language metadata -------------------------------------------------
 
@@ -127,6 +129,17 @@ namespace SilentHillPC_Launcher
 
         // ---- lookup ------------------------------------------------------------
 
+        // Each Loc.Strings.*.cs file contributes its own table; static field
+        // initializers across partial files run in no defined order, but all of
+        // them finish before this body does. First entry wins so a key repeated
+        // across files can never throw during type initialization.
+        static Loc()
+        {
+            foreach (var extra in new[] { ModManagerTable, DialogsTable, ToolsTable })
+                foreach (var kv in extra)
+                    if (!Table.ContainsKey(kv.Key)) Table.Add(kv.Key, kv.Value);
+        }
+
         /// <summary>Translate one English UI string; unknown strings pass through.</summary>
         public static string T(string english)
         {
@@ -137,6 +150,12 @@ namespace SilentHillPC_Launcher
             int i = (int)Current - 1;
             if (i < 0 || i >= row.Length) return english;
             return string.IsNullOrEmpty(row[i]) ? english : row[i];
+        }
+
+        /// <summary>Translate an English format string, then fill it in.</summary>
+        public static string F(string english, params object[] args)
+        {
+            return string.Format(T(english), args);
         }
 
         static bool Translatable(Control c)
@@ -206,16 +225,17 @@ namespace SilentHillPC_Launcher
         /// changes only what is painted. Every combo on the form is
         /// DropDownList, so this covers the closed box as well as the open list.
         /// </summary>
-        public static void LocalizeItems(ComboBox cb)
+        public static void LocalizeItems(ComboBox cb, Func<string, string> translate = null)
         {
             if (cb == null) return;
+            if (translate == null) translate = T;
             cb.DrawMode = DrawMode.OwnerDrawFixed;
             cb.DrawItem += (s, e) =>
             {
                 e.DrawBackground();
                 if (e.Index >= 0 && e.Index < cb.Items.Count)
                 {
-                    var text = T(Convert.ToString(cb.Items[e.Index]));
+                    var text = translate(Convert.ToString(cb.Items[e.Index]));
                     TextRenderer.DrawText(e.Graphics, text, e.Font ?? cb.Font, e.Bounds,
                         e.ForeColor,
                         TextFormatFlags.Left | TextFormatFlags.VerticalCenter |
@@ -233,7 +253,13 @@ namespace SilentHillPC_Launcher
             {
                 it.Text = T(Original(it, it.Text));
                 if (!string.IsNullOrEmpty(it.ToolTipText))
-                    it.ToolTipText = T(Original(it.ToolTipText, it.ToolTipText));
+                {
+                    // Keyed by the item, not the string: the translated text is a
+                    // new string object, so a second switch would find no English.
+                    string en;
+                    if (!s_TipEnglish.TryGetValue(it, out en)) { en = it.ToolTipText; s_TipEnglish.Add(it, en); }
+                    it.ToolTipText = T(en);
+                }
                 var dd = it as ToolStripDropDownItem;
                 if (dd != null && dd.HasDropDownItems) ApplyMenu(dd.DropDownItems);
             }

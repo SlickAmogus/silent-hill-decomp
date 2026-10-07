@@ -151,7 +151,7 @@ namespace SilentHillPC_Launcher
         {
             string owner, repo;
             if (!settings.TryGetOwnerRepo(out owner, out repo))
-                throw new Exception("Invalid repo URL in launcher settings: " + settings.RepoUrl);
+                throw new Exception(Loc.F("Invalid repo URL in launcher settings: {0}", settings.RepoUrl));
 
             var src      = await ResolveManifestSourceAsync(owner, repo, settings, ct).ConfigureAwait(false);
             var manifest = await FetchManifestAsync(src.Url, ct).ConfigureAwait(false);
@@ -229,7 +229,7 @@ namespace SilentHillPC_Launcher
         {
             string owner, repo;
             if (!settings.TryGetOwnerRepo(out owner, out repo))
-                throw new Exception("Invalid repo URL: " + settings.RepoUrl);
+                throw new Exception(Loc.F("Invalid repo URL: {0}", settings.RepoUrl));
 
             var url = $"https://api.github.com/repos/{owner}/{repo}/branches?per_page=100";
             var branches = await GetApiJsonAsync<List<GhBranch>>(url, ct).ConfigureAwait(false);
@@ -243,7 +243,7 @@ namespace SilentHillPC_Launcher
         {
             string owner, repo;
             if (!settings.TryGetOwnerRepo(out owner, out repo))
-                throw new Exception("Invalid repo URL: " + settings.RepoUrl);
+                throw new Exception(Loc.F("Invalid repo URL: {0}", settings.RepoUrl));
 
             var rels = await ListReleasesAsync(owner, repo, ct).ConfigureAwait(false);
             IEnumerable<GhRelease> cand;
@@ -274,7 +274,7 @@ namespace SilentHillPC_Launcher
                     families.Add(new BuildInfo
                     {
                         Tag   = prefix + "latest",
-                        Label = $"{CustomDisplayName(r)}  — latest (auto-updates)"
+                        Label = Loc.F("{0}  — latest (auto-updates)", CustomDisplayName(r))
                     });
                 }
                 list.InsertRange(0, families);
@@ -293,7 +293,7 @@ namespace SilentHillPC_Launcher
         {
             string owner, repo;
             if (!settings.TryGetOwnerRepo(out owner, out repo))
-                throw new Exception("Invalid repo URL: " + settings.RepoUrl);
+                throw new Exception(Loc.F("Invalid repo URL: {0}", settings.RepoUrl));
 
             var releases = await ListReleasesAsync(owner, repo, ct).ConfigureAwait(false);
 
@@ -424,13 +424,13 @@ namespace SilentHillPC_Launcher
                 target = releases.FirstOrDefault(r => r.TagName != null &&
                              r.TagName.StartsWith(family, StringComparison.OrdinalIgnoreCase));
                 if (target == null)
-                    throw new Exception($"No builds found for '{s.Build}' in {owner}/{repo}.");
+                    throw new Exception(Loc.F("No builds found for '{0}' in {1}.", s.Build, owner + "/" + repo));
             }
             else if (!s.IsLatestBuild)
             {
                 target = releases.FirstOrDefault(r => string.Equals(r.TagName, s.Build, StringComparison.OrdinalIgnoreCase));
                 if (target == null)
-                    throw new Exception($"Build '{s.Build}' not found in {owner}/{repo}.");
+                    throw new Exception(Loc.F("Build '{0}' not found in {1}.", s.Build, owner + "/" + repo));
             }
             else
             {
@@ -441,7 +441,7 @@ namespace SilentHillPC_Launcher
                     cand = cand.Where(r => !IsCustomRelease(r));
                 target = cand.FirstOrDefault();
                 if (target == null)
-                    throw new Exception($"No releases found for branch '{(branch ?? "default")}' in {owner}/{repo}.");
+                    throw new Exception(Loc.F("No releases found for branch '{0}' in {1}.", branch ?? "default", owner + "/" + repo));
             }
 
             string url = AssetUrl(target, "version.json")
@@ -571,7 +571,7 @@ namespace SilentHillPC_Launcher
                 int idx = 0;
                 foreach (var entry in plan.Changed)
                 {
-                    progress?.Invoke((double)idx / plan.Changed.Count, $"Downloading {entry.Path}...");
+                    progress?.Invoke((double)idx / plan.Changed.Count, Loc.F("Downloading {0}...", entry.Path));
 
                     string tmpFile = Path.Combine(tmpRoot, entry.Path.Replace('/', '_'));
                     using (var resp = await _http.GetAsync(entry.Url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false))
@@ -584,9 +584,10 @@ namespace SilentHillPC_Launcher
 
                     string actualHash = Sha256Of(tmpFile);
                     if (actualHash != (entry.Sha256 ?? "").ToLowerInvariant())
-                        throw new Exception(
-                            $"Hash mismatch for {entry.Path}: expected {entry.Sha256}, got {actualHash}. " +
-                            "Download corrupted or manifest stale. Aborting (no files replaced).");
+                        throw new Exception(Loc.F(
+                            "Hash mismatch for {0}: expected {1}, got {2}. " +
+                            "Download corrupted or manifest stale. Aborting (no files replaced).",
+                            entry.Path, entry.Sha256, actualHash));
                     idx++;
                 }
 
@@ -596,7 +597,7 @@ namespace SilentHillPC_Launcher
                     string tmpFile = Path.Combine(tmpRoot, entry.Path.Replace('/', '_'));
                     string dst;
                     if (!TryResolveInstallPath(installDir, entry.Path, out dst))
-                        throw new Exception($"Refusing to write '{entry.Path}' — it escapes the install directory. Aborting.");
+                        throw new Exception(Loc.F("Refusing to write '{0}' — it escapes the install directory. Aborting.", entry.Path));
 
                     if (IsUserDataPath(entry.Path) && File.Exists(dst)) continue;
 
@@ -606,7 +607,7 @@ namespace SilentHillPC_Launcher
                     ReplaceFile(tmpFile, dst);
                 }
 
-                progress?.Invoke(1.0, $"Updated to {plan.RemoteVersion}");
+                progress?.Invoke(1.0, Loc.F("Updated to {0}", plan.RemoteVersion));
             }
             finally
             {
@@ -617,7 +618,7 @@ namespace SilentHillPC_Launcher
         private static async Task ApplyZipAsync(string installDir, UpdatePlan plan, Action<double, string> progress, CancellationToken ct)
         {
             if (string.IsNullOrWhiteSpace(plan.ZipUrl))
-                throw new Exception("This zip release has no zip_url in its manifest.");
+                throw new Exception(Loc.T("This zip release has no zip_url in its manifest."));
 
             string tmpRoot    = Path.Combine(Path.GetTempPath(), "sh-zip-" + Guid.NewGuid().ToString("N").Substring(0, 8));
             string zipPath    = Path.Combine(tmpRoot, "update.zip");
@@ -641,7 +642,7 @@ namespace SilentHillPC_Launcher
                             read += n;
                             if (total.HasValue && total.Value > 0)
                                 progress?.Invoke(0.03 + 0.62 * ((double)read / total.Value),
-                                                 $"Downloading update... {read / (1024 * 1024)}/{total.Value / (1024 * 1024)} MB");
+                                                 Loc.F("Downloading update... {0}/{1} MB", read / (1024 * 1024), total.Value / (1024 * 1024)));
                         }
                     }
                 }
@@ -659,18 +660,18 @@ namespace SilentHillPC_Launcher
                     {
                         var ze = FindZipEntry(archive, entry.Path);
                         if (ze == null)
-                            throw new Exception($"{entry.Path} is missing from the update zip. Aborting.");
+                            throw new Exception(Loc.F("{0} is missing from the update zip. Aborting.", entry.Path));
 
                         string tmpFile;
                         if (!TryResolveInstallPath(extractDir, entry.Path, out tmpFile))
-                            throw new Exception($"Update zip entry '{entry.Path}' escapes the staging directory. Aborting.");
+                            throw new Exception(Loc.F("Update zip entry '{0}' escapes the staging directory. Aborting.", entry.Path));
 
                         var tmpDir = Path.GetDirectoryName(tmpFile);
                         if (!string.IsNullOrEmpty(tmpDir) && !Directory.Exists(tmpDir)) Directory.CreateDirectory(tmpDir);
                         ze.ExtractToFile(tmpFile, true);
 
                         if (!string.IsNullOrEmpty(entry.Sha256) && Sha256Of(tmpFile) != entry.Sha256.ToLowerInvariant())
-                            throw new Exception($"Hash mismatch for {entry.Path} in the zip. Aborting (no files replaced).");
+                            throw new Exception(Loc.F("Hash mismatch for {0} in the zip. Aborting (no files replaced).", entry.Path));
 
                         staged[entry.Path] = tmpFile;
                     }
@@ -681,7 +682,7 @@ namespace SilentHillPC_Launcher
                 {
                     string dst;
                     if (!TryResolveInstallPath(installDir, entry.Path, out dst))
-                        throw new Exception($"Refusing to write '{entry.Path}' — it escapes the install directory. Aborting.");
+                        throw new Exception(Loc.F("Refusing to write '{0}' — it escapes the install directory. Aborting.", entry.Path));
 
                     if (IsUserDataPath(entry.Path) && File.Exists(dst)) continue;
 
@@ -691,7 +692,7 @@ namespace SilentHillPC_Launcher
                     ReplaceFile(staged[entry.Path], dst);
                 }
 
-                progress?.Invoke(1.0, $"Updated to {plan.RemoteVersion}");
+                progress?.Invoke(1.0, Loc.F("Updated to {0}", plan.RemoteVersion));
             }
             finally
             {
@@ -790,7 +791,7 @@ namespace SilentHillPC_Launcher
         {
             string owner, repo;
             if (!settings.TryGetOwnerRepo(out owner, out repo))
-                throw new Exception("Invalid repo URL: " + settings.RepoUrl);
+                throw new Exception(Loc.F("Invalid repo URL: {0}", settings.RepoUrl));
             var src = await ResolveManifestSourceAsync(owner, repo, settings, ct).ConfigureAwait(false);
             return await FetchTextAsync(DeriveChangelogUrl(src.Url), ct).ConfigureAwait(false);
         }

@@ -19,6 +19,7 @@
 
 #include "pc_cheats.h"
 #include "pc_config.h"
+#include "lang_quick.h"
 #include "sh_log.h"
 
 #include <stdio.h>
@@ -35,6 +36,9 @@ extern int  g_DebugAnimKfView;
 extern int  g_DebugCamEnabled;
 extern void Pc_FreeCam_Set(int on);
 /* main_pc.c / dbg_overlay.c */
+#include "map_registry.h"
+#include "pc_config.h"
+
 extern int  g_PcAllowDebugControls;
 extern int  g_PcUnlimitedEnemies;
 extern int  g_CollVisEnabled;
@@ -50,11 +54,12 @@ extern const char* Pc_PlayAs_Label(int idx);
 extern const char* Pc_PlayAs_Name(int idx);
 extern int         Pc_PlayAs_SetByName(const char* name, int save);
 
-enum { CH_TOGGLE = 0, CH_ACTION, CH_PLAYAS, CH_FREECAM, CH_DEBUGKEYS, CH_SPAWN };
+enum { CH_TOGGLE = 0, CH_ACTION, CH_PLAYAS, CH_FREECAM, CH_DEBUGKEYS, CH_SPAWN, CH_MAP };
 
 /* ---- big head mode ---------------------------------------------------- */
 
 int g_PcBigHead = 0;
+extern int g_PcInfiniteAmmo; /* game_main.c */
 
 #define BIGHEAD_BONE  2 /* the head on every 18-bone human rig (parent chain -1,0,1,...) */
 #define BIGHEAD_SCALE 2
@@ -135,6 +140,32 @@ enum
     MOB_HIDE,      /* not offered at all -- no keyboard to use it from */
     MOB_RELABEL    /* shown, but under `mname` (the key hint dropped) */
 };
+/* CH_MAP: the map a New Game starts on. Replaces the old 4/5 debug keys.
+ * Unlike Spawn, browsing IS the change -- it writes config.cfg straight away,
+ * because the value only takes effect on the next New Game anyway. */
+static int MapRow_Current(void)
+{
+    int id = MapRegistry_FindByName(g_PcConfig.mapName);
+    return (id < 0) ? 0 : id;
+}
+
+static void MapRow_Set(int id)
+{
+    const char* name;
+    int         count = MapRegistry_Count();
+
+    if (count <= 0)
+        return;
+    if (id < 0)      id = count - 1;
+    if (id >= count) id = 0;
+
+    name = MapRegistry_GetName(id);
+    strncpy(g_PcConfig.mapName, name, sizeof(g_PcConfig.mapName) - 1);
+    g_PcConfig.mapName[sizeof(g_PcConfig.mapName) - 1] = (char)0;
+    PcConfig_SaveMapName(name);
+    Sd_PlaySfx(Sfx_MenuMove, 0, 64);
+    SH_DBG_ECHO("[CHEAT] Starting map: %s - %s", name, MapRegistry_GetDescription(id));
+}
 
 typedef struct
 {
@@ -232,6 +263,7 @@ static const CheatRow s_cheats[] = {
     { "Noclip",               CH_TOGGLE,  &g_DebugNoWallCollision, NULL },
     { "Enemies ignore Harry", CH_TOGGLE,  &g_DebugNoTarget,       NULL },
     { "Unlimited enemies",    CH_TOGGLE,  &g_PcUnlimitedEnemies,  NULL },
+    { "Infinite ammo",        CH_TOGGLE,  &g_PcInfiniteAmmo,      NULL },
     { "Big head mode",        CH_TOGGLE,  &g_PcBigHead,           NULL },
     { "Handgun bullets +15",  CH_ACTION,  NULL, act_handgun_ammo },
     { "Hunting rifle +30",    CH_ACTION,  NULL, act_rifle },
@@ -274,6 +306,7 @@ static const CheatRow s_debug[] = {
     { "Wireframe (Ctrl+F1)",  CH_TOGGLE,  &g_dbg_wireframeMode,  NULL, MOB_HIDE },
     { "No textures (Ctrl+F2)", CH_TOGGLE, &g_dbg_texturelessMode, NULL,
       MOB_RELABEL, "No textures" },
+    { "Starting map",         CH_MAP,     NULL, NULL },
     { "Spawn",                CH_SPAWN,   NULL, NULL },
     { "Log Harry position",   CH_ACTION,  NULL, act_log_position },
     { "Log camera shot",      CH_ACTION,  NULL, act_log_camera },
@@ -353,25 +386,34 @@ const char* Pc_Cheats_Label(int page, int idx, char* buf, int bufsz)
     if (!r) return "";
     switch (r->kind)
     {
-        case CH_TOGGLE:    return *r->flag ? "On" : "Off";
+        case CH_TOGGLE:    return Pc_LangQuickMenu(*r->flag ? "On" : "Off");
         /* Fog row stores "disabled", so present it the right way round. */
         case CH_ACTION:    return "";
         case CH_PLAYAS:    return Pc_PlayAs_Label(Pc_PlayAs_Current());
-        case CH_FREECAM:   return g_DebugCamEnabled ? "On" : "Off";
-        case CH_DEBUGKEYS: return g_PcAllowDebugControls ? "On" : "Off";
+        case CH_FREECAM:   return Pc_LangQuickMenu(g_DebugCamEnabled ? "On" : "Off");
+        case CH_DEBUGKEYS: return Pc_LangQuickMenu(g_PcAllowDebugControls ? "On" : "Off");
         case CH_SPAWN:
 #if defined(PC_CHEATS_MOBILE)
             /* No chevrons: on touch this row is not left/right-stepped. The
              * value side cycles the character and the label side fires it,
              * which the row already reads as -- "Spawn" on the left, whom on
              * the right. */
-            snprintf(buf, bufsz, "%s%s", Pc_SpawnList_Name(s_spawnIdx),
-                     Pc_SpawnList_Ready(s_spawnIdx) ? "" : "  (not here)");
+            snprintf(buf, bufsz, "%s%s%s", Pc_SpawnList_Name(s_spawnIdx),
+                     Pc_SpawnList_Ready(s_spawnIdx) ? "" : "  ",
+                     Pc_SpawnList_Ready(s_spawnIdx) ? "" : Pc_LangQuick("(not here)"));
 #else
-            snprintf(buf, bufsz, "< %s >%s", Pc_SpawnList_Name(s_spawnIdx),
-                     Pc_SpawnList_Ready(s_spawnIdx) ? "" : "  (not in this map)");
+            snprintf(buf, bufsz, "< %s >%s%s", Pc_SpawnList_Name(s_spawnIdx),
+                     Pc_SpawnList_Ready(s_spawnIdx) ? "" : "  ",
+                     Pc_SpawnList_Ready(s_spawnIdx) ? "" : Pc_LangQuick("(not in this map)"));
 #endif
             return buf;
+        case CH_MAP:
+        {
+            int id = MapRow_Current();
+            snprintf(buf, bufsz, "< %s >  %s", MapRegistry_GetName(id),
+                     MapRegistry_GetDescription(id));
+            return buf;
+        }
         default:           return "";
     }
 }
@@ -401,6 +443,9 @@ void Pc_Cheats_Adjust(int page, int idx, int dir)
             }
             break;
         }
+        case CH_MAP:
+            MapRow_Set(MapRow_Current() + (dir < 0 ? -1 : 1));
+            break;
         case CH_FREECAM:
             Pc_FreeCam_Set(!g_DebugCamEnabled);
             Sd_PlaySfx(g_DebugCamEnabled ? Sfx_MenuConfirm : Sfx_MenuCancel, 0, 64);
@@ -451,24 +496,40 @@ void Pc_Cheats_Confirm(int page, int idx)
 int Pc_Cheats_ListCount(int page, int idx)
 {
     const CheatRow* r = row_at(page, idx, NULL);
+    if (r && r->kind == CH_MAP) return MapRegistry_Count();
     return (r && r->kind == CH_SPAWN) ? Pc_SpawnList_Count() : 0;
 }
 
 const char* Pc_Cheats_ListName(int page, int idx, int i)
 {
     const CheatRow* r = row_at(page, idx, NULL);
+
+    if (r && r->kind == CH_MAP)
+    {
+        /* Name plus as much of the description as the dropdown line fits. */
+        static char line[64];
+        snprintf(line, sizeof(line), "%s  %s", MapRegistry_GetName(i),
+                 MapRegistry_GetDescription(i));
+        return line;
+    }
     return (r && r->kind == CH_SPAWN) ? Pc_SpawnList_Name(i) : "";
 }
 
 int Pc_Cheats_ListGet(int page, int idx)
 {
     const CheatRow* r = row_at(page, idx, NULL);
+    if (r && r->kind == CH_MAP) return MapRow_Current();
     return (r && r->kind == CH_SPAWN) ? s_spawnIdx : 0;
 }
 
 void Pc_Cheats_ListSet(int page, int idx, int i)
 {
     const CheatRow* r = row_at(page, idx, NULL);
+    if (r && r->kind == CH_MAP && i >= 0 && i < MapRegistry_Count())
+    {
+        MapRow_Set(i);
+        return;
+    }
     if (r && r->kind == CH_SPAWN && i >= 0 && i < Pc_SpawnList_Count())
     {
         s_spawnIdx = i;

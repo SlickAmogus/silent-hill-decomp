@@ -48,6 +48,44 @@ static const s_JpnPcOptEntry s_JpnPcOpt[] = {
 };
 #define JPN_PCOPT_COUNT ((int)(sizeof(s_JpnPcOpt) / sizeof(s_JpnPcOpt[0])))
 
+/* Title menu and inventory text retail NTSC-J drew in English: written in both
+ * languages, since the Chinese column is spelled in the fan font's own codes
+ * (see the header of lang_jpn_ui.inc). */
+typedef struct {
+    const char* us;
+    const char* jp; /* Shift-JIS */
+    const char* zh; /* JIS codes as drawn by the Chinese glyph set */
+} s_JpnUiEntry;
+
+static const s_JpnUiEntry s_JpnUi[] = {
+#include "lang_jpn_ui.inc"
+};
+#define JPN_UI_COUNT ((int)(sizeof(s_JpnUi) / sizeof(s_JpnUi[0])))
+
+static const s_JpnUiEntry s_JpnInv[] = {
+#include "lang_jpn_inv.inc"
+};
+#define JPN_INV_COUNT ((int)(sizeof(s_JpnInv) / sizeof(s_JpnInv[0])))
+
+static const char* JpnUiLookup(const s_JpnUiEntry* tbl, int count, const char* us)
+{
+    int i;
+
+    for (i = 0; i < count; i++)
+    {
+        if (tbl[i].us[0] == us[0] && strcmp(tbl[i].us, us) == 0)
+            return Pc_KanjiChineseActive() ? tbl[i].zh : tbl[i].jp;
+    }
+    return NULL;
+}
+
+const char* Pc_JpnInventoryLabel(const char* us)
+{
+    if (g_GameRegion != Region_JPN || us == NULL)
+        return NULL;
+    return JpnUiLookup(s_JpnInv, JPN_INV_COUNT, us);
+}
+
 static char*       s_Arena;
 static const char* s_Text[JPN_MENU_COUNT];
 static int         s_Active;
@@ -237,6 +275,12 @@ const char* Pc_JpnMenuText(const char* us)
 
     if (us == NULL)
         return NULL;
+
+    {
+        const char* ui = JpnUiLookup(s_JpnUi, JPN_UI_COUNT, us);
+        if (ui != NULL)
+            return ui;
+    }
 
     /* The port's own rows first. Not gated on s_Active -- these never came off
      * a disc, so they stand whether or not the overlays read. Gated on the

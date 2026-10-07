@@ -14,6 +14,7 @@
 typedef struct {
     const char* key;
     const char* val;
+    char*       utf8; /* MENU./QUICK. only: the value before transcoding, for the TrueType overlays */
 } s_PackEntry;
 
 static char*        s_Data;
@@ -171,7 +172,7 @@ static unsigned int HashKey(const char* s)
     return h;
 }
 
-static void TableInsert(const char* key, const char* val)
+static void TableInsert(const char* key, const char* val, char* utf8)
 {
     unsigned int i = HashKey(key) & (unsigned int)s_Mask;
 
@@ -180,16 +181,19 @@ static void TableInsert(const char* key, const char* val)
         if (strcmp(s_Table[i].key, key) == 0)
         {
             s_Table[i].val = val; /* last definition wins */
+            free(s_Table[i].utf8);
+            s_Table[i].utf8 = utf8;
             return;
         }
         i = (i + 1) & (unsigned int)s_Mask;
     }
-    s_Table[i].key = key;
-    s_Table[i].val = val;
+    s_Table[i].key  = key;
+    s_Table[i].val  = val;
+    s_Table[i].utf8 = utf8;
     s_Count++;
 }
 
-const char* Pc_LangPackGet(const char* key)
+static const s_PackEntry* TableFind(const char* key)
 {
     unsigned int i;
 
@@ -200,10 +204,41 @@ const char* Pc_LangPackGet(const char* key)
     while (s_Table[i].key != NULL)
     {
         if (strcmp(s_Table[i].key, key) == 0)
-            return s_Table[i].val;
+            return &s_Table[i];
         i = (i + 1) & (unsigned int)s_Mask;
     }
     return NULL;
+}
+
+const char* Pc_LangPackGet(const char* key)
+{
+    const s_PackEntry* e = TableFind(key);
+    return e ? e->val : NULL;
+}
+
+const char* Pc_LangPackUtf8(const char* key)
+{
+    const s_PackEntry* e = TableFind(key);
+    return e ? e->utf8 : NULL;
+}
+
+/* Resolve the writer's "\n" / "\t" escapes in place. Keys need it as well as
+ * values: the two-line map prompts are keyed by their two-line literal. */
+static void Unescape(char* s)
+{
+    char* out = s;
+
+    for (; *s != '\0'; s++)
+    {
+        if (s[0] == '\\' && (s[1] == 'n' || s[1] == 't'))
+        {
+            *out++ = (s[1] == 'n') ? '\n' : '\t';
+            s++;
+            continue;
+        }
+        *out++ = *s;
+    }
+    *out = '\0';
 }
 
 /* ------------------------------------------------------------------ */
@@ -212,6 +247,10 @@ const char* Pc_LangPackGet(const char* key)
 
 void Pc_LangPackFree(void)
 {
+    int i;
+
+    for (i = 0; s_Table != NULL && i <= s_Mask; i++)
+        free(s_Table[i].utf8);
     free(s_Data);
     free(s_Table);
     s_Data     = NULL;
@@ -311,8 +350,15 @@ int Pc_LangPackLoad(const char* code)
             continue;
         }
 
-        TranscodeValue(eq);
-        TableInsert(line, eq);
+        Unescape(line);
+        Unescape(eq);
+        {
+            char* utf8 = NULL;
+            if (strncmp(line, "MENU.", 5) == 0 || strncmp(line, "QUICK.", 6) == 0)
+                utf8 = strdup(eq);
+            TranscodeValue(eq);
+            TableInsert(line, eq, utf8);
+        }
     }
 
     if (s_Count == 0)
@@ -395,31 +441,25 @@ const char* Pc_LangPackItemDesc(int itemIdx)
     return Pc_LangPackGet(key);
 }
 
-const char* Pc_LangPackMenu(const char* us)
+/* The extractor built these keys by dropping the \x01 kerning bytes, trimming
+ * the outer padding and writing '=' as '-' (a .lang line ends its key at the
+ * first '='); \x07 colour prefixes stay part of the key. */
+static int MenuKey(const char* us, char* key, size_t keySize)
 {
-    char   key[160];
-    size_t n = 0;
-    size_t i;
+    size_t n = 5;
+    size_t i = 0;
 
-    if (!s_Active || us == NULL)
-        return NULL;
+    if (us == NULL)
+        return 0;
 
-    /* The extractor built these keys by dropping the \x01 kerning bytes and
-     * trimming the outer padding; \x07 colour prefixes stay part of the key. */
-    key[n++] = 'M';
-    key[n++] = 'E';
-    key[n++] = 'N';
-    key[n++] = 'U';
-    key[n++] = '.';
-
-    i = 0;
+    memcpy(key, "MENU.", 5);
     while (us[i] == '_' || us[i] == ' ' || us[i] == '\t' || us[i] == '\n' || us[i] == '\r')
         i++;
 
-    for (; us[i] != '\0' && n < sizeof(key) - 1; i++)
+    for (; us[i] != '\0' && n < keySize - 1; i++)
     {
         if (us[i] != '\x01')
-            key[n++] = us[i];
+            key[n++] = (us[i] == '=') ? '-' : us[i];
     }
     while (n > 5 && (key[n - 1] == '_' || key[n - 1] == ' ' ||
                      key[n - 1] == '\t' || key[n - 1] == '\n' || key[n - 1] == '\r'))
@@ -427,6 +467,23 @@ const char* Pc_LangPackMenu(const char* us)
         n--;
     }
     key[n] = '\0';
+    return 1;
+}
 
+const char* Pc_LangPackMenu(const char* us)
+{
+    char key[160];
+
+    if (!s_Active || !MenuKey(us, key, sizeof(key)))
+        return NULL;
     return Pc_LangPackGet(key);
+}
+
+const char* Pc_LangPackMenuUtf8(const char* us)
+{
+    char key[160];
+
+    if (!s_Active || !MenuKey(us, key, sizeof(key)))
+        return NULL;
+    return Pc_LangPackUtf8(key);
 }

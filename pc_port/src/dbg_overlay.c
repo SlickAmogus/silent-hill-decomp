@@ -14,6 +14,8 @@
 #include "bodyprog/bodyprog.h"
 #include "sh_log.h"
 #include "dbg_overlay.h"
+#include "pc_pick.h"
+#include "pc_binds.h"
 #include <PsyX/PsyX_backend.h>
 #include "screens/options.h" /* OptionsMenuState_* — Escape backs out of the brightness screen */
 #include "pc_config.h"
@@ -95,6 +97,11 @@ static int s_sel_active = 0; /* left button held, drag in progress */
 static int s_sel_a_line, s_sel_a_col; /* anchor */
 static int s_sel_b_line, s_sel_b_col; /* drag end */
 static int s_prev_lmb = 0;
+static int s_prev_rmb = 0;
+/* Hold TAB while the console is open: the panel stops drawing so the half of
+ * the screen it covers is clickable, while the pointer and picking stay live.
+ * Nothing about the console state changes -- it is purely a peek. */
+static int s_console_peek = 0;
 /* Panel hit-test geometry: the GL viewport the console was last drawn in
  * (window pixels, GL bottom-left origin). Captured in Render. */
 static int s_hit_vp[4];
@@ -163,7 +170,6 @@ static int    s_gl_inited = 0;
 static char   s_coll_lines[COLL_LINES][COLL_COLS];
 static int    s_coll_count = 0;
 static int    s_coll_on    = 0;
-static int    s_prev_apos  = 0;
 static GLuint s_coll_tex   = 0;
 
 /* Read by collision.c (func_8006B318) to capture the wall segments the player's
@@ -1401,8 +1407,9 @@ static int Dbg_GfxBindActive(const unsigned char* ks, const char* name)
 
 void DbgOverlay_Update(void)
 {
-    static int s_mark_a = 0;
-    static int s_mark_b = 0;
+    /* A click parked last frame has had a frame of drawing to resolve. */
+    Pc_Pick_FrameEnd();
+
     static int s_prev_tilde = 0;
     VECTOR3 hpos, cpos;
     s_SubCharacter* player;
@@ -1480,6 +1487,16 @@ void DbgOverlay_Update(void)
         }
     }
 
+    s_console_peek = (s_console_open && ks[SDL_SCANCODE_TAB]) ? 1 : 0;
+
+    /* Custom key binds. Not while the console owns the keyboard, or typing a
+     * command would fire whatever its letters are bound to. */
+    {
+        extern int g_PcQuickOptionsActive;
+        if (!s_console_open && !g_PcQuickOptionsActive)
+            PcBinds_Update(ks);
+    }
+
     /* Scrollback while open: PgUp/PgDn (with hold-repeat) and the mouse wheel.
      * End jumps back to live. Clamped against the backlog in the texture build. */
     if (s_console_open) {
@@ -1536,6 +1553,9 @@ void DbgOverlay_Update(void)
                 }
             }
 
+            if (s_console_peek)
+                line = -2; /* panel hidden: the whole picture is clickable */
+
             if (lmb && !s_prev_lmb) {
                 if (line != -2) {
                     s_sel_a_line = s_sel_b_line = line;
@@ -1544,6 +1564,8 @@ void DbgOverlay_Update(void)
                     s_sel_active = 1;
                 } else {
                     s_sel_valid = 0; /* click off the text clears it */
+                    /* Below the panel is the scene: pick whatever is there. */
+                    Pc_Pick_RequestAt(wx, wy);
                 }
             } else if (lmb && s_sel_active) {
                 if (line != -2) {
@@ -1554,6 +1576,13 @@ void DbgOverlay_Update(void)
                 s_sel_active = 0;
             }
             s_prev_lmb = lmb;
+
+            {
+                int rmb = (mb & SDL_BUTTON(SDL_BUTTON_RIGHT)) != 0;
+                if (rmb && !s_prev_rmb)
+                    Pc_Pick_Clear(1);
+                s_prev_rmb = rmb;
+            }
         }
     }
 
@@ -1598,18 +1627,34 @@ void DbgOverlay_Update(void)
             s_input_buf[s_input_len]   = '\0';
             s_console_dirty            = 1;
         }
-        /* `-`/`_`, `=`/`+`, `.` for numeric and path args (e.g. `weld 2.5`,
-         * `inveqy -50`, map names with `_`). Shift gives the upper glyph; there's
-         * no full shift handling, just these three keys. */
+        /* Punctuation. Shift gives the upper glyph; there is no full shift
+         * handling, just this table.
+         *
+         * `;` is load-bearing: it is how `bind` separates the commands in one
+         * bind ("bind k kill;spawn groaner"), and without a key for it that
+         * syntax could not be typed at all. The quote keys are here for the
+         * same reason -- they are the other thing people reach for when a
+         * separator does not work.
+         *
+         * `[`, `]` and `\` are also the graphics-effect binds, but
+         * Dbg_GfxBindActive returns 0 while the console is open, so typing
+         * them cannot also fire the effect. */
         {
             int shift = ks[SDL_SCANCODE_LSHIFT] || ks[SDL_SCANCODE_RSHIFT];
             const struct { int sc; char lo, hi; } syms[] = {
-                { SDL_SCANCODE_MINUS,  '-', '_' },
-                { SDL_SCANCODE_EQUALS, '=', '+' },
-                { SDL_SCANCODE_PERIOD, '.', '.' },
+                { SDL_SCANCODE_MINUS,        '-',  '_' },
+                { SDL_SCANCODE_EQUALS,       '=',  '+' },
+                { SDL_SCANCODE_PERIOD,       '.',  '.' },
+                { SDL_SCANCODE_SEMICOLON,    ';',  ':' },
+                { SDL_SCANCODE_APOSTROPHE,   '\'', '"' },
+                { SDL_SCANCODE_COMMA,        ',',  '<' },
+                { SDL_SCANCODE_SLASH,        '/',  '?' },
+                { SDL_SCANCODE_LEFTBRACKET,  '[',  '{' },
+                { SDL_SCANCODE_RIGHTBRACKET, ']',  '}' },
+                { SDL_SCANCODE_BACKSLASH,    '\\', '|' },
             };
             int i;
-            for (i = 0; i < 3; i++) {
+            for (i = 0; i < (int)(sizeof(syms) / sizeof(syms[0])); i++) {
                 if (ks[syms[i].sc] && !s_prev_keys[syms[i].sc] &&
                     s_input_len < INPUT_BUF_CAP - 1) {
                     s_input_buf[s_input_len++] = shift ? syms[i].hi : syms[i].lo;
@@ -1717,17 +1762,12 @@ void DbgOverlay_Update(void)
         }
     }
 
-    /* `'` toggles the collision visualizer panel; gather data each frame while
-     * on. Handled before the showConsole gate so it works independently of the
-     * scrolling console's visibility. */
+    /* Collision visualizer. The `'` key is gone -- Quick Options > Debug owns
+     * the toggle, so the panel follows g_CollVisEnabled and gathers while it
+     * is on. Kept ahead of the showConsole gate so it works with the console
+     * closed. */
     {
-        int cur_apos = ks[SDL_SCANCODE_APOSTROPHE];
-        if (cur_apos && !s_prev_apos && g_PcAllowDebugControls) {
-            s_coll_on = !s_coll_on;
-            g_CollVisEnabled = s_coll_on;
-            SH_DBG_ECHO("[DEBUG] ' Collision visualizer: %s", s_coll_on ? "ON" : "OFF");
-        }
-        s_prev_apos = cur_apos;
+        s_coll_on = g_CollVisEnabled;
         if (s_coll_on)
             coll_gather();
     }
@@ -2117,9 +2157,10 @@ void DbgOverlay_Render(void)
 
         /* Backdrop first (full width), then the selection highlight, then the
          * text at its natural glyph scale, cropping to the rows in use. */
-        draw_panel(s_bg_tex, x0, y0, x1, y1);
+        if (!s_console_peek)
+            draw_panel(s_bg_tex, x0, y0, x1, y1);
 
-        if (s_sel_valid) {
+        if (s_sel_valid && !s_console_peek) {
             int fl, fc, ll, lc, r;
 
             console_sel_order(&fl, &fc, &ll, &lc);
@@ -2160,6 +2201,7 @@ void DbgOverlay_Render(void)
             }
         }
 
+        if (!s_console_peek)
         {
             /* Draw only the columns that fit the window at the natural 2x glyph
              * size, stretched from the left edge, so the text spans the full

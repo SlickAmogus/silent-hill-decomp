@@ -2,6 +2,7 @@
 #include <SDL2/SDL.h>
 #include <PsyX/PsyX_public.h> /* PsyX_LookupGameControllerMapping / RawControllerBindHeld */
 #include "game.h"
+#include "pc_pick.h"
 #include "bodyprog/bodyprog.h"
 #include "bodyprog/screen/screen_data.h"
 #include "bodyprog/player.h"
@@ -773,6 +774,7 @@ s32 Pc_AimAssistFind(const VECTOR3* camPos, const VECTOR3* camFwd, s32 aimRange,
             continue;
 
         radius = npc->collision.cylinder.field_2;
+        radius = (s32)(((s64)radius * Pc_Pick_CollScale(npc)) >> 12); /* console SCALE */
         if (radius <= 0)
             continue;
 
@@ -799,6 +801,11 @@ s32 Pc_AimAssistFind(const VECTOR3* camPos, const VECTOR3* camFwd, s32 aimRange,
          * hits while manual free-aim only hit near the neck). */
         yA = npc->position.vy + npc->collision.box.top;
         yB = npc->position.vy + npc->collision.box.height;
+        {
+            q19_12 cs = Pc_Pick_CollScale(npc); /* console SCALE */
+            yA = Pc_Pick_ScaleAbout(npc->position.vy, yA, cs);
+            yB = Pc_Pick_ScaleAbout(npc->position.vy, yB, cs);
+        }
         yLo = (yA < yB) ? yA : yB;
         yHi = (yA < yB) ? yB : yA;
         bodyH  = yHi - yLo;

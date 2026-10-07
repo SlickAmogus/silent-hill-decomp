@@ -38,7 +38,7 @@ namespace SilentHillPC_Launcher
             _loadSnd = loadSnd;
             _lastDir = initialFolder;
 
-            Text = "Audio — save " + editedBank;
+            Text = Loc.F("Audio — save {0}", editedBank);
             ClientSize = new Size(780, 440);
             MinimumSize = new Size(640, 340);
             StartPosition = FormStartPosition.CenterParent;
@@ -51,31 +51,32 @@ namespace SilentHillPC_Launcher
             _intro.Size = new Size(756, 50);
             _intro.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             _intro.Text = targets.Count > 1
-                ? "The game loads one ambient bank per map, and the disc copies the same sound into " +
-                  "every bank that needs it. The samples you replaced also exist, byte for byte, in the " +
-                  "other banks below; a replacement only plays where the loaded bank has it. Each bank is " +
-                  "written into the folder as <bank>.VAB, starting from its Source. A copy already in that " +
-                  "folder is used as the source automatically, so earlier edits are kept."
-                : "The bank is written into the folder as " + editedBank + ".VAB, starting from its Source. " +
-                  "A copy already in that folder is used as the source automatically, so earlier edits " +
-                  "to it are kept. No other bank on the disc carries the samples you replaced.";
+                ? Loc.T("The game loads one ambient bank per map, and the disc copies the same sound into " +
+                        "every bank that needs it. The samples you replaced also exist, byte for byte, in the " +
+                        "other banks below; a replacement only plays where the loaded bank has it. Each bank is " +
+                        "written into the folder as <bank>.VAB, starting from its Source. A copy already in that " +
+                        "folder is used as the source automatically, so earlier edits are kept.")
+                : Loc.F("The bank is written into the folder as {0}.VAB, starting from its Source. " +
+                        "A copy already in that folder is used as the source automatically, so earlier edits " +
+                        "to it are kept. No other bank on the disc carries the samples you replaced.", editedBank);
             Controls.Add(_intro);
 
             var fl = new Label
             {
-                Text = "Save into:",
+                Text = Loc.T("Save into:"),
                 Location = new Point(12, 72),
                 Size = new Size(70, 20),
                 TextAlign = ContentAlignment.MiddleLeft
             };
+            fl.Width = Math.Max(fl.Width, fl.PreferredWidth);
             Controls.Add(fl);
-            _folder.Location = new Point(84, 70);
-            _folder.Size = new Size(590, 22);
+            _folder.Location = new Point(Math.Max(84, fl.Right + 2), 70);
+            _folder.Size = new Size(674 - _folder.Left, 22);
             _folder.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             _folder.Text = initialFolder ?? "";
             _folder.TextChanged += (s, e) => Retarget();
             Controls.Add(_folder);
-            _btnBrowse.Text = "Browse…";
+            _btnBrowse.Text = Loc.T("Browse…");
             _btnBrowse.Location = new Point(684, 68);
             _btnBrowse.Size = new Size(84, 26);
             _btnBrowse.Anchor = AnchorStyles.Top | AnchorStyles.Right;
@@ -91,10 +92,10 @@ namespace SilentHillPC_Launcher
             _list.Location = new Point(12, 104);
             _list.Size = new Size(756, 284);
             _list.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom;
-            _list.Columns.Add("Bank", 130, HorizontalAlignment.Left);
-            _list.Columns.Add("Samples", 100, HorizontalAlignment.Left);
-            _list.Columns.Add("Source", 300, HorizontalAlignment.Left);
-            _list.Columns.Add("Note", 210, HorizontalAlignment.Left);
+            _list.Columns.Add(Loc.T("Bank"), 130, HorizontalAlignment.Left);
+            _list.Columns.Add(Loc.T("Samples"), 100, HorizontalAlignment.Left);
+            _list.Columns.Add(Loc.T("Source"), 300, HorizontalAlignment.Left);
+            _list.Columns.Add(Loc.T("Note"), 210, HorizontalAlignment.Left);
             _list.SelectedIndexChanged += (s, e) => UpdateButtons();
             _list.ItemCheck += (s, e) =>
             {
@@ -105,11 +106,25 @@ namespace SilentHillPC_Launcher
             Controls.Add(_list);
 
             int y = 400;
-            SetupButton(_btnSource, "Change source…", new Point(12, y), (s, e) => ChangeSource());
+            SetupButton(_btnSource, Loc.T("Change source…"), new Point(12, y), (s, e) => ChangeSource());
             _btnSource.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
-            SetupButton(_btnWrite, "Save", new Point(560, y), (s, e) => Accept());
+            SetupButton(_btnWrite, Loc.T("Save"), new Point(560, y), (s, e) => Accept());
             _btnWrite.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            SetupButton(_btnCancel, "Cancel", new Point(684, y), (s, e) => { DialogResult = DialogResult.Cancel; Close(); });
+            SetupButton(_btnCancel, Loc.T("Cancel"), new Point(684, y), (s, e) => { DialogResult = DialogResult.Cancel; Close(); });
+            _btnCancel.Left = 768 - _btnCancel.Width;
+
+            // The intro is three lines of English; a translation that wraps further pushes
+            // everything below it down rather than being clipped.
+            int introH = TextRenderer.MeasureText(_intro.Text, _intro.Font, new Size(_intro.Width, 0),
+                                                  TextFormatFlags.WordBreak).Height;
+            if (introH > _intro.Height)
+            {
+                int grow = introH - _intro.Height;
+                _intro.Height = introH;
+                foreach (Control c in new Control[] { fl, _folder, _btnBrowse, _list }) c.Top += grow;
+                foreach (Control c in new Control[] { _btnSource, _btnWrite, _btnCancel }) c.Top += grow;
+                ClientSize = new Size(ClientSize.Width, ClientSize.Height + grow);
+            }
             _btnCancel.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _btnCancel.DialogResult = DialogResult.Cancel;
             CancelButton = _btnCancel;
@@ -132,7 +147,7 @@ namespace SilentHillPC_Launcher
             _list.Items.Clear();
             foreach (DuplicateTarget t in _targets)
             {
-                var it = new ListViewItem(t.IsPrimary ? t.Bank + "  (this file)" : t.Bank);
+                var it = new ListViewItem(t.IsPrimary ? t.Bank + "  " + Loc.T("(this file)") : t.Bank);
                 it.SubItems.Add("");
                 it.SubItems.Add("");
                 it.SubItems.Add("");
@@ -190,31 +205,31 @@ namespace SilentHillPC_Launcher
 
             if (t.DestPath == null)
             {
-                note = "choose a folder";
+                note = Loc.T("choose a folder");
             }
             else if (untouched < 0)
             {
-                note = "cannot read: " + (err ?? "unknown error");
+                note = Loc.F("cannot read: {0}", err ?? Loc.T("unknown error"));
                 if (!t.IsPrimary) t.Selected = false;
             }
             else if (t.IsPrimary)
             {
-                note = inPlace ? "merged into the existing file"
-                     : destExists ? "overwrites the copy there" : "new file";
-                if (changed > 0) note += ", " + changed + " earlier edit" + (changed == 1 ? "" : "s") + " replaced";
+                note = Loc.T(inPlace ? "merged into the existing file"
+                           : destExists ? "overwrites the copy there" : "new file");
+                if (changed > 0) note += ", " + Loc.F("{0} earlier edit(s) replaced", changed);
             }
             else if (different == 0)
             {
-                note = inPlace ? "merged into the existing file"
-                     : destExists ? "overwrites the copy there" : "new file";
-                if (sameEdit > 0) note += ", same earlier edit as " + _targets[0].Bank + " replaced";
+                note = Loc.T(inPlace ? "merged into the existing file"
+                           : destExists ? "overwrites the copy there" : "new file");
+                if (sameEdit > 0) note += ", " + Loc.F("same earlier edit as {0} replaced", _targets[0].Bank);
                 t.Selected = true;
             }
             else
             {
                 // Neither the disc's sound nor the edited bank's: a deliberate
                 // different replacement, so it is the user's call to overwrite it.
-                note = different + " of " + t.Items.Count + " hold a different edit, left alone unless ticked";
+                note = Loc.F("{0} of {1} hold a different edit, left alone unless ticked", different, t.Items.Count);
                 t.Selected = false;
             }
 
@@ -243,7 +258,10 @@ namespace SilentHillPC_Launcher
             foreach (DuplicateTarget t in _targets) if (t.Selected) n++;
             bool folderOk = Folder.Length > 0;
             _btnWrite.Enabled = folderOk && n > 0;
-            _btnWrite.Text = n > 1 ? "Save " + n + " banks" : "Save";
+            _btnWrite.Text = n > 1 ? Loc.F("Save {0} banks", n) : Loc.T("Save");
+            int right = _btnWrite.Right;
+            _btnWrite.Width = Math.Max(_btnWrite.Width, TextRenderer.MeasureText(_btnWrite.Text, _btnWrite.Font).Width + 16);
+            _btnWrite.Left = right - _btnWrite.Width;
         }
 
         private void Accept()
@@ -252,7 +270,7 @@ namespace SilentHillPC_Launcher
             try { Path.GetFullPath(folder); }
             catch
             {
-                MessageBox.Show(this, "That is not a usable folder path.", "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(this, Loc.T("That is not a usable folder path."), Loc.T("Audio"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             foreach (DuplicateTarget t in _targets)
@@ -262,8 +280,8 @@ namespace SilentHillPC_Launcher
                 int sameEdit;
                 if (t.Classify(null, out sameEdit, out err) < 0)
                 {
-                    MessageBox.Show(this, t.Bank + ": the source cannot be read.\n\n" + err,
-                        "Audio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(this, Loc.F("{0}: the source cannot be read.\n\n{1}", t.Bank, err),
+                        Loc.T("Audio"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
             }
@@ -275,7 +293,7 @@ namespace SilentHillPC_Launcher
         {
             using (var d = new FolderBrowserDialog())
             {
-                d.Description = "Folder to save the banks into (the game reads gamedata\\load\\SND)";
+                d.Description = Loc.T("Folder to save the banks into (the game reads gamedata\\load\\SND)");
                 string cur = Folder;
                 if (cur.Length > 0 && Directory.Exists(cur)) d.SelectedPath = cur;
                 else if (!string.IsNullOrEmpty(_lastDir) && Directory.Exists(_lastDir)) d.SelectedPath = _lastDir;
@@ -291,8 +309,8 @@ namespace SilentHillPC_Launcher
 
             using (var d = new OpenFileDialog())
             {
-                d.Title = "Bank to start the " + t.Bank + " rewrite from";
-                d.Filter = "PSX sound banks (*.vab)|*.vab|All files (*.*)|*.*";
+                d.Title = Loc.F("Bank to start the {0} rewrite from", t.Bank);
+                d.Filter = Loc.T("PSX sound banks") + " (*.vab)|*.vab|" + Loc.T("All files") + " (*.*)|*.*";
                 d.FileName = Path.GetFileName(t.SourcePath ?? (t.Bank + ".VAB"));
                 string dir = string.IsNullOrEmpty(t.SourcePath) ? null : Path.GetDirectoryName(t.SourcePath);
                 if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir)) d.InitialDirectory = dir;
@@ -305,10 +323,10 @@ namespace SilentHillPC_Launcher
                     // The sample indices were found in THIS bank's layout, so a file
                     // for a different bank would put the sound into an unrelated slot.
                     if (MessageBox.Show(this,
-                            "That file is named " + stem + ", not " + t.Bank + ". The sample numbers " +
-                            "belong to " + t.Bank + " and may land on different sounds in another " +
-                            "bank. Use it anyway?",
-                            "Audio", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                            Loc.F("That file is named {0}, not {1}. The sample numbers " +
+                                  "belong to {1} and may land on different sounds in another " +
+                                  "bank. Use it anyway?", stem, t.Bank),
+                            Loc.T("Audio"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                         return;
                 }
 

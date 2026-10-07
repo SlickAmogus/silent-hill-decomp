@@ -31,7 +31,7 @@ namespace SilentHillPC_Launcher
         {
             Result = Choice.KeepOff;
 
-            Text = "Resident textures are turned off";
+            Text = Loc.T("Resident textures are turned off");
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition = FormStartPosition.CenterParent;
             MinimizeBox = false;
@@ -44,28 +44,28 @@ namespace SilentHillPC_Launcher
                 Location = new Point(14, 14),
                 Size = new Size(492, 22),
                 Font = new Font(SystemFonts.MessageBoxFont, FontStyle.Bold),
-                Text = "Your config has resident_textures = 0.",
+                Text = Loc.T("Your config has resident_textures = 0."),
             };
 
             var body = new Label
             {
                 Location = new Point(14, 42),
                 Size = new Size(492, 150),
-                Text =
+                Text = Loc.T(
                     "This turns off the expanded texture pool and falls back to the original " +
-                    "PlayStation VRAM behaviour. With it off you can expect:\r\n\r\n" +
-                    "    •  distant walls and floors losing their textures, or showing\r\n" +
-                    "        garbled / rainbow-coloured surfaces\r\n" +
-                    "    •  more stuttering while texture packs load\r\n" +
-                    "    •  HD texture packs quietly stopping partway through a session\r\n\r\n" +
+                    "PlayStation VRAM behaviour. With it off you can expect:\n\n" +
+                    "    •  distant walls and floors losing their textures, or showing\n" +
+                    "        garbled / rainbow-coloured surfaces\n" +
+                    "    •  more stuttering while texture packs load\n" +
+                    "    •  HD texture packs quietly stopping partway through a session\n\n" +
                     "It is normally only worth using on older hardware, or if you get a lot of " +
-                    "graphical glitches with it turned on.\r\n\r\n" +
-                    "Would you like to turn it on?",
+                    "graphical glitches with it turned on.\n\n" +
+                    "Would you like to turn it on?"),
             };
 
             var yes = new Button
             {
-                Text = "&Yes, turn it on",
+                Text = Loc.T("&Yes, turn it on"),
                 Location = new Point(14, 206),
                 Size = new Size(140, 30),
                 DialogResult = DialogResult.OK,
@@ -74,7 +74,7 @@ namespace SilentHillPC_Launcher
 
             var no = new Button
             {
-                Text = "&No, leave it off",
+                Text = Loc.T("&No, leave it off"),
                 Location = new Point(162, 206),
                 Size = new Size(140, 30),
                 DialogResult = DialogResult.OK,
@@ -83,12 +83,25 @@ namespace SilentHillPC_Launcher
 
             var never = new Button
             {
-                Text = "&Don't ask again",
+                Text = Loc.T("&Don't ask again"),
                 Location = new Point(346, 206),
                 Size = new Size(160, 30),
                 DialogResult = DialogResult.OK,
             };
             never.Click += (s, e) => { Result = Choice.NeverAsk; };
+
+            // Sized for the English; translations grow the body and the buttons.
+            int bodyH = TextRenderer.MeasureText(body.Text, Font, new Size(body.Width, 0), TextFormatFlags.WordBreak).Height;
+            int grow = Math.Max(0, bodyH - body.Height);
+            body.Height += grow;
+            foreach (var b in new[] { yes, no, never })
+            {
+                b.Top += grow;
+                b.Width = Math.Max(b.Width, TextRenderer.MeasureText(b.Text, Font).Width + 18);
+            }
+            no.Left = yes.Right + 8;
+            never.Left = Math.Max(no.Right + 8, ClientSize.Width - 14 - never.Width);
+            ClientSize = new Size(Math.Max(ClientSize.Width, never.Right + 14), ClientSize.Height + grow);
 
             Controls.Add(head);
             Controls.Add(body);

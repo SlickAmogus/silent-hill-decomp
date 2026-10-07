@@ -1,6 +1,8 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Windows.Forms;
+using SilentHillPC_Launcher;
 
 internal static class Program
 {
@@ -15,8 +17,14 @@ internal static class Program
         s_singleInstance = new Mutex(false, @"Local\SilentHillPC_Launcher_SingleInstance", out createdNew);
         if (!createdNew)
         {
+            try
+            {
+                var cfg = new ConfigManager(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.cfg"));
+                Loc.Current = LauncherSettings.Load(cfg).Language;
+            }
+            catch { }
             MessageBox.Show(
-                "Silent Hill PC Launcher is already running.",
+                Loc.T("Silent Hill PC Launcher is already running."),
                 "Silent Hill PC Launcher",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
