@@ -55,7 +55,7 @@
 #define MC_PUZZLE_TAP_NEAR 40.0f /* ...and this close to the cursor, in UI px */
 
 static Uint32 s_puzzleTapMs;   /* when the last tap near the cursor landed */
-static int    s_puzzleHold;    /* this gesture confirms, so it must not drag */
+static int    s_puzzleGrab;    /* a finger has hold of the cursor and may drag it */
 static int    s_puzzleClickReq;/* the overlay's Click button */
 
 void Pc_MouseCursor_PuzzleClickRequest(void)
@@ -395,26 +395,31 @@ void Pc_MouseCursor_FrameUpdate(void)
 
             if (Pc_MouseCursor_TouchPressed() && Pc_MouseCursor_TouchDown(&tx, &ty))
             {
-                const float  dx   = (float)tx - (float)MC_OFFSET_X - s_gameCurX;
-                const float  dy   = (float)ty - (float)MC_OFFSET_Y - s_gameCurY;
-                const Uint32 now  = SDL_GetTicks();
+                const float  dx    = (float)tx - (float)MC_OFFSET_X - s_gameCurX;
+                const float  dy    = (float)ty - (float)MC_OFFSET_Y - s_gameCurY;
+                const Uint32 now   = SDL_GetTicks();
                 const int    atCur = ((dx * dx) + (dy * dy)) <=
                                      (MC_PUZZLE_TAP_NEAR * MC_PUZZLE_TAP_NEAR);
 
                 if (atCur && s_puzzleTapMs != 0 && (now - s_puzzleTapMs) <= MC_PUZZLE_DTAP_MS)
                 {
+                    /* Second tap on the cursor: confirm, and take no hold, so
+                     * the cursor cannot be nudged off the spot it is about to
+                     * act on. */
                     click         = 1;
                     s_puzzleTapMs = 0;
-                    s_puzzleHold  = 1;
+                    s_puzzleGrab  = 0;
                 }
                 else
                 {
+                    /* A press only takes hold of the cursor when it lands
+                     * within reach of it. Anywhere else does nothing at all. */
                     s_puzzleTapMs = atCur ? now : 0;
-                    s_puzzleHold  = 0;
+                    s_puzzleGrab  = atCur;
                 }
             }
             if (!s_tDown)
-                s_puzzleHold = 0;
+                s_puzzleGrab = 0;
             if (s_puzzleClickReq)
             {
                 click            = 1;
@@ -432,7 +437,15 @@ void Pc_MouseCursor_FrameUpdate(void)
         if (s_moved)
             s_servoActive = 1;
 
-        if (s_servoActive && s_haveGameCur && !s_puzzleHold)
+        /* Touch never chases the pointer. SDL puts the synthetic mouse wherever
+         * the finger lands, so the line above would have the cursor run at any
+         * touch at all: pressing the Click button in the corner sent it skidding
+         * into the screen edge, fighting a target it could not reach. It moves
+         * only while a finger has hold of it. */
+        if (touch)
+            s_servoActive = s_puzzleGrab;
+
+        if (s_servoActive && s_haveGameCur)
         {
             /* The mouse target and the puzzle's own cursor are both framebuffer
              * centre-origin pixels (the MC_OFFSET reference cancels), so steer the
