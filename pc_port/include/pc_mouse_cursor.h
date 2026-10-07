@@ -95,6 +95,11 @@ unsigned int Pc_MouseCursor_BoundPadBits(void);
  * regardless of the active camera. */
 int Pc_MouseCursor_PuzzleActive(void);
 
+/* The overlay's Click button, for free-cursor puzzles on a touchscreen: clicks
+ * wherever the cursor is standing. Touch does not click by dragging, so this
+ * and a double tap at the cursor are the only ways to act there. */
+void Pc_MouseCursor_PuzzleClickRequest(void);
+
 /* Draw the mouse cursor sprite at the current pointer position. Call during a
  * menu's render (needs the 2D packet buffer + ordering table set up). */
 void Pc_MouseCursor_Draw(void);

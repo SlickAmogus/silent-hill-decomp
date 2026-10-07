@@ -40,7 +40,8 @@ enum { TR_NONE = 0, TR_MOVE, TR_LOOK, TR_BUTTON, TR_ADVANCE,
 /* Actions the on-screen buttons drive. Indices into s_Buttons. */
 enum { TB_AIM = 0, TB_ITEM, TB_MAP, TB_START, TB_RUN, TB_BACK, TB_FIRE, TB_MENU,
        TB_SKIP,
-       TB_LIGHT, TB_VIEW, TB_CAM, TB_QSAVE, TB_QLOAD, TB_BONUS, TB_COUNT };
+       TB_LIGHT, TB_VIEW, TB_CAM, TB_QSAVE, TB_QLOAD, TB_BONUS, TB_CLICK,
+       TB_COUNT };
 
 typedef struct
 {
@@ -107,6 +108,10 @@ static s_TouchButton s_Buttons[TB_COUNT] = {
      * unreachable without a pad. Under the quick menu button on the left, well
      * clear of the corner Back on the right. */
     [TB_BONUS] = { 0.080f, 0.330f, 0.055f, 0 },
+    /* Free-cursor puzzles only, in the corner opposite Back: clicks wherever
+     * the cursor is. Touch drags the cursor and never clicks on its own, so
+     * this and a double tap at the cursor are the only ways to act. */
+    [TB_CLICK] = { 0.080f, 0.842f, 0.055f, 0 },
     /* Quick Save / Quick Load, only with touch_quicksave_buttons on. Up in the
      * empty band of the top edge, a quarter in from each side, about the size
      * of Menu, Pause and View -- a shade larger, so the letter clears the ring. */
@@ -804,6 +809,16 @@ static int Tc_BonusAllowed(void)
            g_GameWork.gameStateSteps[0] == OptionsMenuState_MainOptions;
 }
 
+/* The Click button belongs to the free-cursor puzzles, not to every screen
+ * that uses the live-background mode: the save screen is TC_MODE_BACK_CURSOR
+ * too and its taps are meant to reach the list. */
+static int Tc_PuzzleClickAllowed(int mode)
+{
+    extern int Pc_MouseCursor_PuzzleActive(void);
+
+    return mode == TC_MODE_BACK_CURSOR && Pc_MouseCursor_PuzzleActive();
+}
+
 static int Tc_CornerOnly(int b)
 {
     return b == TB_BACK || b == TB_SKIP;
@@ -1195,6 +1210,20 @@ void Pc_Touch_Update(void)
                     t->role      = (onIt && solo >= 0) ? TR_BUTTON : TR_NONE;
                     t->buttonIdx = (onIt && solo >= 0) ? solo : -1;
 
+                    if (!onIt && Tc_PuzzleClickAllowed(mode))
+                    {
+                        float cdx = (vx - s_Buttons[TB_CLICK].cx) * aspect;
+                        float cdy = (vy - s_Buttons[TB_CLICK].cy);
+                        float cr  = s_Buttons[TB_CLICK].r * 1.25f;
+
+                        if (((cdx * cdx) + (cdy * cdy)) <= (cr * cr))
+                        {
+                            t->role      = TR_BUTTON;
+                            t->buttonIdx = TB_CLICK;
+                            onIt         = 1;
+                        }
+                    }
+
                     if (!onIt && Tc_BonusAllowed())
                     {
                         float bdx = (vx - s_Buttons[TB_BONUS].cx) * aspect;
@@ -1579,6 +1608,17 @@ void Pc_Touch_Update(void)
          * page. Not a controllerConfig bind: this is a menu shortcut the game
          * reads straight off the pad word. */
         if (s_Buttons[TB_BONUS].holdFrames > 0) Tc_PressAction(&s_PadWord, TG_L2);
+
+        /* Not a pad bit: the puzzle's click is injected by pc_mouse_cursor at
+         * the cursor's own position, which is the whole point of the button. */
+        {
+            static int s_clickWas;
+            const int  clickNow = (s_Buttons[TB_CLICK].holdFrames > 0);
+
+            if (clickNow && !s_clickWas)
+                Pc_MouseCursor_PuzzleClickRequest();
+            s_clickWas = clickNow;
+        }
 
         /* Opens the overlay directly rather than through a pad bind: there is
          * no PSX button for it to press. Edge-triggered on the latch, or the
@@ -2199,11 +2239,12 @@ void Pc_Touch_Draw(void)
         if (mode != TC_MODE_GAMEPLAY)
         {
             const int bonus = (i == TB_BONUS) && Tc_BonusAllowed();
+            const int click = (i == TB_CLICK) && Tc_PuzzleClickAllowed(mode);
 
-            if (i != Tc_SoloButton(mode) && !bonus)
+            if (i != Tc_SoloButton(mode) && !bonus && !click)
                 continue;
 
-            if (!bonus)
+            if (!bonus && !click)
             {
                 bcx = s_Buttons[TB_START].cx;
                 bcy = s_Buttons[TB_START].cy;
@@ -2297,6 +2338,13 @@ void Pc_Touch_Draw(void)
                     Tc_Quad(&batch, ox - a / 2, cy - a, ox - a / 2, cy + a,
                                     ox + a / 2, cy,     ox + a / 2, cy, lum);
                 }
+                break;
+            }
+            case TB_CLICK:
+            {
+                /* A filled dot: press here, and distinct from every other mark
+                 * on the overlay. */
+                Tc_Octagon(&batch, cx, cy, (r * 34) / 100, lum);
                 break;
             }
             case TB_BONUS:

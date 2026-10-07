@@ -39,6 +39,30 @@
  * mouse-sensitivity slider scales it. */
 #define MC_PUZZLE_SERVO_GAIN 8.0f
 
+/* Free-cursor puzzles on a touchscreen. A tap used to BE a click: SDL reports
+ * every finger as a left mouse button too, and the servo below injected the
+ * confirm bind from that edge, so a note sounded wherever the cursor happened
+ * to be standing on the very frame the finger landed. Tapping a key that
+ * should have been silent played one anyway, and the piano was unsolvable
+ * without a pad (reported 2026-10-07).
+ *
+ * Touch now separates aiming from acting: a finger drags the cursor and never
+ * clicks by itself. A click comes from a double tap at the cursor, or from the
+ * Click button the overlay puts in the corner opposite Back. The double tap is
+ * held out of the servo so it cannot nudge the cursor off the spot it is
+ * confirming. A mouse is untouched and still clicks directly. */
+#define MC_PUZZLE_DTAP_MS  400u  /* second tap has to land within this */
+#define MC_PUZZLE_TAP_NEAR 40.0f /* ...and this close to the cursor, in UI px */
+
+static Uint32 s_puzzleTapMs;   /* when the last tap near the cursor landed */
+static int    s_puzzleHold;    /* this gesture confirms, so it must not drag */
+static int    s_puzzleClickReq;/* the overlay's Click button */
+
+void Pc_MouseCursor_PuzzleClickRequest(void)
+{
+    s_puzzleClickReq = 1;
+}
+
 /* Per-frame pointer state, in logical 320x240 coords. */
 static float s_gx, s_gy, s_prevGx, s_prevGy;
 static float s_vx, s_vy;   /* normalized 0..1 inside the presented picture */
@@ -357,18 +381,58 @@ void Pc_MouseCursor_FrameUpdate(void)
     /* ---- Free-cursor puzzle servo (piano / plate / door / map pan) ---- */
     if (s_puzzleFrames > 0)
     {
-        float sens = g_PcConfig.mouseSensitivity;
-        int   sx = 0, sy = 0;
+        float     sens  = g_PcConfig.mouseSensitivity;
+        int       sx = 0, sy = 0;
+        const int touch = Pc_MouseCursor_TouchDriving();
+        int       click = 0, cancel = 0;
 
         if (sens <= 0.0f)
             sens = 1.0f;
+
+        if (touch)
+        {
+            int tx, ty;
+
+            if (Pc_MouseCursor_TouchPressed() && Pc_MouseCursor_TouchDown(&tx, &ty))
+            {
+                const float  dx   = (float)tx - (float)MC_OFFSET_X - s_gameCurX;
+                const float  dy   = (float)ty - (float)MC_OFFSET_Y - s_gameCurY;
+                const Uint32 now  = SDL_GetTicks();
+                const int    atCur = ((dx * dx) + (dy * dy)) <=
+                                     (MC_PUZZLE_TAP_NEAR * MC_PUZZLE_TAP_NEAR);
+
+                if (atCur && s_puzzleTapMs != 0 && (now - s_puzzleTapMs) <= MC_PUZZLE_DTAP_MS)
+                {
+                    click         = 1;
+                    s_puzzleTapMs = 0;
+                    s_puzzleHold  = 1;
+                }
+                else
+                {
+                    s_puzzleTapMs = atCur ? now : 0;
+                    s_puzzleHold  = 0;
+                }
+            }
+            if (!s_tDown)
+                s_puzzleHold = 0;
+            if (s_puzzleClickReq)
+            {
+                click            = 1;
+                s_puzzleClickReq = 0;
+            }
+        }
+        else
+        {
+            click  = s_leftEdge;
+            cancel = s_rightEdge;
+        }
 
         /* A mouse move (re)engages absolute tracking; it releases once the cursor
          * has caught up to the pointer, so an idle mouse won't fight a real pad. */
         if (s_moved)
             s_servoActive = 1;
 
-        if (s_servoActive && s_haveGameCur)
+        if (s_servoActive && s_haveGameCur && !s_puzzleHold)
         {
             /* The mouse target and the puzzle's own cursor are both framebuffer
              * centre-origin pixels (the MC_OFFSET reference cancels), so steer the
@@ -397,9 +461,9 @@ void Pc_MouseCursor_FrameUpdate(void)
             if (sx != 0) g_Controller0->sticks_24.sticks_0.leftX = (s8)sx;
             if (sy != 0) g_Controller0->sticks_24.sticks_0.leftY = (s8)sy;
 
-            if (s_leftEdge)
+            if (click)
                 g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.enter;
-            if (s_rightEdge)
+            if (cancel)
                 g_Controller0->clickedBtnFlags |= g_GameWorkPtr->config.controllerConfig.cancel;
         }
         s_puzzleFrames--;
