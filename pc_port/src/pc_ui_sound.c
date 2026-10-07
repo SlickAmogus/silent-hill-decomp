@@ -25,7 +25,7 @@
 #include "pc_ui_sound.h"
 #include "sh_log.h"
 
-enum { SND_AL = 1, SND_SDL };
+enum { SND_AL = 1, SND_SDL, SND_CUE };
 
 struct PcUiSound
 {
@@ -38,6 +38,9 @@ struct PcUiSound
     Uint32           len;
     Uint8*           scaled;      /* one cached attenuated copy (SDL path) */
     float            scaledGain;
+    short*           pcm;         /* interleaved stereo (SND_CUE) */
+    Uint32           frames;
+    int              rate;
 };
 
 PcUiSound* PcUiSound_Load(const char* path)
@@ -69,7 +72,40 @@ PcUiSound* PcUiSound_Load(const char* path)
         return NULL;
     }
 
-#if !defined(SH_NO_OPENAL)
+#if defined(SH_NO_OPENAL)
+    /* No OpenAL here, and SDL hands out a single output device which the SPU
+     * already holds: opening another was refused every time, so the cue was
+     * silent ("Audio device already open"). Hand the samples to the mixer
+     * instead, which needs no device of its own. Mono is doubled up because the
+     * mixer takes stereo; the rate is passed through untouched and stepped
+     * against the SPU's own, so it plays at pitch. */
+    {
+        const Uint32 frames = len / (Uint32)(2 * spec.channels);
+        Uint32       i;
+
+        snd->pcm = (short*)malloc((size_t)frames * 2u * sizeof(short));
+        if (!snd->pcm)
+        {
+            SDL_FreeWAV(wav);
+            free(snd);
+            return NULL;
+        }
+        for (i = 0; i < frames; i++)
+        {
+            const short* src = (const short*)wav + (size_t)i * spec.channels;
+
+            snd->pcm[i * 2]     = src[0];
+            snd->pcm[i * 2 + 1] = (spec.channels == 2) ? src[1] : src[0];
+        }
+        snd->frames = frames;
+        snd->rate   = (int)spec.freq;
+        snd->kind   = SND_CUE;
+        SDL_FreeWAV(wav);
+        SH_DBG("[UISND] loaded %s (%u frames @ %d Hz, engine mixer)",
+               path, (unsigned)frames, snd->rate);
+        return snd;
+    }
+#else
     if (alcGetCurrentContext())
     {
         alGenBuffers(1, &snd->alBuf);
@@ -126,6 +162,15 @@ void PcUiSound_PlayGain(PcUiSound* snd, float gain)
     }
     else
 #endif
+    if (snd->kind == SND_CUE)
+    {
+        extern int PsyX_AudioPlayUiCue(const short* samples, unsigned frames,
+                                       unsigned sourceRate, float gain);
+
+        PsyX_AudioPlayUiCue(snd->pcm, snd->frames, (unsigned)snd->rate, gain);
+        return;
+    }
+
     if (snd->kind == SND_SDL)
     {
         const Uint8* play = snd->wav;
