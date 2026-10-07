@@ -83,7 +83,7 @@ static void Coop_RefreshServerList(void)
 {
     if (ShSession_Active()) return;
     if (!g_PcConfig.onlineServer[0]) return;
-    ShSession_RequestListServer(Coop_ServerIp(), Coop_ServerPort());
+    ShSession_RequestListServer(Coop_ServerIp(), Coop_ServerPort(), 1);
 }
 
 /* ------------------------------------------------------------------ */
@@ -152,7 +152,7 @@ static void Coop_CommitEdit(void)
         }
         if (host[0])
         {
-            ShSession_RequestJoinServer(host, port, 0); /* 0 = the host's room */
+            ShSession_RequestJoinServer(host, port, 0, 0); /* direct IP; 0 = the host's room */
             s_page = COOP_PAGE_ROOMS;
             s_sel  = 0;
         }
@@ -162,7 +162,7 @@ static void Coop_CommitEdit(void)
         int code = atoi(s_editBuf);
         if (code > 0)
         {
-            ShSession_RequestJoinServer(Coop_ServerIp(), Coop_ServerPort(), code);
+            ShSession_RequestJoinServer(Coop_ServerIp(), Coop_ServerPort(), code, 1);
             s_page = COOP_PAGE_ROOMS;
             s_sel  = 0;
         }
@@ -321,7 +321,7 @@ static void Coop_StartHosting(void)
     }
     else if (s_hostMode == COOP_HOST_SERVER)
     {
-        ShSession_RequestHostServer(Coop_ServerIp(), Coop_ServerPort(), s_setMaxPlayers, !s_setPublic);
+        ShSession_RequestHostServer(Coop_ServerIp(), Coop_ServerPort(), s_setMaxPlayers, !s_setPublic, 1);
     }
     else /* this PC: run the relay in-process */
     {
@@ -622,7 +622,7 @@ static void Coop_Confirm(void)
     case COOP_PAGE_JOIN:
         if (s_sel == 0) /* browse the server's open rooms */
         {
-            ShSession_RequestListServer(Coop_ServerIp(), Coop_ServerPort());
+            ShSession_RequestListServer(Coop_ServerIp(), Coop_ServerPort(), 1);
             s_page = COOP_PAGE_ROOMS;
             s_sel  = 0;
         }
@@ -644,12 +644,12 @@ static void Coop_Confirm(void)
             int code = 0;
             ShSession_RoomGet(s_sel, &code, NULL, NULL, NULL, 0);
             if (code > 0)
-                ShSession_RequestJoinServer(Coop_ServerIp(), Coop_ServerPort(), code);
+                ShSession_RequestJoinServer(Coop_ServerIp(), Coop_ServerPort(), code, 1);
             /* The guest boots when the host starts (title.c takes the world). */
         }
         else if (s_sel == rc) /* Refresh */
         {
-            ShSession_RequestListServer(Coop_ServerIp(), Coop_ServerPort());
+            ShSession_RequestListServer(Coop_ServerIp(), Coop_ServerPort(), 1);
         }
         else { s_page = COOP_PAGE_JOIN; s_sel = 0; }
         break;

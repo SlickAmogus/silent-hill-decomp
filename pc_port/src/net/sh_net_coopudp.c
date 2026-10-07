@@ -17,6 +17,7 @@
 #include "pc_config.h"
 #include "sh_log.h"
 #include "sh_master_embed.h"
+#include "sh_net.h" /* ShNet_World*: ride the living-world link when unified */
 
 #include <SDL.h> /* SDL_CreateThread for the embedded relay */
 
@@ -37,6 +38,7 @@ static ShNetSock*   s_sock;
 static ShNetAddr    s_server;
 static int          s_haveServer;
 static int          s_connected;
+static int          s_shared;        /* 1 = riding the living-world link, not our socket */
 static shn_u32      s_session;
 static shn_u32      s_selfId;
 static char         s_name[SHNET_NAME_MAX];
@@ -75,6 +77,11 @@ static void CoopUdp_SetStatus(const char* s)
 
 static void CoopUdp_SendRaw(const shn_u8* buf, int len)
 {
+    if (s_shared)
+    {
+        ShNet_WorldSendCoop(buf, len); /* out on the living-world socket */
+        return;
+    }
     if (s_sock && s_haveServer)
     {
         ShNetPlat_Send(s_sock, &s_server, buf, len);
@@ -225,6 +232,36 @@ static void CoopUdp_OnRelay(const shn_u8* p, int len)
     s_rxHead = next;
 }
 
+/* Unified transport: ride the living-world client's connection instead of our
+ * own socket, so a player on the community server uses ONE link -- and one
+ * server slot -- for both the living world and co-op. The living-world worker
+ * feeds us room/relay packets via CoopUdp_OnWorldPacket; our sends go out on its
+ * socket (CoopUdp_SendRaw). Both run on that worker thread, so no locks. */
+void CoopUdp_UseWorldLink(void)
+{
+    s_shared     = 1;
+    s_haveServer = 1;
+    s_connected  = 1;
+    s_session    = ShNet_WorldSession();
+    s_selfId     = ShNet_WorldSelfId();
+    SDL_strlcpy(s_name, g_PcConfig.onlineName[0] ? g_PcConfig.onlineName : "Player", sizeof(s_name));
+    CoopUdp_SetStatus("On the community server");
+}
+
+void CoopUdp_OnWorldPacket(int type, const shn_u8* p, int len)
+{
+    if (!s_shared) return;
+    switch (type)
+    {
+    case SHNET_MSG_ROOM_JOINED: CoopUdp_ReadRoster(p, len, 1); break;
+    case SHNET_MSG_ROOM_ROSTER: CoopUdp_ReadRoster(p, len, 0); break;
+    case SHNET_MSG_ROOM_REJECT: CoopUdp_OnReject(p, len);      break;
+    case SHNET_MSG_ROOM_LIST:   CoopUdp_OnRoomList(p, len);    break;
+    case SHNET_MSG_COOP_RELAY:  CoopUdp_OnRelay(p, len);       break;
+    default: break;
+    }
+}
+
 static void CoopUdp_Drain(unsigned int now)
 {
     shn_u8    buf[SHNET_MTU];
@@ -373,6 +410,7 @@ void CoopUdp_Disconnect(void)
 {
     CoopUdp_Leave();
     CoopUdp_StopServer(); /* if we were the listen host, tear the relay down too */
+    s_shared     = 0;     /* stop riding the living-world link (it stays up) */
     s_haveServer = 0;
     s_connected  = 0;
     s_session    = 0;
@@ -382,7 +420,26 @@ void CoopUdp_Disconnect(void)
 
 void CoopUdp_Tick(unsigned int nowMs)
 {
-    if (!s_inited || !s_haveServer) return;
+    if (!s_inited) return;
+
+    if (s_shared)
+    {
+        /* The living-world link carries co-op; room/relay packets arrive via
+         * CoopUdp_OnWorldPacket. Just track its session/self, and stand down if
+         * that link dropped. */
+        if (!ShNet_WorldConnected())
+        {
+            s_shared = 0; s_connected = 0; s_haveServer = 0;
+            s_room = 0; s_hostId = 0; s_memberCount = 0;
+            CoopUdp_SetStatus("");
+            return;
+        }
+        s_session = ShNet_WorldSession();
+        s_selfId  = ShNet_WorldSelfId();
+        return;
+    }
+
+    if (!s_haveServer) return;
 
     if (!s_connected)
     {

@@ -132,6 +132,16 @@ int         ShNet_PingMs(void);
 unsigned int ShNet_SelfId(void);
 int         ShNet_ServerFlags(void);   /* SHNET_SF_* the server admitted to */
 
+/* Unified co-op transport. Co-op can ride this connection rather than opening a
+ * second one; these are called only from the network worker thread (from
+ * CoopUdp while ShSession_Tick runs). WorldSendCoop sends a prebuilt co-op
+ * packet on the worker's socket; the worker's receive loop hands inbound
+ * room/relay packets to CoopUdp_OnWorldPacket. */
+int          ShNet_WorldConnected(void);
+unsigned int ShNet_WorldSelfId(void);
+unsigned int ShNet_WorldSession(void);
+void         ShNet_WorldSendCoop(const unsigned char* buf, int len);
+
 /* ------------------------------------------------------------------ */
 /* Ghosts — the other players in THIS map, already filtered by the server      */
 /* ------------------------------------------------------------------ */

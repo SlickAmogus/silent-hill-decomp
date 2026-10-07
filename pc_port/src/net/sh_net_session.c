@@ -17,6 +17,7 @@
 #include <SDL.h>
 
 #include "sh_net_proto.h"
+#include "sh_net.h"
 #include "sh_net_session.h"
 #include "sh_net_steam.h"
 #include "sh_net_coopudp.h"
@@ -92,6 +93,7 @@ static struct
     int                coopJoinCode;
     int                coopListen;     /* host the relay in-process (this PC) */
     int                coopHidden;     /* server room not listed (join by code) */
+    int                coopUseWorld;   /* ride the living-world link if connected */
     int                wantHostServer;
     int                wantJoinServer;
     int                wantListServer;
@@ -225,7 +227,7 @@ void ShSession_RequestHost(void)
     SDL_UnlockMutex(s_lock);
 }
 
-void ShSession_RequestHostServer(const char* host, int port, int maxPlayers, int hidden)
+void ShSession_RequestHostServer(const char* host, int port, int maxPlayers, int hidden, int useWorld)
 {
     if (!s_lock || !host || !host[0]) return;
     SDL_LockMutex(s_lock);
@@ -234,6 +236,7 @@ void ShSession_RequestHostServer(const char* host, int port, int maxPlayers, int
     s_req.coopMax        = maxPlayers;
     s_req.coopListen     = 0;
     s_req.coopHidden     = hidden ? 1 : 0;
+    s_req.coopUseWorld   = useWorld ? 1 : 0;
     s_req.wantHostServer = 1;
     SDL_UnlockMutex(s_lock);
 }
@@ -247,27 +250,30 @@ void ShSession_RequestHostListen(int port, int maxPlayers)
     s_req.coopMax        = maxPlayers;
     s_req.coopListen     = 1;
     s_req.coopHidden     = 0;
+    s_req.coopUseWorld   = 0;
     s_req.wantHostServer = 1;
     SDL_UnlockMutex(s_lock);
 }
 
-void ShSession_RequestJoinServer(const char* host, int port, int code)
+void ShSession_RequestJoinServer(const char* host, int port, int code, int useWorld)
 {
-    if (!s_lock || !host || !host[0] || code <= 0) return;
+    if (!s_lock || !host || !host[0] || code < 0) return;
     SDL_LockMutex(s_lock);
     SDL_strlcpy(s_req.coopHost, host, sizeof(s_req.coopHost));
     s_req.coopPort       = port ? port : SHNET_DEFAULT_PORT;
+    s_req.coopUseWorld   = useWorld ? 1 : 0;
     s_req.coopJoinCode   = code;
     s_req.wantJoinServer = 1;
     SDL_UnlockMutex(s_lock);
 }
 
-void ShSession_RequestListServer(const char* host, int port)
+void ShSession_RequestListServer(const char* host, int port, int useWorld)
 {
     if (!s_lock || !host || !host[0]) return;
     SDL_LockMutex(s_lock);
     SDL_strlcpy(s_req.coopHost, host, sizeof(s_req.coopHost));
     s_req.coopPort       = port ? port : SHNET_DEFAULT_PORT;
+    s_req.coopUseWorld   = useWorld ? 1 : 0;
     s_req.wantListServer = 1;
     SDL_UnlockMutex(s_lock);
 }
@@ -781,7 +787,7 @@ void ShSession_Tick(unsigned int nowMs)
     int                hostGuestDebug;
 
     char               coopHost[80];
-    int                coopPort, coopMax, coopJoinCode, coopListen, coopHidden;
+    int                coopPort, coopMax, coopJoinCode, coopListen, coopHidden, coopUseWorld;
     int                wantHostServer, wantJoinServer, wantListServer;
 
     if (!s_lock)
@@ -813,6 +819,7 @@ void ShSession_Tick(unsigned int nowMs)
     coopJoinCode    = s_req.coopJoinCode;
     coopListen      = s_req.coopListen;
     coopHidden      = s_req.coopHidden;
+    coopUseWorld    = s_req.coopUseWorld;
     wantHostServer  = s_req.wantHostServer;
     wantJoinServer  = s_req.wantJoinServer;
     wantListServer  = s_req.wantListServer;
@@ -833,6 +840,7 @@ void ShSession_Tick(unsigned int nowMs)
     s_req.wantListServer = 0;
     s_req.coopListen     = 0;
     s_req.coopHidden     = 0;
+    s_req.coopUseWorld   = 0;
     SDL_UnlockMutex(s_lock);
 
     /* A Steam invite accepted in the overlay outranks an in-game Steam host,
@@ -861,7 +869,8 @@ void ShSession_Tick(unsigned int nowMs)
     {
         if (s_enabled) ShSteam_LeaveLobby();
         s_backend = COOP_BACKEND_UDP;
-        CoopUdp_SetServer(coopHost, (unsigned short)coopPort);
+        if (coopUseWorld && ShNet_WorldConnected()) CoopUdp_UseWorldLink();
+        else                                        CoopUdp_SetServer(coopHost, (unsigned short)coopPort);
         CoopUdp_JoinRoom((unsigned short)coopJoinCode);
     }
     else if (wantHostServer)
@@ -874,7 +883,8 @@ void ShSession_Tick(unsigned int nowMs)
         }
         else
         {
-            CoopUdp_SetServer(coopHost, (unsigned short)coopPort);
+            if (coopUseWorld && ShNet_WorldConnected()) CoopUdp_UseWorldLink();
+            else                                        CoopUdp_SetServer(coopHost, (unsigned short)coopPort);
             CoopUdp_CreateRoom(coopMax, coopHidden);
         }
     }
@@ -896,7 +906,8 @@ void ShSession_Tick(unsigned int nowMs)
     /* A room-list query does not change the active transport. */
     if (wantListServer)
     {
-        CoopUdp_SetServer(coopHost, (unsigned short)coopPort);
+        if (coopUseWorld && ShNet_WorldConnected()) CoopUdp_UseWorldLink();
+        else                                        CoopUdp_SetServer(coopHost, (unsigned short)coopPort);
         CoopUdp_RequestRoomList();
     }
 

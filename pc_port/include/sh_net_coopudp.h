@@ -28,6 +28,13 @@ void CoopUdp_Tick(unsigned int nowMs); /* pump: resolve, hello, ping, drain recv
  * the address will not resolve. Switching servers drops any current room. */
 int  CoopUdp_SetServer(const char* host, unsigned short port);
 
+/* Unified transport: ride the living-world client's existing connection instead
+ * of opening our own socket (used when co-op is on the same server the living
+ * world is connected to). The living-world worker feeds inbound room/relay
+ * packets here. Both run on that worker thread. */
+void CoopUdp_UseWorldLink(void);
+void CoopUdp_OnWorldPacket(int type, const unsigned char* p, int len);
+
 /* Host co-op on THIS PC: start the relay in-process (no separate server) and
  * connect to it on loopback. Guests reach it at this machine's own address. */
 void CoopUdp_HostListen(unsigned short port, int maxPlayers);

@@ -31,6 +31,7 @@
 #include "sh_net_platform.h"
 #include "sh_net_internal.h"
 #include "sh_net_session.h"
+#include "sh_net_coopudp.h" /* unified co-op rides this connection */
 #include "sh_net_steam.h"
 #include "pc_config.h"
 #include "sh_log.h"
@@ -233,6 +234,23 @@ typedef struct
 static void ShNetW_Send(ShNetWorker* w, const unsigned char* buf, int len)
 {
     ShNetPlat_Send(w->sock, &w->server, buf, len);
+}
+
+/* The live worker, for the unified co-op path. Set once the worker starts and
+ * only ever touched from that one thread, so no synchronisation is needed. */
+static ShNetWorker* s_activeW;
+
+int ShNet_WorldConnected(void)
+{
+    return s_activeW && s_activeW->sock && s_sh.status == SHNET_ST_CONNECTED && s_sh.selfId != 0;
+}
+
+unsigned int ShNet_WorldSelfId(void)  { return s_sh.selfId; }
+unsigned int ShNet_WorldSession(void) { return s_activeW ? s_activeW->session : 0; }
+
+void ShNet_WorldSendCoop(const unsigned char* buf, int len)
+{
+    if (s_activeW && s_activeW->sock) ShNetW_Send(s_activeW, buf, len);
 }
 
 static void ShNetW_SendHello(ShNetWorker* w, int charaId)
@@ -787,6 +805,15 @@ static void ShNetW_Receive(ShNetWorker* w, unsigned int now)
                 s_sh.chatInHead = next;
             }
             break;
+        case SHNET_MSG_ROOM_JOINED:
+        case SHNET_MSG_ROOM_ROSTER:
+        case SHNET_MSG_ROOM_REJECT:
+        case SHNET_MSG_ROOM_LIST:
+        case SHNET_MSG_COOP_RELAY:
+            /* Unified co-op: the room/relay half of this connection, handed to
+             * the co-op client that is riding this link. */
+            CoopUdp_OnWorldPacket((int)type, pay, (int)payLen);
+            break;
         default:
             break;
         }
@@ -805,6 +832,7 @@ static int SDLCALL ShNet_Worker(void* unused)
 
     (void)unused;
     memset(&w, 0, sizeof(w));
+    s_activeW = &w;
 
     if (!ShNetPlat_Init())
     {
